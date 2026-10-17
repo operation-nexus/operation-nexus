@@ -25,7 +25,7 @@ Define every input the system reads that isn't code: runtime settings, balance t
 - **CFG-1** Every config kind MUST have a schema in `contracts/config/` (JSON Schema), with generated Pydantic models (ADR-0004). Unknown keys MUST be rejected (`additionalProperties: false`).
 - **CFG-2** Required keys MUST NOT have code defaults. A missing required key MUST fail startup with a message naming the key and file (DI-7). Optional keys MUST state their absent-meaning in the schema (e.g. "absent = feature off"), never a substituted value.
 - **CFG-3** Balance and content files MUST be hashed canonically (§4.4). The resulting `config_hash` MUST be stored on the campaign record and in every snapshot and replay header.
-- **CFG-4** Values that affect sim state MUST NOT change mid-campaign except through a logged `AdminCommand(ReloadBalance)` applied at a tick boundary, and only for keys marked hot-reloadable (§5). Replays MUST reproduce the reload.
+- **CFG-4** Values that affect sim state MUST NOT change mid-campaign except through a logged `OP_CONFIG_RELOAD` command (CONTRACTS §5.2) applied at a tick boundary, and only for keys marked hot-reloadable (§5). Replays MUST reproduce the reload.
 - **CFG-5** Every balance key MUST carry its unit in the schema (`unit` annotation) and in this spec. All rates are per second of **sim** time unless the unit says otherwise (SIM-CORE SC-2).
 - **CFG-6** Content cross-references (unit kinds in theaters, doctrine perks naming unit kinds, template slots) MUST be validated at load and in CI (§8).
 - **CFG-7** Secrets MUST NOT appear in any config file. Config refers to secrets by name only (`secret_ref`), and the values come from the environment / secret store (THREAT-MODEL SEC-CI, CICD §8).
@@ -70,6 +70,7 @@ Precedence: the env var `NEXUS__SECTION__KEY` overrides the file. **Every effect
 ### 4.4 Hashing & versioning
 - **Canonical form:** parse YAML, convert it to a JSON-compatible tree, sort keys, serialize as UTF-8 JSON with no insignificant whitespace, then compute blake2b-256 over it. Floats are serialized with Python `repr` round-trip precision. YAML anchors and aliases are expanded before hashing.
 - **`config_hash`** = blake2b-256 over the concatenation of the canonical hashes, in a fixed order: `balance`, `units`, `doctrines`, `theater` (the one selected for the campaign), `text`.
+- **Manifest:** every `config_hash` is registered with a manifest listing each contributing file (path, kind, sha256) plus the full content, so crash bundles and replays never depend on git (DATA-MODEL §4.7).
 - **`schema_version`:** every file carries an integer `schema_version`. A loader accepts only versions it knows. A schema bump that changes meaning requires a migration script under `tools/config_migrate/` with tests.
 - **`content_version`:** a human-facing semver per content file (e.g. a theater's `version: 1.2.0`), shown in the AAR and in replay headers. It is informational only; `config_hash` is what's authoritative.
 
@@ -87,9 +88,9 @@ Precedence: the env var `NEXUS__SECTION__KEY` overrides the file. **Every effect
 1. Upload or select the new profile.
 2. Validate it.
 3. Diff it against the active profile. If the diff touches any non-hot-reloadable key, the reload is rejected.
-4. Enqueue `AdminCommand(ReloadBalance{new_partial_hash, keys})` for tick T+1.
-5. The sim applies it at the boundary and emits `BalanceReloaded{keys, old_values, new_values, admin_id}`.
-6. The campaign record appends the new effective `config_hash` along with tick T+1.
+4. Register the new config in `config_versions` (DATA-MODEL §4.7), then enqueue `OP_CONFIG_RELOAD{keys, new_config_hash}` for tick T+1.
+5. The sim applies it at the boundary and emits `BalanceReloaded{old_hash, new_hash, keys}` (CONTRACTS §6). Old and new values are recoverable from the two registered configs, so the event carries only hashes and keys.
+6. The runtime appends `(campaign_id, effective_tick = T+1, config_hash = new_hash)` to `campaign_config_history` (DATA-MODEL §4.8).
 
 Every reload is audited (who, when, diff), and is visible in the admin console history.
 
@@ -112,6 +113,7 @@ Legend: **HR** = hot-reloadable (§5). "TBD" = TBD by harness. **Source** = the 
 | `slots.respawn_delay_s` | float | s (real) | 20 | GAMEPLAY GP-2 | Yes |
 | `slots.max_viewer_units` | int | units | 300 | GAMEPLAY GP-3, Q-GD-6 | Yes |
 | `slots.reserve_queue_max` | int | entries | TBD | GAMEPLAY GP-3 | Yes |
+| `slots.idle_despawn_s` | float | s (sim) | TBD by harness (Q-SM-2) | STATE-MACHINES §4.1 | No |
 
 ### 6.3 Logistics
 | Key | Type | Unit | PROPOSED | Source | HR |
@@ -157,6 +159,9 @@ Legend: **HR** = hot-reloadable (§5). "TBD" = TBD by harness. **Source** = the 
 | `campaign.defeat` | object | — | TBD (Q-GD-7) | GAMEPLAY §9 | No |
 | `campaign.rubber_band_zone` | [float, float] | fraction of nodes | [0.55, 0.75] | GAMEPLAY §9 | No |
 | `campaign.clock_pause_below_humans` | int | humans | 1 | GAMEPLAY §9, Q-GD-4 | No |
+| `campaign.pause_after_no_humans_s` | float | s (real) | TBD by harness (Q-SM-5) | STATE-MACHINES §4.4, Q-GD-4 | No |
+| `presence.window_s` | float | s (real) | TBD | CONTRACTS §6 `PresenceSnapshot` | No |
+| `presence.emit_every_ticks` | int | ticks | TBD | CONTRACTS §6 `PresenceSnapshot` | No |
 | `campaign.night_progress_cap_nodes_per_h` | float | nodes/h (real) | 1/6 | THREAT-DIRECTOR §5, Q-GD-4 | No |
 | `campaign.aar_duration_s` | float | s (real) | 300 | GAMEPLAY §9 | Yes |
 
@@ -209,13 +214,17 @@ Legend: **HR** = hot-reloadable (§5). "TBD" = TBD by harness. **Source** = the 
 ### 7.1 Schema
 ```yaml
 schema_version: 1
+roles:                        # Role (CONTRACTS §3.3) -> UnitKind; every Role used in the MVP must map to exactly one kind
+  STRIKE: STRIKE_FIGHTER
+  RECON: RECON_UAV
+  LOGI: LOGI_TRUCK              # NAVY added in P4 (Q-GD-8)
 units:
-  - kind: STRIKE              # enum key, UPPER_SNAKE, unique
+  - kind: STRIKE_FIGHTER      # UnitKind (CONTRACTS §3.3), UPPER_SNAKE, unique
     side: COALITION           # COALITION | ENEMY | ANY
     domain: AIR               # AIR | GROUND | SEA | STATIC
     playable_by: VIEWER       # VIEWER | AI_GARRISON | DIRECTOR (one or more)
     min_rank: 1               # PROGRESSION §3; required when playable_by includes VIEWER
-    display: { symbol: "air_strike", label_key: "unit.strike" }   # OV-2 shape-coded symbol id
+    display: { symbol: "air_strike", label_key: "unit.strike_fighter" }   # OV-2 shape-coded symbol id
     speed_mps: <float>        # sim m/s
     alt_bands: [LOW, MED]     # AIR only
     hp: <int>
@@ -247,9 +256,9 @@ weapons:
 ### 7.3 MVP unit list (PROPOSED; every stat TBD by harness)
 | Kind | Side | Domain | Playable by | Min rank | Armed | Carries | Captures | Notes |
 |---|---|---|---|---|---|---|---|---|
-| STRIKE | COALITION | AIR | VIEWER, AI_GARRISON | 1 | yes (AG + AA light) | — | no | GAMEPLAY §2 |
-| RECON | COALITION | AIR | VIEWER, AI_GARRISON | 1 | no | — | no | Large sensor; paints targets |
-| LOGI_TRUCK | COALITION | GROUND | VIEWER, AI_GARRISON | 1 | no | yes | yes (slow) | Road graph only |
+| STRIKE_FIGHTER | COALITION | AIR | VIEWER, AI_GARRISON | 1 | yes (AG + AA light) | — | no | Role `STRIKE` (GAMEPLAY §2) |
+| RECON_UAV | COALITION | AIR | VIEWER, AI_GARRISON | 1 | no | — | no | Role `RECON`. Large sensor; paints targets |
+| LOGI_TRUCK | COALITION | GROUND | VIEWER, AI_GARRISON | 1 | no | yes | yes (slow) | Role `LOGI`. Road graph only |
 | GARRISON_AAA | COALITION | STATIC | AI_GARRISON | — | yes (AA short) | — | no | Node defense; labeled `[AI]` (DI-5) |
 | GARRISON_INFANTRY | COALITION | GROUND | AI_GARRISON | — | yes (light) | — | yes | Holds nodes when no viewers (Q-GD-4) |
 | ENEMY_SAM_SITE | ENEMY | STATIC | DIRECTOR | — | yes (SAM) | — | no | Engagement ring; may blink radar |
@@ -297,7 +306,7 @@ Node `kind` ∈ `AIRBASE | FOB | PORT | FACTORY | RADAR | BRIDGE | HQ | SANCTUAR
 ### 9.2 Validation rules (load + CI)
 | ID | Rule |
 |---|---|
-| TH-1 | Node `id`s match `^[a-z0-9_]{2,32}$` and are unique. Node `name`s are unique (case-insensitive, confusable-folded) and moderation-clean |
+| TH-1 | Node `id`s match the CONTRACTS `NodeId` slug `^[a-z0-9]+(-[a-z0-9]+)*$` (≤ 32 chars, no underscores) and are unique. Node `name`s are unique (case-insensitive, confusable-folded) and moderation-clean |
 | TH-2 | Every edge endpoint exists. No self-loops. No duplicate `(a,b,layer)` |
 | TH-3 | Every non-SEA node is reachable from `sanctuary` over the ROAD layer when all bridges are intact. PORT nodes must touch ≥1 SEA_LANE |
 | TH-4 | Every `bridge` reference points to a node of kind BRIDGE, and that node sits on the edge (within tolerance) |
@@ -320,16 +329,16 @@ sectors:
   - { id: west, name: "West", polygon: [[0,0],[20000,0],[20000,20000],[0,20000]] }
   - { id: east, name: "East", polygon: [[20000,0],[40000,0],[40000,20000],[20000,20000]] }
 nodes:
-  - { id: base_w,  name: "Example Sanctuary", kind: SANCTUARY, pos: [2000,10000],  start_owner: COALITION, start_stock: null, sector: west }
-  - { id: br_mid,  name: "Example Bridge",    kind: BRIDGE,    pos: [20000,10000], start_owner: NEUTRAL,   start_stock: 0,    sector: east }
-  - { id: hq_e,    name: "Example HQ",        kind: HQ,        pos: [38000,10000], start_owner: ENEMY,     start_stock: 0,    sector: east }
+  - { id: base-w,  name: "Example Sanctuary", kind: SANCTUARY, pos: [2000,10000],  start_owner: COALITION, start_stock: null, sector: west }
+  - { id: br-mid,  name: "Example Bridge",    kind: BRIDGE,    pos: [20000,10000], start_owner: NEUTRAL,   start_stock: 0,    sector: east }
+  - { id: hq-e,    name: "Example HQ",        kind: HQ,        pos: [38000,10000], start_owner: ENEMY,     start_stock: 0,    sector: east }
 edges:
-  - { a: base_w, b: hq_e, layer: ROAD, speed_mult: 1.0, bridge: br_mid }
+  - { a: base-w, b: hq-e, layer: ROAD, speed_mult: 1.0, bridge: br-mid }
 spawns:
-  - { side: COALITION, node: base_w, domains: [AIR, GROUND] }
-  - { side: ENEMY,     node: hq_e,   domains: [AIR, GROUND] }
-sanctuary: base_w
-enemy_hq: hq_e
+  - { side: COALITION, node: base-w, domains: [AIR, GROUND] }
+  - { side: ENEMY,     node: hq-e,   domains: [AIR, GROUND] }
+sanctuary: base-w
+enemy_hq: hq-e
 ```
 `start_stock: null` on the SANCTUARY means "infinite by rule", not unknown. The schema documents this explicitly (CFG-2).
 
@@ -361,7 +370,7 @@ slots:                                  # the only allowed slot types
 - If a slot's source value is absent (e.g. a commander with no approved callsign), the template's `fallback_text_key` is used. That fallback must itself contain no slot for the missing value, and its use is logged (DATA-INTEGRITY FB-3 pattern). Templates without a fallback and with an absent value are **skipped**, not filled with placeholder text.
 
 ### 10.3 Localization keys (`strings.<locale>.yaml`)
-- Keys are dotted (`unit.strike`, `sitrep.node_captured`, `hud.objective`).
+- Keys are dotted (`unit.strike_fighter`, `sitrep.node_captured`, `hud.objective`).
 - `en` is the only locale in the MVP. Every key referenced by templates, the catalog or the overlay must exist in `en` (CI check).
 - Interpolation uses named slots `{node_name}`, never positional ones.
 - Strings are plain text. No HTML or markup is allowed (WP-6, SEC-OV-1).
@@ -372,7 +381,7 @@ slots:                                  # the only allowed slot types
 - A negative fixture for each schema (missing required key, wrong type, unknown key) proves the loader rejects it.
 
 ### 11.2 Cross-reference checks (`tools/config_lint`)
-- Unit `weapons` → weapon ids; doctrine perks → unit kinds and whitelisted stats.
+- Unit `weapons` → weapon ids; doctrine perks → unit kinds and whitelisted stats; `roles` → existing unit kinds, and catalog kinds == the CONTRACTS `UnitKind` enum.
 - Theater `spawns` domains → units for that side and domain; `display.symbol` → overlay symbol manifest.
 - Sitrep `event` → contract event types; `text_key` → `strings.en.yaml`.
 - Every balance key in §6 exists in the schema, and every schema key appears in this spec (a drift check against the spec table, parsed from markdown).
@@ -413,4 +422,4 @@ A PR without a harness run fails the `balance-report` check. A change that touch
 
 ## 14. Open questions
 - Q-GD-5 (campaign length), Q-GD-6 (unit cap), Q-GD-7 (defeat), Q-GD-9 (map), Q-GD-11 (bridge repair), Q-PROG-3 (account age).
-- New questions proposed by this spec are listed in the tracker handoff (see PR description).
+- Questions raised by this spec (Q-CFG-1…Q-CFG-7) are tracked in [OPEN-QUESTIONS](../planning/OPEN-QUESTIONS.md).

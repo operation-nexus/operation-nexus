@@ -2,6 +2,8 @@
 
 Status: Draft · Owner: — · Tracker: NX-101…NX-126, NX-150…NX-157, NX-170…NX-179, NX-190…NX-204, NX-250…NX-256 · Related ADRs: 0001, 0002, 0003, 0007, 0009
 
+> Event, command and reject-reason names come from [CONTRACTS](CONTRACTS.md); balance key names come from [CONFIG-AND-CONTENT §6](CONFIG-AND-CONTENT.md). This spec uses those names exactly.
+
 > This spec collects the lifecycle of every stateful thing in the system, so that agents implement **one** agreed set of transitions instead of inventing their own. Numbers come from other specs and are **PROPOSED** there (DATA-INTEGRITY DI-7). This spec doesn't introduce new numbers. Transitions that depend on an open owner decision are tagged with that decision's question ID.
 
 ## 1. Purpose
@@ -63,9 +65,9 @@ stateDiagram-v2
 
 | State | Event / guard | Action | Next |
 |---|---|---|---|
-| — | `!join role` and live viewer units < cap and commander has no live unit and the respawn delay has elapsed | Allocate the next sequential entity id. Choose the spawn node (closest owned base valid for the domain). Pick the loadout from node stock; below `starve_threshold`, use the reduced loadout. Debit stock. Emit `UnitSpawned`. | Spawning |
-| — | `!join` and the cap is reached | Append to the reserve queue (FIFO by `(tick, seq)`). Emit `ReserveQueued{position}`. | Reserve |
-| — | `!join` while respawn delay is active | Emit `CommandRejected{reason: respawn_delay, ready_tick}` | (no unit) |
+| — | `JOIN{role}` and live viewer units < `slots.max_viewer_units` and commander has no live unit and `slots.respawn_delay_s` has elapsed | Allocate the next sequential entity id. Map the role to its `UnitKind` (`content/units.yaml` `roles`). Choose the spawn node (closest owned base valid for the domain). Pick the loadout from node stock; below `logistics.starve_threshold`, use the reduced loadout. Debit stock. Emit `UnitSpawned`. | Spawning |
+| — | `JOIN` and the cap is reached | Append to the reserve queue (FIFO by `(target_tick, arrival_seq)`). Emit `ReserveQueueJoined{commander_id, position}`. | Reserve |
+| — | `JOIN` while `slots.respawn_delay_s` hasn't elapsed | Emit `CommandRejected{reason: RESPAWN_COOLDOWN}` | (no unit) |
 | Reserve | Slot frees | Pop the head of the FIFO and spawn as above | Spawning |
 | Spawning | Same tick, after placement | Path to the order target (theater objective by default) | EnRoute |
 | EnRoute | Inside the objective radius | — | OnStation |
@@ -76,9 +78,9 @@ stateDiagram-v2
 | Landed | Node stock > 0 | Spend stock over time and restore fuel, ammo and hp (GAMEPLAY §5). Units never heal anywhere else. | Rearming |
 | Rearming | Full, and there is an order | Path to the order | EnRoute |
 | Rearming | Node stock hits 0 | Stop. Emit `RearmStalled{node}`. | Landed |
-| Landed | Idle timeout, or `!join` with a different role while at base | Emit `UnitDespawned{reason}` | Despawned |
+| Landed | Idle for `slots.idle_despawn_s` (Q-SM-2), or `JOIN` with a different role while at base | Emit `UnitDespawned{reason: IDLE \| ROLE_SWITCH}` | Despawned |
 | any alive | hp ≤ 0 (combat resolution this tick) | Emit `UnitDestroyed{killer?, assists[]}`. Start the respawn delay for the owner. | Destroyed |
-| any alive | Owner `CommanderBanned` / `CommanderForgotten` command | Emit `UnitOrphaned` | Orphaned → Despawned next tick |
+| any alive | Owner banned (`OP_BAN` applied → `CommanderBanned`) or forgotten (`FORGET` applied → `CommanderForgotten`) | Emit `UnitOrphaned{cause: BANNED \| FORGOTTEN}` | Orphaned → Despawned next tick with `UnitDespawned{reason: OWNER_BANNED \| OWNER_FORGOTTEN}` |
 
 Notes:
 - A unit owned by `AI_GARRISON`, `ENEMY_DIRECTOR` or an NPC wingman carries an AI owner reference and must render with the AI marker (DATA-INTEGRITY DI-5).
@@ -111,9 +113,9 @@ stateDiagram-v2
 
 | State | Event / guard | Action | Next |
 |---|---|---|---|
-| Neutral / Owned | An eligible ground or logistics unit of a non-owner side enters `capture_radius`, with no opposing eligible unit present | Emit `CaptureStarted` | Capturing / Contested |
+| Neutral / Owned | An eligible ground or logistics unit of a non-owner side enters `capture.radius_m`, with no opposing eligible unit present | Emit `CaptureStarted{node_id, side}` | Capturing / Contested |
 | Capturing | Tick, still uncontested | Progress += rate × diminishing f(unit count) × `TICK_DT` | Capturing |
-| Capturing | Progress ≥ 100% | Set owner = capturer. Reset progress. Emit `NodeCaptured{by_side, participants[]}`. | Owned |
+| Capturing | Progress ≥ 100% | Set owner = capturer. Reset progress. Emit `NodeCaptured{node_id, from, to, participant_commander_ids[]}`. | Owned |
 | Capturing | Opposing eligible unit enters | Freeze progress | Contested |
 | Contested | One side's eligible units are all gone | — | Capturing (attacker remains) / Owned (defender remains) |
 | Capturing | No capturers, no opponents | — | Decaying |
@@ -156,10 +158,13 @@ stateDiagram-v2
 stateDiagram-v2
     [*] --> Setup
     Setup --> Running: theater + seed + config hash loaded and validated
-    Running --> Paused: active humans < 1 [Q-GD-4]
-    Paused --> Running: a human issues a valid command
+    Running --> Paused: no active humans [Q-GD-4]
+    Running --> Paused: OP_CAMPAIGN_PAUSE
+    Paused --> Running: human command (only if paused for no humans)
+    Paused --> Running: OP_CAMPAIGN_RESUME
     Running --> Ending: victory / defeat / time limit
-    Paused --> Ending: operator ends campaign
+    Running --> Ending: OP_CAMPAIGN_END (ABORTED)
+    Paused --> Ending: OP_CAMPAIGN_END (ABORTED)
     Ending --> AAR: final state frozen, results computed
     AAR --> Archived: AAR screen duration elapsed
     Archived --> Setup: next theater/seed selected
@@ -169,12 +174,16 @@ stateDiagram-v2
 |---|---|---|---|
 | Setup | Theater, seed and balance config pass schema validation | Record `campaign_id`, seed and config hash. Emit `CampaignStarted`. | Running |
 | Setup | Validation fails | Refuse to start. Overlay shows "CAMPAIGN SETUP FAILED" (no fallback theater). Alert. | Setup |
-| Running | Active human commanders < 1 for the configured window (**Q-GD-4**) | Pause the campaign clock. AI garrison holds. Director stays in "slow war" mode. | Paused |
-| Paused | A valid human command arrives | Resume the clock | Running |
-| Running | Victory condition held (GAMEPLAY §9), defeat (**Q-GD-7**), or time limit reached (decided by score) | Freeze inputs. Emit `CampaignEnded{result, reason}`. | Ending |
-| Ending | Results computed (top contributors per role, stats) | Write results to persistence. Emit `AARStarted`. | AAR |
-| AAR | AAR duration elapsed | Close the command log. Write the final snapshot. Mark archived. | Archived |
-| Archived | Next theater/seed chosen (rotation rule: open) | — | Setup |
+| Running | `PresenceSnapshot.active_humans` < `campaign.clock_pause_below_humans` continuously for `campaign.pause_after_no_humans_s` (**Q-GD-4**, Q-SM-5) | Pause the campaign clock. AI garrison holds. Director stays in "slow war" mode. Emit `CampaignClockPaused{reason: NO_HUMANS}`. | Paused (no humans) |
+| Running | `OP_CAMPAIGN_PAUSE` | Pause the clock. Emit `CampaignClockPaused{reason: OPERATOR}`. | Paused (operator) |
+| Paused (no humans) | A valid human command is applied | Resume the clock. Emit `CampaignClockResumed`. | Running |
+| Paused (operator) | A human command | Command is processed normally, but the clock stays paused until the operator resumes | Paused (operator) |
+| Paused (either) | `OP_CAMPAIGN_RESUME` | Resume the clock. Emit `CampaignClockResumed`. | Running |
+| Running | Victory condition held (GAMEPLAY §9), defeat (**Q-GD-7**), or time limit reached (decided by score) | Freeze inputs. Emit `CampaignEnded{result}`. | Ending |
+| Running / Paused | `OP_CAMPAIGN_END{reason}` | Freeze inputs. Emit `CampaignEnded{result: ABORTED}`. | Ending |
+| Ending | Results computed (top contributors per role, stats) | Write results to persistence. Emit `AARStarted{result, top_by_role}`. | AAR |
+| AAR | `campaign.aar_duration_s` elapsed | Close the command log. Write the final snapshot. Mark archived. | Archived |
+| Archived | Next theater/seed chosen (rotation rule: Q-SM-4) | — | Setup |
 
 **Invariants**
 - C-1: in Paused, the campaign clock and objective timers don't advance.
@@ -196,9 +205,9 @@ stateDiagram-v2
 
 | State | Event / guard | Action | Next |
 |---|---|---|---|
-| — | Objective period boundary, and campaign Running | Pick a node, weighted by frontline position, on the `director`-independent `objective` RNG stream. Emit `ObjectiveAnnounced`. | Active |
-| Active | Condition met (e.g., node captured or held) | Grant merit to participants. Emit `ObjectiveCompleted`. Queue a sitrep. | Completed |
-| Active | Timer elapsed | Emit `ObjectiveExpired` | Expired |
+| — | Objective period boundary (`campaign.objective_period_min`), and campaign Running | Pick a node, weighted by frontline position. RNG stream: pending Q-SM-1 (SIM-CORE SC-5 doesn't list an objective stream yet). Emit `ObjectiveAnnounced`. | Active |
+| Active | Condition met (e.g., node captured or held) | Grant merit to participants. Emit `ObjectiveResolved{outcome: COMPLETED}`. Queue a sitrep. | Completed |
+| Active | Timer elapsed | Emit `ObjectiveResolved{outcome: EXPIRED}` | Expired |
 
 **Invariants**
 - O-1: exactly one Active objective while the campaign is Running.
@@ -211,17 +220,17 @@ stateDiagram-v2
 ```mermaid
 stateDiagram-v2
     [*] --> ALPHA
-    ALPHA --> BRAVO: CP >= cp_bravo and dwell >= min_dwell
-    BRAVO --> ALPHA: CP < 0.8*cp_bravo and dwell >= min_dwell
-    BRAVO --> CHARLIE: CP >= cp_charlie and dwell >= min_dwell
-    CHARLIE --> BRAVO: CP < 0.8*cp_charlie and dwell >= min_dwell
+    ALPHA --> BRAVO: CP >= bravo_enter_cp and dwell ok
+    BRAVO --> ALPHA: CP < exit_ratio x bravo_enter_cp and dwell ok
+    BRAVO --> CHARLIE: CP >= charlie_enter_cp and dwell ok
+    CHARLIE --> BRAVO: CP < exit_ratio x charlie_enter_cp and dwell ok
 ```
 
 | State | Event / guard | Action | Next |
 |---|---|---|---|
-| any | Decision window (every 60 s sim time), with CP computed from the **enemy view only** (FOW-4) | Evaluate thresholds with hysteresis and minimum dwell | same / adjacent tier |
+| any | Decision window (every `director.window_s`), with CP computed from the **enemy view only** (FOW-4) | Evaluate `director.tier.bravo_enter_cp` / `director.tier.charlie_enter_cp` with hysteresis (`director.tier.exit_ratio`) and `director.tier.min_dwell_s` | same / adjacent tier |
 | any | Tier changes | Emit `ThreatTierChanged{from, to}`. Queue a sitrep. Update the HUD. | new tier |
-| any | Operator `DirectorOverride{tier}` command (OPS-ADMIN §3) | Force the tier and record the override | forced tier |
+| any | `OP_DIRECTOR_OVERRIDE{force_tier}` command (OPS-ADMIN §3) | Force the tier and record the override | forced tier |
 
 **Invariants**
 - D-1: tiers only move between adjacent levels (never ALPHA↔CHARLIE in one step).
@@ -249,12 +258,12 @@ stateDiagram-v2
 |---|---|---|---|
 | — | First valid command from an unknown `(platform, platform_user_id)` | Create the commander with a generated callsign [FB-1]. Write the audit row `created`. | Active |
 | Active | `!callsign NAME`, rank ≥ O-2, and the regex passes | Normalize, moderate, check uniqueness, then queue for approval if policy requires it (Q-MOD-1/Q-MOD-2) | CallsignPending |
-| CallsignPending | Approved | Set `callsign`, `callsign_approved = true`. Audit. | Active |
+| CallsignPending | Approved | Set `callsign`, `callsign_kind = CUSTOM`. Audit. Issue `SYS_SET_CALLSIGN` → sim emits `CallsignChanged`. | Active |
 | CallsignPending | Rejected | Keep the generated callsign. Audit with the reason. | Active |
-| Active | Twitch `channel.ban` event or admin ban | Set `banned = true`. Emit `CommanderBanned` command → the sim orphans the unit. Remove from the reserve queue. | Banned |
+| Active | Platform moderation ban event (e.g. Twitch `channel.ban`) or admin ban | Set `banned = true`. Issue `OP_BAN` (source SYSTEM for platform sync, OPERATOR for admin) → the sim emits `CommanderBanned`, orphans the unit and removes the commander from the reserve queue. | Banned |
 | Banned | Admin unban | Set `banned = false`. Audit. | Active |
-| Active / Banned | `!forget` or portal request | Mark `deleted_at`. Emit `CommanderForgotten` → orphan the unit. Stop accepting commands from the identity. | DeletionRequested |
-| DeletionRequested | Deletion job | Delete identities. Set the callsign to `[REDACTED]`. Shred the id→name mapping (SEC-DATA-2/3). | Deleted |
+| Active / Banned | `!forget` or portal request | Set `deletion_requested_at` and create the `deletion_requests` row. Issue `FORGET` → the sim emits `CommanderForgotten` and orphans the unit. Stop accepting commands from the identity. | DeletionRequested |
+| DeletionRequested | Deletion job | Delete identities. Set the callsign to the tombstone value with `callsign_kind = TOMBSTONE` and set `deleted_at` (DATA-MODEL §4.2, §6.4). Viewers see `[REDACTED]`. Shred the id→name mapping (SEC-DATA-2/3). | Deleted |
 
 **Invariants**
 - ID-1: `(platform, platform_user_id)` maps to at most one commander.
@@ -378,8 +387,8 @@ sequenceDiagram
 ```
 Failure branches:
 - Rate-limited → dropped, and a metric is recorded.
-- Cap reached → `ReserveQueued`, shown in the overlay queue counter.
-- Respawn delay → `CommandRejected`, included in the periodic digest.
+- Cap reached → `ReserveQueueJoined`, shown in the overlay queue counter.
+- Respawn delay → `CommandRejected{reason: RESPAWN_COOLDOWN}`, included in the periodic digest.
 
 ### 5.2 Kill → XP → leaderboard
 ```mermaid
@@ -392,11 +401,11 @@ sequenceDiagram
     K->>E: UnitDestroyed{killer, assists}
     E->>PR: event (async, off tick path)
     PR->>PR: apply XP table, diminishing returns, min-human rule
-    PR->>DB: batched atomic UPDATE xp = xp + ?, ledger row
+    PR->>DB: batched transaction - idempotent ledger insert + commander_stats update
     DB-->>PR: ok / error
     PR->>B: leaderboard panel data (<= 1 Hz Hud)
 ```
-If the DB write fails, XP stays queued in a bounded buffer and the failure is alerted. The leaderboard shows only persisted values, never values that weren't saved (DI-6).
+The ledger is the source of truth and `commander_stats` is derived from it in the same transaction (ADR-0003 amendment, DATA-MODEL §5). If the DB write fails, XP stays queued in a bounded buffer and the failure is alerted. The leaderboard shows only persisted values, never values that weren't saved (DI-6).
 
 ### 5.3 Capture → objective complete → sitrep
 ```mermaid
@@ -405,13 +414,13 @@ sequenceDiagram
     participant A as audio (sitrep queue)
     participant T as nexus-tts worker
     participant O as overlay
-    K->>K: NodeCaptured; objective condition met
-    K->>A: ObjectiveCompleted event
+    K->>K: NodeCaptured, objective condition met
+    K->>A: ObjectiveResolved event (COMPLETED)
     A->>A: template fill (approved callsigns, node names), moderate
     A->>T: synth request (cached by text hash)
     T-->>A: audio file path
     A->>O: Audio{sitrep_id, text, url}
-    O->>O: play on Radio bus; text in sitrep log
+    O->>O: play on Radio bus, text in sitrep log
 ```
 If TTS is down, the circuit breaker opens and the text sitrep still shows (Degraded, 4.10).
 
@@ -427,7 +436,7 @@ sequenceDiagram
     K->>M: decay counters (half-life)
     K->>K: escort op utility rises above threshold
     K->>K: select EscortConvoys(route) within tier budget
-    K-->>O: IntelAssessment event ("Enemy has reinforced convoy escorts on Route 4")
+    K-->>O: ThreatAdaptation event (INTEL line - Enemy has reinforced convoy escorts on Route 4)
 ```
 Only attacks the enemy could observe (enemy view, FOW-4) increment the counter.
 
@@ -438,11 +447,11 @@ sequenceDiagram
     participant RT as runtime
     participant PR as progression
     participant O as overlay
-    K->>RT: CampaignEnded{result, reason}
+    K->>RT: CampaignEnded{result}
     RT->>RT: freeze inputs, final snapshot, close command log
     RT->>PR: compute results per role
     PR-->>O: AAR data (approved callsigns only)
-    RT->>RT: wait AAR duration
+    RT->>RT: wait campaign.aar_duration_s
     RT->>RT: select next theater/seed, validate config
     RT->>K: start new campaign (Setup -> Running)
 ```
@@ -501,8 +510,8 @@ sequenceDiagram
     RT->>O: Control{kill_switch: on} (blank user text, mute TTS)
     RT->>K: freeze spawns (command)
     OP->>AD: ban commander X
-    AD->>RT: CommanderBanned (all linked identities)
-    RT->>K: orphan X's unit
+    AD->>RT: OP_BAN (covers all linked identities)
+    RT->>K: OP_BAN applied, CommanderBanned, X's unit orphaned
     OP->>AD: kill switch OFF
 ```
 A Twitch `channel.ban` event drives the same ban path without the owner (CHAT-GATEWAY §2).
@@ -548,7 +557,7 @@ sequenceDiagram
 ## 6. Failure modes (cross-cutting)
 | Failure | Machine affected | Required behavior |
 |---|---|---|
-| Command for a terminal unit | Unit | `CommandRejected{unit_gone}`. No exception (SC-7). |
+| Command for a terminal unit | Unit | `CommandRejected{reason: NO_ACTIVE_UNIT}`. No exception (SC-7). |
 | Ban arrives mid-capture | Unit, Node | The unit is orphaned. Its capture contribution stops the same tick. |
 | Theater config invalid at rotation | Campaign | Stay in Setup, alert, and don't substitute a theater (DI-2). |
 | Adapter flapping | Adapter | Backoff is capped. The alert fires once per incident, not once per flap. |
@@ -574,9 +583,9 @@ Paths are planned names; they're created with their tracker items.
 ## 8. Open questions
 Existing: Q-GD-4 (zero-human pause), Q-GD-7 (defeat), Q-GD-8 (sea domain), Q-GD-11 (bridge repair), Q-MOD-1/Q-MOD-2 (callsign approval).
 
-New (proposed; to be added to OPEN-QUESTIONS by the owner/architect):
+Raised by this spec (tracked in [OPEN-QUESTIONS](../planning/OPEN-QUESTIONS.md)):
 - **Q-SM-1:** should objective selection get its own RNG sub-stream (`objective`)? *Recommended: yes*, so that changing objective logic doesn't shift director randomness.
-- **Q-SM-2:** how long does a landed, idle unit stay before it despawns? *Recommended: a balance key `idle_despawn_s`, tuned by the harness.*
+- **Q-SM-2:** how long does a landed, idle unit stay before it despawns? *Recommended: balance key `slots.idle_despawn_s`, tuned by the harness.*
 - **Q-SM-3:** do callsign changes need manual owner approval, or does automatic moderation suffice? *Recommended: auto-moderation plus a review queue, with manual approval during alpha.*
 - **Q-SM-4:** campaign rotation rule after AAR: same theater with a new seed, or rotate theaters? *Recommended: same hand-authored theater with a new seed until a second theater exists.*
-- **Q-SM-5:** how long without an active human before the campaign pauses (Q-GD-4)? *Recommended: a balance key `pause_after_no_humans_s`, tuned by the harness.*
+- **Q-SM-5:** how long without an active human before the campaign pauses (Q-GD-4)? *Recommended: balance key `campaign.pause_after_no_humans_s`, tuned by the harness.*

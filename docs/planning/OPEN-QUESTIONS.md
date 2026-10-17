@@ -104,17 +104,18 @@ Legend: **Blocks** is the earliest roadmap phase that needs the answer (P0 = Fou
 | ID | Question | Recommended default | Blocks | Decision |
 |---|---|---|---|---|
 | Q-SM-1 | Give objective selection its own `objective` RNG sub-stream? | Yes. Then changing objective logic doesn't shift director randomness. | P1 | |
-| Q-SM-2 | How long does an idle landed unit linger before despawning? | Balance key `idle_despawn_s`, tuned by the harness | P1 | |
+| Q-SM-2 | How long does an idle landed unit linger before despawning? | Balance key `slots.idle_despawn_s`, tuned by the harness | P1 | |
 | Q-SM-3 | Custom callsigns: manual owner approval or automated moderation? | Automated moderation + review queue. Manual approval during alpha. | P3 | |
 | Q-SM-4 | After the AAR, same theater with a new seed or rotate theaters? | Same hand-authored theater with a new seed until a second theater exists | P1 | |
-| Q-SM-5 | How long with no active humans before the campaign clock pauses? | Balance key `pause_after_no_humans_s`, tuned by the harness | P1 | |
+| Q-SM-5 | How long with no active humans before the campaign clock pauses? | Balance key `campaign.pause_after_no_humans_s`, tuned by the harness | P1 | |
 | Q-CT-1 | Chat over the length cap: reject or truncate? | Reject. Truncation could turn it into a different valid command. | P2 | |
 | Q-CT-2 | Is the campaign seed public? | Hidden during the campaign, published after `CampaignEnded` | P1 | |
 | Q-CT-3 | Show tracers from enemy shooters we can't see? | No for MVP. Revisit after the readability study (NX-034). | P2 | |
 | Q-CT-4 | Show an "active humans" count on stream? | Yes. Humans only; shows `—` until known. | P2 | |
-| Q-CT-5 | MVP enemy/garrison unit roster (SAM, garrison ground, enemy armor, enemy convoy)? | Confirm once the first theater sketch exists (NX-008) | P1 | |
+| Q-CT-5 | MVP enemy/garrison unit roster (garrison AAA and infantry; enemy SAM site, radar, fighter, armor, convoy)? | Confirm once the first theater sketch exists (NX-008) | P1 | |
 | Q-DM-1 | Archive old XP ledger rows yearly, keeping derived stats? | Yes, once the ledger passes about 1 GB (size is an ESTIMATE; measure it) | P5 | |
 | Q-DM-2 | Access control on the public replay viewer? | Not for v1. Replays are pseudonymous, and deleted users show `REDACTED-…`. | P5 | |
+| Q-ARCH-6 | Accept the ADR-0003 amendment: XP and merit become append-only, idempotent ledgers (source of truth) with `commander_stats` derived in the same transaction, replacing `UPDATE … SET xp = xp + ?`? | Accept. Prevents double-counting after crash replay and gives an audit trail. | P1 | |
 | Q-OPS-6 | Off-site backup destination? | S3-compatible object storage, `age`-encrypted before upload. Provider and price [UNVERIFIED]. | P2 | |
 | Q-CFG-1 | Balance profiles and mid-campaign changes? | `balance/<profile>.yaml`. Only hot-reloadable keys change mid-campaign; a full profile switch needs a new campaign. | P1 | |
 | Q-CFG-2 | Can rank thresholds change after launch? | Only with a migration plan. Never revoke ranks; new thresholds apply to future promotions only. | P3 | |

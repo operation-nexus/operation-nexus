@@ -23,7 +23,7 @@ This is the authoritative, deterministic world simulation. Everything else is in
 
 ## 4. World model (component-style, flat)
 ```
-Entity { id:int, kind:UnitKind, side:Side(COALITION|ENEMY), domain:Domain(AIR|GROUND|SEA),
+Entity { id:int, kind:UnitKind, side:Side(COALITION|ENEMY), domain:Domain(AIR|GROUND|SEA|STATIC),
          pos:Vec2(m), vel:Vec2(m/s), alt_band:(NOE|LOW|MED|HIGH) for AIR,
          hp:int, fuel:fixed, ammo:{primary:int, secondary:int}, cargo:int,
          sensor:SensorProfile, weapons:[WeaponProfile], stealth:float,

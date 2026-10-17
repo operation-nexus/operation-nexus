@@ -41,13 +41,13 @@ Unknown commands and ordinary chat are ignored. Command aliases are configurable
 
 ## 4. Unit slots
 - **GP-1** Each commander has at most **one live personal unit**. `!join` while your unit is alive retargets or switches it only if it's at a base. Otherwise you get the reply "unit in sortie".
-- **GP-2** After death, respawn is allowed after `respawn_delay_s` (default 20 s) to stop suicide spam.
-- **GP-3** Above `max_viewer_units` (Q-GD-6) new joiners go to a visible reserve queue. The queue is served FIFO as slots free up.
+- **GP-2** After death, respawn is allowed after `slots.respawn_delay_s` (PROPOSED 20 s) to stop suicide spam.
+- **GP-3** Above `slots.max_viewer_units` (Q-GD-6) new joiners go to a visible reserve queue. The queue is served FIFO as slots free up.
 
 ## 5. Logistics (resolves critique #13)
 - Nodes hold `stock` (0..max). Spawning or rearming at a node consumes stock according to the unit's loadout cost.
-- **Sources:** the SANCTUARY base has infinite stock but is far away. A FACTORY generates `factory_rate` per minute, but only while it's connected by owned roads to the sanctuary.
-- **Starvation:** below `starve_threshold` (default 25%) units spawn with reduced loadouts (50% fuel, guns only). At 0, the node can't rearm.
+- **Sources:** the SANCTUARY base has infinite stock but is far away. A FACTORY generates `logistics.factory_rate` per minute, but only while it's connected by owned roads to the sanctuary.
+- **Starvation:** below `logistics.starve_threshold` (PROPOSED 25%) units spawn with reduced loadouts (50% fuel, guns only). At 0, the node can't rearm.
 - Logi trucks carry `cargo`, drive the road graph (A* over ROAD edges, cost = length / speed_mult), and unload over time at the destination.
 - **Bridges** are nodes with HP. A destroyed bridge removes its edge until it is repaired. Who can repair it, and how fast, is open question Q-GD-11.
 - **Supply-line stretch** (snowball breaker): coalition truck transit time scales with road distance from the sanctuary. Enemy reinforcement time shrinks as the front nears its HQ.
@@ -63,13 +63,13 @@ Unknown commands and ordinary chat are ignored. Command aliases are configurable
 A package is a group of up to 4 existing units, with a lead (O-5+) or an auto-lead. It shares the lead's target and gives a small jamming/escort benefit plus an XP share bonus. **There is no lobby wait.** Units join as they spawn. If fewer than 2 humans are in the package after 30 s, an NPC wingman may fill a slot (Q-GD-10).
 
 ## 8. Capture
-- Capture requires a ground or logistics unit within `capture_radius`, with no enemy ground unit contesting it. Progress takes `capture_time_s` (default 120 s), scaled by the number of units with diminishing returns. Air units can't capture.
+- Capture requires a ground or logistics unit within `capture.radius_m`, with no enemy ground unit contesting it. Progress takes `capture.time_s` (PROPOSED 120 s), scaled by the number of units with diminishing returns. Air units can't capture.
 - Progress decays when the node is uncontested and unoccupied. A capture can't flip twice in one tick (property test).
 
 ## 9. Campaign, objectives, win/loss (resolves critique #12)
 - **Modes:** Total Domination (MVP), Hold the Line (P4), Siege / AI-holds-out (backlog, Q-GD-2).
 - **Theater objective:** every 15 min the system picks one node, weighted by its frontline position, and announces it with a timer. Completing it gives a merit bonus. It's always visible.
-- **Victory (Domination):** hold ≥ `victory_node_pct` (default 80%) of strategic nodes for 30 min continuously, **or** capture the enemy HQ. The rubber-band zone is tuned to 55–75% so that victory sits beyond it.
+- **Victory (Domination):** hold ≥ `campaign.victory_node_frac` (PROPOSED 0.80) of strategic nodes for `campaign.victory_hold_min` (PROPOSED 30 min) continuously, **or** capture the enemy HQ. The rubber-band zone is tuned to 55–75% so that victory sits beyond it.
 - **Defeat:** Q-GD-7.
 - **Campaign clock:** 48 h target. It pauses when active humans are below 1 (Q-GD-4). Hitting the time limit decides by score.
 - **End of campaign:** a 5-minute after-action review (top contributors per role, campaign stats), then a new seed or theater.

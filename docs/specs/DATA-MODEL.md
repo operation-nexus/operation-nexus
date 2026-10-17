@@ -53,24 +53,27 @@ CREATE TABLE schema_migrations (
 ```sql
 CREATE TABLE commanders (
   commander_id      TEXT PRIMARY KEY,                          -- UUIDv7
-  callsign          TEXT NOT NULL UNIQUE,                      -- generated (FB-1) or approved custom
-  callsign_kind     TEXT NOT NULL CHECK (callsign_kind IN ('GENERATED','CUSTOM')),
+  callsign          TEXT NOT NULL UNIQUE,                      -- generated (FB-1), approved custom, or tombstone
+  callsign_kind     TEXT NOT NULL CHECK (callsign_kind IN ('GENERATED','CUSTOM','TOMBSTONE')),
   callsign_set_at   TEXT NOT NULL,
   created_at        TEXT NOT NULL,
   first_mission_at  TEXT,                                      -- NULL until first completed sortie (PROG-2)
   banned            INTEGER NOT NULL DEFAULT 0 CHECK (banned IN (0,1)),
-  deleted_at        TEXT,                                      -- set by deletion job; row kept as tombstone
-  CHECK (deleted_at IS NULL OR callsign LIKE 'REDACTED-%')
+  deletion_requested_at TEXT,                                  -- set when !forget / portal request is received
+  deleted_at        TEXT,                                      -- set by the deletion job on completion; row kept as tombstone
+  CHECK ((callsign_kind = 'TOMBSTONE') = (deleted_at IS NOT NULL)),
+  CHECK (deleted_at IS NULL OR deletion_requested_at IS NOT NULL)
 ) STRICT;
 CREATE INDEX idx_commanders_created ON commanders(created_at);
 ```
 - XP and rank are **not** stored here. They're derived (§4.10), so they can't drift from the ledger.
-- Tombstone callsigns are unique (`REDACTED-<first 8 of id>`), which keeps the UNIQUE constraint valid.
+- **Tombstone callsign:** `"X-"` followed by the first 10 characters of the RFC 4648 base32 (uppercase, no padding) encoding of `blake2b-256(commander_id)`. That is 12 characters, so it matches the CONTRACTS `Callsign` regex, and it is derived from the id, so it is unique in practice. On a collision (UNIQUE violation) the deletion transaction rolls back and alerts; the job then retries with the next 10 characters. The `X-` prefix is reserved and can't be claimed as a custom callsign (IDENTITY §3).
+- Viewers never see the tombstone value: anything with `callsign_kind = 'TOMBSTONE'` renders as `[REDACTED]`.
 
 ### 4.3 platform_identities
 ```sql
 CREATE TABLE platform_identities (
-  platform           TEXT NOT NULL CHECK (platform IN ('TWITCH','YOUTUBE','KICK')),
+  platform           TEXT NOT NULL CHECK (platform IN ('TWITCH','YOUTUBE','KICK','DISCORD','LOCAL_SIM')),
   platform_user_id   TEXT NOT NULL,
   commander_id       TEXT NOT NULL REFERENCES commanders(commander_id),
   display_name       TEXT,                     -- last seen; NULL if never received; never rendered unmoderated
@@ -81,6 +84,7 @@ CREATE TABLE platform_identities (
 ) STRICT;
 CREATE INDEX idx_identities_commander ON platform_identities(commander_id);
 ```
+- `LOCAL_SIM` rows exist only in dev/test databases. Production config that enables the `LOCAL_SIM` adapter is rejected at startup (CONTRACTS §3.3).
 - Re-pointing an existing `(platform, platform_user_id)` to another commander is only allowed inside the OAuth merge transaction (SEC-ID-2). There is no `INSERT OR REPLACE` anywhere (Semgrep rule, NX-020).
 
 ### 4.4 identity_events (audit, append-only)
@@ -91,7 +95,7 @@ CREATE TABLE identity_events (
   kind              TEXT NOT NULL CHECK (kind IN
                     ('CREATED','LINKED','UNLINKED','MERGED_INTO','MERGED_FROM',
                      'CALLSIGN_CHANGED','BANNED','UNBANNED','FORGET_REQUESTED','FORGOTTEN')),
-  platform          TEXT CHECK (platform IN ('TWITCH','YOUTUBE','KICK')),   -- NULL when not platform-specific
+  platform          TEXT CHECK (platform IN ('TWITCH','YOUTUBE','KICK','DISCORD','LOCAL_SIM')),   -- NULL when not platform-specific
   other_commander_id TEXT,                     -- merge counterpart; NULL otherwise
   actor             TEXT NOT NULL CHECK (actor IN ('SYSTEM','OWNER','PLATFORM_MOD','USER')),
   detail_json       TEXT,                      -- structured, no free-text user strings
@@ -124,7 +128,7 @@ CREATE TABLE bans (
   ban_id            TEXT PRIMARY KEY,
   commander_id      TEXT NOT NULL REFERENCES commanders(commander_id),
   source            TEXT NOT NULL CHECK (source IN ('PLATFORM_SYNC','OWNER','AUTO_RATE')),
-  source_platform   TEXT CHECK (source_platform IN ('TWITCH','YOUTUBE','KICK')),
+  source_platform   TEXT CHECK (source_platform IN ('TWITCH','YOUTUBE','KICK','DISCORD','LOCAL_SIM')),
   reason_code       TEXT NOT NULL CHECK (reason_code IN ('HARASSMENT','SLUR','SPAM','BOT','OTHER')),
   starts_at         TEXT NOT NULL,
   ends_at           TEXT,                      -- NULL = permanent
@@ -135,15 +139,15 @@ CREATE INDEX idx_bans_active ON bans(commander_id) WHERE lifted_at IS NULL;
 ```
 - `commanders.banned` is a cached flag maintained in the same transaction as each ban or lift. It's rebuildable from `bans`.
 
-### 4.7 config_versions (balance config hash registry)
+### 4.7 config_versions (config hash registry)
 ```sql
 CREATE TABLE config_versions (
-  config_hash       TEXT PRIMARY KEY,          -- blake2b of canonicalized YAML
+  config_hash       TEXT PRIMARY KEY,          -- combined hash over balance + units + doctrines + theater + text (CONFIG-AND-CONTENT §4.4)
   schema_version    INTEGER NOT NULL,
-  source_path       TEXT NOT NULL,             -- e.g. balance/default.yaml
+  manifest_json     TEXT NOT NULL,             -- [{"path","kind","sha256"}] for every contributing file
   git_commit        TEXT,                      -- NULL if loaded from an uncommitted file (dev only)
   validated         INTEGER NOT NULL CHECK (validated IN (0,1)),  -- 1 = passed balance-harness gate
-  content_zstd      BLOB NOT NULL,             -- full config, so replays never depend on git
+  content_zstd      BLOB NOT NULL,             -- all contributing files, so replays and crash bundles never depend on git
   registered_at     TEXT NOT NULL
 ) STRICT;
 ```
@@ -153,9 +157,9 @@ CREATE TABLE config_versions (
 CREATE TABLE campaigns (
   campaign_id       TEXT PRIMARY KEY,
   seed              INTEGER NOT NULL,          -- SimRng root seed (ADR-0002)
-  config_hash       TEXT NOT NULL REFERENCES config_versions(config_hash),
+  config_hash       TEXT NOT NULL REFERENCES config_versions(config_hash),   -- config at start; later reloads in campaign_config_history
   theater_id        TEXT NOT NULL,
-  mode              TEXT NOT NULL CHECK (mode IN ('DOMINATION','HOLD_THE_LINE','SIEGE')),
+  mode              TEXT NOT NULL CHECK (mode IN ('TOTAL_DOMINATION','HOLD_THE_LINE','SIEGE')),
   sim_build         TEXT NOT NULL,             -- app version/digest that started it
   started_at        TEXT NOT NULL,
   start_tick        INTEGER NOT NULL CHECK (start_tick >= 0),
@@ -166,7 +170,16 @@ CREATE TABLE campaigns (
   CHECK ((ended_at IS NULL) = (outcome IS NULL))
 ) STRICT;
 CREATE UNIQUE INDEX uq_one_running_campaign ON campaigns((1)) WHERE ended_at IS NULL;
+
+CREATE TABLE campaign_config_history (
+  campaign_id       TEXT NOT NULL REFERENCES campaigns(campaign_id),
+  effective_tick    INTEGER NOT NULL CHECK (effective_tick >= 0),
+  config_hash       TEXT NOT NULL REFERENCES config_versions(config_hash),
+  arrival_seq       INTEGER,                   -- the OP_CONFIG_RELOAD command; NULL for the campaign's starting row
+  PRIMARY KEY (campaign_id, effective_tick)
+) STRICT;
 ```
+- Every campaign gets a starting row (`effective_tick = start_tick`). Each hot reload (`OP_CONFIG_RELOAD` → `BalanceReloaded`) appends one row. Replays and crash bundles use this history to load the right config at each tick.
 
 ### 4.9 campaign_participation
 ```sql
@@ -195,7 +208,7 @@ CREATE TABLE xp_ledger (
   reason            TEXT NOT NULL CHECK (reason IN
                     ('SORTIE_COMPLETE','SUPPLY_DELIVERED','CAPTURE','OBJECTIVE','RECON_ASSIST','KILL','ADMIN_ADJUST')),
   base_xp           INTEGER NOT NULL CHECK (base_xp >= 0),
-  multiplier_milli  INTEGER NOT NULL CHECK (multiplier_milli BETWEEN 0 AND 1000), -- 1000 = 1.0x; DR applied
+  multiplier_milli  INTEGER NOT NULL CHECK (multiplier_milli > 0 AND multiplier_milli <= 4000), -- 1000 = 1.0x; DR and package share applied. Upper bound PROPOSED; must cover the package XP-share bonus (GAMEPLAY §7)
   awarded_xp        INTEGER NOT NULL CHECK (awarded_xp >= 0),
   persistent        INTEGER NOT NULL CHECK (persistent IN (0,1)),  -- 0 when PROG-2 gate blocks persistence
   config_hash       TEXT NOT NULL REFERENCES config_versions(config_hash),
@@ -280,7 +293,15 @@ CREATE TABLE clips (
   reviewed_at       TEXT
 ) STRICT;
 CREATE INDEX idx_clips_status ON clips(status, created_at);
+
+CREATE TABLE clip_participants (
+  clip_id           TEXT NOT NULL REFERENCES clips(clip_id),
+  commander_id      TEXT NOT NULL REFERENCES commanders(commander_id),
+  PRIMARY KEY (clip_id, commander_id)
+) STRICT;
+CREATE INDEX idx_clip_participants_commander ON clip_participants(commander_id);
 ```
+- Participants are recorded when the clip job is created, from the events in the clip window (commanders whose units appear). The deletion job uses this table (§6.4).
 
 ### 4.15 admin_audit (append-only)
 ```sql
@@ -290,7 +311,7 @@ CREATE TABLE admin_audit (
   action            TEXT NOT NULL,             -- enum from contracts (KILL_SWITCH, PAUSE, BAN, CONFIG_RELOAD, ...)
   target_kind       TEXT,
   target_id         TEXT,
-  command_seq       INTEGER,                   -- sim command log seq if the action entered the sim
+  arrival_seq       INTEGER,                   -- command-log arrival_seq if the action entered the sim
   detail_json       TEXT,
   occurred_at       TEXT NOT NULL
 ) STRICT;
@@ -339,10 +360,10 @@ The repository interface (`nexus.persistence`) is the only code that sees SQL. T
 
 ### 5.3 XP diminishing returns (PROG-1, PROG-2)
 For each `AppendXp(commander, reason, base_xp, source_tick)`:
-1. Look up the commander's awarded XP within the trailing window. PROPOSED: 60 minutes of **sim time**, computed from `source_tick` so replays get the same answer.
-2. If over `xp_hour_soft_cap` (config), `multiplier_milli = config.dr_multiplier_milli` (PROPOSED 250); otherwise 1000.
-3. `persistent = 1` only if `commanders.first_mission_at IS NOT NULL` **and** the event carries `distinct_humans_active ≥ 2` (taken from the sim event, not computed in the DB).
-4. Insert the ledger row. If `persistent = 1`, update `commander_stats` in the same transaction.
+1. Look up the commander's awarded XP within the trailing **60 minutes of wall-clock time**, using `recorded_at`. `progression.xp_hour_soft_cap` is defined per real hour (CONFIG-AND-CONTENT §6.8). `recorded_at` is stamped by the runtime when it persists the event. Progression runs outside the deterministic kernel, so this doesn't affect sim determinism. Replaying the command log after a crash doesn't re-award XP, because the idempotency keys dedupe (§5.2).
+2. If over `progression.xp_hour_soft_cap`, `multiplier_milli = round(progression.xp_over_cap_mult × 1000)`; otherwise 1000. A package XP-share bonus (GAMEPLAY §7) multiplies on top; the result must stay within the column CHECK.
+3. `persistent = 1` only if `commanders.first_mission_at IS NOT NULL` **and** the latest `PresenceSnapshot` at or before `source_tick` has `distinct_humans_active ≥ progression.min_distinct_humans` (taken from the sim event, not computed in the DB).
+4. Insert the ledger row. If `persistent = 1`, update `commander_stats` in the same transaction (ADR-0003 amendment: the ledger is the source of truth).
 
 ### 5.4 Rebuild derived tables
 `tools/db rebuild-stats` truncates `commander_stats`, folds `xp_ledger` (persistent rows), `merit_ledger`, `campaign_participation` and the merge events in order, then compares the result with a pre-rebuild copy. CI runs it on a fixture DB (DM-5). It's also run after any config change that alters the rank table.
@@ -364,7 +385,7 @@ For each `AppendXp(commander, reason, base_xp, source_tick)`:
                sim_build        str
                tick             int
                state_hash       str      (blake2b, SIM-CORE §5)
-               last_command_seq int
+               last_arrival_seq int
                created_at       str      (UTC, informational only; not used by the sim)
   body       zstd(msgpack(canonical world state))
   trailer    blake2b-256 of header+body
@@ -377,22 +398,23 @@ For each `AppendXp(commander, reason, base_xp, source_tick)`:
 - **Format:** newline-delimited JSON records, written through a streaming zstd frame. Each segment is a sequence of independent zstd frames, one per flush, so a crash loses at most the last unflushed frame.
 - **Record:**
   ```json
-  {"seq": 1234567, "target_tick": 88210, "arrival_seq": 42, "kind": "JOIN",
-   "commander_id": "0192…", "args": {"role": "LOGI"}, "source": "TWITCH|ADMIN|ADVISOR|SYSTEM",
-   "late": false}
+  {"arrival_seq": 1234567, "target_tick": 88210, "kind": "JOIN",
+   "source": "CHAT", "platform": "TWITCH",
+   "commander_id": "0192…", "args": {"role": "LOGI"}, "late": false}
   ```
+  - `source` is a `CommandSource` (`CHAT|OPERATOR|ADVISOR|SYSTEM`, CONTRACTS §3.3). `platform` is set only for `CHAT` commands and is `null` otherwise. No vendor field names (ADR-0010 N-6).
   - `commander_id` only; no names (DM-6).
   - Advisor choices and admin actions are commands too (ADR-0002).
 - **Flush and fsync:** every 1 s (NFR-7), and on campaign end and shutdown.
 - **Rotation:** a new segment when one passes 64 MiB uncompressed (PROPOSED) or at each snapshot boundary. Segment names are monotonic.
-- **Integrity:** every segment's first record carries a header (`format_version`, `campaign_id`, `first_seq`). The replay CLI rejects gaps in `seq`.
+- **Integrity:** every segment's first record carries a header (`format_version`, `campaign_id`, `first_arrival_seq`). The replay CLI rejects gaps in `arrival_seq`.
 
 ### 6.3 Crash bundle
 Written on a `step` exception (SC-8) to `crash-bundles/<utc>-<campaign_id>-<tick>/`:
 - `manifest.json`: build, campaign, seed, config hash, tick, exception type and traceback, last state_hash
 - the last verified snapshot (copied, not linked)
-- the command-log tail from that snapshot's `last_command_seq` to the crash tick
-- the config content (from `config_versions.content_zstd`)
+- the command-log tail from that snapshot's `last_arrival_seq` to the crash tick
+- the config content for every `config_hash` in the campaign's `campaign_config_history` (from `config_versions.content_zstd`)
 - recent structured logs (secret-redacted, NX-026)
 
 Bundles contain `commander_id`s only, so they're safe to attach to a private GitHub issue. Never attach them to a public one without owner review.
@@ -404,18 +426,18 @@ Bundles contain `commander_id`s only, so they're safe to attach to a private Git
 | `commanders.callsign`, `platform_identities.display_name` | SQLite | Yes (the only place) |
 | Uploaded clips | platforms | Possibly (on-screen callsigns). Can't be recalled after upload (THREAT-MODEL §6) |
 
-**Crypto-shredding:** the public replay viewer resolves `commander_id → callsign` through a `GET` against the live DB at view time. After deletion, the callsign is `REDACTED-…`, so old replays show the tombstone automatically. Replay files need no rewriting.
+**Crypto-shredding:** the public replay viewer resolves `commander_id → callsign` through a `GET` against the live DB at view time. After deletion, `callsign_kind = 'TOMBSTONE'`, so old replays render `[REDACTED]` automatically. Replay files need no rewriting.
 
 **Deletion job** (daily, processes `deletion_requests` where `status='RECEIVED'`):
-1. Mark `PROCESSING`.
+1. Mark `PROCESSING`. (`commanders.deletion_requested_at` was already set when the request was received, together with the `deletion_requests` row.)
 2. In one transaction:
    - delete `platform_identities` rows
-   - set `commanders.callsign = 'REDACTED-<id8>'`, `callsign_kind = 'GENERATED'`, `deleted_at = now`
+   - set `commanders.callsign` to the tombstone value (§4.2), `callsign_kind = 'TOMBSTONE'`, `deleted_at = now`
    - delete `callsign_requests` rows
    - null out `display_name` in any remaining audit detail
    - append `FORGOTTEN` to `identity_events`
 3. Keep ledgers (they hold only ids and numbers). Exclude the commander from leaderboards via `deleted_at`.
-4. Purge any `clips` in `READY` or `QUEUED` that show the commander (by the clip's participant list) → `PURGED`.
+4. Purge any `clips` in `READY` or `QUEUED` that show the commander (via `clip_participants`) → `PURGED`.
 5. Mark `DONE`. If not done by `due_by`, alert the owner.
 
 ### 6.5 Retention schedule (from SEC-DATA-4; durations PROPOSED, Q-LEGAL-3)
@@ -469,13 +491,13 @@ To measure in P1/P2: real command rate per hour of day, the actual zstd ratio on
 | DM-6 | Property: no snapshot/log/crash bundle contains any string from the `commanders.callsign` or `display_name` columns of the fixture |
 | DM-7 | Startup test: DB at schema N+1 with code at N → refuse to start |
 | DM-8 | Semgrep `sql-no-fstring` |
-| §5.3 | Unit + property: DR multiplier depends only on sim ticks; PROG-2 gate respected |
+| §5.3 | Unit + property: DR window uses `recorded_at` (real time); re-processing the same events doesn't change awards; PROG-2 gate respected |
 | §6.1 | Round-trip and corruption tests: flipped byte → trailer mismatch → fallback |
 | §6.2 | Crash-in-the-middle test: kill -9 during write; replay recovers every fsync'd record; no seq gaps |
-| §6.4 | Deletion job end-to-end: identities gone, callsign tombstoned, leaderboards exclude, replay shows tombstone |
+| §6.4 | Deletion job end-to-end: identities gone, callsign tombstoned (`X-` + 10 base32, `TOMBSTONE` kind), leaderboards exclude, replay renders `[REDACTED]`; two deletions in the same second don't collide |
 | §7 | Migration test from previous-release fixture; restore drill script runs in nightly CI on a fixture backup |
 
-## 11. Open questions
+## 11. Open questions (tracked in [OPEN-QUESTIONS](../planning/OPEN-QUESTIONS.md))
 - **Q-DM-1:** Archive `xp_ledger` rows older than 12 months into yearly compressed files, keeping only `commander_stats`? Recommended: yes, once it passes 1 GB.
 - **Q-OPS-6:** Off-site backup target? Recommended: any S3-compatible object storage with encryption by `age` before upload. Provider and pricing undecided **[UNVERIFIED]**.
 - **Q-DM-2:** Does the public replay viewer need per-viewer access control? Recommended: no for v1; replays are already pseudonymous.
