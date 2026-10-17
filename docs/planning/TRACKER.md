@@ -190,6 +190,7 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | NX-277 | Layered anti-farming without captchas: (1) platform account age, if the platform API exposes it [VERIFY: Twitch Get Users `created_at`; YouTube channel `publishedAt` costs quota]; (2) our own first-seen age; (3) first-completed-mission gate; (4) hourly diminishing XP; (5) admin-console anomaly flags (many new accounts acting in lockstep); (6) mod tools to void XP | ⬜ |
 | NX-278 | Voice cast listening session: pick an engine voice, filter and pacing per profile; set the sitrep cadence | ⬜ |
 | NX-279 | Post-war reveal: "what you didn't see" recap (summary + optional narrative) with a decision-source label per enemy action (RULES / ADVISOR / GAME_MASTER), plus the seed published; shown in the AAR and on the replay site | ⬜ |
+| NX-280 | Balance experiment: fuel for all domains (big ground and sea tanks, slower burn, "crawl when dry") vs air-only, run as a harness A/B plus a playtest | ⬜ |
 | NX-273 | Research + spike: Epidemic Sound license coverage for 24/7 streams/clips; API/MCP availability; `MusicSource` port so an agent can search and queue licensed tracks by mood (tension-driven, AUDIO-TTS §1) | ⬜ |
 | NX-272 | Third-party tips adapter (Ko-fi or Streamlabs/StreamElements; Q-SUP-3) | ❓ |
 
