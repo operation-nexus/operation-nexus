@@ -29,7 +29,8 @@ A shared queue of **jobs** the system generates from the live situation, so ever
 - **Job types:** resupply a starving base, scout a sector or blob, escort a convoy, defend a threatened node, strike a target, rescue a downed crew, repair a bridge, assist the current objective.
 - **Each job has:** a priority (from objective, threat and starvation level), the role(s) that fit, a **slot count** (how many units it needs), and an expiry.
 - **Assignment:** a unit with no explicit order takes the highest-priority open job matching its role. Slots prevent pile-ups: a job is skipped once its slots are full, unless *every* job is full.
-- **AI garrison** pulls from the same board, but only takes jobs no human has claimed, and releases them when an operator wants one.
+- **AI garrison** pulls from the same board, but only takes jobs no human has claimed, and releases them when an operator wants one. **The AI garrison never initiates offense**: it takes defend, resupply, scout and rescue jobs, and joins strike jobs only when a player started them (objective, rally call, player-led flight).
+- **Feasibility:** a unit only takes a job it can reach and complete with its current fuel and munitions. Otherwise it first takes a rearm/refuel step (nearest base with stock, Q-GD-17).
 - **Logistics routing:** a supply job sets the *destination*; the route is planned automatically along roads/sea lanes. Players can still override with `!target` or `!rebase`.
 - **Visible:** the overlay shows the top few open jobs ("NEEDED: supply to WEST FOB") so lurkers learn what matters.
 - **Decision window (owner idea, playtest):** after `!join`, the unit **holds at base for a short window** (configurable; owner suggested up to ~5 min) waiting for an explicit order, then auto-takes a job. Any explicit order cancels auto-tasking. `!join <role> hold` opts out of auto-tasking entirely.
