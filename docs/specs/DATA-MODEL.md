@@ -456,7 +456,8 @@ Bundles contain `commander_id`s only, so they're safe to attach to a private Git
 - **CI migration test:** start from a **fixture DB built at the previous release's schema**, synthetic data only (DATA-INTEGRITY DI-3), apply new migrations, then run the repository test suite plus `rebuild-stats` equality. A sanitized copy of production is **not** used in CI (PII); the fixture generator mirrors production row counts instead.
 - **Backups:**
   - Nightly `sqlite3 .backup` (online, consistent) plus a tarball of the latest snapshot and command-log segments.
-  - Encrypted with `age` to the owner's public key, then copied to the Linux server and to an off-site target. The off-site destination is undecided (new Q-OPS-6).
+  - Encrypted with `age` to the owner's public key, then copied to the Linux server (local copy) and to an off-site target through the `BackupTarget` port (ADR-0010), so providers are swappable. **Q-OPS-6 (decided 2026-10-17):** the first off-site target is the owner's **Google Drive**; other free or cheap providers may be added. Provider limits and pricing are [UNVERIFIED] and are checked before setup (NX-285).
+  - **Tiering (Q-OPS-6):** the DB and snapshots back up nightly; large replay/telemetry archives are compressed and kept with their own retention.
 - **Restore test:** quarterly (SEC-DATA-5), plus after any migration. Restore into a scratch dir, run `PRAGMA integrity_check`, rebuild stats, then load the latest snapshot and replay its log to the recorded `state_hash`.
 - **Integrity checks:** `PRAGMA quick_check` daily, `PRAGMA integrity_check` weekly and before each backup upload, and `PRAGMA foreign_key_check` weekly. Any failure alerts the owner and blocks the backup from overwriting the last good copy.
 
@@ -497,10 +498,13 @@ To measure in P1/P2: real command rate per hour of day, the actual zstd ratio on
 | §6.4 | Deletion job end-to-end: identities gone, callsign tombstoned (`X-` + 10 base32, `TOMBSTONE` kind), leaderboards exclude, replay renders `[REDACTED]`; two deletions in the same second don't collide |
 | §7 | Migration test from previous-release fixture; restore drill script runs in nightly CI on a fixture backup |
 
-## 11. Open questions (tracked in [OPEN-QUESTIONS](../planning/OPEN-QUESTIONS.md))
-- **Q-DM-1:** Archive `xp_ledger` rows older than 12 months into yearly compressed files, keeping only `commander_stats`? Recommended: yes, once it passes 1 GB.
-- **Q-OPS-6:** Off-site backup target? Recommended: any S3-compatible object storage with encryption by `age` before upload. Provider and pricing undecided **[UNVERIFIED]**.
-- **Q-DM-2:** Does the public replay viewer need per-viewer access control? Recommended: no for v1; replays are already pseudonymous.
+## 11. Questions (tracked in [OPEN-QUESTIONS](../planning/OPEN-QUESTIONS.md))
+All decided 2026-10-17:
+- **Q-DM-1:** archive ledger rows older than 12 months into compressed yearly files once the ledger is large (~1 GB, measured); derived totals stay live.
+- **Q-OPS-6:** local copy on the Linux server + `age`-encrypted off-site copy (Google Drive first) behind the `BackupTarget` port; tiered retention; quarterly restore test (§7).
+- **Q-DM-2:** public replays need no login; player login (own stats, personal highlights) comes later.
+
+Still open: Q-DM-3 (source of D7 and session analytics), Q-ARCH-16 (public site hosting and whether it forces Postgres), both from the 2026-10-17 gap analysis.
 
 ## Data model additions pending merge (2026-10-17)
 - **From [ADMIN-RBAC](ADMIN-RBAC.md):**

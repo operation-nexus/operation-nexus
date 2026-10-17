@@ -23,14 +23,16 @@ Progression is horizontal. Ranks unlock **options and force multipliers**, never
 **PROG-3** Merges never sum XP (IDENTITY §4).
 
 ## 3. Ranks (one table; resolves critique #8 and #14)
-| Rank | XP | Unlocks |
-|---|---|---|
-| O-1 | 0 | strike, recon, logi; `!target`, `!rtb`, `!wingman` |
-| O-2 | 300 (~45–60 min active) | `!vector` (custom `!callsign` now unlocks after the first completed mission, Q-PROG-3) |
-| O-3 | 1,500 | `!doctrine`; SEAD, artillery; `!order` (P4) |
-| O-4 | 5,000 | Jammer, engineer, AWACS |
-| O-5 | 15,000 | `!package` lead |
-| O-6 | 40,000 | 1 theater asset/hour from personal merit |
+`O-1`…`O-6` are **internal rank ids** (config, contracts, DB). Viewers see the **themed display name** (Q-NAME-1; working names, final list in the brand guide NX-274). No real military rank titles appear on stream (Q-PROD-5).
+
+| Rank id | Display name (working) | XP | Unlocks |
+|---|---|---|---|
+| O-1 | Recruit | 0 | Striker, Scout, Hauler (strike, recon, logi); `!target`, `!rtb`, `!rebase`, `!stance`, `!wingman` |
+| O-2 | Operator | 300 (~45–60 min active) | `!vector`. (Custom `!callsign` is **not** rank-gated: it unlocks after the first completed mission, Q-PROG-3.) |
+| O-3 | Specialist | 1,500 | `!doctrine`; SEAD, artillery; `!rally` (Q-SUP-6); `!order` (P4) |
+| O-4 | Signal Lead | 5,000 | Jammer, engineer, AWACS |
+| O-5 | Wave Commander | 15,000 | `!package` lead |
+| O-6 | Clearwave Marshal | 40,000 | 1 theater asset/hour from personal merit (whether merit is spendable is open, Q-PROG-7) |
 The XP thresholds are placeholders. The balance harness sets them so that O-2 takes about 1 hour and O-4 about 2–4 weeks for a regular player.
 
 ## 4. Doctrines (Q-GD-3)
@@ -41,3 +43,6 @@ Halo colors, trail styles, PiP placard ribbons, kill stencils, and voice presets
 
 ## 6. Leaderboards
 Separate boards per role, plus an overall board weighted by objective contribution. Campaign MVPs are listed in the Hall of Fame. Display uses approved callsigns only.
+- **Three horizons (Q-UX-3):** war (resets each war), season (resets each season), lifetime (never resets).
+- **Seasons (Q-UX-2):** ~4–8 weeks, several campaigns. Season boards reset; lifetime ranks don't. Season-end recap plus cosmetic badges.
+- **Removal:** banned or confirmed-cheating operators are removed from every board by a mod/admin action (audited). Their entries are hidden and the board recomputed; ledger rows are not deleted.

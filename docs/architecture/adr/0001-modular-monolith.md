@@ -18,3 +18,6 @@ Option 2. The app is a single `nexus-app` process. TTS runs as a separate worker
 - Local development is just `make dev`. CI integration tests are simple.
 - Boundaries still exist in code, so splitting a module out later is mechanical. The triggers are listed in SYSTEM-DESIGN §7.
 - A crash in any module restarts the whole app. That is mitigated by fast snapshot restore (NFR-5).
+
+## Amendment (2026-10-17): the LLM code runs in its own container (Q-AI-3)
+The owner decided that **all LLM code runs in its own isolated container**, regardless of library: no platform or stream credentials, egress allowlisted to the provider endpoints, read-only filesystem, non-root, resource limits (LLM-ADVISORS LLM-2). So there are now two required isolation exceptions to the single `nexus-app` process: the **TTS worker** (GPL and crash isolation) and the **LLM container** (`nexus-llm`, security isolation). The rest of the app stays one modular-monolith process; the advisor still feeds the sim only through logged commands (ADR-0007).

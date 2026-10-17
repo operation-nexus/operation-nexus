@@ -27,18 +27,20 @@ class PlatformAdapter(Protocol):
 - A quota dashboard shows units used per hour and projected time to run out.
 
 ## 4. Normalization (SEC-GW-1)
-NFKC; strip control, bidi and zero-width characters; cap at 300 characters; build a confusable-folded key for matching; lowercase the command token. Display names are stored but **never rendered** unless approved (Q-MOD-1).
+NFKC; strip control, bidi and zero-width characters; enforce the 300-character cap; build a confusable-folded key for matching; lowercase the command token.
+
+**Over-length messages are rejected, never truncated** (Q-CT-1): a command over 300 characters after normalization is dropped and the sender gets a "too long" note in the next batched digest. Truncation could turn a long message into a different valid command. Display names are stored but **never rendered** unless approved (Q-MOD-1).
 
 ## 5. Rate limiting (SEC-GW-2)
 
-**Owner direction (2026-10-17): stricter, per intent, and adjustable live by admins/moderators.** All values are PROPOSED, tuned in playtests, and edited in the admin rules editor (hot-reloadable).
+**Owner decision (2026-10-17, Q-GW-1): stricter, per command class, and adjustable live.** All values are PROPOSED, tuned in playtests, and edited in the Command Center rules editor (hot-reloadable; config keys `ratelimit.class.*` and `ratelimit.slow_mode.multiplier`, CONFIG-AND-CONTENT §6.9). Rule editing is owner/admin/GM only (ADMIN-RBAC).
 
 | Command class | Examples | Proposed limit per operator |
 |---|---|---|
 | Deploy | `!join`, specialist spawns | 1 per 10 s (plus respawn timer) |
-| Unit correction | `!target`, `!rebase`, `!vector`, `!rtb` | 1 per 5 s, burst 2 |
-| Info | `!me`, `!status` | 1 per 15 s |
-| Social / redeem | `!rally`, redemptions | Own cooldowns (e.g. rally ~2 min; PROPOSED) |
+| Unit correction | `!target`, `!rebase`, `!vector`, `!rtb`, `!stance`, `!rescue` | 1 per 5 s, burst 2 |
+| Info | `!me`, `!status`, `!help`, `!guide`, `!rules`, `!link` | 1 per 15 s |
+| Social / redeem | `!rally`, `!scout` (queued viewers), redemptions | Own cooldowns (e.g. rally ~2 min; PROPOSED) |
 | Global | all | Admission cap per tick (raid protection) |
 
 **Slow mode:** an admin toggle that multiplies all limits (e.g. ×3). Optionally it can also switch on the platform's own chat slow mode through the official API, if the platform supports that [VERIFY per platform].
@@ -62,3 +64,6 @@ Replies are an aggregated digest, e.g. "12 new commanders deployed: VIPER-27, �
 | Disconnect | Backoff and reconnect. The overlay shows "UPLINK LOST" if it's down for more than 30 s. Alert after 5 min. |
 | Duplicate delivery | Dedupe by message id (LRU of 10k). |
 | Quota exhausted (YouTube) | Adapter pauses. Overlay shows "YouTube commands paused until HH:MM". Alert. |
+
+## 8. Open questions
+- Q-GW-2 (accept commands from Twitch Shared Chat or raid-origin viewers?) is open (gap analysis 2026-10-17). Until decided, nothing here assumes either answer.

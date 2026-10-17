@@ -26,8 +26,8 @@ A single global ingest for all support and engagement events (Bits, channel poin
 |---|---|---|
 | Twitch | channel points redemptions (rewards created by our Client-Id), `channel.bits.use` / `channel.cheer`, subs/gifts (de-duplicated), Hype Train v2 | P4 (channel points can come first) |
 | YouTube | `superChatEvent`, `superStickerEvent`, `newSponsorEvent`, `memberMilestoneChatEvent` (arrive in the chat stream) | P4 |
-| Ko-fi | webhook | P5 (optional) |
-| Streamlabs / StreamElements | socket | P5 (optional, pick one) |
+| Ko-fi | webhook | P5 (optional; Q-SUP-3: one third-party tip service, chosen later) |
+| Streamlabs / StreamElements | socket | P5 (optional; Q-SUP-3: one third-party tip service, chosen later) |
 
 Normalized `SupportEvent` (added to CONTRACTS):
 ```
@@ -58,10 +58,10 @@ Effect allowlist by trigger source:
 | Category | Allowed effects (examples) | Money | Channel points |
 |---|---|---|---|
 | Cosmetic | Halo or trail color for this campaign, PiP placard flair, callsign "supporter" badge, unit nose-art | ✅ | ✅ |
-| Shoutout | On-stream "Thanks, VIPER-27" banner (callsign only); a template sitrep line, e.g. "Logistics wing salutes VIPER-27" | ✅ | ✅ |
+| Shoutout | On-stream "Thanks, VIPER-27" banner (callsign only); a template sitrep line, e.g. "Logistics wing salutes VIPER-27"; a more prominent `!rally` banner or longer pin (Q-SUP-6: prominence only, never more power) | ✅ | ✅ |
 | Spectacle (no gameplay effect) | Flare or fireworks burst over a friendly base; an AWACS flyover animation | ✅ | ✅ |
-| QoL (capped) | Skip *your own* respawn delay once; one extra `!scout` ping; jump the reserve queue once (max N per hour globally) | ⚠️ owner choice (Q-SUP-1) | ✅ |
-| Team support (capped, small) | Request a supply drop to the starved FOB **queued through the normal logistics system** (it still has to fly in and can be intercepted) | ⚠️ owner choice (Q-SUP-1) | ✅ |
+| QoL (capped) | Skip *your own* respawn delay once; one extra `!scout` ping; jump the reserve queue once (max N per hour globally) | ❌ (Q-SUP-1: money buys cosmetics, shoutouts and spectacle only) | ✅ |
+| Team support (capped, small) | Request a supply drop to the starved FOB **queued through the normal logistics system** (it still has to fly in and can be intercepted) | ❌ (Q-SUP-1) | ✅ (subject to the open TS-1 concern in Q-SUP-7) |
 | **Forbidden** | Damage or HP buffs, instant captures, killing units, changing director tiers, anything random, anything that stacks into a decisive advantage | ❌ | ❌ |
 
 ## 5. Flow
@@ -82,17 +82,17 @@ Effect allowlist by trigger source:
 - YouTube's `tier` can be used instead of an amount, so rules work across currencies without FX.
 
 ## 7. Safety
-- Donor `message` is untrusted. It's never shown or spoken unmoderated, and **never read aloud by TTS in v1**.
+- Donor `message` is untrusted. It's never shown or spoken unmoderated, and **never read aloud by TTS in v1**. No free-text donor messages appear on stream in v1 (Q-SUP-2); a templated rally call (Q-SUP-6) is the alternative.
 - Anonymous tips give no per-user effects.
 - Effects are temporary (per campaign or per sortie). Nothing permanent depends on money, so a later chargeback has nothing to claw back.
 - Rewards are fully deterministic. No loot boxes, chance or wagers (Bits AUP; gambling and loot-box risk).
-- Accessibility of perks: everything money can buy that touches gameplay must also be reachable through channel points (free) or play. Q-SUP-1 decides whether money can buy QoL at all.
+- **Money never buys gameplay effects** (Q-SUP-1, decided 2026-10-17): Bits, Super Chats, memberships and tips map only to cosmetics, shoutouts and spectacle. QoL and team-support effects are channel-points only. The config validator rejects a rule that binds a money trigger to a QoL or team-support effect.
 - Made-for-kids content has no Super Chat. The channel is not marked made-for-kids (THREAT-MODEL COPPA note).
 
 ## 8. Data model additions
 - **`support_events`**: `support_id` + `platform` (unique), all `SupportEvent` fields, `matched_rule_id`, `status` (RECEIVED | REDEEMED | UNAPPLIED | REFUNDED | IGNORED), `unapplied_reason`, `command_arrival_seq`.
 - **`redemption_rules`**: versioned with the balance config, `config_hash`.
-- **Retention:** keep financial records per the owner's tax and accounting needs (Q-SUP-5). Donor messages are deleted after 30 days (PROPOSED).
+- **Retention:** keep all financial support records until an accountant advises otherwise; donor messages are deleted after 30 days (Q-SUP-5, decided 2026-10-17).
 
 ## 9. Test plan
 - Conformance suite for every `SupportSource` adapter: dedupe, authenticity, malformed payloads, gift-bomb double count.
@@ -102,4 +102,4 @@ Effect allowlist by trigger source:
 - A forbidden-effect rule is rejected by the config validator.
 
 ## 10. Open questions
-Q-SUP-1 … Q-SUP-5 in OPEN-QUESTIONS.
+Q-SUP-1 … Q-SUP-6 are decided (2026-10-17) and folded in above. Still open: Q-SUP-7 (channel-point supply drops scale with audience size, which conflicts with TS-1; gap analysis 2026-10-17, not yet in OPEN-QUESTIONS).

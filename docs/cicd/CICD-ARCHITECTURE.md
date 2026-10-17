@@ -108,7 +108,7 @@ The raw plan called `pip-audit` and `npm audit` "SAST". They aren't. They're SCA
 | License | dependency-review `allow-licenses` list (decided in Q-LEGAL-1) | Yes |
 | IaC / containers | trivy config, hadolint, trivy image | Yes on high or critical |
 | CI itself | zizmor, actions pinned by SHA, `permissions: {}` default | Yes |
-| DAST | OWASP ZAP baseline against staging (companion site / link portal) | Report only until Phase 5 |
+| DAST | OWASP ZAP baseline against staging (public site / link portal; also required before any public exposure of the Command Center, Q-RB-4) | Report only until Phase 5 |
 | Supply chain posture | OpenSSF Scorecard, Dependabot/Renovate (grouped, weekly) | Report |
 
 Custom Semgrep rules (repo-specific, under `.semgrep/`):
@@ -124,13 +124,13 @@ Custom Semgrep rules (repo-specific, under `.semgrep/`):
 |---|---|---|---|---|
 | `local` | dev machine, `docker compose` | manual | seeded fixtures | none (overlay in a browser) |
 | `ci` | GitHub-hosted runners, ephemeral compose | every PR | fixtures | none |
-| `staging` | same host as prod, separate compose project + ports, **or** a cheap VPS (Q-OPS-2) | merge to `develop` | anonymized copy / synthetic | private/unlisted test stream |
-| `production` | broadcast host (Q-OPS-1) | release tag + manual approval | real | public channel(s) |
+| `staging` | the **Linux server** (separate machine from prod), its own compose project; a cheap cloud server only as fallback if the server proves too weak (Q-OPS-2, NX-007; ADR-0012) | merge to `develop` | anonymized copy / synthetic | private/unlisted test stream |
+| `production` | broadcast host: the Windows gaming PC, app stack in Docker Desktop on WSL2, OBS native (ADR-0012) | release tag + owner tap-approve, auto-rollback (Q-ARCH-15) | real | public channel(s) |
 
-Deployment mechanism (single node, ADR-0006):
+Deployment mechanism (ADR-0006, topology amended by ADR-0012):
 1. GitHub Actions job in environment `production` (required reviewer = owner).
 2. Authenticates to the host over **Tailscale** (OAuth client in GitHub secrets, ephemeral tagged node). No inbound SSH port is exposed to the internet.
-3. Runs `deploy/bin/deploy <service> <digest>`, which does `cosign verify` → `docker compose pull` → health-gated restart → smoke test → records the deployed digests in `deploy/state/`.
+3. Runs `deploy/bin/deploy <service> <digest>` (on the Windows host this runs **inside WSL2**, Q-ARCH-15), which does `cosign verify` → `docker compose pull` → health-gated restart → smoke test → records the deployed digests in `deploy/state/`.
 4. On a failed health check, it automatically rolls back to the previous digest. Rollback is also one manual command: `deploy/bin/rollback <service>`.
 
 **Self-hosted runners:** don't attach one to this repo if it is public. If the broadcast PC must build or run GPU jobs, use a pull-based deploy instead (the host polls for signed digests) so CI never gets code-execution rights on the machine that holds stream keys.

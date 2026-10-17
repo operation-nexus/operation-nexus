@@ -21,4 +21,4 @@ The plans can't decide between "SQLite/PostgreSQL" and "Redis as the state bus",
 - **Change:** the Decision's "atomic `UPDATE … SET xp = xp + ?`" is replaced. XP and merit are recorded as **append-only ledger rows** (`xp_ledger`, `merit_ledger`), inserted idempotently (`INSERT … ON CONFLICT(idempotency_key) DO NOTHING`). The derived `commander_stats` row is updated **in the same transaction**.
 - **Source of truth:** the ledger. `commander_stats` can always be rebuilt from the ledgers (DATA-MODEL §5.4), and a weekly check compares them.
 - **Why:** a crash and command-log replay can re-emit the same events. With a counter, that double-counts; with idempotent ledger inserts, it can't. The ledger also gives an audit trail for every XP change, and keeps merges (Q-PROG-4) reproducible.
-- **Status:** written by the architect during spec reconciliation. Needs owner acknowledgment (Q-ARCH-6).
+- **Status:** accepted by the owner on 2026-10-17 (Q-ARCH-6).
