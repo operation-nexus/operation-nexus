@@ -239,8 +239,7 @@ secrets.dec.*
 !*.enc.json
 
 # Runtime data (DATA-MODEL: SQLite, snapshots, command logs, clips).
-# These names are unanchored so runtime output is ignored wherever a
-# service writes it. Anchored to the repo root so source packages (e.g. nexus/clips) are NOT ignored.
+# Runtime dirs are anchored to the repo root so source packages (e.g. nexus/clips) are NOT ignored.
 /data/
 *.db
 *.db-wal
