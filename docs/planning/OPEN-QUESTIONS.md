@@ -128,6 +128,23 @@ Legend: **Blocks** is the earliest roadmap phase that needs the answer (P0 = Fou
 | Q-CFG-6 | Night-mode hours and time zone? | Owner decides. Proposal: 00:00–07:00 owner local time, configurable. | P2 | |
 | Q-CFG-7 | Fuel for ground units in the MVP? | No. Air only (`fuel_s: null` for ground and static units). | P1 | |
 
+## Admin/RBAC and support redemptions (2026-10-17)
+
+| ID | Question | Recommended default | Blocks | Decision |
+|---|---|---|---|---|
+| Q-RB-1 | Can moderators pause campaigns? | Yes, they can pause. Resuming needs a GM or admin. | P3 | |
+| Q-RB-2 | Does a platform-scoped moderator's ban cascade across the commander's linked platforms? | Yes. Unbanning needs an admin. | P3 | |
+| Q-RB-3 | Two-person rule with a single owner? | Allow self-approval with an audit flag, plus a delay (PROPOSED 10 min) on campaign end and rules publish | P3 | |
+| Q-RB-4 | Is the admin console exposed publicly? | No. Tailnet + Discord only through P3. A DAST pass is required before any public exposure. | P3 | |
+| Q-RB-5 | Is a harness dry-run mandatory before publishing rules? | Mandatory for next-campaign publishes. Optional for hot keys, and a skip is flagged in the audit log. | P3 | |
+| Q-RB-6 | Does threat memory keep learning during a GM FULL takeover? | Yes | P4 | |
+| Q-RB-7 | Do GM sitreps get a distinct TTS voice? | Yes, a different preset with the same radio filter | P4 | |
+| Q-SUP-1 | Can **money** (Bits, Super Chat, tips) buy QoL perks such as a respawn skip or a queue jump, or only cosmetics and shoutouts? Channel points can buy capped QoL either way. | Money buys cosmetics, shoutouts and spectacle only. QoL is channel points only. That avoids "pay to win" perception. | P4 | |
+| Q-SUP-2 | Show donor messages on stream? | Not in v1. Callsign-only shoutouts. Messages may come later behind moderation, and are never spoken by TTS. | P4 | |
+| Q-SUP-3 | Third-party tips (Ko-fi, Streamlabs, StreamElements)? | Later (P5), pick one. Start with platform-native support. | P5 | |
+| Q-SUP-4 | Confirm ADR-0011: no in-game currency in v1? | Yes. Direct capped redemptions; revisit later via a new ADR plus legal review. | P4 | |
+| Q-SUP-5 | Retention of financial support records? | Keep them as long as your tax and accounting needs require. Ask an accountant; this isn't something we can define for you. | P4 | |
+
 ## Questions from your conversation that need your words
 
 1. ✅ 2026-10-17: Visible as radio/INTEL lines (A), **plus an owner or admin can take over the AI (Game Master mode, ADMIN-RBAC)**. Original question: You said the Threat Director "learns" when players attack its stockpiles. How visible should that learning be? (Default: a sitrep line, e.g. "Enemy has reinforced convoy escorts on Route 4.")

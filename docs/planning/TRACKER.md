@@ -150,6 +150,12 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | NX-036 | Analytics: sessions, command rate, D7 (privacy-preserving) | ⬜ |
 | NX-037 | Public launch checklist (ToS review per platform, privacy, moderation staffing) | ⬜ |
 | NX-038 | Devlog #1 recorded | ⬜ |
+| NX-128 | Sea domain + naval graph (pulled forward from P4, Q-GD-8) | ⬜ |
+| NX-258 | Admin RBAC v1: roles, grants, authz middleware, audit (ADMIN-RBAC) | ⬜ |
+| NX-259 | Admin console: moderation + user management pages (phone-friendly) | ⬜ |
+| NX-260 | Rules/balance editor: schema forms, diff, hot vs next-campaign apply, rollback | ⬜ |
+| NX-261 | Discord admin channel adapter (slash-command parity, verified role mapping) | ⬜ |
+| NX-034b | Measure "did my command work" (FB-UX-6) | ⬜ |
 
 ## P4 — Depth
 
@@ -160,13 +166,25 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | NX-214 | Packages / wingman / NPC fill | ⬜ |
 | NX-215 | Cosmetics (halos, trails, placards) | ⬜ |
 | NX-127 | Hold the Line mode | ⬜ |
-| NX-128 | Sea domain + naval graph | ⬜ |
 | NX-240 | LlmClient + budgets + circuit breaker + FakeLLM | ⬜ |
 | NX-241 | Director advisor | ⬜ |
 | NX-242 | Narrator | ⬜ |
 | NX-243 | `!order` parser + eval suite | ⬜ |
 | NX-244 | Premium TTS voices (Gemini) behind budget | ⬜ |
 | NX-245 | Discord bot (community, verification via OAuth) | ⬜ |
+| NX-129 | Urban terrain rules (LOS blocking, districts) | ⬜ |
+| NX-130 | Campaign carry-over (Q-GD-12) | ⬜ |
+| NX-262 | Campaign planning and scheduling (calendar, scheduled events) | ⬜ |
+| NX-263 | Game Master takeover (ASSIST/FULL) + on-stream badge | ⬜ |
+| NX-264 | Theater library: upload, validate, preview, publish | ⬜ |
+| NX-265 | Procedural theater generation (water-heavy archetypes, west→east) | ⬜ |
+| NX-266 | Two-person rule and approvals | ⬜ |
+| NX-267 | SupportSource port + conformance suite | ⬜ |
+| NX-268 | Twitch channel points redemptions (create rewards, fulfill/refund) | ⬜ |
+| NX-269 | Twitch Bits + subs (gift de-dup) + Hype Train v2 | ⬜ |
+| NX-270 | YouTube Super Chat/Sticker/membership ingest | ⬜ |
+| NX-271 | Redemption rules engine + forbidden-effect validator | ⬜ |
+| NX-272 | Third-party tips adapter (Ko-fi or Streamlabs/StreamElements; Q-SUP-3) | ❓ |
 
 ## Backlog (unscheduled — from owner's conversation & plans)
 - Global/theater map with multiple campaigns and offensives (C48)

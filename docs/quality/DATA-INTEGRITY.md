@@ -39,6 +39,7 @@ Examples that qualify:
 | FB-1 | Identity | Generated callsign | Raw names are unsafe to broadcast (SEC-MOD-1) | It is the callsign |
 | FB-2 | Director | Rule pick when advisor late/invalid | A decision is required every window | `advisor_fallback` metric + log |
 | FB-3 | Narration | Template line when LLM unavailable | The sitrep content is real (from events). Only the wording falls back | Log |
+| FB-5 | Support redemptions | Owner-entered FX table (`support.fx_table`, dated) to compare currencies, **only if the owner enables it** | Lets one rule cover several currencies without a live FX feed. The values are owner-entered and dated, never guessed. | Admin UI labels "owner-set FX, as of <date>"; every use is logged |
 | FB-4 | Overlay | Last good frame + "COMMS RESYNC" banner on WS loss | The stream must not show broken UI | Banner text says so |
 
 New entries need owner approval in the PR that introduces them.
