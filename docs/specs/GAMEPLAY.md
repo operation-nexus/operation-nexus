@@ -12,6 +12,9 @@ All numbers below are **initial balance values** in `balance/default.yaml`. They
 3. Optionally type `!target <node>` or `!rtb`.
 4. The unit completes or fails its mission, and the viewer sees a contribution line in the ticker.
 
+## 0. Parity rule (owner, 2026-10-17)
+**Both sides play by the same rules.** The Static has the same mechanics as Clearwave: scouting, fog of war (FOW-4), supply and starvation, rebasing, damage states, ammo, and rescue/recovery where it applies. Any new mechanic must say how it applies to both sides, or explicitly justify an asymmetry (e.g. the sanctuary base) in its spec.
+
 ## 1a. "Did my command work?" feedback (owner requirement, Q-MOD-1)
 Viewers see a generated callsign, not their username, so the game must connect "me" to "my unit" unmistakably. Otherwise they assume nothing happened and leave.
 - **FB-UX-1 Chat confirmation:** the bot's batched digest names the platform user and their callsign, e.g. "@SaltyUser → VIPER-27 deployed (strike) from WEST BASE". It's sent within platform rate limits (Twitch as a moderator: 100 messages / 30 s, per PLATFORM-REALITY-CHECK), with up to N mentions per digest message (N PROPOSED).
@@ -70,6 +73,7 @@ Unknown commands and ordinary chat are ignored. Command aliases are configurable
 - **Bridges** are nodes with HP. A destroyed bridge removes its edge until it is repaired. Who can repair it, and how fast, is open question Q-GD-11.
 - **Supply-line stretch** (snowball breaker): coalition truck transit time scales with road distance from the sanctuary. Enemy reinforcement time shrinks as the front nears its HQ.
 - Units heal and rearm **only while landed or parked at a friendly node**, by spending stock. They never heal passively (fixes the immortality bug).
+- **Empty bases stay bases** (Q-GD-17): at 0 stock, units can still land, garrison and wait there for a resupply convoy. They get no fuel or ammo, but keep what they have and can take off again with reduced endurance.
 
 ## 5a. Base upgrades (P4; extension point reserved now)
 Owner idea: sending **surplus supply** to a base gradually upgrades it: a radar site gains range, an air-defense site gains faster interceptors, an airbase rearms quicker. Upgrades decay or are lost if the base is starved or captured.
