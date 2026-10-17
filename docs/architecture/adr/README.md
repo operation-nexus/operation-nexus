@@ -10,7 +10,7 @@
 | [0006](0006-deployment-single-node.md) | Single-node Compose deploy over Tailscale | Accepted |
 | [0007](0007-llm-role.md) | LLMs advise and narrate; rules decide | Accepted |
 | [0008](0008-platforms.md) | Twitch → YouTube → Kick; TikTok deferred | Accepted |
-| [0011](0011-support-redemptions-no-currency.md) | Support events → capped redemptions; no in-game currency in v1 | Proposed (Q-SUP-4) |
+| [0011](0011-support-redemptions-no-currency.md) | Support events → capped redemptions; no in-game currency in v1 | Accepted |
 | [0010](0010-platform-and-provider-neutrality.md) | Platform and provider neutrality (ports and adapters, conformance suite) | **Accepted** |
 | [0009](0009-branching-strategy.md) | `develop` for integration, `main` for verified releases | **Accepted** |
 
