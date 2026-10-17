@@ -1,12 +1,14 @@
 # Local LLM vs Paid API: Cost–Benefit Analysis
 
-Date: 2026-10-17 · Status: Draft for owner decision (Q-AI-3, Q-AI-5, Q-ARCH-4)
+Date: 2026-10-17 · Status: Reference. The owner decided Q-AI-3 (provider SDKs behind `LlmClient`, isolated container), Q-AI-5 ($20/month hard cap, alert at 80%) and Q-ARCH-4 (R2 below: free local experiment on the gaming-PC GPU, gated by the NX-292 quality benchmark) on 2026-10-17
+
+> **Hardware correction (2026-10-17):** the owner's gaming PC has a **GTX 1070 8 GB**, not a GTX 1080 as first recorded. The local-GPU estimates below were recomputed for the GTX 1070 with the same bandwidth-scaling method; nothing else changed.
 
 > **How to read this.** Prices and hardware specs are **sourced**. Monthly costs are **ESTIMATES** that depend on token assumptions we made up (§3); they are not measurements. Many sources were reachable only through search-engine snippets, marked **(S)**. Re-check those before buying anything. Raw data: [`data/llm-cost-estimates.csv`](data/llm-cost-estimates.csv).
 
 ## TL;DR
 1. **Game runtime LLM (director advisor, narration, `!order`):** at expected volumes, a cheap hosted API costs about **$5–17/month**. Buying a GPU for this **doesn't pay off** unless chat sends about 1,000 `!order`s/hour.
-2. **Your GTX 1080 is the cheapest local option** (about $2–14/month extra electricity, because the PC runs 24/7 for the stream anyway). The costs:
+2. **Your GTX 1070 is the cheapest local option** (about $2.50–17/month extra electricity, ESTIMATE, because the PC runs 24/7 for the stream anyway). The costs:
    - It shares 8 GB of VRAM with OBS and the overlay browser.
    - It's stuck on CUDA 12.x builds, because NVIDIA dropped Pascal from CUDA 13.
    - It runs only ~7–8B models, which are much weaker than hosted small models.
@@ -37,7 +39,7 @@ Date: 2026-10-17 · Status: Draft for owner decision (Q-AI-3, Q-AI-5, Q-ARCH-4)
 
 ## 2. Sourced local inference facts
 **CUDA support**
-- **Pascal (GTX 10-series):** CUDA 13 removed support (docs.nvidia.com CUDA features archive (S)), and PyTorch 2.15 dropped it too (dev-discuss.pytorch.org (S)). llama.cpp and Ollama reportedly still ship CUDA-12 builds that include Pascal (sm_61). That comes from a third-party post and is **[UNVERIFIED]**.
+- **Pascal (GTX 10-series):** CUDA 13 removed support (docs.nvidia.com CUDA features archive (S)), and PyTorch 2.15 dropped it too (dev-discuss.pytorch.org (S)). llama.cpp and Ollama reportedly still ship CUDA-12 builds that include Pascal (sm_61). That comes from a third-party post and is **[UNVERIFIED]**. The GTX 1070 is the same Pascal generation as the GTX 1080 (both GP104-based [UNVERIFIED die detail]), so these CUDA notes apply unchanged.
 
 **Measured generation speed** (llama.cpp, Llama-2-7B Q4_0, [github.com/ggml-org/llama.cpp/discussions/15013](https://github.com/ggml-org/llama.cpp/discussions/15013), fetched)
 | GPU | Prompt processing (tok/s) | Generation (tok/s) |
@@ -47,7 +49,7 @@ Date: 2026-10-17 · Status: Draft for owner decision (Q-AI-3, Q-AI-5, Q-ARCH-4)
 | RTX 3090 | 5560 | 161.9 |
 | RTX 4060 Ti | 3803 | 64.0 |
 
-- **GTX 1080:** not listed. **ESTIMATE**, scaled by memory bandwidth (320/484 GB/s): about **41 tok/s** generation and **717 tok/s** prompt processing. Run `llama-bench` on your card to get a real number.
+- **GTX 1070 (owner's card):** not listed. **ESTIMATE**, scaled by memory bandwidth from the GTX 1080 Ti row (256/484 GB/s; the GTX 1070's 256 GB/s is **[UNVERIFIED]**: TechPowerUp could not be reached from this environment): about **33 tok/s** generation and **573 tok/s** prompt processing. Run `llama-bench` on your card to get a real number. (The earlier GTX 1080 figure, 320/484 → ~41 / ~717 tok/s, no longer applies.)
 - **Raspberry Pi 5** (Ollama Q4_K_M): about 11 tok/s for a 1B model and 4.7 tok/s for a 3B model (S).
 
 **Structured output**
@@ -65,7 +67,7 @@ Date: 2026-10-17 · Status: Draft for owner decision (Q-AI-3, Q-AI-5, Q-ARCH-4)
 **Power** (TechPowerUp and other reviews (S))
 | Item | Idle | Load | Notes |
 |---|---|---|---|
-| GTX 1080 | — | 180 W rated board | |
+| GTX 1070 | — | 150 W rated board **[UNVERIFIED]** (TechPowerUp not reachable from this environment; measure with a wall meter) | |
 | RTX 3060 | ~12 W | ~170–190 W gaming | |
 | RTX 3090 | ~36 W | ~365 W gaming | |
 | Raspberry Pi 5 | ~3 W | ~8.8 W | |
@@ -92,12 +94,13 @@ Formula: `$/month = average_watts × 720 / 1000 × $/kWh`
 - Months are 720 h, running 24/7.
 - API cost is at standard prices. Batch pricing doesn't fit 5–10 s deadlines. Prompt caching of system prompts would lower every API number.
 - Local cost = electricity + card price ÷ 24 months. That covers the card only; a host PC isn't included.
-- GTX 1080 "PC already on" counts only the marginal ~150 W while busy. That 150 W is our assumption.
+- GTX 1070 "PC already on" counts only the marginal ~150 W while busy. That 150 W is our assumption (the same value used for the earlier GTX 1080 estimate; it equals the GTX 1070's rated board power [UNVERIFIED], so it is an upper bound).
+- Duty cycle = (prompt tokens ÷ prompt speed + output tokens ÷ generation speed) per minute ÷ 60 s, using the bandwidth-scaled speeds in §2.
 
 ## 4. Results (ESTIMATES): monthly USD
 | Option | Low | Medium | High |
 |---|---|---|---|
-| GTX 1080 you own (PC already on) | 1.99 | 3.17 | 13.80 (70% busy, deadline risk) |
+| GTX 1070 you own (PC already on) | 2.49 | 3.96 | 17.25 (87% busy, high deadline risk) |
 | Groq Llama 3.1 8B (API) | 4.59 | 6.73 | 26.04 |
 | Raspberry Pi 5 | 7.87 | 7.99 (40% busy) | infeasible |
 | Claude Haiku 5.5 (API) | 11.23 | 16.99 | 68.83 |
@@ -130,14 +133,14 @@ Claude plans: Pro $20/month, Max 5x $100, Max 20x $200, all including Claude Cod
 | # | Recommendation | Cost |
 |---|---|---|
 | R1 | **Phase 4 runtime LLM:** start with a hosted small model behind our `LlmClient` interface. Claude Haiku 5.5 is the quality default (~$11–17/month estimated). Groq Llama 8B is the budget option. Set a hard budget cap (Q-AI-5). | ~$5–17/month |
-| R2 | **Free experiment:** run llama.cpp (CUDA-12 build) on the GTX 1080 for **narration only**, measuring VRAM headroom with OBS live, tokens/s, and output quality. If it holds up, narration becomes ~free. The advisor stays on the API. | $0 |
+| R2 | **Free experiment:** run llama.cpp (CUDA-12 build) on the GTX 1070 for **narration only**, measuring VRAM headroom with OBS live, tokens/s, and output quality. If it holds up, narration becomes ~free. The advisor stays on the API. | $0 |
 | R3 | **TTS stays local** (Piper or Kokoro) on CPU. | $0 |
 | R4 | **Don't buy GPUs or Pis for LLMs now.** Revisit if measured `!order` volume approaches the high scenario. Then a used RTX 3060 12GB in the Linux server breaks even in ~2–5 months against Haiku, nano or Gemini Flash-Lite, but ~17 months against Groq Llama 8B (§4). The server's PSU, PCIe slot and RAM need checking first. | — |
 | R5 | **Cheap buys that do help:** a plug-in power meter (gives real wattage instead of estimates) and a small UPS for the stream PC. These are suggestions only; prices weren't researched. | — |
 | R6 | **Use the Linux server** for the watchdog, monitoring, staging and backups (HARDWARE.md role split). If its RAM is very low, a RAM upgrade is the most valuable cheap purchase. Exact needs depend on its specs (NX-007). | TBD |
 
 ## 7. Gaps to close before deciding (owner)
-- [ ] Run `llama-bench` on the GTX 1080 with OBS running. Record VRAM free.
+- [ ] Run `llama-bench` on the GTX 1070 with OBS running. Record VRAM free.
 - [ ] Measure wall power for idle, streaming, and streaming plus LLM.
 - [ ] Your electricity rate ($/kWh).
 - [ ] Real token counts once the prompts exist (provider token counters).
