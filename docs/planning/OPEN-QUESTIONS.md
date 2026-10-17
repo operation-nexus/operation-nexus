@@ -268,3 +268,4 @@ Owner principle: outcomes are **probabilistic and different every war** (new see
 | Q-TEST-2 | What does "harness-validated" mean, so a value can drop its PROPOSED label (DI-7)? | written targets (campaign 24–72 h in ≥80% of seeds, newbie impact <5 min) | P1 | |
 | Q-TEST-3 | How are cold alpha testers recruited while the old-Discord announcement is held back? | 5–10 private invites | P2 | |
 | Q-PROC-1 | Who folds decisions into specs, and in what order are specs approved? | one agent PR per spec; P1 specs first | P0 | |
+| Q-CI-6 | On `develop`, should lint/format/typecheck failures block merges? ADR-0009 says advisory; the CI build makes them blocking (only tests advisory). | Blocking: they are fast, cheap to fix, and keep `develop` clean; tests stay advisory. Amend ADR-0009 to match. | P0 | |
