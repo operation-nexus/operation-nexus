@@ -40,7 +40,7 @@ Legend: **Blocks** is the earliest roadmap phase that needs the answer (P0 = Fou
 |---|---|---|---|---|
 | Q-PROG-1 | Are ranks lifetime and Campaign Merit per-war (both tracks)? | Yes, both tracks. | ✅ 2026-10-17: Lifetime rank + per-war merit (A) |
 | Q-PROG-2 | XP sources? | Mission completion, supply delivered, captures, recon assists ≥ kills. Hourly diminishing returns. | ✅ 2026-10-17: Objective/supply/capture/recon ≥ kills; hourly diminishing returns (A) |
-| Q-PROG-3 | Minimum account age or activity before persistent XP? | Persistent XP starts after the first completed mission. Accounts under 24 h old count at 0.5× toward director power. | P3 | |
+| Q-PROG-3 | Minimum account age or activity before persistent XP? | Persistent XP starts after the first completed mission. Accounts under 24 h old count at 0.5× toward director power. | ✅ 2026-10-17: A. Persistent rank counts after the first completed mission; new accounts count 0.5× toward director power for 24 h. **Custom callsign unlocks after the first completed mission** (moderated, 1 change per 30 days), not at O-2. No captcha (owner prefers no verification step). Anti-farming is layered instead (NX-277). |
 | Q-PROG-4 | Account merge rule? | **Never sum XP.** Keep the max of each stat. One merge per 30 days. OAuth-proven only. | ✅ 2026-10-17: Never sum XP; per-stat max; OAuth-proven (A) |
 | Q-PROG-5 | Is cross-platform linking needed at launch? | No. Launch on Twitch only. Linking arrives with YouTube in beta. | P3 | |
 

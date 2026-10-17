@@ -26,7 +26,7 @@ Progression is horizontal. Ranks unlock **options and force multipliers**, never
 | Rank | XP | Unlocks |
 |---|---|---|
 | O-1 | 0 | strike, recon, logi; `!target`, `!rtb`, `!wingman` |
-| O-2 | 300 (~45–60 min active) | `!callsign`, `!vector` |
+| O-2 | 300 (~45–60 min active) | `!vector` (custom `!callsign` now unlocks after the first completed mission, Q-PROG-3) |
 | O-3 | 1,500 | `!doctrine`; SEAD, artillery; `!order` (P4) |
 | O-4 | 5,000 | Jammer, engineer, AWACS |
 | O-5 | 15,000 | `!package` lead |

@@ -38,7 +38,7 @@ Specialist chassis (SEAD, jammer, engineer, AWACS, artillery) unlock with rank (
 | `!target <node>` | node name/alias (fuzzy match against a fixed list) | O-1 | Sets your unit's objective |
 | `!rtb` | — | O-1 | Return to the nearest friendly base |
 | `!status` | — | O-1 | Overlay highlights your unit for 5 s; no chat reply |
-| `!callsign <NAME>` | `^[A-Z][A-Z0-9-]{2,11}$`, moderated | O-2 | Reserve a global callsign |
+| `!callsign <NAME>` | `^[A-Z][A-Z0-9-]{2,11}$`, moderated, 1 change / 30 days | First completed mission (Q-PROG-3) | Reserve a global callsign |
 | `!vector <bearing> <km>` | ints | O-2 | Manual waypoint from your unit |
 | `!sead`, `!artillery`, `!engineer`, `!jammer`, `!awacs` | — | per PROGRESSION | Specialist spawns |
 | `!package <NAME>` / `!wingman` | — | O-5 / O-1 | Form or join a formation (§7) |
