@@ -159,6 +159,7 @@ Legend: **Blocks** is the earliest roadmap phase that needs the answer (P0 = Fou
 | Q-ARCH-9 | Kubernetes/K3s now? | **No** (ADR-0006): Docker Compose on each box. Revisit only at the SYSTEM-DESIGN §7 triggers. | P0 | ✅ 2026-10-17: Owner open to K3s if needed; stays No until a trigger is hit |
 | Q-ARCH-10 | Secrets storage | sops + age (per-machine keys), file in a separate private ops repo | P0 | ✅ 2026-10-17: A. Secrets encrypted with sops+age to each machine's public key (gaming PC, Linux server, owner laptop, deploy CI). The encrypted file lives in a **private ops repo** (`operation-nexus-ops`), not the public code repo. Rotate on machine loss; GitHub Environment secrets only hold what CI needs. |
 | Q-ARCH-11 | Observability stack | Self-hosted Prometheus + Grafana + Loki on the Linux server; external dead-man's switch stays (MONITORING-WATCHDOG L3) | P2 | ✅ 2026-10-17: A |
+| Q-ARCH-12 | Command Center login | Passkeys (WebAuthn) for owner/admins; Discord OAuth for moderators later (verified role mapping); reachable only via Tailscale | P2 | ✅ 2026-10-17: A |
 | Q-SUP-5 | Retention of financial support records? | Keep them as long as your tax and accounting needs require. Ask an accountant; this isn't something we can define for you. | ✅ 2026-10-17: A, keep all financial support records until an accountant advises; donor messages deleted after 30 days |
 
 ## Combat and simulation feel (added 2026-10-17 at owner's request)
