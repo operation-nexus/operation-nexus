@@ -204,6 +204,7 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | NX-290 | Disabled state, crew survival roll, downed-crew markers, CSAR missions (`!rescue`), recovery of disabled vehicles, rescue XP bonus | ⬜ |
 | NX-291 | Conduct system: disruptive-pattern detectors, decaying conduct score, escalation ladder (warn → restrict → timeout → XP penalty → mod review), appeals, mod dashboard; never auto-ban | ⬜ |
 | NX-292 | AI evaluation harness: golden question/answer sheets per AI use (narration, advisor, `!order` intent parsing, moderation), schema and command-format validation, intent accuracy scoring, latency/cost per call; runs any provider (hosted or local) through the same port so models can be compared before adoption | ⬜ |
+| NX-293 | Field Manual: quick-start guide + advanced operations guide (site pages, optional PDF/video), linked from stream descriptions, panels and `!guide`; generated from the command catalog so it never drifts | ⬜ |
 | NX-273 | Research + spike: Epidemic Sound license coverage for 24/7 streams/clips; API/MCP availability; `MusicSource` port so an agent can search and queue licensed tracks by mood (tension-driven, AUDIO-TTS §1) | ⬜ |
 | NX-272 | Third-party tips adapter (Ko-fi or Streamlabs/StreamElements; Q-SUP-3) | ❓ |
 
