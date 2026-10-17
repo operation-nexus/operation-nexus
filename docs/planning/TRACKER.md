@@ -9,7 +9,7 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 
 | Phase | Items | Done | Status |
 |---|---|---|---|
-| P0 Foundations | 38 | 7 | 🟨 |
+| P0 Foundations | 37 | 7 | 🟨 |
 | P1 Sim kernel | 22 | 0 | ⬜ |
 | P2 Closed alpha | 27 | 0 | ⬜ |
 | P3 Public beta | 15 | 0 | ⬜ |
