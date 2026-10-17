@@ -160,7 +160,7 @@ Owner principle: outcomes are **probabilistic and different every war** (new see
 
 | ID | Question | Recommended default | Blocks | Decision |
 |---|---|---|---|---|
-| Q-CBT-1 | Damage model: just alive/dead, or damage states? | Damage states: **Healthy → Damaged** (slower, reduced sensors) → **Mission-kill** (must RTB, can be repaired) → **Destroyed**. More drama, and it makes repair and logistics matter. | P1 | |
+| Q-CBT-1 | Damage model: just alive/dead, or damage states? | Damage states: **Healthy → Damaged** (slower, reduced sensors) → **Mission-kill** (must RTB, can be repaired) → **Destroyed**. More drama, and it makes repair and logistics matter. | ✅ 2026-10-17: A, damage states: Healthy → Damaged → Mission-kill (RTB, repairable) → Destroyed |
 | Q-CBT-2 | Which factors change hit chance (Pk)? | Track quality (blob / track / radar lock / painted), range vs weapon envelope, target evasion and altitude band, jamming on either side, countermeasures (chaff/flares, one-shot), terrain masking, and weather/night (later). Each is a multiplier in config. | P1 | |
 | Q-CBT-3 | Show hit chances to viewers? | Show them in the PiP intercept scope ("Pk 62%") during engagements. It teaches the system and builds trust that outcomes are fair. | P2 | |
 | Q-CBT-4 | Friendly fire? | No in v1 (co-op, avoids griefing) | P1 | |
