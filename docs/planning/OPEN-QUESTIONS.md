@@ -81,7 +81,7 @@ Legend: **Blocks** is the earliest roadmap phase that needs the answer (P0 = Fou
 | Q-OPS-2 | Staging: same host, separate compose project, or a cheap VPS? | Same host, separate project, streaming to an unlisted test channel. | P2 | |
 | Q-OPS-3 | Monthly cost ceiling (power + APIs + hosting)? | $75/month. | ✅ 2026-10-17: $75–100/month total (power + AI + hosting) |
 | Q-OPS-4 | Alerts go where? (Discord webhook, phone push, email) | Discord webhook + phone push via ntfy. | ✅ 2026-10-17: A (ntfy push + private Discord channel), text-based first |
-| Q-OPS-5 | Uptime target? | 99% monthly. Automatic recovery in under 2 min. | P2 | |
+| Q-OPS-5 | Uptime target? | 99% monthly. Automatic recovery in under 2 min. | ✅ 2026-10-17: A, **lenient**. ~99% monthly is a goal, not a hard SLA. Planned maintenance is excluded, and longer outages are acceptable. Automatic recovery is still the aim (minutes, not hours). |
 
 ## CI/CD & repo
 
