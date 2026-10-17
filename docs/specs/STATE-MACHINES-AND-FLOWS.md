@@ -243,7 +243,7 @@ stateDiagram-v2
 ```mermaid
 stateDiagram-v2
     [*] --> Active: first valid command from unknown (platform, user id)
-    Active --> CallsignPending: !callsign NAME (rank >= O-2)
+    Active --> CallsignPending: !callsign NAME (first mission completed)
     CallsignPending --> Active: approved (moderation + uniqueness)
     CallsignPending --> Active: rejected (keeps generated callsign)
     Active --> Banned: platform ban event / admin ban
@@ -257,7 +257,7 @@ stateDiagram-v2
 | State | Event / guard | Action | Next |
 |---|---|---|---|
 | — | First valid command from an unknown `(platform, platform_user_id)` | Create the commander with a generated callsign [FB-1]. Write the audit row `created`. | Active |
-| Active | `!callsign NAME`, rank ≥ O-2, and the regex passes | Normalize, moderate, check uniqueness, then queue for approval if policy requires it (Q-MOD-1/Q-MOD-2) | CallsignPending |
+| Active | `!callsign NAME`, first mission completed (Q-PROG-3), and the regex passes | Normalize, moderate, check uniqueness, then queue for approval if policy requires it (Q-MOD-1/Q-MOD-2) | CallsignPending |
 | CallsignPending | Approved | Set `callsign`, `callsign_kind = CUSTOM`. Audit. Issue `SYS_SET_CALLSIGN` → sim emits `CallsignChanged`. | Active |
 | CallsignPending | Rejected | Keep the generated callsign. Audit with the reason. | Active |
 | Active | Platform moderation ban event (e.g. Twitch `channel.ban`) or admin ban | Set `banned = true`. Issue `OP_BAN` (source SYSTEM for platform sync, OPERATOR for admin) → the sim emits `CommanderBanned`, orphans the unit and removes the commander from the reserve queue. | Banned |
