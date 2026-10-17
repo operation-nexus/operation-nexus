@@ -109,7 +109,7 @@ Legend: **Blocks** is the earliest roadmap phase that needs the answer (P0 = Fou
 | Q-SM-1 | Give objective selection its own `objective` RNG sub-stream? | Yes. Then changing objective logic doesn't shift director randomness. | P1 | |
 | Q-SM-2 | How long does an idle landed unit linger before despawning? | Balance key `slots.idle_despawn_s`, tuned by the harness | P1 | |
 | Q-SM-3 | Custom callsigns: manual owner approval or automated moderation? | Automated moderation + review queue. Manual approval during alpha. | P3 | |
-| Q-SM-4 | After the AAR, same theater with a new seed or rotate theaters? | Same hand-authored theater with a new seed until a second theater exists | P1 | |
+| Q-SM-4 | After the AAR, same theater with a new seed or rotate theaters? | Same hand-authored theater with a new seed until a second theater exists | ✅ 2026-10-17: A, rotate theater archetypes with no back-to-back repeats; reuse the first theater with a new seed until more exist. Admins can override via scheduling (ADMIN-RBAC). |
 | Q-SM-5 | How long with no active humans before the campaign clock pauses? | Balance key `campaign.pause_after_no_humans_s`, tuned by the harness | P1 | |
 | Q-CT-1 | Chat over the length cap: reject or truncate? | Reject. Truncation could turn it into a different valid command. | P2 | |
 | Q-CT-2 | Is the campaign seed public? | Hidden during the campaign, published after `CampaignEnded` | ✅ 2026-10-17: A. Hidden during the campaign. After `CampaignEnded`, publish the seed and a **"what you didn't see" recap** (summary and/or narrative) that labels every enemy decision as made by the **AI rules, the LLM advisor, or a human Game Master**. |
