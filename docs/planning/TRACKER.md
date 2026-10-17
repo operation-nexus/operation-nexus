@@ -108,6 +108,7 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | NX-176 | Terrain contour pre-render + nodes/roads/bridges | M | ⬜ | NX-175 |
 | NX-177 | Units (shape-coded), rings, blobs, tracers, interpolation | L | ⬜ | NX-176 |
 | NX-178 | HUD: momentum, objective, threat, ticker, rotating panels | M | ⬜ | NX-175 |
+| NX-182 | Map annotation layer (OVERLAY §2a): sectors, optional grid reference, direction cues, ephemeral pins, circles and arrows with TTL and collision handling | M | ⬜ | NX-177 |
 | NX-179 | PiP 2D intercept scope + PiP director scoring | M | ⬜ | NX-177 |
 | NX-180 | Palette/colorblind script + visual snapshot tests | M | ⬜ | NX-177 |
 | NX-190 | Gateway: adapter interface + normalization + rate limits | M | ⬜ | NX-021 |

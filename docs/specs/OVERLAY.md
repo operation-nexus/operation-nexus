@@ -37,6 +37,17 @@ The coalition is on the **left** and the enemy on the **right** (GAMEPLAY §9a).
 - **OV-10 Performance.** p95 frame time under 12 ms on the reference host. The static terrain layer is pre-rendered.
 - **OV-11 Vertical 9:16 variant (P3).** A separate route that crops around the PiP focus and stacks the HUD. OBS uses Aitum Vertical or a second browser source.
 
+## 2a. Map annotation layer (owner requirement, 2026-10-17)
+A shared, robust annotation system that everything uses: rally calls, objectives, sitreps, recon pings, GM operations, recaps and replays.
+- **AN-1 Location vocabulary:**
+  - **Named nodes** for everyone.
+  - **Sectors** (named regions) for casual viewers and sitrep fallbacks.
+  - An optional **grid reference** overlay for advanced operators (e.g. a lettered and numbered grid, toggled on screen at low contrast). It's also accepted by `!vector` and `!rally`.
+- **AN-2 Direction:** compass rose, bearings, and arrows showing the axis of advance and unit headings. West → east is the coalition advance (GAMEPLAY §9a).
+- **AN-3 Ephemeral annotations:** pins, circles (areas), arrows (moves or attacks) and short labels. Each has a source (RALLY, OBJECTIVE, SCOUT, GM, SYSTEM), a TTL, a max count per source, and collision-aware placement. They never obscure the momentum bar or objective.
+- **AN-4 One renderer, one data model:** annotations are a typed wire message (`Annotation{id, kind, geometry, source, label_key, ttl_ticks}`, added to CONTRACTS). Live overlay, vertical layout, clips and replays all render them identically.
+- **AN-5 Safety:** labels come from templates and IDs only; no free text (SEC-MOD-1).
+
 ## 3. Visual language
 Dark slate background (`#050811`). Glowing phosphor contours rendered as thin lines with low alpha. Terrain shown as topographic contours plus subtle elevation shading (C69). Monospace typography with tabular numerals.
 
