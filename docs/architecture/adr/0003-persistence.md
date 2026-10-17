@@ -1,6 +1,6 @@
 # ADR-0003: Persistence: in-memory live state, snapshot + command log, SQLite for durable data
 
-- Status: Proposed (Q-ARCH-2)
+- Status: Accepted (owner, 2026-10-17)
 - Date: 2026-10-17
 
 ## Context

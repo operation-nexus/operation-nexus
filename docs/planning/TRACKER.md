@@ -9,7 +9,7 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 
 | Phase | Items | Done | Status |
 |---|---|---|---|
-| P0 Foundations | 37 | 5 | 🟨 |
+| P0 Foundations | 38 | 7 | 🟨 |
 | P1 Sim kernel | 22 | 0 | ⬜ |
 | P2 Closed alpha | 27 | 0 | ⬜ |
 | P3 Public beta | 15 | 0 | ⬜ |
@@ -23,8 +23,8 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | ID | Item | Size | Status | Depends | Acceptance |
 |---|---|---|---|---|---|
 | NX-001 | Initial planning docs, critique, specs, ADRs, tracker, AGENTS.md | L | ✅ | — | This PR |
-| NX-002 [#1](https://github.com/canthony224/operation-nexus/issues/1) | Owner answers P0-blocking questions (Q-PROD-1/2, Q-ARCH-1/3, Q-CI-1..4, Q-LEGAL-1) | S | ❓ | NX-001 | Decision column filled |
-| NX-003 [#2](https://github.com/canthony224/operation-nexus/issues/2) | Owner reviews ADR-0001…0008 → Accepted/Amended | S | ❓ | NX-002 | ADR statuses updated |
+| NX-002 [#1](https://github.com/canthony224/operation-nexus/issues/1) | Owner answers P0-blocking questions (Q-PROD-1/2, Q-ARCH-1/3, Q-CI-1..4, Q-LEGAL-1) | S | ✅ | NX-001 | Decision column filled |
+| NX-003 [#2](https://github.com/canthony224/operation-nexus/issues/2) | Owner reviews ADR-0001…0008 → Accepted/Amended | S | ✅ | NX-002 | ADR statuses updated |
 | NX-004 [#3](https://github.com/canthony224/operation-nexus/issues/3) | Owner drops reference files into `.agents/context/` + updates INDEX | S | ⬜ | — | INDEX lists files |
 | NX-005 [#4](https://github.com/canthony224/operation-nexus/issues/4) | Move `Raw-*.md` to `docs/source/` with a "not a spec" banner | S | ❓ | NX-002 | Links updated |
 | NX-006 [#5](https://github.com/canthony224/operation-nexus/issues/5) | Specs SIM-CORE, GAMEPLAY, FOG-OF-WAR, THREAT-DIRECTOR → Review → Approved | M | ⬜ | NX-002 | Owner sign-off |

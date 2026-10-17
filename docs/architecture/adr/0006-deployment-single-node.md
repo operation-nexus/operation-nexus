@@ -1,6 +1,6 @@
 # ADR-0006: Single-node deployment with Compose, signed images, and a Tailscale-based deploy
 
-- Status: Proposed (Q-OPS-1, Q-OPS-2)
+- Status: Accepted (owner, 2026-10-17)
 - Date: 2026-10-17
 
 ## Context

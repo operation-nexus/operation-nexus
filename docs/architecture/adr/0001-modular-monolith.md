@@ -1,6 +1,6 @@
 # ADR-0001: Start as a modular monolith
 
-- Status: Proposed (Q-ARCH-1)
+- Status: Accepted (owner, 2026-10-17)
 - Date: 2026-10-17
 
 ## Context

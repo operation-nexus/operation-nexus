@@ -1,6 +1,6 @@
 # ADR-0004: Toolchain and languages
 
-- Status: Proposed (Q-ARCH-3)
+- Status: Accepted (owner, 2026-10-17)
 - Date: 2026-10-17
 
 ## Decision

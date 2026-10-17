@@ -1,6 +1,6 @@
 # ADR-0002: Deterministic, fixed-step simulation kernel at 10 Hz
 
-- Status: Proposed
+- Status: Accepted (owner, 2026-10-17)
 - Date: 2026-10-17
 
 ## Context

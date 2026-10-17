@@ -1,6 +1,6 @@
 # ADR-0007: LLMs advise and narrate; deterministic rules decide
 
-- Status: Proposed (Q-AI-1)
+- Status: Accepted (owner, 2026-10-17)
 - Date: 2026-10-17
 
 ## Context
