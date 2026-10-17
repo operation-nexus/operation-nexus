@@ -67,6 +67,8 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | NX-048 | Open GitHub issues for P0 items (labels auto-created; phases tracked as `phase:Pn` labels because the available tooling can't create milestones) | S | ✅ | owner OK | Issues #1–#32 exist and are linked here |
 | NX-049 [#32](https://github.com/canthony224/operation-nexus/issues/32) | Create `develop` from `main` after planning sign-off; apply branch rulesets per ADR-0009; set default branch to `develop` | S | ⬜ | planning done | Rulesets visible; PR to main without gates is blocked |
 | NX-050 | Port interfaces + `Capabilities` + conformance suite skeleton (chat, LLM, TTS) per ADR-0010; import-linter vendor rule | M | ⬜ | NX-010, NX-019 | A fake adapter passes the suite; a vendor import outside adapters fails CI |
+| NX-311 | **Decision→spec propagation pass:** fold every ✅ decision in OPEN-QUESTIONS into the spec bodies (23 gaps listed in GAP-ANALYSIS §2), one PR per spec, P1 specs first. Add a docs lint that flags decided Q-IDs still described as open. **Must finish before specs are marked Approved.** | L | ⬜ | — | GAP-ANALYSIS §2 items all resolved |
+| NX-312 | Missing P1 docs: COMBAT spec, command and intent catalog, balance acceptance criteria (theater #1 = NX-008) | M | ⬜ | NX-311 | Docs exist, reviewed |
 | NX-040 [#27](https://github.com/canthony224/operation-nexus/issues/27) | Threat model review with owner; accept residual risks | S | ❓ | NX-001 | THREAT-MODEL §6 signed off |
 
 ---
@@ -222,6 +224,8 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | NX-308 | Survivor reward: eligibility check (alive + ≥1 completed mission), ribbon, merit bonus, next-war forward-base first deploy | ⬜ |
 | NX-309 | Tasking Board: job generation from state, priorities, role matching, slot de-dup, AI garrison integration, overlay "NEEDED" list, decision window, `hold` opt-out | ⬜ |
 | NX-310 | World events system: event catalog (data-defined like units), rotation, timing, strength, rewards/consequences, manual start/stop, scheduling, on-stream labeling | ⬜ |
+| NX-313 | Missing P2 docs: Tasking Board spec, brand/style guide (pull NX-274 to P2), minimal lore bible, overlay layout v2 + 9:16 wireframes, sitrep template catalog, viewer-simulator spec, deployment-topology ADR (Windows/WSL2 + Linux server), alpha playtest plan, AAR/briefing/reveal spec | ⬜ |
+| NX-314 | Missing P3/P4 docs: conduct spec + community rules, public site spec, seasons/leaderboards spec, privacy notice, analytics definitions, global map + carry-over spec, world events catalog | ⬜ |
 | NX-273 | Research + spike: Epidemic Sound license coverage for 24/7 streams/clips; API/MCP availability; `MusicSource` port so an agent can search and queue licensed tracks by mood (tension-driven, AUDIO-TTS §1) | ⬜ |
 | NX-272 | Third-party tips adapter (Ko-fi or Streamlabs/StreamElements; Q-SUP-3) | ❓ |
 
