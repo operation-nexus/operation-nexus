@@ -1,6 +1,6 @@
 # ADR-0008: Platform support order: Twitch, then YouTube, then Kick; TikTok deferred
 
-- Status: Proposed (Q-PROD-2)
+- Status: Accepted (owner, 2026-10-17)
 - Date: 2026-10-17
 
 ## Context

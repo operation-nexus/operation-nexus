@@ -14,6 +14,9 @@ Status: Draft · Tracker: NX-225…NX-232 · Inputs: P99–107, C18–22, C63
 - **AU-2 Night mode** (configurable hours, or triggered by low activity): music ducked, no shutter or alarm sounds, sitreps limited to critical events, and lower radio volume.
 
 ## 3. TTS engine (Q-AI-4)
+
+Engines implement the `TtsEngine` port (ADR-0010), so Piper, Kokoro and cloud voices can be swapped by config.
+
 Runs as a separate `nexus-tts` worker process (crash isolation and GPL isolation). Engine choice is Piper (piper1-gpl) or Kokoro after a listening test. Voice-model licenses are recorded in `docs/legal/THIRD-PARTY.md`. Audio is cached by text hash. Gemini or premium voices come later, behind the advisor budget. User-created voices are out of scope (SEC-MOD-4).
 
 ## 4. Failure

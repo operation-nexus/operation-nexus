@@ -1,6 +1,6 @@
 # ADR-0005: Overlay renderer is Canvas2D first, Pixi.js if profiling demands it
 
-- Status: Proposed (Q-ARCH-5)
+- Status: Accepted (owner, 2026-10-17)
 - Date: 2026-10-17
 
 ## Context

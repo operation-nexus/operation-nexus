@@ -9,7 +9,7 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 
 | Phase | Items | Done | Status |
 |---|---|---|---|
-| P0 Foundations | 37 | 5 | 🟨 |
+| P0 Foundations | 38 | 7 | 🟨 |
 | P1 Sim kernel | 22 | 0 | ⬜ |
 | P2 Closed alpha | 27 | 0 | ⬜ |
 | P3 Public beta | 15 | 0 | ⬜ |
@@ -23,8 +23,8 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | ID | Item | Size | Status | Depends | Acceptance |
 |---|---|---|---|---|---|
 | NX-001 | Initial planning docs, critique, specs, ADRs, tracker, AGENTS.md | L | ✅ | — | This PR |
-| NX-002 [#1](https://github.com/canthony224/operation-nexus/issues/1) | Owner answers P0-blocking questions (Q-PROD-1/2, Q-ARCH-1/3, Q-CI-1..4, Q-LEGAL-1) | S | ❓ | NX-001 | Decision column filled |
-| NX-003 [#2](https://github.com/canthony224/operation-nexus/issues/2) | Owner reviews ADR-0001…0008 → Accepted/Amended | S | ❓ | NX-002 | ADR statuses updated |
+| NX-002 [#1](https://github.com/canthony224/operation-nexus/issues/1) | Owner answers P0-blocking questions (Q-PROD-1/2, Q-ARCH-1/3, Q-CI-1..4, Q-LEGAL-1) | S | ✅ | NX-001 | Decision column filled |
+| NX-003 [#2](https://github.com/canthony224/operation-nexus/issues/2) | Owner reviews ADR-0001…0008 → Accepted/Amended | S | ✅ | NX-002 | ADR statuses updated |
 | NX-004 [#3](https://github.com/canthony224/operation-nexus/issues/3) | Owner drops reference files into `.agents/context/` + updates INDEX | S | ⬜ | — | INDEX lists files |
 | NX-005 [#4](https://github.com/canthony224/operation-nexus/issues/4) | Move `Raw-*.md` to `docs/source/` with a "not a spec" banner | S | ❓ | NX-002 | Links updated |
 | NX-006 [#5](https://github.com/canthony224/operation-nexus/issues/5) | Specs SIM-CORE, GAMEPLAY, FOG-OF-WAR, THREAT-DIRECTOR → Review → Approved | M | ⬜ | NX-002 | Owner sign-off |
@@ -66,6 +66,7 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | NX-047 [#31](https://github.com/canthony224/operation-nexus/issues/31) | Optional: SonarQube Cloud quality gate (Q-CI-5) | S | ❓ | P2 | Decision recorded |
 | NX-048 | Open GitHub issues for P0 items (labels auto-created; phases tracked as `phase:Pn` labels because the available tooling can't create milestones) | S | ✅ | owner OK | Issues #1–#32 exist and are linked here |
 | NX-049 [#32](https://github.com/canthony224/operation-nexus/issues/32) | Create `develop` from `main` after planning sign-off; apply branch rulesets per ADR-0009; set default branch to `develop` | S | ⬜ | planning done | Rulesets visible; PR to main without gates is blocked |
+| NX-050 | Port interfaces + `Capabilities` + conformance suite skeleton (chat, LLM, TTS) per ADR-0010; import-linter vendor rule | M | ⬜ | NX-010, NX-019 | A fake adapter passes the suite; a vendor import outside adapters fails CI |
 | NX-040 [#27](https://github.com/canthony224/operation-nexus/issues/27) | Threat model review with owner; accept residual risks | S | ❓ | NX-001 | THREAT-MODEL §6 signed off |
 
 ---
@@ -120,7 +121,8 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | NX-226 | TTS worker + sitrep templates + queue + night mode | L | ⬜ | Q-AI-4 |
 | NX-250 | Metrics + structured logs + dashboard | M | ⬜ | NX-026 |
 | NX-251 | Watchdog: frame-freeze probe, live probe, fallback scene | L | ⬜ | NX-175 |
-| NX-252 | Alerting (ntfy/Discord) | S | ⬜ | NX-250 |
+| NX-252 | Alerting (ntfy/Discord) + off-site dead-man's-switch heartbeat (MONITORING-WATCHDOG L3) | S | ⬜ | NX-250 |
+| NX-257 | Optional: smart-plug power-cycle for a hung stream PC | S | ❓ | NX-251 |
 | NX-253 | Admin console v1 (kill switch, pause, bans, director override) | L | ⬜ | NX-200 |
 | NX-254 | OBS scene collection + obs-websocket config in `deploy/obs/` | M | ⬜ | Q-OPS-1 |
 | NX-255 | Production compose + systemd units + host provisioning doc | M | ⬜ | NX-014 |

@@ -18,7 +18,7 @@ Progression is horizontal. Ranks unlock **options and force multipliers**, never
 | Kill | 10 | 3 |
 | Spawning | 0 | 0 |
 
-**PROG-1** Diminishing returns: after `xp_hour_soft_cap` (default 400/h), further XP is ×0.25.
+**PROG-1** Diminishing returns: after `progression.xp_hour_soft_cap` (PROPOSED 400 per real hour), further XP is × `progression.xp_over_cap_mult` (PROPOSED 0.25).
 **PROG-2** No persistent XP when fewer than 2 distinct humans are active (stops solo farming with alts), and none until the commander's first completed sortie.
 **PROG-3** Merges never sum XP (IDENTITY §4).
 

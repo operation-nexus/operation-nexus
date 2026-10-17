@@ -8,8 +8,9 @@ Legend: **Blocks** is the earliest roadmap phase that needs the answer (P0 = Fou
 
 | ID | Question | Recommended default | Blocks | Decision |
 |---|---|---|---|---|
-| Q-PROD-1 | What is the #1 goal for year one: fun hobby/devlog content, audience growth, or revenue? It drives how much ops rigor and cost is justified. | Audience growth + devlog content. Revenue is a bonus. | P0 | |
-| Q-PROD-2 | Which platform launches first? | **Twitch only** through closed alpha. YouTube in beta. Kick optional. TikTok deferred. | P0 | |
+| Q-PROD-1 | What is the #1 goal for year one: fun hobby/devlog content, audience growth, or revenue? It drives how much ops rigor and cost is justified. | Audience growth + devlog content. Revenue is a bonus. | ✅ 2026-10-17: Audience growth + devlog content; revenue is a bonus (A) |
+| Q-PROD-2 | Which platform launches first? | **Twitch only** through closed alpha. YouTube in beta. Kick optional. TikTok deferred. | ✅ 2026-10-17: Twitch only for alpha, then YouTube (A) |
+| Q-PROD-6 | With ADR-0010 (both platforms first-class), do you want Twitch **and** YouTube in the closed alpha (simulcast), or keep Twitch-only alpha → YouTube beta? | Twitch-only alpha, YouTube in beta. The YouTube quota application and monitoring should come first. The code is neutral either way. | P2 | |
 | Q-PROD-3 | Will you be present on stream sometimes, or is it fully unattended? (This affects TikTok/YouTube policy risk and moderation.) | Unattended by default, plus scheduled "commander's briefing" sessions with you live weekly. | P2 | |
 | Q-PROD-4 | What is the success metric for closed alpha? | ≥5 cold testers can say who's winning within 5 s and spawn within 30 s. 7 days unattended with ≤1 manual fix. | P2 | |
 | Q-PROD-5 | Public name and branding? "Operation Nexus" is fine. Avoid "NORAD" and real-org insignia. | Fictional factions, "Operation Nexus" | P2 | |
@@ -53,7 +54,7 @@ Legend: **Blocks** is the earliest roadmap phase that needs the answer (P0 = Fou
 
 | ID | Question | Recommended default | Blocks | Decision |
 |---|---|---|---|---|
-| Q-AI-1 | Does an LLM *decide* enemy moves? | **No.** A rule-based director decides. An optional LLM *advisor* picks among valid rule options and writes flavor text. All LLM outputs are recorded. | P1 | |
+| Q-AI-1 | Does an LLM *decide* enemy moves? | **No.** A rule-based director decides. An optional LLM *advisor* picks among valid rule options and writes flavor text. All LLM outputs are recorded. | ✅ 2026-10-17: Accepted via ADR-0007: rules decide; LLM advises and narrates only |
 | Q-AI-2 | When does the natural-language `!order` ship? | Phase P4, own unit only, 1 per minute per user, with a budget cap. | P4 | |
 | Q-AI-3 | Which LLM provider? Use LiteLLM? | Call one provider's SDK directly behind our own small interface. Avoid LiteLLM given the March 2026 compromise, unless it's hash-pinned and isolated. | P4 | |
 | Q-AI-4 | TTS engine for the MVP? | **Piper** (piper1-gpl, run as a separate process. GPL is fine for server-side use) **or Kokoro** (Apache-2.0, pending verification). Pick after a 1-day listening test. | P2 | |
@@ -63,11 +64,11 @@ Legend: **Blocks** is the earliest roadmap phase that needs the answer (P0 = Fou
 
 | ID | Question | Recommended default | Blocks | Decision |
 |---|---|---|---|---|
-| Q-ARCH-1 | Modular monolith vs microservices? | **Modular monolith** (ADR-0001). | P0 | |
-| Q-ARCH-2 | Database? | SQLite (WAL) in P1–P2. Move to Postgres when a second writer process appears (ADR-0003). | P1 | |
-| Q-ARCH-3 | Languages: Python sim + TypeScript overlay? | Yes. (Revisit if the sim tick exceeds its budget at target scale. NumPy first, then Rust via PyO3 for hot loops.) | P0 | |
+| Q-ARCH-1 | Modular monolith vs microservices? | **Modular monolith** (ADR-0001). | ✅ 2026-10-17: Modular monolith (A, ADR-0001 accepted) |
+| Q-ARCH-2 | Database? | SQLite (WAL) in P1–P2. Move to Postgres when a second writer process appears (ADR-0003). | ✅ 2026-10-17: Accepted via ADR-0003: SQLite (WAL) now; Postgres when a second writer appears |
+| Q-ARCH-3 | Languages: Python sim + TypeScript overlay? | Yes. (Revisit if the sim tick exceeds its budget at target scale. NumPy first, then Rust via PyO3 for hot loops.) | ✅ 2026-10-17: Python sim + TypeScript overlay (A) |
 | Q-ARCH-4 | Local LLM on the broadcast machine? (See [LOCAL-VS-API-COST](../ops/LOCAL-VS-API-COST.md) R2: free narration-only experiment on the GTX 1080.) | **No.** Use a hosted flash-tier model or a separate machine. | P4 | |
-| Q-ARCH-5 | Renderer: Canvas2D or Pixi.js? | Canvas2D with layered canvases first. Pixi if profiling shows >8 ms/frame (ADR-0005). | P2 | |
+| Q-ARCH-5 | Renderer: Canvas2D or Pixi.js? | Canvas2D with layered canvases first. Pixi if profiling shows >8 ms/frame (ADR-0005). | ✅ 2026-10-17: Accepted via ADR-0005: Canvas2D first, Pixi only if profiling needs it |
 
 ## Operations & hosting
 
@@ -84,19 +85,45 @@ Legend: **Blocks** is the earliest roadmap phase that needs the answer (P0 = Fou
 | ID | Question | Recommended default | Blocks | Decision |
 |---|---|---|---|---|
 | Q-CI-1 | Is the repo public or private? (This affects runner security, CodeQL cost, and secret exposure.) | **Stay public.** On a free account, the following are free on public repos only: CodeQL, secret scanning and push protection, the dependency-review action, private vulnerability reporting, unlimited Actions minutes, and (critically) **rulesets/branch protection and environment required reviewers**. Private repos on the Free plan don't get rulesets or required reviewers at all. Sources: docs.github.com rulesets and environments pages; github.blog 2025-03-04 changelog. | P0 | ✅ 2026-10-17: Owner has no preference. Staying **public** per recommendation. |
-| Q-CI-2 | Code license? | Keep the existing MIT for code. Assets (art, audio, voices) are licensed separately. | P0 | |
-| Q-CI-3 | As a solo dev, who approves PRs? | No required PR approval count (GitHub ignores self-approval, so it would deadlock). An AI reviewer (code-review + security-review) posts a review comment. Only you can merge to `main`, and production deploys need your approval in the `production` Environment (CICD §2). | P0 | |
+| Q-CI-2 | Code license? | Keep the existing MIT for code. Assets (art, audio, voices) are licensed separately. | ✅ 2026-10-17: Code stays MIT; assets licensed separately (A) |
+| Q-CI-3 | As a solo dev, who approves PRs? | No required PR approval count (GitHub ignores self-approval, so it would deadlock). An AI reviewer (code-review + security-review) posts a review comment. Only you can merge to `main`, and production deploys need your approval in the `production` Environment (CICD §2). | ✅ 2026-10-17: AI review comment on every PR; owner-only merge to main; production deploy needs owner approval (A) |
 | Q-CI-5 | Add SonarQube? | Not yet. SonarQube Cloud is free for public repos [2024 terms; current terms UNVERIFIED]. Its security rules overlap CodeQL + Semgrep, and its extra value (code smells, duplication, coverage gates) matters once there's real code. Revisit at P2 (NX-047). | P2 | |
-| Q-CI-4 | Dependabot or Renovate? | Dependabot (built-in), grouped weekly. | P0 | |
+| Q-CI-4 | Dependabot or Renovate? | Dependabot (built-in), grouped weekly. | ✅ 2026-10-17: Dependabot, grouped weekly (A) |
 
 ## Legal & business
 
 | ID | Question | Recommended default | Blocks | Decision |
 |---|---|---|---|---|
-| Q-LEGAL-1 | Allowed dependency licenses? | MIT, BSD, Apache-2.0, ISC, MPL-2.0. GPL only for separate server-side processes (e.g., Piper). | P0 | |
+| Q-LEGAL-1 | Allowed dependency licenses? | MIT, BSD, Apache-2.0, ISC, MPL-2.0. GPL only for separate server-side processes (e.g., Piper). | ✅ 2026-10-17: MIT/BSD/Apache-2.0/ISC/MPL-2.0; GPL only in separate server-side processes (A) |
 | Q-LEGAL-2 | Music source? | Royalty-free or commissioned stems with written licenses. No "sound-alike" tracks. | P2 | |
 | Q-LEGAL-3 | Data retention and privacy notice? | As in THREAT-MODEL SEC-DATA-4. Privacy notice published before beta. | P3 | |
 | Q-BIZ-1 | Monetization? | Cosmetic-only (halos, trails, voice presets) via channel points or bits. **Never** gameplay power. | P4 | |
+
+## From the detailed system specs (2026-10-17)
+
+| ID | Question | Recommended default | Blocks | Decision |
+|---|---|---|---|---|
+| Q-SM-1 | Give objective selection its own `objective` RNG sub-stream? | Yes. Then changing objective logic doesn't shift director randomness. | P1 | |
+| Q-SM-2 | How long does an idle landed unit linger before despawning? | Balance key `slots.idle_despawn_s`, tuned by the harness | P1 | |
+| Q-SM-3 | Custom callsigns: manual owner approval or automated moderation? | Automated moderation + review queue. Manual approval during alpha. | P3 | |
+| Q-SM-4 | After the AAR, same theater with a new seed or rotate theaters? | Same hand-authored theater with a new seed until a second theater exists | P1 | |
+| Q-SM-5 | How long with no active humans before the campaign clock pauses? | Balance key `campaign.pause_after_no_humans_s`, tuned by the harness | P1 | |
+| Q-CT-1 | Chat over the length cap: reject or truncate? | Reject. Truncation could turn it into a different valid command. | P2 | |
+| Q-CT-2 | Is the campaign seed public? | Hidden during the campaign, published after `CampaignEnded` | P1 | |
+| Q-CT-3 | Show tracers from enemy shooters we can't see? | No for MVP. Revisit after the readability study (NX-034). | P2 | |
+| Q-CT-4 | Show an "active humans" count on stream? | Yes. Humans only; shows `—` until known. | P2 | |
+| Q-CT-5 | MVP enemy/garrison unit roster (garrison AAA and infantry; enemy SAM site, radar, fighter, armor, convoy)? | Confirm once the first theater sketch exists (NX-008) | P1 | |
+| Q-DM-1 | Archive old XP ledger rows yearly, keeping derived stats? | Yes, once the ledger passes about 1 GB (size is an ESTIMATE; measure it) | P5 | |
+| Q-DM-2 | Access control on the public replay viewer? | Not for v1. Replays are pseudonymous, and deleted users show `REDACTED-…`. | P5 | |
+| Q-ARCH-6 | Accept the ADR-0003 amendment: XP and merit become append-only, idempotent ledgers (source of truth) with `commander_stats` derived in the same transaction, replacing `UPDATE … SET xp = xp + ?`? | Accept. Prevents double-counting after crash replay and gives an audit trail. | P1 | |
+| Q-OPS-6 | Off-site backup destination? | S3-compatible object storage, `age`-encrypted before upload. Provider and price [UNVERIFIED]. | P2 | |
+| Q-CFG-1 | Balance profiles and mid-campaign changes? | `balance/<profile>.yaml`. Only hot-reloadable keys change mid-campaign; a full profile switch needs a new campaign. | P1 | |
+| Q-CFG-2 | Can rank thresholds change after launch? | Only with a migration plan. Never revoke ranks; new thresholds apply to future promotions only. | P3 | |
+| Q-CFG-3 | Terrain authoring for the first theater? | 16-bit heightmap PNG → derived contours, plus masking polygons | P1 | |
+| Q-CFG-4 | Callsign word-list size? | Start around 200 words (≈19.8k callsigns). Final target = 2× measured 90-day peak of distinct commanders. | P2 | |
+| Q-CFG-5 | A sitrep slot has no value: skip or fallback template? | Fallback template if one exists (logged as FB-3); otherwise skip. Never placeholder text. | P2 | |
+| Q-CFG-6 | Night-mode hours and time zone? | Owner decides. Proposal: 00:00–07:00 owner local time, configurable. | P2 | |
+| Q-CFG-7 | Fuel for ground units in the MVP? | No. Air only (`fuel_s: null` for ground and static units). | P1 | |
 
 ## Questions from your conversation that need your words
 

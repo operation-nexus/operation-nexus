@@ -1,6 +1,6 @@
 # ADR-0003: Persistence: in-memory live state, snapshot + command log, SQLite for durable data
 
-- Status: Proposed (Q-ARCH-2)
+- Status: Accepted (owner, 2026-10-17)
 - Date: 2026-10-17
 
 ## Context
@@ -16,3 +16,9 @@ The plans can't decide between "SQLite/PostgreSQL" and "Redis as the state bus",
 - Fewer moving parts. Backups are a file copy (`sqlite3 .backup`) plus snapshots.
 - DB writes are off the tick path: events are batched to the writer task.
 - The P3 portal may force the Postgres move early. Decide then: the alternative is having the portal call the app's internal API instead of the DB.
+
+## Amendment (2026-10-17): XP and merit are append-only ledgers
+- **Change:** the Decision's "atomic `UPDATE … SET xp = xp + ?`" is replaced. XP and merit are recorded as **append-only ledger rows** (`xp_ledger`, `merit_ledger`), inserted idempotently (`INSERT … ON CONFLICT(idempotency_key) DO NOTHING`). The derived `commander_stats` row is updated **in the same transaction**.
+- **Source of truth:** the ledger. `commander_stats` can always be rebuilt from the ledgers (DATA-MODEL §5.4), and a weekly check compares them.
+- **Why:** a crash and command-log replay can re-emit the same events. With a counter, that double-counts; with idempotent ledger inserts, it can't. The ledger also gives an audit trail for every XP change, and keeps merges (Q-PROG-4) reproducible.
+- **Status:** written by the architect during spec reconciliation. Needs owner acknowledgment (Q-ARCH-6).

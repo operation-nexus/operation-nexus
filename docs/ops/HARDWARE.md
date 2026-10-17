@@ -7,7 +7,7 @@ Status: Draft · Q-OPS-1 · Facts verified 2026-10-17 unless marked [UNVERIFIED]
 |---|---|---|
 | GPU | NVIDIA GTX 1080 (Pascal), 8 GB | Owner |
 | RAM | 32 GB | Owner |
-| CPU | Intel 8th-gen Core, non-K. The owner believes it's an i7 "8600 or 8700". **To verify:** Intel's 8th gen has an i7-8700 and an i5-8600 but no i7-8600 (desktop), so check with `lscpu` / Windows System Information. | Owner (unverified model) |
+| CPU | Intel Core i7-8700 (6 cores / 12 threads, non-K) | Owner, confirmed 2026-10-17 |
 | Upload | ~15–25 Mbps (owner estimate; **measure it**) | Owner |
 | OS | — (not yet reported) | — |
 | Can run 24/7 | Yes (owner, 2026-10-17). It's also the gaming PC. | Owner |
@@ -15,7 +15,7 @@ Status: Draft · Q-OPS-1 · Facts verified 2026-10-17 unless marked [UNVERIFIED]
 ## Other owner hardware
 | Machine | Specs | Role today | Source |
 |---|---|---|---|
-| Linux home server | Intel i5 (model —), RAM "low/none" as described (exact amount —), runs 24/7 on the LAN | Existing home server | Owner |
+| Linux home server | Intel i5 (model —), **8 or 16 GB RAM** (owner unsure; check with `free -h`), old motherboard (model —; check with `sudo dmidecode -t baseboard` to see max RAM and free slots), runs 24/7 on the LAN | Existing home server | Owner |
 | Raspberry Pi | Not owned yet; can be bought | — | Owner |
 
 ## What the GTX 1080 can and can't do
@@ -59,7 +59,10 @@ Rule: keep total outbound ≤ 70% of the **measured** sustained upload. Measure 
 | Staging stack | Linux server | Keeps staging off the broadcast box |
 
 ## Still needed from the owner
-- [ ] Exact CPU model (gaming PC) and OS
-- [ ] Linux server: CPU model, RAM amount, disk, distro
+- [x] CPU: i7-8700
+- [ ] Gaming PC OS
+- [ ] Linux server: CPU model, RAM amount (`free -h`), motherboard and max RAM (`sudo dmidecode -t baseboard`, `sudo dmidecode -t memory`), disk, distro
+
+Note: 8 GB is enough for the watchdog, monitoring and backups. Staging the full stack is likely to want 16 GB [ESTIMATE; confirm once the app exists].
 - [ ] Measured upload (e.g., three speed tests at different times)
 - [ ] Monthly cost ceiling (Q-OPS-3)

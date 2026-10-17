@@ -3,6 +3,9 @@
 Status: Draft · Tracker: NX-250…NX-269
 
 ## 1. Watchdog & recovery
+
+The three-layer design (on-box, LAN watchdog, off-site heartbeat) is in [`docs/ops/MONITORING-WATCHDOG.md`](../ops/MONITORING-WATCHDOG.md).
+
 - systemd units supervise `docker compose`, OBS, and `nexus-watchdog`.
 - **Frame-freeze probe:** every 30 s, grab an OBS screenshot (via obs-websocket on localhost). If the heartbeat region's hash hasn't changed for 60 s, reload the browser source. If it's still frozen, restart OBS and alert.
 - **Stream-live probe:** query the platform API for live status every 2 min. If the stream is offline, restart the OBS output and alert. A scheduled restart before the 48 h Twitch broadcast limit is **[to verify]**.
