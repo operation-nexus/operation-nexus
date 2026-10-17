@@ -79,7 +79,7 @@ Legend: **Blocks** is the earliest roadmap phase that needs the answer (P0 = Fou
 |---|---|---|---|---|
 | Q-OPS-1 | Where does the 24/7 stream run? Your PC, a dedicated home box, or a cloud GPU? What hardware do you have? (GPU model, RAM, upload bandwidth) | See [`docs/ops/HARDWARE.md`](../ops/HARDWARE.md) | P2 | Partial 2026-10-17: owner PC has a GTX 1080, 32 GB RAM, and ~15–25 Mbps upload (owner estimate; to be measured). Upgrade possible. Dedicated vs shared box still open. |
 | Q-OPS-2 | Staging: same host, separate compose project, or a cheap VPS? | Same host, separate project, streaming to an unlisted test channel. | P2 | |
-| Q-OPS-3 | Monthly cost ceiling (power + APIs + hosting)? | $75/month. | P2 | |
+| Q-OPS-3 | Monthly cost ceiling (power + APIs + hosting)? | $75/month. | ✅ 2026-10-17: $75–100/month total (power + AI + hosting) |
 | Q-OPS-4 | Alerts go where? (Discord webhook, phone push, email) | Discord webhook + phone push via ntfy. | P2 | |
 | Q-OPS-5 | Uptime target? | 99% monthly. Automatic recovery in under 2 min. | P2 | |
 
