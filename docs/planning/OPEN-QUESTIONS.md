@@ -162,6 +162,7 @@ Legend: **Blocks** is the earliest roadmap phase that needs the answer (P0 = Fou
 | Q-ARCH-12 | Command Center login | Passkeys (WebAuthn) for owner/admins; Discord OAuth for moderators later (verified role mapping); reachable only via Tailscale | P2 | ✅ 2026-10-17: A |
 | Q-ARCH-13 | Sim language and performance path | Python + measure; Rust only if desperately needed | P1 | ✅ 2026-10-17: A. Python (NumPy where profiling shows it helps). Escalation order: optimize → scale hardware → Rust hot spots only if truly necessary. The overlay's interpolation/dead reckoning (ADR-0005) smooths lower server rates. |
 | Q-ARCH-14 | Build order after the skeleton | 1) CI + security (NX-011, NX-012, NX-020, NX-046) 2) contracts pipeline (NX-021) 3) ports + conformance suite (NX-050), then sim kernel (P1) | P0 | ✅ 2026-10-17: A |
+| Q-ARCH-15 | Update delivery | Signed images; staging auto-deploys to the Linux server; production on owner tap-approve with auto-rollback; Tailscale, no open ports (ADR-0006) | P2 | ✅ 2026-10-17: A. Windows host note: the deploy script runs inside WSL2 (Docker Desktop), and OBS stays native on Windows (controlled via obs-websocket) |
 | Q-SUP-5 | Retention of financial support records? | Keep them as long as your tax and accounting needs require. Ask an accountant; this isn't something we can define for you. | ✅ 2026-10-17: A, keep all financial support records until an accountant advises; donor messages deleted after 30 days |
 
 ## Combat and simulation feel (added 2026-10-17 at owner's request)
