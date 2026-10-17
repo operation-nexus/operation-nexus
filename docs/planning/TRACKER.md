@@ -120,7 +120,8 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | NX-226 | TTS worker + sitrep templates + queue + night mode | L | ⬜ | Q-AI-4 |
 | NX-250 | Metrics + structured logs + dashboard | M | ⬜ | NX-026 |
 | NX-251 | Watchdog: frame-freeze probe, live probe, fallback scene | L | ⬜ | NX-175 |
-| NX-252 | Alerting (ntfy/Discord) | S | ⬜ | NX-250 |
+| NX-252 | Alerting (ntfy/Discord) + off-site dead-man's-switch heartbeat (MONITORING-WATCHDOG L3) | S | ⬜ | NX-250 |
+| NX-257 | Optional: smart-plug power-cycle for a hung stream PC | S | ❓ | NX-251 |
 | NX-253 | Admin console v1 (kill switch, pause, bans, director override) | L | ⬜ | NX-200 |
 | NX-254 | OBS scene collection + obs-websocket config in `deploy/obs/` | M | ⬜ | Q-OPS-1 |
 | NX-255 | Production compose + systemd units + host provisioning doc | M | ⬜ | NX-014 |
