@@ -58,7 +58,7 @@ Legend: **Blocks** is the earliest roadmap phase that needs the answer (P0 = Fou
 | ID | Question | Recommended default | Blocks | Decision |
 |---|---|---|---|---|
 | Q-AI-1 | Does an LLM *decide* enemy moves? | **No.** A rule-based director decides. An optional LLM *advisor* picks among valid rule options and writes flavor text. All LLM outputs are recorded. | ✅ 2026-10-17: Accepted via ADR-0007: rules decide; LLM advises and narrates only |
-| Q-AI-2 | When does the natural-language `!order` ship? | Phase P4, own unit only, 1 per minute per user, with a budget cap. | P4 | |
+| Q-AI-2 | When does the natural-language `!order` ship? | Phase P4, own unit only, 1 per minute per user, with a budget cap. | ✅ 2026-10-17: A, after the core game is established (P4). Build a complete **intent and command catalog** first: the parser maps natural language onto that catalog only. Own unit only, 1/min per user, budget cap. Players get guidance (`!order help`, examples on screen). |
 | Q-AI-3 | Which LLM provider? Use LiteLLM? | Call one provider's SDK directly behind our own small interface. Avoid LiteLLM given the March 2026 compromise, unless it's hash-pinned and isolated. | P4 | |
 | Q-AI-4 | TTS engine for the MVP? | **Piper** (piper1-gpl, run as a separate process. GPL is fine for server-side use) **or Kokoro** (Apache-2.0, pending verification). Pick after a 1-day listening test. | ✅ 2026-10-17: A, local Piper or Kokoro picked by a listening test; engines stay interchangeable via the `TtsEngine` port (ADR-0010) so cloud voices can be added later |
 | Q-AI-5 | Monthly LLM + TTS budget? (Cost analysis: [LOCAL-VS-API-COST](../ops/LOCAL-VS-API-COST.md)) | $20/month hard cap with a circuit breaker. | P4 | |
