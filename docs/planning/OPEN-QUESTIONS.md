@@ -172,7 +172,18 @@ Owner principle: outcomes are **probabilistic and different every war** (new see
 | Q-CBT-7 | Ammo per sortie? | Yes. Limited munitions per sortie (from base stock), so rearming and logistics matter. Guns are unlimited but weak. | ✅ 2026-10-17: A, limited munitions per sortie drawn from base stock. **Guns are limited too** (high round count). Rounds used are charged to base stock on resupply. **Out of munitions → auto-RTB** unless stance `press` or the operator orders guns-only (`!stance guns`). **Unlimited ammo is a campaign/test option** (testing, special events), owner/admin/GM only |
 | Q-CBT-8 | Critical or lucky hits? | Small seeded chance of an outsized effect (e.g. a radar knocked offline for a while), shown with a callout. Adds stories without deciding wars. | ✅ 2026-10-17: A, small seeded chance of outsized effects with a callout; configurable |
 
-## Questions from your conversation that need your words
+## Batch: naming, onboarding, seasons, UX (added 2026-10-17)
+
+| ID | Question | Recommended default | Blocks | Decision |
+|---|---|---|---|---|
+| Q-NAME-1 | Rank names (real military titles conflict with the no-real-names rule) | Themed ranks: Recruit → Operator → Specialist → Signal Lead → Wave Commander → Clearwave Marshal (working names; final list in the brand guide) | P3 | ✅ 2026-10-17: A |
+| Q-NAME-2 | Unit class display names | Generic, friendly classes: Striker (multirole jet), Scout (recon drone), Hauler (supply truck), Tank, Gunboat, Tanker (refueler), Lifter (rescue helo), Sentinel (anti-air site), Spire (radar). Final list in the brand guide. | P1 | |
+| Q-UX-1 | First-time viewer onboarding | A persistent "How to play" strip + a 30-second looping explainer card every ~10 min + `!help` digest. No long tutorials. | P2 | |
+| Q-UX-2 | Season structure | Seasons of ~4–8 weeks (several campaigns). Season leaderboards reset; lifetime ranks don't. A season-end recap and cosmetic badges. Ties into the global campaign later. | P4 | |
+| Q-UX-3 | Leaderboard reset cadence | Per-campaign boards reset each war; season boards each season; lifetime boards never | P3 | |
+| Q-UX-4 | After-action review (AAR) screen contents | 5 minutes: winner, map timeline, top operators per role (not just kills), best rescue, the "what you didn't see" reveal, next-war teaser | P2 | |
+| Q-UX-5 | Overlay language(s) | English first; all text through localization keys so more languages can be added later | P2 | |
+
 
 1. ✅ 2026-10-17: Visible as radio/INTEL lines (A), **plus an owner or admin can take over the AI (Game Master mode, ADMIN-RBAC)**. Original question: You said the Threat Director "learns" when players attack its stockpiles. How visible should that learning be? (Default: a sitrep line, e.g. "Enemy has reinforced convoy escorts on Route 4.")
 2. ✅ 2026-10-17: Yes, an INTEL ASSESSMENT panel (A). Original question: Should a viewer ever be able to see *why* the AI did something? (Default: yes, through a short "INTEL ASSESSMENT" panel. It builds trust that the AI isn't cheating.)
