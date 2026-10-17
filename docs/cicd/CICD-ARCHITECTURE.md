@@ -21,7 +21,9 @@ Non-goals for now: Kubernetes, Helm, multi-region, canary traffic splitting (ADR
 | Commits / PR titles | Conventional Commits. A PR-title lint enforces this because squash uses the title. |
 | Versioning | SemVer per deployable (`sim`, `gateway`, `overlay`) via release-please manifest mode. `contracts/` is versioned too, and any breaking change bumps `PROTOCOL_VERSION`. |
 | Protection on `develop` | PR required. Security and build checks required; tests advisory (ADR-0009 table). No force-push. |
-| Protection on `main` | Require PR, ≥1 approval (owner or the agent-review bot, see Q-CI-3), required status checks (§4), linear history, no force-push, conversation resolution, CODEOWNERS for `.github/`, `deploy/`, `contracts/`, `docs/security/`. |
+| Protection on `main` | PRs only from `develop` (promotion) or `hotfix/*`. All required status checks (§4), no force-push, conversation resolution. **Required PR approvals: 0.** GitHub doesn't count an author's own approval, and the solo owner authors every PR, so a required approval would deadlock. Owner sign-off is instead enforced by (a) only the owner being able to merge to `main` (ruleset bypass list empty, merge restricted to the owner) and (b) required reviewers on the `production` Environment. Agents never merge to `main` (AGENTS.md rule 10). |
+| Merge methods | `feat/*` → `develop`: **squash**. `develop` → `main` and `hotfix/*` → `main`: **merge commit**, so `main` and `develop` share history and back-merges don't conflict repeatedly. `main` therefore does not require linear history. |
+| Naming | *Promotion PR* = `develop` → `main`. *Release PR* = the release-please PR on `main`. |
 | Tags | `sim-v1.4.0` etc. are created only by release-please. |
 
 ## 3. Pipeline overview
@@ -60,16 +62,21 @@ Non-goals for now: Kubernetes, Helm, multi-region, canary traffic splitting (ADR
    └─ docs (paths: **/*.md)
          markdownlint · lychee link check · ADR index up to date
 
- Merge to main
-   ├─ all of the above (full, not path-filtered)
+ Merge to develop (ADR-0009)
+   ├─ all of the above (full, not path-filtered; tests advisory on develop)
    ├─ build: docker buildx (pinned base digests) → push ghcr.io/<owner>/nexus-<svc>:sha-<sha>
    ├─ syft SBOM (SPDX) attached as attestation · trivy image scan (fail on HIGH/CRITICAL fixable)
    ├─ cosign keyless sign (GitHub OIDC) + SLSA provenance (actions/attest-build-provenance)
-   ├─ deploy → staging (automatic; see §6)
-   └─ release-please updates the release PR
+   └─ deploy → staging (automatic; see §6). Deployed digests are recorded in the staging state file.
+
+ Promotion PR develop → main (merge commit, not squash; see §2)
+   ├─ full gate, all checks required
+   ├─ release checklist: staging healthy ≥ 24 h on these exact digests, nightly soak green
+   └─ on merge: release-please opens or updates the *release PR* on main
 
  Release PR merged (tag created)
-   └─ promote the same digests → production (manual approval via GitHub Environment)
+   └─ promote the exact digests that staging verified → production
+      (cosign verify; manual approval via the `production` GitHub Environment)
 
  Nightly (cron)
    ├─ 6h soak: full stack, synthetic chat (diurnal curve incl. 500-viewer raid + troll swarm)
@@ -143,7 +150,7 @@ The broadcast must survive deploys of every component:
 | Twitch / YouTube client secrets, refresh tokens | GitHub Environment secrets → host `.env` (0600) or sops-encrypted file in `deploy/` | gateway |
 | Stream keys | Host only, never in GitHub | OBS |
 | LLM API keys | GitHub Environment secrets → host | llm-gateway (Phase 4+) |
-| Link-token HMAC key, DB passwords | Generated on the host, sops-encrypted backup | sim/api |
+| Link-token HMAC key; DB credentials (only once Postgres exists, ADR-0003) | Generated on the host, sops-encrypted backup | sim/api |
 | Tailscale OAuth | GitHub Environment secret | deploy job |
 
 Rotation runbook in `deploy/runbooks/rotate-secrets.md` (NX-027). Secrets must never be logged; the logging library has a redaction filter with a test.
@@ -153,7 +160,7 @@ Rotation runbook in `deploy/runbooks/rotate-secrets.md` (NX-027). Secrets must n
 The repo is **public** (Q-CI-1). Rulesets, environment required reviewers, CodeQL, secret scanning and private vulnerability reporting are all free on public repos only, for a personal Free account.
 
 
-- [ ] Branch protection / ruleset on `main` as in §2
+- [ ] Rulesets on `main` and `develop` as in §2 and ADR-0009 (NX-049)
 - [ ] Secret scanning + push protection ON
 - [ ] Dependabot alerts + security updates ON
 - [ ] Private vulnerability reporting ON (`SECURITY.md`)
@@ -167,8 +174,8 @@ The repo is **public** (Q-CI-1). Rulesets, environment required reviewers, CodeQ
 |---|---|---|
 | `.github/workflows/ci.yml` | PR + main checks, `ci-gate` | NX-011 |
 | `.github/workflows/security.yml` | CodeQL, gitleaks, SCA, zizmor, trivy config | NX-012 |
-| `.github/workflows/build.yml` | images, SBOM, sign, attest (main only) | NX-013 |
-| `.github/workflows/deploy.yml` | staging auto, prod on release with approval | NX-014 |
+| `.github/workflows/build.yml` | images, SBOM, sign, attest (on merge to `develop`; build check on PRs) | NX-013 |
+| `.github/workflows/deploy.yml` | staging auto from `develop`, prod on release tag with approval | NX-014 |
 | `.github/workflows/release.yml` | release-please | NX-015 |
 | `.github/workflows/nightly.yml` | soak, balance, rescan, scorecard | NX-016 |
 | `.github/workflows/pr-hygiene.yml` | title lint, labels, tracker-ID check | NX-017 |

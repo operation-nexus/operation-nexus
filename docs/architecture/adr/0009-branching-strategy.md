@@ -10,7 +10,7 @@ The owner wants `main` to contain only verified work: CI passed, CD passed, depl
 ## Decision
 | Branch | Purpose | Merges in from | Protection |
 |---|---|---|---|
-| `main` | Production. Every commit is a verified release. | `develop` (release PR) and `hotfix/*` only | All required checks green, staging deploy healthy, owner approval, linear history, no force-push. Tags via release-please. |
+| `main` | Production. Every commit is a verified release. | `develop` (*promotion PR*, merge commit) and `hotfix/*` only | All required checks green, staging deploy healthy, merge restricted to the owner, no force-push. Tags via release-please. |
 | `develop` | Integration of all day-to-day work | `feat/*`, `fix/*`, `docs/*`, `chore/*` | PR required. **Gate: security + build** (see below). Tests run but are advisory. No force-push. |
 | `feat/NX-###-…` etc. | One tracker item | branched from `develop` | — |
 | `hotfix/…` | Urgent production fix | branched from `main`, merged to `main` **and** back to `develop` | Same as `main` |
@@ -29,7 +29,7 @@ The owner wants `main` to contain only verified work: CI passed, CD passed, depl
 | sim-determinism (golden replays) | Advisory | Required |
 | Integration + Playwright | Advisory | Required |
 | Staging deploy from `develop` HEAD healthy ≥ 24 h, plus soak | — | Required (verified by the release checklist) |
-| Owner approval | Optional | Required |
+| Owner sign-off | Optional | Required. Enforced by owner-only merge to `main` plus `production` Environment reviewers. Not by a PR approval count, which a solo author can't satisfy (CICD §2). |
 
 "Advisory" means the check still runs and reports, but doesn't block the merge. A red advisory check on `develop` must get a tracker issue within 24 h (`status:blocked` label on the related item). It's never silently ignored.
 
@@ -43,4 +43,5 @@ The planning PR merges straight into `main`, which the owner allowed while there
 ## Consequences
 - `main` stays releasable, so rollback means redeploying the previous tag.
 - `develop` can carry in-progress work with failing tests, but never a known secret leak or a new high-severity vulnerability.
-- More PRs, since releases need a `develop → main` PR. release-please runs on `main`.
+- More PRs, since releases need a `develop → main` promotion PR (merge commit). release-please then opens its own *release PR* on `main`.
+- Feature PRs squash into `develop`. Promotion and hotfix PRs use merge commits so the branches share history.

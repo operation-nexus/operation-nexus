@@ -9,8 +9,8 @@ Facts here were verified on 2026-10-17 against the cited sources. Anything marke
 |---|---|
 | `AGENTS.md` | Tool-agnostic instructions (Codex, Gemini, Cursor, Claude). Kept under ~200 lines. |
 | `CLAUDE.md` | Imports AGENTS.md with `@AGENTS.md`. Claude Code reads AGENTS.md on its own only when no CLAUDE.md exists ([docs](https://code.claude.com/docs/en/memory)). |
-| `.claude/settings.json` | Deny reads of `.env*` and keys. PreToolUse guard hook. Ponytail marketplace and plugin. |
-| `.claude/hooks/protect-files.sh` | Blocks agent writes to `.env*` and to the raw source files. Requires `jq`. |
+| `.claude/settings.json` | Deny reads of `.env*` (any directory) and `*.pem`/`*.key`. PreToolUse guard hook. Ponytail marketplace and plugin. |
+| `.claude/hooks/protect-files.sh` | Blocks agent writes (Edit/Write/MultiEdit/NotebookEdit) to `.env*` anywhere and to the raw source files. Uses `jq`, or `python3` if jq is absent. Fails closed: if neither exists, edits are blocked. It can't see shell redirection (`echo > .env`), so the deny rules and review remain the backstop. |
 | `.claude/agents/` | Subagents: `reviewer` and `fact-checker` (enforces DATA-INTEGRITY). |
 | `.mcp.json` | Context7 (remote, no key), for up-to-date library docs so agents don't guess APIs. |
 | `.agents/` | Role cards, reusable prompts, and the owner's context drop zone. |

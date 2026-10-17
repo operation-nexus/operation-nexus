@@ -132,7 +132,7 @@ Claude plans: Pro $20/month, Max 5x $100, Max 20x $200, all including Claude Cod
 | R1 | **Phase 4 runtime LLM:** start with a hosted small model behind our `LlmClient` interface. Claude Haiku 5.5 is the quality default (~$11–17/month estimated). Groq Llama 8B is the budget option. Set a hard budget cap (Q-AI-5). | ~$5–17/month |
 | R2 | **Free experiment:** run llama.cpp (CUDA-12 build) on the GTX 1080 for **narration only**, measuring VRAM headroom with OBS live, tokens/s, and output quality. If it holds up, narration becomes ~free. The advisor stays on the API. | $0 |
 | R3 | **TTS stays local** (Piper or Kokoro) on CPU. | $0 |
-| R4 | **Don't buy GPUs or Pis for LLMs now.** Revisit if measured `!order` volume approaches the high scenario. Then a used RTX 3060 12GB in the Linux server breaks even in ~2–5 months vs APIs. The server's PSU, PCIe slot and RAM need checking first. | — |
+| R4 | **Don't buy GPUs or Pis for LLMs now.** Revisit if measured `!order` volume approaches the high scenario. Then a used RTX 3060 12GB in the Linux server breaks even in ~2–5 months against Haiku, nano or Gemini Flash-Lite, but ~17 months against Groq Llama 8B (§4). The server's PSU, PCIe slot and RAM need checking first. | — |
 | R5 | **Cheap buys that do help:** a plug-in power meter (gives real wattage instead of estimates) and a small UPS for the stream PC. These are suggestions only; prices weren't researched. | — |
 | R6 | **Use the Linux server** for the watchdog, monitoring, staging and backups (HARDWARE.md role split). If its RAM is very low, a RAM upgrade is the most valuable cheap purchase. Exact needs depend on its specs (NX-007). | TBD |
 

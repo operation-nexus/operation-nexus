@@ -31,7 +31,7 @@ Specialist chassis (SEAD, jammer, engineer, AWACS, artillery) unlock with rank (
 | `!status` | — | O-1 | Overlay highlights your unit for 5 s; no chat reply |
 | `!callsign <NAME>` | `^[A-Z][A-Z0-9-]{2,11}$`, moderated | O-2 | Reserve a global callsign |
 | `!vector <bearing> <km>` | ints | O-2 | Manual waypoint from your unit |
-| `!sead`, `!himars`, `!engineer`, `!jammer`… | — | per PROGRESSION | Specialist spawns |
+| `!sead`, `!artillery`, `!engineer`, `!jammer`, `!awacs` | — | per PROGRESSION | Specialist spawns |
 | `!package <NAME>` / `!wingman` | — | O-5 / O-1 | Form or join a formation (§7) |
 | `!doctrine <name>` | — | O-3 | Once per campaign |
 | `!order <text>` | free text ≤ 200 chars | O-3 | **P4**, LLM-parsed, own unit only |
@@ -49,7 +49,7 @@ Unknown commands and ordinary chat are ignored. Command aliases are configurable
 - **Sources:** the SANCTUARY base has infinite stock but is far away. A FACTORY generates `factory_rate` per minute, but only while it's connected by owned roads to the sanctuary.
 - **Starvation:** below `starve_threshold` (default 25%) units spawn with reduced loadouts (50% fuel, guns only). At 0, the node can't rearm.
 - Logi trucks carry `cargo`, drive the road graph (A* over ROAD edges, cost = length / speed_mult), and unload over time at the destination.
-- **Bridges** are nodes with HP. A destroyed bridge removes its edge until an engineer repairs it.
+- **Bridges** are nodes with HP. A destroyed bridge removes its edge until it is repaired. Who can repair it, and how fast, is open question Q-GD-11.
 - **Supply-line stretch** (snowball breaker): coalition truck transit time scales with road distance from the sanctuary. Enemy reinforcement time shrinks as the front nears its HQ.
 - Units heal and rearm **only while landed or parked at a friendly node**, by spending stock. They never heal passively (fixes the immortality bug).
 
