@@ -196,6 +196,7 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | NX-281 | Rescue and refuel missions (future, tied to NX-280): a stranded ground or logistics unit can end its sortie or wait for rescue, and operators can mount a rescue or refuel run. Air-to-air refueling (tanker unit) for combat air patrols in safe airspace. Aircraft that run dry crash. | ⬜ |
 | NX-283 | Hot-loadable unit content pipeline: per-unit YAML, validators (incl. no-real-names and stat envelope), `OP_CONTENT_LOAD`, admin form | ⬜ |
 | NX-284 | `new-unit` agent skill + tool-agnostic prompt: plain-language description → validated draft → approval | ⬜ |
+| NX-285 | Backups: `BackupTarget` port with local (Linux server) + Google Drive (owner has access) adapters, age encryption, tiered retention (DB/snapshots nightly; replay/telemetry archives separately), quarterly restore test; verify provider limits first | ⬜ |
 | NX-273 | Research + spike: Epidemic Sound license coverage for 24/7 streams/clips; API/MCP availability; `MusicSource` port so an agent can search and queue licensed tracks by mood (tension-driven, AUDIO-TTS §1) | ⬜ |
 | NX-272 | Third-party tips adapter (Ko-fi or Streamlabs/StreamElements; Q-SUP-3) | ❓ |
 
