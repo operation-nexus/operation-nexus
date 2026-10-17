@@ -219,8 +219,52 @@ Owner principle: outcomes are **probabilistic and different every war** (new see
 | Q-UX-5 | Overlay language(s) | English first; all text through localization keys so more languages can be added later | ✅ 2026-10-17: A, English first; all text through localization keys |
 
 
+
+## Questions from your conversation that need your words
+
 1. ✅ 2026-10-17: Visible as radio/INTEL lines (A), **plus an owner or admin can take over the AI (Game Master mode, ADMIN-RBAC)**. Original question: You said the Threat Director "learns" when players attack its stockpiles. How visible should that learning be? (Default: a sitrep line, e.g. "Enemy has reinforced convoy escorts on Route 4.")
 2. ✅ 2026-10-17: Yes, an INTEL ASSESSMENT panel (A). Original question: Should a viewer ever be able to see *why* the AI did something? (Default: yes, through a short "INTEL ASSESSMENT" panel. It builds trust that the AI isn't cheating.)
 3. ✅ 2026-10-17: **Yes, results carry over into the next war (B).** Carry-over rules are Q-GD-12. Original question: The global map / multi-campaign theater is in the backlog. Do campaigns carry consequences into the next one? (Default: no in v1. Cosmetic history only.)
 4. ✅ 2026-10-17: Later, after the alpha (A). Original question: Discord: is it part of the MVP or later? (Default: later. Use the Twitch-only alpha first.)
 5. ✅ 2026-10-17: After the alpha (A). Original question: Vertical 9:16 output: is it part of the MVP? (Default: no. It doubles encode load. Add it in beta.)
+
+## Gap-analysis batch (2026-10-17; see docs/review/GAP-ANALYSIS-2026-10-17.md)
+
+| ID | Question | Recommended default | Blocks | Decision |
+|---|---|---|---|---|
+| Q-PROD-8 | Where is the MVP cut line? Today's decisions put damage states, munitions, repair, base HP, track fade, Tasking Board and Pattern of Life into P1/P2 | P1 gets core loop + damage states + base HP + munitions; everything else goes behind flags | P1 | |
+| Q-GD-29 | How is the "time limit | decided by score" score computed (GAMEPLAY §9)? Can a war end in a draw? → node-share over time + objectives; a ±5% draw band | P1 | |
+| Q-GD-30 | Parity: is the director's budget backed by real enemy stock and factories? Does the Static have an off-map source? | budget = enemy stock; infinite rear source behind a capturable HQ | P1 | |
+| Q-GD-31 | Can the AI garrison retake lost or neutral nodes, given it "never initiates offense"? | only its own nodes, within N min | P1 | |
+| Q-GD-32 | What happens to units parked at a base when it's captured? | scramble to the nearest reachable base, else destroyed with a crew roll | P1 | |
+| Q-GD-33 | What archetype is theater #1, given that navy arrives in P3? | land-leaning map with a bridged strait | P1 | |
+| Q-GD-34 | Does the Static use the same Tasking Board, with the director as the strategic layer only? | yes | P1 | |
+| Q-GD-35 | What happens when a viewer goes silent with a live unit? Chat gives no presence signal | the unit finishes its job, then RTBs and despawns after 30 min | P2 | |
+| Q-GD-36 | RQ-3 (merge joiners into flights) depends on packages, which are P4. Is it in the alpha? | no; alpha uses the queue only | P2 | |
+| Q-AI-7 | Can mastermind taunts name individual operators? Template-only before P4? | template-only; never name a person | P3 | |
+| Q-AI-8 | Can a GM help the coalition, or only drive the Static? | Static + world events only (TS-1) | P4 | |
+| Q-AI-9 | Which redemptions add to `provocation`? | only those with a gameplay effect | P4 | |
+| Q-UX-10 | Main map camera: fixed, or auto pan/zoom? | fixed; the PiP shows detail | P2 | |
+| Q-UX-11 | HUD priority with about 12 new elements (NEEDED jobs, queue, operator breakdown, rally, GM badge, explainer, mastermind) at 16:9 and 9:16 | only momentum/objective/threat/how-to-play stay on screen; the rest rotate | P2 | |
+| Q-UX-12 | Merge the overlapping `!me` and `!status`? | `!status` becomes an alias | P2 | |
+| Q-PROG-6 | PROG-2 ("no XP with <2 humans") contradicts the VISION "night-owl hero" and TS-3 | drop it and rely on the cap, the first-mission gate and NX-277 | P3 | |
+| Q-PROG-7 | Is Merit only a score, or can it be spent? (The O-6 "asset from merit" conflicts with ADR-0011's no-currency rule) | score only; abilities run on cooldowns | P3 | |
+| Q-PROG-8 | What metric ranks each board, per role? | role contribution; overall = merit | P3 | |
+| Q-PROG-9 | What happens when a season ends mid-campaign? | the season ends at the next campaign end | P3 | |
+| Q-GW-2 | Accept commands from Twitch Shared Chat or raid-origin viewers? (API specifics [UNVERIFIED]) | own channel only | P2 | |
+| Q-OPS-7 | How are OBS, WSL2 and Docker supervised and auto-started on Windows? OPS-ADMIN §1 assumes systemd | a Windows-native supervisor + Update active hours [tooling unverified] | P2 | |
+| Q-OPS-8 | Should the sim pause while the stream is offline? | auto-pause after 10 min (reason TECHNICAL) | P2 | |
+| Q-OPS-9 | Weekly maintenance window, and what the stream shows while the owner games on the broadcast PC (Q-OPS-1 is still partial) | fixed window; gaming = banner + pause | P2 | |
+| Q-ARCH-16 | Public site hosting and data path; does it force Postgres? | static export at campaign end; stay on SQLite | P3 | |
+| Q-DM-3 | Where do D7 and session analytics come from (NX-036)? | sim events only; no trackers | P3 | |
+| Q-BRAND-4 | Mastermind name (still "TBD") | owner picks from a shortlist | P3 | |
+| Q-BRAND-5 | Are AI-generated logos, portraits or icons allowed under "no AI slop"? | only with owner editing + disclosure | P2 | |
+| Q-LEGAL-4 | Licence for art, audio and fonts in a public MIT repo (Q-CI-2 says only "separately") | brand assets all-rights-reserved; licensed music never committed | P2 | |
+| Q-LEGAL-5 | Trademark and handle clearance for Operation Nexus, Clearwave and The Static before NX-297 | basic search first | P2 | |
+| Q-LEGAL-6 | Legal entity and contact for the privacy notice and donations | individual + a privacy email | P3 | |
+| Q-LEGAL-7 | Can the viewer simulator (Q-PROD-4) run on the public channel, given fake-engagement policies? | LocalSim on staging/unlisted only | P2 | |
+| Q-SUP-7 | Channel-point supply drops grow with audience size, which violates TS-1 | a fixed global hourly cap, or drop the category | P4 | |
+| Q-TEST-1 | Which host is the "reference host" (SC-10, OV-10)? Which platform and Python/NumPy pins apply to golden replays? | i7-8700 under WSL2 for perf; the CI image for goldens | P1 | |
+| Q-TEST-2 | What does "harness-validated" mean, so a value can drop its PROPOSED label (DI-7)? | written targets (campaign 24–72 h in ≥80% of seeds, newbie impact <5 min) | P1 | |
+| Q-TEST-3 | How are cold alpha testers recruited while the old-Discord announcement is held back? | 5–10 private invites | P2 | |
+| Q-PROC-1 | Who folds decisions into specs, and in what order are specs approved? | one agent PR per spec; P1 specs first | P0 | |
