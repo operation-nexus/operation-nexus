@@ -55,7 +55,7 @@ Rule: **data crossing B1, B3 or B5 is untrusted.** That includes display names a
 
 ### Gateway (SEC-GW)
 - **SEC-GW-1.** Every inbound message MUST be normalized to `ChatEnvelope`: NFKC, confusables folded for comparison, control and bidi characters stripped, length ≤ 300 chars.
-- **SEC-GW-2.** Per-user token-bucket rate limits (default 1 cmd/2 s, burst 3) and a global admission cap MUST be enforced before the sim sees a command.
+- **SEC-GW-2.** Per-user, per-command-class token-bucket rate limits (values in CHAT-GATEWAY §5, admin-adjustable) and a global admission cap MUST be enforced before the sim sees a command.
 - **SEC-GW-3.** Only official platform APIs are permitted. A reverse-engineered adapter (TikTok) requires an approved ADR, runs in an isolated container with no other credentials, and never uses the owner's personal session.
 - **SEC-GW-4.** Webhook payloads (EventSub, Kick) MUST have their signatures verified and be deduplicated by message id.
 
