@@ -148,7 +148,7 @@ Legend: **Blocks** is the earliest roadmap phase that needs the answer (P0 = Fou
 | Q-BRAND-2 | Name of the enemy (and of our side) | Brainstorm in chat with the owner | ✅ 2026-10-17: Enemy = **The Static** (with a taunting mastermind; name TBD). Our side = **Clearwave** (working name; may later be put to a community vote via chat, commanders, or Discord). Viewers are **Operators**, who command squads, platoons or individual units. |
 | Q-BRAND-3 | Community naming votes (side name, mastermind name, theater names): how and when? | Later (P4+): a time-boxed poll via chat command and Discord, with an owner-approved shortlist and moderation. Results are applied through the admin console. | P4 | |
 | Q-PROD-7 | Can viewers watch past wars (replays)? | Yes, later: a companion-site replay viewer showing callsigns only. Hidden enemy info stays hidden until the campaign ends. | P5 | ✅ 2026-10-17: A |
-| Q-GW-1 | Command rate limits | Stricter, per command class, admin-adjustable live, slow-mode toggle, cooldown ring + batched replies (CHAT-GATEWAY §5) | P2 | ✅ 2026-10-17: owner wants stricter + intent-based + adjustable; recommendation pending owner confirm |
+| Q-GW-1 | Command rate limits | Stricter, per command class, admin-adjustable live, slow-mode toggle, cooldown ring + batched replies (CHAT-GATEWAY §5) | P2 | ✅ 2026-10-17: A. Per-class limits as in CHAT-GATEWAY §5, admin-adjustable live; slow-mode toggle; cooldown ring + batched replies |
 | Q-SUP-5 | Retention of financial support records? | Keep them as long as your tax and accounting needs require. Ask an accountant; this isn't something we can define for you. | P4 | |
 
 ## Questions from your conversation that need your words

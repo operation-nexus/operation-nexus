@@ -50,7 +50,6 @@ NFKC; strip control, bidi and zero-width characters; cap at 300 characters; buil
 
 Throttled commands are never silently lost without one of these signals (GAMEPLAY FB-UX-5).
 
-- Per user: a token bucket of 1 command per 2 s, burst 3.
 - Global: an admission cap on commands per tick. Above the cap, `!join` requests go to the reserve queue and other commands are dropped, with a metric.
 - During a raid (a spike in new users), `!join` requests are coalesced.
 
