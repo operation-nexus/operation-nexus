@@ -1,0 +1,14 @@
+name: Decision needed
+description: A design question for the owner
+title: "Q-___: "
+body:
+  - type: textarea
+    id: question
+    attributes: { label: Question and context }
+    validations: { required: true }
+  - type: textarea
+    id: options
+    attributes: { label: Options with trade-offs }
+  - type: textarea
+    id: recommendation
+    attributes: { label: Recommended default }

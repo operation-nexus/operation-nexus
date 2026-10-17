@@ -1,0 +1,168 @@
+# CI/CD Architecture
+
+Status: Draft · Tracker: NX-010…NX-029 · Related: ADR-0006 (deployment target), THREAT-MODEL §Supply chain
+
+## 1. Goals
+
+1. **Every merge to `main` is releasable.** CI proves it, not humans.
+2. **Fast feedback.** PR checks finish in under 8 minutes p50. Only the jobs for changed paths run.
+3. **Security is a gate, not a report.** High or critical findings block merge.
+4. **Reproducible and traceable.** Every running container maps to a commit, an SBOM, a signature, and a balance-config version.
+5. **Safe deploys to a single always-on node.** One-command rollback, and the stream survives a bad deploy (see §7).
+
+Non-goals for now: Kubernetes, Helm, multi-region, canary traffic splitting (ADR-0006).
+
+## 2. Branching and versioning
+
+| Item | Rule |
+|---|---|
+| Model | Trunk-based. Short-lived branches → PR → squash-merge to `main`. |
+| Branch names | `feat/NX-123-short`, `fix/NX-…`, `docs/…`, `chore/…` |
+| Commits / PR titles | Conventional Commits. A PR-title lint enforces this because squash uses the title. |
+| Versioning | SemVer per deployable (`sim`, `gateway`, `overlay`) via release-please manifest mode. `contracts/` is versioned too, and any breaking change bumps `PROTOCOL_VERSION`. |
+| Protection on `main` | Require PR, ≥1 approval (owner or the agent-review bot, see Q-CI-3), required status checks (§4), linear history, no force-push, conversation resolution, CODEOWNERS for `.github/`, `deploy/`, `contracts/`, `docs/security/`. |
+| Tags | `sim-v1.4.0` etc. are created only by release-please. |
+
+## 3. Pipeline overview
+
+```
+ PR opened/updated
+   │
+   ├─ pr-hygiene ── title lint · size label · tracker-ID check · changed-paths filter
+   │
+   ├─ python (paths: services/**, tools/**, contracts/**)
+   │     ruff check · ruff format --check · mypy --strict · pytest (unit + property)
+   │     coverage gate (diff coverage ≥ 90%, sim-core total ≥ 85%)
+   │
+   ├─ typescript (paths: apps/**, contracts/**)
+   │     eslint · prettier --check · tsc --noEmit · vitest · build
+   │
+   ├─ contracts
+   │     regenerate Pydantic + TS types → git diff --exit-code (drift = fail)
+   │     schema compatibility check vs main (breaking change requires PROTOCOL_VERSION bump)
+   │
+   ├─ sim-determinism (paths: services/sim/**, contracts/**, balance/**)
+   │     golden replays: seed + command log → state hash must equal committed hash
+   │     cross-run check: same scenario twice in separate processes → identical hashes
+   │     perf smoke: 1,000 entities, p99 tick time under budget
+   │
+   ├─ integration (docker compose, ephemeral)
+   │     nexus-app (sim+gateway, SQLite) + tts worker + overlay; scripted chat bots; WS contract tests
+   │     Playwright: overlay renders, visual snapshot diff, no console errors
+   │
+   ├─ security (always)
+   │     gitleaks (secrets) · dependency-review (new vulns/licenses in diff)
+   │     CodeQL (python, javascript-typescript, actions) · semgrep (custom rules, §5)
+   │     osv-scanner / pip-audit / pnpm audit (SCA) · zizmor (workflow lint)
+   │     trivy config (Dockerfiles, compose) · hadolint
+   │
+   └─ docs (paths: **/*.md)
+         markdownlint · lychee link check · ADR index up to date
+
+ Merge to main
+   ├─ all of the above (full, not path-filtered)
+   ├─ build: docker buildx (pinned base digests) → push ghcr.io/<owner>/nexus-<svc>:sha-<sha>
+   ├─ syft SBOM (SPDX) attached as attestation · trivy image scan (fail on HIGH/CRITICAL fixable)
+   ├─ cosign keyless sign (GitHub OIDC) + SLSA provenance (actions/attest-build-provenance)
+   ├─ deploy → staging (automatic; see §6)
+   └─ release-please updates the release PR
+
+ Release PR merged (tag created)
+   └─ promote the same digests → production (manual approval via GitHub Environment)
+
+ Nightly (cron)
+   ├─ 6h soak: full stack, synthetic chat (diurnal curve incl. 500-viewer raid + troll swarm)
+   │     asserts: no memory growth > X%, tick p99 within budget, zero unhandled exceptions,
+   │     WS reconnect works, state hash checkpoints replay identically
+   ├─ balance harness: standard scenarios × 20 seeds → report artifact + trend
+   ├─ full SCA rescan of main + base-image rescan (catches newly disclosed CVEs)
+   └─ OpenSSF Scorecard
+```
+
+## 4. Required status checks (branch protection)
+
+`pr-hygiene`, `python`, `typescript`, `contracts`, `sim-determinism`, `integration`, `security/gitleaks`, `security/codeql`, `security/dependency-review`, `security/sca`, `security/zizmor`, `docs`.
+
+Path-filtered jobs report success when skipped, so a required check is never left pending. Use a single `ci-gate` job that `needs:` all of them and evaluates their results. That job is the only required check, which prevents "skipped = missing" deadlocks.
+
+## 5. Security tooling (what each actually covers)
+
+The raw plan called `pip-audit` and `npm audit` "SAST". They aren't. They're SCA (known-vulnerable dependencies). The layers are:
+
+| Layer | Tool | Blocks merge? |
+|---|---|---|
+| Secrets | gitleaks (PR + push protection enabled in repo settings) | Yes |
+| SAST | CodeQL default + security-extended queries; Semgrep with custom rules | Yes on high |
+| SCA | dependency-review-action (diff), osv-scanner (full) | Yes on high or critical with a fix available |
+| License | dependency-review `allow-licenses` list (decided in Q-LEGAL-1) | Yes |
+| IaC / containers | trivy config, hadolint, trivy image | Yes on high or critical |
+| CI itself | zizmor, actions pinned by SHA, `permissions: {}` default | Yes |
+| DAST | OWASP ZAP baseline against staging (companion site / link portal) | Report only until Phase 5 |
+| Supply chain posture | OpenSSF Scorecard, Dependabot/Renovate (grouped, weekly) | Report |
+
+Custom Semgrep rules (repo-specific, under `.semgrep/`):
+- `nexus.sim.no-wallclock`: bans `time.time`, `datetime.now`, `random.`, `uuid.uuid4` under `services/sim/core/`.
+- `nexus.no-innerhtml`: bans `innerHTML`, `outerHTML`, `insertAdjacentHTML`, and `dangerouslySetInnerHTML` in `apps/`.
+- `nexus.sql-no-fstring`: bans f-strings or `%` formatting inside `execute(`.
+- `nexus.no-shell-true`: bans `subprocess(..., shell=True)` (relevant for FFmpeg).
+- `nexus.llm-output-must-validate`: LLM client results must flow through a `validate_*` function.
+
+## 6. Environments and deployment
+
+| Env | Where | Trigger | Data | Stream target |
+|---|---|---|---|---|
+| `local` | dev machine, `docker compose` | manual | seeded fixtures | none (overlay in a browser) |
+| `ci` | GitHub-hosted runners, ephemeral compose | every PR | fixtures | none |
+| `staging` | same host as prod, separate compose project + ports, **or** a cheap VPS (Q-OPS-2) | merge to `main` | anonymized copy / synthetic | private/unlisted test stream |
+| `production` | broadcast host (Q-OPS-1) | release tag + manual approval | real | public channel(s) |
+
+Deployment mechanism (single node, ADR-0006):
+1. GitHub Actions job in environment `production` (required reviewer = owner).
+2. Authenticates to the host over **Tailscale** (OAuth client in GitHub secrets, ephemeral tagged node). No inbound SSH port is exposed to the internet.
+3. Runs `deploy/bin/deploy <service> <digest>`, which does `cosign verify` → `docker compose pull` → health-gated restart → smoke test → records the deployed digests in `deploy/state/`.
+4. On a failed health check, it automatically rolls back to the previous digest. Rollback is also one manual command: `deploy/bin/rollback <service>`.
+
+**Self-hosted runners:** don't attach one to this repo if it is public. If the broadcast PC must build or run GPU jobs, use a pull-based deploy instead (the host polls for signed digests) so CI never gets code-execution rights on the machine that holds stream keys.
+
+## 7. Deploying without dropping the stream
+
+The broadcast must survive deploys of every component:
+- **Overlay:** OBS points to a local nginx serving `/current → overlay-vX`. Deploy = atomic symlink swap + overlay hot-reload message over WS. If the WS drops, the overlay auto-reconnects and resyncs from a snapshot.
+- **Sim:** snapshot state at tick N (fsync'd) → stop → start new version → load snapshot → resume. Viewers see at most a "COMMS RESYNC" banner for a few seconds. If the snapshot schema changed incompatibly, the deploy is refused unless a migration exists and is tested in CI.
+- **Gateway:** in-process with the sim for now (ADR-0001), so it restarts together with the sim. Chat that arrives during the few seconds of restart is dropped on purpose, because stale commands replayed late are worse than lost ones. Once the gateway is split out (SYSTEM-DESIGN §7), commands buffer in Redis Streams with a per-message TTL.
+- **OBS / encoder:** never touched by an automated deploy. A separate runbook covers it.
+
+## 8. Secrets
+
+| Secret | Store | Used by |
+|---|---|---|
+| Twitch / YouTube client secrets, refresh tokens | GitHub Environment secrets → host `.env` (0600) or sops-encrypted file in `deploy/` | gateway |
+| Stream keys | Host only, never in GitHub | OBS |
+| LLM API keys | GitHub Environment secrets → host | llm-gateway (Phase 4+) |
+| Link-token HMAC key, DB passwords | Generated on the host, sops-encrypted backup | sim/api |
+| Tailscale OAuth | GitHub Environment secret | deploy job |
+
+Rotation runbook in `deploy/runbooks/rotate-secrets.md` (NX-027). Secrets must never be logged; the logging library has a redaction filter with a test.
+
+## 9. Repository settings checklist (owner action)
+
+- [ ] Branch protection / ruleset on `main` as in §2
+- [ ] Secret scanning + push protection ON
+- [ ] Dependabot alerts + security updates ON
+- [ ] Private vulnerability reporting ON (`SECURITY.md`)
+- [ ] Actions: "Allow select actions" + require SHA pinning; default `GITHUB_TOKEN` read-only
+- [ ] Environments `staging`, `production` created; `production` requires owner approval
+- [ ] CodeQL default setup OFF (we use the advanced workflow) to avoid duplicate runs
+
+## 10. Workflow file plan
+
+| File | Purpose | Tracker |
+|---|---|---|
+| `.github/workflows/ci.yml` | PR + main checks, `ci-gate` | NX-011 |
+| `.github/workflows/security.yml` | CodeQL, gitleaks, SCA, zizmor, trivy config | NX-012 |
+| `.github/workflows/build.yml` | images, SBOM, sign, attest (main only) | NX-013 |
+| `.github/workflows/deploy.yml` | staging auto, prod on release with approval | NX-014 |
+| `.github/workflows/release.yml` | release-please | NX-015 |
+| `.github/workflows/nightly.yml` | soak, balance, rescan, scorecard | NX-016 |
+| `.github/workflows/pr-hygiene.yml` | title lint, labels, tracker-ID check | NX-017 |
+| `.github/dependabot.yml` | grouped weekly updates for pip, npm, actions, docker | NX-018 |

@@ -1,0 +1,10 @@
+# Default owner
+*                       @canthony224
+# Sensitive paths: changes require owner review
+/.github/               @canthony224
+/deploy/                @canthony224
+/contracts/             @canthony224
+/docs/security/         @canthony224
+/docs/architecture/adr/ @canthony224
+/AGENTS.md              @canthony224
+/.agents/               @canthony224
