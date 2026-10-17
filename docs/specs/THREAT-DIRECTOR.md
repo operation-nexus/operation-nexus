@@ -39,7 +39,7 @@ At 0 humans, the coalition AI garrison holds the line and the director stays in 
 The owner, or an admin with the `GAME_MASTER` permission, can take over the director (ADMIN-RBAC spec):
 - **Modes:**
   - **ASSIST:** the GM injects or vetoes operations while the rules keep running.
-  - **TAKEOVER:** the rules pause, and the GM issues operations from the same operation library.
+  - **FULL:** the rules pause, and the GM issues operations from the same operation library.
 - **Constraints:** GM operations are still validated against the tier budget and preconditions. A GM *may* exceed the budget only with an explicit `override_budget` flag, which is audited.
 - **Logging:** every GM action is a logged `OP_*` command, so replays stay deterministic (ADR-0002).
 - **On stream:** a "COMMAND: GAME MASTER" badge is shown while a GM is active (DATA-INTEGRITY DI-5: never disguise human control as AI or vice versa).
