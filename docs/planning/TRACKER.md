@@ -220,6 +220,7 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | NX-306 | Isolated-base logistics: air drops, sea ferries, engineer bridging, helicopter airlift (Q-GD-21) | ⬜ |
 | NX-307 | Icon system: category-based auto-generated symbols, custom SVG upload with sanitization, playtest symbol readability; animated icons later | ⬜ |
 | NX-308 | Survivor reward: eligibility check (alive + ≥1 completed mission), ribbon, merit bonus, next-war forward-base first deploy | ⬜ |
+| NX-309 | Tasking Board: job generation from state, priorities, role matching, slot de-dup, AI garrison integration, overlay "NEEDED" list, decision window, `hold` opt-out | ⬜ |
 | NX-273 | Research + spike: Epidemic Sound license coverage for 24/7 streams/clips; API/MCP availability; `MusicSource` port so an agent can search and queue licensed tracks by mood (tension-driven, AUDIO-TTS §1) | ⬜ |
 | NX-272 | Third-party tips adapter (Ko-fi or Streamlabs/StreamElements; Q-SUP-3) | ❓ |
 

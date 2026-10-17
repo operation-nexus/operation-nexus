@@ -24,6 +24,16 @@ Viewers see a generated callsign, not their username, so the game must connect "
 - **FB-UX-5 Rejections are visible too.** Reasons like "unit in sortie" or "respawn in 12 s" are batched into the digest with the callsign, never silently dropped.
 - **FB-UX-6 Measure it:** track the share of first-time commanders who issue a second command (NX-036). A low value means the feedback isn't working.
 
+## 1b. Tasking Board (owner direction 2026-10-17; PROPOSAL, Q-GD-26)
+A shared queue of **jobs** the system generates from the live situation, so every unit, human or AI, always has something useful to do:
+- **Job types:** resupply a starving base, scout a sector or blob, escort a convoy, defend a threatened node, strike a target, rescue a downed crew, repair a bridge, assist the current objective.
+- **Each job has:** a priority (from objective, threat and starvation level), the role(s) that fit, a **slot count** (how many units it needs), and an expiry.
+- **Assignment:** a unit with no explicit order takes the highest-priority open job matching its role. Slots prevent pile-ups: a job is skipped once its slots are full, unless *every* job is full.
+- **AI garrison** pulls from the same board, but only takes jobs no human has claimed, and releases them when an operator wants one.
+- **Logistics routing:** a supply job sets the *destination*; the route is planned automatically along roads/sea lanes. Players can still override with `!target` or `!rebase`.
+- **Visible:** the overlay shows the top few open jobs ("NEEDED: supply to WEST FOB") so lurkers learn what matters.
+- **Decision window (owner idea, playtest):** after `!join`, the unit **holds at base for a short window** (configurable; owner suggested up to ~5 min) waiting for an explicit order, then auto-takes a job. Any explicit order cancels auto-tasking. `!join <role> hold` opts out of auto-tasking entirely.
+
 ## 2. Roles (MVP, resolves critique #7 and #8)
 | Role | Command | Domain | Does | Can't |
 |---|---|---|---|---|
