@@ -96,6 +96,7 @@ Owner idea: sending **surplus supply** to a base gradually upgrades it: a radar 
 A package is a group of up to 4 existing units, with a lead (O-5+) or an auto-lead. It shares the lead's target and gives a small jamming/escort benefit plus an XP share bonus. **There is no lobby wait.** Units join as they spawn. If fewer than 2 humans are in the package after 30 s, an NPC wingman may fill a slot (Q-GD-10).
 
 ## 8. Capture
+- **Base defenses first (Q-GD-18):** each node has defense HP (configurable, upgradable via §5a). Capture can't begin until HP is 0. Air strikes, artillery and ground fire reduce HP; supply deliveries repair it; starvation slowly drains it (`logistics.starve_hp_drain_per_min`, PROPOSED).
 - Capture requires a ground or logistics unit within `capture.radius_m`, with no enemy ground unit contesting it. Progress takes `capture.time_s` (PROPOSED 120 s), scaled by the number of units with diminishing returns. Air units can't capture.
 - Progress decays when the node is uncontested and unoccupied. A capture can't flip twice in one tick (property test).
 
