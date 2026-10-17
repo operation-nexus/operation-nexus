@@ -14,6 +14,10 @@
 | [AUDIO-TTS](AUDIO-TTS.md) | Audio buses, sitreps, TTS, night mode | P2 / P3 |
 | [CLIPS-REPLAY](CLIPS-REPLAY.md) | Replays, excitement scoring, clip review queue | P3 |
 | [LLM-ADVISORS](LLM-ADVISORS.md) | Advisor, narrator, `!order` parser, budgets | P4 |
+| [CONTRACTS](CONTRACTS.md) | Enums, commands, events, wire messages, internal and admin API | P0–P2 |
+| [DATA-MODEL](DATA-MODEL.md) | SQLite schema, ledgers, snapshot and log formats, retention, backups | P1–P3 |
+| [CONFIG-AND-CONTENT](CONFIG-AND-CONTENT.md) | Config layers, balance key reference, unit catalog, theater format | P1 |
+| [STATE-MACHINES-AND-FLOWS](STATE-MACHINES-AND-FLOWS.md) | Lifecycles, transition tables, end-to-end sequences | P1–P2 |
 | [OPS-ADMIN](OPS-ADMIN.md) | Watchdog, observability, alerting, admin console, kill switch, runbooks | P2 |
 
 Specs start as **Draft**. They move to **Approved** only after the owner signs off and every linked open question that blocks the phase is answered.

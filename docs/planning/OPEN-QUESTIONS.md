@@ -99,6 +99,31 @@ Legend: **Blocks** is the earliest roadmap phase that needs the answer (P0 = Fou
 | Q-LEGAL-3 | Data retention and privacy notice? | As in THREAT-MODEL SEC-DATA-4. Privacy notice published before beta. | P3 | |
 | Q-BIZ-1 | Monetization? | Cosmetic-only (halos, trails, voice presets) via channel points or bits. **Never** gameplay power. | P4 | |
 
+## From the detailed system specs (2026-10-17)
+
+| ID | Question | Recommended default | Blocks | Decision |
+|---|---|---|---|---|
+| Q-SM-1 | Give objective selection its own `objective` RNG sub-stream? | Yes. Then changing objective logic doesn't shift director randomness. | P1 | |
+| Q-SM-2 | How long does an idle landed unit linger before despawning? | Balance key `idle_despawn_s`, tuned by the harness | P1 | |
+| Q-SM-3 | Custom callsigns: manual owner approval or automated moderation? | Automated moderation + review queue. Manual approval during alpha. | P3 | |
+| Q-SM-4 | After the AAR, same theater with a new seed or rotate theaters? | Same hand-authored theater with a new seed until a second theater exists | P1 | |
+| Q-SM-5 | How long with no active humans before the campaign clock pauses? | Balance key `pause_after_no_humans_s`, tuned by the harness | P1 | |
+| Q-CT-1 | Chat over the length cap: reject or truncate? | Reject. Truncation could turn it into a different valid command. | P2 | |
+| Q-CT-2 | Is the campaign seed public? | Hidden during the campaign, published after `CampaignEnded` | P1 | |
+| Q-CT-3 | Show tracers from enemy shooters we can't see? | No for MVP. Revisit after the readability study (NX-034). | P2 | |
+| Q-CT-4 | Show an "active humans" count on stream? | Yes. Humans only; shows `—` until known. | P2 | |
+| Q-CT-5 | MVP enemy/garrison unit roster (SAM, garrison ground, enemy armor, enemy convoy)? | Confirm once the first theater sketch exists (NX-008) | P1 | |
+| Q-DM-1 | Archive old XP ledger rows yearly, keeping derived stats? | Yes, once the ledger passes about 1 GB (size is an ESTIMATE; measure it) | P5 | |
+| Q-DM-2 | Access control on the public replay viewer? | Not for v1. Replays are pseudonymous, and deleted users show `REDACTED-…`. | P5 | |
+| Q-OPS-6 | Off-site backup destination? | S3-compatible object storage, `age`-encrypted before upload. Provider and price [UNVERIFIED]. | P2 | |
+| Q-CFG-1 | Balance profiles and mid-campaign changes? | `balance/<profile>.yaml`. Only hot-reloadable keys change mid-campaign; a full profile switch needs a new campaign. | P1 | |
+| Q-CFG-2 | Can rank thresholds change after launch? | Only with a migration plan. Never revoke ranks; new thresholds apply to future promotions only. | P3 | |
+| Q-CFG-3 | Terrain authoring for the first theater? | 16-bit heightmap PNG → derived contours, plus masking polygons | P1 | |
+| Q-CFG-4 | Callsign word-list size? | Start around 200 words (≈19.8k callsigns). Final target = 2× measured 90-day peak of distinct commanders. | P2 | |
+| Q-CFG-5 | A sitrep slot has no value: skip or fallback template? | Fallback template if one exists (logged as FB-3); otherwise skip. Never placeholder text. | P2 | |
+| Q-CFG-6 | Night-mode hours and time zone? | Owner decides. Proposal: 00:00–07:00 owner local time, configurable. | P2 | |
+| Q-CFG-7 | Fuel for ground units in the MVP? | No. Air only (`fuel_s: null` for ground and static units). | P1 | |
+
 ## Questions from your conversation that need your words
 
 1. You said the Threat Director "learns" when players attack its stockpiles. How visible should that learning be? (Default: a sitrep line, e.g. "Enemy has reinforced convoy escorts on Route 4.")
