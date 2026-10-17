@@ -113,7 +113,7 @@ Legend: **Blocks** is the earliest roadmap phase that needs the answer (P0 = Fou
 | Q-SM-5 | How long with no active humans before the campaign clock pauses? | Balance key `campaign.pause_after_no_humans_s`, tuned by the harness | P1 | |
 | Q-CT-1 | Chat over the length cap: reject or truncate? | Reject. Truncation could turn it into a different valid command. | P2 | |
 | Q-CT-2 | Is the campaign seed public? | Hidden during the campaign, published after `CampaignEnded` | ✅ 2026-10-17: A. Hidden during the campaign. After `CampaignEnded`, publish the seed and a **"what you didn't see" recap** (summary and/or narrative) that labels every enemy decision as made by the **AI rules, the LLM advisor, or a human Game Master**. |
-| Q-CT-3 | Show tracers from enemy shooters we can't see? | No for MVP. Revisit after the readability study (NX-034). | P2 | |
+| Q-CT-3 | Show tracers from enemy shooters we can't see? | No for MVP. Revisit after the readability study (NX-034). | ✅ 2026-10-17: A, no tracers from hidden shooters (impact shown as "unknown contact"). **Playtest note:** revisit in the readability study (NX-034). |
 | Q-CT-4 | Show an "active humans" count on stream? | Yes. Humans only; shows `—` until known. | P2 | |
 | Q-CT-5 | MVP enemy/garrison unit roster (garrison AAA and infantry; enemy SAM site, radar, fighter, armor, convoy)? | Confirm once the first theater sketch exists (NX-008) | P1 | |
 | Q-DM-1 | Archive old XP ledger rows yearly, keeping derived stats? | Yes, once the ledger passes about 1 GB (size is an ESTIMATE; measure it) | P5 | |

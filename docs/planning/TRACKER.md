@@ -128,7 +128,7 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | NX-255 | Production compose + systemd units + host provisioning doc | M | ⬜ | NX-014 |
 | NX-256 | Runbooks (deploy/rollback, restore, moderation incident, outage) | M | ⬜ | NX-255 |
 | NX-042 | Phase-2 security review + pentest of command path | M | ⬜ | all P2 |
-| NX-034 | Cold-tester readability study (5 people) | S | ⬜ | NX-178 |
+| NX-034 | Cold-tester readability study (5 people). Also test: hidden-shooter tracers on/off (Q-CT-3), recruit strip + `!me` clarity (FB-UX), orientation | S | ⬜ | NX-178 |
 | NX-035 | 7-day unattended burn-in on unlisted stream | M | ⬜ | all P2 |
 
 ## P3 — Public beta
