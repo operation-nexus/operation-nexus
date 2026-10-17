@@ -18,3 +18,8 @@
 - { name: "area:ci", color: "bfdadc", description: "" }
 - { name: "area:security", color: "bfdadc", description: "" }
 - { name: "area:docs", color: "bfdadc", description: "" }
+- { name: "phase:P0", color: "0052cc", description: "Roadmap phase P0" }
+- { name: "phase:P1", color: "0052cc", description: "Roadmap phase P1" }
+- { name: "phase:P2", color: "0052cc", description: "Roadmap phase P2" }
+- { name: "phase:P3", color: "0052cc", description: "Roadmap phase P3" }
+- { name: "phase:P4", color: "0052cc", description: "Roadmap phase P4" }

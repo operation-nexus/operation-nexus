@@ -8,7 +8,7 @@ GitHub Issues is the **live** tracker for tasks, bugs and decisions. `docs/plann
 | Tracker item `NX-###` | Issue titled `NX-###: …` (template: *Work item*) |
 | Owner decision `Q-…` | Issue titled `Q-…: …` (template: *Decision needed*) |
 | Bug | Issue from the *Bug* template |
-| Phase P0…P4 | Milestone `P0 Foundations`, `P1 Sim kernel`, … |
+| Phase P0…P4 | Label `phase:P0` … `phase:P4`. Milestones can be added by the owner in the GitHub UI if wanted. |
 | Area | Label `area:sim`, `area:overlay`, `area:gateway`, `area:identity`, `area:director`, `area:ops`, `area:ci`, `area:docs`, `area:security` |
 | Type | Label `type:task`, `type:bug`, `type:decision`, `type:spike` |
 | Priority | Label `prio:p0` (blocks the phase), `prio:p1`, `prio:p2` |
