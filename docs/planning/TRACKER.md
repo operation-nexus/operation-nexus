@@ -209,6 +209,7 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | NX-295 | Leaderboard moderation: remove banned or cheating operators from all boards (hide + recompute, audited) | ⬜ |
 | NX-296 | AAR + War Briefing: full AAR screen; short briefing card looping between wars; auto-published to site and Discord (via `ChatSink`/`CommunityBot` ports); data-only content (no invented text) | ⬜ |
 | NX-297 | Brand accounts setup: new Twitch/YouTube/TikTok/Instagram profiles + handles (check availability), Epidemic Sound plan decision (upgrade vs separate subscription; ask support about coverage after cancellation), Discord re-brand | ⬜ |
+| NX-298 | Scheduled post queue: approved clips/devlog posts scheduled per platform from the Command Center (phone-friendly). Uploads stay manual or private until platform audits pass (ADR-0008). | ⬜ |
 | NX-273 | Research + spike: Epidemic Sound license coverage for 24/7 streams/clips; API/MCP availability; `MusicSource` port so an agent can search and queue licensed tracks by mood (tension-driven, AUDIO-TTS §1) | ⬜ |
 | NX-272 | Third-party tips adapter (Ko-fi or Streamlabs/StreamElements; Q-SUP-3) | ❓ |
 
