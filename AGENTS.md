@@ -34,6 +34,7 @@ The raw files are brainstorms from an AI chat. **They are not specs.** Where the
 10. **Don't push, merge, deploy, or open PRs** unless the owner explicitly asks in the current session.
 10a. **No vendor lock-in.** Vendor SDKs (chat platforms, LLM, TTS, Discord) are imported only inside adapter packages, behind our own interfaces. Adapters must pass the shared conformance suite. See ADR-0010.
 11. **Branches:** branch from and target `develop` (once it exists, NX-049). Never target `main` except for release and hotfix PRs. See ADR-0009.
+11a. **Devlog checkpoints.** When you finish a tracker item labeled `devlog-moment`, end your report with a **DEVLOG CHECKPOINT** block: what to capture, 3–5 talking-point suggestions, and a title idea (docs/planning/MARKETING.md).
 12. **Commit messages:** Conventional Commits (`feat(sim): ...`, `fix(gateway): ...`, `docs: ...`). Don't add AI co-author trailers or self-references in commits or docs.
 
 ## 3. Repository layout (target)
