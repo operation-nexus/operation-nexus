@@ -184,6 +184,7 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | NX-269 | Twitch Bits + subs (gift de-dup) + Hype Train v2 | ⬜ |
 | NX-270 | YouTube Super Chat/Sticker/membership ingest | ⬜ |
 | NX-271 | Redemption rules engine + forbidden-effect validator | ⬜ |
+| NX-273 | Research + spike: Epidemic Sound license coverage for 24/7 streams/clips; API/MCP availability; `MusicSource` port so an agent can search and queue licensed tracks by mood (tension-driven, AUDIO-TTS §1) | ⬜ |
 | NX-272 | Third-party tips adapter (Ko-fi or Streamlabs/StreamElements; Q-SUP-3) | ❓ |
 
 ## Backlog (unscheduled — from owner's conversation & plans)
