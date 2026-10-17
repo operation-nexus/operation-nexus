@@ -240,17 +240,16 @@ secrets.dec.*
 
 # Runtime data (DATA-MODEL: SQLite, snapshots, command logs, clips).
 # These names are unanchored so runtime output is ignored wherever a
-# service writes it. Do not name source directories snapshots/, clips/
-# or command-logs/.
+# service writes it. Anchored to the repo root so source packages (e.g. nexus/clips) are NOT ignored.
 /data/
 *.db
 *.db-wal
 *.db-shm
 *.sqlite
 *.sqlite3
-snapshots/
-command-logs/
-clips/
+/snapshots/
+/command-logs/
+/clips/
 *.nxs
 *.nxl.zst
 *.tmp
