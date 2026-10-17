@@ -177,7 +177,7 @@ Owner principle: outcomes are **probabilistic and different every war** (new see
 | ID | Question | Recommended default | Blocks | Decision |
 |---|---|---|---|---|
 | Q-NAME-1 | Rank names (real military titles conflict with the no-real-names rule) | Themed ranks: Recruit → Operator → Specialist → Signal Lead → Wave Commander → Clearwave Marshal (working names; final list in the brand guide) | P3 | ✅ 2026-10-17: A |
-| Q-NAME-2 | Unit class display names | Generic, friendly classes: Striker (multirole jet), Scout (recon drone), Hauler (supply truck), Tank, Gunboat, Tanker (refueler), Lifter (rescue helo), Sentinel (anti-air site), Spire (radar). Final list in the brand guide. | P1 | |
+| Q-NAME-2 | Unit class display names | Generic, friendly classes: Striker (multirole jet), Scout (recon drone), Hauler (supply truck), Tank, Gunboat, Tanker (refueler), Lifter (rescue helo), Sentinel (anti-air site), Spire (radar). Final list in the brand guide. | ✅ 2026-10-17: A, use these working names. A naming style guide for new platforms (admins/GMs, new-unit skill) goes in the brand guide (NX-274) |
 | Q-UX-1 | First-time viewer onboarding | A persistent "How to play" strip + a 30-second looping explainer card every ~10 min + `!help` digest. No long tutorials. | P2 | |
 | Q-UX-2 | Season structure | Seasons of ~4–8 weeks (several campaigns). Season leaderboards reset; lifetime ranks don't. A season-end recap and cosmetic badges. Ties into the global campaign later. | P4 | |
 | Q-UX-3 | Leaderboard reset cadence | Per-campaign boards reset each war; season boards each season; lifetime boards never | P3 | |
