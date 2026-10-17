@@ -146,6 +146,9 @@ Rotation runbook in `deploy/runbooks/rotate-secrets.md` (NX-027). Secrets must n
 
 ## 9. Repository settings checklist (owner action)
 
+The repo is **public** (Q-CI-1). Rulesets, environment required reviewers, CodeQL, secret scanning and private vulnerability reporting are all free on public repos only, for a personal Free account.
+
+
 - [ ] Branch protection / ruleset on `main` as in §2
 - [ ] Secret scanning + push protection ON
 - [ ] Dependabot alerts + security updates ON

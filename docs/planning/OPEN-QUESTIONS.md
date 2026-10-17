@@ -82,9 +82,10 @@ Legend: **Blocks** is the earliest roadmap phase that needs the answer (P0 = Fou
 
 | ID | Question | Recommended default | Blocks | Decision |
 |---|---|---|---|---|
-| Q-CI-1 | Is the repo public or private? (This affects runner security, CodeQL cost, and secret exposure.) | Private until alpha. Then public is fine, given the controls in CICD-ARCHITECTURE. | P0 | |
+| Q-CI-1 | Is the repo public or private? (This affects runner security, CodeQL cost, and secret exposure.) | **Stay public.** On a free account, the following are free on public repos only: CodeQL, secret scanning and push protection, the dependency-review action, private vulnerability reporting, unlimited Actions minutes, and (critically) **rulesets/branch protection and environment required reviewers**. Private repos on the Free plan don't get rulesets or required reviewers at all. Sources: docs.github.com rulesets and environments pages; github.blog 2025-03-04 changelog. | P0 | ✅ 2026-10-17: Owner has no preference. Staying **public** per recommendation. |
 | Q-CI-2 | Code license? | Keep the existing MIT for code. Assets (art, audio, voices) are licensed separately. | P0 | |
 | Q-CI-3 | As a solo dev, who approves PRs? | You approve. An AI reviewer (code-review + security-review) posts a required review comment. Allow self-merge after the checks pass. | P0 | |
+| Q-CI-5 | Add SonarQube? | Not yet. SonarQube Cloud is free for public repos [2024 terms; current terms UNVERIFIED]. Its security rules overlap CodeQL + Semgrep, and its extra value (code smells, duplication, coverage gates) matters once there's real code. Revisit at P2 (NX-047). | P2 | |
 | Q-CI-4 | Dependabot or Renovate? | Dependabot (built-in), grouped weekly. | P0 | |
 
 ## Legal & business

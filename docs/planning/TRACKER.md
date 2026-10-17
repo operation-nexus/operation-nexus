@@ -9,7 +9,7 @@ Single source of truth for work items until (optionally) mirrored to GitHub Issu
 
 | Phase | Items | Done | Status |
 |---|---|---|---|
-| P0 Foundations | 31 | 3 | 🟨 |
+| P0 Foundations | 36 | 3 | 🟨 |
 | P1 Sim kernel | 22 | 0 | ⬜ |
 | P2 Closed alpha | 27 | 0 | ⬜ |
 | P3 Public beta | 15 | 0 | ⬜ |
@@ -60,6 +60,11 @@ Single source of truth for work items until (optionally) mirrored to GitHub Issu
 | ID | Item | Size | Status | Depends | Acceptance |
 |---|---|---|---|---|---|
 | NX-030 | Test harness skeleton: pytest profiles (ci/nightly), hypothesis settings, vitest, Playwright | M | ⬜ | NX-010 | Example tests run in CI |
+| NX-044 | Owner desktop agent setup (docs/agentic/TOOLING.md §5): jq, Serena, plugins | S | ⬜ | — | `/mcp` shows serena + context7 connected |
+| NX-045 | Spike: code knowledge-graph MCP (CodeGraphContext vs codebase-memory-mcp), measured vs baseline | M | ⬜ | P1 code exists | Report with token and accuracy numbers; adopt/reject decision |
+| NX-046 | Data-integrity Semgrep rules + FB registry tests (DATA-INTEGRITY §6) | M | ⬜ | NX-012 | Each rule has positive/negative fixtures |
+| NX-047 | Optional: SonarQube Cloud quality gate (Q-CI-5) | S | ❓ | P2 | Decision recorded |
+| NX-048 | Publish GitHub labels from `.github/labels.yml`; create milestones P0–P4; open issues for P0 items | S | ❓ | owner OK | Issues exist and link back to TRACKER rows |
 | NX-040 | Threat model review with owner; accept residual risks | S | ❓ | NX-001 | THREAT-MODEL §6 signed off |
 
 ---

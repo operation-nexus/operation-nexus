@@ -17,6 +17,10 @@ Crowd-controlled war gaming: live-stream chat plays a 24/7 co-op war against an 
 | CI/CD | [docs/cicd/CICD-ARCHITECTURE.md](docs/cicd/CICD-ARCHITECTURE.md) |
 | Security | [docs/security/THREAT-MODEL.md](docs/security/THREAT-MODEL.md) |
 | Testing | [docs/quality/TESTING-STRATEGY.md](docs/quality/TESTING-STRATEGY.md) |
+| **No-fabricated-data policy (mandatory)** | [docs/quality/DATA-INTEGRITY.md](docs/quality/DATA-INTEGRITY.md) |
 | AI agent instructions | [AGENTS.md](AGENTS.md), [.agents/](.agents/) |
+| Agent tooling (plugins, MCP, hooks) | [docs/agentic/TOOLING.md](docs/agentic/TOOLING.md) |
+| Issues workflow | [docs/planning/ISSUE-WORKFLOW.md](docs/planning/ISSUE-WORKFLOW.md) |
+| Hardware | [docs/ops/HARDWARE.md](docs/ops/HARDWARE.md) |
 
 The original brainstorms are kept as source material: [Raw-plans.md](Raw-plans.md), [Raw-conversation.md](Raw-conversation.md).
