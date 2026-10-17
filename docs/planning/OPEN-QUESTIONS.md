@@ -125,7 +125,7 @@ Legend: **Blocks** is the earliest roadmap phase that needs the answer (P0 = Fou
 | Q-CFG-3 | Terrain authoring for the first theater? | 16-bit heightmap PNG → derived contours, plus masking polygons | P1 | |
 | Q-CFG-4 | Callsign word-list size? | Start around 200 words (≈19.8k callsigns). Final target = 2× measured 90-day peak of distinct commanders. | P2 | |
 | Q-CFG-5 | A sitrep slot has no value: skip or fallback template? | Fallback template if one exists (logged as FB-3); otherwise skip. Never placeholder text. | P2 | |
-| Q-CFG-6 | Night-mode hours and time zone? | Owner decides. Proposal: 00:00–07:00 owner local time, configurable. | P2 | |
+| Q-CFG-6 | Night-mode hours and time zone? | Owner decides. Proposal: 00:00–07:00 owner local time, configurable. | ✅ 2026-10-17: Night mode 00:00–08:00 **America/New_York** (owner: Eastern; adjustable in admin). Softer music, fewer voice lines, no loud sounds. Times are stored with an explicit IANA time zone, not UTC offsets, so DST is handled. |
 | Q-CFG-7 | Fuel for ground units in the MVP? | No. Air only (`fuel_s: null` for ground and static units). | ✅ 2026-10-17: A for launch (air-only fuel). **Playtest variant (NX-280):** all domains use fuel; ground and sea get much larger tanks and burn slower; running dry means crawling at a very low speed (any domain) instead of being destroyed. Compare in the balance harness. |
 
 ## Admin/RBAC and support redemptions (2026-10-17)
