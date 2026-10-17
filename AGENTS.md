@@ -59,7 +59,9 @@ The layout below is the target. Directories are created when their first tracker
 │   ├── sim/                  # Python: deterministic sim core + API/WS (modular monolith)
 │   └── gateway/              # Python: platform chat adapters -> normalized commands
 ├── apps/
-│   └── overlay/              # TypeScript: Vite + Pixi.js broadcast overlay
+│   ├── overlay/              # TypeScript: broadcast overlay (Canvas2D first, ADR-0005)
+│   ├── site/                 # Public site: replays, leaderboards, stats (no admin features)
+│   └── command-center/       # Private admin console (Q-ARCH-7; tailnet + Discord only)
 ├── tools/                    # chat simulator, replay CLI, balance harness, load bots
 ├── deploy/                   # docker compose, host provisioning, runbooks
 └── tests/                    # cross-service e2e / soak tests
