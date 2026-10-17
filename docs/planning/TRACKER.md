@@ -184,6 +184,10 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | NX-269 | Twitch Bits + subs (gift de-dup) + Hype Train v2 | ⬜ |
 | NX-270 | YouTube Super Chat/Sticker/membership ingest | ⬜ |
 | NX-271 | Redemption rules engine + forbidden-effect validator | ⬜ |
+| NX-274 | Brand and style guide: name usage, fictional factions and insignia, unit class naming (generic: Tank, Striker, Bomber…), color, type, sound identity, tone of voice; **no real names** rule added to the content validator | ⬜ |
+| NX-275 | Lore bible + campaign narrative: why we fight, who the enemy is, the season and global campaign arc, mission briefings; feeds sitrep templates and the global map (future) | ⬜ |
+| NX-276 | Community health design: positive-only feedback (no kill-shaming), cooperative and role-based leaderboards (no single "top killer"), friendly tone in all bot text, code of conduct, mod tools (ADMIN-RBAC), no PvP between viewers | ⬜ |
+| NX-273 | Research + spike: Epidemic Sound license coverage for 24/7 streams/clips; API/MCP availability; `MusicSource` port so an agent can search and queue licensed tracks by mood (tension-driven, AUDIO-TTS §1) | ⬜ |
 | NX-272 | Third-party tips adapter (Ko-fi or Streamlabs/StreamElements; Q-SUP-3) | ❓ |
 
 ## Backlog (unscheduled — from owner's conversation & plans)
@@ -197,3 +201,4 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 - TikTok (view-only simulcast, or chat if official API appears — ADR-0008)
 - Kubernetes/Helm (only per SYSTEM-DESIGN §7 triggers)
 - Localization of HUD/commands/TTS
+- **Voice ops line (owner idea, future):** a phone call system that calls the owner on critical alerts, or that the owner calls to talk to an ops agent. The agent can report status, run admin actions through RBAC with confirmation and audit, and record the owner's voice or transcript as clip narration. Text-based alerts and management come first (ADMIN-RBAC, OPS-ADMIN). Needs its own spec, security review (caller authentication, no destructive actions without confirmation) and cost research.

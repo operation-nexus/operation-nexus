@@ -1,6 +1,6 @@
 # ADR-0011: Support events trigger capped redemptions; no in-game currency (for now)
 
-- Status: Proposed (owner to confirm, Q-SUP-4)
+- Status: Accepted (owner, 2026-10-17)
 - Date: 2026-10-17
 - Related: ADR-0010 (ports), SUPPORT-REDEMPTIONS spec, research in docs/review/SUPPORT-AND-SCRAPING-RESEARCH.md
 

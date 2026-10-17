@@ -91,12 +91,19 @@ A package is a group of up to 4 existing units, with a lead (O-5+) or an auto-le
 - **End of campaign:** a 5-minute after-action review (top contributors per role, campaign stats), then a new seed or theater.
 
 ## 9a. Theater style and orientation (owner, 2026-10-17)
-- **Water-heavy theaters:** straits, archipelagos, large island masses, mountain passes, and urban districts. Because water dominates, naval play matters, which is why the sea domain was pulled forward to P3 (Q-GD-8).
+- **Theater variety is a design goal (owner, 2026-10-17).** Water-heavy theaters (straits, archipelagos, large islands) are common, but land theaters are just as welcome: desert ops, mountain passes, urban districts, plains. Rotating between them forces chat to adapt. A crowd used to seaports must rethink tactics in a desert with no naval option. Theater archetypes change which domains, nodes and supply routes matter. Rotation avoids repeating the same archetype twice in a row (proposed rule; PROPOSED, admin-configurable).
 - **Orientation:** the coalition (chat) is always on the **left (west)**, the enemy on the **right (east)**, and the main axis of advance runs left → right. Theater files must declare `orientation: west_to_east`, and the theater validator rejects maps whose sanctuary isn't in the left third. For the vertical 9:16 layout, see Q-GD-13.
 - **Urban terrain** needs extra rules (line-of-sight blocking, slower ground movement, capture by district). This is new design work, NX-129.
 
 ## 9b. Campaign carry-over (owner chose: results carry over)
 The outcome of campaign N affects campaign N+1, within bounded and visible rules (Q-GD-12). Carry-over state is stored in the DB (DATA-MODEL addition: `campaign_carryover`) and applied at campaign setup. It's never applied mid-campaign.
+
+## 9c. Theme vs strategy rule (owner, 2026-10-17)
+The signal and Static theme is a **presentation layer over the strategy game, never a replacement for it**:
+- **TS-1:** Chat volume and viewer count never directly buff, nerf or decide anything. Outcomes come only from units, logistics, fog of war and the director rules. (The director already scales on coalition *units and supply*, not on chat activity.)
+- **TS-2:** "Momentum" stays a strategic measure (nodes, stock, recent events). Any "signal strength" visuals are cosmetic flavor on top of it: map color brightness, static overlay intensity, sound.
+- **TS-3:** The game must play well at **0 viewers** (AI garrison + slow war, Q-GD-4) and scale smoothly upward. No mechanic may require a minimum crowd.
+- **TS-4:** Lore names (The Static, Relays, etc.) relabel things on screen and in sitreps only. Mechanics and their docs keep plain names (node, unit, supply).
 
 ## 10. Readability rules (stream-facing)
 Always visible: the momentum bar, the current objective with its timer, the director threat level, and a "how to play" line. A newcomer must be able to tell who's winning within 5 s (alpha exit criterion).

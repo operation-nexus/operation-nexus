@@ -11,9 +11,9 @@ Legend: **Blocks** is the earliest roadmap phase that needs the answer (P0 = Fou
 | Q-PROD-1 | What is the #1 goal for year one: fun hobby/devlog content, audience growth, or revenue? It drives how much ops rigor and cost is justified. | Audience growth + devlog content. Revenue is a bonus. | ✅ 2026-10-17: Audience growth + devlog content; revenue is a bonus (A) |
 | Q-PROD-2 | Which platform launches first? | **Twitch only** through closed alpha. YouTube in beta. Kick optional. TikTok deferred. | ✅ 2026-10-17: Twitch only for alpha, then YouTube (A) |
 | Q-PROD-6 | With ADR-0010 (both platforms first-class), do you want Twitch **and** YouTube in the closed alpha (simulcast), or keep Twitch-only alpha → YouTube beta? | Twitch-only alpha, YouTube in beta. The YouTube quota application and monitoring should come first. The code is neutral either way. | ✅ 2026-10-17: Twitch-only alpha, YouTube in beta (A) |
-| Q-PROD-3 | Will you be present on stream sometimes, or is it fully unattended? (This affects TikTok/YouTube policy risk and moderation.) | Unattended by default, plus scheduled "commander's briefing" sessions with you live weekly. | P2 | |
+| Q-PROD-3 | Will you be present on stream sometimes, or is it fully unattended? (This affects TikTok/YouTube policy risk and moderation.) | Unattended by default, plus scheduled "commander's briefing" sessions with you live weekly. | ✅ 2026-10-17: A (mostly unattended + weekly live briefing), and seasonally C (frequent live sessions, e.g. campaign launches or season events) |
 | Q-PROD-4 | What is the success metric for closed alpha? | ≥5 cold testers can say who's winning within 5 s and spawn within 30 s. 7 days unattended with ≤1 manual fix. | P2 | |
-| Q-PROD-5 | Public name and branding? "Operation Nexus" is fine. Avoid "NORAD" and real-org insignia. | Fictional factions, "Operation Nexus" | P2 | |
+| Q-PROD-5 | Public name and branding? "Operation Nexus" is fine. Avoid "NORAD" and real-org insignia. | Fictional factions, "Operation Nexus" | ✅ 2026-10-17: A, mandatory. **No real names anywhere**: no real countries, militaries, weapon systems or orgs ("NORAD" etc.). Units use generic class names (Tank, Striker, Bomber, Recon, Convoy…). Real-world *types* of platforms may be evoked, but they're clearly fictional and simulated. Needs a unique, memorable brand identity (Q-BRAND-1, NX-274). |
 
 ## Game design
 
@@ -29,8 +29,8 @@ Legend: **Blocks** is the earliest roadmap phase that needs the answer (P0 = Fou
 | Q-GD-8 | Domains in the MVP: Air + Ground logistics only, or also Sea? | **Air + Ground** in the MVP. Sea in phase P4. A strait map works without naval units at first. | ✅ 2026-10-17: Air + ground at launch (A); **sea domain sooner than later** (moved to P3 in ROADMAP) since maps are water-heavy |
 | Q-GD-9 | Map: hand-authored theater or procedural? | Hand-authored first theater (≈15 nodes) for tunability. Procedural later. | ✅ 2026-10-17: Hand-authored first theater (A); **procedural generation sooner than later** (moved to P3/P4, admin-triggered) |
 | Q-GD-11 | Who can repair destroyed bridges? Engineers unlock at O-4 (weeks of play), so a bridge could stay down for a long time. | Logistics trucks can do a slow field repair (e.g. 5× slower). Engineers repair fast and can also build. | ✅ 2026-10-17: Trucks do slow field repair; engineers repair fast and build (A) |
-| Q-GD-12 | Campaign carry-over (owner chose: results carry over). What carries? | Proposal: the winner of campaign N gets a modest start advantage in N+1: one extra starting node or starting stock, capped. A losing streak triggers a comeback bonus so the war never becomes hopeless. Theater rotation follows the outcome (e.g., a win pushes the front into the next theater). Keep it bounded and visible on stream. | P4 | |
-| Q-GD-13 | Map orientation: chat (coalition) on the left, enemy on the right (owner preference). What about the 9:16 vertical layout? | Keep left→right on 16:9. On vertical, rotate so the coalition is at the bottom and the enemy at the top. The overlay's right sidebar sits over enemy rear territory, which is acceptable. | P2 | |
+| Q-GD-12 | Campaign carry-over (owner chose: results carry over). What carries? | Proposal: the winner of campaign N gets a modest start advantage in N+1: one extra starting node or starting stock, capped. A losing streak triggers a comeback bonus so the war never becomes hopeless. Theater rotation follows the outcome (e.g., a win pushes the front into the next theater). Keep it bounded and visible on stream. | ✅ 2026-10-17: Winner gets a capped head start + comeback bonus for the loser (as recommended) |
+| Q-GD-13 | Map orientation: chat (coalition) on the left, enemy on the right (owner preference). What about the 9:16 vertical layout? | Keep left→right on 16:9. On vertical, rotate so the coalition is at the bottom and the enemy at the top. The overlay's right sidebar sits over enemy rear territory, which is acceptable. | ✅ 2026-10-17: Vertical layout: coalition at the bottom, enemy at the top |
 | Q-GD-14 | Reserve-queue priority: pure FIFO, or first-time viewers first? | FIFO, with a small boost for first-time commanders (so newcomers get hooked) and a max wait guarantee. Tune with the harness. | P2 | |
 | Q-GD-10 | Do NPC "rival commanders" or NPC aces exist in the MVP? | One NPC wingman type fills empty package slots. Named NPC personalities come later. | ✅ 2026-10-17: One generic AI wingman type, labeled as AI (A) |
 
@@ -60,7 +60,7 @@ Legend: **Blocks** is the earliest roadmap phase that needs the answer (P0 = Fou
 | Q-AI-1 | Does an LLM *decide* enemy moves? | **No.** A rule-based director decides. An optional LLM *advisor* picks among valid rule options and writes flavor text. All LLM outputs are recorded. | ✅ 2026-10-17: Accepted via ADR-0007: rules decide; LLM advises and narrates only |
 | Q-AI-2 | When does the natural-language `!order` ship? | Phase P4, own unit only, 1 per minute per user, with a budget cap. | P4 | |
 | Q-AI-3 | Which LLM provider? Use LiteLLM? | Call one provider's SDK directly behind our own small interface. Avoid LiteLLM given the March 2026 compromise, unless it's hash-pinned and isolated. | P4 | |
-| Q-AI-4 | TTS engine for the MVP? | **Piper** (piper1-gpl, run as a separate process. GPL is fine for server-side use) **or Kokoro** (Apache-2.0, pending verification). Pick after a 1-day listening test. | P2 | |
+| Q-AI-4 | TTS engine for the MVP? | **Piper** (piper1-gpl, run as a separate process. GPL is fine for server-side use) **or Kokoro** (Apache-2.0, pending verification). Pick after a 1-day listening test. | ✅ 2026-10-17: A, local Piper or Kokoro picked by a listening test; engines stay interchangeable via the `TtsEngine` port (ADR-0010) so cloud voices can be added later |
 | Q-AI-5 | Monthly LLM + TTS budget? (Cost analysis: [LOCAL-VS-API-COST](../ops/LOCAL-VS-API-COST.md)) | $20/month hard cap with a circuit breaker. | P4 | |
 
 ## Architecture
@@ -79,8 +79,8 @@ Legend: **Blocks** is the earliest roadmap phase that needs the answer (P0 = Fou
 |---|---|---|---|---|
 | Q-OPS-1 | Where does the 24/7 stream run? Your PC, a dedicated home box, or a cloud GPU? What hardware do you have? (GPU model, RAM, upload bandwidth) | See [`docs/ops/HARDWARE.md`](../ops/HARDWARE.md) | P2 | Partial 2026-10-17: owner PC has a GTX 1080, 32 GB RAM, and ~15–25 Mbps upload (owner estimate; to be measured). Upgrade possible. Dedicated vs shared box still open. |
 | Q-OPS-2 | Staging: same host, separate compose project, or a cheap VPS? | Same host, separate project, streaming to an unlisted test channel. | P2 | |
-| Q-OPS-3 | Monthly cost ceiling (power + APIs + hosting)? | $75/month. | P2 | |
-| Q-OPS-4 | Alerts go where? (Discord webhook, phone push, email) | Discord webhook + phone push via ntfy. | P2 | |
+| Q-OPS-3 | Monthly cost ceiling (power + APIs + hosting)? | $75/month. | ✅ 2026-10-17: $75–100/month total (power + AI + hosting) |
+| Q-OPS-4 | Alerts go where? (Discord webhook, phone push, email) | Discord webhook + phone push via ntfy. | ✅ 2026-10-17: A (ntfy push + private Discord channel), text-based first |
 | Q-OPS-5 | Uptime target? | 99% monthly. Automatic recovery in under 2 min. | P2 | |
 
 ## CI/CD & repo
@@ -98,7 +98,7 @@ Legend: **Blocks** is the earliest roadmap phase that needs the answer (P0 = Fou
 | ID | Question | Recommended default | Blocks | Decision |
 |---|---|---|---|---|
 | Q-LEGAL-1 | Allowed dependency licenses? | MIT, BSD, Apache-2.0, ISC, MPL-2.0. GPL only for separate server-side processes (e.g., Piper). | ✅ 2026-10-17: MIT/BSD/Apache-2.0/ISC/MPL-2.0; GPL only in separate server-side processes (A) |
-| Q-LEGAL-2 | Music source? | Royalty-free or commissioned stems with written licenses. No "sound-alike" tracks. | P2 | |
+| Q-LEGAL-2 | Music source? | Royalty-free or commissioned stems with written licenses. No "sound-alike" tracks. | ✅ 2026-10-17: A, licensed music only. Owner has an **Epidemic Sound** subscription. Still to check: whether it covers 24/7 Twitch/YouTube streaming and clips, and whether an API or MCP exists for an AI music agent [UNVERIFIED, research NX-273] |
 | Q-LEGAL-3 | Data retention and privacy notice? | As in THREAT-MODEL SEC-DATA-4. Privacy notice published before beta. | P3 | |
 | Q-BIZ-1 | Monetization? | Cosmetic-only (halos, trails, voice presets) via channel points or bits. **Never** gameplay power. | P4 | |
 
@@ -118,7 +118,7 @@ Legend: **Blocks** is the earliest roadmap phase that needs the answer (P0 = Fou
 | Q-CT-5 | MVP enemy/garrison unit roster (garrison AAA and infantry; enemy SAM site, radar, fighter, armor, convoy)? | Confirm once the first theater sketch exists (NX-008) | P1 | |
 | Q-DM-1 | Archive old XP ledger rows yearly, keeping derived stats? | Yes, once the ledger passes about 1 GB (size is an ESTIMATE; measure it) | P5 | |
 | Q-DM-2 | Access control on the public replay viewer? | Not for v1. Replays are pseudonymous, and deleted users show `REDACTED-…`. | P5 | |
-| Q-ARCH-6 | Accept the ADR-0003 amendment: XP and merit become append-only, idempotent ledgers (source of truth) with `commander_stats` derived in the same transaction, replacing `UPDATE … SET xp = xp + ?`? | Accept. Prevents double-counting after crash replay and gives an audit trail. | P1 | |
+| Q-ARCH-6 | Accept the ADR-0003 amendment: XP and merit become append-only, idempotent ledgers (source of truth) with `commander_stats` derived in the same transaction, replacing `UPDATE … SET xp = xp + ?`? | Accept. Prevents double-counting after crash replay and gives an audit trail. | ✅ 2026-10-17: Accepted: XP/merit are append-only ledgers (ADR-0003 amendment) |
 | Q-OPS-6 | Off-site backup destination? | S3-compatible object storage, `age`-encrypted before upload. Provider and price [UNVERIFIED]. | P2 | |
 | Q-CFG-1 | Balance profiles and mid-campaign changes? | `balance/<profile>.yaml`. Only hot-reloadable keys change mid-campaign; a full profile switch needs a new campaign. | P1 | |
 | Q-CFG-2 | Can rank thresholds change after launch? | Only with a migration plan. Never revoke ranks; new thresholds apply to future promotions only. | P3 | |
@@ -139,10 +139,14 @@ Legend: **Blocks** is the earliest roadmap phase that needs the answer (P0 = Fou
 | Q-RB-5 | Is a harness dry-run mandatory before publishing rules? | Mandatory for next-campaign publishes. Optional for hot keys, and a skip is flagged in the audit log. | P3 | |
 | Q-RB-6 | Does threat memory keep learning during a GM FULL takeover? | Yes | P4 | |
 | Q-RB-7 | Do GM sitreps get a distinct TTS voice? | Yes, a different preset with the same radio filter | P4 | |
-| Q-SUP-1 | Can **money** (Bits, Super Chat, tips) buy QoL perks such as a respawn skip or a queue jump, or only cosmetics and shoutouts? Channel points can buy capped QoL either way. | Money buys cosmetics, shoutouts and spectacle only. QoL is channel points only. That avoids "pay to win" perception. | P4 | |
-| Q-SUP-2 | Show donor messages on stream? | Not in v1. Callsign-only shoutouts. Messages may come later behind moderation, and are never spoken by TTS. | P4 | |
+| Q-SUP-1 | Can **money** (Bits, Super Chat, tips) buy QoL perks such as a respawn skip or a queue jump, or only cosmetics and shoutouts? Channel points can buy capped QoL either way. | Money buys cosmetics, shoutouts and spectacle only. QoL is channel points only. That avoids "pay to win" perception. | ✅ 2026-10-17: Money buys cosmetics, shoutouts and spectacle only; QoL via channel points only |
+| Q-SUP-2 | Show donor messages on stream? | Not in v1. Callsign-only shoutouts. Messages may come later behind moderation, and are never spoken by TTS. | ✅ 2026-10-17: No free-text donor messages in v1. **Owner idea:** templated "rally call" instead (Q-SUP-6) |
 | Q-SUP-3 | Third-party tips (Ko-fi, Streamlabs, StreamElements)? | Later (P5), pick one. Start with platform-native support. | P5 | |
-| Q-SUP-4 | Confirm ADR-0011: no in-game currency in v1? | Yes. Direct capped redemptions; revisit later via a new ADR plus legal review. | P4 | |
+| Q-SUP-4 | Confirm ADR-0011: no in-game currency in v1? | Yes. Direct capped redemptions; revisit later via a new ADR plus legal review. | ✅ 2026-10-17: No in-game currency in v1 (ADR-0011 accepted) |
+| Q-SUP-6 | Owner idea: a "rally call" so the crowd can coordinate like a hive mind. Example: "VIPER-27 calls: ATTACK STRAIT BRIDGE" pinned on the map. | **Templated, not free text:** `!rally <node> <attack/defend/supply>` shows a map pin and a banner with the callsign. Unlocked free at Captain (O-3) with a cooldown. Channel points or donations make it more prominent (bigger banner, longer pin) but never more powerful. It only informs; it never controls other players' units. | ✅ 2026-10-17: A, templated rally call; free at Captain with cooldown; points or donations only make it more prominent |
+| Q-BRAND-1 | Brand direction for Operation Nexus (unique and memorable, not a generic war map) | Owner to choose between directions offered in chat; result goes into a brand and style guide (NX-274) | ✅ 2026-10-17: **A + C hybrid.** A "Signal" radar war-room look (glowing green and amber on black, radio static, callsigns) with a **fun, friendly, playful tone**, not grim or sweaty. Goal: a welcoming, non-toxic community. Enemy name TBD (Q-BRAND-2). Lore and campaign narrative wanted (NX-275). |
+| Q-BRAND-2 | Name of the enemy (and of our side) | Brainstorm in chat with the owner | ✅ 2026-10-17: Enemy = **The Static** (with a taunting mastermind; name TBD). Our side = **Clearwave** (working name; may later be put to a community vote via chat, commanders, or Discord). Viewers are **Operators**, who command squads, platoons or individual units. |
+| Q-BRAND-3 | Community naming votes (side name, mastermind name, theater names): how and when? | Later (P4+): a time-boxed poll via chat command and Discord, with an owner-approved shortlist and moderation. Results are applied through the admin console. | P4 | |
 | Q-SUP-5 | Retention of financial support records? | Keep them as long as your tax and accounting needs require. Ask an accountant; this isn't something we can define for you. | P4 | |
 
 ## Questions from your conversation that need your words
