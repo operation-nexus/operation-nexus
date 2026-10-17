@@ -158,9 +158,7 @@ stateDiagram-v2
 stateDiagram-v2
     [*] --> Setup
     Setup --> Running: theater + seed + config hash loaded and validated
-    Running --> Paused: no active humans [Q-GD-4]
     Running --> Paused: OP_CAMPAIGN_PAUSE
-    Paused --> Running: human command (only if paused for no humans)
     Paused --> Running: OP_CAMPAIGN_RESUME
     Running --> Ending: victory / defeat / time limit
     Running --> Ending: OP_CAMPAIGN_END (ABORTED)
@@ -174,9 +172,7 @@ stateDiagram-v2
 |---|---|---|---|
 | Setup | Theater, seed and balance config pass schema validation | Record `campaign_id`, seed and config hash. Emit `CampaignStarted`. | Running |
 | Setup | Validation fails | Refuse to start. Overlay shows "CAMPAIGN SETUP FAILED" (no fallback theater). Alert. | Setup |
-| Running | `PresenceSnapshot.active_humans` < `campaign.clock_pause_below_humans` continuously for `campaign.pause_after_no_humans_s` (**Q-GD-4**, Q-SM-5) | Pause the campaign clock. AI garrison holds. Director stays in "slow war" mode. Emit `CampaignClockPaused{reason: NO_HUMANS}`. | Paused (no humans) |
 | Running | `OP_CAMPAIGN_PAUSE` | Pause the clock. Emit `CampaignClockPaused{reason: OPERATOR}`. | Paused (operator) |
-| Paused (no humans) | A valid human command is applied | Resume the clock. Emit `CampaignClockResumed`. | Running |
 | Paused (operator) | A human command | Command is processed normally, but the clock stays paused until the operator resumes | Paused (operator) |
 | Paused (either) | `OP_CAMPAIGN_RESUME` | Resume the clock. Emit `CampaignClockResumed`. | Running |
 | Running | Victory condition held (GAMEPLAY §9), defeat (**Q-GD-7**), or time limit reached (decided by score) | Freeze inputs. Emit `CampaignEnded{result}`. | Ending |
@@ -588,4 +584,4 @@ Raised by this spec (tracked in [OPEN-QUESTIONS](../planning/OPEN-QUESTIONS.md))
 - **Q-SM-2:** how long does a landed, idle unit stay before it despawns? *Recommended: balance key `slots.idle_despawn_s`, tuned by the harness.*
 - **Q-SM-3:** do callsign changes need manual owner approval, or does automatic moderation suffice? *Recommended: auto-moderation plus a review queue, with manual approval during alpha.*
 - **Q-SM-4:** campaign rotation rule after AAR: same theater with a new seed, or rotate theaters? *Recommended: same hand-authored theater with a new seed until a second theater exists.*
-- **Q-SM-5:** how long without an active human before the campaign pauses (Q-GD-4)? *Recommended: balance key `campaign.pause_after_no_humans_s`, tuned by the harness.*
+- **Q-SM-5 (superseded 2026-10-17: no automatic pause; see THREAT-DIRECTOR §5a):** how long without an active human before the campaign pauses (Q-GD-4)? *Recommended: balance key `campaign.pause_after_no_humans_s`, tuned by the harness.*

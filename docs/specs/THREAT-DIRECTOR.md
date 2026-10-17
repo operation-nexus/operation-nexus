@@ -30,6 +30,19 @@ There's a minimum dwell of 10 min per tier. Tier changes are announced on the ov
 ## 5. Low-population behavior
 At 0 humans, the coalition AI garrison holds the line and the director stays in ALPHA. Progress is capped at `campaign.night_progress_cap_nodes_per_h` (PROPOSED 1 node per 6 h). With 1–3 humans, the director prefers targets near where those humans are acting, so a single viewer can be a hero without the whole map moving.
 
+## 5a. Pattern of Life (owner requirement, 2026-10-17)
+When nobody is playing, **and when viewers first arrive**, the Static does not attack. It runs a believable **Pattern of Life (PoL)** that scouts can observe and learn from:
+- Garrison rotations, patrol routes, supply convoys between its bases, radar on/off cycles.
+- **Repositioning between bases:** staging aircraft and ground units toward forward bases, refuel/rearm stops. Staging is how attacks are prepared, so a sharp scout can see an offensive coming (only within coalition sensor coverage or as SIGINT blobs, FOG-OF-WAR).
+
+**Escalation is triggered by provocation, not headcount** (GAMEPLAY TS-1):
+- A decaying `provocation` score rises with coalition actions: strikes on Static units or convoys, captures, recon of its rear, and redemptions with an effect.
+- PoL → ALPHA → BRAVO → CHARLIE transitions need provocation **and** coalition power above thresholds, with hysteresis and minimum dwell (§3).
+- Going from 0 viewers to 1 changes **nothing** until that operator acts. They get time to observe and plan.
+- With no provocation, the enemy decays back to PoL. Night-progress caps still apply (§5).
+
+Config keys (CONFIG §6, all PROPOSED / TBD by harness): `director.pol.patrol_period_s`, `director.pol.convoy_period_s`, `director.provocation.weights.*`, `director.provocation.half_life_s`, `director.provocation.escalate_threshold`.
+
 ## 6. LLM advisor (P4, optional)
 - **Input:** a structured summary built from ids, sectors, counts and threat memory, plus the top-K candidate operations. It includes **no user strings** (SEC-LLM-4).
 - **Output:** `{choice_index:int, op_name:str ≤ 40 chars, rationale:str ≤ 140 chars}`. The schema is validated, and the text is moderated.

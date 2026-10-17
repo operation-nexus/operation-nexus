@@ -93,7 +93,8 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | NX-151 | Enemy-side view for director (FOW-4) | M | ⬜ | NX-150 | Director API accepts only `EnemyView` |
 | NX-155 | Director: CP, tiers w/ hysteresis, budget | M | ⬜ | NX-151 | Hysteresis property |
 | NX-156 | Director: operations library + scoring + threat memory | L | ⬜ | NX-155 | "Convoy raids → escorts" golden scenario |
-| NX-157 | AI garrison + low-population rules | M | ⬜ | NX-155 | overnight-0 scenario: ≤1 node/6h |
+| NX-157 | AI garrison + Pattern of Life + provocation-gated escalation (THREAT-DIRECTOR §5a) | M | ⬜ | NX-155 | overnight-0: no attacks; 0→1 viewer: no escalation until provocation; staging visible to scouts |
+| NX-158 | `!rebase` and base-to-base repositioning for both sides | S | ⬜ | NX-121 | Units stage forward and refuel at the destination base |
 | NX-031 | Balance harness (`tools/balance`) + bot personas + report | L | ⬜ | NX-126 | 5 standard scenarios × 20 seeds report |
 | NX-032 | Replay CLI + measured storage size | S | ⬜ | NX-103 | Size documented in CLIPS-REPLAY |
 | NX-033 | Headless soak (6h) in nightly | M | ⬜ | NX-016 | No memory growth; hashes replay |
