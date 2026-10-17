@@ -269,3 +269,4 @@ Owner principle: outcomes are **probabilistic and different every war** (new see
 | Q-TEST-3 | How are cold alpha testers recruited while the old-Discord announcement is held back? | 5–10 private invites | P2 | |
 | Q-PROC-1 | Who folds decisions into specs, and in what order are specs approved? | one agent PR per spec; P1 specs first | P0 | |
 | Q-CI-6 | On `develop`, should lint/format/typecheck failures block merges? ADR-0009 says advisory; the CI build makes them blocking (only tests advisory). | Blocking: they are fast, cheap to fix, and keep `develop` clean; tests stay advisory. Amend ADR-0009 to match. | P0 | |
+| Q-CFG-8 | Is `slots.idle_despawn_s` (and similar timers) measured in real (wall-clock) time or sim time? | Real time for player-facing timers (idle despawn, cooldowns, decision window); sim time for in-world physics/logistics | P1 | |
