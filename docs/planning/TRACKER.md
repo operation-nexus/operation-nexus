@@ -215,6 +215,9 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | NX-301 | Track fade (FOW-6) | ⬜ |
 | NX-302 | Target handoff for long-range strikes (FOW-7) | ⬜ |
 | NX-303 | Base upgrades via surplus supply (GAMEPLAY §5a). The node tier/modifier layer is in the MVP world model. | ⬜ |
+| NX-304 | Objective modes: timed / relaxed / off per campaign | ⬜ |
+| NX-305 | Assault Helicopter class ("Lifter" variants): troop landing, airfield/island capture, short range | ⬜ |
+| NX-306 | Isolated-base logistics: air drops, sea ferries, engineer bridging, helicopter airlift (Q-GD-21) | ⬜ |
 | NX-273 | Research + spike: Epidemic Sound license coverage for 24/7 streams/clips; API/MCP availability; `MusicSource` port so an agent can search and queue licensed tracks by mood (tension-driven, AUDIO-TTS §1) | ⬜ |
 | NX-272 | Third-party tips adapter (Ko-fi or Streamlabs/StreamElements; Q-SUP-3) | ❓ |
 
