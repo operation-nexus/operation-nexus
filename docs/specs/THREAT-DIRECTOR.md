@@ -35,6 +35,16 @@ At 0 humans, the coalition AI garrison holds the line and the director stays in 
 - **Output:** `{choice_index:int, op_name:str ≤ 40 chars, rationale:str ≤ 140 chars}`. The schema is validated, and the text is moderated.
 - **Deadline:** the answer must arrive within 2 decision windows. If it's late, invalid or over budget, the rules choose. The accepted choice enters as a logged command (ADR-0002).
 
+## 6a. Game Master takeover (owner requirement)
+The owner, or an admin with the `GAME_MASTER` permission, can take over the director (ADMIN-RBAC spec):
+- **Modes:**
+  - **ASSIST:** the GM injects or vetoes operations while the rules keep running.
+  - **FULL:** the rules pause, and the GM issues operations from the same operation library.
+- **Constraints:** GM operations are still validated against the tier budget and preconditions. A GM *may* exceed the budget only with an explicit `override_budget` flag, which is audited.
+- **Logging:** every GM action is a logged `OP_*` command, so replays stay deterministic (ADR-0002).
+- **On stream:** a "COMMAND: GAME MASTER" badge is shown while a GM is active (DATA-INTEGRITY DI-5: never disguise human control as AI or vice versa).
+- **Auto-release:** if the GM goes idle beyond a configured timeout, control returns to the rules, with a logged `GM_RELEASED{reason}`.
+
 ## 7. Tests
 - Tier hysteresis property: no flapping under oscillating CP.
 - Budget never exceeded.

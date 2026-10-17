@@ -501,3 +501,10 @@ To measure in P1/P2: real command rate per hour of day, the actual zstd ratio on
 - **Q-DM-1:** Archive `xp_ledger` rows older than 12 months into yearly compressed files, keeping only `commander_stats`? Recommended: yes, once it passes 1 GB.
 - **Q-OPS-6:** Off-site backup target? Recommended: any S3-compatible object storage with encryption by `age` before upload. Provider and pricing undecided **[UNVERIFIED]**.
 - **Q-DM-2:** Does the public replay viewer need per-viewer access control? Recommended: no for v1; replays are already pseudonymous.
+
+## Data model additions pending merge (2026-10-17)
+- **From [ADMIN-RBAC](ADMIN-RBAC.md):**
+  - Tables: `operators`, `role_grants`, `operator_credentials`, `admin_sessions`, `approval_requests`, `scheduled_items`, `content_versions`.
+  - New `admin_audit` columns: `channel`, `permission`, `approval_request_id`, `flags`.
+- **From [SUPPORT-REDEMPTIONS](SUPPORT-REDEMPTIONS.md) §8:** `support_events`, `redemption_rules`.
+- **From GAMEPLAY §9b:** `campaign_carryover` (campaign_id, from_campaign_id, effects JSON, config_hash, applied_at).

@@ -304,3 +304,19 @@ Existing questions referenced: Q-GD-2, Q-GD-3, Q-GD-7, Q-GD-8, Q-MOD-1, Q-AI-2.
 3. **Q-CT-3** Should viewers see enemy tracers from unseen shooters as "incoming fire from unknown direction" instead of nothing? *Recommended:* nothing in MVP, revisit after readability testing (NX-034).
 4. **Q-CT-4** Should `Hud.active_humans` (count of real human commanders active in the last N minutes) be shown on stream? *Recommended:* yes. It counts humans only, and is shown as `—` until known (DI-5, DI-1).
 5. **Q-CT-5** Enemy and garrison `UnitKind` roster for MVP (the proposed set is `GARRISON_AAA`, `GARRISON_INFANTRY`, `ENEMY_SAM_SITE`, `ENEMY_RADAR`, `ENEMY_FIGHTER`, `ENEMY_ARMOR`, `ENEMY_CONVOY`). *Recommended:* confirm with the first theater sketch (NX-008).
+
+## Contract additions pending merge (2026-10-17)
+The following are specified in their source specs and must be added to `/contracts` together with the tables above when implementing:
+- **From [ADMIN-RBAC](ADMIN-RBAC.md):**
+  - Commands: `OP_GM_TAKEOVER{mode: ASSIST|FULL}`, `OP_GM_RELEASE`, `OP_GM_OPERATION{operation,target,params}`, `OP_GM_VERDICT{proposal_id,verdict}`, `OP_GM_LIMITS{budget,fow}` (OWNER only).
+  - Reject reasons: `GM_ALREADY_ACTIVE`, `GM_NOT_ACTIVE`, `NOT_GM_HOLDER`, `PRECONDITION_FAILED`, `OVER_BUDGET`, `NOT_VISIBLE_TO_ENEMY`, `UNKNOWN_PROPOSAL`.
+  - Events: `GmTakeoverChanged`, `GmOperationLaunched`, `DirectorProposal` (admin-only, never broadcast).
+  - Enums: `AdminRole`, `Permission`, `GrantScopeKind`, `TheaterArchetype` (STRAIT, ARCHIPELAGO, LARGE_ISLANDS, MOUNTAIN_PASS, URBAN, MIXED), `ContentStatus`, `ScheduledItemKind`, `ApprovalStatus`.
+  - Admin route groups: `/admin/gm/*`, `/admin/schedule/*`, `/admin/rules/drafts/*`, `/admin/theaters/*`, `/admin/access/*`, `/admin/approvals/*`.
+- **From [SUPPORT-REDEMPTIONS](SUPPORT-REDEMPTIONS.md):**
+  - `SupportEvent` type and `SupportKind` enum.
+  - Command `SUPPORT_REDEEM{support_id, rule_id, commander_id?}`.
+  - Events `SupportRedeemed`, `SupportUnapplied{reason}`.
+- **From GAMEPLAY §4a / §9b:**
+  - Command `!scout <sector>` (queued viewers).
+  - Events `ScoutPing`, `CarryoverApplied`.
