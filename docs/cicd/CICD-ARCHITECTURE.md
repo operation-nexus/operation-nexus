@@ -145,6 +145,9 @@ The broadcast must survive deploys of every component:
 
 ## 8. Secrets
 
+**Decision (Q-ARCH-10):** runtime secrets are a sops+age-encrypted file in the private `operation-nexus-ops` repo, decryptable only by enrolled machines (gaming PC, Linux server, owner laptop, deploy job). The table below lists *where each secret is consumed*.
+
+
 | Secret | Store | Used by |
 |---|---|---|
 | Twitch / YouTube client secrets, refresh tokens | GitHub Environment secrets → host `.env` (0600) or sops-encrypted file in `deploy/` | gateway |
