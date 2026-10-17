@@ -232,3 +232,6 @@ clips/
 *.log
 .env*
 !.env.example
+
+# Agent worktrees (local only)
+.claude/worktrees/
