@@ -199,6 +199,8 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | NX-285 | Backups: `BackupTarget` port with local (Linux server) + Google Drive (owner has access) adapters, age encryption, tiered retention (DB/snapshots nightly; replay/telemetry archives separately), quarterly restore test; verify provider limits first | ⬜ |
 | NX-286 | Pause flow: reason form, owner alert with state summary, optional AI assessment, one-tap resume (alert link / Discord / console), re-alert | ⬜ |
 | NX-287 | Research: Gemini TTS synthetic voice design/generation (capabilities, pricing, rate limits, terms, commercial use on streams) for voice-cast profiles via the `TtsEngine` port; cost vs the $20/mo cap | ⬜ |
+| NX-288 | Platform AI-content compliance: verify Twitch and YouTube synthetic-media and AI disclosure rules now and at every phase gate; apply labels, channel panel note | ⬜ |
+| NX-289 | Human voice lines pipeline: owner or community voice actors record lines from the sitrep template list, with a consent and license agreement per contributor; recorded lines plug into the voice cast as a `TtsEngine`-compatible source | ⬜ |
 | NX-273 | Research + spike: Epidemic Sound license coverage for 24/7 streams/clips; API/MCP availability; `MusicSource` port so an agent can search and queue licensed tracks by mood (tension-driven, AUDIO-TTS §1) | ⬜ |
 | NX-272 | Third-party tips adapter (Ko-fi or Streamlabs/StreamElements; Q-SUP-3) | ❓ |
 
