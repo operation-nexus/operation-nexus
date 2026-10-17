@@ -178,7 +178,7 @@ Every value listed in §5.2, plus `INVALID_PAYLOAD`, `BANNED`, `LATE` (applied, 
 | `CampaignStarted` | `mode`, `theater_id`, `seed`, `config_hash`, `start_tick` | `seed` omitted (proposed: it would let viewers predict RNG) | B A O |
 | `CampaignEnded` | `result: CampaignResult`, `end_tick`, `score`, `nodes_held_pct` | none | B P A C O |
 | `AARStarted` | `result: CampaignResult`, `top_by_role: {role, commander_ids[] ≤ 5}[]` | Commander ids resolve to approved callsigns at render time | B A O |
-| `CampaignClockPaused` / `Resumed` | `reason: NO_HUMANS\|OPERATOR` | none | B O |
+| `CampaignClockPaused` / `Resumed` | `reason: OPERATOR` (no automatic pause, Q-GD-4 amended) | none | B O |
 | `UnitSpawned` | `entity_id`, `unit_kind`, `side`, `owner_kind`, `commander_id\|null`, `callsign\|null`, `node_id`, `loadout: FULL\|REDUCED` | ENEMY spawn shown only if the spawn point is at TRACK tier or above. Otherwise dropped. | B P A O |
 | `UnitDespawned` | `entity_id`, `reason: RTB_LANDED\|IDLE\|ROLE_SWITCH\|PURGED\|OWNER_BANNED\|OWNER_FORGOTTEN\|CAMPAIGN_END` | Hidden ENEMY: dropped | B O |
 | `UnitOrphaned` | `entity_id`, `commander_id`, `cause: BANNED\|FORGOTTEN` | none (coalition units only) | B O |

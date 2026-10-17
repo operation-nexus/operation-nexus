@@ -158,7 +158,6 @@ Legend: **HR** = hot-reloadable (§5). "TBD" = TBD by harness. **Source** = the 
 | `campaign.victory_hold_min` | float | min (real) | 30 | GAMEPLAY §9 | No |
 | `campaign.defeat` | object | — | TBD (Q-GD-7) | GAMEPLAY §9 | No |
 | `campaign.rubber_band_zone` | [float, float] | fraction of nodes | [0.55, 0.75] | GAMEPLAY §9 | No |
-| `campaign.clock_pause_below_humans` | int | humans | 1 | GAMEPLAY §9, Q-GD-4 | No |
 | `director.provocation.escalate_threshold` | float | score | TBD by harness | THREAT-DIRECTOR §5a | Yes |
 | `director.provocation.half_life_s` | float | s (sim) | TBD by harness | THREAT-DIRECTOR §5a | Yes |
 | `presence.window_s` | float | s (real) | TBD | CONTRACTS §6 `PresenceSnapshot` | No |
