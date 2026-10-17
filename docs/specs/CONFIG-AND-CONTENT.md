@@ -31,6 +31,29 @@ Define every input the system reads that isn't code: runtime settings, balance t
 - **CFG-7** Secrets MUST NOT appear in any config file. Config refers to secrets by name only (`secret_ref`), and the values come from the environment / secret store (THREAT-MODEL SEC-CI, CICD §8).
 - **CFG-8** All user-visible authored text (node names, callsign words, sitrep templates) MUST pass the moderation denylist in CI (SEC-MOD-1).
 
+## 3a. Unit/platform content pipeline (owner requirement, 2026-10-17)
+New platforms (unit types) are **data, not code**: one YAML file per unit in `content/units/`, using the unit-catalog schema (§3). Behavior is composed from existing capability blocks (mobility domain, sensors, weapons, cargo, special abilities). A new *capability* still needs code and a normal PR.
+
+**Authoring paths:**
+- **Admin console form:** schema-driven, with live validation and a preview card (ADMIN-RBAC content editor, `CONTENT_EDITOR` role).
+- **Agent skill `new-unit`:** an operator describes the platform in plain words. The skill drafts the YAML, runs the validator and a short balance-harness check, and opens a draft for approval. It never publishes directly. Skill location: `.claude/skills/new-unit/`, plus a tool-agnostic prompt in `.agents/prompts/` (ADR-0010 N-7).
+- **Community submissions (later):** uploaded through the portal, then moderated and approved by the owner or an admin.
+
+**Validation gates (all must pass):**
+- Schema check.
+- Cross-references resolve.
+- **No real-world names** (brand rule, Q-PROD-5).
+- Text passes moderation.
+- Stat envelope: values inside configured min/max bands, so a new unit can't be overpowered.
+- Balance harness smoke run.
+- Owner or admin approval.
+
+**Hot-loading without downtime:**
+- An approved unit is published as a new content version (hash recorded).
+- It becomes available via a logged `OP_CONTENT_LOAD{content_hash}` command, so replays stay deterministic.
+- **Additive only mid-campaign:** new units may appear. Existing units' stats change only at the next campaign, unless the key is explicitly hot-reloadable.
+- Removal or disablement: a unit can't be spawned anymore, but existing instances finish their sorties.
+
 ## 4. Config layers
 
 ### 4.1 Overview
