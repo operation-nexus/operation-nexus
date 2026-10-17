@@ -37,7 +37,7 @@ Specialist chassis (SEAD, jammer, engineer, AWACS, artillery) unlock with rank (
 | `!join <role>` | role | O-1 | Spawns your one unit, or switches role if your unit is at base |
 | `!target <node>` | node name/alias (fuzzy match against a fixed list) | O-1 | Sets your unit's objective |
 | `!rtb` | — | O-1 | Return to the nearest friendly base |
-| `!stance <press\|standard\|cautious>` | stance | O-1 | Standing intent for your unit: `press` = keep fighting even when badly damaged; `standard` = auto-RTB at mission-kill (default); `cautious` = RTB as soon as Damaged. Can also be given at deploy: `!join strike press` (Q-CBT-6). |
+| `!stance <press\|standard\|cautious>` | stance | O-1 | Standing intent for your unit: `press` = keep fighting even when badly damaged; `standard` = auto-RTB at mission-kill (default); `cautious` = RTB as soon as Damaged; `guns` = keep fighting with guns after missiles/bombs run out (default is auto-RTB when out of munitions). Can also be given at deploy: `!join strike press` (Q-CBT-6). |
 | `!rebase <node>` | friendly node | O-1 | Move your unit to another friendly base and stay there to refuel/rearm/stage (e.g. move a plane forward before an attack). Uses that base's stock. The Static does the same (THREAT-DIRECTOR §5a). |
 | `!status` | — | O-1 | Overlay highlights your unit for 5 s; no chat reply |
 | `!callsign <NAME>` | `^[A-Z][A-Z0-9-]{2,11}$`, moderated, 1 change / 30 days | First completed mission (Q-PROG-3) | Reserve a global callsign |
