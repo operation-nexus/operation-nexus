@@ -277,6 +277,8 @@ New platforms (unit types) are **data, not code**: one YAML file per unit in `co
 - **Agent skill `new-unit`:** an operator describes the platform in plain words. The skill drafts the YAML, runs the validator and a short balance-harness check, and opens a draft for approval. It never publishes directly. Skill location: `.claude/skills/new-unit/`, plus a tool-agnostic prompt in `.agents/prompts/` (ADR-0010 N-7).
 - **Community submissions (later):** uploaded through the portal, then moderated and approved by the owner or an admin.
 
+**Icons (Q-STYLE-4):** each unit file declares `category` (e.g. FAST_JET, DRONE, TRUCK, TANK, BOAT, HELO, SITE, RADAR). The renderer auto-generates the symbol from category + side styling. An optional `icon` (SVG) can be uploaded. It's **sanitized** (no scripts, external refs or event handlers), size-limited, and must stay readable at small sizes. Animated icons are a later phase.
+
 **Validation gates (all must pass):**
 - Schema check.
 - Cross-references resolve.
