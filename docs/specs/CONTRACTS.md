@@ -51,7 +51,7 @@ contracts/
 | `CampaignId` | UUIDv7 string | |
 | `PackageId` | integer ≥ 1 | Per campaign |
 | `BlobId` | opaque string, 16 hex chars | Re-rolled on each SIGINT refresh, never derivable from an EntityId (FOW-2) |
-| `CommandSeq` | integer ≥ 1 | Arrival order, assigned by the runtime inbox |
+| `CommandSeq` | integer ≥ 1 | Arrival order, assigned by the runtime inbox. Monotonic per campaign, never reused. Always carried in a field named `arrival_seq`. |
 | `Tick` | integer ≥ 0 | 10 Hz sim time (SC-2) |
 | `Callsign` | `^[A-Z][A-Z0-9-]{2,11}$` | Generated (`WORD-NN`) or approved custom (IDENTITY §2–3) |
 | `PlatformMessageId` | string ≤ 128 | Platform-provided, used only for dedupe |
@@ -59,19 +59,20 @@ contracts/
 ### 3.3 Enums (common/enums.json)
 | Enum | Values | Status |
 |---|---|---|
-| `Platform` | `TWITCH`, `YOUTUBE`, `KICK` | KICK is optional (ADR-0008). TikTok is not present. |
+| `Platform` | `TWITCH`, `YOUTUBE`, `KICK`, `DISCORD`, `LOCAL_SIM` | KICK and DISCORD are optional adapters (ADR-0008, ADR-0010). `LOCAL_SIM` is the dev chat simulator: allowed only in dev/test, and production config that enables it is rejected at startup. TikTok is not present. |
 | `Side` | `COALITION`, `ENEMY` | |
 | `NodeOwner` | `COALITION`, `ENEMY`, `NEUTRAL` | |
-| `Domain` | `AIR`, `GROUND`, `SEA` | SEA is P4 (Q-GD-8) |
+| `Domain` | `AIR`, `GROUND`, `SEA`, `STATIC` | SEA is P4 (Q-GD-8). STATIC = fixed installations (SAM sites, radars, garrison AAA) |
 | `AltBand` | `NOE`, `LOW`, `MED`, `HIGH` | AIR only |
-| `UnitKind` | MVP: `STRIKE`, `RECON`, `LOGI`, `SAM`, `GARRISON_GROUND`, `ENEMY_ARMOR`, `ENEMY_CONVOY`. Later: `SEAD`, `ARTILLERY`, `ENGINEER`, `JAMMER`, `AWACS`, `NAVAL` | The enemy and garrison kinds are proposed. The exact roster lives in the balance unit catalog (NX-106). |
+| `Role` | `STRIKE`, `RECON`, `LOGI`, `NAVY` | What `!join <role>` accepts. `NAVY` is P4 (Q-GD-8). Each role maps to exactly one `UnitKind` via `content/units.yaml` `roles:` (CONFIG-AND-CONTENT §7.1). |
+| `UnitKind` | MVP: `STRIKE_FIGHTER`, `RECON_UAV`, `LOGI_TRUCK`, `GARRISON_AAA`, `GARRISON_INFANTRY`, `ENEMY_SAM_SITE`, `ENEMY_RADAR`, `ENEMY_FIGHTER`, `ENEMY_ARMOR`, `ENEMY_CONVOY`. P4: specialist and naval kinds (SEAD, artillery, engineer, jammer, AWACS, naval) are added with their catalog rows (NX-212, Q-GD-8). | Must match the unit catalog (CONFIG-AND-CONTENT §7.3) exactly; `config_lint` checks this. Enemy and garrison roster: Q-CT-5. |
 | `NodeKind` | `AIRBASE`, `FOB`, `PORT`, `FACTORY`, `RADAR`, `BRIDGE`, `HQ`, `SANCTUARY` | SIM-CORE §4 |
 | `EdgeLayer` | `ROAD`, `SEA_LANE` | |
 | `OwnerKind` | `COMMANDER`, `AI_GARRISON`, `ENEMY_DIRECTOR` | DI-5: anything that isn't COMMANDER is labeled as AI |
 | `FowTier` | `UNKNOWN`, `SIGINT`, `TRACK`, `PAINTED` | FOG-OF-WAR §1 |
 | `ThreatTier` | `ALPHA`, `BRAVO`, `CHARLIE` | |
-| `CampaignMode` | `DOMINATION`, `HOLD_THE_LINE` | `SIEGE` is backlog (Q-GD-2) |
-| `CampaignResult` | `VICTORY`, `DEFEAT`, `TIME_LIMIT` | Defeat rule: Q-GD-7 |
+| `CampaignMode` | `TOTAL_DOMINATION`, `HOLD_THE_LINE`, `SIEGE` | `SIEGE` is reserved (backlog, Q-GD-2). Starting a SIEGE campaign is rejected until it is specified. |
+| `CampaignResult` | `VICTORY`, `DEFEAT`, `TIME_LIMIT`, `ABORTED` | Defeat rule: Q-GD-7. `ABORTED` only via `OP_CAMPAIGN_END` (operator). |
 | `CommandKind` | see §5 | |
 | `RejectReason` | see §5.3 | |
 | `CommandSource` | `CHAT`, `ADVISOR`, `OPERATOR`, `SYSTEM` | |
@@ -116,7 +117,7 @@ Text shown on stream additionally requires `ModeratedText`, a SafeText already a
 | `text` | SafeText ≤ 300 | yes | Truncated over 300 → rejected, not truncated (proposed). |
 | `match_key` | string ≤ 300 | yes | Confusable-folded lowercase form used for command matching |
 | `received_at` | RFC 3339 UTC | yes | Gateway wall clock. Used for metrics and rate limits, never by the sim. |
-| `platform_roles` | array of `BROADCASTER`/`MODERATOR`/`VIP`/`SUBSCRIBER` | yes (may be empty) | From the platform payload only. Never inferred (DI-8). |
+| `platform_badges` | array of `BROADCASTER`/`MODERATOR`/`SUPPORTER` | yes (may be empty) | Neutral badges. Each adapter maps its platform's own roles onto these (ADR-0010 N-6), and only from the platform payload. Never inferred (DI-8). |
 | `account_created_at` | RFC 3339 UTC or `null` | yes | `null` when the platform doesn't provide it. Used for the account-age weighting (THREAT-DIRECTOR §2). Never guessed. |
 
 ## 5. Commands
@@ -129,7 +130,7 @@ Text shown on stream additionally requires `ModeratedText`, a SafeText already a
 | `source` | `CommandSource` | |
 | `issuer` | `{commander_id}` / `{operator_id}` / `{advisor:"DIRECTOR"\|"NARRATOR"}` / `{system:string}` | Exactly one, matching `source` |
 | `target_tick` | `Tick` | Set by the runtime to `current_tick + 1` on admission. Issuers can't choose it, except replays from the log (SC-6). |
-| `seq` | `CommandSeq` | Assigned by the inbox |
+| `arrival_seq` | `CommandSeq` | Assigned by the inbox |
 | `correlation_id` | string ≤ 64 | Links to the originating envelope, admin request, or advisor call for logs |
 
 ### 5.2 Catalog
@@ -137,7 +138,7 @@ Text shown on stream additionally requires `ModeratedText`, a SafeText already a
 
 | CommandKind | From chat text | Payload fields | Who / gate | Possible rejects |
 |---|---|---|---|---|
-| `JOIN` | `!join <role>` | `role: STRIKE\|RECON\|LOGI` (NAVAL in P4) | CHAT, O-1 | `ROLE_UNKNOWN`, `UNIT_IN_SORTIE`, `RESPAWN_COOLDOWN`, `QUEUED_RESERVE` (not an error: emits `ReserveQueueJoined`), `CAMPAIGN_NOT_RUNNING`, `SPAWNS_FROZEN` |
+| `JOIN` | `!join <role>` | `role: Role` (`NAVY` in P4) | CHAT, O-1 | `ROLE_UNKNOWN`, `UNIT_IN_SORTIE`, `RESPAWN_COOLDOWN`, `QUEUED_RESERVE` (not an error: emits `ReserveQueueJoined`), `CAMPAIGN_NOT_RUNNING`, `SPAWNS_FROZEN` |
 | `TARGET` | `!target <node>` | `node_id: NodeId` (resolved by fuzzy match against the fixed node-name list *before* the command is built) | CHAT, O-1 | `NO_ACTIVE_UNIT`, `NODE_UNKNOWN`, `NODE_INVALID_FOR_UNIT` |
 | `RTB` | `!rtb` | — | CHAT, O-1 | `NO_ACTIVE_UNIT`, `NO_FRIENDLY_BASE_REACHABLE` |
 | `STATUS` | `!status` | — | CHAT, O-1 | `NO_ACTIVE_UNIT` |
@@ -152,14 +153,16 @@ Text shown on stream additionally requires `ModeratedText`, a SafeText already a
 | `FORGET` | `!forget` | — | CHAT, any. Handled by identity (SEC-DATA-3). Doesn't enter the sim except to despawn units. | — |
 | `ADVISOR_CHOICE` | — | `decision_window: int`, `choice_index: int ≥ 0`, `op_name: ModeratedText ≤ 40`, `rationale: ModeratedText ≤ 140`, `model_ref: string ≤ 64` | ADVISOR, P4 | `WINDOW_EXPIRED`, `CHOICE_OUT_OF_RANGE` (rules pick instead, FB-2) |
 | `OP_KILL_SWITCH` | — | `hide_user_text: bool`, `mute_tts: bool`, `freeze_spawns: bool` | OPERATOR | — |
-| `OP_PAUSE` / `OP_RESUME` | — | `reason: SafeText ≤ 140` | OPERATOR | `ALREADY_PAUSED` / `NOT_PAUSED` |
+| `OP_CAMPAIGN_PAUSE` / `OP_CAMPAIGN_RESUME` | — | `reason: SafeText ≤ 140` | OPERATOR | `ALREADY_PAUSED` / `NOT_PAUSED`, `CAMPAIGN_NOT_RUNNING` |
+| `OP_CAMPAIGN_END` | — | `reason: SafeText ≤ 140` | OPERATOR. Ends the campaign with result `ABORTED`. | `CAMPAIGN_NOT_RUNNING` |
 | `OP_BAN` / `OP_UNBAN` | — | `commander_id`, `reason: SafeText ≤ 140` | OPERATOR, or SYSTEM from a platform moderation event (CHAT-GATEWAY §2) | `COMMANDER_UNKNOWN` |
 | `OP_PURGE_UNITS` | — | `commander_id` | OPERATOR | `COMMANDER_UNKNOWN` |
 | `OP_DIRECTOR_OVERRIDE` | — | `force_tier: ThreatTier\|null`, `trigger_operation: string\|null` (must exist in the doctrine library), `duration_ticks: int` | OPERATOR | `UNKNOWN_OPERATION`, `INVALID_DURATION` |
-| `OP_CONFIG_RELOAD` | — | `config_hash: hex` (already validated by the admin API) | OPERATOR | `CONFIG_HASH_MISMATCH`, `CONFIG_INVALID` |
-| `SYS_CAMPAIGN_START` | — | `campaign_id`, `seed: uint64`, `mode`, `theater_id`, `config_hash` | SYSTEM | `CAMPAIGN_ALREADY_RUNNING` |
+| `OP_CONFIG_RELOAD` | — | `keys: string[]` (balance keys that change), `new_config_hash: hex` (already validated by the admin API) | OPERATOR | `CONFIG_HASH_MISMATCH`, `CONFIG_INVALID`, `NON_HOT_RELOADABLE_KEY` |
+| `SYS_CAMPAIGN_START` | — | `campaign_id`, `seed: uint64`, `mode`, `theater_id`, `config_hash` | SYSTEM | `CAMPAIGN_ALREADY_RUNNING`, `MODE_NOT_AVAILABLE` |
+| `SYS_SET_CALLSIGN` | — | `commander_id`, `callsign: Callsign` (already approved, or a generated/tombstone value) | SYSTEM, from identity after an approval or deletion | `COMMANDER_UNKNOWN` |
 
-Callsign approve/reject and clip approve are **not** sim commands. They are admin actions on the persistence layer (§8), and the resulting change reaches the sim only as a `CallsignChanged` system command (`SYS_CALLSIGN_CHANGED{commander_id, callsign}`), so replays reproduce what was shown.
+Callsign approve/reject and clip approve are **not** sim commands. They are admin actions on the persistence layer (§8), and the resulting change reaches the sim only as a `SYS_SET_CALLSIGN` system command, which emits `CallsignChanged`, so replays reproduce what was shown.
 
 ### 5.3 RejectReason enum
 Every value listed in §5.2, plus `INVALID_PAYLOAD`, `BANNED`, `LATE` (applied, but flagged — SC-6), and `INTERNAL_ERROR` (SC-7: the kernel converts an unexpected validation failure into this event instead of raising). Every reject is emitted as `CommandRejected` (§6). Chat replies are aggregated into digests and never sent per reject (CHAT-GATEWAY §6).
@@ -174,14 +177,18 @@ Every value listed in §5.2, plus `INVALID_PAYLOAD`, `BANNED`, `LATE` (applied, 
 |---|---|---|---|
 | `CampaignStarted` | `mode`, `theater_id`, `seed`, `config_hash`, `start_tick` | `seed` omitted (proposed: it would let viewers predict RNG) | B A O |
 | `CampaignEnded` | `result: CampaignResult`, `end_tick`, `score`, `nodes_held_pct` | none | B P A C O |
+| `AARStarted` | `result: CampaignResult`, `top_by_role: {role, commander_ids[] ≤ 5}[]` | Commander ids resolve to approved callsigns at render time | B A O |
 | `CampaignClockPaused` / `Resumed` | `reason: NO_HUMANS\|OPERATOR` | none | B O |
 | `UnitSpawned` | `entity_id`, `unit_kind`, `side`, `owner_kind`, `commander_id\|null`, `callsign\|null`, `node_id`, `loadout: FULL\|REDUCED` | ENEMY spawn shown only if the spawn point is at TRACK tier or above. Otherwise dropped. | B P A O |
-| `UnitDespawned` | `entity_id`, `reason: RTB_LANDED\|PURGED\|FORGOTTEN\|CAMPAIGN_END` | Hidden ENEMY: dropped | B O |
+| `UnitDespawned` | `entity_id`, `reason: RTB_LANDED\|IDLE\|ROLE_SWITCH\|PURGED\|OWNER_BANNED\|OWNER_FORGOTTEN\|CAMPAIGN_END` | Hidden ENEMY: dropped | B O |
+| `UnitOrphaned` | `entity_id`, `commander_id`, `cause: BANNED\|FORGOTTEN` | none (coalition units only) | B O |
+| `RearmStalled` | `entity_id`, `node_id` | ENEMY: dropped | B O |
 | `WaypointReached` | `entity_id`, `node_id\|null` | Hidden ENEMY: dropped | O |
 | `UnitDamaged` | `entity_id`, `attacker_id\|null`, `amount`, `hp_after` | A hidden attacker becomes `attacker_id: null` | B C O |
 | `UnitDestroyed` | `entity_id`, `killer_id\|null`, `assist_ids[]`, `side` | A hidden killer becomes `null` ("Unknown contact", FOW-3). A hidden victim is dropped. | B P A C O |
 | `WeaponFired` | `shooter_id`, `target_id`, `weapon`, `hit: bool` | Hidden shooter: the tracer origin is replaced by no tracer (proposed) | B C |
 | `TargetPainted` | `recon_id`, `target_id`, `until_tick` | none (target is TRACK or above by definition) | B P |
+| `CaptureStarted` | `node_id`, `side` | none (nodes are always visible) | B A O |
 | `CaptureProgress` | `node_id`, `side`, `progress_pct`, `contested: bool` | none (nodes are always visible) | B O |
 | `NodeCaptured` | `node_id`, `from: NodeOwner`, `to: NodeOwner`, `participant_commander_ids[]` | ENEMY participants are omitted | B P A C O |
 | `SupplyDelivered` | `node_id`, `amount`, `carrier_id`, `commander_id\|null` | none for coalition. ENEMY deliveries are dropped. | B P O |
@@ -193,14 +200,20 @@ Every value listed in §5.2, plus `INVALID_PAYLOAD`, `BANNED`, `LATE` (applied, 
 | `ThreatTierChanged` | `from`, `to`, `cp_smoothed` | `cp_smoothed` omitted (proposed) | B A O |
 | `DirectorOperationLaunched` | `operation_kind`, `op_name: ModeratedText\|null`, `target_node_id\|null`, `source: RULES\|ADVISOR` | Public view gets only `op_name` and only if the op is a named theater offensive (CHARLIE). Otherwise dropped. | B A O |
 | `ThreatAdaptation` | `category: CONVOY_ESCORT\|IADS_REINFORCED\|…`, `sector_id`, `direction: UP\|DOWN` | Public sees the INTEL line (THREAT-DIRECTOR §4.5) | B A O |
-| `CommandRejected` | `seq`, `kind`, `reason: RejectReason`, `commander_id\|null` | Not public. Aggregated digest only. | O, gateway digest |
-| `CommandApplied` | `seq`, `kind`, `commander_id\|null`, `late: bool` | Public ack ping only for `JOIN`/`TARGET` (OV-5) | B O |
+| `CommandRejected` | `arrival_seq`, `kind`, `reason: RejectReason`, `commander_id\|null` | Not public. Aggregated digest only. | O, gateway digest |
+| `CommandApplied` | `arrival_seq`, `kind`, `commander_id\|null`, `late: bool` | Public ack ping only for `JOIN`/`TARGET` (OV-5) | B O |
 | `ReserveQueueJoined` / `Left` | `commander_id`, `position`, `reason: SLOT_FREED\|LEFT\|TIMEOUT` | Public: queue length only | B O |
 | `PackageFormed` / `Disbanded` / `MemberJoined` | `package_id`, `name`, `lead_id`, `member_ids[]` | none | B P |
 | `DoctrineSelected` | `commander_id`, `doctrine` | none | B P |
-| `CallsignChanged` | `commander_id`, `callsign` | none (already approved) | B |
+| `CallsignChanged` | `commander_id`, `callsign`, `callsign_kind: GENERATED\|CUSTOM\|TOMBSTONE` | none (already approved). TOMBSTONE renders as `[REDACTED]` | B |
+| `CommanderBanned` | `commander_id` | Not public (only the unit's removal is visible) | O P |
+| `CommanderForgotten` | `commander_id` | Not public | O P |
+| `BalanceReloaded` | `old_hash`, `new_hash`, `keys: string[]` | Not public | O R |
+| `PresenceSnapshot` | `active_humans: int`, `distinct_humans_active: int`, `window_ticks: int` | Counts only (no ids) | B P O |
 | `KillSwitchChanged` | flags as in `OP_KILL_SWITCH` | none | B A O |
 | `StateHash` | `tick`, `hash: hex` | not public | O R |
+
+**PresenceSnapshot** is emitted every `presence.emit_every_ticks` (CONFIG-AND-CONTENT §6.6) over the trailing `presence.window_s`. Both counts include only `COMMANDER` owners (DI-5): `active_humans` = commanders with a live unit or an accepted command in the window (drives the HUD count and the clock pause, Q-GD-4/Q-SM-5); `distinct_humans_active` = distinct commanders with an accepted command in the window (drives PROG-2). The kernel derives both from applied commands, so they are deterministic.
 
 **Who decides an entity is hidden:** the redaction pass uses the coalition visibility predicate at the event's tick (FOW-1). Property test: no public payload references an `EntityId` that fails the predicate.
 
@@ -213,7 +226,7 @@ These detail WIRE-PROTOCOL §2. All messages carry `type` and `v` (PROTOCOL_VERS
 | `Welcome` | `server_build: string`, `campaign_id\|null`, `tick_rate_hz: int`, `theater: TheaterStatic` (sent once: nodes with `{node_id, name, kind, pos}`, edges, terrain asset ref) |
 | `Snapshot` | `tick`, `entities: EntityView[]`, `nodes: NodeView[]`, `blobs: BlobView[]`, `hud: Hud`, `packages: PackageView[]`, `kill_switch: flags` |
 | `Delta` | `tick`, `base_tick`, `upserts: EntityPatch[]`, `removes: EntityId[]`, `node_patches: NodePatch[]`, `blobs: BlobView[]\|null` (null = unchanged; a full replacement on SIGINT refresh), `events: PublicEvent[]` |
-| `Hud` (≤ 1 Hz) | `momentum_pct: int 0–100\|null`, `objective: {node_id, name, deadline_tick}\|null`, `threat_tier`, `campaign_clock: {elapsed_ticks, limit_ticks, paused}`, `ticker: TickerItem[] ≤ 20`, `panels: Panels`, `active_humans: int\|null` (DI-5: humans only, `null` until counted) |
+| `Hud` (≤ 1 Hz) | `momentum_pct: int 0–100\|null`, `objective: {node_id, name, deadline_tick}\|null`, `threat_tier`, `campaign_clock: {elapsed_ticks, limit_ticks, paused}`, `ticker: TickerItem[] ≤ 20`, `panels: Panels`, `active_humans: int\|null` (from the latest `PresenceSnapshot`; DI-5: humans only, `null` until the first snapshot) |
 | `Audio` | `sitrep_id`, `text: ModeratedText ≤ 140`, `url: string` (local nginx path), `bus: MUSIC\|FOLEY\|RADIO`, `priority: int 0–9`, `expires_tick` |
 | `Control` | `action: RELOAD\|RESYNC\|BANNER\|KILL_SWITCH`, `banner_text: SafeText ≤ 80\|null`, `flags\|null` |
 | `Ack` (C→S) | `applied_tick: Tick` |
@@ -245,13 +258,14 @@ Field shapes:
 | `GET /health` | — | `{status: OK\|DEGRADED\|DOWN, components:{sim, gateway_<platform>, tts, db, ws}}`, each `{state, detail\|null}` | no |
 | `GET /metrics` | — | Prometheus text (OPS-ADMIN §2) | no |
 | `POST /admin/kill-switch` | `{hide_user_text, mute_tts, freeze_spawns}` | Emits `OP_KILL_SWITCH` | yes |
-| `POST /admin/campaign/pause` / `resume` | `{reason}` | `OP_PAUSE` / `OP_RESUME` | yes |
+| `POST /admin/campaign/pause` / `resume` | `{reason}` | `OP_CAMPAIGN_PAUSE` / `OP_CAMPAIGN_RESUME` | yes |
+| `POST /admin/campaign/end` | `{reason}` | `OP_CAMPAIGN_END` (result `ABORTED`) | yes |
 | `POST /admin/commanders/{id}/ban` / `unban` | `{reason}` | `OP_BAN` / `OP_UNBAN` | yes |
 | `POST /admin/commanders/{id}/purge-units` | — | `OP_PURGE_UNITS` | yes |
 | `GET /admin/callsigns/pending` | — | Approval queue list | no |
-| `POST /admin/callsigns/{request_id}/approve` / `reject` | `{reason\|null}` | Persistence update → `SYS_CALLSIGN_CHANGED` on approve | yes |
+| `POST /admin/callsigns/{request_id}/approve` / `reject` | `{reason\|null}` | Persistence update → `SYS_SET_CALLSIGN` on approve | yes |
 | `POST /admin/director/override` | `{force_tier\|null, trigger_operation\|null, duration_ticks}` | `OP_DIRECTOR_OVERRIDE` | yes |
-| `POST /admin/config/reload` | `{config_path}` | Load, validate against the balance schema, hash → `OP_CONFIG_RELOAD{config_hash}`. Invalid config is rejected **before** any command (DI-7). | yes |
+| `POST /admin/config/reload` | `{config_path}` | Load, validate against the balance schema, diff against the active profile, hash → `OP_CONFIG_RELOAD{keys, new_config_hash}`. Invalid config, or a diff touching a non-hot-reloadable key, is rejected **before** any command (DI-7, CONFIG-AND-CONTENT §5). | yes |
 | `GET /admin/clips/pending` | — | Clip review queue | no |
 | `POST /admin/clips/{clip_id}/approve` / `reject` | `{reason\|null}` | Marks a clip publishable. **No auto-upload** (SEC-CLIP-1). | yes |
 
@@ -284,9 +298,9 @@ Secrets and tokens are never recorded (NX-026 redaction). Every sim-affecting ad
 ## 11. Open questions
 Existing questions referenced: Q-GD-2, Q-GD-3, Q-GD-7, Q-GD-8, Q-MOD-1, Q-AI-2.
 
-### New open questions (to be integrated into OPEN-QUESTIONS.md)
+### Questions raised by this spec (tracked in [OPEN-QUESTIONS](../planning/OPEN-QUESTIONS.md))
 1. **Q-CT-1** Should over-length chat (> 300 chars) be rejected or truncated? *Recommended:* reject. Truncation could turn a long message into a different valid command.
 2. **Q-CT-2** Should the public `CampaignStarted` event, and therefore replays, expose the campaign seed? *Recommended:* hide it during the campaign, and publish it after `CampaignEnded` for transparency.
 3. **Q-CT-3** Should viewers see enemy tracers from unseen shooters as "incoming fire from unknown direction" instead of nothing? *Recommended:* nothing in MVP, revisit after readability testing (NX-034).
 4. **Q-CT-4** Should `Hud.active_humans` (count of real human commanders active in the last N minutes) be shown on stream? *Recommended:* yes. It counts humans only, and is shown as `—` until known (DI-5, DI-1).
-5. **Q-CT-5** Enemy and garrison `UnitKind` roster for MVP (the proposed set is `SAM`, `GARRISON_GROUND`, `ENEMY_ARMOR`, `ENEMY_CONVOY`). *Recommended:* confirm with the first theater sketch (NX-008).
+5. **Q-CT-5** Enemy and garrison `UnitKind` roster for MVP (the proposed set is `GARRISON_AAA`, `GARRISON_INFANTRY`, `ENEMY_SAM_SITE`, `ENEMY_RADAR`, `ENEMY_FIGHTER`, `ENEMY_ARMOR`, `ENEMY_CONVOY`). *Recommended:* confirm with the first theater sketch (NX-008).
