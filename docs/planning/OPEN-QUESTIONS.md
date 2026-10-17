@@ -100,7 +100,7 @@ Legend: **Blocks** is the earliest roadmap phase that needs the answer (P0 = Fou
 | Q-LEGAL-1 | Allowed dependency licenses? | MIT, BSD, Apache-2.0, ISC, MPL-2.0. GPL only for separate server-side processes (e.g., Piper). | ✅ 2026-10-17: MIT/BSD/Apache-2.0/ISC/MPL-2.0; GPL only in separate server-side processes (A) |
 | Q-LEGAL-2 | Music source? | Royalty-free or commissioned stems with written licenses. No "sound-alike" tracks. | ✅ 2026-10-17: A, licensed music only. Owner has an **Epidemic Sound** subscription. Still to check: whether it covers 24/7 Twitch/YouTube streaming and clips, and whether an API or MCP exists for an AI music agent [UNVERIFIED, research NX-273] |
 | Q-LEGAL-3 | Data retention and privacy notice? | As in THREAT-MODEL SEC-DATA-4. Privacy notice published before beta. | P3 | |
-| Q-BIZ-1 | Monetization? | Cosmetic-only (halos, trails, voice presets) via channel points or bits. **Never** gameplay power. | P4 | |
+| Q-BIZ-1 | Monetization? | Cosmetic-only (halos, trails, voice presets) via channel points or bits. **Never** gameplay power. | ✅ 2026-10-17: A, cosmetics and recognition only; never winning power (details: SUPPORT-REDEMPTIONS, Q-SUP-1) |
 
 ## From the detailed system specs (2026-10-17)
 
