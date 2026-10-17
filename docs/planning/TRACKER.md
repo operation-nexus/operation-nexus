@@ -198,6 +198,7 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | NX-284 | `new-unit` agent skill + tool-agnostic prompt: plain-language description → validated draft → approval | ⬜ |
 | NX-285 | Backups: `BackupTarget` port with local (Linux server) + Google Drive (owner has access) adapters, age encryption, tiered retention (DB/snapshots nightly; replay/telemetry archives separately), quarterly restore test; verify provider limits first | ⬜ |
 | NX-286 | Pause flow: reason form, owner alert with state summary, optional AI assessment, one-tap resume (alert link / Discord / console), re-alert | ⬜ |
+| NX-287 | Research: Gemini TTS synthetic voice design/generation (capabilities, pricing, rate limits, terms, commercial use on streams) for voice-cast profiles via the `TtsEngine` port; cost vs the $20/mo cap | ⬜ |
 | NX-273 | Research + spike: Epidemic Sound license coverage for 24/7 streams/clips; API/MCP availability; `MusicSource` port so an agent can search and queue licensed tracks by mood (tension-driven, AUDIO-TTS §1) | ⬜ |
 | NX-272 | Third-party tips adapter (Ko-fi or Streamlabs/StreamElements; Q-SUP-3) | ❓ |
 

@@ -51,7 +51,7 @@ Legend: **Blocks** is the earliest roadmap phase that needs the answer (P0 = Fou
 | Q-MOD-1 | Do raw platform display names appear on stream? | **No.** Everyone gets a generated callsign (`VIPER-27`). Custom callsigns unlock at O-2 and pass moderation. | ✅ 2026-10-17: Generated callsigns; custom at O-2 after moderation (A). **Viewers must clearly see their command worked** (GAMEPLAY §1a). |
 | Q-MOD-2 | Which moderation list or classifier? | An open denylist with leetspeak/homoglyph folding, plus a small hosted moderation API for custom callsigns only. | ✅ 2026-10-17: A. Free-first: a blocklist with leetspeak and homoglyph folding, plus a free or local classifier if a good one exists. A cheap hosted moderation check for custom callsigns is allowed when needed (behind a `ModerationProvider` port, ADR-0010). |
 | Q-MOD-3 | Who moderates? Just you? Trusted viewer mods? | You + Twitch mods. Bans issued via Twitch carry over to the game automatically. | ✅ 2026-10-17: Owner + Twitch mods; Twitch ban cascades (A). Extended by the ADMIN-RBAC spec (roles via site and Discord). |
-| Q-MOD-4 | Will user-created voices ever exist? | Not without a consent policy and an ADR. Preset voices only. | P4 | |
+| Q-MOD-4 | Will user-created voices ever exist? | Not without a consent policy and an ADR. Preset voices only. | ✅ 2026-10-17: A, no custom or cloned voices from real people. Future option: **synthetic designed voices** (owner mentioned Gemini's new synthetic voice generation; capability and pricing [UNVERIFIED], research NX-287) for the voice cast only, within the $20 AI cap. |
 
 ## AI / LLM / TTS
 
