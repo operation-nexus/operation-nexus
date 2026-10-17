@@ -106,7 +106,7 @@ Legend: **Blocks** is the earliest roadmap phase that needs the answer (P0 = Fou
 
 | ID | Question | Recommended default | Blocks | Decision |
 |---|---|---|---|---|
-| Q-SM-1 | Give objective selection its own `objective` RNG sub-stream? | Yes. Then changing objective logic doesn't shift director randomness. | P1 | |
+| Q-SM-1 | Give objective selection its own `objective` RNG sub-stream? | Yes. Then changing objective logic doesn't shift director randomness. | ✅ 2026-10-17: A, separate `objective` RNG stream. Owner principle: **never share dice between subsystems.** |
 | Q-SM-2 | How long does an idle landed unit linger before despawning? | Balance key `slots.idle_despawn_s`, tuned by the harness | ✅ 2026-10-17: A, `slots.idle_despawn_s` starts at about 5 min (PROPOSED), tuned by the harness and adjustable in admin. Owner prefers as long as practical. |
 | Q-SM-3 | Custom callsigns: manual owner approval or automated moderation? | Automated moderation + review queue. Manual approval during alpha. | ✅ 2026-10-17: A, automated moderation approves most; borderline → review queue; owner manually approves all during alpha |
 | Q-SM-4 | After the AAR, same theater with a new seed or rotate theaters? | Same hand-authored theater with a new seed until a second theater exists | ✅ 2026-10-17: A, rotate theater archetypes with no back-to-back repeats; reuse the first theater with a new seed until more exist. Admins can override via scheduling (ADMIN-RBAC). |
@@ -153,6 +153,21 @@ Legend: **Blocks** is the earliest roadmap phase that needs the answer (P0 = Fou
 | Q-MKT-1 | Marketing strategy (owner request: **ask after the question round**, with suggestions) | Pending a discussion with the owner | P3 | |
 | Q-AI-6 | Disclose on stream that voices are AI-generated? | Yes. A small "Synthetic voices" note in the channel panel and the about screen. Honest, and it matches DATA-INTEGRITY DI-5. Twitch policy still to check. | ✅ 2026-10-17: A, disclose AI voices (channel panel + about screen). Follow each platform's AI-content disclosure rules and **re-check them every phase gate** (NX-288). Gemini designed voices pre-record common lines. **Human voice option:** the owner may voice-act lines and, if the community prefers, run voice-actor auditions (written consent + license per contributor; SEC-MOD-4). |
 | Q-SUP-5 | Retention of financial support records? | Keep them as long as your tax and accounting needs require. Ask an accountant; this isn't something we can define for you. | P4 | |
+
+## Combat and simulation feel (added 2026-10-17 at owner's request)
+
+Owner principle: outcomes are **probabilistic and different every war** (new seed per campaign), but **replayable** given the seed, and driven by **simulation factors, not LLMs**.
+
+| ID | Question | Recommended default | Blocks | Decision |
+|---|---|---|---|---|
+| Q-CBT-1 | Damage model: just alive/dead, or damage states? | Damage states: **Healthy → Damaged** (slower, reduced sensors) → **Mission-kill** (must RTB, can be repaired) → **Destroyed**. More drama, and it makes repair and logistics matter. | P1 | |
+| Q-CBT-2 | Which factors change hit chance (Pk)? | Track quality (blob / track / radar lock / painted), range vs weapon envelope, target evasion and altitude band, jamming on either side, countermeasures (chaff/flares, one-shot), terrain masking, and weather/night (later). Each is a multiplier in config. | P1 | |
+| Q-CBT-3 | Show hit chances to viewers? | Show them in the PiP intercept scope ("Pk 62%") during engagements. It teaches the system and builds trust that outcomes are fair. | P2 | |
+| Q-CBT-4 | Friendly fire? | No in v1 (co-op, avoids griefing) | P1 | |
+| Q-CBT-5 | Weather and day/night cycle? | Later (P4): a visual day/night cycle plus weather fronts that reduce sensor range and Pk. Seeded and visible ahead of time. | P4 | |
+| Q-CBT-6 | Retreat behavior when badly damaged? | Units auto-RTB at mission-kill. Player-controlled units can override with `!target` but risk destruction. | P1 | |
+| Q-CBT-7 | Ammo per sortie? | Yes. Limited munitions per sortie (from base stock), so rearming and logistics matter. Guns are unlimited but weak. | P1 | |
+| Q-CBT-8 | Critical or lucky hits? | Small seeded chance of an outsized effect (e.g. a radar knocked offline for a while), shown with a callout. Adds stories without deciding wars. | P2 | |
 
 ## Questions from your conversation that need your words
 
