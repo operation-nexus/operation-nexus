@@ -397,3 +397,6 @@ New questions for OPEN-QUESTIONS (recommended answers in brackets):
 3. **AI assessment (optional, advisory only):** the LLM advisor writes a short summary of the situation and a recommendation to resume or stay paused, using only logged data. It's labeled as AI-generated and never acts on its own (ADR-0007).
 4. **One-tap resume:** an action link in the alert (authenticated), a Discord slash command (`/nexus resume`), or the Command Center. Voice resume comes with the voice ops line. Resume needs GM/admin/owner; the owner's action is audited like any other.
 5. **Auto-escalation:** if the pause lasts longer than a configurable time with no response, re-alert (PROPOSED interval).
+
+## Addendum: Who edits game rules (owner decision 2026-10-17)
+Game rules, balance, campaign options (e.g. friendly fire, weather) and content: **Owner, Admin, Game Master** only. **Moderators do not edit rules.** They moderate users and can pause (with a reason, Q-RB-1).
