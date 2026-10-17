@@ -7,9 +7,16 @@ Status: Draft · Q-OPS-1 · Facts verified 2026-10-17 unless marked [UNVERIFIED]
 |---|---|---|
 | GPU | NVIDIA GTX 1080 (Pascal), 8 GB | Owner |
 | RAM | 32 GB | Owner |
-| CPU | — (not yet reported) | — |
+| CPU | Intel 8th-gen Core, non-K. The owner believes it's an i7 "8600 or 8700". **To verify:** Intel's 8th gen has an i7-8700 and an i5-8600 but no i7-8600 (desktop), so check with `lscpu` / Windows System Information. | Owner (unverified model) |
 | Upload | ~15–25 Mbps (owner estimate; **measure it**) | Owner |
 | OS | — (not yet reported) | — |
+| Can run 24/7 | Yes (owner, 2026-10-17). It's also the gaming PC. | Owner |
+
+## Other owner hardware
+| Machine | Specs | Role today | Source |
+|---|---|---|---|
+| Linux home server | Intel i5 (model —), RAM "low/none" as described (exact amount —), runs 24/7 on the LAN | Existing home server | Owner |
+| Raspberry Pi | Not owned yet; can be bought | — | Owner |
 
 ## What the GTX 1080 can and can't do
 | Capability | Status | Source |
@@ -42,7 +49,17 @@ Rule: keep total outbound ≤ 70% of the **measured** sustained upload. Measure 
   2. **A dedicated used box** later. Any NVENC-capable GPU (GTX 16-series/RTX for better NVENC), 16–32 GB RAM, wired Ethernet, on a UPS.
   3. Cloud GPU (cost [UNVERIFIED] for 2026; get quotes before deciding).
 
+## Proposed role split (pending cost analysis: docs/ops/LOCAL-VS-API-COST.md)
+| Role | Machine | Why |
+|---|---|---|
+| OBS + overlay browser + encode | Gaming PC (GTX 1080) | Needs NVENC and a GPU for Chromium |
+| nexus-app (sim, gateway, SQLite) + TTS | Gaming PC at first, Linux server later | CPU-only work. Moving it off the gaming PC means a game crash or reboot doesn't kill the sim |
+| Watchdog / monitoring / alerting | Linux server | Must live on a *different* box to detect that the stream box died |
+| Backups target | Linux server (+ offsite) | Separate disk from the primary |
+| Staging stack | Linux server | Keeps staging off the broadcast box |
+
 ## Still needed from the owner
-- [ ] CPU model, OS (Windows/Linux), and whether the PC can run 24/7
+- [ ] Exact CPU model (gaming PC) and OS
+- [ ] Linux server: CPU model, RAM amount, disk, distro
 - [ ] Measured upload (e.g., three speed tests at different times)
 - [ ] Monthly cost ceiling (Q-OPS-3)

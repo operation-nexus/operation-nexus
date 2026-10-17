@@ -9,7 +9,7 @@ Single source of truth for work items until (optionally) mirrored to GitHub Issu
 
 | Phase | Items | Done | Status |
 |---|---|---|---|
-| P0 Foundations | 36 | 3 | 🟨 |
+| P0 Foundations | 37 | 3 | 🟨 |
 | P1 Sim kernel | 22 | 0 | ⬜ |
 | P2 Closed alpha | 27 | 0 | ⬜ |
 | P3 Public beta | 15 | 0 | ⬜ |
@@ -65,6 +65,7 @@ Single source of truth for work items until (optionally) mirrored to GitHub Issu
 | NX-046 | Data-integrity Semgrep rules + FB registry tests (DATA-INTEGRITY §6) | M | ⬜ | NX-012 | Each rule has positive/negative fixtures |
 | NX-047 | Optional: SonarQube Cloud quality gate (Q-CI-5) | S | ❓ | P2 | Decision recorded |
 | NX-048 | Publish GitHub labels from `.github/labels.yml`; create milestones P0–P4; open issues for P0 items | S | ❓ | owner OK | Issues exist and link back to TRACKER rows |
+| NX-049 | Create `develop` from `main` after planning sign-off; apply branch rulesets per ADR-0009; set default branch to `develop` | S | ⬜ | planning done | Rulesets visible; PR to main without gates is blocked |
 | NX-040 | Threat model review with owner; accept residual risks | S | ❓ | NX-001 | THREAT-MODEL §6 signed off |
 
 ---

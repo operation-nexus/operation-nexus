@@ -16,10 +16,11 @@ Non-goals for now: Kubernetes, Helm, multi-region, canary traffic splitting (ADR
 
 | Item | Rule |
 |---|---|
-| Model | Trunk-based. Short-lived branches → PR → squash-merge to `main`. |
+| Model | **`develop` + `main`** (ADR-0009). Short-lived `feat/*` branches → PR → squash-merge to `develop`. A release PR `develop → main` happens only after the full gate passes and staging is healthy. Hotfixes branch from `main` and are merged back to `develop`. |
 | Branch names | `feat/NX-123-short`, `fix/NX-…`, `docs/…`, `chore/…` |
 | Commits / PR titles | Conventional Commits. A PR-title lint enforces this because squash uses the title. |
 | Versioning | SemVer per deployable (`sim`, `gateway`, `overlay`) via release-please manifest mode. `contracts/` is versioned too, and any breaking change bumps `PROTOCOL_VERSION`. |
+| Protection on `develop` | PR required. Security and build checks required; tests advisory (ADR-0009 table). No force-push. |
 | Protection on `main` | Require PR, ≥1 approval (owner or the agent-review bot, see Q-CI-3), required status checks (§4), linear history, no force-push, conversation resolution, CODEOWNERS for `.github/`, `deploy/`, `contracts/`, `docs/security/`. |
 | Tags | `sim-v1.4.0` etc. are created only by release-please. |
 
@@ -81,6 +82,9 @@ Non-goals for now: Kubernetes, Helm, multi-region, canary traffic splitting (ADR
 
 ## 4. Required status checks (branch protection)
 
+Per-branch requirements are in ADR-0009. The list below is the full set required for **`main`**.
+
+
 `pr-hygiene`, `python`, `typescript`, `contracts`, `sim-determinism`, `integration`, `security/gitleaks`, `security/codeql`, `security/dependency-review`, `security/sca`, `security/zizmor`, `docs`.
 
 Path-filtered jobs report success when skipped, so a required check is never left pending. Use a single `ci-gate` job that `needs:` all of them and evaluates their results. That job is the only required check, which prevents "skipped = missing" deadlocks.
@@ -113,7 +117,7 @@ Custom Semgrep rules (repo-specific, under `.semgrep/`):
 |---|---|---|---|---|
 | `local` | dev machine, `docker compose` | manual | seeded fixtures | none (overlay in a browser) |
 | `ci` | GitHub-hosted runners, ephemeral compose | every PR | fixtures | none |
-| `staging` | same host as prod, separate compose project + ports, **or** a cheap VPS (Q-OPS-2) | merge to `main` | anonymized copy / synthetic | private/unlisted test stream |
+| `staging` | same host as prod, separate compose project + ports, **or** a cheap VPS (Q-OPS-2) | merge to `develop` | anonymized copy / synthetic | private/unlisted test stream |
 | `production` | broadcast host (Q-OPS-1) | release tag + manual approval | real | public channel(s) |
 
 Deployment mechanism (single node, ADR-0006):
