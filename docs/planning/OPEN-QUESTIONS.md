@@ -133,7 +133,7 @@ Legend: **Blocks** is the earliest roadmap phase that needs the answer (P0 = Fou
 | ID | Question | Recommended default | Blocks | Decision |
 |---|---|---|---|---|
 | Q-RB-1 | Can moderators pause campaigns? | Yes, they can pause. Resuming needs a GM or admin. | ✅ 2026-10-17: A, moderators can pause, but only with a **required reason** (category + short note). Resume: GM/admin/owner. Every pause **immediately alerts the owner** (who, when, why). Optional AI assessment ("situation report: should we stay paused?") is attached. One-tap resume from phone/Discord, voice later (ADMIN-RBAC §pause flow, NX-286). |
-| Q-RB-2 | Does a platform-scoped moderator's ban cascade across the commander's linked platforms? | Yes. Unbanning needs an admin. | P3 | |
+| Q-RB-2 | Does a platform-scoped moderator's ban cascade across the commander's linked platforms? | Yes. Unbanning needs an admin. | ✅ 2026-10-17: A, bans cascade across all linked platforms; unban requires an admin |
 | Q-RB-3 | Two-person rule with a single owner? | Allow self-approval with an audit flag, plus a delay (PROPOSED 10 min) on campaign end and rules publish | P3 | |
 | Q-RB-4 | Is the admin console exposed publicly? | No. Tailnet + Discord only through P3. A DAST pass is required before any public exposure. | P3 | |
 | Q-RB-5 | Is a harness dry-run mandatory before publishing rules? | Mandatory for next-campaign publishes. Optional for hot keys, and a skip is flagged in the audit log. | P3 | |
