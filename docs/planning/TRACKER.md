@@ -205,11 +205,13 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | NX-291 | Conduct system: disruptive-pattern detectors, decaying conduct score, escalation ladder (warn → restrict → timeout → XP penalty → mod review), appeals, mod dashboard; never auto-ban | ⬜ |
 | NX-292 | AI evaluation harness: golden question/answer sheets per AI use (narration, advisor, `!order` intent parsing, moderation), schema and command-format validation, intent accuracy scoring, latency/cost per call; runs any provider (hosted or local) through the same port so models can be compared before adoption | ⬜ |
 | NX-293 | Field Manual: quick-start guide + advanced operations guide (site pages, optional PDF/video), linked from stream descriptions, panels and `!guide`; generated from the command catalog so it never drifts | ⬜ |
+| NX-294 | Global campaign map spec: fictional world graph of theaters, progression and branching rules, narrative hooks per theater, carry-over integration, season arcs, admin tools to add theaters | ⬜ |
+| NX-295 | Leaderboard moderation: remove banned or cheating operators from all boards (hide + recompute, audited) | ⬜ |
 | NX-273 | Research + spike: Epidemic Sound license coverage for 24/7 streams/clips; API/MCP availability; `MusicSource` port so an agent can search and queue licensed tracks by mood (tension-driven, AUDIO-TTS §1) | ⬜ |
 | NX-272 | Third-party tips adapter (Ko-fi or Streamlabs/StreamElements; Q-SUP-3) | ❓ |
 
 ## Backlog (unscheduled — from owner's conversation & plans)
-- Global/theater map with multiple campaigns and offensives (C48)
+- **Global campaign map (owner vision, 2026-10-17):** a fictional world (not Earth) made of connected theaters forming a progression. Each campaign is one theater; winning pushes the front to the next connected theater (cross the mountains → urban assault; win the ocean battle → land on the mainland, which is more land than water; reach the Static's "secret base"). The map is finite but large, and new theaters can be added indefinitely (hand-made or generated). It ties together seasons, carry-over (Q-GD-12), lore (NX-275) and theater rotation (Q-SM-4). Needs its own spec (NX-294).
 - "Siege" mode — AI must hold out for X hours (C29)
 - Procedural theaters (Arctic Strait, Desert Archipelago)
 - Three.js thermal/FLIR PiP
