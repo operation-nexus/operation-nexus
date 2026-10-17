@@ -207,6 +207,7 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | NX-293 | Field Manual: quick-start guide + advanced operations guide (site pages, optional PDF/video), linked from stream descriptions, panels and `!guide`; generated from the command catalog so it never drifts | ⬜ |
 | NX-294 | Global campaign map spec: fictional world graph of theaters, progression and branching rules, narrative hooks per theater, carry-over integration, season arcs, admin tools to add theaters | ⬜ |
 | NX-295 | Leaderboard moderation: remove banned or cheating operators from all boards (hide + recompute, audited) | ⬜ |
+| NX-296 | AAR + War Briefing: full AAR screen; short briefing card looping between wars; auto-published to site and Discord (via `ChatSink`/`CommunityBot` ports); data-only content (no invented text) | ⬜ |
 | NX-273 | Research + spike: Epidemic Sound license coverage for 24/7 streams/clips; API/MCP availability; `MusicSource` port so an agent can search and queue licensed tracks by mood (tension-driven, AUDIO-TTS §1) | ⬜ |
 | NX-272 | Third-party tips adapter (Ko-fi or Streamlabs/StreamElements; Q-SUP-3) | ❓ |
 
