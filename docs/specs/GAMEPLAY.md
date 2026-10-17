@@ -12,6 +12,15 @@ All numbers below are **initial balance values** in `balance/default.yaml`. They
 3. Optionally type `!target <node>` or `!rtb`.
 4. The unit completes or fails its mission, and the viewer sees a contribution line in the ticker.
 
+## 1a. "Did my command work?" feedback (owner requirement, Q-MOD-1)
+Viewers see a generated callsign, not their username, so the game must connect "me" to "my unit" unmistakably. Otherwise they assume nothing happened and leave.
+- **FB-UX-1 Chat confirmation:** the bot's batched digest names the platform user and their callsign, e.g. "@SaltyUser → VIPER-27 deployed (strike) from WEST BASE". It's sent within platform rate limits (Twitch as a moderator: 100 messages / 30 s, per PLATFORM-REALITY-CHECK), with up to N mentions per digest message (N PROPOSED).
+- **FB-UX-2 On-screen recruit strip:** for 10 s after each spawn, a "NEW RECRUITS" strip shows the callsign, platform icon and role, with a ping on the map at the spawn point.
+- **FB-UX-3 `!me`:** highlights your unit for 5 s, and the next chat digest repeats your callsign and status. Also works while you're in the reserve queue (shows your position).
+- **FB-UX-4 First-time hint:** a commander's first successful command adds a one-time "New? You're VIPER-27. Type !me anytime." line to the digest.
+- **FB-UX-5 Rejections are visible too.** Reasons like "unit in sortie" or "respawn in 12 s" are batched into the digest with the callsign, never silently dropped.
+- **FB-UX-6 Measure it:** track the share of first-time commanders who issue a second command (NX-036). A low value means the feedback isn't working.
+
 ## 2. Roles (MVP, resolves critique #7 and #8)
 | Role | Command | Domain | Does | Can't |
 |---|---|---|---|---|
@@ -44,6 +53,13 @@ Unknown commands and ordinary chat are ignored. Command aliases are configurable
 - **GP-2** After death, respawn is allowed after `slots.respawn_delay_s` (PROPOSED 20 s) to stop suicide spam.
 - **GP-3** Above `slots.max_viewer_units` (Q-GD-6) new joiners go to a visible reserve queue. The queue is served FIFO as slots free up.
 
+## 4a. Reserve-queue mitigations (Q-GD-6 decided with mitigations)
+- **RQ-1:** show the queue length on the HUD. Each queued viewer gets their position via the digest or `!me`.
+- **RQ-2: Dynamic cap.** `slots.max_viewer_units` is a ceiling. The runtime may lower the effective cap while tick time is over budget, and raises it back when there's headroom (logged, visible on the ops dashboard).
+- **RQ-3: Units merge into flights before anyone queues.** Joiners attach to existing human flights as wingmen (sharing one map symbol) before the queue is used. Only when every flight is full does the queue start.
+- **RQ-4: Queued viewers still contribute.** While waiting they can `!scout <sector>`, a cheap intel ping that reveals SIGINT detail briefly, and they earn a small participation merit (PROPOSED values, diminishing).
+- **RQ-5: Priority and fairness.** Q-GD-14: FIFO, with a boost for first-time commanders and a max-wait guarantee. Idle units auto-despawn (`slots.idle_despawn_s`) to free slots.
+
 ## 5. Logistics (resolves critique #13)
 - Nodes hold `stock` (0..max). Spawning or rearming at a node consumes stock according to the unit's loadout cost.
 - **Sources:** the SANCTUARY base has infinite stock but is far away. A FACTORY generates `logistics.factory_rate` per minute, but only while it's connected by owned roads to the sanctuary.
@@ -73,6 +89,14 @@ A package is a group of up to 4 existing units, with a lead (O-5+) or an auto-le
 - **Defeat:** Q-GD-7.
 - **Campaign clock:** 48 h target. It pauses when active humans are below 1 (Q-GD-4). Hitting the time limit decides by score.
 - **End of campaign:** a 5-minute after-action review (top contributors per role, campaign stats), then a new seed or theater.
+
+## 9a. Theater style and orientation (owner, 2026-10-17)
+- **Water-heavy theaters:** straits, archipelagos, large island masses, mountain passes, and urban districts. Because water dominates, naval play matters, which is why the sea domain was pulled forward to P3 (Q-GD-8).
+- **Orientation:** the coalition (chat) is always on the **left (west)**, the enemy on the **right (east)**, and the main axis of advance runs left → right. Theater files must declare `orientation: west_to_east`, and the theater validator rejects maps whose sanctuary isn't in the left third. For the vertical 9:16 layout, see Q-GD-13.
+- **Urban terrain** needs extra rules (line-of-sight blocking, slower ground movement, capture by district). This is new design work, NX-129.
+
+## 9b. Campaign carry-over (owner chose: results carry over)
+The outcome of campaign N affects campaign N+1, within bounded and visible rules (Q-GD-12). Carry-over state is stored in the DB (DATA-MODEL addition: `campaign_carryover`) and applied at campaign setup. It's never applied mid-campaign.
 
 ## 10. Readability rules (stream-facing)
 Always visible: the momentum bar, the current objective with its timer, the director threat level, and a "how to play" line. A newcomer must be able to tell who's winning within 5 s (alpha exit criterion).

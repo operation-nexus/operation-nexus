@@ -10,7 +10,7 @@ Legend: **Blocks** is the earliest roadmap phase that needs the answer (P0 = Fou
 |---|---|---|---|---|
 | Q-PROD-1 | What is the #1 goal for year one: fun hobby/devlog content, audience growth, or revenue? It drives how much ops rigor and cost is justified. | Audience growth + devlog content. Revenue is a bonus. | ✅ 2026-10-17: Audience growth + devlog content; revenue is a bonus (A) |
 | Q-PROD-2 | Which platform launches first? | **Twitch only** through closed alpha. YouTube in beta. Kick optional. TikTok deferred. | ✅ 2026-10-17: Twitch only for alpha, then YouTube (A) |
-| Q-PROD-6 | With ADR-0010 (both platforms first-class), do you want Twitch **and** YouTube in the closed alpha (simulcast), or keep Twitch-only alpha → YouTube beta? | Twitch-only alpha, YouTube in beta. The YouTube quota application and monitoring should come first. The code is neutral either way. | P2 | |
+| Q-PROD-6 | With ADR-0010 (both platforms first-class), do you want Twitch **and** YouTube in the closed alpha (simulcast), or keep Twitch-only alpha → YouTube beta? | Twitch-only alpha, YouTube in beta. The YouTube quota application and monitoring should come first. The code is neutral either way. | ✅ 2026-10-17: Twitch-only alpha, YouTube in beta (A) |
 | Q-PROD-3 | Will you be present on stream sometimes, or is it fully unattended? (This affects TikTok/YouTube policy risk and moderation.) | Unattended by default, plus scheduled "commander's briefing" sessions with you live weekly. | P2 | |
 | Q-PROD-4 | What is the success metric for closed alpha? | ≥5 cold testers can say who's winning within 5 s and spawn within 30 s. 7 days unattended with ≤1 manual fix. | P2 | |
 | Q-PROD-5 | Public name and branding? "Operation Nexus" is fine. Avoid "NORAD" and real-org insignia. | Fictional factions, "Operation Nexus" | P2 | |
@@ -19,35 +19,38 @@ Legend: **Blocks** is the earliest roadmap phase that needs the answer (P0 = Fou
 
 | ID | Question | Recommended default | Blocks | Decision |
 |---|---|---|---|---|
-| Q-GD-1 | Which campaign modes ship first? | **Total Domination** first. Defense mode second. | P1 | |
+| Q-GD-1 | Which campaign modes ship first? | **Total Domination** first. Defense mode second. | ✅ 2026-10-17: Total Domination first; Hold the Line second; Siege later (A) |
 | Q-GD-2 | "Hold the Line": do **players** defend against AI waves (plans), or must the **AI** hold out for X hours while players attack (your conversation)? | Ship *players defend* as "Hold the Line". Add your *AI holds out* idea as a separate mode, "Siege", in the backlog. | P4 | ✅ 2026-10-17: Players defend first; Siege later |
-| Q-GD-3 | Doctrine/specialization: base roles open to all, with specialist perks locked per campaign? | Yes. Anyone can `!join` any base role. A **specialist doctrine** (perks + one signature ability) is picked once per campaign and locked until the next campaign. | P4 | |
-| Q-GD-4 | What happens with 0 human players? | "Slow war": the AI garrison holds. Enemy progress is capped (≤1 node / 6 h). The campaign clock pauses below 1 active human. | P1 | |
-| Q-GD-5 | Campaign length? | 48 h target. Ends early on decisive victory or defeat. Rotating 15-minute theater objective. | P1 | |
-| Q-GD-6 | Hard cap on live viewer units? What happens above it? | Cap 300 (configurable). Above the cap, viewers join a **reserve queue** with an on-screen counter, or get auto-merged into flights. | P2 | |
-| Q-GD-7 | Defeat condition? | Coalition loses its forward airbase + ≥75% of nodes for 30 min. The sanctuary base can never be captured. | P1 | |
-| Q-GD-8 | Domains in the MVP: Air + Ground logistics only, or also Sea? | **Air + Ground** in the MVP. Sea in phase P4. A strait map works without naval units at first. | P1 | |
-| Q-GD-9 | Map: hand-authored theater or procedural? | Hand-authored first theater (≈15 nodes) for tunability. Procedural later. | P1 | |
-| Q-GD-11 | Who can repair destroyed bridges? Engineers unlock at O-4 (weeks of play), so a bridge could stay down for a long time. | Logistics trucks can do a slow field repair (e.g. 5× slower). Engineers repair fast and can also build. | P1 | |
-| Q-GD-10 | Do NPC "rival commanders" or NPC aces exist in the MVP? | One NPC wingman type fills empty package slots. Named NPC personalities come later. | P4 | |
+| Q-GD-3 | Doctrine/specialization: base roles open to all, with specialist perks locked per campaign? | Yes. Anyone can `!join` any base role. A **specialist doctrine** (perks + one signature ability) is picked once per campaign and locked until the next campaign. | ✅ 2026-10-17: Base roles open; specialist doctrine locked per campaign (A) |
+| Q-GD-4 | What happens with 0 human players? | "Slow war": the AI garrison holds. Enemy progress is capped (≤1 node / 6 h). The campaign clock pauses below 1 active human. | ✅ 2026-10-17: Slow war at 0 humans; clock pauses (A). All such rules must be adjustable in the admin UI (ADMIN-RBAC). |
+| Q-GD-5 | Campaign length? | 48 h target. Ends early on decisive victory or defeat. Rotating 15-minute theater objective. | ✅ 2026-10-17: 48 h target, early end on decisive result, 15-min objectives (A). Admin-adjustable, can be scheduled per campaign. |
+| Q-GD-6 | Hard cap on live viewer units? What happens above it? | Cap 300 (configurable). Above the cap, viewers join a **reserve queue** with an on-screen counter, or get auto-merged into flights. | ✅ 2026-10-17: Cap + visible reserve queue (A), **with mitigations** (GAMEPLAY §4a) |
+| Q-GD-7 | Defeat condition? | Coalition loses its forward airbase + ≥75% of nodes for 30 min. The sanctuary base can never be captured. | ✅ 2026-10-17: Defeat = lose forward airbase and hold ≤25% for 30 min; sanctuary uncapturable (A) |
+| Q-GD-8 | Domains in the MVP: Air + Ground logistics only, or also Sea? | **Air + Ground** in the MVP. Sea in phase P4. A strait map works without naval units at first. | ✅ 2026-10-17: Air + ground at launch (A); **sea domain sooner than later** (moved to P3 in ROADMAP) since maps are water-heavy |
+| Q-GD-9 | Map: hand-authored theater or procedural? | Hand-authored first theater (≈15 nodes) for tunability. Procedural later. | ✅ 2026-10-17: Hand-authored first theater (A); **procedural generation sooner than later** (moved to P3/P4, admin-triggered) |
+| Q-GD-11 | Who can repair destroyed bridges? Engineers unlock at O-4 (weeks of play), so a bridge could stay down for a long time. | Logistics trucks can do a slow field repair (e.g. 5× slower). Engineers repair fast and can also build. | ✅ 2026-10-17: Trucks do slow field repair; engineers repair fast and build (A) |
+| Q-GD-12 | Campaign carry-over (owner chose: results carry over). What carries? | Proposal: the winner of campaign N gets a modest start advantage in N+1: one extra starting node or starting stock, capped. A losing streak triggers a comeback bonus so the war never becomes hopeless. Theater rotation follows the outcome (e.g., a win pushes the front into the next theater). Keep it bounded and visible on stream. | P4 | |
+| Q-GD-13 | Map orientation: chat (coalition) on the left, enemy on the right (owner preference). What about the 9:16 vertical layout? | Keep left→right on 16:9. On vertical, rotate so the coalition is at the bottom and the enemy at the top. The overlay's right sidebar sits over enemy rear territory, which is acceptable. | P2 | |
+| Q-GD-14 | Reserve-queue priority: pure FIFO, or first-time viewers first? | FIFO, with a small boost for first-time commanders (so newcomers get hooked) and a max wait guarantee. Tune with the harness. | P2 | |
+| Q-GD-10 | Do NPC "rival commanders" or NPC aces exist in the MVP? | One NPC wingman type fills empty package slots. Named NPC personalities come later. | ✅ 2026-10-17: One generic AI wingman type, labeled as AI (A) |
 
 ## Progression & identity
 
 | ID | Question | Recommended default | Blocks | Decision |
 |---|---|---|---|---|
-| Q-PROG-1 | Are ranks lifetime and Campaign Merit per-war (both tracks)? | Yes, both tracks. | P3 | |
-| Q-PROG-2 | XP sources? | Mission completion, supply delivered, captures, recon assists ≥ kills. Hourly diminishing returns. | P3 | |
+| Q-PROG-1 | Are ranks lifetime and Campaign Merit per-war (both tracks)? | Yes, both tracks. | ✅ 2026-10-17: Lifetime rank + per-war merit (A) |
+| Q-PROG-2 | XP sources? | Mission completion, supply delivered, captures, recon assists ≥ kills. Hourly diminishing returns. | ✅ 2026-10-17: Objective/supply/capture/recon ≥ kills; hourly diminishing returns (A) |
 | Q-PROG-3 | Minimum account age or activity before persistent XP? | Persistent XP starts after the first completed mission. Accounts under 24 h old count at 0.5× toward director power. | P3 | |
-| Q-PROG-4 | Account merge rule? | **Never sum XP.** Keep the max of each stat. One merge per 30 days. OAuth-proven only. | P3 | |
+| Q-PROG-4 | Account merge rule? | **Never sum XP.** Keep the max of each stat. One merge per 30 days. OAuth-proven only. | ✅ 2026-10-17: Never sum XP; per-stat max; OAuth-proven (A) |
 | Q-PROG-5 | Is cross-platform linking needed at launch? | No. Launch on Twitch only. Linking arrives with YouTube in beta. | P3 | |
 
 ## Moderation & safety
 
 | ID | Question | Recommended default | Blocks | Decision |
 |---|---|---|---|---|
-| Q-MOD-1 | Do raw platform display names appear on stream? | **No.** Everyone gets a generated callsign (`VIPER-27`). Custom callsigns unlock at O-2 and pass moderation. | P2 | |
+| Q-MOD-1 | Do raw platform display names appear on stream? | **No.** Everyone gets a generated callsign (`VIPER-27`). Custom callsigns unlock at O-2 and pass moderation. | ✅ 2026-10-17: Generated callsigns; custom at O-2 after moderation (A). **Viewers must clearly see their command worked** (GAMEPLAY §1a). |
 | Q-MOD-2 | Which moderation list or classifier? | An open denylist with leetspeak/homoglyph folding, plus a small hosted moderation API for custom callsigns only. | P2 | |
-| Q-MOD-3 | Who moderates? Just you? Trusted viewer mods? | You + Twitch mods. Bans issued via Twitch carry over to the game automatically. | P2 | |
+| Q-MOD-3 | Who moderates? Just you? Trusted viewer mods? | You + Twitch mods. Bans issued via Twitch carry over to the game automatically. | ✅ 2026-10-17: Owner + Twitch mods; Twitch ban cascades (A). Extended by the ADMIN-RBAC spec (roles via site and Discord). |
 | Q-MOD-4 | Will user-created voices ever exist? | Not without a consent policy and an ADR. Preset voices only. | P4 | |
 
 ## AI / LLM / TTS
@@ -127,8 +130,8 @@ Legend: **Blocks** is the earliest roadmap phase that needs the answer (P0 = Fou
 
 ## Questions from your conversation that need your words
 
-1. You said the Threat Director "learns" when players attack its stockpiles. How visible should that learning be? (Default: a sitrep line, e.g. "Enemy has reinforced convoy escorts on Route 4.")
-2. Should a viewer ever be able to see *why* the AI did something? (Default: yes, through a short "INTEL ASSESSMENT" panel. It builds trust that the AI isn't cheating.)
-3. The global map / multi-campaign theater is in the backlog. Do campaigns carry consequences into the next one? (Default: no in v1. Cosmetic history only.)
-4. Discord: is it part of the MVP or later? (Default: later. Use the Twitch-only alpha first.)
-5. Vertical 9:16 output: is it part of the MVP? (Default: no. It doubles encode load. Add it in beta.)
+1. ✅ 2026-10-17: Visible as radio/INTEL lines (A), **plus an owner or admin can take over the AI (Game Master mode, ADMIN-RBAC)**. Original question: You said the Threat Director "learns" when players attack its stockpiles. How visible should that learning be? (Default: a sitrep line, e.g. "Enemy has reinforced convoy escorts on Route 4.")
+2. ✅ 2026-10-17: Yes, an INTEL ASSESSMENT panel (A). Original question: Should a viewer ever be able to see *why* the AI did something? (Default: yes, through a short "INTEL ASSESSMENT" panel. It builds trust that the AI isn't cheating.)
+3. ✅ 2026-10-17: **Yes, results carry over into the next war (B).** Carry-over rules are Q-GD-12. Original question: The global map / multi-campaign theater is in the backlog. Do campaigns carry consequences into the next one? (Default: no in v1. Cosmetic history only.)
+4. ✅ 2026-10-17: Later, after the alpha (A). Original question: Discord: is it part of the MVP or later? (Default: later. Use the Twitch-only alpha first.)
+5. ✅ 2026-10-17: After the alpha (A). Original question: Vertical 9:16 output: is it part of the MVP? (Default: no. It doubles encode load. Add it in beta.)
