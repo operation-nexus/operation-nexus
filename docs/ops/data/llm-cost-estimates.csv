@@ -1,0 +1,46 @@
+scenario,option,monthly_cost_usd,basis
+low,Claude Haiku 5.5,11.23,82.08M in x$0.10 + 6.048M out x$0.50 per 1M
+low,Claude Haiku 4.5,112.32,x$1/x$5
+low,Gemini 3.1 Flash-Lite,29.59,x$0.25/x$1.50
+low,Gemini 3.5 Flash-Lite,39.74,x$0.30/x$2.50
+low,Gemini 3.8 Flash (2026 intro price),84.24,x$0.75/x$3.75
+low,Gemini 3.8 Flash (2027 price),168.48,x$1.50/x$7.50
+low,GPT-5.4 nano,23.98,x$0.20/x$1.25
+low,GPT-5.4 mini,88.78,x$0.75/x$4.50
+low,Groq Llama 3.1 8B,4.59,x$0.05/x$0.08
+low,DeepInfra Llama 3.1 8B [UNVERIFIED price],1.82,x$0.02/x$0.03
+low,GTX 1080 owned (PC already on),1.99,duty 10.1% x 150W assumed delta
+low,GTX 1080 owned (PC on for LLM only),15.04,avg 114.1W
+low,Used RTX 3060 12GB,15.36,$2.49 electricity + $12.88 card/24mo
+low,Used RTX 3090,55.58,$5.62 electricity + $49.96 card/24mo
+low,Raspberry Pi 5 8GB,7.87,$0.57 electricity + $7.29 board/24mo; gen-only duty 23%
+medium,Claude Haiku 5.5,16.99,118.08M in + 10.368M out
+medium,Claude Haiku 4.5,169.92,
+medium,Gemini 3.1 Flash-Lite,45.07,
+medium,Gemini 3.5 Flash-Lite,61.34,
+medium,Gemini 3.8 Flash (2026 intro price),127.44,
+medium,Gemini 3.8 Flash (2027 price),254.88,
+medium,GPT-5.4 nano,36.58,
+medium,GPT-5.4 mini,135.22,
+medium,Groq Llama 3.1 8B,6.73,
+medium,DeepInfra Llama 3.1 8B [UNVERIFIED price],2.67,
+medium,GTX 1080 owned (PC already on),3.17,duty 16.0%
+medium,GTX 1080 owned (PC on for LLM only),16.22,
+medium,Used RTX 3060 12GB,15.93,$3.06 electricity + $12.88 card/24mo
+medium,Used RTX 3090,56.13,$6.17 electricity + $49.96 card/24mo
+medium,Raspberry Pi 5 8GB,7.99,gen-only duty 40% (marginal)
+high,Claude Haiku 5.5,68.83,442.08M in + 49.248M out
+high,Claude Haiku 4.5,688.32,
+high,Gemini 3.1 Flash-Lite,184.39,
+high,Gemini 3.5 Flash-Lite,255.74,
+high,Gemini 3.8 Flash (2026 intro price),516.24,
+high,Gemini 3.8 Flash (2027 price),1032.48,
+high,GPT-5.4 nano,149.98,
+high,GPT-5.4 mini,553.18,
+high,Groq Llama 3.1 8B,26.04,
+high,DeepInfra Llama 3.1 8B [UNVERIFIED price],10.32,
+high,GTX 1080 owned (PC already on),13.80,duty 69.8% (deadline risk)
+high,GTX 1080 owned (PC on for LLM only),26.85,
+high,Used RTX 3060 12GB,21.08,$8.20 electricity + $12.88 card/24mo; duty 31.8%
+high,Used RTX 3090,61.13,$11.17 electricity + $49.96 card/24mo
+high,Raspberry Pi 5 8GB,,INFEASIBLE: gen-only duty 190%

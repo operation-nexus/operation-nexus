@@ -1,0 +1,19 @@
+name: Work item
+description: A tracker item (NX-###)
+title: "NX-___: "
+labels: ["type:task"]
+body:
+  - type: input
+    id: tracker
+    attributes: { label: Tracker ID, placeholder: NX-123 }
+    validations: { required: true }
+  - type: input
+    id: spec
+    attributes: { label: Spec section, placeholder: "docs/specs/GAMEPLAY.md §5" }
+  - type: textarea
+    id: acceptance
+    attributes: { label: Acceptance criteria, description: Testable statements }
+    validations: { required: true }
+  - type: dropdown
+    id: phase
+    attributes: { label: Phase, options: [P0, P1, P2, P3, P4, Backlog] }

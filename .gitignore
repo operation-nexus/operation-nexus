@@ -14,11 +14,11 @@ dist/
 downloads/
 eggs/
 .eggs/
-lib/
-lib64/
-parts/
+/lib/
+/lib64/
+/parts/
 sdist/
-var/
+/var/
 wheels/
 share/python-wheels/
 *.egg-info/
@@ -218,3 +218,17 @@ __marimo__/
 
 # Streamlit
 .streamlit/secrets.toml
+
+# --- Operation Nexus ---
+*.db
+*.db-wal
+*.db-shm
+node_modules/
+.pnpm-store/
+/data/
+snapshots/
+command-logs/
+clips/
+*.log
+.env*
+!.env.example

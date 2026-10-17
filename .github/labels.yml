@@ -1,0 +1,25 @@
+# Source of truth for repository labels (applied manually or by a label-sync action).
+- { name: "type:task", color: "1d76db", description: "Planned work item (NX-###)" }
+- { name: "type:bug", color: "d73a4a", description: "Something is broken" }
+- { name: "type:decision", color: "fbca04", description: "Owner decision needed (Q-*)" }
+- { name: "type:spike", color: "c5def5", description: "Time-boxed investigation" }
+- { name: "prio:p0", color: "b60205", description: "Blocks the current phase" }
+- { name: "prio:p1", color: "d93f0b", description: "Important" }
+- { name: "prio:p2", color: "fef2c0", description: "Nice to have" }
+- { name: "status:blocked", color: "000000", description: "Waiting on something" }
+- { name: "status:needs-owner", color: "5319e7", description: "Needs owner input" }
+- { name: "agent-ready", color: "0e8a16", description: "Spec approved, testable acceptance criteria, no open decisions" }
+- { name: "area:sim", color: "bfdadc", description: "" }
+- { name: "area:director", color: "bfdadc", description: "" }
+- { name: "area:overlay", color: "bfdadc", description: "" }
+- { name: "area:gateway", color: "bfdadc", description: "" }
+- { name: "area:identity", color: "bfdadc", description: "" }
+- { name: "area:ops", color: "bfdadc", description: "" }
+- { name: "area:ci", color: "bfdadc", description: "" }
+- { name: "area:security", color: "bfdadc", description: "" }
+- { name: "area:docs", color: "bfdadc", description: "" }
+- { name: "phase:P0", color: "0052cc", description: "Roadmap phase P0" }
+- { name: "phase:P1", color: "0052cc", description: "Roadmap phase P1" }
+- { name: "phase:P2", color: "0052cc", description: "Roadmap phase P2" }
+- { name: "phase:P3", color: "0052cc", description: "Roadmap phase P3" }
+- { name: "phase:P4", color: "0052cc", description: "Roadmap phase P4" }
