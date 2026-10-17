@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 820 440" width="820" height="440" role="img" aria-label="Cumulative cost over 24 months, medium scenario">
+<style>
+svg{--bg:#fcfcfb;--t1:#0b0b0b;--t2:#52514e;--grid:#e4e3df;--s1:#2a78d6;--s2:#eb6834;--s3:#1baf7a;--s4:#eda100;--s5:#e87ba4;font-family:-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+@media (prefers-color-scheme:dark){svg{--bg:#1a1a19;--t1:#f0efec;--t2:#c3c2b7;--grid:#3a3936;--s1:#3987e5;--s2:#d95926;--s3:#199e70;--s4:#c98500;--s5:#d55181}}
+.bg{fill:var(--bg)}.t1{fill:var(--t1)}.t2{fill:var(--t2)}.g{stroke:var(--grid);stroke-width:1}
+</style>
+<rect class="bg" width="820" height="440" rx="8"/>
+<text x="20" y="30" class="t1" font-size="17" font-weight="600">Cumulative cost over 24 months — medium scenario (USD)</text>
+<text x="20" y="50" class="t2" font-size="12">ESTIMATES. Break-even: used RTX 3060 vs Haiku 5.5 ≈ month 22; vs Gemini 3.1 Flash-Lite ≈ month 7.4.</text>
+<line x1="70" y1="380.0" x2="570" y2="380.0" class="g"/><text x="62" y="384.0" text-anchor="end" class="t2" font-size="11">$0</text>
+<line x1="70" y1="323.6363636363636" x2="570" y2="323.6363636363636" class="g"/><text x="62" y="327.6363636363636" text-anchor="end" class="t2" font-size="11">$200</text>
+<line x1="70" y1="267.27272727272725" x2="570" y2="267.27272727272725" class="g"/><text x="62" y="271.27272727272725" text-anchor="end" class="t2" font-size="11">$400</text>
+<line x1="70" y1="210.90909090909093" x2="570" y2="210.90909090909093" class="g"/><text x="62" y="214.90909090909093" text-anchor="end" class="t2" font-size="11">$600</text>
+<line x1="70" y1="154.54545454545453" x2="570" y2="154.54545454545453" class="g"/><text x="62" y="158.54545454545453" text-anchor="end" class="t2" font-size="11">$800</text>
+<line x1="70" y1="98.18181818181819" x2="570" y2="98.18181818181819" class="g"/><text x="62" y="102.18181818181819" text-anchor="end" class="t2" font-size="11">$1000</text>
+<text x="70.0" y="398" text-anchor="middle" class="t2" font-size="11">0</text>
+<text x="195.0" y="398" text-anchor="middle" class="t2" font-size="11">6</text>
+<text x="320.0" y="398" text-anchor="middle" class="t2" font-size="11">12</text>
+<text x="445.0" y="398" text-anchor="middle" class="t2" font-size="11">18</text>
+<text x="570.0" y="398" text-anchor="middle" class="t2" font-size="11">24</text>
+<text x="320.0" y="422" text-anchor="middle" class="t2" font-size="12">Months</text>
+<polyline points="70.0,380.0 90.8,367.3 111.7,354.6 132.5,341.9 153.3,329.2 174.2,316.5 195.0,303.8 215.8,291.1 236.7,278.4 257.5,265.7 278.3,253.0 299.2,240.3 320.0,227.6 340.8,214.9 361.7,202.2 382.5,189.5 403.3,176.8 424.2,164.1 445.0,151.4 465.8,138.7 486.7,126.0 507.5,113.3 528.3,100.6 549.2,87.9 570.0,75.2" fill="none" stroke="var(--s1)" stroke-width="2"><title>Gemini 3.1 Flash-Lite (API): $1,082 after 24 months</title></polyline>
+<polyline points="70.0,380.0 90.8,375.2 111.7,370.4 132.5,365.6 153.3,360.8 174.2,356.1 195.0,351.3 215.8,346.5 236.7,341.7 257.5,336.9 278.3,332.1 299.2,327.3 320.0,322.5 340.8,317.8 361.7,313.0 382.5,308.2 403.3,303.4 424.2,298.6 445.0,293.8 465.8,289.0 486.7,284.2 507.5,279.5 528.3,274.7 549.2,269.9 570.0,265.1" fill="none" stroke="var(--s2)" stroke-width="2"><title>Claude Haiku 5.5 (API): $408 after 24 months</title></polyline>
+<polyline points="70.0,292.9 90.8,292.1 111.7,291.2 132.5,290.3 153.3,289.5 174.2,288.6 195.0,287.7 215.8,286.9 236.7,286.0 257.5,285.2 278.3,284.3 299.2,283.4 320.0,282.6 340.8,281.7 361.7,280.8 382.5,280.0 403.3,279.1 424.2,278.3 445.0,277.4 465.8,276.5 486.7,275.7 507.5,274.8 528.3,273.9 549.2,273.1 570.0,272.2" fill="none" stroke="var(--s3)" stroke-width="2"><title>Used RTX 3060 (buy $309): $382 after 24 months</title></polyline>
+<polyline points="70.0,380.0 90.8,378.1 111.7,376.2 132.5,374.3 153.3,372.4 174.2,370.5 195.0,368.6 215.8,366.7 236.7,364.8 257.5,362.9 278.3,361.0 299.2,359.1 320.0,357.2 340.8,355.3 361.7,353.4 382.5,351.6 403.3,349.7 424.2,347.8 445.0,345.9 465.8,344.0 486.7,342.1 507.5,340.2 528.3,338.3 549.2,336.4 570.0,334.5" fill="none" stroke="var(--s4)" stroke-width="2"><title>Groq Llama 3.1 8B (API): $162 after 24 months</title></polyline>
+<polyline points="70.0,380.0 90.8,379.1 111.7,378.2 132.5,377.3 153.3,376.4 174.2,375.5 195.0,374.6 215.8,373.7 236.7,372.9 257.5,372.0 278.3,371.1 299.2,370.2 320.0,369.3 340.8,368.4 361.7,367.5 382.5,366.6 403.3,365.7 424.2,364.8 445.0,363.9 465.8,363.0 486.7,362.1 507.5,361.2 528.3,360.3 549.2,359.5 570.0,358.6" fill="none" stroke="var(--s5)" stroke-width="2"><title>GTX 1080 you own: $76 after 24 months</title></polyline>
+<circle cx="570.0" cy="75.16290909090907" r="4" fill="var(--s1)" stroke="var(--bg)" stroke-width="2"/>
+<text x="580.0" y="79.16290909090907" class="t1" font-size="12">Gemini 3.1 Flash-Lite (API) · $1,082</text>
+<circle cx="570.0" cy="265.0858181818182" r="4" fill="var(--s2)" stroke="var(--bg)" stroke-width="2"/>
+<text x="580.0" y="269.0858181818182" class="t1" font-size="12">Claude Haiku 5.5 (API) · $408</text>
+<circle cx="570.0" cy="272.22145454545455" r="4" fill="var(--s3)" stroke="var(--bg)" stroke-width="2"/>
+<text x="580.0" y="285.0858181818182" class="t1" font-size="12">Used RTX 3060 (buy $309) · $382</text>
+<circle cx="570.0" cy="334.4807272727273" r="4" fill="var(--s4)" stroke="var(--bg)" stroke-width="2"/>
+<text x="580.0" y="338.4807272727273" class="t1" font-size="12">Groq Llama 3.1 8B (API) · $162</text>
+<circle cx="570.0" cy="358.55927272727274" r="4" fill="var(--s5)" stroke="var(--bg)" stroke-width="2"/>
+<text x="580.0" y="362.55927272727274" class="t1" font-size="12">GTX 1080 you own · $76</text>
+</svg>

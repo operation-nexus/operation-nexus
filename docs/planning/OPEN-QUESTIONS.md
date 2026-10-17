@@ -56,7 +56,7 @@ Legend: **Blocks** is the earliest roadmap phase that needs the answer (P0 = Fou
 | Q-AI-2 | When does the natural-language `!order` ship? | Phase P4, own unit only, 1 per minute per user, with a budget cap. | P4 | |
 | Q-AI-3 | Which LLM provider? Use LiteLLM? | Call one provider's SDK directly behind our own small interface. Avoid LiteLLM given the March 2026 compromise, unless it's hash-pinned and isolated. | P4 | |
 | Q-AI-4 | TTS engine for the MVP? | **Piper** (piper1-gpl, run as a separate process. GPL is fine for server-side use) **or Kokoro** (Apache-2.0, pending verification). Pick after a 1-day listening test. | P2 | |
-| Q-AI-5 | Monthly LLM + TTS budget? | $20/month hard cap with a circuit breaker. | P4 | |
+| Q-AI-5 | Monthly LLM + TTS budget? (Cost analysis: [LOCAL-VS-API-COST](../ops/LOCAL-VS-API-COST.md)) | $20/month hard cap with a circuit breaker. | P4 | |
 
 ## Architecture
 
@@ -65,7 +65,7 @@ Legend: **Blocks** is the earliest roadmap phase that needs the answer (P0 = Fou
 | Q-ARCH-1 | Modular monolith vs microservices? | **Modular monolith** (ADR-0001). | P0 | |
 | Q-ARCH-2 | Database? | SQLite (WAL) in P1–P2. Move to Postgres when a second writer process appears (ADR-0003). | P1 | |
 | Q-ARCH-3 | Languages: Python sim + TypeScript overlay? | Yes. (Revisit if the sim tick exceeds its budget at target scale. NumPy first, then Rust via PyO3 for hot loops.) | P0 | |
-| Q-ARCH-4 | Local LLM on the broadcast machine? | **No.** Use a hosted flash-tier model or a separate machine. | P4 | |
+| Q-ARCH-4 | Local LLM on the broadcast machine? (See [LOCAL-VS-API-COST](../ops/LOCAL-VS-API-COST.md) R2: free narration-only experiment on the GTX 1080.) | **No.** Use a hosted flash-tier model or a separate machine. | P4 | |
 | Q-ARCH-5 | Renderer: Canvas2D or Pixi.js? | Canvas2D with layered canvases first. Pixi if profiling shows >8 ms/frame (ADR-0005). | P2 | |
 
 ## Operations & hosting
