@@ -1,0 +1,20 @@
+name: Bug
+description: Something is broken (evidence required)
+title: "bug: "
+labels: ["type:bug"]
+body:
+  - type: textarea
+    id: repro
+    attributes: { label: Steps to reproduce, description: "Include campaign seed + tick or replay file if sim-related" }
+    validations: { required: true }
+  - type: textarea
+    id: expected
+    attributes: { label: Expected vs actual }
+    validations: { required: true }
+  - type: textarea
+    id: evidence
+    attributes: { label: Evidence, description: "Logs, screenshot, replay. Facts only, no guesses." }
+    validations: { required: true }
+  - type: input
+    id: version
+    attributes: { label: Build / commit }

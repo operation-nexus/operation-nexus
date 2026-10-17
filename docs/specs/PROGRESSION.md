@@ -1,5 +1,7 @@
 # SPEC: Progression
 
+
+> **All numeric values in this spec are PROPOSED and unvalidated** (DATA-INTEGRITY DI-7). They become real only after the balance harness validates them.
 Status: Draft · Tracker: NX-210…NX-224 · Inputs: P725–971, C5–10
 
 ## 1. Principles

@@ -1,6 +1,6 @@
 # Open Questions & Decision Log
 
-Every question has a **recommended default**. If the owner doesn't answer, the default applies once the item reaches its "Blocks" phase. Answer inline by editing the **Decision** column, or reply in the PR or chat. Once decided, the answer moves into the relevant spec or ADR and the row is marked ✅.
+Every question has a **recommendation**. Recommendations are **never applied automatically**. Work that a question blocks waits for the owner's decision (DATA-INTEGRITY policy: no silent defaults). Answer inline by editing the **Decision** column, or reply in the PR or chat. Once decided, the answer moves into the relevant spec or ADR and the row is marked ✅.
 
 Legend: **Blocks** is the earliest roadmap phase that needs the answer (P0 = Foundations, P1 = Sim kernel, P2 = Closed alpha, P3 = Public beta, P4 = Depth, P5 = Scale).
 
@@ -19,7 +19,7 @@ Legend: **Blocks** is the earliest roadmap phase that needs the answer (P0 = Fou
 | ID | Question | Recommended default | Blocks | Decision |
 |---|---|---|---|---|
 | Q-GD-1 | Which campaign modes ship first? | **Total Domination** first. Defense mode second. | P1 | |
-| Q-GD-2 | "Hold the Line": do **players** defend against AI waves (plans), or must the **AI** hold out for X hours while players attack (your conversation)? | Ship *players defend* as "Hold the Line". Add your *AI holds out* idea as a separate mode, "Siege", in the backlog. | P4 | |
+| Q-GD-2 | "Hold the Line": do **players** defend against AI waves (plans), or must the **AI** hold out for X hours while players attack (your conversation)? | Ship *players defend* as "Hold the Line". Add your *AI holds out* idea as a separate mode, "Siege", in the backlog. | P4 | ✅ 2026-10-17: Players defend first; Siege later |
 | Q-GD-3 | Doctrine/specialization: base roles open to all, with specialist perks locked per campaign? | Yes. Anyone can `!join` any base role. A **specialist doctrine** (perks + one signature ability) is picked once per campaign and locked until the next campaign. | P4 | |
 | Q-GD-4 | What happens with 0 human players? | "Slow war": the AI garrison holds. Enemy progress is capped (≤1 node / 6 h). The campaign clock pauses below 1 active human. | P1 | |
 | Q-GD-5 | Campaign length? | 48 h target. Ends early on decisive victory or defeat. Rotating 15-minute theater objective. | P1 | |
@@ -72,7 +72,7 @@ Legend: **Blocks** is the earliest roadmap phase that needs the answer (P0 = Fou
 
 | ID | Question | Recommended default | Blocks | Decision |
 |---|---|---|---|---|
-| Q-OPS-1 | Where does the 24/7 stream run? Your PC, a dedicated home box, or a cloud GPU? What hardware do you have? (GPU model, RAM, upload bandwidth) | A dedicated home box with an NVENC-capable GPU. Cloud GPUs cost about $150–400/month. | P2 | |
+| Q-OPS-1 | Where does the 24/7 stream run? Your PC, a dedicated home box, or a cloud GPU? What hardware do you have? (GPU model, RAM, upload bandwidth) | See [`docs/ops/HARDWARE.md`](../ops/HARDWARE.md) | P2 | Partial 2026-10-17: owner PC has a GTX 1080, 32 GB RAM, and ~15–25 Mbps upload (owner estimate; to be measured). Upgrade possible. Dedicated vs shared box still open. |
 | Q-OPS-2 | Staging: same host, separate compose project, or a cheap VPS? | Same host, separate project, streaming to an unlisted test channel. | P2 | |
 | Q-OPS-3 | Monthly cost ceiling (power + APIs + hosting)? | $75/month. | P2 | |
 | Q-OPS-4 | Alerts go where? (Discord webhook, phone push, email) | Discord webhook + phone push via ntfy. | P2 | |

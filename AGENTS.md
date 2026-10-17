@@ -21,6 +21,7 @@ The raw files are brainstorms from an AI chat. **They are not specs.** Where the
 
 ## 2. Ground rules for agents
 
+0. **NO FABRICATED OR HALLUCINATED DATA. EVER.** This is mandatory and has no exceptions. Don't invent values, names, ids, stats, API fields, file paths, library versions, flags, or facts. When data doesn't exist, say so or leave it empty. Defaults and fallbacks are allowed only when they're required, honest, visible, and listed in the registry. Unverified external facts must be marked **[UNVERIFIED]**. Report only what you actually ran and observed. Full policy: [`docs/quality/DATA-INTEGRITY.md`](docs/quality/DATA-INTEGRITY.md).
 1. **Spec first.** Every change traces to a tracker ID (`NX-###`) and a spec section. If no spec covers it, stop and propose a spec change. Don't invent behavior.
 2. **Never guess on design decisions.** If a spec is ambiguous, add a question to `OPEN-QUESTIONS.md` and ask the owner.
 3. **The simulation is deterministic.** Inside `sim-core`, don't use wall-clock time, unseeded randomness, `uuid4`, set/dict iteration over unordered data, floating-point reductions in nondeterministic order, threads, or network I/O. See [`docs/specs/SIM-CORE.md`](docs/specs/SIM-CORE.md).

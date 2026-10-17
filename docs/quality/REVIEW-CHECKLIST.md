@@ -9,6 +9,12 @@ Used by human reviewers and by `.agents/roles/reviewer.md`. Skip lines that don'
 - Concurrency: shared mutable state across async tasks? Await inside a critical section?
 - Errors: are failures handled at the boundary with a user-visible outcome, not swallowed (`except Exception: pass`)?
 
+## Data integrity (mandatory, see DATA-INTEGRITY.md)
+- Is any value invented, guessed, padded, or a placeholder? Is missing data shown as missing?
+- Does any `except`, `.get(k, default)`, `getenv(k, default)`, or `?? default` hide a failure? If so, is it in the FB registry, logged, and visible?
+- Do fixtures or mock data stay inside `tests/`? Are NPCs labeled as AI?
+- Are numbers in docs sourced, or labeled proposed/estimate?
+
 ## Security (mandatory for gateway, identity, llm, tts, api, deploy, .github)
 - All external strings validated, normalized (NFKC), length-capped, moderated before display/TTS/prompt/log.
 - No string-built SQL, shell, or HTML. Parameterized queries only.

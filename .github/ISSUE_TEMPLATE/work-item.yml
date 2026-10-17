@@ -1,6 +1,7 @@
 name: Work item
 description: A tracker item (NX-###)
 title: "NX-___: "
+labels: ["type:task"]
 body:
   - type: input
     id: tracker

@@ -1,6 +1,7 @@
 name: Decision needed
 description: A design question for the owner
 title: "Q-___: "
+labels: ["type:decision", "status:needs-owner"]
 body:
   - type: textarea
     id: question
