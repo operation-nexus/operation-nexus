@@ -188,6 +188,7 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | NX-275 | Lore bible + campaign narrative: why we fight, who the enemy is, the season and global campaign arc, mission briefings; feeds sitrep templates and the global map (future) | ⬜ |
 | NX-276 | Community health design: positive-only feedback (no kill-shaming), cooperative and role-based leaderboards (no single "top killer"), friendly tone in all bot text, code of conduct, mod tools (ADMIN-RBAC), no PvP between viewers | ⬜ |
 | NX-277 | Layered anti-farming without captchas: (1) platform account age, if the platform API exposes it [VERIFY: Twitch Get Users `created_at`; YouTube channel `publishedAt` costs quota]; (2) our own first-seen age; (3) first-completed-mission gate; (4) hourly diminishing XP; (5) admin-console anomaly flags (many new accounts acting in lockstep); (6) mod tools to void XP | ⬜ |
+| NX-278 | Voice cast listening session: pick an engine voice, filter and pacing per profile; set the sitrep cadence | ⬜ |
 | NX-273 | Research + spike: Epidemic Sound license coverage for 24/7 streams/clips; API/MCP availability; `MusicSource` port so an agent can search and queue licensed tracks by mood (tension-driven, AUDIO-TTS §1) | ⬜ |
 | NX-272 | Third-party tips adapter (Ko-fi or Streamlabs/StreamElements; Q-SUP-3) | ❓ |
 
