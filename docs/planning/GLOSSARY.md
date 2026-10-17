@@ -21,3 +21,10 @@
 | Snapshot / Command log | Recovery and replay data (ADR-0003) |
 | Sitrep | An automated radio situation report |
 | Reserve queue | Viewers waiting for a unit slot when the cap is reached |
+
+## Lore names (presentation layer only, GAMEPLAY §9c)
+| Lore name | Means | Notes |
+|---|---|---|
+| Clearwave | The coalition (our side) | Working name, may be community-voted later (Q-BRAND-3) |
+| Operator | A viewer/player (a commander in the data model) | Commands squads, platoons or individual units |
+| The Static | The enemy (director-controlled side) | Has a taunting mastermind (name TBD) |
