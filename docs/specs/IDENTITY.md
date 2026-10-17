@@ -17,7 +17,7 @@ identity_events(append-only audit: created, linked, unlinked, merged, banned, fo
 The first valid command from an unknown `(platform, platform_user_id)` creates a commander with a **generated callsign** of the form `WORD-NN` (for example `VIPER-27`), drawn from a curated word list. Uniqueness is enforced and collisions are retried. The display name is never used to build the callsign.
 
 ## 3. Custom callsigns (P3)
-Unlock at O-2. The format is `^[A-Z][A-Z0-9-]{2,11}$`, then moderation (SEC-MOD-1). Generated-callsign patterns (`WORD-NN`) and the tombstone prefix `X-` are reserved, and callsigns are unique across all platforms. Changes are limited to one per 30 days.
+Unlocks after the commander's first completed mission (Q-PROG-3). The format is `^[A-Z][A-Z0-9-]{2,11}$`, then moderation (SEC-MOD-1). Generated-callsign patterns (`WORD-NN`) and the tombstone prefix `X-` are reserved, and callsigns are unique across all platforms. Changes are limited to one per 30 days.
 
 ## 4. Cross-platform linking (P3) — OAuth only (replaces the token-in-chat design)
 1. A viewer types `!link`. The bot (in its periodic digest) or the overlay ticker shows the **static portal URL**. No token is posted in chat.

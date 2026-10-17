@@ -14,7 +14,7 @@ This is the authoritative, deterministic world simulation. Everything else is in
 - **SC-2** Tick rate is 10 Hz of sim time. `TICK_DT = 0.1`. All rates in config are per second and are multiplied by `TICK_DT`.
 - **SC-3** Given the same seed, config hash and command log, every replay MUST produce identical `state_hash` checkpoints on the same platform.
 - **SC-4** Entities have sequential integer ids. Every iteration over entities happens in id order.
-- **SC-5** All randomness MUST come from `SimRng` sub-streams named per subsystem (`combat`, `director`, `spawn`, `fow`).
+- **SC-5** All randomness MUST come from `SimRng` sub-streams named per subsystem (`combat`, `director`, `spawn`, `fow`, `objective`; never shared between subsystems, Q-SM-1).
 - **SC-6** Commands MUST be applied in `(target_tick, arrival_seq)` order. Commands for past ticks MUST be applied at the current tick and flagged `late`.
 - **SC-7** Invalid commands MUST produce a `CommandRejected{reason}` event, never an exception.
 - **SC-8** An exception inside `step` MUST NOT corrupt state. The runtime keeps the previous state, logs a crash bundle, and fails over to restore-from-snapshot.

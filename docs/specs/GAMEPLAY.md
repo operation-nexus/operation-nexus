@@ -12,6 +12,9 @@ All numbers below are **initial balance values** in `balance/default.yaml`. They
 3. Optionally type `!target <node>` or `!rtb`.
 4. The unit completes or fails its mission, and the viewer sees a contribution line in the ticker.
 
+## 0. Parity rule (owner, 2026-10-17)
+**Both sides play by the same rules.** The Static has the same mechanics as Clearwave: scouting, fog of war (FOW-4), supply and starvation, rebasing, damage states, ammo, and rescue/recovery where it applies. Any new mechanic must say how it applies to both sides, or explicitly justify an asymmetry (e.g. the sanctuary base) in its spec.
+
 ## 1a. "Did my command work?" feedback (owner requirement, Q-MOD-1)
 Viewers see a generated callsign, not their username, so the game must connect "me" to "my unit" unmistakably. Otherwise they assume nothing happened and leave.
 - **FB-UX-1 Chat confirmation:** the bot's batched digest names the platform user and their callsign, e.g. "@SaltyUser → VIPER-27 deployed (strike) from WEST BASE". It's sent within platform rate limits (Twitch as a moderator: 100 messages / 30 s, per PLATFORM-REALITY-CHECK), with up to N mentions per digest message (N PROPOSED).
@@ -20,6 +23,17 @@ Viewers see a generated callsign, not their username, so the game must connect "
 - **FB-UX-4 First-time hint:** a commander's first successful command adds a one-time "New? You're VIPER-27. Type !me anytime." line to the digest.
 - **FB-UX-5 Rejections are visible too.** Reasons like "unit in sortie" or "respawn in 12 s" are batched into the digest with the callsign, never silently dropped.
 - **FB-UX-6 Measure it:** track the share of first-time commanders who issue a second command (NX-036). A low value means the feedback isn't working.
+
+## 1b. Tasking Board (owner direction 2026-10-17; PROPOSAL, Q-GD-26)
+A shared queue of **jobs** the system generates from the live situation, so every unit, human or AI, always has something useful to do:
+- **Job types:** resupply a starving base, scout a sector or blob, escort a convoy, defend a threatened node, strike a target, rescue a downed crew, repair a bridge, assist the current objective.
+- **Each job has:** a priority (from objective, threat and starvation level), the role(s) that fit, a **slot count** (how many units it needs), and an expiry.
+- **Assignment:** a unit with no explicit order takes the highest-priority open job matching its role. Slots prevent pile-ups: a job is skipped once its slots are full, unless *every* job is full.
+- **AI garrison** pulls from the same board, but only takes jobs no human has claimed, and releases them when an operator wants one. **The AI garrison never initiates offense**: it takes defend, resupply, scout and rescue jobs, and joins strike jobs only when a player started them (objective, rally call, player-led flight).
+- **Feasibility:** a unit only takes a job it can reach and complete with its current fuel and munitions. Otherwise it first takes a rearm/refuel step (nearest base with stock, Q-GD-17).
+- **Logistics routing:** a supply job sets the *destination*; the route is planned automatically along roads/sea lanes. Players can still override with `!target` or `!rebase`.
+- **Visible:** the overlay shows the top few open jobs ("NEEDED: supply to WEST FOB") so lurkers learn what matters.
+- **Decision window (owner idea, playtest):** after `!join`, the unit **holds at base for a short window** (configurable; owner suggested up to ~5 min) waiting for an explicit order, then auto-takes a job. Any explicit order cancels auto-tasking. `!join <role> hold` opts out of auto-tasking entirely.
 
 ## 2. Roles (MVP, resolves critique #7 and #8)
 | Role | Command | Domain | Does | Can't |
@@ -37,8 +51,10 @@ Specialist chassis (SEAD, jammer, engineer, AWACS, artillery) unlock with rank (
 | `!join <role>` | role | O-1 | Spawns your one unit, or switches role if your unit is at base |
 | `!target <node>` | node name/alias (fuzzy match against a fixed list) | O-1 | Sets your unit's objective |
 | `!rtb` | — | O-1 | Return to the nearest friendly base |
+| `!stance <press\|standard\|cautious>` | stance | O-1 | Standing intent for your unit: `press` = keep fighting even when badly damaged; `standard` = auto-RTB at mission-kill (default); `cautious` = RTB as soon as Damaged; `guns` = keep fighting with guns after missiles/bombs run out (default is auto-RTB when out of munitions). Can also be given at deploy: `!join strike press` (Q-CBT-6). |
+| `!rebase <node>` | friendly node | O-1 | Move your unit to another friendly base and stay there to refuel/rearm/stage (e.g. move a plane forward before an attack). Uses that base's stock. The Static does the same (THREAT-DIRECTOR §5a). |
 | `!status` | — | O-1 | Overlay highlights your unit for 5 s; no chat reply |
-| `!callsign <NAME>` | `^[A-Z][A-Z0-9-]{2,11}$`, moderated | O-2 | Reserve a global callsign |
+| `!callsign <NAME>` | `^[A-Z][A-Z0-9-]{2,11}$`, moderated, 1 change / 30 days | First completed mission (Q-PROG-3) | Reserve a global callsign |
 | `!vector <bearing> <km>` | ints | O-2 | Manual waypoint from your unit |
 | `!sead`, `!artillery`, `!engineer`, `!jammer`, `!awacs` | — | per PROGRESSION | Specialist spawns |
 | `!package <NAME>` / `!wingman` | — | O-5 / O-1 | Form or join a formation (§7) |
@@ -68,6 +84,11 @@ Unknown commands and ordinary chat are ignored. Command aliases are configurable
 - **Bridges** are nodes with HP. A destroyed bridge removes its edge until it is repaired. Who can repair it, and how fast, is open question Q-GD-11.
 - **Supply-line stretch** (snowball breaker): coalition truck transit time scales with road distance from the sanctuary. Enemy reinforcement time shrinks as the front nears its HQ.
 - Units heal and rearm **only while landed or parked at a friendly node**, by spending stock. They never heal passively (fixes the immortality bug).
+- **Empty bases stay bases** (Q-GD-17): at 0 stock, units can still land, garrison and wait there for a resupply convoy. They get no fuel or ammo, but keep what they have and can take off again with reduced endurance.
+
+## 5a. Base upgrades (P4; extension point reserved now)
+Owner idea: sending **surplus supply** to a base gradually upgrades it: a radar site gains range, an air-defense site gains faster interceptors, an airbase rearms quicker. Upgrades decay or are lost if the base is starved or captured.
+- **Reserved now so it doesn't need a rewrite later:** nodes carry `tier: int` and `upgrades: [UpgradeId]` in the world model, and all node stats are read through a modifier layer (base stats × tier/upgrade modifiers from config). The MVP ships with tier 0 and no upgrades.
 
 ## 6. Combat
 - Each tick, a unit with a ready weapon chooses the **highest-priority valid target** in range: by domain compatibility, then threat, then distance, with a stable tie-break by id.
@@ -75,10 +96,18 @@ Unknown commands and ordinary chat are ignored. Command aliases are configurable
 - SAMs have engagement rings. Jammers reduce enemy pk within their corridor. SEAD missiles home on emitting radars, and radars may go dark ("blink") to avoid them.
 - Kills and assists generate events. A recon "paint" grants assist credit (PROGRESSION).
 
+## 6a. Platform attributes, disabled units, crew and CSAR (owner, 2026-10-17)
+- **Per-platform attributes** (unit catalog, CONFIG §7/§7a; all PROPOSED): armor level per facing or generic, maneuverability/evasion, speed per terrain type (road, off-road, sand, mountain, urban, water), sensor and weapon profiles, countermeasures, crew count. Hot-loaded platforms define these too, inside the stat envelope.
+- **Damage states:** Healthy → Damaged → Mission-kill → **Disabled** (can't move, not destroyed) → Destroyed (Q-CBT-1). Armor shifts the chances between these outcomes.
+- **Crew survival:** when a unit is disabled or shot down, a seeded crew-survival roll (modified by platform and location) decides whether the crew is alive. The crew is shown on the map as a downed-crew marker. *Working name "crew"; a playful mascot name is possible under the brand guide.*
+- **CSAR (combat search and rescue):** operators can mount a rescue (`!rescue <marker>`) with suitable units: helicopters or ground vehicles once those exist, recon for spotting. Successful rescues give a **large XP and merit bonus** to the rescuers and recover the crew. The Static may try to capture downed crews, which sets up a race. Disabled vehicles can also be recovered or repaired in place by engineers or logistics.
+- **Consequences without punishment** (Q-CBT-9): losses cost the *team* (base stock spent, a longer respawn for that unit type) rather than taking XP from the player.
+
 ## 7. Packages (formations)
 A package is a group of up to 4 existing units, with a lead (O-5+) or an auto-lead. It shares the lead's target and gives a small jamming/escort benefit plus an XP share bonus. **There is no lobby wait.** Units join as they spawn. If fewer than 2 humans are in the package after 30 s, an NPC wingman may fill a slot (Q-GD-10).
 
 ## 8. Capture
+- **Base defenses first (Q-GD-18):** each node has defense HP (configurable, upgradable via §5a). Capture can't begin until HP is 0. Air strikes, artillery and ground fire reduce HP; supply deliveries repair it; starvation slowly drains it (`logistics.starve_hp_drain_per_min`, PROPOSED).
 - Capture requires a ground or logistics unit within `capture.radius_m`, with no enemy ground unit contesting it. Progress takes `capture.time_s` (PROPOSED 120 s), scaled by the number of units with diminishing returns. Air units can't capture.
 - Progress decays when the node is uncontested and unoccupied. A capture can't flip twice in one tick (property test).
 

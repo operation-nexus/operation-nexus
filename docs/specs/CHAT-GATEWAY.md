@@ -30,7 +30,26 @@ class PlatformAdapter(Protocol):
 NFKC; strip control, bidi and zero-width characters; cap at 300 characters; build a confusable-folded key for matching; lowercase the command token. Display names are stored but **never rendered** unless approved (Q-MOD-1).
 
 ## 5. Rate limiting (SEC-GW-2)
-- Per user: a token bucket of 1 command per 2 s, burst 3.
+
+**Owner direction (2026-10-17): stricter, per intent, and adjustable live by admins/moderators.** All values are PROPOSED, tuned in playtests, and edited in the admin rules editor (hot-reloadable).
+
+| Command class | Examples | Proposed limit per operator |
+|---|---|---|
+| Deploy | `!join`, specialist spawns | 1 per 10 s (plus respawn timer) |
+| Unit correction | `!target`, `!rebase`, `!vector`, `!rtb` | 1 per 5 s, burst 2 |
+| Info | `!me`, `!status` | 1 per 15 s |
+| Social / redeem | `!rally`, redemptions | Own cooldowns (e.g. rally ~2 min; PROPOSED) |
+| Global | all | Admission cap per tick (raid protection) |
+
+**Slow mode:** an admin toggle that multiplies all limits (e.g. ×3). Optionally it can also switch on the platform's own chat slow mode through the official API, if the platform supports that [VERIFY per platform].
+
+**Feedback without spam:**
+1. A **cooldown ring** around the operator's own unit icon on the map. It's cheap and visible to everyone.
+2. **Batched bot replies**, e.g. "@a @b @c: hold up, ready in a few seconds". These are grouped per digest, within platform send limits.
+3. `!me` shows remaining cooldowns.
+
+Throttled commands are never silently lost without one of these signals (GAMEPLAY FB-UX-5).
+
 - Global: an admission cap on commands per tick. Above the cap, `!join` requests go to the reserve queue and other commands are dropped, with a metric.
 - During a raid (a spike in new users), `!join` requests are coalesced.
 

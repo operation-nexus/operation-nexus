@@ -11,7 +11,7 @@ Status: Draft · Tracker: NX-240…NX-249 · ADR-0007 · Security: SEC-LLM-*
 
 ## 2. Requirements
 - **LLM-1** The provider is behind our own `LlmClient` interface (ADR-0010). Hosted and local (llama.cpp/Ollama) providers are interchangeable via config, and each one passes the LLM conformance suite (schema adherence, deadline, budget accounting, error mapping). Provider SDKs are called directly, and the lockfile is hash-pinned. LiteLLM is only allowed if it's isolated and pinned (Q-AI-3).
-- **LLM-2** The advisor process has no platform or stream credentials (SEC-LLM-5).
+- **LLM-2** The advisor runs in its **own isolated container** (owner decision Q-AI-3): no platform or stream credentials (SEC-LLM-5), egress allowlist limited to the configured provider endpoints, read-only root filesystem, non-root user, CPU and memory limits. It talks to the app only through the internal `LlmClient` RPC.
 - **LLM-3** Budgets: per-user `!order` 1/min and 5 per 10 min, a global $/day cap, and a circuit breaker on errors or latency.
 - **LLM-4** All prompts are versioned files. Outputs are logged with prompt version, model, latency and cost.
 - **LLM-5** Offline evaluation suite (TESTING-STRATEGY §3.8). CI uses only FakeLLM.

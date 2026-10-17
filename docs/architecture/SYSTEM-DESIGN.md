@@ -59,7 +59,7 @@ Status: Draft (pending owner review) · Tracker: NX-050…NX-059 · Decisions: [
 | NFR-1 | Sim tick rate | 10 Hz fixed step. Tick p99 compute < 25 ms at 1,000 entities |
 | NFR-2 | Command ingest → on-screen ack (server side) | p95 < 500 ms (platform delay excluded and measured separately) |
 | NFR-3 | Overlay frame time on reference host | p95 < 12 ms at 1080p60 |
-| NFR-4 | Availability (stream live & updating) | ≥ 99% monthly |
+| NFR-4 | Availability (stream live & updating) | ~99% monthly **goal** (owner: lenient; planned maintenance excluded) |
 | NFR-5 | Recovery from process crash | Automatic, < 2 min; sim resumes from last snapshot (≤ 30 s of state lost) |
 | NFR-6 | Deploy impact on stream | ≤ 10 s "COMMS RESYNC" banner; no stream disconnect |
 | NFR-7 | Data durability | Snapshot every 30 s; command log fsync'd every 1 s; nightly offsite encrypted backup |

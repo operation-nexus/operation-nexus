@@ -13,6 +13,17 @@ Status: Draft · Tracker: NX-225…NX-232 · Inputs: P99–107, C18–22, C63
 - **AU-1** At most 1 sitrep per 20 s. A priority queue drops stale items (anything older than 60 s).
 - **AU-2 Night mode** (configurable hours, or triggered by low activity): music ducked, no shutter or alarm sounds, sitreps limited to critical events, and lower radio volume.
 
+## 2a. Voice cast (owner decision 2026-10-17)
+The voice reads **only big moments**: node captured or lost, bridge destroyed, objective announced or completed, director tier change, and Static mastermind taunts. Max 1 line per 20 s (PROPOSED); quieter in night mode. Everything else is text only. Goal: never excessive or grating.
+
+Lines are spoken by a small **voice cast**: named voice profiles, each with an engine voice, a radio filter preset and a pacing setting. The cast is tuned by ear through a listening session (NX-278).
+| Profile (working name) | Speaks | Character |
+|---|---|---|
+| Clearwave Control | Objectives, captures, status | Calm, clear dispatcher |
+| Field Operator | Frontline events (bridge down, convoy hit) | Brisk, slightly noisier radio |
+| The Static (mastermind) | Taunts, enemy offensives | Glitchy, distorted, playful villain |
+| Game Master | Lines when a human GM is active (Q-RB-7) | Distinct preset, so viewers know a human is speaking |
+
 ## 3. TTS engine (Q-AI-4)
 
 Engines implement the `TtsEngine` port (ADR-0010), so Piper, Kokoro and cloud voices can be swapped by config.

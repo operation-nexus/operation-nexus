@@ -67,6 +67,8 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | NX-048 | Open GitHub issues for P0 items (labels auto-created; phases tracked as `phase:Pn` labels because the available tooling can't create milestones) | S | ✅ | owner OK | Issues #1–#32 exist and are linked here |
 | NX-049 [#32](https://github.com/canthony224/operation-nexus/issues/32) | Create `develop` from `main` after planning sign-off; apply branch rulesets per ADR-0009; set default branch to `develop` | S | ⬜ | planning done | Rulesets visible; PR to main without gates is blocked |
 | NX-050 | Port interfaces + `Capabilities` + conformance suite skeleton (chat, LLM, TTS) per ADR-0010; import-linter vendor rule | M | ⬜ | NX-010, NX-019 | A fake adapter passes the suite; a vendor import outside adapters fails CI |
+| NX-311 | **Decision→spec propagation pass:** fold every ✅ decision in OPEN-QUESTIONS into the spec bodies (23 gaps listed in GAP-ANALYSIS §2), one PR per spec, P1 specs first. Add a docs lint that flags decided Q-IDs still described as open. **Must finish before specs are marked Approved.** | L | ⬜ | — | GAP-ANALYSIS §2 items all resolved |
+| NX-312 | Missing P1 docs: COMBAT spec, command and intent catalog, balance acceptance criteria (theater #1 = NX-008) | M | ⬜ | NX-311 | Docs exist, reviewed |
 | NX-040 [#27](https://github.com/canthony224/operation-nexus/issues/27) | Threat model review with owner; accept residual risks | S | ❓ | NX-001 | THREAT-MODEL §6 signed off |
 
 ---
@@ -93,7 +95,8 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | NX-151 | Enemy-side view for director (FOW-4) | M | ⬜ | NX-150 | Director API accepts only `EnemyView` |
 | NX-155 | Director: CP, tiers w/ hysteresis, budget | M | ⬜ | NX-151 | Hysteresis property |
 | NX-156 | Director: operations library + scoring + threat memory | L | ⬜ | NX-155 | "Convoy raids → escorts" golden scenario |
-| NX-157 | AI garrison + low-population rules | M | ⬜ | NX-155 | overnight-0 scenario: ≤1 node/6h |
+| NX-157 | AI garrison + Pattern of Life + provocation-gated escalation (THREAT-DIRECTOR §5a) | M | ⬜ | NX-155 | overnight-0: no attacks; 0→1 viewer: no escalation until provocation; staging visible to scouts |
+| NX-158 | `!rebase` and base-to-base repositioning for both sides | S | ⬜ | NX-121 | Units stage forward and refuel at the destination base |
 | NX-031 | Balance harness (`tools/balance`) + bot personas + report | L | ⬜ | NX-126 | 5 standard scenarios × 20 seeds report |
 | NX-032 | Replay CLI + measured storage size | S | ⬜ | NX-103 | Size documented in CLIPS-REPLAY |
 | NX-033 | Headless soak (6h) in nightly | M | ⬜ | NX-016 | No memory growth; hashes replay |
@@ -108,12 +111,13 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | NX-176 | Terrain contour pre-render + nodes/roads/bridges | M | ⬜ | NX-175 |
 | NX-177 | Units (shape-coded), rings, blobs, tracers, interpolation | L | ⬜ | NX-176 |
 | NX-178 | HUD: momentum, objective, threat, ticker, rotating panels | M | ⬜ | NX-175 |
+| NX-182 | Map annotation layer (OVERLAY §2a): sectors, optional grid reference, direction cues, ephemeral pins, circles and arrows with TTL and collision handling | M | ⬜ | NX-177 |
 | NX-179 | PiP 2D intercept scope + PiP director scoring | M | ⬜ | NX-177 |
 | NX-180 | Palette/colorblind script + visual snapshot tests | M | ⬜ | NX-177 |
 | NX-190 | Gateway: adapter interface + normalization + rate limits | M | ⬜ | NX-021 |
 | NX-191 | Twitch EventSub adapter + moderation event sync + batched replies | L | ⬜ | NX-190 |
 | NX-192 | Command parser + grammar + fuzz tests | M | ⬜ | NX-190 |
-| NX-193 | Local chat simulator (`tools/chatsim`) for dev | M | ⬜ | NX-190 |
+| NX-193 | Viewer simulator (`tools/chatsim`): scripted bot operators (personas from the balance harness) sending real chat-shaped commands through the LocalSim adapter; runnable against staging for long tests during viewer droughts. Bots are always labeled as simulated and never counted as humans (DI-5). | M | ⬜ | NX-190 |
 | NX-200 | Commanders + identities + generated callsigns (SQLite, migrations) | M | ⬜ | NX-010 |
 | NX-201 | Persistence writer task + backups | M | ⬜ | NX-200 |
 | NX-041 | Moderation pipeline + denylist + tests (SEC-MOD-1) | M | ⬜ | NX-190 |
@@ -128,7 +132,7 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | NX-255 | Production compose + systemd units + host provisioning doc | M | ⬜ | NX-014 |
 | NX-256 | Runbooks (deploy/rollback, restore, moderation incident, outage) | M | ⬜ | NX-255 |
 | NX-042 | Phase-2 security review + pentest of command path | M | ⬜ | all P2 |
-| NX-034 | Cold-tester readability study (5 people) | S | ⬜ | NX-178 |
+| NX-034 | Cold-tester readability study (5 people). Also test: hidden-shooter tracers on/off (Q-CT-3), recruit strip + `!me` clarity (FB-UX), orientation | S | ⬜ | NX-178 |
 | NX-035 | 7-day unattended burn-in on unlisted stream | M | ⬜ | all P2 |
 
 ## P3 — Public beta
@@ -187,11 +191,46 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | NX-274 | Brand and style guide: name usage, fictional factions and insignia, unit class naming (generic: Tank, Striker, Bomber…), color, type, sound identity, tone of voice; **no real names** rule added to the content validator | ⬜ |
 | NX-275 | Lore bible + campaign narrative: why we fight, who the enemy is, the season and global campaign arc, mission briefings; feeds sitrep templates and the global map (future) | ⬜ |
 | NX-276 | Community health design: positive-only feedback (no kill-shaming), cooperative and role-based leaderboards (no single "top killer"), friendly tone in all bot text, code of conduct, mod tools (ADMIN-RBAC), no PvP between viewers | ⬜ |
+| NX-277 | Layered anti-farming without captchas: (1) platform account age, if the platform API exposes it [VERIFY: Twitch Get Users `created_at`; YouTube channel `publishedAt` costs quota]; (2) our own first-seen age; (3) first-completed-mission gate; (4) hourly diminishing XP; (5) admin-console anomaly flags (many new accounts acting in lockstep); (6) mod tools to void XP | ⬜ |
+| NX-278 | Voice cast listening session: pick an engine voice, filter and pacing per profile; set the sitrep cadence | ⬜ |
+| NX-279 | Post-war reveal: "what you didn't see" recap (summary + optional narrative) with a decision-source label per enemy action (RULES / ADVISOR / GAME_MASTER), plus the seed published; shown in the AAR and on the replay site | ⬜ |
+| NX-280 | Balance experiment: fuel for all domains (big ground and sea tanks, slower burn, "crawl when dry") vs air-only, run as a harness A/B plus a playtest | ⬜ |
+| NX-281 | Rescue and refuel missions (future, tied to NX-280): a stranded ground or logistics unit can end its sortie or wait for rescue, and operators can mount a rescue or refuel run. Air-to-air refueling (tanker unit) for combat air patrols in safe airspace. Aircraft that run dry crash. | ⬜ |
+| NX-283 | Hot-loadable unit content pipeline: per-unit YAML, validators (incl. no-real-names and stat envelope), `OP_CONTENT_LOAD`, admin form | ⬜ |
+| NX-284 | `new-unit` agent skill + tool-agnostic prompt: plain-language description → validated draft → approval | ⬜ |
+| NX-285 | Backups: `BackupTarget` port with local (Linux server) + Google Drive (owner has access) adapters, age encryption, tiered retention (DB/snapshots nightly; replay/telemetry archives separately), quarterly restore test; verify provider limits first | ⬜ |
+| NX-286 | Pause flow: reason form, owner alert with state summary, optional AI assessment, one-tap resume (alert link / Discord / console), re-alert | ⬜ |
+| NX-287 | Research: Gemini TTS synthetic voice design/generation (capabilities, pricing, rate limits, terms, commercial use on streams) for voice-cast profiles via the `TtsEngine` port; cost vs the $20/mo cap | ⬜ |
+| NX-288 | Platform AI-content compliance: verify Twitch and YouTube synthetic-media and AI disclosure rules now and at every phase gate; apply labels, channel panel note | ⬜ |
+| NX-289 | Human voice lines pipeline: owner or community voice actors record lines from the sitrep template list, with a consent and license agreement per contributor; recorded lines plug into the voice cast as a `TtsEngine`-compatible source | ⬜ |
+| NX-290 | Disabled state, crew survival roll, downed-crew markers, CSAR missions (`!rescue`), recovery of disabled vehicles, rescue XP bonus | ⬜ |
+| NX-291 | Conduct system: disruptive-pattern detectors, decaying conduct score, escalation ladder (warn → restrict → timeout → XP penalty → mod review), appeals, mod dashboard; never auto-ban | ⬜ |
+| NX-292 | AI evaluation harness: golden question/answer sheets per AI use (narration, advisor, `!order` intent parsing, moderation), schema and command-format validation, intent accuracy scoring, latency/cost per call; runs any provider (hosted or local) through the same port so models can be compared before adoption | ⬜ |
+| NX-293 | Field Manual: quick-start guide + advanced operations guide (site pages, optional PDF/video), linked from stream descriptions, panels and `!guide`; generated from the command catalog so it never drifts | ⬜ |
+| NX-294 | Global campaign map spec: fictional world graph of theaters, progression and branching rules, narrative hooks per theater, carry-over integration, season arcs, admin tools to add theaters. **Live-service world (owner, 2026-10-17; inspired by liberation-map style games):** the world map changes between and during campaigns. The Static launches counter-offensives (AI- or GM-induced, labeled as such), a lost campaign leads to defense narratives (Hold the Line on our territory), and community progress is tracked on a public world map | ⬜ |
+| NX-295 | Leaderboard moderation: remove banned or cheating operators from all boards (hide + recompute, audited) | ⬜ |
+| NX-296 | AAR + War Briefing: full AAR screen; short briefing card looping between wars; auto-published to site and Discord (via `ChatSink`/`CommunityBot` ports); data-only content (no invented text) | ⬜ |
+| NX-297 | Brand accounts setup: new Twitch/YouTube/TikTok/Instagram profiles + handles (check availability), Epidemic Sound plan decision (upgrade vs separate subscription; ask support about coverage after cancellation), Discord re-brand | ⬜ |
+| NX-298 | Scheduled post queue: approved clips/devlog posts scheduled per platform from the Command Center (phone-friendly). Uploads stay manual or private until platform audits pass (ADR-0008). | ⬜ |
+| NX-299 | Create the private `operation-nexus-ops` repo; set up sops+age, enroll machine keys, document rotation (ties to NX-027) | ⬜ |
+| NX-300 | Observability on the Linux server: Prometheus + Grafana + Loki via compose; stream-health dashboard; alert rules → ntfy/Discord | ⬜ |
+| NX-301 | Track fade (FOW-6) | ⬜ |
+| NX-302 | Target handoff for long-range strikes (FOW-7) | ⬜ |
+| NX-303 | Base upgrades via surplus supply (GAMEPLAY §5a). The node tier/modifier layer is in the MVP world model. | ⬜ |
+| NX-304 | Objective modes: timed / relaxed / off per campaign | ⬜ |
+| NX-305 | Assault Helicopter class ("Lifter" variants): troop landing, airfield/island capture, short range | ⬜ |
+| NX-306 | Isolated-base logistics: air drops, sea ferries, engineer bridging, helicopter airlift (Q-GD-21) | ⬜ |
+| NX-307 | Icon system: category-based auto-generated symbols, custom SVG upload with sanitization, playtest symbol readability; animated icons later | ⬜ |
+| NX-308 | Survivor reward: eligibility check (alive + ≥1 completed mission), ribbon, merit bonus, next-war forward-base first deploy | ⬜ |
+| NX-309 | Tasking Board: job generation from state, priorities, role matching, slot de-dup, AI garrison integration, overlay "NEEDED" list, decision window, `hold` opt-out | ⬜ |
+| NX-310 | World events system: event catalog (data-defined like units), rotation, timing, strength, rewards/consequences, manual start/stop, scheduling, on-stream labeling | ⬜ |
+| NX-313 | Missing P2 docs: Tasking Board spec, brand/style guide (pull NX-274 to P2), minimal lore bible, overlay layout v2 + 9:16 wireframes, sitrep template catalog, viewer-simulator spec, deployment-topology ADR (Windows/WSL2 + Linux server), alpha playtest plan, AAR/briefing/reveal spec | ⬜ |
+| NX-314 | Missing P3/P4 docs: conduct spec + community rules, public site spec, seasons/leaderboards spec, privacy notice, analytics definitions, global map + carry-over spec, world events catalog | ⬜ |
 | NX-273 | Research + spike: Epidemic Sound license coverage for 24/7 streams/clips; API/MCP availability; `MusicSource` port so an agent can search and queue licensed tracks by mood (tension-driven, AUDIO-TTS §1) | ⬜ |
 | NX-272 | Third-party tips adapter (Ko-fi or Streamlabs/StreamElements; Q-SUP-3) | ❓ |
 
 ## Backlog (unscheduled — from owner's conversation & plans)
-- Global/theater map with multiple campaigns and offensives (C48)
+- **Global campaign map (owner vision, 2026-10-17):** a fictional world (not Earth) made of connected theaters forming a progression. Each campaign is one theater; winning pushes the front to the next connected theater (cross the mountains → urban assault; win the ocean battle → land on the mainland, which is more land than water; reach the Static's "secret base"). The map is finite but large, and new theaters can be added indefinitely (hand-made or generated). It ties together seasons, carry-over (Q-GD-12), lore (NX-275) and theater rotation (Q-SM-4). Needs its own spec (NX-294).
 - "Siege" mode — AI must hold out for X hours (C29)
 - Procedural theaters (Arctic Strait, Desert Archipelago)
 - Three.js thermal/FLIR PiP

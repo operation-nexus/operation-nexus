@@ -142,7 +142,7 @@ Text shown on stream additionally requires `ModeratedText`, a SafeText already a
 | `TARGET` | `!target <node>` | `node_id: NodeId` (resolved by fuzzy match against the fixed node-name list *before* the command is built) | CHAT, O-1 | `NO_ACTIVE_UNIT`, `NODE_UNKNOWN`, `NODE_INVALID_FOR_UNIT` |
 | `RTB` | `!rtb` | — | CHAT, O-1 | `NO_ACTIVE_UNIT`, `NO_FRIENDLY_BASE_REACHABLE` |
 | `STATUS` | `!status` | — | CHAT, O-1 | `NO_ACTIVE_UNIT` |
-| `SET_CALLSIGN` | `!callsign <NAME>` | `requested: Callsign` | CHAT, O-2. Doesn't enter the sim: handled by identity + moderation queue. | `RANK_TOO_LOW`, `CALLSIGN_FORMAT`, `CALLSIGN_TAKEN`, `CALLSIGN_RESERVED`, `CALLSIGN_COOLDOWN`, `PENDING_REVIEW` (informational) |
+| `SET_CALLSIGN` | `!callsign <NAME>` | `requested: Callsign` | CHAT, first completed mission (Q-PROG-3). Doesn't enter the sim: handled by identity + moderation queue. | `NO_COMPLETED_MISSION`, `CALLSIGN_FORMAT`, `CALLSIGN_TAKEN`, `CALLSIGN_RESERVED`, `CALLSIGN_COOLDOWN`, `PENDING_REVIEW` (informational) |
 | `VECTOR` | `!vector <bearing> <km>` | `bearing_deg: int 0–359`, `distance_m: int 1–map diagonal` | CHAT, O-2 | `RANK_TOO_LOW`, `NO_ACTIVE_UNIT`, `OUT_OF_BOUNDS`, `INVALID_FOR_DOMAIN` |
 | `SPAWN_SPECIALIST` | `!sead`, `!artillery`, `!engineer`, `!jammer`, `!awacs` | `unit_kind: UnitKind` | CHAT, rank per PROGRESSION | `RANK_TOO_LOW`, `UNIT_IN_SORTIE`, `RESPAWN_COOLDOWN`, `NOT_YET_AVAILABLE` (phase-gated) |
 | `PACKAGE_CREATE` | `!package <NAME>` | `name: Callsign-format` | CHAT, O-5 | `RANK_TOO_LOW`, `NO_ACTIVE_UNIT`, `ALREADY_IN_PACKAGE`, `NAME_TAKEN` |
@@ -178,7 +178,7 @@ Every value listed in §5.2, plus `INVALID_PAYLOAD`, `BANNED`, `LATE` (applied, 
 | `CampaignStarted` | `mode`, `theater_id`, `seed`, `config_hash`, `start_tick` | `seed` omitted (proposed: it would let viewers predict RNG) | B A O |
 | `CampaignEnded` | `result: CampaignResult`, `end_tick`, `score`, `nodes_held_pct` | none | B P A C O |
 | `AARStarted` | `result: CampaignResult`, `top_by_role: {role, commander_ids[] ≤ 5}[]` | Commander ids resolve to approved callsigns at render time | B A O |
-| `CampaignClockPaused` / `Resumed` | `reason: NO_HUMANS\|OPERATOR` | none | B O |
+| `CampaignClockPaused` / `Resumed` | `reason: OPERATOR` (no automatic pause, Q-GD-4 amended) | none | B O |
 | `UnitSpawned` | `entity_id`, `unit_kind`, `side`, `owner_kind`, `commander_id\|null`, `callsign\|null`, `node_id`, `loadout: FULL\|REDUCED` | ENEMY spawn shown only if the spawn point is at TRACK tier or above. Otherwise dropped. | B P A O |
 | `UnitDespawned` | `entity_id`, `reason: RTB_LANDED\|IDLE\|ROLE_SWITCH\|PURGED\|OWNER_BANNED\|OWNER_FORGOTTEN\|CAMPAIGN_END` | Hidden ENEMY: dropped | B O |
 | `UnitOrphaned` | `entity_id`, `commander_id`, `cause: BANNED\|FORGOTTEN` | none (coalition units only) | B O |

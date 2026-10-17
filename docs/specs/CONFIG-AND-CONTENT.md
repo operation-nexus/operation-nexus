@@ -158,8 +158,8 @@ Legend: **HR** = hot-reloadable (§5). "TBD" = TBD by harness. **Source** = the 
 | `campaign.victory_hold_min` | float | min (real) | 30 | GAMEPLAY §9 | No |
 | `campaign.defeat` | object | — | TBD (Q-GD-7) | GAMEPLAY §9 | No |
 | `campaign.rubber_band_zone` | [float, float] | fraction of nodes | [0.55, 0.75] | GAMEPLAY §9 | No |
-| `campaign.clock_pause_below_humans` | int | humans | 1 | GAMEPLAY §9, Q-GD-4 | No |
-| `campaign.pause_after_no_humans_s` | float | s (real) | TBD by harness (Q-SM-5) | STATE-MACHINES §4.4, Q-GD-4 | No |
+| `director.provocation.escalate_threshold` | float | score | TBD by harness | THREAT-DIRECTOR §5a | Yes |
+| `director.provocation.half_life_s` | float | s (sim) | TBD by harness | THREAT-DIRECTOR §5a | Yes |
 | `presence.window_s` | float | s (real) | TBD | CONTRACTS §6 `PresenceSnapshot` | No |
 | `presence.emit_every_ticks` | int | ticks | TBD | CONTRACTS §6 `PresenceSnapshot` | No |
 | `campaign.night_progress_cap_nodes_per_h` | float | nodes/h (real) | 1/6 | THREAT-DIRECTOR §5, Q-GD-4 | No |
@@ -268,6 +268,31 @@ weapons:
 | ENEMY_ARMOR | ENEMY | GROUND | DIRECTOR | — | yes (AG) | — | yes | Offensives / retakes |
 
 Specialist chassis (SEAD, artillery, engineer, jammer, AWACS) and naval units are P4 (PROGRESSION §3, Q-GD-8). Their catalog rows are added then.
+
+## 7a. Unit/platform content pipeline (owner requirement, 2026-10-17)
+New platforms (unit types) are **data, not code**: one YAML file per unit in `content/units/`, using the unit-catalog schema (§7). This supersedes the single `content/units.yaml` file: the loader merges `content/units/*.yaml` in sorted filename order. Behavior is composed from existing capability blocks (mobility domain, sensors, weapons, cargo, special abilities). A new *capability* still needs code and a normal PR.
+
+**Authoring paths:**
+- **Admin console form:** schema-driven, with live validation and a preview card (ADMIN-RBAC content editor, `CONTENT_EDITOR` role).
+- **Agent skill `new-unit`:** an operator describes the platform in plain words. The skill drafts the YAML, runs the validator and a short balance-harness check, and opens a draft for approval. It never publishes directly. Skill location: `.claude/skills/new-unit/`, plus a tool-agnostic prompt in `.agents/prompts/` (ADR-0010 N-7).
+- **Community submissions (later):** uploaded through the portal, then moderated and approved by the owner or an admin.
+
+**Icons (Q-STYLE-4):** each unit file declares `category` (e.g. FAST_JET, DRONE, TRUCK, TANK, BOAT, HELO, SITE, RADAR). The renderer auto-generates the symbol from category + side styling. An optional `icon` (SVG) can be uploaded. It's **sanitized** (no scripts, external refs or event handlers), size-limited, and must stay readable at small sizes. Animated icons are a later phase.
+
+**Validation gates (all must pass):**
+- Schema check.
+- Cross-references resolve.
+- **No real-world names** (brand rule, Q-PROD-5).
+- Text passes moderation.
+- Stat envelope: values inside configured min/max bands, so a new unit can't be overpowered.
+- Balance harness smoke run.
+- Owner or admin approval.
+
+**Hot-loading without downtime:**
+- An approved unit is published as a new content version (hash recorded).
+- It becomes available via a logged `OP_CONTENT_LOAD{content_hash}` command, so replays stay deterministic.
+- **Additive only mid-campaign:** new units may appear. Existing units' stats change only at the next campaign, unless the key is explicitly hot-reloadable.
+- Removal or disablement: a unit can't be spawned anymore, but existing instances finish their sorties.
 
 ## 8. Doctrine catalog (`content/doctrines.yaml`)
 ```yaml
