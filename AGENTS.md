@@ -75,14 +75,17 @@ The layout below is the target. Directories are created when their first tracker
 | Containers | Docker, Compose v2 |
 | CI | GitHub Actions (see [`docs/cicd/CICD-ARCHITECTURE.md`](docs/cicd/CICD-ARCHITECTURE.md)) |
 
-## 5. Commands (fill in as they are created)
+## 5. Commands
 
 ```
-# make bootstrap      # install toolchains & pre-commit hooks
-# make check          # lint + typecheck + unit tests for everything
-# make sim            # run sim headless with the scripted chat simulator
-# make dev            # docker compose up for the full local stack
+make bootstrap      # uv sync + pnpm install (frozen lockfiles) + pre-commit hooks if installed
+make check          # Python: ruff, ruff format --check, mypy --strict, import-linter, pytest
+                    # Overlay: tsc --noEmit, eslint + prettier --check, vitest
+# make sim          # (NX-031/NX-193) not yet implemented
+# make dev          # (NX-255) not yet implemented
 ```
+
+Requires: `uv`, Node 22+ with `pnpm`, `make`.
 
 ## 6. Definition of Done
 

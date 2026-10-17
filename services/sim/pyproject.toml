@@ -1,0 +1,58 @@
+[project]
+name = "nexus"
+version = "0.0.0"
+description = "Operation Nexus simulation and app (modular monolith)"
+requires-python = ">=3.12"
+dependencies = []
+
+[dependency-groups]
+dev = [
+  "ruff==0.17.1",
+  "mypy==2.4.0",
+  "pytest==9.1.1",
+  "hypothesis==6.170.1",
+  "import-linter==2.15",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/nexus"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "S", "BLE", "RUF"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101"]
+
+[tool.mypy]
+strict = true
+python_version = "3.12"
+mypy_path = "src"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.importlinter]
+root_package = "nexus"
+
+[[tool.importlinter.contracts]]
+name = "Core is pure: no I/O or vendor-facing modules (ADR-0001, ADR-0010)"
+type = "forbidden"
+source_modules = ["nexus.core"]
+forbidden_modules = [
+  "nexus.gateway",
+  "nexus.persistence",
+  "nexus.broadcast",
+  "nexus.advisors",
+  "nexus.audio",
+  "nexus.clips",
+  "nexus.ops",
+]

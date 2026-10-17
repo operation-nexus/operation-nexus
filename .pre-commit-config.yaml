@@ -1,0 +1,23 @@
+# Install: make bootstrap. Revs are pinned to commit SHAs (tag in comment).
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: 38bfb07c0c64c304f47eb52090f8288150c77730 # v0.17.1
+    hooks:
+      - id: ruff
+        args: [--fix]
+        files: ^services/
+      - id: ruff-format
+        files: ^services/
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: 83d9cd684c87d95d656c1458ef04895a7f1cbd8e # v8.30.1
+    hooks:
+      - id: gitleaks
+  - repo: local
+    hooks:
+      - id: prettier-overlay
+        name: prettier (overlay)
+        entry: pnpm --dir apps/overlay exec prettier --write
+        language: system
+        files: ^apps/overlay/
+        types_or: [ts, javascript, json, html]
+        pass_filenames: false
