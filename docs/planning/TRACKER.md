@@ -115,7 +115,7 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | NX-190 | Gateway: adapter interface + normalization + rate limits | M | ⬜ | NX-021 |
 | NX-191 | Twitch EventSub adapter + moderation event sync + batched replies | L | ⬜ | NX-190 |
 | NX-192 | Command parser + grammar + fuzz tests | M | ⬜ | NX-190 |
-| NX-193 | Local chat simulator (`tools/chatsim`) for dev | M | ⬜ | NX-190 |
+| NX-193 | Viewer simulator (`tools/chatsim`): scripted bot operators (personas from the balance harness) sending real chat-shaped commands through the LocalSim adapter; runnable against staging for long tests during viewer droughts. Bots are always labeled as simulated and never counted as humans (DI-5). | M | ⬜ | NX-190 |
 | NX-200 | Commanders + identities + generated callsigns (SQLite, migrations) | M | ⬜ | NX-010 |
 | NX-201 | Persistence writer task + backups | M | ⬜ | NX-200 |
 | NX-041 | Moderation pipeline + denylist + tests (SEC-MOD-1) | M | ⬜ | NX-190 |
