@@ -197,3 +197,4 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 - TikTok (view-only simulcast, or chat if official API appears — ADR-0008)
 - Kubernetes/Helm (only per SYSTEM-DESIGN §7 triggers)
 - Localization of HUD/commands/TTS
+- **Voice ops line (owner idea, future):** a phone call system that calls the owner on critical alerts, or that the owner calls to talk to an ops agent. The agent can report status, run admin actions through RBAC with confirmation and audit, and record the owner's voice or transcript as clip narration. Text-based alerts and management come first (ADMIN-RBAC, OPS-ADMIN). Needs its own spec, security review (caller authentication, no destructive actions without confirmation) and cost research.
