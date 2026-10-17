@@ -71,6 +71,10 @@ Unknown commands and ordinary chat are ignored. Command aliases are configurable
 - **Supply-line stretch** (snowball breaker): coalition truck transit time scales with road distance from the sanctuary. Enemy reinforcement time shrinks as the front nears its HQ.
 - Units heal and rearm **only while landed or parked at a friendly node**, by spending stock. They never heal passively (fixes the immortality bug).
 
+## 5a. Base upgrades (P4; extension point reserved now)
+Owner idea: sending **surplus supply** to a base gradually upgrades it: a radar site gains range, an air-defense site gains faster interceptors, an airbase rearms quicker. Upgrades decay or are lost if the base is starved or captured.
+- **Reserved now so it doesn't need a rewrite later:** nodes carry `tier: int` and `upgrades: [UpgradeId]` in the world model, and all node stats are read through a modifier layer (base stats × tier/upgrade modifiers from config). The MVP ships with tier 0 and no upgrades.
+
 ## 6. Combat
 - Each tick, a unit with a ready weapon chooses the **highest-priority valid target** in range: by domain compatibility, then threat, then distance, with a stable tie-break by id.
 - Hit probability = `base_pk × track_quality_mult × evasion_mult`, rolled on the `combat` RNG. Track quality depends on FoW tier: blob 0.2, track 1.0, painted 1.25.
