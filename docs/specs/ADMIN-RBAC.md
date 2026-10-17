@@ -390,3 +390,10 @@ New questions for OPEN-QUESTIONS (recommended answers in brackets):
 - **Q-RB-5:** Is a balance-harness dry-run mandatory before hot-applying a key, or only before publish? [Mandatory before publish. Optional but recommended for hot keys, flagged in audit when skipped.]
 - **Q-RB-6:** In GM `FULL` mode, does the director's threat memory keep learning from player actions? [Yes, so control returns to an up-to-date director.]
 - **Q-RB-7:** Should GM sitreps use a distinct TTS voice? [Yes, same radio filter, different preset voice. Ties to AUDIO-TTS preset voices.]
+
+## Addendum: Pause flow (owner decision 2026-10-17, Q-RB-1)
+1. **Pause form:** a moderator, GM or admin must give a reason category (RAID / ABUSE / TECHNICAL / CONTENT / OTHER) and a short note. A pause without a reason is rejected (`OP_CAMPAIGN_PAUSE{reason_category, note}`; CONTRACTS addition).
+2. **Immediate owner alert** through every enabled `AlertSink` (ntfy, Discord, email; voice line later). It says who paused, when, why, and the current state: momentum, active operators, recent incidents.
+3. **AI assessment (optional, advisory only):** the LLM advisor writes a short summary of the situation and a recommendation to resume or stay paused, using only logged data. It's labeled as AI-generated and never acts on its own (ADR-0007).
+4. **One-tap resume:** an action link in the alert (authenticated), a Discord slash command (`/nexus resume`), or the Command Center. Voice resume comes with the voice ops line. Resume needs GM/admin/owner; the owner's action is audited like any other.
+5. **Auto-escalation:** if the pause lasts longer than a configurable time with no response, re-alert (PROPOSED interval).
