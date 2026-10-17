@@ -2,13 +2,18 @@
 
 Status: Draft · Tracker: NX-190…NX-199 · ADR-0008 · Facts: PLATFORM-REALITY-CHECK
 
-## 1. Adapter interface
+## 1. Adapter interface (ADR-0010: platform-neutral)
+
+The core never branches on platform. Every adapter implements the same ports, declares its `Capabilities`, and must pass the shared conformance suite (`tests/conformance/chat/`). Multiple sources can run at once (simulcast). Discord can also be a `ChatSource` (command channel) if enabled.
+
 ```python
 class PlatformAdapter(Protocol):
     platform: Platform            # enum: TWITCH | YOUTUBE | KICK
     async def run(self, sink: Callable[[ChatEnvelope], Awaitable[None]]) -> None: ...
     async def send_batch(self, lines: list[str]) -> None: ...   # respects platform limits
     def health(self) -> AdapterHealth: ...                      # connected, lag_ms, quota_used
+    def capabilities(self) -> Capabilities: ...                 # max_reply_rate, reply_cost, message_max_len,
+                                                                # supports_moderation_events, quota_model, latency_class
 ```
 
 ## 2. Twitch (P2)
