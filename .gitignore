@@ -229,6 +229,7 @@ node_modules/
 snapshots/
 command-logs/
 clips/
+!services/sim/src/nexus/clips/
 *.log
 .env*
 !.env.example

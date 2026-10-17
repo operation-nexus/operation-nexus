@@ -9,25 +9,25 @@ importers:
   .:
     devDependencies:
       '@eslint/js':
-        specifier: ^10.0.1
+        specifier: 10.0.1
         version: 10.0.1(eslint@10.13.0)
       eslint:
-        specifier: ^10.13.0
+        specifier: 10.13.0
         version: 10.13.0
       prettier:
-        specifier: ^3.9.10
+        specifier: 3.9.10
         version: 3.9.10
       typescript:
-        specifier: ^6.0.3
+        specifier: 6.0.3
         version: 6.0.3
       typescript-eslint:
-        specifier: ^8.71.2
+        specifier: 8.71.2
         version: 8.71.2(eslint@10.13.0)(typescript@6.0.3)
       vite:
-        specifier: ^8.3.4
+        specifier: 8.3.4
         version: 8.3.4
       vitest:
-        specifier: ^5.0.5
+        specifier: 5.0.5
         version: 5.0.5(vite@8.3.4)
 
 packages:
