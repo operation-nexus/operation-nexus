@@ -13,7 +13,7 @@ Legend: **Blocks** is the earliest roadmap phase that needs the answer (P0 = Fou
 | Q-PROD-6 | With ADR-0010 (both platforms first-class), do you want Twitch **and** YouTube in the closed alpha (simulcast), or keep Twitch-only alpha → YouTube beta? | Twitch-only alpha, YouTube in beta. The YouTube quota application and monitoring should come first. The code is neutral either way. | ✅ 2026-10-17: Twitch-only alpha, YouTube in beta (A) |
 | Q-PROD-3 | Will you be present on stream sometimes, or is it fully unattended? (This affects TikTok/YouTube policy risk and moderation.) | Unattended by default, plus scheduled "commander's briefing" sessions with you live weekly. | ✅ 2026-10-17: A (mostly unattended + weekly live briefing), and seasonally C (frequent live sessions, e.g. campaign launches or season events) |
 | Q-PROD-4 | What is the success metric for closed alpha? | ≥5 cold testers can say who's winning within 5 s and spawn within 30 s. 7 days unattended with ≤1 manual fix. | P2 | |
-| Q-PROD-5 | Public name and branding? "Operation Nexus" is fine. Avoid "NORAD" and real-org insignia. | Fictional factions, "Operation Nexus" | P2 | |
+| Q-PROD-5 | Public name and branding? "Operation Nexus" is fine. Avoid "NORAD" and real-org insignia. | Fictional factions, "Operation Nexus" | ✅ 2026-10-17: A, mandatory. **No real names anywhere**: no real countries, militaries, weapon systems or orgs ("NORAD" etc.). Units use generic class names (Tank, Striker, Bomber, Recon, Convoy…). Real-world *types* of platforms may be evoked, but they're clearly fictional and simulated. Needs a unique, memorable brand identity (Q-BRAND-1, NX-274). |
 
 ## Game design
 
@@ -144,6 +144,7 @@ Legend: **Blocks** is the earliest roadmap phase that needs the answer (P0 = Fou
 | Q-SUP-3 | Third-party tips (Ko-fi, Streamlabs, StreamElements)? | Later (P5), pick one. Start with platform-native support. | P5 | |
 | Q-SUP-4 | Confirm ADR-0011: no in-game currency in v1? | Yes. Direct capped redemptions; revisit later via a new ADR plus legal review. | ✅ 2026-10-17: No in-game currency in v1 (ADR-0011 accepted) |
 | Q-SUP-6 | Owner idea: a "rally call" so the crowd can coordinate like a hive mind. Example: "VIPER-27 calls: ATTACK STRAIT BRIDGE" pinned on the map. | **Templated, not free text:** `!rally <node> <attack/defend/supply>` shows a map pin and a banner with the callsign. Unlocked free at Captain (O-3) with a cooldown. Channel points or donations make it more prominent (bigger banner, longer pin) but never more powerful. It only informs; it never controls other players' units. | ✅ 2026-10-17: A, templated rally call; free at Captain with cooldown; points or donations only make it more prominent |
+| Q-BRAND-1 | Brand direction for Operation Nexus (unique and memorable, not a generic war map) | Owner to choose between directions offered in chat; result goes into a brand and style guide (NX-274) | P2 | |
 | Q-SUP-5 | Retention of financial support records? | Keep them as long as your tax and accounting needs require. Ask an accountant; this isn't something we can define for you. | P4 | |
 
 ## Questions from your conversation that need your words
