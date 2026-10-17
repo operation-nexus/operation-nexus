@@ -202,6 +202,7 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | NX-288 | Platform AI-content compliance: verify Twitch and YouTube synthetic-media and AI disclosure rules now and at every phase gate; apply labels, channel panel note | ⬜ |
 | NX-289 | Human voice lines pipeline: owner or community voice actors record lines from the sitrep template list, with a consent and license agreement per contributor; recorded lines plug into the voice cast as a `TtsEngine`-compatible source | ⬜ |
 | NX-290 | Disabled state, crew survival roll, downed-crew markers, CSAR missions (`!rescue`), recovery of disabled vehicles, rescue XP bonus | ⬜ |
+| NX-291 | Conduct system: disruptive-pattern detectors, decaying conduct score, escalation ladder (warn → restrict → timeout → XP penalty → mod review), appeals, mod dashboard; never auto-ban | ⬜ |
 | NX-273 | Research + spike: Epidemic Sound license coverage for 24/7 streams/clips; API/MCP availability; `MusicSource` port so an agent can search and queue licensed tracks by mood (tension-driven, AUDIO-TTS §1) | ⬜ |
 | NX-272 | Third-party tips adapter (Ko-fi or Streamlabs/StreamElements; Q-SUP-3) | ❓ |
 
