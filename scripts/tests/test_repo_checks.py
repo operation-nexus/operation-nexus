@@ -2,13 +2,17 @@
 
 Run: python3 scripts/tests/test_repo_checks.py   (or pytest scripts/tests)
 """
+import contextlib
+import io
+import json
 import os
 import sys
+import tempfile
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 from check_commit_msg import problems  # noqa: E402  (path set up above)
-from check_osv_report import findings  # noqa: E402
+from check_osv_report import findings, main  # noqa: E402
 from check_tracked_files import violations  # noqa: E402
 
 AI = "Cl" + "aude"  # kept out of the literal so a name scan of this file stays clean
@@ -40,19 +44,34 @@ def test_tracked_files():
 
 
 def test_osv_report():
-    def pkg(name, groups, fixed_ids):
-        vulns = [{"id": i, "affected": [{"ranges": [{"events": [{"introduced": "0"}, {"fixed": "9"}]}]}]}
-                 for i in fixed_ids]
-        return {"package": {"name": name}, "groups": groups, "vulnerabilities": vulns}
+    def pkg(name, groups, fixed_ids, version="1.0.0", fixed="9", fix_pkg=None):
+        affected = [{"package": {"ecosystem": "PyPI", "name": fix_pkg or name},
+                     "ranges": [{"events": [{"introduced": "0"}, {"fixed": fixed}]}]}]
+        vulns = [{"id": i, "affected": affected} for i in fixed_ids]
+        return {"package": {"ecosystem": "PyPI", "name": name, "version": version}, "groups": groups,
+                "vulnerabilities": vulns}
     report = {"results": [{"packages": [
         pkg("a", [{"ids": ["V1", "G1"], "max_severity": "7.0"}], ["G1"]),   # high + fix: blocks
         pkg("b", [{"ids": ["V2"], "max_severity": "9.8"}], []),             # critical, no fix: listed only
         pkg("c", [{"ids": ["V3"], "max_severity": "6.9"}], ["V3"]),         # medium: listed only
         pkg("d", [{"ids": ["V4"], "max_severity": ""}], ["V4"]),            # no score: listed only
+        pkg("e", [{"ids": ["V5"], "max_severity": "8"}], ["V5"], fix_pkg="other"),         # fix is another pkg's
+        pkg("Typing_Ext", [{"ids": ["V6"], "max_severity": "8"}], ["V6"], fix_pkg="typing-ext"),  # PEP 503 name
+        pkg("g", [{"ids": ["V7"], "max_severity": "8"}], ["V7"], version="2.0.0", fixed="1.2.5"),  # fix is older
+        pkg("h", [{"ids": ["V8"], "max_severity": "8"}], ["V8"], version="2.0.0", fixed="2.0.1"),  # fix is newer
     ]}]}
-    assert [b for b, _ in findings(report)] == [True, False, False, False]
+    assert [b for b, _ in findings(report)] == [True, False, False, False, False, True, False, True]
     assert findings({"results": []}) == []
-
+    # A newline in a PR-controlled package name must not let a line start with "::" (workflow command).
+    evil = {"results": [{"packages": [pkg("x\n::error::pwned\r", [{"ids": ["V9"], "max_severity": "5"}], [])]}]}
+    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False) as f:
+        json.dump(evil, f)
+    out = io.StringIO()
+    with contextlib.redirect_stdout(out):
+        assert main(["check_osv_report.py", f.name]) == 0
+    os.unlink(f.name)
+    assert not any(line.startswith("::") for line in out.getvalue().splitlines())
+    assert "\r" not in out.getvalue()
 
 if __name__ == "__main__":
     test_commit_msg()
