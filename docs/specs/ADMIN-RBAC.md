@@ -41,6 +41,7 @@ All of this has to work from a phone browser or Discord, with least privilege an
 | RB-10 | Rule/balance changes MUST be validated against the balance schema (CONFIG-AND-CONTENT §6) before any command is emitted. Non-hot-reloadable keys can only be applied to a future campaign. |
 | RB-11 | Admin sessions MUST expire (idle and absolute timeouts), be revocable, and be rate-limited per operator and per IP. |
 | RB-12 | Personal data shown in the console is limited to what the operator's permissions need. Raw platform ids are visible only with `users.view_pii`. |
+| RB-13 | **While the campaign is paused (Q-ALN-24):** safety actions MUST always work: ban (`OP_BAN`), forget (`FORGET`), the kill switch (`OP_KILL_SWITCH`), and pause, resume and end (`OP_CAMPAIGN_PAUSE`/`RESUME`/`END`). A config reload (`rules.apply_hot`, including applying a rank/XP preset) is validated and registered but deferred: `OP_CONFIG_RELOAD` applies at the first tick after resume (CONFIG-AND-CONTENT §5). A director override (`OP_DIRECTOR_OVERRIDE`) MUST be rejected with `CAMPAIGN_PAUSED` and audited (RB-3). |
 
 ## 4. Roles & permissions
 
@@ -117,13 +118,13 @@ All of this has to work from a phone browser or Discord, with least privilege an
 | ai.gm_lift_limits | ✅ | — | — | — | — | — | — | — | — |
 | ai.advisor_toggle | ✅ | ✅ | — | — | — | — | — | — | — |
 | campaign.view | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — | ✅ | — |
-| campaign.pause | ✅ | ✅ | ✅ | ✅ (reason required) | — | — | — | — | — |
+| campaign.pause | ✅ | ✅ | ✅ | ✅ (note required) | — | — | — | — | — |
 | campaign.resume | ✅ | ✅ | ✅ | — | — | — | — | — | — |
 | campaign.end | ⚠ | ⚠ | — | — | — | — | — | — | — |
 | campaign.schedule | ✅ | ✅ | world events only (Q-ALN-10) | — | — | — | — | — | — |
 | rules.view | ✅ | ✅ | ✅ | — | ✅ | ✅ | — | ✅ | — |
-| rules.draft | ✅ | ✅ | — (Q-ALN-10; rank/XP presets open, §13) | — | ✅ (drafts only) | — | — | ✅ (drafts only) | — |
-| rules.apply_hot | ⚠ | ⚠ | — (Q-ALN-10; rank/XP presets open, §13) | — | — | — | — | — | — |
+| rules.draft | ✅ | ✅ | rank/XP preset drafts only (Q-ALN-22) | — | ✅ (drafts only) | — | — | ✅ (drafts only) | — |
+| rules.apply_hot | ⚠ | ⚠ | — (Q-ALN-10, Q-ALN-22) | — | — | — | — | — | — |
 | rules.publish / rollback | ⚠ | ⚠ | — (Q-ALN-10) | — | — | — | — | — | — |
 | content.view | ✅ | ✅ | ✅ | — | ✅ | ✅ | — | ✅ | — |
 | content.draft | ✅ | ✅ | — (Q-ALN-10) | — | ✅ (drafts only) | — | — | ✅ (drafts only) | — |
@@ -135,7 +136,7 @@ All of this has to work from a phone browser or Discord, with least privilege an
 | access.grant_roles | ✅ | ✅ (≤ GM/MOD/EDITOR/VIEWER) | — | — | — | — | — | — | — |
 | access.manage_tokens | ✅ | ✅ | — | — | — | — | — | — | — |
 
-This matrix folds in the owner decisions of 2026-10-17: moderators may **pause** (with a required reason) but not resume (Q-RB-1); **game rules, balance, campaign options and content are edited only by Owner and Admin** ("Who edits game rules" addendum, as narrowed by Q-ALN-10 on 2026-10-18: campaign setup is Owner/Admin only, and a Game Master runs only the Static and world events). `CONTENT_EDITOR` and `SVC_AGENT` produce **drafts only**; a draft takes effect only when an Owner or Admin applies or publishes it. Moderators never edit rules. Exact grants remain adjustable by the owner.
+This matrix folds in the owner decisions of 2026-10-17: moderators may **pause** (with a required reason) but not resume (Q-RB-1); **game rules, balance, campaign options and content are edited only by Owner and Admin** ("Who edits game rules" addendum, as narrowed by Q-ALN-10 on 2026-10-18: campaign setup is Owner/Admin only, and a Game Master runs only the Static and world events). `CONTENT_EDITOR` and `SVC_AGENT` produce **drafts only**; a Game Master may draft or propose **rank/XP presets** only (Q-ALN-22). A draft takes effect only when an Owner or Admin approves and applies or publishes it. Moderators never edit rules. Exact grants remain adjustable by the owner.
 
 ### 4.4 Scoping
 - Each role grant has a scope: `GLOBAL`, or `CAMPAIGN:<campaign_id>` (e.g., a guest GM for one weekend event), with an optional `expires_at`.
@@ -196,7 +197,8 @@ Commander search (by callsign or id), stats from ledgers, ban history, link/merg
 1. Forms are generated from the balance JSON Schema (CONFIG-AND-CONTENT §6). Each key shows type, unit, source spec, hot-reloadable flag, and PROPOSED/validated status.
 2. **Diff preview** against the active profile, with non-hot-reloadable keys highlighted.
 3. **Dry-run:** queue a balance-harness run (TESTING-STRATEGY §3.5) on standard scenarios. The report is attached to the draft. **Mandatory for next-campaign publishes; optional for hot keys, and a skipped dry-run is audit-flagged** (Q-RB-5).
-4. **Apply:** hot keys go through `OP_CONFIG_RELOAD` (existing). Everything else is **publish** for future campaigns.
+4. **Apply:** hot keys go through `OP_CONFIG_RELOAD` (existing). Everything else is **publish** for future campaigns. While the campaign is paused, a hot apply is registered and applied at the first tick after resume (RB-13, Q-ALN-24).
+4a. **Rank/XP presets (Q-ALN-22, CONFIG-AND-CONTENT §5a):** a GM's preset draft appears in the approval queue with the GM as author. Only an Owner or Admin can approve and apply it, through step 4; the audit row names both the drafting and the applying operator.
 5. **Versioning:** every publish creates an immutable version (`config_versions` manifest). Rollback re-applies a previous version through the same path.
 
 ### 6.6 Environment (theater) management & generation
@@ -235,7 +237,7 @@ Both channels produce the same `AdminRequest{operator_id, permission, action, pa
 | Action | Web console | Discord | Permission |
 |---|---|---|---|
 | Kill switch | Big button | `/nexus killswitch on\|off [flags]` | mod.kill_switch |
-| Pause / resume | Campaign page | `/nexus pause <category> <note>`, `/nexus resume` (also the one-tap link in the pause alert) | campaign.pause / campaign.resume |
+| Pause / resume | Campaign page | `/nexus pause <note> [RAID\|ABUSE\|CONTENT\|OTHER]` (category `OPERATOR`, optional sub-reason, Q-ALN-31), `/nexus resume` (also the one-tap link in the pause alert) | campaign.pause / campaign.resume |
 | Ban / unban | User page | `/nexus ban <callsign> <reason>`, `/nexus unban <callsign>` | mod.ban/unban |
 | Purge units | User page | `/nexus purge <callsign>` | mod.purge_units |
 | Callsign queue | Queue page | `/nexus callsigns` (list), buttons approve/reject | mod.callsign_review |
@@ -261,6 +263,8 @@ Rule editing, theater editing, generation, and scheduling are **web only**. Form
 | `OP_GM_OPERATION` | `operation: string` (doctrine library), `target: NodeId\|SectorId\|null`, `params: object` (schema per operation) | OPERATOR (holder), or SYSTEM for scheduled events | `GM_NOT_ACTIVE`, `NOT_GM_HOLDER`, `UNKNOWN_OPERATION`, `PRECONDITION_FAILED`, `OVER_BUDGET`, `NOT_VISIBLE_TO_ENEMY` |
 | `OP_GM_VERDICT` | `proposal_id`, `verdict: APPROVE\|VETO` (ASSIST mode) | OPERATOR (holder) | `GM_NOT_ACTIVE`, `UNKNOWN_PROPOSAL` |
 | `OP_GM_LIMITS` | `budget: bool`, `fow: bool` (true = enforced) | OPERATOR (OWNER only) | `GM_NOT_ACTIVE` |
+| `OP_CAMPAIGN_PAUSE` (amended, Q-ALN-31) | adds `sub_reason: OperatorPauseReason\|null` next to `reason_category` and `note`; non-null only when `reason_category = OPERATOR` | as in CONTRACTS | adds `INVALID_PAYLOAD` for a `sub_reason` with any other category |
+| `OP_DIRECTOR_OVERRIDE` (amended, Q-ALN-24) | unchanged | OPERATOR | adds `CAMPAIGN_PAUSED` while the campaign is paused |
 
 | Event | Fields | FoW | Consumers |
 |---|---|---|---|
@@ -270,7 +274,7 @@ Rule editing, theater editing, generation, and scheduling are **web only**. Form
 
 Admin API additions: `/admin/gm/*`, `/admin/schedule/*`, `/admin/rules/drafts/*` (+ `/dry-run`, `/publish`, `/rollback`), `/admin/theaters/*` (+ `/generate`, `/validate`, `/publish`), `/admin/access/*` (roles, grants, tokens), `/admin/approvals/*`. Every route maps to exactly one permission in §4.2.
 
-New enums: `AdminRole`, `Permission`, `GrantScopeKind` (`GLOBAL`, `CAMPAIGN`, `PLATFORM`), `TheaterArchetype`, `ContentStatus`, `ScheduledItemKind` (`CAMPAIGN`, `EVENT`, `MAINTENANCE`), `ApprovalStatus`.
+New enums: `AdminRole`, `Permission`, `GrantScopeKind` (`GLOBAL`, `CAMPAIGN`, `PLATFORM`), `TheaterArchetype`, `ContentStatus`, `ScheduledItemKind` (`CAMPAIGN`, `EVENT`, `MAINTENANCE`), `ApprovalStatus`, `OperatorPauseReason` (`RAID`, `ABUSE`, `CONTENT`, `OTHER`; Q-ALN-31).
 
 ## 9. Data model additions (merge into DATA-MODEL)
 ```sql
@@ -396,10 +400,13 @@ CREATE TABLE content_versions (                -- theaters, balance profiles, te
 | RB-12 | `users.view` responses contain no platform ids (schema test). |
 | §6.3, §6.4 (Q-ALN-10, Q-ALN-11) | Matrix test: a GM setting friendly fire, unlimited ammo, the objective mode or an objective is denied; a GM scheduling a world event is allowed and a GM scheduling a campaign is denied. A GM job injection into the Static's board is accepted; one into the coalition board is rejected with an audit row. |
 | §6.3 (Q-ALN-4) | With a fake monotonic clock: a takeover reaches `admin.gm_max_session_s` while the campaign is paused and still auto-releases. |
+| RB-13 (Q-ALN-24) | With the campaign paused: ban, forget, kill switch, resume and end each apply; a second pause rejects `ALREADY_PAUSED`; a hot config reload is registered, not applied until the first tick after resume; a director override rejects `CAMPAIGN_PAUSED` with an audit row. |
+| §6.5 step 4a (Q-ALN-22) | Matrix test: a GM can save a rank/XP preset draft and cannot save any other rules draft; a GM applying a preset is denied; an Admin applying the GM's draft emits one `OP_CONFIG_RELOAD` and an audit row naming both operators. |
+| Pause flow (Q-ALN-31) | A form pause sends `reason_category = OPERATOR` with the chosen `sub_reason` (or `null`); a `sub_reason` with `TECHNICAL`, `MAINTENANCE` or `CEASEFIRE` rejects `INVALID_PAYLOAD`; a pause without a note from an operator rejects `REASON_REQUIRED`. |
 
 ## 13. Resolved questions (owner decisions 2026-10-17)
 All questions raised by this spec are decided and folded in above:
-- **Q-RB-1:** moderators can pause, only with a required reason (category + note); resume needs GM/admin/owner; every pause alerts the owner immediately (§4.3, pause-flow addendum).
+- **Q-RB-1:** moderators can pause, only with a required reason (a note, plus the Q-ALN-31 category and optional sub-reason); resume needs GM/admin/owner; every pause alerts the owner immediately (§4.3, pause-flow addendum).
 - **Q-RB-2:** bans cascade across all linked platforms; unban requires an admin (§4.4).
 - **Q-RB-3:** self-approval allowed while solo, audit-flagged, with a cancellable ~10 min (PROPOSED) safety delay on campaign end and rules publish (§4.5).
 - **Q-RB-4:** the Command Center is private (tailnet + Discord); DAST before any public exposure (§5).
@@ -407,19 +414,19 @@ All questions raised by this spec are decided and folded in above:
 - **Q-RB-6:** threat memory keeps learning during GM FULL takeover (§6.3).
 - **Q-RB-7:** the Game Master has its own voice profile (§6.3, AUDIO-TTS §2a).
 
-Decided 2026-10-18: Q-OPS-8 (offline auto-pause, reason `TECHNICAL`) and Q-OPS-9 (weekly maintenance window, reason `MAINTENANCE`; Ceasefire mode), see OPS-ADMIN. Spec-alignment batch: Q-ALN-3 (pause reasons), Q-ALN-4 (GM auto-release on real time), Q-ALN-10 (campaign setup Owner/Admin only; GM scope = Static + world events), Q-ALN-11 (GM injects jobs into the Static's board only).
+Decided 2026-10-18: Q-OPS-8 (offline auto-pause, reason `TECHNICAL`) and Q-OPS-9 (weekly maintenance window, reason `MAINTENANCE`; Ceasefire mode), see OPS-ADMIN. Spec-alignment batch: Q-ALN-3 (pause reasons), Q-ALN-4 (GM auto-release on real time), Q-ALN-10 (campaign setup Owner/Admin only; GM scope = Static + world events), Q-ALN-11 (GM injects jobs into the Static's board only), Q-ALN-22 (GMs draft rank/XP presets; Owner/Admin approve and apply; §4.3, §6.5), Q-ALN-24 (actions while paused, RB-13), Q-ALN-31 (pause category plus optional `OPERATOR` sub-reason, pause flow), Q-ALN-32 (operator-pause banner, pause flow).
 
 Still open:
-- Q-PROG-7 lets a GM edit rank and XP presets (OPS-ADMIN OA-12), but Q-ALN-10 limits a GM to the Static and world events. Until the owner confirms, the matrix denies GM `rules.*` writes.
-- How the Q-RB-1 operator pause categories (RAID / ABUSE / TECHNICAL / CONTENT / OTHER) relate to the Q-ALN-3 `PauseReasonCategory` (`OPERATOR`, `TECHNICAL`, `MAINTENANCE`, `CEASEFIRE`); see the pause-flow addendum.
 - The command contract for GM Tasking Board injection (§6.3).
+- Whether GM takeover, GM operations and GM verdicts (`OP_GM_*`) are accepted while paused. Q-ALN-24 rejects director overrides but does not name the GM commands.
 
 ## Addendum: Pause flow (owner decision 2026-10-17, Q-RB-1)
-1. **Pause form:** a moderator, GM or admin must give a reason category (RAID / ABUSE / TECHNICAL / CONTENT / OTHER) and a short note. A pause without a reason is rejected (`OP_CAMPAIGN_PAUSE{reason_category, note}`; CONTRACTS addition). Q-ALN-3 sets `PauseReasonCategory` to `OPERATOR`, `TECHNICAL`, `MAINTENANCE`, `CEASEFIRE`; a pause from this form is an operator pause. How the form's categories are carried under that enum is open (§13). Every pause, whatever its reason, freezes world and game time (CONFIG-AND-CONTENT CFG-9).
-2. **Immediate owner alert** through every enabled `AlertSink` (ntfy, Discord, email; voice line later). It says who paused, when, why, and the current state: momentum, active operators, recent incidents.
+1. **Pause form (Q-ALN-31):** a pause carries two fields. `reason_category` is the `PauseReasonCategory` (`OPERATOR`, `TECHNICAL`, `MAINTENANCE`, `CEASEFIRE`, Q-ALN-3); a pause from this form is always `OPERATOR`. `sub_reason` is optional, one of `RAID`, `ABUSE`, `CONTENT`, `OTHER`, and is allowed only when the category is `OPERATOR` (automatic and Ceasefire pauses send `null`). A moderator, GM or admin must also give a short note; a form pause without a note is rejected (`OP_CAMPAIGN_PAUSE{reason_category, sub_reason, note}`, §8). Every pause, whatever its reason, freezes world and game time (CONFIG-AND-CONTENT CFG-9). Safety actions keep working while paused (RB-13).
+1a. **On-stream banner (Q-ALN-32):** while an `OPERATOR` pause is active the HUD shows a simple **"PAUSED — stand by"** banner. The note and sub-reason are never shown on stream (OVERLAY).
+2. **Immediate owner alert** through every enabled `AlertSink` (ntfy, Discord, email; voice line later). It says who paused, when, why (category, sub-reason and note), and the current state: momentum, active operators, recent incidents.
 3. **AI assessment (optional, advisory only):** the LLM advisor writes a short summary of the situation and a recommendation to resume or stay paused, using only logged data. It's labeled as AI-generated and never acts on its own (ADR-0007).
 4. **One-tap resume:** an action link in the alert (authenticated), a Discord slash command (`/nexus resume`), or the Command Center. Voice resume comes with the voice ops line. Resume needs GM/admin/owner; the owner's action is audited like any other.
 5. **Auto-escalation:** if the pause lasts longer than a configurable time with no response, re-alert (PROPOSED interval).
 
 ## Addendum: Who edits game rules (owner decision 2026-10-17)
-Game rules, balance, campaign options (e.g. friendly fire, weather) and content: **Owner and Admin** only. The 2026-10-17 decision included the Game Master; Q-ALN-10 (2026-10-18) narrowed it: campaign setup is Owner/Admin only, and a GM runs only the Static and world events during play (rank/XP presets open, §13). **Moderators do not edit rules.** They moderate users and can pause (with a reason, Q-RB-1).
+Game rules, balance, campaign options (e.g. friendly fire, weather) and content: **Owner and Admin** only. The 2026-10-17 decision included the Game Master; Q-ALN-10 (2026-10-18) narrowed it: campaign setup is Owner/Admin only, and a GM runs only the Static and world events during play. A GM may draft or propose rank/XP presets, which an Owner or Admin approves and applies (Q-ALN-22, §6.5). **Moderators do not edit rules.** They moderate users and can pause (with a reason, Q-RB-1).
