@@ -11,7 +11,7 @@ The owner wants `main` to contain only verified work: CI passed, CD passed, depl
 | Branch | Purpose | Merges in from | Protection |
 |---|---|---|---|
 | `main` | Production. Every commit is a verified release. | `develop` (*promotion PR*, merge commit) and `hotfix/*` only | All required checks green, staging deploy healthy, merge restricted to the owner, no force-push. Tags via release-please. |
-| `develop` | Integration of all day-to-day work | `feat/*`, `fix/*`, `docs/*`, `chore/*` | PR required. **Gate: security + build** (see below). Tests run but are advisory. No force-push. |
+| `develop` | Integration of all day-to-day work | `feat/*`, `fix/*`, `docs/*`, `chore/*` | PR required. **Gate: security + build + lint/format/typecheck** (see below). Tests run but are advisory. No force-push. |
 | `feat/NX-###-…` etc. | One tracker item | branched from `develop` | — |
 | `hotfix/…` | Urgent production fix | branched from `main`, merged to `main` **and** back to `develop` | Same as `main` |
 | `release/*` | **Not used** for now. Revisit if we ever need to stabilize a release while `develop` moves on. | — | — |
@@ -24,7 +24,7 @@ The owner wants `main` to contain only verified work: CI passed, CD passed, depl
 | dependency-review / SCA high or critical | **Required** | Required |
 | zizmor (workflow security) | **Required** | Required |
 | Build (packages and images build) | **Required** | Required |
-| Lint / format / typecheck | Advisory | Required |
+| Lint / format / typecheck | **Required** (amended 2026-10-18, Q-CI-6) | Required |
 | Unit + property tests | Advisory | Required |
 | sim-determinism (golden replays) | Advisory | Required |
 | Integration + Playwright | Advisory | Required |
@@ -45,3 +45,8 @@ The planning PR merges straight into `main`, which the owner allowed while there
 - `develop` can carry in-progress work with failing tests, but never a known secret leak or a new high-severity vulnerability.
 - More PRs, since releases need a `develop → main` promotion PR (merge commit). release-please then opens its own *release PR* on `main`.
 - Feature PRs squash into `develop`. Promotion and hotfix PRs use merge commits so the branches share history.
+
+## Amendment (2026-10-18): lint, format and typecheck block on `develop` (Q-CI-6)
+- **Change:** lint, format and typecheck move from advisory to **required** on `develop`. Tests, golden replays, integration and Playwright stay advisory on `develop` and required on `main`.
+- **Why:** these checks take seconds and are almost always auto-fixable, and a clean `develop` keeps agents on every machine from inheriting errors. This matches the `ci-gate` job in `.github/workflows/ci.yml`.
+- **Status:** accepted by the owner, 2026-10-18.
