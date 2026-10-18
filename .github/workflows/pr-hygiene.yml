@@ -1,0 +1,126 @@
+# PR hygiene (NX-017): Conventional Commit PR title, NX-### tracker ID, every
+# PR commit linted, size label. Spec: docs/cicd/CICD-ARCHITECTURE.md §2-§4.
+#
+# Called from ci.yml on every PR (into `develop` and `main`) so `ci-gate`
+# gates on it (CICD §4: one required check). Title and commit lint apply to
+# all PRs, so a hotfix commit on `main` can't later block the back-merge. The
+# tracker ID is required only on PRs into `develop`, except Dependabot PRs and
+# back-merges from `main`; promotion, hotfix and release PRs into `main` are
+# owner PRs (CICD §2).
+#
+# Feature PRs merge with merge commits (ADR-0009), so every branch commit lands
+# in `develop`: each one goes through scripts/check_commit_msg.py, as does the
+# title (it becomes the merge subject).
+#
+# Security notes: PR title, body and commit messages are untrusted. They reach
+# shell steps only through env vars or git. check_commit_msg.py prints a bad
+# subject only after its own "check_commit_msg: " prefix, so it can never start
+# a workflow command line.
+name: pr-hygiene
+
+on:
+  workflow_call:
+
+permissions: {}
+
+jobs:
+  checks:
+    name: title, tracker ID, commits
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      size: ${{ steps.size.outputs.size }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # HEAD is the PR merge commit: HEAD^1 is the base tip, HEAD^2 the PR head.
+          fetch-depth: 0
+      - name: Size (changed lines, lockfiles excluded)
+        id: size
+        run: |
+          set -euo pipefail
+          # ponytail: excludes lockfiles only; exclude generated contract types when NX-021 adds them.
+          lines="$(git diff --numstat HEAD^1 HEAD -- . ':(exclude)*.lock' ':(exclude)**/pnpm-lock.yaml' \
+            | awk '$1 != "-" { n += $1 + $2 } END { print n + 0 }')"
+          if   [ "$lines" -lt 10 ];   then size=XS
+          elif [ "$lines" -lt 100 ];  then size=S
+          elif [ "$lines" -lt 400 ];  then size=M
+          elif [ "$lines" -lt 1000 ]; then size=L
+          else size=XL; fi
+          echo "Changed lines: $lines (size:$size)"
+          echo "size=$size" >> "$GITHUB_OUTPUT"
+      - name: PR title is a Conventional Commit
+        if: ${{ !cancelled() }}
+        env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: |
+          set -euo pipefail
+          printf '%s\n' "$TITLE" > "$RUNNER_TEMP/title"
+          python3 scripts/check_commit_msg.py "$RUNNER_TEMP/title"
+          # The script lets git's own "Merge ..." subjects through; a PR title
+          # becomes the merge subject, so it gets no such pass.
+          case "$TITLE" in
+            "Merge "*) echo "::error title=PR title::Use a Conventional title (e.g. chore: back-merge main into develop), not \"Merge ...\"."; exit 1 ;;
+          esac
+      - name: PR references a tracker ID (NX-###)
+        if: ${{ !cancelled() }}
+        env:
+          AUTHOR: ${{ github.event.pull_request.user.login }}
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          REPO: ${{ github.repository }}
+          TITLE: ${{ github.event.pull_request.title }}
+          BODY: ${{ github.event.pull_request.body }}
+        run: |
+          set -euo pipefail
+          # Dependabot PRs have no tracker item; NX-018 is their standing reference.
+          if [ "$AUTHOR" = "dependabot[bot]" ]; then echo "Dependabot PR: tracker ID not required"; exit 0; fi
+          if [ "$BASE_REF" = "main" ]; then echo "PR into main: tracker ID not required"; exit 0; fi
+          if [ "$HEAD_REF" = "main" ] && [ "$HEAD_REPO" = "$REPO" ]; then echo "Back-merge from main: tracker ID not required"; exit 0; fi
+          if printf '%s\n%s\n' "$TITLE" "$BODY" | grep -Eq 'NX-[0-9]{3,}'; then
+            echo "Tracker ID found"
+          else
+            echo "::error title=No tracker ID::Reference the tracker item (NX-###) in the PR title or body (AGENTS.md rule 1)."
+            exit 1
+          fi
+      - name: Every PR commit passes the commit-message lint
+        if: ${{ !cancelled() }}
+        run: |
+          set -euo pipefail
+          fail=0
+          for sha in $(git rev-list --reverse HEAD^1..HEAD^2); do
+            git log -1 --format=%B "$sha" > "$RUNNER_TEMP/msg"
+            if ! python3 scripts/check_commit_msg.py "$RUNNER_TEMP/msg"; then
+              echo "::error title=Commit message::commit $sha fails the commit-message lint (see log)"
+              fail=1
+            fi
+          done
+          exit "$fail"
+
+  size-label:
+    name: size label
+    needs: checks
+    # Labels are informational: a failure here never blocks the PR. Fork PRs get
+    # a read-only token, so they are skipped.
+    if: ${{ !cancelled() && needs.checks.outputs.size != '' && github.event.pull_request.head.repo.full_name == github.repository }}
+    continue-on-error: true
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      pull-requests: write
+    steps:
+      - name: Apply size label
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          SIZE: size:${{ needs.checks.outputs.size }}
+        run: |
+          set -euo pipefail
+          gh pr view "$PR" --json labels -q '.labels[].name' | grep '^size:' | grep -vxF "$SIZE" \
+            | while read -r old; do gh pr edit "$PR" --remove-label "$old"; done || true
+          gh pr edit "$PR" --add-label "$SIZE"

@@ -8,6 +8,8 @@
 #     `develop`, required when it is `main`. Advisory test jobs still run and
 #     show red; ci-gate turns their failure into a warning instead of failing.
 #   - Skipped jobs (path filter) count as success.
+#   - pr-hygiene (pr-hygiene.yml, NX-017) is blocking on every PR.
+#     `edited` re-runs CI so a fixed PR title or body clears it.
 #   - python-test also runs the repo-check script tests (scripts/tests), so
 #     they follow the same advisory/required rule as the other tests.
 #
@@ -19,6 +21,7 @@ name: ci
 on:
   pull_request:
     branches: [develop, main]
+    types: [opened, synchronize, reopened, edited]
   push:
     branches: [develop, main]
 
@@ -60,7 +63,7 @@ jobs:
           # (a name like "::error::..." would be parsed as a workflow command).
           changed="$(git diff --name-only HEAD^1 HEAD)"
           echo "Changed files: $(printf '%s\n' "$changed" | grep -c . || true)"
-          shared='^(contracts/|Makefile$|\.github/workflows/ci\.yml$)'
+          shared='^(contracts/|Makefile$|\.node-version$|\.github/workflows/ci\.yml$)'
           if printf '%s\n' "$changed" | grep -Eq "^(services/|tools/|scripts/)|$shared"; then
             echo "python=true" >> "$GITHUB_OUTPUT"
           else
@@ -146,7 +149,7 @@ jobs:
           package_json_file: apps/overlay/package.json
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "22"
+          node-version-file: .node-version
           cache: pnpm
           cache-dependency-path: apps/overlay/pnpm-lock.yaml
       # Same scripts as `make check-overlay`, plus the production build.
@@ -175,7 +178,7 @@ jobs:
           package_json_file: apps/overlay/package.json
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "22"
+          node-version-file: .node-version
           cache: pnpm
           cache-dependency-path: apps/overlay/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
@@ -189,10 +192,18 @@ jobs:
       contents: read
       security-events: write
 
+  pr-hygiene:
+    name: pr-hygiene
+    if: github.event_name == 'pull_request'
+    permissions:
+      contents: read
+      pull-requests: write # size label only (pr-hygiene.yml size-label job)
+    uses: $/.github/workflows/pr-hygiene.yml
+
   ci-gate:
     name: ci-gate
     if: always()
-    needs: [changes, python, python-test, overlay, overlay-test, security]
+    needs: [changes, pr-hygiene, python, python-test, overlay, overlay-test, security]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions: {}
@@ -202,6 +213,7 @@ jobs:
           # PRs: target branch. Pushes: the branch pushed to.
           TARGET_BRANCH: ${{ github.base_ref || github.ref_name }}
           R_CHANGES: ${{ needs.changes.result }}
+          R_PR_HYGIENE: ${{ needs.pr-hygiene.result }}
           R_PYTHON: ${{ needs.python.result }}
           R_PYTHON_TEST: ${{ needs.python-test.result }}
           R_OVERLAY: ${{ needs.overlay.result }}
@@ -226,6 +238,7 @@ jobs:
             esac
           }
           check changes "$R_CHANGES" required
+          check pr-hygiene "$R_PR_HYGIENE" required
           check python "$R_PYTHON" required
           check python-test "$R_PYTHON_TEST" test
           check overlay "$R_OVERLAY" required
