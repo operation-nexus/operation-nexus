@@ -12,7 +12,7 @@ The plans call the sim deterministic, but the sample code uses `random`, `uuid4`
 - Entity ids are sequential integers allocated by the kernel. Iteration always happens in id order.
 - Positions use float64. A canonical state hash quantizes values (to 1 mm and 1e-6) before hashing. Cross-machine float determinism is **not** guaranteed, so replays are verified on the same platform and Python version.
 - Commands are applied in canonical order: `(target_tick, arrival_seq)`.
-- All non-deterministic inputs (chat commands, LLM advisor choices, operator actions) enter only as logged `Command`s.
+- All non-deterministic inputs (chat commands, LLM advisor choices, staff actions) enter only as logged `Command`s.
 - The runtime uses a fixed-step accumulator on `time.monotonic()`, outside the kernel.
 
 ## Consequences

@@ -73,7 +73,7 @@ Kick is an optional platform, not a committed one (Q-PROD-2); its B1 path exists
 ### Moderation (SEC-MOD)
 - **SEC-MOD-1.** Every user-derived string MUST pass the moderation pipeline before render, TTS, or upload: normalization → denylist (including leetspeak and homoglyph folding) → optional classifier. Unapproved names render as a **neutral generated callsign** (e.g., `VIPER-27`), not the raw display name (Q-MOD-1).
 - **SEC-MOD-2.** TTS MUST speak only approved callsigns, or a phonetic-alphabet readout of them, and never raw usernames or raw chat.
-- **SEC-MOD-3.** The operator MUST have a kill switch that blanks user text, mutes TTS, freezes spawns, and bans a user across platforms, reachable from a phone (ADMIN spec).
+- **SEC-MOD-3.** Staff MUST have a kill switch that blanks user text, mutes TTS, freezes spawns, and bans a user across platforms, reachable from a phone (ADMIN spec).
 - **SEC-MOD-4.** Custom or cloned voices MUST NOT ship without a written consent policy and an approved ADR.
 
 ### LLM (SEC-LLM)
@@ -104,4 +104,4 @@ Kick is an optional platform, not a committed one (Q-PROD-2); its B1 path exists
 ## 6. Residual risks accepted (pending owner sign-off)
 - Platform outages and policy changes are outside our control. Mitigation: multi-platform support, graceful degradation, and monitoring.
 - Usernames inside clips that were already posted can't be erased.
-- The moderation denylist will never be complete. Defense in depth: generated callsigns by default and an operator kill switch.
+- The moderation denylist will never be complete. Defense in depth: generated callsigns by default and a staff kill switch.

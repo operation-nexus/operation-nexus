@@ -18,7 +18,7 @@ owner call (grill pass, NX-323). New names follow the dominant style in §1 and 
 | Schema titles, wire message `type` | `PascalCase` | `ChatEnvelope`, `Hello`, `Snapshot`, `Hud` | CONTRACTS §3.1, §7 |
 | Fields (wire, Python, TS, DB columns) | `snake_case` everywhere; TS does not camelCase | `arrival_seq`, `reason_category`, `taunt_opt_out` | CONTRACTS §3.1 |
 | Sim events (`kind`) | `PascalCase`, usually `<Subject><PastVerb>` | `UnitSpawned`, `CampaignClockPaused`, `JobClaimed`, `NodeCaptured` | CONTRACTS §6 |
-| Commands (`CommandKind`) | `UPPER_SNAKE`; operator commands start `OP_`, system commands `SYS_`; chat and advisor commands have no prefix | `JOIN`, `SET_CALLSIGN`, `OP_CAMPAIGN_PAUSE`, `SYS_SET_CALLSIGN`, `ADVISOR_CHOICE` | CONTRACTS §5 |
+| Commands (`CommandKind`) | `UPPER_SNAKE`; staff commands start `STAFF_`, system commands `SYS_`; chat and advisor commands have no prefix | `JOIN`, `SET_CALLSIGN`, `STAFF_CAMPAIGN_PAUSE`, `SYS_SET_CALLSIGN`, `ADVISOR_CHOICE` | CONTRACTS §5 |
 | Reject reasons | `UPPER_SNAKE` | `UNIT_IN_SORTIE`, `CAMPAIGN_PAUSED` | CONTRACTS §5.3 |
 | Admin API routes | `/admin/<group>/…`, lowercase `kebab-case` segments, `{id}` path params | `POST /admin/kill-switch`, `POST /admin/commanders/{id}/purge-units` | CONTRACTS §8 |
 | Admin roles | `UPPER_SNAKE` | `OWNER`, `ADMIN`, `GAME_MASTER` | ADMIN-RBAC §4.1 |
@@ -48,7 +48,7 @@ owner call (grill pass, NX-323). New names follow the dominant style in §1 and 
 ## 3. Inconsistencies found (not changed; owner or follow-up item decides)
 
 Terms:
-1. **"Operator" has three meanings.** A player (lore name, Q-BRAND-2/7), Command Center staff (ADMIN-RBAC; `CommandSource.OPERATOR`, `operator_id`, `OP_*` commands, `PauseReasonCategory.OPERATOR`, "operator pause"), and the O-2 rank display name (Q-NAME-1). GAMEPLAY even uses both in one paragraph ("Operator safety actions" next to players). Needs a ruling before contracts are generated.
+1. **"Operator" had three meanings (resolved 2026-10-18, Q-ALN-40).** Operator now means a player only. Command Center people (owner, admins, moderators, GMs) are staff: `staff_id`, `STAFF_*` commands, `CommandSource.STAFF`, `PauseReasonCategory.STAFF` with `StaffPauseSubReason`, "staff pause". The O-2 rank no longer uses the word (Q-ALN-41). Unit control `OPERATOR` / `AUTO` (`UnitControlChanged`) keeps its name because it means player control.
 2. **Commander vs Operator for players.** Data and mechanics say commander (`commander_id`), stream copy says Operator; specs mix the two in mechanics prose ("only active human operator", PROG-10).
 3. **Lore names in mechanics docs.** GAMEPLAY TS-4 says mechanics docs keep plain names (coalition, enemy), yet specs use "the Static" throughout and, after this pass, "the Quorum" where they used "Clearwave". Contracts stay plain (`Side`: `COALITION`, `ENEMY`).
 4. **Two "decision windows".** The Tasking Board hold after `!join` (`tasking.decision_window_s`, GAMEPLAY §1b) and the director's planning cycle (`director.window_s`, THREAT-DIRECTOR §4, TD-1) share the name.
@@ -60,7 +60,7 @@ Terms:
 Case and id style:
 9. **Event naming.** THREAT-DIRECTOR §6a writes `GM_RELEASED{reason}` (UPPER_SNAKE), while CONTRACTS lists GM events as `GmTakeoverChanged`. Acronyms are cased both ways: `AARStarted` vs `GmTakeoverChanged`. Some events are nouns, not `<Subject><PastVerb>`: `CaptureProgress`, `ThreatAdaptation`, `PresenceSnapshot`, `StateHash`, `ScoutPing`, `DirectorProposal`.
 10. **Same enum, two cases.** Stance and objective mode are lowercase in chat and config (`press`, `timed`) and `UPPER_SNAKE` in contracts (`PRESS`, `TIMED`); the mapping is implied, not written down. Identity history kinds in DATA-MODEL (`CALLSIGN_CHANGED`) mirror the sim event `CallsignChanged` in another case.
-11. **Command prefixes.** `SUPPORT_REDEEM`, `ADVISOR_CHOICE` and `ORDER_PARSED` have no source prefix while operator and system commands do (`OP_`, `SYS_`).
+11. **Command prefixes.** `SUPPORT_REDEEM`, `ADVISOR_CHOICE` and `ORDER_PARSED` have no source prefix while staff and system commands do (`STAFF_`, `SYS_`).
 12. **Duration units for similar timers.** `presence.idle_handoff_min` and `taunt.name_cooldown_min` use minutes; `tasking.claim_lease_s`, `director.window_s` and `slots.respawn_delay_s` use seconds; `campaign.target_duration_h` uses hours. Each is suffixed, so this is readable, but there is no rule for which unit to choose.
 13. **Permissions look like config keys.** Both are dotted lowercase, and some share a first segment (`campaign.pause` permission vs `campaign.*` config keys).
 14. **Requirement-id prefixes collide.** STATE-MACHINES invariants use `ID-n`, `PA-n`, `OC-n`, `OPS-n` per section, next to IDENTITY's `ID-PREF-1` and OPS-ADMIN's `OA-n`; DATA-INTEGRITY's fallback ids `FB-n` sit next to GAMEPLAY's `FB-UX-n`. TESTING-STRATEGY §3.6 cites `Q-NFR-*`, an area that has no rows in OPEN-QUESTIONS.

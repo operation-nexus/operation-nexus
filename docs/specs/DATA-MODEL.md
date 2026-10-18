@@ -182,11 +182,11 @@ CREATE TABLE campaign_config_history (
   campaign_id       TEXT NOT NULL REFERENCES campaigns(campaign_id),
   effective_tick    INTEGER NOT NULL CHECK (effective_tick >= 0),
   config_hash       TEXT NOT NULL REFERENCES config_versions(config_hash),
-  arrival_seq       INTEGER,                   -- the OP_CONFIG_RELOAD command; NULL for the campaign's starting row
+  arrival_seq       INTEGER,                   -- the STAFF_CONFIG_RELOAD command; NULL for the campaign's starting row
   PRIMARY KEY (campaign_id, effective_tick)
 ) STRICT;
 ```
-- Every campaign gets a starting row (`effective_tick = start_tick`). Each hot reload (`OP_CONFIG_RELOAD` → `BalanceReloaded`) appends one row. Replays and crash bundles use this history to load the right config at each tick.
+- Every campaign gets a starting row (`effective_tick = start_tick`). Each hot reload (`STAFF_CONFIG_RELOAD` → `BalanceReloaded`) appends one row. Replays and crash bundles use this history to load the right config at each tick.
 
 ### 4.9 campaign_participation
 ```sql
@@ -374,7 +374,7 @@ CREATE TABLE admin_audit (
 ) STRICT;
 CREATE INDEX idx_admin_audit_time ON admin_audit(occurred_at);
 ```
-- **Pause rows (Q-ALN-31):** a `PAUSE` row's `detail_json` holds `reason_category` (`PauseReasonCategory`: `OPERATOR`, `TECHNICAL`, `MAINTENANCE`, `CEASEFIRE`) and `sub_reason` (`RAID`, `ABUSE`, `CONTENT`, `OTHER`, or `null`). `sub_reason` is non-null only when `reason_category = 'OPERATOR'`; the pause command itself carries the same two fields into the command log (ADMIN-RBAC pause flow).
+- **Pause rows (Q-ALN-31):** a `PAUSE` row's `detail_json` holds `reason_category` (`PauseReasonCategory`: `STAFF`, `TECHNICAL`, `MAINTENANCE`, `CEASEFIRE`) and `sub_reason` (`RAID`, `ABUSE`, `CONTENT`, `OTHER`, or `null`). `sub_reason` is non-null only when `reason_category = 'STAFF'`; the pause command itself carries the same two fields into the command log (ADMIN-RBAC pause flow).
 
 ### 4.16 deletion_requests
 ```sql
@@ -461,7 +461,7 @@ For each `AppendXp(commander, reason, base_xp, source_tick)`:
    "source": "CHAT", "platform": "TWITCH",
    "commander_id": "0192…", "args": {"role": "LOGI"}, "late": false}
   ```
-  - `source` is a `CommandSource` (`CHAT|OPERATOR|ADVISOR|SYSTEM`, CONTRACTS §3.3). `platform` is set only for `CHAT` commands and is `null` otherwise. No vendor field names (ADR-0010 N-6).
+  - `source` is a `CommandSource` (`CHAT|STAFF|ADVISOR|SYSTEM`, CONTRACTS §3.3). `platform` is set only for `CHAT` commands and is `null` otherwise. No vendor field names (ADR-0010 N-6).
   - `commander_id` only; no names (DM-6).
   - Advisor choices and admin actions are commands too (ADR-0002).
 - **Flush and fsync:** every 1 s (NFR-7), and on campaign end and shutdown.
@@ -592,7 +592,7 @@ Decided 2026-10-18 (spec-alignment batch):
 - **Q-ALN-28:** on a merge, `taunt_opt_out` opt-out wins (§4.2, §4.12).
 - **Q-ALN-29:** the suffix after `REDACTED-` is a random 4-character tag stored at deletion in the tombstone callsign `X-<tag>` (§4.2, §6.4).
 - **Q-ALN-30:** jobs completed by a viewer's AUTO unit are AUTO assists, recap-only, excluded from XP, Merit and leaderboards (`ai_run_at_end`, `v_auto_assists`, §4.13a).
-- **Q-ALN-31:** pause audit rows carry `reason_category` plus an optional `sub_reason` used only for `OPERATOR` (§4.15).
+- **Q-ALN-31:** pause audit rows carry `reason_category` plus an optional `sub_reason` used only for `STAFF` (§4.15).
 - PROGRESSION PROG-4 / IDENTITY §1: platform account age is stored as `platform_identities.platform_account_created_at` (§4.3).
 
 Not modeled yet:
@@ -601,7 +601,7 @@ Not modeled yet:
 
 ## Data model additions pending merge (2026-10-17)
 - **From [ADMIN-RBAC](ADMIN-RBAC.md):**
-  - Tables: `operators`, `role_grants`, `operator_credentials`, `admin_sessions`, `approval_requests`, `scheduled_items`, `content_versions`.
+  - Tables: `staff`, `role_grants`, `staff_credentials`, `admin_sessions`, `approval_requests`, `scheduled_items`, `content_versions`.
   - New `admin_audit` columns: `channel`, `permission`, `approval_request_id`, `flags`.
 - **From [SUPPORT-REDEMPTIONS](SUPPORT-REDEMPTIONS.md) §8:** `support_events`, `redemption_rules`.
 - **From GAMEPLAY §9b:** `campaign_carryover` (campaign_id, from_campaign_id, effects JSON, config_hash, applied_at).

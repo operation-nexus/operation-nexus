@@ -20,7 +20,7 @@ side wins; stop and ask. Related: `docs/quality/DATA-INTEGRITY.md`, `REVIEW-CHEC
 ## 1. Security (never acceptable)
 
 - **TLS is verified.** No `verify=False`, `ssl._create_unverified_context()`, `CERT_NONE` or `check_hostname=False`.
-  For a private CA, pass a CA bundle (`ssl.create_default_context(cafile=...)`, httpx `verify=<path>`). An operator
+  For a private CA, pass a CA bundle (`ssl.create_default_context(cafile=...)`, httpx `verify=<path>`). An owner
   opt-out is an explicit env flag that defaults to verifying and logs a warning.
 - **No credentials in code, including fallbacks.** `os.environ.get("X", "some-password")` is banned: read the value,
   fail loudly when it is missing. This is the DATA-INTEGRITY §3 rule applied to secrets.
