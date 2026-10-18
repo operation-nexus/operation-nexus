@@ -243,3 +243,96 @@ Queries: `"Operation Lattice" OR "Meshfront" video game`; `"Swarmlink" OR "Swarm
 - [ ] Handles and domains for the chosen name (`twitch.tv/hivewire`, `@hivewire` on YouTube/TikTok/X/Bluesky/Instagram, Discord vanity, `r/hivewire`; `.com`/`.gg`/`.tv`/`.live`). Search results show hivewire.ai, hivewire.us and hivewire.news in use by other businesses.
 - [ ] Chat test: have a few viewers type the name from audio only; check TTS pronunciation in the chosen voice.
 - [ ] Record the decision under Q-BRAND-6 and NX-297.
+
+---
+
+# Round 3: Hiveplex and Swarm variants (2026-10-18)
+
+> Same limits as rounds 1–2: **knockout search only, not legal clearance.** All findings come from web-search result excerpts. No store page, handle page or official register could be opened. **Every trademark status is [UNVERIFIED].** "Nothing found" means only that these searches returned nothing, not that a name is free. Handle and domain availability was **not** checked.
+
+Scope: the owner's favourite **Hiveplex** (and "Hive Plex"), plus the Swarm variants **Swarmplex, Hiveswarm, Swarmfront, Swarmline, Plexswarm, Swarmlink** (Q-BRAND-6). Taglines checked for existing slogan use only.
+
+## Method (round 3)
+
+Date **2026-10-18**. Tool: web search (US index), with store filters (steampowered, itch.io, Epic, App Store, Google Play, Roblox) and trademark-aggregator filters (Justia, uspto.report, Trademarkia, gleanmark, trademarkelite) where noted.
+
+**Blocked:** shell HTTPS was refused by the network proxy (`CONNECT tunnel failed, response 403`) for tmsearch.uspto.gov, tmdn.org (TMview), branddb.wipo.int, store.steampowered.com, swarmfront.itch.io, twitch.tv and Companies House. Page fetch failed with DNS `ENOTFOUND` for swarmfront.itch.io and find-and-update.company-information.service.gov.uk. **No official register, store page or handle was opened.**
+
+**Not done:** handles, domains (one broker listing turned up by chance, see R3.1), Xbox/PlayStation/Nintendo stores, non-English markets.
+
+## Results (round 3)
+
+| Name | Risk | Main evidence |
+|---|---|---|
+| **Swarmfront** | **High** | An itch.io developer account **swarmfront** hosts a Windows game page, *Swarmfront* / *Creeping Doom*. It is a survival RTS with drones, and bases act as energy nodes against an enemy that spreads across the map. Same genre and theme as ours. |
+| **Hiveplex** / Hive Plex | **Medium** | No game, stream channel or HIVEPLEX mark found. But **HIVEPLEX LTD** is a UK company (2021), Google's campus beehives were called the "Hiveplex" (2010 press), and hiveplex.com is listed for sale by a broker. The "-plex" suffix invites comparison with **Plex, Inc.**, which has PLEX marks in classes 9/41/42, went to court over "ZeePlex", and ran a game-streaming service in 2021–22. |
+| **Plexswarm** | **Medium** | Nothing by that name found. Results were Plex media server running on Docker Swarm (ClusterPlex). Leading with "Plex" makes it read like a Plex add-on, the strongest Plex association of any candidate. |
+| **Hiveswarm** | **Medium** | No product found. An itch.io bee game, *Hive*, ships as `HiveSwarm.exe`. The name is one letter off ***Hiveswap*** (What Pumpkin Games, Kickstarter-funded, well known). "Hive" and "swarm" also say the same thing twice. |
+| **Swarmlink** | **Medium** | No game or mark found, but several drone and networking products use it: Robsense SwarmLink (a discontinued drone mesh radio), SnAID Fly's SwarmLink protocol, a GitHub P2P chat app, a DoraHacks agent-coordination project, and a German agency at swarmlink.de. |
+| **Swarmplex** | **Low–Medium** | Nothing found in any search (web, stores, aggregators). It has the same Plex-suffix caveat as Hiveplex, with no other hit. |
+| **Swarmline** | **Low** (thin evidence) | One use found: a student hackathon team's drone-coordination software (a self-published LinkedIn post). No game, store, stream or mark hit. |
+
+## R3.1 Hiveplex / Hive Plex
+
+| Finding | Source |
+|---|---|
+| Google's "Hiveplex": beehives on the Mountain View campus, 2010 (a pun on Googleplex) | [mv-voice.com](https://www.mv-voice.com/news/2010/09/23/googles-hiveplex-is-the-place-to-bee/), [sunset.com](https://www.sunset.com/food-wine/sunset-meets-googleplex-honey-extraction-at-the-hiveplex) |
+| HIVEPLEX LTD, UK company 13440983, incorporated 2021-06-07 in Godalming, mail-order/internet retail (per excerpt) | [Companies House](https://find-and-update.company-information.service.gov.uk/company/13440983) |
+| hiveplex.com listed for sale at $2,495 on a domain-broker page (per excerpt; not checked at a registrar) | [dnbolt.com](https://dnbolt.com/hiveplex) |
+| No HIVEPLEX record in aggregator results. Near-marks shown: HIVE STREAMING (video-distribution software), HIVEMQ, HIVEFLOW, and HIVE (GB Gas, smart thermostats). Round 2 also found HIVE (Hive Games Limited) | [gleanmark HIVE STREAMING](https://gleanmark.com/trademark/uspto-79316715), [gleanmark HIVEMQ](https://gleanmark.com/trademark/uspto-79197176), [Justia HIVE](https://trademarks.justia.com/866/39/hive-86639015.html) |
+| Other "Hive" game brands: The Hive Minecraft server (Hive Games Limited, an official Minecraft partner), Com2uS's HIVE game-backend platform, and the *Hive* board game with its digital edition | [minecraft.net](https://minecraft.net/ja-jp/article/enter-hive), [invenglobal.com](https://www.invenglobal.com/articles/22078/from-backend-to-global-support-in-one-go-com2us-platform-hive), [App Store](https://apps.apple.com/app/hive-game/id6747834729) |
+| Plex, Inc.: PLEX reg. 4521387 (class 9 media software), plus more PLEX filings in classes 9/38/41/42 per Trademarkia. Separate PLEX marks: Plex Systems (class 9 enterprise software, reg. 4771334) and Plex LLC (class 28 fitness, 2025 application) | [Justia 86065602](https://trademarks.justia.com/860/65/plex-86065602.html), [Trademarkia owner](https://www.trademarkia.com/owners/plex-inc), [Justia 86245712](https://trademarks.justia.com/862/45/plex-86245712.html), [uspto.report 99217678](https://uspto.report/TM/99217678) |
+| Plex sued Zee over "ZeePlex" (India, 2020). The Bombay High Court refused interim relief (no Indian registration, confusion unlikely) | [torrentfreak.com](https://torrentfreak.com/?p=194747), [conventuslaw.com](https://conventuslaw.com/report/india-now-streaming-no-ad-interim-relief-for-plex/) |
+| Plex's trademark guidelines claim PLEX as its exclusive mark | [plex.tv guidelines](https://www.plex.tv/sv/about/privacy-legal/plex-trademarks-and-guidelines/) |
+| Plex Arcade (retro game streaming) launched in 2021 and closed on 2022-03-31 | [alternativeto.net](https://alternativeto.net/news/2021/1/plex-introduces-built-in-video-game-streaming-service-plex-arcade-partners-with-atari), [plex.tv blog](https://www.plex.tv/ru/blog/game-on-a-plex-blog-story/) |
+| No Twitch, YouTube, Discord, Reddit or GitHub hit for "Hiveplex" | searches below |
+
+Queries: `"Hiveplex"` (extended); `"Hiveplex" OR "Hive Plex" game OR app OR company`; `HIVEPLEX trademark`; `"Hiveplex" … Twitch OR YouTube OR Discord OR Reddit OR GitHub`; store-restricted `Hiveplex OR …`; aggregator-restricted `HIVEPLEX OR SWARMPLEX OR …`; `PLEX trademark enforcement opposition …`; `PLEX trademark registration Plex, Inc. class 9 class 41 games` (aggregators); `Plex Arcade discontinued`; `"Hive Games" Minecraft server …`.
+
+**Why medium:** there is no direct clash in games or streaming. The exposure is the **"plex" suffix**. Plex is a large streaming brand with class 41 filings, it has gone after a "-plex" compound before (and lost the interim round in India), and we will be a streamed entertainment product. A compound with a distinct lead word ("Hive") is a weaker case for Plex, but this needs a register check. Practical: easy to type. TTS should read it as "HIVE-plex" (test in the chosen voice). Lowercase `hiveplex` reads cleanly. Search results will be crowded by Googleplex, Plex and Hive brands. Expect "hive plex" / "hiveplexx" variants in chat.
+
+## R3.2 Swarm variants
+
+| Name | Finding | Source |
+|---|---|---|
+| Swarmfront | itch.io account *swarmfront* with a game page, "A downloadable game for Windows": a survival RTS with drones, a base energy network and a continuously spreading enemy, described as a proof of concept (excerpt; the page could not be opened) | [swarmfront.itch.io](https://swarmfront.itch.io/), [swarmfront.itch.io/swarmfront](https://swarmfront.itch.io/swarmfront) |
+| Swarmlink | Robsense SwarmLink drone telemetry mesh (discontinued); SnAID Fly SwarmLink protocol; a GitHub P2P chat app; a DoraHacks project; SwarmStudios at swarmlink.de | [ardupilot.org](https://ardupilot.org/copter/docs/common-telemetry-robsense-swarmlink.html), [snaidfly.com](https://www.snaidfly.com/), [GitHub](https://github.com/xingxingzaixian/SwarmLink), [dorahacks.io](https://dorahacks.io/build/42477/milestones), [Shopify directory](https://www.shopify.com/partners/directory/partner/west-side-design2) |
+| Swarmline | Hackathon drone-swarm coordination software (Singapore Defence Tech Hackathon), self-published | [LinkedIn](https://sg.linkedin.com/in/jonongca) |
+| Hiveswarm | itch.io *Hive* by "Ant" (a bee resource game) runs as `HiveSwarm.exe`. The search engine maps "Hiveswarm" to *Hiveswap* | [deta.itch.io/hive](https://deta.itch.io/hive), [Wikipedia: Hiveswap](https://en.wikipedia.org/wiki/Hiveswap) |
+| Plexswarm | Only Plex-on-Docker-Swarm material (ClusterPlex) | [Docker Hub](https://hub.docker.com/r/pabloromeo/clusterplex_orchestrator) |
+| Swarmplex | No result names it. Results were swarm-robotics papers, SwarmX (drones) and Swarm Technologies | [crunchbase SwarmX](https://www.crunchbase.com/organization/swarmx) |
+
+**Shared "Swarm" background** (affects all five): several *Swarm* games exist (Hothead 2011 for PS3/Xbox 360; Reflexive 1998; Greensky's *Swarm* and *Swarm 2* on Quest; an iOS bug-hive RTS), plus StarCraft II's *Heart of the Swarm* and *Swarmdustry* on Twitch. Foursquare claims **Swarm™** for its check-in app. Marks seen: SWARM (SWARM Biotactics, robotics software), SWARM A.I. (Unanimous A.I., class 42, live per excerpt; its "swarm intelligence" crowd-decision tech is close to our theme), and BEE SWARM SIMULATOR (Bear Bee LLC, class 41 online games). No video-game mark for SWARM alone was found. Sources: [Wikipedia: Swarm (2011)](https://en.wikipedia.org/wiki/Swarm_(2011_video_game)), [roadtovr.com](https://www.roadtovr.com/swarm-2-best-rated-quest-release/), [foursquare.com/legal/trademark](https://foursquare.com/legal/trademark), [uspto.report 99475696](https://uspto.report/TM/99475696), [Trademarkia SWARM A.I.](https://www.trademarkia.com/swarm-a-i-87306483), [Justia BEE SWARM SIMULATOR](https://trademarks.justia.com/878/91/bee-swarm-87891868.html), [streamscharts](https://streamscharts.com/games/swarmdustry).
+
+Queries: `Swarmplex`; `"Swarmplex" OR "Swarm Plex" OR "swarmplex.com"` (extended); `"Hiveswarm" OR "Hive Swarm" game`; `"Hiveswarm" OR "HiveSwarm" company OR software OR app`; `"Swarmfront" OR "Swarm Front" game`; `Swarmfront itch.io Creeping Doom RTS`; `"Swarmline" OR "Swarm Line"`; `"Plexswarm" OR "Plex Swarm"`; `"Swarmlink" OR "SwarmLink"` (extended); two store-restricted combined queries; `SWARM trademark video game software class 9 OR class 41` (aggregators); `"Swarm" Twitch channel OR streamer OR esports team`; `Foursquare Swarm app SWARM trademark`.
+
+**Practical notes:** "swarm" is easy to type and say. `swarmline` can be misread as "swarm-lin-e". `plexswarm` and `hiveswarm` have an awkward "xs"/"es" join in lowercase handles. Every Swarm name shares the generic "swarm" search noise (drones, bees, Docker Swarm). "Swarm" also has military-drone connotations, since several hits were defence products, so check that it fits the playful tone (Q-BRAND-1).
+
+## R3.3 Taglines
+
+- **"Many minds. One front."**: no exact-phrase use found. The nearest is the book title *Many Minds, One Self* (IFS Institute). Query: `"Many minds. One front" OR "Many minds, one front"`.
+- **"The crowd is the commander"**: no exact-phrase use found. Query: `"The crowd is the commander"`.
+
+On this evidence, both look usable as slogans. Slogans can be trademarks too, so include them in the register search if they go on merch.
+
+## Round 3 recommendation
+
+Ranked by the risk found, lowest first:
+
+1. **Swarmline** (low, thin evidence): fewest hits and no "-plex" issue. Run the manual steps before relying on it, because only three searches covered it.
+2. **Hiveplex** (medium): the owner's favourite is **workable**. No game, stream or mark clash was found. Before NX-297, a register search for PLEX-family marks in classes 41 and 9 must show nothing blocking it. Also confirm what hiveplex.com costs and whether HIVEPLEX LTD trades under that name. Always write it as one word, never "HivePlex" with a capital P, which stresses the Plex half.
+3. **Swarmplex** (low–medium): fewer direct hits than Hiveplex, but it has the same Plex question and a weaker theme ("hive" carries the hive-mind idea).
+4. **Swarmlink, Hiveswarm, Plexswarm** (medium): avoid. They are crowded by drone products, too close to *Hiveswap*, or read like a Plex add-on.
+5. **Swarmfront** (high): **avoid**. A same-genre itch.io game already uses the name.
+
+## Manual steps (round 3 additions)
+
+- [ ] USPTO, EUIPO/TMview, WIPO Global Brand Database, UKIPO: search `HIVEPLEX`, `HIVE PLEX`, `SWARMLINE`, `SWARMPLEX`, then `PLEX` and `SWARM` alone, in classes **9, 41, 42** (and **28** for any board/card spin-off) **[UNVERIFIED class scope; confirm against the Nice text]**. Re-check PLEX reg. 4521387 and Plex, Inc.'s class 41 filings for current status and goods.
+- [ ] Open swarmfront.itch.io and record the game title, author and last-update date (this confirms or clears the Swarmfront finding).
+- [ ] Look up HIVEPLEX LTD (13440983) on Companies House for its status and trading name.
+- [ ] Check hiveplex.com, swarmline.com and the `.gg`/`.tv`/`.live` versions at a registrar, noting the broker listing.
+- [ ] Handles: `twitch.tv/hiveplex`, `@hiveplex` on YouTube/TikTok/X/Bluesky/Instagram, a Discord vanity URL, `r/hiveplex` and a GitHub org (repeat for the runner-up).
+- [ ] Stores: search Steam, itch.io, Epic, Xbox, PlayStation, Nintendo eShop, App Store, Google Play and Roblox for the chosen name.
+- [ ] TTS and chat test: play the name in the chosen TTS voice, and have a few viewers type it from audio only.
+- [ ] Because of the Plex question, have a trademark attorney give a view on "Hiveplex" versus PLEX before spending on marks or merch.
+- [ ] Record the decision under Q-BRAND-6 and NX-297.

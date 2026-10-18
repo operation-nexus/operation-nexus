@@ -18,7 +18,7 @@ Mac done 2026-10-17 where checked; the Windows PC still needs every item (detail
 - [ ] Private vulnerability reporting ON
 - [ ] Actions: allow only selected actions, require SHA pinning, default `GITHUB_TOKEN` read-only
 - [ ] Environments `staging` and `production`; `production` requires your approval
-- [ ] Rulesets per ADR-0009: `develop` (security + build required) and `main` (all checks, owner-only merge)
+- [ ] Rulesets per ADR-0009: `develop` = require a PR (0 approvals), require status check `ci-gate`, block force-push and deletion, allow auto-merge (Settings → General → "Allow auto-merge" and "Automatically delete head branches"); `main` = all checks, owner-only merge
 - [ ] Optional: set the default branch to `develop`
 - [ ] Settings → General → **Automatically delete head branches** ON (AGENTS.md rule 11: merged feature branches are deleted)
 - [ ] Review PR #37 (repo skeleton) and merge it into `develop` if happy
