@@ -12,6 +12,7 @@ Status: Draft · Tracker: NX-150…NX-154 · Inputs: P228–238; owner rule C22 
 
 ## 2. Requirements
 - **FOW-1** Redaction MUST happen server-side, before serialization. Hidden entities MUST NOT appear in any payload sent to the overlay, the companion site, the public-site exports pushed while a campaign is running (leaderboards/stats JSON, Q-ARCH-16), or replays meant for the public.
+- **FOW-1a** **After the campaign ends (Q-ALN-21):** FoW applies only during the live campaign. Once a campaign has ended, its full archive (Q-ARCH-16), its replays and recaps, and the AAR "what you didn't see" reveal are exempt from FOW-1 and may show full, unredacted history. Anything published while the campaign is still running stays under FOW-1.
 - **FOW-2** SIGINT blobs MUST NOT leak entity ids, exact counts, or exact positions. Jitter comes from the seeded `fow` RNG and is re-rolled each refresh.
 - **FOW-3** Events (kill feed, tracers) involving hidden enemy units MUST be redacted ("Unknown contact destroyed VIPER-27").
 - **FOW-4** **Director fairness:** the Threat Director MUST decide using the *enemy-side* FoW view, built with the same algorithm from the enemy's sensors. This includes the jobs it posts on the Static's Tasking Board (Q-GD-34, THREAT-DIRECTOR TD-2). Exception: spawning in its own territory.
@@ -20,7 +21,7 @@ Status: Draft · Tracker: NX-150…NX-154 · Inputs: P228–238; owner rule C22 
 - **FOW-9** **Time and pauses (Q-CFG-8):** every FoW timer (Tier 1 refresh, `fow.track_fade_s`) is sim time and is converted to ticks at config load. While the campaign is paused (SIM-CORE SC-11) none advances: a last-known track does not age and no blob re-rolls.
 
 ## 2a. Track fade (owner, 2026-10-17)
-- **FOW-6** (behind a feature flag, off in the first build, Q-PROD-8): When sensor coverage of a tracked contact is lost (scout destroyed, out of range, radar jammed), the contact does not vanish. It becomes a **last-known track**: its position freezes and is shown with an age timer, its uncertainty circle grows, and after `fow.track_fade_s` (PROPOSED) it decays into a SIGINT blob. Seeded, deterministic, visible.
+- **FOW-6** (later phase, behind a feature flag, off in the first build; Q-PROD-8, Q-ALN-20; NX-301 does not block P1): When sensor coverage of a tracked contact is lost (scout destroyed, out of range, radar jammed), the contact does not vanish. It becomes a **last-known track**: its position freezes and is shown with an age timer, its uncertainty circle grows, and after `fow.track_fade_s` (PROPOSED) it decays into a SIGINT blob. Seeded, deterministic, visible.
 
 ## 2b. Target handoff (P4)
 - **FOW-7:** A painting scout can hand a target to a long-range shooter (strike missile, artillery, theater asset). That extends the shooter's effective range (beyond its own sensors) and raises Pk while the paint holds. If the paint drops, the shot reverts to blob accuracy.
@@ -32,6 +33,8 @@ Status: Draft · Tracker: NX-150…NX-154 · Inputs: P228–238; owner rule C22 
 - FOW-8: property: no job on either side's board references an entity that fails that side's visibility predicate.
 - FOW-9: a last-known track's age and uncertainty radius are identical at the pause tick and the resume tick.
 - FOW-1: a public-site export built mid-campaign contains no entity that fails the coalition visibility predicate.
+- FOW-1a: the end-of-campaign archive and "what you didn't see" view are built only after the campaign has ended; attempting to build either for a running campaign is rejected.
+- FOW-6: with the track-fade flag off, losing coverage never produces a last-known track.
 
 ## 4. Open questions
-Decided and folded in: Q-GD-16 (track fade, target handoff), Q-GD-34, Q-GD-37, Q-PROD-8, Q-ARCH-16, Q-CFG-8. Still open: the end-of-campaign full archive (Q-ARCH-16) and the AAR "what you didn't see" view reveal hidden history; whether that archive is exempt from FOW-1 once the campaign has ended is not decided. Q-PROD-8 puts track fade behind a flag, while TRACKER NX-301 says Q-GD-16 blocks P1; which phase FOW-6 ships in needs confirming.
+Decided and folded in: Q-GD-16 (track fade, target handoff), Q-GD-34, Q-GD-37, Q-PROD-8, Q-ARCH-16, Q-CFG-8, Q-ALN-20 (FOW-6 later behind a flag), Q-ALN-21 (post-campaign archive exempt from FOW-1). Still open: Q-ALN-1 splits sim time into world time and game time; which clock the Tier 1 refresh and `fow.track_fade_s` (FOW-9) use is not assigned.

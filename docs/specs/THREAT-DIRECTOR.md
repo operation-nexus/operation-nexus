@@ -30,12 +30,12 @@ There's a minimum dwell of 10 min of sim time per tier (`director.tier.min_dwell
 6. Select within budget. Optionally, the LLM advisor picks among the top-K (§6).
 7. **Turn operations into jobs** (Q-GD-34, Q-GD-37): the director is the strategic layer only. It never moves units directly; each selected operation becomes one or more jobs (stage, escort, strike, defend, reposition) on the Static's own Tasking Board (GAMEPLAY §1b), and Static units take them with the same mechanics as Clearwave units: claim leases, feasibility check, priority aging, slots and dedupe keys, deterministic assignment order, job dependencies (Q-GD-37). Parity: the Static gets the same job types and mechanics, with no unique powers; only the director may compose them into richer combinations.
 
-**TD-1 (time and pauses, Q-CFG-8, Q-OPS-8, Q-OPS-9):** every director timer is sim time: the decision window, tier dwell, threat-memory and provocation decay, PoL periods, the CHARLIE warning lead time, and the advisor deadline counted in decision windows. While the campaign is paused for any reason (operator pause, broadcast offline `TECHNICAL`, weekly `MAINTENANCE`, owner Ceasefire), none of them advances and the director makes no decision (SIM-CORE SC-11).
+**TD-1 (time and pauses, Q-CFG-8, Q-OPS-8, Q-OPS-9, Q-ALN-2, Q-ALN-3):** every director timer is sim time: the decision window, tier dwell, threat-memory and provocation decay, PoL periods, the CHARLIE warning lead time, and the advisor deadline counted in decision windows. Which of the two sim clocks (world time or game time, GAMEPLAY "Timers", Q-ALN-1) each of these uses is not yet assigned (§8). While the campaign is paused for any reason (`OPERATOR`, broadcast offline `TECHNICAL`, weekly `MAINTENANCE`, owner `CEASEFIRE`), none of them advances and the director makes no decision (SIM-CORE SC-11). Taunt naming cooldowns (TD-4) and the GM idle auto-release (§6a) are **not** sim timers: they run on a monotonic real clock outside the sim (Q-ALN-4).
 
 **TD-2 (own view only, FOW-4, Q-GD-37 item 9):** CP, candidate generation, scoring and the jobs the director posts are computed only from `EnemyView`. The Static's board never holds a job that targets or references an entity outside that view.
 
 ## 5. Low-population behavior
-At 0 humans, the coalition AI garrison holds the line and the Static drops to **Pattern of Life** (§5a); the campaign clock keeps running (Q-GD-4 amended, no automatic pause). Enemy progress is capped at `campaign.night_progress_cap_nodes_per_h` (PROPOSED 1 node per 6 h). With 1–3 humans, the director prefers targets near where those humans are acting, so a single viewer can be a hero without the whole map moving.
+At 0 humans, the coalition AI garrison holds the line and the Static drops to **Pattern of Life** (§5a); the campaign clock keeps running: it never pauses for lack of humans (Q-GD-4 amended); only a pause with a reason stops it (TD-1, Q-ALN-3). Enemy progress is capped at `campaign.night_progress_cap_nodes_per_h` (PROPOSED 1 node per 6 h). With 1–3 humans, the director prefers targets near where those humans are acting, so a single viewer can be a hero without the whole map moving.
 
 ## 5a. Pattern of Life (owner requirement, 2026-10-17)
 When nobody is playing, **and when viewers first arrive**, the Static does not attack. It runs a believable **Pattern of Life (PoL)** that scouts can observe and learn from:
@@ -44,7 +44,7 @@ When nobody is playing, **and when viewers first arrive**, the Static does not a
 
 **Escalation is triggered by provocation, not headcount** (GAMEPLAY TS-1):
 - A decaying `provocation` score rises with coalition actions: strikes on Static units or convoys, captures, recon of its rear, and channel-point redemptions.
-- **Redemption weights (Q-AI-9):** every redemption type has its own weight, `director.provocation.weights.redemption.<type>` (admin-tunable). Classes: offensive (airstrike, barrage) = full weight; support (supply drop, repair, reinforcements) = small weight; cosmetic (color, ping, shoutout) = 0. Weight values are PROPOSED / TBD by harness.
+- **Redemption weights (Q-AI-9, Q-ALN-13):** every redemption type has its own weight, `director.provocation.weights.redemption.<type>` (admin-tunable). There is **no offensive redemption class**: no redemption may deal damage (SUPPORT-REDEMPTIONS §4). Classes: support (supply drop, respawn skip, reserve-queue jump, extra `!scout` ping) = small weight; cosmetic (color, ping, shoutout, spectacle) = 0. Weight values are PROPOSED / TBD by harness.
 - PoL → ALPHA → BRAVO → CHARLIE transitions need provocation **and** coalition power above thresholds, with hysteresis and minimum dwell (§3).
 - Going from 0 viewers to 1 changes **nothing** until that operator acts. They get time to observe and plan.
 - With no provocation, the enemy decays back to PoL. Night-progress caps still apply (§5).
@@ -59,21 +59,22 @@ Config keys (CONFIG §6.7, all PROPOSED / TBD by harness): `director.pol.patrol_
 
 ## 6a. Game Master takeover (owner requirement)
 The owner, or an admin with the `GAME_MASTER` permission, can take over the director (ADMIN-RBAC spec):
-- **Scope (Q-AI-8):** a GM drives the Static and triggers world events (TS-1), nothing else. World events may benefit the coalition (supply drop, weather clearing, friendly convoy) but must be visible and in-fiction. A GM never grants units, ammo or XP to specific players. GM job injection (Q-GD-37 item 11) targets the Static's board.
+- **Scope (Q-AI-8, Q-ALN-10):** a GM drives the Static and triggers world events (TS-1), nothing else. World events may benefit the coalition (supply drop, weather clearing, friendly convoy) but must be visible and in-fiction. A GM never grants units, ammo or XP to specific players. Campaign setup (objectives, unlimited ammo, friendly fire and other campaign options) is owner/Admin only, never GM (GAMEPLAY §9c).
+- **Job injection (Q-GD-37 item 11, Q-ALN-11):** a GM injects jobs into the **Static's board only**. An injection that targets the Clearwave board is rejected.
 - **Modes:**
   - **ASSIST:** the GM injects or vetoes operations while the rules keep running.
   - **FULL:** the rules pause, and the GM issues operations from the same operation library.
 - **Constraints:** GM operations are still validated against the tier budget and preconditions. A GM *may* exceed the budget only with an explicit `override_budget` flag, which is audited.
 - **Logging:** every GM action is a logged `OP_*` command, so replays stay deterministic (ADR-0002), and is flagged as a GM action in replays (Q-AI-8).
-- **On stream:** a "COMMAND: GAME MASTER" badge is shown while a GM is active (DATA-INTEGRITY DI-5: never disguise human control as AI or vice versa).
+- **On stream:** a "COMMAND: GAME MASTER" badge is always visible while a human GM is in control, on every layout including 9:16 (Q-ALN-17; DATA-INTEGRITY DI-5: never disguise human control as AI or vice versa).
 - **Threat memory keeps learning** during a FULL takeover, so control returns to an up-to-date director (Q-RB-6).
 - **Voice:** GM lines use the distinct Game Master voice profile (AUDIO-TTS §2a, Q-RB-7).
-- **Auto-release:** if the GM goes idle beyond a configured timeout, control returns to the rules, with a logged `GM_RELEASED{reason}`.
+- **Auto-release:** if the GM goes idle beyond a configured timeout (monotonic real time, measured outside the sim, Q-ALN-4), control returns to the rules, with a logged `GM_RELEASED{reason}`.
 
 ## 6b. Mastermind and taunts (Q-AI-7, Q-BRAND-4)
 - **Name:** the Clearwave intelligence codename for the Static's mastermind is NULL (shown e.g. "SIGNAL SOURCE: NULL"). Code, config, contracts and logs refer to it by an internal id, never the literal string or value `null`. The display name is content, not code.
-- **TD-3 Naming operators:** a taunt may name one operator only through a `{target}` placeholder that code fills with that operator's approved callsign. The text around it is a template before P4; from P4 the LLM may write the line but never sees names or chat text (SEC-LLM-4). Operators who opted out with `!quiet` are never named.
-- **TD-4 Naming cooldown:** the same operator is named at most once per `taunt.name_cooldown_min` (PROPOSED 10); spotlight operators (recent hero events or high recent action) use `taunt.name_cooldown_spotlight_min` (PROPOSED 5). Both are admin-configurable.
+- **TD-3 Naming operators:** a taunt may name one operator only through a `{target}` placeholder that code fills with that operator's approved callsign. The text around it is a template before P4; from P4 the LLM may write the line but never sees names or chat text (SEC-LLM-4). Operators whose `!quiet` opt-out is currently on are never named; `!quiet` is a toggle stored per commander and applies across linked platforms (GAMEPLAY §3, Q-ALN-12).
+- **TD-4 Naming cooldown:** the same operator is named at most once per `taunt.name_cooldown_min` (PROPOSED 10); spotlight operators (recent hero events or high recent action) use `taunt.name_cooldown_spotlight_min` (PROPOSED 5). Both are admin-configurable and run on a monotonic real clock, enforced outside the sim (Q-ALN-4).
 - **Tone:** playful rivalry; never an insult about the person.
 
 ## 6c. Lieutenants (P4, Q-GD-38, NX-317)
@@ -84,11 +85,12 @@ Owner direction, details PROPOSED: NULL commands through lieutenants, each a **d
 - Budget never exceeded, and never above what the Static's real stock can pay for (Q-GD-30): a starved Static posts no operation it cannot fund.
 - TD-1: golden scenario with a pause mid-window: every director field (tier, dwell, threat memory, provocation, window progress) is unchanged from the pause tick to the resume tick, and no operation is posted in between.
 - TD-2: property: every job on the Static's board references only entities in `EnemyView`.
-- Q-AI-9: a cosmetic redemption leaves `provocation` unchanged.
-- TD-3/TD-4: a taunt never names an operator who used `!quiet`, never names the same operator twice inside the cooldown, and an LLM taunt prompt contains no callsign or chat text.
+- Q-AI-9, Q-ALN-13: a cosmetic redemption leaves `provocation` unchanged; a respawn skip, queue jump or extra scout ping adds its (small) support weight.
+- Q-ALN-11: a GM job injection into the Clearwave board is rejected; one into the Static's board is accepted and logged as a GM action.
+- TD-3/TD-4: a taunt never names an operator whose `!quiet` opt-out is on (and may again after they toggle it off), never names the same operator twice inside the cooldown, and an LLM taunt prompt contains no callsign or chat text.
 - Threat memory decays.
 - Golden scenarios: "convoy raids → escorts appear within N windows".
 - Balance harness: tier dwell distribution per scenario.
 
 ## 8. Open questions
-Decided and folded in: Q-GD-4 (amended), Q-GD-22, Q-GD-30, Q-GD-34, Q-GD-37, Q-AI-7, Q-AI-8, Q-AI-9, Q-RB-6, Q-RB-7, Q-OPS-8, Q-OPS-9, Q-CFG-8, Q-BRAND-4. Forward reference: Q-GD-38 (lieutenants, NX-317). Still open: whether the GM idle auto-release timeout and the taunt naming cooldowns are sim-time or real-time (Q-CFG-8 lists neither); whether GM job injection (Q-GD-37 item 11) may also target the Clearwave board, which Q-AI-8 does not cover (this spec assumes Static only).
+Decided and folded in: Q-GD-4 (amended), Q-GD-22, Q-GD-30, Q-GD-34, Q-GD-37, Q-AI-7, Q-AI-8, Q-AI-9, Q-RB-6, Q-RB-7, Q-OPS-8, Q-OPS-9, Q-CFG-8, Q-BRAND-4, Q-ALN-2, Q-ALN-3, Q-ALN-4, Q-ALN-10, Q-ALN-11, Q-ALN-12, Q-ALN-13, Q-ALN-17. Forward reference: Q-GD-38 (lieutenants, NX-317). Still open: Q-ALN-1 splits sim time into world time and game time but does not say which clock the director's own timers use (decision window, tier dwell, threat-memory and provocation half-lives, CP EMA window, PoL periods, CHARLIE warning lead time, night-progress cap).
