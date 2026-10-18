@@ -78,4 +78,3 @@ Replies are an aggregated digest, e.g. "12 new commanders deployed: VIPER-27, �
 
 ## 8. Open questions
 - Decided and folded in (2026-10-18): Q-GW-2 (CG-3), Q-UX-12 (CG-2), Q-LEGAL-7 (CG-1), Q-ALN-12 (CG-4), Q-ALN-2 (CG-5), Q-ALN-4 (§5 real-time redemption cooldowns), Q-ALN-10 (rule editing is owner/admin only, §5), Q-ALN-26 (`!join` queues while paused, CG-5; idle timers, CG-6).
-- Open: `!me`/`!status` reaches the sim to highlight the unit (CONTRACTS `ME`), and STATE-MACHINES-AND-FLOWS §4.1 resets idle timers on any command that reaches the sim. CG-6 follows Q-ALN-26 (info commands never reset them); STATE-MACHINES needs the same exception for `ME`.

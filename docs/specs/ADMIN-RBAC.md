@@ -263,7 +263,7 @@ Rule editing, theater editing, generation, and scheduling are **web only**. Form
 | `OP_GM_OPERATION` | `operation: string` (doctrine library), `target: NodeId\|SectorId\|null`, `params: object` (schema per operation) | OPERATOR (holder), or SYSTEM for scheduled events | `GM_NOT_ACTIVE`, `NOT_GM_HOLDER`, `UNKNOWN_OPERATION`, `PRECONDITION_FAILED`, `OVER_BUDGET`, `NOT_VISIBLE_TO_ENEMY` |
 | `OP_GM_VERDICT` | `proposal_id`, `verdict: APPROVE\|VETO` (ASSIST mode) | OPERATOR (holder) | `GM_NOT_ACTIVE`, `UNKNOWN_PROPOSAL` |
 | `OP_GM_LIMITS` | `budget: bool`, `fow: bool` (true = enforced) | OPERATOR (OWNER only) | `GM_NOT_ACTIVE` |
-| `OP_CAMPAIGN_PAUSE` (amended, Q-ALN-31) | adds `sub_reason: OperatorPauseReason\|null` next to `reason_category` and `note`; non-null only when `reason_category = OPERATOR` | as in CONTRACTS | adds `INVALID_PAYLOAD` for a `sub_reason` with any other category |
+| `OP_CAMPAIGN_PAUSE` (amended, Q-ALN-31) | adds `sub_reason: OperatorPauseSubReason\|null` next to `reason_category` and `note`; non-null only when `reason_category = OPERATOR` | as in CONTRACTS | adds `INVALID_PAYLOAD` for a `sub_reason` with any other category |
 | `OP_DIRECTOR_OVERRIDE` (amended, Q-ALN-24) | unchanged | OPERATOR | adds `CAMPAIGN_PAUSED` while the campaign is paused |
 
 | Event | Fields | FoW | Consumers |
@@ -274,7 +274,7 @@ Rule editing, theater editing, generation, and scheduling are **web only**. Form
 
 Admin API additions: `/admin/gm/*`, `/admin/schedule/*`, `/admin/rules/drafts/*` (+ `/dry-run`, `/publish`, `/rollback`), `/admin/theaters/*` (+ `/generate`, `/validate`, `/publish`), `/admin/access/*` (roles, grants, tokens), `/admin/approvals/*`. Every route maps to exactly one permission in §4.2.
 
-New enums: `AdminRole`, `Permission`, `GrantScopeKind` (`GLOBAL`, `CAMPAIGN`, `PLATFORM`), `TheaterArchetype`, `ContentStatus`, `ScheduledItemKind` (`CAMPAIGN`, `EVENT`, `MAINTENANCE`), `ApprovalStatus`, `OperatorPauseReason` (`RAID`, `ABUSE`, `CONTENT`, `OTHER`; Q-ALN-31).
+New enums: `AdminRole`, `Permission`, `GrantScopeKind` (`GLOBAL`, `CAMPAIGN`, `PLATFORM`), `TheaterArchetype`, `ContentStatus`, `ScheduledItemKind` (`CAMPAIGN`, `EVENT`, `MAINTENANCE`), `ApprovalStatus`, `OperatorPauseSubReason` (`RAID`, `ABUSE`, `CONTENT`, `OTHER`; Q-ALN-31).
 
 ## 9. Data model additions (merge into DATA-MODEL)
 ```sql
