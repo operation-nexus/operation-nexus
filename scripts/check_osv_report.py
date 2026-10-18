@@ -4,7 +4,7 @@
 Every finding is listed; only blocking ones set the exit code. A group with no CVSS score is listed but does not block
 (dependency-review and Dependabot alerts still cover it). Accepted risks go in osv-scanner.toml [[IgnoredVulns]].
 
-Usage: python3 scripts/check_osv_report.py <osv-scanner --format json output>
+Usage: python3 scripts/check_osv_report.py <osv-scanner --format json output> [min CVSS, default 7.0]
 """
 import json
 import re
@@ -39,7 +39,7 @@ def fix_available(vuln: dict, package: dict) -> bool:
                for r in a.get("ranges") or [] for e in r.get("events") or [] if "fixed" in e)
 
 
-def findings(report: dict) -> list[tuple[bool, str]]:
+def findings(report: dict, min_score: float = HIGH) -> list[tuple[bool, str]]:
     """(blocks, description) per vulnerability group."""
     out = []
     for result in report.get("results") or []:
@@ -53,24 +53,25 @@ def findings(report: dict) -> list[tuple[bool, str]]:
                     score = None
                 ids = g.get("ids") or []
                 has_fix = bool(fixed & set(ids))
-                blocks = score is not None and score >= HIGH and has_fix
+                blocks = score is not None and score >= min_score and has_fix
                 out.append((blocks, (f"{p.get('ecosystem')} {p.get('name')} {p.get('version')}: {' '.join(ids)} "
                                      f"(CVSS {'?' if score is None else score}{', fix available' if has_fix else ''})")))
     return out
 
 
 def main(argv: list[str]) -> int:
-    if len(argv) != 2:
+    if len(argv) not in (2, 3):
         print(__doc__.strip().splitlines()[-1])
         return 2
     with open(argv[1], encoding="utf-8") as f:
-        found = findings(json.load(f))
+        min_score = float(argv[2]) if len(argv) == 3 else HIGH
+        found = findings(json.load(f), min_score)
     # Package names come from PR-controlled lockfiles: indent and strip control characters so no line starts a
     # workflow command ("::").
     for blocks, desc in found:
         print(f"  {'BLOCK' if blocks else 'note '} {desc.translate(_CONTROL)}")
     blocking = sum(b for b, _ in found)
-    print(f"check_osv_report: {len(found)} finding(s), {blocking} blocking (CVSS >= {HIGH} with a fix)")
+    print(f"check_osv_report: {len(found)} finding(s), {blocking} blocking (CVSS >= {min_score} with a fix)")
     return 1 if blocking else 0
 
 
