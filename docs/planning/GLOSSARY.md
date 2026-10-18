@@ -81,7 +81,7 @@ terms still waiting for an owner ruling.
 | Ceasefire mode | The owner's one-click or hotkey pause (CEASEFIRE) for gaming on the broadcast PC: light OBS scene, heavy overlay rendering off (OPS-ADMIN OA-9) |
 | Snapshot / Command log | Recovery and replay data (ADR-0003) |
 | Reference host | The owner's broadcast host (i7-8700 + GTX 1070 under WSL2) for performance budgets; golden replays use the CI image instead (Q-TEST-1) |
-| Harness-validated | A value that met the written balance-harness targets over ≥ 50 seeds and crowd profiles, so it can drop its PROPOSED label (Q-TEST-2) |
+| Harness-validated | A value that met the written balance-harness targets over ≥ 50 seeds and the crowd profiles (0, 5, 50, 150 and 300 simulated viewers plus adversarial profiles), so it can drop its PROPOSED label (Q-TEST-2, Q-ALN-42) |
 
 ## Progression and conduct
 
@@ -89,7 +89,7 @@ terms still waiting for an owner ruling.
 |---|---|
 | XP | Lifetime experience whose thresholds set a commander's rank; losing a unit never costs XP (PROGRESSION §2–3, GAMEPLAY GP-2). _Not_ Merit |
 | Merit | A per-campaign score that resets each war and ranks the overall leaderboard. A score only: never spent or converted (Q-PROG-7, ADR-0011). _Not_ XP |
-| Rank id / rank name | Internal ids `O-1`…`O-6`; shown on stream as Recruit, Operator, Specialist, Signal Lead, Wave Commander, Quorum Marshal (Q-NAME-1, working names; O-6 follows the Q-BRAND-7 rename) |
+| Rank id / rank name | Internal ids `O-1`…`O-6`; shown on stream as Recruit, Drone, Specialist, Swarm Lead, Hive Commander, Quorum Marshal (Q-NAME-1, Q-ALN-41; hive ladder, working names). _Avoid:_ Operator, Signal Lead, Wave Commander (retired rank names) |
 | AUTO assist | A job completed by a commander's AUTO unit; shown in recaps only and never counts toward XP, Merit or leaderboards (PROGRESSION PROG-12, Q-ALN-30) |
 | Held the Line | A cosmetic badge, no XP or Merit, for being the only active Operator for ≥ 30 continuous game-time minutes while the Static is above Pattern of Life (PROG-10, Q-ALN-15, Q-ALN-27). Not the campaign mode below |
 | Hold the Line | A campaign mode (P4) that ends after N escalating waves or a time limit (GAMEPLAY §9, Q-GD-15) |

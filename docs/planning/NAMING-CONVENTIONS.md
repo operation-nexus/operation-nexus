@@ -48,12 +48,12 @@ owner call (grill pass, NX-323). New names follow the dominant style in §1 and 
 ## 3. Inconsistencies found (not changed; owner or follow-up item decides)
 
 Terms:
-1. **"Operator" had three meanings (resolved 2026-10-18, Q-ALN-40).** Operator now means a player only. Command Center people (owner, admins, moderators, GMs) are staff: `staff_id`, `STAFF_*` commands, `CommandSource.STAFF`, `PauseReasonCategory.STAFF` with `StaffPauseSubReason`, "staff pause". The O-2 rank no longer uses the word (Q-ALN-41). Unit control `OPERATOR` / `AUTO` (`UnitControlChanged`) keeps its name because it means player control.
+1. **"Operator" had three meanings (resolved 2026-10-18, Q-ALN-40).** Operator now means a player only. Command Center people (owner, admins, moderators, GMs) are staff: `staff_id`, `STAFF_*` commands, `CommandSource.STAFF`, `PauseReasonCategory.STAFF` with `StaffPauseSubReason`, "staff pause". The O-2 rank is now Drone (Q-ALN-41). Unit control `OPERATOR` / `AUTO` (`UnitControlChanged`) keeps its name because it means player control.
 2. **Commander vs Operator for players.** Data and mechanics say commander (`commander_id`), stream copy says Operator; specs mix the two in mechanics prose ("only active human operator", PROG-10).
 3. **Lore names in mechanics docs.** GAMEPLAY TS-4 says mechanics docs keep plain names (coalition, enemy), yet specs use "the Static" throughout and, after this pass, "the Quorum" where they used "Clearwave". Contracts stay plain (`Side`: `COALITION`, `ENEMY`).
 4. **Two "decision windows".** The Tasking Board hold after `!join` (`tasking.decision_window_s`, GAMEPLAY §1b) and the director's planning cycle (`director.window_s`, THREAT-DIRECTOR §4, TD-1) share the name.
 5. **Held the Line vs Hold the Line.** A cosmetic badge (PROG-10) and a P4 campaign mode (`HOLD_THE_LINE`) differ by one word.
-6. **Rank names after the faction rename.** O-6 became "Quorum Marshal" in this pass (mechanical rename of "Clearwave Marshal"); "Signal Lead" and "Wave Commander" still follow the old radio/wave theme, and the voice profile "Clearwave Control" became "Quorum Control" (AUDIO-TTS §2a). All are working names for the brand guide (NX-274).
+6. **Rank names after the faction rename (resolved 2026-10-18, Q-ALN-41).** The ladder now follows a hive theme: Recruit, Drone, Specialist, Swarm Lead, Hive Commander, Quorum Marshal, replacing Operator, Signal Lead and Wave Commander. The voice profile "Quorum Control" (AUDIO-TTS §2a) is confirmed. All remain working names for the brand guide (NX-274).
 7. **Sortie vs mission.** GLOSSARY defines sortie; specs also say "mission" ("first completed mission", Q-PROG-3; Survivor reward) without a definition of what completes one.
 8. **Command Center vs admin console.** Q-ARCH-7 named it Command Center; about a dozen spec lines still say "admin console".
 

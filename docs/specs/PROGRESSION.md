@@ -1,7 +1,7 @@
 # SPEC: Progression
 
 
-> **All numeric values in this spec are PROPOSED and unvalidated** (DATA-INTEGRITY DI-7). They become real only after the balance harness validates them, as defined in Q-TEST-2 (≥50 seeds across crowd profiles, written targets met, report saved with the config hash).
+> **All numeric values in this spec are PROPOSED and unvalidated** (DATA-INTEGRITY DI-7). They become real only after the balance harness validates them, as defined in Q-TEST-2 (≥50 seeds across crowd profiles of 0, 5, 50, 150 and 300 simulated viewers plus the adversarial profiles, Q-ALN-42; written targets met, report saved with the config hash).
 Status: Draft · Tracker: NX-210…NX-224 · Inputs: P725–971, C5–10
 
 ## 1. Principles
@@ -30,15 +30,15 @@ The values below are the initial PROPOSED preset. They are config data, not code
 **PROG-12** **AUTO assists (Q-ALN-30):** a Tasking Board job completed by a commander's unit while it is AI-run (AUTO, GAMEPLAY GP-4) is recorded as an **AUTO assist** for recaps only. It awards no XP and no merit, and it never counts toward any leaderboard metric (§6). Progression tells these apart by the `auto` flag on the job's completion event (CONTRACTS, Tasking Board events).
 
 ## 3. Ranks (one table; resolves critique #8 and #14)
-`O-1`…`O-6` are **internal rank ids** (config, contracts, DB). Viewers see the **themed display name** (Q-NAME-1; working names, final list in the brand guide NX-274). No real military rank titles appear on stream (Q-PROD-5).
+`O-1`…`O-6` are **internal rank ids** (config, contracts, DB). Viewers see the **themed display name** (Q-NAME-1; hive ladder, Q-ALN-41; working names, final list in the brand guide NX-274). No real military rank titles appear on stream (Q-PROD-5).
 
 | Rank id | Display name (working) | XP | Unlocks |
 |---|---|---|---|
 | O-1 | Recruit | 0 | Striker, Scout, Hauler (strike, recon, logi); `!target`, `!rtb`, `!rebase`, `!stance`, `!wingman` |
-| O-2 | Operator | 300 (~45–60 min active) | `!vector`. (Custom `!callsign` is **not** rank-gated: it unlocks after the first completed mission, Q-PROG-3.) |
+| O-2 | Drone | 300 (~45–60 min active) | `!vector`. (Custom `!callsign` is **not** rank-gated: it unlocks after the first completed mission, Q-PROG-3.) |
 | O-3 | Specialist | 1,500 | `!doctrine`; SEAD, artillery; `!rally` (Q-SUP-6); `!order` (P4) |
-| O-4 | Signal Lead | 5,000 | Jammer, engineer, AWACS |
-| O-5 | Wave Commander | 15,000 | `!package` lead |
+| O-4 | Swarm Lead | 5,000 | Jammer, engineer, AWACS |
+| O-5 | Hive Commander | 15,000 | `!package` lead |
 | O-6 | Quorum Marshal | 40,000 | May call 1 theater asset per cooldown (default 1 h, Q-PROG-7; game time, Q-CFG-8, Q-ALN-1; held in the rank-table preset, §3a). Costs no merit (Q-PROG-7). |
 The XP thresholds are placeholders. The balance harness sets them so that O-2 takes about 1 hour and O-4 about 2–4 weeks for a regular player.
 
