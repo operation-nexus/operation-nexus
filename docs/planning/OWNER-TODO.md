@@ -39,7 +39,7 @@ Applied and verified through the GitHub API on 2026-10-18 where checked.
 - [ ] Optional: plug-in power meter for real wattage numbers
 
 ## 4. Accounts and brand (NX-297)
-- [ ] Reserve the **Hiveplex** handle on Twitch, YouTube, TikTok and Instagram the same day (Q-BRAND-6, accepted risk), and the studio byline handle as a defensive hold; follow the setup runbook when it exists (NX-336). Accounts are created by hand: platforms bar automated creation
+- [ ] Reserve the **Hiveplex** handle on YouTube, TikTok, Bluesky and Discord the same day (all looked free on 2026-10-18), and after a manual look on X, Instagram, Reddit and a GitHub organization. **Twitch `hiveplex` is already taken** by a dormant 2015 account: register `hiveplextv` and ask Twitch support about releasing the original (docs/review/HANDLE-AND-DOMAIN-CHECK-2026-10-18.md, Q-MKT-10) (Q-BRAND-6, accepted risk), and the studio byline handle as a defensive hold; follow the setup runbook when it exists (NX-336). Accounts are created by hand: platforms bar automated creation
 - [ ] Epidemic Sound: ask support (a) whether a 24/7 monetized game stream is covered, (b) what happens to published content after cancelling; then choose upgrade vs a separate subscription
 - [ ] Create the private `operation-nexus-ops` repo (secrets, NX-299)
 
@@ -55,13 +55,14 @@ The research could not reach any official register (docs/review/NAME-CLEARANCE.m
 - [ ] Attorney consult on "Hiveplex" versus PLEX/HIVE: deferred until traction or monetization (Q-LEGAL-9); do it before spending on marks or merch
 
 ## 4b. Follow-ups from the research session (2026-10-18)
-- [ ] Decide where web-dependent verification runs (Q-PROC-3): raise the cloud environment's Network access or add hosts under Allowed domains, or run those passes in a local desktop session
+- [x] Web-dependent verification (Q-PROC-3): Network access raised to full on 2026-10-18; verification passes now run from the cloud session (NX-333, in progress)
 - [ ] Read the primary platform policy pages from the prepared checklist (NX-333); record what you find
 - [ ] Send Epidemic Sound the written questions (NX-332) before relying on it for 24/7 audio
 - [ ] Ask Twitch support whether an intermission/replay loop on a 24/7 channel needs the Rerun label, before the closed alpha; check the Twitch setting that lets content train generative AI
 - [ ] Put the Google OAuth app in production with verification when the YouTube integration starts (otherwise refresh tokens last 7 days)
 - [ ] Turn on passkeys everywhere they exist; add a hardware key if you own one; keep one project mailbox
-- [ ] Confirm the channel naming proposal (Q-MKT-7): channels named Hiveplex, studio handle as a byline hold
+- [x] Channel naming confirmed (Q-MKT-7): channels named Hiveplex, studio handle as a byline hold
+- [ ] Create the brand mailbox and register a domain for the public contact addresses (Q-MKT-11); check `.gg`, `.io`, `.co` at a registrar (no public registry data for those endings)
 - [ ] Pick the first 2-3 moderators from your trusted team before the public beta (Q-MOD-7)
 
 ## 5. Decisions still open
