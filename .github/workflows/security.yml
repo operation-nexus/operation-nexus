@@ -1,0 +1,171 @@
+# Security checks (NX-012). Spec: docs/cicd/CICD-ARCHITECTURE.md §5, ADR-0009 (required on develop and main).
+#
+# Called by ci.yml (job `security`); ci-gate needs it, so `ci-gate` stays the only required check. Runs on every
+# PR and push to develop/main, never path-filtered.
+#
+# Tools other than GitHub-owned actions are release binaries pinned by version and SHA-256, so the Actions allowlist
+# needs no new entries. Hashes come from each release's checksum file / GitHub asset digest. To bump: change the
+# version and hash together.
+#
+# Blocking (CICD §5): gitleaks any secret; dependency-review high+ or a license outside Q-LEGAL-1; osv-scanner high+
+# with a fix (scripts/check_osv_report.py); zizmor any finding; trivy config high+; hadolint warning+. CodeQL fails
+# here only if analysis breaks: "no new high or critical alert" is the code-scanning rule in the branch rulesets.
+#
+# Security notes: top-level permissions are empty, each job gets the least it needs; checkout does not persist
+# credentials; event data reaches shell steps only through env vars, never ${{ }} in run.
+name: security
+
+on:
+  workflow_call:
+
+permissions: {}
+
+jobs:
+  gitleaks:
+    name: gitleaks
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Install gitleaks 8.30.1
+        run: |
+          set -euo pipefail
+          f=gitleaks_8.30.1_linux_x64.tar.gz
+          curl -fsSLo "$RUNNER_TEMP/$f" "https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/$f"
+          echo "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  $RUNNER_TEMP/$f" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/$f" -C "$RUNNER_TEMP" gitleaks
+      # Full history of the commit under test only: the default (--all) also scans every other fetched branch,
+      # so one unmerged branch with a secret would fail every PR.
+      # ponytail: ~1 s today; scan only the PR range if it gets slow.
+      - run: '"$RUNNER_TEMP/gitleaks" git --redact --no-banner --exit-code 1 --log-opts=HEAD .'
+
+  codeql:
+    name: codeql (${{ matrix.language }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [actions, javascript-typescript, python]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: github/codeql-action/init@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+          queries: security-extended
+      - uses: github/codeql-action/analyze@24c54180a607b1449ed407dd24f251e4e9147c8d # v4.38.3
+        with:
+          category: /language:${{ matrix.language }}
+
+  dependency-review:
+    name: dependency-review
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/dependency-review-action@a1d282b36b6f3519aa1f3fc636f609c47dddb294 # v5.0.0
+        with:
+          fail-on-severity: high
+          # Q-LEGAL-1: MIT, BSD, Apache-2.0, ISC, MPL-2.0. GPL only in separate server-side processes, added per
+          # package below when one is approved.
+          allow-licenses: MIT, BSD-2-Clause, BSD-2-Clause-Views, BSD-3-Clause, 0BSD, Apache-2.0, ISC, MPL-2.0
+          # Owner-approved exceptions (2026-10-18): minimatch is BlueOak-1.0.0 (permissive, via eslint);
+          # typing-extensions is PSF-2.0, which GitHub misdetects as including GPL-1.0-or-later.
+          allow-dependencies-licenses: pkg:npm/minimatch, pkg:pypi/typing-extensions
+
+  sca:
+    name: sca (osv-scanner)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install osv-scanner 2.6.0
+        run: |
+          set -euo pipefail
+          curl -fsSLo "$RUNNER_TEMP/osv-scanner" \
+            https://github.com/google/osv-scanner/releases/download/v2.6.0/osv-scanner_linux_amd64
+          echo "ca69b3d3cd08f889a49dc0a383122f71cc528b83803671df5fd874d97485b108  $RUNNER_TEMP/osv-scanner" | sha256sum -c -
+          chmod +x "$RUNNER_TEMP/osv-scanner"
+      - name: Scan lockfiles
+        run: |
+          set -euo pipefail
+          rc=0
+          "$RUNNER_TEMP/osv-scanner" scan source -r --format json --output-file "$RUNNER_TEMP/osv.json" . || rc=$?
+          # 0 = clean, 1 = findings (the script decides), anything else (128 = no lockfiles found) is an error.
+          if [ "$rc" -ne 0 ] && [ "$rc" -ne 1 ]; then echo "osv-scanner failed with exit $rc"; exit "$rc"; fi
+          python3 scripts/check_osv_report.py "$RUNNER_TEMP/osv.json"
+
+  zizmor:
+    name: zizmor
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install zizmor 1.30.1
+        run: |
+          set -euo pipefail
+          f=zizmor-x86_64-unknown-linux-gnu.tar.gz
+          curl -fsSLo "$RUNNER_TEMP/$f" "https://github.com/zizmorcore/zizmor/releases/download/v1.30.1/$f"
+          echo "e65324f4430c2717591937edcec90ccbefaf14c174f8ec9415e03ca875b46e1a  $RUNNER_TEMP/$f" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/$f" -C "$RUNNER_TEMP" zizmor
+      # The token enables zizmor's online audits (impostor commits, known-vulnerable actions).
+      - run: '"$RUNNER_TEMP/zizmor" --format=github .github/workflows'
+        env:
+          GH_TOKEN: ${{ github.token }}
+
+  iac:
+    name: iac (trivy config, hadolint)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # Trivy's GitHub releases are immutable since v0.69.3 (GHSA-69fq-xp46-6x23); trivy-action is not used.
+      - name: Install trivy 0.75.0
+        run: |
+          set -euo pipefail
+          f=trivy_0.75.0_Linux-64bit.tar.gz
+          curl -fsSLo "$RUNNER_TEMP/$f" "https://github.com/aquasecurity/trivy/releases/download/v0.75.0/$f"
+          echo "c6e65abddb348e25f10549df887045629cf28cc72453cd1c63acb717316b3f3f  $RUNNER_TEMP/$f" | sha256sum -c -
+          tar -xzf "$RUNNER_TEMP/$f" -C "$RUNNER_TEMP" trivy
+      # --skip-check-update: use the checks built into the pinned binary, not a bundle fetched at run time.
+      - run: >-
+          "$RUNNER_TEMP/trivy" config --exit-code 1 --severity HIGH,CRITICAL
+          --skip-check-update --skip-version-check .
+      - name: hadolint
+        if: ${{ !cancelled() }} # report hadolint findings even when trivy failed
+        run: |
+          set -euo pipefail
+          if ! git ls-files -z -- '*Dockerfile*' | grep -qz .; then
+            echo "No Dockerfile in the repo; hadolint skipped."
+            exit 0
+          fi
+          curl -fsSLo "$RUNNER_TEMP/hadolint" \
+            https://github.com/hadolint/hadolint/releases/download/v2.15.1/hadolint-linux-x86_64
+          echo "c7187db94eeeeca956519a6af171adc31453941a1e777961f6e680f697c8c507  $RUNNER_TEMP/hadolint" | sha256sum -c -
+          chmod +x "$RUNNER_TEMP/hadolint"
+          git ls-files -z -- '*Dockerfile*' | xargs -0 "$RUNNER_TEMP/hadolint" --failure-threshold warning

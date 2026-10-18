@@ -1,8 +1,9 @@
-# CI: lint, typecheck, build and test for the Python app and the overlay (NX-011).
+# CI: lint, typecheck, build and test for the Python app and the overlay (NX-011), plus the
+# security checks in security.yml (NX-012).
 # Spec: docs/cicd/CICD-ARCHITECTURE.md §3-§5, ADR-0009.
 #
 # Gate policy (ADR-0009). `ci-gate` is the only check branch protection needs.
-#   - Lint, format, typecheck, import contracts and build: always blocking.
+#   - Lint, format, typecheck, import contracts, build and security: always blocking.
 #   - Tests (python-test, overlay-test): advisory when the target branch is
 #     `develop`, required when it is `main`. Advisory test jobs still run and
 #     show red; ci-gate turns their failure into a warning instead of failing.
@@ -183,18 +184,26 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm test
 
+  # Never path-filtered. Called workflow jobs get at most these permissions.
+  security:
+    name: security
+    uses: $/.github/workflows/security.yml
+    permissions:
+      contents: read
+      security-events: write
+
   pr-hygiene:
     name: pr-hygiene
     if: github.event_name == 'pull_request'
     permissions:
       contents: read
       pull-requests: write # size label only (pr-hygiene.yml size-label job)
-    uses: ./.github/workflows/pr-hygiene.yml
+    uses: $/.github/workflows/pr-hygiene.yml
 
   ci-gate:
     name: ci-gate
     if: always()
-    needs: [changes, pr-hygiene, python, python-test, overlay, overlay-test]
+    needs: [changes, pr-hygiene, python, python-test, overlay, overlay-test, security]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions: {}
@@ -209,6 +218,7 @@ jobs:
           R_PYTHON_TEST: ${{ needs.python-test.result }}
           R_OVERLAY: ${{ needs.overlay.result }}
           R_OVERLAY_TEST: ${{ needs.overlay-test.result }}
+          R_SECURITY: ${{ needs.security.result }}
         run: |
           set -euo pipefail
           advisory=false
@@ -233,4 +243,5 @@ jobs:
           check python-test "$R_PYTHON_TEST" test
           check overlay "$R_OVERLAY" required
           check overlay-test "$R_OVERLAY_TEST" test
+          check security "$R_SECURITY" required
           exit "$fail"
