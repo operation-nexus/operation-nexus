@@ -56,11 +56,20 @@ stateDiagram-v2
     RTB --> Disabled: damage roll -> DISABLED
     Disabled --> Rearming: field repair by engineer / logistics completes
     Disabled --> Destroyed: hp <= 0
+    Disabled --> Despawned: idle retire (in place, cargo lost)
     RTB --> Landed: arrives at friendly node
     Landed --> Rearming: node stock > 0
     Rearming --> EnRoute: rearmed and has order
     Rearming --> Landed: stock exhausted (stays parked)
     Landed --> Despawned: idle retire / role switch
+    Landed --> EnRoute: joined with hold, AUTO after idle handoff, feasible job claimed
+    Holding --> RTB: home node captured, mobile, fuel reaches a friendly base
+    Landed --> RTB: home node captured, mobile, fuel reaches a friendly base
+    Rearming --> RTB: home node captured, mobile, fuel reaches a friendly base
+    Holding --> Destroyed: home node captured, cannot escape
+    Landed --> Destroyed: home node captured, cannot escape
+    Rearming --> Destroyed: home node captured, cannot escape
+    Disabled --> Destroyed: node it sits on captured
     Rearming --> Despawned: idle retire
     EnRoute --> Destroyed: hp <= 0
     OnStation --> Destroyed: hp <= 0
@@ -77,7 +86,7 @@ stateDiagram-v2
 | State | Event / guard | Action | Next |
 |---|---|---|---|
 | — | `JOIN{role}`, campaign Running, live viewer units < `slots.max_viewer_units` (AUTO units count, Q-ALN-9), commander has no live unit, and `slots.respawn_delay_s` (game time, Q-ALN-5) has elapsed | Allocate the next sequential entity id. Map the role to its `UnitKind` (`content/units.yaml` `roles`). Choose the spawn node (closest owned base valid for the domain). Pick the loadout from node stock; below `logistics.starve_threshold`, use the reduced loadout. Debit stock. Emit `UnitSpawned`. | Spawning |
-| — | `JOIN` and the cap is reached, or `JOIN` from a commander with no live unit while the campaign is Paused (Q-ALN-2) | Append to the reserve queue (FIFO by `(target_tick, arrival_seq)`). Emit `ReserveQueueJoined{commander_id, position}`. | Reserve |
+| — | `JOIN` and the cap is reached, or `JOIN` from a commander with no live unit while the campaign is Paused, even when a slot is free (Q-ALN-2, Q-ALN-26) | Append to the reserve queue (FIFO by `(target_tick, arrival_seq)`). Emit `ReserveQueueJoined{commander_id, position}`. | Reserve |
 | — | `JOIN` while `slots.respawn_delay_s` hasn't elapsed | Emit `CommandRejected{reason: RESPAWN_COOLDOWN}` | (no unit) |
 | Reserve | Slot frees and the campaign is Running (a paused campaign spawns nothing, §4.4) | Pop the head of the FIFO and spawn as above | Spawning |
 | Spawning | Same tick, after placement, explicit order present (a stance alone is not an order) | Path to the order target | EnRoute |
@@ -100,15 +109,19 @@ stateDiagram-v2
 | any alive, `COMMANDER`-owned, control `OPERATOR` | **Idle handoff:** no chat command from the owner has reached the sim for `presence.idle_handoff_min` (game time, Q-GD-35, Q-ALN-1) | Set control to `AUTO`. Emit `UnitControlChanged{control: AUTO, cause: IDLE_HANDOFF}`; the overlay shows the AUTO tag. The current order is not cancelled; once it completes, the Tasking Board tasks the unit as an AI-run unit (U-6). The unit keeps its slot (Q-ALN-9). | (unchanged) |
 | Holding / EnRoute / OnStation / Engaging, `COMMANDER`-owned | **Idle retire:** no chat command from the owner has reached the sim for `presence.idle_retire_min` (game time, Q-GD-35) | Release any claimed job slot. Path to the nearest friendly node valid for the domain. | RTB |
 | Landed / Rearming | Idle retire elapsed (as above) | Return carried supplies to the reserve (Q-GD-35). Emit `UnitDespawned{reason: IDLE}`. The slot frees. | Despawned |
+| Disabled, `COMMANDER`-owned | Idle retire elapsed (as above). A Disabled unit cannot RTB. | Despawn in place. Carried cargo is **lost**, not returned to the reserve (Q-ALN-25). Emit `UnitDespawned{reason: IDLE}`. The slot frees. | Despawned |
+| Landed, control `AUTO`, joined with `hold` | Idle handoff applies to `hold` units like any other, and the unit keeps holding (Q-ALN-25). A Tasking Board assignment pass (TB-6) finds a job that matches its role, has a free slot and is feasible (U-6) | Claim the job slot, path to it | EnRoute |
 | any alive, control `AUTO` | **Reclaim:** any chat command from the owner reaches the sim (Q-ALN-9) | Set control to `OPERATOR`. Emit `UnitControlChanged{control: OPERATOR, cause: RECLAIM}`. Then evaluate the command against this unit; a `JOIN` never spawns a second unit. | (per command) |
 | Landed | `JOIN` with a different role while at base | Emit `UnitDespawned{reason: ROLE_SWITCH}` | Despawned |
+| Holding / Landed / Rearming at node N | N flips to the other side (§4.2, Q-GD-32); the unit is mobile and its fuel reaches the nearest reachable friendly node valid for its domain | Release any claimed job slot. Path to that node. | RTB |
+| Holding / Landed / Rearming / Disabled at node N | N flips to the other side and the unit cannot escape (Disabled, or no friendly node within fuel reach) (Q-GD-32) | Seeded crew-survival roll on the `combat` stream; a surviving crew emits `CrewDowned` and a downed-crew marker (GAMEPLAY §6a). Emit `UnitDestroyed{killer: null}`. Start the respawn delay for the owner. | Destroyed |
 | any alive | hp ≤ 0 (combat resolution this tick) | Emit `UnitDestroyed{killer?, assists[]}`. Start the respawn delay for the owner. | Destroyed |
 | any alive | Owner banned (`OP_BAN` applied → `CommanderBanned`) or forgotten (`FORGET` applied → `CommanderForgotten`) | Emit `UnitOrphaned{cause: BANNED \| FORGOTTEN}` | Orphaned → Despawned next tick with `UnitDespawned{reason: OWNER_BANNED \| OWNER_FORGOTTEN}` |
 
 Notes:
 - A unit owned by `AI_GARRISON`, `ENEMY_DIRECTOR` or an NPC wingman carries an AI owner reference and must render with the AI marker (DATA-INTEGRITY DI-5).
 - Sea-domain units follow the same machine on the naval graph (**P3**, Q-GD-8).
-- **Control is orthogonal to the lifecycle state** (Q-GD-35, Q-ALN-9): a `COMMANDER`-owned unit is `OPERATOR` or `AUTO`. Both idle timers count game-time ticks from the owner's last chat command that reached the sim (accepted or rejected); every such command resets them. Gateway-only commands (`!help`, `!guide`, `!rules`, `!link`, `!quiet`, `!callsign`) never reach the sim, so they do not reset them. The timers freeze while paused (SIM-CORE SC-11). These two timers replace the old idle despawn timer entirely (Q-ALN-8).
+- **Control is orthogonal to the lifecycle state** (Q-GD-35, Q-ALN-9): a `COMMANDER`-owned unit is `OPERATOR` or `AUTO`. Both idle timers count game-time ticks from the owner's last chat command that reached the sim (accepted or rejected); every such command resets them. Gateway-only commands (`!help`, `!guide`, `!rules`, `!link`, `!quiet`, `!callsign`) never reach the sim, so they do not reset them (confirmed, Q-ALN-26). The AUTO tag shows from the handoff tick, and the current order is kept. The timers freeze while paused (SIM-CORE SC-11). These two timers are the only idle rule (Q-ALN-8).
 - **Damage state is orthogonal to the lifecycle state** (Q-CBT-1): `HEALTHY → DAMAGED → MISSION_KILL → DISABLED`, with `Destroyed` as the terminal lifecycle state. It only moves toward worse states through combat, and back toward HEALTHY only in Rearming (base repair) or Disabled → field repair. DAMAGED applies the speed and sensor penalties from config. Both sides use the same machine (parity, GAMEPLAY §0).
 
 **Invariants**
@@ -119,7 +132,8 @@ Notes:
 - U-4: reserve queue order is strict FIFO, and a commander appears in it at most once.
 - U-5: an orphaned unit is despawned within 1 tick and earns no XP after orphaning.
 - U-7: an AUTO unit counts toward `slots.max_viewer_units` and holds its commander's U-1 slot until it is Despawned or Destroyed; a command from that commander reclaims it and never spawns a second unit (Q-ALN-9).
-- U-8: while the campaign is Paused, no chat command spawns, moves, fires, captures with or despawns a unit (Q-ALN-2), except the still-open `FORGET` despawn case (§8).
+- U-8: while the campaign is Paused, no chat command spawns, moves, fires, captures with or despawns a unit (Q-ALN-2). The only despawn while Paused is that of a unit orphaned by `OP_BAN` or `FORGET`, which are safety actions (Q-ALN-24, §4.4).
+- U-9: when a node flips owner, no unit of the losing side stays parked there: each one is RTB toward another friendly node or Destroyed in the same tick (Q-GD-32).
 
 ### 4.2 Node capture
 
@@ -142,18 +156,19 @@ stateDiagram-v2
 | State | Event / guard | Action | Next |
 |---|---|---|---|
 | Neutral / Owned | An eligible ground or logistics unit of a non-owner side enters `capture.radius_m`, with no opposing eligible unit present | Emit `CaptureStarted{node_id, side}` | Capturing / Contested |
-| Capturing | Tick, still uncontested | Progress += rate × diminishing f(unit count) × `TICK_DT` (whether capture runs on world or game time is not decided by Q-ALN-1; SIM-CORE §8) | Capturing |
-| Capturing | Progress ≥ 100% | Set owner = capturer. Reset progress. Emit `NodeCaptured{node_id, from, to, participant_commander_ids[]}`. | Owned |
+| Capturing | Tick, still uncontested | Progress += rate × diminishing f(unit count) × garrison modifier × `WORLD_DT` (capture runs on world time, Q-ALN-23). **Garrison modifier (Q-GD-32):** the garrison multiplier (heavily slows capture) while any unit of the owning side is at the node, or the empty-base multiplier (speeds it up) while none is; both are configurable and PROPOSED. An opposing *capture-eligible* unit still freezes progress (Contested), so in practice the garrison multiplier applies to defenders that cannot contest, e.g. parked air units (reading to confirm, §8). A Neutral node has no owner and uses neither multiplier. | Capturing |
+| Capturing | Progress ≥ 100% | Set owner = capturer. Reset progress. Emit `NodeCaptured{node_id, from, to, participant_commander_ids[]}`. In the same tick, resolve the losing side's units parked at the node: mobile units with fuel to reach a friendly node escape (RTB), every other one is Destroyed with a crew-survival roll (§4.1, Q-GD-32). Applies to both sides. | Owned |
 | Capturing | Opposing eligible unit enters | Freeze progress | Contested |
 | Contested | One side's eligible units are all gone | — | Capturing (attacker remains) / Owned (defender remains) |
 | Capturing | No capturers, no opponents | — | Decaying |
-| Decaying | Tick | Progress −= decay rate × `TICK_DT` | Decaying, then Owned/Neutral at 0 |
+| Decaying | Tick | Progress −= decay rate × `WORLD_DT` (world time, Q-ALN-23) | Decaying, then Owned/Neutral at 0 |
 
 **Invariants**
 - N-1: at most one ownership flip per node per tick.
 - N-2: progress stays in [0, 100] and is monotonic while uncontested capture continues.
 - N-3: air units never change capture state (GAMEPLAY §8).
 - N-4: the SANCTUARY node never leaves Owned (Q-GD-7).
+- N-5: all else equal, capture progress per tick at an owned node is lower with a defending unit present than with none (Q-GD-32).
 
 ### 4.3 Bridge
 
@@ -173,7 +188,7 @@ stateDiagram-v2
 | State | Event / guard | Action | Next |
 |---|---|---|---|
 | Intact / Damaged | hp ≤ 0 | Remove the ROAD edge from the graph. Reroute affected convoys. Emit `BridgeDestroyed`. | Destroyed |
-| Destroyed / Damaged | Repair actor in radius: a **logistics truck** (slow field repair) or an **engineer** (fast) (Q-GD-11) | Restore hp at the actor's repair rate: engineer = `logistics.bridge_repair_time_s`, truck = that time × `logistics.truck_bridge_repair_mult` | Repairing |
+| Destroyed / Damaged | Repair actor in radius: a **logistics truck** (slow field repair) or an **engineer** (fast) (Q-GD-11) | Restore hp at the actor's repair rate: engineer = `logistics.bridge_repair_time_s`, truck = that time × `logistics.truck_bridge_repair_mult`. Repair runs on world time (`WORLD_DT`, Q-ALN-23). | Repairing |
 | Repairing | hp = max | Restore the edge. Emit `BridgeRepaired{by}`. | Intact |
 
 **Invariants**
@@ -188,7 +203,7 @@ stateDiagram-v2
     Setup --> Running: theater + seed + config hash loaded and validated
     Running --> Paused: OP_CAMPAIGN_PAUSE (OPERATOR / TECHNICAL / MAINTENANCE / CEASEFIRE)
     Paused --> Running: OP_CAMPAIGN_RESUME
-    Running --> Ending: victory / defeat / time limit
+    Running --> Ending: victory / defeat / time limit (score or stalemate)
     Running --> Ending: OP_CAMPAIGN_END (ABORTED)
     Paused --> Ending: OP_CAMPAIGN_END (ABORTED)
     Ending --> AAR: final state frozen, results computed
@@ -200,12 +215,18 @@ stateDiagram-v2
 |---|---|---|---|
 | Setup | Theater, seed and balance config pass schema validation | Record `campaign_id`, seed and config hash. Emit `CampaignStarted`. | Running |
 | Setup | Validation fails | Refuse to start. Overlay shows "CAMPAIGN SETUP FAILED" (no fallback theater). Alert. | Setup |
-| Running | `OP_CAMPAIGN_PAUSE{reason_category, note}` from an operator (category and note required, Q-RB-1; `CEASEFIRE` from the owner, Q-OPS-9), or from SYSTEM for an automatic pause (`TECHNICAL`: broadcast offline longer than `ops.offline_pause_after_min`, Q-OPS-8; `MAINTENANCE`: weekly window, Q-OPS-9) | Set `clock_paused` and `pause_reason`. Emit `CampaignClockPaused{reason}` (Q-ALN-3). Alert the owner immediately (ADMIN-RBAC pause flow). Lack of humans never pauses (Q-GD-4 amended). | Paused |
+| Running | `OP_CAMPAIGN_PAUSE{reason_category, sub_reason, note}` from an operator (category and note required, Q-RB-1; `sub_reason` optional and allowed only with category `OPERATOR`, Q-ALN-31; `CEASEFIRE` from the owner, Q-OPS-9), or from SYSTEM for an automatic pause (`TECHNICAL`: broadcast offline longer than `ops.offline_pause_after_min`, Q-OPS-8; `MAINTENANCE`: weekly window, Q-OPS-9) | Set `clock_paused`, `pause_reason` and `pause_sub_reason`. Emit `CampaignClockPaused{reason, sub_reason}` (Q-ALN-3, Q-ALN-31). Alert the owner immediately (ADMIN-RBAC pause flow). Lack of humans never pauses (Q-GD-4 amended). | Paused |
 | Paused | Tick | **The whole world freezes** (Q-ALN-2): neither game time nor world time advances, so no movement, combat, logistics, capture, objective timer or other sim timer progresses (SIM-CORE SC-11). | Paused |
-| Paused | Chat command that doesn't change the world: `ME` (alias `!status`), or `JOIN` from a commander with no live unit | `ME` works as when Running. The `JOIN` joins the reserve queue (§4.1) and spawns after resume. (`!quiet`, `!callsign` and the info commands are handled outside the sim and work as usual.) | Paused |
+| Paused | Chat command that doesn't change the world: `ME` (alias `!status`), or `JOIN` from a commander with no live unit | `ME` works as when Running. The `JOIN` always joins the reserve queue, even when a slot is free (§4.1, Q-ALN-26), and spawns FIFO after resume. (`!quiet`, `!callsign` and the info commands are handled outside the sim and work as usual.) | Paused |
 | Paused | Any other chat command that reaches the sim | Emit `CommandRejected{reason: CAMPAIGN_PAUSED}`; the digest replies "war paused" (Q-ALN-2) | Paused |
+| Paused | Safety action: `OP_BAN`, `FORGET` or `OP_KILL_SWITCH` (Q-ALN-24) | Apply as when Running. A unit orphaned by `OP_BAN` or `FORGET` despawns at once (`UnitDespawned{reason: OWNER_BANNED \| OWNER_FORGOTTEN}`) instead of waiting for resume. A banned commander leaves the reserve queue. | Paused |
+| Paused | `OP_CONFIG_RELOAD` (Q-ALN-24) | Validate and hold; no balance value changes while Paused. Apply held reloads in arrival order in the tick `OP_CAMPAIGN_RESUME` is applied, and emit `BalanceReloaded` then. Held reloads are discarded if the campaign ends instead (C-3). | Paused |
+| Paused | `OP_DIRECTOR_OVERRIDE` (Q-ALN-24) | Emit `CommandRejected{reason: CAMPAIGN_PAUSED}` | Paused |
+| Paused | `OP_CAMPAIGN_PAUSE` | Emit `CommandRejected{reason: ALREADY_PAUSED}` | Paused |
 | Paused | `OP_CAMPAIGN_RESUME` from an operator (GM, admin or owner only, Q-RB-1), or from SYSTEM after the "COMMS RESTORED" countdown ends an offline pause (Q-OPS-8) | Clear `clock_paused`. Emit `CampaignClockResumed{reason}`. Free slots fill from the reserve queue (FIFO). | Running |
-| Running | Victory condition held (GAMEPLAY §9), defeat (forward airbase lost and ≤ 25% of nodes held for 30 min, Q-GD-7), or time limit reached (decided by score) | Freeze inputs. Emit `CampaignEnded{result}`. | Ending |
+| Running | Victory condition held (GAMEPLAY §9), or defeat (forward airbase lost and ≤ 25% of nodes held for 30 min, Q-GD-7) | Freeze inputs. Emit `CampaignEnded{result: VICTORY \| DEFEAT}`. | Ending |
+| Running | The campaign clock reaches its time limit (game time), and the two sides' time-limit scores differ by more than the draw band (PROPOSED ~5%) | Score per side = node share over time + completed objectives (Q-GD-29). Freeze inputs. Emit `CampaignEnded{result: TIME_LIMIT, score}`; the higher score wins the war. | Ending |
+| Running | Time limit reached and the two scores are within the draw band (Q-GD-29) | Freeze inputs. Emit `CampaignEnded{result: STALEMATE, score}`. A Stalemate has its own end screen and grants no carry-over bonus (GAMEPLAY §9b). If a stalemate special event is configured, trigger it, and queue the Static mastermind's template banter. | Ending |
 | Running / Paused | `OP_CAMPAIGN_END{reason}` | Freeze inputs. Emit `CampaignEnded{result: ABORTED}`. | Ending |
 | Ending | Results computed (top contributors per role, stats) | Write results to persistence. Emit `AARStarted{result, top_by_role}`. | AAR |
 | AAR | `campaign.aar_duration_s` elapsed | Close the command log. Write the final snapshot. Mark archived. | Archived |
@@ -216,6 +237,7 @@ stateDiagram-v2
 - C-2: exactly one `CampaignEnded` per campaign.
 - C-3: no command is applied after Ending.
 - C-4: an archived campaign's command log replays to its final state hash.
+- C-5: a `TIME_LIMIT` or `STALEMATE` result is emitted only when the campaign clock has reached its limit, and a `STALEMATE` never produces a carry-over bonus (Q-GD-29).
 
 ### 4.5 Theater objective
 
@@ -252,9 +274,9 @@ stateDiagram-v2
 
 | State | Event / guard | Action | Next |
 |---|---|---|---|
-| any | Decision window (every `director.window_s`), with CP computed from the **enemy view only** (FOW-4) | Evaluate `director.tier.bravo_enter_cp` / `director.tier.charlie_enter_cp` with hysteresis (`director.tier.exit_ratio`) and `director.tier.min_dwell_s` | same / adjacent tier |
+| any | Decision window (every `director.window_s`, game time, Q-ALN-23), with CP computed from the **enemy view only** (FOW-4) | Evaluate `director.tier.bravo_enter_cp` / `director.tier.charlie_enter_cp` with hysteresis (`director.tier.exit_ratio`) and `director.tier.min_dwell_s` (game time, Q-ALN-23) | same / adjacent tier |
 | any | Tier changes | Emit `ThreatTierChanged{from, to}`. Queue a sitrep. Update the HUD. | new tier |
-| any | `OP_DIRECTOR_OVERRIDE{force_tier}` command (OPS-ADMIN §3) | Force the tier and record the override | forced tier |
+| any | `OP_DIRECTOR_OVERRIDE{force_tier}` command (OPS-ADMIN §3) while the campaign is Running; rejected with `CAMPAIGN_PAUSED` while Paused (Q-ALN-24) | Force the tier and record the override | forced tier |
 
 **Invariants**
 - D-1: tiers only move between adjacent levels (never ALPHA↔CHARLIE in one step).
@@ -287,7 +309,7 @@ stateDiagram-v2
 | Active | Platform moderation ban event (e.g. Twitch `channel.ban`) or admin ban | Set `banned = true`. Issue `OP_BAN` (source SYSTEM for platform sync, OPERATOR for admin) → the sim emits `CommanderBanned`, orphans the unit and removes the commander from the reserve queue. | Banned |
 | Banned | Admin unban | Set `banned = false`. Audit. | Active |
 | Active / Banned | `!forget` or portal request | Set `deletion_requested_at` and create the `deletion_requests` row. Issue `FORGET` → the sim emits `CommanderForgotten` and orphans the unit. Stop accepting commands from the identity. | DeletionRequested |
-| DeletionRequested | Deletion job | Delete identities. Set the callsign to the tombstone value with `callsign_kind = TOMBSTONE` and set `deleted_at` (DATA-MODEL §4.2, §6.4). Viewers see `REDACTED-…` (Q-DM-2). Shred the id→name mapping (SEC-DATA-2/3). | Deleted |
+| DeletionRequested | Deletion job | Delete identities. Set the callsign to the tombstone value with `callsign_kind = TOMBSTONE` and set `deleted_at` (DATA-MODEL §4.2, §6.4). Viewers see `REDACTED-` plus a random 4-character tag assigned and stored at deletion time, e.g. `REDACTED-7KQ2` (Q-DM-2, Q-ALN-29). The tag is not derived from any identifier, so it can't be reversed, and distinct deleted commanders stay distinct in replays. Shred the id→name mapping (SEC-DATA-2/3). | Deleted |
 
 **Invariants**
 - ID-1: `(platform, platform_user_id)` maps to at most one commander.
@@ -590,10 +612,10 @@ sequenceDiagram
 ## 7. Test plan
 | Invariant(s) | Test type | Location (planned) |
 |---|---|---|
-| U-1…U-5 | Property (hypothesis): random command sequences | `services/sim/tests/property/test_unit_lifecycle.py` |
-| N-1…N-4 | Property + scenario | `.../test_capture.py` |
+| U-1…U-9 | Property (hypothesis): random command sequences, including pauses and node flips | `services/sim/tests/property/test_unit_lifecycle.py` |
+| N-1…N-5 | Property + scenario | `.../test_capture.py` |
 | B-1, B-2 | Property: pathfinding after destruction | `.../test_bridges.py` |
-| C-1…C-4 | Scenario + golden replay | `.../test_campaign.py`, `tests/golden/` |
+| C-1…C-5 | Scenario + golden replay (including a time-limit end inside and outside the draw band) | `.../test_campaign.py`, `tests/golden/` |
 | O-1, O-2 | Property | `.../test_objectives.py` |
 | D-1…D-4 | Property: oscillating CP | `.../test_director_tiers.py` |
 | ID-1…ID-4 | Unit + integration (SQLite) | `services/sim/tests/identity/` |
@@ -605,23 +627,22 @@ sequenceDiagram
 Paths are planned names; they're created with their tracker items.
 
 ## 8. Decisions folded in, and open questions
-All questions this spec referenced are decided (2026-10-17) and folded into the tables above:
-- **Q-GD-4 (amended):** no automatic clock pause for lack of humans; the Static drops to Pattern of Life (THREAT-DIRECTOR §5a). Only operator pauses exist (§4.4).
+These decisions (2026-10-17 and 2026-10-18) are folded into the tables above:
+- **Q-GD-4 (amended):** no automatic clock pause for lack of humans; the Static drops to Pattern of Life (THREAT-DIRECTOR §5a). Only a pause with a reason category stops the clock (§4.4, Q-ALN-3).
 - **Q-GD-7:** defeat = forward airbase lost and ≤ 25% of nodes held for 30 min; the sanctuary is uncapturable (§4.2 N-4, §4.4).
 - **Q-GD-8:** sea domain in **P3** (§4.1 notes).
 - **Q-GD-11:** trucks do slow field repair; engineers repair fast and build (§4.3).
 - **Q-GD-19 / Q-GD-26 / Q-CBT-1/6/7 / Q-GD-27:** objective modes (§4.5), Tasking Board and decision window, damage states, stance, munitions and repair (§4.1).
 - **Q-MOD-1 / Q-MOD-2 / Q-SM-3:** generated callsigns; custom callsigns after the first completed mission (Q-PROG-3), automated moderation with a review queue, and manual owner approval during alpha (§4.7).
 - **Q-SM-1:** objective selection uses its own `objective` RNG stream (SIM-CORE SC-5).
-- **Q-SM-2:** superseded by Q-GD-35 and Q-ALN-8; the idle despawn timer is removed. Idle units use `presence.idle_handoff_min` and `presence.idle_retire_min` (§4.1).
 - **Q-SM-4:** rotate theater archetypes with no back-to-back repeats; reuse the first theater with a new seed until more exist; admins can override via scheduling.
 - **Q-SM-5:** superseded; `campaign.pause_after_no_humans_s` does not exist.
-- **Spec-alignment batch (2026-10-18):** Q-ALN-1 (game time vs world time, §4.1, §4.4, §4.5), Q-ALN-2 (pause freezes the world; allowed commands, §4.4, U-8), Q-ALN-3 (pause reason categories, §4.4), Q-ALN-5 (respawn delay in game time, §4.1), Q-ALN-8 and Q-GD-35 (idle handoff and retire replace the idle despawn, §4.1), Q-ALN-9 (AUTO unit keeps its slot; reclaim, §4.1, U-7), Q-ALN-10 (objectives set by admin or owner only, §4.5), Q-OPS-8 and Q-OPS-9 (automatic pauses, §4.4), Q-PROG-6 (no minimum-humans XP rule, §5.2), Q-DM-2 (`REDACTED-…`, §4.7).
-
-Decided but not yet folded into the tables here: Q-GD-29 (time-limit score and stalemate, GAMEPLAY §9) and Q-GD-32 (units parked at a captured base).
+- **Spec-alignment batch (2026-10-18):** Q-ALN-1 (game time vs world time, §4.1, §4.4, §4.5), Q-ALN-2 (pause freezes the world; allowed commands, §4.4, U-8), Q-ALN-3 (pause reason categories, §4.4), Q-ALN-5 (respawn delay in game time, §4.1), Q-ALN-8 and Q-GD-35 (idle handoff and retire are the only idle rule, §4.1), Q-ALN-9 (AUTO unit keeps its slot; reclaim, §4.1, U-7), Q-ALN-10 (objectives set by admin or owner only, §4.5), Q-OPS-8 and Q-OPS-9 (automatic pauses, §4.4), Q-PROG-6 (no minimum-humans XP rule, §5.2), Q-DM-2 (`REDACTED-…`, §4.7).
+- **Spec-alignment batch (2026-10-18, continued):** Q-ALN-23 (capture, decay and bridge repair on world time; director window and dwell on game time, §4.2, §4.3, §4.6), Q-ALN-24 (operator and system commands while Paused, §4.4, U-8), Q-ALN-25 (idle retire of a Disabled unit; idle handoff for `hold` units, §4.1), Q-ALN-26 (`JOIN` while Paused always queues; idle-timer resets; AUTO tag, §4.1, §4.4), Q-ALN-29 (`REDACTED-` tag, §4.7), Q-ALN-31 (pause sub-reason, §4.4).
+- **Q-GD-29:** time-limit score and Stalemate (§4.4, C-5).
+- **Q-GD-32:** units parked at a captured base escape or are destroyed (§4.1, §4.2, U-9); garrison and empty-base capture multipliers (§4.2, N-5).
 
 Still open here:
-- Idle retire for a Disabled unit, which cannot RTB (§4.1).
-- Whether idle handoff applies to a unit that joined with `hold` (§4.1, GAMEPLAY §1b).
-- The clock (world or game time) for capture progress and bridge repair (§4.2, §4.3; SIM-CORE §8).
-- Which OPERATOR and SYSTEM commands other than pause, resume, end and the kill switch apply while Paused, and whether the `FORGET` despawn applies immediately while Paused (§4.4; SIM-CORE §8).
+- Q-GD-32 reading (§4.2): this spec applies the garrison multiplier to defenders that cannot contest, because a capture-eligible defender already freezes progress (Contested). The owner should confirm this, or say whether Contested should slow capture instead of freezing it.
+- Config keys for the Q-GD-29 draw band and score weights, and for the Q-GD-32 garrison and empty-base multipliers, are not yet defined in CONFIG-AND-CONTENT §6, so this spec names no key for them.
+- Whether `OP_UNBAN`, `OP_PURGE_UNITS`, `SYS_SET_CALLSIGN` and the GM commands apply while Paused (§4.4); Q-ALN-24 names only the safety actions, config reload and director overrides.
