@@ -6,7 +6,6 @@ Shared material for AI coding agents. `AGENTS.md` at the repo root is the entry 
 |---|---|
 | `roles/` | Role cards: scope, must-read docs, checklists, and hard "never" rules for each kind of agent task. |
 | `rules/` | Rules for every new or touched file (`code-quality.md`), plus the "Lessons learned here" log. |
-| `skills/` | Task skills any agent can read: `coding-safeguards` (multi-file edits), `frontend-design` (new visual surfaces). |
 | `prompts/` | Reusable task prompts (implement a tracker item, review a PR, write a spec, run a balance study). |
 | `context/` | **Owner drop zone.** Reference files, screenshots, sketches, exports. Agents read these but never edit them. |
 

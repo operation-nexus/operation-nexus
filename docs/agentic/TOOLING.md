@@ -13,7 +13,8 @@ Facts here were verified on 2026-10-17 against the cited sources. Anything marke
 | `.claude/hooks/protect-files.sh` | Blocks agent writes (Edit/Write/MultiEdit/NotebookEdit) to `.env*` anywhere and to the raw source files. Uses `jq`, or `python3` if jq is absent. Fails closed: if neither exists, edits are blocked. It can't see shell redirection (`echo > .env`), so the deny rules and review remain the backstop. |
 | `.claude/agents/` | Subagents: `reviewer` and `fact-checker` (enforces DATA-INTEGRITY). |
 | `.mcp.json` | Context7 (remote, no key), for up-to-date library docs so agents don't guess APIs. |
-| `.agents/` | Role cards, rules (`rules/code-quality.md`), skills (`skills/`), reusable prompts, and the owner's context drop zone. |
+| `.agents/` | Role cards, rules (`rules/code-quality.md`), reusable prompts, and the owner's context drop zone. |
+| `.claude/skills/` | Project skills: ours plus a pinned, MIT-licensed copy of selected `mattpocock/skills` (index and local changes: `VENDORED.md`). |
 | `.serena/project.yml` | Serena project config (languages: python, typescript, bash). `cache/` and `project.local.yml` are ignored by `.serena/.gitignore`. |
 | `scripts/` | `check_commit_msg.py` (Conventional Commits, no AI trailer) and `check_tracked_files.py` (no ignored, recorded or oversized files), with tests in `scripts/tests/`. Wiring them into pre-commit and CI belongs with NX-011. |
 
@@ -41,6 +42,19 @@ Notes:
 - It writes a local usage ledger to `~/.config/ponytail/band/`.
 - The only network call is an **optional webhook, which is empty (off) by default**. Keep it off.
 - Overlap with our rules: Ponytail's "no unrequested abstraction / no 'for later' code" reinforces AGENTS.md rule 7 and DATA-INTEGRITY. Our specs still win: Ponytail must not cut validation, tests or security (its own rule says the same).
+
+**Vendored from `mattpocock/skills`** (2026-10-17, commit `49dd158`, MIT): `grill-me`, `grill-with-docs`, `grilling`, `domain-modeling`, `wait-what`, `handoff`, `to-questionnaire`. Reviewed line by line before copying; no scripts, hooks or network calls. Copied rather than installed as a plugin so the text is pinned and cloud sessions get it.
+
+Not vendored yet. Each needs adapting first, or clashes with something here:
+
+| Skill | Why it could help | Why not yet |
+|---|---|---|
+| `to-spec`, `to-tickets` | Turn a grill session into a spec and tracer-bullet tickets | They publish to GitHub Issues with their own templates and `ready-for-agent` labels; ours are `docs/specs/_TEMPLATE.md`, NX IDs and `.github/labels.yml`. Adapt, then run `setup-matt-pocock-skills`' config by hand (`docs/agents/`). |
+| `tdd`, `diagnosing-bugs`, `codebase-design`, `prototype` | Implementation discipline (red-green slices, bug loops, deep modules, throwaway prototypes) | No code yet (P1). `prototype` shadows a Claude Code built-in name. |
+| `implement`, `implement-spec` | Drive a spec to done with subagents | They call upstream `/code-review` and `/tdd`; our `code-review` is the built-in. |
+| `code-review`, `research` | Standards + spec two-axis review; cited research notes | Same names as Claude Code built-ins we already use. Would need renaming. |
+| `writing-for-agents` | How to write AGENTS.md, rules and skills compactly | Useful now; model-invoked, so it would load whenever docs for agents are edited. |
+| `wayfinder`, `triage`, `retro`, `pr`, `wizard` | Big-plan decision maps, issue triage, session retros, PR bodies, human-steps bash wizards | Overlap with TRACKER/OPEN-QUESTIONS and the PR template; `wizard` could fit owner setup steps later. |
 
 **Review stack, in order:**
 1. `code-review`
