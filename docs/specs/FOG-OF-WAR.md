@@ -11,14 +11,16 @@ Status: Draft · Tracker: NX-150…NX-154 · Inputs: P228–238; owner rule C22 
 | 3 Painted | Tracked + recon unit painting within paint range | As Track + "painted" marker; combat bonus |
 
 ## 2. Requirements
-- **FOW-1** Redaction MUST happen server-side, before serialization. Hidden entities MUST NOT appear in any payload sent to the overlay, the companion site, or replays meant for the public.
+- **FOW-1** Redaction MUST happen server-side, before serialization. Hidden entities MUST NOT appear in any payload sent to the overlay, the companion site, the public-site exports pushed while a campaign is running (leaderboards/stats JSON, Q-ARCH-16), or replays meant for the public.
 - **FOW-2** SIGINT blobs MUST NOT leak entity ids, exact counts, or exact positions. Jitter comes from the seeded `fow` RNG and is re-rolled each refresh.
 - **FOW-3** Events (kill feed, tracers) involving hidden enemy units MUST be redacted ("Unknown contact destroyed VIPER-27").
-- **FOW-4** **Director fairness:** the Threat Director MUST decide using the *enemy-side* FoW view, built with the same algorithm from the enemy's sensors. Exception: spawning in its own territory.
-- **FOW-5** FoW computation uses the spatial grid and runs every tick for Tier 2/3, and every 8–10 s for Tier 1.
+- **FOW-4** **Director fairness:** the Threat Director MUST decide using the *enemy-side* FoW view, built with the same algorithm from the enemy's sensors. This includes the jobs it posts on the Static's Tasking Board (Q-GD-34, THREAT-DIRECTOR TD-2). Exception: spawning in its own territory.
+- **FOW-5** FoW computation uses the spatial grid and runs every tick for Tier 2/3, and every 8–10 s of sim time for Tier 1.
+- **FOW-8** **Per-side Tasking Boards (Q-GD-37 item 9):** each side's board is generated only from that side's own FoW view. A coalition job MUST NOT reference an entity the coalition can't see; a job against a SIGINT blob references the blob's opaque id and quantized cell, never an entity id. The overlay's NEEDED list is therefore redacted by construction (FOW-1).
+- **FOW-9** **Time and pauses (Q-CFG-8):** every FoW timer (Tier 1 refresh, `fow.track_fade_s`) is sim time and is converted to ticks at config load. While the campaign is paused (SIM-CORE SC-11) none advances: a last-known track does not age and no blob re-rolls.
 
 ## 2a. Track fade (owner, 2026-10-17)
-- **FOW-6:** When sensor coverage of a tracked contact is lost (scout destroyed, out of range, radar jammed), the contact does not vanish. It becomes a **last-known track**: its position freezes and is shown with an age timer, its uncertainty circle grows, and after `fow.track_fade_s` (PROPOSED) it decays into a SIGINT blob. Seeded, deterministic, visible.
+- **FOW-6** (behind a feature flag, off in the first build, Q-PROD-8): When sensor coverage of a tracked contact is lost (scout destroyed, out of range, radar jammed), the contact does not vanish. It becomes a **last-known track**: its position freezes and is shown with an age timer, its uncertainty circle grows, and after `fow.track_fade_s` (PROPOSED) it decays into a SIGINT blob. Seeded, deterministic, visible.
 
 ## 2b. Target handoff (P4)
 - **FOW-7:** A painting scout can hand a target to a long-range shooter (strike missile, artillery, theater asset). That extends the shooter's effective range (beyond its own sensors) and raises Pk while the paint holds. If the paint drops, the shot reverts to blob accuracy.
@@ -27,3 +29,9 @@ Status: Draft · Tracker: NX-150…NX-154 · Inputs: P228–238; owner rule C22 
 - Property: no redacted payload contains an entity that fails the visibility predicate.
 - Blob ids are unlinkable across refreshes.
 - Director decision functions receive only `EnemyView` (enforced by types).
+- FOW-8: property: no job on either side's board references an entity that fails that side's visibility predicate.
+- FOW-9: a last-known track's age and uncertainty radius are identical at the pause tick and the resume tick.
+- FOW-1: a public-site export built mid-campaign contains no entity that fails the coalition visibility predicate.
+
+## 4. Open questions
+Decided and folded in: Q-GD-16 (track fade, target handoff), Q-GD-34, Q-GD-37, Q-PROD-8, Q-ARCH-16, Q-CFG-8. Still open: the end-of-campaign full archive (Q-ARCH-16) and the AAR "what you didn't see" view reveal hidden history; whether that archive is exempt from FOW-1 once the campaign has ended is not decided. Q-PROD-8 puts track fade behind a flag, while TRACKER NX-301 says Q-GD-16 blocks P1; which phase FOW-6 ships in needs confirming.
