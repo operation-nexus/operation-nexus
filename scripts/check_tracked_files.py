@@ -22,6 +22,7 @@ RECORDING_DIR = re.compile(r"(^|/)(recordings?|captures?|clips|snapshots|command
 ALLOW_IGNORED: tuple[str, ...] = ()
 ALLOW_RECORDING = (
     "docs/ops/data/",  # cost-estimate CSV behind the docs/ops charts
+    "services/sim/src/nexus/clips/",  # the nexus.clips source package (SYSTEM-DESIGN §4), not recordings
 )
 ALLOW_LARGE: tuple[str, ...] = ()
 

@@ -30,7 +30,7 @@ def test_tracked_files():
     sizes = {"docs/a.md": 10, "big.png": 6 * 1024 * 1024}
     bad = violations(
         tracked=["docs/a.md", "clips/raid.mp4", "nexus.db", "services/sim/data/x.json", "docs/ops/data/c.csv",
-                 "big.png", "gone.txt"],
+                 "services/sim/src/nexus/clips/__init__.py", "big.png", "gone.txt"],
         ignored=["notes.log"],
         size_of=sizes.get,
     )
