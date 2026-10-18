@@ -35,11 +35,12 @@ NFKC; strip control, bidi and zero-width characters; enforce the 300-character c
 
 - **CG-2 `!me` and `!status`** (Q-UX-12): `!me` is canonical (FB-UX-3: 5 s highlight plus a digest line; works in the reserve queue). `!status` is a pure alias: the parser maps it to `!me`, with identical behavior.
 - **CG-4 `!quiet` toggle** (Q-ALN-12, Q-AI-7): `!quiet` takes no arguments and is open to any rank. Each use flips the commander's taunt-naming opt-out (IDENTITY ID-PREF-1): off → on, on → off. The bot confirms the **new** state to that commander in the next batched digest (§6). The flag is stored per commander, so it applies on every linked platform. Its schema, parser entry and handler land in one PR (AGENTS.md rule 6a).
-- **CG-5 Commands while paused** (Q-ALN-2): a pause freezes the whole world (STATE-MACHINES-AND-FLOWS §4.4). Commands that do not change the world still work while paused: the Info class (`!me`/`!status`, `!help`, `!guide`, `!rules`, `!link`), `!quiet`, and joining the reserve queue. Every other command is refused, and the sender gets a "war paused" line in the next batched digest (§6), never a silent drop (FB-UX-5).
+- **CG-5 Commands while paused** (Q-ALN-2, Q-ALN-26): a pause freezes the whole world (STATE-MACHINES-AND-FLOWS §4.4). Commands that do not change the world still work while paused: the Info class (`!me`/`!status`, `!help`, `!guide`, `!rules`, `!link`), `!quiet`, `!callsign`, and joining the reserve queue. A `!join` from a commander with no live unit always joins the reserve queue while paused, even when a slot is free, and spawns in queue order after resume (Q-ALN-26). Every other command is refused, and the sender gets a "war paused" line in the next batched digest (§6), never a silent drop (FB-UX-5).
+- **CG-6 Idle timers** (Q-ALN-26, Q-GD-35): only commands that reach the sim reset a commander's idle handoff/retire timers (`presence.idle_handoff_min`, `presence.idle_retire_min`). The Info class (`!me`/`!status`, `!help`, `!guide`, `!rules`, `!link`), `!quiet` and `!callsign` never reset them, whether accepted, rate-limited or refused.
 
 ## 5. Rate limiting (SEC-GW-2)
 
-**Owner decision (2026-10-17, Q-GW-1): stricter, per command class, and adjustable live.** All values are PROPOSED, tuned in playtests, and edited in the Command Center rules editor (hot-reloadable; config keys `ratelimit.class.*` and `ratelimit.slow_mode.multiplier`, CONFIG-AND-CONTENT §6.9). Rule editing is owner/admin/GM only (ADMIN-RBAC).
+**Owner decision (2026-10-17, Q-GW-1): stricter, per command class, and adjustable live.** All values are PROPOSED, tuned in playtests, and edited in the Command Center rules editor (hot-reloadable; config keys `ratelimit.class.*` and `ratelimit.slow_mode.multiplier`, CONFIG-AND-CONTENT §6.9). Rule editing is owner/admin only (ADMIN-RBAC §4.3, Q-ALN-10).
 
 | Command class | Examples | Proposed limit per operator |
 |---|---|---|
@@ -76,4 +77,5 @@ Replies are an aggregated digest, e.g. "12 new commanders deployed: VIPER-27, �
 | One platform's chat down while the broadcast is live | The sim keeps running. The offline auto-pause is triggered by stream-offline detection only, never by a single chat platform dropping (Q-OPS-8). |
 
 ## 8. Open questions
-- Decided and folded in (2026-10-18): Q-GW-2 (CG-3), Q-UX-12 (CG-2), Q-LEGAL-7 (CG-1), Q-ALN-12 (CG-4), Q-ALN-2 (CG-5), Q-ALN-4 (§5 real-time redemption cooldowns).
+- Decided and folded in (2026-10-18): Q-GW-2 (CG-3), Q-UX-12 (CG-2), Q-LEGAL-7 (CG-1), Q-ALN-12 (CG-4), Q-ALN-2 (CG-5), Q-ALN-4 (§5 real-time redemption cooldowns), Q-ALN-10 (rule editing is owner/admin only, §5), Q-ALN-26 (`!join` queues while paused, CG-5; idle timers, CG-6).
+- Open: `!me`/`!status` reaches the sim to highlight the unit (CONTRACTS `ME`), and STATE-MACHINES-AND-FLOWS §4.1 resets idle timers on any command that reaches the sim. CG-6 follows Q-ALN-26 (info commands never reset them); STATE-MACHINES needs the same exception for `ME`.

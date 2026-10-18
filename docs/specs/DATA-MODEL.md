@@ -64,14 +64,15 @@ CREATE TABLE commanders (
   deleted_at        TEXT,                                      -- set by the deletion job on completion; row kept as tombstone
   taunt_opt_out     INTEGER NOT NULL DEFAULT 0 CHECK (taunt_opt_out IN (0,1)),  -- `!quiet` toggle (Q-ALN-12); 0 = never opted out
   CHECK ((callsign_kind = 'TOMBSTONE') = (deleted_at IS NOT NULL)),
-  CHECK (deleted_at IS NULL OR deletion_requested_at IS NOT NULL)
+  CHECK (deleted_at IS NULL OR deletion_requested_at IS NOT NULL),
+  CHECK (callsign_kind <> 'TOMBSTONE' OR callsign GLOB 'X-[A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9]')
 ) STRICT;
 CREATE INDEX idx_commanders_created ON commanders(created_at);
 ```
 - XP and rank are **not** stored here. They're derived (§4.10), so they can't drift from the ledger.
-- **Tombstone callsign:** `"X-"` followed by the first 10 characters of the RFC 4648 base32 (uppercase, no padding) encoding of `blake2b-256(commander_id)`. That is 12 characters, so it matches the CONTRACTS `Callsign` regex, and it is derived from the id, so it is unique in practice. On a collision (UNIQUE violation) the deletion transaction rolls back and alerts; the job then retries with the next 10 characters. The `X-` prefix is reserved and can't be claimed as a custom callsign (IDENTITY §3).
-- Viewers never see the tombstone value: anything with `callsign_kind = 'TOMBSTONE'` renders as `REDACTED-…` (Q-DM-2). What follows the `REDACTED-` prefix is not decided (§11).
-- **`taunt_opt_out` (Q-ALN-12, IDENTITY ID-PREF-1):** each `!quiet` flips the flag and the bot confirms the new state. Any rank may use it. It lives on the commander, so it applies on every linked platform. While it is 1, Static taunts never name this commander. The `0` default is true by construction (DM-10): a new commander has not opted out. How the flag combines on a merge (Q-PROG-4) is not decided (§11).
+- **Tombstone callsign (Q-ALN-29):** `"X-"` followed by a **random 4-character tag** drawn at deletion time from `[A-Z0-9]` (alphabet PROPOSED) with a cryptographically secure generator (Python `secrets`). The deletion job runs outside the sim, so this randomness does not touch determinism (ADR-0002). The tag is not derived from `commander_id` or any other identifier, so it can't be reversed. The value (e.g. `X-7KQ2`) is 6 characters, so it matches the CONTRACTS `Callsign` regex, and it is stored in `commanders.callsign`. On a collision (UNIQUE violation) the job draws a new tag in the same transaction; after a retry limit (PROPOSED, TBD) the transaction rolls back and alerts. The keyspace is 36⁴ = 1,679,616 tags. The `X-` prefix is reserved and can't be claimed as a custom callsign (IDENTITY §3).
+- **Display (Q-DM-2, Q-ALN-29):** viewers never see the stored `X-` value. A callsign with `callsign_kind = 'TOMBSTONE'` renders as `REDACTED-` plus its 4-character tag (`X-7KQ2` → `REDACTED-7KQ2`). Because the tag is unique and stored, two deleted commanders stay distinct in replays and recaps.
+- **`taunt_opt_out` (Q-ALN-12, IDENTITY ID-PREF-1):** each `!quiet` flips the flag and the bot confirms the new state. Any rank may use it. It lives on the commander, so it applies on every linked platform. While it is 1, Static taunts never name this commander. The `0` default is true by construction (DM-10): a new commander has not opted out. **On a merge (Q-PROG-4, Q-ALN-28) opt-out wins:** the surviving commander's flag is 1 if either merged commander had it set, and 0 only if both were 0.
 
 ### 4.3 platform_identities
 ```sql
@@ -261,8 +262,8 @@ CREATE TABLE commander_stats (
 ) STRICT;
 ```
 - `rank_level` is derived, never edited by hand, and **never decreases** (Q-CFG-2). It is the highest level reached when each persistent `xp_ledger` row is folded in order under the rank table of that row's `config_hash`. A new rank table (an admin preset, Q-PROG-7) therefore applies to future promotions only.
-- Rank tables and XP source values are config (CONFIG-AND-CONTENT §6.8). Applying an admin/GM preset registers a new `config_versions` row and writes an `admin_audit` row (Q-PROG-7).
-- **Merge (Q-PROG-4):** XP is never summed. The surviving commander keeps the max per stat. The absorbed commander's ledger rows stay attached to the absorbed id (they're history), and an identity_event `MERGED_INTO` links the two. The derived stats for the survivor take `max(survivor, absorbed)` per column at merge time; that rule is recorded as a `MERGED_FROM` event so rebuilds can reproduce it.
+- Rank tables and XP source values are config (CONFIG-AND-CONTENT §6.8). Applying a preset (a GM may draft one; an Admin or Owner applies it, Q-ALN-22) registers a new `config_versions` row and writes an `admin_audit` row (Q-PROG-7).
+- **Merge (Q-PROG-4):** XP is never summed. The surviving commander keeps the max per stat. The absorbed commander's ledger rows stay attached to the absorbed id (they're history), and an identity_event `MERGED_INTO` links the two. The derived stats for the survivor take `max(survivor, absorbed)` per column at merge time; that rule is recorded as a `MERGED_FROM` event so rebuilds can reproduce it. In the same transaction the survivor's `commanders.taunt_opt_out` is set to `max(survivor, absorbed)`: opt-out wins (Q-ALN-28, §4.2).
 
 ### 4.13 Leaderboard views
 ```sql
@@ -281,7 +282,7 @@ JOIN commanders c ON c.commander_id = x.commander_id
 WHERE c.deleted_at IS NULL AND c.banned = 0
 GROUP BY x.campaign_id, x.commander_id, x.reason;
 ```
-- **Interim:** `v_role_leaderboard` groups XP by reason. Q-PROG-8 replaces that ranking: per-role boards rank by role contribution (logistics: supplies delivered; recon: spotted enemies later engaged by friendlies; CSAR: rescues completed; combat: threat-weighted kills + objective damage), the overall board ranks by merit, assists count, and each board has a season-total (primary) and a per-hour-played view. The metric per board is defined in config. **Season and per-role leaderboard source tables (the recon, CSAR and threat-weighted metrics, the season key and hours played) are specified in the seasons and leaderboards spec (NX-314), not here (Q-ALN-16).** When that spec lands, its tables are added to §4 in the same PR as their migration. CSAR rescue counts can already be derived from §4.13a.
+- **Interim:** `v_role_leaderboard` groups XP by reason. Q-PROG-8 replaces that ranking: per-role boards rank by role contribution (logistics: supplies delivered; recon: spotted enemies later engaged by friendlies; CSAR: rescues completed; combat: threat-weighted kills + objective damage), the overall board ranks by merit, assists count, and each board has a season-total (primary) and a per-hour-played view. The metric per board is defined in config. **Season and per-role leaderboard source tables (the recon, CSAR and threat-weighted metrics, the season key and hours played) are specified in the seasons and leaderboards spec (NX-314), not here (Q-ALN-16).** When that spec lands, its tables are added to §4 in the same PR as their migration. CSAR rescue counts can already be derived from §4.13a, counting only jobs resolved under operator control; AUTO assists never count toward a leaderboard (Q-ALN-30, §4.13a).
 - Only approved callsigns appear, because `commanders.callsign` is always either generated or approved. Banned and deleted commanders are excluded. No padding rows (DI-4).
 
 ### 4.13a Tasking Board job outcomes (Q-ALN-16, GAMEPLAY TB-10)
@@ -311,6 +312,7 @@ CREATE TABLE tasking_job_claims (
   entity_id         TEXT NOT NULL,             -- the claiming unit
   commander_id      TEXT REFERENCES commanders(commander_id),  -- NULL for AI garrison and Static units
   ai_run            INTEGER NOT NULL CHECK (ai_run IN (0,1)),  -- 1 when the unit was AI-run (AUTO tag, Q-GD-35) at claim time
+  ai_run_at_end     INTEGER NOT NULL CHECK (ai_run_at_end IN (0,1)),  -- 1 when the unit was AI-run at ended_tick (a reclaim in between flips it, Q-ALN-9)
   claimed_tick      INTEGER NOT NULL,
   ended_tick        INTEGER NOT NULL CHECK (ended_tick >= claimed_tick),
   ended_by          TEXT NOT NULL CHECK (ended_by IN ('RESOLVED','RELEASED')),   -- job reached a terminal state, or the claim was released (lease, preemption, operator)
@@ -318,10 +320,19 @@ CREATE TABLE tasking_job_claims (
   FOREIGN KEY (campaign_id, job_id) REFERENCES tasking_jobs(campaign_id, job_id)
 ) STRICT;
 CREATE INDEX idx_tasking_claims_commander ON tasking_job_claims(commander_id) WHERE commander_id IS NOT NULL;
+
+CREATE VIEW v_auto_assists AS            -- recap-only (Q-ALN-30)
+SELECT j.campaign_id, k.commander_id, j.job_kind, COUNT(*) AS auto_assists
+FROM tasking_jobs j
+JOIN tasking_job_claims k ON k.campaign_id = j.campaign_id AND k.job_id = j.job_id
+JOIN commanders c ON c.commander_id = k.commander_id
+WHERE j.outcome = 'DONE' AND k.ended_by = 'RESOLVED' AND k.ai_run_at_end = 1
+  AND c.deleted_at IS NULL AND c.banned = 0
+GROUP BY j.campaign_id, k.commander_id, j.job_kind;
 ```
 - Both tables hold ids and numbers only (DM-6), so the deletion job keeps them, like the ledgers (§6.4).
 - Writes are idempotent: a replayed outcome hits the primary key and is ignored (`ON CONFLICT DO NOTHING`, §5.2).
-- Whether a job credited to an AI-run (`ai_run = 1`) viewer unit counts toward its commander's recap stats is not decided (§11).
+- **AUTO assists (Q-ALN-30):** a DONE job whose resolving claim belongs to a viewer's unit that was AI-run at that tick (`ended_by = 'RESOLVED'`, `ai_run_at_end = 1`) is an **AUTO assist** for that commander. AUTO assists are kept apart from operator-controlled completions (`ai_run_at_end = 0`) and are read only through `v_auto_assists`, for recaps. They never count toward XP, Merit or any leaderboard: progression writes no `xp_ledger` or `merit_ledger` row for the job, and per-job recap stats such as "most rescues" count only `ai_run_at_end = 0` rows.
 
 ### 4.14 clips (review queue)
 ```sql
@@ -363,6 +374,7 @@ CREATE TABLE admin_audit (
 ) STRICT;
 CREATE INDEX idx_admin_audit_time ON admin_audit(occurred_at);
 ```
+- **Pause rows (Q-ALN-31):** a `PAUSE` row's `detail_json` holds `reason_category` (`PauseReasonCategory`: `OPERATOR`, `TECHNICAL`, `MAINTENANCE`, `CEASEFIRE`) and `sub_reason` (`RAID`, `ABUSE`, `CONTENT`, `OTHER`, or `null`). `sub_reason` is non-null only when `reason_category = 'OPERATOR'`; the pause command itself carries the same two fields into the command log (ADMIN-RBAC pause flow).
 
 ### 4.16 deletion_requests
 ```sql
@@ -390,6 +402,7 @@ CREATE INDEX idx_deletion_due ON deletion_requests(status, due_by);
 | `uq_one_running_campaign` on `((1))` | partial unique index on a constant expression works in Postgres too | Verify in the migration test |
 | Single writer | MVCC multi-writer | Keep idempotency keys; they become the concurrency guard |
 | Triggers (doctrine lock) | PL/pgSQL triggers | Rewrite trigger bodies; behavior covered by the same tests |
+| `GLOB` in the tombstone CHECK (§4.2) | regex match `~ '^X-[A-Z0-9]{4}$'` | Rewrite the CHECK; same negative fixture |
 
 The repository interface (`nexus.persistence`) is the only code that sees SQL. The same repository test suite runs against both engines before the switch.
 
@@ -472,13 +485,13 @@ Bundles contain `commander_id`s only, so they're safe to attach to a private Git
 | `commanders.callsign`, `platform_identities.display_name` | SQLite | Yes (the only place) |
 | Uploaded clips | platforms | Possibly (on-screen callsigns). Can't be recalled after upload (THREAT-MODEL §6) |
 
-**Crypto-shredding:** the public replay viewer resolves `commander_id → callsign` through a `GET` against the live DB at view time. After deletion, `callsign_kind = 'TOMBSTONE'`, so old replays render `REDACTED-…` automatically (Q-DM-2). Replay files need no rewriting.
+**Crypto-shredding:** the public replay viewer resolves `commander_id → callsign` through a `GET` against the live DB at view time. After deletion, `callsign_kind = 'TOMBSTONE'`, so old replays render `REDACTED-<tag>` (e.g. `REDACTED-7KQ2`) automatically, with the tag stored at deletion (Q-DM-2, Q-ALN-29, §4.2). Replay files need no rewriting.
 
 **Deletion job** (daily, processes `deletion_requests` where `status='RECEIVED'`):
 1. Mark `PROCESSING`. (`commanders.deletion_requested_at` was already set when the request was received, together with the `deletion_requests` row.)
 2. In one transaction:
    - delete `platform_identities` rows
-   - set `commanders.callsign` to the tombstone value (§4.2), `callsign_kind = 'TOMBSTONE'`, `deleted_at = now`
+   - draw the random tag and set `commanders.callsign` to the tombstone value `X-<tag>` (§4.2, Q-ALN-29), `callsign_kind = 'TOMBSTONE'`, `deleted_at = now`
    - delete `callsign_requests` rows
    - null out `display_name` in any remaining audit detail
    - append `FORGOTTEN` to `identity_events`
@@ -509,7 +522,7 @@ Bundles contain `commander_id`s only, so they're safe to attach to a private Git
 
 ## 7a. Public exports and first-party analytics
 - **Public site exports (Q-ARCH-16):** the public site is static for now. The broadcast host pushes one-way exports to a static host: leaderboard/stats JSON about every 15 min (interval configurable; ~15 min is the owner's starting value) and the full campaign archive at campaign end. Nothing on the site can read from or write to this store; there is no inbound path to the home network (OPS-ADMIN OA-11).
-- **Export content:** only data that is already public: approved callsigns or `REDACTED-…` (Q-DM-2), `commander_id`-keyed pseudonymous replays (DM-6) and aggregate stats. Banned and deleted commanders are excluded as in §4.13. The export schema lives in `contracts/` with an explicit field allowlist.
+- **Export content:** only data that is already public: approved callsigns or `REDACTED-<tag>` (Q-DM-2, Q-ALN-29), `commander_id`-keyed pseudonymous replays (DM-6) and aggregate stats. Banned and deleted commanders are excluded as in §4.13. The export schema lives in `contracts/` with an explicit field allowlist.
 - **Database:** stay on SQLite (ADR-0003, 2026-10-18 amendment). A later live interactive site with its own API and database triggers the Postgres revisit (§4.17) and a separate security review.
 - **Analytics (Q-DM-3):** D7 retention, session length and similar metrics are computed from our own sim and gateway events keyed by `commander_id` (DM-11). Platform dashboards (Twitch/YouTube) are used for viewer counts but not imported. The privacy notice, terms of service and any cookie banner state this (NX-204, NX-314, NX-316). Metric definitions are not written yet (GAP-ANALYSIS §3, P3).
 
@@ -545,15 +558,15 @@ To measure in P1/P2: real command rate per hour of day, the actual zstd ratio on
 | DM-7 | Startup test: DB at schema N+1 with code at N → refuse to start |
 | DM-8 | Semgrep `sql-no-fstring` |
 | §5.3 | Unit + property: DR window uses `recorded_at` (real time); re-processing the same events doesn't change awards; XP before the first completed mission is non-persistent; a lone active human earns persistent XP (Q-PROG-6) |
-| §4.2 | Two `!quiet` commands from one commander set `taunt_opt_out` to 1 then back to 0; a `!quiet` sent from a second linked platform flips the same row (Q-ALN-12) |
+| §4.2 | Two `!quiet` commands from one commander set `taunt_opt_out` to 1 then back to 0; a `!quiet` sent from a second linked platform flips the same row (Q-ALN-12); merging a commander with `taunt_opt_out = 1` into one with 0 (and the reverse) leaves the survivor at 1, merging two 0s leaves 0 (Q-ALN-28); a `TOMBSTONE` row whose callsign is not `X-` + 4 of `[A-Z0-9]` is rejected by the CHECK |
 | §4.3 | An envelope with `account_created_at: null` stores `platform_account_created_at` as `NULL`, never a substitute date |
-| §4.13a | A GM-injected job on the `COALITION` board is rejected by the CHECK (Q-ALN-11); replaying the same job outcome twice leaves one `tasking_jobs` row; a fixture campaign with three DONE rescue jobs claimed by one commander yields a rescue count of 3 for that commander |
+| §4.13a | A GM-injected job on the `COALITION` board is rejected by the CHECK (Q-ALN-11); replaying the same job outcome twice leaves one `tasking_jobs` row; a fixture campaign with three DONE rescue jobs claimed by one commander yields a rescue count of 3 for that commander; with two of them resolved under AUTO (`ai_run_at_end = 1`) the rescue count is 1, `v_auto_assists` shows 2, and no `xp_ledger` or `merit_ledger` row exists for the two AUTO jobs (Q-ALN-30); a unit reclaimed between claim and resolution counts as operator-controlled |
 | §4.11 | Insert of a negative merit `delta` is rejected (Q-PROG-7) |
 | §4.12 | Rebuild after a rank-table change that raises thresholds leaves every `rank_level` unchanged (Q-CFG-2) |
 | §7a | Export files contain no field outside the allowlist; the overlay and site bundles load no third-party script (DM-11) |
 | §6.1 | Round-trip and corruption tests: flipped byte → trailer mismatch → fallback |
 | §6.2 | Crash-in-the-middle test: kill -9 during write; replay recovers every fsync'd record; no seq gaps |
-| §6.4 | Deletion job end-to-end: identities gone, callsign tombstoned (`X-` + 10 base32, `TOMBSTONE` kind), leaderboards exclude, replay renders `REDACTED-…` (Q-DM-2); two deletions in the same second don't collide |
+| §6.4 | Deletion job end-to-end: identities gone, callsign tombstoned (`X-` + random 4-character tag, `TOMBSTONE` kind), leaderboards exclude, replay renders `REDACTED-<tag>` (Q-DM-2, Q-ALN-29); two deletions in the same second get distinct tags; with the generator stubbed to return a taken tag first, the job draws again and succeeds; with the generator stubbed to a fixed value, two commanders with different ids get the same first draw, so the tag depends only on the generator and never on `commander_id` |
 | §7 | Migration test from previous-release fixture; restore drill script runs in nightly CI on a fixture backup |
 
 ## 11. Questions (tracked in [OPEN-QUESTIONS](../planning/OPEN-QUESTIONS.md))
@@ -574,15 +587,17 @@ Decided 2026-10-18 (spec-alignment batch):
 - **Q-ALN-16:** Tasking Board job outcomes are durable (§4.13a); season and per-role leaderboard source tables belong to the seasons and leaderboards spec (NX-314, §4.13).
 - **Q-ALN-11:** a GM injects jobs into the Static's board only (CHECK in §4.13a).
 - **Q-ALN-14:** earned ranks are never revoked (`rank_level` never decreases, §4.12).
-- **Q-DM-2:** deleted commanders display as `REDACTED-…` (§4.2, §6.4).
+- **Q-DM-2:** deleted commanders display as `REDACTED-<tag>` (§4.2, §6.4; suffix per Q-ALN-29).
+- **Q-ALN-22:** a GM may draft a rank/XP preset; an Admin or Owner applies it (§4.12).
+- **Q-ALN-28:** on a merge, `taunt_opt_out` opt-out wins (§4.2, §4.12).
+- **Q-ALN-29:** the suffix after `REDACTED-` is a random 4-character tag stored at deletion in the tombstone callsign `X-<tag>` (§4.2, §6.4).
+- **Q-ALN-30:** jobs completed by a viewer's AUTO unit are AUTO assists, recap-only, excluded from XP, Merit and leaderboards (`ai_run_at_end`, `v_auto_assists`, §4.13a).
+- **Q-ALN-31:** pause audit rows carry `reason_category` plus an optional `sub_reason` used only for `OPERATOR` (§4.15).
 - PROGRESSION PROG-4 / IDENTITY §1: platform account age is stored as `platform_identities.platform_account_created_at` (§4.3).
 
 Not modeled yet:
 - Season and per-role leaderboard source rows (recon assists that led to engagements, threat-weighted kills, objective damage, hours played, the season key): NX-314 (Q-ALN-16).
-- What follows the `REDACTED-` prefix in the displayed name (Q-DM-2 shows only `REDACTED-…`).
-- How `taunt_opt_out` combines when two commanders merge (Q-PROG-4).
-- Whether Tasking Board jobs done by an AI-run (`ai_run = 1`) viewer unit count toward that commander's recap stats.
-- CONTRACTS names no event for the DONE and FAILED job outcomes yet; §4.13a needs one.
+- CONTRACTS names no event for the DONE and FAILED job outcomes yet; §4.13a needs one, and it must say whether the resolving unit was AI-run at that tick (fills `ai_run_at_end`, Q-ALN-30).
 
 ## Data model additions pending merge (2026-10-17)
 - **From [ADMIN-RBAC](ADMIN-RBAC.md):**
