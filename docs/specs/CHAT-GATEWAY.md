@@ -6,6 +6,8 @@ Status: Draft · Tracker: NX-190…NX-199 · ADR-0008 · Facts: PLATFORM-REALITY
 
 The core never branches on platform. Every adapter implements the same ports, declares its `Capabilities`, and must pass the shared conformance suite (`tests/conformance/chat/`). Multiple sources can run at once (simulcast). Discord can also be a `ChatSource` (command channel) if enabled.
 
+- **CG-1 Viewer simulator never on the public channel** (Q-LEGAL-7). The viewer simulator (NX-193) feeds commands only through the `LocalSim` source into the internal command queue, never through real chat accounts or platform chat. It runs only locally, on staging, or against an unlisted/private test stream, and it refuses to start when the config targets the production channel. Platform policy wording is [UNVERIFIED].
+
 ```python
 class PlatformAdapter(Protocol):
     platform: Platform            # enum: TWITCH | YOUTUBE | KICK
@@ -31,6 +33,8 @@ NFKC; strip control, bidi and zero-width characters; enforce the 300-character c
 
 **Over-length messages are rejected, never truncated** (Q-CT-1): a command over 300 characters after normalization is dropped and the sender gets a "too long" note in the next batched digest. Truncation could turn a long message into a different valid command. Display names are stored but **never rendered** unless approved (Q-MOD-1).
 
+- **CG-2 `!me` and `!status`** (Q-UX-12): `!me` is canonical (FB-UX-3: 5 s highlight plus a digest line; works in the reserve queue). `!status` is a pure alias: the parser maps it to `!me`, with identical behavior.
+
 ## 5. Rate limiting (SEC-GW-2)
 
 **Owner decision (2026-10-17, Q-GW-1): stricter, per command class, and adjustable live.** All values are PROPOSED, tuned in playtests, and edited in the Command Center rules editor (hot-reloadable; config keys `ratelimit.class.*` and `ratelimit.slow_mode.multiplier`, CONFIG-AND-CONTENT §6.9). Rule editing is owner/admin/GM only (ADMIN-RBAC).
@@ -52,8 +56,11 @@ NFKC; strip control, bidi and zero-width characters; enforce the 300-character c
 
 Throttled commands are never silently lost without one of these signals (GAMEPLAY FB-UX-5).
 
+Rate limits, digest batching and reconnect backoff run on a monotonic real-time clock, not sim time (Q-CFG-8).
+
 - Global: an admission cap on commands per tick. Above the cap, `!join` requests go to the reserve queue and other commands are dropped, with a metric.
 - During a raid (a spike in new users), `!join` requests are coalesced.
+- **CG-3 Raids and Shared Chat** (Q-GW-2): raid-origin viewers are normal viewers in our chat; their commands are accepted under the normal rate limits. A raid may trigger a small "reinforcements arriving" world event. Twitch Shared Chat messages that originate from another channel are dropped by default; `gateway.shared_chat.accept_foreign` (default `false`) enables them, and may be switched on only after the source-channel API fields are verified [UNVERIFIED].
 
 ## 6. Replies
 Replies are an aggregated digest, e.g. "12 new commanders deployed: VIPER-27, …", at most once every 30 s on Twitch and less often on YouTube. Errors such as "unit in sortie" go out as a periodic digest, not one per user.
@@ -63,7 +70,9 @@ Replies are an aggregated digest, e.g. "12 new commanders deployed: VIPER-27, �
 |---|---|
 | Disconnect | Backoff and reconnect. The overlay shows "UPLINK LOST" if it's down for more than 30 s. Alert after 5 min. |
 | Duplicate delivery | Dedupe by message id (LRU of 10k). |
-| Quota exhausted (YouTube) | Adapter pauses. Overlay shows "YouTube commands paused until HH:MM". Alert. |
+| Quota exhausted (YouTube) | Adapter pauses. Overlay shows "YouTube commands paused" with the resume time as a relative time, or as UTC plus the broadcast time zone (OVERLAY OV-19, Q-CFG-8). Alert. |
+| One platform's chat down while the broadcast is live | The sim keeps running. The offline auto-pause is triggered by stream-offline detection only, never by a single chat platform dropping (Q-OPS-8). |
 
 ## 8. Open questions
-- Q-GW-2 (accept commands from Twitch Shared Chat or raid-origin viewers?) is open (gap analysis 2026-10-17). Until decided, nothing here assumes either answer.
+- Decided and folded in (2026-10-18): Q-GW-2 (CG-3), Q-UX-12 (CG-2), Q-LEGAL-7 (CG-1).
+- `!quiet` (opt-out from being named in taunts, Q-AI-7) is not yet in the command catalog or the rate-limit classes. Per AGENTS.md rule 6a it arrives with its schema, parser entry and handler in one PR; its command class is for the owner to decide.
