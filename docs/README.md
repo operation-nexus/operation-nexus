@@ -13,7 +13,8 @@ When you add, rename or remove a doc, update this index in the same PR.
 | [TRACKER.md](planning/TRACKER.md) | Phase plan and `NX-###` ID index; links to GitHub Issues for live status. |
 | [OPEN-QUESTIONS.md](planning/OPEN-QUESTIONS.md) | Owner questions with recommendations, and the log of decisions made. |
 | [OWNER-TODO.md](planning/OWNER-TODO.md) | Actions only the owner can take: desktop setup, GitHub settings, hardware, accounts. |
-| [GLOSSARY.md](planning/GLOSSARY.md) | Project terms (Clearwave, The Static, Operator, and more). |
+| [GLOSSARY.md](planning/GLOSSARY.md) | Project terms (the Quorum, the Static, Operator, and more), one canonical term per concept. |
+| [NAMING-CONVENTIONS.md](planning/NAMING-CONVENTIONS.md) | Case style per layer (config keys, enums, events, commands, ids, branches) and open naming conflicts. |
 | [ISSUE-WORKFLOW.md](planning/ISSUE-WORKFLOW.md) | How GitHub Issues, labels and the tracker fit together. |
 | [MARKETING.md](planning/MARKETING.md) | Living marketing plan, devlog checkpoints and posting principles. |
 

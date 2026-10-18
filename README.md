@@ -2,7 +2,7 @@
 
 **Live-stream chat plays a 24/7 co-op war against an adaptive AI, on a glowing radar war-room map.**
 
-Viewers are **Operators** of **Clearwave** (working name, Q-BRAND-2), defending the network against **The Static**, a glitchy enemy with a taunting mastermind. Type one command in chat and your unit is on screen. Hold supply lines, scout through the fog, and push the frontline over days while the Threat Director adapts to what you do.
+Viewers are **Operators** of **the Quorum** (Q-BRAND-7), defending the network against **the Static**, a glitchy enemy with a taunting mastermind. Type one command in chat and your unit is on screen. Hold supply lines, scout through the fog, and push the frontline over days while the Threat Director adapts to what you do.
 
 The look is **"Signal"**: a radar war room on near-black, with radio static and callsigns (Q-BRAND-1, Q-STYLE-1). The tone is **fun, friendly and playful**, not grim or sweaty. The goal is a welcoming, non-toxic community.
 

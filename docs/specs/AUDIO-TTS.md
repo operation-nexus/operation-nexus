@@ -19,7 +19,7 @@ The voice reads **only big moments**: node captured or lost, bridge destroyed, o
 Lines are spoken by a small **voice cast**: named voice profiles, each with an engine voice, a radio filter preset and a pacing setting. The cast is tuned by ear through a listening session (NX-278).
 | Profile (working name) | Speaks | Character |
 |---|---|---|
-| Clearwave Control | Objectives, captures, status | Calm, clear dispatcher |
+| Quorum Control | Objectives, captures, status | Calm, clear dispatcher |
 | Field Operator | Frontline events (bridge down, convoy hit) | Brisk, slightly noisier radio |
 | The Static (mastermind) | Taunts, enemy offensives | Glitchy, distorted; dry, sparse, lightly smug, never theatrical (Q-BRAND-4) |
 | Game Master | Lines when a human GM is active (Q-RB-7) | Distinct preset, so viewers know a human is speaking |
