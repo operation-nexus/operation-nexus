@@ -37,7 +37,7 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 |---|---|---|---|---|---|
 | NX-010 [#8](https://github.com/canthony224/operation-nexus/issues/8) | Repo skeleton: `services/sim`, `apps/overlay`, `contracts/`, `tools/`, `deploy/`, Makefile, `.editorconfig`, pre-commit | M | ✅ | NX-003 | `make check` runs green on empty skeleton |
 | NX-011 [#9](https://github.com/canthony224/operation-nexus/issues/9) | `ci.yml`: path filters, python + typescript jobs, `ci-gate` | M | 👀 | NX-010 | Required check on `main` |
-| NX-012 [#10](https://github.com/canthony224/operation-nexus/issues/10) | `security.yml`: CodeQL, gitleaks, dependency-review, osv-scanner, zizmor, trivy config, hadolint | M | ⬜ | NX-010 | Fails on seeded test vuln/secret in a throwaway PR |
+| NX-012 [#10](https://github.com/canthony224/operation-nexus/issues/10) | `security.yml`: CodeQL, gitleaks, dependency-review, osv-scanner, zizmor, trivy config, hadolint | M | 👀 | NX-010 | Fails on seeded test vuln/secret in a throwaway PR |
 | NX-013 [#11](https://github.com/canthony224/operation-nexus/issues/11) | `build.yml`: buildx, pinned digests, SBOM, trivy image, cosign, provenance → GHCR | M | ⬜ | NX-011 | `cosign verify` passes on pushed image |
 | NX-014 [#12](https://github.com/canthony224/operation-nexus/issues/12) | `deploy.yml` + `deploy/bin/deploy|rollback` + Tailscale (staging auto, prod approval) | L | ⬜ | NX-013, Q-OPS-1 | Deploy + auto-rollback demonstrated on staging |
 | NX-015 [#13](https://github.com/canthony224/operation-nexus/issues/13) | `release.yml` release-please (manifest mode) | S | ⬜ | NX-011 | Release PR generated |

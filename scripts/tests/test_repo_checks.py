@@ -1,4 +1,4 @@
-"""Checks for scripts/check_commit_msg.py and scripts/check_tracked_files.py.
+"""Checks for the repo-check scripts in scripts/.
 
 Run: python3 scripts/tests/test_repo_checks.py   (or pytest scripts/tests)
 """
@@ -8,6 +8,7 @@ import sys
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 from check_commit_msg import problems  # noqa: E402  (path set up above)
+from check_osv_report import findings  # noqa: E402
 from check_tracked_files import violations  # noqa: E402
 
 AI = "Cl" + "aude"  # kept out of the literal so a name scan of this file stays clean
@@ -38,7 +39,23 @@ def test_tracked_files():
                                           "services/sim/data/x.json"]
 
 
+def test_osv_report():
+    def pkg(name, groups, fixed_ids):
+        vulns = [{"id": i, "affected": [{"ranges": [{"events": [{"introduced": "0"}, {"fixed": "9"}]}]}]}
+                 for i in fixed_ids]
+        return {"package": {"name": name}, "groups": groups, "vulnerabilities": vulns}
+    report = {"results": [{"packages": [
+        pkg("a", [{"ids": ["V1", "G1"], "max_severity": "7.0"}], ["G1"]),   # high + fix: blocks
+        pkg("b", [{"ids": ["V2"], "max_severity": "9.8"}], []),             # critical, no fix: listed only
+        pkg("c", [{"ids": ["V3"], "max_severity": "6.9"}], ["V3"]),         # medium: listed only
+        pkg("d", [{"ids": ["V4"], "max_severity": ""}], ["V4"]),            # no score: listed only
+    ]}]}
+    assert [b for b, _ in findings(report)] == [True, False, False, False]
+    assert findings({"results": []}) == []
+
+
 if __name__ == "__main__":
     test_commit_msg()
     test_tracked_files()
+    test_osv_report()
     print("ok")
