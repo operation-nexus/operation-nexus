@@ -266,7 +266,11 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-343 | Service context pack: export of voice summary, `RELEASED` lore and campaign facts from the vault for read-only use by services; shared libraries and event feed (Q-OPS-11, BRAND-OPS §4.3) | M | ⬜ | NX-328, NX-338 |
 | NX-344 | Primary-source read of Reddit and Discord self-promotion and bot rules; record findings in `docs/review/` (Q-MKT-15) | S | ⬜ | — |
 | NX-345 | Meme desk: design with the owner (grill), then pilot as a content-time agent in the vault that proposes current meme and programmer-humor angles for owner-approved posts (Q-MKT-16) | M | ⬜ | NX-339 |
-| NX-346 | NULL meme-flavored template lines: decide the mechanism with NX-326 and the no-real-world-references rule (Q-MKT-17) | S | ❓ | NX-326 |
+| NX-346 | NULL meme-flavored template lines: mechanism decided (Q-MKT-17); implement with NX-326 and the no-real-world-references rule (Q-MKT-17) | S | ⬜ | NX-326 |
+| NX-347 | Contributor license template (flat fee, contributor keeps copyright, project license, no voice training or cloning, credit) and one narrow attorney review before the first paid use (Q-LEGAL-13; ties NX-289) | S | ⬜ | — |
+| NX-348 | Credits page on the site and in the stream's about section; alias and removal-on-request rules (Q-LEGAL-13) | S | ⬜ | — |
+| NX-349 | Draft account profile copy (bios, link-page text) for each brand account, in the vault, unpublished (Q-MKT-14) | S | 🟨 | NX-340 |
+| NX-350 | `meme-brief` skill (on demand): owner's weekly examples to source-dated format ideas and drafts, tests on its tier (Q-MKT-16) | S | 🟨 | NX-339 |
 
 ## Backlog (unscheduled — from owner's conversation & plans)
 - **Global campaign map (owner vision, 2026-10-17):** a fictional world (not Earth) made of connected theaters forming a progression. Each campaign is one theater; winning pushes the front to the next connected theater (cross the mountains → urban assault; win the ocean battle → land on the mainland, which is more land than water; reach the Static's "secret base"). The map is finite but large, and new theaters can be added indefinitely (hand-made or generated). It ties together seasons, carry-over (Q-GD-12), lore (NX-275) and theater rotation (Q-SM-4). Needs its own spec (NX-294).
