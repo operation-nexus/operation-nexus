@@ -133,3 +133,113 @@ Do these for the final brand name first, then the faction names.
 - [ ] Ask Epidemic Sound support whether a villain named "Overtone" next to their music credits is a problem (only if Overtone is kept).
 - [ ] Before paying for marks or merch, have a trademark attorney run a full clearance. This document doesn't replace that.
 - [ ] Record the decision in OPEN-QUESTIONS (Q-LEGAL-5, Q-BRAND-2/3) and NX-297.
+
+---
+
+# Round 2: owner shortlist (2026-10-18)
+
+> Same limits as round 1: **knockout search only, not legal clearance.** All findings come from web-search result excerpts. No store page, handle page or official register could be opened (see Method). **Every trademark status is [UNVERIFIED].** "Nothing found" means only that these searches returned nothing. Handle and domain availability was **not** checked.
+
+Scope: the owner's shortlist for the project name (theme: networks, connectivity, crowd control, collaboration, hive mind) and "the Quorum" as the player faction, replacing "Clearwave" (Q-BRAND-6).
+
+## Method (round 2)
+
+Date **2026-10-18**. Tool: web search (US index), with store-domain and trademark-aggregator filters where noted. Queries are listed per name.
+
+**Blocked:** page fetch failed with DNS `ENOTFOUND` for store.steampowered.com and quorumgames.itch.io. Shell HTTPS was refused by the network proxy (`CONNECT tunnel failed, response 403`) for store.steampowered.com, itch.io, tmsearch.uspto.gov, tsdr.uspto.gov, tmdn.org (TMview), euipo.europa.eu, branddb.wipo.int, twitch.tv, youtube.com and trademarks.justia.com. **No official register, store page or handle was opened.**
+
+**Not done:** handles, domains, Xbox/PlayStation/Nintendo stores (one combined web search each for Plexus and Quorum only), non-English markets.
+
+## Results (round 2)
+
+| Name | Use | Risk | Main evidence |
+|---|---|---|---|
+| **Hivewire** | Project / channel brand | **Medium** (lowest of the shortlist) | No game, studio, stream channel or HIVEWIRE trademark record found. But several active businesses use the exact name: a no-code workflow software company (seed round 2021), an apiary-monitoring platform, a news API, a news feed, a music platform, and HiveWire3D (3D figure assets). Near-mark HIVEWYRE is registered (advertising). |
+| **Operation Plexus** | Project brand | **Medium** | No exact title found. "Plexus" alone is crowded: *Plexus* (Steam, 2017), *pleXus VR* (Steam, 2021), several itch.io *Plexus* games/accounts, Rowbyte's **Plexus** After Effects plug-in, and many PLEXUS marks in other classes (Plexus Worldwide, Plexus Corp., Core Scientific software). |
+| **Project Plexus** | Project brand | **Medium** (weaker than "Operation") | Same "Plexus" crowding, plus a GitHub repo *Project-Plexus* and an EU research project PLEXUS. "Project X" also reads as a codename. |
+| **Operation Quorum** | Project brand | **High** | No exact title found. But itch.io pages by **Quorum Games** and Steam titles due Nov 2026 attributed to "Quorum" turned up [developer attribution from one excerpt; UNVERIFIED]. Several QUORUM class 9 software registrations. *Quorum* is a current Devir board game. Quorum (quorum.us) is a large public-affairs software brand. |
+| **the Quorum** | In-world player faction | **Low** in-game; **High** if also the brand | Generic word. Prior fictional uses: Battlestar Galactica's *Quorum of Twelve*, a villain group "the Quorum" in the *Housewife Assassin* novels, an *Android: Netrunner* data pack, "Celestial Quorum" in *Cynostone*. None found as a video game faction name. |
+
+## R2.1 Hivewire
+
+| Finding | Source |
+|---|---|
+| Hivewire: no-code workflow software (Utah), $7.25M seed led by Pelion Venture Partners (per excerpt) | [techbuzznews.com](https://www.techbuzznews.com/hivewire-raises-7m-in-seed-funding/), [crunchbase](https://www.crunchbase.com/organization/hivewire-c4e1) |
+| Other live uses: apiary monitoring, news API, news feed, Mumbai music-culture platform | [hivewire.us](https://hivewire.us/), [hivewire.ai](https://hivewire.ai/), [hivewire.news](https://hivewire.news/), [LinkedIn](https://in.linkedin.com/company/hivewireclub) |
+| HiveWire3D: 3D model/figure vendor on Renderosity | [renderosity.com](https://www.renderosity.com/marketplace/vendors/HiveWire3D) |
+| No HIVEWIRE record in aggregator results. Near-marks: HIVEWYRE (Hivewyre, LLC, advertising, reg. 4727502); HIVE (Hive Games Limited); HIVE STREAMING; HIVEWISE (deliberation software, reg. 6185422) | [Justia HIVEWYRE](https://trademarks.justia.com/863/97/hivewyre-86397347.html), [uspto.report HIVE](https://uspto.report/TM/88613170), [gleanmark](https://gleanmark.com/trademark/uspto-79316715), [Justia HIVEWISE](https://trademarks.justia.com/872/51/hivewise-87251684.html) |
+| No game on Steam/itch.io and no Twitch/YouTube channel named Hivewire / Hive Wire found. Nearby: *The Hive* (Skydome, Steam), *Hive Time*, Highwire Games (studio) | [skydome.itch.io](https://skydome.itch.io/thehive/devlog/1164902/10000-wishlists-in-10-days-what-changed-for-the-hive), [giantbomb](https://giantbomb.com/wiki/Companies/Highwire_Games) |
+
+Queries: `"Hivewire" OR "Hive Wire" game OR company OR app`; `Hivewire`; `"hivewire" OR "hive-wire" OR "hive wire"` (extended); `HIVEWIRE trademark`; `HIVEWIRE OR HIVEWIRE3D trademark registration` (aggregators); `"Hive Wire" OR "HiveWire" Steam OR itch.io OR Twitch OR YouTube`; `hivewire github OR npm OR software library`.
+
+**Why medium:** no hit in games or streaming, but the exact word is in active commercial use, including software. Practical: easy to say, TTS-safe ("HIVE-wire"); always write it as one word (variants "Hive Wire"/"HiveWire" split search results and sit closer to HiveWire3D). Sounds close to Highwire Games and HIVEWYRE.
+
+## R2.2 Operation / Project Plexus
+
+| Finding | Source |
+|---|---|
+| *Plexus*: 2D shooter/RPG, Steam app 672250 (2017); itch.io *Plexus Beta* (happydroid) | [Steam](https://store.steampowered.com/app/672250/Plexus/), [itch.io](https://happydroid.itch.io/plexus) |
+| *pleXus VR* (Outerlynx, Steam app 1481710, 2021); *Plexus* (VFS student game, itch.io); itch.io accounts Plexus Studios, Plexus Vermiculus | [Steam](https://store.steampowered.com/app/1481710/pleXus_VR/), [itch.io](https://vfs-gdpg.itch.io/plexus), [plexus-studios.itch.io](https://plexus-studios.itch.io/) |
+| Open-source *Plexus*: 2–4 player networking strategy game about node connections (our theme) | [github.com/santient/plexus](https://github.com/santient/plexus) |
+| Rowbyte **Plexus 3** After Effects plug-in (connected-particle "network" visuals) | [aescripts](https://aescripts.com/authors/rowbyte), [80.lv](https://80.lv/articles/rowbyte-reveals-plexus-3/) |
+| PLEXUS marks: Plexus Worldwide (supplements, reg. 5426314), Plexus Corp. (electronics manufacturing), Core Scientific (cloud/AI software). None found for video-game goods | [Justia 87473551](https://trademarks.justia.com/874/73/plexus-87473551.html), [uspto.report 85397608](https://uspto.report/TM/85397608), [uspto.report 88803051](https://uspto.report/TM/88803051) |
+| "Project Plexus": GitHub intrusion-detection repo; EU-funded PLEXUS logic research project (2023–2026) | [GitHub](https://github.com/Rishabh4769/Project-Plexus), [unav.edu](https://en.unav.edu/web/school-of-humanities-and-social-sciences/professors-and-research/proyecto-plexus) |
+| Many non-game store apps named Plexus (finance, education, social, Plexus GO) | [App Store](https://apps.apple.com/us/app/plexus/id798715325), [Google Play](https://play.google.com/store/apps/details?id=com.plexus.android) |
+
+Queries: `"Operation Plexus" game`; `"Project Plexus" game OR studio OR software`; `"Operation Plexus" OR "Project Plexus"` (extended); `Plexus video game Steam itch.io`; `Plexus` restricted to itch.io, and to Steam/Epic/App Store/Google Play; `Plexus game app store OR Google Play OR Epic Games OR Nintendo eShop`; `PLEXUS trademark` (aggregators); `PLEXUS trademark video game software class 9 OR class 41`; `Plexus company …`; `Plexus Twitch streamer OR YouTube channel gaming`.
+
+**Why medium:** no exact-title clash, and "Operation" adds some distinctiveness. But two *Plexus* games are on Steam, and top non-game results are a supplements company and an After Effects plug-in. Practical: likely chat misspellings ("plexis", "plexxus"); TTS fine ("PLEK-sus"); poor discoverability.
+
+## R2.3 Operation Quorum
+
+| Finding | Source |
+|---|---|
+| Store-restricted search returned itch.io pages by **Quorum Games** (*SUNSTONE* demo, *Pulseframe* demo) and Steam apps 5176020 *Veil of Time*, 5176630 *SUNSTONE*, 2902600 *Call of Elyndra*, with "Quorum" named as developer/publisher in the excerpt **[UNVERIFIED]**. A follow-up search could not confirm it | [quorumgames.itch.io](https://quorumgames.itch.io/sunstone-demo), [quorum-games.itch.io](https://quorum-games.itch.io/pulseframe), [Steam 5176020](https://store.steampowered.com/app/5176020/Veil_of_Time/), [Steam 2902600](https://store.steampowered.com/app/2902600/Call_of_Elyndra/) |
+| *Quorum* board game (Devir) on sale at several retailers | [boardgamebliss.com](https://www.boardgamebliss.com/collections/board-games/products/quorum), [miniaturemarket.com](https://miniaturemarket.com/quorum-devquorum.html) |
+| *Coca-Cola Quórum* (BetyByte, 2001 online voting game; studio closed 2014) | [devuego.es](https://www.devuego.es/en/presskit/quorum) |
+| QUORUM class 9 software marks: regs 5257953 and 6365037 (blockchain software), 3383129 (real-time computing), QuorumLabs 4556499; AU 2452634 (Quorum Business Solutions, classes 9/42) | [Justia 87244052](https://trademarks.justia.com/872/44/quorum-87244052.html), [Justia 88467928](https://trademarks.justia.com/884/67/quorum-88467928.html), [Justia 78829811](https://trademarks.justia.com/788/29/quorum-78829811.html), [IP Australia](https://search.ipaustralia.gov.au/trademarks/search/view/2452634/details) |
+| Quorum (quorum.us): public-affairs software, "nearly 2,000 customers" per its 2024 release | [quorum.us](https://www.quorum.us/company-news/celebrates-10-years-innovation) |
+| "Project Quorum": UK LocalGov Drupal committee-management project (2026) | [thedroptimes.com](https://www.thedroptimes.com/67670/project-quorum-committee-management-proposal) |
+| No class 28/41 QUORUM game mark in aggregator results (one QUORUM application covers ceiling fans). No Twitch/YouTube channel named Quorum found | [uspto.report 97037752](https://uspto.report/TM/97037752) |
+
+Queries: `"Operation Quorum" game OR film OR book`; `"Operation Quorum" OR "Project Quorum"` (extended); `Quorum video game Steam itch.io`; `Quorum` restricted to Steam/itch.io/Epic; `Quorum game Google Play OR App Store OR Nintendo eShop OR Roblox`; `"Quorum Games" studio Steam developer`; `QUORUM trademark software registration`; `QUORUM trademark game entertainment class 41 OR class 28` (aggregators); `Quorum company software OR app …`; `Quorum Twitch streamer OR YouTube channel OR podcast`; `"Quorum" Twitch chat OR Discord bot OR game consensus`.
+
+**Why high:** an apparent game publisher named Quorum on the stores we would use, a same-name board game, and several class 9 software marks. Practical: common misspellings ("quorom", "qorum"); TTS fine ("KWOR-um"); "quorum" is a standard distributed-systems term (consensus clusters), so tech searches and our own logs get noisy.
+
+## R2.4 "the Quorum" as the player faction
+
+- **In-world label: low risk.** A generic word for a group that decides together, which fits chat-driven play. Prior uses are named bodies, not game factions: BSG's *Quorum of Twelve* ([galactica.fandom.com](https://galactica.fandom.com/wiki/Quorum_of_Twelve)), the villain group in the *Housewife Assassin* novels ([bookshare.org](https://www.bookshare.org/browse/book/1921012)), "Celestial Quorum" in *Cynostone* ([Steam](https://store.steampowered.com/app/2447150/Cynostone/)). Queries: `"the Quorum" faction video game`; `"Quorum of Twelve" Battlestar Galactica OR "the Quorum" science fiction`.
+- **Tone:** "quorum" can read as bureaucratic. The playful tone (Q-BRAND-1) may want a modifier, e.g. "the Quorum Collective" (not searched).
+- **Clash with "Operation Quorum":** one word for brand and faction puts the brand's high risk on the faction, blurs sitreps ("Quorum wins": the channel or the side?), and leaves no separate community handle. If the faction is "the Quorum", don't use Quorum in the brand.
+- **Knock-on edits if adopted:** GLOSSARY "Clearwave", Q-BRAND-2, Q-STYLE-1/4 colour and symbol notes, Q-NAME-1 ranks ("Wave Commander", "Clearwave Marshal").
+
+## Round 2 recommendation
+
+All shortlist brand names came out medium or high. Ranked:
+
+1. **Hivewire** (medium): best theme fit; no game, streaming or trademark hit found. One word only. Add a subtitle for store/channel distinctiveness, e.g. **"Hivewire: Crowd Command"** (not searched). Register check in classes 9/41/42 first, given the active software company.
+2. **Operation Plexus** (medium): workable with "Operation", but two Steam *Plexus* games and heavy non-game noise. Drop "Project Plexus".
+3. **Operation Quorum** (high): avoid as a brand.
+
+Faction: **"the Quorum" is fine as an in-world label**, paired with Hivewire or Plexus (not Quorum) as the brand. Keep "Clearwave" until the owner decides.
+
+### Extra alternatives (one quick search each, 2026-10-18; none cleared)
+
+| Candidate | Fit | Quick search |
+|---|---|---|
+| **Meshfront** | Mesh network + front line | No game found; results were 3D-mesh tooling only |
+| **Operation Lattice** | Interlinked grid of nodes | No game found; results were 3D-lattice tooling only |
+| **Swarmlink** | Swarm + link | No exact game/app/company found; nearest AppSwarm (OTC: SWRM) |
+| **Crowdline** | Crowd + front line | No exact match; near-identical **Crowline** (mobile tactical game, 2026), so weak |
+| **Linkfront** | Linked front line | Nothing found |
+
+Queries: `"Operation Lattice" OR "Meshfront" video game`; `"Swarmlink" OR "Swarm Link" game OR app OR company`; `"Crowdline" OR "Linkfront" game OR app OR company`.
+
+### Manual steps (round 2 additions)
+
+- [ ] USPTO, EUIPO/TMview, WIPO: search `HIVEWIRE`, `HIVE WIRE`, `HIVEWYRE`, `PLEXUS`, `OPERATION PLEXUS`, `QUORUM`, `OPERATION QUORUM` in classes **9, 41, 42** (and 28 for any board/card spin-off) **[UNVERIFIED class scope; confirm against the Nice text]**. Re-check HIVEWYRE reg. 4727502 and QUORUM regs 5257953, 6365037, 3383129.
+- [ ] Open Steam apps 5176020, 5176630 and 2902600 and record the developer/publisher field (confirms or clears the "Quorum Games" finding).
+- [ ] Search all stores for `Hivewire` and `Plexus`; note *Plexus* (672250) and *pleXus VR* (1481710).
+- [ ] Handles and domains for the chosen name (`twitch.tv/hivewire`, `@hivewire` on YouTube/TikTok/X/Bluesky/Instagram, Discord vanity, `r/hivewire`; `.com`/`.gg`/`.tv`/`.live`). Search results show hivewire.ai, hivewire.us and hivewire.news in use by other businesses.
+- [ ] Chat test: have a few viewers type the name from audio only; check TTS pronunciation in the chosen voice.
+- [ ] Record the decision under Q-BRAND-6 and NX-297.
