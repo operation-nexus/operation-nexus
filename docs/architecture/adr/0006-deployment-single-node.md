@@ -1,6 +1,6 @@
 # ADR-0006: Single-node deployment with Compose, signed images, and a Tailscale-based deploy
 
-- Status: Accepted (owner, 2026-10-17); amended by [ADR-0012](0012-deployment-topology.md)
+- Status: Accepted (owner, 2026-10-17); amendment note 2026-10-17 points to [ADR-0012](0012-deployment-topology.md), which is still Proposed
 - Date: 2026-10-17
 
 ## Context

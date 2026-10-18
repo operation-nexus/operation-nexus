@@ -16,6 +16,7 @@ check-python:
 	cd $(SIM) && uv run --frozen mypy src tests
 	cd $(SIM) && uv run --frozen lint-imports
 	cd $(SIM) && uv run --frozen pytest
+	python3 scripts/tests/test_repo_checks.py
 
 check-overlay:
 	pnpm --dir $(OVERLAY) run typecheck

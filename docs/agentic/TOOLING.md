@@ -16,7 +16,7 @@ Facts here were verified on 2026-10-17 against the cited sources. Anything marke
 | `.agents/` | Role cards, rules (`rules/code-quality.md`), reusable prompts, and the owner's context drop zone. |
 | `.claude/skills/` | Project skills: ours plus a pinned, MIT-licensed copy of selected `mattpocock/skills` (index and local changes: `VENDORED.md`). |
 | `.serena/project.yml` | Serena project config (languages: python, typescript, bash). `cache/` and `project.local.yml` are ignored by `.serena/.gitignore`. |
-| `scripts/` | `check_commit_msg.py` (Conventional Commits, no AI trailer) and `check_tracked_files.py` (no ignored, recorded or oversized files), with tests in `scripts/tests/`. Wiring them into pre-commit and CI belongs with NX-011. |
+| `scripts/` | `check_commit_msg.py` (Conventional Commits, no AI trailer) and `check_tracked_files.py` (no ignored, recorded or oversized files), with tests in `scripts/tests/`. `make check` and the CI `python-test` job run those tests; running the checks themselves in pre-commit (commit-msg hook) and CI is still open under NX-011. |
 
 Notes:
 - Project `allow` rules and `extraKnownMarketplaces` take effect only after you trust the folder. `deny` rules apply immediately ([settings docs](https://code.claude.com/docs/en/settings)).
@@ -94,11 +94,12 @@ The spike measures tokens per task and answer accuracy on 10 real questions abou
 6. Serena symbol lookups beat reading whole files.
 
 ## 5. Owner setup checklist (desktop)
-Done on the Mac on 2026-10-17 where checked. Repeat every item on the Windows PC.
+Done on the Mac on 2026-10-17 where checked. Repeat every item on the Windows PC. The owner ticks progress in
+[OWNER-TODO §1](../planning/OWNER-TODO.md); keep the two lists in step.
 
 - [x] Install `jq` (the guard hook needs it)
 - [x] Put the `claude` CLI on PATH (the desktop app does not): run `claude install stable` from the app's bundled binary, or the native installer from the Claude Code docs. It installs to `~/.local/bin/claude` and updates itself.
-- [ ] Open the repo in Claude Code and trust the folder. Accept the Ponytail plugin. Approve the Context7 MCP (the desktop app has it; the `claude` CLI still shows it pending until approved there once).
+- [x] Open the repo in Claude Code and trust the folder. Accept the Ponytail plugin. Approve the Context7 MCP (the desktop app has it; the `claude` CLI still shows it pending until approved there once).
 - [x] Install Serena and run the user-scope `claude mcp add` command above. Check it with `/mcp` or `claude mcp list`.
 - [ ] Enable finecomb and review-council from the plugin card in chat
 - [ ] Ponytail: leave `webhookUrl` empty

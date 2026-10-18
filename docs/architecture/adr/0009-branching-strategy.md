@@ -1,6 +1,6 @@
 # ADR-0009: Branching strategy: `develop` for integration, `main` for verified releases
 
-- Status: Accepted (owner, 2026-10-17)
+- Status: Accepted (owner, 2026-10-17); amended 2026-10-18 (Q-CI-6, Q-PROC-2, merge commits; see the amendments below)
 - Date: 2026-10-17
 - Related: CICD-ARCHITECTURE §2, §4, §6
 
@@ -11,7 +11,7 @@ The owner wants `main` to contain only verified work: CI passed, CD passed, depl
 | Branch | Purpose | Merges in from | Protection |
 |---|---|---|---|
 | `main` | Production. Every commit is a verified release. | `develop` (*promotion PR*, merge commit) and `hotfix/*` only | All required checks green, staging deploy healthy, merge restricted to the owner, no force-push. Tags via release-please. |
-| `develop` | Integration of all day-to-day work | `feat/*`, `fix/*`, `docs/*`, `chore/*` | PR required. **Gate: security + build + lint/format/typecheck** (see below). Tests run but are advisory. No force-push. |
+| `develop` | Integration of all day-to-day work | `feat/*`, `fix/*`, `docs/*`, `chore/*` | PR required (0 approvals; auto-merge once `ci-gate` is green, Q-PROC-2 amendment). **Gate: security + build + lint/format/typecheck** (see below). Tests run but are advisory. No force-push. |
 | `feat/NX-###-…` etc. | One tracker item | branched from `develop` | — |
 | `hotfix/…` | Urgent production fix | branched from `main`, merged to `main` **and** back to `develop` | Same as `main` |
 | `release/*` | **Not used** for now. Revisit if we ever need to stabilize a release while `develop` moves on. | — | — |

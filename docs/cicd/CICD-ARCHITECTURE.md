@@ -20,7 +20,7 @@ Non-goals for now: Kubernetes, Helm, multi-region, canary traffic splitting (ADR
 | Branch names | `feat/NX-123-short`, `fix/NX-…`, `docs/…`, `chore/…` |
 | Commits / PR titles | Conventional Commits for every commit and the PR title: merge commits keep each branch commit, and the merge subject is the PR title. A PR-title lint (NX-017) and the commit-msg check enforce this. |
 | Versioning | SemVer per deployable (`sim`, `gateway`, `overlay`) via release-please manifest mode. `contracts/` is versioned too, and any breaking change bumps `PROTOCOL_VERSION`. |
-| Protection on `develop` | PR required. Security and build checks required; tests advisory (ADR-0009 table). No force-push. |
+| Protection on `develop` | Every change by PR; direct pushes blocked; 0 approvals; `ci-gate` required; GitHub auto-merge lands the PR once `ci-gate` is green (Q-PROC-2). Security, build, lint, format and typecheck are required; tests, golden replays, integration and Playwright are advisory (ADR-0009 table, Q-CI-6). Until `security.yml` exists (NX-012), `ci-gate` covers build, lint, format, typecheck and import contracts. No force-push. Agents open these PRs only as AGENTS.md rule 10 allows. |
 | Protection on `main` | PRs only from `develop` (promotion) or `hotfix/*`. All required status checks (§4), no force-push, conversation resolution. **Required PR approvals: 0.** GitHub doesn't count an author's own approval, and the solo owner authors every PR, so a required approval would deadlock. Owner sign-off is instead enforced by (a) only the owner being able to merge to `main` (ruleset bypass list empty, merge restricted to the owner) and (b) required reviewers on the `production` Environment. Agents never merge to `main` (AGENTS.md rule 10). |
 | Merge methods | **Merge commit** everywhere: `feat/*` → `develop` (ADR-0009 amendment, 2026-10-18), `develop` → `main` and `hotfix/*` → `main`, so `main` and `develop` share history and back-merges don't conflict repeatedly. Neither branch requires linear history. |
 | Naming | *Promotion PR* = `develop` → `main`. *Release PR* = the release-please PR on `main`. |
@@ -33,7 +33,7 @@ Non-goals for now: Kubernetes, Helm, multi-region, canary traffic splitting (ADR
    │
    ├─ pr-hygiene ── title lint · size label · tracker-ID check · changed-paths filter
    │
-   ├─ python (paths: services/**, tools/**, contracts/**)
+   ├─ python (paths: services/**, tools/**, scripts/**, contracts/**)
    │     ruff check · ruff format --check · mypy --strict · pytest (unit + property)
    │     coverage gate (diff coverage ≥ 90%, sim-core total ≥ 85%)
    │
@@ -186,4 +186,4 @@ Applied 2026-10-18 (OWNER-TODO §2). New third-party actions must be added to th
 | `.github/workflows/pr-hygiene.yml` | title lint, labels, tracker-ID check | NX-017 | Planned |
 | `.github/dependabot.yml` | grouped weekly updates for pip, npm, actions, docker | NX-018 | Planned |
 
-`ci.yml` today: `changes` (git-diff path filter on PRs; pushes run everything), `python` (ruff, ruff format, mypy, import-linter), `python-test` (pytest), `overlay` (tsc, eslint + prettier, vite build), `overlay-test` (vitest), and `ci-gate`. `ci-gate` is the only required status check. Lint, format, typecheck, import contracts and the build always block. The two test jobs are advisory when the target is `develop` (`ci-gate` emits a warning) and required for `main`. The `contracts`, `sim-determinism`, `integration` and `docs` jobs arrive with their own tracker items.
+`ci.yml` today: `changes` (git-diff path filter on PRs; pushes run everything), `python` (ruff, ruff format, mypy, import-linter), `python-test` (pytest, plus the repo-check script tests in `scripts/tests`), `overlay` (tsc, eslint + prettier, vite build), `overlay-test` (vitest), and `ci-gate`. `ci-gate` is the only required status check. Lint, format, typecheck, import contracts and the build always block. The two test jobs are advisory when the target is `develop` (`ci-gate` emits a warning) and required for `main`. The `contracts`, `sim-determinism`, `integration` and `docs` jobs arrive with their own tracker items.
