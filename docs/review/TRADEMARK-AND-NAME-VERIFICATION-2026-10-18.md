@@ -42,7 +42,7 @@ Verdict tags: **VERIFIED** (primary source read, matches), **CORRECTED** (primar
 | 9 | "Google's campus beehives were called the Hiveplex (2010)" | NAME-CLEARANCE R3.1 | mv-voice.com, sunset.com | not re-read | **STILL UNVERIFIED** (not in scope of this pass; low impact) | n/a |
 | 10 | Plex "went to court over ZeePlex ... lost the interim round in India" | NAME-CLEARANCE R3.1 | scconline.com Bombay HC brief; torrentfreak.com/?p=194747; conventuslaw.com | 2026-10-18 | **VERIFIED (interim stage only)** | Bombay High Court, G.S. Patel J., refused the ad-interim injunction (suit filed 1 Oct 2020, launch 2 Oct 2020). SCC Times: Plex had international registrations "but not India". Court found "no prima facie case" and noted delay. **Final outcome is not in any source I read.** See §4. |
 | 11 | "Plex ran a game-streaming service in 2021-22" | NAME-CLEARANCE R3.1 | plex.tv/blog/game-on-a-plex-blog-story/ | 2026-10-18 | **VERIFIED** | Blog dated 26 Jan 2021 (Plex Arcade); update: "We've made the difficult decision to close the doors on Plex Arcade on March 31, 2022." |
-| 12 | Owner's Twitch account `hiveplex` | owner report (Q-BRAND-6 notes) | gql.twitch.tv | 2026-10-18 | **VERIFIED** | `user(login:"hiveplex")`: id 82074766, displayName "Hiveplex", createdAt 2015-02-07T20:40:53Z, followers 0, `lastBroadcast.startedAt` null, no live stream. `swarmwire` and `hivegrid` return `user: null` (names not taken as Twitch logins). |
+| 12 | Existing Twitch account `hiveplex` (holder UNKNOWN; the research brief wrongly called it the owner's, corrected 2026-10-18) | found by the coordinator through Twitch's public web GraphQL | gql.twitch.tv | 2026-10-18 | **VERIFIED** | `user(login:"hiveplex")`: id 82074766, displayName "Hiveplex", createdAt 2015-02-07T20:40:53Z, followers 0, `lastBroadcast.startedAt` null, no live stream. `swarmwire` and `hivegrid` return `user: null` (names not taken as Twitch logins). |
 | 13 | Twitch recycles inactive names after 12 months of no login/view/broadcast | none (new) | blog.twitch.tv/en/2017/01/06/... | 2026-10-18 | **VERIFIED (2017 blog); current Help text STILL UNVERIFIED** | "An inactive account is defined as an account that has had no login, viewing, or broadcasting activity for at least twelve months." See §6. |
 | 14 | "No Steam/itch/store game named Hiveplex" | NAME-CLEARANCE R3.1 | Steam `storesearch`, itch search, GOG catalog, App Store search | 2026-10-18 | **VERIFIED for Steam, itch.io, GOG, Apple App Store, Roblox, npm, PyPI, GitHub; STILL UNVERIFIED for Google Play, Epic, Xbox, PlayStation, Nintendo, Kickstarter** | See §3. One GitHub user named `hiveplex` exists (id 4049119); ownership unknown (§3). |
 
@@ -81,7 +81,7 @@ hiveplex.com has been registered since 2017-11-22 by a party that parked it with
 | npm registry | `hiveplex` not found; search total 0 |
 | PyPI | `/pypi/hiveplex/json` HTTP 404 |
 | GitHub (MCP search) | **one user named `hiveplex` (id 4049119)**; 0 repositories match. Not investigated further (profile not read). **Check whether this is the owner's.** |
-| Twitch | the owner's own account (row 12) |
+| Twitch | an existing account whose holder is unknown (row 12); the owner must say whether it is theirs |
 | Discord (`/invites/hiveplex`) | "Unknown Invite" (no vanity invite by that code; not a proof the name is free) |
 | Google Play, Epic, Xbox, PlayStation, Nintendo eShop, Kickstarter, Indiegogo, Crunchbase, YouTube/TikTok/X/Instagram/Bluesky/Reddit handles | **STILL UNVERIFIED** (JS-only, bot-challenged or 403; YouTube `@hiveplex` returned HTTP 404 and TikTok `@hiveplex` HTTP 200 as a JS shell, neither conclusive) |
 
@@ -145,7 +145,7 @@ USPTO searches below are by wordmark. "Game classes" means 9, 28 or 41 unless sa
 | **Swarmwire** | **0 records** (`SWARMWIRE*`, any class). | Steam: 0. GOG: 0. itch.io: 8 fuzzy matches, all different "Swarm..." titles. App Store: none named Swarmwire. **npm: a package named `swarmwire` exists** ("TypeScript multi-agent orchestration library", created 2026-03-27, latest 1.0.3, one maintainer). PyPI: 404. Twitch login: free. GitHub user: 0. `swarmwire.com` registered since 2015-08-04, expires 2027-08-04 (owner unknown, RDAP only). | **Low-Medium.** Clean on the USPTO and game stores, but a same-name npm package in the AI/agent space, an older registered .com, and "swarm"-formative marks are a crowded field. The npm package is software, not a game, but it is in the field this project's tooling uses (agents). |
 | **Hivegrid** | **0 records** (`HIVEGRID*`, any class). | Steam: 0. GOG: 0. itch.io: 1 fuzzy ("HiveGrind"). App Store: none. npm/PyPI: not found. Twitch login: free. `hivegrid.com` registered since 2010-12-18, expires 2027-12-18. | **Low-Medium.** Clean on the USPTO and stores; the .com is taken by someone else for 16 years; "HIVE" (§3) applies equally. EU/UK/WIPO not searched. |
 
-## 6. Findings: the owner's Twitch account
+## 6. Findings: the existing Twitch account `hiveplex` (holder unknown)
 
 Facts read (row 12): login `hiveplex`, user id 82074766, created 2015-02-07, 0 followers, never broadcast.
 
@@ -154,8 +154,8 @@ Facts read (row 12): login `hiveplex`, user id 82074766, created 2015-02-07, 0 f
 **What I could not read:** the current Help Center article "Username Rename & Recycling Policies" (`help.twitch.tv/s/article/username-rename-and-recycling-policies`), which is a JS-only page. A search excerpt of it quotes a 180-day hold and a 60-day rename interval, which is consistent with the 2017 posts; treat as **[EXCERPT-OFFICIAL], STILL UNVERIFIED** against the live article.
 
 **What this means for the decision:**
-1. Because the account is the owner's own, the risk is not "we cannot get the name"; it is **that the owner could lose it if it counts as inactive**. The account has no broadcasts and 0 followers; whether it has had logins or viewing in the last 12 months is unknown to me. **Log in now** (and keep logging in at least yearly) per the blog guidance.
-2. If the owner later changes the brand, renaming the account is self-service (60-day interval) and no request path is needed. Twitch holds the vacated name, so renaming away from `hiveplex` surrenders it for at least the hold period.
+1. **Ownership is unknown.** The research brief wrongly described this account as the owner's; nothing established that. **Case (a), it is the owner's:** the risk is losing it if it counts as inactive. The account has no broadcasts and 0 followers; whether it has had logins or viewing in the last 12 months is unknown to me. **Log in now** (and at least yearly) per the blog guidance. **Case (b), it belongs to someone else:** Twitch states it accepts no requests to claim specific names, so the name cannot be obtained on request; the only documented route is trademark-based and needs a registered mark. Use a fallback handle (e.g. `playhiveplex`, free at check time).
+2. In case (a), if the owner later changes the brand, renaming the account is self-service (60-day interval) and no request path is needed. Twitch holds the vacated name, so renaming away from `hiveplex` surrenders it for at least the hold period.
 3. If a different name is wanted that is held by a dormant account (not applicable to `swarmwire`/`hivegrid`, which are free), Twitch states it does not process claim requests; the only documented route is trademark-based (Twitch can reclaim names for trademark infringement per the help-center excerpt) and that requires a registered mark.
 4. A Twitch handle gives no trademark rights, and the Twitch Terms/trademark policy can cut both ways: a stronger mark owner (Plex, Hive Games) could in theory complain about the handle. Low probability, but another reason to keep the attorney review ahead of heavy brand investment.
 
@@ -202,7 +202,7 @@ Ask these exactly; bring this document and the table in §4.
 | `docs/review/LEGAL-AND-NAME-SWEEP-2026-10-18.md` | §6.1 | "hiveplex.com listed for sale at $2,495 on a broker page (as in round 3). ... No registrar check was possible." | Registrar/registry check done: see correction above (expiry 2026-11-22). |
 | `docs/review/LEGAL-AND-NAME-SWEEP-2026-10-18.md` | §6.1 / risk row 1 ("Plex, Inc. filings in 42/9/41/38; all from aggregators") | aggregator-level | "Verified on the USPTO register: Plex, Inc. 6 live PLEX registrations (§4.1 of TRADEMARK-AND-NAME-VERIFICATION-2026-10-18.md)." |
 | `docs/planning/OPEN-QUESTIONS.md` | Q-LEGAL-5 / Q-BRAND-6 | basic clearance pending | Add: "USPTO knockout done 2026-10-18 (no HIVEPLEX filing; see TRADEMARK-AND-NAME-VERIFICATION-2026-10-18.md); EUIPO/WIPO/UKIPO and attorney review still open; hiveplex.com expires 2026-11-22." |
-| Any doc that lists the Twitch handle for Hiveplex | n/a | "`twitch.tv/hiveplex` to be checked" | "Owned by the owner (user id 82074766, created 2015-02-07); log in at least yearly to avoid the 12-month inactivity reclaim (Twitch blog 2017-01-06)." |
+| Any doc that lists the Twitch handle for Hiveplex | n/a | "`twitch.tv/hiveplex` to be checked" | "Exists (user id 82074766, created 2015-02-07, holder unknown). If it is the owner's: log in at least yearly to avoid the 12-month inactivity reclaim (Twitch blog 2017-01-06). If not: Twitch accepts no requests to claim specific names; use a fallback handle." |
 
 ## 10. STILL UNVERIFIED
 
