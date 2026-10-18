@@ -184,6 +184,7 @@ Applied 2026-10-18 (OWNER-TODO §2). New third-party actions must be added to th
 | `.github/workflows/release.yml` | release-please | NX-015 | Planned |
 | `.github/workflows/nightly.yml` | soak, balance, rescan, scorecard | NX-016 | Planned |
 | `.github/workflows/pr-hygiene.yml` | reusable workflow called by `ci.yml` on every PR: Conventional title (no `Merge ...` titles), commit-message lint of every PR commit, tracker-ID check (PRs into `develop` only; Dependabot and back-merges from `main` exempt), size label | NX-017 | Implemented |
-| `.github/dependabot.yml` | grouped weekly updates for pip, npm, actions, docker | NX-018 | Planned |
+| `.github/dependabot.yml` | grouped weekly updates for uv, npm, actions (docker added with the first Dockerfile, NX-013) | NX-018 | Implemented |
+| `.github/workflows/label-sync.yml` | create/update labels from `.github/labels.yml` when it changes on `develop` | NX-018 | Implemented |
 
 `ci.yml` today: `changes` (git-diff path filter on PRs; pushes run everything), `pr-hygiene` (calls `pr-hygiene.yml` on every PR; blocking; `edited` events re-run CI so a fixed title or body clears it), `python` (ruff, ruff format, mypy, import-linter), `python-test` (pytest, plus the repo-check script tests in `scripts/tests`), `overlay` (tsc, eslint + prettier, vite build), `overlay-test` (vitest), and `ci-gate`. `ci-gate` is the only required status check. Lint, format, typecheck, import contracts and the build always block. The two test jobs are advisory when the target is `develop` (`ci-gate` emits a warning) and required for `main`. The `contracts`, `sim-determinism`, `integration` and `docs` jobs arrive with their own tracker items.
