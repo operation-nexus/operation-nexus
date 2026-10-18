@@ -1,10 +1,10 @@
 # Default owner
-*                       @canthony224
+*                       @saltyseraphcodes
 # Sensitive paths: changes require owner review
-/.github/               @canthony224
-/deploy/                @canthony224
-/contracts/             @canthony224
-/docs/security/         @canthony224
-/docs/architecture/adr/ @canthony224
-/AGENTS.md              @canthony224
-/.agents/               @canthony224
+/.github/               @saltyseraphcodes
+/deploy/                @saltyseraphcodes
+/contracts/             @saltyseraphcodes
+/docs/security/         @saltyseraphcodes
+/docs/architecture/adr/ @saltyseraphcodes
+/AGENTS.md              @saltyseraphcodes
+/.agents/               @saltyseraphcodes

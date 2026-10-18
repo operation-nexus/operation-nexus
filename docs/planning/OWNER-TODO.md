@@ -80,10 +80,10 @@ Only you can do these; each report's last section has the detail. Reports: PLATF
 
 ## 4d. Organization move and secrets key (2026-10-18)
 Accounts, handles and repos are listed in `docs/planning/BRAND-ACCOUNTS.md`.
-- [ ] **Install the Claude GitHub App on the `operation-nexus` organization** (https://github.com/apps/claude/installations/select_target) and give it this repo plus `operation-nexus-ops` and `operation-nexus-vault`. Until then cloud sessions cannot see the organization's repos (checked 2026-10-18: access denied)
+- [x] **Install the Claude GitHub App on the `operation-nexus` organization** (done 2026-10-18) (https://github.com/apps/claude/installations/select_target) and give it this repo plus `operation-nexus-ops` and `operation-nexus-vault`. Until then cloud sessions cannot see the organization's repos (checked 2026-10-18: access denied)
 - [ ] **Transfer this repo** to the organization: repo Settings → General → Danger Zone → Transfer. Do it after the open docs PRs are merged. Afterwards: re-check the `develop` and `main` rulesets, the `ci-gate` required check, auto-merge, Actions permissions and Dependabot; update the local remote (`git remote set-url origin https://github.com/operation-nexus/operation-nexus.git`); update CODEOWNERS (`@canthony224` becomes the organization owner or a team) and the tracker issue links (NX-320). Start a new cloud session on the new location
 - [ ] **Git identity on your machine:** use the `saltyseraphcodes` noreply address for commits in this organization (Q-LEGAL-8), and sign the GitHub CLI or browser in as `saltyseraphcodes`, not `canthony224`
-- [ ] **Install `age` and make the secrets key** (needed once, on your own computer, never in a cloud session):
+- [x] **Install `age` and make the secrets key** (done 2026-10-18: public key sent, `.sops.yaml` added to the ops repo) (needed once, on your own computer, never in a cloud session):
   1. Install: macOS `brew install age`; Windows `winget install FiloSottile.age` (or `scoop install age`); Debian/Ubuntu `sudo apt install age`. The package includes `age-keygen`.
   2. Run `age-keygen -o key.txt`. It prints a line `Public key: age1...`.
   3. Put the whole `key.txt` in your password manager as a secure note, make a second offline backup, then delete the plain file. Never commit it, paste it into chat or put it in an issue.
