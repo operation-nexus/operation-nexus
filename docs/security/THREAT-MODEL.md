@@ -16,7 +16,7 @@ Status: Draft · Tracker: NX-040…NX-049 · Inputs: [`SECURITY-REVIEW-RAW-PLANS
 - **Account hijackers** targeting high-rank or streamer profiles.
 - **Compromised dependencies.** LiteLLM was compromised in March 2026, so this has precedent.
 - **Malicious PR authors** if the repo is public.
-- **Over-privileged moderators.**
+- **Over-privileged moderators and Game Masters.** A GM is limited to the Static and world events during play and can inject jobs into the Static's Tasking Board only; campaign setup is Owner/Admin only (Q-ALN-10, Q-ALN-11). The server enforces this through the RBAC matrix (ADMIN-RBAC RB-1, §4.3), not the UI.
 
 ## 3. Trust boundaries
 ```
@@ -31,12 +31,14 @@ Status: Draft · Tracker: NX-040…NX-049 · Inputs: [`SECURITY-REVIEW-RAW-PLANS
 ```
 Rule: **data crossing B1, B3 or B5 is untrusted.** That includes display names and LLM output.
 
+Kick is an optional platform, not a committed one (Q-PROD-2); its B1 path exists only if its adapter is enabled, and it gets the same B1 rules.
+
 ## 4. STRIDE summary
 | Component | Top threats | Mitigation reqs |
 |---|---|---|
 | Gateway | Spoofing via display names; spam/raid DoS; injected text | SEC-GW-* |
 | LLM gateway | Prompt injection, cost exhaustion, unit hijack via `callsign_target` | SEC-LLM-* |
-| Sim/API | Unauthenticated commands; slow-client stall; FoW leak | SEC-API-*, FOW-2 |
+| Sim/API | Unauthenticated commands; slow-client stall; FoW leak while a campaign is running (a full reveal in archives and recaps after the campaign ends is intended, Q-ALN-21, CLIPS-REPLAY RP-2) | SEC-API-*, FOW-1, FOW-2 |
 | Overlay/OBS | Stored XSS → broadcast; render crash ends stream | SEC-OV-* |
 | Link portal | Account takeover; token leak/brute force; CSRF | SEC-ID-* |
 | TTS / clips | Slurs spoken or uploaded; defamatory narration | SEC-MOD-*, SEC-CLIP-* |
@@ -46,7 +48,7 @@ Rule: **data crossing B1, B3 or B5 is untrusted.** That includes display names a
 ## 5. Security requirements (testable MUSTs)
 
 ### Identity & linking (SEC-ID)
-- **SEC-ID-1.** A platform identity MUST be bound to a commander only after successful OAuth with that platform (Twitch, Google, Kick, Discord). Requests that supply a `platform_user_id` directly MUST be rejected. *Test:* POST with an arbitrary id returns 4xx.
+- **SEC-ID-1.** A platform identity MUST be bound to a commander only after successful OAuth with that platform (Twitch, Google, Discord; Kick only if that optional adapter is enabled, Q-PROD-2). Requests that supply a `platform_user_id` directly MUST be rejected. *Test:* POST with an arbitrary id returns 4xx.
 - **SEC-ID-2.** An existing `(platform, platform_user_id)` mapping MUST NOT be overwritten. Re-linking requires OAuth by the current owner of that identity.
 - **SEC-ID-3.** Any one-time token MUST have ≥128 bits from a CSPRNG (`secrets.token_urlsafe(32)`), MUST be stored hashed, MUST be single-use (atomic delete-on-claim), MUST expire in ≤10 min, and MUST be rate-limited (≤10 attempts/IP/min).
 - **SEC-ID-4.** Tokens MUST NOT be posted in public chat or included in state-changing GET URLs. The chat bot posts only a generic portal URL. The user signs in with platform OAuth there; no token is needed in chat (see IDENTITY spec).
@@ -55,9 +57,9 @@ Rule: **data crossing B1, B3 or B5 is untrusted.** That includes display names a
 
 ### Gateway (SEC-GW)
 - **SEC-GW-1.** Every inbound message MUST be normalized to `ChatEnvelope`: NFKC, confusables folded for comparison, control and bidi characters stripped, length ≤ 300 chars.
-- **SEC-GW-2.** Per-user, per-command-class token-bucket rate limits (values in CHAT-GATEWAY §5, admin-adjustable) and a global admission cap MUST be enforced before the sim sees a command.
+- **SEC-GW-2.** Per-user, per-command-class token-bucket rate limits (values in CHAT-GATEWAY §5, admin-adjustable) and a global admission cap MUST be enforced before the sim sees a command. Redemption cooldowns and the supply-drop hourly cap are enforced the same way, on a monotonic real-time clock, before a redemption reaches the sim (Q-ALN-4, Q-SUP-7).
 - **SEC-GW-3.** Only official platform APIs are permitted. A reverse-engineered adapter (TikTok) requires an approved ADR, runs in an isolated container with no other credentials, and never uses the owner's personal session.
-- **SEC-GW-4.** Webhook payloads (EventSub, Kick) MUST have their signatures verified and be deduplicated by message id.
+- **SEC-GW-4.** Webhook payloads (Twitch EventSub; Kick webhooks if the optional Kick adapter is enabled, Q-PROD-2) MUST have their signatures verified and be deduplicated by message id.
 
 ### API / WS (SEC-API)
 - **SEC-API-1.** The command ingest MUST be internal-only. Today it's an in-process queue; once split, it moves to authenticated Redis Streams or mTLS/HMAC. The gateway is the only producer. No public command HTTP endpoint.
@@ -87,7 +89,7 @@ Rule: **data crossing B1, B3 or B5 is untrusted.** That includes display names a
 
 ### Data (SEC-DATA)
 - **SEC-DATA-1.** If and when Redis or Postgres is introduced, it requires auth, is not published to the host network, and binds to the internal network only. Compose ports bind to `127.0.0.1`.
-- **SEC-DATA-2.** Event logs and replays store `commander_id` only. The id→name mapping is a separate, deletable table (crypto-shredding).
+- **SEC-DATA-2.** Event logs and replays store `commander_id` only. The id→name mapping is a separate, deletable table (crypto-shredding). After deletion, the commander displays as `REDACTED-…` everywhere, including old replays (Q-DM-2, DATA-MODEL §6.4).
 - **SEC-DATA-3.** A `!forget` command or portal action deletes a user's profile and identities within 30 days. A privacy notice is linked from the channel.
 - **SEC-DATA-4.** Retention: raw chat envelopes 7 days, command log for the campaign duration + 30 days, aggregates kept indefinitely (Q-LEGAL-3).
 - **SEC-DATA-5.** Nightly encrypted backups with a tested restore, run quarterly.

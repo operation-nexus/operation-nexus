@@ -49,7 +49,7 @@ All of this has to work from a phone browser or Discord, with least privilege an
 |---|---|---|
 | `OWNER` | You (exactly one, plus a sealed break-glass recovery) | Everything, including granting roles and lifting GM limits |
 | `ADMIN` | Trusted co-runner | Everything except role grants to OWNER/ADMIN, deleting audit, ownership transfer |
-| `GAME_MASTER` | Event runner / storyteller | Director control, GM takeover, scheduled events. No user moderation. |
+| `GAME_MASTER` | Event runner / storyteller | During play, runs only the Static (director control, GM takeover, jobs on the Static's Tasking Board) and world events (Q-ALN-10, Q-ALN-11, Q-AI-8). No campaign setup, no user moderation. |
 | `MODERATOR` | Chat mods (Twitch, YouTube, Discord) | Bans, purges, callsign queue, kill switch. No rules or AI control. |
 | `CONTENT_EDITOR` | Map/rules designer | Draft and test balance profiles, theaters, text content. Publish needs ADMIN+. |
 | `VIEWER` | Observers, analysts | Read-only dashboards. No PII. |
@@ -120,14 +120,14 @@ All of this has to work from a phone browser or Discord, with least privilege an
 | campaign.pause | ✅ | ✅ | ✅ | ✅ (reason required) | — | — | — | — | — |
 | campaign.resume | ✅ | ✅ | ✅ | — | — | — | — | — | — |
 | campaign.end | ⚠ | ⚠ | — | — | — | — | — | — | — |
-| campaign.schedule | ✅ | ✅ | ✅ | — | — | — | — | — | — |
+| campaign.schedule | ✅ | ✅ | world events only (Q-ALN-10) | — | — | — | — | — | — |
 | rules.view | ✅ | ✅ | ✅ | — | ✅ | ✅ | — | ✅ | — |
-| rules.draft | ✅ | ✅ | ✅ | — | ✅ (drafts only) | — | — | ✅ (drafts only) | — |
-| rules.apply_hot | ⚠ | ⚠ | ⚠ | — | — | — | — | — | — |
-| rules.publish / rollback | ⚠ | ⚠ | ⚠ | — | — | — | — | — | — |
+| rules.draft | ✅ | ✅ | — (Q-ALN-10; rank/XP presets open, §13) | — | ✅ (drafts only) | — | — | ✅ (drafts only) | — |
+| rules.apply_hot | ⚠ | ⚠ | — (Q-ALN-10; rank/XP presets open, §13) | — | — | — | — | — | — |
+| rules.publish / rollback | ⚠ | ⚠ | — (Q-ALN-10) | — | — | — | — | — | — |
 | content.view | ✅ | ✅ | ✅ | — | ✅ | ✅ | — | ✅ | — |
-| content.draft | ✅ | ✅ | ✅ | — | ✅ (drafts only) | — | — | ✅ (drafts only) | — |
-| content.publish | ✅ | ✅ | ✅ | — | — | — | — | — | — |
+| content.draft | ✅ | ✅ | — (Q-ALN-10) | — | ✅ (drafts only) | — | — | ✅ (drafts only) | — |
+| content.publish | ✅ | ✅ | — (Q-ALN-10) | — | — | — | — | — | — |
 | ops.view | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — | ✅ | ✅ |
 | ops.alerts_ack | ✅ | ✅ | — | ✅ | — | — | — | — | — |
 | audit.view | ✅ | ✅ | own actions | own actions | own actions | — | — | — | — |
@@ -135,7 +135,7 @@ All of this has to work from a phone browser or Discord, with least privilege an
 | access.grant_roles | ✅ | ✅ (≤ GM/MOD/EDITOR/VIEWER) | — | — | — | — | — | — | — |
 | access.manage_tokens | ✅ | ✅ | — | — | — | — | — | — | — |
 
-This matrix folds in the owner decisions of 2026-10-17: moderators may **pause** (with a required reason) but not resume (Q-RB-1); **game rules, balance, campaign options and content are edited only by Owner, Admin and Game Master** ("Who edits game rules" addendum). `CONTENT_EDITOR` and `SVC_AGENT` produce **drafts only**; a draft takes effect only when an Owner, Admin or GM applies or publishes it. Moderators never edit rules. Exact grants remain adjustable by the owner.
+This matrix folds in the owner decisions of 2026-10-17: moderators may **pause** (with a required reason) but not resume (Q-RB-1); **game rules, balance, campaign options and content are edited only by Owner and Admin** ("Who edits game rules" addendum, as narrowed by Q-ALN-10 on 2026-10-18: campaign setup is Owner/Admin only, and a Game Master runs only the Static and world events). `CONTENT_EDITOR` and `SVC_AGENT` produce **drafts only**; a draft takes effect only when an Owner or Admin applies or publishes it. Moderators never edit rules. Exact grants remain adjustable by the owner.
 
 ### 4.4 Scoping
 - Each role grant has a scope: `GLOBAL`, or `CAMPAIGN:<campaign_id>` (e.g., a guest GM for one weekend event), with an optional `expires_at`.
@@ -178,15 +178,17 @@ Commander search (by callsign or id), stats from ledgers, ban history, link/merg
      - `FULL`: the director proposes nothing, and only GM-issued operations run.
   2. While held, `OP_GM_OPERATION{operation, target, params}` issues operations from the same doctrine library. Each is validated against preconditions, **tier budget**, and the **enemy fog-of-war view** (FOW-4), unless an OWNER has lifted limits with `OP_GM_LIMITS{budget: bool, fow: bool}`.
   3. `OP_GM_RELEASE` returns control to the director.
-  4. Takeover auto-releases after `admin.gm_max_session_s` (config, PROPOSED TBD), or when the GM's session ends, so the AI is never left stuck.
+  4. Takeover auto-releases after `admin.gm_max_session_s` (config, PROPOSED TBD), or when the GM's session ends, so the AI is never left stuck. These are **real-time** (monotonic) timers enforced outside the sim, which issue a `SYSTEM` `OP_GM_RELEASE` when they fire; they keep running while the campaign is paused (Q-ALN-4, CONFIG-AND-CONTENT CFG-9).
   5. On stream: the threat panel shows `GAME MASTER ACTIVE`, and sitreps for GM operations are tagged `[GM]` and spoken with the distinct Game Master voice profile (DATA-INTEGRITY DI-5; Q-RB-7, AUDIO-TTS §2a).
   5a. Threat memory keeps learning during a FULL takeover (Q-RB-6).
   6. Every GM operation is a logged command, so replays reproduce it.
+- **GM scope (Q-ALN-10, Q-AI-8):** during play a GM drives only the Static and world events. World events may help the coalition (supply drop, weather clearing, friendly convoy) but must be visible and in-fiction; a GM never grants units, ammo or XP to specific players. A GM cannot change objectives or campaign options (§6.4).
+- **Tasking Board injection (Q-ALN-11, GAMEPLAY TB-11):** a GM may inject jobs into the **Static's** board only. An injection aimed at the coalition board is rejected and audited (RB-3). Injection is a logged `OP_*` command (RB-4); its contract is not written yet (§13).
 
 ### 6.4 Campaign planning & scheduling
-- **Calendar:** past, current, and future campaigns. Each scheduled campaign: `mode` (CampaignMode), `theater_id@version`, `balance_profile@version`, objective mode (`timed`/`relaxed`/`off`, Q-GD-19), campaign options (friendly fire, unlimited ammo, weather; Q-CBT-4/5/7), start time, optional target length (Q-GD-5).
+- **Calendar:** past, current, and future campaigns. Each scheduled campaign: `mode` (CampaignMode), `theater_id@version`, `balance_profile@version`, objective mode (`timed`/`relaxed`/`off`, Q-GD-19), campaign options (friendly fire, unlimited ammo, weather; Q-CBT-4/5/7), start time, optional target length (Q-GD-5). **Campaign setup (objectives, objective mode and every campaign option) is Owner/Admin only (Q-ALN-10).** A GM may schedule world events and GM operations, not campaigns.
 - **Times and time zones (Q-CFG-6):** times are stored as wall-clock time **with an explicit IANA time zone** (default `America/New_York`, the owner's zone), not as UTC offsets, so DST is handled. The scheduler resolves each item to a UTC instant when it computes the next run; audit timestamps stay RFC 3339 UTC.
-- **Scheduled events:** timed operations ("Operation Red Tempest at Saturday 20:00"), maintenance windows (auto-pause with an on-stream banner), and announcement text.
+- **Scheduled events:** timed operations ("Operation Red Tempest at Saturday 20:00"), maintenance windows (auto-pause with reason `MAINTENANCE` and an on-stream banner, Q-ALN-3, Q-OPS-9), and announcement text.
 - **Execution:** at the scheduled time, the scheduler emits the corresponding command (`SYS_CAMPAIGN_START`, `OP_CAMPAIGN_PAUSE`, `OP_GM_OPERATION` as `SYSTEM` on behalf of the scheduling operator, recorded in `scheduled_items.created_by`).
 - **Conflicts:** overlapping campaigns, or a theater/profile version that isn't published, are rejected at scheduling time.
 
@@ -392,6 +394,8 @@ CREATE TABLE content_versions (                -- theaters, balance profiles, te
 | RB-10 | Invalid balance draft → no command emitted. Non-hot key in a hot-apply → rejected before the command. |
 | RB-11 | Session idle and absolute expiry, revocation, rate-limit tests. |
 | RB-12 | `users.view` responses contain no platform ids (schema test). |
+| §6.3, §6.4 (Q-ALN-10, Q-ALN-11) | Matrix test: a GM setting friendly fire, unlimited ammo, the objective mode or an objective is denied; a GM scheduling a world event is allowed and a GM scheduling a campaign is denied. A GM job injection into the Static's board is accepted; one into the coalition board is rejected with an audit row. |
+| §6.3 (Q-ALN-4) | With a fake monotonic clock: a takeover reaches `admin.gm_max_session_s` while the campaign is paused and still auto-releases. |
 
 ## 13. Resolved questions (owner decisions 2026-10-17)
 All questions raised by this spec are decided and folded in above:
@@ -403,14 +407,19 @@ All questions raised by this spec are decided and folded in above:
 - **Q-RB-6:** threat memory keeps learning during GM FULL takeover (§6.3).
 - **Q-RB-7:** the Game Master has its own voice profile (§6.3, AUDIO-TTS §2a).
 
-Still open and relevant: Q-OPS-8 (auto-pause while the stream is offline) and Q-OPS-9 (weekly maintenance window, gaming on the broadcast PC) from the 2026-10-17 gap analysis.
+Decided 2026-10-18: Q-OPS-8 (offline auto-pause, reason `TECHNICAL`) and Q-OPS-9 (weekly maintenance window, reason `MAINTENANCE`; Ceasefire mode), see OPS-ADMIN. Spec-alignment batch: Q-ALN-3 (pause reasons), Q-ALN-4 (GM auto-release on real time), Q-ALN-10 (campaign setup Owner/Admin only; GM scope = Static + world events), Q-ALN-11 (GM injects jobs into the Static's board only).
+
+Still open:
+- Q-PROG-7 lets a GM edit rank and XP presets (OPS-ADMIN OA-12), but Q-ALN-10 limits a GM to the Static and world events. Until the owner confirms, the matrix denies GM `rules.*` writes.
+- How the Q-RB-1 operator pause categories (RAID / ABUSE / TECHNICAL / CONTENT / OTHER) relate to the Q-ALN-3 `PauseReasonCategory` (`OPERATOR`, `TECHNICAL`, `MAINTENANCE`, `CEASEFIRE`); see the pause-flow addendum.
+- The command contract for GM Tasking Board injection (§6.3).
 
 ## Addendum: Pause flow (owner decision 2026-10-17, Q-RB-1)
-1. **Pause form:** a moderator, GM or admin must give a reason category (RAID / ABUSE / TECHNICAL / CONTENT / OTHER) and a short note. A pause without a reason is rejected (`OP_CAMPAIGN_PAUSE{reason_category, note}`; CONTRACTS addition).
+1. **Pause form:** a moderator, GM or admin must give a reason category (RAID / ABUSE / TECHNICAL / CONTENT / OTHER) and a short note. A pause without a reason is rejected (`OP_CAMPAIGN_PAUSE{reason_category, note}`; CONTRACTS addition). Q-ALN-3 sets `PauseReasonCategory` to `OPERATOR`, `TECHNICAL`, `MAINTENANCE`, `CEASEFIRE`; a pause from this form is an operator pause. How the form's categories are carried under that enum is open (§13). Every pause, whatever its reason, freezes world and game time (CONFIG-AND-CONTENT CFG-9).
 2. **Immediate owner alert** through every enabled `AlertSink` (ntfy, Discord, email; voice line later). It says who paused, when, why, and the current state: momentum, active operators, recent incidents.
 3. **AI assessment (optional, advisory only):** the LLM advisor writes a short summary of the situation and a recommendation to resume or stay paused, using only logged data. It's labeled as AI-generated and never acts on its own (ADR-0007).
 4. **One-tap resume:** an action link in the alert (authenticated), a Discord slash command (`/nexus resume`), or the Command Center. Voice resume comes with the voice ops line. Resume needs GM/admin/owner; the owner's action is audited like any other.
 5. **Auto-escalation:** if the pause lasts longer than a configurable time with no response, re-alert (PROPOSED interval).
 
 ## Addendum: Who edits game rules (owner decision 2026-10-17)
-Game rules, balance, campaign options (e.g. friendly fire, weather) and content: **Owner, Admin, Game Master** only. **Moderators do not edit rules.** They moderate users and can pause (with a reason, Q-RB-1).
+Game rules, balance, campaign options (e.g. friendly fire, weather) and content: **Owner and Admin** only. The 2026-10-17 decision included the Game Master; Q-ALN-10 (2026-10-18) narrowed it: campaign setup is Owner/Admin only, and a GM runs only the Static and world events during play (rank/XP presets open, §13). **Moderators do not edit rules.** They moderate users and can pause (with a reason, Q-RB-1).
