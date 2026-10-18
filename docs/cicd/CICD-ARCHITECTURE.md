@@ -163,13 +163,15 @@ Rotation runbook in `deploy/runbooks/rotate-secrets.md` (NX-027). Secrets must n
 The repo is **public** (Q-CI-1). Rulesets, environment required reviewers, CodeQL, secret scanning and private vulnerability reporting are all free on public repos only, for a personal Free account.
 
 
-- [ ] Rulesets on `main` and `develop` as in §2 and ADR-0009 (NX-049)
-- [ ] Secret scanning + push protection ON
-- [ ] Dependabot alerts + security updates ON
-- [ ] Private vulnerability reporting ON (`SECURITY.md`)
-- [ ] Actions: "Allow select actions" + require SHA pinning; default `GITHUB_TOKEN` read-only
-- [ ] Environments `staging`, `production` created; `production` requires owner approval
-- [ ] CodeQL default setup OFF (we use the advanced workflow) to avoid duplicate runs
+- [x] Rulesets on `main` and `develop` as in §2 and ADR-0009 (NX-049)
+- [x] Secret scanning + push protection ON
+- [x] Dependabot alerts + security updates ON
+- [x] Private vulnerability reporting ON (`SECURITY.md`)
+- [x] Actions: "Allow select actions" + require SHA pinning; default `GITHUB_TOKEN` read-only
+- [x] Environments `staging`, `production` created; `production` requires owner approval
+- [x] CodeQL default setup OFF (we use the advanced workflow) to avoid duplicate runs
+
+Applied 2026-10-18 (OWNER-TODO §2). New third-party actions must be added to the Actions allowlist.
 
 ## 10. Workflow file plan
 

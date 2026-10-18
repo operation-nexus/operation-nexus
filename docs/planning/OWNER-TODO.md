@@ -7,21 +7,23 @@ Mac done 2026-10-17 where checked; the Windows PC still needs every item (detail
 
 - [x] Install `jq` (the guard hook prefers it; python3 also works)
 - [x] Put the `claude` CLI on PATH (`claude install stable`)
-- [ ] Clone the repo, open it in Claude Code, trust the folder, and accept the **Ponytail** plugin and **Context7** MCP prompts (Mac: approve Context7 once in the terminal `claude` too)
+- [x] Clone the repo, open it in Claude Code, trust the folder, and accept the **Ponytail** plugin and **Context7** MCP prompts (Mac: approve Context7 once in the terminal `claude` too)
 - [x] Install **Serena**, then run `claude mcp add --scope user serena -- serena start-mcp-server --context claude-code --project-from-cwd` and check it with `/mcp`
 - [ ] Enable **finecomb** and **claude-code-review-council** (claude.ai plugin directory)
 - [ ] Optional: `claude remote-control` on the desktop so you can drive it from your phone (docs/agentic/REMOTE-WORK.md)
 
 ## 2. GitHub settings (issue #20, NX-022; NX-049)
-- [ ] Secret scanning + push protection ON
-- [ ] Dependabot alerts + security updates ON
-- [ ] Private vulnerability reporting ON
-- [ ] Actions: allow only selected actions, require SHA pinning, default `GITHUB_TOKEN` read-only
-- [ ] Environments `staging` and `production`; `production` requires your approval
-- [ ] Rulesets per ADR-0009: `develop` = require a PR (0 approvals), require status check `ci-gate`, block force-push and deletion, allow auto-merge (Settings → General → "Allow auto-merge" and "Automatically delete head branches"); `main` = all checks, owner-only merge
+Applied and verified through the GitHub API on 2026-10-18 where checked.
+
+- [x] Secret scanning + push protection ON
+- [x] Dependabot alerts + security updates ON (version-update config `.github/dependabot.yml` is NX-018)
+- [x] Private vulnerability reporting ON
+- [x] Actions: allow only selected actions, require SHA pinning, default `GITHUB_TOKEN` read-only. Allowed: GitHub-owned actions plus `astral-sh/setup-uv` and `pnpm/action-setup`; a workflow that adds another third-party action needs it added under Settings → Actions
+- [x] Environments `staging` (deploys from `develop` only) and `production` (your approval; `main` and `v*` tags only)
+- [x] Rulesets per ADR-0009: `develop` = require a PR (0 approvals), require status check `ci-gate`, block force-push and deletion, allow auto-merge (Settings → General → "Allow auto-merge" and "Automatically delete head branches"); `main` = all checks, owner-only merge
 - [ ] Optional: set the default branch to `develop`
-- [ ] Settings → General → **Automatically delete head branches** ON (AGENTS.md rule 11: merged feature branches are deleted)
-- [ ] Review PR #37 (repo skeleton) and merge it into `develop` if happy
+- [x] Settings → General → **Automatically delete head branches** ON (AGENTS.md rule 11: merged feature branches are deleted)
+- [x] Review PR #37 (repo skeleton) and merge it into `develop` if happy
 
 ## 3. Hardware (issue #6, NX-007)
 - [ ] Linux server: `free -h`, `sudo dmidecode -t memory`, `lscpu`, `lsb_release -a` (record the results in docs/ops/HARDWARE.md)
