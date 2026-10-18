@@ -43,7 +43,7 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | NX-015 [#13](https://github.com/canthony224/operation-nexus/issues/13) | `release.yml` release-please (manifest mode) | S | ⬜ | NX-011 | Release PR generated |
 | NX-016 [#14](https://github.com/canthony224/operation-nexus/issues/14) | `nightly.yml` skeleton (soak, balance, rescan, scorecard) | M | ⬜ | NX-011 | Runs on schedule, uploads artifacts |
 | NX-017 [#15](https://github.com/canthony224/operation-nexus/issues/15) | `pr-hygiene.yml`: conventional title, tracker-ID check, size label | S | ⬜ | NX-010 | PR without NX-ID fails |
-| NX-018 [#16](https://github.com/canthony224/operation-nexus/issues/16) | `dependabot.yml` grouped weekly (pip/uv, npm, actions, docker) | S | ⬜ | NX-010 | First grouped PR appears |
+| NX-018 [#16](https://github.com/canthony224/operation-nexus/issues/16) | `dependabot.yml` grouped weekly (pip/uv, npm, actions, docker) + label sync | S | 👀 | NX-010 | First grouped PR appears |
 | NX-019 [#17](https://github.com/canthony224/operation-nexus/issues/17) | import-linter contracts for module boundaries (SYSTEM-DESIGN §4) | S | ⬜ | NX-010 | Violating import fails CI |
 | NX-020 [#18](https://github.com/canthony224/operation-nexus/issues/18) | Custom Semgrep rules (`.semgrep/`) per CICD §5 with tests | M | ⬜ | NX-012 | Each rule has positive/negative fixture |
 | NX-021 [#19](https://github.com/canthony224/operation-nexus/issues/19) | Contracts pipeline: JSON Schema → Pydantic + TS, drift check, compat check | M | ⬜ | NX-010 | Changing schema without regen fails CI |
