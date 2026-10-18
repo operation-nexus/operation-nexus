@@ -10,7 +10,7 @@ The core never branches on platform. Every adapter implements the same ports, de
 
 ```python
 class PlatformAdapter(Protocol):
-    platform: Platform            # enum: TWITCH | YOUTUBE | KICK
+    platform: Platform            # enum: TWITCH | YOUTUBE | KICK (Kick optional, Q-PROD-2)
     async def run(self, sink: Callable[[ChatEnvelope], Awaitable[None]]) -> None: ...
     async def send_batch(self, lines: list[str]) -> None: ...   # respects platform limits
     def health(self) -> AdapterHealth: ...                      # connected, lag_ms, quota_used
@@ -34,6 +34,8 @@ NFKC; strip control, bidi and zero-width characters; enforce the 300-character c
 **Over-length messages are rejected, never truncated** (Q-CT-1): a command over 300 characters after normalization is dropped and the sender gets a "too long" note in the next batched digest. Truncation could turn a long message into a different valid command. Display names are stored but **never rendered** unless approved (Q-MOD-1).
 
 - **CG-2 `!me` and `!status`** (Q-UX-12): `!me` is canonical (FB-UX-3: 5 s highlight plus a digest line; works in the reserve queue). `!status` is a pure alias: the parser maps it to `!me`, with identical behavior.
+- **CG-4 `!quiet` toggle** (Q-ALN-12, Q-AI-7): `!quiet` takes no arguments and is open to any rank. Each use flips the commander's taunt-naming opt-out (IDENTITY ID-PREF-1): off → on, on → off. The bot confirms the **new** state to that commander in the next batched digest (§6). The flag is stored per commander, so it applies on every linked platform. Its schema, parser entry and handler land in one PR (AGENTS.md rule 6a).
+- **CG-5 Commands while paused** (Q-ALN-2): a pause freezes the whole world (STATE-MACHINES-AND-FLOWS §4.4). Commands that do not change the world still work while paused: the Info class (`!me`/`!status`, `!help`, `!guide`, `!rules`, `!link`), `!quiet`, and joining the reserve queue. Every other command is refused, and the sender gets a "war paused" line in the next batched digest (§6), never a silent drop (FB-UX-5).
 
 ## 5. Rate limiting (SEC-GW-2)
 
@@ -43,8 +45,8 @@ NFKC; strip control, bidi and zero-width characters; enforce the 300-character c
 |---|---|---|
 | Deploy | `!join`, specialist spawns | 1 per 10 s (plus respawn timer) |
 | Unit correction | `!target`, `!rebase`, `!vector`, `!rtb`, `!stance`, `!rescue` | 1 per 5 s, burst 2 |
-| Info | `!me`, `!status`, `!help`, `!guide`, `!rules`, `!link` | 1 per 15 s |
-| Social / redeem | `!rally`, `!scout` (queued viewers), redemptions | Own cooldowns (e.g. rally ~2 min; PROPOSED) |
+| Info | `!me`, `!status`, `!help`, `!guide`, `!rules`, `!link`, `!quiet` (Q-ALN-12; class PROPOSED) | 1 per 15 s |
+| Social / redeem | `!rally`, `!scout` (queued viewers), redemptions | Own cooldowns (e.g. rally ~2 min; PROPOSED). Gameplay cooldowns of `!rally`/`!scout` run in game time inside the sim (Q-ALN-1); redemption cooldowns and caps run in real time in the gateway (Q-ALN-4) |
 | Global | all | Admission cap per tick (raid protection) |
 
 **Slow mode:** an admin toggle that multiplies all limits (e.g. ×3). Optionally it can also switch on the platform's own chat slow mode through the official API, if the platform supports that [VERIFY per platform].
@@ -56,7 +58,7 @@ NFKC; strip control, bidi and zero-width characters; enforce the 300-character c
 
 Throttled commands are never silently lost without one of these signals (GAMEPLAY FB-UX-5).
 
-Rate limits, digest batching and reconnect backoff run on a monotonic real-time clock, not sim time (Q-CFG-8).
+Rate limits, digest batching and reconnect backoff run on a monotonic real-time clock, not sim time (Q-CFG-8). So do redemption cooldowns and the supply-drop cap (SUPPORT-REDEMPTIONS SR-1/SR-2): they are enforced before anything enters the sim, matching platform reward cooldowns, and keep running while the sim is paused (Q-ALN-4).
 
 - Global: an admission cap on commands per tick. Above the cap, `!join` requests go to the reserve queue and other commands are dropped, with a metric.
 - During a raid (a spike in new users), `!join` requests are coalesced.
@@ -74,5 +76,4 @@ Replies are an aggregated digest, e.g. "12 new commanders deployed: VIPER-27, �
 | One platform's chat down while the broadcast is live | The sim keeps running. The offline auto-pause is triggered by stream-offline detection only, never by a single chat platform dropping (Q-OPS-8). |
 
 ## 8. Open questions
-- Decided and folded in (2026-10-18): Q-GW-2 (CG-3), Q-UX-12 (CG-2), Q-LEGAL-7 (CG-1).
-- `!quiet` (opt-out from being named in taunts, Q-AI-7) is not yet in the command catalog or the rate-limit classes. Per AGENTS.md rule 6a it arrives with its schema, parser entry and handler in one PR; its command class is for the owner to decide.
+- Decided and folded in (2026-10-18): Q-GW-2 (CG-3), Q-UX-12 (CG-2), Q-LEGAL-7 (CG-1), Q-ALN-12 (CG-4), Q-ALN-2 (CG-5), Q-ALN-4 (§5 real-time redemption cooldowns).
