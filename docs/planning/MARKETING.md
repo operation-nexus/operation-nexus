@@ -31,3 +31,11 @@ See OPEN-QUESTIONS (Q-MKT-*).
 - First public post: when the first map renders with moving units (P1/P2 boundary). Agents should flag this moment as a DEVLOG CHECKPOINT.
 - The old Discord announcement is held back at first, to measure organic traction.
 - Simulated bot battles can be shown, **clearly labeled "simulated test"**.
+
+## Research and follow-up docs (2026-10-18)
+- [MARKETING-AND-PRODUCTION-RESEARCH](../review/MARKETING-AND-PRODUCTION-RESEARCH.md): gaps, comparables, pipeline, launch plan, backlog candidates (NX-337).
+- [SOCIAL-CHANNEL-AUTOMATION-RESEARCH](../review/SOCIAL-CHANNEL-AUTOMATION-RESEARCH.md) and the [BRAND-OPS](../specs/BRAND-OPS.md) draft: account setup, API limits, the review/approval service.
+- [LEGAL-AND-NAME-SWEEP](../review/LEGAL-AND-NAME-SWEEP-2026-10-18.md): licenses, platform terms, name round 4.
+- [AGENT-TEAMS](AGENT-TEAMS.md): the marketing and lore agent teams (deferred until the community grows).
+- Decisions: Q-MKT-5..8, Q-LEGAL-9..10, Q-MOD-7..8, Q-DM-4 in OPEN-QUESTIONS.
+
