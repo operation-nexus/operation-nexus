@@ -52,7 +52,7 @@ contracts/
 | `PackageId` | integer ≥ 1 | Per campaign |
 | `BlobId` | opaque string, 16 hex chars | Re-rolled on each SIGINT refresh, never derivable from an EntityId (FOW-2) |
 | `CommandSeq` | integer ≥ 1 | Arrival order, assigned by the runtime inbox. Monotonic per campaign, never reused. Always carried in a field named `arrival_seq`. |
-| `Tick` | integer ≥ 0 | 10 Hz sim time (SC-2) |
+| `Tick` | integer ≥ 0 | 10 Hz game time; world time is derived via `sim.time_scale` (SC-2, Q-ALN-1) |
 | `Callsign` | `^[A-Z][A-Z0-9-]{2,11}$` | Generated (`WORD-NN`) or approved custom (IDENTITY §2–3) |
 | `PlatformMessageId` | string ≤ 128 | Platform-provided, used only for dedupe |
 | `SectorId` | slug, same format as `NodeId` | Named map region from the theater file (OVERLAY AN-1) |
@@ -61,7 +61,7 @@ contracts/
 ### 3.3 Enums (common/enums.json)
 | Enum | Values | Status |
 |---|---|---|
-| `Platform` | `TWITCH`, `YOUTUBE`, `KICK`, `DISCORD`, `LOCAL_SIM` | KICK and DISCORD are optional adapters (ADR-0008, ADR-0010). `LOCAL_SIM` is the dev chat simulator: allowed only in dev/test, and production config that enables it is rejected at startup. TikTok is not present. |
+| `Platform` | `TWITCH`, `YOUTUBE`, `KICK`, `DISCORD`, `LOCAL_SIM` | KICK and DISCORD are optional adapters, not committed platforms (Q-PROD-2, ADR-0008, ADR-0010). `LOCAL_SIM` is the dev chat simulator: allowed only in dev/test, and production config that enables it is rejected at startup. TikTok is not present. |
 | `Side` | `COALITION`, `ENEMY` | |
 | `NodeOwner` | `COALITION`, `ENEMY`, `NEUTRAL` | |
 | `Domain` | `AIR`, `GROUND`, `SEA`, `STATIC` | SEA is **P3** (Q-GD-8). STATIC = fixed installations (SAM sites, radars, garrison AAA) |
@@ -81,7 +81,7 @@ contracts/
 | `Stance` | `PRESS`, `STANDARD`, `CAUTIOUS`, `GUNS` | Q-CBT-6, Q-CBT-7; default `STANDARD` |
 | `DamageState` | `HEALTHY`, `DAMAGED`, `MISSION_KILL`, `DISABLED` | Q-CBT-1; `Destroyed` is a lifecycle event, not a damage state |
 | `ObjectiveMode` | `TIMED`, `RELAXED`, `OFF` | Q-GD-19 |
-| `PauseReasonCategory` | `RAID`, `ABUSE`, `TECHNICAL`, `CONTENT`, `OTHER` | Q-RB-1 (ADMIN-RBAC pause flow) |
+| `PauseReasonCategory` | `OPERATOR`, `TECHNICAL`, `MAINTENANCE`, `CEASEFIRE` | Q-ALN-3. `OPERATOR` = a manual pause from the Command Center (the required note says why, Q-RB-1); `TECHNICAL` = offline auto-pause (Q-OPS-8); `MAINTENANCE` = weekly window; `CEASEFIRE` = owner Ceasefire mode (Q-OPS-9) |
 | `RallyIntent` | `ATTACK`, `DEFEND`, `SUPPLY` | Q-SUP-6 |
 
 ### 3.4 Units of measure
@@ -89,7 +89,7 @@ contracts/
 |---|---|
 | Distance | metres |
 | Speed | m/s |
-| Time | ticks; wall-clock only in envelopes and admin audit (RFC 3339 UTC) |
+| Time | ticks (game time, SC-2); wall-clock only in envelopes and admin audit (RFC 3339 UTC) |
 | Angle | degrees, 0 = north, clockwise |
 | Supply and cargo | integer stock units |
 | HP | integer |
@@ -143,13 +143,17 @@ Text shown on stream additionally requires `ModeratedText`, a SafeText already a
 ### 5.2 Catalog
 "Who" refers to `source`. Rank gates come from PROGRESSION §3, which is PROPOSED. Chat commands are produced by `nexus.commands` only after the ban check, rate limit, and parse (CHAT-GATEWAY §5).
 
+**While paused (Q-ALN-2, SIM-CORE SC-11):** commands that do not change the world still work: `ME` (and its alias `!status`), `QUIET`, the info commands, `SET_CALLSIGN`, and a `JOIN` from a commander with no live unit, which always joins the reserve queue (it never spawns while paused) and spawns FIFO after resume. Every other chat command that reaches the sim is rejected with `CAMPAIGN_PAUSED`, and the digest replies "war paused". This reject is not repeated in each row below.
+
+**Reclaim (Q-ALN-9):** a commander's AUTO (AI-run) unit keeps its slot until it retires. Any chat command from that commander that reaches the sim restores their control of it (STATE-MACHINES §4.1); a `JOIN` reclaims it and never spawns a second unit.
+
 | CommandKind | From chat text | Payload fields | Who / gate | Possible rejects |
 |---|---|---|---|---|
-| `JOIN` | `!join <role> [stance] [hold]` | `role: Role` (`NAVY` in P3), `stance: Stance\|null`, `hold: bool` (opt out of Tasking Board auto-tasking, GAMEPLAY §1b) | CHAT, O-1 | `ROLE_UNKNOWN`, `UNIT_IN_SORTIE`, `RESPAWN_COOLDOWN`, `QUEUED_RESERVE` (not an error: emits `ReserveQueueJoined`), `CAMPAIGN_NOT_RUNNING`, `SPAWNS_FROZEN` |
+| `JOIN` | `!join <role> [stance] [hold]` | `role: Role` (`NAVY` in P3), `stance: Stance\|null`, `hold: bool` (opt out of Tasking Board auto-tasking, GAMEPLAY §1b) | CHAT, O-1. With a live AUTO unit: reclaims it (Q-ALN-9). | `ROLE_UNKNOWN`, `UNIT_IN_SORTIE`, `RESPAWN_COOLDOWN`, `QUEUED_RESERVE` (not an error: emits `ReserveQueueJoined`), `CAMPAIGN_NOT_RUNNING`, `SPAWNS_FROZEN` |
 | `TARGET` | `!target <node>` | `node_id: NodeId` (resolved by fuzzy match against the fixed node-name list *before* the command is built) | CHAT, O-1 | `NO_ACTIVE_UNIT`, `NODE_UNKNOWN`, `NODE_INVALID_FOR_UNIT` |
 | `RTB` | `!rtb` | — | CHAT, O-1 | `NO_ACTIVE_UNIT`, `NO_FRIENDLY_BASE_REACHABLE` |
-| `ME` | `!me` | — | CHAT, O-1. Highlights the unit; the digest repeats callsign, status, cooldowns, queue position and the commander's own conduct standing (FB-UX-3, Q-MOD-5). Works while queued. | `NO_ACTIVE_UNIT` (only when neither a unit nor a queue entry exists) |
-| `STATUS` | `!status` | — | CHAT, O-1. Highlight only. Whether it becomes an alias of `ME` is **open** (Q-UX-12). | `NO_ACTIVE_UNIT` |
+| `ME` | `!me`, `!status` (alias) | — | CHAT, O-1. Highlights the unit; the digest repeats callsign, status, cooldowns, queue position and the commander's own conduct standing (FB-UX-3, Q-MOD-5). Works while queued and while paused. `!status` is a pure alias: the parser maps it to `ME` with identical behavior; there is no separate `STATUS` kind (Q-UX-12). | `NO_ACTIVE_UNIT` (only when neither a unit nor a queue entry exists) |
+| `QUIET` | `!quiet` | — | CHAT, any rank. **Toggle:** switches the commander's opt-out from being named in mastermind taunts on or off; the digest confirms the new state (Q-ALN-12, Q-AI-7). Doesn't enter the sim: identity stores it per commander (DATA-MODEL column) and it applies across linked platforms. Works while paused. Parser entry and handler ship in the same PR (AGENTS.md rule 6a). | rate-limited only |
 | `STANCE` | `!stance <press\|standard\|cautious\|guns>` | `stance: Stance` | CHAT, O-1 (GAMEPLAY §6) | `NO_ACTIVE_UNIT`, `STANCE_UNKNOWN` |
 | `REBASE` | `!rebase <node>` | `node_id: NodeId` (friendly base valid for the domain) | CHAT, O-1 | `NO_ACTIVE_UNIT`, `NODE_UNKNOWN`, `NODE_NOT_FRIENDLY`, `NODE_INVALID_FOR_UNIT`, `OUT_OF_REACH` (fuel; Q-UX-6 suggests the nearest reachable base) |
 | `RALLY` | `!rally <node> <attack\|defend\|supply>` | `node_id: NodeId`, `intent: RallyIntent` | CHAT, O-3, own cooldown (Q-SUP-6). Emits a map annotation only; never controls other units. | `RANK_TOO_LOW`, `NODE_UNKNOWN`, `RALLY_COOLDOWN`, `RALLY_LIMIT` (max active), `CONDUCT_RESTRICTED` |
@@ -167,8 +171,8 @@ Text shown on stream additionally requires `ModeratedText`, a SafeText already a
 | `FORGET` | `!forget` | — | CHAT, any. Handled by identity (SEC-DATA-3). Doesn't enter the sim except to despawn units. | — |
 | `ADVISOR_CHOICE` | — | `decision_window: int`, `choice_index: int ≥ 0`, `op_name: ModeratedText ≤ 40`, `rationale: ModeratedText ≤ 140`, `model_ref: string ≤ 64` | ADVISOR, P4 | `WINDOW_EXPIRED`, `CHOICE_OUT_OF_RANGE` (rules pick instead, FB-2) |
 | `OP_KILL_SWITCH` | — | `hide_user_text: bool`, `mute_tts: bool`, `freeze_spawns: bool` | OPERATOR | — |
-| `OP_CAMPAIGN_PAUSE` | — | `reason_category: PauseReasonCategory` (required), `note: SafeText ≤ 140` (required) | OPERATOR: MODERATOR, GM, ADMIN, OWNER (Q-RB-1). Triggers the immediate owner alert (ADMIN-RBAC pause flow). | `ALREADY_PAUSED`, `CAMPAIGN_NOT_RUNNING`, `REASON_REQUIRED` |
-| `OP_CAMPAIGN_RESUME` | — | `note: SafeText ≤ 140\|null` | OPERATOR: GM, ADMIN, OWNER only (Q-RB-1) | `NOT_PAUSED`, `CAMPAIGN_NOT_RUNNING` |
+| `OP_CAMPAIGN_PAUSE` | — | `reason_category: PauseReasonCategory` (required, Q-ALN-3), `note: SafeText ≤ 140` (required from OPERATOR; `null` allowed from SYSTEM) | OPERATOR: MODERATOR, GM, ADMIN, OWNER (Q-RB-1); `CEASEFIRE` from the owner (Q-OPS-9). SYSTEM for automatic pauses: `TECHNICAL` (offline auto-pause, Q-OPS-8) and `MAINTENANCE` (weekly window, Q-OPS-9). Every pause triggers the immediate owner alert (ADMIN-RBAC pause flow). | `ALREADY_PAUSED`, `CAMPAIGN_NOT_RUNNING`, `REASON_REQUIRED` |
+| `OP_CAMPAIGN_RESUME` | — | `note: SafeText ≤ 140\|null` | OPERATOR: GM, ADMIN, OWNER only (Q-RB-1). SYSTEM for the automatic resume after the "COMMS RESTORED" countdown (Q-OPS-8, SIM-CORE §5). | `NOT_PAUSED`, `CAMPAIGN_NOT_RUNNING` |
 | `OP_CAMPAIGN_END` | — | `reason: SafeText ≤ 140` | OPERATOR. Ends the campaign with result `ABORTED`. | `CAMPAIGN_NOT_RUNNING` |
 | `OP_BAN` / `OP_UNBAN` | — | `commander_id`, `reason: SafeText ≤ 140` | OPERATOR, or SYSTEM from a platform moderation event (CHAT-GATEWAY §2) | `COMMANDER_UNKNOWN` |
 | `OP_PURGE_UNITS` | — | `commander_id` | OPERATOR | `COMMANDER_UNKNOWN` |
@@ -180,22 +184,23 @@ Text shown on stream additionally requires `ModeratedText`, a SafeText already a
 Callsign approve/reject and clip approve are **not** sim commands. They are admin actions on the persistence layer (§8), and the resulting change reaches the sim only as a `SYS_SET_CALLSIGN` system command, which emits `CallsignChanged`, so replays reproduce what was shown.
 
 ### 5.3 RejectReason enum
-Every value listed in §5.2, plus `INVALID_PAYLOAD`, `BANNED`, `LATE` (applied, but flagged — SC-6), and `INTERNAL_ERROR` (SC-7: the kernel converts an unexpected validation failure into this event instead of raising). Every reject is emitted as `CommandRejected` (§6). Chat replies are aggregated into digests and never sent per reject (CHAT-GATEWAY §6).
+Every value listed in §5.2, plus `CAMPAIGN_PAUSED` (a world-changing chat command while paused, Q-ALN-2), `INVALID_PAYLOAD`, `BANNED`, `LATE` (applied, but flagged — SC-6), and `INTERNAL_ERROR` (SC-7: the kernel converts an unexpected validation failure into this event instead of raising). Every reject is emitted as `CommandRejected` (§6). Chat replies are aggregated into digests and never sent per reject (CHAT-GATEWAY §6).
 
 ## 6. Sim event catalog
 `events/event.json` is a discriminated union on `kind`.
 - **Common fields:** `kind`, `tick`, `event_seq` (int, per tick, deterministic order), `campaign_id`.
 - **Consumers:** **B** broadcast/overlay, **P** progression, **A** audio/sitrep, **C** clips scoring, **O** ops metrics/logs, **R** replay (all events are replayable; R is implied).
-- **Redaction:** the rule says what the *public coalition view* receives (FOW-1, FOW-3). Internal consumers (P, A, C, O) get the full event. Anything A or C outputs is built only from redacted fields.
+- **Redaction:** the rule says what the *public coalition view* receives (FOW-1, FOW-3) **during the live campaign**. Internal consumers (P, A, C, O) get the full event. Anything A or C outputs during the campaign is built only from redacted fields. Once `CampaignEnded` is emitted, archives, replays and recaps (including "what you didn't see") are exempt from FOW-1 and may use the full events (Q-ALN-21).
 
 | Event | Fields | Redaction for public view | Consumers |
 |---|---|---|---|
 | `CampaignStarted` | `mode`, `objective_mode`, `options{friendly_fire, unlimited_ammo}`, `theater_id`, `seed`, `config_hash`, `start_tick` | `seed` omitted during the campaign and published after `CampaignEnded` with the "what you didn't see" recap (Q-CT-2) | B A O |
 | `CampaignEnded` | `result: CampaignResult`, `end_tick`, `score`, `nodes_held_pct` | none | B P A C O |
 | `AARStarted` | `result: CampaignResult`, `top_by_role: {role, commander_ids[] ≤ 5}[]` | Commander ids resolve to approved callsigns at render time | B A O |
-| `CampaignClockPaused` / `Resumed` | `reason: OPERATOR` (no automatic pause, Q-GD-4 amended) | none | B O |
+| `CampaignClockPaused` / `Resumed` | `reason: PauseReasonCategory` (for `Resumed`, the reason of the pause it ends; Q-ALN-3). The operator's note is not in the event. Lack of humans never pauses (Q-GD-4 amended). | none | B O |
 | `UnitSpawned` | `entity_id`, `unit_kind`, `side`, `owner_kind`, `commander_id\|null`, `callsign\|null`, `node_id`, `loadout: FULL\|REDUCED` | ENEMY spawn shown only if the spawn point is at TRACK tier or above. Otherwise dropped. | B P A O |
-| `UnitDespawned` | `entity_id`, `reason: RTB_LANDED\|IDLE\|ROLE_SWITCH\|PURGED\|OWNER_BANNED\|OWNER_FORGOTTEN\|CAMPAIGN_END` | Hidden ENEMY: dropped | B O |
+| `UnitDespawned` | `entity_id`, `reason: RTB_LANDED\|IDLE\|ROLE_SWITCH\|PURGED\|OWNER_BANNED\|OWNER_FORGOTTEN\|CAMPAIGN_END` (`IDLE` = idle retire, `presence.idle_retire_min`, Q-GD-35) | Hidden ENEMY: dropped | B O |
+| `UnitControlChanged` (name PROPOSED) | `entity_id`, `commander_id`, `control: OPERATOR\|AUTO`, `cause: IDLE_HANDOFF\|RECLAIM` (Q-GD-35, Q-ALN-9) | none (coalition units only) | B P O |
 | `UnitOrphaned` | `entity_id`, `commander_id`, `cause: BANNED\|FORGOTTEN` | none (coalition units only) | B O |
 | `RearmStalled` | `entity_id`, `node_id` | ENEMY: dropped | B O |
 | `WaypointReached` | `entity_id`, `node_id\|null` | Hidden ENEMY: dropped | O |
@@ -220,15 +225,15 @@ Every value listed in §5.2, plus `INVALID_PAYLOAD`, `BANNED`, `LATE` (applied, 
 | `ReserveQueueJoined` / `Left` | `commander_id`, `position`, `reason: SLOT_FREED\|LEFT\|TIMEOUT` | Public: queue length only | B O |
 | `PackageFormed` / `Disbanded` / `MemberJoined` | `package_id`, `name`, `lead_id`, `member_ids[]` | none | B P |
 | `DoctrineSelected` | `commander_id`, `doctrine` | none | B P |
-| `CallsignChanged` | `commander_id`, `callsign`, `callsign_kind: GENERATED\|CUSTOM\|TOMBSTONE` | none (already approved). TOMBSTONE renders as `[REDACTED]` | B |
+| `CallsignChanged` | `commander_id`, `callsign`, `callsign_kind: GENERATED\|CUSTOM\|TOMBSTONE` | none (already approved). TOMBSTONE renders as `REDACTED-…` (Q-DM-2) | B |
 | `CommanderBanned` | `commander_id` | Not public (only the unit's removal is visible) | O P |
 | `CommanderForgotten` | `commander_id` | Not public | O P |
 | `BalanceReloaded` | `old_hash`, `new_hash`, `keys: string[]` | Not public | O R |
-| `PresenceSnapshot` | `active_humans: int`, `distinct_humans_active: int`, `by_role: {role: Role, count: int}[]`, `by_rank_band: {band, count}[]\|null`, `window_ticks: int` | Counts only (no ids) | B P O |
+| `PresenceSnapshot` | `active_humans: int`, `by_role: {role: Role, count: int}[]`, `by_rank_band: {band, count}[]\|null`, `window_ticks: int` | Counts only (no ids) | B P O |
 | `KillSwitchChanged` | flags as in `OP_KILL_SWITCH` | none | B A O |
 | `StateHash` | `tick`, `hash: hex` | not public | O R |
 
-**PresenceSnapshot** is emitted every `presence.emit_every_ticks` (CONFIG-AND-CONTENT §6.6) over the trailing `presence.window_s`. Both counts include only `COMMANDER` owners (DI-5): `active_humans` = commanders with a live unit or an accepted command in the window (drives the HUD "Operators active" count and its breakdown, Q-CT-4; it does **not** pause the clock, Q-GD-4 amended / Q-SM-5); `distinct_humans_active` = distinct commanders with an accepted command in the window (drives PROG-2). The kernel derives both from applied commands, so they are deterministic.
+**PresenceSnapshot** is emitted every `presence.emit_every_ticks` (CONFIG-AND-CONTENT §6.6) over the trailing `presence.window_s`. The counts include only `COMMANDER` owners (DI-5): `active_humans` = commanders with a live unit or an accepted command in the window (drives the HUD "Operators active" count and its breakdown, Q-CT-4; it does **not** pause the clock, Q-GD-4 amended / Q-SM-5). The former `distinct_humans_active` field is removed: it only fed PROG-2's minimum-humans XP rule, which Q-PROG-6 dropped. The kernel derives the counts from applied commands, so they are deterministic.
 
 **Who decides an entity is hidden:** the redaction pass uses the coalition visibility predicate at the event's tick (FOW-1). Property test: no public payload references an `EntityId` that fails the predicate.
 
@@ -248,8 +253,9 @@ These detail WIRE-PROTOCOL §2. All messages carry `type` and `v` (PROTOCOL_VERS
 
 Field shapes:
 - `EntityView`:
-  - `{entity_id, unit_kind, side, domain, owner_kind, callsign|null, pos:{x_m:int,y_m:int}, heading_deg:int, speed_mps:int, hp_pct:int 0–100, damage_state: DamageState, fow: TRACK|PAINTED, package_id|null, cosmetic:{halo|null, trail|null}, badges: string[] ≤ 4, probation: bool}`
+  - `{entity_id, unit_kind, side, domain, owner_kind, callsign|null, pos:{x_m:int,y_m:int}, heading_deg:int, speed_mps:int, hp_pct:int 0–100, damage_state: DamageState, fow: TRACK|PAINTED, package_id|null, cosmetic:{halo|null, trail|null}, badges: string[] ≤ 4, probation: bool, auto: bool}`
   - `probation` is true only while the operator has an active conduct restriction (Q-MOD-6); no score is ever sent. Always false for AI entities.
+  - `auto` is true while a commander's unit is AI-run after idle handoff; the overlay shows the AUTO tag (Q-GD-35, Q-ALN-9). Always false for AI-owned entities, which use the `[AI]` label instead.
   - `fow` is never SIGINT, because blobs are separate. `callsign` is null for AI entities, which render an `[AI]` label (DI-5).
 - `EntityPatch`: `entity_id` plus only the changed fields of `EntityView`.
 - `NodeView`: `{node_id, owner: NodeOwner, capture:{side|null, progress_pct:int}, stock_pct:int|null, starvation: OK|LOW|EMPTY|null, hp_pct:int|null}`. `stock_pct`, `starvation` and `hp_pct` are null for ENEMY nodes the coalition can't see (DI-1).
@@ -259,8 +265,8 @@ Field shapes:
   - `campaign_status: {nodes_held:{coalition,enemy,neutral}, result|null}` (the operator breakdown comes from `Hud.operators`)
   - `tasking_needed: [{job_kind, node_id|null, sector_id|null, slots_open}] ≤ 3` (GAMEPLAY §1b)
   - `top_commanders: {role, rows:[{callsign, value}] ≤ 5}[]`. Real rows only; never padded (DI-4).
-  - `active_packages: [{name, lead_callsign|null, member_count}] ≤ 6`
-  - `latest_major_event: PublicEvent|null`
+  - `active_packages: [{name, lead_callsign|null, member_count}] ≤ 6`: **P4**, ships with packages (Q-ALN-18).
+  - Top Commanders is in the default panel rotation (Q-ALN-18). The former `latest_major_event` panel field is removed: the latest major event is an overlay interrupt toast, not a panel (Q-ALN-18, OVERLAY).
 
 ## 8. Internal HTTP / admin API
 - **Two apps (Q-ARCH-7):** this API backs the private **Command Center** only. The **public site** (replays, leaderboards, stats, later player login) is a separate app with its own read-only API and **no admin routes**; they share contracts and a design system, not an API, so a public-site bug can't reach admin powers.
@@ -308,7 +314,8 @@ Secrets and tokens are never recorded (NX-026 redaction). Every sim-affecting ad
 | Generated types match schemas | CI regen + `git diff --exit-code` (NX-021) |
 | Breaking change requires MAJOR bump | Schema compat job against `main` (NX-021) |
 | Every `CommandKind` has a schema, a parser case (chat kinds), and at least one reject test per listed reason | Table-driven unit tests generated from §5.2 |
-| No public payload contains hidden entities, raw display names, or seeds | Property test over random sim runs (FOW-1, §6) + schema check (no `display_name` in `wire/`) |
+| No public payload during a live campaign contains hidden entities or seeds, and none ever contains raw display names | Property test over random sim runs (FOW-1, §6; post-campaign archives exempt, Q-ALN-21) + schema check (no `display_name` in `wire/`) |
+| While paused, only the allowed chat commands apply and the rest reject `CAMPAIGN_PAUSED` | Table-driven test over §5.2 kinds (Q-ALN-2) |
 | SafeText / ModeratedText rules | Fuzz test (TESTING-STRATEGY §3.3) |
 | Panels are never padded | Unit test: 3 commanders produce 3 rows (DI-4) |
 | Admin routes require auth + CSRF, and write audit rows | Integration tests per route. Unauthenticated → 401, missing CSRF → 403. |
@@ -322,7 +329,9 @@ Decided and folded in (2026-10-17): Q-GD-2 (Siege reserved), Q-GD-3 (doctrine pe
 4. **Q-CT-4** "Operators active" is shown (humans only, `—` until known) with a breakdown by role or doctrine, optionally rank band (§6 `PresenceSnapshot`, §7 `Hud.operators`).
 5. **Q-CT-5** Small MVP enemy/garrison roster, confirmed at the theater sketch (NX-008); new platforms via the content pipeline (CONFIG-AND-CONTENT §7a).
 
-Still open: Q-UX-12 (`!status` as an alias of `!me`), Q-GW-2 (Shared Chat / raid-origin commands).
+Decided and folded in (2026-10-18): Q-UX-12 (`!status` is an alias of `ME`, §5.2), Q-ALN-1 (`Tick`), Q-ALN-2 (paused commands, `CAMPAIGN_PAUSED`), Q-ALN-3 (`PauseReasonCategory`, `CampaignClockPaused`), Q-ALN-9 (reclaim, `UnitControlChanged`, `EntityView.auto`), Q-ALN-12 (`QUIET`), Q-ALN-16 (Tasking Board outcomes), Q-ALN-18 (panels), Q-ALN-21 (post-campaign reveal), Q-PROG-6 (`distinct_humans_active` removed), Q-DM-2 (`REDACTED-…`).
+
+Still open: Q-GW-2 (Shared Chat / raid-origin commands). ADMIN-RBAC's pause form still lists the old categories (RAID / ABUSE / TECHNICAL / CONTENT / OTHER); it needs aligning with Q-ALN-3.
 
 ## Contract additions pending merge (2026-10-17)
 The following are specified in their source specs and must be added to `/contracts` together with the tables above when implementing:
@@ -341,7 +350,7 @@ The following are specified in their source specs and must be added to `/contrac
 - **From combat decisions (GAMEPLAY §5–§6a, SIM-CORE §4; Q-CBT-1/6/7/8, Q-GD-27):**
   - Events `UnitDamageStateChanged{entity_id, from, to}`, `MunitionsDepleted{entity_id, guns_only: bool}`, `CrewDowned{marker_id, entity_id, side, pos}`, `CrewRescued{marker_id, rescuer_ids[]}`, `CrewCaptured{marker_id}`, `UnitRepaired{entity_id, by_id|null, node_id|null}`, `StanceChanged{entity_id, stance}`, `CriticalHit{entity_id, effect}`.
   - `UnitDespawned.reason` and `UnitDestroyed` need no change; `Disabled` units stay live entities.
-- **From the Tasking Board (GAMEPLAY §1b, Q-GD-26):** events `JobPosted`, `JobClaimed{job_id, entity_id}`, `JobReleased`, `JobExpired`; `TaskingJobId` id type.
+- **From the Tasking Board (GAMEPLAY §1b, Q-GD-26):** events `JobPosted`, `JobClaimed{job_id, entity_id}`, `JobReleased`, `JobExpired`; `TaskingJobId` id type. Job outcomes (DONE / FAILED / EXPIRED, Q-GD-37) are stored durably for recap stats and balance analysis (Q-ALN-16); the outcome event and its persistence consumer are specified with these schemas.
 - **From rally calls (Q-SUP-6, OVERLAY §2a):** event `RallyCalled{commander_id, node_id, intent, ttl_ticks}` → rendered as an `Annotation`.
 - **From the conduct system (ADMIN-RBAC §6.8, Q-MOD-5/6):** **note only, schemas to be written with the conduct spec (NX-291):**
   - The conduct score and its flags are **runtime/persistence data, not sim state** and never appear in public payloads. Only the boolean `EntityView.probation` (§7) reaches the overlay.
