@@ -9,7 +9,7 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 
 | Phase | Items | Done | Status |
 |---|---|---|---|
-| P0 Foundations | 41 | 12 | 🟨 |
+| P0 Foundations | 42 | 12 | 🟨 |
 | P1 Sim kernel | 25 | 0 | ⬜ |
 | P2 Closed alpha | 33 | 0 | ⬜ |
 | P3 Public beta | 22 | 0 | ⬜ |
@@ -55,6 +55,7 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | NX-027 [#24](https://github.com/canthony224/operation-nexus/issues/24) | Runbook: rotate secrets | S | ⬜ | NX-014 | Doc reviewed |
 | NX-028 | `.gitignore` additions (`*.db`, `node_modules/`, snapshots, logs, `.env*`) | S | ✅ | — | Present |
 | NX-029 [#25](https://github.com/canthony224/operation-nexus/issues/25) | Agent review gate: code-review + security-review run on every PR (Q-CI-3) | M | ❓ | NX-011 | Review comment posted on PRs |
+| NX-327 | Pin the toolchain: Node 22 in `.node-version` (CI reads it; `engines.node`), Python 3.12 in `services/sim/.python-version`; `make bootstrap` and `make check` fail clearly on a wrong Node major; fix the `prettier-overlay` pre-commit hook path | S | 👀 | NX-010 | Wrong Node major stops `make bootstrap` with a message |
 
 ### Quality & security baselines
 | ID | Item | Size | Status | Depends | Acceptance |

@@ -91,7 +91,7 @@ make check          # Python: ruff, ruff format --check, mypy --strict, import-l
 # make dev          # (NX-255) not yet implemented
 ```
 
-Requires: `uv`, Node 22+ with `pnpm`, `make`.
+Requires: `uv`, Node 22 (`.node-version`; `make` checks it) with `pnpm`, `make`. Python 3.12 comes from `services/sim/.python-version` via uv.
 
 CI (`.github/workflows/ci.yml`) runs the same commands, plus `pnpm run build`. `ci-gate` is the single required check.
 

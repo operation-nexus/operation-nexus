@@ -59,7 +59,7 @@ jobs:
           # (a name like "::error::..." would be parsed as a workflow command).
           changed="$(git diff --name-only HEAD^1 HEAD)"
           echo "Changed files: $(printf '%s\n' "$changed" | grep -c . || true)"
-          shared='^(contracts/|Makefile$|\.github/workflows/ci\.yml$)'
+          shared='^(contracts/|Makefile$|\.node-version$|\.github/workflows/ci\.yml$)'
           if printf '%s\n' "$changed" | grep -Eq "^(services/|tools/|scripts/)|$shared"; then
             echo "python=true" >> "$GITHUB_OUTPUT"
           else
@@ -145,7 +145,7 @@ jobs:
           package_json_file: apps/overlay/package.json
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "22"
+          node-version-file: .node-version
           cache: pnpm
           cache-dependency-path: apps/overlay/pnpm-lock.yaml
       # Same scripts as `make check-overlay`, plus the production build.
@@ -174,7 +174,7 @@ jobs:
           package_json_file: apps/overlay/package.json
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "22"
+          node-version-file: .node-version
           cache: pnpm
           cache-dependency-path: apps/overlay/pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
