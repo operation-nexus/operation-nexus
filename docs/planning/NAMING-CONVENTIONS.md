@@ -1,11 +1,11 @@
 # Naming Conventions
 
-Status: Draft · Tracker: NX-315 · Related: [GLOSSARY.md](GLOSSARY.md) (what words mean), CONTRACTS §3 (wire
+Status: Draft · Tracker: NX-315 (done), NX-323 (owner rulings) · Related: [GLOSSARY.md](GLOSSARY.md) (what words mean), CONTRACTS §3 (wire
 conventions), ADR-0009 and CICD-ARCHITECTURE §2 (branches and commits)
 
 This page records the case style each layer **already uses** in the specs and the repo (surveyed 2026-10-18). It is
 descriptive: where usage is inconsistent, §3 lists the inconsistency instead of picking a winner. Settling those is an
-owner call (the grill pass named in NX-315). New names follow the dominant style in §1 and §2.
+owner call (grill pass, NX-323). New names follow the dominant style in §1 and §2.
 
 ## 1. Code, contracts and config
 

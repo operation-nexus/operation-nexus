@@ -12,11 +12,11 @@ Under the hood: a deterministic, server-authoritative simulation (Python), a bro
 
 **Planning is largely complete; implementation is starting.**
 
-- Done: vision, roadmap, tracker, system design, ADRs 0001–0011, subsystem specs, threat model, CI/CD design, testing strategy, data-integrity policy, agent tooling. Most owner questions are answered; the rest are in [OPEN-QUESTIONS](docs/planning/OPEN-QUESTIONS.md).
-- In review: the repo skeleton (NX-010) is open as PR #37 against `develop`.
-- Next (P0 Foundations): CI workflows (NX-011, NX-012), the contracts pipeline (NX-021) and port interfaces with a conformance suite (NX-050). See [TRACKER](docs/planning/TRACKER.md).
+- Done: vision, roadmap, tracker, system design, ADRs 0001–0011 (accepted) and ADR-0012 (proposed), subsystem specs aligned with the 2026-10-18 decisions (NX-311), glossary and naming conventions (NX-315), threat model, CI/CD design, testing strategy, data-integrity policy, agent tooling. Most owner questions are answered; the rest are in [OPEN-QUESTIONS](docs/planning/OPEN-QUESTIONS.md).
+- Merged into `develop`: the repo skeleton with `make check` (NX-010) and `ci.yml` with the `ci-gate` check (NX-011).
+- Next (P0 Foundations): security workflow (NX-012), the contracts pipeline (NX-021) and port interfaces with a conformance suite (NX-050). See [TRACKER](docs/planning/TRACKER.md).
 
-No production code is merged yet. Specs stay `Draft` until the owner approves them.
+Only the repo skeleton is merged; there is no production code yet. Specs stay `Draft` until the owner approves them.
 
 ## Quick links
 
@@ -52,7 +52,7 @@ See [ADR-0009](docs/architecture/adr/0009-branching-strategy.md).
 
 | Branch | Purpose |
 |---|---|
-| `develop` | Integration branch for all day-to-day work. PRs target it. Security and build checks are required. |
+| `develop` | Integration branch for all day-to-day work. Changes arrive only by PR; a PR auto-merges once `ci-gate` is green (Q-PROC-2). Build, lint, format and typecheck are required, and security checks will be once NX-012 lands; tests are advisory (ADR-0009, Q-CI-6). |
 | `main` | Verified releases only, promoted from `develop` (or `hotfix/*`). Owner-only merge. |
 | `feat/NX-###-…`, `fix/…`, `docs/…`, `chore/…` | One tracker item each, branched from `develop`. |
 
@@ -67,5 +67,5 @@ Report vulnerabilities as described in [SECURITY.md](SECURITY.md), not in public
 ## License
 
 - **Code:** [MIT](LICENSE).
-- **Brand assets, art, fonts and music:** not covered by the MIT license. See Q-LEGAL-4 (pending; raised in the [gap analysis](docs/review/GAP-ANALYSIS-2026-10-17.md), recommendation: brand assets all rights reserved, licensed music never committed). Licensed music stays under its own terms (Q-LEGAL-2).
+- **Brand and art** (logo, names, commissioned art, portraits): not covered by the MIT license; all rights reserved, kept under `assets/` with its own license file once assets exist (Q-LEGAL-4). Fonts and other third-party assets are committed only if their license allows redistribution. Licensed music is never committed and stays under its own terms (Q-LEGAL-2).
 - **Dependencies:** must use MIT, BSD, Apache-2.0, ISC or MPL-2.0; GPL only in separate server-side processes (Q-LEGAL-1).

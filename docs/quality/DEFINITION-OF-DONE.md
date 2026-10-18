@@ -5,7 +5,7 @@ A tracker item is **Done** only when all of these are true.
 ## Every item
 - [ ] Linked to a tracker ID and spec section. The spec is updated if behavior was clarified.
 - [ ] Acceptance criteria from the tracker are each proven by a named test.
-- [ ] `make check` passes locally; CI `ci-gate` is green.
+- [ ] `make check` passes locally; CI `ci-gate` is green. On `develop`, `ci-gate` blocks on build, lint, format, typecheck and import contracts; tests are advisory there, and a red advisory test gets a tracker issue within 24 h (ADR-0009, Q-CI-6).
 - [ ] No new high or critical findings from CodeQL, Semgrep, SCA, trivy, or gitleaks.
 - [ ] Self-review done with `.agents/roles/reviewer.md`. A human or reviewer-agent pass is recorded in the PR.
 - [ ] No fabricated, placeholder, or unregistered fallback data (DATA-INTEGRITY.md)

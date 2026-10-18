@@ -36,6 +36,7 @@ When you add, rename or remove a doc, update this index in the same PR.
 | [adr/0009-branching-strategy.md](architecture/adr/0009-branching-strategy.md) | `develop` for integration, `main` for verified releases. |
 | [adr/0010-platform-and-provider-neutrality.md](architecture/adr/0010-platform-and-provider-neutrality.md) | Ports and adapters with a conformance suite; no vendor lock-in. |
 | [adr/0011-support-redemptions-no-currency.md](architecture/adr/0011-support-redemptions-no-currency.md) | Support events trigger capped redemptions; no in-game currency for now. |
+| [adr/0012-deployment-topology.md](architecture/adr/0012-deployment-topology.md) | Proposed: Windows/WSL2 broadcast host plus a Linux ops server (amends 0006). |
 
 ## specs/ — subsystem behavior (all Draft)
 
@@ -113,3 +114,4 @@ When you add, rename or remove a doc, update this index in the same PR.
 | [EPIDEMIC-SOUND-RESEARCH.md](review/EPIDEMIC-SOUND-RESEARCH.md) | Epidemic Sound licensing for a 24/7 stream (unverified). |
 | [GEMINI-TTS-VOICE-DESIGN-RESEARCH.md](review/GEMINI-TTS-VOICE-DESIGN-RESEARCH.md) | Gemini TTS voice design capabilities (unverified). |
 | [GAP-ANALYSIS-2026-10-17.md](review/GAP-ANALYSIS-2026-10-17.md) | Gap analysis of the planning set: unanswered questions and missing docs. |
+| [NAME-CLEARANCE.md](review/NAME-CLEARANCE.md) | Name clearance research, rounds 1–3 (Q-LEGAL-5, Q-BRAND-6), with the owner's manual check steps. |

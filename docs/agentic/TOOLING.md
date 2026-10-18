@@ -94,11 +94,12 @@ The spike measures tokens per task and answer accuracy on 10 real questions abou
 6. Serena symbol lookups beat reading whole files.
 
 ## 5. Owner setup checklist (desktop)
-Done on the Mac on 2026-10-17 where checked. Repeat every item on the Windows PC.
+Done on the Mac on 2026-10-17 where checked. Repeat every item on the Windows PC. The owner ticks progress in
+[OWNER-TODO §1](../planning/OWNER-TODO.md); keep the two lists in step.
 
 - [x] Install `jq` (the guard hook needs it)
 - [x] Put the `claude` CLI on PATH (the desktop app does not): run `claude install stable` from the app's bundled binary, or the native installer from the Claude Code docs. It installs to `~/.local/bin/claude` and updates itself.
-- [ ] Open the repo in Claude Code and trust the folder. Accept the Ponytail plugin. Approve the Context7 MCP (the desktop app has it; the `claude` CLI still shows it pending until approved there once).
+- [x] Open the repo in Claude Code and trust the folder. Accept the Ponytail plugin. Approve the Context7 MCP (the desktop app has it; the `claude` CLI still shows it pending until approved there once).
 - [x] Install Serena and run the user-scope `claude mcp add` command above. Check it with `/mcp` or `claude mcp list`.
 - [ ] Enable finecomb and review-council from the plugin card in chat
 - [ ] Ponytail: leave `webhookUrl` empty

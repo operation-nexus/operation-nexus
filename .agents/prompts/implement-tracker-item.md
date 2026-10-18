@@ -10,5 +10,5 @@ Implement tracker item <NX-###> as described in docs/planning/TRACKER.md and spe
 4. Run `make check`. Fix everything it reports.
 5. Update the spec (if behavior was clarified), the tracker status, and the CHANGELOG fragment.
 6. Self-review using .agents/roles/reviewer.md. Report the results.
-Don't push or open a PR unless told to.
+Push and open a PR into `develop` only as AGENTS.md rule 10 allows.
 ```

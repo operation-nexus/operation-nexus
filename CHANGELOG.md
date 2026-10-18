@@ -24,6 +24,16 @@ Planning set, merged to `main` on 2026-10-17 via PRs #33, #34, #35, #36 and #38:
 - **Repo basics:** MIT `LICENSE`, `SECURITY.md`, `.gitignore`.
 - **Repo hygiene:** rewritten `README.md`, this `CHANGELOG.md`, a docs index (`docs/README.md`), and an audited `.gitignore`.
 
-### In progress
+Planning and repo work on 2026-10-18, on `develop` (PRs #39–#63, the branch merges that created `develop`, and the naming and consistency pass):
 
-- Repo skeleton with `make check` (NX-010): open as PR #37 against `develop`, not yet merged.
+- **Repo skeleton (NX-010) and CI (NX-011):** `services/sim`, `apps/overlay`, `contracts/`, `tools/`, `deploy/`, a Makefile with `make check`, pre-commit config, and `.github/workflows/ci.yml` with the `ci-gate` check; repo-hygiene scripts `scripts/check_commit_msg.py` and `scripts/check_tracked_files.py` with tests.
+- **Owner decisions:** 37 decisions recorded in OPEN-QUESTIONS (game design, AI and GM scope, UX, progression and seasons, gateway, ops pauses and maintenance, public site hosting, analytics, brand and faction names, art and licensing, legal identity, testing, process and CI), plus the spec-alignment batches Q-ALN-1..21 (#53) and Q-ALN-22..32 (#60). Final gap answers, name clearance round 3 and the develop PR policy arrived in #39.
+- **Spec alignment (NX-311):** the specs those decisions touched, one PR per spec (#40–#52), then the Q-ALN batches (#54–#57, #61–#63).
+- **ADR amendments:** ADR-0003 database roadmap (Q-ARCH-16); ADR-0009 lint, format and typecheck block on `develop` (Q-CI-6), PRs into `develop` auto-merge on green (Q-PROC-2), and feature PRs merge with a merge commit (#58).
+- **Name clearance research:** `docs/review/NAME-CLEARANCE.md`, rounds 1–3 (Q-LEGAL-5, Q-BRAND-6).
+- **Tracker:** items NX-315…NX-321 for the decision follow-ups (naming pass, legal pages, lieutenants, asset provenance, art plan, identity migration, playtest reporting).
+- **Naming and consistency pass (NX-315, NX-311):** the player faction is now the Quorum in every living doc (Q-BRAND-7); the glossary covers the 2026-10-18 concepts; `docs/planning/NAMING-CONVENTIONS.md` records the case style per layer and the naming conflicts awaiting an owner ruling (NX-323); agent rules, process docs, the ADR index and the docs index match the 2026-10-18 decisions; new tracker items NX-322…NX-326.
+
+### Fixed
+
+- The tracked-files check no longer flags the `nexus.clips` source package as recordings (#59).
