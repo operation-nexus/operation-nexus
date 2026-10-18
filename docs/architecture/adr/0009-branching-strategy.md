@@ -44,7 +44,7 @@ The planning PR merges straight into `main`, which the owner allowed while there
 - `main` stays releasable, so rollback means redeploying the previous tag.
 - `develop` can carry in-progress work with failing tests, but never a known secret leak or a new high-severity vulnerability.
 - More PRs, since releases need a `develop → main` promotion PR (merge commit). release-please then opens its own *release PR* on `main`.
-- Feature PRs squash into `develop`. Promotion and hotfix PRs use merge commits so the branches share history.
+- Feature PRs merge into `develop` with a merge commit, as do promotion and hotfix PRs, so the branches share history (amendment 2026-10-18).
 
 ## Amendment (2026-10-18): lint, format and typecheck block on `develop` (Q-CI-6)
 - **Change:** lint, format and typecheck move from advisory to **required** on `develop`. Tests, golden replays, integration and Playwright stay advisory on `develop` and required on `main`.
@@ -55,4 +55,10 @@ The planning PR merges straight into `main`, which the owner allowed while there
 - **Change:** every change reaches `develop` through a PR, but no human approval is needed. The ruleset requires the `ci-gate` check, and PRs use GitHub auto-merge so they land as soon as `ci-gate` is green. Direct pushes to `develop` are blocked.
 - **`main`** is unchanged: owner-only merge, all checks required.
 - **Branch hygiene:** the feature branch is deleted (local and remote) once its PR is merged (AGENTS.md rule 11).
+- **Status:** accepted by the owner, 2026-10-18.
+
+## Amendment (2026-10-18): feature PRs merge into `develop` with a merge commit
+- **Change:** feature PRs into `develop` use a **merge commit**, not squash, matching how the 2026-10-18 spec-alignment PRs were merged. The `develop` ruleset does not restrict merge methods.
+- **Consequence:** every commit on a feature branch lands in `develop`, so each one must be a Conventional Commit (`scripts/check_commit_msg.py`), not only the PR title. The merge commit's subject is the PR title, ending with `(#N)`.
+- **Revisit** (squash only) if `develop` history becomes hard to read or the changelog fills with fixup commits.
 - **Status:** accepted by the owner, 2026-10-18.

@@ -16,13 +16,13 @@ Non-goals for now: Kubernetes, Helm, multi-region, canary traffic splitting (ADR
 
 | Item | Rule |
 |---|---|
-| Model | **`develop` + `main`** (ADR-0009). Short-lived `feat/*` branches → PR → squash-merge to `develop`. A release PR `develop → main` happens only after the full gate passes and staging is healthy. Hotfixes branch from `main` and are merged back to `develop`. |
+| Model | **`develop` + `main`** (ADR-0009). Short-lived `feat/*` branches → PR → merge commit into `develop`. A release PR `develop → main` happens only after the full gate passes and staging is healthy. Hotfixes branch from `main` and are merged back to `develop`. |
 | Branch names | `feat/NX-123-short`, `fix/NX-…`, `docs/…`, `chore/…` |
-| Commits / PR titles | Conventional Commits. A PR-title lint enforces this because squash uses the title. |
+| Commits / PR titles | Conventional Commits for every commit and the PR title: merge commits keep each branch commit, and the merge subject is the PR title. A PR-title lint (NX-017) and the commit-msg check enforce this. |
 | Versioning | SemVer per deployable (`sim`, `gateway`, `overlay`) via release-please manifest mode. `contracts/` is versioned too, and any breaking change bumps `PROTOCOL_VERSION`. |
 | Protection on `develop` | PR required. Security and build checks required; tests advisory (ADR-0009 table). No force-push. |
 | Protection on `main` | PRs only from `develop` (promotion) or `hotfix/*`. All required status checks (§4), no force-push, conversation resolution. **Required PR approvals: 0.** GitHub doesn't count an author's own approval, and the solo owner authors every PR, so a required approval would deadlock. Owner sign-off is instead enforced by (a) only the owner being able to merge to `main` (ruleset bypass list empty, merge restricted to the owner) and (b) required reviewers on the `production` Environment. Agents never merge to `main` (AGENTS.md rule 10). |
-| Merge methods | `feat/*` → `develop`: **squash**. `develop` → `main` and `hotfix/*` → `main`: **merge commit**, so `main` and `develop` share history and back-merges don't conflict repeatedly. `main` therefore does not require linear history. |
+| Merge methods | **Merge commit** everywhere: `feat/*` → `develop` (ADR-0009 amendment, 2026-10-18), `develop` → `main` and `hotfix/*` → `main`, so `main` and `develop` share history and back-merges don't conflict repeatedly. Neither branch requires linear history. |
 | Naming | *Promotion PR* = `develop` → `main`. *Release PR* = the release-please PR on `main`. |
 | Tags | `sim-v1.4.0` etc. are created only by release-please. |
 
