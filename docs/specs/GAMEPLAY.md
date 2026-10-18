@@ -24,9 +24,9 @@ World and game time are both deterministic and both freeze while the sim is paus
 4. The unit completes or fails its mission, and the viewer sees a contribution line in the ticker.
 
 ## 0. Parity rule (owner, 2026-10-17)
-**Both sides play by the same rules.** The Static has the same mechanics as Clearwave: scouting, fog of war (FOW-4), supply and starvation, rebasing, damage states, ammo, and rescue/recovery where it applies. Any new mechanic must say how it applies to both sides, or explicitly justify an asymmetry (e.g. the sanctuary base) in its spec.
+**Both sides play by the same rules.** The Static has the same mechanics as the Quorum: scouting, fog of war (FOW-4), supply and starvation, rebasing, damage states, ammo, and rescue/recovery where it applies. Any new mechanic must say how it applies to both sides, or explicitly justify an asymmetry (e.g. the sanctuary base) in its spec.
 - **Static economy (Q-GD-30):** the director's budget is the Static's real stock and factories, which the coalition can raid and starve. Its infinite rear source sits behind its capturable HQ (the coalition's sanctuary can never be captured, §9).
-- **Static tasking (Q-GD-34):** the Static uses the same Tasking Board (§1b). The director is the strategic layer that creates jobs on the Static's board (stage, escort, strike, defend, reposition), with the same job types and mechanics as Clearwave. It may compose richer job combinations but gets no unique powers.
+- **Static tasking (Q-GD-34):** the Static uses the same Tasking Board (§1b). The director is the strategic layer that creates jobs on the Static's board (stage, escort, strike, defend, reposition), with the same job types and mechanics as the Quorum. It may compose richer job combinations but gets no unique powers.
 - **Lieutenants (Q-GD-38, P4, NX-317):** later, sectors may be run by Static lieutenants, each a Threat Director profile on the same mechanics. Not in scope before P4.
 
 ## 1a. "Did my command work?" feedback (owner requirement, Q-MOD-1)
@@ -60,7 +60,7 @@ A shared queue of **jobs** the system generates from the live situation, so ever
 - **TB-8 Dependencies:** a job may depend on another (e.g. repair bridge, then convoy) and can't be claimed until that job is DONE.
 - **TB-9 Per-side fog of war:** each side builds its board only from its own fog-of-war view (FOW-4).
 - **TB-10 Logged outcomes:** every job's lifecycle and outcome is emitted as sim events and **stored durably** (Q-ALN-16), for recap stats (e.g. "most rescues"), AAR stats and balance analysis. A job completed by a commander's AUTO unit is recorded as an **AUTO assist** for recaps only; it never counts toward XP, merit or leaderboards (Q-ALN-30, PROGRESSION).
-- **TB-11 Command Center:** both boards are visible in the Command Center. A GM can inject jobs into the **Static's board only** (Q-ALN-11, GM scope §9c); a GM never injects jobs into the Clearwave board.
+- **TB-11 Command Center:** both boards are visible in the Command Center. A GM can inject jobs into the **Static's board only** (Q-ALN-11, GM scope §9c); a GM never injects jobs into the Quorum's board.
 
 ## 2. Roles (MVP, resolves critique #7 and #8)
 | Role | Command | Domain | Does | Can't |
@@ -215,7 +215,7 @@ Every rule above gets a unit test plus the property tests from TESTING-STRATEGY 
 - Q-ALN-6: a configured duration that is not a whole number of ticks converts to the next tick up, never down.
 - Q-ALN-2: while paused, `!me`, `!status`, `!quiet` and a reserve-queue join are accepted; every other command gets "war paused" and changes no sim state.
 - Q-ALN-9: an AUTO unit occupies its commander's slot; a `!join` from that commander reclaims it and the live-unit count for that commander stays 1.
-- Q-ALN-10/11: a GM cannot set objectives or campaign options, and a GM job injection into the Clearwave board is rejected.
+- Q-ALN-10/11: a GM cannot set objectives or campaign options, and a GM job injection into the Quorum's board is rejected.
 - Q-ALN-12: `!quiet` twice returns the opt-out to its original state, and each use gets a confirmation naming the new state.
 - Q-ALN-23: with `sim.time_scale` ≠ 1, capture progress scales with it, while the claim lease and the package fill wait take the same number of ticks as at `sim.time_scale` = 1.
 - Q-ALN-24: while paused, a ban despawns the banned commander's unit and a director override is rejected.

@@ -39,7 +39,7 @@ The values below are the initial PROPOSED preset. They are config data, not code
 | O-3 | Specialist | 1,500 | `!doctrine`; SEAD, artillery; `!rally` (Q-SUP-6); `!order` (P4) |
 | O-4 | Signal Lead | 5,000 | Jammer, engineer, AWACS |
 | O-5 | Wave Commander | 15,000 | `!package` lead |
-| O-6 | Clearwave Marshal | 40,000 | May call 1 theater asset per cooldown (default 1 h, Q-PROG-7; game time, Q-CFG-8, Q-ALN-1; held in the rank-table preset, §3a). Costs no merit (Q-PROG-7). |
+| O-6 | Quorum Marshal | 40,000 | May call 1 theater asset per cooldown (default 1 h, Q-PROG-7; game time, Q-CFG-8, Q-ALN-1; held in the rank-table preset, §3a). Costs no merit (Q-PROG-7). |
 The XP thresholds are placeholders. The balance harness sets them so that O-2 takes about 1 hour and O-4 about 2–4 weeks for a regular player.
 
 ## 3a. Presets and admin editing (Q-PROG-7)
