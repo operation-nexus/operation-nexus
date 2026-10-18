@@ -1,7 +1,7 @@
 # SPEC: Progression
 
 
-> **All numeric values in this spec are PROPOSED and unvalidated** (DATA-INTEGRITY DI-7). They become real only after the balance harness validates them, as defined in Q-TEST-2 (≥50 seeds across crowd profiles of 0, 5, 50, 150 and 300 simulated viewers plus the adversarial profiles, Q-ALN-42; written targets met, report saved with the config hash).
+> **All numeric values in this spec are PROPOSED and unvalidated** (DATA-INTEGRITY DI-7). They become real only after the balance harness validates them, as defined in Q-TEST-2 (≥50 seeds across crowd profiles of 0, 5, 50, 150, 300 and 500 simulated viewers plus the adversarial profiles, Q-ALN-42; written targets met, report saved with the config hash).
 Status: Draft · Tracker: NX-210…NX-224 · Inputs: P725–971, C5–10
 
 ## 1. Principles

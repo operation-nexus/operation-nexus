@@ -109,7 +109,7 @@ Effect allowlist by trigger source:
 - Golden replay including `SUPPORT_REDEEM`.
 - A test that the channel-points refund path is called on failure.
 - A forbidden-effect rule is rejected by the config validator.
-- SR-1/SR-2: with 1 and with 300 simulated viewers, supply drops never exceed `support.supply_drop.max_per_hour`; a capped channel-points redemption is CANCELED.
+- SR-1/SR-2: with 1 and with 500 simulated viewers, supply drops never exceed `support.supply_drop.max_per_hour`; a capped channel-points redemption is CANCELED.
 - SR-5: a channel-points redemption received while the campaign is paused issues no `SUPPORT_REDEEM`, is CANCELED (points refunded) and is stored as REFUNDED (Q-ALN-37).
 - SR-4: a cosmetic, shoutout or spectacle redemption leaves `provocation` unchanged; an applied respawn skip, queue jump, extra scout ping or supply drop adds its support weight; an unapplied one adds nothing; the config validator has no offensive class to bind a rule to.
 

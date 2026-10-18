@@ -81,7 +81,7 @@ terms still waiting for an owner ruling.
 | Ceasefire mode | The owner's one-click or hotkey pause (CEASEFIRE) for gaming on the broadcast PC: light OBS scene, heavy overlay rendering off (OPS-ADMIN OA-9) |
 | Snapshot / Command log | Recovery and replay data (ADR-0003) |
 | Reference host | The owner's broadcast host (i7-8700 + GTX 1070 under WSL2) for performance budgets; golden replays use the CI image instead (Q-TEST-1) |
-| Harness-validated | A value that met the written balance-harness targets over ≥ 50 seeds and the crowd profiles (0, 5, 50, 150 and 300 simulated viewers plus adversarial profiles), so it can drop its PROPOSED label (Q-TEST-2, Q-ALN-42) |
+| Harness-validated | A value that met the written balance-harness targets over ≥ 50 seeds and the crowd profiles (0, 5, 50, 150, 300 and 500 simulated viewers plus adversarial profiles), so it can drop its PROPOSED label (Q-TEST-2, Q-ALN-42) |
 
 ## Progression and conduct
 
