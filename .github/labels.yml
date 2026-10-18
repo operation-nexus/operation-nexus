@@ -24,3 +24,8 @@
 - { name: "phase:P3", color: "0052cc", description: "Roadmap phase P3" }
 - { name: "phase:P4", color: "0052cc", description: "Roadmap phase P4" }
 - { name: "devlog-moment", color: "f9d0c4", description: "Good moment to record a devlog clip" }
+- { name: "size:XS", color: "c2e0c6", description: "Under 10 changed lines (pr-hygiene, lockfiles excluded)" }
+- { name: "size:S", color: "7fd18b", description: "10-99 changed lines" }
+- { name: "size:M", color: "fbca04", description: "100-399 changed lines" }
+- { name: "size:L", color: "f9a03f", description: "400-999 changed lines: split if you can (AGENTS.md rule 7)" }
+- { name: "size:XL", color: "d93f0b", description: "1000+ changed lines: split it" }
