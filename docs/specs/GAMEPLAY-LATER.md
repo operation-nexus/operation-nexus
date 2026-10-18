@@ -39,3 +39,17 @@ A package is a group of up to 4 existing units, with a lead (O-5+) or an auto-le
 
 ## 9b. Campaign carry-over (owner chose: results carry over)
 The outcome of campaign N affects campaign N+1, within bounded and visible rules (Q-GD-12). Carry-over state is stored in the DB (DATA-MODEL addition: `campaign_carryover`) and applied at campaign setup. It's never applied mid-campaign.
+
+## Moved from the first-build review (Q-GP-9, Q-GP-10, 2026-10-18)
+Text as it stood in GAMEPLAY before the move. Wire-level fallout was removed from CONTRACTS and the other specs in the same PR; a feature returns with its schema.
+
+| `!scout <sector>` | sector | any (reserve queue) | Cheap intel ping while waiting in the reserve queue (RQ-4) |
+- **RQ-4: Queued viewers still contribute.** While waiting they can `!scout <sector>`, a cheap intel ping that reveals SIGINT detail briefly, and they earn a small participation merit (PROPOSED values, diminishing).
+- **RQ-5: Priority and fairness.** Q-GD-14: FIFO, with a boost for first-time commanders and a max-wait guarantee. A silent commander's unit frees its slot only when it retires (GP-5); while handed off (AUTO, GP-4) it still occupies that slot (Q-ALN-8, Q-ALN-9). There is no other idle despawn.
+- **Supply-line stretch** (snowball breaker): coalition truck transit time scales with road distance from the sanctuary. Enemy reinforcement time shrinks as the front nears its HQ.
+- **Critical hits (Q-CBT-8):** a small seeded chance of an outsized effect (e.g. a radar knocked offline for a while), shown with a callout. Configurable.
+- **Friendly fire (Q-CBT-4):** off in v1. It is a per-campaign option set at campaign setup (never toggled mid-war), default off, editable by the owner or an Admin only, never by a GM (Q-ALN-10).
+  - `relaxed`: fewer, longer, untimed suggestions.
+
+- **Stalemate (Q-GD-29, moved):** if the two sides' scores are within a draw band (PROPOSED ~5%), the war ends in a Stalemate with its own end screen, no carry-over bonus, an optional configured special event and template banter from the Static mastermind.
+- **Engineer crossings (Q-GD-21, moved):** engineers can build short new crossings.

@@ -148,7 +148,6 @@ Legend: **HR** = hot-reloadable (§5). "TBD" = TBD by harness. **Source** = the 
 | `logistics.unload_rate` | float | stock/s (world) | TBD | GAMEPLAY §5 | No |
 | `logistics.loadout_cost.<unit_kind>` | int | stock units | TBD per kind | GAMEPLAY §5 | No |
 | `logistics.rearm_rate` | float | stock/s (world) | TBD | GAMEPLAY §5 | No |
-| `logistics.stretch.coeff` | float | transit-time multiplier per 100 km from sanctuary | TBD | GAMEPLAY §5 (supply-line stretch) | No |
 | `logistics.offroad_speed_mult` | float | multiplier | 0.5 (from raw plans P987; unvalidated) | GAMEPLAY §5 | No |
 | `logistics.bridge_repair_time_s` | float | s (world) | TBD (engineer repair time; Q-GD-11) | GAMEPLAY §5 | No |
 | `logistics.truck_bridge_repair_mult` | float | multiplier on engineer time | 5 (Q-GD-11 recommendation "e.g. 5× slower") | GAMEPLAY §5 | No |
@@ -168,8 +167,10 @@ Legend: **HR** = hot-reloadable (§5). "TBD" = TBD by harness. **Source** = the 
 | `combat.pk_mult.countermeasure` | float | multiplier (one-shot per load) | TBD | GAMEPLAY §6 (Q-CBT-2) | No |
 | `combat.pk_mult.terrain_masked` | float | multiplier | TBD | GAMEPLAY §6 (Q-CBT-2) | No |
 | `combat.pk_mult.weather.*` / `combat.pk_mult.night` | float | multiplier | TBD (P4, Q-CBT-5) | GAMEPLAY §6 | No |
-| `combat.damage_state.*` | object | outcome weights per armor level; Damaged speed/sensor multipliers | TBD | GAMEPLAY §6a (Q-CBT-1) | No |
-| `combat.crit_chance` | float | probability per hit | TBD (small; Q-CBT-8) | GAMEPLAY §6 | No |
+| `combat.damage_state.damaged_below` | float | hp fraction | 0.70 (PROPOSED) | GAMEPLAY §6a, Q-GP-8 | No |
+| `combat.damage_state.mission_kill_below` | float | hp fraction | 0.35 (PROPOSED) | GAMEPLAY §6a, Q-GP-8 | No |
+| `combat.damage_state.disabled_below` | float | hp fraction | 0.10 (PROPOSED) | GAMEPLAY §6a, Q-GP-8 | No |
+| `combat.damage_state.damaged_speed_mult`, `.damaged_sensor_mult` | float | multiplier | TBD | GAMEPLAY §6a (Q-CBT-1) | No |
 | `combat.crew_survival.*` | object | probability modifiers per platform/location | TBD | GAMEPLAY §6a | No |
 | `slots.respawn_loss_window_s` / `slots.respawn_loss_step_s` | float | s (game) | TBD (respawn grows with repeated losses, Q-CBT-9; game time per Q-ALN-5) | GAMEPLAY GP-2 | Yes |
 
@@ -192,8 +193,7 @@ Legend: **HR** = hot-reloadable (§5). "TBD" = TBD by harness. **Source** = the 
 | `campaign.victory_node_frac` | float | fraction | 0.80 | GAMEPLAY §9 | No |
 | `campaign.victory_hold_min` | float | min (game) | 30 | GAMEPLAY §9 | No |
 | `campaign.defeat` | object | — | `{lose_forward_airbase: true, max_node_frac: 0.25, hold_min: 30}` (Q-GD-7; numbers PROPOSED as everywhere; `hold_min` in game minutes, Q-ALN-1) | GAMEPLAY §9 | No |
-| `campaign.objective_mode` | enum `timed`\|`relaxed`\|`off` | — | `timed` (Q-GD-19); chosen at campaign setup by owner/admin only (Q-ALN-10) | GAMEPLAY §9 | No (set per campaign) |
-| `campaign.options.friendly_fire` | bool | — | false (Q-CBT-4; set at campaign setup only; owner/admin only, not GM, Q-ALN-10) | GAMEPLAY §6 | No |
+| `campaign.objective_mode` | enum `timed`\|`off` | — | `timed` (Q-GD-19); chosen at campaign setup by owner/admin only (Q-ALN-10) | GAMEPLAY §9 | No (set per campaign) |
 | `campaign.options.unlimited_ammo` | bool | — | false (Q-CBT-7; test/special-event option; set at campaign setup by owner/admin only, not GM, Q-ALN-10) | GAMEPLAY §5 | No |
 | `campaign.intermission.mode` | enum `auto_advance`\|`await_owner` | — | TBD (owner choice per campaign, Q-UX-8) | GAMEPLAY §9 | Yes |
 | `tasking.decision_window_s` | float | s (game) | TBD (owner suggested up to ~5 min; playtest, Q-GD-26; game time per Q-ALN-1) | GAMEPLAY §1b | Yes |

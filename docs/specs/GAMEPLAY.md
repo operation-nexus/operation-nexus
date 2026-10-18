@@ -85,7 +85,6 @@ Rank ids `O-1`…`O-6` are **internal ids** used in config and contracts. On str
 | `!rtb` | — | O-1 | Return to the nearest friendly base |
 | `!rebase <node>` | friendly node | O-1 | Move your unit to another friendly base and stay there to refuel/rearm/stage (e.g. move a plane forward before an attack). Uses that base's stock. The Static does the same (THREAT-DIRECTOR §5a). |
 | `!me` (alias `!status`, set in config) | — | O-1 | Highlights your unit for 5 s; the next digest repeats your callsign, status, remaining cooldowns, queue position and your own conduct standing / active restriction (FB-UX-3, Q-MOD-5) |
-| `!scout <sector>` | sector | any (reserve queue) | Cheap intel ping while waiting in the reserve queue (RQ-4) |
 | `!callsign <NAME>` | `^[A-Z][A-Z0-9-]{2,11}$`, moderated, 1 change / 30 days | First completed mission (Q-PROG-3) | Reserve a global callsign |
 
 Commands the gateway handles alone (`!help`, `!guide`, `!rules`, `!link`, `!quiet`, `!forget`) are in CHAT-GATEWAY §9. Later-phase commands (`!stance`, `!rally`, `!rescue`, `!vector`, specialist spawns, `!package`, `!wingman`, `!doctrine`, `!order`) are in GAMEPLAY-LATER §3. Unknown commands and ordinary chat are ignored. Command aliases are configurable.
@@ -99,8 +98,7 @@ Commands the gateway handles alone (`!help`, `!guide`, `!rules`, `!link`, `!quie
 - **RQ-1:** show the queue length on the HUD. Each queued viewer gets their position (Q-SIM-12): a reply on `JOIN` ("queued, position N of M"), an update only when the position crosses a milestone (top 10, top 3, next; PROPOSED milestones), and "you're in" when served. `!me`/`!status` can ask at any time. The Field Manual, `!help` and the `JOIN` reply must tell viewers this is how the queue works. A queued viewer leaves the queue after `slots.queue_idle_min` (15, real time, Q-SIM-12) without any chat message, so a departed viewer does not hold a slot.
 - **RQ-2: Dynamic cap.** `slots.max_viewer_units` is a ceiling. The runtime may lower the effective cap while tick time is over budget, and raises it back when there's headroom (logged, visible on the ops dashboard).
 - **RQ-3 (P4):** flights and wingmen moved to [GAMEPLAY-LATER](GAMEPLAY-LATER.md) §4a. The alpha uses the plain reserve queue.
-- **RQ-4: Queued viewers still contribute.** While waiting they can `!scout <sector>`, a cheap intel ping that reveals SIGINT detail briefly, and they earn a small participation merit (PROPOSED values, diminishing).
-- **RQ-5: Priority and fairness.** Q-GD-14: FIFO, with a boost for first-time commanders and a max-wait guarantee. A silent commander's unit frees its slot only when it retires (GP-5); while handed off (AUTO, GP-4) it still occupies that slot (Q-ALN-8, Q-ALN-9). There is no other idle despawn.
+- **RQ-4, RQ-5 (moved, Q-GP-9):** queued `!scout` pings, participation merit, the first-timer boost and the max-wait guarantee are in [GAMEPLAY-LATER](GAMEPLAY-LATER.md) §4a. The queue is plain FIFO; a silent commander's unit frees its slot only when it retires (GP-5), and a handed-off AUTO unit (GP-4) still occupies it (Q-ALN-8, Q-ALN-9). There is no other idle despawn.
 
 ## 4b. Silent viewers (Q-GD-35, Q-ALN-8)
 Chat gives no presence signal, so silence is measured as time since the commander's last command that reached the sim (game time, Q-CFG-8, Q-ALN-1). Info commands, `!quiet` and `!callsign` are handled outside the sim and do not reset the timers (Q-ALN-26). These two timers are the only idle rule; the earlier fixed idle despawn is removed (Q-ALN-8).
@@ -116,8 +114,7 @@ Chat gives no presence signal, so silence is measured as time since the commande
 - **Munitions per sortie (Q-CBT-7):** every unit leaves with a limited load drawn from base stock. **Guns are limited too** (high round count); rounds used are charged to base stock on resupply. Out of missiles/bombs → auto-RTB unless stance `press` or `guns` (§3). **Unlimited ammo** is a campaign/test option (testing, special events) set at campaign setup by the owner or an Admin only, never by a GM and never live mid-war (Q-ALN-10).
 - **Repairs (Q-GD-27):** repair happens at a friendly base with stock, for **all domains** (aircraft at airbases, ground vehicles at bases/depots, ships at ports). It costs time and stock and is faster at bigger or upgraded bases. Engineers field-repair disabled vehicles. Same rules for the Static (parity).
 - Logi trucks carry `cargo`, drive the road graph (A* over ROAD edges, cost = length / speed_mult), and unload over time at the destination.
-- **Bridges** are nodes with HP. A destroyed bridge removes its edge until it is repaired (Q-GD-11): **logistics trucks** can do a slow field repair (`logistics.bridge_repair_time_s` × `logistics.truck_bridge_repair_mult`), and **engineers** repair fast and can also build short new crossings (Q-GD-21).
-- **Supply-line stretch** (snowball breaker): coalition truck transit time scales with road distance from the sanctuary. Enemy reinforcement time shrinks as the front nears its HQ.
+- **Bridges** are nodes with HP. A destroyed bridge removes its edge until it is repaired (Q-GD-11): **logistics trucks** can do a slow field repair (`logistics.bridge_repair_time_s` × `logistics.truck_bridge_repair_mult`), and **engineers** repair fast (building new crossings moved to [GAMEPLAY-LATER](GAMEPLAY-LATER.md) §5, Q-GP-9).
 - Units heal and rearm **only while landed or parked at a friendly node**, by spending stock. They never heal passively (fixes the immortality bug).
 - **Empty bases stay bases** (Q-GD-17): at 0 stock, units can still land, garrison and wait there for a resupply convoy. They get no fuel or ammo, but keep what they have and can take off again with reduced endurance.
 
@@ -126,6 +123,7 @@ Moved to [GAMEPLAY-LATER](GAMEPLAY-LATER.md) §5a.
 
 ## 6. Combat
 - Each tick, a unit with a ready weapon chooses the **highest-priority valid target** in range: by domain compatibility, then threat, then distance, with a stable tie-break by id.
+- **Shot resolution (Q-GP-7, Q-GP-12):** a shot is not an entity. Firing spends the round and stores a pending impact with its target and weapon; the impact lands after `ceil(range / projectile speed / WORLD_DT)` ticks (guns land at once). Pk is rolled on the `combat` stream when the impact lands, using the target's state then (position, track quality, evasion, countermeasures, jamming, terrain). A target that is destroyed, despawned or out of the weapon's envelope before impact makes the shot fizzle as a miss with no roll. Projectiles as flying entities (for example intercepting SAMs) come later.
 - Hit probability (Q-CBT-2) = `base_pk` × the product of these multipliers from config, rolled on the `combat` RNG:
   1. **Track quality** by FoW tier: blob 0.2, track 1.0, radar lock, painted 1.25 (PROPOSED).
   2. **Range** vs the weapon envelope.
@@ -136,15 +134,13 @@ Moved to [GAMEPLAY-LATER](GAMEPLAY-LATER.md) §5a.
   7. **Weather and night** (P4, Q-CBT-5).
 
   **First build (Q-GP-6):** factors 1, 2, 3 and 6 are implemented; jamming, countermeasures and weather/night arrive with the units or phases that produce them, and an unimplemented factor is a multiplier of 1.0, listed in the fallback registry (DATA-INTEGRITY). The full list stays the target design and is being fleshed out. Per-platform attributes (§6a) feed these factors. The PiP intercept scope shows the resulting Pk during engagements (Q-CBT-3).
-- **Critical hits (Q-CBT-8):** a small seeded chance of an outsized effect (e.g. a radar knocked offline for a while), shown with a callout. Configurable.
-- **Friendly fire (Q-CBT-4):** off in v1. It is a per-campaign option set at campaign setup (never toggled mid-war), default off, editable by the owner or an Admin only, never by a GM (Q-ALN-10).
 - **Stance (Q-CBT-6):** `standard` auto-RTBs at mission-kill if still mobile; `cautious` RTBs at Damaged; `press` never auto-RTBs; `guns` keeps fighting with guns after missiles/bombs run out. In the first build the `stance` field exists (kernel default `standard`) and no command sets it; `!stance` and deploy-time stance come with the flag (GAMEPLAY-LATER §3, Q-GP-3).
 - SAMs have engagement rings. Jammers reduce enemy pk within their corridor. SEAD missiles home on emitting radars, and radars may go dark ("blink") to avoid them.
 - Kills and assists generate events. A recon "paint" grants assist credit (PROGRESSION).
 
 ## 6a. Platform attributes, disabled units, crew and CSAR (owner, 2026-10-17)
 - **Per-platform attributes** (unit catalog, CONFIG §7/§7a; all PROPOSED): armor level per facing or generic, maneuverability/evasion, speed per terrain type (road, off-road, sand, mountain, urban, water), sensor and weapon profiles, countermeasures, crew count. Hot-loaded platforms define these too, inside the stat envelope.
-- **Damage states:** Healthy → Damaged (slower, reduced sensors) → Mission-kill (must RTB, repairable) → **Disabled** (can't move, not destroyed) → Destroyed (Q-CBT-1). Armor shifts the chances between these outcomes.
+- **Damage states:** Healthy → Damaged (slower, reduced sensors) → Mission-kill (must RTB, repairable) → **Disabled** (can't move, not destroyed) → Destroyed (Q-CBT-1). The state is derived from the unit's `hp` fraction (PROPOSED: Damaged below 70%, Mission-kill below 35%, Disabled below 10%, Destroyed at 0; `combat.damage_state.*`). A hit does fixed weapon damage reduced by armor, so armor shifts how many hits each state takes (Q-GP-8).
 - **Crew survival:** when a unit is disabled or shot down, a seeded crew-survival roll (modified by platform and location) decides whether the crew is alive. The crew is shown on the map as a downed-crew marker. *Working name "crew"; a playful mascot name is possible under the brand guide.*
 - **CSAR** (P4+): moved to [GAMEPLAY-LATER](GAMEPLAY-LATER.md) §6a. Crew survival rolls and downed-crew markers stay here.
 - **Consequences without punishment** (Q-CBT-9): losses cost the *team* (base stock spent, a longer respawn for that unit type) rather than taking XP from the player.
@@ -163,14 +159,13 @@ Moved to [GAMEPLAY-LATER](GAMEPLAY-LATER.md) §7.
 - **Modes:** Total Domination (MVP). Hold the Line and Siege moved to [GAMEPLAY-LATER](GAMEPLAY-LATER.md) §9.
 - **Theater objective (Q-GD-19):** calm, not railroading. The objective mode is set per campaign:
   - `timed` (default): every `campaign.objective_period_min` (PROPOSED 15 min, game time) the system picks one frontline node (own `objective` RNG stream, Q-SM-1) and announces it with a timer. Completing it gives a merit bonus.
-  - `relaxed`: fewer, longer, untimed suggestions.
   - `off`: sandbox/creative, no system objectives.
 
   The owner and Admins can also set objectives; a GM cannot (Q-ALN-10). Whenever an objective exists it is visible on screen.
 - **Victory (Domination):** hold ≥ `campaign.victory_node_frac` (PROPOSED 0.80) of strategic nodes for `campaign.victory_hold_min` (PROPOSED 30 min, game time) continuously, **or** capture the enemy HQ. The rubber-band zone is tuned to 55–75% so that victory sits beyond it.
 - **Defeat (Q-GD-7):** the coalition loses its forward airbase **and** holds ≤ 25% of strategic nodes for 30 min (game time) continuously. The sanctuary base can never be captured.
 - **Campaign clock:** 48 h target (game time, Q-ALN-1; admin-adjustable, schedulable per campaign, Q-GD-5). It **never pauses for lack of humans** (Q-GD-4 amended): at 0 humans the Static drops to Pattern of Life (THREAT-DIRECTOR §5a). Only a sim pause with a reason stops the clock: a staff pause (ADMIN-RBAC pause flow), the auto-pause when the broadcast has been offline longer than `ops.offline_pause_after_min` (reason TECHNICAL, Q-OPS-8), the weekly maintenance window, or the owner's Ceasefire mode (Q-OPS-9); pause reasons are STAFF, TECHNICAL, MAINTENANCE and CEASEFIRE (Q-ALN-3), and a STAFF pause may carry a sub-reason (RAID, ABUSE, CONTENT, OTHER; Q-ALN-31). Timers on both sim clocks freeze with it (Q-CFG-8, Q-ALN-2).
-- **Time limit (Q-GD-29):** hitting the time limit decides by score = node share over time + completed objectives. If the two sides' scores are within a draw band (PROPOSED ~5%), the war ends in a **Stalemate**: its own end screen and no carry-over bonus (§9b). A stalemate may trigger a configured special event, and the Static mastermind delivers template-based banter.
+- **Time limit (Q-GD-29):** hitting the time limit decides by score = node share over time + completed objectives. Higher score wins; an exact tie is a draw with no special screen (Q-GP-10). The draw band, Stalemate screen, special event and banter are in [GAMEPLAY-LATER](GAMEPLAY-LATER.md) §9.
 - **End of campaign (Q-UX-8, Q-UX-4):** a victory or "SIGNAL LOST" moment (optional configurable zoom on the final action), a ~5-minute after-action review (top operators per role, best rescue, the "what you didn't see" reveal with the seed, Q-CT-2), then a looping War Briefing card during the intermission. Advancement is configurable: `auto_advance` (next war after N min) or `await_owner` (one-tap owner approval). The next theater rotates archetypes with no back-to-back repeat, reusing the first theater with a new seed until more exist (Q-SM-4).
 - **Units reset each war** (Q-GD-23); rank, callsign, cosmetics and stats persist. Survivor reward: [GAMEPLAY-LATER](GAMEPLAY-LATER.md) §9.
 
@@ -186,13 +181,13 @@ Moved to [GAMEPLAY-LATER](GAMEPLAY-LATER.md) §9b.
 ## 9c. Theme vs strategy rule (owner, 2026-10-17)
 The signal and Static theme is a **presentation layer over the strategy game, never a replacement for it**:
 - **TS-1:** Chat volume and viewer count never directly buff, nerf or decide anything. Outcomes come only from units, logistics, fog of war and the director rules. (The director already scales on coalition *units and supply*, not on chat activity.) Supply-drop redemptions therefore have a fixed global hourly cap (`support.supply_drop.max_per_hour`, PROPOSED/TBD by harness) plus a shared cooldown, independent of audience size (Q-SUP-7, SUPPORT-REDEMPTIONS).
-- **GM scope (Q-AI-8, Q-ALN-10, Q-ALN-11):** during play a human GM drives the Static and triggers world events only, and injects jobs only into the Static's Tasking Board (TB-11). A world event may help the coalition (supply drop, weather clearing, friendly convoy) but must be visible and in-fiction. A GM never grants units, ammo or XP to specific players. Campaign setup (objectives, unlimited ammo, friendly fire and other campaign options) is owner/Admin only, never GM. Every GM action is logged and flagged in replays.
+- **GM scope (Q-AI-8, Q-ALN-10, Q-ALN-11):** during play a human GM drives the Static and triggers world events only, and injects jobs only into the Static's Tasking Board (TB-11). A world event may help the coalition (supply drop, weather clearing, friendly convoy) but must be visible and in-fiction. A GM never grants units, ammo or XP to specific players. Campaign setup (objectives, unlimited ammo and other campaign options) is owner/Admin only, never GM. Every GM action is logged and flagged in replays.
 - **TS-2:** "Momentum" stays a strategic measure (nodes, stock, recent events). Any "signal strength" visuals are cosmetic flavor on top of it: map color brightness, static overlay intensity, sound.
 - **TS-3:** The game must play well at **0 viewers** (AI garrison + Pattern of Life, Q-GD-4 amended) and scale smoothly upward. No mechanic may require a minimum crowd.
 - **TS-4:** Lore names (The Static, Relays, etc.) relabel things on screen and in sitreps only. Mechanics and their docs keep plain names (node, unit, supply).
 
 ## 10. Readability rules (stream-facing)
-Always visible: the momentum bar, the current objective with its timer, the director threat level, and a "how to play" line. Everything else (NEEDED jobs, reserve queue, operator breakdown, explainer) shares one rotating panel or appears as short interrupt toasts; at 9:16 the threat level joins the rotation (Q-UX-11, OVERLAY). A newcomer must be able to tell who's winning within 5 s (alpha exit criterion).
+Moved to OVERLAY (Q-GP-9); the always-visible items and the 5-second "who is winning" criterion are the overlay's acceptance tests.
 
 ## 11. Test plan
 Every rule above gets a unit test plus the property tests from TESTING-STRATEGY §3.1. Balance scenarios are defined in the harness. Tasking Board assignment (TB-5) gets a replay determinism test, and pause tests check that game-time and world-time timers freeze (Q-CFG-8). Specific checks for the Q-ALN decisions:

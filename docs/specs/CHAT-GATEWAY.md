@@ -47,7 +47,7 @@ NFKC; strip control, bidi and zero-width characters; enforce the 300-character c
 | Deploy | `!join`, specialist spawns | 1 per 10 s (plus respawn timer) |
 | Unit correction | `!target`, `!rebase`, `!vector`, `!rtb`, `!stance`, `!rescue` | 1 per 5 s, burst 2 |
 | Info | `!me`, `!status`, `!help`, `!guide`, `!rules`, `!link`, `!quiet` (Q-ALN-12; class PROPOSED) | 1 per 15 s |
-| Social / redeem | `!rally`, `!scout` (queued viewers), redemptions | Own cooldowns (e.g. rally ~2 min; PROPOSED). Gameplay cooldowns of `!rally`/`!scout` run in game time inside the sim (Q-ALN-1); redemption cooldowns and caps run in real time in the gateway (Q-ALN-4) |
+| Social / redeem | redemptions (`!rally` and `!scout` come later, GAMEPLAY-LATER) | Own cooldowns (e.g. rally ~2 min; PROPOSED). Gameplay cooldowns of later social commands run in game time inside the sim (Q-ALN-1); redemption cooldowns and caps run in real time in the gateway (Q-ALN-4) |
 | Global | all | Admission cap per tick (raid protection) |
 
 **Slow mode:** an admin toggle that multiplies all limits (e.g. ×3). Optionally it can also switch on the platform's own chat slow mode through the official API, if the platform supports that [VERIFY per platform].

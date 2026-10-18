@@ -91,7 +91,7 @@ stateDiagram-v2
 | Reserve | Slot frees and the campaign is Running (a paused campaign spawns nothing, §4.4) | Pop the head of the FIFO and spawn as above | Spawning |
 | Spawning | Same tick, after placement, explicit order present (a stance alone is not an order) | Path to the order target | EnRoute |
 | Spawning | Same tick, after placement, no explicit order | Start the decision window (`tasking.decision_window_s`, GAMEPLAY §1b, Q-GD-26) | Holding |
-| Holding | Explicit order (`TARGET`, `REBASE`, `VECTOR`, `RESCUE`) | Path to the order | EnRoute |
+| Holding | Explicit order (`TARGET`, `REBASE`; `VECTOR` and `RESCUE` come later) | Path to the order | EnRoute |
 | Holding | Decision window elapsed, and a Tasking Board job matches the role, has a free slot and is **feasible with current fuel and munitions** | Claim the job slot, path to it. If no job is feasible, take a rearm/refuel step first (nearest base with stock). | EnRoute |
 | Holding | `JOIN … hold` was used | Never auto-task; wait for an explicit order | Landed |
 | EnRoute | Inside the job / target radius | — | OnStation |
@@ -203,7 +203,7 @@ stateDiagram-v2
     Setup --> Running: theater + seed + config hash loaded and validated
     Running --> Paused: STAFF_CAMPAIGN_PAUSE (STAFF / TECHNICAL / MAINTENANCE / CEASEFIRE)
     Paused --> Running: STAFF_CAMPAIGN_RESUME
-    Running --> Ending: victory / defeat / time limit (score or stalemate)
+    Running --> Ending: victory / defeat / time limit (score)
     Running --> Ending: STAFF_CAMPAIGN_END (ABORTED)
     Paused --> Ending: STAFF_CAMPAIGN_END (ABORTED)
     Ending --> AAR: final state frozen, results computed
@@ -228,8 +228,8 @@ stateDiagram-v2
 | Paused | `STAFF_CAMPAIGN_PAUSE` | Emit `CommandRejected{reason: ALREADY_PAUSED}` | Paused |
 | Paused | `STAFF_CAMPAIGN_RESUME` from staff (GM, admin or owner only, Q-RB-1), or from SYSTEM after the "COMMS RESTORED" countdown ends an offline pause (Q-OPS-8) | Clear `clock_paused`. Emit `CampaignClockResumed{reason}`. Free slots fill from the reserve queue (FIFO). | Running |
 | Running | Victory condition held (GAMEPLAY §9), or defeat (forward airbase lost and ≤ 25% of nodes held for 30 min, Q-GD-7) | Freeze inputs. Emit `CampaignEnded{result: VICTORY \| DEFEAT}`. | Ending |
-| Running | The campaign clock reaches its time limit (game time), and the two sides' time-limit scores differ by more than the draw band (PROPOSED ~5%) | Score per side = node share over time + completed objectives (Q-GD-29). Freeze inputs. Emit `CampaignEnded{result: TIME_LIMIT, score}`; the higher score wins the war. | Ending |
-| Running | Time limit reached and the two scores are within the draw band (Q-GD-29) | Freeze inputs. Emit `CampaignEnded{result: STALEMATE, score}`. A Stalemate has its own end screen and grants no carry-over bonus (GAMEPLAY §9b). If a stalemate special event is configured, trigger it, and queue the Static mastermind's template banter. | Ending |
+| Running | The campaign clock reaches its time limit (game time), and the two sides' time-limit scores differ | Score per side = node share over time + completed objectives (Q-GD-29). Freeze inputs. Emit `CampaignEnded{result: TIME_LIMIT, score, winner}`; the higher score wins the war. | Ending |
+| Running | Time limit reached and the two scores are exactly equal (Q-GD-29, Q-GP-10) | Freeze inputs. Emit `CampaignEnded{result: TIME_LIMIT, score, winner: null}`: a draw, with the normal end screen. | Ending |
 | Running / Paused | `STAFF_CAMPAIGN_END{reason}` | Freeze inputs. Emit `CampaignEnded{result: ABORTED}`. | Ending |
 | Ending | Results computed (top contributors per role, stats) | Write results to persistence. Emit `AARStarted{result, top_by_role}`. | AAR |
 | AAR | `campaign.aar_duration_s` elapsed | Close the command log. Write the final snapshot. Mark archived. | Archived |
@@ -240,13 +240,13 @@ stateDiagram-v2
 - C-2: exactly one `CampaignEnded` per campaign.
 - C-3: no command is applied after Ending.
 - C-4: an archived campaign's command log replays to its final state hash.
-- C-5: a `TIME_LIMIT` or `STALEMATE` result is emitted only when the campaign clock has reached its limit, and a `STALEMATE` never produces a carry-over bonus (Q-GD-29).
+- C-5: a `TIME_LIMIT` result is emitted only when the campaign clock has reached its limit (Q-GD-29, Q-GP-10).
 
 ### 4.5 Theater objective
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Announced: rotation tick (timed mode) / suggestion (relaxed mode) / admin or owner sets one
+    [*] --> Announced: rotation tick (timed mode) / admin or owner sets one
     Announced --> Active: announcement shown (same tick)
     Active --> Completed: condition met before timer
     Active --> Expired: timer elapsed
@@ -256,12 +256,12 @@ stateDiagram-v2
 
 | State | Event / guard | Action | Next |
 |---|---|---|---|
-| — | Mode `timed`: objective period boundary (`campaign.objective_period_min`, game time, Q-ALN-1), and campaign Running. Mode `relaxed`: a suggestion slot opens (`campaign.objective_mode`, Q-GD-19); the objective has no deadline. Mode `off`: never. Any mode: an admin or the owner sets an objective (campaign setup is Admin/owner only; a GM cannot, Q-ALN-10). | Pick a node, weighted by frontline position, using the dedicated `objective` RNG stream (SIM-CORE SC-5, Q-SM-1). Emit `ObjectiveAnnounced`. | Active |
+| — | Mode `timed`: objective period boundary (`campaign.objective_period_min`, game time, Q-ALN-1), and campaign Running. Mode `off`: never. Any mode: an admin or the owner sets an objective (campaign setup is Admin/owner only; a GM cannot, Q-ALN-10). | Pick a node, weighted by frontline position, using the dedicated `objective` RNG stream (SIM-CORE SC-5, Q-SM-1). Emit `ObjectiveAnnounced`. | Active |
 | Active | Condition met (e.g., node captured or held) | Grant merit to participants. Emit `ObjectiveResolved{outcome: COMPLETED}`. Queue a sitrep. | Completed |
 | Active | Timer elapsed | Emit `ObjectiveResolved{outcome: EXPIRED}` | Expired |
 
 **Invariants**
-- O-1: while the campaign is Running, at most one Active objective exists. In `timed` mode there is exactly one; in `relaxed` mode zero or one; in `off` mode zero unless an admin or the owner set one (Q-GD-19, Q-ALN-10).
+- O-1: while the campaign is Running, at most one Active objective exists. In `timed` mode there is exactly one; in `off` mode zero unless an admin or the owner set one (Q-GD-19, Q-ALN-10).
 - O-2: none while Paused. The timer is frozen (C-1).
 
 ### 4.6 Director tier
@@ -618,7 +618,7 @@ sequenceDiagram
 | U-1…U-9 | Property (hypothesis): random command sequences, including pauses and node flips | `services/sim/tests/property/test_unit_lifecycle.py` |
 | N-1…N-5 | Property + scenario | `.../test_capture.py` |
 | B-1, B-2 | Property: pathfinding after destruction | `.../test_bridges.py` |
-| C-1…C-5 | Scenario + golden replay (including a time-limit end inside and outside the draw band) | `.../test_campaign.py`, `tests/golden/` |
+| C-1…C-5 | Scenario + golden replay (including a time-limit end with a clear winner and an exact tie) | `.../test_campaign.py`, `tests/golden/` |
 | O-1, O-2 | Property | `.../test_objectives.py` |
 | D-1…D-4 | Property: oscillating CP | `.../test_director_tiers.py` |
 | ID-1…ID-4 | Unit + integration (SQLite) | `services/sim/tests/identity/` |
@@ -642,9 +642,9 @@ These decisions (2026-10-17 and 2026-10-18) are folded into the tables above:
 - **Q-SM-5:** superseded; `campaign.pause_after_no_humans_s` does not exist.
 - **Spec-alignment batch (2026-10-18):** Q-ALN-1 (game time vs world time, §4.1, §4.4, §4.5), Q-ALN-2 (pause freezes the world; allowed commands, §4.4, U-8), Q-ALN-3 (pause reason categories, §4.4), Q-ALN-5 (respawn delay in game time, §4.1), Q-ALN-8 and Q-GD-35 (idle handoff and retire are the only idle rule, §4.1), Q-ALN-9 (AUTO unit keeps its slot; reclaim, §4.1, U-7), Q-ALN-10 (objectives set by admin or owner only, §4.5), Q-OPS-8 and Q-OPS-9 (automatic pauses, §4.4), Q-PROG-6 (no minimum-humans XP rule, §5.2), Q-DM-2 (`REDACTED-…`, §4.7).
 - **Spec-alignment batch (2026-10-18, continued):** Q-ALN-23 (capture, decay and bridge repair on world time; director window and dwell on game time, §4.2, §4.3, §4.6), Q-ALN-24 (staff and system commands while Paused, §4.4, U-8), Q-ALN-25 (idle retire of a Disabled unit; idle handoff for `hold` units, §4.1), Q-ALN-26 (`JOIN` while Paused always queues; idle-timer resets; AUTO tag, §4.1, §4.4), Q-ALN-29 (`REDACTED-` tag, §4.7), Q-ALN-31 (pause sub-reason, §4.4).
-- **Q-GD-29:** time-limit score and Stalemate (§4.4, C-5).
+- **Q-GD-29:** time-limit score, no Stalemate result (§4.4, C-5, Q-GP-10).
 - **Q-GD-32:** units parked at a captured base escape or are destroyed (§4.1, §4.2, U-9); garrison and empty-base capture multipliers (§4.2, N-5).
 - **Spec-alignment batch 3 (2026-10-18):** Q-ALN-33 (combat-capable defenders freeze capture; defenders that cannot contest slow it, §4.2, N-5), Q-ALN-36 (unban, purge and set callsign apply while Paused; advisor choices and GM commands other than a release are rejected, §4.4, U-8).
 
 Still open here:
-- Config keys for the Q-GD-29 draw band and score weights, and for the Q-GD-32 garrison and empty-base multipliers, are not yet defined in CONFIG-AND-CONTENT §6, so this spec names no key for them.
+- Config keys for the Q-GD-29 score weights, and for the Q-GD-32 garrison and empty-base multipliers, are not yet defined in CONFIG-AND-CONTENT §6, so this spec names no key for them.

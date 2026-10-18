@@ -46,7 +46,7 @@ When nobody is playing, **and when viewers first arrive**, the Static does not a
 
 **Escalation is triggered by provocation, not headcount** (GAMEPLAY TS-1):
 - A decaying `provocation` score rises with coalition actions: strikes on Static units or convoys, captures, recon of its rear, and channel-point redemptions.
-- **Redemption weights (Q-AI-9, Q-ALN-13):** every redemption type has its own weight, `director.provocation.weights.redemption.<type>` (admin-tunable). There is **no offensive redemption class**: no redemption may deal damage (SUPPORT-REDEMPTIONS §4). Classes: support (supply drop, respawn skip, reserve-queue jump, extra `!scout` ping) = small weight; cosmetic (color, ping, shoutout, spectacle) = 0. Weight values are PROPOSED / TBD by harness.
+- **Redemption weights (Q-AI-9, Q-ALN-13):** every redemption type has its own weight, `director.provocation.weights.redemption.<type>` (admin-tunable). There is **no offensive redemption class**: no redemption may deal damage (SUPPORT-REDEMPTIONS §4). Classes: support (supply drop, respawn skip, reserve-queue jump) = small weight; cosmetic (color, ping, shoutout, spectacle) = 0. Weight values are PROPOSED / TBD by harness.
 - PoL → ALPHA → BRAVO → CHARLIE transitions need provocation **and** coalition power above thresholds, with hysteresis and minimum dwell (§3).
 - Going from 0 viewers to 1 changes **nothing** until that operator acts. They get time to observe and plan.
 - With no provocation, the enemy decays back to PoL. Night-progress caps still apply (§5).
@@ -61,7 +61,7 @@ Config keys (CONFIG §6.7, all PROPOSED / TBD by harness): `director.pol.patrol_
 
 ## 6a. Game Master takeover (owner requirement)
 The owner, or an admin with the `GAME_MASTER` permission, can take over the director (ADMIN-RBAC spec):
-- **Scope (Q-AI-8, Q-ALN-10):** a GM drives the Static and triggers world events (TS-1), nothing else. World events may benefit the coalition (supply drop, weather clearing, friendly convoy) but must be visible and in-fiction. A GM never grants units, ammo or XP to specific players. Campaign setup (objectives, unlimited ammo, friendly fire and other campaign options) is owner/Admin only, never GM (GAMEPLAY §9c).
+- **Scope (Q-AI-8, Q-ALN-10):** a GM drives the Static and triggers world events (TS-1), nothing else. World events may benefit the coalition (supply drop, weather clearing, friendly convoy) but must be visible and in-fiction. A GM never grants units, ammo or XP to specific players. Campaign setup (objectives, unlimited ammo and other campaign options) is owner/Admin only, never GM (GAMEPLAY §9c).
 - **Job injection (Q-GD-37 item 11, Q-ALN-11):** a GM injects jobs into the **Static's board only**. An injection that targets the Quorum's board is rejected.
 - **Modes:**
   - **ASSIST:** the GM injects or vetoes operations while the rules keep running.

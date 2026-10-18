@@ -59,7 +59,7 @@ terms still waiting for an owner ruling.
 | Threat tier | ALPHA / BRAVO / CHARLIE, the director's escalation level |
 | Coalition power (CP) | Smoothed measure of active coalition strength. Drives the tiers |
 | Momentum | 0–100% indicator of who's winning, derived from nodes, stock and recent events |
-| Theater objective | The system-picked goal shown on screen. Mode per campaign: `timed` (rotating, default 15 min), `relaxed` or `off` (Q-GD-19) |
+| Theater objective | The system-picked goal shown on screen. Mode per campaign: `timed` (rotating, default 15 min) or `off` (Q-GD-19) |
 | SIGINT blob | Fuzzy Tier-1 fog-of-war indication of unseen enemy activity |
 | Track / Painted | Tier-2 / Tier-3 fog-of-war states |
 | Sitrep | An automated radio situation report |
