@@ -27,6 +27,7 @@ The values below are the initial PROPOSED preset. They are config data, not code
 **PROG-3** Merges never sum XP (IDENTITY §4).
 **PROG-4** Anti-farming is layered, with no captcha (Q-PROG-3, Q-PROG-6, NX-277): (1) platform account age where the platform API exposes it [UNVERIFIED per platform]; (2) our own first-seen age (IDENTITY §1); (3) the first-completed-mission gate (PROG-2); (4) hourly diminishing returns (PROG-1); (5) Command Center anomaly flags for many new accounts acting in lockstep; (6) a mod/admin action that voids XP, audited, which writes compensating ledger rows and never deletes ledger rows.
 **PROG-5** Nobody grants XP or merit directly: there is no admin, mod or GM command that awards XP or merit to a player (Q-AI-8). XP and merit come only from the §2 sources. PROG-4 (6) can only remove.
+**PROG-12** **AUTO assists (Q-ALN-30):** a Tasking Board job completed by a commander's unit while it is AI-run (AUTO, GAMEPLAY GP-4) is recorded as an **AUTO assist** for recaps only. It awards no XP and no merit, and it never counts toward any leaderboard metric (§6). Progression tells these apart by the `auto` flag on the job's completion event (CONTRACTS, Tasking Board events).
 
 ## 3. Ranks (one table; resolves critique #8 and #14)
 `O-1`…`O-6` are **internal rank ids** (config, contracts, DB). Viewers see the **themed display name** (Q-NAME-1; working names, final list in the brand guide NX-274). No real military rank titles appear on stream (Q-PROD-5).
@@ -43,7 +44,7 @@ The XP thresholds are placeholders. The balance harness sets them so that O-2 ta
 
 ## 3a. Presets and admin editing (Q-PROG-7)
 **PROG-6** The rank table (internal id, XP threshold, unlocked abilities, ability cooldowns) and the §2 XP and merit values are **config data**, not code. The tables above are the initial PROPOSED preset.
-**PROG-7** The owner and Admins edit them in the Command Center as **named presets** (ADMIN-RBAC). The active preset is a campaign option (PROG-8), so a GM cannot edit or select it (Q-ALN-10). Each save is validated by the config validator (thresholds strictly increasing from O-1 = 0; no negative XP or merit value; every unlocked command or ability exists in the command catalog, AGENTS.md rule 6a) and written to the audit log. An invalid preset is rejected whole.
+**PROG-7** The owner and Admins edit them in the Command Center as **named presets** (ADMIN-RBAC). A GM may draft or propose a preset; only an Admin or the owner approves and applies it (Q-ALN-22). The active preset is a campaign option (PROG-8), so a GM can never apply or select it (Q-ALN-10). Each save is validated by the config validator (thresholds strictly increasing from O-1 = 0; no negative XP or merit value; every unlocked command or ability exists in the command catalog, AGENTS.md rule 6a) and written to the audit log. An invalid preset is rejected whole.
 **PROG-8** The active preset is part of the campaign config and its `config_hash`, so every replay and ledger row can be traced to the values that produced it.
 **PROG-9** Ability cooldowns are game time (unscaled sim ticks, Q-ALN-1): deterministic, and frozen while the sim is paused (Q-CFG-8, Q-ALN-2).
 **PROG-11** **Earned ranks are never revoked** (Q-ALN-14). A preset that changes XP thresholds applies going forward only: a commander keeps every rank already earned, even if their XP is below the new threshold, and later promotions use the new thresholds.
@@ -54,30 +55,30 @@ Chosen once per campaign at O-3 or above, from Air Superiority, Logistics Master
 ## 5. Cosmetics
 Halo colors, trail styles, PiP placard ribbons, kill stencils, and voice presets (P4). The base icon color never changes (OV-2). Any monetization is cosmetic only (Q-BIZ-1).
 
-**PROG-10 'Held the Line' badge** (Q-PROG-6, Q-ALN-15): a cosmetic badge for defending while the only active human. It is awarded when a commander is the **only active human operator for ≥ 30 continuous game-time minutes** (PROPOSED) while the Static is escalated above Pattern of Life (THREAT-DIRECTOR §5a). It grants **no XP or merit**, so it can't be farmed.
+**PROG-10 'Held the Line' badge** (Q-PROG-6, Q-ALN-15): a cosmetic badge for defending while the only active human. It is awarded when a commander is the **only active human operator for ≥ 30 continuous game-time minutes** (PROPOSED) while the Static is escalated above Pattern of Life (THREAT-DIRECTOR §5a). **Active** (Q-ALN-27) means the commander has a non-AUTO unit and sent a command that reached the sim within the last `presence.idle_handoff_min`; a commander whose unit is AUTO is not active. It grants **no XP or merit**, so it can't be farmed.
 
 ## 6. Leaderboards
 Separate boards per role, plus an overall board. Campaign MVPs are listed in the Hall of Fame. Display uses approved callsigns only.
-- **Metrics (Q-PROG-8):** each board's ranking metric is defined in config. Initial metrics: logistics = supplies delivered; recon = spotted enemies later engaged by friendlies; CSAR = rescues completed; combat = threat-weighted kills + objective damage; **overall = Merit**. Assists count toward the metric.
+- **Metrics (Q-PROG-8):** each board's ranking metric is defined in config. Initial metrics: logistics = supplies delivered; recon = spotted enemies later engaged by friendlies; CSAR = rescues completed; combat = threat-weighted kills + objective damage; **overall = Merit**. Assists count toward the metric; AUTO assists never do (PROG-12, Q-ALN-30).
 - **Views (Q-PROG-8):** each board has two views: season total (primary) and per-hour-played.
 - **Three horizons (Q-UX-3):** war (resets each war), season (resets each season), lifetime (never resets).
 - **Seasons (Q-UX-2):** ~4–8 weeks, several campaigns. Season boards reset; lifetime ranks don't. Season-end recap plus cosmetic badges.
 - **Season end (Q-PROG-9):** a season ends when the campaign running on its planned end date ends. During that overtime the HUD and site show "Season ends after this campaign". If overtime reaches `season.overtime_cap_days` (PROPOSED default 14), the season closes anyway; the running campaign carries into the new season, and points earned from then on count there.
 - **Removal:** banned or confirmed-cheating operators are removed from every board by a mod/admin action (audited). Their entries are hidden and the board recomputed; ledger rows are not deleted.
-- **Source data (Q-ALN-16):** the season and per-role leaderboard source tables are specified in the seasons/leaderboards spec (NX-314, not yet written). Tasking Board job outcomes are stored durably (GAMEPLAY TB-10) and feed recap stats such as "most rescues".
+- **Source data (Q-ALN-16):** the season and per-role leaderboard source tables are specified in the seasons/leaderboards spec (NX-314, not yet written). Tasking Board job outcomes are stored durably (GAMEPLAY TB-10) and feed recap stats such as "most rescues"; AUTO assists appear in recaps only (PROG-12).
 - **Publishing (Q-ARCH-16):** the public site gets boards through one-way static exports from the broadcast host (about every 15 min, configurable). There is no inbound path from the site.
 
 ## 7. Test plan
 - PROG-1: property test that XP past the soft cap is multiplied by `xp_over_cap_mult`, and that a lone operator (1 human) earns XP (PROG-2, Q-PROG-6).
 - PROG-2: no persistent XP before the first completed mission.
 - PROG-5: the command catalog has no XP- or merit-granting command; PROG-4 (6) void writes compensating rows and the ledger row count never decreases.
-- PROG-7: the validator rejects a preset with non-increasing thresholds, a negative value, or an unknown unlocked command; every accepted save has an audit row.
+- PROG-7: the validator rejects a preset with non-increasing thresholds, a negative value, or an unknown unlocked command; every accepted save has an audit row. A preset drafted by a GM does not become active until an Admin or the owner approves and applies it, and a GM's apply request is refused (Q-ALN-22).
+- PROG-12: a job completed by an AUTO unit writes an AUTO assist for that commander, no XP or merit ledger row, and no leaderboard change (Q-ALN-30).
 - PROG-9: an ability cooldown does not advance while the sim is paused, and takes the same number of ticks at any `sim.time_scale` (Q-ALN-1).
 - PROG-11: after a preset raises a threshold above a commander's XP, that commander keeps the rank; a commander below it who has not earned it is promoted only at the new threshold.
-- PROG-10: the badge is awarded after 30 continuous game-time minutes as the only active human with the Static above Pattern of Life; not awarded if a second human becomes active or the Static returns to Pattern of Life before then; awarding it writes no XP or merit.
+- PROG-10: the badge is awarded after 30 continuous game-time minutes as the only active human with the Static above Pattern of Life; not awarded if a second human becomes active or the Static returns to Pattern of Life before then; a second commander whose unit is AUTO, or who sent no sim-reaching command within `presence.idle_handoff_min`, does not count as active (Q-ALN-27); awarding it writes no XP or merit.
 - Balance harness (Q-TEST-2 target 5): alt-account XP farmer profiles are flagged and cannot move leaderboards beyond the bound set after the first runs.
 - Season end: a campaign running past the planned end closes the season at campaign end; at `overtime_cap_days` the season closes and later points count in the new season.
 
 ## 8. Open questions
-Decided and folded in: Q-ALN-1, Q-ALN-10, Q-ALN-14, Q-ALN-15, Q-ALN-16. Still open:
-- What counts as an "active" human for PROG-10 (e.g. a command within some window, or a live unit) is not defined by Q-ALN-15.
+Decided and folded in: Q-ALN-1, Q-ALN-10, Q-ALN-14, Q-ALN-15, Q-ALN-16, Q-ALN-22 (GM drafts presets, Admin applies, PROG-7), Q-ALN-27 (active operator for PROG-10), Q-ALN-30 (AUTO assists, PROG-12). Still open: whether an AUTO unit's individual actions outside a completed job (a kill, a supply delivery, capture participation) earn the §2 XP and merit; Q-ALN-30 covers completed jobs only.

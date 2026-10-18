@@ -6,9 +6,9 @@ Status: Draft · Tracker: NX-155…NX-169, NX-309, NX-317 · ADR-0007 · Inputs:
 Keep every population level (0, 5, 50, 500 viewers) interesting and fair, with an enemy that seems to adapt but stays deterministic and testable.
 
 ## 2. Inputs (enemy view only, FOW-4)
-- **Coalition power** `CP` = Σ over visible coalition units of the unit's value × its supply-readiness multiplier, smoothed with an EMA over `director.cp.ema_window_s` (PROPOSED 300 s). Commanders whose accounts are younger than `director.cp.new_account_age_h` count at `director.cp.new_account_weight` (PROPOSED 0.5×), which limits alt-account abuse.
+- **Coalition power** `CP` = Σ over visible coalition units of the unit's value × its supply-readiness multiplier, smoothed with an EMA over `director.cp.ema_window_s` (PROPOSED 300 s, game time, Q-ALN-23). Commanders whose accounts are younger than `director.cp.new_account_age_h` count at `director.cp.new_account_weight` (PROPOSED 0.5×), which limits alt-account abuse.
 - Frontline state, node ownership, and enemy stockpiles.
-- **Threat memory:** decaying counters per category: `convoy_attacks`, `radar_strikes`, `node_losses_by_sector`, `sead_activity`. The half-life is configurable (`director.memory.half_life_s`, default 30 min of sim time).
+- **Threat memory:** decaying counters per category: `convoy_attacks`, `radar_strikes`, `node_losses_by_sector`, `sead_activity`. The half-life is configurable (`director.memory.half_life_s`, default 30 min of game time, Q-ALN-23).
 
 ## 3. Tiers (with hysteresis; replaces overlapping headcount bands)
 | Tier | Enter when CP ≥ | Exit when CP < | Character |
@@ -19,9 +19,9 @@ Keep every population level (0, 5, 50, 500 viewers) interesting and fair, with a
 
 **CHARLIE offensives are telegraphed** (Q-GD-22): visible massing and staging (to scouts/radar), then an INTEL warning naming the sector (lead time PROPOSED ~10 min; timing, lead time and severity all configurable), and only after real provocation (§5a), never against an empty stream.
 
-There's a minimum dwell of 10 min of sim time per tier (`director.tier.min_dwell_s`). Tier changes are announced on the overlay and in a sitrep.
+There's a minimum dwell of 10 min of game time per tier (`director.tier.min_dwell_s`, Q-ALN-23). Tier changes are announced on the overlay and in a sitrep.
 
-## 4. Decision loop (every 60 s of sim time)
+## 4. Decision loop (every 60 s of game time, `director.window_s`, Q-ALN-23)
 1. Compute CP and the tier, and decay threat memory.
 2. Budget for this window = `director.budget.<tier>` − upkeep, and never more than the Static's real stock and factory output can pay for (Q-GD-30). Raiding its convoys, stock or factories starves the director. The only off-map source is an infinite rear source behind the Static's capturable HQ.
 3. Generate candidate **operations** from the doctrine library: Probe(sector), Offensive(node), Retake(node), EscortConvoys(route), ReinforceIADS(sector), StrikeBridge(edge), DecoyBlink(radar), TheaterOffensive(plan). Each candidate has a cost and preconditions.
@@ -30,12 +30,12 @@ There's a minimum dwell of 10 min of sim time per tier (`director.tier.min_dwell
 6. Select within budget. Optionally, the LLM advisor picks among the top-K (§6).
 7. **Turn operations into jobs** (Q-GD-34, Q-GD-37): the director is the strategic layer only. It never moves units directly; each selected operation becomes one or more jobs (stage, escort, strike, defend, reposition) on the Static's own Tasking Board (GAMEPLAY §1b), and Static units take them with the same mechanics as Clearwave units: claim leases, feasibility check, priority aging, slots and dedupe keys, deterministic assignment order, job dependencies (Q-GD-37). Parity: the Static gets the same job types and mechanics, with no unique powers; only the director may compose them into richer combinations.
 
-**TD-1 (time and pauses, Q-CFG-8, Q-OPS-8, Q-OPS-9, Q-ALN-2, Q-ALN-3):** every director timer is sim time: the decision window, tier dwell, threat-memory and provocation decay, PoL periods, the CHARLIE warning lead time, and the advisor deadline counted in decision windows. Which of the two sim clocks (world time or game time, GAMEPLAY "Timers", Q-ALN-1) each of these uses is not yet assigned (§8). While the campaign is paused for any reason (`OPERATOR`, broadcast offline `TECHNICAL`, weekly `MAINTENANCE`, owner `CEASEFIRE`), none of them advances and the director makes no decision (SIM-CORE SC-11). Taunt naming cooldowns (TD-4) and the GM idle auto-release (§6a) are **not** sim timers: they run on a monotonic real clock outside the sim (Q-ALN-4).
+**TD-1 (time and pauses, Q-CFG-8, Q-OPS-8, Q-OPS-9, Q-ALN-2, Q-ALN-3, Q-ALN-23, Q-ALN-24):** every director timer runs inside the sim. These are **game time** (Q-ALN-23): the decision window (`director.window_s`), tier dwell (`director.tier.min_dwell_s`), the CP EMA window, the threat-memory and provocation half-lives, the PoL periods (`director.pol.*_period_s`) and the night-progress cap (`campaign.night_progress_cap_nodes_per_h`, per game hour). The advisor deadline is counted in decision windows, so it is game time too. The CHARLIE warning lead time is not assigned to a clock yet (§8). Static units carrying out the director's jobs move in world time, like every unit. While the campaign is paused for any reason (`OPERATOR`, broadcast offline `TECHNICAL`, weekly `MAINTENANCE`, owner `CEASEFIRE`), none of them advances and the director makes no decision (SIM-CORE SC-11). An `OP_DIRECTOR_OVERRIDE` sent while paused is rejected with `CAMPAIGN_PAUSED` (Q-ALN-24). Taunt naming cooldowns (TD-4) and the GM idle auto-release (§6a) are **not** sim timers: they run on a monotonic real clock outside the sim (Q-ALN-4).
 
 **TD-2 (own view only, FOW-4, Q-GD-37 item 9):** CP, candidate generation, scoring and the jobs the director posts are computed only from `EnemyView`. The Static's board never holds a job that targets or references an entity outside that view.
 
 ## 5. Low-population behavior
-At 0 humans, the coalition AI garrison holds the line and the Static drops to **Pattern of Life** (§5a); the campaign clock keeps running: it never pauses for lack of humans (Q-GD-4 amended); only a pause with a reason stops it (TD-1, Q-ALN-3). Enemy progress is capped at `campaign.night_progress_cap_nodes_per_h` (PROPOSED 1 node per 6 h). With 1–3 humans, the director prefers targets near where those humans are acting, so a single viewer can be a hero without the whole map moving.
+At 0 humans, the coalition AI garrison holds the line and the Static drops to **Pattern of Life** (§5a); the campaign clock keeps running: it never pauses for lack of humans (Q-GD-4 amended); only a pause with a reason stops it (TD-1, Q-ALN-3). Enemy progress is capped at `campaign.night_progress_cap_nodes_per_h` (PROPOSED 1 node per 6 h of game time, Q-ALN-23). With 1–3 humans, the director prefers targets near where those humans are acting, so a single viewer can be a hero without the whole map moving.
 
 ## 5a. Pattern of Life (owner requirement, 2026-10-17)
 When nobody is playing, **and when viewers first arrive**, the Static does not attack. It runs a believable **Pattern of Life (PoL)** that scouts can observe and learn from:
@@ -83,7 +83,7 @@ Owner direction, details PROPOSED: NULL commands through lieutenants, each a **d
 ## 7. Tests
 - Tier hysteresis property: no flapping under oscillating CP.
 - Budget never exceeded, and never above what the Static's real stock can pay for (Q-GD-30): a starved Static posts no operation it cannot fund.
-- TD-1: golden scenario with a pause mid-window: every director field (tier, dwell, threat memory, provocation, window progress) is unchanged from the pause tick to the resume tick, and no operation is posted in between.
+- TD-1: golden scenario with a pause mid-window: every director field (tier, dwell, threat memory, provocation, window progress) is unchanged from the pause tick to the resume tick, no operation is posted in between, and an `OP_DIRECTOR_OVERRIDE` sent during the pause is rejected (Q-ALN-24). With `sim.time_scale` ≠ 1, the decision window and tier dwell take the same number of ticks as at 1 (Q-ALN-23).
 - TD-2: property: every job on the Static's board references only entities in `EnemyView`.
 - Q-AI-9, Q-ALN-13: a cosmetic redemption leaves `provocation` unchanged; a respawn skip, queue jump or extra scout ping adds its (small) support weight.
 - Q-ALN-11: a GM job injection into the Clearwave board is rejected; one into the Static's board is accepted and logged as a GM action.
@@ -93,4 +93,4 @@ Owner direction, details PROPOSED: NULL commands through lieutenants, each a **d
 - Balance harness: tier dwell distribution per scenario.
 
 ## 8. Open questions
-Decided and folded in: Q-GD-4 (amended), Q-GD-22, Q-GD-30, Q-GD-34, Q-GD-37, Q-AI-7, Q-AI-8, Q-AI-9, Q-RB-6, Q-RB-7, Q-OPS-8, Q-OPS-9, Q-CFG-8, Q-BRAND-4, Q-ALN-2, Q-ALN-3, Q-ALN-4, Q-ALN-10, Q-ALN-11, Q-ALN-12, Q-ALN-13, Q-ALN-17. Forward reference: Q-GD-38 (lieutenants, NX-317). Still open: Q-ALN-1 splits sim time into world time and game time but does not say which clock the director's own timers use (decision window, tier dwell, threat-memory and provocation half-lives, CP EMA window, PoL periods, CHARLIE warning lead time, night-progress cap).
+Decided and folded in: Q-GD-4 (amended), Q-GD-22, Q-GD-30, Q-GD-34, Q-GD-37, Q-AI-7, Q-AI-8, Q-AI-9, Q-RB-6, Q-RB-7, Q-OPS-8, Q-OPS-9, Q-CFG-8, Q-BRAND-4, Q-ALN-2, Q-ALN-3, Q-ALN-4, Q-ALN-10, Q-ALN-11, Q-ALN-12, Q-ALN-13, Q-ALN-17. Forward reference: Q-GD-38 (lieutenants, NX-317). Decided and folded in (2026-10-18, second batch): Q-ALN-23 (game time for the director's timers, TD-1), Q-ALN-24 (director overrides rejected while paused, TD-1). Still open: the clock (world or game time) for the CHARLIE warning lead time (§3), which Q-ALN-23 does not list.
