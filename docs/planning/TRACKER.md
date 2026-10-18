@@ -231,6 +231,7 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | NX-317 | Static lieutenants: director personality profiles (data-defined presets), per-sector assignment, intel identification flow (UNIDENTIFIED → revealed via recon/captured comms), briefing integration, per-lieutenant taunt voice; parity rule applies (Q-GD-38) | ⬜ |
 | NX-318 | Asset provenance register + CI release gate: manifest per asset (path, source, author, license, ai_generated, status placeholder/final); validator in CI; release builds fail on ai_generated or placeholder assets; on-stream PLACEHOLDER disclosure during alpha (Q-BRAND-5) | ⬜ |
 | NX-319 | Art plan: 'artists wanted' notes (README, site, Discord), commission brief + budget question for owner, owner art toolkit guide (free tools, templates, style-guide checklist), replacement schedule for placeholder art before release (Q-BRAND-5) | ⬜ |
+| NX-320 | Public identity migration to saltyseraphcodes (Q-LEGAL-6): choose repo home (org vs user), transfer or fresh-start repo, update CODEOWNERS, tracker issue links and badges, set commit identity to the new account's noreply address on all machines and agent sessions, decide on history of earlier commits; dedicated project email | ⬜ |
 | NX-273 | Research + spike: Epidemic Sound license coverage for 24/7 streams/clips; API/MCP availability; `MusicSource` port so an agent can search and queue licensed tracks by mood (tension-driven, AUDIO-TTS §1) | ⬜ |
 | NX-272 | Third-party tips adapter (Ko-fi or Streamlabs/StreamElements; Q-SUP-3) | ❓ |
 
