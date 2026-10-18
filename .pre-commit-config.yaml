@@ -16,7 +16,7 @@ repos:
     hooks:
       - id: prettier-overlay
         name: prettier (overlay)
-        entry: pnpm --dir apps/overlay exec prettier --write
+        entry: pnpm --dir apps/overlay exec prettier --write .
         language: system
         files: ^apps/overlay/
         types_or: [ts, javascript, json, html]
