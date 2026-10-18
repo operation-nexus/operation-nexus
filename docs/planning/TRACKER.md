@@ -15,6 +15,8 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | P3 Public beta | 22 | 0 | ⬜ |
 | P4 Depth | 67 | 1 | ⬜ |
 
+Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community and legal" (added 2026-10-18; phase noted per item once triaged).
+
 ---
 
 ## P0 — Foundations
@@ -241,6 +243,21 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | NX-321 | Playtest + harness reporting (Q-TEST-2/3): player personas (newcomer, casual, tactician, logistics main, lurker, mobile viewer) and adversarial bot profiles (spammer, alt farmer, griefer, raid wave) in the balance harness; per-run report (config hash, target pass/fail, charts); written analysis summary for the owner after each playtest/harness batch; watchable replay of any run in the overlay at selectable speed | ⬜ |
 | NX-273 | Research + spike: Epidemic Sound license coverage for 24/7 streams/clips; API/MCP availability; `MusicSource` port so an agent can search and queue licensed tracks by mood (tension-driven, AUDIO-TTS §1) | ⬜ |
 | NX-272 | Third-party tips adapter (Ko-fi or Streamlabs/StreamElements; Q-SUP-3) | ❓ |
+
+### Brand, marketing, community and legal (research session, 2026-10-18)
+
+| ID | Item | Size | Status | Depends |
+|---|---|---|---|---|
+| NX-328 | Brand Ops spec: monitoring and review service for the public presences; draft in `docs/specs/BRAND-OPS.md`, then owner review (Q-MKT-5) | S | ⬜ | NX-297 |
+| NX-329 | Auto-moderator: review `docs/review/AUTOMOD-AND-PRIVACY-ANALYTICS-RESEARCH.md`, choose build/compose, write the spec (reject/delete/timeout/ban ladder, reversible, logged, never auto-ban from the conduct score; Q-MOD-8) | M | ⬜ | NX-291 |
+| NX-330 | Privacy-preserving analytics: pick the cookieless web-stats tool for the public site, define dashboards and minimum cohort sizes, privacy-notice wording (Q-DM-3, Q-DM-4; ties NX-036, NX-316) | S | ⬜ | NX-329 |
+| NX-331 | Marketing and lore agent teams: private lore-vault repo, owner-written bible and tone guide, pilot (P3), scheduled loop (P4); design in `docs/planning/AGENT-TEAMS.md` (Q-MKT-8, Q-AI-10) | L | ⬜ | NX-294, NX-317 |
+| NX-332 | Epidemic Sound: send the written 24/7 questions; decide between it, CC0/free-license music and commissioned music for the alpha (extends NX-273, NX-297; Q-LEGAL-10) | S | ⬜ | — |
+| NX-333 | Platform policy verification pass: read the primary Twitch, YouTube, TikTok, Instagram and Discord policy pages from the prepared checklist, record findings (needs a local session or a network allowlist, Q-PROC-3) | S | ⬜ | — |
+| NX-334 | Moderator program: recruit 2-3 mods from the owner's trusted team, mod guide, volunteer/assigned chat-watch slots, conflict-of-interest rules for mods who play, pay question for an accountant (Q-MOD-7) | M | ⬜ | NX-291 |
+| NX-335 | Legal housekeeping: LICENSE holder, `assets/LICENSE`, `TRADEMARKS.md`, DCO, license allowlist update (PSF-2.0, BlueOak-1.0.0), CI license scan (Q-LEGAL-10; LICENSE holder before the Q-LEGAL-8 fresh-start import) | S | ⬜ | NX-320 |
+| NX-336 | Brand setup runbook: manual account creation and verification per platform, passkey and mailbox hygiene, setup log template for the private ops repo, handle reservation (Hiveplex plus the studio byline handle; Q-MKT-5, Q-MKT-7); extends NX-297 | S | ⬜ | NX-299 |
+| NX-337 | Marketing backlog triage: accept or drop MKT-1..MKT-19 from `docs/review/MARKETING-AND-PRODUCTION-RESEARCH.md` §7 into this tracker | S | ⬜ | — |
 
 ## Backlog (unscheduled — from owner's conversation & plans)
 - **Global campaign map (owner vision, 2026-10-17):** a fictional world (not Earth) made of connected theaters forming a progression. Each campaign is one theater; winning pushes the front to the next connected theater (cross the mountains → urban assault; win the ocean battle → land on the mainland, which is more land than water; reach the Static's "secret base"). The map is finite but large, and new theaters can be added indefinitely (hand-made or generated). It ties together seasons, carry-over (Q-GD-12), lore (NX-275) and theater rotation (Q-SM-4). Needs its own spec (NX-294).
