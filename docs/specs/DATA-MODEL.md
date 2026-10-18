@@ -16,7 +16,7 @@ Define every piece of persisted data: the durable SQLite store, the write path t
   - Portable SQL, so moving to Postgres is mechanical (ADR-0003).
 - **Non-goals**
   - Live game state in the DB. It lives in memory in the sim (ADR-0003).
-  - Analytics warehouse.
+  - Analytics warehouse. Analytics are first-party only and derived from our own events (§7a, Q-DM-3).
   - Multi-writer concurrency (deferred to Postgres).
 
 ## 3. Requirements
@@ -28,8 +28,9 @@ Define every piece of persisted data: the durable SQLite store, the write path t
 - **DM-6** Replays, the command log and snapshots contain `commander_id` (UUIDv7) only. They never contain display names, platform ids or callsign text (SEC-DATA-2).
 - **DM-7** Schema changes are forward-only numbered migrations. The app refuses to start if the DB schema is newer than the code knows (no silent downgrade).
 - **DM-8** SQL is parameterized only (REVIEW-CHECKLIST, Semgrep `sql-no-fstring`).
-- **DM-9** All timestamps are stored as UTC ISO-8601 text (`YYYY-MM-DDTHH:MM:SS.sssZ`). Sim-time references are stored as integer `tick` plus `campaign_id`, never converted to wall time.
+- **DM-9** All timestamps are stored as UTC ISO-8601 text (`YYYY-MM-DDTHH:MM:SS.sssZ`). Sim-time references are stored as integer `tick` plus `campaign_id`, never converted to wall time. Recurring owner schedules (maintenance window, night mode) are the one exception: they are stored as local wall-clock times plus an IANA zone and converted at use (Q-CFG-6, Q-CFG-8). Rendering in a viewer's locale or time zone happens in the site and Command Center, never in storage (Q-CFG-8).
 - **DM-10** No column has a made-up default. `DEFAULT` is used only for values that are true by construction (e.g., `0` for a counter that starts at zero, `CURRENT_TIMESTAMP`-equivalent set by the writer).
+- **DM-11** The overlay and the site load no third-party tracker, analytics script or analytics cookie. Product analytics are derived only from our own sim and gateway events (§7a, Q-DM-3).
 
 ## 4. Durable store (SQLite DDL)
 
@@ -57,7 +58,7 @@ CREATE TABLE commanders (
   callsign_kind     TEXT NOT NULL CHECK (callsign_kind IN ('GENERATED','CUSTOM','TOMBSTONE')),
   callsign_set_at   TEXT NOT NULL,
   created_at        TEXT NOT NULL,
-  first_mission_at  TEXT,                                      -- NULL until first completed sortie (PROG-2)
+  first_mission_at  TEXT,                                      -- NULL until first completed sortie (first-mission XP gate, Q-PROG-6)
   banned            INTEGER NOT NULL DEFAULT 0 CHECK (banned IN (0,1)),
   deletion_requested_at TEXT,                                  -- set when !forget / portal request is received
   deleted_at        TEXT,                                      -- set by the deletion job on completion; row kept as tombstone
@@ -210,7 +211,7 @@ CREATE TABLE xp_ledger (
   base_xp           INTEGER NOT NULL CHECK (base_xp >= 0),
   multiplier_milli  INTEGER NOT NULL CHECK (multiplier_milli > 0 AND multiplier_milli <= 4000), -- 1000 = 1.0x; DR and package share applied. Upper bound PROPOSED; must cover the package XP-share bonus (GAMEPLAY §7)
   awarded_xp        INTEGER NOT NULL CHECK (awarded_xp >= 0),
-  persistent        INTEGER NOT NULL CHECK (persistent IN (0,1)),  -- 0 when PROG-2 gate blocks persistence
+  persistent        INTEGER NOT NULL CHECK (persistent IN (0,1)),  -- 0 when the first-mission gate blocks persistence (§5.3)
   config_hash       TEXT NOT NULL REFERENCES config_versions(config_hash),
   recorded_at       TEXT NOT NULL,
   CHECK (awarded_xp = (base_xp * multiplier_milli) / 1000)
@@ -231,10 +232,9 @@ CREATE TABLE merit_ledger (
   source_tick       INTEGER NOT NULL,
   source_event_seq  INTEGER NOT NULL,
   reason            TEXT NOT NULL CHECK (reason IN
-                    ('SORTIE_COMPLETE','SUPPLY_DELIVERED','CAPTURE','OBJECTIVE','RECON_ASSIST','KILL','SPEND','ADMIN_ADJUST')),
-  delta             INTEGER NOT NULL,          -- negative only for SPEND (theater assets)
-  recorded_at       TEXT NOT NULL,
-  CHECK ((reason = 'SPEND') = (delta < 0))
+                    ('SORTIE_COMPLETE','SUPPLY_DELIVERED','CAPTURE','OBJECTIVE','RECON_ASSIST','KILL','ADMIN_ADJUST')),
+  delta             INTEGER NOT NULL CHECK (delta >= 0),   -- merit is a score only, never spent (Q-PROG-7, ADR-0011)
+  recorded_at       TEXT NOT NULL
 ) STRICT;
 CREATE INDEX idx_merit_campaign ON merit_ledger(campaign_id, commander_id);
 ```
@@ -255,7 +255,8 @@ CREATE TABLE commander_stats (
   updated_at           TEXT NOT NULL
 ) STRICT;
 ```
-- `rank_level` is computed from `xp_total` and the rank table in the active config. On a config change it's recomputed, never edited by hand.
+- `rank_level` is derived, never edited by hand, and **never decreases** (Q-CFG-2). It is the highest level reached when each persistent `xp_ledger` row is folded in order under the rank table of that row's `config_hash`. A new rank table (an admin preset, Q-PROG-7) therefore applies to future promotions only.
+- Rank tables and XP source values are config (CONFIG-AND-CONTENT §6.8). Applying an admin/GM preset registers a new `config_versions` row and writes an `admin_audit` row (Q-PROG-7).
 - **Merge (Q-PROG-4):** XP is never summed. The surviving commander keeps the max per stat. The absorbed commander's ledger rows stay attached to the absorbed id (they're history), and an identity_event `MERGED_INTO` links the two. The derived stats for the survivor take `max(survivor, absorbed)` per column at merge time; that rule is recorded as a `MERGED_FROM` event so rebuilds can reproduce it.
 
 ### 4.13 Leaderboard views
@@ -275,6 +276,7 @@ JOIN commanders c ON c.commander_id = x.commander_id
 WHERE c.deleted_at IS NULL AND c.banned = 0
 GROUP BY x.campaign_id, x.commander_id, x.reason;
 ```
+- **Interim:** `v_role_leaderboard` groups XP by reason. Q-PROG-8 replaces that ranking: per-role boards rank by role contribution (logistics: supplies delivered; recon: spotted enemies later engaged by friendlies; CSAR: rescues completed; combat: threat-weighted kills + objective damage), the overall board ranks by merit, assists count, and each board has a season-total (primary) and a per-hour-played view. The metric per board is defined in config. The source rows for the recon, CSAR and threat-weighted metrics, and the season and hours-played columns, are not modeled yet (§11).
 - Only approved callsigns appear, because `commanders.callsign` is always either generated or approved. Banned and deleted commanders are excluded. No padding rows (DI-4).
 
 ### 4.14 clips (review queue)
@@ -358,11 +360,11 @@ The repository interface (`nexus.persistence`) is the only code that sees SQL. T
 - Every ledger intent carries its `idempotency_key`. Inserts use `INSERT ... ON CONFLICT(idempotency_key) DO NOTHING` (portable to Postgres).
 - On restart, the runtime replays the command log from the last snapshot. The resulting events produce the same keys, so duplicates are ignored and gaps are filled.
 
-### 5.3 XP diminishing returns (PROG-1, PROG-2)
+### 5.3 XP diminishing returns (PROG-1) and the first-mission gate
 For each `AppendXp(commander, reason, base_xp, source_tick)`:
 1. Look up the commander's awarded XP within the trailing **60 minutes of wall-clock time**, using `recorded_at`. `progression.xp_hour_soft_cap` is defined per real hour (CONFIG-AND-CONTENT §6.8). `recorded_at` is stamped by the runtime when it persists the event. Progression runs outside the deterministic kernel, so this doesn't affect sim determinism. Replaying the command log after a crash doesn't re-award XP, because the idempotency keys dedupe (§5.2).
 2. If over `progression.xp_hour_soft_cap`, `multiplier_milli = round(progression.xp_over_cap_mult × 1000)`; otherwise 1000. A package XP-share bonus (GAMEPLAY §7) multiplies on top; the result must stay within the column CHECK.
-3. `persistent = 1` only if `commanders.first_mission_at IS NOT NULL` **and** the latest `PresenceSnapshot` at or before `source_tick` has `distinct_humans_active ≥ progression.min_distinct_humans` (taken from the sim event, not computed in the DB).
+3. `persistent = 1` only if `commanders.first_mission_at IS NOT NULL`. There is no minimum-humans gate: the PROG-2 "<2 humans" rule is dropped (Q-PROG-6), so a lone operator earns persistent XP. Anti-farming relies on this gate, the hourly diminishing returns above and the NX-277 layers.
 4. Insert the ledger row. If `persistent = 1`, update `commander_stats` in the same transaction (ADR-0003 amendment: the ledger is the source of truth).
 
 ### 5.4 Rebuild derived tables
@@ -461,6 +463,12 @@ Bundles contain `commander_id`s only, so they're safe to attach to a private Git
 - **Restore test:** quarterly (SEC-DATA-5), plus after any migration. Restore into a scratch dir, run `PRAGMA integrity_check`, rebuild stats, then load the latest snapshot and replay its log to the recorded `state_hash`.
 - **Integrity checks:** `PRAGMA quick_check` daily, `PRAGMA integrity_check` weekly and before each backup upload, and `PRAGMA foreign_key_check` weekly. Any failure alerts the owner and blocks the backup from overwriting the last good copy.
 
+## 7a. Public exports and first-party analytics
+- **Public site exports (Q-ARCH-16):** the public site is static for now. The broadcast host pushes one-way exports to a static host: leaderboard/stats JSON about every 15 min (interval configurable; ~15 min is the owner's starting value) and the full campaign archive at campaign end. Nothing on the site can read from or write to this store; there is no inbound path to the home network (OPS-ADMIN OA-11).
+- **Export content:** only data that is already public: approved or `[REDACTED]` callsigns, `commander_id`-keyed pseudonymous replays (DM-6) and aggregate stats. Banned and deleted commanders are excluded as in §4.13. The export schema lives in `contracts/` with an explicit field allowlist.
+- **Database:** stay on SQLite (ADR-0003, 2026-10-18 amendment). A later live interactive site with its own API and database triggers the Postgres revisit (§4.17) and a separate security review.
+- **Analytics (Q-DM-3):** D7 retention, session length and similar metrics are computed from our own sim and gateway events keyed by `commander_id` (DM-11). Platform dashboards (Twitch/YouTube) are used for viewer counts but not imported. The privacy notice, terms of service and any cookie banner state this (NX-204, NX-314, NX-316). Metric definitions are not written yet (GAP-ANALYSIS §3, P3).
+
 ## 8. Size estimates (ESTIMATE; measure in P1 with NX-032)
 | Item | Assumption | Arithmetic | Estimate |
 |---|---|---|---|
@@ -492,19 +500,31 @@ To measure in P1/P2: real command rate per hour of day, the actual zstd ratio on
 | DM-6 | Property: no snapshot/log/crash bundle contains any string from the `commanders.callsign` or `display_name` columns of the fixture |
 | DM-7 | Startup test: DB at schema N+1 with code at N → refuse to start |
 | DM-8 | Semgrep `sql-no-fstring` |
-| §5.3 | Unit + property: DR window uses `recorded_at` (real time); re-processing the same events doesn't change awards; PROG-2 gate respected |
+| §5.3 | Unit + property: DR window uses `recorded_at` (real time); re-processing the same events doesn't change awards; XP before the first completed mission is non-persistent; a lone active human earns persistent XP (Q-PROG-6) |
+| §4.11 | Insert of a negative merit `delta` is rejected (Q-PROG-7) |
+| §4.12 | Rebuild after a rank-table change that raises thresholds leaves every `rank_level` unchanged (Q-CFG-2) |
+| §7a | Export files contain no field outside the allowlist; the overlay and site bundles load no third-party script (DM-11) |
 | §6.1 | Round-trip and corruption tests: flipped byte → trailer mismatch → fallback |
 | §6.2 | Crash-in-the-middle test: kill -9 during write; replay recovers every fsync'd record; no seq gaps |
 | §6.4 | Deletion job end-to-end: identities gone, callsign tombstoned (`X-` + 10 base32, `TOMBSTONE` kind), leaderboards exclude, replay renders `[REDACTED]`; two deletions in the same second don't collide |
 | §7 | Migration test from previous-release fixture; restore drill script runs in nightly CI on a fixture backup |
 
 ## 11. Questions (tracked in [OPEN-QUESTIONS](../planning/OPEN-QUESTIONS.md))
-All decided 2026-10-17:
+Decided 2026-10-17:
 - **Q-DM-1:** archive ledger rows older than 12 months into compressed yearly files once the ledger is large (~1 GB, measured); derived totals stay live.
 - **Q-OPS-6:** local copy on the Linux server + `age`-encrypted off-site copy (Google Drive first) behind the `BackupTarget` port; tiered retention; quarterly restore test (§7).
 - **Q-DM-2:** public replays need no login; player login (own stats, personal highlights) comes later.
 
-Still open: Q-DM-3 (source of D7 and session analytics), Q-ARCH-16 (public site hosting and whether it forces Postgres), both from the 2026-10-17 gap analysis.
+Decided 2026-10-18:
+- **Q-DM-3:** first-party analytics only, from our own events; no third-party trackers (DM-11, §7a).
+- **Q-ARCH-16:** static public site fed by one-way exports; stay on SQLite; a live site triggers the Postgres revisit (§7a, ADR-0003 amendment).
+- **Q-PROG-6:** the "<2 humans" persistence gate is dropped (§5.3).
+- **Q-PROG-7:** merit is never spent (`SPEND` removed from `merit_ledger`); rank tables are admin presets versioned with `config_hash` (§4.12).
+- **Q-CFG-8:** stored timestamps are UTC; owner schedules keep their IANA zone (DM-9).
+
+Not modeled yet:
+- Q-PROG-8 board metrics and Q-PROG-9 seasons need source rows (recon assists that led to engagements, CSAR rescues, threat-weighted kills, objective damage, hours played) and a season key (§4.13).
+- Q-GD-37 logs Tasking Board job outcomes for balance tuning and AAR stats. Whether they need a durable table, or stay as sim events in the replay, is not decided.
 
 ## Data model additions pending merge (2026-10-17)
 - **From [ADMIN-RBAC](ADMIN-RBAC.md):**
