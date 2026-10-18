@@ -33,7 +33,7 @@ Non-goals for now: Kubernetes, Helm, multi-region, canary traffic splitting (ADR
    │
    ├─ pr-hygiene ── title lint · size label · tracker-ID check · changed-paths filter
    │
-   ├─ python (paths: services/**, tools/**, contracts/**)
+   ├─ python (paths: services/**, tools/**, scripts/**, contracts/**)
    │     ruff check · ruff format --check · mypy --strict · pytest (unit + property)
    │     coverage gate (diff coverage ≥ 90%, sim-core total ≥ 85%)
    │
@@ -186,4 +186,4 @@ Applied 2026-10-18 (OWNER-TODO §2). New third-party actions must be added to th
 | `.github/workflows/pr-hygiene.yml` | title lint, labels, tracker-ID check | NX-017 | Planned |
 | `.github/dependabot.yml` | grouped weekly updates for pip, npm, actions, docker | NX-018 | Planned |
 
-`ci.yml` today: `changes` (git-diff path filter on PRs; pushes run everything), `python` (ruff, ruff format, mypy, import-linter), `python-test` (pytest), `overlay` (tsc, eslint + prettier, vite build), `overlay-test` (vitest), and `ci-gate`. `ci-gate` is the only required status check. Lint, format, typecheck, import contracts and the build always block. The two test jobs are advisory when the target is `develop` (`ci-gate` emits a warning) and required for `main`. The `contracts`, `sim-determinism`, `integration` and `docs` jobs arrive with their own tracker items.
+`ci.yml` today: `changes` (git-diff path filter on PRs; pushes run everything), `python` (ruff, ruff format, mypy, import-linter), `python-test` (pytest, plus the repo-check script tests in `scripts/tests`), `overlay` (tsc, eslint + prettier, vite build), `overlay-test` (vitest), and `ci-gate`. `ci-gate` is the only required status check. Lint, format, typecheck, import contracts and the build always block. The two test jobs are advisory when the target is `develop` (`ci-gate` emits a warning) and required for `main`. The `contracts`, `sim-determinism`, `integration` and `docs` jobs arrive with their own tracker items.

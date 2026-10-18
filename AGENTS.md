@@ -84,7 +84,8 @@ The layout below is the target. Directories are created when their first tracker
 
 ```
 make bootstrap      # uv sync + pnpm install (frozen lockfiles) + pre-commit hooks if installed
-make check          # Python: ruff, ruff format --check, mypy --strict, import-linter, pytest
+make check          # Python: ruff, ruff format --check, mypy --strict, import-linter, pytest,
+                    #   repo-check script tests (scripts/tests)
                     # Overlay: tsc --noEmit, eslint + prettier --check, vitest
 # make sim          # (NX-031/NX-193) not yet implemented
 # make dev          # (NX-255) not yet implemented
