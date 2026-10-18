@@ -59,8 +59,11 @@ def test_osv_report():
         pkg("Typing_Ext", [{"ids": ["V6"], "max_severity": "8"}], ["V6"], fix_pkg="typing-ext"),  # PEP 503 name
         pkg("g", [{"ids": ["V7"], "max_severity": "8"}], ["V7"], version="2.0.0", fixed="1.2.5"),  # fix is older
         pkg("h", [{"ids": ["V8"], "max_severity": "8"}], ["V8"], version="2.0.0", fixed="2.0.1"),  # fix is newer
+        pkg("i", [{"ids": ["V9"], "max_severity": "9.0"}], ["V9"]),         # critical + fix: blocks on every branch
     ]}]}
-    assert [b for b, _ in findings(report)] == [True, False, False, False, False, True, False, True]
+    assert [b for b, _ in findings(report)] == [True, False, False, False, False, True, False, True, True]
+    # develop threshold (CVSS 9.0, ADR-0009 amendment): only the critical one with a fix blocks
+    assert [b for b, _ in findings(report, 9.0)] == [False] * 8 + [True]
     assert findings({"results": []}) == []
     # A newline in a PR-controlled package name must not let a line start with "::" (workflow command).
     evil = {"results": [{"packages": [pkg("x\n::error::pwned\r", [{"ids": ["V9"], "max_severity": "5"}], [])]}]}

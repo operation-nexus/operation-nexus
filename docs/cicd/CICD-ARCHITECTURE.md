@@ -102,13 +102,15 @@ The raw plan called `pip-audit` and `npm audit` "SAST". They aren't. They're SCA
 
 | Layer | Tool | Blocks merge? |
 |---|---|---|
-| Secrets | gitleaks (PR + push protection enabled in repo settings) | Yes |
-| SAST | CodeQL default + security-extended queries; Semgrep with custom rules | Yes on high |
-| SCA | dependency-review-action (diff), osv-scanner (full) | Yes on high or critical with a fix available |
+| Secrets | gitleaks (PR + push protection enabled in repo settings) | Yes, any secret, every branch |
+| SAST | CodeQL default + security-extended queries; Semgrep with custom rules | `main`: medium or higher security alerts and error alerts (code-scanning ruleset rule); `develop`: critical only |
+| SCA | dependency-review-action (diff), osv-scanner (full) | `main`/`release/*`: high or critical (osv: with a fix); `develop`: critical only |
 | License | dependency-review `allow-licenses` list (decided in Q-LEGAL-1) | Yes |
-| IaC / containers | trivy config, hadolint, trivy image | Yes on high or critical |
-| CI itself | zizmor, actions pinned by SHA, `permissions: {}` default | Yes |
+| IaC / containers | trivy config, hadolint, trivy image | `main`/`release/*`: high or critical (hadolint warning+); `develop`: critical (hadolint error) |
+| CI itself | zizmor, actions pinned by SHA, `permissions: {}` default | `main`/`release/*`: any zizmor finding; `develop`: high |
 | DAST | OWASP ZAP baseline against staging (public site / link portal; also required before any public exposure of the Command Center, Q-RB-4) | Report only until Phase 5 |
+
+Thresholds are tiered by target branch (ADR-0009 amendment 2026-10-18); `security.yml` lists them per tool.
 | Supply chain posture | OpenSSF Scorecard, Dependabot/Renovate (grouped, weekly) | Report |
 
 Custom Semgrep rules (repo-specific, under `.semgrep/`):

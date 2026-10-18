@@ -39,9 +39,10 @@ Applied and verified through the GitHub API on 2026-10-18 where checked.
 - [ ] Optional: plug-in power meter for real wattage numbers
 
 ## 4. Accounts and brand (NX-297)
-- [ ] Check handle availability and create **new** Twitch / YouTube / TikTok / Instagram accounts for Operation Nexus
+- [ ] Reserve the **Hiveplex** handle on YouTube, TikTok, Bluesky and Discord the same day (all looked free on 2026-10-18), and after a manual look on X, Instagram, Reddit and a GitHub organization. **Twitch `hiveplex` is already taken** by a dormant 2015 account: register `hiveplextv` and ask Twitch support about releasing the original (docs/review/HANDLE-AND-DOMAIN-CHECK-2026-10-18.md, Q-MKT-10) (Q-BRAND-6, accepted risk), and the studio byline handle as a defensive hold; follow the setup runbook when it exists (NX-336). Accounts are created by hand: platforms bar automated creation
 - [ ] Epidemic Sound: ask support (a) whether a 24/7 monetized game stream is covered, (b) what happens to published content after cancelling; then choose upgrade vs a separate subscription
-- [ ] Create the private `operation-nexus-ops` repo (secrets, NX-299)
+- [ ] Create the private `operation-nexus-ops` repo (secrets, NX-299): on GitHub choose New repository, Private, README on, under the future organization if it exists (a transfer later is fine). The cloud session's GitHub integration cannot create repos (403). Then run `age-keygen` on your own machine, keep the private key in your password manager, and send only the public key (starts with `age1`) so `.sops.yaml` can be added (Q-OPS-10)
+- [ ] Later (P3, with the lore pilot): create the private `operation-nexus-vault` repo for lore, marketing drafts and licensed art/audio, separate from the secrets repo (Q-OPS-10, AGENT-TEAMS.md)
 
 ## 4a. Name clearance (Q-LEGAL-5, Q-BRAND-6; before NX-297 creates any account)
 The research could not reach any official register (docs/review/NAME-CLEARANCE.md, Method). Only you can confirm. Full lists: NAME-CLEARANCE "Manual steps" (rounds 1–3).
@@ -52,7 +53,18 @@ The research could not reach any official register (docs/review/NAME-CLEARANCE.m
 - [ ] Stores: Steam, itch.io, Epic, Xbox, PlayStation, Nintendo eShop, App Store, Google Play, Roblox
 - [ ] In-world names: the Quorum (in-world label only, never the brand, Q-BRAND-7), the Static and NULL; re-check the records NAME-CLEARANCE cites for them
 - [ ] TTS and chat test: play the name in the chosen voice and have a few viewers type it from audio only
-- [ ] Ask a trademark attorney about "Hiveplex" versus PLEX before spending on marks or merch; record the result under Q-BRAND-6 and NX-297
+- [ ] Attorney consult on "Hiveplex" versus PLEX/HIVE: deferred until traction or monetization (Q-LEGAL-9); do it before spending on marks or merch
+
+## 4b. Follow-ups from the research session (2026-10-18)
+- [x] Web-dependent verification (Q-PROC-3): Network access raised to full on 2026-10-18; verification passes now run from the cloud session (NX-333, in progress)
+- [ ] Read the primary platform policy pages from the prepared checklist (NX-333); record what you find
+- [ ] Send Epidemic Sound the written questions (NX-332) before relying on it for 24/7 audio
+- [ ] Ask Twitch support whether an intermission/replay loop on a 24/7 channel needs the Rerun label, before the closed alpha; check the Twitch setting that lets content train generative AI
+- [ ] Put the Google OAuth app in production with verification when the YouTube integration starts (otherwise refresh tokens last 7 days)
+- [ ] Turn on passkeys everywhere they exist; add a hardware key if you own one; keep one project mailbox
+- [x] Channel naming confirmed (Q-MKT-7): channels named Hiveplex, studio handle as a byline hold
+- [ ] Create the brand mailbox and register a domain for the public contact addresses (Q-MKT-11); check `.gg`, `.io`, `.co` at a registrar (no public registry data for those endings)
+- [ ] Pick the first 2-3 moderators from your trusted team before the public beta (Q-MOD-7)
 
 ## 5. Decisions still open
 See docs/planning/OPEN-QUESTIONS.md. Rows ending in an empty Decision column still need your answer.
