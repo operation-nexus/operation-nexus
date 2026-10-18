@@ -50,3 +50,9 @@ The planning PR merges straight into `main`, which the owner allowed while there
 - **Change:** lint, format and typecheck move from advisory to **required** on `develop`. Tests, golden replays, integration and Playwright stay advisory on `develop` and required on `main`.
 - **Why:** these checks take seconds and are almost always auto-fixable, and a clean `develop` keeps agents on every machine from inheriting errors. This matches the `ci-gate` job in `.github/workflows/ci.yml`.
 - **Status:** accepted by the owner, 2026-10-18.
+
+## Amendment (2026-10-18): PRs into `develop` auto-merge on green (Q-PROC-2)
+- **Change:** every change reaches `develop` through a PR, but no human approval is needed. The ruleset requires the `ci-gate` check, and PRs use GitHub auto-merge so they land as soon as `ci-gate` is green. Direct pushes to `develop` are blocked.
+- **`main`** is unchanged: owner-only merge, all checks required.
+- **Branch hygiene:** the feature branch is deleted (local and remote) once its PR is merged (AGENTS.md rule 11).
+- **Status:** accepted by the owner, 2026-10-18.
