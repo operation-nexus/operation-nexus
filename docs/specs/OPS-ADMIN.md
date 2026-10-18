@@ -15,15 +15,15 @@ The three-layer design (on-box, LAN watchdog, off-site heartbeat) is in [`docs/o
 - Every tool setting in OA-1…OA-3 (auto-login, start-at-login, Task Scheduler, active hours) is **[UNVERIFIED]** until tested on the broadcast PC.
 - **Frame-freeze probe:** every 30 s, grab an OBS screenshot (via obs-websocket on localhost). If the heartbeat region's hash hasn't changed for 60 s, reload the browser source. If it's still frozen, restart OBS and alert.
 - **Stream-live probe:** query the platform API for live status every 2 min. If the stream is offline, restart the OBS output and alert. A scheduled restart before the 48 h Twitch broadcast limit is **[to verify]**.
-- **OA-5 Offline auto-pause (Q-OPS-8):** when the broadcast has been offline longer than `ops.offline_pause_after_min` (CONFIG §6.10; real time, Q-CFG-8), the campaign auto-pauses with reason `TECHNICAL` through the normal logged pause command (ADMIN-RBAC pause flow). Shorter blips do not pause. The trigger is stream-offline detection only; a single chat platform disconnecting MUST NOT pause the campaign.
+- **OA-5 Offline auto-pause (Q-OPS-8):** when the broadcast has been offline longer than `ops.offline_pause_after_min` (CONFIG §6.10; real time, Q-CFG-8), the campaign auto-pauses with `PauseReasonCategory` `TECHNICAL` (Q-ALN-3) through the normal logged pause command (ADMIN-RBAC pause flow). Shorter blips do not pause. The trigger is stream-offline detection only; a single chat platform disconnecting MUST NOT pause the campaign.
 - **OA-6 Recovery (Q-OPS-8):** when the stream is back, the overlay shows "COMMS RESTORED" with a 30 s countdown, then the campaign auto-resumes. An admin can override either step (stay paused, or resume early) from the Command Center.
 - **Fallback scene:** "TECHNICAL DIFFICULTIES – CAMPAIGN PAUSED", shown with ambient music when the app is down.
 
 ### 1a. Maintenance window and Ceasefire mode (Q-OPS-9)
 - **OA-7 Maintenance window:** one fixed weekly window of up to ~2 h, defined in a configured IANA time zone and converted (Q-CFG-8). The starting slot (Tuesday morning, owner-local) is PROPOSED until the owner confirms it; revisit with analytics. The window is a scheduled `MAINTENANCE` item (ADMIN-RBAC scheduled events).
-- **OA-8** During the window the campaign is paused with reason `MAINTENANCE`, and the stream shows a "back at HH:MM" scene with the campaign recap and leaderboards. The window is announced in advance on the HUD and in Discord.
-- **OA-9 Ceasefire mode:** for the owner gaming on the broadcast PC, one click (Command Center) or a hotkey: the campaign pauses, OBS switches to a light scene (banner + leaderboard), and heavy overlay rendering stops to free the GPU. Resume is one click and starts a countdown before the campaign continues.
-- **OA-10** Sim-time timers (idle handoff/retire, despawn, cooldowns, Tasking Board decision window, logistics, capture) are frozen while paused for maintenance, Ceasefire or offline (Q-CFG-8).
+- **OA-8** During the window the campaign is paused with reason `MAINTENANCE` (Q-ALN-3), and the stream shows a "back at HH:MM" scene with the campaign recap and leaderboards. The window is announced in advance on the HUD and in Discord.
+- **OA-9 Ceasefire mode:** for the owner gaming on the broadcast PC, one click (Command Center) or a hotkey: the campaign pauses with reason `CEASEFIRE` (Q-ALN-3), OBS switches to a light scene (banner + leaderboard), and heavy overlay rendering stops to free the GPU. Resume is one click and starts a countdown before the campaign continues.
+- **OA-10 Clocks while paused (Q-ALN-1, Q-ALN-3, Q-ALN-4):** for every pause reason (`OPERATOR`, `TECHNICAL`, `MAINTENANCE`, `CEASEFIRE`) the whole world freezes: world-time timers (movement, logistics, combat) and game-time timers (idle handoff/retire, respawn, ability cooldowns, the Tasking Board decision window, campaign and objective timers) stop. Real-time limits enforced outside the sim (taunt naming cooldowns, GM auto-release, redemption cooldowns, the supply-drop hourly cap, chat rate limits) keep running (CONFIG CFG-9).
 - A dedicated broadcast box (owner plans a new PC) or cloud hosting (OA-4) removes the gaming conflict; HARDWARE.md tracks that.
 
 ## 2. Observability
@@ -60,9 +60,9 @@ Per Q-ARCH-7 there are two apps in one codebase: the private **Command Center** 
   - director override: force a tier or trigger an event
   - Ceasefire on/off, maintenance window schedule, and the offline-pause override (OA-5…OA-9)
   - balance config reload (validated, logged), including the admin-configurable keys for idle handoff/retire (Q-GD-35), taunt naming cooldowns (Q-AI-7), HUD rotation timing and membership (Q-UX-11) and the offline-pause threshold (Q-OPS-8); each is reloaded under CONFIG §5
-  - **OA-12 Rank and XP presets (Q-PROG-7):** owner, admin or GM edit the rank table (thresholds, unlocked abilities, cooldowns) and XP source values as named presets. A preset is validated before it can be applied, every change is written to the audit log, and applying one is versioned with the campaign `config_hash` (CONFIG §6.8). Ranks already earned are never revoked (Q-CFG-2).
-  - **OA-13 Tasking Board (Q-GD-37):** both sides' boards are visible, with job state, claims and outcomes. A GM may inject or edit jobs; each injection is a logged command.
-- **OA-14 GM limits (Q-AI-8):** a GM drives the Static and triggers world events only. World events may help the coalition (supply drop, weather clearing, friendly convoy) but are visible and in-fiction; there is no direct grant of units, ammo or XP to a specific player. Every GM action is logged and flagged in replays.
+  - **OA-12 Rank and XP presets (Q-PROG-7):** owner, admin or GM edit the rank table (thresholds, unlocked abilities, cooldowns) and XP source values as named presets (whether a GM keeps this is open: Q-ALN-10 limits a GM to the Static and world events, §5). A preset is validated before it can be applied, every change is written to the audit log, and applying one is versioned with the campaign `config_hash` (CONFIG §6.8). Ranks already earned are never revoked; new thresholds apply to future promotions only (Q-CFG-2, Q-ALN-14).
+  - **OA-13 Tasking Board (Q-GD-37):** both sides' boards are visible, with job state, claims and outcomes (stored durably, DATA-MODEL §4.13a, Q-ALN-16). A GM may inject or edit jobs on the **Static's board only** (Q-ALN-11); each injection is a logged command.
+- **OA-14 GM limits (Q-AI-8, Q-ALN-10):** campaign setup (objectives, objective mode, friendly fire, unlimited ammo and every other campaign option) is owner/admin only. During play a GM drives the Static and triggers world events only. World events may help the coalition (supply drop, weather clearing, friendly convoy) but are visible and in-fiction; there is no direct grant of units, ammo or XP to a specific player. Every GM action is logged and flagged in replays.
 - Every admin action is a logged command, so replays stay deterministic and there's an audit trail.
 
 ## 4. Runbooks (`deploy/runbooks/`)
@@ -79,4 +79,6 @@ Per Q-ARCH-7 there are two apps in one codebase: the private **Command Center** 
 - GPU or driver update
 
 ## 5. Open questions
-- The pause reason for Ceasefire mode (OA-9) is not decided. `MAINTENANCE` (OA-8) is not yet in the CONTRACTS `PauseReasonCategory` enum.
+- Decided 2026-10-18 (spec-alignment batch): Q-ALN-3 (`PauseReasonCategory` = `OPERATOR`, `TECHNICAL`, `MAINTENANCE`, `CEASEFIRE`; Ceasefire pauses with `CEASEFIRE`), Q-ALN-1 / Q-ALN-4 (OA-10 clocks), Q-ALN-10, Q-ALN-11, Q-ALN-14, Q-ALN-16.
+- Open: whether a GM keeps rank/XP preset editing (OA-12, Q-PROG-7 vs Q-ALN-10; ADMIN-RBAC §13).
+- Open: CONTRACTS still lists the Q-RB-1 operator categories (RAID, ABUSE, TECHNICAL, CONTENT, OTHER) as `PauseReasonCategory`; it needs the Q-ALN-3 values (ADMIN-RBAC pause flow).
