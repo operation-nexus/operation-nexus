@@ -25,15 +25,26 @@ This is the authoritative, deterministic world simulation. Everything else is in
 ```
 Entity { id:int, kind:UnitKind, side:Side(COALITION|ENEMY), domain:Domain(AIR|GROUND|SEA|STATIC),
          pos:Vec2(m), vel:Vec2(m/s), alt_band:(NOE|LOW|MED|HIGH) for AIR,
-         hp:int, fuel:fixed, ammo:{primary:int, secondary:int}, cargo:int,
-         sensor:SensorProfile, weapons:[WeaponProfile], stealth:float,
+         hp:int, damage_state:DamageState(HEALTHY|DAMAGED|MISSION_KILL|DISABLED),
+         fuel:fixed, munitions:{<weapon_id>:int}, gun_rounds:int, cargo:int,
+         stance:Stance(PRESS|STANDARD|CAUTIOUS|GUNS),
+         crew:{count:int, status:Crew(ABOARD|DOWNED|RESCUED|CAPTURED|LOST)},
+         sensor:SensorProfile, weapons:[WeaponProfile], countermeasures:int, stealth:float,
          owner:OwnerRef(commander_id|AI_GARRISON|ENEMY_DIRECTOR), package_id?,
-         order:Order(current), path:[NodeId|Vec2], state:UnitState }
+         order:Order(current), job_id?:TaskingJobId, path:[NodeId|Vec2], state:UnitState }
 Node   { id:str(stable), name, kind:(AIRBASE|FOB|PORT|FACTORY|RADAR|BRIDGE|HQ|SANCTUARY),
          pos, owner:Side|NEUTRAL, capture:CaptureState, stock:int, max_stock:int, hp:int }
 Edge   { a:NodeId, b:NodeId, layer:(ROAD|SEA_LANE), length_m, speed_mult, bridge?:NodeId }
-Campaign { id, seed, config_hash, mode, start_tick, clock_paused, objective:Objective, score }
+Campaign { id, seed, config_hash, mode, objective_mode:(TIMED|RELAXED|OFF), options:{friendly_fire:bool, unlimited_ammo:bool},
+           start_tick, clock_paused, objective:Objective?, score }
 ```
+- **Combat state (owner decisions 2026-10-17):**
+  - `damage_state` follows Q-CBT-1 (Healthy → Damaged → Mission-kill → Disabled; Destroyed is the terminal lifecycle state, STATE-MACHINES §4.1). Rolls use the `combat` stream.
+  - `munitions` holds the per-sortie load per weapon, drawn from base stock at spawn/rearm. **Guns are limited** (`gun_rounds`, high count) and rounds used are charged to base stock on resupply (Q-CBT-7). `unlimited_ammo` is a campaign option only (owner/admin/GM, set at campaign setup).
+  - `stance` drives auto-RTB: `STANDARD` at mission-kill, `CAUTIOUS` at Damaged, `PRESS` never, `GUNS` keeps fighting with guns after missiles/bombs run out (Q-CBT-6, Q-CBT-7).
+  - `crew` is set from the platform's crew count; a seeded crew-survival roll on disable or shoot-down decides `DOWNED` vs `LOST`, and CSAR resolves `RESCUED` or `CAPTURED` (GAMEPLAY §6a).
+  - Hit probability uses the full Q-CBT-2 factor list (GAMEPLAY §6); every factor is a config multiplier.
+  - The Static's units carry the same fields and rules (parity, GAMEPLAY §0).
 - **World scale (resolves critique #24):** the theater is about 400 × 240 km. Ground convoy speed is about 25 m/s (a 90 km road takes ~1 h of sim time), and strike aircraft fly about 250 m/s. A sim-time multiplier `TIME_SCALE` (default 6×) shortens travel so a sortie lasts 3–8 real minutes. Tune it with the balance harness.
 
 ## 5. Runtime (outside the kernel)
@@ -54,4 +65,4 @@ Campaign { id, seed, config_hash, mode, start_tick, clock_paused, objective:Obje
 SC-1/SC-5: Semgrep rule + unit tests with a fake RNG. SC-3: golden replays + cross-process check. SC-4/SC-6: property tests (shuffled arrival yields the same result). SC-9: property round-trip. SC-10: benchmark in CI (smoke) and nightly (full).
 
 ## 8. Open questions
-Q-GD-8 (domains in the MVP), Q-GD-9 (map), Q-ARCH-3.
+Decided and folded in: Q-GD-8 (air + ground at launch, sea in P3), Q-GD-9 (hand-authored first theater; procedural later), Q-ARCH-3/Q-ARCH-13 (Python; NumPy where profiling helps; Rust hot spots only if truly necessary), Q-SM-1 (`objective` RNG stream), Q-CBT-1/2/6/7/8 (combat state above). Still open: Q-TEST-1 (which host is the SC-10 reference host; gap analysis 2026-10-17).

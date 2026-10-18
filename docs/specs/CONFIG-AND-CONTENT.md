@@ -113,7 +113,7 @@ Legend: **HR** = hot-reloadable (§5). "TBD" = TBD by harness. **Source** = the 
 | `slots.respawn_delay_s` | float | s (real) | 20 | GAMEPLAY GP-2 | Yes |
 | `slots.max_viewer_units` | int | units | 300 | GAMEPLAY GP-3, Q-GD-6 | Yes |
 | `slots.reserve_queue_max` | int | entries | TBD | GAMEPLAY GP-3 | Yes |
-| `slots.idle_despawn_s` | float | s (sim) | TBD by harness (Q-SM-2) | STATE-MACHINES §4.1 | No |
+| `slots.idle_despawn_s` | float | s (sim) | ~300 (about 5 min, Q-SM-2; the owner prefers as long as practical; harness-tuned, admin-adjustable. Whether the 5 min is real or sim time is to be confirmed when implemented) | STATE-MACHINES §4.1 | No |
 
 ### 6.3 Logistics
 | Key | Type | Unit | PROPOSED | Source | HR |
@@ -129,7 +129,9 @@ Legend: **HR** = hot-reloadable (§5). "TBD" = TBD by harness. **Source** = the 
 | `logistics.rearm_rate` | float | stock/s (sim) | TBD | GAMEPLAY §5 | No |
 | `logistics.stretch.coeff` | float | transit-time multiplier per 100 km from sanctuary | TBD | GAMEPLAY §5 (supply-line stretch) | No |
 | `logistics.offroad_speed_mult` | float | multiplier | 0.5 (from raw plans P987; unvalidated) | GAMEPLAY §5 | No |
-| `logistics.bridge_repair_time_s` | float | s (sim) | TBD (who repairs it is Q-GD-11) | GAMEPLAY §5 | No |
+| `logistics.bridge_repair_time_s` | float | s (sim) | TBD (engineer repair time; Q-GD-11) | GAMEPLAY §5 | No |
+| `logistics.truck_bridge_repair_mult` | float | multiplier on engineer time | 5 (Q-GD-11 recommendation "e.g. 5× slower") | GAMEPLAY §5 | No |
+| `logistics.repair_rate.<node_kind>` | float | hp/s (sim) | TBD (base repair for all domains, Q-GD-27) | GAMEPLAY §5 | No |
 
 ### 6.4 Combat
 | Key | Type | Unit | PROPOSED | Source | HR |
@@ -140,6 +142,15 @@ Legend: **HR** = hot-reloadable (§5). "TBD" = TBD by harness. **Source** = the 
 | `combat.jammer_pk_mult` | float | multiplier | TBD | GAMEPLAY §6 | No |
 | `combat.evasion_mult.<alt_band>` | float | multiplier | TBD | GAMEPLAY §6 | No |
 | `combat.weapons.<weapon_id>` | object | see §7.2 | TBD | GAMEPLAY §6 | No |
+| `combat.track_quality.radar_lock` | float | multiplier | TBD | GAMEPLAY §6 (Q-CBT-2) | No |
+| `combat.pk_mult.range.<band>` | float | multiplier | TBD | GAMEPLAY §6 (Q-CBT-2) | No |
+| `combat.pk_mult.countermeasure` | float | multiplier (one-shot per load) | TBD | GAMEPLAY §6 (Q-CBT-2) | No |
+| `combat.pk_mult.terrain_masked` | float | multiplier | TBD | GAMEPLAY §6 (Q-CBT-2) | No |
+| `combat.pk_mult.weather.*` / `combat.pk_mult.night` | float | multiplier | TBD (P4, Q-CBT-5) | GAMEPLAY §6 | No |
+| `combat.damage_state.*` | object | outcome weights per armor level; Damaged speed/sensor multipliers | TBD | GAMEPLAY §6a (Q-CBT-1) | No |
+| `combat.crit_chance` | float | probability per hit | TBD (small; Q-CBT-8) | GAMEPLAY §6 | No |
+| `combat.crew_survival.*` | object | probability modifiers per platform/location | TBD | GAMEPLAY §6a | No |
+| `slots.respawn_loss_window_s` / `slots.respawn_loss_step_s` | float | s (real) | TBD (respawn grows with repeated losses, Q-CBT-9) | GAMEPLAY GP-2 | Yes |
 
 ### 6.5 Capture
 | Key | Type | Unit | PROPOSED | Source | HR |
@@ -156,13 +167,21 @@ Legend: **HR** = hot-reloadable (§5). "TBD" = TBD by harness. **Source** = the 
 | `campaign.objective_period_min` | float | min (real) | 15 | GAMEPLAY §9 | No |
 | `campaign.victory_node_frac` | float | fraction | 0.80 | GAMEPLAY §9 | No |
 | `campaign.victory_hold_min` | float | min (real) | 30 | GAMEPLAY §9 | No |
-| `campaign.defeat` | object | — | TBD (Q-GD-7) | GAMEPLAY §9 | No |
+| `campaign.defeat` | object | — | `{lose_forward_airbase: true, max_node_frac: 0.25, hold_min: 30}` (Q-GD-7; numbers PROPOSED as everywhere) | GAMEPLAY §9 | No |
+| `campaign.objective_mode` | enum `timed`\|`relaxed`\|`off` | — | `timed` (Q-GD-19) | GAMEPLAY §9 | No (set per campaign) |
+| `campaign.options.friendly_fire` | bool | — | false (Q-CBT-4; set at campaign setup only; owner/admin/GM) | GAMEPLAY §6 | No |
+| `campaign.options.unlimited_ammo` | bool | — | false (Q-CBT-7; test/special-event option; owner/admin/GM) | GAMEPLAY §5 | No |
+| `campaign.intermission.mode` | enum `auto_advance`\|`await_owner` | — | TBD (owner choice per campaign, Q-UX-8) | GAMEPLAY §9 | Yes |
+| `tasking.decision_window_s` | float | s (real) | TBD (owner suggested up to ~5 min; playtest, Q-GD-26) | GAMEPLAY §1b | Yes |
+| `director.pol.patrol_period_s` | float | s (sim) | TBD by harness | THREAT-DIRECTOR §5a | Yes |
+| `director.pol.convoy_period_s` | float | s (sim) | TBD by harness | THREAT-DIRECTOR §5a | Yes |
+| `director.provocation.weights.<action>` | float | score per action | TBD by harness | THREAT-DIRECTOR §5a | Yes |
 | `campaign.rubber_band_zone` | [float, float] | fraction of nodes | [0.55, 0.75] | GAMEPLAY §9 | No |
 | `director.provocation.escalate_threshold` | float | score | TBD by harness | THREAT-DIRECTOR §5a | Yes |
 | `director.provocation.half_life_s` | float | s (sim) | TBD by harness | THREAT-DIRECTOR §5a | Yes |
-| `presence.window_s` | float | s (real) | TBD | CONTRACTS §6 `PresenceSnapshot` | No |
+| `presence.window_s` | float | s (real) | TBD (drives the HUD operator count and breakdown only; there is no automatic clock pause, Q-GD-4 amended / Q-SM-5) | CONTRACTS §6 `PresenceSnapshot` | No |
 | `presence.emit_every_ticks` | int | ticks | TBD | CONTRACTS §6 `PresenceSnapshot` | No |
-| `campaign.night_progress_cap_nodes_per_h` | float | nodes/h (real) | 1/6 | THREAT-DIRECTOR §5, Q-GD-4 | No |
+| `campaign.night_progress_cap_nodes_per_h` | float | nodes/h (real) | 1/6 | THREAT-DIRECTOR §5, Q-GD-4 (amended) | No |
 | `campaign.aar_duration_s` | float | s (real) | 300 | GAMEPLAY §9 | Yes |
 
 ### 6.7 Threat Director
@@ -197,14 +216,18 @@ Legend: **HR** = hot-reloadable (§5). "TBD" = TBD by harness. **Source** = the 
 ### 6.9 Input, audio, presentation
 | Key | Type | Unit | PROPOSED | Source | HR |
 |---|---|---|---|---|---|
-| `ratelimit.per_user.rate_per_s` | float | cmds/s (real) | 0.5 | CHAT-GATEWAY §5 | Yes |
-| `ratelimit.per_user.burst` | int | cmds | 3 | CHAT-GATEWAY §5 | Yes |
+| `ratelimit.class.deploy.min_interval_s` | float | s (real) | 10 (plus the respawn timer) | CHAT-GATEWAY §5 (Q-GW-1) | Yes |
+| `ratelimit.class.correction.min_interval_s` | float | s (real) | 5 | CHAT-GATEWAY §5 (Q-GW-1) | Yes |
+| `ratelimit.class.correction.burst` | int | cmds | 2 | CHAT-GATEWAY §5 (Q-GW-1) | Yes |
+| `ratelimit.class.info.min_interval_s` | float | s (real) | 15 | CHAT-GATEWAY §5 (Q-GW-1) | Yes |
+| `ratelimit.class.social.<command>.cooldown_s` | float | s (real) | `rally`: 120; others TBD | CHAT-GATEWAY §5 (Q-GW-1, Q-SUP-6) | Yes |
+| `ratelimit.slow_mode.multiplier` | float | × all class limits | 3 (applies only while slow mode is on) | CHAT-GATEWAY §5 (Q-GW-1) | Yes |
 | `ratelimit.global.cmds_per_tick` | int | cmds/tick | TBD | CHAT-GATEWAY §5 | Yes |
 | `replies.twitch_digest_min_s` | float | s (real) | 30 | CHAT-GATEWAY §6 | Yes |
 | `replies.youtube_digest_min_s` | float | s (real) | 300 | CHAT-GATEWAY §3 | Yes |
 | `audio.sitrep_min_interval_s` | float | s (real) | 20 | AUDIO-TTS AU-1 | Yes |
 | `audio.sitrep_max_age_s` | float | s (real) | 60 | AUDIO-TTS AU-1 | Yes |
-| `audio.night_mode.hours` | [time, time] | local time | TBD (owner) | AUDIO-TTS AU-2 | Yes |
+| `audio.night_mode.hours` | `{start: time, end: time, tz: IANA zone}` | wall-clock time in `tz` | `{start: "00:00", end: "08:00", tz: "America/New_York"}` (Q-CFG-6; admin-adjustable; stored with the IANA zone, not a UTC offset, so DST is handled) | AUDIO-TTS AU-2 | Yes |
 | `pip.min_dwell_s` | float | s (real) | 3 | OVERLAY OV-6 | Yes |
 | `pip.spawn_spotlight_s` | float | s (real) | TBD | OVERLAY OV-6 | Yes |
 | `overlay.top_n_labels` | int | labels | TBD | OVERLAY OV-4 | Yes |
@@ -217,7 +240,7 @@ schema_version: 1
 roles:                        # Role (CONTRACTS §3.3) -> UnitKind; every Role used in the MVP must map to exactly one kind
   STRIKE: STRIKE_FIGHTER
   RECON: RECON_UAV
-  LOGI: LOGI_TRUCK              # NAVY added in P4 (Q-GD-8)
+  LOGI: LOGI_TRUCK              # NAVY added in P3 (Q-GD-8)
 units:
   - kind: STRIKE_FIGHTER      # UnitKind (CONTRACTS §3.3), UPPER_SNAKE, unique
     side: COALITION           # COALITION | ENEMY | ANY
@@ -260,14 +283,14 @@ weapons:
 | RECON_UAV | COALITION | AIR | VIEWER, AI_GARRISON | 1 | no | — | no | Role `RECON`. Large sensor; paints targets |
 | LOGI_TRUCK | COALITION | GROUND | VIEWER, AI_GARRISON | 1 | no | yes | yes (slow) | Role `LOGI`. Road graph only |
 | GARRISON_AAA | COALITION | STATIC | AI_GARRISON | — | yes (AA short) | — | no | Node defense; labeled `[AI]` (DI-5) |
-| GARRISON_INFANTRY | COALITION | GROUND | AI_GARRISON | — | yes (light) | — | yes | Holds nodes when no viewers (Q-GD-4) |
+| GARRISON_INFANTRY | COALITION | GROUND | AI_GARRISON | — | yes (light) | — | yes | Holds nodes when no viewers (Q-GD-4); never starts offense on its own (Q-GD-26) |
 | ENEMY_SAM_SITE | ENEMY | STATIC | DIRECTOR | — | yes (SAM) | — | no | Engagement ring; may blink radar |
 | ENEMY_RADAR | ENEMY | STATIC | DIRECTOR | — | no | — | no | Extends enemy FoW view (FOW-4) |
 | ENEMY_CONVOY | ENEMY | GROUND | DIRECTOR | — | no | yes | yes (slow) | Escorts appear via threat memory |
 | ENEMY_FIGHTER | ENEMY | AIR | DIRECTOR | — | yes (AA) | — | no | CAP / intercept |
 | ENEMY_ARMOR | ENEMY | GROUND | DIRECTOR | — | yes (AG) | — | yes | Offensives / retakes |
 
-Specialist chassis (SEAD, artillery, engineer, jammer, AWACS) and naval units are P4 (PROGRESSION §3, Q-GD-8). Their catalog rows are added then.
+Specialist chassis (SEAD, artillery, engineer, jammer, AWACS) are P4 (PROGRESSION §3). Naval units are **P3** (Q-GD-8). Their catalog rows are added then. Display class names (Striker, Scout, Hauler, …) come from `display.label_key` and the brand guide (Q-NAME-2); kind ids stay plain (GAMEPLAY TS-4).
 
 ## 7a. Unit/platform content pipeline (owner requirement, 2026-10-17)
 New platforms (unit types) are **data, not code**: one YAML file per unit in `content/units/`, using the unit-catalog schema (§7). This supersedes the single `content/units.yaml` file: the loader merges `content/units/*.yaml` in sorted filename order. Behavior is composed from existing capability blocks (mobility domain, sensors, weapons, cargo, special abilities). A new *capability* still needs code and a normal PR.
@@ -371,7 +394,8 @@ enemy_hq: hq-e
 
 ### 10.1 Callsign word list (`callsign_words.yaml`)
 - **Format:** words are `^[A-Z]{3,8}$`, e.g. `VIPER`. Generated callsigns are `WORD-NN`, with `NN` in 01–99 (IDENTITY §2).
-- **Size:** the list must provide ≥ 2× the expected peak distinct commanders over 90 days of `WORD × NN` combinations. That target is TBD; it depends on real audience data.
+- **Size (Q-CFG-4):** start with about 200 theme-fitting words (≈ 19.8k callsigns). The long-run target is ≥ 2× the measured 90-day peak of distinct commanders, set once real audience data exists.
+- **Role-themed pools (Q-CFG-4):** word pools may be themed per role (e.g. strike words like VIPER, recon words like ECHO). **Flight numbering** (e.g. "VIPER 1-2") is a display label only when operators fly together; the personal callsign stays the stable identity.
 - **Content screening:** every word passes the moderation denylist, including leetspeak and homoglyph folding. No word may be a real-world unit or squadron designation, or a trademark (Q-PROD-5).
 - **Reserved patterns:** generated patterns are reserved and can't be claimed as custom callsigns (IDENTITY §3).
 
@@ -446,5 +470,5 @@ A PR without a harness run fails the `balance-report` check. A change that touch
 | TH-1…TH-8 | One failing fixture theater per rule |
 
 ## 14. Open questions
-- Q-GD-5 (campaign length), Q-GD-6 (unit cap), Q-GD-7 (defeat), Q-GD-9 (map), Q-GD-11 (bridge repair), Q-PROG-3 (account age).
-- Questions raised by this spec (Q-CFG-1…Q-CFG-7) are tracked in [OPEN-QUESTIONS](../planning/OPEN-QUESTIONS.md).
+- Decided and folded in (2026-10-17): Q-GD-5 (48 h target), Q-GD-6 (cap + visible reserve queue), Q-GD-7 (`campaign.defeat`), Q-GD-9 (hand-authored first theater), Q-GD-11 (`logistics.truck_bridge_repair_mult`), Q-PROG-3 (account age 24 h at 0.5×), Q-CFG-1…Q-CFG-7 (see [OPEN-QUESTIONS](../planning/OPEN-QUESTIONS.md)), Q-CFG-6 (`audio.night_mode.hours`), Q-GW-1 (per-class rate limits).
+- Still open: Q-TEST-2 (what "harness-validated" means before a value drops its PROPOSED label; gap analysis 2026-10-17).

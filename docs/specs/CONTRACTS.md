@@ -55,6 +55,8 @@ contracts/
 | `Tick` | integer ≥ 0 | 10 Hz sim time (SC-2) |
 | `Callsign` | `^[A-Z][A-Z0-9-]{2,11}$` | Generated (`WORD-NN`) or approved custom (IDENTITY §2–3) |
 | `PlatformMessageId` | string ≤ 128 | Platform-provided, used only for dedupe |
+| `SectorId` | slug, same format as `NodeId` | Named map region from the theater file (OVERLAY AN-1) |
+| `CrewMarkerId` | integer ≥ 1 | Per campaign, allocated by the kernel when a crew is downed (GAMEPLAY §6a) |
 
 ### 3.3 Enums (common/enums.json)
 | Enum | Values | Status |
@@ -62,10 +64,10 @@ contracts/
 | `Platform` | `TWITCH`, `YOUTUBE`, `KICK`, `DISCORD`, `LOCAL_SIM` | KICK and DISCORD are optional adapters (ADR-0008, ADR-0010). `LOCAL_SIM` is the dev chat simulator: allowed only in dev/test, and production config that enables it is rejected at startup. TikTok is not present. |
 | `Side` | `COALITION`, `ENEMY` | |
 | `NodeOwner` | `COALITION`, `ENEMY`, `NEUTRAL` | |
-| `Domain` | `AIR`, `GROUND`, `SEA`, `STATIC` | SEA is P4 (Q-GD-8). STATIC = fixed installations (SAM sites, radars, garrison AAA) |
+| `Domain` | `AIR`, `GROUND`, `SEA`, `STATIC` | SEA is **P3** (Q-GD-8). STATIC = fixed installations (SAM sites, radars, garrison AAA) |
 | `AltBand` | `NOE`, `LOW`, `MED`, `HIGH` | AIR only |
-| `Role` | `STRIKE`, `RECON`, `LOGI`, `NAVY` | What `!join <role>` accepts. `NAVY` is P4 (Q-GD-8). Each role maps to exactly one `UnitKind` via `content/units.yaml` `roles:` (CONFIG-AND-CONTENT §7.1). |
-| `UnitKind` | MVP: `STRIKE_FIGHTER`, `RECON_UAV`, `LOGI_TRUCK`, `GARRISON_AAA`, `GARRISON_INFANTRY`, `ENEMY_SAM_SITE`, `ENEMY_RADAR`, `ENEMY_FIGHTER`, `ENEMY_ARMOR`, `ENEMY_CONVOY`. P4: specialist and naval kinds (SEAD, artillery, engineer, jammer, AWACS, naval) are added with their catalog rows (NX-212, Q-GD-8). | Must match the unit catalog (CONFIG-AND-CONTENT §7.3) exactly; `config_lint` checks this. Enemy and garrison roster: Q-CT-5. |
+| `Role` | `STRIKE`, `RECON`, `LOGI`, `NAVY` | What `!join <role>` accepts. `NAVY` is **P3** (Q-GD-8). Each role maps to exactly one `UnitKind` via `content/units.yaml` `roles:` (CONFIG-AND-CONTENT §7.1). |
+| `UnitKind` | MVP: `STRIKE_FIGHTER`, `RECON_UAV`, `LOGI_TRUCK`, `GARRISON_AAA`, `GARRISON_INFANTRY`, `ENEMY_SAM_SITE`, `ENEMY_RADAR`, `ENEMY_FIGHTER`, `ENEMY_ARMOR`, `ENEMY_CONVOY`. P3: naval kinds (Q-GD-8). P4: specialist kinds (SEAD, artillery, engineer, jammer, AWACS). Each is added with its catalog row (NX-212). | Must match the unit catalog (CONFIG-AND-CONTENT §7.3) exactly; `config_lint` checks this. Enemy and garrison roster: Q-CT-5. |
 | `NodeKind` | `AIRBASE`, `FOB`, `PORT`, `FACTORY`, `RADAR`, `BRIDGE`, `HQ`, `SANCTUARY` | SIM-CORE §4 |
 | `EdgeLayer` | `ROAD`, `SEA_LANE` | |
 | `OwnerKind` | `COMMANDER`, `AI_GARRISON`, `ENEMY_DIRECTOR` | DI-5: anything that isn't COMMANDER is labeled as AI |
@@ -76,6 +78,11 @@ contracts/
 | `CommandKind` | see §5 | |
 | `RejectReason` | see §5.3 | |
 | `CommandSource` | `CHAT`, `ADVISOR`, `OPERATOR`, `SYSTEM` | |
+| `Stance` | `PRESS`, `STANDARD`, `CAUTIOUS`, `GUNS` | Q-CBT-6, Q-CBT-7; default `STANDARD` |
+| `DamageState` | `HEALTHY`, `DAMAGED`, `MISSION_KILL`, `DISABLED` | Q-CBT-1; `Destroyed` is a lifecycle event, not a damage state |
+| `ObjectiveMode` | `TIMED`, `RELAXED`, `OFF` | Q-GD-19 |
+| `PauseReasonCategory` | `RAID`, `ABUSE`, `TECHNICAL`, `CONTENT`, `OTHER` | Q-RB-1 (ADMIN-RBAC pause flow) |
+| `RallyIntent` | `ATTACK`, `DEFEND`, `SUPPLY` | Q-SUP-6 |
 
 ### 3.4 Units of measure
 | Quantity | Unit |
@@ -114,7 +121,7 @@ Text shown on stream additionally requires `ModeratedText`, a SafeText already a
 | `platform_user_id` | string ≤ 64 | yes | Opaque platform id. Identity key together with `platform`. |
 | `platform_message_id` | `PlatformMessageId` | yes | Dedupe key (LRU 10k, CHAT-GATEWAY §7) |
 | `display_name` | SafeText ≤ 64 | yes | Stored for identity only. **Never** rendered or put in prompts. |
-| `text` | SafeText ≤ 300 | yes | Truncated over 300 → rejected, not truncated (proposed). |
+| `text` | SafeText ≤ 300 | yes | Over 300 after normalization → **rejected, never truncated** (Q-CT-1); the sender gets a "too long" note in the batched digest. |
 | `match_key` | string ≤ 300 | yes | Confusable-folded lowercase form used for command matching |
 | `received_at` | RFC 3339 UTC | yes | Gateway wall clock. Used for metrics and rate limits, never by the sim. |
 | `platform_badges` | array of `BROADCASTER`/`MODERATOR`/`SUPPORTER` | yes (may be empty) | Neutral badges. Each adapter maps its platform's own roles onto these (ADR-0010 N-6), and only from the platform payload. Never inferred (DI-8). |
@@ -138,10 +145,17 @@ Text shown on stream additionally requires `ModeratedText`, a SafeText already a
 
 | CommandKind | From chat text | Payload fields | Who / gate | Possible rejects |
 |---|---|---|---|---|
-| `JOIN` | `!join <role>` | `role: Role` (`NAVY` in P4) | CHAT, O-1 | `ROLE_UNKNOWN`, `UNIT_IN_SORTIE`, `RESPAWN_COOLDOWN`, `QUEUED_RESERVE` (not an error: emits `ReserveQueueJoined`), `CAMPAIGN_NOT_RUNNING`, `SPAWNS_FROZEN` |
+| `JOIN` | `!join <role> [stance] [hold]` | `role: Role` (`NAVY` in P3), `stance: Stance\|null`, `hold: bool` (opt out of Tasking Board auto-tasking, GAMEPLAY §1b) | CHAT, O-1 | `ROLE_UNKNOWN`, `UNIT_IN_SORTIE`, `RESPAWN_COOLDOWN`, `QUEUED_RESERVE` (not an error: emits `ReserveQueueJoined`), `CAMPAIGN_NOT_RUNNING`, `SPAWNS_FROZEN` |
 | `TARGET` | `!target <node>` | `node_id: NodeId` (resolved by fuzzy match against the fixed node-name list *before* the command is built) | CHAT, O-1 | `NO_ACTIVE_UNIT`, `NODE_UNKNOWN`, `NODE_INVALID_FOR_UNIT` |
 | `RTB` | `!rtb` | — | CHAT, O-1 | `NO_ACTIVE_UNIT`, `NO_FRIENDLY_BASE_REACHABLE` |
-| `STATUS` | `!status` | — | CHAT, O-1 | `NO_ACTIVE_UNIT` |
+| `ME` | `!me` | — | CHAT, O-1. Highlights the unit; the digest repeats callsign, status, cooldowns, queue position and the commander's own conduct standing (FB-UX-3, Q-MOD-5). Works while queued. | `NO_ACTIVE_UNIT` (only when neither a unit nor a queue entry exists) |
+| `STATUS` | `!status` | — | CHAT, O-1. Highlight only. Whether it becomes an alias of `ME` is **open** (Q-UX-12). | `NO_ACTIVE_UNIT` |
+| `STANCE` | `!stance <press\|standard\|cautious\|guns>` | `stance: Stance` | CHAT, O-1 (GAMEPLAY §6) | `NO_ACTIVE_UNIT`, `STANCE_UNKNOWN` |
+| `REBASE` | `!rebase <node>` | `node_id: NodeId` (friendly base valid for the domain) | CHAT, O-1 | `NO_ACTIVE_UNIT`, `NODE_UNKNOWN`, `NODE_NOT_FRIENDLY`, `NODE_INVALID_FOR_UNIT`, `OUT_OF_REACH` (fuel; Q-UX-6 suggests the nearest reachable base) |
+| `RALLY` | `!rally <node> <attack\|defend\|supply>` | `node_id: NodeId`, `intent: RallyIntent` | CHAT, O-3, own cooldown (Q-SUP-6). Emits a map annotation only; never controls other units. | `RANK_TOO_LOW`, `NODE_UNKNOWN`, `RALLY_COOLDOWN`, `RALLY_LIMIT` (max active), `CONDUCT_RESTRICTED` |
+| `RESCUE` | `!rescue <marker>` | `marker_id: CrewMarkerId` | CHAT, O-1, needs a suitable live unit (GAMEPLAY §6a) | `NO_ACTIVE_UNIT`, `MARKER_UNKNOWN`, `NO_SUITABLE_UNIT` |
+| `SCOUT` | `!scout <sector>` | `sector_id: SectorId` | CHAT, only while in the reserve queue (RQ-4) | `NOT_QUEUED`, `SECTOR_UNKNOWN`, `RATE_LIMITED` |
+| — (info) | `!help`, `!guide`, `!rules`, `!link` | — | CHAT, any. **Not commands:** handled by the gateway digest; they only add a template line or the static URL (Field Manual, published rules, linking portal) to the next digest. They never enter the sim (Q-UX-1, Q-MOD-5, IDENTITY §4). | rate-limited only |
 | `SET_CALLSIGN` | `!callsign <NAME>` | `requested: Callsign` | CHAT, first completed mission (Q-PROG-3). Doesn't enter the sim: handled by identity + moderation queue. | `NO_COMPLETED_MISSION`, `CALLSIGN_FORMAT`, `CALLSIGN_TAKEN`, `CALLSIGN_RESERVED`, `CALLSIGN_COOLDOWN`, `PENDING_REVIEW` (informational) |
 | `VECTOR` | `!vector <bearing> <km>` | `bearing_deg: int 0–359`, `distance_m: int 1–map diagonal` | CHAT, O-2 | `RANK_TOO_LOW`, `NO_ACTIVE_UNIT`, `OUT_OF_BOUNDS`, `INVALID_FOR_DOMAIN` |
 | `SPAWN_SPECIALIST` | `!sead`, `!artillery`, `!engineer`, `!jammer`, `!awacs` | `unit_kind: UnitKind` | CHAT, rank per PROGRESSION | `RANK_TOO_LOW`, `UNIT_IN_SORTIE`, `RESPAWN_COOLDOWN`, `NOT_YET_AVAILABLE` (phase-gated) |
@@ -153,7 +167,8 @@ Text shown on stream additionally requires `ModeratedText`, a SafeText already a
 | `FORGET` | `!forget` | — | CHAT, any. Handled by identity (SEC-DATA-3). Doesn't enter the sim except to despawn units. | — |
 | `ADVISOR_CHOICE` | — | `decision_window: int`, `choice_index: int ≥ 0`, `op_name: ModeratedText ≤ 40`, `rationale: ModeratedText ≤ 140`, `model_ref: string ≤ 64` | ADVISOR, P4 | `WINDOW_EXPIRED`, `CHOICE_OUT_OF_RANGE` (rules pick instead, FB-2) |
 | `OP_KILL_SWITCH` | — | `hide_user_text: bool`, `mute_tts: bool`, `freeze_spawns: bool` | OPERATOR | — |
-| `OP_CAMPAIGN_PAUSE` / `OP_CAMPAIGN_RESUME` | — | `reason: SafeText ≤ 140` | OPERATOR | `ALREADY_PAUSED` / `NOT_PAUSED`, `CAMPAIGN_NOT_RUNNING` |
+| `OP_CAMPAIGN_PAUSE` | — | `reason_category: PauseReasonCategory` (required), `note: SafeText ≤ 140` (required) | OPERATOR: MODERATOR, GM, ADMIN, OWNER (Q-RB-1). Triggers the immediate owner alert (ADMIN-RBAC pause flow). | `ALREADY_PAUSED`, `CAMPAIGN_NOT_RUNNING`, `REASON_REQUIRED` |
+| `OP_CAMPAIGN_RESUME` | — | `note: SafeText ≤ 140\|null` | OPERATOR: GM, ADMIN, OWNER only (Q-RB-1) | `NOT_PAUSED`, `CAMPAIGN_NOT_RUNNING` |
 | `OP_CAMPAIGN_END` | — | `reason: SafeText ≤ 140` | OPERATOR. Ends the campaign with result `ABORTED`. | `CAMPAIGN_NOT_RUNNING` |
 | `OP_BAN` / `OP_UNBAN` | — | `commander_id`, `reason: SafeText ≤ 140` | OPERATOR, or SYSTEM from a platform moderation event (CHAT-GATEWAY §2) | `COMMANDER_UNKNOWN` |
 | `OP_PURGE_UNITS` | — | `commander_id` | OPERATOR | `COMMANDER_UNKNOWN` |
@@ -175,7 +190,7 @@ Every value listed in §5.2, plus `INVALID_PAYLOAD`, `BANNED`, `LATE` (applied, 
 
 | Event | Fields | Redaction for public view | Consumers |
 |---|---|---|---|
-| `CampaignStarted` | `mode`, `theater_id`, `seed`, `config_hash`, `start_tick` | `seed` omitted (proposed: it would let viewers predict RNG) | B A O |
+| `CampaignStarted` | `mode`, `objective_mode`, `options{friendly_fire, unlimited_ammo}`, `theater_id`, `seed`, `config_hash`, `start_tick` | `seed` omitted during the campaign and published after `CampaignEnded` with the "what you didn't see" recap (Q-CT-2) | B A O |
 | `CampaignEnded` | `result: CampaignResult`, `end_tick`, `score`, `nodes_held_pct` | none | B P A C O |
 | `AARStarted` | `result: CampaignResult`, `top_by_role: {role, commander_ids[] ≤ 5}[]` | Commander ids resolve to approved callsigns at render time | B A O |
 | `CampaignClockPaused` / `Resumed` | `reason: OPERATOR` (no automatic pause, Q-GD-4 amended) | none | B O |
@@ -184,9 +199,9 @@ Every value listed in §5.2, plus `INVALID_PAYLOAD`, `BANNED`, `LATE` (applied, 
 | `UnitOrphaned` | `entity_id`, `commander_id`, `cause: BANNED\|FORGOTTEN` | none (coalition units only) | B O |
 | `RearmStalled` | `entity_id`, `node_id` | ENEMY: dropped | B O |
 | `WaypointReached` | `entity_id`, `node_id\|null` | Hidden ENEMY: dropped | O |
-| `UnitDamaged` | `entity_id`, `attacker_id\|null`, `amount`, `hp_after` | A hidden attacker becomes `attacker_id: null` | B C O |
+| `UnitDamaged` | `entity_id`, `attacker_id\|null`, `amount`, `hp_after`, `damage_state_after: DamageState`, `critical: bool` (Q-CBT-8) | A hidden attacker becomes `attacker_id: null` | B C O |
 | `UnitDestroyed` | `entity_id`, `killer_id\|null`, `assist_ids[]`, `side` | A hidden killer becomes `null` ("Unknown contact", FOW-3). A hidden victim is dropped. | B P A C O |
-| `WeaponFired` | `shooter_id`, `target_id`, `weapon`, `hit: bool` | Hidden shooter: the tracer origin is replaced by no tracer (proposed) | B C |
+| `WeaponFired` | `shooter_id`, `target_id`, `weapon`, `hit: bool` | Hidden shooter: no tracer; the impact shows as "unknown contact" (Q-CT-3; revisit in the readability study NX-034) | B C |
 | `TargetPainted` | `recon_id`, `target_id`, `until_tick` | none (target is TRACK or above by definition) | B P |
 | `CaptureStarted` | `node_id`, `side` | none (nodes are always visible) | B A O |
 | `CaptureProgress` | `node_id`, `side`, `progress_pct`, `contested: bool` | none (nodes are always visible) | B O |
@@ -209,11 +224,11 @@ Every value listed in §5.2, plus `INVALID_PAYLOAD`, `BANNED`, `LATE` (applied, 
 | `CommanderBanned` | `commander_id` | Not public (only the unit's removal is visible) | O P |
 | `CommanderForgotten` | `commander_id` | Not public | O P |
 | `BalanceReloaded` | `old_hash`, `new_hash`, `keys: string[]` | Not public | O R |
-| `PresenceSnapshot` | `active_humans: int`, `distinct_humans_active: int`, `window_ticks: int` | Counts only (no ids) | B P O |
+| `PresenceSnapshot` | `active_humans: int`, `distinct_humans_active: int`, `by_role: {role: Role, count: int}[]`, `by_rank_band: {band, count}[]\|null`, `window_ticks: int` | Counts only (no ids) | B P O |
 | `KillSwitchChanged` | flags as in `OP_KILL_SWITCH` | none | B A O |
 | `StateHash` | `tick`, `hash: hex` | not public | O R |
 
-**PresenceSnapshot** is emitted every `presence.emit_every_ticks` (CONFIG-AND-CONTENT §6.6) over the trailing `presence.window_s`. Both counts include only `COMMANDER` owners (DI-5): `active_humans` = commanders with a live unit or an accepted command in the window (drives the HUD count and the clock pause, Q-GD-4/Q-SM-5); `distinct_humans_active` = distinct commanders with an accepted command in the window (drives PROG-2). The kernel derives both from applied commands, so they are deterministic.
+**PresenceSnapshot** is emitted every `presence.emit_every_ticks` (CONFIG-AND-CONTENT §6.6) over the trailing `presence.window_s`. Both counts include only `COMMANDER` owners (DI-5): `active_humans` = commanders with a live unit or an accepted command in the window (drives the HUD "Operators active" count and its breakdown, Q-CT-4; it does **not** pause the clock, Q-GD-4 amended / Q-SM-5); `distinct_humans_active` = distinct commanders with an accepted command in the window (drives PROG-2). The kernel derives both from applied commands, so they are deterministic.
 
 **Who decides an entity is hidden:** the redaction pass uses the coalition visibility predicate at the event's tick (FOW-1). Property test: no public payload references an `EntityId` that fails the predicate.
 
@@ -226,29 +241,32 @@ These detail WIRE-PROTOCOL §2. All messages carry `type` and `v` (PROTOCOL_VERS
 | `Welcome` | `server_build: string`, `campaign_id\|null`, `tick_rate_hz: int`, `theater: TheaterStatic` (sent once: nodes with `{node_id, name, kind, pos}`, edges, terrain asset ref) |
 | `Snapshot` | `tick`, `entities: EntityView[]`, `nodes: NodeView[]`, `blobs: BlobView[]`, `hud: Hud`, `packages: PackageView[]`, `kill_switch: flags` |
 | `Delta` | `tick`, `base_tick`, `upserts: EntityPatch[]`, `removes: EntityId[]`, `node_patches: NodePatch[]`, `blobs: BlobView[]\|null` (null = unchanged; a full replacement on SIGINT refresh), `events: PublicEvent[]` |
-| `Hud` (≤ 1 Hz) | `momentum_pct: int 0–100\|null`, `objective: {node_id, name, deadline_tick}\|null`, `threat_tier`, `campaign_clock: {elapsed_ticks, limit_ticks, paused}`, `ticker: TickerItem[] ≤ 20`, `panels: Panels`, `active_humans: int\|null` (from the latest `PresenceSnapshot`; DI-5: humans only, `null` until the first snapshot) |
+| `Hud` (≤ 1 Hz) | `momentum_pct: int 0–100\|null`, `momentum_breakdown: {nodes_held_pct, supply_pct, recent_events: PublicEvent[] ≤ 5, sectors: {sector_id, owner_trend}[]}\|null` (Q-UX-9), `objective_mode: ObjectiveMode`, `objective: {node_id, name, deadline_tick\|null}\|null` (`null` when none is active; `deadline_tick` null in `RELAXED`), `threat_tier`, `campaign_clock: {elapsed_ticks, limit_ticks, paused}`, `ticker: TickerItem[] ≤ 20`, `panels: Panels`, `active_humans: int\|null` (from the latest `PresenceSnapshot`; DI-5: humans only, `null` until the first snapshot), `operators: {by_role: {role, count}[], by_rank_band: {band, count}[]\|null}\|null` (Q-CT-4; `null` until the first snapshot) |
 | `Audio` | `sitrep_id`, `text: ModeratedText ≤ 140`, `url: string` (local nginx path), `bus: MUSIC\|FOLEY\|RADIO`, `priority: int 0–9`, `expires_tick` |
 | `Control` | `action: RELOAD\|RESYNC\|BANNER\|KILL_SWITCH`, `banner_text: SafeText ≤ 80\|null`, `flags\|null` |
 | `Ack` (C→S) | `applied_tick: Tick` |
 
 Field shapes:
 - `EntityView`:
-  - `{entity_id, unit_kind, side, domain, owner_kind, callsign|null, pos:{x_m:int,y_m:int}, heading_deg:int, speed_mps:int, hp_pct:int 0–100, fow: TRACK|PAINTED, package_id|null, cosmetic:{halo|null, trail|null}, badges: string[] ≤ 4}`
+  - `{entity_id, unit_kind, side, domain, owner_kind, callsign|null, pos:{x_m:int,y_m:int}, heading_deg:int, speed_mps:int, hp_pct:int 0–100, damage_state: DamageState, fow: TRACK|PAINTED, package_id|null, cosmetic:{halo|null, trail|null}, badges: string[] ≤ 4, probation: bool}`
+  - `probation` is true only while the operator has an active conduct restriction (Q-MOD-6); no score is ever sent. Always false for AI entities.
   - `fow` is never SIGINT, because blobs are separate. `callsign` is null for AI entities, which render an `[AI]` label (DI-5).
 - `EntityPatch`: `entity_id` plus only the changed fields of `EntityView`.
 - `NodeView`: `{node_id, owner: NodeOwner, capture:{side|null, progress_pct:int}, stock_pct:int|null, starvation: OK|LOW|EMPTY|null, hp_pct:int|null}`. `stock_pct`, `starvation` and `hp_pct` are null for ENEMY nodes the coalition can't see (DI-1).
 - `BlobView`: `{blob_id: BlobId, cell_center:{x_m,y_m}, size: S|M|L}`.
 - `TickerItem`: `{tick, text: ModeratedText ≤ 100, category: CAPTURE|SUPPLY|COMBAT|DIRECTOR|SYSTEM}`.
 - `Panels`:
-  - `campaign_status: {nodes_held:{coalition,enemy,neutral}, result|null}`
+  - `campaign_status: {nodes_held:{coalition,enemy,neutral}, result|null}` (the operator breakdown comes from `Hud.operators`)
+  - `tasking_needed: [{job_kind, node_id|null, sector_id|null, slots_open}] ≤ 3` (GAMEPLAY §1b)
   - `top_commanders: {role, rows:[{callsign, value}] ≤ 5}[]`. Real rows only; never padded (DI-4).
   - `active_packages: [{name, lead_callsign|null, member_count}] ≤ 6`
   - `latest_major_event: PublicEvent|null`
 
 ## 8. Internal HTTP / admin API
-- **Binding:** served by `nexus.ops` on localhost or the tailnet only. It is never exposed publicly (OPS-ADMIN §3).
+- **Two apps (Q-ARCH-7):** this API backs the private **Command Center** only. The **public site** (replays, leaderboards, stats, later player login) is a separate app with its own read-only API and **no admin routes**; they share contracts and a design system, not an API, so a public-site bug can't reach admin powers.
+- **Binding:** served by `nexus.ops` on localhost or the tailnet only, plus the Discord `AdminChannel` (ADMIN-RBAC §7.1). Never exposed publicly; a DAST pass is required before any public exposure (Q-RB-4).
 - **Auth:**
-  - Every `/admin/*` route requires an owner session: a passkey or OAuth login plus an allowlist (OPS-ADMIN §3).
+  - Every `/admin/*` route requires an authenticated operator session and is authorized per route against the RBAC matrix (ADMIN-RBAC §4). Passkeys (WebAuthn) for owner and admins; Discord OAuth for moderators later, via a verified link (Q-ARCH-12). In P2 there is a single OWNER operator (ADMIN-RBAC §10).
   - Session cookie is `Secure; HttpOnly; SameSite=Strict`, plus a CSRF token on POST (SEC-ID-5 pattern).
   - `/health` and `/metrics` need no auth but are tailnet- or localhost-bound.
 - **Responses:** all are JSON, with schemas in `contracts/admin/`.
@@ -258,7 +276,8 @@ Field shapes:
 | `GET /health` | — | `{status: OK\|DEGRADED\|DOWN, components:{sim, gateway_<platform>, tts, db, ws}}`, each `{state, detail\|null}` | no |
 | `GET /metrics` | — | Prometheus text (OPS-ADMIN §2) | no |
 | `POST /admin/kill-switch` | `{hide_user_text, mute_tts, freeze_spawns}` | Emits `OP_KILL_SWITCH` | yes |
-| `POST /admin/campaign/pause` / `resume` | `{reason}` | `OP_CAMPAIGN_PAUSE` / `OP_CAMPAIGN_RESUME` | yes |
+| `POST /admin/campaign/pause` | `{reason_category, note}` | `OP_CAMPAIGN_PAUSE` + owner alert (Q-RB-1) | yes |
+| `POST /admin/campaign/resume` | `{note\|null}` | `OP_CAMPAIGN_RESUME` (GM/admin/owner) | yes |
 | `POST /admin/campaign/end` | `{reason}` | `OP_CAMPAIGN_END` (result `ABORTED`) | yes |
 | `POST /admin/commanders/{id}/ban` / `unban` | `{reason}` | `OP_BAN` / `OP_UNBAN` | yes |
 | `POST /admin/commanders/{id}/purge-units` | — | `OP_PURGE_UNITS` | yes |
@@ -296,14 +315,14 @@ Secrets and tokens are never recorded (NX-026 redaction). Every sim-affecting ad
 | Replay determinism across encode/decode | Golden replay of the command log via the generated types (SC-3) |
 
 ## 11. Open questions
-Existing questions referenced: Q-GD-2, Q-GD-3, Q-GD-7, Q-GD-8, Q-MOD-1, Q-AI-2.
+Decided and folded in (2026-10-17): Q-GD-2 (Siege reserved), Q-GD-3 (doctrine per campaign), Q-GD-7 (defeat), Q-GD-8 (sea in P3), Q-MOD-1 (generated callsigns; custom after first mission per Q-PROG-3), Q-AI-2 (`!order` in P4 over the command catalog), and the questions this spec raised:
+1. **Q-CT-1** Over-length chat is **rejected, never truncated** (§4).
+2. **Q-CT-2** The seed is hidden during the campaign and published after `CampaignEnded` with a "what you didn't see" recap labeling each enemy decision as AI rules, LLM advisor or human GM (§6).
+3. **Q-CT-3** No tracers from unseen shooters; impact shown as "unknown contact" (§6).
+4. **Q-CT-4** "Operators active" is shown (humans only, `—` until known) with a breakdown by role or doctrine, optionally rank band (§6 `PresenceSnapshot`, §7 `Hud.operators`).
+5. **Q-CT-5** Small MVP enemy/garrison roster, confirmed at the theater sketch (NX-008); new platforms via the content pipeline (CONFIG-AND-CONTENT §7a).
 
-### Questions raised by this spec (tracked in [OPEN-QUESTIONS](../planning/OPEN-QUESTIONS.md))
-1. **Q-CT-1** Should over-length chat (> 300 chars) be rejected or truncated? *Recommended:* reject. Truncation could turn a long message into a different valid command.
-2. **Q-CT-2** Should the public `CampaignStarted` event, and therefore replays, expose the campaign seed? *Recommended:* hide it during the campaign, and publish it after `CampaignEnded` for transparency.
-3. **Q-CT-3** Should viewers see enemy tracers from unseen shooters as "incoming fire from unknown direction" instead of nothing? *Recommended:* nothing in MVP, revisit after readability testing (NX-034).
-4. **Q-CT-4** Should `Hud.active_humans` (count of real human commanders active in the last N minutes) be shown on stream? *Recommended:* yes. It counts humans only, and is shown as `—` until known (DI-5, DI-1).
-5. **Q-CT-5** Enemy and garrison `UnitKind` roster for MVP (the proposed set is `GARRISON_AAA`, `GARRISON_INFANTRY`, `ENEMY_SAM_SITE`, `ENEMY_RADAR`, `ENEMY_FIGHTER`, `ENEMY_ARMOR`, `ENEMY_CONVOY`). *Recommended:* confirm with the first theater sketch (NX-008).
+Still open: Q-UX-12 (`!status` as an alias of `!me`), Q-GW-2 (Shared Chat / raid-origin commands).
 
 ## Contract additions pending merge (2026-10-17)
 The following are specified in their source specs and must be added to `/contracts` together with the tables above when implementing:
@@ -318,5 +337,13 @@ The following are specified in their source specs and must be added to `/contrac
   - Command `SUPPORT_REDEEM{support_id, rule_id, commander_id?}`.
   - Events `SupportRedeemed`, `SupportUnapplied{reason}`.
 - **From GAMEPLAY §4a / §9b:**
-  - Command `!scout <sector>` (queued viewers).
-  - Events `ScoutPing`, `CarryoverApplied`.
+  - Events `ScoutPing`, `CarryoverApplied`. (`SCOUT` itself is now in §5.2.)
+- **From combat decisions (GAMEPLAY §5–§6a, SIM-CORE §4; Q-CBT-1/6/7/8, Q-GD-27):**
+  - Events `UnitDamageStateChanged{entity_id, from, to}`, `MunitionsDepleted{entity_id, guns_only: bool}`, `CrewDowned{marker_id, entity_id, side, pos}`, `CrewRescued{marker_id, rescuer_ids[]}`, `CrewCaptured{marker_id}`, `UnitRepaired{entity_id, by_id|null, node_id|null}`, `StanceChanged{entity_id, stance}`, `CriticalHit{entity_id, effect}`.
+  - `UnitDespawned.reason` and `UnitDestroyed` need no change; `Disabled` units stay live entities.
+- **From the Tasking Board (GAMEPLAY §1b, Q-GD-26):** events `JobPosted`, `JobClaimed{job_id, entity_id}`, `JobReleased`, `JobExpired`; `TaskingJobId` id type.
+- **From rally calls (Q-SUP-6, OVERLAY §2a):** event `RallyCalled{commander_id, node_id, intent, ttl_ticks}` → rendered as an `Annotation`.
+- **From the conduct system (ADMIN-RBAC §6.8, Q-MOD-5/6):** **note only, schemas to be written with the conduct spec (NX-291):**
+  - The conduct score and its flags are **runtime/persistence data, not sim state** and never appear in public payloads. Only the boolean `EntityView.probation` (§7) reaches the overlay.
+  - Restrictions that change gameplay (longer cooldowns, no rally calls, temporary in-game timeout) reach the sim as logged `SYS_*` commands (e.g. a `SYS_CONDUCT_RESTRICTION{commander_id, restriction, until}` command, name PROPOSED), so replays reproduce them. Reject reason `CONDUCT_RESTRICTED` (§5.2).
+  - XP/merit penalties are typed ledger entries, audited and reversible on appeal (DATA-MODEL ledgers).

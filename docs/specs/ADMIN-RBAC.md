@@ -1,4 +1,4 @@
-# SPEC: Admin Console & Role-Based Access Control (RBAC)
+# SPEC: Command Center (Admin Console) & Role-Based Access Control (RBAC)
 
 Status: Draft · Owner: — · Tracker: NX-253 (P2 minimal console), NX-258…NX-266 (P3/P4, proposed) · Related: OPS-ADMIN, CONTRACTS §5.2 and §8, THREAT-MODEL, DATA-MODEL, CONFIG-AND-CONTENT, ADR-0002, ADR-0010
 
@@ -20,7 +20,7 @@ All of this has to work from a phone browser or Discord, with least privilege an
 - Rule changes are schema-validated, diffed, dry-run in the balance harness, and reversible.
 
 **Non-goals**
-- A public player-facing website. That's the companion site, backlog.
+- Public player-facing features. Per Q-ARCH-7 there are **two apps in one codebase**: the **public site** (replays, leaderboards, stats, Field Manual, later player login and account linking; read-mostly, **no admin features**) and this private **Command Center**. They share a design system and contracts but use separate APIs, logins and deployments, so a public-site bug can't reach admin powers. The public site has its own spec (to be written).
 - Arbitrary code or script execution from the console.
 - Editing values the sim computes. Operators can't hand-edit XP, unit HP, or node stock directly.
 
@@ -117,16 +117,17 @@ All of this has to work from a phone browser or Discord, with least privilege an
 | ai.gm_lift_limits | ✅ | — | — | — | — | — | — | — | — |
 | ai.advisor_toggle | ✅ | ✅ | — | — | — | — | — | — | — |
 | campaign.view | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — | ✅ | — |
-| campaign.pause / resume | ✅ | ✅ | ✅ | ✅ | — | — | — | — | — |
+| campaign.pause | ✅ | ✅ | ✅ | ✅ (reason required) | — | — | — | — | — |
+| campaign.resume | ✅ | ✅ | ✅ | — | — | — | — | — | — |
 | campaign.end | ⚠ | ⚠ | — | — | — | — | — | — | — |
 | campaign.schedule | ✅ | ✅ | ✅ | — | — | — | — | — | — |
 | rules.view | ✅ | ✅ | ✅ | — | ✅ | ✅ | — | ✅ | — |
-| rules.draft | ✅ | ✅ | — | — | ✅ | — | — | ✅ (drafts only) | — |
-| rules.apply_hot | ⚠ | ⚠ | — | — | — | — | — | — | — |
-| rules.publish / rollback | ⚠ | ⚠ | — | — | — | — | — | — | — |
+| rules.draft | ✅ | ✅ | ✅ | — | ✅ (drafts only) | — | — | ✅ (drafts only) | — |
+| rules.apply_hot | ⚠ | ⚠ | ⚠ | — | — | — | — | — | — |
+| rules.publish / rollback | ⚠ | ⚠ | ⚠ | — | — | — | — | — | — |
 | content.view | ✅ | ✅ | ✅ | — | ✅ | ✅ | — | ✅ | — |
-| content.draft | ✅ | ✅ | — | — | ✅ | — | — | ✅ (drafts only) | — |
-| content.publish | ✅ | ✅ | — | — | — | — | — | — | — |
+| content.draft | ✅ | ✅ | ✅ | — | ✅ (drafts only) | — | — | ✅ (drafts only) | — |
+| content.publish | ✅ | ✅ | ✅ | — | — | — | — | — | — |
 | ops.view | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | — | ✅ | ✅ |
 | ops.alerts_ack | ✅ | ✅ | — | ✅ | — | — | — | — | — |
 | audit.view | ✅ | ✅ | own actions | own actions | own actions | — | — | — | — |
@@ -134,7 +135,7 @@ All of this has to work from a phone browser or Discord, with least privilege an
 | access.grant_roles | ✅ | ✅ (≤ GM/MOD/EDITOR/VIEWER) | — | — | — | — | — | — | — |
 | access.manage_tokens | ✅ | ✅ | — | — | — | — | — | — | — |
 
-This matrix is a **proposal** for the owner to adjust. Q-RB-1 covers whether moderators may pause campaigns.
+This matrix folds in the owner decisions of 2026-10-17: moderators may **pause** (with a required reason) but not resume (Q-RB-1); **game rules, balance, campaign options and content are edited only by Owner, Admin and Game Master** ("Who edits game rules" addendum). `CONTENT_EDITOR` and `SVC_AGENT` produce **drafts only**; a draft takes effect only when an Owner, Admin or GM applies or publishes it. Moderators never edit rules. Exact grants remain adjustable by the owner.
 
 ### 4.4 Scoping
 - Each role grant has a scope: `GLOBAL`, or `CAMPAIGN:<campaign_id>` (e.g., a guest GM for one weekend event), with an optional `expires_at`.
@@ -143,18 +144,18 @@ This matrix is a **proposal** for the owner to adjust. Q-RB-1 covers whether mod
 ### 4.5 Separation of duties
 - `CONTENT_EDITOR` drafts. Publishing needs `ADMIN`/`OWNER` (different person when the two-person rule is on).
 - `SVC_AGENT` can draft but never apply, publish, ban, or take over. An agent's drafts appear in an approval queue with the agent's token id as author.
-- No one can approve their own two-person request. OWNER may self-approve only when no second eligible operator exists, and the audit row is flagged `SELF_APPROVED_SOLE_OWNER` (Q-RB-3).
+- No one can approve their own two-person request. While the owner is the only eligible operator, self-approval is allowed, audit-flagged `SELF_APPROVED_SOLE_OWNER`, and `campaign.end` and `rules.publish` run after a **cancellable safety delay** (`admin.solo_approval_delay_s`, PROPOSED ~10 min) (Q-RB-3). Second-person approval applies once more admins exist.
 - Audit rows can't be edited or deleted by anyone, including OWNER (append-only, DM-3).
 
 ## 5. Authentication
 | Topic | Rule |
 |---|---|
-| Owner login | Passkey (WebAuthn) primary. OAuth (Twitch, Discord, Google) as a second factor or recovery, checked against an operator allowlist. |
-| Other operators | OAuth via a linked platform identity + allowlist entry + role grant. A passkey is required for ADMIN and GAME_MASTER. |
+| Owner login | Passkey (WebAuthn) primary (Q-ARCH-12). OAuth (Twitch, Discord, Google) as a second factor or recovery, checked against an operator allowlist. |
+| Other operators | Passkeys for admins (Q-ARCH-12); a passkey is also required for GAME_MASTER. Moderators sign in later via Discord OAuth with a verified role mapping (Q-ARCH-12), plus allowlist entry + role grant. |
 | MFA | Required for OWNER and ADMIN (passkey counts). Step-up re-auth for ⚠ actions. |
 | Sessions | HttpOnly, Secure, SameSite=strict cookies. Idle timeout and absolute lifetime are config keys (`admin.session_idle_s`, `admin.session_max_s`, PROPOSED values TBD). Revocable from the console. |
 | CSRF | Token on every state-changing request (SEC-ID-5 pattern). |
-| Exposure | P2: tailnet only (OPS-ADMIN §3). P3+: optionally behind a tunnel with the same auth, with public exposure decided in Q-RB-4. |
+| Exposure | Private: reachable only via Tailscale (tailnet) and the Discord `AdminChannel` (Q-RB-4, Q-ARCH-12). A DAST pass is required before any public exposure. |
 | Discord | Slash commands are handled by the Discord adapter. The bot resolves `discord_user_id` → verified operator link → role. Discord server roles are **not** trusted on their own (RB-5). A Discord role can only be a *hint* that an operator link exists. |
 | Service tokens | Opaque, ≥128-bit, stored hashed, scoped to explicit permissions, with expiry. Revocable, rotated by runbook. |
 | Rate limits | Per operator and per IP. ⚠ actions get a separate stricter bucket. Values are config keys (PROPOSED, TBD). |
@@ -178,11 +179,13 @@ Commander search (by callsign or id), stats from ledgers, ban history, link/merg
   2. While held, `OP_GM_OPERATION{operation, target, params}` issues operations from the same doctrine library. Each is validated against preconditions, **tier budget**, and the **enemy fog-of-war view** (FOW-4), unless an OWNER has lifted limits with `OP_GM_LIMITS{budget: bool, fow: bool}`.
   3. `OP_GM_RELEASE` returns control to the director.
   4. Takeover auto-releases after `admin.gm_max_session_s` (config, PROPOSED TBD), or when the GM's session ends, so the AI is never left stuck.
-  5. On stream: the threat panel shows `GAME MASTER ACTIVE`, and sitreps for GM operations are tagged `[GM]` (DATA-INTEGRITY DI-5: actors are labeled honestly).
+  5. On stream: the threat panel shows `GAME MASTER ACTIVE`, and sitreps for GM operations are tagged `[GM]` and spoken with the distinct Game Master voice profile (DATA-INTEGRITY DI-5; Q-RB-7, AUDIO-TTS §2a).
+  5a. Threat memory keeps learning during a FULL takeover (Q-RB-6).
   6. Every GM operation is a logged command, so replays reproduce it.
 
 ### 6.4 Campaign planning & scheduling
-- **Calendar:** past, current, and future campaigns. Each scheduled campaign: `mode` (CampaignMode), `theater_id@version`, `balance_profile@version`, start time (owner timezone, stored UTC), optional target length.
+- **Calendar:** past, current, and future campaigns. Each scheduled campaign: `mode` (CampaignMode), `theater_id@version`, `balance_profile@version`, objective mode (`timed`/`relaxed`/`off`, Q-GD-19), campaign options (friendly fire, unlimited ammo, weather; Q-CBT-4/5/7), start time, optional target length (Q-GD-5).
+- **Times and time zones (Q-CFG-6):** times are stored as wall-clock time **with an explicit IANA time zone** (default `America/New_York`, the owner's zone), not as UTC offsets, so DST is handled. The scheduler resolves each item to a UTC instant when it computes the next run; audit timestamps stay RFC 3339 UTC.
 - **Scheduled events:** timed operations ("Operation Red Tempest at Saturday 20:00"), maintenance windows (auto-pause with an on-stream banner), and announcement text.
 - **Execution:** at the scheduled time, the scheduler emits the corresponding command (`SYS_CAMPAIGN_START`, `OP_CAMPAIGN_PAUSE`, `OP_GM_OPERATION` as `SYSTEM` on behalf of the scheduling operator, recorded in `scheduled_items.created_by`).
 - **Conflicts:** overlapping campaigns, or a theater/profile version that isn't published, are rejected at scheduling time.
@@ -190,7 +193,7 @@ Commander search (by callsign or id), stats from ledgers, ban history, link/merg
 ### 6.5 Rules / balance editor
 1. Forms are generated from the balance JSON Schema (CONFIG-AND-CONTENT §6). Each key shows type, unit, source spec, hot-reloadable flag, and PROPOSED/validated status.
 2. **Diff preview** against the active profile, with non-hot-reloadable keys highlighted.
-3. **Dry-run:** queue a balance-harness run (TESTING-STRATEGY §3.5) on standard scenarios. The report is attached to the draft. Required before publish (Q-RB-5: required or optional for hot keys?).
+3. **Dry-run:** queue a balance-harness run (TESTING-STRATEGY §3.5) on standard scenarios. The report is attached to the draft. **Mandatory for next-campaign publishes; optional for hot keys, and a skipped dry-run is audit-flagged** (Q-RB-5).
 4. **Apply:** hot keys go through `OP_CONFIG_RELOAD` (existing). Everything else is **publish** for future campaigns.
 5. **Versioning:** every publish creates an immutable version (`config_versions` manifest). Rollback re-applies a previous version through the same path.
 
@@ -208,6 +211,14 @@ Commander search (by callsign or id), stats from ledgers, ban history, link/merg
 ### 6.7 Ops (read-only)
 Health of each component, alert list, current deploy versions (digests), adapter status and quota. Deploys themselves stay in GitHub Environments (CICD §6), never in the console.
 
+### 6.8 Conduct system (owner decisions Q-MOD-5, Q-MOD-6, Q-CBT-9; full spec NX-291)
+- **Separate from skill.** Losing, dying or being new never lowers conduct (Q-CBT-9). Only clear disruptive patterns are flagged: suicide spam (repeated deaths in a short window with no objective progress), command spam / throttle abuse, rapid role-flipping, repeated blocked-callsign attempts, deliberately draining a starved base.
+- **Decaying conduct score** with a slow, reversible **escalation ladder**: (1) a gentle warning in the digest → (2) reduced capabilities (longer cooldowns, no rally calls) → (3) temporary in-game timeout → (4) XP/merit penalty (typed, audited ledger entry) → (5) flagged to moderators for a ban decision. **Bans always need a human.** Conduct recovers with good play over time. Thresholds are PROPOSED and admin-tunable.
+- **Transparency:** the rules are published (public site + `!rules`). Each operator sees their own standing and any active restriction via `!me` (later the public site); other players' scores are never shown. Moderators and admins see conduct, merit, stats and rankings in the Command Center.
+- **Indicator to others (Q-MOD-6):** only a neutral **probation** tag on the unit while a restriction is active; no score, no shaming text (OVERLAY OV-2a, CONTRACTS `EntityView.probation`).
+- **Audit and appeal:** every flag and step is logged, visible to moderators, and reversible on appeal. Which permissions in §4.2 cover viewing, overriding and reversing conduct actions is to be added with the conduct spec (NX-291); until then no new permission is assumed.
+- Contract impact: see CONTRACTS "Contract additions pending merge" (conduct note).
+
 ## 7. Interfaces
 
 ### 7.1 AdminChannel port (ADR-0010)
@@ -222,7 +233,7 @@ Both channels produce the same `AdminRequest{operator_id, permission, action, pa
 | Action | Web console | Discord | Permission |
 |---|---|---|---|
 | Kill switch | Big button | `/nexus killswitch on\|off [flags]` | mod.kill_switch |
-| Pause / resume | Campaign page | `/nexus pause <reason>`, `/nexus resume` | campaign.pause/resume |
+| Pause / resume | Campaign page | `/nexus pause <category> <note>`, `/nexus resume` (also the one-tap link in the pause alert) | campaign.pause / campaign.resume |
 | Ban / unban | User page | `/nexus ban <callsign> <reason>`, `/nexus unban <callsign>` | mod.ban/unban |
 | Purge units | User page | `/nexus purge <callsign>` | mod.purge_units |
 | Callsign queue | Queue page | `/nexus callsigns` (list), buttons approve/reject | mod.callsign_review |
@@ -322,8 +333,9 @@ CREATE TABLE approval_requests (               -- two-person rule
 CREATE TABLE scheduled_items (
   item_id        TEXT PRIMARY KEY,
   kind           TEXT NOT NULL CHECK (kind IN ('CAMPAIGN','EVENT','MAINTENANCE')),
-  starts_at      TEXT NOT NULL,                -- UTC
-  ends_at        TEXT,
+  starts_at      TEXT NOT NULL,                -- local wall-clock time in `tz` (Q-CFG-6)
+  tz             TEXT NOT NULL,                -- IANA zone, e.g. America/New_York
+  ends_at        TEXT,                         -- local wall-clock time in `tz`
   payload_json   TEXT NOT NULL,                -- schema per kind (contracts/admin)
   created_by     TEXT NOT NULL REFERENCES operators(operator_id),
   created_at     TEXT NOT NULL,
@@ -381,15 +393,17 @@ CREATE TABLE content_versions (                -- theaters, balance profiles, te
 | RB-11 | Session idle and absolute expiry, revocation, rate-limit tests. |
 | RB-12 | `users.view` responses contain no platform ids (schema test). |
 
-## 13. Open questions
-New questions for OPEN-QUESTIONS (recommended answers in brackets):
-- **Q-RB-1:** May MODERATORs pause or resume campaigns? [Yes for pause, so they can act fast in incidents. Resume needs GM/ADMIN.]
-- **Q-RB-2:** Platform-scoped moderators: should a Twitch mod's ban cascade to the commander's other linked platforms? [Yes. The commander is one person (IDENTITY), and an unban requires ADMIN when the ban crossed platforms.]
-- **Q-RB-3:** Solo-owner two-person rule: allow flagged self-approval, or require a time delay instead? [Flagged self-approval plus a 10-minute delay for `campaign.end` and `rules.publish`. Delay value PROPOSED.]
-- **Q-RB-4:** Should the admin console ever be reachable from the public internet (behind auth), or tailnet/Discord only? [Tailnet + Discord only through P3. Revisit with a DAST pass before any public exposure.]
-- **Q-RB-5:** Is a balance-harness dry-run mandatory before hot-applying a key, or only before publish? [Mandatory before publish. Optional but recommended for hot keys, flagged in audit when skipped.]
-- **Q-RB-6:** In GM `FULL` mode, does the director's threat memory keep learning from player actions? [Yes, so control returns to an up-to-date director.]
-- **Q-RB-7:** Should GM sitreps use a distinct TTS voice? [Yes, same radio filter, different preset voice. Ties to AUDIO-TTS preset voices.]
+## 13. Resolved questions (owner decisions 2026-10-17)
+All questions raised by this spec are decided and folded in above:
+- **Q-RB-1:** moderators can pause, only with a required reason (category + note); resume needs GM/admin/owner; every pause alerts the owner immediately (§4.3, pause-flow addendum).
+- **Q-RB-2:** bans cascade across all linked platforms; unban requires an admin (§4.4).
+- **Q-RB-3:** self-approval allowed while solo, audit-flagged, with a cancellable ~10 min (PROPOSED) safety delay on campaign end and rules publish (§4.5).
+- **Q-RB-4:** the Command Center is private (tailnet + Discord); DAST before any public exposure (§5).
+- **Q-RB-5:** harness dry-run mandatory for next-campaign publishes; optional for hot keys, skip audit-flagged (§6.5).
+- **Q-RB-6:** threat memory keeps learning during GM FULL takeover (§6.3).
+- **Q-RB-7:** the Game Master has its own voice profile (§6.3, AUDIO-TTS §2a).
+
+Still open and relevant: Q-OPS-8 (auto-pause while the stream is offline) and Q-OPS-9 (weekly maintenance window, gaming on the broadcast PC) from the 2026-10-17 gap analysis.
 
 ## Addendum: Pause flow (owner decision 2026-10-17, Q-RB-1)
 1. **Pause form:** a moderator, GM or admin must give a reason category (RAID / ABUSE / TECHNICAL / CONTENT / OTHER) and a short note. A pause without a reason is rejected (`OP_CAMPAIGN_PAUSE{reason_category, note}`; CONTRACTS addition).

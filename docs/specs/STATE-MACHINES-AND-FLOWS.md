@@ -39,13 +39,22 @@ stateDiagram-v2
     [*] --> Spawning: !join and slot free
     Reserve --> Spawning: slot frees (FIFO)
     Reserve --> [*]: commander leaves queue / banned / forgotten
-    Spawning --> EnRoute: placed at base (loadout by node stock)
-    EnRoute --> OnStation: reached objective / target area
-    EnRoute --> RTB: !rtb / bingo fuel / ammo out
+    Spawning --> Holding: placed at base, no explicit order (loadout by node stock)
+    Spawning --> EnRoute: placed at base with an explicit order
+    Holding --> EnRoute: explicit order, or decision window elapsed and a feasible Tasking Board job taken
+    Holding --> Landed: joined with hold (no auto-tasking)
+    EnRoute --> OnStation: reached job / target area
+    EnRoute --> RTB: !rtb / bingo fuel / munitions out (stance) / mission-kill (stance)
     OnStation --> Engaging: valid target in range
     Engaging --> OnStation: no valid target
-    OnStation --> RTB: !rtb / bingo fuel / ammo out / mission complete
-    Engaging --> RTB: bingo fuel / ammo out
+    OnStation --> RTB: !rtb / bingo fuel / munitions out (stance) / mission-kill (stance) / job complete
+    Engaging --> RTB: bingo fuel / munitions out (stance) / mission-kill (stance)
+    EnRoute --> Disabled: damage roll -> DISABLED
+    OnStation --> Disabled: damage roll -> DISABLED
+    Engaging --> Disabled: damage roll -> DISABLED
+    RTB --> Disabled: damage roll -> DISABLED
+    Disabled --> Rearming: field repair by engineer / logistics completes
+    Disabled --> Destroyed: hp <= 0
     RTB --> Landed: arrives at friendly node
     Landed --> Rearming: node stock > 0
     Rearming --> EnRoute: rearmed and has order
@@ -69,11 +78,19 @@ stateDiagram-v2
 | — | `JOIN` and the cap is reached | Append to the reserve queue (FIFO by `(target_tick, arrival_seq)`). Emit `ReserveQueueJoined{commander_id, position}`. | Reserve |
 | — | `JOIN` while `slots.respawn_delay_s` hasn't elapsed | Emit `CommandRejected{reason: RESPAWN_COOLDOWN}` | (no unit) |
 | Reserve | Slot frees | Pop the head of the FIFO and spawn as above | Spawning |
-| Spawning | Same tick, after placement | Path to the order target (theater objective by default) | EnRoute |
-| EnRoute | Inside the objective radius | — | OnStation |
+| Spawning | Same tick, after placement, explicit order present (a stance alone is not an order) | Path to the order target | EnRoute |
+| Spawning | Same tick, after placement, no explicit order | Start the decision window (`tasking.decision_window_s`, GAMEPLAY §1b, Q-GD-26) | Holding |
+| Holding | Explicit order (`TARGET`, `REBASE`, `VECTOR`, `RESCUE`) | Path to the order | EnRoute |
+| Holding | Decision window elapsed, and a Tasking Board job matches the role, has a free slot and is **feasible with current fuel and munitions** | Claim the job slot, path to it. If no job is feasible, take a rearm/refuel step first (nearest base with stock). | EnRoute |
+| Holding | `JOIN … hold` was used | Never auto-task; wait for an explicit order | Landed |
+| EnRoute | Inside the job / target radius | — | OnStation |
 | OnStation | Valid target in range (GAMEPLAY §6 priority) | Assign target | Engaging |
 | Engaging | Target dead, out of range, or not valid | Clear target | OnStation |
-| any airborne/moving | `!rtb`, fuel ≤ bingo, ammo empty, or mission complete | Path to the nearest friendly node valid for the domain | RTB |
+| any airborne/moving | `!rtb`, fuel ≤ bingo, or job complete | Path to the nearest friendly node valid for the domain | RTB |
+| any airborne/moving | Missiles/bombs empty, stance not `press`/`guns` (Q-CBT-7) | As above | RTB |
+| any airborne/moving | Damage state reaches Mission-kill and stance is `standard` (or Damaged and stance is `cautious`), still mobile (Q-CBT-6) | As above | RTB |
+| any alive, moving | Combat damage roll yields DISABLED (can't move, not destroyed) | Emit `UnitDamageStateChanged{DISABLED}`. Seeded crew-survival roll; a surviving crew emits `CrewDowned` and a downed-crew marker (GAMEPLAY §6a). | Disabled |
+| Disabled | Engineer or logistics unit completes a field repair in radius (Q-GD-27) | Restore mobility; spend stock carried by the repairer | Rearming |
 | RTB | Arrives at a friendly node | — | Landed |
 | Landed | Node stock > 0 | Spend stock over time and restore fuel, ammo and hp (GAMEPLAY §5). Units never heal anywhere else. | Rearming |
 | Rearming | Full, and there is an order | Path to the order | EnRoute |
@@ -84,12 +101,14 @@ stateDiagram-v2
 
 Notes:
 - A unit owned by `AI_GARRISON`, `ENEMY_DIRECTOR` or an NPC wingman carries an AI owner reference and must render with the AI marker (DATA-INTEGRITY DI-5).
-- Sea-domain units follow the same machine on the naval graph (P4, Q-GD-8).
+- Sea-domain units follow the same machine on the naval graph (**P3**, Q-GD-8).
+- **Damage state is orthogonal to the lifecycle state** (Q-CBT-1): `HEALTHY → DAMAGED → MISSION_KILL → DISABLED`, with `Destroyed` as the terminal lifecycle state. It only moves toward worse states through combat, and back toward HEALTHY only in Rearming (base repair) or Disabled → field repair. DAMAGED applies the speed and sensor penalties from config. Both sides use the same machine (parity, GAMEPLAY §0).
 
 **Invariants**
-- U-1: a commander has at most one unit in {Spawning, EnRoute, OnStation, Engaging, RTB, Landed, Rearming} (GP-1).
+- U-1: a commander has at most one unit in {Spawning, Holding, EnRoute, OnStation, Engaging, RTB, Landed, Rearming, Disabled} (GP-1).
 - U-2: a unit's hp > 0 in every non-terminal state, and a terminal unit appears in no live index.
-- U-3: hp, fuel and ammo only increase in Rearming.
+- U-3: hp, fuel and ammo only increase in Rearming, or by a completed field repair of a Disabled unit (Q-GD-27).
+- U-6: a unit in Holding takes a Tasking Board job only if it can reach and complete it with its current fuel and munitions (Q-GD-26); the friendly AI garrison never claims a strike job no player started.
 - U-4: reserve queue order is strict FIFO, and a commander appears in it at most once.
 - U-5: an orphaned unit is despawned within 1 tick and earns no XP after orphaning.
 
@@ -135,8 +154,8 @@ stateDiagram-v2
     Intact --> Damaged: hp below damaged threshold
     Damaged --> Destroyed: hp <= 0
     Intact --> Destroyed: hp <= 0
-    Destroyed --> Repairing: repair actor present [Q-GD-11]
-    Damaged --> Repairing: repair actor present [Q-GD-11]
+    Destroyed --> Repairing: truck or engineer present (Q-GD-11)
+    Damaged --> Repairing: truck or engineer present (Q-GD-11)
     Repairing --> Intact: repair complete
     Repairing --> Destroyed: actor leaves before completion and hp <= 0
     Repairing --> Damaged: actor leaves and hp > 0
@@ -145,7 +164,7 @@ stateDiagram-v2
 | State | Event / guard | Action | Next |
 |---|---|---|---|
 | Intact / Damaged | hp ≤ 0 | Remove the ROAD edge from the graph. Reroute affected convoys. Emit `BridgeDestroyed`. | Destroyed |
-| Destroyed / Damaged | Repair actor in radius (**who is allowed is open: Q-GD-11**) | Restore hp at the actor's repair rate | Repairing |
+| Destroyed / Damaged | Repair actor in radius: a **logistics truck** (slow field repair) or an **engineer** (fast) (Q-GD-11) | Restore hp at the actor's repair rate: engineer = `logistics.bridge_repair_time_s`, truck = that time × `logistics.truck_bridge_repair_mult` | Repairing |
 | Repairing | hp = max | Restore the edge. Emit `BridgeRepaired{by}`. | Intact |
 
 **Invariants**
@@ -172,10 +191,10 @@ stateDiagram-v2
 |---|---|---|---|
 | Setup | Theater, seed and balance config pass schema validation | Record `campaign_id`, seed and config hash. Emit `CampaignStarted`. | Running |
 | Setup | Validation fails | Refuse to start. Overlay shows "CAMPAIGN SETUP FAILED" (no fallback theater). Alert. | Setup |
-| Running | `OP_CAMPAIGN_PAUSE` | Pause the clock. Emit `CampaignClockPaused{reason: OPERATOR}`. | Paused (operator) |
+| Running | `OP_CAMPAIGN_PAUSE{reason_category, note}` (a reason is required, Q-RB-1) | Pause the clock. Emit `CampaignClockPaused{reason: OPERATOR}`. Alert the owner immediately (ADMIN-RBAC pause flow). There is **no automatic pause** for lack of humans (Q-GD-4 amended). | Paused (operator) |
 | Paused (operator) | A human command | Command is processed normally, but the clock stays paused until the operator resumes | Paused (operator) |
-| Paused (either) | `OP_CAMPAIGN_RESUME` | Resume the clock. Emit `CampaignClockResumed`. | Running |
-| Running | Victory condition held (GAMEPLAY §9), defeat (**Q-GD-7**), or time limit reached (decided by score) | Freeze inputs. Emit `CampaignEnded{result}`. | Ending |
+| Paused (operator) | `OP_CAMPAIGN_RESUME` (GM, admin or owner only, Q-RB-1) | Resume the clock. Emit `CampaignClockResumed`. | Running |
+| Running | Victory condition held (GAMEPLAY §9), defeat (forward airbase lost and ≤ 25% of nodes held for 30 min, Q-GD-7), or time limit reached (decided by score) | Freeze inputs. Emit `CampaignEnded{result}`. | Ending |
 | Running / Paused | `OP_CAMPAIGN_END{reason}` | Freeze inputs. Emit `CampaignEnded{result: ABORTED}`. | Ending |
 | Ending | Results computed (top contributors per role, stats) | Write results to persistence. Emit `AARStarted{result, top_by_role}`. | AAR |
 | AAR | `campaign.aar_duration_s` elapsed | Close the command log. Write the final snapshot. Mark archived. | Archived |
@@ -191,7 +210,7 @@ stateDiagram-v2
 
 ```mermaid
 stateDiagram-v2
-    [*] --> Announced: rotation tick (every objective period)
+    [*] --> Announced: rotation tick (timed mode) / suggestion (relaxed mode) / admin or GM sets one
     Announced --> Active: announcement shown (same tick)
     Active --> Completed: condition met before timer
     Active --> Expired: timer elapsed
@@ -201,15 +220,13 @@ stateDiagram-v2
 
 | State | Event / guard | Action | Next |
 |---|---|---|---|
-| — | Objective period boundary (`campaign.objective_period_min`), and campaign Running | Pick a node, weighted by frontline position. RNG stream: pending Q-SM-1 (SIM-CORE SC-5 doesn't list an objective stream yet). Emit `ObjectiveAnnounced`. | Active |
+| — | Mode `timed`: objective period boundary (`campaign.objective_period_min`), and campaign Running. Mode `relaxed`: a suggestion slot opens (`campaign.objective_mode`, Q-GD-19); the objective has no deadline. Mode `off`: never. Any mode: admin or GM sets an objective. | Pick a node, weighted by frontline position, using the dedicated `objective` RNG stream (SIM-CORE SC-5, Q-SM-1). Emit `ObjectiveAnnounced`. | Active |
 | Active | Condition met (e.g., node captured or held) | Grant merit to participants. Emit `ObjectiveResolved{outcome: COMPLETED}`. Queue a sitrep. | Completed |
 | Active | Timer elapsed | Emit `ObjectiveResolved{outcome: EXPIRED}` | Expired |
 
 **Invariants**
-- O-1: exactly one Active objective while the campaign is Running.
+- O-1: while the campaign is Running, at most one Active objective exists. In `timed` mode there is exactly one; in `relaxed` mode zero or one; in `off` mode zero unless an admin/GM set one (Q-GD-19).
 - O-2: none while Paused. The timer is frozen (C-1).
-
-> Open question (new, Q-SM-1): should objective selection use its own RNG sub-stream (`objective`)? SIM-CORE SC-5 currently lists only `combat`, `director`, `spawn` and `fow`.
 
 ### 4.6 Director tier
 
@@ -456,7 +473,7 @@ sequenceDiagram
 ```mermaid
 sequenceDiagram
     participant RT as runtime
-    participant S as supervisor (systemd/compose)
+    participant S as supervisor (compose restart policy; host supervisor per ADR-0012)
     participant FS as snapshots + command log
     participant O as overlay
     RT->>RT: exception in step at tick T
@@ -576,12 +593,17 @@ sequenceDiagram
 
 Paths are planned names; they're created with their tracker items.
 
-## 8. Open questions
-Existing: Q-GD-4 (zero-human pause), Q-GD-7 (defeat), Q-GD-8 (sea domain), Q-GD-11 (bridge repair), Q-MOD-1/Q-MOD-2 (callsign approval).
+## 8. Decisions folded in, and open questions
+All questions this spec referenced are decided (2026-10-17) and folded into the tables above:
+- **Q-GD-4 (amended):** no automatic clock pause for lack of humans; the Static drops to Pattern of Life (THREAT-DIRECTOR §5a). Only operator pauses exist (§4.4).
+- **Q-GD-7:** defeat = forward airbase lost and ≤ 25% of nodes held for 30 min; the sanctuary is uncapturable (§4.2 N-4, §4.4).
+- **Q-GD-8:** sea domain in **P3** (§4.1 notes).
+- **Q-GD-11:** trucks do slow field repair; engineers repair fast and build (§4.3).
+- **Q-GD-19 / Q-GD-26 / Q-CBT-1/6/7 / Q-GD-27:** objective modes (§4.5), Tasking Board and decision window, damage states, stance, munitions and repair (§4.1).
+- **Q-MOD-1 / Q-MOD-2 / Q-SM-3:** generated callsigns; custom callsigns after the first completed mission (Q-PROG-3), automated moderation with a review queue, and manual owner approval during alpha (§4.7).
+- **Q-SM-1:** objective selection uses its own `objective` RNG stream (SIM-CORE SC-5).
+- **Q-SM-2:** `slots.idle_despawn_s` starts at about 5 min (PROPOSED), harness-tuned and admin-adjustable.
+- **Q-SM-4:** rotate theater archetypes with no back-to-back repeats; reuse the first theater with a new seed until more exist; admins can override via scheduling.
+- **Q-SM-5:** superseded; `campaign.pause_after_no_humans_s` does not exist.
 
-Raised by this spec (tracked in [OPEN-QUESTIONS](../planning/OPEN-QUESTIONS.md)):
-- **Q-SM-1:** should objective selection get its own RNG sub-stream (`objective`)? *Recommended: yes*, so that changing objective logic doesn't shift director randomness.
-- **Q-SM-2:** how long does a landed, idle unit stay before it despawns? *Recommended: balance key `slots.idle_despawn_s`, tuned by the harness.*
-- **Q-SM-3:** do callsign changes need manual owner approval, or does automatic moderation suffice? *Recommended: auto-moderation plus a review queue, with manual approval during alpha.*
-- **Q-SM-4:** campaign rotation rule after AAR: same theater with a new seed, or rotate theaters? *Recommended: same hand-authored theater with a new seed until a second theater exists.*
-- **Q-SM-5 (superseded 2026-10-17: no automatic pause; see THREAT-DIRECTOR §5a):** how long without an active human before the campaign pauses (Q-GD-4)? *Recommended: balance key `campaign.pause_after_no_humans_s`, tuned by the harness.*
+Still open and relevant here (gap analysis 2026-10-17, not yet decided): Q-GD-29 (time-limit score and draws), Q-GD-32 (units parked at a captured base), Q-GD-35 (silent viewer with a live unit), Q-OPS-8 (pause while the stream is offline).

@@ -8,7 +8,7 @@ Status: Draft (pending owner review) · Tracker: NX-050…NX-059 · Decisions: [
    Viewers (Twitch → later YouTube, Kick)                  Owner / Mods
           │ chat                                               │ phone/web
           ▼                                                    ▼
- ┌─────────────────────────────── Broadcast Host (single node) ─────────────────────────┐
+ ┌──────────────────────── Broadcast Host (Windows + WSL2, ADR-0012) ───────────────────┐
  │                                                                                      │
  │  nexus-app (Python, one process, modular monolith)                                   │
  │  ┌──────────────┐   ChatEnvelope   ┌─────────────┐  Command(tick)  ┌──────────────┐  │
@@ -36,11 +36,16 @@ Status: Draft (pending owner review) · Tracker: NX-050…NX-059 · Decisions: [
  │       ▼                                                                              │
  │  OBS (browser source + audio) ──RTMP──► Twitch / YouTube                             │
  │                                                                                      │
- │  watchdog (systemd + frame-freeze probe) · alerting → phone                          │
+ │  watchdog L1 (supervisor + frame-freeze probe) · alerting → phone                    │
  └──────────────────────────────────────────────────────────────────────────────────────┘
           ▲
-          │ (Phase P3) link portal: small separate web app, OAuth, public internet via tunnel
+          │ (Phase P3) public site (incl. link portal): separate app, OAuth, public internet via tunnel
 ```
+
+Notes on the diagram (owner decisions 2026-10-17):
+- **`advisors/` runs in its own isolated container** (`nexus-llm`), not inside `nexus-app` (Q-AI-3): no platform or stream credentials, egress allowlisted to the provider endpoints, read-only filesystem, non-root, resource limits. `nexus-app` talks to it only through the internal `LlmClient` RPC (LLM-ADVISORS LLM-2). Its suggestions still come back as logged commands.
+- **Two apps, one codebase (Q-ARCH-7):** the private **Command Center** (admin console: moderation, users, AI/GM, campaign planning, rules, content; tailnet + Discord only, Q-RB-4) and the **public site** (replays, leaderboards, stats, Field Manual, later player login and linking; read-mostly, no admin features). Separate logins, separate APIs and separate deployments; shared design system and contracts.
+- **Two machines (ADR-0012):** the Windows gaming PC runs OBS natively and the app stack in Docker Desktop on WSL2; the Linux server runs the watchdog, observability, backups and staging. The "watchdog" in the diagram is the on-box layer only.
 
 ## 2. Design principles
 
@@ -64,7 +69,7 @@ Status: Draft (pending owner review) · Tracker: NX-050…NX-059 · Decisions: [
 | NFR-6 | Deploy impact on stream | ≤ 10 s "COMMS RESYNC" banner; no stream disconnect |
 | NFR-7 | Data durability | Snapshot every 30 s; command log fsync'd every 1 s; nightly offsite encrypted backup |
 | NFR-8 | Concurrency | Designed for 300 live viewer units, 1,000 total entities, 5,000 chat msgs/min burst |
-| NFR-9 | Cost | ≤ Q-OPS-3 ceiling; LLM/TTS hard budget with circuit breaker |
+| NFR-9 | Cost | ≤ $75–100/month total for power + AI + hosting (Q-OPS-3); LLM + cloud TTS hard cap $20/month with circuit breaker and 80% alert (Q-AI-5) |
 | NFR-10 | Moderation | Zero unmoderated user text on stream or in TTS |
 | NFR-11 | Observability | Every component exports health + key metrics; external freeze/offline alert < 2 min |
 
@@ -81,7 +86,7 @@ Status: Draft (pending owner review) · Tracker: NX-050…NX-059 · Decisions: [
 | `nexus.broadcast` | Per-tick FoW redaction, delta encoding, WS fan-out with bounded queues | core (read-only views) | Mutating state |
 | `nexus.progression` | Consumes events → XP/merit/ranks; writes via persistence | persistence | core |
 | `nexus.persistence` | SQLite repository + migrations | — | core |
-| `nexus.advisors` | LLM advisor/narrator clients, budgets, circuit breakers (P4) | contracts | core, platform tokens |
+| `nexus.advisors` | In-app side: `LlmClient` RPC client, budgets ($20/month cap, Q-AI-5), circuit breakers (P4). Provider calls run in the separate isolated `nexus-llm` container (Q-AI-3) | contracts | core, platform tokens, provider SDKs (those live only in the container) |
 | `nexus.audio` | Sitrep queue → TTS worker process → audio to overlay | contracts | — |
 | `nexus.clips` | Excitement scoring, clip job creation, review queue | contracts | Auto-upload |
 | `nexus.ops` | Health, metrics (Prometheus), admin API (kill switch, bans, pause) | all read-only + control commands | — |
@@ -122,25 +127,28 @@ The director runs inside `core`, so it is deterministic. It sees only the **enem
 - **Durable data:** profiles, XP, campaign history and identities are stored in SQLite. Only `progression` and the identity module write them.
 - **Replays** are rebuilt from the command log plus the seed plus the config hash. Replays contain `commander_id`s only, never names (SEC-DATA-2).
 
-## 6. Deployment (ADR-0006)
-- **Single broadcast host**, running Docker Compose with:
+## 6. Deployment (ADR-0006, amended by ADR-0012)
+- **Broadcast host: the owner's Windows gaming PC** (GTX 1070, i7-8700, 32 GB). Docker Desktop on **WSL2** runs Compose with:
   - `nexus-app`
   - `nexus-tts` (separate process; GPL isolation)
+  - `nexus-llm` (isolated LLM container, Q-AI-3; P4, or earlier for the local narration experiment, Q-ARCH-4)
   - `nginx` (overlay static files)
-  - `node-exporter` / `prometheus` / `grafana` (optional), or a hosted free tier
-- **OBS and the watchdog** run on the host under systemd.
+- **OBS** runs natively on Windows, controlled via obs-websocket. The deploy script runs inside WSL2 (Q-ARCH-15). How OBS, WSL2 and Docker are supervised and auto-started on Windows is open (Q-OPS-7).
+- **Linux server** (Ubuntu 24.04 LTS after rebuild, Q-ARCH-8): watchdog (L2), Prometheus + Grafana + Loki (Q-ARCH-11), backups (local copy + encrypted off-site via the `BackupTarget` port, Q-OPS-6), and the **staging** stack streaming to an unlisted test channel (Q-OPS-2; cheap cloud server as fallback if the server is too weak, NX-007).
+- **Command Center and public site** are separate deployments (Q-ARCH-7). The Command Center is tailnet-only; the public site is exposed through a tunnel. Where the public site is hosted is open (Q-ARCH-16).
 - **Images** are pulled from GHCR and must be signed.
 - **Overlay WS** binds to `127.0.0.1`.
-- **No public inbound ports.** The P3 link portal is exposed through a tunnel (Cloudflare Tunnel or Tailscale Funnel) to a separate container with no access to stream keys.
+- **No public inbound ports.** The public site (including the P3 link portal) is exposed through a tunnel (Cloudflare Tunnel or Tailscale Funnel) to a separate container with no access to stream keys or admin APIs.
+- **Secrets:** sops + age, encrypted per machine, in the private `operation-nexus-ops` repo (Q-ARCH-10).
 
 ## 7. Scaling path (when, not now)
 | Trigger (measured) | Change |
 |---|---|
 | Tick p99 > 50 ms at target load after NumPy vectorization | Port hot loops to Rust (PyO3), keeping the same API |
-| Second writer process (link portal, companion site) | SQLite → Postgres (ADR-0003 revisit) |
+| Second writer process (link portal, public site) | SQLite → Postgres (ADR-0003 revisit) |
 | Gateway needs independent restarts / more platforms | Split gateway into its own process; use Redis Streams for commands |
-| Companion site traffic | Separate read replica / static export of stats; CDN |
-| Multiple simultaneous theaters | Revisit orchestration (K3s) |
+| Public site traffic | Separate read replica / static export of stats; CDN |
+| Multiple simultaneous theaters | Revisit orchestration (K3s; owner is open to it once a trigger is hit, Q-ARCH-9) |
 
 ## 8. Failure modes
 | Failure | Viewer sees | Automatic response |
@@ -148,7 +156,7 @@ The director runs inside `core`, so it is deterministic. It sees only the **enem
 | Platform API down | "TWITCH UPLINK LOST" chip; sim continues with AI garrison | Adapter backoff + reconnect; alert after 5 min |
 | Sim exception in tick | ≤ 2 min "COMMS RESYNC" | Supervisor restarts; restore snapshot + log; alert; crash bundle saved (seed, log, tick) |
 | Overlay WS drop | Momentary freeze → resync | Auto-reconnect with jittered backoff; full snapshot |
-| OBS/encoder crash | Stream offline | systemd restart OBS; external probe alerts |
+| OBS/encoder crash | Stream offline | Host supervisor restarts OBS (Windows mechanism open, Q-OPS-7); external probe alerts |
 | Frozen frames (overlay hung) | Static image | Frame-hash probe detects → reload browser source → alert |
 | TTS down | No voice; text sitreps continue | Circuit breaker; alert |
 | LLM down / over budget | Rule-only director, generic flavor text | Circuit breaker |
