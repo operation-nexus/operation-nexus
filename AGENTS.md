@@ -92,6 +92,8 @@ make check          # Python: ruff, ruff format --check, mypy --strict, import-l
 
 Requires: `uv`, Node 22+ with `pnpm`, `make`.
 
+CI (`.github/workflows/ci.yml`) runs the same commands, plus `pnpm run build`. `ci-gate` is the single required check.
+
 ## 6. Definition of Done
 
 See [`docs/quality/DEFINITION-OF-DONE.md`](docs/quality/DEFINITION-OF-DONE.md). In short: spec referenced, tests written (including a determinism test for sim changes), CI green, docs updated, no new high or critical security findings, tracker updated.

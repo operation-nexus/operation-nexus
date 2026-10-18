@@ -173,13 +173,15 @@ The repo is **public** (Q-CI-1). Rulesets, environment required reviewers, CodeQ
 
 ## 10. Workflow file plan
 
-| File | Purpose | Tracker |
-|---|---|---|
-| `.github/workflows/ci.yml` | PR + main checks, `ci-gate` | NX-011 |
-| `.github/workflows/security.yml` | CodeQL, gitleaks, SCA, zizmor, trivy config | NX-012 |
-| `.github/workflows/build.yml` | images, SBOM, sign, attest (on merge to `develop`; build check on PRs) | NX-013 |
-| `.github/workflows/deploy.yml` | staging auto from `develop`, prod on release tag with approval | NX-014 |
-| `.github/workflows/release.yml` | release-please | NX-015 |
-| `.github/workflows/nightly.yml` | soak, balance, rescan, scorecard | NX-016 |
-| `.github/workflows/pr-hygiene.yml` | title lint, labels, tracker-ID check | NX-017 |
-| `.github/dependabot.yml` | grouped weekly updates for pip, npm, actions, docker | NX-018 |
+| File | Purpose | Tracker | Status |
+|---|---|---|---|
+| `.github/workflows/ci.yml` | PR + main checks, `ci-gate` | NX-011 | Implemented |
+| `.github/workflows/security.yml` | CodeQL, gitleaks, SCA, zizmor, trivy config | NX-012 | Planned |
+| `.github/workflows/build.yml` | images, SBOM, sign, attest (on merge to `develop`; build check on PRs) | NX-013 | Planned |
+| `.github/workflows/deploy.yml` | staging auto from `develop`, prod on release tag with approval | NX-014 | Planned |
+| `.github/workflows/release.yml` | release-please | NX-015 | Planned |
+| `.github/workflows/nightly.yml` | soak, balance, rescan, scorecard | NX-016 | Planned |
+| `.github/workflows/pr-hygiene.yml` | title lint, labels, tracker-ID check | NX-017 | Planned |
+| `.github/dependabot.yml` | grouped weekly updates for pip, npm, actions, docker | NX-018 | Planned |
+
+`ci.yml` today: `changes` (git-diff path filter on PRs; pushes run everything), `python` (ruff, ruff format, mypy, import-linter), `python-test` (pytest), `overlay` (tsc, eslint + prettier, vite build), `overlay-test` (vitest), and `ci-gate`. `ci-gate` is the only required status check. Lint, format, typecheck, import contracts and the build always block. The two test jobs are advisory when the target is `develop` (`ci-gate` emits a warning) and required for `main`. The `contracts`, `sim-determinism`, `integration` and `docs` jobs arrive with their own tracker items.
