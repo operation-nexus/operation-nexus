@@ -59,7 +59,7 @@ jobs:
           # (a name like "::error::..." would be parsed as a workflow command).
           changed="$(git diff --name-only HEAD^1 HEAD)"
           echo "Changed files: $(printf '%s\n' "$changed" | grep -c . || true)"
-          shared='^(contracts/|Makefile$|\.github/workflows/ci\.yml$)'
+          shared='^(contracts/|Makefile$|\.node-version$|\.github/workflows/ci\.yml$)'
           if printf '%s\n' "$changed" | grep -Eq "^(services/|tools/|scripts/)|$shared"; then
             echo "python=true" >> "$GITHUB_OUTPUT"
           else
