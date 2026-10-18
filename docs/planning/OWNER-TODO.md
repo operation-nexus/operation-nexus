@@ -39,7 +39,7 @@ Applied and verified through the GitHub API on 2026-10-18 where checked.
 - [ ] Optional: plug-in power meter for real wattage numbers
 
 ## 4. Accounts and brand (NX-297)
-- [ ] Check handle availability and create **new** Twitch / YouTube / TikTok / Instagram accounts for Operation Nexus
+- [ ] Reserve the **Hiveplex** handle on Twitch, YouTube, TikTok and Instagram the same day (Q-BRAND-6, accepted risk), and the studio byline handle as a defensive hold; follow the setup runbook when it exists (NX-336). Accounts are created by hand: platforms bar automated creation
 - [ ] Epidemic Sound: ask support (a) whether a 24/7 monetized game stream is covered, (b) what happens to published content after cancelling; then choose upgrade vs a separate subscription
 - [ ] Create the private `operation-nexus-ops` repo (secrets, NX-299)
 
@@ -52,7 +52,17 @@ The research could not reach any official register (docs/review/NAME-CLEARANCE.m
 - [ ] Stores: Steam, itch.io, Epic, Xbox, PlayStation, Nintendo eShop, App Store, Google Play, Roblox
 - [ ] In-world names: the Quorum (in-world label only, never the brand, Q-BRAND-7), the Static and NULL; re-check the records NAME-CLEARANCE cites for them
 - [ ] TTS and chat test: play the name in the chosen voice and have a few viewers type it from audio only
-- [ ] Ask a trademark attorney about "Hiveplex" versus PLEX before spending on marks or merch; record the result under Q-BRAND-6 and NX-297
+- [ ] Attorney consult on "Hiveplex" versus PLEX/HIVE: deferred until traction or monetization (Q-LEGAL-9); do it before spending on marks or merch
+
+## 4b. Follow-ups from the research session (2026-10-18)
+- [ ] Decide where web-dependent verification runs (Q-PROC-3): raise the cloud environment's Network access or add hosts under Allowed domains, or run those passes in a local desktop session
+- [ ] Read the primary platform policy pages from the prepared checklist (NX-333); record what you find
+- [ ] Send Epidemic Sound the written questions (NX-332) before relying on it for 24/7 audio
+- [ ] Ask Twitch support whether an intermission/replay loop on a 24/7 channel needs the Rerun label, before the closed alpha; check the Twitch setting that lets content train generative AI
+- [ ] Put the Google OAuth app in production with verification when the YouTube integration starts (otherwise refresh tokens last 7 days)
+- [ ] Turn on passkeys everywhere they exist; add a hardware key if you own one; keep one project mailbox
+- [ ] Confirm the channel naming proposal (Q-MKT-7): channels named Hiveplex, studio handle as a byline hold
+- [ ] Pick the first 2-3 moderators from your trusted team before the public beta (Q-MOD-7)
 
 ## 5. Decisions still open
 See docs/planning/OPEN-QUESTIONS.md. Rows ending in an empty Decision column still need your answer.
