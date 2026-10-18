@@ -2,7 +2,7 @@
 
 Status: Draft proposal · Owner direction 2026-10-18 · Tracker: NX-331 · Related: [BRAND-OPS](../specs/BRAND-OPS.md) (monitoring/approval service, NX-328), [MARKETING](MARKETING.md), [GLOSSARY](GLOSSARY.md), Q-MKT-8, Q-AI-10
 
-**Phase: design only.** The owner wants gameplay first and these teams to start once the community is a bit bigger and more engaged. Nothing here is built before P3; this page exists so the repo, privacy and approval choices are made once and early.
+**Phase: lore team is design only; marketing team starts now.** The owner wants gameplay first and the **lore** loop to start once the community is a bit bigger (P3 pilot). On 2026-10-18 the owner pulled the **marketing and production** side forward (Q-MKT-14); its operating model is in [MARKETING](MARKETING.md). The vault is `operation-nexus-vault` (private, owner and `maintainers` only), shared by both teams, with the lore boundary enforced by role cards and the `tier` field.
 
 ## 1. What the owner asked for
 - A small team of agents running on a **continuous loop** that proposes lore (antagonists, protagonists, groups, factions, locations, geography, history), building a large internal wiki.
@@ -65,8 +65,8 @@ Loop (bounded, never free-running): a scheduled task wakes a role with a **work 
 | Later | Community co-creation (submissions as untrusted data), commissioned art briefed from canon |
 
 ## 9. Open questions for the owner
-1. Vault repo name and host (private GitHub repo under the new organization?).
-2. Separate monthly LLM budget for content-time agents (Q-AI-10).
+1. ~~Vault repo name and host~~ Decided 2026-10-18: `operation-nexus-vault`, private, under the `operation-nexus` organization (Q-MKT-14).
+2. ~~Separate monthly LLM budget~~ Decided 2026-10-18: $20/month, separate from the runtime cap (Q-AI-10).
 3. Who writes the first bible page (owner) and how long the tone guide should be.
 4. How much of the wiki, if any, becomes a public in-universe wiki after release.
 5. Whether commissioned artists get read access to released-tier or secret-tier canon (NDA).

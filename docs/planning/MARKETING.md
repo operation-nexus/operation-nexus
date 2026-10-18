@@ -22,6 +22,15 @@ Because agents build fast, moments get missed. So:
 3. **Auto-capture:** staging records short replay renders and screenshots at milestones (from deterministic replays, CLIPS-REPLAY) and stores them in a `devlog-footage` folder, so footage exists even if recording is forgotten.
 4. Phase gates (ROADMAP) already require a recorded demo. That's the minimum devlog cadence.
 
+## Operating model (owner grill, 2026-10-18; Q-MKT-14, Q-MKT-15, Q-OPS-11)
+- **Where it lives:** the private `operation-nexus-vault` repo (`marketing/`, `production/`, `lore/` reserved, `assets/manifests/`). Access: owner and the `maintainers` team only. Brand-voice skills live there; generic process skills stay in this repo.
+- **How it runs:** scheduled cloud sessions draft at most 5 items a week as one vault PR, holding no platform credentials. The owner reviews in one batch and posts manually from approved files until Brand Ops exists. Nothing is posted before the first-map gate (Q-MKT-3); profile polish and unpublished drafts are allowed now.
+- **Voice:** an owner-written voice brief built through a short interview and hand rewrites, then reused as a ban list and examples file. A deterministic style check runs before any model review.
+- **Production:** footage never goes into git. Video work (clipping, transcripts, captions) is local scripts on the owner's desktop; cloud agents work from the committed text.
+- **Cost:** content-time agents have their own $20/month cap; cheaper tiers draft, the strongest tier reviews (Q-AI-10).
+- **Measurement:** tagged `src` links and a weekly note of numbers the owner pastes from platform dashboards (Q-DM-4).
+- **Research:** [SKILLS-AND-PLUGINS-RESEARCH](../review/SKILLS-AND-PLUGINS-RESEARCH-2026-10-18.md) (candidates only). Tracker: NX-338..NX-344.
+
 ## Open marketing questions
 See OPEN-QUESTIONS (Q-MKT-*).
 

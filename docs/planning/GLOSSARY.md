@@ -109,3 +109,12 @@ terms still waiting for an owner ruling.
 | _(self-chosen name)_ | The name the mastermind signs its own broadcasts with | TBD (Q-BRAND-4). _Avoid:_ Overtone (rejected after name research) |
 | Hum | The audio motif before every Static transmission (AUDIO-TTS AU-6) | |
 | Operation Nexus / Nexus | The project's internal codename (repo, `nexus` package, config keys) | The public brand is still open (Q-BRAND-6); keep "Operation Nexus" in docs until it is decided |
+
+## Content operations
+
+| Term | Meaning |
+|---|---|
+| Vault | The private repository `operation-nexus-vault`: marketing drafts, production material, lore canon and licensed-asset records. Not the secrets repository (`operation-nexus-ops`). |
+| Context pack | A read-only bundle of approved facts and tone (voice summary, `RELEASED` lore, active campaign facts) that services and drafting agents both read. Carries data, never credentials. |
+| Content-time agent | An agent that drafts or checks content on a schedule and opens a vault pull request. Distinct from the runtime LLM advisor, which serves the live game. _Avoid:_ "the bot" for either. |
+| Draft status | Where a marketing draft stands: `DRAFT`, `APPROVED`, `POSTED` or `REJECTED` (a rejection always carries a reason). |
