@@ -100,7 +100,7 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | NX-031 | Balance harness (`tools/balance`) + bot personas + report | L | ⬜ | NX-126 | 5 standard scenarios × 20 seeds report |
 | NX-032 | Replay CLI + measured storage size | S | ⬜ | NX-103 | Size documented in CLIPS-REPLAY |
 | NX-033 | Headless soak (6h) in nightly | M | ⬜ | NX-016 | No memory growth; hashes replay |
-| NX-301 | Track fade (FOW-6) (Q-GD-16 blocks P1; moved from P4 in NX-311) | — | ⬜ | NX-150 | Tracks age back into SIGINT blobs over time after the scout dies or leaves (FOG-OF-WAR) |
+| NX-301 | Track fade (FOW-6), later phase behind a feature flag (Q-PROD-8, Q-ALN-20) | — | ⬜ | NX-150 | Tracks age back into SIGINT blobs over time after the scout dies or leaves (FOG-OF-WAR) |
 | NX-304 | Objective modes: timed / relaxed / off per campaign (Q-GD-19 blocks P1; moved from P4 in NX-311) | — | ⬜ | NX-126 | O-1 invariant per mode (STATE-MACHINES §4.5) |
 
 ## P2 — Closed alpha (Twitch, unlisted)
