@@ -25,55 +25,55 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | ID | Item | Size | Status | Depends | Acceptance |
 |---|---|---|---|---|---|
 | NX-001 | Initial planning docs, critique, specs, ADRs, tracker, AGENTS.md | L | ✅ | — | This PR |
-| NX-002 [#1](https://github.com/canthony224/operation-nexus/issues/1) | Owner answers P0-blocking questions (Q-PROD-1/2, Q-ARCH-1/3, Q-CI-1..4, Q-LEGAL-1) | S | ✅ | NX-001 | Decision column filled |
-| NX-003 [#2](https://github.com/canthony224/operation-nexus/issues/2) | Owner reviews ADR-0001…0008 → Accepted/Amended | S | ✅ | NX-002 | ADR statuses updated |
-| NX-004 [#3](https://github.com/canthony224/operation-nexus/issues/3) | Owner drops reference files into `.agents/context/` + updates INDEX | S | ⬜ | — | INDEX lists files |
-| NX-005 [#4](https://github.com/canthony224/operation-nexus/issues/4) | Move `Raw-*.md` to `docs/source/` with a "not a spec" banner | S | ❓ | NX-002 | Links updated |
-| NX-006 [#5](https://github.com/canthony224/operation-nexus/issues/5) | Specs SIM-CORE, GAMEPLAY, FOG-OF-WAR, THREAT-DIRECTOR → Review → Approved | M | ⬜ | NX-002 | Owner sign-off |
-| NX-007 [#6](https://github.com/canthony224/operation-nexus/issues/6) | Reference hardware spec documented (Q-OPS-1) | S | ❓ | — | `docs/ops/HARDWARE.md` |
-| NX-008 [#7](https://github.com/canthony224/operation-nexus/issues/7) | Hand-authored first theater map sketch (≈15 nodes, roads, bridges) | M | ⬜ | Q-GD-9 | YAML + PNG sketch in `balance/theaters/` |
+| NX-002 [#1](https://github.com/operation-nexus/operation-nexus/issues/1) | Owner answers P0-blocking questions (Q-PROD-1/2, Q-ARCH-1/3, Q-CI-1..4, Q-LEGAL-1) | S | ✅ | NX-001 | Decision column filled |
+| NX-003 [#2](https://github.com/operation-nexus/operation-nexus/issues/2) | Owner reviews ADR-0001…0008 → Accepted/Amended | S | ✅ | NX-002 | ADR statuses updated |
+| NX-004 [#3](https://github.com/operation-nexus/operation-nexus/issues/3) | Owner drops reference files into `.agents/context/` + updates INDEX | S | ⬜ | — | INDEX lists files |
+| NX-005 [#4](https://github.com/operation-nexus/operation-nexus/issues/4) | Move `Raw-*.md` to `docs/source/` with a "not a spec" banner | S | ❓ | NX-002 | Links updated |
+| NX-006 [#5](https://github.com/operation-nexus/operation-nexus/issues/5) | Specs SIM-CORE, GAMEPLAY, FOG-OF-WAR, THREAT-DIRECTOR → Review → Approved | M | ⬜ | NX-002 | Owner sign-off |
+| NX-007 [#6](https://github.com/operation-nexus/operation-nexus/issues/6) | Reference hardware spec documented (Q-OPS-1) | S | ❓ | — | `docs/ops/HARDWARE.md` |
+| NX-008 [#7](https://github.com/operation-nexus/operation-nexus/issues/7) | Hand-authored first theater map sketch (≈15 nodes, roads, bridges) | M | ⬜ | Q-GD-9 | YAML + PNG sketch in `balance/theaters/` |
 | NX-009 | Decide: mirror tracker to GitHub Issues + Project board? | S | ✅ | — | Decision recorded |
 
 ### Repo & CI/CD (see `docs/cicd/CICD-ARCHITECTURE.md`)
 | ID | Item | Size | Status | Depends | Acceptance |
 |---|---|---|---|---|---|
-| NX-010 [#8](https://github.com/canthony224/operation-nexus/issues/8) | Repo skeleton: `services/sim`, `apps/overlay`, `contracts/`, `tools/`, `deploy/`, Makefile, `.editorconfig`, pre-commit | M | ✅ | NX-003 | `make check` runs green on empty skeleton |
-| NX-011 [#9](https://github.com/canthony224/operation-nexus/issues/9) | `ci.yml`: path filters, python + typescript jobs, `ci-gate` | M | ✅ | NX-010 | Required check on `main` |
-| NX-012 [#10](https://github.com/canthony224/operation-nexus/issues/10) | `security.yml`: CodeQL, gitleaks, dependency-review, osv-scanner, zizmor, trivy config, hadolint | M | ✅ | NX-010 | Fails on seeded test vuln/secret in a throwaway PR |
-| NX-013 [#11](https://github.com/canthony224/operation-nexus/issues/11) | `build.yml`: buildx, pinned digests, SBOM, trivy image, cosign, provenance → GHCR | M | ⬜ | NX-011 | `cosign verify` passes on pushed image |
-| NX-014 [#12](https://github.com/canthony224/operation-nexus/issues/12) | `deploy.yml` + `deploy/bin/deploy|rollback` + Tailscale (staging auto, prod approval) | L | ⬜ | NX-013, Q-OPS-1 | Deploy + auto-rollback demonstrated on staging |
-| NX-015 [#13](https://github.com/canthony224/operation-nexus/issues/13) | `release.yml` release-please (manifest mode) | S | ⬜ | NX-011 | Release PR generated |
-| NX-016 [#14](https://github.com/canthony224/operation-nexus/issues/14) | `nightly.yml` skeleton (soak, balance, rescan, scorecard) | M | ⬜ | NX-011 | Runs on schedule, uploads artifacts |
-| NX-017 [#15](https://github.com/canthony224/operation-nexus/issues/15) | `pr-hygiene.yml`: conventional title, tracker-ID check, size label | S | ✅ | NX-010 | PR without NX-ID fails |
-| NX-018 [#16](https://github.com/canthony224/operation-nexus/issues/16) | `dependabot.yml` grouped weekly (uv, npm, actions; docker arrives with the first Dockerfile, NX-013) + label sync | S | ✅ | NX-010 | First grouped PR appears |
-| NX-019 [#17](https://github.com/canthony224/operation-nexus/issues/17) | import-linter contracts for module boundaries (SYSTEM-DESIGN §4) | S | ⬜ | NX-010 | Violating import fails CI |
-| NX-020 [#18](https://github.com/canthony224/operation-nexus/issues/18) | Custom Semgrep rules (`.semgrep/`) per CICD §5 with tests | M | ⬜ | NX-012 | Each rule has positive/negative fixture |
-| NX-021 [#19](https://github.com/canthony224/operation-nexus/issues/19) | Contracts pipeline: JSON Schema → Pydantic + TS, drift check, compat check | M | ⬜ | NX-010 | Changing schema without regen fails CI |
-| NX-022 [#20](https://github.com/canthony224/operation-nexus/issues/20) | Repo settings applied (CICD §9 checklist) | S | ✅ | Q-CI-1 | Checklist ticked |
+| NX-010 [#8](https://github.com/operation-nexus/operation-nexus/issues/8) | Repo skeleton: `services/sim`, `apps/overlay`, `contracts/`, `tools/`, `deploy/`, Makefile, `.editorconfig`, pre-commit | M | ✅ | NX-003 | `make check` runs green on empty skeleton |
+| NX-011 [#9](https://github.com/operation-nexus/operation-nexus/issues/9) | `ci.yml`: path filters, python + typescript jobs, `ci-gate` | M | ✅ | NX-010 | Required check on `main` |
+| NX-012 [#10](https://github.com/operation-nexus/operation-nexus/issues/10) | `security.yml`: CodeQL, gitleaks, dependency-review, osv-scanner, zizmor, trivy config, hadolint | M | ✅ | NX-010 | Fails on seeded test vuln/secret in a throwaway PR |
+| NX-013 [#11](https://github.com/operation-nexus/operation-nexus/issues/11) | `build.yml`: buildx, pinned digests, SBOM, trivy image, cosign, provenance → GHCR | M | ⬜ | NX-011 | `cosign verify` passes on pushed image |
+| NX-014 [#12](https://github.com/operation-nexus/operation-nexus/issues/12) | `deploy.yml` + `deploy/bin/deploy|rollback` + Tailscale (staging auto, prod approval) | L | ⬜ | NX-013, Q-OPS-1 | Deploy + auto-rollback demonstrated on staging |
+| NX-015 [#13](https://github.com/operation-nexus/operation-nexus/issues/13) | `release.yml` release-please (manifest mode) | S | ⬜ | NX-011 | Release PR generated |
+| NX-016 [#14](https://github.com/operation-nexus/operation-nexus/issues/14) | `nightly.yml` skeleton (soak, balance, rescan, scorecard) | M | ⬜ | NX-011 | Runs on schedule, uploads artifacts |
+| NX-017 [#15](https://github.com/operation-nexus/operation-nexus/issues/15) | `pr-hygiene.yml`: conventional title, tracker-ID check, size label | S | ✅ | NX-010 | PR without NX-ID fails |
+| NX-018 [#16](https://github.com/operation-nexus/operation-nexus/issues/16) | `dependabot.yml` grouped weekly (uv, npm, actions; docker arrives with the first Dockerfile, NX-013) + label sync | S | ✅ | NX-010 | First grouped PR appears |
+| NX-019 [#17](https://github.com/operation-nexus/operation-nexus/issues/17) | import-linter contracts for module boundaries (SYSTEM-DESIGN §4) | S | ⬜ | NX-010 | Violating import fails CI |
+| NX-020 [#18](https://github.com/operation-nexus/operation-nexus/issues/18) | Custom Semgrep rules (`.semgrep/`) per CICD §5 with tests | M | ⬜ | NX-012 | Each rule has positive/negative fixture |
+| NX-021 [#19](https://github.com/operation-nexus/operation-nexus/issues/19) | Contracts pipeline: JSON Schema → Pydantic + TS, drift check, compat check | M | ⬜ | NX-010 | Changing schema without regen fails CI |
+| NX-022 [#20](https://github.com/operation-nexus/operation-nexus/issues/20) | Repo settings applied (CICD §9 checklist) | S | ✅ | Q-CI-1 | Checklist ticked |
 | NX-023 | CODEOWNERS, PR template, issue templates, SECURITY.md | S | ✅ | — | Files present |
-| NX-024 [#21](https://github.com/canthony224/operation-nexus/issues/21) | markdownlint + lychee docs job | S | ⬜ | NX-011 | Broken link fails |
-| NX-025 [#22](https://github.com/canthony224/operation-nexus/issues/22) | Dev container / `make bootstrap` for desktop + cloud agents (SessionStart hook) | M | ⬜ | NX-010 | Fresh clone → `make check` in one command |
-| NX-026 [#23](https://github.com/canthony224/operation-nexus/issues/23) | Structured logging lib with secret-redaction + test | S | ⬜ | NX-010 | Test proves token redacted |
-| NX-027 [#24](https://github.com/canthony224/operation-nexus/issues/24) | Runbook: rotate secrets | S | ⬜ | NX-014 | Doc reviewed |
+| NX-024 [#21](https://github.com/operation-nexus/operation-nexus/issues/21) | markdownlint + lychee docs job | S | ⬜ | NX-011 | Broken link fails |
+| NX-025 [#22](https://github.com/operation-nexus/operation-nexus/issues/22) | Dev container / `make bootstrap` for desktop + cloud agents (SessionStart hook) | M | ⬜ | NX-010 | Fresh clone → `make check` in one command |
+| NX-026 [#23](https://github.com/operation-nexus/operation-nexus/issues/23) | Structured logging lib with secret-redaction + test | S | ⬜ | NX-010 | Test proves token redacted |
+| NX-027 [#24](https://github.com/operation-nexus/operation-nexus/issues/24) | Runbook: rotate secrets | S | ⬜ | NX-014 | Doc reviewed |
 | NX-028 | `.gitignore` additions (`*.db`, `node_modules/`, snapshots, logs, `.env*`) | S | ✅ | — | Present |
-| NX-029 [#25](https://github.com/canthony224/operation-nexus/issues/25) | Agent review gate: code-review + security-review run on every PR (Q-CI-3) | M | ❓ | NX-011 | Review comment posted on PRs |
+| NX-029 [#25](https://github.com/operation-nexus/operation-nexus/issues/25) | Agent review gate: code-review + security-review run on every PR (Q-CI-3) | M | ❓ | NX-011 | Review comment posted on PRs |
 | NX-327 | Pin the toolchain: Node 22 in `.node-version` (CI reads it; `engines.node`), Python 3.12 in `services/sim/.python-version`; `make bootstrap` and `make check` fail clearly on a wrong Node major; fix the `prettier-overlay` pre-commit hook path | S | ✅ | NX-010 | Wrong Node major stops `make bootstrap` with a message |
 
 ### Quality & security baselines
 | ID | Item | Size | Status | Depends | Acceptance |
 |---|---|---|---|---|---|
-| NX-030 [#26](https://github.com/canthony224/operation-nexus/issues/26) | Test harness skeleton: pytest profiles (ci/nightly), hypothesis settings, vitest, Playwright | M | ⬜ | NX-010 | Example tests run in CI |
-| NX-044 [#28](https://github.com/canthony224/operation-nexus/issues/28) | Owner desktop agent setup (docs/agentic/TOOLING.md §5): jq, Serena, plugins | S | 🟨 | — | `/mcp` shows serena + context7 connected |
-| NX-045 [#29](https://github.com/canthony224/operation-nexus/issues/29) | Spike: code knowledge-graph MCP (CodeGraphContext vs codebase-memory-mcp), measured vs baseline | M | ⬜ | P1 code exists | Report with token and accuracy numbers; adopt/reject decision |
-| NX-046 [#30](https://github.com/canthony224/operation-nexus/issues/30) | Data-integrity Semgrep rules + FB registry tests (DATA-INTEGRITY §6) | M | ⬜ | NX-012 | Each rule has positive/negative fixtures |
-| NX-047 [#31](https://github.com/canthony224/operation-nexus/issues/31) | Optional: SonarQube Cloud quality gate (Q-CI-5) | S | ❓ | P2 | Decision recorded |
+| NX-030 [#26](https://github.com/operation-nexus/operation-nexus/issues/26) | Test harness skeleton: pytest profiles (ci/nightly), hypothesis settings, vitest, Playwright | M | ⬜ | NX-010 | Example tests run in CI |
+| NX-044 [#28](https://github.com/operation-nexus/operation-nexus/issues/28) | Owner desktop agent setup (docs/agentic/TOOLING.md §5): jq, Serena, plugins | S | 🟨 | — | `/mcp` shows serena + context7 connected |
+| NX-045 [#29](https://github.com/operation-nexus/operation-nexus/issues/29) | Spike: code knowledge-graph MCP (CodeGraphContext vs codebase-memory-mcp), measured vs baseline | M | ⬜ | P1 code exists | Report with token and accuracy numbers; adopt/reject decision |
+| NX-046 [#30](https://github.com/operation-nexus/operation-nexus/issues/30) | Data-integrity Semgrep rules + FB registry tests (DATA-INTEGRITY §6) | M | ⬜ | NX-012 | Each rule has positive/negative fixtures |
+| NX-047 [#31](https://github.com/operation-nexus/operation-nexus/issues/31) | Optional: SonarQube Cloud quality gate (Q-CI-5) | S | ❓ | P2 | Decision recorded |
 | NX-048 | Open GitHub issues for P0 items (labels auto-created; phases tracked as `phase:Pn` labels because the available tooling can't create milestones) | S | ✅ | owner OK | Issues #1–#32 exist and are linked here |
-| NX-049 [#32](https://github.com/canthony224/operation-nexus/issues/32) | Create `develop` from `main` after planning sign-off; apply branch rulesets per ADR-0009; set default branch to `develop` | S | ✅ | planning done | Rulesets visible; PR to main without gates is blocked |
+| NX-049 [#32](https://github.com/operation-nexus/operation-nexus/issues/32) | Create `develop` from `main` after planning sign-off; apply branch rulesets per ADR-0009; set default branch to `develop` | S | ✅ | planning done | Rulesets visible; PR to main without gates is blocked |
 | NX-050 | Port interfaces + `Capabilities` + conformance suite skeleton (chat, LLM, TTS) per ADR-0010; import-linter vendor rule | M | ⬜ | NX-010, NX-019 | A fake adapter passes the suite; a vendor import outside adapters fails CI |
 | NX-311 | **Decision→spec propagation pass:** fold every ✅ decision in OPEN-QUESTIONS into the spec bodies (23 gaps listed in GAP-ANALYSIS §2), one PR per spec, P1 specs first. The docs lint that flags decided Q-IDs still described as open moved to NX-322. **Must finish before specs are marked Approved.** Done 2026-10-18 through the spec-alignment PRs #40–#52, #54–#57 and #61–#63. | L | ✅ | — | GAP-ANALYSIS §2 items all resolved |
 | NX-322 | Docs lint: flag decided Q-IDs (✅ in OPEN-QUESTIONS) that a spec or planning doc still describes as open or pending (split out of NX-311) | — | ⬜ | — | A doc line that calls a decided Q-ID open fails the lint |
 | NX-312 | Missing P1 docs: COMBAT spec, command and intent catalog, balance acceptance criteria (theater #1 = NX-008) | M | ⬜ | NX-311 | Docs exist, reviewed |
-| NX-040 [#27](https://github.com/canthony224/operation-nexus/issues/27) | Threat model review with owner; accept residual risks | S | ❓ | NX-001 | THREAT-MODEL §6 signed off |
+| NX-040 [#27](https://github.com/operation-nexus/operation-nexus/issues/27) | Threat model review with owner; accept residual risks | S | ❓ | NX-001 | THREAT-MODEL §6 signed off |
 
 ---
 
