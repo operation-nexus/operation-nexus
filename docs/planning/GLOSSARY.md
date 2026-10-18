@@ -20,6 +20,7 @@ terms still waiting for an owner ruling.
 | Lieutenant | A Static sub-commander that runs one sector or operation: a Threat Director profile with its own priorities, aggression, preferred operations and taunt voice, on the same mechanics (P4, Q-GD-38, NX-317). Shown as UNIDENTIFIED until intel reveals it |
 | Game Master (GM) | A human with the `GAME_MASTER` role who, during play, drives only the Static and world events and injects jobs only into the Static's Tasking Board. Never sets objectives or campaign options (ADMIN-RBAC, Q-AI-8, Q-ALN-10, Q-ALN-11) |
 | Command Center | The private admin console (moderation, users, AI/GM, campaign planning, rules, content); tailnet + Discord only (Q-ARCH-7, ADMIN-RBAC). Specs still also say "admin console" for it |
+| Staff | The people who run the game from the Command Center: the owner, admins, moderators and Game Masters. Never players (Q-ALN-40). _Avoid:_ operator, which means a player only |
 | Public site | The public app for replays, leaderboards, stats and the Field Manual; no admin features (Q-ARCH-7). _Avoid:_ companion site |
 | Viewer simulator | Scripted bot operators that inject commands straight into the internal command queue for testing; never on the public channel and never through real chat accounts (Q-PROD-4, Q-LEGAL-7) |
 
@@ -73,14 +74,14 @@ terms still waiting for an owner ruling.
 | World time | Sim time scaled by `sim.time_scale`; drives movement, logistics, combat, capture and fog-of-war timers (GAMEPLAY timers, Q-ALN-1, Q-ALN-23) |
 | Game time | Unscaled sim ticks (1 game minute = 1 real minute while running); drives player-facing durations such as idle handoff, cooldowns, respawn, decision windows and campaign length (Q-ALN-1) |
 | Real time | A monotonic clock outside the sim for chat rate limits, digests, taunt, GM, redemption and supply-drop limits; keeps running while the sim is paused (Q-ALN-4) |
-| Pause | A sim stop with a reason; it freezes world and game time. Only commands that don't change the world, and operator safety actions, work while paused (Q-ALN-2, Q-ALN-24) |
-| Pause category | Why the sim is paused: OPERATOR (manual, with an optional sub-reason RAID / ABUSE / CONTENT / OTHER), TECHNICAL (offline auto-pause), MAINTENANCE (weekly window) or CEASEFIRE (Q-ALN-3, Q-ALN-31) |
+| Pause | A sim stop with a reason; it freezes world and game time. Only commands that don't change the world, and staff safety actions, work while paused (Q-ALN-2, Q-ALN-24) |
+| Pause category | Why the sim is paused: STAFF (manual, with an optional sub-reason RAID / ABUSE / CONTENT / OTHER), TECHNICAL (offline auto-pause), MAINTENANCE (weekly window) or CEASEFIRE (Q-ALN-3, Q-ALN-31) |
 | Offline auto-pause | The TECHNICAL pause after the broadcast is offline longer than `ops.offline_pause_after_min`; resumes after a "COMMS RESTORED" countdown (OPS-ADMIN OA-5, OA-6) |
 | Maintenance window | One fixed weekly slot of up to ~2 h; the sim pauses with MAINTENANCE and the stream shows a "back at HH:MM" scene (OPS-ADMIN OA-7, OA-8) |
 | Ceasefire mode | The owner's one-click or hotkey pause (CEASEFIRE) for gaming on the broadcast PC: light OBS scene, heavy overlay rendering off (OPS-ADMIN OA-9) |
 | Snapshot / Command log | Recovery and replay data (ADR-0003) |
 | Reference host | The owner's broadcast host (i7-8700 + GTX 1070 under WSL2) for performance budgets; golden replays use the CI image instead (Q-TEST-1) |
-| Harness-validated | A value that met the written balance-harness targets over ≥ 50 seeds and crowd profiles, so it can drop its PROPOSED label (Q-TEST-2) |
+| Harness-validated | A value that met the written balance-harness targets over ≥ 50 seeds and the crowd profiles (0, 5, 50, 150 and 300 simulated viewers plus adversarial profiles), so it can drop its PROPOSED label (Q-TEST-2, Q-ALN-42) |
 
 ## Progression and conduct
 
@@ -88,7 +89,7 @@ terms still waiting for an owner ruling.
 |---|---|
 | XP | Lifetime experience whose thresholds set a commander's rank; losing a unit never costs XP (PROGRESSION §2–3, GAMEPLAY GP-2). _Not_ Merit |
 | Merit | A per-campaign score that resets each war and ranks the overall leaderboard. A score only: never spent or converted (Q-PROG-7, ADR-0011). _Not_ XP |
-| Rank id / rank name | Internal ids `O-1`…`O-6`; shown on stream as Recruit, Operator, Specialist, Signal Lead, Wave Commander, Quorum Marshal (Q-NAME-1, working names; O-6 follows the Q-BRAND-7 rename) |
+| Rank id / rank name | Internal ids `O-1`…`O-6`; shown on stream as Recruit, Drone, Specialist, Swarm Lead, Hive Commander, Quorum Marshal (Q-NAME-1, Q-ALN-41; hive ladder, working names). _Avoid:_ Operator, Signal Lead, Wave Commander (retired rank names) |
 | AUTO assist | A job completed by a commander's AUTO unit; shown in recaps only and never counts toward XP, Merit or leaderboards (PROGRESSION PROG-12, Q-ALN-30) |
 | Held the Line | A cosmetic badge, no XP or Merit, for being the only active Operator for ≥ 30 continuous game-time minutes while the Static is above Pattern of Life (PROG-10, Q-ALN-15, Q-ALN-27). Not the campaign mode below |
 | Hold the Line | A campaign mode (P4) that ends after N escalating waves or a time limit (GAMEPLAY §9, Q-GD-15) |
@@ -102,7 +103,7 @@ terms still waiting for an owner ruling.
 | Lore name | Means | Notes |
 |---|---|---|
 | the Quorum | The coalition (our side) | Adopted 2026-10-18 (Q-BRAND-7). Write "the Quorum", "Quorum forces", "Quorum intel". Never the external brand. _Avoid:_ Clearwave |
-| Operator | A viewer/player (a commander in the data model) | Commands squads, platoons or individual units (Q-BRAND-2, Q-BRAND-7). The word is overloaded; see NAMING-CONVENTIONS §3 |
+| Operator | A viewer/player (a commander in the data model) and nothing else | Commands squads, platoons or individual units (Q-BRAND-2, Q-BRAND-7). Never Command Center people, who are **Staff**, and never a rank name (Q-ALN-40) |
 | the Static | The enemy (director-controlled side) | Lowercase "the" mid-sentence |
 | NULL | The Quorum's intel codename for the Static's mastermind | Shown e.g. "SIGNAL SOURCE: NULL". Code uses an internal id, never the literal null (Q-BRAND-4) |
 | _(self-chosen name)_ | The name the mastermind signs its own broadcasts with | TBD (Q-BRAND-4). _Avoid:_ Overtone (rejected after name research) |

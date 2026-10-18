@@ -182,11 +182,11 @@ CREATE TABLE campaign_config_history (
   campaign_id       TEXT NOT NULL REFERENCES campaigns(campaign_id),
   effective_tick    INTEGER NOT NULL CHECK (effective_tick >= 0),
   config_hash       TEXT NOT NULL REFERENCES config_versions(config_hash),
-  arrival_seq       INTEGER,                   -- the OP_CONFIG_RELOAD command; NULL for the campaign's starting row
+  arrival_seq       INTEGER,                   -- the STAFF_CONFIG_RELOAD command; NULL for the campaign's starting row
   PRIMARY KEY (campaign_id, effective_tick)
 ) STRICT;
 ```
-- Every campaign gets a starting row (`effective_tick = start_tick`). Each hot reload (`OP_CONFIG_RELOAD` → `BalanceReloaded`) appends one row. Replays and crash bundles use this history to load the right config at each tick.
+- Every campaign gets a starting row (`effective_tick = start_tick`). Each hot reload (`STAFF_CONFIG_RELOAD` → `BalanceReloaded`) appends one row. Replays and crash bundles use this history to load the right config at each tick.
 
 ### 4.9 campaign_participation
 ```sql
@@ -332,7 +332,7 @@ GROUP BY j.campaign_id, k.commander_id, j.job_kind;
 ```
 - Both tables hold ids and numbers only (DM-6), so the deletion job keeps them, like the ledgers (§6.4).
 - Writes are idempotent: a replayed outcome hits the primary key and is ignored (`ON CONFLICT DO NOTHING`, §5.2).
-- **AUTO assists (Q-ALN-30):** a DONE job whose resolving claim belongs to a viewer's unit that was AI-run at that tick (`ended_by = 'RESOLVED'`, `ai_run_at_end = 1`) is an **AUTO assist** for that commander. AUTO assists are kept apart from operator-controlled completions (`ai_run_at_end = 0`) and are read only through `v_auto_assists`, for recaps. They never count toward XP, Merit or any leaderboard: progression writes no `xp_ledger` or `merit_ledger` row for the job, and per-job recap stats such as "most rescues" count only `ai_run_at_end = 0` rows.
+- **AUTO assists (Q-ALN-30):** a DONE job whose resolving claim belongs to a viewer's unit that was AI-run at that tick (`ended_by = 'RESOLVED'`, `ai_run_at_end = 1`) is an **AUTO assist** for that commander. AUTO assists are kept apart from operator-controlled completions (`ai_run_at_end = 0`) and are read only through `v_auto_assists`, for recaps. They never count toward XP, Merit or any leaderboard: progression writes no `xp_ledger` or `merit_ledger` row for the job, and per-job recap stats such as "most rescues" count only `ai_run_at_end = 0` rows. Q-ALN-34 widens the rule to every action by an AUTO unit (kills, supply deliveries, capture participation): progression writes no ledger row for any of them, and each is an AUTO assist for recaps. Only job AUTO assists have a store so far (§11).
 
 ### 4.14 clips (review queue)
 ```sql
@@ -374,7 +374,7 @@ CREATE TABLE admin_audit (
 ) STRICT;
 CREATE INDEX idx_admin_audit_time ON admin_audit(occurred_at);
 ```
-- **Pause rows (Q-ALN-31):** a `PAUSE` row's `detail_json` holds `reason_category` (`PauseReasonCategory`: `OPERATOR`, `TECHNICAL`, `MAINTENANCE`, `CEASEFIRE`) and `sub_reason` (`RAID`, `ABUSE`, `CONTENT`, `OTHER`, or `null`). `sub_reason` is non-null only when `reason_category = 'OPERATOR'`; the pause command itself carries the same two fields into the command log (ADMIN-RBAC pause flow).
+- **Pause rows (Q-ALN-31):** a `PAUSE` row's `detail_json` holds `reason_category` (`PauseReasonCategory`: `STAFF`, `TECHNICAL`, `MAINTENANCE`, `CEASEFIRE`) and `sub_reason` (`RAID`, `ABUSE`, `CONTENT`, `OTHER`, or `null`). `sub_reason` is non-null only when `reason_category = 'STAFF'`; the pause command itself carries the same two fields into the command log (ADMIN-RBAC pause flow).
 
 ### 4.16 deletion_requests
 ```sql
@@ -418,7 +418,7 @@ The repository interface (`nexus.persistence`) is the only code that sees SQL. T
 - On restart, the runtime replays the command log from the last snapshot. The resulting events produce the same keys, so duplicates are ignored and gaps are filled.
 
 ### 5.3 XP diminishing returns (PROG-1) and the first-mission gate
-For each `AppendXp(commander, reason, base_xp, source_tick)`:
+No `AppendXp` or `AppendMerit` intent is produced for an action by an AUTO unit (Q-ALN-34). For each `AppendXp(commander, reason, base_xp, source_tick)`:
 1. Look up the commander's awarded XP within the trailing **60 minutes of wall-clock time**, using `recorded_at`. `progression.xp_hour_soft_cap` is defined per real hour (CONFIG-AND-CONTENT §6.8). `recorded_at` is stamped by the runtime when it persists the event. Progression runs outside the deterministic kernel, so this doesn't affect sim determinism. Replaying the command log after a crash doesn't re-award XP, because the idempotency keys dedupe (§5.2).
 2. If over `progression.xp_hour_soft_cap`, `multiplier_milli = round(progression.xp_over_cap_mult × 1000)`; otherwise 1000. A package XP-share bonus (GAMEPLAY §7) multiplies on top; the result must stay within the column CHECK.
 3. `persistent = 1` only if `commanders.first_mission_at IS NOT NULL`. There is no minimum-humans gate: the PROG-2 "<2 humans" rule is dropped (Q-PROG-6), so a lone operator earns persistent XP. Anti-farming relies on this gate, the hourly diminishing returns above and the NX-277 layers.
@@ -461,7 +461,7 @@ For each `AppendXp(commander, reason, base_xp, source_tick)`:
    "source": "CHAT", "platform": "TWITCH",
    "commander_id": "0192…", "args": {"role": "LOGI"}, "late": false}
   ```
-  - `source` is a `CommandSource` (`CHAT|OPERATOR|ADVISOR|SYSTEM`, CONTRACTS §3.3). `platform` is set only for `CHAT` commands and is `null` otherwise. No vendor field names (ADR-0010 N-6).
+  - `source` is a `CommandSource` (`CHAT|STAFF|ADVISOR|SYSTEM`, CONTRACTS §3.3). `platform` is set only for `CHAT` commands and is `null` otherwise. No vendor field names (ADR-0010 N-6).
   - `commander_id` only; no names (DM-6).
   - Advisor choices and admin actions are commands too (ADR-0002).
 - **Flush and fsync:** every 1 s (NFR-7), and on campaign end and shutdown.
@@ -560,7 +560,7 @@ To measure in P1/P2: real command rate per hour of day, the actual zstd ratio on
 | §5.3 | Unit + property: DR window uses `recorded_at` (real time); re-processing the same events doesn't change awards; XP before the first completed mission is non-persistent; a lone active human earns persistent XP (Q-PROG-6) |
 | §4.2 | Two `!quiet` commands from one commander set `taunt_opt_out` to 1 then back to 0; a `!quiet` sent from a second linked platform flips the same row (Q-ALN-12); merging a commander with `taunt_opt_out = 1` into one with 0 (and the reverse) leaves the survivor at 1, merging two 0s leaves 0 (Q-ALN-28); a `TOMBSTONE` row whose callsign is not `X-` + 4 of `[A-Z0-9]` is rejected by the CHECK |
 | §4.3 | An envelope with `account_created_at: null` stores `platform_account_created_at` as `NULL`, never a substitute date |
-| §4.13a | A GM-injected job on the `COALITION` board is rejected by the CHECK (Q-ALN-11); replaying the same job outcome twice leaves one `tasking_jobs` row; a fixture campaign with three DONE rescue jobs claimed by one commander yields a rescue count of 3 for that commander; with two of them resolved under AUTO (`ai_run_at_end = 1`) the rescue count is 1, `v_auto_assists` shows 2, and no `xp_ledger` or `merit_ledger` row exists for the two AUTO jobs (Q-ALN-30); a unit reclaimed between claim and resolution counts as operator-controlled |
+| §4.13a | A GM-injected job on the `COALITION` board is rejected by the CHECK (Q-ALN-11); replaying the same job outcome twice leaves one `tasking_jobs` row; a fixture campaign with three DONE rescue jobs claimed by one commander yields a rescue count of 3 for that commander; with two of them resolved under AUTO (`ai_run_at_end = 1`) the rescue count is 1, `v_auto_assists` shows 2, and no `xp_ledger` or `merit_ledger` row exists for the two AUTO jobs (Q-ALN-30); a kill by an AUTO unit writes no `xp_ledger` or `merit_ledger` row (Q-ALN-34); a unit reclaimed between claim and resolution counts as operator-controlled |
 | §4.11 | Insert of a negative merit `delta` is rejected (Q-PROG-7) |
 | §4.12 | Rebuild after a rank-table change that raises thresholds leaves every `rank_level` unchanged (Q-CFG-2) |
 | §7a | Export files contain no field outside the allowlist; the overlay and site bundles load no third-party script (DM-11) |
@@ -592,16 +592,18 @@ Decided 2026-10-18 (spec-alignment batch):
 - **Q-ALN-28:** on a merge, `taunt_opt_out` opt-out wins (§4.2, §4.12).
 - **Q-ALN-29:** the suffix after `REDACTED-` is a random 4-character tag stored at deletion in the tombstone callsign `X-<tag>` (§4.2, §6.4).
 - **Q-ALN-30:** jobs completed by a viewer's AUTO unit are AUTO assists, recap-only, excluded from XP, Merit and leaderboards (`ai_run_at_end`, `v_auto_assists`, §4.13a).
-- **Q-ALN-31:** pause audit rows carry `reason_category` plus an optional `sub_reason` used only for `OPERATOR` (§4.15).
+- **Q-ALN-34:** no action by an AUTO unit earns XP or Merit or counts toward a leaderboard; all are AUTO assists for recaps (§4.13a, §5.3).
+- **Q-ALN-31:** pause audit rows carry `reason_category` plus an optional `sub_reason` used only for `STAFF` (§4.15).
 - PROGRESSION PROG-4 / IDENTITY §1: platform account age is stored as `platform_identities.platform_account_created_at` (§4.3).
 
 Not modeled yet:
+- AUTO assists other than jobs (a kill, a supply delivery or capture participation by an AUTO unit, Q-ALN-34): no recap store is specified yet.
 - Season and per-role leaderboard source rows (recon assists that led to engagements, threat-weighted kills, objective damage, hours played, the season key): NX-314 (Q-ALN-16).
 - CONTRACTS names no event for the DONE and FAILED job outcomes yet; §4.13a needs one, and it must say whether the resolving unit was AI-run at that tick (fills `ai_run_at_end`, Q-ALN-30).
 
 ## Data model additions pending merge (2026-10-17)
 - **From [ADMIN-RBAC](ADMIN-RBAC.md):**
-  - Tables: `operators`, `role_grants`, `operator_credentials`, `admin_sessions`, `approval_requests`, `scheduled_items`, `content_versions`.
+  - Tables: `staff`, `role_grants`, `staff_credentials`, `admin_sessions`, `approval_requests`, `scheduled_items`, `content_versions`.
   - New `admin_audit` columns: `channel`, `permission`, `approval_request_id`, `flags`.
 - **From [SUPPORT-REDEMPTIONS](SUPPORT-REDEMPTIONS.md) §8:** `support_events`, `redemption_rules`.
 - **From GAMEPLAY §9b:** `campaign_carryover` (campaign_id, from_campaign_id, effects JSON, config_hash, applied_at).

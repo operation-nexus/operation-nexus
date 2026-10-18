@@ -1,7 +1,7 @@
 # SPEC: Progression
 
 
-> **All numeric values in this spec are PROPOSED and unvalidated** (DATA-INTEGRITY DI-7). They become real only after the balance harness validates them, as defined in Q-TEST-2 (≥50 seeds across crowd profiles, written targets met, report saved with the config hash).
+> **All numeric values in this spec are PROPOSED and unvalidated** (DATA-INTEGRITY DI-7). They become real only after the balance harness validates them, as defined in Q-TEST-2 (≥50 seeds across crowd profiles of 0, 5, 50, 150 and 300 simulated viewers plus the adversarial profiles, Q-ALN-42; written targets met, report saved with the config hash).
 Status: Draft · Tracker: NX-210…NX-224 · Inputs: P725–971, C5–10
 
 ## 1. Principles
@@ -27,18 +27,18 @@ The values below are the initial PROPOSED preset. They are config data, not code
 **PROG-3** Merges never sum XP (IDENTITY §4).
 **PROG-4** Anti-farming is layered, with no captcha (Q-PROG-3, Q-PROG-6, NX-277): (1) platform account age where the platform API exposes it [UNVERIFIED per platform]; (2) our own first-seen age (IDENTITY §1); (3) the first-completed-mission gate (PROG-2); (4) hourly diminishing returns (PROG-1); (5) Command Center anomaly flags for many new accounts acting in lockstep; (6) a mod/admin action that voids XP, audited, which writes compensating ledger rows and never deletes ledger rows.
 **PROG-5** Nobody grants XP or merit directly: there is no admin, mod or GM command that awards XP or merit to a player (Q-AI-8). XP and merit come only from the §2 sources. PROG-4 (6) can only remove.
-**PROG-12** **AUTO assists (Q-ALN-30):** a Tasking Board job completed by a commander's unit while it is AI-run (AUTO, GAMEPLAY GP-4) is recorded as an **AUTO assist** for recaps only. It awards no XP and no merit, and it never counts toward any leaderboard metric (§6). Progression tells these apart by the `auto` flag on the job's completion event (CONTRACTS, Tasking Board events).
+**PROG-12** **AUTO assists (Q-ALN-30, Q-ALN-34):** no action by a commander's unit while it is AI-run (AUTO, GAMEPLAY GP-4) earns XP or merit or counts toward any leaderboard metric (§6): not a kill, a supply delivery, capture participation or a completed Tasking Board job. Each such action is recorded as an **AUTO assist** for recaps only. Progression tells these apart by the `auto` flag on the job's completion event (CONTRACTS, Tasking Board events).
 
 ## 3. Ranks (one table; resolves critique #8 and #14)
-`O-1`…`O-6` are **internal rank ids** (config, contracts, DB). Viewers see the **themed display name** (Q-NAME-1; working names, final list in the brand guide NX-274). No real military rank titles appear on stream (Q-PROD-5).
+`O-1`…`O-6` are **internal rank ids** (config, contracts, DB). Viewers see the **themed display name** (Q-NAME-1; hive ladder, Q-ALN-41; working names, final list in the brand guide NX-274). No real military rank titles appear on stream (Q-PROD-5).
 
 | Rank id | Display name (working) | XP | Unlocks |
 |---|---|---|---|
 | O-1 | Recruit | 0 | Striker, Scout, Hauler (strike, recon, logi); `!target`, `!rtb`, `!rebase`, `!stance`, `!wingman` |
-| O-2 | Operator | 300 (~45–60 min active) | `!vector`. (Custom `!callsign` is **not** rank-gated: it unlocks after the first completed mission, Q-PROG-3.) |
+| O-2 | Drone | 300 (~45–60 min active) | `!vector`. (Custom `!callsign` is **not** rank-gated: it unlocks after the first completed mission, Q-PROG-3.) |
 | O-3 | Specialist | 1,500 | `!doctrine`; SEAD, artillery; `!rally` (Q-SUP-6); `!order` (P4) |
-| O-4 | Signal Lead | 5,000 | Jammer, engineer, AWACS |
-| O-5 | Wave Commander | 15,000 | `!package` lead |
+| O-4 | Swarm Lead | 5,000 | Jammer, engineer, AWACS |
+| O-5 | Hive Commander | 15,000 | `!package` lead |
 | O-6 | Quorum Marshal | 40,000 | May call 1 theater asset per cooldown (default 1 h, Q-PROG-7; game time, Q-CFG-8, Q-ALN-1; held in the rank-table preset, §3a). Costs no merit (Q-PROG-7). |
 The XP thresholds are placeholders. The balance harness sets them so that O-2 takes about 1 hour and O-4 about 2–4 weeks for a regular player.
 
@@ -73,7 +73,7 @@ Separate boards per role, plus an overall board. Campaign MVPs are listed in the
 - PROG-2: no persistent XP before the first completed mission.
 - PROG-5: the command catalog has no XP- or merit-granting command; PROG-4 (6) void writes compensating rows and the ledger row count never decreases.
 - PROG-7: the validator rejects a preset with non-increasing thresholds, a negative value, or an unknown unlocked command; every accepted save has an audit row. A preset drafted by a GM does not become active until an Admin or the owner approves and applies it, and a GM's apply request is refused (Q-ALN-22).
-- PROG-12: a job completed by an AUTO unit writes an AUTO assist for that commander, no XP or merit ledger row, and no leaderboard change (Q-ALN-30).
+- PROG-12: a job completed by an AUTO unit writes an AUTO assist for that commander, no XP or merit ledger row, and no leaderboard change (Q-ALN-30); so do a kill, a supply delivery and capture participation by an AUTO unit (Q-ALN-34).
 - PROG-9: an ability cooldown does not advance while the sim is paused, and takes the same number of ticks at any `sim.time_scale` (Q-ALN-1).
 - PROG-11: after a preset raises a threshold above a commander's XP, that commander keeps the rank; a commander below it who has not earned it is promoted only at the new threshold.
 - PROG-10: the badge is awarded after 30 continuous game-time minutes as the only active human with the Static above Pattern of Life; not awarded if a second human becomes active or the Static returns to Pattern of Life before then; a second commander whose unit is AUTO, or who sent no sim-reaching command within `presence.idle_handoff_min`, does not count as active (Q-ALN-27); awarding it writes no XP or merit.
@@ -81,4 +81,4 @@ Separate boards per role, plus an overall board. Campaign MVPs are listed in the
 - Season end: a campaign running past the planned end closes the season at campaign end; at `overtime_cap_days` the season closes and later points count in the new season.
 
 ## 8. Open questions
-Decided and folded in: Q-ALN-1, Q-ALN-10, Q-ALN-14, Q-ALN-15, Q-ALN-16, Q-ALN-22 (GM drafts presets, Admin applies, PROG-7), Q-ALN-27 (active operator for PROG-10), Q-ALN-30 (AUTO assists, PROG-12). Still open: whether an AUTO unit's individual actions outside a completed job (a kill, a supply delivery, capture participation) earn the §2 XP and merit; Q-ALN-30 covers completed jobs only.
+Decided and folded in: Q-ALN-1, Q-ALN-10, Q-ALN-14, Q-ALN-15, Q-ALN-16, Q-ALN-22 (GM drafts presets, Admin applies, PROG-7), Q-ALN-27 (active operator for PROG-10), Q-ALN-30 (AUTO assists, PROG-12), Q-ALN-34 (no XP, merit or leaderboard credit for any AUTO action, PROG-12), Q-ALN-41 (rank names, §3), Q-ALN-42 (crowd profiles, header note). Still open: how progression tells that a kill, delivery or capture was made by an AUTO unit; so far only the job completion event carries an `auto` flag (CONTRACTS, Tasking Board events).

@@ -60,7 +60,7 @@ Examples that must always hold after any sequence of valid commands:
 - Adapter tests run against recorded fixtures (EventSub payloads, YouTube liveChatMessages pages) and include malformed or edge cases.
 
 ### 3.5 Balance harness (`tools/balance`)
-Scripted viewer populations (lurker, newbie, veteran, logistics-lover, troll, AFK farmer) drive the sim headless at many times real time. Standard scenarios: `overnight-0`, `quiet-5`, `prime-50`, `raid-500`, `troll-swarm`. Metrics: momentum curve, campaign length, newbie time-to-first-impact, kill-share Gini by rank, director tier dwell time, supply starvation minutes. Results go to a nightly artifact and trend chart.
+Scripted viewer populations (lurker, newbie, veteran, logistics-lover, troll, AFK farmer) drive the sim headless at many times real time. Standard scenarios are the crowd profiles of 0, 5, 50, 150 and 300 simulated viewers (`overnight-0`, `quiet-5`, `prime-50`, a 150-viewer scenario whose id is not named yet, `raid-300`), plus the adversarial profiles (`troll-swarm`; NX-321) (Q-ALN-42). Metrics: momentum curve, campaign length, newbie time-to-first-impact, kill-share Gini by rank, director tier dwell time, supply starvation minutes. Results go to a nightly artifact and trend chart.
 
 ### 3.6 Performance budgets (initial; SYSTEM-DESIGN §3 NFRs)
 - Sim tick p99 < 25 ms at 1,000 entities (10 Hz → 100 ms budget, leaving headroom).

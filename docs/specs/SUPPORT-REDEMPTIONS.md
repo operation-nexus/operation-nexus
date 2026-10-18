@@ -71,13 +71,14 @@ Effect allowlist by trigger source:
 ### 4b. Provocation weights (Q-AI-9, Q-ALN-13)
 - **SR-3** Every applied redemption adds to the director's `provocation` score (THREAT-DIRECTOR §5a) by a per-type weight, `director.provocation.weights.redemption.<type>` (admin-tunable; values PROPOSED / TBD by harness).
 - **SR-4** Weight classes: **support** (QoL and team support: respawn skip, reserve-queue jump, extra `!scout` ping, supply drop) = small weight; **cosmetic** (cosmetic, shoutout and spectacle) = **0**. There is **no offensive class**: the Forbidden row above bars every damaging effect, so no redemption can carry a full weight (Q-ALN-13). An unapplied, refunded or ignored redemption adds nothing.
+- **SR-5** **While paused (Q-ALN-37):** a channel-points redemption that arrives while the campaign is paused is refused. No `SUPPORT_REDEEM` is issued; it is CANCELED at §5 step 7, so the points are refunded automatically, and stored with `status` REFUNDED.
 
 ## 5. Flow
 1. The adapter verifies authenticity: signed webhooks, OAuth-bound EventSub, and a Ko-fi token compared in constant time over HTTPS.
 2. **Dedupe** on `(platform, support_id)` in `support_events` (unique). Retries are no-ops.
 3. Store the event, recording the raw amount and currency exactly as received.
 4. Match it against the rules (deterministic, first match by priority).
-5. Run the checks: the commander is resolved (if `platform_user_id` is null, only shoutout-free cosmetic or global spectacle rules can apply), limits are OK, and the campaign is running.
+5. Run the checks: the commander is resolved (if `platform_user_id` is null, only shoutout-free cosmetic or global spectacle rules can apply), limits are OK, and the campaign is running (not paused: a redemption while paused is refused and refunded, SR-5).
 6. Issue the logged command `SUPPORT_REDEEM{support_id, rule_id, commander_id?}`. The sim applies the effect and its provocation weight (§4b), which keeps replays deterministic.
 7. **Acknowledge:**
    - Channel points: FULFILLED on success, **CANCELED (refunds the points) on failure**.
@@ -109,7 +110,8 @@ Effect allowlist by trigger source:
 - A test that the channel-points refund path is called on failure.
 - A forbidden-effect rule is rejected by the config validator.
 - SR-1/SR-2: with 1 and with 300 simulated viewers, supply drops never exceed `support.supply_drop.max_per_hour`; a capped channel-points redemption is CANCELED.
+- SR-5: a channel-points redemption received while the campaign is paused issues no `SUPPORT_REDEEM`, is CANCELED (points refunded) and is stored as REFUNDED (Q-ALN-37).
 - SR-4: a cosmetic, shoutout or spectacle redemption leaves `provocation` unchanged; an applied respawn skip, queue jump, extra scout ping or supply drop adds its support weight; an unapplied one adds nothing; the config validator has no offensive class to bind a rule to.
 
 ## 10. Open questions
-Q-SUP-1 … Q-SUP-7, Q-AI-9, Q-ALN-4 and Q-ALN-13 are decided and folded in above. None open.
+Q-SUP-1 … Q-SUP-7, Q-AI-9, Q-ALN-4, Q-ALN-13 and Q-ALN-37 (SR-5) are decided and folded in above. None open.

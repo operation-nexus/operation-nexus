@@ -161,4 +161,4 @@ The director runs inside `core`, so it is deterministic. It sees only the **enem
 | TTS down | No voice; text sitreps continue | Circuit breaker; alert |
 | LLM down / over budget | Rule-only director, generic flavor text | Circuit breaker |
 | DB locked / disk full | Progress not saved; game continues | Writes queued in memory (bounded); alert; disk usage alert at 80% |
-| Moderation miss reported | — | Operator kill switch (blank names, mute TTS); ban cascades |
+| Moderation miss reported | — | Staff kill switch (blank names, mute TTS); ban cascades |

@@ -315,3 +315,13 @@ Raised by the NX-311 alignment pass; owner accepted all recommendations.
 | Q-ALN-30 | Jobs completed by a viewer's AUTO unit | Recorded as separate 'AUTO assists' for recaps only; they never count toward XP, Merit or leaderboards. | P1 | ✅ 2026-10-18 |
 | Q-ALN-31 | Q-RB-1 operator pause categories vs Q-ALN-3 | Two fields: category (OPERATOR/TECHNICAL/MAINTENANCE/CEASEFIRE) plus an optional sub-reason (RAID/ABUSE/CONTENT/OTHER) used only when category = OPERATOR. | P1 | ✅ 2026-10-18 |
 | Q-ALN-32 | HUD label for an operator pause | A simple 'PAUSED — stand by' banner. | P1 | ✅ 2026-10-18 |
+| Q-ALN-33 | Capture with defenders present (Q-GD-32 reading) | Combat-capable defenders freeze capture (Contested); defenders that cannot contest (parked air, Disabled units) slow it via the garrison multiplier. | P1 | ✅ 2026-10-18 |
+| Q-ALN-34 | XP for AUTO units outside jobs | None. No action by an AUTO unit (kills, deliveries, captures, jobs) earns XP or Merit or counts toward leaderboards; all are recorded as AUTO assists for recaps. | P1 | ✅ 2026-10-18 |
+| Q-ALN-35 | Clock for the CHARLIE warning lead time | Game time. | P1 | ✅ 2026-10-18 |
+| Q-ALN-36 | Remaining actions while paused | Allowed: unban, purge units, set callsign (none move the world). Rejected with CAMPAIGN_PAUSED: advisor choices and GM commands, except a GM releasing control. | P1 | ✅ 2026-10-18 |
+| Q-ALN-37 | Redemptions while paused | Refused and the channel points refunded automatically. | P1 | ✅ 2026-10-18 |
+| Q-ALN-38 | FoW Tier 1 refresh on world time | Re-express the value as world time so the real cadence stays about 8-10 s (48-60 s of world time at 6x); PROPOSED until harness-validated. | P1 | ✅ 2026-10-18 |
+| Q-ALN-39 | Pause sub-reason on stream | The public stream shows only 'PAUSED — stand by'; the sub-reason stays internal. The overlay receives only the pause category needed to choose the scene. | P1 | ✅ 2026-10-18 |
+| Q-ALN-40 | 'Operator' has three meanings (player, Command Center staff, O-2 rank) | Operator means a player only. Command Center people (owner, admins, mods, GMs) are 'staff': staff_id, STAFF_* admin commands, STAFF pause category. O-2 is renamed (Q-ALN-41). | P1 | ✅ 2026-10-18 |
+| Q-ALN-41 | Rank ladder theme | Hive ladder (working names): O-1 Recruit, O-2 Drone, O-3 Specialist, O-4 Swarm Lead, O-5 Hive Commander, O-6 Quorum Marshal. Voice profile 'Quorum Control' confirmed. | P1 | ✅ 2026-10-18 |
+| Q-ALN-42 | Balance-harness crowd profiles | 0, 5, 50, 150 and 300 simulated viewers (supersedes the 0/10/100/300 in Q-TEST-2 and the 0/5/50/500 in ROADMAP/TESTING-STRATEGY), plus the adversarial profiles. | P1 | ✅ 2026-10-18 |
