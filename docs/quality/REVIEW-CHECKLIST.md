@@ -27,7 +27,7 @@ Used by human reviewers and by `.agents/roles/reviewer.md`. Skip lines that don'
 - Respects module boundaries in SYSTEM-DESIGN §4 (e.g., overlay has no game logic; sim-core has no I/O).
 - Is there a simpler way? Is any new abstraction justified by a second use?
 - New dependency justified (license, maintenance, size).
-- Names match the glossary (`docs/planning/GLOSSARY.md`).
+- Names match the glossary (`docs/planning/GLOSSARY.md`) and the case style in `docs/planning/NAMING-CONVENTIONS.md`.
 
 ## Tests
 - Would these tests fail if the feature were broken? (Mentally delete the implementation.)

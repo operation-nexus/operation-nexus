@@ -1,0 +1,223 @@
+# CI: lint, typecheck, build and test for the Python app and the overlay (NX-011).
+# Spec: docs/cicd/CICD-ARCHITECTURE.md §3-§5, ADR-0009.
+#
+# Gate policy (ADR-0009). `ci-gate` is the only check branch protection needs.
+#   - Lint, format, typecheck, import contracts and build: always blocking.
+#   - Tests (python-test, overlay-test): advisory when the target branch is
+#     `develop`, required when it is `main`. Advisory test jobs still run and
+#     show red; ci-gate turns their failure into a warning instead of failing.
+#   - Skipped jobs (path filter) count as success.
+#   - python-test also runs the repo-check script tests (scripts/tests), so
+#     they follow the same advisory/required rule as the other tests.
+#
+# Security notes: no pull_request_target; top-level permissions are empty and
+# each job gets contents: read only; checkout does not persist credentials;
+# event data reaches shell steps only through env vars, never ${{ }} in run.
+name: ci
+
+on:
+  pull_request:
+    branches: [develop, main]
+  push:
+    branches: [develop, main]
+
+permissions: {}
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  changes:
+    name: changes
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      python: ${{ steps.filter.outputs.python }}
+      overlay: ${{ steps.filter.outputs.overlay }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          # On pull_request, HEAD is the merge commit and HEAD^1 is the base tip.
+          fetch-depth: 2
+      - name: Filter changed paths
+        id: filter
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          # Pushes to develop/main always run the full suite (CICD §3).
+          if [ "$EVENT_NAME" != "pull_request" ]; then
+            echo "python=true" >> "$GITHUB_OUTPUT"
+            echo "overlay=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          # File names are PR-controlled: match them, never echo them to the log
+          # (a name like "::error::..." would be parsed as a workflow command).
+          changed="$(git diff --name-only HEAD^1 HEAD)"
+          echo "Changed files: $(printf '%s\n' "$changed" | grep -c . || true)"
+          shared='^(contracts/|Makefile$|\.github/workflows/ci\.yml$)'
+          if printf '%s\n' "$changed" | grep -Eq "^(services/|tools/|scripts/)|$shared"; then
+            echo "python=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "python=false" >> "$GITHUB_OUTPUT"
+          fi
+          if printf '%s\n' "$changed" | grep -Eq "^apps/|$shared"; then
+            echo "overlay=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "overlay=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  python:
+    name: python (lint, types)
+    needs: changes
+    if: needs.changes.outputs.python == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: services/sim
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: "0.11.32"
+          python-version: "3.12"
+          cache-dependency-glob: services/sim/uv.lock
+      # Same commands as `make check-python`.
+      - run: uv sync --frozen
+      - run: uv run --frozen ruff check .
+      - run: uv run --frozen ruff format --check .
+      - run: uv run --frozen mypy src tests
+      - run: uv run --frozen lint-imports
+
+  python-test:
+    name: python (tests)
+    needs: changes
+    if: needs.changes.outputs.python == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: services/sim
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: "0.11.32"
+          python-version: "3.12"
+          cache-dependency-glob: services/sim/uv.lock
+      - run: uv sync --frozen
+      - run: uv run --frozen pytest
+      # Repo-check script tests (scripts/, stdlib only), as in `make check-python`.
+      - run: python3 scripts/tests/test_repo_checks.py
+        working-directory: .
+
+  overlay:
+    name: overlay (types, lint, build)
+    needs: changes
+    if: needs.changes.outputs.overlay == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: apps/overlay
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # pnpm version comes from "packageManager" in package.json.
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          package_json_file: apps/overlay/package.json
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: apps/overlay/pnpm-lock.yaml
+      # Same scripts as `make check-overlay`, plus the production build.
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run typecheck
+      - run: pnpm run lint
+      - run: pnpm run build
+
+  overlay-test:
+    name: overlay (tests)
+    needs: changes
+    if: needs.changes.outputs.overlay == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: apps/overlay
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          package_json_file: apps/overlay/package.json
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "22"
+          cache: pnpm
+          cache-dependency-path: apps/overlay/pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm test
+
+  ci-gate:
+    name: ci-gate
+    if: always()
+    needs: [changes, python, python-test, overlay, overlay-test]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions: {}
+    steps:
+      - name: Evaluate job results
+        env:
+          # PRs: target branch. Pushes: the branch pushed to.
+          TARGET_BRANCH: ${{ github.base_ref || github.ref_name }}
+          R_CHANGES: ${{ needs.changes.result }}
+          R_PYTHON: ${{ needs.python.result }}
+          R_PYTHON_TEST: ${{ needs.python-test.result }}
+          R_OVERLAY: ${{ needs.overlay.result }}
+          R_OVERLAY_TEST: ${{ needs.overlay-test.result }}
+        run: |
+          set -euo pipefail
+          advisory=false
+          if [ "$TARGET_BRANCH" = "develop" ]; then advisory=true; fi
+          echo "Target branch: $TARGET_BRANCH (tests advisory: $advisory)"
+          fail=0
+          check() { # name result is_test
+            case "$2" in
+              success|skipped) echo "ok    $1 ($2)" ;;
+              *)
+                if [ "$3" = "test" ] && [ "$advisory" = "true" ]; then
+                  echo "::warning title=Advisory test failure::$1 is $2. Advisory on develop (ADR-0009); open a tracker issue within 24 h."
+                else
+                  echo "::error title=Required check failed::$1 is $2"
+                  fail=1
+                fi ;;
+            esac
+          }
+          check changes "$R_CHANGES" required
+          check python "$R_PYTHON" required
+          check python-test "$R_PYTHON_TEST" test
+          check overlay "$R_OVERLAY" required
+          check overlay-test "$R_OVERLAY_TEST" test
+          exit "$fail"

@@ -20,6 +20,11 @@ Use **ports and adapters** everywhere the system touches an outside vendor. Core
 | `TtsEngine`: text → audio | Piper, Kokoro, a cloud TTS later, `SilentTts` for tests | `nexus.audio.engines.*` |
 | `ClipPublisher`: clip review → publish | manual export first, then the YouTube/TikTok APIs after their audits | `nexus.clips.publishers.*` |
 | `AlertSink`: ops alerts | ntfy, Discord webhook, email | `nexus.ops.alerts.*` |
+| `ModerationProvider`: text moderation verdicts (callsigns, templates) | local blocklist with leetspeak/homoglyph folding, a free or local classifier, a cheap hosted check for custom callsigns when needed (Q-MOD-2) | `nexus.moderation.providers.*` |
+| `BackupTarget`: encrypted off-site backup storage | Google Drive first (owner already has it), other free or cheap S3-compatible providers; `age`-encrypted before upload (Q-OPS-6; provider limits [UNVERIFIED], NX-285) | `nexus.ops.backup.targets.*` |
+| `SupportSource`: support and engagement events | Twitch (channel points, Bits, subs), YouTube (Super Chat, memberships), one third-party tip service later (Q-SUP-3) | `nexus.support.adapters.*` (SUPPORT-REDEMPTIONS §3) |
+| `AdminChannel`: admin requests into the Command Center | web console, Discord slash commands (ADMIN-RBAC §7.1) | `nexus.ops.admin.channels.*` |
+| `MusicSource`: licensed music for the Music bus | Epidemic Sound (owner subscription; streaming/clip coverage and API [UNVERIFIED], NX-273), local licensed stems | `nexus.audio.music.*` |
 
 ### Rules
 1. **N-1. No vendor imports outside adapters.** Enforced by import-linter: only `*.adapters.*`, `*.providers.*`, `*.engines.*` and `*.publishers.*` may import vendor SDKs.
@@ -46,8 +51,8 @@ Use **ports and adapters** everywhere the system touches an outside vendor. Core
 6. **N-6. Contracts are vendor-free.** No vendor field names or ids leak into `/contracts`. Raw platform payloads are kept only in adapter debug logs, which have a short retention.
 7. **N-7. Agent neutrality (development).** `AGENTS.md` is the tool-agnostic source of truth. Tool-specific files (`CLAUDE.md`, `.claude/`, Cursor or Copilot rules if added) only point to it, and add tool mechanics, never different rules. Role cards, prompts, skills and specs are plain Markdown any agent can read. CI quality gates are what enforce the rules, not one agent's plugins, so swapping the coding agent changes nothing about what passes review.
 
-### Launch order (unchanged unless the owner says otherwise)
-Both Twitch and YouTube are first-class targets. The *launch order* stays Twitch alpha → YouTube beta (ADR-0008) for one reason: YouTube's quota needs an application and monitoring first. The architecture doesn't care which goes first, and simulcasting both is supported by design (N-5). Q-PROD-6 asks whether the owner wants both in the alpha.
+### Launch order
+Both Twitch and YouTube are first-class targets. The *launch order* is Twitch alpha → YouTube beta (ADR-0008), **confirmed by the owner on 2026-10-17 (Q-PROD-6)**, for one reason: YouTube's quota needs an application and monitoring first. The architecture doesn't care which goes first, and simulcasting both is supported by design (N-5).
 
 ## Consequences
 - Adding a platform or provider means writing one adapter and passing the conformance suite. No core changes.

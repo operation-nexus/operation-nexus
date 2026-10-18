@@ -60,13 +60,13 @@ Examples that must always hold after any sequence of valid commands:
 - Adapter tests run against recorded fixtures (EventSub payloads, YouTube liveChatMessages pages) and include malformed or edge cases.
 
 ### 3.5 Balance harness (`tools/balance`)
-Scripted viewer populations (lurker, newbie, veteran, logistics-lover, troll, AFK farmer) drive the sim headless at many times real time. Standard scenarios: `overnight-0`, `quiet-5`, `prime-50`, `raid-500`, `troll-swarm`. Metrics: momentum curve, campaign length, newbie time-to-first-impact, kill-share Gini by rank, director tier dwell time, supply starvation minutes. Results go to a nightly artifact and trend chart.
+Scripted viewer populations (lurker, newbie, veteran, logistics-lover, troll, AFK farmer) drive the sim headless at many times real time. Standard scenarios are the crowd profiles of 0, 5, 50, 150 and 300 simulated viewers (`overnight-0`, `quiet-5`, `prime-50`, a 150-viewer scenario whose id is not named yet, `raid-300`), plus the adversarial profiles (`troll-swarm`; NX-321) (Q-ALN-42). Metrics: momentum curve, campaign length, newbie time-to-first-impact, kill-share Gini by rank, director tier dwell time, supply starvation minutes. Results go to a nightly artifact and trend chart.
 
-### 3.6 Performance budgets (initial; confirm in Q-NFR-*)
+### 3.6 Performance budgets (initial; SYSTEM-DESIGN §3 NFRs)
 - Sim tick p99 < 25 ms at 1,000 entities (10 Hz → 100 ms budget, leaving headroom).
 - Fan-out: WS delta frame < 16 KB p95 at 1,000 entities.
 - Command-to-screen: from ingest to the overlay showing an ack < 500 ms p95, excluding platform latency.
-- Overlay: frame time p95 < 12 ms at 1080p on the reference machine (measured on the real machine in a perf run, not in CI).
+- Overlay: frame time p95 < 12 ms at 1080p on the reference host (Q-TEST-1; measured on the real machine in a perf run, not in CI).
 
 ### 3.7 Overlay visual tests
 Fixture states (empty map, heavy combat, fog-heavy, raid with 500 units, long callsigns, RTL names) render to screenshots, which are compared against baselines with a tolerance. Accessibility checks: a palette contrast script and simulated colorblind renders.
@@ -82,4 +82,4 @@ An integration test does: snapshot → kill sim → restart new build → restor
 Coverage is a floor, not a goal: sim-core ≥ 85% line and branch; diff coverage on PRs ≥ 90%. Excluded: generated code, `__main__`, and platform glue covered by contract tests.
 
 ## 5. Flaky tests
-A flaky test is a bug. Quarantine is not allowed (see AGENTS.md). Fix the root cause or delete the test with owner approval and a tracker item.
+A flaky test is a bug. Quarantine is not allowed. Fix the root cause or delete the test with owner approval and a tracker item.

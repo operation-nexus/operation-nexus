@@ -16,13 +16,13 @@ Non-goals for now: Kubernetes, Helm, multi-region, canary traffic splitting (ADR
 
 | Item | Rule |
 |---|---|
-| Model | **`develop` + `main`** (ADR-0009). Short-lived `feat/*` branches → PR → squash-merge to `develop`. A release PR `develop → main` happens only after the full gate passes and staging is healthy. Hotfixes branch from `main` and are merged back to `develop`. |
+| Model | **`develop` + `main`** (ADR-0009). Short-lived `feat/*` branches → PR → merge commit into `develop`. A release PR `develop → main` happens only after the full gate passes and staging is healthy. Hotfixes branch from `main` and are merged back to `develop`. |
 | Branch names | `feat/NX-123-short`, `fix/NX-…`, `docs/…`, `chore/…` |
-| Commits / PR titles | Conventional Commits. A PR-title lint enforces this because squash uses the title. |
+| Commits / PR titles | Conventional Commits for every commit and the PR title: merge commits keep each branch commit, and the merge subject is the PR title. A PR-title lint (NX-017) and the commit-msg check enforce this. |
 | Versioning | SemVer per deployable (`sim`, `gateway`, `overlay`) via release-please manifest mode. `contracts/` is versioned too, and any breaking change bumps `PROTOCOL_VERSION`. |
-| Protection on `develop` | PR required. Security and build checks required; tests advisory (ADR-0009 table). No force-push. |
+| Protection on `develop` | Every change by PR; direct pushes blocked; 0 approvals; `ci-gate` required; GitHub auto-merge lands the PR once `ci-gate` is green (Q-PROC-2). Security, build, lint, format and typecheck are required; tests, golden replays, integration and Playwright are advisory (ADR-0009 table, Q-CI-6). Until `security.yml` exists (NX-012), `ci-gate` covers build, lint, format, typecheck and import contracts. No force-push. Agents open these PRs only as AGENTS.md rule 10 allows. |
 | Protection on `main` | PRs only from `develop` (promotion) or `hotfix/*`. All required status checks (§4), no force-push, conversation resolution. **Required PR approvals: 0.** GitHub doesn't count an author's own approval, and the solo owner authors every PR, so a required approval would deadlock. Owner sign-off is instead enforced by (a) only the owner being able to merge to `main` (ruleset bypass list empty, merge restricted to the owner) and (b) required reviewers on the `production` Environment. Agents never merge to `main` (AGENTS.md rule 10). |
-| Merge methods | `feat/*` → `develop`: **squash**. `develop` → `main` and `hotfix/*` → `main`: **merge commit**, so `main` and `develop` share history and back-merges don't conflict repeatedly. `main` therefore does not require linear history. |
+| Merge methods | **Merge commit** everywhere: `feat/*` → `develop` (ADR-0009 amendment, 2026-10-18), `develop` → `main` and `hotfix/*` → `main`, so `main` and `develop` share history and back-merges don't conflict repeatedly. Neither branch requires linear history. |
 | Naming | *Promotion PR* = `develop` → `main`. *Release PR* = the release-please PR on `main`. |
 | Tags | `sim-v1.4.0` etc. are created only by release-please. |
 
@@ -33,7 +33,7 @@ Non-goals for now: Kubernetes, Helm, multi-region, canary traffic splitting (ADR
    │
    ├─ pr-hygiene ── title lint · size label · tracker-ID check · changed-paths filter
    │
-   ├─ python (paths: services/**, tools/**, contracts/**)
+   ├─ python (paths: services/**, tools/**, scripts/**, contracts/**)
    │     ruff check · ruff format --check · mypy --strict · pytest (unit + property)
    │     coverage gate (diff coverage ≥ 90%, sim-core total ≥ 85%)
    │
@@ -108,7 +108,7 @@ The raw plan called `pip-audit` and `npm audit` "SAST". They aren't. They're SCA
 | License | dependency-review `allow-licenses` list (decided in Q-LEGAL-1) | Yes |
 | IaC / containers | trivy config, hadolint, trivy image | Yes on high or critical |
 | CI itself | zizmor, actions pinned by SHA, `permissions: {}` default | Yes |
-| DAST | OWASP ZAP baseline against staging (companion site / link portal) | Report only until Phase 5 |
+| DAST | OWASP ZAP baseline against staging (public site / link portal; also required before any public exposure of the Command Center, Q-RB-4) | Report only until Phase 5 |
 | Supply chain posture | OpenSSF Scorecard, Dependabot/Renovate (grouped, weekly) | Report |
 
 Custom Semgrep rules (repo-specific, under `.semgrep/`):
@@ -124,13 +124,13 @@ Custom Semgrep rules (repo-specific, under `.semgrep/`):
 |---|---|---|---|---|
 | `local` | dev machine, `docker compose` | manual | seeded fixtures | none (overlay in a browser) |
 | `ci` | GitHub-hosted runners, ephemeral compose | every PR | fixtures | none |
-| `staging` | same host as prod, separate compose project + ports, **or** a cheap VPS (Q-OPS-2) | merge to `develop` | anonymized copy / synthetic | private/unlisted test stream |
-| `production` | broadcast host (Q-OPS-1) | release tag + manual approval | real | public channel(s) |
+| `staging` | the **Linux server** (separate machine from prod), its own compose project; a cheap cloud server only as fallback if the server proves too weak (Q-OPS-2, NX-007; ADR-0012) | merge to `develop` | anonymized copy / synthetic | private/unlisted test stream |
+| `production` | broadcast host: the Windows gaming PC, app stack in Docker Desktop on WSL2, OBS native (ADR-0012) | release tag + owner tap-approve, auto-rollback (Q-ARCH-15) | real | public channel(s) |
 
-Deployment mechanism (single node, ADR-0006):
+Deployment mechanism (ADR-0006, topology amended by ADR-0012):
 1. GitHub Actions job in environment `production` (required reviewer = owner).
 2. Authenticates to the host over **Tailscale** (OAuth client in GitHub secrets, ephemeral tagged node). No inbound SSH port is exposed to the internet.
-3. Runs `deploy/bin/deploy <service> <digest>`, which does `cosign verify` → `docker compose pull` → health-gated restart → smoke test → records the deployed digests in `deploy/state/`.
+3. Runs `deploy/bin/deploy <service> <digest>` (on the Windows host this runs **inside WSL2**, Q-ARCH-15), which does `cosign verify` → `docker compose pull` → health-gated restart → smoke test → records the deployed digests in `deploy/state/`.
 4. On a failed health check, it automatically rolls back to the previous digest. Rollback is also one manual command: `deploy/bin/rollback <service>`.
 
 **Self-hosted runners:** don't attach one to this repo if it is public. If the broadcast PC must build or run GPU jobs, use a pull-based deploy instead (the host polls for signed digests) so CI never gets code-execution rights on the machine that holds stream keys.
@@ -163,23 +163,27 @@ Rotation runbook in `deploy/runbooks/rotate-secrets.md` (NX-027). Secrets must n
 The repo is **public** (Q-CI-1). Rulesets, environment required reviewers, CodeQL, secret scanning and private vulnerability reporting are all free on public repos only, for a personal Free account.
 
 
-- [ ] Rulesets on `main` and `develop` as in §2 and ADR-0009 (NX-049)
-- [ ] Secret scanning + push protection ON
-- [ ] Dependabot alerts + security updates ON
-- [ ] Private vulnerability reporting ON (`SECURITY.md`)
-- [ ] Actions: "Allow select actions" + require SHA pinning; default `GITHUB_TOKEN` read-only
-- [ ] Environments `staging`, `production` created; `production` requires owner approval
-- [ ] CodeQL default setup OFF (we use the advanced workflow) to avoid duplicate runs
+- [x] Rulesets on `main` and `develop` as in §2 and ADR-0009 (NX-049)
+- [x] Secret scanning + push protection ON
+- [x] Dependabot alerts + security updates ON
+- [x] Private vulnerability reporting ON (`SECURITY.md`)
+- [x] Actions: "Allow select actions" + require SHA pinning; default `GITHUB_TOKEN` read-only
+- [x] Environments `staging`, `production` created; `production` requires owner approval
+- [x] CodeQL default setup OFF (we use the advanced workflow) to avoid duplicate runs
+
+Applied 2026-10-18 (OWNER-TODO §2). New third-party actions must be added to the Actions allowlist.
 
 ## 10. Workflow file plan
 
-| File | Purpose | Tracker |
-|---|---|---|
-| `.github/workflows/ci.yml` | PR + main checks, `ci-gate` | NX-011 |
-| `.github/workflows/security.yml` | CodeQL, gitleaks, SCA, zizmor, trivy config | NX-012 |
-| `.github/workflows/build.yml` | images, SBOM, sign, attest (on merge to `develop`; build check on PRs) | NX-013 |
-| `.github/workflows/deploy.yml` | staging auto from `develop`, prod on release tag with approval | NX-014 |
-| `.github/workflows/release.yml` | release-please | NX-015 |
-| `.github/workflows/nightly.yml` | soak, balance, rescan, scorecard | NX-016 |
-| `.github/workflows/pr-hygiene.yml` | title lint, labels, tracker-ID check | NX-017 |
-| `.github/dependabot.yml` | grouped weekly updates for pip, npm, actions, docker | NX-018 |
+| File | Purpose | Tracker | Status |
+|---|---|---|---|
+| `.github/workflows/ci.yml` | PR + main checks, `ci-gate` | NX-011 | Implemented |
+| `.github/workflows/security.yml` | CodeQL, gitleaks, SCA, zizmor, trivy config | NX-012 | Planned |
+| `.github/workflows/build.yml` | images, SBOM, sign, attest (on merge to `develop`; build check on PRs) | NX-013 | Planned |
+| `.github/workflows/deploy.yml` | staging auto from `develop`, prod on release tag with approval | NX-014 | Planned |
+| `.github/workflows/release.yml` | release-please | NX-015 | Planned |
+| `.github/workflows/nightly.yml` | soak, balance, rescan, scorecard | NX-016 | Planned |
+| `.github/workflows/pr-hygiene.yml` | title lint, labels, tracker-ID check | NX-017 | Planned |
+| `.github/dependabot.yml` | grouped weekly updates for pip, npm, actions, docker | NX-018 | Planned |
+
+`ci.yml` today: `changes` (git-diff path filter on PRs; pushes run everything), `python` (ruff, ruff format, mypy, import-linter), `python-test` (pytest, plus the repo-check script tests in `scripts/tests`), `overlay` (tsc, eslint + prettier, vite build), `overlay-test` (vitest), and `ci-gate`. `ci-gate` is the only required status check. Lint, format, typecheck, import contracts and the build always block. The two test jobs are advisory when the target is `develop` (`ci-gate` emits a warning) and required for `main`. The `contracts`, `sim-determinism`, `integration` and `docs` jobs arrive with their own tracker items.

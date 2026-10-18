@@ -219,16 +219,84 @@ __marimo__/
 # Streamlit
 .streamlit/secrets.toml
 
+# =====================================================================
 # --- Operation Nexus ---
+# Lockfiles (uv.lock, pnpm-lock.yaml) MUST be committed: never ignore them.
+# =====================================================================
+
+# Secrets and local env (AGENTS.md rule 9; Q-ARCH-10 sops+age)
+.env*
+!.env.example
+# Decrypted sops output must never be committed. Encrypted files
+# (*.enc.yaml / *.enc.json) are safe to commit and are re-included below.
+secrets.dec.*
+*.dec.yaml
+*.dec.yml
+*.dec.json
+*.decrypted.*
+!*.enc.yaml
+!*.enc.yml
+!*.enc.json
+
+# Runtime data (DATA-MODEL: SQLite, snapshots, command logs, clips).
+# Runtime dirs are anchored to the repo root so source packages (e.g. nexus/clips) are NOT ignored.
+/data/
 *.db
 *.db-wal
 *.db-shm
+*.sqlite
+*.sqlite3
+/snapshots/
+/command-logs/
+/clips/
+*.nxs
+*.nxl.zst
+*.tmp
+
+# Node / pnpm / Vite / TypeScript
 node_modules/
 .pnpm-store/
-/data/
-snapshots/
-command-logs/
-clips/
+.vite/
+*.tsbuildinfo
+.eslintcache
+*.local
+
+# Test and coverage output (pytest/vitest/Playwright)
+coverage/
+.nyc_output/
+junit*.xml
+playwright-report/
+test-results/
+blob-report/
+playwright/.cache/
+
+# Logs
 *.log
-.env*
-!.env.example
+npm-debug.log*
+pnpm-debug.log*
+
+# Docker / Compose local overrides
+compose.override.yaml
+compose.override.yml
+docker-compose.override.yml
+docker-compose.override.yaml
+
+# Claude Code: per-user settings and agent worktrees (team settings are committed)
+.claude/settings.local.json
+.claude/worktrees/
+
+# IDEs
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+._*
+Thumbs.db
+ehthumbs.db
+desktop.ini

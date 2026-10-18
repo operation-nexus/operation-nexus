@@ -16,7 +16,7 @@ Define every piece of persisted data: the durable SQLite store, the write path t
   - Portable SQL, so moving to Postgres is mechanical (ADR-0003).
 - **Non-goals**
   - Live game state in the DB. It lives in memory in the sim (ADR-0003).
-  - Analytics warehouse.
+  - Analytics warehouse. Analytics are first-party only and derived from our own events (§7a, Q-DM-3).
   - Multi-writer concurrency (deferred to Postgres).
 
 ## 3. Requirements
@@ -28,8 +28,9 @@ Define every piece of persisted data: the durable SQLite store, the write path t
 - **DM-6** Replays, the command log and snapshots contain `commander_id` (UUIDv7) only. They never contain display names, platform ids or callsign text (SEC-DATA-2).
 - **DM-7** Schema changes are forward-only numbered migrations. The app refuses to start if the DB schema is newer than the code knows (no silent downgrade).
 - **DM-8** SQL is parameterized only (REVIEW-CHECKLIST, Semgrep `sql-no-fstring`).
-- **DM-9** All timestamps are stored as UTC ISO-8601 text (`YYYY-MM-DDTHH:MM:SS.sssZ`). Sim-time references are stored as integer `tick` plus `campaign_id`, never converted to wall time.
+- **DM-9** All timestamps are stored as UTC ISO-8601 text (`YYYY-MM-DDTHH:MM:SS.sssZ`). Sim-time references are stored as integer `tick` plus `campaign_id`, never converted to wall time. Recurring owner schedules (maintenance window, night mode) are the one exception: they are stored as local wall-clock times plus an IANA zone and converted at use (Q-CFG-6, Q-CFG-8). Rendering in a viewer's locale or time zone happens in the site and Command Center, never in storage (Q-CFG-8).
 - **DM-10** No column has a made-up default. `DEFAULT` is used only for values that are true by construction (e.g., `0` for a counter that starts at zero, `CURRENT_TIMESTAMP`-equivalent set by the writer).
+- **DM-11** The overlay and the site load no third-party tracker, analytics script or analytics cookie. Product analytics are derived only from our own sim and gateway events (§7a, Q-DM-3).
 
 ## 4. Durable store (SQLite DDL)
 
@@ -57,18 +58,21 @@ CREATE TABLE commanders (
   callsign_kind     TEXT NOT NULL CHECK (callsign_kind IN ('GENERATED','CUSTOM','TOMBSTONE')),
   callsign_set_at   TEXT NOT NULL,
   created_at        TEXT NOT NULL,
-  first_mission_at  TEXT,                                      -- NULL until first completed sortie (PROG-2)
+  first_mission_at  TEXT,                                      -- NULL until first completed sortie (first-mission XP gate, Q-PROG-6)
   banned            INTEGER NOT NULL DEFAULT 0 CHECK (banned IN (0,1)),
   deletion_requested_at TEXT,                                  -- set when !forget / portal request is received
   deleted_at        TEXT,                                      -- set by the deletion job on completion; row kept as tombstone
+  taunt_opt_out     INTEGER NOT NULL DEFAULT 0 CHECK (taunt_opt_out IN (0,1)),  -- `!quiet` toggle (Q-ALN-12); 0 = never opted out
   CHECK ((callsign_kind = 'TOMBSTONE') = (deleted_at IS NOT NULL)),
-  CHECK (deleted_at IS NULL OR deletion_requested_at IS NOT NULL)
+  CHECK (deleted_at IS NULL OR deletion_requested_at IS NOT NULL),
+  CHECK (callsign_kind <> 'TOMBSTONE' OR callsign GLOB 'X-[A-Z0-9][A-Z0-9][A-Z0-9][A-Z0-9]')
 ) STRICT;
 CREATE INDEX idx_commanders_created ON commanders(created_at);
 ```
 - XP and rank are **not** stored here. They're derived (§4.10), so they can't drift from the ledger.
-- **Tombstone callsign:** `"X-"` followed by the first 10 characters of the RFC 4648 base32 (uppercase, no padding) encoding of `blake2b-256(commander_id)`. That is 12 characters, so it matches the CONTRACTS `Callsign` regex, and it is derived from the id, so it is unique in practice. On a collision (UNIQUE violation) the deletion transaction rolls back and alerts; the job then retries with the next 10 characters. The `X-` prefix is reserved and can't be claimed as a custom callsign (IDENTITY §3).
-- Viewers never see the tombstone value: anything with `callsign_kind = 'TOMBSTONE'` renders as `[REDACTED]`.
+- **Tombstone callsign (Q-ALN-29):** `"X-"` followed by a **random 4-character tag** drawn at deletion time from `[A-Z0-9]` (alphabet PROPOSED) with a cryptographically secure generator (Python `secrets`). The deletion job runs outside the sim, so this randomness does not touch determinism (ADR-0002). The tag is not derived from `commander_id` or any other identifier, so it can't be reversed. The value (e.g. `X-7KQ2`) is 6 characters, so it matches the CONTRACTS `Callsign` regex, and it is stored in `commanders.callsign`. On a collision (UNIQUE violation) the job draws a new tag in the same transaction; after a retry limit (PROPOSED, TBD) the transaction rolls back and alerts. The keyspace is 36⁴ = 1,679,616 tags. The `X-` prefix is reserved and can't be claimed as a custom callsign (IDENTITY §3).
+- **Display (Q-DM-2, Q-ALN-29):** viewers never see the stored `X-` value. A callsign with `callsign_kind = 'TOMBSTONE'` renders as `REDACTED-` plus its 4-character tag (`X-7KQ2` → `REDACTED-7KQ2`). Because the tag is unique and stored, two deleted commanders stay distinct in replays and recaps.
+- **`taunt_opt_out` (Q-ALN-12, IDENTITY ID-PREF-1):** each `!quiet` flips the flag and the bot confirms the new state. Any rank may use it. It lives on the commander, so it applies on every linked platform. While it is 1, Static taunts never name this commander. The `0` default is true by construction (DM-10): a new commander has not opted out. **On a merge (Q-PROG-4, Q-ALN-28) opt-out wins:** the surviving commander's flag is 1 if either merged commander had it set, and 0 only if both were 0.
 
 ### 4.3 platform_identities
 ```sql
@@ -77,6 +81,7 @@ CREATE TABLE platform_identities (
   platform_user_id   TEXT NOT NULL,
   commander_id       TEXT NOT NULL REFERENCES commanders(commander_id),
   display_name       TEXT,                     -- last seen; NULL if never received; never rendered unmoderated
+  platform_account_created_at TEXT,            -- from ChatEnvelope.account_created_at; NULL when the platform doesn't provide it, never guessed
   linked_via         TEXT NOT NULL CHECK (linked_via IN ('LAZY_CREATE','OAUTH_LINK','MERGE')),
   first_seen_at      TEXT NOT NULL,
   last_seen_at       TEXT NOT NULL,
@@ -84,6 +89,8 @@ CREATE TABLE platform_identities (
 ) STRICT;
 CREATE INDEX idx_identities_commander ON platform_identities(commander_id);
 ```
+- `platform_account_created_at` is the platform-account-age anti-farming layer (PROGRESSION PROG-4, IDENTITY §1) and feeds the account-age weighting (THREAT-DIRECTOR §2, `director.cp.new_account_age_h`). It is copied from `ChatEnvelope.account_created_at` (CONTRACTS §4) and stays `NULL` when the platform doesn't expose it [UNVERIFIED per platform]. `first_seen_at` is our own first-seen age.
+- `KICK` is in the CHECK list only because the `Platform` enum carries it: Kick is an optional platform, not a committed one (Q-PROD-2).
 - `LOCAL_SIM` rows exist only in dev/test databases. Production config that enables the `LOCAL_SIM` adapter is rejected at startup (CONTRACTS §3.3).
 - Re-pointing an existing `(platform, platform_user_id)` to another commander is only allowed inside the OAuth merge transaction (SEC-ID-2). There is no `INSERT OR REPLACE` anywhere (Semgrep rule, NX-020).
 
@@ -175,11 +182,11 @@ CREATE TABLE campaign_config_history (
   campaign_id       TEXT NOT NULL REFERENCES campaigns(campaign_id),
   effective_tick    INTEGER NOT NULL CHECK (effective_tick >= 0),
   config_hash       TEXT NOT NULL REFERENCES config_versions(config_hash),
-  arrival_seq       INTEGER,                   -- the OP_CONFIG_RELOAD command; NULL for the campaign's starting row
+  arrival_seq       INTEGER,                   -- the STAFF_CONFIG_RELOAD command; NULL for the campaign's starting row
   PRIMARY KEY (campaign_id, effective_tick)
 ) STRICT;
 ```
-- Every campaign gets a starting row (`effective_tick = start_tick`). Each hot reload (`OP_CONFIG_RELOAD` → `BalanceReloaded`) appends one row. Replays and crash bundles use this history to load the right config at each tick.
+- Every campaign gets a starting row (`effective_tick = start_tick`). Each hot reload (`STAFF_CONFIG_RELOAD` → `BalanceReloaded`) appends one row. Replays and crash bundles use this history to load the right config at each tick.
 
 ### 4.9 campaign_participation
 ```sql
@@ -210,7 +217,7 @@ CREATE TABLE xp_ledger (
   base_xp           INTEGER NOT NULL CHECK (base_xp >= 0),
   multiplier_milli  INTEGER NOT NULL CHECK (multiplier_milli > 0 AND multiplier_milli <= 4000), -- 1000 = 1.0x; DR and package share applied. Upper bound PROPOSED; must cover the package XP-share bonus (GAMEPLAY §7)
   awarded_xp        INTEGER NOT NULL CHECK (awarded_xp >= 0),
-  persistent        INTEGER NOT NULL CHECK (persistent IN (0,1)),  -- 0 when PROG-2 gate blocks persistence
+  persistent        INTEGER NOT NULL CHECK (persistent IN (0,1)),  -- 0 when the first-mission gate blocks persistence (§5.3)
   config_hash       TEXT NOT NULL REFERENCES config_versions(config_hash),
   recorded_at       TEXT NOT NULL,
   CHECK (awarded_xp = (base_xp * multiplier_milli) / 1000)
@@ -231,10 +238,9 @@ CREATE TABLE merit_ledger (
   source_tick       INTEGER NOT NULL,
   source_event_seq  INTEGER NOT NULL,
   reason            TEXT NOT NULL CHECK (reason IN
-                    ('SORTIE_COMPLETE','SUPPLY_DELIVERED','CAPTURE','OBJECTIVE','RECON_ASSIST','KILL','SPEND','ADMIN_ADJUST')),
-  delta             INTEGER NOT NULL,          -- negative only for SPEND (theater assets)
-  recorded_at       TEXT NOT NULL,
-  CHECK ((reason = 'SPEND') = (delta < 0))
+                    ('SORTIE_COMPLETE','SUPPLY_DELIVERED','CAPTURE','OBJECTIVE','RECON_ASSIST','KILL','ADMIN_ADJUST')),
+  delta             INTEGER NOT NULL CHECK (delta >= 0),   -- merit is a score only, never spent (Q-PROG-7, ADR-0011)
+  recorded_at       TEXT NOT NULL
 ) STRICT;
 CREATE INDEX idx_merit_campaign ON merit_ledger(campaign_id, commander_id);
 ```
@@ -255,8 +261,9 @@ CREATE TABLE commander_stats (
   updated_at           TEXT NOT NULL
 ) STRICT;
 ```
-- `rank_level` is computed from `xp_total` and the rank table in the active config. On a config change it's recomputed, never edited by hand.
-- **Merge (Q-PROG-4):** XP is never summed. The surviving commander keeps the max per stat. The absorbed commander's ledger rows stay attached to the absorbed id (they're history), and an identity_event `MERGED_INTO` links the two. The derived stats for the survivor take `max(survivor, absorbed)` per column at merge time; that rule is recorded as a `MERGED_FROM` event so rebuilds can reproduce it.
+- `rank_level` is derived, never edited by hand, and **never decreases** (Q-CFG-2). It is the highest level reached when each persistent `xp_ledger` row is folded in order under the rank table of that row's `config_hash`. A new rank table (an admin preset, Q-PROG-7) therefore applies to future promotions only.
+- Rank tables and XP source values are config (CONFIG-AND-CONTENT §6.8). Applying a preset (a GM may draft one; an Admin or Owner applies it, Q-ALN-22) registers a new `config_versions` row and writes an `admin_audit` row (Q-PROG-7).
+- **Merge (Q-PROG-4):** XP is never summed. The surviving commander keeps the max per stat. The absorbed commander's ledger rows stay attached to the absorbed id (they're history), and an identity_event `MERGED_INTO` links the two. The derived stats for the survivor take `max(survivor, absorbed)` per column at merge time; that rule is recorded as a `MERGED_FROM` event so rebuilds can reproduce it. In the same transaction the survivor's `commanders.taunt_opt_out` is set to `max(survivor, absorbed)`: opt-out wins (Q-ALN-28, §4.2).
 
 ### 4.13 Leaderboard views
 ```sql
@@ -275,7 +282,57 @@ JOIN commanders c ON c.commander_id = x.commander_id
 WHERE c.deleted_at IS NULL AND c.banned = 0
 GROUP BY x.campaign_id, x.commander_id, x.reason;
 ```
+- **Interim:** `v_role_leaderboard` groups XP by reason. Q-PROG-8 replaces that ranking: per-role boards rank by role contribution (logistics: supplies delivered; recon: spotted enemies later engaged by friendlies; CSAR: rescues completed; combat: threat-weighted kills + objective damage), the overall board ranks by merit, assists count, and each board has a season-total (primary) and a per-hour-played view. The metric per board is defined in config. **Season and per-role leaderboard source tables (the recon, CSAR and threat-weighted metrics, the season key and hours played) are specified in the seasons and leaderboards spec (NX-314), not here (Q-ALN-16).** When that spec lands, its tables are added to §4 in the same PR as their migration. CSAR rescue counts can already be derived from §4.13a, counting only jobs resolved under operator control; AUTO assists never count toward a leaderboard (Q-ALN-30, §4.13a).
 - Only approved callsigns appear, because `commanders.callsign` is always either generated or approved. Banned and deleted commanders are excluded. No padding rows (DI-4).
+
+### 4.13a Tasking Board job outcomes (Q-ALN-16, GAMEPLAY TB-10)
+Durable, because recap stats (e.g. "most rescues") and balance analysis read them across campaigns. Insert-only: one `tasking_jobs` row when a job reaches a terminal state, plus one `tasking_job_claims` row per claim it had. Built from the Tasking Board sim events (CONTRACTS: `JobPosted`, `JobClaimed`, `JobReleased`, `JobExpired`, and the DONE/FAILED outcome events, whose names CONTRACTS does not list yet).
+```sql
+CREATE TABLE tasking_jobs (
+  campaign_id       TEXT NOT NULL REFERENCES campaigns(campaign_id),
+  job_id            TEXT NOT NULL,             -- TaskingJobId (CONTRACTS)
+  side              TEXT NOT NULL CHECK (side IN ('COALITION','ENEMY')),   -- whose board (ENEMY = the Static's)
+  job_kind          TEXT NOT NULL,             -- enum from contracts (GAMEPLAY §1b job types)
+  gm_injected       INTEGER NOT NULL CHECK (gm_injected IN (0,1)),         -- injected by a human GM (TB-11)
+  posted_tick       INTEGER NOT NULL CHECK (posted_tick >= 0),
+  resolved_tick     INTEGER NOT NULL,
+  outcome           TEXT NOT NULL CHECK (outcome IN ('DONE','FAILED','EXPIRED')),   -- TB-1 terminal states
+  config_hash       TEXT NOT NULL REFERENCES config_versions(config_hash),
+  recorded_at       TEXT NOT NULL,
+  PRIMARY KEY (campaign_id, job_id),
+  CHECK (resolved_tick >= posted_tick),
+  CHECK (gm_injected = 0 OR side = 'ENEMY')     -- a GM injects only into the Static's board (Q-ALN-11)
+) STRICT;
+CREATE INDEX idx_tasking_jobs_kind ON tasking_jobs(campaign_id, job_kind, outcome);
+
+CREATE TABLE tasking_job_claims (
+  campaign_id       TEXT NOT NULL,
+  job_id            TEXT NOT NULL,
+  claim_seq         INTEGER NOT NULL CHECK (claim_seq >= 0),  -- order of claims on this job
+  entity_id         TEXT NOT NULL,             -- the claiming unit
+  commander_id      TEXT REFERENCES commanders(commander_id),  -- NULL for AI garrison and Static units
+  ai_run            INTEGER NOT NULL CHECK (ai_run IN (0,1)),  -- 1 when the unit was AI-run (AUTO tag, Q-GD-35) at claim time
+  ai_run_at_end     INTEGER NOT NULL CHECK (ai_run_at_end IN (0,1)),  -- 1 when the unit was AI-run at ended_tick (a reclaim in between flips it, Q-ALN-9)
+  claimed_tick      INTEGER NOT NULL,
+  ended_tick        INTEGER NOT NULL CHECK (ended_tick >= claimed_tick),
+  ended_by          TEXT NOT NULL CHECK (ended_by IN ('RESOLVED','RELEASED')),   -- job reached a terminal state, or the claim was released (lease, preemption, operator)
+  PRIMARY KEY (campaign_id, job_id, claim_seq),
+  FOREIGN KEY (campaign_id, job_id) REFERENCES tasking_jobs(campaign_id, job_id)
+) STRICT;
+CREATE INDEX idx_tasking_claims_commander ON tasking_job_claims(commander_id) WHERE commander_id IS NOT NULL;
+
+CREATE VIEW v_auto_assists AS            -- recap-only (Q-ALN-30)
+SELECT j.campaign_id, k.commander_id, j.job_kind, COUNT(*) AS auto_assists
+FROM tasking_jobs j
+JOIN tasking_job_claims k ON k.campaign_id = j.campaign_id AND k.job_id = j.job_id
+JOIN commanders c ON c.commander_id = k.commander_id
+WHERE j.outcome = 'DONE' AND k.ended_by = 'RESOLVED' AND k.ai_run_at_end = 1
+  AND c.deleted_at IS NULL AND c.banned = 0
+GROUP BY j.campaign_id, k.commander_id, j.job_kind;
+```
+- Both tables hold ids and numbers only (DM-6), so the deletion job keeps them, like the ledgers (§6.4).
+- Writes are idempotent: a replayed outcome hits the primary key and is ignored (`ON CONFLICT DO NOTHING`, §5.2).
+- **AUTO assists (Q-ALN-30):** a DONE job whose resolving claim belongs to a viewer's unit that was AI-run at that tick (`ended_by = 'RESOLVED'`, `ai_run_at_end = 1`) is an **AUTO assist** for that commander. AUTO assists are kept apart from operator-controlled completions (`ai_run_at_end = 0`) and are read only through `v_auto_assists`, for recaps. They never count toward XP, Merit or any leaderboard: progression writes no `xp_ledger` or `merit_ledger` row for the job, and per-job recap stats such as "most rescues" count only `ai_run_at_end = 0` rows. Q-ALN-34 widens the rule to every action by an AUTO unit (kills, supply deliveries, capture participation): progression writes no ledger row for any of them, and each is an AUTO assist for recaps. Only job AUTO assists have a store so far (§11).
 
 ### 4.14 clips (review queue)
 ```sql
@@ -317,6 +374,7 @@ CREATE TABLE admin_audit (
 ) STRICT;
 CREATE INDEX idx_admin_audit_time ON admin_audit(occurred_at);
 ```
+- **Pause rows (Q-ALN-31):** a `PAUSE` row's `detail_json` holds `reason_category` (`PauseReasonCategory`: `STAFF`, `TECHNICAL`, `MAINTENANCE`, `CEASEFIRE`) and `sub_reason` (`RAID`, `ABUSE`, `CONTENT`, `OTHER`, or `null`). `sub_reason` is non-null only when `reason_category = 'STAFF'`; the pause command itself carries the same two fields into the command log (ADMIN-RBAC pause flow).
 
 ### 4.16 deletion_requests
 ```sql
@@ -344,6 +402,7 @@ CREATE INDEX idx_deletion_due ON deletion_requests(status, due_by);
 | `uq_one_running_campaign` on `((1))` | partial unique index on a constant expression works in Postgres too | Verify in the migration test |
 | Single writer | MVCC multi-writer | Keep idempotency keys; they become the concurrency guard |
 | Triggers (doctrine lock) | PL/pgSQL triggers | Rewrite trigger bodies; behavior covered by the same tests |
+| `GLOB` in the tombstone CHECK (§4.2) | regex match `~ '^X-[A-Z0-9]{4}$'` | Rewrite the CHECK; same negative fixture |
 
 The repository interface (`nexus.persistence`) is the only code that sees SQL. The same repository test suite runs against both engines before the switch.
 
@@ -358,11 +417,11 @@ The repository interface (`nexus.persistence`) is the only code that sees SQL. T
 - Every ledger intent carries its `idempotency_key`. Inserts use `INSERT ... ON CONFLICT(idempotency_key) DO NOTHING` (portable to Postgres).
 - On restart, the runtime replays the command log from the last snapshot. The resulting events produce the same keys, so duplicates are ignored and gaps are filled.
 
-### 5.3 XP diminishing returns (PROG-1, PROG-2)
-For each `AppendXp(commander, reason, base_xp, source_tick)`:
+### 5.3 XP diminishing returns (PROG-1) and the first-mission gate
+No `AppendXp` or `AppendMerit` intent is produced for an action by an AUTO unit (Q-ALN-34). For each `AppendXp(commander, reason, base_xp, source_tick)`:
 1. Look up the commander's awarded XP within the trailing **60 minutes of wall-clock time**, using `recorded_at`. `progression.xp_hour_soft_cap` is defined per real hour (CONFIG-AND-CONTENT §6.8). `recorded_at` is stamped by the runtime when it persists the event. Progression runs outside the deterministic kernel, so this doesn't affect sim determinism. Replaying the command log after a crash doesn't re-award XP, because the idempotency keys dedupe (§5.2).
 2. If over `progression.xp_hour_soft_cap`, `multiplier_milli = round(progression.xp_over_cap_mult × 1000)`; otherwise 1000. A package XP-share bonus (GAMEPLAY §7) multiplies on top; the result must stay within the column CHECK.
-3. `persistent = 1` only if `commanders.first_mission_at IS NOT NULL` **and** the latest `PresenceSnapshot` at or before `source_tick` has `distinct_humans_active ≥ progression.min_distinct_humans` (taken from the sim event, not computed in the DB).
+3. `persistent = 1` only if `commanders.first_mission_at IS NOT NULL`. There is no minimum-humans gate: the PROG-2 "<2 humans" rule is dropped (Q-PROG-6), so a lone operator earns persistent XP. Anti-farming relies on this gate, the hourly diminishing returns above and the NX-277 layers.
 4. Insert the ledger row. If `persistent = 1`, update `commander_stats` in the same transaction (ADR-0003 amendment: the ledger is the source of truth).
 
 ### 5.4 Rebuild derived tables
@@ -391,7 +450,7 @@ For each `AppendXp(commander, reason, base_xp, source_tick)`:
   trailer    blake2b-256 of header+body
   ```
 - **Load:** verify the trailer, then decompress, rebuild state, recompute `state_hash` and compare with the header. Any mismatch → try the previous snapshot and raise an alert. Never load a partially verified snapshot.
-- **Retention:** the last 20, plus one per hour of sim time, plus the final snapshot of each campaign (all PROPOSED).
+- **Retention:** the last 20, plus one per hour of game time (CONFIG-AND-CONTENT CFG-9), plus the final snapshot of each campaign (all PROPOSED).
 
 ### 6.2 Command log
 - **Path:** `command-logs/<campaign_id>/<segment:06d>.nxl.zst`
@@ -402,7 +461,7 @@ For each `AppendXp(commander, reason, base_xp, source_tick)`:
    "source": "CHAT", "platform": "TWITCH",
    "commander_id": "0192…", "args": {"role": "LOGI"}, "late": false}
   ```
-  - `source` is a `CommandSource` (`CHAT|OPERATOR|ADVISOR|SYSTEM`, CONTRACTS §3.3). `platform` is set only for `CHAT` commands and is `null` otherwise. No vendor field names (ADR-0010 N-6).
+  - `source` is a `CommandSource` (`CHAT|STAFF|ADVISOR|SYSTEM`, CONTRACTS §3.3). `platform` is set only for `CHAT` commands and is `null` otherwise. No vendor field names (ADR-0010 N-6).
   - `commander_id` only; no names (DM-6).
   - Advisor choices and admin actions are commands too (ADR-0002).
 - **Flush and fsync:** every 1 s (NFR-7), and on campaign end and shutdown.
@@ -426,13 +485,13 @@ Bundles contain `commander_id`s only, so they're safe to attach to a private Git
 | `commanders.callsign`, `platform_identities.display_name` | SQLite | Yes (the only place) |
 | Uploaded clips | platforms | Possibly (on-screen callsigns). Can't be recalled after upload (THREAT-MODEL §6) |
 
-**Crypto-shredding:** the public replay viewer resolves `commander_id → callsign` through a `GET` against the live DB at view time. After deletion, `callsign_kind = 'TOMBSTONE'`, so old replays render `[REDACTED]` automatically. Replay files need no rewriting.
+**Crypto-shredding:** the public replay viewer resolves `commander_id → callsign` through a `GET` against the live DB at view time. After deletion, `callsign_kind = 'TOMBSTONE'`, so old replays render `REDACTED-<tag>` (e.g. `REDACTED-7KQ2`) automatically, with the tag stored at deletion (Q-DM-2, Q-ALN-29, §4.2). Replay files need no rewriting.
 
 **Deletion job** (daily, processes `deletion_requests` where `status='RECEIVED'`):
 1. Mark `PROCESSING`. (`commanders.deletion_requested_at` was already set when the request was received, together with the `deletion_requests` row.)
 2. In one transaction:
    - delete `platform_identities` rows
-   - set `commanders.callsign` to the tombstone value (§4.2), `callsign_kind = 'TOMBSTONE'`, `deleted_at = now`
+   - draw the random tag and set `commanders.callsign` to the tombstone value `X-<tag>` (§4.2, Q-ALN-29), `callsign_kind = 'TOMBSTONE'`, `deleted_at = now`
    - delete `callsign_requests` rows
    - null out `display_name` in any remaining audit detail
    - append `FORGOTTEN` to `identity_events`
@@ -446,7 +505,7 @@ Bundles contain `commander_id`s only, so they're safe to attach to a private Git
 | Raw `ChatEnvelope`s (in logs) | 7 days | Deleted by log rotation |
 | Command logs and snapshots | Campaign duration + 30 days | Deleted, except the final snapshot plus logs needed for the public replay (ids only) |
 | Crash bundles | 30 days | Deleted |
-| Ledgers, campaigns, stats | Indefinitely (ids and numbers only) | — |
+| Ledgers, campaigns, stats, Tasking Board outcomes (§4.13a) | Indefinitely (ids and numbers only) | — |
 | `identity_events`, `admin_audit` | Indefinitely (no free text) | — |
 | Rejected or expired `callsign_requests` | 90 days | Deleted |
 | Rejected clips (files) | 7 days | File deleted, row → `PURGED` |
@@ -456,9 +515,16 @@ Bundles contain `commander_id`s only, so they're safe to attach to a private Git
 - **CI migration test:** start from a **fixture DB built at the previous release's schema**, synthetic data only (DATA-INTEGRITY DI-3), apply new migrations, then run the repository test suite plus `rebuild-stats` equality. A sanitized copy of production is **not** used in CI (PII); the fixture generator mirrors production row counts instead.
 - **Backups:**
   - Nightly `sqlite3 .backup` (online, consistent) plus a tarball of the latest snapshot and command-log segments.
-  - Encrypted with `age` to the owner's public key, then copied to the Linux server and to an off-site target. The off-site destination is undecided (new Q-OPS-6).
+  - Encrypted with `age` to the owner's public key, then copied to the Linux server (local copy) and to an off-site target through the `BackupTarget` port (ADR-0010), so providers are swappable. **Q-OPS-6 (decided 2026-10-17):** the first off-site target is the owner's **Google Drive**; other free or cheap providers may be added. Provider limits and pricing are [UNVERIFIED] and are checked before setup (NX-285).
+  - **Tiering (Q-OPS-6):** the DB and snapshots back up nightly; large replay/telemetry archives are compressed and kept with their own retention.
 - **Restore test:** quarterly (SEC-DATA-5), plus after any migration. Restore into a scratch dir, run `PRAGMA integrity_check`, rebuild stats, then load the latest snapshot and replay its log to the recorded `state_hash`.
 - **Integrity checks:** `PRAGMA quick_check` daily, `PRAGMA integrity_check` weekly and before each backup upload, and `PRAGMA foreign_key_check` weekly. Any failure alerts the owner and blocks the backup from overwriting the last good copy.
+
+## 7a. Public exports and first-party analytics
+- **Public site exports (Q-ARCH-16):** the public site is static for now. The broadcast host pushes one-way exports to a static host: leaderboard/stats JSON about every 15 min (interval configurable; ~15 min is the owner's starting value) and the full campaign archive at campaign end. Nothing on the site can read from or write to this store; there is no inbound path to the home network (OPS-ADMIN OA-11).
+- **Export content:** only data that is already public: approved callsigns or `REDACTED-<tag>` (Q-DM-2, Q-ALN-29), `commander_id`-keyed pseudonymous replays (DM-6) and aggregate stats. Banned and deleted commanders are excluded as in §4.13. The export schema lives in `contracts/` with an explicit field allowlist.
+- **Database:** stay on SQLite (ADR-0003, 2026-10-18 amendment). A later live interactive site with its own API and database triggers the Postgres revisit (§4.17) and a separate security review.
+- **Analytics (Q-DM-3):** D7 retention, session length and similar metrics are computed from our own sim and gateway events keyed by `commander_id` (DM-11). Platform dashboards (Twitch/YouTube) are used for viewer counts but not imported. The privacy notice, terms of service and any cookie banner state this (NX-204, NX-314, NX-316). Metric definitions are not written yet (GAP-ANALYSIS §3, P3).
 
 ## 8. Size estimates (ESTIMATE; measure in P1 with NX-032)
 | Item | Assumption | Arithmetic | Estimate |
@@ -491,20 +557,53 @@ To measure in P1/P2: real command rate per hour of day, the actual zstd ratio on
 | DM-6 | Property: no snapshot/log/crash bundle contains any string from the `commanders.callsign` or `display_name` columns of the fixture |
 | DM-7 | Startup test: DB at schema N+1 with code at N → refuse to start |
 | DM-8 | Semgrep `sql-no-fstring` |
-| §5.3 | Unit + property: DR window uses `recorded_at` (real time); re-processing the same events doesn't change awards; PROG-2 gate respected |
+| §5.3 | Unit + property: DR window uses `recorded_at` (real time); re-processing the same events doesn't change awards; XP before the first completed mission is non-persistent; a lone active human earns persistent XP (Q-PROG-6) |
+| §4.2 | Two `!quiet` commands from one commander set `taunt_opt_out` to 1 then back to 0; a `!quiet` sent from a second linked platform flips the same row (Q-ALN-12); merging a commander with `taunt_opt_out = 1` into one with 0 (and the reverse) leaves the survivor at 1, merging two 0s leaves 0 (Q-ALN-28); a `TOMBSTONE` row whose callsign is not `X-` + 4 of `[A-Z0-9]` is rejected by the CHECK |
+| §4.3 | An envelope with `account_created_at: null` stores `platform_account_created_at` as `NULL`, never a substitute date |
+| §4.13a | A GM-injected job on the `COALITION` board is rejected by the CHECK (Q-ALN-11); replaying the same job outcome twice leaves one `tasking_jobs` row; a fixture campaign with three DONE rescue jobs claimed by one commander yields a rescue count of 3 for that commander; with two of them resolved under AUTO (`ai_run_at_end = 1`) the rescue count is 1, `v_auto_assists` shows 2, and no `xp_ledger` or `merit_ledger` row exists for the two AUTO jobs (Q-ALN-30); a kill by an AUTO unit writes no `xp_ledger` or `merit_ledger` row (Q-ALN-34); a unit reclaimed between claim and resolution counts as operator-controlled |
+| §4.11 | Insert of a negative merit `delta` is rejected (Q-PROG-7) |
+| §4.12 | Rebuild after a rank-table change that raises thresholds leaves every `rank_level` unchanged (Q-CFG-2) |
+| §7a | Export files contain no field outside the allowlist; the overlay and site bundles load no third-party script (DM-11) |
 | §6.1 | Round-trip and corruption tests: flipped byte → trailer mismatch → fallback |
 | §6.2 | Crash-in-the-middle test: kill -9 during write; replay recovers every fsync'd record; no seq gaps |
-| §6.4 | Deletion job end-to-end: identities gone, callsign tombstoned (`X-` + 10 base32, `TOMBSTONE` kind), leaderboards exclude, replay renders `[REDACTED]`; two deletions in the same second don't collide |
+| §6.4 | Deletion job end-to-end: identities gone, callsign tombstoned (`X-` + random 4-character tag, `TOMBSTONE` kind), leaderboards exclude, replay renders `REDACTED-<tag>` (Q-DM-2, Q-ALN-29); two deletions in the same second get distinct tags; with the generator stubbed to return a taken tag first, the job draws again and succeeds; with the generator stubbed to a fixed value, two commanders with different ids get the same first draw, so the tag depends only on the generator and never on `commander_id` |
 | §7 | Migration test from previous-release fixture; restore drill script runs in nightly CI on a fixture backup |
 
-## 11. Open questions (tracked in [OPEN-QUESTIONS](../planning/OPEN-QUESTIONS.md))
-- **Q-DM-1:** Archive `xp_ledger` rows older than 12 months into yearly compressed files, keeping only `commander_stats`? Recommended: yes, once it passes 1 GB.
-- **Q-OPS-6:** Off-site backup target? Recommended: any S3-compatible object storage with encryption by `age` before upload. Provider and pricing undecided **[UNVERIFIED]**.
-- **Q-DM-2:** Does the public replay viewer need per-viewer access control? Recommended: no for v1; replays are already pseudonymous.
+## 11. Questions (tracked in [OPEN-QUESTIONS](../planning/OPEN-QUESTIONS.md))
+Decided 2026-10-17:
+- **Q-DM-1:** archive ledger rows older than 12 months into compressed yearly files once the ledger is large (~1 GB, measured); derived totals stay live.
+- **Q-OPS-6:** local copy on the Linux server + `age`-encrypted off-site copy (Google Drive first) behind the `BackupTarget` port; tiered retention; quarterly restore test (§7).
+- **Q-DM-2:** public replays need no login; player login (own stats, personal highlights) comes later.
+
+Decided 2026-10-18:
+- **Q-DM-3:** first-party analytics only, from our own events; no third-party trackers (DM-11, §7a).
+- **Q-ARCH-16:** static public site fed by one-way exports; stay on SQLite; a live site triggers the Postgres revisit (§7a, ADR-0003 amendment).
+- **Q-PROG-6:** the "<2 humans" persistence gate is dropped (§5.3).
+- **Q-PROG-7:** merit is never spent (`SPEND` removed from `merit_ledger`); rank tables are admin presets versioned with `config_hash` (§4.12).
+- **Q-CFG-8:** stored timestamps are UTC; owner schedules keep their IANA zone (DM-9).
+
+Decided 2026-10-18 (spec-alignment batch):
+- **Q-ALN-12:** `!quiet` is a toggle stored per commander (`commanders.taunt_opt_out`, §4.2).
+- **Q-ALN-16:** Tasking Board job outcomes are durable (§4.13a); season and per-role leaderboard source tables belong to the seasons and leaderboards spec (NX-314, §4.13).
+- **Q-ALN-11:** a GM injects jobs into the Static's board only (CHECK in §4.13a).
+- **Q-ALN-14:** earned ranks are never revoked (`rank_level` never decreases, §4.12).
+- **Q-DM-2:** deleted commanders display as `REDACTED-<tag>` (§4.2, §6.4; suffix per Q-ALN-29).
+- **Q-ALN-22:** a GM may draft a rank/XP preset; an Admin or Owner applies it (§4.12).
+- **Q-ALN-28:** on a merge, `taunt_opt_out` opt-out wins (§4.2, §4.12).
+- **Q-ALN-29:** the suffix after `REDACTED-` is a random 4-character tag stored at deletion in the tombstone callsign `X-<tag>` (§4.2, §6.4).
+- **Q-ALN-30:** jobs completed by a viewer's AUTO unit are AUTO assists, recap-only, excluded from XP, Merit and leaderboards (`ai_run_at_end`, `v_auto_assists`, §4.13a).
+- **Q-ALN-34:** no action by an AUTO unit earns XP or Merit or counts toward a leaderboard; all are AUTO assists for recaps (§4.13a, §5.3).
+- **Q-ALN-31:** pause audit rows carry `reason_category` plus an optional `sub_reason` used only for `STAFF` (§4.15).
+- PROGRESSION PROG-4 / IDENTITY §1: platform account age is stored as `platform_identities.platform_account_created_at` (§4.3).
+
+Not modeled yet:
+- AUTO assists other than jobs (a kill, a supply delivery or capture participation by an AUTO unit, Q-ALN-34): no recap store is specified yet.
+- Season and per-role leaderboard source rows (recon assists that led to engagements, threat-weighted kills, objective damage, hours played, the season key): NX-314 (Q-ALN-16).
+- CONTRACTS names no event for the DONE and FAILED job outcomes yet; §4.13a needs one, and it must say whether the resolving unit was AI-run at that tick (fills `ai_run_at_end`, Q-ALN-30).
 
 ## Data model additions pending merge (2026-10-17)
 - **From [ADMIN-RBAC](ADMIN-RBAC.md):**
-  - Tables: `operators`, `role_grants`, `operator_credentials`, `admin_sessions`, `approval_requests`, `scheduled_items`, `content_versions`.
+  - Tables: `staff`, `role_grants`, `staff_credentials`, `admin_sessions`, `approval_requests`, `scheduled_items`, `content_versions`.
   - New `admin_audit` columns: `channel`, `permission`, `approval_request_id`, `flags`.
 - **From [SUPPORT-REDEMPTIONS](SUPPORT-REDEMPTIONS.md) §8:** `support_events`, `redemption_rules`.
 - **From GAMEPLAY §9b:** `campaign_carryover` (campaign_id, from_campaign_id, effects JSON, config_hash, applied_at).

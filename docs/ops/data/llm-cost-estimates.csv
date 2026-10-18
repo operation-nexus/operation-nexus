@@ -9,8 +9,8 @@ low,GPT-5.4 nano,23.98,x$0.20/x$1.25
 low,GPT-5.4 mini,88.78,x$0.75/x$4.50
 low,Groq Llama 3.1 8B,4.59,x$0.05/x$0.08
 low,DeepInfra Llama 3.1 8B [UNVERIFIED price],1.82,x$0.02/x$0.03
-low,GTX 1080 owned (PC already on),1.99,duty 10.1% x 150W assumed delta
-low,GTX 1080 owned (PC on for LLM only),15.04,avg 114.1W
+low,GTX 1070 owned (PC already on),2.49,duty 12.6% x 150W assumed delta; speed scaled by bandwidth 256/484 [UNVERIFIED 256 GB/s]
+low,GTX 1070 owned (PC on for LLM only),15.54,avg 117.9W (99W idle carried over from GTX 1080 reviews [UNVERIFIED for 1070])
 low,Used RTX 3060 12GB,15.36,$2.49 electricity + $12.88 card/24mo
 low,Used RTX 3090,55.58,$5.62 electricity + $49.96 card/24mo
 low,Raspberry Pi 5 8GB,7.87,$0.57 electricity + $7.29 board/24mo; gen-only duty 23%
@@ -24,8 +24,8 @@ medium,GPT-5.4 nano,36.58,
 medium,GPT-5.4 mini,135.22,
 medium,Groq Llama 3.1 8B,6.73,
 medium,DeepInfra Llama 3.1 8B [UNVERIFIED price],2.67,
-medium,GTX 1080 owned (PC already on),3.17,duty 16.0%
-medium,GTX 1080 owned (PC on for LLM only),16.22,
+medium,GTX 1070 owned (PC already on),3.96,duty 20.0%
+medium,GTX 1070 owned (PC on for LLM only),17.02,avg 129.1W
 medium,Used RTX 3060 12GB,15.93,$3.06 electricity + $12.88 card/24mo
 medium,Used RTX 3090,56.13,$6.17 electricity + $49.96 card/24mo
 medium,Raspberry Pi 5 8GB,7.99,gen-only duty 40% (marginal)
@@ -39,8 +39,8 @@ high,GPT-5.4 nano,149.98,
 high,GPT-5.4 mini,553.18,
 high,Groq Llama 3.1 8B,26.04,
 high,DeepInfra Llama 3.1 8B [UNVERIFIED price],10.32,
-high,GTX 1080 owned (PC already on),13.80,duty 69.8% (deadline risk)
-high,GTX 1080 owned (PC on for LLM only),26.85,
+high,GTX 1070 owned (PC already on),17.25,duty 87.2% (high deadline risk)
+high,GTX 1070 owned (PC on for LLM only),30.30,avg 229.8W
 high,Used RTX 3060 12GB,21.08,$8.20 electricity + $12.88 card/24mo; duty 31.8%
 high,Used RTX 3090,61.13,$11.17 electricity + $49.96 card/24mo
 high,Raspberry Pi 5 8GB,,INFEASIBLE: gen-only duty 190%

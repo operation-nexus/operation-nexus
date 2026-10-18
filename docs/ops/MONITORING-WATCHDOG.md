@@ -10,7 +10,7 @@ So monitoring is split into three layers. Each one covers failures the others ca
 ```
  Layer 1: on-box (stream PC)        Layer 2: LAN watchdog (Linux server)     Layer 3: off-site dead-man's switch
  ─────────────────────────────      ───────────────────────────────────      ───────────────────────────────────
- systemd restarts crashed           Probes the stream PC over the LAN        A free external heartbeat service
+ supervisor restarts crashed        Probes the stream PC over the LAN        A free external heartbeat service
  processes (app, OBS)               (no internet needed):                    expects a ping every N minutes from
                                     - app /health                            BOTH boxes. If pings stop, it alerts
  frame-freeze probe reloads the     - OBS via obs-websocket                  your phone.
@@ -22,6 +22,8 @@ So monitoring is split into three layers. Each one covers failures the others ca
                                     Queues alerts; sends them when the
                                     internet returns
 ```
+
+Topology per [ADR-0012](../architecture/adr/0012-deployment-topology.md): the stream PC is Windows (app stack in Docker Desktop on WSL2, OBS native), so L1 uses Compose restart policies plus a Windows-side supervisor whose tooling is **open (Q-OPS-7)**; systemd applies only on the Linux server (L2).
 
 ## What each layer catches
 | Failure | L1 on-box | L2 LAN watchdog | L3 external | Who tells you |
@@ -43,6 +45,6 @@ So monitoring is split into three layers. Each one covers failures the others ca
 - **What viewers see during an outage:** nothing. If the internet is down, the stream is down. When it comes back, the app resumes from its snapshot (SYSTEM-DESIGN §8), and OBS auto-reconnects (verify that OBS's reconnect setting is enabled).
 
 ## Implementation items
-- NX-251: L1 + L2 probes and actions (systemd units, a watchdog service on the Linux server, SSH key with restricted commands)
+- NX-251: L1 + L2 probes and actions (Windows-side supervision on the stream PC per Q-OPS-7, a systemd watchdog service on the Linux server, SSH key with restricted commands)
 - NX-252: alert routing (ntfy, Discord webhook) + L3 heartbeat service selection
 - New NX-257: optional smart-plug power-cycle for a hung stream PC (decide later)

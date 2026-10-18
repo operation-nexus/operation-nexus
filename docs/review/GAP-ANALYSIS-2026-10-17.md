@@ -70,7 +70,7 @@ Format: **ID** question → recommended default *(phase it blocks)*. None of the
 8. **Q-RB-1…7:** ADMIN-RBAC §13 still lists them as open. Its §2 non-goal contradicts Q-ARCH-7.
 9. **Q-ARCH-7/12 (public site + Command Center):** missing from SYSTEM-DESIGN §1/§6. OPS-ADMIN §3 and CONTRACTS §8 still describe an owner-only console.
 10. **Q-AI-3 (isolated LLM container):** SYSTEM-DESIGN §4 runs advisors in-process, and ADR-0001 isolates only TTS.
-11. **Q-ARCH-4 (local GTX 1080 experiment):** ADR-0007 and HARDWARE both still say "no local LLM".
+11. **Q-ARCH-4 (local GTX 1070 experiment; the GPU was recorded as a GTX 1080 when this review was written, corrected 2026-10-17):** ADR-0007 and HARDWARE both still say "no local LLM".
 12. **Q-ARCH-11/15, Q-OPS-2 (Windows/WSL2 host + Linux server):** ADR-0006, SYSTEM-DESIGN §6 and OPS-ADMIN §1 assume a single systemd host. CICD §6 still offers staging on the same host or a VPS.
 13. **Q-STYLE-1/2/4 (colors, type, symbols):** OVERLAY OV-2 (red/orange diamonds) and §3 (#050811, monospace) don't match.
 14. **Q-CT-4, Q-UX-9 (operator and momentum breakdowns):** missing from the CONTRACTS `Hud`/`Panels` schema and OVERLAY §1.
