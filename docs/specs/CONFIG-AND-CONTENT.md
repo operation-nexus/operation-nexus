@@ -2,7 +2,7 @@
 
 Status: Draft · Owner: — · Tracker: NX-106, NX-008, NX-031 · Related ADRs: 0002 (determinism), 0003 (persistence), 0004 (toolchain) · Policy: [DATA-INTEGRITY](../quality/DATA-INTEGRITY.md) DI-7
 
-> **All numeric values in this spec are PROPOSED and unvalidated** (DI-7). They are starting points for the balance harness (NX-031), not tuned values. "TBD by harness" means we have no proposal yet and the harness must produce one before P2.
+> **All numeric values in this spec are PROPOSED and unvalidated** (DI-7). They are starting points for the balance harness (NX-031), not tuned values. "TBD by harness" means we have no proposal yet and the harness must produce one before P2. A value drops its PROPOSED label only once it is harness-validated as defined in Q-TEST-2 (≥50 seeds across crowd profiles, written targets met, a report saved with the `config_hash`). "(owner)" marks a value the owner set; it stays tunable.
 
 ## 1. Purpose
 Define every input the system reads that isn't code: runtime settings, balance tunables, and authored content (theaters, units, doctrines, word lists, sitrep templates). This includes how each is validated, hashed, versioned and reloaded, so that:
@@ -30,6 +30,11 @@ Define every input the system reads that isn't code: runtime settings, balance t
 - **CFG-6** Content cross-references (unit kinds in theaters, doctrine perks naming unit kinds, template slots) MUST be validated at load and in CI (§8).
 - **CFG-7** Secrets MUST NOT appear in any config file. Config refers to secrets by name only (`secret_ref`), and the values come from the environment / secret store (THREAT-MODEL SEC-CI, CICD §8).
 - **CFG-8** All user-visible authored text (node names, callsign words, sitrep templates) MUST pass the moderation denylist in CI (SEC-MOD-1).
+- **CFG-9 Clocks (Q-CFG-8):** every time-valued key MUST be labeled sim-time or real-time in its schema `unit` annotation and in this spec (`s (sim)`, `min (sim)`, `s (real)`, ...).
+  - **Sim-time** keys are timers that change sim state: idle handoff/retire and despawn, respawn, ability cooldowns, the Tasking Board decision window, logistics and capture. They are counted in ticks, are deterministic, and freeze while the campaign is paused (maintenance, Ceasefire, offline auto-pause, operator pause).
+  - **Real-time** keys are timers outside the sim: chat rate limits, reply digest batching, LLM/TTS budgets, reconnect backoff, the offline-pause trigger, overlay presentation. They use a monotonic clock.
+  - Keys are written in friendly units (s, min, h) and converted to ticks once, at load, by one loader function. No sim code reads a seconds value directly.
+- **CFG-10 Time zones (Q-CFG-8, Q-CFG-6):** owner schedules (night mode, maintenance window) are defined as local times plus an IANA zone and converted at use, so DST is handled. Stored timestamps are UTC (DATA-MODEL DM-9).
 
 ## 4. Config layers
 
@@ -54,6 +59,8 @@ Covers ports, bind addresses, file paths, feature flags, platform channel ids, a
 | `platforms.twitch.channel_id` | string | if enabled | Broadcaster user id (from the Twitch API, never guessed, DI-8) |
 | `platforms.twitch.client_secret` | `secret_ref` | if enabled | Name of the secret, not its value |
 | `platforms.youtube.enabled` | bool | yes | P3 |
+| `gateway.shared_chat.accept_foreign` | bool | yes | Accept Twitch Shared Chat messages that originate in other channels. `false` (owner); enable only after the source-channel API fields are verified [UNVERIFIED] (Q-GW-2). Raid-origin viewers in our own chat are always accepted |
+| `overlay.broadcast_tz` | IANA zone | yes | The one zone shown next to UTC when the overlay needs an absolute time; otherwise the overlay uses relative times ("in 12 min") (Q-CFG-8). Value TBD (owner) |
 | `features.<name>` | bool | per flag | Feature flags. Every flag is listed in `contracts/config/features.json` with its owner and tracker ID |
 | `log.level` | enum | yes | `debug` / `info` / `warn` / `error` |
 
@@ -77,9 +84,9 @@ Precedence: the env var `NEXUS__SECTION__KEY` overrides the file. **Every effect
 ## 5. Hot-reload rules
 | Category | Hot-reloadable mid-campaign? | Why |
 |---|---|---|
-| Rate limits, reply cadence, sitrep cadence, PiP dwell, reserve-queue cap | **Yes** | Don't change world physics. Needed for incident response (raids) |
+| Rate limits, reply cadence, sitrep cadence, PiP dwell, reserve-queue cap, HUD rotation, taunt cooldowns, idle handoff/retire timers, offline-pause threshold | **Yes** | Don't change world physics. Needed for incident response (raids) |
 | Director budgets and tier thresholds | **Yes**, at the next director window | Operators may need to de-escalate. Logged as a command, so replays match |
-| XP table, soft cap | **Yes**, effective for events after the reload tick | Progression is outside the sim kernel |
+| XP table, soft cap, rank table (admin presets, §5a) | **Yes**, effective for events after the reload tick; a new rank table applies to future promotions only (Q-CFG-2) | Progression is outside the sim kernel |
 | Combat pk, weapon profiles, unit stats, logistics rates, capture timings | **No**: new campaign only | Changing physics mid-war breaks fairness and invalidates comparisons |
 | Theater, unit catalog, doctrines | **No**: new campaign only | Structural |
 | Time scale, tick rate | **No**: new campaign only (tick rate is fixed by ADR-0002) | Determinism |
@@ -93,6 +100,13 @@ Precedence: the env var `NEXUS__SECTION__KEY` overrides the file. **Every effect
 6. The runtime appends `(campaign_id, effective_tick = T+1, config_hash = new_hash)` to `campaign_config_history` (DATA-MODEL §4.8).
 
 Every reload is audited (who, when, diff), and is visible in the admin console history.
+
+## 5a. Rank and XP presets (Q-PROG-7)
+- The rank table (thresholds, unlocked abilities, ability cooldowns) and the XP source values (§6.8) are config data. Owner, admin or GM edit them in the Command Center as **named presets** (OPS-ADMIN OA-12).
+- A preset is validated against the §6.8 schema before it can be applied. Thresholds MUST be strictly increasing; a preset that fails is rejected with the failing key named.
+- Applying a preset is a normal reload (§5): it registers a new `config_hash`, is audited with the preset name and diff, and appears in `campaign_config_history`.
+- Ranks already earned are never revoked; new thresholds apply to future promotions only (Q-CFG-2).
+- Merit is a score only and is never spent (ADR-0011). Rank abilities run on cooldowns, never on merit.
 
 ## 6. Balance schema: key reference
 Legend: **HR** = hot-reloadable (§5). "TBD" = TBD by harness. **Source** = the spec the key comes from. All values are PROPOSED (DI-7).
@@ -110,10 +124,11 @@ Legend: **HR** = hot-reloadable (§5). "TBD" = TBD by harness. **Source** = the 
 | Key | Type | Unit | PROPOSED | Source | HR |
 |---|---|---|---|---|---|
 | `slots.max_live_per_commander` | int | units | 1 | GAMEPLAY GP-1 | No |
-| `slots.respawn_delay_s` | float | s (real) | 20 | GAMEPLAY GP-2 | Yes |
+| `slots.respawn_delay_s` | float | s (sim) | 20 | GAMEPLAY GP-2 (sim-time: the JOIN guard runs in the sim, Q-CFG-8) | Yes |
 | `slots.max_viewer_units` | int | units | 300 | GAMEPLAY GP-3, Q-GD-6 | Yes |
 | `slots.reserve_queue_max` | int | entries | TBD | GAMEPLAY GP-3 | Yes |
-| `slots.idle_despawn_s` | float | s (sim) | ~300 (about 5 min, Q-SM-2; the owner prefers as long as practical; harness-tuned, admin-adjustable. Whether the 5 min is real or sim time is to be confirmed when implemented) | STATE-MACHINES §4.1 | No |
+| `presence.idle_handoff_min` | float | min (sim) | 10 (Q-GD-35). With no command from its operator for this long, a live unit finishes its current order and joins the Tasking Board as an AI-run unit (AUTO tag). Any command from the operator restores control | GAMEPLAY §1b, STATE-MACHINES §4.1 | Yes |
+| `presence.idle_retire_min` | float | min (sim) | 30 (Q-GD-35). With no command for this long, the unit RTBs and despawns; carried supplies return to the reserve. Supersedes `slots.idle_despawn_s` (Q-SM-2) | STATE-MACHINES §4.1 | Yes |
 
 ### 6.3 Logistics
 | Key | Type | Unit | PROPOSED | Source | HR |
@@ -150,7 +165,7 @@ Legend: **HR** = hot-reloadable (§5). "TBD" = TBD by harness. **Source** = the 
 | `combat.damage_state.*` | object | outcome weights per armor level; Damaged speed/sensor multipliers | TBD | GAMEPLAY §6a (Q-CBT-1) | No |
 | `combat.crit_chance` | float | probability per hit | TBD (small; Q-CBT-8) | GAMEPLAY §6 | No |
 | `combat.crew_survival.*` | object | probability modifiers per platform/location | TBD | GAMEPLAY §6a | No |
-| `slots.respawn_loss_window_s` / `slots.respawn_loss_step_s` | float | s (real) | TBD (respawn grows with repeated losses, Q-CBT-9) | GAMEPLAY GP-2 | Yes |
+| `slots.respawn_loss_window_s` / `slots.respawn_loss_step_s` | float | s (sim) | TBD (respawn grows with repeated losses, Q-CBT-9) | GAMEPLAY GP-2 | Yes |
 
 ### 6.5 Capture
 | Key | Type | Unit | PROPOSED | Source | HR |
@@ -172,10 +187,14 @@ Legend: **HR** = hot-reloadable (§5). "TBD" = TBD by harness. **Source** = the 
 | `campaign.options.friendly_fire` | bool | — | false (Q-CBT-4; set at campaign setup only; owner/admin/GM) | GAMEPLAY §6 | No |
 | `campaign.options.unlimited_ammo` | bool | — | false (Q-CBT-7; test/special-event option; owner/admin/GM) | GAMEPLAY §5 | No |
 | `campaign.intermission.mode` | enum `auto_advance`\|`await_owner` | — | TBD (owner choice per campaign, Q-UX-8) | GAMEPLAY §9 | Yes |
-| `tasking.decision_window_s` | float | s (real) | TBD (owner suggested up to ~5 min; playtest, Q-GD-26) | GAMEPLAY §1b | Yes |
+| `tasking.decision_window_s` | float | s (sim) | TBD (owner suggested up to ~5 min; playtest, Q-GD-26; sim-time per Q-CFG-8) | GAMEPLAY §1b | Yes |
+| `tasking.claim_lease_s` | float | s (sim) | TBD by harness: a claim auto-releases when its unit makes no progress for this long (Q-GD-37) | GAMEPLAY §1b | Yes |
+| `tasking.priority_aging_per_min` | float | priority points/min (sim) | TBD by harness: old jobs gain priority so they aren't starved (Q-GD-37) | GAMEPLAY §1b | Yes |
+| `tasking.reeval_every_ticks` | int | ticks | TBD by harness: boards are re-evaluated every N ticks, not every tick (Q-GD-37) | GAMEPLAY §1b | Yes |
 | `director.pol.patrol_period_s` | float | s (sim) | TBD by harness | THREAT-DIRECTOR §5a | Yes |
 | `director.pol.convoy_period_s` | float | s (sim) | TBD by harness | THREAT-DIRECTOR §5a | Yes |
 | `director.provocation.weights.<action>` | float | score per action | TBD by harness | THREAT-DIRECTOR §5a | Yes |
+| `director.provocation.weights.redemption.<type>` | float | score per redemption | Offensive (airstrike, barrage) = full weight and support (supply drop, repair, reinforcements) = small weight, values TBD by harness; cosmetic (color, ping, shoutout) = 0 (owner) (Q-AI-9) | THREAT-DIRECTOR §5a | Yes |
 | `campaign.rubber_band_zone` | [float, float] | fraction of nodes | [0.55, 0.75] | GAMEPLAY §9 | No |
 | `director.provocation.escalate_threshold` | float | score | TBD by harness | THREAT-DIRECTOR §5a | Yes |
 | `director.provocation.half_life_s` | float | s (sim) | TBD by harness | THREAT-DIRECTOR §5a | Yes |
@@ -210,8 +229,10 @@ Legend: **HR** = hot-reloadable (§5). "TBD" = TBD by harness. **Source** = the 
 | `progression.merit.<event>` | int | merit | sortie 10, supply_per_10 5, capture 20, objective 30, recon_assist 5, kill 3, spawn 0 | PROGRESSION §2 | Yes |
 | `progression.xp_hour_soft_cap` | int | XP/h (real) | 400 | PROGRESSION PROG-1 | Yes |
 | `progression.xp_over_cap_mult` | float | multiplier | 0.25 | PROGRESSION PROG-1 | Yes |
-| `progression.min_distinct_humans` | int | humans | 2 | PROGRESSION PROG-2 | Yes |
-| `progression.rank_thresholds` | [int] | XP | [0, 300, 1500, 5000, 15000, 40000] | PROGRESSION §3 | No (rank changes are permanent; changing thresholds needs a migration decision) |
+| `progression.rank_thresholds` | [int] | XP | [0, 300, 1500, 5000, 15000, 40000] | PROGRESSION §3 | Yes, via a preset (§5a); future promotions only (Q-CFG-2, Q-PROG-7) |
+| `progression.rank_abilities.<rank>` | list of `{ability_id, cooldown_min}` | min (sim) | O-6: call 1 theater asset per cooldown, 1 h (owner, Q-PROG-7); other ranks TBD | PROGRESSION §3 | Yes, via a preset (§5a) |
+| `progression.leaderboards.<board>.metric` | enum | — | Per-role boards rank by role contribution, the overall board by merit; assists count (Q-PROG-8). Enum values TBD (seasons & leaderboards spec) | PROGRESSION | Yes |
+| `season.overtime_cap_days` | float | days (real) | 14 (Q-PROG-9). Past it the season closes and the running campaign carries into the new season | PROGRESSION | Yes |
 
 ### 6.9 Input, audio, presentation
 | Key | Type | Unit | PROPOSED | Source | HR |
@@ -225,12 +246,25 @@ Legend: **HR** = hot-reloadable (§5). "TBD" = TBD by harness. **Source** = the 
 | `ratelimit.global.cmds_per_tick` | int | cmds/tick | TBD | CHAT-GATEWAY §5 | Yes |
 | `replies.twitch_digest_min_s` | float | s (real) | 30 | CHAT-GATEWAY §6 | Yes |
 | `replies.youtube_digest_min_s` | float | s (real) | 300 | CHAT-GATEWAY §3 | Yes |
+| `support.supply_drop.max_per_hour` | int | redemptions/h (real), global | TBD by harness: fixed cap, no crowd-size scaling (TS-1, Q-SUP-7) | SUPPORT-REDEMPTIONS | Yes |
+| `support.supply_drop.shared_cooldown_s` | float | s (real) | TBD by harness: shared cooldown; the reward shows "on cooldown" when capped (Q-SUP-7) | SUPPORT-REDEMPTIONS | Yes |
+| `taunt.name_cooldown_min` | float | min (clock open, §14) | 10 (Q-AI-7): per-operator cooldown before a taunt names the same operator again | THREAT-DIRECTOR | Yes |
+| `taunt.name_cooldown_spotlight_min` | float | min (clock open, §14) | 5 (Q-AI-7): reduced cooldown for spotlight operators (recent hero events or high recent action) | THREAT-DIRECTOR | Yes |
+| `hud.rotation_s` | float | s (real) | ~15 (Q-UX-11) | OVERLAY | Yes |
+| `hud.rotation.panels` | list of `{panel, weight}` | — | NEEDED jobs (weight 2), reserve queue, operator breakdown, explainer (weight 1 each) (Q-UX-11). At 9:16, threat joins the rotation | OVERLAY | Yes |
 | `audio.sitrep_min_interval_s` | float | s (real) | 20 | AUDIO-TTS AU-1 | Yes |
 | `audio.sitrep_max_age_s` | float | s (real) | 60 | AUDIO-TTS AU-1 | Yes |
 | `audio.night_mode.hours` | `{start: time, end: time, tz: IANA zone}` | wall-clock time in `tz` | `{start: "00:00", end: "08:00", tz: "America/New_York"}` (Q-CFG-6; admin-adjustable; stored with the IANA zone, not a UTC offset, so DST is handled) | AUDIO-TTS AU-2 | Yes |
 | `pip.min_dwell_s` | float | s (real) | 3 | OVERLAY OV-6 | Yes |
 | `pip.spawn_spotlight_s` | float | s (real) | TBD | OVERLAY OV-6 | Yes |
 | `overlay.top_n_labels` | int | labels | TBD | OVERLAY OV-4 | Yes |
+
+### 6.10 Operations
+| Key | Type | Unit | PROPOSED | Source | HR |
+|---|---|---|---|---|---|
+| `ops.offline_pause_after_min` | float | min (real) | 10 (owner, Q-OPS-8): auto-pause (reason TECHNICAL) when the broadcast is offline longer than this | OPS-ADMIN OA-5 | Yes |
+| `ops.maintenance_window` | `{weekday, start: time, max_duration_min, tz: IANA zone}` | wall-clock time in `tz` | Tuesday morning, owner-local (start time TBD), `max_duration_min` 120; owner to confirm (Q-OPS-9) | OPS-ADMIN OA-7 | Yes |
+| `export.public_stats_every_min` | float | min (real) | 15 (Q-ARCH-16) | OPS-ADMIN OA-11 | Yes |
 
 ## 7. Unit catalog (`content/units.yaml`)
 
@@ -418,6 +452,13 @@ slots:                                  # the only allowed slot types
 - Slots resolve **only** from the sources listed. Any other source fails validation.
 - If a slot's source value is absent (e.g. a commander with no approved callsign), the template's `fallback_text_key` is used. That fallback must itself contain no slot for the missing value, and its use is logged (DATA-INTEGRITY FB-3 pattern). Templates without a fallback and with an absent value are **skipped**, not filled with placeholder text.
 
+### 10.2a Asset provenance register (Q-BRAND-5, Q-LEGAL-4, NX-318)
+- Every art, audio and font asset in the repo or loaded by the overlay has one register entry: `source`, `author`, `license`, `ai_generated` (bool) and `status` (`placeholder` | `final`). The register lives under `assets/` (file name set in NX-318).
+- Alpha and testing builds may use AI-generated art anywhere, but only as a visual placeholder: `status: placeholder`, and the stream shows a placeholder note.
+- **Release gate:** CI fails a release build that contains any asset with `ai_generated: true` or `status: placeholder`, or any asset missing from the register.
+- Fonts and third-party assets are committed only if their license permits redistribution (e.g. OFL). Licensed music is never committed; it is loaded on the broadcast host only (Q-LEGAL-4).
+- Tool commercial terms and platform AI-disclosure rules are [UNVERIFIED].
+
 ### 10.3 Localization keys (`strings.<locale>.yaml`)
 - Keys are dotted (`unit.strike_fighter`, `sitrep.node_captured`, `hud.objective`).
 - `en` is the only locale in the MVP. Every key referenced by templates, the catalog or the overlay must exist in `en` (CI check).
@@ -467,8 +508,17 @@ A PR without a harness run fails the `balance-report` check. A change that touch
 | CFG-6 | `config_lint` positive/negative fixtures per cross-reference |
 | CFG-7 | Semgrep / secret scan over `balance/`, `content/`, `deploy/*/app.yaml`; schema forbids secret-shaped fields except `secret_ref` |
 | CFG-8 | The moderation corpus includes evasion cases; CI fails on a seeded bad node name |
+| CFG-9 | Lint: every time-valued key carries a sim/real label; a pause test shows sim-time timers frozen and real-time timers running; the loader converts friendly units to ticks once |
+| CFG-10 | A maintenance window converted across a DST change keeps the same local start time |
+| §5a | A preset with non-increasing thresholds is rejected; applying a preset registers a new `config_hash` and an audit row; raising thresholds lowers no earned rank |
+| §10.2a | A release-gate fixture with one placeholder asset fails; one with an unregistered asset fails |
 | TH-1…TH-8 | One failing fixture theater per rule |
 
 ## 14. Open questions
 - Decided and folded in (2026-10-17): Q-GD-5 (48 h target), Q-GD-6 (cap + visible reserve queue), Q-GD-7 (`campaign.defeat`), Q-GD-9 (hand-authored first theater), Q-GD-11 (`logistics.truck_bridge_repair_mult`), Q-PROG-3 (account age 24 h at 0.5×), Q-CFG-1…Q-CFG-7 (see [OPEN-QUESTIONS](../planning/OPEN-QUESTIONS.md)), Q-CFG-6 (`audio.night_mode.hours`), Q-GW-1 (per-class rate limits).
-- Still open: Q-TEST-2 (what "harness-validated" means before a value drops its PROPOSED label; gap analysis 2026-10-17).
+- Decided and folded in (2026-10-18): Q-CFG-8 (CFG-9, CFG-10), Q-TEST-2 (header note), Q-PROG-6 (`progression.min_distinct_humans` removed), Q-PROG-7 (§5a), Q-PROG-8, Q-PROG-9, Q-GD-35, Q-GD-37, Q-AI-7, Q-AI-9, Q-UX-11, Q-SUP-7, Q-GW-2, Q-OPS-8, Q-OPS-9, Q-ARCH-16, Q-BRAND-5 / Q-LEGAL-4 (§10.2a).
+- Still open:
+  - Sim-time keys in friendly units: does the tick conversion apply `sim.time_scale` (as physics rates do, SIM-CORE §4) or count unscaled running time? It decides what a "10 min" idle handoff means on stream.
+  - The campaign and objective timers in §6.6 change sim state but are still labeled real-time; their clock follows the answer above.
+  - Whether the `taunt.*` cooldowns are sim-time or real-time (Q-AI-7 doesn't say).
+  - The exact maintenance start time and the `overlay.broadcast_tz` value (owner).
