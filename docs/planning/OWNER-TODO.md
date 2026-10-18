@@ -66,5 +66,17 @@ The research could not reach any official register (docs/review/NAME-CLEARANCE.m
 - [ ] Create the brand mailbox and register a domain for the public contact addresses (Q-MKT-11); check `.gg`, `.io`, `.co` at a registrar (no public registry data for those endings)
 - [ ] Pick the first 2-3 moderators from your trusted team before the public beta (Q-MOD-7)
 
+## 4c. Manual steps left by the verification passes (2026-10-18)
+Only you can do these; each report's last section has the detail. Reports: PLATFORM-POLICY-VERIFICATION, TRADEMARK-AND-NAME-VERIFICATION, LICENSE-AND-MUSIC-VERIFICATION under `docs/review/`.
+- [ ] **Twitch `hiveplex`:** tell me whether this account is yours. If it is, log in now and at least yearly (Twitch reclaims accounts after 12 months of no activity, per its 2017 policy post). If it isn't, use the fallback handle (Q-MKT-10)
+- [ ] **GitHub user `hiveplex`** (id 4049119) exists: check whether it is yours; it affects the organization name choice
+- [ ] **Trademark registers I could not search:** EUIPO eSearch, TMview, WIPO Global Brand Database, UKIPO: search `HIVEPLEX` and `HIVE PLEX` in classes 9, 28, 35, 38, 41, 42, or hand it to the attorney (ten questions are listed in the trademark report). Also find HIVEPLEX LTD's trading name
+- [ ] **hiveplex.com** expires 2026-11-22 and is parked on BrandBucket: read the asking price there; decide whether a clean ending is enough (Q-MKT-10)
+- [ ] **YouTube:** run one real test upload on a fresh Google Cloud project to settle whether unverified projects are locked to private (Google's docs contradict each other); check in the Cloud Console whether `youtube.upload` is a sensitive or restricted scope
+- [ ] **Twitch pages that need a browser:** the help articles on reruns, Always On and the 48-hour limit; the AI-disclosure, music and viewbotting wording; set the "Training for Generative AI" toggle at `twitch.tv/settings/security`
+- [ ] **Other pages that need a browser:** Discord Developer Policy; Meta's Automated Data Collection Terms; Instagram AI-info label rules; TikTok app-review/audit durations and the LIVE follower threshold (ask developer support)
+- [ ] **Epidemic Sound:** read its Terms, subscription terms, MCP licence and plan prices in a browser (client-rendered) and send the written 24/7 questions (NX-332)
+- [ ] **TTS voices:** pick specific permissively licensed voices or Kokoro or designed synthetic voices, and record each model card (Q-LEGAL-12)
+
 ## 5. Decisions still open
 See docs/planning/OPEN-QUESTIONS.md. Rows ending in an empty Decision column still need your answer.
