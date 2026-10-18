@@ -132,7 +132,7 @@ Notes:
 - U-4: reserve queue order is strict FIFO, and a commander appears in it at most once.
 - U-5: an orphaned unit is despawned within 1 tick and earns no XP after orphaning.
 - U-7: an AUTO unit counts toward `slots.max_viewer_units` and holds its commander's U-1 slot until it is Despawned or Destroyed; a command from that commander reclaims it and never spawns a second unit (Q-ALN-9).
-- U-8: while the campaign is Paused, no chat command spawns, moves, fires, captures with or despawns a unit (Q-ALN-2). The only despawn while Paused is that of a unit orphaned by `STAFF_BAN` or `FORGET`, which are safety actions (Q-ALN-24, §4.4).
+- U-8: while the campaign is Paused, no chat command spawns, moves, fires, captures with or despawns a unit (Q-ALN-2). The only despawns while Paused are a unit orphaned by `STAFF_BAN` or `FORGET`, which are safety actions (Q-ALN-24), and a unit removed by `STAFF_PURGE_UNITS` (Q-ALN-36) (§4.4).
 - U-9: when a node flips owner, no unit of the losing side stays parked there: each one is RTB toward another friendly node or Destroyed in the same tick (Q-GD-32).
 
 ### 4.2 Node capture
@@ -156,9 +156,9 @@ stateDiagram-v2
 | State | Event / guard | Action | Next |
 |---|---|---|---|
 | Neutral / Owned | An eligible ground or logistics unit of a non-owner side enters `capture.radius_m`, with no opposing eligible unit present | Emit `CaptureStarted{node_id, side}` | Capturing / Contested |
-| Capturing | Tick, still uncontested | Progress += rate × diminishing f(unit count) × garrison modifier × `WORLD_DT` (capture runs on world time, Q-ALN-23). **Garrison modifier (Q-GD-32):** the garrison multiplier (heavily slows capture) while any unit of the owning side is at the node, or the empty-base multiplier (speeds it up) while none is; both are configurable and PROPOSED. An opposing *capture-eligible* unit still freezes progress (Contested), so in practice the garrison multiplier applies to defenders that cannot contest, e.g. parked air units (reading to confirm, §8). A Neutral node has no owner and uses neither multiplier. | Capturing |
+| Capturing | Tick, still uncontested | Progress += rate × diminishing f(unit count) × garrison modifier × `WORLD_DT` (capture runs on world time, Q-ALN-23). **Garrison modifier (Q-GD-32):** the garrison multiplier (heavily slows capture) while any unit of the owning side is at the node, or the empty-base multiplier (speeds it up) while none is; both are configurable and PROPOSED. A combat-capable defender freezes progress (Contested); defenders that cannot contest, such as parked air units and Disabled units, slow it through the garrison multiplier instead (Q-ALN-33). A Neutral node has no owner and uses neither multiplier. | Capturing |
 | Capturing | Progress ≥ 100% | Set owner = capturer. Reset progress. Emit `NodeCaptured{node_id, from, to, participant_commander_ids[]}`. In the same tick, resolve the losing side's units parked at the node: mobile units with fuel to reach a friendly node escape (RTB), every other one is Destroyed with a crew-survival roll (§4.1, Q-GD-32). Applies to both sides. | Owned |
-| Capturing | Opposing eligible unit enters | Freeze progress | Contested |
+| Capturing | Opposing eligible, combat-capable unit enters (parked air and Disabled units do not contest, Q-ALN-33) | Freeze progress | Contested |
 | Contested | One side's eligible units are all gone | — | Capturing (attacker remains) / Owned (defender remains) |
 | Capturing | No capturers, no opponents | — | Decaying |
 | Decaying | Tick | Progress −= decay rate × `WORLD_DT` (world time, Q-ALN-23) | Decaying, then Owned/Neutral at 0 |
@@ -168,7 +168,7 @@ stateDiagram-v2
 - N-2: progress stays in [0, 100] and is monotonic while uncontested capture continues.
 - N-3: air units never change capture state (GAMEPLAY §8).
 - N-4: the SANCTUARY node never leaves Owned (Q-GD-7).
-- N-5: all else equal, capture progress per tick at an owned node is lower with a defending unit present than with none (Q-GD-32).
+- N-5: all else equal, capture progress per tick at an owned node is lower with a defending unit that cannot contest (parked air, Disabled) present than with none, and zero (Contested) with a combat-capable defender present (Q-GD-32, Q-ALN-33).
 
 ### 4.3 Bridge
 
@@ -222,6 +222,9 @@ stateDiagram-v2
 | Paused | Safety action: `STAFF_BAN`, `FORGET` or `STAFF_KILL_SWITCH` (Q-ALN-24) | Apply as when Running. A unit orphaned by `STAFF_BAN` or `FORGET` despawns at once (`UnitDespawned{reason: OWNER_BANNED \| OWNER_FORGOTTEN}`) instead of waiting for resume. A banned commander leaves the reserve queue. | Paused |
 | Paused | `STAFF_CONFIG_RELOAD` (Q-ALN-24) | Validate and hold; no balance value changes while Paused. Apply held reloads in arrival order in the tick `STAFF_CAMPAIGN_RESUME` is applied, and emit `BalanceReloaded` then. Held reloads are discarded if the campaign ends instead (C-3). | Paused |
 | Paused | `STAFF_DIRECTOR_OVERRIDE` (Q-ALN-24) | Emit `CommandRejected{reason: CAMPAIGN_PAUSED}` | Paused |
+| Paused | `STAFF_UNBAN`, `STAFF_PURGE_UNITS` or `SYS_SET_CALLSIGN` (Q-ALN-36) | Apply as when Running. Units removed by `STAFF_PURGE_UNITS` despawn at once (`UnitDespawned{reason: PURGED}`). | Paused |
+| Paused | `ADVISOR_CHOICE`, or a GM command other than a release (`STAFF_GM_TAKEOVER`, `STAFF_GM_OPERATION`, `STAFF_GM_VERDICT`, `STAFF_GM_LIMITS`, `STAFF_GM_INJECT_JOB`) (Q-ALN-36) | Emit `CommandRejected{reason: CAMPAIGN_PAUSED}` | Paused |
+| Paused | `STAFF_GM_RELEASE`, from the GM or from SYSTEM on auto-release (Q-ALN-36) | Apply as when Running: control returns to the director | Paused |
 | Paused | `STAFF_CAMPAIGN_PAUSE` | Emit `CommandRejected{reason: ALREADY_PAUSED}` | Paused |
 | Paused | `STAFF_CAMPAIGN_RESUME` from staff (GM, admin or owner only, Q-RB-1), or from SYSTEM after the "COMMS RESTORED" countdown ends an offline pause (Q-OPS-8) | Clear `clock_paused`. Emit `CampaignClockResumed{reason}`. Free slots fill from the reserve queue (FIFO). | Running |
 | Running | Victory condition held (GAMEPLAY §9), or defeat (forward airbase lost and ≤ 25% of nodes held for 30 min, Q-GD-7) | Freeze inputs. Emit `CampaignEnded{result: VICTORY \| DEFEAT}`. | Ending |
@@ -641,8 +644,7 @@ These decisions (2026-10-17 and 2026-10-18) are folded into the tables above:
 - **Spec-alignment batch (2026-10-18, continued):** Q-ALN-23 (capture, decay and bridge repair on world time; director window and dwell on game time, §4.2, §4.3, §4.6), Q-ALN-24 (staff and system commands while Paused, §4.4, U-8), Q-ALN-25 (idle retire of a Disabled unit; idle handoff for `hold` units, §4.1), Q-ALN-26 (`JOIN` while Paused always queues; idle-timer resets; AUTO tag, §4.1, §4.4), Q-ALN-29 (`REDACTED-` tag, §4.7), Q-ALN-31 (pause sub-reason, §4.4).
 - **Q-GD-29:** time-limit score and Stalemate (§4.4, C-5).
 - **Q-GD-32:** units parked at a captured base escape or are destroyed (§4.1, §4.2, U-9); garrison and empty-base capture multipliers (§4.2, N-5).
+- **Spec-alignment batch 3 (2026-10-18):** Q-ALN-33 (combat-capable defenders freeze capture; defenders that cannot contest slow it, §4.2, N-5), Q-ALN-36 (unban, purge and set callsign apply while Paused; advisor choices and GM commands other than a release are rejected, §4.4, U-8).
 
 Still open here:
-- Q-GD-32 reading (§4.2): this spec applies the garrison multiplier to defenders that cannot contest, because a capture-eligible defender already freezes progress (Contested). The owner should confirm this, or say whether Contested should slow capture instead of freezing it.
 - Config keys for the Q-GD-29 draw band and score weights, and for the Q-GD-32 garrison and empty-base multipliers, are not yet defined in CONFIG-AND-CONTENT §6, so this spec names no key for them.
-- Whether `STAFF_UNBAN`, `STAFF_PURGE_UNITS`, `SYS_SET_CALLSIGN` and the GM commands apply while Paused (§4.4); Q-ALN-24 names only the safety actions, config reload and director overrides.

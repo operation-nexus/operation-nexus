@@ -13,7 +13,7 @@ All numbers below are **initial balance values** in `balance/default.yaml`. They
 
 World and game time are both deterministic and both freeze while the sim is paused; real time does not. Config keys use friendly units (s/min) and are converted to ticks at load, rounding **up** so a timer is never shorter than configured (Q-ALN-6).
 
-**Pause (Q-ALN-2):** a pause freezes the whole world: movement, combat and every sim timer on both clocks. Commands that don't change the world still work while paused: `!me`/`!status`, `!quiet`, and joining the reserve queue (a `!join` while paused always queues, even when a slot is free, Q-ALN-26). Every other command gets a "war paused" reply in the digest (FB-UX-5) and has no effect (STATE-MACHINES §4.4). Staff safety actions always work while paused (ban, forget, kill switch, pause/resume/end); a config reload waits until resume, and director overrides are rejected (Q-ALN-24).
+**Pause (Q-ALN-2):** a pause freezes the whole world: movement, combat and every sim timer on both clocks. Commands that don't change the world still work while paused: `!me`/`!status`, `!quiet`, and joining the reserve queue (a `!join` while paused always queues, even when a slot is free, Q-ALN-26). Every other command gets a "war paused" reply in the digest (FB-UX-5) and has no effect (STATE-MACHINES §4.4). Staff safety actions always work while paused (ban, forget, kill switch, pause/resume/end); a config reload waits until resume, and director overrides are rejected (Q-ALN-24). Unban, unit purges and approved callsign changes also apply; advisor choices and GM commands other than a GM release are rejected, and channel-points redemptions are refused and refunded (Q-ALN-36, Q-ALN-37).
 
 **First-build scope (Q-PROD-8):** the first build ships the core loop, damage states (§6a), base defense HP (§8), limited munitions (§5), fog of war, director tiers with Pattern of Life, and the Tasking Board (§1b). Stances (`!stance` and deploy-time stance, §3/§6), CSAR and crew rescue (§6a, `!rescue`), world events, base upgrades (§5a) and weather (§6) come later behind feature flags. With stances off, every unit behaves as `standard`.
 
@@ -59,7 +59,7 @@ A shared queue of **jobs** the system generates from the live situation, so ever
 - **TB-7 Preemption:** a human order always wins over a board job. An emergency job may preempt **AI-run units only**.
 - **TB-8 Dependencies:** a job may depend on another (e.g. repair bridge, then convoy) and can't be claimed until that job is DONE.
 - **TB-9 Per-side fog of war:** each side builds its board only from its own fog-of-war view (FOW-4).
-- **TB-10 Logged outcomes:** every job's lifecycle and outcome is emitted as sim events and **stored durably** (Q-ALN-16), for recap stats (e.g. "most rescues"), AAR stats and balance analysis. A job completed by a commander's AUTO unit is recorded as an **AUTO assist** for recaps only; it never counts toward XP, merit or leaderboards (Q-ALN-30, PROGRESSION).
+- **TB-10 Logged outcomes:** every job's lifecycle and outcome is emitted as sim events and **stored durably** (Q-ALN-16), for recap stats (e.g. "most rescues"), AAR stats and balance analysis. A job completed by a commander's AUTO unit is recorded as an **AUTO assist** for recaps only; it never counts toward XP, merit or leaderboards (Q-ALN-30, PROGRESSION). The same holds for every other action by an AUTO unit, such as a kill, a supply delivery or capture participation (Q-ALN-34, PROGRESSION PROG-12).
 - **TB-11 Command Center:** both boards are visible in the Command Center. A GM can inject jobs into the **Static's board only** (Q-ALN-11, GM scope §9c); a GM never injects jobs into the Quorum's board.
 
 ## 2. Roles (MVP, resolves critique #7 and #8)
@@ -170,7 +170,7 @@ A package is a group of up to 4 existing units, with a lead (O-5+) or an auto-le
 ## 8. Capture
 - **Base defenses first (Q-GD-18):** each node has defense HP (configurable, upgradable via §5a). Capture can't begin until HP is 0. Air strikes, artillery and ground fire reduce HP; supply deliveries repair it; starvation slowly drains it (`logistics.starve_hp_drain_per_min`, PROPOSED).
 - Capture requires a ground or logistics unit within `capture.radius_m`, with no enemy ground unit contesting it. Progress takes `capture.time_s` (PROPOSED 120 s, world time, Q-ALN-23), scaled by the number of units with diminishing returns. Air units can't capture.
-- **Garrison modifier (Q-GD-32):** defending units present at the base heavily slow capture; an empty base is captured faster. Both are configurable multipliers (PROPOSED). Applies to both sides.
+- **Garrison modifier (Q-GD-32, Q-ALN-33):** a combat-capable defending unit at the base freezes capture (contested). Defending units that cannot contest (parked air, Disabled units) heavily slow it; an empty base is captured faster. Both are configurable multipliers (PROPOSED). Applies to both sides.
 - **Units at a captured base (Q-GD-32):** when a base flips, each mobile unit there escapes to the nearest reachable friendly base if its fuel allows. Every other unit there is destroyed, with a crew-survival roll (§6a). Applies to both sides.
 - Progress decays when the node is uncontested and unoccupied. A capture can't flip twice in one tick (property test).
 
@@ -222,6 +222,8 @@ Every rule above gets a unit test plus the property tests from TESTING-STRATEGY 
 - Q-ALN-25: a Disabled unit reaching idle retire despawns where it is and no cargo returns to the reserve; a `hold` unit handed off to AUTO stays at base until it claims a job.
 - Q-ALN-26: a `!join` while paused queues even with a free slot; `!quiet` and `!help` do not reset the idle timers.
 - Q-ALN-30: a job completed by an AUTO unit adds an AUTO assist and no XP or merit.
+- Q-ALN-34: a kill, a supply delivery or capture participation by an AUTO unit adds an AUTO assist and no XP or merit.
+- Q-ALN-33: an enemy combat-capable unit at a node being captured freezes progress; a parked air unit or a Disabled unit there only slows it.
 
 ## 12. Open questions
-Decided and folded in (2026-10-18): Q-ALN-23 (capture on world time; claim lease, priority aging and package fill wait on game time; timer note), Q-ALN-24 (staff actions while paused), Q-ALN-25 (Disabled retire, `hold` handoff), Q-ALN-26 (paused `!join`, idle-timer resets, AUTO tag), Q-ALN-30 (AUTO assists), Q-ALN-31 (pause sub-reason). Still open: the Q-GD-32 garrison-modifier reading (§8: whether "defending units present" means defenders that can't contest, since an eligible defender already freezes capture) is tracked in STATE-MACHINES §8.
+Decided and folded in (2026-10-18): Q-ALN-23 (capture on world time; claim lease, priority aging and package fill wait on game time; timer note), Q-ALN-24 (staff actions while paused), Q-ALN-25 (Disabled retire, `hold` handoff), Q-ALN-26 (paused `!join`, idle-timer resets, AUTO tag), Q-ALN-30 (AUTO assists), Q-ALN-31 (pause sub-reason), Q-ALN-33 (combat-capable defenders freeze capture; defenders that cannot contest slow it, §8), Q-ALN-34 (no XP, merit or leaderboard credit for any AUTO action, TB-10), Q-ALN-36 and Q-ALN-37 (actions and redemptions while paused).

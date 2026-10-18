@@ -41,7 +41,7 @@ All of this has to work from a phone browser or Discord, with least privilege an
 | RB-10 | Rule/balance changes MUST be validated against the balance schema (CONFIG-AND-CONTENT §6) before any command is emitted. Non-hot-reloadable keys can only be applied to a future campaign. |
 | RB-11 | Admin sessions MUST expire (idle and absolute timeouts), be revocable, and be rate-limited per staff member and per IP. |
 | RB-12 | Personal data shown in the console is limited to what the staff member's permissions need. Raw platform ids are visible only with `users.view_pii`. |
-| RB-13 | **While the campaign is paused (Q-ALN-24):** safety actions MUST always work: ban (`STAFF_BAN`), forget (`FORGET`), the kill switch (`STAFF_KILL_SWITCH`), and pause, resume and end (`STAFF_CAMPAIGN_PAUSE`/`RESUME`/`END`). A config reload (`rules.apply_hot`, including applying a rank/XP preset) is validated and registered but deferred: `STAFF_CONFIG_RELOAD` applies at the first tick after resume (CONFIG-AND-CONTENT §5). A director override (`STAFF_DIRECTOR_OVERRIDE`) MUST be rejected with `CAMPAIGN_PAUSED` and audited (RB-3). |
+| RB-13 | **While the campaign is paused (Q-ALN-24, Q-ALN-36):** safety actions MUST always work: ban (`STAFF_BAN`), forget (`FORGET`), the kill switch (`STAFF_KILL_SWITCH`), and pause, resume and end (`STAFF_CAMPAIGN_PAUSE`/`RESUME`/`END`). A config reload (`rules.apply_hot`, including applying a rank/XP preset) is validated and registered but deferred: `STAFF_CONFIG_RELOAD` applies at the first tick after resume (CONFIG-AND-CONTENT §5). A director override (`STAFF_DIRECTOR_OVERRIDE`) MUST be rejected with `CAMPAIGN_PAUSED` and audited (RB-3). Unban (`STAFF_UNBAN`), purge units (`STAFF_PURGE_UNITS`) and approved callsign changes (`SYS_SET_CALLSIGN`) apply while paused (Q-ALN-36). GM commands MUST be rejected with `CAMPAIGN_PAUSED` and audited, except a GM release (`STAFF_GM_RELEASE`, manual or automatic), which always applies (Q-ALN-36). |
 
 ## 4. Roles & permissions
 
@@ -258,11 +258,11 @@ Rule editing, theater editing, generation, and scheduling are **web only**. Form
 ## 8. Contract additions (merge into CONTRACTS)
 | Command | Fields | Issuer | Reject reasons |
 |---|---|---|---|
-| `STAFF_GM_TAKEOVER` | `mode: ASSIST\|FULL` | STAFF | `GM_ALREADY_ACTIVE`, `CAMPAIGN_NOT_RUNNING` |
+| `STAFF_GM_TAKEOVER` | `mode: ASSIST\|FULL` | STAFF | `GM_ALREADY_ACTIVE`, `CAMPAIGN_NOT_RUNNING`, `CAMPAIGN_PAUSED` (Q-ALN-36) |
 | `STAFF_GM_RELEASE` | — | STAFF, or SYSTEM on timeout | `GM_NOT_ACTIVE` |
-| `STAFF_GM_OPERATION` | `operation: string` (doctrine library), `target: NodeId\|SectorId\|null`, `params: object` (schema per operation) | STAFF (holder), or SYSTEM for scheduled events | `GM_NOT_ACTIVE`, `NOT_GM_HOLDER`, `UNKNOWN_OPERATION`, `PRECONDITION_FAILED`, `OVER_BUDGET`, `NOT_VISIBLE_TO_ENEMY` |
-| `STAFF_GM_VERDICT` | `proposal_id`, `verdict: APPROVE\|VETO` (ASSIST mode) | STAFF (holder) | `GM_NOT_ACTIVE`, `UNKNOWN_PROPOSAL` |
-| `STAFF_GM_LIMITS` | `budget: bool`, `fow: bool` (true = enforced) | STAFF (OWNER only) | `GM_NOT_ACTIVE` |
+| `STAFF_GM_OPERATION` | `operation: string` (doctrine library), `target: NodeId\|SectorId\|null`, `params: object` (schema per operation) | STAFF (holder), or SYSTEM for scheduled events | `GM_NOT_ACTIVE`, `NOT_GM_HOLDER`, `UNKNOWN_OPERATION`, `PRECONDITION_FAILED`, `OVER_BUDGET`, `NOT_VISIBLE_TO_ENEMY`, `CAMPAIGN_PAUSED` (Q-ALN-36) |
+| `STAFF_GM_VERDICT` | `proposal_id`, `verdict: APPROVE\|VETO` (ASSIST mode) | STAFF (holder) | `GM_NOT_ACTIVE`, `UNKNOWN_PROPOSAL`, `CAMPAIGN_PAUSED` (Q-ALN-36) |
+| `STAFF_GM_LIMITS` | `budget: bool`, `fow: bool` (true = enforced) | STAFF (OWNER only) | `GM_NOT_ACTIVE`, `CAMPAIGN_PAUSED` (Q-ALN-36) |
 | `STAFF_CAMPAIGN_PAUSE` (amended, Q-ALN-31) | adds `sub_reason: StaffPauseSubReason\|null` next to `reason_category` and `note`; non-null only when `reason_category = STAFF` | as in CONTRACTS | adds `INVALID_PAYLOAD` for a `sub_reason` with any other category |
 | `STAFF_DIRECTOR_OVERRIDE` (amended, Q-ALN-24) | unchanged | STAFF | adds `CAMPAIGN_PAUSED` while the campaign is paused |
 
@@ -400,7 +400,7 @@ CREATE TABLE content_versions (                -- theaters, balance profiles, te
 | RB-12 | `users.view` responses contain no platform ids (schema test). |
 | §6.3, §6.4 (Q-ALN-10, Q-ALN-11) | Matrix test: a GM setting friendly fire, unlimited ammo, the objective mode or an objective is denied; a GM scheduling a world event is allowed and a GM scheduling a campaign is denied. A GM job injection into the Static's board is accepted; one into the coalition board is rejected with an audit row. |
 | §6.3 (Q-ALN-4) | With a fake monotonic clock: a takeover reaches `admin.gm_max_session_s` while the campaign is paused and still auto-releases. |
-| RB-13 (Q-ALN-24) | With the campaign paused: ban, forget, kill switch, resume and end each apply; a second pause rejects `ALREADY_PAUSED`; a hot config reload is registered, not applied until the first tick after resume; a director override rejects `CAMPAIGN_PAUSED` with an audit row. |
+| RB-13 (Q-ALN-24) | With the campaign paused: ban, forget, kill switch, resume and end each apply; a second pause rejects `ALREADY_PAUSED`; a hot config reload is registered, not applied until the first tick after resume; a director override rejects `CAMPAIGN_PAUSED` with an audit row; unban, purge units and an approved callsign change apply (Q-ALN-36); GM takeover, operation, verdict, limits and job injection reject `CAMPAIGN_PAUSED` with an audit row, and a GM release (manual or on timeout) applies (Q-ALN-36). |
 | §6.5 step 4a (Q-ALN-22) | Matrix test: a GM can save a rank/XP preset draft and cannot save any other rules draft; a GM applying a preset is denied; an Admin applying the GM's draft emits one `STAFF_CONFIG_RELOAD` and an audit row naming both staff members. |
 | Pause flow (Q-ALN-31) | A form pause sends `reason_category = STAFF` with the chosen `sub_reason` (or `null`); a `sub_reason` with `TECHNICAL`, `MAINTENANCE` or `CEASEFIRE` rejects `INVALID_PAYLOAD`; a pause without a note from staff rejects `REASON_REQUIRED`. |
 
@@ -414,15 +414,14 @@ All questions raised by this spec are decided and folded in above:
 - **Q-RB-6:** threat memory keeps learning during GM FULL takeover (§6.3).
 - **Q-RB-7:** the Game Master has its own voice profile (§6.3, AUDIO-TTS §2a).
 
-Decided 2026-10-18: Q-OPS-8 (offline auto-pause, reason `TECHNICAL`) and Q-OPS-9 (weekly maintenance window, reason `MAINTENANCE`; Ceasefire mode), see OPS-ADMIN. Spec-alignment batch: Q-ALN-3 (pause reasons), Q-ALN-4 (GM auto-release on real time), Q-ALN-10 (campaign setup Owner/Admin only; GM scope = Static + world events), Q-ALN-11 (GM injects jobs into the Static's board only), Q-ALN-22 (GMs draft rank/XP presets; Owner/Admin approve and apply; §4.3, §6.5), Q-ALN-24 (actions while paused, RB-13), Q-ALN-31 (pause category plus optional `STAFF` sub-reason, pause flow), Q-ALN-32 (staff-pause banner, pause flow).
+Decided 2026-10-18: Q-OPS-8 (offline auto-pause, reason `TECHNICAL`) and Q-OPS-9 (weekly maintenance window, reason `MAINTENANCE`; Ceasefire mode), see OPS-ADMIN. Spec-alignment batch: Q-ALN-3 (pause reasons), Q-ALN-4 (GM auto-release on real time), Q-ALN-10 (campaign setup Owner/Admin only; GM scope = Static + world events), Q-ALN-11 (GM injects jobs into the Static's board only), Q-ALN-22 (GMs draft rank/XP presets; Owner/Admin approve and apply; §4.3, §6.5), Q-ALN-24 (actions while paused, RB-13), Q-ALN-31 (pause category plus optional `STAFF` sub-reason, pause flow), Q-ALN-32 (staff-pause banner, pause flow). Spec-alignment batch 3: Q-ALN-36 (unban, purge and callsign changes apply while paused; GM commands other than a release are rejected, RB-13, §8), Q-ALN-39 (the sub-reason never reaches the stream, pause flow).
 
 Still open:
 - The command contract for GM Tasking Board injection (§6.3).
-- Whether GM takeover, GM operations and GM verdicts (`STAFF_GM_*`) are accepted while paused. Q-ALN-24 rejects director overrides but does not name the GM commands.
 
 ## Addendum: Pause flow (owner decision 2026-10-17, Q-RB-1)
 1. **Pause form (Q-ALN-31):** a pause carries two fields. `reason_category` is the `PauseReasonCategory` (`STAFF`, `TECHNICAL`, `MAINTENANCE`, `CEASEFIRE`, Q-ALN-3); a pause from this form is always `STAFF`. `sub_reason` is optional, one of `RAID`, `ABUSE`, `CONTENT`, `OTHER`, and is allowed only when the category is `STAFF` (automatic and Ceasefire pauses send `null`). A moderator, GM or admin must also give a short note; a form pause without a note is rejected (`STAFF_CAMPAIGN_PAUSE{reason_category, sub_reason, note}`, §8). Every pause, whatever its reason, freezes world and game time (CONFIG-AND-CONTENT CFG-9). Safety actions keep working while paused (RB-13).
-1a. **On-stream banner (Q-ALN-32):** while a `STAFF` pause is active the HUD shows a simple **"PAUSED — stand by"** banner. The note and sub-reason are never shown on stream (OVERLAY).
+1a. **On-stream banner (Q-ALN-32):** while a `STAFF` pause is active the HUD shows a simple **"PAUSED — stand by"** banner. The note and sub-reason are never shown on stream; the overlay receives only the pause category (Q-ALN-39, OVERLAY).
 2. **Immediate owner alert** through every enabled `AlertSink` (ntfy, Discord, email; voice line later). It says who paused, when, why (category, sub-reason and note), and the current state: momentum, active operators, recent incidents.
 3. **AI assessment (optional, advisory only):** the LLM advisor writes a short summary of the situation and a recommendation to resume or stay paused, using only logged data. It's labeled as AI-generated and never acts on its own (ADR-0007).
 4. **One-tap resume:** an action link in the alert (authenticated), a Discord slash command (`/nexus resume`), or the Command Center. Voice resume comes with the voice ops line. Resume needs GM/admin/owner; the owner's action is audited like any other.
