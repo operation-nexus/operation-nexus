@@ -39,8 +39,10 @@ jobs:
           curl -fsSLo "$RUNNER_TEMP/$f" "https://github.com/gitleaks/gitleaks/releases/download/v8.30.1/$f"
           echo "551f6fc83ea457d62a0d98237cbad105af8d557003051f41f3e7ca7b3f2470eb  $RUNNER_TEMP/$f" | sha256sum -c -
           tar -xzf "$RUNNER_TEMP/$f" -C "$RUNNER_TEMP" gitleaks
-      # ponytail: scans full history on every run (~1 s today); scan only the PR range if it gets slow.
-      - run: '"$RUNNER_TEMP/gitleaks" git --redact --no-banner --exit-code 1 .'
+      # Full history of the commit under test only: the default (--all) also scans every other fetched branch,
+      # so one unmerged branch with a secret would fail every PR.
+      # ponytail: ~1 s today; scan only the PR range if it gets slow.
+      - run: '"$RUNNER_TEMP/gitleaks" git --redact --no-banner --exit-code 1 --log-opts=HEAD .'
 
   codeql:
     name: codeql (${{ matrix.language }})
