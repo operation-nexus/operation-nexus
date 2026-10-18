@@ -170,7 +170,7 @@ The repo is **public** (Q-CI-1). Rulesets, environment required reviewers, CodeQ
 - [x] Actions: "Allow select actions" + require SHA pinning; default `GITHUB_TOKEN` read-only
 - [x] Environments `staging`, `production` created; `production` requires owner approval
 - [x] CodeQL default setup OFF (we use the advanced workflow) to avoid duplicate runs
-- [ ] Rulesets on `develop` and `main`: add "Require code scanning results", tool CodeQL, security alerts **High or higher** (NX-012). `ci-gate` only shows that CodeQL ran; this rule blocks new high or critical alerts
+- [x] Rulesets: "Require code scanning results", tool CodeQL (NX-012), tiered per the ADR-0009 amendment of 2026-10-18: `main` security alerts **Medium or higher** + alerts **Errors**; `develop` security alerts **Critical** only. `ci-gate` only shows that CodeQL ran; this rule is what blocks new alerts
 
 Applied 2026-10-18 (OWNER-TODO §2). New third-party actions must be added to the Actions allowlist.
 

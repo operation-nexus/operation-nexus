@@ -62,3 +62,9 @@ The planning PR merges straight into `main`, which the owner allowed while there
 - **Consequence:** every commit on a feature branch lands in `develop`, so each one must be a Conventional Commit (`scripts/check_commit_msg.py`), not only the PR title. The merge commit's subject is the PR title, ending with `(#N)`.
 - **Revisit** (squash only) if `develop` history becomes hard to read or the changelog fills with fixup commits.
 - **Status:** accepted by the owner, 2026-10-18.
+
+## Amendment (2026-10-18): strict on `main` and release branches, lenient on `develop`
+- **Change:** `main` (and any future release branch) is the strict gate; `develop` may carry non-critical failures. The CodeQL code-scanning rule is tiered: `main` blocks security alerts of medium or higher and error-level alerts; `develop` blocks critical security alerts only.
+- **Release branches:** still not used. When `release/*` is introduced, it gets `main`'s ruleset and `ci.yml` triggers in the same change; adding the ruleset alone would block every release PR because `ci-gate` would never report.
+- **Not yet tiered:** the scanners inside `ci-gate` (gitleaks, osv-scanner, dependency-review, zizmor, trivy) still block `develop` on high findings. Making them critical-only on `develop` is a follow-up change to `security.yml`.
+- **Status:** accepted by the owner, 2026-10-18.
