@@ -61,8 +61,16 @@ Effect allowlist by trigger source:
 | Shoutout | On-stream "Thanks, VIPER-27" banner (callsign only); a template sitrep line, e.g. "Logistics wing salutes VIPER-27"; a more prominent `!rally` banner or longer pin (Q-SUP-6: prominence only, never more power) | ✅ | ✅ |
 | Spectacle (no gameplay effect) | Flare or fireworks burst over a friendly base; an AWACS flyover animation | ✅ | ✅ |
 | QoL (capped) | Skip *your own* respawn delay once; one extra `!scout` ping; jump the reserve queue once (max N per hour globally) | ❌ (Q-SUP-1: money buys cosmetics, shoutouts and spectacle only) | ✅ |
-| Team support (capped, small) | Request a supply drop to the starved FOB **queued through the normal logistics system** (it still has to fly in and can be intercepted) | ❌ (Q-SUP-1) | ✅ (subject to the open TS-1 concern in Q-SUP-7) |
+| Team support (capped, small) | Request a supply drop to the starved FOB **queued through the normal logistics system** (it still has to fly in and can be intercepted) | ❌ (Q-SUP-1) | ✅ (global cap and shared cooldown, §4a, Q-SUP-7) |
 | **Forbidden** | Damage or HP buffs, instant captures, killing units, changing director tiers, anything random, anything that stacks into a decisive advantage | ❌ | ❌ |
+
+### 4a. Supply-drop cap (Q-SUP-7)
+- **SR-1** Supply-drop redemptions have a **fixed global cap per hour**, `support.supply_drop.max_per_hour` (value PROPOSED / TBD by harness), plus a shared cooldown across all viewers. The cap never scales with viewer count or chat volume (GAMEPLAY TS-1).
+- **SR-2** Our code enforces the cap and cooldown (§5 step 5). Where the platform's reward settings support it, the same limits are mirrored there [UNVERIFIED: exact Twitch reward options]. When capped, the reward shows "on cooldown"; a redemption that still arrives is refused through §5 step 7 (channel points CANCELED, so the points are refunded).
+
+### 4b. Provocation weights (Q-AI-9)
+- **SR-3** Every applied redemption adds to the director's `provocation` score (THREAT-DIRECTOR §5a) by a per-type weight, `director.provocation.weights.redemption.<type>` (admin-tunable; values PROPOSED / TBD by harness).
+- **SR-4** Weight classes: offensive = full weight; support (e.g. supply drop) = small weight; cosmetic, shoutout and spectacle = **0**. An unapplied, refunded or ignored redemption adds nothing.
 
 ## 5. Flow
 1. The adapter verifies authenticity: signed webhooks, OAuth-bound EventSub, and a Ko-fi token compared in constant time over HTTPS.
@@ -70,7 +78,7 @@ Effect allowlist by trigger source:
 3. Store the event, recording the raw amount and currency exactly as received.
 4. Match it against the rules (deterministic, first match by priority).
 5. Run the checks: the commander is resolved (if `platform_user_id` is null, only shoutout-free cosmetic or global spectacle rules can apply), limits are OK, and the campaign is running.
-6. Issue the logged command `SUPPORT_REDEEM{support_id, rule_id, commander_id?}`. The sim applies the effect, which keeps replays deterministic.
+6. Issue the logged command `SUPPORT_REDEEM{support_id, rule_id, commander_id?}`. The sim applies the effect and its provocation weight (§4b), which keeps replays deterministic.
 7. **Acknowledge:**
    - Channel points: FULFILLED on success, **CANCELED (refunds the points) on failure**.
    - Money and Bits can't be refunded through the API. If the effect can't be applied, show "Thank you" (the shoutout still happens) and log `unapplied_reason`.
@@ -100,6 +108,9 @@ Effect allowlist by trigger source:
 - Golden replay including `SUPPORT_REDEEM`.
 - A test that the channel-points refund path is called on failure.
 - A forbidden-effect rule is rejected by the config validator.
+- SR-1/SR-2: with 1 and with 300 simulated viewers, supply drops never exceed `support.supply_drop.max_per_hour`; a capped channel-points redemption is CANCELED.
+- SR-4: a cosmetic, shoutout or spectacle redemption leaves `provocation` unchanged; an unapplied one adds nothing.
 
 ## 10. Open questions
-Q-SUP-1 … Q-SUP-6 are decided (2026-10-17) and folded in above. Still open: Q-SUP-7 (channel-point supply drops scale with audience size, which conflicts with TS-1; gap analysis 2026-10-17, not yet in OPEN-QUESTIONS).
+Q-SUP-1 … Q-SUP-7 and Q-AI-9 are decided and folded in above. Still open:
+- Q-AI-9 names an offensive class (airstrike, barrage), but §4 forbids damage and killing units from any redemption, so no allowlisted effect is offensive today. Which class the QoL effects (respawn skip, extra `!scout` ping, queue jump) belong to is not decided.
