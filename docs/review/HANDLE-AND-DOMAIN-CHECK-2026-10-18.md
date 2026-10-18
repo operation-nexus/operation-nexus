@@ -19,6 +19,9 @@ Availability changes by the minute. Nothing here holds a name for you; claim the
 
 Twitch variants that returned "no such login": `hiveplextv`, `hiveplexgame`, `hiveplexgames`, `hiveplexhq`, `playhiveplex`, `thehiveplex`, `hiveplex_`, `hiveplexofficial`, `hiveplexwar`, `realhiveplex`, `hiveplexlive`, `hiveplexnet`. YouTube `@hiveplexgame`, `@hiveplextv`, `@playhiveplex`, `@hiveplexhq` and TikTok `@hiveplexgame`, `@hiveplextv`, `@playhiveplex`, `@hiveplexhq` also looked free.
 
+### 1a. Hype-prefix variants (owner asked for a workaround, 2026-10-18)
+Free at check time on Twitch, YouTube, TikTok and Discord (Bluesky timed out for `playhiveplex`, `hiveplextv`, `teamhiveplex`; free for the others): `playhiveplex`, `operationhiveplex`, `projecthiveplex`, `hiveplextv`, `hiveplexgame`, `hiveplexhq`, `teamhiveplex`. `playhiveplex.com/.net/.gg/.tv` and `operationhiveplex.com`, `projecthiveplex.com` show no DNS delegation. Recommendation (Q-MKT-10): one consistent handle, `playhiveplex`, display name "Hiveplex"; use "Operation Hiveplex" style naming for campaign banners rather than the handle.
+
 ## 2. Domains
 | Domain | Result |
 |---|---|

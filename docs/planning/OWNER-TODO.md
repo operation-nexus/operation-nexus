@@ -41,7 +41,8 @@ Applied and verified through the GitHub API on 2026-10-18 where checked.
 ## 4. Accounts and brand (NX-297)
 - [ ] Reserve the **Hiveplex** handle on YouTube, TikTok, Bluesky and Discord the same day (all looked free on 2026-10-18), and after a manual look on X, Instagram, Reddit and a GitHub organization. **Twitch `hiveplex` is already taken** by a dormant 2015 account: register `hiveplextv` and ask Twitch support about releasing the original (docs/review/HANDLE-AND-DOMAIN-CHECK-2026-10-18.md, Q-MKT-10) (Q-BRAND-6, accepted risk), and the studio byline handle as a defensive hold; follow the setup runbook when it exists (NX-336). Accounts are created by hand: platforms bar automated creation
 - [ ] Epidemic Sound: ask support (a) whether a 24/7 monetized game stream is covered, (b) what happens to published content after cancelling; then choose upgrade vs a separate subscription
-- [ ] Create the private `operation-nexus-ops` repo (secrets, NX-299)
+- [ ] Create the private `operation-nexus-ops` repo (secrets, NX-299): on GitHub choose New repository, Private, README on, under the future organization if it exists (a transfer later is fine). The cloud session's GitHub integration cannot create repos (403). Then run `age-keygen` on your own machine, keep the private key in your password manager, and send only the public key (starts with `age1`) so `.sops.yaml` can be added (Q-OPS-10)
+- [ ] Later (P3, with the lore pilot): create the private `operation-nexus-vault` repo for lore, marketing drafts and licensed art/audio, separate from the secrets repo (Q-OPS-10, AGENT-TEAMS.md)
 
 ## 4a. Name clearance (Q-LEGAL-5, Q-BRAND-6; before NX-297 creates any account)
 The research could not reach any official register (docs/review/NAME-CLEARANCE.md, Method). Only you can confirm. Full lists: NAME-CLEARANCE "Manual steps" (rounds 1–3).
