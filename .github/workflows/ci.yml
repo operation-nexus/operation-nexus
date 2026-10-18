@@ -7,7 +7,7 @@
 #     `develop`, required when it is `main`. Advisory test jobs still run and
 #     show red; ci-gate turns their failure into a warning instead of failing.
 #   - Skipped jobs (path filter) count as success.
-#   - pr-hygiene (pr-hygiene.yml, NX-017) is blocking on PRs into `develop`.
+#   - pr-hygiene (pr-hygiene.yml, NX-017) is blocking on every PR.
 #     `edited` re-runs CI so a fixed PR title or body clears it.
 #   - python-test also runs the repo-check script tests (scripts/tests), so
 #     they follow the same advisory/required rule as the other tests.
@@ -185,7 +185,7 @@ jobs:
 
   pr-hygiene:
     name: pr-hygiene
-    if: github.event_name == 'pull_request' && github.base_ref == 'develop'
+    if: github.event_name == 'pull_request'
     permissions:
       contents: read
       pull-requests: write # size label only (pr-hygiene.yml size-label job)

@@ -1,16 +1,21 @@
 # PR hygiene (NX-017): Conventional Commit PR title, NX-### tracker ID, every
 # PR commit linted, size label. Spec: docs/cicd/CICD-ARCHITECTURE.md §2-§4.
 #
-# Called from ci.yml so `ci-gate` gates on it (CICD §4: one required check).
-# ci.yml calls it only for PRs into `develop`; promotion and hotfix PRs into
-# `main` are owner PRs whose commits were already linted here.
+# Called from ci.yml on every PR (into `develop` and `main`) so `ci-gate`
+# gates on it (CICD §4: one required check). Title and commit lint apply to
+# all PRs, so a hotfix commit on `main` can't later block the back-merge. The
+# tracker ID is required only on PRs into `develop`, except Dependabot PRs and
+# back-merges from `main`; promotion, hotfix and release PRs into `main` are
+# owner PRs (CICD §2).
 #
 # Feature PRs merge with merge commits (ADR-0009), so every branch commit lands
 # in `develop`: each one goes through scripts/check_commit_msg.py, as does the
 # title (it becomes the merge subject).
 #
 # Security notes: PR title, body and commit messages are untrusted. They reach
-# shell steps only through env vars or git, and are never echoed raw to the log.
+# shell steps only through env vars or git. check_commit_msg.py prints a bad
+# subject only after its own "check_commit_msg: " prefix, so it can never start
+# a workflow command line.
 name: pr-hygiene
 
 on:
@@ -55,16 +60,27 @@ jobs:
           set -euo pipefail
           printf '%s\n' "$TITLE" > "$RUNNER_TEMP/title"
           python3 scripts/check_commit_msg.py "$RUNNER_TEMP/title"
+          # The script lets git's own "Merge ..." subjects through; a PR title
+          # becomes the merge subject, so it gets no such pass.
+          case "$TITLE" in
+            "Merge "*) echo "::error title=PR title::Use a Conventional title (e.g. chore: back-merge main into develop), not \"Merge ...\"."; exit 1 ;;
+          esac
       - name: PR references a tracker ID (NX-###)
         if: ${{ !cancelled() }}
         env:
           AUTHOR: ${{ github.event.pull_request.user.login }}
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          HEAD_REPO: ${{ github.event.pull_request.head.repo.full_name }}
+          REPO: ${{ github.repository }}
           TITLE: ${{ github.event.pull_request.title }}
           BODY: ${{ github.event.pull_request.body }}
         run: |
           set -euo pipefail
           # Dependabot PRs have no tracker item; NX-018 is their standing reference.
           if [ "$AUTHOR" = "dependabot[bot]" ]; then echo "Dependabot PR: tracker ID not required"; exit 0; fi
+          if [ "$BASE_REF" = "main" ]; then echo "PR into main: tracker ID not required"; exit 0; fi
+          if [ "$HEAD_REF" = "main" ] && [ "$HEAD_REPO" = "$REPO" ]; then echo "Back-merge from main: tracker ID not required"; exit 0; fi
           if printf '%s\n%s\n' "$TITLE" "$BODY" | grep -Eq 'NX-[0-9]{3,}'; then
             echo "Tracker ID found"
           else
