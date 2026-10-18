@@ -355,7 +355,7 @@ The following are specified in their source specs and must be added to `/contrac
 - **From GAMEPLAY §4a / §9b:**
   - Event `CarryoverApplied`.
 - **From combat decisions (GAMEPLAY §5–§6a, SIM-CORE §4; Q-CBT-1/6/7/8, Q-GD-27):**
-  - Events `UnitDamageStateChanged{entity_id, from, to}`, `MunitionsDepleted{entity_id, guns_only: bool}`, `CrewDowned{marker_id, entity_id, side, pos}`, `CrewRescued{marker_id, rescuer_ids[]}`, `CrewCaptured{marker_id}`, `UnitRepaired{entity_id, by_id|null, node_id|null}`, `StanceChanged{entity_id, stance}`.
+  - Events `UnitDamageStateChanged{entity_id, from, to}`, `MunitionsDepleted{entity_id, guns_only: bool}`, `CrewDowned{marker_id, entity_id, side, pos}`, `CrewRescued{marker_id, rescuer_ids[]}`, `CrewCaptured{marker_id}`, `UnitRepaired{entity_id, by_id|null, node_id|null}`. (`StanceChanged{entity_id, stance}` joins with `!stance`, GAMEPLAY-LATER.)
   - `UnitDespawned.reason` and `UnitDestroyed` need no change; `Disabled` units stay live entities.
 - **From the Tasking Board (GAMEPLAY §1b, Q-GD-26, Q-GD-37 TB-1):** `TaskingJobId` id type, and one event per lifecycle step (all names PROPOSED):
   - `JobCreated{job_id, side, job_kind, node_id|null, sector_id|null, slots, depends_on_job_id|null}`: a job is posted to a side's board (OPEN), by the board generator, the director (Static board) or a GM injection (Static board only).

@@ -142,6 +142,7 @@ Legend: **HR** = hot-reloadable (§5). "TBD" = TBD by harness. **Source** = the 
 | `logistics.node_max_stock.<node_kind>` | int | stock units | TBD per kind | GAMEPLAY §5 | No |
 | `logistics.factory_rate` | float | stock/min (world) | TBD | GAMEPLAY §5 | No |
 | `logistics.starve_threshold` | float | fraction 0–1 | 0.25 | GAMEPLAY §5 | No |
+| `logistics.starve_hp_drain_per_min` | float | node hp per min (world) | TBD (PROPOSED) | GAMEPLAY §8 | No |
 | `logistics.starved_loadout.fuel_frac` | float | fraction | 0.5 | GAMEPLAY §5 | No |
 | `logistics.starved_loadout.secondary_ammo` | int | rounds | 0 | GAMEPLAY §5 | No |
 | `logistics.truck_cargo` | int | stock units | TBD | GAMEPLAY §5 | No |
@@ -203,7 +204,7 @@ Legend: **HR** = hot-reloadable (§5). "TBD" = TBD by harness. **Source** = the 
 | `director.pol.patrol_period_s` | float | s (game, Q-ALN-23) | TBD by harness | THREAT-DIRECTOR §5a | Yes |
 | `director.pol.convoy_period_s` | float | s (game, Q-ALN-23) | TBD by harness | THREAT-DIRECTOR §5a | Yes |
 | `director.provocation.weights.<action>` | float | score per action | TBD by harness | THREAT-DIRECTOR §5a | Yes |
-| `director.provocation.weights.redemption.<type>` | float | score per redemption | Support (supply drop, repair, reinforcements, Q-AI-9; respawn skip, queue jump, extra scout ping, Q-ALN-13) = small weight, values TBD by harness; cosmetic (color, ping, shoutout) = 0 (owner) (Q-AI-9). There is no offensive redemption class: the no-damage rule stands (Q-ALN-13) | THREAT-DIRECTOR §5a | Yes |
+| `director.provocation.weights.redemption.<type>` | float | score per redemption | Support (supply drop, repair, reinforcements, Q-AI-9; respawn skip, queue jump, Q-ALN-13) = small weight, values TBD by harness; cosmetic (color, ping, shoutout) = 0 (owner) (Q-AI-9). There is no offensive redemption class: the no-damage rule stands (Q-ALN-13) | THREAT-DIRECTOR §5a | Yes |
 | `campaign.rubber_band_zone` | [float, float] | fraction of nodes | [0.55, 0.75] | GAMEPLAY §9 | No |
 | `director.provocation.escalate_threshold` | float | score | TBD by harness | THREAT-DIRECTOR §5a | Yes |
 | `director.provocation.half_life_s` | float | s (game, Q-ALN-23) | TBD by harness | THREAT-DIRECTOR §5a | Yes |
@@ -313,6 +314,7 @@ weapons:
   - id: AGM_LIGHT
     targets: [GROUND, STATIC]   # domain compatibility (GAMEPLAY §6)
     range_m: <float>
+    projectile_speed_mps: <float|null>  # world m/s; null = lands on the fire tick (guns). Impact tick = fire tick + ceil(range / speed / WORLD_DT) (GAMEPLAY §6, Q-GP-7)
     base_pk: <float>            # 0..1
     reload_s: <float>           # world s (CFG-9)
     ammo: <int>

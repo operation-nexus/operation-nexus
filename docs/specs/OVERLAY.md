@@ -64,7 +64,7 @@ A shared, robust annotation system that everything uses: rally calls, objectives
 - **AN-1 Location vocabulary:**
   - **Named nodes** for everyone.
   - **Sectors** (named regions) for casual viewers and sitrep fallbacks.
-  - An optional **grid reference** overlay for advanced operators (e.g. a lettered and numbered grid, toggled on screen at low contrast). It's also accepted by `!vector` and `!rally`.
+  - An optional **grid reference** overlay for advanced operators (e.g. a lettered and numbered grid, toggled on screen at low contrast). Later commands such as `!vector` and `!rally` will accept it (GAMEPLAY-LATER).
 - **AN-2 Direction:** compass rose, bearings, and arrows showing the axis of advance and unit headings. West → east is the coalition advance (GAMEPLAY §9a).
 - **AN-3 Ephemeral annotations:** pins, circles (areas), arrows (moves or attacks) and short labels. Each has a source (OBJECTIVE, GM, SYSTEM; RALLY and SCOUT join with their commands), a TTL, a max count per source, and collision-aware placement. They never obscure the momentum bar or objective.
 - **AN-4 One renderer, one data model:** annotations are a typed wire message (`Annotation{id, kind, geometry, source, label_key, ttl_ticks}`, added to CONTRACTS). Live overlay, vertical layout, clips and replays all render them identically.

@@ -34,9 +34,9 @@ The values below are the initial PROPOSED preset. They are config data, not code
 
 | Rank id | Display name (working) | XP | Unlocks |
 |---|---|---|---|
-| O-1 | Recruit | 0 | Striker, Scout, Hauler (strike, recon, logi); `!target`, `!rtb`, `!rebase`, `!stance`, `!wingman` |
+| O-1 | Recruit | 0 | Striker, Scout, Hauler (strike, recon, logi); `!target`, `!rtb`, `!rebase`; later `!stance`, `!wingman` (GAMEPLAY-LATER) |
 | O-2 | Drone | 300 (~45–60 min active) | `!vector`. (Custom `!callsign` is **not** rank-gated: it unlocks after the first completed mission, Q-PROG-3.) |
-| O-3 | Specialist | 1,500 | `!doctrine`; SEAD, artillery; `!rally` (Q-SUP-6); `!order` (P4) |
+| O-3 | Specialist | 1,500 | SEAD, artillery; later `!doctrine`, `!rally` (Q-SUP-6), `!order` (P4) (GAMEPLAY-LATER) |
 | O-4 | Swarm Lead | 5,000 | Jammer, engineer, AWACS |
 | O-5 | Hive Commander | 15,000 | `!package` lead |
 | O-6 | Quorum Marshal | 40,000 | May call 1 theater asset per cooldown (default 1 h, Q-PROG-7; game time, Q-CFG-8, Q-ALN-1; held in the rank-table preset, §3a). Costs no merit (Q-PROG-7). |

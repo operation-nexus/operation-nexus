@@ -87,7 +87,7 @@ Owner direction, details PROPOSED: NULL commands through lieutenants, each a **d
 - Budget never exceeded, and never above what the Static's real stock can pay for (Q-GD-30): a starved Static posts no operation it cannot fund.
 - TD-1: golden scenario with a pause mid-window: every director field (tier, dwell, threat memory, provocation, window progress) is unchanged from the pause tick to the resume tick, no operation is posted in between, and a `STAFF_DIRECTOR_OVERRIDE` sent during the pause is rejected (Q-ALN-24). With `sim.time_scale` ≠ 1, the decision window and tier dwell take the same number of ticks as at 1 (Q-ALN-23).
 - TD-2: property: every job on the Static's board references only entities in `EnemyView`.
-- Q-AI-9, Q-ALN-13: a cosmetic redemption leaves `provocation` unchanged; a respawn skip, queue jump or extra scout ping adds its (small) support weight.
+- Q-AI-9, Q-ALN-13: a cosmetic redemption leaves `provocation` unchanged; a respawn skip or queue jump adds its (small) support weight.
 - Q-ALN-11: a GM job injection into the Quorum's board is rejected; one into the Static's board is accepted and logged as a GM action.
 - TD-3/TD-4: a taunt never names an operator whose `!quiet` opt-out is on (and may again after they toggle it off), never names the same operator twice inside the cooldown, and an LLM taunt prompt contains no callsign or chat text.
 - Threat memory decays.

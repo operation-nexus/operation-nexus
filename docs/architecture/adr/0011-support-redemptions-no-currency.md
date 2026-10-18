@@ -25,7 +25,7 @@ Option 1, direct redemptions. **No stored in-game currency in v1.** Reasons:
 Twitch channel points already act as a free, platform-managed "currency" for QoL redemptions.
 
 Rules:
-- Paid support (Bits, Super Chat, memberships, tips) unlocks **cosmetics, shoutouts and spectacle only** (Q-SUP-1, owner decision 2026-10-17). QoL perks (respawn skip, queue jump, extra scout ping) and team-support effects come **only from channel points**, from a capped allowlist (SUPPORT-REDEMPTIONS §4). **Nothing** that decides battles is available from any source.
+- Paid support (Bits, Super Chat, memberships, tips) unlocks **cosmetics, shoutouts and spectacle only** (Q-SUP-1, owner decision 2026-10-17). QoL perks (respawn skip, queue jump) and team-support effects come **only from channel points**, from a capped allowlist (SUPPORT-REDEMPTIONS §4). **Nothing** that decides battles is available from any source.
 - **No randomness** in paid rewards: no loot boxes or chance.
 - No conversion between currencies inside the game. Thresholds are set per currency or per platform tier.
 
