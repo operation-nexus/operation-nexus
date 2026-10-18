@@ -66,5 +66,5 @@ The planning PR merges straight into `main`, which the owner allowed while there
 ## Amendment (2026-10-18): strict on `main` and release branches, lenient on `develop`
 - **Change:** `main` (and any future release branch) is the strict gate; `develop` may carry non-critical failures. The CodeQL code-scanning rule is tiered: `main` blocks security alerts of medium or higher and error-level alerts; `develop` blocks critical security alerts only.
 - **Release branches:** still not used. When `release/*` is introduced, it gets `main`'s ruleset and `ci.yml` triggers in the same change; adding the ruleset alone would block every release PR because `ci-gate` would never report.
-- **Not yet tiered:** the scanners inside `ci-gate` (gitleaks, osv-scanner, dependency-review, zizmor, trivy) still block `develop` on high findings. Making them critical-only on `develop` is a follow-up change to `security.yml`.
+- **Scanners tiered too:** in `security.yml` a `STRICT` flag (target or pushed branch is `main` or `release/*`) sets each threshold. gitleaks blocks any secret everywhere; on `develop` dependency-review, osv-scanner (CVSS 9.0+ with a fix), zizmor (high), trivy (CRITICAL) and hadolint (error) block only critical findings; on strict branches they keep the high-or-above thresholds.
 - **Status:** accepted by the owner, 2026-10-18.
