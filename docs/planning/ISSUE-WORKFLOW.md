@@ -15,7 +15,7 @@ GitHub Issues is the **live** tracker for tasks, bugs and decisions. `docs/plann
 | Status | Open/closed, plus labels `status:blocked` and `status:needs-owner`; optional GitHub Project board (Todo / In progress / Review / Done) |
 | Agent-friendly | Label `agent-ready` = spec approved, acceptance criteria are testable, and no open decisions remain |
 
-Label definitions live in `.github/labels.yml`. They're applied by hand, or by a label-sync action once CI exists (NX-018).
+Label definitions live in `.github/labels.yml`. `.github/workflows/label-sync.yml` creates or updates them when the file changes on `develop` (NX-018); it never deletes a label.
 
 ## Rules
 1. **One issue per PR** where possible. The PR body says `Closes #N`.

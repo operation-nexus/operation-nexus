@@ -1,0 +1,38 @@
+# Create or update repository labels from .github/labels.yml (NX-018).
+# Labels missing from the file are left alone (never deleted), so a label
+# added by hand is not lost. Runs when labels.yml changes on develop, or by hand.
+name: label-sync
+
+on:
+  push:
+    branches: [develop]
+    paths: [.github/labels.yml]
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  sync:
+    name: sync labels
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      # yq and jq come with the ubuntu-24.04 runner image.
+      - name: Apply labels.yml
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: |
+          set -euo pipefail
+          yq -o=json -I=0 '.[]' .github/labels.yml | while read -r label; do
+            name="$(jq -r .name <<<"$label")"
+            gh label create "$name" --force \
+              --color "$(jq -r .color <<<"$label")" \
+              --description "$(jq -r .description <<<"$label")"
+          done
