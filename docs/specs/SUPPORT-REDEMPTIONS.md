@@ -52,7 +52,7 @@ Each rule has these parts:
   - `kind` + minimum `amount_minor`, **per currency**, or
   - `kind` + minimum `platform_tier`.
 - **Effect:** one entry from the allowlist below.
-- **Limits:** per-commander cooldown, a global cap per hour, and max active at a time.
+- **Limits:** per-commander cooldown, a global cap per hour, and max active at a time. Cooldowns and hourly caps run on a monotonic real clock, enforced outside the sim before the command enters it (Q-ALN-4).
 
 Effect allowlist by trigger source:
 | Category | Allowed effects (examples) | Money | Channel points |
@@ -65,12 +65,12 @@ Effect allowlist by trigger source:
 | **Forbidden** | Damage or HP buffs, instant captures, killing units, changing director tiers, anything random, anything that stacks into a decisive advantage | ❌ | ❌ |
 
 ### 4a. Supply-drop cap (Q-SUP-7)
-- **SR-1** Supply-drop redemptions have a **fixed global cap per hour**, `support.supply_drop.max_per_hour` (value PROPOSED / TBD by harness), plus a shared cooldown across all viewers. The cap never scales with viewer count or chat volume (GAMEPLAY TS-1).
+- **SR-1** Supply-drop redemptions have a **fixed global cap per hour**, `support.supply_drop.max_per_hour` (value PROPOSED / TBD by harness), plus a shared cooldown across all viewers, both on a monotonic real clock (Q-ALN-4). The cap never scales with viewer count or chat volume (GAMEPLAY TS-1).
 - **SR-2** Our code enforces the cap and cooldown (§5 step 5). Where the platform's reward settings support it, the same limits are mirrored there [UNVERIFIED: exact Twitch reward options]. When capped, the reward shows "on cooldown"; a redemption that still arrives is refused through §5 step 7 (channel points CANCELED, so the points are refunded).
 
-### 4b. Provocation weights (Q-AI-9)
+### 4b. Provocation weights (Q-AI-9, Q-ALN-13)
 - **SR-3** Every applied redemption adds to the director's `provocation` score (THREAT-DIRECTOR §5a) by a per-type weight, `director.provocation.weights.redemption.<type>` (admin-tunable; values PROPOSED / TBD by harness).
-- **SR-4** Weight classes: offensive = full weight; support (e.g. supply drop) = small weight; cosmetic, shoutout and spectacle = **0**. An unapplied, refunded or ignored redemption adds nothing.
+- **SR-4** Weight classes: **support** (QoL and team support: respawn skip, reserve-queue jump, extra `!scout` ping, supply drop) = small weight; **cosmetic** (cosmetic, shoutout and spectacle) = **0**. There is **no offensive class**: the Forbidden row above bars every damaging effect, so no redemption can carry a full weight (Q-ALN-13). An unapplied, refunded or ignored redemption adds nothing.
 
 ## 5. Flow
 1. The adapter verifies authenticity: signed webhooks, OAuth-bound EventSub, and a Ko-fi token compared in constant time over HTTPS.
@@ -109,8 +109,7 @@ Effect allowlist by trigger source:
 - A test that the channel-points refund path is called on failure.
 - A forbidden-effect rule is rejected by the config validator.
 - SR-1/SR-2: with 1 and with 300 simulated viewers, supply drops never exceed `support.supply_drop.max_per_hour`; a capped channel-points redemption is CANCELED.
-- SR-4: a cosmetic, shoutout or spectacle redemption leaves `provocation` unchanged; an unapplied one adds nothing.
+- SR-4: a cosmetic, shoutout or spectacle redemption leaves `provocation` unchanged; an applied respawn skip, queue jump, extra scout ping or supply drop adds its support weight; an unapplied one adds nothing; the config validator has no offensive class to bind a rule to.
 
 ## 10. Open questions
-Q-SUP-1 … Q-SUP-7 and Q-AI-9 are decided and folded in above. Still open:
-- Q-AI-9 names an offensive class (airstrike, barrage), but §4 forbids damage and killing units from any redemption, so no allowlisted effect is offensive today. Which class the QoL effects (respawn skip, extra `!scout` ping, queue jump) belong to is not decided.
+Q-SUP-1 … Q-SUP-7, Q-AI-9, Q-ALN-4 and Q-ALN-13 are decided and folded in above. None open.
