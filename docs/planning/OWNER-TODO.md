@@ -41,7 +41,7 @@ Applied and verified through the GitHub API on 2026-10-18 where checked.
 ## 4. Accounts and brand (NX-297)
 - [ ] Reserve the **Hiveplex** handle on YouTube, TikTok, Bluesky and Discord the same day (all looked free on 2026-10-18), and after a manual look on X, Instagram, Reddit and a GitHub organization. **Twitch `hiveplex` is already taken** by a dormant 2015 account: register `hiveplextv` and ask Twitch support about releasing the original (docs/review/HANDLE-AND-DOMAIN-CHECK-2026-10-18.md, Q-MKT-10) (Q-BRAND-6, accepted risk), and the studio byline handle as a defensive hold; follow the setup runbook when it exists (NX-336). Accounts are created by hand: platforms bar automated creation
 - [ ] Epidemic Sound: ask support (a) whether a 24/7 monetized game stream is covered, (b) what happens to published content after cancelling; then choose upgrade vs a separate subscription
-- [ ] Create the private `operation-nexus-ops` repo (secrets, NX-299): on GitHub choose New repository, Private, README on, under the future organization if it exists (a transfer later is fine). The cloud session's GitHub integration cannot create repos (403). Then run `age-keygen` on your own machine, keep the private key in your password manager, and send only the public key (starts with `age1`) so `.sops.yaml` can be added (Q-OPS-10)
+- [x] Create the private `operation-nexus-ops` repo (secrets, NX-299): on GitHub choose New repository, Private, README on, under the future organization if it exists (a transfer later is fine). The cloud session's GitHub integration cannot create repos (403). Then run `age-keygen` on your own machine, keep the private key in your password manager, and send only the public key (starts with `age1`) so `.sops.yaml` can be added (Q-OPS-10) Repos `operation-nexus-ops` and `operation-nexus-vault` created in the organization; the age key is still to do (§4d).
 - [ ] Later (P3, with the lore pilot): create the private `operation-nexus-vault` repo for lore, marketing drafts and licensed art/audio, separate from the secrets repo (Q-OPS-10, AGENT-TEAMS.md)
 
 ## 4a. Name clearance (Q-LEGAL-5, Q-BRAND-6; before NX-297 creates any account)
@@ -63,13 +63,13 @@ The research could not reach any official register (docs/review/NAME-CLEARANCE.m
 - [ ] Put the Google OAuth app in production with verification when the YouTube integration starts (otherwise refresh tokens last 7 days)
 - [ ] Turn on passkeys everywhere they exist; add a hardware key if you own one; keep one project mailbox
 - [x] Channel naming confirmed (Q-MKT-7): channels named Hiveplex, studio handle as a byline hold
-- [ ] Create the brand mailbox and register a domain for the public contact addresses (Q-MKT-11); check `.gg`, `.io`, `.co` at a registrar (no public registry data for those endings)
+- [x] Create the brand mailbox and register a domain for the public contact addresses (Q-MKT-11); check `.gg`, `.io`, `.co` at a registrar (no public registry data for those endings) Mailbox `projecthiveplex@gmail.com` created; domain decision is Q-MKT-12.
 - [ ] Pick the first 2-3 moderators from your trusted team before the public beta (Q-MOD-7)
 
 ## 4c. Manual steps left by the verification passes (2026-10-18)
 Only you can do these; each report's last section has the detail. Reports: PLATFORM-POLICY-VERIFICATION, TRADEMARK-AND-NAME-VERIFICATION, LICENSE-AND-MUSIC-VERIFICATION under `docs/review/`.
-- [ ] **Twitch `hiveplex`:** tell me whether this account is yours. If it is, log in now and at least yearly (Twitch reclaims accounts after 12 months of no activity, per its 2017 policy post). If it isn't, use the fallback handle (Q-MKT-10)
-- [ ] **GitHub user `hiveplex`** (id 4049119) exists: check whether it is yours; it affects the organization name choice
+- [x] **Twitch `hiveplex`:** tell me whether this account is yours. If it is, log in now and at least yearly (Twitch reclaims accounts after 12 months of no activity, per its 2017 policy post). If it isn't, use the fallback handle (Q-MKT-10) Answered 2026-10-18: not the owner's account; handles are the project_hiveplex family (docs/planning/BRAND-ACCOUNTS.md).
+- [x] **GitHub user `hiveplex`** (id 4049119) exists: check whether it is yours; it affects the organization name choice Moot: the organization is `operation-nexus`.
 - [ ] **Trademark registers I could not search:** EUIPO eSearch, TMview, WIPO Global Brand Database, UKIPO: search `HIVEPLEX` and `HIVE PLEX` in classes 9, 28, 35, 38, 41, 42, or hand it to the attorney (ten questions are listed in the trademark report). Also find HIVEPLEX LTD's trading name
 - [ ] **hiveplex.com** expires 2026-11-22 and is parked on BrandBucket: read the asking price there; decide whether a clean ending is enough (Q-MKT-10)
 - [ ] **YouTube:** run one real test upload on a fresh Google Cloud project to settle whether unverified projects are locked to private (Google's docs contradict each other); check in the Cloud Console whether `youtube.upload` is a sensitive or restricted scope
@@ -77,6 +77,18 @@ Only you can do these; each report's last section has the detail. Reports: PLATF
 - [ ] **Other pages that need a browser:** Discord Developer Policy; Meta's Automated Data Collection Terms; Instagram AI-info label rules; TikTok app-review/audit durations and the LIVE follower threshold (ask developer support)
 - [ ] **Epidemic Sound:** read its Terms, subscription terms, MCP licence and plan prices in a browser (client-rendered) and send the written 24/7 questions (NX-332)
 - [ ] **TTS voices:** pick specific permissively licensed voices or Kokoro or designed synthetic voices, and record each model card (Q-LEGAL-12)
+
+## 4d. Organization move and secrets key (2026-10-18)
+Accounts, handles and repos are listed in `docs/planning/BRAND-ACCOUNTS.md`.
+- [ ] **Install the Claude GitHub App on the `operation-nexus` organization** (https://github.com/apps/claude/installations/select_target) and give it this repo plus `operation-nexus-ops` and `operation-nexus-vault`. Until then cloud sessions cannot see the organization's repos (checked 2026-10-18: access denied)
+- [ ] **Transfer this repo** to the organization: repo Settings → General → Danger Zone → Transfer. Do it after the open docs PRs are merged. Afterwards: re-check the `develop` and `main` rulesets, the `ci-gate` required check, auto-merge, Actions permissions and Dependabot; update the local remote (`git remote set-url origin https://github.com/operation-nexus/operation-nexus.git`); update CODEOWNERS (`@canthony224` becomes the organization owner or a team) and the tracker issue links (NX-320). Start a new cloud session on the new location
+- [ ] **Git identity on your machine:** use the `saltyseraphcodes` noreply address for commits in this organization (Q-LEGAL-8), and sign the GitHub CLI or browser in as `saltyseraphcodes`, not `canthony224`
+- [ ] **Install `age` and make the secrets key** (needed once, on your own computer, never in a cloud session):
+  1. Install: macOS `brew install age`; Windows `winget install FiloSottile.age` (or `scoop install age`); Debian/Ubuntu `sudo apt install age`. The package includes `age-keygen`.
+  2. Run `age-keygen -o key.txt`. It prints a line `Public key: age1...`.
+  3. Put the whole `key.txt` in your password manager as a secure note, make a second offline backup, then delete the plain file. Never commit it, paste it into chat or put it in an issue.
+  4. Send me only the `age1...` line. That public key is safe to share; it can only encrypt.
+  Losing the private key means re-encrypting every secret, so back it up before anything else. I add `.sops.yaml` to the ops repo with that key; sops itself is installed later when the first secret is stored (NX-299)
 
 ## 5. Decisions still open
 See docs/planning/OPEN-QUESTIONS.md. Rows ending in an empty Decision column still need your answer.
