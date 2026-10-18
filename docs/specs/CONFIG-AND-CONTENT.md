@@ -130,7 +130,8 @@ Legend: **HR** = hot-reloadable (§5). "TBD" = TBD by harness. **Source** = the 
 |---|---|---|---|---|---|
 | `slots.max_live_per_commander` | int | units | 1 | GAMEPLAY GP-1 | No |
 | `slots.respawn_delay_s` | float | s (game) | 20 | GAMEPLAY GP-2 (game time: the JOIN guard runs in the sim, Q-ALN-5) | Yes |
-| `slots.max_viewer_units` | int | units | 300 | GAMEPLAY GP-3, Q-GD-6 | Yes |
+| `slots.max_viewer_units` | int | units | 500 | GAMEPLAY GP-3, Q-GD-6, Q-SIM-6 | Yes |
+| `slots.queue_idle_min` | int | min (real time) | 15 | GAMEPLAY RQ-1, Q-SIM-12 | Yes |
 | `slots.reserve_queue_max` | int | entries | TBD | GAMEPLAY GP-3 | Yes |
 | `presence.idle_handoff_min` | float | min (game) | 10 (Q-GD-35). With no command from its operator for this long, a live unit finishes its current order and joins the Tasking Board as an AI-run unit (AUTO tag). Any command from the operator restores control | GAMEPLAY §1b, STATE-MACHINES §4.1 | Yes |
 | `presence.idle_retire_min` | float | min (game) | 30 (Q-GD-35). With no command for this long, the unit RTBs and despawns; carried supplies return to the reserve. Together with `presence.idle_handoff_min` it replaces the old idle-despawn timer entirely (Q-ALN-8) | STATE-MACHINES §4.1 | Yes |
@@ -177,8 +178,12 @@ Legend: **HR** = hot-reloadable (§5). "TBD" = TBD by harness. **Source** = the 
 |---|---|---|---|---|---|
 | `capture.radius_m` | float | m | TBD | GAMEPLAY §8 | No |
 | `capture.time_s` | float | s (world, Q-ALN-23) | 120 | GAMEPLAY §8 | No |
-| `capture.multi_unit_exponent` | float | exponent (diminishing returns) | TBD | GAMEPLAY §8 | No |
-| `capture.decay_per_s` | float | progress fraction/s (world, Q-ALN-23) | TBD | GAMEPLAY §8 | No |
+| `capture.multi_unit_exponent` | float | exponent (diminishing returns) | 0.5 (PROPOSED) | GAMEPLAY §8, Q-SIM-26 | No |
+| `capture.max_speedup` | float | × | 4 (PROPOSED) | GAMEPLAY §8, Q-SIM-26 | No |
+| `capture.quiet_floor` | float | multiplier at 0 viewer units | 0.6 (PROPOSED) | GAMEPLAY §8, Q-SIM-26 | No |
+| `capture.quiet_ref` | int | viewer units at which the multiplier reaches 1.0 | 50 (PROPOSED) | GAMEPLAY §8, Q-SIM-26 | No |
+| `capture.min_time_s` | float | s (world, Q-ALN-23) | 30 (PROPOSED) | GAMEPLAY §8, Q-SIM-26 | No |
+| `capture.decay_per_s` | float | progress fraction/s (world, Q-ALN-23) | TBD (no value yet; used by contested decay, Q-SIM-23) | GAMEPLAY §8 | No |
 
 ### 6.6 Campaign
 | Key | Type | Unit | PROPOSED | Source | HR |

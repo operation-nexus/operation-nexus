@@ -10,7 +10,7 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | Phase | Items | Done | Status |
 |---|---|---|---|
 | P0 Foundations | 42 | 16 | 🟨 |
-| P1 Sim kernel | 25 | 0 | ⬜ |
+| P1 Sim kernel | 26 | 0 | ⬜ |
 | P2 Closed alpha | 33 | 0 | ⬜ |
 | P3 Public beta | 22 | 0 | ⬜ |
 | P4 Depth | 67 | 1 | ⬜ |
@@ -81,6 +81,7 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 
 | ID | Item | Size | Status | Depends | Acceptance |
 |---|---|---|---|---|---|
+| NX-345 | SIM-CORE benchmark spike (gates NX-006 approval of SIM-CORE; Q-SIM-4, Q-SIM-17, Q-SIM-18) | S | ⬜ | NX-010 | On the Q-TEST-1 reference host: (1) `step` plus frame build p99 < 25 ms at 1,000 entities and 500 viewer units, with movement, sensor and combat passes; (2) the idle case (0 viewers, about 150 AI-only entities); (3) entity-storage verdict (objects, or NumPy arrays if the pass exceeds about 10 ms); (4) bytes per game hour of the redacted and the full-truth frame streams |
 | NX-100 | `SimRng` (PCG64, named sub-streams) | S | ⬜ | NX-010 | Unit + property tests; same seed → same draws |
 | NX-101 | World model types + canonical `state_hash` | M | ⬜ | NX-021 | SC-9 round-trip property |
 | NX-102 | Fixed-step runtime + inbox + canonical command ordering | M | ⬜ | NX-101 | SC-6 shuffled-arrival property |

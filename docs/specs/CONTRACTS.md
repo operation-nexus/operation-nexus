@@ -187,11 +187,11 @@ Text shown on stream additionally requires `ModeratedText`, a SafeText already a
 Callsign approve/reject and clip approve are **not** sim commands. They are admin actions on the persistence layer (§8), and the resulting change reaches the sim only as a `SYS_SET_CALLSIGN` system command, which emits `CallsignChanged`, so replays reproduce what was shown.
 
 ### 5.3 RejectReason enum
-Every value listed in §5.2, plus `CAMPAIGN_PAUSED` (a world-changing chat command, a `STAFF_DIRECTOR_OVERRIDE`, an `ADVISOR_CHOICE` or a GM command other than `STAFF_GM_RELEASE`, while paused; Q-ALN-2, Q-ALN-24, Q-ALN-36), `INVALID_PAYLOAD`, `BANNED`, `LATE` (applied, but flagged — SC-6), and `INTERNAL_ERROR` (SC-7: the kernel converts an unexpected validation failure into this event instead of raising). Every reject is emitted as `CommandRejected` (§6). Chat replies are aggregated into digests and never sent per reject (CHAT-GATEWAY §6).
+Every value listed in §5.2, plus `CAMPAIGN_PAUSED` (a world-changing chat command, a `STAFF_DIRECTOR_OVERRIDE`, an `ADVISOR_CHOICE` or a GM command other than `STAFF_GM_RELEASE`, while paused; Q-ALN-2, Q-ALN-24, Q-ALN-36), `INVALID_PAYLOAD`, `BANNED`, and `INTERNAL_ERROR` (SC-7: the kernel converts an unexpected validation failure into this event instead of raising; SC-8: also the reason for a command dropped on crash recovery). Every reject is emitted as `CommandRejected` (§6). Chat replies are aggregated into digests and never sent per reject (CHAT-GATEWAY §6).
 
 ## 6. Sim event catalog
 `events/event.json` is a discriminated union on `kind`.
-- **Common fields:** `kind`, `tick`, `event_seq` (int, per tick, deterministic order), `campaign_id`.
+- **Common fields:** `kind`, `tick`, `event_seq` (int, campaign-wide, monotonically increasing and deterministic, SIM-CORE SC-14; a crash-recovery replay assigns the same values), `campaign_id`.
 - **Consumers:** **B** broadcast/overlay, **P** progression, **A** audio/sitrep, **C** clips scoring, **O** ops metrics/logs, **R** replay (all events are replayable; R is implied).
 - **Redaction:** the rule says what the *public coalition view* receives (FOW-1, FOW-3) **during the live campaign**. Internal consumers (P, A, C, O) get the full event. Anything A or C outputs during the campaign is built only from redacted fields. Once `CampaignEnded` is emitted, archives, replays and recaps (including "what you didn't see") are exempt from FOW-1 and may use the full events (Q-ALN-21).
 
@@ -224,7 +224,7 @@ Every value listed in §5.2, plus `CAMPAIGN_PAUSED` (a world-changing chat comma
 | `DirectorOperationLaunched` | `operation_kind`, `op_name: ModeratedText\|null`, `target_node_id\|null`, `source: RULES\|ADVISOR` | Public view gets only `op_name` and only if the op is a named theater offensive (CHARLIE). Otherwise dropped. | B A O |
 | `ThreatAdaptation` | `category: CONVOY_ESCORT\|IADS_REINFORCED\|…`, `sector_id`, `direction: UP\|DOWN` | Public sees the INTEL line (THREAT-DIRECTOR §4.5) | B A O |
 | `CommandRejected` | `arrival_seq`, `kind`, `reason: RejectReason`, `commander_id\|null` | Not public. Aggregated digest only. | O, gateway digest |
-| `CommandApplied` | `arrival_seq`, `kind`, `commander_id\|null`, `late: bool` | Public ack ping only for `JOIN`/`TARGET` (OV-5) | B O |
+| `CommandApplied` | `arrival_seq`, `kind`, `commander_id\|null` | Public ack ping only for `JOIN`/`TARGET` (OV-5) | B O |
 | `ReserveQueueJoined` / `Left` | `commander_id`, `position`, `reason: SLOT_FREED\|LEFT\|TIMEOUT` | Public: queue length only | B O |
 | `PackageFormed` / `Disbanded` / `MemberJoined` | `package_id`, `name`, `lead_id`, `member_ids[]` | none | B P |
 | `DoctrineSelected` | `commander_id`, `doctrine` | none | B P |
