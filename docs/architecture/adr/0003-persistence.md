@@ -22,3 +22,10 @@ The plans can't decide between "SQLite/PostgreSQL" and "Redis as the state bus",
 - **Source of truth:** the ledger. `commander_stats` can always be rebuilt from the ledgers (DATA-MODEL §5.4), and a weekly check compares them.
 - **Why:** a crash and command-log replay can re-emit the same events. With a counter, that double-counts; with idempotent ledger inserts, it can't. The ledger also gives an audit trail for every XP change, and keeps merges (Q-PROG-4) reproducible.
 - **Status:** written by the architect during spec reconciliation. Needs owner acknowledgment (Q-ARCH-6).
+
+## Amendment (2026-10-18): database roadmap confirmed (Q-ARCH-16)
+- **SQLite** stays for alpha and while one process writes.
+- **PostgreSQL** is the next step, triggered by the planned live interactive public site or the link portal writing data. Portable SQL through the repository interface remains mandatory so the move is a config change plus data migration.
+- **DuckDB** may be added later for offline analytics and the balance harness over exported data. It is never a live store.
+- **TimescaleDB** is not planned: metrics live in Prometheus, and its licensing would need a Q-LEGAL-1 check [UNVERIFIED] before any use.
+- **Status:** accepted by the owner, 2026-10-18.
