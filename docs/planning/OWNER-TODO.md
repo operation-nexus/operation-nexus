@@ -3,9 +3,12 @@
 Things only the owner can do. Check items off here or in the linked issues.
 
 ## 1. Desktop agent setup (issue #28, NX-044)
-- [ ] Install `jq` (the guard hook prefers it; python3 also works)
-- [ ] Clone the repo, open it in Claude Code, trust the folder, and accept the **Ponytail** plugin and **Context7** MCP prompts
-- [ ] Install **Serena**, then run `claude mcp add --scope user serena -- serena start-mcp-server --context claude-code --project-from-cwd` and check it with `/mcp`
+Mac done 2026-10-17 where checked; the Windows PC still needs every item (details: docs/agentic/TOOLING.md §5).
+
+- [x] Install `jq` (the guard hook prefers it; python3 also works)
+- [x] Put the `claude` CLI on PATH (`claude install stable`)
+- [ ] Clone the repo, open it in Claude Code, trust the folder, and accept the **Ponytail** plugin and **Context7** MCP prompts (Mac: approve Context7 once in the terminal `claude` too)
+- [x] Install **Serena**, then run `claude mcp add --scope user serena -- serena start-mcp-server --context claude-code --project-from-cwd` and check it with `/mcp`
 - [ ] Enable **finecomb** and **claude-code-review-council** (claude.ai plugin directory)
 - [ ] Optional: `claude remote-control` on the desktop so you can drive it from your phone (docs/agentic/REMOTE-WORK.md)
 
@@ -17,6 +20,7 @@ Things only the owner can do. Check items off here or in the linked issues.
 - [ ] Environments `staging` and `production`; `production` requires your approval
 - [ ] Rulesets per ADR-0009: `develop` (security + build required) and `main` (all checks, owner-only merge)
 - [ ] Optional: set the default branch to `develop`
+- [ ] Settings → General → **Automatically delete head branches** ON (AGENTS.md rule 11: merged feature branches are deleted)
 - [ ] Review PR #37 (repo skeleton) and merge it into `develop` if happy
 
 ## 3. Hardware (issue #6, NX-007)

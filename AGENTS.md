@@ -28,12 +28,13 @@ The raw files are brainstorms from an AI chat. **They are not specs.** Where the
 4. **Chat input is hostile.** Every string from a platform, a URL, or an LLM is untrusted. It is validated, length-capped, normalized, and moderated before it reaches the sim, the screen, TTS, logs or a prompt. See [`docs/security/THREAT-MODEL.md`](docs/security/THREAT-MODEL.md).
 5. **LLMs advise; code decides.** LLM output is always parsed into a typed schema, range-checked, and treated as a *suggestion* that deterministic code can reject. An LLM is never on the hot path of a tick.
 6. **Contracts are generated, not hand-copied.** Wire types (WebSocket frames, commands, events) come from a single schema source. CI fails if generated types drift.
+6a. **No command exists in only one place.** A chat command is its `contracts/commands/` schema, its parser entry and its sim handler, added or removed in the same PR. An LLM prompt (LLM-ADVISORS) lists only commands and enum values the code handles; drop one from the prompt in the commit that deletes its handler, never before or after. A name the parser doesn't know does nothing.
 7. **Small PRs.** One tracker item per PR where possible, under ~400 changed lines excluding generated files. Each PR includes tests and updates the docs it affects.
 8. **No new dependencies without justification.** Each one goes in the PR description (why, license, maintenance status, alternatives). Licenses must be compatible with the project license (see OPEN-QUESTIONS Q-LEGAL-1).
 9. **No secrets in the repo.** Ever. Use `.env` (gitignored) locally and GitHub Environments / a secret manager in CI/CD.
 10. **Don't push, merge, deploy, or open PRs** unless the owner explicitly asks in the current session.
 10a. **No vendor lock-in.** Vendor SDKs (chat platforms, LLM, TTS, Discord) are imported only inside adapter packages, behind our own interfaces. Adapters must pass the shared conformance suite. See ADR-0010.
-11. **Branches:** branch from and target `develop` (once it exists, NX-049). Never target `main` except for release and hotfix PRs. See ADR-0009.
+11. **Branches:** branch from and target `develop` (once it exists, NX-049). Never target `main` except for release and hotfix PRs. See ADR-0009. Delete the feature branch (local and remote) once its PR is merged into `develop`; don't reuse a merged branch.
 11a. **Devlog checkpoints.** When you finish a tracker item labeled `devlog-moment`, end your report with a **DEVLOG CHECKPOINT** block: what to capture, 3–5 talking-point suggestions, and a title idea (docs/planning/MARKETING.md).
 12. **Commit messages:** Conventional Commits (`feat(sim): ...`, `fix(gateway): ...`, `docs: ...`). Don't add AI co-author trailers or self-references in commits or docs.
 
@@ -64,6 +65,7 @@ The layout below is the target. Directories are created when their first tracker
 │   ├── site/                 # Public site: replays, leaderboards, stats (no admin features)
 │   └── command-center/       # Private admin console (Q-ARCH-7; tailnet + Discord only)
 ├── tools/                    # chat simulator, replay CLI, balance harness, load bots
+├── scripts/                  # repo hygiene checks (commit message, tracked files) + their tests
 ├── deploy/                   # docker compose, host provisioning, runbooks
 └── tests/                    # cross-service e2e / soak tests
 ```
@@ -94,3 +96,5 @@ See [`docs/quality/DEFINITION-OF-DONE.md`](docs/quality/DEFINITION-OF-DONE.md). 
 ## 7. Agent roles
 
 Role cards live in [`.agents/roles/`](.agents/roles/). Pick the one that matches your task and follow it. Owner-provided context files go in [`.agents/context/`](.agents/context/).
+
+Every agent also follows [`.agents/rules/code-quality.md`](.agents/rules/code-quality.md) in new or touched files and adds to its "Lessons learned here" section when this repo teaches something new. Task skills live in [`.agents/skills/`](.agents/skills/): `coding-safeguards` before multi-file edits, `frontend-design` before any new visual surface.

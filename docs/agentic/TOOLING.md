@@ -13,7 +13,9 @@ Facts here were verified on 2026-10-17 against the cited sources. Anything marke
 | `.claude/hooks/protect-files.sh` | Blocks agent writes (Edit/Write/MultiEdit/NotebookEdit) to `.env*` anywhere and to the raw source files. Uses `jq`, or `python3` if jq is absent. Fails closed: if neither exists, edits are blocked. It can't see shell redirection (`echo > .env`), so the deny rules and review remain the backstop. |
 | `.claude/agents/` | Subagents: `reviewer` and `fact-checker` (enforces DATA-INTEGRITY). |
 | `.mcp.json` | Context7 (remote, no key), for up-to-date library docs so agents don't guess APIs. |
-| `.agents/` | Role cards, reusable prompts, and the owner's context drop zone. |
+| `.agents/` | Role cards, rules (`rules/code-quality.md`), skills (`skills/`), reusable prompts, and the owner's context drop zone. |
+| `.serena/project.yml` | Serena project config (languages: python, typescript, bash). `cache/` and `project.local.yml` are ignored by `.serena/.gitignore`. |
+| `scripts/` | `check_commit_msg.py` (Conventional Commits, no AI trailer) and `check_tracked_files.py` (no ignored, recorded or oversized files), with tests in `scripts/tests/`. Wiring them into pre-commit and CI belongs with NX-011. |
 
 Notes:
 - Project `allow` rules and `extraKnownMarketplaces` take effect only after you trust the folder. `deny` rules apply immediately ([settings docs](https://code.claude.com/docs/en/settings)).
@@ -53,7 +55,7 @@ Notes:
 | Server | Why | Scope | Setup |
 |---|---|---|---|
 | **Context7** | Current library docs, so agents don't hallucinate APIs | Project (`.mcp.json`) | Committed. Works without a key at low rate limits. Optionally set your own key later via a user-scope entry. In cloud sessions the environment's network policy currently blocks it (proxy 403, seen 2026-10-17), so it only works on desktop unless the cloud environment's allowed hosts are changed. Privacy: Context7 stores the search queries the agent sends, not your code ([privacy](https://context7.com/docs/security/data-privacy)). Docs are community-sourced, so treat them as a pointer, not truth. |
-| **Serena** | LSP-backed symbol search, references and edits. Answers come from a real language server, which is the most grounded and token-efficient way to navigate code. | **User scope on your desktop**, not committed (it needs a local install, and cloud sessions would fail to start it) | `claude mcp add --scope user serena -- serena start-mcp-server --context claude-code --project-from-cwd` ([Serena client docs](https://github.com/oraios/serena/blob/main/docs/02-usage/030_clients.md)). Install Serena per its README first. The README warns against installing it via a plugin marketplace. License is GPL-3.0 for the app, which is fine for local use. |
+| **Serena** | LSP-backed symbol search, references and edits. Answers come from a real language server, which is the most grounded and token-efficient way to navigate code. | **User scope on your desktop**, not committed (it needs a local install, and cloud sessions would fail to start it) | `claude mcp add --scope user serena -- serena start-mcp-server --context claude-code --project-from-cwd` ([Serena client docs](https://github.com/oraios/serena/blob/main/docs/02-usage/030_clients.md)). Install Serena per its README first. The README warns against installing it via a plugin marketplace. License is GPL-3.0 for the app, which is fine for local use. Mac (2026-10-17): installed as a `uv` tool (`serena-agent` 2.0.0), `serena init` run, registered with the command above, `claude mcp list` shows it connected. On first use in a repo Serena writes `.serena/` there; `project.yml` is committed. Its web dashboard opens a browser tab on every start (`web_dashboard_open_on_launch` in `~/.serena/serena_config.yml`; set `false` to stop it). |
 
 ### Evaluate at P1, once real code exists (NX-045 spike)
 A code **knowledge graph** (calls, imports, inheritance) only pays off once there is code to index. Candidates:
@@ -78,8 +80,11 @@ The spike measures tokens per task and answer accuracy on 10 real questions abou
 6. Serena symbol lookups beat reading whole files.
 
 ## 5. Owner setup checklist (desktop)
-- [ ] Install `jq` (the guard hook needs it)
-- [ ] Open the repo in Claude Code and trust the folder. Accept the Ponytail plugin. Approve the Context7 MCP.
-- [ ] Install Serena and run the user-scope `claude mcp add` command above. Check it with `/mcp`.
+Done on the Mac on 2026-10-17 where checked. Repeat every item on the Windows PC.
+
+- [x] Install `jq` (the guard hook needs it)
+- [x] Put the `claude` CLI on PATH (the desktop app does not): run `claude install stable` from the app's bundled binary, or the native installer from the Claude Code docs. It installs to `~/.local/bin/claude` and updates itself.
+- [ ] Open the repo in Claude Code and trust the folder. Accept the Ponytail plugin. Approve the Context7 MCP (the desktop app has it; the `claude` CLI still shows it pending until approved there once).
+- [x] Install Serena and run the user-scope `claude mcp add` command above. Check it with `/mcp` or `claude mcp list`.
 - [ ] Enable finecomb and review-council from the plugin card in chat
 - [ ] Ponytail: leave `webhookUrl` empty

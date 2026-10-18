@@ -5,9 +5,12 @@ Shared material for AI coding agents. `AGENTS.md` at the repo root is the entry 
 | Folder | Contents |
 |---|---|
 | `roles/` | Role cards: scope, must-read docs, checklists, and hard "never" rules for each kind of agent task. |
+| `rules/` | Rules for every new or touched file (`code-quality.md`), plus the "Lessons learned here" log. |
+| `skills/` | Task skills any agent can read: `coding-safeguards` (multi-file edits), `frontend-design` (new visual surfaces). |
 | `prompts/` | Reusable task prompts (implement a tracker item, review a PR, write a spec, run a balance study). |
 | `context/` | **Owner drop zone.** Reference files, screenshots, sketches, exports. Agents read these but never edit them. |
 
 Conventions:
 - Files in `context/` are named `YYYY-MM-DD-short-topic.ext`. Add a one-line entry to `context/INDEX.md` when you add one.
-- A role card never overrides `AGENTS.md`, a spec, or an ADR. When they conflict, stop and ask.
+- A lesson learned in this repo goes in `rules/code-quality.md` §9 with its date and tracker ID.
+- A role card, rule or skill never overrides `AGENTS.md`, a spec, or an ADR. When they conflict, stop and ask.

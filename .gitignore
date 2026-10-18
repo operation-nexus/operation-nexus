@@ -224,6 +224,7 @@ __marimo__/
 *.db-wal
 *.db-shm
 node_modules/
+.DS_Store
 .pnpm-store/
 /data/
 snapshots/
