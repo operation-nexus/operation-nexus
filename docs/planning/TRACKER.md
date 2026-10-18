@@ -226,6 +226,7 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | NX-310 | World events system: event catalog (data-defined like units), rotation, timing, strength, rewards/consequences, manual start/stop, scheduling, on-stream labeling | ⬜ |
 | NX-313 | Missing P2 docs: Tasking Board spec, brand/style guide (pull NX-274 to P2), minimal lore bible, overlay layout v2 + 9:16 wireframes, sitrep template catalog, viewer-simulator spec, deployment-topology ADR (Windows/WSL2 + Linux server), alpha playtest plan, AAR/briefing/reveal spec | ⬜ |
 | NX-314 | Missing P3/P4 docs: conduct spec + community rules, public site spec, seasons/leaderboards spec, privacy notice, analytics definitions, global map + carry-over spec, world events catalog | ⬜ |
+| NX-315 | Unified naming conventions + glossary pass: one canonical term per concept across specs, config keys, contracts, commands and UI (e.g. Operator/commander, Merit/XP, sortie/mission, Static/enemy); update GLOSSARY.md and add a naming-convention section (case style per layer: config keys, enums, events, commands). Owner runs a grill-me pass to settle disputed terms | ⬜ |
 | NX-273 | Research + spike: Epidemic Sound license coverage for 24/7 streams/clips; API/MCP availability; `MusicSource` port so an agent can search and queue licensed tracks by mood (tension-driven, AUDIO-TTS §1) | ⬜ |
 | NX-272 | Third-party tips adapter (Ko-fi or Streamlabs/StreamElements; Q-SUP-3) | ❓ |
 
