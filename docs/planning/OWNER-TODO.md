@@ -24,7 +24,7 @@ Applied and verified through the GitHub API on 2026-10-18 where checked.
 - [x] Actions: allow only selected actions, require SHA pinning, default `GITHUB_TOKEN` read-only. Allowed: GitHub-owned actions plus `astral-sh/setup-uv` and `pnpm/action-setup`; a workflow that adds another third-party action needs it added under Settings → Actions
 - [x] Environments `staging` (deploys from `develop` only) and `production` (your approval; `main` and `v*` tags only)
 - [x] Rulesets per ADR-0009: `develop` = require a PR (0 approvals), require status check `ci-gate`, block force-push and deletion, allow auto-merge (Settings → General → "Allow auto-merge" and "Automatically delete head branches"); `main` = all checks, owner-only merge
-- [ ] Optional: set the default branch to `develop`
+- [x] Set the default branch to `develop` (2026-10-18)
 - [x] Settings → General → **Automatically delete head branches** ON (AGENTS.md rule 11: merged feature branches are deleted)
 - [x] Review PR #37 (repo skeleton) and merge it into `develop` if happy
 - [ ] **Delete merged branches.** Auto-delete only covers PRs merged on GitHub; a branch merged locally (`Merge branch '…' into develop`) stays until deleted by hand: `git push origin --delete <branch>`. Checked 2026-10-18: the remote had only `develop` and `main`. On each machine, drop stale local refs and branches: `git fetch --prune`, then `git branch --merged develop` and `git branch -d <branch>` for each listed feature branch (AGENTS.md rule 11).
