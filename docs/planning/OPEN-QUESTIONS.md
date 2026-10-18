@@ -388,6 +388,19 @@ Owner decisions from the SIM-CORE grill session (gameplay and architecture focus
 | Q-SIM-23 | Contested capture progress | Progress decays slowly while contested, reusing the existing `capture.decay_per_s`, so a raid that leaves does not leave a half-captured base. | P1 | ✅ 2026-10-18 |
 | Q-SIM-24 | Spike before approval | Tracker item NX-345 gates SIM-CORE approval, with the four measurements as acceptance criteria. | P1 | ✅ 2026-10-18 |
 | Q-SIM-25 | Docs PR | One PR at the end of the session (NX-006), after a reviewer-agent pass. | P1 | ✅ 2026-10-18 |
-| Q-SIM-26 | Quiet-stream capture: formula, side, signal | Signal: live viewer units in kernel state. `time = capture.time_s × quiet_mult(v) ÷ min(max_speedup, n^exponent)`; `quiet_mult` linear from `quiet_floor` (PROPOSED 0.6) at 0 to 1.0 at `quiet_ref` (PROPOSED 50); floor `min_time_s` (PROPOSED 30 world s). Coalition only, a documented asymmetry (GAMEPLAY §0). `max_speedup` (PROPOSED 4), `multi_unit_exponent` (PROPOSED 0.5) and the three quiet-stream constants stay PROPOSED until the harness validates them. Owner added a 500-viewer crowd profile to Q-ALN-42 so the harness exercises the new cap. | P1 | ✅ 2026-10-18 |
+| Q-SIM-26 | Quiet-stream capture: formula, side, signal | Signal: live viewer units in kernel state. `time = capture.time_s × quiet_mult(v) ÷ min(max_speedup, n^exponent)`; `quiet_mult` linear from `quiet_floor` (PROPOSED 0.6) at 0 to 1.0 at `quiet_ref` (PROPOSED 50); floor `min_time_s` (PROPOSED 30 world s). Coalition only, a documented asymmetry (GAMEPLAY §0). `multi_unit_exponent` (PROPOSED 0.5) and the three quiet-stream constants stay PROPOSED until the harness validates them. Owner added a 500-viewer crowd profile to Q-ALN-42 so the harness exercises the new cap. | P1 | ✅ 2026-10-18 |
 | Q-SIM-27 | Quiet-stream easing beyond capture | Capture only for now; the harness profiles (0, 5, 50 viewers) show whether repair, resupply or rearm need the same. | P1 | ✅ 2026-10-18 |
 | Q-SIM-28 | Remaining SIM-CORE topics | None. Reviewer pass, then the PR. GAMEPLAY, FOG-OF-WAR and THREAT-DIRECTOR get their own sessions. | P1 | ✅ 2026-10-18 |
+
+## GAMEPLAY grilling (2026-10-18)
+
+Owner decisions from the GAMEPLAY grill session, after a ponytail-review of the spec.
+
+| ID | Question | Decision | Priority | Status |
+|---|---|---|---|---|
+| Q-GP-1 | Split GAMEPLAY into first-build and later-phase specs | Later-phase rules (base upgrades, CSAR, packages, carry-over, flights, urban terrain, theater rotation, Hold the Line, Siege, Survivor reward and the commands that go with them) move to GAMEPLAY-LATER (Parked). GAMEPLAY keeps stubs so section references resolve. | P1 | ✅ 2026-10-18 |
+| Q-GP-2 | Commands table scope | GAMEPLAY §3 lists only commands that enter the sim. `!help`, `!guide`, `!rules`, `!link`, `!quiet`, `!forget` move to CHAT-GATEWAY §9. `!status` is a config alias. | P1 | ✅ 2026-10-18 |
+| Q-GP-3 | Stances in the first build | The `stance` field stays in the kernel (default `standard`); `!stance` and deploy-time stance wait for the feature flag. | P1 | ✅ 2026-10-18 |
+| Q-GP-4 | Capture speed cap | Drop `capture.max_speedup`. `time = max(min_time_s, time_s × quiet_mult(v) ÷ n^exponent)`. Amends Q-SIM-26. | P1 | ✅ 2026-10-18 |
+| Q-GP-5 | Tasking Board job types in the first build | Resupply, scout, defend, strike, assist objective, repair bridge, and escort convoy (owner: do not cut escort; both sides). Rescue joins with CSAR. Emergency preemption of AI units deferred. TB-8 dependencies stay. | P1 | ✅ 2026-10-18 |
+| Q-GP-6 | Hit-probability factors | Implement track quality, range, evasion/altitude and terrain first; jamming, countermeasures and weather/night arrive with their units or phases (unimplemented = 1.0, registered). Owner: the model should be fleshed out further; open as the next grill round. | P1 | ✅ 2026-10-18 |

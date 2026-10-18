@@ -179,7 +179,6 @@ Legend: **HR** = hot-reloadable (§5). "TBD" = TBD by harness. **Source** = the 
 | `capture.radius_m` | float | m | TBD | GAMEPLAY §8 | No |
 | `capture.time_s` | float | s (world, Q-ALN-23) | 120 | GAMEPLAY §8 | No |
 | `capture.multi_unit_exponent` | float | exponent (diminishing returns) | 0.5 (PROPOSED) | GAMEPLAY §8, Q-SIM-26 | No |
-| `capture.max_speedup` | float | × | 4 (PROPOSED) | GAMEPLAY §8, Q-SIM-26 | No |
 | `capture.quiet_floor` | float | multiplier at 0 viewer units | 0.6 (PROPOSED) | GAMEPLAY §8, Q-SIM-26 | No |
 | `capture.quiet_ref` | int | viewer units at which the multiplier reaches 1.0 | 50 (PROPOSED) | GAMEPLAY §8, Q-SIM-26 | No |
 | `capture.min_time_s` | float | s (world, Q-ALN-23) | 30 (PROPOSED) | GAMEPLAY §8, Q-SIM-26 | No |
