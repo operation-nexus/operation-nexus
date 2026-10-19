@@ -202,7 +202,7 @@ Legend: **HR** = hot-reloadable (§5). "TBD" = TBD by harness. **Source** = the 
 | `campaign.objective_period_min` | float | min (game) | 15 | GAMEPLAY §9 | No |
 | `campaign.victory_node_frac` | float | fraction | 0.80 | GAMEPLAY §9 | No |
 | `campaign.victory_hold_min` | float | min (game) | 30 | GAMEPLAY §9 | No |
-| `campaign.defeat` | object | — | `{lose_forward_airbase: true, max_node_frac: 0.25, hold_min: 30}` (Q-GD-7; numbers PROPOSED as everywhere; `hold_min` in game minutes, Q-ALN-1) | GAMEPLAY §9 | No |
+| `campaign.defeat` | object | — | `{hold_min: 30}`: the sanctuary's defense HP must stay at 0 this long (Q-TH-7, replacing Q-GD-7's forward-airbase rule; PROPOSED; game minutes, Q-ALN-1) | GAMEPLAY §9 | No |
 | `campaign.objective_mode` | enum `timed`\|`off` | — | `timed` (Q-GD-19); chosen at campaign setup by owner/admin only (Q-ALN-10) | GAMEPLAY §9 | No (set per campaign) |
 | `campaign.options.unlimited_ammo` | bool | — | false (Q-CBT-7; test/special-event option; set at campaign setup by owner/admin only, not GM, Q-ALN-10) | GAMEPLAY §5 | No |
 | `campaign.intermission.mode` | enum `auto_advance`\|`await_owner` | — | TBD (owner choice per campaign, Q-UX-8) | GAMEPLAY §9 | Yes |
@@ -418,13 +418,15 @@ Values are PROPOSED; the first-build list is Probe, Recon, Offensive, Retake, Es
 | `name` | string | Display name; moderation-checked (CFG-8) |
 | `version` | semver | §4.4 |
 | `bounds_m` | `{w, h}` | Map extent in metres (SIM-CORE §4: ~400×240 km for the first theater) |
-| `terrain` | object | `heightmap: <path to 16-bit PNG>`, `height_scale_m`, `sea_level_m`; **or** `contours: <path to GeoJSON-like polylines>`. `masking_regions`: polygons where NOE/LOW aircraft and ground units are masked from sensors outside the region, rasterized at load to the spatial grid's cells (cell centre in polygon, integer metres; the theater file is in the config hash; FOG-OF-WAR Tier 2, Q-FOW-3) |
+| `terrain` | object | Optional in the first build (Q-TH-4): `heightmap: <path to 16-bit PNG>`, `height_scale_m`, `sea_level_m`; **or** `contours: <path to GeoJSON-like polylines>`; nothing in the first build reads height. `masking_regions`: polygons where NOE/LOW aircraft and ground units are masked from sensors outside the region, rasterized at load to the spatial grid's cells (cell centre in polygon, integer metres; the theater file is in the config hash; FOG-OF-WAR Tier 2, Q-FOW-3) |
 | `sectors` | list | `{id, name, polygon}`; non-overlapping; union covers the map |
 | `nodes` | list | `{id, name, kind, pos: [x_m, y_m], start_owner, start_stock, sector, garrison_quota?}`. `garrison_quota` (Static bases): the units the director may keep there at Pattern of Life, replacing losses only (THREAT-DIRECTOR §5a, Q-TD-11) |
 | `edges` | list | `{a, b, layer: ROAD\|SEA_LANE, speed_mult, bridge?: <node id of kind BRIDGE>}` |
-| `spawns` | list | `{side, node, domains: [...]}`: where each side's units may appear |
+| `facilities` | list | `{id, kind: UnitKind (a facility kind), variant?, base: <node id>}`: pre-placed facilities; side follows the base (Q-GP-25, TH-10) |
+| `spawns` | list | `{node, domains: [...]}`: where units may appear; usable by whichever side currently owns the node (GAMEPLAY GP-7) |
 | `sanctuary` | node id | Coalition SANCTUARY node: infinite stock, never capturable (Q-GD-7) |
 | `enemy_hq` | node id | Enemy HQ node (Domination victory, GAMEPLAY §9) |
+| `forward_airbase` | node id | The coalition AIRBASE the idle floor protects (GAMEPLAY §9, Q-TH-2) |
 
 Node `kind` ∈ `AIRBASE | FOB | PORT | BRIDGE | HQ | SANCTUARY` (SIM-CORE §4); facilities are placed as STATIC units with a `base_id` (Q-GP-25).
 
@@ -437,9 +439,11 @@ Node `kind` ∈ `AIRBASE | FOB | PORT | BRIDGE | HQ | SANCTUARY` (SIM-CORE §4);
 | TH-4 | Every `bridge` reference points to a node of kind BRIDGE, and that node sits on the edge (within tolerance) |
 | TH-5 | Exactly one SANCTUARY (`start_owner: COALITION`) and exactly one HQ (`start_owner: ENEMY`) |
 | TH-6 | All positions lie inside `bounds_m`. Every node lies in the sector it names |
-| TH-7 | Each side has ≥1 spawn per domain that its MVP units use |
-| TH-8 | The terrain file exists, its dimensions match `bounds_m` at the declared resolution, and its hash is included in the content hash |
-| TH-9 | Node count and kind mix are reported, not enforced (design guidance: ~15 nodes, Q-GD-9) |
+| TH-7 | Each side has ≥1 spawn per domain that its MVP units use at its starting nodes |
+| TH-11 | A value written `TBD` is rejected at load until the balance harness supplies it (DATA-INTEGRITY DI-7); a sketch may carry TBD in the repo |
+| TH-8 | If a terrain file is declared, it exists, its dimensions match `bounds_m` at the declared resolution, and its hash is included in the content hash |
+| TH-9 | Node count and kind mix are reported, not enforced (design guidance: theater #1 has 12 nodes, 8 strategic bases, Q-TH-1) |
+| TH-10 | No facility at a base whose `start_owner` is NEUTRAL (Q-GP-36); `forward_airbase` is a coalition AIRBASE |
 
 ### 9.3 Format example (NOT the real map)
 > **Illustrative format example only.** This is *not* the first theater. The real theater is authored in NX-008 (Q-GD-9). Coordinates and names exist only to show the syntax.

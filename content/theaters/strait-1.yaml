@@ -1,0 +1,71 @@
+# Theater #1 sketch (NX-008). Decisions: Q-TH-1..7, Q-GP-22, Q-GP-36, Q-GD-33 (docs/planning/OPEN-QUESTIONS.md).
+# Every "TBD" is a value the balance harness must supply (DATA-INTEGRITY DI-7); the loader rejects TBD until filled.
+# Coordinates are metres; x grows east (coalition west, Static east, Q-GD-13), y grows south.
+schema_version: 1
+slug: strait-1
+name: "Strait One"            # working name; brand pass renames (Q-TH-6)
+version: 0.1.0
+bounds_m: { w: 400000, h: 240000 }
+terrain:
+  # No heightmap in the first build (Q-TH-4); one is planned later.
+  masking_regions:
+    - { id: northern-hills, polygon: [[150000,0],[260000,0],[260000,35000],[150000,35000]] }      # both sides of the strait
+    - { id: southern-valley, polygon: [[230000,205000],[330000,205000],[330000,240000],[230000,240000]] }  # coalition sneak route, east side
+sectors:                       # three lanes across the whole map (Q-TH-1)
+  - { id: north,  name: "North",  polygon: [[0,0],[400000,0],[400000,80000],[0,80000]] }
+  - { id: centre, name: "Centre", polygon: [[0,80000],[400000,80000],[400000,160000],[0,160000]] }
+  - { id: south,  name: "South",  polygon: [[0,160000],[400000,160000],[400000,240000],[0,240000]] }
+nodes:
+  # Coalition (west)
+  - { id: haven,        name: "Haven",          kind: SANCTUARY, pos: [20000,120000],  start_owner: COALITION, start_stock: null, sector: centre }  # null = infinite by rule (CFG-2)
+  - { id: west-airbase, name: "West Airbase",   kind: AIRBASE,   pos: [90000,120000],  start_owner: COALITION, start_stock: TBD,  sector: centre }
+  - { id: fob-n-w,      name: "FOB North-West", kind: FOB,       pos: [130000,60000],  start_owner: COALITION, start_stock: TBD,  sector: north }
+  - { id: fob-s-w,      name: "FOB South-West", kind: FOB,       pos: [130000,180000], start_owner: COALITION, start_stock: TBD,  sector: south }
+  # The strait (x ~190-210 km, scenery only, no ports: Q-TH-3)
+  - { id: bridge-n,     name: "North Bridge",   kind: BRIDGE,    pos: [200000,60000],  start_owner: NEUTRAL,   start_stock: 0,    sector: north }
+  - { id: bridge-s,     name: "South Bridge",   kind: BRIDGE,    pos: [200000,180000], start_owner: NEUTRAL,   start_stock: 0,    sector: south }
+  # Contested bridgeheads (east bank, no facilities: Q-GP-36)
+  - { id: cross-n,      name: "North Crossing", kind: FOB,       pos: [230000,60000],  start_owner: NEUTRAL,   start_stock: 0,    sector: north }
+  - { id: cross-s,      name: "South Crossing", kind: FOB,       pos: [230000,180000], start_owner: NEUTRAL,   start_stock: 0,    sector: south }
+  # Static (east)
+  - { id: fob-n-e,      name: "FOB North-East", kind: FOB,       pos: [290000,40000],  start_owner: ENEMY,     start_stock: TBD,  sector: north,  garrison_quota: 4 }
+  - { id: fob-s-e,      name: "FOB South-East", kind: FOB,       pos: [290000,200000], start_owner: ENEMY,     start_stock: TBD,  sector: south,  garrison_quota: 4 }
+  - { id: east-airbase, name: "East Airbase",   kind: AIRBASE,   pos: [310000,120000], start_owner: ENEMY,     start_stock: TBD,  sector: centre, garrison_quota: 6 }
+  - { id: static-hq,    name: "Static HQ",      kind: HQ,        pos: [380000,120000], start_owner: ENEMY,     start_stock: TBD,  sector: centre, garrison_quota: 8 }
+facilities:                    # STATIC units attached to a base (Q-GP-25); mirrored per Q-TH-5
+  - { id: radar-west,   kind: RADAR_SITE,       base: west-airbase }
+  - { id: ad-west,      kind: AIR_DEFENSE_SITE, variant: SAM, base: west-airbase }
+  - { id: ad-fob-n-w,   kind: AIR_DEFENSE_SITE, variant: SHORT_RANGE, base: fob-n-w }
+  - { id: ad-fob-s-w,   kind: AIR_DEFENSE_SITE, variant: SHORT_RANGE, base: fob-s-w }
+  - { id: radar-east,   kind: RADAR_SITE,       base: east-airbase }
+  - { id: ad-east,      kind: AIR_DEFENSE_SITE, variant: SAM, base: east-airbase }
+  - { id: ad-fob-n-e,   kind: AIR_DEFENSE_SITE, variant: SHORT_RANGE, base: fob-n-e }
+  - { id: ad-fob-s-e,   kind: AIR_DEFENSE_SITE, variant: SHORT_RANGE, base: fob-s-e }
+  - { id: radar-hq,     kind: RADAR_SITE,       base: static-hq }
+edges:                         # ROAD layer; speed_mult TBD by harness
+  - { a: haven,        b: west-airbase, layer: ROAD, speed_mult: TBD }
+  - { a: west-airbase, b: fob-n-w,      layer: ROAD, speed_mult: TBD }
+  - { a: west-airbase, b: fob-s-w,      layer: ROAD, speed_mult: TBD }
+  - { a: fob-n-w,      b: cross-n,      layer: ROAD, speed_mult: TBD, bridge: bridge-n }
+  - { a: fob-s-w,      b: cross-s,      layer: ROAD, speed_mult: TBD, bridge: bridge-s }
+  - { a: cross-n,      b: fob-n-e,      layer: ROAD, speed_mult: TBD }
+  - { a: cross-s,      b: fob-s-e,      layer: ROAD, speed_mult: TBD }
+  - { a: cross-n,      b: east-airbase, layer: ROAD, speed_mult: TBD }
+  - { a: cross-s,      b: east-airbase, layer: ROAD, speed_mult: TBD }
+  - { a: fob-n-e,      b: static-hq,    layer: ROAD, speed_mult: TBD }
+  - { a: fob-s-e,      b: static-hq,    layer: ROAD, speed_mult: TBD }
+  - { a: east-airbase, b: static-hq,    layer: ROAD, speed_mult: TBD }
+spawns:                        # usable by whichever side owns the node (GAMEPLAY GP-7)
+  - { node: haven,        domains: [AIR, GROUND] }
+  - { node: west-airbase, domains: [AIR, GROUND] }
+  - { node: fob-n-w,      domains: [GROUND] }
+  - { node: fob-s-w,      domains: [GROUND] }
+  - { node: cross-n,      domains: [GROUND] }
+  - { node: cross-s,      domains: [GROUND] }
+  - { node: fob-n-e,      domains: [GROUND] }
+  - { node: fob-s-e,      domains: [GROUND] }
+  - { node: east-airbase, domains: [AIR, GROUND] }
+  - { node: static-hq,    domains: [AIR, GROUND] }   # the Static's rear source sits behind its HQ (THREAT-DIRECTOR §4)
+sanctuary: haven
+enemy_hq: static-hq
+forward_airbase: west-airbase  # protected by the idle floor (Q-TH-2, Q-TH-7)
