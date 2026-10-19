@@ -56,6 +56,7 @@ Campaign { id, seed, config_hash, mode, objective_mode:(TIMED|OFF), options:{unl
   - `crew` is set from the platform's crew count; a seeded crew-survival roll on disable or shoot-down decides `DOWNED` vs `LOST`, and CSAR resolves `RESCUED` or `CAPTURED` (GAMEPLAY §6a).
   - Hit probability uses the full Q-CBT-2 factor list (GAMEPLAY §6); every factor is a config multiplier.
   - The Static's units carry the same fields and rules (parity, GAMEPLAY §0).
+  - **Discovered facility markers (FOG-OF-WAR FOW-13):** per side, `FacilityMarker{entity_id, kind, variant, pos, ring_m, state|null, emitting|null, confirmed_tick}`; world state, in the snapshot and `state_hash`.
   - **Facilities (Q-GP-21, Q-GP-25):** radars, air-defense sites and factories are ordinary `STATIC`-domain entities with a `base_id`. Their `side` follows the base's owner; when a base flips they switch side keeping their damage. New facility kinds are new catalog entries, not kernel code (CONFIG-AND-CONTENT §7a).
 - **World scale (resolves critique #24):** the theater is about 400 × 240 km. Ground convoy speed is about 25 m/s (a 90 km road takes ~1 h of world time, about 10 real minutes at 6×), and strike aircraft fly about 250 m/s. The world-time multiplier `sim.time_scale` (default 6×, SC-2) shortens travel so a sortie lasts 3–8 real minutes. It scales only world time (movement, logistics, combat), never player-facing game-time durations (Q-ALN-1). Tune it with the balance harness.
 

@@ -199,10 +199,10 @@ Every value listed in §5.2, plus `CAMPAIGN_PAUSED` (a world-changing chat comma
 | `UnitOrphaned` | `entity_id`, `commander_id`, `cause: BANNED\|FORGOTTEN` | none (coalition units only) | B O |
 | `RearmStalled` | `entity_id`, `node_id` | ENEMY: dropped | B O |
 | `WaypointReached` | `entity_id`, `node_id\|null` | Hidden ENEMY: dropped | O |
-| `UnitDamaged` | `entity_id`, `attacker_id\|null`, `amount`, `hp_after`, `damage_state_after: DamageState` | A hidden attacker becomes `attacker_id: null` | B C O |
+| `UnitDamaged` | `entity_id`, `attacker_id\|null`, `amount`, `hp_after`, `damage_state_after: DamageState` | A hidden attacker becomes `attacker_id: null`. A victim the viewer side does not currently observe: dropped (FOW-13) | B C O |
 | `UnitDestroyed` | `entity_id`, `killer_id\|null`, `assist_ids[]`, `side` | A hidden killer becomes `null` ("Unknown contact", FOW-3). A hidden victim is dropped. | B P A C O |
 | `WeaponFired` | `shooter_id`, `target_id`, `weapon`, `impact_tick` | Hidden shooter: no tracer (Q-CT-3; revisit in the readability study NX-034). The overlay draws the tracer from this event; the outcome is not known yet (Q-GP-12). | B C |
-| `WeaponImpact` | `shooter_id`, `target_id`, `weapon`, `hit: bool` | Emitted on the impact tick, after the Pk roll (Q-GP-12). A hidden shooter shows as "unknown contact". A shot that fizzles (target destroyed, despawned or out of the envelope before impact) is a miss with no roll. | B C |
+| `WeaponImpact` | `shooter_id`, `target_id`, `weapon`, `hit: bool` | Emitted on the impact tick, after the Pk roll (Q-GP-12). A hidden shooter shows as "unknown contact". A shot that fizzles (target no longer tracked by the shooter's side, out of the envelope, destroyed or despawned at impact; Q-FOW-16) is a miss with no roll. | B C |
 | `TargetPainted` | `recon_id`, `target_id`, `until_tick` | none (the target is tracked by definition) | B P |
 | `CaptureStarted` | `node_id`, `side` | none (nodes are always visible) | B A O |
 | `CaptureProgress` | `node_id`, `side`, `progress_pct`, `contested: bool` | none (nodes are always visible) | B O |
@@ -231,7 +231,7 @@ Every value listed in §5.2, plus `CAMPAIGN_PAUSED` (a world-changing chat comma
 
 **PresenceSnapshot** is emitted every `presence.emit_every_ticks` (CONFIG-AND-CONTENT §6.6) over the trailing `presence.window_s`. The counts include only `COMMANDER` owners (DI-5): `active_humans` = commanders with a live unit or an accepted command in the window (drives the HUD "Operators active" count and its breakdown, Q-CT-4; it does **not** pause the clock, Q-GD-4 amended / Q-SM-5). The former `distinct_humans_active` field is removed: it only fed PROG-2's minimum-humans XP rule, which Q-PROG-6 dropped. The kernel derives the counts from applied commands, so they are deterministic.
 
-**Who decides an entity is hidden:** the redaction pass uses the coalition visibility predicate (currently tracked) in the latest computed view as of the event's tick (FOW-1, FOW-5); an entity in the last-known set may appear only in `LastKnownView`. Property test: no public payload references an `EntityId` that fails the predicate.
+**Who decides an entity is hidden:** the redaction pass uses the coalition visibility predicate (currently tracked) in the latest computed view as of the event's tick (FOW-1, FOW-5); an entity in the last-known set may appear only in `LastKnownView`, and a discovered facility only through its marker fields (`NodeView.facilities`, FOW-13). Property test: no public payload references an `EntityId` that fails the predicate.
 
 ## 7. Wire messages (server ↔ overlay)
 These detail WIRE-PROTOCOL §2. All messages carry `type` and `v` (PROTOCOL_VERSION string). Encoding is msgpack, with JSON in debug mode.
@@ -254,7 +254,7 @@ Field shapes:
   - `auto` is true while a commander's unit is AI-run after idle handoff; the overlay shows the AUTO tag (Q-GD-35, Q-ALN-9). Always false for AI-owned entities, which use the `[AI]` label instead.
   - Only tracked entities appear; blobs and last-known tracks are separate lists. `callsign` is null for AI entities, which render an `[AI]` label (DI-5).
 - `EntityPatch`: `entity_id` plus only the changed fields of `EntityView`.
-- `NodeView`: `{node_id, owner: NodeOwner, capture:{side|null, progress_pct:int}, stock_pct:int|null, starvation: OK|LOW|EMPTY|null, hp_pct:int|null, facilities: [{entity_id, kind: UnitKind, variant, pos, ring_m: int|null, state: DamageState|null, emitting: bool|null, confirmed_tick}]}`. `stock_pct`, `starvation` and `hp_pct` are null for ENEMY nodes the coalition can't see (DI-1). `facilities` lists only the viewer side's own facilities and enemy facilities it has discovered (FOW-13, Q-FOW-15). For a discovered enemy facility, `state` and `emitting` are the last confirmed values as of `confirmed_tick`; they change only when the side observes the site again.
+- `NodeView`: `{node_id, owner: NodeOwner, capture:{side|null, progress_pct:int}, stock_pct:int|null, starvation: OK|LOW|EMPTY|null, hp_pct:int|null, facilities: [{entity_id, kind: UnitKind, variant, pos, ring_m: int|null, state: DamageState|null, emitting: bool|null, confirmed_tick: int|null}]}` (null for own facilities). `stock_pct`, `starvation` and `hp_pct` are null for ENEMY nodes the coalition can't see (DI-1). `facilities` lists only the viewer side's own facilities and enemy facilities it has discovered (FOW-13, Q-FOW-15). For a discovered enemy facility, `state` and `emitting` are the last confirmed values as of `confirmed_tick`; they change only when the side observes the site again.
 - `BlobView`: `{blob_id: BlobId, cell_center:{x_m,y_m}, size: S|M|L}`.
 - `LastKnownView` (FOW-6a, Q-FOW-1): `{entity_id, unit_kind, pos:{x_m,y_m}, heading_deg:int, seen_tick}`. Only for entities the viewer's side tracked before; dropped after `fow.track_fade_s`.
 - `TickerItem`: `{tick, text: ModeratedText ≤ 100, category: CAPTURE|SUPPLY|COMBAT|DIRECTOR|SYSTEM}`.
@@ -356,7 +356,7 @@ The following are specified in their source specs and must be added to `/contrac
 - **From GAMEPLAY §4a / §9b:**
   - Event `CarryoverApplied`.
 - **From combat decisions (GAMEPLAY §5–§6a, SIM-CORE §4; Q-CBT-1/6/7/8, Q-GD-27):**
-  - Events `UnitDamageStateChanged{entity_id, from, to}`, `MunitionsDepleted{entity_id, guns_only: bool}`, `CrewDowned{marker_id, entity_id, side, pos}`, `CrewRescued{marker_id, rescuer_ids[]}`, `CrewCaptured{marker_id}`, `UnitRepaired{entity_id, by_id|null, node_id|null}`. (`StanceChanged{entity_id, stance}` joins with `!stance`, GAMEPLAY-LATER.)
+  - Events (each dropped for a victim the viewer side does not currently observe, FOW-13) `UnitDamageStateChanged{entity_id, from, to}`, `MunitionsDepleted{entity_id, guns_only: bool}`, `CrewDowned{marker_id, entity_id, side, pos}`, `CrewRescued{marker_id, rescuer_ids[]}`, `CrewCaptured{marker_id}`, `UnitRepaired{entity_id, by_id|null, node_id|null}`. (`StanceChanged{entity_id, stance}` joins with `!stance`, GAMEPLAY-LATER.)
   - `UnitDespawned.reason` and `UnitDestroyed` need no change; `Disabled` units stay live entities.
 - **From the Tasking Board (GAMEPLAY §1b, Q-GD-26, Q-GD-37 TB-1):** `TaskingJobId` id type, and one event per lifecycle step (all names PROPOSED):
   - `JobCreated{job_id, side, job_kind: JobKind, node_id|null, sector_id|null, entity_id|null (the convoy to escort), slots, depends_on_job_id|null}`: a job is posted to a side's board (OPEN), by the board generator, the director (Static board) or a GM injection (Static board only).
