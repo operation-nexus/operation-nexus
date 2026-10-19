@@ -25,7 +25,7 @@ Legend: **Blocks** is the earliest roadmap phase that needs the answer (P0 = Fou
 | Q-GD-4 | What happens with 0 human players? | "Slow war": the AI garrison holds. Enemy progress is capped (≤1 node / 6 h). The campaign clock pauses below 1 active human. | ✅ 2026-10-17, **amended**: the campaign clock does **not** pause for lack of humans, so a 48–72 h war never gets stretched. At 0 humans the enemy drops to **Pattern of Life** (THREAT-DIRECTOR §5a): garrison, supply runs, rotations and repositioning, observable by scouting. Only operator actions escalate it, not headcount. Operators can still pause manually via admin. |
 | Q-GD-5 | Campaign length? | 48 h target. Ends early on decisive victory or defeat. Rotating 15-minute theater objective. | ✅ 2026-10-17: 48 h target, early end on decisive result, 15-min objectives (A). Admin-adjustable, can be scheduled per campaign. |
 | Q-GD-6 | Hard cap on live viewer units? What happens above it? | Cap 300 (configurable). Above the cap, viewers join a **reserve queue** with an on-screen counter, or get auto-merged into flights. | ✅ 2026-10-17: Cap + visible reserve queue (A), **with mitigations** (GAMEPLAY §4a) |
-| Q-GD-7 | Defeat condition? | Coalition loses its forward airbase + ≥75% of nodes for 30 min. The sanctuary base can never be captured. | ✅ 2026-10-17: Defeat = lose forward airbase and hold ≤25% for 30 min; sanctuary uncapturable (A) |
+| Q-GD-7 (defeat rule replaced by Q-TH-7) | Defeat condition? | Coalition loses its forward airbase + ≥75% of nodes for 30 min. The sanctuary base can never be captured. | ✅ 2026-10-17: Defeat = lose forward airbase and hold ≤25% for 30 min; sanctuary uncapturable (A) |
 | Q-GD-8 | Domains in the MVP: Air + Ground logistics only, or also Sea? | **Air + Ground** in the MVP. Sea in phase P4. A strait map works without naval units at first. | ✅ 2026-10-17: Air + ground at launch (A); **sea domain sooner than later** (moved to P3 in ROADMAP) since maps are water-heavy |
 | Q-GD-9 | Map: hand-authored theater or procedural? | Hand-authored first theater (≈15 nodes) for tunability. Procedural later. | ✅ 2026-10-17: Hand-authored first theater (A); **procedural generation sooner than later** (moved to P3/P4, admin-triggered) |
 | Q-GD-11 | Who can repair destroyed bridges? Engineers unlock at O-4 (weeks of play), so a bridge could stay down for a long time. | Logistics trucks can do a slow field repair (e.g. 5× slower). Engineers repair fast and can also build. | ✅ 2026-10-17: Trucks do slow field repair; engineers repair fast and build (A) |
@@ -498,3 +498,17 @@ Owner decisions from the THREAT-DIRECTOR grill session, after a ponytail pass.
 | Q-TD-13 | Enemy roster for scouting and strikes | Add ENEMY_STRIKE_FIGHTER and ENEMY_RECON_UAV mirroring the coalition's Striker and Scout, stats TBD (extends Q-CT-5). | P1 | ✅ 2026-10-19 |
 | Q-TD-14 | Who uses CAPTURE jobs | Static board only in the first build; coalition captures stay player-driven (asymmetry in GAMEPLAY §0). | P1 | ✅ 2026-10-19 |
 | Q-TD-15 | GM rules alignment | No fog lift for a GM; only the audited `override_budget`; ASSIST = inject or veto while rules run; FULL rejected until it ships. | P1 | ✅ 2026-10-19 |
+
+## Theater #1 sketch (NX-008, 2026-10-19)
+
+Owner decisions from the theater #1 sketch session.
+
+| ID | Question | Decision | Priority | Status |
+|---|---|---|---|---|
+| Q-TH-1 | Layout | Bridged strait running north–south through the middle; three lanes and sectors (NORTH, CENTRE air-only, SOUTH); coalition west with sanctuary, west airbase and two FOBs; two contested bridgeheads on the east bank; Static east with east airbase, two FOBs and HQ; ~400 × 240 km; 12 nodes, 8 of them strategic bases. Supersedes the tracker's "≈15 nodes". | P1 | ✅ 2026-10-19 |
+| Q-TH-2 | Forward airbase | A `forward_airbase` theater field names it (`west-airbase` here), the same base the idle floor protects. Owner: losing the sanctuary, or it taking enough damage, would matter more as a loss condition; open as Q-TH-7. | P1 | ✅ 2026-10-19 |
+| Q-TH-3 | Ports | None in theater #1 (no navy until P3); the strait is scenery plus two bridges. | P1 | ✅ 2026-10-19 |
+| Q-TH-4 | Heightmap | Optional in the first build; theater #1 ships masking regions (northern hills across the strait, southern valley on the east side). Owner: a heightmap will still be needed later. | P1 | ✅ 2026-10-19 |
+| Q-TH-5 | Facilities | Mirrored: each main airbase gets a radar and an air-defense site, each FOB an air-defense site; the Static also has a radar at its HQ. Static garrison quotas PROPOSED: airbase 6, FOB 4, HQ 8. No facilities at the contested bridgeheads. | P1 | ✅ 2026-10-19 |
+| Q-TH-6 | Names and files | Plain working names (brand pass later); `content/theaters/strait-1.yaml`; sketch `docs/design/theater-1.svg`; tracker row corrected. | P1 | ✅ 2026-10-19 |
+| Q-TH-7 | Defeat condition | The sanctuary can be besieged, never captured; it has defense HP; defeat = that HP held at 0 for `campaign.defeat.hold_min` (PROPOSED 30 game min), a visible last stand. The forward-airbase and 25% rule is removed (replaces Q-GD-7's rule). Idle floor: with no humans the sanctuary's HP can't drop below 1 and `forward_airbase` can't be captured. | P1 | ✅ 2026-10-19 |

@@ -228,7 +228,7 @@ stateDiagram-v2
 | Paused | `STAFF_GM_RELEASE`, from the GM or from SYSTEM on auto-release (Q-ALN-36) | Apply as when Running: control returns to the director | Paused |
 | Paused | `STAFF_CAMPAIGN_PAUSE` | Emit `CommandRejected{reason: ALREADY_PAUSED}` | Paused |
 | Paused | `STAFF_CAMPAIGN_RESUME` from staff (GM, admin or owner only, Q-RB-1), or from SYSTEM after the "COMMS RESTORED" countdown ends an offline pause (Q-OPS-8) | Clear `clock_paused`. Emit `CampaignClockResumed{reason}`. Free slots fill from the reserve queue (FIFO). | Running |
-| Running | Victory condition held (GAMEPLAY §9), or defeat (forward airbase lost and ≤ 25% of strategic nodes held for 30 min, Q-GD-7, Q-GP-17) | Freeze inputs. Emit `CampaignEnded{result: VICTORY \| DEFEAT}`. | Ending |
+| Running | Victory condition held (GAMEPLAY §9), or defeat (the sanctuary's defense HP held at 0 for `campaign.defeat.hold_min`, Q-TH-7) | Freeze inputs. Emit `CampaignEnded{result: VICTORY \| DEFEAT}`. | Ending |
 | Running | The campaign clock reaches its time limit (game time), and the two sides' time-limit scores differ | Score per side = node share over time + completed objectives (Q-GD-29). Freeze inputs. Emit `CampaignEnded{result: TIME_LIMIT, score, winner}`; the higher score wins the war. | Ending |
 | Running | Time limit reached and the two scores are exactly equal (Q-GD-29, Q-GP-10) | Freeze inputs. Emit `CampaignEnded{result: TIME_LIMIT, score, winner: null}`: a draw, with the normal end screen. | Ending |
 | Running / Paused | `STAFF_CAMPAIGN_END{reason}` | Freeze inputs. Emit `CampaignEnded{result: ABORTED}`. | Ending |
@@ -633,7 +633,7 @@ Paths are planned names; they're created with their tracker items.
 ## 8. Decisions folded in, and open questions
 These decisions (2026-10-17 and 2026-10-18) are folded into the tables above:
 - **Q-GD-4 (amended):** no automatic clock pause for lack of humans; the Static drops to Pattern of Life (THREAT-DIRECTOR §5a). Only a pause with a reason category stops the clock (§4.4, Q-ALN-3).
-- **Q-GD-7:** defeat = forward airbase lost and ≤ 25% of strategic nodes held for 30 min; the sanctuary is uncapturable (§4.2 N-4, §4.4).
+- **Q-GD-7, Q-TH-7:** defeat = the sanctuary's defense HP held at 0 for `campaign.defeat.hold_min`; the sanctuary is uncapturable (§4.2 N-4, §4.4).
 - **Q-GD-8:** sea domain in **P3** (§4.1 notes).
 - **Q-GD-11:** trucks do slow field repair; engineers repair fast and build (§4.3).
 - **Q-GD-19 / Q-GD-26 / Q-CBT-1/6/7 / Q-GD-27:** objective modes (§4.5), Tasking Board and auto-tasking (Q-GP-23), damage states, stance, munitions and repair (§4.1).

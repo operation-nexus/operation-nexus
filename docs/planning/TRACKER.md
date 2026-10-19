@@ -31,7 +31,7 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-005 [#4](https://github.com/operation-nexus/operation-nexus/issues/4) | Move `Raw-*.md` to `docs/source/` with a "not a spec" banner | S | ❓ | NX-002 | Links updated |
 | NX-006 [#5](https://github.com/operation-nexus/operation-nexus/issues/5) | Specs SIM-CORE, GAMEPLAY, FOG-OF-WAR, THREAT-DIRECTOR → Review → Approved | M | ⬜ | NX-002 | Owner sign-off |
 | NX-007 [#6](https://github.com/operation-nexus/operation-nexus/issues/6) | Reference hardware spec documented (Q-OPS-1) | S | ❓ | — | `docs/ops/HARDWARE.md` |
-| NX-008 [#7](https://github.com/operation-nexus/operation-nexus/issues/7) | Hand-authored first theater map sketch (≈15 nodes, roads, bridges) | M | ⬜ | Q-GD-9 | YAML + PNG sketch in `balance/theaters/` |
+| NX-008 [#7](https://github.com/operation-nexus/operation-nexus/issues/7) | Hand-authored first theater map sketch (12 nodes, 8 strategic bases, roads, bridges; Q-TH-1..7) | M | ⬜ | Q-GD-9 | YAML in `content/theaters/strait-1.yaml` + SVG sketch in `docs/design/theater-1.svg` |
 | NX-009 | Decide: mirror tracker to GitHub Issues + Project board? | S | ✅ | — | Decision recorded |
 
 ### Repo & CI/CD (see `docs/cicd/CICD-ARCHITECTURE.md`)
