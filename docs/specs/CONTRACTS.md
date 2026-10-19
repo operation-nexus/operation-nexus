@@ -255,7 +255,7 @@ Field shapes:
   - `auto` is true while a commander's unit is AI-run after idle handoff; the overlay shows the AUTO tag (Q-GD-35, Q-ALN-9). Always false for AI-owned entities, which use the `[AI]` label instead.
   - `fow` is never SIGINT, because blobs are separate. `callsign` is null for AI entities, which render an `[AI]` label (DI-5).
 - `EntityPatch`: `entity_id` plus only the changed fields of `EntityView`.
-- `NodeView`: `{node_id, owner: NodeOwner, capture:{side|null, progress_pct:int}, stock_pct:int|null, starvation: OK|LOW|EMPTY|null, hp_pct:int|null}`. `stock_pct`, `starvation` and `hp_pct` are null for ENEMY nodes the coalition can't see (DI-1).
+- `NodeView`: `{node_id, owner: NodeOwner, capture:{side|null, progress_pct:int}, stock_pct:int|null, starvation: OK|LOW|EMPTY|null, hp_pct:int|null, facilities: [{entity_id, kind: UnitKind, variant, pos, state: DamageState|null}]}`. `stock_pct`, `starvation` and `hp_pct` are null for ENEMY nodes the coalition can't see (DI-1). A facility's position, kind and variant are always known; its `state` is null while no sensor sees it (Q-GP-27, Q-GP-43).
 - `BlobView`: `{blob_id: BlobId, cell_center:{x_m,y_m}, size: S|M|L}`.
 - `TickerItem`: `{tick, text: ModeratedText ≤ 100, category: CAPTURE|SUPPLY|COMBAT|DIRECTOR|SYSTEM}`.
 - `Panels`:
