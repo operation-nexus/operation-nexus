@@ -60,7 +60,7 @@ MIN_DEFAULT_CHANNELS = 7  # onboarding constraints, Discord docs: Modify Guild O
 MIN_WRITABLE_DEFAULT_CHANNELS = 5
 ONBOARDING_DEFAULT_MODE = 0
 PROMPT_MULTIPLE_CHOICE = 0
-MAX_WELCOME_CHANNELS = 5  # Discord shows at most five welcome screen channels (UNVERIFIED limit)
+MAX_WELCOME_CHANNELS = 5  # "up to 5" welcome screen channels, Discord docs checked 2026-10-19
 
 Json = dict[str, Any]
 # transport(method, url, headers, body) -> (status, response headers, response body bytes)
@@ -569,11 +569,9 @@ class Community:
         merged += [c for c in kept if c["channel_id"] not in ours_ids]
         merged = merged[:MAX_WELCOME_CHANNELS]
         want = {"enabled": True, "description": screen["description"], "welcome_channels": merged}
-        if (
-            not have.get("enabled", False)
-            or have.get("description") != want["description"]
-            or kept != merged
-        ):
+        # Discord's welcome screen object has no "enabled" field (docs checked 2026-10-19), so the
+        # description and the channel list are all that can be compared
+        if have.get("description") != want["description"] or kept != merged:
             extra = len(merged) - len(ours)
             self._write(
                 "PATCH",
@@ -606,12 +604,14 @@ class Community:
         prompts = [self._clean_prompt(p) for p in have.get("prompts", [])]
         ours = next((p for p in prompts if p.get("title") == spec["prompt_title"]), None)
         option = {
+            "id": new_id(),
             "title": spec["option_title"],
             "description": spec["option_description"],
             "role_ids": [role_id],
             "channel_ids": [],
         }
         prompt: Json = {
+            "id": new_id(),
             "type": PROMPT_MULTIPLE_CHOICE,
             "title": spec["prompt_title"],
             "single_select": True,
@@ -632,10 +632,13 @@ class Community:
                 and ours.get("in_onboarding") is True
             )
             if not ours_ok:
+                keep_ids = {"id": ours["id"]} if ours.get("id") else {}
+                first_ids = {"id": first["id"]} if first.get("id") else {}
                 prompts[prompts.index(ours)] = {
                     **ours,
                     **prompt,
-                    "options": [{**first, **option}, *current[1:]],
+                    **keep_ids,
+                    "options": [{**first, **option, **first_ids}, *current[1:]],
                 }
         if have.get("enabled") and merged_default == existing_default and ours_ok:
             return
@@ -654,6 +657,22 @@ class Community:
 
 
 NOTE_LINE = re.compile(r"^\[(NOTE|HOLD)\b")
+
+
+_DISCORD_EPOCH_MS = 1420070400000
+_id_counter = 0
+
+
+def new_id() -> str:
+    """A fresh snowflake-shaped id for a new onboarding prompt or option.
+
+    Discord requires an `id` on every prompt and option in the onboarding PUT, including new
+    ones (found on the first real run, 2026-10-19). Time and a counter make it unique.
+    """
+    global _id_counter
+    _id_counter += 1
+    millis = int(time.time() * 1000) - _DISCORD_EPOCH_MS
+    return str((millis << 22) | (os.getpid() & 0x3FF) << 12 | (_id_counter & 0xFFF))
 
 
 def read_text_file(path: str, what: str) -> str:

@@ -140,15 +140,34 @@ class FakeDiscord:
             if method == "PATCH":
                 self.missing_until_set = False
                 self.welcome.update(data)
-            return ok(self.welcome)
+            return ok({k: v for k, v in self.welcome.items() if k != "enabled"})
         if path == f"/guilds/{GUILD}/onboarding" and method in ("GET", "PUT"):
             if not community_on:
                 return 403, {}, json.dumps({"message": "Missing Access"}).encode()
             if method == "PUT":
-                for prompt in data["prompts"]:
-                    prompt.setdefault("id", self._new_id())
+                for n, prompt in enumerate(data["prompts"]):
+                    if not prompt.get("id"):  # Discord: every prompt and option needs an id
+                        err = {
+                            "prompts": {
+                                str(n): {
+                                    "id": {
+                                        "_errors": [
+                                            {
+                                                "code": "BASE_TYPE_REQUIRED",
+                                                "message": "This field is required",
+                                            }
+                                        ]
+                                    }
+                                }
+                            }
+                        }
+                        return (
+                            400,
+                            {},
+                            json.dumps({"message": "Invalid Form Body", "errors": err}).encode(),
+                        )
                     for option in prompt["options"]:
-                        option.setdefault("id", self._new_id())
+                        assert option.get("id"), "option without an id"
                         assert "emoji" not in option, "emoji object sent back to Discord"
                 self.onboarding.update(data)
             return ok(self.onboarding)
@@ -713,6 +732,20 @@ def test_a_400_shows_which_field_discord_refused():
         assert err.status == 400 and TOKEN not in str(err)
     else:
         raise AssertionError("a 400 did not stop the run")
+
+
+def test_new_onboarding_prompts_and_options_get_ids_and_the_welcome_screen_is_not_rewritten():
+    a, b = setup.new_id(), setup.new_id()
+    assert a != b and a.isdigit() and int(a) > 1 << 40
+    fake = FakeDiscord()
+    structure(fake)
+    code, lines = community(fake)
+    assert code == 0, lines
+    (prompt,) = fake.onboarding["prompts"]
+    assert prompt["id"] and prompt["options"][0]["id"]
+    fake.calls.clear()
+    code, lines = community(fake)  # Discord's welcome screen reply has no "enabled" field
+    assert code == 0 and fake.writes() == [] and lines[-1].startswith("0 change(s)")
 
 
 def test_community_stops_on_a_discord_refusal_and_never_leaks_the_token():
