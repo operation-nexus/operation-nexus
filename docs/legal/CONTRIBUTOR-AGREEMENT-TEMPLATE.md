@@ -1,6 +1,6 @@
 # Contributor Agreement (template)
 
-Status: **DRAFT v1, not for use** (owner accepted decisions D1 to D12 on 2026-10-19; attorney review still pending) · Tracker: NX-347 · Decisions: Q-LEGAL-13 · Related: NX-289 (human voice lines), NX-319 (art plan), NX-348 (credits page)
+Status: **DRAFT v1.1, not for use** (owner accepted decisions D1 to D12 on 2026-10-19; attorney review still pending) · Tracker: NX-347 · Decisions: Q-LEGAL-13 · Related: NX-289 (human voice lines), NX-319 (art plan), NX-348 (credits page)
 
 > **This is a template written by a software assistant, not legal advice.** The owner decided the principles in Q-LEGAL-13 (2026-10-18); the wording is not reviewed by a lawyer. One narrow attorney review of this template is required **before the first paid use** (Q-LEGAL-13). Items in [BRACKETS] are blanks to fill per contributor. The drafting choices were accepted by the owner on 2026-10-19 (table at the end); the legal blanks still need the attorney. Nothing here is a promise to anyone until a signed copy exists. Signed copies and contributor details are kept in the private vault, never in this public repo.
 
@@ -42,6 +42,8 @@ The Contributor may show the Work in their own portfolio after it is released.
 ## 6. No AI training and no voice cloning
 The Project will not, and will not allow anyone else to, use the Work or any recording of the Contributor to train, fine-tune or evaluate any AI or machine-learning model, or to create a synthetic copy of the Contributor's voice, face or style. Any exception needs a separate signed agreement and separate payment. The Project's own use of AI voices and tools is separate and does not use the Work.
 
+**PROPOSED (v1.1, from the example research; for the attorney):** the Project also will not pass the Work or any recording to a third party for AI use (training, cloning or synthetic generation), will store recordings securely with access limited to the owner, and will not blend the Contributor's voice with other voices, real or synthetic, to create a new voice.
+
 ## 7. Credit
 - The Project credits the Contributor by their credit name on its credits page, in the stream's about section, and in the descriptions of videos that use the Work.
 - If the credit is missed, the Project fixes it within 14 days of being told.
@@ -52,6 +54,7 @@ The Project will not, and will not allow anyone else to, use the Work or any rec
 - It contains no third-party material (samples, stock, fonts, voices, likenesses) unless listed in writing with its licence.
 - **AI-generated content:** the Work contains none, and the Contributor does not use generative AI to produce it. If the Contributor wants to use AI tools, they ask first and the tool is named in writing.
 - The Contributor is at least 18 years old.
+- **PROPOSED (v1.1):** if something the Contributor promised in this section stops being true, they tell the Project promptly.
 - The Work does not use a real person's name, likeness or voice without permission, and follows the Project's content rules (a fictional world; no real people, organisations or brands; no hateful content).
 
 ## 9. Confidentiality

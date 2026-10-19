@@ -272,7 +272,8 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-349 | Draft account profile copy (bios, link-page text) for each brand account, in the vault; the owner approved all eight on 2026-10-18 and pasted seven into the profiles by hand on 2026-10-19; the link-page draft is held (see NX-351) (Q-MKT-14) | S | ✅ | NX-340 |
 | NX-351 | Link page for hiveplex.live: spec `docs/specs/PUBLIC-SITE.md` (Draft), then build under `apps/site/` and deploy to a free static host after the owner approves the spec; copy is the approved vault draft MKT-0008 with the Discord invite (Q-MKT-18) | S | 🟨 | NX-352 |
 | NX-352 | Placeholder logo and avatar: concepts, design brief and provenance record in the vault (AI-assisted placeholder, status `placeholder` per NX-318), then a human-made replacement when the budget allows (Q-MKT-18, Q-LEGAL-13) | S | 🟨 | — |
-| NX-353 | Discord server setup: blueprint in the vault, then an owner-run, idempotent setup script that never puts a bot token in a session or repo (Q-OPS-12) | M | ❓ | NX-352 |
+| NX-353 | Discord server setup: spec `docs/specs/DISCORD-SERVER-SETUP.md` (Draft) and the blueprint in the vault; no bot token in any session or repo (Q-OPS-12) | S | 🟨 | NX-352 |
+| NX-354 | Discord setup script `tools/discord-setup/`: stdlib only, dry run by default, idempotent, owner-run with a throwaway token; built only after the owner approves the DISCORD-SERVER-SETUP spec (Q-OPS-12) | M | ⬜ | NX-353 |
 | NX-350 | `meme-brief` skill (on demand): owner's weekly examples to source-dated format ideas and drafts, tests on its tier (Q-MKT-16) | S | 🟨 | NX-339 |
 
 ## Backlog (unscheduled — from owner's conversation & plans)
