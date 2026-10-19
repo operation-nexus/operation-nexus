@@ -9,7 +9,7 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 
 | Phase | Items | Done | Status |
 |---|---|---|---|
-| P0 Foundations | 42 | 16 | 🟨 |
+| P0 Foundations | 42 | 17 | 🟨 |
 | P1 Sim kernel | 26 | 0 | ⬜ |
 | P2 Closed alpha | 33 | 0 | ⬜ |
 | P3 Public beta | 22 | 0 | ⬜ |
@@ -29,9 +29,9 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-003 [#2](https://github.com/operation-nexus/operation-nexus/issues/2) | Owner reviews ADR-0001…0008 → Accepted/Amended | S | ✅ | NX-002 | ADR statuses updated |
 | NX-004 [#3](https://github.com/operation-nexus/operation-nexus/issues/3) | Owner drops reference files into `.agents/context/` + updates INDEX | S | ⬜ | — | INDEX lists files |
 | NX-005 [#4](https://github.com/operation-nexus/operation-nexus/issues/4) | Move `Raw-*.md` to `docs/source/` with a "not a spec" banner | S | ❓ | NX-002 | Links updated |
-| NX-006 [#5](https://github.com/operation-nexus/operation-nexus/issues/5) | Specs SIM-CORE, GAMEPLAY, FOG-OF-WAR, THREAT-DIRECTOR → Review → Approved | M | ⬜ | NX-002 | Owner sign-off |
+| NX-006 [#5](https://github.com/operation-nexus/operation-nexus/issues/5) | Specs SIM-CORE, GAMEPLAY, FOG-OF-WAR, THREAT-DIRECTOR → Review → Approved | M | 🟨 | NX-002 | Owner sign-off. FOG-OF-WAR and THREAT-DIRECTOR Approved; SIM-CORE and GAMEPLAY wait only on the NX-345 spike (Q-SIM-24, Q-GP-34) |
 | NX-007 [#6](https://github.com/operation-nexus/operation-nexus/issues/6) | Reference hardware spec documented (Q-OPS-1) | S | ❓ | — | `docs/ops/HARDWARE.md` |
-| NX-008 [#7](https://github.com/operation-nexus/operation-nexus/issues/7) | Hand-authored first theater map sketch (12 nodes, 8 strategic bases, roads, bridges; Q-TH-1..7) | M | ⬜ | Q-GD-9 | YAML in `content/theaters/strait-1.yaml` + SVG sketch in `docs/design/theater-1.svg` |
+| NX-008 [#7](https://github.com/operation-nexus/operation-nexus/issues/7) | Hand-authored first theater map sketch (12 nodes, 8 strategic bases, roads, bridges; Q-TH-1..7) | M | ✅ | Q-GD-9 | YAML in `content/theaters/strait-1.yaml` + SVG sketch in `docs/design/theater-1.svg` (PR #127) |
 | NX-009 | Decide: mirror tracker to GitHub Issues + Project board? | S | ✅ | — | Decision recorded |
 
 ### Repo & CI/CD (see `docs/cicd/CICD-ARCHITECTURE.md`)
@@ -266,7 +266,7 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-342 | Scheduled weekly drafting run (max 5 drafts, one vault PR, no platform credentials) and the weekly metrics note (Q-MKT-14, Q-AI-10) | S | ⬜ | NX-339 |
 | NX-343 | Service context pack: export of voice summary, `RELEASED` lore and campaign facts from the vault for read-only use by services; shared libraries and event feed (Q-OPS-11, BRAND-OPS §4.3) | M | ⬜ | NX-328, NX-338 |
 | NX-344 | Primary-source read of Reddit and Discord self-promotion and bot rules; record findings in `docs/review/` (Q-MKT-15). Partly done 2026-10-19 (`docs/review/PLATFORM-RULES-REDDIT-DISCORD-2026-10-19.md`): Reddit Content Policy and Data API Terms and Discord Community Guidelines read; Discord Developer Policy and Terms and Reddit's help articles still unread (HTTP 403: owner reads in a browser, or allowlist the hosts, Q-PROC-3) | S | 🟨 | — |
-| NX-345 | Meme desk: design with the owner (grill), then pilot as a content-time agent in the vault that proposes current meme and programmer-humor angles for owner-approved posts (Q-MKT-16) | M | ⬜ | NX-339 |
+| NX-361 | Meme desk: design with the owner (grill), then pilot as a content-time agent in the vault that proposes current meme and programmer-humor angles for owner-approved posts (Q-MKT-16) | M | ⬜ | NX-339 |
 | NX-346 | NULL meme-flavored template lines: mechanism decided (Q-MKT-17); implement with NX-326 and the no-real-world-references rule (Q-MKT-17) | S | ⬜ | NX-326 |
 | NX-347 | Contributor license template (draft v0 written 2026-10-19 in `docs/legal/CONTRIBUTOR-AGREEMENT-TEMPLATE.md`; owner decisions D1 to D12 and the attorney review remain) (flat fee, contributor keeps copyright, project license, no voice training or cloning, credit) and one narrow attorney review before the first paid use (Q-LEGAL-13; ties NX-289) | S | 🟨 | — |
 | NX-348 | Credits page on the site and in the stream's about section; alias and removal-on-request rules (Q-LEGAL-13) | S | ⬜ | — |
