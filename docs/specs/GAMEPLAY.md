@@ -8,7 +8,7 @@ All numbers below are **initial balance values** in `balance/default.yaml`. They
 
 **Timers (Q-CFG-8, Q-ALN-1, Q-ALN-4, Q-ALN-6, Q-ALN-23):** every duration in this spec runs on one of three clocks and is labeled with it:
 - **World time** (in the sim): ticks scaled by `sim.time_scale`. It drives movement, logistics and combat (§5, §6), capture progress and decay (§8), bridge repair (§5), and the fog-of-war refresh and track fade (FOG-OF-WAR).
-- **Game time** (in the sim): unscaled ticks, so 1 game minute = 1 real minute while the sim runs. It drives player-facing durations: decision window (§1b), Tasking Board claim lease and priority aging (TB-1, TB-3), idle handoff/retire (§4b), respawn delay (§4, Q-ALN-5), ability and command cooldowns, package fill wait (§7), objective period and victory/defeat hold (§9), campaign length, and the director's window, dwell, decay and Pattern of Life timers (THREAT-DIRECTOR TD-1).
+- **Game time** (in the sim): unscaled ticks, so 1 game minute = 1 real minute while the sim runs. It drives player-facing durations: Tasking Board claim lease and priority aging (TB-1, TB-3), idle handoff/retire (§4b), respawn delay (§4, Q-ALN-5), ability and command cooldowns, package fill wait (§7), objective period and victory/defeat hold (§9), campaign length, and the director's window, dwell, decay and Pattern of Life timers (THREAT-DIRECTOR TD-1).
 - **Real time** (outside the sim): a monotonic clock for chat rate limits and digest batching (CHAT-GATEWAY), and the taunt, GM auto-release, redemption and supply-drop limits (Q-ALN-4, THREAT-DIRECTOR, SUPPORT-REDEMPTIONS). These are enforced before anything enters the sim.
 
 World and game time are both deterministic and both freeze while the sim is paused; real time does not. Config keys use friendly units (s/min) and are converted to ticks at load, rounding **up** so a timer is never shorter than configured (Q-ALN-6).
@@ -19,7 +19,7 @@ World and game time are both deterministic and both freeze while the sim is paus
 
 ## 1. Core loop (what a viewer does in 30 s)
 1. Type `!join strike|recon|logi`. Within 500 ms (server side) a radar ping and their callsign appear at a base.
-2. The unit holds at base for a short **decision window**, then takes the best open job from the **Tasking Board** (§1b) if the operator gave no order. Assisting the current objective is one of those jobs, not an automatic route.
+2. With no parameters, the unit takes the best open job from the **Tasking Board** (§1b) at once; with a node it goes there; with `hold` it waits at base (Q-GP-23). Assisting the current objective is one of those jobs, not an automatic route.
 3. Optionally type `!target <node>`, `!rebase <node>` or `!rtb`.
 4. The unit completes or fails its mission, and the viewer sees a contribution line in the ticker.
 
@@ -42,13 +42,13 @@ Viewers see a generated callsign, not their username, so the game must connect "
 ## 1b. Tasking Board (owner decision 2026-10-17, Q-GD-26; decision-window length is a playtest value)
 A shared queue of **jobs** the system generates from the live situation, so every unit, human or AI, always has something useful to do:
 - **Job types (first build, Q-GP-5; rescue a downed crew joins with CSAR, GAMEPLAY-LATER §6a):** resupply a starving base, scout a sector or blob, escort a convoy, defend a threatened node, strike a target, repair a bridge, assist the current objective.
-- **Each job has:** a priority (from objective, threat and starvation level), the role(s) that fit, a **slot count** (how many units it needs), and an expiry.
+- **Each job has:** a priority (Q-GP-20: `tasking.priority.<job_type>` × an urgency multiplier of 1.0–2.0 from the triggering condition, such as the node's supply level, the threat or danger near it, or the objective flag, plus linear aging, TB-3; refined in playtests), the role(s) that fit, a **slot count** (how many units it needs), and an expiry.
 - **Assignment:** a unit with no explicit order takes the highest-priority open job matching its role. Slots prevent pile-ups: a job is skipped once its slots are full, unless *every* job is full.
 - **AI garrison** pulls from the same board, but only takes jobs no human has claimed, and releases them when an operator wants one. **The AI garrison never initiates offense**: it takes defend, resupply and scout jobs (rescue jobs join with CSAR, GAMEPLAY-LATER §6a), and joins strike jobs only when a player started them (objective; later also a rally call or player-led flight). **Sole exception (Q-GD-31):** it may counterattack a node the coalition just lost, within a configurable window (PROPOSED ~15 min), using only units still able to fight (not Disabled or Destroyed).
 - **Feasibility:** a unit only takes a job it can reach and complete with its current fuel and munitions. Otherwise it first takes a rearm/refuel step (nearest base with stock, Q-GD-17).
 - **Logistics routing:** a supply job sets the *destination*; the route is planned automatically along roads/sea lanes. Players can still override with `!target` or `!rebase`.
 - **Visible:** the overlay shows the top few open jobs ("NEEDED: supply to WEST FOB") so lurkers learn what matters, in the rotating HUD panel at double frequency (Q-UX-11, OVERLAY).
-- **Decision window (owner idea, playtest):** after `!join`, the unit **holds at base for a short window** (configurable, game time, Q-ALN-1; owner suggested up to ~5 min) waiting for an explicit order, then auto-takes a job. Any explicit order cancels auto-tasking. `!join <role> hold` opts out of auto-tasking entirely.
+- **Free movement and auto-tasking (Q-GP-19, Q-GP-23):** a player can always send their unit wherever they choose. Auto-tasking happens only when the command has no parameters: `!join <role>` takes the best matching job at once, with no hold at base. `!join <role> <node>` goes straight to that node and does not auto-task until that order completes. `!join <role> hold` waits at base until given an order. A player can redirect the unit en route with `!target`, `!rebase` or `!rtb`, within the command rate limit (CHAT-GATEWAY). Any explicit order cancels auto-tasking. There is no decision window.
 
 **Robustness (Q-GD-37).** These apply to both sides' boards:
 - **TB-1 Lifecycle:** a job moves OPEN → CLAIMED → ACTIVE → DONE | FAILED | EXPIRED. A claim is a **lease** (`tasking.claim_lease_s`, game time, Q-ALN-23): if the claiming unit makes no progress within the lease, the claim is released and the job returns to OPEN.
@@ -80,7 +80,7 @@ Rank ids `O-1`…`O-6` are **internal ids** used in config and contracts. On str
 
 | Command | Args | Min rank | Notes |
 |---|---|---|---|
-| `!join <role> [hold]` | role, optional `hold` | O-1 | Spawns your one unit, or switches role if your unit is at base. `hold` opts out of Tasking Board auto-tasking (§1b) |
+| `!join <role> [<node>\|hold]` | role, then an optional node or `hold` | O-1 | Spawns your one unit, or switches role if your unit is at base. `hold` opts out of Tasking Board auto-tasking (§1b) |
 | `!target <node>` | node name/alias (fuzzy match against a fixed list) | O-1 | Sets your unit's objective |
 | `!rtb` | — | O-1 | Return to the nearest friendly base |
 | `!rebase <node>` | friendly node | O-1 | Move your unit to another friendly base and stay there to refuel/rearm/stage (e.g. move a plane forward before an attack). Uses that base's stock. The Static does the same (THREAT-DIRECTOR §5a). |
@@ -113,6 +113,7 @@ Chat gives no presence signal, so silence is measured as time since the commande
 - **Starvation:** below `logistics.starve_threshold` (PROPOSED 25%) units spawn with reduced loadouts (50% fuel, guns only, with the gun round count also drawn from stock). At 0, the node can't rearm.
 - **Munitions per sortie (Q-CBT-7):** every unit leaves with a limited load drawn from base stock. **Guns are limited too** (high round count); rounds used are charged to base stock on resupply. Out of missiles/bombs → auto-RTB unless stance `press` or `guns` (§6 Stance; the first build runs every unit as `standard`, and `!stance` is in GAMEPLAY-LATER §3). **Unlimited ammo** is a campaign/test option (testing, special events) set at campaign setup by the owner or an Admin only, never by a GM and never live mid-war (Q-ALN-10).
 - **Repairs (Q-GD-27):** repair happens at a friendly base with stock, for **all domains** (aircraft at airbases, ground vehicles at bases/depots, ships at ports). It costs time and stock and is faster at bigger or upgraded bases. Engineers field-repair disabled vehicles. Same rules for the Static (parity).
+- **Supply moves only on trucks (Q-GP-16):** stock moves between nodes only as `cargo` on logistics trucks, which load at a source node, drive the road graph and unload at the destination. There is no passive trickle along connected roads. The AI garrison takes `resupply` jobs (§1b), so a 0-viewer war runs a slow convoy cadence instead of starving.
 - Logi trucks carry `cargo`, drive the road graph (A* over ROAD edges, cost = length / speed_mult), and unload over time at the destination.
 - **Bridges** are nodes with HP. A destroyed bridge removes its edge until it is repaired (Q-GD-11): **logistics trucks** can do a slow field repair (`logistics.bridge_repair_time_s` × `logistics.truck_bridge_repair_mult`), and **engineers** repair fast (building new crossings moved to [GAMEPLAY-LATER](GAMEPLAY-LATER.md) under "Moved from the first-build review", Q-GP-9).
 - Units heal and rearm **only while landed or parked at a friendly node**, by spending stock. They never heal passively (fixes the immortality bug).
@@ -162,6 +163,7 @@ Moved to [GAMEPLAY-LATER](GAMEPLAY-LATER.md) §7.
   - `off`: sandbox/creative, no system objectives.
 
   The owner and Admins can also set objectives; a GM cannot (Q-ALN-10). Whenever an objective exists it is visible on screen.
+- **Strategic nodes (Q-GP-17):** AIRBASE, FOB, PORT and FACTORY nodes count toward the hold fractions below. RADAR and BRIDGE sites and the SANCTUARY do not; the enemy HQ is its own win route.
 - **Victory (Domination):** hold ≥ `campaign.victory_node_frac` (PROPOSED 0.80) of strategic nodes for `campaign.victory_hold_min` (PROPOSED 30 min, game time) continuously, **or** capture the enemy HQ. The rubber-band zone is tuned to 55–75% so that victory sits beyond it.
 - **Defeat (Q-GD-7):** the coalition loses its forward airbase **and** holds ≤ 25% of strategic nodes for 30 min (game time) continuously. The sanctuary base can never be captured.
 - **Campaign clock:** 48 h target (game time, Q-ALN-1; admin-adjustable, schedulable per campaign, Q-GD-5). It **never pauses for lack of humans** (Q-GD-4 amended): at 0 humans the Static drops to Pattern of Life (THREAT-DIRECTOR §5a). Only a sim pause with a reason stops the clock: a staff pause (ADMIN-RBAC pause flow), the auto-pause when the broadcast has been offline longer than `ops.offline_pause_after_min` (reason TECHNICAL, Q-OPS-8), the weekly maintenance window, or the owner's Ceasefire mode (Q-OPS-9); pause reasons are STAFF, TECHNICAL, MAINTENANCE and CEASEFIRE (Q-ALN-3), and a STAFF pause may carry a sub-reason (RAID, ABUSE, CONTENT, OTHER; Q-ALN-31). Timers on both sim clocks freeze with it (Q-CFG-8, Q-ALN-2).
@@ -171,7 +173,7 @@ Moved to [GAMEPLAY-LATER](GAMEPLAY-LATER.md) §7.
 
 ## 9a. Theater style and orientation (owner, 2026-10-17)
 - **Theater variety** is a design goal; the archetype rotation moved to [GAMEPLAY-LATER](GAMEPLAY-LATER.md) §9a.
-- **Theater #1 (Q-GD-33):** a land-leaning map with a bridged strait, so the water theme works before naval units arrive (P3).
+- **Theater #1 (Q-GD-33, Q-GP-22):** small, about 8 bases (3 coalition, 3 Static, 2 contested; a sketch for the NX-008 sign-off). Later theaters in the rotation are larger (12–20 bases). A map that grows inside one campaign is parked in GAMEPLAY-LATER. It is a land-leaning map with a bridged strait, so the water theme works before naval units arrive (P3).
 - **Orientation:** the coalition (chat) is always on the **left (west)**, the enemy on the **right (east)**, and the main axis of advance runs left → right. Theater files must declare `orientation: west_to_east`, and the theater validator rejects maps whose sanctuary isn't in the left third. For the vertical 9:16 layout, see Q-GD-13.
 - **Urban terrain** rules (NX-129) moved to [GAMEPLAY-LATER](GAMEPLAY-LATER.md) §9a.
 

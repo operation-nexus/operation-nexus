@@ -41,7 +41,7 @@ stateDiagram-v2
     Reserve --> [*]: commander leaves queue / banned / forgotten
     Spawning --> Holding: placed at base, no explicit order (loadout by node stock)
     Spawning --> EnRoute: placed at base with an explicit order
-    Holding --> EnRoute: explicit order, or decision window elapsed and a feasible Tasking Board job taken
+    Holding --> EnRoute: explicit order, or (not `hold`) a feasible Tasking Board job taken
     Holding --> Landed: joined with hold (no auto-tasking)
     Holding --> RTB: idle retire
     EnRoute --> OnStation: reached job / target area
@@ -90,9 +90,9 @@ stateDiagram-v2
 | — | `JOIN` while `slots.respawn_delay_s` hasn't elapsed | Emit `CommandRejected{reason: RESPAWN_COOLDOWN}` | (no unit) |
 | Reserve | Slot frees and the campaign is Running (a paused campaign spawns nothing, §4.4) | Pop the head of the FIFO and spawn as above | Spawning |
 | Spawning | Same tick, after placement, explicit order present (a stance alone is not an order) | Path to the order target | EnRoute |
-| Spawning | Same tick, after placement, no explicit order | Start the decision window (`tasking.decision_window_s`, GAMEPLAY §1b, Q-GD-26) | Holding |
+| Spawning | Same tick, after placement | `JOIN` with a node: path to it (EnRoute). With `hold`, or with no parameters (auto-tasking runs from Holding at once, Q-GP-23): Holding | Holding or EnRoute |
 | Holding | Explicit order (`TARGET`, `REBASE`; `VECTOR` and `RESCUE` come later) | Path to the order | EnRoute |
-| Holding | Decision window elapsed, and a Tasking Board job matches the role, has a free slot and is **feasible with current fuel and munitions** | Claim the job slot, path to it. If no job is feasible, take a rearm/refuel step first (nearest base with stock). | EnRoute |
+| Holding | Not `hold`, and a Tasking Board job matches the role, has a free slot and is **feasible with current fuel and munitions** | Claim the job slot, path to it. If no job is feasible, take a rearm/refuel step first (nearest base with stock). | EnRoute |
 | Holding | `JOIN … hold` was used | Never auto-task; wait for an explicit order | Landed |
 | EnRoute | Inside the job / target radius | — | OnStation |
 | OnStation | Valid target in range (GAMEPLAY §6 priority) | Assign target | Engaging |
@@ -635,7 +635,7 @@ These decisions (2026-10-17 and 2026-10-18) are folded into the tables above:
 - **Q-GD-7:** defeat = forward airbase lost and ≤ 25% of nodes held for 30 min; the sanctuary is uncapturable (§4.2 N-4, §4.4).
 - **Q-GD-8:** sea domain in **P3** (§4.1 notes).
 - **Q-GD-11:** trucks do slow field repair; engineers repair fast and build (§4.3).
-- **Q-GD-19 / Q-GD-26 / Q-CBT-1/6/7 / Q-GD-27:** objective modes (§4.5), Tasking Board and decision window, damage states, stance, munitions and repair (§4.1).
+- **Q-GD-19 / Q-GD-26 / Q-CBT-1/6/7 / Q-GD-27:** objective modes (§4.5), Tasking Board and auto-tasking (Q-GP-23), damage states, stance, munitions and repair (§4.1).
 - **Q-MOD-1 / Q-MOD-2 / Q-SM-3:** generated callsigns; custom callsigns after the first completed mission (Q-PROG-3), automated moderation with a review queue, and manual owner approval during alpha (§4.7).
 - **Q-SM-1:** objective selection uses its own `objective` RNG stream (SIM-CORE SC-5).
 - **Q-SM-4:** rotate theater archetypes with no back-to-back repeats; reuse the first theater with a new seed until more exist; admins can override via scheduling.

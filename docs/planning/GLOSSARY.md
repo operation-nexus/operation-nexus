@@ -72,7 +72,7 @@ terms still waiting for an owner ruling.
 |---|---|
 | Tick | One 100 ms simulation step |
 | World time | Sim time scaled by `sim.time_scale`; drives movement, logistics, combat, capture and fog-of-war timers (GAMEPLAY timers, Q-ALN-1, Q-ALN-23) |
-| Game time | Unscaled sim ticks (1 game minute = 1 real minute while running); drives player-facing durations such as idle handoff, cooldowns, respawn, decision windows and campaign length (Q-ALN-1) |
+| Game time | Unscaled sim ticks (1 game minute = 1 real minute while running); drives player-facing durations such as idle handoff, cooldowns, respawn and campaign length (Q-ALN-1) |
 | Real time | A monotonic clock outside the sim for chat rate limits, digests, taunt, GM, redemption and supply-drop limits; keeps running while the sim is paused (Q-ALN-4) |
 | Pause | A sim stop with a reason; it freezes world and game time. Only commands that don't change the world, and staff safety actions, work while paused (Q-ALN-2, Q-ALN-24) |
 | Pause category | Why the sim is paused: STAFF (manual, with an optional sub-reason RAID / ABUSE / CONTENT / OTHER), TECHNICAL (offline auto-pause), MAINTENANCE (weekly window) or CEASEFIRE (Q-ALN-3, Q-ALN-31) |

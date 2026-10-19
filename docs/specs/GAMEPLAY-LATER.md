@@ -53,3 +53,7 @@ Text as it stood in GAMEPLAY before the move. Wire-level fallout was removed fro
 
 - **Stalemate (Q-GD-29, moved):** if the two sides' scores are within a draw band (PROPOSED ~5%), the war ends in a Stalemate with its own end screen, no carry-over bonus, an optional configured special event and template banter from the Static mastermind.
 - **Engineer crossings (Q-GD-21, moved):** engineers can build short new crossings.
+
+## Future candidates (tracked, not designed)
+- **Map that grows inside a campaign (Q-GP-22):** the playable area starts as a small sector and new sectors unlock as the coalition pushes. Only if feedback is overwhelming.
+- **More facility kinds (Q-GP-21):** facilities attach to bases, so new kinds can be added over time, such as missile-interception defense systems. These pair with projectiles as entities (Q-GP-7 option C).

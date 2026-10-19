@@ -152,7 +152,7 @@ Text shown on stream additionally requires `ModeratedText`, a SafeText already a
 
 | CommandKind | From chat text | Payload fields | Who / gate | Possible rejects |
 |---|---|---|---|---|
-| `JOIN` | `!join <role> [hold]` | `role: Role` (`NAVY` in P3), `hold: bool` (opt out of Tasking Board auto-tasking, GAMEPLAY §1b) | CHAT, O-1. With a live AUTO unit: reclaims it (Q-ALN-9). | `ROLE_UNKNOWN`, `UNIT_IN_SORTIE`, `RESPAWN_COOLDOWN`, `QUEUED_RESERVE` (not an error: emits `ReserveQueueJoined`), `CAMPAIGN_NOT_RUNNING`, `SPAWNS_FROZEN` |
+| `JOIN` | `!join <role> [<node>\|hold]` | `role: Role` (`NAVY` in P3), `target_node: NodeId\|null` (resolved like `TARGET`; null = auto-task at once, Q-GP-23), `hold: bool` (never true together with `target_node`) (opt out of Tasking Board auto-tasking, GAMEPLAY §1b) | CHAT, O-1. With a live AUTO unit: reclaims it (Q-ALN-9). | `ROLE_UNKNOWN`, `UNIT_IN_SORTIE`, `RESPAWN_COOLDOWN`, `QUEUED_RESERVE` (not an error: emits `ReserveQueueJoined`), `CAMPAIGN_NOT_RUNNING`, `SPAWNS_FROZEN` |
 | `TARGET` | `!target <node>` | `node_id: NodeId` (resolved by fuzzy match against the fixed node-name list *before* the command is built) | CHAT, O-1 | `NO_ACTIVE_UNIT`, `NODE_UNKNOWN`, `NODE_INVALID_FOR_UNIT` |
 | `RTB` | `!rtb` | — | CHAT, O-1 | `NO_ACTIVE_UNIT`, `NO_FRIENDLY_BASE_REACHABLE` |
 | `ME` | `!me`, `!status` (alias) | — | CHAT, O-1. Highlights the unit; the digest repeats callsign, status, cooldowns, queue position and the commander's own conduct standing (FB-UX-3, Q-MOD-5). Works while queued and while paused. `!status` is a pure alias: the parser maps it to `ME` with identical behavior; there is no separate `STATUS` kind (Q-UX-12). | `NO_ACTIVE_UNIT` (only when neither a unit nor a queue entry exists) |

@@ -13,3 +13,6 @@ Things the specs deliberately simplified or set to PROPOSED values, to re-check 
 | Damage-state thresholds | Damaged < 70%, Mission-kill < 35%, Disabled < 10% of hp | Units spend too long or too little time in a state | Q-GP-8 |
 | No Stalemate | Time limit gives a score winner; only an exact tie is a draw | Wars end in meaningless narrow wins | Q-GP-10 |
 | Plain FIFO queue | No first-timer boost, no queued `!scout` | First-time viewers bounce from long queues | Q-GP-9 |
+| AI resupply cadence | Trucks only; the AI garrison runs resupply jobs at 0 viewers | The idle war starves to a halt, or AI convoys make humans unnecessary | Q-GP-16 |
+| Job priority | Flat table per job type × urgency (supply, danger, objective) + aging | NEEDED list looks wrong to viewers, or units pile onto one job | Q-GP-20 |
+| Auto-tasking on `!join` | No parameters = take a job at once; a node = go there; `hold` = wait | New viewers don't realise they can choose a target | Q-GP-23 |
