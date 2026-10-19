@@ -278,6 +278,7 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-355 | Make docs easy to find: a "Find it fast" task table in the root README and in the vault README, and bring `docs/README.md` back to listing every file under `docs/` (owner request 2026-10-19) | S | ✅ | — |
 | NX-356 | Review marketing drafts by PR comment in the vault: the owner comments `/approve` or `/reject <id> <reason>`; a workflow records status and date, runs the checks and merges (Q-MKT-19). Merge of the vault PR and a first live test are open (#115) | S | 🟨 | NX-342 |
 | NX-357 | Link page follow-ups: `www` certificate, link previews on Discord and Bluesky, Instagram and Reddit links opened by hand (#116) | S | ⬜ | NX-351 |
+| NX-358 | Daily owner check: a scheduled session (about 8 AM US Eastern) reads new owner comments and assignments in the public repo and the vault, acts on small asks through a PR, and reports on issue #119; it never merges, approves or posts to a platform. First run 2026-10-20 still to be checked (#119) | S | 🟨 | NX-356 |
 | NX-350 | `meme-brief` skill (on demand): owner's weekly examples to source-dated format ideas and drafts, tests on its tier (Q-MKT-16) | S | 🟨 | NX-339 |
 
 ## Backlog (unscheduled — from owner's conversation & plans)
