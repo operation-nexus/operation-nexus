@@ -1,6 +1,6 @@
 # SPEC: Fog of War
 
-Status: Draft · Tracker: NX-150…NX-154 · Inputs: P228–238; owner rule C22 ("AI should only know what it can see")
+Status: Approved (owner, 2026-10-19) · Tracker: NX-150…NX-154 · Inputs: P228–238; owner rule C22 ("AI should only know what it can see")
 
 ## 1. Tiers (coalition perspective)
 | Tier | Condition | Shown to viewers |
@@ -53,4 +53,4 @@ Status: Draft · Tracker: NX-150…NX-154 · Inputs: P228–238; owner rule C22 
 
 ## 4. Open questions
 Decided and folded in: Q-GD-16 (track fade, target handoff), Q-GD-34, Q-GD-37, Q-PROD-8, Q-ARCH-16, Q-CFG-8, Q-ALN-20 (FOW-6 later behind a flag), Q-ALN-21 (post-campaign archive exempt from FOW-1), Q-ALN-23 (Tier 1 refresh and track fade on world time, FOW-5, FOW-9), Q-ALN-38 (Tier 1 refresh re-expressed as ~48–60 s world, PROPOSED, FOW-5). Nothing is open here.
-Decided in the 2026-10-19 grilling: Q-FOW-1 (minimal last-known tracks on in the first build, FOW-6a), Q-FOW-2 (deterministic detection), Q-FOW-3 (terrain masking by `masking_regions`), Q-FOW-4 (engage tracked targets only), Q-FOW-5 (no blob jitter, no `fow` stream), Q-FOW-6 (painted is a flag; Tier 2 every 5 ticks unless cheap), Q-FOW-7 (SIGINT only for moving or emitting groups near radar sites), Q-FOW-8 (emitters, FOW-11; revised by Q-FOW-12/15), Q-FOW-9 (spotted flag, FOW-12), Q-FOW-10 (emission control), Q-FOW-11 (approved after a reviewer pass), Q-FOW-12 and Q-FOW-15 (facility discovery, FOW-13), Q-FOW-13 (blink asymmetry), Q-FOW-14 (coalition power from tracks), Q-FOW-16 (track quality at impact).
+Decided in the 2026-10-19 grilling: Q-FOW-1 (minimal last-known tracks on in the first build, FOW-6a), Q-FOW-2 (deterministic detection), Q-FOW-3 (terrain masking by `masking_regions`), Q-FOW-4 (engage tracked targets only), Q-FOW-5 (no blob jitter, no `fow` stream), Q-FOW-6 (painted is a flag; Tier 2 every 5 ticks unless cheap), Q-FOW-7 (SIGINT only for moving or emitting groups near radar sites), Q-FOW-8 (emitters, FOW-11; revised by Q-FOW-12/15), Q-FOW-9 (spotted flag, FOW-12), Q-FOW-10 (emission control), Q-FOW-11 (approved after a reviewer pass), Q-FOW-12 and Q-FOW-15 (facility discovery, FOW-13), Q-FOW-13 (blink asymmetry), Q-FOW-14 (coalition power from tracks), Q-FOW-16 (track quality at impact), Q-FOW-17 (INTEL adaptation lines at sector level only).

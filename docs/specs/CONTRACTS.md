@@ -215,7 +215,7 @@ Every value listed in §5.2, plus `CAMPAIGN_PAUSED` (a world-changing chat comma
 | `ObjectiveResolved` | `objective_id`, `outcome: COMPLETED\|EXPIRED`, `participant_commander_ids[]` | none | B P A |
 | `ThreatTierChanged` | `from`, `to`, `cp_smoothed` | `cp_smoothed` omitted (proposed) | B A O |
 | `DirectorOperationLaunched` | `operation_kind`, `op_name: ModeratedText\|null`, `target_node_id\|null`, `source: RULES\|ADVISOR` | Public view gets only `op_name` and only if the op is a named theater offensive (CHARLIE). Otherwise dropped. | B A O |
-| `ThreatAdaptation` | `category: CONVOY_ESCORT\|IADS_REINFORCED\|…`, `sector_id`, `direction: UP\|DOWN` | Public sees the INTEL line (THREAT-DIRECTOR §4.5) | B A O |
+| `ThreatAdaptation` | `category: CONVOY_ESCORT\|IADS_REINFORCED\|…`, `sector_id`, `direction: UP\|DOWN` | Public sees the INTEL line (THREAT-DIRECTOR §4.5) at sector level only: it never names a site and never updates a facility marker (Q-FOW-17) | B A O |
 | `CommandRejected` | `arrival_seq`, `kind`, `reason: RejectReason`, `commander_id\|null` | Not public. Aggregated digest only. | O, gateway digest |
 | `CommandApplied` | `arrival_seq`, `kind`, `commander_id\|null` | Public ack ping only for `JOIN`/`TARGET` (OV-5) | B O |
 | `ReserveQueueJoined` / `Left` | `commander_id`, `position`, `reason: SLOT_FREED\|LEFT\|TIMEOUT` | Public: queue length only | B O |
