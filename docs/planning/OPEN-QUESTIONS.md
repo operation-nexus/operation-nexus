@@ -467,3 +467,5 @@ Owner decisions from the FOG-OF-WAR grill session, after a ponytail pass.
 | Q-FOW-7 | Where SIGINT blobs come from | Only groups that are moving or emitting, within `fow.sigint_range_mult` × a friendly radar site's range; parked silent units leave no blob. Same rule for the director's view. | P1 | ✅ 2026-10-19 |
 | Q-FOW-8 | Emitting radars | Whether a radar or air-defense site is emitting is visible to the other side whenever it emits; dark = unknown. Owner asked who controls emission (Q-FOW-10). | P1 | ✅ 2026-10-19 |
 | Q-FOW-9 | Spotted indicator | Own units show `spotted` while any enemy sensor tracks them. | P1 | ✅ 2026-10-19 |
+| Q-FOW-10 | Who switches emission | Sites emit by default. The director blinks Static sites through `DecoyBlink`; coalition sites stay on in the first build. A self-protection rule and a possible player command come with SEAD (GAMEPLAY-LATER). | P1 | ✅ 2026-10-19 |
+| Q-FOW-11 | FOG-OF-WAR status | Reviewer pass, then Approved (owner); it does not wait for NX-008 or NX-345, whose only effect here is the update cadence fallback. | P1 | ✅ 2026-10-19 |
