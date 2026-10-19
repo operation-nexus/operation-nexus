@@ -498,3 +498,16 @@ Owner decisions from the THREAT-DIRECTOR grill session, after a ponytail pass.
 | Q-TD-13 | Enemy roster for scouting and strikes | Add ENEMY_STRIKE_FIGHTER and ENEMY_RECON_UAV mirroring the coalition's Striker and Scout, stats TBD (extends Q-CT-5). | P1 | ✅ 2026-10-19 |
 | Q-TD-14 | Who uses CAPTURE jobs | Static board only in the first build; coalition captures stay player-driven (asymmetry in GAMEPLAY §0). | P1 | ✅ 2026-10-19 |
 | Q-TD-15 | GM rules alignment | No fog lift for a GM; only the audited `override_budget`; ASSIST = inject or veto while rules run; FULL rejected until it ships. | P1 | ✅ 2026-10-19 |
+
+## Theater #1 sketch (NX-008, 2026-10-19)
+
+Owner decisions from the theater #1 sketch session.
+
+| ID | Question | Decision | Priority | Status |
+|---|---|---|---|---|
+| Q-TH-1 | Layout | Bridged strait running north–south through the middle; three lanes and sectors (NORTH, CENTRE air-only, SOUTH); coalition west with sanctuary, west airbase and two FOBs; two contested bridgeheads on the east bank; Static east with east airbase, two FOBs and HQ; ~400 × 240 km; 12 nodes, 8 of them strategic bases. Supersedes the tracker's "≈15 nodes". | P1 | ✅ 2026-10-19 |
+| Q-TH-2 | Forward airbase | A `forward_airbase` theater field names it (`west-airbase` here), the same base the idle floor protects. Owner: losing the sanctuary, or it taking enough damage, would matter more as a loss condition; open as Q-TH-7. | P1 | ✅ 2026-10-19 |
+| Q-TH-3 | Ports | None in theater #1 (no navy until P3); the strait is scenery plus two bridges. | P1 | ✅ 2026-10-19 |
+| Q-TH-4 | Heightmap | Optional in the first build; theater #1 ships masking regions (northern hills across the strait, southern valley on the east side). Owner: a heightmap will still be needed later. | P1 | ✅ 2026-10-19 |
+| Q-TH-5 | Facilities | Mirrored: each main airbase gets a radar and an air-defense site, each FOB an air-defense site; the Static also has a radar at its HQ. Static garrison quotas PROPOSED: airbase 6, FOB 4, HQ 8. No facilities at the contested bridgeheads. | P1 | ✅ 2026-10-19 |
+| Q-TH-6 | Names and files | Plain working names (brand pass later); `content/theaters/strait-1.yaml`; sketch `docs/design/theater-1.svg`; tracker row corrected. | P1 | ✅ 2026-10-19 |
