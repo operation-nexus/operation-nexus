@@ -306,7 +306,7 @@ units:
     alt_bands: [LOW, MED]     # AIR only
     hp: <int>
     fuel_s: <float|null>      # endurance in world s (CFG-9); null = not modeled (STATIC/GROUND for MVP)
-    sensor: { radius_m: <float> }   # first build: one range for all targets; per-band ranges later. Masking is a property of the target's area (masking_regions, Q-FOW-3)
+    sensor: { radius_m: <float>, passive_range_m: <float|null> }   # passive_range_m: detects emitting sites (recon units, radar sites; AWACS later), FOG-OF-WAR FOW-13   # first build: one range for all targets; per-band ranges later. Masking is a property of the target's area (masking_regions, Q-FOW-3)
     weapons: [<weapon_id>]    # refs §7.2; [] = unarmed
     cargo: <int|null>         # stock units; null = cannot carry
     can_capture: <bool>
