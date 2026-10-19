@@ -62,7 +62,7 @@ terms still waiting for an owner ruling.
 | Momentum | 0–100% indicator of who's winning, derived from nodes, stock and recent events |
 | Theater objective | The system-picked goal shown on screen. Mode per campaign: `timed` (rotating, default 15 min) or `off` (Q-GD-19) |
 | SIGINT blob | Fuzzy Tier-1 fog-of-war indication of unseen enemy activity |
-| Track / Painted | Tier-2 / Tier-3 fog-of-war states |
+| Track / Painted | Track: an enemy inside a friendly sensor (fog-of-war Tier 2). Painted: a flag on a track while a recon unit paints it (Q-FOW-6) |
 | Sitrep | An automated radio situation report |
 | HUD tiers | Always on (momentum, objective, threat, how-to-play strip); interrupt toasts (rally calls, mastermind taunts, major alerts); one rotating panel for the rest (Q-UX-11) |
 | Spotlight operator | An operator with recent hero events or high recent action, who may be named in taunts more often (THREAT-DIRECTOR TD-4) |

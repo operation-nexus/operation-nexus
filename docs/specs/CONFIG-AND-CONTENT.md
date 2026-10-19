@@ -126,7 +126,11 @@ Legend: **HR** = hot-reloadable (§5). "TBD" = TBD by harness. **Source** = the 
 | `sim.max_entities` | int | count | 1000 | SIM-CORE SC-10 | No |
 | `fow.track_fade_s` | float | s (world) | TBD (PROPOSED) | FOG-OF-WAR FOW-6a, Q-FOW-1 | No |
 | `fow.track_every_ticks` | int | ticks | 5 (PROPOSED) | FOG-OF-WAR FOW-5, Q-FOW-6 | No |
-| `fow.sigint_range_mult` | float | × a radar site's range | TBD (PROPOSED) | FOG-OF-WAR Tier 1, Q-FOW-7 | No |
+| `fow.sigint_range_mult` | float | × a radar site's `sensor.radius_m` | TBD (PROPOSED) | FOG-OF-WAR Tier 1, Q-FOW-7 | No |
+| `fow.sigint_refresh_s` | float | s (world) | 48–60 (PROPOSED, Q-ALN-38) | FOG-OF-WAR FOW-5, FOW-9 | No |
+| `fow.sigint_cell_m` | int | m | 10000 (PROPOSED) | FOG-OF-WAR Tier 1 | No |
+| `fow.paint_range_m` | float | m | TBD (PROPOSED) | FOG-OF-WAR Tier 2 painted flag | No |
+| `director.decoy_blink.dark_s` | float | s (world) | TBD (PROPOSED) | FOG-OF-WAR FOW-11, Q-FOW-10 | No |
 
 ### 6.2 Slots, respawn, reserve
 | Key | Type | Unit | PROPOSED | Source | HR |
@@ -163,7 +167,6 @@ Legend: **HR** = hot-reloadable (§5). "TBD" = TBD by harness. **Source** = the 
 ### 6.4 Combat
 | Key | Type | Unit | PROPOSED | Source | HR |
 |---|---|---|---|---|---|
-| `combat.track_quality.blob` | float | multiplier | 0.2 (unused until area weapons; Q-FOW-4) | GAMEPLAY §6 | No |
 | `combat.track_quality.track` | float | multiplier | 1.0 | GAMEPLAY §6 | No |
 | `combat.track_quality.painted` | float | multiplier | 1.25 | GAMEPLAY §6 | No |
 | `combat.jammer_pk_mult` | float | multiplier | TBD | GAMEPLAY §6 | No |
@@ -303,7 +306,7 @@ units:
     alt_bands: [LOW, MED]     # AIR only
     hp: <int>
     fuel_s: <float|null>      # endurance in world s (CFG-9); null = not modeled (STATIC/GROUND for MVP)
-    sensor: { radius_m: <float>, masking: <bool> }
+    sensor: { radius_m: <float> }   # first build: one range for all targets; per-band ranges later. Masking is a property of the target's area (masking_regions, Q-FOW-3)
     weapons: [<weapon_id>]    # refs §7.2; [] = unarmed
     cargo: <int|null>         # stock units; null = cannot carry
     can_capture: <bool>
@@ -392,7 +395,7 @@ doctrines:
 | `name` | string | Display name; moderation-checked (CFG-8) |
 | `version` | semver | §4.4 |
 | `bounds_m` | `{w, h}` | Map extent in metres (SIM-CORE §4: ~400×240 km for the first theater) |
-| `terrain` | object | `heightmap: <path to 16-bit PNG>`, `height_scale_m`, `sea_level_m`; **or** `contours: <path to GeoJSON-like polylines>`. `masking_regions`: polygons where NOE/LOW aircraft and ground units are masked from sensors outside the region, rasterized to grid cells at load (FOG-OF-WAR Tier 2, Q-FOW-3) |
+| `terrain` | object | `heightmap: <path to 16-bit PNG>`, `height_scale_m`, `sea_level_m`; **or** `contours: <path to GeoJSON-like polylines>`. `masking_regions`: polygons where NOE/LOW aircraft and ground units are masked from sensors outside the region, rasterized at load to the spatial grid's cells (cell centre in polygon, integer metres; the theater file is in the config hash; FOG-OF-WAR Tier 2, Q-FOW-3) |
 | `sectors` | list | `{id, name, polygon}`; non-overlapping; union covers the map |
 | `nodes` | list | `{id, name, kind, pos: [x_m, y_m], start_owner, start_stock, sector}` |
 | `edges` | list | `{a, b, layer: ROAD\|SEA_LANE, speed_mult, bridge?: <node id of kind BRIDGE>}` |
@@ -538,6 +541,6 @@ A PR without a harness run fails the `balance-report` check. A change that touch
 - Decided and folded in (spec-alignment batch 2, 2026-10-18): Q-ALN-18 (Top Commanders in `hud.rotation.panels`), Q-ALN-22 (GMs draft rank/XP presets; Owner/Admin approve and apply, §5a), Q-ALN-23 (clocks for the capture, Tasking Board, night-progress and Threat Director keys in §6 and for the FoW timers, CFG-9), Q-ALN-24 (a reload requested while paused is deferred until resume, §5).
 - Decided and folded in (spec-alignment batch 3, 2026-10-18): Q-ALN-35 (CHARLIE warning lead time is game time, CFG-9), Q-ALN-38 (Tier 1 FoW refresh re-expressed in world time, CFG-9), Q-ALN-42 (harness crowd profiles, header note).
 - Still open:
-  - The FoW timers (the Tier 1 sensor refresh, PROPOSED ~48–60 s world per Q-ALN-38, and `fow.track_fade_s`, FOG-OF-WAR FOW-6, FOW-9), the package fill wait (GAMEPLAY §7) and the CHARLIE warning lead time (THREAT-DIRECTOR §3, PROPOSED ~10 min game, Q-ALN-35) now have a clock (CFG-9) but no row in §6; their keys, values and HR status are added when those features are specified.
+  - The package fill wait (GAMEPLAY §7) and the CHARLIE warning lead time (THREAT-DIRECTOR §3, PROPOSED ~10 min game, Q-ALN-35) now have a clock (CFG-9) but no row in §6; their keys, values and HR status are added when those features are specified.
   - Weight of Top Commanders in `hud.rotation.panels` (§6.9).
   - The exact maintenance start time and the `overlay.broadcast_tz` value (owner).

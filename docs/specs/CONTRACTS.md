@@ -50,7 +50,7 @@ contracts/
 | `EdgeId` | `<node_a>~<node_b>~<layer>`, with node ids sorted | Derived and deterministic |
 | `CampaignId` | UUIDv7 string | |
 | `PackageId` | integer ≥ 1 | Per campaign |
-| `BlobId` | opaque string, 16 hex chars | Re-rolled on each SIGINT refresh, never derivable from an EntityId (FOW-2) |
+| `BlobId` | string `<refresh_tick>-<cell_index>` | Deterministic, no RNG, never derived from an EntityId (FOW-2, Q-FOW-5) |
 | `CommandSeq` | integer ≥ 1 | Arrival order, assigned by the runtime inbox. Monotonic per campaign, never reused. Always carried in a field named `arrival_seq`. |
 | `Tick` | integer ≥ 0 | 10 Hz game time; world time is derived via `sim.time_scale` (SC-2, Q-ALN-1) |
 | `Callsign` | `^[A-Z][A-Z0-9-]{2,11}$` | Generated (`WORD-NN`) or approved custom (IDENTITY §2–3) |
@@ -72,7 +72,6 @@ contracts/
 | `NodeKind` | `AIRBASE`, `FOB`, `PORT`, `BRIDGE`, `HQ`, `SANCTUARY` | SIM-CORE §4. Radars, factories and air defense are facilities (`UnitKind`), not nodes (Q-GP-21, Q-GP-25). |
 | `EdgeLayer` | `ROAD`, `SEA_LANE` | |
 | `OwnerKind` | `COMMANDER`, `AI_GARRISON`, `ENEMY_DIRECTOR` | DI-5: anything that isn't COMMANDER is labeled as AI |
-| `FowTier` | `UNKNOWN`, `SIGINT`, `TRACK`, `PAINTED` | FOG-OF-WAR §1 |
 | `ThreatTier` | `ALPHA`, `BRAVO`, `CHARLIE` | |
 | `CampaignMode` | `TOTAL_DOMINATION`, `HOLD_THE_LINE`, `SIEGE` | `SIEGE` is reserved (backlog, Q-GD-2). Starting a SIEGE campaign is rejected until it is specified. |
 | `CampaignResult` | `VICTORY`, `DEFEAT`, `TIME_LIMIT`, `ABORTED` | Defeat rule: Q-GD-7. `TIME_LIMIT` = the time limit was reached; `CampaignEnded.score` and `winner` (`COALITION`, `ENEMY` or `null`) say who won. An exact tie is `winner: null`, a draw with no special screen (Q-GP-10). `ABORTED` only via `STAFF_CAMPAIGN_END` (staff). |
@@ -194,7 +193,7 @@ Every value listed in §5.2, plus `CAMPAIGN_PAUSED` (a world-changing chat comma
 | `CampaignEnded` | `result: CampaignResult`, `end_tick`, `score: {coalition, enemy}` (time-limit score per side = node share over time + completed objectives, Q-GD-29; weights not yet defined, §11), `nodes_held_pct` | none | B P A C O |
 | `AARStarted` | `result: CampaignResult`, `top_by_role: {role, commander_ids[] ≤ 5}[]` | Commander ids resolve to approved callsigns at render time | B A O |
 | `CampaignClockPaused` / `Resumed` | `reason: PauseReasonCategory`, `sub_reason: StaffPauseSubReason\|null` (for `Resumed`, those of the pause it ends; Q-ALN-3, Q-ALN-31). The staff note is not in the event. Lack of humans never pauses (Q-GD-4 amended). | `sub_reason` omitted: it never reaches the overlay or any public payload, which get only the category (Q-ALN-39); a `STAFF` pause shows only the "PAUSED — stand by" banner (Q-ALN-32, OVERLAY OV-21) | B O |
-| `UnitSpawned` | `entity_id`, `unit_kind`, `side`, `owner_kind`, `commander_id\|null`, `callsign\|null`, `node_id`, `loadout: FULL\|REDUCED` | ENEMY spawn shown only if the spawn point is at TRACK tier or above. Otherwise dropped. | B P A O |
+| `UnitSpawned` | `entity_id`, `unit_kind`, `side`, `owner_kind`, `commander_id\|null`, `callsign\|null`, `node_id`, `loadout: FULL\|REDUCED` | ENEMY spawn shown only if the spawn point is tracked. Otherwise dropped. | B P A O |
 | `UnitDespawned` | `entity_id`, `reason: RTB_LANDED\|IDLE\|ROLE_SWITCH\|PURGED\|OWNER_BANNED\|OWNER_FORGOTTEN\|CAMPAIGN_END` (`IDLE` = idle retire, `presence.idle_retire_min`, Q-GD-35; a Disabled unit despawns in place with `IDLE` and its cargo is lost, Q-ALN-25) | Hidden ENEMY: dropped | B O |
 | `UnitControlChanged` (name PROPOSED) | `entity_id`, `commander_id`, `control: OPERATOR\|AUTO`, `cause: IDLE_HANDOFF\|RECLAIM` (Q-GD-35, Q-ALN-9) | none (coalition units only) | B P O |
 | `UnitOrphaned` | `entity_id`, `commander_id`, `cause: BANNED\|FORGOTTEN` | none (coalition units only) | B O |
@@ -204,7 +203,7 @@ Every value listed in §5.2, plus `CAMPAIGN_PAUSED` (a world-changing chat comma
 | `UnitDestroyed` | `entity_id`, `killer_id\|null`, `assist_ids[]`, `side` | A hidden killer becomes `null` ("Unknown contact", FOW-3). A hidden victim is dropped. | B P A C O |
 | `WeaponFired` | `shooter_id`, `target_id`, `weapon`, `impact_tick` | Hidden shooter: no tracer (Q-CT-3; revisit in the readability study NX-034). The overlay draws the tracer from this event; the outcome is not known yet (Q-GP-12). | B C |
 | `WeaponImpact` | `shooter_id`, `target_id`, `weapon`, `hit: bool` | Emitted on the impact tick, after the Pk roll (Q-GP-12). A hidden shooter shows as "unknown contact". A shot that fizzles (target destroyed, despawned or out of the envelope before impact) is a miss with no roll. | B C |
-| `TargetPainted` | `recon_id`, `target_id`, `until_tick` | none (target is TRACK or above by definition) | B P |
+| `TargetPainted` | `recon_id`, `target_id`, `until_tick` | none (the target is tracked by definition) | B P |
 | `CaptureStarted` | `node_id`, `side` | none (nodes are always visible) | B A O |
 | `CaptureProgress` | `node_id`, `side`, `progress_pct`, `contested: bool` | none (nodes are always visible) | B O |
 | `NodeCaptured` | `node_id`, `from: NodeOwner`, `to: NodeOwner`, `participant_commander_ids[]` | ENEMY participants are omitted | B P A C O |
@@ -232,7 +231,7 @@ Every value listed in §5.2, plus `CAMPAIGN_PAUSED` (a world-changing chat comma
 
 **PresenceSnapshot** is emitted every `presence.emit_every_ticks` (CONFIG-AND-CONTENT §6.6) over the trailing `presence.window_s`. The counts include only `COMMANDER` owners (DI-5): `active_humans` = commanders with a live unit or an accepted command in the window (drives the HUD "Operators active" count and its breakdown, Q-CT-4; it does **not** pause the clock, Q-GD-4 amended / Q-SM-5). The former `distinct_humans_active` field is removed: it only fed PROG-2's minimum-humans XP rule, which Q-PROG-6 dropped. The kernel derives the counts from applied commands, so they are deterministic.
 
-**Who decides an entity is hidden:** the redaction pass uses the coalition visibility predicate at the event's tick (FOW-1). Property test: no public payload references an `EntityId` that fails the predicate.
+**Who decides an entity is hidden:** the redaction pass uses the coalition visibility predicate (currently tracked) in the latest computed view as of the event's tick (FOW-1, FOW-5); an entity in the last-known set may appear only in `LastKnownView`. Property test: no public payload references an `EntityId` that fails the predicate.
 
 ## 7. Wire messages (server ↔ overlay)
 These detail WIRE-PROTOCOL §2. All messages carry `type` and `v` (PROTOCOL_VERSION string). Encoding is msgpack, with JSON in debug mode.
@@ -242,7 +241,7 @@ These detail WIRE-PROTOCOL §2. All messages carry `type` and `v` (PROTOCOL_VERS
 | `Hello` (C→S) | `client_kind: OVERLAY\|PIP\|VERTICAL`, `capability_token: string ≤ 128` (SEC-API-2), `last_tick: Tick\|null` |
 | `Welcome` | `server_build: string`, `campaign_id\|null`, `tick_rate_hz: int`, `theater: TheaterStatic` (sent once: nodes with `{node_id, name, kind, pos}`, edges, terrain asset ref) |
 | `Snapshot` | `tick`, `entities: EntityView[]`, `nodes: NodeView[]`, `blobs: BlobView[]`, `last_known: LastKnownView[]`, `hud: Hud`, `packages: PackageView[]`, `kill_switch: flags` |
-| `Delta` | `tick`, `base_tick`, `upserts: EntityPatch[]`, `removes: EntityId[]`, `node_patches: NodePatch[]`, `blobs: BlobView[]\|null` (null = unchanged; a full replacement on SIGINT refresh), `events: PublicEvent[]` |
+| `Delta` | `tick`, `base_tick`, `upserts: EntityPatch[]`, `removes: EntityId[]`, `node_patches: NodePatch[]`, `blobs: BlobView[]\|null` (null = unchanged; a full replacement on SIGINT refresh), `last_known: LastKnownView[]\|null` (null = unchanged; otherwise a full replacement), `events: PublicEvent[]` |
 | `Hud` (≤ 1 Hz) | `momentum_pct: int 0–100\|null`, `momentum_breakdown: {nodes_held_pct, supply_pct, recent_events: PublicEvent[] ≤ 5, sectors: {sector_id, owner_trend}[]}\|null` (Q-UX-9), `objective_mode: ObjectiveMode`, `objective: {node_id, name, deadline_tick\|null}\|null` (`null` when none is active; `deadline_tick` null when the objective has no deadline), `threat_tier`, `campaign_clock: {elapsed_ticks, limit_ticks, paused, pause_reason: PauseReasonCategory\|null}` (`pause_reason` null while running; lets a reconnecting overlay pick the pause scene or banner, OVERLAY §1c; the category only, never the sub-reason, Q-ALN-39), `ticker: TickerItem[] ≤ 20`, `panels: Panels`, `active_humans: int\|null` (from the latest `PresenceSnapshot`; DI-5: humans only, `null` until the first snapshot), `operators: {by_role: {role, count}[], by_rank_band: {band, count}[]\|null}\|null` (Q-CT-4; `null` until the first snapshot) |
 | `Audio` | `sitrep_id`, `text: ModeratedText ≤ 140`, `url: string` (local nginx path), `bus: MUSIC\|FOLEY\|RADIO`, `priority: int 0–9`, `expires_tick` |
 | `Control` | `action: RELOAD\|RESYNC\|BANNER\|KILL_SWITCH`, `banner_text: SafeText ≤ 80\|null`, `flags\|null` |
@@ -250,14 +249,14 @@ These detail WIRE-PROTOCOL §2. All messages carry `type` and `v` (PROTOCOL_VERS
 
 Field shapes:
 - `EntityView`:
-  - `{entity_id, unit_kind, side, domain, owner_kind, callsign|null, pos:{x_m:int,y_m:int}, heading_deg:int, speed_mps:int, hp_pct:int 0–100, damage_state: DamageState, painted: bool, spotted: bool (own units only; FOW-12), package_id|null, follow_entity_id|null, follower_count:int, cosmetic:{halo|null, trail|null}, badges: string[] ≤ 4, probation: bool, auto: bool}`
+  - `{entity_id, unit_kind, side, domain, owner_kind, callsign|null, pos:{x_m:int,y_m:int}, heading_deg:int, speed_mps:int, hp_pct:int 0–100, damage_state: DamageState, painted: bool, spotted: bool|null (own units only, null for the other side; FOW-12), package_id|null, follow_entity_id|null, follower_count:int, cosmetic:{halo|null, trail|null}, badges: string[] ≤ 4, probation: bool, auto: bool}`
   - `probation` is true only while the operator has an active conduct restriction (Q-MOD-6); no score is ever sent. Always false for AI entities.
   - `auto` is true while a commander's unit is AI-run after idle handoff; the overlay shows the AUTO tag (Q-GD-35, Q-ALN-9). Always false for AI-owned entities, which use the `[AI]` label instead.
   - Only tracked entities appear; blobs and last-known tracks are separate lists. `callsign` is null for AI entities, which render an `[AI]` label (DI-5).
 - `EntityPatch`: `entity_id` plus only the changed fields of `EntityView`.
 - `NodeView`: `{node_id, owner: NodeOwner, capture:{side|null, progress_pct:int}, stock_pct:int|null, starvation: OK|LOW|EMPTY|null, hp_pct:int|null, facilities: [{entity_id, kind: UnitKind, variant, pos, state: DamageState|null, emitting: bool|null}]}`. `stock_pct`, `starvation` and `hp_pct` are null for ENEMY nodes the coalition can't see (DI-1). A facility's position, kind and variant are always known; its `state` is null while no sensor sees it (Q-GP-27, Q-GP-43); `emitting` is known whenever the site emits (FOW-11) and null when it is dark and unseen.
 - `BlobView`: `{blob_id: BlobId, cell_center:{x_m,y_m}, size: S|M|L}`.
-- `LastKnownView` (FOW-6a, Q-FOW-1): `{entity_id, unit_kind, side, pos:{x_m,y_m}, heading_deg:int, seen_tick}`. Only for entities the viewer's side tracked before; dropped after `fow.track_fade_s`.
+- `LastKnownView` (FOW-6a, Q-FOW-1): `{entity_id, unit_kind, pos:{x_m,y_m}, heading_deg:int, seen_tick}`. Only for entities the viewer's side tracked before; dropped after `fow.track_fade_s`.
 - `TickerItem`: `{tick, text: ModeratedText ≤ 100, category: CAPTURE|SUPPLY|COMBAT|DIRECTOR|SYSTEM}`.
 - `Panels`:
   - `campaign_status: {nodes_held:{coalition,enemy,neutral}, result|null}` (the operator breakdown comes from `Hud.operators`)

@@ -302,7 +302,7 @@ Raised by the NX-311 alignment pass; owner accepted all recommendations.
 | Q-ALN-17 | GM badge on 9:16 | Always visible while a human GM is in control, on every layout. | P1 | ✅ 2026-10-18 |
 | Q-ALN-18 | Older panels (Top Commanders, Active Packages, Latest Major Event) | Top Commanders joins the default rotation; Latest Major Event becomes an interrupt toast; Active Packages arrives in P4 with packages. | P1 | ✅ 2026-10-18 |
 | Q-ALN-19 | 9:16 cropping around the moving PiP focus (OV-11) | No cropping: 9:16 shows the full map scaled down with the PiP below it, keeping grid references stable. | P1 | ✅ 2026-10-18 |
-| Q-ALN-20 | Track fade (FOW-6) phase | Later, behind a feature flag (Q-PROD-8); NX-301 no longer blocks P1. | P1 | ✅ 2026-10-18 |
+| Q-ALN-20 | Track fade (FOW-6) phase (partly reversed by Q-FOW-1) | Later, behind a feature flag (Q-PROD-8); NX-301 no longer blocks P1. | P1 | ✅ 2026-10-18 |
 | Q-ALN-21 | Archive and 'what you didn't see' after a campaign ends | Exempt from FOW-1 once the campaign has ended: full reveal is allowed in archives and recaps. FoW applies only during the live campaign. | P1 | ✅ 2026-10-18 |
 | Q-ALN-22 | GM vs Admin for rank/XP presets (Q-PROG-7 vs Q-ALN-10) | Admins/owner apply presets. GMs may draft/propose a preset; an Admin approves and applies it. | P1 | ✅ 2026-10-18 |
 | Q-ALN-23 | Clock for remaining timers | World time: capture progress and decay, bridge repair, FoW sensor refresh, track fade. Game time: director decision window, tier dwell, CP EMA, memory and provocation half-lives, Pattern of Life periods, night-progress cap, Tasking Board claim lease and priority aging, package fill wait. | P1 | ✅ 2026-10-18 |
