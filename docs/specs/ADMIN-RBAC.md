@@ -177,7 +177,7 @@ Commander search (by callsign or id), stats from ledgers, ban history, link/merg
   1. `STAFF_GM_TAKEOVER{mode}` hands the director's decision loop to the GM. Modes:
      - `ASSIST`: the director still proposes, and the GM approves or vetoes each operation.
      - `FULL`: the director proposes nothing, and only GM-issued operations run.
-  2. While held, `STAFF_GM_OPERATION{operation, target, params}` issues operations from the same doctrine library. Each is validated against preconditions, **tier budget**, and the **enemy fog-of-war view** (FOW-4), unless an OWNER has lifted limits with `STAFF_GM_LIMITS{budget: bool, fow: bool}`.
+  2. While held, `STAFF_GM_OPERATION{operation, target, params}` issues operations from the same operation catalog (`content/operations.yaml`). Each is validated against preconditions, **tier budget**, and the **enemy fog-of-war view** (FOW-4), unless an OWNER has lifted limits with `STAFF_GM_LIMITS{budget: bool, fow: bool}`.
   3. `STAFF_GM_RELEASE` returns control to the director.
   4. Takeover auto-releases after `admin.gm_max_session_s` (config, PROPOSED TBD), or when the GM's session ends, so the AI is never left stuck. These are **real-time** (monotonic) timers enforced outside the sim, which issue a `SYSTEM` `STAFF_GM_RELEASE` when they fire; they keep running while the campaign is paused (Q-ALN-4, CONFIG-AND-CONTENT CFG-9).
   5. On stream: the threat panel shows `GAME MASTER ACTIVE`, and sitreps for GM operations are tagged `[GM]` and spoken with the distinct Game Master voice profile (DATA-INTEGRITY DI-5; Q-RB-7, AUDIO-TTS §2a).
@@ -260,7 +260,7 @@ Rule editing, theater editing, generation, and scheduling are **web only**. Form
 |---|---|---|---|
 | `STAFF_GM_TAKEOVER` | `mode: ASSIST\|FULL` | STAFF | `GM_ALREADY_ACTIVE`, `CAMPAIGN_NOT_RUNNING`, `CAMPAIGN_PAUSED` (Q-ALN-36) |
 | `STAFF_GM_RELEASE` | — | STAFF, or SYSTEM on timeout | `GM_NOT_ACTIVE` |
-| `STAFF_GM_OPERATION` | `operation: string` (doctrine library), `target: NodeId\|SectorId\|null`, `params: object` (schema per operation) | STAFF (holder), or SYSTEM for scheduled events | `GM_NOT_ACTIVE`, `NOT_GM_HOLDER`, `UNKNOWN_OPERATION`, `PRECONDITION_FAILED`, `OVER_BUDGET`, `NOT_VISIBLE_TO_ENEMY`, `CAMPAIGN_PAUSED` (Q-ALN-36) |
+| `STAFF_GM_OPERATION` | `operation: string` (operation catalog (`content/operations.yaml`)), `target: NodeId\|SectorId\|null`, `params: object` (schema per operation) | STAFF (holder), or SYSTEM for scheduled events | `GM_NOT_ACTIVE`, `NOT_GM_HOLDER`, `UNKNOWN_OPERATION`, `PRECONDITION_FAILED`, `OVER_BUDGET`, `NOT_VISIBLE_TO_ENEMY`, `CAMPAIGN_PAUSED` (Q-ALN-36) |
 | `STAFF_GM_VERDICT` | `proposal_id`, `verdict: APPROVE\|VETO` (ASSIST mode) | STAFF (holder) | `GM_NOT_ACTIVE`, `UNKNOWN_PROPOSAL`, `CAMPAIGN_PAUSED` (Q-ALN-36) |
 | `STAFF_GM_LIMITS` | `budget: bool`, `fow: bool` (true = enforced) | STAFF (OWNER only) | `GM_NOT_ACTIVE`, `CAMPAIGN_PAUSED` (Q-ALN-36) |
 | `STAFF_CAMPAIGN_PAUSE` (amended, Q-ALN-31) | adds `sub_reason: StaffPauseSubReason\|null` next to `reason_category` and `note`; non-null only when `reason_category = STAFF` | as in CONTRACTS | adds `INVALID_PAYLOAD` for a `sub_reason` with any other category |

@@ -283,7 +283,7 @@ stateDiagram-v2
 | any | `STAFF_DIRECTOR_OVERRIDE{force_tier}` command (OPS-ADMIN §3) while the campaign is Running; rejected with `CAMPAIGN_PAUSED` while Paused (Q-ALN-24) | Force the tier and record the override | forced tier |
 
 **Invariants**
-- D-1: tiers only move between adjacent levels (never PATTERN_OF_LIFE↔BRAVO in one step).
+- D-1: tiers only move between adjacent levels, one step per decision window (never PATTERN_OF_LIFE↔BRAVO in one step), except a staff override.
 - D-2: no transition happens before the minimum dwell has elapsed (except a staff override).
 - D-3: under CP or provocation oscillating within the hysteresis band, no flapping (property test).
 - D-4: spend per window ≤ the tier budget.
@@ -621,7 +621,7 @@ sequenceDiagram
 | B-1, B-2 | Property: pathfinding after destruction | `.../test_bridges.py` |
 | C-1…C-5 | Scenario + golden replay (including a time-limit end with a clear winner and an exact tie) | `.../test_campaign.py`, `tests/golden/` |
 | O-1, O-2 | Property | `.../test_objectives.py` |
-| D-1…D-4 | Property: oscillating CP | `.../test_director_tiers.py` |
+| D-1…D-4 | Property: oscillating CP and provocation | `.../test_director_tiers.py` |
 | ID-1…ID-4 | Unit + integration (SQLite) | `services/sim/tests/identity/` |
 | PA-1…PA-3 | Adapter fixture tests | `services/sim/tests/gateway/` |
 | OC-1, OC-2 | Vitest + Playwright | `apps/overlay/tests/` |

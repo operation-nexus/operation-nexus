@@ -126,7 +126,7 @@ Text shown on stream additionally requires `ModeratedText`, a SafeText already a
 | `match_key` | string ≤ 300 | yes | Confusable-folded lowercase form used for command matching |
 | `received_at` | RFC 3339 UTC | yes | Gateway wall clock. Used for metrics and rate limits, never by the sim. |
 | `platform_badges` | array of `BROADCASTER`/`MODERATOR`/`SUPPORTER` | yes (may be empty) | Neutral badges. Each adapter maps its platform's own roles onto these (ADR-0010 N-6), and only from the platform payload. Never inferred (DI-8). |
-| `account_created_at` | RFC 3339 UTC or `null` | yes | `null` when the platform doesn't provide it. Used for the account-age weighting (THREAT-DIRECTOR §2). Never guessed. |
+| `account_created_at` | RFC 3339 UTC or `null` | yes | `null` when the platform doesn't provide it. Used for the account-age anti-farming layer (PROGRESSION PROG-4). Never guessed. |
 
 ## 5. Commands
 `commands/command.json` is a discriminated union on `kind`.
@@ -169,7 +169,7 @@ Text shown on stream additionally requires `ModeratedText`, a SafeText already a
 | `STAFF_CAMPAIGN_END` | — | `reason: SafeText ≤ 140` | STAFF. Ends the campaign with result `ABORTED`. | `CAMPAIGN_NOT_RUNNING` |
 | `STAFF_BAN` / `STAFF_UNBAN` | — | `commander_id`, `reason: SafeText ≤ 140` | STAFF, or SYSTEM from a platform moderation event (CHAT-GATEWAY §2) | `COMMANDER_UNKNOWN` |
 | `STAFF_PURGE_UNITS` | — | `commander_id` | STAFF | `COMMANDER_UNKNOWN` |
-| `STAFF_DIRECTOR_OVERRIDE` | — | `force_tier: ThreatTier\|null`, `trigger_operation: string\|null` (must exist in the doctrine library), `duration_ticks: int` | STAFF. Rejected while paused (Q-ALN-24). | `UNKNOWN_OPERATION`, `INVALID_DURATION`, `CAMPAIGN_PAUSED` |
+| `STAFF_DIRECTOR_OVERRIDE` | — | `force_tier: ThreatTier\|null`, `trigger_operation: string\|null` (must exist in the operation catalog, `content/operations.yaml`), `duration_ticks: int` | STAFF. Rejected while paused (Q-ALN-24). | `UNKNOWN_OPERATION`, `INVALID_DURATION`, `CAMPAIGN_PAUSED` |
 | `STAFF_CONFIG_RELOAD` | — | `keys: string[]` (balance keys that change), `new_config_hash: hex` (already validated by the admin API) | STAFF. While paused it is held and applied at resume (Q-ALN-24). | `CONFIG_HASH_MISMATCH`, `CONFIG_INVALID`, `NON_HOT_RELOADABLE_KEY` |
 | `SYS_CAMPAIGN_START` | — | `campaign_id`, `seed: uint64`, `mode`, `theater_id`, `config_hash` | SYSTEM | `CAMPAIGN_ALREADY_RUNNING`, `MODE_NOT_AVAILABLE` |
 | `SYS_SET_CALLSIGN` | — | `commander_id`, `callsign: Callsign` (already approved, or a generated/tombstone value) | SYSTEM, from identity after an approval or deletion | `COMMANDER_UNKNOWN` |
@@ -214,7 +214,7 @@ Every value listed in §5.2, plus `CAMPAIGN_PAUSED` (a world-changing chat comma
 | `ObjectiveAnnounced` | `objective_id`, `node_id`, `deadline_tick` | none | B A |
 | `ObjectiveResolved` | `objective_id`, `outcome: COMPLETED\|EXPIRED`, `participant_commander_ids[]` | none | B P A |
 | `ThreatTierChanged` | `from`, `to`, `cp_smoothed` | `cp_smoothed` omitted (proposed) | B A O |
-| `DirectorOperationLaunched` | `operation_kind`, `op_name: ModeratedText\|null`, `target_node_id\|null`, `source: RULES\|ADVISOR` | Public view gets only `op_name` and only if the op is a named theater offensive (CHARLIE). Otherwise dropped. | B A O |
+| `DirectorOperationLaunched` | `operation_kind`, `op_name: ModeratedText\|null`, `target_node_id\|null`, `source: RULES\|ADVISOR` | Public view drops it in the first build (named offensives wait with CHARLIE, Q-TD-3). | B A O |
 | `ThreatAdaptation` | `category: CONVOY_ESCORT\|IADS_REINFORCED\|…`, `sector_id`, `direction: UP\|DOWN` | Public sees the INTEL line (THREAT-DIRECTOR §4.5) at sector level only: it never names a site and never updates a facility marker (Q-FOW-17) | B A O |
 | `CommandRejected` | `arrival_seq`, `kind`, `reason: RejectReason`, `commander_id\|null` | Not public. Aggregated digest only. | O, gateway digest |
 | `CommandApplied` | `arrival_seq`, `kind`, `commander_id\|null` | Public ack ping only for `JOIN`/`TARGET` (OV-5) | B O |

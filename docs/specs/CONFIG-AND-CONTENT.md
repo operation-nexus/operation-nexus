@@ -235,9 +235,9 @@ Legend: **HR** = hot-reloadable (§5). "TBD" = TBD by harness. **Source** = the 
 | `director.tier.min_dwell_s` | float | s (game, Q-ALN-23) | 600 | THREAT-DIRECTOR §3 | Yes |
 | `director.budget.<tier>` | int | budget points / window | TBD per tier | THREAT-DIRECTOR §4 | Yes |
 | `director.op_priority.<op>` | float | base priority | TBD by harness | THREAT-DIRECTOR §4, Q-TD-6 | Yes |
+| `director.score.target_value.<node_kind>` | float | multiplier | TBD by harness | THREAT-DIRECTOR §4, Q-TD-6 | Yes |
+| `director.score.provocation_proximity` | float | multiplier | TBD by harness | THREAT-DIRECTOR §5, Q-TD-4 | Yes |
 | `director.memory.half_life_s` | float | s (game, Q-ALN-23) | 1800 | THREAT-DIRECTOR §2 | Yes |
-| `director.ops.<op_kind>.cost` | int | budget points | TBD per op | THREAT-DIRECTOR §4 | Yes |
-| `director.ops.<op_kind>.enabled_tiers` | [enum] | — | TBD per op | THREAT-DIRECTOR §4 | Yes |
 | `director.noise_scale` | float | utility units | TBD | THREAT-DIRECTOR §4 | Yes |
 | `director.advisor.top_k` | int | candidates | TBD (P4) | THREAT-DIRECTOR §6 | Yes |
 
@@ -386,16 +386,17 @@ doctrines:
 
 
 ## 8a. Operation catalog (`content/operations.yaml`, Q-TD-7)
-The director's operations are content, not kernel code. Each entry names its preconditions, cost and a **job template**: an ordered list of Tasking Board jobs (job kinds from CONTRACTS `JobKind`, with role, slot count and dependencies) that the operation posts on the Static's board. Adding or changing an operation is a content change validated at load (unknown job kinds, missing preconditions or a cost outside the envelope are rejected); new behaviour the job kinds can't express needs a spec change first.
+The director's operations are content, not kernel code. Each entry names its preconditions (a closed list in the schema), cost, enabled tiers and a **job template**: an ordered list of Tasking Board jobs (job kinds from CONTRACTS `JobKind`, with role, slot count and dependencies) that the operation posts on the Static's board. Selectors such as `target_defenses` and `nearest_own_base` resolve only against the Static's view (THREAT-DIRECTOR TD-2). Adding or changing an operation is a content change validated at load (unknown job kinds, missing preconditions or a cost outside the envelope are rejected); new behaviour the job kinds can't express needs a spec change first.
 
 ```yaml
 schema_version: 1
 operations:
   - id: OFFENSIVE                     # THREAT-DIRECTOR §4 step 3
     target: NODE
-    preconditions: [target_is_enemy_base, target_discovered_or_visible]
-    cost: <int>                       # budget points, TBD by harness
-    priority_key: director.op_priority.offensive
+    preconditions: [target_owner_is_coalition, target_in_enemy_view]   # closed enum in the schema
+    cost: <int>                       # budget points, TBD by harness (the only home of an operation's cost)
+    enabled_tiers: [ALPHA, BRAVO]     # Pattern of Life allows Offensive only under the night cap
+    # priority comes from director.op_priority.<id>
     jobs:                             # posted in order; each later job depends on the earlier one
       - { kind: DEFEND, at: nearest_own_base, unit_kinds: [ENEMY_FIGHTER], slots: <int> }   # stage
       - { kind: STRIKE, at: target_defenses, unit_kinds: [ENEMY_FIGHTER], slots: <int> }
@@ -559,6 +560,6 @@ A PR without a harness run fails the `balance-report` check. A change that touch
 - Decided and folded in (spec-alignment batch 2, 2026-10-18): Q-ALN-18 (Top Commanders in `hud.rotation.panels`), Q-ALN-22 (GMs draft rank/XP presets; Owner/Admin approve and apply, §5a), Q-ALN-23 (clocks for the capture, Tasking Board, night-progress and Threat Director keys in §6 and for the FoW timers, CFG-9), Q-ALN-24 (a reload requested while paused is deferred until resume, §5).
 - Decided and folded in (spec-alignment batch 3, 2026-10-18): Q-ALN-35 (CHARLIE warning lead time is game time, CFG-9), Q-ALN-38 (Tier 1 FoW refresh re-expressed in world time, CFG-9), Q-ALN-42 (harness crowd profiles, header note).
 - Still open:
-  - The package fill wait (GAMEPLAY §7) now have a clock (CFG-9) but no row in §6; their keys, values and HR status are added when those features are specified.
+  - The package fill wait (GAMEPLAY §7) now has a clock (CFG-9) but no row in §6; their keys, values and HR status are added when those features are specified.
   - Weight of Top Commanders in `hud.rotation.panels` (§6.9).
   - The exact maintenance start time and the `overlay.broadcast_tz` value (owner).
