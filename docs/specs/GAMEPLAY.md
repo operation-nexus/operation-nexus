@@ -140,10 +140,10 @@ Moved to [GAMEPLAY-LATER](GAMEPLAY-LATER.md) §5a.
 - Parity: the Static's facilities follow the same rules.
 
 ## 6. Combat
-- Each tick, a unit with a ready weapon chooses the **highest-priority valid target** in range: by domain compatibility, then threat, then distance, with a stable tie-break by id.
+- Each tick, a unit with a ready weapon chooses the **highest-priority valid target** in range; only targets its side tracks are valid, so a SIGINT blob is something to scout, never to shoot (Q-FOW-4; area weapons may hit blobs later): by domain compatibility, then threat, then distance, with a stable tie-break by id.
 - **Shot resolution (Q-GP-7, Q-GP-12):** a shot is not an entity. Firing spends the round and stores a pending impact with its target and weapon; the impact lands after `ceil(range / projectile speed / WORLD_DT)` ticks (guns land at once). Pk is rolled on the `combat` stream when the impact lands, using the target's state then (position, track quality, evasion, countermeasures, jamming, terrain). A target that is destroyed, despawned or out of the weapon's envelope before impact makes the shot fizzle as a miss with no roll. Projectiles as flying entities (for example intercepting SAMs) come later.
 - Hit probability (Q-CBT-2) = `base_pk` × the product of these multipliers from config, rolled on the `combat` RNG:
-  1. **Track quality** by FoW tier: blob 0.2, track 1.0, radar lock, painted 1.25 (PROPOSED).
+  1. **Track quality:** track 1.0, radar lock, painted 1.25 (PROPOSED); the blob value applies only to later area weapons (Q-FOW-4).
   2. **Range** vs the weapon envelope.
   3. **Target evasion** (per-platform maneuverability) and **altitude band**.
   4. **Jamming** on either side.

@@ -451,3 +451,16 @@ Owner decisions from the GAMEPLAY grill session, after a ponytail-review of the 
 | Q-GP-45 | AI garrison job list | Decided: add repair bridge and repair facility only. Owner: the AI garrison never escorts; escorting coalition convoys is the players' call, so the enemy can punish unescorted convoys. Recommendation was: add repair bridge, repair facility and escort convoy (non-offensive). | P1 | ✅ 2026-10-19 |
 | Q-GP-46 | ReinforceIADS without building | Decided as recommended. Recommendation was: in the first build ReinforceIADS means repairing and reactivating existing air-defense sites; building new ones waits for GAMEPLAY-LATER §5a. | P1 | ✅ 2026-10-19 |
 | Q-GP-47 | Ponytail cuts from the review | Decided: truck repair multiplier dropped (resupply repairs facilities; REPAIR_FACILITY job removed); escort job = a follow order posted on detected threats only; column slowest-member rule dropped; per-commander logistics stats for staff until NX-291; factory connectivity moot (factories parked). Recommendation was: drop the factory road-connectivity condition; drop the truck facility repair multiplier (deliveries become stock and stock repairs facilities); an escort job is a follow order handed out by the board, triggered only by detected threats; drop the column slowest-member rule; replace logistics conduct heuristics with per-commander logistics stats for staff until NX-291. | P1 | ✅ 2026-10-19 |
+
+## FOG-OF-WAR grilling (2026-10-19)
+
+Owner decisions from the FOG-OF-WAR grill session, after a ponytail pass.
+
+| ID | Question | Decision | Priority | Status |
+|---|---|---|---|---|
+| Q-FOW-1 | Last-known tracks in the first build | Minimal version on for both sides: a lost track freezes with its age and is dropped after `fow.track_fade_s`; uncertainty circle and decay into a blob stay behind the FOW-6 flag. Partly reverses Q-ALN-20; needed by the director's view (Q-SIM-10, TD-5). | P1 | ✅ 2026-10-19 |
+| Q-FOW-2 | Detection model | Deterministic: in range for the target's domain and altitude band, times modifiers; no detection roll. | P1 | ✅ 2026-10-19 |
+| Q-FOW-3 | Terrain masking | Per-area flag, not line of sight: the theater's existing `masking_regions` polygons, rasterized to cells, hide NOE/LOW aircraft and ground units from sensors outside them. Combat factor 6 uses the same flag. | P1 | ✅ 2026-10-19 |
+| Q-FOW-4 | Shooting at blobs | First build engages tracked targets only; blobs are scouted, not shot. Area weapons may hit blobs later. | P1 | ✅ 2026-10-19 |
+| Q-FOW-5 | SIGINT jitter | No server jitter; blob at its cell; cosmetic offset client-side from the blob id; `fow` RNG stream removed. | P1 | ✅ 2026-10-19 |
+| Q-FOW-6 | Painted tier and update cadence | Painted is a flag on a track. Tier 2 recomputed every 5 ticks unless the NX-345 spike shows every tick is cheap. | P1 | ✅ 2026-10-19 |

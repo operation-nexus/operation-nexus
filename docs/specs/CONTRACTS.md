@@ -241,7 +241,7 @@ These detail WIRE-PROTOCOL §2. All messages carry `type` and `v` (PROTOCOL_VERS
 |---|---|
 | `Hello` (C→S) | `client_kind: OVERLAY\|PIP\|VERTICAL`, `capability_token: string ≤ 128` (SEC-API-2), `last_tick: Tick\|null` |
 | `Welcome` | `server_build: string`, `campaign_id\|null`, `tick_rate_hz: int`, `theater: TheaterStatic` (sent once: nodes with `{node_id, name, kind, pos}`, edges, terrain asset ref) |
-| `Snapshot` | `tick`, `entities: EntityView[]`, `nodes: NodeView[]`, `blobs: BlobView[]`, `hud: Hud`, `packages: PackageView[]`, `kill_switch: flags` |
+| `Snapshot` | `tick`, `entities: EntityView[]`, `nodes: NodeView[]`, `blobs: BlobView[]`, `last_known: LastKnownView[]`, `hud: Hud`, `packages: PackageView[]`, `kill_switch: flags` |
 | `Delta` | `tick`, `base_tick`, `upserts: EntityPatch[]`, `removes: EntityId[]`, `node_patches: NodePatch[]`, `blobs: BlobView[]\|null` (null = unchanged; a full replacement on SIGINT refresh), `events: PublicEvent[]` |
 | `Hud` (≤ 1 Hz) | `momentum_pct: int 0–100\|null`, `momentum_breakdown: {nodes_held_pct, supply_pct, recent_events: PublicEvent[] ≤ 5, sectors: {sector_id, owner_trend}[]}\|null` (Q-UX-9), `objective_mode: ObjectiveMode`, `objective: {node_id, name, deadline_tick\|null}\|null` (`null` when none is active; `deadline_tick` null when the objective has no deadline), `threat_tier`, `campaign_clock: {elapsed_ticks, limit_ticks, paused, pause_reason: PauseReasonCategory\|null}` (`pause_reason` null while running; lets a reconnecting overlay pick the pause scene or banner, OVERLAY §1c; the category only, never the sub-reason, Q-ALN-39), `ticker: TickerItem[] ≤ 20`, `panels: Panels`, `active_humans: int\|null` (from the latest `PresenceSnapshot`; DI-5: humans only, `null` until the first snapshot), `operators: {by_role: {role, count}[], by_rank_band: {band, count}[]\|null}\|null` (Q-CT-4; `null` until the first snapshot) |
 | `Audio` | `sitrep_id`, `text: ModeratedText ≤ 140`, `url: string` (local nginx path), `bus: MUSIC\|FOLEY\|RADIO`, `priority: int 0–9`, `expires_tick` |
@@ -250,13 +250,14 @@ These detail WIRE-PROTOCOL §2. All messages carry `type` and `v` (PROTOCOL_VERS
 
 Field shapes:
 - `EntityView`:
-  - `{entity_id, unit_kind, side, domain, owner_kind, callsign|null, pos:{x_m:int,y_m:int}, heading_deg:int, speed_mps:int, hp_pct:int 0–100, damage_state: DamageState, fow: TRACK|PAINTED, package_id|null, follow_entity_id|null, follower_count:int, cosmetic:{halo|null, trail|null}, badges: string[] ≤ 4, probation: bool, auto: bool}`
+  - `{entity_id, unit_kind, side, domain, owner_kind, callsign|null, pos:{x_m:int,y_m:int}, heading_deg:int, speed_mps:int, hp_pct:int 0–100, damage_state: DamageState, painted: bool, package_id|null, follow_entity_id|null, follower_count:int, cosmetic:{halo|null, trail|null}, badges: string[] ≤ 4, probation: bool, auto: bool}`
   - `probation` is true only while the operator has an active conduct restriction (Q-MOD-6); no score is ever sent. Always false for AI entities.
   - `auto` is true while a commander's unit is AI-run after idle handoff; the overlay shows the AUTO tag (Q-GD-35, Q-ALN-9). Always false for AI-owned entities, which use the `[AI]` label instead.
-  - `fow` is never SIGINT, because blobs are separate. `callsign` is null for AI entities, which render an `[AI]` label (DI-5).
+  - Only tracked entities appear; blobs and last-known tracks are separate lists. `callsign` is null for AI entities, which render an `[AI]` label (DI-5).
 - `EntityPatch`: `entity_id` plus only the changed fields of `EntityView`.
 - `NodeView`: `{node_id, owner: NodeOwner, capture:{side|null, progress_pct:int}, stock_pct:int|null, starvation: OK|LOW|EMPTY|null, hp_pct:int|null, facilities: [{entity_id, kind: UnitKind, variant, pos, state: DamageState|null}]}`. `stock_pct`, `starvation` and `hp_pct` are null for ENEMY nodes the coalition can't see (DI-1). A facility's position, kind and variant are always known; its `state` is null while no sensor sees it (Q-GP-27, Q-GP-43).
 - `BlobView`: `{blob_id: BlobId, cell_center:{x_m,y_m}, size: S|M|L}`.
+- `LastKnownView` (FOW-6a, Q-FOW-1): `{entity_id, unit_kind, side, pos:{x_m,y_m}, heading_deg:int, seen_tick}`. Only for entities the viewer's side tracked before; dropped after `fow.track_fade_s`.
 - `TickerItem`: `{tick, text: ModeratedText ≤ 100, category: CAPTURE|SUPPLY|COMBAT|DIRECTOR|SYSTEM}`.
 - `Panels`:
   - `campaign_status: {nodes_held:{coalition,enemy,neutral}, result|null}` (the operator breakdown comes from `Hud.operators`)

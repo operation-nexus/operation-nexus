@@ -124,6 +124,8 @@ Legend: **HR** = hot-reloadable (§5). "TBD" = TBD by harness. **Source** = the 
 | `sim.snapshot_every_ticks` | int | ticks | 300 | SIM-CORE §5 | No |
 | `sim.state_hash_every_ticks` | int | ticks | 100 | SIM-CORE §5 | No |
 | `sim.max_entities` | int | count | 1000 | SIM-CORE SC-10 | No |
+| `fow.track_fade_s` | float | s (world) | TBD (PROPOSED) | FOG-OF-WAR FOW-6a, Q-FOW-1 | No |
+| `fow.track_every_ticks` | int | ticks | 5 (PROPOSED) | FOG-OF-WAR FOW-5, Q-FOW-6 | No |
 
 ### 6.2 Slots, respawn, reserve
 | Key | Type | Unit | PROPOSED | Source | HR |
@@ -160,7 +162,7 @@ Legend: **HR** = hot-reloadable (§5). "TBD" = TBD by harness. **Source** = the 
 ### 6.4 Combat
 | Key | Type | Unit | PROPOSED | Source | HR |
 |---|---|---|---|---|---|
-| `combat.track_quality.blob` | float | multiplier | 0.2 | GAMEPLAY §6 | No |
+| `combat.track_quality.blob` | float | multiplier | 0.2 (unused until area weapons; Q-FOW-4) | GAMEPLAY §6 | No |
 | `combat.track_quality.track` | float | multiplier | 1.0 | GAMEPLAY §6 | No |
 | `combat.track_quality.painted` | float | multiplier | 1.25 | GAMEPLAY §6 | No |
 | `combat.jammer_pk_mult` | float | multiplier | TBD | GAMEPLAY §6 | No |
@@ -389,7 +391,7 @@ doctrines:
 | `name` | string | Display name; moderation-checked (CFG-8) |
 | `version` | semver | §4.4 |
 | `bounds_m` | `{w, h}` | Map extent in metres (SIM-CORE §4: ~400×240 km for the first theater) |
-| `terrain` | object | `heightmap: <path to 16-bit PNG>`, `height_scale_m`, `sea_level_m`; **or** `contours: <path to GeoJSON-like polylines>`. `masking_regions`: polygons where NOE/LOW flight is masked from radar |
+| `terrain` | object | `heightmap: <path to 16-bit PNG>`, `height_scale_m`, `sea_level_m`; **or** `contours: <path to GeoJSON-like polylines>`. `masking_regions`: polygons where NOE/LOW aircraft and ground units are masked from sensors outside the region, rasterized to grid cells at load (FOG-OF-WAR Tier 2, Q-FOW-3) |
 | `sectors` | list | `{id, name, polygon}`; non-overlapping; union covers the map |
 | `nodes` | list | `{id, name, kind, pos: [x_m, y_m], start_owner, start_stock, sector}` |
 | `edges` | list | `{a, b, layer: ROAD\|SEA_LANE, speed_mult, bridge?: <node id of kind BRIDGE>}` |
