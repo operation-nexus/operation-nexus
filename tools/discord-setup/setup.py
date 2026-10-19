@@ -220,6 +220,28 @@ ALLOWED_REQUESTS: tuple[tuple[str, re.Pattern[str]], ...] = tuple(
 )
 
 
+def error_details(errors: Any, path: str = "") -> str:
+    """Flatten the `errors` tree of a Discord 400 reply into `field: CODE message` pairs.
+
+    Discord's reply names the exact field that was refused; this keeps it readable. It holds
+    only Discord's own words about the request, never the token.
+    """
+    found: list[str] = []
+    if isinstance(errors, dict):
+        for key, value in errors.items():
+            if key == "_errors" and isinstance(value, list):
+                for item in value:
+                    if isinstance(item, dict):
+                        where = path or "request"
+                        code, note = item.get("code", ""), item.get("message", "")
+                        found.append(f"{where}: {code} {note}".strip())
+            else:
+                inner = error_details(value, f"{path}.{key}" if path else str(key))
+                if inner:
+                    found.append(inner)
+    return "; ".join(found)[:600]
+
+
 class Api:
     """Thin Discord REST client limited to ALLOWED_REQUESTS (DS-5)."""
 
@@ -253,8 +275,12 @@ class Api:
             if status >= 400:
                 detail = ""
                 try:
-                    detail = str(json.loads(raw).get("message", ""))
-                except ValueError:
+                    reply = json.loads(raw)
+                    detail = str(reply.get("message", ""))
+                    more = error_details(reply.get("errors"))
+                    if more:
+                        detail += f" ({more})"
+                except (ValueError, AttributeError):
                     pass
                 raise DiscordError(
                     f"Discord returned {status} for {method} {path}: {detail}", status

@@ -684,6 +684,37 @@ def test_a_welcome_screen_that_does_not_exist_yet_is_created_not_an_error():
     assert code == 1
 
 
+def test_a_400_shows_which_field_discord_refused():
+    body = {
+        "message": "Invalid Form Body",
+        "code": 50035,
+        "errors": {
+            "prompts": {
+                "0": {
+                    "options": {"_errors": [{"code": "BASE_TYPE_MIN_LENGTH", "message": "too few"}]}
+                }
+            },
+            "default_channel_ids": {"_errors": [{"code": "X", "message": "not enough"}]},
+        },
+    }
+    text = setup.error_details(body["errors"])
+    assert "prompts.0.options: BASE_TYPE_MIN_LENGTH too few" in text
+    assert "default_channel_ids: X not enough" in text
+    assert setup.error_details(None) == "" and setup.error_details({"a": 1}) == ""
+    raw = json.dumps(body).encode()
+
+    def refuse(method, url, headers, data):
+        return 400, {}, raw
+
+    try:
+        setup.Api(TOKEN, refuse).call("GET", f"/guilds/{GUILD}")
+    except setup.DiscordError as err:
+        assert "Invalid Form Body" in str(err) and "BASE_TYPE_MIN_LENGTH" in str(err)
+        assert err.status == 400 and TOKEN not in str(err)
+    else:
+        raise AssertionError("a 400 did not stop the run")
+
+
 def test_community_stops_on_a_discord_refusal_and_never_leaks_the_token():
     fake = FakeDiscord()
     structure(fake)
