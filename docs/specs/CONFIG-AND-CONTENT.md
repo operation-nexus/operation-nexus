@@ -290,7 +290,7 @@ roles:                        # Role (CONTRACTS §3.3) -> UnitKind; every Role u
   LOGI: LOGI_TRUCK              # NAVY added in P3 (Q-GD-8)
 units:
   - kind: STRIKE_FIGHTER      # UnitKind (CONTRACTS §3.3), UPPER_SNAKE, unique
-    side: COALITION           # COALITION | ENEMY | ANY
+    side: COALITION           # COALITION | ENEMY | ANY | BASE (facilities: side follows the base, Q-GP-25)
     domain: AIR               # AIR | GROUND | SEA | STATIC
     playable_by: VIEWER       # VIEWER | AI_GARRISON | DIRECTOR (one or more)
     min_rank: 1               # PROGRESSION §3; required when playable_by includes VIEWER

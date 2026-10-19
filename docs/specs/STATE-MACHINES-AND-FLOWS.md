@@ -126,8 +126,8 @@ Notes:
 
 **Invariants**
 - U-1: a commander has at most one unit in {Spawning, Holding, EnRoute, OnStation, Engaging, RTB, Landed, Rearming, Disabled} (GP-1).
-- U-2: a unit's hp > 0 in every non-terminal state, and a terminal unit appears in no live index.
-- U-3: hp, fuel and ammo only increase in Rearming, or by a completed field repair of a Disabled unit (Q-GD-27).
+- U-2: a unit's hp > 0 in every non-terminal state, and a terminal unit appears in no live index. Facilities never reach Destroyed: their hp floors at the Disabled threshold (Q-GP-37).
+- U-3: hp, fuel and ammo only increase in Rearming, by a completed field repair of a Disabled unit (Q-GD-27), or, for a facility, by repair at its friendly, uncontested base (Q-GP-26).
 - U-6: a unit in Holding takes a Tasking Board job only if it can reach and complete it with its current fuel and munitions (Q-GD-26); the friendly AI garrison never claims a strike job no player started.
 - U-4: reserve queue order is strict FIFO, and a commander appears in it at most once.
 - U-5: an orphaned unit is despawned within 1 tick and earns no XP after orphaning.
