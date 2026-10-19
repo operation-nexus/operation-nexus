@@ -2,7 +2,7 @@
 
 Owner-run setup for the community Discord server. Spec: [DISCORD-SERVER-SETUP](../../docs/specs/DISCORD-SERVER-SETUP.md) (Approved). Tracker: NX-354.
 
-It creates or updates the roles, categories, channels and permission overwrites in [blueprint.json](blueprint.json). It **never** deletes anything, kicks or bans anyone, sends a message or touches existing members. Python standard library only. The bot token stays on your computer, in one environment variable, and is never printed or stored. **Do not paste a token into a chat, an issue, a pull request or a file.**
+It has two stages. The **structure stage** (steps below) creates or updates the roles, categories, channels and permission overwrites in [blueprint.json](blueprint.json). The **community stage** (`--community`, Part 7) turns the server into a Community server, sets the rules and updates channels, welcome screen and onboarding, and can post the welcome and rules text. It **never** deletes anything, kicks or bans anyone, sends direct messages or touches existing members, and the only messages it sends are those two. Python standard library only. The bot token stays on your computer, in one environment variable, and is never printed or stored. **Do not paste a token into a chat, an issue, a pull request or a file.**
 
 The API version, permission values, channel and overwrite type numbers and the invite flow were checked against Discord's developer docs (docs.discord.com/developers) on 2026-10-19. Portal screen names that are not in those docs stay marked [UNVERIFIED]. The dry run prints every permission as a name and a hex value so you can check them against Discord's own table.
 
@@ -48,9 +48,25 @@ Total time: about 20 minutes. Keep one terminal open on your Mac (Terminal app, 
 
 13. In Discord, kick the bot from the server (right-click its name in the member list). In the developer portal, delete the throwaway application or at least click **Reset Token**. In the terminal run `unset DISCORD_BOT_TOKEN` and close the terminal window.
 
+### Part 7: the community stage (Community, welcome screen, onboarding, texts)
+
+Do this after Part 4 worked. It needs the bot to hold **Administrator** (Discord requires it to change the Community feature): in server settings, open **Roles**, pick the bot's role and switch on **Administrator**.
+
+**Texts first.** The script can read the approved copy straight from your clone of the private vault: pass the draft files for the welcome and rules texts. It only accepts a draft whose status is `APPROVED` (or `POSTED`), uses only its body and drops the internal `[NOTE ...]` lines. Nothing from the vault is copied into this repo, and the text is never printed. Read the two drafts once more before you post: this is public. (At the time of writing the welcome draft, MKT-0009, still says "the rest of the server opens up", which is no longer true with the open layout, and the rules draft, MKT-0010, has a few typos. Fix both in the vault first.)
+
+17. In the same terminal window (the token must still be set, or repeat step 5), dry run:
+
+    `python3 tools/discord-setup/setup.py --guild <server id> --community --post-text --welcome-file <path to MKT-0009-discord-welcome.md> --rules-file <path to MKT-0010-discord-rules.md>`
+
+    Read it. It prints the Administrator reminder, the planned settings changes (server settings, welcome screen, onboarding) and the two messages with their character counts. Nothing is written.
+18. Apply (note: the stage never lowers a verification level or content filter that is already stricter than the blueprint's, keeps welcome-screen channels, onboarding prompts, options and default channels you already have, and edits only the bot's own newest message in #welcome and #rules): add `--apply --confirm-guild-name hiveplex-community` to the same command. Expected last line: `N change(s) made.` Run it again: `0 change(s)`.
+19. If Discord refuses something, the script stops and prints Discord's message. Send me that line. Likely candidates: the Community requirements (Discord may want a verified email on the owner account or specific verification settings) and the onboarding prompt (its exact shape is not in Discord's docs). `--skip-onboarding` does everything else and leaves onboarding for you to set by hand in **Server Settings, Onboarding**.
+20. By hand, still: turn on **rules screening** (members must accept the rules before they can see or post anything: **Server Settings, Safety Setup** or the Community checklist [UNVERIFIED label]), the temporary-membership invite and 2FA for staff.
+21. Cleanup as in step 13: remove **Administrator** from the bot's role first, then kick the bot, delete or reset the application and `unset DISCORD_BOT_TOKEN`.
+
 ### Part 6: the parts you do by hand
 
-Follow [Set by hand](#set-by-hand-the-script-does-not-touch-these) below, then do the final check in step 14.
+Follow [Set by hand](#set-by-hand-the-script-does-not-touch-these) below (it shrinks once Part 7 is done), then do the final check in step 14 after Part 7.
 
 14. **Test with a second account** (a spare account or a friend) before sharing the invite widely: a new member should see only START HERE, must not see STAFF, and should end up with the `Operator` role after the first-screen step.
 
@@ -73,8 +89,8 @@ The script is optional. The layout is small enough to build by hand in about 30 
 
 ## Set by hand (the script does not touch these)
 
-Community features, rules screening, onboarding (the click-through step that gives the `Operator` role), default notifications (suggested: mentions only), the temporary-membership invite, 2FA for staff, and the welcome and rules text. The approved copy is in the private vault (`marketing/drafts/`, MKT-0009 and MKT-0010). You can change the text in Discord at any time; tell the assistant, or update the vault copy, so the two stay in step.
+Rules screening (members must accept the rules first), the temporary-membership invite, 2FA for staff, the server icon and banner, and anything else Discord only offers in its own screens. If you skip the community stage (or use `--skip-onboarding`), also Community, default notifications, onboarding (the click-through step that gives the `Operator` role) and the welcome and rules text. The approved copy is in the private vault (`marketing/drafts/`, MKT-0009 and MKT-0010). You can change the text in Discord at any time; to keep the vault copy and the server in step, change the vault copy and run the community stage again, which edits the bot's own message instead of posting a new one.
 
 ## Tests
 
-`python3 tools/discord-setup/tests/test_setup.py` (also run by `make check-python` and CI). They use a fake of Discord's HTTP layer: a dry run writes nothing, a second apply changes nothing, no delete, kick, ban or message call exists, the token never appears in output, and the blueprint keeps STAFF private.
+`python3 tools/discord-setup/tests/test_setup.py` (also run by `make check-python` and CI). They use a fake of Discord's HTTP layer: a dry run writes nothing, a second apply changes nothing, the tool can only make the requests on its allowlist (no delete, kick, ban, member or direct-message request exists), existing Community features, onboarding prompts and default channels are kept, text is never printed or duplicated, the token never appears in output, and the blueprint keeps STAFF private and meets Discord's onboarding rules.
