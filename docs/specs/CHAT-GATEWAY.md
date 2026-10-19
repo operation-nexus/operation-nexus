@@ -45,9 +45,9 @@ NFKC; strip control, bidi and zero-width characters; enforce the 300-character c
 | Command class | Examples | Proposed limit per operator |
 |---|---|---|
 | Deploy | `!join`, specialist spawns | 1 per 10 s (plus respawn timer) |
-| Unit correction | `!target`, `!rebase`, `!vector`, `!rtb`, `!stance`, `!rescue` | 1 per 5 s, burst 2 |
+| Unit correction | `!target`, `!rebase`, `!rtb`; later `!vector`, `!stance`, `!rescue` (GAMEPLAY-LATER §3) | 1 per 5 s, burst 2 |
 | Info | `!me`, `!status`, `!help`, `!guide`, `!rules`, `!link`, `!quiet` (Q-ALN-12; class PROPOSED) | 1 per 15 s |
-| Social / redeem | `!rally`, `!scout` (queued viewers), redemptions | Own cooldowns (e.g. rally ~2 min; PROPOSED). Gameplay cooldowns of `!rally`/`!scout` run in game time inside the sim (Q-ALN-1); redemption cooldowns and caps run in real time in the gateway (Q-ALN-4) |
+| Social / redeem | redemptions (`!rally` and `!scout` come later, GAMEPLAY-LATER) | Own cooldowns (e.g. rally ~2 min; PROPOSED). Gameplay cooldowns of later social commands run in game time inside the sim (Q-ALN-1); redemption cooldowns and caps run in real time in the gateway (Q-ALN-4) |
 | Global | all | Admission cap per tick (raid protection) |
 
 **Slow mode:** an admin toggle that multiplies all limits (e.g. ×3). Optionally it can also switch on the platform's own chat slow mode through the official API, if the platform supports that [VERIFY per platform].
@@ -75,6 +75,20 @@ Replies are an aggregated digest, e.g. "12 new commanders deployed: VIPER-27, �
 | Duplicate delivery | Dedupe by message id (LRU of 10k). |
 | Quota exhausted (YouTube) | Adapter pauses. Overlay shows "YouTube commands paused" with the resume time as a relative time, or as UTC plus the broadcast time zone (OVERLAY OV-19, Q-CFG-8). Alert. |
 | One platform's chat down while the broadcast is live | The sim keeps running. The offline auto-pause is triggered by stream-offline detection only, never by a single chat platform dropping (Q-OPS-8). |
+
+## 9. Gateway-only commands (moved from GAMEPLAY §3, Q-GP-2)
+These never enter the sim; the gateway answers them with a digest line or a static URL (CONTRACTS §5). `!status` is an alias of `!me` set in config (Q-UX-12).
+
+| Command | Args | Min rank | Notes |
+|---|---|---|---|
+| `!status` | — | O-1 | Alias of `!me`, identical behavior (Q-UX-12) |
+| `!help` | — | any | Short command digest (Q-UX-1) |
+| `!guide` | — | any | Link to the Field Manual on the public site (Q-UX-1) |
+| `!rules` | — | any | Link to the published community/conduct rules (Q-MOD-5) |
+| `!quiet` | — | any | **Toggle** (Q-ALN-12): switches your opt-out from being named in mastermind taunts (Q-AI-7, THREAT-DIRECTOR TD-3) on or off, and the bot confirms the new state in the digest. Stored per commander (DATA-MODEL) and applies across linked platforms. Works while paused (Q-ALN-2). Ships with taunts that name operators; schema, parser entry and handler land in one PR (AGENTS.md rule 6a) |
+| `!link` | — | any | Shows the static account-linking portal URL (IDENTITY §4; ships with YouTube in beta, Q-PROG-5) |
+| `!forget` | — | any | Data deletion request (SEC-DATA-3) |
+
 
 ## 8. Open questions
 - Decided and folded in (2026-10-18): Q-GW-2 (CG-3), Q-UX-12 (CG-2), Q-LEGAL-7 (CG-1), Q-ALN-12 (CG-4), Q-ALN-2 (CG-5), Q-ALN-4 (§5 real-time redemption cooldowns), Q-ALN-10 (rule editing is owner/admin only, §5), Q-ALN-26 (`!join` queues while paused, CG-5; idle timers, CG-6), Q-ALN-37 (redemptions refused and refunded while paused, CG-5).

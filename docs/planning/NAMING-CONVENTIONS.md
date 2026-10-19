@@ -12,7 +12,7 @@ owner call (grill pass, NX-323). New names follow the dominant style in §1 and 
 | Layer | Style | Examples | Source |
 |---|---|---|---|
 | Config keys (balance, runtime) | Dotted path of lowercase `snake_case` segments, `<area>.<name>`; durations and quantities end in a unit suffix (`_s`, `_min`, `_h`, `_days`, `_ticks`, `_m`, `_pct`, `_frac`, `_mult`, `_per_min`, `_per_hour`); variable segments in angle brackets | `presence.idle_handoff_min`, `tasking.claim_lease_s`, `season.overtime_cap_days`, `director.cp.unit_value.<unit_kind>` | CONFIG-AND-CONTENT |
-| Enum values written in config or chat | lowercase `snake_case` | `campaign.objective_mode: timed`, `campaign.intermission.mode: auto_advance`, `orientation: west_to_east`, `!stance press` | CONFIG-AND-CONTENT §6.6; GAMEPLAY §3, §9a |
+| Enum values written in config or chat | lowercase `snake_case` | `campaign.objective_mode: timed`, `campaign.intermission.mode: auto_advance`, `orientation: west_to_east`, `!join strike hold` | CONFIG-AND-CONTENT §6.6; GAMEPLAY §3, §9a |
 | Enum types (contracts) | `PascalCase` | `PauseReasonCategory`, `ThreatTier`, `CommandKind` | CONTRACTS §3.1, §3.3 |
 | Enum values (contracts, DB `CHECK` lists) | `UPPER_SNAKE` | `CEASEFIRE`, `MISSION_KILL`, `TOTAL_DOMINATION`, `TOMBSTONE` | CONTRACTS §3.1 |
 | Schema titles, wire message `type` | `PascalCase` | `ChatEnvelope`, `Hello`, `Snapshot`, `Hud` | CONTRACTS §3.1, §7 |
@@ -33,7 +33,7 @@ owner call (grill pass, NX-323). New names follow the dominant style in §1 and 
 
 | Layer | Style | Examples | Source |
 |---|---|---|---|
-| Chat commands | `!` plus one lowercase word; required args `<arg>`, optional `[arg]`, choices `a\|b`; aliases are config | `!join <role> [stance] [hold]`, `!me` (alias `!status`), `!quiet` | GAMEPLAY §3 |
+| Chat commands | `!` plus one lowercase word; required args `<arg>`, optional `[arg]`, choices `a\|b`; aliases are config | `!join <role> [hold]`, `!me` (alias `!status`), `!quiet` | GAMEPLAY §3 |
 | On-stream names | Title Case display names over plain internal ids (TS-4); fixed HUD labels in capitals | Striker, Quorum Marshal; "NEEDED: supply to WEST FOB", "SIGNAL SOURCE: NULL" | GAMEPLAY §2, §3; OVERLAY |
 | Lore names in prose | "the Quorum", "the Static" (lowercase "the" mid-sentence); possessive "the Quorum's board"; adjective "Quorum forces", "Quorum intel" | | GLOSSARY lore table |
 | Spec requirement IDs | `<PREFIX>-<n>`, one prefix per spec, bold at the definition; an inserted requirement takes a letter suffix (`OA-10a`); security requirements are `SEC-<AREA>-<n>` | `GP-4`, `TB-1`, `FB-UX-3`, `OV-2b`, `SEC-LLM-4` | each spec |
@@ -51,7 +51,7 @@ Terms:
 1. **"Operator" had three meanings (resolved 2026-10-18, Q-ALN-40).** Operator now means a player only. Command Center people (owner, admins, moderators, GMs) are staff: `staff_id`, `STAFF_*` commands, `CommandSource.STAFF`, `PauseReasonCategory.STAFF` with `StaffPauseSubReason`, "staff pause". The O-2 rank is now Drone (Q-ALN-41). Unit control `OPERATOR` / `AUTO` (`UnitControlChanged`) keeps its name because it means player control.
 2. **Commander vs Operator for players.** Data and mechanics say commander (`commander_id`), stream copy says Operator; specs mix the two in mechanics prose ("only active human operator", PROG-10).
 3. **Lore names in mechanics docs.** GAMEPLAY TS-4 says mechanics docs keep plain names (coalition, enemy), yet specs use "the Static" throughout and, after this pass, "the Quorum" where they used "Clearwave". Contracts stay plain (`Side`: `COALITION`, `ENEMY`).
-4. **Two "decision windows".** The Tasking Board hold after `!join` (`tasking.decision_window_s`, GAMEPLAY §1b) and the director's planning cycle (`director.window_s`, THREAT-DIRECTOR §4, TD-1) share the name.
+4. **Two "decision windows" (resolved).** The Tasking Board hold after `!join` was removed (Q-GP-23); "decision window" now means only the director's planning cycle (`director.window_s`, THREAT-DIRECTOR §4, TD-1).
 5. **Held the Line vs Hold the Line.** A cosmetic badge (PROG-10) and a P4 campaign mode (`HOLD_THE_LINE`) differ by one word.
 6. **Rank names after the faction rename (resolved 2026-10-18, Q-ALN-41).** The ladder now follows a hive theme: Recruit, Drone, Specialist, Swarm Lead, Hive Commander, Quorum Marshal, replacing Operator, Signal Lead and Wave Commander. The voice profile "Quorum Control" (AUDIO-TTS §2a) is confirmed. All remain working names for the brand guide (NX-274).
 7. **Sortie vs mission.** GLOSSARY defines sortie; specs also say "mission" ("first completed mission", Q-PROG-3; Survivor reward) without a definition of what completes one.

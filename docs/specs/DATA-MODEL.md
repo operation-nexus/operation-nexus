@@ -23,7 +23,7 @@ Define every piece of persisted data: the durable SQLite store, the write path t
 - **DM-1** Exactly one process (`nexus-app`) and one connection (the persistence writer task) write to the durable store. Readers use separate read-only connections.
 - **DM-2** Connections MUST set `PRAGMA journal_mode=WAL`, `PRAGMA foreign_keys=ON`, `PRAGMA busy_timeout` (value PROPOSED: 5000 ms), and `PRAGMA synchronous=NORMAL` for the writer (WAL makes this durable at checkpoint boundaries; the command log carries the per-second durability guarantee instead, §5.2).
 - **DM-3** Ledgers (`xp_ledger`, `merit_ledger`, `identity_events`, `admin_audit`) are append-only. No `UPDATE` or `DELETE`, except the deletion job (§6.4), which redacts personal fields in place and logs that it did.
-- **DM-4** Every ledger insert carries an `idempotency_key`, built from the source event id. Re-processing the same event MUST NOT double-count (unique constraint).
+- **DM-4** Every ledger insert carries an `idempotency_key`, built from the source event id (`event_seq`, campaign-wide and monotonic, SIM-CORE SC-14). Re-processing the same event MUST NOT double-count (unique constraint).
 - **DM-5** Derived tables (`commander_stats`, leaderboard views) MUST be rebuildable from ledgers alone, and a CI test proves rebuild(ledgers) equals the incrementally maintained values.
 - **DM-6** Replays, the command log and snapshots contain `commander_id` (UUIDv7) only. They never contain display names, platform ids or callsign text (SEC-DATA-2).
 - **DM-7** Schema changes are forward-only numbered migrations. The app refuses to start if the DB schema is newer than the code knows (no silent downgrade).
@@ -211,7 +211,7 @@ CREATE TABLE xp_ledger (
   commander_id      TEXT NOT NULL REFERENCES commanders(commander_id),
   campaign_id       TEXT NOT NULL REFERENCES campaigns(campaign_id),
   source_tick       INTEGER NOT NULL,
-  source_event_seq  INTEGER NOT NULL,          -- sim event sequence number
+  source_event_seq  INTEGER NOT NULL,          -- campaign-wide sim event_seq (SIM-CORE SC-14)
   reason            TEXT NOT NULL CHECK (reason IN
                     ('SORTIE_COMPLETE','SUPPLY_DELIVERED','CAPTURE','OBJECTIVE','RECON_ASSIST','KILL','ADMIN_ADJUST')),
   base_xp           INTEGER NOT NULL CHECK (base_xp >= 0),
@@ -459,14 +459,15 @@ No `AppendXp` or `AppendMerit` intent is produced for an action by an AUTO unit 
   ```json
   {"arrival_seq": 1234567, "target_tick": 88210, "kind": "JOIN",
    "source": "CHAT", "platform": "TWITCH",
-   "commander_id": "0192…", "args": {"role": "LOGI"}, "late": false}
+   "commander_id": "0192…", "args": {"role": "LOGI"}}
   ```
   - `source` is a `CommandSource` (`CHAT|STAFF|ADVISOR|SYSTEM`, CONTRACTS §3.3). `platform` is set only for `CHAT` commands and is `null` otherwise. No vendor field names (ADR-0010 N-6).
   - `commander_id` only; no names (DM-6).
   - Advisor choices and admin actions are commands too (ADR-0002).
+- **Write-ahead and tombstones (Q-SIM-2):** a tick's commands are appended before `step` runs. If `step` raises, recovery appends `{"tombstone": <tick>, "reason": "STEP_EXCEPTION"}`; replays treat every command at that tick as dropped (each is emitted as `CommandRejected{INTERNAL_ERROR}`). The tombstone is also named in the crash bundle (§6.3).
 - **Flush and fsync:** every 1 s (NFR-7), and on campaign end and shutdown.
 - **Rotation:** a new segment when one passes 64 MiB uncompressed (PROPOSED) or at each snapshot boundary. Segment names are monotonic.
-- **Integrity:** every segment's first record carries a header (`format_version`, `campaign_id`, `first_arrival_seq`). The replay CLI rejects gaps in `arrival_seq`.
+- **Integrity:** every segment's first record carries a header (`format_version`, `campaign_id`, `first_arrival_seq`). The replay CLI rejects gaps in `arrival_seq`; a tombstone record carries no `arrival_seq` and is not a gap.
 
 ### 6.3 Crash bundle
 Written on a `step` exception (SC-8) to `crash-bundles/<utc>-<campaign_id>-<tick>/`:

@@ -35,6 +35,7 @@ The coalition is on the **left** and the enemy on the **right** (GAMEPLAY §9a).
 - During season overtime the HUD shows "Season ends after this campaign" (Q-PROG-9). Before the weekly maintenance window the HUD announces it in advance (Q-OPS-9; lead time TBD). The tier for both notices is set in overlay layout v2 (NX-313).
 
 ## 1c. Pause scenes and time display
+- **OV-17 Following (Q-GP-31):** a unit with followers shows a small "+N following" tag beside its callsign (from `follower_count`); a column of trucks may draw as one grouped symbol with a count. No line is drawn per follower.
 - **OV-16 COMMS RESTORED** (Q-OPS-8): when the broadcast returns after an offline auto-pause (reason TECHNICAL), the overlay shows "COMMS RESTORED" with a 30 s countdown, then the sim auto-resumes.
 - **OV-17 Maintenance scene** (Q-OPS-9): while the sim is paused for the weekly maintenance window (reason MAINTENANCE), the stream shows a "back at HH:MM" scene with a campaign recap and leaderboards. The campaign is still live during maintenance, so this recap is built from the redacted coalition view (FOW-1).
 - **OV-18 Ceasefire scene** (Q-OPS-9): when the owner triggers Ceasefire (one click or hotkey), the sim pauses, OBS switches to a light scene (banner + leaderboard), and heavy overlay rendering stops to free the GPU (which layers count as heavy: TBD, measured on the reference host). One-click resume shows a countdown (length TBD).
@@ -64,9 +65,9 @@ A shared, robust annotation system that everything uses: rally calls, objectives
 - **AN-1 Location vocabulary:**
   - **Named nodes** for everyone.
   - **Sectors** (named regions) for casual viewers and sitrep fallbacks.
-  - An optional **grid reference** overlay for advanced operators (e.g. a lettered and numbered grid, toggled on screen at low contrast). It's also accepted by `!vector` and `!rally`.
+  - An optional **grid reference** overlay for advanced operators (e.g. a lettered and numbered grid, toggled on screen at low contrast). Later commands such as `!vector` and `!rally` will accept it (GAMEPLAY-LATER).
 - **AN-2 Direction:** compass rose, bearings, and arrows showing the axis of advance and unit headings. West → east is the coalition advance (GAMEPLAY §9a).
-- **AN-3 Ephemeral annotations:** pins, circles (areas), arrows (moves or attacks) and short labels. Each has a source (RALLY, OBJECTIVE, SCOUT, GM, SYSTEM), a TTL, a max count per source, and collision-aware placement. They never obscure the momentum bar or objective.
+- **AN-3 Ephemeral annotations:** pins, circles (areas), arrows (moves or attacks) and short labels. Each has a source (OBJECTIVE, GM, SYSTEM; RALLY and SCOUT join with their commands), a TTL, a max count per source, and collision-aware placement. They never obscure the momentum bar or objective.
 - **AN-4 One renderer, one data model:** annotations are a typed wire message (`Annotation{id, kind, geometry, source, label_key, ttl_ticks}`, added to CONTRACTS). Live overlay, vertical layout, clips and replays all render them identically.
 - **AN-5 Safety:** labels come from templates and IDs only; no free text (SEC-MOD-1).
 
@@ -81,3 +82,6 @@ Owner decisions Q-BRAND-1, Q-STYLE-1, Q-STYLE-2 (2026-10-17); exact values go in
 
 ## 4. Tests
 Playwright visual snapshots of fixture states (TESTING-STRATEGY §3.7), including each HUD tier at 16:9 and 9:16 (with the GM badge present at both while a human GM is in control, Q-ALN-17), a 9:16 snapshot proving the whole map is visible uncropped with the PiP below it for PiP foci at opposite map corners (Q-ALN-19), the AUTO and UNIDENTIFIED tags and the OV-16…OV-18 scenes; a paused-state test that unit positions do not move and the heartbeat keeps changing (OV-21); a snapshot of a STAFF pause showing the "PAUSED — stand by" banner with no sub-reason or note text, and the banner absent once resumed (Q-ALN-32); a fake-clock test that OV-19 renders relative times and UTC plus the broadcast zone; the palette script, an XSS fixture (SEC-OV-1), and a reconnect test.
+
+## Readability rules (moved from GAMEPLAY §10, Q-GP-9)
+Always visible: the momentum bar, the current objective with its timer, the director threat level, and a "how to play" line. Everything else (NEEDED jobs, reserve queue, operator breakdown, explainer) shares one rotating panel or appears as short interrupt toasts; at 9:16 the threat level joins the rotation (Q-UX-11, OVERLAY). A newcomer must be able to tell who's winning within 5 s (alpha exit criterion).

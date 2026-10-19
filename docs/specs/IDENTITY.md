@@ -21,7 +21,7 @@ The first valid command from an unknown `(platform, platform_user_id)` creates a
 Raid-origin viewers are normal viewers in our chat and get commanders the same way (Q-GW-2). Twitch Shared Chat messages that originate in another channel are ignored by default, so they create no commander; `gateway.shared_chat.accept_foreign` (default false) enables them only after the source-channel API fields are verified [UNVERIFIED] (CHAT-GATEWAY).
 
 ## 3. Custom callsigns (P3)
-Unlocks after the commander's first completed mission (Q-PROG-3). The format is `^[A-Z][A-Z0-9-]{2,11}$`, then moderation (SEC-MOD-1). Generated-callsign patterns (`WORD-NN`) and the tombstone prefix `X-` are reserved, and callsigns are unique across all platforms. Changes are limited to one per 30 days.
+Unlocks after the commander's first completed mission (Q-PROG-3). The format is `^[A-Z][A-Z0-9-]{2,11}$`, then moderation (SEC-MOD-1). Generated-callsign patterns (`WORD-NN`), the tombstone prefix `X-`, and command keywords (`HOLD`, every role name and every stance word) are reserved (Q-GP-39). A callsign may not equal a node name or alias; the theater validator also rejects node names or aliases equal to a reserved word or an existing callsign. and callsigns are unique across all platforms. Changes are limited to one per 30 days.
 
 ## 4. Cross-platform linking (P3) — OAuth only (replaces the token-in-chat design)
 Not needed at launch: the game launches on Twitch only, and linking ships with YouTube in the public beta (Q-PROG-5).

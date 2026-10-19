@@ -28,7 +28,9 @@ terms still waiting for an owner ruling.
 
 | Term | Meaning |
 |---|---|
-| Node | A named strategic location (airbase, FOB, port, factory, radar, bridge, HQ, sanctuary) |
+| Node | A named map location: a base (airbase, FOB, port, HQ, sanctuary) or a bridge |
+| Base | A node that can be captured (except the sanctuary) and where units spawn, rearm and repair; airbase, FOB and port bases count toward victory |
+| Facility | A fixed installation attached to a base (radar site, air-defense site; factories later). It can be struck, disabled and repaired, belongs to whoever holds the base, and is never captured on its own |
 | Stock | The supply held at a node |
 | Theater | One campaign's map. Theaters rotate between archetypes (strait, archipelago, mountain pass, urban…); theater #1 is a land-leaning map with a bridged strait (GAMEPLAY §9a, Q-GD-33) |
 | Sortie | One unit's life from spawn to RTB or death |
@@ -37,11 +39,10 @@ terms still waiting for an owner ruling.
 | Unit class name | Friendly display name for a unit kind: Striker, Scout, Hauler, Tank, Gunboat, Tanker, Lifter, Sentinel, Spire (Q-NAME-2, working names) |
 | Stance | An operator's standing intent for their unit: `press`, `standard`, `cautious`, `guns` (GAMEPLAY §6) |
 | Damage state | Healthy → Damaged → Mission-kill → Disabled → Destroyed (GAMEPLAY §6a) |
-| Tasking Board | A side's shared queue of jobs. Units without an order take the best open job after the decision window. Both sides have one; the director fills the Static's (GAMEPLAY §1b, Q-GD-34) |
+| Tasking Board | A side's shared queue of jobs. A unit joined with no parameters takes the best open job at once (GAMEPLAY §1b, Q-GP-23). Both sides have one; the director fills the Static's (GAMEPLAY §1b, Q-GD-34) |
 | Job | One task on a Tasking Board (resupply, scout, escort, defend, strike, rescue, repair, assist objective; the Static's board also stages and repositions), with a priority, fitting roles, a slot count and an expiry (GAMEPLAY §1b) |
 | Job state | OPEN → CLAIMED → ACTIVE → DONE \| FAILED \| EXPIRED (GAMEPLAY TB-1) |
 | Claim lease | How long a unit may hold a claimed job without progress before the job returns to OPEN (TB-1) |
-| Decision window | The short hold at base after `!join` before a unit with no order takes a board job (GAMEPLAY §1b). Not the director's decision window (NAMING-CONVENTIONS §3) |
 | AUTO unit | A commander's unit that is AI-run after idle handoff, shown with the AUTO tag. It keeps its commander's slot until it retires (GP-4, Q-ALN-9). _Avoid:_ "AI unit", which means an AI-owned entity with the `[AI]` label |
 | Idle handoff | After `presence.idle_handoff_min` of game time with no command that reached the sim, the unit finishes its order and becomes an AUTO unit (GP-4, Q-GD-35) |
 | Idle retire | After `presence.idle_retire_min` with no such command, the unit RTBs and despawns and its slot frees (GP-5). _Avoid:_ idle despawn (removed, Q-ALN-8) |
@@ -59,7 +60,7 @@ terms still waiting for an owner ruling.
 | Threat tier | ALPHA / BRAVO / CHARLIE, the director's escalation level |
 | Coalition power (CP) | Smoothed measure of active coalition strength. Drives the tiers |
 | Momentum | 0–100% indicator of who's winning, derived from nodes, stock and recent events |
-| Theater objective | The system-picked goal shown on screen. Mode per campaign: `timed` (rotating, default 15 min), `relaxed` or `off` (Q-GD-19) |
+| Theater objective | The system-picked goal shown on screen. Mode per campaign: `timed` (rotating, default 15 min) or `off` (Q-GD-19) |
 | SIGINT blob | Fuzzy Tier-1 fog-of-war indication of unseen enemy activity |
 | Track / Painted | Tier-2 / Tier-3 fog-of-war states |
 | Sitrep | An automated radio situation report |
@@ -72,7 +73,7 @@ terms still waiting for an owner ruling.
 |---|---|
 | Tick | One 100 ms simulation step |
 | World time | Sim time scaled by `sim.time_scale`; drives movement, logistics, combat, capture and fog-of-war timers (GAMEPLAY timers, Q-ALN-1, Q-ALN-23) |
-| Game time | Unscaled sim ticks (1 game minute = 1 real minute while running); drives player-facing durations such as idle handoff, cooldowns, respawn, decision windows and campaign length (Q-ALN-1) |
+| Game time | Unscaled sim ticks (1 game minute = 1 real minute while running); drives player-facing durations such as idle handoff, cooldowns, respawn and campaign length (Q-ALN-1) |
 | Real time | A monotonic clock outside the sim for chat rate limits, digests, taunt, GM, redemption and supply-drop limits; keeps running while the sim is paused (Q-ALN-4) |
 | Pause | A sim stop with a reason; it freezes world and game time. Only commands that don't change the world, and staff safety actions, work while paused (Q-ALN-2, Q-ALN-24) |
 | Pause category | Why the sim is paused: STAFF (manual, with an optional sub-reason RAID / ABUSE / CONTENT / OTHER), TECHNICAL (offline auto-pause), MAINTENANCE (weekly window) or CEASEFIRE (Q-ALN-3, Q-ALN-31) |
@@ -81,7 +82,7 @@ terms still waiting for an owner ruling.
 | Ceasefire mode | The owner's one-click or hotkey pause (CEASEFIRE) for gaming on the broadcast PC: light OBS scene, heavy overlay rendering off (OPS-ADMIN OA-9) |
 | Snapshot / Command log | Recovery and replay data (ADR-0003) |
 | Reference host | The owner's broadcast host (i7-8700 + GTX 1070 under WSL2) for performance budgets; golden replays use the CI image instead (Q-TEST-1) |
-| Harness-validated | A value that met the written balance-harness targets over ≥ 50 seeds and the crowd profiles (0, 5, 50, 150 and 300 simulated viewers plus adversarial profiles), so it can drop its PROPOSED label (Q-TEST-2, Q-ALN-42) |
+| Harness-validated | A value that met the written balance-harness targets over ≥ 50 seeds and the crowd profiles (0, 5, 50, 150, 300 and 500 simulated viewers plus adversarial profiles), so it can drop its PROPOSED label (Q-TEST-2, Q-ALN-42) |
 
 ## Progression and conduct
 

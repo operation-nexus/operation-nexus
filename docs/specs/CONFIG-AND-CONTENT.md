@@ -2,7 +2,7 @@
 
 Status: Draft · Owner: — · Tracker: NX-106, NX-008, NX-031 · Related ADRs: 0002 (determinism), 0003 (persistence), 0004 (toolchain) · Policy: [DATA-INTEGRITY](../quality/DATA-INTEGRITY.md) DI-7
 
-> **All numeric values in this spec are PROPOSED and unvalidated** (DI-7). They are starting points for the balance harness (NX-031), not tuned values. "TBD by harness" means we have no proposal yet and the harness must produce one before P2. A value drops its PROPOSED label only once it is harness-validated as defined in Q-TEST-2 (≥50 seeds across crowd profiles of 0, 5, 50, 150 and 300 simulated viewers plus the adversarial profiles, Q-ALN-42; written targets met, a report saved with the `config_hash`). "(owner)" marks a value the owner set; it stays tunable.
+> **All numeric values in this spec are PROPOSED and unvalidated** (DI-7). They are starting points for the balance harness (NX-031), not tuned values. "TBD by harness" means we have no proposal yet and the harness must produce one before P2. A value drops its PROPOSED label only once it is harness-validated as defined in Q-TEST-2 (≥50 seeds across crowd profiles of 0, 5, 50, 150, 300 and 500 simulated viewers plus the adversarial profiles, Q-ALN-42; written targets met, a report saved with the `config_hash`). "(owner)" marks a value the owner set; it stays tunable.
 
 ## 1. Purpose
 Define every input the system reads that isn't code: runtime settings, balance tunables, and authored content (theaters, units, doctrines, word lists, sitrep templates). This includes how each is validated, hashed, versioned and reloaded, so that:
@@ -32,7 +32,7 @@ Define every input the system reads that isn't code: runtime settings, balance t
 - **CFG-8** All user-visible authored text (node names, callsign words, sitrep templates) MUST pass the moderation denylist in CI (SEC-MOD-1).
 - **CFG-9 Clocks (Q-CFG-8, Q-ALN-1, Q-ALN-4, Q-ALN-5, Q-ALN-6, Q-ALN-23, Q-ALN-35, Q-ALN-38):** every time-valued key MUST name one of three clocks in its schema `unit` annotation and in this spec (`s (world)`, `min (game)`, `s (real)`, ...).
   - **World time** (`world`) is sim ticks scaled by `sim.time_scale`: while the campaign runs, 1 real second = `sim.time_scale` world seconds. It drives movement, logistics and combat (speeds, fuel, logistics and repair rates, weapon reload), plus capture progress and decay, bridge repair, the FoW sensor refresh and track fade (FOG-OF-WAR FOW-9) (Q-ALN-23). The Tier 1 sensor refresh is expressed in world time so its real cadence stays about 8–10 s: PROPOSED ~48–60 s world at `sim.time_scale` 6 (Q-ALN-38). Deterministic; frozen while paused.
-  - **Game time** (`game`) is unscaled sim ticks: while the campaign runs, 1 game minute = 1 real minute. It drives player-facing durations: idle handoff/retire, respawn delay (Q-ALN-5), rank and doctrine ability cooldowns, the Tasking Board decision window, campaign length, the objective period and the victory/defeat holds. Per Q-ALN-23 it also drives the Threat Director decision window, tier dwell, CP EMA, the memory and provocation half-lives, the Pattern of Life periods, the night-progress cap, the Tasking Board claim lease and priority aging, and the package fill wait (GAMEPLAY §7). The CHARLIE warning lead time is game time too (THREAT-DIRECTOR §3, Q-ALN-35). Deterministic; frozen while paused.
+  - **Game time** (`game`) is unscaled sim ticks: while the campaign runs, 1 game minute = 1 real minute. It drives player-facing durations: idle handoff/retire, respawn delay (Q-ALN-5), rank and doctrine ability cooldowns, campaign length, the objective period and the victory/defeat holds. Per Q-ALN-23 it also drives the Threat Director decision window, tier dwell, CP EMA, the memory and provocation half-lives, the Pattern of Life periods, the night-progress cap, the Tasking Board claim lease and priority aging, and the package fill wait (GAMEPLAY §7). The CHARLIE warning lead time is game time too (THREAT-DIRECTOR §3, Q-ALN-35). Deterministic; frozen while paused.
   - **Real time** (`real`) is a monotonic clock outside the sim: chat rate limits, reply digest batching, LLM/TTS budgets, reconnect backoff, the offline-pause trigger, overlay presentation, and the limits enforced before a command enters the sim: taunt naming cooldowns, GM idle auto-release, redemption cooldowns and the supply-drop hourly cap (Q-ALN-4). It keeps running while the campaign is paused.
   - World and game time freeze for every pause reason (`PauseReasonCategory` = `STAFF`, `TECHNICAL`, `MAINTENANCE`, `CEASEFIRE`, Q-ALN-3); the offline auto-pause (§6.10) is `TECHNICAL`.
   - Keys are written in friendly units (s, min, h) and converted to ticks once, at load, by one loader function: world keys as `ceil(seconds × sim.tick_hz / sim.time_scale)`, game keys as `ceil(seconds × sim.tick_hz)`. Rounding is always up, so a timer is never shorter than configured (Q-ALN-6). No sim code reads a seconds value directly.
@@ -130,7 +130,8 @@ Legend: **HR** = hot-reloadable (§5). "TBD" = TBD by harness. **Source** = the 
 |---|---|---|---|---|---|
 | `slots.max_live_per_commander` | int | units | 1 | GAMEPLAY GP-1 | No |
 | `slots.respawn_delay_s` | float | s (game) | 20 | GAMEPLAY GP-2 (game time: the JOIN guard runs in the sim, Q-ALN-5) | Yes |
-| `slots.max_viewer_units` | int | units | 300 | GAMEPLAY GP-3, Q-GD-6 | Yes |
+| `slots.max_viewer_units` | int | units | 500 | GAMEPLAY GP-3, Q-GD-6, Q-SIM-6 | Yes |
+| `slots.queue_idle_min` | int | min (real time) | 15 | GAMEPLAY RQ-1, Q-SIM-12 | Yes |
 | `slots.reserve_queue_max` | int | entries | TBD | GAMEPLAY GP-3 | Yes |
 | `presence.idle_handoff_min` | float | min (game) | 10 (Q-GD-35). With no command from its operator for this long, a live unit finishes its current order and joins the Tasking Board as an AI-run unit (AUTO tag). Any command from the operator restores control | GAMEPLAY §1b, STATE-MACHINES §4.1 | Yes |
 | `presence.idle_retire_min` | float | min (game) | 30 (Q-GD-35). With no command for this long, the unit RTBs and despawns; carried supplies return to the reserve. Together with `presence.idle_handoff_min` it replaces the old idle-despawn timer entirely (Q-ALN-8) | STATE-MACHINES §4.1 | Yes |
@@ -139,18 +140,21 @@ Legend: **HR** = hot-reloadable (§5). "TBD" = TBD by harness. **Source** = the 
 | Key | Type | Unit | PROPOSED | Source | HR |
 |---|---|---|---|---|---|
 | `logistics.node_max_stock.<node_kind>` | int | stock units | TBD per kind | GAMEPLAY §5 | No |
-| `logistics.factory_rate` | float | stock/min (world) | TBD | GAMEPLAY §5 | No |
 | `logistics.starve_threshold` | float | fraction 0–1 | 0.25 | GAMEPLAY §5 | No |
+| `logistics.starve_hp_drain_per_min` | float | node hp per min (world) | TBD (PROPOSED) | GAMEPLAY §8 | No |
 | `logistics.starved_loadout.fuel_frac` | float | fraction | 0.5 | GAMEPLAY §5 | No |
 | `logistics.starved_loadout.secondary_ammo` | int | rounds | 0 | GAMEPLAY §5 | No |
 | `logistics.truck_cargo` | int | stock units | TBD | GAMEPLAY §5 | No |
 | `logistics.unload_rate` | float | stock/s (world) | TBD | GAMEPLAY §5 | No |
 | `logistics.loadout_cost.<unit_kind>` | int | stock units | TBD per kind | GAMEPLAY §5 | No |
 | `logistics.rearm_rate` | float | stock/s (world) | TBD | GAMEPLAY §5 | No |
-| `logistics.stretch.coeff` | float | transit-time multiplier per 100 km from sanctuary | TBD | GAMEPLAY §5 (supply-line stretch) | No |
 | `logistics.offroad_speed_mult` | float | multiplier | 0.5 (from raw plans P987; unvalidated) | GAMEPLAY §5 | No |
 | `logistics.bridge_repair_time_s` | float | s (world) | TBD (engineer repair time; Q-GD-11) | GAMEPLAY §5 | No |
 | `logistics.truck_bridge_repair_mult` | float | multiplier on engineer time | 5 (Q-GD-11 recommendation "e.g. 5× slower") | GAMEPLAY §5 | No |
+| `tasking.follow_station_m.<domain>` | float | m (world) | TBD (PROPOSED) | GAMEPLAY §1b, Q-GP-32 | No |
+| `progression.follower_share` | float | fraction of the outcome's merit per follower | TBD (PROPOSED) | GAMEPLAY §1b, PROGRESSION, Q-GP-42 | No |
+| `progression.follower_share_cap` | int | max followers credited per outcome | TBD (PROPOSED) | GAMEPLAY §1b, Q-GP-42 | No |
+| `logistics.forward_deploy_min_surplus` | float | stock above the starvation threshold a base needs to accept a forward deploy | TBD (PROPOSED) | GAMEPLAY §4, Q-GP-41 | No |
 | `logistics.repair_rate.<node_kind>` | float | hp/s (world) | TBD (base repair for all domains, Q-GD-27) | GAMEPLAY §5 | No |
 
 ### 6.4 Combat
@@ -167,8 +171,10 @@ Legend: **HR** = hot-reloadable (§5). "TBD" = TBD by harness. **Source** = the 
 | `combat.pk_mult.countermeasure` | float | multiplier (one-shot per load) | TBD | GAMEPLAY §6 (Q-CBT-2) | No |
 | `combat.pk_mult.terrain_masked` | float | multiplier | TBD | GAMEPLAY §6 (Q-CBT-2) | No |
 | `combat.pk_mult.weather.*` / `combat.pk_mult.night` | float | multiplier | TBD (P4, Q-CBT-5) | GAMEPLAY §6 | No |
-| `combat.damage_state.*` | object | outcome weights per armor level; Damaged speed/sensor multipliers | TBD | GAMEPLAY §6a (Q-CBT-1) | No |
-| `combat.crit_chance` | float | probability per hit | TBD (small; Q-CBT-8) | GAMEPLAY §6 | No |
+| `combat.damage_state.damaged_below` | float | hp fraction | 0.70 (PROPOSED) | GAMEPLAY §6a, Q-GP-8 | No |
+| `combat.damage_state.mission_kill_below` | float | hp fraction | 0.35 (PROPOSED) | GAMEPLAY §6a, Q-GP-8 | No |
+| `combat.damage_state.disabled_below` | float | hp fraction | 0.10 (PROPOSED) | GAMEPLAY §6a, Q-GP-8 | No |
+| `combat.damage_state.damaged_speed_mult`, `.damaged_sensor_mult` | float | multiplier | TBD | GAMEPLAY §6a (Q-CBT-1) | No |
 | `combat.crew_survival.*` | object | probability modifiers per platform/location | TBD | GAMEPLAY §6a | No |
 | `slots.respawn_loss_window_s` / `slots.respawn_loss_step_s` | float | s (game) | TBD (respawn grows with repeated losses, Q-CBT-9; game time per Q-ALN-5) | GAMEPLAY GP-2 | Yes |
 
@@ -177,8 +183,11 @@ Legend: **HR** = hot-reloadable (§5). "TBD" = TBD by harness. **Source** = the 
 |---|---|---|---|---|---|
 | `capture.radius_m` | float | m | TBD | GAMEPLAY §8 | No |
 | `capture.time_s` | float | s (world, Q-ALN-23) | 120 | GAMEPLAY §8 | No |
-| `capture.multi_unit_exponent` | float | exponent (diminishing returns) | TBD | GAMEPLAY §8 | No |
-| `capture.decay_per_s` | float | progress fraction/s (world, Q-ALN-23) | TBD | GAMEPLAY §8 | No |
+| `capture.multi_unit_exponent` | float | exponent (diminishing returns) | 0.5 (PROPOSED) | GAMEPLAY §8, Q-SIM-26 | No |
+| `capture.quiet_floor` | float | multiplier at 0 viewer units | 0.6 (PROPOSED) | GAMEPLAY §8, Q-SIM-26 | No |
+| `capture.quiet_ref` | int | viewer units at which the multiplier reaches 1.0 | 50 (PROPOSED) | GAMEPLAY §8, Q-SIM-26 | No |
+| `capture.min_time_s` | float | s (world, Q-ALN-23) | 30 (PROPOSED) | GAMEPLAY §8, Q-SIM-26 | No |
+| `capture.decay_per_s` | float | progress fraction/s (world, Q-ALN-23) | TBD (no value yet; used by contested decay, Q-SIM-23) | GAMEPLAY §8 | No |
 
 ### 6.6 Campaign
 | Key | Type | Unit | PROPOSED | Source | HR |
@@ -188,18 +197,18 @@ Legend: **HR** = hot-reloadable (§5). "TBD" = TBD by harness. **Source** = the 
 | `campaign.victory_node_frac` | float | fraction | 0.80 | GAMEPLAY §9 | No |
 | `campaign.victory_hold_min` | float | min (game) | 30 | GAMEPLAY §9 | No |
 | `campaign.defeat` | object | — | `{lose_forward_airbase: true, max_node_frac: 0.25, hold_min: 30}` (Q-GD-7; numbers PROPOSED as everywhere; `hold_min` in game minutes, Q-ALN-1) | GAMEPLAY §9 | No |
-| `campaign.objective_mode` | enum `timed`\|`relaxed`\|`off` | — | `timed` (Q-GD-19); chosen at campaign setup by owner/admin only (Q-ALN-10) | GAMEPLAY §9 | No (set per campaign) |
-| `campaign.options.friendly_fire` | bool | — | false (Q-CBT-4; set at campaign setup only; owner/admin only, not GM, Q-ALN-10) | GAMEPLAY §6 | No |
+| `campaign.objective_mode` | enum `timed`\|`off` | — | `timed` (Q-GD-19); chosen at campaign setup by owner/admin only (Q-ALN-10) | GAMEPLAY §9 | No (set per campaign) |
 | `campaign.options.unlimited_ammo` | bool | — | false (Q-CBT-7; test/special-event option; set at campaign setup by owner/admin only, not GM, Q-ALN-10) | GAMEPLAY §5 | No |
 | `campaign.intermission.mode` | enum `auto_advance`\|`await_owner` | — | TBD (owner choice per campaign, Q-UX-8) | GAMEPLAY §9 | Yes |
-| `tasking.decision_window_s` | float | s (game) | TBD (owner suggested up to ~5 min; playtest, Q-GD-26; game time per Q-ALN-1) | GAMEPLAY §1b | Yes |
 | `tasking.claim_lease_s` | float | s (game, Q-ALN-23) | TBD by harness: a claim auto-releases when its unit makes no progress for this long (Q-GD-37) | GAMEPLAY §1b | Yes |
+| `tasking.priority.<job_kind>` | float | base priority | TBD by harness | GAMEPLAY §1b, Q-GP-20 | No |
+| `tasking.urgency_max` | float | multiplier cap (1.0–2.0) | 2.0 (PROPOSED) | GAMEPLAY §1b, Q-GP-20 | No |
 | `tasking.priority_aging_per_min` | float | priority points/min (game, Q-ALN-23) | TBD by harness: old jobs gain priority so they aren't starved (Q-GD-37) | GAMEPLAY §1b | Yes |
 | `tasking.reeval_every_ticks` | int | ticks | TBD by harness: boards are re-evaluated every N ticks, not every tick (Q-GD-37) | GAMEPLAY §1b | Yes |
 | `director.pol.patrol_period_s` | float | s (game, Q-ALN-23) | TBD by harness | THREAT-DIRECTOR §5a | Yes |
 | `director.pol.convoy_period_s` | float | s (game, Q-ALN-23) | TBD by harness | THREAT-DIRECTOR §5a | Yes |
 | `director.provocation.weights.<action>` | float | score per action | TBD by harness | THREAT-DIRECTOR §5a | Yes |
-| `director.provocation.weights.redemption.<type>` | float | score per redemption | Support (supply drop, repair, reinforcements, Q-AI-9; respawn skip, queue jump, extra scout ping, Q-ALN-13) = small weight, values TBD by harness; cosmetic (color, ping, shoutout) = 0 (owner) (Q-AI-9). There is no offensive redemption class: the no-damage rule stands (Q-ALN-13) | THREAT-DIRECTOR §5a | Yes |
+| `director.provocation.weights.redemption.<type>` | float | score per redemption | Support (supply drop, repair, reinforcements, Q-AI-9; respawn skip, queue jump, Q-ALN-13) = small weight, values TBD by harness; cosmetic (color, ping, shoutout) = 0 (owner) (Q-AI-9). There is no offensive redemption class: the no-damage rule stands (Q-ALN-13) | THREAT-DIRECTOR §5a | Yes |
 | `campaign.rubber_band_zone` | [float, float] | fraction of nodes | [0.55, 0.75] | GAMEPLAY §9 | No |
 | `director.provocation.escalate_threshold` | float | score | TBD by harness | THREAT-DIRECTOR §5a | Yes |
 | `director.provocation.half_life_s` | float | s (game, Q-ALN-23) | TBD by harness | THREAT-DIRECTOR §5a | Yes |
@@ -282,7 +291,7 @@ roles:                        # Role (CONTRACTS §3.3) -> UnitKind; every Role u
   LOGI: LOGI_TRUCK              # NAVY added in P3 (Q-GD-8)
 units:
   - kind: STRIKE_FIGHTER      # UnitKind (CONTRACTS §3.3), UPPER_SNAKE, unique
-    side: COALITION           # COALITION | ENEMY | ANY
+    side: COALITION           # COALITION | ENEMY | ANY | BASE (facilities: side follows the base, Q-GP-25)
     domain: AIR               # AIR | GROUND | SEA | STATIC
     playable_by: VIEWER       # VIEWER | AI_GARRISON | DIRECTOR (one or more)
     min_rank: 1               # PROGRESSION §3; required when playable_by includes VIEWER
@@ -309,6 +318,7 @@ weapons:
   - id: AGM_LIGHT
     targets: [GROUND, STATIC]   # domain compatibility (GAMEPLAY §6)
     range_m: <float>
+    projectile_speed_mps: <float|null>  # world m/s; null = lands on the fire tick (guns). Impact tick = fire tick + ceil(range / speed / WORLD_DT) (GAMEPLAY §6, Q-GP-7)
     base_pk: <float>            # 0..1
     reload_s: <float>           # world s (CFG-9)
     ammo: <int>
@@ -321,10 +331,9 @@ weapons:
 | STRIKE_FIGHTER | COALITION | AIR | VIEWER, AI_GARRISON | 1 | yes (AG + AA light) | — | no | Role `STRIKE` (GAMEPLAY §2) |
 | RECON_UAV | COALITION | AIR | VIEWER, AI_GARRISON | 1 | no | — | no | Role `RECON`. Large sensor; paints targets |
 | LOGI_TRUCK | COALITION | GROUND | VIEWER, AI_GARRISON | 1 | no | yes | yes (slow) | Role `LOGI`. Road graph only |
-| GARRISON_AAA | COALITION | STATIC | AI_GARRISON | — | yes (AA short) | — | no | Node defense; labeled `[AI]` (DI-5) |
 | GARRISON_INFANTRY | COALITION | GROUND | AI_GARRISON | — | yes (light) | — | yes | Holds nodes when no viewers (Q-GD-4); never starts offense on its own (Q-GD-26) |
-| ENEMY_SAM_SITE | ENEMY | STATIC | DIRECTOR | — | yes (SAM) | — | no | Engagement ring; may blink radar |
-| ENEMY_RADAR | ENEMY | STATIC | DIRECTOR | — | no | — | no | Extends enemy FoW view (FOW-4) |
+| AIR_DEFENSE_SITE | follows base | STATIC | base owner's AI | — | yes (variants: short-range AAA, SAM) | — | no | Facility (Q-GP-25). Engagement ring; a SAM variant may blink its radar. Replaces GARRISON_AAA and ENEMY_SAM_SITE |
+| RADAR_SITE | follows base | STATIC | base owner's AI | — | no | — | no | Facility (Q-GP-25). Extends its side's FoW view (FOW-4) |
 | ENEMY_CONVOY | ENEMY | GROUND | DIRECTOR | — | no | yes | yes (slow) | Escorts appear via threat memory |
 | ENEMY_FIGHTER | ENEMY | AIR | DIRECTOR | — | yes (AA) | — | no | CAP / intercept |
 | ENEMY_ARMOR | ENEMY | GROUND | DIRECTOR | — | yes (AG) | — | yes | Offensives / retakes |
@@ -388,7 +397,7 @@ doctrines:
 | `sanctuary` | node id | Coalition SANCTUARY node: infinite stock, never capturable (Q-GD-7) |
 | `enemy_hq` | node id | Enemy HQ node (Domination victory, GAMEPLAY §9) |
 
-Node `kind` ∈ `AIRBASE | FOB | PORT | FACTORY | RADAR | BRIDGE | HQ | SANCTUARY` (SIM-CORE §4).
+Node `kind` ∈ `AIRBASE | FOB | PORT | BRIDGE | HQ | SANCTUARY` (SIM-CORE §4); facilities are placed as STATIC units with a `base_id` (Q-GP-25).
 
 ### 9.2 Validation rules (load + CI)
 | ID | Rule |

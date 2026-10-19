@@ -3,7 +3,7 @@
 Status: Draft · Tracker: NX-155…NX-169, NX-309, NX-317 · ADR-0007 · Inputs: P63–71, C14–39
 
 ## 1. Purpose
-Keep every population level (the harness crowd profiles of 0, 5, 50, 150 and 300 viewers, Q-ALN-42) interesting and fair, with an enemy that seems to adapt but stays deterministic and testable.
+Keep every population level (the harness crowd profiles of 0, 5, 50, 150, 300 and 500 viewers, Q-ALN-42) interesting and fair, with an enemy that seems to adapt but stays deterministic and testable.
 
 ## 2. Inputs (enemy view only, FOW-4)
 - **Coalition power** `CP` = Σ over visible coalition units of the unit's value × its supply-readiness multiplier, smoothed with an EMA over `director.cp.ema_window_s` (PROPOSED 300 s, game time, Q-ALN-23). Commanders whose accounts are younger than `director.cp.new_account_age_h` count at `director.cp.new_account_weight` (PROPOSED 0.5×), which limits alt-account abuse.
@@ -23,8 +23,8 @@ There's a minimum dwell of 10 min of game time per tier (`director.tier.min_dwel
 
 ## 4. Decision loop (every 60 s of game time, `director.window_s`, Q-ALN-23)
 1. Compute CP and the tier, and decay threat memory.
-2. Budget for this window = `director.budget.<tier>` − upkeep, and never more than the Static's real stock and factory output can pay for (Q-GD-30). Raiding its convoys, stock or factories starves the director. The only off-map source is an infinite rear source behind the Static's capturable HQ.
-3. Generate candidate **operations** from the doctrine library: Probe(sector), Offensive(node), Retake(node), EscortConvoys(route), ReinforceIADS(sector), StrikeBridge(edge), DecoyBlink(radar), TheaterOffensive(plan). Each candidate has a cost and preconditions.
+2. Budget for this window = `director.budget.<tier>` − upkeep, and never more than the Static's real stock (shipped by convoy from its rear source; factories are parked, Q-GP-41) can pay for (Q-GD-30). Raiding its convoys, stock or factories starves the director. The only off-map source is an infinite rear source behind the Static's capturable HQ.
+3. Generate candidate **operations** from the doctrine library: Probe(sector), Recon(sector), Offensive(node), Retake(node), EscortConvoys(route), ReinforceIADS(sector) (first build: repair and reactivate existing air-defense sites; building new ones waits for GAMEPLAY-LATER §5a, Q-GP-46), StrikeBridge(edge), DecoyBlink(radar), TheaterOffensive(plan). Each candidate has a cost and preconditions.
 4. Score each candidate = utility(target value, weakness from the enemy view, threat memory) + a `director` RNG noise term. The noise is what makes it unpredictable but replayable.
 5. **Adaptive defense (C37):** each threat-memory counter raises the utility of the matching defensive operation. Convoys are sent with no escort at first, then escorts appear as `convoy_attacks` grows, and drop away again as it decays. Each adaptation is announced with an INTEL line.
 6. Select within budget. Optionally, the LLM advisor picks among the top-K (§6).
@@ -34,17 +34,19 @@ There's a minimum dwell of 10 min of game time per tier (`director.tier.min_dwel
 
 **TD-2 (own view only, FOW-4, Q-GD-37 item 9):** CP, candidate generation, scoring and the jobs the director posts are computed only from `EnemyView`. The Static's board never holds a job that targets or references an entity outside that view.
 
+**TD-5 (scouting, Q-SIM-11, FOW-10):** `Recon(sector)` is an ordinary operation. It becomes jobs for ordinary ENEMY recon-capable units under parity (GAMEPLAY §0), paid from the same window budget, visible to viewers and killable. It adds no information beyond what those units' sensors detect, so the director's picture of a sector improves only while a scout lives. Its utility rises with the age and uncertainty of the director's last-known tracks over the sector (FOG-OF-WAR FOW-10) and falls with recent scout losses there (threat memory), plus the `director` RNG noise term like any candidate.
+
 ## 5. Low-population behavior
-At 0 humans, the coalition AI garrison holds the line and the Static drops to **Pattern of Life** (§5a); the campaign clock keeps running: it never pauses for lack of humans (Q-GD-4 amended); only a pause with a reason stops it (TD-1, Q-ALN-3). Enemy progress is capped at `campaign.night_progress_cap_nodes_per_h` (PROPOSED 1 node per 6 h of game time, Q-ALN-23). With 1–3 humans, the director prefers targets near where those humans are acting, so a single viewer can be a hero without the whole map moving.
+At 0 humans, the coalition AI garrison holds the line and the Static drops to **Pattern of Life** (§5a); the campaign clock keeps running: it never pauses for lack of humans (Q-GD-4 amended); only a pause with a reason stops it (TD-1, Q-ALN-3). With 0 humans the Static can never take the coalition's last airbase (GAMEPLAY §9, Q-GP-28). Enemy progress is capped at `campaign.night_progress_cap_nodes_per_h` (PROPOSED 1 node per 6 h of game time, Q-ALN-23). With 1–3 humans, the director prefers targets near where those humans are acting, so a single viewer can be a hero without the whole map moving.
 
 ## 5a. Pattern of Life (owner requirement, 2026-10-17)
-When nobody is playing, **and when viewers first arrive**, the Static does not attack. It runs a believable **Pattern of Life (PoL)** that scouts can observe and learn from:
+When nobody is playing, **and when viewers first arrive**, the Static mounts no offensives beyond the night progress cap (Q-GP-44). It runs a believable **Pattern of Life (PoL)** that scouts can observe and learn from:
 - Garrison rotations, patrol routes, supply convoys between its bases, radar on/off cycles.
 - **Repositioning between bases:** staging aircraft and ground units toward forward bases, refuel/rearm stops. Staging is how attacks are prepared, so a sharp scout can see an offensive coming (only within coalition sensor coverage or as SIGINT blobs, FOG-OF-WAR).
 
 **Escalation is triggered by provocation, not headcount** (GAMEPLAY TS-1):
 - A decaying `provocation` score rises with coalition actions: strikes on Static units or convoys, captures, recon of its rear, and channel-point redemptions.
-- **Redemption weights (Q-AI-9, Q-ALN-13):** every redemption type has its own weight, `director.provocation.weights.redemption.<type>` (admin-tunable). There is **no offensive redemption class**: no redemption may deal damage (SUPPORT-REDEMPTIONS §4). Classes: support (supply drop, respawn skip, reserve-queue jump, extra `!scout` ping) = small weight; cosmetic (color, ping, shoutout, spectacle) = 0. Weight values are PROPOSED / TBD by harness.
+- **Redemption weights (Q-AI-9, Q-ALN-13):** every redemption type has its own weight, `director.provocation.weights.redemption.<type>` (admin-tunable). There is **no offensive redemption class**: no redemption may deal damage (SUPPORT-REDEMPTIONS §4). Classes: support (supply drop, respawn skip, reserve-queue jump) = small weight; cosmetic (color, ping, shoutout, spectacle) = 0. Weight values are PROPOSED / TBD by harness.
 - PoL → ALPHA → BRAVO → CHARLIE transitions need provocation **and** coalition power above thresholds, with hysteresis and minimum dwell (§3).
 - Going from 0 viewers to 1 changes **nothing** until that operator acts. They get time to observe and plan.
 - With no provocation, the enemy decays back to PoL. Night-progress caps still apply (§5).
@@ -59,7 +61,7 @@ Config keys (CONFIG §6.7, all PROPOSED / TBD by harness): `director.pol.patrol_
 
 ## 6a. Game Master takeover (owner requirement)
 The owner, or an admin with the `GAME_MASTER` permission, can take over the director (ADMIN-RBAC spec):
-- **Scope (Q-AI-8, Q-ALN-10):** a GM drives the Static and triggers world events (TS-1), nothing else. World events may benefit the coalition (supply drop, weather clearing, friendly convoy) but must be visible and in-fiction. A GM never grants units, ammo or XP to specific players. Campaign setup (objectives, unlimited ammo, friendly fire and other campaign options) is owner/Admin only, never GM (GAMEPLAY §9c).
+- **Scope (Q-AI-8, Q-ALN-10):** a GM drives the Static and triggers world events (TS-1), nothing else. World events may benefit the coalition (supply drop, weather clearing, friendly convoy) but must be visible and in-fiction. A GM never grants units, ammo or XP to specific players. Campaign setup (objectives, unlimited ammo and other campaign options) is owner/Admin only, never GM (GAMEPLAY §9c).
 - **Job injection (Q-GD-37 item 11, Q-ALN-11):** a GM injects jobs into the **Static's board only**. An injection that targets the Quorum's board is rejected.
 - **Modes:**
   - **ASSIST:** the GM injects or vetoes operations while the rules keep running.
@@ -85,7 +87,7 @@ Owner direction, details PROPOSED: NULL commands through lieutenants, each a **d
 - Budget never exceeded, and never above what the Static's real stock can pay for (Q-GD-30): a starved Static posts no operation it cannot fund.
 - TD-1: golden scenario with a pause mid-window: every director field (tier, dwell, threat memory, provocation, window progress) is unchanged from the pause tick to the resume tick, no operation is posted in between, and a `STAFF_DIRECTOR_OVERRIDE` sent during the pause is rejected (Q-ALN-24). With `sim.time_scale` ≠ 1, the decision window and tier dwell take the same number of ticks as at 1 (Q-ALN-23).
 - TD-2: property: every job on the Static's board references only entities in `EnemyView`.
-- Q-AI-9, Q-ALN-13: a cosmetic redemption leaves `provocation` unchanged; a respawn skip, queue jump or extra scout ping adds its (small) support weight.
+- Q-AI-9, Q-ALN-13: a cosmetic redemption leaves `provocation` unchanged; a respawn skip or queue jump adds its (small) support weight.
 - Q-ALN-11: a GM job injection into the Quorum's board is rejected; one into the Static's board is accepted and logged as a GM action.
 - TD-3/TD-4: a taunt never names an operator whose `!quiet` opt-out is on (and may again after they toggle it off), never names the same operator twice inside the cooldown, and an LLM taunt prompt contains no callsign or chat text.
 - Threat memory decays.

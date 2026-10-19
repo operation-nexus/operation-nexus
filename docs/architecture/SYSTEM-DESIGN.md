@@ -13,7 +13,7 @@ Status: Draft (pending owner review) · Tracker: NX-050…NX-059 · Decisions: [
  │  nexus-app (Python, one process, modular monolith)                                   │
  │  ┌──────────────┐   ChatEnvelope   ┌─────────────┐  Command(tick)  ┌──────────────┐  │
  │  │ gateway/     │ ───────────────► │ commands/   │ ──────────────► │ sim kernel   │  │
- │  │ platform     │   normalize,     │ parse, auth,│   inbox queue   │ (pure, 10 Hz)│  │
+ │  │ platform     │   normalize,     │ parse, auth,│   inbox queue   │ (determ., 10 Hz)│  │
  │  │ adapters     │   rate-limit,    │ moderate    │                 │ step(state,  │  │
  │  └──────────────┘   moderate       └─────────────┘                 │  cmds, rng)  │  │
  │         ▲                                 ▲                        └──────┬───────┘  │
@@ -49,7 +49,7 @@ Notes on the diagram (owner decisions 2026-10-17):
 
 ## 2. Design principles
 
-1. **Server-authoritative, deterministic core.** `step(state, commands, rng) → (state', events)` is pure. Determinism makes replays, golden tests, bug reproduction and balance studies possible (ADR-0002).
+1. **Server-authoritative, deterministic core.** `step(state, commands, rng) → events` is deterministic and free of side effects outside `state`; it mutates the working state in place (SIM-CORE SC-1, Q-SIM-3). Determinism makes replays, golden tests, bug reproduction and balance studies possible (ADR-0002).
 2. **The sim never waits.** Every slow thing (platform I/O, LLM, TTS, DB writes, clients) is async and outside the tick. Its results come back as commands stamped for a future tick.
 3. **Rules decide; AI advises.** LLMs choose between rule-valid options and write flavor text. They never write state directly, and their outputs are logged as inputs (ADR-0007).
 4. **Hostile input by default.** All chat, names and LLM output is untrusted until it has been normalized, validated and moderated (THREAT-MODEL).
@@ -68,7 +68,7 @@ Notes on the diagram (owner decisions 2026-10-17):
 | NFR-5 | Recovery from process crash | Automatic, < 2 min; sim resumes from last snapshot (≤ 30 s of state lost) |
 | NFR-6 | Deploy impact on stream | ≤ 10 s "COMMS RESYNC" banner; no stream disconnect |
 | NFR-7 | Data durability | Snapshot every 30 s; command log fsync'd every 1 s; nightly offsite encrypted backup |
-| NFR-8 | Concurrency | Designed for 300 live viewer units, 1,000 total entities, 5,000 chat msgs/min burst |
+| NFR-8 | Concurrency | Designed for 500 live viewer units (`slots.max_viewer_units`, Q-SIM-6), 1,000 total entities, 5,000 chat msgs/min burst |
 | NFR-9 | Cost | ≤ $75–100/month total for power + AI + hosting (Q-OPS-3); LLM + cloud TTS hard cap $20/month with circuit breaker and 80% alert (Q-AI-5) |
 | NFR-10 | Moderation | Zero unmoderated user text on stream or in TTS |
 | NFR-11 | Observability | Every component exports health + key metrics; external freeze/offline alert < 2 min |
@@ -77,7 +77,7 @@ Notes on the diagram (owner decisions 2026-10-17):
 
 | Module | Responsibility | May import | Must not |
 |---|---|---|---|
-| `nexus.core` | Pure sim kernel: entities, kinematics, combat, FoW, logistics, capture, director rules | `nexus.contracts`, stdlib, numpy | Any I/O, asyncio, time, random (except injected `SimRng`) |
+| `nexus.core` | Deterministic sim kernel (no side effects outside `state`): entities, kinematics, combat, FoW, logistics, capture, director rules | `nexus.contracts`, stdlib, numpy | Any I/O, asyncio, time, random (except injected `SimRng`) |
 | `nexus.contracts` | Generated types from `/contracts` | — | Logic |
 | `nexus.runtime` | Fixed-step scheduler, command inbox, snapshotting, command log, state hashing | core | Platform code |
 | `nexus.gateway` | Platform adapters (`TwitchAdapter`, later `YouTubeAdapter`, `KickAdapter`) → `ChatEnvelope` | contracts | core |
@@ -101,7 +101,7 @@ Boundaries are enforced with `import-linter` contracts in CI (NX-019).
 3. `commands` checks for a ban, applies the token-bucket rate limit, and parses against the command grammar. Unknown input is dropped silently, and **ordinary chat never reaches an LLM**.
 4. It resolves the commander: get or create by `(platform, platform_user_id)`, assigning a generated callsign.
 5. It emits `Command{commander_id, kind, args, target_tick = current+1}` to the inbox.
-6. At that tick, `core.step` applies the commands in canonical order (sorted by `(target_tick, seq)`).
+6. The runtime appends the tick's commands to the command log **before** `core.step` runs (write-ahead, so a tick that crashes can be tombstoned, SIM-CORE SC-8). At that tick, `core.step` applies the commands in canonical order (sorted by `(target_tick, seq)`).
 7. Events (`UnitSpawned`, …) go to the broadcast layer, and the overlay shows an ack ping on the next frame.
 8. Chat replies are **batched**: one summary message per N seconds at most, within Twitch's 20 or 100 per 30 s limit. Acks are primarily visual.
 

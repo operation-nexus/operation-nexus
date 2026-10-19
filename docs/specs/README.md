@@ -4,6 +4,7 @@
 |---|---|---|
 | [SIM-CORE](SIM-CORE.md) | Tick loop, world model, determinism, budgets | P1 |
 | [GAMEPLAY](GAMEPLAY.md) | Roles, commands, combat, logistics, capture, win/loss, campaign | P1 |
+| [GAMEPLAY-LATER](GAMEPLAY-LATER.md) | Parked later-phase gameplay rules split from GAMEPLAY (Q-GP-1) | P3-P4 |
 | [FOG-OF-WAR](FOG-OF-WAR.md) | Sensor tiers, redaction, director fairness | P1 |
 | [THREAT-DIRECTOR](THREAT-DIRECTOR.md) | Enemy AI tiers, budget, threat memory, advisor | P1 / P4 |
 | [WIRE-PROTOCOL](WIRE-PROTOCOL.md) | Server→overlay WS protocol, versioning | P2 |

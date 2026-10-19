@@ -58,9 +58,9 @@ Effect allowlist by trigger source:
 | Category | Allowed effects (examples) | Money | Channel points |
 |---|---|---|---|
 | Cosmetic | Halo or trail color for this campaign, PiP placard flair, callsign "supporter" badge, unit nose-art | ✅ | ✅ |
-| Shoutout | On-stream "Thanks, VIPER-27" banner (callsign only); a template sitrep line, e.g. "Logistics wing salutes VIPER-27"; a more prominent `!rally` banner or longer pin (Q-SUP-6: prominence only, never more power) | ✅ | ✅ |
+| Shoutout | On-stream "Thanks, VIPER-27" banner (callsign only); a template sitrep line, e.g. "Logistics wing salutes VIPER-27"; a longer pin or banner (Q-SUP-6: prominence only, never more power; a `!rally` banner joins with that command, GAMEPLAY-LATER) | ✅ | ✅ |
 | Spectacle (no gameplay effect) | Flare or fireworks burst over a friendly base; an AWACS flyover animation | ✅ | ✅ |
-| QoL (capped) | Skip *your own* respawn delay once; one extra `!scout` ping; jump the reserve queue once (max N per hour globally) | ❌ (Q-SUP-1: money buys cosmetics, shoutouts and spectacle only) | ✅ |
+| QoL (capped) | Skip *your own* respawn delay once; jump the reserve queue once (max N per hour globally) | ❌ (Q-SUP-1: money buys cosmetics, shoutouts and spectacle only) | ✅ |
 | Team support (capped, small) | Request a supply drop to the starved FOB **queued through the normal logistics system** (it still has to fly in and can be intercepted) | ❌ (Q-SUP-1) | ✅ (global cap and shared cooldown, §4a, Q-SUP-7) |
 | **Forbidden** | Damage or HP buffs, instant captures, killing units, changing director tiers, anything random, anything that stacks into a decisive advantage | ❌ | ❌ |
 
@@ -70,7 +70,7 @@ Effect allowlist by trigger source:
 
 ### 4b. Provocation weights (Q-AI-9, Q-ALN-13)
 - **SR-3** Every applied redemption adds to the director's `provocation` score (THREAT-DIRECTOR §5a) by a per-type weight, `director.provocation.weights.redemption.<type>` (admin-tunable; values PROPOSED / TBD by harness).
-- **SR-4** Weight classes: **support** (QoL and team support: respawn skip, reserve-queue jump, extra `!scout` ping, supply drop) = small weight; **cosmetic** (cosmetic, shoutout and spectacle) = **0**. There is **no offensive class**: the Forbidden row above bars every damaging effect, so no redemption can carry a full weight (Q-ALN-13). An unapplied, refunded or ignored redemption adds nothing.
+- **SR-4** Weight classes: **support** (QoL and team support: respawn skip, reserve-queue jump, supply drop) = small weight; **cosmetic** (cosmetic, shoutout and spectacle) = **0**. There is **no offensive class**: the Forbidden row above bars every damaging effect, so no redemption can carry a full weight (Q-ALN-13). An unapplied, refunded or ignored redemption adds nothing.
 - **SR-5** **While paused (Q-ALN-37):** a channel-points redemption that arrives while the campaign is paused is refused. No `SUPPORT_REDEEM` is issued; it is CANCELED at §5 step 7, so the points are refunded automatically, and stored with `status` REFUNDED.
 
 ## 5. Flow
@@ -109,9 +109,9 @@ Effect allowlist by trigger source:
 - Golden replay including `SUPPORT_REDEEM`.
 - A test that the channel-points refund path is called on failure.
 - A forbidden-effect rule is rejected by the config validator.
-- SR-1/SR-2: with 1 and with 300 simulated viewers, supply drops never exceed `support.supply_drop.max_per_hour`; a capped channel-points redemption is CANCELED.
+- SR-1/SR-2: with 1 and with 500 simulated viewers, supply drops never exceed `support.supply_drop.max_per_hour`; a capped channel-points redemption is CANCELED.
 - SR-5: a channel-points redemption received while the campaign is paused issues no `SUPPORT_REDEEM`, is CANCELED (points refunded) and is stored as REFUNDED (Q-ALN-37).
-- SR-4: a cosmetic, shoutout or spectacle redemption leaves `provocation` unchanged; an applied respawn skip, queue jump, extra scout ping or supply drop adds its support weight; an unapplied one adds nothing; the config validator has no offensive class to bind a rule to.
+- SR-4: a cosmetic, shoutout or spectacle redemption leaves `provocation` unchanged; an applied respawn skip, queue jump or supply drop adds its support weight; an unapplied one adds nothing; the config validator has no offensive class to bind a rule to.
 
 ## 10. Open questions
 Q-SUP-1 … Q-SUP-7, Q-AI-9, Q-ALN-4, Q-ALN-13 and Q-ALN-37 (SR-5) are decided and folded in above. None open.

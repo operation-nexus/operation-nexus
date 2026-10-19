@@ -10,7 +10,7 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | Phase | Items | Done | Status |
 |---|---|---|---|
 | P0 Foundations | 42 | 16 | 🟨 |
-| P1 Sim kernel | 25 | 0 | ⬜ |
+| P1 Sim kernel | 26 | 0 | ⬜ |
 | P2 Closed alpha | 33 | 0 | ⬜ |
 | P3 Public beta | 22 | 0 | ⬜ |
 | P4 Depth | 67 | 1 | ⬜ |
@@ -81,6 +81,7 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 
 | ID | Item | Size | Status | Depends | Acceptance |
 |---|---|---|---|---|---|
+| NX-345 | SIM-CORE benchmark spike (gates NX-006 approval of SIM-CORE; Q-SIM-4, Q-SIM-17, Q-SIM-18) | S | ⬜ | NX-010 | On the Q-TEST-1 reference host: (1) `step` plus frame build p99 < 25 ms at 1,000 entities and 500 viewer units, with movement, sensor and combat passes; (2) the idle case (0 viewers, about 150 AI-only entities); (3) entity-storage verdict (objects, or NumPy arrays if the pass exceeds about 10 ms); (4) bytes per game hour of the redacted and the full-truth frame streams |
 | NX-100 | `SimRng` (PCG64, named sub-streams) | S | ⬜ | NX-010 | Unit + property tests; same seed → same draws |
 | NX-101 | World model types + canonical `state_hash` | M | ⬜ | NX-021 | SC-9 round-trip property |
 | NX-102 | Fixed-step runtime + inbox + canonical command ordering | M | ⬜ | NX-101 | SC-6 shuffled-arrival property |
@@ -101,11 +102,11 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-156 | Director: operations library + scoring + threat memory | L | ⬜ | NX-155 | "Convoy raids → escorts" golden scenario |
 | NX-157 | AI garrison + Pattern of Life + provocation-gated escalation (THREAT-DIRECTOR §5a) | M | ⬜ | NX-155 | overnight-0: no attacks; 0→1 viewer: no escalation until provocation; staging visible to scouts |
 | NX-158 | `!rebase` and base-to-base repositioning for both sides | S | ⬜ | NX-121 | Units stage forward and refuel at the destination base |
-| NX-031 | Balance harness (`tools/balance`) + bot personas + report | L | ⬜ | NX-126 | Standard scenarios (crowd profiles of 0, 5, 50, 150 and 300 simulated viewers plus the adversarial profiles, Q-ALN-42) × 20 seeds report |
+| NX-031 | Balance harness (`tools/balance`) + bot personas + report | L | ⬜ | NX-126 | Standard scenarios (crowd profiles of 0, 5, 50, 150, 300 and 500 simulated viewers plus the adversarial profiles, Q-ALN-42) × 20 seeds report |
 | NX-032 | Replay CLI + measured storage size | S | ⬜ | NX-103 | Size documented in CLIPS-REPLAY |
 | NX-033 | Headless soak (6h) in nightly | M | ⬜ | NX-016 | No memory growth; hashes replay |
 | NX-301 | Track fade (FOW-6), later phase behind a feature flag (Q-PROD-8, Q-ALN-20) | — | ⬜ | NX-150 | Tracks age back into SIGINT blobs over time after the scout dies or leaves (FOG-OF-WAR) |
-| NX-304 | Objective modes: timed / relaxed / off per campaign (Q-GD-19 blocks P1; moved from P4 in NX-311) | — | ⬜ | NX-126 | O-1 invariant per mode (STATE-MACHINES §4.5) |
+| NX-304 | Objective modes: timed / off per campaign (Q-GD-19 blocks P1; moved from P4 in NX-311) | — | ⬜ | NX-126 | O-1 invariant per mode (STATE-MACHINES §4.5) |
 
 ## P2 — Closed alpha (Twitch, unlisted)
 
@@ -141,7 +142,7 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-042 | Phase-2 security review + pentest of command path | M | ⬜ | all P2 |
 | NX-034 | Cold-tester readability study (a few cold testers, not strictly 5; Q-PROD-4). Also test: hidden-shooter tracers on/off (Q-CT-3), recruit strip + `!me` clarity (FB-UX), orientation | S | ⬜ | NX-178 |
 | NX-035 | Multi-day unattended burn-in on unlisted stream (not strictly 7 days; minimal manual fixes; zero unmoderated text; monitoring + viewer simulator NX-193 in use; Q-PROD-4) | M | ⬜ | all P2 |
-| NX-309 | Tasking Board: job generation from state, priorities, role matching, slot de-dup, AI garrison integration, overlay "NEEDED" list, decision window, `hold` opt-out (Q-GD-26 blocks P2; moved from P4 in NX-311) | — | ⬜ | NX-126, NX-178 |
+| NX-309 | Tasking Board: job generation from state, priorities, role matching, slot de-dup, AI garrison integration, overlay "NEEDED" list, auto-tasking on a parameterless `!join` (Q-GP-23), `hold` opt-out (Q-GD-26 blocks P2; moved from P4 in NX-311) | — | ⬜ | NX-126, NX-178 |
 | NX-324 | Silent viewers: idle handoff to an AUTO unit, idle retire, reclaim; an AUTO unit keeps its commander's slot; AUTO tag on the overlay (GAMEPLAY §4b GP-4…GP-6; Q-GD-35, Q-ALN-8, Q-ALN-9, Q-ALN-25, Q-ALN-26) | — | ⬜ | NX-122, NX-309 |
 | NX-274 | Brand and style guide: name usage, fictional factions and insignia, unit class naming (generic: Tank, Striker, Bomber…), color, type, sound identity, tone of voice; **no real names** rule added to the content validator. Includes rank display names (Q-NAME-1), unit class names (Q-NAME-2), colors (Q-STYLE-1), typography (Q-STYLE-2), symbology (Q-STYLE-4). (Overlay needs it in P2; moved from P4 in NX-311.) | — | ⬜ | — |
 
