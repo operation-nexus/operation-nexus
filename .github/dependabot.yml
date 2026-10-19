@@ -26,6 +26,12 @@ updates:
     groups:
       overlay:
         patterns: ["*"]
+    # typescript-eslint (latest 8.71.2) supports typescript >=4.8.4 <6.1.0, so pnpm
+    # rejects the typescript 7 bump and this job errors every week. Remove this
+    # ignore once typescript-eslint declares support for typescript 7.
+    ignore:
+      - dependency-name: typescript
+        update-types: ["version-update:semver-major"]
 
   - package-ecosystem: github-actions
     directory: /
