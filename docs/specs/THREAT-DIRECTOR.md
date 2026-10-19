@@ -6,7 +6,7 @@ Status: Draft · Tracker: NX-155…NX-169, NX-309, NX-317 · ADR-0007 · Inputs:
 Keep every population level (the harness crowd profiles of 0, 5, 50, 150, 300 and 500 viewers, Q-ALN-42) interesting and fair, with an enemy that seems to adapt but stays deterministic and testable.
 
 ## 2. Inputs (enemy view only, FOW-4)
-- **Coalition power** `CP` = Σ over visible coalition units of the unit's value × its supply-readiness multiplier, smoothed with an EMA over `director.cp.ema_window_s` (PROPOSED 300 s, game time, Q-ALN-23). Commanders whose accounts are younger than `director.cp.new_account_age_h` count at `director.cp.new_account_weight` (PROPOSED 0.5×), which limits alt-account abuse.
+- **Coalition power** `CP` = Σ over currently tracked coalition units (last-known tracks feed only Recon utility, TD-5; Q-FOW-14) of the unit's value × its supply-readiness multiplier, smoothed with an EMA over `director.cp.ema_window_s` (PROPOSED 300 s, game time, Q-ALN-23). Commanders whose accounts are younger than `director.cp.new_account_age_h` count at `director.cp.new_account_weight` (PROPOSED 0.5×), which limits alt-account abuse.
 - Frontline state, node ownership, and enemy stockpiles.
 - **Threat memory:** decaying counters per category: `convoy_attacks`, `radar_strikes`, `node_losses_by_sector`, `sead_activity`. The half-life is configurable (`director.memory.half_life_s`, default 30 min of game time, Q-ALN-23).
 
