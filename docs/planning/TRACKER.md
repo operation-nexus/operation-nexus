@@ -269,7 +269,8 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-346 | NULL meme-flavored template lines: mechanism decided (Q-MKT-17); implement with NX-326 and the no-real-world-references rule (Q-MKT-17) | S | ⬜ | NX-326 |
 | NX-347 | Contributor license template (flat fee, contributor keeps copyright, project license, no voice training or cloning, credit) and one narrow attorney review before the first paid use (Q-LEGAL-13; ties NX-289) | S | ⬜ | — |
 | NX-348 | Credits page on the site and in the stream's about section; alias and removal-on-request rules (Q-LEGAL-13) | S | ⬜ | — |
-| NX-349 | Draft account profile copy (bios, link-page text) for each brand account, in the vault; the owner approved all eight on 2026-10-18 and pastes them into the profiles by hand (Q-MKT-14) | S | 👀 | NX-340 |
+| NX-349 | Draft account profile copy (bios, link-page text) for each brand account, in the vault; the owner approved all eight on 2026-10-18 and pasted seven into the profiles by hand on 2026-10-19; the link-page draft is held (see NX-351) (Q-MKT-14) | S | ✅ | NX-340 |
+| NX-351 | Link page copy (hiveplex.live) goes live with the front-facing site; draft MKT-0008 is approved and on hold in the vault until the site exists | S | ⬜ | public site |
 | NX-350 | `meme-brief` skill (on demand): owner's weekly examples to source-dated format ideas and drafts, tests on its tier (Q-MKT-16) | S | 🟨 | NX-339 |
 
 ## Backlog (unscheduled — from owner's conversation & plans)
