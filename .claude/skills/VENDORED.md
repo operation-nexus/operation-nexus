@@ -9,6 +9,7 @@ by path from `AGENTS.md` §7.
 |---|---|
 | `coding-safeguards` | Before refactoring, renaming or moving code across files |
 | `frontend-design` | Before any new visual surface (overlay layer, site page, Command Center screen) |
+| `new-unit` | Adding a new unit or facility kind (catalog entry, no kernel code) |
 
 ## Vendored from mattpocock/skills
 
