@@ -492,3 +492,4 @@ Owner decisions from the THREAT-DIRECTOR grill session, after a ponytail pass.
 | Q-TD-7 | Operations into jobs | Each operation is a job template in `content/operations.yaml` (content, not code). Owner: wants it modular, with custom behaviors, jobs and operations addable; a skill for authoring them is a candidate follow-up. | P1 | ✅ 2026-10-19 |
 | Q-TD-8 | Where Static units spawn | Same rule as the coalition (GP-7): nearest base with surplus, else the rear source. | P1 | ✅ 2026-10-19 |
 | Q-TD-9 | Game Master modes | ASSIST in the first GM release; FULL in the next release. Owner: wants full control sooner rather than later. | P1 | ✅ 2026-10-19 |
+| Q-TD-10 | THREAT-DIRECTOR status | Reviewer pass, then Approved (owner); PR after #121 (FOG-OF-WAR) merges. | P1 | ✅ 2026-10-19 |
