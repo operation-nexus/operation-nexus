@@ -275,6 +275,7 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-352 | Placeholder logo and avatar: concept C3 (signal break) chosen by the owner on 2026-10-19; master SVG, avatar, icon and banner and the provenance record are in the vault; the owner sets the avatars and banners by hand (AI-assisted placeholder, status `placeholder` per NX-318), then a human-made replacement when the budget allows (Q-MKT-18, Q-LEGAL-13) | S | 🟨 | — |
 | NX-353 | Discord server setup: spec `docs/specs/DISCORD-SERVER-SETUP.md` (Approved 2026-10-19) and the blueprint in `tools/discord-setup/`; no bot token in any session or repo (Q-OPS-12) | S | ✅ | NX-352 |
 | NX-354 | Discord setup tool `tools/discord-setup/` (spec Approved 2026-10-19): stdlib only, dry run by default, idempotent, owner-run with a throwaway token, sends no messages, tests in `make check` and CI (Q-OPS-12) | M | 👀 | NX-353 |
+| NX-355 | Make docs easy to find: a "Find it fast" task table in the root README and in the vault README, and bring `docs/README.md` back to listing every file under `docs/` (owner request 2026-10-19) | S | ✅ | — |
 | NX-350 | `meme-brief` skill (on demand): owner's weekly examples to source-dated format ideas and drafts, tests on its tier (Q-MKT-16) | S | 🟨 | NX-339 |
 
 ## Backlog (unscheduled — from owner's conversation & plans)
