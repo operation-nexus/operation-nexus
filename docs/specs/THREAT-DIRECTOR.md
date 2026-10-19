@@ -23,7 +23,7 @@ There's a minimum dwell of 10 min of game time per tier (`director.tier.min_dwel
 
 ## 4. Decision loop (every 60 s of game time, `director.window_s`, Q-ALN-23)
 1. Compute CP and the tier, and decay threat memory.
-2. Budget for this window = `director.budget.<tier>` − upkeep, and never more than the Static's real stock and factory output can pay for (Q-GD-30). Raiding its convoys, stock or factories starves the director. The only off-map source is an infinite rear source behind the Static's capturable HQ.
+2. Budget for this window = `director.budget.<tier>` − upkeep, and never more than the Static's real stock (shipped by convoy from its rear source; factories are parked, Q-GP-41) can pay for (Q-GD-30). Raiding its convoys, stock or factories starves the director. The only off-map source is an infinite rear source behind the Static's capturable HQ.
 3. Generate candidate **operations** from the doctrine library: Probe(sector), Recon(sector), Offensive(node), Retake(node), EscortConvoys(route), ReinforceIADS(sector) (first build: repair and reactivate existing air-defense sites; building new ones waits for GAMEPLAY-LATER §5a, Q-GP-46), StrikeBridge(edge), DecoyBlink(radar), TheaterOffensive(plan). Each candidate has a cost and preconditions.
 4. Score each candidate = utility(target value, weakness from the enemy view, threat memory) + a `director` RNG noise term. The noise is what makes it unpredictable but replayable.
 5. **Adaptive defense (C37):** each threat-memory counter raises the utility of the matching defensive operation. Convoys are sent with no escort at first, then escorts appear as `convoy_attacks` grows, and drop away again as it decays. Each adaptation is announced with an INTEL line.

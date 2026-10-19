@@ -20,6 +20,7 @@ The values below are the initial PROPOSED preset. They are config data, not code
 | Recon paint → assist | 15 | 5 |
 | CSAR rescue completed (GAMEPLAY §6a: "large" bonus) | TBD by harness | TBD by harness |
 | Kill | 10 | 3 |
+| Following a unit whose outcome earns credit (within station range; GAMEPLAY §1b, Q-GP-42) | — | capped share of that outcome's merit (`progression.follower_share`, PROPOSED) |
 | Spawning | 0 | 0 |
 
 **PROG-1** Diminishing returns: after `progression.xp_hour_soft_cap` (PROPOSED 400 per real hour), further XP is × `progression.xp_over_cap_mult` (PROPOSED 0.25).

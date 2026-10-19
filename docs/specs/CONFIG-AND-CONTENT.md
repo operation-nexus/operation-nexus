@@ -140,7 +140,6 @@ Legend: **HR** = hot-reloadable (§5). "TBD" = TBD by harness. **Source** = the 
 | Key | Type | Unit | PROPOSED | Source | HR |
 |---|---|---|---|---|---|
 | `logistics.node_max_stock.<node_kind>` | int | stock units | TBD per kind | GAMEPLAY §5 | No |
-| `logistics.factory_rate` | float | stock/min (world) | TBD | GAMEPLAY §5 | No |
 | `logistics.starve_threshold` | float | fraction 0–1 | 0.25 | GAMEPLAY §5 | No |
 | `logistics.starve_hp_drain_per_min` | float | node hp per min (world) | TBD (PROPOSED) | GAMEPLAY §8 | No |
 | `logistics.starved_loadout.fuel_frac` | float | fraction | 0.5 | GAMEPLAY §5 | No |
@@ -152,8 +151,10 @@ Legend: **HR** = hot-reloadable (§5). "TBD" = TBD by harness. **Source** = the 
 | `logistics.offroad_speed_mult` | float | multiplier | 0.5 (from raw plans P987; unvalidated) | GAMEPLAY §5 | No |
 | `logistics.bridge_repair_time_s` | float | s (world) | TBD (engineer repair time; Q-GD-11) | GAMEPLAY §5 | No |
 | `logistics.truck_bridge_repair_mult` | float | multiplier on engineer time | 5 (Q-GD-11 recommendation "e.g. 5× slower") | GAMEPLAY §5 | No |
-| `logistics.truck_facility_repair_mult` | float | multiplier on a facility's base repair rate while a truck spends cargo there | TBD (PROPOSED) | GAMEPLAY §5b, Q-GP-30 | No |
 | `tasking.follow_station_m.<domain>` | float | m (world) | TBD (PROPOSED) | GAMEPLAY §1b, Q-GP-32 | No |
+| `progression.follower_share` | float | fraction of the outcome's merit per follower | TBD (PROPOSED) | GAMEPLAY §1b, PROGRESSION, Q-GP-42 | No |
+| `progression.follower_share_cap` | int | max followers credited per outcome | TBD (PROPOSED) | GAMEPLAY §1b, Q-GP-42 | No |
+| `logistics.forward_deploy_min_surplus` | float | stock above the starvation threshold a base needs to accept a forward deploy | TBD (PROPOSED) | GAMEPLAY §4, Q-GP-41 | No |
 | `logistics.repair_rate.<node_kind>` | float | hp/s (world) | TBD (base repair for all domains, Q-GD-27) | GAMEPLAY §5 | No |
 
 ### 6.4 Combat
@@ -333,7 +334,6 @@ weapons:
 | GARRISON_INFANTRY | COALITION | GROUND | AI_GARRISON | — | yes (light) | — | yes | Holds nodes when no viewers (Q-GD-4); never starts offense on its own (Q-GD-26) |
 | AIR_DEFENSE_SITE | follows base | STATIC | base owner's AI | — | yes (variants: short-range AAA, SAM) | — | no | Facility (Q-GP-25). Engagement ring; a SAM variant may blink its radar. Replaces GARRISON_AAA and ENEMY_SAM_SITE |
 | RADAR_SITE | follows base | STATIC | base owner's AI | — | no | — | no | Facility (Q-GP-25). Extends its side's FoW view (FOW-4) |
-| FACTORY | follows base | STATIC | — | — | no | — | no | Facility (Q-GP-25). Adds `logistics.factory_rate` to its base's stock while that base is road-connected to its side's source |
 | ENEMY_CONVOY | ENEMY | GROUND | DIRECTOR | — | no | yes | yes (slow) | Escorts appear via threat memory |
 | ENEMY_FIGHTER | ENEMY | AIR | DIRECTOR | — | yes (AA) | — | no | CAP / intercept |
 | ENEMY_ARMOR | ENEMY | GROUND | DIRECTOR | — | yes (AG) | — | yes | Offensives / retakes |

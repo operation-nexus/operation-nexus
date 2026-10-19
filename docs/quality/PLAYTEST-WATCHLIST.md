@@ -18,3 +18,6 @@ Things the specs deliberately simplified or set to PROPOSED values, to re-check 
 | Auto-tasking on `!join` | No parameters = take a job at once; a node = go there; `hold` = wait | New viewers don't realise they can choose a target | Q-GP-23 |
 | Facilities as separate units | Radars, air defense and factories are STATIC units attached to a base, not part of the base | It feels fiddly on stream, or bases and facilities should merge (owner is not fully settled) | Q-GP-25, Q-GP-27 |
 | Idle drift | At 0 viewers the Static slowly gains ground but cannot take the last forward airbase | The morning crowd finds too much lost, or the drift is invisible | Q-GP-28 |
+| Spawn location | Free sanctuary spawn; forward deploy only from surplus | Players feel stuck far from the front, or forward bases never qualify | Q-GP-41 |
+| Single supply source | Stock only from the sanctuary by truck; factories parked | Convoys from one source can't keep the front alive | Q-GP-41 |
+| Follower credit | Capped share of the leader's outcome merit | Follow chains become merit farms, or followers feel unrewarded | Q-GP-42 |
