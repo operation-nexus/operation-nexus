@@ -13,6 +13,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 
 from check_commit_msg import problems  # noqa: E402  (path set up above)
 from check_osv_report import findings, main  # noqa: E402
+from check_site import page_problems, site_problems  # noqa: E402
 from check_tracked_files import violations  # noqa: E402
 
 AI = "Cl" + "aude"  # kept out of the literal so a name scan of this file stays clean
@@ -76,8 +77,50 @@ def test_osv_report():
     assert not any(line.startswith("::") for line in out.getvalue().splitlines())
     assert "\r" not in out.getvalue()
 
+def test_site():
+    assert site_problems() == []  # the real apps/site against the real BRAND-ACCOUNTS
+    with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "apps", "site", "index.html")) as f:
+        good = f.read()
+    with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "docs", "planning",
+                           "BRAND-ACCOUNTS.md")) as f:
+        reg = f.read()
+    assert page_problems(good, reg) == []
+
+    def bad(old, new, needle):
+        assert old in good, old
+        msgs = page_problems(good.replace(old, new, 1), reg)
+        assert any(needle in m for m in msgs), (needle, msgs)
+
+    bad("</head>", "<script>1</script></head>", "PS-1/PS-3")
+    bad("<body>", '<body onload="x()">', "inline handler")
+    bad("</head>", '<link rel="stylesheet" href="https://cdn.example.com/a.css"></head>', "PS-2")
+    bad('src="logo.svg"', 'src="https://example.com/logo.svg"', "off the site")
+    bad("<style>", "<style>@import url(https://example.com/f.css);", "stylesheet")
+    bad('href="https://www.twitch.tv/hiveplextv"', 'href="https://www.twitch.tv/someoneelse"', "PS-4")
+    bad('href="https://discord.gg/2sYjKYshSc"', 'href="https://discord.gg/other"', "PS-4")
+    bad("<footer>", "<footer><p>mail me@gmail.com</p>", "PS-5")
+    bad("<main>", '<main><a href="https://example.com/">x</a>', "PS-4")
+    bad("</head>", '<base href="https://example.com/"></head>', "PS-1/PS-3")
+    bad("</head>", '<meta http-equiv="refresh" content="0;url=https://example.com/"></head>', "http-equiv")
+    bad('src="logo.svg"', 'src="javascript:x"', "script or data URL")
+    bad('href="https://www.youtube.com/@hiveplex"', 'href="https://www.youtube.com/evil?x=@hiveplex"', "PS-4")
+    bad('alt="Hiveplex logo"', "", "alt")
+    bad('<meta property="og:image" content="https://hiveplex.live/share.png">', "", "og:image")
+    bad("AI-made", "hand-drawn", "PS-8")
+    bad("collects nothing", "is quiet", "PS-9")
+    with tempfile.TemporaryDirectory() as d:  # an .svg with a handler is caught, not just .html
+        with open(os.path.join(d, "index.html"), "w") as f:
+            f.write(good)
+        with open(os.path.join(d, "a.svg"), "w") as f:
+            f.write('<svg onload="x()"/>')
+        assert any("a.svg" in m for m in site_problems(d))
+    assert page_problems(good.replace("<footer>", "<footer><p>hi@hiveplex.live</p>", 1), reg) == []
+    assert any("not in BRAND-ACCOUNTS" in m for m in page_problems(good, reg.replace("project_hiveplex", "x")))
+
+
 if __name__ == "__main__":
     test_commit_msg()
     test_tracked_files()
     test_osv_report()
+    test_site()
     print("ok")

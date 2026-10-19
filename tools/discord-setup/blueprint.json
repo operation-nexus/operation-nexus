@@ -1,0 +1,114 @@
+{
+  "_comment": "Starter layout for hiveplex-community (docs/specs/DISCORD-SERVER-SETUP.md section 5). Permission names are Discord permission flags; the values live in setup.py.",
+  "guild_name": "hiveplex-community",
+  "roles": [
+    {
+      "name": "Operator",
+      "color": "#38d1ff",
+      "hoist": false,
+      "mentionable": false,
+      "permissions": ["VIEW_CHANNEL", "SEND_MESSAGES", "READ_MESSAGE_HISTORY", "ADD_REACTIONS"]
+    },
+    {
+      "name": "Staff",
+      "color": "#ffb000",
+      "hoist": true,
+      "mentionable": false,
+      "permissions": [
+        "VIEW_CHANNEL", "SEND_MESSAGES", "READ_MESSAGE_HISTORY", "ADD_REACTIONS",
+        "MANAGE_MESSAGES", "MODERATE_MEMBERS"
+      ]
+    },
+    {
+      "name": "Bot",
+      "color": "#3a4a63",
+      "hoist": false,
+      "mentionable": false,
+      "permissions": ["VIEW_CHANNEL", "SEND_MESSAGES", "READ_MESSAGE_HISTORY", "EMBED_LINKS"]
+    }
+  ],
+  "categories": [
+    {
+      "name": "START HERE",
+      "overwrites": {
+        "@everyone": {
+          "allow": ["VIEW_CHANNEL", "READ_MESSAGE_HISTORY"],
+          "deny": ["SEND_MESSAGES", "ATTACH_FILES"]
+        },
+        "Operator": {"allow": ["VIEW_CHANNEL", "READ_MESSAGE_HISTORY"], "deny": ["SEND_MESSAGES"]},
+        "Staff": {"allow": ["VIEW_CHANNEL", "SEND_MESSAGES", "READ_MESSAGE_HISTORY"], "deny": []}
+      },
+      "channels": [
+        {"name": "welcome", "topic": "What this is and how to get in."},
+        {"name": "rules", "topic": "House rules. Short."}
+      ]
+    },
+    {
+      "name": "ANNOUNCEMENTS",
+      "overwrites": {
+        "@everyone": {"allow": [], "deny": ["VIEW_CHANNEL", "SEND_MESSAGES"]},
+        "Operator": {"allow": ["VIEW_CHANNEL", "READ_MESSAGE_HISTORY"], "deny": ["SEND_MESSAGES"]},
+        "Staff": {"allow": ["VIEW_CHANNEL", "SEND_MESSAGES", "READ_MESSAGE_HISTORY"], "deny": []},
+        "Bot": {"allow": ["VIEW_CHANNEL", "SEND_MESSAGES", "EMBED_LINKS"], "deny": []}
+      },
+      "channels": [
+        {"name": "devlog", "topic": "Dev updates. Read-only; bots and staff post."}
+      ]
+    },
+    {
+      "name": "COMMS",
+      "overwrites": {
+        "@everyone": {"allow": [], "deny": ["VIEW_CHANNEL", "SEND_MESSAGES", "ATTACH_FILES"]},
+        "Operator": {
+          "allow": ["VIEW_CHANNEL", "SEND_MESSAGES", "READ_MESSAGE_HISTORY", "ADD_REACTIONS"],
+          "deny": ["ATTACH_FILES"]
+        },
+        "Staff": {
+          "allow": ["VIEW_CHANNEL", "SEND_MESSAGES", "READ_MESSAGE_HISTORY", "ATTACH_FILES"],
+          "deny": []
+        }
+      },
+      "channels": [
+        {"name": "general", "topic": "Talk about anything."},
+        {
+          "name": "clips-and-memes",
+          "topic": "Clips and memes. Files allowed here only.",
+          "overwrites": {"Operator": {"allow": ["ATTACH_FILES", "EMBED_LINKS"], "deny": []}}
+        }
+      ]
+    },
+    {
+      "name": "FEEDBACK",
+      "overwrites": {
+        "@everyone": {"allow": [], "deny": ["VIEW_CHANNEL", "SEND_MESSAGES", "ATTACH_FILES"]},
+        "Operator": {
+          "allow": ["VIEW_CHANNEL", "SEND_MESSAGES", "READ_MESSAGE_HISTORY", "ADD_REACTIONS"],
+          "deny": ["ATTACH_FILES"]
+        },
+        "Staff": {
+          "allow": ["VIEW_CHANNEL", "SEND_MESSAGES", "READ_MESSAGE_HISTORY", "ATTACH_FILES"],
+          "deny": []
+        }
+      },
+      "channels": [
+        {"name": "feedback", "topic": "What works, what does not, what you would change."},
+        {"name": "bug-reports", "topic": "Something broke. Say what you did and what happened."}
+      ]
+    },
+    {
+      "name": "STAFF",
+      "overwrites": {
+        "@everyone": {"allow": [], "deny": ["VIEW_CHANNEL", "SEND_MESSAGES"]},
+        "Operator": {"allow": [], "deny": ["VIEW_CHANNEL", "SEND_MESSAGES"]},
+        "Staff": {
+          "allow": ["VIEW_CHANNEL", "SEND_MESSAGES", "READ_MESSAGE_HISTORY", "ATTACH_FILES"],
+          "deny": []
+        }
+      },
+      "channels": [
+        {"name": "mod-chat", "topic": "Staff only."},
+        {"name": "mod-log", "topic": "Staff only. Moderation actions and why."}
+      ]
+    }
+  ]
+}

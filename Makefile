@@ -29,6 +29,7 @@ check-python:
 	cd $(SIM) && uv run --frozen lint-imports
 	cd $(SIM) && uv run --frozen pytest
 	python3 scripts/tests/test_repo_checks.py
+	python3 tools/discord-setup/tests/test_setup.py
 
 check-overlay: node-version
 	pnpm --dir $(OVERLAY) run typecheck
