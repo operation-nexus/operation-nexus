@@ -32,7 +32,7 @@ Define every input the system reads that isn't code: runtime settings, balance t
 - **CFG-8** All user-visible authored text (node names, callsign words, sitrep templates) MUST pass the moderation denylist in CI (SEC-MOD-1).
 - **CFG-9 Clocks (Q-CFG-8, Q-ALN-1, Q-ALN-4, Q-ALN-5, Q-ALN-6, Q-ALN-23, Q-ALN-35, Q-ALN-38):** every time-valued key MUST name one of three clocks in its schema `unit` annotation and in this spec (`s (world)`, `min (game)`, `s (real)`, ...).
   - **World time** (`world`) is sim ticks scaled by `sim.time_scale`: while the campaign runs, 1 real second = `sim.time_scale` world seconds. It drives movement, logistics and combat (speeds, fuel, logistics and repair rates, weapon reload), plus capture progress and decay, bridge repair, the FoW sensor refresh and track fade (FOG-OF-WAR FOW-9) (Q-ALN-23). The Tier 1 sensor refresh is expressed in world time so its real cadence stays about 8–10 s: PROPOSED ~48–60 s world at `sim.time_scale` 6 (Q-ALN-38). Deterministic; frozen while paused.
-  - **Game time** (`game`) is unscaled sim ticks: while the campaign runs, 1 game minute = 1 real minute. It drives player-facing durations: idle handoff/retire, respawn delay (Q-ALN-5), rank and doctrine ability cooldowns, campaign length, the objective period and the victory/defeat holds. Per Q-ALN-23 it also drives the Threat Director decision window, tier dwell, CP EMA, the memory and provocation half-lives, the Pattern of Life periods, the night-progress cap, the Tasking Board claim lease and priority aging, and the package fill wait (GAMEPLAY §7). The CHARLIE warning lead time is game time too (THREAT-DIRECTOR §3, Q-ALN-35). Deterministic; frozen while paused.
+  - **Game time** (`game`) is unscaled sim ticks: while the campaign runs, 1 game minute = 1 real minute. It drives player-facing durations: idle handoff/retire, respawn delay (Q-ALN-5), rank and doctrine ability cooldowns, campaign length, the objective period and the victory/defeat holds. Per Q-ALN-23 it also drives the Threat Director decision window, tier dwell, CP EMA, the memory and provocation half-lives, the Pattern of Life periods, the night-progress cap, the Tasking Board claim lease and priority aging, and the package fill wait (GAMEPLAY §7). (The CHARLIE warning lead time, game time per Q-ALN-35, is parked with CHARLIE, Q-TD-3.) Deterministic; frozen while paused.
   - **Real time** (`real`) is a monotonic clock outside the sim: chat rate limits, reply digest batching, LLM/TTS budgets, reconnect backoff, the offline-pause trigger, overlay presentation, and the limits enforced before a command enters the sim: taunt naming cooldowns, GM idle auto-release, redemption cooldowns and the supply-drop hourly cap (Q-ALN-4). It keeps running while the campaign is paused.
   - World and game time freeze for every pause reason (`PauseReasonCategory` = `STAFF`, `TECHNICAL`, `MAINTENANCE`, `CEASEFIRE`, Q-ALN-3); the offline auto-pause (§6.10) is `TECHNICAL`.
   - Keys are written in friendly units (s, min, h) and converted to ticks once, at load, by one loader function: world keys as `ceil(seconds × sim.tick_hz / sim.time_scale)`, game keys as `ceil(seconds × sim.tick_hz)`. Rounding is always up, so a timer is never shorter than configured (Q-ALN-6). No sim code reads a seconds value directly.
@@ -229,16 +229,17 @@ Legend: **HR** = hot-reloadable (§5). "TBD" = TBD by harness. **Source** = the 
 | `director.window_s` | float | s (game, Q-ALN-23) | 60 | THREAT-DIRECTOR §4 | No |
 | `director.cp.unit_value.<unit_kind>` | float | CP points | TBD per kind | THREAT-DIRECTOR §2 | Yes |
 | `director.cp.ema_window_s` | float | s (game, Q-ALN-23) | 300 | THREAT-DIRECTOR §2 | Yes |
-| `director.cp.new_account_weight` | float | multiplier | 0.5 | THREAT-DIRECTOR §2 | Yes |
-| `director.cp.new_account_age_h` | float | h (real) | 24 (= Q-PROG-3 recommendation) | THREAT-DIRECTOR §2 | Yes |
 | `director.tier.bravo_enter_cp` | float | CP | TBD | THREAT-DIRECTOR §3 | Yes |
-| `director.tier.charlie_enter_cp` | float | CP | TBD | THREAT-DIRECTOR §3 | Yes |
+| `director.provocation.bravo_threshold` | float | provocation score | TBD (PROPOSED) | THREAT-DIRECTOR §3, Q-TD-1 | Yes |
 | `director.tier.exit_ratio` | float | fraction of enter | 0.8 | THREAT-DIRECTOR §3 | Yes |
 | `director.tier.min_dwell_s` | float | s (game, Q-ALN-23) | 600 | THREAT-DIRECTOR §3 | Yes |
 | `director.budget.<tier>` | int | budget points / window | TBD per tier | THREAT-DIRECTOR §4 | Yes |
+| `director.max_spawns_per_window` | int | units / window | TBD (PROPOSED) | THREAT-DIRECTOR §4, Q-TD-12 | Yes |
+| `director.max_live_units.<tier>` | int | units | TBD (PROPOSED) | THREAT-DIRECTOR §4, Q-TD-12 | Yes |
+| `director.op_priority.<op>` | float | base priority | TBD by harness | THREAT-DIRECTOR §4, Q-TD-6 | Yes |
+| `director.score.target_value.<node_kind>` | float | multiplier | TBD by harness | THREAT-DIRECTOR §4, Q-TD-6 | Yes |
+| `director.score.provocation_proximity` | float | multiplier | TBD by harness | THREAT-DIRECTOR §5, Q-TD-4 | Yes |
 | `director.memory.half_life_s` | float | s (game, Q-ALN-23) | 1800 | THREAT-DIRECTOR §2 | Yes |
-| `director.ops.<op_kind>.cost` | int | budget points | TBD per op | THREAT-DIRECTOR §4 | Yes |
-| `director.ops.<op_kind>.enabled_tiers` | [enum] | — | TBD per op | THREAT-DIRECTOR §4 | Yes |
 | `director.noise_scale` | float | utility units | TBD | THREAT-DIRECTOR §4 | Yes |
 | `director.advisor.top_k` | int | candidates | TBD (P4) | THREAT-DIRECTOR §6 | Yes |
 
@@ -343,6 +344,8 @@ weapons:
 | ENEMY_CONVOY | ENEMY | GROUND | DIRECTOR | — | no | yes | yes (slow) | Escorts appear via threat memory |
 | ENEMY_FIGHTER | ENEMY | AIR | DIRECTOR | — | yes (AA) | — | no | CAP / intercept |
 | ENEMY_ARMOR | ENEMY | GROUND | DIRECTOR | — | yes (AG) | — | yes | Offensives / retakes |
+| ENEMY_STRIKE_FIGHTER | ENEMY | AIR | DIRECTOR | — | yes (AG + AA light) | — | no | Mirrors STRIKE_FIGHTER (parity, Q-TD-13); stats TBD by harness |
+| ENEMY_RECON_UAV | ENEMY | AIR | DIRECTOR | — | no | — | no | Mirrors RECON_UAV: large sensor, passive range, paints (parity, Q-TD-13); stats TBD by harness |
 
 Specialist chassis (SEAD, artillery, engineer, jammer, AWACS) are P4 (PROGRESSION §3). Naval units are **P3** (Q-GD-8). Their catalog rows are added then. Display class names (Striker, Scout, Hauler, …) come from `display.label_key` and the brand guide (Q-NAME-2); kind ids stay plain (GAMEPLAY TS-4).
 
@@ -385,6 +388,26 @@ doctrines:
 - Perks may only modify whitelisted stats. Modifying `hp` or `base_pk` requires owner sign-off (game-designer role card).
 - Values are PROPOSED. The catalog lands in P4 (NX-213).
 
+
+## 8a. Operation catalog (`content/operations.yaml`, Q-TD-7)
+The director's operations are content, not kernel code. Each entry names its preconditions (a closed list in the schema), cost, enabled tiers and a **job template**: an ordered list of Tasking Board jobs (job kinds from CONTRACTS `JobKind`, with role, slot count and dependencies) that the operation posts on the Static's board. Selectors such as `target_defenses` and `nearest_own_base` resolve only against the Static's view (THREAT-DIRECTOR TD-2). Adding or changing an operation is a content change validated at load (unknown job kinds, missing preconditions or a cost outside the envelope are rejected); new behaviour the job kinds can't express needs a spec change first.
+
+```yaml
+schema_version: 1
+operations:
+  - id: OFFENSIVE                     # THREAT-DIRECTOR §4 step 3
+    target: NODE
+    preconditions: [target_owner_is_coalition, target_in_enemy_view]   # closed enum in the schema
+    cost: <int>                       # budget points, TBD by harness (the only home of an operation's cost)
+    enabled_tiers: [ALPHA, BRAVO]     # Pattern of Life allows Offensive only under the night cap
+    # priority comes from director.op_priority.<id>
+    jobs:                             # posted in order; each later job depends on the earlier one
+      - { kind: DEFEND, at: nearest_own_base, unit_kinds: [ENEMY_STRIKE_FIGHTER], slots: <int> }   # stage
+      - { kind: STRIKE, at: target_defenses, unit_kinds: [ENEMY_STRIKE_FIGHTER], slots: <int> }
+      - { kind: CAPTURE, at: target, unit_kinds: [ENEMY_ARMOR], slots: <int> }
+```
+Values are PROPOSED; the first-build list is Probe, Recon, Offensive, Retake, EscortConvoys, ReinforceIADS, StrikeBridge and DecoyBlink (DecoyBlink sets an emission flag and has no jobs, FOG-OF-WAR FOW-11).
+
 ## 9. Theater file format (`content/theaters/<slug>.yaml`)
 
 ### 9.1 Schema
@@ -397,7 +420,7 @@ doctrines:
 | `bounds_m` | `{w, h}` | Map extent in metres (SIM-CORE §4: ~400×240 km for the first theater) |
 | `terrain` | object | `heightmap: <path to 16-bit PNG>`, `height_scale_m`, `sea_level_m`; **or** `contours: <path to GeoJSON-like polylines>`. `masking_regions`: polygons where NOE/LOW aircraft and ground units are masked from sensors outside the region, rasterized at load to the spatial grid's cells (cell centre in polygon, integer metres; the theater file is in the config hash; FOG-OF-WAR Tier 2, Q-FOW-3) |
 | `sectors` | list | `{id, name, polygon}`; non-overlapping; union covers the map |
-| `nodes` | list | `{id, name, kind, pos: [x_m, y_m], start_owner, start_stock, sector}` |
+| `nodes` | list | `{id, name, kind, pos: [x_m, y_m], start_owner, start_stock, sector, garrison_quota?}`. `garrison_quota` (Static bases): the units the director may keep there at Pattern of Life, replacing losses only (THREAT-DIRECTOR §5a, Q-TD-11) |
 | `edges` | list | `{a, b, layer: ROAD\|SEA_LANE, speed_mult, bridge?: <node id of kind BRIDGE>}` |
 | `spawns` | list | `{side, node, domains: [...]}`: where each side's units may appear |
 | `sanctuary` | node id | Coalition SANCTUARY node: infinite stock, never capturable (Q-GD-7) |
@@ -541,6 +564,6 @@ A PR without a harness run fails the `balance-report` check. A change that touch
 - Decided and folded in (spec-alignment batch 2, 2026-10-18): Q-ALN-18 (Top Commanders in `hud.rotation.panels`), Q-ALN-22 (GMs draft rank/XP presets; Owner/Admin approve and apply, §5a), Q-ALN-23 (clocks for the capture, Tasking Board, night-progress and Threat Director keys in §6 and for the FoW timers, CFG-9), Q-ALN-24 (a reload requested while paused is deferred until resume, §5).
 - Decided and folded in (spec-alignment batch 3, 2026-10-18): Q-ALN-35 (CHARLIE warning lead time is game time, CFG-9), Q-ALN-38 (Tier 1 FoW refresh re-expressed in world time, CFG-9), Q-ALN-42 (harness crowd profiles, header note).
 - Still open:
-  - The package fill wait (GAMEPLAY §7) and the CHARLIE warning lead time (THREAT-DIRECTOR §3, PROPOSED ~10 min game, Q-ALN-35) now have a clock (CFG-9) but no row in §6; their keys, values and HR status are added when those features are specified.
+  - The package fill wait (GAMEPLAY §7) now has a clock (CFG-9) but no row in §6; their keys, values and HR status are added when those features are specified.
   - Weight of Top Commanders in `hud.rotation.panels` (§6.9).
   - The exact maintenance start time and the `overlay.broadcast_tz` value (owner).

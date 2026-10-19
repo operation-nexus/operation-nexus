@@ -89,7 +89,7 @@ CREATE TABLE platform_identities (
 ) STRICT;
 CREATE INDEX idx_identities_commander ON platform_identities(commander_id);
 ```
-- `platform_account_created_at` is the platform-account-age anti-farming layer (PROGRESSION PROG-4, IDENTITY §1) and feeds the account-age weighting (THREAT-DIRECTOR §2, `director.cp.new_account_age_h`). It is copied from `ChatEnvelope.account_created_at` (CONTRACTS §4) and stays `NULL` when the platform doesn't expose it [UNVERIFIED per platform]. `first_seen_at` is our own first-seen age.
+- `platform_account_created_at` is the platform-account-age anti-farming layer (PROGRESSION PROG-4, IDENTITY §1) (the director's account-age weighting was removed, Q-TD-2). It is copied from `ChatEnvelope.account_created_at` (CONTRACTS §4) and stays `NULL` when the platform doesn't expose it [UNVERIFIED per platform]. `first_seen_at` is our own first-seen age.
 - `KICK` is in the CHECK list only because the `Platform` enum carries it: Kick is an optional platform, not a committed one (Q-PROD-2).
 - `LOCAL_SIM` rows exist only in dev/test databases. Production config that enables the `LOCAL_SIM` adapter is rejected at startup (CONTRACTS §3.3).
 - Re-pointing an existing `(platform, platform_user_id)` to another commander is only allowed inside the OAuth merge transaction (SEC-ID-2). There is no `INSERT OR REPLACE` anywhere (Semgrep rule, NX-020).

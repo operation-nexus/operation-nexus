@@ -476,3 +476,25 @@ Owner decisions from the FOG-OF-WAR grill session, after a ponytail pass.
 | Q-FOW-15 | How facilities are discovered | Bases are known; enemy facilities only once discovered: an active track, a passive sensor (recon units and radar sites; AWACS later) within `sensor.passive_range_m` of an emitting site, or capturing the base. Discovery is a permanent marker (position, kind, variant, ring); details refresh only on re-observation with a "last confirmed" age. Owner: unsensed strikes and repairs must never be exposed. Same for the director. | P1 | ✅ 2026-10-19 |
 | Q-FOW-16 | Track quality in the first build | Evaluated at impact: no track or out of envelope at impact = miss. Dynamic in-flight track quality (outrunning by range, jamming changing it in flight, seekers) is parked in GAMEPLAY-LATER. | P1 | ✅ 2026-10-19 |
 | Q-FOW-17 | Announcing IADS reinforcement | Keep the INTEL line at sector level only; it never names a site or updates a marker. Approves FOG-OF-WAR. | P1 | ✅ 2026-10-19 |
+
+## THREAT-DIRECTOR grilling (2026-10-19)
+
+Owner decisions from the THREAT-DIRECTOR grill session, after a ponytail pass.
+
+| ID | Question | Decision | Priority | Status |
+|---|---|---|---|---|
+| Q-TD-1 | One escalation rule | Provocation decides when, coalition power decides how far: tier = min(provocation level, CP ceiling), with hysteresis and dwell on the result. Pattern of Life becomes the lowest tier value. | P1 | ✅ 2026-10-19 |
+| Q-TD-2 | Fair inputs for coalition power | CP = Σ unit value over currently tracked coalition units; supply readiness and account-age weighting removed. Owner: the director can and should send out scouts anyway (routine Recon on a PoL cadence). | P1 | ✅ 2026-10-19 |
+| Q-TD-3 | CHARLIE in the first build | Parked with TheaterOffensive and its warning lead time; first build is Pattern of Life, ALPHA and BRAVO. `sead_activity` and counter-battery removed until P4. | P1 | ✅ 2026-10-19 |
+| Q-TD-4 | Small crowds without headcount | At low CP the director prefers operations near its most recent provocation, not near humans. | P1 | ✅ 2026-10-19 |
+| Q-TD-5 | Director budget | Budget per window = min(tier budget, stock that can pay); no separate upkeep. | P1 | ✅ 2026-10-19 |
+| Q-TD-6 | Operation scoring | Flat `director.op_priority.<op>` × target-value, weakness and threat-memory multipliers + `director` RNG noise; harness-tuned. | P1 | ✅ 2026-10-19 |
+| Q-TD-7 | Operations into jobs | Each operation is a job template in `content/operations.yaml` (content, not code). Owner: wants it modular, with custom behaviors, jobs and operations addable; a skill for authoring them is a candidate follow-up. | P1 | ✅ 2026-10-19 |
+| Q-TD-8 | Where Static units spawn | Same rule as the coalition (GP-7): nearest base with surplus, else the rear source. | P1 | ✅ 2026-10-19 |
+| Q-TD-9 | Game Master modes | ASSIST in the first GM release; FULL in the next release. Owner: wants full control sooner rather than later. | P1 | ✅ 2026-10-19 |
+| Q-TD-10 | THREAT-DIRECTOR status | Reviewer pass, then Approved (owner); PR after #121 (FOG-OF-WAR) merges. | P1 | ✅ 2026-10-19 |
+| Q-TD-11 | Who provokes | Only viewer units under player control, plus redemptions; AI garrison, facility and AUTO actions add 0. Owner: AI garrison units are destroyable and repairable, upgraded only by player actions, never by AI; Pattern of Life supply is maintenance only and never becomes a swarm (losses replaced up to per-base garrison quotas, no net growth). | P1 | ✅ 2026-10-19 |
+| Q-TD-12 | Static budget and rear source | Budget = summed surplus of Static bases (rear source excluded); every operation costs budget once; GP-7 only picks the spawn location. Owner: prevent spawn spam, so per-window spawn cap and per-tier live-unit cap. Justified asymmetry with the free coalition sanctuary. | P1 | ✅ 2026-10-19 |
+| Q-TD-13 | Enemy roster for scouting and strikes | Add ENEMY_STRIKE_FIGHTER and ENEMY_RECON_UAV mirroring the coalition's Striker and Scout, stats TBD (extends Q-CT-5). | P1 | ✅ 2026-10-19 |
+| Q-TD-14 | Who uses CAPTURE jobs | Static board only in the first build; coalition captures stay player-driven (asymmetry in GAMEPLAY §0). | P1 | ✅ 2026-10-19 |
+| Q-TD-15 | GM rules alignment | No fog lift for a GM; only the audited `override_budget`; ASSIST = inject or veto while rules run; FULL rejected until it ships. | P1 | ✅ 2026-10-19 |

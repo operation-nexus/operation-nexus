@@ -20,7 +20,8 @@ Status: Parked (not part of the SIM-CORE / GAMEPLAY approval) · Tracker: NX-120
 > Following a unit (`!target <callsign>`, GAMEPLAY §1b, Q-GP-31) already covers positioning in the first build; flights and packages add only a shared target, a shared map symbol and an XP share. Deploy-time stance (`!join strike press`) must fit the `!join` grammar when stances return.
 - **RQ-3 (P4, ships with packages §7; Q-GD-36): Units merge into flights before anyone queues.** Joiners attach to existing human flights as wingmen (sharing one map symbol) before the queue is used. Only when every flight is full does the queue start. The alpha uses the plain reserve queue only.
 
-## 5a. Base upgrades (P4; extension point reserved now)
+## 5a. Base upgrades
+> Upgrades come only from player actions, never from AI (Q-TD-11); this includes AI garrison units and facilities. (P4; extension point reserved now)
 Owner idea: sending **surplus supply** to a base gradually upgrades it: a radar site gains range, an air-defense site gains faster interceptors, an airbase rearms quicker. Upgrades decay or are lost if the base is starved or captured.
 - **Reserved now so it doesn't need a rewrite later:** nodes carry `tier: int` and `upgrades: [UpgradeId]` in the world model, and all node stats are read through a modifier layer (base stats × tier/upgrade modifiers from config). The MVP ships with tier 0 and no upgrades.
 
@@ -61,3 +62,4 @@ Text as it stood in GAMEPLAY before the move. Wire-level fallout was removed fro
 - **Factories (Q-GP-41, parked):** a FACTORY facility adds `logistics.factory_rate` per minute to its base's stock. Returns if single-source convoys prove too slow in playtests.
 - **Emission control with SEAD (Q-FOW-10):** both sides' AI turns a radar or air-defense site dark when an anti-radiation missile is detected inbound and resumes after a cooldown; a rank-gated player command to blink a friendly site may come with it.
 - **Dynamic track quality in flight (owner, 2026-10-19):** track quality should not be fixed when a shot is fired. A fleeing target can outrun a munition depending on the weapon's range, and jamming or other interference can raise or lower track quality while the munition flies. Not implemented in the first build; see GAMEPLAY §6 for the interim rule.
+- **CHARLIE tier (Q-TD-3, parked):** a named theater offensive (e.g. "Operation Red Tempest") that needs combined arms, telegraphed by visible massing and staging, then an INTEL warning naming the sector (lead time PROPOSED ~10 min of game time, Q-GD-22, Q-ALN-35), only after real provocation and never against an empty stream. Brings back the `TheaterOffensive` operation and `director.tier.charlie_enter_cp`. The `sead_activity` memory counter and counter-battery return with SEAD and artillery (P4).
