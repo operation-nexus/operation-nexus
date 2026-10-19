@@ -127,6 +127,9 @@ jobs:
       # Repo-check script tests (scripts/, stdlib only), as in `make check-python`.
       - run: python3 scripts/tests/test_repo_checks.py
         working-directory: .
+      # Discord setup tool tests (tools/discord-setup, stdlib only, fake HTTP layer, no network).
+      - run: python3 tools/discord-setup/tests/test_setup.py
+        working-directory: .
 
   overlay:
     name: overlay (types, lint, build)

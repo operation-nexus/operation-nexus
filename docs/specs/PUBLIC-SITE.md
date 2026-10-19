@@ -1,6 +1,6 @@
 # SPEC: Public site (phase 0: the link page)
 
-Status: Draft · Owner: — · Tracker: NX-351 · Related: Q-MKT-18, Q-ARCH-7, Q-ARCH-16, Q-LEGAL-6, Q-DM-4, NX-316, NX-330 · Related ADRs: ADR-0012
+Status: Approved (owner, 2026-10-19) · Owner: owner · Tracker: NX-351 · Related: Q-MKT-18, Q-ARCH-7, Q-ARCH-16, Q-LEGAL-6, Q-DM-4, NX-316, NX-330 · Related ADRs: ADR-0012
 
 ## 1. Purpose
 A single static page at `hiveplex.live` that says what the project is, honestly says where it stands, and sends people to the Discord server and the social profiles. It is the first slice of the public site (Q-ARCH-7). Replays, leaderboards and stats come later (Q-ARCH-16, P3) and are out of scope here.

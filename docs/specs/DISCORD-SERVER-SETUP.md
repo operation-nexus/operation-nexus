@@ -1,6 +1,6 @@
 # SPEC: Discord community server setup
 
-Status: Draft · Owner: — · Tracker: NX-353, NX-354 · Related: Q-OPS-12, Q-MKT-9, BRAND-OPS (BO-1, BO-2), Q-AI-6
+Status: Approved (owner, 2026-10-19) · Owner: owner · Tracker: NX-353, NX-354 · Related: Q-OPS-12, Q-MKT-9, BRAND-OPS (BO-1, BO-2), Q-AI-6
 
 ## 1. Purpose
 Set up the community server `hiveplex-community` (invite `https://discord.gg/2sYjKYshSc`) with a clear first screen, a member role that new people earn by clicking through, and the starter channels, without ever putting a bot token in an agent session or in a repository.
@@ -16,14 +16,15 @@ Non-goals: running any bot (Brand Ops and the War Briefing bot are separate, eac
 - **DS-4** The script MUST be idempotent: roles, categories and channels are matched by exact name and reused; permission overwrites are set to the blueprint's values; a second run changes nothing.
 - **DS-5** The script MUST only create or update the roles, categories, channels and permission overwrites in the blueprint. It MUST NOT delete anything, kick or ban anyone, send direct messages, or touch existing members' roles.
 - **DS-6** The script MUST use only the standard library (AGENTS rule 8: no new dependency), respect rate limits (retry after the wait Discord asks for), and stop on the first unexpected error rather than continue.
-- **DS-7** The bot is invited with only the permissions the script needs (manage roles, manage channels, view channels) and is removed from the server afterward.
+- **DS-7** The bot is invited with only the permissions the script needs (manage roles, manage channels, view channels) and is removed from the server afterward. If Discord refuses to set permissions the bot does not itself hold [UNVERIFIED Discord rule], the throwaway bot may be given Administrator for that run only and is removed straight after.
 - **DS-8** START HERE (see §5) MUST make a new member read the rules and click to continue, and MUST end with the member holding the `Operator` role. Members who never click are expected to be removed by the invite's temporary-membership setting [UNVERIFIED: owner-reported setting; the Discord developer and help pages could not be read from this environment].
-- **DS-9** Rules and welcome text are owner-approved copy in the owner's voice, drafted in the vault and copied into the blueprint only after approval. The welcome text states the project's honest status and the AI-help line (Q-AI-6).
+- **DS-9** The script sends no messages. Rules and welcome text are owner-approved copy in the owner's voice, kept in the vault (MKT-0009, MKT-0010); the owner puts it into Discord's own rules, onboarding and welcome features, or a channel, by hand, and may change it at any time (owner, 2026-10-19). The welcome text states the project's honest status and the AI-help line (Q-AI-6).
 - **DS-10** The blueprint file lives in the repo, is validated by a test (names unique, every channel in a category, no empty permission set), and changes by pull request.
 
 ## 4. Interfaces
-- Command (planned, NX-354): `DISCORD_BOT_TOKEN=... python3 tools/discord-setup/setup.py --guild <server id> [--apply]`.
-- Blueprint (planned): `tools/discord-setup/blueprint.json`.
+- Command (NX-354, `tools/discord-setup/`): `DISCORD_BOT_TOKEN=... python3 tools/discord-setup/setup.py --guild <server id> [--apply]`.
+- Blueprint: `tools/discord-setup/blueprint.json`. Runbook: `tools/discord-setup/README.md`.
+- Extra safety beyond DS-3: `--apply` also needs `--confirm-guild-name` to equal the real server name, so a wrong server id stops before any write; `--show-blueprint` prints the plan with no token and no network.
 - Discord REST calls: create and edit roles, channels and permission overwrites. Endpoint details are not verified here [UNVERIFIED: developer docs return HTTP 403 to this environment]; the owner has built Discord bots before and the script's tests use a recorded fake of the HTTP layer.
 
 ## 5. Behavior
@@ -41,7 +42,7 @@ Starter layout (owner approved 2026-10-19):
 | STAFF | #mod-chat | Staff | Staff |
 | STAFF | #mod-log | Staff | Staff |
 
-Roles: `Operator` (member; the audience word, owner decision 2026-10-19), `Staff`, `Bot`. Everyone starts with no role and sees only START HERE. The `Operator` role is granted when the member completes the first-screen step. The preferred mechanism is Discord's own onboarding, configured by the owner in the server settings (a short checklist is in the runbook the script's pull request adds); if it cannot assign the role, a reaction-role bot is a later, separate Brand Ops job.
+Roles: `Operator` (member; the audience word, owner decision 2026-10-19), `Staff`, `Bot`. Everyone starts with no role and sees only START HERE. The `Operator` role is granted when the member completes the first-screen step. The preferred mechanism is Discord's own onboarding, configured by the owner in the server settings (a checklist is in the runbook); if it cannot assign the role, a reaction-role bot is a later, separate Brand Ops job.
 
 Not set by the script, set by hand: Community features, rules screening, onboarding, default notifications (PROPOSED: mentions only), the temporary-membership invite, 2FA for staff. Rationale: these settings change what the server is, and the owner already knows the screens.
 
@@ -67,4 +68,4 @@ Not set by the script, set by hand: Community features, rules screening, onboard
 ## 8. Open questions
 - Which onboarding setup assigns `Operator` (Discord onboarding versus a later reaction-role bot): the owner tests the onboarding option.
 - Rank-to-role mapping and the lore and tester areas: later.
-- Welcome and rules wording: drafted in the vault, owner approves.
+- Welcome and rules wording: approved by the owner on 2026-10-19 and editable by hand at any time.
