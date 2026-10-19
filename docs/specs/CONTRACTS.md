@@ -35,7 +35,9 @@ contracts/
   - JSON Schema draft 2020-12.
   - Every object sets `additionalProperties: false` when *produced*. Consumers tolerate unknown fields (WP-2).
   - Unions are discriminated by a `kind` (commands, events) or `type` (wire) const field.
-- **Generated types:** Python (Pydantic v2 via datamodel-code-generator) goes to `services/sim/nexus/contracts/`, and TS (json-schema-to-typescript) goes to `apps/overlay/src/contracts/`. Both are committed. CI regenerates them and fails on any diff (NX-021).
+- **Generated types:** Python (Pydantic v2 via datamodel-code-generator) goes to `services/sim/src/nexus/contracts/`, and TS (json-schema-to-typescript) goes to `apps/overlay/src/contracts/`. Both are committed. `make contracts` regenerates both; the CI `contracts` job runs it and fails on any diff (NX-021, Q-CT-10).
+- **Use in the kernel (Q-CT-7):** `nexus.core` may import the generated `nexus.contracts`. Events are built on the hot path with Pydantic's `model_construct` (no re-validation); full validation happens at the boundaries (gateway in, wire out) and in tests.
+- **Scope (Q-CT-6):** a schema is added in the same PR as the code that produces or handles it (AGENTS.md rule 6a). NX-021 adds only the seed set: `common/` ids and enums, `ChatEnvelope`, command `JOIN`, event `UnitSpawned`, and wire `Hello`, `Welcome`, `Snapshot`.
 - **Naming:**
   - Schema titles are `PascalCase`.
   - Fields are `snake_case` on the wire, in both Python and TS. TS does not camelCase, to avoid a mapping layer.
@@ -107,10 +109,10 @@ Every user-derived string uses `common/text.json#SafeText`. That means:
 Text shown on stream additionally requires `ModeratedText`, a SafeText already approved by moderation (SEC-MOD-1). Its schema has a `moderation_ref` field carrying the approval id. Raw display names never appear in sim, wire, or event schemas (Q-MOD-1). Only `Callsign` values do.
 
 ### 3.6 Versioning
-- `PROTOCOL_VERSION = MAJOR.MINOR` lives in `contracts/VERSION`.
+- `PROTOCOL_VERSION = MAJOR.MINOR` lives in `contracts/VERSION`, starting at `0.1` (Q-CT-8). While it is 0.x, every change bumps MINOR and the compat check only reports; MAJOR enforcement starts at `1.0`, the first public build.
 - **MINOR bump** for additive changes: a new optional field, a new event or message kind, or a new enum value in a field whose consumers must tolerate unknowns.
 - **MAJOR bump** for anything else: removing or renaming a field, a type change, required-ness added, semantics changed, or a new enum value in a closed enum.
-- CI compat check (NX-021): diff schemas against `main`. A breaking change without a MAJOR bump fails.
+- CI compat check (NX-021, Q-CT-8, Q-CT-9): a small tested script in `scripts/` diffs the schemas against the PR's base branch and flags removed properties, newly required fields, changed types and removed enum values. From `1.0`, a breaking change without a MAJOR bump fails.
 - Command-log and snapshot files record the `PROTOCOL_VERSION` they were written with. A replay across a MAJOR change requires a migration or must be refused (SIM-CORE §6).
 
 ## 4. ChatEnvelope (gateway → commands)
@@ -309,7 +311,7 @@ Secrets and tokens are never recorded (NX-026 redaction). Every sim-affecting ad
 | Requirement | Test |
 |---|---|
 | Generated types match schemas | CI regen + `git diff --exit-code` (NX-021) |
-| Breaking change requires MAJOR bump | Schema compat job against `main` (NX-021) |
+| Breaking change requires MAJOR bump | Compat script against the PR base branch, with its own unit tests (NX-021, Q-CT-9); report-only before `1.0` |
 | Every `CommandKind` has a schema, a parser case (chat kinds), and at least one reject test per listed reason | Table-driven unit tests generated from §5.2 |
 | No public payload during a live campaign contains hidden entities or seeds, and none ever contains raw display names | Property test over random sim runs (FOW-1, §6; post-campaign archives exempt, Q-ALN-21) + schema check (no `display_name` in `wire/`) |
 | While paused, only the allowed chat commands apply and the rest reject `CAMPAIGN_PAUSED` | Table-driven test over §5.2 kinds (Q-ALN-2) |

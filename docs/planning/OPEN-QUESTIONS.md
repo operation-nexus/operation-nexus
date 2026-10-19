@@ -514,3 +514,13 @@ Owner decisions from the theater #1 sketch session.
 | Q-TH-6 | Names and files | Plain working names (brand pass later); `content/theaters/strait-1.yaml`; sketch `docs/design/theater-1.svg`; tracker row corrected. | P1 | ✅ 2026-10-19 |
 | Q-TH-7 | Defeat condition | The sanctuary can be besieged, never captured; it has defense HP; defeat = that HP held at 0 for `campaign.defeat.hold_min` (PROPOSED 30 game min), a visible last stand. The forward-airbase and 25% rule is removed (replaces Q-GD-7's rule). Idle floor: with no humans the sanctuary's HP can't drop below 1 and `forward_airbase` can't be captured. | P1 | ✅ 2026-10-19 |
 | Q-SIM-29 | Frame-stream retention and archiving | The NX-345 spike measured about 250 MB per stream per game hour at the worst case with zlib (indicative, Mac run; docs/review/NX-345-BENCH.md), about 12 GB a day for the two recorded streams (Q-SIM-18) if a whole day ran at the worst case. Owner wants retention limits and archiving decided. Options to grill: keyframes-only or lower-rate archives after the campaign, a retention window for the full-truth stream, and moving finished campaigns to cold storage. Decide before replays and clips (NX-032, CLIPS-REPLAY). | P2 | PROPOSED, awaiting owner |
+
+## Foundations grilling (2026-10-19): NX-021, NX-040, NX-019/NX-050
+
+| ID | Question | Decision | Priority | Status |
+|---|---|---|---|---|
+| Q-CT-6 | NX-021 scope | Pipeline plus seed schemas only (common ids and enums, ChatEnvelope, JOIN, UnitSpawned, Hello, Welcome, Snapshot); every other schema lands with the code that implements it (rule 6a). | P0 | ✅ 2026-10-19 |
+| Q-CT-7 | Contract types in the kernel | `nexus.core` may import generated `nexus.contracts`; events built with `model_construct` on the hot path; validation at boundaries and in tests. | P0 | ✅ 2026-10-19 |
+| Q-CT-8 | Versioning before launch | `contracts/VERSION` starts at 0.1; 0.x bumps MINOR and the compat check only reports; MAJOR enforcement from 1.0; compat diff against the PR base branch, not `main`. | P0 | ✅ 2026-10-19 |
+| Q-CT-9 | Breaking-change detection | Small tested script in `scripts/` (removed properties, newly required fields, changed types, removed enum values); no new dependency. | P0 | ✅ 2026-10-19 |
+| Q-CT-10 | Tools and commands | datamodel-code-generator (Python dev dep) and json-schema-to-typescript (overlay dev dep), pinned with rule-8 justification; `make contracts`; CI `contracts` job fails on drift; generated code committed at `services/sim/src/nexus/contracts/` and `apps/overlay/src/contracts/`. | P0 | ✅ 2026-10-19 |

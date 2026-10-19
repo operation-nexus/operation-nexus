@@ -48,7 +48,7 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-018 [#16](https://github.com/operation-nexus/operation-nexus/issues/16) | `dependabot.yml` grouped weekly (uv, npm, actions; docker arrives with the first Dockerfile, NX-013) + label sync | S | ✅ | NX-010 | First grouped PR appears |
 | NX-019 [#17](https://github.com/operation-nexus/operation-nexus/issues/17) | import-linter contracts for module boundaries (SYSTEM-DESIGN §4) | S | ⬜ | NX-010 | Violating import fails CI |
 | NX-020 [#18](https://github.com/operation-nexus/operation-nexus/issues/18) | Custom Semgrep rules (`.semgrep/`) per CICD §5 with tests | M | ⬜ | NX-012 | Each rule has positive/negative fixture |
-| NX-021 [#19](https://github.com/operation-nexus/operation-nexus/issues/19) | Contracts pipeline: JSON Schema → Pydantic + TS, drift check, compat check | M | ⬜ | NX-010 | Changing schema without regen fails CI |
+| NX-021 [#19](https://github.com/operation-nexus/operation-nexus/issues/19) | Contracts pipeline: JSON Schema → Pydantic + TS, drift check, compat check; seed schemas only (Q-CT-6..10) | M | ⬜ | NX-010 | Changing schema without regen fails CI |
 | NX-022 [#20](https://github.com/operation-nexus/operation-nexus/issues/20) | Repo settings applied (CICD §9 checklist) | S | ✅ | Q-CI-1 | Checklist ticked |
 | NX-023 | CODEOWNERS, PR template, issue templates, SECURITY.md | S | ✅ | — | Files present |
 | NX-024 [#21](https://github.com/operation-nexus/operation-nexus/issues/21) | markdownlint + lychee docs job | S | ⬜ | NX-011 | Broken link fails |
