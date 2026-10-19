@@ -16,3 +16,5 @@ Things the specs deliberately simplified or set to PROPOSED values, to re-check 
 | AI resupply cadence | Trucks only; the AI garrison runs resupply jobs at 0 viewers | The idle war starves to a halt, or AI convoys make humans unnecessary | Q-GP-16 |
 | Job priority | Flat table per job type × urgency (supply, danger, objective) + aging | NEEDED list looks wrong to viewers, or units pile onto one job | Q-GP-20 |
 | Auto-tasking on `!join` | No parameters = take a job at once; a node = go there; `hold` = wait | New viewers don't realise they can choose a target | Q-GP-23 |
+| Facilities as separate units | Radars, air defense and factories are STATIC units attached to a base, not part of the base | It feels fiddly on stream, or bases and facilities should merge (owner is not fully settled) | Q-GP-25, Q-GP-27 |
+| Idle drift | At 0 viewers the Static slowly gains ground but cannot take the last forward airbase | The morning crowd finds too much lost, or the drift is invisible | Q-GP-28 |
