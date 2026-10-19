@@ -52,8 +52,10 @@ None. The page reads nothing and exposes nothing. Source lives in `apps/site/`. 
 | PS-10 | `zizmor` and the existing security workflow pass |
 | PS-11 | Manual: HTTPS certificate valid, HTTP redirects |
 
-## 8. Open questions
-- Q-MKT-18 L3: the public contact address. Q-MKT-18 L4: logo and avatar (NX-352).
-- Which host: GitHub Pages is the starting choice (Q-MKT-18 L1); confirm current free terms before building [UNVERIFIED].
-- Whether the page should be indexed by search engines (PROPOSED: yes).
-- Look and feel waits for the frontend design pass and, later, the brand style guide (NX-274).
+## 8. Decisions and open questions
+Decided by the owner on 2026-10-19: host is GitHub Pages; the placeholder C3 logo is on the page with an AI-made credit (PS-8, `apps/site/ASSETS.md`); search engines may index it; look and feel is concept B ("operations panel", chosen from three mockups).
+PS-7 tags used: `description`, `canonical`, Open Graph `type`, `site_name`, `title`, `description`, `url`, `image` (+ alt) and `twitter:card=summary`. The share image is the 1024 px avatar; a wide 1200 by 630 card is a later improvement.
+- Q-MKT-18 L3: the public contact address stays off the page until `contact@hiveplex.live` exists.
+- GitHub Pages free terms and custom-domain DNS values: [UNVERIFIED] until the owner enables Pages and the domain (see the PR for the steps).
+- The Reddit, Instagram and TikTok link URLs are the standard profile URL forms built from the registered handles; the registry stores handles only [UNVERIFIED for Reddit and Instagram, which block automated requests].
+- Brand style guide (NX-274) may later change the look.

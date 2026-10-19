@@ -1,0 +1,52 @@
+# Deploys apps/site (the hiveplex.live link page) to GitHub Pages. Spec: docs/specs/PUBLIC-SITE.md PS-10, PS-11.
+#
+# Runs on pushes to develop that change the site or this file, and by hand. The site is static files only:
+# the build job runs the site check, then uploads apps/site as is. No secrets, no build step that uses the network.
+#
+# Security notes: no pull_request_target; top-level permissions are empty; the build job gets contents: read, the
+# deploy job gets pages: write and id-token: write (what actions/deploy-pages needs); checkout does not persist
+# credentials; actions are pinned by commit SHA.
+name: pages
+
+on:
+  push:
+    branches: [develop]
+    paths: [apps/site/**, scripts/check_site.py, .github/workflows/pages.yml]
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    name: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - run: python3 scripts/check_site.py
+      - uses: actions/upload-pages-artifact@fc324d3547104276b827a68afc52ff2a11cc49c9 # v5.0.0
+        with:
+          path: apps/site
+
+  deploy:
+    name: deploy
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@368f82528645a54fb793d4d04e342629a3f51346 # v5.0.1
