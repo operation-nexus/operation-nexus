@@ -126,6 +126,7 @@ Legend: **HR** = hot-reloadable (§5). "TBD" = TBD by harness. **Source** = the 
 | `sim.max_entities` | int | count | 1000 | SIM-CORE SC-10 | No |
 | `fow.track_fade_s` | float | s (world) | TBD (PROPOSED) | FOG-OF-WAR FOW-6a, Q-FOW-1 | No |
 | `fow.track_every_ticks` | int | ticks | 5 (PROPOSED) | FOG-OF-WAR FOW-5, Q-FOW-6 | No |
+| `fow.sigint_range_mult` | float | × a radar site's range | TBD (PROPOSED) | FOG-OF-WAR Tier 1, Q-FOW-7 | No |
 
 ### 6.2 Slots, respawn, reserve
 | Key | Type | Unit | PROPOSED | Source | HR |

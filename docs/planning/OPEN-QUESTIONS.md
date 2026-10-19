@@ -464,3 +464,6 @@ Owner decisions from the FOG-OF-WAR grill session, after a ponytail pass.
 | Q-FOW-4 | Shooting at blobs | First build engages tracked targets only; blobs are scouted, not shot. Area weapons may hit blobs later. | P1 | ✅ 2026-10-19 |
 | Q-FOW-5 | SIGINT jitter | No server jitter; blob at its cell; cosmetic offset client-side from the blob id; `fow` RNG stream removed. | P1 | ✅ 2026-10-19 |
 | Q-FOW-6 | Painted tier and update cadence | Painted is a flag on a track. Tier 2 recomputed every 5 ticks unless the NX-345 spike shows every tick is cheap. | P1 | ✅ 2026-10-19 |
+| Q-FOW-7 | Where SIGINT blobs come from | Only groups that are moving or emitting, within `fow.sigint_range_mult` × a friendly radar site's range; parked silent units leave no blob. Same rule for the director's view. | P1 | ✅ 2026-10-19 |
+| Q-FOW-8 | Emitting radars | Whether a radar or air-defense site is emitting is visible to the other side whenever it emits; dark = unknown. Owner asked who controls emission (Q-FOW-10). | P1 | ✅ 2026-10-19 |
+| Q-FOW-9 | Spotted indicator | Own units show `spotted` while any enemy sensor tracks them. | P1 | ✅ 2026-10-19 |
