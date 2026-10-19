@@ -524,3 +524,8 @@ Owner decisions from the theater #1 sketch session.
 | Q-CT-8 | Versioning before launch | `contracts/VERSION` starts at 0.1; 0.x bumps MINOR and the compat check only reports; MAJOR enforcement from 1.0; compat diff against the PR base branch, not `main`. | P0 | ✅ 2026-10-19 |
 | Q-CT-9 | Breaking-change detection | Small tested script in `scripts/` (removed properties, newly required fields, changed types, removed enum values); no new dependency. | P0 | ✅ 2026-10-19 |
 | Q-CT-10 | Tools and commands | datamodel-code-generator (Python dev dep) and json-schema-to-typescript (overlay dev dep), pinned with rule-8 justification; `make contracts`; CI `contracts` job fails on drift; generated code committed at `services/sim/src/nexus/contracts/` and `apps/overlay/src/contracts/`. | P0 | ✅ 2026-10-19 |
+| Q-CT-11 | What part of CONTRACTS is approved | §3 (conventions, ids, versioning, pipeline) Approved; §4–8 catalogs stay Draft and are approved piece by piece as handlers land. | P0 | ✅ 2026-10-19 |
+| Q-TM-2 | Residual risks as written | Accepted: platform outages and policy changes, unerasable usernames in posted clips, an incomplete denylist. | P0 | ✅ 2026-10-19 |
+| Q-TM-3 | Newer boundaries | Added B9 Command Center, B10 public site, B11 Discord bot, B12 brand and social automation, each pointing to its spec's rules. | P0 | ✅ 2026-10-19 |
+| Q-TM-4 | New residual risks | Accepted: trusted-insider abuse, full-truth stream on the broadcast host during a war, single-owner key custody. | P0 | ✅ 2026-10-19 |
+| Q-TM-5 | Threat model status | Approved; NX-040 done. | P0 | ✅ 2026-10-19 |

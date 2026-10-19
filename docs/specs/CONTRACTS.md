@@ -1,6 +1,6 @@
 # SPEC: Contracts Catalog
 
-Status: Draft · Owner: — · Tracker: NX-021, NX-101, NX-170, NX-190, NX-253 · Related ADRs: 0002, 0004 · Related specs: WIRE-PROTOCOL, GAMEPLAY, FOG-OF-WAR, CHAT-GATEWAY, OPS-ADMIN, IDENTITY
+Status: §3 Approved (owner, 2026-10-19, Q-CT-11); §4–§8 Draft, approved piece by piece as each handler lands (Q-CT-6) · Owner: — · Tracker: NX-021, NX-101, NX-170, NX-190, NX-253 · Related ADRs: 0002, 0004 · Related specs: WIRE-PROTOCOL, GAMEPLAY, FOG-OF-WAR, CHAT-GATEWAY, OPS-ADMIN, IDENTITY
 
 > All numeric limits in this spec (lengths, rates, sizes) are **PROPOSED** (DATA-INTEGRITY DI-7) unless they quote another spec. Behavior that depends on an open owner decision cites its Q-ID.
 

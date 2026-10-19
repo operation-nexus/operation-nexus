@@ -73,7 +73,7 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-311 | **Decision→spec propagation pass:** fold every ✅ decision in OPEN-QUESTIONS into the spec bodies (23 gaps listed in GAP-ANALYSIS §2), one PR per spec, P1 specs first. The docs lint that flags decided Q-IDs still described as open moved to NX-322. **Must finish before specs are marked Approved.** Done 2026-10-18 through the spec-alignment PRs #40–#52, #54–#57 and #61–#63. | L | ✅ | — | GAP-ANALYSIS §2 items all resolved |
 | NX-322 | Docs lint: flag decided Q-IDs (✅ in OPEN-QUESTIONS) that a spec or planning doc still describes as open or pending (split out of NX-311) | — | ⬜ | — | A doc line that calls a decided Q-ID open fails the lint |
 | NX-312 | Missing P1 docs: COMBAT spec, command and intent catalog, balance acceptance criteria (theater #1 = NX-008) | M | ⬜ | NX-311 | Docs exist, reviewed |
-| NX-040 [#27](https://github.com/operation-nexus/operation-nexus/issues/27) | Threat model review with owner; accept residual risks | S | ❓ | NX-001 | THREAT-MODEL §6 signed off |
+| NX-040 [#27](https://github.com/operation-nexus/operation-nexus/issues/27) | Threat model review with owner; accept residual risks | S | ✅ | NX-001 | THREAT-MODEL §6 signed off |
 
 ---
 
