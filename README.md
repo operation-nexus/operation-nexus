@@ -18,6 +18,20 @@ Under the hood: a deterministic, server-authoritative simulation (Python), a bro
 
 Only the repo skeleton is merged; there is no production code yet. Specs stay `Draft` until the owner approves them.
 
+## Find it fast
+
+| I want to... | Go to |
+|---|---|
+| See what the project is and where it stands | This file, then [VISION](docs/planning/VISION.md) and [TRACKER](docs/planning/TRACKER.md) |
+| Look up a decision or an open owner question | [OPEN-QUESTIONS](docs/planning/OPEN-QUESTIONS.md) (decisions are logged there) |
+| Find the handles, domain and Discord invite | [BRAND-ACCOUNTS](docs/planning/BRAND-ACCOUNTS.md) |
+| Set up the Discord server | [tools/discord-setup/README.md](tools/discord-setup/README.md) (spec: [DISCORD-SERVER-SETUP](docs/specs/DISCORD-SERVER-SETUP.md)) |
+| Change the hiveplex.live page | [apps/site/](apps/site/) (spec: [PUBLIC-SITE](docs/specs/PUBLIC-SITE.md)); a merge to `develop` deploys it |
+| Find a spec | [Specs index](docs/specs/README.md) |
+| Find any doc | [Docs index](docs/README.md) (every file, one line each) |
+| Find marketing drafts, posted copy and the voice guide | The private `operation-nexus-vault` repo (its README has the same kind of map) |
+| See what only the owner can do | [OWNER-TODO](docs/planning/OWNER-TODO.md) |
+
 ## Quick links
 
 | Area | Document |

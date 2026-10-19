@@ -22,3 +22,4 @@ Label definitions live in `.github/labels.yml`. `.github/workflows/label-sync.ym
 2. Agents only pick up `agent-ready` issues. They comment with their plan before starting, and report only work they actually completed (DATA-INTEGRITY DOC-4).
 3. A bug report needs repro steps, expected vs actual behavior, and evidence such as logs, a replay seed, or a screenshot. Never write "probably".
 4. Decisions are closed with the answer written in the issue, and the answer is copied into OPEN-QUESTIONS and the relevant spec or ADR.
+5. **Anything that needs the owner is assigned to the owner** (`SaltySeraphCodes`) so alerts reach their phone: assign the issue, request their review on the PR, and `@mention` them in the comment that asks for something. Agent sessions open items as `project-hiveplex`, which is not the owner's notification account.

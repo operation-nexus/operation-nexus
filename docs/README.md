@@ -17,6 +17,8 @@ When you add, rename or remove a doc, update this index in the same PR.
 | [NAMING-CONVENTIONS.md](planning/NAMING-CONVENTIONS.md) | Case style per layer (config keys, enums, events, commands, ids, branches) and open naming conflicts. |
 | [ISSUE-WORKFLOW.md](planning/ISSUE-WORKFLOW.md) | How GitHub Issues, labels and the tracker fit together. |
 | [MARKETING.md](planning/MARKETING.md) | Living marketing plan, devlog checkpoints and posting principles. |
+| [BRAND-ACCOUNTS.md](planning/BRAND-ACCOUNTS.md) | Registry of the project's public handles, the GitHub organization and the domains (public identifiers only, no credentials). |
+| [AGENT-TEAMS.md](planning/AGENT-TEAMS.md) | Design proposal for the marketing and lore agent teams (marketing starts now, lore is a P3 pilot). |
 
 ## architecture/ — how the system is shaped
 
@@ -63,6 +65,16 @@ When you add, rename or remove a doc, update this index in the same PR.
 | [ADMIN-RBAC.md](specs/ADMIN-RBAC.md) | Admin roles and permissions, moderation, GM takeover, rules editor. |
 | [SUPPORT-REDEMPTIONS.md](specs/SUPPORT-REDEMPTIONS.md) | Bits, channel points, Super Chats and tips mapped to capped redemptions. |
 | [OPS-ADMIN.md](specs/OPS-ADMIN.md) | Watchdog, observability, alerting, admin console, kill switch, runbooks. |
+| [BRAND-OPS.md](specs/BRAND-OPS.md) | Brand Ops: social presence monitoring and review (Draft). |
+| [PUBLIC-SITE.md](specs/PUBLIC-SITE.md) | The hiveplex.live link page: requirements and checks (Approved; built in `apps/site/`). |
+| [DISCORD-SERVER-SETUP.md](specs/DISCORD-SERVER-SETUP.md) | Community Discord server setup and the owner-run tool in `tools/discord-setup/` (Approved). |
+| [GAMEPLAY-LATER.md](specs/GAMEPLAY-LATER.md) | Later-phase gameplay split out of GAMEPLAY (Parked; all numbers PROPOSED). |
+
+## legal/
+
+| Doc | Description |
+|---|---|
+| [CONTRIBUTOR-AGREEMENT-TEMPLATE.md](legal/CONTRIBUTOR-AGREEMENT-TEMPLATE.md) | Contributor agreement template, DRAFT v1.1, not for use until an attorney has reviewed it (NX-347). |
 
 ## security/
 
@@ -83,6 +95,7 @@ When you add, rename or remove a doc, update this index in the same PR.
 | [DATA-INTEGRITY.md](quality/DATA-INTEGRITY.md) | **Mandatory** no-fabricated-data policy and the registry of approved fallbacks. |
 | [DEFINITION-OF-DONE.md](quality/DEFINITION-OF-DONE.md) | What must be true before a tracker item is Done. |
 | [REVIEW-CHECKLIST.md](quality/REVIEW-CHECKLIST.md) | Checklist for human and agent reviewers. |
+| [PLAYTEST-WATCHLIST.md](quality/PLAYTEST-WATCHLIST.md) | Simplified or PROPOSED decisions to re-check in playtests. |
 | [TESTING-STRATEGY.md](quality/TESTING-STRATEGY.md) | Risk-to-test mapping, test pyramid and budgets, coverage policy, flaky-test handling. |
 
 ## ops/ — hardware, cost and monitoring
@@ -115,3 +128,15 @@ When you add, rename or remove a doc, update this index in the same PR.
 | [GEMINI-TTS-VOICE-DESIGN-RESEARCH.md](review/GEMINI-TTS-VOICE-DESIGN-RESEARCH.md) | Gemini TTS voice design capabilities (unverified). |
 | [GAP-ANALYSIS-2026-10-17.md](review/GAP-ANALYSIS-2026-10-17.md) | Gap analysis of the planning set: unanswered questions and missing docs. |
 | [NAME-CLEARANCE.md](review/NAME-CLEARANCE.md) | Name clearance research, rounds 1–3 (Q-LEGAL-5, Q-BRAND-6), with the owner's manual check steps. |
+| [HANDLE-AND-DOMAIN-CHECK-2026-10-18.md](review/HANDLE-AND-DOMAIN-CHECK-2026-10-18.md) | Handle and domain availability check for "hiveplex" (point-in-time snapshot, not a reservation). |
+| [TRADEMARK-AND-NAME-VERIFICATION-2026-10-18.md](review/TRADEMARK-AND-NAME-VERIFICATION-2026-10-18.md) | Trademark, store and company-register knockout verification for the brand and in-world names (not legal advice). |
+| [LEGAL-AND-NAME-SWEEP-2026-10-18.md](review/LEGAL-AND-NAME-SWEEP-2026-10-18.md) | Legal, license and name sweep, round 4 (research, not legal advice). |
+| [LICENSE-AND-MUSIC-VERIFICATION-2026-10-18.md](review/LICENSE-AND-MUSIC-VERIFICATION-2026-10-18.md) | License, music-terms and tool-license verification from primary sources (NX-332). |
+| [PLATFORM-POLICY-VERIFICATION-2026-10-18.md](review/PLATFORM-POLICY-VERIFICATION-2026-10-18.md) | Platform policy and API limit verification from primary sources (NX-333). |
+| [PLATFORM-RULES-REDDIT-DISCORD-2026-10-19.md](review/PLATFORM-RULES-REDDIT-DISCORD-2026-10-19.md) | Reddit and Discord rules, primary-source read (partial, NX-344). |
+| [SOCIAL-CHANNEL-AUTOMATION-RESEARCH.md](review/SOCIAL-CHANNEL-AUTOMATION-RESEARCH.md) | Research on automating the Twitch, YouTube, TikTok and Instagram channels. |
+| [AUTOMOD-AND-PRIVACY-ANALYTICS-RESEARCH.md](review/AUTOMOD-AND-PRIVACY-ANALYTICS-RESEARCH.md) | Research on auto-moderation and privacy-preserving analytics (NX-329). |
+| [MARKETING-AND-PRODUCTION-RESEARCH.md](review/MARKETING-AND-PRODUCTION-RESEARCH.md) | Marketing and production research (draft for owner review). |
+| [SKILLS-AND-PLUGINS-RESEARCH-2026-10-18.md](review/SKILLS-AND-PLUGINS-RESEARCH-2026-10-18.md) | Skills, plugins and tools for the vault workflows (agent-compiled, not verified). |
+| [CONTRIBUTOR-AGREEMENT-EXAMPLES-2026-10-19.md](review/CONTRIBUTOR-AGREEMENT-EXAMPLES-2026-10-19.md) | Public contributor agreement examples (agent-compiled, not verified, not legal advice). |
+| [LINK-PAGE-EXAMPLES-2026-10-19.md](review/LINK-PAGE-EXAMPLES-2026-10-19.md) | Link page research for hiveplex.live (agent-compiled, not verified). |
