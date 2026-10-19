@@ -6,15 +6,65 @@ It creates or updates the roles, categories, channels and permission overwrites 
 
 Discord's developer pages could not be read when this was written, so the API version, permission values and portal labels are from memory and marked UNVERIFIED in the code. The dry run prints every permission as a name and a hex value so you can check them against Discord's own table.
 
-## Steps
+## Step by step
 
-1. **Preview offline** (no token, no network): `python3 tools/discord-setup/setup.py --show-blueprint`
-2. **Make a throwaway application** in the Discord Developer Portal (not the `hiveplex` one, not Brand Ops'). Add a bot and copy its token into your shell only: `export DISCORD_BOT_TOKEN=...`
-3. **Invite the bot** to `hiveplex-community` with Manage Roles, Manage Channels and View Channels. If the run is refused ("Missing Permissions") when setting permissions the bot does not itself hold, give the throwaway bot Administrator for the run only [UNVERIFIED Discord rule]; it is removed in step 6.
-4. **Dry run against the real server** (turn on Developer Mode, right-click the server, Copy Server ID): `python3 tools/discord-setup/setup.py --guild <server id>`. Read the list. Nothing is written.
-5. **Apply**: `python3 tools/discord-setup/setup.py --guild <server id> --apply --confirm-guild-name hiveplex-community`. Run it a second time: it should report `0 change(s)`.
-6. **Clean up**: kick the bot from the server, delete the application (or reset its token), and `unset DISCORD_BOT_TOKEN`.
-7. **Test with a second account** before you share the invite widely: a new member must see only START HERE, must not see STAFF, and must end up with the `Operator` role after the first-screen step.
+Total time: about 20 minutes. Keep one terminal open on your Mac (Terminal app, zsh) for the whole thing. Everything marked [UNVERIFIED] is a Discord screen or label written from memory, so a name may differ slightly: follow what you see and tell the assistant if a step does not match.
+
+**Before you start:** open a terminal in the `operation-nexus` folder and run `git pull` so you have the latest script. You need Python 3 (`python3 --version` should print a version).
+
+### Part 1: look at the plan (no Discord, no token)
+
+1. Run `python3 tools/discord-setup/setup.py --show-blueprint`.
+2. You should see about 16 lines starting with `WOULD:` (3 roles, 5 categories, 9 channels, each with its permissions) and the last line `Dry run only: nothing was sent anywhere.` That is the whole plan. The same layout is in [DISCORD-SERVER-SETUP §5](../../docs/specs/DISCORD-SERVER-SETUP.md). To change it, edit [blueprint.json](blueprint.json) first.
+
+### Part 2: make a throwaway bot (Discord website, about 5 minutes)
+
+3. Go to https://discord.com/developers/applications and sign in with the account that owns `hiveplex-community`. Click **New Application** [UNVERIFIED label], name it `hiveplex-setup-throwaway`, and accept the terms. Do **not** reuse the `hiveplex` application.
+4. Open the **Bot** page in the left menu [UNVERIFIED]. Click **Reset Token** and confirm, then **Copy**. This is the bot token. Treat it like a password: do not paste it into a chat, an issue, a pull request, a note or a file.
+5. Put the token into your terminal without it landing in your shell history. In zsh (the Mac default) type this, press Enter, paste the token (nothing shows as you paste) and press Enter again:
+
+   `read -rs "DISCORD_BOT_TOKEN?Paste token: "; export DISCORD_BOT_TOKEN`
+
+   (In bash the form is `read -rsp "Paste token: " DISCORD_BOT_TOKEN; export DISCORD_BOT_TOKEN`.)
+6. Invite the bot to the server. In the portal open **OAuth2** then **URL Generator** [UNVERIFIED]. Under scopes tick **bot**. Under bot permissions tick **Manage Roles**, **Manage Channels** and **View Channels**. Copy the generated URL at the bottom, open it in your browser, pick `hiveplex-community` and click **Authorize**. The bot now shows in the server's member list, offline. That is expected: the script uses Discord's web interface and never runs a bot.
+7. Find the server ID. In Discord open **User Settings**, then **Advanced**, and switch on **Developer Mode** [UNVERIFIED]. Right-click the server icon and choose **Copy Server ID**.
+
+### Part 3: dry run against the real server (changes nothing)
+
+8. Run `python3 tools/discord-setup/setup.py --guild <paste the server id>`.
+9. Read the output. It starts with `Server: hiveplex-community` (check that is the right server), then the same `WOULD:` lines (or fewer, if parts of the layout already exist), and ends with `N change(s) planned; nothing was written (dry run).` Nothing was written. If you see `error:`, see the table below.
+
+### Part 4: apply (this creates things)
+
+10. Run `python3 tools/discord-setup/setup.py --guild <server id> --apply --confirm-guild-name hiveplex-community`.
+11. You should see `Server: hiveplex-community`, then `DO:` lines, and finally `N change(s) made.` In Discord you now have the roles, categories and channels.
+12. Run the same command again. It should end with `0 change(s)`: nothing left to do.
+
+### Part 5: clean up (do this the same day)
+
+13. In Discord, kick the bot from the server (right-click its name in the member list). In the developer portal, delete the throwaway application or at least click **Reset Token**. In the terminal run `unset DISCORD_BOT_TOKEN` and close the terminal window.
+
+### Part 6: the parts you do by hand
+
+Follow [Set by hand](#set-by-hand-the-script-does-not-touch-these) below, then do the final check in step 14.
+
+14. **Test with a second account** (a spare account or a friend) before sharing the invite widely: a new member should see only START HERE, must not see STAFF, and should end up with the `Operator` role after the first-screen step.
+
+## If something goes wrong
+
+| What you see | What it means | What to do |
+|---|---|---|
+| `error: need --guild and the DISCORD_BOT_TOKEN environment variable` | The token variable is empty in this terminal window, or `--guild` is missing | Repeat step 5 in the same window and check the command includes `--guild <id>` |
+| `error: Discord returned 401 ...` | Wrong or reset token | Reset the token in the portal and repeat steps 4 and 5 |
+| `error: Discord returned 403 ...` or the message `Missing Permissions` | The bot is not in the server, or lacks a permission it is trying to set | Check the bot is in the member list. If it is, give the bot's role **Administrator** for this run only, run again, and remove it in step 13 [UNVERIFIED Discord rule] |
+| `error: Discord returned 404 ...` | Wrong server ID | Repeat step 7 and copy the **server** ID, not a channel or user ID |
+| `error: --confirm-guild-name must be exactly the server name, '...'` | The name after `--confirm-guild-name` is not the real server name | Use the name in quotes in that error, exactly |
+| It stopped halfway | Some things were created, the rest were not | Run the same `--apply` command again; the script reuses what exists |
+| Nothing makes sense | Stop here | Do not keep retrying. Copy the output (it never contains the token), remove the token from your terminal with `unset DISCORD_BOT_TOKEN`, and show it to the assistant |
+
+## Doing it by hand instead
+
+The script is optional. The layout is small enough to build by hand in about 30 to 45 minutes: create the three roles, five categories and nine channels from the table in [DISCORD-SERVER-SETUP §5](../../docs/specs/DISCORD-SERVER-SETUP.md), then set each category's permissions as the dry run prints them. The part people get wrong by hand is permissions: make sure `@everyone` cannot **View Channel** on every category except START HERE, and that `Operator` cannot see STAFF. The script exists to make those permissions exact and repeatable, and the second run proves nothing drifted. By hand, repeat the test in step 14 instead.
 
 ## Set by hand (the script does not touch these)
 
