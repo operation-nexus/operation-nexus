@@ -38,9 +38,9 @@ Entity { id:int, kind:UnitKind, side:Side(COALITION|ENEMY), domain:Domain(AIR|GR
          stance:Stance(PRESS|STANDARD|CAUTIOUS|GUNS),
          crew:{count:int, status:Crew(ABOARD|DOWNED|RESCUED|CAPTURED|LOST)},
          sensor:SensorProfile, weapons:[WeaponProfile], countermeasures:int, stealth:float,
-         owner:OwnerRef(commander_id|AI_GARRISON|ENEMY_DIRECTOR), package_id?,
+         owner:OwnerRef(commander_id|AI_GARRISON|ENEMY_DIRECTOR), base_id?:NodeId (facilities only), package_id?,
          order:Order(current), job_id?:TaskingJobId, path:[NodeId|Vec2], state:UnitState }
-Node   { id:str(stable), name, kind:(AIRBASE|FOB|PORT|FACTORY|RADAR|BRIDGE|HQ|SANCTUARY),
+Node   { id:str(stable), name, kind:(AIRBASE|FOB|PORT|BRIDGE|HQ|SANCTUARY),
          pos, owner:Side|NEUTRAL, capture:CaptureState, stock:int, max_stock:int, hp:int }
 Edge   { a:NodeId, b:NodeId, layer:(ROAD|SEA_LANE), length_m, speed_mult, bridge?:NodeId }
 Campaign { id, seed, config_hash, mode, objective_mode:(TIMED|OFF), options:{unlimited_ammo:bool},
@@ -56,6 +56,7 @@ Campaign { id, seed, config_hash, mode, objective_mode:(TIMED|OFF), options:{unl
   - `crew` is set from the platform's crew count; a seeded crew-survival roll on disable or shoot-down decides `DOWNED` vs `LOST`, and CSAR resolves `RESCUED` or `CAPTURED` (GAMEPLAY §6a).
   - Hit probability uses the full Q-CBT-2 factor list (GAMEPLAY §6); every factor is a config multiplier.
   - The Static's units carry the same fields and rules (parity, GAMEPLAY §0).
+  - **Facilities (Q-GP-21, Q-GP-25):** radars, air-defense sites and factories are ordinary `STATIC`-domain entities with a `base_id`. Their `side` follows the base's owner; when a base flips they switch side keeping their damage. New facility kinds are new catalog entries, not kernel code (CONFIG-AND-CONTENT §7a).
 - **World scale (resolves critique #24):** the theater is about 400 × 240 km. Ground convoy speed is about 25 m/s (a 90 km road takes ~1 h of world time, about 10 real minutes at 6×), and strike aircraft fly about 250 m/s. The world-time multiplier `sim.time_scale` (default 6×, SC-2) shortens travel so a sortie lasts 3–8 real minutes. It scales only world time (movement, logistics, combat), never player-facing game-time durations (Q-ALN-1). Tune it with the balance harness.
 
 ## 5. Runtime (outside the kernel)

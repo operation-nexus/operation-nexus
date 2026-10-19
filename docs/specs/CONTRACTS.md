@@ -67,8 +67,8 @@ contracts/
 | `Domain` | `AIR`, `GROUND`, `SEA`, `STATIC` | SEA is **P3** (Q-GD-8). STATIC = fixed installations (SAM sites, radars, garrison AAA) |
 | `AltBand` | `NOE`, `LOW`, `MED`, `HIGH` | AIR only |
 | `Role` | `STRIKE`, `RECON`, `LOGI`, `NAVY` | What `!join <role>` accepts. `NAVY` is **P3** (Q-GD-8). Each role maps to exactly one `UnitKind` via `content/units.yaml` `roles:` (CONFIG-AND-CONTENT §7.1). |
-| `UnitKind` | MVP: `STRIKE_FIGHTER`, `RECON_UAV`, `LOGI_TRUCK`, `GARRISON_AAA`, `GARRISON_INFANTRY`, `ENEMY_SAM_SITE`, `ENEMY_RADAR`, `ENEMY_FIGHTER`, `ENEMY_ARMOR`, `ENEMY_CONVOY`. P3: naval kinds (Q-GD-8). P4: specialist kinds (SEAD, artillery, engineer, jammer, AWACS). Each is added with its catalog row (NX-212). | Must match the unit catalog (CONFIG-AND-CONTENT §7.3) exactly; `config_lint` checks this. Enemy and garrison roster: Q-CT-5. |
-| `NodeKind` | `AIRBASE`, `FOB`, `PORT`, `FACTORY`, `RADAR`, `BRIDGE`, `HQ`, `SANCTUARY` | SIM-CORE §4 |
+| `UnitKind` | MVP: `STRIKE_FIGHTER`, `RECON_UAV`, `LOGI_TRUCK`, `GARRISON_INFANTRY`, `ENEMY_FIGHTER`, `ENEMY_ARMOR`, `ENEMY_CONVOY`; facilities (side follows the base, Q-GP-25): `RADAR_SITE`, `AIR_DEFENSE_SITE` (catalog variants such as short-range AAA and SAM; replaces `GARRISON_AAA` and `ENEMY_SAM_SITE`), `FACTORY`. P3: naval kinds (Q-GD-8). P4: specialist kinds (SEAD, artillery, engineer, jammer, AWACS). Each is added with its catalog row (NX-212). | Must match the unit catalog (CONFIG-AND-CONTENT §7.3) exactly; `config_lint` checks this. Enemy and garrison roster: Q-CT-5. |
+| `NodeKind` | `AIRBASE`, `FOB`, `PORT`, `BRIDGE`, `HQ`, `SANCTUARY` | SIM-CORE §4. Radars, factories and air defense are facilities (`UnitKind`), not nodes (Q-GP-21, Q-GP-25). |
 | `EdgeLayer` | `ROAD`, `SEA_LANE` | |
 | `OwnerKind` | `COMMANDER`, `AI_GARRISON`, `ENEMY_DIRECTOR` | DI-5: anything that isn't COMMANDER is labeled as AI |
 | `FowTier` | `UNKNOWN`, `SIGINT`, `TRACK`, `PAINTED` | FOG-OF-WAR §1 |

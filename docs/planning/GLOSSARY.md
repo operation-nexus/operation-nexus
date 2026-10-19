@@ -28,7 +28,9 @@ terms still waiting for an owner ruling.
 
 | Term | Meaning |
 |---|---|
-| Node | A named strategic location (airbase, FOB, port, factory, radar, bridge, HQ, sanctuary) |
+| Node | A named map location: a base (airbase, FOB, port, HQ, sanctuary) or a bridge |
+| Base | A node that can be captured (except the sanctuary) and where units spawn, rearm and repair; airbase, FOB and port bases count toward victory |
+| Facility | A fixed installation attached to a base (radar site, air-defense site, factory). It can be struck, disabled and repaired, belongs to whoever holds the base, and is never captured on its own |
 | Stock | The supply held at a node |
 | Theater | One campaign's map. Theaters rotate between archetypes (strait, archipelago, mountain pass, urban…); theater #1 is a land-leaning map with a bridged strait (GAMEPLAY §9a, Q-GD-33) |
 | Sortie | One unit's life from spawn to RTB or death |

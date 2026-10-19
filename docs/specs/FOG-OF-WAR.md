@@ -7,7 +7,7 @@ Status: Draft · Tracker: NX-150…NX-154 · Inputs: P228–238; owner rule C22 
 |---|---|---|
 | 0 Unknown | No coverage, no SIGINT | Nothing |
 | 1 SIGINT | Group of enemy units outside sensors, aggregated per **cluster** (grid cell, ≥1 unit) | Fuzzy blob: position quantized to a 10 km cell plus server-side random jitter (`fow` RNG), refreshed every ~48–60 s of world time (PROPOSED; about 8–10 s real at `sim.time_scale` 6, Q-ALN-23, Q-ALN-38), size bucketed (S/M/L), opaque id per cluster per refresh |
-| 2 Track | Inside any coalition sensor (unit, radar node), respecting terrain masking for NOE/LOW | Exact symbol, type, heading, health bar |
+| 2 Track | Inside any coalition sensor (unit, radar site), respecting terrain masking for NOE/LOW | Exact symbol, type, heading, health bar |
 | 3 Painted | Tracked + recon unit painting within paint range | As Track + "painted" marker; combat bonus |
 
 ## 2. Requirements

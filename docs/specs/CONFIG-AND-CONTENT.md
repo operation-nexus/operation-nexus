@@ -328,10 +328,10 @@ weapons:
 | STRIKE_FIGHTER | COALITION | AIR | VIEWER, AI_GARRISON | 1 | yes (AG + AA light) | — | no | Role `STRIKE` (GAMEPLAY §2) |
 | RECON_UAV | COALITION | AIR | VIEWER, AI_GARRISON | 1 | no | — | no | Role `RECON`. Large sensor; paints targets |
 | LOGI_TRUCK | COALITION | GROUND | VIEWER, AI_GARRISON | 1 | no | yes | yes (slow) | Role `LOGI`. Road graph only |
-| GARRISON_AAA | COALITION | STATIC | AI_GARRISON | — | yes (AA short) | — | no | Node defense; labeled `[AI]` (DI-5) |
 | GARRISON_INFANTRY | COALITION | GROUND | AI_GARRISON | — | yes (light) | — | yes | Holds nodes when no viewers (Q-GD-4); never starts offense on its own (Q-GD-26) |
-| ENEMY_SAM_SITE | ENEMY | STATIC | DIRECTOR | — | yes (SAM) | — | no | Engagement ring; may blink radar |
-| ENEMY_RADAR | ENEMY | STATIC | DIRECTOR | — | no | — | no | Extends enemy FoW view (FOW-4) |
+| AIR_DEFENSE_SITE | follows base | STATIC | base owner's AI | — | yes (variants: short-range AAA, SAM) | — | no | Facility (Q-GP-25). Engagement ring; a SAM variant may blink its radar. Replaces GARRISON_AAA and ENEMY_SAM_SITE |
+| RADAR_SITE | follows base | STATIC | base owner's AI | — | no | — | no | Facility (Q-GP-25). Extends its side's FoW view (FOW-4) |
+| FACTORY | follows base | STATIC | — | — | no | — | no | Facility (Q-GP-25). Adds `logistics.factory_rate` to its base's stock while that base is road-connected to its side's source |
 | ENEMY_CONVOY | ENEMY | GROUND | DIRECTOR | — | no | yes | yes (slow) | Escorts appear via threat memory |
 | ENEMY_FIGHTER | ENEMY | AIR | DIRECTOR | — | yes (AA) | — | no | CAP / intercept |
 | ENEMY_ARMOR | ENEMY | GROUND | DIRECTOR | — | yes (AG) | — | yes | Offensives / retakes |
@@ -395,7 +395,7 @@ doctrines:
 | `sanctuary` | node id | Coalition SANCTUARY node: infinite stock, never capturable (Q-GD-7) |
 | `enemy_hq` | node id | Enemy HQ node (Domination victory, GAMEPLAY §9) |
 
-Node `kind` ∈ `AIRBASE | FOB | PORT | FACTORY | RADAR | BRIDGE | HQ | SANCTUARY` (SIM-CORE §4).
+Node `kind` ∈ `AIRBASE | FOB | PORT | BRIDGE | HQ | SANCTUARY` (SIM-CORE §4); facilities are placed as STATIC units with a `base_id` (Q-GP-25).
 
 ### 9.2 Validation rules (load + CI)
 | ID | Rule |
