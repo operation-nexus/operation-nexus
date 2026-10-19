@@ -438,6 +438,39 @@ class Setup:
                 )
 
 
+def diagnose_bot_roles(roles: list[Json], bot_id: str, role_name: str) -> list[str]:
+    """Why Discord might refuse a bot's onboarding or role change, from the server's roles.
+
+    Discord only lets a bot give a role that sits below the bot's own highest role (Discord
+    docs: Permission Hierarchy), and the bot's own role is the one Discord made for it when it
+    was invited (tagged with its bot id), not a role the blueprint created.
+    """
+    mine = [r for r in roles if str((r.get("tags") or {}).get("bot_id", "")) == bot_id]
+    target = next((r for r in roles if r["name"] == role_name), None)
+    if not mine:
+        return [
+            "The bot has no role of its own in this server (the one Discord creates when a bot is "
+            "invited). Invite it again with the bot scope."
+        ]
+    top = max(mine, key=lambda r: int(r.get("position", 0)))
+    admin = any(int(r.get("permissions", 0)) & ADMINISTRATOR for r in mine)
+    lines = [
+        f"The bot's own role is '{top['name']}' (position {top.get('position')}), "
+        f"Administrator: {'yes' if admin else 'NO'}."
+    ]
+    if not admin:
+        lines.append(
+            f"Turn on Administrator in the Permissions tab of the role '{top['name']}' "
+            "(not a role you made yourself), then save."
+        )
+    if target is not None and int(top.get("position", 0)) <= int(target.get("position", 0)):
+        lines.append(
+            f"The role '{role_name}' (position {target.get('position')}) is not below the bot's "
+            f"role. Drag '{top['name']}' above '{role_name}' in Server Settings, Roles."
+        )
+    return lines
+
+
 class Community:
     """The community stage (DS-11 to DS-13): server settings, welcome screen, onboarding, messages.
 
@@ -459,7 +492,12 @@ class Community:
         self.skip_onboarding = skip_onboarding
         self.changes = 0
         self.roles: dict[str, str] = {}
+        self.role_objects: list[Json] = []
         self.channels: dict[str, str] = {}
+
+    def _bot_checks(self, role_name: str) -> list[str]:
+        bot_id = str(self.api.call("GET", "/users/@me")["id"])
+        return diagnose_bot_roles(self.role_objects, bot_id, role_name)
 
     def _write(self, method: str, path: str, body: Json, label: str) -> Any:
         self.changes += 1
@@ -477,6 +515,7 @@ class Community:
 
     def load(self, bp: Json) -> None:
         roles = self.api.call("GET", f"/guilds/{self.guild}/roles")
+        self.role_objects = list(roles)
         self.roles = {r["name"]: str(r["id"]) for r in roles}
         # category and channel names can repeat across kinds; channels only (type 0) are ours
         chans = self.api.call("GET", f"/guilds/{self.guild}/channels")
@@ -642,6 +681,19 @@ class Community:
                 }
         if have.get("enabled") and merged_default == existing_default and ours_ok:
             return
+        checks = self._bot_checks(spec["role"])
+        for line in checks:
+            self.out(f"check: {line}")
+        try:
+            self._put_onboarding(spec, merged_default, have, prompts)
+        except DiscordError as err:
+            if err.status == 403:
+                raise SetupError(f"{err}. {' '.join(checks)}") from None
+            raise
+
+    def _put_onboarding(
+        self, spec: Json, merged_default: list[str], have: Json, prompts: list[Json]
+    ) -> None:
         self._write(
             "PUT",
             f"/guilds/{self.guild}/onboarding",

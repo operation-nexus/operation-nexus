@@ -748,6 +748,55 @@ def test_new_onboarding_prompts_and_options_get_ids_and_the_welcome_screen_is_no
     assert code == 0 and fake.writes() == [] and lines[-1].startswith("0 change(s)")
 
 
+def test_bot_role_checks_explain_a_missing_permissions_refusal():
+    roles = [
+        {"id": "1", "name": "@everyone", "position": 0, "permissions": "0"},
+        {"id": "2", "name": "Operator", "position": 3, "permissions": "0"},
+        {
+            "id": "3",
+            "name": "setup-bot",
+            "position": 1,
+            "permissions": "8",
+            "tags": {"bot_id": "42"},
+        },
+    ]
+    text = " ".join(setup.diagnose_bot_roles(roles, "42", "Operator"))
+    assert "'setup-bot' (position 1)" in text and "Administrator: yes" in text
+    assert "not below the bot's role" in text and "Drag 'setup-bot' above 'Operator'" in text
+    roles[2].update(position=5, permissions="0")
+    text = " ".join(setup.diagnose_bot_roles(roles, "42", "Operator"))
+    assert "Administrator: NO" in text and "not below" not in text
+    assert "no role of its own" in " ".join(setup.diagnose_bot_roles(roles[:2], "42", "Operator"))
+    # a 403 on the onboarding write carries the checks in the error text
+    fake = FakeDiscord()
+    structure(fake)
+    fake.guild["features"] = ["COMMUNITY"]
+    original = fake._community_and_messages
+
+    def refuse_onboarding(method, path, data):
+        if method == "PUT" and path.endswith("/onboarding"):
+            return 403, {}, json.dumps({"message": "Missing Permissions"}).encode()
+        return original(method, path, data)
+
+    fake._community_and_messages = refuse_onboarding
+    lines: list[str] = []
+    errors: list[str] = []
+    import contextlib
+    import io
+
+    buffer = io.StringIO()
+    with contextlib.redirect_stderr(buffer):
+        code = setup.main(
+            ["--guild", GUILD, "--community", "--apply", "--confirm-guild-name", NAME],
+            env={"DISCORD_BOT_TOKEN": TOKEN},
+            transport=fake,
+            out=lines.append,
+        )
+    errors.append(buffer.getvalue())
+    assert code == 1 and "Missing Permissions" in errors[0] and "no role of its own" in errors[0]
+    assert any(line.startswith("check: ") for line in lines) and TOKEN not in errors[0]
+
+
 def test_community_stops_on_a_discord_refusal_and_never_leaks_the_token():
     fake = FakeDiscord()
     structure(fake)
