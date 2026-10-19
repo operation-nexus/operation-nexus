@@ -269,23 +269,23 @@ stateDiagram-v2
 
 ```mermaid
 stateDiagram-v2
-    [*] --> ALPHA
-    ALPHA --> BRAVO: CP >= bravo_enter_cp and dwell ok
-    BRAVO --> ALPHA: CP < exit_ratio x bravo_enter_cp and dwell ok
-    BRAVO --> CHARLIE: CP >= charlie_enter_cp and dwell ok
-    CHARLIE --> BRAVO: CP < exit_ratio x charlie_enter_cp and dwell ok
+    [*] --> PATTERN_OF_LIFE
+    PATTERN_OF_LIFE --> ALPHA: min(provocation level, CP ceiling) >= ALPHA and dwell ok
+    ALPHA --> PATTERN_OF_LIFE: min(...) < ALPHA (with hysteresis) and dwell ok
+    ALPHA --> BRAVO: min(provocation level, CP ceiling) >= BRAVO and dwell ok
+    BRAVO --> ALPHA: min(...) < BRAVO (with hysteresis) and dwell ok
 ```
 
 | State | Event / guard | Action | Next |
 |---|---|---|---|
-| any | Decision window (every `director.window_s`, game time, Q-ALN-23), with CP computed from the **enemy view only** (FOW-4) | Evaluate `director.tier.bravo_enter_cp` / `director.tier.charlie_enter_cp` with hysteresis (`director.tier.exit_ratio`) and `director.tier.min_dwell_s` (game time, Q-ALN-23) | same / adjacent tier |
+| any | Decision window (every `director.window_s`, game time, Q-ALN-23), with CP computed from the **enemy view only** (FOW-4) | Evaluate the escalation rule (THREAT-DIRECTOR §3, Q-TD-1): tier = min(provocation level, CP ceiling from `director.tier.bravo_enter_cp`), with hysteresis (`director.tier.exit_ratio`) and `director.tier.min_dwell_s` (game time, Q-ALN-23) | same / adjacent tier |
 | any | Tier changes | Emit `ThreatTierChanged{from, to}`. Queue a sitrep. Update the HUD. | new tier |
 | any | `STAFF_DIRECTOR_OVERRIDE{force_tier}` command (OPS-ADMIN §3) while the campaign is Running; rejected with `CAMPAIGN_PAUSED` while Paused (Q-ALN-24) | Force the tier and record the override | forced tier |
 
 **Invariants**
-- D-1: tiers only move between adjacent levels (never ALPHA↔CHARLIE in one step).
+- D-1: tiers only move between adjacent levels (never PATTERN_OF_LIFE↔BRAVO in one step).
 - D-2: no transition happens before the minimum dwell has elapsed (except a staff override).
-- D-3: under CP oscillating within the hysteresis band, no flapping (property test).
+- D-3: under CP or provocation oscillating within the hysteresis band, no flapping (property test).
 - D-4: spend per window ≤ the tier budget.
 
 ### 4.7 Commander lifecycle (runtime + persistence)

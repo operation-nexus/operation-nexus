@@ -72,7 +72,7 @@ contracts/
 | `NodeKind` | `AIRBASE`, `FOB`, `PORT`, `BRIDGE`, `HQ`, `SANCTUARY` | SIM-CORE §4. Radars, factories and air defense are facilities (`UnitKind`), not nodes (Q-GP-21, Q-GP-25). |
 | `EdgeLayer` | `ROAD`, `SEA_LANE` | |
 | `OwnerKind` | `COMMANDER`, `AI_GARRISON`, `ENEMY_DIRECTOR` | DI-5: anything that isn't COMMANDER is labeled as AI |
-| `ThreatTier` | `ALPHA`, `BRAVO`, `CHARLIE` | |
+| `ThreatTier` | `PATTERN_OF_LIFE`, `ALPHA`, `BRAVO` | `CHARLIE` is parked (Q-TD-3) |
 | `CampaignMode` | `TOTAL_DOMINATION`, `HOLD_THE_LINE`, `SIEGE` | `SIEGE` is reserved (backlog, Q-GD-2). Starting a SIEGE campaign is rejected until it is specified. |
 | `CampaignResult` | `VICTORY`, `DEFEAT`, `TIME_LIMIT`, `ABORTED` | Defeat rule: Q-GD-7. `TIME_LIMIT` = the time limit was reached; `CampaignEnded.score` and `winner` (`COALITION`, `ENEMY` or `null`) say who won. An exact tie is `winner: null`, a draw with no special screen (Q-GP-10). `ABORTED` only via `STAFF_CAMPAIGN_END` (staff). |
 | `CommandKind` | see §5 | |

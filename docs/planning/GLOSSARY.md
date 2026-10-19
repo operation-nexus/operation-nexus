@@ -57,7 +57,7 @@ terms still waiting for an owner ruling.
 |---|---|
 | Pattern of Life (PoL) | The Static's non-aggressive routine (patrols, convoys, rotations, staging) when not provoked; replaces any clock pause (THREAT-DIRECTOR §5a) |
 | Provocation | A decaying score that rises with coalition actions against the Static and drives escalation, not headcount (THREAT-DIRECTOR §5a) |
-| Threat tier | ALPHA / BRAVO / CHARLIE, the director's escalation level |
+| Threat tier | PATTERN_OF_LIFE / ALPHA / BRAVO, the director's escalation level (CHARLIE later) |
 | Coalition power (CP) | Smoothed measure of active coalition strength. Drives the tiers |
 | Momentum | 0–100% indicator of who's winning, derived from nodes, stock and recent events |
 | Theater objective | The system-picked goal shown on screen. Mode per campaign: `timed` (rotating, default 15 min) or `off` (Q-GD-19) |

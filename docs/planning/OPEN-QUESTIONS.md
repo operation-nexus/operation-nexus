@@ -476,3 +476,14 @@ Owner decisions from the FOG-OF-WAR grill session, after a ponytail pass.
 | Q-FOW-15 | How facilities are discovered | Bases are known; enemy facilities only once discovered: an active track, a passive sensor (recon units and radar sites; AWACS later) within `sensor.passive_range_m` of an emitting site, or capturing the base. Discovery is a permanent marker (position, kind, variant, ring); details refresh only on re-observation with a "last confirmed" age. Owner: unsensed strikes and repairs must never be exposed. Same for the director. | P1 | ✅ 2026-10-19 |
 | Q-FOW-16 | Track quality in the first build | Evaluated at impact: no track or out of envelope at impact = miss. Dynamic in-flight track quality (outrunning by range, jamming changing it in flight, seekers) is parked in GAMEPLAY-LATER. | P1 | ✅ 2026-10-19 |
 | Q-FOW-17 | Announcing IADS reinforcement | Keep the INTEL line at sector level only; it never names a site or updates a marker. Approves FOG-OF-WAR. | P1 | ✅ 2026-10-19 |
+
+## THREAT-DIRECTOR grilling (2026-10-19)
+
+Owner decisions from the THREAT-DIRECTOR grill session, after a ponytail pass.
+
+| ID | Question | Decision | Priority | Status |
+|---|---|---|---|---|
+| Q-TD-1 | One escalation rule | Provocation decides when, coalition power decides how far: tier = min(provocation level, CP ceiling), with hysteresis and dwell on the result. Pattern of Life becomes the lowest tier value. | P1 | ✅ 2026-10-19 |
+| Q-TD-2 | Fair inputs for coalition power | CP = Σ unit value over currently tracked coalition units; supply readiness and account-age weighting removed. Owner: the director can and should send out scouts anyway (routine Recon on a PoL cadence). | P1 | ✅ 2026-10-19 |
+| Q-TD-3 | CHARLIE in the first build | Parked with TheaterOffensive and its warning lead time; first build is Pattern of Life, ALPHA and BRAVO. `sead_activity` and counter-battery removed until P4. | P1 | ✅ 2026-10-19 |
+| Q-TD-4 | Small crowds without headcount | At low CP the director prefers operations near its most recent provocation, not near humans. | P1 | ✅ 2026-10-19 |

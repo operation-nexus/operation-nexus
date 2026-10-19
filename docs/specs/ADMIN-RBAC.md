@@ -241,7 +241,7 @@ Both channels produce the same `AdminRequest{staff_id, permission, action, param
 | Ban / unban | User page | `/nexus ban <callsign> <reason>`, `/nexus unban <callsign>` | mod.ban/unban |
 | Purge units | User page | `/nexus purge <callsign>` | mod.purge_units |
 | Callsign queue | Queue page | `/nexus callsigns` (list), buttons approve/reject | mod.callsign_review |
-| Director tier | AI page | `/nexus tier <ALPHA\|BRAVO\|CHARLIE> <minutes>` | ai.override |
+| Director tier | AI page | `/nexus tier <PATTERN_OF_LIFE\|ALPHA\|BRAVO> <minutes>` | ai.override |
 | GM takeover | AI page | `/nexus gm take <ASSIST\|FULL>`, `/nexus gm release` | ai.gm_takeover |
 | GM operation | AI page (operation picker) | `/nexus gm op <operation> <target>` | ai.gm_issue |
 | Status | Home | `/nexus status` | ops.view |
