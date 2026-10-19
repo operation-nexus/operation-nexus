@@ -270,7 +270,9 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-347 | Contributor license template (draft v0 written 2026-10-19 in `docs/legal/CONTRIBUTOR-AGREEMENT-TEMPLATE.md`; owner decisions D1 to D12 and the attorney review remain) (flat fee, contributor keeps copyright, project license, no voice training or cloning, credit) and one narrow attorney review before the first paid use (Q-LEGAL-13; ties NX-289) | S | 🟨 | — |
 | NX-348 | Credits page on the site and in the stream's about section; alias and removal-on-request rules (Q-LEGAL-13) | S | ⬜ | — |
 | NX-349 | Draft account profile copy (bios, link-page text) for each brand account, in the vault; the owner approved all eight on 2026-10-18 and pasted seven into the profiles by hand on 2026-10-19; the link-page draft is held (see NX-351) (Q-MKT-14) | S | ✅ | NX-340 |
-| NX-351 | Link page copy (hiveplex.live) goes live with the front-facing site; draft MKT-0008 is approved and on hold in the vault until the site exists | S | ⬜ | public site |
+| NX-351 | Link page for hiveplex.live: spec `docs/specs/PUBLIC-SITE.md` (Draft), then build under `apps/site/` and deploy to a free static host after the owner approves the spec; copy is the approved vault draft MKT-0008 with the Discord invite (Q-MKT-18) | S | 🟨 | NX-352 |
+| NX-352 | Placeholder logo and avatar: concepts, design brief and provenance record in the vault (AI-assisted placeholder, status `placeholder` per NX-318), then a human-made replacement when the budget allows (Q-MKT-18, Q-LEGAL-13) | S | 🟨 | — |
+| NX-353 | Discord server setup: blueprint in the vault, then an owner-run, idempotent setup script that never puts a bot token in a session or repo (Q-OPS-12) | M | ❓ | NX-352 |
 | NX-350 | `meme-brief` skill (on demand): owner's weekly examples to source-dated format ideas and drafts, tests on its tier (Q-MKT-16) | S | 🟨 | NX-339 |
 
 ## Backlog (unscheduled — from owner's conversation & plans)

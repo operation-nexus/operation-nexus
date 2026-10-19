@@ -21,5 +21,6 @@
 | [ADMIN-RBAC](ADMIN-RBAC.md) | Roles and permissions, moderation, GM takeover, scheduling, rules editor, theater generation | P2–P4 |
 | [SUPPORT-REDEMPTIONS](SUPPORT-REDEMPTIONS.md) | Bits, channel points, Super Chats, tips → capped redemptions | P4–P5 |
 | [OPS-ADMIN](OPS-ADMIN.md) | Watchdog, observability, alerting, admin console, kill switch, runbooks | P2 |
+| [PUBLIC-SITE](PUBLIC-SITE.md) | The public site, starting with the one-page link page at hiveplex.live | P0 (link page), P3 (replays and stats) |
 
 Specs start as **Draft**. They move to **Approved** only after the owner signs off and every linked open question that blocks the phase is answered.
