@@ -234,6 +234,8 @@ Legend: **HR** = hot-reloadable (§5). "TBD" = TBD by harness. **Source** = the 
 | `director.tier.exit_ratio` | float | fraction of enter | 0.8 | THREAT-DIRECTOR §3 | Yes |
 | `director.tier.min_dwell_s` | float | s (game, Q-ALN-23) | 600 | THREAT-DIRECTOR §3 | Yes |
 | `director.budget.<tier>` | int | budget points / window | TBD per tier | THREAT-DIRECTOR §4 | Yes |
+| `director.max_spawns_per_window` | int | units / window | TBD (PROPOSED) | THREAT-DIRECTOR §4, Q-TD-12 | Yes |
+| `director.max_live_units.<tier>` | int | units | TBD (PROPOSED) | THREAT-DIRECTOR §4, Q-TD-12 | Yes |
 | `director.op_priority.<op>` | float | base priority | TBD by harness | THREAT-DIRECTOR §4, Q-TD-6 | Yes |
 | `director.score.target_value.<node_kind>` | float | multiplier | TBD by harness | THREAT-DIRECTOR §4, Q-TD-6 | Yes |
 | `director.score.provocation_proximity` | float | multiplier | TBD by harness | THREAT-DIRECTOR §5, Q-TD-4 | Yes |
@@ -342,6 +344,8 @@ weapons:
 | ENEMY_CONVOY | ENEMY | GROUND | DIRECTOR | — | no | yes | yes (slow) | Escorts appear via threat memory |
 | ENEMY_FIGHTER | ENEMY | AIR | DIRECTOR | — | yes (AA) | — | no | CAP / intercept |
 | ENEMY_ARMOR | ENEMY | GROUND | DIRECTOR | — | yes (AG) | — | yes | Offensives / retakes |
+| ENEMY_STRIKE_FIGHTER | ENEMY | AIR | DIRECTOR | — | yes (AG + AA light) | — | no | Mirrors STRIKE_FIGHTER (parity, Q-TD-13); stats TBD by harness |
+| ENEMY_RECON_UAV | ENEMY | AIR | DIRECTOR | — | no | — | no | Mirrors RECON_UAV: large sensor, passive range, paints (parity, Q-TD-13); stats TBD by harness |
 
 Specialist chassis (SEAD, artillery, engineer, jammer, AWACS) are P4 (PROGRESSION §3). Naval units are **P3** (Q-GD-8). Their catalog rows are added then. Display class names (Striker, Scout, Hauler, …) come from `display.label_key` and the brand guide (Q-NAME-2); kind ids stay plain (GAMEPLAY TS-4).
 
@@ -398,8 +402,8 @@ operations:
     enabled_tiers: [ALPHA, BRAVO]     # Pattern of Life allows Offensive only under the night cap
     # priority comes from director.op_priority.<id>
     jobs:                             # posted in order; each later job depends on the earlier one
-      - { kind: DEFEND, at: nearest_own_base, unit_kinds: [ENEMY_FIGHTER], slots: <int> }   # stage
-      - { kind: STRIKE, at: target_defenses, unit_kinds: [ENEMY_FIGHTER], slots: <int> }
+      - { kind: DEFEND, at: nearest_own_base, unit_kinds: [ENEMY_STRIKE_FIGHTER], slots: <int> }   # stage
+      - { kind: STRIKE, at: target_defenses, unit_kinds: [ENEMY_STRIKE_FIGHTER], slots: <int> }
       - { kind: CAPTURE, at: target, unit_kinds: [ENEMY_ARMOR], slots: <int> }
 ```
 Values are PROPOSED; the first-build list is Probe, Recon, Offensive, Retake, EscortConvoys, ReinforceIADS, StrikeBridge and DecoyBlink (DecoyBlink sets an emission flag and has no jobs, FOG-OF-WAR FOW-11).
@@ -416,7 +420,7 @@ Values are PROPOSED; the first-build list is Probe, Recon, Offensive, Retake, Es
 | `bounds_m` | `{w, h}` | Map extent in metres (SIM-CORE §4: ~400×240 km for the first theater) |
 | `terrain` | object | `heightmap: <path to 16-bit PNG>`, `height_scale_m`, `sea_level_m`; **or** `contours: <path to GeoJSON-like polylines>`. `masking_regions`: polygons where NOE/LOW aircraft and ground units are masked from sensors outside the region, rasterized at load to the spatial grid's cells (cell centre in polygon, integer metres; the theater file is in the config hash; FOG-OF-WAR Tier 2, Q-FOW-3) |
 | `sectors` | list | `{id, name, polygon}`; non-overlapping; union covers the map |
-| `nodes` | list | `{id, name, kind, pos: [x_m, y_m], start_owner, start_stock, sector}` |
+| `nodes` | list | `{id, name, kind, pos: [x_m, y_m], start_owner, start_stock, sector, garrison_quota?}`. `garrison_quota` (Static bases): the units the director may keep there at Pattern of Life, replacing losses only (THREAT-DIRECTOR §5a, Q-TD-11) |
 | `edges` | list | `{a, b, layer: ROAD\|SEA_LANE, speed_mult, bridge?: <node id of kind BRIDGE>}` |
 | `spawns` | list | `{side, node, domains: [...]}`: where each side's units may appear |
 | `sanctuary` | node id | Coalition SANCTUARY node: infinite stock, never capturable (Q-GD-7) |

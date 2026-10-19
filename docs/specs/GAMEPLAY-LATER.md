@@ -20,7 +20,8 @@ Status: Parked (not part of the SIM-CORE / GAMEPLAY approval) · Tracker: NX-120
 > Following a unit (`!target <callsign>`, GAMEPLAY §1b, Q-GP-31) already covers positioning in the first build; flights and packages add only a shared target, a shared map symbol and an XP share. Deploy-time stance (`!join strike press`) must fit the `!join` grammar when stances return.
 - **RQ-3 (P4, ships with packages §7; Q-GD-36): Units merge into flights before anyone queues.** Joiners attach to existing human flights as wingmen (sharing one map symbol) before the queue is used. Only when every flight is full does the queue start. The alpha uses the plain reserve queue only.
 
-## 5a. Base upgrades (P4; extension point reserved now)
+## 5a. Base upgrades
+> Upgrades come only from player actions, never from AI (Q-TD-11); this includes AI garrison units and facilities. (P4; extension point reserved now)
 Owner idea: sending **surplus supply** to a base gradually upgrades it: a radar site gains range, an air-defense site gains faster interceptors, an airbase rearms quicker. Upgrades decay or are lost if the base is starved or captured.
 - **Reserved now so it doesn't need a rewrite later:** nodes carry `tier: int` and `upgrades: [UpgradeId]` in the world model, and all node stats are read through a modifier layer (base stats × tier/upgrade modifiers from config). The MVP ships with tier 0 and no upgrades.
 

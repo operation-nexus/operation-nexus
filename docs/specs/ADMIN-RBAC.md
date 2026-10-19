@@ -175,9 +175,9 @@ Commander search (by callsign or id), stats from ledgers, ban history, link/merg
 - **Tier override:** `STAFF_DIRECTOR_OVERRIDE` (existing command).
 - **GM takeover mode:**
   1. `STAFF_GM_TAKEOVER{mode}` hands the director's decision loop to the GM. Modes:
-     - `ASSIST`: the director still proposes, and the GM approves or vetoes each operation.
-     - `FULL`: the director proposes nothing, and only GM-issued operations run.
-  2. While held, `STAFF_GM_OPERATION{operation, target, params}` issues operations from the same operation catalog (`content/operations.yaml`). Each is validated against preconditions, **tier budget**, and the **enemy fog-of-war view** (FOW-4), unless an OWNER has lifted limits with `STAFF_GM_LIMITS{budget: bool, fow: bool}`.
+     - `ASSIST`: the rules keep running; the GM injects or vetoes operations (Q-TD-15). Nothing waits on GM approval.
+     - `FULL`: the director proposes nothing, and only GM-issued operations run. Rejected until FULL ships (Q-TD-9, Q-TD-15).
+  2. While held, `STAFF_GM_OPERATION{operation, target, params}` issues operations from the same operation catalog (`content/operations.yaml`). Each is validated against preconditions, **tier budget**, and the **enemy fog-of-war view** (FOW-4). The fog limit can never be lifted: a GM plays the Static under the Static's fog (Q-TD-15). The only budget exception is THREAT-DIRECTOR §6a's audited `override_budget` flag.
   3. `STAFF_GM_RELEASE` returns control to the director.
   4. Takeover auto-releases after `admin.gm_max_session_s` (config, PROPOSED TBD), or when the GM's session ends, so the AI is never left stuck. These are **real-time** (monotonic) timers enforced outside the sim, which issue a `SYSTEM` `STAFF_GM_RELEASE` when they fire; they keep running while the campaign is paused (Q-ALN-4, CONFIG-AND-CONTENT CFG-9).
   5. On stream: the threat panel shows `GAME MASTER ACTIVE`, and sitreps for GM operations are tagged `[GM]` and spoken with the distinct Game Master voice profile (DATA-INTEGRITY DI-5; Q-RB-7, AUDIO-TTS §2a).
