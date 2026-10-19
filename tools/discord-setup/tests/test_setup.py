@@ -138,6 +138,24 @@ def test_show_blueprint_needs_no_token_and_no_network():
     assert any("create channel welcome" in line for line in lines)
 
 
+def test_bot_needs_every_permission_the_blueprint_uses():
+    needed = setup.bot_needs(BLUEPRINT)
+    for role in BLUEPRINT["roles"]:
+        assert needed & setup.perm_value(role["permissions"]) == setup.perm_value(
+            role["permissions"]
+        )
+    for cat in BLUEPRINT["categories"]:
+        for perms in cat["overwrites"].values():
+            used = setup.perm_value(perms["allow"] + perms["deny"])
+            assert needed & used == used
+    assert (
+        needed & setup.PERMISSIONS["MANAGE_ROLES"] and needed & setup.PERMISSIONS["MANAGE_CHANNELS"]
+    )
+    lines: list[str] = []
+    setup.main(["--show-blueprint"], env={}, out=lines.append)
+    assert any(f"{needed:#x}" in line and "must hold" in line for line in lines)
+
+
 def test_dry_run_makes_no_write_calls():
     fake = FakeDiscord()
     code, lines = run(fake)

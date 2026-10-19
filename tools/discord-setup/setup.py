@@ -9,9 +9,11 @@ dry run. The bot token is read from DISCORD_BOT_TOKEN and is never printed or st
   DISCORD_BOT_TOKEN=... python3 setup.py --guild ID      dry run against the real server
   DISCORD_BOT_TOKEN=... python3 setup.py --guild ID --apply --confirm-guild-name NAME
 
-Discord's developer pages could not be read when this was written (HTTP 403), so the API version,
-endpoints, permission values and channel types below are from memory and marked UNVERIFIED. The dry
-run prints every permission as a name and a hex value so the owner can check them.
+Checked against Discord's developer docs on 2026-10-19 (docs.discord.com/developers): API v10, the
+endpoints used (GET and POST for roles and channels, PATCH for a role and a channel), the Bot
+authorization header, the User-Agent format, the retry_after wait on HTTP 429, the permission
+values, channel type numbers and overwrite types. The dry run prints every permission as a name
+and a hex value.
 """
 
 from __future__ import annotations
@@ -27,17 +29,20 @@ from collections.abc import Callable, Mapping
 from pathlib import Path
 from typing import Any
 
-API_BASE = "https://discord.com/api/v10"  # UNVERIFIED version
+# API v10 is listed "Available", checked 2026-10-19 (docs.discord.com/developers/reference).
+API_BASE = "https://discord.com/api/v10"
 USER_AGENT = "DiscordBot (https://github.com/operation-nexus/operation-nexus, 0.1)"
 EVERYONE = "@everyone"
-CHANNEL_TEXT = 0  # UNVERIFIED
-CHANNEL_CATEGORY = 4  # UNVERIFIED
-OVERWRITE_ROLE = 0  # UNVERIFIED
+CHANNEL_TEXT = 0  # GUILD_TEXT, checked 2026-10-19 (docs.discord.com/developers/resources/channel)
+CHANNEL_CATEGORY = 4  # GUILD_CATEGORY, same source
+OVERWRITE_ROLE = 0  # overwrite type 0 = role, same source
 MAX_RETRIES = 5
 MAX_WAIT_SECONDS = 60.0
 
-# Permission flag values, UNVERIFIED (from memory of Discord's permissions table).
+# Permission flag values, checked 2026-10-19 against docs.discord.com/developers/topics/permissions.
 PERMISSIONS: dict[str, int] = {
+    "MANAGE_CHANNELS": 1 << 4,
+    "MANAGE_ROLES": 1 << 28,
     "VIEW_CHANNEL": 1 << 10,
     "SEND_MESSAGES": 1 << 11,
     "MANAGE_MESSAGES": 1 << 13,
@@ -63,6 +68,20 @@ def perm_value(names: list[str]) -> int:
         if name not in PERMISSIONS:
             raise SetupError(f"unknown permission name: {name}")
         value |= PERMISSIONS[name]
+    return value
+
+
+def bot_needs(bp: Json) -> int:
+    """Permissions the bot itself must hold. Discord only lets a bot allow, deny or give a role
+    permissions the bot has (docs.discord.com: Create Guild Channel, Permission Hierarchy), so
+    this is every permission the blueprint uses, plus managing roles and channels."""
+    value = PERMISSIONS["MANAGE_ROLES"] | PERMISSIONS["MANAGE_CHANNELS"]
+    for role in bp["roles"]:
+        value |= perm_value(role["permissions"])
+    for cat in bp["categories"]:
+        for ow in [cat["overwrites"], *[ch.get("overwrites", {}) for ch in cat["channels"]]]:
+            for perms in ow.values():
+                value |= perm_value(perms["allow"] + perms["deny"])
     return value
 
 
@@ -323,6 +342,7 @@ def main(
         validate_blueprint(bp)
         if args.show_blueprint:
             Setup(None, "<guild>", False, out).run(bp)
+            out(f"The bot must hold these permissions: {perm_text(bot_needs(bp))}")
             out("Dry run only: nothing was sent anywhere.")
             return 0
         token = environment.get("DISCORD_BOT_TOKEN", "")
@@ -335,6 +355,8 @@ def main(
             raise SetupError(f"--confirm-guild-name must be exactly the server name, {real!r}")
         setup = Setup(api, args.guild, args.apply, out)
         setup.run(bp)
+        if not args.apply:
+            out(f"The bot must hold these permissions: {perm_text(bot_needs(bp))}")
         outcome = "made" if args.apply else "planned; nothing was written (dry run)"
         out(f"{setup.changes} change(s) {outcome}.")
         return 0

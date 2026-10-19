@@ -4,7 +4,7 @@ Owner-run setup for the community Discord server. Spec: [DISCORD-SERVER-SETUP](.
 
 It creates or updates the roles, categories, channels and permission overwrites in [blueprint.json](blueprint.json). It **never** deletes anything, kicks or bans anyone, sends a message or touches existing members. Python standard library only. The bot token stays on your computer, in one environment variable, and is never printed or stored. **Do not paste a token into a chat, an issue, a pull request or a file.**
 
-Discord's developer pages could not be read when this was written, so the API version, permission values and portal labels are from memory and marked UNVERIFIED in the code. The dry run prints every permission as a name and a hex value so you can check them against Discord's own table.
+The API version, permission values, channel and overwrite type numbers and the invite flow were checked against Discord's developer docs (docs.discord.com/developers) on 2026-10-19. Portal screen names that are not in those docs stay marked [UNVERIFIED]. The dry run prints every permission as a name and a hex value so you can check them against Discord's own table.
 
 ## Step by step
 
@@ -20,13 +20,17 @@ Total time: about 20 minutes. Keep one terminal open on your Mac (Terminal app, 
 ### Part 2: make a throwaway bot (Discord website, about 5 minutes)
 
 3. Go to https://discord.com/developers/applications and sign in with the account that owns `hiveplex-community`. Click **New Application** [UNVERIFIED label], name it `hiveplex-setup-throwaway`, and accept the terms. Do **not** reuse the `hiveplex` application.
-4. Open the **Bot** page in the left menu [UNVERIFIED]. Click **Reset Token** and confirm, then **Copy**. This is the bot token. Treat it like a password: do not paste it into a chat, an issue, a pull request, a note or a file.
+4. Open the **Bot** page in the left menu. Under **Token** click **Reset Token**, confirm, then copy it (Discord's own tutorial describes this step). This is the bot token. Treat it like a password: do not paste it into a chat, an issue, a pull request, a note or a file.
 5. Put the token into your terminal without it landing in your shell history. In zsh (the Mac default) type this, press Enter, paste the token (nothing shows as you paste) and press Enter again:
 
    `read -rs "DISCORD_BOT_TOKEN?Paste token: "; export DISCORD_BOT_TOKEN`
 
    (In bash the form is `read -rsp "Paste token: " DISCORD_BOT_TOKEN; export DISCORD_BOT_TOKEN`.)
-6. Invite the bot to the server. In the portal open **OAuth2** then **URL Generator** [UNVERIFIED]. Under scopes tick **bot**. Under bot permissions tick **Manage Roles**, **Manage Channels** and **View Channels**. Copy the generated URL at the bottom, open it in your browser, pick `hiveplex-community` and click **Authorize**. The bot now shows in the server's member list, offline. That is expected: the script uses Discord's web interface and never runs a bot.
+6. Invite the bot to the server. **You do not need a redirect URI** for this: that box on the OAuth2 page is only for apps that log users in. A bot invite needs just the `bot` scope. Use one of these:
+   - **Install link (easiest).** Open **Installation** in the left menu. Under **Installation Contexts** make sure **Guild Install** is ticked. Under **Install Link** choose **Discord Provided Link**. In **Default Install Settings**, for **Guild Install**, add the scope **bot**, then in the **Permissions** menu tick exactly the permissions the script lists in step 2 under "The bot must hold these permissions" (Manage Channels, Manage Roles, View Channels, Send Messages, Manage Messages, Embed Links, Attach Files, Read Message History, Add Reactions, Moderate Members). Copy the **Install Link**, open it in your browser, choose **Add to server**, pick `hiveplex-community` and authorize.
+   - **Or build the link yourself:** `https://discord.com/oauth2/authorize?client_id=<APPLICATION ID>&scope=bot&permissions=1099780189264` (the number is what the script prints as `= 0x1001001ec50`; the application ID is on the **General Information** page [UNVERIFIED label]).
+
+   Why the extra permissions: Discord only lets a bot give a role, or allow or deny in a channel, permissions the bot holds itself (Discord docs: Create Guild Channel, Permission Hierarchy). If you skip one, the script stops with `Missing Permissions`. The bot then shows in the member list, offline. That is expected: the script talks to Discord's web interface and never runs a bot.
 7. Find the server ID. In Discord open **User Settings**, then **Advanced**, and switch on **Developer Mode** [UNVERIFIED]. Right-click the server icon and choose **Copy Server ID**.
 
 ### Part 3: dry run against the real server (changes nothing)
@@ -56,7 +60,7 @@ Follow [Set by hand](#set-by-hand-the-script-does-not-touch-these) below, then d
 |---|---|---|
 | `error: need --guild and the DISCORD_BOT_TOKEN environment variable` | The token variable is empty in this terminal window, or `--guild` is missing | Repeat step 5 in the same window and check the command includes `--guild <id>` |
 | `error: Discord returned 401 ...` | Wrong or reset token | Reset the token in the portal and repeat steps 4 and 5 |
-| `error: Discord returned 403 ...` or the message `Missing Permissions` | The bot is not in the server, or lacks a permission it is trying to set | Check the bot is in the member list. If it is, give the bot's role **Administrator** for this run only, run again, and remove it in step 13 [UNVERIFIED Discord rule] |
+| `error: Discord returned 403 ...` or the message `Missing Permissions` | The bot is not in the server, or it lacks a permission the script is trying to give or set (Discord only allows a bot to hand out permissions it has itself) | Check the bot is in the member list and that its role has every permission in step 6's list (server settings, then Roles, the bot's role). As a last resort give that role **Administrator** for this run only and remove it in step 13 |
 | `error: Discord returned 404 ...` | Wrong server ID | Repeat step 7 and copy the **server** ID, not a channel or user ID |
 | `error: --confirm-guild-name must be exactly the server name, '...'` | The name after `--confirm-guild-name` is not the real server name | Use the name in quotes in that error, exactly |
 | It stopped halfway | Some things were created, the rest were not | Run the same `--apply` command again; the script reuses what exists |
