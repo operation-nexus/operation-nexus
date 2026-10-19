@@ -234,6 +234,7 @@ Legend: **HR** = hot-reloadable (§5). "TBD" = TBD by harness. **Source** = the 
 | `director.tier.exit_ratio` | float | fraction of enter | 0.8 | THREAT-DIRECTOR §3 | Yes |
 | `director.tier.min_dwell_s` | float | s (game, Q-ALN-23) | 600 | THREAT-DIRECTOR §3 | Yes |
 | `director.budget.<tier>` | int | budget points / window | TBD per tier | THREAT-DIRECTOR §4 | Yes |
+| `director.op_priority.<op>` | float | base priority | TBD by harness | THREAT-DIRECTOR §4, Q-TD-6 | Yes |
 | `director.memory.half_life_s` | float | s (game, Q-ALN-23) | 1800 | THREAT-DIRECTOR §2 | Yes |
 | `director.ops.<op_kind>.cost` | int | budget points | TBD per op | THREAT-DIRECTOR §4 | Yes |
 | `director.ops.<op_kind>.enabled_tiers` | [enum] | — | TBD per op | THREAT-DIRECTOR §4 | Yes |
@@ -382,6 +383,25 @@ doctrines:
 ```
 - Perks may only modify whitelisted stats. Modifying `hp` or `base_pk` requires owner sign-off (game-designer role card).
 - Values are PROPOSED. The catalog lands in P4 (NX-213).
+
+
+## 8a. Operation catalog (`content/operations.yaml`, Q-TD-7)
+The director's operations are content, not kernel code. Each entry names its preconditions, cost and a **job template**: an ordered list of Tasking Board jobs (job kinds from CONTRACTS `JobKind`, with role, slot count and dependencies) that the operation posts on the Static's board. Adding or changing an operation is a content change validated at load (unknown job kinds, missing preconditions or a cost outside the envelope are rejected); new behaviour the job kinds can't express needs a spec change first.
+
+```yaml
+schema_version: 1
+operations:
+  - id: OFFENSIVE                     # THREAT-DIRECTOR §4 step 3
+    target: NODE
+    preconditions: [target_is_enemy_base, target_discovered_or_visible]
+    cost: <int>                       # budget points, TBD by harness
+    priority_key: director.op_priority.offensive
+    jobs:                             # posted in order; each later job depends on the earlier one
+      - { kind: DEFEND, at: nearest_own_base, role: [STRIKE], slots: <int> }   # stage
+      - { kind: STRIKE, at: target_defenses, role: [STRIKE], slots: <int> }
+      - { kind: ASSIST_OBJECTIVE, at: target, role: [ARMOR], slots: <int> }    # capture
+```
+Values are PROPOSED; the first-build list is Probe, Recon, Offensive, Retake, EscortConvoys, ReinforceIADS, StrikeBridge and DecoyBlink (DecoyBlink sets an emission flag and has no jobs, FOG-OF-WAR FOW-11).
 
 ## 9. Theater file format (`content/theaters/<slug>.yaml`)
 

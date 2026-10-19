@@ -487,3 +487,8 @@ Owner decisions from the THREAT-DIRECTOR grill session, after a ponytail pass.
 | Q-TD-2 | Fair inputs for coalition power | CP = Σ unit value over currently tracked coalition units; supply readiness and account-age weighting removed. Owner: the director can and should send out scouts anyway (routine Recon on a PoL cadence). | P1 | ✅ 2026-10-19 |
 | Q-TD-3 | CHARLIE in the first build | Parked with TheaterOffensive and its warning lead time; first build is Pattern of Life, ALPHA and BRAVO. `sead_activity` and counter-battery removed until P4. | P1 | ✅ 2026-10-19 |
 | Q-TD-4 | Small crowds without headcount | At low CP the director prefers operations near its most recent provocation, not near humans. | P1 | ✅ 2026-10-19 |
+| Q-TD-5 | Director budget | Budget per window = min(tier budget, stock that can pay); no separate upkeep. | P1 | ✅ 2026-10-19 |
+| Q-TD-6 | Operation scoring | Flat `director.op_priority.<op>` × target-value, weakness and threat-memory multipliers + `director` RNG noise; harness-tuned. | P1 | ✅ 2026-10-19 |
+| Q-TD-7 | Operations into jobs | Each operation is a job template in `content/operations.yaml` (content, not code). Owner: wants it modular, with custom behaviors, jobs and operations addable; a skill for authoring them is a candidate follow-up. | P1 | ✅ 2026-10-19 |
+| Q-TD-8 | Where Static units spawn | Same rule as the coalition (GP-7): nearest base with surplus, else the rear source. | P1 | ✅ 2026-10-19 |
+| Q-TD-9 | Game Master modes | ASSIST in the first GM release; FULL in the next release. Owner: wants full control sooner rather than later. | P1 | ✅ 2026-10-19 |

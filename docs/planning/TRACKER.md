@@ -191,7 +191,7 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-129 | Urban terrain rules (LOS blocking, districts) | ⬜ |
 | NX-130 | Campaign carry-over (Q-GD-12) | ⬜ |
 | NX-262 | Campaign planning and scheduling (calendar, scheduled events) | ⬜ |
-| NX-263 | Game Master takeover (ASSIST/FULL) + on-stream badge | ⬜ |
+| NX-263 | Game Master takeover: ASSIST first, FULL in the next release (Q-TD-9; owner wants FULL soon) + on-stream badge | ⬜ |
 | NX-264 | Theater library: upload, validate, preview, publish | ⬜ |
 | NX-265 | Procedural theater generation (water-heavy archetypes, west→east) | ⬜ |
 | NX-266 | Two-person rule and approvals | ⬜ |
