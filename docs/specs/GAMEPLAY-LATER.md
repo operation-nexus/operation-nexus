@@ -17,6 +17,7 @@ Status: Parked (not part of the SIM-CORE / GAMEPLAY approval) · Tracker: NX-120
 | `!order <text>` | free text ≤ 200 chars | O-3 | **P4**, LLM-parsed, own unit only |
 
 ## 4a. Flights and wingmen (RQ-3)
+> Following a unit (`!target <callsign>`, GAMEPLAY §1b, Q-GP-31) already covers positioning in the first build; flights and packages add only a shared target, a shared map symbol and an XP share. Deploy-time stance (`!join strike press`) must fit the `!join` grammar when stances return.
 - **RQ-3 (P4, ships with packages §7; Q-GD-36): Units merge into flights before anyone queues.** Joiners attach to existing human flights as wingmen (sharing one map symbol) before the queue is used. Only when every flight is full does the queue start. The alpha uses the plain reserve queue only.
 
 ## 5a. Base upgrades (P4; extension point reserved now)

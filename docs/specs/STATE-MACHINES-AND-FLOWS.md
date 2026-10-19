@@ -85,7 +85,7 @@ stateDiagram-v2
 
 | State | Event / guard | Action | Next |
 |---|---|---|---|
-| — | `JOIN{role}`, campaign Running, live viewer units < `slots.max_viewer_units` (AUTO units count, Q-ALN-9), commander has no live unit, and `slots.respawn_delay_s` (game time, Q-ALN-5) has elapsed | Allocate the next sequential entity id. Map the role to its `UnitKind` (`content/units.yaml` `roles`). Choose the spawn node (closest owned base valid for the domain). Pick the loadout from node stock; below `logistics.starve_threshold`, use the reduced loadout. Debit stock. Emit `UnitSpawned`. | Spawning |
+| — | `JOIN{role, target, hold}`, campaign Running, live viewer units < `slots.max_viewer_units` (AUTO units count, Q-ALN-9), commander has no live unit, and `slots.respawn_delay_s` (game time, Q-ALN-5) has elapsed | Allocate the next sequential entity id. Map the role to its `UnitKind` (`content/units.yaml` `roles`). Choose the spawn node (closest owned base valid for the domain). Pick the loadout from node stock; below `logistics.starve_threshold`, use the reduced loadout. Debit stock. Emit `UnitSpawned`. | Spawning |
 | — | `JOIN` and the cap is reached, or `JOIN` from a commander with no live unit while the campaign is Paused, even when a slot is free (Q-ALN-2, Q-ALN-26) | Append to the reserve queue (FIFO by `(target_tick, arrival_seq)`). Emit `ReserveQueueJoined{commander_id, position}`. | Reserve |
 | — | `JOIN` while `slots.respawn_delay_s` hasn't elapsed | Emit `CommandRejected{reason: RESPAWN_COOLDOWN}` | (no unit) |
 | Reserve | Slot frees and the campaign is Running (a paused campaign spawns nothing, §4.4) | Pop the head of the FIFO and spawn as above | Spawning |
@@ -108,7 +108,7 @@ stateDiagram-v2
 | Rearming | Node stock hits 0 | Stop. Emit `RearmStalled{node}`. | Landed |
 | any alive, `COMMANDER`-owned, control `OPERATOR` | **Idle handoff:** no chat command from the owner has reached the sim for `presence.idle_handoff_min` (game time, Q-GD-35, Q-ALN-1) | Set control to `AUTO`. Emit `UnitControlChanged{control: AUTO, cause: IDLE_HANDOFF}`; the overlay shows the AUTO tag. The current order is not cancelled; once it completes, the Tasking Board tasks the unit as an AI-run unit (U-6). The unit keeps its slot (Q-ALN-9). | (unchanged) |
 | Holding / EnRoute / OnStation / Engaging, `COMMANDER`-owned | **Idle retire:** no chat command from the owner has reached the sim for `presence.idle_retire_min` (game time, Q-GD-35) | Release any claimed job slot. Path to the nearest friendly node valid for the domain. | RTB |
-| Landed / Rearming | Idle retire elapsed (as above) | Return carried supplies to the reserve (Q-GD-35). Emit `UnitDespawned{reason: IDLE}`. The slot frees. | Despawned |
+| Landed / Rearming | Idle retire elapsed (as above) | Unload carried cargo into this base's stock (Q-GD-35, Q-GP-16). Emit `UnitDespawned{reason: IDLE}`. The slot frees. | Despawned |
 | Disabled, `COMMANDER`-owned | Idle retire elapsed (as above). A Disabled unit cannot RTB. | Despawn in place. Carried cargo is **lost**, not returned to the reserve (Q-ALN-25). Emit `UnitDespawned{reason: IDLE}`. The slot frees. | Despawned |
 | Landed, control `AUTO`, joined with `hold` | Idle handoff applies to `hold` units like any other, and the unit keeps holding (Q-ALN-25). A Tasking Board assignment pass (TB-6) finds a job that matches its role, has a free slot and is feasible (U-6) | Claim the job slot, path to it | EnRoute |
 | any alive, control `AUTO` | **Reclaim:** any chat command from the owner reaches the sim (Q-ALN-9) | Set control to `OPERATOR`. Emit `UnitControlChanged{control: OPERATOR, cause: RECLAIM}`. Then evaluate the command against this unit; a `JOIN` never spawns a second unit. | (per command) |
@@ -133,7 +133,8 @@ Notes:
 - U-5: an orphaned unit is despawned within 1 tick and earns no XP after orphaning.
 - U-7: an AUTO unit counts toward `slots.max_viewer_units` and holds its commander's U-1 slot until it is Despawned or Destroyed; a command from that commander reclaims it and never spawns a second unit (Q-ALN-9).
 - U-8: while the campaign is Paused, no chat command spawns, moves, fires, captures with or despawns a unit (Q-ALN-2). The only despawns while Paused are a unit orphaned by `STAFF_BAN` or `FORGET`, which are safety actions (Q-ALN-24), and a unit removed by `STAFF_PURGE_UNITS` (Q-ALN-36) (§4.4).
-- U-9: when a node flips owner, no unit of the losing side stays parked there: each one is RTB toward another friendly node or Destroyed in the same tick (Q-GD-32).
+- U-10 (Q-GP-31..33): a unit with `follow_id` keeps station on that unit; it holds when the leader stops, lands or parks with it at a base and keeps following, and when the leader dies or despawns it takes the leader's own `follow_id` if any, else re-tasks. A follow that would create a loop, a self-follow, or a follow of a STATIC unit or another side's unit is rejected with `FOLLOW_TARGET_INVALID`.
+- U-9: when a node flips owner, no unit of the losing side stays parked there: each one is RTB toward another friendly node or Destroyed in the same tick (Q-GD-32). Facilities (entities with a `base_id`) are exempt: they switch side with the base and keep their damage (Q-GP-25).
 
 ### 4.2 Node capture
 
@@ -157,7 +158,7 @@ stateDiagram-v2
 |---|---|---|---|
 | Neutral / Owned | An eligible ground or logistics unit of a non-owner side enters `capture.radius_m`, with no opposing eligible unit present | Emit `CaptureStarted{node_id, side}` | Capturing / Contested |
 | Capturing | Tick, still uncontested | Progress += rate × diminishing f(unit count) × garrison modifier × `WORLD_DT` (capture runs on world time, Q-ALN-23). **Garrison modifier (Q-GD-32):** the garrison multiplier (heavily slows capture) while any unit of the owning side is at the node, or the empty-base multiplier (speeds it up) while none is; both are configurable and PROPOSED. A combat-capable defender freezes progress (Contested); defenders that cannot contest, such as parked air units and Disabled units, slow it through the garrison multiplier instead (Q-ALN-33). A Neutral node has no owner and uses neither multiplier. | Capturing |
-| Capturing | Progress ≥ 100% | Set owner = capturer. Reset progress. Emit `NodeCaptured{node_id, from, to, participant_commander_ids[]}`. In the same tick, resolve the losing side's units parked at the node: mobile units with fuel to reach a friendly node escape (RTB), every other one is Destroyed with a crew-survival roll (§4.1, Q-GD-32). Applies to both sides. | Owned |
+| Capturing | Progress ≥ 100% | Set owner = capturer. Reset progress. Emit `NodeCaptured{node_id, from, to, participant_commander_ids[]}`. In the same tick, resolve the losing side's units parked at the node: mobile units with fuel to reach a friendly node escape (RTB), every other mobile or parked unit is Destroyed with a crew-survival roll (§4.1, Q-GD-32); facilities switch side and keep their damage (Q-GP-25). Applies to both sides. | Owned |
 | Capturing | Opposing eligible, combat-capable unit enters (parked air and Disabled units do not contest, Q-ALN-33) | Freeze progress | Contested |
 | Contested | One side's eligible units are all gone | — | Capturing (attacker remains) / Owned (defender remains) |
 | Capturing | No capturers, no opponents | — | Decaying |
@@ -227,7 +228,7 @@ stateDiagram-v2
 | Paused | `STAFF_GM_RELEASE`, from the GM or from SYSTEM on auto-release (Q-ALN-36) | Apply as when Running: control returns to the director | Paused |
 | Paused | `STAFF_CAMPAIGN_PAUSE` | Emit `CommandRejected{reason: ALREADY_PAUSED}` | Paused |
 | Paused | `STAFF_CAMPAIGN_RESUME` from staff (GM, admin or owner only, Q-RB-1), or from SYSTEM after the "COMMS RESTORED" countdown ends an offline pause (Q-OPS-8) | Clear `clock_paused`. Emit `CampaignClockResumed{reason}`. Free slots fill from the reserve queue (FIFO). | Running |
-| Running | Victory condition held (GAMEPLAY §9), or defeat (forward airbase lost and ≤ 25% of nodes held for 30 min, Q-GD-7) | Freeze inputs. Emit `CampaignEnded{result: VICTORY \| DEFEAT}`. | Ending |
+| Running | Victory condition held (GAMEPLAY §9), or defeat (forward airbase lost and ≤ 25% of strategic nodes held for 30 min, Q-GD-7, Q-GP-17) | Freeze inputs. Emit `CampaignEnded{result: VICTORY \| DEFEAT}`. | Ending |
 | Running | The campaign clock reaches its time limit (game time), and the two sides' time-limit scores differ | Score per side = node share over time + completed objectives (Q-GD-29). Freeze inputs. Emit `CampaignEnded{result: TIME_LIMIT, score, winner}`; the higher score wins the war. | Ending |
 | Running | Time limit reached and the two scores are exactly equal (Q-GD-29, Q-GP-10) | Freeze inputs. Emit `CampaignEnded{result: TIME_LIMIT, score, winner: null}`: a draw, with the normal end screen. | Ending |
 | Running / Paused | `STAFF_CAMPAIGN_END{reason}` | Freeze inputs. Emit `CampaignEnded{result: ABORTED}`. | Ending |
@@ -632,7 +633,7 @@ Paths are planned names; they're created with their tracker items.
 ## 8. Decisions folded in, and open questions
 These decisions (2026-10-17 and 2026-10-18) are folded into the tables above:
 - **Q-GD-4 (amended):** no automatic clock pause for lack of humans; the Static drops to Pattern of Life (THREAT-DIRECTOR §5a). Only a pause with a reason category stops the clock (§4.4, Q-ALN-3).
-- **Q-GD-7:** defeat = forward airbase lost and ≤ 25% of nodes held for 30 min; the sanctuary is uncapturable (§4.2 N-4, §4.4).
+- **Q-GD-7:** defeat = forward airbase lost and ≤ 25% of strategic nodes held for 30 min; the sanctuary is uncapturable (§4.2 N-4, §4.4).
 - **Q-GD-8:** sea domain in **P3** (§4.1 notes).
 - **Q-GD-11:** trucks do slow field repair; engineers repair fast and build (§4.3).
 - **Q-GD-19 / Q-GD-26 / Q-CBT-1/6/7 / Q-GD-27:** objective modes (§4.5), Tasking Board and auto-tasking (Q-GP-23), damage states, stance, munitions and repair (§4.1).

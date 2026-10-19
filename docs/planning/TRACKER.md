@@ -142,7 +142,7 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-042 | Phase-2 security review + pentest of command path | M | ⬜ | all P2 |
 | NX-034 | Cold-tester readability study (a few cold testers, not strictly 5; Q-PROD-4). Also test: hidden-shooter tracers on/off (Q-CT-3), recruit strip + `!me` clarity (FB-UX), orientation | S | ⬜ | NX-178 |
 | NX-035 | Multi-day unattended burn-in on unlisted stream (not strictly 7 days; minimal manual fixes; zero unmoderated text; monitoring + viewer simulator NX-193 in use; Q-PROD-4) | M | ⬜ | all P2 |
-| NX-309 | Tasking Board: job generation from state, priorities, role matching, slot de-dup, AI garrison integration, overlay "NEEDED" list, decision window, `hold` opt-out (Q-GD-26 blocks P2; moved from P4 in NX-311) | — | ⬜ | NX-126, NX-178 |
+| NX-309 | Tasking Board: job generation from state, priorities, role matching, slot de-dup, AI garrison integration, overlay "NEEDED" list, auto-tasking on a parameterless `!join` (Q-GP-23), `hold` opt-out (Q-GD-26 blocks P2; moved from P4 in NX-311) | — | ⬜ | NX-126, NX-178 |
 | NX-324 | Silent viewers: idle handoff to an AUTO unit, idle retire, reclaim; an AUTO unit keeps its commander's slot; AUTO tag on the overlay (GAMEPLAY §4b GP-4…GP-6; Q-GD-35, Q-ALN-8, Q-ALN-9, Q-ALN-25, Q-ALN-26) | — | ⬜ | NX-122, NX-309 |
 | NX-274 | Brand and style guide: name usage, fictional factions and insignia, unit class naming (generic: Tank, Striker, Bomber…), color, type, sound identity, tone of voice; **no real names** rule added to the content validator. Includes rank display names (Q-NAME-1), unit class names (Q-NAME-2), colors (Q-STYLE-1), typography (Q-STYLE-2), symbology (Q-STYLE-4). (Overlay needs it in P2; moved from P4 in NX-311.) | — | ⬜ | — |
 

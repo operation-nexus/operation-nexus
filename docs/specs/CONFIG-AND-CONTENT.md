@@ -153,7 +153,7 @@ Legend: **HR** = hot-reloadable (§5). "TBD" = TBD by harness. **Source** = the 
 | `logistics.bridge_repair_time_s` | float | s (world) | TBD (engineer repair time; Q-GD-11) | GAMEPLAY §5 | No |
 | `logistics.truck_bridge_repair_mult` | float | multiplier on engineer time | 5 (Q-GD-11 recommendation "e.g. 5× slower") | GAMEPLAY §5 | No |
 | `logistics.truck_facility_repair_mult` | float | multiplier on a facility's base repair rate while a truck spends cargo there | TBD (PROPOSED) | GAMEPLAY §5b, Q-GP-30 | No |
-| `tasking.follow_station_m.<domain>` | float | m (world) | TBD (PROPOSED) | GAMEPLAY §1b, Q-GP-31 | No |
+| `tasking.follow_station_m.<domain>` | float | m (world) | TBD (PROPOSED) | GAMEPLAY §1b, Q-GP-32 | No |
 | `logistics.repair_rate.<node_kind>` | float | hp/s (world) | TBD (base repair for all domains, Q-GD-27) | GAMEPLAY §5 | No |
 
 ### 6.4 Combat
@@ -200,7 +200,7 @@ Legend: **HR** = hot-reloadable (§5). "TBD" = TBD by harness. **Source** = the 
 | `campaign.options.unlimited_ammo` | bool | — | false (Q-CBT-7; test/special-event option; set at campaign setup by owner/admin only, not GM, Q-ALN-10) | GAMEPLAY §5 | No |
 | `campaign.intermission.mode` | enum `auto_advance`\|`await_owner` | — | TBD (owner choice per campaign, Q-UX-8) | GAMEPLAY §9 | Yes |
 | `tasking.claim_lease_s` | float | s (game, Q-ALN-23) | TBD by harness: a claim auto-releases when its unit makes no progress for this long (Q-GD-37) | GAMEPLAY §1b | Yes |
-| `tasking.priority.<job_type>` | float | base priority | TBD by harness | GAMEPLAY §1b, Q-GP-20 | No |
+| `tasking.priority.<job_kind>` | float | base priority | TBD by harness | GAMEPLAY §1b, Q-GP-20 | No |
 | `tasking.urgency_max` | float | multiplier cap (1.0–2.0) | 2.0 (PROPOSED) | GAMEPLAY §1b, Q-GP-20 | No |
 | `tasking.priority_aging_per_min` | float | priority points/min (game, Q-ALN-23) | TBD by harness: old jobs gain priority so they aren't starved (Q-GD-37) | GAMEPLAY §1b | Yes |
 | `tasking.reeval_every_ticks` | int | ticks | TBD by harness: boards are re-evaluated every N ticks, not every tick (Q-GD-37) | GAMEPLAY §1b | Yes |

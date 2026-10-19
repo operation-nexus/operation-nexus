@@ -39,11 +39,10 @@ terms still waiting for an owner ruling.
 | Unit class name | Friendly display name for a unit kind: Striker, Scout, Hauler, Tank, Gunboat, Tanker, Lifter, Sentinel, Spire (Q-NAME-2, working names) |
 | Stance | An operator's standing intent for their unit: `press`, `standard`, `cautious`, `guns` (GAMEPLAY §6) |
 | Damage state | Healthy → Damaged → Mission-kill → Disabled → Destroyed (GAMEPLAY §6a) |
-| Tasking Board | A side's shared queue of jobs. Units without an order take the best open job after the decision window. Both sides have one; the director fills the Static's (GAMEPLAY §1b, Q-GD-34) |
+| Tasking Board | A side's shared queue of jobs. A unit joined with no parameters takes the best open job at once (GAMEPLAY §1b, Q-GP-23). Both sides have one; the director fills the Static's (GAMEPLAY §1b, Q-GD-34) |
 | Job | One task on a Tasking Board (resupply, scout, escort, defend, strike, rescue, repair, assist objective; the Static's board also stages and repositions), with a priority, fitting roles, a slot count and an expiry (GAMEPLAY §1b) |
 | Job state | OPEN → CLAIMED → ACTIVE → DONE \| FAILED \| EXPIRED (GAMEPLAY TB-1) |
 | Claim lease | How long a unit may hold a claimed job without progress before the job returns to OPEN (TB-1) |
-| Decision window | The short hold at base after `!join` before a unit with no order takes a board job (GAMEPLAY §1b). Not the director's decision window (NAMING-CONVENTIONS §3) |
 | AUTO unit | A commander's unit that is AI-run after idle handoff, shown with the AUTO tag. It keeps its commander's slot until it retires (GP-4, Q-ALN-9). _Avoid:_ "AI unit", which means an AI-owned entity with the `[AI]` label |
 | Idle handoff | After `presence.idle_handoff_min` of game time with no command that reached the sim, the unit finishes its order and becomes an AUTO unit (GP-4, Q-GD-35) |
 | Idle retire | After `presence.idle_retire_min` with no such command, the unit RTBs and despawns and its slot frees (GP-5). _Avoid:_ idle despawn (removed, Q-ALN-8) |
