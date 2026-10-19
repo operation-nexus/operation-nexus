@@ -397,9 +397,9 @@ operations:
     cost: <int>                       # budget points, TBD by harness
     priority_key: director.op_priority.offensive
     jobs:                             # posted in order; each later job depends on the earlier one
-      - { kind: DEFEND, at: nearest_own_base, role: [STRIKE], slots: <int> }   # stage
-      - { kind: STRIKE, at: target_defenses, role: [STRIKE], slots: <int> }
-      - { kind: ASSIST_OBJECTIVE, at: target, role: [ARMOR], slots: <int> }    # capture
+      - { kind: DEFEND, at: nearest_own_base, unit_kinds: [ENEMY_FIGHTER], slots: <int> }   # stage
+      - { kind: STRIKE, at: target_defenses, unit_kinds: [ENEMY_FIGHTER], slots: <int> }
+      - { kind: CAPTURE, at: target, unit_kinds: [ENEMY_ARMOR], slots: <int> }
 ```
 Values are PROPOSED; the first-build list is Probe, Recon, Offensive, Retake, EscortConvoys, ReinforceIADS, StrikeBridge and DecoyBlink (DecoyBlink sets an emission flag and has no jobs, FOG-OF-WAR FOW-11).
 
