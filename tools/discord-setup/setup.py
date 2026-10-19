@@ -71,6 +71,14 @@ class SetupError(Exception):
     """A problem the owner can act on. Never contains the token."""
 
 
+class DiscordError(SetupError):
+    """Discord answered with an error status (kept so a caller can tell a 404 from the rest)."""
+
+    def __init__(self, message: str, status: int) -> None:
+        super().__init__(message)
+        self.status = status
+
+
 def perm_value(names: list[str]) -> int:
     value = 0
     for name in names:
@@ -248,7 +256,9 @@ class Api:
                     detail = str(json.loads(raw).get("message", ""))
                 except ValueError:
                     pass
-                raise SetupError(f"Discord returned {status} for {method} {path}: {detail}")
+                raise DiscordError(
+                    f"Discord returned {status} for {method} {path}: {detail}", status
+                )
             return json.loads(raw) if raw else None
         raise SetupError(f"still rate limited after {MAX_RETRIES} tries: {method} {path}")
 
@@ -430,6 +440,15 @@ class Community:
         self.out(f"{'DO' if self.apply else 'WOULD'}: {label}")
         return self.api.call(method, path, body) if self.apply else None
 
+    def _read_optional(self, path: str) -> Json:
+        """GET something that does not exist until it is first set: Discord answers 404."""
+        try:
+            return dict(self.api.call("GET", path))
+        except DiscordError as err:
+            if err.status == 404:
+                return {}
+            raise
+
     def load(self, bp: Json) -> None:
         roles = self.api.call("GET", f"/guilds/{self.guild}/roles")
         self.roles = {r["name"]: str(r["id"]) for r in roles}
@@ -488,7 +507,7 @@ class Community:
 
     def ensure_welcome(self, community: Json, on: bool) -> None:
         screen = community["welcome_screen"]
-        have = self.api.call("GET", f"/guilds/{self.guild}/welcome-screen") if on else {}
+        have = self._read_optional(f"/guilds/{self.guild}/welcome-screen") if on else {}
         ours = [
             {
                 "channel_id": self.channels[i["channel"]],
@@ -553,7 +572,7 @@ class Community:
 
     def ensure_onboarding(self, community: Json, on: bool) -> None:
         spec = community["onboarding"]
-        have = self.api.call("GET", f"/guilds/{self.guild}/onboarding") if on else {}
+        have = self._read_optional(f"/guilds/{self.guild}/onboarding") if on else {}
         role_id = self.roles[spec["role"]]
         default_ids = [self.channels[n] for n in spec["default_channels"]]
         existing_default = [str(i) for i in have.get("default_channel_ids", [])]

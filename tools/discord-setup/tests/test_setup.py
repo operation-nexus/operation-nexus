@@ -43,6 +43,7 @@ class FakeDiscord:
         self.messages: dict[str, list[dict]] = {}
         self.bodies: list[dict] = []
         self.seed_on_enable = False
+        self.missing_until_set = False  # Discord answers 404 until welcome/onboarding exist
 
     def _new_id(self) -> str:
         self.next_id += 1
@@ -134,7 +135,10 @@ class FakeDiscord:
         if path == f"/guilds/{GUILD}/welcome-screen" and method in ("GET", "PATCH"):
             if not community_on:
                 return 403, {}, json.dumps({"message": "Missing Access"}).encode()
+            if method == "GET" and self.missing_until_set:
+                return 404, {}, json.dumps({"message": "Unknown Guild Welcome Screen"}).encode()
             if method == "PATCH":
+                self.missing_until_set = False
                 self.welcome.update(data)
             return ok(self.welcome)
         if path == f"/guilds/{GUILD}/onboarding" and method in ("GET", "PUT"):
@@ -659,6 +663,25 @@ def test_odd_input_and_network_trouble_stop_cleanly():
         ["--guild", "abc/../x"], env={"DISCORD_BOT_TOKEN": TOKEN}, transport=fake, out=lines.append
     )
     assert code == 1 and not any(TOKEN in line for line in lines)
+
+
+def test_a_welcome_screen_that_does_not_exist_yet_is_created_not_an_error():
+    fake = FakeDiscord()
+    structure(fake)
+    fake.missing_until_set = True  # the real server answered 404 Unknown Guild Welcome Screen
+    code, lines = community(fake)
+    assert code == 0, lines
+    assert fake.welcome["enabled"] and len(fake.welcome["welcome_channels"]) == 4
+    fake.calls.clear()
+    code, _ = community(fake)
+    assert code == 0 and fake.writes() == []
+    # any other error on that read still stops the run
+    fake2 = FakeDiscord()
+    structure(fake2)
+    fake2.guild["features"] = ["COMMUNITY"]
+    fake2.fail_with = 403
+    code, _ = community(fake2)
+    assert code == 1
 
 
 def test_community_stops_on_a_discord_refusal_and_never_leaks_the_token():
