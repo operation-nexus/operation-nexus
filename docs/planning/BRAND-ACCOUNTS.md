@@ -40,7 +40,7 @@ Twitch `hiveplex` (a dormant 2015 account) belongs to someone else; the owner co
 
 ## Domains (Q-MKT-12)
 
-Bought by the owner on 2026-10-18: `hiveplex.live` (public brand) and `operationnexus.dev` (codename: docs, API, developer pages). Not bought: `hiveplex.io` (renewal quoted at 51 a year). Renewal prices are the owner's quotes, not verified; set a calendar reminder for the first renewal.
+Bought by the owner on 2026-10-18: `hiveplex.live` (public brand) and `operationnexus.dev` (codename: docs, API, developer pages). Checked in the public registry (RDAP) on 2026-10-19: both are registered at Porkbun LLC with Porkbun nameservers, registered 2026-10-18 and expiring 2027-10-18 (the first renewal date). Not bought: `hiveplex.io` (renewal quoted at 51 a year). Renewal prices are the owner's quotes, not verified; set a calendar reminder for the first renewal.
 
 ## Secrets key
 
