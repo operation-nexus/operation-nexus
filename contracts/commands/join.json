@@ -24,18 +24,7 @@
       "const": "CHAT"
     },
     "issuer": {
-      "type": "object",
-      "additionalProperties": false,
-      "required": [
-        "commander_id"
-      ],
-      "properties": {
-        "commander_id": {
-          "$ref": "../common/ids.json#/$defs/CommanderId"
-        }
-      },
-      "description": "Other issuer shapes (staff, advisor, system) land with their first command.",
-      "title": "CommanderIssuer"
+      "$ref": "#/$defs/CommanderIssuer"
     },
     "target_tick": {
       "$ref": "../common/ids.json#/$defs/Tick"
@@ -55,30 +44,10 @@
       "description": "null = auto-task at once (Q-GP-23); a node, or a same-side unit to follow (Q-GP-31).",
       "anyOf": [
         {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "node_id"
-          ],
-          "properties": {
-            "node_id": {
-              "$ref": "../common/ids.json#/$defs/NodeId"
-            }
-          },
-          "title": "NodeTarget"
+          "$ref": "#/$defs/NodeTarget"
         },
         {
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "follow_entity_id"
-          ],
-          "properties": {
-            "follow_entity_id": {
-              "$ref": "../common/ids.json#/$defs/EntityId"
-            }
-          },
-          "title": "FollowTarget"
+          "$ref": "#/$defs/FollowTarget"
         },
         {
           "type": "null"
@@ -88,6 +57,45 @@
     "hold": {
       "type": "boolean",
       "description": "Only true together with target: null (GAMEPLAY \u00a71b)."
+    }
+  },
+  "$defs": {
+    "CommanderIssuer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "commander_id"
+      ],
+      "properties": {
+        "commander_id": {
+          "$ref": "../common/ids.json#/$defs/CommanderId"
+        }
+      },
+      "description": "Other issuer shapes (staff, advisor, system) land with their first command."
+    },
+    "NodeTarget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "node_id"
+      ],
+      "properties": {
+        "node_id": {
+          "$ref": "../common/ids.json#/$defs/NodeId"
+        }
+      }
+    },
+    "FollowTarget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "follow_entity_id"
+      ],
+      "properties": {
+        "follow_entity_id": {
+          "$ref": "../common/ids.json#/$defs/EntityId"
+        }
+      }
     }
   }
 }

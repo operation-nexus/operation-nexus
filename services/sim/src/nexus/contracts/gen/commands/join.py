@@ -10,21 +10,21 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..common import enums, ids
 
 
-class Issuer(BaseModel):
+class CommanderIssuer(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
     commander_id: ids.CommanderId
 
 
-class Target(BaseModel):
+class NodeTarget(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
     node_id: ids.NodeId
 
 
-class Target1(BaseModel):
+class FollowTarget(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
@@ -37,19 +37,13 @@ class JoinCommand(BaseModel):
     )
     kind: Literal["JOIN"]
     source: Literal["CHAT"]
-    issuer: Annotated[
-        Issuer,
-        Field(
-            description="Other issuer shapes (staff, advisor, system) land with their first command.",
-            title="CommanderIssuer",
-        ),
-    ]
+    issuer: CommanderIssuer
     target_tick: ids.Tick
     arrival_seq: ids.CommandSeq
     correlation_id: Annotated[str, Field(max_length=64, min_length=1)]
     role: enums.Role
     target: Annotated[
-        Target | Target1 | None,
+        NodeTarget | FollowTarget | None,
         Field(
             description="null = auto-task at once (Q-GP-23); a node, or a same-side unit to follow (Q-GP-31)."
         ),

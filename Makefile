@@ -39,7 +39,9 @@ check-overlay: node-version
 # Regenerate contract types from contracts/ (NX-021, CONTRACTS §3.1). CI runs
 # this and fails on any diff. Python: every schema; TS: wire messages and the
 # event union (what the overlay consumes). json2ts resolves $ref against --cwd,
-# so each file runs with its own directory.
+# so each file runs with its own directory. --use-type-alias is marked experimental
+# by datamodel-code-generator: bump that dependency only together with a
+# `make contracts` run and the regenerated output in the same PR.
 CONTRACT_GROUPS := common commands events wire
 contracts:
 	rm -rf $(SIM)/src/nexus/contracts/gen $(OVERLAY)/src/contracts
@@ -47,7 +49,7 @@ contracts:
 	  cd $(SIM) && uv run --frozen datamodel-codegen --input "$$tmp" --input-file-type jsonschema \
 	    --output src/nexus/contracts/gen --output-model-type pydantic_v2.BaseModel \
 	    --target-python-version 3.12 --use-annotated --field-constraints \
-	    --enum-field-as-literal all --use-type-alias --disable-timestamp --formatters ruff-format ruff-check; \
+	    --enum-field-as-literal all --use-type-alias --use-unique-items-as-set --disable-timestamp --formatters ruff-format ruff-check; \
 	  status=$$?; rm -rf "$$tmp"; exit $$status
 	for f in contracts/wire/*.json contracts/events/event.json; do \
 	  rel="$${f#contracts/}"; mkdir -p "$(OVERLAY)/src/contracts/$$(dirname "$$rel")"; \

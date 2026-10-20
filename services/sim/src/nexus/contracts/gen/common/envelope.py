@@ -31,7 +31,7 @@ class ChatEnvelope(BaseModel):
     received_at: Annotated[
         AwareDatetime, Field(description="Gateway wall clock, RFC 3339 UTC; never used by the sim.")
     ]
-    platform_badges: list[enums.PlatformBadge]
+    platform_badges: set[enums.PlatformBadge]
     account_created_at: Annotated[
         AwareDatetime | None,
         Field(description="null when the platform does not provide it; never guessed."),

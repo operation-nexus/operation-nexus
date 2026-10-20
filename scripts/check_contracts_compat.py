@@ -46,7 +46,14 @@ def _walk(old, new, where, out):
         if key in old and key in new:
             _walk(old[key], new[key], f"{where}[]", out)
     for key in ("anyOf", "oneOf"):
-        for i, (o, n) in enumerate(zip(old.get(key, []), new.get(key, []))):
+        old_refs = {m["$ref"] for m in old.get(key, []) if "$ref" in m}
+        new_refs = {m["$ref"] for m in new.get(key, []) if "$ref" in m}
+        for ref in sorted(old_refs - new_refs):
+            out.append(f"{where}: union member removed {ref}")
+        # Inline members have no name to match on, so compare them in order.
+        old_inline = [m for m in old.get(key, []) if "$ref" not in m]
+        new_inline = [m for m in new.get(key, []) if "$ref" not in m]
+        for i, (o, n) in enumerate(zip(old_inline, new_inline)):
             _walk(o, n, f"{where}|{i}", out)
 
 

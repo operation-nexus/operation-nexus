@@ -138,6 +138,9 @@ def test_contracts_compat():
     found = breaking_changes(base, broke)
     assert len(found) == 4, found
     assert breaking_changes(base, {}) == ["a.json: schema removed"]
+    union = {"u.json": {"oneOf": [{"$ref": "a.json"}, {"$ref": "b.json"}]}}
+    assert breaking_changes(union, {"u.json": {"oneOf": [{"$ref": "b.json"}, {"$ref": "a.json"}]}}) == []
+    assert breaking_changes(union, {"u.json": {"oneOf": [{"$ref": "b.json"}]}}) == ["u.json: union member removed a.json"]
     with tempfile.TemporaryDirectory() as tmp:
         for name, schema, version in (("base", base, "1.0"), ("head", broke, "1.0"), ("bump", broke, "2.0"),
                                        ("pre", broke, "0.2")):
