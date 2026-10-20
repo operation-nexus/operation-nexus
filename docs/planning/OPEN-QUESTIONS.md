@@ -529,3 +529,7 @@ Owner decisions from the theater #1 sketch session.
 | Q-TM-3 | Newer boundaries | Added B9 Command Center, B10 public site, B11 Discord bot, B12 brand and social automation, each pointing to its spec's rules. | P0 | ✅ 2026-10-19 |
 | Q-TM-4 | New residual risks | Accepted: trusted-insider abuse, full-truth stream on the broadcast host during a war, single-owner key custody. | P0 | ✅ 2026-10-19 |
 | Q-TM-5 | Threat model status | Approved; NX-040 done. | P0 | ✅ 2026-10-19 |
+| Q-MB-1 | What NX-019 enforces | SYSTEM-DESIGN §4 as import-linter `forbidden` contracts (gateway, commands, progression, persistence, advisors must not import core; contracts imports nothing else from nexus; core stays pure); read-only rules by tests and review; a test proves a bad import fails. | P0 | ✅ 2026-10-19 |
+| Q-MB-2 | When the vendor rule arrives | With the first vendor SDK (likely NX-191); each SDK joins the list in the PR that adds it. | P0 | ✅ 2026-10-19 |
+| Q-MB-3 | NX-050 | Dissolved: each port, `Capabilities` and conformance suite lands with its first adapter (chat in NX-190). | P0 | ✅ 2026-10-19 |
+| Q-MB-4 | SYSTEM-DESIGN status | §4 module table Approved; the rest stays Draft pending owner review. | P0 | ✅ 2026-10-19 |
