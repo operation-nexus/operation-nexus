@@ -84,7 +84,8 @@ The layout below is the target. Directories are created when their first tracker
 ## 5. Commands
 
 ```
-make bootstrap      # uv sync + pnpm install (frozen lockfiles) + pre-commit hooks if installed
+make bootstrap      # (fresh clone: `make bootstrap check`; cloud sessions bootstrap via SessionStart hook)
+                    # uv sync + pnpm install (frozen lockfiles) + pre-commit hooks if installed
 make contracts      # regenerate Python + TS types from contracts/ (CI fails on drift; NX-021)
 make check          # Python: ruff, ruff format --check, mypy --strict, import-linter, pytest,
                     #   repo-check script tests (scripts/tests)

@@ -9,7 +9,9 @@ Facts here were verified on 2026-10-17 against the cited sources. Anything marke
 |---|---|
 | `AGENTS.md` | Tool-agnostic instructions (Codex, Gemini, Cursor, Claude). Kept under ~200 lines. |
 | `CLAUDE.md` | Imports AGENTS.md with `@AGENTS.md`. Claude Code reads AGENTS.md on its own only when no CLAUDE.md exists ([docs](https://code.claude.com/docs/en/memory)). |
-| `.claude/settings.json` | Deny reads of `.env*` (any directory) and `*.pem`/`*.key`. PreToolUse guard hook. Ponytail marketplace and plugin. |
+| `.claude/settings.json` | Deny reads of `.env*` (any directory) and `*.pem`/`*.key`. PreToolUse guard hook, SessionStart bootstrap hook. Ponytail marketplace and plugin. |
+| `.claude/hooks/session-start.sh` | Cloud sessions only (`CLAUDE_CODE_REMOTE=true`): runs `make bootstrap` so `make check` works from a fresh clone, and prints the result into context. Never blocks the session. Desktop: run `make bootstrap check` once after cloning (NX-025). |
+| `.claude/rules/` | Path-scoped rules (`paths:` frontmatter) that load only when an agent reads or edits matching files: kernel, contracts, apps. Each points to the role card or checklist instead of repeating it. |
 | `.claude/hooks/protect-files.sh` | Blocks agent writes (Edit/Write/MultiEdit/NotebookEdit) to `.env*` anywhere and to the raw source files. Uses `jq`, or `python3` if jq is absent. Fails closed: if neither exists, edits are blocked. It can't see shell redirection (`echo > .env`), so the deny rules and review remain the backstop. |
 | `.claude/agents/` | Subagents: `reviewer` and `fact-checker` (enforces DATA-INTEGRITY). |
 | `.mcp.json` | Context7 (remote, no key), for up-to-date library docs so agents don't guess APIs. |
@@ -88,7 +90,7 @@ The spike measures tokens per task and answer accuracy on 10 real questions abou
 ## 4. Token-efficiency practices
 1. CLAUDE.md and AGENTS.md stay short and link to specs instead of inlining them. (Imports still load at launch, so link instead of `@`-importing big docs.)
 2. Role cards and specs are read on demand, per task.
-3. Path-scoped rules (`.claude/rules/` with `paths:` frontmatter) are added when code directories exist (NX-025), so sim rules load only when touching `services/sim/**`.
+3. Path-scoped rules (`.claude/rules/` with `paths:` frontmatter, NX-025) load only when an agent touches matching files, so kernel rules stay out of overlay work.
 4. Use subagents (Explore, reviewer, fact-checker) for broad searches so their file dumps stay out of the main context.
 5. One tracker item per session or PR, then a fresh context.
 6. Serena symbol lookups beat reading whole files.
