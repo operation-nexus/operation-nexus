@@ -52,7 +52,7 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-022 [#20](https://github.com/operation-nexus/operation-nexus/issues/20) | Repo settings applied (CICD §9 checklist) | S | ✅ | Q-CI-1 | Checklist ticked |
 | NX-023 | CODEOWNERS, PR template, issue templates, SECURITY.md | S | ✅ | — | Files present |
 | NX-024 [#21](https://github.com/operation-nexus/operation-nexus/issues/21) | markdownlint + lychee docs job | S | ⬜ | NX-011 | Broken link fails |
-| NX-025 [#22](https://github.com/operation-nexus/operation-nexus/issues/22) | Dev container / `make bootstrap` for desktop + cloud agents (SessionStart hook) | M | 🟨 | NX-010 | Fresh clone → `make check` in one command |
+| NX-025 [#22](https://github.com/operation-nexus/operation-nexus/issues/22) | Dev container / `make bootstrap` for desktop + cloud agents (SessionStart hook) | M | ✅ | NX-010 | Fresh clone → `make check` in one command |
 | NX-026 [#23](https://github.com/operation-nexus/operation-nexus/issues/23) | Structured logging lib with secret-redaction + test | S | ⬜ | NX-010 | Test proves token redacted |
 | NX-027 [#24](https://github.com/operation-nexus/operation-nexus/issues/24) | Runbook: rotate secrets | S | ⬜ | NX-014 | Doc reviewed |
 | NX-028 | `.gitignore` additions (`*.db`, `node_modules/`, snapshots, logs, `.env*`) | S | ✅ | — | Present |
