@@ -45,8 +45,8 @@ check-overlay: node-version
 CONTRACT_GROUPS := common commands events wire
 contracts:
 	rm -rf $(SIM)/src/nexus/contracts/gen $(OVERLAY)/src/contracts
-	tmp="$$(mktemp -d)"; cp -R $(addprefix contracts/,$(CONTRACT_GROUPS)) "$$tmp"/ && \
-	  cd $(SIM) && uv run --frozen datamodel-codegen --input "$$tmp" --input-file-type jsonschema \
+	tmp="$$(mktemp -d)"; mkdir "$$tmp/contracts" && cp -R $(addprefix contracts/,$(CONTRACT_GROUPS)) "$$tmp/contracts"/ && \
+	  cd $(SIM) && uv run --frozen datamodel-codegen --input "$$tmp/contracts" --input-file-type jsonschema \
 	    --output src/nexus/contracts/gen --output-model-type pydantic_v2.BaseModel \
 	    --target-python-version 3.12 --use-annotated --field-constraints \
 	    --enum-field-as-literal all --use-type-alias --use-unique-items-as-set --disable-timestamp --formatters ruff-format ruff-check; \

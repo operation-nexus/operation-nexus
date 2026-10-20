@@ -93,7 +93,11 @@ jobs:
           allow-licenses: MIT, BSD-2-Clause, BSD-2-Clause-Views, BSD-3-Clause, 0BSD, Apache-2.0, ISC, MPL-2.0
           # Owner-approved exceptions (2026-10-18): minimatch is BlueOak-1.0.0 (permissive, via eslint);
           # typing-extensions is PSF-2.0, which GitHub misdetects as including GPL-1.0-or-later.
-          allow-dependencies-licenses: pkg:npm/minimatch, pkg:pypi/typing-extensions
+          # NX-021 (json-schema-to-typescript, dev-only): argparse is Python-2.0/PSF-2.0 (PSF-2.0 approved in
+          # Q-LEGAL-10); json-schema-ref-parser's package.json and LICENSE are MIT, GitHub reports "JSON AND MIT".
+          allow-dependencies-licenses: >-
+            pkg:npm/minimatch, pkg:pypi/typing-extensions, pkg:npm/argparse,
+            pkg:npm/%40apidevtools/json-schema-ref-parser
 
   sca:
     name: sca (osv-scanner)
