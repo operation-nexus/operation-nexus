@@ -144,7 +144,7 @@ Text shown on stream additionally requires `ModeratedText`, a SafeText already a
 | `correlation_id` | string ≤ 64 | Links to the originating envelope, admin request, or advisor call for logs |
 
 ### 5.2 Catalog
-"Who" refers to `source`. Rank gates come from PROGRESSION §3, which is PROPOSED. Chat commands are produced by `nexus.commands` only after the ban check, rate limit, and parse (CHAT-GATEWAY §5).
+Wire shapes only: which chat commands exist, their syntax, rank and phase are in [COMMAND-CATALOG](COMMAND-CATALOG.md) (Q-CMD-1). "Who" refers to `source`. Rank gates come from PROGRESSION §3, which is PROPOSED. Chat commands are produced by `nexus.commands` only after the ban check, rate limit, and parse (CHAT-GATEWAY §5).
 
 **While paused (Q-ALN-2, SIM-CORE SC-11):** commands that do not change the world still work: `ME` (and its alias `!status`), `QUIET`, the info commands, `SET_CALLSIGN`, and a `JOIN` from a commander with no live unit, which always joins the reserve queue, even when a slot is free (it never spawns while paused, Q-ALN-26), and spawns FIFO after resume. Every other chat command that reaches the sim is rejected with `CAMPAIGN_PAUSED`, and the digest replies "war paused". This reject is not repeated in each row below.
 
@@ -162,7 +162,6 @@ Text shown on stream additionally requires `ModeratedText`, a SafeText already a
 | `REBASE` | `!rebase <node>` | `node_id: NodeId` (friendly base valid for the domain) | CHAT, O-1 | `NO_ACTIVE_UNIT`, `NODE_UNKNOWN`, `NODE_NOT_FRIENDLY`, `NODE_INVALID_FOR_UNIT`, `OUT_OF_REACH` (fuel; Q-UX-6 suggests the nearest reachable base) |
 | — (info) | `!help`, `!guide`, `!rules`, `!link` | — | CHAT, any. **Not commands:** handled by the gateway digest; they only add a template line or the static URL (Field Manual, published rules, linking portal) to the next digest. They never enter the sim (Q-UX-1, Q-MOD-5, IDENTITY §4). | rate-limited only |
 | `SET_CALLSIGN` | `!callsign <NAME>` | `requested: Callsign` | CHAT, first completed mission (Q-PROG-3). Doesn't enter the sim: handled by identity + moderation queue. | `NO_COMPLETED_MISSION`, `CALLSIGN_FORMAT`, `CALLSIGN_TAKEN`, `CALLSIGN_RESERVED`, `CALLSIGN_COOLDOWN`, `PENDING_REVIEW` (informational) |
-| `SPAWN_SPECIALIST` | `!sead`, `!artillery`, `!engineer`, `!jammer`, `!awacs` | `unit_kind: UnitKind` | CHAT, rank per PROGRESSION | `RANK_TOO_LOW`, `UNIT_IN_SORTIE`, `RESPAWN_COOLDOWN`, `NOT_YET_AVAILABLE` (phase-gated) |
 | `FORGET` | `!forget` | — | CHAT, any. Handled by identity (SEC-DATA-3). Doesn't enter the sim except to despawn units. | — |
 | `ADVISOR_CHOICE` | — | `decision_window: int`, `choice_index: int ≥ 0`, `op_name: ModeratedText ≤ 40`, `rationale: ModeratedText ≤ 140`, `model_ref: string ≤ 64` | ADVISOR, P4 | `WINDOW_EXPIRED`, `CHOICE_OUT_OF_RANGE` (rules pick instead, FB-2), `CAMPAIGN_PAUSED` (Q-ALN-36) |
 | `STAFF_KILL_SWITCH` | — | `hide_user_text: bool`, `mute_tts: bool`, `freeze_spawns: bool` | STAFF | — |
@@ -178,10 +177,10 @@ Text shown on stream additionally requires `ModeratedText`, a SafeText already a
 
 Callsign approve/reject and clip approve are **not** sim commands. They are admin actions on the persistence layer (§8), and the resulting change reaches the sim only as a `SYS_SET_CALLSIGN` system command, which emits `CallsignChanged`, so replays reproduce what was shown.
 
-**Reserved for later phases (Q-GP-1, Q-GP-3; AGENTS.md rule 6a).** These commands have no schema, parser entry or handler until their phase: `STANCE` (`!stance`), `RALLY`, `RESCUE`, `SCOUT`, `VECTOR`, `PACKAGE_CREATE`/`PACKAGE_JOIN` (`!package`, `!wingman`), `SET_DOCTRINE`, `ORDER`/`ORDER_PARSED` (`!order`, P4). Their rows (payloads, gates, rejects) are in GAMEPLAY-LATER §3 and come back here in the PR that adds the handler.
+**Reserved for later phases (Q-GP-1, Q-GP-3; AGENTS.md rule 6a).** These commands have no schema, parser entry or handler until their phase: `STANCE` (`!stance`), `RALLY`, `RESCUE`, `SCOUT`, `VECTOR`, `PACKAGE_CREATE`/`PACKAGE_JOIN` (`!package`, `!wingman`), `SET_DOCTRINE`, `ORDER`/`ORDER_PARSED` (`!order`, P4), `SPAWN_SPECIALIST` (`!sead`, `!artillery`, `!engineer`, `!jammer`, `!awacs`; P4 with NX-212, Q-CMD-2; planned payload `unit_kind: UnitKind`, rejects `RANK_TOO_LOW`, `UNIT_IN_SORTIE`, `RESPAWN_COOLDOWN`, `NOT_YET_AVAILABLE`). Their syntax and rank are in COMMAND-CATALOG §3 and design notes in GAMEPLAY-LATER §3; payloads and rejects are written here in the PR that adds the handler.
 
 ### 5.3 RejectReason enum
-Every value listed in §5.2, plus `CAMPAIGN_PAUSED` (a world-changing chat command, a `STAFF_DIRECTOR_OVERRIDE`, an `ADVISOR_CHOICE` or a GM command other than `STAFF_GM_RELEASE`, while paused; Q-ALN-2, Q-ALN-24, Q-ALN-36), `INVALID_PAYLOAD`, `BANNED`, and `INTERNAL_ERROR` (SC-7: the kernel converts an unexpected validation failure into this event instead of raising; SC-8: also the reason for a command dropped on crash recovery). Every reject is emitted as `CommandRejected` (§6). Chat replies are aggregated into digests and never sent per reject (CHAT-GATEWAY §6).
+Every value listed in the §5.2 table (rejects named only for reserved commands join the enum with their handler), plus `CAMPAIGN_PAUSED` (a world-changing chat command, a `STAFF_DIRECTOR_OVERRIDE`, an `ADVISOR_CHOICE` or a GM command other than `STAFF_GM_RELEASE`, while paused; Q-ALN-2, Q-ALN-24, Q-ALN-36), `INVALID_PAYLOAD`, `BANNED`, and `INTERNAL_ERROR` (SC-7: the kernel converts an unexpected validation failure into this event instead of raising; SC-8: also the reason for a command dropped on crash recovery). Every reject is emitted as `CommandRejected` (§6). Chat replies are aggregated into digests and never sent per reject (CHAT-GATEWAY §6).
 
 ## 6. Sim event catalog
 `events/event.json` is a discriminated union on `kind`.

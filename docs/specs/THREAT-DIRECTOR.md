@@ -80,7 +80,7 @@ The owner, or an admin with the `GAME_MASTER` permission, can take over the dire
 
 ## 6b. Mastermind and taunts (Q-AI-7, Q-BRAND-4)
 - **Name:** the Quorum's intelligence codename for the Static's mastermind is NULL (shown e.g. "SIGNAL SOURCE: NULL"). Code, config, contracts and logs refer to it by an internal id, never the literal string or value `null`. The display name is content, not code.
-- **TD-3 Naming operators:** a taunt may name one operator only through a `{target}` placeholder that code fills with that operator's approved callsign. The text around it is a template before P4; from P4 the LLM may write the line but never sees names or chat text (SEC-LLM-4). Operators whose `!quiet` opt-out is currently on are never named; `!quiet` is a toggle stored per commander and applies across linked platforms (GAMEPLAY §3, Q-ALN-12).
+- **TD-3 Naming operators:** a taunt may name one operator only through a `{target}` placeholder that code fills with that operator's approved callsign. The text around it is a template before P4; from P4 the LLM may write the line but never sees names or chat text (SEC-LLM-4). Operators whose `!quiet` opt-out is currently on are never named; `!quiet` is a toggle stored per commander and applies across linked platforms (COMMAND-CATALOG, CHAT-GATEWAY §9, Q-ALN-12).
 - **TD-4 Naming cooldown:** the same operator is named at most once per `taunt.name_cooldown_min` (PROPOSED 10); spotlight operators (recent hero events or high recent action) use `taunt.name_cooldown_spotlight_min` (PROPOSED 5). Both are admin-configurable and run on a monotonic real clock, enforced outside the sim (Q-ALN-4).
 - **Tone:** playful rivalry; never an insult about the person.
 
