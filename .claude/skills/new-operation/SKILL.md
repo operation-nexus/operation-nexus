@@ -34,7 +34,8 @@ Also stop if the request needs the director to:
 - read anything outside `EnemyView` (step 5).
 - get a power Quorum units don't have (step 4). The director may compose jobs into richer combinations, nothing more.
 
-A new job kind is a contract change: CONTRACTS `JobKind`, its `tasking.priority.<job_kind>` key and its board
+A new job kind is a contract change: CONTRACTS `JobKind` (spec table, and `contracts/common/enums.json` once the
+enum exists there, following the contracts/README.md checklist), its `tasking.priority.<job_kind>` key and its board
 handler land in one PR (rule 6a), before any operation uses it.
 
 ## 2. Fill every field

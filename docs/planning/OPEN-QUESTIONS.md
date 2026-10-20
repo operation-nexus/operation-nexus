@@ -533,3 +533,4 @@ Owner decisions from the theater #1 sketch session.
 | Q-MB-2 | When the vendor rule arrives | With the first vendor SDK (likely NX-191); each SDK joins the list in the PR that adds it. | P0 | ✅ 2026-10-19 |
 | Q-MB-3 | NX-050 | Dissolved: each port, `Capabilities` and conformance suite lands with its first adapter (chat in NX-190). | P0 | ✅ 2026-10-19 |
 | Q-MB-4 | SYSTEM-DESIGN status | §4 module table Approved; the rest stays Draft pending owner review. | P0 | ✅ 2026-10-19 |
+| Q-CT-12 | NX-021 seed list after reading §7 | `Snapshot` (about 15 nested views incl. Hud) and `Welcome` (TheaterStatic) leave the seed and land with NX-170; the seed is common ids and used enums, ChatEnvelope, the command header and JOIN (`CommandKind` = JOIN only), UnitSpawned and Hello. Revises Q-CT-6. | P0 | ✅ 2026-10-19 |

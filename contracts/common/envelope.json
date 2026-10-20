@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nexus.local/contracts/common/envelope.json",
+  "title": "ChatEnvelope",
+  "description": "The only shape platform input takes after an adapter (CONTRACTS §4, SEC-GW-1). Text fields are SafeText: NFKC-normalized, control/bidi/zero-width stripped by the gateway (§3.5); the schema enforces length only.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["platform", "platform_user_id", "platform_message_id", "display_name", "text", "match_key", "received_at", "platform_badges", "account_created_at"],
+  "properties": {
+    "platform": {"$ref": "enums.json#/$defs/Platform"},
+    "platform_user_id": {"type": "string", "minLength": 1, "maxLength": 64},
+    "platform_message_id": {"$ref": "ids.json#/$defs/PlatformMessageId"},
+    "display_name": {"type": "string", "maxLength": 64, "description": "Identity only; never rendered or put in prompts."},
+    "text": {"type": "string", "maxLength": 300, "description": "Over 300 after normalization is rejected, never truncated (Q-CT-1)."},
+    "match_key": {"type": "string", "maxLength": 300},
+    "received_at": {"type": "string", "format": "date-time", "description": "Gateway wall clock, RFC 3339 UTC; never used by the sim."},
+    "platform_badges": {"type": "array", "items": {"$ref": "enums.json#/$defs/PlatformBadge"}, "uniqueItems": true},
+    "account_created_at": {"anyOf": [{"type": "string", "format": "date-time"}, {"type": "null"}], "description": "null when the platform does not provide it; never guessed."}
+  }
+}

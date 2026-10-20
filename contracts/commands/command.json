@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nexus.local/contracts/commands/command.json",
+  "title": "Command",
+  "description": "Discriminated union of all commands on kind (CONTRACTS §5).",
+  "oneOf": [{"$ref": "join.json"}],
+  "discriminator": {"propertyName": "kind"}
+}

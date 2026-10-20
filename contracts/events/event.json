@@ -1,0 +1,8 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nexus.local/contracts/events/event.json",
+  "title": "Event",
+  "description": "Discriminated union of all sim events on kind (CONTRACTS §6).",
+  "oneOf": [{"$ref": "unit_spawned.json"}],
+  "discriminator": {"propertyName": "kind"}
+}
