@@ -46,7 +46,7 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-016 [#14](https://github.com/operation-nexus/operation-nexus/issues/14) | `nightly.yml` skeleton (soak, balance, rescan, scorecard) | M | ⬜ | NX-011 | Runs on schedule, uploads artifacts |
 | NX-017 [#15](https://github.com/operation-nexus/operation-nexus/issues/15) | `pr-hygiene.yml`: conventional title, tracker-ID check, size label | S | ✅ | NX-010 | PR without NX-ID fails |
 | NX-018 [#16](https://github.com/operation-nexus/operation-nexus/issues/16) | `dependabot.yml` grouped weekly (uv, npm, actions; docker arrives with the first Dockerfile, NX-013) + label sync | S | ✅ | NX-010 | First grouped PR appears |
-| NX-019 [#17](https://github.com/operation-nexus/operation-nexus/issues/17) | import-linter contracts for module boundaries (SYSTEM-DESIGN §4; Q-MB-1) | S | ⬜ | NX-010 | Violating import fails CI (a test proves it) |
+| NX-019 [#17](https://github.com/operation-nexus/operation-nexus/issues/17) | import-linter contracts for module boundaries (SYSTEM-DESIGN §4; Q-MB-1) | S | ✅ | NX-010 | Violating import fails CI (a test proves it) |
 | NX-020 [#18](https://github.com/operation-nexus/operation-nexus/issues/18) | Custom Semgrep rules (`.semgrep/`) per CICD §5 with tests | M | ⬜ | NX-012 | Each rule has positive/negative fixture |
 | NX-021 [#19](https://github.com/operation-nexus/operation-nexus/issues/19) | Contracts pipeline: JSON Schema → Pydantic + TS, drift check, compat check; seed schemas only (Q-CT-6..10) | M | ⬜ | NX-010 | Changing schema without regen fails CI |
 | NX-022 [#20](https://github.com/operation-nexus/operation-nexus/issues/20) | Repo settings applied (CICD §9 checklist) | S | ✅ | Q-CI-1 | Checklist ticked |
