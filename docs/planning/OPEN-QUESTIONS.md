@@ -513,3 +513,23 @@ Owner decisions from the theater #1 sketch session.
 | Q-TH-5 | Facilities | Mirrored: each main airbase gets a radar and an air-defense site, each FOB an air-defense site; the Static also has a radar at its HQ. Static garrison quotas PROPOSED: airbase 6, FOB 4, HQ 8. No facilities at the contested bridgeheads. | P1 | ✅ 2026-10-19 |
 | Q-TH-6 | Names and files | Plain working names (brand pass later); `content/theaters/strait-1.yaml`; sketch `docs/design/theater-1.svg`; tracker row corrected. | P1 | ✅ 2026-10-19 |
 | Q-TH-7 | Defeat condition | The sanctuary can be besieged, never captured; it has defense HP; defeat = that HP held at 0 for `campaign.defeat.hold_min` (PROPOSED 30 game min), a visible last stand. The forward-airbase and 25% rule is removed (replaces Q-GD-7's rule). Idle floor: with no humans the sanctuary's HP can't drop below 1 and `forward_airbase` can't be captured. | P1 | ✅ 2026-10-19 |
+| Q-SIM-29 | Frame-stream retention and archiving | The NX-345 spike measured about 250 MB per stream per game hour at the worst case with zlib (indicative, Mac run; docs/review/NX-345-BENCH.md), about 12 GB a day for the two recorded streams (Q-SIM-18) if a whole day ran at the worst case. Owner wants retention limits and archiving decided. Options to grill: keyframes-only or lower-rate archives after the campaign, a retention window for the full-truth stream, and moving finished campaigns to cold storage. Decide before replays and clips (NX-032, CLIPS-REPLAY). | P2 | PROPOSED, awaiting owner |
+
+## Foundations grilling (2026-10-19): NX-021, NX-040, NX-019/NX-050
+
+| ID | Question | Decision | Priority | Status |
+|---|---|---|---|---|
+| Q-CT-6 | NX-021 scope | Pipeline plus seed schemas only (common ids and enums, ChatEnvelope, JOIN, UnitSpawned, Hello, Welcome, Snapshot); every other schema lands with the code that implements it (rule 6a). | P0 | ✅ 2026-10-19 |
+| Q-CT-7 | Contract types in the kernel | `nexus.core` may import generated `nexus.contracts`; events built with `model_construct` on the hot path; validation at boundaries and in tests. | P0 | ✅ 2026-10-19 |
+| Q-CT-8 | Versioning before launch | `contracts/VERSION` starts at 0.1; 0.x bumps MINOR and the compat check only reports; MAJOR enforcement from 1.0; compat diff against the PR base branch, not `main`. | P0 | ✅ 2026-10-19 |
+| Q-CT-9 | Breaking-change detection | Small tested script in `scripts/` (removed properties, newly required fields, changed types, removed enum values); no new dependency. | P0 | ✅ 2026-10-19 |
+| Q-CT-10 | Tools and commands | datamodel-code-generator (Python dev dep) and json-schema-to-typescript (overlay dev dep), pinned with rule-8 justification; `make contracts`; CI `contracts` job fails on drift; generated code committed at `services/sim/src/nexus/contracts/` and `apps/overlay/src/contracts/`. | P0 | ✅ 2026-10-19 |
+| Q-CT-11 | What part of CONTRACTS is approved | §3 (conventions, ids, versioning, pipeline) Approved; §4–8 catalogs stay Draft and are approved piece by piece as handlers land. | P0 | ✅ 2026-10-19 |
+| Q-TM-2 | Residual risks as written | Accepted: platform outages and policy changes, unerasable usernames in posted clips, an incomplete denylist. | P0 | ✅ 2026-10-19 |
+| Q-TM-3 | Newer boundaries | Added B9 Command Center, B10 public site, B11 Discord bot, B12 brand and social automation, each pointing to its spec's rules. | P0 | ✅ 2026-10-19 |
+| Q-TM-4 | New residual risks | Accepted: trusted-insider abuse, full-truth stream on the broadcast host during a war, single-owner key custody. | P0 | ✅ 2026-10-19 |
+| Q-TM-5 | Threat model status | Approved; NX-040 done. | P0 | ✅ 2026-10-19 |
+| Q-MB-1 | What NX-019 enforces | SYSTEM-DESIGN §4 as import-linter `forbidden` contracts (gateway, commands, progression, persistence, advisors must not import core; contracts imports nothing else from nexus; core stays pure); read-only rules by tests and review; a test proves a bad import fails. | P0 | ✅ 2026-10-19 |
+| Q-MB-2 | When the vendor rule arrives | With the first vendor SDK (likely NX-191); each SDK joins the list in the PR that adds it. | P0 | ✅ 2026-10-19 |
+| Q-MB-3 | NX-050 | Dissolved: each port, `Capabilities` and conformance suite lands with its first adapter (chat in NX-190). | P0 | ✅ 2026-10-19 |
+| Q-MB-4 | SYSTEM-DESIGN status | §4 module table Approved; the rest stays Draft pending owner review. | P0 | ✅ 2026-10-19 |

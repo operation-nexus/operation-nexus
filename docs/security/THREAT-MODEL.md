@@ -1,6 +1,6 @@
 # Threat Model & Security Requirements
 
-Status: Draft · Tracker: NX-040…NX-049 · Inputs: [`SECURITY-REVIEW-RAW-PLANS.md`](../review/SECURITY-REVIEW-RAW-PLANS.md), [`PLATFORM-REALITY-CHECK.md`](../review/PLATFORM-REALITY-CHECK.md)
+Status: Approved (owner, 2026-10-19; NX-040) · Tracker: NX-040…NX-049 · Inputs: [`SECURITY-REVIEW-RAW-PLANS.md`](../review/SECURITY-REVIEW-RAW-PLANS.md), [`PLATFORM-REALITY-CHECK.md`](../review/PLATFORM-REALITY-CHECK.md)
 
 ## 1. What we protect (ranked)
 1. **Channel standing.** A ToS or community-guideline strike or a ban on Twitch/YouTube is the most damaging outcome. Most of these risks come from *content* (slurs on screen or in TTS) rather than from hacking.
@@ -29,6 +29,15 @@ Status: Draft · Tracker: NX-040…NX-049 · Inputs: [`SECURITY-REVIEW-RAW-PLANS
 [clip worker] --B7--> [review folder] --(human)--> platforms
 [GitHub CI] --B8--> [GHCR] --> [broadcast host]
 ```
+Newer boundaries (Q-TM-3); their rules live in the spec named, not here:
+
+| Boundary | Crossing | Rules |
+|---|---|---|
+| B9 | Staff → Command Center (tailnet plus verified Discord login) | ADMIN-RBAC RB-1…RB-5 |
+| B10 | Public site ← read-only exports (FOW-1 while a war runs) | PUBLIC-SITE, FOG-OF-WAR FOW-1 |
+| B11 | Discord bot and its token | DISCORD-SERVER-SETUP |
+| B12 | Brand and social automation tokens | BRAND-OPS BO-SEC |
+
 Rule: **data crossing B1, B3 or B5 is untrusted.** That includes display names and LLM output.
 
 Kick is an optional platform, not a committed one (Q-PROD-2); its B1 path exists only if its adapter is enabled, and it gets the same B1 rules.
@@ -105,3 +114,8 @@ Kick is an optional platform, not a committed one (Q-PROD-2); its B1 path exists
 - Platform outages and policy changes are outside our control. Mitigation: multi-platform support, graceful degradation, and monitoring.
 - Usernames inside clips that were already posted can't be erased.
 - The moderation denylist will never be complete. Defense in depth: generated callsigns by default and a staff kill switch.
+- A trusted insider (admin or GM) can abuse legitimate access within their own permissions; RBAC cannot prevent that. Mitigation: every action is audited, GM actions are flagged on stream, and FULL takeover ships later (Q-TD-9).
+- The full-truth frame stream is stored on the broadcast host during a war (Q-SIM-18), so a host compromise mid-campaign leaks the fog of war. Mitigation: it is never served before the war ends (FOW-1a), and the host is the most protected asset.
+- A single owner holds the vault, the age key and every platform token: losing them is a single point of failure. Mitigation: the documented backups in the ops vault.
+
+Signed off by the owner on 2026-10-19 (NX-040, Q-TM-2, Q-TM-4).
