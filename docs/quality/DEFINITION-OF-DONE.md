@@ -10,6 +10,7 @@ A tracker item is **Done** only when all of these are true.
 - [ ] Self-review done with `.agents/roles/reviewer.md`. A human or reviewer-agent pass is recorded in the PR.
 - [ ] No fabricated, placeholder, or unregistered fallback data (DATA-INTEGRITY.md)
 - [ ] No TODOs without a tracker ID (`# TODO(NX-123): ...`).
+- [ ] If a contract changed: the `contracts/README.md` checklist is done (schema, union and enum, `VERSION` bump, `make contracts` output committed, validation test, CONTRACTS row).
 - [ ] Docs updated (README/runbook/spec/ADR as relevant). CHANGELOG fragment added.
 - [ ] Tracker status updated.
 

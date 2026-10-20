@@ -35,7 +35,7 @@ contracts/
   - JSON Schema draft 2020-12.
   - Every object sets `additionalProperties: false` when *produced*. Consumers tolerate unknown fields (WP-2).
   - Unions are discriminated by a `kind` (commands, events) or `type` (wire) const field.
-- **Generated types:** Python (Pydantic v2 via datamodel-code-generator) goes to `services/sim/src/nexus/contracts/`, and TS (json-schema-to-typescript) goes to `apps/overlay/src/contracts/`. Both are committed. `make contracts` regenerates both; the CI `contracts` job runs it and fails on any diff (NX-021, Q-CT-10).
+- **Generated types:** Python (Pydantic v2 via datamodel-code-generator; shared `$defs` become type aliases) goes to `services/sim/src/nexus/contracts/gen/` for every schema, so the hand-written `nexus.contracts` package docstring survives regeneration. TS (json-schema-to-typescript) goes to `apps/overlay/src/contracts/` for the wire messages and the event union, which is what the overlay consumes. Commands and events carry their header and payload fields flat in one object. Both outputs are committed; how to change a contract: `contracts/README.md`. `make contracts` regenerates both; the CI `contracts` job runs it and fails on any diff (NX-021, Q-CT-10).
 - **Use in the kernel (Q-CT-7):** `nexus.core` may import the generated `nexus.contracts`. Events are built on the hot path with Pydantic's `model_construct` (no re-validation); full validation happens at the boundaries (gateway in, wire out) and in tests.
 - **Scope (Q-CT-6):** a schema is added in the same PR as the code that produces or handles it (AGENTS.md rule 6a). NX-021 adds only the seed set: `common/` ids and enums, `ChatEnvelope`, command `JOIN`, event `UnitSpawned`, and wire `Hello`, `Welcome`, `Snapshot`.
 - **Naming:**

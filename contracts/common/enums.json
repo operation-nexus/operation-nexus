@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nexus.local/contracts/common/enums.json",
+  "title": "Enums",
+  "description": "Enums used by the seed schemas (CONTRACTS §3.3, Q-CT-6). Each enum carries its full spec value list; enums nothing uses yet land with their first user.",
+  "$defs": {
+    "Platform": {"enum": ["TWITCH", "YOUTUBE", "KICK", "DISCORD", "LOCAL_SIM"]},
+    "PlatformBadge": {"enum": ["BROADCASTER", "MODERATOR", "SUPPORTER"]},
+    "Side": {"enum": ["COALITION", "ENEMY"]},
+    "Role": {"enum": ["STRIKE", "RECON", "LOGI", "NAVY"], "description": "NAVY is P3 (Q-GD-8)."},
+    "UnitKind": {"enum": ["STRIKE_FIGHTER", "RECON_UAV", "LOGI_TRUCK", "GARRISON_INFANTRY", "ENEMY_FIGHTER", "ENEMY_STRIKE_FIGHTER", "ENEMY_RECON_UAV", "ENEMY_ARMOR", "ENEMY_CONVOY", "RADAR_SITE", "AIR_DEFENSE_SITE"], "description": "MVP list; FACTORY is parked (Q-GP-41)."},
+    "OwnerKind": {"enum": ["COMMANDER", "AI_GARRISON", "ENEMY_DIRECTOR"]},
+    "CommandSource": {"enum": ["CHAT", "ADVISOR", "STAFF", "SYSTEM"]},
+    "CommandKind": {"enum": ["JOIN"], "description": "Grows one kind at a time, with each handler (AGENTS.md rule 6a)."},
+    "EventKind": {"enum": ["UnitSpawned"], "description": "Grows one kind at a time, with each producer (rule 6a)."}
+  }
+}

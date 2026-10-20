@@ -187,6 +187,51 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm test
 
+  # Generated contract types match contracts/ (NX-021, CONTRACTS §3.1) and the
+  # compat report against the PR base (Q-CT-8, Q-CT-9). Blocking.
+  contracts:
+    name: contracts (drift, compat)
+    needs: changes
+    if: needs.changes.outputs.python == 'true' || needs.changes.outputs.overlay == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: "0.11.32"
+          python-version: "3.12"
+          cache-dependency-glob: services/sim/uv.lock
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          package_json_file: apps/overlay/package.json
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: .node-version
+          cache: pnpm
+          cache-dependency-path: apps/overlay/pnpm-lock.yaml
+      - run: (cd services/sim && uv sync --frozen) && pnpm --dir apps/overlay install --frozen-lockfile
+      - name: Regenerate and fail on drift
+        run: |
+          set -euo pipefail
+          make contracts
+          git diff --exit-code -- services/sim/src/nexus/contracts apps/overlay/src/contracts
+          test -z "$(git status --porcelain -- services/sim/src/nexus/contracts apps/overlay/src/contracts)"
+      - name: Compat report against the PR base
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: |
+          set -euo pipefail
+          git fetch --no-tags --depth=1 origin "refs/heads/${BASE_REF}"
+          mkdir -p /tmp/base
+          git archive FETCH_HEAD contracts | tar -x -C /tmp/base
+          python3 scripts/check_contracts_compat.py /tmp/base/contracts contracts
+
   # Never path-filtered. Called workflow jobs get at most these permissions.
   security:
     name: security
@@ -206,7 +251,7 @@ jobs:
   ci-gate:
     name: ci-gate
     if: always()
-    needs: [changes, pr-hygiene, python, python-test, overlay, overlay-test, security]
+    needs: [changes, pr-hygiene, python, python-test, overlay, overlay-test, contracts, security]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions: {}
@@ -221,6 +266,7 @@ jobs:
           R_PYTHON_TEST: ${{ needs.python-test.result }}
           R_OVERLAY: ${{ needs.overlay.result }}
           R_OVERLAY_TEST: ${{ needs.overlay-test.result }}
+          R_CONTRACTS: ${{ needs.contracts.result }}
           R_SECURITY: ${{ needs.security.result }}
         run: |
           set -euo pipefail
@@ -246,5 +292,6 @@ jobs:
           check python-test "$R_PYTHON_TEST" test
           check overlay "$R_OVERLAY" required
           check overlay-test "$R_OVERLAY_TEST" test
+          check contracts "$R_CONTRACTS" required
           check security "$R_SECURITY" required
           exit "$fail"

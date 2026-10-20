@@ -1,0 +1,23 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nexus.local/contracts/events/unit_spawned.json",
+  "title": "UnitSpawned",
+  "description": "A unit appears (CONTRACTS §6). Public view: an ENEMY spawn only if its spawn point is tracked; otherwise dropped.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "tick", "event_seq", "campaign_id", "entity_id", "unit_kind", "side", "owner_kind", "commander_id", "callsign", "node_id", "loadout"],
+  "properties": {
+    "kind": {"const": "UnitSpawned"},
+    "tick": {"$ref": "../common/ids.json#/$defs/Tick"},
+    "event_seq": {"type": "integer", "minimum": 1, "description": "Campaign-wide, monotonic, deterministic (SC-14)."},
+    "campaign_id": {"$ref": "../common/ids.json#/$defs/CampaignId"},
+    "entity_id": {"$ref": "../common/ids.json#/$defs/EntityId"},
+    "unit_kind": {"$ref": "../common/enums.json#/$defs/UnitKind"},
+    "side": {"$ref": "../common/enums.json#/$defs/Side"},
+    "owner_kind": {"$ref": "../common/enums.json#/$defs/OwnerKind"},
+    "commander_id": {"anyOf": [{"$ref": "../common/ids.json#/$defs/CommanderId"}, {"type": "null"}]},
+    "callsign": {"anyOf": [{"$ref": "../common/ids.json#/$defs/Callsign"}, {"type": "null"}], "description": "null for AI entities, which render [AI] (DI-5)."},
+    "node_id": {"$ref": "../common/ids.json#/$defs/NodeId"},
+    "loadout": {"enum": ["FULL", "REDUCED"]}
+  }
+}

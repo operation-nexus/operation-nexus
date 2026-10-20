@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nexus.local/contracts/commands/join.json",
+  "title": "JoinCommand",
+  "description": "!join <role> [<node>|<callsign>|hold] (CONTRACTS \u00a75.1-5.2). Header and payload are flat.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "source",
+    "issuer",
+    "target_tick",
+    "arrival_seq",
+    "correlation_id",
+    "role",
+    "target",
+    "hold"
+  ],
+  "properties": {
+    "kind": {
+      "const": "JOIN"
+    },
+    "source": {
+      "const": "CHAT"
+    },
+    "issuer": {
+      "$ref": "#/$defs/CommanderIssuer"
+    },
+    "target_tick": {
+      "$ref": "../common/ids.json#/$defs/Tick"
+    },
+    "arrival_seq": {
+      "$ref": "../common/ids.json#/$defs/CommandSeq"
+    },
+    "correlation_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "role": {
+      "$ref": "../common/enums.json#/$defs/Role"
+    },
+    "target": {
+      "description": "null = auto-task at once (Q-GP-23); a node, or a same-side unit to follow (Q-GP-31).",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/NodeTarget"
+        },
+        {
+          "$ref": "#/$defs/FollowTarget"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "hold": {
+      "type": "boolean",
+      "description": "Only true together with target: null (GAMEPLAY \u00a71b)."
+    }
+  },
+  "$defs": {
+    "CommanderIssuer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "commander_id"
+      ],
+      "properties": {
+        "commander_id": {
+          "$ref": "../common/ids.json#/$defs/CommanderId"
+        }
+      },
+      "description": "Other issuer shapes (staff, advisor, system) land with their first command."
+    },
+    "NodeTarget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "node_id"
+      ],
+      "properties": {
+        "node_id": {
+          "$ref": "../common/ids.json#/$defs/NodeId"
+        }
+      }
+    },
+    "FollowTarget": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "follow_entity_id"
+      ],
+      "properties": {
+        "follow_entity_id": {
+          "$ref": "../common/ids.json#/$defs/EntityId"
+        }
+      }
+    }
+  }
+}
