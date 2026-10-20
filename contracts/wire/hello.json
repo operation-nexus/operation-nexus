@@ -1,0 +1,16 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nexus.local/contracts/wire/hello.json",
+  "title": "Hello",
+  "description": "Client to server, first frame (CONTRACTS §7, WIRE-PROTOCOL).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["type", "v", "client_kind", "capability_token", "last_tick"],
+  "properties": {
+    "type": {"const": "Hello"},
+    "v": {"type": "string", "pattern": "^[0-9]+\\.[0-9]+$", "description": "PROTOCOL_VERSION (contracts/VERSION)."},
+    "client_kind": {"enum": ["OVERLAY", "PIP", "VERTICAL"]},
+    "capability_token": {"type": "string", "minLength": 1, "maxLength": 128, "description": "SEC-API-2."},
+    "last_tick": {"anyOf": [{"$ref": "../common/ids.json#/$defs/Tick"}, {"type": "null"}]}
+  }
+}

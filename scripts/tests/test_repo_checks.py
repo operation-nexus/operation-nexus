@@ -12,6 +12,8 @@ import tempfile
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
 from check_commit_msg import problems  # noqa: E402  (path set up above)
+from check_contracts_compat import breaking_changes  # noqa: E402
+from check_contracts_compat import main as compat_main  # noqa: E402
 from check_osv_report import findings, main  # noqa: E402
 from check_site import page_problems, site_problems  # noqa: E402
 from check_tracked_files import violations  # noqa: E402
@@ -118,9 +120,41 @@ def test_site():
     assert any("not in BRAND-ACCOUNTS" in m for m in page_problems(good, reg.replace("project_hiveplex", "x")))
 
 
+
+def test_contracts_compat():
+    base = {"a.json": {"type": "object", "required": ["x"], "properties": {
+        "x": {"type": "integer"}, "y": {"enum": ["A", "B"]}, "z": {"type": "string"}}}}
+    same = json.loads(json.dumps(base))
+    assert breaking_changes(base, same) == []
+    added = json.loads(json.dumps(base))
+    added["a.json"]["properties"]["w"] = {"type": "string"}  # additive: fine
+    added["a.json"]["properties"]["y"]["enum"].append("C")
+    assert breaking_changes(base, added) == []
+    broke = json.loads(json.dumps(base))
+    del broke["a.json"]["properties"]["z"]
+    broke["a.json"]["required"].append("y")
+    broke["a.json"]["properties"]["x"]["type"] = "string"
+    broke["a.json"]["properties"]["y"]["enum"] = ["A"]
+    found = breaking_changes(base, broke)
+    assert len(found) == 4, found
+    assert breaking_changes(base, {}) == ["a.json: schema removed"]
+    with tempfile.TemporaryDirectory() as tmp:
+        for name, schema, version in (("base", base, "1.0"), ("head", broke, "1.0"), ("bump", broke, "2.0"),
+                                       ("pre", broke, "0.2")):
+            os.makedirs(os.path.join(tmp, name))
+            with open(os.path.join(tmp, name, "a.json"), "w") as f:
+                json.dump(schema["a.json"], f)
+            with open(os.path.join(tmp, name, "VERSION"), "w") as f:
+                f.write(version)
+        with contextlib.redirect_stdout(io.StringIO()):
+            assert compat_main(["x", os.path.join(tmp, "base"), os.path.join(tmp, "head")]) == 1
+            assert compat_main(["x", os.path.join(tmp, "base"), os.path.join(tmp, "bump")]) == 0
+            assert compat_main(["x", os.path.join(tmp, "base"), os.path.join(tmp, "pre")]) == 0
+
 if __name__ == "__main__":
     test_commit_msg()
     test_tracked_files()
     test_osv_report()
     test_site()
+    test_contracts_compat()
     print("ok")
