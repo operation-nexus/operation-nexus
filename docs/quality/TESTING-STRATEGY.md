@@ -30,7 +30,7 @@ The raw plan's testing section ("80% coverage", "Playwright guarantees 60 FPS") 
 | Integration | docker compose + scripted bots | every PR (path-filtered) | < 5 min |
 | E2E / visual | Playwright | every PR touching overlay | < 3 min |
 | Soak | full stack, 6 h | nightly | — |
-| Balance | harness, 20 seeds × scenarios | nightly + on balance PRs | < 20 min |
+| Balance | harness: 20 seeds × scenarios (balance-diff report); 50 seeds for the acceptance run (§3.5a, Q-TEST-4) | nightly + on balance PRs; acceptance before P1 exit | < 20 min for the diff; acceptance not time-boxed yet |
 
 ## 3. Details
 
@@ -60,7 +60,19 @@ Examples that must always hold after any sequence of valid commands:
 - Adapter tests run against recorded fixtures (EventSub payloads, YouTube liveChatMessages pages) and include malformed or edge cases.
 
 ### 3.5 Balance harness (`tools/balance`)
-Scripted viewer populations (lurker, newbie, veteran, logistics-lover, troll, AFK farmer) drive the sim headless at many times real time. Standard scenarios are the crowd profiles of 0, 5, 50, 150, 300 and 500 simulated viewers (`overnight-0`, `quiet-5`, `prime-50`, a 150-viewer scenario whose id is not named yet, `raid-300`), plus the adversarial profiles (`troll-swarm`; NX-321) (Q-ALN-42). Metrics: momentum curve, campaign length, newbie time-to-first-impact, kill-share Gini by rank, director tier dwell time, supply starvation minutes. Results go to a nightly artifact and trend chart.
+Scripted viewer populations (lurker, newbie, veteran, logistics-lover, troll, AFK farmer) drive the sim headless at many times real time. Standard scenarios are the crowd profiles of 0, 5, 50, 150, 300 and 500 simulated viewers (`overnight-0`, `quiet-5`, `prime-50`, `evening-150`, `raid-300`, `surge-500`; Q-TEST-5), plus the adversarial profiles (`troll-swarm`, spammer, alt farmer, griefer, raid wave; NX-321) (Q-ALN-42). Metrics: momentum curve, campaign length, newbie time-to-first-impact, kill-share Gini by rank, director tier dwell time, supply starvation minutes. Results go to a nightly artifact and trend chart.
+
+### 3.5a Balance acceptance criteria (NX-312, Q-TEST-2, Q-TEST-4 … Q-TEST-8)
+A value drops its PROPOSED label (DI-7), and P1 can exit, only when an acceptance run passes: **50 seeds** across every standard and adversarial profile, campaigns at the default `campaign.time_limit_h` (72) with no extension, and a saved report with the config hash and each target's result (NX-321). Per-PR balance-diff reports use 20 seeds and do not count as acceptance. Thresholds marked PROPOSED are re-tuned after the first runs and tracked on the playtest watch list.
+
+| # | Target | Pass when | Status |
+|---|---|---|---|
+| A1 | Campaign length | ≥85% of seeds end in **victory or defeat** within 24–72 h of game time; a time-limit ending counts as a miss (Q-TEST-6) | decided |
+| A2 | New-player impact | a scripted newbie sees an impact of their own within 3–5 min | decided |
+| A3 | Garrison holds at 0 viewers | `overnight-0` over 12 h loses at most one strategic node and the sanctuary's defense HP never reaches 0 | PROPOSED (Q-TEST-8) |
+| A4 | No dominant kind | no unit kind gets more than 40% of the coalition's kills in any profile | PROPOSED (Q-TEST-8) |
+| A5 | Adversarial bound | each adversarial profile shifts the median campaign length by under 20% vs the same crowd size without it, and moves no leaderboard | PROPOSED (Q-TEST-8) |
+| A6 | Conduct | the conduct system flags the adversarial personas once it exists | decided; measured from NX-291 |
 
 ### 3.6 Performance budgets (initial; SYSTEM-DESIGN §3 NFRs)
 - Sim tick p99 < 25 ms at 1,000 entities (10 Hz → 100 ms budget, leaving headroom).

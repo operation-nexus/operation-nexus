@@ -12,6 +12,8 @@ Things the specs deliberately simplified or set to PROPOSED values, to re-check 
 | Pk cap and range falloff | Cap 0.95; full Pk to 50% of range, 0.5 at max range | Long shots feel pointless, or close shots feel automatic | Q-CBT-10 |
 | Terrain masking and evasion | Masking 0.5 for NOE/LOW/ground; evasion 0.6–1.0 per kind | Low flying is always or never worth it; fighters are unkillable or paper | Q-CBT-11, Q-CBT-12 |
 | Wreck timeout | Disabled units removed after 600 s game time, no field repair | Commanders wait too long to rejoin, or wrecks clutter the map | Q-CBT-14 |
+| Campaign time limit | 72 h default, owner/Admin extensions capped at 48 h total, no unlimited mode | Wars routinely hit the limit, or viewers ask for endless campaigns | Q-TEST-6, Q-TEST-7 |
+| Balance thresholds | Max 40% kill share per kind; adversarial shift < 20%; overnight-0 loses ≤ 1 node in 12 h | The first harness runs show these are trivially met or impossible | Q-TEST-8 |
 | Static threat score | Fixed per-kind `threat` drives target priority | Units ignore the obvious danger (an attacker, an emitting SAM) | Q-CBT-16, Q-CBT-17 |
 | Shot flight time | Impact after range/speed, Pk rolled at impact, no projectile entity | Viewers can't follow what hit what, or SAM intercepts are wanted | Q-GP-7, Q-GP-12 |
 | Damage-state thresholds | Damaged < 70%, Mission-kill < 35%, Disabled < 10% of hp | Units spend too long or too little time in a state | Q-GP-8 |
