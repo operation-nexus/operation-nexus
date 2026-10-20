@@ -56,3 +56,36 @@ forbidden_modules = [
   "nexus.clips",
   "nexus.ops",
 ]
+
+# SYSTEM-DESIGN §4 "Must not" column (NX-019, Q-MB-1). The read-only rules for
+# broadcast and ops are not import rules; tests and review cover them.
+[[tool.importlinter.contracts]]
+name = "Boundary modules never import the kernel (SYSTEM-DESIGN §4)"
+type = "forbidden"
+source_modules = [
+  "nexus.gateway",
+  "nexus.commands",
+  "nexus.progression",
+  "nexus.persistence",
+  "nexus.advisors",
+]
+forbidden_modules = ["nexus.core"]
+
+[[tool.importlinter.contracts]]
+name = "Contracts are leaf types: they import nothing else from nexus (SYSTEM-DESIGN §4)"
+type = "forbidden"
+source_modules = ["nexus.contracts"]
+forbidden_modules = [
+  "nexus.core",
+  "nexus.runtime",
+  "nexus.gateway",
+  "nexus.commands",
+  "nexus.moderation",
+  "nexus.broadcast",
+  "nexus.progression",
+  "nexus.persistence",
+  "nexus.advisors",
+  "nexus.audio",
+  "nexus.clips",
+  "nexus.ops",
+]
