@@ -55,8 +55,9 @@ Use the §7.1 schema field for field, plus §7a `category` (and optional sanitiz
 ## 4. Edits that land in the same PR
 
 1. CONFIG-AND-CONTENT §7.3 row (and §7.2 weapon entries if new).
-2. CONTRACTS §3.3 `UnitKind`: add the value. Catalog kinds must equal the enum exactly; `config_lint` checks it
-   (§11.2). Removing a kind removes both, together.
+2. CONTRACTS §3.3 `UnitKind`: add the value to the spec table **and** to `contracts/common/enums.json`, bump
+   `contracts/VERSION`, run `make contracts` and commit the regenerated types (contracts/README.md checklist).
+   Catalog kinds must equal the enum exactly; `config_lint` checks it (§11.2). Removing a kind removes both, together.
 3. Any spec section whose rule mentions the kind (e.g. GAMEPLAY §5b for a facility, FOG-OF-WAR for a sensor).
 4. `docs/quality/PLAYTEST-WATCHLIST.md` row if it introduces a new mechanic or a simplification to revisit (step 7).
 
