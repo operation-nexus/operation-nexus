@@ -46,9 +46,9 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-016 [#14](https://github.com/operation-nexus/operation-nexus/issues/14) | `nightly.yml` skeleton (soak, balance, rescan, scorecard) | M | ⬜ | NX-011 | Runs on schedule, uploads artifacts |
 | NX-017 [#15](https://github.com/operation-nexus/operation-nexus/issues/15) | `pr-hygiene.yml`: conventional title, tracker-ID check, size label | S | ✅ | NX-010 | PR without NX-ID fails |
 | NX-018 [#16](https://github.com/operation-nexus/operation-nexus/issues/16) | `dependabot.yml` grouped weekly (uv, npm, actions; docker arrives with the first Dockerfile, NX-013) + label sync | S | ✅ | NX-010 | First grouped PR appears |
-| NX-019 [#17](https://github.com/operation-nexus/operation-nexus/issues/17) | import-linter contracts for module boundaries (SYSTEM-DESIGN §4) | S | ⬜ | NX-010 | Violating import fails CI |
+| NX-019 [#17](https://github.com/operation-nexus/operation-nexus/issues/17) | import-linter contracts for module boundaries (SYSTEM-DESIGN §4; Q-MB-1) | S | ✅ | NX-010 | Violating import fails CI (a test proves it) |
 | NX-020 [#18](https://github.com/operation-nexus/operation-nexus/issues/18) | Custom Semgrep rules (`.semgrep/`) per CICD §5 with tests | M | ⬜ | NX-012 | Each rule has positive/negative fixture |
-| NX-021 [#19](https://github.com/operation-nexus/operation-nexus/issues/19) | Contracts pipeline: JSON Schema → Pydantic + TS, drift check, compat check | M | ⬜ | NX-010 | Changing schema without regen fails CI |
+| NX-021 [#19](https://github.com/operation-nexus/operation-nexus/issues/19) | Contracts pipeline: JSON Schema → Pydantic + TS, drift check, compat check; seed schemas only (Q-CT-6..10) | M | ⬜ | NX-010 | Changing schema without regen fails CI |
 | NX-022 [#20](https://github.com/operation-nexus/operation-nexus/issues/20) | Repo settings applied (CICD §9 checklist) | S | ✅ | Q-CI-1 | Checklist ticked |
 | NX-023 | CODEOWNERS, PR template, issue templates, SECURITY.md | S | ✅ | — | Files present |
 | NX-024 [#21](https://github.com/operation-nexus/operation-nexus/issues/21) | markdownlint + lychee docs job | S | ⬜ | NX-011 | Broken link fails |
@@ -69,11 +69,11 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-047 [#31](https://github.com/operation-nexus/operation-nexus/issues/31) | Optional: SonarQube Cloud quality gate (Q-CI-5) | S | ❓ | P2 | Decision recorded |
 | NX-048 | Open GitHub issues for P0 items (labels auto-created; phases tracked as `phase:Pn` labels because the available tooling can't create milestones) | S | ✅ | owner OK | Issues #1–#32 exist and are linked here |
 | NX-049 [#32](https://github.com/operation-nexus/operation-nexus/issues/32) | Create `develop` from `main` after planning sign-off; apply branch rulesets per ADR-0009; set default branch to `develop` | S | ✅ | planning done | Rulesets visible; PR to main without gates is blocked |
-| NX-050 | Port interfaces + `Capabilities` + conformance suite skeleton (chat, LLM, TTS) per ADR-0010; import-linter vendor rule | M | ⬜ | NX-010, NX-019 | A fake adapter passes the suite; a vendor import outside adapters fails CI |
+| NX-050 | ~~Port interfaces + `Capabilities` + conformance suite skeleton~~ Dissolved (Q-MB-3): each port, its `Capabilities` and its conformance suite land with that port's first adapter (chat in NX-190, LLM with the first P4 advisor, TTS with the first engine); the vendor rule lands with the first vendor SDK (Q-MB-2) | M | ✅ | — | Merged into those items |
 | NX-311 | **Decision→spec propagation pass:** fold every ✅ decision in OPEN-QUESTIONS into the spec bodies (23 gaps listed in GAP-ANALYSIS §2), one PR per spec, P1 specs first. The docs lint that flags decided Q-IDs still described as open moved to NX-322. **Must finish before specs are marked Approved.** Done 2026-10-18 through the spec-alignment PRs #40–#52, #54–#57 and #61–#63. | L | ✅ | — | GAP-ANALYSIS §2 items all resolved |
 | NX-322 | Docs lint: flag decided Q-IDs (✅ in OPEN-QUESTIONS) that a spec or planning doc still describes as open or pending (split out of NX-311) | — | ⬜ | — | A doc line that calls a decided Q-ID open fails the lint |
 | NX-312 | Missing P1 docs: COMBAT spec, command and intent catalog, balance acceptance criteria (theater #1 = NX-008) | M | ⬜ | NX-311 | Docs exist, reviewed |
-| NX-040 [#27](https://github.com/operation-nexus/operation-nexus/issues/27) | Threat model review with owner; accept residual risks | S | ❓ | NX-001 | THREAT-MODEL §6 signed off |
+| NX-040 [#27](https://github.com/operation-nexus/operation-nexus/issues/27) | Threat model review with owner; accept residual risks | S | ✅ | NX-001 | THREAT-MODEL §6 signed off |
 
 ---
 
@@ -121,7 +121,7 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-182 | Map annotation layer (OVERLAY §2a): sectors, optional grid reference, direction cues, ephemeral pins, circles and arrows with TTL and collision handling | M | ⬜ | NX-177 |
 | NX-179 | PiP 2D intercept scope + PiP director scoring | M | ⬜ | NX-177 |
 | NX-180 | Palette/colorblind script + visual snapshot tests | M | ⬜ | NX-177 |
-| NX-190 | Gateway: adapter interface + normalization + rate limits | M | ⬜ | NX-021 |
+| NX-190 | Gateway: `ChatSource`/`ChatSink` ports + `Capabilities` + conformance suite skeleton (from NX-050, ADR-0010 N-3/N-4) + normalization + rate limits | M | ⬜ | NX-021 |
 | NX-191 | Twitch EventSub adapter + moderation event sync + batched replies | L | ⬜ | NX-190 |
 | NX-192 | Command parser + grammar + fuzz tests | M | ⬜ | NX-190 |
 | NX-193 | Viewer simulator (`tools/chatsim`): scripted bot operators (personas from the balance harness) sending real chat-shaped commands through the LocalSim adapter; runnable against staging for long tests during viewer droughts. Bots are always labeled as simulated and never counted as humans (DI-5). Never on the public channel: commands go straight into the internal command queue, and the simulator refuses to start when config targets the production channel (Q-LEGAL-7). | M | ⬜ | NX-190 |

@@ -1,6 +1,6 @@
 # System Design — Operation Nexus
 
-Status: Draft (pending owner review) · Tracker: NX-050…NX-059 · Decisions: [ADRs](adr/)
+Status: Draft (pending owner review); §4 module table Approved (owner, 2026-10-19, Q-MB-4) · Tracker: NX-050…NX-059 · Decisions: [ADRs](adr/)
 
 ## 1. Context
 
@@ -91,7 +91,7 @@ Notes on the diagram (owner decisions 2026-10-17):
 | `nexus.clips` | Excitement scoring, clip job creation, review queue | contracts | Auto-upload |
 | `nexus.ops` | Health, metrics (Prometheus), admin API (kill switch, bans, pause) | all read-only + control commands | — |
 
-Boundaries are enforced with `import-linter` contracts in CI (NX-019).
+Boundaries are enforced with `import-linter` `forbidden` contracts in CI (NX-019, Q-MB-1): `core` imports none of the I/O or vendor-facing modules; `gateway`, `commands`, `progression`, `persistence` and `advisors` do not import `core`; `contracts` imports nothing else from `nexus`. The two read-only rules (`broadcast` reads core views, `ops` is read-only plus control commands) cannot be expressed as import rules and are covered by tests and review. The vendor-SDK rule (ADR-0010 N-1) is added with the first vendor SDK (Q-MB-2).
 
 ## 5. Key flows
 

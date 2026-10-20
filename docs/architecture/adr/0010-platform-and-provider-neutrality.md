@@ -58,3 +58,8 @@ Both Twitch and YouTube are first-class targets. The *launch order* is Twitch al
 - Adding a platform or provider means writing one adapter and passing the conformance suite. No core changes.
 - A little more upfront structure (the interfaces plus the suite), kept small: interfaces are defined only for vendors we actually plan to use.
 - Simulcast chat means one game with viewers from several platforms. Cross-platform identity linking (IDENTITY §4) is what makes that fair.
+
+## Amendment (2026-10-19): when the rules are enforced (Q-MB-2, Q-MB-3)
+- **N-1** is enforced by an import-linter contract added in the PR that brings in the first vendor SDK (likely the Twitch adapter, NX-191); every later SDK joins its list in the PR that adds it.
+- **Ports, `Capabilities` and conformance suites (N-3, N-4)** land with each port's first adapter (chat in NX-190, LLM with the first P4 advisor, TTS with the first engine), not ahead of them. The former NX-050 is dissolved into those items.
+- **Status:** accepted by the owner, 2026-10-19.
