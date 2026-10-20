@@ -265,6 +265,8 @@ Legend: **HR** = hot-reloadable (§5). "TBD" = TBD by harness. **Source** = the 
 | `ratelimit.class.correction.min_interval_s` | float | s (real) | 5 | CHAT-GATEWAY §5 (Q-GW-1) | Yes |
 | `ratelimit.class.correction.burst` | int | cmds | 2 | CHAT-GATEWAY §5 (Q-GW-1) | Yes |
 | `ratelimit.class.info.min_interval_s` | float | s (real) | 15 | CHAT-GATEWAY §5 (Q-GW-1) | Yes |
+| `ratelimit.class.callsign.min_interval_s` | float | s (real) | 60 (Q-CMD-3) | CHAT-GATEWAY §5 | Yes |
+| `ratelimit.class.forget.min_interval_s` | float | s (real) | 60 (Q-CMD-3) | CHAT-GATEWAY §5 | Yes |
 | `ratelimit.class.social.<command>.cooldown_s` | float | s (real) | `rally`: 120; others TBD | CHAT-GATEWAY §5 (Q-GW-1, Q-SUP-6) | Yes |
 | `ratelimit.slow_mode.multiplier` | float | × all class limits | 3 (applies only while slow mode is on) | CHAT-GATEWAY §5 (Q-GW-1) | Yes |
 | `ratelimit.global.cmds_per_tick` | int | cmds/tick | TBD | CHAT-GATEWAY §5 | Yes |
