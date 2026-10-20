@@ -50,13 +50,12 @@ stateDiagram-v2
     Engaging --> OnStation: no valid target
     OnStation --> RTB: !rtb / bingo fuel / munitions out (stance) / mission-kill (stance) / job complete / idle retire
     Engaging --> RTB: bingo fuel / munitions out (stance) / mission-kill (stance) / idle retire
-    EnRoute --> Disabled: damage roll -> DISABLED
-    OnStation --> Disabled: damage roll -> DISABLED
-    Engaging --> Disabled: damage roll -> DISABLED
-    RTB --> Disabled: damage roll -> DISABLED
-    Disabled --> Rearming: field repair by engineer / logistics completes
+    EnRoute --> Disabled: a hit drops hp below the Disabled threshold
+    OnStation --> Disabled: a hit drops hp below the Disabled threshold
+    Engaging --> Disabled: a hit drops hp below the Disabled threshold
+    RTB --> Disabled: a hit drops hp below the Disabled threshold
     Disabled --> Destroyed: hp <= 0
-    Disabled --> Despawned: idle retire (in place, cargo lost)
+    Disabled --> Despawned: wreck timeout (cargo lost)
     RTB --> Landed: arrives at friendly node
     Landed --> Rearming: node stock > 0
     Rearming --> EnRoute: rearmed and has order
@@ -95,13 +94,12 @@ stateDiagram-v2
 | Holding | Not `hold`, and a Tasking Board job matches the role, has a free slot and is **feasible with current fuel and munitions** | Claim the job slot, path to it. If no job is feasible, take a rearm/refuel step first (nearest base with stock). | EnRoute |
 | Holding | `JOIN … hold` was used | Never auto-task; wait for an explicit order | Landed |
 | EnRoute | Inside the job / target radius | — | OnStation |
-| OnStation | Valid target in range (GAMEPLAY §6 priority) | Assign target | Engaging |
+| OnStation | Valid target in range (COMBAT CB-1 priority) | Assign target | Engaging |
 | Engaging | Target dead, out of range, or not valid | Clear target | OnStation |
 | any airborne/moving | `!rtb`, fuel ≤ bingo, or job complete | Path to the nearest friendly node valid for the domain | RTB |
 | any airborne/moving | Missiles/bombs empty, stance not `press`/`guns` (Q-CBT-7) | As above | RTB |
 | any airborne/moving | Damage state reaches Mission-kill and stance is `standard` (or Damaged and stance is `cautious`), still mobile (Q-CBT-6) | As above | RTB |
-| any alive, moving | Combat damage roll yields DISABLED (can't move, not destroyed) | Emit `UnitDamageStateChanged{DISABLED}`. Seeded crew-survival roll; a surviving crew emits `CrewDowned` and a downed-crew marker (GAMEPLAY §6a). | Disabled |
-| Disabled | Engineer or logistics unit completes a field repair in radius (Q-GD-27) | Restore mobility; spend stock carried by the repairer | Rearming |
+| any alive, moving | A hit drops hp below the Disabled threshold (can't move, not destroyed; COMBAT CB-6) | Emit `UnitDamageStateChanged{DISABLED}`. Seeded crew-survival roll; a surviving crew emits `CrewDowned` and a downed-crew marker (GAMEPLAY §6a). | Disabled |
 | RTB | Arrives at a friendly node | — | Landed |
 | Landed | Node stock > 0 | Spend stock over time and restore fuel, ammo and hp (GAMEPLAY §5). Units never heal anywhere else. | Rearming |
 | Rearming | Full, and there is an order | Path to the order | EnRoute |
@@ -109,7 +107,7 @@ stateDiagram-v2
 | any alive, `COMMANDER`-owned, control `OPERATOR` | **Idle handoff:** no chat command from the owner has reached the sim for `presence.idle_handoff_min` (game time, Q-GD-35, Q-ALN-1) | Set control to `AUTO`. Emit `UnitControlChanged{control: AUTO, cause: IDLE_HANDOFF}`; the overlay shows the AUTO tag. The current order is not cancelled; once it completes, the Tasking Board tasks the unit as an AI-run unit (U-6). The unit keeps its slot (Q-ALN-9). | (unchanged) |
 | Holding / EnRoute / OnStation / Engaging, `COMMANDER`-owned | **Idle retire:** no chat command from the owner has reached the sim for `presence.idle_retire_min` (game time, Q-GD-35) | Release any claimed job slot. Path to the nearest friendly node valid for the domain. | RTB |
 | Landed / Rearming | Idle retire elapsed (as above) | Unload carried cargo into this base's stock (Q-GD-35, Q-GP-16). Emit `UnitDespawned{reason: IDLE}`. The slot frees. | Despawned |
-| Disabled, `COMMANDER`-owned | Idle retire elapsed (as above). A Disabled unit cannot RTB. | Despawn in place. Carried cargo is **lost**, not returned to the reserve (Q-ALN-25). Emit `UnitDespawned{reason: IDLE}`. The slot frees. | Despawned |
+| Disabled, any owner, not a facility | `combat.disabled_timeout_s` (game time) has elapsed since it became Disabled. No field repair in the first build (Q-CBT-14). | Despawn in place. Carried cargo is **lost**. Emit `UnitDespawned{reason: WRECKED}`. The slot frees; the owner's respawn delay starts (GP-2). | Despawned |
 | Landed, control `AUTO`, joined with `hold` | Idle handoff applies to `hold` units like any other, and the unit keeps holding (Q-ALN-25). A Tasking Board assignment pass (TB-6) finds a job that matches its role, has a free slot and is feasible (U-6) | Claim the job slot, path to it | EnRoute |
 | any alive, control `AUTO` | **Reclaim:** any chat command from the owner reaches the sim (Q-ALN-9) | Set control to `OPERATOR`. Emit `UnitControlChanged{control: OPERATOR, cause: RECLAIM}`. Then evaluate the command against this unit; a `JOIN` never spawns a second unit. | (per command) |
 | Landed | `JOIN` with a different role while at base | Emit `UnitDespawned{reason: ROLE_SWITCH}` | Despawned |
@@ -122,12 +120,12 @@ Notes:
 - A unit owned by `AI_GARRISON`, `ENEMY_DIRECTOR` or an NPC wingman carries an AI owner reference and must render with the AI marker (DATA-INTEGRITY DI-5).
 - Sea-domain units follow the same machine on the naval graph (**P3**, Q-GD-8).
 - **Control is orthogonal to the lifecycle state** (Q-GD-35, Q-ALN-9): a `COMMANDER`-owned unit is `OPERATOR` or `AUTO`. Both idle timers count game-time ticks from the owner's last chat command that reached the sim (accepted or rejected); every such command resets them, except `ME` (`!me`/`!status`), which is informational and never resets them, so repeating it cannot keep a unit under operator control (Q-ALN-26). Gateway-only commands (`!help`, `!guide`, `!rules`, `!link`, `!quiet`, `!callsign`) never reach the sim, so they do not reset them (confirmed, Q-ALN-26). The AUTO tag shows from the handoff tick, and the current order is kept. The timers freeze while paused (SIM-CORE SC-11). These two timers are the only idle rule (Q-ALN-8).
-- **Damage state is orthogonal to the lifecycle state** (Q-CBT-1): `HEALTHY → DAMAGED → MISSION_KILL → DISABLED`, with `Destroyed` as the terminal lifecycle state. It only moves toward worse states through combat, and back toward HEALTHY only in Rearming (base repair) or Disabled → field repair. DAMAGED applies the speed and sensor penalties from config. Both sides use the same machine (parity, GAMEPLAY §0).
+- **Damage state is orthogonal to the lifecycle state** (Q-CBT-1): `HEALTHY → DAMAGED → MISSION_KILL → DISABLED`, with `Destroyed` as the terminal lifecycle state. It only moves toward worse states through combat, and back toward HEALTHY only in Rearming (base repair). A Disabled unit is a wreck with no way back in the first build (COMBAT CB-7). DAMAGED applies the speed and sensor penalties from config. Both sides use the same machine (parity, GAMEPLAY §0).
 
 **Invariants**
 - U-1: a commander has at most one unit in {Spawning, Holding, EnRoute, OnStation, Engaging, RTB, Landed, Rearming, Disabled} (GP-1).
 - U-2: a unit's hp > 0 in every non-terminal state, and a terminal unit appears in no live index. Facilities never reach Destroyed: their hp floors at the Disabled threshold (Q-GP-37).
-- U-3: hp, fuel and ammo only increase in Rearming, by a completed field repair of a Disabled unit (Q-GD-27), or, for a facility, by repair at its friendly, uncontested base (Q-GP-26).
+- U-3: hp, fuel and ammo only increase in Rearming, or, for a facility, by repair at its friendly, uncontested base (Q-GP-26).
 - U-6: a unit in Holding takes a Tasking Board job only if it can reach and complete it with its current fuel and munitions (Q-GD-26); the friendly AI garrison never claims a strike job no player started.
 - U-4: reserve queue order is strict FIFO, and a commander appears in it at most once.
 - U-5: an orphaned unit is despawned within 1 tick and earns no XP after orphaning.

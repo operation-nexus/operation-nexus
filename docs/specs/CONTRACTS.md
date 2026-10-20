@@ -66,7 +66,7 @@ contracts/
 | `Platform` | `TWITCH`, `YOUTUBE`, `KICK`, `DISCORD`, `LOCAL_SIM` | KICK and DISCORD are optional adapters, not committed platforms (Q-PROD-2, ADR-0008, ADR-0010). `LOCAL_SIM` is the dev chat simulator: allowed only in dev/test, and production config that enables it is rejected at startup. TikTok is not present. |
 | `Side` | `COALITION`, `ENEMY` | |
 | `NodeOwner` | `COALITION`, `ENEMY`, `NEUTRAL` | |
-| `Domain` | `AIR`, `GROUND`, `SEA`, `STATIC` | SEA is **P3** (Q-GD-8). STATIC = facilities: radar sites, air-defense sites, factories (Q-GP-25) |
+| `Domain` | `AIR`, `GROUND`, `SEA`, `STATIC` | SEA is **P3** (Q-GD-8). STATIC = facilities: radar sites, air-defense sites (Q-GP-25; factories are parked) |
 | `AltBand` | `NOE`, `LOW`, `MED`, `HIGH` | AIR only |
 | `JobKind` | `RESUPPLY`, `SCOUT`, `ESCORT_CONVOY`, `DEFEND`, `STRIKE`, `REPAIR_BRIDGE`, `CAPTURE` (ground units take a node; Static board only in the first build, Q-TD-7, Q-TD-14), `ASSIST_OBJECTIVE` (first build, GAMEPLAY §1b, Q-GP-5); `RESCUE` joins with CSAR | Keys `tasking.priority.<job_kind>` use the lower-case value |
 | `Role` | `STRIKE`, `RECON`, `LOGI`, `NAVY` | What `!join <role>` accepts. `NAVY` is **P3** (Q-GD-8). Each role maps to exactly one `UnitKind` via `content/units.yaml` `roles:` (CONFIG-AND-CONTENT §7.1). |
@@ -196,7 +196,7 @@ Every value listed in §5.2, plus `CAMPAIGN_PAUSED` (a world-changing chat comma
 | `AARStarted` | `result: CampaignResult`, `top_by_role: {role, commander_ids[] ≤ 5}[]` | Commander ids resolve to approved callsigns at render time | B A O |
 | `CampaignClockPaused` / `Resumed` | `reason: PauseReasonCategory`, `sub_reason: StaffPauseSubReason\|null` (for `Resumed`, those of the pause it ends; Q-ALN-3, Q-ALN-31). The staff note is not in the event. Lack of humans never pauses (Q-GD-4 amended). | `sub_reason` omitted: it never reaches the overlay or any public payload, which get only the category (Q-ALN-39); a `STAFF` pause shows only the "PAUSED — stand by" banner (Q-ALN-32, OVERLAY OV-21) | B O |
 | `UnitSpawned` | `entity_id`, `unit_kind`, `side`, `owner_kind`, `commander_id\|null`, `callsign\|null`, `node_id`, `loadout: FULL\|REDUCED` | ENEMY spawn shown only if the spawn point is tracked. Otherwise dropped. | B P A O |
-| `UnitDespawned` | `entity_id`, `reason: RTB_LANDED\|IDLE\|ROLE_SWITCH\|PURGED\|OWNER_BANNED\|OWNER_FORGOTTEN\|CAMPAIGN_END` (`IDLE` = idle retire, `presence.idle_retire_min`, Q-GD-35; a Disabled unit despawns in place with `IDLE` and its cargo is lost, Q-ALN-25) | Hidden ENEMY: dropped | B O |
+| `UnitDespawned` | `entity_id`, `reason: RTB_LANDED\|IDLE\|ROLE_SWITCH\|PURGED\|OWNER_BANNED\|OWNER_FORGOTTEN\|CAMPAIGN_END\|WRECKED` (`IDLE` = idle retire, `presence.idle_retire_min`, Q-GD-35; `WRECKED` = a Disabled unit removed after `combat.disabled_timeout_s`, its cargo lost, COMBAT CB-7, Q-CBT-14) | Hidden ENEMY: dropped | B O |
 | `UnitControlChanged` (name PROPOSED) | `entity_id`, `commander_id`, `control: OPERATOR\|AUTO`, `cause: IDLE_HANDOFF\|RECLAIM` (Q-GD-35, Q-ALN-9) | none (coalition units only) | B P O |
 | `UnitOrphaned` | `entity_id`, `commander_id`, `cause: BANNED\|FORGOTTEN` | none (coalition units only) | B O |
 | `RearmStalled` | `entity_id`, `node_id` | ENEMY: dropped | B O |
@@ -359,7 +359,7 @@ The following are specified in their source specs and must be added to `/contrac
   - Event `CarryoverApplied`.
 - **From combat decisions (GAMEPLAY §5–§6a, SIM-CORE §4; Q-CBT-1/6/7/8, Q-GD-27):**
   - Events (each dropped for a victim the viewer side does not currently observe, FOW-13) `UnitDamageStateChanged{entity_id, from, to}`, `MunitionsDepleted{entity_id, guns_only: bool}`, `CrewDowned{marker_id, entity_id, side, pos}`, `CrewRescued{marker_id, rescuer_ids[]}`, `CrewCaptured{marker_id}`, `UnitRepaired{entity_id, by_id|null, node_id|null}`. (`StanceChanged{entity_id, stance}` joins with `!stance`, GAMEPLAY-LATER.)
-  - `UnitDespawned.reason` and `UnitDestroyed` need no change; `Disabled` units stay live entities.
+  - `UnitDespawned.reason` gains `WRECKED` (COMBAT CB-7, Q-CBT-14); `UnitDestroyed` needs no change; `Disabled` units stay live entities until the wreck timeout.
 - **From the Tasking Board (GAMEPLAY §1b, Q-GD-26, Q-GD-37 TB-1):** `TaskingJobId` id type, and one event per lifecycle step (all names PROPOSED):
   - `JobCreated{job_id, side, job_kind: JobKind, node_id|null, sector_id|null, entity_id|null (the convoy to escort), slots, depends_on_job_id|null}`: a job is posted to a side's board (OPEN), by the board generator, the director (Static board) or a GM injection (Static board only).
   - `JobClaimed{job_id, entity_id}`: a unit claims a slot (CLAIMED; the lease starts).

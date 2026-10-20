@@ -37,8 +37,12 @@ terms still waiting for an owner ruling.
 | Package | A formation of up to 4 units with a lead |
 | Doctrine | A specialization chosen once per campaign |
 | Unit class name | Friendly display name for a unit kind: Striker, Scout, Hauler, Tank, Gunboat, Tanker, Lifter, Sentinel, Spire (Q-NAME-2, working names) |
-| Stance | An operator's standing intent for their unit: `press`, `standard`, `cautious`, `guns` (GAMEPLAY §6) |
-| Damage state | Healthy → Damaged → Mission-kill → Disabled → Destroyed (GAMEPLAY §6a) |
+| Stance | An operator's standing intent for their unit: `press`, `standard`, `cautious`, `guns` (COMBAT §5.6) |
+| Damage state | Healthy → Damaged → Mission-kill → Disabled → Destroyed (COMBAT CB-6) |
+| Wreck | A Disabled unit: it can't move, can still be shot, and is removed after a timeout. _Avoid:_ dead unit |
+| Pk | Probability that one shot hits, shown in the PiP scope. _Avoid:_ hit chance, accuracy |
+| Altitude band | One of NOE, LOW, MED, HIGH: where an aircraft flies and which weapons can reach it |
+| Threat (of a kind) | How urgently units choose that kind as a target. Not the Threat Director or a threat tier |
 | Tasking Board | A side's shared queue of jobs. A unit joined with no parameters takes the best open job at once (GAMEPLAY §1b, Q-GP-23). Both sides have one; the director fills the Static's (GAMEPLAY §1b, Q-GD-34) |
 | Job | One task on a Tasking Board (resupply, scout, escort, defend, strike, rescue, repair, assist objective; the Static's board also stages and repositions), with a priority, fitting roles, a slot count and an expiry (GAMEPLAY §1b) |
 | Job state | OPEN → CLAIMED → ACTIVE → DONE \| FAILED \| EXPIRED (GAMEPLAY TB-1) |

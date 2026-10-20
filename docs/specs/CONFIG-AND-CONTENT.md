@@ -167,21 +167,22 @@ Legend: **HR** = hot-reloadable (§5). "TBD" = TBD by harness. **Source** = the 
 ### 6.4 Combat
 | Key | Type | Unit | PROPOSED | Source | HR |
 |---|---|---|---|---|---|
-| `combat.track_quality.track` | float | multiplier | 1.0 | GAMEPLAY §6 | No |
-| `combat.track_quality.painted` | float | multiplier | 1.25 | GAMEPLAY §6 | No |
-| `combat.jammer_pk_mult` | float | multiplier | TBD | GAMEPLAY §6 | No |
-| `combat.evasion_mult.<alt_band>` | float | multiplier | TBD | GAMEPLAY §6 | No |
-| `combat.weapons.<weapon_id>` | object | see §7.2 | TBD | GAMEPLAY §6 | No |
-| `combat.track_quality.radar_lock` | float | multiplier | TBD | GAMEPLAY §6 (Q-CBT-2) | No |
-| `combat.pk_mult.range.<band>` | float | multiplier | TBD | GAMEPLAY §6 (Q-CBT-2) | No |
-| `combat.pk_mult.countermeasure` | float | multiplier (one-shot per load) | TBD | GAMEPLAY §6 (Q-CBT-2) | No |
-| `combat.pk_mult.terrain_masked` | float | multiplier | TBD | GAMEPLAY §6 (Q-CBT-2) | No |
-| `combat.pk_mult.weather.*` / `combat.pk_mult.night` | float | multiplier | TBD (P4, Q-CBT-5) | GAMEPLAY §6 | No |
-| `combat.damage_state.damaged_below` | float | hp fraction | 0.70 (PROPOSED) | GAMEPLAY §6a, Q-GP-8 | No |
-| `combat.damage_state.mission_kill_below` | float | hp fraction | 0.35 (PROPOSED) | GAMEPLAY §6a, Q-GP-8 | No |
-| `combat.damage_state.disabled_below` | float | hp fraction | 0.10 (PROPOSED) | GAMEPLAY §6a, Q-GP-8 | No |
-| `combat.damage_state.damaged_speed_mult`, `.damaged_sensor_mult` | float | multiplier | TBD | GAMEPLAY §6a (Q-CBT-1) | No |
-| `combat.crew_survival.*` | object | probability modifiers per platform/location | TBD | GAMEPLAY §6a | No |
+| `combat.track_quality.track` | float | multiplier | 1.0 | COMBAT | No |
+| `combat.track_quality.painted` | float | multiplier | 1.25 | COMBAT | No |
+| `combat.jammer_pk_mult` | float | multiplier | not built; 1.0 fallback FB-6 until the jammer arrives (NX-212) | COMBAT | No |
+| `combat.weapons.<weapon_id>` | object | see §7.2 | TBD | COMBAT | No |
+| `combat.pk_cap` | float | max Pk | 0.95 (PROPOSED, Q-CBT-10) | COMBAT CB-4 | No |
+| `combat.range.full_pk_frac` | float | fraction of `range_m` with full range factor | 0.5 (PROPOSED, Q-CBT-10) | COMBAT §5.2 | No |
+| `combat.range.min_mult` | float | range factor at `range_m` | 0.5 (PROPOSED, Q-CBT-10) | COMBAT §5.2 | No |
+| `combat.disabled_timeout_s` | float | s (game) | 600 (PROPOSED, Q-CBT-14) | COMBAT CB-7 | No |
+| `combat.pk_mult.countermeasure` | float | multiplier (one-shot per load) | not built; 1.0 fallback FB-6 until countermeasures arrive (Q-CBT-20) | COMBAT §5.2 (Q-CBT-2) | No |
+| `combat.pk_mult.terrain_masked` | float | multiplier | 0.5 (PROPOSED, Q-CBT-11) | COMBAT §5.2 (Q-CBT-2) | No |
+| `combat.pk_mult.weather.*` / `combat.pk_mult.night` | float | multiplier | TBD (P4, Q-CBT-5) | COMBAT | No |
+| `combat.damage_state.damaged_below` | float | hp fraction | 0.70 (PROPOSED) | COMBAT CB-6, Q-GP-8 | No |
+| `combat.damage_state.mission_kill_below` | float | hp fraction | 0.35 (PROPOSED) | COMBAT CB-6, Q-GP-8 | No |
+| `combat.damage_state.disabled_below` | float | hp fraction | 0.10 (PROPOSED) | COMBAT CB-6, Q-GP-8 | No |
+| `combat.damage_state.damaged_speed_mult`, `.damaged_sensor_mult` | float | multiplier | TBD | COMBAT CB-6 (Q-CBT-1) | No |
+| `combat.crew_survival.*` | object | probability modifiers per platform/location | TBD | COMBAT CB-8 | No |
 | `slots.respawn_loss_window_s` / `slots.respawn_loss_step_s` | float | s (game) | TBD (respawn grows with repeated losses, Q-CBT-9; game time per Q-ALN-5) | GAMEPLAY GP-2 | Yes |
 
 ### 6.5 Capture
@@ -199,6 +200,8 @@ Legend: **HR** = hot-reloadable (§5). "TBD" = TBD by harness. **Source** = the 
 | Key | Type | Unit | PROPOSED | Source | HR |
 |---|---|---|---|---|---|
 | `campaign.target_duration_h` | float | h (game) | 48 | GAMEPLAY §9, Q-GD-5 | No |
+| `campaign.time_limit_h` | float | h (game) | 72 (PROPOSED, Q-TEST-6) | GAMEPLAY §9 | No (set per campaign) |
+| `campaign.max_extension_h` | float | h (game), total of all extensions | 48 (PROPOSED, Q-TEST-7); extensions by the owner or an Admin only, each logged | GAMEPLAY §9 | No |
 | `campaign.objective_period_min` | float | min (game) | 15 | GAMEPLAY §9 | No |
 | `campaign.victory_node_frac` | float | fraction | 0.80 | GAMEPLAY §9 | No |
 | `campaign.victory_hold_min` | float | min (game) | 30 | GAMEPLAY §9 | No |
@@ -304,8 +307,13 @@ units:
     min_rank: 1               # PROGRESSION §3; required when playable_by includes VIEWER
     display: { symbol: "air_strike", label_key: "unit.strike_fighter" }   # OV-2 shape-coded symbol id
     speed_mps: <float>        # m/s of world time (CFG-9)
-    alt_bands: [LOW, MED]     # AIR only
+    alt_bands: [LOW, MED]     # AIR only; NOE | LOW | MED | HIGH (COMBAT §5.3)
+    default_alt_band: LOW     # AIR only; one of alt_bands
     hp: <int>
+    armor: <float>            # 0..0.9; damage taken = damage × (1 − armor) (COMBAT §5.4)
+    evasion: <float>          # 0.6..1.0 Pk multiplier on shots at this kind; facilities 1.0 (COMBAT §5.2)
+    crew: <int>               # 0 for facilities; drives the crew-survival roll (COMBAT CB-8)
+    threat: <int>             # target priority, higher first (COMBAT CB-1, Q-CBT-16)
     fuel_s: <float|null>      # endurance in world s (CFG-9); null = not modeled (STATIC/GROUND for MVP)
     sensor: { radius_m: <float>, passive_range_m: <float|null> }   # passive_range_m: detects emitting sites (recon units, radar sites; AWACS later), FOG-OF-WAR FOW-13   # first build: one range for all targets; per-band ranges later. Masking is a property of the target's area (masking_regions, Q-FOW-3)
     weapons: [<weapon_id>]    # refs §7.2; [] = unarmed
@@ -323,10 +331,12 @@ Rules:
 ```yaml
 weapons:
   - id: AGM_LIGHT
-    targets: [GROUND, STATIC]   # domain compatibility (GAMEPLAY §6)
-    range_m: <float>
-    projectile_speed_mps: <float|null>  # world m/s; null = lands on the fire tick (guns). Impact tick = fire tick + ceil(range / speed / WORLD_DT) (GAMEPLAY §6, Q-GP-7)
+    targets: [GROUND, STATIC]   # AIR | GROUND | SEA | STATIC | STRUCTURE (node defenses, bridges); COMBAT §5.1
+    bands: []                   # altitude reach against AIR targets only (COMBAT §5.3); this AG weapon has none
+    range_m: <float>            # max range; full range factor up to combat.range.full_pk_frac of it
+    projectile_speed_mps: <float|null>  # world m/s; null = lands on the fire tick (guns). Impact tick = fire tick + ceil(range / speed / WORLD_DT) (COMBAT CB-2, Q-GP-7)
     base_pk: <float>            # 0..1
+    damage: <int>               # hp per hit before armor (COMBAT CB-5)
     reload_s: <float>           # world s (CFG-9)
     ammo: <int>
     homes_on_emitters: <bool>   # SEAD behavior

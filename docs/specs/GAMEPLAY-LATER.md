@@ -56,10 +56,23 @@ Text as it stood in GAMEPLAY before the move. Wire-level fallout was removed fro
 - **Stalemate (Q-GD-29, moved):** if the two sides' scores are within a draw band (PROPOSED ~5%), the war ends in a Stalemate with its own end screen, no carry-over bonus, an optional configured special event and template banter from the Static mastermind.
 - **Engineer crossings (Q-GD-21, moved):** engineers can build short new crossings.
 
+## Deferred from the first build (Q-CBT-20, 2026-10-20)
+Each item must come back with the tracker item named here, whose acceptance names it. Owner: none of these may be dropped.
+
+| Item | Interim in the first build | Returns with |
+|---|---|---|
+| Radar lock (track-quality factor) | 1.0, FB-6 | NX-362 |
+| Countermeasures (chaff/flares) | 1.0, FB-6 | NX-362 |
+| Jamming | 1.0, FB-6 | NX-212 (jammer chassis) |
+| Field repair of Disabled units | none; wrecks removed after `combat.disabled_timeout_s` (COMBAT CB-7) | NX-290, with the engineer specialist (NX-212): quicker, dedicated repair |
+| Dynamic threat score | fixed per-kind `threat` | Q-CBT-17, grilled after the P1 balance runs |
+| `SPAWN_SPECIALIST` command | reserved, no schema or handler (Q-CMD-2) | NX-212 |
+| Unlimited campaign length | `campaign.time_limit_h` plus logged extensions (Q-TEST-7) | Revisit after harness runs show how campaigns stall |
+
 ## Future candidates (tracked, not designed)
 - **Map that grows inside a campaign (Q-GP-22):** the playable area starts as a small sector and new sectors unlock as the coalition pushes. Only if feedback is overwhelming.
 - **More facility kinds (Q-GP-21):** facilities attach to bases, so new kinds can be added over time, such as missile-interception defense systems. These pair with projectiles as entities (Q-GP-7 option C).
 - **Factories (Q-GP-41, parked):** a FACTORY facility adds `logistics.factory_rate` per minute to its base's stock. Returns if single-source convoys prove too slow in playtests.
 - **Emission control with SEAD (Q-FOW-10):** both sides' AI turns a radar or air-defense site dark when an anti-radiation missile is detected inbound and resumes after a cooldown; a rank-gated player command to blink a friendly site may come with it.
-- **Dynamic track quality in flight (owner, 2026-10-19):** track quality should not be fixed when a shot is fired. A fleeing target can outrun a munition depending on the weapon's range, and jamming or other interference can raise or lower track quality while the munition flies. Not implemented in the first build; see GAMEPLAY §6 for the interim rule.
+- **Dynamic track quality in flight (owner, 2026-10-19):** track quality should not be fixed when a shot is fired. A fleeing target can outrun a munition depending on the weapon's range, and jamming or other interference can raise or lower track quality while the munition flies. Not implemented in the first build; see COMBAT CB-3 for the interim rule.
 - **CHARLIE tier (Q-TD-3, parked):** a named theater offensive (e.g. "Operation Red Tempest") that needs combined arms, telegraphed by visible massing and staging, then an INTEL warning naming the sector (lead time PROPOSED ~10 min of game time, Q-GD-22, Q-ALN-35), only after real provocation and never against an empty stream. Brings back the `TheaterOffensive` operation and `director.tier.charlie_enter_cp`. The `sead_activity` memory counter and counter-battery return with SEAD and artillery (P4).

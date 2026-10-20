@@ -1,14 +1,14 @@
 ---
 name: new-unit
-description: Add a new unit or facility kind (radar, air-defense site, factory, missile-interception site, a new jet or truck) to Operation Nexus as a unit-catalog entry through the content pipeline, with no kernel code. Use when someone asks for a new unit, platform, facility or site kind, or a variant of one.
+description: Add a new unit, weapon or facility kind (radar, air-defense site, missile-interception site, a new jet or truck), or change one's combat stats, to Operation Nexus as a unit-catalog entry through the content pipeline, with no kernel code. Use when someone asks for a new unit, platform, facility or site kind, or a variant of one.
 ---
 
 # Author a catalog entry
 
 A new unit or facility kind is **data, not code** (CONFIG-AND-CONTENT §7a, GAMEPLAY §5b, SIM-CORE §4). This skill
 walks you from a plain description to a proposed catalog entry that matches the specs exactly. Read first:
-CONFIG-AND-CONTENT §5 (hot-reload), §7, §7.2, §7.3, §7a, §11.2; CONTRACTS §3.3 (`UnitKind`); GAMEPLAY §0, §5b, §6,
-§6a; FOG-OF-WAR; AGENTS.md rules 0, 6, 6a; `docs/quality/DATA-INTEGRITY.md`.
+CONFIG-AND-CONTENT §5 (hot-reload), §7, §7.2, §7.3, §7a, §11.2; CONTRACTS §3.3 (`UnitKind`); GAMEPLAY §0, §5b;
+COMBAT (all of it, especially §5.1, §5.7); FOG-OF-WAR; AGENTS.md rules 0, 6, 6a; `docs/quality/DATA-INTEGRITY.md`.
 
 **Planning phase.** `content/units/`, `tools/config_lint` and the balance harness (NX-031) don't exist yet. Until
 their tracker items start, the entry lands as a row in the CONFIG-AND-CONTENT §7.3 table plus the `UnitKind` value in
@@ -17,8 +17,9 @@ tools exist, run them and paste the commands and output (DOC-4). Never say a che
 
 ## 1. Can data do it?
 
-The catalog composes existing capability blocks only: domain, speed, altitude bands, hp, sensor, weapons (§7.2:
-`targets` are domains), cargo, capture, stealth, costs. Map every behavior in the request to a field. If one doesn't
+The catalog composes existing capability blocks only: domain, speed, altitude bands (`alt_bands`, `default_alt_band`),
+hp, armor, evasion, crew, threat, sensor, weapons (§7.2: `targets` are domains plus `STRUCTURE`, `bands` is altitude
+reach, `damage`), cargo, capture, stealth, costs. Map every behavior in the request to a field. If one doesn't
 map (it needs a new targeting rule, a new entity type, a new damage rule), that part is a **new capability**: it needs
 a spec change approved by the owner and a code PR (AGENTS.md rules 1–2). Say so, split it out, and author only what
 data can express. Don't stretch a field to fake a capability.
@@ -60,6 +61,10 @@ Use the §7.1 schema field for field, plus §7a `category` (and optional sanitiz
    Catalog kinds must equal the enum exactly; `config_lint` checks it (§11.2). Removing a kind removes both, together.
 3. Any spec section whose rule mentions the kind (e.g. GAMEPLAY §5b for a facility, FOG-OF-WAR for a sensor).
 4. `docs/quality/PLAYTEST-WATCHLIST.md` row if it introduces a new mechanic or a simplification to revisit (step 7).
+5. COMBAT §5.1 who-can-shoot-whom table: add or change the kind's row so it matches its weapons' `targets:`. The
+   matrix test fails CI when the table and the content disagree (Q-CBT-15).
+6. Any change to a combat stat (`hp`, `armor`, `evasion`, `threat`, a weapon's `base_pk`, `damage`, `range_m`) attaches
+   the balance-diff report (CONFIG-AND-CONTENT §11.4) once the harness exists; until then say it wasn't run.
 
 `TRACKER.md` and `OPEN-QUESTIONS.md` are shared files: if you are a parallel session, list the edits you need in the
 PR description instead (AGENTS.md rule 11b).
@@ -74,12 +79,12 @@ counterpart or justify the asymmetry in the spec.
 
 Write down: what its `sensor` reveals and to which side (a radar extends its side's view, FOW-4); whether the other
 side knows its position by default or only by detection (FOW-10 covers nodes, not facilities, so don't assume);
-whether it emits (SEAD homes on emitters, GAMEPLAY §6) or can go dark; and that the director only sees it through
+whether it emits (SEAD homes on emitters, COMBAT §5.3a) or can go dark; and that the director only sees it through
 the enemy-side view (FOW-4). Any rule the specs don't already state is an open question, not a choice you make.
 
 ## 7. Config keys and rollout
 
-- List every `balance/` key the kind reads (e.g. `logistics.factory_rate` for FACTORY) with its HR status (§5). A new
+- List every `balance/` key the kind reads (e.g. `logistics.repair_rate.<node_kind>` for a facility) with its HR status (§5). A new
   key goes in the §6 table and the schema together (§11.2 drift check).
 - Unit stats and the catalog are **not** hot-reloadable. Mid-campaign a new kind can only be added through a logged
   `STAFF_CONTENT_LOAD{content_hash}`, additive only (§7a). A facility also needs a theater file to place it, so in
@@ -110,7 +115,7 @@ harness runs (CONFIG-AND-CONTENT §11.4). Owner or admin approval is a §7a gate
 Request: "a defense site that shoots down incoming missiles, as an AIR_DEFENSE_SITE variant".
 
 **Step 1.** Shooting down missiles needs missiles to be targets. Shots are not entities: a fired shot is a pending
-impact, and intercepting projectiles "come later" (GAMEPLAY §6, Q-GP-7, Q-GP-12). §7.2 `targets` lists domains only.
+impact, and intercepting projectiles "come later" (COMBAT CB-2, Q-GP-7, Q-GP-12). §7.2 `targets` lists domains only.
 So interception is a **new capability**: spec change + code PR, raised with the owner. What data can express today is
 the site itself (STATIC, attached to a base, sensor, an anti-air weapon against `AIR`).
 
