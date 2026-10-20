@@ -2,7 +2,7 @@
 
 Status: Review · Owner: — · Tracker: NX-312 (spec), NX-124 (build) · Related ADRs: ADR-0002
 
-> Grilled with the owner on 2026-10-20 (Q-CBT-10 … Q-CBT-21). **Every number here is PROPOSED and unvalidated** (DATA-INTEGRITY DI-7) until the balance harness (NX-031) runs. Per-kind stats (hp, damage, armor, evasion, threat) are content values in `content/units.yaml` (CONFIG-AND-CONTENT §7); this spec defines the fields and the rules, never the numbers.
+> Grilled with the owner on 2026-10-20 (Q-CBT-10 … Q-CBT-22). **Every number here is PROPOSED and unvalidated** (DATA-INTEGRITY DI-7) until the balance harness (NX-031) runs. Per-kind stats (hp, damage, armor, evasion, threat) are content values in `content/units.yaml` (CONFIG-AND-CONTENT §7); this spec defines the fields and the rules, never the numbers.
 
 ## 1. Purpose
 How units find targets, fire, hit, take damage and leave the fight. Combat is deterministic given the seed (SIM-CORE), the same for both sides (GAMEPLAY §0, parity), and driven by simulation factors, never by an LLM. GAMEPLAY §6 and §6a point here.
@@ -16,12 +16,12 @@ How units find targets, fire, hit, take damage and leave the fight. Combat is de
 - **CB-2 Shots.** A shot is not an entity. Firing spends the round and stores `Shot{id, shooter, target, weapon_id, impact_tick}`; impact lands `ceil(range / projectile_speed / WORLD_DT)` ticks later, guns on the fire tick. Pending shots land in `(impact_tick, id)` order (SIM-CORE §4, Q-GP-7, Q-GP-12).
 - **CB-3 Fizzle.** At impact, if the shooter's side no longer tracks the target, or the target is out of the weapon's range or bands, destroyed or despawned, the shot is a miss with no RNG draw (Q-FOW-16).
 - **CB-4 Hit roll.** At impact, `Pk = min(combat.pk_cap, base_pk × track × range × evasion × masking)` (§5.2), rolled once on the `combat` stream. Pk is shown in the PiP scope (Q-CBT-3).
-- **CB-5 Damage.** A hit removes `damage × (1 − armor)` hp (rounded down, minimum 1: PROPOSED, Q-CBT-22). Damage is fixed: the only randomness is the hit roll and the crew-survival roll (Q-GP-8).
+- **CB-5 Damage.** A hit removes `damage × (1 − armor)` hp (rounded down, minimum 1; Q-CBT-22). Damage is fixed: the only randomness is the hit roll and the crew-survival roll (Q-GP-8).
 - **CB-6 Damage state.** `damage_state` derives from the hp fraction: Damaged below `combat.damage_state.damaged_below`, Mission-kill below `mission_kill_below`, Disabled below `disabled_below`, Destroyed at 0 (Q-CBT-1, Q-GP-8). A state only gets worse through combat and better only by repair at a friendly base (GAMEPLAY §5).
 - **CB-7 Wrecks.** A Disabled unit (not a facility, CB-9) can't move and is a wreck: it can still be targeted until Destroyed, and it is removed after `combat.disabled_timeout_s` (game time) whoever owns it, emitting `UnitDespawned{reason: WRECKED}`. There is no field repair in the first build (Q-CBT-14). Its commander can `!join` again once it is gone, after the GP-2 respawn delay.
-- **CB-8 Crew.** Once per unit, at the first of Disabled or Destroyed (PROPOSED, Q-CBT-22), a seeded crew-survival roll (`combat.crew_survival.*`) decides DOWNED or LOST for units with `crew > 0`; a surviving crew gets a downed-crew marker (GAMEPLAY §6a). Facilities have `crew: 0`.
+- **CB-8 Crew.** Once per unit, at the first of Disabled or Destroyed (Q-CBT-22), a seeded crew-survival roll (`combat.crew_survival.*`) decides DOWNED or LOST for units with `crew > 0`; a surviving crew gets a downed-crew marker (GAMEPLAY §6a). Facilities have `crew: 0`.
 - **CB-9 Facilities.** A facility's hp floors at the Disabled threshold; it is never Destroyed (Q-GP-37) and repairs from its base's stock (GAMEPLAY §5b).
-- **CB-10 Node defenses.** A weapon whose `targets:` includes `STRUCTURE` can fire on a node's defense HP and on bridges, with the same hit and damage rules (armor 0 and evasion 1.0 for structures: PROPOSED, Q-CBT-22). Node defense HP gates capture (GAMEPLAY §8).
+- **CB-10 Node defenses.** A weapon whose `targets:` includes `STRUCTURE` can fire on a node's defense HP and on bridges, with the same hit and damage rules (structures have armor 0 and evasion 1.0; Q-CBT-22). Node defense HP gates capture (GAMEPLAY §8).
 - **CB-11 Munitions and stance.** Loads are per sortie from base stock, guns included (Q-CBT-7). Stance drives auto-RTB (§5.6). Unlimited ammo and friendly fire are campaign options set at setup by the owner or an Admin only, never a GM (Q-ALN-10).
 - **CB-12 Parity.** Both sides use these rules and the same content fields.
 
@@ -102,7 +102,6 @@ Disabled → wreck → removed after `combat.disabled_timeout_s` (600 s game tim
 | all | Determinism: same seed and commands → same events and hash (SIM-CORE) |
 
 ## 8. Open questions and deferred items
-- **Q-CBT-22 (owner to confirm):** three small rules written as PROPOSED: damage rounds down with a minimum of 1; one crew roll per unit; structures have armor 0 and evasion 1.0.
 - **Q-CBT-17 (parked until the P1 balance runs):** dynamic threat modifiers (engaging a friendly, emitting, painted).
 - Deferred items and their return paths are in GAMEPLAY-LATER "Deferred from the first build".
 - Dynamic track quality in flight: GAMEPLAY-LATER "Future candidates".
