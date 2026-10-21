@@ -72,6 +72,8 @@ Each item must come back with the tracker item named here, whose acceptance name
 | Unlimited campaign length | `campaign.time_limit_h` plus logged extensions (Q-TEST-7) | Revisit after harness runs show how campaigns stall |
 
 ## Future candidates (tracked, not designed)
+- **Objective voting and operator suggestions (owner, 2026-10-21, Q-SM-12):** a vote or poll, or suggestions from higher-ranked operators, that informs which timed objective comes next instead of a purely random frontline pick.
+- **Self-directed campaign mode (owner, 2026-10-21, Q-SM-12):** beyond `campaign.objective_mode: off`, an option that also hides the Tasking Board's NEEDED list and job suggestions from viewers, so operators must pick their own goals and coordinate in chat (a test of cooperation and communication). AI units keep using the board internally so garrisons still work.
 - **Infantry variants for garrisons and operators (owner, 2026-10-21, Q-CBT-25):** the first-build `GARRISON_INFANTRY` engages GROUND only. Later infantry variants (anti-air such as MANPADS teams, and anti-facility teams) are wanted both as AI garrison units and as units operators (viewers) can deploy. Each is a new catalog entry through the `new-unit` skill, not kernel code.
 - **Map that grows inside a campaign (Q-GP-22):** the playable area starts as a small sector and new sectors unlock as the coalition pushes. Only if feedback is overwhelming.
 - **More facility kinds (Q-GP-21):** facilities attach to bases, so new kinds can be added over time, such as missile-interception defense systems. These pair with projectiles as entities (Q-GP-7 option C).

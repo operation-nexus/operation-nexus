@@ -204,6 +204,9 @@ In the schema now (NX-122): `slots.max_live_per_commander`, `slots.respawn_delay
 | `capture.quiet_floor` | float | multiplier at 0 viewer units | 0.6 (PROPOSED) | GAMEPLAY §8, Q-SIM-26 | No |
 | `capture.quiet_ref` | int | viewer units at which the multiplier reaches 1.0 | 50 (PROPOSED) | GAMEPLAY §8, Q-SIM-26 | No |
 | `capture.min_time_s` | float | s (world, Q-ALN-23) | 30 (PROPOSED) | GAMEPLAY §8, Q-SIM-26 | No |
+| `capture.logi_weight` | float | capturer weight | 0.5 (PROPOSED): a logistics unit counts as half a capturer (Q-SM-7) | STATE-MACHINES §4.2 | No |
+| `capture.garrison_mult` | float | capture-time multiplier | 3.0 (PROPOSED): a defender that cannot contest is at the base (Q-GD-32, Q-SM-8) | STATE-MACHINES §4.2 | No |
+| `capture.empty_base_mult` | float | capture-time multiplier | 0.5 (PROPOSED): no defender at the base (Q-GD-32, Q-SM-8) | STATE-MACHINES §4.2 | No |
 | `capture.decay_per_s` | float | progress fraction/s (world, Q-ALN-23) | TBD (no value yet; used by contested decay, Q-SIM-23) | GAMEPLAY §8 | No |
 
 ### 6.6 Campaign
@@ -212,6 +215,8 @@ In the schema now (NX-122): `slots.max_live_per_commander`, `slots.respawn_delay
 | `campaign.target_duration_h` | float | h (game) | 48 | GAMEPLAY §9, Q-GD-5 | No |
 | `campaign.time_limit_h` | float | h (game) | 72 (PROPOSED, Q-TEST-6) | GAMEPLAY §9 | No (set per campaign) |
 | `campaign.max_extension_h` | float | h (game), total of all extensions | 48 (PROPOSED, Q-TEST-7); extensions by the owner or an Admin only, each logged | GAMEPLAY §9 | No |
+| `campaign.score.node_share_weight` | float | points | 100 (PROPOSED): × a side's average share of nodes held (Q-GD-29, Q-SM-9) | STATE-MACHINES §4.4 | No |
+| `campaign.score.objective_points` | float | points per completed objective | 5 (PROPOSED, Q-GD-29, Q-SM-9) | STATE-MACHINES §4.4 | No |
 | `campaign.objective_period_min` | float | min (game) | 15 | GAMEPLAY §9 | No |
 | `campaign.victory_node_frac` | float | fraction | 0.80 | GAMEPLAY §9 | No |
 | `campaign.victory_hold_min` | float | min (game) | 30 | GAMEPLAY §9 | No |

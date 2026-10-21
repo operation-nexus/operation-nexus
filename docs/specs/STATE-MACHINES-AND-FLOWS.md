@@ -1,6 +1,6 @@
 # SPEC: State Machines & End-to-End Flows
 
-Status: Draft · Owner: — · Tracker: NX-101…NX-126, NX-150…NX-157, NX-170…NX-179, NX-190…NX-204, NX-250…NX-256 · Related ADRs: 0001, 0002, 0003, 0007, 0009
+Status: §4.1–4.6 (sim side) Approved (owner, 2026-10-21, Q-SM-6); §4.7–4.10 and §5 (runtime side) Draft until P2 · Owner: — · Tracker: NX-101…NX-126, NX-150…NX-157, NX-170…NX-179, NX-190…NX-204, NX-250…NX-256 · Related ADRs: 0001, 0002, 0003, 0007, 0009
 
 > Event, command and reject-reason names come from [CONTRACTS](CONTRACTS.md); balance key names come from [CONFIG-AND-CONTENT §6](CONFIG-AND-CONTENT.md). This spec uses those names exactly.
 
@@ -158,8 +158,8 @@ stateDiagram-v2
 | State | Event / guard | Action | Next |
 |---|---|---|---|
 | Neutral / Owned | An eligible ground or logistics unit of a non-owner side enters `capture.radius_m`, with no opposing eligible unit present | Emit `CaptureStarted{node_id, side}` | Capturing / Contested |
-| Capturing | Tick, still uncontested | Progress += rate × diminishing f(unit count) × garrison modifier × `WORLD_DT` (capture runs on world time, Q-ALN-23). **Garrison modifier (Q-GD-32):** the garrison multiplier (heavily slows capture) while any unit of the owning side is at the node, or the empty-base multiplier (speeds it up) while none is; both are configurable and PROPOSED. A combat-capable defender freezes progress (Contested); defenders that cannot contest, such as parked air units and Disabled units, slow it through the garrison multiplier instead (Q-ALN-33). A Neutral node has no owner and uses neither multiplier. | Capturing |
-| Capturing | Progress ≥ 100% | Set owner = capturer. Reset progress. Emit `NodeCaptured{node_id, from, to, participant_commander_ids[]}`. In the same tick, resolve the losing side's units parked at the node: mobile units with fuel to reach a friendly node escape (RTB), every other mobile or parked unit is Destroyed with a crew-survival roll (§4.1, Q-GD-32); facilities switch side and keep their damage (Q-GP-25). Applies to both sides. | Owned |
+| Capturing | Tick, still uncontested | Progress += rate × diminishing f(unit count) × garrison modifier × `WORLD_DT`, where the unit count weighs each logistics unit (LOGI_TRUCK, ENEMY_CONVOY) as `capture.logi_weight` of a capturer (PROPOSED 0.5, Q-SM-7) (capture runs on world time, Q-ALN-23). **Garrison modifier (Q-GD-32):** the garrison multiplier `capture.garrison_mult` (capture time ×3, PROPOSED) while any unit of the owning side is at the node, or the empty-base multiplier `capture.empty_base_mult` (capture time ×0.5, PROPOSED) while none is (Q-SM-8). A combat-capable defender freezes progress (Contested); defenders that cannot contest, such as parked air units and Disabled units, slow it through the garrison multiplier instead (Q-ALN-33). A Neutral node has no owner and uses neither multiplier. | Capturing |
+| Capturing | Progress ≥ 100% | Set owner = capturer. Reset progress. Emit `NodeCaptured{node_id, from, to, participant_commander_ids[]}`. In the same tick, resolve the losing side's units parked at the node: mobile units able to reach a friendly node escape (RTB): a ground unit when a road route to a friendly base exists, an aircraft when its fuel reaches one of its landing bases (Q-SM-10); every other mobile or parked unit is Destroyed with a crew-survival roll (§4.1, Q-GD-32); facilities switch side and keep their damage (Q-GP-25). Applies to both sides. | Owned |
 | Capturing | Opposing eligible, combat-capable unit enters (parked air and Disabled units do not contest, Q-ALN-33) | Freeze progress | Contested |
 | Contested | One side's eligible units are all gone | — | Capturing (attacker remains) / Owned (defender remains) |
 | Capturing | No capturers, no opponents | — | Decaying |
@@ -230,7 +230,7 @@ stateDiagram-v2
 | Paused | `STAFF_CAMPAIGN_PAUSE` | Emit `CommandRejected{reason: ALREADY_PAUSED}` | Paused |
 | Paused | `STAFF_CAMPAIGN_RESUME` from staff (GM, admin or owner only, Q-RB-1), or from SYSTEM after the "COMMS RESTORED" countdown ends an offline pause (Q-OPS-8) | Clear `clock_paused`. Emit `CampaignClockResumed{reason}`. Free slots fill from the reserve queue (FIFO). | Running |
 | Running | Victory condition held (GAMEPLAY §9), or defeat (the sanctuary's defense HP held at 0 for `campaign.defeat.hold_min`, Q-TH-7) | Freeze inputs. Emit `CampaignEnded{result: VICTORY \| DEFEAT}`. | Ending |
-| Running | The campaign clock reaches its time limit (game time), and the two sides' time-limit scores differ | Score per side = node share over time + completed objectives (Q-GD-29). Freeze inputs. Emit `CampaignEnded{result: TIME_LIMIT, score, winner}`; the higher score wins the war. | Ending |
+| Running | The campaign clock reaches its time limit (game time), and the two sides' time-limit scores differ | Score per side = `campaign.score.node_share_weight` (PROPOSED 100) × its average share of nodes held over the campaign + `campaign.score.objective_points` (PROPOSED 5) per completed objective (Q-GD-29, Q-SM-9). Freeze inputs. Emit `CampaignEnded{result: TIME_LIMIT, score, winner}`; the higher score wins the war. | Ending |
 | Running | Time limit reached and the two scores are exactly equal (Q-GD-29, Q-GP-10) | Freeze inputs. Emit `CampaignEnded{result: TIME_LIMIT, score, winner: null}`: a draw, with the normal end screen. | Ending |
 | Running / Paused | `STAFF_CAMPAIGN_END{reason}` | Freeze inputs. Emit `CampaignEnded{result: ABORTED}`. | Ending |
 | Ending | Results computed (top contributors per role, stats) | Write results to persistence. Emit `AARStarted{result, top_by_role}`. | AAR |
@@ -258,7 +258,7 @@ stateDiagram-v2
 
 | State | Event / guard | Action | Next |
 |---|---|---|---|
-| — | Mode `timed`: objective period boundary (`campaign.objective_period_min`, game time, Q-ALN-1), and campaign Running. Mode `off`: never. Any mode: an admin or the owner sets an objective (campaign setup is Admin/owner only; a GM cannot, Q-ALN-10). | Pick a node, weighted by frontline position, using the dedicated `objective` RNG stream (SIM-CORE SC-5, Q-SM-1). Emit `ObjectiveAnnounced`. | Active |
+| — | Mode `timed`: objective period boundary (`campaign.objective_period_min`, game time, Q-ALN-1), and campaign Running. Mode `off`: never. Any mode: an admin or the owner sets an objective (campaign setup is Admin/owner only; a GM cannot, Q-ALN-10). | Pick uniformly among frontline nodes (a node with a road edge to a node owned by the other side or by no one), never the SANCTUARY or the Static's HQ, using the dedicated `objective` RNG stream (SIM-CORE SC-5, Q-SM-1). An enemy-held node must be captured, an own node held for the whole period (Q-SM-11). Emit `ObjectiveAnnounced`. | Active |
 | Active | Condition met (e.g., node captured or held) | Grant merit to participants. Emit `ObjectiveResolved{outcome: COMPLETED}`. Queue a sitrep. | Completed |
 | Active | Timer elapsed | Emit `ObjectiveResolved{outcome: EXPIRED}` | Expired |
 
@@ -648,5 +648,6 @@ These decisions (2026-10-17 and 2026-10-18) are folded into the tables above:
 - **Q-GD-32:** units parked at a captured base escape or are destroyed (§4.1, §4.2, U-9); garrison and empty-base capture multipliers (§4.2, N-5).
 - **Spec-alignment batch 3 (2026-10-18):** Q-ALN-33 (combat-capable defenders freeze capture; defenders that cannot contest slow it, §4.2, N-5), Q-ALN-36 (unban, purge and set callsign apply while Paused; advisor choices and GM commands other than a release are rejected, §4.4, U-8).
 
-Still open here:
-- Config keys for the Q-GD-29 score weights, and for the Q-GD-32 garrison and empty-base multipliers, are not yet defined in CONFIG-AND-CONTENT §6, so this spec names no key for them.
+- **Grill 2026-10-21 (Q-SM-6 … Q-SM-12):** §4.1–4.6 approved; logistics units count as half a capturer; garrison and empty-base capture multipliers; the time-limit score weights; how units escape a captured base; how timed objectives are picked; objective voting and a self-directed mode parked in GAMEPLAY-LATER.
+
+Still open here: nothing for §4.1–4.6. §4.7–4.10 and §5 are grilled when P2 starts on them.
