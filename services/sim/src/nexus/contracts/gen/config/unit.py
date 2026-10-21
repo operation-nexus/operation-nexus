@@ -22,6 +22,14 @@ class Sensor(BaseModel):
             le=1000000.0,
         ),
     ]
+    passive_range_m: Annotated[
+        float | None,
+        Field(
+            description="Passive sensor range, unit m: an emitting enemy site within it is discovered (FOG-OF-WAR FOW-11, FOW-13). Absent = no passive sensor (recon units and radar sites have one in the first build).",
+            gt=0.0,
+            le=1000000.0,
+        ),
+    ] = None
 
 
 class UnitConfig(BaseModel):
@@ -83,7 +91,7 @@ class UnitConfig(BaseModel):
     sensor: Annotated[
         Sensor,
         Field(
-            description="Active sensor (FOG-OF-WAR Tier 2, NX-150). passive_range_m joins with facility discovery (FOW-13)."
+            description="Active sensor (FOG-OF-WAR Tier 2, NX-150) and optional passive sensor (FOW-13)."
         ),
     ]
     stealth: Annotated[

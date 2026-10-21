@@ -101,7 +101,7 @@ class Facility(BaseModel):
     variant: Annotated[
         str | None,
         Field(
-            description="Catalog variant (§7); checked against the unit catalog when it loads.",
+            description="Facility variant (CONFIG-AND-CONTENT §7.3): AIR_DEFENSE_SITE SAM or SHORT_RANGE; RADAR_SITE has none (checked by the theater loader).",
             max_length=32,
             pattern="^[A-Z][A-Z0-9_]*$",
         ),
@@ -138,7 +138,8 @@ class Terrain(BaseModel):
         extra="forbid",
     )
     masking_regions: Annotated[
-        list[MaskingRegion], Field(description="Read first by FoW Tier 2 masking (Q-FOW-3).")
+        list[MaskingRegion],
+        Field(description="Read by FoW Tier 2 masking (Q-FOW-3), rasterized at load (NX-150)."),
     ]
 
 
@@ -173,7 +174,7 @@ class TheaterConfig(BaseModel):
     facilities: Annotated[
         list[Facility],
         Field(
-            description="Pre-placed facilities; read first by the facility spawn item, checked now for TH-10."
+            description="Pre-placed facilities, spawned by start_campaign at their base (Q-GP-25, NX-150); TH-10."
         ),
     ]
     edges: list[Edge]

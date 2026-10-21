@@ -1,9 +1,10 @@
 """Theater loader: strict YAML, schema, then the CONFIG-AND-CONTENT §9.2 rules (NX-120).
 
 Checked here: the slug matches the file name, TH-1 (unique ids and names), TH-2, TH-3, TH-4, TH-5,
-TH-6 and TH-10; TH-11 (TBD) is `load_model`'s. Deferred: name moderation (TH-1, CFG-8) and
-TH-7 (needs the unit catalog), TH-8 (the schema accepts no terrain file yet), sector overlap and
-coverage (geometry with no reader yet), TH-9 (reported, not enforced).
+TH-6, TH-10 and facility variants (CONFIG-AND-CONTENT §7.3); TH-11 (TBD) is `load_model`'s.
+Deferred: name moderation (TH-1, CFG-8) and TH-7 (needs the unit catalog), TH-8 (the schema
+accepts no terrain file yet), sector overlap and coverage (geometry with no reader yet), TH-9
+(reported, not enforced).
 """
 
 import unicodedata
@@ -18,7 +19,13 @@ from nexus.runtime.config import ConfigError, load_model
 
 # PROPOSED (NX-120, owner may veto): how far a bridge may sit from the straight line of its edge.
 BRIDGE_TOLERANCE_M = 1000
+# PROPOSED (NX-150, owner may veto): the masking raster's cell, m (Q-FOW-3). Finer than the SC-10
+# sensing grid (60 km cells on strait-1), which would blur a 35 km-wide region into 60 km.
+MASK_CELL_M = 1000
 _BRIDGE = "BRIDGE"
+# CONFIG-AND-CONTENT §7.3: AIR_DEFENSE_SITE has short-range AAA and SAM variants; RADAR_SITE none.
+# shortcut: listed here until the unit catalog lists variants (§7a); move them there then.
+_VARIANTS = {"AIR_DEFENSE_SITE": frozenset({"SAM", "SHORT_RANGE"}), "RADAR_SITE": frozenset()}
 
 type Point = tuple[int, int]
 
@@ -38,6 +45,22 @@ def road_graph(theater: TheaterConfig) -> RoadGraph:
     pos = {n.id: (n.pos[0], n.pos[1]) for n in theater.nodes}
     roads = [Road(e.a, e.b, e.speed_mult, e.bridge) for e in theater.edges if e.layer == ROAD]
     return RoadGraph(pos, roads)
+
+
+def masking_cells(theater: TheaterConfig) -> tuple[int, dict[tuple[int, int], frozenset[str]]]:
+    """Q-FOW-3: the cell size `MASK_CELL_M` and every such cell whose centre is inside a masking
+    region (edges count, integer metres) -> the ids of those regions. The cell size comes with
+    the cells so a reader cannot pair them with another. Scans each region's bounding box only."""
+    half, cells = MASK_CELL_M // 2, dict[tuple[int, int], frozenset[str]]()
+    for m in theater.terrain.masking_regions:
+        poly = [_pt(p) for p in m.polygon]
+        xs, ys = [p[0] for p in poly], [p[1] for p in poly]
+        for i in range(min(xs) // MASK_CELL_M, max(xs) // MASK_CELL_M + 1):
+            for j in range(min(ys) // MASK_CELL_M, max(ys) // MASK_CELL_M + 1):
+                centre = (i * MASK_CELL_M + half, j * MASK_CELL_M + half)
+                if _in_polygon(centre, poly):
+                    cells[i, j] = cells.get((i, j), frozenset()) | {m.id}
+    return MASK_CELL_M, cells
 
 
 def _check(t: TheaterConfig) -> list[str]:
@@ -113,6 +136,8 @@ def _singletons(t: TheaterConfig, nodes: dict[str, Node]) -> list[str]:  # TH-5,
         base = nodes.get(f.base)
         if base and base.start_owner == "NEUTRAL":
             problems.append(f"facilities.{i}.base: {f.base!r} starts NEUTRAL")
+        if f.variant is not None and f.variant not in _VARIANTS[f.kind]:
+            problems.append(f"facilities.{i}.variant: {f.variant!r} is not a {f.kind} variant")
     return problems
 
 

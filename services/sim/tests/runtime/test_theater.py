@@ -9,7 +9,7 @@ import pytest
 
 from nexus.core.roads import shortest_path
 from nexus.runtime.config import ConfigError, canonical_hash
-from nexus.runtime.theater import load_theater, road_graph
+from nexus.runtime.theater import load_theater, masking_cells, road_graph
 
 STRAIT_1 = Path(__file__).resolve().parents[4] / "content" / "theaters" / "strait-1.yaml"
 TEXT = STRAIT_1.read_text(encoding="utf-8")
@@ -29,6 +29,22 @@ def test_strait_1_loads_with_golden_hash() -> None:
     theater = load_theater(STRAIT_1)
     assert (theater.slug, len(theater.nodes), len(theater.edges)) == ("strait-1", 12, 12)
     assert canonical_hash(theater.model_dump()) == GOLDEN_THEATER_HASH
+
+
+def test_masking_regions_rasterize_to_1km_cells_by_centre(tmp_path: Path) -> None:
+    """Q-FOW-3 (NX-150 part 2): northern-hills is x 150-260 km, y 0-35 km: 110 x 35 cells;
+    southern-valley x 230-330 km, y 205-240 km: 100 x 35 cells."""
+    cell_m, cells = masking_cells(load_theater(STRAIT_1))
+    assert cell_m == 1000
+    hills, valley = frozenset({"northern-hills"}), frozenset({"southern-valley"})
+    assert len(cells) == 110 * 35 + 100 * 35
+    assert cells[150, 0] == cells[259, 34] == hills
+    assert cells[230, 205] == cells[329, 239] == valley
+    assert {(149, 0), (260, 0), (259, 35), (229, 205), (330, 239)}.isdisjoint(cells)
+    # A cell in two overlapping regions lists both.
+    path = write(tmp_path, "[[230000,205000],[330000,205000],", "[[230000,30000],[330000,30000],")
+    both = masking_cells(load_theater(path))[1]
+    assert both[240, 30] == hills | valley and both[240, 36] == valley
 
 
 def test_paths_between_sanctuary_and_hq_avoid_destroyed_bridges() -> None:
@@ -143,6 +159,17 @@ def test_path_is_hash_seed_independent() -> None:
             r"facilities\.0\.base: 'cross-n' starts NEUTRAL",
         ),
         ("forward_airbase: west-airbase", "forward_airbase: fob-n-w", r"forward_airbase: must be"),
+        # Facility variants (CONFIG-AND-CONTENT §7.3, NX-150 part 2)
+        (
+            "variant: SAM, base: west-airbase",
+            "variant: LONG_RANGE, base: west-airbase",
+            r"facilities\.1\.variant: 'LONG_RANGE' is not a AIR_DEFENSE_SITE variant",
+        ),
+        (
+            "kind: RADAR_SITE,       base: west-airbase",
+            "kind: RADAR_SITE,       variant: SAM, base: west-airbase",
+            r"facilities\.0\.variant: 'SAM' is not a RADAR_SITE variant",
+        ),
         # TH-11 and §11.1 schema negatives
         (
             "start_stock: 500,  sector: north }",

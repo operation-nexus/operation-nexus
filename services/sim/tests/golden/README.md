@@ -18,10 +18,11 @@ registries in `test_golden.py`: `stub` spawns a unit with hp drawn from the `spa
 does the same but raises on the command with correlation id `poison`. These are test stand-ins, not
 gameplay.
 
-A case with `"rules": "shipped"` runs with the shipped config (`load_campaign_config`: balance,
-unit catalog, strait-1) and its `config_hash` must equal that config's, so any config change fails
+A case with `"rules": "shipped"` starts from `start_campaign` with the shipped config
+(`load_campaign_config`: balance, unit catalog, strait-1), so its world holds strait-1's nine
+facilities (ids 1-9) from tick 0, and its `config_hash` must equal that config's, so any config change fails
 the case with a clear error until `make_cases.py` and `expected.json` are regenerated (a golden
-update, below). Cases without it run with no rules.
+update, below). Cases without it start from an empty world with no rules.
 
 | Case | Ticks | What it pins |
 |---|---|---|
@@ -44,6 +45,16 @@ only new event, `UnitDestroyed`). The `stub` and `poison` registries now spawn t
 Snapshot format 6 (NX-370: the per-commander `callsigns` map) re-pinned every case's checkpoints again; no event stream changed and no case sends `SYS_SET_CALLSIGN` yet.
 
 Snapshot format 7 (NX-150: each side's FoW `contacts`) re-pinned every case's checkpoints again, and the new catalog (`sensor`, `stealth`) and balance (`fow`) keys gave `joins-strait-1` a new `config_hash`; no event stream changed (sensing emits no events). No case has enemy units yet, so every case's contacts stay empty: `tests/core/test_fog.py` covers sensing, including a cross-process hash check at 1,000 entities.
+
+Snapshot format 8 (NX-150 part 2: facility `base_id`, `variant` and `emitting`, each side's
+discovered facility `markers`) re-pinned every case's checkpoints again. The new catalog key
+(`sensor.passive_range_m`) gave `joins-strait-1` a new `config_hash`, and its world now starts with
+strait-1's facilities, so its JOINed units get ids from 10 instead of 1: the `UnitSpawned` events
+carry the new ids, which changed its `events_hash` (still 10 events). In that run the enemy's
+east-airbase radar tracks the strike jet from tick 1135, the jet's own radar tracks east-airbase's
+radar and SAM site from tick 1670 and the coalition keeps their markers (last confirmed on tick
+3895, as the jet flies home after bingo), and the enemy tracks the recon UAV from tick 5310. Masking and
+passive discovery have no golden case yet: `tests/core/test_fog.py` covers them.
 
 The orbit uses libm `atan2`, `cos` and `sin`. They are deterministic on one platform but may
 differ across platforms or libm versions, so every checkpoint here is pinned to the CI platform

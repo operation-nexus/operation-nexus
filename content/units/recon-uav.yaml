@@ -8,6 +8,6 @@ min_rank: 1
 speed_mps: 60.0  # PROPOSED (NX-121, owner may veto; harness tunes, NX-031); m/s world; slower than strike aircraft
 min_speed_mps: 20.0  # PROPOSED (NX-368, owner may veto; harness tunes, NX-031); m/s world; stall speed, a third of top speed (lower than jets)
 fuel_s: 14400.0  # PROPOSED (NX-368, owner may veto; harness tunes, NX-031); s world; 40 real min at 6x: long scouting loiter
-sensor: {radius_m: 60000.0}  # PROPOSED (NX-150, owner may veto; harness tunes, NX-031); m; large sensor (§7.3)
+sensor: {radius_m: 60000.0, passive_range_m: 100000.0}  # PROPOSED (NX-150, owner may veto; harness tunes, NX-031); m; large sensor (§7.3); passive: hears emitting sites beyond its own radar (FOW-13)
 stealth: 1.0  # PROPOSED (NX-150, owner may veto; harness tunes, NX-031); multiplier; 1.0 = none
 weapons: []

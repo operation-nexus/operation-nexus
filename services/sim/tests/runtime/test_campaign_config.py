@@ -1,11 +1,12 @@
-"""NX-122: one-place campaign config loader, and `rules` required on restore/recover."""
+"""NX-122: one-place campaign config loader, and `rules` required on restore/recover; NX-150
+part 2: the theater's facilities placed at campaign start."""
 
 import dataclasses
 from pathlib import Path
 
 import pytest
 
-from nexus.core.world import state_hash
+from nexus.core.world import Vec2, state_hash
 from nexus.runtime.campaign_config import (
     CampaignConfig,
     ConfigPaths,
@@ -44,6 +45,19 @@ def test_shipped_config_hash_and_rules(shipped_config: CampaignConfig) -> None:
 
 
 CAMPAIGN = "0192f3a4-5b6c-7d8e-9f01-23456789abcd"
+# content/theaters/strait-1.yaml `facilities`, in file order, at their base's position on its
+# starting side; RADAR_SITE and the SAM variant emit (FOW-11), others never do (None).
+STRAIT_1_FACILITIES = [
+    (1, "RADAR_SITE", "COALITION", "west-airbase", None, True, Vec2(90_000, 120_000)),
+    (2, "AIR_DEFENSE_SITE", "COALITION", "west-airbase", "SAM", True, Vec2(90_000, 120_000)),
+    (3, "AIR_DEFENSE_SITE", "COALITION", "fob-n-w", "SHORT_RANGE", None, Vec2(130_000, 60_000)),
+    (4, "AIR_DEFENSE_SITE", "COALITION", "fob-s-w", "SHORT_RANGE", None, Vec2(130_000, 180_000)),
+    (5, "RADAR_SITE", "ENEMY", "east-airbase", None, True, Vec2(310_000, 120_000)),
+    (6, "AIR_DEFENSE_SITE", "ENEMY", "east-airbase", "SAM", True, Vec2(310_000, 120_000)),
+    (7, "AIR_DEFENSE_SITE", "ENEMY", "fob-n-e", "SHORT_RANGE", None, Vec2(290_000, 40_000)),
+    (8, "AIR_DEFENSE_SITE", "ENEMY", "fob-s-e", "SHORT_RANGE", None, Vec2(290_000, 200_000)),
+    (9, "RADAR_SITE", "ENEMY", "static-hq", None, True, Vec2(380_000, 120_000)),
+]
 
 
 def test_start_campaign_stamps_the_config_and_attaches_rules(
@@ -53,7 +67,14 @@ def test_start_campaign_stamps_the_config_and_attaches_rules(
     assert (world.campaign.id, world.campaign.seed, world.campaign.tick) == (CAMPAIGN, 77, 0)
     assert world.campaign.config_hash == GOLDEN_CONFIG_HASH
     assert world.rules is shipped_config.rules
-    assert (len(world), world.reserve_queue, world.respawn_left) == (0, [], {})
+    assert (world.reserve_queue, world.respawn_left) == ([], {})
+    assert [
+        (e.id, e.kind, e.side, e.base_id, e.variant, e.emitting, e.pos) for e in world.entities()
+    ] == STRAIT_1_FACILITIES
+    for e in world.entities():  # base-owned, unmodelled hp until combat (NX-124), parked
+        assert (e.owner_kind, e.commander_id, e.hp, e.path, e.vel) == (
+            "AI_GARRISON", None, None, [], Vec2(0, 0)
+        )  # fmt: skip
     # Without a config it loads the shipped files: the same world.
     default = start_campaign(CAMPAIGN, 77)
     assert default.campaign.config_hash == GOLDEN_CONFIG_HASH

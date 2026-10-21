@@ -14,7 +14,17 @@ from nexus.contracts.gen.commands.join import JoinCommand
 from nexus.contracts.gen.common.enums import OwnerKind, Side, UnitKind
 from nexus.core import world as world_mod
 from nexus.core.rng import RngStream
-from nexus.core.world import Campaign, Contact, Vec2, World, load, save, state_hash, to_canonical
+from nexus.core.world import (
+    Campaign,
+    Contact,
+    FacilityMarker,
+    Vec2,
+    World,
+    load,
+    save,
+    state_hash,
+    to_canonical,
+)
 
 CAMPAIGN_ID = "0192f3a4-5b6c-7d8e-9f01-23456789abcd"
 
@@ -59,17 +69,23 @@ def golden_world() -> World:
     # NX-150: the enemy tracks the fighter; the coalition keeps a last-known track of the armor.
     w.contacts["ENEMY"][1] = Contact("STRIKE_FIGHTER", Vec2(1000.25, 2000.5), Vec2(250.0, 0.0))
     w.contacts["COALITION"][3] = Contact("ENEMY_ARMOR", Vec2(149e3, 80e3), Vec2(-25, 3.5), 12)
+    # NX-150 part 2: a facility, and the enemy's marker of it confirmed on tick 2 of 5.
+    w.campaign.tick = 5
+    sam = w.spawn("AIR_DEFENSE_SITE", "COALITION", "AI_GARRISON", Vec2(90e3, 120e3), hp=None)
+    sam.base_id, sam.variant, sam.emitting = "west-airbase", "SAM", True
+    w.markers["ENEMY"][4] = FacilityMarker("AIR_DEFENSE_SITE", "SAM", Vec2(90e3, 120e3), True, 2)
     return w
 
 
 def test_golden_state_hash_seed_12345() -> None:
     # Pinned by running this implementation once (NX-101; re-pinned NX-121: path, last_node, v2;
     # NX-122: respawn_left, v3; NX-122 part 3: reserve_queue, v4; NX-368: state, fuel, orbit, v5;
-    # NX-370: callsigns, v6; NX-150: contacts, v7).
+    # NX-370: callsigns, v6; NX-150: contacts, v7; NX-150 part 2: base_id, variant, emitting,
+    # markers and a tick, v8).
     # A change here breaks every recorded replay hash: needs a `golden-update` reason.
     assert (
         state_hash(golden_world())
-        == "5b3db18b032734962e09330550212c050272acf20aed54f1c6c47a3b9dd26b19"
+        == "5521e5d56a6c5331ce35bd7cd6663312f2eaea5a9d2a3f3d1874844288837fb3"
     )
     e = to_canonical(golden_world(), quantize=True)["entities"][0]
     assert e["pos"] == [1000250, 2000500]  # mm
@@ -82,6 +98,10 @@ def test_golden_state_hash_seed_12345() -> None:
     assert lost == [
         {"age": 12, "id": 3, "kind": "ENEMY_ARMOR", "pos": [149000000, 80000000],
          "vel": [-25000, 3500]}
+    ]  # fmt: skip
+    assert to_canonical(golden_world(), quantize=True)["markers"]["ENEMY"] == [
+        {"confirmed_tick": 2, "emitting": True, "id": 4, "kind": "AIR_DEFENSE_SITE",
+         "pos": [90000000, 120000000], "variant": "SAM"}
     ]  # fmt: skip
 
 
@@ -144,6 +164,11 @@ def worlds(draw: st.DrawFn) -> World:
         knower: Side = "ENEMY" if e.side == "COALITION" else "COALITION"
         age = draw(st.none() | st.integers(0, 10**6))
         w.contacts[knower][i] = Contact(e.kind, draw(vecs), draw(vecs), age)  # NX-150
+        e.base_id, e.variant = draw(st.sampled_from([(None, None), ("fob-n-e", "SAM")]))
+        e.emitting = draw(st.none() | st.booleans())
+        if draw(st.booleans()):  # FOW-13
+            seen = draw(st.integers(0, w.campaign.tick))
+            w.markers[knower][i] = FacilityMarker(e.kind, e.variant, draw(vecs), e.emitting, seen)
     if len(w) and draw(st.booleans()):
         w.remove(next(w.entities()).id)
     for _ in range(draw(st.integers(min_value=0, max_value=3))):
@@ -182,6 +207,8 @@ def test_hash_tracks_state_at_mm_resolution() -> None:
     assert _changes_hash(lambda w: setattr(w.get(1), "fuel", 1234.250002))
     assert not _changes_hash(lambda w: setattr(w.get(1), "fuel", 1234.2500004))
     assert _changes_hash(lambda w: setattr(w.get(1), "state", "RTB"))
+    assert _changes_hash(lambda w: setattr(w.get(4), "emitting", False))  # NX-150 part 2
+    assert _changes_hash(lambda w: setattr(w.markers["ENEMY"][4], "confirmed_tick", 3))
 
 
 _CHILD = (
@@ -248,12 +275,23 @@ def _resave(mutate: Any) -> bytes:
         _resave(lambda d: d["contacts"].update(ENEMY={})),
         _resave(lambda d: d["contacts"]["ENEMY"][0].update(age=-1)),
         _resave(lambda d: d["contacts"]["ENEMY"][0].update(age=True)),
-        _resave(lambda d: d["contacts"]["ENEMY"][0].update(id=4)),  # >= next_entity_id
+        _resave(lambda d: d["contacts"]["ENEMY"][0].update(id=5)),  # >= next_entity_id
         _resave(lambda d: d["contacts"]["ENEMY"][0].update(kind="FACTORY")),
         _resave(lambda d: d["contacts"]["ENEMY"][0].pop("vel")),
         _resave(lambda d: d["contacts"]["ENEMY"].append(d["contacts"]["ENEMY"][0])),  # ascending
         _resave(lambda d: d["contacts"]["COALITION"][0].update(id=2, kind="GARRISON_INFANTRY")),
         _resave(lambda d: d["contacts"]["ENEMY"][0].update(kind="RECON_UAV")),  # not entity 1's
+        _resave(lambda d: d["entities"][3].update(emitting=1)),  # NX-150 part 2
+        _resave(lambda d: d["entities"][3].update(base_id=7)),
+        _resave(lambda d: d["entities"][3].update(variant=7)),
+        _resave(lambda d: d.update(markers={"ENEMY": []})),
+        _resave(lambda d: d["markers"]["ENEMY"][0].update(emitting="yes")),
+        _resave(lambda d: d["markers"]["ENEMY"][0].update(confirmed_tick=6)),  # after the tick
+        _resave(lambda d: d["markers"]["ENEMY"][0].update(confirmed_tick=-1)),
+        _resave(lambda d: d["markers"]["ENEMY"][0].update(kind="RADAR_SITE")),  # not entity 4's
+        _resave(lambda d: d["markers"]["ENEMY"][0].update(variant=1)),
+        _resave(lambda d: d["markers"]["ENEMY"][0].update(id=5)),
+        _resave(lambda d: d["markers"].update(COALITION=d["markers"]["ENEMY"])),  # its own site
     ],
 )
 def test_load_rejects_malformed_input(bad: bytes) -> None:
@@ -265,6 +303,8 @@ def test_contact_of_a_removed_entity_loads() -> None:
     w = golden_world()
     w.remove(3)  # the coalition's last-known armor outlives it (FOW-6a)
     assert load(save(w)).contacts == w.contacts
+    w.remove(4)  # a destroyed site's marker stays (FOW-13)
+    assert load(save(w)).markers == w.markers
 
 
 def test_load_checks_cover_every_field() -> None:

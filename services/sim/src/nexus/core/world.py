@@ -9,8 +9,8 @@ One walker, `to_canonical`, turns a world into plain sorted data. Snapshots keep
 positions, `orbit` centres and `path` waypoints to integer mm, velocities to integer mm/s, other
 floats (`fuel`) to ADR-0002's 1e-6 step. Python's `round` is round-half-to-even on the
 exact float value, so it is deterministic. The RNG state, `respawn_left` (per commander, GP-2),
-the reserve queue (GP-3) and each side's FoW contacts (FOW-5) are world state, so snapshots and
-the hash cover them. `World.rules`
+the reserve queue (GP-3), each side's FoW contacts (FOW-5) and discovered facility markers
+(FOW-13) are world state, so snapshots and the hash cover them. `World.rules`
 (`nexus.core.rules`) is static config, not state: neither snapshots nor the hash include it.
 """
 
@@ -29,13 +29,15 @@ from nexus.core.rng import SimRng
 from nexus.core.rules import Rules
 
 # 2: Entity.path and Entity.last_node (NX-121); 3: respawn_left, hp may be null; 4: reserve_queue;
-# 5: Entity.state, fuel and orbit (NX-368); 6: callsigns (NX-370); 7: contacts (NX-150)
-FORMAT_VERSION = 7
+# 5: Entity.state, fuel and orbit (NX-368); 6: callsigns (NX-370); 7: contacts (NX-150);
+# 8: Entity.base_id, variant and emitting, markers (NX-150 part 2)
+FORMAT_VERSION = 8
 _MM = 1000.0  # metres -> millimetres; m/s -> mm/s
 _MICRO = 1e6  # ADR-0002's 1e-6 step for other floats (fuel)
 _MAX_ABS = 1e9  # m or m/s; keeps mm quantization well inside int64
 _CAMPAIGN = "campaign"
 _CONTACTS = "contacts"
+_MARKERS = "markers"
 _ENTITIES = "entities"
 _CALLSIGNS = "callsigns"
 _RESPAWN_LEFT = "respawn_left"
@@ -49,6 +51,7 @@ _WORLD_KEYS = (
     _CAMPAIGN,
     _CONTACTS,
     _ENTITIES,
+    _MARKERS,
     _NEXT_ENTITY_ID,
     _NEXT_EVENT_SEQ,
     _RESERVE_QUEUE,
@@ -120,6 +123,10 @@ class Entity:
     state: UnitState | None = None
     fuel: float | None = None  # aircraft: world seconds of flight left (NX-368)
     orbit: Vec2 | None = None  # the centre an idle ON_STATION aircraft circles (NX-368)
+    base_id: str | None = None  # facilities: the node they belong to (Q-GP-25)
+    variant: str | None = None  # facilities: the theater's catalog variant, e.g. SAM
+    # FOW-11: None for a kind that never emits; True emitting, False dark (DecoyBlink, later).
+    emitting: bool | None = None
 
 
 @dataclass(slots=True)
@@ -132,6 +139,19 @@ class Contact:
     pos: Vec2
     vel: Vec2
     age: int | None = None
+
+
+@dataclass(slots=True)
+class FacilityMarker:
+    """An enemy facility a side has discovered (FOW-13): permanent; its details are as of
+    `confirmed_tick`, the last pass that observed the site. `ring_m` and the damage `state` join
+    with weapon ranges and hp (combat, NX-124)."""
+
+    kind: UnitKind
+    variant: str | None
+    pos: Vec2
+    emitting: bool | None
+    confirmed_tick: int
 
 
 @dataclass(slots=True)
@@ -161,6 +181,7 @@ class World:
         "callsigns",
         "campaign",
         "contacts",
+        "markers",
         "reserve_queue",
         "respawn_left",
         "rng",
@@ -186,6 +207,8 @@ class World:
         # Side -> enemy entity id -> what that side knows of it, in id order (FOW-5, FOW-6a).
         # Only the `sensing` system writes it; `nexus.core.fog` reads it.
         self.contacts: dict[Side, dict[int, Contact]] = {side: {} for side in _SIDES}
+        # Side -> enemy facility id -> its discovered marker, in id order (FOW-13); never removed.
+        self.markers: dict[Side, dict[int, FacilityMarker]] = {side: {} for side in _SIDES}
 
     @classmethod
     def new(cls, campaign: Campaign, rules: Rules | None = None) -> Self:
@@ -274,6 +297,17 @@ def _contacts_data(world: World, quantize: bool) -> dict[str, Any]:
     }  # fmt: skip
 
 
+def _markers_data(world: World, quantize: bool) -> dict[str, Any]:
+    return {
+        side: [
+            {"confirmed_tick": m.confirmed_tick, "emitting": m.emitting, "id": i, "kind": m.kind,
+             "pos": _xy(m.pos, quantize), "variant": m.variant}
+            for i, m in sorted(world.markers[side].items())
+        ]
+        for side in _SIDES
+    }  # fmt: skip
+
+
 def _sorted(value: Any) -> Any:
     """Plain JSON data with every dict's keys sorted, at any depth."""
     if isinstance(value, dict):
@@ -288,6 +322,7 @@ def to_canonical(world: World, *, quantize: bool) -> dict[str, Any]:
         _CAMPAIGN: {k: getattr(world.campaign, k) for k in sorted(_CAMPAIGN_KEYS)},
         _CONTACTS: _contacts_data(world, quantize),
         _ENTITIES: [_entity_data(e, quantize) for e in world.entities()],
+        _MARKERS: _markers_data(world, quantize),
         _RESPAWN_LEFT: dict(sorted(world.respawn_left.items())),
         _RESERVE_QUEUE: [_sorted(c.model_dump(mode="json")) for c in world.reserve_queue],
         _NEXT_ENTITY_ID: world._next_entity_id,
@@ -373,6 +408,9 @@ _ENTITY_CHECKS: dict[str, Callable[[object, str], Any]] = {
     "state": lambda v, k: _str(v, k, _UNIT_STATES, optional=True),
     _FUEL: _fuel,
     "orbit": lambda v, k: None if v is None else _vec(v, k),
+    "base_id": lambda v, k: _str(v, k, optional=True),
+    "variant": lambda v, k: _str(v, k, optional=True),
+    "emitting": lambda v, k: None if v is None else _bool(v, k),
 }
 _CAMPAIGN_CHECKS: dict[str, Callable[[object, str], Any]] = {
     "id": _str,
@@ -413,23 +451,46 @@ def _reserve_queue(value: object) -> list[JoinCommand]:
 _CONTACT_KEYS = ("age", "id", "kind", "pos", "vel")
 
 
-def _contacts(value: object, next_id: int) -> dict[Side, dict[int, Contact]]:
-    """Both sides, each a list of contacts ascending by id below `next_id`."""
-    sides = _fields(value, _SIDES, _CONTACTS)
-    out: dict[Side, dict[int, Contact]] = {}
+_MARKER_KEYS = ("confirmed_tick", "emitting", "id", "kind", "pos", "variant")
+
+
+def _per_side[T](
+    value: object,
+    key: str,
+    keys: tuple[str, ...],
+    next_id: int,
+    item: Callable[[dict[str, Any]], T],
+) -> dict[Side, dict[int, T]]:
+    """Both sides, each a list of `keys` records ascending by id below `next_id`."""
+    sides = _fields(value, _SIDES, key)
+    out: dict[Side, dict[int, T]] = {}
     for side in _SIDES:
         if not isinstance(sides[side], list):
-            raise ValueError(f"{_CONTACTS}.{side} must be a list")
+            raise ValueError(f"{key}.{side} must be a list")
         out[side], last = {}, 0
         for raw in sides[side]:
-            d = _fields(raw, _CONTACT_KEYS, "contact")
-            i = _int(d["id"], "contact id", 1)
+            d = _fields(raw, keys, key)
+            i = _int(d["id"], f"{key} id", 1)
             if not last < i < next_id:
-                raise ValueError("contact ids must ascend and stay below next_entity_id")
-            age = None if d["age"] is None else _int(d["age"], "contact age")
-            kind = _str(d["kind"], "contact kind", _UNIT_KINDS)
-            out[side][i], last = Contact(kind, _vec(d["pos"], "pos"), _vec(d["vel"], "vel"), age), i
+                raise ValueError(f"{key} ids must ascend and stay below next_entity_id")
+            out[side][i], last = item(d), i
     return out
+
+
+def _contact(d: dict[str, Any]) -> Contact:
+    age = None if d["age"] is None else _int(d["age"], "contact age")
+    kind = _str(d["kind"], "contact kind", _UNIT_KINDS)
+    return Contact(kind, _vec(d["pos"], "pos"), _vec(d["vel"], "vel"), age)
+
+
+def _marker(d: dict[str, Any]) -> FacilityMarker:
+    return FacilityMarker(
+        _str(d["kind"], "marker kind", _UNIT_KINDS),
+        _str(d["variant"], "marker variant", optional=True),
+        _vec(d["pos"], "pos"),
+        None if d["emitting"] is None else _bool(d["emitting"], "marker emitting"),
+        _int(d["confirmed_tick"], "marker confirmed_tick"),
+    )
 
 
 def _load_entity(value: object) -> Entity:
@@ -461,7 +522,10 @@ def load(data: bytes) -> World:
     world.callsigns = _callsigns(d[_CALLSIGNS])
     world.respawn_left = _respawn_left(d[_RESPAWN_LEFT])
     world.reserve_queue = _reserve_queue(d[_RESERVE_QUEUE])
-    world.contacts = _contacts(d[_CONTACTS], world._next_entity_id)
+    world.contacts = _per_side(
+        d[_CONTACTS], _CONTACTS, _CONTACT_KEYS, world._next_entity_id, _contact
+    )
+    world.markers = _per_side(d[_MARKERS], _MARKERS, _MARKER_KEYS, world._next_entity_id, _marker)
     entities = d[_ENTITIES]
     if not isinstance(entities, list):
         raise ValueError("entities must be a list")
@@ -472,15 +536,21 @@ def load(data: bytes) -> World:
             raise ValueError("entity ids must ascend and stay below next_entity_id")
         last_id = entity.id
         world._entities[entity.id] = entity
-    _check_contacts(world)
+    _check_views(world)
     return world
 
 
-def _check_contacts(world: World) -> None:
-    """A contact of a live entity names an enemy of its side, of the entity's kind. A removed
-    entity's contact stays valid (FOW-6a); the fade bound needs the rules, which load lacks."""
-    for side, known in world.contacts.items():
-        for i, c in known.items():
-            e = world._entities.get(i)
-            if e is not None and (e.side == side or e.kind != c.kind):
-                raise ValueError(f"{_CONTACTS}.{side}: contact {i} does not match its entity")
+def _check_views(world: World) -> None:
+    """A contact or marker of a live entity names an enemy of its side, of the entity's kind. A
+    removed entity's stays valid (FOW-6a, FOW-13); the fade bound needs the rules, which load
+    lacks. A marker cannot be confirmed after the snapshot's tick."""
+    for key, per_side in ((_CONTACTS, world.contacts), (_MARKERS, world.markers)):
+        for side, known in per_side.items():
+            for i, c in known.items():
+                e = world._entities.get(i)
+                if e is not None and (e.side == side or e.kind != c.kind):
+                    raise ValueError(f"{key}.{side}: {i} does not match its entity")
+    if any(
+        m.confirmed_tick > world.campaign.tick for ms in world.markers.values() for m in ms.values()
+    ):
+        raise ValueError(f"{_MARKERS}: confirmed_tick after the snapshot's tick")

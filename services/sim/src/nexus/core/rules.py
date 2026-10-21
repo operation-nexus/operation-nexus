@@ -44,6 +44,11 @@ class Rules:
     stealth: Mapping[UnitKind, float]  # x every enemy sensor's radius against this kind
     track_every_ticks: int  # fow.track_every_ticks (FOW-5)
     track_fade_ticks: int  # fow.track_fade_s as world ticks, rounded up (FOW-6a, FOW-9, SC-12)
+    passive_range_m: Mapping[UnitKind, float]  # sensor.passive_range_m, 0 = none (FOW-13)
+    # Q-FOW-3: the theater's masking regions rasterized to square cells of `mask_cell_m`:
+    # (floor(x / mask_cell_m), floor(y / mask_cell_m)) -> the ids of the regions covering it.
+    mask_cell_m: float
+    masking: Mapping[tuple[int, int], frozenset[str]]
 
 
 def world_dt(sim: Sim) -> float:
@@ -76,10 +81,15 @@ def make_rules(
     fow: Fow,
     respawn_delay_ticks: int,
     track_fade_ticks: int,
+    mask_cell_m: float,
+    masking: Mapping[tuple[int, int], frozenset[str]],
 ) -> Rules:
     """`respawn_delay_ticks` and `track_fade_ticks` are `slots.respawn_delay_s` and
-    `fow.track_fade_s` already converted by the config loader."""
+    `fow.track_fade_s` already converted by the config loader; `masking` is the theater's
+    rasterized masking regions (`nexus.runtime.theater.masking_cells`)."""
     units = tuple(units)
+    if not mask_cell_m > 0:
+        raise ValueError(f"mask_cell_m must be > 0, got {mask_cell_m!r}")
     return Rules(
         world_dt=world_dt(sim),
         speed_mps={u.kind: u.speed_mps for u in units},
@@ -101,4 +111,7 @@ def make_rules(
         stealth={u.kind: u.stealth for u in units},
         track_every_ticks=fow.track_every_ticks,
         track_fade_ticks=track_fade_ticks,
+        passive_range_m={u.kind: u.sensor.passive_range_m or 0.0 for u in units},
+        mask_cell_m=mask_cell_m,
+        masking=masking,
     )

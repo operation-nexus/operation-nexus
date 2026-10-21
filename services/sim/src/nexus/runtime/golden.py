@@ -6,9 +6,9 @@ builds the world from the seed, steps every tick from 1 to `ticks`, takes `state
 `checkpoints_every` ticks and hashes the event stream (blake2b-256 over one canonical JSON line
 per event). Commands of a tombstoned tick are dropped, as in restore (SC-8). This module ships no
 handlers: the caller passes the registries that a case's `handlers` name picks from. A case with
-`"rules": "shipped"` runs with the shipped config's `Rules` (`load_campaign_config`), and its
-`config_hash` must equal that config's, so a config change fails loudly instead of drifting; any
-other case runs with no rules.
+`"rules": "shipped"` starts from `start_campaign` with the shipped config (its rules and the
+theater's facilities), and its `config_hash` must equal that config's, so a config change fails
+loudly instead of drifting; any other case starts from an empty world with no rules.
 """
 
 import hashlib
@@ -21,10 +21,9 @@ from typing import Any
 
 from nexus.contracts.gen.commands.command import Command
 from nexus.contracts.gen.events.event import Event
-from nexus.core.rules import Rules
 from nexus.core.step import Handler, step
 from nexus.core.world import Campaign, World, state_hash
-from nexus.runtime.campaign_config import load_campaign_config
+from nexus.runtime.campaign_config import load_campaign_config, start_campaign
 from nexus.runtime.command_log import CommandLogReader, Tombstone
 
 CASE_FILE = "case.json"
@@ -72,12 +71,11 @@ def load_case(case_dir: Path) -> dict[str, Any]:
 
 def run_golden(case_dir: Path, registries: Mapping[str, Mapping[str, Handler]]) -> GoldenResult:
     case = load_case(case_dir)
-    rules = _rules(case_dir.name, case)
+    world = _world(case_dir.name, case)
     if case["handlers"] not in registries:
         raise ValueError(f"{case_dir.name}: unknown handler registry {case['handlers']!r}")
     handlers = registries[case["handlers"]]
     by_tick, tombstones = _read_log(case_dir, case["ticks"])
-    world = World.new(Campaign(case["campaign_id"], case["seed"], case["config_hash"]), rules)
     digest = hashlib.blake2b(digest_size=32)
     count = 0
     checkpoints: dict[str, str] = {}
@@ -95,16 +93,16 @@ def run_golden(case_dir: Path, registries: Mapping[str, Mapping[str, Handler]]) 
     return GoldenResult(checkpoints, count, digest.hexdigest())
 
 
-def _rules(name: str, case: dict[str, Any]) -> Rules | None:
+def _world(name: str, case: dict[str, Any]) -> World:
     if _RULES not in case:
-        return None
+        return World.new(Campaign(case["campaign_id"], case["seed"], case["config_hash"]))
     config = load_campaign_config()
     if case["config_hash"] != config.config_hash:
         raise ValueError(
             f"{name}: config_hash {case['config_hash']} is not the shipped config's "
             f"{config.config_hash}; rewrite the case (README) and update its expected.json"
         )
-    return config.rules
+    return start_campaign(case["campaign_id"], case["seed"], config)
 
 
 def write_expected(case_dir: Path, result: GoldenResult) -> None:

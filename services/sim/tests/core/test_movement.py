@@ -41,7 +41,10 @@ def rules(world_dt: float, roads: RoadGraph = ROADS) -> Rules:
     domains: dict[UnitKind, Domain] = {JET: "AIR", TRUCK: "GROUND"}
     no_bases: dict[Side, tuple[str, ...]] = {"COALITION": (), "ENEMY": ()}  # never bingo
     air = ({JET: 100.0}, {JET: 1e6}, 0.0, no_bases, (W, H), 120.0)
-    return Rules(world_dt, speeds, domains, roads, {}, "haven", 1, 0, 1, 1, *air, {}, {}, 5, 1)
+    return Rules(
+        world_dt, speeds, domains, roads, {}, "haven", 1, 0, 1, 1, *air,
+        {}, {}, 5, 1, {}, 1000.0, {},  # no sensors, no masking
+    )  # fmt: skip
 
 
 def scaled(time_scale: float) -> Rules:
@@ -57,7 +60,22 @@ def scaled(time_scale: float) -> Rules:
         fow=BALANCE.fow,
         respawn_delay_ticks=0,
         track_fade_ticks=1,
+        mask_cell_m=1000.0,
+        masking={},
     )
+
+
+def test_make_rules_refuses_a_zero_mask_cell() -> None:
+    with pytest.raises(ValueError, match="mask_cell_m"):
+        replace_mask_cell(0.0)
+
+
+def replace_mask_cell(cell_m: float) -> Rules:
+    return make_rules(
+        BALANCE.sim, UNITS, ROADS, roles=ROLES, theater=STRAIT_1, slots=BALANCE.slots,
+        air=BALANCE.air, fow=BALANCE.fow, respawn_delay_ticks=0, track_fade_ticks=1,
+        mask_cell_m=cell_m, masking={},
+    )  # fmt: skip
 
 
 def world(r: Rules | None) -> World:

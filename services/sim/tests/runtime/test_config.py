@@ -43,8 +43,9 @@ slots:
 """
 # Pinned from this implementation's first run (NX-367: balance, units, theater; re-pinned NX-121
 # for speed_mps, NX-122 for slots and again for the GP-3 cap and queue, NX-368 for air fuel and
-# orbit, NX-150 for sensors, stealth and fow); a change means every config_hash moved.
-GOLDEN_CONFIG_HASH = "54db94e850cb462ba8708f01158c74335edfab13f4273f83097deef4a1ac093f"
+# orbit, NX-150 for sensors, stealth and fow, and passive ranges); a change means every
+# config_hash moved.
+GOLDEN_CONFIG_HASH = "0f4f48a3e18d8d58e2ac1784b324e9f120d91d1dff7fd4299de6e492db941126"
 SLOTS = {
     "max_live_per_commander": 1,
     "respawn_delay_s": 20,
