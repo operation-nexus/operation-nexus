@@ -2,7 +2,7 @@
 
 
 > **All numeric values in this spec are PROPOSED and unvalidated** (DATA-INTEGRITY DI-7). They become real only after the balance harness validates them.
-Status: Draft · Tracker: NX-120…NX-149 · Inputs: Raw plans P206–225, P983–1009, P1139–1168; conversation C1–C48
+Status: Approved (owner, 2026-10-20) · Tracker: NX-120…NX-149 · Inputs: Raw plans P206–225, P983–1009, P1139–1168; conversation C1–C48
 
 All numbers below are **initial balance values** in `balance/default.yaml`. They're tuned with the balance harness, not hard-coded.
 

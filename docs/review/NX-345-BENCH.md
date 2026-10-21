@@ -1,8 +1,8 @@
 # NX-345 SIM-CORE benchmark spike: results
 
-Status: **Indicative only. The reference-host run is pending.** · Tracker: NX-345 · Spec: SIM-CORE SC-10, Q-SIM-4, Q-SIM-17, Q-SIM-18, Q-SIM-24
+Status: **Done. Reference-host run 2026-10-20; verdict: objects behind the `World` API (owner, Q-SIM-4).** · Tracker: NX-345 · Spec: SIM-CORE SC-10, Q-SIM-4, Q-SIM-17, Q-SIM-18, Q-SIM-24
 
-The verdict comes from the Q-TEST-1 reference host: the owner's i7-8700 under WSL2. The numbers below were measured on a development Mac and **do not decide anything**. They show that the harness works and roughly where the margins are.
+The verdict comes from the Q-TEST-1 reference host: the owner's i7-8700 under WSL2 (results below). The Mac run further down was indicative only.
 
 ## How to run it (reference host)
 
@@ -33,6 +33,35 @@ A run takes about 15 minutes on the Mac: four 36,000-tick runs. Close other heav
 - **Redacted stream:** coalition units plus enemy units the coalition tracks (Tier 2). It has **no SIGINT blobs** and no last-known tracks. An event is kept only when every entity it names is visible this tick or was visible last tick, so the coalition still sees the kill of a unit it tracked.
 - **Built-in check:** each run ends with assertions. The entity count holds, ids stay in order, no entity leaves the map, the redacted stream holds only coalition entities and coalition tracks, and shots land in `(impact_tick, id)` order.
 
+## Reference run: Intel i7-8700 @ 3.20 GHz (12 threads), WSL2 (Linux 6.18.40.1-microsoft-standard), Python 3.12.15, NumPy 2.5.4, msgpack 1.2.3, 2026-10-20
+
+Run by the owner: `uv run --locked tools/sim-bench/bench.py --out nx-345-ref.json`, 36,000 ticks per run, seed 345. Times in ms.
+
+| Scenario | Arm | step+frames p50 | p99 | max | pass p99 | pass p99, sensing ticks | frames p99 | shots/tick |
+|---|---|---|---|---|---|---|---|---|
+| worst (1,000) | objects | 4.12 | 9.18 | 22.91 | 7.60 | 8.19 | 1.89 | 7.8 |
+| worst (1,000) | numpy | 3.41 | 7.94 | 12.81 | 6.00 | 6.48 | 2.15 | 7.9 |
+| idle (150) | objects | 0.50 | 1.00 | 1.90 | 0.81 | 0.96 | 0.24 | 0.2 |
+| idle (150) | numpy | 0.34 | 0.48 | 1.25 | 0.27 | 0.32 | 0.25 | 0.2 |
+
+p99 per system in the worst case (objects / numpy): movement 0.79 / 0.14, sensing 4.63 / 3.72, combat 2.65 / 3.04, frames 1.89 / 2.15.
+
+Bytes per game hour, in MB (10⁶ bytes):
+
+| Scenario | Arm | truth raw | truth zlib | redacted raw | redacted zlib |
+|---|---|---|---|---|---|
+| worst | objects | 595.4 | 251.9 | 570.3 | 238.1 |
+| worst | numpy | 596.0 | 252.5 | 569.4 | 237.6 |
+| idle | objects | 69.1 | 23.6 | 53.3 | 18.2 |
+| idle | numpy | 68.4 | 23.4 | 54.9 | 18.9 |
+
+### Verdict (owner, 2026-10-20)
+1. **SC-10 budget: pass.** step + frames p99 is 9.2 ms (objects) and 7.9 ms (NumPy), against 25 ms. The single worst tick (22.9 ms objects, 12.8 ms NumPy) stays under the budget and counts against the catch-up rule (SIM-CORE §5), not p99.
+2. **Idle: pass.** About 1 ms per tick with objects.
+3. **Storage (Q-SIM-4): objects behind the `World` API.** The objects pass p99 is 7.6 ms (8.2 ms on sensing ticks), under the ~10 ms threshold with about 2 ms to spare. Sensing dominates and uses stand-in radar ranges, so the real kernel's benchmark (NX-104) re-checks it; the `World` API keeps a NumPy switch contained.
+4. **Recording size:** about 252 MB (truth) and 238 MB (redacted) per game hour at the worst case with zlib, about 12 GB a day for both streams if a whole day ran at the worst case; idle about 42 MB per hour. Feeds Q-SIM-29.
+5. **Cross-platform check:** the byte counts equal the Mac run's exactly, so the same seed produced the same frames on a different CPU and OS. Evidence for determinism across machines for this synthetic world only, not the real kernel.
+
 ## Indicative run: Apple M2 Pro, macOS 26.3, Python 3.12.15, NumPy 2.5.4, msgpack 1.2.3, 2026-10-19
 
 36,000 ticks (one game hour) per run, seed 345. Times are in ms.
@@ -55,7 +84,7 @@ Bytes per game hour, in MB (10⁶ bytes):
 | idle | objects | 69.1 | 23.6 | 53.3 | 18.2 |
 | idle | numpy | 68.4 | 23.4 | 54.9 | 18.9 |
 
-## What the Mac run suggests (to confirm on the reference host)
+## What the Mac run suggested (superseded by the reference run above)
 
 1. **SC-10 budget:** step + frames p99 is under 25 ms for both arms on this Mac.
 2. **Storage verdict (Q-SIM-4):** the objects pass p99 is **7.3 ms (8.3 ms on sensing ticks)**, under the ~10 ms threshold on the Mac but without much room. NumPy is 3.3 ms. The verdict depends on how the i7-8700 under WSL2 compares per core with this Mac, which is not measured here [UNVERIFIED]. A first version with one grid for both sides measured 11.3 ms: the threshold is sensitive to how the objects code is written, not only to the storage.

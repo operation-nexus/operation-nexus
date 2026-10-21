@@ -29,7 +29,7 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-003 [#2](https://github.com/operation-nexus/operation-nexus/issues/2) | Owner reviews ADR-0001…0008 → Accepted/Amended | S | ✅ | NX-002 | ADR statuses updated |
 | NX-004 [#3](https://github.com/operation-nexus/operation-nexus/issues/3) | Owner drops reference files into `.agents/context/` + updates INDEX | S | ⬜ | — | INDEX lists files |
 | NX-005 [#4](https://github.com/operation-nexus/operation-nexus/issues/4) | Move `Raw-*.md` to `docs/source/` with a "not a spec" banner | S | ❓ | NX-002 | Links updated |
-| NX-006 [#5](https://github.com/operation-nexus/operation-nexus/issues/5) | Specs SIM-CORE, GAMEPLAY, FOG-OF-WAR, THREAT-DIRECTOR → Review → Approved | M | 🟨 | NX-002 | Owner sign-off. FOG-OF-WAR and THREAT-DIRECTOR Approved; SIM-CORE and GAMEPLAY wait only on the NX-345 spike (Q-SIM-24, Q-GP-34) |
+| NX-006 [#5](https://github.com/operation-nexus/operation-nexus/issues/5) | Specs SIM-CORE, GAMEPLAY, FOG-OF-WAR, THREAT-DIRECTOR → Review → Approved | M | ✅ | NX-002 | Owner sign-off. All four Approved: FOG-OF-WAR and THREAT-DIRECTOR 2026-10-19, SIM-CORE and GAMEPLAY 2026-10-20 after NX-345 |
 | NX-007 [#6](https://github.com/operation-nexus/operation-nexus/issues/6) | Reference hardware spec documented (Q-OPS-1) | S | ❓ | — | `docs/ops/HARDWARE.md` |
 | NX-008 [#7](https://github.com/operation-nexus/operation-nexus/issues/7) | Hand-authored first theater map sketch (12 nodes, 8 strategic bases, roads, bridges; Q-TH-1..7) | M | ✅ | Q-GD-9 | YAML in `content/theaters/strait-1.yaml` + SVG sketch in `docs/design/theater-1.svg` (PR #127) |
 | NX-009 | Decide: mirror tracker to GitHub Issues + Project board? | S | ✅ | — | Decision recorded |
@@ -81,7 +81,7 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 
 | ID | Item | Size | Status | Depends | Acceptance |
 |---|---|---|---|---|---|
-| NX-345 | SIM-CORE benchmark spike (gates NX-006 approval of SIM-CORE; Q-SIM-4, Q-SIM-17, Q-SIM-18) | S | 🟨 | NX-010 | On the Q-TEST-1 reference host: (1) `step` plus frame build p99 < 25 ms at 1,000 entities and 500 viewer units, with movement, sensor and combat passes; (2) the idle case (0 viewers, about 150 AI-only entities); (3) entity-storage verdict (objects, or NumPy arrays if the pass exceeds about 10 ms); (4) bytes per game hour of the redacted and the full-truth frame streams. Harness `tools/sim-bench/bench.py`; indicative Mac results in `docs/review/NX-345-BENCH.md`; reference-host run pending |
+| NX-345 | SIM-CORE benchmark spike (gates NX-006 approval of SIM-CORE; Q-SIM-4, Q-SIM-17, Q-SIM-18) | S | ✅ | NX-010 | On the Q-TEST-1 reference host: (1) `step` plus frame build p99 < 25 ms at 1,000 entities and 500 viewer units, with movement, sensor and combat passes; (2) the idle case (0 viewers, about 150 AI-only entities); (3) entity-storage verdict (objects, or NumPy arrays if the pass exceeds about 10 ms); (4) bytes per game hour of the redacted and the full-truth frame streams. Harness `tools/sim-bench/bench.py`; indicative Mac results in `docs/review/NX-345-BENCH.md`; reference-host run 2026-10-20, verdict objects (Q-SIM-4) |
 | NX-100 | `SimRng` (PCG64, named sub-streams) | S | ⬜ | NX-010 | Unit + property tests; same seed → same draws |
 | NX-101 | World model types + canonical `state_hash` | M | ⬜ | NX-021 | SC-9 round-trip property |
 | NX-102 | Fixed-step runtime + inbox + canonical command ordering | M | ⬜ | NX-101 | SC-6 shuffled-arrival property |
