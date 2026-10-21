@@ -1,6 +1,6 @@
 # SPEC: Configuration, Balance & Content
 
-Status: Draft · Owner: — · Tracker: NX-106, NX-008, NX-031 · Related ADRs: 0002 (determinism), 0003 (persistence), 0004 (toolchain) · Policy: [DATA-INTEGRITY](../quality/DATA-INTEGRITY.md) DI-7
+Status: Approved (owner, 2026-10-21) · Owner: — · Tracker: NX-106, NX-008, NX-031 · Related ADRs: 0002 (determinism), 0003 (persistence), 0004 (toolchain) · Policy: [DATA-INTEGRITY](../quality/DATA-INTEGRITY.md) DI-7
 
 > **All numeric values in this spec are PROPOSED and unvalidated** (DI-7). They are starting points for the balance harness (NX-031), not tuned values. "TBD by harness" means we have no proposal yet and the harness must produce one before P2. A value drops its PROPOSED label only once it is harness-validated as defined in Q-TEST-2 (≥50 seeds across crowd profiles of 0, 5, 50, 150, 300 and 500 simulated viewers plus the adversarial profiles, Q-ALN-42; written targets met, a report saved with the `config_hash`). "(owner)" marks a value the owner set; it stays tunable.
 
@@ -26,11 +26,11 @@ Define every input the system reads that isn't code: runtime settings, balance t
 - **CFG-2** Required keys MUST NOT have code defaults. A missing required key MUST fail startup with a message naming the key and file (DI-7). Optional keys MUST state their absent-meaning in the schema (e.g. "absent = feature off"), never a substituted value.
 - **CFG-3** Balance and content files MUST be hashed canonically (§4.4). The resulting `config_hash` MUST be stored on the campaign record and in every snapshot and replay header.
 - **CFG-4** Values that affect sim state MUST NOT change mid-campaign except through a logged `STAFF_CONFIG_RELOAD` command (CONTRACTS §5.2) applied at a tick boundary, and only for keys marked hot-reloadable (§5). Replays MUST reproduce the reload.
-- **CFG-5** Every balance key MUST carry its unit in the schema (`unit` annotation) and in this spec. All rates are per second of **world** time (CFG-9) unless the unit says otherwise (SIM-CORE SC-2).
+- **CFG-5** Every balance key MUST carry its unit in the schema (`x-unit` annotation; `x-hot-reload` carries the §6 HR column) and in this spec. All rates are per second of **world** time (CFG-9) unless the unit says otherwise (SIM-CORE SC-2).
 - **CFG-6** Content cross-references (unit kinds in theaters, doctrine perks naming unit kinds, template slots) MUST be validated at load and in CI (§8).
 - **CFG-7** Secrets MUST NOT appear in any config file. Config refers to secrets by name only (`secret_ref`), and the values come from the environment / secret store (THREAT-MODEL SEC-CI, CICD §8).
 - **CFG-8** All user-visible authored text (node names, callsign words, sitrep templates) MUST pass the moderation denylist in CI (SEC-MOD-1).
-- **CFG-9 Clocks (Q-CFG-8, Q-ALN-1, Q-ALN-4, Q-ALN-5, Q-ALN-6, Q-ALN-23, Q-ALN-35, Q-ALN-38):** every time-valued key MUST name one of three clocks in its schema `unit` annotation and in this spec (`s (world)`, `min (game)`, `s (real)`, ...).
+- **CFG-9 Clocks (Q-CFG-8, Q-ALN-1, Q-ALN-4, Q-ALN-5, Q-ALN-6, Q-ALN-23, Q-ALN-35, Q-ALN-38):** every time-valued key MUST name one of three clocks in its schema `x-unit` annotation and in this spec (`s (world)`, `min (game)`, `s (real)`, ...).
   - **World time** (`world`) is sim ticks scaled by `sim.time_scale`: while the campaign runs, 1 real second = `sim.time_scale` world seconds. It drives movement, logistics and combat (speeds, fuel, logistics and repair rates, weapon reload), plus capture progress and decay, bridge repair, the FoW sensor refresh and track fade (FOG-OF-WAR FOW-9) (Q-ALN-23). The Tier 1 sensor refresh is expressed in world time so its real cadence stays about 8–10 s: PROPOSED ~48–60 s world at `sim.time_scale` 6 (Q-ALN-38). Deterministic; frozen while paused.
   - **Game time** (`game`) is unscaled sim ticks: while the campaign runs, 1 game minute = 1 real minute. It drives player-facing durations: idle handoff/retire, respawn delay (Q-ALN-5), rank and doctrine ability cooldowns, campaign length, the objective period and the victory/defeat holds. Per Q-ALN-23 it also drives the Threat Director decision window, tier dwell, CP EMA, the memory and provocation half-lives, the Pattern of Life periods, the night-progress cap, the Tasking Board claim lease and priority aging, and the package fill wait (GAMEPLAY §7). (The CHARLIE warning lead time, game time per Q-ALN-35, is parked with CHARLIE, Q-TD-3.) Deterministic; frozen while paused.
   - **Real time** (`real`) is a monotonic clock outside the sim: chat rate limits, reply digest batching, LLM/TTS budgets, reconnect backoff, the offline-pause trigger, overlay presentation, and the limits enforced before a command enters the sim: taunt naming cooldowns, GM idle auto-release, redemption cooldowns and the supply-drop hourly cap (Q-ALN-4). It keeps running while the campaign is paused.
@@ -77,8 +77,14 @@ Precedence: the env var `NEXUS__SECTION__KEY` overrides the file. **Every effect
 6. Start a new campaign, or resume one. **Resume requires the stored campaign's `config_hash` to equal the loaded one.** On a mismatch, refuse and alert, unless an admin explicitly starts a new campaign (SIM-CORE §6).
 
 ### 4.4 Hashing & versioning
-- **Canonical form:** parse YAML, convert it to a JSON-compatible tree, sort keys, serialize as UTF-8 JSON with no insignificant whitespace, then compute blake2b-256 over it. Floats are serialized with Python `repr` round-trip precision. YAML anchors and aliases are expanded before hashing.
-- **`config_hash`** = blake2b-256 over the concatenation of the canonical hashes, in a fixed order: `balance`, `units`, `doctrines`, `theater` (the one selected for the campaign), `text`.
+- **Canonical form:** parse YAML, convert it to a JSON-compatible tree, sort keys, serialize as UTF-8 JSON with no insignificant whitespace, then compute blake2b-256 over it. Floats are serialized with Python `repr` round-trip precision. YAML anchors and aliases are expanded before hashing. The tree hashed is the schema-validated one (`model_dump()`), so `6` and `6.0` in a float key hash alike (NX-106).
+- **Strict YAML (owner, 2026-10-21):** files are parsed safe-load only (`nexus.runtime.config.StrictLoader`), with YAML 1.2 core booleans and numbers. Rejected at load, naming the file and position or key:
+  - an unquoted YAML 1.1 boolean word (`yes`, `no`, `on`, `off`, `y`, `n`, any case); only `true`/`false` are booleans, and a quoted word is a string;
+  - `.inf` and `.nan`;
+  - a key repeated in one mapping (a `<<` merge followed by an explicit key is an override, not a duplicate);
+  - YAML 1.1 number forms (hex `0x`, octal `0o` or a leading zero, `_` separators, sexagesimal `1:30`): they stay strings, which the schema then rejects for a numeric key.
+- **Bounds:** durations given to the tick conversion (CFG-9) must be finite and ≥ 0; a schema key gets a maximum only once the balance harness proposes one (NX-031).
+- **`config_hash`** = blake2b-256 over the concatenation of the canonical hashes (raw 32-byte digests), in a fixed order: `balance`, `units`, `doctrines`, `theater` (the one selected for the campaign), `text`. Each part joins with its loader; until then the hash covers only the parts that exist (NX-106: `balance` only), never a placeholder for a missing part.
 - **Manifest:** every `config_hash` is registered with a manifest listing each contributing file (path, kind, sha256) plus the full content, so crash bundles and replays never depend on git (DATA-MODEL §4.7).
 - **`schema_version`:** every file carries an integer `schema_version`. A loader accepts only versions it knows. A schema bump that changes meaning requires a migration script under `tools/config_migrate/` with tests.
 - **`content_version`:** a human-facing semver per content file (e.g. a theater's `version: 1.2.0`), shown in the AAR and in replay headers. It is informational only; `config_hash` is what's authoritative.
@@ -563,7 +569,7 @@ A PR without a harness run fails the `balance-report` check. A change that touch
 | CFG-2 | Loader test: each required key removed in turn fails with the key named; grep test: no defaults in the config models (Semgrep `getenv` default rule, DATA-INTEGRITY §6) |
 | CFG-3 | Hash stability: the same tree with reordered keys or different YAML formatting gives the same hash; a single-value change gives a different hash; the golden `config_hash` is stored in replay fixtures |
 | CFG-4 | Replay with a mid-campaign HR reload reproduces state hashes; a reload touching a non-HR key is rejected; a reload requested while paused is registered but applied at the first tick after resume, and that tick is its `effective_tick` (Q-ALN-24) |
-| CFG-5 | Lint: every schema numeric field has a `unit` annotation |
+| CFG-5 | Lint: every schema numeric field has an `x-unit` annotation |
 | CFG-6 | `config_lint` positive/negative fixtures per cross-reference |
 | CFG-7 | Semgrep / secret scan over `balance/`, `content/`, `deploy/*/app.yaml`; schema forbids secret-shaped fields except `secret_ref` |
 | CFG-8 | The moderation corpus includes evasion cases; CI fails on a seeded bad node name |

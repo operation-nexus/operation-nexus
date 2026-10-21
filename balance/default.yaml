@@ -1,0 +1,8 @@
+# Default balance profile (CONFIG-AND-CONTENT §4.1, §6). Schema: contracts/config/balance.json.
+# Keys land with the code that reads them (NX-106 onward). Values are PROPOSED and unvalidated
+# until the balance harness (NX-031) validates them (DATA-INTEGRITY DI-7).
+schema_version: 1
+sim:
+  tick_hz: 10  # Hz; fixed by ADR-0002, validated, not tunable (CONFIG-AND-CONTENT §6.1 sim.tick_hz)
+  time_scale: 6.0  # PROPOSED – unvalidated; x real time (CONFIG-AND-CONTENT §6.1 sim.time_scale)
+  snapshot_every_ticks: 300  # PROPOSED – unvalidated; ticks (CONFIG-AND-CONTENT §6.1 sim.snapshot_every_ticks)

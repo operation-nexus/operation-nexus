@@ -4,7 +4,8 @@ JSON Schema (draft 2020-12) is the **single source of truth** for wire types: co
 admin API (docs/specs/CONTRACTS.md, ADR-0004). Never hand-write a type that crosses a module or process boundary
 (AGENTS.md rule 6).
 
-Layout: `common/` (ids, enums, envelope), `commands/`, `events/`, `wire/`, `admin/`; `VERSION` holds
+Layout: `common/` (ids, enums, envelope), `commands/`, `events/`, `wire/`, `admin/`, `config/` (config file
+schemas, CONFIG-AND-CONTENT CFG-1: `x-unit` and `x-hot-reload` annotate each key); `VERSION` holds
 `PROTOCOL_VERSION`.
 
 ## Changing a contract (checklist)

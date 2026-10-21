@@ -1,0 +1,59 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nexus.local/contracts/config/balance.json",
+  "title": "BalanceConfig",
+  "description": "A balance profile, balance/<profile>.yaml (CONFIG-AND-CONTENT \u00a74.1, \u00a76). Keys land with the code that reads them. x-unit names each value's unit and, for durations, its clock (CFG-5, CFG-9); x-hot-reload is the \u00a76 HR column. Fixed values use minimum = maximum, not const: const generates a Literal that also accepts true and 1.0.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "sim"
+  ],
+  "properties": {
+    "schema_version": {
+      "description": "File format version, unitless; the loader accepts only 1 (\u00a74.4).",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1
+    },
+    "sim": {
+      "$ref": "#/$defs/Sim"
+    }
+  },
+  "$defs": {
+    "Sim": {
+      "description": "Sim time and world (\u00a76.1).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tick_hz",
+        "time_scale",
+        "snapshot_every_ticks"
+      ],
+      "properties": {
+        "tick_hz": {
+          "description": "Kernel tick rate, unit Hz; fixed at 10 by ADR-0002, validated, not tunable (SIM-CORE SC-2).",
+          "type": "integer",
+          "x-unit": "Hz",
+          "x-hot-reload": false,
+          "minimum": 10,
+          "maximum": 10
+        },
+        "time_scale": {
+          "description": "World seconds per real second while the campaign runs, unit multiple of real time (SIM-CORE SC-2, CFG-9).",
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "x-unit": "\u00d7 real time",
+          "x-hot-reload": false
+        },
+        "snapshot_every_ticks": {
+          "description": "Snapshot cadence, unit ticks (SIM-CORE \u00a75).",
+          "type": "integer",
+          "minimum": 1,
+          "x-unit": "ticks",
+          "x-hot-reload": false
+        }
+      }
+    }
+  }
+}

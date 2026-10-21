@@ -9,9 +9,9 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 
 | Phase | Items | Done | Status |
 |---|---|---|---|
-| P0 Foundations | 42 | 18 | 🟨 |
+| P0 Foundations | 42 | 19 | 🟨 |
 | P1 Sim kernel | 26 | 6 | 🟨 |
-| P2 Closed alpha | 33 | 0 | ⬜ |
+| P2 Closed alpha | 34 | 0 | ⬜ |
 | P3 Public beta | 22 | 0 | ⬜ |
 | P4 Depth | 67 | 1 | ⬜ |
 
@@ -43,7 +43,7 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-013 [#11](https://github.com/operation-nexus/operation-nexus/issues/11) | `build.yml`: buildx, pinned digests, SBOM, trivy image, cosign, provenance → GHCR | M | ⬜ | NX-011 | `cosign verify` passes on pushed image |
 | NX-014 [#12](https://github.com/operation-nexus/operation-nexus/issues/12) | `deploy.yml` + `deploy/bin/deploy|rollback` + Tailscale (staging auto, prod approval) | L | ⬜ | NX-013, Q-OPS-1 | Deploy + auto-rollback demonstrated on staging |
 | NX-015 [#13](https://github.com/operation-nexus/operation-nexus/issues/13) | `release.yml` release-please (manifest mode) | S | ⬜ | NX-011 | Release PR generated |
-| NX-016 [#14](https://github.com/operation-nexus/operation-nexus/issues/14) | `nightly.yml` skeleton (soak, balance, rescan, scorecard) | M | 👀 | NX-011 | Runs on schedule, uploads artifacts. Skeleton runs determinism, grid bench and the dependency rescan; soak (NX-033), balance (NX-031), base-image rescan (NX-013) and Scorecard (needs an approved pin) join with their items |
+| NX-016 [#14](https://github.com/operation-nexus/operation-nexus/issues/14) | `nightly.yml` skeleton (soak, balance, rescan, scorecard) | M | ✅ | NX-011 | Runs on schedule, uploads artifacts. Skeleton runs determinism, grid bench and the dependency rescan; soak (NX-033), balance (NX-031), base-image rescan (NX-013) and Scorecard (needs an approved pin) join with their items |
 | NX-017 [#15](https://github.com/operation-nexus/operation-nexus/issues/15) | `pr-hygiene.yml`: conventional title, tracker-ID check, size label | S | ✅ | NX-010 | PR without NX-ID fails |
 | NX-018 [#16](https://github.com/operation-nexus/operation-nexus/issues/16) | `dependabot.yml` grouped weekly (uv, npm, actions; docker arrives with the first Dockerfile, NX-013) + label sync | S | ✅ | NX-010 | First grouped PR appears |
 | NX-019 [#17](https://github.com/operation-nexus/operation-nexus/issues/17) | import-linter contracts for module boundaries (SYSTEM-DESIGN §4; Q-MB-1) | S | ✅ | NX-010 | Violating import fails CI (a test proves it) |
@@ -91,7 +91,7 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-103 [#160](https://github.com/operation-nexus/operation-nexus/issues/160) | Snapshot + command log + restore | M | ✅ | NX-102 | Kill/restore integration test equal hash |
 | NX-104 [#161](https://github.com/operation-nexus/operation-nexus/issues/161) | Spatial grid + benchmarks | M | ✅ | NX-101 | 1k entities p99 < 25 ms (bench) |
 | NX-105 [#162](https://github.com/operation-nexus/operation-nexus/issues/162) | Golden replay framework + cross-process check in CI | M | ✅ | NX-103 | Job `sim-determinism` in `ci-gate`: required on main, advisory on develop (ADR-0009) |
-| NX-106 | Balance config loader (YAML, schema-validated, hashed) | S | ⬜ | NX-101 | Invalid config rejected; hash in campaign |
+| NX-106 [#169](https://github.com/operation-nexus/operation-nexus/issues/169) | Balance config loader (YAML, schema-validated, hashed) | S | 👀 | NX-101 | Invalid config rejected; hash in campaign |
 | NX-120 | Theater loader + road graph + A* | M | ⬜ | NX-008, NX-106 | Paths avoid destroyed bridges |
 | NX-121 | Kinematics (air direct, ground on graph), time scale | M | ⬜ | NX-120 | Property: positions in bounds, on edges |
 | NX-122 | Unit slots, spawn, respawn delay, reserve queue | M | ⬜ | NX-121 | GP-1..3 tests |
@@ -148,6 +148,7 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-309 | Tasking Board: job generation from state, priorities, role matching, slot de-dup, AI garrison integration, overlay "NEEDED" list, auto-tasking on a parameterless `!join` (Q-GP-23), `hold` opt-out (Q-GD-26 blocks P2; moved from P4 in NX-311) | — | ⬜ | NX-126, NX-178 |
 | NX-324 | Silent viewers: idle handoff to an AUTO unit, idle retire, reclaim; an AUTO unit keeps its commander's slot; AUTO tag on the overlay (GAMEPLAY §4b GP-4…GP-6; Q-GD-35, Q-ALN-8, Q-ALN-9, Q-ALN-25, Q-ALN-26) | — | ⬜ | NX-122, NX-309 |
 | NX-274 | Brand and style guide: name usage, fictional factions and insignia, unit class naming (generic: Tank, Striker, Bomber…), color, type, sound identity, tone of voice; **no real names** rule added to the content validator. Includes rank display names (Q-NAME-1), unit class names (Q-NAME-2), colors (Q-STYLE-1), typography (Q-STYLE-2), symbology (Q-STYLE-4). (Overlay needs it in P2; moved from P4 in NX-311.) | — | ⬜ | — |
+| NX-366 [#174](https://github.com/operation-nexus/operation-nexus/issues/174) | Architecture and service-layout document: module boundaries, queues/APIs between them, which modules can split into their own process or container; checked against the import contracts (owner request, #119) | S | ⬜ | NX-014 |
 
 ## P3 — Public beta
 

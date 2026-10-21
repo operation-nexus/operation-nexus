@@ -42,7 +42,7 @@ check-overlay: node-version
 # so each file runs with its own directory. --use-type-alias is marked experimental
 # by datamodel-code-generator: bump that dependency only together with a
 # `make contracts` run and the regenerated output in the same PR.
-CONTRACT_GROUPS := common commands events wire
+CONTRACT_GROUPS := common commands events wire config
 contracts:
 	rm -rf $(SIM)/src/nexus/contracts/gen $(OVERLAY)/src/contracts
 	tmp="$$(mktemp -d)"; mkdir "$$tmp/contracts" && cp -R $(addprefix contracts/,$(CONTRACT_GROUPS)) "$$tmp/contracts"/ && \
