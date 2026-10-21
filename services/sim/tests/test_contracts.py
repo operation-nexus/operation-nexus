@@ -6,6 +6,7 @@ from pydantic import TypeAdapter, ValidationError
 from nexus.contracts.gen.commands.command import Command
 from nexus.contracts.gen.common.envelope import ChatEnvelope
 from nexus.contracts.gen.events.event import Event
+from nexus.contracts.gen.events.unit_spawned import UnitSpawned
 from nexus.contracts.gen.wire.hello import Hello
 
 COMMANDER = "0192f0c1-7a2b-7c3d-8e4f-0123456789ab"
@@ -53,6 +54,7 @@ def test_event_union_parses_unit_spawned() -> None:
             "loadout": "FULL",
         }
     )
+    assert isinstance(event, UnitSpawned)
     assert event.entity_id == 1
 
 
@@ -84,3 +86,35 @@ def test_hello_requires_protocol_version_shape() -> None:
                 "last_tick": None,
             }
         )
+
+
+COMMAND_REJECTED = {
+    "kind": "CommandRejected",
+    "tick": 12,
+    "event_seq": 3,
+    "campaign_id": COMMANDER,
+    "arrival_seq": 5,
+    "command_kind": "JOIN",
+    "reason": "INTERNAL_ERROR",
+    "commander_id": None,
+}
+
+
+def test_event_union_parses_command_rejected() -> None:
+    event = EVENTS.validate_python(COMMAND_REJECTED)
+    assert event.kind == "CommandRejected"
+    assert event.reason == "INTERNAL_ERROR"
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        {"reason": "BANNED"},  # not emitted by any code yet, so not in RejectReason
+        {"command_kind": "MOVE"},
+        {"arrival_seq": 0},
+        {"text": "free text"},  # SC-14: ids only
+    ],
+)
+def test_command_rejected_rejects_bad_fields(bad: dict[str, object]) -> None:
+    with pytest.raises(ValidationError):
+        EVENTS.validate_python({**COMMAND_REJECTED, **bad})

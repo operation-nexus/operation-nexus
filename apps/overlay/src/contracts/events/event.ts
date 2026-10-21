@@ -3,7 +3,7 @@
 /**
  * Discriminated union of all sim events on kind (CONTRACTS §6).
  */
-export type Event = UnitSpawned;
+export type Event = UnitSpawned | CommandRejected;
 
 /**
  * A unit appears (CONTRACTS §6). Public view: an ENEMY spawn only if its spawn point is tracked; otherwise dropped.
@@ -53,4 +53,35 @@ export interface UnitSpawned {
    */
   node_id: string;
   loadout: "FULL" | "REDUCED";
+}
+/**
+ * A command was rejected (CONTRACTS §5.3, §6; SIM-CORE SC-7). Not public: aggregated digest only. command_kind is the rejected command's kind; kind is the event discriminator.
+ */
+export interface CommandRejected {
+  kind: "CommandRejected";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Arrival order assigned by the runtime inbox; carried as arrival_seq.
+   */
+  arrival_seq: number;
+  /**
+   * Grows one kind at a time, with each handler (AGENTS.md rule 6a).
+   */
+  command_kind: "JOIN";
+  /**
+   * CONTRACTS §5.3. Grows one value at a time, with the code that emits it (rule 6a).
+   */
+  reason: "INTERNAL_ERROR";
+  commander_id: string | null;
 }

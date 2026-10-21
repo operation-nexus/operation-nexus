@@ -12,6 +12,7 @@
     "OwnerKind": {"enum": ["COMMANDER", "AI_GARRISON", "ENEMY_DIRECTOR"]},
     "CommandSource": {"enum": ["CHAT", "ADVISOR", "STAFF", "SYSTEM"]},
     "CommandKind": {"enum": ["JOIN"], "description": "Grows one kind at a time, with each handler (AGENTS.md rule 6a)."},
-    "EventKind": {"enum": ["UnitSpawned"], "description": "Grows one kind at a time, with each producer (rule 6a)."}
+    "RejectReason": {"enum": ["INTERNAL_ERROR"], "description": "CONTRACTS §5.3. Grows one value at a time, with the code that emits it (rule 6a)."},
+    "EventKind": {"enum": ["UnitSpawned", "CommandRejected"], "description": "Grows one kind at a time, with each producer (rule 6a)."}
   }
 }

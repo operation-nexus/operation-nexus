@@ -60,7 +60,15 @@ type CommandKind = Annotated[
 ]
 
 
+type RejectReason = Annotated[
+    Literal["INTERNAL_ERROR"],
+    Field(
+        description="CONTRACTS §5.3. Grows one value at a time, with the code that emits it (rule 6a)."
+    ),
+]
+
+
 type EventKind = Annotated[
-    Literal["UnitSpawned"],
+    Literal["UnitSpawned", "CommandRejected"],
     Field(description="Grows one kind at a time, with each producer (rule 6a)."),
 ]

@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nexus.local/contracts/events/command_rejected.json",
+  "title": "CommandRejected",
+  "description": "A command was rejected (CONTRACTS §5.3, §6; SIM-CORE SC-7). Not public: aggregated digest only. command_kind is the rejected command's kind; kind is the event discriminator.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "tick", "event_seq", "campaign_id", "arrival_seq", "command_kind", "reason", "commander_id"],
+  "properties": {
+    "kind": {"const": "CommandRejected"},
+    "tick": {"$ref": "../common/ids.json#/$defs/Tick"},
+    "event_seq": {"type": "integer", "minimum": 1, "description": "Campaign-wide, monotonic, deterministic (SC-14)."},
+    "campaign_id": {"$ref": "../common/ids.json#/$defs/CampaignId"},
+    "arrival_seq": {"$ref": "../common/ids.json#/$defs/CommandSeq"},
+    "command_kind": {"$ref": "../common/enums.json#/$defs/CommandKind"},
+    "reason": {"$ref": "../common/enums.json#/$defs/RejectReason"},
+    "commander_id": {"anyOf": [{"$ref": "../common/ids.json#/$defs/CommanderId"}, {"type": "null"}]}
+  }
+}
