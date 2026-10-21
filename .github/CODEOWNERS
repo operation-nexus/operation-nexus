@@ -6,6 +6,7 @@
 /Makefile                       @saltyseraphcodes
 /scripts/                       @saltyseraphcodes
 /.pre-commit-config.yaml        @saltyseraphcodes
+/.coderabbit.yaml               @saltyseraphcodes
 /.node-version                  @saltyseraphcodes
 /services/sim/pyproject.toml    @saltyseraphcodes
 /services/sim/.python-version   @saltyseraphcodes

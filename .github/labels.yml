@@ -30,5 +30,3 @@
 - { name: "size:M", color: "fbca04", description: "100-399 changed lines" }
 - { name: "size:L", color: "f9a03f", description: "400-999 changed lines: split if you can (AGENTS.md rule 7)" }
 - { name: "size:XL", color: "d93f0b", description: "1000+ changed lines: split it" }
-
-# test: code-owner gate check (Q-DEV-12); this PR is closed unmerged

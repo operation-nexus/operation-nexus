@@ -1,0 +1,35 @@
+# yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
+# CodeRabbit: code review only, quiet (Q-DEV-3). Docs, generated code and lockfiles are covered by
+# the reviewer agent and CI, so CodeRabbit skips them. Keys: https://docs.coderabbit.ai/reference/configuration
+language: en-US
+reviews:
+  profile: chill
+  request_changes_workflow: false
+  high_level_summary: false
+  changed_files_summary: false
+  sequence_diagrams: false
+  review_status: false
+  review_details: false
+  collapse_walkthrough: true
+  poem: false
+  in_progress_fortune: false
+  auto_review:
+    enabled: true
+    drafts: false
+    base_branches:
+      - develop
+    ignore_usernames:
+      - "dependabot[bot]"
+    ignore_title_keywords:
+      - "[skip review]"
+  path_filters:
+    - "!docs/**"
+    - "!**/*.md"
+    - "!services/sim/src/nexus/contracts/gen/**"
+    - "!apps/overlay/src/contracts/**"
+    - "!**/uv.lock"
+    - "!**/pnpm-lock.yaml"
+    - "!tools/sim-bench/bench.py.lock"
+chat:
+  auto_reply: true
+  art: false
