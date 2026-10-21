@@ -10,7 +10,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from nexus.contracts.gen.common.enums import Domain, Side, UnitKind
+from nexus.contracts.gen.common.enums import Domain, UnitKind
 from nexus.core.roads import Road, RoadGraph, shortest_path
 from nexus.core.rules import Rules, make_rules
 from nexus.core.step import step
@@ -39,8 +39,7 @@ ELL = RoadGraph(
 def rules(world_dt: float, roads: RoadGraph = ROADS) -> Rules:
     speeds: dict[UnitKind, float] = {JET: 250.0, TRUCK: 25.0}
     domains: dict[UnitKind, Domain] = {JET: "AIR", TRUCK: "GROUND"}
-    no_bases: dict[Side, tuple[str, ...]] = {"COALITION": (), "ENEMY": ()}  # never bingo
-    air = ({JET: 100.0}, {JET: 1e6}, 0.0, no_bases, (W, H), 120.0)
+    air = ({JET: 100.0}, {JET: 1e6}, 0.0, (), (W, H), 120.0)  # no landing nodes: never bingo
     return Rules(
         world_dt, speeds, domains, roads, {}, "haven", 1, 0, 1, 1, *air,
         {}, {}, 5, 1, {}, 1000.0, {}, 0.0, frozenset(), 1.0, 1, 1.0, 3, 7,  # no sensors or painting
@@ -59,6 +58,7 @@ def scaled(time_scale: float) -> Rules:
         air=BALANCE.air,
         fow=BALANCE.fow,
         logistics=BALANCE.logistics,
+        capture=BALANCE.capture,
         respawn_delay_ticks=0,
         track_fade_ticks=1,
         sigint_refresh_ticks=1,
@@ -72,8 +72,9 @@ def test_make_rules_refuses_a_sigint_cell_that_does_not_divide_the_bounds() -> N
     with pytest.raises(ValueError, match="sigint_cell_m"):
         make_rules(
             BALANCE.sim, UNITS, ROADS, roles=ROLES, theater=STRAIT_1, slots=BALANCE.slots,
-            air=BALANCE.air, fow=fow, logistics=BALANCE.logistics, respawn_delay_ticks=0,
-            track_fade_ticks=1, sigint_refresh_ticks=1, mask_cell_m=1000.0, masking={},
+            air=BALANCE.air, fow=fow, logistics=BALANCE.logistics, capture=BALANCE.capture,
+            respawn_delay_ticks=0, track_fade_ticks=1, sigint_refresh_ticks=1,
+            mask_cell_m=1000.0, masking={},
         )  # fmt: skip
 
 
@@ -85,8 +86,9 @@ def test_make_rules_refuses_a_zero_mask_cell() -> None:
 def replace_mask_cell(cell_m: float) -> Rules:
     return make_rules(
         BALANCE.sim, UNITS, ROADS, roles=ROLES, theater=STRAIT_1, slots=BALANCE.slots,
-        air=BALANCE.air, fow=BALANCE.fow, logistics=BALANCE.logistics, respawn_delay_ticks=0,
-        track_fade_ticks=1, sigint_refresh_ticks=1, mask_cell_m=cell_m, masking={},
+        air=BALANCE.air, fow=BALANCE.fow, logistics=BALANCE.logistics, capture=BALANCE.capture,
+        respawn_delay_ticks=0, track_fade_ticks=1, sigint_refresh_ticks=1, mask_cell_m=cell_m,
+        masking={},
     )  # fmt: skip
 
 

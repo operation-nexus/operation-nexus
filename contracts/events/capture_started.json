@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nexus.local/contracts/events/capture_started.json",
+  "title": "CaptureStarted",
+  "description": "A side's capture bar on a node began to fill (CONTRACTS §6; STATE-MACHINES §4.2; NX-125): its eligible ground units are in radius and no opposing combat-capable unit blocks them, and the node had no progress. Emitted again when a bar that decayed to 0 starts afresh. Public view: none (nodes are always visible).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "tick", "event_seq", "campaign_id", "node_id", "side"],
+  "properties": {
+    "kind": {"const": "CaptureStarted"},
+    "tick": {"$ref": "../common/ids.json#/$defs/Tick"},
+    "event_seq": {"type": "integer", "minimum": 1, "description": "Campaign-wide, monotonic, deterministic (SC-14)."},
+    "campaign_id": {"$ref": "../common/ids.json#/$defs/CampaignId"},
+    "node_id": {"$ref": "../common/ids.json#/$defs/NodeId"},
+    "side": {"$ref": "../common/enums.json#/$defs/Side", "description": "The capturing side."}
+  }
+}

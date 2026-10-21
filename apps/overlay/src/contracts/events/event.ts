@@ -11,7 +11,9 @@ export type Event =
   | CallsignChanged
   | SupplyDelivered
   | SupplyConsumed
-  | RearmStalled;
+  | RearmStalled
+  | CaptureStarted
+  | NodeCaptured;
 
 /**
  * A unit appears (CONTRACTS §6). Public view: an ENEMY spawn only if its spawn point is tracked; otherwise dropped.
@@ -274,4 +276,58 @@ export interface RearmStalled {
    * Stable slug from the theater file.
    */
   node_id: string;
+}
+/**
+ * A side's capture bar on a node began to fill (CONTRACTS §6; STATE-MACHINES §4.2; NX-125): its eligible ground units are in radius and no opposing combat-capable unit blocks them, and the node had no progress. Emitted again when a bar that decayed to 0 starts afresh. Public view: none (nodes are always visible).
+ */
+export interface CaptureStarted {
+  kind: "CaptureStarted";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Stable slug from the theater file.
+   */
+  node_id: string;
+  /**
+   * The capturing side.
+   */
+  side: "COALITION" | "ENEMY";
+}
+/**
+ * A node's owner flipped (CONTRACTS §6; STATE-MACHINES §4.2; NX-125). `to` is the capturing side, `from` the previous owner (NEUTRAL for an unowned node). participant_commander_ids: the commanders of the capturing side's units in radius at the flip, ascending, no duplicates (producer). Not uniqueItems: that generates a set, whose order is not deterministic (SC-14). Public view: ENEMY participants are omitted.
+ */
+export interface NodeCaptured {
+  kind: "NodeCaptured";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Stable slug from the theater file.
+   */
+  node_id: string;
+  from: "COALITION" | "ENEMY" | "NEUTRAL";
+  to: "COALITION" | "ENEMY" | "NEUTRAL";
+  /**
+   * Items: UUIDv7, canonical lowercase (IDENTITY §1). Not a platform id.
+   */
+  participant_commander_ids: string[];
 }

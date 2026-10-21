@@ -74,7 +74,7 @@ def join(world: World, command: Command, out: list[Event]) -> None:
     elif (
         world.campaign.clock_paused
         or world.reserve_queue
-        or _viewer_units(world) >= rules.max_viewer_units
+        or world.viewer_units() >= rules.max_viewer_units
     ):
         _enqueue(world, command, rules, out)
     else:
@@ -95,7 +95,7 @@ def serve_reserve_queue(world: World, out: list[Event], *, drop: bool = False) -
     counts toward the SC-8 limit). Fine while invalid-at-serve entries are rare (lost routes).
     """
     rules = _rules(world)
-    free = rules.max_viewer_units - _viewer_units(world)
+    free = rules.max_viewer_units - world.viewer_units()
     if drop:
         free = max(free, 1)
     while world.reserve_queue and free > 0:
@@ -114,12 +114,6 @@ def _rules(world: World) -> Rules:
     if world.rules is None:
         raise ValueError("JOIN needs the world's rules")
     return world.rules
-
-
-def _viewer_units(world: World) -> int:
-    """Live COMMANDER-owned units; AUTO units are COMMANDER-owned too, so they count (Q-ALN-9).
-    shortcut: a scan of every entity; keep a count if the SC-10 benchmark shows it in budget."""
-    return sum(e.owner_kind == _COMMANDER for e in world.entities())
 
 
 def _enqueue(world: World, command: JoinCommand, rules: Rules, out: list[Event]) -> None:

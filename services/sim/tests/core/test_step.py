@@ -144,7 +144,7 @@ def golden_run() -> str:
     return state_hash(w)
 
 
-GOLDEN = "8188aee6b3a43a7a397fe8b291cf317f8247ee0a368429ff26da32a09ca56c19"
+GOLDEN = "237006450cddd936dfefe5fdc24e432722d2d1f104461a05d3adfb56809c0eaf"
 
 
 def test_golden_ten_steps_seed_12345() -> None:

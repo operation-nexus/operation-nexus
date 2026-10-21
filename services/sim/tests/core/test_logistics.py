@@ -150,7 +150,7 @@ def test_enemy_convoy_loads_from_the_static_nodes_and_the_rear_source() -> None:
     rear = plan_run(w, RULES, "ENEMY", "fob-n-e")
     assert rear and (rear.source, rear.cargo) == ("static-rear", 100)
     assert rear.route == ["static-rear", "static-hq", "fob-n-e"]
-    assert friendly(RULES, "ENEMY", "static-hq") and not friendly(RULES, "COALITION", "static-hq")
+    assert friendly(w, "ENEMY", "static-hq") and not friendly(w, "COALITION", "static-hq")
 
 
 def test_a_truck_unloads_at_the_rate_and_parks_empty() -> None:
@@ -265,7 +265,7 @@ def test_a_lost_destination_diverts_to_the_nearest_friendly_base_with_room() -> 
 def test_a_lost_destination_with_no_room_anywhere_drives_to_the_nearest_friendly_base() -> None:
     w = new_world()
     for n, top in RULES.supply.max_stock.items():
-        if friendly(RULES, "COALITION", n):
+        if friendly(w, "COALITION", n):
             w.stock[n] = top
     e = parked(w, "static-hq", 50)
     step(w, [])
@@ -277,7 +277,7 @@ def test_a_lost_destination_with_no_room_anywhere_drives_to_the_nearest_friendly
 
 
 def test_a_lost_destination_with_no_friendly_base_stays_put() -> None:
-    owners = {n: o for n, o in RULES.supply.start_owner.items() if o != "COALITION"}
+    owners = {n: "ENEMY" if o == "COALITION" else o for n, o in RULES.supply.start_owner.items()}
     rules = dataclasses.replace(RULES, supply=dataclasses.replace(RULES.supply, start_owner=owners))
     w = new_world(rules)
     e = parked(w, "static-hq", 50)
@@ -381,7 +381,8 @@ def test_make_rules_refuses_a_start_stock_above_its_kinds_maximum() -> None:
         make_rules(
             CONFIG.balance.sim, CONFIG.catalog.units, RULES.roads, roles=CONFIG.catalog.roles.roles,
             theater=CONFIG.theater, slots=CONFIG.balance.slots, air=CONFIG.balance.air,
-            fow=CONFIG.balance.fow, logistics=logistics, respawn_delay_ticks=0,
+            fow=CONFIG.balance.fow, logistics=logistics, capture=CONFIG.balance.capture,
+            respawn_delay_ticks=0,
             track_fade_ticks=1, sigint_refresh_ticks=1, mask_cell_m=1000.0, masking={},
         )  # fmt: skip
 
@@ -394,7 +395,8 @@ def test_make_rules_refuses_an_unload_rate_below_a_thousandth_per_tick() -> None
         make_rules(
             CONFIG.balance.sim, CONFIG.catalog.units, RULES.roads, roles=CONFIG.catalog.roles.roles,
             theater=CONFIG.theater, slots=CONFIG.balance.slots, air=CONFIG.balance.air,
-            fow=CONFIG.balance.fow, logistics=logistics, respawn_delay_ticks=0,
+            fow=CONFIG.balance.fow, logistics=logistics, capture=CONFIG.balance.capture,
+            respawn_delay_ticks=0,
             track_fade_ticks=1, sigint_refresh_ticks=1, mask_cell_m=1000.0, masking={},
         )  # fmt: skip
 

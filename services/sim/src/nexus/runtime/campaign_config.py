@@ -71,6 +71,7 @@ def load_campaign_config(paths: ConfigPaths | None = None) -> CampaignConfig:
         air=balance.air,
         fow=balance.fow,
         logistics=balance.logistics,
+        capture=balance.capture,
         respawn_delay_ticks=game_ticks(balance.slots.respawn_delay_s, balance),
         track_fade_ticks=world_ticks(balance.fow.track_fade_s, balance),
         sigint_refresh_ticks=world_ticks(balance.fow.sigint_refresh_s, balance),

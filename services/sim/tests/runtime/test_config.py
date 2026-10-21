@@ -70,13 +70,25 @@ logistics:
     LOGI_TRUCK: 0
     RECON_UAV: 5
     STRIKE_FIGHTER: 20
+capture:
+  radius_m: 2000.0
+  time_s: 120.0
+  multi_unit_exponent: 0.5
+  quiet_floor: 0.6
+  quiet_ref: 50
+  min_time_s: 30.0
+  logi_weight: 0.5
+  garrison_mult: 3.0
+  empty_base_mult: 0.5
+  decay_per_s: 0.008333333333333333
 """
 # Pinned from this implementation's first run (NX-367: balance, units, theater; re-pinned NX-121
 # for speed_mps, NX-122 for slots and again for the GP-3 cap and queue, NX-368 for air fuel and
 # orbit, NX-150 for sensors, stealth and fow, passive ranges, and SIGINT and paint keys, NX-123
-# for logistics and the rear source, NX-123 part 2 for loadouts, rearm and forward deploy); a
+# for logistics and the rear source, NX-123 part 2 for loadouts, rearm and forward deploy, NX-125
+# for capture); a
 # change means every config_hash moved.
-GOLDEN_CONFIG_HASH = "d2ae964a4f296ab7aef37d653a24675565bc3781d668f9af5a405798484cdb9f"
+GOLDEN_CONFIG_HASH = "14080d8f6754ae09d2f28d3a3e308efc037144c24bc1f851e3236cd96c49a654"
 SLOTS = {
     "max_live_per_commander": 1,
     "respawn_delay_s": 20,
@@ -113,6 +125,18 @@ LOGISTICS = {
         "STRIKE_FIGHTER": 20,
     },
 }
+CAPTURE = {
+    "radius_m": 2000.0,
+    "time_s": 120.0,
+    "multi_unit_exponent": 0.5,
+    "quiet_floor": 0.6,
+    "quiet_ref": 50,
+    "min_time_s": 30.0,
+    "logi_weight": 0.5,
+    "garrison_mult": 3.0,
+    "empty_base_mult": 0.5,
+    "decay_per_s": 0.008333333333333333,
+}
 CFG = BalanceConfig.model_validate(
     {
         "schema_version": 1,
@@ -121,6 +145,7 @@ CFG = BalanceConfig.model_validate(
         "air": {"bingo_reserve_frac": 0.15, "orbit_period_s": 120.0},
         "fow": FOW,
         "logistics": LOGISTICS,
+        "capture": CAPTURE,
     }
 )
 
@@ -363,6 +388,9 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "    ENEMY_FIGHTER: 20, ENEMY_STRIKE_FIGHTER: 20, ENEMY_RECON_UAV: 5, ENEMY_ARMOR: 15,\n"
         "    ENEMY_CONVOY: 0},\n"
         "  node_max_stock: {PORT: 1000, HQ: 2000, FOB: 1000, BRIDGE: 0, AIRBASE: 2000}}\n"
+        "capture: {radius_m: 2000.0, time_s: 120.0, multi_unit_exponent: 0.5, quiet_floor: 0.6,\n"
+        "  quiet_ref: 50, min_time_s: 30.0, logi_weight: 0.5, garrison_mult: 3.0,\n"
+        "  empty_base_mult: 0.5, decay_per_s: 0.008333333333333333}\n"
         "schema_version:   1\n"
     )
     assert balance_hash(write(tmp_path, reformatted)) == balance_hash(DEFAULT)
@@ -436,6 +464,7 @@ def test_world_ticks_is_the_least_whole_tick_count_not_shorter(
             "air": {"bingo_reserve_frac": 0.15, "orbit_period_s": 120.0},
             "fow": FOW,
             "logistics": LOGISTICS,
+            "capture": CAPTURE,
         }
     )
     n = world_ticks(seconds, cfg)

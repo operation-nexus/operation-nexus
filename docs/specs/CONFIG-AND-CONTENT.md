@@ -200,7 +200,7 @@ In the schema now (NX-122): `slots.max_live_per_commander`, `slots.respawn_delay
 ### 6.5 Capture
 | Key | Type | Unit | PROPOSED | Source | HR |
 |---|---|---|---|---|---|
-| `capture.radius_m` | float | m | TBD | GAMEPLAY §8 | No |
+| `capture.radius_m` | float | m | 2000 (PROPOSED, owner-approved initial value, Q-SIM-57): a ground unit this close counts for the node; a defender's unit this close is at the base | GAMEPLAY §8 | No |
 | `capture.time_s` | float | s (world, Q-ALN-23) | 120 | GAMEPLAY §8 | No |
 | `capture.multi_unit_exponent` | float | exponent (diminishing returns) | 0.5 (PROPOSED) | GAMEPLAY §8, Q-SIM-26 | No |
 | `capture.quiet_floor` | float | multiplier at 0 viewer units | 0.6 (PROPOSED) | GAMEPLAY §8, Q-SIM-26 | No |
@@ -209,7 +209,9 @@ In the schema now (NX-122): `slots.max_live_per_commander`, `slots.respawn_delay
 | `capture.logi_weight` | float | capturer weight | 0.5 (PROPOSED): a logistics unit counts as half a capturer (Q-SM-7) | STATE-MACHINES §4.2 | No |
 | `capture.garrison_mult` | float | capture-time multiplier | 3.0 (PROPOSED): a defender that cannot contest is at the base (Q-GD-32, Q-SM-8) | STATE-MACHINES §4.2 | No |
 | `capture.empty_base_mult` | float | capture-time multiplier | 0.5 (PROPOSED): no defender at the base (Q-GD-32, Q-SM-8) | STATE-MACHINES §4.2 | No |
-| `capture.decay_per_s` | float | progress fraction/s (world, Q-ALN-23) | TBD (no value yet; used by contested decay, Q-SIM-23) | GAMEPLAY §8 | No |
+| `capture.decay_per_s` | float | bar fraction/s (world, Q-ALN-23) | 1/120 (0.008333…, PROPOSED, owner-approved initial value, Q-SIM-57): an abandoned bar empties in the 120 world s one unit takes to fill it. Counted in whole millionths of a percent per tick, rounded (the loader refuses less than one) | GAMEPLAY §8 | No |
+
+In code since NX-125: all ten keys are the `capture` block of `balance/default.yaml` (`contracts/config/balance.json`), read by `nexus.core.capture`; the shipped values are the PROPOSED column.
 
 ### 6.6 Campaign
 | Key | Type | Unit | PROPOSED | Source | HR |
@@ -460,7 +462,7 @@ The schema is `contracts/config/theater.json` (NX-120); like balance keys, a fie
 | `facilities` | list | `{id, kind: UnitKind (a facility kind), variant?, base: <node id>}`: pre-placed facilities; side follows the base (Q-GP-25, TH-10). `start_campaign` places them in file order at their base's position (NX-150 part 2; SIM-CORE §4) |
 | `spawns` | list | `{node, domains: [...]}`: where units may appear; usable by whichever side currently owns the node (GAMEPLAY GP-7) |
 | `sanctuary` | node id | Coalition SANCTUARY node: infinite stock, never capturable (Q-GD-7) |
-| `enemy_rear_source` | node id | The Static's rear source: its SANCTUARY node (`start_owner: ENEMY`), infinite stock, a road to the HQ, never capturable (Q-SIM-48; the capture rule itself is NX-125) |
+| `enemy_rear_source` | node id | The Static's rear source: its SANCTUARY node (`start_owner: ENEMY`), infinite stock, a road to the HQ, never capturable (Q-SIM-48, N-4) |
 | `enemy_hq` | node id | Enemy HQ node (Domination victory, GAMEPLAY §9) |
 | `forward_airbase` | node id | The coalition AIRBASE the idle floor protects (GAMEPLAY §9, Q-TH-2) |
 

@@ -157,7 +157,7 @@ def toy_world() -> World:
         roads=roads,
         sanctuary="s0",
         supply=supply,
-        landing_bases={"COALITION": ("s0", "a", "b"), "ENEMY": ()},
+        landing_nodes=("a", "b", "s0"),
         role_kind={**RULES.role_kind, "RECON": "GARRISON_INFANTRY"},
     )
     w = World.new(Campaign(CAMPAIGN_ID, 1, "cfg-toy"), rules)
@@ -470,10 +470,7 @@ def test_the_loaded_config_prices_every_spawnable_kind() -> None:
 def test_an_air_spawn_entry_on_an_hq_is_no_candidate_and_nothing_refuels_there() -> None:
     # static-hq is an AIR spawn of the Static with stock over its floor, but not a landing base.
     w = new_world()
-    assert (
-        RULES.supply.spawns["AIR"] >= {"static-hq"}
-        and "static-hq" not in RULES.landing_bases["ENEMY"]
-    )
+    assert RULES.supply.spawns["AIR"] >= {"static-hq"} and "static-hq" not in RULES.landing_nodes
     assert plan_deploy(w, RULES, "ENEMY", "ENEMY_FIGHTER", "fob-n-w") == (
         "east-airbase",
         ["fob-n-w"],

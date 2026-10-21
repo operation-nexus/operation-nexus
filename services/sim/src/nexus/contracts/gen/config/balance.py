@@ -29,6 +29,83 @@ class Air(BaseModel):
     ]
 
 
+class Capture(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    radius_m: Annotated[
+        float,
+        Field(
+            description="A ground unit this close to a node counts for its capture, unit m (GAMEPLAY §8, Q-SIM-57).",
+            gt=0.0,
+        ),
+    ]
+    time_s: Annotated[
+        float,
+        Field(
+            description="World seconds one capturer takes to fill a node's capture bar before the quiet-stream and garrison modifiers, unit s of world time (GAMEPLAY §8).",
+            gt=0.0,
+        ),
+    ]
+    multi_unit_exponent: Annotated[
+        float,
+        Field(
+            description="Diminishing returns: the capture time is divided by n to this power, n the weighted capturers in radius, unit exponent (Q-SIM-26).",
+            ge=0.0,
+        ),
+    ]
+    quiet_floor: Annotated[
+        float,
+        Field(
+            description="The quiet-stream multiplier on the coalition's capture time at 0 live viewer units, rising linearly to 1.0 at quiet_ref, unit multiplier (Q-SIM-26).",
+            gt=0.0,
+            le=1.0,
+        ),
+    ]
+    quiet_ref: Annotated[
+        int,
+        Field(
+            description="Live viewer units at which the quiet-stream multiplier reaches 1.0, unit viewer units (Q-SIM-26).",
+            ge=1,
+        ),
+    ]
+    min_time_s: Annotated[
+        float,
+        Field(
+            description="The shortest a capture may take, before the garrison modifier, unit s of world time (Q-GP-4).",
+            gt=0.0,
+        ),
+    ]
+    logi_weight: Annotated[
+        float,
+        Field(
+            description="How much of a capturer a logistics unit counts for, unit capturer weight (Q-SM-7).",
+            gt=0.0,
+        ),
+    ]
+    garrison_mult: Annotated[
+        float,
+        Field(
+            description="Capture-time multiplier while a defender that cannot contest (parked air, an unarmed ground unit) is at the base, unit multiplier (Q-GD-32, Q-SM-8).",
+            gt=0.0,
+        ),
+    ]
+    empty_base_mult: Annotated[
+        float,
+        Field(
+            description="Capture-time multiplier while the owning side has no unit at the base, unit multiplier (Q-GD-32, Q-SM-8).",
+            gt=0.0,
+        ),
+    ]
+    decay_per_s: Annotated[
+        float,
+        Field(
+            description="Share of the capture bar that drains per world second while the capturers are gone, unit fraction of the bar per s of world time (Q-SIM-23, Q-SIM-57). Counted in millionths of a percent per tick, rounded.",
+            gt=0.0,
+        ),
+    ]
+
+
 class Fow(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -263,3 +340,4 @@ class BalanceConfig(BaseModel):
     air: Air
     fow: Fow
     logistics: Logistics
+    capture: Capture

@@ -29,10 +29,7 @@ def test_shipped_config_hash_and_rules(shipped_config: CampaignConfig) -> None:
     assert {n.id for n in shipped_config.theater.nodes} == set(rules.roads.pos)
     # strait-1: aircraft land at their side's AIRBASE and SANCTUARY nodes only, never at an FOB,
     # the HQ or a neutral node (NX-368).
-    assert rules.landing_bases == {
-        "COALITION": ("haven", "west-airbase"),
-        "ENEMY": ("east-airbase", "static-rear"),
-    }
+    assert rules.landing_nodes == ("east-airbase", "haven", "static-rear", "west-airbase")
     assert (rules.bounds_m, rules.bingo_reserve_frac) == ((400_000.0, 240_000.0), 0.15)
     # NX-150: fow.track_fade_s 180 world s at 0.6 world s per tick is 300 ticks.
     assert (rules.track_every_ticks, rules.track_fade_ticks) == (5, 300)

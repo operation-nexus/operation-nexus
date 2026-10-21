@@ -21,6 +21,7 @@ from nexus.core.rules import Rules
 from nexus.core.step import TICK_DT, Handler
 from nexus.core.world import Campaign, Vec2, World, state_hash
 from nexus.runtime import loop
+from nexus.runtime.campaign_config import load_campaign_config
 from nexus.runtime.clock import FixedStepClock
 from nexus.runtime.command_log import (
     CommandLogError,
@@ -91,7 +92,7 @@ STUB: dict[str, Handler] = {"JOIN": spawn_handler}
 # SimRuntime needs rules; the stub handlers read none of them.
 # The stub's fighters are LANDED aircraft (NX-368): they never move, so no other air rule is read.
 STUB_RULES = Rules(
-    0.6, {}, {"STRIKE_FIGHTER": "AIR"}, RoadGraph({}, []), {}, "", 1, 0, 1, 1, {}, {}, 0.0, {},
+    0.6, {}, {"STRIKE_FIGHTER": "AIR"}, RoadGraph({}, []), {}, "", 1, 0, 1, 1, {}, {}, 0.0, (),
     (1.0, 1.0), 120.0, {}, {}, 5, 1, {}, 1000.0, {}, 0.0, frozenset(), 1.0, 1, 1.0, 3, 7,
 )  # fmt: skip
 POISON: dict[str, Handler] = {"JOIN": poison_handler}
@@ -253,6 +254,15 @@ def break_systems_from(monkeypatch: pytest.MonkeyPatch, tick: int) -> None:
             raise RuntimeError("system bug")
 
     monkeypatch.setattr(step_module, "SYSTEMS", (*step_module.SYSTEMS, ("broken", broken)))
+
+
+def test_restore_refuses_rules_whose_nodes_differ_from_the_snapshots_owners(
+    tmp_path: Path, make_rig: MakeRig
+) -> None:
+    rig = make_rig(tmp_path)
+    rig.run_to(310)  # a stub world owns no nodes; the shipped theater has thirteen
+    with pytest.raises(ValueError, match="node owners"):
+        restore(rig.snaps, rig.logs, handlers=STUB, rules=load_campaign_config().rules)
 
 
 def test_system_bug_halts_after_three_crashes(

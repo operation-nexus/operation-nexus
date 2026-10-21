@@ -132,5 +132,5 @@ def _read_log(case_dir: Path, ticks: int) -> tuple[dict[int, list[Command]], set
 
 
 def _event_line(event: Event) -> bytes:
-    data = event.model_dump(mode="json")
+    data = event.model_dump(mode="json", by_alias=True)  # the contract's keys (`NodeCaptured.from`)
     return json.dumps(data, sort_keys=True, separators=(",", ":")).encode() + b"\n"

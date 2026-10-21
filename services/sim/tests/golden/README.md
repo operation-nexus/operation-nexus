@@ -30,6 +30,7 @@ update, below). Cases without it start from an empty world with no rules.
 | `stub-commands` | 300 | JOIN-shaped commands through the `stub` handler |
 | `poison-crash` | 200 | A tombstoned tick whose three commands are dropped (Q-SIM-19 "poison-command crash") |
 | `joins-strait-1` | 6,000 | Real JOINs on strait-1 with the shipped config: strike, recon and logistics units spawn at the sanctuary, ground units drive road routes and aircraft fly straight; rejects for a unit in sortie, an unknown node, a node no road reaches and an unplayable role (NX-122). Aircraft with no target stay landed at the sanctuary; the strike jet (forward-deployed at west-airbase, NX-123 part 2) reaches east-airbase on tick 1467 and orbits it, hits bingo fuel on tick 3644 and lands at west-airbase, the nearest coalition airbase, on tick 5101, where it refuels to full by tick 5157 (NX-368) |
+| `capture-strait-1` | 17,000 | One LOGI JOIN to the neutral `cross-n`: a capture run from the sanctuary of about 16,000 ticks, then `CaptureStarted` (tick 16008) and `NodeCaptured` NEUTRAL to COALITION with the JOINing commander (tick 16179): the truck alone fills the bar at 581,502 millionths of a percent a tick (weight 0.5, quiet 0.608, about 103.2 s; NX-125) |
 
 The reserve queue (GP-3) has no case yet: the shipped cap is 500 units, a pause has no logged
 command until NX-126 and nothing frees a slot until despawn and combat (NX-324, NX-124), so
@@ -84,6 +85,13 @@ and hits bingo on tick 3644, not 3634. When it lands at west-airbase on tick 510
 ends on tick 5157 with one `SupplyConsumed{REARM}` of 17 units: 14 events in all, up from 11. The
 `hold` and no-target JOINs still spawn at `haven`, free. `empty-1h`, `stub-commands` and `poison-crash` hold
 no stock, so only the format changed their checkpoints.
+
+Snapshot format 12 (NX-125: each node's live `owner` and its `capture` bar) re-pinned every case's checkpoints
+again. The new `capture` balance block gave `joins-strait-1` a new `config_hash`; its event stream did not change
+(14 events, same `events_hash`), as no unit of that run reaches a node it can capture. `empty-1h`,
+`stub-commands` and `poison-crash` hold no nodes, so only the format changed their checkpoints. The new
+`capture-strait-1` case pins the first capture. Events are now hashed with their contract keys
+(`model_dump(by_alias=True)`, so `NodeCaptured.from`); no earlier event has an alias, so no earlier hash moved.
 
 The orbit uses libm `atan2`, `cos` and `sin`. They are deterministic on one platform but may
 differ across platforms or libm versions, so every checkpoint here is pinned to the CI platform

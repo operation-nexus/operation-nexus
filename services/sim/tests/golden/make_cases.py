@@ -109,6 +109,17 @@ CASES: dict[str, Plan] = {
         (),
         True,
     ),
+    "capture-strait-1": (
+        17_000,
+        "kernel",
+        "One LOGI JOIN to the neutral cross-n on strait-1 with the shipped config: a capture run "
+        "from the sanctuary, a road trip of about 16,000 ticks, then the truck alone fills the "
+        "capture bar and flips the node: CaptureStarted, then NodeCaptured with its commander "
+        "(NX-125).",
+        {1: [join(1, "LOGI", "cross-n")]},
+        (),
+        True,
+    ),
 }
 
 
