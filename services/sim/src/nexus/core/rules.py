@@ -9,6 +9,7 @@ import math
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from fractions import Fraction
+from typing import cast
 
 from nexus.contracts.gen.common.enums import Domain, NodeOwner, Role, Side, UnitKind
 from nexus.contracts.gen.config.balance import Air, Fow, Logistics, Sim, Slots
@@ -25,6 +26,7 @@ _PAINTERS: tuple[UnitKind, ...] = ("RECON_UAV", "ENEMY_RECON_UAV")
 # Kinds that haul cargo (GAMEPLAY §5). shortcut: named here until the unit catalog gets its `cargo`
 # field (CONFIG-AND-CONTENT §7.3); the amount is the one global `logistics.truck_cargo`.
 _CARRIERS: tuple[UnitKind, ...] = ("LOGI_TRUCK", "ENEMY_CONVOY")
+_DOMAINS: tuple[Domain, ...] = ("AIR", "GROUND", "SEA", "STATIC")
 _MILLI = 1000  # a truck's unload progress is counted in thousandths of a stock unit
 
 
@@ -42,6 +44,12 @@ class Supply:
     carriers: frozenset[UnitKind] = frozenset()
     truck_cargo: int = 0  # logistics.truck_cargo
     unload_milli: int = 0  # logistics.unload_rate x world_dt, in thousandths per tick
+    rearm_milli: int = 0  # logistics.rearm_rate x world_dt, in thousandths per tick
+    loadout_cost: Mapping[UnitKind, int] = field(default_factory=dict)  # a kind with none costs 0
+    forward_deploy_min_surplus: int = 0
+    starved_fuel_frac: float = 1.0  # a starved base refuels up to this share of fuel_s (Q-SIM-53)
+    # Domain -> the theater `spawns` nodes that take that domain (GP-7, Q-SIM-54).
+    spawns: Mapping[Domain, frozenset[str]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
@@ -111,8 +119,9 @@ def _supply(theater: TheaterConfig, logistics: Logistics, dt: float) -> Supply:
     max_stock = {n.id: max_by_kind[n.kind] for n in stocked}
     sanctuaries = {n.start_owner: n.id for n in theater.nodes if n.kind == "SANCTUARY"}
     unload_milli = round(logistics.unload_rate * dt * _MILLI)
-    if unload_milli < 1:
-        raise ValueError("logistics.unload_rate x world_dt is below 0.001 stock per tick")
+    rearm_milli = round(logistics.rearm_rate * dt * _MILLI)
+    if unload_milli < 1 or rearm_milli < 1:
+        raise ValueError("logistics unload_rate or rearm_rate x world_dt is below 0.001 per tick")
     return Supply(
         rear={side: sanctuaries[side] for side in _SIDES},
         start_owner={n.id: n.start_owner for n in theater.nodes},
@@ -121,6 +130,11 @@ def _supply(theater: TheaterConfig, logistics: Logistics, dt: float) -> Supply:
         carriers=frozenset(_CARRIERS),
         truck_cargo=logistics.truck_cargo,
         unload_milli=unload_milli,
+        rearm_milli=rearm_milli,
+        loadout_cost=cast(Mapping[UnitKind, int], logistics.loadout_cost.model_dump()),
+        forward_deploy_min_surplus=logistics.forward_deploy_min_surplus,
+        starved_fuel_frac=logistics.starved_loadout.fuel_frac,
+        spawns={d: frozenset(s.node for s in theater.spawns if d in s.domains) for d in _DOMAINS},
     )
 
 

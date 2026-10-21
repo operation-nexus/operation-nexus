@@ -56,12 +56,27 @@ logistics:
   starve_threshold: 0.25
   truck_cargo: 100
   unload_rate: 1.0
+  rearm_rate: 0.5
+  forward_deploy_min_surplus: 50
+  starved_loadout:
+    fuel_frac: 0.5
+  loadout_cost:
+    ENEMY_ARMOR: 15
+    ENEMY_CONVOY: 0
+    ENEMY_FIGHTER: 20
+    ENEMY_RECON_UAV: 5
+    ENEMY_STRIKE_FIGHTER: 20
+    GARRISON_INFANTRY: 5
+    LOGI_TRUCK: 0
+    RECON_UAV: 5
+    STRIKE_FIGHTER: 20
 """
 # Pinned from this implementation's first run (NX-367: balance, units, theater; re-pinned NX-121
 # for speed_mps, NX-122 for slots and again for the GP-3 cap and queue, NX-368 for air fuel and
 # orbit, NX-150 for sensors, stealth and fow, passive ranges, and SIGINT and paint keys, NX-123
-# for logistics and the rear source); a change means every config_hash moved.
-GOLDEN_CONFIG_HASH = "a634fb99939d2707bd3dba7b8fe8e0121812e4ca290cb1b8be02ed0bacbc5aa8"
+# for logistics and the rear source, NX-123 part 2 for loadouts, rearm and forward deploy); a
+# change means every config_hash moved.
+GOLDEN_CONFIG_HASH = "d2ae964a4f296ab7aef37d653a24675565bc3781d668f9af5a405798484cdb9f"
 SLOTS = {
     "max_live_per_commander": 1,
     "respawn_delay_s": 20,
@@ -83,6 +98,20 @@ LOGISTICS = {
     "starve_threshold": 0.25,
     "truck_cargo": 100,
     "unload_rate": 1.0,
+    "rearm_rate": 0.5,
+    "forward_deploy_min_surplus": 50,
+    "starved_loadout": {"fuel_frac": 0.5},
+    "loadout_cost": {
+        "ENEMY_ARMOR": 15,
+        "ENEMY_CONVOY": 0,
+        "ENEMY_FIGHTER": 20,
+        "ENEMY_RECON_UAV": 5,
+        "ENEMY_STRIKE_FIGHTER": 20,
+        "GARRISON_INFANTRY": 5,
+        "LOGI_TRUCK": 0,
+        "RECON_UAV": 5,
+        "STRIKE_FIGHTER": 20,
+    },
 }
 CFG = BalanceConfig.model_validate(
     {
@@ -148,6 +177,10 @@ def test_default_profile_loads_and_matches_golden_hash() -> None:
         ("  truck_cargo: 100\n", "logistics.truck_cargo"),
         ("  unload_rate: 1.0\n", "logistics.unload_rate"),
         ("    HQ: 2000\n", "logistics.node_max_stock.HQ"),
+        ("  rearm_rate: 0.5\n", "logistics.rearm_rate"),
+        ("  forward_deploy_min_surplus: 50\n", "logistics.forward_deploy_min_surplus"),
+        ("  starved_loadout:\n    fuel_frac: 0.5\n", "logistics.starved_loadout"),
+        ("    STRIKE_FIGHTER: 20\n", "logistics.loadout_cost.STRIKE_FIGHTER"),
     ],
 )
 def test_each_missing_required_key_names_key_and_file(tmp_path: Path, line: str, key: str) -> None:
@@ -325,6 +358,10 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "  sigint_cell_m: 10000, sigint_refresh_s: 54.0, sigint_range_mult: 1.5,\n"
         "  sigint_size_l_min: 7, sigint_size_m_min: 3}\n"
         "logistics: {unload_rate: 1.0, truck_cargo: 100, starve_threshold: 0.25,\n"
+        "  rearm_rate: 0.5, forward_deploy_min_surplus: 50, starved_loadout: {fuel_frac: 0.5},\n"
+        "  loadout_cost: {STRIKE_FIGHTER: 20, RECON_UAV: 5, LOGI_TRUCK: 0, GARRISON_INFANTRY: 5,\n"
+        "    ENEMY_FIGHTER: 20, ENEMY_STRIKE_FIGHTER: 20, ENEMY_RECON_UAV: 5, ENEMY_ARMOR: 15,\n"
+        "    ENEMY_CONVOY: 0},\n"
         "  node_max_stock: {PORT: 1000, HQ: 2000, FOB: 1000, BRIDGE: 0, AIRBASE: 2000}}\n"
         "schema_version:   1\n"
     )

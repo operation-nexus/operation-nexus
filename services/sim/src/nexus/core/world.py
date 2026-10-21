@@ -13,7 +13,8 @@ the reserve queue (GP-3), each side's FoW contacts with their painted flag (FOW-
 facility markers (FOW-13), SIGINT blobs and the running ticks since their refresh (Tier 1, FOW-9)
 are world state, so snapshots and the hash cover them. So are each node's `stock` and each carrier's
 `cargo` (integer stock units) with its `unload_milli` progress and
-`delivered` count (NX-123): conservation stays exact.
+`delivered` count (NX-123), and each aircraft's refuel progress (`rearm_milli`, `rearm_spent`,
+`stalled`): conservation stays exact.
 `World.rules` (`nexus.core.rules`) is static config, not state: neither snapshots nor the hash
 include it.
 """
@@ -35,8 +36,9 @@ from nexus.core.rules import Rules
 # 2: Entity.path and Entity.last_node (NX-121); 3: respawn_left, hp may be null; 4: reserve_queue;
 # 5: Entity.state, fuel and orbit (NX-368); 6: callsigns (NX-370); 7: contacts (NX-150);
 # 8: Entity.base_id, variant and emitting, markers (NX-150 part 2); 9: Contact.painted, blobs,
-# sigint_age (NX-150 part 2b); 10: node stock, Entity.cargo and unload_milli (NX-123)
-FORMAT_VERSION = 10
+# sigint_age (NX-150 part 2b); 10: node stock, Entity.cargo and unload_milli (NX-123);
+# 11: Entity.rearm_milli, rearm_spent and stalled (NX-123 part 2)
+FORMAT_VERSION = 11
 _MM = 1000.0  # metres -> millimetres; m/s -> mm/s
 _MICRO = 1e6  # ADR-0002's 1e-6 step for other floats (fuel)
 _MILLI_UNIT = 1000  # thousandths of a stock unit per unit
@@ -148,6 +150,12 @@ class Entity:
     cargo: int | None = None
     unload_milli: int = 0
     delivered: int = 0  # units unloaded in this stop; SupplyDelivered reports it when it ends
+    # Aircraft refuelling at a base (NX-123 part 2): `rearm_milli` the thousandths of a stock unit
+    # bought toward the next whole one, 0 to 999; `rearm_spent` the whole units debited in this
+    # stop (SupplyConsumed reports it when it ends); `stalled` that RearmStalled was emitted.
+    rearm_milli: int = 0
+    rearm_spent: int = 0
+    stalled: bool = False
 
 
 @dataclass(slots=True)
@@ -480,6 +488,9 @@ _ENTITY_CHECKS: dict[str, Callable[[object, str], Any]] = {
     "cargo": lambda v, k: None if v is None else _int(v, k),
     "unload_milli": _milli,
     "delivered": lambda v, k: _int(v, k),
+    "rearm_milli": _milli,
+    "rearm_spent": lambda v, k: _int(v, k),
+    "stalled": _bool,
 }
 _CAMPAIGN_CHECKS: dict[str, Callable[[object, str], Any]] = {
     "id": _str,
@@ -598,6 +609,8 @@ def _load_entity(value: object) -> Entity:
         raise ValueError(f"entity {e.id}: inconsistent state, fuel and orbit")
     if e.cargo is None and (e.unload_milli or e.delivered):
         raise ValueError(f"entity {e.id}: unload progress without cargo")
+    if e.state is None and (e.rearm_milli or e.rearm_spent or e.stalled):
+        raise ValueError(f"entity {e.id}: refuel progress without a state")
     return e
 
 

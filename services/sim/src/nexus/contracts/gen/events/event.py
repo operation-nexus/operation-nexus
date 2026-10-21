@@ -10,7 +10,9 @@ from pydantic import Field
 from . import (
     callsign_changed,
     command_rejected,
+    rearm_stalled,
     reserve_queue_joined,
+    supply_consumed,
     supply_delivered,
     unit_destroyed,
     unit_spawned,
@@ -22,7 +24,9 @@ type Event = Annotated[
     | reserve_queue_joined.ReserveQueueJoined
     | unit_destroyed.UnitDestroyed
     | callsign_changed.CallsignChanged
-    | supply_delivered.SupplyDelivered,
+    | supply_delivered.SupplyDelivered
+    | supply_consumed.SupplyConsumed
+    | rearm_stalled.RearmStalled,
     Field(
         description="Discriminated union of all sim events on kind (CONTRACTS §6).",
         discriminator="kind",

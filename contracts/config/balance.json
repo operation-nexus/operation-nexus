@@ -144,7 +144,11 @@
         "node_max_stock",
         "starve_threshold",
         "truck_cargo",
-        "unload_rate"
+        "unload_rate",
+        "rearm_rate",
+        "forward_deploy_min_surplus",
+        "starved_loadout",
+        "loadout_cost"
       ],
       "properties": {
         "node_max_stock": {
@@ -212,6 +216,110 @@
           "exclusiveMinimum": 0,
           "x-unit": "stock/s (world)",
           "x-hot-reload": false
+        },
+        "rearm_rate": {
+          "description": "Stock a landed aircraft buys at a base per world second, unit stock per s of world time, frozen while paused (Q-SIM-51). Counted in whole milli-units per tick, so it is rounded to 0.001 per tick.",
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "x-unit": "stock/s (world)",
+          "x-hot-reload": false
+        },
+        "forward_deploy_min_surplus": {
+          "description": "Stock a spawn base must hold above its starvation floor, unit stock units, before a JOIN may forward-deploy there (GAMEPLAY GP-7, Q-SIM-54).",
+          "type": "integer",
+          "minimum": 0,
+          "x-unit": "stock units",
+          "x-hot-reload": false
+        },
+        "starved_loadout": {
+          "description": "What a base below its starvation floor fills a landed unit up to (Q-SIM-53).",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "fuel_frac"
+          ],
+          "properties": {
+            "fuel_frac": {
+              "description": "Share of the kind's fuel_s a starved base refuels an aircraft up to, unit fraction.",
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "x-unit": "fraction of fuel_s",
+              "x-hot-reload": false
+            }
+          }
+        },
+        "loadout_cost": {
+          "description": "Stock a unit's full loadout costs, unit stock units: debited from the base it forward-deploys at (GP-7) and the price of a full refill at a base (Q-SIM-51). One entry per kind that can spawn by JOIN or director; facilities are placed by the theater and have none. 0 for the cargo kinds, which pay by loading cargo (Q-SIM-49).",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "ENEMY_ARMOR",
+            "ENEMY_CONVOY",
+            "ENEMY_FIGHTER",
+            "ENEMY_RECON_UAV",
+            "ENEMY_STRIKE_FIGHTER",
+            "GARRISON_INFANTRY",
+            "LOGI_TRUCK",
+            "RECON_UAV",
+            "STRIKE_FIGHTER"
+          ],
+          "properties": {
+            "ENEMY_ARMOR": {
+              "type": "integer",
+              "minimum": 0,
+              "x-unit": "stock units",
+              "x-hot-reload": false
+            },
+            "ENEMY_CONVOY": {
+              "type": "integer",
+              "minimum": 0,
+              "x-unit": "stock units",
+              "x-hot-reload": false
+            },
+            "ENEMY_FIGHTER": {
+              "type": "integer",
+              "minimum": 0,
+              "x-unit": "stock units",
+              "x-hot-reload": false
+            },
+            "ENEMY_RECON_UAV": {
+              "type": "integer",
+              "minimum": 0,
+              "x-unit": "stock units",
+              "x-hot-reload": false
+            },
+            "ENEMY_STRIKE_FIGHTER": {
+              "type": "integer",
+              "minimum": 0,
+              "x-unit": "stock units",
+              "x-hot-reload": false
+            },
+            "GARRISON_INFANTRY": {
+              "type": "integer",
+              "minimum": 0,
+              "x-unit": "stock units",
+              "x-hot-reload": false
+            },
+            "LOGI_TRUCK": {
+              "type": "integer",
+              "minimum": 0,
+              "x-unit": "stock units",
+              "x-hot-reload": false
+            },
+            "RECON_UAV": {
+              "type": "integer",
+              "minimum": 0,
+              "x-unit": "stock units",
+              "x-hot-reload": false
+            },
+            "STRIKE_FIGHTER": {
+              "type": "integer",
+              "minimum": 0,
+              "x-unit": "stock units",
+              "x-hot-reload": false
+            }
+          }
         }
       }
     },

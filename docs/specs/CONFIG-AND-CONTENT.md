@@ -161,19 +161,19 @@ In the schema now (NX-122): `slots.max_live_per_commander`, `slots.respawn_delay
 | `logistics.node_max_stock.<node_kind>` | int | stock units | AIRBASE 2000, FOB 1000, HQ 2000, PORT 1000, BRIDGE 0; SANCTUARY and the rear source infinite (Q-SIM-49). In code (NX-123): all five keys required; a theater `start_stock` above its kind's maximum fails load | GAMEPLAY §5 | No |
 | `logistics.starve_threshold` | float | fraction 0–1 | 0.25. In code (NX-123): the floor is `ceil(starve_threshold x max)` whole units | GAMEPLAY §5 | No |
 | `logistics.starve_hp_drain_per_min` | float | node hp per min (world) | TBD (PROPOSED) | GAMEPLAY §8 | No |
-| `logistics.starved_loadout.fuel_frac` | float | fraction | 0.5 | GAMEPLAY §5 | No |
-| `logistics.starved_loadout.secondary_ammo` | int | rounds | 0 | GAMEPLAY §5 | No |
+| `logistics.starved_loadout.fuel_frac` | float | fraction | 0.5 (Q-SIM-53). In code (NX-123 part 2): a base below its starvation floor refuels an aircraft only up to this share of `fuel_s`; a spawn is always full | GAMEPLAY §5 | No |
+| `logistics.starved_loadout.secondary_ammo` | int | rounds | 0 (not in code yet: guns join with munitions, NX-124) | GAMEPLAY §5 | No |
 | `logistics.truck_cargo` | int | stock units | 100 (Q-SIM-49). One global value for every cargo kind (NX-123); a per-kind catalog `cargo` (§7.3) would replace it | GAMEPLAY §5 | No |
 | `logistics.unload_rate` | float | stock/s (world) | 1.0 (Q-SIM-49). Counted in whole thousandths per tick, so the loader rejects a rate x tick below 0.001 | GAMEPLAY §5 | No |
-| `logistics.loadout_cost.<unit_kind>` | int | stock units | STRIKE_FIGHTER, ENEMY_FIGHTER and ENEMY_STRIKE_FIGHTER 20, RECON_UAV and ENEMY_RECON_UAV 5, ENEMY_ARMOR 15, GARRISON_INFANTRY 5, LOGI_TRUCK and ENEMY_CONVOY 0 (Q-SIM-49; not in code yet, NX-123 part 2) | GAMEPLAY §5 | No |
-| `logistics.rearm_rate` | float | stock/s (world) | 0.5 (Q-SIM-49; not in code yet, NX-123 part 2) | GAMEPLAY §5 | No |
+| `logistics.loadout_cost.<unit_kind>` | int | stock units | STRIKE_FIGHTER, ENEMY_FIGHTER and ENEMY_STRIKE_FIGHTER 20, RECON_UAV and ENEMY_RECON_UAV 5, ENEMY_ARMOR 15, GARRISON_INFANTRY 5, LOGI_TRUCK and ENEMY_CONVOY 0 (Q-SIM-49). In code (NX-123 part 2) as a balance table keyed by those nine kinds, all required (facilities are placed by the theater, not spawned, and have none); the debit at forward deploy and the price of a full refill (Q-SIM-51). The per-unit catalog `loadout_cost` in §7.3 is not used | GAMEPLAY §5 | No |
+| `logistics.rearm_rate` | float | stock/s (world) | 0.5 (Q-SIM-49). Landed aircraft buy fuel at this rate. Counted in whole thousandths per tick, so the loader rejects a rate x tick below 0.001 | GAMEPLAY §5 | No |
 | `logistics.offroad_speed_mult` | float | multiplier | 0.5 (from raw plans P987; unvalidated) | GAMEPLAY §5 | No |
 | `logistics.bridge_repair_time_s` | float | s (world) | TBD (engineer repair time; Q-GD-11) | GAMEPLAY §5 | No |
 | `logistics.truck_bridge_repair_mult` | float | multiplier on engineer time | 5 (Q-GD-11 recommendation "e.g. 5× slower") | GAMEPLAY §5 | No |
 | `tasking.follow_station_m.<domain>` | float | m (world) | TBD (PROPOSED) | GAMEPLAY §1b, Q-GP-32 | No |
 | `progression.follower_share` | float | fraction of the outcome's merit per follower | TBD (PROPOSED) | GAMEPLAY §1b, PROGRESSION, Q-GP-42 | No |
 | `progression.follower_share_cap` | int | max followers credited per outcome | TBD (PROPOSED) | GAMEPLAY §1b, Q-GP-42 | No |
-| `logistics.forward_deploy_min_surplus` | float | stock above the starvation threshold a base needs to accept a forward deploy | 50 (Q-SIM-49; not in code yet, NX-123 part 2) | GAMEPLAY §4, Q-GP-41 | No |
+| `logistics.forward_deploy_min_surplus` | int | stock units above the starvation floor a spawn base needs to accept a forward deploy | 50 (Q-SIM-49, Q-SIM-54). In code (NX-123 part 2); the base also needs at least the loadout cost above its floor | GAMEPLAY §4, Q-GP-41 | No |
 | `logistics.repair_rate.<node_kind>` | float | hp/s (world) | TBD (base repair for all domains, Q-GD-27) | GAMEPLAY §5 | No |
 
 ### 6.4 Combat
@@ -343,7 +343,7 @@ units:
     cargo: <int|null>         # stock units; null = cannot carry
     can_capture: <bool>
     stealth: <float>          # detection-radius multiplier in (0, 1] (1.0 = none; NX-150)
-    loadout_cost: <int>       # stock consumed at spawn/rearm (§6.3)
+    loadout_cost: <int>       # stock consumed at spawn/rearm; in code as balance logistics.loadout_cost.<kind> (§6.3) until the catalog carries it
     cp_value: <float>         # director CP weight (§6.7)
 ```
 Rules:

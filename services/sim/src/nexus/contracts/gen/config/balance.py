@@ -102,6 +102,35 @@ class NodeMaxStock(BaseModel):
     PORT: Annotated[int, Field(ge=0)]
 
 
+class StarvedLoadout(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    fuel_frac: Annotated[
+        float,
+        Field(
+            description="Share of the kind's fuel_s a starved base refuels an aircraft up to, unit fraction.",
+            ge=0.0,
+            le=1.0,
+        ),
+    ]
+
+
+class LoadoutCost(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    ENEMY_ARMOR: Annotated[int, Field(ge=0)]
+    ENEMY_CONVOY: Annotated[int, Field(ge=0)]
+    ENEMY_FIGHTER: Annotated[int, Field(ge=0)]
+    ENEMY_RECON_UAV: Annotated[int, Field(ge=0)]
+    ENEMY_STRIKE_FIGHTER: Annotated[int, Field(ge=0)]
+    GARRISON_INFANTRY: Annotated[int, Field(ge=0)]
+    LOGI_TRUCK: Annotated[int, Field(ge=0)]
+    RECON_UAV: Annotated[int, Field(ge=0)]
+    STRIKE_FIGHTER: Annotated[int, Field(ge=0)]
+
+
 class Logistics(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -132,6 +161,32 @@ class Logistics(BaseModel):
         Field(
             description="Stock a parked truck moves into its destination per world second, unit stock per s of world time, frozen while paused (GAMEPLAY §5, Q-SIM-50). Counted in whole milli-units per tick, so it is rounded to 0.001 per tick.",
             gt=0.0,
+        ),
+    ]
+    rearm_rate: Annotated[
+        float,
+        Field(
+            description="Stock a landed aircraft buys at a base per world second, unit stock per s of world time, frozen while paused (Q-SIM-51). Counted in whole milli-units per tick, so it is rounded to 0.001 per tick.",
+            gt=0.0,
+        ),
+    ]
+    forward_deploy_min_surplus: Annotated[
+        int,
+        Field(
+            description="Stock a spawn base must hold above its starvation floor, unit stock units, before a JOIN may forward-deploy there (GAMEPLAY GP-7, Q-SIM-54).",
+            ge=0,
+        ),
+    ]
+    starved_loadout: Annotated[
+        StarvedLoadout,
+        Field(
+            description="What a base below its starvation floor fills a landed unit up to (Q-SIM-53)."
+        ),
+    ]
+    loadout_cost: Annotated[
+        LoadoutCost,
+        Field(
+            description="Stock a unit's full loadout costs, unit stock units: debited from the base it forward-deploys at (GP-7) and the price of a full refill at a base (Q-SIM-51). One entry per kind that can spawn by JOIN or director; facilities are placed by the theater and have none. 0 for the cargo kinds, which pay by loading cargo (Q-SIM-49)."
         ),
     ]
 

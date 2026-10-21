@@ -180,7 +180,8 @@ def test_idle_aircraft_orbits_at_stall_speed_until_bingo_then_lands() -> None:
         "west-airbase",
         None,
     )
-    assert a.fuel == pytest.approx(540.0, abs=5.0)  # landed with about the reserve left
+    # Landed with about the reserve left, plus the 54 s the landing tick refuelled (NX-123).
+    assert a.fuel == pytest.approx(540.0 + 54.0, abs=5.0)
 
 
 def test_a_landed_aircraft_given_a_path_takes_off() -> None:
