@@ -73,6 +73,9 @@ terms still waiting for an owner ruling.
 | Sitrep | An automated radio situation report |
 | HUD tiers | Always on (momentum, objective, threat, how-to-play strip); interrupt toasts (rally calls, mastermind taunts, major alerts); one rotating panel for the rest (Q-UX-11) |
 | Spotlight operator | An operator with recent hero events or high recent action, who may be named in taunts more often (THREAT-DIRECTOR TD-4) |
+| Contact | One enemy entity in a side's fog-of-war view: either currently tracked (Tier 2) or a last-known track (FOW-6a) |
+| Last-known track | A contact that has left sensor coverage: frozen where the side last saw it, shown with an age, dropped after `fow.track_fade_s`; never a valid target (FOW-6a). Facilities never become one (FOW-13) |
+| Spotted | A flag on a side's own unit while any enemy sensor tracks it; says that something sees it, never what or where (FOW-12) |
 
 ## Time, pauses and operations
 
