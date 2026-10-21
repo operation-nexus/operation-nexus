@@ -62,7 +62,7 @@ def recover(
     handlers: Mapping[str, Handler] = HANDLERS,
     until_tick: int | None = None,
     max_attempts: int = 3,
-    rules: Rules | None = None,
+    rules: Rules | None,
 ) -> RestoreResult:
     """`restore`, tombstoning (through `writer`, flushed) each replayed tick that raises.
 
@@ -92,14 +92,15 @@ def restore(
     *,
     handlers: Mapping[str, Handler] = HANDLERS,
     until_tick: int | None = None,
-    rules: Rules | None = None,
+    rules: Rules | None,
 ) -> RestoreResult:
     """Load the newest snapshot that verifies (at or before `until_tick`), then replay the log.
 
     Every command of a tombstoned tick is dropped and emitted as `CommandRejected{INTERNAL_ERROR}`
     (SC-8). Raises SnapshotError when no snapshot verifies, CommandLogError on a damaged log or
     one that does not continue the snapshot, ReplayCrash when `step` raises. `rules` is the
-    campaign's static config (not in the snapshot), attached to the restored world.
+    campaign's static config (not in the snapshot), attached to the restored world;
+    required, `None` only for a world that never reads it.
     """
     header, world, path, skipped = _newest_valid(snapshot_dir, until_tick)
     world.rules = rules

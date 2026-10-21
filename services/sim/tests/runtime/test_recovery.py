@@ -178,7 +178,7 @@ def test_kill_and_restore_matches_an_uninterrupted_run(tmp_path: Path, make_rig:
     assert len(segments(logs)) == 3  # rotated at the snapshots of ticks 300 and 600
     del killed  # the process dies: only the files remain
 
-    r = restore(snaps, logs, handlers=STUB)
+    r = restore(snaps, logs, handlers=STUB, rules=None)
     assert r.world.campaign.tick == 640
     assert state_hash(r.world) == expected[640]
     assert (r.snapshot.name, r.skipped_snapshots, r.truncated_tail) == (
@@ -190,8 +190,11 @@ def test_kill_and_restore_matches_an_uninterrupted_run(tmp_path: Path, make_rig:
     resumed = make_rig(tmp_path / "b", world=r.world, next_seq=r.last_arrival_seq + 1, segment=3)
     assert resumed.run_to(750) == {t: expected[t] for t in range(641, 751)}
     # Tick 750 has no commands, so the log alone ends at 749; the runtime passes its last tick.
-    assert restore(snaps, logs, handlers=STUB).world.campaign.tick == 749
-    assert state_hash(restore(snaps, logs, handlers=STUB, until_tick=750).world) == expected[750]
+    assert restore(snaps, logs, handlers=STUB, rules=None).world.campaign.tick == 749
+    assert (
+        state_hash(restore(snaps, logs, handlers=STUB, rules=None, until_tick=750).world)
+        == expected[750]
+    )
 
 
 def test_poison_command_is_tombstoned_dropped_and_replayed(
@@ -218,11 +221,13 @@ def test_poison_command_is_tombstoned_dropped_and_replayed(
     assert b"tombstone" not in segment_text(first)
 
     # Replaying the files reproduces the tick: same events, same hash.
-    at_320 = restore(rig.snaps, rig.logs, handlers=POISON, until_tick=320)
+    at_320 = restore(rig.snaps, rig.logs, handlers=POISON, rules=None, until_tick=320)
     assert at_320.snapshot.name == "000000000300.nxs"
     assert tick_events(at_320.events, 320) == crashed
     assert state_hash(at_320.world) == hashes[320]
-    assert state_hash(restore(rig.snaps, rig.logs, handlers=POISON).world) == hashes[350]
+    assert (
+        state_hash(restore(rig.snaps, rig.logs, handlers=POISON, rules=None).world) == hashes[350]
+    )
 
 
 def test_crash_recovery_keeps_the_campaign_rules(tmp_path: Path, make_rig: MakeRig) -> None:
@@ -326,7 +331,7 @@ def test_corrupt_newest_snapshot_falls_back_to_the_previous(
     data = bytearray(newest.read_bytes())
     data[len(data) // 2] ^= 0xFF
     newest.write_bytes(bytes(data))
-    r = restore(rig.snaps, rig.logs, handlers=STUB)
+    r = restore(rig.snaps, rig.logs, handlers=STUB, rules=None)
     assert r.skipped_snapshots == [newest]
     assert r.snapshot.name == "000000000300.nxs"
     assert state_hash(r.world) == hashes[650]
@@ -337,7 +342,7 @@ def test_until_tick_before_the_newest_snapshot_uses_an_older_one(
 ) -> None:
     rig = make_rig(tmp_path)
     hashes = rig.run_to(650)
-    r = restore(rig.snaps, rig.logs, handlers=STUB, until_tick=450)
+    r = restore(rig.snaps, rig.logs, handlers=STUB, rules=None, until_tick=450)
     assert (r.snapshot.name, r.world.campaign.tick) == ("000000000300.nxs", 450)
     assert state_hash(r.world) == hashes[450]
 
@@ -347,12 +352,12 @@ def test_no_verified_snapshot_raises(tmp_path: Path, make_rig: MakeRig) -> None:
     rig.run_to(5)
     (rig.snaps / "000000000000.nxs").write_bytes(b"garbage")
     with pytest.raises(SnapshotError, match="no snapshot verifies"):
-        restore(rig.snaps, rig.logs, handlers=STUB)
+        restore(rig.snaps, rig.logs, handlers=STUB, rules=None)
 
 
 def test_empty_log_restores_the_snapshot(tmp_path: Path, make_rig: MakeRig) -> None:
     rig = make_rig(tmp_path)  # the start snapshot is written; the log has no frame yet
-    r = restore(rig.snaps, rig.logs, handlers=STUB)
+    r = restore(rig.snaps, rig.logs, handlers=STUB, rules=None)
     assert (r.world.campaign.tick, r.last_arrival_seq, r.events) == (0, 0, [])
     assert state_hash(r.world) == state_hash(rig.rt.world)
 
@@ -360,7 +365,7 @@ def test_empty_log_restores_the_snapshot(tmp_path: Path, make_rig: MakeRig) -> N
 def test_log_that_contradicts_the_snapshot_raises(tmp_path: Path, make_rig: MakeRig) -> None:
     rig = make_rig(tmp_path)
     rig.run_to(20)
-    at_10 = restore(rig.snaps, rig.logs, handlers=STUB, until_tick=10)
+    at_10 = restore(rig.snaps, rig.logs, handlers=STUB, rules=None, until_tick=10)
     # A snapshot claiming tick 11's first command already landed by tick 10.
     write_snapshot(
         rig.snaps,
@@ -371,7 +376,7 @@ def test_log_that_contradicts_the_snapshot_raises(tmp_path: Path, make_rig: Make
         created_at="2026-10-21T12:00:00Z",
     )
     with pytest.raises(CommandLogError, match="disagrees"):
-        restore(rig.snaps, rig.logs, handlers=STUB)
+        restore(rig.snaps, rig.logs, handlers=STUB, rules=None)
 
 
 @pytest.mark.parametrize(
@@ -385,16 +390,16 @@ def test_missing_segment_raises(
     rig.run_to(650)
     segments(rig.logs)[missing - 1].unlink()
     with pytest.raises(CommandLogError, match=match):
-        restore(rig.snaps, rig.logs, handlers=STUB, until_tick=until_tick)
+        restore(rig.snaps, rig.logs, handlers=STUB, rules=None, until_tick=until_tick)
 
 
 def test_restore_skips_segments_before_the_snapshot(tmp_path: Path, make_rig: MakeRig) -> None:
     rig = make_rig(tmp_path)
     hashes = rig.run_to(650)
     segments(rig.logs)[0].write_bytes(b"garbage")  # proves segment 1 is never read
-    assert state_hash(restore(rig.snaps, rig.logs, handlers=STUB).world) == hashes[650]
+    assert state_hash(restore(rig.snaps, rig.logs, handlers=STUB, rules=None).world) == hashes[650]
     with pytest.raises(CommandLogError):  # from snapshot 0, segment 1 is needed
-        restore(rig.snaps, rig.logs, handlers=STUB, until_tick=250)
+        restore(rig.snaps, rig.logs, handlers=STUB, rules=None, until_tick=250)
 
 
 def test_torn_log_tail_restores_and_is_flagged(tmp_path: Path, make_rig: MakeRig) -> None:
@@ -403,7 +408,7 @@ def test_torn_log_tail_restores_and_is_flagged(tmp_path: Path, make_rig: MakeRig
     frame = zstandard.ZstdCompressor(write_checksum=True).compress(b'{"x":1}\n' * 100)
     with segments(rig.logs)[-1].open("ab") as f:
         f.write(frame[: len(frame) // 2])
-    r = restore(rig.snaps, rig.logs, handlers=STUB)
+    r = restore(rig.snaps, rig.logs, handlers=STUB, rules=None)
     assert r.truncated_tail
     assert state_hash(r.world) == hashes[50]
 
@@ -422,16 +427,18 @@ def test_recover_tombstones_a_replay_crash_without_tombstone(
     rig.run_to(21)
     write_ahead_then_die(rig)  # tick 22: one JOIN and the poison
     with pytest.raises(ReplayCrash) as crash:
-        restore(rig.snaps, rig.logs, handlers=POISON)
+        restore(rig.snaps, rig.logs, handlers=POISON, rules=None)
     assert (crash.value.tick, crash.value.tombstoned) == (22, False)
 
-    r = recover(rig.snaps, rig.rt.log, handlers=POISON)
+    r = recover(rig.snaps, rig.rt.log, handlers=POISON, rules=None)
     assert r.world.campaign.tick == 22
     dropped = tick_events(r.events, 22)
     assert [e.reason for e in dropped if isinstance(e, CommandRejected)] == ["INTERNAL_ERROR"] * 2
     assert len(dropped) == 2
     assert tombstones(rig.logs) == [Tombstone(22)]
-    assert state_hash(restore(rig.snaps, rig.logs, handlers=POISON).world) == state_hash(r.world)
+    assert state_hash(
+        restore(rig.snaps, rig.logs, handlers=POISON, rules=None).world
+    ) == state_hash(r.world)
 
 
 def test_recover_gives_up_after_max_attempts(tmp_path: Path, make_rig: MakeRig) -> None:
@@ -439,7 +446,7 @@ def test_recover_gives_up_after_max_attempts(tmp_path: Path, make_rig: MakeRig) 
     rig.run_to(21)
     write_ahead_then_die(rig)
     with pytest.raises(ReplayCrash):
-        recover(rig.snaps, rig.rt.log, handlers=POISON, max_attempts=1)
+        recover(rig.snaps, rig.rt.log, handlers=POISON, rules=None, max_attempts=1)
     assert tombstones(rig.logs) == []
 
 
@@ -450,7 +457,7 @@ def test_recover_raises_on_a_system_bug_without_looping(
     rig.run_to(10)
     break_systems_from(monkeypatch, 5)  # replay now crashes on a tick that had no crash live
     with pytest.raises(ReplayCrash) as crash:
-        recover(rig.snaps, rig.rt.log, handlers=STUB)
+        recover(rig.snaps, rig.rt.log, handlers=STUB, rules=None)
     assert (crash.value.tick, crash.value.tombstoned) == (5, True)
     assert tombstones(rig.logs) == [Tombstone(5)]  # tombstoned once, then raised
 
@@ -468,7 +475,8 @@ _CHILD = (
     "import sys; sys.path.insert(0, sys.argv[1]); from pathlib import Path\n"
     "from runtime.test_recovery import POISON; from nexus.core.world import state_hash\n"
     "from nexus.runtime.recovery import restore\n"
-    "print(state_hash(restore(Path(sys.argv[2]), Path(sys.argv[3]), handlers=POISON).world))"
+    "print(state_hash(restore(Path(sys.argv[2]), Path(sys.argv[3]),\n"
+    "                          handlers=POISON, rules=None).world))"
 )
 
 
@@ -509,5 +517,5 @@ def test_tombstone_in_a_command_free_interval_is_not_skipped(
         protocol_version=PROTOCOL,
         created_at="2026-10-21T12:00:00Z",
     )
-    r = restore(tmp_path, tmp_path, handlers=STUB)
+    r = restore(tmp_path, tmp_path, handlers=STUB, rules=None)
     assert r.world.campaign.tick == 305  # replay reaches the tombstoned tick, dropping nothing

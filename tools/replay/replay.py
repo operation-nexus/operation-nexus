@@ -9,6 +9,10 @@ log holding commands for a kind without a handler does not replay yet.
   ... replay.py verify SNAPSHOTS LOGS --expect HASH [--until-tick N]
   ... replay.py size SNAPSHOTS LOGS
 
+`run` and `verify` load the campaign's config (balance, units, theater; NX-122) for the kernel's
+`Rules`, the shipped files unless `--balance`, `--units`, `--weapons`, `--roles` or `--theater`
+name others, and refuse a snapshot whose campaign `config_hash` differs from that config's.
+
 Exit 0 on success, 1 when `verify` finds a different hash, 2 on any error (one line on stderr).
 """
 
@@ -20,7 +24,9 @@ from pathlib import Path
 
 from nexus.core.step import HANDLERS
 from nexus.core.world import state_hash
+from nexus.runtime.campaign_config import CampaignConfig, ConfigPaths, load_campaign_config
 from nexus.runtime.command_log import CommandLogError, CommandLogReader, Tombstone
+from nexus.runtime.config import ConfigError
 from nexus.runtime.recovery import ReplayCrash, RestoreResult, restore
 from nexus.runtime.snapshot_file import SnapshotError, list_snapshots
 
@@ -46,7 +52,14 @@ def _restore(args: argparse.Namespace, until_tick: int | None) -> RestoreResult:
     snaps = list_snapshots(args.snapshots)
     if until_tick is not None and snaps and all(int(p.stem) > until_tick for p in snaps):
         raise SnapshotError(f"no snapshot at or before tick {until_tick}")
-    return restore(args.snapshots, args.logs, until_tick=until_tick)
+    config: CampaignConfig = args.config
+    result = restore(args.snapshots, args.logs, until_tick=until_tick, rules=config.rules)
+    if (have := result.world.campaign.config_hash) != config.config_hash:
+        raise ConfigError(
+            f"snapshot config_hash {have} differs from the loaded config's {config.config_hash}; "
+            "point --balance, --units, --weapons, --roles and --theater at the campaign's files"
+        )
+    return result
 
 
 def cmd_run(args: argparse.Namespace) -> int:
@@ -137,6 +150,15 @@ def parser() -> argparse.ArgumentParser:
         s.set_defaults(fn=fn)
         if name != "size":
             s.add_argument("--until-tick", type=_int(0), default=None, help="stop at this tick")
+        if name != "size":
+            defaults = ConfigPaths()
+            for field in ("balance", "units", "weapons", "roles", "theater"):
+                s.add_argument(
+                    f"--{field}",
+                    type=Path,
+                    default=getattr(defaults, field),
+                    help="config path (default: the shipped file)",
+                )
         if name == "run":
             s.add_argument("--every", type=_int(1), default=100, help="checkpoint spacing in ticks")
         if name == "verify":
@@ -152,8 +174,12 @@ def main() -> int:
         for path in (args.snapshots, args.logs):
             if not path.is_dir():
                 raise NotADirectoryError(f"{path}: not a directory")
+        if args.command != "size":
+            args.config = load_campaign_config(
+                ConfigPaths(args.balance, args.units, args.weapons, args.roles, args.theater)
+            )
         return int(args.fn(args))
-    except (SnapshotError, CommandLogError, ReplayCrash, OSError) as e:
+    except (ConfigError, SnapshotError, CommandLogError, ReplayCrash, OSError) as e:
         print(f"error: {e}", file=sys.stderr)
         return 2
 

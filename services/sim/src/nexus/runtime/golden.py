@@ -18,6 +18,7 @@ from typing import Any
 
 from nexus.contracts.gen.commands.command import Command
 from nexus.contracts.gen.events.event import Event
+from nexus.core.rules import Rules
 from nexus.core.step import Handler, step
 from nexus.core.world import Campaign, World, state_hash
 from nexus.runtime.command_log import CommandLogReader, Tombstone
@@ -58,13 +59,15 @@ def load_case(case_dir: Path) -> dict[str, Any]:
     return case
 
 
-def run_golden(case_dir: Path, registries: Mapping[str, Mapping[str, Handler]]) -> GoldenResult:
+def run_golden(
+    case_dir: Path, registries: Mapping[str, Mapping[str, Handler]], *, rules: Rules | None
+) -> GoldenResult:
     case = load_case(case_dir)
     if case["handlers"] not in registries:
         raise ValueError(f"{case_dir.name}: unknown handler registry {case['handlers']!r}")
     handlers = registries[case["handlers"]]
     by_tick, tombstones = _read_log(case_dir, case["ticks"])
-    world = World.new(Campaign(case["campaign_id"], case["seed"], case["config_hash"]))
+    world = World.new(Campaign(case["campaign_id"], case["seed"], case["config_hash"]), rules)
     digest = hashlib.blake2b(digest_size=32)
     count = 0
     checkpoints: dict[str, str] = {}

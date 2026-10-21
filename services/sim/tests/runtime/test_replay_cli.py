@@ -7,19 +7,25 @@ from pathlib import Path
 
 import pytest
 
-from nexus.core.world import state_hash
+from nexus.core.world import Campaign, World, state_hash
+from nexus.runtime.campaign_config import CampaignConfig
 from nexus.runtime.command_log import CommandLogWriter
 from nexus.runtime.recovery import restore
 from nexus.runtime.snapshot_file import list_snapshots
 
+from .conftest import CAMPAIGN_ID
 from .test_recovery import STUB, Rig
 
-CLI = Path(__file__).resolve().parents[4] / "tools" / "replay" / "replay.py"
+REPO = Path(__file__).resolve().parents[4]
+CLI = REPO / "tools" / "replay" / "replay.py"
 
 
 @pytest.fixture
-def rig(tmp_path: Path, log_writer: Callable[..., CommandLogWriter]) -> Rig:
-    return Rig(log_writer, tmp_path)
+def rig(
+    tmp_path: Path, log_writer: Callable[..., CommandLogWriter], shipped_config: CampaignConfig
+) -> Rig:
+    campaign = Campaign(CAMPAIGN_ID, 12345, shipped_config.config_hash)
+    return Rig(log_writer, tmp_path, world=World.new(campaign, shipped_config.rules))
 
 
 def cli(*args: str | Path) -> subprocess.CompletedProcess[str]:
@@ -35,16 +41,18 @@ def test_run_prints_the_restore_hashes(tmp_path: Path, rig: Rig) -> None:
     # the snapshot tick itself (nothing to replay) and check the final line names the same hash.
     out = cli("run", rig.snaps, rig.logs, "--until-tick", "600", "--every", "300")
     assert out.returncode == 0, out.stderr
-    expected = state_hash(restore(rig.snaps, rig.logs, handlers=STUB, until_tick=600).world)
+    expected = state_hash(
+        restore(rig.snaps, rig.logs, handlers=STUB, rules=None, until_tick=600).world
+    )
     assert out.stdout.splitlines()[-1] == f"tick 600 {expected} (final)"
-    h300 = state_hash(restore(rig.snaps, rig.logs, handlers=STUB, until_tick=300).world)
+    h300 = state_hash(restore(rig.snaps, rig.logs, handlers=STUB, rules=None, until_tick=300).world)
     assert f"tick 300 {h300}" in out.stdout
     assert out.stderr == ""
 
 
 def test_verify_exit_codes(tmp_path: Path, rig: Rig) -> None:
     rig.run_to(650)
-    good = state_hash(restore(rig.snaps, rig.logs, handlers=STUB, until_tick=600).world)
+    good = state_hash(restore(rig.snaps, rig.logs, handlers=STUB, rules=None, until_tick=600).world)
     assert (
         cli("verify", rig.snaps, rig.logs, "--expect", good, "--until-tick", "600").returncode == 0
     )
@@ -133,3 +141,18 @@ def test_pruned_history_and_early_until_tick(rig: Rig) -> None:
     assert "tick 100 " not in out.stdout
     out = cli("run", rig.snaps, rig.logs, "--until-tick", "150")
     assert (out.returncode, out.stderr.strip()) == (2, "error: no snapshot at or before tick 150")
+
+
+def test_a_snapshot_of_another_config_is_refused(tmp_path: Path, rig: Rig) -> None:
+    rig.run_to(100)
+    out = cli("run", rig.snaps, rig.logs, "--theater", tmp_path / "missing.yaml")
+    assert out.returncode == 2
+    assert "missing.yaml" in out.stderr  # a bad config path names the file
+    text = (REPO / "balance" / "default.yaml").read_text(encoding="utf-8")
+    other = tmp_path / "balance.yaml"
+    patched = text.replace("snapshot_every_ticks: 300", "snapshot_every_ticks: 301")
+    assert patched != text  # the config really differs
+    other.write_text(patched, encoding="utf-8")
+    out = cli("verify", rig.snaps, rig.logs, "--expect", "0" * 64, "--balance", other)
+    assert out.returncode == 2
+    assert "differs from the loaded config" in out.stderr

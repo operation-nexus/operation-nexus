@@ -34,7 +34,7 @@ def test_every_case_is_found() -> None:
 
 @pytest.mark.parametrize("case_dir", CASES, ids=lambda p: p.name)
 def test_golden_replay_matches_expected(case_dir: Path) -> None:
-    result = run_golden(case_dir, REGISTRIES)
+    result = run_golden(case_dir, REGISTRIES, rules=None)
     if os.environ.get("NEXUS_UPDATE_GOLDEN") == "1":
         # An update in CI would rewrite expected.json and pass silently; updates are local only.
         if os.environ.get("CI"):
@@ -49,16 +49,16 @@ def test_poison_case_without_its_tombstone_raises(tmp_path: Path) -> None:
     ticks, handlers, description, commands, _ = CASES_PLAN["poison-crash"]
     write_case(tmp_path, (ticks, handlers, description, commands, ()))
     with pytest.raises(RuntimeError, match="poison command"):
-        run_golden(tmp_path, REGISTRIES)
+        run_golden(tmp_path, REGISTRIES, rules=None)
 
 
 def test_unknown_registry_or_missing_log_raises(tmp_path: Path) -> None:
     case = shutil.copytree(HERE / "poison-crash", tmp_path / "case")
     with pytest.raises(ValueError, match="unknown handler registry"):
-        run_golden(case, {"stub": STUB})
+        run_golden(case, {"stub": STUB}, rules=None)
     shutil.rmtree(case / "log")
     with pytest.raises(ValueError, match="no log/"):
-        run_golden(case, REGISTRIES)
+        run_golden(case, REGISTRIES, rules=None)
 
 
 def test_log_past_the_case_end_raises(tmp_path: Path) -> None:
@@ -66,7 +66,7 @@ def test_log_past_the_case_end_raises(tmp_path: Path) -> None:
     data = json.loads((case / CASE_FILE).read_text())
     (case / CASE_FILE).write_text(json.dumps({**data, "ticks": 294}))
     with pytest.raises(ValueError, match=r"tick 295, outside 1\.\.294"):
-        run_golden(case, REGISTRIES)
+        run_golden(case, REGISTRIES, rules=None)
 
 
 @pytest.mark.parametrize("bad", [{"ticks": "300"}, {"ticks": 0}, {"extra": 1}])
@@ -75,4 +75,4 @@ def test_malformed_case_raises(tmp_path: Path, bad: dict[str, object]) -> None:
     data = json.loads((case / CASE_FILE).read_text())
     (case / CASE_FILE).write_text(json.dumps({**data, **bad}))
     with pytest.raises(ValueError, match=r"case\.json|ticks"):
-        run_golden(case, REGISTRIES)
+        run_golden(case, REGISTRIES, rules=None)
