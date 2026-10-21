@@ -37,6 +37,7 @@ Newer boundaries (Q-TM-3); their rules live in the spec named, not here:
 | B10 | Public site ← read-only exports (FOW-1 while a war runs) | PUBLIC-SITE, FOG-OF-WAR FOW-1 |
 | B11 | Discord bot and its token | DISCORD-SERVER-SETUP |
 | B12 | Brand and social automation tokens | BRAND-OPS BO-SEC |
+| B13 | Error reports → Sentry (outbound), and Sentry, CI and issue text → the daily-routine agent (inbound) | ERROR-PIPELINE EP-2 (allowlist scrub), EP-6 (text is data; tests and CODEOWNERS files are proposal-only) |
 
 Rule: **data crossing B1, B3 or B5 is untrusted.** That includes display names and LLM output.
 

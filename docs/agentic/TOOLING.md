@@ -13,7 +13,7 @@ Facts here were verified on 2026-10-17 against the cited sources. Anything marke
 | `.claude/hooks/session-start.sh` | Cloud sessions only (`CLAUDE_CODE_REMOTE=true`): runs `make bootstrap` so `make check` works from a fresh clone, and prints the result into context. Never blocks the session. Desktop: run `make bootstrap check` once after cloning (NX-025). |
 | `.claude/rules/` | Path-scoped rules (`paths:` frontmatter) that load only when an agent reads or edits matching files: kernel, contracts, apps. Each points to the role card or checklist instead of repeating it. |
 | `.claude/hooks/protect-files.sh` | Blocks agent writes (Edit/Write/MultiEdit/NotebookEdit) to `.env*` anywhere and to the raw source files. Uses `jq`, or `python3` if jq is absent. Fails closed: if neither exists, edits are blocked. It can't see shell redirection (`echo > .env`), so the deny rules and review remain the backstop. |
-| `.claude/agents/` | Subagents: `reviewer` and `fact-checker` (enforces DATA-INTEGRITY). |
+| `.claude/agents/` | Subagents: `reviewer`, `fact-checker` (enforces DATA-INTEGRITY), and the build loop's `coder` and `qa` (Sonnet; `.claude/skills/build-loop`). |
 | `.mcp.json` | Context7 (remote, no key), for up-to-date library docs so agents don't guess APIs. |
 | `.agents/` | Role cards, rules (`rules/code-quality.md`), reusable prompts, and the owner's context drop zone. |
 | `.claude/skills/` | Project skills: ours plus a pinned, MIT-licensed copy of selected `mattpocock/skills` (index and local changes: `VENDORED.md`). |
@@ -24,6 +24,7 @@ Notes:
 - Project `allow` rules and `extraKnownMarketplaces` take effect only after you trust the folder. `deny` rules apply immediately ([settings docs](https://code.claude.com/docs/en/settings)).
 - **Cloud and non-interactive sessions load `.mcp.json` servers without asking** ([MCP docs](https://code.claude.com/docs/en/mcp)). Only add servers here that are safe and work everywhere.
 - Enabling an external plugin in project settings doesn't install it for each person automatically. Each person accepts it once.
+- **Daily owner check** (a claude.ai cloud routine, 07:59 America/New_York, not in this repo): handles owner comments and Dependabot PRs, logs to issue #119. From NX-363/NX-364 it also triages `error` tickets (ERROR-PIPELINE EP-6), runs `/ponytail-debt` on Mondays and `/ponytail-audit` on the 1st of the month (and every phase gate runs `/ponytail-audit` too), and sends code changes through `build-loop` QA (Q-DEV-6, Q-DEV-11). Its prompt is edited in the claude.ai routine settings; keep this line in step.
 
 ## 2. Plugins and skills
 
@@ -33,6 +34,9 @@ Notes:
 | `security-review` (built-in) | Security review of pending changes | Claude Code |
 | `simplify` (built-in) | Cleanup and simplification pass | Claude Code |
 | **Ponytail** (`/ponytail`, `/ponytail-review`, `/ponytail-audit`, `/ponytail-debt`) | Smallest complete change; YAGNI; reviews for over-engineering | `DietrichGebert/ponytail` (MIT), declared in `.claude/settings.json` |
+| **CodeRabbit** | Automatic PR review (GitHub app, installed on the `operation-nexus` org by the owner 2026-10-20, 14-day trial; paid after that, and whether public repos stay free is [UNVERIFIED]). It reviews each PR by itself; reply `@coderabbitai …` in a PR comment to ask it something. Its comments reach the lead through the CI watch like any review | GitHub app (no Claude plugin needed) |
+| **playwright** (Microsoft) | Browser automation for QA of the overlay, site and Command Center | claude.ai plugin directory |
+| **sentry** | Reads Sentry issues for the error pipeline (ERROR-PIPELINE) | claude.ai plugin directory, once a Sentry project exists |
 | **finecomb** | Exhaustive code and security audit checklist | claude.ai plugin directory (install via the card in chat) |
 | **claude-code-review-council** | Six-specialist PR review | claude.ai plugin directory |
 | `qa-bug-hunter` | Read-only bug hunts with reproduction | Already available in this account |
