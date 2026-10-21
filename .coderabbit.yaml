@@ -22,6 +22,11 @@ reviews:
       - "dependabot[bot]"
     ignore_title_keywords:
       - "[skip review]"
+  pre_merge_checks:
+    description:
+      mode: "warning" # keeps PRs on .github/pull_request_template.md
+    docstrings:
+      mode: "off"     # not a rule here (.agents/rules/code-quality.md)
   path_filters:
     - "!docs/**"
     - "!**/*.md"
