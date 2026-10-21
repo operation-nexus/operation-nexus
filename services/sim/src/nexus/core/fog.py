@@ -2,7 +2,7 @@
 
 `sense` is the SC-13 `sensing` system. On ticks where `tick % fow.track_every_ticks == 0` it
 computes, per side, the enemy entities inside any of that side's sensors: `sensor.radius_m` x the
-target's `stealth`, no RNG (Q-FOW-2), via the SC-10 grid (cell = max sensor radius / 2). The result
+target's `stealth`, no RNG (Q-FOW-2), via SC-10 grids, one per sensor range class. The result
 is `World.contacts` (world state): a tracked contact holds the target's kind, position and velocity
 at that pass; one no longer tracked keeps those frozen and becomes a last-known track that ages
 every running tick and is dropped after `fow.track_fade_s`, whether or not the entity still exists
@@ -54,6 +54,10 @@ _GROUND = "GROUND"
 _NOWHERE: frozenset[str] = frozenset()
 _ENEMY_OF: Mapping[Side, Side] = {"COALITION": "ENEMY", "ENEMY": "COALITION"}
 _RADAR: UnitKind = "RADAR_SITE"
+# A sensor range class spans radii up to this many times its smallest one. On three 1,000-entity
+# layouts (NX-372) 4 was fastest or tied against 1 and 2 (more grid rebuilds) and well ahead of one
+# class for all (3-8 km sensors scanning 60 km cells: ~15 ms a pass with two facing ground lines).
+_CLASS_SPAN = 4.0
 
 
 def sense(world: World) -> None:
@@ -86,39 +90,75 @@ def _age(world: World, rules: Rules) -> None:
 
 def _track(world: World, rules: Rules) -> None:
     """One Tier 2 pass for both sides: tracks, painting and discovery."""
-    cell_m = max(rules.sensor_radius_m.values(), default=0.0) / 2
+    cells = _class_cells(rules)
     for side in _ENEMY_OF:
-        tracked, painted = (
-            _detect(world, rules, UniformGrid(cell_m), side) if cell_m > 0 else ([], set())
-        )
+        tracked, painted = _detect(world, rules, cells, side) if cells else ([], set())
         world.contacts[side] = _merge(world, rules, world.contacts[side], tracked, painted)
         _discover(world, rules, side, tracked)
 
 
+def _class_cells(rules: Rules) -> dict[float, float]:
+    """Sensor radius -> grid cell of its range class: radii ascending, a class spans up to
+    `_CLASS_SPAN` x its smallest radius, and its cell is its largest radius / 2 (SC-10)."""
+    cells: dict[float, float] = {}
+    group: list[float] = []
+    for r in [*sorted({r for r in rules.sensor_radius_m.values() if r > 0}), math.inf]:
+        if group and r > _CLASS_SPAN * group[0]:  # inf closes the last class
+            cells |= dict.fromkeys(group, group[-1] / 2)
+            group = []
+        group.append(r)
+    return cells
+
+
 def _detect(
-    world: World, rules: Rules, grid: UniformGrid, side: Side
+    world: World, rules: Rules, cells: Mapping[float, float], side: Side
 ) -> tuple[list[int], set[int]]:
     """Ids of enemy entities inside any of `side`'s sensors, ascending, and the subset one of its
-    painters tracks within `fow.paint_range_m` (a pure function)."""
-    grid.rebuild(e for e in world.entities() if e.side != side)  # targets only
+    painters tracks within `fow.paint_range_m` (a pure function).
+
+    One target grid per range class (NX-372). Painters paint first, then every sensor (longest
+    first) tracks; a target leaves the grids once painted or tracked, so later scans see only the
+    rest. Both results are unions, so neither order changes them."""
+    sensors = sorted(
+        (
+            (s, r, _regions(rules, s.pos))
+            for s in world.entities()
+            if s.side == side
+            and (r := rules.sensor_radius_m[s.kind]) > 0
+            and s.emitting is not False  # dark: no coverage (FOW-11)
+        ),
+        key=lambda sensor: -sensor[1],
+    )
+    targets = [e for e in world.entities() if e.side != side]
+    grids: dict[float, UniformGrid] = {}
     found: set[int] = set()  # membership only; the result is sorted
-    painted: set[int] = set()
-    for s in world.entities():
-        radius = rules.sensor_radius_m[s.kind]
-        if s.side != side or radius <= 0 or s.emitting is False:  # dark: no coverage (FOW-11)
-            continue
-        paint2 = rules.paint_range_m**2 if s.kind in rules.painters else -1.0
-        here = _regions(rules, s.pos)
-        for i in grid.query_radius(s.pos, radius):
-            if i in painted or (i in found and paint2 < 0):
-                continue
-            t = world.get(i)
+
+    def grid(radius: float) -> UniformGrid:
+        cell = cells[radius]
+        if (g := grids.get(cell)) is None:
+            g = grids[cell] = UniformGrid(cell)
+            g.rebuild(t for t in targets if t.id not in found)
+        return g
+
+    def scan(
+        sensor: Entity, radius: float, here: frozenset[str], limit2: float, out: set[int]
+    ) -> None:
+        # The old pass's exact arithmetic (NX-372): grid filter at `radius`, then `_dist2`.
+        for t in grid(radius).within(sensor.pos, radius):
+            d2 = _dist2(t.pos, sensor.pos)
             reach = radius * rules.stealth[t.kind]
-            d2 = _dist2(t.pos, s.pos)
-            if d2 <= reach * reach and not _masked(rules, t, here):
-                found.add(i)
-                if d2 <= paint2:  # the painter tracks it itself (Q-FOW-6)
-                    painted.add(i)
+            if d2 <= reach * reach and d2 <= limit2 and not _masked(rules, t, here):
+                out.add(t.id)
+                found.add(t.id)
+                for g in grids.values():
+                    g.remove(t)
+
+    painted: set[int] = set()
+    for s, r, here in sensors:
+        if s.kind in rules.painters:  # its own track within paint range (Q-FOW-6)
+            scan(s, r, here, rules.paint_range_m**2, painted)
+    for s, r, here in sensors:
+        scan(s, r, here, math.inf, found)
     return sorted(found), painted
 
 

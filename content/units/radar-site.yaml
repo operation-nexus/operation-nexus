@@ -6,6 +6,6 @@ side: BASE
 domain: STATIC
 playable_by: [AI_GARRISON]
 speed_mps: 0.0  # PROPOSED (NX-121, owner may veto; harness tunes, NX-031); m/s world; STATIC: facilities do not move
-sensor: {radius_m: 120000.0, passive_range_m: 150000.0}  # PROPOSED (NX-150, owner may veto; harness tunes, NX-031); m; the longest sensor; sets the grid cell (SC-10); passive 150 km stays short of the 220 km between the strait-1 airbase radars, so neither starts discovered (Q-FOW-12)
+sensor: {radius_m: 120000.0, passive_range_m: 150000.0}  # PROPOSED (NX-150, owner may veto; harness tunes, NX-031); m; the longest sensor; sets the long-range class's grid cell (SC-10); passive 150 km stays short of the 220 km between the strait-1 airbase radars, so neither starts discovered (Q-FOW-12)
 stealth: 1.0  # PROPOSED (NX-150, owner may veto; harness tunes, NX-031); multiplier; 1.0 = none
 weapons: []

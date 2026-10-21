@@ -39,6 +39,29 @@ def test_query_matches_brute_force(
     assert grid.query_radius(Vec2(cx, cy), r) == brute(entities, Vec2(cx, cy), r)
 
 
+@given(points, cell, coord, coord, radius, st.data())
+def test_within_and_remove_match_brute_force_over_the_rest(
+    xy: list[tuple[float, float]],
+    cell_m: float,
+    cx: float,
+    cy: float,
+    r: float,
+    data: st.DataObject,
+) -> None:
+    """NX-372: `within` finds the same entities as `query_radius`; removed ones are gone."""
+    entities = list(world_with(xy).entities())
+    gone = data.draw(
+        st.sets(st.sampled_from([e.id for e in entities])) if entities else st.just(set())
+    )
+    grid = UniformGrid(cell_m)
+    grid.rebuild(entities)
+    for i in sorted(gone):
+        grid.remove(entities[i - 1])
+    rest = [e for e in entities if e.id not in gone]
+    assert sorted(e.id for e in grid.within(Vec2(cx, cy), r)) == brute(rest, Vec2(cx, cy), r)
+    assert grid.query_radius(Vec2(cx, cy), r) == brute(rest, Vec2(cx, cy), r)
+
+
 def test_worked_example_inclusive_radius_borders_and_negatives() -> None:
     # 3-4-5 triangles: (3 km, 4 km) and (-3 km, -4 km) are exactly 5 km from the origin.
     w = world_with([(3 * KM, 4 * KM), (-3 * KM, -4 * KM), (5 * KM, 0.1), (0.0, 0.0), (-5 * KM, 0)])

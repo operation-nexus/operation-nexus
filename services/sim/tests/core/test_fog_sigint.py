@@ -18,10 +18,22 @@ from dataclasses import replace
 import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
-from test_fog import ARMOR, RADAR, RULES, SHIPPED, TRUCK, big_world, put, run_to, world
+from test_fog import (
+    ARMOR,
+    RADAR,
+    RULES,
+    SHIPPED,
+    TRUCK,
+    _cell_regions,
+    big_world,
+    brute,
+    put,
+    run_to,
+    world,
+)
 
 from nexus.contracts.gen.common.enums import Side, UnitKind
-from nexus.core.fog import sense, side_view, tracked_by
+from nexus.core.fog import _class_cells, sense, side_view, tracked_by
 from nexus.core.world import Blob, Contact, Entity, Vec2, World, load, save, state_hash
 from nexus.runtime.campaign_config import load_campaign_config
 from nexus.runtime.config import world_ticks
@@ -276,6 +288,103 @@ def test_paint_clears_with_coverage_and_is_never_on_a_last_known_track() -> None
     assert w.contacts["COALITION"][out.id].painted
     restored = load(save(w))
     assert restored.contacts == w.contacts
+
+
+# NX-372: range classes 200 m and {1000, 3000} m (a class spans up to 4 x its smallest radius),
+# painters on both sides, and a masking region at x 0-2 km, y 0-1 km.
+CLASSES = replace(PAINT, mask_cell_m=1000.0, masking={(0, 0): frozenset({"hills"}),
+                                                      (1, 0): frozenset({"hills"})})  # fmt: skip
+_MIXED: list[tuple[UnitKind, Side]] = [
+    (RADAR, "COALITION"), (TRUCK, "COALITION"), ("RECON_UAV", "COALITION"),
+    (ARMOR, "ENEMY"), ("ENEMY_CONVOY", "ENEMY"), ("ENEMY_RECON_UAV", "ENEMY"),
+]  # fmt: skip
+_KM = st.floats(-3000.0, 3000.0) | st.integers(-3, 3).map(lambda k: k * 1000.0)  # exact borders
+
+
+def brute_painted(w: World, side: Side) -> list[int]:
+    """O(n^2) oracle: enemies a painter of `side` tracks with its own sensor (its radius x the
+    target's stealth, masking from its own regions) within `fow.paint_range_m`."""
+
+    def paints(p: Entity, t: Entity) -> bool:
+        radius = CLASSES.sensor_radius_m[p.kind]
+        reach = radius * CLASSES.stealth[t.kind]
+        dx, dy = t.pos.x - p.pos.x, t.pos.y - p.pos.y
+        d2 = dx**2 + dy**2
+        hidden = CLASSES.domain[t.kind] == "GROUND" and bool(_cell_regions(CLASSES, t))
+        hidden = hidden and not (_cell_regions(CLASSES, t) & _cell_regions(CLASSES, p))
+        # Same float arithmetic as the kernel: the grid's `*` filter, then `**` distances.
+        in_grid = dx * dx + dy * dy <= radius * radius
+        return in_grid and d2 <= reach * reach and d2 <= CLASSES.paint_range_m**2 and not hidden
+
+    painters = [s for s in w.entities() if s.side == side and s.kind in CLASSES.painters]
+    return [t.id for t in w.entities() if t.side != side and any(paints(p, t) for p in painters)]
+
+
+def test_oracle_paints_per_painter_with_its_own_regions() -> None:
+    w = world(CLASSES)
+    recon(w, "COALITION", 0.0, 0.0)  # in the hills
+    recon(w, "COALITION", 2500.0, 900.0)  # outside: tracks nothing hidden in the hills
+    t = put(w, "ENEMY_CONVOY", "ENEMY", 1900.0, 900.0)  # in the hills, 600 m from the second
+    run_to(w, 5)
+    assert tracked_by(w, "COALITION", t.id)  # the first UAV tracks it, 1.9 km off: no paint
+    assert brute_painted(w, "COALITION") == []
+    assert not w.contacts["COALITION"][t.id].painted
+
+
+def test_shipped_range_classes() -> None:
+    assert _class_cells(SHIPPED) == dict.fromkeys((3000.0, 5000.0, 8000.0), 4000.0) | dict.fromkeys(
+        (40000.0, 60000.0, 120000.0), 60000.0
+    )
+
+
+# Points where `dx**2 + dy**2 <= r**2` and `dx*dx + dy*dy <= r*r` disagree by one ulp (NX-372). The
+# pass keeps the pre-NX-372 arithmetic: the grid keeps `dx*dx + dy*dy <= r*r` (sensor radius),
+# then `_dist2` (`**`) decides against reach and paint range.
+@pytest.mark.parametrize(
+    ("x", "y"),
+    [
+        (877.1043746055911, 480.2998189128691),  # ** just over 1000 m, * on it
+        (558.452538175239, 829.5364745480655),  # ** on 1000 m, * just over: the grid drops it
+    ],
+)
+def test_track_border_keeps_the_old_float_arithmetic(x: float, y: float) -> None:
+    w = world(PAINT)
+    put(w, RADAR, "COALITION", 0.0)
+    t = put(w, "ENEMY_CONVOY", "ENEMY", x, y)
+    run_to(w, 5)
+    assert not tracked_by(w, "COALITION", t.id)
+
+
+@pytest.mark.parametrize(
+    ("x", "y", "painted"),
+    [
+        (398.8845282485021, 1959.8191582704692, False),  # ** over 2000 m, * on it (QA repro)
+        (1786.0470795940635, 900.0199050429482, False),  # ** over 2000 m, * on it
+        (1713.6044666718396, 1031.290323721851, True),  # ** on 2000 m, * just over
+    ],
+)
+def test_paint_border_keeps_the_old_float_arithmetic(x: float, y: float, painted: bool) -> None:
+    w = world(PAINT)
+    recon(w, "COALITION", 0.0)
+    t = put(w, "ENEMY_CONVOY", "ENEMY", x, y)
+    run_to(w, 5)
+    assert tracked_by(w, "COALITION", t.id)  # inside the UAV's 3000 m
+    assert w.contacts["COALITION"][t.id].painted is painted
+
+
+@given(st.lists(st.tuples(st.sampled_from(_MIXED), _KM, _KM), max_size=30))
+def test_tracks_and_paint_match_brute_force_across_range_classes(
+    units: list[tuple[tuple[UnitKind, Side], float, float]],
+) -> None:
+    w = world(CLASSES)
+    for (kind, side), x, y in units:
+        e = put(w, kind, side, x, y)
+        if kind in CLASSES.painters:
+            e.state, e.fuel = "LANDED", 100.0  # stays put
+    run_to(w, 5)
+    for side in ("COALITION", "ENEMY"):
+        assert list(w.contacts[side]) == brute(w, side, CLASSES)
+        assert [i for i, c in w.contacts[side].items() if c.painted] == brute_painted(w, side)
 
 
 # --- SC-10 and determinism at 1,000 entities ---

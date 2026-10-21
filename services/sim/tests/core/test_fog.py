@@ -8,6 +8,7 @@ nothing listens passively and nothing is masked unless a test says so.
 """
 
 import os
+import statistics
 import subprocess
 import sys
 import time
@@ -297,6 +298,20 @@ def test_sc10_smoke_1000_entities() -> None:
     # here include some inside each region; the hand test above shows it hiding).
     assert any(_cell_regions(SHIPPED, t) for t in w.entities() if t.kind == ARMOR)
     print(f"5 ticks incl. one sensing pass at 1,000 entities: {elapsed_ms:.1f} ms")
+
+
+def test_sc10_step_time_1000_entities() -> None:
+    """Per-tick `step` time over 50 ticks, 10 of them Tier 2 passes; nothing moves in
+    `big_world`, so sensing dominates. Printed only, never asserted (§5)."""
+    w = big_world()
+    ms = []
+    for _ in range(50):
+        start = time.perf_counter()
+        step(w, [])
+        ms.append((time.perf_counter() - start) * 1000)
+    assert w.contacts["COALITION"] and w.contacts["ENEMY"]
+    p99 = statistics.quantiles(ms, n=100, method="inclusive")[98]
+    print(f"step at 1,000 entities, 50 ticks: mean {statistics.fmean(ms):.2f} ms, p99 {p99:.2f} ms")
 
 
 _CHILD = (
