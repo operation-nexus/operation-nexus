@@ -560,3 +560,11 @@ Owner decisions from the theater #1 sketch session.
 | Q-TEST-6 | What counts as a campaign ending | A run passes only by victory or defeat within 24–72 h in ≥85% of seeds; reaching `campaign.time_limit_h` (72) counts as a miss. | P1 | ✅ 2026-10-20 |
 | Q-TEST-7 | Campaign length options | Default limit 72 h. The owner or an Admin may extend a running campaign; each extension is logged and the total is capped by `campaign.max_extension_h` (PROPOSED 48). Unlimited campaigns are parked in GAMEPLAY-LATER. The acceptance run uses 72 h with no extension. | P1 | ✅ 2026-10-20 |
 | Q-TEST-8 | Provisional balance thresholds | PROPOSED, re-tuned after the first runs and on the watch list: no unit kind over 40% of the coalition's kills in any profile; adversarial profiles shift median campaign length by under 20%; overnight-0 loses at most one strategic node in 12 h and the sanctuary never falls. | P1 | ✅ 2026-10-20 |
+
+## P0 phase gate (2026-10-20)
+
+| ID | Question | Decision | Priority | Status |
+|---|---|---|---|---|
+| Q-PH0-1 | Carry-over of open P0 items | Proposed in PHASE-P0 §6: tooling and lint items to P1, deploy and release items to P2, owner tasks anytime. | P0 | Open (owner) |
+| Q-PH0-2 | Auto-merge for agent PRs | Let agent PRs into `develop` merge by auto-merge once `ci-gate` is green (AGENTS.md rule 10, ADR-0009); today the owner merges by hand. | P0 | Open (owner) |
+| Q-PH0-3 | Security review M1 and L6 | M1: `ci-gate` can be satisfied by a PR's own workflow edit, with no review required. Recommended: block auto-merge on PRs touching `.github/workflows/**` if Q-PH0-2 is yes, otherwise accept while the owner merges by hand. L6: pin the `ponytail` plugin to a commit. | P0 | Open (owner) |
