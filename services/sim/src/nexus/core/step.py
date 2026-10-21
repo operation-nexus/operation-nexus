@@ -27,21 +27,23 @@ def apply_commands(
     for command in sorted(commands, key=lambda c: (c.target_tick, c.arrival_seq)):
         handler = handlers.get(command.kind)
         if handler is None:
-            out.append(
-                CommandRejected.model_construct(
-                    kind="CommandRejected",
-                    tick=world.campaign.tick + 1,
-                    event_seq=world.next_event_seq(),
-                    campaign_id=world.campaign.id,
-                    arrival_seq=command.arrival_seq,
-                    command_kind=command.kind,
-                    reason="INTERNAL_ERROR",
-                    # Staff, system and advisor issuers map to None when their commands land.
-                    commander_id=command.issuer.commander_id,
-                )
-            )
+            out.append(_internal_error(world, command))
         else:
             handler(world, command, out)
+
+
+def _internal_error(world: World, command: Command) -> CommandRejected:
+    return CommandRejected.model_construct(
+        kind="CommandRejected",
+        tick=world.campaign.tick + 1,
+        event_seq=world.next_event_seq(),
+        campaign_id=world.campaign.id,
+        arrival_seq=command.arrival_seq,
+        command_kind=command.kind,
+        reason="INTERNAL_ERROR",
+        # Staff, system and advisor issuers map to None when their commands land.
+        commander_id=command.issuer.commander_id,
+    )
 
 
 def director(
@@ -95,18 +97,24 @@ SYSTEMS: tuple[tuple[str, System], ...] = (
 
 
 def step(
-    world: World, commands: Sequence[Command], handlers: Mapping[str, Handler] = HANDLERS
+    world: World,
+    commands: Sequence[Command],
+    handlers: Mapping[str, Handler] = HANDLERS,
+    dropped: Sequence[Command] = (),
 ) -> list[Event]:
     """Compute tick `world.campaign.tick + 1`, then advance the tick by 1; returns its events.
 
     `commands` are exactly those whose `target_tick` is the tick being computed (the runtime
-    guarantees it); any other `target_tick` is a caller bug and raises ValueError.
+    guarantees it); any other `target_tick` is a caller bug and raises ValueError. `dropped` are
+    the commands of a tombstoned tick (SC-8): none is applied; each becomes a
+    `CommandRejected{INTERNAL_ERROR}` in arrival_seq order, ahead of the systems' events.
     """
     tick = world.campaign.tick + 1
-    wrong = [c.arrival_seq for c in commands if c.target_tick != tick]
+    wrong = [c.arrival_seq for c in (*commands, *dropped) if c.target_tick != tick]
     if wrong:
         raise ValueError(f"commands {wrong} do not target tick {tick}")
-    events: list[Event] = []
+    in_order = sorted(dropped, key=lambda c: c.arrival_seq)
+    events: list[Event] = [_internal_error(world, c) for c in in_order]
     for _, system in SYSTEMS:
         system(world, commands, handlers, events)
     world.campaign.tick = tick

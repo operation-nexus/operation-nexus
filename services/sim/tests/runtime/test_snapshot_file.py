@@ -11,7 +11,12 @@ import zstandard
 
 from nexus.core.world import Campaign, Vec2, World, save, state_hash, to_canonical
 from nexus.runtime import snapshot_file
-from nexus.runtime.snapshot_file import SnapshotError, read_snapshot, write_snapshot
+from nexus.runtime.snapshot_file import (
+    SnapshotError,
+    read_snapshot,
+    snapshots_to_delete,
+    write_snapshot,
+)
 
 CAMPAIGN_ID = "0192f3a4-5b6c-7d8e-9f01-23456789abcd"
 CREATED_AT = "2026-10-21T12:00:00Z"
@@ -141,3 +146,14 @@ def test_failed_write_leaves_no_tmp_file(tmp_path: Path, monkeypatch: pytest.Mon
     with pytest.raises(OSError):
         write(tmp_path)
     assert list(tmp_path.iterdir()) == []
+
+
+def test_retention_keeps_newest_twenty_and_each_hours_first() -> None:
+    # Every 300 ticks for 60,000 ticks; a game hour is 36,000 ticks.
+    paths = [Path(f"{t:012d}.nxs") for t in range(0, 60_001, 300)]
+    kept = {0, 36_000, *range(54_300, 60_001, 300)}
+    assert snapshots_to_delete(list(reversed(paths))) == [
+        p for p in paths if int(p.stem) not in kept
+    ]
+    assert snapshots_to_delete(paths[:20]) == []
+    assert snapshots_to_delete([]) == []

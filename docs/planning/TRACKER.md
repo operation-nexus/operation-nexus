@@ -88,7 +88,7 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-100 [#157](https://github.com/operation-nexus/operation-nexus/issues/157) | `SimRng` (PCG64, named sub-streams) | S | ✅ | NX-010 | Unit + property tests; same seed → same draws |
 | NX-101 [#158](https://github.com/operation-nexus/operation-nexus/issues/158) | World model types + canonical `state_hash` | M | ✅ | NX-021 | SC-9 round-trip property |
 | NX-102 [#159](https://github.com/operation-nexus/operation-nexus/issues/159) | Fixed-step runtime + inbox + canonical command ordering | M | ✅ | NX-101 | SC-6 shuffled-arrival property |
-| NX-103 | Snapshot + command log + restore | M | ⬜ | NX-102 | Kill/restore integration test equal hash |
+| NX-103 [#160](https://github.com/operation-nexus/operation-nexus/issues/160) | Snapshot + command log + restore | M | 👀 | NX-102 | Kill/restore integration test equal hash |
 | NX-104 | Spatial grid + benchmarks | M | ⬜ | NX-101 | 1k entities p99 < 25 ms (bench) |
 | NX-105 | Golden replay framework + cross-process check in CI | M | ⬜ | NX-103 | Job `sim-determinism` required |
 | NX-106 | Balance config loader (YAML, schema-validated, hashed) | S | ⬜ | NX-101 | Invalid config rejected; hash in campaign |

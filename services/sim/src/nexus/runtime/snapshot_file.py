@@ -16,6 +16,7 @@ from typing import Any
 import msgpack
 import zstandard
 
+from nexus.core.step import TICK_DT
 from nexus.core.world import FORMAT_VERSION, World, load, save, state_hash
 from nexus.runtime.fsutil import fsync_dir
 
@@ -27,6 +28,8 @@ _MAX_HEADER = 64 * 1024  # a header is ~300 bytes; anything larger is corruption
 # 64 MiB caps the decompressed world. SC-10's 3,000-entity world is far below it; raise the
 # limit if a measured snapshot approaches it.
 _MAX_BODY = 64 * 1024 * 1024
+_KEEP_LAST = 20
+_TICKS_PER_HOUR = round(3600 / TICK_DT)  # game time (DATA-MODEL §6.1, CFG-9)
 
 
 class SnapshotError(ValueError):
@@ -141,3 +144,24 @@ def _check_matches(header: SnapshotHeader, world: World, name: str) -> None:
     got = (header.campaign_id, header.seed, header.config_hash, header.tick, header.state_hash)
     if got != expected:
         raise SnapshotError(f"{name}: header {got} does not match the restored world {expected}")
+
+
+def list_snapshots(directory: Path) -> list[Path]:
+    """Snapshot files in tick order; other names (`.tmp`, strays) are ignored."""
+    return sorted(directory.glob("[0-9]" * 12 + ".nxs"))
+
+
+def snapshots_to_delete(paths: list[Path]) -> list[Path]:
+    """Retention (SIM-CORE §5): keep the newest 20 and the earliest snapshot of each game hour.
+
+    The newest is the campaign's final snapshot once it ends, so it is always kept.
+    """
+    by_tick = sorted(paths, key=lambda p: int(p.stem))
+    keep = set(by_tick[-_KEEP_LAST:])
+    hours: set[int] = set()
+    for p in by_tick:
+        hour = int(p.stem) // _TICKS_PER_HOUR
+        if hour not in hours:
+            hours.add(hour)
+            keep.add(p)
+    return [p for p in by_tick if p not in keep]

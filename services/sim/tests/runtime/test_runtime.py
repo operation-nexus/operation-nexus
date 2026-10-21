@@ -1,6 +1,8 @@
 """Runtime tests: inbox, fixed-step clock and loop (NX-102, SIM-CORE §5, SC-6)."""
 
 import threading
+from collections.abc import Callable
+from pathlib import Path
 
 import pytest
 
@@ -9,6 +11,7 @@ from nexus.contracts.gen.events.command_rejected import CommandRejected
 from nexus.core.step import step
 from nexus.core.world import Campaign, World, state_hash
 from nexus.runtime.clock import FixedStepClock
+from nexus.runtime.command_log import CommandLogWriter
 from nexus.runtime.inbox import Inbox
 from nexus.runtime.loop import SimRuntime
 
@@ -42,6 +45,26 @@ class FakeTime:
 
 def new_world() -> World:
     return World.new(Campaign(CAMPAIGN_ID, 12345, "cfg-test"))
+
+
+type MakeRuntime = Callable[[World, Inbox, FixedStepClock], SimRuntime]
+
+
+@pytest.fixture
+def make_runtime(tmp_path: Path, log_writer: Callable[..., CommandLogWriter]) -> MakeRuntime:
+    def make(world: World, inbox: Inbox, clock: FixedStepClock) -> SimRuntime:
+        return SimRuntime(
+            world,
+            inbox,
+            clock,
+            log_writer(tmp_path),
+            tmp_path,
+            protocol_version="0.2",
+            sim_build="test",
+            created_at=lambda: "2026-10-21T12:00:00Z",
+        )
+
+    return make
 
 
 def test_submit_stamps_next_tick_and_monotonic_seq() -> None:
@@ -131,11 +154,11 @@ def test_clock_long_stall_catches_up_three_and_counts_overrun() -> None:
     assert clock.tick_overruns == 1
 
 
-def test_run_due_drains_and_steps_each_due_tick() -> None:
+def test_run_due_drains_and_steps_each_due_tick(make_runtime: MakeRuntime) -> None:
     now = FakeTime()
     world = new_world()
     inbox = Inbox(capacity=10, next_tick=1)
-    runtime = SimRuntime(world, inbox, FixedStepClock(now))
+    runtime = make_runtime(world, inbox, FixedStepClock(now))
     inbox.submit(make_join())
     assert runtime.run_due() == []
     now.t += 0.1
@@ -151,13 +174,13 @@ def test_run_due_drains_and_steps_each_due_tick() -> None:
     assert inbox.drain() == []
 
 
-def test_submit_during_catch_up_lands_on_the_next_step() -> None:
+def test_submit_during_catch_up_lands_on_the_next_step(make_runtime: MakeRuntime) -> None:
     # The old race: a caller read tick T, the runtime caught up past T + 1, then the command was
     # stamped T + 1 and never drained. Now the inbox stamps the tick it will drain next.
     now = FakeTime()
     world = new_world()
     inbox = Inbox(capacity=1, next_tick=1)
-    runtime = SimRuntime(world, inbox, FixedStepClock(now))
+    runtime = make_runtime(world, inbox, FixedStepClock(now))
     stale_tick = world.campaign.tick
     now.t += 0.3
     assert runtime.run_due() == []  # three catch-up steps drain ticks 1..3
@@ -169,6 +192,6 @@ def test_submit_during_catch_up_lands_on_the_next_step() -> None:
     assert inbox.submit(make_join())  # its capacity slot was freed
 
 
-def test_runtime_rejects_an_inbox_out_of_step_with_the_world() -> None:
+def test_runtime_rejects_an_inbox_out_of_step_with_the_world(make_runtime: MakeRuntime) -> None:
     with pytest.raises(ValueError, match="next_tick"):
-        SimRuntime(new_world(), Inbox(capacity=1, next_tick=5), FixedStepClock(FakeTime()))
+        make_runtime(new_world(), Inbox(capacity=1, next_tick=5), FixedStepClock(FakeTime()))

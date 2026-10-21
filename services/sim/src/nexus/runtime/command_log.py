@@ -32,6 +32,7 @@ _MAX_SEGMENT_FILE = 256 * 1024 * 1024  # compressed bytes read into memory per s
 _FRAME_HEADER_MAX = 18  # ZSTD_FRAMEHEADERSIZE_MAX
 _ZSTD_MAGIC = b"\x28\xb5\x2f\xfd"
 _CHUNK = 64 * 1024  # compressed bytes fed to the decoder per call
+_FIRST_FRAME_READ = 64 * 1024  # bytes read to find a segment's header (see _first_seq)
 _COMMAND: TypeAdapter[Command] = TypeAdapter(Command)
 
 
@@ -142,6 +143,14 @@ class CommandLogWriter:
         if self._next_seq != last + 1:
             raise CommandLogError(f"{name}: next_arrival_seq {self._next_seq} != {last + 1}")
 
+    @property
+    def directory(self) -> Path:
+        return self._directory
+
+    @property
+    def next_arrival_seq(self) -> int:
+        return self._next_seq
+
     def append(self, commands: Iterable[Command]) -> None:
         """Buffer a batch; nothing is buffered unless every arrival_seq is the next in order."""
         batch = list(commands)
@@ -187,23 +196,44 @@ class CommandLogWriter:
 class CommandLogReader:
     """Streams every entry in segment order. After a full pass, `truncated_tail` says whether the
     last segment ended inside a frame and that frame was dropped (commands may be lost; the
-    runtime alerts). Damage anywhere else raises `CommandLogError`."""
+    runtime alerts). Damage anywhere else raises `CommandLogError`.
 
-    def __init__(self, directory: Path) -> None:
+    With `from_arrival_seq`, leading segments whose successor starts below it are skipped
+    unread: every command and tombstone in them was written before that arrival_seq was taken.
+    The first segment read must start at or before `from_arrival_seq`, else the log does not
+    cover it and reading raises. The segments read are checked in full.
+    """
+
+    def __init__(self, directory: Path, from_arrival_seq: int = 1) -> None:
         self._paths = sorted(directory.glob(f"*{_SUFFIX}"))
+        self._from = from_arrival_seq
         self.truncated_tail = False
+
+    def _first_needed(self) -> list[Path]:
+        # Strictly below: a successor starting exactly at `from` may follow tombstones for ticks
+        # after the snapshot that had no commands, in the segment before it.
+        start = 0
+        while start + 1 < len(self._paths):
+            successor = _first_seq(self._paths[start + 1])
+            if successor is None or successor >= self._from:
+                break
+            start += 1
+        return self._paths[start:]
 
     def __iter__(self) -> Iterator[LogEntry]:
         self.truncated_tail = False
         first: dict[str, Any] | None = None
         next_seq = 0
-        for i, path in enumerate(self._paths):
-            last = i == len(self._paths) - 1
+        paths = self._first_needed()
+        for i, path in enumerate(paths):
+            last = i == len(paths) - 1
             lines = self._lines(path, last=last)
             raw_header = next(lines, None)
             if raw_header is None and last:
                 return  # a segment created at rotation whose first flush never landed
             header = _segment_header(raw_header or b"", path.name)
+            if first is None and header["first_arrival_seq"] > self._from:
+                raise CommandLogError(f"{path.name}: log does not cover arrival_seq {self._from}")
             first = first or header
             next_seq = next_seq or header["first_arrival_seq"]
             if (header["campaign_id"], header["first_arrival_seq"]) != (
@@ -235,6 +265,20 @@ def _read_segment(path: Path) -> bytes:
     if path.stat().st_size > _MAX_SEGMENT_FILE:
         raise CommandLogError(f"{path.name}: segment file over {_MAX_SEGMENT_FILE} bytes")
     return path.read_bytes()
+
+
+def _first_seq(path: Path) -> int | None:
+    """The segment header's first_arrival_seq; None when no complete frame has landed."""
+    with path.open("rb") as f:
+        head = f.read(_FIRST_FRAME_READ)
+    first = next(_frames(head, path.name), None)
+    # The first frame (header plus one flush) almost always fits; if not, read the whole file.
+    if first is not None and first[1] is None and len(head) == _FIRST_FRAME_READ:
+        first = next(_frames(_read_segment(path), path.name), None)
+    if first is None or first[1] is None:
+        return None
+    header = _segment_header(first[1].split(b"\n", 1)[0], path.name)
+    return int(header["first_arrival_seq"])
 
 
 def _frames(data: bytes, name: str) -> Iterator[tuple[int, bytes | None]]:

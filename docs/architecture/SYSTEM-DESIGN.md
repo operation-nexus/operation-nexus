@@ -109,8 +109,8 @@ Boundaries are enforced with `import-linter` `forbidden` contracts in CI (NX-019
 ### 5.2 Tick
 `runtime` runs a fixed-step accumulator on a monotonic clock. Each tick:
 1. Drain the inbox for this tick.
-2. `core.step`.
-3. Append the commands to the command log.
+2. Append the commands to the command log (write-ahead, SIM-CORE SC-8).
+3. `core.step`.
 4. Publish events.
 5. Write a snapshot every 300 ticks, and a state hash every 100 ticks.
 

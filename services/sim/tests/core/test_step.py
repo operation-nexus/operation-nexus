@@ -101,6 +101,22 @@ def test_unhandled_kind_is_rejected_not_raised() -> None:
     assert step(w, [make_join(target_tick=2, arrival_seq=8)])[0].event_seq == 3
 
 
+def test_dropped_commands_are_rejected_in_arrival_order_and_not_applied() -> None:
+    # SC-8: a tombstoned tick's commands are dropped, even ones a handler would accept.
+    w = new_world()
+    events = step(w, [], STUB, dropped=[make_join(arrival_seq=9), make_join(arrival_seq=4)])
+    rejected = [e for e in events if isinstance(e, CommandRejected)]
+    assert len(rejected) == len(events)
+    assert [(e.arrival_seq, e.event_seq, e.reason) for e in rejected] == [
+        (4, 1, "INTERNAL_ERROR"),
+        (9, 2, "INTERNAL_ERROR"),
+    ]
+    assert len(w) == 0
+    assert w.campaign.tick == 1
+    with pytest.raises(ValueError, match="do not target tick 2"):
+        step(w, [], STUB, dropped=[make_join(arrival_seq=10)])
+
+
 def test_tick_advances_by_one_per_step() -> None:
     w = new_world()
     for expected in (1, 2, 3):

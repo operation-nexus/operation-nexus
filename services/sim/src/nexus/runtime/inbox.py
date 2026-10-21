@@ -11,13 +11,13 @@ from nexus.contracts.gen.commands.command import Command
 
 
 class Inbox:
-    def __init__(self, capacity: int, next_tick: int) -> None:
+    def __init__(self, capacity: int, next_tick: int, next_arrival_seq: int = 1) -> None:
         if capacity < 1:
             raise ValueError(f"capacity must be >= 1, got {capacity}")
         self._capacity = capacity
         self._lock = threading.Lock()
         self._pending: list[Command] = []
-        self._next_seq = 1
+        self._next_seq = next_arrival_seq  # after a restore: RestoreResult.last_arrival_seq + 1
         self.next_tick = next_tick  # the tick the sim computes next
         self.rejected_overflow = 0
 

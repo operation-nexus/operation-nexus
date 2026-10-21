@@ -345,3 +345,33 @@ def test_malformed_tombstone_is_rejected(tmp_path: Path, tombstone: dict[str, An
     write_raw(tmp_path, HEADER, tombstone)
     with pytest.raises(CommandLogError, match="tombstone"):
         read_all(tmp_path)
+
+
+@pytest.mark.parametrize(
+    ("from_seq", "seqs"), [(1, [1, 2, 3, 4, 5]), (3, [1, 2, 3, 4, 5]), (4, [3, 4, 5]), (6, [5])]
+)
+def test_reader_skips_segments_wholly_before_from_seq(
+    tmp_path: Path, from_seq: int, seqs: list[int]
+) -> None:
+    # Skipped only when the next segment starts below from_seq, so nothing it holds is needed.
+    for number, (first_seq, records) in enumerate([(1, [1, 2]), (3, [3, 4]), (5, [5])], start=1):
+        segment(tmp_path, number, first_seq, records)
+    entries = list(CommandLogReader(tmp_path, from_arrival_seq=from_seq))
+    assert [e.arrival_seq for e in entries if not isinstance(e, Tombstone)] == seqs
+
+
+def test_reader_raises_when_the_log_starts_after_from_seq(tmp_path: Path) -> None:
+    segment(tmp_path, 2, 3, [3, 4])
+    with pytest.raises(CommandLogError, match="does not cover arrival_seq 2"):
+        list(CommandLogReader(tmp_path, from_arrival_seq=2))
+    assert len(list(CommandLogReader(tmp_path, from_arrival_seq=3))) == 2
+
+
+def test_first_frame_larger_than_the_header_read_falls_back_to_a_full_read(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(command_log, "_FIRST_FRAME_READ", 16)  # smaller than any first frame
+    for number, (first_seq, records) in enumerate([(1, [1, 2]), (3, [3, 4]), (5, [5])], start=1):
+        segment(tmp_path, number, first_seq, records)
+    entries = list(CommandLogReader(tmp_path, from_arrival_seq=4))
+    assert [e.arrival_seq for e in entries if not isinstance(e, Tombstone)] == [3, 4, 5]
