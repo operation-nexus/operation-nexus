@@ -282,12 +282,39 @@ def test_two_sides_at_a_neutral_node_follow_the_table() -> None:
     put(w2, TRUCK, "COALITION", NEUTRAL_FOB)
     put(w2, CONVOY, "ENEMY", NEUTRAL_FOB)
     run(w2, 5)
-    assert NEUTRAL_FOB not in w2.capture  # two free sides: neither starts
+    assert NEUTRAL_FOB not in w2.capture  # two free sides, equal weight: neither starts
     w3 = new_world()
     put(w3, INFANTRY, "COALITION", NEUTRAL_FOB)
     put(w3, CONVOY, "ENEMY", NEUTRAL_FOB)  # the convoy cannot block: the infantry fills the bar
     run(w3, 2)
     assert w3.capture[NEUTRAL_FOB].side == "COALITION"
+
+
+def test_unarmed_sides_at_a_neutral_node_the_heavier_starts_the_bar() -> None:
+    w = new_world()  # two trucks (1.0) against one truck (0.5)
+    put(w, TRUCK, "COALITION", NEUTRAL_FOB)
+    put(w, TRUCK, "COALITION", NEUTRAL_FOB)
+    put(w, CONVOY, "ENEMY", NEUTRAL_FOB)
+    assert len(of(run(w), CaptureStarted)) == 1 and w.capture[NEUTRAL_FOB].side == "COALITION"
+    w2 = new_world()  # two trucks (1.0) against three convoys (1.5): the other side wins
+    put(w2, TRUCK, "COALITION", NEUTRAL_FOB)
+    put(w2, TRUCK, "COALITION", NEUTRAL_FOB)
+    put(w2, CONVOY, "ENEMY", NEUTRAL_FOB)
+    put(w2, CONVOY, "ENEMY", NEUTRAL_FOB)
+    put(w2, CONVOY, "ENEMY", NEUTRAL_FOB)
+    run(w2)
+    assert w2.capture[NEUTRAL_FOB].side == "ENEMY"  # 1.5 beats 1.0
+
+
+def test_a_started_unarmed_bar_fills_while_the_other_side_stays() -> None:
+    w = new_world()
+    put(w, TRUCK, "COALITION", NEUTRAL_FOB)
+    put(w, TRUCK, "COALITION", NEUTRAL_FOB)
+    put(w, CONVOY, "ENEMY", NEUTRAL_FOB)
+    run(w)
+    first = progress(w)
+    assert first > 0 and gain(w) > 0 and w.capture[NEUTRAL_FOB].side == "COALITION"
+    assert len(of(run(w, 400), NodeCaptured)) == 1 and w.owner[NEUTRAL_FOB] == "COALITION"
 
 
 def test_a_bar_of_one_side_drains_before_the_other_side_starts() -> None:

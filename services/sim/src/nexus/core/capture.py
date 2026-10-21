@@ -19,7 +19,8 @@ viewer units, as JOIN counts them (`World.viewer_units`).
 
 A side `S` that is not the owner and has capturers is free when the other side has no combat-capable
 unit there. A node with no bar starts one for the only free side (`CaptureStarted`); with two free
-sides (a neutral node, both sides unarmed) nothing starts. A bar fills while its side is free and
+sides (a neutral node, both sides unarmed) the side with the larger capture weight starts it and an
+exact tie starts nothing (Q-SIM-59). A bar fills while its side is free and
 drains by `decay_per_s` x `world_dt` otherwise: abandoned, or contested by a combat-capable unit
 (owner, 2026-10-21, Q-SIM-23); at 0 it is removed and the node keeps its owner. At `CAPTURE_FULL`
 the node flips in this tick (N-1: one bar, one test per node per tick): `NodeCaptured`, the node's
@@ -128,9 +129,10 @@ def _tick_node(
     free = [s for s in capturers if not near[_OTHER[s]].armed]
     bar = world.capture.get(node)
     if bar is None:
-        if len(free) != 1:
+        starter = _starter(near, free)
+        if starter is None:
             return
-        bar = world.capture[node] = CaptureBar(free[0], 0)
+        bar = world.capture[node] = CaptureBar(starter, 0)
         out.append(_started(world, node, bar.side))
     elif bar.side not in free:  # abandoned, or contested: it drains alike (Q-SIM-23)
         _decay(world, cap, node, bar)
@@ -140,6 +142,17 @@ def _tick_node(
     bar.progress += max(1, round(CAPTURE_FULL * rules.world_dt / time))
     if bar.progress >= CAPTURE_FULL:
         _flip(world, rules, cap, node, bar.side, near, out)
+
+
+def _starter(near: dict[Side, _Presence], free: list[Side]) -> Side | None:
+    """The side that starts a bar: the only free side, else the heavier one (Q-SIM-59). The weights
+    are the float sums the rate uses, built in entity id order, so the comparison is deterministic;
+    for the shipped weights (1 and 0.5) they are exact, so a tie is a real tie."""
+    if len(free) == 1:
+        return free[0]
+    if len(free) == 2 and near[free[0]].weight != near[free[1]].weight:
+        return max(free, key=lambda s: near[s].weight)
+    return None
 
 
 def _base_time(cap: CaptureRules, n: float, quiet: float) -> float:
