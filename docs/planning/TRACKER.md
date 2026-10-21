@@ -92,8 +92,8 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-120 | Theater loader + road graph + A* | M | ⬜ | NX-008, NX-106 | Paths avoid destroyed bridges |
 | NX-121 | Kinematics (air direct, ground on graph), time scale | M | ⬜ | NX-120 | Property: positions in bounds, on edges |
 | NX-122 | Unit slots, spawn, respawn delay, reserve queue | M | ⬜ | NX-121 | GP-1..3 tests |
-| NX-123 | Logistics: stock, factories, convoys, unload, starvation | L | ⬜ | NX-121 | Conservation property; starvation loadouts |
-| NX-124 | Combat: targeting, pk model, SAM rings | L | ⬜ | NX-121 | Deterministic outcomes with seeded rng; domain rules |
+| NX-123 | Logistics: stock, convoys, unload, starvation (factories parked, Q-GP-41) | L | ⬜ | NX-121 | Conservation property; starvation loadouts |
+| NX-124 | Combat per COMBAT spec: targeting, pk model, damage, wrecks, SAM rings | L | ⬜ | NX-121 | COMBAT §7 test plan passes, incl. Pk cap, range factor and the §5.1 matrix check against content |
 | NX-125 | Capture with contest/decay | M | ⬜ | NX-121 | No double flip property |
 | NX-126 | Campaign: objectives, momentum, win/loss, pause with a reason category (Q-ALN-3); the clock never pauses for lack of humans (Q-GD-4 amended). The automatic pauses are NX-325 | M | ⬜ | NX-125 | Scenario tests per condition |
 | NX-150 | FoW tiers + server-side redaction + blob clustering, last-known tracks (FOW-6a), emitters (FOW-11), spotted flag (FOW-12), masking regions | L | ⬜ | NX-104 | FOW-1..3, FOW-6a, FOW-11, FOW-12 properties |
@@ -177,7 +177,8 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 
 | ID | Item | Status |
 |---|---|---|
-| NX-212 | Ranks O-4..O-6, specialist chassis (SEAD, jammer, engineer, AWACS, artillery) | ⬜ |
+| NX-212 | Ranks O-4..O-6, specialist chassis (SEAD, jammer, engineer, AWACS, artillery); acceptance: the reserved `SPAWN_SPECIALIST` command gets its schema, parser and handler (Q-CMD-2), the jamming Pk factor replaces its FB-6 1.0 | ⬜ |
+| NX-362 | Countermeasures (chaff/flares, one-shot per load) and radar lock as Pk factors; acceptance: both replace their FB-6 1.0 fallback (COMBAT §5.2, Q-CBT-20) | ⬜ |
 | NX-213 | Doctrines (per-campaign lock, signature abilities, badges) | ⬜ |
 | NX-214 | Packages / wingman / NPC fill | ⬜ |
 | NX-215 | Cosmetics (halos, trails, placards) | ⬜ |
@@ -214,7 +215,7 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-287 | Research: Gemini TTS synthetic voice design/generation (capabilities, pricing, rate limits, terms, commercial use on streams) for voice-cast profiles via the `TtsEngine` port; cost vs the $20/mo cap | ⬜ |
 | NX-288 | Platform AI-content compliance: verify Twitch and YouTube synthetic-media and AI disclosure rules now and at every phase gate; apply labels, channel panel note | ⬜ |
 | NX-289 | Human voice lines pipeline: owner or community voice actors record lines from the sitrep template list, with a consent and license agreement per contributor; recorded lines plug into the voice cast as a `TtsEngine`-compatible source | ⬜ |
-| NX-290 | Disabled state, crew survival roll, downed-crew markers, CSAR missions (`!rescue`), recovery of disabled vehicles, rescue XP bonus | ⬜ |
+| NX-290 | Disabled state, crew survival roll, downed-crew markers, CSAR missions (`!rescue`), recovery of disabled vehicles, **field repair of Disabled units by the engineer specialist** (Q-CBT-14), rescue XP bonus | ⬜ |
 | NX-291 | Conduct system: disruptive-pattern detectors, decaying conduct score, escalation ladder (warn → restrict → timeout → XP penalty → mod review), appeals, mod dashboard; never auto-ban | ⬜ |
 | NX-292 | AI evaluation harness: golden question/answer sheets per AI use (narration, advisor, `!order` intent parsing, moderation), schema and command-format validation, intent accuracy scoring, latency/cost per call; runs any provider (hosted or local) through the same port so models can be compared before adoption | ⬜ |
 | NX-293 | Field Manual: quick-start guide + advanced operations guide (site pages, optional PDF/video), linked from stream descriptions, panels and `!guide`; generated from the command catalog so it never drifts | ⬜ |
