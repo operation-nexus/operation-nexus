@@ -10,7 +10,7 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | Phase | Items | Done | Status |
 |---|---|---|---|
 | P0 Foundations | 42 | 19 | 🟨 |
-| P1 Sim kernel | 26 | 8 | 🟨 |
+| P1 Sim kernel | 27 | 9 | 🟨 |
 | P2 Closed alpha | 34 | 0 | ⬜ |
 | P3 Public beta | 22 | 0 | ⬜ |
 | P4 Depth | 67 | 1 | ⬜ |
@@ -93,10 +93,11 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-105 [#162](https://github.com/operation-nexus/operation-nexus/issues/162) | Golden replay framework + cross-process check in CI | M | ✅ | NX-103 | Job `sim-determinism` in `ci-gate`: required on main, advisory on develop (ADR-0009) |
 | NX-106 [#169](https://github.com/operation-nexus/operation-nexus/issues/169) | Balance config loader (YAML, schema-validated, hashed) | S | ✅ | NX-101 | Invalid config rejected; hash in campaign |
 | NX-120 [#175](https://github.com/operation-nexus/operation-nexus/issues/175) | Theater loader + road graph + A* | M | ✅ | NX-008, NX-106 | Paths avoid destroyed bridges |
-| NX-121 | Kinematics (air direct, ground on graph), time scale | M | ⬜ | NX-120 | Property: positions in bounds, on edges |
-| NX-122 | Unit slots, spawn, respawn delay, reserve queue | M | ⬜ | NX-121 | GP-1..3 tests |
+| NX-367 [#178](https://github.com/operation-nexus/operation-nexus/issues/178) | Unit catalog loader + MVP catalog entries (`content/units/`, PROPOSED values; Q-CBT-24) | M | 🟨 | NX-106 | Catalog kinds equal `UnitKind`; joins `config_hash`; GARRISON_INFANTRY GROUND only |
+| NX-121 | Kinematics (air direct, ground on graph), time scale | M | ⬜ | NX-120, NX-367 | Property: positions in bounds, on edges |
+| NX-122 | Unit slots, spawn, respawn delay, reserve queue | M | ⬜ | NX-121, NX-367 | GP-1..3 tests |
 | NX-123 | Logistics: stock, convoys, unload, starvation (factories parked, Q-GP-41) | L | ⬜ | NX-121 | Conservation property; starvation loadouts |
-| NX-124 | Combat per COMBAT spec: targeting, pk model, damage, wrecks, SAM rings | L | ⬜ | NX-121 | COMBAT §7 test plan passes, incl. Pk cap, range factor and the §5.1 matrix check against content |
+| NX-124 | Combat per COMBAT spec: targeting, pk model, damage, wrecks, SAM rings | L | ⬜ | NX-121, NX-150, NX-367 | COMBAT §7 test plan passes, incl. Pk cap, range factor and the §5.1 matrix check against content |
 | NX-125 | Capture with contest/decay | M | ⬜ | NX-121 | No double flip property |
 | NX-126 | Campaign: objectives, momentum, win/loss, pause with a reason category (Q-ALN-3); the clock never pauses for lack of humans (Q-GD-4 amended). The automatic pauses are NX-325 | M | ⬜ | NX-125 | Scenario tests per condition |
 | NX-150 | FoW tiers + server-side redaction + blob clustering, last-known tracks (FOW-6a), emitters (FOW-11), spotted flag (FOW-12), masking regions | L | ⬜ | NX-104 | FOW-1..3, FOW-6a, FOW-11, FOW-12 properties |
@@ -106,7 +107,7 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-157 | AI garrison + Pattern of Life + provocation-gated escalation (THREAT-DIRECTOR §5a) | M | ⬜ | NX-155 | overnight-0: no attacks; 0→1 viewer: no escalation until provocation; staging visible to scouts |
 | NX-158 | `!rebase` and base-to-base repositioning for both sides | S | ⬜ | NX-121 | Units stage forward and refuel at the destination base |
 | NX-031 | Balance harness (`tools/balance`) + bot personas + report | L | ⬜ | NX-126 | Standard scenarios (crowd profiles of 0, 5, 50, 150, 300 and 500 simulated viewers plus the adversarial profiles, Q-ALN-42): 20-seed balance-diff report; the 50-seed acceptance run of TESTING-STRATEGY §3.5a (Q-TEST-4) |
-| NX-032 [#176](https://github.com/operation-nexus/operation-nexus/issues/176) | Replay CLI + measured storage size | S | 👀 | NX-103 | Size documented in CLIPS-REPLAY |
+| NX-032 [#176](https://github.com/operation-nexus/operation-nexus/issues/176) | Replay CLI + measured storage size | S | ✅ | NX-103 | Size documented in CLIPS-REPLAY |
 | NX-033 | Headless soak (6h) in nightly | M | ⬜ | NX-016 | No memory growth; hashes replay |
 | NX-301 | Track fade (FOW-6 only; FOW-6a is in NX-150), later phase behind a feature flag (Q-PROD-8, Q-ALN-20) | — | ⬜ | NX-150 | Tracks age back into SIGINT blobs over time after the scout dies or leaves (FOG-OF-WAR) |
 | NX-304 | Objective modes: timed / off per campaign (Q-GD-19 blocks P1; moved from P4 in NX-311) | — | ⬜ | NX-126 | O-1 invariant per mode (STATE-MACHINES §4.5) |

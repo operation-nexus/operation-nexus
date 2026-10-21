@@ -1,6 +1,6 @@
 # SPEC: Combat
 
-Status: Review · Owner: — · Tracker: NX-312 (spec), NX-124 (build) · Related ADRs: ADR-0002
+Status: Approved (owner, 2026-10-21, Q-CBT-23) · Owner: — · Tracker: NX-312 (spec), NX-124 (build) · Related ADRs: ADR-0002
 
 > Grilled with the owner on 2026-10-20 (Q-CBT-10 … Q-CBT-22). **Every number here is PROPOSED and unvalidated** (DATA-INTEGRITY DI-7) until the balance harness (NX-031) runs. Per-kind stats (hp, damage, armor, evasion, threat) are content values in `content/units.yaml` (CONFIG-AND-CONTENT §7); this spec defines the fields and the rules, never the numbers.
 
@@ -41,11 +41,11 @@ A weapon's `targets:` list names domains (`AIR`, `GROUND`, `SEA`, `STATIC`) plus
 | STRIKE_FIGHTER, ENEMY_STRIKE_FIGHTER | light | yes | yes | yes | §7.3 "AG + AA light"; STRUCTURE: GAMEPLAY §8 (air strikes reduce defense HP) |
 | ENEMY_FIGHTER | yes | — | — | — | §7.3 "AA" |
 | ENEMY_ARMOR | — | yes | yes | yes | §7.3 "AG"; STRUCTURE: GAMEPLAY §8 (ground fire reduces defense HP) |
-| GARRISON_INFANTRY | OPEN | yes | OPEN | OPEN | §7.3 "light"; targets not stated |
+| GARRISON_INFANTRY | — | yes | — | — | §7.3 "light"; GROUND only, a pure defender (owner, Q-CBT-25). Anti-air and anti-facility infantry variants come later as new catalog entries, for garrisons and for operators (GAMEPLAY-LATER) |
 | AIR_DEFENSE_SITE (AAA, SAM variants) | yes | — | — | — | §7.3 engagement ring |
 | RECON_UAV, ENEMY_RECON_UAV, LOGI_TRUCK, ENEMY_CONVOY, RADAR_SITE | unarmed | | | | §7.3 |
 
-"light" means a weapon with that target is carried but is not the kind's main role. OPEN cells are decided when the catalog entries are written (`new-unit` skill), not here. SEA arrives with naval units (P3).
+"light" means a weapon with that target is carried but is not the kind's main role. SEA arrives with naval units (P3).
 
 ### 5.2 Hit probability (first build)
 `Pk = min(combat.pk_cap, base_pk × track × range × evasion × masking)`
