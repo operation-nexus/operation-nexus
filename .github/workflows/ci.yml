@@ -4,9 +4,10 @@
 #
 # Gate policy (ADR-0009). `ci-gate` is the only check branch protection needs.
 #   - Lint, format, typecheck, import contracts, build and security: always blocking.
-#   - Tests (python-test, overlay-test): advisory when the target branch is
-#     `develop`, required when it is `main`. Advisory test jobs still run and
-#     show red; ci-gate turns their failure into a warning instead of failing.
+#   - Tests (python-test, sim-determinism, overlay-test): advisory when the
+#     target branch is `develop`, required when it is `main`. Advisory test
+#     jobs still run and show red; ci-gate turns their failure into a warning
+#     instead of failing.
 #   - Skipped jobs (path filter) count as success.
 #   - pr-hygiene (pr-hygiene.yml, NX-017) is blocking on every PR.
 #     `edited` re-runs CI so a fixed PR title or body clears it.
@@ -131,6 +132,32 @@ jobs:
       - run: python3 tools/discord-setup/tests/test_setup.py
         working-directory: .
 
+  # Golden replays in four interpreters with different PYTHONHASHSEED values,
+  # compared with each other and with the committed hashes (NX-105, SIM-CORE
+  # SC-3, TESTING-STRATEGY §3.2). A test job: advisory on develop (ADR-0009).
+  sim-determinism:
+    name: sim-determinism
+    needs: changes
+    if: needs.changes.outputs.python == 'true'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: services/sim
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: "0.11.32"
+          python-version: "3.12"
+          cache-dependency-glob: services/sim/uv.lock
+      - run: uv sync --frozen
+      - run: uv run --frozen python ../../tools/sim-determinism/check.py
+
   overlay:
     name: overlay (types, lint, build)
     needs: changes
@@ -251,7 +278,7 @@ jobs:
   ci-gate:
     name: ci-gate
     if: always()
-    needs: [changes, pr-hygiene, python, python-test, overlay, overlay-test, contracts, security]
+    needs: [changes, pr-hygiene, python, python-test, sim-determinism, overlay, overlay-test, contracts, security]
     runs-on: ubuntu-24.04
     timeout-minutes: 5
     permissions: {}
@@ -264,6 +291,7 @@ jobs:
           R_PR_HYGIENE: ${{ needs.pr-hygiene.result }}
           R_PYTHON: ${{ needs.python.result }}
           R_PYTHON_TEST: ${{ needs.python-test.result }}
+          R_SIM_DETERMINISM: ${{ needs.sim-determinism.result }}
           R_OVERLAY: ${{ needs.overlay.result }}
           R_OVERLAY_TEST: ${{ needs.overlay-test.result }}
           R_CONTRACTS: ${{ needs.contracts.result }}
@@ -290,6 +318,7 @@ jobs:
           check pr-hygiene "$R_PR_HYGIENE" required
           check python "$R_PYTHON" required
           check python-test "$R_PYTHON_TEST" test
+          check sim-determinism "$R_SIM_DETERMINISM" test
           check overlay "$R_OVERLAY" required
           check overlay-test "$R_OVERLAY_TEST" test
           check contracts "$R_CONTRACTS" required

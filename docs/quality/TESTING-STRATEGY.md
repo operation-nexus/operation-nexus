@@ -45,8 +45,8 @@ Examples that must always hold after any sequence of valid commands:
 
 ### 3.2 Determinism
 - `state_hash(tick)` is a canonical hash of sorted, quantized state. It's emitted every 100 ticks.
-- **Golden replays:** `tests/golden/*.jsonl` are (seed, balance version, command log). CI replays them and compares checkpoint hashes. An intentional rule change regenerates the goldens in the same PR, with a `golden-update` label and a note explaining why.
-- **Cross-process:** the same scenario runs in two processes with different `PYTHONHASHSEED` values, and the hashes must match.
+- **Golden replays:** each case in `services/sim/tests/golden/<name>/` is (seed, config hash, command log) plus the pinned checkpoint and event-stream hashes ([README](../../services/sim/tests/golden/README.md)). CI replays them and compares checkpoint hashes. An intentional rule change regenerates the goldens in the same PR (`NEXUS_UPDATE_GOLDEN=1`), with a `golden-update` label and a note explaining why.
+- **Cross-process:** `tools/sim-determinism/check.py` (CI job `sim-determinism`) runs every golden case in four processes with different `PYTHONHASHSEED` values, and the hashes must match each other and the pinned ones.
 - **LLM decisions are recorded as events.** Replays never call an LLM.
 
 ### 3.3 Hostile input

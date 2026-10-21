@@ -1,0 +1,9 @@
+{
+  "campaign_id": "0192f3a4-5b6c-7d8e-9f01-23456789abcd",
+  "seed": 12345,
+  "config_hash": "cfg-golden",
+  "ticks": 200,
+  "checkpoints_every": 100,
+  "handlers": "poison",
+  "description": "Tick 120 holds a command that raises and is tombstoned: all three of its commands are dropped as CommandRejected{INTERNAL_ERROR}; the other ticks spawn as usual (SC-8)."
+}

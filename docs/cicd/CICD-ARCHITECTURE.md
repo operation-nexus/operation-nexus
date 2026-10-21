@@ -44,10 +44,10 @@ Non-goals for now: Kubernetes, Helm, multi-region, canary traffic splitting (ADR
    │     regenerate Pydantic + TS types → git diff --exit-code (drift = fail)
    │     schema compatibility check vs main (breaking change requires PROTOCOL_VERSION bump)
    │
-   ├─ sim-determinism (paths: services/sim/**, contracts/**, balance/**)
+   ├─ sim-determinism (paths: same filter as python)
    │     golden replays: seed + command log → state hash must equal committed hash
    │     cross-run check: same scenario twice in separate processes → identical hashes
-   │     perf smoke: 1,000 entities, p99 tick time under budget
+   │     perf smoke: 1,000 entities, p99 tick time under budget (not yet; NX-104)
    │
    ├─ integration (docker compose, ephemeral)
    │     nexus-app (sim+gateway, SQLite) + tts worker + overlay; scripted chat bots; WS contract tests
@@ -190,4 +190,4 @@ Applied 2026-10-18 (OWNER-TODO §2). New third-party actions must be added to th
 | `.github/dependabot.yml` | grouped weekly updates for uv, npm, actions (docker added with the first Dockerfile, NX-013) | NX-018 | Implemented |
 | `.github/workflows/label-sync.yml` | create/update labels from `.github/labels.yml` when it changes on `develop` | NX-018 | Implemented |
 
-`ci.yml` today: `changes` (git-diff path filter on PRs; pushes run everything), `pr-hygiene` (calls `pr-hygiene.yml` on every PR; blocking; `edited` events re-run CI so a fixed title or body clears it), `python` (ruff, ruff format, mypy, import-linter), `python-test` (pytest, plus the repo-check script tests in `scripts/tests`), `overlay` (tsc, eslint + prettier, vite build), `overlay-test` (vitest), `security` (calls `security.yml`: `gitleaks`, `codeql` per language, `dependency-review` on PRs, `sca` = osv-scanner gated by `scripts/check_osv_report.py`, `zizmor`, `iac` = trivy config + hadolint once a Dockerfile exists; never path-filtered), and `ci-gate`. `ci-gate` is the only required status check. Lint, format, typecheck, import contracts, the build and security always block. Scanners outside GitHub-owned actions run as release binaries pinned by version and SHA-256, so they need no Actions allowlist entry. The two test jobs are advisory when the target is `develop` (`ci-gate` emits a warning) and required for `main`. The `contracts`, `sim-determinism`, `integration` and `docs` jobs arrive with their own tracker items.
+`ci.yml` today: `changes` (git-diff path filter on PRs; pushes run everything), `pr-hygiene` (calls `pr-hygiene.yml` on every PR; blocking; `edited` events re-run CI so a fixed title or body clears it), `python` (ruff, ruff format, mypy, import-linter), `python-test` (pytest, plus the repo-check script tests in `scripts/tests`), `sim-determinism` (`tools/sim-determinism/check.py`: every golden replay in four processes with different `PYTHONHASHSEED` values, against the committed hashes; NX-105), `overlay` (tsc, eslint + prettier, vite build), `overlay-test` (vitest), `security` (calls `security.yml`: `gitleaks`, `codeql` per language, `dependency-review` on PRs, `sca` = osv-scanner gated by `scripts/check_osv_report.py`, `zizmor`, `iac` = trivy config + hadolint once a Dockerfile exists; never path-filtered), and `ci-gate`. `ci-gate` is the only required status check. Lint, format, typecheck, import contracts, the build and security always block. Scanners outside GitHub-owned actions run as release binaries pinned by version and SHA-256, so they need no Actions allowlist entry. The three test jobs (`python-test`, `sim-determinism`, `overlay-test`) are advisory when the target is `develop` (`ci-gate` emits a warning) and required for `main`. The `contracts`, `integration` and `docs` jobs arrive with their own tracker items.

@@ -10,7 +10,7 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | Phase | Items | Done | Status |
 |---|---|---|---|
 | P0 Foundations | 42 | 17 | 🟨 |
-| P1 Sim kernel | 26 | 4 | 🟨 |
+| P1 Sim kernel | 26 | 5 | 🟨 |
 | P2 Closed alpha | 33 | 0 | ⬜ |
 | P3 Public beta | 22 | 0 | ⬜ |
 | P4 Depth | 67 | 1 | ⬜ |
@@ -89,8 +89,8 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-101 [#158](https://github.com/operation-nexus/operation-nexus/issues/158) | World model types + canonical `state_hash` | M | ✅ | NX-021 | SC-9 round-trip property |
 | NX-102 [#159](https://github.com/operation-nexus/operation-nexus/issues/159) | Fixed-step runtime + inbox + canonical command ordering | M | ✅ | NX-101 | SC-6 shuffled-arrival property |
 | NX-103 [#160](https://github.com/operation-nexus/operation-nexus/issues/160) | Snapshot + command log + restore | M | ✅ | NX-102 | Kill/restore integration test equal hash |
-| NX-104 [#161](https://github.com/operation-nexus/operation-nexus/issues/161) | Spatial grid + benchmarks | M | 👀 | NX-101 | 1k entities p99 < 25 ms (bench) |
-| NX-105 | Golden replay framework + cross-process check in CI | M | ⬜ | NX-103 | Job `sim-determinism` required |
+| NX-104 [#161](https://github.com/operation-nexus/operation-nexus/issues/161) | Spatial grid + benchmarks | M | ✅ | NX-101 | 1k entities p99 < 25 ms (bench) |
+| NX-105 [#162](https://github.com/operation-nexus/operation-nexus/issues/162) | Golden replay framework + cross-process check in CI | M | 👀 | NX-103 | Job `sim-determinism` in `ci-gate`: required on main, advisory on develop (ADR-0009) |
 | NX-106 | Balance config loader (YAML, schema-validated, hashed) | S | ⬜ | NX-101 | Invalid config rejected; hash in campaign |
 | NX-120 | Theater loader + road graph + A* | M | ⬜ | NX-008, NX-106 | Paths avoid destroyed bridges |
 | NX-121 | Kinematics (air direct, ground on graph), time scale | M | ⬜ | NX-120 | Property: positions in bounds, on edges |

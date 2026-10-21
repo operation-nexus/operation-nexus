@@ -1,0 +1,9 @@
+{
+  "campaign_id": "0192f3a4-5b6c-7d8e-9f01-23456789abcd",
+  "seed": 12345,
+  "config_hash": "cfg-golden",
+  "ticks": 36000,
+  "checkpoints_every": 100,
+  "handlers": "kernel",
+  "description": "One game hour, no commands: tick, RNG and state stay stable."
+}

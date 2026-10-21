@@ -251,6 +251,8 @@ secrets.dec.*
 /clips/
 *.nxs
 *.nxl.zst
+# Golden replay inputs are committed test data, not runtime logs (NX-105).
+!/services/sim/tests/golden/*/log/*.nxl.zst
 *.tmp
 
 # Node / pnpm / Vite / TypeScript
