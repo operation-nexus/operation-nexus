@@ -11,8 +11,11 @@ floats (`fuel`) to ADR-0002's 1e-6 step. Python's `round` is round-half-to-even 
 exact float value, so it is deterministic. The RNG state, `respawn_left` (per commander, GP-2),
 the reserve queue (GP-3), each side's FoW contacts with their painted flag (FOW-5), discovered
 facility markers (FOW-13), SIGINT blobs and the running ticks since their refresh (Tier 1, FOW-9)
-are world state, so snapshots and the hash cover them. So are each node's `stock` and each carrier's
-`cargo` (integer stock units) with its `unload_milli` progress and
+are world state, so snapshots and the hash cover them. So are each entity's `hp`, `damage_state`,
+`alt_band`, per-weapon `ammo` and `reload` countdowns, wreck countdown and recent-hit list, and
+the pending `shots` with their id counter (NX-124): thresholds, reloads and impact ticks are
+integers. So are each
+node's `stock` and each carrier's `cargo` (integer stock units) with its `unload_milli` progress and
 `delivered` count (NX-123), and each aircraft's refuel progress (`rearm_milli`, `rearm_spent`,
 `stalled`): conservation stays exact. So are each node's live owner and its capture bar (side and
 integer millionths of a percent, NX-125): thresholds are exact. So are the campaign's running
@@ -32,6 +35,8 @@ import msgpack
 
 from nexus.contracts.gen.commands.join import JoinCommand
 from nexus.contracts.gen.common.enums import (
+    AltBand,
+    DamageState,
     NodeOwner,
     OwnerKind,
     PauseReasonCategory,
@@ -50,8 +55,9 @@ from nexus.core.rules import CAPTURE_FULL, Rules
 # sigint_age (NX-150 part 2b); 10: node stock, Entity.cargo and unload_milli (NX-123);
 # 11: Entity.rearm_milli, rearm_spent and stalled (NX-123 part 2); 12: node owner and capture bars
 # (NX-125); 13: the campaign clock, pause reason, end flag, score sums and the active objective
-# (NX-126)
-FORMAT_VERSION = 13
+# (NX-126); 14: Entity.hp is always real, damage_state, alt_band, ammo, reload, wreck_left, and the
+# pending shots (NX-124)
+FORMAT_VERSION = 14
 _MM = 1000.0  # metres -> millimetres; m/s -> mm/s
 _MICRO = 1e6  # ADR-0002's 1e-6 step for other floats (fuel)
 _MILLI_UNIT = 1000  # thousandths of a stock unit per unit
@@ -65,6 +71,8 @@ _OBJECTIVE = "objective"
 _ENTITIES = "entities"
 _CALLSIGNS = "callsigns"
 _RESPAWN_LEFT = "respawn_left"
+_SHOTS = "shots"
+_NEXT_SHOT_ID = "next_shot_id"
 _RESERVE_QUEUE = "reserve_queue"
 _OWNER = "owner"
 _NEXT_ENTITY_ID = "next_entity_id"
@@ -83,11 +91,13 @@ _WORLD_KEYS = (
     _MARKERS,
     _NEXT_ENTITY_ID,
     _NEXT_EVENT_SEQ,
+    _NEXT_SHOT_ID,
     _OBJECTIVE,
     _OWNER,
     _RESERVE_QUEUE,
     _RESPAWN_LEFT,
     _RNG,
+    _SHOTS,
     _SIGINT_AGE,
     _STOCK,
     _V,
@@ -112,6 +122,8 @@ _OWNER_KINDS = _literal_values(OwnerKind)
 _NODE_OWNERS = _literal_values(NodeOwner)
 _PAUSE_REASONS = _literal_values(PauseReasonCategory)
 _PAUSE_SUB_REASONS = _literal_values(StaffPauseSubReason)
+_DAMAGE_STATES = _literal_values(DamageState)
+_ALT_BANDS = _literal_values(AltBand)
 
 
 @dataclass(frozen=True, slots=True)
@@ -154,7 +166,7 @@ class Entity:
     callsign: str | None
     pos: Vec2
     vel: Vec2  # m/s
-    hp: int | None  # None: not modeled yet (no catalog hp until combat, NX-124; Q-CFG-10)
+    hp: int  # >= 1: an entity at 0 is destroyed and removed (NX-124)
     # Remaining waypoints (SIM-CORE §4): node ids, or Vec2 for AIR. A GROUND unit is on the road
     # edge from `last_node` (the node it last reached or spawned at) to `path[0]` (NX-121).
     path: list[str | Vec2] = field(default_factory=list)
@@ -178,6 +190,30 @@ class Entity:
     rearm_milli: int = 0
     rearm_spent: int = 0
     stalled: bool = False
+    # Combat (NX-124, COMBAT). `damage_state` follows `hp` (CB-6). `alt_band`: an aircraft's band
+    # (its default; no command changes it). `ammo` and `reload` are per weapon, in the unit's
+    # loadout order (`CombatRules.loadout`): rounds left, and running ticks until it may fire again.
+    # `wreck_left`: running ticks until a Disabled non-facility is removed (CB-7), else None.
+    damage_state: DamageState = "HEALTHY"
+    alt_band: AltBand | None = None
+    ammo: list[int] = field(default_factory=list)
+    reload: list[int] = field(default_factory=list)
+    wreck_left: int | None = None
+    # Recent hits on this unit, oldest first: [shooter id, running tick] pairs, kept for
+    # `combat.assist_window_s` (assists, CB-5a). Facilities never die, so they keep none.
+    hits: list[list[int]] = field(default_factory=list)
+
+
+@dataclass(frozen=True, slots=True)
+class Shot:
+    """A fired shot in flight (COMBAT CB-2): not an entity. `impact_tick` is on the campaign clock
+    (`Campaign.running_ticks` of the tick it lands in), so a pause delays it with the world."""
+
+    id: int
+    shooter: int
+    target: int
+    weapon_id: str
+    impact_tick: int
 
 
 @dataclass(slots=True)
@@ -277,6 +313,7 @@ class World:
         "_entities",
         "_next_entity_id",
         "_next_event_seq",
+        "_next_shot_id",
         "blobs",
         "callsigns",
         "campaign",
@@ -289,6 +326,7 @@ class World:
         "respawn_left",
         "rng",
         "rules",
+        "shots",
         "sigint_age",
         "stock",
     )
@@ -300,6 +338,7 @@ class World:
         self._entities: dict[int, Entity] = {}
         self._next_entity_id = 1
         self._next_event_seq = 1
+        self._next_shot_id = 1
         # commander_id -> running ticks left of its respawn delay, always >= 1 (GP-2, SC-11).
         # `record_loss` sets it; the `lifecycle` system counts it down and deletes it at 0.
         self.respawn_left: dict[str, int] = {}
@@ -326,6 +365,8 @@ class World:
         # Node id -> its capture bar, only for nodes with progress, in id order.
         self.capture: dict[str, CaptureBar] = {}
         self.objective: Objective | None = None  # NX-126; at most one (O-1)
+        # Pending shots in `(impact_tick, id)` order (CB-2); only the `combat` system changes it.
+        self.shots: list[Shot] = []
 
     @classmethod
     def new(cls, campaign: Campaign, rules: Rules | None = None) -> Self:
@@ -341,17 +382,41 @@ class World:
         commander_id: str | None = None,
         callsign: str | None = None,
         vel: Vec2 = _ZERO,
-        hp: int | None,
+        hp: int | None = None,
+        variant: str | None = None,
     ) -> Entity:
+        """A new entity at full health and a full load (NX-124): hp, aircraft altitude band and
+        ammo come from the world's combat rules; `hp` overrides the catalog's (tests). Without
+        combat rules `hp` is required and the entity carries no weapons."""
+        combat = self.rules.combat if self.rules else None
+        if combat is None and hp is None:
+            raise ValueError("spawn needs hp when the world has no combat rules")
         entity = Entity(
-            self._next_entity_id, kind, side, owner_kind, commander_id, callsign, pos, vel, hp
-        )
+            self._next_entity_id, kind, side, owner_kind, commander_id, callsign, pos, vel,
+            hp if hp is not None else 0, variant=variant,
+        )  # fmt: skip
+        if combat is not None:
+            stats = combat.units[kind]
+            entity.hp = stats.hp if hp is None else hp
+            entity.alt_band = stats.alt_band
+            entity.ammo = [w.ammo for w in combat.loadout(kind, variant)]
+            entity.reload = [0] * len(entity.ammo)
         self._entities[entity.id] = entity
         self._next_entity_id += 1
         return entity
 
     def get(self, entity_id: int) -> Entity:
         return self._entities[entity_id]
+
+    def find(self, entity_id: int) -> Entity | None:
+        """The entity, or None once it is gone (destroyed or despawned)."""
+        return self._entities.get(entity_id)
+
+    def next_shot_id(self) -> int:
+        """The next shot id, starting at 1 (CB-2)."""
+        shot_id = self._next_shot_id
+        self._next_shot_id += 1
+        return shot_id
 
     def remove(self, entity_id: int) -> None:
         del self._entities[entity_id]
@@ -399,9 +464,16 @@ class World:
         return len(self._entities)
 
 
-def lose_unit(world: World, e: Entity, out: list[Event]) -> None:
-    """A unit lost with no killer (fuel exhaustion, a captured base): it is removed, its
-    commander's respawn delay starts and `UnitDestroyed{killer_id: null}` is emitted."""
+def lose_unit(
+    world: World,
+    e: Entity,
+    out: list[Event],
+    killer_id: int | None = None,
+    assist_ids: list[int] | None = None,
+) -> None:
+    """A unit lost: it is removed, its commander's respawn delay starts and `UnitDestroyed` is
+    emitted. `killer_id` is the shooter of a killing hit; None for fuel exhaustion or a captured
+    base. `assist_ids`: the other shooters that hit it recently (sorted, at most 32)."""
     world.remove(e.id)
     if e.commander_id is not None:
         world.record_loss(e.commander_id)
@@ -412,8 +484,8 @@ def lose_unit(world: World, e: Entity, out: list[Event]) -> None:
             event_seq=world.next_event_seq(),
             campaign_id=world.campaign.id,
             entity_id=e.id,
-            killer_id=None,
-            assist_ids=[],
+            killer_id=killer_id,
+            assist_ids=assist_ids or [],
             side=e.side,
         )
     )
@@ -496,7 +568,9 @@ def to_canonical(world: World, *, quantize: bool) -> dict[str, Any]:
         _RESERVE_QUEUE: [_sorted(c.model_dump(mode="json")) for c in world.reserve_queue],
         _NEXT_ENTITY_ID: world._next_entity_id,
         _NEXT_EVENT_SEQ: world._next_event_seq,
+        _NEXT_SHOT_ID: world._next_shot_id,
         _RNG: {name: dict(sorted(s.items())) for name, s in world.rng.to_state().items()},
+        _SHOTS: [asdict(s) for s in world.shots],
         _SIGINT_AGE: world.sigint_age,
         _STOCK: dict(sorted(world.stock.items())),
         _V: FORMAT_VERSION,
@@ -564,6 +638,25 @@ def _milli(value: object, what: str) -> int:
     return n
 
 
+def _int_list(value: object, what: str) -> list[int]:
+    if not isinstance(value, list):
+        raise ValueError(f"{what} must be a list")
+    return [_int(n, what) for n in value]
+
+
+def _hits(value: object, what: str) -> list[list[int]]:
+    if not isinstance(value, list):
+        raise ValueError(f"{what} must be a list")
+    pairs = []
+    for pair in value:
+        if not isinstance(pair, list) or len(pair) != 2:
+            raise ValueError(f"{what} entries must be [shooter, tick]")
+        pairs.append([_int(pair[0], what, 1), _int(pair[1], what, 1)])
+    if [p[1] for p in pairs] != sorted(p[1] for p in pairs):
+        raise ValueError(f"{what} must be oldest first")
+    return pairs
+
+
 def _stock(value: object) -> dict[str, int]:
     if not isinstance(value, dict):
         raise ValueError(f"{_STOCK} must be a map")
@@ -606,7 +699,7 @@ _ENTITY_CHECKS: dict[str, Callable[[object, str], Any]] = {
     "callsign": lambda v, k: _str(v, k, optional=True),
     "pos": _vec,
     "vel": _vec,
-    "hp": lambda v, k: None if v is None else _int(v, k),
+    "hp": lambda v, k: _int(v, k, 1),
     _PATH: _path,
     "last_node": lambda v, k: _str(v, k, optional=True),
     "state": lambda v, k: _str(v, k, _UNIT_STATES, optional=True),
@@ -621,6 +714,12 @@ _ENTITY_CHECKS: dict[str, Callable[[object, str], Any]] = {
     "rearm_milli": _milli,
     "rearm_spent": lambda v, k: _int(v, k),
     "stalled": _bool,
+    "damage_state": lambda v, k: _str(v, k, _DAMAGE_STATES),
+    "alt_band": lambda v, k: _str(v, k, _ALT_BANDS, optional=True),
+    "ammo": lambda v, k: _int_list(v, k),
+    "reload": lambda v, k: _int_list(v, k),
+    "wreck_left": lambda v, k: None if v is None else _int(v, k, 1),
+    "hits": lambda v, k: _hits(v, k),
 }
 _CAMPAIGN_CHECKS: dict[str, Callable[[object, str], Any]] = {
     "id": _str,
@@ -750,6 +849,8 @@ def _load_entity(value: object) -> Entity:
         raise ValueError(f"entity {e.id}: unload progress without cargo")
     if e.state is None and (e.rearm_milli or e.rearm_spent or e.stalled):
         raise ValueError(f"entity {e.id}: refuel progress without a state")
+    if len(e.ammo) != len(e.reload) or (e.wreck_left is not None and e.damage_state != "DISABLED"):
+        raise ValueError(f"entity {e.id}: inconsistent ammo, reload or wreck timer")
     return e
 
 
@@ -765,6 +866,37 @@ def _load_campaign(value: object) -> Campaign:
     ):
         raise ValueError("campaign: inconsistent clock, pause reason or objective counts")
     return c
+
+
+_SHOT_KEYS = tuple(f.name for f in fields(Shot))
+
+
+def _shots(value: object, next_shot_id: int, next_entity_id: int) -> list[Shot]:
+    """Pending shots ascending by `(impact_tick, id)`, ids unique and below the counter; the
+    shooter and target may be gone by now."""
+    if not isinstance(value, list):
+        raise ValueError(f"{_SHOTS} must be a list")
+    shots = []
+    for raw in value:
+        d = _fields(raw, _SHOT_KEYS, "shot")
+        shots.append(
+            Shot(
+                _int(d["id"], "shot id", 1),
+                _int(d["shooter"], "shot shooter", 1),
+                _int(d["target"], "shot target", 1),
+                _str(d["weapon_id"], "shot weapon"),
+                _int(d["impact_tick"], "shot impact_tick", 1),
+            )
+        )
+    order = [(s.impact_tick, s.id) for s in shots]
+    ids = [s.id for s in shots]
+    if (
+        order != sorted(order)
+        or len(set(ids)) != len(ids)
+        or any(s.id >= next_shot_id or max(s.shooter, s.target) >= next_entity_id for s in shots)
+    ):
+        raise ValueError(f"{_SHOTS}: not in (impact_tick, id) order, or an id out of range")
+    return shots
 
 
 def _load_objective(value: object, campaign: Campaign) -> Objective | None:
@@ -794,6 +926,8 @@ def load(data: bytes) -> World:
     world = World(_load_campaign(d[_CAMPAIGN]), SimRng.from_state(d[_RNG]))
     world._next_entity_id = _int(d[_NEXT_ENTITY_ID], _NEXT_ENTITY_ID, 1)
     world._next_event_seq = _int(d[_NEXT_EVENT_SEQ], _NEXT_EVENT_SEQ, 1)
+    world._next_shot_id = _int(d[_NEXT_SHOT_ID], _NEXT_SHOT_ID, 1)
+    world.shots = _shots(d[_SHOTS], world._next_shot_id, world._next_entity_id)
     world.callsigns = _callsigns(d[_CALLSIGNS])
     world.respawn_left = _respawn_left(d[_RESPAWN_LEFT])
     world.reserve_queue = _reserve_queue(d[_RESERVE_QUEUE])

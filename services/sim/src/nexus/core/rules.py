@@ -11,12 +11,23 @@ from dataclasses import dataclass, field
 from fractions import Fraction
 from typing import cast
 
-from nexus.contracts.gen.common.enums import Domain, NodeKind, NodeOwner, Role, Side, UnitKind
+from nexus.contracts.gen.common.enums import (
+    AltBand,
+    DamageState,
+    Domain,
+    NodeKind,
+    NodeOwner,
+    Role,
+    Side,
+    UnitKind,
+)
 from nexus.contracts.gen.config.balance import Air, Capture, Fow, Logistics, Sim, Slots
 from nexus.contracts.gen.config.balance import Campaign as CampaignBalance
+from nexus.contracts.gen.config.balance import Combat as CombatBalance
 from nexus.contracts.gen.config.roles import Roles
 from nexus.contracts.gen.config.theater import TheaterConfig
 from nexus.contracts.gen.config.unit import UnitConfig
+from nexus.contracts.gen.config.weapons import Weapon
 from nexus.core.roads import RoadGraph
 
 CAPTURE_FULL = 100_000_000  # a full capture bar, in millionths of a percent (NX-125)
@@ -32,6 +43,12 @@ _CARRIERS: tuple[UnitKind, ...] = ("LOGI_TRUCK", "ENEMY_CONVOY")
 _STRATEGIC_KINDS = ("AIRBASE", "FOB", "PORT")  # count toward the hold fractions (Q-GP-21)
 _DOMAINS: tuple[Domain, ...] = ("AIR", "GROUND", "SEA", "STATIC")
 _MILLI = 1000  # a truck's unload progress is counted in thousandths of a stock unit
+# A facility variant carries only these of its kind's catalog weapons (SHORT_RANGE: the gun, no
+# SAM); any other variant, and none, carries them all. shortcut: named here until the unit catalog
+# lists variants (CONFIG-AND-CONTENT §7a), like the emitter rule in `campaign_config`.
+_VARIANT_WEAPONS: Mapping[tuple[UnitKind, str], tuple[str, ...]] = {
+    ("AIR_DEFENSE_SITE", "SHORT_RANGE"): ("AAA_GUN",)
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -97,6 +114,68 @@ class CampaignRules:
 
 
 @dataclass(frozen=True, slots=True)
+class WeaponRules:
+    """One weapon profile (COMBAT CB-1..CB-5): `reload_ticks` is `reload_s` in whole world ticks,
+    rounded up (CFG-9); `speed_mps` None is a gun, which lands on the fire tick."""
+
+    id: str
+    targets: frozenset[str]
+    bands: frozenset[AltBand]
+    range_m: float
+    speed_mps: float | None
+    base_pk: float
+    damage: int
+    reload_ticks: int
+    ammo: int
+
+
+@dataclass(frozen=True, slots=True)
+class UnitRules:
+    """A kind's combat stats (COMBAT CB-5, CB-6, CB-9). `armor` is an exact decimal so a hit's
+    damage floors exactly. `cuts` are the whole hp below which a unit is DISABLED, MISSION_KILL and
+    DAMAGED: for whole hp, hp < fraction x max_hp is hp < ceil(fraction x max_hp)."""
+
+    hp: int
+    armor: Fraction
+    evasion: float
+    threat: int
+    cuts: tuple[int, int, int]
+    alt_band: AltBand | None  # AIR: the default band
+
+    def state(self, hp: int) -> DamageState:
+        disabled, mission_kill, damaged = self.cuts
+        if hp < disabled:
+            return "DISABLED"
+        return "MISSION_KILL" if hp < mission_kill else "DAMAGED" if hp < damaged else "HEALTHY"
+
+    @property
+    def floor(self) -> int:
+        """The hp a facility never drops below: the highest hp still DISABLED, at least 1 (CB-9)."""
+        return max(1, self.cuts[0] - 1)
+
+
+@dataclass(frozen=True, slots=True)
+class CombatRules:
+    """Combat rules (NX-124, COMBAT): per-kind stats, each (kind, variant)'s weapons in catalog
+    order, and the balance `combat` keys. Absent from `Rules` (hand-built tests) = combat off."""
+
+    units: Mapping[UnitKind, UnitRules]
+    weapons: Mapping[str, WeaponRules]
+    loadouts: Mapping[tuple[UnitKind, str | None], tuple[WeaponRules, ...]]
+    pk_cap: float
+    track_mult: float
+    painted_mult: float
+    full_pk_frac: float
+    min_mult: float
+    masked_mult: float
+    disabled_timeout_ticks: int  # combat.disabled_timeout_s as game ticks, rounded up (CB-7)
+    assist_window_ticks: int  # combat.assist_window_s as game ticks, rounded up (CB-5a)
+
+    def loadout(self, kind: UnitKind, variant: str | None) -> tuple[WeaponRules, ...]:
+        return self.loadouts.get((kind, variant), self.loadouts[(kind, None)])
+
+
+@dataclass(frozen=True, slots=True)
 class Rules:
     world_dt: float  # world seconds per tick: TICK_DT x sim.time_scale (SC-2)
     speed_mps: Mapping[UnitKind, float]  # m/s of world time; a top speed (Q-SIM-38)
@@ -139,6 +218,7 @@ class Rules:
     armed: frozenset[UnitKind] = frozenset()
     capture: CaptureRules | None = None
     campaign: CampaignRules | None = None  # NX-126; None leaves the campaign layer off
+    combat: CombatRules | None = None  # NX-124; None leaves combat off
 
 
 def world_dt(sim: Sim) -> float:
@@ -225,6 +305,58 @@ def campaign_rules(
     )
 
 
+def combat_rules(
+    cfg: CombatBalance,
+    units: Iterable[UnitConfig],
+    weapons: Iterable[Weapon],
+    *,
+    dt: float,
+    disabled_timeout_ticks: int,
+    assist_window_ticks: int,
+) -> CombatRules:
+    """`dt` is `world_dt`; `disabled_timeout_ticks` is `cfg.disabled_timeout_s` already converted
+    by the config loader (game time);
+    likewise `assist_window_ticks` for `cfg.assist_window_s`."""
+    profile = {w.id: _weapon(w, dt) for w in weapons}
+    units = tuple(units)
+    ds = cfg.damage_state
+    cuts = tuple(
+        Fraction(repr(f)) for f in (ds.disabled_below, ds.mission_kill_below, ds.damaged_below)
+    )
+
+    def stats(u: UnitConfig) -> UnitRules:
+        c = cast(tuple[int, int, int], tuple(math.ceil(f * u.hp) for f in cuts))
+        return UnitRules(u.hp, Fraction(repr(u.armor)), u.evasion, u.threat, c, u.default_alt_band)
+
+    loadouts: dict[tuple[UnitKind, str | None], tuple[WeaponRules, ...]] = {}
+    for u in units:
+        loadouts[(u.kind, None)] = tuple(profile[w] for w in u.weapons)
+        for (kind, variant), only in _VARIANT_WEAPONS.items():
+            if kind == u.kind:
+                loadouts[(kind, variant)] = tuple(profile[w] for w in u.weapons if w in only)
+    return CombatRules(
+        units={u.kind: stats(u) for u in units},
+        weapons=profile,
+        loadouts=loadouts,
+        pk_cap=cfg.pk_cap,
+        track_mult=cfg.track_quality.track,
+        painted_mult=cfg.track_quality.painted,
+        full_pk_frac=cfg.range.full_pk_frac,
+        min_mult=cfg.range.min_mult,
+        masked_mult=cfg.pk_mult.terrain_masked,
+        disabled_timeout_ticks=disabled_timeout_ticks,
+        assist_window_ticks=assist_window_ticks,
+    )
+
+
+def _weapon(w: Weapon, dt: float) -> WeaponRules:
+    reload_ticks = math.ceil(Fraction(repr(w.reload_s)) / Fraction(repr(dt)))  # exact decimals
+    return WeaponRules(
+        w.id, frozenset(w.targets), frozenset(w.bands), w.range_m, w.projectile_speed_mps,
+        w.base_pk, w.damage, reload_ticks, w.ammo,
+    )  # fmt: skip
+
+
 def make_rules(
     sim: Sim,
     units: Iterable[UnitConfig],
@@ -243,6 +375,7 @@ def make_rules(
     mask_cell_m: float,
     masking: Mapping[tuple[int, int], frozenset[str]],
     campaign: CampaignRules | None = None,
+    combat: CombatRules | None = None,
 ) -> Rules:
     """`respawn_delay_ticks`, `track_fade_ticks` and `sigint_refresh_ticks` are
     `slots.respawn_delay_s`, `fow.track_fade_s` and `fow.sigint_refresh_s` already converted by
@@ -290,4 +423,5 @@ def make_rules(
         armed=frozenset(u.kind for u in units if u.weapons),
         capture=_capture(capture, world_dt(sim)),
         campaign=campaign,
+        combat=combat,
     )

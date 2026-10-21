@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://nexus.local/contracts/config/weapons.json",
   "title": "WeaponsConfig",
-  "description": "The weapon profiles, content/weapons.yaml (CONFIG-AND-CONTENT §7.2). NX-367 ships id and targets only (Q-CFG-10); range, Pk, damage, ammo and bands join with the combat items.",
+  "description": "The weapon profiles, content/weapons.yaml (CONFIG-AND-CONTENT §7.2). NX-367 shipped id and targets (Q-CFG-10); NX-124 adds the combat numbers and bands (COMBAT \u00a75.2). The loader checks bands: non-empty iff targets has AIR.",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "weapons"],
@@ -14,10 +14,17 @@
     "Weapon": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["id", "targets"],
+      "required": ["id", "targets", "bands", "range_m", "projectile_speed_mps", "base_pk", "damage", "reload_s", "ammo"],
       "properties": {
         "id": {"$ref": "../common/ids.json#/$defs/WeaponId"},
-        "targets": {"description": "What the weapon may fire on (COMBAT §5.1, CB-1, CB-10); no duplicates (loader). STRUCTURE = node defenses and bridges. SEA arrives with naval units (P3).", "type": "array", "minItems": 1, "maxItems": 5, "items": {"enum": ["AIR", "GROUND", "SEA", "STATIC", "STRUCTURE"]}}
+        "targets": {"description": "What the weapon may fire on (COMBAT §5.1, CB-1, CB-10); no duplicates (loader). STRUCTURE = node defenses and bridges. SEA arrives with naval units (P3).", "type": "array", "minItems": 1, "maxItems": 5, "items": {"enum": ["AIR", "GROUND", "SEA", "STATIC", "STRUCTURE"]}},
+        "bands": {"description": "Altitude reach against AIR targets, no duplicates (loader); [] when the weapon cannot fire on AIR (COMBAT \u00a75.3).", "type": "array", "maxItems": 4, "items": {"$ref": "../common/enums.json#/$defs/AltBand"}},
+        "range_m": {"description": "Maximum range, unit m; no fire beyond it, and the range factor is 1.0 up to combat.range.full_pk_frac of it (COMBAT \u00a75.2).", "type": "number", "exclusiveMinimum": 0, "maximum": 1000000, "x-unit": "m"},
+        "projectile_speed_mps": {"description": "Unit m/s of world time; null = a gun, which lands on the fire tick. Impact delay = ceil(distance / speed / WORLD_DT) ticks (COMBAT CB-2, Q-GP-7).", "type": ["number", "null"], "exclusiveMinimum": 0, "x-unit": "m/s (world)"},
+        "base_pk": {"description": "Hit probability before the track, range, evasion and masking factors, unit probability, 0 to 1 (COMBAT CB-4).", "type": "number", "minimum": 0, "maximum": 1, "x-unit": "probability"},
+        "damage": {"description": "Hit points removed by a hit before armor, unit hp (COMBAT CB-5).", "type": "integer", "minimum": 1, "x-unit": "hp"},
+        "reload_s": {"description": "Unit s of world time between this weapon's shots (CFG-9).", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (world)"},
+        "ammo": {"description": "Rounds in a full load, unit rounds; guns included (Q-CBT-7).", "type": "integer", "minimum": 1, "x-unit": "rounds"}
       }
     }
   }

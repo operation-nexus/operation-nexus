@@ -7,7 +7,7 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
-from ..common import ids
+from ..common import enums, ids
 
 
 class Weapon(BaseModel):
@@ -22,6 +22,47 @@ class Weapon(BaseModel):
             max_length=5,
             min_length=1,
         ),
+    ]
+    bands: Annotated[
+        list[enums.AltBand],
+        Field(
+            description="Altitude reach against AIR targets, no duplicates (loader); [] when the weapon cannot fire on AIR (COMBAT §5.3).",
+            max_length=4,
+        ),
+    ]
+    range_m: Annotated[
+        float,
+        Field(
+            description="Maximum range, unit m; no fire beyond it, and the range factor is 1.0 up to combat.range.full_pk_frac of it (COMBAT §5.2).",
+            gt=0.0,
+            le=1000000.0,
+        ),
+    ]
+    projectile_speed_mps: Annotated[
+        float | None,
+        Field(
+            description="Unit m/s of world time; null = a gun, which lands on the fire tick. Impact delay = ceil(distance / speed / WORLD_DT) ticks (COMBAT CB-2, Q-GP-7).",
+            gt=0.0,
+        ),
+    ]
+    base_pk: Annotated[
+        float,
+        Field(
+            description="Hit probability before the track, range, evasion and masking factors, unit probability, 0 to 1 (COMBAT CB-4).",
+            ge=0.0,
+            le=1.0,
+        ),
+    ]
+    damage: Annotated[
+        int,
+        Field(description="Hit points removed by a hit before armor, unit hp (COMBAT CB-5).", ge=1),
+    ]
+    reload_s: Annotated[
+        float,
+        Field(description="Unit s of world time between this weapon's shots (CFG-9).", gt=0.0),
+    ]
+    ammo: Annotated[
+        int, Field(description="Rounds in a full load, unit rounds; guns included (Q-CBT-7).", ge=1)
     ]
 
 

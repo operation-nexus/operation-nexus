@@ -68,7 +68,6 @@ def put(
         "AI_GARRISON" if n is None else "COMMANDER",
         Vec2(POS[node][0] + dx, POS[node][1]),
         commander_id=None if n is None else cid(n),
-        hp=None,
     )
     e.last_node = node
     if state:
@@ -351,6 +350,30 @@ def test_n5_a_defender_that_cannot_contest_slows_capture_and_one_that_can_stops_
     put(armed, ARMOR, "ENEMY", ENEMY_FOB)
     rates = [gain(w, ENEMY_FOB) for w in (empty, garrisoned, armed)]
     assert rates[0] > rates[1] > rates[2] == 0
+
+
+def test_a_disabled_defender_does_not_contest_and_counts_for_the_garrison() -> None:
+    # Q-ALN-33: a wreck cannot contest, so it applies the garrison multiplier (x3), like an
+    # unarmed unit, instead of freezing the bar as a healthy ARMOR does (NX-124).
+    wreck_w, convoy_w = new_world(), new_world()
+    for w in (wreck_w, convoy_w):
+        put(w, INFANTRY, "COALITION", ENEMY_FOB)
+    wreck = put(wreck_w, ARMOR, "ENEMY", ENEMY_FOB)
+    wreck.hp, wreck.damage_state, wreck.wreck_left = 5, "DISABLED", 10_000
+    put(convoy_w, CONVOY, "ENEMY", ENEMY_FOB)
+    assert gain(wreck_w, ENEMY_FOB) == gain(convoy_w, ENEMY_FOB) > 0
+
+
+def test_a_disabled_unit_cannot_escape_a_flipped_base() -> None:
+    w = new_world()
+    put(w, INFANTRY, "COALITION", ENEMY_FOB)
+    wreck = put(w, ARMOR, "ENEMY", ENEMY_FOB)  # its base is about to flip
+    wreck.hp, wreck.damage_state, wreck.wreck_left = 5, "DISABLED", 10_000
+    healthy = put(w, CONVOY, "ENEMY", ENEMY_FOB)
+    w.capture[ENEMY_FOB] = CaptureBar("COALITION", CAPTURE_FULL - 1)
+    events = run(w)
+    lost = {e.entity_id for e in of(events, UnitDestroyed)}
+    assert lost == {wreck.id} and w.get(healthy.id).path  # the wreck dies; the convoy drives off
 
 
 def test_the_garrison_must_be_at_the_base() -> None:

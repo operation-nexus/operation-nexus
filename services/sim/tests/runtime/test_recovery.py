@@ -19,9 +19,9 @@ from nexus.core.rng import RngStream
 from nexus.core.roads import RoadGraph
 from nexus.core.rules import Rules
 from nexus.core.step import TICK_DT, Handler
-from nexus.core.world import Campaign, Vec2, World, state_hash
+from nexus.core.world import Campaign, Shot, Vec2, World, state_hash
 from nexus.runtime import loop
-from nexus.runtime.campaign_config import load_campaign_config
+from nexus.runtime.campaign_config import load_campaign_config, start_campaign
 from nexus.runtime.clock import FixedStepClock
 from nexus.runtime.command_log import (
     CommandLogError,
@@ -63,6 +63,9 @@ def spawn_handler(world: World, command: Command, out: list[Event]) -> None:
     hp = world.rng.stream(RngStream.SPAWN).randint(1, 100)
     e = world.spawn("STRIKE_FIGHTER", "COALITION", "COMMANDER", Vec2(command.arrival_seq, 0), hp=hp)
     e.state, e.fuel = "LANDED", 1.0  # an aircraft has a state (NX-368); it never takes off here
+    if world.rules is not None and world.rules.combat is not None:  # restore checks it (NX-124)
+        e.damage_state = world.rules.combat.units[e.kind].state(hp)
+        e.wreck_left = 6_000 if e.damage_state == "DISABLED" else None
     out.append(
         UnitSpawned.model_construct(
             kind="UnitSpawned",
@@ -536,3 +539,63 @@ def test_tombstone_in_a_command_free_interval_is_not_skipped(
     )
     r = restore(tmp_path, tmp_path, handlers=STUB, rules=None)
     assert r.world.campaign.tick == 305  # replay reaches the tombstoned tick, dropping nothing
+
+
+def fit(w: World, entity: int, **fields: object) -> None:
+    for name, value in fields.items():
+        setattr(w.get(entity), name, value)
+
+
+def late(w: World, shot: Shot) -> None:
+    """A pending shot whose impact tick the campaign clock has already passed."""
+    w.campaign.tick = w.campaign.running_ticks = 10
+    w.shots.append(shot)
+
+
+def snapshot_of(tmp_path: Path, make_rig: MakeRig, corrupt: Callable[[World], None]) -> Rig:
+    """A rig whose only snapshot is the shipped campaign's start (facilities at full hp and
+    ammo: ids 1 radar, 2 SAM site, 3 SHORT_RANGE site, 5 enemy radar, 6 enemy SAM site) after
+    `corrupt`; written directly, since the runtime would halt on some of these."""
+    world = start_campaign(CAMPAIGN_ID, 5, load_campaign_config())
+    rig = make_rig(tmp_path, world=world)
+    corrupt(world)
+    world._next_shot_id = 2  # a hand-added shot's id is below the counter
+    write_snapshot(
+        rig.snaps, world, last_arrival_seq=0, sim_build="test", protocol_version=PROTOCOL,
+        created_at="2026-10-21T12:00:00Z",
+    )  # fmt: skip
+    return rig
+
+
+def test_restore_accepts_combat_state_that_fits_the_rules(
+    tmp_path: Path, make_rig: MakeRig
+) -> None:
+    rig = snapshot_of(tmp_path, make_rig, lambda w: None)
+    r = restore(rig.snaps, rig.logs, rules=load_campaign_config().rules)
+    assert len(r.world) == 9
+
+
+@pytest.mark.parametrize(
+    ("corrupt", "error"),
+    [
+        (lambda w: setattr(w.get(1), "hp", 151), r"entity 1 \(RADAR_SITE\): hp above"),
+        (lambda w: setattr(w.get(1), "hp", 100), r"damage_state does not match hp"),
+        (lambda w: fit(w, 2, ammo=[400], reload=[0]), r"ammo or reload does not match"),
+        (lambda w: fit(w, 3, ammo=[400, 8], reload=[0, 0]), r"entity 3 .*ammo or reload"),
+        (lambda w: fit(w, 2, ammo=[401, 8]), r"ammo or reload"),
+        (lambda w: fit(w, 2, reload=[999, 0]), r"ammo or reload"),
+        (lambda w: setattr(w.get(2), "alt_band", "MED"), r"altitude band"),
+        (lambda w: fit(w, 2, hp=14, damage_state="DISABLED", wreck_left=5), r"wreck timer"),
+        (lambda w: setattr(w.get(2), "hits", [[7, 1]]), r"hits on a facility"),
+        (lambda w: w.shots.append(Shot(1, 6, 1, "NO_SUCH", 99)), r"shot 1: unknown weapon"),
+        (lambda w: w.shots.append(Shot(1, 3, 5, "SAM", 99)), r"does not carry SAM"),  # SHORT_RANGE
+        (lambda w: w.shots.append(Shot(1, 2, 1, "SAM", 99)), r"one side"),
+        (lambda w: late(w, Shot(1, 2, 5, "SAM", 5)), r"already due"),
+    ],
+)
+def test_restore_refuses_combat_state_that_does_not_fit_the_rules(
+    tmp_path: Path, make_rig: MakeRig, corrupt: Callable[[World], None], error: str
+) -> None:
+    rig = snapshot_of(tmp_path, make_rig, corrupt)
+    with pytest.raises(ValueError, match=error):
+        restore(rig.snaps, rig.logs, rules=load_campaign_config().rules)

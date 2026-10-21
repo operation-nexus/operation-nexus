@@ -14,7 +14,7 @@ from typing import cast
 from nexus.contracts.gen.common.enums import Side
 from nexus.contracts.gen.config.balance import BalanceConfig
 from nexus.contracts.gen.config.theater import TheaterConfig
-from nexus.core.rules import Rules, campaign_rules, make_rules
+from nexus.core.rules import Rules, campaign_rules, combat_rules, make_rules, world_dt
 from nexus.core.world import Campaign, Vec2, World
 from nexus.runtime.config import (
     canonical_hash,
@@ -87,6 +87,14 @@ def load_campaign_config(paths: ConfigPaths | None = None) -> CampaignConfig:
             victory_hold_ticks=game_ticks(cc.victory_hold_min, balance, unit_s=60),
             objective_period_ticks=game_ticks(cc.objective_period_min, balance, unit_s=60),
         ),
+        combat=combat_rules(
+            balance.combat,
+            catalog.units,
+            catalog.weapons,
+            dt=world_dt(balance.sim),
+            disabled_timeout_ticks=game_ticks(balance.combat.disabled_timeout_s, balance),
+            assist_window_ticks=game_ticks(balance.combat.assist_window_s, balance),
+        ),
     )
     return CampaignConfig(balance, catalog, theater, digest, rules)
 
@@ -106,7 +114,7 @@ def start_campaign(campaign_id: str, seed: int, config: CampaignConfig | None = 
 def _place_facilities(world: World, theater: TheaterConfig) -> None:
     """Each theater facility, in file order (so ids are deterministic), becomes a STATIC entity at
     its base's position, on the base's starting side (TH-10: never NEUTRAL), owned by that side's
-    AI (`AI_GARRISON`, the catalog's `playable_by`), hp unmodelled until combat (NX-124). FOW-11:
+    AI (`AI_GARRISON`, the catalog's `playable_by`), at full hp and ammo (NX-124). FOW-11:
     RADAR_SITE and the SAM AIR_DEFENSE_SITE emit from the start; any other has `emitting` None.
     shortcut: the emitter rule names kind and variant here; it moves to the unit catalog when
     the catalog lists variants (CONFIG-AND-CONTENT §7)."""
@@ -114,7 +122,7 @@ def _place_facilities(world: World, theater: TheaterConfig) -> None:
     for f in theater.facilities:
         base = nodes[f.base]
         side = cast(Side, base.start_owner)  # TH-10, checked at load
-        e = world.spawn(f.kind, side, "AI_GARRISON", Vec2(*base.pos), hp=None)
-        e.base_id, e.variant = f.base, f.variant
+        e = world.spawn(f.kind, side, "AI_GARRISON", Vec2(*base.pos), variant=f.variant)
+        e.base_id = f.base
         emits = f.kind == "RADAR_SITE" or (f.kind, f.variant) == ("AIR_DEFENSE_SITE", "SAM")
         e.emitting = True if emits else None

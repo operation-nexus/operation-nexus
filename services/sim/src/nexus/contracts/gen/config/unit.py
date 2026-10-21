@@ -88,6 +88,57 @@ class UnitConfig(BaseModel):
             gt=0.0,
         ),
     ] = None
+    alt_bands: Annotated[
+        list[enums.AltBand] | None,
+        Field(
+            description="The altitude bands this aircraft may fly in, no duplicates (loader). Present if and only if domain is AIR (loader). COMBAT §5.3.",
+            max_length=4,
+            min_length=1,
+        ),
+    ] = None
+    default_alt_band: Annotated[
+        enums.AltBand | None,
+        Field(
+            description="The band a unit flies at; no first-build command changes it (COMBAT §5.3). Present if and only if domain is AIR, one of alt_bands (loader)."
+        ),
+    ] = None
+    hp: Annotated[
+        int,
+        Field(
+            description="Hit points at full health, unit hp; the damage-state thresholds are fractions of it (COMBAT CB-6).",
+            ge=1,
+        ),
+    ]
+    armor: Annotated[
+        float,
+        Field(
+            description="Fraction of a hit's damage absorbed, unit fraction, 0 to 0.9; one value, no facings (COMBAT §5.4).",
+            ge=0.0,
+            le=0.9,
+        ),
+    ]
+    evasion: Annotated[
+        float,
+        Field(
+            description="Pk multiplier on shots at this kind, unit multiplier, 0.6 to 1.0; facilities 1.0 (COMBAT §5.2).",
+            ge=0.6,
+            le=1.0,
+        ),
+    ]
+    crew: Annotated[
+        int,
+        Field(
+            description="Crew count, unit crew; 0 for facilities and unmanned kinds. Read by the crew-survival roll (COMBAT CB-8).",
+            ge=0,
+        ),
+    ]
+    threat: Annotated[
+        int,
+        Field(
+            description="Target priority, higher first, unit threat score (COMBAT CB-1, Q-CBT-16).",
+            ge=0,
+        ),
+    ]
     sensor: Annotated[
         Sensor,
         Field(

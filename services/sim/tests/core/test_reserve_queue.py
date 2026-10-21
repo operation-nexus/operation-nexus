@@ -128,7 +128,7 @@ def test_paused_join_in_cooldown_is_rejected_not_queued() -> None:
 def test_only_commander_units_take_viewer_slots() -> None:
     w = capped()
     for _ in range(3):  # AI units, more than the cap
-        w.spawn("GARRISON_INFANTRY", "COALITION", "AI_GARRISON", Vec2(0, 0), hp=None)
+        w.spawn("GARRISON_INFANTRY", "COALITION", "AI_GARRISON", Vec2(0, 0))
     events = step(w, [join(n, arrival_seq=n) for n in range(1, 4)])
     assert spawned(events) == [cid(1), cid(2)]
     assert queued(events) == [(cid(3), 1)]

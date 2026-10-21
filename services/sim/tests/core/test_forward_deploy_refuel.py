@@ -35,7 +35,7 @@ def aircraft(
     w: World, node: str, fuel: float, side: Any = "COALITION", kind: Any = "STRIKE_FIGHTER"
 ) -> Entity:
     """An AI aircraft standing LANDED at `node`."""
-    e = w.spawn(kind, side, "AI_GARRISON", Vec2(*POS[node]), hp=None)
+    e = w.spawn(kind, side, "AI_GARRISON", Vec2(*POS[node]))
     e.last_node, e.state, e.fuel = node, "LANDED", fuel
     return e
 

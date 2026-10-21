@@ -21,6 +21,7 @@ from nexus.core.world import (
     Contact,
     FacilityMarker,
     Objective,
+    Shot,
     Vec2,
     World,
     load,
@@ -77,12 +78,20 @@ def golden_world() -> World:
     w.contacts["COALITION"][3] = Contact("ENEMY_ARMOR", Vec2(149e3, 80e3), Vec2(-25, 3.5), 12)
     # NX-150 part 2: a facility, and the enemy's marker of it confirmed on tick 2 of 5.
     w.campaign.tick = 5
-    sam = w.spawn("AIR_DEFENSE_SITE", "COALITION", "AI_GARRISON", Vec2(90e3, 120e3), hp=None)
+    sam = w.spawn("AIR_DEFENSE_SITE", "COALITION", "AI_GARRISON", Vec2(90e3, 120e3), hp=150)
     sam.base_id, sam.variant, sam.emitting = "west-airbase", "SAM", True
     w.markers["ENEMY"][4] = FacilityMarker("AIR_DEFENSE_SITE", "SAM", Vec2(90e3, 120e3), True, 2)
     # NX-150 part 2b: the coalition's blobs from the tick-3 refresh, 2 running ticks ago.
     w.blobs["COALITION"] = (Blob("3-7", Vec2(75e3, 5e3), "S"), Blob("3-48", Vec2(85e3, 15e3), "L"))
     w.sigint_age = 2
+    # NX-124: the fighter has fired one of its 4 missiles (reload 3 ticks left); the infantry is a
+    # wreck with 300 running ticks to go; two shots are in flight, by (impact_tick, id).
+    fighter.alt_band, fighter.ammo, fighter.reload = "MED", [3, 400], [3, 0]
+    wreck = w.get(2)
+    wreck.hp, wreck.damage_state, wreck.wreck_left = 7, "DISABLED", 300
+    wreck.hits = [[3, 40], [1, 52]]  # recent hits on the wreck: [shooter, running tick]
+    w.shots = [Shot(3, 3, 1, "AG_CANNON", 6), Shot(1, 3, 2, "AG_CANNON", 7)]
+    w._next_shot_id = 4
     # NX-125: node owners, and the coalition a quarter of the way into cross-n.
     w.owner = {"cross-n": "NEUTRAL", "east-airbase": "ENEMY", "west-airbase": "COALITION"}
     w.capture["cross-n"] = CaptureBar("COALITION", 25_000_000)
@@ -104,11 +113,12 @@ def test_golden_state_hash_seed_12345() -> None:
     # markers and a tick, v8; NX-150 part 2b: painted, blobs, sigint_age, v9;
     # NX-123: node stock, cargo, unload_milli, v10; NX-123 part 2: rearm_milli, rearm_spent,
     # stalled, v11; NX-125: node owner and capture bars, v12; NX-126: the campaign clock, pause
-    # reason, end flag, score sums and the active objective, v13).
+    # reason, end flag, score sums and the active objective, v13; NX-124: damage state, altitude
+    # band, ammo, reload, wreck timer and pending shots, v14).
     # A change here breaks every recorded replay hash: needs a `golden-update` reason.
     assert (
         state_hash(golden_world())
-        == "db0009222e3c1663f661a61f1196237e350a5d911eaa7e1649bfccac806fdb1a"
+        == "f0606a0a98edfee10ec1a4d7f168ca0541ee6a7b4d04d4eb0e254c1c916b0866"
     )
     e = to_canonical(golden_world(), quantize=True)["entities"][0]
     assert e["pos"] == [1000250, 2000500]  # mm
@@ -173,7 +183,7 @@ _KINDS: list[tuple[UnitKind, Side, OwnerKind]] = [
 ]
 kinds = st.sampled_from(_KINDS)
 fuels = st.floats(min_value=0.0, max_value=1e6, allow_nan=False)
-entity_args = st.tuples(kinds, vecs, vecs, st.integers(0, 1000), st.sampled_from([None, "HAWK-07"]))
+entity_args = st.tuples(kinds, vecs, vecs, st.integers(1, 1000), st.sampled_from([None, "HAWK-07"]))
 
 
 @st.composite
@@ -209,6 +219,28 @@ def worlds(draw: st.DrawFn) -> World:
         if draw(st.booleans()):  # an aircraft's state (NX-368)
             e.state, e.fuel = draw(st.sampled_from(world_mod._UNIT_STATES)), draw(fuels)
             e.orbit = draw(vecs) if e.state == "ON_STATION" else None
+    for e in w.entities():  # NX-124: combat state
+        e.damage_state = draw(st.sampled_from(world_mod._DAMAGE_STATES))
+        e.alt_band = draw(st.none() | st.sampled_from(world_mod._ALT_BANDS))
+        e.ammo = draw(st.lists(st.integers(0, 400), max_size=3))
+        e.reload = [draw(st.integers(0, 100)) for _ in e.ammo]
+        e.wreck_left = draw(st.integers(1, 6000)) if e.damage_state == "DISABLED" else None
+        stamps = sorted(draw(st.lists(st.integers(1, 10**6), max_size=3)))
+        e.hits = [[draw(st.integers(1, 50)), t] for t in stamps]
+    ids = list(range(1, w._next_entity_id))  # a shot's units may be gone, never unissued
+    shots = []
+    if ids:
+        shots = draw(
+            st.lists(
+                st.tuples(st.sampled_from(ids), st.sampled_from(ids), st.integers(1, 99)),
+                max_size=4,
+            )
+        )
+    w._next_shot_id = len(shots) + 1
+    w.shots = sorted(
+        (Shot(n, a, b, "SAM", at) for n, (a, b, at) in enumerate(shots, 1)),
+        key=lambda s: (s.impact_tick, s.id),
+    )
     for _ in range(draw(st.integers(min_value=0, max_value=5))):
         w.rng.stream(draw(st.sampled_from(list(RngStream)))).next_u64()
     for i in draw(st.lists(st.integers(1, w._next_entity_id - 1), unique=True)) if len(w) else []:
@@ -270,6 +302,13 @@ def test_hash_tracks_state_at_mm_resolution() -> None:
     assert _changes_hash(lambda w: setattr(w.markers["ENEMY"][4], "confirmed_tick", 3))
     assert _changes_hash(lambda w: setattr(w.contacts["ENEMY"][1], "painted", False))  # part 2b
     assert _changes_hash(lambda w: setattr(w, "sigint_age", 3))
+    assert _changes_hash(lambda w: w.get(1).ammo.__setitem__(0, 2))  # NX-124
+    assert _changes_hash(lambda w: w.get(1).reload.__setitem__(1, 1))
+    assert _changes_hash(lambda w: setattr(w.get(2), "wreck_left", 299))
+    assert _changes_hash(lambda w: w.get(2).hits.append([4, 60]))
+    assert _changes_hash(lambda w: setattr(w.get(1), "alt_band", "HIGH"))
+    assert _changes_hash(lambda w: w.shots.pop())
+    assert _changes_hash(lambda w: setattr(w, "_next_shot_id", 5))
     assert _changes_hash(lambda w: w.blobs.update(COALITION=w.blobs["COALITION"][:1]))
 
 
@@ -306,6 +345,25 @@ def _resave(mutate: Any) -> bytes:
         _resave(lambda d: d["entities"][0].update(kind="FACTORY")),
         _resave(lambda d: d["entities"][0].update(hp="100")),
         _resave(lambda d: d["entities"][0].update(hp=True)),
+        _resave(lambda d: d["entities"][0].update(hp=None)),  # always real since NX-124
+        _resave(lambda d: d["entities"][0].update(hp=0)),  # a unit at 0 hp is destroyed
+        _resave(lambda d: d["entities"][0].update(damage_state="DESTROYED")),
+        _resave(lambda d: d["entities"][0].update(alt_band="SPACE")),
+        _resave(lambda d: d["entities"][0].update(ammo=[-1, 0])),
+        _resave(lambda d: d["entities"][0].update(reload=[1])),  # one per weapon
+        _resave(lambda d: d["entities"][0].update(wreck_left=5)),  # only a Disabled unit has one
+        _resave(lambda d: d["entities"][1].update(wreck_left=0)),  # removed at 0, never stored
+        _resave(lambda d: d["entities"][1].update(hits=[[1, 5], [1, 4]])),  # oldest first
+        _resave(lambda d: d["entities"][1].update(hits=[[0, 5]])),  # a shooter id
+        _resave(lambda d: d["entities"][1].update(hits=[[1]])),
+        _resave(lambda d: d["shots"].reverse()),  # (impact_tick, id) order
+        _resave(lambda d: d["shots"][0].update(id=1)),  # unique ids
+        _resave(lambda d: d["shots"][0].update(id=4)),  # below next_shot_id
+        _resave(lambda d: d["shots"][0].update(target=9)),  # below next_entity_id
+        _resave(lambda d: d["shots"][0].update(impact_tick=0)),
+        _resave(lambda d: d["shots"][0].pop("weapon_id")),
+        _resave(lambda d: d.update(shots={})),
+        _resave(lambda d: d.update(next_shot_id=0)),
         _resave(lambda d: d["entities"][0].update(pos=[1e30, 0.0])),
         _resave(lambda d: d["entities"][0].update(pos=[float("nan"), 0.0])),
         _resave(lambda d: d["entities"][0].pop("callsign")),

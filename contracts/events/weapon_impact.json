@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nexus.local/contracts/events/weapon_impact.json",
+  "title": "WeaponImpact",
+  "description": "A shot landed (CONTRACTS \u00a76; COMBAT CB-3, CB-4), on its impact tick after the Pk roll. A fizzle (the shooter's side no longer tracks the target, the target is out of the weapon's range or bands, or the target or shooter is gone) is a miss with no roll (Q-FOW-16). Public view: a hidden shooter shows as an unknown contact.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "tick", "event_seq", "campaign_id", "shooter_id", "target_id", "weapon", "hit"],
+  "properties": {
+    "kind": {"const": "WeaponImpact"},
+    "tick": {"$ref": "../common/ids.json#/$defs/Tick"},
+    "event_seq": {"type": "integer", "minimum": 1, "description": "Campaign-wide, monotonic, deterministic (SC-14)."},
+    "campaign_id": {"$ref": "../common/ids.json#/$defs/CampaignId"},
+    "shooter_id": {"$ref": "../common/ids.json#/$defs/EntityId", "description": "The firing unit."},
+    "target_id": {"$ref": "../common/ids.json#/$defs/EntityId", "description": "The unit fired on."},
+    "weapon": {"$ref": "../common/ids.json#/$defs/WeaponId"},
+    "hit": {"type": "boolean"}
+  }
+}

@@ -10,10 +10,11 @@ is the only cap on how fast a crowd can flip a base (Q-GP-4).
 
 Who counts (by position within `capture.radius_m` of the node): GROUND units are capturers, a
 logistics unit (`Supply.carriers`) weighing `logi_weight`; air never counts (N-3) and facilities
-never contest or garrison (Q-GP-38). A ground unit whose catalog has weapons is combat-capable: on
-the side opposing a capturer it contests the bar: the bar then drains. A defender that cannot
-contest (an unarmed ground unit, or an aircraft LANDED at the base) applies `garrison_mult`
-instead; an owner with no unit there applies `empty_base_mult`; a NEUTRAL node uses neither.
+never contest or garrison (Q-GP-38). A ground unit whose catalog has weapons and that is not
+Disabled is combat-capable: on the side opposing a capturer it contests the bar: the bar then
+drains. A defender that cannot contest (an unarmed or Disabled ground unit, or an aircraft LANDED
+at the base) applies `garrison_mult` instead; an owner with no unit there applies
+`empty_base_mult`; a NEUTRAL node uses neither.
 The quiet-stream `quiet_mult` applies to the coalition only (Q-SIM-26) and `v` is the live
 viewer units, as JOIN counts them (`World.viewer_units`).
 
@@ -28,8 +29,8 @@ facilities switch side keeping their damage (Q-GP-25, `fog.hand_over`), and the 
 mobile units within the radius escape or are lost (Q-SM-10): a ground unit takes the road route to
 the nearest friendly base, an aircraft LANDED there takes off RTB to the nearest base it owns if its
 fuel reaches it; any other is removed with `UnitDestroyed` and, for a commander's unit, its respawn
-delay (the crew-survival roll waits for combat, NX-124). Stock stays with the node. A SANCTUARY or
-BRIDGE node is never captured (N-4).
+delay (the crew-survival roll waits for combat part 2, NX-124); a Disabled wreck cannot escape.
+Stock stays with the node. A SANCTUARY or BRIDGE node is never captured (N-4).
 
 Runs after `logistics` in the `logistics_capture` slot (SC-13) and not while paused (SC-11).
 Deterministic: nodes in id order, entities in id order, no RNG.
@@ -53,6 +54,7 @@ _UNCAPTURABLE: tuple[NodeKind, ...] = ("SANCTUARY", "BRIDGE")
 _NOT_A_BASE: tuple[NodeKind, ...] = ("BRIDGE",)  # a unit cannot flee to a bridge
 _OTHER: dict[Side, Side] = {"COALITION": "ENEMY", "ENEMY": "COALITION"}
 _AIR, _GROUND = "AIR", "GROUND"
+_DISABLED = "DISABLED"
 
 
 @dataclass(slots=True)
@@ -103,7 +105,7 @@ def _tally(p: _Presence, e: Entity, domain: str, rules: Rules, cap: CaptureRules
     p.weight += cap.logi_weight if e.kind in rules.supply.carriers else 1.0
     if e.commander_id is not None:
         p.commanders.add(e.commander_id)
-    if e.kind in rules.armed:
+    if e.kind in rules.armed and e.damage_state != _DISABLED:  # a wreck cannot contest (Q-ALN-33)
         p.armed += 1
     else:
         p.garrison += 1
@@ -235,7 +237,7 @@ def _resolve_units(
             continue
         if (e.pos.x - x) ** 2 + (e.pos.y - y) ** 2 > cap.radius_m**2:
             continue
-        escaped = (
+        escaped = e.damage_state != _DISABLED and (  # a wreck cannot move
             _escape_air(world, rules, e)
             if parked_air
             else _escape_ground(world, rules, e, node, out)

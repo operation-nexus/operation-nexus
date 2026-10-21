@@ -69,6 +69,20 @@ type Domain = Annotated[
 ]
 
 
+type AltBand = Annotated[
+    Literal["NOE", "LOW", "MED", "HIGH"],
+    Field(description="AIR only (COMBAT §5.3). Adding a band is a contract and content change."),
+]
+
+
+type DamageState = Annotated[
+    Literal["HEALTHY", "DAMAGED", "MISSION_KILL", "DISABLED"],
+    Field(
+        description="Q-CBT-1. Destroyed is a lifecycle event (UnitDestroyed), not a damage state."
+    ),
+]
+
+
 type CallsignKind = Annotated[
     Literal["GENERATED", "CUSTOM", "TOMBSTONE"], Field(description="IDENTITY §2, DATA-MODEL §4.2.")
 ]
@@ -147,6 +161,10 @@ type EventKind = Annotated[
         "CampaignEnded",
         "ObjectiveAnnounced",
         "ObjectiveResolved",
+        "WeaponFired",
+        "WeaponImpact",
+        "UnitDamageStateChanged",
+        "UnitDespawned",
     ],
     Field(description="Grows one kind at a time, with each producer (rule 6a)."),
 ]

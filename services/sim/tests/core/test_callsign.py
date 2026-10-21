@@ -70,7 +70,7 @@ def test_join_before_set_in_one_tick_has_none_then_the_unit_updates() -> None:
 def test_a_change_reaches_a_live_unit_and_only_that_commanders() -> None:
     w = world()
     step(w, [join(1, arrival_seq=1), join(2, arrival_seq=2), setcs(1, "OLD-01", seq=3)])
-    ai = w.spawn("GARRISON_INFANTRY", "COALITION", "AI_GARRISON", w.get(1).pos, hp=None)
+    ai = w.spawn("GARRISON_INFANTRY", "COALITION", "AI_GARRISON", w.get(1).pos)
     events = step(w, [setcs(1, "NEW-02", tick=2)])
     assert [type(e).__name__ for e in events] == ["CallsignChanged"]
     assert (w.get(1).callsign, w.get(2).callsign, ai.callsign) == ("NEW-02", None, None)

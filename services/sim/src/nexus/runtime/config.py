@@ -173,6 +173,11 @@ def load_balance(path: Path) -> BalanceConfig:
     cfg = load_model(path, BalanceConfig)
     if cfg.fow.sigint_size_l_min <= cfg.fow.sigint_size_m_min:
         raise ConfigError(f"{path}: fow.sigint_size_l_min: must be above fow.sigint_size_m_min")
+    ds = cfg.combat.damage_state
+    if not ds.disabled_below < ds.mission_kill_below < ds.damaged_below:
+        raise ConfigError(
+            f"{path}: combat.damage_state: need disabled_below < mission_kill_below < damaged_below"
+        )
     weights = cfg.campaign.momentum
     if _exact(weights.nodes_weight) + _exact(weights.supply_weight) != 100:
         raise ConfigError(f"{path}: campaign.momentum: the two weights must add up to 100")

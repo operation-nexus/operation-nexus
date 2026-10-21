@@ -185,6 +185,42 @@ def test_unit_destroyed_rejects_bad_fields(bad: dict[str, object]) -> None:
         EVENTS.validate_python({**DESTROYED, **bad})
 
 
+_BASE = {"tick": 30, "event_seq": 9, "campaign_id": "0192f3a4-5b6c-7d8e-9f01-23456789abcd"}
+FIRED = {**_BASE, "kind": "WeaponFired", "shooter_id": 4, "target_id": 7, "weapon": "SAM",
+         "impact_tick": 52}  # fmt: skip
+IMPACT = {**_BASE, "kind": "WeaponImpact", "shooter_id": 4, "target_id": 7, "weapon": "SAM",
+          "hit": True}  # fmt: skip
+STATE_CHANGED = {**_BASE, "kind": "UnitDamageStateChanged", "entity_id": 7, "from": "HEALTHY",
+                 "to": "DAMAGED"}  # fmt: skip
+DESPAWNED = {**_BASE, "kind": "UnitDespawned", "entity_id": 7, "reason": "WRECKED"}
+
+
+@pytest.mark.parametrize("good", [FIRED, IMPACT, STATE_CHANGED, DESPAWNED])
+def test_combat_events_parse_through_the_event_union(good: dict[str, object]) -> None:
+    event = EVENTS.validate_python(good)
+    assert event.kind == good["kind"]
+    assert event.model_dump(by_alias=True, mode="json") == good  # `from` keeps its wire name
+
+
+@pytest.mark.parametrize(
+    ("event", "bad"),
+    [
+        (FIRED, {"impact_tick": 0}),  # a campaign-clock tick, at least 1
+        (FIRED, {"weapon": "sam"}),  # a WeaponId
+        (FIRED, {"hit": True}),  # the outcome is not known at fire time (Q-GP-12)
+        (IMPACT, {"hit": "maybe"}),
+        (IMPACT, {"impact_tick": 5}),
+        (STATE_CHANGED, {"to": "DESTROYED"}),  # a lifecycle event, not a damage state
+        (STATE_CHANGED, {"from": "BROKEN"}),
+        (DESPAWNED, {"reason": "IDLE"}),  # no producer yet (rule 6a)
+        (DESPAWNED, {"entity_id": 0}),
+    ],
+)
+def test_combat_events_reject_bad_fields(event: dict[str, object], bad: dict[str, object]) -> None:
+    with pytest.raises(ValidationError):
+        EVENTS.validate_python({**event, **bad})
+
+
 SET_CALLSIGN = {
     "kind": "SYS_SET_CALLSIGN",
     "source": "SYSTEM",

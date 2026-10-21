@@ -57,7 +57,7 @@ def parked(
     w: World, node: str, cargo: int, side: Side = "COALITION", kind: Any = "LOGI_TRUCK"
 ) -> Entity:
     """A truck standing at the end of its path at `node`."""
-    e = w.spawn(kind, side, "AI_GARRISON", Vec2(*POS[node]), hp=None)
+    e = w.spawn(kind, side, "AI_GARRISON", Vec2(*POS[node]))
     e.last_node, e.cargo = node, cargo
     return e
 

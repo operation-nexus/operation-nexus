@@ -58,6 +58,22 @@ capture:
   garrison_mult: 3.0  # PROPOSED – unvalidated (Q-SM-8); capture-time multiplier, a defender that cannot contest is at the base (CONFIG-AND-CONTENT §6.5)
   empty_base_mult: 0.5  # PROPOSED – unvalidated (Q-SM-8); capture-time multiplier, no defender at the base (CONFIG-AND-CONTENT §6.5)
   decay_per_s: 0.008333333333333333  # PROPOSED – unvalidated (Q-SIM-57, owner-approved initial value; NX-031 tunes); 1/120 of the bar per s (world) (CONFIG-AND-CONTENT §6.5)
+combat:
+  pk_cap: 0.95  # PROPOSED – unvalidated (Q-CBT-10); max hit probability, every shot can miss (CONFIG-AND-CONTENT §6.4 combat.pk_cap)
+  track_quality:
+    track: 1.0  # PROPOSED – unvalidated (Q-CBT-10); Pk multiplier, a tracked target (CONFIG-AND-CONTENT §6.4)
+    painted: 1.25  # PROPOSED – unvalidated (Q-CBT-10); Pk multiplier, a target painted by recon (CONFIG-AND-CONTENT §6.4)
+  range:
+    full_pk_frac: 0.5  # PROPOSED – unvalidated (Q-CBT-10); share of range_m with the full range factor (CONFIG-AND-CONTENT §6.4)
+    min_mult: 0.5  # PROPOSED – unvalidated (Q-CBT-10); range factor at range_m (CONFIG-AND-CONTENT §6.4)
+  pk_mult:
+    terrain_masked: 0.5  # PROPOSED – unvalidated (Q-CBT-11); Pk multiplier, NOE/LOW aircraft or a ground unit in a masking region (CONFIG-AND-CONTENT §6.4)
+  damage_state:
+    damaged_below: 0.70  # PROPOSED – unvalidated (Q-GP-8); hp fraction (CONFIG-AND-CONTENT §6.4)
+    mission_kill_below: 0.35  # PROPOSED – unvalidated (Q-GP-8); hp fraction (CONFIG-AND-CONTENT §6.4)
+    disabled_below: 0.10  # PROPOSED – unvalidated (Q-GP-8); hp fraction, a facility's hp floors here (CONFIG-AND-CONTENT §6.4)
+  disabled_timeout_s: 600  # PROPOSED – unvalidated (Q-CBT-14); s (game), a Disabled unit is removed after this (CONFIG-AND-CONTENT §6.4)
+  assist_window_s: 120  # PROPOSED – unvalidated (Q-SIM-66); s (game), a hit this recently before a kill is an assist (CONFIG-AND-CONTENT §6.4)
 campaign:
   time_limit_h: 72  # PROPOSED – unvalidated (Q-TEST-6); h (game) (CONFIG-AND-CONTENT §6.6 campaign.time_limit_h)
   victory_node_frac: 0.80  # PROPOSED – unvalidated; fraction of strategic nodes (CONFIG-AND-CONTENT §6.6)

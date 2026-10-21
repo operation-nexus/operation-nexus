@@ -24,13 +24,13 @@ class UnitDestroyed(BaseModel):
     killer_id: Annotated[
         ids.EntityId | None,
         Field(
-            description="null: no killer (fuel exhaustion), or a hidden killer in the public view."
+            description="null: no killer (fuel exhaustion or loss of a captured base), or a hidden killer in the public view."
         ),
     ]
     assist_ids: Annotated[
         list[ids.EntityId],
         Field(
-            description="No duplicates (producer). Not uniqueItems: that generates a set, whose order is not deterministic (SC-14).",
+            description="Combat: the other shooters that hit the unit within combat.assist_window_s, sorted, no duplicates (producer). Not uniqueItems: that generates a set, whose order is not deterministic (SC-14).",
             max_length=32,
         ),
     ]

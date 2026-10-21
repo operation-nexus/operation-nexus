@@ -60,7 +60,7 @@ def aircraft(
     w: World, at: Vec2, *path: str | Vec2, state: UnitState = "EN_ROUTE", fuel: float = 1000.0,
     kind: UnitKind = JET, side: Side = "COALITION",
 ) -> Entity:  # fmt: skip
-    e = w.spawn(kind, side, "COMMANDER", at, commander_id=CID, hp=None)
+    e = w.spawn(kind, side, "COMMANDER", at, commander_id=CID, hp=100)
     e.path, e.state, e.fuel = list(path), state, fuel
     return e
 
@@ -275,7 +275,7 @@ def test_air_state_hash_is_hash_seed_independent() -> None:
 
 def test_an_aircraft_without_state_cannot_fly() -> None:
     w = world(hand_rules())
-    w.spawn(JET, "COALITION", "COMMANDER", Vec2(0, 0), hp=None).path = [Vec2(10, 0)]
+    w.spawn(JET, "COALITION", "COMMANDER", Vec2(0, 0), hp=100).path = [Vec2(10, 0)]
     with pytest.raises(ValueError, match="no state"):
         step(w, [])
 

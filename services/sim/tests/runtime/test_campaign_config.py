@@ -71,10 +71,16 @@ def test_start_campaign_stamps_the_config_and_attaches_rules(
     assert [
         (e.id, e.kind, e.side, e.base_id, e.variant, e.emitting, e.pos) for e in world.entities()
     ] == STRAIT_1_FACILITIES
-    for e in world.entities():  # base-owned, unmodelled hp until combat (NX-124), parked
+    for e in world.entities():  # base-owned, parked, at full hp (NX-124)
+        hp = {"RADAR_SITE": 150, "AIR_DEFENSE_SITE": 150}[e.kind]
         assert (e.owner_kind, e.commander_id, e.hp, e.path, e.vel) == (
-            "AI_GARRISON", None, None, [], Vec2(0, 0)
+            "AI_GARRISON", None, hp, [], Vec2(0, 0)
         )  # fmt: skip
+    # Facilities spawn with a full load; the variant picks the weapons (CONTRACTS, Q-SIM-65):
+    # a radar none, SHORT_RANGE the gun only, SAM the gun then the missile.
+    assert [(e.id, e.ammo, e.reload) for e in world.entities() if e.id in (1, 2, 3)] == [
+        (1, [], []), (2, [400, 8], [0, 0]), (3, [400], [0]),
+    ]  # fmt: skip
     # Without a config it loads the shipped files: the same world.
     default = start_campaign(CAMPAIGN, 77)
     assert default.campaign.config_hash == GOLDEN_CONFIG_HASH

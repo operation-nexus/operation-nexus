@@ -1,12 +1,14 @@
-# Weapon profiles, CONFIG-AND-CONTENT §7.2. Identity and target domains only (NX-367); range, Pk,
-# damage and ammo join with the combat items (Q-CFG-10). Ids are PROPOSED generic names (Q-PROD-5).
-# Targets follow the COMBAT §5.1 table.
+# Weapon profiles, CONFIG-AND-CONTENT §7.2. Ids are PROPOSED generic names (Q-PROD-5). Targets follow
+# the COMBAT §5.1 table. Every number is the owner's starting value (Q-SIM-65), PROPOSED and
+# unvalidated until the balance harness (NX-031) runs; units: range_m m, projectile_speed_mps m/s
+# world (null = a gun, lands on the fire tick), base_pk probability, damage hp, reload_s s world,
+# ammo rounds. `bands` is the altitude reach against AIR targets, [] for the rest.
 schema_version: 1
 weapons:
-  - { id: AA_LIGHT, targets: [AIR] }                          # PROPOSED: strike fighters' secondary
-  - { id: AA_MISSILE, targets: [AIR] }                        # PROPOSED: ENEMY_FIGHTER
-  - { id: AAA_GUN, targets: [AIR] }                           # PROPOSED: AIR_DEFENSE_SITE, short range
-  - { id: SAM, targets: [AIR] }                               # PROPOSED: AIR_DEFENSE_SITE, long range
-  - { id: AG_LIGHT, targets: [GROUND, STATIC, STRUCTURE] }    # PROPOSED: strike fighters' main
-  - { id: AG_CANNON, targets: [GROUND, STATIC, STRUCTURE] }   # PROPOSED: ENEMY_ARMOR
-  - { id: SMALL_ARMS, targets: [GROUND] }                     # GARRISON_INFANTRY (Q-CBT-25)
+  - { id: AA_LIGHT, targets: [AIR], bands: [LOW, MED], range_m: 8000.0, projectile_speed_mps: null, base_pk: 0.5, damage: 30, reload_s: 2.0, ammo: 400 }  # PROPOSED (Q-SIM-65): strike fighters' secondary
+  - { id: AA_MISSILE, targets: [AIR], bands: [LOW, MED, HIGH], range_m: 30000.0, projectile_speed_mps: 800.0, base_pk: 0.7, damage: 60, reload_s: 10.0, ammo: 4 }  # PROPOSED (Q-SIM-65): ENEMY_FIGHTER
+  - { id: AAA_GUN, targets: [AIR], bands: [NOE, LOW], range_m: 4000.0, projectile_speed_mps: null, base_pk: 0.3, damage: 15, reload_s: 2.0, ammo: 400 }  # PROPOSED (Q-SIM-65): AIR_DEFENSE_SITE, short range
+  - { id: SAM, targets: [AIR], bands: [LOW, MED, HIGH], range_m: 35000.0, projectile_speed_mps: 1000.0, base_pk: 0.7, damage: 70, reload_s: 15.0, ammo: 8 }  # PROPOSED (Q-SIM-65): AIR_DEFENSE_SITE, long range
+  - { id: AG_LIGHT, targets: [GROUND, STATIC, STRUCTURE], bands: [], range_m: 10000.0, projectile_speed_mps: 300.0, base_pk: 0.7, damage: 50, reload_s: 10.0, ammo: 4 }  # PROPOSED (Q-SIM-65): strike fighters' main
+  - { id: AG_CANNON, targets: [GROUND, STATIC, STRUCTURE], bands: [], range_m: 4000.0, projectile_speed_mps: null, base_pk: 0.6, damage: 40, reload_s: 6.0, ammo: 40 }  # PROPOSED (Q-SIM-65): ENEMY_ARMOR
+  - { id: SMALL_ARMS, targets: [GROUND], bands: [], range_m: 1500.0, projectile_speed_mps: null, base_pk: 0.4, damage: 8, reload_s: 2.0, ammo: 300 }  # PROPOSED (Q-SIM-65): GARRISON_INFANTRY (Q-CBT-25)
