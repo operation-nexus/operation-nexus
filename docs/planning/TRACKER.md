@@ -9,7 +9,7 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 
 | Phase | Items | Done | Status |
 |---|---|---|---|
-| P0 Foundations | 42 | 17 | 🟨 |
+| P0 Foundations | 42 | 18 | 🟨 |
 | P1 Sim kernel | 26 | 6 | 🟨 |
 | P2 Closed alpha | 33 | 0 | ⬜ |
 | P3 Public beta | 22 | 0 | ⬜ |
@@ -43,7 +43,7 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-013 [#11](https://github.com/operation-nexus/operation-nexus/issues/11) | `build.yml`: buildx, pinned digests, SBOM, trivy image, cosign, provenance → GHCR | M | ⬜ | NX-011 | `cosign verify` passes on pushed image |
 | NX-014 [#12](https://github.com/operation-nexus/operation-nexus/issues/12) | `deploy.yml` + `deploy/bin/deploy|rollback` + Tailscale (staging auto, prod approval) | L | ⬜ | NX-013, Q-OPS-1 | Deploy + auto-rollback demonstrated on staging |
 | NX-015 [#13](https://github.com/operation-nexus/operation-nexus/issues/13) | `release.yml` release-please (manifest mode) | S | ⬜ | NX-011 | Release PR generated |
-| NX-016 [#14](https://github.com/operation-nexus/operation-nexus/issues/14) | `nightly.yml` skeleton (soak, balance, rescan, scorecard) | M | ⬜ | NX-011 | Runs on schedule, uploads artifacts |
+| NX-016 [#14](https://github.com/operation-nexus/operation-nexus/issues/14) | `nightly.yml` skeleton (soak, balance, rescan, scorecard) | M | 👀 | NX-011 | Runs on schedule, uploads artifacts. Skeleton runs determinism, grid bench and the dependency rescan; soak (NX-033), balance (NX-031), base-image rescan (NX-013) and Scorecard (needs an approved pin) join with their items |
 | NX-017 [#15](https://github.com/operation-nexus/operation-nexus/issues/15) | `pr-hygiene.yml`: conventional title, tracker-ID check, size label | S | ✅ | NX-010 | PR without NX-ID fails |
 | NX-018 [#16](https://github.com/operation-nexus/operation-nexus/issues/16) | `dependabot.yml` grouped weekly (uv, npm, actions; docker arrives with the first Dockerfile, NX-013) + label sync | S | ✅ | NX-010 | First grouped PR appears |
 | NX-019 [#17](https://github.com/operation-nexus/operation-nexus/issues/17) | import-linter contracts for module boundaries (SYSTEM-DESIGN §4; Q-MB-1) | S | ✅ | NX-010 | Violating import fails CI (a test proves it) |
@@ -53,7 +53,7 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-023 | CODEOWNERS, PR template, issue templates, SECURITY.md | S | ✅ | — | Files present |
 | NX-024 [#21](https://github.com/operation-nexus/operation-nexus/issues/21) | markdownlint + lychee docs job | S | ⬜ | NX-011 | Broken link fails |
 | NX-025 [#22](https://github.com/operation-nexus/operation-nexus/issues/22) | Dev container / `make bootstrap` for desktop + cloud agents (SessionStart hook) | M | ✅ | NX-010 | Fresh clone → `make check` in one command |
-| NX-026 [#23](https://github.com/operation-nexus/operation-nexus/issues/23) | Structured logging lib with secret-redaction + test | S | 👀 | NX-010 | Test proves token redacted |
+| NX-026 [#23](https://github.com/operation-nexus/operation-nexus/issues/23) | Structured logging lib with secret-redaction + test | S | ✅ | NX-010 | Test proves token redacted |
 | NX-027 [#24](https://github.com/operation-nexus/operation-nexus/issues/24) | Runbook: rotate secrets | S | ⬜ | NX-014 | Doc reviewed |
 | NX-028 | `.gitignore` additions (`*.db`, `node_modules/`, snapshots, logs, `.env*`) | S | ✅ | — | Present |
 | NX-029 [#25](https://github.com/operation-nexus/operation-nexus/issues/25) | Agent review gate: code-review + security-review run on every PR (Q-CI-3) | M | ❓ | NX-011 | Review comment posted on PRs |

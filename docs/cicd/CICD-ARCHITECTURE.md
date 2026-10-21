@@ -185,7 +185,7 @@ Applied 2026-10-18 (OWNER-TODO §2). New third-party actions must be added to th
 | `.github/workflows/build.yml` | images, SBOM, sign, attest (on merge to `develop`; build check on PRs) | NX-013 | Planned |
 | `.github/workflows/deploy.yml` | staging auto from `develop`, prod on release tag with approval | NX-014 | Planned |
 | `.github/workflows/release.yml` | release-please | NX-015 | Planned |
-| `.github/workflows/nightly.yml` | soak, balance, rescan, scorecard | NX-016 | Planned |
+| `.github/workflows/nightly.yml` | cron 03:37 UTC + manual; runs on the default branch (`develop`). Today: `determinism` (golden replays, report artifact), `grid-bench` (NX-104, 3,000 ticks, JSON artifact; runner timings indicative only), `rescan` (osv-scanner on `develop`, same pinned binary as `security.yml`; `main` joins once it carries the gate script). Later: soak (NX-033), balance harness (NX-031), base-image rescan (NX-013), Scorecard (needs an owner-approved `ossf/scorecard-action` pin) | NX-016 | Skeleton implemented |
 | `.github/workflows/pr-hygiene.yml` | reusable workflow called by `ci.yml` on every PR: Conventional title (no `Merge ...` titles), commit-message lint of every PR commit, tracker-ID check (PRs into `develop` only; Dependabot and back-merges from `main` exempt), size label | NX-017 | Implemented |
 | `.github/dependabot.yml` | grouped weekly updates for uv, npm, actions (docker added with the first Dockerfile, NX-013) | NX-018 | Implemented |
 | `.github/workflows/label-sync.yml` | create/update labels from `.github/labels.yml` when it changes on `develop` | NX-018 | Implemented |

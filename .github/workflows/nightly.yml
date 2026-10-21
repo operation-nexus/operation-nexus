@@ -1,0 +1,128 @@
+# Nightly (NX-016). Spec: docs/cicd/CICD-ARCHITECTURE.md §3 (Nightly box), ADR-0009.
+#
+# Skeleton: runs only what exists today. Nothing here gates a PR or a release; a red nightly run needs a
+# tracker issue within 24 h (ADR-0009).
+#   determinism  golden replays in four processes (tools/sim-determinism/check.py, NX-105)
+#   grid-bench   uniform-grid benchmark, reduced ticks (tools/sim-bench/grid_bench.py, NX-104)
+#   rescan       full osv-scanner rescan of the default branch (catches newly disclosed CVEs); main later
+#
+# Not built yet, so no job (add each with its tracker item, not before):
+#   6 h soak                          NX-033
+#   balance harness (scenarios x 20 seeds)   NX-031
+#   base-image SCA rescan             first Dockerfile (NX-013)
+#   OpenSSF Scorecard                 needs an owner-approved pin of ossf/scorecard-action (AGENTS rule 8);
+#                                     no pin exists in the repo
+#
+# Schedules run on the default branch, which is `develop` (OWNER-TODO, 2026-10-18); jobs check out that ref.
+#
+# Security notes: top-level permissions are empty, each job gets contents: read only; checkout does not persist
+# credentials; no secrets; event data never reaches a shell step.
+name: nightly
+
+on:
+  schedule:
+    - cron: "37 3 * * *" # 03:37 UTC daily, off-peak and off the hour
+  workflow_dispatch:
+
+permissions: {}
+
+concurrency:
+  group: nightly-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  determinism:
+    name: determinism
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: services/sim
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: "0.11.32"
+          python-version: "3.12"
+          cache-dependency-glob: services/sim/uv.lock
+      - run: uv sync --frozen
+      - name: Golden replays in four processes
+        run: |
+          set -euo pipefail
+          uv run --frozen python ../../tools/sim-determinism/check.py 2>&1 | tee "$RUNNER_TEMP/determinism.txt"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() }} # keep the report of a failed run
+        with:
+          name: determinism-report
+          path: ${{ runner.temp }}/determinism.txt
+          retention-days: 14
+
+  grid-bench:
+    name: grid-bench
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: "0.11.32"
+          python-version: "3.12"
+          cache-dependency-glob: services/sim/uv.lock
+      - run: uv sync --frozen --project services/sim
+      # 3,000 ticks per scenario, not the 36,000 (1 h) default. Shared-runner timings are indicative only (trend,
+      # not a verdict): the reference host decides SC-10 (docs/review/NX-104-BENCH.md).
+      - name: Grid benchmark
+        run: |
+          set -euo pipefail
+          uv run --frozen --project services/sim python tools/sim-bench/grid_bench.py \
+            --ticks 3000 --out "$RUNNER_TEMP/grid-bench.json"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: grid-bench
+          path: ${{ runner.temp }}/grid-bench.json
+          retention-days: 14
+
+  # security.yml has no schedule and only scans the checked-out ref, so this is the full rescan of the default
+  # branch (develop). Same osv-scanner release binary, version and SHA-256 as security.yml `sca`; bump them
+  # together. Threshold as security.yml uses for develop: CVSS 9.0+. A rescan of `main` joins once main carries
+  # scripts/check_osv_report.py (next promotion); until then security.yml scans main on each promotion PR. Only
+  # the workflow's own ref is checked out, so no other ref's code runs here.
+  rescan:
+    name: rescan
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Install osv-scanner 2.6.0
+        run: |
+          set -euo pipefail
+          curl -fsSLo "$RUNNER_TEMP/osv-scanner" \
+            https://github.com/google/osv-scanner/releases/download/v2.6.0/osv-scanner_linux_amd64
+          echo "ca69b3d3cd08f889a49dc0a383122f71cc528b83803671df5fd874d97485b108  $RUNNER_TEMP/osv-scanner" | sha256sum -c -
+          chmod +x "$RUNNER_TEMP/osv-scanner"
+      - name: Scan lockfiles
+        run: |
+          set -euo pipefail
+          rc=0
+          "$RUNNER_TEMP/osv-scanner" scan source -r --format json --output-file "$RUNNER_TEMP/osv.json" . || rc=$?
+          # 0 = clean, 1 = findings (the script decides), anything else (128 = no lockfiles found) is an error.
+          if [ "$rc" -ne 0 ] && [ "$rc" -ne 1 ]; then echo "osv-scanner failed with exit $rc"; exit "$rc"; fi
+          python3 scripts/check_osv_report.py "$RUNNER_TEMP/osv.json" 9.0
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() }}
+        with:
+          name: osv-report
+          path: ${{ runner.temp }}/osv.json
+          retention-days: 14
