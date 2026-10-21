@@ -4,7 +4,7 @@ SIM-CORE SC-3, §5 and §7; TESTING-STRATEGY §3.2. Each directory here is one c
 
 | File | What |
 |---|---|
-| `case.json` | `campaign_id`, `seed`, `config_hash`, `ticks`, `checkpoints_every` (100, SIM-CORE §5), `handlers` (the name of a handler registry), `description` |
+| `case.json` | `campaign_id`, `seed`, `config_hash`, `ticks`, `checkpoints_every` (100, SIM-CORE §5), `handlers` (the name of a handler registry), `description`, and optionally `rules: "shipped"` |
 | `log/` | The command log in the NX-103 format (DATA-MODEL §6.2), read with `CommandLogReader` |
 | `expected.json` | `state_hash` at every checkpoint tick, plus the count and blake2b-256 hash of the event stream (one canonical JSON line per event) |
 
@@ -13,16 +13,22 @@ and drops the commands of a tombstoned tick (SC-8). `test_golden.py` compares th
 `expected.json` by exact string equality. `tools/sim-determinism/check.py` runs every case again in
 four interpreters with different `PYTHONHASHSEED` values (CI job `sim-determinism`).
 
-Until the kernel has handlers (`nexus.core.step.HANDLERS` is empty), the cases use the stub
+The `kernel` registry is the real `nexus.core.handlers.HANDLERS`. The older cases use the stub
 registries in `test_golden.py`: `stub` spawns a unit with hp drawn from the `spawn` stream, `poison`
 does the same but raises on the command with correlation id `poison`. These are test stand-ins, not
 gameplay.
+
+A case with `"rules": "shipped"` runs with the shipped config (`load_campaign_config`: balance,
+unit catalog, strait-1) and its `config_hash` must equal that config's, so any config change fails
+the case with a clear error until `make_cases.py` and `expected.json` are regenerated (a golden
+update, below). Cases without it run with no rules.
 
 | Case | Ticks | What it pins |
 |---|---|---|
 | `empty-1h` | 36,000 | One game hour, no commands: tick, RNG and state stay stable (Q-SIM-19 "empty theater 1 h", without a theater yet) |
 | `stub-commands` | 300 | JOIN-shaped commands through the `stub` handler |
 | `poison-crash` | 200 | A tombstoned tick whose three commands are dropped (Q-SIM-19 "poison-command crash") |
+| `joins-strait-1` | 6,000 | Real JOINs on strait-1 with the shipped config: strike, recon and logistics units spawn at the sanctuary, ground units drive road routes and aircraft fly straight; rejects for a unit in sortie, an unknown node, a node no road reaches and an unplayable role (NX-122) |
 
 Q-SIM-19 cases still to come, each with the item that makes it runnable: the empty *theater* hour
 (theater loader NX-120), the 50-viewer scripted raid (real `JOIN` and orders, NX-122; viewer

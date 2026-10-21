@@ -16,7 +16,7 @@
     "side": {"$ref": "../common/enums.json#/$defs/Side"},
     "owner_kind": {"$ref": "../common/enums.json#/$defs/OwnerKind"},
     "commander_id": {"anyOf": [{"$ref": "../common/ids.json#/$defs/CommanderId"}, {"type": "null"}]},
-    "callsign": {"anyOf": [{"$ref": "../common/ids.json#/$defs/Callsign"}, {"type": "null"}], "description": "null for AI entities, which render [AI] (DI-5)."},
+    "callsign": {"anyOf": [{"$ref": "../common/ids.json#/$defs/Callsign"}, {"type": "null"}], "description": "null for AI entities, and for COMMANDER units until identity supplies the callsign with SYS_SET_CALLSIGN (IDENTITY \u00a72). Clients key the [AI] marker (DI-5) on owner_kind, never on a null callsign."},
     "node_id": {"$ref": "../common/ids.json#/$defs/NodeId"},
     "loadout": {"enum": ["FULL", "REDUCED"]}
   }

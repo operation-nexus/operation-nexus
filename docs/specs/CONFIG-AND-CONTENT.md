@@ -139,6 +139,8 @@ Legend: **HR** = hot-reloadable (§5). "TBD" = TBD by harness. **Source** = the 
 | `director.decoy_blink.dark_s` | float | s (world) | TBD (PROPOSED) | FOG-OF-WAR FOW-11, Q-FOW-10 | No |
 
 ### 6.2 Slots, respawn, reserve
+In the schema now (NX-122): `slots.max_live_per_commander` and `slots.respawn_delay_s`, read by the JOIN handler (SIM-CORE §4). `slots.respawn_delay_s` is marked hot-reloadable but is read once at load until config reload exists; a reload must rebuild the kernel's `Rules` and be logged.
+
 | Key | Type | Unit | PROPOSED | Source | HR |
 |---|---|---|---|---|---|
 | `slots.max_live_per_commander` | int | units | 1 | GAMEPLAY GP-1 | No |

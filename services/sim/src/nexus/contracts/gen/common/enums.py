@@ -79,7 +79,17 @@ type CommandKind = Annotated[
 
 
 type RejectReason = Annotated[
-    Literal["INTERNAL_ERROR"],
+    Literal[
+        "ROLE_UNKNOWN",
+        "UNIT_IN_SORTIE",
+        "RESPAWN_COOLDOWN",
+        "NODE_UNKNOWN",
+        "NODE_INVALID_FOR_UNIT",
+        "FOLLOW_TARGET_INVALID",
+        "CAMPAIGN_PAUSED",
+        "INVALID_PAYLOAD",
+        "INTERNAL_ERROR",
+    ],
     Field(
         description="CONTRACTS §5.3. Grows one value at a time, with the code that emits it (rule 6a)."
     ),

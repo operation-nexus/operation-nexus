@@ -45,7 +45,7 @@ export interface UnitSpawned {
   owner_kind: "COMMANDER" | "AI_GARRISON" | "ENEMY_DIRECTOR";
   commander_id: string | null;
   /**
-   * null for AI entities, which render [AI] (DI-5).
+   * null for AI entities, and for COMMANDER units until identity supplies the callsign with SYS_SET_CALLSIGN (IDENTITY §2). Clients key the [AI] marker (DI-5) on owner_kind, never on a null callsign.
    */
   callsign: string | null;
   /**
@@ -82,6 +82,15 @@ export interface CommandRejected {
   /**
    * CONTRACTS §5.3. Grows one value at a time, with the code that emits it (rule 6a).
    */
-  reason: "INTERNAL_ERROR";
+  reason:
+    | "ROLE_UNKNOWN"
+    | "UNIT_IN_SORTIE"
+    | "RESPAWN_COOLDOWN"
+    | "NODE_UNKNOWN"
+    | "NODE_INVALID_FOR_UNIT"
+    | "FOLLOW_TARGET_INVALID"
+    | "CAMPAIGN_PAUSED"
+    | "INVALID_PAYLOAD"
+    | "INTERNAL_ERROR";
   commander_id: string | null;
 }

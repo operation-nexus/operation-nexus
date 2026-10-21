@@ -32,6 +32,23 @@ class Sim(BaseModel):
     ]
 
 
+class Slots(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    max_live_per_commander: Annotated[
+        int,
+        Field(description="Live personal units per commander, unit units (GAMEPLAY GP-1).", ge=1),
+    ]
+    respawn_delay_s: Annotated[
+        float,
+        Field(
+            description="Wait after losing a unit before the next JOIN, unit s of game time (GAMEPLAY GP-2, Q-ALN-5).",
+            ge=0.0,
+        ),
+    ]
+
+
 class BalanceConfig(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -45,3 +62,4 @@ class BalanceConfig(BaseModel):
         ),
     ]
     sim: Sim
+    slots: Slots

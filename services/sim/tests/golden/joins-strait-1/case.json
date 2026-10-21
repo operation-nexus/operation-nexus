@@ -1,0 +1,10 @@
+{
+  "campaign_id": "0192f3a4-5b6c-7d8e-9f01-23456789abcd",
+  "seed": 12345,
+  "config_hash": "aed583a7102a2833eeb01a68fe46305cab99c9a3c290b51584a77c0656b67552",
+  "ticks": 6000,
+  "checkpoints_every": 100,
+  "handlers": "kernel",
+  "description": "Real JOINs on strait-1 with the shipped config: air and ground units spawn at the sanctuary and move along their routes for 10 game minutes; rejects for a unit in sortie, an unknown node, a node no road reaches and an unplayable role (NX-122).",
+  "rules": "shipped"
+}

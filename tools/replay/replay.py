@@ -2,8 +2,8 @@
 
 Re-simulates a campaign from its snapshots and command log with `nexus.runtime.recovery.restore`.
 A developer tool: it reproduces a run only on the same commit and image (SC-16), not an archive.
-It uses the real, still empty `HANDLERS`: gameplay handlers arrive with their tracker items, so a
-log holding commands for a kind without a handler does not replay yet.
+It uses the real `HANDLERS` (JOIN since NX-122): handlers arrive with their tracker items, so a log
+holding commands for a kind without a handler does not replay yet (it warns).
 
   cd services/sim && uv run --frozen python ../../tools/replay/replay.py run SNAPSHOTS LOGS
   ... replay.py verify SNAPSHOTS LOGS --expect HASH [--until-tick N]

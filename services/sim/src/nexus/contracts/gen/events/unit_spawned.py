@@ -26,7 +26,10 @@ class UnitSpawned(BaseModel):
     owner_kind: enums.OwnerKind
     commander_id: ids.CommanderId | None
     callsign: Annotated[
-        ids.Callsign | None, Field(description="null for AI entities, which render [AI] (DI-5).")
+        ids.Callsign | None,
+        Field(
+            description="null for AI entities, and for COMMANDER units until identity supplies the callsign with SYS_SET_CALLSIGN (IDENTITY §2). Clients key the [AI] marker (DI-5) on owner_kind, never on a null callsign."
+        ),
     ]
     node_id: ids.NodeId
     loadout: Literal["FULL", "REDUCED"]

@@ -6,3 +6,6 @@ sim:
   tick_hz: 10  # Hz; fixed by ADR-0002, validated, not tunable (CONFIG-AND-CONTENT §6.1 sim.tick_hz)
   time_scale: 6.0  # PROPOSED – unvalidated; x real time (CONFIG-AND-CONTENT §6.1 sim.time_scale)
   snapshot_every_ticks: 300  # PROPOSED – unvalidated; ticks (CONFIG-AND-CONTENT §6.1 sim.snapshot_every_ticks)
+slots:
+  max_live_per_commander: 1  # PROPOSED – unvalidated; units (CONFIG-AND-CONTENT §6.2 slots.max_live_per_commander)
+  respawn_delay_s: 20  # PROPOSED – unvalidated; s (game) (CONFIG-AND-CONTENT §6.2 slots.respawn_delay_s)

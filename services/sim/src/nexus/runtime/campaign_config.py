@@ -11,7 +11,7 @@ from pathlib import Path
 from nexus.contracts.gen.config.balance import BalanceConfig
 from nexus.contracts.gen.config.theater import TheaterConfig
 from nexus.core.rules import Rules, make_rules
-from nexus.runtime.config import canonical_hash, config_hash, load_balance
+from nexus.runtime.config import canonical_hash, config_hash, game_ticks, load_balance
 from nexus.runtime.theater import load_theater, road_graph
 from nexus.runtime.units import UnitCatalog, catalog_hash, load_catalog
 
@@ -49,5 +49,13 @@ def load_campaign_config(paths: ConfigPaths | None = None) -> CampaignConfig:
         catalog_hash(catalog),
         canonical_hash(theater.model_dump()),
     )
-    rules = make_rules(balance.sim, catalog.units, road_graph(theater))
+    rules = make_rules(
+        balance.sim,
+        catalog.units,
+        road_graph(theater),
+        roles=catalog.roles.roles,
+        sanctuary=theater.sanctuary,
+        slots=balance.slots,
+        respawn_delay_ticks=game_ticks(balance.slots.respawn_delay_s, balance),
+    )
     return CampaignConfig(balance, catalog, theater, digest, rules)

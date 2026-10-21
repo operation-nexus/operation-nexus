@@ -29,12 +29,19 @@ sim:
   tick_hz: 10
   time_scale: 6.0
   snapshot_every_ticks: 300
+slots:
+  max_live_per_commander: 1
+  respawn_delay_s: 20
 """
 # Pinned from this implementation's first run (NX-367: balance, units, theater; re-pinned NX-121
-# for speed_mps); a change means every config_hash moved.
-GOLDEN_CONFIG_HASH = "5236998f405af9ee4141bc4a51f78f41a04d37ee5e53229ade5ad83ee409d877"
+# for speed_mps, NX-122 for slots); a change means every config_hash moved.
+GOLDEN_CONFIG_HASH = "aed583a7102a2833eeb01a68fe46305cab99c9a3c290b51584a77c0656b67552"
 CFG = BalanceConfig.model_validate(
-    {"schema_version": 1, "sim": {"tick_hz": 10, "time_scale": 6.0, "snapshot_every_ticks": 300}}
+    {
+        "schema_version": 1,
+        "sim": {"tick_hz": 10, "time_scale": 6.0, "snapshot_every_ticks": 300},
+        "slots": {"max_live_per_commander": 1, "respawn_delay_s": 20},
+    }
 )
 
 
@@ -72,6 +79,8 @@ def test_default_profile_loads_and_matches_golden_hash() -> None:
         ("  tick_hz: 10\n", "sim.tick_hz"),
         ("  time_scale: 6.0\n", "sim.time_scale"),
         ("  snapshot_every_ticks: 300\n", "sim.snapshot_every_ticks"),
+        ("  max_live_per_commander: 1\n", "slots.max_live_per_commander"),
+        ("  respawn_delay_s: 20\n", "slots.respawn_delay_s"),
     ],
 )
 def test_each_missing_required_key_names_key_and_file(tmp_path: Path, line: str, key: str) -> None:
@@ -140,14 +149,15 @@ def test_non_finite_numbers_are_rejected(tmp_path: Path, value: str) -> None:
     "text",
     [
         VALID + "schema_version: 1\n",  # top level
-        VALID + "  tick_hz: 10\n",  # nested, same value
+        VALID + "  respawn_delay_s: 20\n",  # nested, same value
         VALID.replace("sim:\n", "sim:\n  time_scale: 7.0\n"),  # nested, earlier and different
     ],
 )
 def test_duplicate_keys_are_rejected(tmp_path: Path, text: str) -> None:
     path = write(tmp_path, text)
     with pytest.raises(
-        ConfigError, match=rf"(?s)^{path}: .*duplicate key '(schema_version|tick_hz|time_scale)'"
+        ConfigError,
+        match=rf"(?s)^{path}: .*duplicate key '(schema_version|respawn_delay_s|time_scale)'",
     ):
         load_balance(path)
 
@@ -226,6 +236,7 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
     reformatted = (
         "# same profile, other layout\n"
         "sim: {snapshot_every_ticks: 300, time_scale: 6.0, tick_hz: 10}\n"
+        "slots: {respawn_delay_s: 20, max_live_per_commander: 1}\n"
         "schema_version:   1\n"
     )
     assert balance_hash(write(tmp_path, reformatted)) == balance_hash(DEFAULT)
@@ -295,6 +306,7 @@ def test_world_ticks_is_the_least_whole_tick_count_not_shorter(
         {
             "schema_version": 1,
             "sim": {"tick_hz": 10, "time_scale": time_scale, "snapshot_every_ticks": 1},
+            "slots": {"max_live_per_commander": 1, "respawn_delay_s": 20},
         }
     )
     n = world_ticks(seconds, cfg)

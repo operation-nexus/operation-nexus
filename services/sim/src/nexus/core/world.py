@@ -8,9 +8,9 @@ One walker, `to_canonical`, turns a world into plain sorted data. Snapshots keep
 (float64), so a restored run continues bit-identically; only `state_hash` quantizes (ADR-0002):
 positions and `path` waypoints to integer mm, velocities to integer mm/s. ADR-0002's 1e-6 step
 applies when the first other float field arrives. Python's `round` is round-half-to-even on the
-exact float value, so it is deterministic. The RNG state is world state, so snapshots and the
-hash cover it. `World.rules` (`nexus.core.rules`) is static config, not state: neither snapshots
-nor the hash include it.
+exact float value, so it is deterministic. The RNG state and `respawn_left` (per commander,
+GP-2) are world state, so snapshots and the hash cover them. `World.rules` (`nexus.core.rules`) is
+static config, not state: neither snapshots nor the hash include it.
 """
 
 import hashlib
@@ -25,16 +25,17 @@ from nexus.contracts.gen.common.enums import OwnerKind, Side, UnitKind
 from nexus.core.rng import SimRng
 from nexus.core.rules import Rules
 
-FORMAT_VERSION = 2  # 2: Entity.path and Entity.last_node (NX-121)
+FORMAT_VERSION = 3  # 2: Entity.path and Entity.last_node (NX-121); 3: respawn_left, hp may be null
 _MM = 1000.0  # metres -> millimetres; m/s -> mm/s
 _MAX_ABS = 1e9  # m or m/s; keeps mm quantization well inside int64
 _CAMPAIGN = "campaign"
 _ENTITIES = "entities"
+_RESPAWN_LEFT = "respawn_left"
 _NEXT_ENTITY_ID = "next_entity_id"
 _NEXT_EVENT_SEQ = "next_event_seq"
 _RNG = "rng"
 _V = "v"
-_WORLD_KEYS = (_CAMPAIGN, _ENTITIES, _NEXT_ENTITY_ID, _NEXT_EVENT_SEQ, _RNG, _V)
+_WORLD_KEYS = (_CAMPAIGN, _ENTITIES, _NEXT_ENTITY_ID, _NEXT_EVENT_SEQ, _RESPAWN_LEFT, _RNG, _V)
 _VEC_KEYS = frozenset({"pos", "vel"})
 _PATH = "path"
 
@@ -84,7 +85,7 @@ class Entity:
     callsign: str | None
     pos: Vec2
     vel: Vec2  # m/s
-    hp: int
+    hp: int | None  # None: not modeled yet (no catalog hp until combat, NX-124; Q-CFG-10)
     # Remaining waypoints (SIM-CORE §4): node ids, or Vec2 for AIR. A GROUND unit is on the road
     # edge from `last_node` (the node it last reached or spawned at) to `path[0]` (NX-121).
     path: list[str | Vec2] = field(default_factory=list)
@@ -111,7 +112,15 @@ class World:
     so iterating the dict is id order without sorting (`load` checks the same for snapshots).
     """
 
-    __slots__ = ("_entities", "_next_entity_id", "_next_event_seq", "campaign", "rng", "rules")
+    __slots__ = (
+        "_entities",
+        "_next_entity_id",
+        "_next_event_seq",
+        "campaign",
+        "respawn_left",
+        "rng",
+        "rules",
+    )
 
     def __init__(self, campaign: Campaign, rng: SimRng, rules: Rules | None = None) -> None:
         self.campaign = campaign
@@ -120,6 +129,9 @@ class World:
         self._entities: dict[int, Entity] = {}
         self._next_entity_id = 1
         self._next_event_seq = 1
+        # commander_id -> running ticks left of its respawn delay, always >= 1 (GP-2, SC-11).
+        # `record_loss` sets it; the `lifecycle` system counts it down and deletes it at 0.
+        self.respawn_left: dict[str, int] = {}
 
     @classmethod
     def new(cls, campaign: Campaign, rules: Rules | None = None) -> Self:
@@ -135,7 +147,7 @@ class World:
         commander_id: str | None = None,
         callsign: str | None = None,
         vel: Vec2 = _ZERO,
-        hp: int,
+        hp: int | None,
     ) -> Entity:
         entity = Entity(
             self._next_entity_id, kind, side, owner_kind, commander_id, callsign, pos, vel, hp
@@ -149,6 +161,18 @@ class World:
 
     def remove(self, entity_id: int) -> None:
         del self._entities[entity_id]
+
+    def record_loss(self, commander_id: str) -> None:
+        """A commander's unit was lost this tick: its respawn delay starts (GP-2).
+
+        The hook for the systems that destroy or wreck units (NX-124, STATE-MACHINES §4.1). Call it
+        before `lifecycle` counts down in the same tick (a loss inside `lifecycle` comes before its
+        countdown): then a loss on tick L with a delay of D ticks allows a JOIN on tick L + D.
+        """
+        if self.rules is None:
+            raise ValueError("record_loss needs the world's rules")
+        if self.rules.respawn_delay_ticks > 0:
+            self.respawn_left[commander_id] = self.rules.respawn_delay_ticks
 
     def entities(self) -> Iterator[Entity]:
         """All entities in ascending id order (SC-4). Do not spawn or remove while iterating."""
@@ -185,6 +209,7 @@ def to_canonical(world: World, *, quantize: bool) -> dict[str, Any]:
     data = {
         _CAMPAIGN: {k: getattr(world.campaign, k) for k in sorted(_CAMPAIGN_KEYS)},
         _ENTITIES: [_entity_data(e, quantize) for e in world.entities()],
+        _RESPAWN_LEFT: dict(sorted(world.respawn_left.items())),
         _NEXT_ENTITY_ID: world._next_entity_id,
         _NEXT_EVENT_SEQ: world._next_event_seq,
         _RNG: {name: dict(sorted(s.items())) for name, s in world.rng.to_state().items()},
@@ -254,7 +279,7 @@ _ENTITY_CHECKS: dict[str, Callable[[object, str], Any]] = {
     "callsign": lambda v, k: _str(v, k, optional=True),
     "pos": _vec,
     "vel": _vec,
-    "hp": _int,
+    "hp": lambda v, k: None if v is None else _int(v, k),
     _PATH: _path,
     "last_node": lambda v, k: _str(v, k, optional=True),
 }
@@ -265,6 +290,14 @@ _CAMPAIGN_CHECKS: dict[str, Callable[[object, str], Any]] = {
     "tick": _int,
     "clock_paused": _bool,
 }
+
+
+def _respawn_left(value: object) -> dict[str, int]:
+    """Entries are >= 1: `lifecycle` deletes one at 0. The upper bound is the rules' delay, which
+    a snapshot does not carry."""
+    if not isinstance(value, dict):
+        raise ValueError(f"{_RESPAWN_LEFT} must be a map")
+    return {_str(k, "commander_id"): _int(v, _RESPAWN_LEFT, 1) for k, v in value.items()}
 
 
 def _load_entity(value: object) -> Entity:
@@ -279,12 +312,16 @@ def _load_campaign(value: object) -> Campaign:
 
 def load(data: bytes) -> World:
     """Rebuild a world from `save` output; the run continues exactly as before."""
-    d = _fields(msgpack.unpackb(data, raw=False), _WORLD_KEYS, "snapshot")
-    if _int(d[_V], "format version") != FORMAT_VERSION:
-        raise ValueError(f"unsupported snapshot format version {d[_V]}")
+    raw = msgpack.unpackb(data, raw=False)
+    # The version first: an older snapshot has other keys, and this error says why.
+    version = raw.get(_V) if isinstance(raw, dict) else None
+    if version != FORMAT_VERSION or type(version) is not int:
+        raise ValueError(f"unsupported snapshot format version {version!r}")
+    d = _fields(raw, _WORLD_KEYS, "snapshot")
     world = World(_load_campaign(d[_CAMPAIGN]), SimRng.from_state(d[_RNG]))
     world._next_entity_id = _int(d[_NEXT_ENTITY_ID], _NEXT_ENTITY_ID, 1)
     world._next_event_seq = _int(d[_NEXT_EVENT_SEQ], _NEXT_EVENT_SEQ, 1)
+    world.respawn_left = _respawn_left(d[_RESPAWN_LEFT])
     entities = d[_ENTITIES]
     if not isinstance(entities, list):
         raise ValueError("entities must be a list")

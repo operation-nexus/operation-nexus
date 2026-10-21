@@ -12,17 +12,62 @@ from runtime.conftest import CAMPAIGN_ID, PROTOCOL
 from runtime.test_recovery import POISON_ID, make_join
 
 from nexus.contracts.gen.commands.command import Command
+from nexus.contracts.gen.commands.join import JoinCommand
+from nexus.runtime.campaign_config import load_campaign_config
 from nexus.runtime.command_log import CommandLogWriter
 from nexus.runtime.golden import CASE_FILE, LOG_DIR
 
 HERE = Path(__file__).parent
 
-# Case name -> (ticks, handler registry, description, {tick: correlation ids}, tombstoned ticks).
-type Plan = tuple[int, str, str, dict[int, list[str]], tuple[int, ...]]
+# Case name -> (ticks, handler registry, description, {tick: commands}, tombstoned ticks, whether
+# it runs with the shipped config's rules). Each command's target_tick and arrival_seq are stamped
+# by `write_case`, in list order.
+type Plan = tuple[int, str, str, dict[int, list[JoinCommand]], tuple[int, ...], bool]
 
-STUB_TICKS = {t: [f"t{t}-{i}" for i in range(t % 4)] for t in range(5, 301, 5)}
-POISON_TICKS = {t: [f"t{t}-a", f"t{t}-b"] for t in range(10, 201, 10)}
-POISON_TICKS[120].insert(1, POISON_ID)
+
+def joins(ticks: dict[int, list[str]]) -> dict[int, list[JoinCommand]]:
+    return {t: [make_join(cid) for cid in ids] for t, ids in ticks.items()}
+
+
+def join(n: int, role: str, node: str | None = None, *, hold: bool = False) -> JoinCommand:
+    """A JOIN from commander number `n` to `node` (None: no target)."""
+    return JoinCommand.model_validate(
+        {
+            "kind": "JOIN",
+            "source": "CHAT",
+            "issuer": {"commander_id": f"0192f0c1-7a2b-7c3d-8e4f-{n:012d}"},
+            "target_tick": 1,
+            "arrival_seq": 1,
+            "correlation_id": f"c{n}-{role.lower()}",
+            "role": role,
+            "target": None if node is None else {"node_id": node},
+            "hold": hold,
+        }
+    )
+
+
+STUB_TICKS = joins({t: [f"t{t}-{i}" for i in range(t % 4)] for t in range(5, 301, 5)})
+POISON_IDS = {t: [f"t{t}-a", f"t{t}-b"] for t in range(10, 201, 10)}
+POISON_IDS[120].insert(1, POISON_ID)
+# strait-1: haven (sanctuary) - west-airbase - fob-n-w - (bridge-n) - cross-n - ... - static-hq.
+STRAIT_JOINS = {
+    1: [
+        join(1, "STRIKE", "east-airbase"),  # AIR, straight there
+        join(2, "LOGI", "fob-n-w"),  # GROUND, haven -> west-airbase -> fob-n-w
+        join(3, "RECON", hold=True),  # Holding, no path
+        join(1, "LOGI", "fob-s-w"),  # UNIT_IN_SORTIE: commander 1 has a unit
+    ],
+    5: [
+        join(4, "LOGI", "bridge-n"),  # NODE_INVALID_FOR_UNIT: no road reaches a bridge node
+        join(5, "STRIKE", "nowhere"),  # NODE_UNKNOWN
+        join(6, "NAVY"),  # ROLE_UNKNOWN until P3
+    ],
+    10: [
+        join(4, "LOGI", "static-hq"),  # GROUND across the north bridge
+        join(5, "RECON", "fob-s-e"),  # AIR
+        join(6, "STRIKE"),  # no target: Holding until auto-tasking (NX-155)
+    ],
+}
 
 CASES: dict[str, Plan] = {
     "empty-1h": (
@@ -31,6 +76,7 @@ CASES: dict[str, Plan] = {
         "One game hour, no commands: tick, RNG and state stay stable.",
         {},
         (),
+        False,
     ),
     "stub-commands": (
         300,
@@ -39,42 +85,53 @@ CASES: dict[str, Plan] = {
         "draws hp from the spawn stream.",
         STUB_TICKS,
         (),
+        False,
     ),
     "poison-crash": (
         200,
         "poison",
         "Tick 120 holds a command that raises and is tombstoned: all three of its commands are "
         "dropped as CommandRejected{INTERNAL_ERROR}; the other ticks spawn as usual (SC-8).",
-        POISON_TICKS,
+        joins(POISON_IDS),
         (120,),
+        False,
+    ),
+    "joins-strait-1": (
+        6_000,
+        "kernel",
+        "Real JOINs on strait-1 with the shipped config: air and ground units spawn at the "
+        "sanctuary and move along their routes for 10 game minutes; rejects for a unit in sortie, "
+        "an unknown node, a node no road reaches and an unplayable role (NX-122).",
+        STRAIT_JOINS,
+        (),
+        True,
     ),
 }
 
 
 def write_case(case_dir: Path, plan: Plan) -> None:
-    ticks, handlers, description, commands, tombstoned = plan
+    ticks, handlers, description, commands, tombstoned, shipped = plan
     shutil.rmtree(case_dir / LOG_DIR, ignore_errors=True)
     (case_dir / LOG_DIR).mkdir(parents=True)
     case = {
         "campaign_id": CAMPAIGN_ID,
         "seed": 12345,
-        "config_hash": "cfg-golden",
+        "config_hash": load_campaign_config().config_hash if shipped else "cfg-golden",
         "ticks": ticks,
         "checkpoints_every": 100,
         "handlers": handlers,
         "description": description,
+        **({"rules": "shipped"} if shipped else {}),
     }
     (case_dir / CASE_FILE).write_text(json.dumps(case, indent=2) + "\n")
     log = CommandLogWriter(
         case_dir / LOG_DIR, campaign_id=CAMPAIGN_ID, protocol_version=PROTOCOL, next_arrival_seq=1
     )
-    for tick, ids in sorted(commands.items()):
+    for tick, cmds in sorted(commands.items()):
         batch: list[Command] = []
-        for cid in ids:
+        for cmd in cmds:
             seq = log.next_arrival_seq + len(batch)
-            batch.append(
-                make_join(cid).model_copy(update={"target_tick": tick, "arrival_seq": seq})
-            )
+            batch.append(cmd.model_copy(update={"target_tick": tick, "arrival_seq": seq}))
         log.append(batch)
         if tick in tombstoned:
             log.append_tombstone(tick)  # as the runtime writes it: after the tick's commands

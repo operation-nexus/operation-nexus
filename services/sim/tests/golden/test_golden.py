@@ -29,12 +29,17 @@ REGISTRIES: Mapping[str, Mapping[str, Handler]] = {
 
 
 def test_every_case_is_found() -> None:
-    assert [p.name for p in CASES] == ["empty-1h", "poison-crash", "stub-commands"]
+    assert [p.name for p in CASES] == [
+        "empty-1h",
+        "joins-strait-1",
+        "poison-crash",
+        "stub-commands",
+    ]
 
 
 @pytest.mark.parametrize("case_dir", CASES, ids=lambda p: p.name)
 def test_golden_replay_matches_expected(case_dir: Path) -> None:
-    result = run_golden(case_dir, REGISTRIES, rules=None)
+    result = run_golden(case_dir, REGISTRIES)
     if os.environ.get("NEXUS_UPDATE_GOLDEN") == "1":
         # An update in CI would rewrite expected.json and pass silently; updates are local only.
         if os.environ.get("CI"):
@@ -46,19 +51,19 @@ def test_golden_replay_matches_expected(case_dir: Path) -> None:
 
 def test_poison_case_without_its_tombstone_raises(tmp_path: Path) -> None:
     # Proves the case exercises SC-8: without the tombstone the poison command reaches its handler.
-    ticks, handlers, description, commands, _ = CASES_PLAN["poison-crash"]
-    write_case(tmp_path, (ticks, handlers, description, commands, ()))
+    ticks, handlers, description, commands, _, shipped = CASES_PLAN["poison-crash"]
+    write_case(tmp_path, (ticks, handlers, description, commands, (), shipped))
     with pytest.raises(RuntimeError, match="poison command"):
-        run_golden(tmp_path, REGISTRIES, rules=None)
+        run_golden(tmp_path, REGISTRIES)
 
 
 def test_unknown_registry_or_missing_log_raises(tmp_path: Path) -> None:
     case = shutil.copytree(HERE / "poison-crash", tmp_path / "case")
     with pytest.raises(ValueError, match="unknown handler registry"):
-        run_golden(case, {"stub": STUB}, rules=None)
+        run_golden(case, {"stub": STUB})
     shutil.rmtree(case / "log")
     with pytest.raises(ValueError, match="no log/"):
-        run_golden(case, REGISTRIES, rules=None)
+        run_golden(case, REGISTRIES)
 
 
 def test_log_past_the_case_end_raises(tmp_path: Path) -> None:
@@ -66,7 +71,7 @@ def test_log_past_the_case_end_raises(tmp_path: Path) -> None:
     data = json.loads((case / CASE_FILE).read_text())
     (case / CASE_FILE).write_text(json.dumps({**data, "ticks": 294}))
     with pytest.raises(ValueError, match=r"tick 295, outside 1\.\.294"):
-        run_golden(case, REGISTRIES, rules=None)
+        run_golden(case, REGISTRIES)
 
 
 @pytest.mark.parametrize("bad", [{"ticks": "300"}, {"ticks": 0}, {"extra": 1}])
@@ -75,4 +80,18 @@ def test_malformed_case_raises(tmp_path: Path, bad: dict[str, object]) -> None:
     data = json.loads((case / CASE_FILE).read_text())
     (case / CASE_FILE).write_text(json.dumps({**data, **bad}))
     with pytest.raises(ValueError, match=r"case\.json|ticks"):
-        run_golden(case, REGISTRIES, rules=None)
+        run_golden(case, REGISTRIES)
+
+
+@pytest.mark.parametrize(
+    ("bad", "match"),
+    [({"config_hash": "cfg-old"}, "not the shipped config's"), ({"rules": "x"}, "be 'shipped'")],
+)
+def test_shipped_rules_case_needs_the_shipped_config(
+    tmp_path: Path, bad: dict[str, object], match: str
+) -> None:
+    case = shutil.copytree(HERE / "joins-strait-1", tmp_path / "case")
+    data = json.loads((case / CASE_FILE).read_text())
+    (case / CASE_FILE).write_text(json.dumps({**data, **bad}))
+    with pytest.raises(ValueError, match=match):
+        run_golden(case, REGISTRIES)

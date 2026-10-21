@@ -37,15 +37,17 @@ def golden_world() -> World:
     )
     fighter.path = [Vec2(5000.0004, 2000.5), "west-airbase"]  # NX-121: Vec2 and node waypoints
     armor.path, armor.last_node = ["east-airbase"], "cross-n"
+    w.respawn_left["0192f3a4-5b6c-7d8e-9f01-000000000002"] = 7  # NX-122: per-commander state
     return w
 
 
 def test_golden_state_hash_seed_12345() -> None:
-    # Pinned by running this implementation once (NX-101; re-pinned NX-121: path, last_node, v2).
+    # Pinned by running this implementation once (NX-101; re-pinned NX-121: path, last_node, v2;
+    # NX-122: respawn_left, v3).
     # A change here breaks every recorded replay hash: needs a `golden-update` reason.
     assert (
         state_hash(golden_world())
-        == "2ef5babc80298c002cfcd74d228f96feb3d695151c6e4ac6b213b44e688ab4dc"
+        == "d7d31cf4ba6a7349fb683c2c54012a8de85c48e4745c8b84ca6f07709eeb77f1"
     )
     e = to_canonical(golden_world(), quantize=True)["entities"][0]
     assert e["pos"] == [1000250, 2000500]  # mm
@@ -180,6 +182,10 @@ def _resave(mutate: Any) -> bytes:
         _resave(lambda d: d.update(next_entity_id=3)),
         _resave(lambda d: d["campaign"].update(clock_paused=0)),
         _resave(lambda d: d["campaign"].update(tick=-1)),
+        _resave(lambda d: d.update(respawn_left=[])),
+        _resave(lambda d: d.update(respawn_left={"c": 0})),  # 0 is deleted, never stored
+        _resave(lambda d: d.update(respawn_left={"c": True})),
+        _resave(lambda d: d.update(respawn_left={7: 1})),
     ],
 )
 def test_load_rejects_malformed_input(bad: bytes) -> None:
@@ -190,3 +196,12 @@ def test_load_rejects_malformed_input(bad: bytes) -> None:
 def test_load_checks_cover_every_field() -> None:
     assert set(world_mod._ENTITY_CHECKS) == set(world_mod._ENTITY_KEYS)
     assert set(world_mod._CAMPAIGN_CHECKS) == set(world_mod._CAMPAIGN_KEYS)
+
+
+def test_older_format_gets_the_version_error() -> None:
+    def v2(d: dict[str, Any]) -> None:
+        d.pop("respawn_left")
+        d.update(v=2)
+
+    with pytest.raises(ValueError, match="unsupported snapshot format version 2"):
+        load(_resave(v2))

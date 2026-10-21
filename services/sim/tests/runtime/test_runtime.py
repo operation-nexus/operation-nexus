@@ -8,8 +8,10 @@ import pytest
 
 from nexus.contracts.gen.commands.join import JoinCommand
 from nexus.contracts.gen.events.command_rejected import CommandRejected
+from nexus.contracts.gen.events.unit_spawned import UnitSpawned
 from nexus.core.step import step
 from nexus.core.world import Campaign, World, state_hash
+from nexus.runtime.campaign_config import load_campaign_config
 from nexus.runtime.clock import FixedStepClock
 from nexus.runtime.command_log import CommandLogWriter
 from nexus.runtime.inbox import Inbox
@@ -17,6 +19,7 @@ from nexus.runtime.loop import SimRuntime
 
 CAMPAIGN_ID = "0192f3a4-5b6c-7d8e-9f01-23456789abcd"
 COMMANDER = "0192f0c1-7a2b-7c3d-8e4f-0123456789ab"
+RULES = load_campaign_config().rules
 
 
 def make_join(**fields: object) -> JoinCommand:
@@ -44,7 +47,7 @@ class FakeTime:
 
 
 def new_world() -> World:
-    return World.new(Campaign(CAMPAIGN_ID, 12345, "cfg-test"))
+    return World.new(Campaign(CAMPAIGN_ID, 12345, "cfg-test"), RULES)
 
 
 type MakeRuntime = Callable[[World, Inbox, FixedStepClock], SimRuntime]
@@ -167,10 +170,11 @@ def test_run_due_drains_and_steps_each_due_tick(make_runtime: MakeRuntime) -> No
     now.t += 0.1
     events = first + runtime.run_due()
     assert world.campaign.tick == 2
-    # JOIN has no handler yet: each is rejected on its own tick (SC-7).
-    rejected = [e for e in events if isinstance(e, CommandRejected)]
-    assert len(rejected) == len(events)
-    assert [(e.tick, e.arrival_seq) for e in rejected] == [(1, 1), (2, 2)]
+    # Each JOIN is applied on its own tick: the first spawns, the second finds the unit (GP-1).
+    spawned, rejected = events
+    assert isinstance(spawned, UnitSpawned) and spawned.tick == 1
+    assert isinstance(rejected, CommandRejected)
+    assert (rejected.tick, rejected.arrival_seq, rejected.reason) == (2, 2, "UNIT_IN_SORTIE")
     assert inbox.drain() == []
 
 
@@ -188,7 +192,7 @@ def test_submit_during_catch_up_lands_on_the_next_step(make_runtime: MakeRuntime
     now.t += 0.1
     events = runtime.run_due()
     assert world.campaign.tick == stale_tick + 4
-    assert [(e.kind, e.tick) for e in events] == [("CommandRejected", 4)]
+    assert [(e.kind, e.tick) for e in events] == [("UnitSpawned", 4)]
     assert inbox.submit(make_join())  # its capacity slot was freed
 
 

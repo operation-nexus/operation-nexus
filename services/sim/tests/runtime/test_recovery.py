@@ -232,7 +232,7 @@ def test_poison_command_is_tombstoned_dropped_and_replayed(
 
 def test_crash_recovery_keeps_the_campaign_rules(tmp_path: Path, make_rig: MakeRig) -> None:
     # Rules are not in snapshots (NX-121); the restored world must get them back.
-    rules = Rules(0.6, {}, {}, RoadGraph({}, []))
+    rules = Rules(0.6, {}, {}, RoadGraph({}, []), {}, "", 1, 0)
     rig = make_rig(tmp_path, handlers=POISON, world=World.new(Campaign(CAMPAIGN_ID, 1, "c"), rules))
     rig.run_to(5, poison_at=(4,))
     assert list(rig.rt.crash_ticks) == [4]

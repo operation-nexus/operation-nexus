@@ -8,8 +8,10 @@ import math
 from collections.abc import Callable, Mapping, Sequence
 
 from nexus.contracts.gen.commands.command import Command
-from nexus.contracts.gen.events.command_rejected import CommandRejected
 from nexus.contracts.gen.events.event import Event
+from nexus.core.handlers import HANDLERS as HANDLERS
+from nexus.core.handlers import Handler as Handler
+from nexus.core.handlers import reject
 from nexus.core.rules import Rules
 from nexus.core.world import Entity, Vec2, World
 
@@ -17,11 +19,7 @@ TICK_DT = 0.1  # game seconds per tick (SC-2)
 _STOPPED = Vec2(0.0, 0.0)
 _GROUND = "GROUND"
 
-type Handler = Callable[[World, Command, list[Event]], None]
 type System = Callable[[World, Sequence[Command], Mapping[str, Handler], list[Event]], None]
-
-# Filled one command kind at a time (AGENTS.md rule 6a). JOIN needs the theater (NX-120, GAMEPLAY).
-HANDLERS: Mapping[str, Handler] = {}
 
 
 def apply_commands(
@@ -31,23 +29,9 @@ def apply_commands(
     for command in sorted(commands, key=lambda c: (c.target_tick, c.arrival_seq)):
         handler = handlers.get(command.kind)
         if handler is None:
-            out.append(_internal_error(world, command))
+            out.append(reject(world, command, "INTERNAL_ERROR"))
         else:
             handler(world, command, out)
-
-
-def _internal_error(world: World, command: Command) -> CommandRejected:
-    return CommandRejected.model_construct(
-        kind="CommandRejected",
-        tick=world.campaign.tick + 1,
-        event_seq=world.next_event_seq(),
-        campaign_id=world.campaign.id,
-        arrival_seq=command.arrival_seq,
-        command_kind=command.kind,
-        reason="INTERNAL_ERROR",
-        # Staff, system and advisor issuers map to None when their commands land.
-        commander_id=command.issuer.commander_id,
-    )
 
 
 def director(
@@ -63,7 +47,7 @@ def movement(
 
     AIR flies straight at `speed_mps`; GROUND follows road edges at `speed_mps x speed_mult`
     (GAMEPLAY §5). Time left after reaching a waypoint carries on to the next one in the same tick.
-    Paused (SC-11): nothing moves. A path is followed as given; assigning one is NX-122 / NX-126.
+    Paused (SC-11): nothing moves. A path is followed as given; JOIN assigns one (NX-122).
     """
     if world.campaign.clock_paused:
         return
@@ -149,7 +133,13 @@ def objectives(
 def lifecycle(
     world: World, c: Sequence[Command], h: Mapping[str, Handler], out: list[Event]
 ) -> None:
-    """Despawn, respawn, retire: NX-122 (respawn), NX-324 (idle retire)."""
+    """Respawn delays count down one running tick (GP-2, SC-11); despawn and retire: NX-324.
+
+    In commander-id order; an entry reaching 0 is deleted, so the commander may JOIN next tick.
+    """
+    if world.campaign.clock_paused:
+        return
+    world.respawn_left = {k: left - 1 for k, left in sorted(world.respawn_left.items()) if left > 1}
 
 
 SYSTEMS: tuple[tuple[str, System], ...] = (
@@ -182,7 +172,7 @@ def step(
     if wrong:
         raise ValueError(f"commands {wrong} do not target tick {tick}")
     in_order = sorted(dropped, key=lambda c: c.arrival_seq)
-    events: list[Event] = [_internal_error(world, c) for c in in_order]
+    events: list[Event] = [reject(world, c, "INTERNAL_ERROR") for c in in_order]
     for _, system in SYSTEMS:
         system(world, commands, handlers, events)
     world.campaign.tick = tick

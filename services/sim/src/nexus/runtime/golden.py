@@ -5,7 +5,10 @@ NX-103 format, read with `CommandLogReader`) and `expected.json` (the pinned out
 builds the world from the seed, steps every tick from 1 to `ticks`, takes `state_hash` every
 `checkpoints_every` ticks and hashes the event stream (blake2b-256 over one canonical JSON line
 per event). Commands of a tombstoned tick are dropped, as in restore (SC-8). This module ships no
-handlers: the caller passes the registries that a case's `handlers` name picks from.
+handlers: the caller passes the registries that a case's `handlers` name picks from. A case with
+`"rules": "shipped"` runs with the shipped config's `Rules` (`load_campaign_config`), and its
+`config_hash` must equal that config's, so a config change fails loudly instead of drifting; any
+other case runs with no rules.
 """
 
 import hashlib
@@ -21,6 +24,7 @@ from nexus.contracts.gen.events.event import Event
 from nexus.core.rules import Rules
 from nexus.core.step import Handler, step
 from nexus.core.world import Campaign, World, state_hash
+from nexus.runtime.campaign_config import load_campaign_config
 from nexus.runtime.command_log import CommandLogReader, Tombstone
 
 CASE_FILE = "case.json"
@@ -35,6 +39,8 @@ _CASE_KEYS = {
     "handlers": str,
     "description": str,
 }
+_RULES = "rules"
+_SHIPPED = "shipped"
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,8 +55,13 @@ class GoldenResult:
 
 def load_case(case_dir: Path) -> dict[str, Any]:
     case = json.loads((case_dir / CASE_FILE).read_text())
-    if not isinstance(case, dict) or set(case) != set(_CASE_KEYS):
-        raise ValueError(f"{case_dir.name}: {CASE_FILE} must have exactly {sorted(_CASE_KEYS)}")
+    if not isinstance(case, dict) or set(case) - {_RULES} != set(_CASE_KEYS):
+        raise ValueError(
+            f"{case_dir.name}: {CASE_FILE} must have exactly {sorted(_CASE_KEYS)} "
+            f"and optionally {_RULES!r}"
+        )
+    if case.get(_RULES, _SHIPPED) != _SHIPPED:
+        raise ValueError(f"{case_dir.name}: {_RULES} must be {_SHIPPED!r}")
     for key, kind in _CASE_KEYS.items():
         if type(case[key]) is not kind:
             raise ValueError(f"{case_dir.name}: {key} must be {kind.__name__}")
@@ -59,10 +70,9 @@ def load_case(case_dir: Path) -> dict[str, Any]:
     return case
 
 
-def run_golden(
-    case_dir: Path, registries: Mapping[str, Mapping[str, Handler]], *, rules: Rules | None
-) -> GoldenResult:
+def run_golden(case_dir: Path, registries: Mapping[str, Mapping[str, Handler]]) -> GoldenResult:
     case = load_case(case_dir)
+    rules = _rules(case_dir.name, case)
     if case["handlers"] not in registries:
         raise ValueError(f"{case_dir.name}: unknown handler registry {case['handlers']!r}")
     handlers = registries[case["handlers"]]
@@ -83,6 +93,18 @@ def run_golden(
         if tick % case["checkpoints_every"] == 0:
             checkpoints[str(tick)] = state_hash(world)
     return GoldenResult(checkpoints, count, digest.hexdigest())
+
+
+def _rules(name: str, case: dict[str, Any]) -> Rules | None:
+    if _RULES not in case:
+        return None
+    config = load_campaign_config()
+    if case["config_hash"] != config.config_hash:
+        raise ValueError(
+            f"{name}: config_hash {case['config_hash']} is not the shipped config's "
+            f"{config.config_hash}; rewrite the case (README) and update its expected.json"
+        )
+    return config.rules
 
 
 def write_expected(case_dir: Path, result: GoldenResult) -> None:

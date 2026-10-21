@@ -7,7 +7,8 @@
   "additionalProperties": false,
   "required": [
     "schema_version",
-    "sim"
+    "sim",
+    "slots"
   ],
   "properties": {
     "schema_version": {
@@ -18,6 +19,9 @@
     },
     "sim": {
       "$ref": "#/$defs/Sim"
+    },
+    "slots": {
+      "$ref": "#/$defs/Slots"
     }
   },
   "$defs": {
@@ -52,6 +56,31 @@
           "minimum": 1,
           "x-unit": "ticks",
           "x-hot-reload": false
+        }
+      }
+    },
+    "Slots": {
+      "description": "Slots and respawn (\u00a76.2).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "max_live_per_commander",
+        "respawn_delay_s"
+      ],
+      "properties": {
+        "max_live_per_commander": {
+          "description": "Live personal units per commander, unit units (GAMEPLAY GP-1).",
+          "type": "integer",
+          "minimum": 1,
+          "x-unit": "units",
+          "x-hot-reload": false
+        },
+        "respawn_delay_s": {
+          "description": "Wait after losing a unit before the next JOIN, unit s of game time (GAMEPLAY GP-2, Q-ALN-5).",
+          "type": "number",
+          "minimum": 0,
+          "x-unit": "s (game)",
+          "x-hot-reload": true
         }
       }
     }

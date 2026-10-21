@@ -11,7 +11,6 @@ from hypothesis import given
 from hypothesis import strategies as st
 
 from nexus.contracts.gen.common.enums import UnitKind
-from nexus.contracts.gen.config.balance import BalanceConfig
 from nexus.core.roads import Road, RoadGraph, shortest_path
 from nexus.core.rules import Rules, make_rules
 from nexus.core.step import step
@@ -25,7 +24,8 @@ CONTENT = ROOT / "content"
 STRAIT_1 = load_theater(CONTENT / "theaters" / "strait-1.yaml")
 ROADS = road_graph(STRAIT_1)
 W, H = STRAIT_1.bounds_m.w, STRAIT_1.bounds_m.h
-UNITS = load_catalog(CONTENT / "units", CONTENT / "weapons.yaml", CONTENT / "roles.yaml").units
+CATALOG = load_catalog(CONTENT / "units", CONTENT / "weapons.yaml", CONTENT / "roles.yaml")
+UNITS, ROLES = CATALOG.units, CATALOG.roles.roles
 BALANCE = load_balance(ROOT / "balance" / "default.yaml")
 CAMPAIGN_ID = "0192f3a4-5b6c-7d8e-9f01-23456789abcd"
 JET: UnitKind = "STRIKE_FIGHTER"
@@ -38,12 +38,20 @@ ELL = RoadGraph(
 
 def rules(world_dt: float, roads: RoadGraph = ROADS) -> Rules:
     speeds: dict[UnitKind, float] = {JET: 250.0, TRUCK: 25.0}
-    return Rules(world_dt, speeds, {JET: "AIR", TRUCK: "GROUND"}, roads)
+    return Rules(world_dt, speeds, {JET: "AIR", TRUCK: "GROUND"}, roads, {}, "haven", 1, 0)
 
 
 def scaled(time_scale: float) -> Rules:
     sim = BALANCE.sim.model_copy(update={"time_scale": time_scale})
-    return make_rules(sim, UNITS, ROADS)
+    return make_rules(
+        sim,
+        UNITS,
+        ROADS,
+        roles=ROLES,
+        sanctuary=STRAIT_1.sanctuary,
+        slots=BALANCE.slots,
+        respawn_delay_ticks=0,
+    )
 
 
 def world(r: Rules | None) -> World:
@@ -83,7 +91,7 @@ def test_sc2_distance_per_tick_is_speed_times_world_dt(
     assert t.vel == Vec2(25.0, 0.0)
     # A game-time timer does not scale (SC-2, SC-12): 0.25 s is 3 ticks at any time_scale.
     sim = BALANCE.sim.model_copy(update={"time_scale": time_scale})
-    assert game_ticks(0.25, BalanceConfig(schema_version=1, sim=sim)) == 3
+    assert game_ticks(0.25, BALANCE.model_copy(update={"sim": sim})) == 3
 
 
 def test_ground_speed_is_scaled_by_speed_mult() -> None:

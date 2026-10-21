@@ -37,8 +37,8 @@ def cli(*args: str | Path) -> subprocess.CompletedProcess[str]:
 
 def test_run_prints_the_restore_hashes(tmp_path: Path, rig: Rig) -> None:
     rig.run_to(650)
-    # The CLI uses the real, empty HANDLERS, which do not replay the stub's JOINs; compare on
-    # the snapshot tick itself (nothing to replay) and check the final line names the same hash.
+    # The CLI uses the real HANDLERS, not the stub that wrote this run; compare on the snapshot
+    # tick itself (nothing to replay) and check the final line names the same hash.
     out = cli("run", rig.snaps, rig.logs, "--until-tick", "600", "--every", "300")
     assert out.returncode == 0, out.stderr
     expected = state_hash(
@@ -106,13 +106,16 @@ def test_bad_options_are_argparse_errors(rig: Rig) -> None:
     assert "64 lowercase hex" in out.stderr
 
 
-def test_replay_across_logged_ticks_warns_about_missing_handlers(rig: Rig) -> None:
+def test_replay_across_logged_ticks_runs_the_join_handler(
+    rig: Rig, shipped_config: CampaignConfig
+) -> None:
     rig.run_to(450)  # logged JOINs between the snapshot at 300 and tick 450
     out = cli("run", rig.snaps, rig.logs, "--until-tick", "450", "--every", "150")
     assert out.returncode == 0, out.stderr
-    assert "warning: the log holds JOIN commands with no handler yet" in out.stdout
-    assert out.stdout.splitlines()[-1].startswith("tick 450 ")
-    assert "(final)" in out.stdout
+    assert "warning" not in out.stdout  # JOIN has its handler (NX-122)
+    # The CLI replays with the real handlers and the shipped rules, as restore does by default.
+    final = restore(rig.snaps, rig.logs, rules=shipped_config.rules, until_tick=450).world
+    assert out.stdout.splitlines()[-1] == f"tick 450 {state_hash(final)} (final)"
 
 
 def test_a_tombstoned_tick_replays(rig: Rig) -> None:

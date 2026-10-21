@@ -31,7 +31,7 @@ CHILD = (
     "import json, sys; sys.path.insert(0, sys.argv[1])\n"
     "from golden.test_golden import CASES, REGISTRIES\n"
     "from nexus.runtime.golden import run_golden\n"
-    "print(json.dumps({p.name: run_golden(p, REGISTRIES, rules=None).to_json() for p in CASES}))"
+    "print(json.dumps({p.name: run_golden(p, REGISTRIES).to_json() for p in CASES}))"
 )
 
 

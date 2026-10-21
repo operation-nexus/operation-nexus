@@ -90,7 +90,7 @@ def test_shuffled_commands_give_same_result(order: list[int]) -> None:
 
 def test_unhandled_kind_is_rejected_not_raised() -> None:
     w = new_world()
-    events = step(w, [make_join(arrival_seq=7), make_join(arrival_seq=3)])
+    events = step(w, [make_join(arrival_seq=7), make_join(arrival_seq=3)], {})
     assert [TypeAdapter(Event).validate_python(e.model_dump()) for e in events] == events
     rejected = [e for e in events if isinstance(e, CommandRejected)]
     assert len(rejected) == len(events)
@@ -98,7 +98,7 @@ def test_unhandled_kind_is_rejected_not_raised() -> None:
     for e in rejected:
         assert (e.command_kind, e.reason, e.commander_id) == ("JOIN", "INTERNAL_ERROR", COMMANDER)
     assert len(w) == 0
-    assert step(w, [make_join(target_tick=2, arrival_seq=8)])[0].event_seq == 3
+    assert step(w, [make_join(target_tick=2, arrival_seq=8)], {})[0].event_seq == 3
 
 
 def test_dropped_commands_are_rejected_in_arrival_order_and_not_applied() -> None:
@@ -144,11 +144,12 @@ def golden_run() -> str:
     return state_hash(w)
 
 
-GOLDEN = "45f571cc09e0c5ab71c30576f1f68470de9ed6701b931c915291685f35c55507"
+GOLDEN = "b739870f56890e322c2a962822ca59c463afe5bbda66879753ad0fcf9f646bcd"
 
 
 def test_golden_ten_steps_seed_12345() -> None:
-    # Pinned by running this implementation once (NX-102; re-pinned NX-121: entity encoding v2).
+    # Pinned by running this implementation once (NX-102; re-pinned NX-121: entity encoding v2;
+    # NX-122: world encoding v3 adds respawn_left).
     # A change here breaks every recorded replay hash: needs a `golden-update` reason.
     assert golden_run() == GOLDEN
     assert golden_run() == golden_run()
