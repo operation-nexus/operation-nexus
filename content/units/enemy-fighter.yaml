@@ -1,7 +1,8 @@
-# CONFIG-AND-CONTENT §7.3. Identity only (NX-367); stats join with later items (Q-CFG-10).
+# CONFIG-AND-CONTENT §7.3. Identity (NX-367) and speed (NX-121); other stats join with later items (Q-CFG-10).
 schema_version: 1
 kind: ENEMY_FIGHTER
 side: ENEMY
 domain: AIR
 playable_by: [DIRECTOR]
+speed_mps: 250.0  # PROPOSED (NX-121, owner may veto; harness tunes, NX-031); m/s world; as strike aircraft (SIM-CORE §4)
 weapons: [AA_MISSILE]

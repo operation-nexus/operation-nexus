@@ -106,7 +106,7 @@ def rewrite_header(path: Path, body: bytes | None = None, **changes: Any) -> Non
         {"seed": 1},
         {"config_hash": "cfg-other"},
         {"format_version": 2},
-        {"schema_version": 2},
+        {"schema_version": 1},
         {"last_arrival_seq": True},  # wrong type
         {"extra": 1},
     ],

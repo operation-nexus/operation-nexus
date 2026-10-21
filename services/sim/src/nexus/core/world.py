@@ -6,23 +6,26 @@ uses it.
 
 One walker, `to_canonical`, turns a world into plain sorted data. Snapshots keep floats exactly
 (float64), so a restored run continues bit-identically; only `state_hash` quantizes (ADR-0002):
-positions to integer mm, velocities to integer mm/s. ADR-0002's 1e-6 step applies when the first
-other float field arrives. Python's `round` is round-half-to-even on the exact float value, so it
-is deterministic. The RNG state is world state, so snapshots and the hash cover it.
+positions and `path` waypoints to integer mm, velocities to integer mm/s. ADR-0002's 1e-6 step
+applies when the first other float field arrives. Python's `round` is round-half-to-even on the
+exact float value, so it is deterministic. The RNG state is world state, so snapshots and the
+hash cover it. `World.rules` (`nexus.core.rules`) is static config, not state: neither snapshots
+nor the hash include it.
 """
 
 import hashlib
 import math
 from collections.abc import Callable, Iterator
-from dataclasses import dataclass, fields
+from dataclasses import dataclass, field, fields
 from typing import Annotated, Any, Self, cast, get_args, get_origin
 
 import msgpack
 
 from nexus.contracts.gen.common.enums import OwnerKind, Side, UnitKind
 from nexus.core.rng import SimRng
+from nexus.core.rules import Rules
 
-FORMAT_VERSION = 1
+FORMAT_VERSION = 2  # 2: Entity.path and Entity.last_node (NX-121)
 _MM = 1000.0  # metres -> millimetres; m/s -> mm/s
 _MAX_ABS = 1e9  # m or m/s; keeps mm quantization well inside int64
 _CAMPAIGN = "campaign"
@@ -33,6 +36,7 @@ _RNG = "rng"
 _V = "v"
 _WORLD_KEYS = (_CAMPAIGN, _ENTITIES, _NEXT_ENTITY_ID, _NEXT_EVENT_SEQ, _RNG, _V)
 _VEC_KEYS = frozenset({"pos", "vel"})
+_PATH = "path"
 
 
 def _literal_values(alias: Any) -> tuple[str, ...]:
@@ -81,6 +85,10 @@ class Entity:
     pos: Vec2
     vel: Vec2  # m/s
     hp: int
+    # Remaining waypoints (SIM-CORE §4): node ids, or Vec2 for AIR. A GROUND unit is on the road
+    # edge from `last_node` (the node it last reached or spawned at) to `path[0]` (NX-121).
+    path: list[str | Vec2] = field(default_factory=list)
+    last_node: str | None = None
 
 
 @dataclass(slots=True)
@@ -103,18 +111,19 @@ class World:
     so iterating the dict is id order without sorting (`load` checks the same for snapshots).
     """
 
-    __slots__ = ("_entities", "_next_entity_id", "_next_event_seq", "campaign", "rng")
+    __slots__ = ("_entities", "_next_entity_id", "_next_event_seq", "campaign", "rng", "rules")
 
-    def __init__(self, campaign: Campaign, rng: SimRng) -> None:
+    def __init__(self, campaign: Campaign, rng: SimRng, rules: Rules | None = None) -> None:
         self.campaign = campaign
         self.rng = rng
+        self.rules = rules  # None: no unit may have a path (movement raises)
         self._entities: dict[int, Entity] = {}
         self._next_entity_id = 1
         self._next_event_seq = 1
 
     @classmethod
-    def new(cls, campaign: Campaign) -> Self:
-        return cls(campaign, SimRng(campaign.seed))
+    def new(cls, campaign: Campaign, rules: Rules | None = None) -> Self:
+        return cls(campaign, SimRng(campaign.seed), rules)
 
     def spawn(
         self,
@@ -159,11 +168,16 @@ def _xy(v: Vec2, quantize: bool) -> list[Any]:
     return [round(v.x * _MM), round(v.y * _MM)] if quantize else [v.x, v.y]
 
 
+def _value(e: Entity, key: str, quantize: bool) -> Any:
+    if key in _VEC_KEYS:
+        return _xy(getattr(e, key), quantize)
+    if key == _PATH:
+        return [p if isinstance(p, str) else _xy(p, quantize) for p in e.path]
+    return getattr(e, key)
+
+
 def _entity_data(e: Entity, quantize: bool) -> dict[str, Any]:
-    return {
-        k: _xy(getattr(e, k), quantize) if k in _VEC_KEYS else getattr(e, k)
-        for k in sorted(_ENTITY_KEYS)
-    }
+    return {k: _value(e, k, quantize) for k in sorted(_ENTITY_KEYS)}
 
 
 def to_canonical(world: World, *, quantize: bool) -> dict[str, Any]:
@@ -218,6 +232,12 @@ def _vec(value: object, what: str) -> Vec2:
     return Vec2(value[0], value[1])
 
 
+def _path(value: object, what: str) -> list[str | Vec2]:
+    if not isinstance(value, list):
+        raise ValueError(f"{what} must be a list")
+    return [p if isinstance(p, str) else _vec(p, what) for p in value]
+
+
 def _bool(value: object, what: str) -> bool:
     if not isinstance(value, bool):
         raise ValueError(f"{what} must be a bool, got {value!r}")
@@ -235,6 +255,8 @@ _ENTITY_CHECKS: dict[str, Callable[[object, str], Any]] = {
     "pos": _vec,
     "vel": _vec,
     "hp": _int,
+    _PATH: _path,
+    "last_node": lambda v, k: _str(v, k, optional=True),
 }
 _CAMPAIGN_CHECKS: dict[str, Callable[[object, str], Any]] = {
     "id": _str,

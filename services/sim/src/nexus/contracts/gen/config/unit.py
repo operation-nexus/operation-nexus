@@ -45,6 +45,13 @@ class UnitConfig(BaseModel):
             ge=1,
         ),
     ] = None
+    speed_mps: Annotated[
+        float,
+        Field(
+            description="Cruise speed, unit m/s of world time (CFG-9, SIM-CORE SC-2); a ground unit moves at speed_mps x the edge's speed_mult (GAMEPLAY §5). 0 = does not move (STATIC).",
+            ge=0.0,
+        ),
+    ]
     weapons: Annotated[
         list[ids.WeaponId],
         Field(

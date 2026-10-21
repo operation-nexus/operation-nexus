@@ -20,7 +20,7 @@ CAMPAIGN_ID = "0192f3a4-5b6c-7d8e-9f01-23456789abcd"
 
 def golden_world() -> World:
     w = World.new(Campaign(CAMPAIGN_ID, 12345, "cfg-test"))
-    w.spawn(
+    fighter = w.spawn(
         "STRIKE_FIGHTER",
         "COALITION",
         "COMMANDER",
@@ -32,20 +32,25 @@ def golden_world() -> World:
     )
     w.spawn("GARRISON_INFANTRY", "COALITION", "AI_GARRISON", Vec2(-5.0, 7.125), hp=40)
     # int -25 on purpose: ints must encode as floats like any other coordinate.
-    w.spawn("ENEMY_ARMOR", "ENEMY", "ENEMY_DIRECTOR", Vec2(150e3, 80e3), vel=Vec2(-25, 3.5), hp=200)
+    armor = w.spawn(
+        "ENEMY_ARMOR", "ENEMY", "ENEMY_DIRECTOR", Vec2(150e3, 80e3), vel=Vec2(-25, 3.5), hp=200
+    )
+    fighter.path = [Vec2(5000.0004, 2000.5), "west-airbase"]  # NX-121: Vec2 and node waypoints
+    armor.path, armor.last_node = ["east-airbase"], "cross-n"
     return w
 
 
 def test_golden_state_hash_seed_12345() -> None:
-    # Pinned by running this implementation once (NX-101); not from an external reference.
+    # Pinned by running this implementation once (NX-101; re-pinned NX-121: path, last_node, v2).
     # A change here breaks every recorded replay hash: needs a `golden-update` reason.
     assert (
         state_hash(golden_world())
-        == "228020598ce6421e66f403ed8d71236f7d02a18fb857275a60bed6ee200ac68f"
+        == "2ef5babc80298c002cfcd74d228f96feb3d695151c6e4ac6b213b44e688ab4dc"
     )
     e = to_canonical(golden_world(), quantize=True)["entities"][0]
     assert e["pos"] == [1000250, 2000500]  # mm
     assert e["vel"] == [250000, 0]  # mm/s
+    assert e["path"] == [[5000000, 2000500], "west-airbase"]  # waypoints in mm too
     assert list(e) == sorted(e)
 
 
@@ -160,7 +165,7 @@ def _resave(mutate: Any) -> bytes:
         b"",
         save(golden_world()) + b"\x00",
         msgpack.packb([1, 2]),
-        _resave(lambda d: d.update(v=2)),
+        _resave(lambda d: d.update(v=1)),
         _resave(lambda d: d.update(extra=1)),
         _resave(lambda d: d["entities"][0].update(kind="FACTORY")),
         _resave(lambda d: d["entities"][0].update(hp="100")),
@@ -168,6 +173,9 @@ def _resave(mutate: Any) -> bytes:
         _resave(lambda d: d["entities"][0].update(pos=[1e30, 0.0])),
         _resave(lambda d: d["entities"][0].update(pos=[float("nan"), 0.0])),
         _resave(lambda d: d["entities"][0].pop("callsign")),
+        _resave(lambda d: d["entities"][0].update(path="west-airbase")),
+        _resave(lambda d: d["entities"][0].update(path=[7])),
+        _resave(lambda d: d["entities"][0].update(last_node=7)),
         _resave(lambda d: d["entities"].reverse()),
         _resave(lambda d: d.update(next_entity_id=3)),
         _resave(lambda d: d["campaign"].update(clock_paused=0)),

@@ -10,7 +10,7 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | Phase | Items | Done | Status |
 |---|---|---|---|
 | P0 Foundations | 42 | 19 | 🟨 |
-| P1 Sim kernel | 27 | 9 | 🟨 |
+| P1 Sim kernel | 27 | 10 | 🟨 |
 | P2 Closed alpha | 34 | 0 | ⬜ |
 | P3 Public beta | 22 | 0 | ⬜ |
 | P4 Depth | 67 | 1 | ⬜ |
@@ -93,9 +93,9 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-105 [#162](https://github.com/operation-nexus/operation-nexus/issues/162) | Golden replay framework + cross-process check in CI | M | ✅ | NX-103 | Job `sim-determinism` in `ci-gate`: required on main, advisory on develop (ADR-0009) |
 | NX-106 [#169](https://github.com/operation-nexus/operation-nexus/issues/169) | Balance config loader (YAML, schema-validated, hashed) | S | ✅ | NX-101 | Invalid config rejected; hash in campaign |
 | NX-120 [#175](https://github.com/operation-nexus/operation-nexus/issues/175) | Theater loader + road graph + A* | M | ✅ | NX-008, NX-106 | Paths avoid destroyed bridges |
-| NX-367 [#178](https://github.com/operation-nexus/operation-nexus/issues/178) | Unit catalog loader + MVP catalog entries (`content/units/`, PROPOSED values; Q-CBT-24) | M | 👀 | NX-106 | Catalog kinds equal `UnitKind`; joins `config_hash`; GARRISON_INFANTRY GROUND only |
-| NX-121 | Kinematics (air direct, ground on graph), time scale | M | ⬜ | NX-120, NX-367 | Property: positions in bounds, on edges |
-| NX-122 | Unit slots, spawn, respawn delay, reserve queue | M | ⬜ | NX-121, NX-367 | GP-1..3 tests |
+| NX-367 [#178](https://github.com/operation-nexus/operation-nexus/issues/178) | Unit catalog loader + MVP catalog entries (`content/units/`, PROPOSED values; Q-CBT-24) | M | ✅ | NX-106 | Catalog kinds equal `UnitKind`; joins `config_hash`; GARRISON_INFANTRY GROUND only |
+| NX-121 [#185](https://github.com/operation-nexus/operation-nexus/issues/185) | Kinematics (air direct, ground on graph), time scale | M | 👀 | NX-120, NX-367 | Property: positions in bounds, on edges |
+| NX-122 | Unit slots, spawn, respawn delay, reserve queue | M | ⬜ | NX-121, NX-367 | GP-1..3 tests; also builds `Rules` at campaign start and in the replay CLI, makes `rules=` required in restore/recover, adds a golden case with moving units (Q-SIM-37) |
 | NX-123 | Logistics: stock, convoys, unload, starvation (factories parked, Q-GP-41) | L | ⬜ | NX-121 | Conservation property; starvation loadouts |
 | NX-124 | Combat per COMBAT spec: targeting, pk model, damage, wrecks, SAM rings | L | ⬜ | NX-121, NX-150, NX-367 | COMBAT §7 test plan passes, incl. Pk cap, range factor and the §5.1 matrix check against content |
 | NX-125 | Capture with contest/decay | M | ⬜ | NX-121 | No double flip property |

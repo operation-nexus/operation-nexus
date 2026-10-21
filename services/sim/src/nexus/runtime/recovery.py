@@ -17,6 +17,7 @@ from pathlib import Path
 
 from nexus.contracts.gen.commands.command import Command
 from nexus.contracts.gen.events.event import Event
+from nexus.core.rules import Rules
 from nexus.core.step import HANDLERS, Handler, step
 from nexus.core.world import World
 from nexus.runtime.command_log import (
@@ -61,6 +62,7 @@ def recover(
     handlers: Mapping[str, Handler] = HANDLERS,
     until_tick: int | None = None,
     max_attempts: int = 3,
+    rules: Rules | None = None,
 ) -> RestoreResult:
     """`restore`, tombstoning (through `writer`, flushed) each replayed tick that raises.
 
@@ -69,7 +71,13 @@ def recover(
     """
     for attempt in range(1, max_attempts + 1):
         try:
-            return restore(snapshot_dir, writer.directory, handlers=handlers, until_tick=until_tick)
+            return restore(
+                snapshot_dir,
+                writer.directory,
+                handlers=handlers,
+                until_tick=until_tick,
+                rules=rules,
+            )
         except ReplayCrash as crash:
             if crash.tombstoned or attempt == max_attempts:
                 raise
@@ -84,14 +92,17 @@ def restore(
     *,
     handlers: Mapping[str, Handler] = HANDLERS,
     until_tick: int | None = None,
+    rules: Rules | None = None,
 ) -> RestoreResult:
     """Load the newest snapshot that verifies (at or before `until_tick`), then replay the log.
 
     Every command of a tombstoned tick is dropped and emitted as `CommandRejected{INTERNAL_ERROR}`
     (SC-8). Raises SnapshotError when no snapshot verifies, CommandLogError on a damaged log or
-    one that does not continue the snapshot, ReplayCrash when `step` raises.
+    one that does not continue the snapshot, ReplayCrash when `step` raises. `rules` is the
+    campaign's static config (not in the snapshot), attached to the restored world.
     """
     header, world, path, skipped = _newest_valid(snapshot_dir, until_tick)
+    world.rules = rules
     by_tick: defaultdict[int, list[Command]] = defaultdict(list)
     tombstones: set[int] = set()
     # The reader checks arrival_seq is gapless from last_arrival_seq + 1 on; this check ties each

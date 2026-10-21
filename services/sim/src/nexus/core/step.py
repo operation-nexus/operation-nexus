@@ -4,14 +4,18 @@
 It mutates the world in place and returns the tick's events; `state_hash` cadence is the runtime's.
 """
 
+import math
 from collections.abc import Callable, Mapping, Sequence
 
 from nexus.contracts.gen.commands.command import Command
 from nexus.contracts.gen.events.command_rejected import CommandRejected
 from nexus.contracts.gen.events.event import Event
-from nexus.core.world import World
+from nexus.core.rules import Rules
+from nexus.core.world import Entity, Vec2, World
 
 TICK_DT = 0.1  # game seconds per tick (SC-2)
+_STOPPED = Vec2(0.0, 0.0)
+_GROUND = "GROUND"
 
 type Handler = Callable[[World, Command, list[Event]], None]
 type System = Callable[[World, Sequence[Command], Mapping[str, Handler], list[Event]], None]
@@ -55,7 +59,71 @@ def director(
 def movement(
     world: World, c: Sequence[Command], h: Mapping[str, Handler], out: list[Event]
 ) -> None:
-    """Movement: NX-121."""
+    """Each unit with a path moves `WORLD_DT` world seconds along it, in id order (SC-2, SC-4).
+
+    AIR flies straight at `speed_mps`; GROUND follows road edges at `speed_mps x speed_mult`
+    (GAMEPLAY §5). Time left after reaching a waypoint carries on to the next one in the same tick.
+    Paused (SC-11): nothing moves. A path is followed as given; assigning one is NX-122 / NX-126.
+    """
+    if world.campaign.clock_paused:
+        return
+    for e in world.entities():
+        if not e.path:
+            e.vel = _STOPPED
+            continue
+        if world.rules is None:
+            raise ValueError(f"entity {e.id} has a path but the world has no rules")
+        _move(e, world.rules)
+
+
+def _waypoint(e: Entity, rules: Rules) -> tuple[Vec2, float]:
+    """The next waypoint and the speed to it in m/s (world)."""
+    wp, speed = e.path[0], rules.speed_mps[e.kind]
+    if rules.domain[e.kind] == _GROUND:
+        if not isinstance(wp, str) or e.last_node is None:
+            raise ValueError(f"ground entity {e.id} must move node to node on the road graph")
+        speed *= rules.roads.edge(e.last_node, wp).speed_mult
+    if isinstance(wp, str):
+        x, y = rules.roads.pos[wp]
+        return Vec2(x, y), speed
+    return wp, speed
+
+
+def _move(e: Entity, rules: Rules) -> None:
+    left = rules.world_dt  # world seconds still to spend this tick
+    while e.path:
+        if e.path[0] == e.last_node and e.pos == Vec2(*rules.roads.pos[e.last_node]):
+            e.path.pop(0)  # already there: a route from `shortest_path` starts at its own node
+            continue
+        target, speed = _waypoint(e, rules)
+        dx, dy = target.x - e.pos.x, target.y - e.pos.y
+        dist, reach = math.hypot(dx, dy), speed * left
+        if dist > reach:
+            if reach > 0.0:
+                k = reach / dist
+                e.pos = Vec2(e.pos.x + dx * k, e.pos.y + dy * k)
+            break
+        if dist > 0.0:  # so speed > 0
+            left -= dist / speed
+        _arrive(e, target)  # snap exactly: no drift at nodes
+    e.vel = _velocity(e, rules)
+
+
+def _arrive(e: Entity, target: Vec2) -> None:
+    e.pos = target
+    wp = e.path.pop(0)
+    if isinstance(wp, str):
+        e.last_node = wp
+
+
+def _velocity(e: Entity, rules: Rules) -> Vec2:
+    """Heading to the next waypoint at the current speed; zero once the path is done."""
+    if not e.path:
+        return _STOPPED
+    target, speed = _waypoint(e, rules)
+    dx, dy = target.x - e.pos.x, target.y - e.pos.y
+    dist = math.hypot(dx, dy)
+    return Vec2(dx / dist * speed, dy / dist * speed) if dist and speed > 0.0 else _STOPPED
 
 
 def sensing(world: World, c: Sequence[Command], h: Mapping[str, Handler], out: list[Event]) -> None:

@@ -65,6 +65,13 @@ class RoadGraph:
     def neighbours(self, node: str) -> tuple[tuple[str, Edge], ...]:
         return self._adj[node]
 
+    def edge(self, a: str, b: str) -> Edge:
+        """The ROAD edge between two adjacent nodes; ValueError if there is none."""
+        for nxt, edge in self._adj.get(a, ()):
+            if nxt == b:
+                return edge
+        raise ValueError(f"no road between {a!r} and {b!r}")
+
     def heuristic(self, node: str, goal: str) -> float:
         """Straight line / fastest speed_mult: never above the true cost, so A* stays optimal."""
         (x, y), (gx, gy) = self.pos[node], self.pos[goal]

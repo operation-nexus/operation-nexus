@@ -14,8 +14,9 @@ from nexus.runtime.config import ConfigError
 from nexus.runtime.units import catalog_hash, load_catalog
 
 CONTENT = Path(__file__).resolve().parents[4] / "content"
-# Pinned from this implementation's first run (NX-367); a change means every config_hash moved.
-GOLDEN_UNITS_HASH = "3e3318b69a941953fcb0707322ab1130e18f764e52cf2647857cd83b48bbb451"
+# Pinned from this implementation's first run (NX-367; re-pinned NX-121: speed_mps); a change
+# means every config_hash moved.
+GOLDEN_UNITS_HASH = "006d964b289253db7b42d9d776c2b89f24c52e87155036114668d39eaaff2e91"
 RADAR = "units/radar-site.yaml"
 
 

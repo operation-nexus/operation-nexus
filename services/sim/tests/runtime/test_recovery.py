@@ -16,6 +16,8 @@ from nexus.contracts.gen.events.event import Event
 from nexus.contracts.gen.events.unit_spawned import UnitSpawned
 from nexus.core import step as step_module
 from nexus.core.rng import RngStream
+from nexus.core.roads import RoadGraph
+from nexus.core.rules import Rules
 from nexus.core.step import TICK_DT, Handler
 from nexus.core.world import Campaign, Vec2, World, state_hash
 from nexus.runtime import loop
@@ -104,7 +106,8 @@ class Rig:
         self.snaps, self.logs = root / "snapshots", root / "logs"
         self.snaps.mkdir(parents=True, exist_ok=True)
         self.logs.mkdir(parents=True, exist_ok=True)
-        world = world or World.new(Campaign(CAMPAIGN_ID, 12345, "cfg-test"))
+        if world is None:  # not `world or`: an empty World is falsy (__len__)
+            world = World.new(Campaign(CAMPAIGN_ID, 12345, "cfg-test"))
         self.inbox = Inbox(1000, world.campaign.tick + 1, next_seq)
         self.steps = 0
         self.rt = SimRuntime(
@@ -220,6 +223,16 @@ def test_poison_command_is_tombstoned_dropped_and_replayed(
     assert tick_events(at_320.events, 320) == crashed
     assert state_hash(at_320.world) == hashes[320]
     assert state_hash(restore(rig.snaps, rig.logs, handlers=POISON).world) == hashes[350]
+
+
+def test_crash_recovery_keeps_the_campaign_rules(tmp_path: Path, make_rig: MakeRig) -> None:
+    # Rules are not in snapshots (NX-121); the restored world must get them back.
+    rules = Rules(0.6, {}, {}, RoadGraph({}, []))
+    rig = make_rig(tmp_path, handlers=POISON, world=World.new(Campaign(CAMPAIGN_ID, 1, "c"), rules))
+    rig.run_to(5, poison_at=(4,))
+    assert list(rig.rt.crash_ticks) == [4]
+    assert rig.rt.world.rules is rules
+    assert restore(rig.snaps, rig.logs, handlers=POISON, rules=rules).world.rules is rules
 
 
 def break_systems_from(monkeypatch: pytest.MonkeyPatch, tick: int) -> None:

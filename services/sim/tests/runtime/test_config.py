@@ -30,9 +30,9 @@ sim:
   time_scale: 6.0
   snapshot_every_ticks: 300
 """
-# Pinned from this implementation's first run (NX-367: balance, units, theater); a change means
-# every config_hash moved.
-GOLDEN_CONFIG_HASH = "09249e87df5c22e6d690c5f02926685a7ab9542bf988a17d364277ac7ae1f120"
+# Pinned from this implementation's first run (NX-367: balance, units, theater; re-pinned NX-121
+# for speed_mps); a change means every config_hash moved.
+GOLDEN_CONFIG_HASH = "5236998f405af9ee4141bc4a51f78f41a04d37ee5e53229ade5ad83ee409d877"
 CFG = BalanceConfig.model_validate(
     {"schema_version": 1, "sim": {"tick_hz": 10, "time_scale": 6.0, "snapshot_every_ticks": 300}}
 )

@@ -127,7 +127,11 @@ class SimRuntime:
             self.crash_ticks.append(tick)
             # The half-updated world is discarded (SC-8); the log is durable up to this tick.
             self.world = recover(
-                self.snapshot_dir, self.log, handlers=self.handlers, until_tick=tick - 1
+                self.snapshot_dir,
+                self.log,
+                handlers=self.handlers,
+                until_tick=tick - 1,
+                rules=self.world.rules,
             ).world
             first = self.crash_ticks[0]
             if len(self.crash_ticks) == CRASH_LIMIT and tick - first < CRASH_WINDOW_TICKS:
