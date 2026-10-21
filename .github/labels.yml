@@ -1,6 +1,7 @@
 # Source of truth for repository labels (applied manually or by a label-sync action).
 - { name: "type:task", color: "1d76db", description: "Planned work item (NX-###)" }
 - { name: "type:bug", color: "d73a4a", description: "Something is broken" }
+- { name: "error", color: "b60205", description: "Error ticket: one per fingerprint (ERROR-PIPELINE EP-5)" }
 - { name: "type:decision", color: "fbca04", description: "Owner decision needed (Q-*)" }
 - { name: "type:spike", color: "c5def5", description: "Time-boxed investigation" }
 - { name: "prio:p0", color: "b60205", description: "Blocks the current phase" }
