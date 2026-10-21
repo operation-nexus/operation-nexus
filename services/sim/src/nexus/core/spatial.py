@@ -1,10 +1,11 @@
 """Uniform spatial grid for radius queries (SIM-CORE SC-10, SC-4; NX-104).
 
-Callers pass `cell_m` = max sensor radius / 2 (SC-10). The sensor radius config does not exist yet
-(NX-106, unit catalog), so the cell size is a constructor argument.
+Callers pick `cell_m` (SC-10); sensing (`nexus.core.fog`) builds one grid per sensor range class,
+cell = the class's largest radius / 2 (NX-372).
 
-The grid is derived data: a snapshot of entity ids and positions taken at `rebuild`. It is not
-part of `World` state, the snapshot or `state_hash`, and is rebuilt from the world after movement.
+The grid is derived data: references to the entities and their positions taken at `rebuild`. It is
+not part of `World` state, the snapshot or `state_hash`. Queries filter on the positions taken at
+`rebuild`, so once entities move, discard the grid (or `rebuild` it); never keep one across ticks.
 """
 
 import math
@@ -17,7 +18,7 @@ from nexus.core.world import Entity, Vec2
 _PAD_M = 1e-3
 
 type _Cell = tuple[int, int]
-type _Point = tuple[int, float, float]  # (id, x, y)
+type _Point = tuple[Entity, float, float]  # (entity, x, y) at rebuild
 
 
 class UniformGrid:
@@ -43,11 +44,28 @@ class UniformGrid:
         cells: dict[_Cell, list[_Point]] = {}
         for e in entities:
             x, y = e.pos.x, e.pos.y
-            cells.setdefault(self._key(x, y), []).append((e.id, x, y))
+            cells.setdefault(self._key(x, y), []).append((e, x, y))
         self._cells = cells
+
+    def remove(self, entity: Entity) -> None:
+        """Drop `entity` from the grid. It must be in the grid and must not have moved since
+        `rebuild` (its cell is found from its current position); otherwise this raises KeyError
+        or leaves it in place. Removing one entity costs one pass over its cell."""
+        key = self._key(entity.pos.x, entity.pos.y)
+        bucket = self._cells[key]
+        bucket[:] = [p for p in bucket if p[0] is not entity]
+        if not bucket:
+            del self._cells[key]
 
     def query_radius(self, center: Vec2, radius_m: float) -> list[int]:
         """Ids within `radius_m` of `center` (inclusive, Euclidean), ascending by id (SC-4)."""
+        ids = [e.id for e in self.within(center, radius_m)]
+        ids.sort()
+        return ids
+
+    def within(self, center: Vec2, radius_m: float) -> list[Entity]:
+        """The entities `query_radius` finds, in bucket order, not id order: only for callers that
+        reduce them to a set (the order is deterministic, but not SC-4's)."""
         if not (math.isfinite(radius_m) and radius_m >= 0):
             raise ValueError(f"radius_m must be finite and >= 0, got {radius_m!r}")
         cx, cy, r2 = center.x, center.y, radius_m * radius_m
@@ -63,8 +81,6 @@ class UniformGrid:
                 for ky in range(y0, y1 + 1)
                 if (b := self._cells.get((kx, ky))) is not None
             ]
-        ids = [
-            i for b in buckets for i, x, y in b if (x - cx) * (x - cx) + (y - cy) * (y - cy) <= r2
+        return [
+            e for b in buckets for e, x, y in b if (x - cx) * (x - cx) + (y - cy) * (y - cy) <= r2
         ]
-        ids.sort()
-        return ids
