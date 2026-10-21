@@ -9,7 +9,7 @@ Goal: plan, review, approve and even code from a phone, while the home desktop r
 | Reach home services (Command Center, staging, logs) | Tailscale on the phone + home PC + Linux server (private, no open ports) | Planned (ADR-0006) |
 | Approve clips and posts on the go | Command Center review queue (phone-friendly) + a scheduled post queue | Planned (NX-234, NX-298) |
 | Alerts and one-tap actions | ntfy + Discord (Q-OPS-4), pause/resume from alerts (NX-286) | Planned |
-| Cloud sessions can run checks | SessionStart hook runs `make bootstrap` (NX-025) | Done; first cloud run pending |
+| Cloud sessions can run checks | SessionStart hook runs `make bootstrap` (NX-025) | Done; cloud session green 2026-10-20 (Node 22.22.0, pnpm 10.28.0, uv 0.11.32, GNU Make 4.3) |
 | Review PRs/issues | GitHub mobile app | Working today |
 
 Travel mode: the posting cadence is a flexible target (Q-MKT-4). The queue keeps scheduled posts flowing while the owner is away.
