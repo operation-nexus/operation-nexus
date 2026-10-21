@@ -10,7 +10,7 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | Phase | Items | Done | Status |
 |---|---|---|---|
 | P0 Foundations | 42 | 19 | 🟨 |
-| P1 Sim kernel | 26 | 6 | 🟨 |
+| P1 Sim kernel | 26 | 7 | 🟨 |
 | P2 Closed alpha | 34 | 0 | ⬜ |
 | P3 Public beta | 22 | 0 | ⬜ |
 | P4 Depth | 67 | 1 | ⬜ |
@@ -91,8 +91,8 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-103 [#160](https://github.com/operation-nexus/operation-nexus/issues/160) | Snapshot + command log + restore | M | ✅ | NX-102 | Kill/restore integration test equal hash |
 | NX-104 [#161](https://github.com/operation-nexus/operation-nexus/issues/161) | Spatial grid + benchmarks | M | ✅ | NX-101 | 1k entities p99 < 25 ms (bench) |
 | NX-105 [#162](https://github.com/operation-nexus/operation-nexus/issues/162) | Golden replay framework + cross-process check in CI | M | ✅ | NX-103 | Job `sim-determinism` in `ci-gate`: required on main, advisory on develop (ADR-0009) |
-| NX-106 [#169](https://github.com/operation-nexus/operation-nexus/issues/169) | Balance config loader (YAML, schema-validated, hashed) | S | 👀 | NX-101 | Invalid config rejected; hash in campaign |
-| NX-120 | Theater loader + road graph + A* | M | ⬜ | NX-008, NX-106 | Paths avoid destroyed bridges |
+| NX-106 [#169](https://github.com/operation-nexus/operation-nexus/issues/169) | Balance config loader (YAML, schema-validated, hashed) | S | ✅ | NX-101 | Invalid config rejected; hash in campaign |
+| NX-120 [#175](https://github.com/operation-nexus/operation-nexus/issues/175) | Theater loader + road graph + A* | M | 🟨 | NX-008, NX-106 | Paths avoid destroyed bridges |
 | NX-121 | Kinematics (air direct, ground on graph), time scale | M | ⬜ | NX-120 | Property: positions in bounds, on edges |
 | NX-122 | Unit slots, spawn, respawn delay, reserve queue | M | ⬜ | NX-121 | GP-1..3 tests |
 | NX-123 | Logistics: stock, convoys, unload, starvation (factories parked, Q-GP-41) | L | ⬜ | NX-121 | Conservation property; starvation loadouts |
