@@ -13,7 +13,13 @@ from nexus.contracts.gen.config.balance import BalanceConfig
 from nexus.contracts.gen.config.theater import TheaterConfig
 from nexus.core.rules import Rules, make_rules
 from nexus.core.world import Campaign, World
-from nexus.runtime.config import canonical_hash, config_hash, game_ticks, load_balance
+from nexus.runtime.config import (
+    canonical_hash,
+    config_hash,
+    game_ticks,
+    load_balance,
+    world_ticks,
+)
 from nexus.runtime.theater import load_theater, road_graph
 from nexus.runtime.units import UnitCatalog, catalog_hash, load_catalog
 
@@ -59,7 +65,9 @@ def load_campaign_config(paths: ConfigPaths | None = None) -> CampaignConfig:
         theater=theater,
         slots=balance.slots,
         air=balance.air,
+        fow=balance.fow,
         respawn_delay_ticks=game_ticks(balance.slots.respawn_delay_s, balance),
+        track_fade_ticks=world_ticks(balance.fow.track_fade_s, balance),
     )
     return CampaignConfig(balance, catalog, theater, digest, rules)
 

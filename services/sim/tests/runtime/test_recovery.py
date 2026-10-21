@@ -92,7 +92,7 @@ STUB: dict[str, Handler] = {"JOIN": spawn_handler}
 # The stub's fighters are LANDED aircraft (NX-368): they never move, so no other air rule is read.
 STUB_RULES = Rules(
     0.6, {}, {"STRIKE_FIGHTER": "AIR"}, RoadGraph({}, []), {}, "", 1, 0, 1, 1, {}, {}, 0.0, {},
-    (1.0, 1.0), 120.0,
+    (1.0, 1.0), 120.0, {}, {}, 5, 1,
 )  # fmt: skip
 POISON: dict[str, Handler] = {"JOIN": poison_handler}
 

@@ -8,4 +8,6 @@ min_rank: 1
 speed_mps: 250.0  # PROPOSED (NX-121, owner may veto; harness tunes, NX-031); m/s world; strike aircraft ~250 m/s (SIM-CORE §4 world scale)
 min_speed_mps: 100.0  # PROPOSED (NX-368, owner may veto; harness tunes, NX-031); m/s world; stall speed, 40% of top speed (Q-SIM-38)
 fuel_s: 3600.0  # PROPOSED (NX-368, owner may veto; harness tunes, NX-031); s world; 10 real min at 6x; from the sanctuary it reaches Static HQ with ~7.7 world min on station before bingo (back to west-airbase, the nearest coalition base)
+sensor: {radius_m: 40000.0}  # PROPOSED (NX-150, owner may veto; harness tunes, NX-031); m; air radar
+stealth: 1.0  # PROPOSED (NX-150, owner may veto; harness tunes, NX-031); multiplier; 1.0 = none
 weapons: [AG_LIGHT, AA_LIGHT]

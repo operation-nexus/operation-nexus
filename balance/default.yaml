@@ -14,3 +14,6 @@ slots:
 air:
   bingo_reserve_frac: 0.15  # PROPOSED – unvalidated; fraction of fuel_s (CONFIG-AND-CONTENT §6.1 air.bingo_reserve_frac)
   orbit_period_s: 120.0  # PROPOSED – unvalidated; s (world) (CONFIG-AND-CONTENT §6.1 air.orbit_period_s)
+fow:
+  track_every_ticks: 5  # PROPOSED – unvalidated; ticks, 0.5 s game (CONFIG-AND-CONTENT §6.1 fow.track_every_ticks)
+  track_fade_s: 180.0  # PROPOSED – unvalidated (NX-150); s (world), 30 real s at 6x (CONFIG-AND-CONTENT §6.1 fow.track_fade_s)

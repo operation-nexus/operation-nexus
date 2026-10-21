@@ -10,6 +10,20 @@ from pydantic import BaseModel, ConfigDict, Field
 from ..common import enums, ids
 
 
+class Sensor(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    radius_m: Annotated[
+        float,
+        Field(
+            description="Detection range, unit m: an enemy inside radius_m x the target's stealth is tracked (Q-FOW-2); one range for all targets in the first build. 0 = no sensor.",
+            ge=0.0,
+            le=1000000.0,
+        ),
+    ]
+
+
 class UnitConfig(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -66,6 +80,20 @@ class UnitConfig(BaseModel):
             gt=0.0,
         ),
     ] = None
+    sensor: Annotated[
+        Sensor,
+        Field(
+            description="Active sensor (FOG-OF-WAR Tier 2, NX-150). passive_range_m joins with facility discovery (FOW-13)."
+        ),
+    ]
+    stealth: Annotated[
+        float,
+        Field(
+            description="Multiplier on every enemy sensor's radius_m against this kind, unitless; 1.0 = no stealth (FOG-OF-WAR Tier 2, NX-150).",
+            gt=0.0,
+            le=1.0,
+        ),
+    ]
     weapons: Annotated[
         list[ids.WeaponId],
         Field(

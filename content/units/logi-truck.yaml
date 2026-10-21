@@ -6,4 +6,6 @@ domain: GROUND
 playable_by: [VIEWER, AI_GARRISON]
 min_rank: 1
 speed_mps: 25.0  # PROPOSED (NX-121, owner may veto; harness tunes, NX-031); m/s world; ground convoy ~25 m/s (SIM-CORE §4 world scale)
+sensor: {radius_m: 3000.0}  # PROPOSED (NX-150, owner may veto; harness tunes, NX-031); m; crew eyes only
+stealth: 1.0  # PROPOSED (NX-150, owner may veto; harness tunes, NX-031); multiplier; 1.0 = none
 weapons: []

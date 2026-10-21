@@ -144,13 +144,13 @@ def golden_run() -> str:
     return state_hash(w)
 
 
-GOLDEN = "9e36556bee7c758d63f0a16b66d7d88c075f06951863b1b4460365fc90401f13"
+GOLDEN = "e6efd2b31edb8e1151f3dd3c7d757a0248de501410a7517de5d48f6b6b0c1141"
 
 
 def test_golden_ten_steps_seed_12345() -> None:
     # Pinned by running this implementation once (NX-102; re-pinned NX-121: entity encoding v2;
     # NX-122: world encoding v3 adds respawn_left; v4 adds reserve_queue; NX-368: v5 adds state,
-    # fuel and orbit; NX-370: v6 adds callsigns).
+    # fuel and orbit; NX-370: v6 adds callsigns; NX-150: v7 adds contacts).
     # A change here breaks every recorded replay hash: needs a `golden-update` reason.
     assert golden_run() == GOLDEN
     assert golden_run() == golden_run()

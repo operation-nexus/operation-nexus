@@ -15,8 +15,8 @@ from nexus.runtime.units import catalog_hash, load_catalog
 
 CONTENT = Path(__file__).resolve().parents[4] / "content"
 # Pinned from this implementation's first run (NX-367; re-pinned NX-121: speed_mps; NX-368:
-# min_speed_mps and fuel_s); a change means every config_hash moved.
-GOLDEN_UNITS_HASH = "c1b7ba0ef661ca63cb0213f68efb689a5c71f7d2ae6da6c1db8b23f83fe0d59b"
+# min_speed_mps and fuel_s; NX-150: sensor and stealth); a change means every config_hash moved.
+GOLDEN_UNITS_HASH = "4e551a5dd9e6dc9871f1b58b9268457e4c0957302e2eb9ecf154c01bdce58202"
 RADAR = "units/radar-site.yaml"
 
 
@@ -87,6 +87,11 @@ def test_weapon_targets_match_combat_table() -> None:
         ("units/enemy-armor.yaml", "weapons:", "fuel_s: 60.0\nweapons:", r"fuel_s: present if"),
         ("units/recon-uav.yaml", "min_speed_mps: 20.0", "min_speed_mps: 60.5", r"above speed_mps"),
         ("units/recon-uav.yaml", "fuel_s: 14400.0", "fuel_s: 0", r"fuel_s: .*greater than 0"),
+        # sensor and stealth (NX-150)
+        ("units/recon-uav.yaml", "radius_m: 60000.0", "radius_m: -1.0", r"sensor\.radius_m"),
+        ("units/recon-uav.yaml", "{radius_m: 60000.0}", "{}", r"sensor\.radius_m: Field required"),
+        ("units/recon-uav.yaml", "stealth: 1.0", "stealth: 0", r"stealth: .*greater than 0"),
+        ("units/recon-uav.yaml", "stealth: 1.0", "stealth: 1.5", r"stealth: .*less than or equal"),
         # weapons
         ("units/enemy-fighter.yaml", "[AA_MISSILE]", "[NO_SUCH]", r"weapons\.0: unknown weapon"),
         ("units/enemy-fighter.yaml", "[AA_MISSILE]", "[AA_MISSILE, AA_MISSILE]", r"weapons: dup"),

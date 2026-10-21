@@ -5,4 +5,6 @@ side: ENEMY
 domain: GROUND
 playable_by: [DIRECTOR]
 speed_mps: 20.0  # PROPOSED (NX-121, owner may veto; harness tunes, NX-031); m/s world; a little slower than a convoy
+sensor: {radius_m: 8000.0}  # PROPOSED (NX-150, owner may veto; harness tunes, NX-031); m; vehicle optics
+stealth: 1.0  # PROPOSED (NX-150, owner may veto; harness tunes, NX-031); multiplier; 1.0 = none
 weapons: [AG_CANNON]

@@ -43,6 +43,8 @@ only new event, `UnitDestroyed`). The `stub` and `poison` registries now spawn t
 
 Snapshot format 6 (NX-370: the per-commander `callsigns` map) re-pinned every case's checkpoints again; no event stream changed and no case sends `SYS_SET_CALLSIGN` yet.
 
+Snapshot format 7 (NX-150: each side's FoW `contacts`) re-pinned every case's checkpoints again, and the new catalog (`sensor`, `stealth`) and balance (`fow`) keys gave `joins-strait-1` a new `config_hash`; no event stream changed (sensing emits no events). No case has enemy units yet, so every case's contacts stay empty: `tests/core/test_fog.py` covers sensing, including a cross-process hash check at 1,000 entities.
+
 The orbit uses libm `atan2`, `cos` and `sin`. They are deterministic on one platform but may
 differ across platforms or libm versions, so every checkpoint here is pinned to the CI platform
 (ADR-0002, SC-3): a mismatch on another machine is not by itself a determinism bug.

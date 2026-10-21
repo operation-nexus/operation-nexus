@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from fractions import Fraction
 
 from nexus.contracts.gen.common.enums import Domain, Role, Side, UnitKind
-from nexus.contracts.gen.config.balance import Air, Sim, Slots
+from nexus.contracts.gen.config.balance import Air, Fow, Sim, Slots
 from nexus.contracts.gen.config.roles import Roles
 from nexus.contracts.gen.config.theater import TheaterConfig
 from nexus.contracts.gen.config.unit import UnitConfig
@@ -40,6 +40,10 @@ class Rules:
     landing_bases: Mapping[Side, tuple[str, ...]]
     bounds_m: tuple[float, float]  # theater width, height (m)
     orbit_period_s: float  # air.orbit_period_s: world s per lap of an idle orbit (NX-368)
+    sensor_radius_m: Mapping[UnitKind, float]  # sensor.radius_m, 0 = none (FOG-OF-WAR Tier 2)
+    stealth: Mapping[UnitKind, float]  # x every enemy sensor's radius against this kind
+    track_every_ticks: int  # fow.track_every_ticks (FOW-5)
+    track_fade_ticks: int  # fow.track_fade_s as world ticks, rounded up (FOW-6a, FOW-9, SC-12)
 
 
 def world_dt(sim: Sim) -> float:
@@ -69,9 +73,12 @@ def make_rules(
     theater: TheaterConfig,
     slots: Slots,
     air: Air,
+    fow: Fow,
     respawn_delay_ticks: int,
+    track_fade_ticks: int,
 ) -> Rules:
-    """`respawn_delay_ticks` is `slots.respawn_delay_s` already converted by the config loader."""
+    """`respawn_delay_ticks` and `track_fade_ticks` are `slots.respawn_delay_s` and
+    `fow.track_fade_s` already converted by the config loader."""
     units = tuple(units)
     return Rules(
         world_dt=world_dt(sim),
@@ -90,4 +97,8 @@ def make_rules(
         landing_bases=_landing_bases(theater),
         bounds_m=(float(theater.bounds_m.w), float(theater.bounds_m.h)),
         orbit_period_s=air.orbit_period_s,
+        sensor_radius_m={u.kind: u.sensor.radius_m for u in units},
+        stealth={u.kind: u.stealth for u in units},
+        track_every_ticks=fow.track_every_ticks,
+        track_fade_ticks=track_fade_ticks,
     )

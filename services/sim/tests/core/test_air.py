@@ -44,7 +44,7 @@ def hand_rules(
     bases: dict[Side, tuple[str, ...]] = {"COALITION": tuple(sorted(pos)), "ENEMY": ()}
     return Rules(
         world_dt, {JET: 100.0}, {JET: "AIR"}, RoadGraph(pos, []), {}, "home", 1, 5, 1, 1,
-        {JET: 40.0}, {JET: 1000.0}, reserve, bases, (W, H), 120.0,
+        {JET: 40.0}, {JET: 1000.0}, reserve, bases, (W, H), 120.0, {}, {}, 5, 1,
     )  # fmt: skip
 
 

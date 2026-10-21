@@ -14,7 +14,7 @@ from nexus.contracts.gen.commands.join import JoinCommand
 from nexus.contracts.gen.common.enums import OwnerKind, Side, UnitKind
 from nexus.core import world as world_mod
 from nexus.core.rng import RngStream
-from nexus.core.world import Campaign, Vec2, World, load, save, state_hash, to_canonical
+from nexus.core.world import Campaign, Contact, Vec2, World, load, save, state_hash, to_canonical
 
 CAMPAIGN_ID = "0192f3a4-5b6c-7d8e-9f01-23456789abcd"
 
@@ -56,17 +56,20 @@ def golden_world() -> World:
     armor.path, armor.last_node = ["east-airbase"], "cross-n"
     w.respawn_left["0192f3a4-5b6c-7d8e-9f01-000000000002"] = 7  # NX-122: per-commander state
     w.reserve_queue.append(QUEUED)  # NX-122 part 3: the reserve queue
+    # NX-150: the enemy tracks the fighter; the coalition keeps a last-known track of the armor.
+    w.contacts["ENEMY"][1] = Contact("STRIKE_FIGHTER", Vec2(1000.25, 2000.5), Vec2(250.0, 0.0))
+    w.contacts["COALITION"][3] = Contact("ENEMY_ARMOR", Vec2(149e3, 80e3), Vec2(-25, 3.5), 12)
     return w
 
 
 def test_golden_state_hash_seed_12345() -> None:
     # Pinned by running this implementation once (NX-101; re-pinned NX-121: path, last_node, v2;
     # NX-122: respawn_left, v3; NX-122 part 3: reserve_queue, v4; NX-368: state, fuel, orbit, v5;
-    # NX-370: callsigns, v6).
+    # NX-370: callsigns, v6; NX-150: contacts, v7).
     # A change here breaks every recorded replay hash: needs a `golden-update` reason.
     assert (
         state_hash(golden_world())
-        == "31311eb9c0f15f7b0663577096296791d64fc80c6dfab479e4d8032f968e7dfc"
+        == "5b3db18b032734962e09330550212c050272acf20aed54f1c6c47a3b9dd26b19"
     )
     e = to_canonical(golden_world(), quantize=True)["entities"][0]
     assert e["pos"] == [1000250, 2000500]  # mm
@@ -75,6 +78,11 @@ def test_golden_state_hash_seed_12345() -> None:
     assert (e["state"], e["fuel"], e["orbit"]) == ("ON_STATION", 1234250000, [900500, 2000500])
     assert to_canonical(golden_world(), quantize=True)["entities"][1]["fuel"] is None
     assert list(e) == sorted(e)
+    lost = to_canonical(golden_world(), quantize=True)["contacts"]["COALITION"]
+    assert lost == [
+        {"age": 12, "id": 3, "kind": "ENEMY_ARMOR", "pos": [149000000, 80000000],
+         "vel": [-25000, 3500]}
+    ]  # fmt: skip
 
 
 @given(
@@ -131,6 +139,11 @@ def worlds(draw: st.DrawFn) -> World:
             e.orbit = draw(vecs) if e.state == "ON_STATION" else None
     for _ in range(draw(st.integers(min_value=0, max_value=5))):
         w.rng.stream(draw(st.sampled_from(list(RngStream)))).next_u64()
+    for i in draw(st.lists(st.integers(1, w._next_entity_id - 1), unique=True)) if len(w) else []:
+        e = w.get(i)
+        knower: Side = "ENEMY" if e.side == "COALITION" else "COALITION"
+        age = draw(st.none() | st.integers(0, 10**6))
+        w.contacts[knower][i] = Contact(e.kind, draw(vecs), draw(vecs), age)  # NX-150
     if len(w) and draw(st.booleans()):
         w.remove(next(w.entities()).id)
     for _ in range(draw(st.integers(min_value=0, max_value=3))):
@@ -231,11 +244,27 @@ def _resave(mutate: Any) -> bytes:
         _resave(lambda d: d["reserve_queue"][0].update(extra=1)),
         _resave(lambda d: d["reserve_queue"][0].update(target_tick="9")),  # strict: no coercion
         _resave(lambda d: d["reserve_queue"].append(d["reserve_queue"][0])),  # U-4: once each
+        _resave(lambda d: d.update(contacts={"COALITION": []})),  # NX-150: both sides
+        _resave(lambda d: d["contacts"].update(ENEMY={})),
+        _resave(lambda d: d["contacts"]["ENEMY"][0].update(age=-1)),
+        _resave(lambda d: d["contacts"]["ENEMY"][0].update(age=True)),
+        _resave(lambda d: d["contacts"]["ENEMY"][0].update(id=4)),  # >= next_entity_id
+        _resave(lambda d: d["contacts"]["ENEMY"][0].update(kind="FACTORY")),
+        _resave(lambda d: d["contacts"]["ENEMY"][0].pop("vel")),
+        _resave(lambda d: d["contacts"]["ENEMY"].append(d["contacts"]["ENEMY"][0])),  # ascending
+        _resave(lambda d: d["contacts"]["COALITION"][0].update(id=2, kind="GARRISON_INFANTRY")),
+        _resave(lambda d: d["contacts"]["ENEMY"][0].update(kind="RECON_UAV")),  # not entity 1's
     ],
 )
 def test_load_rejects_malformed_input(bad: bytes) -> None:
     with pytest.raises(ValueError):
         load(bad)
+
+
+def test_contact_of_a_removed_entity_loads() -> None:
+    w = golden_world()
+    w.remove(3)  # the coalition's last-known armor outlives it (FOW-6a)
+    assert load(save(w)).contacts == w.contacts
 
 
 def test_load_checks_cover_every_field() -> None:

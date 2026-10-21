@@ -8,8 +8,9 @@ One walker, `to_canonical`, turns a world into plain sorted data. Snapshots keep
 (float64), so a restored run continues bit-identically; only `state_hash` quantizes (ADR-0002):
 positions, `orbit` centres and `path` waypoints to integer mm, velocities to integer mm/s, other
 floats (`fuel`) to ADR-0002's 1e-6 step. Python's `round` is round-half-to-even on the
-exact float value, so it is deterministic. The RNG state, `respawn_left` (per commander, GP-2)
-and the reserve queue (GP-3) are world state, so snapshots and the hash cover them. `World.rules`
+exact float value, so it is deterministic. The RNG state, `respawn_left` (per commander, GP-2),
+the reserve queue (GP-3) and each side's FoW contacts (FOW-5) are world state, so snapshots and
+the hash cover them. `World.rules`
 (`nexus.core.rules`) is static config, not state: neither snapshots nor the hash include it.
 """
 
@@ -28,12 +29,13 @@ from nexus.core.rng import SimRng
 from nexus.core.rules import Rules
 
 # 2: Entity.path and Entity.last_node (NX-121); 3: respawn_left, hp may be null; 4: reserve_queue;
-# 5: Entity.state, fuel and orbit (NX-368); 6: callsigns (NX-370)
-FORMAT_VERSION = 6
+# 5: Entity.state, fuel and orbit (NX-368); 6: callsigns (NX-370); 7: contacts (NX-150)
+FORMAT_VERSION = 7
 _MM = 1000.0  # metres -> millimetres; m/s -> mm/s
 _MICRO = 1e6  # ADR-0002's 1e-6 step for other floats (fuel)
 _MAX_ABS = 1e9  # m or m/s; keeps mm quantization well inside int64
 _CAMPAIGN = "campaign"
+_CONTACTS = "contacts"
 _ENTITIES = "entities"
 _CALLSIGNS = "callsigns"
 _RESPAWN_LEFT = "respawn_left"
@@ -45,6 +47,7 @@ _V = "v"
 _WORLD_KEYS = (
     _CALLSIGNS,
     _CAMPAIGN,
+    _CONTACTS,
     _ENTITIES,
     _NEXT_ENTITY_ID,
     _NEXT_EVENT_SEQ,
@@ -68,7 +71,7 @@ def _literal_values(alias: Any) -> tuple[str, ...]:
 
 _CALLSIGN = re.compile(r"[A-Z][A-Z0-9-]{2,11}")  # ids.json Callsign
 _UNIT_KINDS = _literal_values(UnitKind)
-_SIDES = _literal_values(Side)
+_SIDES = cast(tuple[Side, ...], _literal_values(Side))
 _OWNER_KINDS = _literal_values(OwnerKind)
 
 
@@ -120,6 +123,18 @@ class Entity:
 
 
 @dataclass(slots=True)
+class Contact:
+    """One enemy entity a side knows of (FOG-OF-WAR Tier 2, FOW-6a): kind, position and velocity
+    (its heading) as of the last pass that tracked it. `age` is None while tracked; once lost it is
+    a last-known track and `age` counts the running ticks since (FOW-9)."""
+
+    kind: UnitKind
+    pos: Vec2
+    vel: Vec2
+    age: int | None = None
+
+
+@dataclass(slots=True)
 class Campaign:
     id: str  # CampaignId
     seed: int
@@ -145,6 +160,7 @@ class World:
         "_next_event_seq",
         "callsigns",
         "campaign",
+        "contacts",
         "reserve_queue",
         "respawn_left",
         "rng",
@@ -167,6 +183,9 @@ class World:
         # commander_id -> callsign set by SYS_SET_CALLSIGN (Q-SIM-39); JOIN copies it onto the
         # unit. Grows per commander; FORGET (later) removes the entry.
         self.callsigns: dict[str, str] = {}
+        # Side -> enemy entity id -> what that side knows of it, in id order (FOW-5, FOW-6a).
+        # Only the `sensing` system writes it; `nexus.core.fog` reads it.
+        self.contacts: dict[Side, dict[int, Contact]] = {side: {} for side in _SIDES}
 
     @classmethod
     def new(cls, campaign: Campaign, rules: Rules | None = None) -> Self:
@@ -244,6 +263,17 @@ def _entity_data(e: Entity, quantize: bool) -> dict[str, Any]:
     return {k: _value(e, k, quantize) for k in sorted(_ENTITY_KEYS)}
 
 
+def _contacts_data(world: World, quantize: bool) -> dict[str, Any]:
+    return {
+        side: [
+            {"age": c.age, "id": i, "kind": c.kind, "pos": _xy(c.pos, quantize),
+             "vel": _xy(c.vel, quantize)}
+            for i, c in sorted(world.contacts[side].items())
+        ]
+        for side in _SIDES
+    }  # fmt: skip
+
+
 def _sorted(value: Any) -> Any:
     """Plain JSON data with every dict's keys sorted, at any depth."""
     if isinstance(value, dict):
@@ -256,6 +286,7 @@ def to_canonical(world: World, *, quantize: bool) -> dict[str, Any]:
     data = {
         _CALLSIGNS: dict(sorted(world.callsigns.items())),
         _CAMPAIGN: {k: getattr(world.campaign, k) for k in sorted(_CAMPAIGN_KEYS)},
+        _CONTACTS: _contacts_data(world, quantize),
         _ENTITIES: [_entity_data(e, quantize) for e in world.entities()],
         _RESPAWN_LEFT: dict(sorted(world.respawn_left.items())),
         _RESERVE_QUEUE: [_sorted(c.model_dump(mode="json")) for c in world.reserve_queue],
@@ -379,6 +410,28 @@ def _reserve_queue(value: object) -> list[JoinCommand]:
     return queue
 
 
+_CONTACT_KEYS = ("age", "id", "kind", "pos", "vel")
+
+
+def _contacts(value: object, next_id: int) -> dict[Side, dict[int, Contact]]:
+    """Both sides, each a list of contacts ascending by id below `next_id`."""
+    sides = _fields(value, _SIDES, _CONTACTS)
+    out: dict[Side, dict[int, Contact]] = {}
+    for side in _SIDES:
+        if not isinstance(sides[side], list):
+            raise ValueError(f"{_CONTACTS}.{side} must be a list")
+        out[side], last = {}, 0
+        for raw in sides[side]:
+            d = _fields(raw, _CONTACT_KEYS, "contact")
+            i = _int(d["id"], "contact id", 1)
+            if not last < i < next_id:
+                raise ValueError("contact ids must ascend and stay below next_entity_id")
+            age = None if d["age"] is None else _int(d["age"], "contact age")
+            kind = _str(d["kind"], "contact kind", _UNIT_KINDS)
+            out[side][i], last = Contact(kind, _vec(d["pos"], "pos"), _vec(d["vel"], "vel"), age), i
+    return out
+
+
 def _load_entity(value: object) -> Entity:
     d = _fields(value, _ENTITY_KEYS, "entity")
     e = Entity(**{k: check(d[k], k) for k, check in _ENTITY_CHECKS.items()})
@@ -408,6 +461,7 @@ def load(data: bytes) -> World:
     world.callsigns = _callsigns(d[_CALLSIGNS])
     world.respawn_left = _respawn_left(d[_RESPAWN_LEFT])
     world.reserve_queue = _reserve_queue(d[_RESERVE_QUEUE])
+    world.contacts = _contacts(d[_CONTACTS], world._next_entity_id)
     entities = d[_ENTITIES]
     if not isinstance(entities, list):
         raise ValueError("entities must be a list")
@@ -418,4 +472,15 @@ def load(data: bytes) -> World:
             raise ValueError("entity ids must ascend and stay below next_entity_id")
         last_id = entity.id
         world._entities[entity.id] = entity
+    _check_contacts(world)
     return world
+
+
+def _check_contacts(world: World) -> None:
+    """A contact of a live entity names an enemy of its side, of the entity's kind. A removed
+    entity's contact stays valid (FOW-6a); the fade bound needs the rules, which load lacks."""
+    for side, known in world.contacts.items():
+        for i, c in known.items():
+            e = world._entities.get(i)
+            if e is not None and (e.side == side or e.kind != c.kind):
+                raise ValueError(f"{_CONTACTS}.{side}: contact {i} does not match its entity")
