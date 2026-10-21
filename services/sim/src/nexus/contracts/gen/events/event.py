@@ -17,6 +17,8 @@ from . import (
     crew_downed,
     munitions_depleted,
     node_captured,
+    node_defenses_down,
+    node_defenses_restored,
     objective_announced,
     objective_resolved,
     rearm_stalled,
@@ -54,7 +56,9 @@ type Event = Annotated[
     | unit_despawned.UnitDespawned
     | munitions_depleted.MunitionsDepleted
     | crew_downed.CrewDowned
-    | unit_repaired.UnitRepaired,
+    | unit_repaired.UnitRepaired
+    | node_defenses_down.NodeDefensesDown
+    | node_defenses_restored.NodeDefensesRestored,
     Field(
         description="Discriminated union of all sim events on kind (CONTRACTS §6).",
         discriminator="kind",

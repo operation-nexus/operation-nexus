@@ -160,7 +160,8 @@ In the schema now (NX-122): `slots.max_live_per_commander`, `slots.respawn_delay
 |---|---|---|---|---|---|
 | `logistics.node_max_stock.<node_kind>` | int | stock units | AIRBASE 2000, FOB 1000, HQ 2000, PORT 1000, BRIDGE 0; SANCTUARY and the rear source infinite (Q-SIM-49). In code (NX-123): all five keys required; a theater `start_stock` above its kind's maximum fails load | GAMEPLAY §5 | No |
 | `logistics.starve_threshold` | float | fraction 0–1 | 0.25. In code (NX-123): the floor is `ceil(starve_threshold x max)` whole units | GAMEPLAY §5 | No |
-| `logistics.starve_hp_drain_per_min` | float | node hp per min (world) | TBD (PROPOSED) | GAMEPLAY §8 | No |
+| `logistics.starve_hp_drain_per_min` | int | node hp per min (game) | 5 (PROPOSED, Q-SIM-71). In code (NX-124 part 3): a node with finite stock below its starvation floor loses this many whole hp per game minute (600 running ticks at 10 Hz), carried exactly across ticks; 0 turns the drain off | GAMEPLAY §8 | No |
+| `logistics.defense_repair_hp_per_stock` | int | hp per stock unit | 2 (PROPOSED, Q-SIM-71; key named by NX-124 part 3): defense hp one stock unit unloaded into a node rebuilds, up to `capture.defense_hp` | GAMEPLAY §8 | No |
 | `logistics.starved_loadout.fuel_frac` | float | fraction | 0.5 (Q-SIM-53). In code (NX-123 part 2): a base below its starvation floor refuels an aircraft only up to this share of `fuel_s`; a spawn is always full | GAMEPLAY §5 | No |
 | `logistics.starved_loadout.secondary_ammo` | int | rounds | 0 (a code rule, not a key: a starved base restocks only guns, NX-124 part 2) | GAMEPLAY §5 | No |
 | `logistics.truck_cargo` | int | stock units | 100 (Q-SIM-49). One global value for every cargo kind (NX-123); a per-kind catalog `cargo` (§7.3) would replace it | GAMEPLAY §5 | No |
@@ -213,6 +214,8 @@ In the schema now (NX-122): `slots.max_live_per_commander`, `slots.respawn_delay
 | `capture.logi_weight` | float | capturer weight | 0.5 (PROPOSED): a logistics unit counts as half a capturer (Q-SM-7) | STATE-MACHINES §4.2 | No |
 | `capture.garrison_mult` | float | capture-time multiplier | 3.0 (PROPOSED): a defender that cannot contest is at the base (Q-GD-32, Q-SM-8) | STATE-MACHINES §4.2 | No |
 | `capture.empty_base_mult` | float | capture-time multiplier | 0.5 (PROPOSED): no defender at the base (Q-GD-32, Q-SM-8) | STATE-MACHINES §4.2 | No |
+| `capture.defense_hp.<node_kind>` | int | hp | AIRBASE 500, FOB 300, HQ 800, PORT 300, SANCTUARY 1000 (PROPOSED, Q-SIM-71; key named by NX-124 part 3; BRIDGE has none until NX-373). An owned node starts at the maximum, a NEUTRAL one at 0, a node that changes hands at 0 for its new owner. All five keys required | GAMEPLAY §8 | No |
+| `capture.sanctuary_repair_hp_per_s` | float | hp/s (world) per unit | 1.0 (PROPOSED, Q-SIM-71; key named by NX-124 part 3): defense hp each friendly logistics unit parked at its side's SANCTUARY rebuilds there, from the sanctuary's infinite supply (no stock debit). Counted in whole thousandths of an hp per tick, so the loader rejects a rate x tick below 0.001 | GAMEPLAY §9 | No |
 | `capture.decay_per_s` | float | bar fraction/s (world, Q-ALN-23) | 1/120 (0.008333…, PROPOSED, owner-approved initial value, Q-SIM-57): an abandoned bar empties in the 120 world s one unit takes to fill it. Counted in whole millionths of a percent per tick, rounded (the loader refuses less than one) | GAMEPLAY §8 | No |
 
 In code since NX-125: all ten keys are the `capture` block of `balance/default.yaml` (`contracts/config/balance.json`), read by `nexus.core.capture`; the shipped values are the PROPOSED column.
@@ -231,7 +234,7 @@ In code since NX-125: all ten keys are the `capture` block of `balance/default.y
 | `campaign.victory_hold_min` | float | min (game) | 30 | GAMEPLAY §9 | No |
 | `campaign.momentum.nodes_weight` | float | percentage points | 70 (PROPOSED, Q-SIM-60): × the coalition's share of strategic nodes in the momentum % | GAMEPLAY §9, Q-SIM-60 | No |
 | `campaign.momentum.supply_weight` | float | percentage points | 30 (PROPOSED, Q-SIM-60): × the coalition's supply fill (its finite bases' stock ÷ their max stock); the two weights must add up to 100 | GAMEPLAY §9, Q-SIM-60 | No |
-| `campaign.defeat` | object | — | `{hold_min: 30}`: the sanctuary's defense HP must stay at 0 this long (Q-TH-7, replacing Q-GD-7's forward-airbase rule; PROPOSED; game minutes, Q-ALN-1) | GAMEPLAY §9 | No |
+| `campaign.defeat` | object | — | `{hold_min: 30}`: the sanctuary's defense HP must stay at 0 this long (Q-TH-7, replacing Q-GD-7's forward-airbase rule; PROPOSED; game minutes, Q-ALN-1). In code (NX-124 part 3): required in the balance profile; `hold_min` is converted to running ticks at load | GAMEPLAY §9 | No |
 | `campaign.objective_mode` | enum `timed`\|`off` | — | `timed` (Q-GD-19); chosen at campaign setup by owner/admin only (Q-ALN-10) | GAMEPLAY §9 | No (set per campaign) |
 | `campaign.options.unlimited_ammo` | bool | — | not in the schema yet (NX-124 part 2 does not honour it); false (Q-CBT-7; test/special-event option; set at campaign setup by owner/admin only, not GM, Q-ALN-10) | GAMEPLAY §5 | No |
 | `campaign.intermission.mode` | enum `auto_advance`\|`await_owner` | — | TBD (owner choice per campaign, Q-UX-8) | GAMEPLAY §9 | Yes |

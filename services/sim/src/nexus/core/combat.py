@@ -11,14 +11,21 @@ The `combat` slot, each running tick (not while frozen, SC-11), in this order:
    of the weapon's `bands`, within `range_m` (real positions); priority `threat` descending, then
    distance, then id. Firing spends a round, starts the reload and stores a `Shot` landing
    `ceil(distance / (speed x world_dt))` ticks later, a gun on the fire tick.
-   STRUCTURE targets (CB-10) are part 3: never picked yet.
+   **Structures (CB-10, Q-SIM-71):** a weapon whose `targets` include STRUCTURE with no valid unit
+   target in range (units always come first) fires at the defense HP of the nearest node, ties by
+   id, that the enemy owns and whose HP is above 0, within `range_m` of the node's position (nodes
+   are always known, FOW-10, so no track is needed).
 3. **Impacts (CB-3, CB-4).** Shots due, in `(impact_tick, id)` order. A shot fizzles, with no RNG
    draw, when the shooter or target is gone, the shooter's side no longer tracks the target, or the
    target left the weapon's range or bands, or became a Disabled facility (Q-FOW-16). Otherwise
    `Pk = min(pk_cap, base_pk x track x range x evasion x masking)` and one draw on the `combat`
-   stream decides the hit.
+   stream decides the hit. A shot at a node's defenses fizzles when its shooter is gone, the node
+   changed hands or is already at 0 hp, or it is out of range; else its Pk has track `track`,
+   evasion
+   1.0 and no masking (Q-CBT-22).
 4. **Damage (CB-5, CB-6, CB-9).** A hit removes `floor(damage x (1 - armor))` hp, at least 1, with
-   `armor` an exact decimal. The damage state follows hp against the kind's thresholds
+   `armor` an exact decimal (0 for a structure: `damage` hp off the node's defenses, floored at the
+   idle floor, `nexus.core.defense`). The damage state follows hp against the kind's thresholds
    (`UnitRules.cuts`). A facility (STATIC) floors at the Disabled threshold, never Destroyed; any
    other unit at 0 hp is removed with `UnitDestroyed{killer_id = the shooter, assist_ids}`, and so
    is an aircraft that is not LANDED the moment it becomes Disabled (Q-SIM-66; that hit emits
@@ -45,7 +52,9 @@ from nexus.contracts.gen.events.munitions_depleted import MunitionsDepleted
 from nexus.contracts.gen.events.unit_despawned import UnitDespawned
 from nexus.contracts.gen.events.weapon_fired import WeaponFired
 from nexus.contracts.gen.events.weapon_impact import WeaponImpact
-from nexus.core.fog import in_masking_region, is_off_facility
+from nexus.core.defense import damage as damage_defense
+from nexus.core.defense import floor as defense_floor
+from nexus.core.fog import LOW_BANDS, in_masking_region, is_off_facility
 from nexus.core.logistics import go_home
 from nexus.core.rearm import stop_problem
 from nexus.core.rng import RngStream
@@ -68,7 +77,7 @@ _AIR, _GROUND, _STATIC = "AIR", "GROUND", "STATIC"
 _CELL_M = 4000.0
 _SLACK_M = 1.0
 _MAX_ASSISTS = 32  # UnitDestroyed.assist_ids maxItems
-_LOW_BANDS = ("NOE", "LOW")  # the bands terrain masks (Q-FOW-3)
+_STRUCTURE = "STRUCTURE"
 
 
 def resolve(world: World, out: list[Event]) -> None:
@@ -94,6 +103,10 @@ def _d2(a: Entity, b: Entity) -> float:
 
 def _fire(world: World, rules: Rules, cr: CombatRules, now: int, out: list[Event]) -> None:
     levels: dict[Side, list[_Level]] = {}  # built on a side's first ready shooter
+    # nodes held at their idle floor (nothing to take); no hp changes while shots are fired
+    pinned = frozenset(
+        n for n, hp in world.defense_hp.items() if hp <= defense_floor(world, rules, n)
+    )
     for e in world.entities():
         if e.damage_state == _DISABLED or not e.ammo:
             continue
@@ -106,9 +119,12 @@ def _fire(world: World, rules: Rules, cr: CombatRules, now: int, out: list[Event
             levels[e.side] = _target_levels(world, rules, cr, e.side)
         loadout = cr.loadout(e.kind, e.variant)
         for i in ready:
-            pick = _pick(rules, loadout[i], e, levels[e.side])
+            w = loadout[i]
+            pick: tuple[Entity | str, float] | None = _pick(rules, w, e, levels[e.side])
+            if pick is None and _STRUCTURE in w.targets:
+                pick = _pick_node(world, rules, w, e, pinned)
             if pick is not None:
-                _shoot(world, rules, e, i, loadout[i], pick, now, out)
+                _shoot(world, rules, e, i, w, pick, now, out)
 
 
 type _Level = list[tuple[str, AltBand | None, UniformGrid]]  # one threat level, by class
@@ -165,21 +181,45 @@ def _pick(
     return None
 
 
+def _pick_node(
+    world: World, rules: Rules, w: WeaponRules, shooter: Entity, pinned: frozenset[str]
+) -> tuple[str, float] | None:
+    """The nearest enemy-owned node with defense HP in range, ties by node id (CB-10). Never the
+    Static's rear source (it cannot be captured and the Static has no defeat) nor a node held at
+    its idle floor (the coalition sanctuary at 1 hp while nobody plays)."""
+    best: tuple[float, str] | None = None
+    rear = rules.supply.rear["ENEMY"]  # the Static's rear source: no win effect (Q-SIM-64)
+    for node, hp in world.defense_hp.items():  # id order
+        if (
+            hp
+            and node not in pinned
+            and node != rear
+            and world.owner[node] not in (shooter.side, "NEUTRAL")
+        ):
+            x, y = rules.roads.pos[node]
+            d2 = (shooter.pos.x - x) ** 2 + (shooter.pos.y - y) ** 2
+            if d2 <= w.range_m**2 and (best is None or d2 < best[0]):
+                best = (d2, node)
+    return None if best is None else (best[1], best[0])
+
+
 def _shoot(
     world: World,
     rules: Rules,
     shooter: Entity,
     i: int,
     w: WeaponRules,
-    pick: tuple[Entity, float],
+    pick: tuple[Entity | str, float],
     now: int,
     out: list[Event],
 ) -> None:
     target, d2 = pick
+    node = target if isinstance(target, str) else None
+    target_id = None if isinstance(target, str) else target.id
     shooter.ammo[i] -= 1
     shooter.reload[i] = w.reload_ticks
     delay = 0 if w.speed_mps is None else math.ceil(math.sqrt(d2) / (w.speed_mps * rules.world_dt))
-    shot = Shot(world.next_shot_id(), shooter.id, target.id, w.id, now + delay)
+    shot = Shot(world.next_shot_id(), shooter.id, target_id, w.id, now + delay, node)
     insort(world.shots, shot, key=lambda s: (s.impact_tick, s.id))
     out.append(
         WeaponFired.model_construct(
@@ -188,7 +228,8 @@ def _shoot(
             event_seq=world.next_event_seq(),
             campaign_id=world.campaign.id,
             shooter_id=shooter.id,
-            target_id=target.id,
+            target_id=target_id,
+            target_node_id=node,
             weapon=w.id,
             impact_tick=shot.impact_tick,
         )
@@ -224,11 +265,17 @@ def _land(world: World, rules: Rules, cr: CombatRules, now: int, out: list[Event
     due = sum(s.impact_tick <= now for s in world.shots)  # the list is in impact order
     landing, world.shots = world.shots[:due], world.shots[due:]
     for shot in landing:
-        shooter, target = world.find(shot.shooter), world.find(shot.target)
+        shooter = world.find(shot.shooter)
+        target = None if shot.target is None else world.find(shot.target)
         w = cr.weapons[shot.weapon_id]
-        pk = (
-            None if shooter is None or target is None else _pk(world, rules, cr, shooter, target, w)
-        )
+        if shot.node is not None:
+            pk = None if shooter is None else _pk_node(world, rules, cr, shooter, shot.node, w)
+        else:
+            pk = (
+                None
+                if shooter is None or target is None
+                else _pk(world, rules, cr, shooter, target, w)
+            )
         hit = pk is not None and world.rng.stream(RngStream.COMBAT).random() < pk
         out.append(
             WeaponImpact.model_construct(
@@ -238,12 +285,31 @@ def _land(world: World, rules: Rules, cr: CombatRules, now: int, out: list[Event
                 campaign_id=world.campaign.id,
                 shooter_id=shot.shooter,
                 target_id=shot.target,
+                target_node_id=shot.node,
                 weapon=shot.weapon_id,
                 hit=hit,
             )
         )
-        if hit and shooter is not None and target is not None:
+        if hit and shot.node is not None:
+            damage_defense(world, rules, shot.node, w.damage, out)  # armor 0 (Q-CBT-22)
+        elif hit and shooter is not None and target is not None:
             _hit(world, rules, cr, shooter, target, w, out)
+
+
+def _pk_node(
+    world: World, rules: Rules, cr: CombatRules, shooter: Entity, node: str, w: WeaponRules
+) -> float | None:
+    """The hit probability on a node's defenses, or None for a fizzle (CB-3, CB-10): a structure
+    is always known (FOW-10), has evasion 1.0 and is never masked (Q-CBT-22)."""
+    x, y = rules.roads.pos[node]
+    d2 = (shooter.pos.x - x) ** 2 + (shooter.pos.y - y) ** 2
+    if (
+        world.defense_hp[node] <= defense_floor(world, rules, node)
+        or world.owner[node] in (shooter.side, "NEUTRAL")
+        or d2 > w.range_m**2
+    ):
+        return None
+    return min(cr.pk_cap, w.base_pk * cr.track_mult * _range_factor(cr, math.sqrt(d2), w.range_m))
 
 
 def _pk(
@@ -262,7 +328,7 @@ def _pk(
         or (domain == _AIR and target.alt_band not in w.bands)
     ):
         return None
-    masked = (domain == _AIR and target.alt_band in _LOW_BANDS) or (
+    masked = (domain == _AIR and target.alt_band in LOW_BANDS) or (
         domain == _GROUND and in_masking_region(rules, target.pos)
     )
     return min(
@@ -356,7 +422,10 @@ def validate(world: World, rules: Rules) -> None:
         _validate_entity(world, rules, cr, e)
     now = world.campaign.running_ticks
     for s in world.shots:
-        shooter, target = world.find(s.shooter), world.find(s.target)
+        shooter = world.find(s.shooter)
+        target = None if s.target is None else world.find(s.target)
+        if s.node is not None and s.node not in world.defense_hp:
+            raise ValueError(f"shot {s.id}: node {s.node} has no defenses")
         if s.weapon_id not in cr.weapons or s.impact_tick <= now:
             raise ValueError(f"shot {s.id}: unknown weapon {s.weapon_id!r} or already due")
         if shooter is not None and cr.weapons[s.weapon_id] not in cr.loadout(
@@ -391,6 +460,9 @@ def _validate_entity(world: World, rules: Rules, cr: CombatRules, e: Entity) -> 
         if e.damage_state == _DISABLED and e.state not in (None, "LANDED")
         else "hits on a facility, or from the future"
         if e.hits and (facility or e.hits[-1][1] > world.campaign.running_ticks)
+        else "last_node or a path waypoint is not a theater node"
+        if (e.last_node is not None and e.last_node not in rules.node_kind)
+        or any(isinstance(p, str) and p not in rules.node_kind for p in e.path)
         else stop_problem(world, rules, cr, e)
     )  # fmt: skip
     if problem:

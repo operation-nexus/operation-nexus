@@ -48,7 +48,11 @@ def cid(n: int) -> str:
 
 
 def new_world() -> World:
-    return start_campaign(CAMPAIGN_ID, 12345, CONFIG)
+    """A strait-1 campaign with every node's defenses down: these tests are about the capture bar;
+    the defense HP gate is tested in `test_defense.py`."""
+    w = start_campaign(CAMPAIGN_ID, 12345, CONFIG)
+    w.defense_hp = dict.fromkeys(w.defense_hp, 0)
+    return w
 
 
 def put(
@@ -498,6 +502,7 @@ def test_a_landed_aircraft_with_fuel_takes_off_rtb_to_the_nearest_base_it_still_
     about_to_flip(w, "west-airbase", "ENEMY")
     jet = put(w, "STRIKE_FIGHTER", "COALITION", "west-airbase", state="LANDED")
     put(w, ARMOR, "ENEMY", "west-airbase")
+    put(w, INFANTRY, "COALITION", "haven", n=9)  # someone plays: no idle floor on west-airbase
     assert of(run(w), UnitDestroyed) == []
     assert (jet.state, jet.path) == ("RTB", ["haven"])
     assert w.landing_bases("COALITION") == ("haven",)
@@ -509,6 +514,7 @@ def test_an_aircraft_that_cannot_reach_a_base_is_lost() -> None:
     short = put(w, "STRIKE_FIGHTER", "COALITION", "west-airbase", n=2, state="LANDED")
     short.fuel = 1.0  # haven is 70 km away: 280 s at 250 m/s
     put(w, ARMOR, "ENEMY", "west-airbase")
+    put(w, INFANTRY, "COALITION", "haven", n=9)  # someone plays: no idle floor
     (destroyed,) = of(run(w), UnitDestroyed)
     assert destroyed.entity_id == short.id and cid(2) in w.respawn_left
     w2 = new_world()
@@ -516,6 +522,7 @@ def test_an_aircraft_that_cannot_reach_a_base_is_lost() -> None:
     w2.owner["haven"] = "ENEMY"  # not reachable by rule in play; no base left
     stuck = put(w2, "STRIKE_FIGHTER", "COALITION", "west-airbase", state="LANDED")
     put(w2, ARMOR, "ENEMY", "west-airbase")
+    put(w2, INFANTRY, "COALITION", "haven", n=9)  # someone plays: no idle floor
     assert [e.entity_id for e in of(run(w2), UnitDestroyed)] == [stuck.id]
 
 
@@ -536,6 +543,7 @@ def test_an_airborne_aircraft_over_the_node_is_not_at_the_base() -> None:
     w = new_world()
     about_to_flip(w, "west-airbase", "ENEMY")
     jet = put(w, "STRIKE_FIGHTER", "COALITION", "west-airbase", state="ON_STATION")
+    put(w, INFANTRY, "COALITION", "haven", n=9)  # someone plays: no idle floor
     jet.orbit = jet.pos
     put(w, ARMOR, "ENEMY", "west-airbase")
     assert of(run(w), UnitDestroyed) == [] and jet.state != "RTB"
@@ -628,7 +636,9 @@ def test_a_flip_moves_the_facilitys_contact_and_marker_between_sides() -> None:
 def side_marker(site: Entity) -> Any:
     from nexus.core.world import FacilityMarker
 
-    return FacilityMarker(site.kind, site.variant, site.pos, site.emitting, 0)
+    return FacilityMarker(
+        site.kind, site.variant, site.pos, site.emitting, 0, None, site.damage_state
+    )
 
 
 # --- properties, snapshot, determinism ---------------------------------------------------------

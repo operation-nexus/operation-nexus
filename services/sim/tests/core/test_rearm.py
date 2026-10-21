@@ -681,6 +681,8 @@ def restorable(w: World) -> None:
 
 def test_a_bar_appearing_over_a_repairing_facility_leaves_a_restorable_state() -> None:
     w = new_world()
+    w.defense_hp[WEST] = 0  # the bar below can only start on a node whose defenses are down
+    ground(w, "GARRISON_INFANTRY", "haven").owner_kind = "COMMANDER"  # no idle floor on WEST
     site = facility(w, WEST, "AIR_DEFENSE_SITE")
     site.hp, site.damage_state = 14, "DISABLED"
     for _ in range(100):

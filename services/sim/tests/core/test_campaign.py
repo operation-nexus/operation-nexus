@@ -58,7 +58,9 @@ def new_world(*, objectives: bool = False, seed: int = 12345, **limits: Any) -> 
     """strait-1 at tick 0; `limits` shrink the campaign rules (`time_limit_ticks`, ...)."""
     rc = dataclasses.replace(RC, objectives_on=objectives, **limits)
     rules = dataclasses.replace(RULES, campaign=rc)
-    return start_campaign(CAMPAIGN_ID, seed, dataclasses.replace(CONFIG, rules=rules))
+    w = start_campaign(CAMPAIGN_ID, seed, dataclasses.replace(CONFIG, rules=rules))
+    w.defense_hp = dict.fromkeys(w.defense_hp, 0)  # these tests are not about defense HP
+    return w
 
 
 def header(w: World, kind: str, source: str) -> dict[str, Any]:
@@ -669,7 +671,7 @@ def test_format_12_snapshots_are_refused() -> None:
     raw["v"] = 12
     with pytest.raises(ValueError, match="unsupported snapshot format version 12"):
         load(msgpack.packb(raw, use_bin_type=True))
-    assert world_mod.FORMAT_VERSION == 15
+    assert world_mod.FORMAT_VERSION == 16
 
 
 @pytest.mark.parametrize(

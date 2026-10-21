@@ -158,6 +158,7 @@ def toy_world() -> World:
         roads=roads,
         sanctuary="s0",
         supply=supply,
+        defense=None,  # the toy graph is not the theater's
         landing_nodes=("a", "b", "s0"),
         role_kind={**RULES.role_kind, "RECON": "GARRISON_INFANTRY"},
     )

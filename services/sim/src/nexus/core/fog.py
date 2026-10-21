@@ -11,10 +11,9 @@ longer tracked is dropped, as facilities never leave last-known tracks (FOW-13).
 contact makes it a tracked contact again. Nothing runs while paused (FOW-9). Between passes
 everything reads the last computed view (Q-FOW-6). Both sides use the same code (FOW-4).
 
-Terrain masking (Q-FOW-3): a GROUND target in a cell of `Rules.masking` is tracked only by a sensor
-standing in one of that cell's regions. Aircraft join when sensors use the altitude band
-(`Entity.alt_band` exists since NX-124; combat's masking factor already uses it); STATIC targets
-are never masked (COMBAT §5.3).
+Terrain masking (Q-FOW-3): a GROUND target, or an aircraft at the NOE or LOW altitude band
+(`Entity.alt_band`, NX-124 part 3), in a cell of `Rules.masking` is tracked only by a sensor
+standing in one of that cell's regions; STATIC targets are never masked (COMBAT §5.3).
 
 Emitters and discovery (FOW-11, FOW-13): `Entity.emitting` is None for a kind that never emits,
 True while emitting, False while dark; a dark site senses nothing, and neither does a Disabled
@@ -22,7 +21,8 @@ facility (it neither senses, emits nor listens until repaired, GAMEPLAY §5b; it
 and discovered like any site). On each pass a side observes
 an enemy facility it tracks, or an emitting one within `sensor.passive_range_m` of one of its
 passive sensors; observing it writes its permanent `FacilityMarker` with the site's kind, variant,
-position and emitting flag as of this tick. An unobserved site's marker keeps its old values.
+position, emitting flag, engagement ring (`ring_m`: its longest AIR weapon range for its variant,
+m, or None) and damage state as of this tick. An unobserved site's marker keeps its old values.
 
 Painting (Q-FOW-6): on each pass, a contact is `painted` when a recon unit of the side
 (`Rules.painters`) tracks it with its own sensor within `fow.paint_range_m`. A last-known track is
@@ -58,7 +58,8 @@ from nexus.core.world import _ZERO, Blob, BlobSize, Contact, Entity, FacilityMar
 
 _STATIC = "STATIC"
 _STATES: tuple[DamageState, ...] = ("HEALTHY", "DAMAGED")  # a radius is the same at worse states
-_GROUND = "GROUND"
+_GROUND, _AIR = "GROUND", "AIR"
+LOW_BANDS = ("NOE", "LOW")  # the altitude bands terrain masks (Q-FOW-3, COMBAT §5.2)
 _NOWHERE: frozenset[str] = frozenset()
 _ENEMY_OF: Mapping[Side, Side] = {"COALITION": "ENEMY", "ENEMY": "COALITION"}
 _RADAR: UnitKind = "RADAR_SITE"
@@ -195,8 +196,10 @@ def is_off_facility(rules: Rules, e: Entity) -> bool:
 
 
 def _masked(rules: Rules, target: Entity, sensor_regions: frozenset[str]) -> bool:
-    """A GROUND target in a masking region, seen by a sensor in none of its regions."""
-    if rules.domain[target.kind] != _GROUND:
+    """A GROUND target, or an aircraft at a low band, in a masking region, seen by a sensor in none
+    of its regions."""
+    domain = rules.domain[target.kind]
+    if domain != _GROUND and not (domain == _AIR and target.alt_band in LOW_BANDS):
         return False
     regions = _regions(rules, target.pos)
     return bool(regions) and regions.isdisjoint(sensor_regions)
@@ -237,8 +240,22 @@ def _discover(world: World, rules: Rules, side: Side, tracked: list[int]) -> Non
     markers, tick = world.markers[side], world.campaign.tick + 1  # the tick being computed
     for i in seen:
         e = world.get(i)
-        markers[i] = FacilityMarker(e.kind, e.variant, e.pos, _emitting(rules, e), tick)
+        markers[i] = _marker(rules, e, tick)
     world.markers[side] = dict(sorted(markers.items()))
+
+
+def _ring_m(rules: Rules, e: Entity) -> int | None:
+    """A facility's engagement ring: its longest AIR weapon range for its variant, or None."""
+    if rules.combat is None:
+        return None
+    ranges = [w.range_m for w in rules.combat.loadout(e.kind, e.variant) if _AIR in w.targets]
+    return round(max(ranges)) if ranges else None
+
+
+def _marker(rules: Rules, e: Entity, tick: int) -> FacilityMarker:
+    return FacilityMarker(
+        e.kind, e.variant, e.pos, _emitting(rules, e), tick, _ring_m(rules, e), e.damage_state
+    )
 
 
 def _emitting(rules: Rules, e: Entity) -> bool | None:
@@ -254,10 +271,15 @@ def hand_over(world: World, facility: Entity, loser: Side) -> None:
     world.markers[facility.side].pop(facility.id, None)
     world.contacts[loser].pop(facility.id, None)
     markers = world.markers[loser]
-    emitting = facility.emitting if world.rules is None else _emitting(world.rules, facility)
-    markers[facility.id] = FacilityMarker(
-        facility.kind, facility.variant, facility.pos, emitting, world.campaign.tick + 1
-    )
+    tick = world.campaign.tick + 1
+    markers[facility.id] = (
+        FacilityMarker(
+            facility.kind, facility.variant, facility.pos, facility.emitting, tick, None,
+            facility.damage_state,
+        )
+        if world.rules is None
+        else _marker(world.rules, facility, tick)
+    )  # fmt: skip
     world.markers[loser] = dict(sorted(markers.items()))
 
 

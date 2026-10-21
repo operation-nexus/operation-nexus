@@ -60,7 +60,8 @@
         "objective_period_min",
         "objective_mode",
         "score",
-        "momentum"
+        "momentum",
+        "defeat"
       ],
       "properties": {
         "time_limit_h": {
@@ -160,6 +161,23 @@
               "x-hot-reload": false
             }
           }
+        },
+        "defeat": {
+          "description": "The coalition's defeat (Q-TH-7, GAMEPLAY §9, NX-124 part 3).",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "hold_min"
+          ],
+          "properties": {
+            "hold_min": {
+              "description": "Game minutes the coalition sanctuary's defense HP must stay at 0 before the campaign is lost, unit min of game time (Q-TH-7).",
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "x-unit": "min (game)",
+              "x-hot-reload": false
+            }
+          }
         }
       }
     },
@@ -203,7 +221,9 @@
         "logi_weight",
         "garrison_mult",
         "empty_base_mult",
-        "decay_per_s"
+        "decay_per_s",
+        "defense_hp",
+        "sanctuary_repair_hp_per_s"
       ],
       "properties": {
         "radius_m": {
@@ -275,6 +295,32 @@
           "type": "number",
           "exclusiveMinimum": 0,
           "x-unit": "bar fraction/s (world)",
+          "x-hot-reload": false
+        },
+        "defense_hp": {
+          "description": "The most defense HP a node of each kind has (Q-SIM-71, GAMEPLAY §8): an owned node starts full, a NEUTRAL one at 0, and a node that changes hands starts at 0 for its new owner. A BRIDGE has none here (NX-373).",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "AIRBASE",
+            "FOB",
+            "HQ",
+            "PORT",
+            "SANCTUARY"
+          ],
+          "properties": {
+            "AIRBASE": {"type": "integer", "minimum": 1, "x-unit": "hp", "x-hot-reload": false},
+            "FOB": {"type": "integer", "minimum": 1, "x-unit": "hp", "x-hot-reload": false},
+            "HQ": {"type": "integer", "minimum": 1, "x-unit": "hp", "x-hot-reload": false},
+            "PORT": {"type": "integer", "minimum": 1, "x-unit": "hp", "x-hot-reload": false},
+            "SANCTUARY": {"type": "integer", "minimum": 1, "x-unit": "hp", "x-hot-reload": false}
+          }
+        },
+        "sanctuary_repair_hp_per_s": {
+          "description": "Defense HP per world second that each friendly logistics unit parked at its side's SANCTUARY (no path, not Disabled) rebuilds there, from the sanctuary's infinite supply with no stock debit, unit hp per s of world time per unit (GAMEPLAY §9, Q-SIM-71). Counted in thousandths of an hp per tick, rounded.",
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "x-unit": "hp/s (world) per unit",
           "x-hot-reload": false
         }
       }
@@ -610,7 +656,9 @@
         "loadout_cost",
         "repair_rate",
         "facility_repair_hp_per_stock",
-        "facility_rearm_cost"
+        "facility_rearm_cost",
+        "starve_hp_drain_per_min",
+        "defense_repair_hp_per_stock"
       ],
       "properties": {
         "node_max_stock": {
@@ -844,6 +892,20 @@
           "type": "integer",
           "minimum": 1,
           "x-unit": "stock units",
+          "x-hot-reload": false
+        },
+        "starve_hp_drain_per_min": {
+          "description": "Defense HP a base below its starvation floor loses per game minute, unit hp per min of game time (GAMEPLAY §8, Q-SIM-71); 0 turns the drain off. Whole hp, carried across ticks.",
+          "type": "integer",
+          "minimum": 0,
+          "x-unit": "hp per min (game)",
+          "x-hot-reload": false
+        },
+        "defense_repair_hp_per_stock": {
+          "description": "Defense HP one stock unit unloaded into a node rebuilds, unit hp per stock unit (GAMEPLAY §8, Q-SIM-71), up to the node's defense_hp.",
+          "type": "integer",
+          "minimum": 1,
+          "x-unit": "hp per stock unit",
           "x-hot-reload": false
         }
       }

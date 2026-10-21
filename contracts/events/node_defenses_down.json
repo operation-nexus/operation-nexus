@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nexus.local/contracts/events/node_defenses_down.json",
+  "title": "NodeDefensesDown",
+  "description": "A node's defense HP reached 0, from fire or starvation (CONTRACTS 6; GAMEPLAY 8, COMBAT CB-10; NX-124 part 3): capture of the node can now start. Not emitted for a node that begins at 0 (a NEUTRAL one or one that just changed hands). Individual hits are WeaponImpact; the HUD reads the hp from NodeView.hp_pct.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "tick", "event_seq", "campaign_id", "node_id", "owner"],
+  "properties": {
+    "kind": {"const": "NodeDefensesDown"},
+    "tick": {"$ref": "../common/ids.json#/$defs/Tick"},
+    "event_seq": {"type": "integer", "minimum": 1, "description": "Campaign-wide, monotonic, deterministic (SC-14)."},
+    "campaign_id": {"$ref": "../common/ids.json#/$defs/CampaignId"},
+    "node_id": {"$ref": "../common/ids.json#/$defs/NodeId"},
+    "owner": {"$ref": "../common/enums.json#/$defs/NodeOwner", "description": "The node's owner at the time."}
+  }
+}

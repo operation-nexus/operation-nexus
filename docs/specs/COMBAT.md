@@ -45,7 +45,11 @@ How units find targets, fire, hit, take damage and leave the fight. Combat is de
 - **CB-9.** The floor is the highest hp still Disabled (`ceil(disabled_below x hp) - 1`, at least 1).
 - **CB-5a.** `Entity.hits` holds `[shooter, running tick]` per hit, pruned to the window on each new hit; a hit exactly `assist_window_ticks` before the kill still counts. Facilities keep none.
 - **Restore.** `restore` checks a snapshot's combat state against the campaign rules (`nexus.core.combat.validate`): hp within the kind's maximum, `damage_state` and `alt_band` consistent, ammo and reload lists fitting the loadout (variant included), wreck timers only on Disabled non-facilities, and pending shots naming known weapons their shooter carries; `load` stays rules-free.
-- **Not yet:** the crew roll and ammo restock (part 2), STRUCTURE targets and node defense HP (part 3).
+
+**In code now (NX-124 part 3, `nexus.core.combat`, `nexus.core.defense`; Q-SIM-71):**
+- **CB-10.** A weapon whose `targets` include STRUCTURE (AG_LIGHT, AG_CANNON) fires at a node's defense HP only when it has no valid unit target in range: units always come first, CB-1's ranking is unchanged and structures are the last resort (owner). Candidates are the nodes the enemy owns whose defense HP is above 0 and whose position is within `range_m`, except the Static's rear source (`static-rear`: uncapturable, no win effect) and a node held at its idle floor; the nearest wins, ties by node id. Nodes are always known to both sides (FOG-OF-WAR FOW-10), so no track is needed. The shot is a `Shot` with `node` set and no target entity; `WeaponFired` and `WeaponImpact` carry `target_node_id` and a null `target_id`. A shot fizzles with no draw when its shooter is gone, the node changed hands, its HP is already 0 or it is out of range. Otherwise `Pk = min(pk_cap, base_pk x track x range)`: a structure has evasion 1.0 and no masking, and armor 0, so a hit takes the weapon's full `damage` from the node's defense HP (Q-CBT-22), never below 0 (and never below 1 at the coalition sanctuary while nobody plays, the idle floor). Same reload, round and RNG-draw rules as a unit shot. Bridges are NX-373.
+- **Defense HP** per node, the capture gate, rebuild, starvation drain, defeat and the idle floor: GAMEPLAY §8 and §9; the events are `NodeDefensesDown` and `NodeDefensesRestored` (CONTRACTS §6).
+- **Not yet:** bridge HP (NX-373).
 
 ## 4. Interfaces
 - **Events:** `WeaponFired`, `WeaponImpact{hit}` (CONTRACTS §4); `UnitDamageStateChanged`, `MunitionsDepleted`, `CrewDowned`, `UnitRepaired` (CONTRACTS pending additions); `UnitDestroyed{killer?, assists[]}`; `UnitDespawned{reason: WRECKED}` (new reason, CB-7).
@@ -119,7 +123,7 @@ Disabled → wreck → removed after `combat.disabled_timeout_s` (600 s game tim
 | CB-5, CB-6 | Unit: damage formula, minimum 1; state thresholds |
 | CB-7 | Unit: wreck removed at the timeout with `WRECKED`; no field repair transition exists |
 | CB-9 | Property: facility hp never below the Disabled floor |
-| CB-10 | Unit: only `STRUCTURE` weapons damage node defense HP |
+| CB-10 | Unit: only `STRUCTURE` weapons damage node defense HP, and only when no unit is in range (`tests/core/test_defense.py`) |
 | CB-12 | Same scenario mirrored across sides gives mirrored outcomes |
 | all | Determinism: same seed and commands → same events and hash (SIM-CORE) |
 

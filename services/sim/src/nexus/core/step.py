@@ -12,6 +12,7 @@ from nexus.contracts.gen.events.event import Event
 from nexus.core.campaign import campaign
 from nexus.core.capture import capture
 from nexus.core.combat import resolve as resolve_combat
+from nexus.core.defense import drain
 from nexus.core.fog import sense
 from nexus.core.handlers import HANDLERS as HANDLERS
 from nexus.core.handlers import Handler as Handler
@@ -269,9 +270,11 @@ def combat(world: World, c: Sequence[Command], h: Mapping[str, Handler], out: li
 def logistics_capture(
     world: World, c: Sequence[Command], h: Mapping[str, Handler], out: list[Event]
 ) -> None:
-    """Logistics (`nexus.core.logistics`, NX-123): trucks unload or drive on, then capture
+    """Logistics (`nexus.core.logistics`, NX-123): trucks unload or drive on (a delivery rebuilds
+    defense hp), the starvation drain (`nexus.core.defense`, NX-124 part 3), then capture
     (`nexus.core.capture`, NX-125), so a flip lands after this tick's deliveries (SC-13)."""
     logistics(world, out)
+    drain(world, out)
     capture(world, out)
 
 

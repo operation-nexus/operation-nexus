@@ -15,9 +15,11 @@ are world state, so snapshots and the hash cover them. So are each entity's `hp`
 `alt_band`, per-weapon `ammo` and `reload` countdowns, wreck countdown and recent-hit list, and
 the pending `shots` with their id counter (NX-124): thresholds, reloads and impact ticks are
 integers. So are the downed-crew markers with their id counter, and the rest of each rearm stop's
-progress (`ammo_credit`, `repair_milli`, `repair_debt`; NX-124 part 2). So are each
-node's `stock` and each carrier's `cargo` (integer stock units) with its `unload_milli` progress and
-`delivered` count (NX-123), and each aircraft's refuel progress (`rearm_milli`, `rearm_spent`,
+progress (`ammo_credit`, `repair_milli`, `repair_debt`; NX-124 part 2). So are each node's
+defense hp with its starvation-drain carry, the defeat run and the shots at nodes (NX-124 part 3).
+So are each node's `stock` and each carrier's `cargo` (integer stock units) with its
+`unload_milli` progress and `delivered` count (NX-123), and each aircraft's refuel progress
+(`rearm_milli`, `rearm_spent`,
 `stalled`): conservation stays exact. So are each node's live owner and its capture bar (side and
 integer millionths of a percent, NX-125): thresholds are exact. So are the campaign's running
 ticks, hold run, per-side held-node tick sums, objective counts and the active objective (NX-126).
@@ -48,6 +50,7 @@ from nexus.contracts.gen.common.enums import (
 from nexus.contracts.gen.events.crew_downed import CrewDowned, Pos
 from nexus.contracts.gen.events.event import Event
 from nexus.contracts.gen.events.supply_consumed import SupplyConsumed
+from nexus.contracts.gen.events.supply_delivered import SupplyDelivered
 from nexus.contracts.gen.events.unit_damage_state_changed import UnitDamageStateChanged
 from nexus.contracts.gen.events.unit_destroyed import UnitDestroyed
 from nexus.core.rng import RngStream, SimRng
@@ -61,8 +64,9 @@ from nexus.core.rules import CAPTURE_FULL, Rules
 # (NX-125); 13: the campaign clock, pause reason, end flag, score sums and the active objective
 # (NX-126); 14: Entity.hp is always real, damage_state, alt_band, ammo, reload, wreck_left, and the
 # pending shots (NX-124); 15: Entity.ammo_credit, repair_milli and repair_debt, the downed-crew
-# markers (NX-124 part 2)
-FORMAT_VERSION = 15
+# markers (NX-124 part 2); 16: node defense hp and drain carry, Campaign.defeat_ticks, structure
+# shots, FacilityMarker.ring_m and state (NX-124 part 3)
+FORMAT_VERSION = 16
 _MM = 1000.0  # metres -> millimetres; m/s -> mm/s
 _MICRO = 1e6  # ADR-0002's 1e-6 step for other floats (fuel)
 _MILLI_UNIT = 1000  # thousandths of a stock unit per unit
@@ -72,6 +76,9 @@ _CAPTURE = "capture"
 _CAMPAIGN = "campaign"
 _CONTACTS = "contacts"
 _CREW_MARKERS = "crew_markers"
+_DEFENSE_HP = "defense_hp"
+_DEFENSE_DOWN = "defense_down"
+_DEFENSE_DRAIN = "defense_drain"
 _MARKERS = "markers"
 _OBJECTIVE = "objective"
 _ENTITIES = "entities"
@@ -95,6 +102,9 @@ _WORLD_KEYS = (
     _CAPTURE,
     _CONTACTS,
     _CREW_MARKERS,
+    _DEFENSE_DOWN,
+    _DEFENSE_DRAIN,
+    _DEFENSE_HP,
     _ENTITIES,
     _MARKERS,
     _NEXT_ENTITY_ID,
@@ -193,6 +203,9 @@ class Entity:
     cargo: int | None = None
     unload_milli: int = 0
     delivered: int = 0  # units unloaded in this stop; SupplyDelivered reports it when it ends
+    # Of `delivered`, the units spent on the node's defenses because its stock was full (Q-SIM-71);
+    # the stop's end reports them as `SupplyConsumed{REPAIR}`.
+    defended: int = 0
     # Aircraft refuelling at a base (NX-123 part 2): `rearm_milli` the thousandths of a stock unit
     # bought toward the next whole one, 0 to 999; `rearm_spent` the whole units debited in this
     # stop (SupplyConsumed reports it when it ends); `stalled` that RearmStalled was emitted.
@@ -229,9 +242,10 @@ class Shot:
 
     id: int
     shooter: int
-    target: int
+    target: int | None  # an entity id; None for a shot at `node`'s defenses (CB-10)
     weapon_id: str
     impact_tick: int
+    node: str | None = None
 
 
 @dataclass(slots=True)
@@ -264,14 +278,16 @@ class Contact:
 @dataclass(slots=True)
 class FacilityMarker:
     """An enemy facility a side has discovered (FOW-13): permanent; its details are as of
-    `confirmed_tick`, the last pass that observed the site. `ring_m` and the damage `state` join
-    with weapon ranges and hp (combat, NX-124)."""
+    `confirmed_tick`, the last pass that observed the site. `ring_m` is the site's longest AIR
+    weapon range, m, or None; `state` its damage state then (NX-124 part 3)."""
 
     kind: UnitKind
     variant: str | None
     pos: Vec2
     emitting: bool | None
     confirmed_tick: int
+    ring_m: int | None
+    state: DamageState
 
 
 @dataclass(frozen=True, slots=True)
@@ -315,6 +331,7 @@ class Campaign:
     held_ticks_enemy: int = 0
     objectives_issued: int = 0
     objectives_done: int = 0
+    defeat_ticks: int = 0  # the run of running ticks the coalition sanctuary's defense hp is 0
 
 
 @dataclass(slots=True)
@@ -352,6 +369,9 @@ class World:
         "capture",
         "contacts",
         "crew_markers",
+        "defense_down",
+        "defense_drain",
+        "defense_hp",
         "markers",
         "objective",
         "owner",
@@ -400,6 +420,18 @@ class World:
         self.owner: dict[str, NodeOwner] = dict(rules.supply.start_owner) if rules else {}
         # Node id -> its capture bar, only for nodes with progress, in id order.
         self.capture: dict[str, CaptureBar] = {}
+        # Node id -> defense hp, and the starvation drain's carry (hp x ticks, below one game minute
+        # of ticks), for the nodes with defenses, in id order (NX-124 part 3, Q-SIM-71): an owned
+        # node starts full, a NEUTRAL one at 0.
+        defense = rules.defense if rules else None
+        self.defense_hp: dict[str, int] = (
+            {n: 0 if self.owner[n] == "NEUTRAL" else m for n, m in defense.max_hp.items()}
+            if defense else {}
+        )  # fmt: skip
+        self.defense_drain: dict[str, int] = dict.fromkeys(self.defense_hp, 0)
+        # Nodes whose defense hp reached 0 and has not been rebuilt to full since: they announced
+        # `NodeDefensesDown` and will announce `NodeDefensesRestored` once (no per-hit spam).
+        self.defense_down: set[str] = set()
         self.objective: Objective | None = None  # NX-126; at most one (O-1)
         # Pending shots in `(impact_tick, id)` order (CB-2); only the `combat` system changes it.
         self.shots: list[Shot] = []
@@ -477,6 +509,8 @@ class World:
 
     def viewer_units(self) -> int:
         """Live COMMANDER-owned units; AUTO units are COMMANDER-owned too, so they count (Q-ALN-9).
+        The idle-floor checks (capture, defense, campaign) read "nobody plays" from this: once the
+        AUTO state exists they need a predicate that leaves AUTO units out (Q-ALN-8/9, Q-SIM-72).
         shortcut: a scan of every entity; keep a count if the SC-10 benchmark shows it in budget."""
         return sum(e.owner_kind == "COMMANDER" for e in self._entities.values())
 
@@ -511,6 +545,8 @@ def lose_unit(
     emitted. `killer_id` is the shooter of a killing hit; None for fuel exhaustion or a captured
     base. `assist_ids`: the other shooters that hit it recently (sorted, at most 32). A unit that
     was never Disabled rolls its crew now (CB-8); a wreck rolled when it became Disabled."""
+    if e.delivered and e.last_node is not None:
+        end_stop(world, e, e.last_node, out)  # an open unloading stop reports its units first
     end_rearm(world, e, out)  # a unit lost mid-stop still reports what its stop cost
     world.remove(e.id)
     if e.commander_id is not None:
@@ -543,6 +579,28 @@ def consumed(
         amount=amount,
         cause=cause,
     )
+
+
+def end_stop(world: World, e: Entity, node: str, out: list[Event]) -> None:
+    """Report the stop's delivery (none for 0 units) and reset its count; unload_milli carries.
+    Units that went straight into the node's defenses (its stock was full) are also reported as
+    one `SupplyConsumed{REPAIR}`, so stock + cargo + consumed stays exact."""
+    if e.delivered:
+        out.append(
+            SupplyDelivered.model_construct(
+                kind="SupplyDelivered",
+                tick=world.campaign.tick + 1,
+                event_seq=world.next_event_seq(),
+                campaign_id=world.campaign.id,
+                node_id=node,
+                amount=e.delivered,
+                carrier_id=e.id,
+                commander_id=e.commander_id,
+            )
+        )
+    if e.defended:
+        out.append(consumed(world, node, e.defended, "REPAIR"))
+    e.delivered = e.defended = 0
 
 
 def end_rearm(world: World, e: Entity, out: list[Event]) -> None:
@@ -641,7 +699,8 @@ def _markers_data(world: World, quantize: bool) -> dict[str, Any]:
     return {
         side: [
             {"confirmed_tick": m.confirmed_tick, "emitting": m.emitting, "id": i, "kind": m.kind,
-             "pos": _xy(m.pos, quantize), "variant": m.variant}
+             "pos": _xy(m.pos, quantize), "ring_m": m.ring_m, "state": m.state,
+             "variant": m.variant}
             for i, m in sorted(world.markers[side].items())
         ]
         for side in SIDES
@@ -683,6 +742,9 @@ def to_canonical(world: World, *, quantize: bool) -> dict[str, Any]:
         _CAPTURE: _capture_data(world),
         _CONTACTS: _contacts_data(world, quantize),
         _CREW_MARKERS: _crew_markers_data(world, quantize),
+        _DEFENSE_DOWN: sorted(world.defense_down),
+        _DEFENSE_DRAIN: dict(sorted(world.defense_drain.items())),
+        _DEFENSE_HP: dict(sorted(world.defense_hp.items())),
         _ENTITIES: [_entity_data(e, quantize) for e in world.entities()],
         _MARKERS: _markers_data(world, quantize),
         _OBJECTIVE: None if world.objective is None else asdict(world.objective),
@@ -787,6 +849,16 @@ def _stock(value: object) -> dict[str, int]:
     return {_str(k, "node id"): _int(v, _STOCK) for k, v in value.items()}
 
 
+def _defense(value: object, what: str, owner: dict[str, NodeOwner]) -> dict[str, int]:
+    """Whole numbers on nodes that exist; the upper bounds need the rules (`defense.validate`)."""
+    if not isinstance(value, dict):
+        raise ValueError(f"{what} must be a map")
+    out = {_str(k, "node id"): _int(v, what) for k, v in value.items()}
+    if not set(out) <= set(owner):
+        raise ValueError(f"{what}: a node that does not exist")
+    return out
+
+
 def _owner(value: object) -> dict[str, NodeOwner]:
     if not isinstance(value, dict):
         raise ValueError(f"{_OWNER} must be a map")
@@ -835,6 +907,7 @@ _ENTITY_CHECKS: dict[str, Callable[[object, str], Any]] = {
     "cargo": lambda v, k: None if v is None else _int(v, k),
     "unload_milli": _milli,
     "delivered": lambda v, k: _int(v, k),
+    "defended": lambda v, k: _int(v, k),
     "rearm_milli": _milli,
     "rearm_spent": lambda v, k: _int(v, k),
     "stalled": _bool,
@@ -865,6 +938,7 @@ _CAMPAIGN_CHECKS: dict[str, Callable[[object, str], Any]] = {
     "held_ticks_enemy": _int,
     "objectives_issued": _int,
     "objectives_done": _int,
+    "defeat_ticks": _int,
 }
 
 
@@ -898,7 +972,7 @@ def _reserve_queue(value: object) -> list[JoinCommand]:
 _CONTACT_KEYS = ("age", "id", "kind", "painted", "pos", "vel")
 
 
-_MARKER_KEYS = ("confirmed_tick", "emitting", "id", "kind", "pos", "variant")
+_MARKER_KEYS = ("confirmed_tick", "emitting", "id", "kind", "pos", "ring_m", "state", "variant")
 
 
 def _per_side[T](
@@ -964,6 +1038,8 @@ def _marker(d: dict[str, Any]) -> FacilityMarker:
         _vec(d["pos"], "pos"),
         None if d["emitting"] is None else _bool(d["emitting"], "marker emitting"),
         _int(d["confirmed_tick"], "marker confirmed_tick"),
+        None if d["ring_m"] is None else _int(d["ring_m"], "marker ring_m", 1),
+        _str(d["state"], "marker state", _DAMAGE_STATES),
     )
 
 
@@ -976,6 +1052,8 @@ def _load_entity(value: object) -> Entity:
         raise ValueError(f"entity {e.id}: inconsistent state, fuel and orbit")
     if e.cargo is None and (e.unload_milli or e.delivered):
         raise ValueError(f"entity {e.id}: unload progress without cargo")
+    if e.defended > e.delivered:
+        raise ValueError(f"entity {e.id}: more units spent on defenses than delivered")
     if len(e.ammo) != len(e.reload) or (e.wreck_left is not None and e.damage_state != "DISABLED"):
         raise ValueError(f"entity {e.id}: inconsistent ammo, reload or wreck timer")
     return e
@@ -1011,7 +1089,7 @@ def _load_campaign(value: object) -> Campaign:
         (c.pause_reason is None) == c.clock_paused
         or (c.pause_sub_reason is not None and c.pause_reason != "STAFF")
         or c.running_ticks > c.tick
-        or c.hold_ticks > c.running_ticks
+        or max(c.hold_ticks, c.defeat_ticks) > c.running_ticks
         or c.objectives_done > c.objectives_issued
     ):
         raise ValueError("campaign: inconsistent clock, pause reason or objective counts")
@@ -1033,17 +1111,22 @@ def _shots(value: object, next_shot_id: int, next_entity_id: int) -> list[Shot]:
             Shot(
                 _int(d["id"], "shot id", 1),
                 _int(d["shooter"], "shot shooter", 1),
-                _int(d["target"], "shot target", 1),
+                None if d["target"] is None else _int(d["target"], "shot target", 1),
                 _str(d["weapon_id"], "shot weapon"),
                 _int(d["impact_tick"], "shot impact_tick", 1),
+                _str(d["node"], "shot node", optional=True),
             )
         )
+        if (shots[-1].target is None) == (shots[-1].node is None):
+            raise ValueError(f"{_SHOTS}: a shot has an entity or a node target, not both or none")
     order = [(s.impact_tick, s.id) for s in shots]
     ids = [s.id for s in shots]
     if (
         order != sorted(order)
         or len(set(ids)) != len(ids)
-        or any(s.id >= next_shot_id or max(s.shooter, s.target) >= next_entity_id for s in shots)
+        or any(
+            s.id >= next_shot_id or max(s.shooter, s.target or 0) >= next_entity_id for s in shots
+        )
     ):
         raise ValueError(f"{_SHOTS}: not in (impact_tick, id) order, or an id out of range")
     return shots
@@ -1094,6 +1177,16 @@ def load(data: bytes) -> World:
     world.stock = _stock(d[_STOCK])
     world.owner = _owner(d[_OWNER])
     world.capture = _capture(d[_CAPTURE], world.owner)
+    world.defense_hp = _defense(d[_DEFENSE_HP], _DEFENSE_HP, world.owner)
+    world.defense_drain = _defense(d[_DEFENSE_DRAIN], _DEFENSE_DRAIN, world.owner)
+    if set(world.defense_drain) != set(world.defense_hp):
+        raise ValueError(f"{_DEFENSE_DRAIN} must name the same nodes as {_DEFENSE_HP}")
+    down = d[_DEFENSE_DOWN]
+    if not isinstance(down, list):
+        raise ValueError(f"{_DEFENSE_DOWN} must be a list")
+    world.defense_down = {_str(n, "node id") for n in down}
+    if not world.defense_down <= set(world.defense_hp):
+        raise ValueError(f"{_DEFENSE_DOWN} must list defended nodes")
     world.objective = _load_objective(d[_OBJECTIVE], world.campaign)
     c = world.campaign
     # A side holds at most every node each running tick; the strategic count needs the rules.
