@@ -78,5 +78,5 @@ Suggested 3–5 minute capture for the devlog:
 
 - **Go / no-go:** _owner_
 - **Carry-over confirmed (Q-PH0-1):** _owner_
-- **Auto-merge on `develop` (Q-PH0-2):** _owner_
+- **Auto-merge on `develop` (Q-PH0-2):** ✅ owner 2026-10-20: yes for agent PRs on a green `ci-gate`, except PRs touching CODEOWNERS files
 - **M1 and L6 (Q-PH0-3):** ✅ owner 2026-10-20: M1 fixed with code-owner review on the gate files and the owner as bypass actor (Q-DEV-12); L6 pinned to tag v5.3.2 (Q-DEV-13). Previously proposed options: Options for M1: (a) require code-owner review on `/.github/` and `/.claude/`, with a second account approving agent PRs there; (b) block auto-merge for PRs that touch `.github/workflows/**` and keep merging those by hand; (c) accept the risk while the owner merges every PR by hand. Recommended: (b) if auto-merge is turned on (Q-PH0-2), else (c). For L6: pin `ponytail` to a commit.
