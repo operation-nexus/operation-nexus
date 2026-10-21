@@ -186,7 +186,7 @@ def state_hash(world: World) -> str:
 
 
 def save(world: World) -> bytes:
-    """Lossless snapshot bytes (SC-9). Compression and the file header are NX-103."""
+    """Lossless snapshot bytes (SC-9); the file format is `nexus.runtime.snapshot_file`."""
     return cast(bytes, msgpack.packb(to_canonical(world, quantize=False), use_bin_type=True))
 
 

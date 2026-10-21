@@ -436,8 +436,8 @@ No `AppendXp` or `AppendMerit` intent is produced for an action by an AUTO unit 
   magic      8 bytes   "NXSNAP\0\1"
   header_len u32 LE
   header     msgpack map:
-               format_version   int
-               schema_version   int      (world-model schema in /contracts)
+               format_version   int      (file layout; 1)
+               schema_version   int      (world encoding version, nexus.core.world FORMAT_VERSION)
                campaign_id      str
                seed             int
                config_hash      str
@@ -445,11 +445,13 @@ No `AppendXp` or `AppendMerit` intent is produced for an action by an AUTO unit 
                tick             int
                state_hash       str      (blake2b, SIM-CORE §5)
                last_arrival_seq int
-               created_at       str      (UTC, informational only; not used by the sim)
-  body       zstd(msgpack(canonical world state))
-  trailer    blake2b-256 of header+body
+               protocol_version str      (contracts/VERSION, CONTRACTS §3.6)
+               created_at       str      (UTC ISO-8601, informational only; not used by the sim)
+  body       zstd(msgpack(canonical world state))   (one frame with its content size)
+  trailer    blake2b-256 of every byte after the magic: header_len | header | body
   ```
-- **Load:** verify the trailer, then decompress, rebuild state, recompute `state_hash` and compare with the header. Any mismatch → try the previous snapshot and raise an alert. Never load a partially verified snapshot.
+  The trailer detects corruption, not tampering.
+- **Load:** verify the magic and the trailer, bound the header length and the decompressed body size, then decompress, rebuild state, recompute `state_hash` and compare with the header; the header's `tick`, `campaign_id`, `seed` and `config_hash` must equal the restored world's. Any mismatch → try the previous snapshot and raise an alert. Never load a partially verified snapshot.
 - **Retention:** the last 20, plus one per hour of game time (CONFIG-AND-CONTENT CFG-9), plus the final snapshot of each campaign (all PROPOSED).
 
 ### 6.2 Command log
