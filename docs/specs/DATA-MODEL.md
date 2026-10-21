@@ -1,6 +1,6 @@
 # SPEC: Data Model & Persistence Formats
 
-Status: Draft · Owner: — · Tracker: NX-200, NX-201, NX-103, NX-204, NX-210 · Related ADRs: 0002, 0003 · Security: THREAT-MODEL SEC-DATA-*, SEC-ID-*
+Status: §6 (recovery data formats) Approved (owner, 2026-10-21, #167); the rest Draft · Owner: — · Tracker: NX-200, NX-201, NX-103, NX-204, NX-210 · Related ADRs: 0002, 0003 · Security: THREAT-MODEL SEC-DATA-*, SEC-ID-*
 
 > **All sizes, counts and timings in this spec are PROPOSED or ESTIMATE** (DATA-INTEGRITY DI-7, DOC-2) unless a source is cited. A `NULL` column means **unknown or not applicable**. It never stands in for a value we made up (DI-1).
 
