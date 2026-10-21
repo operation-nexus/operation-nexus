@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nexus.local/contracts/commands/staff_campaign_pause.json",
+  "title": "StaffCampaignPauseCommand",
+  "description": "Pause the campaign clock (CONTRACTS 5.2; STATE-MACHINES 4.4). Not a chat command: no parser entry. Header and payload are flat. Handler checks: sub_reason non-null only with reason_category STAFF (INVALID_PAYLOAD); note required, non-blank, from STAFF (REASON_REQUIRED), null allowed from SYSTEM. Who may send which category is enforced outside the kernel (ADMIN-RBAC).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "source",
+    "issuer",
+    "target_tick",
+    "arrival_seq",
+    "correlation_id",
+    "reason_category",
+    "sub_reason",
+    "note"
+  ],
+  "properties": {
+    "kind": {
+      "const": "STAFF_CAMPAIGN_PAUSE"
+    },
+    "source": {
+      "enum": [
+        "STAFF",
+        "SYSTEM"
+      ]
+    },
+    "issuer": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/StaffIssuer"
+        },
+        {
+          "$ref": "#/$defs/SystemIssuer"
+        }
+      ],
+      "description": "Matches source: {staff_id} for STAFF, {system} for SYSTEM (CONTRACTS 5.1). The kernel does not cross-check them; the runtime builds both."
+    },
+    "target_tick": {
+      "$ref": "../common/ids.json#/$defs/Tick"
+    },
+    "arrival_seq": {
+      "$ref": "../common/ids.json#/$defs/CommandSeq"
+    },
+    "correlation_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "reason_category": {
+      "$ref": "../common/enums.json#/$defs/PauseReasonCategory"
+    },
+    "sub_reason": {
+      "anyOf": [
+        {
+          "$ref": "../common/enums.json#/$defs/StaffPauseSubReason"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "note": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 140
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "description": "Never in an event (CONTRACTS 6). Text is SafeText, checked by the gateway."
+    }
+  },
+  "$defs": {
+    "StaffIssuer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "staff_id"
+      ],
+      "properties": {
+        "staff_id": {
+          "$ref": "../common/ids.json#/$defs/StaffId"
+        }
+      }
+    },
+    "SystemIssuer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "system"
+      ],
+      "properties": {
+        "system": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        }
+      }
+    }
+  }
+}

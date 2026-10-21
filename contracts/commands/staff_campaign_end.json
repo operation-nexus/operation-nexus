@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nexus.local/contracts/commands/staff_campaign_end.json",
+  "title": "StaffCampaignEndCommand",
+  "description": "End the campaign with result ABORTED (CONTRACTS 5.2; STATE-MACHINES 4.4). Not a chat command. Header and payload are flat.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "source",
+    "issuer",
+    "target_tick",
+    "arrival_seq",
+    "correlation_id",
+    "reason"
+  ],
+  "properties": {
+    "kind": {
+      "const": "STAFF_CAMPAIGN_END"
+    },
+    "source": {
+      "const": "STAFF"
+    },
+    "issuer": {
+      "$ref": "#/$defs/StaffIssuer"
+    },
+    "target_tick": {
+      "$ref": "../common/ids.json#/$defs/Tick"
+    },
+    "arrival_seq": {
+      "$ref": "../common/ids.json#/$defs/CommandSeq"
+    },
+    "correlation_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "reason": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 140
+    }
+  },
+  "$defs": {
+    "StaffIssuer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "staff_id"
+      ],
+      "properties": {
+        "staff_id": {
+          "$ref": "../common/ids.json#/$defs/StaffId"
+        }
+      }
+    }
+  }
+}

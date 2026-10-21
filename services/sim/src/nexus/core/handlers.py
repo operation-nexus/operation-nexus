@@ -10,13 +10,19 @@ from typing import NamedTuple
 
 from nexus.contracts.gen.commands.command import Command
 from nexus.contracts.gen.commands.join import FollowTarget, JoinCommand, NodeTarget
+from nexus.contracts.gen.commands.staff_campaign_end import StaffCampaignEndCommand
+from nexus.contracts.gen.commands.staff_campaign_pause import StaffCampaignPauseCommand
+from nexus.contracts.gen.commands.staff_campaign_resume import StaffCampaignResumeCommand
 from nexus.contracts.gen.commands.sys_set_callsign import SysSetCallsignCommand
 from nexus.contracts.gen.common.enums import OwnerKind, RejectReason, Side, UnitKind
 from nexus.contracts.gen.events.callsign_changed import CallsignChanged
+from nexus.contracts.gen.events.campaign_clock_paused import CampaignClockPaused
+from nexus.contracts.gen.events.campaign_clock_resumed import CampaignClockResumed
 from nexus.contracts.gen.events.command_rejected import CommandRejected
 from nexus.contracts.gen.events.event import Event
 from nexus.contracts.gen.events.reserve_queue_joined import ReserveQueueJoined
 from nexus.contracts.gen.events.unit_spawned import UnitSpawned
+from nexus.core.campaign import end_campaign
 from nexus.core.logistics import Run, load, pay_loadout, plan_deploy, plan_run
 from nexus.core.roads import shortest_path
 from nexus.core.rules import Rules
@@ -250,4 +256,71 @@ def set_callsign(world: World, command: Command, out: list[Event]) -> None:
     )
 
 
-HANDLERS: Mapping[str, Handler] = {"JOIN": join, "SYS_SET_CALLSIGN": set_callsign}
+def staff_campaign_pause(world: World, command: Command, out: list[Event]) -> None:
+    """STAFF_CAMPAIGN_PAUSE (STATE-MACHINES §4.4, Q-ALN-3, Q-ALN-31): stop the campaign clock and
+    keep the reason. Checked in this order: a `sub_reason` with a category other than STAFF is
+    `INVALID_PAYLOAD`; a STAFF command with a blank note is `REASON_REQUIRED` (SYSTEM may send
+    none); a pause while paused is `ALREADY_PAUSED`. Who may pause is enforced outside the kernel
+    (ADMIN-RBAC). The note is for the audit trail and is not in the event.
+    """
+    if not isinstance(command, StaffCampaignPauseCommand):
+        raise TypeError(f"STAFF_CAMPAIGN_PAUSE handler got {command.kind}")
+    c = world.campaign
+    if command.sub_reason is not None and command.reason_category != "STAFF":
+        out.append(reject(world, command, "INVALID_PAYLOAD"))
+    elif command.source == "STAFF" and not (command.note and command.note.strip()):
+        out.append(reject(world, command, "REASON_REQUIRED"))
+    elif c.clock_paused:
+        out.append(reject(world, command, "ALREADY_PAUSED"))
+    else:
+        c.clock_paused, c.pause_reason, c.pause_sub_reason = (
+            True, command.reason_category, command.sub_reason,
+        )  # fmt: skip
+        out.append(
+            CampaignClockPaused.model_construct(
+                kind="CampaignClockPaused",
+                tick=c.tick + 1,
+                event_seq=world.next_event_seq(),
+                campaign_id=c.id,
+                reason=command.reason_category,
+                sub_reason=command.sub_reason,
+            )
+        )
+
+
+def staff_campaign_resume(world: World, command: Command, out: list[Event]) -> None:
+    """STAFF_CAMPAIGN_RESUME: restart the clock; `NOT_PAUSED` when it runs. The event carries the
+    reason and sub-reason of the pause it ends. Free viewer slots fill in this tick's lifecycle."""
+    if not isinstance(command, StaffCampaignResumeCommand):
+        raise TypeError(f"STAFF_CAMPAIGN_RESUME handler got {command.kind}")
+    c = world.campaign
+    if c.pause_reason is None:
+        out.append(reject(world, command, "NOT_PAUSED"))
+        return
+    out.append(
+        CampaignClockResumed.model_construct(
+            kind="CampaignClockResumed",
+            tick=c.tick + 1,
+            event_seq=world.next_event_seq(),
+            campaign_id=c.id,
+            reason=c.pause_reason,
+            sub_reason=c.pause_sub_reason,
+        )
+    )
+    c.clock_paused, c.pause_reason, c.pause_sub_reason = False, None, None
+
+
+def staff_campaign_end(world: World, command: Command, out: list[Event]) -> None:
+    """STAFF_CAMPAIGN_END (Running or Paused): `CampaignEnded{ABORTED}` (`nexus.core.campaign`)."""
+    if not isinstance(command, StaffCampaignEndCommand):
+        raise TypeError(f"STAFF_CAMPAIGN_END handler got {command.kind}")
+    end_campaign(world, "ABORTED", out)
+
+
+HANDLERS: Mapping[str, Handler] = {
+    "JOIN": join,
+    "SYS_SET_CALLSIGN": set_callsign,
+    "STAFF_CAMPAIGN_PAUSE": staff_campaign_pause,
+    "STAFF_CAMPAIGN_RESUME": staff_campaign_resume,
+    "STAFF_CAMPAIGN_END": staff_campaign_end,
+}

@@ -70,7 +70,7 @@ type _Nodes = dict[str, dict[Side, _Presence]]
 
 def capture(world: World, out: list[Event]) -> None:
     rules = world.rules
-    if world.campaign.clock_paused or rules is None or rules.capture is None:
+    if world.frozen or rules is None or rules.capture is None:
         return
     cap = rules.capture
     nodes = [n for n, kind in rules.node_kind.items() if kind not in _UNCAPTURABLE]

@@ -219,11 +219,14 @@ In code since NX-125: all ten keys are the `capture` block of `balance/default.y
 | `campaign.target_duration_h` | float | h (game) | 48 | GAMEPLAY §9, Q-GD-5 | No |
 | `campaign.time_limit_h` | float | h (game) | 72 (PROPOSED, Q-TEST-6) | GAMEPLAY §9 | No (set per campaign) |
 | `campaign.max_extension_h` | float | h (game), total of all extensions | 48 (PROPOSED, Q-TEST-7); extensions by the owner or an Admin only, each logged | GAMEPLAY §9 | No |
-| `campaign.score.node_share_weight` | float | points | 100 (PROPOSED): × a side's average share of nodes held (Q-GD-29, Q-SM-9) | STATE-MACHINES §4.4 | No |
+| `campaign.score.average_weight` | float | points | 50 (PROPOSED, Q-SIM-64): × a side's average share of strategic nodes over the campaign (replaces `node_share_weight` 100, Q-SM-9) | STATE-MACHINES §4.4 | No |
+| `campaign.score.final_weight` | float | points | 50 (PROPOSED, Q-SIM-64): × a side's share of strategic nodes at the final tick | STATE-MACHINES §4.4 | No |
 | `campaign.score.objective_points` | float | points per completed objective | 5 (PROPOSED, Q-GD-29, Q-SM-9) | STATE-MACHINES §4.4 | No |
-| `campaign.objective_period_min` | float | min (game) | 15 | GAMEPLAY §9 | No |
+| `campaign.objective_period_min` | float | min (game) | 15: an objective's lifetime; the next is announced when one resolves (STATE-MACHINES §4.5) | GAMEPLAY §9 | No |
 | `campaign.victory_node_frac` | float | fraction | 0.80 | GAMEPLAY §9 | No |
 | `campaign.victory_hold_min` | float | min (game) | 30 | GAMEPLAY §9 | No |
+| `campaign.momentum.nodes_weight` | float | percentage points | 70 (PROPOSED, Q-SIM-60): × the coalition's share of strategic nodes in the momentum % | GAMEPLAY §9, Q-SIM-60 | No |
+| `campaign.momentum.supply_weight` | float | percentage points | 30 (PROPOSED, Q-SIM-60): × the coalition's supply fill (its finite bases' stock ÷ their max stock); the two weights must add up to 100 | GAMEPLAY §9, Q-SIM-60 | No |
 | `campaign.defeat` | object | — | `{hold_min: 30}`: the sanctuary's defense HP must stay at 0 this long (Q-TH-7, replacing Q-GD-7's forward-airbase rule; PROPOSED; game minutes, Q-ALN-1) | GAMEPLAY §9 | No |
 | `campaign.objective_mode` | enum `timed`\|`off` | — | `timed` (Q-GD-19); chosen at campaign setup by owner/admin only (Q-ALN-10) | GAMEPLAY §9 | No (set per campaign) |
 | `campaign.options.unlimited_ammo` | bool | — | false (Q-CBT-7; test/special-event option; set at campaign setup by owner/admin only, not GM, Q-ALN-10) | GAMEPLAY §5 | No |
@@ -244,6 +247,8 @@ In code since NX-125: all ten keys are the `capture` block of `balance/default.y
 | `presence.emit_every_ticks` | int | ticks | TBD | CONTRACTS §6 `PresenceSnapshot` | No |
 | `campaign.night_progress_cap_nodes_per_h` | float | nodes/h (game, Q-ALN-23) | 1/6 | THREAT-DIRECTOR §5, Q-GD-4 (amended) | No |
 | `campaign.aar_duration_s` | float | s (real) | 300 | GAMEPLAY §9 | Yes |
+
+In code since NX-126: the `campaign` block of `balance/default.yaml` (`contracts/config/balance.json`) holds `time_limit_h`, `victory_node_frac`, `victory_hold_min`, `objective_period_min`, `objective_mode` (read from the balance profile until a per-campaign setting exists), `score.average_weight`, `score.final_weight`, `score.objective_points` and `momentum.nodes_weight` and `supply_weight`; `nexus.core.campaign` reads them. The three durations are game time, converted once at load (`game_ticks`, with the key's unit: 72 h = 2,592,000 ticks, 30 min = 18,000, 15 min = 9,000 at 10 Hz). The fractions and weights are read as the exact decimals written, so a threshold or a score tie is exact. `target_duration_h`, `max_extension_h`, `defeat`, `options`, `intermission`, `rubber_band_zone` and the night cap are not read yet.
 
 ### 6.7 Threat Director
 | Key | Type | Unit | PROPOSED | Source | HR |

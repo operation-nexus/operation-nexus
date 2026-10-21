@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nexus.local/contracts/commands/staff_campaign_resume.json",
+  "title": "StaffCampaignResumeCommand",
+  "description": "Resume the campaign clock (CONTRACTS 5.2; STATE-MACHINES 4.4). Not a chat command. Header and payload are flat. Who may resume is enforced outside the kernel (ADMIN-RBAC).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "source",
+    "issuer",
+    "target_tick",
+    "arrival_seq",
+    "correlation_id",
+    "note"
+  ],
+  "properties": {
+    "kind": {
+      "const": "STAFF_CAMPAIGN_RESUME"
+    },
+    "source": {
+      "enum": [
+        "STAFF",
+        "SYSTEM"
+      ]
+    },
+    "issuer": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/StaffIssuer"
+        },
+        {
+          "$ref": "#/$defs/SystemIssuer"
+        }
+      ],
+      "description": "Matches source: {staff_id} for STAFF, {system} for SYSTEM (CONTRACTS 5.1). The kernel does not cross-check them; the runtime builds both."
+    },
+    "target_tick": {
+      "$ref": "../common/ids.json#/$defs/Tick"
+    },
+    "arrival_seq": {
+      "$ref": "../common/ids.json#/$defs/CommandSeq"
+    },
+    "correlation_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "note": {
+      "anyOf": [
+        {
+          "type": "string",
+          "maxLength": 140
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "StaffIssuer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "staff_id"
+      ],
+      "properties": {
+        "staff_id": {
+          "$ref": "../common/ids.json#/$defs/StaffId"
+        }
+      }
+    },
+    "SystemIssuer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "system"
+      ],
+      "properties": {
+        "system": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 64
+        }
+      }
+    }
+  }
+}

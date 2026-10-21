@@ -232,7 +232,7 @@ stateDiagram-v2
 | Paused | `STAFF_CAMPAIGN_PAUSE` | Emit `CommandRejected{reason: ALREADY_PAUSED}` | Paused |
 | Paused | `STAFF_CAMPAIGN_RESUME` from staff (GM, admin or owner only, Q-RB-1), or from SYSTEM after the "COMMS RESTORED" countdown ends an offline pause (Q-OPS-8) | Clear `clock_paused`. Emit `CampaignClockResumed{reason}`. Free slots fill from the reserve queue (FIFO). | Running |
 | Running | Victory condition held (GAMEPLAY §9), or defeat (the sanctuary's defense HP held at 0 for `campaign.defeat.hold_min`, Q-TH-7) | Freeze inputs. Emit `CampaignEnded{result: VICTORY \| DEFEAT}`. | Ending |
-| Running | The campaign clock reaches its time limit (game time), and the two sides' time-limit scores differ | Score per side = `campaign.score.node_share_weight` (PROPOSED 100) × its average share of nodes held over the campaign + `campaign.score.objective_points` (PROPOSED 5) per completed objective (Q-GD-29, Q-SM-9). Freeze inputs. Emit `CampaignEnded{result: TIME_LIMIT, score, winner}`; the higher score wins the war. | Ending |
+| Running | The campaign clock reaches its time limit (game time), and the two sides' time-limit scores differ | Score per side = `campaign.score.average_weight` (PROPOSED 50) × its average share of strategic nodes over the campaign + `campaign.score.final_weight` (PROPOSED 50) × its share at the final tick + `campaign.score.objective_points` (PROPOSED 5) per completed objective, coalition only (Q-GD-29, Q-SIM-64). Freeze inputs. Emit `CampaignEnded{result: TIME_LIMIT, score, winner}`; the higher score wins the war, and a Static win (`winner: ENEMY`) is shown as a defeat ("SIGNAL LOST"). The Static has no mid-war win. | Ending |
 | Running | Time limit reached and the two scores are exactly equal (Q-GD-29, Q-GP-10) | Freeze inputs. Emit `CampaignEnded{result: TIME_LIMIT, score, winner: null}`: a draw, with the normal end screen. | Ending |
 | Running / Paused | `STAFF_CAMPAIGN_END{reason}` | Freeze inputs. Emit `CampaignEnded{result: ABORTED}`. | Ending |
 | Ending | Results computed (top contributors per role, stats) | Write results to persistence. Emit `AARStarted{result, top_by_role}`. | AAR |
@@ -242,9 +242,11 @@ stateDiagram-v2
 **Invariants**
 - C-1: in Paused, neither game time nor world time advances: no entity position, hp, stock, capture progress, objective timer or other sim timer changes (Q-ALN-1, Q-ALN-2).
 - C-2: exactly one `CampaignEnded` per campaign.
-- C-3: no command is applied after Ending.
+- C-3: no command is applied after Ending, except the SC-11 safety actions (`STAFF_BAN`, `FORGET`, `STAFF_KILL_SWITCH`; SIM-CORE SC-15, Q-SIM-15).
 - C-4: an archived campaign's command log replays to its final state hash.
 - C-5: a `TIME_LIMIT` result is emitted only when the campaign clock has reached its limit (Q-GD-29, Q-GP-10).
+
+**In code now (`nexus.core.campaign` and the staff handlers, NX-126; SIM-CORE §4 Campaign):** the campaign clock is `running_ticks`, the ticks the world was neither paused nor ended, and the time limit, the victory hold and the objective period count it. `STAFF_CAMPAIGN_PAUSE` (rejects: `INVALID_PAYLOAD` for a sub-reason with a category other than STAFF, `REASON_REQUIRED` for a STAFF command with a blank note, `ALREADY_PAUSED`), `STAFF_CAMPAIGN_RESUME` (`NOT_PAUSED` when running) and `STAFF_CAMPAIGN_END` (Running or Paused) are handled; the pause reason and sub-reason are state, and the `Resumed` event repeats them. Victory is the coalition owning the enemy HQ, or holding at least `victory_node_frac` of the AIRBASE, FOB and PORT nodes for `victory_hold_min` running ticks in a row; the Static has no mid-war win (Q-SIM-64; the defeat rule waits for combat, Q-SIM-62). At the time limit the exact scores decide, a tie being `winner: null`. After `CampaignEnded` the world is frozen (Ending) and every command is rejected with `CAMPAIGN_NOT_RUNNING` (C-3; the safety-action exemption has no command in code yet). Not in code: defeat, extensions, the Ending to AAR to Archived steps (runtime), `CampaignStarted`, `STAFF_CONFIG_RELOAD` and the other staff commands in the Paused rows.
 
 ### 4.5 Theater objective
 
@@ -267,6 +269,8 @@ stateDiagram-v2
 **Invariants**
 - O-1: while the campaign is Running, at most one Active objective exists. In `timed` mode there is exactly one; in `off` mode zero unless an admin or the owner set one (Q-GD-19, Q-ALN-10).
 - O-2: none while Paused. The timer is frozen (C-1).
+
+**In code now (`nexus.core.campaign`, NX-126; SIM-CORE §4 Campaign):** only the system-picked `timed` mode (`off` has none; admin-set objectives wait for their command, Q-SIM-62). One objective is active at all times while a frontline exists (O-1): the first is announced on the first running tick and the next in the tick the previous resolves, so `campaign.objective_period_min` is an objective's lifetime and an early completion starts the next one at once. The pick is uniform over the sorted frontline candidates (a node other than a SANCTUARY, a BRIDGE or the enemy HQ, with a road neighbour, BRIDGE nodes aside, of another owner) on the `objective` stream; with none, nothing is announced and no draw is made. A node the coalition does not own is a capture objective, completed when the coalition captures it (participants: those of the `NodeCaptured`); a coalition node is a hold objective, completed only if the coalition owns it when the timer ends (Q-SIM-61; participants: the coalition commanders with a ground unit or a LANDED aircraft within `capture.radius_m`, possibly none). Otherwise it expires at the deadline. An objective still active when the campaign ends (`STAFF_CAMPAIGN_END`, or victory or the time limit that leaves one active after this tick's resolution) expires in that tick, `ObjectiveResolved{EXPIRED}` with no participants, before `CampaignEnded`, and none stays active in an ended world. `deadline_tick` is on the campaign clock. No merit is granted and no sitrep queued yet (progression, later).
 
 ### 4.6 Director tier
 

@@ -20,6 +20,7 @@ from nexus.core.world import (
     CaptureBar,
     Contact,
     FacilityMarker,
+    Objective,
     Vec2,
     World,
     load,
@@ -85,6 +86,14 @@ def golden_world() -> World:
     # NX-125: node owners, and the coalition a quarter of the way into cross-n.
     w.owner = {"cross-n": "NEUTRAL", "east-airbase": "ENEMY", "west-airbase": "COALITION"}
     w.capture["cross-n"] = CaptureBar("COALITION", 25_000_000)
+    # NX-126: paused by staff for a raid since running tick 3; 3 of the 4 objectives issued are
+    # done, the 4th is a hold on west-airbase due at running tick 900; the coalition has held the
+    # victory share for 2 ticks and the sides' held-node sums are 8 and 4.
+    c = w.campaign
+    c.running_ticks, c.clock_paused, c.pause_reason, c.pause_sub_reason = 3, True, "STAFF", "RAID"
+    c.hold_ticks, c.held_ticks_coalition, c.held_ticks_enemy = 2, 8, 4
+    c.objectives_issued, c.objectives_done = 4, 3
+    w.objective = Objective(4, "west-airbase", 900, True)
     return w
 
 
@@ -94,11 +103,12 @@ def test_golden_state_hash_seed_12345() -> None:
     # NX-370: callsigns, v6; NX-150: contacts, v7; NX-150 part 2: base_id, variant, emitting,
     # markers and a tick, v8; NX-150 part 2b: painted, blobs, sigint_age, v9;
     # NX-123: node stock, cargo, unload_milli, v10; NX-123 part 2: rearm_milli, rearm_spent,
-    # stalled, v11; NX-125: node owner and capture bars, v12).
+    # stalled, v11; NX-125: node owner and capture bars, v12; NX-126: the campaign clock, pause
+    # reason, end flag, score sums and the active objective, v13).
     # A change here breaks every recorded replay hash: needs a `golden-update` reason.
     assert (
         state_hash(golden_world())
-        == "d2c54478f0d6b3450ee943d9720d67fd77c643aab84f1c318c3f390670885672"
+        == "db0009222e3c1663f661a61f1196237e350a5d911eaa7e1649bfccac806fdb1a"
     )
     e = to_canonical(golden_world(), quantize=True)["entities"][0]
     assert e["pos"] == [1000250, 2000500]  # mm
@@ -169,7 +179,31 @@ entity_args = st.tuples(kinds, vecs, vecs, st.integers(0, 1000), st.sampled_from
 @st.composite
 def worlds(draw: st.DrawFn) -> World:
     seed, tick = draw(st.integers(0, 2**64 - 1)), draw(st.integers(0, 10**9))
-    w = World.new(Campaign(CAMPAIGN_ID, seed, "c", tick, draw(st.booleans())))
+    reason: Any = draw(
+        st.none() | st.sampled_from(world_mod._PAUSE_REASONS)
+    )  # NX-126: paused iff set
+    sub: Any = (
+        draw(st.none() | st.sampled_from(world_mod._PAUSE_SUB_REASONS))
+        if reason == "STAFF"
+        else None
+    )
+    issued = draw(st.integers(0, 5))
+    running, ended = draw(st.integers(0, tick)), draw(st.booleans())
+    w = World.new(
+        Campaign(
+            CAMPAIGN_ID, seed, "c", tick, reason is not None, running, reason,
+            sub, ended, draw(st.integers(0, running)),
+            draw(st.integers(0, 2 * running)), draw(st.integers(0, 2 * running)), issued,
+            draw(st.integers(0, issued)),
+        )
+    )  # fmt: skip
+    w.owner = {"cross-n": "NEUTRAL", "fob-n-e": "ENEMY"}  # the held sums are bounded by nodes
+    if (
+        issued and not ended and draw(st.booleans())
+    ):  # the active objective is the latest issued (NX-126)
+        w.objective = Objective(
+            issued, "fob-n-e", running + draw(st.integers(1, 10**6)), draw(st.booleans())
+        )
     for (kind, side, owner), pos, vel, hp, callsign in draw(st.lists(entity_args, max_size=8)):
         e = w.spawn(kind, side, owner, pos, vel=vel, hp=hp, callsign=callsign)
         if draw(st.booleans()):  # an aircraft's state (NX-368)

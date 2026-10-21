@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nexus.local/contracts/events/campaign_ended.json",
+  "title": "CampaignEnded",
+  "description": "The campaign ended (CONTRACTS 6; STATE-MACHINES 4.4, C-2; NX-126). Exactly one per campaign. score is each side's time-limit score at the end (Q-GD-29): weight x average share of strategic nodes over the campaign, plus the objective points for the coalition's completed objectives; it is filled for every result. winner is null on an exact TIME_LIMIT tie and for ABORTED. nodes_held_pct is the coalition's share of strategic nodes at the end, rounded to the nearest percent, halves up.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "tick",
+    "event_seq",
+    "campaign_id",
+    "result",
+    "end_tick",
+    "score",
+    "winner",
+    "nodes_held_pct"
+  ],
+  "properties": {
+    "kind": {
+      "const": "CampaignEnded"
+    },
+    "tick": {
+      "$ref": "../common/ids.json#/$defs/Tick"
+    },
+    "event_seq": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Campaign-wide, monotonic, deterministic (SC-14)."
+    },
+    "campaign_id": {
+      "$ref": "../common/ids.json#/$defs/CampaignId"
+    },
+    "result": {
+      "$ref": "../common/enums.json#/$defs/CampaignResult"
+    },
+    "end_tick": {
+      "$ref": "../common/ids.json#/$defs/Tick"
+    },
+    "score": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "coalition",
+        "enemy"
+      ],
+      "properties": {
+        "coalition": {
+          "type": "number",
+          "minimum": 0
+        },
+        "enemy": {
+          "type": "number",
+          "minimum": 0
+        }
+      }
+    },
+    "winner": {
+      "anyOf": [
+        {
+          "$ref": "../common/enums.json#/$defs/Side"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "nodes_held_pct": {
+      "type": "integer",
+      "minimum": 0,
+      "maximum": 100
+    }
+  }
+}

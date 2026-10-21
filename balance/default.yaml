@@ -58,3 +58,16 @@ capture:
   garrison_mult: 3.0  # PROPOSED – unvalidated (Q-SM-8); capture-time multiplier, a defender that cannot contest is at the base (CONFIG-AND-CONTENT §6.5)
   empty_base_mult: 0.5  # PROPOSED – unvalidated (Q-SM-8); capture-time multiplier, no defender at the base (CONFIG-AND-CONTENT §6.5)
   decay_per_s: 0.008333333333333333  # PROPOSED – unvalidated (Q-SIM-57, owner-approved initial value; NX-031 tunes); 1/120 of the bar per s (world) (CONFIG-AND-CONTENT §6.5)
+campaign:
+  time_limit_h: 72  # PROPOSED – unvalidated (Q-TEST-6); h (game) (CONFIG-AND-CONTENT §6.6 campaign.time_limit_h)
+  victory_node_frac: 0.80  # PROPOSED – unvalidated; fraction of strategic nodes (CONFIG-AND-CONTENT §6.6)
+  victory_hold_min: 30  # PROPOSED – unvalidated; min (game), held without a dip (CONFIG-AND-CONTENT §6.6)
+  objective_period_min: 15  # PROPOSED – unvalidated; min (game), how long an objective lasts (CONFIG-AND-CONTENT §6.6)
+  objective_mode: timed  # timed (Q-GD-19); set per campaign by the owner or an admin (CONFIG-AND-CONTENT §6.6)
+  score:
+    average_weight: 50  # PROPOSED – unvalidated (Q-SIM-64); points x a side's average share of strategic nodes over the campaign (CONFIG-AND-CONTENT §6.6)
+    final_weight: 50  # PROPOSED – unvalidated (Q-SIM-64); points x a side's share of strategic nodes at the final tick (CONFIG-AND-CONTENT §6.6)
+    objective_points: 5  # PROPOSED – unvalidated (Q-SM-9); points per completed objective, coalition (CONFIG-AND-CONTENT §6.6)
+  momentum:
+    nodes_weight: 70  # PROPOSED – unvalidated (Q-SIM-60); percentage points x the coalition's share of strategic nodes (CONFIG-AND-CONTENT §6.6)
+    supply_weight: 30  # PROPOSED – unvalidated (Q-SIM-60); percentage points x the coalition's supply fill (CONFIG-AND-CONTENT §6.6)

@@ -13,6 +13,7 @@ from typing import cast
 
 from nexus.contracts.gen.common.enums import Domain, NodeKind, NodeOwner, Role, Side, UnitKind
 from nexus.contracts.gen.config.balance import Air, Capture, Fow, Logistics, Sim, Slots
+from nexus.contracts.gen.config.balance import Campaign as CampaignBalance
 from nexus.contracts.gen.config.roles import Roles
 from nexus.contracts.gen.config.theater import TheaterConfig
 from nexus.contracts.gen.config.unit import UnitConfig
@@ -28,6 +29,7 @@ _PAINTERS: tuple[UnitKind, ...] = ("RECON_UAV", "ENEMY_RECON_UAV")
 # Kinds that haul cargo (GAMEPLAY §5). shortcut: named here until the unit catalog gets its `cargo`
 # field (CONFIG-AND-CONTENT §7.3); the amount is the one global `logistics.truck_cargo`.
 _CARRIERS: tuple[UnitKind, ...] = ("LOGI_TRUCK", "ENEMY_CONVOY")
+_STRATEGIC_KINDS = ("AIRBASE", "FOB", "PORT")  # count toward the hold fractions (Q-GP-21)
 _DOMAINS: tuple[Domain, ...] = ("AIR", "GROUND", "SEA", "STATIC")
 _MILLI = 1000  # a truck's unload progress is counted in thousandths of a stock unit
 
@@ -68,6 +70,30 @@ class CaptureRules:
     garrison_mult: float
     empty_base_mult: float
     decay_micro: int  # capture.decay_per_s x world_dt, as millionths of a percent of the bar
+
+
+@dataclass(frozen=True, slots=True)
+class CampaignRules:
+    """Campaign rules (NX-126, GAMEPLAY §9): clock limits in whole running game ticks, the exact
+    (Fraction) weights and fractions so a threshold or a tie is exact, and the theater's
+    strategic nodes and objective candidates."""
+
+    time_limit_ticks: int  # campaign.time_limit_h
+    victory_hold_ticks: int  # campaign.victory_hold_min
+    objective_period_ticks: int  # campaign.objective_period_min
+    objectives_on: bool  # campaign.objective_mode is timed
+    victory_node_frac: Fraction
+    average_weight: Fraction  # campaign.score.average_weight (Q-SIM-64)
+    final_weight: Fraction  # campaign.score.final_weight
+    objective_points: Fraction
+    nodes_weight: Fraction  # campaign.momentum.nodes_weight (Q-SIM-60)
+    supply_weight: Fraction
+    strategic: tuple[str, ...]  # AIRBASE, FOB and PORT nodes, by id (Q-GP-17, Q-GP-21)
+    enemy_hq: str  # its capture by the coalition wins
+    # Objective candidates by id (never SANCTUARY, BRIDGE or the enemy HQ; Q-SM-11) -> the ids of
+    # their road neighbours that can have an owner (not BRIDGE): a candidate with a neighbour of
+    # another owner is on the frontline.
+    candidates: Mapping[str, tuple[str, ...]]
 
 
 @dataclass(frozen=True, slots=True)
@@ -112,6 +138,7 @@ class Rules:
     node_kind: Mapping[str, NodeKind] = field(default_factory=dict)
     armed: frozenset[UnitKind] = frozenset()
     capture: CaptureRules | None = None
+    campaign: CampaignRules | None = None  # NX-126; None leaves the campaign layer off
 
 
 def world_dt(sim: Sim) -> float:
@@ -164,6 +191,40 @@ def _supply(theater: TheaterConfig, logistics: Logistics, dt: float) -> Supply:
     )
 
 
+def campaign_rules(
+    cfg: CampaignBalance,
+    theater: TheaterConfig,
+    roads: RoadGraph,
+    *,
+    time_limit_ticks: int,
+    victory_hold_ticks: int,
+    objective_period_ticks: int,
+) -> CampaignRules:
+    """The tick counts are `cfg`'s game-time keys already converted by the config loader."""
+    kind = {n.id: n.kind for n in theater.nodes}
+    ownable = {n for n, k in kind.items() if k != "BRIDGE"}
+    skip = {n for n, k in kind.items() if k in ("SANCTUARY", "BRIDGE")} | {theater.enemy_hq}
+    return CampaignRules(
+        time_limit_ticks=time_limit_ticks,
+        victory_hold_ticks=victory_hold_ticks,
+        objective_period_ticks=objective_period_ticks,
+        objectives_on=cfg.objective_mode == "timed",
+        victory_node_frac=Fraction(repr(cfg.victory_node_frac)),
+        average_weight=Fraction(repr(cfg.score.average_weight)),
+        final_weight=Fraction(repr(cfg.score.final_weight)),
+        objective_points=Fraction(repr(cfg.score.objective_points)),
+        nodes_weight=Fraction(repr(cfg.momentum.nodes_weight)),
+        supply_weight=Fraction(repr(cfg.momentum.supply_weight)),
+        strategic=tuple(sorted(n for n, k in kind.items() if k in _STRATEGIC_KINDS)),
+        enemy_hq=theater.enemy_hq,
+        candidates={
+            n: tuple(m for m, _ in roads.neighbours(n) if m in ownable)
+            for n in sorted(kind)
+            if n not in skip
+        },
+    )
+
+
 def make_rules(
     sim: Sim,
     units: Iterable[UnitConfig],
@@ -181,6 +242,7 @@ def make_rules(
     sigint_refresh_ticks: int,
     mask_cell_m: float,
     masking: Mapping[tuple[int, int], frozenset[str]],
+    campaign: CampaignRules | None = None,
 ) -> Rules:
     """`respawn_delay_ticks`, `track_fade_ticks` and `sigint_refresh_ticks` are
     `slots.respawn_delay_s`, `fow.track_fade_s` and `fow.sigint_refresh_s` already converted by
@@ -227,4 +289,5 @@ def make_rules(
         node_kind={n.id: n.kind for n in sorted(theater.nodes, key=lambda n: n.id)},
         armed=frozenset(u.kind for u in units if u.weapons),
         capture=_capture(capture, world_dt(sim)),
+        campaign=campaign,
     )

@@ -30,7 +30,8 @@ from nexus.core.world import Entity, Vec2, World, load, save, state_hash
 from nexus.runtime.campaign_config import load_campaign_config, start_campaign
 
 CONFIG = load_campaign_config()
-RULES = CONFIG.rules
+# The campaign layer is off: these tests are about logistics, not objectives (NX-126).
+RULES = dataclasses.replace(CONFIG.rules, campaign=None)
 POS = RULES.roads.pos
 
 

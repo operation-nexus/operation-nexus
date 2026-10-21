@@ -66,7 +66,7 @@ _CLASS_SPAN = 4.0
 
 def sense(world: World) -> None:
     rules = world.rules
-    if rules is None or world.campaign.clock_paused:
+    if rules is None or world.frozen:
         return
     _age(world, rules)
     if not (world.campaign.tick + 1) % rules.track_every_ticks:

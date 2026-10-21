@@ -25,6 +25,20 @@ type CommanderId = Annotated[
 ]
 
 
+type StaffId = Annotated[
+    str,
+    Field(
+        description="UUIDv7, canonical lowercase (ADMIN-RBAC).",
+        pattern="^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$",
+    ),
+]
+
+
+type ObjectiveId = Annotated[
+    int, Field(description="Sequential per campaign, never reused (STATE-MACHINES 4.5).", ge=1)
+]
+
+
 type CampaignId = Annotated[
     str,
     Field(
