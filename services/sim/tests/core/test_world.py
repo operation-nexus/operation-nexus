@@ -15,6 +15,7 @@ from nexus.contracts.gen.common.enums import OwnerKind, Side, UnitKind
 from nexus.core import world as world_mod
 from nexus.core.rng import RngStream
 from nexus.core.world import (
+    Blob,
     Campaign,
     Contact,
     FacilityMarker,
@@ -67,13 +68,19 @@ def golden_world() -> World:
     w.respawn_left["0192f3a4-5b6c-7d8e-9f01-000000000002"] = 7  # NX-122: per-commander state
     w.reserve_queue.append(QUEUED)  # NX-122 part 3: the reserve queue
     # NX-150: the enemy tracks the fighter; the coalition keeps a last-known track of the armor.
-    w.contacts["ENEMY"][1] = Contact("STRIKE_FIGHTER", Vec2(1000.25, 2000.5), Vec2(250.0, 0.0))
+    # NX-150 part 2b: an enemy recon unit paints the fighter.
+    w.contacts["ENEMY"][1] = Contact(
+        "STRIKE_FIGHTER", Vec2(1000.25, 2000.5), Vec2(250.0, 0.0), painted=True
+    )
     w.contacts["COALITION"][3] = Contact("ENEMY_ARMOR", Vec2(149e3, 80e3), Vec2(-25, 3.5), 12)
     # NX-150 part 2: a facility, and the enemy's marker of it confirmed on tick 2 of 5.
     w.campaign.tick = 5
     sam = w.spawn("AIR_DEFENSE_SITE", "COALITION", "AI_GARRISON", Vec2(90e3, 120e3), hp=None)
     sam.base_id, sam.variant, sam.emitting = "west-airbase", "SAM", True
     w.markers["ENEMY"][4] = FacilityMarker("AIR_DEFENSE_SITE", "SAM", Vec2(90e3, 120e3), True, 2)
+    # NX-150 part 2b: the coalition's blobs from the tick-3 refresh, 2 running ticks ago.
+    w.blobs["COALITION"] = (Blob("3-7", Vec2(75e3, 5e3), "S"), Blob("3-48", Vec2(85e3, 15e3), "L"))
+    w.sigint_age = 2
     return w
 
 
@@ -81,11 +88,11 @@ def test_golden_state_hash_seed_12345() -> None:
     # Pinned by running this implementation once (NX-101; re-pinned NX-121: path, last_node, v2;
     # NX-122: respawn_left, v3; NX-122 part 3: reserve_queue, v4; NX-368: state, fuel, orbit, v5;
     # NX-370: callsigns, v6; NX-150: contacts, v7; NX-150 part 2: base_id, variant, emitting,
-    # markers and a tick, v8).
+    # markers and a tick, v8; NX-150 part 2b: painted, blobs, sigint_age, v9).
     # A change here breaks every recorded replay hash: needs a `golden-update` reason.
     assert (
         state_hash(golden_world())
-        == "5521e5d56a6c5331ce35bd7cd6663312f2eaea5a9d2a3f3d1874844288837fb3"
+        == "857a99449fa643bb0d72f3bb25a2a139d8642b2c58a88f26343dd45619c04244"
     )
     e = to_canonical(golden_world(), quantize=True)["entities"][0]
     assert e["pos"] == [1000250, 2000500]  # mm
@@ -96,9 +103,14 @@ def test_golden_state_hash_seed_12345() -> None:
     assert list(e) == sorted(e)
     lost = to_canonical(golden_world(), quantize=True)["contacts"]["COALITION"]
     assert lost == [
-        {"age": 12, "id": 3, "kind": "ENEMY_ARMOR", "pos": [149000000, 80000000],
+        {"age": 12, "id": 3, "kind": "ENEMY_ARMOR", "painted": False, "pos": [149000000, 80000000],
          "vel": [-25000, 3500]}
     ]  # fmt: skip
+    assert to_canonical(golden_world(), quantize=True)["blobs"] == {
+        "COALITION": [{"id": "3-7", "pos": [75000000, 5000000], "size": "S"},
+                      {"id": "3-48", "pos": [85000000, 15000000], "size": "L"}],
+        "ENEMY": [],
+    }  # fmt: skip
     assert to_canonical(golden_world(), quantize=True)["markers"]["ENEMY"] == [
         {"confirmed_tick": 2, "emitting": True, "id": 4, "kind": "AIR_DEFENSE_SITE",
          "pos": [90000000, 120000000], "variant": "SAM"}
@@ -163,12 +175,19 @@ def worlds(draw: st.DrawFn) -> World:
         e = w.get(i)
         knower: Side = "ENEMY" if e.side == "COALITION" else "COALITION"
         age = draw(st.none() | st.integers(0, 10**6))
-        w.contacts[knower][i] = Contact(e.kind, draw(vecs), draw(vecs), age)  # NX-150
+        painted = age is None and draw(st.booleans())  # part 2b: tracked contacts only
+        w.contacts[knower][i] = Contact(e.kind, draw(vecs), draw(vecs), age, painted)  # NX-150
         e.base_id, e.variant = draw(st.sampled_from([(None, None), ("fob-n-e", "SAM")]))
         e.emitting = draw(st.none() | st.booleans())
         if draw(st.booleans()):  # FOW-13
             seen = draw(st.integers(0, w.campaign.tick))
             w.markers[knower][i] = FacilityMarker(e.kind, e.variant, draw(vecs), e.emitting, seen)
+    refresh = draw(st.integers(0, w.campaign.tick))  # NX-150 part 2b
+    for side in ("COALITION", "ENEMY"):
+        cells = sorted(draw(st.sets(st.integers(0, 10**4), max_size=3)))
+        size = draw(st.sampled_from(world_mod._BLOB_SIZES))
+        w.blobs[side] = tuple(Blob(f"{refresh}-{k}", draw(vecs), size) for k in cells)
+    w.sigint_age = draw(st.integers(0, w.campaign.tick - refresh))  # running ticks since
     if len(w) and draw(st.booleans()):
         w.remove(next(w.entities()).id)
     for _ in range(draw(st.integers(min_value=0, max_value=3))):
@@ -209,6 +228,9 @@ def test_hash_tracks_state_at_mm_resolution() -> None:
     assert _changes_hash(lambda w: setattr(w.get(1), "state", "RTB"))
     assert _changes_hash(lambda w: setattr(w.get(4), "emitting", False))  # NX-150 part 2
     assert _changes_hash(lambda w: setattr(w.markers["ENEMY"][4], "confirmed_tick", 3))
+    assert _changes_hash(lambda w: setattr(w.contacts["ENEMY"][1], "painted", False))  # part 2b
+    assert _changes_hash(lambda w: setattr(w, "sigint_age", 3))
+    assert _changes_hash(lambda w: w.blobs.update(COALITION=w.blobs["COALITION"][:1]))
 
 
 _CHILD = (
@@ -292,6 +314,23 @@ def _resave(mutate: Any) -> bytes:
         _resave(lambda d: d["markers"]["ENEMY"][0].update(variant=1)),
         _resave(lambda d: d["markers"]["ENEMY"][0].update(id=5)),
         _resave(lambda d: d["markers"].update(COALITION=d["markers"]["ENEMY"])),  # its own site
+        _resave(lambda d: d["contacts"]["ENEMY"][0].update(painted=1)),  # NX-150 part 2b
+        _resave(lambda d: d["contacts"]["COALITION"][0].update(painted=True)),  # last-known
+        _resave(lambda d: d.pop("sigint_age")),
+        _resave(lambda d: d.update(sigint_age=-1)),
+        _resave(lambda d: d.update(blobs={"COALITION": []})),
+        _resave(lambda d: d["blobs"].update(ENEMY={})),
+        _resave(lambda d: d["blobs"]["COALITION"][0].update(id="blob-7")),
+        _resave(lambda d: d["blobs"]["COALITION"][0].update(id="03-7")),
+        _resave(lambda d: d["blobs"]["COALITION"][0].update(id=7)),
+        _resave(lambda d: d["blobs"]["COALITION"][0].update(size="XL")),
+        _resave(lambda d: d["blobs"]["COALITION"][0].update(pos=[1.0])),
+        _resave(lambda d: d["blobs"]["COALITION"][0].pop("size")),
+        _resave(lambda d: d["blobs"]["COALITION"][0].update(id="2-7")),  # two refresh ticks
+        _resave(lambda d: d["blobs"]["COALITION"].reverse()),  # by cell index
+        _resave(lambda d: d["blobs"]["COALITION"][1].update(id="3-7")),  # a cell twice
+        _resave(lambda d: d["blobs"].update(ENEMY=[{"id": "6-1", "pos": [0.0, 0.0], "size": "S"}])),
+        _resave(lambda d: d.update(sigint_age=3)),  # more than the 2 ticks since tick 3
     ],
 )
 def test_load_rejects_malformed_input(bad: bytes) -> None:

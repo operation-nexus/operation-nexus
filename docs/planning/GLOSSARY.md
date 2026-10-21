@@ -76,6 +76,8 @@ terms still waiting for an owner ruling.
 | Contact | One enemy entity in a side's fog-of-war view: either currently tracked (Tier 2) or a last-known track (FOW-6a) |
 | Last-known track | A contact that has left sensor coverage: frozen where the side last saw it, shown with an age, dropped after `fow.track_fade_s`; never a valid target (FOW-6a). Facilities never become one (FOW-13) |
 | Facility marker | A side's permanent record of a discovered enemy facility (position, kind, variant, emitting); details refresh only while the side observes the site again; never fades (FOW-13) |
+| SIGINT blob | A fuzzy Tier 1 marker of moving enemy units that a side's radar can sense but no sensor tracks: drawn at a 10 km cell, sized S/M/L, never naming units or exact counts (FOW-2, Q-FOW-7) |
+| Painted | A flag on a tracked target while a friendly recon unit tracks it within paint range; a marker and a combat bonus, not a tier (Q-FOW-6) |
 | Spotted | A flag on a side's own unit while any enemy sensor tracks it; says that something sees it, never what or where (FOW-12) |
 
 ## Time, pauses and operations

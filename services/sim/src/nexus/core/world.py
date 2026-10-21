@@ -9,8 +9,9 @@ One walker, `to_canonical`, turns a world into plain sorted data. Snapshots keep
 positions, `orbit` centres and `path` waypoints to integer mm, velocities to integer mm/s, other
 floats (`fuel`) to ADR-0002's 1e-6 step. Python's `round` is round-half-to-even on the
 exact float value, so it is deterministic. The RNG state, `respawn_left` (per commander, GP-2),
-the reserve queue (GP-3), each side's FoW contacts (FOW-5) and discovered facility markers
-(FOW-13) are world state, so snapshots and the hash cover them. `World.rules`
+the reserve queue (GP-3), each side's FoW contacts with their painted flag (FOW-5), discovered
+facility markers (FOW-13), SIGINT blobs and the running ticks since their refresh (Tier 1, FOW-9)
+are world state, so snapshots and the hash cover them. `World.rules`
 (`nexus.core.rules`) is static config, not state: neither snapshots nor the hash include it.
 """
 
@@ -30,11 +31,13 @@ from nexus.core.rules import Rules
 
 # 2: Entity.path and Entity.last_node (NX-121); 3: respawn_left, hp may be null; 4: reserve_queue;
 # 5: Entity.state, fuel and orbit (NX-368); 6: callsigns (NX-370); 7: contacts (NX-150);
-# 8: Entity.base_id, variant and emitting, markers (NX-150 part 2)
-FORMAT_VERSION = 8
+# 8: Entity.base_id, variant and emitting, markers (NX-150 part 2); 9: Contact.painted, blobs,
+# sigint_age (NX-150 part 2b)
+FORMAT_VERSION = 9
 _MM = 1000.0  # metres -> millimetres; m/s -> mm/s
 _MICRO = 1e6  # ADR-0002's 1e-6 step for other floats (fuel)
 _MAX_ABS = 1e9  # m or m/s; keeps mm quantization well inside int64
+_BLOBS = "blobs"
 _CAMPAIGN = "campaign"
 _CONTACTS = "contacts"
 _MARKERS = "markers"
@@ -45,8 +48,10 @@ _RESERVE_QUEUE = "reserve_queue"
 _NEXT_ENTITY_ID = "next_entity_id"
 _NEXT_EVENT_SEQ = "next_event_seq"
 _RNG = "rng"
+_SIGINT_AGE = "sigint_age"
 _V = "v"
 _WORLD_KEYS = (
+    _BLOBS,
     _CALLSIGNS,
     _CAMPAIGN,
     _CONTACTS,
@@ -57,6 +62,7 @@ _WORLD_KEYS = (
     _RESERVE_QUEUE,
     _RESPAWN_LEFT,
     _RNG,
+    _SIGINT_AGE,
     _V,
 )
 _VEC_KEYS = frozenset({"pos", "vel", "orbit"})
@@ -100,6 +106,10 @@ _ZERO = Vec2(0.0, 0.0)
 # event carries a unit state; then it moves to contracts/common/enums.json.
 type UnitState = Literal["LANDED", "EN_ROUTE", "ON_STATION", "RTB"]
 _UNIT_STATES = get_args(UnitState.__value__)
+# A SIGINT blob's size bucket (FOG-OF-WAR Tier 1); kernel-internal until BlobView is a contract.
+type BlobSize = Literal["S", "M", "L"]
+_BLOB_SIZES = get_args(BlobSize.__value__)
+_BLOB_ID = re.compile(r"(0|[1-9][0-9]*)-(0|[1-9][0-9]*)")  # <refresh_tick>-<cell_index> (FOW-2)
 
 
 @dataclass(slots=True)
@@ -133,12 +143,14 @@ class Entity:
 class Contact:
     """One enemy entity a side knows of (FOG-OF-WAR Tier 2, FOW-6a): kind, position and velocity
     (its heading) as of the last pass that tracked it. `age` is None while tracked; once lost it is
-    a last-known track and `age` counts the running ticks since (FOW-9)."""
+    a last-known track and `age` counts the running ticks since (FOW-9). `painted`: a recon unit
+    of the side painted it on that pass (Q-FOW-6); always False on a last-known track."""
 
     kind: UnitKind
     pos: Vec2
     vel: Vec2
     age: int | None = None
+    painted: bool = False
 
 
 @dataclass(slots=True)
@@ -152,6 +164,17 @@ class FacilityMarker:
     pos: Vec2
     emitting: bool | None
     confirmed_tick: int
+
+
+@dataclass(frozen=True, slots=True)
+class Blob:
+    """A SIGINT blob (FOG-OF-WAR Tier 1, FOW-2): `id` is `<refresh_tick>-<cell_index>`, `pos` the
+    cell's centre and `size` a bucket of how many units it holds; never an entity id, an exact
+    count or an exact position."""
+
+    id: str
+    pos: Vec2
+    size: BlobSize
 
 
 @dataclass(slots=True)
@@ -178,6 +201,7 @@ class World:
         "_entities",
         "_next_entity_id",
         "_next_event_seq",
+        "blobs",
         "callsigns",
         "campaign",
         "contacts",
@@ -186,6 +210,7 @@ class World:
         "respawn_left",
         "rng",
         "rules",
+        "sigint_age",
     )
 
     def __init__(self, campaign: Campaign, rng: SimRng, rules: Rules | None = None) -> None:
@@ -209,6 +234,9 @@ class World:
         self.contacts: dict[Side, dict[int, Contact]] = {side: {} for side in _SIDES}
         # Side -> enemy facility id -> its discovered marker, in id order (FOW-13); never removed.
         self.markers: dict[Side, dict[int, FacilityMarker]] = {side: {} for side in _SIDES}
+        # Side -> its SIGINT blobs from the last refresh, by cell index (Tier 1); replaced whole.
+        self.blobs: dict[Side, tuple[Blob, ...]] = {side: () for side in _SIDES}
+        self.sigint_age = 0  # running ticks since the last SIGINT refresh (FOW-9)
 
     @classmethod
     def new(cls, campaign: Campaign, rules: Rules | None = None) -> Self:
@@ -289,8 +317,8 @@ def _entity_data(e: Entity, quantize: bool) -> dict[str, Any]:
 def _contacts_data(world: World, quantize: bool) -> dict[str, Any]:
     return {
         side: [
-            {"age": c.age, "id": i, "kind": c.kind, "pos": _xy(c.pos, quantize),
-             "vel": _xy(c.vel, quantize)}
+            {"age": c.age, "id": i, "kind": c.kind, "painted": c.painted,
+             "pos": _xy(c.pos, quantize), "vel": _xy(c.vel, quantize)}
             for i, c in sorted(world.contacts[side].items())
         ]
         for side in _SIDES
@@ -308,6 +336,13 @@ def _markers_data(world: World, quantize: bool) -> dict[str, Any]:
     }  # fmt: skip
 
 
+def _blobs_data(world: World, quantize: bool) -> dict[str, Any]:
+    return {
+        side: [{"id": b.id, "pos": _xy(b.pos, quantize), "size": b.size} for b in world.blobs[side]]
+        for side in _SIDES
+    }
+
+
 def _sorted(value: Any) -> Any:
     """Plain JSON data with every dict's keys sorted, at any depth."""
     if isinstance(value, dict):
@@ -318,6 +353,7 @@ def _sorted(value: Any) -> Any:
 def to_canonical(world: World, *, quantize: bool) -> dict[str, Any]:
     """Plain data with sorted keys and entities in id order; quantized for the hash only."""
     data = {
+        _BLOBS: _blobs_data(world, quantize),
         _CALLSIGNS: dict(sorted(world.callsigns.items())),
         _CAMPAIGN: {k: getattr(world.campaign, k) for k in sorted(_CAMPAIGN_KEYS)},
         _CONTACTS: _contacts_data(world, quantize),
@@ -328,6 +364,7 @@ def to_canonical(world: World, *, quantize: bool) -> dict[str, Any]:
         _NEXT_ENTITY_ID: world._next_entity_id,
         _NEXT_EVENT_SEQ: world._next_event_seq,
         _RNG: {name: dict(sorted(s.items())) for name, s in world.rng.to_state().items()},
+        _SIGINT_AGE: world.sigint_age,
         _V: FORMAT_VERSION,
     }
     return dict(sorted(data.items()))
@@ -448,7 +485,7 @@ def _reserve_queue(value: object) -> list[JoinCommand]:
     return queue
 
 
-_CONTACT_KEYS = ("age", "id", "kind", "pos", "vel")
+_CONTACT_KEYS = ("age", "id", "kind", "painted", "pos", "vel")
 
 
 _MARKER_KEYS = ("confirmed_tick", "emitting", "id", "kind", "pos", "variant")
@@ -480,7 +517,34 @@ def _per_side[T](
 def _contact(d: dict[str, Any]) -> Contact:
     age = None if d["age"] is None else _int(d["age"], "contact age")
     kind = _str(d["kind"], "contact kind", _UNIT_KINDS)
-    return Contact(kind, _vec(d["pos"], "pos"), _vec(d["vel"], "vel"), age)
+    painted = _bool(d["painted"], "contact painted")
+    if painted and age is not None:
+        raise ValueError("a last-known track cannot be painted")
+    return Contact(kind, _vec(d["pos"], "pos"), _vec(d["vel"], "vel"), age, painted)
+
+
+_BLOB_KEYS = ("id", "pos", "size")
+
+
+def _blobs(value: object, tick: int) -> dict[Side, tuple[Blob, ...]]:
+    """Each side's blobs share one refresh tick, at most the snapshot's, ascending by cell."""
+    sides = _fields(value, _SIDES, _BLOBS)
+    out: dict[Side, tuple[Blob, ...]] = {}
+    for side in _SIDES:
+        if not isinstance(sides[side], list):
+            raise ValueError(f"{_BLOBS}.{side} must be a list")
+        out[side] = tuple(_blob(_fields(b, _BLOB_KEYS, _BLOBS)) for b in sides[side])
+        keys = [tuple(int(n) for n in b.id.split("-")) for b in out[side]]
+        ticks = {k[0] for k in keys}
+        if len(ticks) > 1 or max(ticks, default=0) > tick or keys != sorted(set(keys)):
+            raise ValueError(f"{_BLOBS}.{side}: ids must share one refresh tick and ascend")
+    return out
+
+
+def _blob(d: dict[str, Any]) -> Blob:
+    if not (isinstance(d["id"], str) and _BLOB_ID.fullmatch(d["id"])):
+        raise ValueError(f"bad blob id: {d['id']!r}")
+    return Blob(d["id"], _vec(d["pos"], "pos"), _str(d["size"], "blob size", _BLOB_SIZES))
 
 
 def _marker(d: dict[str, Any]) -> FacilityMarker:
@@ -526,6 +590,12 @@ def load(data: bytes) -> World:
         d[_CONTACTS], _CONTACTS, _CONTACT_KEYS, world._next_entity_id, _contact
     )
     world.markers = _per_side(d[_MARKERS], _MARKERS, _MARKER_KEYS, world._next_entity_id, _marker)
+    world.blobs = _blobs(d[_BLOBS], world.campaign.tick)
+    world.sigint_age = _int(d[_SIGINT_AGE], _SIGINT_AGE)
+    # The age counts running ticks since the refresh, so it cannot exceed the ticks since then.
+    if any(b and world.campaign.tick - int(b[0].id.split("-")[0]) < world.sigint_age
+           for b in world.blobs.values()):  # fmt: skip
+        raise ValueError(f"{_SIGINT_AGE} is older than the blobs' refresh tick")
     entities = d[_ENTITIES]
     if not isinstance(entities, list):
         raise ValueError("entities must be a list")

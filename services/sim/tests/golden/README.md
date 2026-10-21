@@ -56,6 +56,15 @@ radar and SAM site from tick 1670 and the coalition keeps their markers (last co
 3895, as the jet flies home after bingo), and the enemy tracks the recon UAV from tick 5310. Masking and
 passive discovery have no golden case yet: `tests/core/test_fog.py` covers them.
 
+Snapshot format 9 (NX-150 part 2b: each contact's `painted` flag, each side's SIGINT `blobs` and
+`sigint_age`) re-pinned every case's checkpoints again, and the new balance keys (`fow.sigint_*`,
+including the size thresholds, and `fow.paint_range_m`) gave `joins-strait-1` a new `config_hash`; no event stream changed (sensing
+emits no events). In that run the enemy holds one or two S blobs on most SIGINT refreshes (every
+90 ticks) from tick 810 to tick 5220: moving coalition units within 180 km of its radar but outside
+its sensors. The coalition has none, as no enemy unit moves, and nothing is painted, as no recon
+UAV comes within paint range of an enemy. `tests/core/test_fog_sigint.py` covers blobs and
+painting, including a cross-process hash check at 1,000 entities.
+
 The orbit uses libm `atan2`, `cos` and `sin`. They are deterministic on one platform but may
 differ across platforms or libm versions, so every checkpoint here is pinned to the CI platform
 (ADR-0002, SC-3): a mismatch on another machine is not by itself a determinism bug.

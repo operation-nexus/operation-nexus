@@ -170,7 +170,10 @@ def _tbd_keys(tree: object, key: str) -> list[str]:
 
 def load_balance(path: Path) -> BalanceConfig:
     """Parse and strictly validate a balance profile (CFG-1, CFG-2)."""
-    return load_model(path, BalanceConfig)
+    cfg = load_model(path, BalanceConfig)
+    if cfg.fow.sigint_size_l_min <= cfg.fow.sigint_size_m_min:
+        raise ConfigError(f"{path}: fow.sigint_size_l_min: must be above fow.sigint_size_m_min")
+    return cfg
 
 
 def canonical_hash(tree: object) -> str:

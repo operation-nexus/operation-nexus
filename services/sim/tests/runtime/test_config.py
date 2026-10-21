@@ -35,6 +35,12 @@ air:
 fow:
   track_every_ticks: 5
   track_fade_s: 180.0
+  sigint_range_mult: 1.5
+  sigint_refresh_s: 54.0
+  sigint_cell_m: 10000
+  sigint_size_m_min: 3
+  sigint_size_l_min: 7
+  paint_range_m: 20000.0
 slots:
   max_live_per_commander: 1
   respawn_delay_s: 20
@@ -43,16 +49,26 @@ slots:
 """
 # Pinned from this implementation's first run (NX-367: balance, units, theater; re-pinned NX-121
 # for speed_mps, NX-122 for slots and again for the GP-3 cap and queue, NX-368 for air fuel and
-# orbit, NX-150 for sensors, stealth and fow, and passive ranges); a change means every
+# orbit, NX-150 for sensors, stealth and fow, passive ranges, and SIGINT and paint keys); a
+# change means every
 # config_hash moved.
-GOLDEN_CONFIG_HASH = "0f4f48a3e18d8d58e2ac1784b324e9f120d91d1dff7fd4299de6e492db941126"
+GOLDEN_CONFIG_HASH = "7240f61038837f3ee975f97ce897f99a410fe7c41538fa9584f9d9570b0d9fad"
 SLOTS = {
     "max_live_per_commander": 1,
     "respawn_delay_s": 20,
     "max_viewer_units": 500,
     "reserve_queue_max": 1000,
 }
-FOW = {"track_every_ticks": 5, "track_fade_s": 180.0}
+FOW = {
+    "track_every_ticks": 5,
+    "track_fade_s": 180.0,
+    "sigint_range_mult": 1.5,
+    "sigint_refresh_s": 54.0,
+    "sigint_cell_m": 10000,
+    "sigint_size_m_min": 3,
+    "sigint_size_l_min": 7,
+    "paint_range_m": 20000.0,
+}
 CFG = BalanceConfig.model_validate(
     {
         "schema_version": 1,
@@ -106,6 +122,12 @@ def test_default_profile_loads_and_matches_golden_hash() -> None:
         ("  orbit_period_s: 120.0\n", "air.orbit_period_s"),
         ("  track_every_ticks: 5\n", "fow.track_every_ticks"),
         ("  track_fade_s: 180.0\n", "fow.track_fade_s"),
+        ("  sigint_range_mult: 1.5\n", "fow.sigint_range_mult"),
+        ("  sigint_refresh_s: 54.0\n", "fow.sigint_refresh_s"),
+        ("  sigint_cell_m: 10000\n", "fow.sigint_cell_m"),
+        ("  paint_range_m: 20000.0\n", "fow.paint_range_m"),
+        ("  sigint_size_m_min: 3\n", "fow.sigint_size_m_min"),
+        ("  sigint_size_l_min: 7\n", "fow.sigint_size_l_min"),
     ],
 )
 def test_each_missing_required_key_names_key_and_file(tmp_path: Path, line: str, key: str) -> None:
@@ -144,6 +166,14 @@ def test_unknown_key_fails(tmp_path: Path, text: str) -> None:
         ("orbit_period_s: 120.0", "orbit_period_s: 0", "air.orbit_period_s"),
         ("track_every_ticks: 5", "track_every_ticks: 0", "fow.track_every_ticks"),
         ("track_fade_s: 180.0", "track_fade_s: 0", "fow.track_fade_s"),
+        ("sigint_range_mult: 1.5", "sigint_range_mult: 0", "fow.sigint_range_mult"),
+        ("sigint_refresh_s: 54.0", "sigint_refresh_s: 0", "fow.sigint_refresh_s"),
+        ("sigint_cell_m: 10000", "sigint_cell_m: 0", "fow.sigint_cell_m"),
+        ("sigint_cell_m: 10000", "sigint_cell_m: 10000.5", "fow.sigint_cell_m"),
+        ("paint_range_m: 20000.0", "paint_range_m: 0", "fow.paint_range_m"),
+        ("sigint_size_m_min: 3", "sigint_size_m_min: 1", "fow.sigint_size_m_min"),
+        ("sigint_size_l_min: 7", "sigint_size_l_min: 3", "fow.sigint_size_l_min"),  # == M
+        ("sigint_size_l_min: 7", "sigint_size_l_min: 7.0", "fow.sigint_size_l_min"),
     ],
 )
 def test_wrong_type_or_value_fails_naming_key(tmp_path: Path, old: str, new: str, key: str) -> None:
@@ -269,7 +299,9 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "slots: {respawn_delay_s: 20, max_live_per_commander: 1, reserve_queue_max: 1000,\n"
         "  max_viewer_units: 500}\n"
         "air: {orbit_period_s: 120.0, bingo_reserve_frac: 0.15}\n"
-        "fow: {track_fade_s: 180.0, track_every_ticks: 5}\n"
+        "fow: {track_fade_s: 180.0, track_every_ticks: 5, paint_range_m: 20000.0,\n"
+        "  sigint_cell_m: 10000, sigint_refresh_s: 54.0, sigint_range_mult: 1.5,\n"
+        "  sigint_size_l_min: 7, sigint_size_m_min: 3}\n"
         "schema_version:   1\n"
     )
     assert balance_hash(write(tmp_path, reformatted)) == balance_hash(DEFAULT)

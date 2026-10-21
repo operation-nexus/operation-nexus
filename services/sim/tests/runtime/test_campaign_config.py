@@ -36,6 +36,9 @@ def test_shipped_config_hash_and_rules(shipped_config: CampaignConfig) -> None:
     assert (rules.bounds_m, rules.bingo_reserve_frac) == ((400_000.0, 240_000.0), 0.15)
     # NX-150: fow.track_fade_s 180 world s at 0.6 world s per tick is 300 ticks.
     assert (rules.track_every_ticks, rules.track_fade_ticks) == (5, 300)
+    # NX-150 part 2b: fow.sigint_refresh_s 54 world s is 90 ticks; recon UAVs paint.
+    assert rules.sigint_refresh_ticks == 90
+    assert rules.painters == {"RECON_UAV", "ENEMY_RECON_UAV"}
     assert rules.sensor_radius_m.keys() == rules.stealth.keys() == rules.speed_mps.keys()
     assert (
         rules.min_speed_mps.keys()

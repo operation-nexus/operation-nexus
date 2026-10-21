@@ -72,6 +72,7 @@ def load_campaign_config(paths: ConfigPaths | None = None) -> CampaignConfig:
         fow=balance.fow,
         respawn_delay_ticks=game_ticks(balance.slots.respawn_delay_s, balance),
         track_fade_ticks=world_ticks(balance.fow.track_fade_s, balance),
+        sigint_refresh_ticks=world_ticks(balance.fow.sigint_refresh_s, balance),
         mask_cell_m=float(mask_cell_m),
         masking=masking,
     )

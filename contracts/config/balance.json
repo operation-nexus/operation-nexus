@@ -60,14 +60,62 @@
       }
     },
     "Fow": {
-      "description": "Fog of war (\u00a76.1, FOG-OF-WAR FOW-5, FOW-6a; NX-150).",
+      "description": "Fog of war (\u00a76.1, FOG-OF-WAR FOW-5, FOW-6a, FOW-9, Tier 1; NX-150).",
       "type": "object",
       "additionalProperties": false,
       "required": [
+        "paint_range_m",
+        "sigint_cell_m",
+        "sigint_range_mult",
+        "sigint_refresh_s",
+        "sigint_size_l_min",
+        "sigint_size_m_min",
         "track_every_ticks",
         "track_fade_s"
       ],
       "properties": {
+        "paint_range_m": {
+          "description": "A recon unit paints a target it tracks with its own sensor within this range, unit m (FOG-OF-WAR Tier 2 painted flag, Q-FOW-6).",
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "x-unit": "m",
+          "x-hot-reload": false
+        },
+        "sigint_cell_m": {
+          "description": "Side of the square SIGINT cell that blobs aggregate into and are drawn at, unit m (FOG-OF-WAR Tier 1, FOW-2).",
+          "type": "integer",
+          "minimum": 1,
+          "x-unit": "m",
+          "x-hot-reload": false
+        },
+        "sigint_range_mult": {
+          "description": "A SIGINT blob forms within this multiple of a friendly radar site's sensor radius, unitless multiplier (FOG-OF-WAR Tier 1, Q-FOW-7).",
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "x-unit": "x a radar site's sensor.radius_m",
+          "x-hot-reload": false
+        },
+        "sigint_refresh_s": {
+          "description": "SIGINT blobs are rebuilt after this much running world time, unit s of world time, frozen while paused (FOG-OF-WAR FOW-5, FOW-9).",
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "x-unit": "s (world)",
+          "x-hot-reload": false
+        },
+        "sigint_size_l_min": {
+          "description": "A SIGINT blob of at least this many units reads L, unit count; must be above sigint_size_m_min (FOG-OF-WAR Tier 1).",
+          "type": "integer",
+          "minimum": 3,
+          "x-unit": "units",
+          "x-hot-reload": false
+        },
+        "sigint_size_m_min": {
+          "description": "A SIGINT blob of at least this many units reads M (fewer reads S), unit count; must be below sigint_size_l_min (FOG-OF-WAR Tier 1).",
+          "type": "integer",
+          "minimum": 2,
+          "x-unit": "units",
+          "x-hot-reload": false
+        },
         "track_every_ticks": {
           "description": "Tier 2 tracks are computed on ticks where tick % track_every_ticks == 0, unit ticks (FOG-OF-WAR FOW-5, Q-FOW-6).",
           "type": "integer",

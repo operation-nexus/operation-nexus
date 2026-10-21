@@ -18,6 +18,9 @@ from nexus.core.roads import RoadGraph
 
 _LANDING_KINDS = ("AIRBASE", "SANCTUARY")  # aircraft land only here (Q-SIM-38, NX-368)
 _SIDES: tuple[Side, ...] = ("COALITION", "ENEMY")
+# Recon units paint targets (CONFIG-AND-CONTENT §7.3, FOG-OF-WAR Q-FOW-6). shortcut: named here
+# until the unit catalog lists capabilities; then it becomes a catalog field.
+_PAINTERS: tuple[UnitKind, ...] = ("RECON_UAV", "ENEMY_RECON_UAV")
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,6 +52,13 @@ class Rules:
     # (floor(x / mask_cell_m), floor(y / mask_cell_m)) -> the ids of the regions covering it.
     mask_cell_m: float
     masking: Mapping[tuple[int, int], frozenset[str]]
+    paint_range_m: float  # fow.paint_range_m (Q-FOW-6)
+    painters: frozenset[UnitKind]  # kinds that paint (recon units)
+    sigint_range_mult: float  # fow.sigint_range_mult (Tier 1, Q-FOW-7)
+    sigint_refresh_ticks: int  # fow.sigint_refresh_s as world ticks, rounded up (FOW-5, FOW-9)
+    sigint_cell_m: float  # fow.sigint_cell_m (FOW-2); divides both theater bounds
+    sigint_size_m_min: int  # fow.sigint_size_m_min: a blob of this many units reads M
+    sigint_size_l_min: int  # fow.sigint_size_l_min: and of this many, L
 
 
 def world_dt(sim: Sim) -> float:
@@ -81,15 +91,20 @@ def make_rules(
     fow: Fow,
     respawn_delay_ticks: int,
     track_fade_ticks: int,
+    sigint_refresh_ticks: int,
     mask_cell_m: float,
     masking: Mapping[tuple[int, int], frozenset[str]],
 ) -> Rules:
-    """`respawn_delay_ticks` and `track_fade_ticks` are `slots.respawn_delay_s` and
-    `fow.track_fade_s` already converted by the config loader; `masking` is the theater's
+    """`respawn_delay_ticks`, `track_fade_ticks` and `sigint_refresh_ticks` are
+    `slots.respawn_delay_s`, `fow.track_fade_s` and `fow.sigint_refresh_s` already converted by
+    the config loader; `masking` is the theater's
     rasterized masking regions (`nexus.runtime.theater.masking_cells`)."""
     units = tuple(units)
     if not mask_cell_m > 0:
         raise ValueError(f"mask_cell_m must be > 0, got {mask_cell_m!r}")
+    if theater.bounds_m.w % fow.sigint_cell_m or theater.bounds_m.h % fow.sigint_cell_m:
+        # every SIGINT cell, so every blob centre, lies on the map (FOW-2)
+        raise ValueError(f"fow.sigint_cell_m {fow.sigint_cell_m} must divide the theater bounds")
     return Rules(
         world_dt=world_dt(sim),
         speed_mps={u.kind: u.speed_mps for u in units},
@@ -114,4 +129,11 @@ def make_rules(
         passive_range_m={u.kind: u.sensor.passive_range_m or 0.0 for u in units},
         mask_cell_m=mask_cell_m,
         masking=masking,
+        paint_range_m=fow.paint_range_m,
+        painters=frozenset(u.kind for u in units if u.kind in _PAINTERS),
+        sigint_range_mult=fow.sigint_range_mult,
+        sigint_refresh_ticks=sigint_refresh_ticks,
+        sigint_cell_m=float(fow.sigint_cell_m),
+        sigint_size_m_min=fow.sigint_size_m_min,
+        sigint_size_l_min=fow.sigint_size_l_min,
     )

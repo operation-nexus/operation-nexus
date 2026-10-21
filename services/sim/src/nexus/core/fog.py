@@ -1,4 +1,4 @@
-"""Fog of war: Tier 2 tracks, facility discovery (FOG-OF-WAR FOW-1, FOW-4..6a, FOW-9..13; NX-150).
+"""Fog of war: Tier 1 SIGINT, Tier 2 tracks, painting, facility discovery (FOG-OF-WAR; NX-150).
 
 `sense` is the SC-13 `sensing` system. On ticks where `tick % fow.track_every_ticks == 0` it
 computes, per side, the enemy entities inside any of that side's sensors: `sensor.radius_m` x the
@@ -21,28 +21,57 @@ an enemy facility it tracks, or an emitting one within `sensor.passive_range_m` 
 passive sensors; observing it writes its permanent `FacilityMarker` with the site's kind, variant,
 position and emitting flag as of this tick. An unobserved site's marker keeps its old values.
 
-Not here yet: Tier 1 SIGINT blobs and the painted flag (NX-150 part 2b), node owners in the view
-and discovery by capturing a base (capture, NX-125).
+Painting (Q-FOW-6): on each pass, a contact is `painted` when a recon unit of the side
+(`Rules.painters`) tracks it with its own sensor within `fow.paint_range_m`. A last-known track is
+never painted.
+
+SIGINT (Tier 1, FOW-2, Q-FOW-7): after every `fow.sigint_refresh_s` of running world time (counted
+in `World.sigint_age`, frozen while paused, FOW-9) each side's blobs are rebuilt from scratch: the
+moving enemy mobile units it does not track that are within `fow.sigint_range_mult` x the sensor
+radius of one of its non-dark radar sites, counted per square cell of `fow.sigint_cell_m`. Cell
+`(cx, cy) = (floor(x / cell), floor(y / cell))`, clamped into the theater bounds (which the cell
+divides, `make_rules`), has index `cy * (w / cell) + cx`; a blob is drawn at the cell's centre with
+id `<refresh_tick>-<cell_index>` and a size bucket (`fow.sigint_size_m_min`, `_l_min`), so it
+carries no entity id, exact count or exact position, and building it draws no RNG.
+
+Not here yet: node owners in the view and discovery by capturing a base (capture, NX-125); the
+`TargetPainted{recon_id, target_id, until_tick}` event with combat (NX-124), `until_tick` being
+the next Tier 2 pass; emitting mobile units in blobs (Q-FOW-7 "moving or emitting") once a mobile
+emitter exists.
 """
 
+import math
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
 
-from nexus.contracts.gen.common.enums import Side
+from nexus.contracts.gen.common.enums import Side, UnitKind
 from nexus.core.rules import Rules
 from nexus.core.spatial import UniformGrid
-from nexus.core.world import Contact, Entity, FacilityMarker, Vec2, World
+from nexus.core.world import _ZERO, Blob, BlobSize, Contact, Entity, FacilityMarker, Vec2, World
 
 _STATIC = "STATIC"
 _GROUND = "GROUND"
 _NOWHERE: frozenset[str] = frozenset()
 _ENEMY_OF: Mapping[Side, Side] = {"COALITION": "ENEMY", "ENEMY": "COALITION"}
+_RADAR: UnitKind = "RADAR_SITE"
 
 
 def sense(world: World) -> None:
     rules = world.rules
     if rules is None or world.campaign.clock_paused:
         return
+    _age(world, rules)
+    if not (world.campaign.tick + 1) % rules.track_every_ticks:
+        _track(world, rules)
+    world.sigint_age += 1
+    if world.sigint_age >= rules.sigint_refresh_ticks:
+        world.sigint_age = 0
+        for side in _ENEMY_OF:
+            world.blobs[side] = _sigint(world, rules, side)
+
+
+def _age(world: World, rules: Rules) -> None:
+    """Last-known tracks gain a running tick and drop at `fow.track_fade_s` (FOW-6a)."""
     for side, known in world.contacts.items():
         expired = False
         for c in known.values():
@@ -53,32 +82,44 @@ def sense(world: World) -> None:
             world.contacts[side] = {
                 i: c for i, c in known.items() if c.age is None or c.age < rules.track_fade_ticks
             }
-    if (world.campaign.tick + 1) % rules.track_every_ticks:
-        return
+
+
+def _track(world: World, rules: Rules) -> None:
+    """One Tier 2 pass for both sides: tracks, painting and discovery."""
     cell_m = max(rules.sensor_radius_m.values(), default=0.0) / 2
     for side in _ENEMY_OF:
-        tracked = _detect(world, rules, UniformGrid(cell_m), side) if cell_m > 0 else []
-        world.contacts[side] = _merge(world, rules, world.contacts[side], tracked)
+        tracked, painted = (
+            _detect(world, rules, UniformGrid(cell_m), side) if cell_m > 0 else ([], set())
+        )
+        world.contacts[side] = _merge(world, rules, world.contacts[side], tracked, painted)
         _discover(world, rules, side, tracked)
 
 
-def _detect(world: World, rules: Rules, grid: UniformGrid, side: Side) -> list[int]:
-    """Ids of enemy entities inside any of `side`'s sensors, ascending (a pure function)."""
+def _detect(
+    world: World, rules: Rules, grid: UniformGrid, side: Side
+) -> tuple[list[int], set[int]]:
+    """Ids of enemy entities inside any of `side`'s sensors, ascending, and the subset one of its
+    painters tracks within `fow.paint_range_m` (a pure function)."""
     grid.rebuild(e for e in world.entities() if e.side != side)  # targets only
     found: set[int] = set()  # membership only; the result is sorted
+    painted: set[int] = set()
     for s in world.entities():
         radius = rules.sensor_radius_m[s.kind]
         if s.side != side or radius <= 0 or s.emitting is False:  # dark: no coverage (FOW-11)
             continue
+        paint2 = rules.paint_range_m**2 if s.kind in rules.painters else -1.0
         here = _regions(rules, s.pos)
         for i in grid.query_radius(s.pos, radius):
-            if i in found:
+            if i in painted or (i in found and paint2 < 0):
                 continue
             t = world.get(i)
             reach = radius * rules.stealth[t.kind]
-            if _dist2(t.pos, s.pos) <= reach * reach and not _masked(rules, t, here):
+            d2 = _dist2(t.pos, s.pos)
+            if d2 <= reach * reach and not _masked(rules, t, here):
                 found.add(i)
-    return sorted(found)
+                if d2 <= paint2:  # the painter tracks it itself (Q-FOW-6)
+                    painted.add(i)
+    return sorted(found), painted
 
 
 def _dist2(a: Vec2, b: Vec2) -> float:
@@ -132,16 +173,60 @@ def _discover(world: World, rules: Rules, side: Side, tracked: list[int]) -> Non
     world.markers[side] = dict(sorted(markers.items()))
 
 
+def _sigint(world: World, rules: Rules, side: Side) -> tuple[Blob, ...]:
+    """`side`'s Tier 1 blobs, by cell index (Q-FOW-7, FOW-11: a dark radar adds no range).
+    shortcut: units x radar sites, no grid; radar sites are the few pre-placed facilities. Use the
+    grid if a theater's radar sites reach the hundreds (SC-10 smoke test)."""
+    radars = [
+        (s.pos, (rules.sensor_radius_m[s.kind] * rules.sigint_range_mult) ** 2)
+        for s in world.entities()
+        if s.side == side and s.kind == _RADAR and s.emitting is not False
+    ]
+    if not radars:
+        return ()
+    cell = rules.sigint_cell_m
+    cols, rows = (max(1, math.ceil(b / cell)) for b in rules.bounds_m)
+    counts: dict[int, int] = {}
+    for e in world.entities():
+        if (
+            e.side == side
+            or e.vel == _ZERO  # parked or silent: no blob
+            or rules.domain[e.kind] == _STATIC  # facilities never form blobs
+            or tracked_by(world, side, e.id)  # outside the side's sensors only
+            or not any(_dist2(e.pos, p) <= r2 for p, r2 in radars)
+        ):
+            continue
+        cx = min(max(math.floor(e.pos.x / cell), 0), cols - 1)
+        cy = min(max(math.floor(e.pos.y / cell), 0), rows - 1)
+        k = cy * cols + cx
+        counts[k] = counts.get(k, 0) + 1
+    tick = world.campaign.tick + 1  # the refresh tick being computed
+    return tuple(
+        Blob(
+            f"{tick}-{k}", Vec2((k % cols + 0.5) * cell, (k // cols + 0.5) * cell), _size(rules, n)
+        )
+        for k, n in sorted(counts.items())
+    )
+
+
+def _size(rules: Rules, n: int) -> BlobSize:
+    return "S" if n < rules.sigint_size_m_min else "M" if n < rules.sigint_size_l_min else "L"
+
+
 def _merge(
-    world: World, rules: Rules, old: dict[int, Contact], tracked: list[int]
+    world: World, rules: Rules, old: dict[int, Contact], tracked: list[int], painted: set[int]
 ) -> dict[int, Contact]:
-    now = {i: Contact(e.kind, e.pos, e.vel) for i in tracked for e in [world.get(i)]}
+    now = {
+        i: Contact(e.kind, e.pos, e.vel, None, i in painted)
+        for i in tracked
+        for e in [world.get(i)]
+    }
     for i, c in old.items():
         if i not in now:
             if c.age is None and rules.domain[c.kind] == _STATIC:
                 continue  # facilities never leave last-known tracks; markers do (FOW-13, part 2)
             if c.age is None:
-                c.age = 0  # coverage lost: freeze as a last-known track (FOW-6a)
+                c.age, c.painted = 0, False  # coverage lost: a last-known track (FOW-6a)
             now[i] = c
     return dict(sorted(now.items()))
 
@@ -175,6 +260,7 @@ class SideView:
     last_known: Mapping[int, Contact]
     nodes: Mapping[str, tuple[int, int]]  # every node's position, m (FOW-10)
     markers: Mapping[int, FacilityMarker]  # discovered enemy facilities (FOW-13)
+    blobs: tuple[Blob, ...]  # Tier 1 SIGINT blobs from the last refresh, by cell index
 
 
 def side_view(world: World, side: Side) -> SideView:
@@ -187,4 +273,5 @@ def side_view(world: World, side: Side) -> SideView:
         {i: replace(c) for i, c in known.items() if c.age is not None},
         dict(world.rules.roads.pos),
         {i: replace(m) for i, m in world.markers[side].items()},
+        world.blobs[side],  # immutable
     )

@@ -43,7 +43,7 @@ def rules(world_dt: float, roads: RoadGraph = ROADS) -> Rules:
     air = ({JET: 100.0}, {JET: 1e6}, 0.0, no_bases, (W, H), 120.0)
     return Rules(
         world_dt, speeds, domains, roads, {}, "haven", 1, 0, 1, 1, *air,
-        {}, {}, 5, 1, {}, 1000.0, {},  # no sensors, no masking
+        {}, {}, 5, 1, {}, 1000.0, {}, 0.0, frozenset(), 1.0, 1, 1.0, 3, 7,  # no sensors or painting
     )  # fmt: skip
 
 
@@ -60,9 +60,20 @@ def scaled(time_scale: float) -> Rules:
         fow=BALANCE.fow,
         respawn_delay_ticks=0,
         track_fade_ticks=1,
+        sigint_refresh_ticks=1,
         mask_cell_m=1000.0,
         masking={},
     )
+
+
+def test_make_rules_refuses_a_sigint_cell_that_does_not_divide_the_bounds() -> None:
+    fow = BALANCE.fow.model_copy(update={"sigint_cell_m": 7000})  # strait-1 is 400 x 240 km
+    with pytest.raises(ValueError, match="sigint_cell_m"):
+        make_rules(
+            BALANCE.sim, UNITS, ROADS, roles=ROLES, theater=STRAIT_1, slots=BALANCE.slots,
+            air=BALANCE.air, fow=fow, respawn_delay_ticks=0, track_fade_ticks=1,
+            sigint_refresh_ticks=1, mask_cell_m=1000.0, masking={},
+        )  # fmt: skip
 
 
 def test_make_rules_refuses_a_zero_mask_cell() -> None:
@@ -74,7 +85,7 @@ def replace_mask_cell(cell_m: float) -> Rules:
     return make_rules(
         BALANCE.sim, UNITS, ROADS, roles=ROLES, theater=STRAIT_1, slots=BALANCE.slots,
         air=BALANCE.air, fow=BALANCE.fow, respawn_delay_ticks=0, track_fade_ticks=1,
-        mask_cell_m=cell_m, masking={},
+        sigint_refresh_ticks=1, mask_cell_m=cell_m, masking={},
     )  # fmt: skip
 
 

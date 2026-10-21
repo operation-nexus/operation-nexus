@@ -17,3 +17,9 @@ air:
 fow:
   track_every_ticks: 5  # PROPOSED – unvalidated; ticks, 0.5 s game (CONFIG-AND-CONTENT §6.1 fow.track_every_ticks)
   track_fade_s: 180.0  # PROPOSED – unvalidated (NX-150); s (world), 30 real s at 6x (CONFIG-AND-CONTENT §6.1 fow.track_fade_s)
+  sigint_range_mult: 1.5  # PROPOSED – unvalidated (NX-150); x a radar site's sensor.radius_m, 180 km for a 120 km radar (CONFIG-AND-CONTENT §6.1 fow.sigint_range_mult)
+  sigint_refresh_s: 54.0  # PROPOSED – unvalidated (NX-150, Q-ALN-38: 48–60); s (world), 90 ticks, 9 real s at 6x (CONFIG-AND-CONTENT §6.1 fow.sigint_refresh_s)
+  sigint_cell_m: 10000  # PROPOSED – unvalidated; m (CONFIG-AND-CONTENT §6.1 fow.sigint_cell_m)
+  sigint_size_m_min: 3  # PROPOSED – unvalidated (NX-150); units: a blob of 3-6 reads M, 1-2 S (CONFIG-AND-CONTENT §6.1 fow.sigint_size_m_min)
+  sigint_size_l_min: 7  # PROPOSED – unvalidated (NX-150); units: a blob of 7 or more reads L (CONFIG-AND-CONTENT §6.1 fow.sigint_size_l_min)
+  paint_range_m: 20000.0  # PROPOSED – unvalidated (NX-150); m, a third of a recon UAV's 60 km sensor (CONFIG-AND-CONTENT §6.1 fow.paint_range_m)

@@ -33,6 +33,48 @@ class Fow(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
+    paint_range_m: Annotated[
+        float,
+        Field(
+            description="A recon unit paints a target it tracks with its own sensor within this range, unit m (FOG-OF-WAR Tier 2 painted flag, Q-FOW-6).",
+            gt=0.0,
+        ),
+    ]
+    sigint_cell_m: Annotated[
+        int,
+        Field(
+            description="Side of the square SIGINT cell that blobs aggregate into and are drawn at, unit m (FOG-OF-WAR Tier 1, FOW-2).",
+            ge=1,
+        ),
+    ]
+    sigint_range_mult: Annotated[
+        float,
+        Field(
+            description="A SIGINT blob forms within this multiple of a friendly radar site's sensor radius, unitless multiplier (FOG-OF-WAR Tier 1, Q-FOW-7).",
+            gt=0.0,
+        ),
+    ]
+    sigint_refresh_s: Annotated[
+        float,
+        Field(
+            description="SIGINT blobs are rebuilt after this much running world time, unit s of world time, frozen while paused (FOG-OF-WAR FOW-5, FOW-9).",
+            gt=0.0,
+        ),
+    ]
+    sigint_size_l_min: Annotated[
+        int,
+        Field(
+            description="A SIGINT blob of at least this many units reads L, unit count; must be above sigint_size_m_min (FOG-OF-WAR Tier 1).",
+            ge=3,
+        ),
+    ]
+    sigint_size_m_min: Annotated[
+        int,
+        Field(
+            description="A SIGINT blob of at least this many units reads M (fewer reads S), unit count; must be below sigint_size_l_min (FOG-OF-WAR Tier 1).",
+            ge=2,
+        ),
+    ]
     track_every_ticks: Annotated[
         int,
         Field(
