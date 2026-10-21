@@ -19,6 +19,8 @@ from nexus.runtime.config import (
     world_ticks,
 )
 
+from .test_theater import GOLDEN_THEATER_HASH as THEATER_HASH
+
 DEFAULT = Path(__file__).resolve().parents[4] / "balance" / "default.yaml"
 VALID = """\
 schema_version: 1
@@ -27,8 +29,9 @@ sim:
   time_scale: 6.0
   snapshot_every_ticks: 300
 """
-# Pinned from this implementation's first run (NX-106); a change means every config_hash moved.
-GOLDEN_CONFIG_HASH = "f3d35d110c19cb2e226862269a38c856afa7ba264ef2f76633f1e6079d88a568"
+# Pinned from this implementation's first run (NX-120: balance then theater); a change means every
+# config_hash moved.
+GOLDEN_CONFIG_HASH = "ff27a21b082ea4353a222fedba6e1a68367bf5dc2c56ba5610d08be49fe4d740"
 CFG = BalanceConfig.model_validate(
     {"schema_version": 1, "sim": {"tick_hz": 10, "time_scale": 6.0, "snapshot_every_ticks": 300}}
 )
@@ -56,7 +59,9 @@ def test_valid_file_loads(tmp_path: Path) -> None:
 
 def test_default_profile_loads_and_matches_golden_hash() -> None:
     assert load_balance(DEFAULT) == CFG
-    assert config_hash(balance_hash(DEFAULT)) == GOLDEN_CONFIG_HASH
+    assert config_hash(balance_hash(DEFAULT), THEATER_HASH) == GOLDEN_CONFIG_HASH
+    # Order is part of the hash (§4.4): swapping the parts gives another hash.
+    assert config_hash(THEATER_HASH, balance_hash(DEFAULT)) != GOLDEN_CONFIG_HASH
 
 
 @pytest.mark.parametrize(
@@ -98,6 +103,7 @@ def test_unknown_key_fails(tmp_path: Path, text: str) -> None:
         ("schema_version: 1", "schema_version: 2", "schema_version"),
         ("time_scale: 6.0", "time_scale: 0", "sim.time_scale"),
         ("snapshot_every_ticks: 300", "snapshot_every_ticks: 0", "sim.snapshot_every_ticks"),
+        ("time_scale: 6.0", "time_scale: TBD", "sim.time_scale"),
     ],
 )
 def test_wrong_type_or_value_fails_naming_key(tmp_path: Path, old: str, new: str, key: str) -> None:
@@ -233,7 +239,7 @@ def test_hash_expands_anchors() -> None:
 def test_single_value_change_changes_hash(tmp_path: Path) -> None:
     changed = write(tmp_path, VALID.replace("time_scale: 6.0", "time_scale: 6.5"))
     assert balance_hash(changed) != balance_hash(DEFAULT)
-    assert config_hash(balance_hash(changed)) != GOLDEN_CONFIG_HASH
+    assert config_hash(balance_hash(changed), THEATER_HASH) != GOLDEN_CONFIG_HASH
 
 
 def test_canonical_hash_rejects_non_json_values() -> None:

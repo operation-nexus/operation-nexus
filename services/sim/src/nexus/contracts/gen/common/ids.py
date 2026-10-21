@@ -49,6 +49,16 @@ type NodeId = Annotated[
 ]
 
 
+type SectorId = Annotated[
+    str,
+    Field(
+        description="Named map region from the theater file (OVERLAY AN-1).",
+        max_length=32,
+        pattern="^[a-z0-9]+(-[a-z0-9]+)*$",
+    ),
+]
+
+
 type Tick = Annotated[int, Field(description="10 Hz game time (SC-2).", ge=0)]
 
 

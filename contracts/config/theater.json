@@ -1,0 +1,115 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nexus.local/contracts/config/theater.json",
+  "title": "TheaterConfig",
+  "description": "A theater file, content/theaters/<slug>.yaml (CONFIG-AND-CONTENT §9). Fields land with the code that reads them; the loader (NX-120) checks the §9.2 TH rules the schema cannot. Coordinates are integer metres, x east, y south. A TBD value fails its type (TH-11).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "slug", "name", "version", "bounds_m", "terrain", "sectors", "nodes", "facilities", "edges", "spawns", "sanctuary", "enemy_hq", "forward_airbase"],
+  "properties": {
+    "schema_version": {"description": "File format version, unitless; the loader accepts only 1 (§4.4).", "type": "integer", "minimum": 1, "maximum": 1},
+    "slug": {"description": "Equals the file name without .yaml.", "type": "string", "pattern": "^[a-z0-9-]{3,32}$"},
+    "name": {"$ref": "#/$defs/DisplayName"},
+    "version": {"description": "Human-facing content semver, informational (§4.4).", "type": "string", "pattern": "^(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)\\.(0|[1-9][0-9]*)$", "maxLength": 32},
+    "bounds_m": {"$ref": "#/$defs/Bounds"},
+    "terrain": {"$ref": "#/$defs/Terrain"},
+    "sectors": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/Sector"}},
+    "nodes": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/Node"}},
+    "facilities": {"description": "Pre-placed facilities; read first by the facility spawn item, checked now for TH-10.", "type": "array", "items": {"$ref": "#/$defs/Facility"}},
+    "edges": {"type": "array", "items": {"$ref": "#/$defs/Edge"}},
+    "spawns": {"description": "Spawn points; read first by the spawn item (GAMEPLAY GP-7); TH-7 waits for the unit catalog.", "type": "array", "items": {"$ref": "#/$defs/Spawn"}},
+    "sanctuary": {"$ref": "../common/ids.json#/$defs/NodeId"},
+    "enemy_hq": {"$ref": "../common/ids.json#/$defs/NodeId"},
+    "forward_airbase": {"$ref": "../common/ids.json#/$defs/NodeId"}
+  },
+  "$defs": {
+    "DisplayName": {"description": "Display name; moderation (CFG-8) joins with the moderation module.", "type": "string", "minLength": 1, "maxLength": 32},
+    "Bounds": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["w", "h"],
+      "properties": {
+        "w": {"description": "Map width, unit m.", "type": "integer", "minimum": 1, "x-unit": "m"},
+        "h": {"description": "Map height, unit m.", "type": "integer", "minimum": 1, "x-unit": "m"}
+      }
+    },
+    "Point": {"description": "[x, y], unit m.", "type": "array", "items": {"type": "integer", "minimum": 0, "x-unit": "m"}, "minItems": 2, "maxItems": 2},
+    "Polygon": {"type": "array", "items": {"$ref": "#/$defs/Point"}, "minItems": 3},
+    "Terrain": {
+      "description": "No height data in the first build (Q-TH-4); heightmap and contours join with the item that reads height.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["masking_regions"],
+      "properties": {
+        "masking_regions": {"description": "Read first by FoW Tier 2 masking (Q-FOW-3).", "type": "array", "items": {"$ref": "#/$defs/MaskingRegion"}}
+      }
+    },
+    "MaskingRegion": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "polygon"],
+      "properties": {
+        "id": {"$ref": "../common/ids.json#/$defs/SectorId"},
+        "polygon": {"$ref": "#/$defs/Polygon"}
+      }
+    },
+    "Sector": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "polygon"],
+      "properties": {
+        "id": {"$ref": "../common/ids.json#/$defs/SectorId"},
+        "name": {"$ref": "#/$defs/DisplayName"},
+        "polygon": {"$ref": "#/$defs/Polygon"}
+      }
+    },
+    "Node": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "name", "kind", "pos", "start_owner", "start_stock", "sector"],
+      "properties": {
+        "id": {"$ref": "../common/ids.json#/$defs/NodeId"},
+        "name": {"$ref": "#/$defs/DisplayName"},
+        "kind": {"$ref": "../common/enums.json#/$defs/NodeKind"},
+        "pos": {"$ref": "#/$defs/Point"},
+        "start_owner": {"$ref": "../common/enums.json#/$defs/NodeOwner"},
+        "start_stock": {"description": "Starting stock, unit stock units; null only on the SANCTUARY, meaning infinite by rule (CFG-2).", "anyOf": [{"type": "integer", "minimum": 0}, {"type": "null"}], "x-unit": "stock units"},
+        "sector": {"$ref": "../common/ids.json#/$defs/SectorId"},
+        "garrison_quota": {"description": "Static garrison size, unit units; read first by the director's Pattern of Life (THREAT-DIRECTOR §5a).", "type": "integer", "minimum": 1, "x-unit": "units"}
+      }
+    },
+    "Facility": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "kind", "base"],
+      "properties": {
+        "id": {"type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$", "maxLength": 32},
+        "kind": {"description": "A facility UnitKind, STATIC domain (CONTRACTS \u00a73.3, Q-GP-25).", "enum": ["RADAR_SITE", "AIR_DEFENSE_SITE"]},
+        "variant": {"description": "Catalog variant (§7); checked against the unit catalog when it loads.", "type": "string", "pattern": "^[A-Z][A-Z0-9_]*$", "maxLength": 32},
+        "base": {"$ref": "../common/ids.json#/$defs/NodeId"}
+      }
+    },
+    "Edge": {
+      "description": "Length is the straight line between the endpoints (SIM-CORE §4 length_m).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["a", "b", "layer", "speed_mult"],
+      "properties": {
+        "a": {"$ref": "../common/ids.json#/$defs/NodeId"},
+        "b": {"$ref": "../common/ids.json#/$defs/NodeId"},
+        "layer": {"$ref": "../common/enums.json#/$defs/EdgeLayer"},
+        "speed_mult": {"description": "Travel cost is length / speed_mult (GAMEPLAY §5), unit multiplier.", "type": "number", "exclusiveMinimum": 0, "x-unit": "multiplier"},
+        "bridge": {"$ref": "../common/ids.json#/$defs/NodeId"}
+      }
+    },
+    "Spawn": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["node", "domains"],
+      "properties": {
+        "node": {"$ref": "../common/ids.json#/$defs/NodeId"},
+        "domains": {"type": "array", "items": {"$ref": "../common/enums.json#/$defs/Domain"}, "minItems": 1}
+      }
+    }
+  }
+}

@@ -1,5 +1,6 @@
 # Theater #1 sketch (NX-008). Decisions: Q-TH-1..7, Q-GP-22, Q-GP-36, Q-GD-33 (docs/planning/OPEN-QUESTIONS.md).
-# Every "TBD" is a value the balance harness must supply (DATA-INTEGRITY DI-7); the loader rejects TBD until filled.
+# start_stock and speed_mult values marked PROPOSED are lead starting values (NX-120, Q-CFG-11, DI-7): the owner may
+# veto them and the balance harness (NX-031) tunes them. Any value written TBD is rejected at load (TH-11).
 # Coordinates are metres; x grows east (coalition west, Static east, Q-GD-13), y grows south.
 schema_version: 1
 slug: strait-1
@@ -18,9 +19,9 @@ sectors:                       # three lanes across the whole map (Q-TH-1)
 nodes:
   # Coalition (west)
   - { id: haven,        name: "Haven",          kind: SANCTUARY, pos: [20000,120000],  start_owner: COALITION, start_stock: null, sector: centre }  # null = infinite by rule (CFG-2)
-  - { id: west-airbase, name: "West Airbase",   kind: AIRBASE,   pos: [90000,120000],  start_owner: COALITION, start_stock: TBD,  sector: centre }
-  - { id: fob-n-w,      name: "FOB North-West", kind: FOB,       pos: [130000,60000],  start_owner: COALITION, start_stock: TBD,  sector: north }
-  - { id: fob-s-w,      name: "FOB South-West", kind: FOB,       pos: [130000,180000], start_owner: COALITION, start_stock: TBD,  sector: south }
+  - { id: west-airbase, name: "West Airbase",   kind: AIRBASE,   pos: [90000,120000],  start_owner: COALITION, start_stock: 1000, sector: centre }  # PROPOSED (NX-120, owner may veto; harness tunes, NX-031)
+  - { id: fob-n-w,      name: "FOB North-West", kind: FOB,       pos: [130000,60000],  start_owner: COALITION, start_stock: 500,  sector: north }  # PROPOSED (NX-120, owner may veto; harness tunes, NX-031)
+  - { id: fob-s-w,      name: "FOB South-West", kind: FOB,       pos: [130000,180000], start_owner: COALITION, start_stock: 500,  sector: south }  # PROPOSED (NX-120, owner may veto; harness tunes, NX-031)
   # The strait (x ~190-210 km, scenery only, no ports: Q-TH-3)
   - { id: bridge-n,     name: "North Bridge",   kind: BRIDGE,    pos: [200000,60000],  start_owner: NEUTRAL,   start_stock: 0,    sector: north }
   - { id: bridge-s,     name: "South Bridge",   kind: BRIDGE,    pos: [200000,180000], start_owner: NEUTRAL,   start_stock: 0,    sector: south }
@@ -28,10 +29,10 @@ nodes:
   - { id: cross-n,      name: "North Crossing", kind: FOB,       pos: [230000,60000],  start_owner: NEUTRAL,   start_stock: 0,    sector: north }
   - { id: cross-s,      name: "South Crossing", kind: FOB,       pos: [230000,180000], start_owner: NEUTRAL,   start_stock: 0,    sector: south }
   # Static (east)
-  - { id: fob-n-e,      name: "FOB North-East", kind: FOB,       pos: [290000,40000],  start_owner: ENEMY,     start_stock: TBD,  sector: north,  garrison_quota: 4 }
-  - { id: fob-s-e,      name: "FOB South-East", kind: FOB,       pos: [290000,200000], start_owner: ENEMY,     start_stock: TBD,  sector: south,  garrison_quota: 4 }
-  - { id: east-airbase, name: "East Airbase",   kind: AIRBASE,   pos: [310000,120000], start_owner: ENEMY,     start_stock: TBD,  sector: centre, garrison_quota: 6 }
-  - { id: static-hq,    name: "Static HQ",      kind: HQ,        pos: [380000,120000], start_owner: ENEMY,     start_stock: TBD,  sector: centre, garrison_quota: 8 }
+  - { id: fob-n-e,      name: "FOB North-East", kind: FOB,       pos: [290000,40000],  start_owner: ENEMY,     start_stock: 500,  sector: north,  garrison_quota: 4 }  # PROPOSED (NX-120, owner may veto; harness tunes, NX-031)
+  - { id: fob-s-e,      name: "FOB South-East", kind: FOB,       pos: [290000,200000], start_owner: ENEMY,     start_stock: 500,  sector: south,  garrison_quota: 4 }  # PROPOSED (NX-120, owner may veto; harness tunes, NX-031)
+  - { id: east-airbase, name: "East Airbase",   kind: AIRBASE,   pos: [310000,120000], start_owner: ENEMY,     start_stock: 1000, sector: centre, garrison_quota: 6 }  # PROPOSED (NX-120, owner may veto; harness tunes, NX-031)
+  - { id: static-hq,    name: "Static HQ",      kind: HQ,        pos: [380000,120000], start_owner: ENEMY,     start_stock: 1000, sector: centre, garrison_quota: 8 }  # PROPOSED (NX-120, owner may veto; harness tunes, NX-031)
 facilities:                    # STATIC units attached to a base (Q-GP-25); mirrored per Q-TH-5
   - { id: radar-west,   kind: RADAR_SITE,       base: west-airbase }
   - { id: ad-west,      kind: AIR_DEFENSE_SITE, variant: SAM, base: west-airbase }
@@ -42,19 +43,19 @@ facilities:                    # STATIC units attached to a base (Q-GP-25); mirr
   - { id: ad-fob-n-e,   kind: AIR_DEFENSE_SITE, variant: SHORT_RANGE, base: fob-n-e }
   - { id: ad-fob-s-e,   kind: AIR_DEFENSE_SITE, variant: SHORT_RANGE, base: fob-s-e }
   - { id: radar-hq,     kind: RADAR_SITE,       base: static-hq }
-edges:                         # ROAD layer; speed_mult TBD by harness
-  - { a: haven,        b: west-airbase, layer: ROAD, speed_mult: TBD }
-  - { a: west-airbase, b: fob-n-w,      layer: ROAD, speed_mult: TBD }
-  - { a: west-airbase, b: fob-s-w,      layer: ROAD, speed_mult: TBD }
-  - { a: fob-n-w,      b: cross-n,      layer: ROAD, speed_mult: TBD, bridge: bridge-n }
-  - { a: fob-s-w,      b: cross-s,      layer: ROAD, speed_mult: TBD, bridge: bridge-s }
-  - { a: cross-n,      b: fob-n-e,      layer: ROAD, speed_mult: TBD }
-  - { a: cross-s,      b: fob-s-e,      layer: ROAD, speed_mult: TBD }
-  - { a: cross-n,      b: east-airbase, layer: ROAD, speed_mult: TBD }
-  - { a: cross-s,      b: east-airbase, layer: ROAD, speed_mult: TBD }
-  - { a: fob-n-e,      b: static-hq,    layer: ROAD, speed_mult: TBD }
-  - { a: fob-s-e,      b: static-hq,    layer: ROAD, speed_mult: TBD }
-  - { a: east-airbase, b: static-hq,    layer: ROAD, speed_mult: TBD }
+edges:                         # ROAD layer; speed_mult 1.0: PROPOSED (NX-120, owner may veto; harness tunes, NX-031)
+  - { a: haven,        b: west-airbase, layer: ROAD, speed_mult: 1.0 }
+  - { a: west-airbase, b: fob-n-w,      layer: ROAD, speed_mult: 1.0 }
+  - { a: west-airbase, b: fob-s-w,      layer: ROAD, speed_mult: 1.0 }
+  - { a: fob-n-w,      b: cross-n,      layer: ROAD, speed_mult: 1.0, bridge: bridge-n }
+  - { a: fob-s-w,      b: cross-s,      layer: ROAD, speed_mult: 1.0, bridge: bridge-s }
+  - { a: cross-n,      b: fob-n-e,      layer: ROAD, speed_mult: 1.0 }
+  - { a: cross-s,      b: fob-s-e,      layer: ROAD, speed_mult: 1.0 }
+  - { a: cross-n,      b: east-airbase, layer: ROAD, speed_mult: 1.0 }
+  - { a: cross-s,      b: east-airbase, layer: ROAD, speed_mult: 1.0 }
+  - { a: fob-n-e,      b: static-hq,    layer: ROAD, speed_mult: 1.0 }
+  - { a: fob-s-e,      b: static-hq,    layer: ROAD, speed_mult: 1.0 }
+  - { a: east-airbase, b: static-hq,    layer: ROAD, speed_mult: 1.0 }
 spawns:                        # usable by whichever side owns the node (GAMEPLAY GP-7)
   - { node: haven,        domains: [AIR, GROUND] }
   - { node: west-airbase, domains: [AIR, GROUND] }

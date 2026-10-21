@@ -84,7 +84,7 @@ Precedence: the env var `NEXUS__SECTION__KEY` overrides the file. **Every effect
   - a key repeated in one mapping (a `<<` merge followed by an explicit key is an override, not a duplicate);
   - YAML 1.1 number forms (hex `0x`, octal `0o` or a leading zero, `_` separators, sexagesimal `1:30`): they stay strings, which the schema then rejects for a numeric key.
 - **Bounds:** durations given to the tick conversion (CFG-9) must be finite and ≥ 0; a schema key gets a maximum only once the balance harness proposes one (NX-031).
-- **`config_hash`** = blake2b-256 over the concatenation of the canonical hashes (raw 32-byte digests), in a fixed order: `balance`, `units`, `doctrines`, `theater` (the one selected for the campaign), `text`. Each part joins with its loader; until then the hash covers only the parts that exist (NX-106: `balance` only), never a placeholder for a missing part.
+- **`config_hash`** = blake2b-256 over the concatenation of the canonical hashes (raw 32-byte digests), in a fixed order: `balance`, `units`, `doctrines`, `theater` (the one selected for the campaign), `text`. Each part joins with its loader; until then the hash covers only the parts that exist (today `balance`, NX-106, then `theater`, NX-120), never a placeholder for a missing part.
 - **Manifest:** every `config_hash` is registered with a manifest listing each contributing file (path, kind, sha256) plus the full content, so crash bundles and replays never depend on git (DATA-MODEL §4.7).
 - **`schema_version`:** every file carries an integer `schema_version`. A loader accepts only versions it knows. A schema bump that changes meaning requires a migration script under `tools/config_migrate/` with tests.
 - **`content_version`:** a human-facing semver per content file (e.g. a theater's `version: 1.2.0`), shown in the AAR and in replay headers. It is informational only; `config_hash` is what's authoritative.
@@ -429,6 +429,8 @@ Values are PROPOSED; the first-build list is Probe, Recon, Offensive, Retake, Es
 ## 9. Theater file format (`content/theaters/<slug>.yaml`)
 
 ### 9.1 Schema
+The schema is `contracts/config/theater.json` (NX-120); like balance keys, a field enters it with the code that reads it or checks it. Coordinates and bounds are integer metres.
+
 | Field | Type | Rules |
 |---|---|---|
 | `schema_version` | int | Known version |
@@ -436,56 +438,60 @@ Values are PROPOSED; the first-build list is Probe, Recon, Offensive, Retake, Es
 | `name` | string | Display name; moderation-checked (CFG-8) |
 | `version` | semver | §4.4 |
 | `bounds_m` | `{w, h}` | Map extent in metres (SIM-CORE §4: ~400×240 km for the first theater) |
-| `terrain` | object | Optional in the first build (Q-TH-4): `heightmap: <path to 16-bit PNG>`, `height_scale_m`, `sea_level_m`; **or** `contours: <path to GeoJSON-like polylines>`; nothing in the first build reads height. `masking_regions`: polygons where NOE/LOW aircraft and ground units are masked from sensors outside the region, rasterized at load to the spatial grid's cells (cell centre in polygon, integer metres; the theater file is in the config hash; FOG-OF-WAR Tier 2, Q-FOW-3) |
-| `sectors` | list | `{id, name, polygon}`; non-overlapping; union covers the map |
+| `terrain` | object | Optional in the first build (Q-TH-4): `heightmap: <path to 16-bit PNG>`, `height_scale_m`, `sea_level_m`; **or** `contours: <path to GeoJSON-like polylines>`; nothing in the first build reads height. `masking_regions`: polygons where NOE/LOW aircraft and ground units are masked from sensors outside the region, rasterized at load to the spatial grid's cells (cell centre in polygon, integer metres; the theater file is in the config hash; FOG-OF-WAR Tier 2, Q-FOW-3). The NX-120 schema accepts `masking_regions` only; the height fields join with the item that reads height |
+| `sectors` | list | `{id, name, polygon}`; non-overlapping; union covers the map (overlap and coverage are checked by NX-182, the first item that reads sector polygons (map annotation layer, OVERLAY AN-1); NX-120 checks ids and node membership) |
 | `nodes` | list | `{id, name, kind, pos: [x_m, y_m], start_owner, start_stock, sector, garrison_quota?}`. `garrison_quota` (Static bases): the units the director may keep there at Pattern of Life, replacing losses only (THREAT-DIRECTOR §5a, Q-TD-11) |
-| `edges` | list | `{a, b, layer: ROAD\|SEA_LANE, speed_mult, bridge?: <node id of kind BRIDGE>}` |
+| `edges` | list | `{a, b, layer: ROAD\|SEA_LANE, speed_mult, bridge?: <node id of kind BRIDGE>}`. `length_m` (SIM-CORE §4) is not written: it is the straight line between the endpoints. Ground travel cost is `length_m / speed_mult` (GAMEPLAY §5) |
 | `facilities` | list | `{id, kind: UnitKind (a facility kind), variant?, base: <node id>}`: pre-placed facilities; side follows the base (Q-GP-25, TH-10) |
 | `spawns` | list | `{node, domains: [...]}`: where units may appear; usable by whichever side currently owns the node (GAMEPLAY GP-7) |
 | `sanctuary` | node id | Coalition SANCTUARY node: infinite stock, never capturable (Q-GD-7) |
 | `enemy_hq` | node id | Enemy HQ node (Domination victory, GAMEPLAY §9) |
 | `forward_airbase` | node id | The coalition AIRBASE the idle floor protects (GAMEPLAY §9, Q-TH-2) |
 
-Node `kind` ∈ `AIRBASE | FOB | PORT | BRIDGE | HQ | SANCTUARY` (SIM-CORE §4); facilities are placed as STATIC units with a `base_id` (Q-GP-25).
+Node `kind` ∈ `AIRBASE | FOB | PORT | BRIDGE | HQ | SANCTUARY` (SIM-CORE §4); `start_stock` is `null` on the SANCTUARY and only there; facilities are placed as STATIC units with a `base_id` (Q-GP-25).
 
 ### 9.2 Validation rules (load + CI)
 | ID | Rule |
 |---|---|
-| TH-1 | Node `id`s match the CONTRACTS `NodeId` slug `^[a-z0-9]+(-[a-z0-9]+)*$` (≤ 32 chars, no underscores) and are unique. Node `name`s are unique (case-insensitive, confusable-folded) and moderation-clean |
+| TH-1 | Node `id`s match the CONTRACTS `NodeId` slug `^[a-z0-9]+(-[a-z0-9]+)*$` (≤ 32 chars, no underscores) and are unique. Node `name`s are unique (case-insensitive, confusable-folded) and moderation-clean. NX-120 folds with NFKC + casefold; confusable folding and the moderation check join with the moderation module (CFG-8) |
 | TH-2 | Every edge endpoint exists. No self-loops. No duplicate `(a,b,layer)` |
-| TH-3 | Every non-SEA node is reachable from `sanctuary` over the ROAD layer when all bridges are intact. PORT nodes must touch ≥1 SEA_LANE |
-| TH-4 | Every `bridge` reference points to a node of kind BRIDGE, and that node sits on the edge (within tolerance) |
+| TH-3 | Every non-SEA node is reachable from `sanctuary` over the ROAD layer when all bridges are intact. PORT nodes must touch ≥1 SEA_LANE. PORT nodes need a road too (NX-120, lead decision). A BRIDGE node sits on an edge rather than ending one, so it counts as reached when an edge carries it (NX-120) |
+| TH-4 | Every `bridge` reference points to a node of kind BRIDGE, and that node sits on the edge (within tolerance: PROPOSED 1000 m from the segment, NX-120) |
 | TH-5 | Exactly one SANCTUARY (`start_owner: COALITION`) and exactly one HQ (`start_owner: ENEMY`) |
 | TH-6 | All positions lie inside `bounds_m`. Every node lies in the sector it names |
 | TH-7 | Each side has ≥1 spawn per domain that its MVP units use at its starting nodes |
-| TH-11 | A value written `TBD` is rejected at load until the balance harness supplies it (DATA-INTEGRITY DI-7); a sketch may carry TBD in the repo |
+| TH-11 | A value written `TBD` is rejected at load until the balance harness supplies it (DATA-INTEGRITY DI-7); a sketch may carry TBD in the repo. The loader rejects any string `TBD` anywhere in the file, naming each key path (NX-120; balance files too) |
 | TH-8 | If a terrain file is declared, it exists, its dimensions match `bounds_m` at the declared resolution, and its hash is included in the content hash |
 | TH-9 | Node count and kind mix are reported, not enforced (design guidance: theater #1 has 12 nodes, 8 strategic bases, Q-TH-1) |
 | TH-10 | No facility at a base whose `start_owner` is NEUTRAL (Q-GP-36); `forward_airbase` is a coalition AIRBASE |
 
 ### 9.3 Format example (NOT the real map)
-> **Illustrative format example only.** This is *not* the first theater. The real theater is authored in NX-008 (Q-GD-9). Coordinates and names exist only to show the syntax.
+> **Illustrative format example only.** This is *not* the first theater. It loads under the current schema and rules (a test keeps it that way, NX-120). The real theater is authored in NX-008 (Q-GD-9). Coordinates and names exist only to show the syntax.
 ```yaml
 schema_version: 1
 slug: format-example
 name: "Format Example"
 version: 0.0.1
 bounds_m: { w: 40000, h: 20000 }
-terrain: { heightmap: terrain/format-example.png, height_scale_m: 500, sea_level_m: 0, masking_regions: [] }
+terrain: { masking_regions: [] }
 sectors:
   - { id: west, name: "West", polygon: [[0,0],[20000,0],[20000,20000],[0,20000]] }
   - { id: east, name: "East", polygon: [[20000,0],[40000,0],[40000,20000],[20000,20000]] }
 nodes:
   - { id: base-w,  name: "Example Sanctuary", kind: SANCTUARY, pos: [2000,10000],  start_owner: COALITION, start_stock: null, sector: west }
+  - { id: ab-w,    name: "Example Airbase",   kind: AIRBASE,   pos: [8000,10000],  start_owner: COALITION, start_stock: 100,  sector: west }
   - { id: br-mid,  name: "Example Bridge",    kind: BRIDGE,    pos: [20000,10000], start_owner: NEUTRAL,   start_stock: 0,    sector: east }
   - { id: hq-e,    name: "Example HQ",        kind: HQ,        pos: [38000,10000], start_owner: ENEMY,     start_stock: 0,    sector: east }
+facilities: []
 edges:
-  - { a: base-w, b: hq-e, layer: ROAD, speed_mult: 1.0, bridge: br-mid }
+  - { a: base-w, b: ab-w, layer: ROAD, speed_mult: 1.0 }
+  - { a: ab-w,   b: hq-e, layer: ROAD, speed_mult: 1.0, bridge: br-mid }
 spawns:
-  - { side: COALITION, node: base-w, domains: [AIR, GROUND] }
-  - { side: ENEMY,     node: hq-e,   domains: [AIR, GROUND] }
+  - { node: base-w, domains: [AIR, GROUND] }
+  - { node: hq-e,   domains: [AIR, GROUND] }
 sanctuary: base-w
 enemy_hq: hq-e
+forward_airbase: ab-w
 ```
 `start_stock: null` on the SANCTUARY means "infinite by rule", not unknown. The schema documents this explicitly (CFG-2).
 

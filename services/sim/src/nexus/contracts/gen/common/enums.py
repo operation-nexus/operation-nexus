@@ -51,6 +51,24 @@ type UnitKind = Annotated[
 type OwnerKind = Literal["COMMANDER", "AI_GARRISON", "ENEMY_DIRECTOR"]
 
 
+type NodeOwner = Literal["COALITION", "ENEMY", "NEUTRAL"]
+
+
+type NodeKind = Annotated[
+    Literal["AIRBASE", "FOB", "PORT", "BRIDGE", "HQ", "SANCTUARY"],
+    Field(description="SIM-CORE §4. Facilities are UnitKinds, not nodes (Q-GP-21, Q-GP-25)."),
+]
+
+
+type EdgeLayer = Literal["ROAD", "SEA_LANE"]
+
+
+type Domain = Annotated[
+    Literal["AIR", "GROUND", "SEA", "STATIC"],
+    Field(description="SEA is P3 (Q-GD-8). STATIC = facilities (Q-GP-25)."),
+]
+
+
 type CommandSource = Literal["CHAT", "ADVISOR", "STAFF", "SYSTEM"]
 
 

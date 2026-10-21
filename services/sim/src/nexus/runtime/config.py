@@ -1,4 +1,4 @@
-"""Balance config loader, canonical hash and tick conversion (CONFIG-AND-CONTENT CFG-1..3, 9).
+"""Config file loader, canonical hash and tick conversion (CONFIG-AND-CONTENT CFG-1..3, 9).
 
 Runtime, not core: it reads files. YAML is parsed with `yaml.safe_load` semantics through
 `StrictLoader`, which drops YAML 1.1's surprises (§4.4):
@@ -20,7 +20,7 @@ from pathlib import Path
 from typing import Any
 
 import yaml
-from pydantic import ValidationError
+from pydantic import BaseModel, ValidationError
 
 from nexus.contracts.gen.config.balance import BalanceConfig
 
@@ -135,20 +135,42 @@ StrictLoader.add_constructor(_TAG + "int", _core_int)
 StrictLoader.add_constructor(_TAG + "float", _finite_float)
 
 
-def load_balance(path: Path) -> BalanceConfig:
-    """Parse and strictly validate a balance profile; errors name the file and each key path."""
+def load_model[M: BaseModel](path: Path, model: type[M]) -> M:
+    """Parse a YAML file strictly and validate it; errors name the file and each key path."""
     try:
         with path.open(encoding="utf-8") as f:  # a file stream puts its name in YAML error marks
             tree = yaml.load(f, Loader=StrictLoader)  # noqa: S506 - StrictLoader is a SafeLoader subclass
     except (OSError, ValueError, yaml.YAMLError) as e:  # ValueError covers bad UTF-8 too
         raise ConfigError(f"{path}: {e}") from e
+    if tbd := _tbd_keys(tree, ""):
+        raise ConfigError(
+            f"{path}: " + "; ".join(f"{k}: TBD until the harness sets it" for k in tbd)
+        )
     try:
-        return BalanceConfig.model_validate(tree, strict=True)
+        return model.model_validate(tree, strict=True)
     except ValidationError as e:
         problems = "; ".join(
             f"{'.'.join(map(str, err['loc'])) or '<root>'}: {err['msg']}" for err in e.errors()
         )
         raise ConfigError(f"{path}: {problems}") from e
+
+
+def _tbd_keys(tree: object, key: str) -> list[str]:
+    """Key paths of every value written TBD (DATA-INTEGRITY DI-7, CONFIG-AND-CONTENT TH-11)."""
+    if tree == "TBD":
+        return [key or "<root>"]
+    if isinstance(tree, dict):
+        items: list[tuple[object, object]] = list(tree.items())
+    elif isinstance(tree, list):
+        items = list(enumerate(tree))
+    else:
+        return []
+    return [k for sub, v in items for k in _tbd_keys(v, f"{key}.{sub}" if key else str(sub))]
+
+
+def load_balance(path: Path) -> BalanceConfig:
+    """Parse and strictly validate a balance profile (CFG-1, CFG-2)."""
+    return load_model(path, BalanceConfig)
 
 
 def canonical_hash(tree: object) -> str:
@@ -166,14 +188,15 @@ def canonical_hash(tree: object) -> str:
     return hashlib.blake2b(text.encode("utf-8"), digest_size=32).hexdigest()
 
 
-def config_hash(balance: str) -> str:
+def config_hash(balance: str, theater: str) -> str:
     """Hex blake2b-256 over the concatenated raw component digests, in §4.4 order.
 
-    Order: balance, units, doctrines, theater, text. Only balance exists today; units, doctrines
-    (NX-213), the theater (NX-120) and text join as parameters, in that order, with their loaders.
-    A missing part is never stood in for by an empty or placeholder hash.
+    Order: balance, units, doctrines, theater, text. Balance (NX-106) and the campaign's theater
+    (NX-120) exist today; units, doctrines (NX-213) and text join as parameters, in their places,
+    with their loaders. A missing part is never stood in for by an empty or placeholder hash.
     """
-    return hashlib.blake2b(bytes.fromhex(balance), digest_size=32).hexdigest()
+    parts = bytes.fromhex(balance) + bytes.fromhex(theater)
+    return hashlib.blake2b(parts, digest_size=32).hexdigest()
 
 
 def _exact(value: float) -> Fraction:
