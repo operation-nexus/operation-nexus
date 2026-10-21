@@ -29,6 +29,26 @@ class Air(BaseModel):
     ]
 
 
+class Fow(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    track_every_ticks: Annotated[
+        int,
+        Field(
+            description="Tier 2 tracks are computed on ticks where tick % track_every_ticks == 0, unit ticks (FOG-OF-WAR FOW-5, Q-FOW-6).",
+            ge=1,
+        ),
+    ]
+    track_fade_s: Annotated[
+        float,
+        Field(
+            description="A last-known track is dropped after this long untracked, unit s of world time, frozen while paused (FOG-OF-WAR FOW-6a, FOW-9).",
+            gt=0.0,
+        ),
+    ]
+
+
 class Sim(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -99,3 +119,4 @@ class BalanceConfig(BaseModel):
     sim: Sim
     slots: Slots
     air: Air
+    fow: Fow

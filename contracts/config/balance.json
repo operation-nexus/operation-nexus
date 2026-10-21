@@ -9,7 +9,8 @@
     "schema_version",
     "sim",
     "slots",
-    "air"
+    "air",
+    "fow"
   ],
   "properties": {
     "schema_version": {
@@ -26,6 +27,9 @@
     },
     "air": {
       "$ref": "#/$defs/Air"
+    },
+    "fow": {
+      "$ref": "#/$defs/Fow"
     }
   },
   "$defs": {
@@ -48,6 +52,31 @@
         },
         "orbit_period_s": {
           "description": "One lap of an idle airborne aircraft's orbit at its min_speed_mps, unit s of world time; the radius is min_speed_mps x orbit_period_s / 2 pi (SIM-CORE §4, NX-368).",
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "x-unit": "s (world)",
+          "x-hot-reload": false
+        }
+      }
+    },
+    "Fow": {
+      "description": "Fog of war (\u00a76.1, FOG-OF-WAR FOW-5, FOW-6a; NX-150).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "track_every_ticks",
+        "track_fade_s"
+      ],
+      "properties": {
+        "track_every_ticks": {
+          "description": "Tier 2 tracks are computed on ticks where tick % track_every_ticks == 0, unit ticks (FOG-OF-WAR FOW-5, Q-FOW-6).",
+          "type": "integer",
+          "minimum": 1,
+          "x-unit": "ticks",
+          "x-hot-reload": false
+        },
+        "track_fade_s": {
+          "description": "A last-known track is dropped after this long untracked, unit s of world time, frozen while paused (FOG-OF-WAR FOW-6a, FOW-9).",
           "type": "number",
           "exclusiveMinimum": 0,
           "x-unit": "s (world)",

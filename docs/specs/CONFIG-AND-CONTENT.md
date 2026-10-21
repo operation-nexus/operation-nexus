@@ -130,8 +130,8 @@ Legend: **HR** = hot-reloadable (§5). "TBD" = TBD by harness. **Source** = the 
 | `sim.snapshot_every_ticks` | int | ticks | 300 | SIM-CORE §5 | No |
 | `sim.state_hash_every_ticks` | int | ticks | 100 | SIM-CORE §5 | No |
 | `sim.max_entities` | int | count | 1000 | SIM-CORE SC-10 | No |
-| `fow.track_fade_s` | float | s (world) | TBD (PROPOSED) | FOG-OF-WAR FOW-6a, Q-FOW-1 | No |
-| `fow.track_every_ticks` | int | ticks | 5 (PROPOSED) | FOG-OF-WAR FOW-5, Q-FOW-6 | No |
+| `fow.track_fade_s` | float | s (world), > 0 | 180 (PROPOSED by NX-150: 300 ticks, 30 real s at 6×). How long a last-known track lasts; converted to world ticks rounding up. In the schema now (NX-150) | FOG-OF-WAR FOW-6a, Q-FOW-1 | No |
+| `fow.track_every_ticks` | int | ticks, ≥ 1 | 5 (PROPOSED). In the schema now (NX-150) | FOG-OF-WAR FOW-5, Q-FOW-6 | No |
 | `fow.sigint_range_mult` | float | × a radar site's `sensor.radius_m` | TBD (PROPOSED) | FOG-OF-WAR Tier 1, Q-FOW-7 | No |
 | `fow.sigint_refresh_s` | float | s (world) | 48–60 (PROPOSED, Q-ALN-38) | FOG-OF-WAR FOW-5, FOW-9 | No |
 | `fow.sigint_cell_m` | int | m | 10000 (PROPOSED) | FOG-OF-WAR Tier 1 | No |
@@ -304,7 +304,7 @@ In the schema now (NX-122): `slots.max_live_per_commander`, `slots.respawn_delay
 
 ## 7. Unit catalog (`content/units/*.yaml`, `content/weapons.yaml`, `content/roles.yaml`)
 
-**What exists now (NX-367, Q-CFG-10).** The schemas are `contracts/config/unit.json`, `weapons.json` and `roles.json`; a field enters them with the code that reads it. Today a unit file has `kind`, `side` (`COALITION | ENEMY | BASE`), `domain`, `playable_by` (list), `min_rank` (iff `VIEWER` is in `playable_by`), `speed_mps` (m/s of world time, `>= 0`, a top speed; NX-121, every value PROPOSED: aircraft 250, UAVs 60, trucks and convoys 25, armor 20, infantry 5, facilities 0), `min_speed_mps` and `fuel_s` (AIR kinds only, NX-368, PROPOSED: jets 100 m/s and 3600 world s, about 10 real minutes at 6×; UAVs 20 m/s and 14400 world s) and `weapons` (ids); a weapon has `id` and `targets`; `content/roles.yaml` holds `roles:` (`STRIKE`, `RECON`, `LOGI`). One file per unit, named `<kind in kebab-case>.yaml` (§7a); `ANY` is not a side. The loader (`nexus.runtime.units`) rejects: a kind set that is not exactly `UnitKind`, a file name that is not its kind, an unknown or unused weapon id, duplicates, a role mapped to a kind no VIEWER can play, a GARRISON_INFANTRY weapon that can target anything but GROUND (COMBAT §5.1, Q-CBT-25), `min_speed_mps` or `fuel_s` missing on an AIR kind or present on any other, and `min_speed_mps` above `speed_mps` (NX-368). The rest of the schema below joins with its readers: `display`, `category` and icons with the overlay; `alt_bands` with NX-124; other stats, sensors, cargo and weapon numbers with NX-122 and NX-124. The weapon ids (`AA_LIGHT`, `AA_MISSILE`, `AAA_GUN`, `SAM`, `AG_LIGHT`, `AG_CANNON`, `SMALL_ARMS`) are PROPOSED names.
+**What exists now (NX-367, Q-CFG-10).** The schemas are `contracts/config/unit.json`, `weapons.json` and `roles.json`; a field enters them with the code that reads it. Today a unit file has `kind`, `side` (`COALITION | ENEMY | BASE`), `domain`, `playable_by` (list), `min_rank` (iff `VIEWER` is in `playable_by`), `speed_mps` (m/s of world time, `>= 0`, a top speed; NX-121, every value PROPOSED: aircraft 250, UAVs 60, trucks and convoys 25, armor 20, infantry 5, facilities 0), `min_speed_mps` and `fuel_s` (AIR kinds only, NX-368, PROPOSED: jets 100 m/s and 3600 world s, about 10 real minutes at 6×; UAVs 20 m/s and 14400 world s), `sensor: {radius_m}` (every kind, m, 0 = none; NX-150, PROPOSED: RADAR_SITE 120 km, recon UAVs 60 km, fighters and AIR_DEFENSE_SITE 40 km, ENEMY_ARMOR 8 km, GARRISON_INFANTRY 5 km, trucks and convoys 3 km), `stealth` (every kind, in (0, 1]; NX-150, PROPOSED 1.0 for all) and `weapons` (ids); a weapon has `id` and `targets`; `content/roles.yaml` holds `roles:` (`STRIKE`, `RECON`, `LOGI`). One file per unit, named `<kind in kebab-case>.yaml` (§7a); `ANY` is not a side. The loader (`nexus.runtime.units`) rejects: a kind set that is not exactly `UnitKind`, a file name that is not its kind, an unknown or unused weapon id, duplicates, a role mapped to a kind no VIEWER can play, a GARRISON_INFANTRY weapon that can target anything but GROUND (COMBAT §5.1, Q-CBT-25), `min_speed_mps` or `fuel_s` missing on an AIR kind or present on any other, and `min_speed_mps` above `speed_mps` (NX-368). The rest of the schema below joins with its readers: `display`, `category` and icons with the overlay; `alt_bands` with NX-124; other stats, `sensor.passive_range_m` (FOW-13, NX-150 part 2), cargo and weapon numbers with NX-122 and NX-124. The weapon ids (`AA_LIGHT`, `AA_MISSILE`, `AAA_GUN`, `SAM`, `AG_LIGHT`, `AG_CANNON`, `SMALL_ARMS`) are PROPOSED names.
 
 ### 7.1 Schema
 The block shows the full target schema in one listing; on disk `roles:` is `content/roles.yaml`, each `units:` entry is its own `content/units/<kind>.yaml`, and `weapons:` (§7.2) is `content/weapons.yaml`. List order inside a unit (`playable_by`, `weapons`) is hashed as written.
@@ -335,7 +335,7 @@ units:
     weapons: [<weapon_id>]    # refs §7.2; [] = unarmed
     cargo: <int|null>         # stock units; null = cannot carry
     can_capture: <bool>
-    stealth: <float>          # detection-radius multiplier (1.0 = none)
+    stealth: <float>          # detection-radius multiplier in (0, 1] (1.0 = none; NX-150)
     loadout_cost: <int>       # stock consumed at spawn/rearm (§6.3)
     cp_value: <float>         # director CP weight (§6.7)
 ```

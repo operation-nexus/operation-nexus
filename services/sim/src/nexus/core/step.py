@@ -10,6 +10,7 @@ from collections.abc import Callable, Mapping, Sequence
 from nexus.contracts.gen.commands.command import Command
 from nexus.contracts.gen.events.event import Event
 from nexus.contracts.gen.events.unit_destroyed import UnitDestroyed
+from nexus.core.fog import sense
 from nexus.core.handlers import HANDLERS as HANDLERS
 from nexus.core.handlers import Handler as Handler
 from nexus.core.handlers import reject, serve_reserve_queue
@@ -247,7 +248,8 @@ def _velocity(e: Entity, rules: Rules) -> Vec2:
 
 
 def sensing(world: World, c: Sequence[Command], h: Mapping[str, Handler], out: list[Event]) -> None:
-    """Sensing and fog: NX-150."""
+    """Tier 2 tracks and last-known tracks on due ticks (FOW-5, FOW-6a): `nexus.core.fog`."""
+    sense(world)
 
 
 def combat(world: World, c: Sequence[Command], h: Mapping[str, Handler], out: list[Event]) -> None:

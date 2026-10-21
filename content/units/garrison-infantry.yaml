@@ -6,4 +6,6 @@ side: COALITION
 domain: GROUND
 playable_by: [AI_GARRISON]
 speed_mps: 5.0  # PROPOSED (NX-121, owner may veto; harness tunes, NX-031); m/s world; slow; holds nodes (Q-GD-4)
+sensor: {radius_m: 5000.0}  # PROPOSED (NX-150, owner may veto; harness tunes, NX-031); m; ground observers
+stealth: 1.0  # PROPOSED (NX-150, owner may veto; harness tunes, NX-031); multiplier; 1.0 = none
 weapons: [SMALL_ARMS]

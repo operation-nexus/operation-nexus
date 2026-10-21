@@ -6,4 +6,6 @@ side: BASE
 domain: STATIC
 playable_by: [AI_GARRISON]
 speed_mps: 0.0  # PROPOSED (NX-121, owner may veto; harness tunes, NX-031); m/s world; STATIC: facilities do not move
+sensor: {radius_m: 40000.0}  # PROPOSED (NX-150, owner may veto; harness tunes, NX-031); m; its own fire-control radar
+stealth: 1.0  # PROPOSED (NX-150, owner may veto; harness tunes, NX-031); multiplier; 1.0 = none
 weapons: [AAA_GUN, SAM]

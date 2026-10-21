@@ -41,7 +41,7 @@ def rules(world_dt: float, roads: RoadGraph = ROADS) -> Rules:
     domains: dict[UnitKind, Domain] = {JET: "AIR", TRUCK: "GROUND"}
     no_bases: dict[Side, tuple[str, ...]] = {"COALITION": (), "ENEMY": ()}  # never bingo
     air = ({JET: 100.0}, {JET: 1e6}, 0.0, no_bases, (W, H), 120.0)
-    return Rules(world_dt, speeds, domains, roads, {}, "haven", 1, 0, 1, 1, *air)
+    return Rules(world_dt, speeds, domains, roads, {}, "haven", 1, 0, 1, 1, *air, {}, {}, 5, 1)
 
 
 def scaled(time_scale: float) -> Rules:
@@ -54,7 +54,9 @@ def scaled(time_scale: float) -> Rules:
         theater=STRAIT_1,
         slots=BALANCE.slots,
         air=BALANCE.air,
+        fow=BALANCE.fow,
         respawn_delay_ticks=0,
+        track_fade_ticks=1,
     )
 
 
