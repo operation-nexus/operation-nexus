@@ -114,11 +114,12 @@ def test_golden_state_hash_seed_12345() -> None:
     # NX-123: node stock, cargo, unload_milli, v10; NX-123 part 2: rearm_milli, rearm_spent,
     # stalled, v11; NX-125: node owner and capture bars, v12; NX-126: the campaign clock, pause
     # reason, end flag, score sums and the active objective, v13; NX-124: damage state, altitude
-    # band, ammo, reload, wreck timer and pending shots, v14).
+    # band, ammo, reload, wreck timer and pending shots, v14; part 2: the rearm-stop carries and
+    # the downed-crew markers, v15).
     # A change here breaks every recorded replay hash: needs a `golden-update` reason.
     assert (
         state_hash(golden_world())
-        == "f0606a0a98edfee10ec1a4d7f168ca0541ee6a7b4d04d4eb0e254c1c916b0866"
+        == "86c4216511b5487e17b2b926f22e342dcf4ae6fe696361d1d7da5127ade6d7fc"
     )
     e = to_canonical(golden_world(), quantize=True)["entities"][0]
     assert e["pos"] == [1000250, 2000500]  # mm

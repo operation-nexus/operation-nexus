@@ -277,6 +277,56 @@ class DamageState(BaseModel):
             le=1.0,
         ),
     ]
+    damaged_speed_mult: Annotated[
+        float,
+        Field(
+            description="Top-speed multiplier of a unit at Damaged or worse; an aircraft never flies below its min_speed_mps, unit multiplier (CB-6, Q-SIM-65).",
+            gt=0.0,
+            le=1.0,
+        ),
+    ]
+    damaged_sensor_mult: Annotated[
+        float,
+        Field(
+            description="Sensor-radius multiplier of a unit at Damaged or worse, unit multiplier (CB-6, Q-SIM-65).",
+            gt=0.0,
+            le=1.0,
+        ),
+    ]
+
+
+class CrewSurvival(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    ENEMY_ARMOR: Annotated[
+        float,
+        Field(description="Crew survival chance of this kind, unit probability.", ge=0.0, le=1.0),
+    ]
+    ENEMY_CONVOY: Annotated[
+        float,
+        Field(description="Crew survival chance of this kind, unit probability.", ge=0.0, le=1.0),
+    ]
+    ENEMY_FIGHTER: Annotated[
+        float,
+        Field(description="Crew survival chance of this kind, unit probability.", ge=0.0, le=1.0),
+    ]
+    ENEMY_STRIKE_FIGHTER: Annotated[
+        float,
+        Field(description="Crew survival chance of this kind, unit probability.", ge=0.0, le=1.0),
+    ]
+    GARRISON_INFANTRY: Annotated[
+        float,
+        Field(description="Crew survival chance of this kind, unit probability.", ge=0.0, le=1.0),
+    ]
+    LOGI_TRUCK: Annotated[
+        float,
+        Field(description="Crew survival chance of this kind, unit probability.", ge=0.0, le=1.0),
+    ]
+    STRIKE_FIGHTER: Annotated[
+        float,
+        Field(description="Crew survival chance of this kind, unit probability.", ge=0.0, le=1.0),
+    ]
 
 
 class Combat(BaseModel):
@@ -321,6 +371,19 @@ class Combat(BaseModel):
         float,
         Field(
             description="A Disabled unit that is not a facility is removed after this long, unit s of game time (CB-7, Q-CBT-14).",
+            gt=0.0,
+        ),
+    ]
+    crew_survival: Annotated[
+        CrewSurvival,
+        Field(
+            description="Chance a crew survives the loss of its unit (DOWNED, else LOST), one entry per kind with crew above 0, unit probability; the unit's one roll on the combat stream (CB-8, Q-SIM-68)."
+        ),
+    ]
+    crew_marker_min: Annotated[
+        float,
+        Field(
+            description="A downed crew stays a map marker this long, unit min of game time (CB-8, Q-SIM-68).",
             gt=0.0,
         ),
     ]
@@ -428,6 +491,32 @@ class LoadoutCost(BaseModel):
     STRIKE_FIGHTER: Annotated[int, Field(ge=0)]
 
 
+class RepairRate(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    AIRBASE: Annotated[
+        float,
+        Field(description="Repair rate at a base of this kind, unit hp per s (world).", ge=0.0),
+    ]
+    FOB: Annotated[
+        float,
+        Field(description="Repair rate at a base of this kind, unit hp per s (world).", ge=0.0),
+    ]
+    HQ: Annotated[
+        float,
+        Field(description="Repair rate at a base of this kind, unit hp per s (world).", ge=0.0),
+    ]
+    PORT: Annotated[
+        float,
+        Field(description="Repair rate at a base of this kind, unit hp per s (world).", ge=0.0),
+    ]
+    SANCTUARY: Annotated[
+        float,
+        Field(description="Repair rate at a base of this kind, unit hp per s (world).", ge=0.0),
+    ]
+
+
 class Logistics(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -484,6 +573,26 @@ class Logistics(BaseModel):
         LoadoutCost,
         Field(
             description="Stock a unit's full loadout costs, unit stock units: debited from the base it forward-deploys at (GP-7) and the price of a full refill at a base (Q-SIM-51). One entry per kind that can spawn by JOIN or director; facilities are placed by the theater and have none. 0 for the cargo kinds, which pay by loading cargo (Q-SIM-49)."
+        ),
+    ]
+    repair_rate: Annotated[
+        RepairRate,
+        Field(
+            description="Hp a unit or facility at a friendly base of each kind repairs per world second, unit hp per s of world time, frozen while paused; SANCTUARY repairs free and every other kind spends the base's stock (GAMEPLAY §5, §5b, Q-SIM-68). Counted in whole thousandths of an hp per tick."
+        ),
+    ]
+    facility_repair_hp_per_stock: Annotated[
+        int,
+        Field(
+            description="Hp of a facility that one stock unit of its base repairs, unit hp per stock unit (GAMEPLAY §5b, Q-SIM-68); a unit pays loadout_cost x the share of its hp repaired instead.",
+            ge=1,
+        ),
+    ]
+    facility_rearm_cost: Annotated[
+        int,
+        Field(
+            description="Stock a facility's base pays for a full reload of all the facility's weapons, unit stock units, in proportion to the ammo share used (GAMEPLAY §5b, Q-SIM-69); free at a sanctuary.",
+            ge=1,
         ),
     ]
 

@@ -68,6 +68,11 @@ class Supply:
     loadout_cost: Mapping[UnitKind, int] = field(default_factory=dict)  # a kind with none costs 0
     forward_deploy_min_surplus: int = 0
     starved_fuel_frac: float = 1.0  # a starved base refuels up to this share of fuel_s (Q-SIM-53)
+    # logistics.repair_rate x world_dt in thousandths of an hp per tick, by base kind (Q-SIM-68); a
+    # kind missing here (a BRIDGE) repairs nothing. SANCTUARY is free (infinite stock).
+    repair_milli: Mapping[NodeKind, int] = field(default_factory=dict)
+    facility_hp_per_stock: int = 10  # logistics.facility_repair_hp_per_stock (GAMEPLAY §5b)
+    facility_rearm_cost: int = 10  # logistics.facility_rearm_cost: a full reload of a facility
     # Domain -> the theater `spawns` nodes that take that domain (GP-7, Q-SIM-54).
     spawns: Mapping[Domain, frozenset[str]] = field(default_factory=dict)
 
@@ -141,6 +146,8 @@ class UnitRules:
     threat: int
     cuts: tuple[int, int, int]
     alt_band: AltBand | None  # AIR: the default band
+    crew: int  # crew count, 0 for facilities and unmanned kinds (CB-8)
+    crew_survival: float  # chance the crew is DOWNED, not LOST; 0.0 when `crew` is 0 (Q-SIM-68)
 
     def state(self, hp: int) -> DamageState:
         disabled, mission_kill, damaged = self.cuts
@@ -170,6 +177,9 @@ class CombatRules:
     masked_mult: float
     disabled_timeout_ticks: int  # combat.disabled_timeout_s as game ticks, rounded up (CB-7)
     assist_window_ticks: int  # combat.assist_window_s as game ticks, rounded up (CB-5a)
+    crew_marker_ticks: int  # combat.crew_marker_min as game ticks, rounded up (CB-8)
+    damaged_speed_mult: float  # x top speed at Damaged or worse (CB-6, Q-SIM-65)
+    damaged_sensor_mult: float  # x sensor radius at Damaged or worse
 
     def loadout(self, kind: UnitKind, variant: str | None) -> tuple[WeaponRules, ...]:
         return self.loadouts.get((kind, variant), self.loadouts[(kind, None)])
@@ -220,6 +230,23 @@ class Rules:
     campaign: CampaignRules | None = None  # NX-126; None leaves the campaign layer off
     combat: CombatRules | None = None  # NX-124; None leaves combat off
 
+    def speed(self, kind: UnitKind, state: DamageState) -> float:
+        """A unit's top speed now: x `damaged_speed_mult` at Damaged or worse, but an aircraft never
+        below its stall speed `min_speed_mps` (CB-6, Q-SIM-38)."""
+        top = self.speed_mps[kind]
+        if self.combat is None or state == "HEALTHY":
+            return top
+        return max(top * self.combat.damaged_speed_mult, self.min_speed_mps.get(kind, 0.0))
+
+    def sensor_radius(self, kind: UnitKind, state: DamageState) -> float:
+        """A unit's sensor radius now: x `damaged_sensor_mult` at Damaged or worse (CB-6)."""
+        radius = self.sensor_radius_m[kind]
+        return (
+            radius
+            if self.combat is None or state == "HEALTHY"
+            else radius * self.combat.damaged_sensor_mult
+        )
+
 
 def world_dt(sim: Sim) -> float:
     """`1 / tick_hz x time_scale` in exact decimals, then one rounding (6x at 10 Hz is 0.6)."""
@@ -255,6 +282,10 @@ def _supply(theater: TheaterConfig, logistics: Logistics, dt: float) -> Supply:
     rearm_milli = round(logistics.rearm_rate * dt * _MILLI)
     if unload_milli < 1 or rearm_milli < 1:
         raise ValueError("logistics unload_rate or rearm_rate x world_dt is below 0.001 per tick")
+    rates = cast(Mapping[NodeKind, float], logistics.repair_rate.model_dump())
+    repair_milli = {k: round(rate * dt * _MILLI) for k, rate in rates.items()}
+    if any(rate > 0 and repair_milli[k] < 1 for k, rate in rates.items()):
+        raise ValueError("logistics.repair_rate x world_dt is below 0.001 hp per tick")
     return Supply(
         rear={side: sanctuaries[side] for side in _SIDES},
         start_owner={n.id: n.start_owner for n in theater.nodes},
@@ -267,6 +298,9 @@ def _supply(theater: TheaterConfig, logistics: Logistics, dt: float) -> Supply:
         loadout_cost=cast(Mapping[UnitKind, int], logistics.loadout_cost.model_dump()),
         forward_deploy_min_surplus=logistics.forward_deploy_min_surplus,
         starved_fuel_frac=logistics.starved_loadout.fuel_frac,
+        repair_milli=repair_milli,
+        facility_hp_per_stock=logistics.facility_repair_hp_per_stock,
+        facility_rearm_cost=logistics.facility_rearm_cost,
         spawns={d: frozenset(s.node for s in theater.spawns if d in s.domains) for d in _DOMAINS},
     )
 
@@ -313,10 +347,11 @@ def combat_rules(
     dt: float,
     disabled_timeout_ticks: int,
     assist_window_ticks: int,
+    crew_marker_ticks: int,
 ) -> CombatRules:
     """`dt` is `world_dt`; `disabled_timeout_ticks` is `cfg.disabled_timeout_s` already converted
-    by the config loader (game time);
-    likewise `assist_window_ticks` for `cfg.assist_window_s`."""
+    by the config loader (game time); likewise `assist_window_ticks` for `cfg.assist_window_s` and
+    `crew_marker_ticks` for `cfg.crew_marker_min`."""
     profile = {w.id: _weapon(w, dt) for w in weapons}
     units = tuple(units)
     ds = cfg.damage_state
@@ -324,9 +359,16 @@ def combat_rules(
         Fraction(repr(f)) for f in (ds.disabled_below, ds.mission_kill_below, ds.damaged_below)
     )
 
+    survival = cfg.crew_survival.model_dump()
+
     def stats(u: UnitConfig) -> UnitRules:
         c = cast(tuple[int, int, int], tuple(math.ceil(f * u.hp) for f in cuts))
-        return UnitRules(u.hp, Fraction(repr(u.armor)), u.evasion, u.threat, c, u.default_alt_band)
+        if u.crew and u.kind not in survival:
+            raise ValueError(f"combat.crew_survival has no chance for {u.kind} (crew {u.crew})")
+        return UnitRules(
+            u.hp, Fraction(repr(u.armor)), u.evasion, u.threat, c, u.default_alt_band, u.crew,
+            survival.get(u.kind, 0.0) if u.crew else 0.0,
+        )  # fmt: skip
 
     loadouts: dict[tuple[UnitKind, str | None], tuple[WeaponRules, ...]] = {}
     for u in units:
@@ -346,6 +388,9 @@ def combat_rules(
         masked_mult=cfg.pk_mult.terrain_masked,
         disabled_timeout_ticks=disabled_timeout_ticks,
         assist_window_ticks=assist_window_ticks,
+        crew_marker_ticks=crew_marker_ticks,
+        damaged_speed_mult=ds.damaged_speed_mult,
+        damaged_sensor_mult=ds.damaged_sensor_mult,
     )
 
 
@@ -355,6 +400,25 @@ def _weapon(w: Weapon, dt: float) -> WeaponRules:
         w.id, frozenset(w.targets), frozenset(w.bands), w.range_m, w.projectile_speed_mps,
         w.base_pk, w.damage, reload_ticks, w.ammo,
     )  # fmt: skip
+
+
+# `Entity.ammo_credit` is a msgpack int, so it must stay far inside 64 bits (SC-9). It is below
+# max(n x lcm, price x lcm / smallest load) with n <= 8 weapons, `lcm` the least common multiple of
+# a loadout's full loads and `price` at most 1000 x the dearest cost in stock-thousandths; twice
+# `price x lcm` under 2**62 keeps it, and every intermediate product, under 2**63. Real loads are
+# tiny (400 and 8 give lcm 400); eight coprime loads of a few hundred rounds are not allowed.
+_AMMO_BOUND = 2**62
+
+
+def _check_ammo_bound(cr: CombatRules, supply: Supply) -> None:
+    for (kind, variant), loadout in cr.loadouts.items():
+        if loadout:
+            price = _MILLI * max(supply.loadout_cost.get(kind, 0), supply.facility_rearm_cost)
+            if 2 * price * math.lcm(*(w.ammo for w in loadout)) >= _AMMO_BOUND:
+                raise ValueError(
+                    f"{kind} {variant or ''}: the least common multiple of its weapons' ammo "
+                    "is too large for the rearm accounting; use rounder loads"
+                )
 
 
 def make_rules(
@@ -387,6 +451,9 @@ def make_rules(
     if theater.bounds_m.w % fow.sigint_cell_m or theater.bounds_m.h % fow.sigint_cell_m:
         # every SIGINT cell, so every blob centre, lies on the map (FOW-2)
         raise ValueError(f"fow.sigint_cell_m {fow.sigint_cell_m} must divide the theater bounds")
+    supply = _supply(theater, logistics, world_dt(sim))
+    if combat is not None:
+        _check_ammo_bound(combat, supply)
     return Rules(
         world_dt=world_dt(sim),
         speed_mps={u.kind: u.speed_mps for u in units},
@@ -418,7 +485,7 @@ def make_rules(
         sigint_cell_m=float(fow.sigint_cell_m),
         sigint_size_m_min=fow.sigint_size_m_min,
         sigint_size_l_min=fow.sigint_size_l_min,
-        supply=_supply(theater, logistics, world_dt(sim)),
+        supply=supply,
         node_kind={n.id: n.kind for n in sorted(theater.nodes, key=lambda n: n.id)},
         armed=frozenset(u.kind for u in units if u.weapons),
         capture=_capture(capture, world_dt(sim)),

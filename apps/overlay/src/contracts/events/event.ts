@@ -22,7 +22,10 @@ export type Event =
   | WeaponFired
   | WeaponImpact
   | UnitDamageStateChanged
-  | UnitDespawned;
+  | UnitDespawned
+  | MunitionsDepleted
+  | CrewDowned
+  | UnitRepaired;
 
 /**
  * A unit appears (CONTRACTS §6). Public view: an ENEMY spawn only if its spawn point is tracked; otherwise dropped.
@@ -241,7 +244,7 @@ export interface SupplyDelivered {
   commander_id: string | null;
 }
 /**
- * Stock a node paid out for units (CONTRACTS §6; NX-123): SPAWN once per forward-deployed unit, REARM once per refuel stop when it ends (filled, stalled or taken off). amount = whole stock units; none when 0. Public view: ENEMY nodes are dropped.
+ * Stock a node paid out for units (CONTRACTS §6; NX-123): SPAWN once per forward-deployed unit, REARM once per rearm stop when it ends (filled, stalled or taken off) for fuel and ammo, REPAIR once per stop for hp repaired. amount = whole stock units; none when 0. Public view: ENEMY nodes are dropped.
  */
 export interface SupplyConsumed {
   kind: "SupplyConsumed";
@@ -262,7 +265,7 @@ export interface SupplyConsumed {
    */
   node_id: string;
   amount: number;
-  cause: "SPAWN" | "REARM";
+  cause: "SPAWN" | "REARM" | "REPAIR";
 }
 /**
  * A landed aircraft needs fuel and its base has none (CONTRACTS §6; NX-123, STATE-MACHINES §4.1 Rearming): emitted once when the stall starts, not every tick; a resupply and a new stall emit again. ENEMY: dropped from public views.
@@ -542,7 +545,7 @@ export interface WeaponImpact {
   hit: boolean;
 }
 /**
- * A hit moved a unit to a worse damage state (CONTRACTS §6; COMBAT CB-6). One event per hit, from the state before to the state after; none when the hit destroys the unit (UnitDestroyed). Public view: dropped for a victim the viewer side does not currently observe (FOW-13).
+ * A unit moved to another damage state (CONTRACTS §6; COMBAT CB-6). A hit worsens it: one event per hit, from the state before to the state after, none when the hit destroys the unit (UnitDestroyed). Repair at a friendly base improves it, one event per tick it changes the state. Public view: dropped for a victim the viewer side does not currently observe (FOW-13).
  */
 export interface UnitDamageStateChanged {
   kind: "UnitDamageStateChanged";
@@ -593,4 +596,88 @@ export interface UnitDespawned {
    */
   entity_id: number;
   reason: "WRECKED";
+}
+/**
+ * A unit spent its last missile, bomb or other non-gun round (CONTRACTS §6; COMBAT CB-11, GAMEPLAY §5): emitted on the shot that empties the non-gun weapons, once per load; guns_only is true when gun rounds remain. A unit that carries no non-gun weapon never emits it. Public view: dropped for a hidden ENEMY unit (FOW-13).
+ */
+export interface MunitionsDepleted {
+  kind: "MunitionsDepleted";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Sequential per campaign, never reused (SC-4).
+   */
+  entity_id: number;
+  guns_only: boolean;
+}
+/**
+ * A unit was lost and its crew survived the seeded roll (CONTRACTS §6; COMBAT CB-8, GAMEPLAY §6a): rolled once per unit with crew above 0, at the first of Disabled or Destroyed. The marker stays on the map for combat.crew_marker_min of game time. A lost crew emits nothing. pos is the unit position when it was lost. Public view: dropped unless the viewer side observes the position (FOW-13).
+ */
+export interface CrewDowned {
+  kind: "CrewDowned";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Per campaign, allocated by the kernel when a crew is downed, never reused (GAMEPLAY 6a, COMBAT CB-8).
+   */
+  marker_id: number;
+  /**
+   * Sequential per campaign, never reused (SC-4).
+   */
+  entity_id: number;
+  side: "COALITION" | "ENEMY";
+  pos: {
+    x_m: number;
+    y_m: number;
+  };
+}
+/**
+ * A unit or facility at a friendly base is back to full hp (CONTRACTS §6; GAMEPLAY §5, §5b, Q-GD-27): emitted when the repair reaches the unit's maximum hp; each damage-state improvement on the way is a UnitDamageStateChanged. by_id is the engineer that repaired it, null for base repair. Public view: dropped for a hidden ENEMY unit (FOW-13).
+ */
+export interface UnitRepaired {
+  kind: "UnitRepaired";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Sequential per campaign, never reused (SC-4).
+   */
+  entity_id: number;
+  /**
+   * The repairing unit; always null until engineers exist (P4).
+   */
+  by_id: number | null;
+  /**
+   * The base that repaired it; null for a repair away from a base (engineers, P4).
+   */
+  node_id: string | null;
 }

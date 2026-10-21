@@ -332,9 +332,10 @@ def test_oracle_paints_per_painter_with_its_own_regions() -> None:
 
 
 def test_shipped_range_classes() -> None:
-    assert _class_cells(SHIPPED) == dict.fromkeys((3000.0, 5000.0, 8000.0), 4000.0) | dict.fromkeys(
-        (40000.0, 60000.0, 120000.0), 60000.0
-    )
+    # The healthy radii and the same x `damaged_sensor_mult` 0.8 (CB-6): two classes still.
+    small = (2400.0, 3000.0, 4000.0, 5000.0, 6400.0, 8000.0)
+    large = (32000.0, 40000.0, 48000.0, 60000.0, 96000.0, 120000.0)
+    assert _class_cells(SHIPPED) == dict.fromkeys(small, 4000.0) | dict.fromkeys(large, 60000.0)
 
 
 # Points where `dx**2 + dy**2 <= r**2` and `dx*dx + dy*dy <= r*r` disagree by one ulp (NX-372). The

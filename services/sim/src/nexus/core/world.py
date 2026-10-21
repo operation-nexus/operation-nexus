@@ -14,7 +14,8 @@ facility markers (FOW-13), SIGINT blobs and the running ticks since their refres
 are world state, so snapshots and the hash cover them. So are each entity's `hp`, `damage_state`,
 `alt_band`, per-weapon `ammo` and `reload` countdowns, wreck countdown and recent-hit list, and
 the pending `shots` with their id counter (NX-124): thresholds, reloads and impact ticks are
-integers. So are each
+integers. So are the downed-crew markers with their id counter, and the rest of each rearm stop's
+progress (`ammo_credit`, `repair_milli`, `repair_debt`; NX-124 part 2). So are each
 node's `stock` and each carrier's `cargo` (integer stock units) with its `unload_milli` progress and
 `delivered` count (NX-123), and each aircraft's refuel progress (`rearm_milli`, `rearm_spent`,
 `stalled`): conservation stays exact. So are each node's live owner and its capture bar (side and
@@ -44,9 +45,12 @@ from nexus.contracts.gen.common.enums import (
     StaffPauseSubReason,
     UnitKind,
 )
+from nexus.contracts.gen.events.crew_downed import CrewDowned, Pos
 from nexus.contracts.gen.events.event import Event
+from nexus.contracts.gen.events.supply_consumed import SupplyConsumed
+from nexus.contracts.gen.events.unit_damage_state_changed import UnitDamageStateChanged
 from nexus.contracts.gen.events.unit_destroyed import UnitDestroyed
-from nexus.core.rng import SimRng
+from nexus.core.rng import RngStream, SimRng
 from nexus.core.rules import CAPTURE_FULL, Rules
 
 # 2: Entity.path and Entity.last_node (NX-121); 3: respawn_left, hp may be null; 4: reserve_queue;
@@ -56,8 +60,9 @@ from nexus.core.rules import CAPTURE_FULL, Rules
 # 11: Entity.rearm_milli, rearm_spent and stalled (NX-123 part 2); 12: node owner and capture bars
 # (NX-125); 13: the campaign clock, pause reason, end flag, score sums and the active objective
 # (NX-126); 14: Entity.hp is always real, damage_state, alt_band, ammo, reload, wreck_left, and the
-# pending shots (NX-124)
-FORMAT_VERSION = 14
+# pending shots (NX-124); 15: Entity.ammo_credit, repair_milli and repair_debt, the downed-crew
+# markers (NX-124 part 2)
+FORMAT_VERSION = 15
 _MM = 1000.0  # metres -> millimetres; m/s -> mm/s
 _MICRO = 1e6  # ADR-0002's 1e-6 step for other floats (fuel)
 _MILLI_UNIT = 1000  # thousandths of a stock unit per unit
@@ -66,12 +71,14 @@ _BLOBS = "blobs"
 _CAPTURE = "capture"
 _CAMPAIGN = "campaign"
 _CONTACTS = "contacts"
+_CREW_MARKERS = "crew_markers"
 _MARKERS = "markers"
 _OBJECTIVE = "objective"
 _ENTITIES = "entities"
 _CALLSIGNS = "callsigns"
 _RESPAWN_LEFT = "respawn_left"
 _SHOTS = "shots"
+_NEXT_MARKER_ID = "next_marker_id"
 _NEXT_SHOT_ID = "next_shot_id"
 _RESERVE_QUEUE = "reserve_queue"
 _OWNER = "owner"
@@ -87,10 +94,12 @@ _WORLD_KEYS = (
     _CAMPAIGN,
     _CAPTURE,
     _CONTACTS,
+    _CREW_MARKERS,
     _ENTITIES,
     _MARKERS,
     _NEXT_ENTITY_ID,
     _NEXT_EVENT_SEQ,
+    _NEXT_MARKER_ID,
     _NEXT_SHOT_ID,
     _OBJECTIVE,
     _OWNER,
@@ -190,6 +199,15 @@ class Entity:
     rearm_milli: int = 0
     rearm_spent: int = 0
     stalled: bool = False
+    # The rest of a rearm stop's progress (NX-124 part 2, `nexus.core.rearm`), all exact integers:
+    # `ammo_credit` the stock bought for rounds not yet whole, in 1/(1000 x the loadout's rounds)
+    # stock; `repair_milli` the thousandths of an hp repaired toward the next whole one, 0 to 999;
+    # `repair_debt` the repaired hp not yet paid for, in 1/(the kind's price denominator) stock.
+    ammo_credit: int = 0
+    repair_owed: int = 0  # thousandths of a stock unit bought for repair, 0 to 999
+    repair_spent: int = 0  # whole units debited for repair in this stop (SupplyConsumed REPAIR)
+    repair_milli: int = 0
+    repair_debt: int = 0
     # Combat (NX-124, COMBAT). `damage_state` follows `hp` (CB-6). `alt_band`: an aircraft's band
     # (its default; no command changes it). `ammo` and `reload` are per weapon, in the unit's
     # loadout order (`CombatRules.loadout`): rounds left, and running ticks until it may fire again.
@@ -214,6 +232,19 @@ class Shot:
     target: int
     weapon_id: str
     impact_tick: int
+
+
+@dataclass(slots=True)
+class CrewMarker:
+    """A downed crew on the map (COMBAT CB-8, GAMEPLAY §6a): `entity_id` the unit it belonged to,
+    `pos` where the unit was lost. `expires` is the campaign-clock tick (running ticks) it is
+    removed on, `combat.crew_marker_min` after the loss."""
+
+    id: int
+    entity_id: int
+    side: Side
+    pos: Vec2
+    expires: int
 
 
 @dataclass(slots=True)
@@ -313,12 +344,14 @@ class World:
         "_entities",
         "_next_entity_id",
         "_next_event_seq",
+        "_next_marker_id",
         "_next_shot_id",
         "blobs",
         "callsigns",
         "campaign",
         "capture",
         "contacts",
+        "crew_markers",
         "markers",
         "objective",
         "owner",
@@ -339,6 +372,9 @@ class World:
         self._next_entity_id = 1
         self._next_event_seq = 1
         self._next_shot_id = 1
+        self._next_marker_id = 1
+        # Downed-crew markers by id, ascending (= creation order); `combat` removes the expired.
+        self.crew_markers: dict[int, CrewMarker] = {}
         # commander_id -> running ticks left of its respawn delay, always >= 1 (GP-2, SC-11).
         # `record_loss` sets it; the `lifecycle` system counts it down and deletes it at 0.
         self.respawn_left: dict[str, int] = {}
@@ -473,7 +509,9 @@ def lose_unit(
 ) -> None:
     """A unit lost: it is removed, its commander's respawn delay starts and `UnitDestroyed` is
     emitted. `killer_id` is the shooter of a killing hit; None for fuel exhaustion or a captured
-    base. `assist_ids`: the other shooters that hit it recently (sorted, at most 32)."""
+    base. `assist_ids`: the other shooters that hit it recently (sorted, at most 32). A unit that
+    was never Disabled rolls its crew now (CB-8); a wreck rolled when it became Disabled."""
+    end_rearm(world, e, out)  # a unit lost mid-stop still reports what its stop cost
     world.remove(e.id)
     if e.commander_id is not None:
         world.record_loss(e.commander_id)
@@ -487,6 +525,82 @@ def lose_unit(
             killer_id=killer_id,
             assist_ids=assist_ids or [],
             side=e.side,
+        )
+    )
+    if e.damage_state != "DISABLED":
+        roll_crew(world, e, out)
+
+
+def consumed(
+    world: World, node: str, amount: int, cause: Literal["SPAWN", "REARM", "REPAIR"]
+) -> SupplyConsumed:
+    return SupplyConsumed.model_construct(
+        kind="SupplyConsumed",
+        tick=world.campaign.tick + 1,
+        event_seq=world.next_event_seq(),
+        campaign_id=world.campaign.id,
+        node_id=node,
+        amount=amount,
+        cause=cause,
+    )
+
+
+def end_rearm(world: World, e: Entity, out: list[Event]) -> None:
+    """Report a rearm stop's spend (`REARM` for fuel and ammo, `REPAIR` for hp; none for 0 units)
+    and reset the stop; the carries stay. Also called when the entity is removed mid-stop."""
+    node = e.base_id or e.last_node
+    if node is not None:
+        if e.rearm_spent:
+            out.append(consumed(world, node, e.rearm_spent, "REARM"))
+        if e.repair_spent:
+            out.append(consumed(world, node, e.repair_spent, "REPAIR"))
+    e.rearm_spent = e.repair_spent = 0
+    e.stalled = False
+
+
+def set_damage_state(world: World, e: Entity, state: DamageState, out: list[Event]) -> None:
+    """Move `e` to `state` with its `UnitDamageStateChanged`: a hit worsens, repair improves."""
+    out.append(
+        UnitDamageStateChanged.model_construct(
+            kind="UnitDamageStateChanged",
+            tick=world.campaign.tick + 1,
+            event_seq=world.next_event_seq(),
+            campaign_id=world.campaign.id,
+            entity_id=e.id,
+            from_=e.damage_state,
+            to=state,
+        )
+    )
+    e.damage_state = state
+
+
+def roll_crew(world: World, e: Entity, out: list[Event]) -> None:
+    """The unit's one crew-survival roll (COMBAT CB-8, Q-SIM-68), at the first of Disabled or
+    Destroyed. A unit with `crew` 0 (a facility, a UAV) draws nothing. Otherwise exactly one draw
+    on the `combat` stream: below the kind's `combat.crew_survival` the crew is DOWNED, a marker
+    at the unit's position for `combat.crew_marker_min` plus a `CrewDowned`; else LOST, nothing."""
+    cr = world.rules.combat if world.rules else None
+    stats = cr.units.get(e.kind) if cr else None
+    if cr is None or stats is None or not stats.crew:
+        return
+    if world.rng.stream(RngStream.COMBAT).random() >= stats.crew_survival:
+        return
+    marker = CrewMarker(
+        world._next_marker_id, e.id, e.side, e.pos,
+        world.campaign.running_ticks + 1 + cr.crew_marker_ticks,
+    )  # fmt: skip
+    world._next_marker_id += 1
+    world.crew_markers[marker.id] = marker
+    out.append(
+        CrewDowned.model_construct(
+            kind="CrewDowned",
+            tick=world.campaign.tick + 1,
+            event_seq=world.next_event_seq(),
+            campaign_id=world.campaign.id,
+            marker_id=marker.id,
+            entity_id=e.id,
+            side=e.side,
+            pos=Pos.model_construct(x_m=round(e.pos.x), y_m=round(e.pos.y)),
         )
     )
 
@@ -538,6 +652,14 @@ def _capture_data(world: World) -> dict[str, Any]:
     return {n: {"progress": b.progress, "side": b.side} for n, b in sorted(world.capture.items())}
 
 
+def _crew_markers_data(world: World, quantize: bool) -> list[Any]:
+    return [
+        {"entity_id": m.entity_id, "expires": m.expires, "id": i, "pos": _xy(m.pos, quantize),
+         "side": m.side}
+        for i, m in world.crew_markers.items()
+    ]  # fmt: skip
+
+
 def _blobs_data(world: World, quantize: bool) -> dict[str, Any]:
     return {
         side: [{"id": b.id, "pos": _xy(b.pos, quantize), "size": b.size} for b in world.blobs[side]]
@@ -560,6 +682,7 @@ def to_canonical(world: World, *, quantize: bool) -> dict[str, Any]:
         _CAMPAIGN: {k: getattr(world.campaign, k) for k in sorted(_CAMPAIGN_KEYS)},
         _CAPTURE: _capture_data(world),
         _CONTACTS: _contacts_data(world, quantize),
+        _CREW_MARKERS: _crew_markers_data(world, quantize),
         _ENTITIES: [_entity_data(e, quantize) for e in world.entities()],
         _MARKERS: _markers_data(world, quantize),
         _OBJECTIVE: None if world.objective is None else asdict(world.objective),
@@ -568,6 +691,7 @@ def to_canonical(world: World, *, quantize: bool) -> dict[str, Any]:
         _RESERVE_QUEUE: [_sorted(c.model_dump(mode="json")) for c in world.reserve_queue],
         _NEXT_ENTITY_ID: world._next_entity_id,
         _NEXT_EVENT_SEQ: world._next_event_seq,
+        _NEXT_MARKER_ID: world._next_marker_id,
         _NEXT_SHOT_ID: world._next_shot_id,
         _RNG: {name: dict(sorted(s.items())) for name, s in world.rng.to_state().items()},
         _SHOTS: [asdict(s) for s in world.shots],
@@ -714,6 +838,11 @@ _ENTITY_CHECKS: dict[str, Callable[[object, str], Any]] = {
     "rearm_milli": _milli,
     "rearm_spent": lambda v, k: _int(v, k),
     "stalled": _bool,
+    "ammo_credit": lambda v, k: _int(v, k),
+    "repair_owed": _milli,
+    "repair_spent": lambda v, k: _int(v, k),
+    "repair_milli": _milli,
+    "repair_debt": lambda v, k: _int(v, k),
     "damage_state": lambda v, k: _str(v, k, _DAMAGE_STATES),
     "alt_band": lambda v, k: _str(v, k, _ALT_BANDS, optional=True),
     "ammo": lambda v, k: _int_list(v, k),
@@ -847,11 +976,32 @@ def _load_entity(value: object) -> Entity:
         raise ValueError(f"entity {e.id}: inconsistent state, fuel and orbit")
     if e.cargo is None and (e.unload_milli or e.delivered):
         raise ValueError(f"entity {e.id}: unload progress without cargo")
-    if e.state is None and (e.rearm_milli or e.rearm_spent or e.stalled):
-        raise ValueError(f"entity {e.id}: refuel progress without a state")
     if len(e.ammo) != len(e.reload) or (e.wreck_left is not None and e.damage_state != "DISABLED"):
         raise ValueError(f"entity {e.id}: inconsistent ammo, reload or wreck timer")
     return e
+
+
+_CREW_MARKER_KEYS = ("entity_id", "expires", "id", "pos", "side")
+
+
+def _crew_markers(value: object, next_marker_id: int, next_entity_id: int) -> dict[int, CrewMarker]:
+    """Markers ascending by id below the counter; the unit they belonged to is gone by now."""
+    if not isinstance(value, list):
+        raise ValueError(f"{_CREW_MARKERS} must be a list")
+    markers: dict[int, CrewMarker] = {}
+    for raw in value:
+        d = _fields(raw, _CREW_MARKER_KEYS, "crew marker")
+        i = _int(d["id"], "crew marker id", 1)
+        if i <= max(markers, default=0) or i >= next_marker_id:
+            raise ValueError(f"{_CREW_MARKERS}: ids must ascend and stay below the counter")
+        entity_id = _int(d["entity_id"], "crew marker entity_id", 1)
+        if entity_id >= next_entity_id:
+            raise ValueError(f"{_CREW_MARKERS}: entity id out of range")
+        markers[i] = CrewMarker(
+            i, entity_id, _str(d["side"], "crew marker side", SIDES), _vec(d["pos"], "pos"),
+            _int(d["expires"], "crew marker expires", 1),
+        )  # fmt: skip
+    return markers
 
 
 def _load_campaign(value: object) -> Campaign:
@@ -927,6 +1077,10 @@ def load(data: bytes) -> World:
     world._next_entity_id = _int(d[_NEXT_ENTITY_ID], _NEXT_ENTITY_ID, 1)
     world._next_event_seq = _int(d[_NEXT_EVENT_SEQ], _NEXT_EVENT_SEQ, 1)
     world._next_shot_id = _int(d[_NEXT_SHOT_ID], _NEXT_SHOT_ID, 1)
+    world._next_marker_id = _int(d[_NEXT_MARKER_ID], _NEXT_MARKER_ID, 1)
+    world.crew_markers = _crew_markers(
+        d[_CREW_MARKERS], world._next_marker_id, world._next_entity_id
+    )
     world.shots = _shots(d[_SHOTS], world._next_shot_id, world._next_entity_id)
     world.callsigns = _callsigns(d[_CALLSIGNS])
     world.respawn_left = _respawn_left(d[_RESPAWN_LEFT])
@@ -945,6 +1099,8 @@ def load(data: bytes) -> World:
     # A side holds at most every node each running tick; the strategic count needs the rules.
     if max(c.held_ticks_coalition, c.held_ticks_enemy) > len(world.owner) * c.running_ticks:
         raise ValueError("campaign: held-node tick sum above nodes x running ticks")
+    if any(m.expires <= c.running_ticks for m in world.crew_markers.values()):
+        raise ValueError(f"{_CREW_MARKERS}: a marker past its expiry")
     if c.ended and world.objective is not None:
         raise ValueError("objective: active in an ended campaign")
     # The age counts running ticks since the refresh, so it cannot exceed the ticks since then.

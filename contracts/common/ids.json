@@ -9,6 +9,7 @@
     "ObjectiveId": {"type": "integer", "minimum": 1, "description": "Sequential per campaign, never reused (STATE-MACHINES 4.5)."},
     "CampaignId": {"type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$", "description": "UUIDv7, canonical lowercase."},
     "EntityId": {"type": "integer", "minimum": 1, "description": "Sequential per campaign, never reused (SC-4)."},
+    "CrewMarkerId": {"type": "integer", "minimum": 1, "description": "Per campaign, allocated by the kernel when a crew is downed, never reused (GAMEPLAY 6a, COMBAT CB-8)."},
     "NodeId": {"type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$", "maxLength": 32, "description": "Stable slug from the theater file."},
     "SectorId": {"type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$", "maxLength": 32, "description": "Named map region from the theater file (OVERLAY AN-1)."},
     "Tick": {"type": "integer", "minimum": 0, "description": "10 Hz game time (SC-2)."},

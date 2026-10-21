@@ -1,15 +1,15 @@
 """Fog of war: Tier 1 SIGINT, Tier 2 tracks, painting, facility discovery (FOG-OF-WAR; NX-150).
 
 `sense` is the SC-13 `sensing` system. On ticks where `tick % fow.track_every_ticks == 0` it
-computes, per side, the enemy entities inside any of that side's sensors: `sensor.radius_m` x the
-target's `stealth`, no RNG (Q-FOW-2), via SC-10 grids, one per sensor range class. The result
-is `World.contacts` (world state): a tracked contact holds the target's kind, position and velocity
-at that pass; one no longer tracked keeps those frozen and becomes a last-known track that ages
-every running tick and is dropped after `fow.track_fade_s`, whether or not the entity still exists
-(FOW-6a); a facility (STATIC) that is no longer tracked is dropped, as facilities never leave
-last-known tracks (FOW-13). Re-tracking a contact makes it a tracked contact again. Nothing runs
-while paused (FOW-9). Between passes everything reads the last computed view (Q-FOW-6). Both sides
-use the same code (FOW-4).
+computes, per side, the enemy entities inside any of that side's sensors: `sensor.radius_m` (x
+`damaged_sensor_mult` at Damaged or worse, CB-6) x the target's `stealth`, no RNG (Q-FOW-2), via
+SC-10 grids, one per sensor range class. The result is `World.contacts` (world state): a tracked
+contact holds the target's kind, position and velocity at that pass; one no longer tracked keeps
+those frozen and becomes a last-known track that ages every running tick and is dropped after
+`fow.track_fade_s`, whether or not the entity still exists (FOW-6a); a facility (STATIC) that is no
+longer tracked is dropped, as facilities never leave last-known tracks (FOW-13). Re-tracking a
+contact makes it a tracked contact again. Nothing runs while paused (FOW-9). Between passes
+everything reads the last computed view (Q-FOW-6). Both sides use the same code (FOW-4).
 
 Terrain masking (Q-FOW-3): a GROUND target in a cell of `Rules.masking` is tracked only by a sensor
 standing in one of that cell's regions. Aircraft join when sensors use the altitude band
@@ -51,12 +51,13 @@ import math
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
 
-from nexus.contracts.gen.common.enums import NodeOwner, Side, UnitKind
+from nexus.contracts.gen.common.enums import DamageState, NodeOwner, Side, UnitKind
 from nexus.core.rules import Rules
 from nexus.core.spatial import UniformGrid
 from nexus.core.world import _ZERO, Blob, BlobSize, Contact, Entity, FacilityMarker, Vec2, World
 
 _STATIC = "STATIC"
+_STATES: tuple[DamageState, ...] = ("HEALTHY", "DAMAGED")  # a radius is the same at worse states
 _GROUND = "GROUND"
 _NOWHERE: frozenset[str] = frozenset()
 _ENEMY_OF: Mapping[Side, Side] = {"COALITION": "ENEMY", "ENEMY": "COALITION"}
@@ -105,11 +106,13 @@ def _track(world: World, rules: Rules) -> None:
 
 
 def _class_cells(rules: Rules) -> dict[float, float]:
-    """Sensor radius -> grid cell of its range class: radii ascending, a class spans up to
+    """Effective sensor radius (healthy and damaged, CB-6) -> grid cell of its range class: radii
+    ascending, a class spans up to
     `_CLASS_SPAN` x its smallest radius, and its cell is its largest radius / 2 (SC-10)."""
     cells: dict[float, float] = {}
     group: list[float] = []
-    for r in [*sorted({r for r in rules.sensor_radius_m.values() if r > 0}), math.inf]:
+    radii = {rules.sensor_radius(k, state) for k in rules.sensor_radius_m for state in _STATES}
+    for r in [*sorted(r for r in radii if r > 0), math.inf]:
         if group and r > _CLASS_SPAN * group[0]:  # inf closes the last class
             cells |= dict.fromkeys(group, group[-1] / 2)
             group = []
@@ -131,7 +134,7 @@ def _detect(
             (s, r, _regions(rules, s.pos))
             for s in world.entities()
             if s.side == side
-            and (r := rules.sensor_radius_m[s.kind]) > 0
+            and (r := rules.sensor_radius(s.kind, s.damage_state)) > 0
             and s.emitting is not False  # dark: no coverage (FOW-11)
             and not is_off_facility(rules, s)
         ),
@@ -263,7 +266,7 @@ def _sigint(world: World, rules: Rules, side: Side) -> tuple[Blob, ...]:
     shortcut: units x radar sites, no grid; radar sites are the few pre-placed facilities. Use the
     grid if a theater's radar sites reach the hundreds (SC-10 smoke test)."""
     radars = [
-        (s.pos, (rules.sensor_radius_m[s.kind] * rules.sigint_range_mult) ** 2)
+        (s.pos, (rules.sensor_radius(s.kind, s.damage_state) * rules.sigint_range_mult) ** 2)
         for s in world.entities()
         if s.side == side
         and s.kind == _RADAR

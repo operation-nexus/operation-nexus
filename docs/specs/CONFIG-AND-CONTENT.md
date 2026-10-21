@@ -162,7 +162,7 @@ In the schema now (NX-122): `slots.max_live_per_commander`, `slots.respawn_delay
 | `logistics.starve_threshold` | float | fraction 0–1 | 0.25. In code (NX-123): the floor is `ceil(starve_threshold x max)` whole units | GAMEPLAY §5 | No |
 | `logistics.starve_hp_drain_per_min` | float | node hp per min (world) | TBD (PROPOSED) | GAMEPLAY §8 | No |
 | `logistics.starved_loadout.fuel_frac` | float | fraction | 0.5 (Q-SIM-53). In code (NX-123 part 2): a base below its starvation floor refuels an aircraft only up to this share of `fuel_s`; a spawn is always full | GAMEPLAY §5 | No |
-| `logistics.starved_loadout.secondary_ammo` | int | rounds | 0 (not in code yet: guns join with munitions, NX-124) | GAMEPLAY §5 | No |
+| `logistics.starved_loadout.secondary_ammo` | int | rounds | 0 (a code rule, not a key: a starved base restocks only guns, NX-124 part 2) | GAMEPLAY §5 | No |
 | `logistics.truck_cargo` | int | stock units | 100 (Q-SIM-49). One global value for every cargo kind (NX-123); a per-kind catalog `cargo` (§7.3) would replace it | GAMEPLAY §5 | No |
 | `logistics.unload_rate` | float | stock/s (world) | 1.0 (Q-SIM-49). Counted in whole thousandths per tick, so the loader rejects a rate x tick below 0.001 | GAMEPLAY §5 | No |
 | `logistics.loadout_cost.<unit_kind>` | int | stock units | STRIKE_FIGHTER, ENEMY_FIGHTER and ENEMY_STRIKE_FIGHTER 20, RECON_UAV and ENEMY_RECON_UAV 5, ENEMY_ARMOR 15, GARRISON_INFANTRY 5, LOGI_TRUCK and ENEMY_CONVOY 0 (Q-SIM-49). In code (NX-123 part 2) as a balance table keyed by those nine kinds, all required (facilities are placed by the theater, not spawned, and have none); the debit at forward deploy and the price of a full refill (Q-SIM-51). The per-unit catalog `loadout_cost` in §7.3 is not used | GAMEPLAY §5 | No |
@@ -173,8 +173,10 @@ In the schema now (NX-122): `slots.max_live_per_commander`, `slots.respawn_delay
 | `tasking.follow_station_m.<domain>` | float | m (world) | TBD (PROPOSED) | GAMEPLAY §1b, Q-GP-32 | No |
 | `progression.follower_share` | float | fraction of the outcome's merit per follower | TBD (PROPOSED) | GAMEPLAY §1b, PROGRESSION, Q-GP-42 | No |
 | `progression.follower_share_cap` | int | max followers credited per outcome | TBD (PROPOSED) | GAMEPLAY §1b, Q-GP-42 | No |
+| `logistics.facility_repair_hp_per_stock` | int | hp per stock unit | 10 (PROPOSED, Q-SIM-68). In code (NX-124 part 2) | GAMEPLAY §5b | No |
+| `logistics.facility_rearm_cost` | int | stock units | 10 (PROPOSED, Q-SIM-69). In code (NX-124 part 2): a facility's full reload of all its weapons, by ammo share | GAMEPLAY §5b | No |
 | `logistics.forward_deploy_min_surplus` | int | stock units above the starvation floor a spawn base needs to accept a forward deploy | 50 (Q-SIM-49, Q-SIM-54). In code (NX-123 part 2); the base also needs at least the loadout cost above its floor | GAMEPLAY §4, Q-GP-41 | No |
-| `logistics.repair_rate.<node_kind>` | float | hp/s (world) | TBD (base repair for all domains, Q-GD-27) | GAMEPLAY §5 | No |
+| `logistics.repair_rate.<node_kind>` | float | hp/s (world) | AIRBASE 1.0, HQ 1.0, PORT 1.0, FOB 0.5, SANCTUARY 2.0 and free (PROPOSED, Q-SIM-68). In code (NX-124 part 2): all five required; counted in thousandths of an hp per tick | GAMEPLAY §5 | No |
 
 ### 6.4 Combat
 | Key | Type | Unit | PROPOSED | Source | HR |
@@ -194,8 +196,9 @@ In the schema now (NX-122): `slots.max_live_per_commander`, `slots.respawn_delay
 | `combat.damage_state.damaged_below` | float | hp fraction | 0.70 (PROPOSED). In code (NX-124); the three thresholds must descend (loader) | COMBAT CB-6, Q-GP-8 | No |
 | `combat.damage_state.mission_kill_below` | float | hp fraction | 0.35 (PROPOSED). In code (NX-124) | COMBAT CB-6, Q-GP-8 | No |
 | `combat.damage_state.disabled_below` | float | hp fraction | 0.10 (PROPOSED). In code (NX-124); a facility's hp floors just under it | COMBAT CB-6, Q-GP-8 | No |
-| `combat.damage_state.damaged_speed_mult`, `.damaged_sensor_mult` | float | multiplier | 0.75 and 0.8 (PROPOSED, Q-SIM-65); not in the schema yet: they join with their code (NX-124 part 2) | COMBAT CB-6 (Q-CBT-1) | No |
-| `combat.crew_survival.*` | object | probability modifiers per platform/location | TBD | COMBAT CB-8 | No |
+| `combat.damage_state.damaged_speed_mult`, `.damaged_sensor_mult` | float | multiplier | 0.75 and 0.8 (PROPOSED, Q-SIM-65). In code (NX-124 part 2) | COMBAT CB-6 (Q-CBT-1) | No |
+| `combat.crew_survival.<kind>` | float | probability | aircraft 0.75, ENEMY_ARMOR 0.60, GARRISON_INFANTRY 0.50, LOGI_TRUCK and ENEMY_CONVOY 0.70 (PROPOSED, Q-SIM-68). In code (NX-124 part 2): one per kind with crew above 0, all required | COMBAT CB-8 | No |
+| `combat.crew_marker_min` | float | min (game) | 10 (PROPOSED, Q-SIM-68). In code (NX-124 part 2) | COMBAT CB-8 | No |
 | `slots.respawn_loss_window_s` / `slots.respawn_loss_step_s` | float | s (game) | TBD (respawn grows with repeated losses, Q-CBT-9; game time per Q-ALN-5) | GAMEPLAY GP-2 | Yes |
 
 ### 6.5 Capture
@@ -230,7 +233,7 @@ In code since NX-125: all ten keys are the `capture` block of `balance/default.y
 | `campaign.momentum.supply_weight` | float | percentage points | 30 (PROPOSED, Q-SIM-60): × the coalition's supply fill (its finite bases' stock ÷ their max stock); the two weights must add up to 100 | GAMEPLAY §9, Q-SIM-60 | No |
 | `campaign.defeat` | object | — | `{hold_min: 30}`: the sanctuary's defense HP must stay at 0 this long (Q-TH-7, replacing Q-GD-7's forward-airbase rule; PROPOSED; game minutes, Q-ALN-1) | GAMEPLAY §9 | No |
 | `campaign.objective_mode` | enum `timed`\|`off` | — | `timed` (Q-GD-19); chosen at campaign setup by owner/admin only (Q-ALN-10) | GAMEPLAY §9 | No (set per campaign) |
-| `campaign.options.unlimited_ammo` | bool | — | false (Q-CBT-7; test/special-event option; set at campaign setup by owner/admin only, not GM, Q-ALN-10) | GAMEPLAY §5 | No |
+| `campaign.options.unlimited_ammo` | bool | — | not in the schema yet (NX-124 part 2 does not honour it); false (Q-CBT-7; test/special-event option; set at campaign setup by owner/admin only, not GM, Q-ALN-10) | GAMEPLAY §5 | No |
 | `campaign.intermission.mode` | enum `auto_advance`\|`await_owner` | — | TBD (owner choice per campaign, Q-UX-8) | GAMEPLAY §9 | Yes |
 | `tasking.claim_lease_s` | float | s (game, Q-ALN-23) | TBD by harness: a claim auto-releases when its unit makes no progress for this long (Q-GD-37) | GAMEPLAY §1b | Yes |
 | `tasking.priority.<job_kind>` | float | base priority | TBD by harness | GAMEPLAY §1b, Q-GP-20 | No |

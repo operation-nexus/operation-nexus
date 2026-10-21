@@ -144,7 +144,7 @@ def golden_run() -> str:
     return state_hash(w)
 
 
-GOLDEN = "5c32dd02182e00ffc417327da8613817498bcce9eb1f40db92d7283274bc63ba"
+GOLDEN = "9216637014190179cbb3a71b3f43a184167a7e916ef7c3be5010ac9712e12215"
 
 
 def test_golden_ten_steps_seed_12345() -> None:
@@ -152,7 +152,8 @@ def test_golden_ten_steps_seed_12345() -> None:
     # NX-122: world encoding v3 adds respawn_left; v4 adds reserve_queue; NX-368: v5 adds state,
     # fuel and orbit; NX-370: v6 adds callsigns; NX-150: v7 adds contacts; v8 adds markers and
     # facility fields; v9 adds painted, blobs and sigint_age; NX-126: v13 adds the campaign clock;
-    # NX-124: v14 adds hp always real, damage state, ammo, reload and shots).
+    # NX-124: v14 adds hp always real, damage state, ammo, reload and shots; part 2: v15 adds the
+    # rearm-stop carries and the downed-crew markers).
     # A change here breaks every recorded replay hash: needs a `golden-update` reason.
     assert golden_run() == GOLDEN
     assert golden_run() == golden_run()

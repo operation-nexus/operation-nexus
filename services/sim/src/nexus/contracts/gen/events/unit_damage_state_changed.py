@@ -20,6 +20,6 @@ class UnitDamageStateChanged(BaseModel):
         int, Field(description="Campaign-wide, monotonic, deterministic (SC-14).", ge=1)
     ]
     campaign_id: ids.CampaignId
-    entity_id: Annotated[ids.EntityId, Field(description="The unit hit.")]
+    entity_id: Annotated[ids.EntityId, Field(description="The unit whose state changed.")]
     from_: Annotated[enums.DamageState, Field(alias="from")]
     to: enums.DamageState
