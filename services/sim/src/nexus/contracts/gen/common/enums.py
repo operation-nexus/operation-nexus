@@ -69,11 +69,16 @@ type Domain = Annotated[
 ]
 
 
+type CallsignKind = Annotated[
+    Literal["GENERATED", "CUSTOM", "TOMBSTONE"], Field(description="IDENTITY §2, DATA-MODEL §4.2.")
+]
+
+
 type CommandSource = Literal["CHAT", "ADVISOR", "STAFF", "SYSTEM"]
 
 
 type CommandKind = Annotated[
-    Literal["JOIN"],
+    Literal["JOIN", "SYS_SET_CALLSIGN"],
     Field(description="Grows one kind at a time, with each handler (AGENTS.md rule 6a)."),
 ]
 
@@ -98,6 +103,8 @@ type RejectReason = Annotated[
 
 
 type EventKind = Annotated[
-    Literal["UnitSpawned", "CommandRejected", "ReserveQueueJoined", "UnitDestroyed"],
+    Literal[
+        "UnitSpawned", "CommandRejected", "ReserveQueueJoined", "UnitDestroyed", "CallsignChanged"
+    ],
     Field(description="Grows one kind at a time, with each producer (rule 6a)."),
 ]

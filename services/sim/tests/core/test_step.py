@@ -52,7 +52,7 @@ def spawn_handler(world: World, command: Command, out: list[Event]) -> None:
             unit_kind=e.kind,
             side=e.side,
             owner_kind=e.owner_kind,
-            commander_id=command.issuer.commander_id,
+            commander_id=command.issuer.commander_id if isinstance(command, JoinCommand) else None,
             callsign=None,
             node_id="test-node",
             loadout="FULL",
@@ -144,13 +144,13 @@ def golden_run() -> str:
     return state_hash(w)
 
 
-GOLDEN = "ff56b0ac1f90438f73f3eb10702b047d605ce185256b51d95da5a30374476796"
+GOLDEN = "9e36556bee7c758d63f0a16b66d7d88c075f06951863b1b4460365fc90401f13"
 
 
 def test_golden_ten_steps_seed_12345() -> None:
     # Pinned by running this implementation once (NX-102; re-pinned NX-121: entity encoding v2;
     # NX-122: world encoding v3 adds respawn_left; v4 adds reserve_queue; NX-368: v5 adds state,
-    # fuel and orbit).
+    # fuel and orbit; NX-370: v6 adds callsigns).
     # A change here breaks every recorded replay hash: needs a `golden-update` reason.
     assert golden_run() == GOLDEN
     assert golden_run() == golden_run()

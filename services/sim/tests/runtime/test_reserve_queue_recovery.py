@@ -29,7 +29,7 @@ FREE = "free"
 def free_or_join(world: World, command: Command, out: list[Event]) -> None:
     """Test stand-in for a despawn (NX-324): a JOIN with correlation id `free` removes the
     commander's unit; any other JOIN is the real handler. Logged, so replays repeat it."""
-    if command.correlation_id != FREE:
+    if not isinstance(command, JoinCommand) or command.correlation_id != FREE:
         join(world, command, out)
         return
     (unit,) = [e for e in world.entities() if e.commander_id == command.issuer.commander_id]

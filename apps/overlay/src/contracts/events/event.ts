@@ -3,7 +3,7 @@
 /**
  * Discriminated union of all sim events on kind (CONTRACTS §6).
  */
-export type Event = UnitSpawned | CommandRejected | ReserveQueueJoined | UnitDestroyed;
+export type Event = UnitSpawned | CommandRejected | ReserveQueueJoined | UnitDestroyed | CallsignChanged;
 
 /**
  * A unit appears (CONTRACTS §6). Public view: an ENEMY spawn only if its spawn point is tracked; otherwise dropped.
@@ -78,7 +78,7 @@ export interface CommandRejected {
   /**
    * Grows one kind at a time, with each handler (AGENTS.md rule 6a).
    */
-  command_kind: "JOIN";
+  command_kind: "JOIN" | "SYS_SET_CALLSIGN";
   /**
    * CONTRACTS §5.3. Grows one value at a time, with the code that emits it (rule 6a).
    */
@@ -158,4 +158,34 @@ export interface UnitDestroyed {
    * The lost unit's side.
    */
   side: "COALITION" | "ENEMY";
+}
+/**
+ * A commander's callsign was set by SYS_SET_CALLSIGN (CONTRACTS §6). Broadcast-only, already approved. TOMBSTONE renders as REDACTED- plus the tag after X- (Q-DM-2, Q-ALN-29).
+ */
+export interface CallsignChanged {
+  kind: "CallsignChanged";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * UUIDv7, canonical lowercase (IDENTITY §1). Not a platform id.
+   */
+  commander_id: string;
+  /**
+   * Generated WORD-NN or approved custom (IDENTITY §2-3).
+   */
+  callsign: string;
+  /**
+   * IDENTITY §2, DATA-MODEL §4.2.
+   */
+  callsign_kind: "GENERATED" | "CUSTOM" | "TOMBSTONE";
 }

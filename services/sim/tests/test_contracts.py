@@ -183,3 +183,35 @@ def test_event_union_parses_unit_destroyed() -> None:
 def test_unit_destroyed_rejects_bad_fields(bad: dict[str, object]) -> None:
     with pytest.raises(ValidationError):
         EVENTS.validate_python({**DESTROYED, **bad})
+
+
+SET_CALLSIGN = {
+    "kind": "SYS_SET_CALLSIGN",
+    "source": "SYSTEM",
+    "issuer": {"system": "identity"},
+    "target_tick": 11,
+    "arrival_seq": 1,
+    "correlation_id": "approval-1",
+    "commander_id": COMMANDER,
+    "callsign": "VIPER-07",
+    "callsign_kind": "CUSTOM",
+}
+
+
+def test_command_union_parses_sys_set_callsign() -> None:
+    assert COMMANDS.validate_python(SET_CALLSIGN).kind == "SYS_SET_CALLSIGN"
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        {"callsign": "viper"},
+        {"callsign_kind": "OTHER"},
+        {"source": "CHAT"},
+        {"issuer": {"commander_id": COMMANDER}},
+        {"extra": 1},
+    ],
+)
+def test_sys_set_callsign_rejects_bad_fields(bad: dict[str, object]) -> None:
+    with pytest.raises(ValidationError):
+        COMMANDS.validate_python({**SET_CALLSIGN, **bad})

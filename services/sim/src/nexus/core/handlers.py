@@ -8,8 +8,10 @@ events. An invalid command becomes a `CommandRejected`, never an exception (SC-7
 from collections.abc import Callable, Mapping
 
 from nexus.contracts.gen.commands.command import Command
-from nexus.contracts.gen.commands.join import FollowTarget, NodeTarget
+from nexus.contracts.gen.commands.join import FollowTarget, JoinCommand, NodeTarget
+from nexus.contracts.gen.commands.sys_set_callsign import SysSetCallsignCommand
 from nexus.contracts.gen.common.enums import OwnerKind, RejectReason, Side, UnitKind
+from nexus.contracts.gen.events.callsign_changed import CallsignChanged
 from nexus.contracts.gen.events.command_rejected import CommandRejected
 from nexus.contracts.gen.events.event import Event
 from nexus.contracts.gen.events.reserve_queue_joined import ReserveQueueJoined
@@ -34,8 +36,8 @@ def reject(world: World, command: Command, reason: RejectReason) -> CommandRejec
         arrival_seq=command.arrival_seq,
         command_kind=command.kind,
         reason=reason,
-        # Staff, system and advisor issuers map to None when their commands land.
-        commander_id=command.issuer.commander_id,
+        # Staff, system and advisor issuers have no commander.
+        commander_id=command.issuer.commander_id if isinstance(command, JoinCommand) else None,
     )
 
 
@@ -45,9 +47,12 @@ def join(world: World, command: Command, out: list[Event]) -> None:
     A valid JOIN queues while paused, at the cap, or behind a non-empty queue (strict FIFO, U-4);
     otherwise it spawns at once. Interim until NX-123: every unit spawns at the coalition's
     SANCTUARY with a FULL loadout and no stock is debited (forward deploy, GP-7, joins with
-    logistics). No callsign reaches the kernel yet, so the unit's callsign is None. An aircraft
+    logistics). The unit takes the commander's callsign when identity has set one, else None
+    (`set_callsign`, NX-370). An aircraft
     spawns LANDED with full fuel and takes off in `movement` when it has a path (NX-368).
     """
+    if not isinstance(command, JoinCommand):
+        raise TypeError(f"JOIN handler got {command.kind}")
     rules = _rules(world)
     plan = _plan(world, command, rules)
     if isinstance(plan, str):
@@ -103,7 +108,7 @@ def _viewer_units(world: World) -> int:
     return sum(e.owner_kind == _COMMANDER for e in world.entities())
 
 
-def _enqueue(world: World, command: Command, rules: Rules, out: list[Event]) -> None:
+def _enqueue(world: World, command: JoinCommand, rules: Rules, out: list[Event]) -> None:
     """Append, or replace the commander's own entry in place (U-4: one each, position kept)."""
     commander = command.issuer.commander_id
     queue = world.reserve_queue
@@ -129,7 +134,12 @@ def _enqueue(world: World, command: Command, rules: Rules, out: list[Event]) -> 
 
 
 def _spawn(
-    world: World, command: Command, kind: UnitKind, path: list[str], rules: Rules, out: list[Event]
+    world: World,
+    command: JoinCommand,
+    kind: UnitKind,
+    path: list[str],
+    rules: Rules,
+    out: list[Event],
 ) -> None:
     node = rules.sanctuary
     unit = world.spawn(
@@ -138,6 +148,7 @@ def _spawn(
         _COMMANDER,
         Vec2(*rules.roads.pos[node]),
         commander_id=command.issuer.commander_id,
+        callsign=world.callsigns.get(command.issuer.commander_id),
         hp=None,
     )
     unit.last_node, unit.path = node, list(path)
@@ -154,7 +165,7 @@ def _spawn(
             side=_COALITION,
             owner_kind=_COMMANDER,
             commander_id=unit.commander_id,
-            callsign=None,
+            callsign=unit.callsign,
             node_id=node,
             loadout="FULL",
         )
@@ -162,7 +173,7 @@ def _spawn(
 
 
 def _plan(
-    world: World, command: Command, rules: Rules
+    world: World, command: JoinCommand, rules: Rules
 ) -> tuple[UnitKind, list[str]] | RejectReason:
     """The unit kind and path for a JOIN, or why it is rejected (checked in this order)."""
     commander = command.issuer.commander_id
@@ -203,4 +214,30 @@ def _path(
     return "NODE_INVALID_FOR_UNIT" if route is None else route
 
 
-HANDLERS: Mapping[str, Handler] = {"JOIN": join}
+def set_callsign(world: World, command: Command, out: list[Event]) -> None:
+    """SYS_SET_CALLSIGN (CONTRACTS §5.2, Q-SIM-39): store the commander's callsign, copy it onto
+    the commander's live units and emit `CallsignChanged`. The schema checks the callsign's
+    pattern. Allowed while paused (Q-ALN-36). `COMMANDER_UNKNOWN` is never emitted: the kernel
+    keeps no commander registry, so identity owns that check (a JOIN does not check it either).
+    The map grows with each commander; FORGET (later) removes the entry.
+    """
+    if not isinstance(command, SysSetCallsignCommand):
+        raise TypeError(f"SYS_SET_CALLSIGN handler got {command.kind}")
+    world.callsigns[command.commander_id] = command.callsign
+    for e in world.entities():
+        if e.commander_id == command.commander_id:
+            e.callsign = command.callsign
+    out.append(
+        CallsignChanged.model_construct(
+            kind="CallsignChanged",
+            tick=world.campaign.tick + 1,
+            event_seq=world.next_event_seq(),
+            campaign_id=world.campaign.id,
+            commander_id=command.commander_id,
+            callsign=command.callsign,
+            callsign_kind=command.callsign_kind,
+        )
+    )
+
+
+HANDLERS: Mapping[str, Handler] = {"JOIN": join, "SYS_SET_CALLSIGN": set_callsign}

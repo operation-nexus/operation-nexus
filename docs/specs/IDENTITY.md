@@ -20,6 +20,8 @@ The first valid command from an unknown `(platform, platform_user_id)` creates a
 
 Raid-origin viewers are normal viewers in our chat and get commanders the same way (Q-GW-2). Twitch Shared Chat messages that originate in another channel are ignored by default, so they create no commander; `gateway.shared_chat.accept_foreign` (default false) enables them only after the source-channel API fields are verified [UNVERIFIED] (CHAT-GATEWAY).
 
+Identity generates callsigns outside the sim and sends each change (generated, approved, tombstone) as the logged system command `SYS_SET_CALLSIGN` (CONTRACTS §5.2); the sim keeps a per-commander callsign for JOIN and live units (SIM-CORE §4, Q-SIM-39).
+
 ## 3. Custom callsigns (P3)
 Unlocks after the commander's first completed mission (Q-PROG-3). The format is `^[A-Z][A-Z0-9-]{2,11}$`, then moderation (SEC-MOD-1). Generated-callsign patterns (`WORD-NN`), the tombstone prefix `X-`, and command keywords (`HOLD`, every role name and every stance word) are reserved (Q-GP-39). A callsign may not equal a node name or alias; the theater validator also rejects node names or aliases equal to a reserved word or an existing callsign. and callsigns are unique across all platforms. Changes are limited to one per 30 days.
 

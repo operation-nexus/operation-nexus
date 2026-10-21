@@ -15,6 +15,7 @@ and the reserve queue (GP-3) are world state, so snapshots and the hash cover th
 
 import hashlib
 import math
+import re
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field, fields
 from typing import Annotated, Any, Literal, Self, cast, get_args, get_origin
@@ -27,13 +28,14 @@ from nexus.core.rng import SimRng
 from nexus.core.rules import Rules
 
 # 2: Entity.path and Entity.last_node (NX-121); 3: respawn_left, hp may be null; 4: reserve_queue;
-# 5: Entity.state, fuel and orbit (NX-368)
-FORMAT_VERSION = 5
+# 5: Entity.state, fuel and orbit (NX-368); 6: callsigns (NX-370)
+FORMAT_VERSION = 6
 _MM = 1000.0  # metres -> millimetres; m/s -> mm/s
 _MICRO = 1e6  # ADR-0002's 1e-6 step for other floats (fuel)
 _MAX_ABS = 1e9  # m or m/s; keeps mm quantization well inside int64
 _CAMPAIGN = "campaign"
 _ENTITIES = "entities"
+_CALLSIGNS = "callsigns"
 _RESPAWN_LEFT = "respawn_left"
 _RESERVE_QUEUE = "reserve_queue"
 _NEXT_ENTITY_ID = "next_entity_id"
@@ -41,6 +43,7 @@ _NEXT_EVENT_SEQ = "next_event_seq"
 _RNG = "rng"
 _V = "v"
 _WORLD_KEYS = (
+    _CALLSIGNS,
     _CAMPAIGN,
     _ENTITIES,
     _NEXT_ENTITY_ID,
@@ -63,6 +66,7 @@ def _literal_values(alias: Any) -> tuple[str, ...]:
     return get_args(value)
 
 
+_CALLSIGN = re.compile(r"[A-Z][A-Z0-9-]{2,11}")  # ids.json Callsign
 _UNIT_KINDS = _literal_values(UnitKind)
 _SIDES = _literal_values(Side)
 _OWNER_KINDS = _literal_values(OwnerKind)
@@ -139,6 +143,7 @@ class World:
         "_entities",
         "_next_entity_id",
         "_next_event_seq",
+        "callsigns",
         "campaign",
         "reserve_queue",
         "respawn_left",
@@ -159,6 +164,9 @@ class World:
         # The reserve queue (GP-3, STATE-MACHINES §4.1): queued JOINs, head first, one per
         # commander (U-4). The JOIN handler appends; `lifecycle` serves from the head.
         self.reserve_queue: list[JoinCommand] = []
+        # commander_id -> callsign set by SYS_SET_CALLSIGN (Q-SIM-39); JOIN copies it onto the
+        # unit. Grows per commander; FORGET (later) removes the entry.
+        self.callsigns: dict[str, str] = {}
 
     @classmethod
     def new(cls, campaign: Campaign, rules: Rules | None = None) -> Self:
@@ -246,6 +254,7 @@ def _sorted(value: Any) -> Any:
 def to_canonical(world: World, *, quantize: bool) -> dict[str, Any]:
     """Plain data with sorted keys and entities in id order; quantized for the hash only."""
     data = {
+        _CALLSIGNS: dict(sorted(world.callsigns.items())),
         _CAMPAIGN: {k: getattr(world.campaign, k) for k in sorted(_CAMPAIGN_KEYS)},
         _ENTITIES: [_entity_data(e, quantize) for e in world.entities()],
         _RESPAWN_LEFT: dict(sorted(world.respawn_left.items())),
@@ -351,6 +360,15 @@ def _respawn_left(value: object) -> dict[str, int]:
     return {_str(k, "commander_id"): _int(v, _RESPAWN_LEFT, 1) for k, v in value.items()}
 
 
+def _callsigns(value: object) -> dict[str, str]:
+    if not isinstance(value, dict):
+        raise ValueError(f"{_CALLSIGNS} must be a map")
+    for callsign in value.values():
+        if not (isinstance(callsign, str) and _CALLSIGN.fullmatch(callsign)):
+            raise ValueError(f"bad callsign: {callsign!r}")
+    return {_str(k, "commander_id"): v for k, v in value.items()}
+
+
 def _reserve_queue(value: object) -> list[JoinCommand]:
     """Validated JOINs (pydantic's ValidationError is a ValueError), one per commander (U-4)."""
     if not isinstance(value, list):
@@ -387,6 +405,7 @@ def load(data: bytes) -> World:
     world = World(_load_campaign(d[_CAMPAIGN]), SimRng.from_state(d[_RNG]))
     world._next_entity_id = _int(d[_NEXT_ENTITY_ID], _NEXT_ENTITY_ID, 1)
     world._next_event_seq = _int(d[_NEXT_EVENT_SEQ], _NEXT_EVENT_SEQ, 1)
+    world.callsigns = _callsigns(d[_CALLSIGNS])
     world.respawn_left = _respawn_left(d[_RESPAWN_LEFT])
     world.reserve_queue = _reserve_queue(d[_RESERVE_QUEUE])
     entities = d[_ENTITIES]

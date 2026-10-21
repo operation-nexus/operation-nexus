@@ -1,0 +1,28 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nexus.local/contracts/commands/sys_set_callsign.json",
+  "title": "SysSetCallsignCommand",
+  "description": "Identity sets a commander's callsign after an approval, a generation or a deletion (CONTRACTS \u00a75.2; IDENTITY \u00a72). Not a chat command: it has no parser entry. Header and payload are flat.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "source", "issuer", "target_tick", "arrival_seq", "correlation_id", "commander_id", "callsign", "callsign_kind"],
+  "properties": {
+    "kind": {"const": "SYS_SET_CALLSIGN"},
+    "source": {"const": "SYSTEM"},
+    "issuer": {"$ref": "#/$defs/SystemIssuer"},
+    "target_tick": {"$ref": "../common/ids.json#/$defs/Tick"},
+    "arrival_seq": {"$ref": "../common/ids.json#/$defs/CommandSeq"},
+    "correlation_id": {"type": "string", "minLength": 1, "maxLength": 64},
+    "commander_id": {"$ref": "../common/ids.json#/$defs/CommanderId"},
+    "callsign": {"$ref": "../common/ids.json#/$defs/Callsign"},
+    "callsign_kind": {"$ref": "../common/enums.json#/$defs/CallsignKind", "description": "Carried through to CallsignChanged; the sim cannot derive it from the callsign."}
+  },
+  "$defs": {
+    "SystemIssuer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["system"],
+      "properties": {"system": {"type": "string", "minLength": 1, "maxLength": 64}}
+    }
+  }
+}

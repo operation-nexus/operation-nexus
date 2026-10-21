@@ -41,6 +41,8 @@ emit no events (STATE-MACHINES §4.1 lists none) and no golden aircraft runs out
 only new event, `UnitDestroyed`). The `stub` and `poison` registries now spawn their fighters
 `LANDED` with fuel, since an AIR entity must have a state; they never take off.
 
+Snapshot format 6 (NX-370: the per-commander `callsigns` map) re-pinned every case's checkpoints again; no event stream changed and no case sends `SYS_SET_CALLSIGN` yet.
+
 The orbit uses libm `atan2`, `cos` and `sin`. They are deterministic on one platform but may
 differ across platforms or libm versions, so every checkpoint here is pinned to the CI platform
 (ADR-0002, SC-3): a mismatch on another machine is not by itself a determinism bug.

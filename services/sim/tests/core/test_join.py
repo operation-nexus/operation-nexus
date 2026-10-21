@@ -256,6 +256,7 @@ def mixed_world() -> World:
     w = new_world()
     step(w, [c.model_copy(update={"arrival_seq": i}) for i, c in enumerate(MIXED, 1)])
     w.record_loss(cid(9))
+    w.callsigns[cid(9)] = "ALPHA-01"  # NX-370: in the hash and the hash-seed check
     at_tick(w, 21)
     return w
 

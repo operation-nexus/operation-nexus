@@ -3,6 +3,6 @@
   "$id": "https://nexus.local/contracts/commands/command.json",
   "title": "Command",
   "description": "Discriminated union of all commands on kind (CONTRACTS §5).",
-  "oneOf": [{"$ref": "join.json"}],
+  "oneOf": [{"$ref": "join.json"}, {"$ref": "sys_set_callsign.json"}],
   "discriminator": {"propertyName": "kind"}
 }

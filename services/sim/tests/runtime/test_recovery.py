@@ -72,7 +72,7 @@ def spawn_handler(world: World, command: Command, out: list[Event]) -> None:
             unit_kind=e.kind,
             side=e.side,
             owner_kind=e.owner_kind,
-            commander_id=command.issuer.commander_id,
+            commander_id=command.issuer.commander_id if isinstance(command, JoinCommand) else None,
             callsign=None,
             node_id="test-node",
             loadout="FULL",

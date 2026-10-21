@@ -71,7 +71,7 @@
           "$ref": "../common/ids.json#/$defs/CommanderId"
         }
       },
-      "description": "Other issuer shapes (staff, advisor, system) land with their first command."
+      "description": "JOIN is issued by a commander. Other issuer shapes land with their first command (system: SYS_SET_CALLSIGN)."
     },
     "NodeTarget": {
       "type": "object",

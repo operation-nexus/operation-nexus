@@ -10,7 +10,7 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | Phase | Items | Done | Status |
 |---|---|---|---|
 | P0 Foundations | 42 | 19 | 🟨 |
-| P1 Sim kernel | 31 | 12 | 🟨 |
+| P1 Sim kernel | 31 | 13 | 🟨 |
 | P2 Closed alpha | 34 | 0 | ⬜ |
 | P3 Public beta | 22 | 0 | ⬜ |
 | P4 Depth | 67 | 1 | ⬜ |
@@ -96,8 +96,8 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-367 [#178](https://github.com/operation-nexus/operation-nexus/issues/178) | Unit catalog loader + MVP catalog entries (`content/units/`, PROPOSED values; Q-CBT-24) | M | ✅ | NX-106 | Catalog kinds equal `UnitKind`; joins `config_hash`; GARRISON_INFANTRY GROUND only |
 | NX-121 [#185](https://github.com/operation-nexus/operation-nexus/issues/185) | Kinematics (air direct, ground on graph), time scale | M | ✅ | NX-120, NX-367 | Property: positions in bounds, on edges |
 | NX-122 [#187](https://github.com/operation-nexus/operation-nexus/issues/187) | Unit slots, spawn, respawn delay, reserve queue | M | ✅ | NX-121, NX-367 | GP-1..3 tests; also builds `Rules` at campaign start and in the replay CLI, makes `rules=` required in restore/recover, adds a golden case with moving units (Q-SIM-37) |
-| NX-368 [#188](https://github.com/operation-nexus/operation-nexus/issues/188) | Aircraft minimum (stall) speed and idle orbit (Q-SIM-38) | S | 👀 | NX-121 | Airborne AIR never below `min_speed_mps`; land only at own-side AIRBASE/SANCTUARY (speed 0); out of fuel in the air = lost (Q-SIM-42); first `UnitDestroyed` producer; idle airborne aircraft orbit (CAP/scouting) and auto-RTB and land only at bingo fuel; positions in bounds |
-| NX-370 [#192](https://github.com/operation-nexus/operation-nexus/issues/192) | `SYS_SET_CALLSIGN`: commander callsigns reach the sim; JOIN copies them (Q-SIM-39) | S | ⬜ | NX-122 | Contract + handler; callsign in snapshot; UnitSpawned carries it |
+| NX-368 [#188](https://github.com/operation-nexus/operation-nexus/issues/188) | Aircraft minimum (stall) speed and idle orbit (Q-SIM-38) | S | ✅ | NX-121 | Airborne AIR never below `min_speed_mps`; land only at own-side AIRBASE/SANCTUARY (speed 0); out of fuel in the air = lost (Q-SIM-42); first `UnitDestroyed` producer; idle airborne aircraft orbit (CAP/scouting) and auto-RTB and land only at bingo fuel; positions in bounds |
+| NX-370 [#192](https://github.com/operation-nexus/operation-nexus/issues/192) | `SYS_SET_CALLSIGN`: commander callsigns reach the sim; JOIN copies them (Q-SIM-39) | S | 👀 | NX-122 | Contract + handler; callsign in snapshot; UnitSpawned carries it |
 | NX-371 [#194](https://github.com/operation-nexus/operation-nexus/issues/194) | Reserve queue follow-ups: `ReserveQueueLeft` events, `slots.queue_idle_min` timeout, RQ-1 milestones, ban/forget removal | S | ⬜ | NX-122 | Queue counter derivable from events; idle entries removed by a logged command |
 | NX-123 | Logistics: stock, convoys, unload, starvation (factories parked, Q-GP-41) | L | ⬜ | NX-121 | Conservation property; starvation loadouts |
 | NX-124 | Combat per COMBAT spec: targeting, pk model, damage, wrecks, SAM rings | L | ⬜ | NX-121, NX-150, NX-367 | Damaged units slow down by `combat.damage_state.damaged_speed_mult` (Q-SIM-38); COMBAT §7 test plan passes, incl. Pk cap, range factor and the §5.1 matrix check against content; adds the min-speed clamp for damaged aircraft and the wreck and crew roll on `UnitDestroyed` (Q-SIM-43) |
