@@ -63,6 +63,7 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | ID | Item | Size | Status | Depends | Acceptance |
 |---|---|---|---|---|---|
 | NX-030 [#26](https://github.com/operation-nexus/operation-nexus/issues/26) | Test harness skeleton: pytest profiles (ci/nightly), hypothesis settings, vitest, Playwright | M | 🟨 | NX-010 | Example tests run in CI. Hypothesis `ci`/`nightly` profiles and an example test done (`services/sim/tests/conftest.py`); Playwright waits for the first overlay visual test (owner, 2026-10-19) |
+| NX-363 | Agent build loop: `coder` and `qa` subagents, `build-loop` skill, autonomy rule (Q-DEV-1 … Q-DEV-6) | S | ✅ | — | Agents and skill committed; AGENTS.md rule 2 exception |
 | NX-044 [#28](https://github.com/operation-nexus/operation-nexus/issues/28) | Owner desktop agent setup (docs/agentic/TOOLING.md §5): jq, Serena, plugins | S | 🟨 | — | `/mcp` shows serena + context7 connected |
 | NX-045 [#29](https://github.com/operation-nexus/operation-nexus/issues/29) | Spike: code knowledge-graph MCP (CodeGraphContext vs codebase-memory-mcp), measured vs baseline | M | ⬜ | P1 code exists | Report with token and accuracy numbers; adopt/reject decision |
 | NX-046 [#30](https://github.com/operation-nexus/operation-nexus/issues/30) | Data-integrity Semgrep rules + FB registry tests (DATA-INTEGRITY §6) | M | ⬜ | NX-012 | Each rule has positive/negative fixtures |
@@ -82,6 +83,7 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | ID | Item | Size | Status | Depends | Acceptance |
 |---|---|---|---|---|---|
 | NX-345 | SIM-CORE benchmark spike (gates NX-006 approval of SIM-CORE; Q-SIM-4, Q-SIM-17, Q-SIM-18) | S | ✅ | NX-010 | On the Q-TEST-1 reference host: (1) `step` plus frame build p99 < 25 ms at 1,000 entities and 500 viewer units, with movement, sensor and combat passes; (2) the idle case (0 viewers, about 150 AI-only entities); (3) entity-storage verdict (objects, or NumPy arrays if the pass exceeds about 10 ms); (4) bytes per game hour of the redacted and the full-truth frame streams. Harness `tools/sim-bench/bench.py`; indicative Mac results in `docs/review/NX-345-BENCH.md`; reference-host run 2026-10-20, verdict objects (Q-SIM-4) |
+| NX-364 | Error pipeline per ERROR-PIPELINE: `ErrorReporter` port, Sentry adapter with scrubber, `error` tickets, daily-routine triage (Q-DEV-7 … Q-DEV-10) | M | ⬜ | NX-026 | EP-2 scrub test passes; a seeded error becomes one `error` issue |
 | NX-100 | `SimRng` (PCG64, named sub-streams) | S | ⬜ | NX-010 | Unit + property tests; same seed → same draws |
 | NX-101 | World model types + canonical `state_hash` | M | ⬜ | NX-021 | SC-9 round-trip property |
 | NX-102 | Fixed-step runtime + inbox + canonical command ordering | M | ⬜ | NX-101 | SC-6 shuffled-arrival property |

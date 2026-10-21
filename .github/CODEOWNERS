@@ -1,10 +1,23 @@
-# Default owner
-*                       @saltyseraphcodes
-# Sensitive paths: changes require owner review
-/.github/               @saltyseraphcodes
-/deploy/                @saltyseraphcodes
-/contracts/             @saltyseraphcodes
-/docs/security/         @saltyseraphcodes
-/docs/architecture/adr/ @saltyseraphcodes
-/AGENTS.md              @saltyseraphcodes
-/.agents/               @saltyseraphcodes
+# Owner review required (so these can't auto-merge; PHASE-P0 M1, Q-DEV-12):
+# files that define what a green ci-gate means, and the rules agents and QA follow.
+# Everything else merges on a green ci-gate.
+/.github/                       @saltyseraphcodes
+/.claude/                       @saltyseraphcodes
+/Makefile                       @saltyseraphcodes
+/scripts/                       @saltyseraphcodes
+/.pre-commit-config.yaml        @saltyseraphcodes
+/.node-version                  @saltyseraphcodes
+/services/sim/pyproject.toml    @saltyseraphcodes
+/services/sim/.python-version   @saltyseraphcodes
+/services/sim/tests/conftest.py @saltyseraphcodes
+/apps/overlay/package.json      @saltyseraphcodes
+/apps/overlay/tsconfig.json     @saltyseraphcodes
+/apps/overlay/eslint.config.js  @saltyseraphcodes
+/apps/overlay/.prettierrc.json  @saltyseraphcodes
+/apps/overlay/.prettierignore   @saltyseraphcodes
+/AGENTS.md                      @saltyseraphcodes
+/CLAUDE.md                      @saltyseraphcodes
+/.agents/                       @saltyseraphcodes
+/docs/quality/                  @saltyseraphcodes
+/docs/security/                 @saltyseraphcodes
+/docs/architecture/adr/         @saltyseraphcodes

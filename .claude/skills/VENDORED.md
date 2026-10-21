@@ -7,6 +7,7 @@ by path from `AGENTS.md` §7.
 
 | Skill | Use |
 |---|---|
+| `build-loop` | Any code change: coder → QA → lead review → PR or owner (Q-DEV-1) |
 | `coding-safeguards` | Before refactoring, renaming or moving code across files |
 | `frontend-design` | Before any new visual surface (overlay layer, site page, Command Center screen) |
 | `new-unit` | Adding a new unit or facility kind (catalog entry, no kernel code) |
