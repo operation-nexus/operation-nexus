@@ -34,17 +34,21 @@ divides, `make_rules`), has index `cy * (w / cell) + cx`; a blob is drawn at the
 id `<refresh_tick>-<cell_index>` and a size bucket (`fow.sigint_size_m_min`, `_l_min`), so it
 carries no entity id, exact count or exact position, and building it draws no RNG.
 
-Not here yet: node owners in the view and discovery by capturing a base (capture, NX-125); the
-`TargetPainted{recon_id, target_id, until_tick}` event with combat (NX-124), `until_tick` being
-the next Tier 2 pass; emitting mobile units in blobs (Q-FOW-7 "moving or emitting") once a mobile
-emitter exists.
+Base flips (`hand_over`, NX-125, FOW-13): the facility is now its new side's own, so that side drops
+its contact and marker of it; the side that lost the base keeps a marker with the site as of the
+flip tick, so it never needs a last-known track (facilities have none). The view carries every
+node's live owner (FOW-10).
+
+Not here yet: the `TargetPainted{recon_id, target_id, until_tick}` event with combat (NX-124),
+`until_tick` being the next Tier 2 pass; emitting mobile units in blobs (Q-FOW-7 "moving or
+emitting") once a mobile emitter exists.
 """
 
 import math
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
 
-from nexus.contracts.gen.common.enums import Side, UnitKind
+from nexus.contracts.gen.common.enums import NodeOwner, Side, UnitKind
 from nexus.core.rules import Rules
 from nexus.core.spatial import UniformGrid
 from nexus.core.world import _ZERO, Blob, BlobSize, Contact, Entity, FacilityMarker, Vec2, World
@@ -213,6 +217,20 @@ def _discover(world: World, rules: Rules, side: Side, tracked: list[int]) -> Non
     world.markers[side] = dict(sorted(markers.items()))
 
 
+def hand_over(world: World, facility: Entity, loser: Side) -> None:
+    """A facility just switched from `loser` to `facility.side` with its base (FOW-13, Q-GP-25).
+    The new side drops its contact and marker of it; `loser` gets a marker with the site's state
+    as of this tick. Call after the side is set."""
+    world.contacts[facility.side].pop(facility.id, None)
+    world.markers[facility.side].pop(facility.id, None)
+    world.contacts[loser].pop(facility.id, None)
+    markers = world.markers[loser]
+    markers[facility.id] = FacilityMarker(
+        facility.kind, facility.variant, facility.pos, facility.emitting, world.campaign.tick + 1
+    )
+    world.markers[loser] = dict(sorted(markers.items()))
+
+
 def _sigint(world: World, rules: Rules, side: Side) -> tuple[Blob, ...]:
     """`side`'s Tier 1 blobs, by cell index (Q-FOW-7, FOW-11: a dark radar adds no range).
     shortcut: units x radar sites, no grid; radar sites are the few pre-placed facilities. Use the
@@ -299,6 +317,7 @@ class SideView:
     tracks: Mapping[int, Contact]
     last_known: Mapping[int, Contact]
     nodes: Mapping[str, tuple[int, int]]  # every node's position, m (FOW-10)
+    owners: Mapping[str, NodeOwner]  # every node's live owner (FOW-10, NX-125)
     markers: Mapping[int, FacilityMarker]  # discovered enemy facilities (FOW-13)
     blobs: tuple[Blob, ...]  # Tier 1 SIGINT blobs from the last refresh, by cell index
 
@@ -312,6 +331,7 @@ def side_view(world: World, side: Side) -> SideView:
         {i: replace(c) for i, c in known.items() if c.age is None},
         {i: replace(c) for i, c in known.items() if c.age is not None},
         dict(world.rules.roads.pos),
+        dict(world.owner),
         {i: replace(m) for i, m in world.markers[side].items()},
         world.blobs[side],  # immutable
     )

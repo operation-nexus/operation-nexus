@@ -14,7 +14,8 @@ facility markers (FOW-13), SIGINT blobs and the running ticks since their refres
 are world state, so snapshots and the hash cover them. So are each node's `stock` and each carrier's
 `cargo` (integer stock units) with its `unload_milli` progress and
 `delivered` count (NX-123), and each aircraft's refuel progress (`rearm_milli`, `rearm_spent`,
-`stalled`): conservation stays exact.
+`stalled`): conservation stays exact. So are each node's live owner and its capture bar (side and
+integer millionths of a percent, NX-125): thresholds are exact.
 `World.rules` (`nexus.core.rules`) is static config, not state: neither snapshots nor the hash
 include it.
 """
@@ -29,21 +30,25 @@ from typing import Annotated, Any, Literal, Self, cast, get_args, get_origin
 import msgpack
 
 from nexus.contracts.gen.commands.join import JoinCommand
-from nexus.contracts.gen.common.enums import OwnerKind, Side, UnitKind
+from nexus.contracts.gen.common.enums import NodeOwner, OwnerKind, Side, UnitKind
+from nexus.contracts.gen.events.event import Event
+from nexus.contracts.gen.events.unit_destroyed import UnitDestroyed
 from nexus.core.rng import SimRng
-from nexus.core.rules import Rules
+from nexus.core.rules import CAPTURE_FULL, Rules
 
 # 2: Entity.path and Entity.last_node (NX-121); 3: respawn_left, hp may be null; 4: reserve_queue;
 # 5: Entity.state, fuel and orbit (NX-368); 6: callsigns (NX-370); 7: contacts (NX-150);
 # 8: Entity.base_id, variant and emitting, markers (NX-150 part 2); 9: Contact.painted, blobs,
 # sigint_age (NX-150 part 2b); 10: node stock, Entity.cargo and unload_milli (NX-123);
-# 11: Entity.rearm_milli, rearm_spent and stalled (NX-123 part 2)
-FORMAT_VERSION = 11
+# 11: Entity.rearm_milli, rearm_spent and stalled (NX-123 part 2); 12: node owner and capture bars
+# (NX-125)
+FORMAT_VERSION = 12
 _MM = 1000.0  # metres -> millimetres; m/s -> mm/s
 _MICRO = 1e6  # ADR-0002's 1e-6 step for other floats (fuel)
 _MILLI_UNIT = 1000  # thousandths of a stock unit per unit
 _MAX_ABS = 1e9  # m or m/s; keeps mm quantization well inside int64
 _BLOBS = "blobs"
+_CAPTURE = "capture"
 _CAMPAIGN = "campaign"
 _CONTACTS = "contacts"
 _MARKERS = "markers"
@@ -51,6 +56,7 @@ _ENTITIES = "entities"
 _CALLSIGNS = "callsigns"
 _RESPAWN_LEFT = "respawn_left"
 _RESERVE_QUEUE = "reserve_queue"
+_OWNER = "owner"
 _NEXT_ENTITY_ID = "next_entity_id"
 _NEXT_EVENT_SEQ = "next_event_seq"
 _RNG = "rng"
@@ -61,11 +67,13 @@ _WORLD_KEYS = (
     _BLOBS,
     _CALLSIGNS,
     _CAMPAIGN,
+    _CAPTURE,
     _CONTACTS,
     _ENTITIES,
     _MARKERS,
     _NEXT_ENTITY_ID,
     _NEXT_EVENT_SEQ,
+    _OWNER,
     _RESERVE_QUEUE,
     _RESPAWN_LEFT,
     _RNG,
@@ -88,8 +96,9 @@ def _literal_values(alias: Any) -> tuple[str, ...]:
 
 _CALLSIGN = re.compile(r"[A-Z][A-Z0-9-]{2,11}")  # ids.json Callsign
 _UNIT_KINDS = _literal_values(UnitKind)
-_SIDES = cast(tuple[Side, ...], _literal_values(Side))
+SIDES = cast(tuple[Side, ...], _literal_values(Side))
 _OWNER_KINDS = _literal_values(OwnerKind)
+_NODE_OWNERS = _literal_values(NodeOwner)
 
 
 @dataclass(frozen=True, slots=True)
@@ -197,6 +206,15 @@ class Blob:
 
 
 @dataclass(slots=True)
+class CaptureBar:
+    """A node's capture bar (STATE-MACHINES §4.2): `side` is the side filling it and `progress` the
+    millionths of a percent filled, 1 to `CAPTURE_FULL - 1`; a node with no progress has no bar."""
+
+    side: Side
+    progress: int
+
+
+@dataclass(slots=True)
 class Campaign:
     id: str  # CampaignId
     seed: int
@@ -223,8 +241,10 @@ class World:
         "blobs",
         "callsigns",
         "campaign",
+        "capture",
         "contacts",
         "markers",
+        "owner",
         "reserve_queue",
         "respawn_left",
         "rng",
@@ -251,15 +271,20 @@ class World:
         self.callsigns: dict[str, str] = {}
         # Side -> enemy entity id -> what that side knows of it, in id order (FOW-5, FOW-6a).
         # Only the `sensing` system writes it; `nexus.core.fog` reads it.
-        self.contacts: dict[Side, dict[int, Contact]] = {side: {} for side in _SIDES}
+        self.contacts: dict[Side, dict[int, Contact]] = {side: {} for side in SIDES}
         # Side -> enemy facility id -> its discovered marker, in id order (FOW-13); never removed.
-        self.markers: dict[Side, dict[int, FacilityMarker]] = {side: {} for side in _SIDES}
+        self.markers: dict[Side, dict[int, FacilityMarker]] = {side: {} for side in SIDES}
         # Side -> its SIGINT blobs from the last refresh, by cell index (Tier 1); replaced whole.
-        self.blobs: dict[Side, tuple[Blob, ...]] = {side: () for side in _SIDES}
+        self.blobs: dict[Side, tuple[Blob, ...]] = {side: () for side in SIDES}
         self.sigint_age = 0  # running ticks since the last SIGINT refresh (FOW-9)
         # Node id -> whole stock units, for the nodes with finite stock (SANCTUARY nodes are
         # infinite by rule and absent). `start_campaign` fills it from the theater (NX-123).
         self.stock: dict[str, int] = {}
+        # Node id -> its live owner, in id order (NX-125): the theater's start owners, then only
+        # the `capture` system changes it. A SANCTUARY never does (N-4).
+        self.owner: dict[str, NodeOwner] = dict(rules.supply.start_owner) if rules else {}
+        # Node id -> its capture bar, only for nodes with progress, in id order.
+        self.capture: dict[str, CaptureBar] = {}
 
     @classmethod
     def new(cls, campaign: Campaign, rules: Rules | None = None) -> Self:
@@ -302,6 +327,17 @@ class World:
         if self.rules.respawn_delay_ticks > 0:
             self.respawn_left[commander_id] = self.rules.respawn_delay_ticks
 
+    def viewer_units(self) -> int:
+        """Live COMMANDER-owned units; AUTO units are COMMANDER-owned too, so they count (Q-ALN-9).
+        shortcut: a scan of every entity; keep a count if the SC-10 benchmark shows it in budget."""
+        return sum(e.owner_kind == "COMMANDER" for e in self._entities.values())
+
+    def landing_bases(self, side: Side) -> tuple[str, ...]:
+        """The AIRBASE and SANCTUARY nodes `side` owns now, by id: where its aircraft may land."""
+        if self.rules is None:
+            return ()
+        return tuple(n for n in self.rules.landing_nodes if self.owner.get(n) == side)
+
     def entities(self) -> Iterator[Entity]:
         """All entities in ascending id order (SC-4). Do not spawn or remove while iterating."""
         return iter(self._entities.values())
@@ -314,6 +350,26 @@ class World:
 
     def __len__(self) -> int:
         return len(self._entities)
+
+
+def lose_unit(world: World, e: Entity, out: list[Event]) -> None:
+    """A unit lost with no killer (fuel exhaustion, a captured base): it is removed, its
+    commander's respawn delay starts and `UnitDestroyed{killer_id: null}` is emitted."""
+    world.remove(e.id)
+    if e.commander_id is not None:
+        world.record_loss(e.commander_id)
+    out.append(
+        UnitDestroyed.model_construct(
+            kind="UnitDestroyed",
+            tick=world.campaign.tick + 1,
+            event_seq=world.next_event_seq(),
+            campaign_id=world.campaign.id,
+            entity_id=e.id,
+            killer_id=None,
+            assist_ids=[],
+            side=e.side,
+        )
+    )
 
 
 def _xy(v: Vec2, quantize: bool) -> list[Any]:
@@ -344,7 +400,7 @@ def _contacts_data(world: World, quantize: bool) -> dict[str, Any]:
              "pos": _xy(c.pos, quantize), "vel": _xy(c.vel, quantize)}
             for i, c in sorted(world.contacts[side].items())
         ]
-        for side in _SIDES
+        for side in SIDES
     }  # fmt: skip
 
 
@@ -355,14 +411,18 @@ def _markers_data(world: World, quantize: bool) -> dict[str, Any]:
              "pos": _xy(m.pos, quantize), "variant": m.variant}
             for i, m in sorted(world.markers[side].items())
         ]
-        for side in _SIDES
+        for side in SIDES
     }  # fmt: skip
+
+
+def _capture_data(world: World) -> dict[str, Any]:
+    return {n: {"progress": b.progress, "side": b.side} for n, b in sorted(world.capture.items())}
 
 
 def _blobs_data(world: World, quantize: bool) -> dict[str, Any]:
     return {
         side: [{"id": b.id, "pos": _xy(b.pos, quantize), "size": b.size} for b in world.blobs[side]]
-        for side in _SIDES
+        for side in SIDES
     }
 
 
@@ -379,9 +439,11 @@ def to_canonical(world: World, *, quantize: bool) -> dict[str, Any]:
         _BLOBS: _blobs_data(world, quantize),
         _CALLSIGNS: dict(sorted(world.callsigns.items())),
         _CAMPAIGN: {k: getattr(world.campaign, k) for k in sorted(_CAMPAIGN_KEYS)},
+        _CAPTURE: _capture_data(world),
         _CONTACTS: _contacts_data(world, quantize),
         _ENTITIES: [_entity_data(e, quantize) for e in world.entities()],
         _MARKERS: _markers_data(world, quantize),
+        _OWNER: dict(sorted(world.owner.items())),
         _RESPAWN_LEFT: dict(sorted(world.respawn_left.items())),
         _RESERVE_QUEUE: [_sorted(c.model_dump(mode="json")) for c in world.reserve_queue],
         _NEXT_ENTITY_ID: world._next_entity_id,
@@ -460,6 +522,26 @@ def _stock(value: object) -> dict[str, int]:
     return {_str(k, "node id"): _int(v, _STOCK) for k, v in value.items()}
 
 
+def _owner(value: object) -> dict[str, NodeOwner]:
+    if not isinstance(value, dict):
+        raise ValueError(f"{_OWNER} must be a map")
+    return {_str(k, "node id"): _str(v, _OWNER, _NODE_OWNERS) for k, v in value.items()}
+
+
+def _capture(value: object, owner: dict[str, NodeOwner]) -> dict[str, CaptureBar]:
+    """A bar sits on a node with an owner that is not its own side, and has progress to show."""
+    if not isinstance(value, dict):
+        raise ValueError(f"{_CAPTURE} must be a map")
+    bars: dict[str, CaptureBar] = {}
+    for node, raw in value.items():
+        d = _fields(raw, ("progress", "side"), _CAPTURE)
+        bar = CaptureBar(_str(d["side"], "capture side", SIDES), _int(d["progress"], _CAPTURE, 1))
+        if node not in owner or bar.progress >= CAPTURE_FULL or owner[node] == bar.side:
+            raise ValueError(f"{_CAPTURE}.{node}: not a bar of a node it can capture")
+        bars[_str(node, "node id")] = bar
+    return bars
+
+
 def _bool(value: object, what: str) -> bool:
     if not isinstance(value, bool):
         raise ValueError(f"{what} must be a bool, got {value!r}")
@@ -470,7 +552,7 @@ def _bool(value: object, what: str) -> bool:
 _ENTITY_CHECKS: dict[str, Callable[[object, str], Any]] = {
     "id": lambda v, k: _int(v, k, 1),
     "kind": lambda v, k: _str(v, k, _UNIT_KINDS),
-    "side": lambda v, k: _str(v, k, _SIDES),
+    "side": lambda v, k: _str(v, k, SIDES),
     "owner_kind": lambda v, k: _str(v, k, _OWNER_KINDS),
     "commander_id": lambda v, k: _str(v, k, optional=True),
     "callsign": lambda v, k: _str(v, k, optional=True),
@@ -542,9 +624,9 @@ def _per_side[T](
     item: Callable[[dict[str, Any]], T],
 ) -> dict[Side, dict[int, T]]:
     """Both sides, each a list of `keys` records ascending by id below `next_id`."""
-    sides = _fields(value, _SIDES, key)
+    sides = _fields(value, SIDES, key)
     out: dict[Side, dict[int, T]] = {}
-    for side in _SIDES:
+    for side in SIDES:
         if not isinstance(sides[side], list):
             raise ValueError(f"{key}.{side} must be a list")
         out[side], last = {}, 0
@@ -571,9 +653,9 @@ _BLOB_KEYS = ("id", "pos", "size")
 
 def _blobs(value: object, tick: int) -> dict[Side, tuple[Blob, ...]]:
     """Each side's blobs share one refresh tick, at most the snapshot's, ascending by cell."""
-    sides = _fields(value, _SIDES, _BLOBS)
+    sides = _fields(value, SIDES, _BLOBS)
     out: dict[Side, tuple[Blob, ...]] = {}
-    for side in _SIDES:
+    for side in SIDES:
         if not isinstance(sides[side], list):
             raise ValueError(f"{_BLOBS}.{side} must be a list")
         out[side] = tuple(_blob(_fields(b, _BLOB_KEYS, _BLOBS)) for b in sides[side])
@@ -640,6 +722,8 @@ def load(data: bytes) -> World:
     world.blobs = _blobs(d[_BLOBS], world.campaign.tick)
     world.sigint_age = _int(d[_SIGINT_AGE], _SIGINT_AGE)
     world.stock = _stock(d[_STOCK])
+    world.owner = _owner(d[_OWNER])
+    world.capture = _capture(d[_CAPTURE], world.owner)
     # The age counts running ticks since the refresh, so it cannot exceed the ticks since then.
     if any(b and world.campaign.tick - int(b[0].id.split("-")[0]) < world.sigint_age
            for b in world.blobs.values()):  # fmt: skip

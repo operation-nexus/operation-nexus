@@ -30,6 +30,7 @@ REGISTRIES: Mapping[str, Mapping[str, Handler]] = {
 
 def test_every_case_is_found() -> None:
     assert [p.name for p in CASES] == [
+        "capture-strait-1",
         "empty-1h",
         "joins-strait-1",
         "poison-crash",

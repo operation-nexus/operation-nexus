@@ -10,10 +10,9 @@ truck as `Entity.unload_milli` so no fraction is ever lost to rounding. A refuel
 fuel at `Supply.rearm_milli` thousandths per tick and owes `Entity.rearm_milli`; a whole unit leaves
 the stock as the debt reaches 1000, so every unit debited equals thousandths bought.
 
-"Friendly" is the node's theater `start_owner` for now: ownership becomes world state with capture
-(NX-125), which must replace `friendly`. Routes avoid no bridge until combat can destroy one
-(NX-124). The `logistics` system is deterministic: entities in id order, candidate nodes in id
-order, ties on distance by node id.
+"Friendly" is the node's live owner (`World.owner`, which capture changes, NX-125). Routes avoid
+no bridge until combat can destroy one (NX-124). The `logistics` system is deterministic: entities
+in id order, candidate nodes in id order, ties on distance by node id.
 """
 
 import math
@@ -42,8 +41,8 @@ class Run(NamedTuple):
     route: list[str]
 
 
-def friendly(rules: Rules, side: Side, node: str) -> bool:
-    return rules.supply.start_owner.get(node) == side
+def friendly(world: World, side: Side, node: str) -> bool:
+    return world.owner.get(node) == side
 
 
 def _route(rules: Rules, a: str, b: str) -> list[str] | None:
@@ -55,7 +54,7 @@ def _length(rules: Rules, route: list[str]) -> float:
     return sum(rules.roads.edge(a, b).length_m for a, b in pairwise(route))
 
 
-def _nearest(rules: Rules, start: str, candidates: list[str]) -> tuple[str, list[str]] | None:
+def nearest(rules: Rules, start: str, candidates: list[str]) -> tuple[str, list[str]] | None:
     """The candidate with the shortest road route from `start` (ties by node id), and that route."""
     best: tuple[float, str, list[str]] | None = None
     for node in sorted(candidates):
@@ -79,12 +78,12 @@ def plan_run(world: World, rules: Rules, side: Side, dest: str) -> Run | None:
     """
     sup = rules.supply
     rear = sup.rear[side]
-    if friendly(rules, side, dest) and sup.max_stock.get(dest, 0) > 0:
+    if friendly(world, side, dest) and sup.max_stock.get(dest, 0) > 0:
         sources = [
             n for n in sup.max_stock
-            if n != dest and friendly(rules, side, n) and _surplus(world, rules, n) > 0
+            if n != dest and friendly(world, side, n) and _surplus(world, rules, n) > 0
         ]  # fmt: skip
-        best = _nearest(rules, dest, sources)  # roads are two-way, so dest -> source measures it
+        best = nearest(rules, dest, sources)  # roads are two-way, so dest -> source measures it
         if best is not None:
             source = best[0]
             route = _route(rules, source, dest)
@@ -120,8 +119,8 @@ def plan_deploy(
     need = max(sup.forward_deploy_min_surplus, sup.loadout_cost.get(kind, 0))
     pool = [
         n for n in sorted(sup.spawns.get(domain, ()))
-        if n in world.stock and friendly(rules, side, n) and _surplus(world, rules, n) >= need
-        and (domain != "AIR" or n in rules.landing_bases[side])
+        if n in world.stock and friendly(world, side, n) and _surplus(world, rules, n) >= need
+        and (domain != "AIR" or n in world.landing_bases(side))
     ]  # fmt: skip
     if domain == "AIR":
         tx, ty = rules.roads.pos[target]
@@ -130,7 +129,7 @@ def plan_deploy(
             default=None,
         )
         return None if near is None else (near[1], [target])
-    best = _nearest(rules, target, pool)  # roads are two-way, so target -> base measures it
+    best = nearest(rules, target, pool)  # roads are two-way, so target -> base measures it
     route = None if best is None else _route(rules, best[0], target)
     return None if best is None or route is None else (best[0], list(route))
 
@@ -180,7 +179,7 @@ def logistics(world: World, out: list[Event]) -> None:
         return
     for e in world.entities():
         if e.cargo and not e.path and e.last_node is not None:
-            if friendly(rules, e.side, e.last_node):
+            if friendly(world, e.side, e.last_node):
                 _unload(world, rules, e, e.last_node, out)
             else:
                 _divert(world, rules, e, e.last_node, out)
@@ -201,10 +200,10 @@ def _unload(world: World, rules: Rules, e: Entity, node: str, out: list[Event]) 
     if e.cargo == 0:
         e.unload_milli = 0
     if e.cargo == 0 or moved == room:
-        _end_stop(world, e, node, out)
+        end_stop(world, e, node, out)
 
 
-def _end_stop(world: World, e: Entity, node: str, out: list[Event]) -> None:
+def end_stop(world: World, e: Entity, node: str, out: list[Event]) -> None:
     """Report the stop's delivery (none for 0 units) and reset its count; unload_milli carries."""
     if e.delivered:
         out.append(
@@ -224,13 +223,13 @@ def _end_stop(world: World, e: Entity, node: str, out: list[Event]) -> None:
 
 def _divert(world: World, rules: Rules, e: Entity, node: str, out: list[Event]) -> None:
     # shortcut: a truck with no reachable friendly base re-plans every tick; cache it once roads
-    # or ownership can change (bridges NX-124, capture NX-125) if it shows in the tick budget.
+    # or ownership can change (bridges NX-124) if it shows in the tick budget.
     sup = rules.supply
-    bases = [n for n, top in sup.max_stock.items() if top > 0 and friendly(rules, e.side, n)]
+    bases = [n for n, top in sup.max_stock.items() if top > 0 and friendly(world, e.side, n)]
     with_room = [n for n in bases if world.stock.get(n, 0) < sup.max_stock[n]]
-    best = _nearest(rules, node, with_room) or _nearest(rules, node, bases)
+    best = nearest(rules, node, with_room) or nearest(rules, node, bases)
     if best is not None:
-        _end_stop(world, e, node, out)  # a stop cut short by the node turning hostile
+        end_stop(world, e, node, out)  # a stop cut short by the node turning hostile
         e.path = list(best[1])
 
 
@@ -254,7 +253,7 @@ def _refuel(world: World, rules: Rules, e: Entity, out: list[Event]) -> None:
     finite = node in world.stock
     # Aircraft land only at their side's AIRBASE or SANCTUARY (Q-SIM-42), so nowhere else refuels.
     if node is None or not (
-        cost and e.state == "LANDED" and not e.path and node in rules.landing_bases[e.side]
+        cost and e.state == "LANDED" and not e.path and node in world.landing_bases(e.side)
     ):
         return _end_refuel(world, e, out)
     full = rules.fuel_s[e.kind]

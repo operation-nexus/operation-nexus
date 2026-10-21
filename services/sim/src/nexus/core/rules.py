@@ -11,12 +11,14 @@ from dataclasses import dataclass, field
 from fractions import Fraction
 from typing import cast
 
-from nexus.contracts.gen.common.enums import Domain, NodeOwner, Role, Side, UnitKind
-from nexus.contracts.gen.config.balance import Air, Fow, Logistics, Sim, Slots
+from nexus.contracts.gen.common.enums import Domain, NodeKind, NodeOwner, Role, Side, UnitKind
+from nexus.contracts.gen.config.balance import Air, Capture, Fow, Logistics, Sim, Slots
 from nexus.contracts.gen.config.roles import Roles
 from nexus.contracts.gen.config.theater import TheaterConfig
 from nexus.contracts.gen.config.unit import UnitConfig
 from nexus.core.roads import RoadGraph
+
+CAPTURE_FULL = 100_000_000  # a full capture bar, in millionths of a percent (NX-125)
 
 _LANDING_KINDS = ("AIRBASE", "SANCTUARY")  # aircraft land only here (Q-SIM-38, NX-368)
 _SIDES: tuple[Side, ...] = ("COALITION", "ENEMY")
@@ -36,8 +38,7 @@ class Supply:
     carriers, for hand-built rules in tests."""
 
     rear: Mapping[Side, str] = field(default_factory=dict)  # each side's SANCTUARY: infinite source
-    # Node -> its starting owner. Interim "friendly" test: node ownership becomes world state with
-    # capture (NX-125), which must replace this.
+    # Node -> its starting owner; `World.owner` starts as a copy and is the live owner (NX-125).
     start_owner: Mapping[str, NodeOwner] = field(default_factory=dict)
     max_stock: Mapping[str, int] = field(default_factory=dict)  # finite-stock nodes only
     starve_floor: Mapping[str, int] = field(default_factory=dict)  # ceil(starve_threshold x max)
@@ -50,6 +51,23 @@ class Supply:
     starved_fuel_frac: float = 1.0  # a starved base refuels up to this share of fuel_s (Q-SIM-53)
     # Domain -> the theater `spawns` nodes that take that domain (GP-7, Q-SIM-54).
     spawns: Mapping[Domain, frozenset[str]] = field(default_factory=dict)
+
+
+@dataclass(frozen=True, slots=True)
+class CaptureRules:
+    """Capture rules (NX-125, GAMEPLAY §8): the balance `capture` keys, plus the decay as whole
+    millionths of a percent per tick so a bar's progress stays an exact integer."""
+
+    radius_m: float
+    time_s: float
+    exponent: float
+    quiet_floor: float
+    quiet_ref: int
+    min_time_s: float
+    logi_weight: float
+    garrison_mult: float
+    empty_base_mult: float
+    decay_micro: int  # capture.decay_per_s x world_dt, as millionths of a percent of the bar
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,9 +85,9 @@ class Rules:
     min_speed_mps: Mapping[UnitKind, float]  # AIR kinds: stall speed, m/s world (NX-368)
     fuel_s: Mapping[UnitKind, float]  # AIR kinds: endurance, world s (NX-368)
     bingo_reserve_frac: float  # air.bingo_reserve_frac (NX-368)
-    # Side -> the AIRBASE and SANCTUARY nodes it may land at, by id. From the theater's start
-    # owners: node ownership becomes world state with capture (NX-125), which must replace this.
-    landing_bases: Mapping[Side, tuple[str, ...]]
+    # The AIRBASE and SANCTUARY nodes, by id: aircraft land only at those their side owns now
+    # (`World.landing_bases`, NX-125).
+    landing_nodes: tuple[str, ...]
     bounds_m: tuple[float, float]  # theater width, height (m)
     orbit_period_s: float  # air.orbit_period_s: world s per lap of an idle orbit (NX-368)
     sensor_radius_m: Mapping[UnitKind, float]  # sensor.radius_m, 0 = none (FOG-OF-WAR Tier 2)
@@ -89,6 +107,11 @@ class Rules:
     sigint_size_m_min: int  # fow.sigint_size_m_min: a blob of this many units reads M
     sigint_size_l_min: int  # fow.sigint_size_l_min: and of this many, L
     supply: Supply = field(default_factory=Supply)  # NX-123
+    # NX-125. `node_kind` lists every theater node in id order; empty (hand-built rules) and a
+    # `capture` of None leave capture off. `armed`: the kinds whose catalog has weapons.
+    node_kind: Mapping[str, NodeKind] = field(default_factory=dict)
+    armed: frozenset[UnitKind] = frozenset()
+    capture: CaptureRules | None = None
 
 
 def world_dt(sim: Sim) -> float:
@@ -101,12 +124,15 @@ def _role_kind(roles: Roles) -> Mapping[Role, UnitKind]:
     return {"STRIKE": roles.STRIKE, "RECON": roles.RECON, "LOGI": roles.LOGI}
 
 
-def _landing_bases(theater: TheaterConfig) -> Mapping[Side, tuple[str, ...]]:
-    nodes = sorted(theater.nodes, key=lambda n: n.id)
-    return {
-        side: tuple(n.id for n in nodes if n.kind in _LANDING_KINDS and n.start_owner == side)
-        for side in _SIDES
-    }
+def _capture(capture: Capture, dt: float) -> CaptureRules:
+    decay_micro = round(capture.decay_per_s * dt * CAPTURE_FULL)
+    if decay_micro < 1:
+        raise ValueError("capture.decay_per_s x world_dt is below one millionth of a percent")
+    return CaptureRules(
+        capture.radius_m, capture.time_s, capture.multi_unit_exponent, capture.quiet_floor,
+        capture.quiet_ref, capture.min_time_s, capture.logi_weight, capture.garrison_mult,
+        capture.empty_base_mult, decay_micro,
+    )  # fmt: skip
 
 
 def _supply(theater: TheaterConfig, logistics: Logistics, dt: float) -> Supply:
@@ -149,6 +175,7 @@ def make_rules(
     air: Air,
     fow: Fow,
     logistics: Logistics,
+    capture: Capture,
     respawn_delay_ticks: int,
     track_fade_ticks: int,
     sigint_refresh_ticks: int,
@@ -179,7 +206,7 @@ def make_rules(
         min_speed_mps={u.kind: u.min_speed_mps for u in units if u.min_speed_mps is not None},
         fuel_s={u.kind: u.fuel_s for u in units if u.fuel_s is not None},
         bingo_reserve_frac=air.bingo_reserve_frac,
-        landing_bases=_landing_bases(theater),
+        landing_nodes=tuple(sorted(n.id for n in theater.nodes if n.kind in _LANDING_KINDS)),
         bounds_m=(float(theater.bounds_m.w), float(theater.bounds_m.h)),
         orbit_period_s=air.orbit_period_s,
         sensor_radius_m={u.kind: u.sensor.radius_m for u in units},
@@ -197,4 +224,7 @@ def make_rules(
         sigint_size_m_min=fow.sigint_size_m_min,
         sigint_size_l_min=fow.sigint_size_l_min,
         supply=_supply(theater, logistics, world_dt(sim)),
+        node_kind={n.id: n.kind for n in sorted(theater.nodes, key=lambda n: n.id)},
+        armed=frozenset(u.kind for u in units if u.weapons),
+        capture=_capture(capture, world_dt(sim)),
     )

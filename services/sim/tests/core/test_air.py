@@ -41,7 +41,7 @@ def hand_rules(
     """A jet with top 100 m/s, stall 40 m/s, 1000 s of fuel, a 10% reserve (100 s) and a 120 s
     orbit (radius 763.9 m); a 5-tick respawn delay; the coalition lands at the given nodes."""
     pos = {"home": (0, 0)} if pos is None else pos
-    bases: dict[Side, tuple[str, ...]] = {"COALITION": tuple(sorted(pos)), "ENEMY": ()}
+    bases = tuple(sorted(pos))
     return Rules(
         world_dt, {JET: 100.0}, {JET: "AIR"}, RoadGraph(pos, []), {}, "home", 1, 5, 1, 1,
         {JET: 40.0}, {JET: 1000.0}, reserve, bases, (W, H), 120.0, {}, {}, 5, 1, {}, 1000.0, {},
@@ -50,7 +50,10 @@ def hand_rules(
 
 
 def world(rules: Rules) -> World:
-    return World.new(Campaign(CAMPAIGN_ID, 7, "cfg-test"), rules)
+    w = World.new(Campaign(CAMPAIGN_ID, 7, "cfg-test"), rules)
+    for node in rules.landing_nodes:  # hand rules own nothing: the coalition lands at them
+        w.owner.setdefault(node, "COALITION")
+    return w
 
 
 def aircraft(

@@ -103,6 +103,8 @@ def restore(
     required, `None` only for a world that never reads it.
     """
     header, world, path, skipped = _newest_valid(snapshot_dir, until_tick)
+    if rules is not None and set(world.owner) != set(rules.node_kind):
+        raise ValueError("the snapshot's node owners do not match the rules' theater nodes")
     world.rules = rules
     by_tick: defaultdict[int, list[Command]] = defaultdict(list)
     tombstones: set[int] = set()

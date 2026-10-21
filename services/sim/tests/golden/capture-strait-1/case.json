@@ -1,0 +1,10 @@
+{
+  "campaign_id": "0192f3a4-5b6c-7d8e-9f01-23456789abcd",
+  "seed": 12345,
+  "config_hash": "14080d8f6754ae09d2f28d3a3e308efc037144c24bc1f851e3236cd96c49a654",
+  "ticks": 17000,
+  "checkpoints_every": 100,
+  "handlers": "kernel",
+  "description": "One LOGI JOIN to the neutral cross-n on strait-1 with the shipped config: a capture run from the sanctuary, a road trip of about 16,000 ticks, then the truck alone fills the capture bar and flips the node: CaptureStarted, then NodeCaptured with its commander (NX-125).",
+  "rules": "shipped"
+}

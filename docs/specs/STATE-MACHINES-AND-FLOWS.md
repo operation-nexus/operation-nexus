@@ -148,7 +148,7 @@ stateDiagram-v2
     Contested --> Capturing: defenders gone, attackers remain
     Contested --> Owned: attackers gone
     Capturing --> Owned: progress reaches 100% (flip to capturer)
-    Capturing --> Contested: opposing eligible unit enters
+    Capturing --> Contested: opposing eligible unit enters (bar decays)
     Capturing --> Decaying: capturers leave, uncontested
     Decaying --> Capturing: capturer returns
     Decaying --> Neutral: progress reaches 0 and node was neutral
@@ -160,17 +160,19 @@ stateDiagram-v2
 | Neutral / Owned | An eligible ground or logistics unit of a non-owner side enters `capture.radius_m`, with no opposing eligible unit present | Emit `CaptureStarted{node_id, side}` | Capturing / Contested |
 | Capturing | Tick, still uncontested | Progress += rate × diminishing f(unit count) × garrison modifier × `WORLD_DT`, where the unit count weighs each logistics unit (LOGI_TRUCK, ENEMY_CONVOY) as `capture.logi_weight` of a capturer (PROPOSED 0.5, Q-SM-7) (capture runs on world time, Q-ALN-23). **Garrison modifier (Q-GD-32):** the garrison multiplier `capture.garrison_mult` (capture time ×3, PROPOSED) while any unit of the owning side is at the node, or the empty-base multiplier `capture.empty_base_mult` (capture time ×0.5, PROPOSED) while none is (Q-SM-8). A combat-capable defender freezes progress (Contested); defenders that cannot contest, such as parked air units and Disabled units, slow it through the garrison multiplier instead (Q-ALN-33). A Neutral node has no owner and uses neither multiplier. | Capturing |
 | Capturing | Progress ≥ 100% | Set owner = capturer. Reset progress. Emit `NodeCaptured{node_id, from, to, participant_commander_ids[]}`. In the same tick, resolve the losing side's units parked at the node: mobile units able to reach a friendly node escape (RTB): a ground unit when a road route to a friendly base exists, an aircraft when its fuel reaches one of its landing bases (Q-SM-10); every other mobile or parked unit is Destroyed with a crew-survival roll (§4.1, Q-GD-32); facilities switch side and keep their damage (Q-GP-25). Applies to both sides. | Owned |
-| Capturing | Opposing eligible, combat-capable unit enters (parked air and Disabled units do not contest, Q-ALN-33) | Freeze progress | Contested |
+| Capturing | Opposing eligible, combat-capable unit enters (parked air and Disabled units do not contest, Q-ALN-33) | Progress −= decay rate × `WORLD_DT` while contested, as for an abandoned bar (owner, 2026-10-21, Q-SIM-23); at 0 the bar is removed and the start rule applies again | Contested |
 | Contested | One side's eligible units are all gone | — | Capturing (attacker remains) / Owned (defender remains) |
 | Capturing | No capturers, no opponents | — | Decaying |
 | Decaying | Tick | Progress −= decay rate × `WORLD_DT` (world time, Q-ALN-23) | Decaying, then Owned/Neutral at 0 |
 
 **Invariants**
 - N-1: at most one ownership flip per node per tick.
-- N-2: progress stays in [0, 100] and is monotonic while uncontested capture continues.
+- N-2: progress stays in [0, 100] and is monotonic while *un*contested capture continues; a contested bar decays (owner, 2026-10-21, Q-SIM-23).
 - N-3: air units never change capture state (GAMEPLAY §8).
 - N-4: the SANCTUARY node never leaves Owned (Q-GD-7).
-- N-5: all else equal, capture progress per tick at an owned node is lower with a defending unit that cannot contest (parked air, Disabled) present than with none, and zero (Contested) with a combat-capable defender present (Q-GD-32, Q-ALN-33).
+- N-5: all else equal, capture progress per tick at an owned node is lower with a defending unit that cannot contest (parked air, Disabled) present than with none, and decaying (Contested, not rising) with a combat-capable defender present (Q-GD-32, Q-ALN-33).
+
+**In code now (`nexus.core.capture`, NX-125; SIM-CORE §4 Capture):** one bar per node (the side filling it, progress in integer millionths of a percent), live owners in `World.owner`. "Eligible" is a GROUND unit within `capture.radius_m`; "combat-capable" a GROUND unit whose catalog has weapons; a unit that cannot contest is an unarmed ground unit or an aircraft LANDED at the base. A bar fills while its side has capturers and the other side has no combat-capable unit there, and drains at `capture.decay_per_s` otherwise: abandoned (Decaying) or contested by a combat-capable unit (owner, 2026-10-21, Q-SIM-23); at 0 the bar is removed and the owner stays, and the start rule applies again, so an armed side facing only unarmed units then starts its own bar. It flips at 100%. The capture time is `max(min_time_s, base time × garrison/empty modifier)`: `min_time_s` caps a crowd even against an empty base. `CaptureStarted` fires when a bar begins at 0 (again after it decayed away). A neutral node where both sides have capturers and neither a combat-capable unit starts no bar until one side is alone, and a running bar is not stopped by the other side's unarmed units; a bar of one side at a neutral node drains to 0 before the other side starts. Sanctuary and BRIDGE nodes are never captured (N-4). Not in code: the defense-HP gate (Q-GD-18), Disabled units, `CaptureProgress`, the crew-survival roll.
 
 ### 4.3 Bridge
 

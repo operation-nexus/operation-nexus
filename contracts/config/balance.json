@@ -11,7 +11,8 @@
     "slots",
     "air",
     "fow",
-    "logistics"
+    "logistics",
+    "capture"
   ],
   "properties": {
     "schema_version": {
@@ -34,6 +35,9 @@
     },
     "logistics": {
       "$ref": "#/$defs/Logistics"
+    },
+    "capture": {
+      "$ref": "#/$defs/Capture"
     }
   },
   "$defs": {
@@ -59,6 +63,96 @@
           "type": "number",
           "exclusiveMinimum": 0,
           "x-unit": "s (world)",
+          "x-hot-reload": false
+        }
+      }
+    },
+    "Capture": {
+      "description": "Node capture (\u00a76.5, GAMEPLAY \u00a78; NX-125).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "radius_m",
+        "time_s",
+        "multi_unit_exponent",
+        "quiet_floor",
+        "quiet_ref",
+        "min_time_s",
+        "logi_weight",
+        "garrison_mult",
+        "empty_base_mult",
+        "decay_per_s"
+      ],
+      "properties": {
+        "radius_m": {
+          "description": "A ground unit this close to a node counts for its capture, unit m (GAMEPLAY \u00a78, Q-SIM-57).",
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "x-unit": "m",
+          "x-hot-reload": false
+        },
+        "time_s": {
+          "description": "World seconds one capturer takes to fill a node's capture bar before the quiet-stream and garrison modifiers, unit s of world time (GAMEPLAY \u00a78).",
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "x-unit": "s (world)",
+          "x-hot-reload": false
+        },
+        "multi_unit_exponent": {
+          "description": "Diminishing returns: the capture time is divided by n to this power, n the weighted capturers in radius, unit exponent (Q-SIM-26).",
+          "type": "number",
+          "minimum": 0,
+          "x-unit": "exponent",
+          "x-hot-reload": false
+        },
+        "quiet_floor": {
+          "description": "The quiet-stream multiplier on the coalition's capture time at 0 live viewer units, rising linearly to 1.0 at quiet_ref, unit multiplier (Q-SIM-26).",
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "x-unit": "multiplier",
+          "x-hot-reload": false
+        },
+        "quiet_ref": {
+          "description": "Live viewer units at which the quiet-stream multiplier reaches 1.0, unit viewer units (Q-SIM-26).",
+          "type": "integer",
+          "minimum": 1,
+          "x-unit": "viewer units",
+          "x-hot-reload": false
+        },
+        "min_time_s": {
+          "description": "The shortest a capture may take, before the garrison modifier, unit s of world time (Q-GP-4).",
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "x-unit": "s (world)",
+          "x-hot-reload": false
+        },
+        "logi_weight": {
+          "description": "How much of a capturer a logistics unit counts for, unit capturer weight (Q-SM-7).",
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "x-unit": "capturer weight",
+          "x-hot-reload": false
+        },
+        "garrison_mult": {
+          "description": "Capture-time multiplier while a defender that cannot contest (parked air, an unarmed ground unit) is at the base, unit multiplier (Q-GD-32, Q-SM-8).",
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "x-unit": "multiplier",
+          "x-hot-reload": false
+        },
+        "empty_base_mult": {
+          "description": "Capture-time multiplier while the owning side has no unit at the base, unit multiplier (Q-GD-32, Q-SM-8).",
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "x-unit": "multiplier",
+          "x-hot-reload": false
+        },
+        "decay_per_s": {
+          "description": "Share of the capture bar that drains per world second while the capturers are gone, unit fraction of the bar per s of world time (Q-SIM-23, Q-SIM-57). Counted in millionths of a percent per tick, rounded.",
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "x-unit": "bar fraction/s (world)",
           "x-hot-reload": false
         }
       }

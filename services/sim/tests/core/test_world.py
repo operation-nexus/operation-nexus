@@ -17,6 +17,7 @@ from nexus.core.rng import RngStream
 from nexus.core.world import (
     Blob,
     Campaign,
+    CaptureBar,
     Contact,
     FacilityMarker,
     Vec2,
@@ -81,6 +82,9 @@ def golden_world() -> World:
     # NX-150 part 2b: the coalition's blobs from the tick-3 refresh, 2 running ticks ago.
     w.blobs["COALITION"] = (Blob("3-7", Vec2(75e3, 5e3), "S"), Blob("3-48", Vec2(85e3, 15e3), "L"))
     w.sigint_age = 2
+    # NX-125: node owners, and the coalition a quarter of the way into cross-n.
+    w.owner = {"cross-n": "NEUTRAL", "east-airbase": "ENEMY", "west-airbase": "COALITION"}
+    w.capture["cross-n"] = CaptureBar("COALITION", 25_000_000)
     return w
 
 
@@ -90,11 +94,11 @@ def test_golden_state_hash_seed_12345() -> None:
     # NX-370: callsigns, v6; NX-150: contacts, v7; NX-150 part 2: base_id, variant, emitting,
     # markers and a tick, v8; NX-150 part 2b: painted, blobs, sigint_age, v9;
     # NX-123: node stock, cargo, unload_milli, v10; NX-123 part 2: rearm_milli, rearm_spent,
-    # stalled, v11).
+    # stalled, v11; NX-125: node owner and capture bars, v12).
     # A change here breaks every recorded replay hash: needs a `golden-update` reason.
     assert (
         state_hash(golden_world())
-        == "3253a8ed94733f61843be8d379a55bb3b22b70eeb25df5479b35464ccb47fedc"
+        == "d2c54478f0d6b3450ee943d9720d67fd77c643aab84f1c318c3f390670885672"
     )
     e = to_canonical(golden_world(), quantize=True)["entities"][0]
     assert e["pos"] == [1000250, 2000500]  # mm
@@ -333,6 +337,17 @@ def _resave(mutate: Any) -> bytes:
         _resave(lambda d: d["blobs"]["COALITION"][1].update(id="3-7")),  # a cell twice
         _resave(lambda d: d["blobs"].update(ENEMY=[{"id": "6-1", "pos": [0.0, 0.0], "size": "S"}])),
         _resave(lambda d: d.update(sigint_age=3)),  # more than the 2 ticks since tick 3
+        _resave(lambda d: d.pop("owner")),  # NX-125
+        _resave(lambda d: d["owner"].update({"cross-n": "BOTH"})),
+        _resave(lambda d: d["owner"].update({7: "ENEMY"})),
+        _resave(lambda d: d.update(owner=[])),
+        _resave(lambda d: d["capture"]["cross-n"].update(progress=0)),  # no progress: no bar
+        _resave(lambda d: d["capture"]["cross-n"].update(progress=100_000_000)),  # flips at once
+        _resave(lambda d: d["capture"]["cross-n"].update(progress=True)),
+        _resave(lambda d: d["capture"]["cross-n"].update(side="NEUTRAL")),
+        _resave(lambda d: d["capture"]["cross-n"].update(extra=1)),
+        _resave(lambda d: d["capture"].update({"mid-nowhere": d["capture"]["cross-n"]})),
+        _resave(lambda d: d["owner"].update({"cross-n": "COALITION"})),  # its own bar
     ],
 )
 def test_load_rejects_malformed_input(bad: bytes) -> None:
@@ -360,3 +375,12 @@ def test_older_format_gets_the_version_error() -> None:
 
     with pytest.raises(ValueError, match="unsupported snapshot format version 3"):
         load(_resave(v3))
+
+
+def test_capture_state_is_in_the_hash_and_the_snapshot() -> None:
+    assert _changes_hash(lambda w: w.owner.update({"cross-n": "ENEMY"}))
+    assert _changes_hash(lambda w: w.capture["cross-n"].__setattr__("progress", 25_000_001))
+    assert _changes_hash(lambda w: w.capture.pop("cross-n"))
+    restored = load(save(golden_world()))
+    assert restored.owner == golden_world().owner
+    assert restored.capture == golden_world().capture

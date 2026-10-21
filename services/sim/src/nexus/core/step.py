@@ -9,14 +9,14 @@ from collections.abc import Callable, Mapping, Sequence
 
 from nexus.contracts.gen.commands.command import Command
 from nexus.contracts.gen.events.event import Event
-from nexus.contracts.gen.events.unit_destroyed import UnitDestroyed
+from nexus.core.capture import capture
 from nexus.core.fog import sense
 from nexus.core.handlers import HANDLERS as HANDLERS
 from nexus.core.handlers import Handler as Handler
 from nexus.core.handlers import reject, serve_reserve_queue
 from nexus.core.logistics import logistics
 from nexus.core.rules import Rules
-from nexus.core.world import Entity, UnitState, Vec2, World
+from nexus.core.world import SIDES, Entity, UnitState, Vec2, World, lose_unit
 
 TICK_DT = 0.1  # game seconds per tick (SC-2)
 _STOPPED = Vec2(0.0, 0.0)
@@ -61,13 +61,14 @@ def movement(
     if world.campaign.clock_paused:
         return
     rules, lost = world.rules, []
+    landing = {side: world.landing_bases(side) for side in SIDES}  # capture runs later
     for e in world.entities():
         if rules is None:  # nothing may move: only parked, stateless or LANDED units
             if e.path or e.state not in (None, _LANDED):
                 raise ValueError(f"entity {e.id} moves but the world has no rules")
             e.vel = _STOPPED
         elif rules.domain[e.kind] == _AIR:
-            if not _fly(e, rules):
+            if not _fly(e, rules, landing[e.side]):
                 lost.append(e)
         elif e.path:
             _move(e, rules)
@@ -77,7 +78,7 @@ def movement(
         _crash(world, e, out)
 
 
-def _fly(e: Entity, rules: Rules) -> bool:
+def _fly(e: Entity, rules: Rules, bases: tuple[str, ...]) -> bool:
     """One tick of an aircraft (STATE-MACHINES §4.1, NX-368); False when it ran out of fuel.
 
     A LANDED aircraft with no path stays put. Otherwise, unless RTB, the bingo check first, so a
@@ -94,8 +95,10 @@ def _fly(e: Entity, rules: Rules) -> bool:
         e.vel = _STOPPED
         return True
     if e.state != _RTB:
-        _check_bingo(e, rules)
-    if landed and e.path == [e.last_node] and _on_own_base(e, rules):
+        _check_bingo(e, rules, bases)
+    else:
+        _retarget(e, rules, bases)
+    if landed and e.path == [e.last_node] and _on_own_base(e, rules, bases):
         e.state, e.path, e.vel = _LANDED, [], _STOPPED  # its own base, or bingo: no takeoff
         return True
     e.fuel = max(0.0, _fuel(e) - rules.world_dt)
@@ -110,17 +113,17 @@ def _fly(e: Entity, rules: Rules) -> bool:
         e.orbit = None
         leg = _move(e, rules)
         if not e.path:
-            if _on_own_base(e, rules):
+            if _on_own_base(e, rules, bases):
                 e.state, e.vel = _LANDED, _STOPPED
             else:
                 _start_orbit(e, rules, leg)
     return e.state == _LANDED or e.fuel > 0.0  # else a flameout (owner, 2026-10-21)
 
 
-def _on_own_base(e: Entity, rules: Rules) -> bool:
-    """On a landing base of its side: an AIRBASE or SANCTUARY node (Q-SIM-38)."""
+def _on_own_base(e: Entity, rules: Rules, bases: tuple[str, ...]) -> bool:
+    """On a landing base of its side: an AIRBASE or SANCTUARY node it owns (Q-SIM-38, NX-125)."""
     node = e.last_node
-    if node is None or node not in rules.landing_bases[e.side]:
+    if node is None or node not in bases:
         return False
     return e.pos == Vec2(*rules.roads.pos[node])
 
@@ -128,21 +131,7 @@ def _on_own_base(e: Entity, rules: Rules) -> bool:
 def _crash(world: World, e: Entity, out: list[Event]) -> None:
     """Out of fuel: the aircraft is lost like a shoot-down and its owner's respawn delay starts
     (owner, 2026-10-21). The wreck and the crew-survival roll join with combat (NX-124)."""
-    world.remove(e.id)
-    if e.commander_id is not None:
-        world.record_loss(e.commander_id)
-    out.append(
-        UnitDestroyed.model_construct(
-            kind="UnitDestroyed",
-            tick=world.campaign.tick + 1,
-            event_seq=world.next_event_seq(),
-            campaign_id=world.campaign.id,
-            entity_id=e.id,
-            killer_id=None,
-            assist_ids=[],
-            side=e.side,
-        )
-    )
+    lose_unit(world, e, out)
 
 
 def _fuel(e: Entity) -> float:
@@ -151,15 +140,26 @@ def _fuel(e: Entity) -> float:
     return e.fuel
 
 
-def _check_bingo(e: Entity, rules: Rules) -> None:
-    """Bingo: fuel <= the flight time at top speed to the nearest base it may land at (ties by
-    node id) + `bingo_reserve_frac` x full fuel. Then it heads there, RTB. No base: it flies on."""
-    bases = rules.landing_bases[e.side]
-    if not bases:
-        return
-    dist, base = min(
+def _nearest_base(e: Entity, rules: Rules, bases: tuple[str, ...]) -> tuple[float, str]:
+    """(distance, id) of the nearest of `bases` by straight line, ties by node id."""
+    return min(
         (math.hypot(x - e.pos.x, y - e.pos.y), n) for n in bases for x, y in [rules.roads.pos[n]]
     )
+
+
+def _retarget(e: Entity, rules: Rules, bases: tuple[str, ...]) -> None:
+    """An RTB aircraft whose base stopped being a landing base of its side (captured, NX-125)
+    heads for the nearest one that is, as at bingo. No base left: it flies on."""
+    if bases and e.path and e.path[-1] not in bases and isinstance(e.path[-1], str):
+        e.path = [_nearest_base(e, rules, bases)[1]]
+
+
+def _check_bingo(e: Entity, rules: Rules, bases: tuple[str, ...]) -> None:
+    """Bingo: fuel <= the flight time at top speed to the nearest base it may land at (ties by
+    node id) + `bingo_reserve_frac` x full fuel. Then it heads there, RTB. No base: it flies on."""
+    if not bases:
+        return
+    dist, base = _nearest_base(e, rules, bases)
     reserve = rules.bingo_reserve_frac * rules.fuel_s[e.kind]
     if _fuel(e) <= dist / rules.speed_mps[e.kind] + reserve:
         e.state, e.path, e.orbit = _RTB, [base], None
@@ -260,8 +260,10 @@ def combat(world: World, c: Sequence[Command], h: Mapping[str, Handler], out: li
 def logistics_capture(
     world: World, c: Sequence[Command], h: Mapping[str, Handler], out: list[Event]
 ) -> None:
-    """Logistics (`nexus.core.logistics`, NX-123): trucks unload or drive on. Capture: NX-125."""
+    """Logistics (`nexus.core.logistics`, NX-123): trucks unload or drive on, then capture
+    (`nexus.core.capture`, NX-125), so a flip lands after this tick's deliveries (SC-13)."""
     logistics(world, out)
+    capture(world, out)
 
 
 def objectives(
