@@ -10,12 +10,28 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
+from nexus.contracts.gen.commands.join import JoinCommand
 from nexus.contracts.gen.common.enums import OwnerKind, Side, UnitKind
 from nexus.core import world as world_mod
 from nexus.core.rng import RngStream
 from nexus.core.world import Campaign, Vec2, World, load, save, state_hash, to_canonical
 
 CAMPAIGN_ID = "0192f3a4-5b6c-7d8e-9f01-23456789abcd"
+
+
+QUEUED = JoinCommand.model_validate(
+    {
+        "kind": "JOIN",
+        "source": "CHAT",
+        "issuer": {"commander_id": "0192f3a4-5b6c-7d8e-9f01-000000000003"},
+        "target_tick": 9,
+        "arrival_seq": 41,
+        "correlation_id": "m41",
+        "role": "LOGI",
+        "target": {"node_id": "fob-n-w"},
+        "hold": False,
+    }
+)
 
 
 def golden_world() -> World:
@@ -38,16 +54,17 @@ def golden_world() -> World:
     fighter.path = [Vec2(5000.0004, 2000.5), "west-airbase"]  # NX-121: Vec2 and node waypoints
     armor.path, armor.last_node = ["east-airbase"], "cross-n"
     w.respawn_left["0192f3a4-5b6c-7d8e-9f01-000000000002"] = 7  # NX-122: per-commander state
+    w.reserve_queue.append(QUEUED)  # NX-122 part 3: the reserve queue
     return w
 
 
 def test_golden_state_hash_seed_12345() -> None:
     # Pinned by running this implementation once (NX-101; re-pinned NX-121: path, last_node, v2;
-    # NX-122: respawn_left, v3).
+    # NX-122: respawn_left, v3; NX-122 part 3: reserve_queue, v4).
     # A change here breaks every recorded replay hash: needs a `golden-update` reason.
     assert (
         state_hash(golden_world())
-        == "d7d31cf4ba6a7349fb683c2c54012a8de85c48e4745c8b84ca6f07709eeb77f1"
+        == "402df8ae0e3bdd802ddfc17ad31d5a1aacaa1459f4ac8a0d94ae501136bd6f46"
     )
     e = to_canonical(golden_world(), quantize=True)["entities"][0]
     assert e["pos"] == [1000250, 2000500]  # mm
@@ -110,6 +127,9 @@ def worlds(draw: st.DrawFn) -> World:
         w.remove(next(w.entities()).id)
     for _ in range(draw(st.integers(min_value=0, max_value=3))):
         w.next_event_seq()
+    for n in draw(st.lists(st.integers(10, 99), unique=True, max_size=3)):  # one entry each (U-4)
+        issuer = {"commander_id": f"0192f3a4-5b6c-7d8e-9f01-0000000000{n}"}
+        w.reserve_queue.append(QUEUED.model_validate({**QUEUED.model_dump(), "issuer": issuer}))
     return w
 
 
@@ -186,6 +206,11 @@ def _resave(mutate: Any) -> bytes:
         _resave(lambda d: d.update(respawn_left={"c": 0})),  # 0 is deleted, never stored
         _resave(lambda d: d.update(respawn_left={"c": True})),
         _resave(lambda d: d.update(respawn_left={7: 1})),
+        _resave(lambda d: d.update(reserve_queue={})),
+        _resave(lambda d: d["reserve_queue"][0].update(role="PILOT")),
+        _resave(lambda d: d["reserve_queue"][0].update(extra=1)),
+        _resave(lambda d: d["reserve_queue"][0].update(target_tick="9")),  # strict: no coercion
+        _resave(lambda d: d["reserve_queue"].append(d["reserve_queue"][0])),  # U-4: once each
     ],
 )
 def test_load_rejects_malformed_input(bad: bytes) -> None:
@@ -199,9 +224,9 @@ def test_load_checks_cover_every_field() -> None:
 
 
 def test_older_format_gets_the_version_error() -> None:
-    def v2(d: dict[str, Any]) -> None:
-        d.pop("respawn_left")
-        d.update(v=2)
+    def v3(d: dict[str, Any]) -> None:
+        d.pop("reserve_queue")
+        d.update(v=3)
 
-    with pytest.raises(ValueError, match="unsupported snapshot format version 2"):
-        load(_resave(v2))
+    with pytest.raises(ValueError, match="unsupported snapshot format version 3"):
+        load(_resave(v3))

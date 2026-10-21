@@ -26,6 +26,8 @@ class Rules:
     sanctuary: str  # the coalition's SANCTUARY node: every JOIN spawns here until NX-123 (GP-7)
     max_live_per_commander: int  # slots.max_live_per_commander (GP-1)
     respawn_delay_ticks: int  # slots.respawn_delay_s as game ticks, rounded up (GP-2, SC-12)
+    max_viewer_units: int  # slots.max_viewer_units: live COMMANDER units before JOINs queue (GP-3)
+    reserve_queue_max: int  # slots.reserve_queue_max (GP-3)
 
 
 def world_dt(sim: Sim) -> float:
@@ -59,4 +61,6 @@ def make_rules(
         sanctuary=sanctuary,
         max_live_per_commander=slots.max_live_per_commander,
         respawn_delay_ticks=respawn_delay_ticks,
+        max_viewer_units=slots.max_viewer_units,
+        reserve_queue_max=slots.reserve_queue_max,
     )

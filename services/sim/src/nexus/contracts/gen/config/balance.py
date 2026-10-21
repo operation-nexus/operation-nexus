@@ -47,6 +47,20 @@ class Slots(BaseModel):
             ge=0.0,
         ),
     ]
+    max_viewer_units: Annotated[
+        int,
+        Field(
+            description="Live viewer (COMMANDER-owned, AUTO included) units before JOINs queue, unit units (GAMEPLAY GP-3, Q-ALN-9).",
+            ge=1,
+        ),
+    ]
+    reserve_queue_max: Annotated[
+        int,
+        Field(
+            description="Reserve queue entries before a JOIN is rejected RESERVE_QUEUE_FULL, unit entries (GAMEPLAY GP-3).",
+            ge=1,
+        ),
+    ]
 
 
 class BalanceConfig(BaseModel):

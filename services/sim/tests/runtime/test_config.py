@@ -32,15 +32,24 @@ sim:
 slots:
   max_live_per_commander: 1
   respawn_delay_s: 20
+  max_viewer_units: 500
+  reserve_queue_max: 1000
 """
 # Pinned from this implementation's first run (NX-367: balance, units, theater; re-pinned NX-121
-# for speed_mps, NX-122 for slots); a change means every config_hash moved.
-GOLDEN_CONFIG_HASH = "aed583a7102a2833eeb01a68fe46305cab99c9a3c290b51584a77c0656b67552"
+# for speed_mps, NX-122 for slots and again for the GP-3 cap and queue); a change means every
+# config_hash moved.
+GOLDEN_CONFIG_HASH = "95534c2e7dd132c2b1e89f51da3384347537aaee08ff9a68e9c2e223110eb0ec"
+SLOTS = {
+    "max_live_per_commander": 1,
+    "respawn_delay_s": 20,
+    "max_viewer_units": 500,
+    "reserve_queue_max": 1000,
+}
 CFG = BalanceConfig.model_validate(
     {
         "schema_version": 1,
         "sim": {"tick_hz": 10, "time_scale": 6.0, "snapshot_every_ticks": 300},
-        "slots": {"max_live_per_commander": 1, "respawn_delay_s": 20},
+        "slots": SLOTS,
     }
 )
 
@@ -81,6 +90,8 @@ def test_default_profile_loads_and_matches_golden_hash() -> None:
         ("  snapshot_every_ticks: 300\n", "sim.snapshot_every_ticks"),
         ("  max_live_per_commander: 1\n", "slots.max_live_per_commander"),
         ("  respawn_delay_s: 20\n", "slots.respawn_delay_s"),
+        ("  max_viewer_units: 500\n", "slots.max_viewer_units"),
+        ("  reserve_queue_max: 1000\n", "slots.reserve_queue_max"),
     ],
 )
 def test_each_missing_required_key_names_key_and_file(tmp_path: Path, line: str, key: str) -> None:
@@ -236,7 +247,8 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
     reformatted = (
         "# same profile, other layout\n"
         "sim: {snapshot_every_ticks: 300, time_scale: 6.0, tick_hz: 10}\n"
-        "slots: {respawn_delay_s: 20, max_live_per_commander: 1}\n"
+        "slots: {respawn_delay_s: 20, max_live_per_commander: 1, reserve_queue_max: 1000,\n"
+        "  max_viewer_units: 500}\n"
         "schema_version:   1\n"
     )
     assert balance_hash(write(tmp_path, reformatted)) == balance_hash(DEFAULT)
@@ -306,7 +318,7 @@ def test_world_ticks_is_the_least_whole_tick_count_not_shorter(
         {
             "schema_version": 1,
             "sim": {"tick_hz": 10, "time_scale": time_scale, "snapshot_every_ticks": 1},
-            "slots": {"max_live_per_commander": 1, "respawn_delay_s": 20},
+            "slots": SLOTS,
         }
     )
     n = world_ticks(seconds, cfg)

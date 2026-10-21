@@ -3,6 +3,6 @@
   "$id": "https://nexus.local/contracts/events/event.json",
   "title": "Event",
   "description": "Discriminated union of all sim events on kind (CONTRACTS §6).",
-  "oneOf": [{"$ref": "unit_spawned.json"}, {"$ref": "command_rejected.json"}],
+  "oneOf": [{"$ref": "unit_spawned.json"}, {"$ref": "command_rejected.json"}, {"$ref": "reserve_queue_joined.json"}],
   "discriminator": {"propertyName": "kind"}
 }

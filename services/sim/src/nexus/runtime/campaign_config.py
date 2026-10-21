@@ -2,6 +2,7 @@
 
 Balance (NX-106), the unit catalog (NX-367) and the theater (NX-120) come from the existing
 loaders; this module only joins them: the parts, their `config_hash` and the kernel's `Rules`.
+`start_campaign` builds a new campaign's world from them (STATE-MACHINES §4.4 Setup).
 Paths default to the shipped files, found from this file, not the working directory.
 """
 
@@ -11,6 +12,7 @@ from pathlib import Path
 from nexus.contracts.gen.config.balance import BalanceConfig
 from nexus.contracts.gen.config.theater import TheaterConfig
 from nexus.core.rules import Rules, make_rules
+from nexus.core.world import Campaign, World
 from nexus.runtime.config import canonical_hash, config_hash, game_ticks, load_balance
 from nexus.runtime.theater import load_theater, road_graph
 from nexus.runtime.units import UnitCatalog, catalog_hash, load_catalog
@@ -59,3 +61,12 @@ def load_campaign_config(paths: ConfigPaths | None = None) -> CampaignConfig:
         respawn_delay_ticks=game_ticks(balance.slots.respawn_delay_s, balance),
     )
     return CampaignConfig(balance, catalog, theater, digest, rules)
+
+
+def start_campaign(campaign_id: str, seed: int, config: CampaignConfig | None = None) -> World:
+    """A new campaign's tick-0 world, stamped with the config's `config_hash`, rules attached.
+
+    `config` defaults to the shipped files; a load failure raises (no fallback, §4.4 Setup).
+    `CampaignStarted` lands with the campaign lifecycle (NX-126)."""
+    config = config or load_campaign_config()
+    return World.new(Campaign(campaign_id, seed, config.config_hash), config.rules)

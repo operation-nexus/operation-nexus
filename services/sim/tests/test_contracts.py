@@ -118,3 +118,33 @@ def test_event_union_parses_command_rejected() -> None:
 def test_command_rejected_rejects_bad_fields(bad: dict[str, object]) -> None:
     with pytest.raises(ValidationError):
         EVENTS.validate_python({**COMMAND_REJECTED, **bad})
+
+
+QUEUE_JOINED = {
+    "kind": "ReserveQueueJoined",
+    "tick": 12,
+    "event_seq": 4,
+    "campaign_id": "0192f3a4-5b6c-7d8e-9f01-23456789abcd",
+    "commander_id": COMMANDER,
+    "position": 1,
+}
+
+
+def test_event_union_parses_reserve_queue_joined() -> None:
+    event = EVENTS.validate_python(QUEUE_JOINED)
+    assert event.kind == "ReserveQueueJoined"
+    assert (event.commander_id, event.position) == (COMMANDER, 1)
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        {"position": 0},  # 1-based
+        {"commander_id": None},  # only commanders queue
+        {"commander_id": "viewer-1"},  # not a CommanderId
+        {"reason": "LEFT"},  # ReserveQueueLeft's field, not this event's
+    ],
+)
+def test_reserve_queue_joined_rejects_bad_fields(bad: dict[str, object]) -> None:
+    with pytest.raises(ValidationError):
+        EVENTS.validate_python({**QUEUE_JOINED, **bad})

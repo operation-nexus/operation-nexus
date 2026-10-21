@@ -30,6 +30,12 @@ update, below). Cases without it run with no rules.
 | `poison-crash` | 200 | A tombstoned tick whose three commands are dropped (Q-SIM-19 "poison-command crash") |
 | `joins-strait-1` | 6,000 | Real JOINs on strait-1 with the shipped config: strike, recon and logistics units spawn at the sanctuary, ground units drive road routes and aircraft fly straight; rejects for a unit in sortie, an unknown node, a node no road reaches and an unplayable role (NX-122) |
 
+The reserve queue (GP-3) has no case yet: the shipped cap is 500 units, a pause has no logged
+command until NX-126 and nothing frees a slot until despawn and combat (NX-324, NX-124), so
+`tests/core/test_reserve_queue.py` covers it with a test-only cap. Snapshot format 4 (NX-122:
+the reserve queue in world state) re-pinned every case's `state_hash` checkpoints; no event
+stream changed.
+
 Q-SIM-19 cases still to come, each with the item that makes it runnable: the empty *theater* hour
 (theater loader NX-120), the 50-viewer scripted raid (real `JOIN` and orders, NX-122; viewer
 simulator NX-193), pause and resume mid-combat (combat NX-124, pause NX-126) and campaign end

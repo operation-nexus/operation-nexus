@@ -89,6 +89,7 @@ type RejectReason = Annotated[
         "CAMPAIGN_PAUSED",
         "INVALID_PAYLOAD",
         "INTERNAL_ERROR",
+        "RESERVE_QUEUE_FULL",
     ],
     Field(
         description="CONTRACTS §5.3. Grows one value at a time, with the code that emits it (rule 6a)."
@@ -97,6 +98,6 @@ type RejectReason = Annotated[
 
 
 type EventKind = Annotated[
-    Literal["UnitSpawned", "CommandRejected"],
+    Literal["UnitSpawned", "CommandRejected", "ReserveQueueJoined"],
     Field(description="Grows one kind at a time, with each producer (rule 6a)."),
 ]

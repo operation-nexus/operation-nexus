@@ -8,9 +8,9 @@ One walker, `to_canonical`, turns a world into plain sorted data. Snapshots keep
 (float64), so a restored run continues bit-identically; only `state_hash` quantizes (ADR-0002):
 positions and `path` waypoints to integer mm, velocities to integer mm/s. ADR-0002's 1e-6 step
 applies when the first other float field arrives. Python's `round` is round-half-to-even on the
-exact float value, so it is deterministic. The RNG state and `respawn_left` (per commander,
-GP-2) are world state, so snapshots and the hash cover them. `World.rules` (`nexus.core.rules`) is
-static config, not state: neither snapshots nor the hash include it.
+exact float value, so it is deterministic. The RNG state, `respawn_left` (per commander, GP-2)
+and the reserve queue (GP-3) are world state, so snapshots and the hash cover them. `World.rules`
+(`nexus.core.rules`) is static config, not state: neither snapshots nor the hash include it.
 """
 
 import hashlib
@@ -21,21 +21,33 @@ from typing import Annotated, Any, Self, cast, get_args, get_origin
 
 import msgpack
 
+from nexus.contracts.gen.commands.join import JoinCommand
 from nexus.contracts.gen.common.enums import OwnerKind, Side, UnitKind
 from nexus.core.rng import SimRng
 from nexus.core.rules import Rules
 
-FORMAT_VERSION = 3  # 2: Entity.path and Entity.last_node (NX-121); 3: respawn_left, hp may be null
+# 2: Entity.path and Entity.last_node (NX-121); 3: respawn_left, hp may be null; 4: reserve_queue
+FORMAT_VERSION = 4
 _MM = 1000.0  # metres -> millimetres; m/s -> mm/s
 _MAX_ABS = 1e9  # m or m/s; keeps mm quantization well inside int64
 _CAMPAIGN = "campaign"
 _ENTITIES = "entities"
 _RESPAWN_LEFT = "respawn_left"
+_RESERVE_QUEUE = "reserve_queue"
 _NEXT_ENTITY_ID = "next_entity_id"
 _NEXT_EVENT_SEQ = "next_event_seq"
 _RNG = "rng"
 _V = "v"
-_WORLD_KEYS = (_CAMPAIGN, _ENTITIES, _NEXT_ENTITY_ID, _NEXT_EVENT_SEQ, _RESPAWN_LEFT, _RNG, _V)
+_WORLD_KEYS = (
+    _CAMPAIGN,
+    _ENTITIES,
+    _NEXT_ENTITY_ID,
+    _NEXT_EVENT_SEQ,
+    _RESERVE_QUEUE,
+    _RESPAWN_LEFT,
+    _RNG,
+    _V,
+)
 _VEC_KEYS = frozenset({"pos", "vel"})
 _PATH = "path"
 
@@ -117,6 +129,7 @@ class World:
         "_next_entity_id",
         "_next_event_seq",
         "campaign",
+        "reserve_queue",
         "respawn_left",
         "rng",
         "rules",
@@ -132,6 +145,9 @@ class World:
         # commander_id -> running ticks left of its respawn delay, always >= 1 (GP-2, SC-11).
         # `record_loss` sets it; the `lifecycle` system counts it down and deletes it at 0.
         self.respawn_left: dict[str, int] = {}
+        # The reserve queue (GP-3, STATE-MACHINES §4.1): queued JOINs, head first, one per
+        # commander (U-4). The JOIN handler appends; `lifecycle` serves from the head.
+        self.reserve_queue: list[JoinCommand] = []
 
     @classmethod
     def new(cls, campaign: Campaign, rules: Rules | None = None) -> Self:
@@ -204,12 +220,20 @@ def _entity_data(e: Entity, quantize: bool) -> dict[str, Any]:
     return {k: _value(e, k, quantize) for k in sorted(_ENTITY_KEYS)}
 
 
+def _sorted(value: Any) -> Any:
+    """Plain JSON data with every dict's keys sorted, at any depth."""
+    if isinstance(value, dict):
+        return {k: _sorted(value[k]) for k in sorted(value)}
+    return [_sorted(v) for v in value] if isinstance(value, list) else value
+
+
 def to_canonical(world: World, *, quantize: bool) -> dict[str, Any]:
     """Plain data with sorted keys and entities in id order; quantized for the hash only."""
     data = {
         _CAMPAIGN: {k: getattr(world.campaign, k) for k in sorted(_CAMPAIGN_KEYS)},
         _ENTITIES: [_entity_data(e, quantize) for e in world.entities()],
         _RESPAWN_LEFT: dict(sorted(world.respawn_left.items())),
+        _RESERVE_QUEUE: [_sorted(c.model_dump(mode="json")) for c in world.reserve_queue],
         _NEXT_ENTITY_ID: world._next_entity_id,
         _NEXT_EVENT_SEQ: world._next_event_seq,
         _RNG: {name: dict(sorted(s.items())) for name, s in world.rng.to_state().items()},
@@ -300,6 +324,16 @@ def _respawn_left(value: object) -> dict[str, int]:
     return {_str(k, "commander_id"): _int(v, _RESPAWN_LEFT, 1) for k, v in value.items()}
 
 
+def _reserve_queue(value: object) -> list[JoinCommand]:
+    """Validated JOINs (pydantic's ValidationError is a ValueError), one per commander (U-4)."""
+    if not isinstance(value, list):
+        raise ValueError(f"{_RESERVE_QUEUE} must be a list")
+    queue = [JoinCommand.model_validate(c, strict=True) for c in value]  # no "9" for 9
+    if len({c.issuer.commander_id for c in queue}) != len(queue):
+        raise ValueError(f"{_RESERVE_QUEUE} holds a commander twice")
+    return queue
+
+
 def _load_entity(value: object) -> Entity:
     d = _fields(value, _ENTITY_KEYS, "entity")
     return Entity(**{k: check(d[k], k) for k, check in _ENTITY_CHECKS.items()})
@@ -322,6 +356,7 @@ def load(data: bytes) -> World:
     world._next_entity_id = _int(d[_NEXT_ENTITY_ID], _NEXT_ENTITY_ID, 1)
     world._next_event_seq = _int(d[_NEXT_EVENT_SEQ], _NEXT_EVENT_SEQ, 1)
     world.respawn_left = _respawn_left(d[_RESPAWN_LEFT])
+    world.reserve_queue = _reserve_queue(d[_RESERVE_QUEUE])
     entities = d[_ENTITIES]
     if not isinstance(entities, list):
         raise ValueError("entities must be a list")

@@ -9,3 +9,5 @@ sim:
 slots:
   max_live_per_commander: 1  # PROPOSED – unvalidated; units (CONFIG-AND-CONTENT §6.2 slots.max_live_per_commander)
   respawn_delay_s: 20  # PROPOSED – unvalidated; s (game) (CONFIG-AND-CONTENT §6.2 slots.respawn_delay_s)
+  max_viewer_units: 500  # PROPOSED – unvalidated; units (CONFIG-AND-CONTENT §6.2 slots.max_viewer_units)
+  reserve_queue_max: 1000  # PROPOSED – unvalidated; entries (CONFIG-AND-CONTENT §6.2 slots.reserve_queue_max)

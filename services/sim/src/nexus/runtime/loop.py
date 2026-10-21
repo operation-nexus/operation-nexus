@@ -67,6 +67,8 @@ class SimRuntime:
         snapshot_every: int = 300,
         handlers: Mapping[str, Handler] = HANDLERS,
     ) -> None:
+        if world.rules is None:  # JOIN and movement need them (start_campaign, or restore rules=)
+            raise ValueError("SimRuntime needs a world with rules")
         if inbox.next_tick != world.campaign.tick + 1:
             raise ValueError(f"inbox.next_tick {inbox.next_tick} != world tick + 1")
         self.world = world

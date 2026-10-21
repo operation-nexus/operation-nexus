@@ -5,7 +5,13 @@ from pathlib import Path
 
 import pytest
 
-from nexus.runtime.campaign_config import CampaignConfig, ConfigPaths, load_campaign_config
+from nexus.core.world import state_hash
+from nexus.runtime.campaign_config import (
+    CampaignConfig,
+    ConfigPaths,
+    load_campaign_config,
+    start_campaign,
+)
 from nexus.runtime.config import ConfigError
 from nexus.runtime.recovery import recover, restore
 
@@ -20,6 +26,24 @@ def test_shipped_config_hash_and_rules(shipped_config: CampaignConfig) -> None:
     assert rules.speed_mps == {u.kind: u.speed_mps for u in shipped_config.catalog.units}
     assert rules.domain == {u.kind: u.domain for u in shipped_config.catalog.units}
     assert {n.id for n in shipped_config.theater.nodes} == set(rules.roads.pos)
+
+
+CAMPAIGN = "0192f3a4-5b6c-7d8e-9f01-23456789abcd"
+
+
+def test_start_campaign_stamps_the_config_and_attaches_rules(
+    shipped_config: CampaignConfig,
+) -> None:
+    world = start_campaign(CAMPAIGN, 77, shipped_config)
+    assert (world.campaign.id, world.campaign.seed, world.campaign.tick) == (CAMPAIGN, 77, 0)
+    assert world.campaign.config_hash == GOLDEN_CONFIG_HASH
+    assert world.rules is shipped_config.rules
+    assert (len(world), world.reserve_queue, world.respawn_left) == (0, [], {})
+    # Without a config it loads the shipped files: the same world.
+    default = start_campaign(CAMPAIGN, 77)
+    assert default.campaign.config_hash == GOLDEN_CONFIG_HASH
+    assert state_hash(default) == state_hash(world)
+    assert state_hash(start_campaign(CAMPAIGN, 78, shipped_config)) != state_hash(world)
 
 
 def test_defaults_do_not_depend_on_the_cwd(

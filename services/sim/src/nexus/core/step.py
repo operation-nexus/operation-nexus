@@ -11,7 +11,7 @@ from nexus.contracts.gen.commands.command import Command
 from nexus.contracts.gen.events.event import Event
 from nexus.core.handlers import HANDLERS as HANDLERS
 from nexus.core.handlers import Handler as Handler
-from nexus.core.handlers import reject
+from nexus.core.handlers import reject, serve_reserve_queue
 from nexus.core.rules import Rules
 from nexus.core.world import Entity, Vec2, World
 
@@ -133,13 +133,28 @@ def objectives(
 def lifecycle(
     world: World, c: Sequence[Command], h: Mapping[str, Handler], out: list[Event]
 ) -> None:
-    """Respawn delays count down one running tick (GP-2, SC-11); despawn and retire: NX-324.
+    """Respawn delays count down one running tick (GP-2, SC-11), then the reserve queue fills free
+    viewer slots FIFO (GP-3); despawn and retire: NX-324. Nothing happens while paused.
 
     In commander-id order; an entry reaching 0 is deleted, so the commander may JOIN next tick.
+    A unit served from the queue starts moving next tick (`movement` ran before this slot).
     """
+    _lifecycle(world, out, drop=False)
+
+
+def _lifecycle_tombstoned(
+    world: World, c: Sequence[Command], h: Mapping[str, Handler], out: list[Event]
+) -> None:
+    """`lifecycle` on a tombstoned tick (SC-8): the queue entries it would serve are dropped."""
+    _lifecycle(world, out, drop=True)
+
+
+def _lifecycle(world: World, out: list[Event], *, drop: bool) -> None:
     if world.campaign.clock_paused:
         return
     world.respawn_left = {k: left - 1 for k, left in sorted(world.respawn_left.items()) if left > 1}
+    if world.reserve_queue:
+        serve_reserve_queue(world, out, drop=drop)
 
 
 SYSTEMS: tuple[tuple[str, System], ...] = (
@@ -158,22 +173,28 @@ def step(
     world: World,
     commands: Sequence[Command],
     handlers: Mapping[str, Handler] = HANDLERS,
-    dropped: Sequence[Command] = (),
+    dropped: Sequence[Command] | None = None,
 ) -> list[Event]:
     """Compute tick `world.campaign.tick + 1`, then advance the tick by 1; returns its events.
 
     `commands` are exactly those whose `target_tick` is the tick being computed (the runtime
     guarantees it); any other `target_tick` is a caller bug and raises ValueError. `dropped` are
     the commands of a tombstoned tick (SC-8): none is applied; each becomes a
-    `CommandRejected{INTERNAL_ERROR}` in arrival_seq order, ahead of the systems' events.
+    `CommandRejected{INTERNAL_ERROR}` in arrival_seq order, ahead of the systems' events. Any
+    `dropped`, even empty, marks the tick tombstoned: `lifecycle` then drops the reserve-queue
+    entries it would serve, also as `CommandRejected{INTERNAL_ERROR}`, in queue order.
     """
     tick = world.campaign.tick + 1
+    tombstoned = dropped is not None
+    dropped = dropped or ()
     wrong = [c.arrival_seq for c in (*commands, *dropped) if c.target_tick != tick]
     if wrong:
         raise ValueError(f"commands {wrong} do not target tick {tick}")
     in_order = sorted(dropped, key=lambda c: c.arrival_seq)
     events: list[Event] = [reject(world, c, "INTERNAL_ERROR") for c in in_order]
     for _, system in SYSTEMS:
+        if tombstoned and system is lifecycle:
+            system = _lifecycle_tombstoned
         system(world, commands, handlers, events)
     world.campaign.tick = tick
     return events

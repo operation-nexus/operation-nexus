@@ -38,7 +38,7 @@ ELL = RoadGraph(
 
 def rules(world_dt: float, roads: RoadGraph = ROADS) -> Rules:
     speeds: dict[UnitKind, float] = {JET: 250.0, TRUCK: 25.0}
-    return Rules(world_dt, speeds, {JET: "AIR", TRUCK: "GROUND"}, roads, {}, "haven", 1, 0)
+    return Rules(world_dt, speeds, {JET: "AIR", TRUCK: "GROUND"}, roads, {}, "haven", 1, 0, 1, 1)
 
 
 def scaled(time_scale: float) -> Rules:

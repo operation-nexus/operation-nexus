@@ -65,7 +65,9 @@
       "additionalProperties": false,
       "required": [
         "max_live_per_commander",
-        "respawn_delay_s"
+        "respawn_delay_s",
+        "max_viewer_units",
+        "reserve_queue_max"
       ],
       "properties": {
         "max_live_per_commander": {
@@ -80,6 +82,20 @@
           "type": "number",
           "minimum": 0,
           "x-unit": "s (game)",
+          "x-hot-reload": true
+        },
+        "max_viewer_units": {
+          "description": "Live viewer (COMMANDER-owned, AUTO included) units before JOINs queue, unit units (GAMEPLAY GP-3, Q-ALN-9).",
+          "type": "integer",
+          "minimum": 1,
+          "x-unit": "units",
+          "x-hot-reload": true
+        },
+        "reserve_queue_max": {
+          "description": "Reserve queue entries before a JOIN is rejected RESERVE_QUEUE_FULL, unit entries (GAMEPLAY GP-3).",
+          "type": "integer",
+          "minimum": 1,
+          "x-unit": "entries",
           "x-hot-reload": true
         }
       }

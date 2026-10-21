@@ -199,3 +199,10 @@ def test_submit_during_catch_up_lands_on_the_next_step(make_runtime: MakeRuntime
 def test_runtime_rejects_an_inbox_out_of_step_with_the_world(make_runtime: MakeRuntime) -> None:
     with pytest.raises(ValueError, match="next_tick"):
         make_runtime(new_world(), Inbox(capacity=1, next_tick=5), FixedStepClock(FakeTime()))
+
+
+def test_runtime_refuses_a_world_without_rules(make_runtime: MakeRuntime) -> None:
+    # A rules-less world would raise on its first JOIN (NX-122 part 2 QA follow-up).
+    world = World.new(Campaign(CAMPAIGN_ID, 12345, "cfg-test"))
+    with pytest.raises(ValueError, match="rules"):
+        make_runtime(world, Inbox(capacity=1, next_tick=1), FixedStepClock(FakeTime()))

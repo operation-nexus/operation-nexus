@@ -87,6 +87,8 @@ def poison_handler(world: World, command: Command, out: list[Event]) -> None:
 
 
 STUB: dict[str, Handler] = {"JOIN": spawn_handler}
+# SimRuntime needs rules; the stub handlers read none of them.
+STUB_RULES = Rules(0.6, {}, {}, RoadGraph({}, []), {}, "", 1, 0, 1, 1)
 POISON: dict[str, Handler] = {"JOIN": poison_handler}
 
 
@@ -107,7 +109,7 @@ class Rig:
         self.snaps.mkdir(parents=True, exist_ok=True)
         self.logs.mkdir(parents=True, exist_ok=True)
         if world is None:  # not `world or`: an empty World is falsy (__len__)
-            world = World.new(Campaign(CAMPAIGN_ID, 12345, "cfg-test"))
+            world = World.new(Campaign(CAMPAIGN_ID, 12345, "cfg-test"), STUB_RULES)
         self.inbox = Inbox(1000, world.campaign.tick + 1, next_seq)
         self.steps = 0
         self.rt = SimRuntime(
@@ -178,7 +180,7 @@ def test_kill_and_restore_matches_an_uninterrupted_run(tmp_path: Path, make_rig:
     assert len(segments(logs)) == 3  # rotated at the snapshots of ticks 300 and 600
     del killed  # the process dies: only the files remain
 
-    r = restore(snaps, logs, handlers=STUB, rules=None)
+    r = restore(snaps, logs, handlers=STUB, rules=STUB_RULES)
     assert r.world.campaign.tick == 640
     assert state_hash(r.world) == expected[640]
     assert (r.snapshot.name, r.skipped_snapshots, r.truncated_tail) == (
@@ -232,7 +234,7 @@ def test_poison_command_is_tombstoned_dropped_and_replayed(
 
 def test_crash_recovery_keeps_the_campaign_rules(tmp_path: Path, make_rig: MakeRig) -> None:
     # Rules are not in snapshots (NX-121); the restored world must get them back.
-    rules = Rules(0.6, {}, {}, RoadGraph({}, []), {}, "", 1, 0)
+    rules = STUB_RULES
     rig = make_rig(tmp_path, handlers=POISON, world=World.new(Campaign(CAMPAIGN_ID, 1, "c"), rules))
     rig.run_to(5, poison_at=(4,))
     assert list(rig.rt.crash_ticks) == [4]

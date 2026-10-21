@@ -16,7 +16,7 @@
     "Domain": {"enum": ["AIR", "GROUND", "SEA", "STATIC"], "description": "SEA is P3 (Q-GD-8). STATIC = facilities (Q-GP-25)."},
     "CommandSource": {"enum": ["CHAT", "ADVISOR", "STAFF", "SYSTEM"]},
     "CommandKind": {"enum": ["JOIN"], "description": "Grows one kind at a time, with each handler (AGENTS.md rule 6a)."},
-    "RejectReason": {"enum": ["ROLE_UNKNOWN", "UNIT_IN_SORTIE", "RESPAWN_COOLDOWN", "NODE_UNKNOWN", "NODE_INVALID_FOR_UNIT", "FOLLOW_TARGET_INVALID", "CAMPAIGN_PAUSED", "INVALID_PAYLOAD", "INTERNAL_ERROR"], "description": "CONTRACTS §5.3. Grows one value at a time, with the code that emits it (rule 6a)."},
-    "EventKind": {"enum": ["UnitSpawned", "CommandRejected"], "description": "Grows one kind at a time, with each producer (rule 6a)."}
+    "RejectReason": {"enum": ["ROLE_UNKNOWN", "UNIT_IN_SORTIE", "RESPAWN_COOLDOWN", "NODE_UNKNOWN", "NODE_INVALID_FOR_UNIT", "FOLLOW_TARGET_INVALID", "CAMPAIGN_PAUSED", "INVALID_PAYLOAD", "INTERNAL_ERROR", "RESERVE_QUEUE_FULL"], "description": "CONTRACTS §5.3. Grows one value at a time, with the code that emits it (rule 6a)."},
+    "EventKind": {"enum": ["UnitSpawned", "CommandRejected", "ReserveQueueJoined"], "description": "Grows one kind at a time, with each producer (rule 6a)."}
   }
 }

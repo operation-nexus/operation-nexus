@@ -215,7 +215,9 @@ def test_other_domains_cannot_take_a_node_target() -> None:
 @pytest.mark.parametrize(
     ("setup", "command", "reason"),
     [
-        ("paused", join(1, "NAVY"), "CAMPAIGN_PAUSED"),
+        # Paused with a live unit: a world-changing JOIN (SC-11); with none it may queue.
+        ("paused-live", join(1, "NAVY", "nowhere", hold=True), "CAMPAIGN_PAUSED"),
+        ("paused", join(1, "NAVY"), "ROLE_UNKNOWN"),
         ("", join(1, "NAVY", "nowhere", hold=True), "INVALID_PAYLOAD"),
         ("", join(1, "NAVY", "nowhere"), "ROLE_UNKNOWN"),
         ("live", join(1, "STRIKE", "nowhere"), "UNIT_IN_SORTIE"),
@@ -226,20 +228,12 @@ def test_other_domains_cannot_take_a_node_target() -> None:
 )
 def test_check_order_first_fault_wins(setup: str, command: JoinCommand, reason: str) -> None:
     w = new_world()
-    if setup == "live":
+    if setup.endswith("live"):
         step(w, [join(1)])
     if setup == "cooldown":
         w.record_loss(cid(1))
-    w.campaign.clock_paused = setup == "paused"
+    w.campaign.clock_paused = setup.startswith("paused")
     assert reasons(at_tick(w, w.campaign.tick + 1, command)) == [reason]
-
-
-def test_paused_join_is_rejected() -> None:
-    # Part 3 (NX-122) turns this into a reserve-queue join (Q-ALN-26).
-    w = new_world()
-    w.campaign.clock_paused = True
-    assert reasons(step(w, [join(1)])) == ["CAMPAIGN_PAUSED"]
-    assert len(w) == 0
 
 
 def test_a_world_without_rules_raises() -> None:

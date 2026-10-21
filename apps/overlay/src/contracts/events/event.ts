@@ -3,7 +3,7 @@
 /**
  * Discriminated union of all sim events on kind (CONTRACTS §6).
  */
-export type Event = UnitSpawned | CommandRejected;
+export type Event = UnitSpawned | CommandRejected | ReserveQueueJoined;
 
 /**
  * A unit appears (CONTRACTS §6). Public view: an ENEMY spawn only if its spawn point is tracked; otherwise dropped.
@@ -91,6 +91,33 @@ export interface CommandRejected {
     | "FOLLOW_TARGET_INVALID"
     | "CAMPAIGN_PAUSED"
     | "INVALID_PAYLOAD"
-    | "INTERNAL_ERROR";
+    | "INTERNAL_ERROR"
+    | "RESERVE_QUEUE_FULL";
   commander_id: string | null;
+}
+/**
+ * A JOIN went to the reserve queue (CONTRACTS §6; GAMEPLAY GP-3, RQ-1; STATE-MACHINES §4.1): the cap is reached, the queue is not empty, or the campaign is paused (Q-ALN-26). Also emitted when a queued commander's new JOIN replaces its entry. Public view: queue length only.
+ */
+export interface ReserveQueueJoined {
+  kind: "ReserveQueueJoined";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * UUIDv7, canonical lowercase (IDENTITY §1). Not a platform id.
+   */
+  commander_id: string;
+  /**
+   * 1-based place in the queue; 1 is served next.
+   */
+  position: number;
 }
