@@ -1,6 +1,6 @@
 # NX-104 uniform-grid benchmark
 
-Status: **Local container run only; the reference-host run is pending (owner).** · Tracker: NX-104 · Spec: SIM-CORE SC-4, SC-10, §4
+Status: **Reference-host run done (owner, 2026-10-21): acceptance met.** · Tracker: NX-104 · Spec: SIM-CORE SC-4, SC-10, §4
 
 ## How to run it (reference host)
 
@@ -19,6 +19,29 @@ It runs in the sim project's own locked environment, because it imports the real
 - **Scenarios:** the NX-345 mixes. "worst" is 1,000 entities, 500 of them viewer units; "idle" is 150 AI entities and 0 viewers (Q-SIM-17).
 - **Stand-ins:** sensor radii are the NX-345 **STAND-INS** (jets 40 km, ground 8 km, radar 120 km, air defense 60 km) until the unit catalog exists (NX-106). The cell is max sensor radius / 2 (SC-10), so 60 km here, as in NX-345.
 - **Compared with NX-345:** that spike's sensing pass queried only the opposing side, and only every 5 ticks (FOW-5 PROPOSED). This bench queries every entity, both sides, every tick, and sorts each result by id (SC-4). It is an upper bound for one sensing pass, not a whole `step`.
+
+## Reference-host run (decides NX-104)
+
+Owner's broadcast host (Q-TEST-1): Intel Core i7-8700 @ 3.20 GHz, 12 logical CPUs, WSL2 (Linux 6.18.54.1-microsoft-standard, glibc 2.43), Python 3.12.15, 2026-10-21. Command as above, default 36,000 ticks per scenario, seed 104. Raw output: [`nx-104-ref.json`](nx-104-ref.json). Times in ms.
+
+| Scenario | rebuild + queries p50 | p95 | p99 | max | rebuild p99 | hits per query |
+|---|---|---|---|---|---|---|
+| worst (1,000) | 16.18 | 17.40 | 18.86 | 41.45 | 0.39 | 55.8 |
+| idle (150) | 0.68 | 0.74 | 1.06 | 4.48 | 0.07 | 13.8 |
+
+1. **NX-104 acceptance is met:** p99 18.9 ms at 1,000 entities, under the 25 ms bar.
+2. **The reference host is about 1.27× slower than the cloud container** (p99 18.9 vs 14.9 ms). Container timings elsewhere in the repo should be scaled by about that much.
+3. **This bench is an upper bound, not the Q-SIM-4 pass.** Every entity queries every tick here; the real sensing pass (FOG-OF-WAR, NX-150) queries only the opposing side and only every `fow.track_every_ticks` (5). Its container median at 1,000 entities is about 7–8.6 ms per pass, so about 9–11 ms on this host: at the ~10 ms Q-SIM-4 line. The Q-SIM-4 re-check therefore needs the real pass on this host, see below.
+4. **The 41 ms max is one outlier in 36,000 ticks** (likely WSL scheduling or the garbage collector, which stays on). p99 is the measure; the soak (NX-033) should still watch the tail.
+5. **Idle load is negligible** (1.06 ms p99 at 150 AI-only entities).
+
+**Next reference-host measurement (owner, when convenient):** the real sensing pass at 1,000 entities, from the repo root on this host after `git pull` and `make bootstrap`:
+
+```bash
+uv run --frozen --project services/sim pytest services/sim/tests/core/test_fog.py -s -k sc10
+```
+
+It prints `5 ticks incl. one sensing pass at 1,000 entities: <ms>`. Run it a few times; if a sensing tick stays above about 10 ms, Q-SIM-4 (NumPy for hot fields) is reopened.
 
 ## Local run: container, NOT the reference host
 
