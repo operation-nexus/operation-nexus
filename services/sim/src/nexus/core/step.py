@@ -14,6 +14,7 @@ from nexus.core.fog import sense
 from nexus.core.handlers import HANDLERS as HANDLERS
 from nexus.core.handlers import Handler as Handler
 from nexus.core.handlers import reject, serve_reserve_queue
+from nexus.core.logistics import logistics
 from nexus.core.rules import Rules
 from nexus.core.world import Entity, UnitState, Vec2, World
 
@@ -259,7 +260,8 @@ def combat(world: World, c: Sequence[Command], h: Mapping[str, Handler], out: li
 def logistics_capture(
     world: World, c: Sequence[Command], h: Mapping[str, Handler], out: list[Event]
 ) -> None:
-    """Logistics and capture: NX-123 (logistics), NX-125 (capture)."""
+    """Logistics (`nexus.core.logistics`, NX-123): trucks unload or drive on. Capture: NX-125."""
+    logistics(world, out)
 
 
 def objectives(

@@ -209,7 +209,7 @@ Every value listed in the §5.2 table (rejects named only for reserved commands 
 | `CaptureStarted` | `node_id`, `side` | none (nodes are always visible) | B A O |
 | `CaptureProgress` | `node_id`, `side`, `progress_pct`, `contested: bool` | none (nodes are always visible) | B O |
 | `NodeCaptured` | `node_id`, `from: NodeOwner`, `to: NodeOwner`, `participant_commander_ids[]` | ENEMY participants are omitted | B P A C O |
-| `SupplyDelivered` | `node_id`, `amount`, `carrier_id`, `commander_id\|null` | none for coalition. ENEMY deliveries are dropped. | B P O |
+| `SupplyDelivered` | `node_id`, `amount`, `carrier_id`, `commander_id\|null`. In the schema now (NX-123): one per unloading stop, when the cargo runs out, the node reaches its maximum or the truck drives off, `amount` = the units unloaded in that stop (never 0) | none for coalition. ENEMY deliveries are dropped. | B P O |
 | `SupplyConsumed` | `node_id`, `amount`, `cause: SPAWN\|REARM` | ENEMY nodes: dropped | O |
 | `NodeStarvationChanged` | `node_id`, `state: OK\|LOW\|EMPTY` | ENEMY nodes: dropped | B A O |
 | `BridgeDestroyed` / `BridgeRepaired` | `node_id`, `by_id\|null` | Hidden actor becomes `null` | B A C O |

@@ -14,7 +14,7 @@ from nexus.runtime.theater import load_theater, masking_cells, road_graph
 STRAIT_1 = Path(__file__).resolve().parents[4] / "content" / "theaters" / "strait-1.yaml"
 TEXT = STRAIT_1.read_text(encoding="utf-8")
 # Pinned from this implementation's first run (NX-120); a change means every config_hash moved.
-GOLDEN_THEATER_HASH = "74dd30b1931a1ba8071c53981a7c349a5b4711109513b6c4c96321ee8590a1b0"
+GOLDEN_THEATER_HASH = "c347301b7a7b892a5ccc3959e41eca838cbcffc45cd812976e8578b0ea7a773a"
 INTACT: frozenset[str] = frozenset()
 
 
@@ -27,7 +27,7 @@ def write(tmp_path: Path, old: str, new: str, name: str = "strait-1") -> Path:
 
 def test_strait_1_loads_with_golden_hash() -> None:
     theater = load_theater(STRAIT_1)
-    assert (theater.slug, len(theater.nodes), len(theater.edges)) == ("strait-1", 12, 12)
+    assert (theater.slug, len(theater.nodes), len(theater.edges)) == ("strait-1", 13, 13)
     assert canonical_hash(theater.model_dump()) == GOLDEN_THEATER_HASH
 
 
@@ -140,6 +140,16 @@ def test_path_is_hash_seed_independent() -> None:
             "start_owner: COALITION, start_stock: null",
             r"nodes\.1\.start_stock: null",
         ),
+        (  # one SANCTUARY per side, each named (Q-SIM-48)
+            "ENEMY,     start_stock: null, sector: centre }",
+            "COALITION, start_stock: null, sector: centre }",
+            r"enemy_rear_source: need exactly one SANCTUARY node, owned by ENEMY",
+        ),
+        (
+            "enemy_rear_source: static-rear",
+            "enemy_rear_source: static-hq",
+            r"enemy_rear_source: need exactly one SANCTUARY node, owned by ENEMY",
+        ),
         # TH-6
         (
             "pos: [20000,120000]",
@@ -147,8 +157,8 @@ def test_path_is_hash_seed_independent() -> None:
             r"nodes\.0\.pos: \[20000, 250000\] is outside",
         ),
         (
-            "start_stock: null, sector: centre",
-            "start_stock: null, sector: north ",
+            "COALITION, start_stock: null, sector: centre",
+            "COALITION, start_stock: null, sector: north ",
             r"nodes\.0\.pos: not inside sector 'north'",
         ),
         ("sector: centre }  # null", "sector: middle }  # null", r"nodes\.0\.sector: unknown"),
@@ -194,6 +204,7 @@ def test_path_is_hash_seed_independent() -> None:
         ),
         ("sanctuary: haven\n", "sanctuary: haven\nports: []\n", r"ports: Extra inputs"),
         ("enemy_hq: static-hq\n", "", r"enemy_hq: Field required"),
+        ("enemy_rear_source: static-rear\n", "", r"enemy_rear_source: Field required"),
     ],
 )
 def test_each_rule_has_a_failing_fixture(tmp_path: Path, old: str, new: str, error: str) -> None:

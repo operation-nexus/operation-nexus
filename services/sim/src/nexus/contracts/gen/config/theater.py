@@ -184,6 +184,15 @@ class TheaterConfig(BaseModel):
             description="Spawn points; read first by the spawn item (GAMEPLAY GP-7); TH-7 waits for the unit catalog."
         ),
     ]
-    sanctuary: ids.NodeId
+    sanctuary: Annotated[
+        ids.NodeId,
+        Field(description="The COALITION's SANCTUARY node (exactly one per side, CFG-2)."),
+    ]
+    enemy_rear_source: Annotated[
+        ids.NodeId,
+        Field(
+            description="The ENEMY's SANCTUARY node: the Static's infinite rear source (Q-SIM-48, NX-123)."
+        ),
+    ]
     enemy_hq: ids.NodeId
     forward_airbase: ids.NodeId

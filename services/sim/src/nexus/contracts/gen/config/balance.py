@@ -91,6 +91,51 @@ class Fow(BaseModel):
     ]
 
 
+class NodeMaxStock(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    AIRBASE: Annotated[int, Field(ge=0)]
+    BRIDGE: Annotated[int, Field(ge=0)]
+    FOB: Annotated[int, Field(ge=0)]
+    HQ: Annotated[int, Field(ge=0)]
+    PORT: Annotated[int, Field(ge=0)]
+
+
+class Logistics(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    node_max_stock: Annotated[
+        NodeMaxStock,
+        Field(
+            description="The most stock a node of each kind holds, unit stock units; a theater's start_stock may not exceed its kind's. SANCTUARY (and so the Static's rear source) is infinite by rule and has no entry (Q-SIM-49)."
+        ),
+    ]
+    starve_threshold: Annotated[
+        float,
+        Field(
+            description="A base is starved below this fraction of its node_max_stock, unit fraction; a truck never loads stock below it, so the floor is ceil(starve_threshold x max) whole units (GAMEPLAY §5, Q-GP-24).",
+            ge=0.0,
+            le=1.0,
+        ),
+    ]
+    truck_cargo: Annotated[
+        int,
+        Field(
+            description="The most cargo a truck loads, unit stock units; one global value for every cargo-carrying kind (GAMEPLAY §5).",
+            ge=1,
+        ),
+    ]
+    unload_rate: Annotated[
+        float,
+        Field(
+            description="Stock a parked truck moves into its destination per world second, unit stock per s of world time, frozen while paused (GAMEPLAY §5, Q-SIM-50). Counted in whole milli-units per tick, so it is rounded to 0.001 per tick.",
+            gt=0.0,
+        ),
+    ]
+
+
 class Sim(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -162,3 +207,4 @@ class BalanceConfig(BaseModel):
     slots: Slots
     air: Air
     fow: Fow
+    logistics: Logistics

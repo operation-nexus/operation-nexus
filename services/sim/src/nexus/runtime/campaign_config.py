@@ -70,6 +70,7 @@ def load_campaign_config(paths: ConfigPaths | None = None) -> CampaignConfig:
         slots=balance.slots,
         air=balance.air,
         fow=balance.fow,
+        logistics=balance.logistics,
         respawn_delay_ticks=game_ticks(balance.slots.respawn_delay_s, balance),
         track_fade_ticks=world_ticks(balance.fow.track_fade_s, balance),
         sigint_refresh_ticks=world_ticks(balance.fow.sigint_refresh_s, balance),
@@ -86,6 +87,7 @@ def start_campaign(campaign_id: str, seed: int, config: CampaignConfig | None = 
     `CampaignStarted` lands with the campaign lifecycle (NX-126)."""
     config = config or load_campaign_config()
     world = World.new(Campaign(campaign_id, seed, config.config_hash), config.rules)
+    world.stock = {n.id: n.start_stock for n in config.theater.nodes if n.start_stock is not None}
     _place_facilities(world, config.theater)
     return world
 

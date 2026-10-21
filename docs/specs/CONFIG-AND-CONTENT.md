@@ -158,22 +158,22 @@ In the schema now (NX-122): `slots.max_live_per_commander`, `slots.respawn_delay
 ### 6.3 Logistics
 | Key | Type | Unit | PROPOSED | Source | HR |
 |---|---|---|---|---|---|
-| `logistics.node_max_stock.<node_kind>` | int | stock units | TBD per kind | GAMEPLAY §5 | No |
-| `logistics.starve_threshold` | float | fraction 0–1 | 0.25 | GAMEPLAY §5 | No |
+| `logistics.node_max_stock.<node_kind>` | int | stock units | AIRBASE 2000, FOB 1000, HQ 2000, PORT 1000, BRIDGE 0; SANCTUARY and the rear source infinite (Q-SIM-49). In code (NX-123): all five keys required; a theater `start_stock` above its kind's maximum fails load | GAMEPLAY §5 | No |
+| `logistics.starve_threshold` | float | fraction 0–1 | 0.25. In code (NX-123): the floor is `ceil(starve_threshold x max)` whole units | GAMEPLAY §5 | No |
 | `logistics.starve_hp_drain_per_min` | float | node hp per min (world) | TBD (PROPOSED) | GAMEPLAY §8 | No |
 | `logistics.starved_loadout.fuel_frac` | float | fraction | 0.5 | GAMEPLAY §5 | No |
 | `logistics.starved_loadout.secondary_ammo` | int | rounds | 0 | GAMEPLAY §5 | No |
-| `logistics.truck_cargo` | int | stock units | TBD | GAMEPLAY §5 | No |
-| `logistics.unload_rate` | float | stock/s (world) | TBD | GAMEPLAY §5 | No |
-| `logistics.loadout_cost.<unit_kind>` | int | stock units | TBD per kind | GAMEPLAY §5 | No |
-| `logistics.rearm_rate` | float | stock/s (world) | TBD | GAMEPLAY §5 | No |
+| `logistics.truck_cargo` | int | stock units | 100 (Q-SIM-49). One global value for every cargo kind (NX-123); a per-kind catalog `cargo` (§7.3) would replace it | GAMEPLAY §5 | No |
+| `logistics.unload_rate` | float | stock/s (world) | 1.0 (Q-SIM-49). Counted in whole thousandths per tick, so the loader rejects a rate x tick below 0.001 | GAMEPLAY §5 | No |
+| `logistics.loadout_cost.<unit_kind>` | int | stock units | STRIKE_FIGHTER, ENEMY_FIGHTER and ENEMY_STRIKE_FIGHTER 20, RECON_UAV and ENEMY_RECON_UAV 5, ENEMY_ARMOR 15, GARRISON_INFANTRY 5, LOGI_TRUCK and ENEMY_CONVOY 0 (Q-SIM-49; not in code yet, NX-123 part 2) | GAMEPLAY §5 | No |
+| `logistics.rearm_rate` | float | stock/s (world) | 0.5 (Q-SIM-49; not in code yet, NX-123 part 2) | GAMEPLAY §5 | No |
 | `logistics.offroad_speed_mult` | float | multiplier | 0.5 (from raw plans P987; unvalidated) | GAMEPLAY §5 | No |
 | `logistics.bridge_repair_time_s` | float | s (world) | TBD (engineer repair time; Q-GD-11) | GAMEPLAY §5 | No |
 | `logistics.truck_bridge_repair_mult` | float | multiplier on engineer time | 5 (Q-GD-11 recommendation "e.g. 5× slower") | GAMEPLAY §5 | No |
 | `tasking.follow_station_m.<domain>` | float | m (world) | TBD (PROPOSED) | GAMEPLAY §1b, Q-GP-32 | No |
 | `progression.follower_share` | float | fraction of the outcome's merit per follower | TBD (PROPOSED) | GAMEPLAY §1b, PROGRESSION, Q-GP-42 | No |
 | `progression.follower_share_cap` | int | max followers credited per outcome | TBD (PROPOSED) | GAMEPLAY §1b, Q-GP-42 | No |
-| `logistics.forward_deploy_min_surplus` | float | stock above the starvation threshold a base needs to accept a forward deploy | TBD (PROPOSED) | GAMEPLAY §4, Q-GP-41 | No |
+| `logistics.forward_deploy_min_surplus` | float | stock above the starvation threshold a base needs to accept a forward deploy | 50 (Q-SIM-49; not in code yet, NX-123 part 2) | GAMEPLAY §4, Q-GP-41 | No |
 | `logistics.repair_rate.<node_kind>` | float | hp/s (world) | TBD (base repair for all domains, Q-GD-27) | GAMEPLAY §5 | No |
 
 ### 6.4 Combat
@@ -460,10 +460,11 @@ The schema is `contracts/config/theater.json` (NX-120); like balance keys, a fie
 | `facilities` | list | `{id, kind: UnitKind (a facility kind), variant?, base: <node id>}`: pre-placed facilities; side follows the base (Q-GP-25, TH-10). `start_campaign` places them in file order at their base's position (NX-150 part 2; SIM-CORE §4) |
 | `spawns` | list | `{node, domains: [...]}`: where units may appear; usable by whichever side currently owns the node (GAMEPLAY GP-7) |
 | `sanctuary` | node id | Coalition SANCTUARY node: infinite stock, never capturable (Q-GD-7) |
+| `enemy_rear_source` | node id | The Static's rear source: its SANCTUARY node (`start_owner: ENEMY`), infinite stock, a road to the HQ, never capturable (Q-SIM-48; the capture rule itself is NX-125) |
 | `enemy_hq` | node id | Enemy HQ node (Domination victory, GAMEPLAY §9) |
 | `forward_airbase` | node id | The coalition AIRBASE the idle floor protects (GAMEPLAY §9, Q-TH-2) |
 
-Node `kind` ∈ `AIRBASE | FOB | PORT | BRIDGE | HQ | SANCTUARY` (SIM-CORE §4); `start_stock` is `null` on the SANCTUARY and only there; facilities are placed as STATIC units with a `base_id` (Q-GP-25).
+Node `kind` ∈ `AIRBASE | FOB | PORT | BRIDGE | HQ | SANCTUARY` (SIM-CORE §4); `start_stock` is `null` on the two SANCTUARY nodes and only there; facilities are placed as STATIC units with a `base_id` (Q-GP-25).
 
 ### 9.2 Validation rules (load + CI)
 | ID | Rule |
@@ -472,7 +473,7 @@ Node `kind` ∈ `AIRBASE | FOB | PORT | BRIDGE | HQ | SANCTUARY` (SIM-CORE §4);
 | TH-2 | Every edge endpoint exists. No self-loops. No duplicate `(a,b,layer)` |
 | TH-3 | Every non-SEA node is reachable from `sanctuary` over the ROAD layer when all bridges are intact. PORT nodes must touch ≥1 SEA_LANE. PORT nodes need a road too (NX-120, lead decision). A BRIDGE node sits on an edge rather than ending one, so it counts as reached when an edge carries it (NX-120) |
 | TH-4 | Every `bridge` reference points to a node of kind BRIDGE, and that node sits on the edge (within tolerance: PROPOSED 1000 m from the segment, NX-120) |
-| TH-5 | Exactly one SANCTUARY (`start_owner: COALITION`) and exactly one HQ (`start_owner: ENEMY`) |
+| TH-5 | Exactly one SANCTUARY per side (`start_owner: COALITION` named by `sanctuary`, `start_owner: ENEMY` named by `enemy_rear_source`, Q-SIM-48) and exactly one HQ (`start_owner: ENEMY`) |
 | TH-6 | All positions lie inside `bounds_m`. Every node lies in the sector it names |
 | TH-7 | Each side has ≥1 spawn per domain that its MVP units use at its starting nodes |
 | TH-11 | A value written `TBD` is rejected at load until the balance harness supplies it (DATA-INTEGRITY DI-7); a sketch may carry TBD in the repo. The loader rejects any string `TBD` anywhere in the file, naming each key path (NX-120; balance files too) |
@@ -497,14 +498,17 @@ nodes:
   - { id: ab-w,    name: "Example Airbase",   kind: AIRBASE,   pos: [8000,10000],  start_owner: COALITION, start_stock: 100,  sector: west }
   - { id: br-mid,  name: "Example Bridge",    kind: BRIDGE,    pos: [20000,10000], start_owner: NEUTRAL,   start_stock: 0,    sector: east }
   - { id: hq-e,    name: "Example HQ",        kind: HQ,        pos: [38000,10000], start_owner: ENEMY,     start_stock: 0,    sector: east }
+  - { id: rear-e,  name: "Example Rear",      kind: SANCTUARY, pos: [39000,10000], start_owner: ENEMY,     start_stock: null, sector: east }
 facilities: []
 edges:
   - { a: base-w, b: ab-w, layer: ROAD, speed_mult: 1.0 }
   - { a: ab-w,   b: hq-e, layer: ROAD, speed_mult: 1.0, bridge: br-mid }
+  - { a: hq-e,   b: rear-e, layer: ROAD, speed_mult: 1.0 }
 spawns:
   - { node: base-w, domains: [AIR, GROUND] }
   - { node: hq-e,   domains: [AIR, GROUND] }
 sanctuary: base-w
+enemy_rear_source: rear-e
 enemy_hq: hq-e
 forward_airbase: ab-w
 ```

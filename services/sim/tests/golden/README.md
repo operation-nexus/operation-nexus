@@ -65,6 +65,15 @@ its sensors. The coalition has none, as no enemy unit moves, and nothing is pain
 UAV comes within paint range of an enemy. `tests/core/test_fog_sigint.py` covers blobs and
 painting, including a cross-process hash check at 1,000 entities.
 
+Snapshot format 10 (NX-123 part 1: node `stock`, a carrier's `cargo`, `unload_milli` and `delivered`) re-pinned every
+case's checkpoints again. The new `logistics` balance keys and strait-1's `static-rear` node, road, spawn and
+`enemy_rear_source` gave `joins-strait-1` a new `config_hash`. In that case the truck to `fob-n-w` now spawns at
+`west-airbase` (its source) and loads 100 (stock 1000 to 900), so that `UnitSpawned` carries a new `node_id` and
+`events_hash` changed; the same truck also finishes unloading there, so the stream gains one
+`SupplyDelivered` (11 events); the truck to the enemy `static-hq` is a capture run from `haven` with no
+cargo. `empty-1h`, `stub-commands` and `poison-crash` hold no stock (no `rules`), so only the format changed
+their checkpoints.
+
 The orbit uses libm `atan2`, `cos` and `sin`. They are deterministic on one platform but may
 differ across platforms or libm versions, so every checkpoint here is pinned to the CI platform
 (ADR-0002, SC-3): a mismatch on another machine is not by itself a determinism bug.

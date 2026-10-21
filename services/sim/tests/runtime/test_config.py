@@ -46,13 +46,22 @@ slots:
   respawn_delay_s: 20
   max_viewer_units: 500
   reserve_queue_max: 1000
+logistics:
+  node_max_stock:
+    AIRBASE: 2000
+    BRIDGE: 0
+    FOB: 1000
+    HQ: 2000
+    PORT: 1000
+  starve_threshold: 0.25
+  truck_cargo: 100
+  unload_rate: 1.0
 """
 # Pinned from this implementation's first run (NX-367: balance, units, theater; re-pinned NX-121
 # for speed_mps, NX-122 for slots and again for the GP-3 cap and queue, NX-368 for air fuel and
-# orbit, NX-150 for sensors, stealth and fow, passive ranges, and SIGINT and paint keys); a
-# change means every
-# config_hash moved.
-GOLDEN_CONFIG_HASH = "7240f61038837f3ee975f97ce897f99a410fe7c41538fa9584f9d9570b0d9fad"
+# orbit, NX-150 for sensors, stealth and fow, passive ranges, and SIGINT and paint keys, NX-123
+# for logistics and the rear source); a change means every config_hash moved.
+GOLDEN_CONFIG_HASH = "a634fb99939d2707bd3dba7b8fe8e0121812e4ca290cb1b8be02ed0bacbc5aa8"
 SLOTS = {
     "max_live_per_commander": 1,
     "respawn_delay_s": 20,
@@ -69,6 +78,12 @@ FOW = {
     "sigint_size_l_min": 7,
     "paint_range_m": 20000.0,
 }
+LOGISTICS = {
+    "node_max_stock": {"AIRBASE": 2000, "BRIDGE": 0, "FOB": 1000, "HQ": 2000, "PORT": 1000},
+    "starve_threshold": 0.25,
+    "truck_cargo": 100,
+    "unload_rate": 1.0,
+}
 CFG = BalanceConfig.model_validate(
     {
         "schema_version": 1,
@@ -76,6 +91,7 @@ CFG = BalanceConfig.model_validate(
         "slots": SLOTS,
         "air": {"bingo_reserve_frac": 0.15, "orbit_period_s": 120.0},
         "fow": FOW,
+        "logistics": LOGISTICS,
     }
 )
 
@@ -128,6 +144,10 @@ def test_default_profile_loads_and_matches_golden_hash() -> None:
         ("  paint_range_m: 20000.0\n", "fow.paint_range_m"),
         ("  sigint_size_m_min: 3\n", "fow.sigint_size_m_min"),
         ("  sigint_size_l_min: 7\n", "fow.sigint_size_l_min"),
+        ("  starve_threshold: 0.25\n", "logistics.starve_threshold"),
+        ("  truck_cargo: 100\n", "logistics.truck_cargo"),
+        ("  unload_rate: 1.0\n", "logistics.unload_rate"),
+        ("    HQ: 2000\n", "logistics.node_max_stock.HQ"),
     ],
 )
 def test_each_missing_required_key_names_key_and_file(tmp_path: Path, line: str, key: str) -> None:
@@ -209,7 +229,9 @@ def test_non_finite_numbers_are_rejected(tmp_path: Path, value: str) -> None:
     "text",
     [
         VALID + "schema_version: 1\n",  # top level
-        VALID + "  respawn_delay_s: 20\n",  # nested, same value
+        VALID.replace(
+            "  reserve_queue_max: 1000\n", "  reserve_queue_max: 1000\n  respawn_delay_s: 20\n"
+        ),  # nested, same value
         VALID.replace("sim:\n", "sim:\n  time_scale: 7.0\n"),  # nested, earlier and different
     ],
 )
@@ -302,6 +324,8 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "fow: {track_fade_s: 180.0, track_every_ticks: 5, paint_range_m: 20000.0,\n"
         "  sigint_cell_m: 10000, sigint_refresh_s: 54.0, sigint_range_mult: 1.5,\n"
         "  sigint_size_l_min: 7, sigint_size_m_min: 3}\n"
+        "logistics: {unload_rate: 1.0, truck_cargo: 100, starve_threshold: 0.25,\n"
+        "  node_max_stock: {PORT: 1000, HQ: 2000, FOB: 1000, BRIDGE: 0, AIRBASE: 2000}}\n"
         "schema_version:   1\n"
     )
     assert balance_hash(write(tmp_path, reformatted)) == balance_hash(DEFAULT)
@@ -374,6 +398,7 @@ def test_world_ticks_is_the_least_whole_tick_count_not_shorter(
             "slots": SLOTS,
             "air": {"bingo_reserve_frac": 0.15, "orbit_period_s": 120.0},
             "fow": FOW,
+            "logistics": LOGISTICS,
         }
     )
     n = world_ticks(seconds, cfg)

@@ -10,7 +10,8 @@
     "sim",
     "slots",
     "air",
-    "fow"
+    "fow",
+    "logistics"
   ],
   "properties": {
     "schema_version": {
@@ -30,6 +31,9 @@
     },
     "fow": {
       "$ref": "#/$defs/Fow"
+    },
+    "logistics": {
+      "$ref": "#/$defs/Logistics"
     }
   },
   "$defs": {
@@ -128,6 +132,85 @@
           "type": "number",
           "exclusiveMinimum": 0,
           "x-unit": "s (world)",
+          "x-hot-reload": false
+        }
+      }
+    },
+    "Logistics": {
+      "description": "Node stock and trucks (\u00a76.3, GAMEPLAY \u00a75; NX-123 part 1).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "node_max_stock",
+        "starve_threshold",
+        "truck_cargo",
+        "unload_rate"
+      ],
+      "properties": {
+        "node_max_stock": {
+          "description": "The most stock a node of each kind holds, unit stock units; a theater's start_stock may not exceed its kind's. SANCTUARY (and so the Static's rear source) is infinite by rule and has no entry (Q-SIM-49).",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "AIRBASE",
+            "BRIDGE",
+            "FOB",
+            "HQ",
+            "PORT"
+          ],
+          "properties": {
+        "AIRBASE": {
+          "type": "integer",
+          "minimum": 0,
+          "x-unit": "stock units",
+          "x-hot-reload": false
+        },
+        "BRIDGE": {
+          "type": "integer",
+          "minimum": 0,
+          "x-unit": "stock units",
+          "x-hot-reload": false
+        },
+        "FOB": {
+          "type": "integer",
+          "minimum": 0,
+          "x-unit": "stock units",
+          "x-hot-reload": false
+        },
+        "HQ": {
+          "type": "integer",
+          "minimum": 0,
+          "x-unit": "stock units",
+          "x-hot-reload": false
+        },
+        "PORT": {
+          "type": "integer",
+          "minimum": 0,
+          "x-unit": "stock units",
+          "x-hot-reload": false
+        }
+          }
+        },
+        "starve_threshold": {
+          "description": "A base is starved below this fraction of its node_max_stock, unit fraction; a truck never loads stock below it, so the floor is ceil(starve_threshold x max) whole units (GAMEPLAY \u00a75, Q-GP-24).",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "x-unit": "fraction of node_max_stock",
+          "x-hot-reload": false
+        },
+        "truck_cargo": {
+          "description": "The most cargo a truck loads, unit stock units; one global value for every cargo-carrying kind (GAMEPLAY \u00a75).",
+          "type": "integer",
+          "minimum": 1,
+          "x-unit": "stock units",
+          "x-hot-reload": false
+        },
+        "unload_rate": {
+          "description": "Stock a parked truck moves into its destination per world second, unit stock per s of world time, frozen while paused (GAMEPLAY \u00a75, Q-SIM-50). Counted in whole milli-units per tick, so it is rounded to 0.001 per tick.",
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "x-unit": "stock/s (world)",
           "x-hot-reload": false
         }
       }

@@ -103,7 +103,10 @@ def _references(t: TheaterConfig, nodes: dict[str, Node]) -> list[str]:  # TH-2,
             refs.append((f"edges.{i}.bridge", e.bridge, bridges))
     refs += [(f"facilities.{i}.base", f.base, nodes) for i, f in enumerate(t.facilities)]
     refs += [(f"spawns.{i}.node", s.node, nodes) for i, s in enumerate(t.spawns)]
-    refs += [(k, getattr(t, k), nodes) for k in ("sanctuary", "enemy_hq", "forward_airbase")]
+    refs += [
+        (k, getattr(t, k), nodes)
+        for k in ("sanctuary", "enemy_rear_source", "enemy_hq", "forward_airbase")
+    ]
     return [f"{where}: unknown or wrong-kind id {v!r}" for where, v, ok in refs if v not in ok]
 
 
@@ -122,9 +125,18 @@ def _edges(t: TheaterConfig, nodes: dict[str, Node]) -> list[str]:  # TH-2, TH-4
 
 def _singletons(t: TheaterConfig, nodes: dict[str, Node]) -> list[str]:  # TH-5, TH-10, CFG-2
     problems = []
-    for kind, owner, key in (("SANCTUARY", "COALITION", "sanctuary"), ("HQ", "ENEMY", "enemy_hq")):
-        found = [n.id for n in t.nodes if n.kind == kind]
-        if len(found) != 1 or nodes[found[0]].start_owner != owner or found[0] != getattr(t, key):
+    # One SANCTUARY per side (CFG-2, Q-SIM-48), one HQ, each owned as named; none of either kind
+    # else, so a NEUTRAL SANCTUARY fails the count.
+    owned = (
+        ("SANCTUARY", "COALITION", "sanctuary"),
+        ("SANCTUARY", "ENEMY", "enemy_rear_source"),
+        ("HQ", "ENEMY", "enemy_hq"),
+    )
+    for kind, owner, key in owned:
+        found = [n.id for n in t.nodes if n.kind == kind and n.start_owner == owner]
+        if found != [getattr(t, key)] or sum(n.kind == kind for n in t.nodes) != (
+            2 if kind == "SANCTUARY" else 1
+        ):
             problems.append(f"{key}: need exactly one {kind} node, owned by {owner}, named here")
     for i, n in enumerate(t.nodes):
         if (n.start_stock is None) != (n.kind == "SANCTUARY"):
