@@ -21,8 +21,12 @@ from . import (
     reserve_queue_joined,
     supply_consumed,
     supply_delivered,
+    unit_damage_state_changed,
+    unit_despawned,
     unit_destroyed,
     unit_spawned,
+    weapon_fired,
+    weapon_impact,
 )
 
 type Event = Annotated[
@@ -40,7 +44,11 @@ type Event = Annotated[
     | campaign_clock_resumed.CampaignClockResumed
     | campaign_ended.CampaignEnded
     | objective_announced.ObjectiveAnnounced
-    | objective_resolved.ObjectiveResolved,
+    | objective_resolved.ObjectiveResolved
+    | weapon_fired.WeaponFired
+    | weapon_impact.WeaponImpact
+    | unit_damage_state_changed.UnitDamageStateChanged
+    | unit_despawned.UnitDespawned,
     Field(
         description="Discriminated union of all sim events on kind (CONTRACTS §6).",
         discriminator="kind",

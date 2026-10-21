@@ -13,6 +13,7 @@
     "fow",
     "logistics",
     "capture",
+    "combat",
     "campaign"
   ],
   "properties": {
@@ -39,6 +40,9 @@
     },
     "capture": {
       "$ref": "#/$defs/Capture"
+    },
+    "combat": {
+      "$ref": "#/$defs/Combat"
     },
     "campaign": {
       "$ref": "#/$defs/Campaign"
@@ -271,6 +275,150 @@
           "type": "number",
           "exclusiveMinimum": 0,
           "x-unit": "bar fraction/s (world)",
+          "x-hot-reload": false
+        }
+      }
+    },
+    "Combat": {
+      "description": "Combat (\u00a76.4, COMBAT; NX-124). Only the keys the built part reads: the crew-survival, damaged_speed_mult and damaged_sensor_mult keys join with their code (Q-CFG-10).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "pk_cap",
+        "track_quality",
+        "range",
+        "pk_mult",
+        "damage_state",
+        "disabled_timeout_s",
+        "assist_window_s"
+      ],
+      "properties": {
+        "pk_cap": {
+          "description": "Highest hit probability: every shot can miss, unit probability (CB-4, Q-CBT-10).",
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "x-unit": "probability",
+          "x-hot-reload": false
+        },
+        "track_quality": {
+          "description": "Pk multiplier by how the shooter's side knows the target (COMBAT \u00a75.2).",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "track",
+            "painted"
+          ],
+          "properties": {
+            "track": {
+              "description": "A tracked target, unit multiplier.",
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "x-unit": "multiplier",
+              "x-hot-reload": false
+            },
+            "painted": {
+              "description": "A target painted by a recon unit, unit multiplier.",
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "x-unit": "multiplier",
+              "x-hot-reload": false
+            }
+          }
+        },
+        "range": {
+          "description": "Range factor of Pk (COMBAT \u00a75.2, Q-CBT-10).",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "full_pk_frac",
+            "min_mult"
+          ],
+          "properties": {
+            "full_pk_frac": {
+              "description": "Share of a weapon's range_m with the full range factor, unit fraction of range_m.",
+              "type": "number",
+              "minimum": 0,
+              "exclusiveMaximum": 1,
+              "x-unit": "fraction of range_m",
+              "x-hot-reload": false
+            },
+            "min_mult": {
+              "description": "Range factor at range_m, unit multiplier; it falls linearly from 1.0 at full_pk_frac.",
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "x-unit": "multiplier",
+              "x-hot-reload": false
+            }
+          }
+        },
+        "pk_mult": {
+          "description": "Other Pk multipliers (COMBAT \u00a75.2); the unbuilt factors are the registered 1.0 fallback FB-6.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "terrain_masked"
+          ],
+          "properties": {
+            "terrain_masked": {
+              "description": "A NOE or LOW aircraft, or a ground unit inside a theater masking region, unit multiplier (Q-CBT-11, Q-FOW-3).",
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "x-unit": "multiplier",
+              "x-hot-reload": false
+            }
+          }
+        },
+        "damage_state": {
+          "description": "Damage-state thresholds (CB-6, Q-GP-8): a unit is in the state when its hp is below the fraction of its kind's hp; they descend.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "damaged_below",
+            "mission_kill_below",
+            "disabled_below"
+          ],
+          "properties": {
+            "damaged_below": {
+              "description": "Below this hp fraction a unit is Damaged, unit fraction of hp.",
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "x-unit": "fraction of hp",
+              "x-hot-reload": false
+            },
+            "mission_kill_below": {
+              "description": "Below this hp fraction a unit is Mission-kill, unit fraction of hp.",
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "x-unit": "fraction of hp",
+              "x-hot-reload": false
+            },
+            "disabled_below": {
+              "description": "Below this hp fraction a unit is Disabled, and a facility's hp floors there, unit fraction of hp.",
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "x-unit": "fraction of hp",
+              "x-hot-reload": false
+            }
+          }
+        },
+        "assist_window_s": {
+      "description": "A shooter that landed a hit on a unit within this long before the unit is destroyed is an assist on its UnitDestroyed, unit s of game time (COMBAT CB-5a, Q-SIM-66).",
+      "type": "number",
+      "exclusiveMinimum": 0,
+      "x-unit": "s (game)",
+      "x-hot-reload": false
+    },
+    "disabled_timeout_s": {
+          "description": "A Disabled unit that is not a facility is removed after this long, unit s of game time (CB-7, Q-CBT-14).",
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "x-unit": "s (game)",
           "x-hot-reload": false
         }
       }

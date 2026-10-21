@@ -203,6 +203,129 @@ class Capture(BaseModel):
     ]
 
 
+class TrackQuality(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    track: Annotated[float, Field(description="A tracked target, unit multiplier.", gt=0.0)]
+    painted: Annotated[
+        float, Field(description="A target painted by a recon unit, unit multiplier.", gt=0.0)
+    ]
+
+
+class Range(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    full_pk_frac: Annotated[
+        float,
+        Field(
+            description="Share of a weapon's range_m with the full range factor, unit fraction of range_m.",
+            ge=0.0,
+            lt=1.0,
+        ),
+    ]
+    min_mult: Annotated[
+        float,
+        Field(
+            description="Range factor at range_m, unit multiplier; it falls linearly from 1.0 at full_pk_frac.",
+            gt=0.0,
+            le=1.0,
+        ),
+    ]
+
+
+class PkMult(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    terrain_masked: Annotated[
+        float,
+        Field(
+            description="A NOE or LOW aircraft, or a ground unit inside a theater masking region, unit multiplier (Q-CBT-11, Q-FOW-3).",
+            gt=0.0,
+            le=1.0,
+        ),
+    ]
+
+
+class DamageState(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    damaged_below: Annotated[
+        float,
+        Field(
+            description="Below this hp fraction a unit is Damaged, unit fraction of hp.",
+            gt=0.0,
+            le=1.0,
+        ),
+    ]
+    mission_kill_below: Annotated[
+        float,
+        Field(
+            description="Below this hp fraction a unit is Mission-kill, unit fraction of hp.",
+            gt=0.0,
+            le=1.0,
+        ),
+    ]
+    disabled_below: Annotated[
+        float,
+        Field(
+            description="Below this hp fraction a unit is Disabled, and a facility's hp floors there, unit fraction of hp.",
+            gt=0.0,
+            le=1.0,
+        ),
+    ]
+
+
+class Combat(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    pk_cap: Annotated[
+        float,
+        Field(
+            description="Highest hit probability: every shot can miss, unit probability (CB-4, Q-CBT-10).",
+            gt=0.0,
+            le=1.0,
+        ),
+    ]
+    track_quality: Annotated[
+        TrackQuality,
+        Field(
+            description="Pk multiplier by how the shooter's side knows the target (COMBAT §5.2)."
+        ),
+    ]
+    range: Annotated[Range, Field(description="Range factor of Pk (COMBAT §5.2, Q-CBT-10).")]
+    pk_mult: Annotated[
+        PkMult,
+        Field(
+            description="Other Pk multipliers (COMBAT §5.2); the unbuilt factors are the registered 1.0 fallback FB-6."
+        ),
+    ]
+    damage_state: Annotated[
+        DamageState,
+        Field(
+            description="Damage-state thresholds (CB-6, Q-GP-8): a unit is in the state when its hp is below the fraction of its kind's hp; they descend."
+        ),
+    ]
+    assist_window_s: Annotated[
+        float,
+        Field(
+            description="A shooter that landed a hit on a unit within this long before the unit is destroyed is an assist on its UnitDestroyed, unit s of game time (COMBAT CB-5a, Q-SIM-66).",
+            gt=0.0,
+        ),
+    ]
+    disabled_timeout_s: Annotated[
+        float,
+        Field(
+            description="A Disabled unit that is not a facility is removed after this long, unit s of game time (CB-7, Q-CBT-14).",
+            gt=0.0,
+        ),
+    ]
+
+
 class Fow(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -438,4 +561,5 @@ class BalanceConfig(BaseModel):
     fow: Fow
     logistics: Logistics
     capture: Capture
+    combat: Combat
     campaign: Campaign

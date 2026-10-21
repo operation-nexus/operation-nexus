@@ -15,9 +15,9 @@ from nexus.runtime.units import catalog_hash, load_catalog
 
 CONTENT = Path(__file__).resolve().parents[4] / "content"
 # Pinned from this implementation's first run (NX-367; re-pinned NX-121: speed_mps; NX-368:
-# min_speed_mps and fuel_s; NX-150: sensor and stealth; NX-150 part 2: passive_range_m); a
-# change means every config_hash moved.
-GOLDEN_UNITS_HASH = "e84ca186d09f7d620124f7d85ef58dacb58e0367097e978b7e3db54a3f01f32c"
+# min_speed_mps and fuel_s; NX-150: sensor and stealth; NX-150 part 2: passive_range_m; NX-124:
+# combat stats and weapon numbers); a change means every config_hash moved.
+GOLDEN_UNITS_HASH = "36e63e464462d2493127aa5b50d98f13ea62afff450e3a033f50565f0917145a"
 RADAR = "units/radar-site.yaml"
 
 
@@ -101,7 +101,9 @@ def test_weapon_targets_match_combat_table() -> None:
         (
             "weapons.yaml",
             "  - { id: SAM,",
-            "  - { id: AAA_GUN, targets: [AIR] }\n  - { id: SAM,",
+            "  - { id: SAM, targets: [AIR], bands: [LOW], range_m: 1.0,\n"
+            "      projectile_speed_mps: null, base_pk: 0.1, damage: 1, reload_s: 1.0, ammo: 1 }\n"
+            "  - { id: SAM,",
             r"weapons\.id: dup",
         ),
         ("units/air-defense-site.yaml", "[AAA_GUN, SAM]", "[AAA_GUN]", r"'SAM' is used by no unit"),
@@ -110,6 +112,41 @@ def test_weapon_targets_match_combat_table() -> None:
             "id: AA_LIGHT, targets: [AIR]",
             "id: AA_LIGHT, targets: [AIR, AIR]",
             r"targets: dup",
+        ),
+        # combat stats (NX-124, COMBAT §6): bounds and the air-only fields
+        ("units/strike-fighter.yaml", "hp: 100", "hp: 0", r"hp: .*greater than or equal to 1"),
+        ("units/enemy-armor.yaml", "armor: 0.5", "armor: 0.95", r"armor: .*less than or equal to"),
+        ("units/enemy-armor.yaml", "armor: 0.5", "armor: -0.1", r"armor: .*greater than or equal"),
+        ("units/enemy-armor.yaml", "evasion: 1.0", "evasion: 0.5", r"evasion: .*greater than or"),
+        ("units/enemy-armor.yaml", "evasion: 1.0", "evasion: 1.1", r"evasion: .*less than or"),
+        ("units/enemy-armor.yaml", "crew: 3", "crew: -1", r"crew: .*greater than or equal to 0"),
+        ("units/enemy-armor.yaml", "threat: 60", "threat: -1", r"threat: .*greater than or equal"),
+        ("units/recon-uav.yaml", "alt_bands: [LOW, MED]", "", r"alt_bands: present if and only"),
+        ("units/recon-uav.yaml", "default_alt_band: MED", "", r"default_alt_band: present if"),
+        (
+            "units/enemy-armor.yaml",
+            "weapons:",
+            "alt_bands: [LOW]\nweapons:",
+            r"alt_bands: present if",
+        ),
+        ("units/recon-uav.yaml", "default_alt_band: MED", "default_alt_band: HIGH", r"not one of"),
+        ("units/recon-uav.yaml", "[LOW, MED]", "[LOW, LOW, MED]", r"alt_bands: duplicate 'LOW'"),
+        ("units/recon-uav.yaml", "[LOW, MED]", "[LOW, SPACE]", r"alt_bands\.1: Input should be"),
+        # weapon numbers (NX-124)
+        ("weapons.yaml", "base_pk: 0.3,", "base_pk: 1.5,", r"base_pk: .*less than or equal to 1"),
+        ("weapons.yaml", "base_pk: 0.3,", "base_pk: -0.1,", r"base_pk: .*greater than or equal"),
+        ("weapons.yaml", "damage: 15,", "damage: 0,", r"damage: .*greater than or equal to 1"),
+        ("weapons.yaml", "ammo: 8 }", "ammo: 0 }", r"ammo: .*greater than or equal to 1"),
+        ("weapons.yaml", "reload_s: 15.0", "reload_s: 0", r"reload_s: .*greater than 0"),
+        ("weapons.yaml", "range_m: 35000.0", "range_m: 0", r"range_m: .*greater than 0"),
+        ("weapons.yaml", "projectile_speed_mps: 1000.0", "projectile_speed_mps: 0", r"speed_mps"),
+        ("weapons.yaml", "bands: [NOE, LOW]", "bands: []", r"bands: non-empty if and only if"),
+        ("weapons.yaml", "bands: [NOE, LOW]", "bands: [NOE, NOE]", r"bands: duplicate 'NOE'"),
+        (
+            "weapons.yaml",
+            "id: SMALL_ARMS, targets: [GROUND], bands: []",
+            "id: SMALL_ARMS, targets: [GROUND], bands: [LOW]",
+            r"weapons\.6\.bands: non-empty if and only if targets has AIR",
         ),
         # Q-CBT-25
         (
@@ -149,7 +186,8 @@ def test_hash_ignores_file_order_and_formatting(tmp_path: Path) -> None:
         tmp_path, "weapons.yaml", "schema_version: 1", "schema_version: 1"
     )
     lines = weapons.read_text(encoding="utf-8").splitlines()
-    head, rows = lines[:5], lines[5:]
+    split = lines.index("weapons:") + 1
+    head, rows = lines[:split], lines[split:]
     assert len(rows) == 7
     weapons.write_text("\n".join([*head, *reversed(rows)]) + "\n", encoding="utf-8")
     radar = units / "radar-site.yaml"

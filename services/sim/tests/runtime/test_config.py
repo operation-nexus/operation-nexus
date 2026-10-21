@@ -81,6 +81,22 @@ capture:
   garrison_mult: 3.0
   empty_base_mult: 0.5
   decay_per_s: 0.008333333333333333
+combat:
+  pk_cap: 0.95
+  track_quality:
+    track: 1.0
+    painted: 1.25
+  range:
+    full_pk_frac: 0.5
+    min_mult: 0.5
+  pk_mult:
+    terrain_masked: 0.5
+  damage_state:
+    damaged_below: 0.70
+    mission_kill_below: 0.35
+    disabled_below: 0.10
+  disabled_timeout_s: 600
+  assist_window_s: 120
 campaign:
   time_limit_h: 72
   victory_node_frac: 0.80
@@ -99,9 +115,9 @@ campaign:
 # for speed_mps, NX-122 for slots and again for the GP-3 cap and queue, NX-368 for air fuel and
 # orbit, NX-150 for sensors, stealth and fow, passive ranges, and SIGINT and paint keys, NX-123
 # for logistics and the rear source, NX-123 part 2 for loadouts, rearm and forward deploy, NX-125
-# for capture, NX-126 for campaign); a
+# for capture, NX-126 for campaign, NX-124 for combat and its assist window); a
 # change means every config_hash moved.
-GOLDEN_CONFIG_HASH = "a460ac48e5a62e9bc857e7298666be3befc562ef338c1efdfffab69afae90155"
+GOLDEN_CONFIG_HASH = "39688239019fae7e9faf8670a71090446668c58ac64d844c7675339abdffb831"
 SLOTS = {
     "max_live_per_commander": 1,
     "respawn_delay_s": 20,
@@ -150,6 +166,15 @@ CAPTURE = {
     "empty_base_mult": 0.5,
     "decay_per_s": 0.008333333333333333,
 }
+COMBAT = {
+    "pk_cap": 0.95,
+    "track_quality": {"track": 1.0, "painted": 1.25},
+    "range": {"full_pk_frac": 0.5, "min_mult": 0.5},
+    "pk_mult": {"terrain_masked": 0.5},
+    "damage_state": {"damaged_below": 0.70, "mission_kill_below": 0.35, "disabled_below": 0.10},
+    "disabled_timeout_s": 600,
+    "assist_window_s": 120,
+}
 CAMPAIGN = {
     "time_limit_h": 72,
     "victory_node_frac": 0.80,
@@ -168,6 +193,7 @@ CFG = BalanceConfig.model_validate(
         "fow": FOW,
         "logistics": LOGISTICS,
         "capture": CAPTURE,
+        "combat": COMBAT,
         "campaign": CAMPAIGN,
     }
 )
@@ -229,6 +255,12 @@ def test_default_profile_loads_and_matches_golden_hash() -> None:
         ("  forward_deploy_min_surplus: 50\n", "logistics.forward_deploy_min_surplus"),
         ("  starved_loadout:\n    fuel_frac: 0.5\n", "logistics.starved_loadout"),
         ("    STRIKE_FIGHTER: 20\n", "logistics.loadout_cost.STRIKE_FIGHTER"),
+        ("  pk_cap: 0.95\n", "combat.pk_cap"),
+        ("    painted: 1.25\n", "combat.track_quality.painted"),
+        ("    min_mult: 0.5\n", "combat.range.min_mult"),
+        ("    disabled_below: 0.10\n", "combat.damage_state.disabled_below"),
+        ("  disabled_timeout_s: 600\n", "combat.disabled_timeout_s"),
+        ("  assist_window_s: 120\n", "combat.assist_window_s"),
         ("  objective_period_min: 15\n", "campaign.objective_period_min"),
         ("  objective_mode: timed\n", "campaign.objective_mode"),
         ("    objective_points: 5\n", "campaign.score.objective_points"),
@@ -419,6 +451,10 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "capture: {radius_m: 2000.0, time_s: 120.0, multi_unit_exponent: 0.5, quiet_floor: 0.6,\n"
         "  quiet_ref: 50, min_time_s: 30.0, logi_weight: 0.5, garrison_mult: 3.0,\n"
         "  empty_base_mult: 0.5, decay_per_s: 0.008333333333333333}\n"
+        "combat: {pk_cap: 0.95, track_quality: {painted: 1.25, track: 1.0},\n"
+        "  range: {min_mult: 0.5, full_pk_frac: 0.5}, pk_mult: {terrain_masked: 0.5},\n"
+        "  damage_state: {disabled_below: 0.10, damaged_below: 0.70, mission_kill_below: 0.35},\n"
+        "  disabled_timeout_s: 600, assist_window_s: 120}\n"
         "campaign: {momentum: {supply_weight: 30, nodes_weight: 70}, objective_mode: timed,\n"
         "  score: {objective_points: 5, final_weight: 50, average_weight: 50},\n"
         "  objective_period_min: 15,\n"
@@ -497,6 +533,7 @@ def test_world_ticks_is_the_least_whole_tick_count_not_shorter(
             "fow": FOW,
             "logistics": LOGISTICS,
             "capture": CAPTURE,
+            "combat": COMBAT,
             "campaign": CAMPAIGN,
         }
     )
@@ -519,6 +556,19 @@ def test_momentum_weights_must_add_up_to_100(tmp_path: Path) -> None:
         "supply_weight: 30", "supply_weight: 66.7"
     )
     assert load_balance(write(tmp_path, ok)).campaign.momentum.supply_weight == 66.7
+
+
+@pytest.mark.parametrize(
+    ("old", "new"),
+    [
+        ("disabled_below: 0.10", "disabled_below: 0.35"),  # equal to mission_kill_below
+        ("damaged_below: 0.70", "damaged_below: 0.30"),  # under mission_kill_below
+    ],
+)
+def test_damage_state_thresholds_must_descend(tmp_path: Path, old: str, new: str) -> None:
+    path = write(tmp_path, VALID.replace(old, new))
+    with pytest.raises(ConfigError, match=r"combat\.damage_state: need disabled_below"):
+        load_balance(path)
 
 
 def test_game_ticks_in_minutes_and_hours() -> None:

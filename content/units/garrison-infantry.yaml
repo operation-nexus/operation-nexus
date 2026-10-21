@@ -1,4 +1,4 @@
-# CONFIG-AND-CONTENT §7.3. Identity (NX-367) and speed (NX-121); other stats join with later items (Q-CFG-10).
+# CONFIG-AND-CONTENT §7.3. Identity (NX-367), speed (NX-121), sensors (NX-150) and combat stats (NX-124, Q-SIM-65); other stats join with later items (Q-CFG-10).
 # Infantry fire on GROUND only (COMBAT §5.1; the loader enforces it).
 schema_version: 1
 kind: GARRISON_INFANTRY
@@ -6,6 +6,11 @@ side: COALITION
 domain: GROUND
 playable_by: [AI_GARRISON]
 speed_mps: 5.0  # PROPOSED (NX-121, owner may veto; harness tunes, NX-031); m/s world; slow; holds nodes (Q-GD-4)
+hp: 80  # PROPOSED (Q-SIM-65, owner-approved starting stat; harness tunes, NX-031); hp
+armor: 0.0  # PROPOSED (Q-SIM-65, owner-approved starting stat; harness tunes, NX-031); fraction, 0 to 0.9
+evasion: 1.0  # PROPOSED (Q-SIM-65, owner-approved starting stat; harness tunes, NX-031); Pk multiplier, 0.6 to 1.0
+crew: 4  # PROPOSED (Q-SIM-65, owner-approved starting stat; harness tunes, NX-031); crew count (read by the crew roll, COMBAT CB-8)
+threat: 30  # PROPOSED (Q-SIM-65, owner-approved starting stat; harness tunes, NX-031); target priority, higher first
 sensor: {radius_m: 5000.0}  # PROPOSED (NX-150, owner may veto; harness tunes, NX-031); m; ground observers
 stealth: 1.0  # PROPOSED (NX-150, owner may veto; harness tunes, NX-031); multiplier; 1.0 = none
 weapons: [SMALL_ARMS]

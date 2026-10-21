@@ -97,7 +97,7 @@ def test_spawns_at_the_sanctuary_with_its_role_kind() -> None:
         Vec2(0, 0),
         [],
         "haven",
-        None,
+        60,  # RECON_UAV's catalog hp (Q-SIM-65)
     )
 
 

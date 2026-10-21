@@ -14,6 +14,8 @@
     "NodeKind": {"enum": ["AIRBASE", "FOB", "PORT", "BRIDGE", "HQ", "SANCTUARY"], "description": "SIM-CORE \u00a74. Facilities are UnitKinds, not nodes (Q-GP-21, Q-GP-25)."},
     "EdgeLayer": {"enum": ["ROAD", "SEA_LANE"]},
     "Domain": {"enum": ["AIR", "GROUND", "SEA", "STATIC"], "description": "SEA is P3 (Q-GD-8). STATIC = facilities (Q-GP-25)."},
+    "AltBand": {"enum": ["NOE", "LOW", "MED", "HIGH"], "description": "AIR only (COMBAT \u00a75.3). Adding a band is a contract and content change."},
+    "DamageState": {"enum": ["HEALTHY", "DAMAGED", "MISSION_KILL", "DISABLED"], "description": "Q-CBT-1. Destroyed is a lifecycle event (UnitDestroyed), not a damage state."},
     "CallsignKind": {"enum": ["GENERATED", "CUSTOM", "TOMBSTONE"], "description": "IDENTITY \u00a72, DATA-MODEL \u00a74.2."},
     "CommandSource": {"enum": ["CHAT", "ADVISOR", "STAFF", "SYSTEM"]},
     "PauseReasonCategory": {"enum": ["STAFF", "TECHNICAL", "MAINTENANCE", "CEASEFIRE"], "description": "Q-ALN-3. STAFF = a manual pause; TECHNICAL = offline auto-pause; MAINTENANCE = weekly window; CEASEFIRE = owner Ceasefire mode."},
@@ -22,6 +24,6 @@
     "ObjectiveOutcome": {"enum": ["COMPLETED", "EXPIRED"]},
     "CommandKind": {"enum": ["JOIN", "SYS_SET_CALLSIGN", "STAFF_CAMPAIGN_PAUSE", "STAFF_CAMPAIGN_RESUME", "STAFF_CAMPAIGN_END"], "description": "Grows one kind at a time, with each handler (AGENTS.md rule 6a)."},
     "RejectReason": {"enum": ["ROLE_UNKNOWN", "UNIT_IN_SORTIE", "RESPAWN_COOLDOWN", "NODE_UNKNOWN", "NODE_INVALID_FOR_UNIT", "FOLLOW_TARGET_INVALID", "CAMPAIGN_PAUSED", "INVALID_PAYLOAD", "INTERNAL_ERROR", "RESERVE_QUEUE_FULL", "ALREADY_PAUSED", "NOT_PAUSED", "CAMPAIGN_NOT_RUNNING", "REASON_REQUIRED"], "description": "CONTRACTS §5.3. Grows one value at a time, with the code that emits it (rule 6a)."},
-    "EventKind": {"enum": ["UnitSpawned", "CommandRejected", "ReserveQueueJoined", "UnitDestroyed", "CallsignChanged", "CampaignClockPaused", "CampaignClockResumed", "CampaignEnded", "ObjectiveAnnounced", "ObjectiveResolved"], "description": "Grows one kind at a time, with each producer (rule 6a)."}
+    "EventKind": {"enum": ["UnitSpawned", "CommandRejected", "ReserveQueueJoined", "UnitDestroyed", "CallsignChanged", "CampaignClockPaused", "CampaignClockResumed", "CampaignEnded", "ObjectiveAnnounced", "ObjectiveResolved", "WeaponFired", "WeaponImpact", "UnitDamageStateChanged", "UnitDespawned"], "description": "Grows one kind at a time, with each producer (rule 6a)."}
   }
 }

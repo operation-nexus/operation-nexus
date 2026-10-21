@@ -57,7 +57,9 @@ def world(rules: Rules = RULES) -> World:
 
 
 def put(w: World, kind: UnitKind, side: Side, x: float, y: float = 0.0) -> Entity:
-    return w.spawn(kind, side, "AI_GARRISON", Vec2(x, y), hp=None)
+    e = w.spawn(kind, side, "AI_GARRISON", Vec2(x, y))
+    e.ammo = [0] * len(e.ammo)  # these tests are about sensing: nobody fires (NX-124)
+    return e
 
 
 def run_to(w: World, tick: int) -> None:
@@ -487,3 +489,61 @@ def test_pause_freezes_discovery_and_markers_round_trip() -> None:
     # Discovered at the first pass after resuming (35), refreshed on every pass since.
     assert w.markers["COALITION"] == {sam.id: FacilityMarker(SAM, "SAM", Vec2(1000, 0), True, 40)}
     assert state_hash(restored) == state_hash(w)
+
+
+# --- NX-124: a Disabled facility does nothing until repaired (GAMEPLAY §5b, Q-SIM-66) ---
+
+
+def disable(e: Entity) -> Entity:
+    e.hp, e.damage_state = 5, "DISABLED"
+    return e
+
+
+def test_a_disabled_radar_senses_nothing_and_a_repaired_one_does() -> None:
+    w = world()
+    radar = put(w, RADAR, "COALITION", 0.0)
+    armor = put(w, ARMOR, "ENEMY", 500.0)
+    disable(radar)
+    run_to(w, 5)
+    assert not tracked_by(w, "COALITION", armor.id)  # inside 1,000 m, but the radar is down
+    radar.hp, radar.damage_state = 150, "HEALTHY"
+    run_to(w, 10)
+    assert tracked_by(w, "COALITION", armor.id)
+
+
+def test_a_disabled_facility_is_still_tracked_by_the_other_side() -> None:
+    w = world()
+    put(w, RADAR, "COALITION", 0.0)
+    site_ = disable(put(w, SAM, "ENEMY", 500.0))
+    run_to(w, 5)
+    assert tracked_by(w, "COALITION", site_.id)  # a target for the eyes, not for shells
+
+
+def test_a_disabled_site_is_not_heard_and_a_disabled_listener_hears_nothing() -> None:
+    w = world(LISTENING)
+    ear = parked_uav(w, 0.0)
+    emitting = site(w, "ENEMY", 4000.0, True)
+    disable(emitting)
+    run_to(w, 5)
+    assert w.markers["COALITION"] == {}  # a Disabled emitter does not emit
+    emitting.hp, emitting.damage_state = 150, "HEALTHY"
+    disable(ear)  # the UAV is not a facility: it still listens
+    run_to(w, 10)
+    assert list(w.markers["COALITION"]) == [emitting.id]
+    w2 = world(LISTENING)
+    listener = disable(put(w2, RADAR, "COALITION", 0.0))  # a Disabled radar's passive ear is off
+    site(w2, "ENEMY", 2000.0, True)
+    run_to(w2, 5)
+    assert w2.markers["COALITION"] == {} and listener.damage_state == "DISABLED"
+
+
+def test_a_disabled_emitters_marker_says_it_is_not_emitting() -> None:
+    w = world()
+    put(w, RADAR, "COALITION", 0.0)
+    sam = site(w, "ENEMY", 500.0, True)
+    run_to(w, 5)
+    assert w.markers["COALITION"][sam.id].emitting is True
+    disable(sam)
+    run_to(w, 10)  # tracked, so observed again
+    assert w.markers["COALITION"][sam.id].emitting is False
+    assert sam.emitting is True  # the entity keeps its flag; repair brings the emission back

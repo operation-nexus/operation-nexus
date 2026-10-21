@@ -3,8 +3,10 @@
 Files (CONFIG-AND-CONTENT §7, §7a): `content/units/<kind-in-kebab-case>.yaml` (one unit each),
 `content/weapons.yaml`, `content/roles.yaml`. Checked here: the kind set equals `UnitKind` with no
 duplicates, file names match kinds, weapon ids resolve and none is unused, `min_rank` iff VIEWER,
-`min_speed_mps` and `fuel_s` iff AIR with `min_speed_mps <= speed_mps` (NX-368),
-each MVP role maps to a kind a VIEWER can play, and COMBAT §5.1 target limits (Q-CBT-25).
+`min_speed_mps` and `fuel_s` iff AIR with `min_speed_mps <= speed_mps` (NX-368), `alt_bands` and
+`default_alt_band` iff AIR with the default among the bands, a weapon's `bands` non-empty iff it can
+target AIR (NX-124, COMBAT §5.3), each MVP role maps to a kind a VIEWER can play, and COMBAT §5.1
+target limits (Q-CBT-25).
 TBD values (DI-7) are `load_model`'s. Stats join item by item (Q-CFG-10).
 """
 
@@ -100,7 +102,7 @@ def _units(
         problems += _duplicates(u.weapons, f"{f}: weapons")
         if (_VIEWER in u.playable_by) != (u.min_rank is not None):
             problems.append(f"{f}: min_rank: present if and only if {_VIEWER} is in playable_by")
-        problems += _air(f, u)
+        problems += _air(f, u) + _bands(f, u)
         problems += [
             f"{f}: weapons.{i}: unknown weapon {w!r} (not in {weapons_path})"
             for i, w in enumerate(u.weapons)
@@ -131,10 +133,28 @@ def _air(f: Path, u: UnitConfig) -> list[str]:
     return problems
 
 
+def _bands(f: Path, u: UnitConfig) -> list[str]:
+    """`alt_bands` and `default_alt_band` iff AIR; no duplicates; the default is one of them."""
+    air = u.domain == "AIR"
+    problems = [
+        f"{f}: {key}: present if and only if domain is AIR"
+        for key, value in (("alt_bands", u.alt_bands), ("default_alt_band", u.default_alt_band))
+        if air != (value is not None)
+    ]
+    if u.alt_bands is not None:
+        problems += _duplicates(u.alt_bands, f"{f}: alt_bands")
+        if u.default_alt_band not in u.alt_bands:
+            problems.append(f"{f}: default_alt_band: not one of alt_bands")
+    return problems
+
+
 def _weapons(path: Path, weapons: WeaponsConfig, catalog: UnitCatalog) -> list[str]:
     problems = _duplicates((w.id for w in weapons.weapons), f"{path}: weapons.id")
     for i, w in enumerate(weapons.weapons):
         problems += _duplicates(w.targets, f"{path}: weapons.{i}.targets")
+        problems += _duplicates(w.bands, f"{path}: weapons.{i}.bands")
+        if ("AIR" in w.targets) != bool(w.bands):
+            problems.append(f"{path}: weapons.{i}.bands: non-empty if and only if targets has AIR")
     used = {w for u in catalog.units for w in u.weapons}
     return problems + [
         f"{path}: weapons: {w.id!r} is used by no unit" for w in catalog.weapons if w.id not in used

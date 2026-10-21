@@ -432,3 +432,12 @@ def test_sigint_hash_is_hash_seed_independent() -> None:
     sense(w)
     assert w.blobs["COALITION"] and w.blobs["ENEMY"]
     assert run("1") == run("2") == state_hash(w)
+
+
+def test_a_disabled_radar_gives_no_sigint_range() -> None:
+    """GAMEPLAY §5b: a Disabled facility does nothing, so it adds no SIGINT range (NX-124)."""
+    w, _, _ = sigint_scene("COALITION")
+    radar = next(e for e in w.entities() if e.kind == RADAR)
+    radar.hp, radar.damage_state = 5, "DISABLED"
+    run_to(w, 10)
+    assert w.blobs["COALITION"] == ()

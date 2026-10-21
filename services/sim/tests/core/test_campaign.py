@@ -121,9 +121,7 @@ def hold_seven(w: World) -> None:
 def put(w: World, node: str, n: int, side: Side = "COALITION", dx: float = 0.0) -> Entity:
     """A commander's ground unit at `node` (`dx` metres east); the commander is number `n`."""
     kind: UnitKind = INFANTRY if side == "COALITION" else "ENEMY_ARMOR"
-    e = w.spawn(
-        kind, side, "COMMANDER", Vec2(POS[node][0] + dx, POS[node][1]), commander_id=cid(n), hp=None
-    )
+    e = w.spawn(kind, side, "COMMANDER", Vec2(POS[node][0] + dx, POS[node][1]), commander_id=cid(n))
     e.last_node = node
     return e
 
@@ -671,7 +669,7 @@ def test_format_12_snapshots_are_refused() -> None:
     raw["v"] = 12
     with pytest.raises(ValueError, match="unsupported snapshot format version 12"):
         load(msgpack.packb(raw, use_bin_type=True))
-    assert world_mod.FORMAT_VERSION == 13
+    assert world_mod.FORMAT_VERSION == 14
 
 
 @pytest.mark.parametrize(

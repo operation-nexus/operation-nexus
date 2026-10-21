@@ -18,7 +18,11 @@ export type Event =
   | CampaignClockResumed
   | CampaignEnded
   | ObjectiveAnnounced
-  | ObjectiveResolved;
+  | ObjectiveResolved
+  | WeaponFired
+  | WeaponImpact
+  | UnitDamageStateChanged
+  | UnitDespawned;
 
 /**
  * A unit appears (CONTRACTS §6). Public view: an ENEMY spawn only if its spawn point is tracked; otherwise dropped.
@@ -141,7 +145,7 @@ export interface ReserveQueueJoined {
   position: number;
 }
 /**
- * A unit is lost (CONTRACTS §6; STATE-MACHINES §4.1 Destroyed). First producer: an aircraft out of fuel crashes, killer null and no assists (NX-368). Public view: a hidden killer becomes null (FOW-3); a hidden victim is dropped.
+ * A unit is lost (CONTRACTS §6; STATE-MACHINES §4.1 Destroyed). Produced by fuel exhaustion (NX-368) and a captured base (NX-125), both with killer null and no assists, and by combat (NX-124): killer is the shooter of the killing hit and the assists are the other shooters that hit the unit within combat.assist_window_s. Public view: a hidden killer becomes null (FOW-3); a hidden victim is dropped.
  */
 export interface UnitDestroyed {
   kind: "UnitDestroyed";
@@ -162,11 +166,11 @@ export interface UnitDestroyed {
    */
   entity_id: number;
   /**
-   * null: no killer (fuel exhaustion), or a hidden killer in the public view.
+   * null: no killer (fuel exhaustion or loss of a captured base), or a hidden killer in the public view.
    */
   killer_id: number | null;
   /**
-   * No duplicates (producer). Not uniqueItems: that generates a set, whose order is not deterministic (SC-14).
+   * Combat: the other shooters that hit the unit within combat.assist_window_s, sorted, no duplicates (producer). Not uniqueItems: that generates a set, whose order is not deterministic (SC-14).
    *
    * @maxItems 32
    *
@@ -471,4 +475,122 @@ export interface ObjectiveResolved {
    * Items: UUIDv7, canonical lowercase (IDENTITY §1). Not a platform id.
    */
   participant_commander_ids: string[];
+}
+/**
+ * A unit fired a weapon at a target (CONTRACTS §6; COMBAT CB-2). The shot is not an entity; the outcome is not known yet (Q-GP-12). impact_tick is on the campaign clock (running ticks), not the tick counter: a pause delays the real tick, so it is not a Tick; a gun's equals the clock value of the tick it fired in. Public view: a hidden shooter shows no tracer (Q-CT-3).
+ */
+export interface WeaponFired {
+  kind: "WeaponFired";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Sequential per campaign, never reused (SC-4).
+   */
+  shooter_id: number;
+  /**
+   * Sequential per campaign, never reused (SC-4).
+   */
+  target_id: number;
+  /**
+   * Weapon profile id from content/weapons.yaml (CONFIG-AND-CONTENT §7.2).
+   */
+  weapon: string;
+  /**
+   * The campaign-clock tick the shot lands on.
+   */
+  impact_tick: number;
+}
+/**
+ * A shot landed (CONTRACTS §6; COMBAT CB-3, CB-4), on its impact tick after the Pk roll. A fizzle (the shooter's side no longer tracks the target, the target is out of the weapon's range or bands, or the target or shooter is gone) is a miss with no roll (Q-FOW-16). Public view: a hidden shooter shows as an unknown contact.
+ */
+export interface WeaponImpact {
+  kind: "WeaponImpact";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Sequential per campaign, never reused (SC-4).
+   */
+  shooter_id: number;
+  /**
+   * Sequential per campaign, never reused (SC-4).
+   */
+  target_id: number;
+  /**
+   * Weapon profile id from content/weapons.yaml (CONFIG-AND-CONTENT §7.2).
+   */
+  weapon: string;
+  hit: boolean;
+}
+/**
+ * A hit moved a unit to a worse damage state (CONTRACTS §6; COMBAT CB-6). One event per hit, from the state before to the state after; none when the hit destroys the unit (UnitDestroyed). Public view: dropped for a victim the viewer side does not currently observe (FOW-13).
+ */
+export interface UnitDamageStateChanged {
+  kind: "UnitDamageStateChanged";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Sequential per campaign, never reused (SC-4).
+   */
+  entity_id: number;
+  /**
+   * Q-CBT-1. Destroyed is a lifecycle event (UnitDestroyed), not a damage state.
+   */
+  from: "HEALTHY" | "DAMAGED" | "MISSION_KILL" | "DISABLED";
+  /**
+   * Q-CBT-1. Destroyed is a lifecycle event (UnitDestroyed), not a damage state.
+   */
+  to: "HEALTHY" | "DAMAGED" | "MISSION_KILL" | "DISABLED";
+}
+/**
+ * A unit was removed without being destroyed (CONTRACTS §6). WRECKED is the first producer: a Disabled unit removed after combat.disabled_timeout_s, its cargo lost (COMBAT CB-7, Q-CBT-14). Other reasons join with their producers (rule 6a). Public view: a hidden ENEMY unit is dropped.
+ */
+export interface UnitDespawned {
+  kind: "UnitDespawned";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Sequential per campaign, never reused (SC-4).
+   */
+  entity_id: number;
+  reason: "WRECKED";
 }

@@ -103,8 +103,8 @@ CASES: dict[str, Plan] = {
         "at west-airbase (paying their loadout) and move along their routes for 10 game minutes; "
         "trucks and units with no target spawn at the sanctuary; rejects for a unit in sortie, "
         "an unknown node, a node no road reaches and an unplayable role (NX-122). Aircraft "
-        "without a target stay landed; the strike jet orbits east-airbase, then RTBs at bingo "
-        "fuel, lands at west-airbase and refuels (NX-368, NX-123).",
+        "without a target stay landed; the strike jet flies toward east-airbase and is shot down "
+        "by the enemy SAM site there, after a first hit, before it arrives (NX-124).",
         STRAIT_JOINS,
         (),
         True,

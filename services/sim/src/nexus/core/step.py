@@ -11,6 +11,7 @@ from nexus.contracts.gen.commands.command import Command
 from nexus.contracts.gen.events.event import Event
 from nexus.core.campaign import campaign
 from nexus.core.capture import capture
+from nexus.core.combat import resolve as resolve_combat
 from nexus.core.fog import sense
 from nexus.core.handlers import HANDLERS as HANDLERS
 from nexus.core.handlers import Handler as Handler
@@ -63,13 +64,17 @@ def movement(
     (GAMEPLAY §5). Time left after reaching a waypoint carries on to the next one in the same tick.
     Aircraft also take off, burn fuel, check bingo, orbit, land and crash here (`_fly`, NX-368).
     Paused (SC-11): nothing moves or burns. A path is followed as given; JOIN assigns one (NX-122).
+    A Disabled unit (a wreck, COMBAT CB-7) stops where it is: no path, no fuel burn, no crash. An
+    airborne aircraft never gets here: combat destroys it the moment it is Disabled (Q-SIM-66).
     """
     if world.frozen:
         return
     rules, lost = world.rules, []
     landing = {side: world.landing_bases(side) for side in SIDES}  # capture runs later
     for e in world.entities():
-        if rules is None:  # nothing may move: only parked, stateless or LANDED units
+        if e.damage_state == "DISABLED":
+            e.path, e.vel = [], _STOPPED
+        elif rules is None:  # nothing may move: only parked, stateless or LANDED units
             if e.path or e.state not in (None, _LANDED):
                 raise ValueError(f"entity {e.id} moves but the world has no rules")
             e.vel = _STOPPED
@@ -260,7 +265,8 @@ def sensing(world: World, c: Sequence[Command], h: Mapping[str, Handler], out: l
 
 
 def combat(world: World, c: Sequence[Command], h: Mapping[str, Handler], out: list[Event]) -> None:
-    """Combat resolution: NX-124."""
+    """Combat (`nexus.core.combat`, NX-124): new shots fire, then pending impacts land (SC-13)."""
+    resolve_combat(world, out)
 
 
 def logistics_capture(

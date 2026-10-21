@@ -11,8 +11,10 @@ fuel at `Supply.rearm_milli` thousandths per tick and owes `Entity.rearm_milli`;
 the stock as the debt reaches 1000, so every unit debited equals thousandths bought.
 
 "Friendly" is the node's live owner (`World.owner`, which capture changes, NX-125). Routes avoid
-no bridge until combat can destroy one (NX-124). The `logistics` system is deterministic: entities
-in id order, candidate nodes in id order, ties on distance by node id.
+no bridge until combat can destroy one (NX-124 part 3). A Disabled unit neither unloads nor
+refuels and keeps its cargo until it is removed as a wreck (COMBAT CB-7, GP-5). The `logistics`
+system is deterministic: entities in id order, candidate nodes in id order, ties on distance by
+node id.
 """
 
 import math
@@ -28,7 +30,7 @@ from nexus.core.roads import shortest_path
 from nexus.core.rules import Rules
 from nexus.core.world import Entity, World
 
-_NO_BLOCKED = frozenset[str]()  # no bridge is destroyed until combat (NX-124)
+_NO_BLOCKED = frozenset[str]()  # no bridge is destroyed until combat part 3 (NX-124)
 _MILLI = 1000
 _EPS = 1e-6  # float noise in a fuel-to-milli conversion; below any real milli-unit of stock
 
@@ -178,7 +180,13 @@ def logistics(world: World, out: list[Event]) -> None:
     if world.frozen or rules is None:
         return
     for e in world.entities():
-        if e.cargo and not e.path and e.last_node is not None:
+        if (
+            e.damage_state == "DISABLED"
+        ):  # a wreck keeps its cargo and fuel (CB-7); report a cut stop
+            if e.delivered and e.last_node is not None:
+                end_stop(world, e, e.last_node, out)
+            _end_refuel(world, e, out)
+        elif e.cargo and not e.path and e.last_node is not None:
             if friendly(world, e.side, e.last_node):
                 _unload(world, rules, e, e.last_node, out)
             else:

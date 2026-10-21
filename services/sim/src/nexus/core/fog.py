@@ -12,11 +12,14 @@ while paused (FOW-9). Between passes everything reads the last computed view (Q-
 use the same code (FOW-4).
 
 Terrain masking (Q-FOW-3): a GROUND target in a cell of `Rules.masking` is tracked only by a sensor
-standing in one of that cell's regions. Aircraft join when entities carry an altitude band
-(NOE/LOW, `default_alt_band`, NX-124); STATIC targets are never masked (COMBAT §5.3).
+standing in one of that cell's regions. Aircraft join when sensors use the altitude band
+(`Entity.alt_band` exists since NX-124; combat's masking factor already uses it); STATIC targets
+are never masked (COMBAT §5.3).
 
 Emitters and discovery (FOW-11, FOW-13): `Entity.emitting` is None for a kind that never emits,
-True while emitting, False while dark; a dark site senses nothing. On each pass a side observes
+True while emitting, False while dark; a dark site senses nothing, and neither does a Disabled
+facility (it neither senses, emits nor listens until repaired, GAMEPLAY §5b; it is still tracked
+and discovered like any site). On each pass a side observes
 an enemy facility it tracks, or an emitting one within `sensor.passive_range_m` of one of its
 passive sensors; observing it writes its permanent `FacilityMarker` with the site's kind, variant,
 position and emitting flag as of this tick. An unobserved site's marker keeps its old values.
@@ -130,6 +133,7 @@ def _detect(
             if s.side == side
             and (r := rules.sensor_radius_m[s.kind]) > 0
             and s.emitting is not False  # dark: no coverage (FOW-11)
+            and not is_off_facility(rules, s)
         ),
         key=lambda sensor: -sensor[1],
     )
@@ -176,6 +180,17 @@ def _regions(rules: Rules, pos: Vec2) -> frozenset[str]:
     return rules.masking.get(cell, _NOWHERE)
 
 
+def in_masking_region(rules: Rules, pos: Vec2) -> bool:
+    """`pos` is inside a theater masking region (Q-FOW-3); combat's masking factor uses it too."""
+    return bool(_regions(rules, pos))
+
+
+def is_off_facility(rules: Rules, e: Entity) -> bool:
+    """A Disabled facility does nothing until repaired (GAMEPLAY §5b): it senses, emits and listens
+    for no one, fires on no one, and is not a valid target (COMBAT CB-1)."""
+    return e.damage_state == "DISABLED" and rules.domain[e.kind] == _STATIC
+
+
 def _masked(rules: Rules, target: Entity, sensor_regions: frozenset[str]) -> bool:
     """A GROUND target in a masking region, seen by a sensor in none of its regions."""
     if rules.domain[target.kind] != _GROUND:
@@ -192,14 +207,20 @@ def _heard(world: World, rules: Rules, side: Side) -> list[int]:
     emitters = [
         e
         for e in world.entities()
-        if e.side != side and e.emitting and rules.domain[e.kind] == _STATIC
+        if e.side != side
+        and e.emitting
+        and rules.domain[e.kind] == _STATIC
+        and not is_off_facility(rules, e)
     ]
     if not emitters:
         return []
     ears = [
         (s.pos, r * r)
         for s in world.entities()
-        if s.side == side and (r := rules.passive_range_m[s.kind]) > 0 and s.emitting is not False
+        if s.side == side
+        and (r := rules.passive_range_m[s.kind]) > 0
+        and s.emitting is not False
+        and not is_off_facility(rules, s)
     ]
     return [e.id for e in emitters if any(_dist2(e.pos, p) <= r2 for p, r2 in ears)]
 
@@ -213,8 +234,13 @@ def _discover(world: World, rules: Rules, side: Side, tracked: list[int]) -> Non
     markers, tick = world.markers[side], world.campaign.tick + 1  # the tick being computed
     for i in seen:
         e = world.get(i)
-        markers[i] = FacilityMarker(e.kind, e.variant, e.pos, e.emitting, tick)
+        markers[i] = FacilityMarker(e.kind, e.variant, e.pos, _emitting(rules, e), tick)
     world.markers[side] = dict(sorted(markers.items()))
+
+
+def _emitting(rules: Rules, e: Entity) -> bool | None:
+    """The marker's `emitting`: a Disabled emitter does not emit, so False (Q-SIM-66)."""
+    return False if e.emitting and is_off_facility(rules, e) else e.emitting
 
 
 def hand_over(world: World, facility: Entity, loser: Side) -> None:
@@ -225,8 +251,9 @@ def hand_over(world: World, facility: Entity, loser: Side) -> None:
     world.markers[facility.side].pop(facility.id, None)
     world.contacts[loser].pop(facility.id, None)
     markers = world.markers[loser]
+    emitting = facility.emitting if world.rules is None else _emitting(world.rules, facility)
     markers[facility.id] = FacilityMarker(
-        facility.kind, facility.variant, facility.pos, facility.emitting, world.campaign.tick + 1
+        facility.kind, facility.variant, facility.pos, emitting, world.campaign.tick + 1
     )
     world.markers[loser] = dict(sorted(markers.items()))
 
@@ -238,7 +265,10 @@ def _sigint(world: World, rules: Rules, side: Side) -> tuple[Blob, ...]:
     radars = [
         (s.pos, (rules.sensor_radius_m[s.kind] * rules.sigint_range_mult) ** 2)
         for s in world.entities()
-        if s.side == side and s.kind == _RADAR and s.emitting is not False
+        if s.side == side
+        and s.kind == _RADAR
+        and s.emitting is not False
+        and not is_off_facility(rules, s)
     ]
     if not radars:
         return ()
