@@ -77,7 +77,7 @@ Notes on the diagram (owner decisions 2026-10-17):
 
 | Module | Responsibility | May import | Must not |
 |---|---|---|---|
-| `nexus.core` | Deterministic sim kernel (no side effects outside `state`): entities, kinematics, combat, FoW, logistics, capture, director rules | `nexus.contracts`, stdlib, numpy | Any I/O, asyncio, time, random (except injected `SimRng`) |
+| `nexus.core` | Deterministic sim kernel (no side effects outside `state`): entities, kinematics, combat, FoW, logistics, capture, director rules | `nexus.contracts`, stdlib, numpy, msgpack (canonical encoding for `state_hash` and snapshots, SIM-CORE §5, Q-SIM-30) | Any I/O, asyncio, time, random (except injected `SimRng`) |
 | `nexus.contracts` | Generated types from `/contracts` | — | Logic |
 | `nexus.runtime` | Fixed-step scheduler, command inbox, snapshotting, command log, state hashing | core | Platform code |
 | `nexus.gateway` | Platform adapters (`TwitchAdapter`, later `YouTubeAdapter`, `KickAdapter`) → `ChatEnvelope` | contracts | core |
