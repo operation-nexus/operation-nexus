@@ -12,7 +12,8 @@
     "air",
     "fow",
     "logistics",
-    "capture"
+    "capture",
+    "campaign"
   ],
   "properties": {
     "schema_version": {
@@ -38,9 +39,126 @@
     },
     "capture": {
       "$ref": "#/$defs/Capture"
+    },
+    "campaign": {
+      "$ref": "#/$defs/Campaign"
     }
   },
   "$defs": {
+    "Campaign": {
+      "description": "Campaign clock, end conditions, timed objectives and momentum (§6.6, GAMEPLAY §9; NX-126). Durations are game time, converted to ticks at load.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "time_limit_h",
+        "victory_node_frac",
+        "victory_hold_min",
+        "objective_period_min",
+        "objective_mode",
+        "score",
+        "momentum"
+      ],
+      "properties": {
+        "time_limit_h": {
+          "description": "Game hours of running clock until the time limit ends the campaign, unit h of game time (Q-GD-29, Q-TEST-6).",
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "x-unit": "h (game)",
+          "x-hot-reload": false
+        },
+        "victory_node_frac": {
+          "description": "Share of strategic nodes (AIRBASE, FOB, PORT) the coalition must hold to win, unit fraction (GAMEPLAY §9).",
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "maximum": 1,
+          "x-unit": "fraction",
+          "x-hot-reload": false
+        },
+        "victory_hold_min": {
+          "description": "Game minutes the coalition must hold victory_node_frac without a dip, unit min of game time (GAMEPLAY §9).",
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "x-unit": "min (game)",
+          "x-hot-reload": false
+        },
+        "objective_period_min": {
+          "description": "Game minutes an objective lasts before it expires, unit min of game time (GAMEPLAY §9, STATE-MACHINES 4.5).",
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "x-unit": "min (game)",
+          "x-hot-reload": false
+        },
+        "objective_mode": {
+          "description": "timed: one system objective at a time; off: none (Q-GD-19). Set per campaign by the owner or an admin (Q-ALN-10).",
+          "enum": [
+            "timed",
+            "off"
+          ],
+          "x-unit": "enum",
+          "x-hot-reload": false
+        },
+        "score": {
+          "description": "Time-limit score (Q-GD-29, Q-SIM-64).",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "average_weight",
+            "final_weight",
+            "objective_points"
+          ],
+          "properties": {
+            "average_weight": {
+              "description": "Points for a side's whole average share of strategic nodes over the campaign, unit points (STATE-MACHINES 4.4, Q-SIM-64).",
+              "type": "number",
+              "minimum": 0,
+              "x-unit": "points",
+              "x-hot-reload": false
+            },
+            "final_weight": {
+              "description": "Points for a side's share of strategic nodes at the final tick, unit points (STATE-MACHINES 4.4, Q-SIM-64).",
+              "type": "number",
+              "minimum": 0,
+              "x-unit": "points",
+              "x-hot-reload": false
+            },
+            "objective_points": {
+              "description": "Points to the coalition per completed objective, unit points (STATE-MACHINES 4.4).",
+              "type": "number",
+              "minimum": 0,
+              "x-unit": "points per objective",
+              "x-hot-reload": false
+            }
+          }
+        },
+        "momentum": {
+          "description": "Momentum weights (Q-SIM-60): momentum % = nodes_weight x the coalition's share of strategic nodes + supply_weight x its supply fill. They must add up to 100.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "nodes_weight",
+            "supply_weight"
+          ],
+          "properties": {
+            "nodes_weight": {
+              "description": "Weight of the coalition's share of strategic nodes, unit percentage points.",
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100,
+              "x-unit": "percentage points",
+              "x-hot-reload": false
+            },
+            "supply_weight": {
+              "description": "Weight of the coalition's supply fill, unit percentage points.",
+              "type": "number",
+              "minimum": 0,
+              "maximum": 100,
+              "x-unit": "percentage points",
+              "x-hot-reload": false
+            }
+          }
+        }
+      }
+    },
     "Air": {
       "description": "Aircraft fuel and idle orbit (§6.1, NX-368).",
       "type": "object",

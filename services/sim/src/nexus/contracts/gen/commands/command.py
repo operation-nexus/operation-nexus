@@ -7,10 +7,20 @@ from typing import Annotated
 
 from pydantic import Field
 
-from . import join, sys_set_callsign
+from . import (
+    join,
+    staff_campaign_end,
+    staff_campaign_pause,
+    staff_campaign_resume,
+    sys_set_callsign,
+)
 
 type Command = Annotated[
-    join.JoinCommand | sys_set_callsign.SysSetCallsignCommand,
+    join.JoinCommand
+    | sys_set_callsign.SysSetCallsignCommand
+    | staff_campaign_pause.StaffCampaignPauseCommand
+    | staff_campaign_resume.StaffCampaignResumeCommand
+    | staff_campaign_end.StaffCampaignEndCommand,
     Field(
         description="Discriminated union of all commands on kind (CONTRACTS §5).",
         discriminator="kind",

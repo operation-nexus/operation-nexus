@@ -1,5 +1,6 @@
 """Runtime tests: inbox, fixed-step clock and loop (NX-102, SIM-CORE §5, SC-6)."""
 
+import dataclasses
 import threading
 from collections.abc import Callable
 from pathlib import Path
@@ -19,7 +20,8 @@ from nexus.runtime.loop import SimRuntime
 
 CAMPAIGN_ID = "0192f3a4-5b6c-7d8e-9f01-23456789abcd"
 COMMANDER = "0192f0c1-7a2b-7c3d-8e4f-0123456789ab"
-RULES = load_campaign_config().rules
+# The campaign layer is off: these tests are about the runtime loop (NX-126).
+RULES = dataclasses.replace(load_campaign_config().rules, campaign=None)
 
 
 def make_join(**fields: object) -> JoinCommand:

@@ -16,8 +16,12 @@
     "Domain": {"enum": ["AIR", "GROUND", "SEA", "STATIC"], "description": "SEA is P3 (Q-GD-8). STATIC = facilities (Q-GP-25)."},
     "CallsignKind": {"enum": ["GENERATED", "CUSTOM", "TOMBSTONE"], "description": "IDENTITY \u00a72, DATA-MODEL \u00a74.2."},
     "CommandSource": {"enum": ["CHAT", "ADVISOR", "STAFF", "SYSTEM"]},
-    "CommandKind": {"enum": ["JOIN", "SYS_SET_CALLSIGN"], "description": "Grows one kind at a time, with each handler (AGENTS.md rule 6a)."},
-    "RejectReason": {"enum": ["ROLE_UNKNOWN", "UNIT_IN_SORTIE", "RESPAWN_COOLDOWN", "NODE_UNKNOWN", "NODE_INVALID_FOR_UNIT", "FOLLOW_TARGET_INVALID", "CAMPAIGN_PAUSED", "INVALID_PAYLOAD", "INTERNAL_ERROR", "RESERVE_QUEUE_FULL"], "description": "CONTRACTS §5.3. Grows one value at a time, with the code that emits it (rule 6a)."},
-    "EventKind": {"enum": ["UnitSpawned", "CommandRejected", "ReserveQueueJoined", "UnitDestroyed", "CallsignChanged"], "description": "Grows one kind at a time, with each producer (rule 6a)."}
+    "PauseReasonCategory": {"enum": ["STAFF", "TECHNICAL", "MAINTENANCE", "CEASEFIRE"], "description": "Q-ALN-3. STAFF = a manual pause; TECHNICAL = offline auto-pause; MAINTENANCE = weekly window; CEASEFIRE = owner Ceasefire mode."},
+    "StaffPauseSubReason": {"enum": ["RAID", "ABUSE", "CONTENT", "OTHER"], "description": "Q-ALN-31. Optional, and only with category STAFF."},
+    "CampaignResult": {"enum": ["VICTORY", "DEFEAT", "TIME_LIMIT", "ABORTED"], "description": "Q-GD-7, Q-GP-14. Defeat waits for combat (Q-SIM-62)."},
+    "ObjectiveOutcome": {"enum": ["COMPLETED", "EXPIRED"]},
+    "CommandKind": {"enum": ["JOIN", "SYS_SET_CALLSIGN", "STAFF_CAMPAIGN_PAUSE", "STAFF_CAMPAIGN_RESUME", "STAFF_CAMPAIGN_END"], "description": "Grows one kind at a time, with each handler (AGENTS.md rule 6a)."},
+    "RejectReason": {"enum": ["ROLE_UNKNOWN", "UNIT_IN_SORTIE", "RESPAWN_COOLDOWN", "NODE_UNKNOWN", "NODE_INVALID_FOR_UNIT", "FOLLOW_TARGET_INVALID", "CAMPAIGN_PAUSED", "INVALID_PAYLOAD", "INTERNAL_ERROR", "RESERVE_QUEUE_FULL", "ALREADY_PAUSED", "NOT_PAUSED", "CAMPAIGN_NOT_RUNNING", "REASON_REQUIRED"], "description": "CONTRACTS §5.3. Grows one value at a time, with the code that emits it (rule 6a)."},
+    "EventKind": {"enum": ["UnitSpawned", "CommandRejected", "ReserveQueueJoined", "UnitDestroyed", "CallsignChanged", "CampaignClockPaused", "CampaignClockResumed", "CampaignEnded", "ObjectiveAnnounced", "ObjectiveResolved"], "description": "Grows one kind at a time, with each producer (rule 6a)."}
   }
 }

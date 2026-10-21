@@ -81,14 +81,27 @@ capture:
   garrison_mult: 3.0
   empty_base_mult: 0.5
   decay_per_s: 0.008333333333333333
+campaign:
+  time_limit_h: 72
+  victory_node_frac: 0.80
+  victory_hold_min: 30
+  objective_period_min: 15
+  objective_mode: timed
+  score:
+    average_weight: 50
+    final_weight: 50
+    objective_points: 5
+  momentum:
+    nodes_weight: 70
+    supply_weight: 30
 """
 # Pinned from this implementation's first run (NX-367: balance, units, theater; re-pinned NX-121
 # for speed_mps, NX-122 for slots and again for the GP-3 cap and queue, NX-368 for air fuel and
 # orbit, NX-150 for sensors, stealth and fow, passive ranges, and SIGINT and paint keys, NX-123
 # for logistics and the rear source, NX-123 part 2 for loadouts, rearm and forward deploy, NX-125
-# for capture); a
+# for capture, NX-126 for campaign); a
 # change means every config_hash moved.
-GOLDEN_CONFIG_HASH = "14080d8f6754ae09d2f28d3a3e308efc037144c24bc1f851e3236cd96c49a654"
+GOLDEN_CONFIG_HASH = "a460ac48e5a62e9bc857e7298666be3befc562ef338c1efdfffab69afae90155"
 SLOTS = {
     "max_live_per_commander": 1,
     "respawn_delay_s": 20,
@@ -137,6 +150,15 @@ CAPTURE = {
     "empty_base_mult": 0.5,
     "decay_per_s": 0.008333333333333333,
 }
+CAMPAIGN = {
+    "time_limit_h": 72,
+    "victory_node_frac": 0.80,
+    "victory_hold_min": 30,
+    "objective_period_min": 15,
+    "objective_mode": "timed",
+    "score": {"average_weight": 50, "final_weight": 50, "objective_points": 5},
+    "momentum": {"nodes_weight": 70, "supply_weight": 30},
+}
 CFG = BalanceConfig.model_validate(
     {
         "schema_version": 1,
@@ -146,6 +168,7 @@ CFG = BalanceConfig.model_validate(
         "fow": FOW,
         "logistics": LOGISTICS,
         "capture": CAPTURE,
+        "campaign": CAMPAIGN,
     }
 )
 
@@ -206,6 +229,11 @@ def test_default_profile_loads_and_matches_golden_hash() -> None:
         ("  forward_deploy_min_surplus: 50\n", "logistics.forward_deploy_min_surplus"),
         ("  starved_loadout:\n    fuel_frac: 0.5\n", "logistics.starved_loadout"),
         ("    STRIKE_FIGHTER: 20\n", "logistics.loadout_cost.STRIKE_FIGHTER"),
+        ("  objective_period_min: 15\n", "campaign.objective_period_min"),
+        ("  objective_mode: timed\n", "campaign.objective_mode"),
+        ("    objective_points: 5\n", "campaign.score.objective_points"),
+        ("    final_weight: 50\n", "campaign.score.final_weight"),
+        ("    supply_weight: 30\n", "campaign.momentum.supply_weight"),
     ],
 )
 def test_each_missing_required_key_names_key_and_file(tmp_path: Path, line: str, key: str) -> None:
@@ -391,6 +419,10 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "capture: {radius_m: 2000.0, time_s: 120.0, multi_unit_exponent: 0.5, quiet_floor: 0.6,\n"
         "  quiet_ref: 50, min_time_s: 30.0, logi_weight: 0.5, garrison_mult: 3.0,\n"
         "  empty_base_mult: 0.5, decay_per_s: 0.008333333333333333}\n"
+        "campaign: {momentum: {supply_weight: 30, nodes_weight: 70}, objective_mode: timed,\n"
+        "  score: {objective_points: 5, final_weight: 50, average_weight: 50},\n"
+        "  objective_period_min: 15,\n"
+        "  victory_hold_min: 30, victory_node_frac: 0.80, time_limit_h: 72}\n"
         "schema_version:   1\n"
     )
     assert balance_hash(write(tmp_path, reformatted)) == balance_hash(DEFAULT)
@@ -465,6 +497,7 @@ def test_world_ticks_is_the_least_whole_tick_count_not_shorter(
             "fow": FOW,
             "logistics": LOGISTICS,
             "capture": CAPTURE,
+            "campaign": CAMPAIGN,
         }
     )
     n = world_ticks(seconds, cfg)
@@ -473,3 +506,24 @@ def test_world_ticks_is_the_least_whole_tick_count_not_shorter(
         s, ts = Decimal(repr(seconds)), Decimal(repr(time_scale))
         assert n * ts >= s * 10  # n ticks cover the configured world seconds (Q-ALN-6)
         assert (n - 1) * ts < s * 10  # and one tick fewer would not
+
+
+def test_momentum_weights_must_add_up_to_100(tmp_path: Path) -> None:
+    path = write(tmp_path, VALID.replace("supply_weight: 30", "supply_weight: 31"))
+    with pytest.raises(
+        ConfigError, match=r"campaign\.momentum: the two weights must add up to 100"
+    ):
+        load_balance(path)
+    # exact decimals: 33.3 + 66.7 is 100, whatever the binary floats say
+    ok = VALID.replace("nodes_weight: 70", "nodes_weight: 33.3").replace(
+        "supply_weight: 30", "supply_weight: 66.7"
+    )
+    assert load_balance(write(tmp_path, ok)).campaign.momentum.supply_weight == 66.7
+
+
+def test_game_ticks_in_minutes_and_hours() -> None:
+    assert game_ticks(30, CFG, unit_s=60) == 18_000  # victory_hold_min
+    assert game_ticks(72, CFG, unit_s=3600) == 2_592_000  # time_limit_h
+    assert (
+        game_ticks(0.1, CFG, unit_s=3600) == 3600
+    )  # exact decimal: 0.1 h is 360 s, not 360.0000..1

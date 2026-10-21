@@ -9,9 +9,14 @@ from pydantic import Field
 
 from . import (
     callsign_changed,
+    campaign_clock_paused,
+    campaign_clock_resumed,
+    campaign_ended,
     capture_started,
     command_rejected,
     node_captured,
+    objective_announced,
+    objective_resolved,
     rearm_stalled,
     reserve_queue_joined,
     supply_consumed,
@@ -30,7 +35,12 @@ type Event = Annotated[
     | supply_consumed.SupplyConsumed
     | rearm_stalled.RearmStalled
     | capture_started.CaptureStarted
-    | node_captured.NodeCaptured,
+    | node_captured.NodeCaptured
+    | campaign_clock_paused.CampaignClockPaused
+    | campaign_clock_resumed.CampaignClockResumed
+    | campaign_ended.CampaignEnded
+    | objective_announced.ObjectiveAnnounced
+    | objective_resolved.ObjectiveResolved,
     Field(
         description="Discriminated union of all sim events on kind (CONTRACTS §6).",
         discriminator="kind",

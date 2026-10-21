@@ -175,7 +175,7 @@ def logistics(world: World, out: list[Event]) -> None:
     full or the truck drives off; it emits one `SupplyDelivered` for the units unloaded, none for 0.
     """
     rules = world.rules
-    if world.campaign.clock_paused or rules is None:
+    if world.frozen or rules is None:
         return
     for e in world.entities():
         if e.cargo and not e.path and e.last_node is not None:

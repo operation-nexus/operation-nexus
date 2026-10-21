@@ -173,6 +173,9 @@ def load_balance(path: Path) -> BalanceConfig:
     cfg = load_model(path, BalanceConfig)
     if cfg.fow.sigint_size_l_min <= cfg.fow.sigint_size_m_min:
         raise ConfigError(f"{path}: fow.sigint_size_l_min: must be above fow.sigint_size_m_min")
+    weights = cfg.campaign.momentum
+    if _exact(weights.nodes_weight) + _exact(weights.supply_weight) != 100:
+        raise ConfigError(f"{path}: campaign.momentum: the two weights must add up to 100")
     return cfg
 
 
@@ -214,9 +217,10 @@ def _duration(seconds: float) -> Fraction:
     return _exact(seconds)
 
 
-def game_ticks(seconds: float, cfg: BalanceConfig) -> int:
-    """Whole ticks for a game-time duration, rounded up (CFG-9, Q-ALN-6)."""
-    return math.ceil(_duration(seconds) * cfg.sim.tick_hz)
+def game_ticks(seconds: float, cfg: BalanceConfig, *, unit_s: int = 1) -> int:
+    """Whole ticks for a game-time duration, rounded up (CFG-9, Q-ALN-6). `unit_s` is the seconds
+    in the key's unit (60 for minutes, 3600 for hours), applied to the exact decimal."""
+    return math.ceil(_duration(seconds) * unit_s * cfg.sim.tick_hz)
 
 
 def world_ticks(seconds: float, cfg: BalanceConfig) -> int:

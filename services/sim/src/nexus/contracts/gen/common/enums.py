@@ -77,8 +77,37 @@ type CallsignKind = Annotated[
 type CommandSource = Literal["CHAT", "ADVISOR", "STAFF", "SYSTEM"]
 
 
+type PauseReasonCategory = Annotated[
+    Literal["STAFF", "TECHNICAL", "MAINTENANCE", "CEASEFIRE"],
+    Field(
+        description="Q-ALN-3. STAFF = a manual pause; TECHNICAL = offline auto-pause; MAINTENANCE = weekly window; CEASEFIRE = owner Ceasefire mode."
+    ),
+]
+
+
+type StaffPauseSubReason = Annotated[
+    Literal["RAID", "ABUSE", "CONTENT", "OTHER"],
+    Field(description="Q-ALN-31. Optional, and only with category STAFF."),
+]
+
+
+type CampaignResult = Annotated[
+    Literal["VICTORY", "DEFEAT", "TIME_LIMIT", "ABORTED"],
+    Field(description="Q-GD-7, Q-GP-14. Defeat waits for combat (Q-SIM-62)."),
+]
+
+
+type ObjectiveOutcome = Literal["COMPLETED", "EXPIRED"]
+
+
 type CommandKind = Annotated[
-    Literal["JOIN", "SYS_SET_CALLSIGN"],
+    Literal[
+        "JOIN",
+        "SYS_SET_CALLSIGN",
+        "STAFF_CAMPAIGN_PAUSE",
+        "STAFF_CAMPAIGN_RESUME",
+        "STAFF_CAMPAIGN_END",
+    ],
     Field(description="Grows one kind at a time, with each handler (AGENTS.md rule 6a)."),
 ]
 
@@ -95,6 +124,10 @@ type RejectReason = Annotated[
         "INVALID_PAYLOAD",
         "INTERNAL_ERROR",
         "RESERVE_QUEUE_FULL",
+        "ALREADY_PAUSED",
+        "NOT_PAUSED",
+        "CAMPAIGN_NOT_RUNNING",
+        "REASON_REQUIRED",
     ],
     Field(
         description="CONTRACTS §5.3. Grows one value at a time, with the code that emits it (rule 6a)."
@@ -104,7 +137,16 @@ type RejectReason = Annotated[
 
 type EventKind = Annotated[
     Literal[
-        "UnitSpawned", "CommandRejected", "ReserveQueueJoined", "UnitDestroyed", "CallsignChanged"
+        "UnitSpawned",
+        "CommandRejected",
+        "ReserveQueueJoined",
+        "UnitDestroyed",
+        "CallsignChanged",
+        "CampaignClockPaused",
+        "CampaignClockResumed",
+        "CampaignEnded",
+        "ObjectiveAnnounced",
+        "ObjectiveResolved",
     ],
     Field(description="Grows one kind at a time, with each producer (rule 6a)."),
 ]

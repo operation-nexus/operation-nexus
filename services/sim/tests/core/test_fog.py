@@ -35,7 +35,8 @@ from nexus.core.world import (
 )
 from nexus.runtime.campaign_config import load_campaign_config
 
-SHIPPED = load_campaign_config().rules
+# The campaign layer is off: these tests are about sensing, not objectives (NX-126).
+SHIPPED = replace(load_campaign_config().rules, campaign=None)
 RADAR: UnitKind = "RADAR_SITE"
 TRUCK: UnitKind = "LOGI_TRUCK"
 ARMOR: UnitKind = "ENEMY_ARMOR"

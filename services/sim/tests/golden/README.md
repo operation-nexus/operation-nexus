@@ -32,8 +32,7 @@ update, below). Cases without it start from an empty world with no rules.
 | `joins-strait-1` | 6,000 | Real JOINs on strait-1 with the shipped config: strike, recon and logistics units spawn at the sanctuary, ground units drive road routes and aircraft fly straight; rejects for a unit in sortie, an unknown node, a node no road reaches and an unplayable role (NX-122). Aircraft with no target stay landed at the sanctuary; the strike jet (forward-deployed at west-airbase, NX-123 part 2) reaches east-airbase on tick 1467 and orbits it, hits bingo fuel on tick 3644 and lands at west-airbase, the nearest coalition airbase, on tick 5101, where it refuels to full by tick 5157 (NX-368) |
 | `capture-strait-1` | 17,000 | One LOGI JOIN to the neutral `cross-n`: a capture run from the sanctuary of about 16,000 ticks, then `CaptureStarted` (tick 16008) and `NodeCaptured` NEUTRAL to COALITION with the JOINing commander (tick 16179): the truck alone fills the bar at 581,502 millionths of a percent a tick (weight 0.5, quiet 0.608, about 103.2 s; NX-125) |
 
-The reserve queue (GP-3) has no case yet: the shipped cap is 500 units, a pause has no logged
-command until NX-126 and nothing frees a slot until despawn and combat (NX-324, NX-124), so
+The reserve queue (GP-3) has no case yet: the shipped cap is 500 units, nothing frees a slot until despawn and combat (NX-324, NX-124), so
 `tests/core/test_reserve_queue.py` covers it with a test-only cap. Snapshot format 4 (NX-122:
 the reserve queue in world state) re-pinned every case's `state_hash` checkpoints; no event
 stream changed. Snapshot format 5 (NX-368: aircraft `state`, `fuel` and `orbit`, new catalog and
@@ -97,10 +96,12 @@ The orbit uses libm `atan2`, `cos` and `sin`. They are deterministic on one plat
 differ across platforms or libm versions, so every checkpoint here is pinned to the CI platform
 (ADR-0002, SC-3): a mismatch on another machine is not by itself a determinism bug.
 
+Snapshot format 13 (NX-126: the campaign clock `running_ticks`, `pause_reason`, `ended`, the hold run, the held-node sums, the objective counts and the active objective) re-pinned every case's checkpoints again, and the new `campaign` balance block gave `joins-strait-1` and `capture-strait-1` a new `config_hash` (the score keys `average_weight` and `final_weight`, Q-SIM-64, are part of it). The two `rules: "shipped"` cases now have the campaign layer on: `joins-strait-1` gains one event (15), `ObjectiveAnnounced` on tick 1 (a hold on `fob-s-w`, deadline 9001); `capture-strait-1` gains three (6): that announcement, then on tick 9001 `ObjectiveResolved` (the hold on `fob-s-w` COMPLETED: nobody takes it from the coalition and no unit is needed to hold it, Q-SIM-61, so no participants) and `ObjectiveAnnounced` for `east-airbase` (a capture, deadline 18001; the truck's `cross-n` capture on tick 16179 is not that node). Every later event's `event_seq` moved up with them. `empty-1h`, `stub-commands` and `poison-crash` have no rules, so only the format changed their checkpoints. No case sends a staff command yet (the `kernel` cases are built from JOINs only): `tests/core/test_campaign.py` covers pause, resume, end and the time limit.
+
 Q-SIM-19 cases still to come, each with the item that makes it runnable: the empty *theater* hour
 (theater loader NX-120), the 50-viewer scripted raid (real `JOIN` and orders, NX-122; viewer
-simulator NX-193), pause and resume mid-combat (combat NX-124, pause NX-126) and campaign end
-(NX-126).
+simulator NX-193), pause and resume mid-combat (combat NX-124) and campaign end (needs staff
+commands in `make_cases.py`, which builds JOINs only).
 
 ## Adding or changing a case
 

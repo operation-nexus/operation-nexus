@@ -9,6 +9,7 @@ from collections.abc import Callable, Mapping, Sequence
 
 from nexus.contracts.gen.commands.command import Command
 from nexus.contracts.gen.events.event import Event
+from nexus.core.campaign import campaign
 from nexus.core.capture import capture
 from nexus.core.fog import sense
 from nexus.core.handlers import HANDLERS as HANDLERS
@@ -33,10 +34,15 @@ type System = Callable[[World, Sequence[Command], Mapping[str, Handler], list[Ev
 def apply_commands(
     world: World, commands: Sequence[Command], handlers: Mapping[str, Handler], out: list[Event]
 ) -> None:
-    """Apply in `(target_tick, arrival_seq)` order (SC-6); an unhandled kind is rejected (SC-7)."""
+    """Apply in `(target_tick, arrival_seq)` order (SC-6); an unhandled kind is rejected (SC-7), and
+    so is every command once the campaign has ended (C-3), even one queued behind the ending."""
     for command in sorted(commands, key=lambda c: (c.target_tick, c.arrival_seq)):
         handler = handlers.get(command.kind)
-        if handler is None:
+        if world.campaign.ended:
+            # SC-15 (Q-SIM-15): the SC-11 safety actions (STAFF_BAN, FORGET, STAFF_KILL_SWITCH) must
+            # still apply after the end. None exists yet; exempt each here when it is added.
+            out.append(reject(world, command, "CAMPAIGN_NOT_RUNNING"))
+        elif handler is None:
             out.append(reject(world, command, "INTERNAL_ERROR"))
         else:
             handler(world, command, out)
@@ -58,7 +64,7 @@ def movement(
     Aircraft also take off, burn fuel, check bingo, orbit, land and crash here (`_fly`, NX-368).
     Paused (SC-11): nothing moves or burns. A path is followed as given; JOIN assigns one (NX-122).
     """
-    if world.campaign.clock_paused:
+    if world.frozen:
         return
     rules, lost = world.rules, []
     landing = {side: world.landing_bases(side) for side in SIDES}  # capture runs later
@@ -269,7 +275,8 @@ def logistics_capture(
 def objectives(
     world: World, c: Sequence[Command], h: Mapping[str, Handler], out: list[Event]
 ) -> None:
-    """Objectives: NX-126."""
+    """The campaign clock, score, objectives and end conditions: `nexus.core.campaign` (NX-126)."""
+    campaign(world, out)
 
 
 def lifecycle(
@@ -292,7 +299,7 @@ def _lifecycle_tombstoned(
 
 
 def _lifecycle(world: World, out: list[Event], *, drop: bool) -> None:
-    if world.campaign.clock_paused:
+    if world.frozen:
         return
     world.respawn_left = {k: left - 1 for k, left in sorted(world.respawn_left.items()) if left > 1}
     if world.reserve_queue:

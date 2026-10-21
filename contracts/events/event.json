@@ -3,6 +3,6 @@
   "$id": "https://nexus.local/contracts/events/event.json",
   "title": "Event",
   "description": "Discriminated union of all sim events on kind (CONTRACTS §6).",
-  "oneOf": [{"$ref": "unit_spawned.json"}, {"$ref": "command_rejected.json"}, {"$ref": "reserve_queue_joined.json"}, {"$ref": "unit_destroyed.json"}, {"$ref": "callsign_changed.json"}, {"$ref": "supply_delivered.json"}, {"$ref": "supply_consumed.json"}, {"$ref": "rearm_stalled.json"}, {"$ref": "capture_started.json"}, {"$ref": "node_captured.json"}],
+  "oneOf": [{"$ref": "unit_spawned.json"}, {"$ref": "command_rejected.json"}, {"$ref": "reserve_queue_joined.json"}, {"$ref": "unit_destroyed.json"}, {"$ref": "callsign_changed.json"}, {"$ref": "supply_delivered.json"}, {"$ref": "supply_consumed.json"}, {"$ref": "rearm_stalled.json"}, {"$ref": "capture_started.json"}, {"$ref": "node_captured.json"}, {"$ref": "campaign_clock_paused.json"}, {"$ref": "campaign_clock_resumed.json"}, {"$ref": "campaign_ended.json"}, {"$ref": "objective_announced.json"}, {"$ref": "objective_resolved.json"}],
   "discriminator": {"propertyName": "kind"}
 }

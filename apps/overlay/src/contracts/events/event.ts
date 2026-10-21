@@ -13,7 +13,12 @@ export type Event =
   | SupplyConsumed
   | RearmStalled
   | CaptureStarted
-  | NodeCaptured;
+  | NodeCaptured
+  | CampaignClockPaused
+  | CampaignClockResumed
+  | CampaignEnded
+  | ObjectiveAnnounced
+  | ObjectiveResolved;
 
 /**
  * A unit appears (CONTRACTS §6). Public view: an ENEMY spawn only if its spawn point is tracked; otherwise dropped.
@@ -88,7 +93,7 @@ export interface CommandRejected {
   /**
    * Grows one kind at a time, with each handler (AGENTS.md rule 6a).
    */
-  command_kind: "JOIN" | "SYS_SET_CALLSIGN";
+  command_kind: "JOIN" | "SYS_SET_CALLSIGN" | "STAFF_CAMPAIGN_PAUSE" | "STAFF_CAMPAIGN_RESUME" | "STAFF_CAMPAIGN_END";
   /**
    * CONTRACTS §5.3. Grows one value at a time, with the code that emits it (rule 6a).
    */
@@ -102,7 +107,11 @@ export interface CommandRejected {
     | "CAMPAIGN_PAUSED"
     | "INVALID_PAYLOAD"
     | "INTERNAL_ERROR"
-    | "RESERVE_QUEUE_FULL";
+    | "RESERVE_QUEUE_FULL"
+    | "ALREADY_PAUSED"
+    | "NOT_PAUSED"
+    | "CAMPAIGN_NOT_RUNNING"
+    | "REASON_REQUIRED";
   commander_id: string | null;
 }
 /**
@@ -326,6 +335,138 @@ export interface NodeCaptured {
   node_id: string;
   from: "COALITION" | "ENEMY" | "NEUTRAL";
   to: "COALITION" | "ENEMY" | "NEUTRAL";
+  /**
+   * Items: UUIDv7, canonical lowercase (IDENTITY §1). Not a platform id.
+   */
+  participant_commander_ids: string[];
+}
+/**
+ * The campaign clock stopped (CONTRACTS 6; STATE-MACHINES 4.4; NX-126). The staff note is not in the event. Public view: sub_reason omitted (Q-ALN-39).
+ */
+export interface CampaignClockPaused {
+  kind: "CampaignClockPaused";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Q-ALN-3. STAFF = a manual pause; TECHNICAL = offline auto-pause; MAINTENANCE = weekly window; CEASEFIRE = owner Ceasefire mode.
+   */
+  reason: "STAFF" | "TECHNICAL" | "MAINTENANCE" | "CEASEFIRE";
+  sub_reason: ("RAID" | "ABUSE" | "CONTENT" | "OTHER") | null;
+}
+/**
+ * The campaign clock restarted (CONTRACTS 6; NX-126). reason and sub_reason are those of the pause it ends. Public view: sub_reason omitted (Q-ALN-39).
+ */
+export interface CampaignClockResumed {
+  kind: "CampaignClockResumed";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Q-ALN-3. STAFF = a manual pause; TECHNICAL = offline auto-pause; MAINTENANCE = weekly window; CEASEFIRE = owner Ceasefire mode.
+   */
+  reason: "STAFF" | "TECHNICAL" | "MAINTENANCE" | "CEASEFIRE";
+  sub_reason: ("RAID" | "ABUSE" | "CONTENT" | "OTHER") | null;
+}
+/**
+ * The campaign ended (CONTRACTS 6; STATE-MACHINES 4.4, C-2; NX-126). Exactly one per campaign. score is each side's time-limit score at the end (Q-GD-29): weight x average share of strategic nodes over the campaign, plus the objective points for the coalition's completed objectives; it is filled for every result. winner is null on an exact TIME_LIMIT tie and for ABORTED. nodes_held_pct is the coalition's share of strategic nodes at the end, rounded to the nearest percent, halves up.
+ */
+export interface CampaignEnded {
+  kind: "CampaignEnded";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Q-GD-7, Q-GP-14. Defeat waits for combat (Q-SIM-62).
+   */
+  result: "VICTORY" | "DEFEAT" | "TIME_LIMIT" | "ABORTED";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  end_tick: number;
+  score: {
+    coalition: number;
+    enemy: number;
+  };
+  winner: ("COALITION" | "ENEMY") | null;
+  nodes_held_pct: number;
+}
+/**
+ * A timed objective was announced (CONTRACTS 6; STATE-MACHINES 4.5; NX-126). deadline_tick is on the campaign clock (running ticks, the Hud's campaign_clock.elapsed_ticks), not the tick counter: a pause delays the real tick, so the deadline is not a Tick.
+ */
+export interface ObjectiveAnnounced {
+  kind: "ObjectiveAnnounced";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Sequential per campaign, never reused (STATE-MACHINES 4.5).
+   */
+  objective_id: number;
+  /**
+   * Stable slug from the theater file.
+   */
+  node_id: string;
+  deadline_tick: number;
+}
+/**
+ * A timed objective was completed or expired (CONTRACTS 6; STATE-MACHINES 4.5; NX-126). participant_commander_ids: for a capture, the NodeCaptured participants; for a hold, the coalition commanders with units within capture.radius_m of the node at the deadline; ascending, no duplicates (producer); empty on EXPIRED.
+ */
+export interface ObjectiveResolved {
+  kind: "ObjectiveResolved";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Sequential per campaign, never reused (STATE-MACHINES 4.5).
+   */
+  objective_id: number;
+  outcome: "COMPLETED" | "EXPIRED";
   /**
    * Items: UUIDv7, canonical lowercase (IDENTITY §1). Not a platform id.
    */

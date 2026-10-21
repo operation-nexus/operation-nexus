@@ -15,7 +15,8 @@ are world state, so snapshots and the hash cover them. So are each node's `stock
 `cargo` (integer stock units) with its `unload_milli` progress and
 `delivered` count (NX-123), and each aircraft's refuel progress (`rearm_milli`, `rearm_spent`,
 `stalled`): conservation stays exact. So are each node's live owner and its capture bar (side and
-integer millionths of a percent, NX-125): thresholds are exact.
+integer millionths of a percent, NX-125): thresholds are exact. So are the campaign's running
+ticks, hold run, per-side held-node tick sums, objective counts and the active objective (NX-126).
 `World.rules` (`nexus.core.rules`) is static config, not state: neither snapshots nor the hash
 include it.
 """
@@ -24,13 +25,20 @@ import hashlib
 import math
 import re
 from collections.abc import Callable, Iterator
-from dataclasses import dataclass, field, fields
+from dataclasses import asdict, dataclass, field, fields
 from typing import Annotated, Any, Literal, Self, cast, get_args, get_origin
 
 import msgpack
 
 from nexus.contracts.gen.commands.join import JoinCommand
-from nexus.contracts.gen.common.enums import NodeOwner, OwnerKind, Side, UnitKind
+from nexus.contracts.gen.common.enums import (
+    NodeOwner,
+    OwnerKind,
+    PauseReasonCategory,
+    Side,
+    StaffPauseSubReason,
+    UnitKind,
+)
 from nexus.contracts.gen.events.event import Event
 from nexus.contracts.gen.events.unit_destroyed import UnitDestroyed
 from nexus.core.rng import SimRng
@@ -41,8 +49,9 @@ from nexus.core.rules import CAPTURE_FULL, Rules
 # 8: Entity.base_id, variant and emitting, markers (NX-150 part 2); 9: Contact.painted, blobs,
 # sigint_age (NX-150 part 2b); 10: node stock, Entity.cargo and unload_milli (NX-123);
 # 11: Entity.rearm_milli, rearm_spent and stalled (NX-123 part 2); 12: node owner and capture bars
-# (NX-125)
-FORMAT_VERSION = 12
+# (NX-125); 13: the campaign clock, pause reason, end flag, score sums and the active objective
+# (NX-126)
+FORMAT_VERSION = 13
 _MM = 1000.0  # metres -> millimetres; m/s -> mm/s
 _MICRO = 1e6  # ADR-0002's 1e-6 step for other floats (fuel)
 _MILLI_UNIT = 1000  # thousandths of a stock unit per unit
@@ -52,6 +61,7 @@ _CAPTURE = "capture"
 _CAMPAIGN = "campaign"
 _CONTACTS = "contacts"
 _MARKERS = "markers"
+_OBJECTIVE = "objective"
 _ENTITIES = "entities"
 _CALLSIGNS = "callsigns"
 _RESPAWN_LEFT = "respawn_left"
@@ -73,6 +83,7 @@ _WORLD_KEYS = (
     _MARKERS,
     _NEXT_ENTITY_ID,
     _NEXT_EVENT_SEQ,
+    _OBJECTIVE,
     _OWNER,
     _RESERVE_QUEUE,
     _RESPAWN_LEFT,
@@ -99,6 +110,8 @@ _UNIT_KINDS = _literal_values(UnitKind)
 SIDES = cast(tuple[Side, ...], _literal_values(Side))
 _OWNER_KINDS = _literal_values(OwnerKind)
 _NODE_OWNERS = _literal_values(NodeOwner)
+_PAUSE_REASONS = _literal_values(PauseReasonCategory)
+_PAUSE_SUB_REASONS = _literal_values(StaffPauseSubReason)
 
 
 @dataclass(frozen=True, slots=True)
@@ -216,11 +229,37 @@ class CaptureBar:
 
 @dataclass(slots=True)
 class Campaign:
+    """`tick` counts every tick; `running_ticks` only the unpaused ones: the campaign clock
+    (STATE-MACHINES C-1, NX-126). `hold_ticks` is the current run of running ticks the coalition
+    has held the victory share of strategic nodes; `held_ticks_*` sum each side's held strategic
+    node count over the running ticks (the time-limit score keeps them exact)."""
+
     id: str  # CampaignId
     seed: int
     config_hash: str
     tick: int = 0
     clock_paused: bool = False
+    running_ticks: int = 0
+    pause_reason: PauseReasonCategory | None = None  # set exactly while clock_paused
+    pause_sub_reason: StaffPauseSubReason | None = None  # only with reason STAFF
+    ended: bool = False  # CampaignEnded was emitted (C-2): the world is frozen, no command applies
+    hold_ticks: int = 0
+    held_ticks_coalition: int = 0
+    held_ticks_enemy: int = 0
+    objectives_issued: int = 0
+    objectives_done: int = 0
+
+
+@dataclass(slots=True)
+class Objective:
+    """The active timed objective (STATE-MACHINES §4.5): `hold` when the coalition owned the node
+    when it was announced (it must still hold it at the deadline), else a capture. `deadline` is
+    on the campaign clock (`Campaign.running_ticks`)."""
+
+    id: int
+    node_id: str
+    deadline: int
+    hold: bool
 
 
 _ENTITY_KEYS = tuple(f.name for f in fields(Entity))
@@ -244,6 +283,7 @@ class World:
         "capture",
         "contacts",
         "markers",
+        "objective",
         "owner",
         "reserve_queue",
         "respawn_left",
@@ -285,6 +325,7 @@ class World:
         self.owner: dict[str, NodeOwner] = dict(rules.supply.start_owner) if rules else {}
         # Node id -> its capture bar, only for nodes with progress, in id order.
         self.capture: dict[str, CaptureBar] = {}
+        self.objective: Objective | None = None  # NX-126; at most one (O-1)
 
     @classmethod
     def new(cls, campaign: Campaign, rules: Rules | None = None) -> Self:
@@ -326,6 +367,12 @@ class World:
             raise ValueError("record_loss needs the world's rules")
         if self.rules.respawn_delay_ticks > 0:
             self.respawn_left[commander_id] = self.rules.respawn_delay_ticks
+
+    @property
+    def frozen(self) -> bool:
+        """The world's clock is stopped: paused (C-1), or the campaign ended (C-2). Every
+        time-driven system returns early while this holds (SC-11)."""
+        return self.campaign.clock_paused or self.campaign.ended
 
     def viewer_units(self) -> int:
         """Live COMMANDER-owned units; AUTO units are COMMANDER-owned too, so they count (Q-ALN-9).
@@ -443,6 +490,7 @@ def to_canonical(world: World, *, quantize: bool) -> dict[str, Any]:
         _CONTACTS: _contacts_data(world, quantize),
         _ENTITIES: [_entity_data(e, quantize) for e in world.entities()],
         _MARKERS: _markers_data(world, quantize),
+        _OBJECTIVE: None if world.objective is None else asdict(world.objective),
         _OWNER: dict(sorted(world.owner.items())),
         _RESPAWN_LEFT: dict(sorted(world.respawn_left.items())),
         _RESERVE_QUEUE: [_sorted(c.model_dump(mode="json")) for c in world.reserve_queue],
@@ -580,6 +628,15 @@ _CAMPAIGN_CHECKS: dict[str, Callable[[object, str], Any]] = {
     "config_hash": _str,
     "tick": _int,
     "clock_paused": _bool,
+    "running_ticks": _int,
+    "pause_reason": lambda v, k: _str(v, k, _PAUSE_REASONS, optional=True),
+    "pause_sub_reason": lambda v, k: _str(v, k, _PAUSE_SUB_REASONS, optional=True),
+    "ended": _bool,
+    "hold_ticks": _int,
+    "held_ticks_coalition": _int,
+    "held_ticks_enemy": _int,
+    "objectives_issued": _int,
+    "objectives_done": _int,
 }
 
 
@@ -698,7 +755,32 @@ def _load_entity(value: object) -> Entity:
 
 def _load_campaign(value: object) -> Campaign:
     d = _fields(value, _CAMPAIGN_KEYS, _CAMPAIGN)
-    return Campaign(**{k: check(d[k], k) for k, check in _CAMPAIGN_CHECKS.items()})
+    c = Campaign(**{k: check(d[k], k) for k, check in _CAMPAIGN_CHECKS.items()})
+    if (
+        (c.pause_reason is None) == c.clock_paused
+        or (c.pause_sub_reason is not None and c.pause_reason != "STAFF")
+        or c.running_ticks > c.tick
+        or c.hold_ticks > c.running_ticks
+        or c.objectives_done > c.objectives_issued
+    ):
+        raise ValueError("campaign: inconsistent clock, pause reason or objective counts")
+    return c
+
+
+def _load_objective(value: object, campaign: Campaign) -> Objective | None:
+    """The active objective is the latest one issued and still has time left."""
+    if value is None:
+        return None
+    d = _fields(value, tuple(f.name for f in fields(Objective)), _OBJECTIVE)
+    o = Objective(
+        _int(d["id"], "objective id", 1),
+        _str(d["node_id"], "objective node"),
+        _int(d["deadline"], "objective deadline"),
+        _bool(d["hold"], "objective hold"),
+    )
+    if o.id != campaign.objectives_issued or o.deadline <= campaign.running_ticks:
+        raise ValueError("objective: not the latest issued, or already past its deadline")
+    return o
 
 
 def load(data: bytes) -> World:
@@ -724,6 +806,13 @@ def load(data: bytes) -> World:
     world.stock = _stock(d[_STOCK])
     world.owner = _owner(d[_OWNER])
     world.capture = _capture(d[_CAPTURE], world.owner)
+    world.objective = _load_objective(d[_OBJECTIVE], world.campaign)
+    c = world.campaign
+    # A side holds at most every node each running tick; the strategic count needs the rules.
+    if max(c.held_ticks_coalition, c.held_ticks_enemy) > len(world.owner) * c.running_ticks:
+        raise ValueError("campaign: held-node tick sum above nodes x running ticks")
+    if c.ended and world.objective is not None:
+        raise ValueError("objective: active in an ended campaign")
     # The age counts running ticks since the refresh, so it cannot exceed the ticks since then.
     if any(b and world.campaign.tick - int(b[0].id.split("-")[0]) < world.sigint_age
            for b in world.blobs.values()):  # fmt: skip

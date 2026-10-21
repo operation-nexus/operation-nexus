@@ -3,9 +3,106 @@
 
 from __future__ import annotations
 
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
+
+
+class Score(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    average_weight: Annotated[
+        float,
+        Field(
+            description="Points for a side's whole average share of strategic nodes over the campaign, unit points (STATE-MACHINES 4.4, Q-SIM-64).",
+            ge=0.0,
+        ),
+    ]
+    final_weight: Annotated[
+        float,
+        Field(
+            description="Points for a side's share of strategic nodes at the final tick, unit points (STATE-MACHINES 4.4, Q-SIM-64).",
+            ge=0.0,
+        ),
+    ]
+    objective_points: Annotated[
+        float,
+        Field(
+            description="Points to the coalition per completed objective, unit points (STATE-MACHINES 4.4).",
+            ge=0.0,
+        ),
+    ]
+
+
+class Momentum(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    nodes_weight: Annotated[
+        float,
+        Field(
+            description="Weight of the coalition's share of strategic nodes, unit percentage points.",
+            ge=0.0,
+            le=100.0,
+        ),
+    ]
+    supply_weight: Annotated[
+        float,
+        Field(
+            description="Weight of the coalition's supply fill, unit percentage points.",
+            ge=0.0,
+            le=100.0,
+        ),
+    ]
+
+
+class Campaign(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    time_limit_h: Annotated[
+        float,
+        Field(
+            description="Game hours of running clock until the time limit ends the campaign, unit h of game time (Q-GD-29, Q-TEST-6).",
+            gt=0.0,
+        ),
+    ]
+    victory_node_frac: Annotated[
+        float,
+        Field(
+            description="Share of strategic nodes (AIRBASE, FOB, PORT) the coalition must hold to win, unit fraction (GAMEPLAY §9).",
+            gt=0.0,
+            le=1.0,
+        ),
+    ]
+    victory_hold_min: Annotated[
+        float,
+        Field(
+            description="Game minutes the coalition must hold victory_node_frac without a dip, unit min of game time (GAMEPLAY §9).",
+            gt=0.0,
+        ),
+    ]
+    objective_period_min: Annotated[
+        float,
+        Field(
+            description="Game minutes an objective lasts before it expires, unit min of game time (GAMEPLAY §9, STATE-MACHINES 4.5).",
+            gt=0.0,
+        ),
+    ]
+    objective_mode: Annotated[
+        Literal["timed", "off"],
+        Field(
+            description="timed: one system objective at a time; off: none (Q-GD-19). Set per campaign by the owner or an admin (Q-ALN-10)."
+        ),
+    ]
+    score: Annotated[Score, Field(description="Time-limit score (Q-GD-29, Q-SIM-64).")]
+    momentum: Annotated[
+        Momentum,
+        Field(
+            description="Momentum weights (Q-SIM-60): momentum % = nodes_weight x the coalition's share of strategic nodes + supply_weight x its supply fill. They must add up to 100."
+        ),
+    ]
 
 
 class Air(BaseModel):
@@ -341,3 +438,4 @@ class BalanceConfig(BaseModel):
     fow: Fow
     logistics: Logistics
     capture: Capture
+    campaign: Campaign

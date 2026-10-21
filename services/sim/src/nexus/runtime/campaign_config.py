@@ -14,7 +14,7 @@ from typing import cast
 from nexus.contracts.gen.common.enums import Side
 from nexus.contracts.gen.config.balance import BalanceConfig
 from nexus.contracts.gen.config.theater import TheaterConfig
-from nexus.core.rules import Rules, make_rules
+from nexus.core.rules import Rules, campaign_rules, make_rules
 from nexus.core.world import Campaign, Vec2, World
 from nexus.runtime.config import (
     canonical_hash,
@@ -61,10 +61,12 @@ def load_campaign_config(paths: ConfigPaths | None = None) -> CampaignConfig:
         canonical_hash(theater.model_dump()),
     )
     mask_cell_m, masking = masking_cells(theater)
+    roads = road_graph(theater)
+    cc = balance.campaign
     rules = make_rules(
         balance.sim,
         catalog.units,
-        road_graph(theater),
+        roads,
         roles=catalog.roles.roles,
         theater=theater,
         slots=balance.slots,
@@ -77,6 +79,14 @@ def load_campaign_config(paths: ConfigPaths | None = None) -> CampaignConfig:
         sigint_refresh_ticks=world_ticks(balance.fow.sigint_refresh_s, balance),
         mask_cell_m=float(mask_cell_m),
         masking=masking,
+        campaign=campaign_rules(
+            cc,
+            theater,
+            roads,
+            time_limit_ticks=game_ticks(cc.time_limit_h, balance, unit_s=3600),
+            victory_hold_ticks=game_ticks(cc.victory_hold_min, balance, unit_s=60),
+            objective_period_ticks=game_ticks(cc.objective_period_min, balance, unit_s=60),
+        ),
     )
     return CampaignConfig(balance, catalog, theater, digest, rules)
 
