@@ -44,9 +44,11 @@ NFKC; strip control, bidi and zero-width characters; enforce the 300-character c
 
 | Command class | Examples | Proposed limit per operator |
 |---|---|---|
-| Deploy | `!join`, specialist spawns | 1 per 10 s (plus respawn timer) |
+| Deploy | `!join`; later the specialist spawns (reserved, COMMAND-CATALOG §3) | 1 per 10 s (plus respawn timer) |
 | Unit correction | `!target`, `!rebase`, `!rtb`; later `!vector`, `!stance`, `!rescue` (GAMEPLAY-LATER §3) | 1 per 5 s, burst 2 |
 | Info | `!me`, `!status`, `!help`, `!guide`, `!rules`, `!link`, `!quiet` (Q-ALN-12; class PROPOSED) | 1 per 15 s |
+| Callsign | `!callsign` (also has the 30-day change limit and the moderation queue; Q-CMD-3) | 1 per 60 s |
+| Forget | `!forget` (Q-CMD-3) | 1 per 60 s |
 | Social / redeem | redemptions (`!rally` and `!scout` come later, GAMEPLAY-LATER) | Own cooldowns (e.g. rally ~2 min; PROPOSED). Gameplay cooldowns of later social commands run in game time inside the sim (Q-ALN-1); redemption cooldowns and caps run in real time in the gateway (Q-ALN-4) |
 | Global | all | Admission cap per tick (raid protection) |
 

@@ -5,6 +5,8 @@ Status: Parked (not part of the SIM-CORE / GAMEPLAY approval) · Tracker: NX-120
 > **All numeric values here are PROPOSED and unvalidated** (DATA-INTEGRITY DI-7). Nothing in this file is built before its phase. Section numbers match GAMEPLAY so existing references still resolve. GAMEPLAY §0 (parity) applies: any rule here must say how it applies to both sides.
 
 ## 3. Later-phase commands
+Design notes for the reserved commands; the list itself, intents and phases are in [COMMAND-CATALOG](COMMAND-CATALOG.md) §3.
+
 | Command | Args | Min rank | Notes |
 |---|---|---|---|
 | `!stance <press\|standard\|cautious\|guns>` | stance | O-1 | Standing intent for your unit: `press` = keep fighting even when badly damaged; `standard` = auto-RTB at mission-kill (default); `cautious` = RTB as soon as Damaged; `guns` = keep fighting with guns after missiles/bombs run out (default is auto-RTB when out of munitions). Can also be given at deploy: `!join strike press` (Q-CBT-6). |

@@ -79,23 +79,16 @@ A shared queue of **jobs** the system generates from the live situation, so ever
 | Logistics | `!join logi` | GROUND | Carries supply along roads to nodes; captures uncontested nodes slowly | Fight |
 | Naval | `!join navy` | SEA | **P3** (Q-GD-8: sea domain moved earlier because maps are water-heavy) | — |
 
-Specialist chassis (SEAD, jammer, engineer, AWACS, artillery) unlock with rank (PROGRESSION). **Specialist doctrines** are chosen once per campaign and lock (Q-GD-3).
+Specialist chassis (SEAD, jammer, engineer, AWACS, artillery) unlock with rank (PROGRESSION) and arrive in P4 (NX-212, COMMAND-CATALOG §3). **Specialist doctrines** are chosen once per campaign and lock (Q-GD-3).
 
 **Display names (Q-NAME-2, working names; final list in the brand guide NX-274):** roles and unit kinds keep plain ids in code and contracts (TS-4), but the stream shows friendly class names: Striker (multirole jet, `STRIKE`), Scout (recon drone, `RECON`), Hauler (supply truck, `LOGI`), Tank, Gunboat, Tanker (refueler), Lifter (rescue helo), Sentinel (anti-air site), Spire (radar). No real-world platform names (Q-PROD-5).
 
-## 3. Commands that enter the sim (Q-GP-2)
+## 3. Commands (Q-GP-2, Q-CMD-1)
 Rank ids `O-1`…`O-6` are **internal ids** used in config and contracts. On stream and in replies they show as themed display names (Q-NAME-1, PROGRESSION §3).
 
-| Command | Args | Min rank | Notes |
-|---|---|---|---|
-| `!join <role> [<node>\|<callsign>\|hold]` | role, then an optional node, a friendly unit's callsign, or `hold` | O-1 | Spawns your one unit, or switches role if your unit is at base. `hold` opts out of Tasking Board auto-tasking (§1b) |
-| `!target <node\|callsign>` | node name/alias (fuzzy match against a fixed list) or a friendly unit's callsign | O-1 | Sets your unit's objective, or follows that unit (Q-GP-31) |
-| `!rtb` | — | O-1 | Return to the nearest friendly base |
-| `!rebase <node>` | friendly node | O-1 | Move your unit to another friendly base and stay there to refuel/rearm/stage (e.g. move a plane forward before an attack). Uses that base's stock. The Static does the same (THREAT-DIRECTOR §5a). |
-| `!me` (alias `!status`, set in config) | — | O-1 | Highlights your unit for 5 s; the next digest repeats your callsign, status, remaining cooldowns, queue position and your own conduct standing / active restriction (FB-UX-3, Q-MOD-5) |
-| `!callsign <NAME>` | `^[A-Z][A-Z0-9-]{2,11}$`, moderated, never equal to a node name or alias (Q-GP-31), 1 change / 30 days | First completed mission (Q-PROG-3) | Reserve a global callsign |
+The commands, their syntax, ranks and phases are listed in [COMMAND-CATALOG](COMMAND-CATALOG.md) §2 (Q-CMD-1). Behavior notes that are only here: `!join` spawns your one unit, or switches role if your unit is at base, and `hold` opts out of auto-tasking (§1b); `!target` sets your unit's objective or follows a friendly unit (Q-GP-31); `!rtb` returns your unit to the nearest friendly base; `!rebase` moves your unit to another friendly base and stays there to refuel, rearm or stage (e.g. move a plane forward before an attack), using that base's stock, and the Static does the same (THREAT-DIRECTOR §5a); `!me` highlights your unit for 5 s and the next digest repeats its status (FB-UX-3, Q-MOD-5); a `!callsign` is moderated, never equal to a node name or alias (Q-GP-31), one change per 30 days.
 
-Commands the gateway handles alone (`!help`, `!guide`, `!rules`, `!link`, `!quiet`, `!forget`) are in CHAT-GATEWAY §9. Later-phase commands (`!stance`, `!rally`, `!rescue`, `!vector`, specialist spawns, `!package`, `!wingman`, `!doctrine`, `!order`) are in GAMEPLAY-LATER §3. Unknown commands and ordinary chat are ignored. Command aliases are configurable.
+Commands the gateway handles alone (`!help`, `!guide`, `!rules`, `!link`, `!quiet`, `!forget`) are in CHAT-GATEWAY §9. Later-phase commands (`!stance`, `!rally`, `!rescue`, `!vector`, specialist spawns, `!package`, `!wingman`, `!doctrine`, `!order`) are listed in COMMAND-CATALOG §3, with design notes in GAMEPLAY-LATER §3. Unknown commands and ordinary chat are ignored. Command aliases are configurable.
 
 ## 4. Unit slots
 - **GP-1** Each commander has at most **one live personal unit**, and an AI-run (AUTO) unit still counts as it (GP-6, Q-ALN-9). `!join` while your unit is alive retargets or switches it only if it's at a base. Otherwise you get the reply "unit in sortie".

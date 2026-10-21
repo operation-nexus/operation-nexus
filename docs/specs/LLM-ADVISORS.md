@@ -7,7 +7,7 @@ Status: Draft · Tracker: NX-240…NX-249 · ADR-0007 · Security: SEC-LLM-*
 |---|---|---|---|---|
 | Director advisor | Structured enemy-view summary + top-K ops | `{choice_index, op_name, rationale}` | 2 decision windows | Rule pick |
 | Narrator | Event + template slots (ids resolved to approved names after generation) | `{line ≤ 140 chars}` | 10 s | Template line |
-| `!order` parser | Requester's own unit state + order text (≤ 200 chars) + node enum. The parser maps onto the **intent and command catalog** only (Q-AI-2); players get `!order help` and on-screen examples | `TacticalOrder{mission, target_node: enum, waypoint: bounded, profile}` | 5 s | "Brevity error" digest |
+| `!order` parser | Requester's own unit state + order text (≤ 200 chars) + node enum. The parser maps onto the **intent and command catalog** ([COMMAND-CATALOG](COMMAND-CATALOG.md) CC-3) only (Q-AI-2); players get `!order help` and on-screen examples | `TacticalOrder{mission, target_node: enum, waypoint: bounded, profile}` | 5 s | "Brevity error" digest |
 
 ## 2. Requirements
 - **LLM-1** The provider is behind our own `LlmClient` interface (ADR-0010). Hosted and local (llama.cpp/Ollama) providers are interchangeable via config, and each one passes the LLM conformance suite (schema adherence, deadline, budget accounting, error mapping). Official provider SDKs are called directly, and the lockfile is hash-pinned. **No LiteLLM** (Q-AI-3, decided 2026-10-17). Standards-based options (e.g. OpenAI-compatible endpoints) may be revisited only behind our own port.

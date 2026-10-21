@@ -4,6 +4,7 @@
 |---|---|---|
 | [SIM-CORE](SIM-CORE.md) | Tick loop, world model, determinism, budgets | P1 |
 | [GAMEPLAY](GAMEPLAY.md) | Roles, commands, logistics, capture, win/loss, campaign | P1 |
+| [COMMAND-CATALOG](COMMAND-CATALOG.md) | Every chat command and its intent, syntax, rank and phase | P1 |
 | [COMBAT](COMBAT.md) | Targeting, hit probability, damage, wrecks, stance, who can shoot whom | P1 |
 | [GAMEPLAY-LATER](GAMEPLAY-LATER.md) | Parked later-phase gameplay rules split from GAMEPLAY (Q-GP-1) | P3-P4 |
 | [FOG-OF-WAR](FOG-OF-WAR.md) | Sensor tiers, redaction, director fairness | P1 |

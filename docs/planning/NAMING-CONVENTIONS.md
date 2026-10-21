@@ -12,7 +12,7 @@ owner call (grill pass, NX-323). New names follow the dominant style in §1 and 
 | Layer | Style | Examples | Source |
 |---|---|---|---|
 | Config keys (balance, runtime) | Dotted path of lowercase `snake_case` segments, `<area>.<name>`; durations and quantities end in a unit suffix (`_s`, `_min`, `_h`, `_days`, `_ticks`, `_m`, `_pct`, `_frac`, `_mult`, `_per_min`, `_per_hour`); variable segments in angle brackets | `presence.idle_handoff_min`, `tasking.claim_lease_s`, `season.overtime_cap_days`, `director.cp.unit_value.<unit_kind>` | CONFIG-AND-CONTENT |
-| Enum values written in config or chat | lowercase `snake_case` | `campaign.objective_mode: timed`, `campaign.intermission.mode: auto_advance`, `orientation: west_to_east`, `!join strike hold` | CONFIG-AND-CONTENT §6.6; GAMEPLAY §3, §9a |
+| Enum values written in config or chat | lowercase `snake_case` | `campaign.objective_mode: timed`, `campaign.intermission.mode: auto_advance`, `orientation: west_to_east`, `!join strike hold` | CONFIG-AND-CONTENT §6.6; COMMAND-CATALOG; GAMEPLAY §9a |
 | Enum types (contracts) | `PascalCase` | `PauseReasonCategory`, `ThreatTier`, `CommandKind` | CONTRACTS §3.1, §3.3 |
 | Enum values (contracts, DB `CHECK` lists) | `UPPER_SNAKE` | `CEASEFIRE`, `MISSION_KILL`, `TOTAL_DOMINATION`, `TOMBSTONE` | CONTRACTS §3.1 |
 | Schema titles, wire message `type` | `PascalCase` | `ChatEnvelope`, `Hello`, `Snapshot`, `Hud` | CONTRACTS §3.1, §7 |
@@ -33,7 +33,7 @@ owner call (grill pass, NX-323). New names follow the dominant style in §1 and 
 
 | Layer | Style | Examples | Source |
 |---|---|---|---|
-| Chat commands | `!` plus one lowercase word; required args `<arg>`, optional `[arg]`, choices `a\|b`; aliases are config | `!join <role> [hold]`, `!me` (alias `!status`), `!quiet` | GAMEPLAY §3 |
+| Chat commands | `!` plus one lowercase word; required args `<arg>`, optional `[arg]`, choices `a\|b`; aliases are config | `!join <role> [hold]`, `!me` (alias `!status`), `!quiet` | COMMAND-CATALOG |
 | On-stream names | Title Case display names over plain internal ids (TS-4); fixed HUD labels in capitals | Striker, Quorum Marshal; "NEEDED: supply to WEST FOB", "SIGNAL SOURCE: NULL" | GAMEPLAY §2, §3; OVERLAY |
 | Lore names in prose | "the Quorum", "the Static" (lowercase "the" mid-sentence); possessive "the Quorum's board"; adjective "Quorum forces", "Quorum intel" | | GLOSSARY lore table |
 | Spec requirement IDs | `<PREFIX>-<n>`, one prefix per spec, bold at the definition; an inserted requirement takes a letter suffix (`OA-10a`); security requirements are `SEC-<AREA>-<n>` | `GP-4`, `TB-1`, `FB-UX-3`, `OV-2b`, `SEC-LLM-4` | each spec |
