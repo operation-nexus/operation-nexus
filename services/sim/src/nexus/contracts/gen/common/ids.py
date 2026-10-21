@@ -53,6 +53,15 @@ type EntityId = Annotated[
 ]
 
 
+type CrewMarkerId = Annotated[
+    int,
+    Field(
+        description="Per campaign, allocated by the kernel when a crew is downed, never reused (GAMEPLAY 6a, COMBAT CB-8).",
+        ge=1,
+    ),
+]
+
+
 type NodeId = Annotated[
     str,
     Field(

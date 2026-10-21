@@ -41,15 +41,26 @@ from bisect import insort
 
 from nexus.contracts.gen.common.enums import AltBand, Side
 from nexus.contracts.gen.events.event import Event
-from nexus.contracts.gen.events.unit_damage_state_changed import UnitDamageStateChanged
+from nexus.contracts.gen.events.munitions_depleted import MunitionsDepleted
 from nexus.contracts.gen.events.unit_despawned import UnitDespawned
 from nexus.contracts.gen.events.weapon_fired import WeaponFired
 from nexus.contracts.gen.events.weapon_impact import WeaponImpact
 from nexus.core.fog import in_masking_region, is_off_facility
+from nexus.core.logistics import go_home
+from nexus.core.rearm import stop_problem
 from nexus.core.rng import RngStream
 from nexus.core.rules import CombatRules, Rules, WeaponRules
 from nexus.core.spatial import UniformGrid
-from nexus.core.world import _ZERO, Entity, Shot, World, lose_unit
+from nexus.core.world import (
+    _ZERO,
+    Entity,
+    Shot,
+    World,
+    end_rearm,
+    lose_unit,
+    roll_crew,
+    set_damage_state,
+)
 
 _DISABLED = "DISABLED"
 _AIR, _GROUND, _STATIC = "AIR", "GROUND", "STATIC"
@@ -70,6 +81,8 @@ def resolve(world: World, out: list[Event]) -> None:
             e.reload = [max(0, r - 1) for r in e.reload]
         if e.wreck_left is not None:
             e.wreck_left -= 1
+    for marker_id in [i for i, m in world.crew_markers.items() if m.expires <= now]:
+        del world.crew_markers[marker_id]
     _fire(world, rules, cr, now, out)
     _land(world, rules, cr, now, out)
     _remove_wrecks(world, out)
@@ -180,6 +193,31 @@ def _shoot(
             impact_tick=shot.impact_tick,
         )
     )
+    if w.speed_mps is not None:
+        _depleted(world, rules, shooter, out)
+
+
+def _depleted(world: World, rules: Rules, e: Entity, out: list[Event]) -> None:
+    """After a non-gun round: `MunitionsDepleted` when no non-gun round is left (CB-11)."""
+    if rules.combat is None:
+        return
+    left = [
+        (a, w.speed_mps is None)
+        for a, w in zip(e.ammo, rules.combat.loadout(e.kind, e.variant), strict=True)
+    ]
+    if any(a and not gun for a, gun in left):
+        return
+    out.append(
+        MunitionsDepleted.model_construct(
+            kind="MunitionsDepleted",
+            tick=world.campaign.tick + 1,
+            event_seq=world.next_event_seq(),
+            campaign_id=world.campaign.id,
+            entity_id=e.id,
+            guns_only=any(a for a, _ in left),
+        )
+    )
+    go_home(world, rules, e)  # auto-RTB, once, as the last missile or bomb is spent (§5.6)
 
 
 def _land(world: World, rules: Rules, cr: CombatRules, now: int, out: list[Event]) -> None:
@@ -273,20 +311,12 @@ def _hit(
     if state == _DISABLED and not facility and target.state not in (None, "LANDED"):
         _destroy(world, target, shooter, target.hits, out)  # airborne: it cannot stay up
         return
-    out.append(
-        UnitDamageStateChanged.model_construct(
-            kind="UnitDamageStateChanged",
-            tick=world.campaign.tick + 1,
-            event_seq=world.next_event_seq(),
-            campaign_id=world.campaign.id,
-            entity_id=target.id,
-            from_=target.damage_state,
-            to=state,
-        )
-    )
-    target.damage_state = state
+    set_damage_state(world, target, state, out)
+    if state == "MISSION_KILL":
+        go_home(world, rules, target)  # auto-RTB, once, as it reaches Mission-kill (COMBAT §5.6)
     if state == _DISABLED and not facility:
         target.wreck_left, target.path, target.vel = cr.disabled_timeout_ticks, [], _ZERO
+        roll_crew(world, target, out)  # the first of Disabled or Destroyed (CB-8)
 
 
 def _destroy(
@@ -300,6 +330,7 @@ def _destroy(
 
 def _remove_wrecks(world: World, out: list[Event]) -> None:
     for e in [e for e in world.entities() if e.wreck_left == 0]:
+        end_rearm(world, e, out)
         world.remove(e.id)
         if e.commander_id is not None:
             world.record_loss(e.commander_id)
@@ -354,11 +385,13 @@ def _validate_entity(world: World, rules: Rules, cr: CombatRules, e: Entity) -> 
         "any other unit none"
         if (e.wreck_left is None) != (facility or e.damage_state != _DISABLED)
         or (e.wreck_left or 0) > cr.disabled_timeout_ticks
+        else "repair_debt not below the repair price denominator"
+        if e.repair_debt >= (rules.supply.facility_hp_per_stock if facility else stats.hp)
         else "an airborne aircraft cannot be Disabled"
         if e.damage_state == _DISABLED and e.state not in (None, "LANDED")
         else "hits on a facility, or from the future"
         if e.hits and (facility or e.hits[-1][1] > world.campaign.running_ticks)
-        else None
+        else stop_problem(world, rules, cr, e)
     )  # fmt: skip
     if problem:
         raise ValueError(f"entity {e.id} ({e.kind}): {problem}")

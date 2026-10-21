@@ -47,6 +47,14 @@ logistics:
     LOGI_TRUCK: 0
     RECON_UAV: 5
     STRIKE_FIGHTER: 20
+  repair_rate:  # PROPOSED – unvalidated (Q-SIM-68, owner-approved; NX-031 tunes); hp per s (world) at a friendly base of each kind, SANCTUARY is free (CONFIG-AND-CONTENT §6.3 logistics.repair_rate)
+    AIRBASE: 1.0
+    FOB: 0.5
+    HQ: 1.0
+    PORT: 1.0
+    SANCTUARY: 2.0
+  facility_rearm_cost: 10  # PROPOSED – unvalidated (Q-SIM-69, owner-approved); stock units for a full reload of a facility, by ammo share (CONFIG-AND-CONTENT §6.3)
+  facility_repair_hp_per_stock: 10  # PROPOSED – unvalidated (Q-SIM-68, owner-approved); hp a facility regains per stock unit of its base (CONFIG-AND-CONTENT §6.3)
 capture:
   radius_m: 2000.0  # PROPOSED – unvalidated (Q-SIM-57, owner-approved initial value; NX-031 tunes); m (CONFIG-AND-CONTENT §6.5 capture.radius_m)
   time_s: 120.0  # PROPOSED – unvalidated; s (world), one capturer, no modifiers (CONFIG-AND-CONTENT §6.5 capture.time_s)
@@ -72,8 +80,19 @@ combat:
     damaged_below: 0.70  # PROPOSED – unvalidated (Q-GP-8); hp fraction (CONFIG-AND-CONTENT §6.4)
     mission_kill_below: 0.35  # PROPOSED – unvalidated (Q-GP-8); hp fraction (CONFIG-AND-CONTENT §6.4)
     disabled_below: 0.10  # PROPOSED – unvalidated (Q-GP-8); hp fraction, a facility's hp floors here (CONFIG-AND-CONTENT §6.4)
+    damaged_speed_mult: 0.75  # PROPOSED – unvalidated (Q-SIM-65); multiplier on top speed at Damaged or worse (CONFIG-AND-CONTENT §6.4)
+    damaged_sensor_mult: 0.8  # PROPOSED – unvalidated (Q-SIM-65); multiplier on sensor radius at Damaged or worse (CONFIG-AND-CONTENT §6.4)
   disabled_timeout_s: 600  # PROPOSED – unvalidated (Q-CBT-14); s (game), a Disabled unit is removed after this (CONFIG-AND-CONTENT §6.4)
   assist_window_s: 120  # PROPOSED – unvalidated (Q-SIM-66); s (game), a hit this recently before a kill is an assist (CONFIG-AND-CONTENT §6.4)
+  crew_survival:  # PROPOSED – unvalidated (Q-SIM-68, owner-approved; NX-031 tunes); probability a crew is DOWNED, not LOST (CONFIG-AND-CONTENT §6.4 combat.crew_survival)
+    ENEMY_ARMOR: 0.60
+    ENEMY_CONVOY: 0.70
+    ENEMY_FIGHTER: 0.75
+    ENEMY_STRIKE_FIGHTER: 0.75
+    GARRISON_INFANTRY: 0.50
+    LOGI_TRUCK: 0.70
+    STRIKE_FIGHTER: 0.75
+  crew_marker_min: 10  # PROPOSED – unvalidated (Q-SIM-68, owner-approved); min (game), a downed crew is a map marker this long (CONFIG-AND-CONTENT §6.4)
 campaign:
   time_limit_h: 72  # PROPOSED – unvalidated (Q-TEST-6); h (game) (CONFIG-AND-CONTENT §6.6 campaign.time_limit_h)
   victory_node_frac: 0.80  # PROPOSED – unvalidated; fraction of strategic nodes (CONFIG-AND-CONTENT §6.6)

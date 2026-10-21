@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nexus.local/contracts/events/munitions_depleted.json",
+  "title": "MunitionsDepleted",
+  "description": "A unit spent its last missile, bomb or other non-gun round (CONTRACTS \u00a76; COMBAT CB-11, GAMEPLAY \u00a75): emitted on the shot that empties the non-gun weapons, once per load; guns_only is true when gun rounds remain. A unit that carries no non-gun weapon never emits it. Public view: dropped for a hidden ENEMY unit (FOW-13).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "tick", "event_seq", "campaign_id", "entity_id", "guns_only"],
+  "properties": {
+    "kind": {"const": "MunitionsDepleted"},
+    "tick": {"$ref": "../common/ids.json#/$defs/Tick"},
+    "event_seq": {"type": "integer", "minimum": 1, "description": "Campaign-wide, monotonic, deterministic (SC-14)."},
+    "campaign_id": {"$ref": "../common/ids.json#/$defs/CampaignId"},
+    "entity_id": {"$ref": "../common/ids.json#/$defs/EntityId", "description": "The unit that ran out."},
+    "guns_only": {"type": "boolean"}
+  }
+}

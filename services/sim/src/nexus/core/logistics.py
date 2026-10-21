@@ -1,38 +1,37 @@
 """Logistics: where a truck loads, where a unit forward-deploys, what a truck does on arrival and
-how a landed aircraft refuels (NX-123; GAMEPLAY §5, GP-7, Q-GP-24, Q-SIM-48..54).
+how a unit at a base refuels, rearms and repairs (NX-123, NX-124; GAMEPLAY §5, GP-7, Q-GP-24,
+Q-SIM-48..54). The rearm stop itself is `nexus.core.rearm`.
 
 Stock is whole units in `World.stock` (finite nodes only; a SANCTUARY is infinite by rule). A truck
 loads at its source when it spawns and unloads at its destination in the `logistics` system. All
 counts are integers, so stock plus cargo is conserved exactly: a unit leaves a source's stock at
 the same moment it becomes a truck's cargo, and leaves the cargo as it joins a node's stock. The
 unload rate is counted in thousandths of a unit per tick (`Supply.unload_milli`), carried on the
-truck as `Entity.unload_milli` so no fraction is ever lost to rounding. A refuelling aircraft buys
-fuel at `Supply.rearm_milli` thousandths per tick and owes `Entity.rearm_milli`; a whole unit leaves
-the stock as the debt reaches 1000, so every unit debited equals thousandths bought.
+truck as `Entity.unload_milli` so no fraction is ever lost to rounding. A unit at a base buys fuel,
+rounds and hp in thousandths of stock and owes `Entity.rearm_milli`; a whole unit leaves the stock
+as the debt reaches 1000, so every unit debited equals thousandths bought.
 
 "Friendly" is the node's live owner (`World.owner`, which capture changes, NX-125). Routes avoid
 no bridge until combat can destroy one (NX-124 part 3). A Disabled unit neither unloads nor
-refuels and keeps its cargo until it is removed as a wreck (COMBAT CB-7, GP-5). The `logistics`
+restocks and keeps its cargo until it is removed as a wreck (COMBAT CB-7, GP-5); a Disabled
+facility is not a wreck and repairs. The `logistics`
 system is deterministic: entities in id order, candidate nodes in id order, ties on distance by
 node id.
 """
 
 import math
 from itertools import pairwise
-from typing import Literal, NamedTuple
+from typing import NamedTuple
 
 from nexus.contracts.gen.common.enums import Side, UnitKind
 from nexus.contracts.gen.events.event import Event
-from nexus.contracts.gen.events.rearm_stalled import RearmStalled
-from nexus.contracts.gen.events.supply_consumed import SupplyConsumed
 from nexus.contracts.gen.events.supply_delivered import SupplyDelivered
+from nexus.core.rearm import restock
 from nexus.core.roads import shortest_path
 from nexus.core.rules import Rules
-from nexus.core.world import Entity, World
+from nexus.core.world import Entity, World, consumed
 
 _NO_BLOCKED = frozenset[str]()  # no bridge is destroyed until combat part 3 (NX-124)
-_MILLI = 1000
-_EPS = 1e-6  # float noise in a fuel-to-milli conversion; below any real milli-unit of stock
 
 
 class Run(NamedTuple):
@@ -45,6 +44,43 @@ class Run(NamedTuple):
 
 def friendly(world: World, side: Side, node: str) -> bool:
     return world.owner.get(node) == side
+
+
+def friendly_bases(world: World, rules: Rules, side: Side) -> list[str]:
+    """The nodes `side` owns now that a unit can drive to as a base (anything but a BRIDGE)."""
+    return [
+        n for n, kind in rules.node_kind.items() if kind != "BRIDGE" and world.owner.get(n) == side
+    ]
+
+
+def nearest_base(e: Entity, rules: Rules, bases: tuple[str, ...]) -> tuple[float, str]:
+    """(distance, id) of the nearest of `bases` by straight line, ties by node id."""
+    return min(
+        (math.hypot(x - e.pos.x, y - e.pos.y), n) for n in bases for x, y in [rules.roads.pos[n]]
+    )
+
+
+def go_home(world: World, rules: Rules, e: Entity) -> None:
+    """Auto-RTB under the `standard` stance (COMBAT §5.6), called once, on the transition that
+    triggers it: the unit reaches Mission-kill, or spends its last missile or bomb. It is not a
+    standing state, so a later order is respected. An airborne aircraft goes RTB to the nearest
+    landing base of its side (a LANDED one stays); a GROUND unit takes the road route to the
+    nearest friendly base, from the node it is heading for or standing at, unless it is at one or
+    heading for one. Anything else (a facility) does nothing.
+    shortcut: with no reachable base a ground unit searches once and stays put."""
+    domain = rules.domain[e.kind]
+    if domain == "AIR":
+        bases = world.landing_bases(e.side)
+        if bases and e.state in ("EN_ROUTE", "ON_STATION"):
+            e.state, e.path, e.orbit = "RTB", [nearest_base(e, rules, bases)[1]], None
+    elif domain == "GROUND":
+        homes = friendly_bases(world, rules, e.side)
+        start = e.path[0] if e.path else e.last_node
+        if (e.path[-1] if e.path else e.last_node) in homes or not isinstance(start, str):
+            return
+        best = nearest(rules, start, homes)
+        if best is not None:
+            e.path = list(best[1])
 
 
 def _route(rules: Rules, a: str, b: str) -> list[str] | None:
@@ -142,21 +178,7 @@ def pay_loadout(world: World, rules: Rules, kind: UnitKind, node: str, out: list
     cost = rules.supply.loadout_cost.get(kind, 0)
     if node in world.stock and cost:
         world.stock[node] -= cost
-        out.append(_consumed(world, node, cost, "SPAWN"))
-
-
-def _consumed(
-    world: World, node: str, amount: int, cause: Literal["SPAWN", "REARM"]
-) -> SupplyConsumed:
-    return SupplyConsumed.model_construct(
-        kind="SupplyConsumed",
-        tick=world.campaign.tick + 1,
-        event_seq=world.next_event_seq(),
-        campaign_id=world.campaign.id,
-        node_id=node,
-        amount=amount,
-        cause=cause,
-    )
+        out.append(consumed(world, node, cost, "SPAWN"))
 
 
 def load(world: World, run: Run) -> None:
@@ -166,8 +188,8 @@ def load(world: World, run: Run) -> None:
 
 
 def logistics(world: World, out: list[Event]) -> None:
-    """A truck standing at the end of its path unloads, or drives on (GAMEPLAY §5, Q-SIM-50); a
-    landed aircraft refuels (`_refuel`).
+    """A truck standing at the end of its path unloads, or drives on (GAMEPLAY §5, Q-SIM-50); any
+    other unit stopped at a base restocks (`rearm.restock`).
 
     Paused (SC-11): nothing unloads. At a friendly node it moves `unload_rate x world_dt` units
     into the node's stock per tick, up to the node's maximum; when the node is full it keeps the
@@ -180,19 +202,16 @@ def logistics(world: World, out: list[Event]) -> None:
     if world.frozen or rules is None:
         return
     for e in world.entities():
-        if (
-            e.damage_state == "DISABLED"
-        ):  # a wreck keeps its cargo and fuel (CB-7); report a cut stop
-            if e.delivered and e.last_node is not None:
-                end_stop(world, e, e.last_node, out)
-            _end_refuel(world, e, out)
-        elif e.cargo and not e.path and e.last_node is not None:
+        wreck = e.damage_state == "DISABLED" and rules.domain[e.kind] != "STATIC"
+        if wreck and e.delivered and e.last_node is not None:  # a wreck keeps its cargo (CB-7)
+            end_stop(world, e, e.last_node, out)  # report a cut stop
+        if not wreck and e.cargo and not e.path and e.last_node is not None:
             if friendly(world, e.side, e.last_node):
                 _unload(world, rules, e, e.last_node, out)
             else:
                 _divert(world, rules, e, e.last_node, out)
-        elif e.state is not None:
-            _refuel(world, rules, e, out)
+        else:
+            restock(world, rules, e, out)
 
 
 def _unload(world: World, rules: Rules, e: Entity, node: str, out: list[Event]) -> None:
@@ -239,75 +258,3 @@ def _divert(world: World, rules: Rules, e: Entity, node: str, out: list[Event]) 
     if best is not None:
         end_stop(world, e, node, out)  # a stop cut short by the node turning hostile
         e.path = list(best[1])
-
-
-def _refuel(world: World, rules: Rules, e: Entity, out: list[Event]) -> None:
-    """A LANDED aircraft with no path at a landing base of its side buys fuel (Q-SIM-51/53).
-
-    Per running tick it buys up to `rearm_rate x WORLD_DT` stock of fuel, where one stock buys
-    `fuel_s / loadout_cost` world seconds, and only the missing fuel is paid for: a full refill
-    costs `loadout_cost`. A finite base debits whole units as the thousandths owed reach 1000 and
-    sells nothing it has not got; below its starvation floor it fills only up to
-    `starved_loadout.fuel_frac` of `fuel_s`. A SANCTUARY is infinite: the same rate, no debit.
-    A kind with no `loadout_cost` (or no fuel) is skipped. At 0 stock with fuel still wanted it
-    emits `RearmStalled` once; a stop ends when the aircraft is filled, stalled or leaves, with
-    one `SupplyConsumed{REARM}` for the units debited, none for 0. Ground units have no fuel or
-    ammo modeled yet, and guns wait for munitions (NX-124).
-    """
-    sup, node, fuel = rules.supply, e.last_node, e.fuel
-    if fuel is None:
-        raise ValueError(f"aircraft {e.id} has no fuel")
-    cost = sup.loadout_cost.get(e.kind, 0)
-    finite = node in world.stock
-    # Aircraft land only at their side's AIRBASE or SANCTUARY (Q-SIM-42), so nowhere else refuels.
-    if node is None or not (
-        cost and e.state == "LANDED" and not e.path and node in world.landing_bases(e.side)
-    ):
-        return _end_refuel(world, e, out)
-    full = rules.fuel_s[e.kind]
-    starved = finite and world.stock[node] < sup.starve_floor[node]
-    cap = sup.starved_fuel_frac * full if starved else full
-    if fuel >= cap:
-        return _end_refuel(world, e, out)
-    # shortcut: the stop's node is `last_node` when it ends; an aircraft that takes off and reaches
-    # another node in one tick would report there (nodes are km apart, a tick moves < 200 m).
-    need = math.ceil((cap - fuel) * cost * _MILLI / full - _EPS)
-    if need <= 0:  # what is missing is float noise: full, not a stall
-        e.fuel = cap
-        return _end_refuel(world, e, out)
-    pay = min(sup.rearm_milli, need)
-    if finite:
-        pay = min(pay, world.stock[node] * _MILLI - e.rearm_milli)
-        if pay <= 0:
-            return _stall(world, e, node, out)
-        whole, e.rearm_milli = divmod(e.rearm_milli + pay, _MILLI)
-        world.stock[node] -= whole
-        e.rearm_spent += whole
-    e.stalled = False
-    e.fuel = cap if pay == need else fuel + pay * full / (cost * _MILLI)
-    if e.fuel >= cap:
-        _end_refuel(world, e, out)
-
-
-def _end_refuel(world: World, e: Entity, out: list[Event]) -> None:
-    """Report the stop's spend (none for 0 units) and reset the stop; `rearm_milli` carries."""
-    if e.rearm_spent and e.last_node is not None:
-        out.append(_consumed(world, e.last_node, e.rearm_spent, "REARM"))
-    e.rearm_spent, e.stalled = 0, False
-
-
-def _stall(world: World, e: Entity, node: str, out: list[Event]) -> None:
-    was_stalled = e.stalled
-    _end_refuel(world, e, out)
-    e.stalled = True
-    if not was_stalled:
-        out.append(
-            RearmStalled.model_construct(
-                kind="RearmStalled",
-                tick=world.campaign.tick + 1,
-                event_seq=world.next_event_seq(),
-                campaign_id=world.campaign.id,
-                entity_id=e.id,
-                node_id=node,
-            )
-        )

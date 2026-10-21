@@ -280,7 +280,7 @@
       }
     },
     "Combat": {
-      "description": "Combat (\u00a76.4, COMBAT; NX-124). Only the keys the built part reads: the crew-survival, damaged_speed_mult and damaged_sensor_mult keys join with their code (Q-CFG-10).",
+      "description": "Combat (\u00a76.4, COMBAT; NX-124). Only the keys the built parts read.",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -290,7 +290,9 @@
         "pk_mult",
         "damage_state",
         "disabled_timeout_s",
-        "assist_window_s"
+        "assist_window_s",
+        "crew_survival",
+        "crew_marker_min"
       ],
       "properties": {
         "pk_cap": {
@@ -378,7 +380,9 @@
           "required": [
             "damaged_below",
             "mission_kill_below",
-            "disabled_below"
+            "disabled_below",
+            "damaged_speed_mult",
+            "damaged_sensor_mult"
           ],
           "properties": {
             "damaged_below": {
@@ -404,6 +408,22 @@
               "maximum": 1,
               "x-unit": "fraction of hp",
               "x-hot-reload": false
+            },
+            "damaged_speed_mult": {
+              "description": "Top-speed multiplier of a unit at Damaged or worse; an aircraft never flies below its min_speed_mps, unit multiplier (CB-6, Q-SIM-65).",
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "x-unit": "multiplier",
+              "x-hot-reload": false
+            },
+            "damaged_sensor_mult": {
+              "description": "Sensor-radius multiplier of a unit at Damaged or worse, unit multiplier (CB-6, Q-SIM-65).",
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "maximum": 1,
+              "x-unit": "multiplier",
+              "x-hot-reload": false
             }
           }
         },
@@ -419,6 +439,85 @@
           "type": "number",
           "exclusiveMinimum": 0,
           "x-unit": "s (game)",
+          "x-hot-reload": false
+        },
+        "crew_survival": {
+          "description": "Chance a crew survives the loss of its unit (DOWNED, else LOST), one entry per kind with crew above 0, unit probability; the unit's one roll on the combat stream (CB-8, Q-SIM-68).",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "ENEMY_ARMOR",
+            "ENEMY_CONVOY",
+            "ENEMY_FIGHTER",
+            "ENEMY_STRIKE_FIGHTER",
+            "GARRISON_INFANTRY",
+            "LOGI_TRUCK",
+            "STRIKE_FIGHTER"
+          ],
+          "properties": {
+            "ENEMY_ARMOR": {
+              "description": "Crew survival chance of this kind, unit probability.",
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "x-unit": "probability",
+              "x-hot-reload": false
+            },
+            "ENEMY_CONVOY": {
+              "description": "Crew survival chance of this kind, unit probability.",
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "x-unit": "probability",
+              "x-hot-reload": false
+            },
+            "ENEMY_FIGHTER": {
+              "description": "Crew survival chance of this kind, unit probability.",
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "x-unit": "probability",
+              "x-hot-reload": false
+            },
+            "ENEMY_STRIKE_FIGHTER": {
+              "description": "Crew survival chance of this kind, unit probability.",
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "x-unit": "probability",
+              "x-hot-reload": false
+            },
+            "GARRISON_INFANTRY": {
+              "description": "Crew survival chance of this kind, unit probability.",
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "x-unit": "probability",
+              "x-hot-reload": false
+            },
+            "LOGI_TRUCK": {
+              "description": "Crew survival chance of this kind, unit probability.",
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "x-unit": "probability",
+              "x-hot-reload": false
+            },
+            "STRIKE_FIGHTER": {
+              "description": "Crew survival chance of this kind, unit probability.",
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "x-unit": "probability",
+              "x-hot-reload": false
+            }
+          }
+        },
+        "crew_marker_min": {
+          "description": "A downed crew stays a map marker this long, unit min of game time (CB-8, Q-SIM-68).",
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "x-unit": "min (game)",
           "x-hot-reload": false
         }
       }
@@ -508,7 +607,10 @@
         "rearm_rate",
         "forward_deploy_min_surplus",
         "starved_loadout",
-        "loadout_cost"
+        "loadout_cost",
+        "repair_rate",
+        "facility_repair_hp_per_stock",
+        "facility_rearm_cost"
       ],
       "properties": {
         "node_max_stock": {
@@ -680,6 +782,69 @@
               "x-hot-reload": false
             }
           }
+        },
+        "repair_rate": {
+          "description": "Hp a unit or facility at a friendly base of each kind repairs per world second, unit hp per s of world time, frozen while paused; SANCTUARY repairs free and every other kind spends the base's stock (GAMEPLAY §5, §5b, Q-SIM-68). Counted in whole thousandths of an hp per tick.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "AIRBASE",
+            "FOB",
+            "HQ",
+            "PORT",
+            "SANCTUARY"
+          ],
+          "properties": {
+            "AIRBASE": {
+              "description": "Repair rate at a base of this kind, unit hp per s (world).",
+              "type": "number",
+              "minimum": 0,
+              "x-unit": "hp/s (world)",
+              "x-hot-reload": false
+            },
+            "FOB": {
+              "description": "Repair rate at a base of this kind, unit hp per s (world).",
+              "type": "number",
+              "minimum": 0,
+              "x-unit": "hp/s (world)",
+              "x-hot-reload": false
+            },
+            "HQ": {
+              "description": "Repair rate at a base of this kind, unit hp per s (world).",
+              "type": "number",
+              "minimum": 0,
+              "x-unit": "hp/s (world)",
+              "x-hot-reload": false
+            },
+            "PORT": {
+              "description": "Repair rate at a base of this kind, unit hp per s (world).",
+              "type": "number",
+              "minimum": 0,
+              "x-unit": "hp/s (world)",
+              "x-hot-reload": false
+            },
+            "SANCTUARY": {
+              "description": "Repair rate at a base of this kind, unit hp per s (world).",
+              "type": "number",
+              "minimum": 0,
+              "x-unit": "hp/s (world)",
+              "x-hot-reload": false
+            }
+          }
+        },
+        "facility_repair_hp_per_stock": {
+          "description": "Hp of a facility that one stock unit of its base repairs, unit hp per stock unit (GAMEPLAY §5b, Q-SIM-68); a unit pays loadout_cost x the share of its hp repaired instead.",
+          "type": "integer",
+          "minimum": 1,
+          "x-unit": "hp per stock unit",
+          "x-hot-reload": false
+        },
+        "facility_rearm_cost": {
+          "description": "Stock a facility's base pays for a full reload of all the facility's weapons, unit stock units, in proportion to the ammo share used (GAMEPLAY §5b, Q-SIM-69); free at a sanctuary.",
+          "type": "integer",
+          "minimum": 1,
+          "x-unit": "stock units",
+          "x-hot-reload": false
         }
       }
     },

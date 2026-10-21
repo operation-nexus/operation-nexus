@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://nexus.local/contracts/events/supply_consumed.json",
   "title": "SupplyConsumed",
-  "description": "Stock a node paid out for units (CONTRACTS §6; NX-123): SPAWN once per forward-deployed unit, REARM once per refuel stop when it ends (filled, stalled or taken off). amount = whole stock units; none when 0. Public view: ENEMY nodes are dropped.",
+  "description": "Stock a node paid out for units (CONTRACTS §6; NX-123): SPAWN once per forward-deployed unit, REARM once per rearm stop when it ends (filled, stalled or taken off) for fuel and ammo, REPAIR once per stop for hp repaired. amount = whole stock units; none when 0. Public view: ENEMY nodes are dropped.",
   "type": "object",
   "additionalProperties": false,
   "required": ["kind", "tick", "event_seq", "campaign_id", "node_id", "amount", "cause"],
@@ -13,6 +13,6 @@
     "campaign_id": {"$ref": "../common/ids.json#/$defs/CampaignId"},
     "node_id": {"$ref": "../common/ids.json#/$defs/NodeId"},
     "amount": {"type": "integer", "minimum": 1, "x-unit": "stock units"},
-    "cause": {"enum": ["SPAWN", "REARM"]}
+    "cause": {"enum": ["SPAWN", "REARM", "REPAIR"]}
   }
 }

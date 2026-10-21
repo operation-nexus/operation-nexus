@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nexus.local/contracts/events/crew_downed.json",
+  "title": "CrewDowned",
+  "description": "A unit was lost and its crew survived the seeded roll (CONTRACTS \u00a76; COMBAT CB-8, GAMEPLAY \u00a76a): rolled once per unit with crew above 0, at the first of Disabled or Destroyed. The marker stays on the map for combat.crew_marker_min of game time. A lost crew emits nothing. pos is the unit position when it was lost. Public view: dropped unless the viewer side observes the position (FOW-13).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "tick", "event_seq", "campaign_id", "marker_id", "entity_id", "side", "pos"],
+  "properties": {
+    "kind": {"const": "CrewDowned"},
+    "tick": {"$ref": "../common/ids.json#/$defs/Tick"},
+    "event_seq": {"type": "integer", "minimum": 1, "description": "Campaign-wide, monotonic, deterministic (SC-14)."},
+    "campaign_id": {"$ref": "../common/ids.json#/$defs/CampaignId"},
+    "marker_id": {"$ref": "../common/ids.json#/$defs/CrewMarkerId"},
+    "entity_id": {"$ref": "../common/ids.json#/$defs/EntityId", "description": "The unit the crew belonged to."},
+    "side": {"$ref": "../common/enums.json#/$defs/Side"},
+    "pos": {"type": "object", "additionalProperties": false, "required": ["x_m", "y_m"], "properties": {"x_m": {"type": "integer", "x-unit": "m"}, "y_m": {"type": "integer", "x-unit": "m"}}}
+  }
+}

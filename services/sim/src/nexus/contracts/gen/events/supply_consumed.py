@@ -22,4 +22,4 @@ class SupplyConsumed(BaseModel):
     campaign_id: ids.CampaignId
     node_id: ids.NodeId
     amount: Annotated[int, Field(ge=1)]
-    cause: Literal["SPAWN", "REARM"]
+    cause: Literal["SPAWN", "REARM", "REPAIR"]

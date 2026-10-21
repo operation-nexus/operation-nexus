@@ -1,11 +1,12 @@
 """NX-123 part 2: forward deploy and refuel at bases (GAMEPLAY GP-7, §5; Q-SIM-49, Q-SIM-51,
 Q-SIM-53, Q-SIM-54; SIM-CORE §4 Logistics).
 
-Shipped strait-1 numbers: a STRIKE_FIGHTER has `fuel_s` 3600 and `loadout_cost` 20; refuelling buys
-`rearm_rate` 0.5 stock per world s, which at 0.6 world s a tick is 300 thousandths of a unit a
-tick, or 54 s of fuel (300 x 3600 / 20000). West-airbase (max 2000, floor 500) starts at 1000;
-`forward_deploy_min_surplus` is 50. Its AIR and GROUND spawns are `haven`, `west-airbase` and the
-three friendly FOB spawns (GROUND only).
+Shipped strait-1 numbers: a STRIKE_FIGHTER has `fuel_s` 3600 and `loadout_cost` 20, half for a full
+tank and half for a full load of rounds (Q-SIM-68); refuelling buys `rearm_rate` 0.5 stock per
+world s, which at 0.6 world s a tick is 300 thousandths of a unit a tick, or 108 s of fuel (300 x
+3600 / 10000). The jets here keep a full load, so only the tank is bought. West-airbase (max 2000,
+floor 500) starts at 1000; `forward_deploy_min_surplus` is 50. Its AIR and GROUND spawns are
+`haven`, `west-airbase` and the three friendly FOB spawns (GROUND only).
 """
 
 import dataclasses
@@ -231,14 +232,14 @@ def test_a_queued_join_is_planned_again_when_it_is_served() -> None:
 # --- refuel -----------------------------------------------------------------------------------
 
 
-def test_a_full_refill_costs_exactly_one_loadout_at_the_rearm_rate() -> None:
+def test_a_full_tank_costs_half_a_loadout_at_the_rearm_rate() -> None:
     w = new_world()
     e = aircraft(w, WEST, 0.0)
-    events = run(w, 66)  # 66 x 300 = 19 800 of the 20 000 thousandths
-    assert (e.fuel, w.stock[WEST], e.rearm_milli) == (66 * 54.0, 1000 - 19, 800) and not events
-    events = run(w, 1)  # the last 200 fill the tank and end the stop
-    assert (e.fuel, w.stock[WEST], e.rearm_milli) == (FULL, 980, 0)
-    assert consumed(events) == [(WEST, 20, "REARM")] and stalled(events) == []
+    events = run(w, 33)  # 33 x 300 = 9 900 of the 10 000 thousandths
+    assert (e.fuel, w.stock[WEST], e.rearm_milli) == (33 * 108.0, 1000 - 9, 900) and not events
+    events = run(w, 1)  # the last 100 fill the tank and end the stop
+    assert (e.fuel, w.stock[WEST], e.rearm_milli) == (FULL, 990, 0)
+    assert consumed(events) == [(WEST, 10, "REARM")] and stalled(events) == []
     assert run(w, 5) == [] and e.fuel == FULL  # never overfills
 
 
@@ -246,8 +247,8 @@ def test_a_partial_refill_pays_for_the_missing_share_only() -> None:
     w = new_world()
     e = aircraft(w, WEST, FULL / 2)
     events = run(w, 40)
-    assert (e.fuel, w.stock[WEST]) == (FULL, 990)
-    assert consumed(events) == [(WEST, 10, "REARM")]
+    assert (e.fuel, w.stock[WEST]) == (FULL, 995)
+    assert consumed(events) == [(WEST, 5, "REARM")]
 
 
 def test_fuel_never_exceeds_the_tank_and_each_kind_pays_its_own_cost() -> None:
@@ -264,11 +265,11 @@ def test_below_the_starvation_floor_it_fills_only_to_half_a_tank() -> None:
     w.stock[WEST] = 400  # floor 500
     e = aircraft(w, WEST, 0.0)
     events = run(w, 100)
-    assert (e.fuel, w.stock[WEST]) == (FULL / 2, 390)
-    assert consumed(events) == [(WEST, 10, "REARM")] and stalled(events) == []
+    assert (e.fuel, w.stock[WEST]) == (FULL / 2, 395)
+    assert consumed(events) == [(WEST, 5, "REARM")] and stalled(events) == []
     w.stock[WEST] = 600  # a delivery lifts it over the floor: the rest of the tank is sold
     events = run(w, 100)
-    assert e.fuel == FULL and w.stock[WEST] == 590 and consumed(events) == [(WEST, 10, "REARM")]
+    assert e.fuel == FULL and w.stock[WEST] == 595 and consumed(events) == [(WEST, 5, "REARM")]
 
 
 def test_an_empty_base_stalls_once_and_resumes_after_a_delivery() -> None:
@@ -277,10 +278,10 @@ def test_an_empty_base_stalls_once_and_resumes_after_a_delivery() -> None:
     e = aircraft(w, WEST, 100.0)
     events = run(w, 10)
     assert stalled(events) == [(e.id, WEST)] and consumed(events) == [] and e.fuel == 100.0
-    w.stock[WEST] = 5  # a truck unloads 5 units
-    events = run(w, 30)  # 16 ticks of 300 and one of 200 spend them, the next tick stalls again
-    assert (e.fuel, w.stock[WEST]) == (100.0 + 16 * 54.0 + 36.0, 0)
-    assert consumed(events) == [(WEST, 5, "REARM")] and stalled(events) == [(e.id, WEST)]
+    w.stock[WEST] = 3  # a truck unloads 3 units
+    events = run(w, 30)  # 10 ticks of 300 spend them, the next tick stalls again
+    assert e.fuel == pytest.approx(100.0 + 3 * 360.0) and w.stock[WEST] == 0
+    assert consumed(events) == [(WEST, 3, "REARM")] and stalled(events) == [(e.id, WEST)]
     assert run(w, 10) == []  # still stalled: nothing more is said
 
 
@@ -288,8 +289,8 @@ def test_the_sanctuary_refuels_free_at_the_same_rate() -> None:
     w = new_world()
     e = aircraft(w, "haven", 0.0)
     before = dict(w.stock)
-    events = run(w, 66)
-    assert e.fuel == 66 * 54.0 and events == []
+    events = run(w, 33)
+    assert e.fuel == 33 * 108.0 and events == []
     assert [type(x) for x in run(w, 1)] == [] and e.fuel == FULL and w.stock == before
 
 
@@ -298,7 +299,7 @@ def test_an_enemy_aircraft_refuels_at_its_own_base_only() -> None:
     enemy = aircraft(w, "east-airbase", 0.0, "ENEMY", "ENEMY_FIGHTER")
     lost = aircraft(w, WEST, 0.0, "ENEMY", "ENEMY_FIGHTER")  # a node the side does not own
     run(w, 10)
-    assert enemy.fuel == 10 * 54.0 and lost.fuel == 0.0
+    assert enemy.fuel == 10 * 108.0 and lost.fuel == 0.0
 
 
 def test_a_paused_campaign_refuels_nothing() -> None:
@@ -313,10 +314,10 @@ def test_taking_off_ends_the_stop_and_a_refuelled_aircraft_can_go() -> None:
     e = aircraft(w, WEST, 0.0)
     e.path = ["fob-n-w"]  # ordered off empty: bingo keeps it on the ground
     run(w, 3)
-    assert (e.state, e.path, e.last_node) == ("LANDED", [], WEST) and e.fuel == 3 * 54.0
-    run(w, 17)  # 20 ticks bought: 1080 s, above bingo (540 s at its own base)
+    assert (e.state, e.path, e.last_node) == ("LANDED", [], WEST) and e.fuel == 3 * 108.0
+    run(w, 17)  # 20 ticks bought: 2160 s, above bingo (540 s at its own base)
     spent = 6
-    assert e.fuel == 20 * 54.0 and w.stock[WEST] == 1000 - spent and e.rearm_spent == spent
+    assert e.fuel == 20 * 108.0 and w.stock[WEST] == 1000 - spent and e.rearm_spent == spent
     e.path = ["fob-n-w"]
     events = run(w, 1)
     assert e.state == "EN_ROUTE" and consumed(events) == [(WEST, spent, "REARM")]
@@ -342,7 +343,7 @@ ACTION = st.one_of(
 
 def accounted(w: World, spent: int) -> int:
     """Stock + cargo + everything paid out: events already told, and refuel stops still open."""
-    return total(w) + spent + sum(e.rearm_spent for e in w.entities())
+    return total(w) + spent + sum(e.rearm_spent + e.repair_spent for e in w.entities())
 
 
 @given(st.lists(ACTION, max_size=25))
@@ -409,11 +410,6 @@ def test_load_refuses_bad_refuel_progress_and_version_10() -> None:
     import msgpack
 
     raw = msgpack.unpackb(save(midway()), raw=False)
-    bad = next(e for e in raw["entities"] if e["state"] is None)
-    bad["stalled"] = True
-    with pytest.raises(ValueError, match="refuel progress"):
-        load(msgpack.packb(raw, use_bin_type=True))
-    bad["stalled"] = False
     air = next(e for e in raw["entities"] if e["state"] is not None)
     air["rearm_milli"] = 1000
     with pytest.raises(ValueError, match="rearm_milli"):
@@ -496,11 +492,11 @@ def test_a_hair_short_of_full_snaps_to_full_instead_of_stalling() -> None:
 
 def test_a_refuel_that_crosses_the_floor_mid_stop_is_capped_at_half_a_tank() -> None:
     w = new_world()
-    w.stock[WEST] = 505  # floor 500: the sixth unit bought takes it under
+    w.stock[WEST] = 502  # floor 500: the third unit bought takes it under
     e = aircraft(w, WEST, 0.0)
     events = run(w, 100)
-    assert (e.fuel, w.stock[WEST]) == (FULL / 2, 495)
-    assert consumed(events) == [(WEST, 10, "REARM")] and stalled(events) == []
+    assert (e.fuel, w.stock[WEST]) == (FULL / 2, 497)
+    assert consumed(events) == [(WEST, 5, "REARM")] and stalled(events) == []
 
 
 def test_a_join_to_its_own_sanctuary_spawns_there_free() -> None:

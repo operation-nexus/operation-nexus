@@ -18,7 +18,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from nexus.contracts.gen.common.enums import Side, UnitKind
+from nexus.contracts.gen.common.enums import DamageState, Side, UnitKind
 from nexus.core.fog import side_view, spotted, tracked_by, visible
 from nexus.core.rules import Rules
 from nexus.core.step import step
@@ -58,7 +58,7 @@ def world(rules: Rules = RULES) -> World:
 
 def put(w: World, kind: UnitKind, side: Side, x: float, y: float = 0.0) -> Entity:
     e = w.spawn(kind, side, "AI_GARRISON", Vec2(x, y))
-    e.ammo = [0] * len(e.ammo)  # these tests are about sensing: nobody fires (NX-124)
+    e.reload = [10**9] * len(e.ammo)  # these tests are about sensing: nobody fires (NX-124)
     return e
 
 
@@ -222,7 +222,8 @@ def brute(w: World, side: Side, rules: Rules = RULES) -> list[int]:
     ]
 
     def sees(s: Entity, t: Entity) -> bool:
-        reach = rules.sensor_radius_m[s.kind] * rules.stealth[t.kind]
+        radius = rules.sensor_radius_m[s.kind] * (0.8 if s.damage_state != "HEALTHY" else 1.0)
+        reach = radius * rules.stealth[t.kind]  # damaged_sensor_mult 0.8 at Damaged or worse
         hidden = rules.domain[t.kind] == "GROUND" and bool(_cell_regions(rules, t))
         hidden = hidden and not (_cell_regions(rules, t) & _cell_regions(rules, s))
         return (t.pos.x - s.pos.x) ** 2 + (t.pos.y - s.pos.y) ** 2 <= reach**2 and not hidden
@@ -250,6 +251,7 @@ def brute_discovered(w: World, side: Side, rules: Rules) -> list[int]:
     return sorted(heard | static)
 
 
+_STATES: list[DamageState] = ["HEALTHY", "DAMAGED", "MISSION_KILL"]
 _UNITS: list[tuple[UnitKind, Side]] = [
     (RADAR, "COALITION"),
     (TRUCK, "COALITION"),
@@ -259,13 +261,15 @@ _UNITS: list[tuple[UnitKind, Side]] = [
 _XY = st.integers(-3000, 3000).map(float) | st.floats(-3000, 3000)
 
 
-@given(st.lists(st.tuples(st.sampled_from(_UNITS), _XY, _XY), max_size=40))
+@given(
+    st.lists(st.tuples(st.sampled_from(_UNITS), _XY, _XY, st.sampled_from(_STATES)), max_size=40)
+)
 def test_no_entity_outside_coverage_passes_the_visibility_predicate(
-    units: list[tuple[tuple[UnitKind, Side], float, float]],
+    units: list[tuple[tuple[UnitKind, Side], float, float, DamageState]],
 ) -> None:
     w = world()
-    for (kind, side), x, y in units:
-        put(w, kind, side, x, y)
+    for (kind, side), x, y, state in units:
+        put(w, kind, side, x, y).damage_state = state
     run_to(w, 5)
     for side in ("COALITION", "ENEMY"):
         assert [i for i in w.contacts[side]] == brute(w, side)
@@ -301,6 +305,30 @@ def test_sc10_smoke_1000_entities() -> None:
     # here include some inside each region; the hand test above shows it hiding).
     assert any(_cell_regions(SHIPPED, t) for t in w.entities() if t.kind == ARMOR)
     print(f"5 ticks incl. one sensing pass at 1,000 entities: {elapsed_ms:.1f} ms")
+
+
+def test_sc10_damaged_sensors_1000_entities_match_the_oracle() -> None:
+    """A third of the sensors are Damaged (radius x 0.8, CB-6): the class grids still give exactly
+    the brute-force result, so the per-entity radius is in the grids' keys."""
+    w = big_world()
+    for i, e in enumerate(w.entities()):
+        e.damage_state = _STATES[i % 3]
+    run_to(w, 5)
+    for side in ("COALITION", "ENEMY"):
+        assert list(w.contacts[side]) == brute(w, side, SHIPPED)
+        assert list(w.markers[side]) == brute_discovered(w, side, SHIPPED)
+
+
+def test_a_damaged_sensor_reaches_four_fifths_as_far() -> None:
+    w = world()
+    radar = put(w, RADAR, "COALITION", 0.0)
+    far = put(w, CONVOY, "ENEMY", 900.0)  # inside 1,000 m, outside 800 m
+    near = put(w, CONVOY, "ENEMY", 700.0)
+    run_to(w, 5)
+    assert tracked_by(w, "COALITION", far.id) and tracked_by(w, "COALITION", near.id)
+    radar.hp, radar.damage_state = 100, "DAMAGED"
+    run_to(w, 10)
+    assert not tracked_by(w, "COALITION", far.id) and tracked_by(w, "COALITION", near.id)
 
 
 def test_sc10_step_time_1000_entities() -> None:

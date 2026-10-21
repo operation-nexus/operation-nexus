@@ -22,6 +22,7 @@ from test_join import cid, join
 
 from nexus.contracts.gen.common.enums import AltBand, Side, UnitKind
 from nexus.contracts.gen.events.command_rejected import CommandRejected
+from nexus.contracts.gen.events.crew_downed import CrewDowned
 from nexus.contracts.gen.events.event import Event
 from nexus.contracts.gen.events.unit_damage_state_changed import UnitDamageStateChanged
 from nexus.contracts.gen.events.unit_despawned import UnitDespawned
@@ -616,7 +617,11 @@ def test_a_killing_shot_in_a_tick_emits_fire_impact_destroy_in_order() -> None:
     convoy = put(w, CONVOY, "ENEMY", 500)  # 80 hp, armor 0
     track(w, inf, convoy)
     events = run(w)
-    assert [type(e) for e in events] == [WeaponFired, WeaponImpact, UnitDestroyed]
+    assert [type(e) for e in events if not isinstance(e, CrewDowned)] == [
+        WeaponFired,
+        WeaponImpact,
+        UnitDestroyed,
+    ]  # the crew roll is covered in test_rearm_crew.py
     assert of(events, WeaponImpact)[0].hit is True
     assert of(events, UnitDestroyed)[0].killer_id == inf.id and len(w) == 1
     assert [e.event_seq for e in events] == sorted(e.event_seq for e in events)
@@ -751,7 +756,8 @@ def test_a_disabled_airborne_aircraft_is_destroyed_at_once_by_its_killer() -> No
         dataclasses.replace(COMBAT.weapons["AAA_GUN"], damage=10),
         out,
     )
-    assert [type(e) for e in out] == [UnitDestroyed]  # no state change: it is destroyed (Q-SIM-66)
+    # no state change: it is destroyed (Q-SIM-66); the crew roll is covered in test_rearm_crew.py
+    assert [type(e) for e in out if not isinstance(e, CrewDowned)] == [UnitDestroyed]
     (dead,) = of(out, UnitDestroyed)
     assert dead.killer_id == shooter.id and w.find(jet.id) is None
     assert w.respawn_left == {cid(4): 200}
@@ -784,7 +790,7 @@ def test_a_landed_aircraft_that_is_disabled_becomes_a_ground_wreck() -> None:
         dataclasses.replace(COMBAT.weapons["AAA_GUN"], damage=5),
         out,
     )
-    assert [type(e) for e in out] == [UnitDamageStateChanged]
+    assert [type(e) for e in out if not isinstance(e, CrewDowned)] == [UnitDamageStateChanged]
     assert (jet.damage_state, jet.wreck_left) == ("DISABLED", 6_000)
     (gone,) = of(run(w, 6_000), UnitDespawned)
     assert (gone.entity_id, gone.reason) == (jet.id, "WRECKED")

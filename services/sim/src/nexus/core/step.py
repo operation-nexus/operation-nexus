@@ -16,7 +16,7 @@ from nexus.core.fog import sense
 from nexus.core.handlers import HANDLERS as HANDLERS
 from nexus.core.handlers import Handler as Handler
 from nexus.core.handlers import reject, serve_reserve_queue
-from nexus.core.logistics import logistics
+from nexus.core.logistics import logistics, nearest_base
 from nexus.core.rules import Rules
 from nexus.core.world import SIDES, Entity, UnitState, Vec2, World, lose_unit
 
@@ -66,6 +66,9 @@ def movement(
     Paused (SC-11): nothing moves or burns. A path is followed as given; JOIN assigns one (NX-122).
     A Disabled unit (a wreck, COMBAT CB-7) stops where it is: no path, no fuel burn, no crash. An
     airborne aircraft never gets here: combat destroys it the moment it is Disabled (Q-SIM-66).
+    Units fly and drive at `Rules.speed`: x `damaged_speed_mult` at Damaged or worse, an aircraft
+    never below `min_speed_mps` (CB-6). Auto-RTB is not checked here: combat sends a unit home once,
+    on the transition (`logistics.go_home`), so later orders stand.
     """
     if world.frozen:
         return
@@ -81,10 +84,11 @@ def movement(
         elif rules.domain[e.kind] == _AIR:
             if not _fly(e, rules, landing[e.side]):
                 lost.append(e)
-        elif e.path:
-            _move(e, rules)
         else:
-            e.vel = _STOPPED
+            if e.path:
+                _move(e, rules)
+            else:
+                e.vel = _STOPPED
     for e in lost:  # removed after the loop, in id order
         _crash(world, e, out)
 
@@ -141,7 +145,7 @@ def _on_own_base(e: Entity, rules: Rules, bases: tuple[str, ...]) -> bool:
 
 def _crash(world: World, e: Entity, out: list[Event]) -> None:
     """Out of fuel: the aircraft is lost like a shoot-down and its owner's respawn delay starts
-    (owner, 2026-10-21). The wreck and the crew-survival roll join with combat (NX-124)."""
+    (owner, 2026-10-21), after its one crew roll (COMBAT CB-8, `lose_unit`)."""
     lose_unit(world, e, out)
 
 
@@ -151,18 +155,11 @@ def _fuel(e: Entity) -> float:
     return e.fuel
 
 
-def _nearest_base(e: Entity, rules: Rules, bases: tuple[str, ...]) -> tuple[float, str]:
-    """(distance, id) of the nearest of `bases` by straight line, ties by node id."""
-    return min(
-        (math.hypot(x - e.pos.x, y - e.pos.y), n) for n in bases for x, y in [rules.roads.pos[n]]
-    )
-
-
 def _retarget(e: Entity, rules: Rules, bases: tuple[str, ...]) -> None:
     """An RTB aircraft whose base stopped being a landing base of its side (captured, NX-125)
     heads for the nearest one that is, as at bingo. No base left: it flies on."""
     if bases and e.path and e.path[-1] not in bases and isinstance(e.path[-1], str):
-        e.path = [_nearest_base(e, rules, bases)[1]]
+        e.path = [nearest_base(e, rules, bases)[1]]
 
 
 def _check_bingo(e: Entity, rules: Rules, bases: tuple[str, ...]) -> None:
@@ -170,9 +167,9 @@ def _check_bingo(e: Entity, rules: Rules, bases: tuple[str, ...]) -> None:
     node id) + `bingo_reserve_frac` x full fuel. Then it heads there, RTB. No base: it flies on."""
     if not bases:
         return
-    dist, base = _nearest_base(e, rules, bases)
+    dist, base = nearest_base(e, rules, bases)
     reserve = rules.bingo_reserve_frac * rules.fuel_s[e.kind]
-    if _fuel(e) <= dist / rules.speed_mps[e.kind] + reserve:
+    if _fuel(e) <= dist / rules.speed(e.kind, e.damage_state) + reserve:
         e.state, e.path, e.orbit = _RTB, [base], None
 
 
@@ -207,7 +204,7 @@ def _orbit(e: Entity, centre: Vec2, rules: Rules) -> None:
 
 def _waypoint(e: Entity, rules: Rules) -> tuple[Vec2, float]:
     """The next waypoint and the speed to it in m/s (world)."""
-    wp, speed = e.path[0], rules.speed_mps[e.kind]
+    wp, speed = e.path[0], rules.speed(e.kind, e.damage_state)
     if rules.domain[e.kind] == _GROUND:
         if not isinstance(wp, str) or e.last_node is None:
             raise ValueError(f"ground entity {e.id} must move node to node on the road graph")

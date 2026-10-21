@@ -669,7 +669,7 @@ def test_format_12_snapshots_are_refused() -> None:
     raw["v"] = 12
     with pytest.raises(ValueError, match="unsupported snapshot format version 12"):
         load(msgpack.packb(raw, use_bin_type=True))
-    assert world_mod.FORMAT_VERSION == 14
+    assert world_mod.FORMAT_VERSION == 15
 
 
 @pytest.mark.parametrize(

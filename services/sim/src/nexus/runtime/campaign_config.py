@@ -94,6 +94,7 @@ def load_campaign_config(paths: ConfigPaths | None = None) -> CampaignConfig:
             dt=world_dt(balance.sim),
             disabled_timeout_ticks=game_ticks(balance.combat.disabled_timeout_s, balance),
             assist_window_ticks=game_ticks(balance.combat.assist_window_s, balance),
+            crew_marker_ticks=game_ticks(balance.combat.crew_marker_min, balance, unit_s=60),
         ),
     )
     return CampaignConfig(balance, catalog, theater, digest, rules)

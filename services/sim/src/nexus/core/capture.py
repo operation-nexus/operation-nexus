@@ -29,7 +29,8 @@ facilities switch side keeping their damage (Q-GP-25, `fog.hand_over`), and the 
 mobile units within the radius escape or are lost (Q-SM-10): a ground unit takes the road route to
 the nearest friendly base, an aircraft LANDED there takes off RTB to the nearest base it owns if its
 fuel reaches it; any other is removed with `UnitDestroyed` and, for a commander's unit, its respawn
-delay (the crew-survival roll waits for combat part 2, NX-124); a Disabled wreck cannot escape.
+delay and, once per unit, its crew roll (COMBAT CB-8: a wreck rolled when it became Disabled); a
+Disabled wreck cannot escape.
 Stock stays with the node. A SANCTUARY or BRIDGE node is never captured (N-4).
 
 Runs after `logistics` in the `logistics_capture` slot (SC-13) and not while paused (SC-11).
@@ -46,12 +47,11 @@ from nexus.contracts.gen.events.capture_started import CaptureStarted
 from nexus.contracts.gen.events.event import Event
 from nexus.contracts.gen.events.node_captured import NodeCaptured
 from nexus.core.fog import hand_over
-from nexus.core.logistics import end_stop, nearest
+from nexus.core.logistics import end_stop, friendly_bases, nearest
 from nexus.core.rules import CAPTURE_FULL, CaptureRules, Rules
 from nexus.core.world import SIDES, CaptureBar, Entity, World, lose_unit
 
 _UNCAPTURABLE: tuple[NodeKind, ...] = ("SANCTUARY", "BRIDGE")
-_NOT_A_BASE: tuple[NodeKind, ...] = ("BRIDGE",)  # a unit cannot flee to a bridge
 _OTHER: dict[Side, Side] = {"COALITION": "ENEMY", "ENEMY": "COALITION"}
 _AIR, _GROUND = "AIR", "GROUND"
 _DISABLED = "DISABLED"
@@ -252,11 +252,9 @@ def _escape_ground(world: World, rules: Rules, e: Entity, node: str, out: list[E
     """Re-path to the nearest friendly base by road, from the node the unit is heading for (or
     standing at); False when there is none. A truck keeps its cargo and ends its unloading stop."""
     start = e.path[0] if e.path else e.last_node
-    bases = [
-        n for n, kind in rules.node_kind.items()
-        if kind not in _NOT_A_BASE and world.owner.get(n) == e.side
-    ]  # fmt: skip
-    best = None if not isinstance(start, str) else nearest(rules, start, bases)
+    best = None
+    if isinstance(start, str):
+        best = nearest(rules, start, friendly_bases(world, rules, e.side))
     if best is None:
         return False
     if e.delivered:
@@ -274,7 +272,7 @@ def _escape_air(world: World, rules: Rules, e: Entity) -> bool:
          for n in world.landing_bases(e.side) for x, y in [rules.roads.pos[n]]),
         default=None,
     )  # fmt: skip
-    if reach is None or e.fuel < reach[0] / rules.speed_mps[e.kind]:
+    if reach is None or e.fuel < reach[0] / rules.speed(e.kind, e.damage_state):
         return False
     e.state, e.path, e.orbit = "RTB", [reach[1]], None
     return True
