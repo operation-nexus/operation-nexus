@@ -592,3 +592,13 @@ Owner decisions from the theater #1 sketch session.
 | Q-DEV-18 | Ponytail in cloud sessions | Cloud sessions don't install repo-enabled plugins, so vendor the `ponytail`, `ponytail-review`, `ponytail-audit` and `ponytail-debt` skills (MIT, v5.3.2) into `.claude/skills/`; skip its hooks. | P1 | ✅ 2026-10-20 |
 | Q-DEV-19 | Serena for P1 | Not in cloud for now: the kernel starts nearly empty, so grep and reads suffice. Use it on the Mac via Remote Control or `--teleport` for big refactors; revisit cloud Serena (project `.mcp.json` plus a setup-script install) mid-P1 as part of NX-045. | P1 | ✅ 2026-10-20 |
 | Q-DEV-14 | Docs keep up with code | Every code PR updates the specs, contracts, config tables, READMEs and tracker it affects; QA treats a stale doc as a finding (build-loop §4). | P1 | ✅ 2026-10-20 |
+
+## P1 kernel build (2026-10-21)
+
+Lead decisions taken while building the kernel (build-loop §3). Each is reversible; the owner may veto.
+
+| ID | Question | Decision | Priority | Status |
+|---|---|---|---|---|
+| Q-SIM-29 | PCG64 from NumPy or in pure Python (NX-100) | Pure Python, no new dependency: PCG XSL-RR 128/64 with NumPy's multiplier and draw order, checked bit for bit against `numpy.random.PCG64` by an optional test. Each stream's state and increment come from blake2b (person `nexus.simrng.v1`) over the campaign seed and the stream name; changing that scheme changes every replay, so it is versioned in the personalization. Snapshot state is 32-char hex, since 128-bit ints don't fit msgpack. NumPy can replace it later behind the same API if profiling asks. | P1 | Decided by lead, owner may veto |
+| Q-SIM-30 | Runtime dependencies for the canonical state and the logs | Add `msgpack` (canonical state for `state_hash` and snapshots, with NX-101) and `zstandard` (command log and snapshots, with NX-103), as SIM-CORE §5 and DATA-MODEL already specify; each PR justifies its dependency. | P1 | ✅ 2026-10-21 |
+| Q-SIM-31 | COMBAT (Status: Review) and CONFIG-AND-CONTENT (Status: Draft) before NX-106 and NX-124 | Grill each spec's open points with the owner (`/grill-with-docs`) before its build item starts; the kernel work NX-100…NX-105 goes ahead meanwhile. | P1 | ✅ 2026-10-21 |
