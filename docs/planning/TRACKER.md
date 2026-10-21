@@ -10,7 +10,7 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | Phase | Items | Done | Status |
 |---|---|---|---|
 | P0 Foundations | 42 | 17 | 🟨 |
-| P1 Sim kernel | 26 | 5 | 🟨 |
+| P1 Sim kernel | 26 | 6 | 🟨 |
 | P2 Closed alpha | 33 | 0 | ⬜ |
 | P3 Public beta | 22 | 0 | ⬜ |
 | P4 Depth | 67 | 1 | ⬜ |
@@ -53,7 +53,7 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-023 | CODEOWNERS, PR template, issue templates, SECURITY.md | S | ✅ | — | Files present |
 | NX-024 [#21](https://github.com/operation-nexus/operation-nexus/issues/21) | markdownlint + lychee docs job | S | ⬜ | NX-011 | Broken link fails |
 | NX-025 [#22](https://github.com/operation-nexus/operation-nexus/issues/22) | Dev container / `make bootstrap` for desktop + cloud agents (SessionStart hook) | M | ✅ | NX-010 | Fresh clone → `make check` in one command |
-| NX-026 [#23](https://github.com/operation-nexus/operation-nexus/issues/23) | Structured logging lib with secret-redaction + test | S | ⬜ | NX-010 | Test proves token redacted |
+| NX-026 [#23](https://github.com/operation-nexus/operation-nexus/issues/23) | Structured logging lib with secret-redaction + test | S | 👀 | NX-010 | Test proves token redacted |
 | NX-027 [#24](https://github.com/operation-nexus/operation-nexus/issues/24) | Runbook: rotate secrets | S | ⬜ | NX-014 | Doc reviewed |
 | NX-028 | `.gitignore` additions (`*.db`, `node_modules/`, snapshots, logs, `.env*`) | S | ✅ | — | Present |
 | NX-029 [#25](https://github.com/operation-nexus/operation-nexus/issues/25) | Agent review gate: code-review + security-review run on every PR (Q-CI-3) | M | ❓ | NX-011 | Review comment posted on PRs |
@@ -90,7 +90,7 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-102 [#159](https://github.com/operation-nexus/operation-nexus/issues/159) | Fixed-step runtime + inbox + canonical command ordering | M | ✅ | NX-101 | SC-6 shuffled-arrival property |
 | NX-103 [#160](https://github.com/operation-nexus/operation-nexus/issues/160) | Snapshot + command log + restore | M | ✅ | NX-102 | Kill/restore integration test equal hash |
 | NX-104 [#161](https://github.com/operation-nexus/operation-nexus/issues/161) | Spatial grid + benchmarks | M | ✅ | NX-101 | 1k entities p99 < 25 ms (bench) |
-| NX-105 [#162](https://github.com/operation-nexus/operation-nexus/issues/162) | Golden replay framework + cross-process check in CI | M | 👀 | NX-103 | Job `sim-determinism` in `ci-gate`: required on main, advisory on develop (ADR-0009) |
+| NX-105 [#162](https://github.com/operation-nexus/operation-nexus/issues/162) | Golden replay framework + cross-process check in CI | M | ✅ | NX-103 | Job `sim-determinism` in `ci-gate`: required on main, advisory on develop (ADR-0009) |
 | NX-106 | Balance config loader (YAML, schema-validated, hashed) | S | ⬜ | NX-101 | Invalid config rejected; hash in campaign |
 | NX-120 | Theater loader + road graph + A* | M | ⬜ | NX-008, NX-106 | Paths avoid destroyed bridges |
 | NX-121 | Kinematics (air direct, ground on graph), time scale | M | ⬜ | NX-120 | Property: positions in bounds, on edges |

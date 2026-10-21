@@ -100,3 +100,23 @@ forbidden_modules = [
   "nexus.clips",
   "nexus.ops",
 ]
+
+[[tool.importlinter.contracts]]
+name = "nexus.obs is a leaf: it imports nothing else from nexus (SYSTEM-DESIGN §4, Q-DEV-20)"
+type = "forbidden"
+source_modules = ["nexus.obs"]
+forbidden_modules = [
+  "nexus.contracts",
+  "nexus.core",
+  "nexus.runtime",
+  "nexus.gateway",
+  "nexus.commands",
+  "nexus.moderation",
+  "nexus.broadcast",
+  "nexus.progression",
+  "nexus.persistence",
+  "nexus.advisors",
+  "nexus.audio",
+  "nexus.clips",
+  "nexus.ops",
+]

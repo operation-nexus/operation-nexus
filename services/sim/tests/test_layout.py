@@ -14,6 +14,7 @@ MODULES = [
     "audio",
     "clips",
     "ops",
+    "obs",
 ]
 
 

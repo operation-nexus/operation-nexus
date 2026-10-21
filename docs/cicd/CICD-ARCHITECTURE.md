@@ -158,7 +158,7 @@ The broadcast must survive deploys of every component:
 | Link-token HMAC key; DB credentials (only once Postgres exists, ADR-0003) | Generated on the host, sops-encrypted backup | sim/api |
 | Tailscale OAuth | GitHub Environment secret | deploy job |
 
-Rotation runbook in `deploy/runbooks/rotate-secrets.md` (NX-027). Secrets must never be logged; the logging library has a redaction filter with a test.
+Rotation runbook in `deploy/runbooks/rotate-secrets.md` (NX-027). Secrets must never be logged; the logging library (`nexus.obs`, NX-026) has a redaction filter with a test (`services/sim/tests/test_obs.py`).
 
 ## 9. Repository settings checklist (owner action)
 
