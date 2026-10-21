@@ -1,6 +1,6 @@
 # Phase gate: P0 Foundations
 
-Status: **Draft, awaiting the owner's go/no-go** · Date: 2026-10-20 · ROADMAP "Milestone gates" · Scope: `main` (df56a6e) → `develop` plus the open docs PRs #140–#144
+Status: **GO to P1 (owner, 2026-10-20)** · Date: 2026-10-20 · ROADMAP "Milestone gates" · Scope: `main` (df56a6e) → `develop` plus the open docs PRs #140–#144
 
 ## 1. Exit criteria (ROADMAP P0)
 | Criterion | State | Evidence |
@@ -76,7 +76,7 @@ Suggested 3–5 minute capture for the devlog:
 | Security hardening L1, L2, L4, L5 (§3) | P1 | One small PR; no owner decision needed |
 | NX-004 context files, NX-044 desktop setup, NX-005 raw-file move | anytime (owner) | Owner tasks, block nothing |
 
-- **Go / no-go:** _owner_
-- **Carry-over confirmed (Q-PH0-1):** _owner_
+- **Go / no-go:** ✅ GO to P1 (owner, 2026-10-20)
+- **Carry-over confirmed (Q-PH0-1):** ✅ as proposed in the table above (owner, 2026-10-20)
 - **Auto-merge on `develop` (Q-PH0-2):** ✅ owner 2026-10-20: yes for agent PRs on a green `ci-gate`, except PRs touching CODEOWNERS files
 - **M1 and L6 (Q-PH0-3):** ✅ owner 2026-10-20: M1 fixed with code-owner review on the gate files and the owner as bypass actor (Q-DEV-12); L6 pinned to tag v5.3.2 (Q-DEV-13). Previously proposed options: Options for M1: (a) require code-owner review on `/.github/` and `/.claude/`, with a second account approving agent PRs there; (b) block auto-merge for PRs that touch `.github/workflows/**` and keep merging those by hand; (c) accept the risk while the owner merges every PR by hand. Recommended: (b) if auto-merge is turned on (Q-PH0-2), else (c). For L6: pin `ponytail` to a commit.
