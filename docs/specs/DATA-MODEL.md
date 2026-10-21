@@ -457,19 +457,22 @@ No `AppendXp` or `AppendMerit` intent is produced for an action by an AUTO unit 
 ### 6.2 Command log
 - **Path:** `command-logs/<campaign_id>/<segment:06d>.nxl.zst`
 - **Format:** newline-delimited JSON records, written through a streaming zstd frame. Each segment is a sequence of independent zstd frames, one per flush, so a crash loses at most the last unflushed frame.
-- **Record:**
+- **Record:** the command exactly as its contract (CONTRACTS §5: flat common header plus payload), one JSON object per line with sorted keys and no spaces. Reading validates every record against the generated `Command` union (strict, unknown fields rejected).
   ```json
-  {"arrival_seq": 1234567, "target_tick": 88210, "kind": "JOIN",
-   "source": "CHAT", "platform": "TWITCH",
-   "commander_id": "0192…", "args": {"role": "LOGI"}}
+  {"arrival_seq":1234567,"correlation_id":"msg-1","hold":false,
+   "issuer":{"commander_id":"0192…"},"kind":"JOIN","role":"LOGI",
+   "source":"CHAT","target":null,"target_tick":88210}
   ```
-  - `source` is a `CommandSource` (`CHAT|STAFF|ADVISOR|SYSTEM`, CONTRACTS §3.3). `platform` is set only for `CHAT` commands and is `null` otherwise. No vendor field names (ADR-0010 N-6).
+  (wrapped here; one line in the file)
+  - `source` is a `CommandSource` (`CHAT|STAFF|ADVISOR|SYSTEM`, CONTRACTS §3.3). The platform is not part of the command contract, so the log has no `platform` field. No vendor field names (ADR-0010 N-6).
   - `commander_id` only; no names (DM-6).
   - Advisor choices and admin actions are commands too (ADR-0002).
 - **Write-ahead and tombstones (Q-SIM-2):** a tick's commands are appended before `step` runs. If `step` raises, recovery appends `{"tombstone": <tick>, "reason": "STEP_EXCEPTION"}`; replays treat every command at that tick as dropped (each is emitted as `CommandRejected{INTERNAL_ERROR}`). The tombstone is also named in the crash bundle (§6.3).
-- **Flush and fsync:** every 1 s (NFR-7), and on campaign end and shutdown.
+- **Flush and fsync:** every 1 s (NFR-7), and on campaign end and shutdown. A failed flush is fatal: the buffer is dropped (never retried, since a retry could land after a partial frame) and the runtime stops and recovers from snapshot plus log.
 - **Rotation:** a new segment when one passes 64 MiB uncompressed (PROPOSED) or at each snapshot boundary. Segment names are monotonic.
-- **Integrity:** every segment's first record carries a header (`format_version`, `campaign_id`, `first_arrival_seq`). The replay CLI rejects gaps in `arrival_seq`; a tombstone record carries no `arrival_seq` and is not a gap.
+- **Integrity:** every segment's first record is `{"header": {format_version, campaign_id, first_arrival_seq, protocol_version}}`. Readers reject a missing header, a `campaign_id` that differs from the first segment, and any gap or repeat in `arrival_seq`, within or across segments; a tombstone record carries no `arrival_seq` and is not a gap. Each frame records its content size, and a reader decompresses at most 128 MiB per segment (twice the rotation size), so a log of many small frames can't exhaust memory.
+- **Torn tail:** when the last segment's file ends inside a frame (a crash mid-write), readers drop that frame and set `truncated_tail`. This can mean lost commands that had already been fsynced (damage that looks like a torn write), so the runtime must alert (NX-103 part c). Only "the file ends inside the frame" counts: a decode error, a damaged frame header or a bad checksum in a complete frame is an error wherever it is, including the final frame.
+- **Restart:** the writer reopens the current segment. If its tail is torn, the torn bytes are copied to `<segment>.torn-<offset>` (kept as evidence, never deleted), the segment is truncated to the last complete frame and fsynced, and the writer reports the number of bytes removed so the runtime can alert. The segment header must match the campaign and `PROTOCOL_VERSION`, and the next `arrival_seq` must follow the last record (or the header's `first_arrival_seq`). If either check fails, the writer refuses to open the segment.
 
 ### 6.3 Crash bundle
 Written on a `step` exception (SC-8) to `crash-bundles/<utc>-<campaign_id>-<tick>/`:
