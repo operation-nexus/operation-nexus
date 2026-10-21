@@ -45,7 +45,7 @@ Define every input the system reads that isn't code: runtime settings, balance t
 |---|---|---|---|---|---|
 | Runtime / app | env vars + `deploy/<env>/app.yaml` | YAML + env | No | No (logged separately as `runtime_fingerprint`) | Process restart |
 | Balance | `balance/<profile>.yaml` (e.g. `balance/default.yaml`) | YAML | Yes | Yes | New campaign; hot-reloadable keys only via admin reload (§5) |
-| Content | `content/theaters/*.yaml`, `content/units.yaml`, `content/doctrines.yaml`, `content/text/*.yaml` | YAML | Yes (theater, units, doctrines); No (text) | Yes (all, text included, so replays are exact) | New campaign only |
+| Content | `content/theaters/*.yaml`, `content/units/*.yaml` with `content/weapons.yaml` and `content/roles.yaml` (§7a), `content/doctrines.yaml`, `content/text/*.yaml` | YAML | Yes (theater, units, doctrines); No (text) | Yes (all, text included, so replays are exact) | New campaign only |
 
 ### 4.2 Runtime / app config (not balance)
 Covers ports, bind addresses, file paths, feature flags, platform channel ids, and secret *references*.
@@ -84,7 +84,7 @@ Precedence: the env var `NEXUS__SECTION__KEY` overrides the file. **Every effect
   - a key repeated in one mapping (a `<<` merge followed by an explicit key is an override, not a duplicate);
   - YAML 1.1 number forms (hex `0x`, octal `0o` or a leading zero, `_` separators, sexagesimal `1:30`): they stay strings, which the schema then rejects for a numeric key.
 - **Bounds:** durations given to the tick conversion (CFG-9) must be finite and ≥ 0; a schema key gets a maximum only once the balance harness proposes one (NX-031).
-- **`config_hash`** = blake2b-256 over the concatenation of the canonical hashes (raw 32-byte digests), in a fixed order: `balance`, `units`, `doctrines`, `theater` (the one selected for the campaign), `text`. Each part joins with its loader; until then the hash covers only the parts that exist (today `balance`, NX-106, then `theater`, NX-120), never a placeholder for a missing part.
+- **`config_hash`** = blake2b-256 over the concatenation of the canonical hashes (raw 32-byte digests), in a fixed order: `balance`, `units`, `doctrines`, `theater` (the one selected for the campaign), `text`. Each part joins with its loader; until then the hash covers only the parts that exist (today `balance`, NX-106, `units`, NX-367, and `theater`, NX-120), never a placeholder for a missing part. The `units` digest is `units.catalog_hash`: the canonical hash of the validated tree `{units: [by kind], weapons: [by id], roles: {...}}`, so file order and formatting do not matter.
 - **Manifest:** every `config_hash` is registered with a manifest listing each contributing file (path, kind, sha256) plus the full content, so crash bundles and replays never depend on git (DATA-MODEL §4.7).
 - **`schema_version`:** every file carries an integer `schema_version`. A loader accepts only versions it knows. A schema bump that changes meaning requires a migration script under `tools/config_migrate/` with tests.
 - **`content_version`:** a human-facing semver per content file (e.g. a theater's `version: 1.2.0`), shown in the AAR and in replay headers. It is informational only; `config_hash` is what's authoritative.
@@ -298,9 +298,12 @@ Legend: **HR** = hot-reloadable (§5). "TBD" = TBD by harness. **Source** = the 
 | `ops.maintenance_window` | `{weekday, start: time, max_duration_min, tz: IANA zone}` | wall-clock time in `tz` | Tuesday morning, owner-local (start time TBD), `max_duration_min` 120; owner to confirm (Q-OPS-9) | OPS-ADMIN OA-7 | Yes |
 | `export.public_stats_every_min` | float | min (real) | 15 (Q-ARCH-16) | OPS-ADMIN OA-11 | Yes |
 
-## 7. Unit catalog (`content/units.yaml`)
+## 7. Unit catalog (`content/units/*.yaml`, `content/weapons.yaml`, `content/roles.yaml`)
+
+**What exists now (NX-367, Q-CFG-10).** The schemas are `contracts/config/unit.json`, `weapons.json` and `roles.json`; a field enters them with the code that reads it. Today a unit file has `kind`, `side` (`COALITION | ENEMY | BASE`), `domain`, `playable_by` (list), `min_rank` (iff `VIEWER` is in `playable_by`) and `weapons` (ids); a weapon has `id` and `targets`; `content/roles.yaml` holds `roles:` (`STRIKE`, `RECON`, `LOGI`). One file per unit, named `<kind in kebab-case>.yaml` (§7a); `ANY` is not a side. The loader (`nexus.runtime.units`) rejects: a kind set that is not exactly `UnitKind`, a file name that is not its kind, an unknown or unused weapon id, duplicates, a role mapped to a kind no VIEWER can play, and a GARRISON_INFANTRY weapon that can target anything but GROUND (COMBAT §5.1, Q-CBT-25). The rest of the schema below joins with its readers: `display`, `category` and icons with the overlay; `alt_bands` with NX-124; stats, sensors, cargo and weapon numbers with NX-121, NX-122 and NX-124. The weapon ids (`AA_LIGHT`, `AA_MISSILE`, `AAA_GUN`, `SAM`, `AG_LIGHT`, `AG_CANNON`, `SMALL_ARMS`) are PROPOSED names.
 
 ### 7.1 Schema
+The block shows the full target schema in one listing; on disk `roles:` is `content/roles.yaml`, each `units:` entry is its own `content/units/<kind>.yaml`, and `weapons:` (§7.2) is `content/weapons.yaml`. List order inside a unit (`playable_by`, `weapons`) is hashed as written.
 ```yaml
 schema_version: 1
 roles:                        # Role (CONTRACTS §3.3) -> UnitKind; every Role used in the MVP must map to exactly one kind
@@ -309,9 +312,9 @@ roles:                        # Role (CONTRACTS §3.3) -> UnitKind; every Role u
   LOGI: LOGI_TRUCK              # NAVY added in P3 (Q-GD-8)
 units:
   - kind: STRIKE_FIGHTER      # UnitKind (CONTRACTS §3.3), UPPER_SNAKE, unique
-    side: COALITION           # COALITION | ENEMY | ANY | BASE (facilities: side follows the base, Q-GP-25)
+    side: COALITION           # COALITION | ENEMY | BASE (facilities: side follows the base, Q-GP-25)
     domain: AIR               # AIR | GROUND | SEA | STATIC
-    playable_by: VIEWER       # VIEWER | AI_GARRISON | DIRECTOR (one or more)
+    playable_by: [VIEWER, AI_GARRISON]   # VIEWER | AI_GARRISON | DIRECTOR (one or more)
     min_rank: 1               # PROGRESSION §3; required when playable_by includes VIEWER
     display: { symbol: "air_strike", label_key: "unit.strike_fighter" }   # OV-2 shape-coded symbol id
     speed_mps: <float>        # m/s of world time (CFG-9)

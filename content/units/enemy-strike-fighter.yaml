@@ -1,0 +1,8 @@
+# CONFIG-AND-CONTENT §7.3. Identity only (NX-367); stats join with later items (Q-CFG-10).
+# Mirrors STRIKE_FIGHTER (parity, Q-TD-13).
+schema_version: 1
+kind: ENEMY_STRIKE_FIGHTER
+side: ENEMY
+domain: AIR
+playable_by: [DIRECTOR]
+weapons: [AG_LIGHT, AA_LIGHT]

@@ -77,6 +77,15 @@ type Callsign = Annotated[
 ]
 
 
+type WeaponId = Annotated[
+    str,
+    Field(
+        description="Weapon profile id from content/weapons.yaml (CONFIG-AND-CONTENT §7.2).",
+        pattern="^[A-Z][A-Z0-9_]{1,31}$",
+    ),
+]
+
+
 type PlatformMessageId = Annotated[
     str, Field(description="Platform-provided; dedupe only.", max_length=128, min_length=1)
 ]

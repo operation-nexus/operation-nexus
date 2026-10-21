@@ -1,0 +1,6 @@
+# Role -> UnitKind, CONFIG-AND-CONTENT §7.1. NAVY joins in P3 (Q-GD-8).
+schema_version: 1
+roles:
+  STRIKE: STRIKE_FIGHTER
+  RECON: RECON_UAV
+  LOGI: LOGI_TRUCK

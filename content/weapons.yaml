@@ -1,0 +1,12 @@
+# Weapon profiles, CONFIG-AND-CONTENT §7.2. Identity and target domains only (NX-367); range, Pk,
+# damage and ammo join with the combat items (Q-CFG-10). Ids are PROPOSED generic names (Q-PROD-5).
+# Targets follow the COMBAT §5.1 table.
+schema_version: 1
+weapons:
+  - { id: AA_LIGHT, targets: [AIR] }                          # PROPOSED: strike fighters' secondary
+  - { id: AA_MISSILE, targets: [AIR] }                        # PROPOSED: ENEMY_FIGHTER
+  - { id: AAA_GUN, targets: [AIR] }                           # PROPOSED: AIR_DEFENSE_SITE, short range
+  - { id: SAM, targets: [AIR] }                               # PROPOSED: AIR_DEFENSE_SITE, long range
+  - { id: AG_LIGHT, targets: [GROUND, STATIC, STRUCTURE] }    # PROPOSED: strike fighters' main
+  - { id: AG_CANNON, targets: [GROUND, STATIC, STRUCTURE] }   # PROPOSED: ENEMY_ARMOR
+  - { id: SMALL_ARMS, targets: [GROUND] }                     # GARRISON_INFANTRY (Q-CBT-25)

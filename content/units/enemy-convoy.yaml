@@ -1,0 +1,7 @@
+# CONFIG-AND-CONTENT §7.3. Identity only (NX-367); stats join with later items (Q-CFG-10).
+schema_version: 1
+kind: ENEMY_CONVOY
+side: ENEMY
+domain: GROUND
+playable_by: [DIRECTOR]
+weapons: []

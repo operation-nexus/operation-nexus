@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nexus.local/contracts/config/roles.json",
+  "title": "RolesConfig",
+  "description": "The role map, content/roles.yaml (CONFIG-AND-CONTENT §7.1): each Role (CONTRACTS §3.3) the MVP uses maps to exactly one UnitKind. NAVY joins in P3 (Q-GD-8). The loader checks the kind is one a VIEWER can play.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "roles"],
+  "properties": {
+    "schema_version": {"description": "File format version, unitless; the loader accepts only 1 (§4.4).", "type": "integer", "minimum": 1, "maximum": 1},
+    "roles": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["STRIKE", "RECON", "LOGI"],
+      "properties": {
+        "STRIKE": {"$ref": "../common/enums.json#/$defs/UnitKind"},
+        "RECON": {"$ref": "../common/enums.json#/$defs/UnitKind"},
+        "LOGI": {"$ref": "../common/enums.json#/$defs/UnitKind"}
+      }
+    }
+  }
+}

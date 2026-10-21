@@ -2,7 +2,7 @@
 
 Status: Approved (owner, 2026-10-21, Q-CBT-23) · Owner: — · Tracker: NX-312 (spec), NX-124 (build) · Related ADRs: ADR-0002
 
-> Grilled with the owner on 2026-10-20 (Q-CBT-10 … Q-CBT-22). **Every number here is PROPOSED and unvalidated** (DATA-INTEGRITY DI-7) until the balance harness (NX-031) runs. Per-kind stats (hp, damage, armor, evasion, threat) are content values in `content/units.yaml` (CONFIG-AND-CONTENT §7); this spec defines the fields and the rules, never the numbers.
+> Grilled with the owner on 2026-10-20 (Q-CBT-10 … Q-CBT-22). **Every number here is PROPOSED and unvalidated** (DATA-INTEGRITY DI-7) until the balance harness (NX-031) runs. Per-kind stats (hp, damage, armor, evasion, threat) are content values in `content/units/*.yaml` and `content/weapons.yaml` (CONFIG-AND-CONTENT §7); this spec defines the fields and the rules, never the numbers.
 
 ## 1. Purpose
 How units find targets, fire, hit, take damage and leave the fight. Combat is deterministic given the seed (SIM-CORE), the same for both sides (GAMEPLAY §0, parity), and driven by simulation factors, never by an LLM. GAMEPLAY §6 and §6a point here.
@@ -34,14 +34,14 @@ How units find targets, fire, hit, take damage and leave the fight. Combat is de
 ## 5. Behavior
 
 ### 5.1 Who can shoot whom
-A weapon's `targets:` list names domains (`AIR`, `GROUND`, `SEA`, `STATIC`) plus `STRUCTURE` (node defenses and bridges, CB-10). The content is the source of truth; the table below is derived from CONFIG-AND-CONTENT §7.3 for the MVP kinds and is checked against the content by a test once `content/units.yaml` exists (Q-CBT-15). A disagreement fails the test; fix the content or this table, never both silently.
+A weapon's `targets:` list names domains (`AIR`, `GROUND`, `SEA`, `STATIC`) plus `STRUCTURE` (node defenses and bridges, CB-10). The content is the source of truth; the table below is derived from CONFIG-AND-CONTENT §7.3 for the MVP kinds and is checked against the content (`content/units/*.yaml`, `content/weapons.yaml`) by `tests/runtime/test_units.py` (Q-CBT-15). A disagreement fails the test; fix the content or this table, never both silently.
 
 | Kind | AIR | GROUND | STATIC | STRUCTURE | Source |
 |---|---|---|---|---|---|
 | STRIKE_FIGHTER, ENEMY_STRIKE_FIGHTER | light | yes | yes | yes | §7.3 "AG + AA light"; STRUCTURE: GAMEPLAY §8 (air strikes reduce defense HP) |
 | ENEMY_FIGHTER | yes | — | — | — | §7.3 "AA" |
 | ENEMY_ARMOR | — | yes | yes | yes | §7.3 "AG"; STRUCTURE: GAMEPLAY §8 (ground fire reduces defense HP) |
-| GARRISON_INFANTRY | — | yes | — | — | §7.3 "light"; GROUND only, a pure defender (owner, Q-CBT-25). Anti-air and anti-facility infantry variants come later as new catalog entries, for garrisons and for operators (GAMEPLAY-LATER) |
+| GARRISON_INFANTRY | — | yes | — | — | §7.3 "light"; GROUND only, a pure defender (owner, Q-CBT-25; the unit loader enforces it, NX-367). Anti-air and anti-facility infantry variants come later as new catalog entries, for garrisons and for operators (GAMEPLAY-LATER) |
 | AIR_DEFENSE_SITE (AAA, SAM variants) | yes | — | — | — | §7.3 engagement ring |
 | RECON_UAV, ENEMY_RECON_UAV, LOGI_TRUCK, ENEMY_CONVOY, RADAR_SITE | unarmed | | | | §7.3 |
 

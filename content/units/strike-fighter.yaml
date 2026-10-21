@@ -1,0 +1,8 @@
+# CONFIG-AND-CONTENT §7.3. Identity only (NX-367); stats join with later items (Q-CFG-10).
+schema_version: 1
+kind: STRIKE_FIGHTER
+side: COALITION
+domain: AIR
+playable_by: [VIEWER, AI_GARRISON]
+min_rank: 1
+weapons: [AG_LIGHT, AA_LIGHT]

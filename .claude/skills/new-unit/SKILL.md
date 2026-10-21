@@ -10,10 +10,7 @@ walks you from a plain description to a proposed catalog entry that matches the 
 CONFIG-AND-CONTENT §5 (hot-reload), §7, §7.2, §7.3, §7a, §11.2; CONTRACTS §3.3 (`UnitKind`); GAMEPLAY §0, §5b;
 COMBAT (all of it, especially §5.1, §5.7); FOG-OF-WAR; AGENTS.md rules 0, 6, 6a; `docs/quality/DATA-INTEGRITY.md`.
 
-**Planning phase.** `content/units/`, `tools/config_lint` and the balance harness (NX-031) don't exist yet. Until
-their tracker items start, the entry lands as a row in the CONFIG-AND-CONTENT §7.3 table plus the `UnitKind` value in
-CONTRACTS §3.3, and the YAML draft goes in the PR description. Don't create `content/` early (AGENTS.md §3). Once the
-tools exist, run them and paste the commands and output (DOC-4). Never say a check passed that you didn't run.
+**Early build.** `content/units/<kind-in-kebab-case>.yaml`, `content/weapons.yaml` and `content/roles.yaml` exist (NX-367) with identity fields only (kind, side, domain, playable_by, min_rank, weapons; weapon id and targets); the loader is `nexus.runtime.units`, so run its tests. Stats, sensors and weapon numbers join with NX-121, NX-122 and NX-124, and `tools/config_lint` and the balance harness (NX-031) don't exist yet: until they do, put the stat draft in the PR description. A new kind also needs its `UnitKind` value (CONTRACTS §3.3) and the §7.3 row. Run the tools and paste the commands and output (DOC-4). Never say a check passed that you didn't run.
 
 ## 1. Can data do it?
 

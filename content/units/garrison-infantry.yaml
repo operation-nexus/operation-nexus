@@ -1,0 +1,8 @@
+# CONFIG-AND-CONTENT §7.3. Identity only (NX-367); stats join with later items (Q-CFG-10).
+# Infantry fire on GROUND only (COMBAT §5.1; the loader enforces it).
+schema_version: 1
+kind: GARRISON_INFANTRY
+side: COALITION
+domain: GROUND
+playable_by: [AI_GARRISON]
+weapons: [SMALL_ARMS]
