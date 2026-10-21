@@ -33,3 +33,17 @@ logistics:
   starve_threshold: 0.25  # PROPOSED – unvalidated (Q-SIM-49); fraction of node_max_stock (CONFIG-AND-CONTENT §6.3 logistics.starve_threshold)
   truck_cargo: 100  # PROPOSED – unvalidated (Q-SIM-49); stock units (CONFIG-AND-CONTENT §6.3 logistics.truck_cargo)
   unload_rate: 1.0  # PROPOSED – unvalidated (Q-SIM-49); stock per s (world) (CONFIG-AND-CONTENT §6.3 logistics.unload_rate)
+  rearm_rate: 0.5  # PROPOSED – unvalidated (Q-SIM-49); stock per s (world) (CONFIG-AND-CONTENT §6.3 logistics.rearm_rate)
+  forward_deploy_min_surplus: 50  # PROPOSED – unvalidated (Q-SIM-49); stock above the starvation floor (CONFIG-AND-CONTENT §6.3)
+  starved_loadout:
+    fuel_frac: 0.5  # PROPOSED – unvalidated (Q-SIM-53); fraction of fuel_s a starved base refuels up to (CONFIG-AND-CONTENT §6.3)
+  loadout_cost:  # PROPOSED – unvalidated (Q-SIM-49, owner-approved initial values; NX-031 tunes); stock units, a full loadout / a full refill
+    ENEMY_ARMOR: 15
+    ENEMY_CONVOY: 0
+    ENEMY_FIGHTER: 20
+    ENEMY_RECON_UAV: 5
+    ENEMY_STRIKE_FIGHTER: 20
+    GARRISON_INFANTRY: 5
+    LOGI_TRUCK: 0
+    RECON_UAV: 5
+    STRIKE_FIGHTER: 20

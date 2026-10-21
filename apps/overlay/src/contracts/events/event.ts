@@ -4,7 +4,14 @@
  * Discriminated union of all sim events on kind (CONTRACTS §6).
  */
 export type Event =
-  UnitSpawned | CommandRejected | ReserveQueueJoined | UnitDestroyed | CallsignChanged | SupplyDelivered;
+  | UnitSpawned
+  | CommandRejected
+  | ReserveQueueJoined
+  | UnitDestroyed
+  | CallsignChanged
+  | SupplyDelivered
+  | SupplyConsumed
+  | RearmStalled;
 
 /**
  * A unit appears (CONTRACTS §6). Public view: an ENEMY spawn only if its spawn point is tracked; otherwise dropped.
@@ -217,4 +224,54 @@ export interface SupplyDelivered {
    */
   carrier_id: number;
   commander_id: string | null;
+}
+/**
+ * Stock a node paid out for units (CONTRACTS §6; NX-123): SPAWN once per forward-deployed unit, REARM once per refuel stop when it ends (filled, stalled or taken off). amount = whole stock units; none when 0. Public view: ENEMY nodes are dropped.
+ */
+export interface SupplyConsumed {
+  kind: "SupplyConsumed";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Stable slug from the theater file.
+   */
+  node_id: string;
+  amount: number;
+  cause: "SPAWN" | "REARM";
+}
+/**
+ * A landed aircraft needs fuel and its base has none (CONTRACTS §6; NX-123, STATE-MACHINES §4.1 Rearming): emitted once when the stall starts, not every tick; a resupply and a new stall emit again. ENEMY: dropped from public views.
+ */
+export interface RearmStalled {
+  kind: "RearmStalled";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Sequential per campaign, never reused (SC-4).
+   */
+  entity_id: number;
+  /**
+   * Stable slug from the theater file.
+   */
+  node_id: string;
 }

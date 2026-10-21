@@ -199,7 +199,7 @@ Every value listed in the §5.2 table (rejects named only for reserved commands 
 | `UnitDespawned` | `entity_id`, `reason: RTB_LANDED\|IDLE\|ROLE_SWITCH\|PURGED\|OWNER_BANNED\|OWNER_FORGOTTEN\|CAMPAIGN_END\|WRECKED` (`IDLE` = idle retire, `presence.idle_retire_min`, Q-GD-35; `WRECKED` = a Disabled unit removed after `combat.disabled_timeout_s`, its cargo lost, COMBAT CB-7, Q-CBT-14) | Hidden ENEMY: dropped | B O |
 | `UnitControlChanged` (name PROPOSED) | `entity_id`, `commander_id`, `control: OPERATOR\|AUTO`, `cause: IDLE_HANDOFF\|RECLAIM` (Q-GD-35, Q-ALN-9) | none (coalition units only) | B P O |
 | `UnitOrphaned` | `entity_id`, `commander_id`, `cause: BANNED\|FORGOTTEN` | none (coalition units only) | B O |
-| `RearmStalled` | `entity_id`, `node_id` | ENEMY: dropped | B O |
+| `RearmStalled` | `entity_id`, `node_id`. In the schema now (NX-123 part 2): emitted once when a landed aircraft needs fuel and its base has none, not every tick | ENEMY: dropped | B O |
 | `WaypointReached` | `entity_id`, `node_id\|null` | Hidden ENEMY: dropped | O |
 | `UnitDamaged` | `entity_id`, `attacker_id\|null`, `amount`, `hp_after`, `damage_state_after: DamageState` | A hidden attacker becomes `attacker_id: null`. A victim the viewer side does not currently observe: dropped (FOW-13) | B C O |
 | `UnitDestroyed` | `entity_id`, `killer_id\|null`, `assist_ids[]` (≤ 32, no duplicates), `side` (the lost unit's). In code since NX-368: first producer is an aircraft out of fuel (`killer_id: null`, no assists) | A hidden killer becomes `null` ("Unknown contact", FOW-3). A hidden victim is dropped. | B P A C O |
@@ -210,7 +210,7 @@ Every value listed in the §5.2 table (rejects named only for reserved commands 
 | `CaptureProgress` | `node_id`, `side`, `progress_pct`, `contested: bool` | none (nodes are always visible) | B O |
 | `NodeCaptured` | `node_id`, `from: NodeOwner`, `to: NodeOwner`, `participant_commander_ids[]` | ENEMY participants are omitted | B P A C O |
 | `SupplyDelivered` | `node_id`, `amount`, `carrier_id`, `commander_id\|null`. In the schema now (NX-123): one per unloading stop, when the cargo runs out, the node reaches its maximum or the truck drives off, `amount` = the units unloaded in that stop (never 0) | none for coalition. ENEMY deliveries are dropped. | B P O |
-| `SupplyConsumed` | `node_id`, `amount`, `cause: SPAWN\|REARM` | ENEMY nodes: dropped | O |
+| `SupplyConsumed` | `node_id`, `amount`, `cause: SPAWN\|REARM`. In the schema now (NX-123 part 2): `SPAWN` once per forward-deployed unit (its `loadout_cost`), `REARM` once per refuel stop when it ends (filled, stalled or taken off); `amount` is whole units, never 0 | ENEMY nodes: dropped | O |
 | `NodeStarvationChanged` | `node_id`, `state: OK\|LOW\|EMPTY` | ENEMY nodes: dropped | B A O |
 | `BridgeDestroyed` / `BridgeRepaired` | `node_id`, `by_id\|null` | Hidden actor becomes `null` | B A C O |
 | `ObjectiveAnnounced` | `objective_id`, `node_id`, `deadline_tick` | none | B A |

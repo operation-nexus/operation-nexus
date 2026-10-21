@@ -1,10 +1,10 @@
 {
   "campaign_id": "0192f3a4-5b6c-7d8e-9f01-23456789abcd",
   "seed": 12345,
-  "config_hash": "a634fb99939d2707bd3dba7b8fe8e0121812e4ca290cb1b8be02ed0bacbc5aa8",
+  "config_hash": "d2ae964a4f296ab7aef37d653a24675565bc3781d668f9af5a405798484cdb9f",
   "ticks": 6000,
   "checkpoints_every": 100,
   "handlers": "kernel",
-  "description": "Real JOINs on strait-1 with the shipped config: air and ground units spawn at the sanctuary and move along their routes for 10 game minutes; rejects for a unit in sortie, an unknown node, a node no road reaches and an unplayable role (NX-122). Aircraft without a target stay landed; the strike jet orbits east-airbase, then RTBs at bingo fuel and lands at west-airbase (NX-368).",
+  "description": "Real JOINs on strait-1 with the shipped config: units with a node target forward-deploy at west-airbase (paying their loadout) and move along their routes for 10 game minutes; trucks and units with no target spawn at the sanctuary; rejects for a unit in sortie, an unknown node, a node no road reaches and an unplayable role (NX-122). Aircraft without a target stay landed; the strike jet orbits east-airbase, then RTBs at bingo fuel, lands at west-airbase and refuels (NX-368, NX-123).",
   "rules": "shipped"
 }

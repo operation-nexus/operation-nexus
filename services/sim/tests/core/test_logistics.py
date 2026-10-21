@@ -128,12 +128,12 @@ def test_neutral_enemy_and_null_targets_carry_nothing_from_the_sanctuary() -> No
         assert w.stock["west-airbase"] == 1000
 
 
-def test_non_trucks_still_spawn_at_the_sanctuary_and_carry_no_cargo() -> None:
+def test_non_trucks_forward_deploy_and_carry_no_cargo() -> None:
     w = new_world()
     for n, role in enumerate(["STRIKE", "RECON"], start=1):
         u = truck_for(w, n, "west-airbase", role)
-        assert (u.last_node, u.cargo) == ("haven", None)
-    assert w.stock["west-airbase"] == 1000
+        assert (u.last_node, u.cargo) == ("west-airbase", None)
+    assert w.stock["west-airbase"] == 1000 - 20 - 5  # each paid its loadout_cost
 
 
 def test_enemy_convoy_loads_from_the_static_nodes_and_the_rear_source() -> None:
@@ -390,7 +390,7 @@ def test_make_rules_refuses_an_unload_rate_below_a_thousandth_per_tick() -> None
     from nexus.core.rules import make_rules
 
     logistics = CONFIG.balance.logistics.model_copy(update={"unload_rate": 0.0001})
-    with pytest.raises(ValueError, match=r"below 0\.001 stock per tick"):
+    with pytest.raises(ValueError, match=r"below 0\.001 per tick"):
         make_rules(
             CONFIG.balance.sim, CONFIG.catalog.units, RULES.roads, roles=CONFIG.catalog.roles.roles,
             theater=CONFIG.theater, slots=CONFIG.balance.slots, air=CONFIG.balance.air,

@@ -29,7 +29,7 @@ update, below). Cases without it start from an empty world with no rules.
 | `empty-1h` | 36,000 | One game hour, no commands: tick, RNG and state stay stable (Q-SIM-19 "empty theater 1 h", without a theater yet) |
 | `stub-commands` | 300 | JOIN-shaped commands through the `stub` handler |
 | `poison-crash` | 200 | A tombstoned tick whose three commands are dropped (Q-SIM-19 "poison-command crash") |
-| `joins-strait-1` | 6,000 | Real JOINs on strait-1 with the shipped config: strike, recon and logistics units spawn at the sanctuary, ground units drive road routes and aircraft fly straight; rejects for a unit in sortie, an unknown node, a node no road reaches and an unplayable role (NX-122). Aircraft with no target stay landed at the sanctuary; the strike jet reaches east-airbase on tick 1934 and orbits it, hits bingo fuel on tick 3634 and lands at west-airbase, the nearest coalition airbase, on tick 5101 (NX-368) |
+| `joins-strait-1` | 6,000 | Real JOINs on strait-1 with the shipped config: strike, recon and logistics units spawn at the sanctuary, ground units drive road routes and aircraft fly straight; rejects for a unit in sortie, an unknown node, a node no road reaches and an unplayable role (NX-122). Aircraft with no target stay landed at the sanctuary; the strike jet (forward-deployed at west-airbase, NX-123 part 2) reaches east-airbase on tick 1467 and orbits it, hits bingo fuel on tick 3644 and lands at west-airbase, the nearest coalition airbase, on tick 5101, where it refuels to full by tick 5157 (NX-368) |
 
 The reserve queue (GP-3) has no case yet: the shipped cap is 500 units, a pause has no logged
 command until NX-126 and nothing frees a slot until despawn and combat (NX-324, NX-124), so
@@ -73,6 +73,17 @@ case's checkpoints again. The new `logistics` balance keys and strait-1's `stati
 `SupplyDelivered` (11 events); the truck to the enemy `static-hq` is a capture run from `haven` with no
 cargo. `empty-1h`, `stub-commands` and `poison-crash` hold no stock (no `rules`), so only the format changed
 their checkpoints.
+
+Snapshot format 11 (NX-123 part 2: an aircraft's `rearm_milli`, `rearm_spent` and `stalled`) re-pinned every
+case's checkpoints again. The new `logistics` balance keys (`loadout_cost`, `rearm_rate`,
+`forward_deploy_min_surplus`, `starved_loadout`) gave `joins-strait-1` a new `config_hash`. In that case the
+two JOINs that name a node and pass the surplus test forward-deploy: the strike jet to `east-airbase` and the
+recon UAV to `fob-s-e` spawn at `west-airbase` instead of `haven` and each pay their `loadout_cost` (20 on tick
+1, 5 on tick 10, two `SupplyConsumed{SPAWN}`); the jet therefore reaches east-airbase on tick 1467, not 1934,
+and hits bingo on tick 3644, not 3634. When it lands at west-airbase on tick 5101 it refuels to full, which
+ends on tick 5157 with one `SupplyConsumed{REARM}` of 17 units: 14 events in all, up from 11. The
+`hold` and no-target JOINs still spawn at `haven`, free. `empty-1h`, `stub-commands` and `poison-crash` hold
+no stock, so only the format changed their checkpoints.
 
 The orbit uses libm `atan2`, `cos` and `sin`. They are deterministic on one platform but may
 differ across platforms or libm versions, so every checkpoint here is pinned to the CI platform
