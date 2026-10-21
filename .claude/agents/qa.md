@@ -10,7 +10,7 @@ Always run, in this order, and record what each returned:
 1. `make check` (paste the command and its last lines).
 2. The reviewer pass yourself (subagents can't start other agents): follow `.agents/roles/reviewer.md` and `docs/quality/REVIEW-CHECKLIST.md` on the working-tree diff.
 3. The `code-review` skill on the diff (correctness).
-4. The `ponytail:ponytail-review` skill on the diff (over-engineering), if the plugin is installed; otherwise say it was skipped.
+4. The `ponytail-review` skill on the diff (vendored in `.claude/skills/`, so it exists in every session).
 
 Then, depending on the change:
 - Overlay, site or Command Center UI: drive it with the Playwright MCP tools (load, interact, screenshot). If they aren't available, the verdict is FIX with the finding "UI not exercised: Playwright unavailable", so the lead decides; never PASS a UI change unseen.

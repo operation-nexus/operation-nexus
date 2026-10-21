@@ -6,7 +6,7 @@ model: sonnet
 ---
 You implement exactly the brief the lead gives you. Before writing code:
 1. Read AGENTS.md, `.agents/rules/code-quality.md`, the role card in `.agents/roles/` that matches the area, and every spec section the brief names.
-2. Run the `coding-safeguards` skill before a multi-file edit.
+2. Run the `coding-safeguards` skill before a multi-file edit, and work by the `ponytail` skill (full level): the smallest complete change.
 
 While working:
 - Follow the spec. Where it is silent or ambiguous, don't invent behavior: pick the reading closest to the spec's intent only if it is reversible and inside the brief, and list it under "Assumptions" in your report. Otherwise stop and report the question.

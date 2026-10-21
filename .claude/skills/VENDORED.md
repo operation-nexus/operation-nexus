@@ -30,3 +30,20 @@ pinned and reviewed and works in cloud sessions. Update by diffing a newer commi
 | `to-questionnaire` | user | writes to `docs/review/QUESTIONNAIRE-<slug>.md` instead of the working directory |
 
 Not vendored yet, and why: see `docs/agentic/TOOLING.md` §2.
+
+## Vendored from DietrichGebert/ponytail
+
+Source: https://github.com/DietrichGebert/ponytail at tag `v5.3.2`, commit `16352ac229eb08a9598dcae48fe9f2b342567d86` (2026-10-20).
+License: MIT, copyright DietrichGebert (`LICENSE-ponytail`). Copied so cloud sessions get it: cloud sessions don't install
+plugins a repo enables in `.claude/settings.json` (Q-DEV-18). Reviewed line by line; Markdown only. Left out: the plugin's
+JavaScript hooks (always-on mode, status band), `ponytail-help` and `ponytail-gain` (plugin and benchmark text). On the
+desktop the plugin can stay installed; its skills are namespaced `ponytail:…`, so names don't clash. Update by diffing a
+newer tag against these files.
+
+| Skill | Invoked by | Local changes |
+|---|---|---|
+| `ponytail` | model or user (`/ponytail`) | none |
+| `ponytail-review` | model or user (`/ponytail-review`) | none |
+| `ponytail-audit` | model or user (`/ponytail-audit`) | none |
+| `ponytail-debt` | model or user (`/ponytail-debt`) | none |
+

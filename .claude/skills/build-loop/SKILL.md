@@ -35,5 +35,5 @@ How to ask: batch the questions. In an interactive session use `/grill-with-docs
 ## 4. Done means
 - Code, tests and every affected doc (spec, contracts, config tables, READMEs, tracker) agree; QA checked it.
 - Recommendations outside the brief are in the PR description or an OPEN-QUESTIONS row, never silently built.
-- `ponytail:` shortcut comments name their ceiling and upgrade path (the weekly debt pass collects them).
+- Deliberate shortcuts carry a `shortcut: <the limit>, <when to upgrade>` comment (older ones say `ponytail:`); the weekly `ponytail-debt` pass collects them.
 - The PR is open with the CI watch on; nothing merged by hand around `ci-gate`.

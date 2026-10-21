@@ -34,7 +34,7 @@ Notes:
 | `code-review` (built-in) | Correctness review of diffs | Claude Code |
 | `security-review` (built-in) | Security review of pending changes | Claude Code |
 | `simplify` (built-in) | Cleanup and simplification pass | Claude Code |
-| **Ponytail** (`/ponytail`, `/ponytail-review`, `/ponytail-audit`, `/ponytail-debt`) | Smallest complete change; YAGNI; reviews for over-engineering | `DietrichGebert/ponytail` (MIT), declared in `.claude/settings.json` |
+| **Ponytail** (`/ponytail`, `/ponytail-review`, `/ponytail-audit`, `/ponytail-debt`) | Smallest complete change; YAGNI; reviews for over-engineering | Skills vendored in `.claude/skills/` at v5.3.2 so cloud sessions have them (Q-DEV-18); the `DietrichGebert/ponytail` plugin (MIT) stays declared in `.claude/settings.json` for desktop extras |
 | **CodeRabbit** | Automatic PR review (GitHub app, installed on the `operation-nexus` org by the owner 2026-10-20, 14-day trial; paid after that, and whether public repos stay free is [UNVERIFIED]). It reviews each code PR by itself, quietly: `.coderabbit.yaml` turns off summaries, status messages and poems, skips drafts and Dependabot, and skips docs, Markdown, generated code and lockfiles, which the reviewer agent and CI cover. Add `[skip review]` to a PR title to skip it. Reply `@coderabbitai …` in a PR comment to ask it something. Its comments reach the lead through the CI watch like any review | GitHub app (no Claude plugin needed) |
 | **playwright** (Microsoft) | Browser automation for QA of the overlay, site and Command Center | claude.ai plugin directory |
 | **sentry** | Reads Sentry issues for the error pipeline (ERROR-PIPELINE) | claude.ai plugin directory, once a Sentry project exists |
