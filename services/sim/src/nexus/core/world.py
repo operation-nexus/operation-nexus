@@ -11,8 +11,11 @@ floats (`fuel`) to ADR-0002's 1e-6 step. Python's `round` is round-half-to-even 
 exact float value, so it is deterministic. The RNG state, `respawn_left` (per commander, GP-2),
 the reserve queue (GP-3), each side's FoW contacts with their painted flag (FOW-5), discovered
 facility markers (FOW-13), SIGINT blobs and the running ticks since their refresh (Tier 1, FOW-9)
-are world state, so snapshots and the hash cover them. `World.rules`
-(`nexus.core.rules`) is static config, not state: neither snapshots nor the hash include it.
+are world state, so snapshots and the hash cover them. So are each node's `stock` and each carrier's
+`cargo` (integer stock units) with its `unload_milli` progress and
+`delivered` count (NX-123): conservation stays exact.
+`World.rules` (`nexus.core.rules`) is static config, not state: neither snapshots nor the hash
+include it.
 """
 
 import hashlib
@@ -32,10 +35,11 @@ from nexus.core.rules import Rules
 # 2: Entity.path and Entity.last_node (NX-121); 3: respawn_left, hp may be null; 4: reserve_queue;
 # 5: Entity.state, fuel and orbit (NX-368); 6: callsigns (NX-370); 7: contacts (NX-150);
 # 8: Entity.base_id, variant and emitting, markers (NX-150 part 2); 9: Contact.painted, blobs,
-# sigint_age (NX-150 part 2b)
-FORMAT_VERSION = 9
+# sigint_age (NX-150 part 2b); 10: node stock, Entity.cargo and unload_milli (NX-123)
+FORMAT_VERSION = 10
 _MM = 1000.0  # metres -> millimetres; m/s -> mm/s
 _MICRO = 1e6  # ADR-0002's 1e-6 step for other floats (fuel)
+_MILLI_UNIT = 1000  # thousandths of a stock unit per unit
 _MAX_ABS = 1e9  # m or m/s; keeps mm quantization well inside int64
 _BLOBS = "blobs"
 _CAMPAIGN = "campaign"
@@ -49,6 +53,7 @@ _NEXT_ENTITY_ID = "next_entity_id"
 _NEXT_EVENT_SEQ = "next_event_seq"
 _RNG = "rng"
 _SIGINT_AGE = "sigint_age"
+_STOCK = "stock"
 _V = "v"
 _WORLD_KEYS = (
     _BLOBS,
@@ -63,6 +68,7 @@ _WORLD_KEYS = (
     _RESPAWN_LEFT,
     _RNG,
     _SIGINT_AGE,
+    _STOCK,
     _V,
 )
 _VEC_KEYS = frozenset({"pos", "vel", "orbit"})
@@ -137,6 +143,11 @@ class Entity:
     variant: str | None = None  # facilities: the theater's catalog variant, e.g. SAM
     # FOW-11: None for a kind that never emits; True emitting, False dark (DecoyBlink, later).
     emitting: bool | None = None
+    # Carriers (LOGI_TRUCK, ENEMY_CONVOY; NX-123): stock units aboard, else None. `unload_milli` is
+    # the thousandths of a unit unloaded so far toward the next whole one, 0 to 999.
+    cargo: int | None = None
+    unload_milli: int = 0
+    delivered: int = 0  # units unloaded in this stop; SupplyDelivered reports it when it ends
 
 
 @dataclass(slots=True)
@@ -211,6 +222,7 @@ class World:
         "rng",
         "rules",
         "sigint_age",
+        "stock",
     )
 
     def __init__(self, campaign: Campaign, rng: SimRng, rules: Rules | None = None) -> None:
@@ -237,6 +249,9 @@ class World:
         # Side -> its SIGINT blobs from the last refresh, by cell index (Tier 1); replaced whole.
         self.blobs: dict[Side, tuple[Blob, ...]] = {side: () for side in _SIDES}
         self.sigint_age = 0  # running ticks since the last SIGINT refresh (FOW-9)
+        # Node id -> whole stock units, for the nodes with finite stock (SANCTUARY nodes are
+        # infinite by rule and absent). `start_campaign` fills it from the theater (NX-123).
+        self.stock: dict[str, int] = {}
 
     @classmethod
     def new(cls, campaign: Campaign, rules: Rules | None = None) -> Self:
@@ -365,6 +380,7 @@ def to_canonical(world: World, *, quantize: bool) -> dict[str, Any]:
         _NEXT_EVENT_SEQ: world._next_event_seq,
         _RNG: {name: dict(sorted(s.items())) for name, s in world.rng.to_state().items()},
         _SIGINT_AGE: world.sigint_age,
+        _STOCK: dict(sorted(world.stock.items())),
         _V: FORMAT_VERSION,
     }
     return dict(sorted(data.items()))
@@ -423,6 +439,19 @@ def _fuel(value: object, what: str) -> float | None:
     return value
 
 
+def _milli(value: object, what: str) -> int:
+    n = _int(value, what)
+    if n >= _MILLI_UNIT:
+        raise ValueError(f"{what} must be below {_MILLI_UNIT}, got {value!r}")
+    return n
+
+
+def _stock(value: object) -> dict[str, int]:
+    if not isinstance(value, dict):
+        raise ValueError(f"{_STOCK} must be a map")
+    return {_str(k, "node id"): _int(v, _STOCK) for k, v in value.items()}
+
+
 def _bool(value: object, what: str) -> bool:
     if not isinstance(value, bool):
         raise ValueError(f"{what} must be a bool, got {value!r}")
@@ -448,6 +477,9 @@ _ENTITY_CHECKS: dict[str, Callable[[object, str], Any]] = {
     "base_id": lambda v, k: _str(v, k, optional=True),
     "variant": lambda v, k: _str(v, k, optional=True),
     "emitting": lambda v, k: None if v is None else _bool(v, k),
+    "cargo": lambda v, k: None if v is None else _int(v, k),
+    "unload_milli": _milli,
+    "delivered": lambda v, k: _int(v, k),
 }
 _CAMPAIGN_CHECKS: dict[str, Callable[[object, str], Any]] = {
     "id": _str,
@@ -564,6 +596,8 @@ def _load_entity(value: object) -> Entity:
     # (NX-368). Whether the kind is AIR needs the rules; `movement` checks that.
     if (e.state is None) != (e.fuel is None) or (e.orbit is not None and e.state != "ON_STATION"):
         raise ValueError(f"entity {e.id}: inconsistent state, fuel and orbit")
+    if e.cargo is None and (e.unload_milli or e.delivered):
+        raise ValueError(f"entity {e.id}: unload progress without cargo")
     return e
 
 
@@ -592,6 +626,7 @@ def load(data: bytes) -> World:
     world.markers = _per_side(d[_MARKERS], _MARKERS, _MARKER_KEYS, world._next_entity_id, _marker)
     world.blobs = _blobs(d[_BLOBS], world.campaign.tick)
     world.sigint_age = _int(d[_SIGINT_AGE], _SIGINT_AGE)
+    world.stock = _stock(d[_STOCK])
     # The age counts running ticks since the refresh, so it cannot exceed the ticks since then.
     if any(b and world.campaign.tick - int(b[0].id.split("-")[0]) < world.sigint_age
            for b in world.blobs.values()):  # fmt: skip

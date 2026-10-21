@@ -3,7 +3,8 @@
 /**
  * Discriminated union of all sim events on kind (CONTRACTS §6).
  */
-export type Event = UnitSpawned | CommandRejected | ReserveQueueJoined | UnitDestroyed | CallsignChanged;
+export type Event =
+  UnitSpawned | CommandRejected | ReserveQueueJoined | UnitDestroyed | CallsignChanged | SupplyDelivered;
 
 /**
  * A unit appears (CONTRACTS §6). Public view: an ENEMY spawn only if its spawn point is tracked; otherwise dropped.
@@ -188,4 +189,32 @@ export interface CallsignChanged {
    * IDENTITY §2, DATA-MODEL §4.2.
    */
   callsign_kind: "GENERATED" | "CUSTOM" | "TOMBSTONE";
+}
+/**
+ * A truck's unloading stop at a node ended (CONTRACTS §6; NX-123): its cargo ran out, the node reached its maximum, or it drove off. One event per stop, amount = the whole stock units delivered at that node during the stop; none when 0 were delivered. Public view: none for coalition, ENEMY deliveries are dropped.
+ */
+export interface SupplyDelivered {
+  kind: "SupplyDelivered";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Stable slug from the theater file.
+   */
+  node_id: string;
+  amount: number;
+  /**
+   * Sequential per campaign, never reused (SC-4).
+   */
+  carrier_id: number;
+  commander_id: string | null;
 }

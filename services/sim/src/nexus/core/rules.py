@@ -5,12 +5,13 @@ or `state_hash` (the campaign's `config_hash` covers it). It takes contract type
 kernel stays free of `nexus.runtime`; the runtime loads the files and builds the road graph.
 """
 
+import math
 from collections.abc import Iterable, Mapping
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from fractions import Fraction
 
-from nexus.contracts.gen.common.enums import Domain, Role, Side, UnitKind
-from nexus.contracts.gen.config.balance import Air, Fow, Sim, Slots
+from nexus.contracts.gen.common.enums import Domain, NodeOwner, Role, Side, UnitKind
+from nexus.contracts.gen.config.balance import Air, Fow, Logistics, Sim, Slots
 from nexus.contracts.gen.config.roles import Roles
 from nexus.contracts.gen.config.theater import TheaterConfig
 from nexus.contracts.gen.config.unit import UnitConfig
@@ -21,6 +22,26 @@ _SIDES: tuple[Side, ...] = ("COALITION", "ENEMY")
 # Recon units paint targets (CONFIG-AND-CONTENT §7.3, FOG-OF-WAR Q-FOW-6). shortcut: named here
 # until the unit catalog lists capabilities; then it becomes a catalog field.
 _PAINTERS: tuple[UnitKind, ...] = ("RECON_UAV", "ENEMY_RECON_UAV")
+# Kinds that haul cargo (GAMEPLAY §5). shortcut: named here until the unit catalog gets its `cargo`
+# field (CONFIG-AND-CONTENT §7.3); the amount is the one global `logistics.truck_cargo`.
+_CARRIERS: tuple[UnitKind, ...] = ("LOGI_TRUCK", "ENEMY_CONVOY")
+_MILLI = 1000  # a truck's unload progress is counted in thousandths of a stock unit
+
+
+@dataclass(frozen=True, slots=True)
+class Supply:
+    """Logistics rules (NX-123, GAMEPLAY §5). The default is a theater with no stock nodes and no
+    carriers, for hand-built rules in tests."""
+
+    rear: Mapping[Side, str] = field(default_factory=dict)  # each side's SANCTUARY: infinite source
+    # Node -> its starting owner. Interim "friendly" test: node ownership becomes world state with
+    # capture (NX-125), which must replace this.
+    start_owner: Mapping[str, NodeOwner] = field(default_factory=dict)
+    max_stock: Mapping[str, int] = field(default_factory=dict)  # finite-stock nodes only
+    starve_floor: Mapping[str, int] = field(default_factory=dict)  # ceil(starve_threshold x max)
+    carriers: frozenset[UnitKind] = frozenset()
+    truck_cargo: int = 0  # logistics.truck_cargo
+    unload_milli: int = 0  # logistics.unload_rate x world_dt, in thousandths per tick
 
 
 @dataclass(frozen=True, slots=True)
@@ -30,7 +51,7 @@ class Rules:
     domain: Mapping[UnitKind, Domain]
     roads: RoadGraph
     role_kind: Mapping[Role, UnitKind]  # content/roles.yaml; a missing role is not playable yet
-    sanctuary: str  # the coalition's SANCTUARY node: every JOIN spawns here until NX-123 (GP-7)
+    sanctuary: str  # coalition SANCTUARY: non-truck JOINs spawn here until forward deploy (GP-7)
     max_live_per_commander: int  # slots.max_live_per_commander (GP-1)
     respawn_delay_ticks: int  # slots.respawn_delay_s as game ticks, rounded up (GP-2, SC-12)
     max_viewer_units: int  # slots.max_viewer_units: live COMMANDER units before JOINs queue (GP-3)
@@ -59,6 +80,7 @@ class Rules:
     sigint_cell_m: float  # fow.sigint_cell_m (FOW-2); divides both theater bounds
     sigint_size_m_min: int  # fow.sigint_size_m_min: a blob of this many units reads M
     sigint_size_l_min: int  # fow.sigint_size_l_min: and of this many, L
+    supply: Supply = field(default_factory=Supply)  # NX-123
 
 
 def world_dt(sim: Sim) -> float:
@@ -79,6 +101,29 @@ def _landing_bases(theater: TheaterConfig) -> Mapping[Side, tuple[str, ...]]:
     }
 
 
+def _supply(theater: TheaterConfig, logistics: Logistics, dt: float) -> Supply:
+    """Raises ValueError when a start_stock exceeds its kind's maximum (Q-SIM-49)."""
+    max_by_kind = logistics.node_max_stock.model_dump()
+    stocked = [n for n in theater.nodes if n.kind != "SANCTUARY"]
+    over = [n.id for n in stocked if (n.start_stock or 0) > max_by_kind[n.kind]]
+    if over:
+        raise ValueError(f"start_stock above logistics.node_max_stock: {over}")
+    max_stock = {n.id: max_by_kind[n.kind] for n in stocked}
+    sanctuaries = {n.start_owner: n.id for n in theater.nodes if n.kind == "SANCTUARY"}
+    unload_milli = round(logistics.unload_rate * dt * _MILLI)
+    if unload_milli < 1:
+        raise ValueError("logistics.unload_rate x world_dt is below 0.001 stock per tick")
+    return Supply(
+        rear={side: sanctuaries[side] for side in _SIDES},
+        start_owner={n.id: n.start_owner for n in theater.nodes},
+        max_stock=max_stock,
+        starve_floor={k: math.ceil(logistics.starve_threshold * v) for k, v in max_stock.items()},
+        carriers=frozenset(_CARRIERS),
+        truck_cargo=logistics.truck_cargo,
+        unload_milli=unload_milli,
+    )
+
+
 def make_rules(
     sim: Sim,
     units: Iterable[UnitConfig],
@@ -89,6 +134,7 @@ def make_rules(
     slots: Slots,
     air: Air,
     fow: Fow,
+    logistics: Logistics,
     respawn_delay_ticks: int,
     track_fade_ticks: int,
     sigint_refresh_ticks: int,
@@ -136,4 +182,5 @@ def make_rules(
         sigint_cell_m=float(fow.sigint_cell_m),
         sigint_size_m_min=fow.sigint_size_m_min,
         sigint_size_l_min=fow.sigint_size_l_min,
+        supply=_supply(theater, logistics, world_dt(sim)),
     )

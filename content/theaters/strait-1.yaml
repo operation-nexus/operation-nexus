@@ -33,6 +33,7 @@ nodes:
   - { id: fob-s-e,      name: "FOB South-East", kind: FOB,       pos: [290000,200000], start_owner: ENEMY,     start_stock: 500,  sector: south,  garrison_quota: 4 }  # PROPOSED (NX-120, owner may veto; harness tunes, NX-031)
   - { id: east-airbase, name: "East Airbase",   kind: AIRBASE,   pos: [310000,120000], start_owner: ENEMY,     start_stock: 1000, sector: centre, garrison_quota: 6 }  # PROPOSED (NX-120, owner may veto; harness tunes, NX-031)
   - { id: static-hq,    name: "Static HQ",      kind: HQ,        pos: [380000,120000], start_owner: ENEMY,     start_stock: 1000, sector: centre, garrison_quota: 8 }  # PROPOSED (NX-120, owner may veto; harness tunes, NX-031)
+  - { id: static-rear,  name: "Static Rear",    kind: SANCTUARY, pos: [395000,120000], start_owner: ENEMY,     start_stock: null, sector: centre }  # the Static's rear source: infinite, never captured (Q-SIM-48)
 facilities:                    # STATIC units attached to a base (Q-GP-25); mirrored per Q-TH-5
   - { id: radar-west,   kind: RADAR_SITE,       base: west-airbase }
   - { id: ad-west,      kind: AIR_DEFENSE_SITE, variant: SAM, base: west-airbase }
@@ -56,6 +57,7 @@ edges:                         # ROAD layer; speed_mult 1.0: PROPOSED (NX-120, o
   - { a: fob-n-e,      b: static-hq,    layer: ROAD, speed_mult: 1.0 }
   - { a: fob-s-e,      b: static-hq,    layer: ROAD, speed_mult: 1.0 }
   - { a: east-airbase, b: static-hq,    layer: ROAD, speed_mult: 1.0 }
+  - { a: static-hq,    b: static-rear,  layer: ROAD, speed_mult: 1.0 }   # Q-SIM-48: capturing the HQ cuts it
 spawns:                        # usable by whichever side owns the node (GAMEPLAY GP-7)
   - { node: haven,        domains: [AIR, GROUND] }
   - { node: west-airbase, domains: [AIR, GROUND] }
@@ -66,7 +68,9 @@ spawns:                        # usable by whichever side owns the node (GAMEPLA
   - { node: fob-n-e,      domains: [GROUND] }
   - { node: fob-s-e,      domains: [GROUND] }
   - { node: east-airbase, domains: [AIR, GROUND] }
-  - { node: static-hq,    domains: [AIR, GROUND] }   # the Static's rear source sits behind its HQ (THREAT-DIRECTOR §4)
+  - { node: static-hq,    domains: [AIR, GROUND] }
+  - { node: static-rear,  domains: [AIR, GROUND] }   # the Static's rear source sits behind its HQ (THREAT-DIRECTOR §4, Q-SIM-48)
 sanctuary: haven
+enemy_rear_source: static-rear
 enemy_hq: static-hq
 forward_airbase: west-airbase  # protected by the idle floor (Q-TH-2, Q-TH-7)

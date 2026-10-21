@@ -6,6 +6,7 @@ events. An invalid command becomes a `CommandRejected`, never an exception (SC-7
 """
 
 from collections.abc import Callable, Mapping
+from typing import NamedTuple
 
 from nexus.contracts.gen.commands.command import Command
 from nexus.contracts.gen.commands.join import FollowTarget, JoinCommand, NodeTarget
@@ -16,11 +17,23 @@ from nexus.contracts.gen.events.command_rejected import CommandRejected
 from nexus.contracts.gen.events.event import Event
 from nexus.contracts.gen.events.reserve_queue_joined import ReserveQueueJoined
 from nexus.contracts.gen.events.unit_spawned import UnitSpawned
+from nexus.core.logistics import Run, load, plan_run
 from nexus.core.roads import shortest_path
 from nexus.core.rules import Rules
 from nexus.core.world import Vec2, World
 
 type Handler = Callable[[World, Command, list[Event]], None]
+
+
+class _Plan(NamedTuple):
+    """A valid JOIN: the unit kind, where it loads and spawns (`source`), the `cargo` it carries
+    (None for a kind that carries none) and its road path or flight waypoints."""
+
+    kind: UnitKind
+    source: str
+    cargo: int | None
+    path: list[str]
+
 
 _COMMANDER: OwnerKind = "COMMANDER"
 _COALITION: Side = "COALITION"  # every chat commander plays the coalition
@@ -45,10 +58,11 @@ def join(world: World, command: Command, out: list[Event]) -> None:
     """JOIN (STATE-MACHINES §4.1, §4.4): spawn the commander's unit, or queue it (GP-3, Q-ALN-26).
 
     A valid JOIN queues while paused, at the cap, or behind a non-empty queue (strict FIFO, U-4);
-    otherwise it spawns at once. Interim until NX-123: every unit spawns at the coalition's
-    SANCTUARY with a FULL loadout and no stock is debited (forward deploy, GP-7, joins with
-    logistics). The unit takes the commander's callsign when identity has set one, else None
-    (`set_callsign`, NX-370). An aircraft
+    otherwise it spawns at once. A cargo truck spawns at its source and loads there (NX-123,
+    `nexus.core.logistics.plan_run`, GP-7). Interim until forward deploy (NX-123 part 2): every
+    other unit spawns at the coalition's SANCTUARY with a FULL loadout and no stock is debited. The
+    unit takes the commander's callsign when identity has set one, else None (`set_callsign`,
+    NX-370). An aircraft
     spawns LANDED with full fuel and takes off in `movement` when it has a path (NX-368).
     """
     if not isinstance(command, JoinCommand):
@@ -64,7 +78,7 @@ def join(world: World, command: Command, out: list[Event]) -> None:
     ):
         _enqueue(world, command, rules, out)
     else:
-        _spawn(world, command, *plan, rules, out)
+        _spawn(world, command, plan, rules, out)
 
 
 def serve_reserve_queue(world: World, out: list[Event], *, drop: bool = False) -> None:
@@ -92,7 +106,7 @@ def serve_reserve_queue(world: World, out: list[Event], *, drop: bool = False) -
             if drop:
                 free -= 1  # a dropped entry takes the place it would have been served in
             continue
-        _spawn(world, command, *plan, rules, out)
+        _spawn(world, command, plan, rules, out)
         free -= 1
 
 
@@ -133,15 +147,8 @@ def _enqueue(world: World, command: JoinCommand, rules: Rules, out: list[Event])
     )
 
 
-def _spawn(
-    world: World,
-    command: JoinCommand,
-    kind: UnitKind,
-    path: list[str],
-    rules: Rules,
-    out: list[Event],
-) -> None:
-    node = rules.sanctuary
+def _spawn(world: World, command: JoinCommand, plan: _Plan, rules: Rules, out: list[Event]) -> None:
+    kind, node, cargo, path = plan
     unit = world.spawn(
         kind,
         _COALITION,
@@ -151,7 +158,9 @@ def _spawn(
         callsign=world.callsigns.get(command.issuer.commander_id),
         hp=None,
     )
-    unit.last_node, unit.path = node, list(path)
+    unit.last_node, unit.path, unit.cargo = node, list(path), cargo
+    if cargo:  # the plan and the spawn are one step of one tick: the stock is as planned
+        load(world, Run(node, cargo, []))
     if rules.domain[kind] == "AIR":  # on the ground, full; with a path it takes off (NX-368)
         unit.state, unit.fuel = "LANDED", rules.fuel_s[kind]
     out.append(
@@ -172,10 +181,8 @@ def _spawn(
     )
 
 
-def _plan(
-    world: World, command: JoinCommand, rules: Rules
-) -> tuple[UnitKind, list[str]] | RejectReason:
-    """The unit kind and path for a JOIN, or why it is rejected (checked in this order)."""
+def _plan(world: World, command: JoinCommand, rules: Rules) -> _Plan | RejectReason:
+    """The plan for a JOIN, or why it is rejected (checked in this order). Pure: no stock moves."""
     commander = command.issuer.commander_id
     # shortcut: a scan of every entity per JOIN; index live units per commander if the SC-10
     # benchmark (500 viewer units) shows JOIN bursts over budget.
@@ -191,27 +198,31 @@ def _plan(
         return "UNIT_IN_SORTIE"  # retarget or switch at base needs unit states (GP-1)
     if commander in world.respawn_left:
         return "RESPAWN_COOLDOWN"
-    path = _path(command.target, kind, rules)
-    return path if isinstance(path, str) else (kind, path)
+    return _route(world, target=command.target, kind=kind, rules=rules)
 
 
-def _path(
-    target: NodeTarget | FollowTarget | None, kind: UnitKind, rules: Rules
-) -> list[str] | RejectReason:
-    """No target (hold, or auto-task once the board exists, NX-155): no path; Holding."""
+def _route(
+    world: World, *, target: NodeTarget | FollowTarget | None, kind: UnitKind, rules: Rules
+) -> _Plan | RejectReason:
+    """No target (hold, or auto-task once the board exists, NX-155): no path; Holding at the
+    sanctuary, a truck empty. A truck to a node plans its load and route (`plan_run`)."""
+    cargo = 0 if kind in rules.supply.carriers else None
     if target is None:
-        return []
+        return _Plan(kind, rules.sanctuary, cargo, [])
     if isinstance(target, FollowTarget):
         return "FOLLOW_TARGET_INVALID"  # every follow, until follow (Q-GP-31) lands
     if target.node_id not in rules.roads.pos:
         return "NODE_UNKNOWN"
     domain = rules.domain[kind]
     if domain == "AIR":
-        return [target.node_id]
+        return _Plan(kind, rules.sanctuary, cargo, [target.node_id])
     if domain != "GROUND":
         return "NODE_INVALID_FOR_UNIT"  # SEA joins with the naval graph (P3); STATIC never moves
+    if cargo is not None:
+        run = plan_run(world, rules, _COALITION, target.node_id)
+        return "NODE_INVALID_FOR_UNIT" if run is None else _Plan(kind, *run)
     route = shortest_path(rules.roads, rules.sanctuary, target.node_id, blocked=_NO_BLOCKED)
-    return "NODE_INVALID_FOR_UNIT" if route is None else route
+    return "NODE_INVALID_FOR_UNIT" if route is None else _Plan(kind, rules.sanctuary, None, route)
 
 
 def set_callsign(world: World, command: Command, out: list[Event]) -> None:

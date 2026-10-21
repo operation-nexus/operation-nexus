@@ -58,6 +58,7 @@ def scaled(time_scale: float) -> Rules:
         slots=BALANCE.slots,
         air=BALANCE.air,
         fow=BALANCE.fow,
+        logistics=BALANCE.logistics,
         respawn_delay_ticks=0,
         track_fade_ticks=1,
         sigint_refresh_ticks=1,
@@ -71,8 +72,8 @@ def test_make_rules_refuses_a_sigint_cell_that_does_not_divide_the_bounds() -> N
     with pytest.raises(ValueError, match="sigint_cell_m"):
         make_rules(
             BALANCE.sim, UNITS, ROADS, roles=ROLES, theater=STRAIT_1, slots=BALANCE.slots,
-            air=BALANCE.air, fow=fow, respawn_delay_ticks=0, track_fade_ticks=1,
-            sigint_refresh_ticks=1, mask_cell_m=1000.0, masking={},
+            air=BALANCE.air, fow=fow, logistics=BALANCE.logistics, respawn_delay_ticks=0,
+            track_fade_ticks=1, sigint_refresh_ticks=1, mask_cell_m=1000.0, masking={},
         )  # fmt: skip
 
 
@@ -84,8 +85,8 @@ def test_make_rules_refuses_a_zero_mask_cell() -> None:
 def replace_mask_cell(cell_m: float) -> Rules:
     return make_rules(
         BALANCE.sim, UNITS, ROADS, roles=ROLES, theater=STRAIT_1, slots=BALANCE.slots,
-        air=BALANCE.air, fow=BALANCE.fow, respawn_delay_ticks=0, track_fade_ticks=1,
-        sigint_refresh_ticks=1, mask_cell_m=cell_m, masking={},
+        air=BALANCE.air, fow=BALANCE.fow, logistics=BALANCE.logistics, respawn_delay_ticks=0,
+        track_fade_ticks=1, sigint_refresh_ticks=1, mask_cell_m=cell_m, masking={},
     )  # fmt: skip
 
 
