@@ -148,3 +148,38 @@ def test_event_union_parses_reserve_queue_joined() -> None:
 def test_reserve_queue_joined_rejects_bad_fields(bad: dict[str, object]) -> None:
     with pytest.raises(ValidationError):
         EVENTS.validate_python({**QUEUE_JOINED, **bad})
+
+
+DESTROYED = {
+    "kind": "UnitDestroyed",
+    "tick": 30,
+    "event_seq": 9,
+    "campaign_id": "0192f3a4-5b6c-7d8e-9f01-23456789abcd",
+    "entity_id": 4,
+    "killer_id": None,
+    "assist_ids": [],
+    "side": "COALITION",
+}
+
+
+def test_event_union_parses_unit_destroyed() -> None:
+    event = EVENTS.validate_python(DESTROYED)
+    assert event.kind == "UnitDestroyed"
+    assert (event.entity_id, event.killer_id, event.assist_ids) == (4, None, [])
+    with_killer = EVENTS.validate_python({**DESTROYED, "killer_id": 7, "assist_ids": [3, 2]})
+    assert with_killer.kind == "UnitDestroyed"
+    assert with_killer.assist_ids == [3, 2]  # a list: order kept as produced
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        {"entity_id": 0},  # ids start at 1
+        {"side": "NEUTRAL"},  # a unit's side
+        {"assist_ids": list(range(1, 34))},  # maxItems 32
+        {"commander_id": None},  # not a field of this event
+    ],
+)
+def test_unit_destroyed_rejects_bad_fields(bad: dict[str, object]) -> None:
+    with pytest.raises(ValidationError):
+        EVENTS.validate_python({**DESTROYED, **bad})

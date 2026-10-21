@@ -9,17 +9,21 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
 from fractions import Fraction
 
-from nexus.contracts.gen.common.enums import Domain, Role, UnitKind
-from nexus.contracts.gen.config.balance import Sim, Slots
+from nexus.contracts.gen.common.enums import Domain, Role, Side, UnitKind
+from nexus.contracts.gen.config.balance import Air, Sim, Slots
 from nexus.contracts.gen.config.roles import Roles
+from nexus.contracts.gen.config.theater import TheaterConfig
 from nexus.contracts.gen.config.unit import UnitConfig
 from nexus.core.roads import RoadGraph
+
+_LANDING_KINDS = ("AIRBASE", "SANCTUARY")  # aircraft land only here (Q-SIM-38, NX-368)
+_SIDES: tuple[Side, ...] = ("COALITION", "ENEMY")
 
 
 @dataclass(frozen=True, slots=True)
 class Rules:
     world_dt: float  # world seconds per tick: TICK_DT x sim.time_scale (SC-2)
-    speed_mps: Mapping[UnitKind, float]  # m/s of world time
+    speed_mps: Mapping[UnitKind, float]  # m/s of world time; a top speed (Q-SIM-38)
     domain: Mapping[UnitKind, Domain]
     roads: RoadGraph
     role_kind: Mapping[Role, UnitKind]  # content/roles.yaml; a missing role is not playable yet
@@ -28,6 +32,14 @@ class Rules:
     respawn_delay_ticks: int  # slots.respawn_delay_s as game ticks, rounded up (GP-2, SC-12)
     max_viewer_units: int  # slots.max_viewer_units: live COMMANDER units before JOINs queue (GP-3)
     reserve_queue_max: int  # slots.reserve_queue_max (GP-3)
+    min_speed_mps: Mapping[UnitKind, float]  # AIR kinds: stall speed, m/s world (NX-368)
+    fuel_s: Mapping[UnitKind, float]  # AIR kinds: endurance, world s (NX-368)
+    bingo_reserve_frac: float  # air.bingo_reserve_frac (NX-368)
+    # Side -> the AIRBASE and SANCTUARY nodes it may land at, by id. From the theater's start
+    # owners: node ownership becomes world state with capture (NX-125), which must replace this.
+    landing_bases: Mapping[Side, tuple[str, ...]]
+    bounds_m: tuple[float, float]  # theater width, height (m)
+    orbit_period_s: float  # air.orbit_period_s: world s per lap of an idle orbit (NX-368)
 
 
 def world_dt(sim: Sim) -> float:
@@ -40,14 +52,23 @@ def _role_kind(roles: Roles) -> Mapping[Role, UnitKind]:
     return {"STRIKE": roles.STRIKE, "RECON": roles.RECON, "LOGI": roles.LOGI}
 
 
+def _landing_bases(theater: TheaterConfig) -> Mapping[Side, tuple[str, ...]]:
+    nodes = sorted(theater.nodes, key=lambda n: n.id)
+    return {
+        side: tuple(n.id for n in nodes if n.kind in _LANDING_KINDS and n.start_owner == side)
+        for side in _SIDES
+    }
+
+
 def make_rules(
     sim: Sim,
     units: Iterable[UnitConfig],
     roads: RoadGraph,
     *,
     roles: Roles,
-    sanctuary: str,
+    theater: TheaterConfig,
     slots: Slots,
+    air: Air,
     respawn_delay_ticks: int,
 ) -> Rules:
     """`respawn_delay_ticks` is `slots.respawn_delay_s` already converted by the config loader."""
@@ -58,9 +79,15 @@ def make_rules(
         domain={u.kind: u.domain for u in units},
         roads=roads,
         role_kind=_role_kind(roles),
-        sanctuary=sanctuary,
+        sanctuary=theater.sanctuary,
         max_live_per_commander=slots.max_live_per_commander,
         respawn_delay_ticks=respawn_delay_ticks,
         max_viewer_units=slots.max_viewer_units,
         reserve_queue_max=slots.reserve_queue_max,
+        min_speed_mps={u.kind: u.min_speed_mps for u in units if u.min_speed_mps is not None},
+        fuel_s={u.kind: u.fuel_s for u in units if u.fuel_s is not None},
+        bingo_reserve_frac=air.bingo_reserve_frac,
+        landing_bases=_landing_bases(theater),
+        bounds_m=(float(theater.bounds_m.w), float(theater.bounds_m.h)),
+        orbit_period_s=air.orbit_period_s,
     )

@@ -29,6 +29,9 @@ sim:
   tick_hz: 10
   time_scale: 6.0
   snapshot_every_ticks: 300
+air:
+  bingo_reserve_frac: 0.15
+  orbit_period_s: 120.0
 slots:
   max_live_per_commander: 1
   respawn_delay_s: 20
@@ -36,9 +39,9 @@ slots:
   reserve_queue_max: 1000
 """
 # Pinned from this implementation's first run (NX-367: balance, units, theater; re-pinned NX-121
-# for speed_mps, NX-122 for slots and again for the GP-3 cap and queue); a change means every
-# config_hash moved.
-GOLDEN_CONFIG_HASH = "95534c2e7dd132c2b1e89f51da3384347537aaee08ff9a68e9c2e223110eb0ec"
+# for speed_mps, NX-122 for slots and again for the GP-3 cap and queue, NX-368 for air fuel and
+# orbit); a change means every config_hash moved.
+GOLDEN_CONFIG_HASH = "8af973892cd2db587d92c82d11cb95b0d730031bf31762b6914868abbed94cf9"
 SLOTS = {
     "max_live_per_commander": 1,
     "respawn_delay_s": 20,
@@ -50,6 +53,7 @@ CFG = BalanceConfig.model_validate(
         "schema_version": 1,
         "sim": {"tick_hz": 10, "time_scale": 6.0, "snapshot_every_ticks": 300},
         "slots": SLOTS,
+        "air": {"bingo_reserve_frac": 0.15, "orbit_period_s": 120.0},
     }
 )
 
@@ -92,6 +96,8 @@ def test_default_profile_loads_and_matches_golden_hash() -> None:
         ("  respawn_delay_s: 20\n", "slots.respawn_delay_s"),
         ("  max_viewer_units: 500\n", "slots.max_viewer_units"),
         ("  reserve_queue_max: 1000\n", "slots.reserve_queue_max"),
+        ("  bingo_reserve_frac: 0.15\n", "air.bingo_reserve_frac"),
+        ("  orbit_period_s: 120.0\n", "air.orbit_period_s"),
     ],
 )
 def test_each_missing_required_key_names_key_and_file(tmp_path: Path, line: str, key: str) -> None:
@@ -125,6 +131,9 @@ def test_unknown_key_fails(tmp_path: Path, text: str) -> None:
         ("time_scale: 6.0", "time_scale: 0", "sim.time_scale"),
         ("snapshot_every_ticks: 300", "snapshot_every_ticks: 0", "sim.snapshot_every_ticks"),
         ("time_scale: 6.0", "time_scale: TBD", "sim.time_scale"),
+        ("bingo_reserve_frac: 0.15", "bingo_reserve_frac: 1.5", "air.bingo_reserve_frac"),
+        ("bingo_reserve_frac: 0.15", "bingo_reserve_frac: -0.1", "air.bingo_reserve_frac"),
+        ("orbit_period_s: 120.0", "orbit_period_s: 0", "air.orbit_period_s"),
     ],
 )
 def test_wrong_type_or_value_fails_naming_key(tmp_path: Path, old: str, new: str, key: str) -> None:
@@ -249,6 +258,7 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "sim: {snapshot_every_ticks: 300, time_scale: 6.0, tick_hz: 10}\n"
         "slots: {respawn_delay_s: 20, max_live_per_commander: 1, reserve_queue_max: 1000,\n"
         "  max_viewer_units: 500}\n"
+        "air: {orbit_period_s: 120.0, bingo_reserve_frac: 0.15}\n"
         "schema_version:   1\n"
     )
     assert balance_hash(write(tmp_path, reformatted)) == balance_hash(DEFAULT)
@@ -319,6 +329,7 @@ def test_world_ticks_is_the_least_whole_tick_count_not_shorter(
             "schema_version": 1,
             "sim": {"tick_hz": 10, "time_scale": time_scale, "snapshot_every_ticks": 1},
             "slots": SLOTS,
+            "air": {"bingo_reserve_frac": 0.15, "orbit_period_s": 120.0},
         }
     )
     n = world_ticks(seconds, cfg)

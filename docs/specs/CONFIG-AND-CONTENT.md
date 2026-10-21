@@ -137,6 +137,8 @@ Legend: **HR** = hot-reloadable (§5). "TBD" = TBD by harness. **Source** = the 
 | `fow.sigint_cell_m` | int | m | 10000 (PROPOSED) | FOG-OF-WAR Tier 1 | No |
 | `fow.paint_range_m` | float | m | TBD (PROPOSED) | FOG-OF-WAR Tier 2 painted flag | No |
 | `director.decoy_blink.dark_s` | float | s (world) | TBD (PROPOSED) | FOG-OF-WAR FOW-11, Q-FOW-10 | No |
+| `air.bingo_reserve_frac` | float | fraction of the kind's `fuel_s`, 0–1 | 0.15 (PROPOSED by NX-368). Bingo: an airborne aircraft RTBs once its fuel is at most the flight time to the nearest base it can land at plus this reserve. In the schema now (NX-368) | STATE-MACHINES §4.1, Q-SIM-38 | No |
+| `air.orbit_period_s` | float | s (world), > 0 | 120 (PROPOSED by NX-368). One lap of an idle airborne aircraft's orbit at its `min_speed_mps`; the radius is `min_speed_mps` × this / 2π (about 1.9 km for a jet). In the schema now (NX-368) | SIM-CORE §4, GAMEPLAY §5 | No |
 
 ### 6.2 Slots, respawn, reserve
 In the schema now (NX-122): `slots.max_live_per_commander`, `slots.respawn_delay_s`, `slots.max_viewer_units` and `slots.reserve_queue_max`, read by the JOIN handler and the reserve queue (SIM-CORE §4). The hot-reloadable ones are read once at load until config reload exists; a reload must rebuild the kernel's `Rules` and be logged. `slots.queue_idle_min` joins with the runtime's queue timeout.
@@ -302,7 +304,7 @@ In the schema now (NX-122): `slots.max_live_per_commander`, `slots.respawn_delay
 
 ## 7. Unit catalog (`content/units/*.yaml`, `content/weapons.yaml`, `content/roles.yaml`)
 
-**What exists now (NX-367, Q-CFG-10).** The schemas are `contracts/config/unit.json`, `weapons.json` and `roles.json`; a field enters them with the code that reads it. Today a unit file has `kind`, `side` (`COALITION | ENEMY | BASE`), `domain`, `playable_by` (list), `min_rank` (iff `VIEWER` is in `playable_by`), `speed_mps` (m/s of world time, `>= 0`; NX-121, every value PROPOSED: aircraft 250, UAVs 60, trucks and convoys 25, armor 20, infantry 5, facilities 0) and `weapons` (ids); a weapon has `id` and `targets`; `content/roles.yaml` holds `roles:` (`STRIKE`, `RECON`, `LOGI`). One file per unit, named `<kind in kebab-case>.yaml` (§7a); `ANY` is not a side. The loader (`nexus.runtime.units`) rejects: a kind set that is not exactly `UnitKind`, a file name that is not its kind, an unknown or unused weapon id, duplicates, a role mapped to a kind no VIEWER can play, and a GARRISON_INFANTRY weapon that can target anything but GROUND (COMBAT §5.1, Q-CBT-25). The rest of the schema below joins with its readers: `display`, `category` and icons with the overlay; `alt_bands` with NX-124; other stats, sensors, cargo and weapon numbers with NX-122 and NX-124. The weapon ids (`AA_LIGHT`, `AA_MISSILE`, `AAA_GUN`, `SAM`, `AG_LIGHT`, `AG_CANNON`, `SMALL_ARMS`) are PROPOSED names.
+**What exists now (NX-367, Q-CFG-10).** The schemas are `contracts/config/unit.json`, `weapons.json` and `roles.json`; a field enters them with the code that reads it. Today a unit file has `kind`, `side` (`COALITION | ENEMY | BASE`), `domain`, `playable_by` (list), `min_rank` (iff `VIEWER` is in `playable_by`), `speed_mps` (m/s of world time, `>= 0`, a top speed; NX-121, every value PROPOSED: aircraft 250, UAVs 60, trucks and convoys 25, armor 20, infantry 5, facilities 0), `min_speed_mps` and `fuel_s` (AIR kinds only, NX-368, PROPOSED: jets 100 m/s and 3600 world s, about 10 real minutes at 6×; UAVs 20 m/s and 14400 world s) and `weapons` (ids); a weapon has `id` and `targets`; `content/roles.yaml` holds `roles:` (`STRIKE`, `RECON`, `LOGI`). One file per unit, named `<kind in kebab-case>.yaml` (§7a); `ANY` is not a side. The loader (`nexus.runtime.units`) rejects: a kind set that is not exactly `UnitKind`, a file name that is not its kind, an unknown or unused weapon id, duplicates, a role mapped to a kind no VIEWER can play, a GARRISON_INFANTRY weapon that can target anything but GROUND (COMBAT §5.1, Q-CBT-25), `min_speed_mps` or `fuel_s` missing on an AIR kind or present on any other, and `min_speed_mps` above `speed_mps` (NX-368). The rest of the schema below joins with its readers: `display`, `category` and icons with the overlay; `alt_bands` with NX-124; other stats, sensors, cargo and weapon numbers with NX-122 and NX-124. The weapon ids (`AA_LIGHT`, `AA_MISSILE`, `AAA_GUN`, `SAM`, `AG_LIGHT`, `AG_CANNON`, `SMALL_ARMS`) are PROPOSED names.
 
 ### 7.1 Schema
 The block shows the full target schema in one listing; on disk `roles:` is `content/roles.yaml`, each `units:` entry is its own `content/units/<kind>.yaml`, and `weapons:` (§7.2) is `content/weapons.yaml`. List order inside a unit (`playable_by`, `weapons`) is hashed as written.
@@ -319,7 +321,8 @@ units:
     playable_by: [VIEWER, AI_GARRISON]   # VIEWER | AI_GARRISON | DIRECTOR (one or more)
     min_rank: 1               # PROGRESSION §3; required when playable_by includes VIEWER
     display: { symbol: "air_strike", label_key: "unit.strike_fighter" }   # OV-2 shape-coded symbol id
-    speed_mps: <float>        # m/s of world time (CFG-9)
+    speed_mps: <float>        # top speed, m/s of world time (CFG-9)
+    min_speed_mps: <float>    # AIR only (required), absent otherwise; stall speed, <= speed_mps (NX-368)
     alt_bands: [LOW, MED]     # AIR only; NOE | LOW | MED | HIGH (COMBAT §5.3)
     default_alt_band: LOW     # AIR only; one of alt_bands
     hp: <int>
@@ -327,7 +330,7 @@ units:
     evasion: <float>          # 0.6..1.0 Pk multiplier on shots at this kind; facilities 1.0 (COMBAT §5.2)
     crew: <int>               # 0 for facilities; drives the crew-survival roll (COMBAT CB-8)
     threat: <int>             # target priority, higher first (COMBAT CB-1, Q-CBT-16)
-    fuel_s: <float|null>      # endurance in world s (CFG-9); null = not modeled (STATIC/GROUND for MVP)
+    fuel_s: <float>           # AIR only (required), absent otherwise; endurance in world s airborne (CFG-9, NX-368)
     sensor: { radius_m: <float>, passive_range_m: <float|null> }   # passive_range_m: detects emitting sites (recon units, radar sites; AWACS later), FOG-OF-WAR FOW-13   # first build: one range for all targets; per-band ranges later. Masking is a property of the target's area (masking_regions, Q-FOW-3)
     weapons: [<weapon_id>]    # refs §7.2; [] = unarmed
     cargo: <int|null>         # stock units; null = cannot carry

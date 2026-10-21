@@ -11,3 +11,6 @@ slots:
   respawn_delay_s: 20  # PROPOSED – unvalidated; s (game) (CONFIG-AND-CONTENT §6.2 slots.respawn_delay_s)
   max_viewer_units: 500  # PROPOSED – unvalidated; units (CONFIG-AND-CONTENT §6.2 slots.max_viewer_units)
   reserve_queue_max: 1000  # PROPOSED – unvalidated; entries (CONFIG-AND-CONTENT §6.2 slots.reserve_queue_max)
+air:
+  bingo_reserve_frac: 0.15  # PROPOSED – unvalidated; fraction of fuel_s (CONFIG-AND-CONTENT §6.1 air.bingo_reserve_frac)
+  orbit_period_s: 120.0  # PROPOSED – unvalidated; s (world) (CONFIG-AND-CONTENT §6.1 air.orbit_period_s)

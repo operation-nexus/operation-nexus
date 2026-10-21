@@ -5,4 +5,6 @@ side: ENEMY
 domain: AIR
 playable_by: [DIRECTOR]
 speed_mps: 250.0  # PROPOSED (NX-121, owner may veto; harness tunes, NX-031); m/s world; as strike aircraft (SIM-CORE §4)
+min_speed_mps: 100.0  # PROPOSED (NX-368, owner may veto; harness tunes, NX-031); m/s world; as STRIKE_FIGHTER
+fuel_s: 3600.0  # PROPOSED (NX-368, owner may veto; harness tunes, NX-031); s world; as STRIKE_FIGHTER
 weapons: [AA_MISSILE]

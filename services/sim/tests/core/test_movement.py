@@ -10,7 +10,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from nexus.contracts.gen.common.enums import UnitKind
+from nexus.contracts.gen.common.enums import Domain, Side, UnitKind
 from nexus.core.roads import Road, RoadGraph, shortest_path
 from nexus.core.rules import Rules, make_rules
 from nexus.core.step import step
@@ -38,7 +38,10 @@ ELL = RoadGraph(
 
 def rules(world_dt: float, roads: RoadGraph = ROADS) -> Rules:
     speeds: dict[UnitKind, float] = {JET: 250.0, TRUCK: 25.0}
-    return Rules(world_dt, speeds, {JET: "AIR", TRUCK: "GROUND"}, roads, {}, "haven", 1, 0, 1, 1)
+    domains: dict[UnitKind, Domain] = {JET: "AIR", TRUCK: "GROUND"}
+    no_bases: dict[Side, tuple[str, ...]] = {"COALITION": (), "ENEMY": ()}  # never bingo
+    air = ({JET: 100.0}, {JET: 1e6}, 0.0, no_bases, (W, H), 120.0)
+    return Rules(world_dt, speeds, domains, roads, {}, "haven", 1, 0, 1, 1, *air)
 
 
 def scaled(time_scale: float) -> Rules:
@@ -48,8 +51,9 @@ def scaled(time_scale: float) -> Rules:
         UNITS,
         ROADS,
         roles=ROLES,
-        sanctuary=STRAIT_1.sanctuary,
+        theater=STRAIT_1,
         slots=BALANCE.slots,
+        air=BALANCE.air,
         respawn_delay_ticks=0,
     )
 
@@ -60,7 +64,7 @@ def world(r: Rules | None) -> World:
 
 def jet(w: World, at: Vec2, *path: str | Vec2) -> Entity:
     e = w.spawn(JET, "COALITION", "COMMANDER", at, hp=100)
-    e.path = list(path)
+    e.path, e.state, e.fuel = list(path), "EN_ROUTE", 1e6
     return e
 
 
@@ -122,14 +126,15 @@ def test_arrival_snaps_and_stops() -> None:
     a = jet(w, Vec2(0.1, 0.2), Vec2(100.3, 0.2), Vec2(100.3, 50.7))
     step(w, [])
     assert (t.pos, t.vel, t.path, t.last_node) == (Vec2(300, 400), Vec2(0, 0), [], "c")
-    assert (a.pos, a.vel, a.path) == (Vec2(100.3, 50.7), Vec2(0, 0), [])
+    # An aircraft snaps too, then orbits at its stall speed (NX-368, tests/core/test_air.py).
+    assert (a.pos, a.vel, a.path, a.state) == (Vec2(100.3, 50.7), Vec2(0, 100), [], "ON_STATION")
     step(w, [])
-    assert (t.pos, a.pos) == (Vec2(300, 400), Vec2(100.3, 50.7))
+    assert t.pos == Vec2(300, 400)
 
 
 def test_idle_units_do_not_move_and_velocity_clears() -> None:
     w = world(None)  # no rules needed while nothing has a path
-    e = w.spawn(JET, "COALITION", "COMMANDER", Vec2(5, 5), vel=Vec2(250, 0), hp=100)
+    e = w.spawn(TRUCK, "COALITION", "COMMANDER", Vec2(5, 5), vel=Vec2(25, 0), hp=100)
     step(w, [])
     assert (e.pos, e.vel) == (Vec2(5, 5), Vec2(0, 0))
 
@@ -269,4 +274,4 @@ def test_air_units_stay_in_bounds_and_arrive(
             break
         step(w, [])
         assert _in_bounds(a.pos)
-    assert (a.path, a.pos, a.vel) == ([], waypoints[-1], Vec2(0, 0))
+    assert (a.path, a.pos, a.state) == ([], waypoints[-1], "ON_STATION")

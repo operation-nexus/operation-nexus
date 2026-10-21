@@ -26,6 +26,18 @@ def test_shipped_config_hash_and_rules(shipped_config: CampaignConfig) -> None:
     assert rules.speed_mps == {u.kind: u.speed_mps for u in shipped_config.catalog.units}
     assert rules.domain == {u.kind: u.domain for u in shipped_config.catalog.units}
     assert {n.id for n in shipped_config.theater.nodes} == set(rules.roads.pos)
+    # strait-1: aircraft land at their side's AIRBASE and SANCTUARY nodes only, never at an FOB,
+    # the HQ or a neutral node (NX-368).
+    assert rules.landing_bases == {
+        "COALITION": ("haven", "west-airbase"),
+        "ENEMY": ("east-airbase",),
+    }
+    assert (rules.bounds_m, rules.bingo_reserve_frac) == ((400_000.0, 240_000.0), 0.15)
+    assert (
+        rules.min_speed_mps.keys()
+        == rules.fuel_s.keys()
+        == {u.kind for u in shipped_config.catalog.units if u.domain == "AIR"}
+    )
 
 
 CAMPAIGN = "0192f3a4-5b6c-7d8e-9f01-23456789abcd"

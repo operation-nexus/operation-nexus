@@ -14,9 +14,9 @@ from nexus.runtime.config import ConfigError
 from nexus.runtime.units import catalog_hash, load_catalog
 
 CONTENT = Path(__file__).resolve().parents[4] / "content"
-# Pinned from this implementation's first run (NX-367; re-pinned NX-121: speed_mps); a change
-# means every config_hash moved.
-GOLDEN_UNITS_HASH = "006d964b289253db7b42d9d776c2b89f24c52e87155036114668d39eaaff2e91"
+# Pinned from this implementation's first run (NX-367; re-pinned NX-121: speed_mps; NX-368:
+# min_speed_mps and fuel_s); a change means every config_hash moved.
+GOLDEN_UNITS_HASH = "c1b7ba0ef661ca63cb0213f68efb689a5c71f7d2ae6da6c1db8b23f83fe0d59b"
 RADAR = "units/radar-site.yaml"
 
 
@@ -81,6 +81,12 @@ def test_weapon_targets_match_combat_table() -> None:
         ("units/enemy-armor.yaml", "weapons:", "min_rank: 1\nweapons:", r"min_rank: present if"),
         ("units/recon-uav.yaml", "[VIEWER, AI_GARRISON]", "[VIEWER, VIEWER]", r"playable_by: dup"),
         ("units/recon-uav.yaml", "[VIEWER, AI_GARRISON]", "[]", r"playable_by"),
+        # min_speed_mps and fuel_s iff AIR (NX-368)
+        ("units/recon-uav.yaml", "min_speed_mps: 20.0", "", r"min_speed_mps: present if and only"),
+        ("units/recon-uav.yaml", "fuel_s: 14400.0", "", r"fuel_s: present if and only if domain"),
+        ("units/enemy-armor.yaml", "weapons:", "fuel_s: 60.0\nweapons:", r"fuel_s: present if"),
+        ("units/recon-uav.yaml", "min_speed_mps: 20.0", "min_speed_mps: 60.5", r"above speed_mps"),
+        ("units/recon-uav.yaml", "fuel_s: 14400.0", "fuel_s: 0", r"fuel_s: .*greater than 0"),
         # weapons
         ("units/enemy-fighter.yaml", "[AA_MISSILE]", "[NO_SUCH]", r"weapons\.0: unknown weapon"),
         ("units/enemy-fighter.yaml", "[AA_MISSILE]", "[AA_MISSILE, AA_MISSILE]", r"weapons: dup"),

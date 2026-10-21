@@ -28,13 +28,22 @@ update, below). Cases without it run with no rules.
 | `empty-1h` | 36,000 | One game hour, no commands: tick, RNG and state stay stable (Q-SIM-19 "empty theater 1 h", without a theater yet) |
 | `stub-commands` | 300 | JOIN-shaped commands through the `stub` handler |
 | `poison-crash` | 200 | A tombstoned tick whose three commands are dropped (Q-SIM-19 "poison-command crash") |
-| `joins-strait-1` | 6,000 | Real JOINs on strait-1 with the shipped config: strike, recon and logistics units spawn at the sanctuary, ground units drive road routes and aircraft fly straight; rejects for a unit in sortie, an unknown node, a node no road reaches and an unplayable role (NX-122) |
+| `joins-strait-1` | 6,000 | Real JOINs on strait-1 with the shipped config: strike, recon and logistics units spawn at the sanctuary, ground units drive road routes and aircraft fly straight; rejects for a unit in sortie, an unknown node, a node no road reaches and an unplayable role (NX-122). Aircraft with no target stay landed at the sanctuary; the strike jet reaches east-airbase on tick 1934 and orbits it, hits bingo fuel on tick 3634 and lands at west-airbase, the nearest coalition airbase, on tick 5101 (NX-368) |
 
 The reserve queue (GP-3) has no case yet: the shipped cap is 500 units, a pause has no logged
 command until NX-126 and nothing frees a slot until despawn and combat (NX-324, NX-124), so
 `tests/core/test_reserve_queue.py` covers it with a test-only cap. Snapshot format 4 (NX-122:
 the reserve queue in world state) re-pinned every case's `state_hash` checkpoints; no event
-stream changed.
+stream changed. Snapshot format 5 (NX-368: aircraft `state`, `fuel` and `orbit`, new catalog and
+balance keys so a new `config_hash`) re-pinned every case's checkpoints again and the
+`joins-strait-1` `config_hash`; no event stream changed, as takeoff, orbit, bingo and landing
+emit no events (STATE-MACHINES §4.1 lists none) and no golden aircraft runs out of fuel (the
+only new event, `UnitDestroyed`). The `stub` and `poison` registries now spawn their fighters
+`LANDED` with fuel, since an AIR entity must have a state; they never take off.
+
+The orbit uses libm `atan2`, `cos` and `sin`. They are deterministic on one platform but may
+differ across platforms or libm versions, so every checkpoint here is pinned to the CI platform
+(ADR-0002, SC-3): a mismatch on another machine is not by itself a determinism bug.
 
 Q-SIM-19 cases still to come, each with the item that makes it runnable: the empty *theater* hour
 (theater loader NX-120), the 50-viewer scripted raid (real `JOIN` and orders, NX-122; viewer

@@ -3,6 +3,7 @@
 Files (CONFIG-AND-CONTENT §7, §7a): `content/units/<kind-in-kebab-case>.yaml` (one unit each),
 `content/weapons.yaml`, `content/roles.yaml`. Checked here: the kind set equals `UnitKind` with no
 duplicates, file names match kinds, weapon ids resolve and none is unused, `min_rank` iff VIEWER,
+`min_speed_mps` and `fuel_s` iff AIR with `min_speed_mps <= speed_mps` (NX-368),
 each MVP role maps to a kind a VIEWER can play, and COMBAT §5.1 target limits (Q-CBT-25).
 TBD values (DI-7) are `load_model`'s. Stats join item by item (Q-CFG-10).
 """
@@ -99,6 +100,7 @@ def _units(
         problems += _duplicates(u.weapons, f"{f}: weapons")
         if (_VIEWER in u.playable_by) != (u.min_rank is not None):
             problems.append(f"{f}: min_rank: present if and only if {_VIEWER} is in playable_by")
+        problems += _air(f, u)
         problems += [
             f"{f}: weapons.{i}: unknown weapon {w!r} (not in {weapons_path})"
             for i, w in enumerate(u.weapons)
@@ -113,6 +115,19 @@ def _units(
         unit = by_kind.get(kind)
         if unit is not None and _VIEWER not in unit.playable_by:
             problems.append(f"{roles_path}: roles.{role}: {kind!r} is not playable by {_VIEWER}")
+    return problems
+
+
+def _air(f: Path, u: UnitConfig) -> list[str]:
+    """`min_speed_mps` and `fuel_s` iff AIR (NX-368); a stall speed above top speed cannot fly."""
+    air = u.domain == "AIR"
+    problems = [
+        f"{f}: {key}: present if and only if domain is AIR"
+        for key, value in (("min_speed_mps", u.min_speed_mps), ("fuel_s", u.fuel_s))
+        if air != (value is not None)
+    ]
+    if u.min_speed_mps is not None and u.min_speed_mps > u.speed_mps:
+        problems.append(f"{f}: min_speed_mps: above speed_mps")
     return problems
 
 

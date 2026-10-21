@@ -56,8 +56,9 @@ def load_campaign_config(paths: ConfigPaths | None = None) -> CampaignConfig:
         catalog.units,
         road_graph(theater),
         roles=catalog.roles.roles,
-        sanctuary=theater.sanctuary,
+        theater=theater,
         slots=balance.slots,
+        air=balance.air,
         respawn_delay_ticks=game_ticks(balance.slots.respawn_delay_s, balance),
     )
     return CampaignConfig(balance, catalog, theater, digest, rules)

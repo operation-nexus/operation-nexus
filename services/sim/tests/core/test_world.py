@@ -52,6 +52,7 @@ def golden_world() -> World:
         "ENEMY_ARMOR", "ENEMY", "ENEMY_DIRECTOR", Vec2(150e3, 80e3), vel=Vec2(-25, 3.5), hp=200
     )
     fighter.path = [Vec2(5000.0004, 2000.5), "west-airbase"]  # NX-121: Vec2 and node waypoints
+    fighter.state, fighter.fuel, fighter.orbit = "ON_STATION", 1234.25, Vec2(900.5, 2000.5)
     armor.path, armor.last_node = ["east-airbase"], "cross-n"
     w.respawn_left["0192f3a4-5b6c-7d8e-9f01-000000000002"] = 7  # NX-122: per-commander state
     w.reserve_queue.append(QUEUED)  # NX-122 part 3: the reserve queue
@@ -60,16 +61,18 @@ def golden_world() -> World:
 
 def test_golden_state_hash_seed_12345() -> None:
     # Pinned by running this implementation once (NX-101; re-pinned NX-121: path, last_node, v2;
-    # NX-122: respawn_left, v3; NX-122 part 3: reserve_queue, v4).
+    # NX-122: respawn_left, v3; NX-122 part 3: reserve_queue, v4; NX-368: state, fuel, orbit, v5).
     # A change here breaks every recorded replay hash: needs a `golden-update` reason.
     assert (
         state_hash(golden_world())
-        == "402df8ae0e3bdd802ddfc17ad31d5a1aacaa1459f4ac8a0d94ae501136bd6f46"
+        == "eafa41610b098699dac3125b352e922ec4313f8b6fc7a1bb96e7da20964e5b97"
     )
     e = to_canonical(golden_world(), quantize=True)["entities"][0]
     assert e["pos"] == [1000250, 2000500]  # mm
     assert e["vel"] == [250000, 0]  # mm/s
     assert e["path"] == [[5000000, 2000500], "west-airbase"]  # waypoints in mm too
+    assert (e["state"], e["fuel"], e["orbit"]) == ("ON_STATION", 1234250000, [900500, 2000500])
+    assert to_canonical(golden_world(), quantize=True)["entities"][1]["fuel"] is None
     assert list(e) == sorted(e)
 
 
@@ -112,6 +115,7 @@ _KINDS: list[tuple[UnitKind, Side, OwnerKind]] = [
     ("RADAR_SITE", "ENEMY", "AI_GARRISON"),
 ]
 kinds = st.sampled_from(_KINDS)
+fuels = st.floats(min_value=0.0, max_value=1e6, allow_nan=False)
 entity_args = st.tuples(kinds, vecs, vecs, st.integers(0, 1000), st.sampled_from([None, "HAWK-07"]))
 
 
@@ -120,7 +124,10 @@ def worlds(draw: st.DrawFn) -> World:
     seed, tick = draw(st.integers(0, 2**64 - 1)), draw(st.integers(0, 10**9))
     w = World.new(Campaign(CAMPAIGN_ID, seed, "c", tick, draw(st.booleans())))
     for (kind, side, owner), pos, vel, hp, callsign in draw(st.lists(entity_args, max_size=8)):
-        w.spawn(kind, side, owner, pos, vel=vel, hp=hp, callsign=callsign)
+        e = w.spawn(kind, side, owner, pos, vel=vel, hp=hp, callsign=callsign)
+        if draw(st.booleans()):  # an aircraft's state (NX-368)
+            e.state, e.fuel = draw(st.sampled_from(world_mod._UNIT_STATES)), draw(fuels)
+            e.orbit = draw(vecs) if e.state == "ON_STATION" else None
     for _ in range(draw(st.integers(min_value=0, max_value=5))):
         w.rng.stream(draw(st.sampled_from(list(RngStream)))).next_u64()
     if len(w) and draw(st.booleans()):
@@ -157,6 +164,10 @@ def test_hash_tracks_state_at_mm_resolution() -> None:
     # Quantization: sub-millimetre moves do not change the hash.
     assert not _changes_hash(lambda w: setattr(w.get(2), "pos", Vec2(-5.0003, 7.1253)))
     assert not _changes_hash(lambda w: setattr(w.get(3), "vel", Vec2(-25.0002, 3.5)))
+    # fuel at ADR-0002's 1e-6 step (NX-368)
+    assert _changes_hash(lambda w: setattr(w.get(1), "fuel", 1234.250002))
+    assert not _changes_hash(lambda w: setattr(w.get(1), "fuel", 1234.2500004))
+    assert _changes_hash(lambda w: setattr(w.get(1), "state", "RTB"))
 
 
 _CHILD = (
@@ -198,6 +209,14 @@ def _resave(mutate: Any) -> bytes:
         _resave(lambda d: d["entities"][0].update(path="west-airbase")),
         _resave(lambda d: d["entities"][0].update(path=[7])),
         _resave(lambda d: d["entities"][0].update(last_node=7)),
+        _resave(lambda d: d["entities"][0].update(state="HOLDING")),  # not in code yet
+        _resave(lambda d: d["entities"][0].update(fuel=-1.0)),
+        _resave(lambda d: d["entities"][0].update(fuel=float("nan"))),
+        _resave(lambda d: d["entities"][0].update(fuel=12)),  # always a float
+        _resave(lambda d: d["entities"][0].update(orbit=[1.0])),
+        _resave(lambda d: d["entities"][0].update(fuel=None)),  # a state needs fuel
+        _resave(lambda d: d["entities"][1].update(fuel=1.0)),  # fuel needs a state
+        _resave(lambda d: d["entities"][0].update(state="RTB")),  # orbit only ON_STATION
         _resave(lambda d: d["entities"].reverse()),
         _resave(lambda d: d.update(next_entity_id=3)),
         _resave(lambda d: d["campaign"].update(clock_paused=0)),

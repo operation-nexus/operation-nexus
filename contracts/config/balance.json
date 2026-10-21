@@ -8,7 +8,8 @@
   "required": [
     "schema_version",
     "sim",
-    "slots"
+    "slots",
+    "air"
   ],
   "properties": {
     "schema_version": {
@@ -22,9 +23,38 @@
     },
     "slots": {
       "$ref": "#/$defs/Slots"
+    },
+    "air": {
+      "$ref": "#/$defs/Air"
     }
   },
   "$defs": {
+    "Air": {
+      "description": "Aircraft fuel and idle orbit (§6.1, NX-368).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "bingo_reserve_frac",
+        "orbit_period_s"
+      ],
+      "properties": {
+        "bingo_reserve_frac": {
+          "description": "Fuel kept in reserve at bingo, unit fraction of the kind's fuel_s: an airborne aircraft returns to base once its fuel is at most the flight time to the nearest base it can land at plus this reserve (STATE-MACHINES §4.1, NX-368).",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "x-unit": "fraction of fuel_s",
+          "x-hot-reload": false
+        },
+        "orbit_period_s": {
+          "description": "One lap of an idle airborne aircraft's orbit at its min_speed_mps, unit s of world time; the radius is min_speed_mps x orbit_period_s / 2 pi (SIM-CORE §4, NX-368).",
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "x-unit": "s (world)",
+          "x-hot-reload": false
+        }
+      }
+    },
     "Sim": {
       "description": "Sim time and world (\u00a76.1).",
       "type": "object",

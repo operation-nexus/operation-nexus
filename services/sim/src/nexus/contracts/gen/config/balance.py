@@ -8,6 +8,27 @@ from typing import Annotated
 from pydantic import BaseModel, ConfigDict, Field
 
 
+class Air(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    bingo_reserve_frac: Annotated[
+        float,
+        Field(
+            description="Fuel kept in reserve at bingo, unit fraction of the kind's fuel_s: an airborne aircraft returns to base once its fuel is at most the flight time to the nearest base it can land at plus this reserve (STATE-MACHINES §4.1, NX-368).",
+            ge=0.0,
+            le=1.0,
+        ),
+    ]
+    orbit_period_s: Annotated[
+        float,
+        Field(
+            description="One lap of an idle airborne aircraft's orbit at its min_speed_mps, unit s of world time; the radius is min_speed_mps x orbit_period_s / 2 pi (SIM-CORE §4, NX-368).",
+            gt=0.0,
+        ),
+    ]
+
+
 class Sim(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -77,3 +98,4 @@ class BalanceConfig(BaseModel):
     ]
     sim: Sim
     slots: Slots
+    air: Air

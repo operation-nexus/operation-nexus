@@ -202,7 +202,7 @@ Every value listed in the §5.2 table (rejects named only for reserved commands 
 | `RearmStalled` | `entity_id`, `node_id` | ENEMY: dropped | B O |
 | `WaypointReached` | `entity_id`, `node_id\|null` | Hidden ENEMY: dropped | O |
 | `UnitDamaged` | `entity_id`, `attacker_id\|null`, `amount`, `hp_after`, `damage_state_after: DamageState` | A hidden attacker becomes `attacker_id: null`. A victim the viewer side does not currently observe: dropped (FOW-13) | B C O |
-| `UnitDestroyed` | `entity_id`, `killer_id\|null`, `assist_ids[]`, `side` | A hidden killer becomes `null` ("Unknown contact", FOW-3). A hidden victim is dropped. | B P A C O |
+| `UnitDestroyed` | `entity_id`, `killer_id\|null`, `assist_ids[]` (≤ 32, no duplicates), `side` (the lost unit's). In code since NX-368: first producer is an aircraft out of fuel (`killer_id: null`, no assists) | A hidden killer becomes `null` ("Unknown contact", FOW-3). A hidden victim is dropped. | B P A C O |
 | `WeaponFired` | `shooter_id`, `target_id`, `weapon`, `impact_tick` | Hidden shooter: no tracer (Q-CT-3; revisit in the readability study NX-034). The overlay draws the tracer from this event; the outcome is not known yet (Q-GP-12). | B C |
 | `WeaponImpact` | `shooter_id`, `target_id`, `weapon`, `hit: bool` | Emitted on the impact tick, after the Pk roll (Q-GP-12). A hidden shooter shows as "unknown contact". A shot that fizzles (target no longer tracked by the shooter's side, out of the envelope, destroyed or despawned at impact; Q-FOW-16) is a miss with no roll. | B C |
 | `TargetPainted` | `recon_id`, `target_id`, `until_tick` | none (the target is tracked by definition) | B P |

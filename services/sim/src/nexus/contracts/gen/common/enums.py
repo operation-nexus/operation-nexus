@@ -98,6 +98,6 @@ type RejectReason = Annotated[
 
 
 type EventKind = Annotated[
-    Literal["UnitSpawned", "CommandRejected", "ReserveQueueJoined"],
+    Literal["UnitSpawned", "CommandRejected", "ReserveQueueJoined", "UnitDestroyed"],
     Field(description="Grows one kind at a time, with each producer (rule 6a)."),
 ]

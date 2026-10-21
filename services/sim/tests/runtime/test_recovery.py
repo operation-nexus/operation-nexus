@@ -61,6 +61,7 @@ def spawn_handler(world: World, command: Command, out: list[Event]) -> None:
     """Test stand-in for a real handler: spawns one unit whose hp draws from the spawn stream."""
     hp = world.rng.stream(RngStream.SPAWN).randint(1, 100)
     e = world.spawn("STRIKE_FIGHTER", "COALITION", "COMMANDER", Vec2(command.arrival_seq, 0), hp=hp)
+    e.state, e.fuel = "LANDED", 1.0  # an aircraft has a state (NX-368); it never takes off here
     out.append(
         UnitSpawned.model_construct(
             kind="UnitSpawned",
@@ -88,7 +89,11 @@ def poison_handler(world: World, command: Command, out: list[Event]) -> None:
 
 STUB: dict[str, Handler] = {"JOIN": spawn_handler}
 # SimRuntime needs rules; the stub handlers read none of them.
-STUB_RULES = Rules(0.6, {}, {}, RoadGraph({}, []), {}, "", 1, 0, 1, 1)
+# The stub's fighters are LANDED aircraft (NX-368): they never move, so no other air rule is read.
+STUB_RULES = Rules(
+    0.6, {}, {"STRIKE_FIGHTER": "AIR"}, RoadGraph({}, []), {}, "", 1, 0, 1, 1, {}, {}, 0.0, {},
+    (1.0, 1.0), 120.0,
+)  # fmt: skip
 POISON: dict[str, Handler] = {"JOIN": poison_handler}
 
 

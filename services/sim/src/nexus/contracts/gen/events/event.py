@@ -7,12 +7,13 @@ from typing import Annotated
 
 from pydantic import Field
 
-from . import command_rejected, reserve_queue_joined, unit_spawned
+from . import command_rejected, reserve_queue_joined, unit_destroyed, unit_spawned
 
 type Event = Annotated[
     unit_spawned.UnitSpawned
     | command_rejected.CommandRejected
-    | reserve_queue_joined.ReserveQueueJoined,
+    | reserve_queue_joined.ReserveQueueJoined
+    | unit_destroyed.UnitDestroyed,
     Field(
         description="Discriminated union of all sim events on kind (CONTRACTS §6).",
         discriminator="kind",

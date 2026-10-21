@@ -101,7 +101,9 @@ CASES: dict[str, Plan] = {
         "kernel",
         "Real JOINs on strait-1 with the shipped config: air and ground units spawn at the "
         "sanctuary and move along their routes for 10 game minutes; rejects for a unit in sortie, "
-        "an unknown node, a node no road reaches and an unplayable role (NX-122).",
+        "an unknown node, a node no road reaches and an unplayable role (NX-122). Aircraft "
+        "without a target stay landed; the strike jet orbits east-airbase, then RTBs at bingo "
+        "fuel and lands at west-airbase (NX-368).",
         STRAIT_JOINS,
         (),
         True,

@@ -6,8 +6,8 @@ uses it.
 
 One walker, `to_canonical`, turns a world into plain sorted data. Snapshots keep floats exactly
 (float64), so a restored run continues bit-identically; only `state_hash` quantizes (ADR-0002):
-positions and `path` waypoints to integer mm, velocities to integer mm/s. ADR-0002's 1e-6 step
-applies when the first other float field arrives. Python's `round` is round-half-to-even on the
+positions, `orbit` centres and `path` waypoints to integer mm, velocities to integer mm/s, other
+floats (`fuel`) to ADR-0002's 1e-6 step. Python's `round` is round-half-to-even on the
 exact float value, so it is deterministic. The RNG state, `respawn_left` (per commander, GP-2)
 and the reserve queue (GP-3) are world state, so snapshots and the hash cover them. `World.rules`
 (`nexus.core.rules`) is static config, not state: neither snapshots nor the hash include it.
@@ -17,7 +17,7 @@ import hashlib
 import math
 from collections.abc import Callable, Iterator
 from dataclasses import dataclass, field, fields
-from typing import Annotated, Any, Self, cast, get_args, get_origin
+from typing import Annotated, Any, Literal, Self, cast, get_args, get_origin
 
 import msgpack
 
@@ -26,9 +26,11 @@ from nexus.contracts.gen.common.enums import OwnerKind, Side, UnitKind
 from nexus.core.rng import SimRng
 from nexus.core.rules import Rules
 
-# 2: Entity.path and Entity.last_node (NX-121); 3: respawn_left, hp may be null; 4: reserve_queue
-FORMAT_VERSION = 4
+# 2: Entity.path and Entity.last_node (NX-121); 3: respawn_left, hp may be null; 4: reserve_queue;
+# 5: Entity.state, fuel and orbit (NX-368)
+FORMAT_VERSION = 5
 _MM = 1000.0  # metres -> millimetres; m/s -> mm/s
+_MICRO = 1e6  # ADR-0002's 1e-6 step for other floats (fuel)
 _MAX_ABS = 1e9  # m or m/s; keeps mm quantization well inside int64
 _CAMPAIGN = "campaign"
 _ENTITIES = "entities"
@@ -48,8 +50,9 @@ _WORLD_KEYS = (
     _RNG,
     _V,
 )
-_VEC_KEYS = frozenset({"pos", "vel"})
+_VEC_KEYS = frozenset({"pos", "vel", "orbit"})
 _PATH = "path"
+_FUEL = "fuel"
 
 
 def _literal_values(alias: Any) -> tuple[str, ...]:
@@ -83,6 +86,10 @@ class Vec2:
 
 
 _ZERO = Vec2(0.0, 0.0)
+# The STATE-MACHINES §4.1 states in code (NX-368, aircraft only). Kernel-internal until a frame or
+# event carries a unit state; then it moves to contracts/common/enums.json.
+type UnitState = Literal["LANDED", "EN_ROUTE", "ON_STATION", "RTB"]
+_UNIT_STATES = get_args(UnitState.__value__)
 
 
 @dataclass(slots=True)
@@ -102,6 +109,10 @@ class Entity:
     # edge from `last_node` (the node it last reached or spawned at) to `path[0]` (NX-121).
     path: list[str | Vec2] = field(default_factory=list)
     last_node: str | None = None
+    # STATE-MACHINES §4.1 state; only aircraft have one yet (NX-368), None for other domains.
+    state: UnitState | None = None
+    fuel: float | None = None  # aircraft: world seconds of flight left (NX-368)
+    orbit: Vec2 | None = None  # the centre an idle ON_STATION aircraft circles (NX-368)
 
 
 @dataclass(slots=True)
@@ -209,11 +220,16 @@ def _xy(v: Vec2, quantize: bool) -> list[Any]:
 
 
 def _value(e: Entity, key: str, quantize: bool) -> Any:
+    value = getattr(e, key)
+    if value is None:
+        return None
     if key in _VEC_KEYS:
-        return _xy(getattr(e, key), quantize)
+        return _xy(value, quantize)
     if key == _PATH:
         return [p if isinstance(p, str) else _xy(p, quantize) for p in e.path]
-    return getattr(e, key)
+    if key == _FUEL and quantize:
+        return round(value * _MICRO)
+    return value
 
 
 def _entity_data(e: Entity, quantize: bool) -> dict[str, Any]:
@@ -287,6 +303,14 @@ def _path(value: object, what: str) -> list[str | Vec2]:
     return [p if isinstance(p, str) else _vec(p, what) for p in value]
 
 
+def _fuel(value: object, what: str) -> float | None:
+    if value is None:
+        return None
+    if not isinstance(value, float) or not 0.0 <= value <= _MAX_ABS:
+        raise ValueError(f"{what} must be a float in [0, {_MAX_ABS:g}], got {value!r}")
+    return value
+
+
 def _bool(value: object, what: str) -> bool:
     if not isinstance(value, bool):
         raise ValueError(f"{what} must be a bool, got {value!r}")
@@ -306,6 +330,9 @@ _ENTITY_CHECKS: dict[str, Callable[[object, str], Any]] = {
     "hp": lambda v, k: None if v is None else _int(v, k),
     _PATH: _path,
     "last_node": lambda v, k: _str(v, k, optional=True),
+    "state": lambda v, k: _str(v, k, _UNIT_STATES, optional=True),
+    _FUEL: _fuel,
+    "orbit": lambda v, k: None if v is None else _vec(v, k),
 }
 _CAMPAIGN_CHECKS: dict[str, Callable[[object, str], Any]] = {
     "id": _str,
@@ -336,7 +363,12 @@ def _reserve_queue(value: object) -> list[JoinCommand]:
 
 def _load_entity(value: object) -> Entity:
     d = _fields(value, _ENTITY_KEYS, "entity")
-    return Entity(**{k: check(d[k], k) for k, check in _ENTITY_CHECKS.items()})
+    e = Entity(**{k: check(d[k], k) for k, check in _ENTITY_CHECKS.items()})
+    # An aircraft has a state and fuel, anything else neither; only ON_STATION has an orbit
+    # (NX-368). Whether the kind is AIR needs the rules; `movement` checks that.
+    if (e.state is None) != (e.fuel is None) or (e.orbit is not None and e.state != "ON_STATION"):
+        raise ValueError(f"entity {e.id}: inconsistent state, fuel and orbit")
+    return e
 
 
 def _load_campaign(value: object) -> Campaign:

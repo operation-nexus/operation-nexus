@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://nexus.local/contracts/config/unit.json",
   "title": "UnitConfig",
-  "description": "One unit file, content/units/<kind-in-kebab-case>.yaml (CONFIG-AND-CONTENT §7, §7a). Fields land with the code that reads them (Q-CFG-10): NX-367 ships the identity fields, NX-121 speed_mps; other stats, sensors, cargo and display join with later items. The loader (NX-367) checks what the schema cannot: the file name, min_rank iff VIEWER, weapon references, the kind set and the role map.",
+  "description": "One unit file, content/units/<kind-in-kebab-case>.yaml (CONFIG-AND-CONTENT §7, §7a). Fields land with the code that reads them (Q-CFG-10): NX-367 ships the identity fields, NX-121 speed_mps, NX-368 min_speed_mps and fuel_s; other stats, sensors, cargo and display join with later items. The loader (NX-367) checks what the schema cannot: the file name, min_rank iff VIEWER, min_speed_mps and fuel_s iff AIR with min_speed_mps <= speed_mps, weapon references, the kind set and the role map.",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "kind", "side", "domain", "playable_by", "speed_mps", "weapons"],
@@ -14,6 +14,8 @@
     "playable_by": {"description": "Who may control this kind; no duplicates (loader).", "type": "array", "minItems": 1, "maxItems": 3, "items": {"enum": ["VIEWER", "AI_GARRISON", "DIRECTOR"]}},
     "min_rank": {"description": "Rank needed to join as this kind (PROGRESSION §3), unitless. Present if and only if VIEWER is in playable_by (loader).", "type": "integer", "minimum": 1},
     "speed_mps": {"description": "Cruise speed, unit m/s of world time (CFG-9, SIM-CORE SC-2); a ground unit moves at speed_mps x the edge's speed_mult (GAMEPLAY §5). 0 = does not move (STATIC).", "type": "number", "minimum": 0, "x-unit": "m/s (world)"},
+    "min_speed_mps": {"description": "Stall speed, unit m/s of world time: an airborne aircraft never flies slower and orbits at this speed when idle (GAMEPLAY §5, NX-368). Present if and only if domain is AIR, at most speed_mps (loader).", "type": "number", "exclusiveMinimum": 0, "x-unit": "m/s (world)"},
+    "fuel_s": {"description": "Endurance, unit s of world time airborne (CFG-9, NX-368); bingo fuel and RTB follow from it (STATE-MACHINES §4.1). Present if and only if domain is AIR (loader).", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (world)"},
     "weapons": {"description": "Weapon ids from content/weapons.yaml, no duplicates (loader); [] = unarmed.", "type": "array", "maxItems": 8, "items": {"$ref": "../common/ids.json#/$defs/WeaponId"}}
   }
 }

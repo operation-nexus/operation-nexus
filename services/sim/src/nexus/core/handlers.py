@@ -45,7 +45,8 @@ def join(world: World, command: Command, out: list[Event]) -> None:
     A valid JOIN queues while paused, at the cap, or behind a non-empty queue (strict FIFO, U-4);
     otherwise it spawns at once. Interim until NX-123: every unit spawns at the coalition's
     SANCTUARY with a FULL loadout and no stock is debited (forward deploy, GP-7, joins with
-    logistics). No callsign reaches the kernel yet, so the unit's callsign is None.
+    logistics). No callsign reaches the kernel yet, so the unit's callsign is None. An aircraft
+    spawns LANDED with full fuel and takes off in `movement` when it has a path (NX-368).
     """
     rules = _rules(world)
     plan = _plan(world, command, rules)
@@ -140,6 +141,8 @@ def _spawn(
         hp=None,
     )
     unit.last_node, unit.path = node, list(path)
+    if rules.domain[kind] == "AIR":  # on the ground, full; with a path it takes off (NX-368)
+        unit.state, unit.fuel = "LANDED", rules.fuel_s[kind]
     out.append(
         UnitSpawned.model_construct(
             kind="UnitSpawned",

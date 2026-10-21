@@ -6,4 +6,6 @@ side: ENEMY
 domain: AIR
 playable_by: [DIRECTOR]
 speed_mps: 60.0  # PROPOSED (NX-121, owner may veto; harness tunes, NX-031); m/s world; parity with RECON_UAV (Q-TD-13)
+min_speed_mps: 20.0  # PROPOSED (NX-368, owner may veto; harness tunes, NX-031); m/s world; parity with RECON_UAV (Q-TD-13)
+fuel_s: 14400.0  # PROPOSED (NX-368, owner may veto; harness tunes, NX-031); s world; parity with RECON_UAV (Q-TD-13)
 weapons: []

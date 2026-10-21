@@ -52,6 +52,20 @@ class UnitConfig(BaseModel):
             ge=0.0,
         ),
     ]
+    min_speed_mps: Annotated[
+        float | None,
+        Field(
+            description="Stall speed, unit m/s of world time: an airborne aircraft never flies slower and orbits at this speed when idle (GAMEPLAY §5, NX-368). Present if and only if domain is AIR, at most speed_mps (loader).",
+            gt=0.0,
+        ),
+    ] = None
+    fuel_s: Annotated[
+        float | None,
+        Field(
+            description="Endurance, unit s of world time airborne (CFG-9, NX-368); bingo fuel and RTB follow from it (STATE-MACHINES §4.1). Present if and only if domain is AIR (loader).",
+            gt=0.0,
+        ),
+    ] = None
     weapons: Annotated[
         list[ids.WeaponId],
         Field(

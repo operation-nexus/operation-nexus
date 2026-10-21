@@ -54,6 +54,9 @@ terms still waiting for an owner ruling.
 | Reserve queue | Viewers waiting for a unit slot when the cap is reached |
 | Rally call | A templated map pin and banner from an O-3+ operator (`!rally`); informs only, never controls other units (Q-SUP-6) |
 | World event | A visible, in-fiction event (e.g. supply drop, weather clearing, friendly convoy) from the world-events system or a GM; it may benefit the coalition (Q-AI-8, NX-310) |
+| Bingo fuel | The point where an aircraft's remaining fuel only just covers the flight to the nearest base it can land at, plus a reserve (`air.bingo_reserve_frac`). At bingo it returns to base and lands on its own (Q-SIM-42). _Avoid:_ low fuel |
+| Stall speed | An aircraft's minimum airborne speed, `min_speed_mps` in the unit catalog; it never flies slower (Q-SIM-38) |
+| On station | An airborne aircraft with no waypoint left, orbiting its last point as a CAP or scouting station until it gets an order or reaches bingo fuel (STATE-MACHINES §4.1) |
 
 ## Director, fog of war and readability
 

@@ -6,4 +6,6 @@ domain: AIR
 playable_by: [VIEWER, AI_GARRISON]
 min_rank: 1
 speed_mps: 60.0  # PROPOSED (NX-121, owner may veto; harness tunes, NX-031); m/s world; slower than strike aircraft
+min_speed_mps: 20.0  # PROPOSED (NX-368, owner may veto; harness tunes, NX-031); m/s world; stall speed, a third of top speed (lower than jets)
+fuel_s: 14400.0  # PROPOSED (NX-368, owner may veto; harness tunes, NX-031); s world; 40 real min at 6x: long scouting loiter
 weapons: []

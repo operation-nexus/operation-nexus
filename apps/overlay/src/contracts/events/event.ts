@@ -3,7 +3,7 @@
 /**
  * Discriminated union of all sim events on kind (CONTRACTS §6).
  */
-export type Event = UnitSpawned | CommandRejected | ReserveQueueJoined;
+export type Event = UnitSpawned | CommandRejected | ReserveQueueJoined | UnitDestroyed;
 
 /**
  * A unit appears (CONTRACTS §6). Public view: an ENEMY spawn only if its spawn point is tracked; otherwise dropped.
@@ -120,4 +120,42 @@ export interface ReserveQueueJoined {
    * 1-based place in the queue; 1 is served next.
    */
   position: number;
+}
+/**
+ * A unit is lost (CONTRACTS §6; STATE-MACHINES §4.1 Destroyed). First producer: an aircraft out of fuel crashes, killer null and no assists (NX-368). Public view: a hidden killer becomes null (FOW-3); a hidden victim is dropped.
+ */
+export interface UnitDestroyed {
+  kind: "UnitDestroyed";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Sequential per campaign, never reused (SC-4).
+   */
+  entity_id: number;
+  /**
+   * null: no killer (fuel exhaustion), or a hidden killer in the public view.
+   */
+  killer_id: number | null;
+  /**
+   * No duplicates (producer). Not uniqueItems: that generates a set, whose order is not deterministic (SC-14).
+   *
+   * @maxItems 32
+   *
+   * Items: Sequential per campaign, never reused (SC-4).
+   */
+  assist_ids: number[];
+  /**
+   * The lost unit's side.
+   */
+  side: "COALITION" | "ENEMY";
 }
