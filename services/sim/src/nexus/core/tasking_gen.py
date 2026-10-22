@@ -241,13 +241,21 @@ def _scout(tr: TaskingRules, view: SideView, world: World, side: Side) -> Iterat
         yield JobSpec("SCOUT", f"scout:{cell}", tr.slots["SCOUT"], urgency, blob=b.id, pos=b.pos)
 
 
-def _near_route(route: list[tuple[float, float]], x: float, y: float, reach: float) -> bool:
+type _Segment = tuple[float, float, float, float, float]  # ax, ay, dx, dy, dx^2 + dy^2
+
+
+def _segments(route: list[tuple[float, float]]) -> list[_Segment]:
+    return [(ax, ay, bx - ax, by - ay, (bx - ax) ** 2 + (by - ay) ** 2)
+            for (ax, ay), (bx, by) in pairwise(route)]  # fmt: skip
+
+
+def _near_route(segs: list[_Segment], x: float, y: float, reach: float) -> bool:
     """The polyline passes within `reach` of the point."""
-    for (ax, ay), (bx, by) in pairwise(route):
-        dx, dy = bx - ax, by - ay
-        length2 = dx * dx + dy * dy
+    r2 = reach * reach
+    for ax, ay, dx, dy, length2 in segs:
         k = 0.0 if length2 == 0 else max(0.0, min(1.0, ((x - ax) * dx + (y - ay) * dy) / length2))
-        if math.hypot(ax + k * dx - x, ay + k * dy - y) <= reach:
+        ex, ey = ax + k * dx - x, ay + k * dy - y
+        if ex * ex + ey * ey <= r2:
             return True
     return False
 
@@ -257,17 +265,57 @@ def _escort(
 ) -> Iterator[JobSpec]:
     rings = [(m.pos, m.ring_m) for _, m in sorted(view.markers.items())
              if m.ring_m is not None and m.state != "DISABLED"]  # fmt: skip
+    reach = tr.defend_radius_m
+    cells: dict[tuple[int, int], list[tuple[float, float]]] = {}  # tracked enemies, bucketed
+    for c in view.tracks.values():
+        cells.setdefault((math.floor(c.pos.x / reach), math.floor(c.pos.y / reach)), []).append(
+            (c.pos.x, c.pos.y)
+        )
+    seen: dict[tuple[float, float, tuple[str, ...]], bool] = {}
     for e in world.entities():
         if (
             e.side != side or e.kind not in rules.supply.carriers or not e.path
             or e.follow_id is not None or e.damage_state == "DISABLED"
         ):  # fmt: skip
             continue
-        route = [(e.pos.x, e.pos.y), *(rules.roads.pos[str(p)] for p in e.path)]
-        threatened = any(_near_route(route, p.x, p.y, ring) for p, ring in rings) or any(
-            _near_route(route, c.pos.x, c.pos.y, tr.defend_radius_m) for c in view.tracks.values()
-        )
+        key = (e.pos.x, e.pos.y, tuple(map(str, e.path)))  # a convoy's trucks share one answer
+        if key not in seen:
+            route = [(e.pos.x, e.pos.y), *(rules.roads.pos[str(p)] for p in e.path)]
+            xs, ys = [x for x, _ in route], [y for _, y in route]
+            box = (min(xs), min(ys), max(xs), max(ys))  # a point farther than its reach is out
+            segs = _segments(route)
+            seen[key] = any(
+                _in_box(box, p.x, p.y, ring) and _near_route(segs, p.x, p.y, ring)
+                for p, ring in rings
+            ) or any(_near_route(segs, x, y, reach) for x, y in _tracks_in_box(cells, box, reach))
+        threatened = seen[key]
         if threatened:
             yield JobSpec(
                 "ESCORT_CONVOY", f"escort:{e.id}", tr.slots["ESCORT_CONVOY"], 1000, entity=e.id
             )
+
+
+def _in_box(box: tuple[float, float, float, float], x: float, y: float, reach: float) -> bool:
+    """The point is within `reach` of the box (a necessary condition for being within `reach` of
+    anything inside it, so a cheap reject)."""
+    return box[0] - reach <= x <= box[2] + reach and box[1] - reach <= y <= box[3] + reach
+
+
+def _tracks_in_box(
+    cells: dict[tuple[int, int], list[tuple[float, float]]],
+    box: tuple[float, float, float, float],
+    reach: float,
+) -> Iterator[tuple[float, float]]:
+    """The bucketed points within `reach` of the box (cells are `reach` wide)."""
+    x0, y0 = math.floor((box[0] - reach) / reach), math.floor((box[1] - reach) / reach)
+    x1, y1 = math.floor((box[2] + reach) / reach), math.floor((box[3] + reach) / reach)
+    if (x1 - x0 + 1) * (y1 - y0 + 1) > len(cells):  # a long route: scan the occupied cells
+        keys = [k for k in cells if x0 <= k[0] <= x1 and y0 <= k[1] <= y1]
+    else:
+        keys = [
+            (kx, ky) for kx in range(x0, x1 + 1) for ky in range(y0, y1 + 1) if (kx, ky) in cells
+        ]
+    for key in keys:
+        for x, y in cells[key]:
+            if _in_box(box, x, y, reach):
+                yield x, y

@@ -172,7 +172,7 @@ In the schema now (NX-122): `slots.max_live_per_commander`, `slots.respawn_delay
 | `logistics.bridge_repair_time_s` | float | s (world) | TBD (engineer repair time; Q-GD-11) | GAMEPLAY §5 | No |
 | `logistics.truck_bridge_repair_mult` | float | multiplier on engineer time | 5 (Q-GD-11 recommendation "e.g. 5× slower") | GAMEPLAY §5 | No |
 | `tasking.follow_station_m.<pairing>` | float | m (world) | PROPOSED (Q-SIM-76): `escort` 500 (a ground combat unit ahead of its truck), `column` 200 (a ground unit behind its ground leader), `overwatch` 3000 (an aircraft over a ground unit), `wingman` 1000 (an aircraft off its lead) | GAMEPLAY §1b, Q-GP-32 | Yes |
-| `tasking.escort_threat_memory_s` | float | s (game) | PROPOSED 60 (Q-SIM-76): a tracked enemy that fired at a convoy or column member this recently is a group threat | GAMEPLAY §1b | Yes |
+| `tasking.escort_threat_memory_s` | float | s (world) | PROPOSED 60 (Q-SIM-76): a tracked enemy that fired at a convoy or column member this recently is a group threat | GAMEPLAY §1b | Yes |
 | `tasking.escort_leash_m` | float | m | PROPOSED 10000 (Q-SIM-76): the farthest an escort leaves station to engage; also the range within which followers form a speed group (NX-369) | GAMEPLAY §1b, §5 | Yes |
 | `progression.follower_share` | float | fraction of the outcome's merit per follower | TBD (PROPOSED) | GAMEPLAY §1b, PROGRESSION, Q-GP-42 | No |
 | `progression.follower_share_cap` | int | max followers credited per outcome | TBD (PROPOSED) | GAMEPLAY §1b, Q-GP-42 | No |

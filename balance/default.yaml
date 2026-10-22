@@ -146,5 +146,5 @@ tasking:
     column: 200  # a ground unit behind its ground leader
     overwatch: 3000  # an aircraft orbits within this of the ground unit it covers
     wingman: 1000  # an aircraft this far off its aircraft lead
-  escort_threat_memory_s: 60  # PROPOSED – unvalidated (Q-SIM-76); s (game), a tracked enemy that fired at a group member this recently is a group threat (CONFIG-AND-CONTENT §6.6)
+  escort_threat_memory_s: 60  # PROPOSED – unvalidated (Q-SIM-76); s (world), a tracked enemy that fired at a group member this recently is a group threat (CONFIG-AND-CONTENT §6.6)
   escort_leash_m: 10000  # PROPOSED – unvalidated (Q-SIM-76); m, the farthest an escort leaves station to engage a group threat (CONFIG-AND-CONTENT §6.6)

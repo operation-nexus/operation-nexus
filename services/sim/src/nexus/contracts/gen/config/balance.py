@@ -800,7 +800,7 @@ class Tasking(BaseModel):
     escort_threat_memory_s: Annotated[
         float,
         Field(
-            description="An armed follower treats a tracked enemy that fired at any member of its convoy or column this recently as a threat to the group and engages it (Q-SIM-76), unit s of game time.",
+            description="An armed follower treats a tracked enemy that fired at any member of its convoy or column this recently as a threat to the group and engages it (Q-SIM-76), unit s of world time.",
             gt=0.0,
         ),
     ]

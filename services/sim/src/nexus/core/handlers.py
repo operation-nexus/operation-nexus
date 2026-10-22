@@ -214,8 +214,9 @@ def _plan(world: World, command: JoinCommand, rules: Rules) -> _Plan | RejectRea
         return "UNIT_IN_SORTIE"  # retarget or switch at base needs unit states (GP-1)
     if commander in world.respawn_left:
         return "RESPAWN_COOLDOWN"
-    leader = command.target.follow_entity_id if isinstance(command.target, FollowTarget) else 0
-    if leader and not can_follow(world, rules, kind, leader, None):
+    if isinstance(command.target, FollowTarget) and not can_follow(
+        world, rules, kind, command.target.follow_entity_id, None
+    ):
         return "FOLLOW_TARGET_INVALID"  # unknown, other side, Disabled, or no station to keep
     if command.target is None and not command.hold:
         for job in joinable_jobs(world, kind):

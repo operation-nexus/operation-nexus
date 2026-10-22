@@ -1520,6 +1520,8 @@ def _check_follow(world: World) -> None:
         leader = None if e.follow_id is None else world.find(e.follow_id)
         if e.follow_id is not None and (leader is None or leader.side != e.side):
             raise ValueError(f"entity {e.id}: follows a unit that is gone or of the other side")
+        if leader is not None and (e.base_id is not None or leader.base_id is not None):
+            raise ValueError(f"entity {e.id}: a facility cannot follow or be followed")
         if (e.order == "FOLLOW") != (e.follow_id is not None and e.job_id is None):
             raise ValueError(f"entity {e.id}: follow_id and order FOLLOW do not match")
         job = None if e.job_id is None else world.boards[e.side].get(e.job_id)

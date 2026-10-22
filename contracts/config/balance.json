@@ -1019,7 +1019,7 @@
             "wingman": {"type": "number", "exclusiveMinimum": 0, "x-unit": "m", "x-hot-reload": true}
           }
         },
-        "escort_threat_memory_s": {"description": "An armed follower treats a tracked enemy that fired at any member of its convoy or column this recently as a threat to the group and engages it (Q-SIM-76), unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true},
+        "escort_threat_memory_s": {"description": "An armed follower treats a tracked enemy that fired at any member of its convoy or column this recently as a threat to the group and engages it (Q-SIM-76), unit s of world time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (world)", "x-hot-reload": true},
         "escort_leash_m": {"description": "The farthest an armed follower leaves its station from the nearest other member of its group to engage a group threat; beyond it, it returns to station and a threat that far is not chased (Q-SIM-76), unit m.", "type": "number", "exclusiveMinimum": 0, "x-unit": "m", "x-hot-reload": true}
       }
     },
