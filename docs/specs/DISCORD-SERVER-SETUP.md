@@ -3,7 +3,7 @@
 Status: Approved (owner, 2026-10-19); amended 2026-10-19 by the owner's decisions on Community, onboarding and posted text (DS-5, DS-9, DS-11 to DS-14, section 5) · Owner: owner · Tracker: NX-353, NX-354 · Related: Q-OPS-12, Q-MKT-9, BRAND-OPS (BO-1, BO-2), Q-AI-6
 
 ## 1. Purpose
-Set up the community server `hiveplex-community` (invite `https://discord.gg/2sYjKYshSc`) with a clear first screen, a member role that new people earn by clicking through, and the starter channels, without ever putting a bot token in an agent session or in a repository.
+Set up the community server `hiveplex-community` (invite `https://discord.gg/mSaAD3GGHh`) with a clear first screen, a member role that new people earn by clicking through, and the starter channels, without ever putting a bot token in an agent session or in a repository.
 
 ## 2. Goals / Non-goals
 Goals: a repeatable, reviewable setup; a safe default (dry run); the same result if run twice; no secrets in git or sessions; a blueprint the owner can read and change by pull request.

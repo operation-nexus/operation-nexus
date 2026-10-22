@@ -16,7 +16,7 @@ ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 SITE = os.path.join(ROOT, "apps", "site")
 REGISTRY = os.path.join(ROOT, "docs", "planning", "BRAND-ACCOUNTS.md")
 
-DISCORD = "https://discord.gg/2sYjKYshSc"
+DISCORD = "https://discord.gg/mSaAD3GGHh"
 # Platform -> (handle, host the link must be on). The handle must also appear in BRAND-ACCOUNTS (PS-4).
 PLATFORMS = {
     "YouTube": ("@hiveplex", "www.youtube.com"),

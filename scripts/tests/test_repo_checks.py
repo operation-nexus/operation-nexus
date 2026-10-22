@@ -99,7 +99,7 @@ def test_site():
     bad('src="logo.svg"', 'src="https://example.com/logo.svg"', "off the site")
     bad("<style>", "<style>@import url(https://example.com/f.css);", "stylesheet")
     bad('href="https://www.twitch.tv/hiveplextv"', 'href="https://www.twitch.tv/someoneelse"', "PS-4")
-    bad('href="https://discord.gg/2sYjKYshSc"', 'href="https://discord.gg/other"', "PS-4")
+    bad('href="https://discord.gg/mSaAD3GGHh"', 'href="https://discord.gg/other"', "PS-4")
     bad("<footer>", "<footer><p>mail me@gmail.com</p>", "PS-5")
     bad("<main>", '<main><a href="https://example.com/">x</a>', "PS-4")
     bad("</head>", '<base href="https://example.com/"></head>', "PS-1/PS-3")
