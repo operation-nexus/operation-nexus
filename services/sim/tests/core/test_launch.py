@@ -755,6 +755,44 @@ def run_to_tick(w: World, ticks: int) -> list[Event]:
     return events
 
 
+def test_an_operation_the_real_surplus_cannot_pay_is_skipped_whole_not_part_paid() -> None:
+    """The window's budget is stale once an earlier operation's carrier loads from the same
+    surplus (balance harness prime-50, seed 1, tick 52,200): the budget says 80, the stock 5."""
+    w = new_world()
+    floor = RULES.supply.starve_floor
+    for n in STATIC_BASES:
+        w.stock[n] = floor[n]
+    w.stock["fob-s-e"] += 5
+    events = window(w, "ALPHA", 80)  # used to raise: the Director's budget exceeded the stock
+    assert [e for e in events if e.kind in ("UnitSpawned", "JobCreated", "SupplyConsumed")] == []
+    assert w.stock["fob-s-e"] == floor["fob-s-e"] + 5
+
+
+@given(
+    stocks=st.lists(st.integers(0, 40), min_size=4, max_size=4),
+    tier=st.sampled_from(["PATTERN_OF_LIFE", "ALPHA", "BRAVO"]),
+    seed=st.integers(0, 50),
+)
+@settings(max_examples=40, deadline=None)
+def test_competing_payers_on_a_small_surplus_never_raise_and_stock_stays_exact(
+    stocks: list[int], tier: ThreatTier, seed: int
+) -> None:
+    w = new_world(seed)
+    floor = RULES.supply.starve_floor
+    for n, v in zip(STATIC_BASES, stocks, strict=True):
+        w.stock[n] = floor[n] + v
+    total = sum(w.stock.values()) + sum(e.cargo or 0 for e in w.entities())
+    consumed = 0
+    for _ in range(6):  # windows with a stale, full budget; the PoL convoys fire each window
+        s = w.director["ENEMY"]
+        s.last_patrol = s.last_convoy = s.last_offensive = -(10**9)
+        for e in window(w, tier, 80):
+            consumed += e.amount if e.kind == "SupplyConsumed" else 0
+        assert sum(max(0, w.stock[n] - floor[n]) for n in STATIC_BASES) >= 0
+        assert total - consumed == sum(w.stock.values()) + sum(e.cargo or 0 for e in w.entities())
+        w.campaign.running_ticks += DR.window_ticks
+
+
 def test_an_operation_fills_its_slots_from_idle_units_and_pays_only_for_new_ones() -> None:
     w = new_world()
     spare = [
