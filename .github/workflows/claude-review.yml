@@ -1,0 +1,79 @@
+# Claude review (NX-029, Q-CI-7): the Claude Code GitHub Action runs the code-review plugin on a
+# PR and posts its findings as inline comments. Advice only: it never blocks a merge (`ci-gate`
+# stays the only required check, Q-CI-3).
+#
+# It runs some of the time, to save cost (Q-CI-7, docs/ops/COSTS.md):
+# - automatically on PRs into `develop` that touch sensitive paths (CLAUDE.md: chat ingestion,
+#   identity and linking, the LLM gateway, CI workflows, deploy and repo scripts);
+# - on demand on any PR when the `ai-review` label is added.
+# The plugin skips draft and closed PRs and PRs it has already commented on, so later pushes
+# don't start another review. Runs are grouped per PR and per label, so a newer push cancels an
+# older push run, while CI's own size labels never cancel or replace an `ai-review` run.
+#
+# Auth: `CLAUDE_CODE_OAUTH_TOKEN` (made with `claude setup-token`, valid one year) runs on the
+# owner's Claude subscription rather than API billing. PRs from forks get no secrets, so it
+# doesn't run for them.
+name: claude-review
+
+on:
+  pull_request:
+    types: [opened, synchronize, ready_for_review, reopened, labeled]
+    branches: [develop]
+
+permissions: {}
+
+concurrency:
+  group: claude-review-${{ github.event.pull_request.number }}-${{ github.event.label.name || 'push' }}
+  cancel-in-progress: true
+
+jobs:
+  paths:
+    name: sensitive paths
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    permissions:
+      contents: read
+    outputs:
+      sensitive: ${{ steps.diff.outputs.sensitive }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Does the PR touch a sensitive path?
+        id: diff
+        run: |
+          set -euo pipefail
+          # HEAD is the PR merge commit: HEAD^1 is the base tip.
+          if git diff --name-only HEAD^1 HEAD | grep -Eq '^(\.github/|services/gateway/|deploy/|scripts/)|(^|/)(identity|linking|llm)(/|\.py$)'; then
+            echo "sensitive=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "sensitive=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  review:
+    name: claude review
+    needs: paths
+    if: >-
+      github.event.pull_request.head.repo.full_name == github.repository &&
+      ((github.event.action == 'labeled' && github.event.label.name == 'ai-review') ||
+       (github.event.action != 'labeled' && needs.paths.outputs.sensitive == 'true'))
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      pull-requests: read  # read the PR and its diff
+      issues: read  # read the PR's existing comments, so a reviewed PR is skipped
+      id-token: write  # the action's GitHub App authentication (code.claude.com docs)
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 1
+      - uses: anthropics/claude-code-action@6b6870e649b5ff408753befeaee5fc7989d4e6a9 # v1.0.258
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          plugin_marketplaces: "https://github.com/anthropics/claude-code.git"
+          plugins: "code-review@claude-code-plugins"
+          prompt: "/code-review:code-review --comment ${{ github.repository }}/pull/${{ github.event.pull_request.number }}"
+          claude_args: '--max-turns 30 --allowedTools "mcp__github_inline_comment__create_inline_comment"'
