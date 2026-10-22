@@ -184,6 +184,11 @@ class TaskingRules:
     scout_blob_runs: int  # SIGINT refreshes a blob must stay in a cell before a scout is posted
     scout_urgency_milli: Mapping[str, int]  # by blob size S / M / L, in thousandths
     strike_urgency_per_threat_milli: int  # urgency a facility's `threat` point adds, thousandths
+    strike_max_scaled_slots: (
+        int  # extra strike slots for idle armed viewer units, at most (Q-SIM-92)
+    )
+    strike_idle_targets_max: int  # strike jobs on known defended foe nodes at once (Q-SIM-92)
+    strike_idle_targets_min_tier: ThreatTier  # the lowest Static tier at which they are posted
 
 
 @dataclass(frozen=True, slots=True)
@@ -482,6 +487,9 @@ def tasking_rules(
             k[0].upper(): round(Fraction(repr(v)) * 1000) for k, v in cfg.scout_urgency
         },
         strike_urgency_per_threat_milli=round(Fraction(repr(cfg.strike_urgency_per_threat)) * 1000),
+        strike_max_scaled_slots=cfg.strike_max_scaled_slots,
+        strike_idle_targets_max=cfg.strike_idle_targets_max,
+        strike_idle_targets_min_tier=cfg.strike_idle_targets_min_tier,
     )
 
 

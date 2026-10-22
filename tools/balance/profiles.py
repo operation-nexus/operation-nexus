@@ -44,6 +44,7 @@ class Targets:
     a3_max_nodes_lost: int
     a4_max_share: float
     a4_min_kills: int
+    a4_suspended: bool  # A4 is reported, not judged (Q-SIM-92)
 
 
 @dataclass(frozen=True, slots=True)
@@ -51,6 +52,7 @@ class Data:
     profiles: dict[str, Profile]
     personas: dict[str, Persona]
     targets: Targets
+    idle_sample_min: float  # game minutes between idle armed viewer-unit samples (Q-SIM-92)
     digest: str  # blake2b of the file, in every report
 
 
@@ -99,7 +101,12 @@ def load(path: Path = DATA) -> Data:
         if unknown := set(pr.mix) - set(personas):
             raise ValueError(f"profile {pr.name}: unknown personas {sorted(unknown)}")
     targets = Targets(**doc["targets"])
-    return Data(profiles, personas, targets, hashlib.blake2b(raw, digest_size=16).hexdigest())
+    idle_min = float(doc["idle_sample_min"])
+    if idle_min <= 0:
+        raise ValueError("idle_sample_min must be > 0")
+    return Data(
+        profiles, personas, targets, idle_min, hashlib.blake2b(raw, digest_size=16).hexdigest()
+    )
 
 
 def schedule(profile: Profile, seed: int, ticks: int, tick_hz: int) -> list[tuple[int, str]]:

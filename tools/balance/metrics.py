@@ -1,7 +1,7 @@
 """Run metrics read from the event stream and the world (NX-031 part 1; TESTING-STRATEGY §3.5).
 
 `Collector.feed(events)` after every tick, `observe(world)` after every step, `sample(world)` every
-`sample_ticks`. It only measures; `report.py` holds the targets and the pass/fail rules. Nothing
+`sample_ticks`, `sample_idle(world)` every `idle_sample_ticks`. It only measures; `report.py` holds the targets and the pass/fail rules. Nothing
 here is invented: a number with no data behind it is `None` or an empty list, never a default.
 
 Not measurable yet, and not produced: the kill-share Gini by rank (no ranks until PROGRESSION) and
@@ -14,6 +14,8 @@ from typing import Any
 
 from nexus.contracts.gen.events.event import Event
 from nexus.core.campaign import momentum
+from nexus.core.tasking import idle_reason
+from nexus.core.tasking_gen import is_idle
 from nexus.core.world import World
 
 _ENEMY, _COALITION = "ENEMY", "COALITION"  # Side values
@@ -28,6 +30,7 @@ class Collector:
         tick_hz: int,
         sample_ticks: int,
         a3_ticks: int,
+        idle_sample_ticks: int,
     ) -> None:
         rules = world.rules
         if rules is None or rules.campaign is None:
@@ -36,6 +39,9 @@ class Collector:
         self._strategic = frozenset(rules.campaign.strategic)
         self._sanctuary = rules.sanctuary
         self.tick_hz, self.sample_ticks, self.a3_ticks = tick_hz, sample_ticks, a3_ticks
+        self.idle_sample_ticks = idle_sample_ticks
+        self.idle_shares: list[float] = []  # idle armed viewer units / all, per sample
+        self.idle_reasons: Counter[str] = Counter()  # why the idle ones hold no job, summed
         self.newbies = newbies
         # entity id -> (unit kind, side), from the setup (garrison, facilities) and UnitSpawned
         self.entity = {e.id: (e.kind, e.side) for e in world.entities()}
@@ -94,6 +100,24 @@ class Collector:
         )
         self.starved_nodes += starved
         self.starved_any += starved > 0
+
+    def sample_idle(self, world: World) -> None:
+        """The idle armed viewer-unit share (Q-SIM-92): commander-owned units of an armed kind, not
+        Disabled, with no job, order or route; and `idle_reason` for each idle one. A sample with
+        no such unit is skipped."""
+        rules = self._world_rules
+        armed = [
+            e
+            for e in world.entities()
+            if e.owner_kind == "COMMANDER"
+            and e.kind in rules.armed
+            and e.damage_state != "DISABLED"
+        ]
+        if not armed:
+            return
+        idle = [e for e in armed if is_idle(rules, e, _COALITION)]
+        self.idle_shares.append(len(idle) / len(armed))
+        self.idle_reasons.update(idle_reason(world, e) for e in idle)
 
     # --- event handlers ---------------------------------------------------------------------
     def _spawned(self, e: Any) -> None:
@@ -181,6 +205,13 @@ class Collector:
             "director": {
                 "tier_dwell_s": {k: v / s for k, v in sorted(dwell.items())},
                 "tier_changes": self.tier_changes,
+            },
+            "idle": {
+                "sample_every_s": self.idle_sample_ticks / s,
+                "samples": len(self.idle_shares),
+                "share_sum": sum(self.idle_shares),
+                "share_max": max(self.idle_shares, default=None),
+                "reasons": dict(sorted(self.idle_reasons.items())),
             },
             "starvation": {
                 "any_node_minutes": self.starved_any * self.sample_ticks / s / 60,

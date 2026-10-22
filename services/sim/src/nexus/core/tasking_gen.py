@@ -19,6 +19,11 @@ refers to an entity id, so a job names a node, or a SIGINT blob with its cell ce
 - **Strike** (`strike:<node>`): an enemy-held node whose defense hp is above 0 that is the active
   objective (coalition only, urgency at the cap), or holds a discovered facility marker whose
   last-known state is not Disabled (urgency 1.0 + its kind's `threat` / 100, capped).
+  Q-SIM-92: each strike job gets one extra slot per idle armed viewer unit (up to
+  `tasking.strike_max_scaled_slots`); with idle ones left and none of the above open, the
+  `tasking.strike_idle_targets_max` foe-held nodes with defense hp nearest a node of the side's
+  (ties by id) get a job, urgency 1.0, once the Static's tier is at least
+  `tasking.strike_idle_targets_min_tier`.
 - **Assist objective** (`assist:<node>`, coalition only): the active objective's node, urgency at
   the cap (the objective flag). It ends with the objective.
 - **Scout** (`scout:<cell>`): each SIGINT blob in the side's view (a group it senses but cannot
@@ -53,7 +58,7 @@ from nexus.contracts.gen.common.enums import JobKind, Side, UnitKind
 from nexus.core.director import TIERS
 from nexus.core.fog import SideView
 from nexus.core.rules import CAPTURE_FULL, Rules, TaskingRules
-from nexus.core.world import Vec2, World
+from nexus.core.world import Entity, Vec2, World
 
 POST_GATE = (
     "post-gate"  # a `World.cooldown` key (cells are digits): no new scout job until its tick
@@ -115,6 +120,28 @@ def fits(rules: Rules, kind: UnitKind, job_kind: JobKind) -> bool:
     return False
 
 
+def is_idle(rules: Rules, e: Entity, side: Side) -> bool:
+    """Whether the board may give `e` a job: no job, no explicit order (a HOLD keeps it off), no
+    route, not Disabled, not returning to base (TB-2)."""
+    return (
+        e.side == side and e.job_id is None and e.order is None and not e.path
+        and e.damage_state != "DISABLED" and e.state != "RTB"
+        and rules.domain[e.kind] in (_AIR, _GROUND)
+    )  # fmt: skip
+
+
+def _idle_strikers(world: World, rules: Rules, side: Side) -> int:
+    """Idle viewer-owned units of the side that could strike now: they fit a STRIKE job and still
+    hold ammo (Q-SIM-92)."""
+    return sum(
+        e.owner_kind == "COMMANDER"
+        and is_idle(rules, e, side)
+        and any(e.ammo)
+        and fits(rules, e.kind, "STRIKE")
+        for e in world.entities()
+    )
+
+
 def _able(world: World, rules: Rules, side: Side) -> set[JobKind]:
     """Job kinds the side can staff: a live unit of it fits, or, for the coalition, a viewer can
     JOIN as a role that fits (a parameterless JOIN takes its job at once, Q-GP-23)."""
@@ -152,6 +179,13 @@ def _offense_open(world: World, tr: TaskingRules, side: Side) -> bool:
     if side != _STATIC:
         return True
     return TIERS.index(world.director[side].tier) >= TIERS.index(tr.static_offense_min_tier)
+
+
+def _idle_targets_open(world: World, tr: TaskingRules) -> bool:
+    """Idle-viewer strikes (Q-SIM-92) wait for the Static's tier to reach
+    `tasking.strike_idle_targets_min_tier`, so a lone new viewer provokes nothing (Q-SIM-86)."""
+    tier = world.director[_STATIC].tier
+    return TIERS.index(tier) >= TIERS.index(tr.strike_idle_targets_min_tier)
 
 
 def _cap_scouts(specs: list[JobSpec], world: World, tr: TaskingRules, side: Side) -> list[JobSpec]:
@@ -242,7 +276,8 @@ def _defend(
 def _strike(
     world: World, rules: Rules, tr: TaskingRules, side: Side, view: SideView
 ) -> Iterator[JobSpec]:
-    foe, slots = _FOE[side], tr.slots["STRIKE"]
+    foe, free = _FOE[side], _idle_strikers(world, rules, side)
+    slots = tr.slots["STRIKE"] + min(tr.strike_max_scaled_slots, free)  # Q-SIM-92
     targets: dict[str, JobSpec] = {}
     o = world.objective if side == "COALITION" else None
     if o is not None and view.owners.get(o.node_id) == foe and view.defense_hp.get(o.node_id, 0):
@@ -265,6 +300,15 @@ def _strike(
         if node not in targets:
             urgency = min(tr.urgency_max_milli, 1000 + tr.strike_urgency_per_threat_milli * threat)
             targets[node] = JobSpec("STRIKE", f"strike:{node}", slots, urgency, node=node)
+    if free and not targets and _idle_targets_open(world, tr):  # known defended foe nodes
+        mine = [p for n, p in sorted(view.nodes.items()) if view.owners.get(n) == side]
+        near = sorted(
+            (min((math.hypot(x - mx, y - my) for mx, my in mine), default=math.inf), n)
+            for n, (x, y) in view.nodes.items()
+            if view.owners.get(n) == foe and view.defense_hp.get(n, 0)
+        )
+        for _, n in near[: tr.strike_idle_targets_max]:
+            targets[n] = JobSpec("STRIKE", f"strike:{n}", slots, 1000, node=n)
     for node in sorted(targets):
         yield targets[node]
 

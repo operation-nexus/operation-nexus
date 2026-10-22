@@ -1326,6 +1326,26 @@ class Tasking(BaseModel):
             ge=0.0,
         ),
     ]
+    strike_max_scaled_slots: Annotated[
+        int,
+        Field(
+            description="Each generated strike job gets one extra slot per idle armed coalition viewer unit, at most this many extra; 0 turns it off (Q-SIM-92, NX-380), unit slots.",
+            ge=0,
+        ),
+    ]
+    strike_idle_targets_max: Annotated[
+        int,
+        Field(
+            description="While idle armed coalition viewer units remain and no marked strike target is open, the coalition board posts strike jobs on known defended foe nodes, at most this many at once; 0 turns it off (Q-SIM-92, NX-380), unit jobs.",
+            ge=0,
+        ),
+    ]
+    strike_idle_targets_min_tier: Annotated[
+        enums.ThreatTier,
+        Field(
+            description="The lowest Threat Director tier at which the coalition board posts strike jobs on known defended foe nodes for idle armed viewer units; below it only the slot scaling applies, so a lone new viewer does not provoke the Director by itself (Q-SIM-92, Q-SIM-86)."
+        ),
+    ]
 
 
 type GarrisonKinds = Annotated[

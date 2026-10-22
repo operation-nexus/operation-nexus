@@ -9,6 +9,7 @@ from typing import Any
 from profiles import Targets
 
 PASS, FAIL, NO_DATA = "pass", "fail", "no data"
+SUSPENDED = "suspended (Q-SIM-92): needs a second armed viewer unit kind"
 NOT_MEASURABLE = "not measurable yet"
 NOT_BUILT = (
     ("Gini of kill share by rank", "needs ranks (PROGRESSION), not built yet"),
@@ -132,7 +133,9 @@ def _a4(runs: list[dict[str, Any]], t: Targets) -> dict[str, Any]:
     total = sum(kills.values())
     share = _shares(kills)
     top = max(share.items(), key=lambda kv: kv[1], default=None)
-    if top is None or total < t.a4_min_kills:
+    if t.a4_suspended:
+        status = SUSPENDED  # the measured top kind and share below are for information
+    elif top is None or total < t.a4_min_kills:
         status = NO_DATA
     else:
         status = PASS if top[1] <= t.a4_max_share else FAIL
@@ -146,6 +149,23 @@ def _a4(runs: list[dict[str, Any]], t: Targets) -> dict[str, Any]:
         "player_share": _shares(player),  # commander-owned killers only; not the target's basis
         "detail": f"no unit kind over {t.a4_max_share:.0%} of all the coalition's kills (AI "
         f"garrison included), pooled over seeds; needs {t.a4_min_kills} kills, saw {total}",
+    }
+
+
+def _idle(runs: list[dict[str, Any]]) -> dict[str, Any]:
+    """The idle armed viewer-unit share (Q-SIM-92), pooled over the samples of every seed, and why
+    those units held no job (summed over samples)."""
+    ms = [r["metrics"]["idle"] for r in runs if "idle" in r["metrics"]]
+    n = sum(m["samples"] for m in ms)
+    reasons: Counter[str] = Counter()
+    for m in ms:
+        reasons.update(m["reasons"])
+    maxes = [m["share_max"] for m in ms if m["share_max"] is not None]
+    return {
+        "samples": n,
+        "share_mean": sum(m["share_sum"] for m in ms) / n if n else None,
+        "share_max": max(maxes, default=None),
+        "reasons": dict(sorted(reasons.items())),
     }
 
 
@@ -166,6 +186,7 @@ def aggregate(profile: str, runs: list[dict[str, Any]], t: Targets) -> dict[str,
         "A2": _a2(runs, t),
         "A3": _a3(runs, t, profile),
         "A4": _a4(runs, t),
+        "idle": _idle(runs),
         "momentum": {
             "mean_pct": _mean(momentum),
             "final_median_pct": _med(
@@ -222,6 +243,9 @@ def _profile_row(name: str, a: dict[str, Any]) -> list[str]:
         _fmt(a["A1"]["median_length_h"]),
         _fmt(a["momentum"]["mean_pct"]),
         _fmt(a["A2"]["median_s"]),
+        "-"
+        if a["idle"]["share_mean"] is None
+        else f"{a['idle']['share_mean']:.0%} / {a['idle']['share_max']:.0%}",
         "-" if top is None else f"{top['kind']} {top['share']:.0%}",
         _fmt(a["starvation_node_minutes"]["mean"]),
     ]
@@ -255,6 +279,7 @@ def markdown(report: dict[str, Any]) -> str:
             "Median h",
             "Momentum %",
             "Newbie s",
+            "Idle armed mean / max",
             "Top kind",
             "Starved",
         ],
@@ -262,9 +287,13 @@ def markdown(report: dict[str, Any]) -> str:
     )
     lines += [
         "Viewers: mean per run, distinct arrivals / peak with a live unit at once. "
-        "Starved: mean supply-starved node-minutes.",
+        "Starved: mean supply-starved node-minutes. Idle armed: share of commander-owned armed "
+        "units with no job, order or route, sampled every `idle_sample_min`.",
         "",
     ]
+    lines += ["## Why idle armed units hold no job (summed over samples)", ""]
+    lines += [f"- {n}: {a['idle']['reasons']}" for n, a in report["profiles"].items()]
+    lines += [""]
     lines += ["## Director tier dwell (mean hours per run)", ""]
     lines += [f"- {n}: {a['tier_dwell_h_mean']}" for n, a in report["profiles"].items()]
     lines += ["", "## Runs", ""]
