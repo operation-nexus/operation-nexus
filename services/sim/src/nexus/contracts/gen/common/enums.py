@@ -121,9 +121,18 @@ type ObjectiveOutcome = Literal["COMPLETED", "EXPIRED"]
 
 
 type JobKind = Annotated[
-    Literal["RESUPPLY", "SCOUT", "DEFEND", "STRIKE", "ASSIST_OBJECTIVE", "ESCORT_CONVOY"],
+    Literal[
+        "RESUPPLY",
+        "SCOUT",
+        "DEFEND",
+        "STRIKE",
+        "ASSIST_OBJECTIVE",
+        "ESCORT_CONVOY",
+        "STAGE",
+        "CAPTURE",
+    ],
     Field(
-        description="Tasking Board job kinds the code handles (GAMEPLAY §1b, CONTRACTS §3.3). REPAIR_BRIDGE, CAPTURE and RESCUE join with their jobs (rule 6a)."
+        description="Tasking Board job kinds the code handles (GAMEPLAY §1b, CONTRACTS §3.3). STAGE and CAPTURE are posted by the Threat Director on the Static board only (Q-SIM-81, Q-TD-14). REPAIR_BRIDGE and RESCUE join with their jobs (rule 6a)."
     ),
 ]
 

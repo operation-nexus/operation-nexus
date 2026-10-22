@@ -19,6 +19,7 @@ from nexus.runtime.config import (
     world_ticks,
 )
 
+from .test_operations import GOLDEN_OPERATIONS_HASH as OPERATIONS_HASH
 from .test_theater import GOLDEN_THEATER_HASH as THEATER_HASH
 from .test_units import GOLDEN_UNITS_HASH as UNITS_HASH
 
@@ -151,6 +152,8 @@ tasking:
     strike: 40
     scout: 30
     escort_convoy: 40
+    stage: 20
+    capture: 45
   urgency_max: 2.0
   priority_aging_per_min: 1
   slots:
@@ -164,6 +167,9 @@ tasking:
   defend_radius_m: 10000
   counterattack_window_min: 15
   scout_cooldown_min: 5
+  scout_post_interval_min: 2
+  scout_open_max: 3
+  capture_max_restarts: 3
   follow_station_m:
     escort: 500
     column: 200
@@ -208,6 +214,29 @@ director:
     pattern_of_life: 24
     alpha: 40
     bravo: 70
+  op_priority: {RETAKE: 1.2, OFFENSIVE: 1.0, RECON: 0.5}
+  score:
+    target_value: {AIRBASE: 1.5, FOB: 1.0, PORT: 1.0, SANCTUARY: 2.0}
+    weakness_max: 2.0
+    own_node_value: 1.0
+    weakness_min: 1.0
+    stale_factor: 1.0
+    provocation_proximity: 1.5
+  memory:
+    half_life_s: 1800
+    factor: 1.0
+    weights: {convoy_hit: 1, radar_hit: 1, scout_lost: 1, node_lost: 1}
+  decoy_blink: {dark_s: 120, cooldown_s: 600, max_per_window: 1}
+  alpha_max_ops: 1
+  idle_retire_s: 600
+  adaptation_up_above: 0
+  reinforce_damage_above: 0
+  escort_min_convoys: 1
+  frontline_hops: 1
+  job_urgency: 1.0
+  adaptation_down_below: 1
+  noise_scale: 0.1
+  retake_window_min: 30
 """
 # Pinned from this implementation's first run (NX-367: balance, units, theater; re-pinned NX-121
 # for speed_mps, NX-122 for slots and again for the GP-3 cap and queue, NX-368 for air fuel and
@@ -217,7 +246,7 @@ director:
 # repair, crew and the damage multipliers, NX-124 part 3 for defense hp and the defeat hold, and
 # NX-374 for the tasking keys and again for follow and escort, and NX-155 for the director); a
 # change means every config_hash moved.
-GOLDEN_CONFIG_HASH = "a34515743818337a7fbc1e9a145ea48c688d591791eec505ac5add963b866016"
+GOLDEN_CONFIG_HASH = "4e198defe768519ec381ccfb0077e0851ab4fa6cc9233675b40a885b08d6c1a5"
 SLOTS = {
     "max_live_per_commander": 1,
     "respawn_delay_s": 20,
@@ -319,6 +348,8 @@ TASKING = {
         "strike": 40,
         "scout": 30,
         "escort_convoy": 40,
+        "stage": 20,
+        "capture": 45,
     },
     "urgency_max": 2.0,
     "priority_aging_per_min": 1,
@@ -328,6 +359,9 @@ TASKING = {
     "defend_radius_m": 10000,
     "counterattack_window_min": 15,
     "scout_cooldown_min": 5,
+    "scout_post_interval_min": 2,
+    "capture_max_restarts": 3,
+    "scout_open_max": 3,
     "follow_station_m": {"escort": 500, "column": 200, "overwatch": 3000, "wingman": 1000},
     "escort_threat_memory_s": 60,
     "escort_leash_m": 10000,
@@ -362,6 +396,39 @@ DIRECTOR = {
     "budget": {"pattern_of_life": 10, "alpha": 30, "bravo": 80},
     "max_spawns_per_window": 6,
     "max_live_units": {"pattern_of_life": 24, "alpha": 40, "bravo": 70},
+    "op_priority": {
+        "RETAKE": 1.2,
+        "OFFENSIVE": 1.0,
+        "ESCORT_CONVOYS": 0.8,
+        "REINFORCE_IADS": 0.7,
+        "PROBE": 0.6,
+        "RECON": 0.5,
+        "DECOY_BLINK": 0.3,
+    },
+    "score": {
+        "target_value": {"AIRBASE": 1.5, "FOB": 1.0, "PORT": 1.0, "SANCTUARY": 2.0},
+        "weakness_max": 2.0,
+        "own_node_value": 1.0,
+        "weakness_min": 1.0,
+        "stale_factor": 1.0,
+        "provocation_proximity": 1.5,
+    },
+    "memory": {
+        "half_life_s": 1800,
+        "factor": 1.0,
+        "weights": {"convoy_hit": 1, "radar_hit": 1, "scout_lost": 1, "node_lost": 1},
+    },
+    "decoy_blink": {"dark_s": 120, "cooldown_s": 600, "max_per_window": 1},
+    "alpha_max_ops": 1,
+    "idle_retire_s": 600,
+    "adaptation_up_above": 0,
+    "reinforce_damage_above": 0,
+    "escort_min_convoys": 1,
+    "frontline_hops": 1,
+    "job_urgency": 1.0,
+    "adaptation_down_below": 1,
+    "noise_scale": 0.1,
+    "retake_window_min": 30,
 }
 CFG = BalanceConfig.model_validate(
     {
@@ -402,9 +469,15 @@ def test_valid_file_loads(tmp_path: Path) -> None:
 
 def test_default_profile_loads_and_matches_golden_hash() -> None:
     assert load_balance(DEFAULT) == CFG
-    assert config_hash(balance_hash(DEFAULT), UNITS_HASH, THEATER_HASH) == GOLDEN_CONFIG_HASH
+    assert (
+        config_hash(balance_hash(DEFAULT), UNITS_HASH, OPERATIONS_HASH, THEATER_HASH)
+        == GOLDEN_CONFIG_HASH
+    )
     # Order is part of the hash (§4.4): swapping the parts gives another hash.
-    assert config_hash(THEATER_HASH, UNITS_HASH, balance_hash(DEFAULT)) != GOLDEN_CONFIG_HASH
+    assert (
+        config_hash(THEATER_HASH, UNITS_HASH, OPERATIONS_HASH, balance_hash(DEFAULT))
+        != GOLDEN_CONFIG_HASH
+    )
 
 
 @pytest.mark.parametrize(
@@ -670,11 +743,12 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "  time_limit_h: 72}\n"
         "tasking: {reeval_every_ticks: 50, claim_lease_s: 120, expire_min: 15,\n"
         "  priority: {scout: 30, strike: 40, assist_objective: 45, resupply: 50, defend: 60,\n"
-        "    escort_convoy: 40},\n"
+        "    escort_convoy: 40, stage: 20, capture: 45},\n"
         "  urgency_max: 2.0, priority_aging_per_min: 1,\n"
         "  slots: {scout: 1, assist_objective: 4, strike: 2, defend: 2, escort_convoy: 2},\n"
         "  resupply_stock_per_slot: 100, resupply_slots_max: 3, defend_radius_m: 10000,\n"
-        "  counterattack_window_min: 15, scout_cooldown_min: 5,\n"
+        "  counterattack_window_min: 15, scout_cooldown_min: 5, scout_open_max: 3,\n"
+        "  scout_post_interval_min: 2, capture_max_restarts: 3,\n"
         "  follow_station_m: {escort: 500, column: 200, overwatch: 3000, wingman: 1000},\n"
         "  escort_threat_memory_s: 60, escort_leash_m: 10000}\n"
         "director: {window_s: 60, max_spawns_per_window: 6,\n"
@@ -686,7 +760,19 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "      facility_disabled: 8, base_captured: 15, scout_in_rear: 2,\n"
         "      redemption: {support: 1, cosmetic: 0}}},\n"
         "  budget: {pattern_of_life: 10, alpha: 30, bravo: 80},\n"
-        "  max_live_units: {pattern_of_life: 24, alpha: 40, bravo: 70}}\n"
+        "  max_live_units: {pattern_of_life: 24, alpha: 40, bravo: 70},\n"
+        "  op_priority: {RETAKE: 1.2, OFFENSIVE: 1.0, ESCORT_CONVOYS: 0.8, REINFORCE_IADS: 0.7,\n"
+        "    PROBE: 0.6, RECON: 0.5, DECOY_BLINK: 0.3},\n"
+        "  score: {target_value: {AIRBASE: 1.5, FOB: 1.0, PORT: 1.0, SANCTUARY: 2.0},\n"
+        "    weakness_max: 2.0, own_node_value: 1.0, weakness_min: 1.0, stale_factor: 1.0,\n"
+        "    provocation_proximity: 1.5},\n"
+        "  memory: {half_life_s: 1800, factor: 1.0,\n"
+        "    weights: {convoy_hit: 1, radar_hit: 1, scout_lost: 1, node_lost: 1}},\n"
+        "  decoy_blink: {dark_s: 120, cooldown_s: 600, max_per_window: 1},\n"
+        "  alpha_max_ops: 1, job_urgency: 1.0,\n"
+        "  idle_retire_s: 600, adaptation_up_above: 0, reinforce_damage_above: 0,\n"
+        "  escort_min_convoys: 1, frontline_hops: 1,\n"
+        "  adaptation_down_below: 1, noise_scale: 0.1, retake_window_min: 30}\n"
         "schema_version:   1\n"
     )
     assert balance_hash(write(tmp_path, reformatted)) == balance_hash(DEFAULT)
@@ -701,7 +787,10 @@ def test_hash_expands_anchors() -> None:
 def test_single_value_change_changes_hash(tmp_path: Path) -> None:
     changed = write(tmp_path, VALID.replace("time_scale: 6.0", "time_scale: 6.5"))
     assert balance_hash(changed) != balance_hash(DEFAULT)
-    assert config_hash(balance_hash(changed), UNITS_HASH, THEATER_HASH) != GOLDEN_CONFIG_HASH
+    assert (
+        config_hash(balance_hash(changed), UNITS_HASH, OPERATIONS_HASH, THEATER_HASH)
+        != GOLDEN_CONFIG_HASH
+    )
 
 
 def test_canonical_hash_rejects_non_json_values() -> None:

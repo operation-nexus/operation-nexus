@@ -280,10 +280,12 @@ def test_scout_jobs_follow_sigint_blobs_by_cell() -> None:
     w = new_world()
     see(w, "COALITION", Blob("3-7", Vec2(75e3, 5e3), "S"), Blob("3-48", Vec2(85e3, 15e3), "L"))
     board_pass(w)
-    small, large = jobs(w)
-    assert (small.key, small.blob, small.urgency) == ("scout:7", "3-7", 1000)
+    (large,) = jobs(w)  # one new scout job per interval: the larger blob first
     assert (large.key, large.blob, large.urgency, large.slots) == ("scout:48", "3-48", 2000, 1)
-    assert small.pos == Vec2(75e3, 5e3)
+    w.campaign.running_ticks += TR.scout_post_interval_ticks
+    board_pass(w)
+    small = next(j for j in jobs(w) if j.key == "scout:7")
+    assert (small.blob, small.urgency, small.pos) == ("3-7", 1000, Vec2(75e3, 5e3))
     # The next refresh moves the blob's id, not its cell: the job follows it.
     see(w, "COALITION", Blob("93-7", Vec2(75e3, 5e3), "M"))
     events = board_pass(w)
@@ -781,6 +783,7 @@ def _kind(raw: dict, kind: str) -> dict:  # type: ignore[type-arg]
         (lambda r: _first(r).update(kind="REPAIR_BRIDGE"), "job kind"),
         (lambda r: _first(r).update(node=None), "targets a node or a blob"),
         (lambda r: _first(r).update(depends_on=9999), "dependency off the board"),
+        (lambda r: _first(r).update(depends_on=_first(r)["id"]), "dependency off the board"),
         (lambda r: _first(r).update(slots=0), "job slots"),
         (lambda r: _first(r).update(created=10**9), "after the snapshot"),
         (lambda r: r.update(next_job_id=1), "stay below the counter"),
@@ -1101,6 +1104,24 @@ def test_a_scouted_cell_is_not_posted_again_during_its_cooldown() -> None:
     assert [j.key for j in jobs(w)] == ["scout:7"]
 
 
+def test_a_scout_cell_whose_job_expired_is_not_reposted_during_the_cooldown() -> None:
+    w = new_world()
+    see(w, "COALITION", Blob("3-7", Vec2(75e3, 5e3), "S"))  # no recon unit: nobody can take it
+    put(w, "RECON_UAV", "west-airbase").damage_state = "DISABLED"
+    w.cooldown["COALITION"].clear()
+    put(w, "RECON_UAV", "west-airbase").path = ["east-airbase"]  # busy: never idle
+    board_pass(w)
+    (job,) = jobs(w)
+    w.campaign.running_ticks += TR.expire_ticks  # unclaimed past its expiry
+    out = board_pass(w)
+    assert [e.kind for e in out if e.kind == "JobExpired"] == ["JobExpired"] and jobs(w) == []
+    board_pass(w)
+    assert jobs(w) == [] and job.id not in w.boards["COALITION"]  # the blob is still there
+    w.campaign.running_ticks += TR.scout_cooldown_ticks
+    board_pass(w)
+    assert [j.key for j in jobs(w)] == ["scout:7"]
+
+
 def test_strike_reads_defense_hp_from_the_view() -> None:
     w = new_world()
     assert side_view(w, "COALITION").defense_hp["east-airbase"] == 500
@@ -1281,3 +1302,27 @@ def test_a_unroutable_job_costs_one_search_per_node_pair() -> None:
     board_pass(w)
     print(f"40 ground units, 6 unroutable jobs: {(time.perf_counter() - start) * 1000:.1f} ms")
     assert not [e for e in w.entities() if e.job_id]
+
+
+def test_a_board_holds_at_most_scout_open_max_scout_jobs_highest_urgency_first() -> None:
+    w = new_world()
+    blobs = [
+        Blob("3-1", Vec2(1e3, 1e3), "S"),
+        Blob("3-2", Vec2(2e3, 1e3), "L"),
+        Blob("3-3", Vec2(3e3, 1e3), "S"),
+        Blob("3-4", Vec2(4e3, 1e3), "M"),
+        Blob("3-5", Vec2(5e3, 1e3), "L"),
+    ]
+    see(w, "COALITION", *blobs)
+    put(w, "RECON_UAV", "west-airbase")  # a board only generates what it can staff
+    assert TR.scout_open_max == 3 and TR.scout_post_interval_ticks == 1200
+    seen = []
+    for _ in range(5):  # one new scout job per interval, whatever is in view
+        board_pass(w)
+        seen.append(len([j for j in jobs(w) if j.kind == "SCOUT"]))
+        board_pass(w)  # a second pass inside the interval posts nothing new
+        assert len([j for j in jobs(w) if j.kind == "SCOUT"]) == seen[-1]
+        w.campaign.running_ticks += TR.scout_post_interval_ticks
+    # urgency L 2.0, L 2.0, M 1.5 beat S 1.0; the L tie goes by key; never more than 3
+    assert seen == [1, 2, 3, 3, 3]
+    assert sorted(j.key for j in jobs(w) if j.kind == "SCOUT") == ["scout:2", "scout:4", "scout:5"]

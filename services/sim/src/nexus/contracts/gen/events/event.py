@@ -31,6 +31,7 @@ from . import (
     reserve_queue_joined,
     supply_consumed,
     supply_delivered,
+    threat_adaptation,
     threat_tier_changed,
     unit_damage_state_changed,
     unit_despawned,
@@ -72,7 +73,8 @@ type Event = Annotated[
     | job_done.JobDone
     | job_failed.JobFailed
     | job_expired.JobExpired
-    | threat_tier_changed.ThreatTierChanged,
+    | threat_tier_changed.ThreatTierChanged
+    | threat_adaptation.ThreatAdaptation,
     Field(
         description="Discriminated union of all sim events on kind (CONTRACTS §6).",
         discriminator="kind",

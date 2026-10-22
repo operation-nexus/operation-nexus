@@ -211,15 +211,17 @@ def canonical_hash(tree: object) -> str:
     return hashlib.blake2b(text.encode("utf-8"), digest_size=32).hexdigest()
 
 
-def config_hash(balance: str, units: str, theater: str) -> str:
+def config_hash(balance: str, units: str, operations: str, theater: str) -> str:
     """Hex blake2b-256 over the concatenated raw component digests, in §4.4 order.
 
-    Order: balance, units, doctrines, theater, text. Balance (NX-106), the unit catalog (NX-367,
-    `units.catalog_hash`) and the campaign's theater (NX-120) exist today; doctrines (NX-213) and
-    text join as parameters, in their places, with their loaders. A missing part is never stood
-    in for by an empty or placeholder hash.
+    Order: balance, units, operations, doctrines, theater, text. Balance (NX-106), the unit catalog
+    (NX-367, `units.catalog_hash`), the operation catalog (NX-156, `operations.operations_hash`) and
+    the campaign's theater (NX-120) exist today; doctrines (NX-213) and text join as parameters, in
+    their places, with their loaders. A missing part is never stood in for by an empty or
+    placeholder hash.
     """
-    parts = bytes.fromhex(balance) + bytes.fromhex(units) + bytes.fromhex(theater)
+    parts = bytes.fromhex(balance) + bytes.fromhex(units)
+    parts += bytes.fromhex(operations) + bytes.fromhex(theater)
     return hashlib.blake2b(parts, digest_size=32).hexdigest()
 
 

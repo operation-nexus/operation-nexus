@@ -72,8 +72,9 @@ from nexus.core.rules import CAPTURE_FULL, Rules
 # markers (NX-124 part 2); 16: node defense hp and drain carry, Campaign.defeat_ticks, structure
 # shots, FacilityMarker.ring_m and state (NX-124 part 3); 17: the Tasking Boards and their job
 # counter, Entity.order and Entity.job_id (NX-374); 18: Entity.follow_id and fired_by, Job.entity
-# (follow and escort, NX-374 part 2); 19: each side's Threat Director state (NX-155)
-FORMAT_VERSION = 19
+# (follow and escort, NX-374 part 2); 19: each side's Threat Director state (NX-155); 20: its threat
+# memory, lost nodes and adaptations (NX-156), radar blinks (Q-SIM-82)
+FORMAT_VERSION = 20
 _MM = 1000.0  # metres -> millimetres; m/s -> mm/s
 _MICRO = 1e6  # ADR-0002's 1e-6 step for other floats (fuel)
 _MILLI_UNIT = 1000  # thousandths of a stock unit per unit
@@ -109,7 +110,8 @@ _SIGINT_AGE = "sigint_age"
 _STOCK = "stock"
 _V = "v"
 # The dedupe-key prefix of each job kind the board generates (`nexus.core.tasking_gen`); a key with
-# one must name the job's own target (`load` checks it).
+# one must name the job's own target (`load` checks it). The Director's STAGE and CAPTURE (and its
+# other jobs) use `op:` keys, which name nothing the check could verify.
 JOB_KEY_PREFIX = {
     "RESUPPLY": "resupply:", "DEFEND": "defend:", "STRIKE": "strike:",
     "ASSIST_OBJECTIVE": "assist:", "SCOUT": "scout:", "ESCORT_CONVOY": "escort:",
@@ -385,6 +387,7 @@ class Job:
     depends_on: int | None = None
     objective: int | None = None
     entity: int | None = None  # an escort job: the truck it covers
+    restarts: int = 0  # a CAPTURE job's fresh expiries while its claimants drove (Q-SIM-84)
     claims: dict[int, Claim] = field(default_factory=dict)  # entity id -> claim, claim order
 
     @property
@@ -438,7 +441,15 @@ class DirectorState:
     (0 PATTERN_OF_LIFE, 1 ALPHA, 2 BRAVO) hold the hysteresis; `dwell` is the running ticks in
     `tier`, added a window at a time and held at `min_dwell_s`; `windows` the decision windows run;
     `budget` this window's. The sector of the most recent noted provocation is
-    `last_provocation_sector`, at running tick `last_provocation_tick`."""
+    `last_provocation_sector`, at running tick `last_provocation_tick`.
+
+    Threat memory (THREAT-DIRECTOR §2, NX-156): decaying counters in millionths of an event,
+    `convoy_attacks` and `radar_strikes` whole, `node_losses` and `recon_losses` by sector id (a
+    sector with 0 has no entry). `lost` maps a node the side lost to the running tick it fell, kept
+    for the Retake window; `adapted` maps an adaptation category to the sector announced up. `dark`
+    maps a base whose radar blinked to the running tick it comes back on, `blink_ready` to the tick
+    its radar may blink again (Q-SIM-82). `idle` maps a Director unit with no job (its id as text)
+    to the running tick it was first seen so, for `director.idle_retire_s` (Q-SIM-84)."""
 
     cp: int = 0
     provocation: int = 0
@@ -451,6 +462,15 @@ class DirectorState:
     budget: int = 0
     last_provocation_sector: str | None = None
     last_provocation_tick: int = 0
+    convoy_attacks: int = 0
+    radar_strikes: int = 0
+    node_losses: dict[str, int] = field(default_factory=dict)
+    recon_losses: dict[str, int] = field(default_factory=dict)
+    lost: dict[str, int] = field(default_factory=dict)
+    adapted: dict[str, str] = field(default_factory=dict)
+    dark: dict[str, int] = field(default_factory=dict)
+    blink_ready: dict[str, int] = field(default_factory=dict)
+    idle: dict[str, int] = field(default_factory=dict)  # entity id (as text, msgpack) -> tick
 
 
 _DIRECTOR_KEYS = tuple(f.name for f in fields(DirectorState))
@@ -944,7 +964,7 @@ def to_canonical(world: World, *, quantize: bool) -> dict[str, Any]:
         _DEFENSE_DOWN: sorted(world.defense_down),
         _DEFENSE_DRAIN: dict(sorted(world.defense_drain.items())),
         _DEFENSE_HP: dict(sorted(world.defense_hp.items())),
-        _DIRECTOR: {s: asdict(d) for s, d in world.director.items()},
+        _DIRECTOR: {s: _sorted(asdict(d)) for s, d in world.director.items()},
         _ENTITIES: [_entity_data(e, quantize) for e in world.entities()],
         _MARKERS: _markers_data(world, quantize),
         _OBJECTIVE: None if world.objective is None else asdict(world.objective),
@@ -1368,6 +1388,7 @@ def _job(d: dict[str, Any], next_entity_id: int, running_ticks: int, nodes: set[
         None if d["depends_on"] is None else _int(d["depends_on"], "job depends_on", 1),
         None if d["objective"] is None else _int(d["objective"], "job objective", 1),
         None if d["entity"] is None else _int(d["entity"], "job entity", 1),
+        _int(d["restarts"], "job restarts"),
     )  # fmt: skip
     for raw in claims:
         if not isinstance(raw, list) or len(raw) != 3:
@@ -1386,12 +1407,15 @@ def _job(d: dict[str, Any], next_entity_id: int, running_ticks: int, nodes: set[
         and ((job.node is None) == (job.blob is None) or (job.blob is None) != (job.pos is None))
     ):
         raise ValueError(f"{_BOARDS}: a job targets a node or a blob with its position")
-    if (job.kind == "SCOUT") != (job.blob is not None) or (job.node or "") not in nodes | {""}:
+    scout_node = job.kind == "SCOUT" and job.blob is None and job.key.startswith("op:")
+    if (job.kind == "SCOUT") != (job.blob is not None or scout_node) or (
+        job.node or ""
+    ) not in nodes | {""}:
         raise ValueError(f"{_BOARDS}: a scout job targets a blob, any other a node of the theater")
     target = (
         str(job.entity) if escort else job.node if job.blob is None else job.blob.split("-")[-1]
     )
-    prefix = JOB_KEY_PREFIX[job.kind]
+    prefix = JOB_KEY_PREFIX.get(job.kind, "-")
     others = [p for p in JOB_KEY_PREFIX.values() if p != prefix and job.key.startswith(p)]
     if others or (job.key.startswith(prefix) and job.key != f"{prefix}{target}"):
         raise ValueError(f"{_BOARDS}: job key {job.key!r} does not name its kind and target")
@@ -1422,10 +1446,12 @@ def _boards(value: object, world: World) -> dict[Side, dict[int, Job]]:
                 f"{_BOARDS}.{side}: ids must be unique, ascend and stay below the counter"
             )
         if len({j.key for j in jobs}) != len(jobs) or any(
-            j.depends_on is not None and j.depends_on not in ids for j in jobs
-        ):
+            j.depends_on is not None and not (j.depends_on in ids and j.depends_on < j.id)
+            for j in jobs
+        ):  # a job waits for an earlier one: no self or circular wait
             raise ValueError(
-                f"{_BOARDS}.{side}: duplicate dedupe key, or a dependency off the board"
+                f"{_BOARDS}.{side}: duplicate dedupe key, or a dependency off the board "
+                "or not on an earlier job"
             )
         seen.update(ids)
         boards[side] = {j.id: j for j in jobs}
@@ -1458,6 +1484,30 @@ def _cells(value: object) -> dict[str, int]:
     return {_str(k, "cell"): _int(v, _COOLDOWN) for k, v in value.items()}
 
 
+def _counts(value: object, what: str) -> dict[str, int]:
+    """A map from an id to a count above 0 (a sector's memory counter, a node's tick lost)."""
+    if not isinstance(value, dict):
+        raise ValueError(f"{_DIRECTOR}.{what} must be a map")
+    return {_str(k, what): _int(v, what, 1) for k, v in value.items()}
+
+
+def _idle(value: object, running_ticks: int) -> dict[str, int]:
+    if not isinstance(value, dict):
+        raise ValueError(f"{_DIRECTOR}.idle must be a map")
+    out = {_str(k, "idle entity"): _int(v, "idle tick", 1) for k, v in value.items()}
+    if not all(k.isdigit() and int(k) >= 1 for k in out):
+        raise ValueError(f"{_DIRECTOR}.idle: keys are entity ids")
+    if any(v > running_ticks for v in out.values()):
+        raise ValueError(f"{_DIRECTOR}.idle: a tick after the snapshot's running ticks")
+    return out
+
+
+def _labels(value: object) -> dict[str, str]:
+    if not isinstance(value, dict):
+        raise ValueError(f"{_DIRECTOR}.adapted must be a map")
+    return {_str(k, "adapted"): _str(v, "adapted") for k, v in value.items()}
+
+
 def _director(value: object, running_ticks: int) -> dict[Side, DirectorState]:
     sides = _fields(value, SIDES, _DIRECTOR)
     out: dict[Side, DirectorState] = {}
@@ -1476,6 +1526,15 @@ def _director(value: object, running_ticks: int) -> dict[Side, DirectorState]:
             budget=_int(d["budget"], "budget"),
             last_provocation_sector=sector,
             last_provocation_tick=_int(d["last_provocation_tick"], "last_provocation_tick"),
+            convoy_attacks=_int(d["convoy_attacks"], "convoy_attacks"),
+            radar_strikes=_int(d["radar_strikes"], "radar_strikes"),
+            node_losses=_counts(d["node_losses"], "node_losses"),
+            recon_losses=_counts(d["recon_losses"], "recon_losses"),
+            lost=_counts(d["lost"], "lost"),
+            adapted=_labels(d["adapted"]),
+            dark=_counts(d["dark"], "dark"),
+            blink_ready=_counts(d["blink_ready"], "blink_ready"),
+            idle=_idle(d["idle"], running_ticks),
         )
         if max(state.prov_level, state.ceiling) > 2 or state.ceiling < 1:
             raise ValueError(f"{_DIRECTOR}.{side}: a level must be 0..2 and the ceiling at least 1")

@@ -20,6 +20,7 @@ from nexus.core.follow import steer
 from nexus.core.handlers import HANDLERS as HANDLERS
 from nexus.core.handlers import Handler as Handler
 from nexus.core.handlers import reject, serve_reserve_queue
+from nexus.core.launch import run as run_operations
 from nexus.core.logistics import logistics, nearest_base
 from nexus.core.provocation import DIRECTED, scan_rear
 from nexus.core.rules import CP_SCALE, Rules
@@ -60,7 +61,8 @@ def director(
 ) -> None:
     """The Threat Director's decision window (NX-155), then the Tasking Boards
     (`nexus.core.tasking`, NX-374) and every follower's station and the formation speed caps
-    (`nexus.core.follow`, NX-374 part 2): the Director decides first and posts no jobs yet."""
+    (`nexus.core.follow`, NX-374 part 2): the Director decides first and launches its operations
+    (`nexus.core.launch`, NX-156), whose jobs the board then settles and assigns."""
     _decide(world, out)
     run_tasking(world, out)
     steer(world)
@@ -68,7 +70,8 @@ def director(
 
 def _decide(world: World, out: list[Event]) -> None:
     """Every `director.window_s` running ticks, each directed side decides from its own view
-    (`nexus.core.director`); a tier move is announced with `ThreatTierChanged` (TD-1, SC-11)."""
+    (`nexus.core.director`); a tier move is announced with `ThreatTierChanged` (TD-1, SC-11), then
+    it launches operations within the window's budget (`nexus.core.launch`)."""
     rules = world.rules
     if world.frozen or rules is None or rules.director is None:
         return
@@ -91,6 +94,7 @@ def _decide(world: World, out: list[Event]) -> None:
                     cp_smoothed=change.cp / CP_SCALE,
                 )
             )
+        run_operations(world, side, view, rules, out)
 
 
 def movement(

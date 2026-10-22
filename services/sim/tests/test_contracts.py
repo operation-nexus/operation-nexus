@@ -193,20 +193,25 @@ IMPACT = {**_BASE, "kind": "WeaponImpact", "shooter_id": 4, "target_id": 7,
 STATE_CHANGED = {**_BASE, "kind": "UnitDamageStateChanged", "entity_id": 7, "from": "HEALTHY",
                  "to": "DAMAGED"}  # fmt: skip
 DESPAWNED = {**_BASE, "kind": "UnitDespawned", "entity_id": 7, "reason": "WRECKED"}
+RETIRED = {**DESPAWNED, "reason": "RETIRED"}
 FIRED_AT_NODE = {**FIRED, "target_id": None, "target_node_id": "east-airbase"}
 DEFENSES_DOWN = {**_BASE, "kind": "NodeDefensesDown", "node_id": "east-airbase", "owner": "ENEMY"}
 DEFENSES_RESTORED = {**DEFENSES_DOWN, "kind": "NodeDefensesRestored"}
 TIER_CHANGED = {**_BASE, "kind": "ThreatTierChanged", "side": "ENEMY", "from": "PATTERN_OF_LIFE",
                 "to": "ALPHA", "cp_smoothed": 12.5}  # fmt: skip
+ADAPTATION = {**_BASE, "kind": "ThreatAdaptation", "side": "ENEMY", "category": "CONVOY_ESCORT",
+              "sector_id": "north", "direction": "UP"}  # fmt: skip
 
 
 @pytest.mark.parametrize(
     "good",
     [
+        ADAPTATION,
         FIRED,
         IMPACT,
         STATE_CHANGED,
         DESPAWNED,
+        RETIRED,
         FIRED_AT_NODE,
         DEFENSES_DOWN,
         DEFENSES_RESTORED,
@@ -246,6 +251,20 @@ def test_combat_events_parse_through_the_event_union(good: dict[str, object]) ->
 def test_combat_events_reject_bad_fields(event: dict[str, object], bad: dict[str, object]) -> None:
     with pytest.raises(ValidationError):
         EVENTS.validate_python({**event, **bad})
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [
+        {"category": "SITE_X"},
+        {"direction": "SIDEWAYS"},
+        {"site_id": "radar-east"},
+        {"sector_id": "A B"},
+    ],
+)
+def test_threat_adaptation_names_a_sector_never_a_site(bad: dict[str, object]) -> None:
+    with pytest.raises(ValidationError):
+        EVENTS.validate_python({**ADAPTATION, **bad})
 
 
 def test_threat_tier_changed_requires_its_side() -> None:

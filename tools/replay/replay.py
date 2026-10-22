@@ -152,7 +152,7 @@ def parser() -> argparse.ArgumentParser:
             s.add_argument("--until-tick", type=_int(0), default=None, help="stop at this tick")
         if name != "size":
             defaults = ConfigPaths()
-            for field in ("balance", "units", "weapons", "roles", "theater"):
+            for field in ("balance", "units", "weapons", "roles", "theater", "operations"):
                 s.add_argument(
                     f"--{field}",
                     type=Path,
@@ -176,7 +176,9 @@ def main() -> int:
                 raise NotADirectoryError(f"{path}: not a directory")
         if args.command != "size":
             args.config = load_campaign_config(
-                ConfigPaths(args.balance, args.units, args.weapons, args.roles, args.theater)
+                ConfigPaths(
+                    args.balance, args.units, args.weapons, args.roles, args.theater, args.operations
+                )
             )
         return int(args.fn(args))
     except (ConfigError, SnapshotError, CommandLogError, ReplayCrash, OSError) as e:

@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://nexus.local/contracts/events/unit_despawned.json",
   "title": "UnitDespawned",
-  "description": "A unit was removed without being destroyed (CONTRACTS \u00a76). WRECKED is the first producer: a Disabled unit removed after combat.disabled_timeout_s, its cargo lost (COMBAT CB-7, Q-CBT-14). Other reasons join with their producers (rule 6a). Public view: a hidden ENEMY unit is dropped.",
+  "description": "A unit was removed without being destroyed (CONTRACTS \u00a76). WRECKED is the first producer: a Disabled unit removed after combat.disabled_timeout_s, its cargo lost (COMBAT CB-7, Q-CBT-14). RETIRED: a Threat Director unit with no job for director.idle_retire_s, removed with no refund; it is not a loss (NX-156, Q-SIM-84). Other reasons join with their producers (rule 6a). Public view: a hidden ENEMY unit is dropped.",
   "type": "object",
   "additionalProperties": false,
   "required": ["kind", "tick", "event_seq", "campaign_id", "entity_id", "reason"],
@@ -12,6 +12,6 @@
     "event_seq": {"type": "integer", "minimum": 1, "description": "Campaign-wide, monotonic, deterministic (SC-14)."},
     "campaign_id": {"$ref": "../common/ids.json#/$defs/CampaignId"},
     "entity_id": {"$ref": "../common/ids.json#/$defs/EntityId", "description": "The unit removed."},
-    "reason": {"enum": ["WRECKED"]}
+    "reason": {"enum": ["WRECKED", "RETIRED"]}
   }
 }

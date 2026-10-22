@@ -5,7 +5,7 @@ from __future__ import annotations
 
 from typing import Annotated, Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 
 class Score(BaseModel):
@@ -685,6 +685,8 @@ class Priority(BaseModel):
     strike: Annotated[float, Field(ge=0.0)]
     scout: Annotated[float, Field(ge=0.0)]
     escort_convoy: Annotated[float, Field(ge=0.0)]
+    stage: Annotated[float, Field(ge=0.0)]
+    capture: Annotated[float, Field(ge=0.0)]
 
 
 class Slots1(BaseModel):
@@ -782,6 +784,27 @@ class Tasking(BaseModel):
         Field(
             description="For this long after a side loses a node, its AI garrison may take strike and assist-objective jobs against it (Q-GD-31, Q-SIM-74), unit min of game time.",
             gt=0.0,
+        ),
+    ]
+    capture_max_restarts: Annotated[
+        int,
+        Field(
+            description="A CAPTURE job whose claimants are still driving when its expiry passes gets a fresh expiry at most this many times, then expires normally (NX-156, Q-SIM-84), unit restarts.",
+            ge=0,
+        ),
+    ]
+    scout_post_interval_min: Annotated[
+        float,
+        Field(
+            description="At most one new generated scout job per board per this long (the highest urgency, ties by key), unit min of game time (NX-156, Q-DEV-21).",
+            gt=0.0,
+        ),
+    ]
+    scout_open_max: Annotated[
+        int,
+        Field(
+            description="The most generated scout jobs a board holds at once (the highest urgency first, ties by key; claimed ones always stay), unit jobs (NX-156).",
+            ge=1,
         ),
     ]
     scout_cooldown_min: Annotated[
@@ -1040,6 +1063,134 @@ class MaxLiveUnits(BaseModel):
     bravo: Annotated[int, Field(description="Live Static units allowed in this tier.", ge=1)]
 
 
+type OpPriorityAdditionalProperty = Annotated[float, Field(ge=0.0)]
+
+
+class TargetValue(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    AIRBASE: Annotated[
+        float, Field(description="Target-value multiplier of a AIRBASE node (Q-SIM-78).", gt=0.0)
+    ]
+    FOB: Annotated[
+        float, Field(description="Target-value multiplier of a FOB node (Q-SIM-78).", gt=0.0)
+    ]
+    PORT: Annotated[
+        float, Field(description="Target-value multiplier of a PORT node (Q-SIM-78).", gt=0.0)
+    ]
+    SANCTUARY: Annotated[
+        float, Field(description="Target-value multiplier of a SANCTUARY node (Q-SIM-78).", gt=0.0)
+    ]
+
+
+class Score1(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    target_value: Annotated[
+        TargetValue,
+        Field(
+            description="Target-value multiplier by node kind; a kind not listed is never a target."
+        ),
+    ]
+    own_node_value: Annotated[
+        float,
+        Field(
+            description="Target-value multiplier of a node the side already holds (REINFORCE_IADS aims at one), unit multiplier (Q-DEV-21).",
+            gt=0.0,
+        ),
+    ]
+    weakness_min: Annotated[
+        float,
+        Field(
+            description="The weakness multiplier of a node at full defenses (Q-SIM-78); the curve is linear from here to weakness_max.",
+            gt=0.0,
+        ),
+    ]
+    stale_factor: Annotated[
+        float,
+        Field(
+            description="Coefficient of the Recon staleness term, score x (1 + factor x s) (TD-5).",
+            ge=0.0,
+        ),
+    ]
+    weakness_max: Annotated[
+        float,
+        Field(
+            description="The weakness multiplier of a node with no defenses left; it rises linearly from weakness_min at full defenses (Q-SIM-78).",
+            ge=1.0,
+        ),
+    ]
+    provocation_proximity: Annotated[
+        float,
+        Field(
+            description="Multiplier for a target in the last provocation sector while the CP ceiling is ALPHA (Q-TD-4, Q-SIM-78).",
+            ge=1.0,
+        ),
+    ]
+
+
+class Weights1(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    convoy_hit: Annotated[float, Field(description="Events one convoy hit adds.", ge=0.0)]
+    radar_hit: Annotated[float, Field(description="Events one radar hit adds.", ge=0.0)]
+    scout_lost: Annotated[float, Field(description="Events one scout lost adds.", ge=0.0)]
+    node_lost: Annotated[float, Field(description="Events one node lost adds.", ge=0.0)]
+
+
+class Memory(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    half_life_s: Annotated[
+        float,
+        Field(
+            description="Half-life of every threat-memory counter, unit s of game time (Q-ALN-23, Q-SIM-81).",
+            gt=0.0,
+        ),
+    ]
+    factor: Annotated[
+        float,
+        Field(
+            description="Coefficient k of the memory multiplier: RAISE 1 + k x c, LOWER 1 / (1 + k x c), c in events (THREAT-DIRECTOR step 4).",
+            ge=0.0,
+        ),
+    ]
+    weights: Annotated[
+        Weights1,
+        Field(
+            description="Events one occurrence adds to its counter (THREAT-DIRECTOR section 2, Q-SIM-81)."
+        ),
+    ]
+
+
+class DecoyBlink(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    dark_s: Annotated[
+        float,
+        Field(description="How long a blinking radar stays dark, unit s of game time.", gt=0.0),
+    ]
+    max_per_window: Annotated[
+        int,
+        Field(
+            description="The most radars that start a blink in one decision window, unit radars.",
+            ge=1,
+        ),
+    ]
+    cooldown_s: Annotated[
+        float,
+        Field(
+            description="How soon after it went dark the same radar may blink again, unit s of game time.",
+            gt=0.0,
+        ),
+    ]
+
+
 class Director(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1064,16 +1215,99 @@ class Director(BaseModel):
         ),
     ]
     max_spawns_per_window: Annotated[
+        int, Field(description="The most new Static units per window (Q-TD-12).", ge=1)
+    ]
+    max_live_units: Annotated[
+        MaxLiveUnits, Field(description="The most live Static units by tier (Q-TD-12).")
+    ]
+    op_priority: Annotated[
+        dict[
+            Annotated[str, StringConstraints(pattern=r"^[A-Z][A-Z0-9_]{0,31}$")],
+            OpPriorityAdditionalProperty,
+        ],
+        Field(
+            description="Base priority of each operation of the catalog, by operation id (Q-TD-6, Q-SIM-78); exactly the catalog's ids (the loader checks)."
+        ),
+    ]
+    score: Annotated[
+        Score1, Field(description="Operation scoring (THREAT-DIRECTOR step 4, Q-TD-6, Q-SIM-78).")
+    ]
+    memory: Annotated[Memory, Field(description="Threat memory (THREAT-DIRECTOR section 2).")]
+    noise_scale: Annotated[
+        float,
+        Field(
+            description="The scoring noise: a candidate's score moves by up to this fraction either way, drawn from the `director` stream (Q-SIM-78).",
+            ge=0.0,
+        ),
+    ]
+    adaptation_up_above: Annotated[
+        float,
+        Field(
+            description="A ThreatAdaptation goes UP when its threat-memory counter is above this many events as the matching operation launches (THREAT-DIRECTOR step 5).",
+            ge=0.0,
+        ),
+    ]
+    reinforce_damage_above: Annotated[
+        float,
+        Field(
+            description="Share of an air-defense site's HP missing above which ReinforceIADS counts it damaged; 0 is any damage (Q-SIM-81).",
+            ge=0.0,
+            le=1.0,
+        ),
+    ]
+    escort_min_convoys: Annotated[
         int,
         Field(
-            description="The most new Static units per window (Q-TD-12); read by spawning, which is not built yet.",
+            description="The fewest convoys an escort operation may be cut to when the spawn cap or live-unit room is short; below it the operation is skipped (THREAT-DIRECTOR step 6), unit convoys.",
             ge=1,
         ),
     ]
-    max_live_units: Annotated[
-        MaxLiveUnits,
+    frontline_hops: Annotated[
+        int,
         Field(
-            description="The most live Static units by tier (Q-TD-12); read by spawning, which is not built yet."
+            description="A node is on the front when a node within this many road hops has another owner (PROBE's target_is_frontline); 1 is a direct road neighbour, unit hops.",
+            ge=1,
+        ),
+    ]
+    idle_retire_s: Annotated[
+        float,
+        Field(
+            description="A Director unit with no job and no path for this long is retired: removed, no refund (Q-SIM-84), unit s of game time.",
+            gt=0.0,
+        ),
+    ]
+    alpha_max_ops: Annotated[
+        int,
+        Field(
+            description="The most operations with jobs ALPHA runs at once (THREAT-DIRECTOR section 3), unit operations.",
+            ge=1,
+        ),
+    ]
+    job_urgency: Annotated[
+        float,
+        Field(
+            description="Urgency of the jobs an operation posts, a multiplier on the job kind's base priority (TB-3), from 1.0 up to tasking.urgency_max.",
+            ge=1.0,
+        ),
+    ]
+    adaptation_down_below: Annotated[
+        float,
+        Field(
+            description="A ThreatAdaptation goes DOWN when its threat-memory counter falls below this many events (THREAT-DIRECTOR step 5).",
+            gt=0.0,
+        ),
+    ]
+    decoy_blink: Annotated[
+        DecoyBlink,
+        Field(
+            description="DecoyBlink timing (FOG-OF-WAR FOW-11, Q-SIM-82): a selected radar is dark this long, then emits again; it cannot blink again for the cooldown, counted from the start of the blink; at most one radar blinks per window."
+        ),
+    ]
+    retake_window_min: Annotated[
+        float,
+        Field(
+            description="A Static node counts as lost for a Retake operation this many game minutes after it fell (Q-SIM-81).",
+            gt=0.0,
         ),
     ]
 
