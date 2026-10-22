@@ -10,7 +10,7 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | Phase | Items | Done | Status |
 |---|---|---|---|
 | P0 Foundations | 42 | 19 | 🟨 |
-| P1 Sim kernel | 38 | 26 | 🟨 |
+| P1 Sim kernel | 39 | 27 | 🟨 |
 | P2 Closed alpha | 34 | 0 | ⬜ |
 | P3 Public beta | 22 | 0 | ⬜ |
 | P4 Depth | 67 | 1 | ⬜ |
@@ -110,11 +110,12 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-376 | Worst-case tick budget: QA's 1,000-unit convoy scene (every unit tracked, ~700 followers) runs a p99 of about 31 ms with escort generation off, over the SC-10 25 ms line; profile the board pass, sensing and movement together and bring p99 under budget | M | ⬜ | NX-374 | p99 < 25 ms on QA's worst-case scene in the container and an i7 re-run |
 | NX-377 | Tunability sweep (Q-DEV-21): move every outcome-affecting constant in `nexus.core` into balance or content keys (e.g. the follow hold slack, the decay ratio bound, the scout cap if left in code), documented in CONFIG-AND-CONTENT, with a test that fails on new outcome-affecting literals in kernel modules | S | ⬜ | NX-156 | No gameplay number lives only in code; config docs list every key |
 | NX-378 | Entertainment review at P1 exit (Q-DEV-22): read long seeded balance-harness runs as each audience would see them (watcher, player, site watcher, VOD and clip watcher); report in docs/review per docs/quality/ENTERTAINMENT-REVIEW.md | S | ⬜ | NX-031, NX-032 | A report with a score, evidence and suggestions per audience; the owner has decided on each suggestion |
+| NX-379 | Static recon that explores instead of feeding the air defenses (Q-SIM-87): cheaper Recon, stale-area loiter points outside known air-defense rings, route-danger check, loiter then home | S | ⬜ | NX-157 | Overnight 0-viewer run: recon losses and stock burn well below NX-157's (about 14 UAVs and 70 stock per game hour) while the Static's last-known picture stays fresh |
 | NX-151 | Enemy-side view for director (FOW-4) | M | ✅ | NX-150 | Director API accepts only `EnemyView` |
 | NX-155 | Director: CP, tiers w/ hysteresis, budget | M | ✅ | NX-151, NX-374 | Hysteresis property |
-| NX-156 | Director: operations library + scoring + threat memory | L | 👀 | NX-155 | "Convoy raids → escorts" golden scenario |
+| NX-156 | Director: operations library + scoring + threat memory | L | ✅ | NX-155 | "Convoy raids → escorts" golden scenario |
 | NX-369 [#189](https://github.com/operation-nexus/operation-nexus/issues/189) | Formation speed: an escorted group moves at its slowest member's speed (Q-SIM-38) | S | ✅ | NX-121, NX-156 | Property: an escorted convoy never outruns its escort; both sides; adds the min-speed clamp for aircraft in a formation (Q-SIM-43) |
-| NX-157 | AI garrison + Pattern of Life + provocation-gated escalation (THREAT-DIRECTOR §5a) | M | ⬜ | NX-155, NX-374 | overnight-0: no attacks; 0→1 viewer: no escalation until provocation; staging visible to scouts |
+| NX-157 | AI garrison + Pattern of Life + provocation-gated escalation (THREAT-DIRECTOR §5a) | M | 👀 | NX-155, NX-374 | overnight-0: no escalation, at most one node lost per 6 game hours (Q-SIM-85); 0→1 viewer: no escalation until provocation; staging visible to scouts |
 | NX-158 | `!rebase` and base-to-base repositioning for both sides | S | ⬜ | NX-121 | Units stage forward and refuel at the destination base |
 | NX-031 | Balance harness (`tools/balance`) + bot personas + report | L | ⬜ | NX-126 | Standard scenarios (crowd profiles of 0, 5, 50, 150, 300 and 500 simulated viewers plus the adversarial profiles, Q-ALN-42): 20-seed balance-diff report; the 50-seed acceptance run of TESTING-STRATEGY §3.5a (Q-TEST-4); unit speeds (`speed_mps`, `min_speed_mps`) are tuned from playtests too (Q-SIM-38) |
 | NX-032 [#176](https://github.com/operation-nexus/operation-nexus/issues/176) | Replay CLI + measured storage size | S | ✅ | NX-103 | Size documented in CLIPS-REPLAY |
