@@ -15,13 +15,14 @@ from nexus.contracts.gen.common.enums import (
     AltBand,
     DamageState,
     Domain,
+    JobKind,
     NodeKind,
     NodeOwner,
     Role,
     Side,
     UnitKind,
 )
-from nexus.contracts.gen.config.balance import Air, Capture, Fow, Logistics, Sim, Slots
+from nexus.contracts.gen.config.balance import Air, Capture, Fow, Logistics, Sim, Slots, Tasking
 from nexus.contracts.gen.config.balance import Campaign as CampaignBalance
 from nexus.contracts.gen.config.balance import Combat as CombatBalance
 from nexus.contracts.gen.config.roles import Roles
@@ -132,6 +133,28 @@ class CampaignRules:
     # their road neighbours that can have an owner (not BRIDGE): a candidate with a neighbour of
     # another owner is on the frontline.
     candidates: Mapping[str, tuple[str, ...]]
+
+
+@dataclass(frozen=True, slots=True)
+class TaskingRules:
+    """Tasking Board rules (NX-374, GAMEPLAY §1b, Q-SIM-73): durations in running ticks, the
+    priorities and the aging rate exact (Fractions) so a ranking and a tie are exact, and the
+    urgency cap in thousandths. `slots` holds the fixed slot counts; a resupply job is sized from
+    its missing stock (`resupply_stock_per_slot`, at most `resupply_slots_max`)."""
+
+    reeval_every_ticks: int
+    claim_lease_ticks: int
+    expire_ticks: int  # an unclaimed job expires this long after it was posted
+    ticks_per_min: int  # running ticks in a game minute: the aging rate's divisor
+    priority: Mapping[JobKind, Fraction]
+    urgency_max_milli: int
+    aging_per_min: Fraction
+    slots: Mapping[JobKind, int]
+    resupply_stock_per_slot: int
+    resupply_slots_max: int
+    defend_radius_m: float
+    counterattack_window_ticks: int  # how long after a loss the garrison may counterattack
+    scout_cooldown_ticks: int  # how long a scouted cell is not posted again
 
 
 @dataclass(frozen=True, slots=True)
@@ -246,6 +269,7 @@ class Rules:
     campaign: CampaignRules | None = None  # NX-126; None leaves the campaign layer off
     combat: CombatRules | None = None  # NX-124; None leaves combat off
     defense: DefenseRules | None = None  # NX-124 part 3; None: nodes have no defense HP
+    tasking: TaskingRules | None = None  # NX-374; None leaves the Tasking Boards off
 
     def speed(self, kind: UnitKind, state: DamageState) -> float:
         """A unit's top speed now: x `damaged_speed_mult` at Damaged or worse, but an aircraft never
@@ -263,6 +287,33 @@ class Rules:
             if self.combat is None or state == "HEALTHY"
             else radius * self.combat.damaged_sensor_mult
         )
+
+
+def tasking_rules(
+    cfg: Tasking,
+    *,
+    claim_lease_ticks: int,
+    expire_ticks: int,
+    ticks_per_min: int,
+    counterattack_window_ticks: int,
+    scout_cooldown_ticks: int,
+) -> TaskingRules:
+    """The tick counts are `cfg`'s game-time keys already converted by the config loader."""
+    return TaskingRules(
+        reeval_every_ticks=cfg.reeval_every_ticks,
+        claim_lease_ticks=claim_lease_ticks,
+        expire_ticks=expire_ticks,
+        ticks_per_min=ticks_per_min,
+        priority={cast(JobKind, k.upper()): Fraction(repr(v)) for k, v in cfg.priority},
+        urgency_max_milli=round(Fraction(repr(cfg.urgency_max)) * 1000),
+        aging_per_min=Fraction(repr(cfg.priority_aging_per_min)),
+        slots={cast(JobKind, k.upper()): v for k, v in cfg.slots},
+        resupply_stock_per_slot=cfg.resupply_stock_per_slot,
+        resupply_slots_max=cfg.resupply_slots_max,
+        defend_radius_m=cfg.defend_radius_m,
+        counterattack_window_ticks=counterattack_window_ticks,
+        scout_cooldown_ticks=scout_cooldown_ticks,
+    )
 
 
 def world_dt(sim: Sim) -> float:
@@ -477,6 +528,7 @@ def make_rules(
     masking: Mapping[tuple[int, int], frozenset[str]],
     campaign: CampaignRules | None = None,
     combat: CombatRules | None = None,
+    tasking: TaskingRules | None = None,
 ) -> Rules:
     """`respawn_delay_ticks`, `track_fade_ticks` and `sigint_refresh_ticks` are
     `slots.respawn_delay_s`, `fow.track_fade_s` and `fow.sigint_refresh_s` already converted by
@@ -529,4 +581,5 @@ def make_rules(
         campaign=campaign,
         combat=combat,
         defense=_defense(theater, capture, logistics, sim),
+        tasking=tasking,
     )

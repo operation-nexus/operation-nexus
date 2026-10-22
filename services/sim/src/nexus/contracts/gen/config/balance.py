@@ -675,6 +675,112 @@ class Sim(BaseModel):
     ]
 
 
+class Priority(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    defend: Annotated[float, Field(ge=0.0)]
+    resupply: Annotated[float, Field(ge=0.0)]
+    assist_objective: Annotated[float, Field(ge=0.0)]
+    strike: Annotated[float, Field(ge=0.0)]
+    scout: Annotated[float, Field(ge=0.0)]
+
+
+class Slots1(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    defend: Annotated[int, Field(ge=1)]
+    strike: Annotated[int, Field(ge=1)]
+    assist_objective: Annotated[int, Field(ge=1)]
+    scout: Annotated[int, Field(ge=1)]
+
+
+class Tasking(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    reeval_every_ticks: Annotated[
+        int,
+        Field(
+            description="A board re-evaluates (settles, generates, assigns) every this many running ticks (TB-6), unit ticks.",
+            ge=1,
+        ),
+    ]
+    claim_lease_s: Annotated[
+        float,
+        Field(
+            description="A claim with no progress for this long is released and the job returns to OPEN (TB-1, Q-ALN-23), unit s of game time.",
+            gt=0.0,
+        ),
+    ]
+    expire_min: Annotated[
+        float,
+        Field(
+            description="An unclaimed job expires this long after it was posted (Q-SIM-73), unit min of game time. Objective jobs expire with the objective instead.",
+            gt=0.0,
+        ),
+    ]
+    priority: Annotated[
+        Priority,
+        Field(
+            description="Base priority per job kind (Q-GP-20), unit points; keys are the lower-case JobKind. Escort and repair-bridge join with their jobs."
+        ),
+    ]
+    urgency_max: Annotated[
+        float,
+        Field(
+            description="The most the triggering condition can multiply a base priority by (Q-GP-20), unit multiplier; the least is 1.0.",
+            ge=1.0,
+            le=2.0,
+        ),
+    ]
+    priority_aging_per_min: Annotated[
+        float,
+        Field(
+            description="Priority points an open job gains per game minute it has waited (TB-3, Q-ALN-23), unit points/min of game time.",
+            ge=0.0,
+        ),
+    ]
+    slots: Annotated[
+        Slots1,
+        Field(
+            description="Units a job needs (TB-4), by lower-case JobKind; resupply is sized from the missing stock instead (resupply_stock_per_slot)."
+        ),
+    ]
+    resupply_stock_per_slot: Annotated[
+        int,
+        Field(
+            description="A resupply job gets one slot per this much missing stock (max stock minus stock, rounded up, at least one), unit stock units.",
+            ge=1,
+        ),
+    ]
+    resupply_slots_max: Annotated[
+        int, Field(description="The most slots a resupply job gets, unit units.", ge=1)
+    ]
+    defend_radius_m: Annotated[
+        float,
+        Field(
+            description="A friendly base posts a defend job when its side tracks an enemy ground unit within this distance of it (Q-SIM-74), unit m. Urgency rises as the nearest tracked enemy closes: 1.0 at the radius, the cap at the base.",
+            gt=0.0,
+        ),
+    ]
+    counterattack_window_min: Annotated[
+        float,
+        Field(
+            description="For this long after a side loses a node, its AI garrison may take strike and assist-objective jobs against it (Q-GD-31, Q-SIM-74), unit min of game time.",
+            gt=0.0,
+        ),
+    ]
+    scout_cooldown_min: Annotated[
+        float,
+        Field(
+            description="A scout job whose cell still holds a blob after it was DONE is not posted again for this long (Q-SIM-75), unit min of game time.",
+            gt=0.0,
+        ),
+    ]
+
+
 class Slots(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -726,3 +832,4 @@ class BalanceConfig(BaseModel):
     capture: Capture
     combat: Combat
     campaign: Campaign
+    tasking: Tasking

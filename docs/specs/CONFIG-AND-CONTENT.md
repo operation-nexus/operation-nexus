@@ -238,11 +238,18 @@ In code since NX-125: all ten keys are the `capture` block of `balance/default.y
 | `campaign.objective_mode` | enum `timed`\|`off` | — | `timed` (Q-GD-19); chosen at campaign setup by owner/admin only (Q-ALN-10) | GAMEPLAY §9 | No (set per campaign) |
 | `campaign.options.unlimited_ammo` | bool | — | not in the schema yet (NX-124 part 2 does not honour it); false (Q-CBT-7; test/special-event option; set at campaign setup by owner/admin only, not GM, Q-ALN-10) | GAMEPLAY §5 | No |
 | `campaign.intermission.mode` | enum `auto_advance`\|`await_owner` | — | TBD (owner choice per campaign, Q-UX-8) | GAMEPLAY §9 | Yes |
-| `tasking.claim_lease_s` | float | s (game, Q-ALN-23) | TBD by harness: a claim auto-releases when its unit makes no progress for this long (Q-GD-37) | GAMEPLAY §1b | Yes |
-| `tasking.priority.<job_kind>` | float | base priority | TBD by harness | GAMEPLAY §1b, Q-GP-20 | No |
-| `tasking.urgency_max` | float | multiplier cap (1.0–2.0) | 2.0 (PROPOSED) | GAMEPLAY §1b, Q-GP-20 | No |
-| `tasking.priority_aging_per_min` | float | priority points/min (game, Q-ALN-23) | TBD by harness: old jobs gain priority so they aren't starved (Q-GD-37) | GAMEPLAY §1b | Yes |
-| `tasking.reeval_every_ticks` | int | ticks | TBD by harness: boards are re-evaluated every N ticks, not every tick (Q-GD-37) | GAMEPLAY §1b | Yes |
+| `tasking.claim_lease_s` | float | s (game, Q-ALN-23) | 120 (PROPOSED, Q-SIM-73): a claim auto-releases when its unit makes no progress for this long (Q-GD-37) | GAMEPLAY §1b | Yes |
+| `tasking.priority.<job_kind>` | float | base priority | PROPOSED (Q-SIM-73), by lower-case `JobKind`: defend 60, resupply 50, assist_objective 45, strike 40, scout 30 (escort 40 joins with escort jobs; repair_bridge with NX-373) | GAMEPLAY §1b, Q-GP-20 | Yes |
+| `tasking.urgency_max` | float | multiplier cap (1.0–2.0) | 2.0 (PROPOSED, Q-SIM-73) | GAMEPLAY §1b, Q-GP-20 | Yes |
+| `tasking.priority_aging_per_min` | float | priority points/min (game, Q-ALN-23) | 1 (PROPOSED, Q-SIM-73): old jobs gain priority so they aren't starved (Q-GD-37) | GAMEPLAY §1b | Yes |
+| `tasking.reeval_every_ticks` | int | ticks | 50 (PROPOSED, Q-SIM-73): boards are re-evaluated every N running ticks, not every tick (Q-GD-37) | GAMEPLAY §1b | Yes |
+| `tasking.expire_min` | float | min (game, Q-ALN-23) | 15 (PROPOSED, Q-SIM-73): an unclaimed job expires this long after it was posted (objective jobs: with the objective) | GAMEPLAY §1b | Yes |
+| `tasking.slots.<job_kind>` | int | units | PROPOSED (Q-SIM-73): defend 2, strike 2, assist_objective 4, scout 1 (escort 2 joins with escort jobs) | GAMEPLAY §1b, TB-4 | Yes |
+| `tasking.resupply_stock_per_slot` | int | stock units | 100 (PROPOSED, Q-SIM-73): a resupply job gets one slot per this much missing stock (max stock minus stock, rounded up, at least 1) | GAMEPLAY §1b | Yes |
+| `tasking.resupply_slots_max` | int | units | 3 (PROPOSED, Q-SIM-73) | GAMEPLAY §1b | Yes |
+| `tasking.defend_radius_m` | float | m | 10000 (PROPOSED, Q-SIM-74): a base posts a defend job when its side tracks an enemy ground unit this close; urgency 1.0 at the radius rising to the cap at the base | GAMEPLAY §1b | Yes |
+| `tasking.counterattack_window_min` | float | min (game, Q-ALN-23) | 15 (PROPOSED, Q-SIM-74, Q-GD-31): for this long after a node is lost the AI garrison may take strike and assist-objective jobs against it | GAMEPLAY §1b | Yes |
+| `tasking.scout_cooldown_min` | float | min (game, Q-ALN-23) | 5 (PROPOSED, Q-SIM-75): a scout job for a cell that was DONE is not posted again this long | GAMEPLAY §1b | Yes |
 | `director.pol.patrol_period_s` | float | s (game, Q-ALN-23) | TBD by harness | THREAT-DIRECTOR §5a | Yes |
 | `director.pol.convoy_period_s` | float | s (game, Q-ALN-23) | TBD by harness | THREAT-DIRECTOR §5a | Yes |
 | `director.provocation.weights.<action>` | float | score per action | TBD by harness | THREAT-DIRECTOR §5a | Yes |
@@ -256,6 +263,8 @@ In code since NX-125: all ten keys are the `capture` block of `balance/default.y
 | `campaign.aar_duration_s` | float | s (real) | 300 | GAMEPLAY §9 | Yes |
 
 In code since NX-126: the `campaign` block of `balance/default.yaml` (`contracts/config/balance.json`) holds `time_limit_h`, `victory_node_frac`, `victory_hold_min`, `objective_period_min`, `objective_mode` (read from the balance profile until a per-campaign setting exists), `score.average_weight`, `score.final_weight`, `score.objective_points` and `momentum.nodes_weight` and `supply_weight`; `nexus.core.campaign` reads them. The three durations are game time, converted once at load (`game_ticks`, with the key's unit: 72 h = 2,592,000 ticks, 30 min = 18,000, 15 min = 9,000 at 10 Hz). The fractions and weights are read as the exact decimals written, so a threshold or a score tie is exact. `target_duration_h`, `max_extension_h`, `defeat`, `options`, `intermission`, `rubber_band_zone` and the night cap are not read yet.
+
+In code since NX-374: the required `tasking` block of `balance/default.yaml` (`contracts/config/balance.json`) holds the keys above (`priority` and `slots` are objects keyed by lower-case job kind). `claim_lease_s` and `expire_min` are game time and become running ticks at load (`Rules.tasking`); priorities, the aging rate and the urgency cap are kept exact.
 
 ### 6.7 Threat Director
 | Key | Type | Unit | PROPOSED | Source | HR |

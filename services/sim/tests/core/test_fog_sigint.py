@@ -157,6 +157,25 @@ def test_only_radar_sites_give_sigint_range() -> None:
     assert (w.blobs["COALITION"], w.sigint_age) == ((), 0)  # refreshed, empty
 
 
+def test_blob_runs_count_consecutive_refreshes_a_blob_keeps_its_cell() -> None:
+    """NX-374: the board posts a scout only for a cell that held a blob for 2 refreshes in a row."""
+    w, _, _ = sigint_scene("COALITION")
+    run_to(w, 10)
+    assert w.blob_runs["COALITION"] == {"3210": 1, "4410": 1} and w.blob_runs["ENEMY"] == {}
+    refresh_now(w)  # nobody moved: both blobs stay in their cells
+    assert w.blob_runs["COALITION"] == {"3210": 2, "4410": 2}
+    south = min((e for e in w.entities() if e.side == "ENEMY"), key=lambda e: e.pos.y)
+    w.remove(south.id)  # the lone mover in cell 3210 leaves
+    refresh_now(w)
+    assert w.blob_runs["COALITION"] == {"4410": 3}
+    refresh_now(w)
+    south2 = [e for e in w.entities() if e.side == "ENEMY" and e.pos.y > 11_000.0]
+    for e in south2:
+        w.remove(e.id)
+    refresh_now(w)
+    assert w.blob_runs["COALITION"] == {}
+
+
 def test_refresh_replaces_the_set_and_pause_freezes_it() -> None:
     """FOW-9: no refresh while paused; the countdown resumes where it stopped."""
     w, _, far = sigint_scene("COALITION")

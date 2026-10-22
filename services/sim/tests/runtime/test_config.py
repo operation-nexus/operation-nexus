@@ -140,15 +140,38 @@ campaign:
   momentum:
     nodes_weight: 70
     supply_weight: 30
+tasking:
+  reeval_every_ticks: 50
+  claim_lease_s: 120
+  expire_min: 15
+  priority:
+    defend: 60
+    resupply: 50
+    assist_objective: 45
+    strike: 40
+    scout: 30
+  urgency_max: 2.0
+  priority_aging_per_min: 1
+  slots:
+    defend: 2
+    strike: 2
+    assist_objective: 4
+    scout: 1
+  resupply_stock_per_slot: 100
+  resupply_slots_max: 3
+  defend_radius_m: 10000
+  counterattack_window_min: 15
+  scout_cooldown_min: 5
 """
 # Pinned from this implementation's first run (NX-367: balance, units, theater; re-pinned NX-121
 # for speed_mps, NX-122 for slots and again for the GP-3 cap and queue, NX-368 for air fuel and
 # orbit, NX-150 for sensors, stealth and fow, passive ranges, and SIGINT and paint keys, NX-123
 # for logistics and the rear source, NX-123 part 2 for loadouts, rearm and forward deploy, NX-125
 # for capture, NX-126 for campaign, NX-124 for combat and its assist window, and NX-124 part 2 for
-# repair, crew and the damage multipliers, and NX-124 part 3 for defense hp and the defeat hold); a
+# repair, crew and the damage multipliers, NX-124 part 3 for defense hp and the defeat hold, and
+# NX-374 for the tasking keys); a
 # change means every config_hash moved.
-GOLDEN_CONFIG_HASH = "e9b7b4a9f0a65e272a0d24944b5eda232239bb6cf1f4a520717512d3286a6d28"
+GOLDEN_CONFIG_HASH = "b10ff8e4d6c2a02226761a53af04f05dd22cf36d6728be24018359b9d733fc41"
 SLOTS = {
     "max_live_per_commander": 1,
     "respawn_delay_s": 20,
@@ -239,6 +262,20 @@ CAMPAIGN = {
     "score": {"average_weight": 50, "final_weight": 50, "objective_points": 5},
     "momentum": {"nodes_weight": 70, "supply_weight": 30},
 }
+TASKING = {
+    "reeval_every_ticks": 50,
+    "claim_lease_s": 120,
+    "expire_min": 15,
+    "priority": {"defend": 60, "resupply": 50, "assist_objective": 45, "strike": 40, "scout": 30},
+    "urgency_max": 2.0,
+    "priority_aging_per_min": 1,
+    "slots": {"defend": 2, "strike": 2, "assist_objective": 4, "scout": 1},
+    "resupply_stock_per_slot": 100,
+    "resupply_slots_max": 3,
+    "defend_radius_m": 10000,
+    "counterattack_window_min": 15,
+    "scout_cooldown_min": 5,
+}
 CFG = BalanceConfig.model_validate(
     {
         "schema_version": 1,
@@ -250,6 +287,7 @@ CFG = BalanceConfig.model_validate(
         "capture": CAPTURE,
         "combat": COMBAT,
         "campaign": CAMPAIGN,
+        "tasking": TASKING,
     }
 )
 
@@ -536,6 +574,12 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "  objective_period_min: 15,\n"
         "  victory_hold_min: 30, defeat: {hold_min: 30}, victory_node_frac: 0.80,\n"
         "  time_limit_h: 72}\n"
+        "tasking: {reeval_every_ticks: 50, claim_lease_s: 120, expire_min: 15,\n"
+        "  priority: {scout: 30, strike: 40, assist_objective: 45, resupply: 50, defend: 60},\n"
+        "  urgency_max: 2.0, priority_aging_per_min: 1,\n"
+        "  slots: {scout: 1, assist_objective: 4, strike: 2, defend: 2},\n"
+        "  resupply_stock_per_slot: 100, resupply_slots_max: 3, defend_radius_m: 10000,\n"
+        "  counterattack_window_min: 15, scout_cooldown_min: 5}\n"
         "schema_version:   1\n"
     )
     assert balance_hash(write(tmp_path, reformatted)) == balance_hash(DEFAULT)
@@ -612,6 +656,7 @@ def test_world_ticks_is_the_least_whole_tick_count_not_shorter(
             "capture": CAPTURE,
             "combat": COMBAT,
             "campaign": CAMPAIGN,
+            "tasking": TASKING,
         }
     )
     n = world_ticks(seconds, cfg)

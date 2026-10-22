@@ -19,6 +19,7 @@ from nexus.core.handlers import Handler as Handler
 from nexus.core.handlers import reject, serve_reserve_queue
 from nexus.core.logistics import logistics, nearest_base
 from nexus.core.rules import Rules
+from nexus.core.tasking import run as run_tasking
 from nexus.core.world import SIDES, Entity, UnitState, Vec2, World, lose_unit
 
 TICK_DT = 0.1  # game seconds per tick (SC-2)
@@ -53,7 +54,8 @@ def apply_commands(
 def director(
     world: World, c: Sequence[Command], h: Mapping[str, Handler], out: list[Event]
 ) -> None:
-    """Director and AI orders: NX-155."""
+    """The Tasking Boards (`nexus.core.tasking`, NX-374); the director's own orders: NX-155."""
+    run_tasking(world, out)
 
 
 def movement(

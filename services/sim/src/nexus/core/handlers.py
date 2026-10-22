@@ -5,7 +5,7 @@ events. An invalid command becomes a `CommandRejected`, never an exception (SC-7
 `World.rules` is a setup bug and raises.
 """
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from typing import NamedTuple
 
 from nexus.contracts.gen.commands.command import Command
@@ -26,7 +26,8 @@ from nexus.core.campaign import end_campaign
 from nexus.core.logistics import Run, load, pay_loadout, plan_deploy, plan_run
 from nexus.core.roads import shortest_path
 from nexus.core.rules import Rules
-from nexus.core.world import Vec2, World
+from nexus.core.tasking import claim, crosses_ring, joinable_jobs
+from nexus.core.world import Job, Order, Vec2, World
 
 type Handler = Callable[[World, Command, list[Event]], None]
 
@@ -38,7 +39,8 @@ class _Plan(NamedTuple):
     kind: UnitKind
     source: str
     cargo: int | None
-    path: list[str]
+    path: Sequence[str | Vec2]
+    job: int | None = None  # the Tasking Board job a parameterless JOIN takes (Q-GP-23)
 
 
 _COMMANDER: OwnerKind = "COMMANDER"
@@ -148,7 +150,7 @@ def _enqueue(world: World, command: JoinCommand, rules: Rules, out: list[Event])
 
 
 def _spawn(world: World, command: JoinCommand, plan: _Plan, rules: Rules, out: list[Event]) -> None:
-    kind, node, cargo, path = plan
+    kind, node, cargo, path, job = plan
     unit = world.spawn(
         kind,
         _COALITION,
@@ -159,6 +161,7 @@ def _spawn(world: World, command: JoinCommand, plan: _Plan, rules: Rules, out: l
         hp=None,
     )
     unit.last_node, unit.path, unit.cargo = node, list(path), cargo
+    unit.order = _order(command)
     if cargo:  # the plan and the spawn are one step of one tick: the stock is as planned
         load(world, Run(node, cargo, []))
     pay_loadout(world, rules, kind, node, out)
@@ -180,6 +183,14 @@ def _spawn(world: World, command: JoinCommand, plan: _Plan, rules: Rules, out: l
             loadout="FULL",
         )
     )
+    if job is not None:  # a parameterless JOIN takes its job at once (Q-GP-23)
+        claim(world, unit, world.boards[_COALITION][job], out)
+
+
+def _order(command: JoinCommand) -> Order | None:
+    """The explicit order a JOIN gives (GAMEPLAY §1b): `hold` waits, a node goes there; neither
+    (auto-tasking) leaves the board in charge."""
+    return "HOLD" if command.hold else "GOTO" if command.target is not None else None
 
 
 def _plan(world: World, command: JoinCommand, rules: Rules) -> _Plan | RejectReason:
@@ -199,7 +210,26 @@ def _plan(world: World, command: JoinCommand, rules: Rules) -> _Plan | RejectRea
         return "UNIT_IN_SORTIE"  # retarget or switch at base needs unit states (GP-1)
     if commander in world.respawn_left:
         return "RESPAWN_COOLDOWN"
+    if command.target is None and not command.hold:
+        for job in joinable_jobs(world, kind):
+            plan = _route_job(world, job, kind, rules)
+            if isinstance(plan, str):
+                continue
+            start = Vec2(*rules.roads.pos[plan.source])
+            if rules.domain[kind] == "AIR" and crosses_ring(world, rules, _COALITION, start, job):
+                continue  # route danger applies to a new aircraft as to a board assignment (TB-2)
+            return plan._replace(job=job.id)
     return _route(world, target=command.target, kind=kind, rules=rules)
+
+
+def _route_job(world: World, job: Job, kind: UnitKind, rules: Rules) -> _Plan | RejectReason:
+    """The plan for a unit taking `job`: its node as an ordinary JOIN target, or, for a blob
+    (scout), straight from the sanctuary to the blob's cell. A rejection means no plan."""
+    if job.node is not None:
+        return _route(world, target=NodeTarget(node_id=job.node), kind=kind, rules=rules)
+    if job.pos is None or rules.domain[kind] != "AIR":
+        return "NODE_INVALID_FOR_UNIT"
+    return _Plan(kind, rules.sanctuary, None, [job.pos])
 
 
 def _route(

@@ -81,6 +81,9 @@ def sense(world: World) -> None:
         world.sigint_age = 0
         for side in _ENEMY_OF:
             world.blobs[side] = _sigint(world, rules, side)
+            old = world.blob_runs[side]  # a blob staying in its cell lengthens its run
+            cells = [b.id.split("-")[1] for b in world.blobs[side]]
+            world.blob_runs[side] = {c: old.get(c, 0) + 1 for c in cells}
 
 
 def _age(world: World, rules: Rules) -> None:
@@ -375,6 +378,7 @@ class SideView:
     owners: Mapping[str, NodeOwner]  # every node's live owner (FOW-10, NX-125)
     markers: Mapping[int, FacilityMarker]  # discovered enemy facilities (FOW-13)
     blobs: tuple[Blob, ...]  # Tier 1 SIGINT blobs from the last refresh, by cell index
+    defense_hp: Mapping[str, int]  # every defended node's hp: public node state (FOW-10, CB-10)
 
 
 def side_view(world: World, side: Side) -> SideView:
@@ -389,4 +393,5 @@ def side_view(world: World, side: Side) -> SideView:
         dict(world.owner),
         {i: replace(m) for i, m in world.markers[side].items()},
         world.blobs[side],  # immutable
+        dict(world.defense_hp),
     )

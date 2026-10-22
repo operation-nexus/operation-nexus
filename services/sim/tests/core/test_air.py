@@ -6,6 +6,7 @@ Shipped strait-1 values used below: STRIKE_FIGHTER top 250 m/s, stall 100 m/s, f
 (20 km, 120 km), west-airbase (90 km, 120 km), east-airbase (310 km, 120 km).
 """
 
+import dataclasses
 import math
 import os
 import subprocess
@@ -25,7 +26,7 @@ from nexus.core.world import Campaign, Entity, UnitState, Vec2, World, load, sav
 from nexus.runtime.campaign_config import load_campaign_config
 
 CAMPAIGN_ID = "0192f3a4-5b6c-7d8e-9f01-23456789abcd"
-RULES = load_campaign_config().rules
+RULES = dataclasses.replace(load_campaign_config().rules, tasking=None)  # NX-374: board off
 JET: UnitKind = "STRIKE_FIGHTER"
 CID = "0192f0c1-7a2b-7c3d-8e4f-000000000099"
 W, H = 400_000.0, 240_000.0

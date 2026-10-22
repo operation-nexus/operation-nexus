@@ -232,6 +232,49 @@ def test_combat_events_reject_bad_fields(event: dict[str, object], bad: dict[str
         EVENTS.validate_python({**event, **bad})
 
 
+JOB_CREATED = {**_BASE, "kind": "JobCreated", "job_id": 3, "side": "COALITION",
+               "job_kind": "SCOUT", "node_id": None, "blob_id": "270-493", "slots": 1,
+               "depends_on_job_id": None}  # fmt: skip
+JOB_CLAIMED = {**_BASE, "kind": "JobClaimed", "job_id": 3, "entity_id": 12}
+JOB_RELEASED = {**JOB_CLAIMED, "kind": "JobReleased"}
+_PARTICIPANT = {"entity_id": 12, "commander_id": COMMANDER, "auto": False}
+JOB_DONE = {**_BASE, "kind": "JobDone", "job_id": 3, "participants": [_PARTICIPANT]}
+JOB_FAILED = {**_BASE, "kind": "JobFailed", "job_id": 3}
+JOB_EXPIRED = {**JOB_FAILED, "kind": "JobExpired"}
+
+
+@pytest.mark.parametrize(
+    "good",
+    [JOB_CREATED, JOB_CLAIMED, JOB_RELEASED, JOB_DONE, JOB_FAILED, JOB_EXPIRED],
+)
+def test_job_events_parse_through_the_event_union(good: dict[str, object]) -> None:
+    event = EVENTS.validate_python(good)
+    assert event.kind == good["kind"] and event.model_dump(mode="json") == good
+
+
+@pytest.mark.parametrize(
+    ("event", "bad"),
+    [
+        (JOB_CREATED, {"job_kind": "ESCORT_CONVOY"}),  # no producer yet (rule 6a)
+        (JOB_CREATED, {"blob_id": "7"}),  # <refresh_tick>-<cell_index>
+        (JOB_CREATED, {"node_id": "West Airbase"}),
+        (JOB_CREATED, {"slots": 0}),
+        (JOB_CREATED, {"job_id": 0}),
+        (JOB_CREATED, {"sector_id": None}),  # joins with the sector scout
+        (JOB_CLAIMED, {"entity_id": 0}),
+        (
+            JOB_DONE,
+            {"participants": [{"entity_id": 12, "commander_id": COMMANDER}]},
+        ),  # auto missing
+        (JOB_DONE, {"participants": [{"entity_id": 12, "commander_id": "x", "auto": False}]}),
+        (JOB_FAILED, {"reason": "NODE_LOST"}),
+    ],
+)
+def test_job_events_reject_bad_fields(event: dict[str, object], bad: dict[str, object]) -> None:
+    with pytest.raises(ValidationError):
+        EVENTS.validate_python({**event, **bad})
+
+
 SET_CALLSIGN = {
     "kind": "SYS_SET_CALLSIGN",
     "source": "SYSTEM",

@@ -9,6 +9,8 @@
     "ObjectiveId": {"type": "integer", "minimum": 1, "description": "Sequential per campaign, never reused (STATE-MACHINES 4.5)."},
     "CampaignId": {"type": "string", "pattern": "^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$", "description": "UUIDv7, canonical lowercase."},
     "EntityId": {"type": "integer", "minimum": 1, "description": "Sequential per campaign, never reused (SC-4)."},
+    "TaskingJobId": {"type": "integer", "minimum": 1, "description": "Tasking Board job id: per campaign, one counter for both sides' boards, never reused (GAMEPLAY \u00a71b)."},
+    "BlobId": {"type": "string", "pattern": "^(0|[1-9][0-9]*)-(0|[1-9][0-9]*)$", "maxLength": 32, "description": "A SIGINT blob, <refresh_tick>-<cell_index> (FOG-OF-WAR FOW-2). Opaque to clients."},
     "CrewMarkerId": {"type": "integer", "minimum": 1, "description": "Per campaign, allocated by the kernel when a crew is downed, never reused (GAMEPLAY 6a, COMBAT CB-8)."},
     "NodeId": {"type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$", "maxLength": 32, "description": "Stable slug from the theater file."},
     "SectorId": {"type": "string", "pattern": "^[a-z0-9]+(-[a-z0-9]+)*$", "maxLength": 32, "description": "Named map region from the theater file (OVERLAY AN-1)."},

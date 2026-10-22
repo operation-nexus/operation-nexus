@@ -1,0 +1,227 @@
+"""Tasking Board job generation (GAMEPLAY §1b, TB-4, TB-9; NX-374).
+
+`generate` returns the jobs one side's board should hold now, as `JobSpec`s. TB-9: it reads only
+that side's `SideView` (FOG-OF-WAR FOW-4, FOW-8) plus the side's own state: its nodes' stock, its
+facilities, the capture bars on its nodes, and the node defense hp, which is node state that
+combat uses without a track (COMBAT CB-10, FOW-10). The objective is the coalition's. No spec
+refers to an entity id, so a job names a node, or a SIGINT blob with its cell centre.
+
+- **Resupply** (`resupply:<node>`): a node the side owns, with stock, below its starvation floor or
+  with damaged facilities (Q-GP-47). Urgency: the larger of the stock deficit share (floor - stock)
+  / floor and the facilities' missing hp share, on top of 1.0. Slots: one per
+  `resupply_stock_per_slot` of missing stock (max stock - stock, rounded up), 1 to
+  `resupply_slots_max`.
+- **Defend** (`defend:<node>`): a node the side owns that can be captured and is threatened: the
+  other side's capture bar is on it, or a tracked enemy GROUND unit is within
+  `tasking.defend_radius_m` of it (Q-SIM-74). Urgency: 1.0 + the larger of the bar's share and
+  `1 - d / radius` for the nearest tracked enemy at distance `d` (0 at the radius, 1 at the base),
+  capped at `urgency_max`.
+- **Strike** (`strike:<node>`): an enemy-held node whose defense hp is above 0 that is the active
+  objective (coalition only, urgency at the cap), or holds a discovered facility marker whose
+  last-known state is not Disabled (urgency 1.0 + its kind's `threat` / 100, capped).
+- **Assist objective** (`assist:<node>`, coalition only): the active objective's node, urgency at
+  the cap (the objective flag). It ends with the objective.
+- **Scout** (`scout:<cell>`): each SIGINT blob in the side's view (a group it senses but cannot
+  track) whose cell is not cooling down after a finished scout (`tasking.scout_cooldown_min`).
+  Urgency by size bucket: S 1.0, M 1.5, L 2.0 (capped).
+
+A kind is generated only while the side can staff it: a live unit of the side fits it, or, for
+the coalition, a viewer can JOIN as a role that fits. A scout is posted for a cell only once a
+blob has been in it for 2 consecutive SIGINT refreshes (`World.blob_runs`), so a blob crossing
+cells posts nothing.
+
+`GENERATED` lists the key prefixes the board owns: an unclaimed job with one of them that is not
+generated again is dropped (its condition ended). A job posted by anything else (the director, a
+GM) is not.
+"""
+
+import math
+from collections.abc import Iterator
+from fractions import Fraction
+from typing import NamedTuple
+
+from nexus.contracts.gen.common.enums import JobKind, Side, UnitKind
+from nexus.core.fog import SideView
+from nexus.core.rules import CAPTURE_FULL, Rules, TaskingRules
+from nexus.core.world import Vec2, World
+
+GENERATED = ("resupply:", "defend:", "strike:", "assist:", "scout:")
+_GROUND, _AIR = "GROUND", "AIR"
+_UNDEFENDED = ("SANCTUARY", "BRIDGE")  # never captured (N-4, NX-373)
+_BLOB_RUN = 2  # consecutive SIGINT refreshes a blob must stay in a cell before a scout is posted
+_BLOB_URGENCY = {"S": 1000, "M": 1500, "L": 2000}  # thousandths: the size bucket spans 1.0 to 2.0
+_JOB_KINDS: tuple[JobKind, ...] = ("RESUPPLY", "SCOUT", "DEFEND", "STRIKE", "ASSIST_OBJECTIVE")
+_FOE: dict[Side, Side] = {"COALITION": "ENEMY", "ENEMY": "COALITION"}
+
+
+class JobSpec(NamedTuple):
+    """A job to post (`tasking.post_job`): `urgency` in thousandths; `objective` makes the job end
+    with that objective instead of expiring."""
+
+    kind: JobKind
+    key: str
+    slots: int
+    urgency: int
+    node: str | None = None
+    blob: str | None = None
+    pos: Vec2 | None = None
+    objective: int | None = None
+    depends_on: int | None = None
+
+
+def fits(rules: Rules, kind: UnitKind, job_kind: JobKind) -> bool:
+    """Whether a unit kind can do a job kind (the role(s) that fit, GAMEPLAY §1b), from what the
+    kind can do: carriers resupply, painters (recon) scout, armed aircraft strike, armed aircraft
+    and ground units defend, any ground unit (a capturer) assists an objective."""
+    domain = rules.domain[kind]
+    match job_kind:
+        case "RESUPPLY":
+            return kind in rules.supply.carriers
+        case _ if kind in rules.supply.carriers:
+            return False  # a carrier only hauls; capture runs are direct orders
+        case "SCOUT":
+            return kind in rules.painters
+        case "STRIKE":
+            return domain == _AIR and kind in rules.armed
+        case "DEFEND":
+            return domain in (_AIR, _GROUND) and kind in rules.armed
+        case "ASSIST_OBJECTIVE":
+            return domain == _GROUND
+    return False
+
+
+def _able(world: World, rules: Rules, side: Side) -> set[JobKind]:
+    """Job kinds the side can staff: a live unit of it fits, or, for the coalition, a viewer can
+    JOIN as a role that fits (a parameterless JOIN takes its job at once, Q-GP-23)."""
+    kinds = {e.kind for e in world.entities() if e.side == side and e.damage_state != "DISABLED"}
+    if side == "COALITION":
+        kinds |= set(rules.role_kind.values())
+    return {j for j in _JOB_KINDS if any(fits(rules, k, j) for k in kinds)}
+
+
+def _urgency(tr: TaskingRules, share: Fraction) -> int:
+    return min(tr.urgency_max_milli, 1000 + math.floor(share * 1000))
+
+
+def generate(
+    world: World, rules: Rules, tr: TaskingRules, side: Side, view: SideView
+) -> list[JobSpec]:
+    able = _able(world, rules, side)
+    specs = [
+        *_resupply(world, rules, tr, side, view),
+        *_defend(world, rules, tr, side, view),
+        *_strike(world, rules, tr, side, view),
+        *_assist(world, tr, side),
+        *_scout(tr, view, world, side),
+    ]
+    return [s for s in specs if s.kind in able]
+
+
+def _facility_damage(world: World, rules: Rules, side: Side) -> dict[str, tuple[int, int]]:
+    """Base -> (missing hp, max hp) over the side's facilities there (the side's own state)."""
+    cr = rules.combat
+    totals: dict[str, list[int]] = {}
+    for e in world.entities():
+        if cr is not None and e.side == side and e.base_id is not None:
+            top = cr.units[e.kind].hp
+            t = totals.setdefault(e.base_id, [0, 0])
+            t[0] += top - e.hp
+            t[1] += top
+    return {n: (t[0], t[1]) for n, t in totals.items()}
+
+
+def _resupply(
+    world: World, rules: Rules, tr: TaskingRules, side: Side, view: SideView
+) -> Iterator[JobSpec]:
+    sup, damage = rules.supply, _facility_damage(world, rules, side)
+    for node in sorted(sup.max_stock):
+        top, stock, floor = sup.max_stock[node], world.stock.get(node, 0), sup.starve_floor[node]
+        if top <= 0 or view.owners.get(node) != side:
+            continue
+        starved = Fraction(floor - stock, floor) if stock < floor else Fraction(0)
+        missing_hp, max_hp = damage.get(node, (0, 1))
+        need = max(starved, Fraction(missing_hp, max_hp))
+        if need:
+            slots = -(-(top - stock) // tr.resupply_stock_per_slot)
+            yield JobSpec(
+                "RESUPPLY", f"resupply:{node}", min(tr.resupply_slots_max, max(1, slots)),
+                _urgency(tr, need), node=node,
+            )  # fmt: skip
+
+
+def _defend(
+    world: World, rules: Rules, tr: TaskingRules, side: Side, view: SideView
+) -> Iterator[JobSpec]:
+    reach = tr.defend_radius_m
+    for node, (x, y) in sorted(view.nodes.items()):
+        if view.owners.get(node) != side or rules.node_kind[node] in _UNDEFENDED:
+            continue
+        bar = world.capture.get(node)  # a bar on an owned node is always the other side's
+        share = Fraction(bar.progress, CAPTURE_FULL) if bar is not None else Fraction(0)
+        nearest = min(  # the closest tracked enemy ground unit within the radius
+            (
+                math.hypot(c.pos.x - x, c.pos.y - y)
+                for c in view.tracks.values()
+                if rules.domain[c.kind] == _GROUND
+            ),
+            default=math.inf,
+        )
+        if nearest <= reach:
+            share = max(share, Fraction(1) - Fraction(nearest) / Fraction(reach))
+        if share or nearest <= reach:
+            yield JobSpec(
+                "DEFEND", f"defend:{node}", tr.slots["DEFEND"], _urgency(tr, share), node=node
+            )
+
+
+def _strike(
+    world: World, rules: Rules, tr: TaskingRules, side: Side, view: SideView
+) -> Iterator[JobSpec]:
+    foe, slots = _FOE[side], tr.slots["STRIKE"]
+    targets: dict[str, JobSpec] = {}
+    o = world.objective if side == "COALITION" else None
+    if o is not None and view.owners.get(o.node_id) == foe and view.defense_hp.get(o.node_id, 0):
+        targets[o.node_id] = JobSpec(
+            "STRIKE", f"strike:{o.node_id}", slots, tr.urgency_max_milli, node=o.node_id,
+            objective=o.id,
+        )  # fmt: skip
+    at = {(float(x), float(y)): n for n, (x, y) in view.nodes.items()}
+    threats: dict[str, int] = {}  # node -> the highest `threat` of its discovered sites
+    for _, m in sorted(view.markers.items()):
+        node = at.get((m.pos.x, m.pos.y))
+        if (
+            node is None or view.owners.get(node) != foe
+            or m.state == "DISABLED" or not view.defense_hp.get(node, 0)
+        ):  # fmt: skip
+            continue
+        threat = rules.combat.units[m.kind].threat if rules.combat else 0
+        threats[node] = max(threats.get(node, 0), min(threat, 100))
+    for node, threat in sorted(threats.items()):
+        if node not in targets:
+            urgency = min(tr.urgency_max_milli, 1000 + 10 * threat)
+            targets[node] = JobSpec("STRIKE", f"strike:{node}", slots, urgency, node=node)
+    for node in sorted(targets):
+        yield targets[node]
+
+
+def _assist(world: World, tr: TaskingRules, side: Side) -> Iterator[JobSpec]:
+    o = world.objective
+    if o is not None and side == "COALITION":
+        yield JobSpec(
+            "ASSIST_OBJECTIVE", f"assist:{o.node_id}", tr.slots["ASSIST_OBJECTIVE"],
+            tr.urgency_max_milli, node=o.node_id, objective=o.id,
+        )  # fmt: skip
+
+
+def _scout(tr: TaskingRules, view: SideView, world: World, side: Side) -> Iterator[JobSpec]:
+    now, cooling, runs = (
+        world.campaign.running_ticks + 1,
+        world.cooldown[side],
+        world.blob_runs[side],
+    )
+    for b in view.blobs:
+        cell = b.id.split("-")[1]  # the refresh tick changes, the cell is the dedupe key
+        if runs.get(cell, 0) < _BLOB_RUN or cooling.get(cell, 0) > now:
+            continue  # not there for 2 refreshes yet, or scouted lately (Q-SIM-75)
+        urgency = min(tr.urgency_max_milli, _BLOB_URGENCY[b.size])
+        yield JobSpec("SCOUT", f"scout:{cell}", tr.slots["SCOUT"], urgency, blob=b.id, pos=b.pos)

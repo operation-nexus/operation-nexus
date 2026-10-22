@@ -18,8 +18,10 @@ from nexus.core.world import (
     Blob,
     Campaign,
     CaptureBar,
+    Claim,
     Contact,
     FacilityMarker,
+    Job,
     Objective,
     Shot,
     Vec2,
@@ -85,6 +87,7 @@ def golden_world() -> World:
     )
     # NX-150 part 2b: the coalition's blobs from the tick-3 refresh, 2 running ticks ago.
     w.blobs["COALITION"] = (Blob("3-7", Vec2(75e3, 5e3), "S"), Blob("3-48", Vec2(85e3, 15e3), "L"))
+    w.blob_runs["COALITION"] = {"7": 2, "48": 1}  # NX-374: refreshes in a row a blob kept its cell
     w.sigint_age = 2
     # NX-124: the fighter has fired one of its 4 missiles (reload 3 ticks left); the infantry is a
     # wreck with 300 running ticks to go; two shots are in flight, by (impact_tick, id).
@@ -105,6 +108,34 @@ def golden_world() -> World:
     c.hold_ticks, c.held_ticks_coalition, c.held_ticks_enemy = 2, 8, 4
     c.objectives_issued, c.objectives_done = 4, 3
     w.objective = Objective(4, "west-airbase", 900, True)
+    # NX-374: the coalition board holds a defend job the fighter claimed (made progress at running
+    # tick 2) and a scout of blob 3-7 waiting on it; the enemy board one resupply; the armor has a
+    # GOTO order.
+    fighter.job_id, armor.order = 1, "GOTO"
+    defend = Job(1, "DEFEND", "defend:west-airbase", 2, 1500, 1, node="west-airbase", expires=9000)
+    defend.claims[1] = Claim(2, True)
+    scout = Job(
+        2,
+        "SCOUT",
+        "scout:7",
+        1,
+        1000,
+        2,
+        blob="3-7",
+        pos=Vec2(75e3, 5e3),
+        expires=9000,
+        depends_on=1,
+    )
+    w.boards["COALITION"] = {1: defend, 2: scout}
+    w.boards["ENEMY"] = {
+        3: Job(
+            3, "RESUPPLY", "resupply:east-airbase", 3, 2000, 3, node="east-airbase", expires=9000
+        )
+    }
+    w._next_job_id = 4
+    # NX-374 follow-ups: the Static lost east-airbase on running tick 2, the coalition scouted cell
+    # 7 (no scout job for it until running tick 900), and the armor has a truck-style pickup.
+    w.lost, w.cooldown["COALITION"], armor.pickup = {"east-airbase": 2}, {"7": 900}, "cross-n"
     return w
 
 
@@ -118,11 +149,12 @@ def test_golden_state_hash_seed_12345() -> None:
     # reason, end flag, score sums and the active objective, v13; NX-124: damage state, altitude
     # band, ammo, reload, wreck timer and pending shots, v14; part 2: the rearm-stop carries and
     # the downed-crew markers, v15; NX-124 part 3: defense hp, drain carry, down flags, the defeat
-    # run, node shots, Entity.defended and marker ring_m and state, v16).
+    # run, node shots, Entity.defended and marker ring_m and state, v16; NX-374: both Tasking Boards
+    # with their job counter, Entity.order and Entity.job_id, v17).
     # A change here breaks every recorded replay hash: needs a `golden-update` reason.
     assert (
         state_hash(golden_world())
-        == "4a99c6df90a848cde79cd5861c6d8ffe351c73159ac4d5df380fcb894cfef679"
+        == "97bb7e71543b754613ac2ab4dcc79e503121c74f5f7e2c996255e96db9ac5de9"
     )
     e = to_canonical(golden_world(), quantize=True)["entities"][0]
     assert e["pos"] == [1000250, 2000500]  # mm
@@ -271,6 +303,7 @@ def worlds(draw: st.DrawFn) -> World:
         cells = sorted(draw(st.sets(st.integers(0, 10**4), max_size=3)))
         size = draw(st.sampled_from(world_mod._BLOB_SIZES))
         w.blobs[side] = tuple(Blob(f"{refresh}-{k}", draw(vecs), size) for k in cells)
+        w.blob_runs[side] = {str(k): draw(st.integers(1, 5)) for k in cells}
     w.sigint_age = draw(st.integers(0, w.campaign.tick - refresh))  # running ticks since
     if len(w) and draw(st.booleans()):
         w.remove(next(w.entities()).id)

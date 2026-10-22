@@ -10,7 +10,7 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | Phase | Items | Done | Status |
 |---|---|---|---|
 | P0 Foundations | 42 | 19 | 🟨 |
-| P1 Sim kernel | 34 | 20 | 🟨 |
+| P1 Sim kernel | 35 | 22 | 🟨 |
 | P2 Closed alpha | 34 | 0 | ⬜ |
 | P3 Public beta | 22 | 0 | ⬜ |
 | P4 Depth | 67 | 1 | ⬜ |
@@ -100,23 +100,24 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-370 [#192](https://github.com/operation-nexus/operation-nexus/issues/192) | `SYS_SET_CALLSIGN`: commander callsigns reach the sim; JOIN copies them (Q-SIM-39) | S | ✅ | NX-122 | Contract + handler; callsign in snapshot; UnitSpawned carries it |
 | NX-371 [#194](https://github.com/operation-nexus/operation-nexus/issues/194) | Reserve queue follow-ups: `ReserveQueueLeft` events, `slots.queue_idle_min` timeout, RQ-1 milestones, ban/forget removal | S | ⬜ | NX-122 | Queue counter derivable from events; idle entries removed by a logged command |
 | NX-123 | Logistics: stock, convoys, unload, starvation (factories parked, Q-GP-41) | L | ✅ | NX-121 | Conservation property; starvation loadouts. Part 1 (stock, rear source, trucks, `SupplyDelivered`) done; part 2 (forward deploy, refuel, starvation cap; Q-SIM-51, 53 to 55) in review; munitions on rearm join with NX-124 |
-| NX-124 | Combat per COMBAT spec: targeting, pk model, damage, wrecks, SAM rings | L | 👀 | NX-121, NX-150, NX-367 | Damaged units slow down by `combat.damage_state.damaged_speed_mult` (Q-SIM-38); COMBAT §7 test plan passes, incl. Pk cap, range factor and the §5.1 matrix check against content; adds the min-speed clamp for damaged aircraft and the wreck and crew roll on `UnitDestroyed` (Q-SIM-43); adds aircraft altitude bands so terrain masking and the Q-FOW-3 aircraft test apply, plus `ring_m` and damage `state` on facility markers (Q-SIM-46). Part 1 (core) done; part 2 (rearm, repair, auto-RTB, crew, damaged slowdown; Q-SIM-68 to Q-SIM-70) done; part 3 (node defense HP, defeat, idle floor, fog follow-ups; Q-SIM-71, Q-SIM-72) in review |
+| NX-124 | Combat per COMBAT spec: targeting, pk model, damage, wrecks, SAM rings | L | ✅ | NX-121, NX-150, NX-367 | Damaged units slow down by `combat.damage_state.damaged_speed_mult` (Q-SIM-38); COMBAT §7 test plan passes, incl. Pk cap, range factor and the §5.1 matrix check against content; adds the min-speed clamp for damaged aircraft and the wreck and crew roll on `UnitDestroyed` (Q-SIM-43); adds aircraft altitude bands so terrain masking and the Q-FOW-3 aircraft test apply, plus `ring_m` and damage `state` on facility markers (Q-SIM-46). Part 1 (core) done; part 2 (rearm, repair, auto-RTB, crew, damaged slowdown; Q-SIM-68 to Q-SIM-70) done; part 3 (node defense HP, defeat, idle floor, fog follow-ups; Q-SIM-71, Q-SIM-72) done |
 | NX-125 | Capture with contest/decay | M | ✅ | NX-121 | No double flip property; replaces the static `Rules.landing_bases` with live node ownership (Q-SIM-43); adds node owners to `SideView` and moves a facility's contacts when its base flips (Q-SIM-45); drops a side's markers of facilities it captures and discovers captured bases' facilities (FOW-13) |
 | NX-126 | Campaign: objectives, momentum, win/loss, pause with a reason category (Q-ALN-3); the clock never pauses for lack of humans (Q-GD-4 amended). The automatic pauses are NX-325 | M | ✅ | NX-125 | Scenario tests per condition. In code: clock, staff pause/resume/end, coalition victory, time-limit score (Q-SIM-64), timed objectives, momentum; defeat with NX-124, idle floor with AUTO, `CampaignStarted` and extensions with their commands (Q-SIM-62, Q-SIM-63) |
 | NX-150 [#198](https://github.com/operation-nexus/operation-nexus/issues/198) | FoW tiers + server-side redaction + blob clustering, last-known tracks (FOW-6a), emitters (FOW-11), spotted flag (FOW-12), masking regions | L | ✅ | NX-104 | FOW-1..3, FOW-6a, FOW-11, FOW-12 properties |
 | NX-372 [#203](https://github.com/operation-nexus/operation-nexus/issues/203) | Sensing performance: one grid per sensor-range class (Q-SIM-4) | S | ✅ | NX-150 | Same results as the brute-force oracle; owner re-runs the i7 sensing bench; NumPy reopened only if a sensing tick stays above ~10 ms |
 | NX-373 | Bridges: bridge HP from STRUCTURE fire, a destroyed bridge cuts its road (paths reroute), truck repair (STATE-MACHINES §4.3, Q-GD-11, Q-SIM-71) | M | ⬜ | NX-124 | B-1, B-2; convoys reroute around a cut bridge; repair numbers approved by the owner first |
+| NX-374 [#220](https://github.com/operation-nexus/operation-nexus/issues/220) | Tasking Board core, pulled into P1 from NX-309 (owner, Q-SIM-73): part 1 jobs, lifecycle, leases, priorities and aging, slots and dedupe, dependencies, deterministic assignment, per-side fog, events; resupply, defend, strike, assist-objective and scout jobs; AI garrison takes jobs; parameterless `!join`; part 2 follow and escort (Q-GP-31 to Q-GP-33). Part 1 in review (Q-SIM-74, Q-SIM-75) | L | 🟨 | NX-126 | TB-1 to TB-10 tests per GAMEPLAY §1b; same seed same assignments; the AI garrison never initiates offense |
 | NX-151 | Enemy-side view for director (FOW-4) | M | ⬜ | NX-150 | Director API accepts only `EnemyView` |
-| NX-155 | Director: CP, tiers w/ hysteresis, budget | M | ⬜ | NX-151 | Hysteresis property |
+| NX-155 | Director: CP, tiers w/ hysteresis, budget | M | ⬜ | NX-151, NX-374 | Hysteresis property |
 | NX-156 | Director: operations library + scoring + threat memory | L | ⬜ | NX-155 | "Convoy raids → escorts" golden scenario |
 | NX-369 [#189](https://github.com/operation-nexus/operation-nexus/issues/189) | Formation speed: an escorted group moves at its slowest member's speed (Q-SIM-38) | S | ⬜ | NX-121, NX-156 | Property: an escorted convoy never outruns its escort; both sides; adds the min-speed clamp for aircraft in a formation (Q-SIM-43) |
-| NX-157 | AI garrison + Pattern of Life + provocation-gated escalation (THREAT-DIRECTOR §5a) | M | ⬜ | NX-155 | overnight-0: no attacks; 0→1 viewer: no escalation until provocation; staging visible to scouts |
+| NX-157 | AI garrison + Pattern of Life + provocation-gated escalation (THREAT-DIRECTOR §5a) | M | ⬜ | NX-155, NX-374 | overnight-0: no attacks; 0→1 viewer: no escalation until provocation; staging visible to scouts |
 | NX-158 | `!rebase` and base-to-base repositioning for both sides | S | ⬜ | NX-121 | Units stage forward and refuel at the destination base |
 | NX-031 | Balance harness (`tools/balance`) + bot personas + report | L | ⬜ | NX-126 | Standard scenarios (crowd profiles of 0, 5, 50, 150, 300 and 500 simulated viewers plus the adversarial profiles, Q-ALN-42): 20-seed balance-diff report; the 50-seed acceptance run of TESTING-STRATEGY §3.5a (Q-TEST-4); unit speeds (`speed_mps`, `min_speed_mps`) are tuned from playtests too (Q-SIM-38) |
 | NX-032 [#176](https://github.com/operation-nexus/operation-nexus/issues/176) | Replay CLI + measured storage size | S | ✅ | NX-103 | Size documented in CLIPS-REPLAY |
 | NX-033 | Headless soak (6h) in nightly | M | ⬜ | NX-016 | No memory growth; hashes replay |
 | NX-301 | Track fade (FOW-6 only; FOW-6a is in NX-150), later phase behind a feature flag (Q-PROD-8, Q-ALN-20) | — | ⬜ | NX-150 | Tracks age back into SIGINT blobs over time after the scout dies or leaves (FOG-OF-WAR) |
-| NX-304 | Objective modes: timed / off per campaign (Q-GD-19 blocks P1; moved from P4 in NX-311) | — | ⬜ | NX-126 | O-1 invariant per mode (STATE-MACHINES §4.5) |
+| NX-304 | Objective modes: timed / off per campaign (Q-GD-19 blocks P1; moved from P4 in NX-311) | — | ✅ | NX-126 | O-1 invariant per mode (STATE-MACHINES §4.5). Done in NX-126 (`campaign.objective_mode` timed/off, O-1 tested per mode) |
 
 ## P2 — Closed alpha (Twitch, unlisted)
 
@@ -152,7 +153,7 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-042 | Phase-2 security review + pentest of command path | M | ⬜ | all P2 |
 | NX-034 | Cold-tester readability study (a few cold testers, not strictly 5; Q-PROD-4). Also test: hidden-shooter tracers on/off (Q-CT-3), recruit strip + `!me` clarity (FB-UX), orientation | S | ⬜ | NX-178 |
 | NX-035 | Multi-day unattended burn-in on unlisted stream (not strictly 7 days; minimal manual fixes; zero unmoderated text; monitoring + viewer simulator NX-193 in use; Q-PROD-4) | M | ⬜ | all P2 |
-| NX-309 | Tasking Board: job generation from state, priorities, role matching, slot de-dup, AI garrison integration, overlay "NEEDED" list, auto-tasking on a parameterless `!join` (Q-GP-23), `hold` opt-out (Q-GD-26 blocks P2; moved from P4 in NX-311) | — | ⬜ | NX-126, NX-178 |
+| NX-309 | Tasking Board: job generation from state, priorities, role matching, slot de-dup, AI garrison integration, overlay "NEEDED" list, auto-tasking on a parameterless `!join` (Q-GP-23), `hold` opt-out (Q-GD-26 blocks P2; moved from P4 in NX-311) | — | ⬜ | NX-126, NX-178. The kernel core moved to NX-374 (P1, Q-SIM-73); this item keeps the overlay NEEDED list and the chat-facing parts |
 | NX-324 | Silent viewers: idle handoff to an AUTO unit, idle retire, reclaim; an AUTO unit keeps its commander's slot; AUTO tag on the overlay (GAMEPLAY §4b GP-4…GP-6; Q-GD-35, Q-ALN-8, Q-ALN-9, Q-ALN-25, Q-ALN-26) | — | ⬜ | NX-122, NX-309 |
 | NX-274 | Brand and style guide: name usage, fictional factions and insignia, unit class naming (generic: Tank, Striker, Bomber…), color, type, sound identity, tone of voice; **no real names** rule added to the content validator. Includes rank display names (Q-NAME-1), unit class names (Q-NAME-2), colors (Q-STYLE-1), typography (Q-STYLE-2), symbology (Q-STYLE-4). (Overlay needs it in P2; moved from P4 in NX-311.) | — | ⬜ | — |
 | NX-366 [#174](https://github.com/operation-nexus/operation-nexus/issues/174) | Architecture and service-layout document: module boundaries, queues/APIs between them, which modules can split into their own process or container; checked against the import contracts (owner request, #119) | S | ⬜ | NX-014 |
@@ -161,6 +162,7 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 
 | ID | Item | Status |
 |---|---|---|
+| NX-375 | Configurable sides (owner, 2026-10-22): a campaign setting for which side chat plays, an AI Director per side (agent vs agent), symmetric or per-campaign win rules, objectives, idle protection and quiet multiplier, and a mirrored theater layout; agent vs agent is also a balance-harness and soak-test mode (NX-031, NX-033). Chat vs chat (team assignment and balancing) is a later step | ⬜ |
 | NX-210 | XP events → progression, diminishing returns, ranks O-1..O-3 | ⬜ |
 | NX-211 | Leaderboards per role + rotating panel data | ⬜ |
 | NX-202 | Custom callsigns + approval queue | ⬜ |

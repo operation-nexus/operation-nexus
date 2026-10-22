@@ -27,7 +27,13 @@ export type Event =
   | CrewDowned
   | UnitRepaired
   | NodeDefensesDown
-  | NodeDefensesRestored;
+  | NodeDefensesRestored
+  | JobCreated
+  | JobClaimed
+  | JobReleased
+  | JobDone
+  | JobFailed
+  | JobExpired;
 
 /**
  * A unit appears (CONTRACTS §6). Public view: an ENEMY spawn only if its spawn point is tracked; otherwise dropped.
@@ -742,4 +748,164 @@ export interface NodeDefensesRestored {
    * The node's owner at the time.
    */
   owner: "COALITION" | "ENEMY" | "NEUTRAL";
+}
+/**
+ * A job was posted to a side's Tasking Board, OPEN (CONTRACTS §6; GAMEPLAY §1b TB-1, TB-10; NX-374). Posted by the board generator (the director and GM injection post through the same call later). Exactly one of node_id and blob_id is set in the first build (sector_id and an escort entity_id join with their jobs). A job generated for a side references only what that side's view holds (TB-9). Public view: dropped for the ENEMY side's board.
+ */
+export interface JobCreated {
+  kind: "JobCreated";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Tasking Board job id: per campaign, one counter for both sides' boards, never reused (GAMEPLAY §1b).
+   */
+  job_id: number;
+  side: "COALITION" | "ENEMY";
+  /**
+   * Tasking Board job kinds the code handles (GAMEPLAY §1b, CONTRACTS §3.3). ESCORT_CONVOY, REPAIR_BRIDGE, CAPTURE and RESCUE join with their jobs (rule 6a).
+   */
+  job_kind: "RESUPPLY" | "SCOUT" | "DEFEND" | "STRIKE" | "ASSIST_OBJECTIVE";
+  node_id: string | null;
+  blob_id: string | null;
+  slots: number;
+  depends_on_job_id: number | null;
+}
+/**
+ * A unit claimed a slot of a job (CONTRACTS §6; TB-1): the lease starts. A parameterless JOIN claims for the unit it spawns.
+ */
+export interface JobClaimed {
+  kind: "JobClaimed";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Tasking Board job id: per campaign, one counter for both sides' boards, never reused (GAMEPLAY §1b).
+   */
+  job_id: number;
+  /**
+   * Sequential per campaign, never reused (SC-4).
+   */
+  entity_id: number;
+}
+/**
+ * A claim was released and the slot returned to the board (TB-1, TB-7): the lease ran out with no progress, a human order preempted it, a human wanted the slot of an AI unit (Q-TD-11), or the unit was lost, Disabled or sent home.
+ */
+export interface JobReleased {
+  kind: "JobReleased";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Tasking Board job id: per campaign, one counter for both sides' boards, never reused (GAMEPLAY §1b).
+   */
+  job_id: number;
+  /**
+   * Sequential per campaign, never reused (SC-4).
+   */
+  entity_id: number;
+}
+/**
+ * The job succeeded (TB-1, TB-10). participants are the claimants that had made progress; auto is true for a commander's unit that was AI-run (AUTO) at completion: those are AUTO assists for recaps only and never XP, merit or leaderboards (Q-ALN-30). Stored durably (Q-ALN-16).
+ */
+export interface JobDone {
+  kind: "JobDone";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Tasking Board job id: per campaign, one counter for both sides' boards, never reused (GAMEPLAY §1b).
+   */
+  job_id: number;
+  /**
+   * @maxItems 64
+   */
+  participants: {
+    /**
+     * Sequential per campaign, never reused (SC-4).
+     */
+    entity_id: number;
+    commander_id: string | null;
+    auto: boolean;
+  }[];
+}
+/**
+ * The job can no longer be done (TB-1), e.g. the node it served was lost. Its claims are released; jobs that depend on it fail too (TB-8). Stored durably (Q-ALN-16).
+ */
+export interface JobFailed {
+  kind: "JobFailed";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Tasking Board job id: per campaign, one counter for both sides' boards, never reused (GAMEPLAY §1b).
+   */
+  job_id: number;
+}
+/**
+ * The job ended without success or failure (TB-1): unclaimed past its expiry, its condition passed unclaimed, or its objective ended. Stored durably (Q-ALN-16).
+ */
+export interface JobExpired {
+  kind: "JobExpired";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Tasking Board job id: per campaign, one counter for both sides' boards, never reused (GAMEPLAY §1b).
+   */
+  job_id: number;
 }

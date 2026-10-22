@@ -114,6 +114,14 @@ type CampaignResult = Annotated[
 type ObjectiveOutcome = Literal["COMPLETED", "EXPIRED"]
 
 
+type JobKind = Annotated[
+    Literal["RESUPPLY", "SCOUT", "DEFEND", "STRIKE", "ASSIST_OBJECTIVE"],
+    Field(
+        description="Tasking Board job kinds the code handles (GAMEPLAY §1b, CONTRACTS §3.3). ESCORT_CONVOY, REPAIR_BRIDGE, CAPTURE and RESCUE join with their jobs (rule 6a)."
+    ),
+]
+
+
 type CommandKind = Annotated[
     Literal[
         "JOIN",

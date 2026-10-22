@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nexus.local/contracts/events/job_claimed.json",
+  "title": "JobClaimed",
+  "description": "A unit claimed a slot of a job (CONTRACTS \u00a76; TB-1): the lease starts. A parameterless JOIN claims for the unit it spawns.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "tick", "event_seq", "campaign_id", "job_id", "entity_id"],
+  "properties": {
+    "kind": {"const": "JobClaimed"},
+    "tick": {"$ref": "../common/ids.json#/$defs/Tick"},
+    "event_seq": {"type": "integer", "minimum": 1, "description": "Campaign-wide, monotonic, deterministic (SC-14)."},
+    "campaign_id": {"$ref": "../common/ids.json#/$defs/CampaignId"},
+    "job_id": {"$ref": "../common/ids.json#/$defs/TaskingJobId"},
+    "entity_id": {"$ref": "../common/ids.json#/$defs/EntityId"}
+  }
+}

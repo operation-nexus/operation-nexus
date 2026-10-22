@@ -56,6 +56,7 @@ from nexus.contracts.gen.events.objective_announced import ObjectiveAnnounced
 from nexus.contracts.gen.events.objective_resolved import ObjectiveResolved
 from nexus.core.rng import RngStream
 from nexus.core.rules import CampaignRules, Rules
+from nexus.core.tasking import on_objective
 from nexus.core.world import Objective, World
 
 _COALITION: Side = "COALITION"
@@ -261,3 +262,4 @@ def _resolve(
             participant_commander_ids=participants,
         )
     )
+    on_objective(world, o.id, outcome == "COMPLETED", out)  # its board jobs end with it
