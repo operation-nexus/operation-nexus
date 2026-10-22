@@ -18,7 +18,6 @@ name: claude-review
 on:
   pull_request:
     types: [opened, synchronize, ready_for_review, reopened, labeled]
-    branches: [develop]
 
 permissions: {}
 
@@ -57,7 +56,8 @@ jobs:
     if: >-
       github.event.pull_request.head.repo.full_name == github.repository &&
       ((github.event.action == 'labeled' && github.event.label.name == 'ai-review') ||
-       (github.event.action != 'labeled' && needs.paths.outputs.sensitive == 'true'))
+       (github.event.action != 'labeled' && github.event.pull_request.base.ref == 'develop' &&
+        needs.paths.outputs.sensitive == 'true'))
     runs-on: ubuntu-24.04
     timeout-minutes: 20
     permissions:
