@@ -31,10 +31,17 @@ def test_strait_1_loads_with_golden_hash() -> None:
     assert canonical_hash(theater.model_dump()) == GOLDEN_THEATER_HASH
 
 
+def test_mask_cell_m_sets_the_raster_cell() -> None:
+    """northern-hills x 150-260 km, y 0-35 km; southern-valley x 230-330 km, y 205-240 km. At 2 km a
+    cell centre is 1 + 2k km and an edge counts: hills 55 x 18 cells, valley 50 x 18."""
+    cell_m, cells = masking_cells(load_theater(STRAIT_1), 2000)
+    assert cell_m == 2000 and len(cells) == 55 * 18 + 50 * 18
+
+
 def test_masking_regions_rasterize_to_1km_cells_by_centre(tmp_path: Path) -> None:
     """Q-FOW-3 (NX-150 part 2): northern-hills is x 150-260 km, y 0-35 km: 110 x 35 cells;
     southern-valley x 230-330 km, y 205-240 km: 100 x 35 cells."""
-    cell_m, cells = masking_cells(load_theater(STRAIT_1))
+    cell_m, cells = masking_cells(load_theater(STRAIT_1), 1000)
     assert cell_m == 1000
     hills, valley = frozenset({"northern-hills"}), frozenset({"southern-valley"})
     assert len(cells) == 110 * 35 + 100 * 35
@@ -43,7 +50,7 @@ def test_masking_regions_rasterize_to_1km_cells_by_centre(tmp_path: Path) -> Non
     assert {(149, 0), (260, 0), (259, 35), (229, 205), (330, 239)}.isdisjoint(cells)
     # A cell in two overlapping regions lists both.
     path = write(tmp_path, "[[230000,205000],[330000,205000],", "[[230000,30000],[330000,30000],")
-    both = masking_cells(load_theater(path))[1]
+    both = masking_cells(load_theater(path), 1000)[1]
     assert both[240, 30] == hills | valley and both[240, 36] == valley
 
 

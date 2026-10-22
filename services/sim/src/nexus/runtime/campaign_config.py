@@ -75,7 +75,7 @@ def load_campaign_config(paths: ConfigPaths | None = None) -> CampaignConfig:
         operations_hash(operations),
         canonical_hash(theater.model_dump()),
     )
-    mask_cell_m, masking = masking_cells(theater)
+    mask_cell_m, masking = masking_cells(theater, balance.fow.mask_cell_m)
     roads = road_graph(theater)
     cc = balance.campaign
     rules = make_rules(

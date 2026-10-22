@@ -263,6 +263,18 @@ def test_sixty_infantry_against_an_empty_base_never_flip_faster_than_min_time() 
     assert progress(w, ENEMY_FOB) == 0 and ticks + 1 == math.ceil(CAPTURE_FULL / per_tick(30.0))
 
 
+def test_min_progress_per_tick_is_the_least_a_capture_gains_and_a_key() -> None:
+    assert RULES.capture is not None
+    floor = 10 * per_tick(RULES.capture.time_s)
+    capture = dataclasses.replace(RULES.capture, min_progress=floor)
+    rules = dataclasses.replace(RULES, capture=capture)
+    w = start_campaign(CAMPAIGN_ID, 12345, dataclasses.replace(CONFIG, rules=rules))
+    w.defense_hp = dict.fromkeys(w.defense_hp, 0)
+    put(w, INFANTRY, "COALITION", NEUTRAL_FOB)
+    run(w, 3)
+    assert gain(w) == floor  # the modelled gain is far below the floor
+
+
 def test_attackers_gone_while_the_defender_holds_the_bar_drains() -> None:
     w = new_world()
     w.capture[ENEMY_FOB] = CaptureBar("COALITION", 3_000_000)

@@ -100,8 +100,7 @@ _AI, _HUMAN = "AI_GARRISON", "COMMANDER"
 _NO_BLOCKED = frozenset[str]()  # no bridge is destroyed until NX-373
 _GARRISON_JOBS: frozenset[JobKind] = frozenset({"DEFEND", "RESUPPLY", "SCOUT"})
 _MAX_PARTICIPANTS = 64  # JobDone.participants maxItems
-_TIE_DRAW = 1 << 32
-_OVERFILL = 2  # when every job is full, a job takes units up to this many times its slots
+_TIE_DRAW = 1 << 32  # width of the tie-break draw; it only orders equals, not a tunable
 
 
 def _now(world: World) -> int:
@@ -120,6 +119,7 @@ def _base(world: World) -> dict[str, Any]:
 def priority(tr: TaskingRules, job: Job, now: int) -> Fraction:
     """`tasking.priority.<kind>` x urgency, plus linear aging per game minute waited (TB-3)."""
     waited = Fraction(now - job.created, tr.ticks_per_min)
+    # 1000: `Job.urgency` is in thousandths of a multiplier (a fixed-point scale)
     return tr.priority[job.kind] * Fraction(job.urgency, 1000) + tr.aging_per_min * waited
 
 
@@ -204,17 +204,18 @@ def _full(world: World, job: Job, *, ai: bool) -> bool:
     return False
 
 
-def _overfill(job: Job) -> int:
-    """The claims a job takes when every job is full: `_OVERFILL` times its slots, but a Recon
-    scout's point job never doubles (a second scout would only burn fuel and rearm, NX-379)."""
-    return job.slots if _is_point(job) else _OVERFILL * job.slots
+def _overfill(tr: TaskingRules, job: Job) -> int:
+    """The claims a job takes when every job is full: `tasking.overfill_factor` times its slots,
+    but a Recon scout's point job never doubles (a second scout would only burn fuel and rearm,
+    NX-379)."""
+    return job.slots if _is_point(job) else tr.overfill_factor * job.slots
 
 
-def _open(world: World, pool: list[Job], *, ai: bool) -> list[Job]:
+def _open(tr: TaskingRules, world: World, pool: list[Job], *, ai: bool) -> list[Job]:
     """The jobs a unit may take, in rank order: those with a free slot, else (every one full) those
-    not yet at `_OVERFILL` times their slots; beyond that the unit waits for the next pass."""
+    not yet at `overfill_factor` times their slots; beyond that the unit waits for the next pass."""
     free = [j for j in pool if not _full(world, j, ai=ai)]
-    return free or [j for j in pool if len(j.claims) < _overfill(j)]
+    return free or [j for j in pool if len(j.claims) < _overfill(tr, j)]
 
 
 def _may_take(world: World, tr: TaskingRules, e: Entity, job: Job) -> bool:
@@ -284,7 +285,7 @@ def joinable_jobs(world: World, kind: UnitKind) -> list[Job]:
         j for j in world.boards["COALITION"].values()
         if j.depends_on is None and fits(rules, kind, j.kind)
     ]  # fmt: skip
-    return rank(tr, _open(world, jobs, ai=False), _now(world), None)
+    return rank(tr, _open(tr, world, jobs, ai=False), _now(world), None)
 
 
 def run(world: World, out: list[Event]) -> None:
@@ -621,7 +622,7 @@ def _assign(
             if j.depends_on is None and _board_may_give(e, j)
             and fits(rules, e.kind, j.kind) and _may_take(world, tr, e, j)
         ]  # fmt: skip
-        for job in _open(world, pool, ai=e.owner_kind == _AI):
+        for job in _open(tr, world, pool, ai=e.owner_kind == _AI):
             verdict = _feasible(world, rules, routes, e, job)
             if verdict == "no":
                 continue

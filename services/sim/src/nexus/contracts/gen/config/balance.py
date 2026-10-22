@@ -237,6 +237,13 @@ class Capture(BaseModel):
             gt=0.0,
         ),
     ]
+    min_progress_per_tick: Annotated[
+        int,
+        Field(
+            description="The least a capture bar gains per tick while a side captures, however slow the capture time, unit millionths of a percent of the bar per tick (NX-125, Q-DEV-21). 1 means a bar always moves.",
+            ge=1,
+        ),
+    ]
     defense_hp: Annotated[
         DefenseHp,
         Field(
@@ -409,6 +416,13 @@ class Combat(BaseModel):
             description="Damage-state thresholds (CB-6, Q-GP-8): a unit is in the state when its hp is below the fraction of its kind's hp; they descend."
         ),
     ]
+    min_damage: Annotated[
+        int,
+        Field(
+            description="The least hp a hit takes off a target, however heavy its armor, unit hp (COMBAT CB-3, Q-DEV-21). 1 means every hit hurts.",
+            ge=1,
+        ),
+    ]
     assist_window_s: Annotated[
         float,
         Field(
@@ -447,6 +461,14 @@ class Fow(BaseModel):
         Field(
             description="A recon unit paints a target it tracks with its own sensor within this range, unit m (FOG-OF-WAR Tier 2 painted flag, Q-FOW-6).",
             gt=0.0,
+        ),
+    ]
+    mask_cell_m: Annotated[
+        int,
+        Field(
+            description="Side of the square cell that terrain masking regions are rasterized to, unit m (FOG-OF-WAR Q-FOW-3, Q-DEV-21): a cell masks when its centre is inside a region. Finer than the SIGINT cell, which would blur a narrow region. Bounded so the raster stays a sane size (a smaller cell makes the loader build millions of cells).",
+            ge=100,
+            le=10000,
         ),
     ]
     sigint_cell_m: Annotated[
@@ -644,6 +666,14 @@ class Logistics(BaseModel):
             ge=1,
         ),
     ]
+    ammo_loadout_share: Annotated[
+        float,
+        Field(
+            description="Of a unit's loadout_cost, the share its ammo costs when the kind has both ammo and a fuel tank; fuel pays the rest (GAMEPLAY §5, Q-SIM-69, Q-DEV-21). A kind with no fuel pays all of it for ammo. Unit fraction.",
+            ge=0.0,
+            le=1.0,
+        ),
+    ]
     starve_hp_drain_per_min: Annotated[
         int,
         Field(
@@ -718,6 +748,15 @@ class FollowStationM(BaseModel):
     column: Annotated[float, Field(gt=0.0)]
     overwatch: Annotated[float, Field(gt=0.0)]
     wingman: Annotated[float, Field(gt=0.0)]
+
+
+class ScoutUrgency(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    small: Annotated[float, Field(ge=1.0)]
+    medium: Annotated[float, Field(ge=1.0)]
+    large: Annotated[float, Field(ge=1.0)]
 
 
 class Slots(BaseModel):
@@ -1237,6 +1276,40 @@ class Tasking(BaseModel):
         Field(
             description="The farthest an armed follower leaves its station from the nearest other member of its group to engage a group threat; beyond it, it returns to station and a threat that far is not chased (Q-SIM-76), unit m.",
             gt=0.0,
+        ),
+    ]
+    follow_hold_slack: Annotated[
+        float,
+        Field(
+            description="A stopped leader's ground followers hold where they are while within this many stations of it, instead of closing in (Q-SIM-76, Q-DEV-21), unit stations (multiples of follow_station_m).",
+            ge=1.0,
+        ),
+    ]
+    overfill_factor: Annotated[
+        int,
+        Field(
+            description="When every job is full, a job takes units up to this many times its slots (TB-4, Q-DEV-21), unit multiplier; a Recon scout's point job never overfills.",
+            ge=1,
+        ),
+    ]
+    scout_blob_runs: Annotated[
+        int,
+        Field(
+            description="A SIGINT blob must stay in its cell for this many consecutive SIGINT refreshes before a scout job is posted for it (Q-SIM-75, Q-DEV-21), unit refreshes.",
+            ge=1,
+        ),
+    ]
+    scout_urgency: Annotated[
+        ScoutUrgency,
+        Field(
+            description="Urgency of a generated scout job by the blob's size bucket (Q-SIM-75, Q-DEV-21), unit multiplier, from 1.0 up to urgency_max (a larger value is capped there)."
+        ),
+    ]
+    strike_urgency_per_threat: Annotated[
+        float,
+        Field(
+            description="A generated strike job on a discovered facility has urgency 1.0 plus this much per point of the facility kind's unit threat, capped at urgency_max (Q-SIM-85, Q-DEV-21), unit multiplier per threat point.",
+            ge=0.0,
         ),
     ]
 

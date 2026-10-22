@@ -16,6 +16,7 @@ import subprocess
 import sys
 import time
 from fractions import Fraction
+from typing import Any
 
 import msgpack
 import pytest
@@ -291,6 +292,38 @@ def test_scout_jobs_follow_sigint_blobs_by_cell() -> None:
     events = board_pass(w)
     assert kinds(events) == ["JobExpired"]  # cell 48 is gone
     assert [(j.id, j.blob, j.urgency) for j in jobs(w)] == [(small.id, "93-7", 1500)]
+
+
+def _with(**changes: Any) -> Rules:
+    return dataclasses.replace(RULES, tasking=dataclasses.replace(TR, **changes))
+
+
+def test_scout_blob_runs_is_how_long_a_blob_must_stay_and_a_key() -> None:
+    w = new_world(rules=_with(scout_blob_runs=3))
+    see(w, "COALITION", Blob("3-7", Vec2(75e3, 5e3), "S"), runs=2)
+    board_pass(w)
+    assert jobs(w) == []  # two refreshes are not enough now
+    see(w, "COALITION", Blob("3-7", Vec2(75e3, 5e3), "S"), runs=3)
+    board_pass(w)
+    assert [j.key for j in jobs(w)] == ["scout:7"]
+
+
+def test_scout_urgency_is_by_blob_size_and_a_key() -> None:
+    w = new_world(rules=_with(scout_urgency_milli={"S": 1100, "M": 1200, "L": 1300}))
+    see(w, "COALITION", Blob("3-48", Vec2(85e3, 15e3), "L"))
+    board_pass(w)
+    assert [j.urgency for j in jobs(w)] == [1300]  # not the shipped 2000
+
+
+def test_strike_urgency_per_threat_is_a_key() -> None:
+    w = new_world(rules=_with(strike_urgency_per_threat_milli=5))
+    pos = Vec2(*RULES.roads.pos["fob-n-e"])
+    w.markers["COALITION"][99] = FacilityMarker(
+        "AIR_DEFENSE_SITE", "SAM", pos, True, 1, 35_000, "HEALTHY"
+    )
+    board_pass(w)
+    (job,) = jobs(w)
+    assert (job.kind, job.urgency) == ("STRIKE", 1000 + 5 * 90)  # SAM threat 90; shipped is 1900
 
 
 # --- assignment ---------------------------------------------------------------------------------
@@ -1040,6 +1073,16 @@ def test_overfill_stops_at_twice_the_slots() -> None:
     board_pass(w)
     assert len(job.claims) == 4  # the rest keep waiting
     assert joinable_jobs(w, "GARRISON_INFANTRY") == []  # a JOIN finds the job full too
+
+
+def test_overfill_factor_is_a_key_not_a_constant() -> None:
+    rules = dataclasses.replace(RULES, tasking=dataclasses.replace(TR, overfill_factor=3))
+    w = new_world(rules=rules)
+    job = post(w, "COALITION", "DEFEND", "fob-n-w", "d", slots=2)
+    for _ in range(8):
+        put(w, "GARRISON_INFANTRY", "west-airbase")
+    board_pass(w)
+    assert len(job.claims) == 6  # three times its slots, not twice
 
 
 def test_the_garrison_may_counterattack_a_node_just_lost_within_the_window() -> None:

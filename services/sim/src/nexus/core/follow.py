@@ -60,7 +60,6 @@ _GROUND, _AIR, _STATIC = "GROUND", "AIR", "STATIC"
 _NO_BLOCKED = frozenset[str]()  # no bridge is destroyed until NX-373
 _LONG_M = 15_000.0  # a kind reaching farther than this is kept out of the track grid
 _CELL_M = 8_000.0  # track grid cell
-_SLACK = 2  # a stopped leader's followers hold where they are within this many stations of it
 
 
 def pair_ok(rules: Rules, kind: UnitKind, leader_kind: UnitKind) -> bool:
@@ -424,7 +423,7 @@ def _station_ground(
     dest = str(leader.path[-1] if leader.path else leader.last_node)
     parked = stopped and rules.node_kind.get(dest) != "BRIDGE"
     near = _dist(f, leader) <= tr.leash_m
-    if stopped and not parked and _dist(f, leader) <= _SLACK * station:
+    if stopped and not parked and _dist(f, leader) <= tr.follow_hold_slack * station:
         capped[f.id] = 0.0  # hold station where it is
         return True
     if not _drive(rules, f, dest):

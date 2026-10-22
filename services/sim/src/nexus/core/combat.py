@@ -400,7 +400,7 @@ def _hit(
 ) -> None:
     stats = cr.units[target.kind]
     facility = rules.domain[target.kind] == _STATIC
-    hp = target.hp - max(1, math.floor(w.damage * (1 - stats.armor)))
+    hp = target.hp - max(cr.min_damage, math.floor(w.damage * (1 - stats.armor)))
     if facility:
         hp = max(hp, stats.floor)  # never Destroyed (CB-9)
     else:

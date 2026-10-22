@@ -35,7 +35,8 @@ from nexus.runtime.recovery import recover
 from nexus.runtime.snapshot_file import list_snapshots, snapshots_to_delete, write_snapshot
 
 # SIM-CORE §6: 3 crashes in 10 minutes halt. Counted in ticks, so a test or a replay sees the same
-# window; while running, 6,000 ticks are 10 real minutes.
+# window; while running, 6,000 ticks are 10 real minutes. Operations safety (SIM-CORE §6), not a
+# game rule: it never changes a simulated outcome, so it is not a balance key (NX-377, Q-DEV-21).
 CRASH_LIMIT = 3
 CRASH_WINDOW_TICKS = round(600 / TICK_DT)
 
@@ -64,7 +65,7 @@ class SimRuntime:
         protocol_version: str,
         sim_build: str,
         created_at: Callable[[], str],  # UTC ISO-8601 now; never enters state
-        snapshot_every: int = 300,
+        snapshot_every: int = 300,  # ops cadence, no effect on outcomes
         handlers: Mapping[str, Handler] = HANDLERS,
     ) -> None:
         if world.rules is None:  # JOIN and movement need them (start_campaign, or restore rules=)

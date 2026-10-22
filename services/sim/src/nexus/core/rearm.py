@@ -12,11 +12,12 @@ Three lines are bought in this order, all from the base's stock (a SANCTUARY is 
 rates, no debit), each in exact integers:
 
 - **Fuel** (aircraft). Up to `rearm_rate x world_dt` stock-thousandths a tick (`Supply.rearm_milli`,
-  shared with ammo). A full tank costs `loadout_cost` for a kind with no ammo and half of it for a
-  kind with ammo; only the missing fuel is paid for. Below the starvation floor it fills to
-  `starved_loadout.fuel_frac` of `fuel_s`.
-- **Ammo.** A full load costs the other half (all of it for a kind with no fuel; a facility pays
-  `facility_rearm_cost`). The ammo share is the average over the weapons of each one's missing share
+  shared with ammo). A full tank costs `loadout_cost` for a kind with no ammo and the rest after
+  the ammo share (`ammo_loadout_share`) for a kind with ammo; only the missing fuel is paid for.
+  Below the starvation floor it fills to `starved_loadout.fuel_frac` of `fuel_s`.
+- **Ammo.** A full load costs `ammo_loadout_share` of it (all of it for a kind with no fuel; a
+  facility pays `facility_rearm_cost`). The ammo share is the average over the weapons of each one's
+  missing share
   (rounds missing / its full load, Q-SIM-69), so a round costs `price / (n x its full load)`, guns
   included. Rounds refill in loadout order with whatever the budget affords, carried as
   `Entity.ammo_credit` until a round is whole. A starved base (GAMEPLAY §5,
@@ -48,7 +49,7 @@ from nexus.contracts.gen.events.unit_repaired import UnitRepaired
 from nexus.core.rules import CombatRules, Rules
 from nexus.core.world import Entity, Vec2, World, end_rearm, set_damage_state
 
-_MILLI = 1000
+_MILLI = 1000  # thousandths of a stock unit: a fixed-point scale, not a tunable
 _EPS = 1e-6  # float noise in a fuel-to-milli conversion; below any real milli-unit of stock
 _DISABLED = "DISABLED"
 _STATIC, _AIR, _GROUND = "STATIC", "AIR", "GROUND"
@@ -99,14 +100,15 @@ def _station(world: World, rules: Rules, e: Entity) -> str | None:
 
 def ammo_price(rules: Rules, e: Entity) -> int:
     """A full load of rounds in stock-thousandths: a facility pays `facility_rearm_cost`; a unit
-    half its `loadout_cost` if it also has a tank, else all of it; 0 for an unarmed kind."""
+    `logistics.ammo_loadout_share` of its `loadout_cost` if it also has a tank (fuel pays the rest),
+    else all of it; 0 for an unarmed kind."""
     cr, sup = rules.combat, rules.supply
     if cr is None or not cr.loadout(e.kind, e.variant):
         return 0
     if rules.domain[e.kind] == _STATIC:
         return _MILLI * sup.facility_rearm_cost
     whole = _MILLI * sup.loadout_cost.get(e.kind, 0)
-    return whole // 2 if e.kind in rules.fuel_s else whole
+    return math.floor(whole * sup.ammo_loadout_share) if e.kind in rules.fuel_s else whole
 
 
 def restock(world: World, rules: Rules, e: Entity, out: list[Event]) -> None:

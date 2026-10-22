@@ -317,7 +317,7 @@ def _sigint(world: World, rules: Rules, side: Side) -> tuple[Blob, ...]:
         k = cy * cols + cx
         counts[k] = counts.get(k, 0) + 1
     tick = world.campaign.tick + 1  # the refresh tick being computed
-    return tuple(
+    return tuple(  # 0.5: a blob sits at the centre of its cell, geometry and not a tunable
         Blob(
             f"{tick}-{k}", Vec2((k % cols + 0.5) * cell, (k // cols + 0.5) * cell), _size(rules, n)
         )

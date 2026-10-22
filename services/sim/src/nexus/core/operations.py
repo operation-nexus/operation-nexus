@@ -45,6 +45,7 @@ from fractions import Fraction
 from typing import NamedTuple
 
 from nexus.contracts.gen.common.enums import UnitKind
+from nexus.core.director import TIERS
 from nexus.core.fog import SideView
 from nexus.core.logistics import deploy_pool, nearest_by_air
 from nexus.core.rng import PcgStream
@@ -53,7 +54,9 @@ from nexus.core.tasking import ring_crossed
 from nexus.core.tasking_gen import fits
 from nexus.core.world import DirectorState, Vec2
 
-NOISE_STEPS = 1000  # a draw is r in [-NOISE_STEPS, NOISE_STEPS], so the span is 2 * steps + 1
+# A draw is r in [-NOISE_STEPS, NOISE_STEPS], so the span is 2 * steps + 1. Fixed with the RNG
+# stream: it sets the draw resolution and a change reshuffles every seeded decision (not a tunable).
+NOISE_STEPS = 1000
 _FOE = {"COALITION": "ENEMY", "ENEMY": "COALITION"}
 _NOT_BASES = ("BRIDGE", "SANCTUARY")
 _UNCAPTURABLE = ("SANCTUARY", "BRIDGE")
@@ -438,7 +441,7 @@ def rank(
     if dr is None:
         raise ValueError("rank needs the Director rules")
     stale = staleness(view, rules, dr) if any(c.op.track_age for c in cands) else {}
-    near = state.ceiling == 1 and state.last_provocation_sector is not None
+    near = state.ceiling == TIERS.index("ALPHA") and state.last_provocation_sector is not None
     scored = []
     for c in cands:
         s = c.op.priority * _node_factors(c, view, rules, dr) * _memory(c.op, state, c.sector, dr)

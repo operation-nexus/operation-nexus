@@ -11,6 +11,7 @@ import re
 from enum import StrEnum
 from typing import Self
 
+# PCG64 DXSM: the bit widths, shifts and multiplier below are the algorithm, not tunables.
 _MASK64 = (1 << 64) - 1
 _MASK128 = (1 << 128) - 1
 _MULT = 0x2360ED051FC65DA44385DF649FCCF645
