@@ -10,7 +10,7 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | Phase | Items | Done | Status |
 |---|---|---|---|
 | P0 Foundations | 42 | 19 | 🟨 |
-| P1 Sim kernel | 36 | 22 | 🟨 |
+| P1 Sim kernel | 36 | 24 | 🟨 |
 | P2 Closed alpha | 34 | 0 | ⬜ |
 | P3 Public beta | 22 | 0 | ⬜ |
 | P4 Depth | 67 | 1 | ⬜ |
@@ -106,12 +106,12 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-150 [#198](https://github.com/operation-nexus/operation-nexus/issues/198) | FoW tiers + server-side redaction + blob clustering, last-known tracks (FOW-6a), emitters (FOW-11), spotted flag (FOW-12), masking regions | L | ✅ | NX-104 | FOW-1..3, FOW-6a, FOW-11, FOW-12 properties |
 | NX-372 [#203](https://github.com/operation-nexus/operation-nexus/issues/203) | Sensing performance: one grid per sensor-range class (Q-SIM-4) | S | ✅ | NX-150 | Same results as the brute-force oracle; owner re-runs the i7 sensing bench; NumPy reopened only if a sensing tick stays above ~10 ms |
 | NX-373 | Bridges: bridge HP from STRUCTURE fire, a destroyed bridge cuts its road (paths reroute), truck repair (STATE-MACHINES §4.3, Q-GD-11, Q-SIM-71) | M | ⬜ | NX-124 | B-1, B-2; convoys reroute around a cut bridge; repair numbers approved by the owner first |
-| NX-374 [#220](https://github.com/operation-nexus/operation-nexus/issues/220) | Tasking Board core, pulled into P1 from NX-309 (owner, Q-SIM-73): part 1 jobs, lifecycle, leases, priorities and aging, slots and dedupe, dependencies, deterministic assignment, per-side fog, events; resupply, defend, strike, assist-objective and scout jobs; AI garrison takes jobs; parameterless `!join`; part 2 follow and escort (Q-GP-31 to Q-GP-33). Part 1 done (Q-SIM-74, Q-SIM-75); part 2 with NX-369 in review (Q-SIM-76) | L | 👀 | NX-126 | TB-1 to TB-10 tests per GAMEPLAY §1b; same seed same assignments; the AI garrison never initiates offense |
+| NX-374 [#220](https://github.com/operation-nexus/operation-nexus/issues/220) | Tasking Board core, pulled into P1 from NX-309 (owner, Q-SIM-73): part 1 jobs, lifecycle, leases, priorities and aging, slots and dedupe, dependencies, deterministic assignment, per-side fog, events; resupply, defend, strike, assist-objective and scout jobs; AI garrison takes jobs; parameterless `!join`; part 2 follow and escort (Q-GP-31 to Q-GP-33). Part 1 done (Q-SIM-74, Q-SIM-75); part 2 with NX-369 done (Q-SIM-76) | L | ✅ | NX-126 | TB-1 to TB-10 tests per GAMEPLAY §1b; same seed same assignments; the AI garrison never initiates offense |
 | NX-376 | Worst-case tick budget: QA's 1,000-unit convoy scene (every unit tracked, ~700 followers) runs a p99 of about 31 ms with escort generation off, over the SC-10 25 ms line; profile the board pass, sensing and movement together and bring p99 under budget | M | ⬜ | NX-374 | p99 < 25 ms on QA's worst-case scene in the container and an i7 re-run |
-| NX-151 | Enemy-side view for director (FOW-4) | M | ⬜ | NX-150 | Director API accepts only `EnemyView` |
-| NX-155 | Director: CP, tiers w/ hysteresis, budget | M | ⬜ | NX-151, NX-374 | Hysteresis property |
+| NX-151 | Enemy-side view for director (FOW-4) | M | 🟨 | NX-150 | Director API accepts only `EnemyView` |
+| NX-155 | Director: CP, tiers w/ hysteresis, budget | M | 🟨 | NX-151, NX-374 | Hysteresis property |
 | NX-156 | Director: operations library + scoring + threat memory | L | ⬜ | NX-155 | "Convoy raids → escorts" golden scenario |
-| NX-369 [#189](https://github.com/operation-nexus/operation-nexus/issues/189) | Formation speed: an escorted group moves at its slowest member's speed (Q-SIM-38) | S | 👀 | NX-121, NX-156 | Property: an escorted convoy never outruns its escort; both sides; adds the min-speed clamp for aircraft in a formation (Q-SIM-43) |
+| NX-369 [#189](https://github.com/operation-nexus/operation-nexus/issues/189) | Formation speed: an escorted group moves at its slowest member's speed (Q-SIM-38) | S | ✅ | NX-121, NX-156 | Property: an escorted convoy never outruns its escort; both sides; adds the min-speed clamp for aircraft in a formation (Q-SIM-43) |
 | NX-157 | AI garrison + Pattern of Life + provocation-gated escalation (THREAT-DIRECTOR §5a) | M | ⬜ | NX-155, NX-374 | overnight-0: no attacks; 0→1 viewer: no escalation until provocation; staging visible to scouts |
 | NX-158 | `!rebase` and base-to-base repositioning for both sides | S | ⬜ | NX-121 | Units stage forward and refuel at the destination base |
 | NX-031 | Balance harness (`tools/balance`) + bot personas + report | L | ⬜ | NX-126 | Standard scenarios (crowd profiles of 0, 5, 50, 150, 300 and 500 simulated viewers plus the adversarial profiles, Q-ALN-42): 20-seed balance-diff report; the 50-seed acceptance run of TESTING-STRATEGY §3.5a (Q-TEST-4); unit speeds (`speed_mps`, `min_speed_mps`) are tuned from playtests too (Q-SIM-38) |
