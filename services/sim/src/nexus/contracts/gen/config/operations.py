@@ -26,9 +26,9 @@ class JobTemplate(BaseModel):
     )
     kind: enums.JobKind
     at: Annotated[
-        Literal["target", "target_defenses", "nearest_own_base", "sector_node", "each_convoy"],
+        Literal["target", "target_defenses", "nearest_own_base", "sector_point", "each_convoy"],
         Field(
-            description="Where, resolved against the Static's view (TD-2): target, target_defenses (the target node's defenses), nearest_own_base (the Static base nearest the target), sector_node (the sector's non-Static node nearest the Static's rear source) or each_convoy (one job per unescorted Static convoy)."
+            description="Where, resolved against the Static's view (TD-2): target, target_defenses (the target node's defenses), nearest_own_base (the Static base nearest the target), sector_point (a point of the sector: its stalest area outside every known coalition air-defense ring that is not Disabled, reached by a route that crosses none; none: the operation is dropped) or each_convoy (one job per unescorted Static convoy)."
         ),
     ]
     unit_kinds: Annotated[

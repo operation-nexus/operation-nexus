@@ -46,10 +46,12 @@ from typing import NamedTuple
 
 from nexus.contracts.gen.common.enums import UnitKind
 from nexus.core.fog import SideView
+from nexus.core.logistics import deploy_pool, nearest_by_air
 from nexus.core.rng import PcgStream
-from nexus.core.rules import CP_SCALE, DirectorRules, OperationRules, Rules, sector_at
+from nexus.core.rules import CP_SCALE, DirectorRules, JobTemplate, OperationRules, Rules, sector_at
+from nexus.core.tasking import ring_crossed
 from nexus.core.tasking_gen import fits
-from nexus.core.world import DirectorState
+from nexus.core.world import DirectorState, Vec2
 
 NOISE_STEPS = 1000  # a draw is r in [-NOISE_STEPS, NOISE_STEPS], so the span is 2 * steps + 1
 _FOE = {"COALITION": "ENEMY", "ENEMY": "COALITION"}
@@ -61,10 +63,13 @@ LIVE_PREFIX = "op:"  # a Director job's dedupe key is `op:<operation>:<target>:<
 
 
 class Where(NamedTuple):
-    """What a job is aimed at: a node, or (an escort job) one of the side's own units."""
+    """What a job is aimed at: a node, one of the side's own units (an escort job), or a point
+    (a Recon scout, Q-SIM-87) with `origin`, the base its scout is raised at."""
 
     node: str | None
     entity: int | None = None
+    pos: Vec2 | None = None
+    origin: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -117,30 +122,120 @@ def _nearest(view: SideView, to: str, nodes: list[str]) -> str | None:
     return None if best is None else best[1]
 
 
-def _sector_node(view: SideView, rules: Rules, sector: str) -> str | None:
-    """The sector's node that is not the side's, not a bridge or sanctuary, nearest the side's
-    rear source: where a scout of the sector goes."""
-    inside = [
-        n for n in sorted(view.nodes)
-        if view.owners.get(n) != view.side and rules.node_kind.get(n) not in _NOT_BASES
-        and sector_at(rules, *view.nodes[n]) == sector
-    ]  # fmt: skip
-    return _nearest(view, rules.supply.rear[view.side], inside)
+def launch_base(view: SideView, rules: Rules, own: Own, kind: UnitKind, pos: Vec2) -> str:
+    """Where a new aircraft of `kind` for a job at `pos` is raised (GP-7): the base
+    `logistics.plan_deploy` picks for it, from the view's owners and `Own.margin` (the stock
+    over the floor of the side's finite-stock bases) through the same `deploy_pool` and
+    `nearest_by_air`; else the side's rear source."""
+    pool = deploy_pool(rules, kind, view.side, view.owners, own.margin)
+    return nearest_by_air(rules, pool, pos.x, pos.y) or rules.supply.rear[view.side]
+
+
+def _grid(rules: Rules, sector: str, step: int) -> list[tuple[int, int]]:
+    """The centres of the `step`-m grid cells whose centre lies in the sector, in (x, y) order."""
+    poly = dict(rules.sectors)[sector]
+    x1, y1 = max(p[0] for p in poly), max(p[1] for p in poly)
+    return [
+        (x, y)
+        for x in range(step // 2, x1 + 1, step)
+        for y in range(step // 2, y1 + 1, step)
+        if sector_at(rules, x, y) == sector
+    ]
+
+
+def span(v: float, reach: float, step: int) -> range:
+    """The grid-cell centres (`step // 2 + k step`) within `reach` of the coordinate `v`."""
+    half = step // 2
+    lo, hi = math.ceil((v - reach - half) / step), math.floor((v + reach - half) / step)
+    return range(half + lo * step, half + hi * step + 1, step)
+
+
+def cell_key(x: float, y: float) -> str:
+    """A grid cell's key in `DirectorState.looked`: its centre in metres, `x:y`."""
+    return f"{round(x)}:{round(y)}"
+
+
+def _picture(
+    view: SideView, rules: Rules, dr: DirectorRules, cells: list[tuple[int, int]],
+    looked: Mapping[str, int], now: int,
+) -> dict[tuple[int, int], Fraction]:  # fmt: skip
+    """TD-5 and FOW-6a per cell, the freshest of two readings (1 is unseen, 0 fresh): the track
+    reading is 1 with no track of any kind within `director.recon.loiter_radius_m` of its centre,
+    else the age share (`age / fade`, at most 1) of the freshest one, 0 for a current track; the
+    look reading (Q-SIM-87) is 1 for a cell no sensor of the side covered within
+    `director.recon.memory_s`, else the time since it last did over that time. The Static's own
+    view and memory alone."""
+    fade, reach = rules.track_fade_ticks, dr.recon_loiter_radius_m
+    stale = dict.fromkeys(cells, Fraction(1))
+    for t in (*view.tracks.values(), *view.last_known.values()):
+        share = Fraction(0) if t.age is None else Fraction(min(t.age, fade), fade)
+        for x in span(t.pos.x, reach, dr.recon_grid_m):
+            for y in span(t.pos.y, reach, dr.recon_grid_m):
+                if share < stale.get((x, y), 0) and math.hypot(x - t.pos.x, y - t.pos.y) <= reach:
+                    stale[x, y] = share
+    memory = dr.recon_memory_ticks
+    for c in cells:
+        if (seen := looked.get(cell_key(*c))) is not None:
+            stale[c] = min(stale[c], Fraction(min(now - seen, memory), memory))
+    return stale
+
+
+def _sortie_fits(
+    view: SideView, rules: Rules, dr: DirectorRules, kind: UnitKind, start: Vec2, spot: Vec2
+) -> bool:
+    """A scout of `kind` raised at `start` can fly to `spot`, loiter there and land at the nearest
+    landing base of the side's with the bingo reserve left (`Rules.fuel_s`, one fuel second per
+    world second); else it would turn for home mid-loiter and the job could not finish."""
+    homes = [view.nodes[n] for n in rules.landing_nodes if view.owners.get(n) == view.side]
+    back = min((math.hypot(spot.x - x, spot.y - y) for x, y in homes), default=math.inf)
+    flight = (math.hypot(spot.x - start.x, spot.y - start.y) + back) / rules.speed_mps[kind]
+    loiter = dr.recon_loiter_ticks * rules.world_dt
+    return flight + loiter + rules.bingo_reserve_frac * rules.fuel_s[kind] <= rules.fuel_s[kind]
+
+
+def recon_point(
+    view: SideView, rules: Rules, own: Own, sector: str, kind: UnitKind,
+    looked: Mapping[str, int], now: int,
+) -> tuple[Vec2, str] | None:  # fmt: skip
+    """Q-SIM-87: the point of `sector` a scout of `kind` loiters at and the base it is raised at,
+    or None (the sector is skipped this window). The stalest cell first (`_picture`: tracks and
+    looks), ties by (x, y); the first whose route from its launch base crosses no discovered
+    coalition air-defense ring that was not last seen Disabled, which stays clear of every such
+    ring by the loiter radius, and which the scout can fly to, loiter at and return from
+    (`_sortie_fits`). Only the view and `Own` are read (TD-2)."""
+    dr = rules.director
+    if dr is None:
+        return None
+    cells = _grid(rules, sector, dr.recon_grid_m)
+    stale = _picture(view, rules, dr, cells, looked, now)
+    order = sorted(cells, key=lambda c: (-stale[c], c))
+    for x, y in order:
+        spot = Vec2(x, y)
+        origin = launch_base(view, rules, own, kind, spot)
+        start = Vec2(*rules.roads.pos[origin])
+        clear = not ring_crossed(view.markers.values(), start, (x, y), dr.recon_loiter_radius_m)
+        if clear and _sortie_fits(view, rules, dr, kind, start, spot):
+            return spot, origin
+    return None
 
 
 def _resolve(
-    at: str, c_target: str, op: OperationRules, view: SideView, rules: Rules, own: Own
-) -> tuple[Where, ...]:
+    job: JobTemplate, c_target: str, state: DirectorState, view: SideView, rules: Rules, own: Own,
+    now: int,
+) -> tuple[Where, ...]:  # fmt: skip
     """A selector against the side's view (TD-2); empty when it resolves to nothing."""
+    at = job.at
     if at == _EACH_CONVOY:
         return tuple(Where(None, i) for i, _ in own.convoys)
     if at in ("target", "target_defenses"):
         return (Where(c_target),)
     if at == "nearest_own_base":
         near = _nearest(view, c_target, bases(view, rules))
-    else:  # sector_node
-        near = _sector_node(view, rules, c_target)
-    return () if near is None else (Where(near),)
+        return () if near is None else (Where(near),)
+    spot = recon_point(
+        view, rules, own, c_target, job.unit_kinds[0], state.looked, now
+    )  # sector_point
+    return () if spot is None else (Where(None, None, *spot),)
 
 
 def _frontline(view: SideView, rules: Rules, node: str, hops: int) -> bool:
@@ -238,7 +333,7 @@ def candidates(
                 op, target, state, view, rules, own, now
             ):
                 continue
-            wheres = tuple(_resolve(j.at, target, op, view, rules, own) for j in op.jobs)
+            wheres = tuple(_resolve(j, target, state, view, rules, own, now) for j in op.jobs)
             if all(wheres):
                 sector = _sector_of(op, target, view, rules)
                 chosen = _garrison(op, target, rules, dr, own) if op.target == _GARRISON else op

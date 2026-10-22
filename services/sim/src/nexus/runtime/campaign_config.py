@@ -142,6 +142,8 @@ def load_campaign_config(paths: ConfigPaths | None = None) -> CampaignConfig:
             patrol_ticks=game_ticks(balance.director.pol.patrol_period_s, balance),
             convoy_ticks=game_ticks(balance.director.pol.convoy_period_s, balance),
             offensive_ticks=game_ticks(balance.director.pol.offensive_period_s, balance),
+            recon_loiter_ticks=game_ticks(balance.director.recon.loiter_s, balance),
+            recon_memory_ticks=game_ticks(balance.director.recon.memory_s, balance),
             night_cap_ticks=round(
                 Fraction(3600 * balance.sim.tick_hz)
                 / Fraction(repr(cc.night_progress_cap_nodes_per_h))

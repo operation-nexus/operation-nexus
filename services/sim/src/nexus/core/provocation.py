@@ -191,6 +191,16 @@ def note_redemption(world: World, side: Side, klass: Literal["support", "cosmeti
 _TIER_INDEX = {"PATTERN_OF_LIFE": 0, "ALPHA": 1, "BRAVO": 2}
 
 
+def _cells_ok(looked: dict[str, int], rules: Rules, grid: int) -> bool:
+    """Every key is the centre of a `grid` cell inside the theater, so the map is bounded."""
+    width, height = rules.bounds_m
+    for key in looked:
+        x, y = (int(p) for p in key.split(":"))
+        if x % grid != grid // 2 or y % grid != grid // 2 or x > width or y > height:
+            return False
+    return True
+
+
 def validate(world: World, rules: Rules) -> None:
     """Check a restored world's Director state against the campaign rules (a snapshot carries
     none); raises ValueError naming the side. Only a directed side ever changes from its start
@@ -231,6 +241,8 @@ def validate(world: World, rules: Rules) -> None:
             if any(int(k) >= world._next_entity_id for k in d.idle)
             else "a Pattern of Life timer that no decision window could have set"
             if any(t % dr.window_ticks for t in (d.last_patrol, d.last_convoy, d.last_offensive))
+            else "a looked cell that is not a centre of the recon grid in the theater"
+            if not _cells_ok(d.looked, rules, dr.recon_grid_m)
             else "a held capture bar at a node that does not exist"
             if not d.held.keys() <= rules.roads.pos.keys()
             else "an adaptation that is not announced in a theater sector"
@@ -241,6 +253,11 @@ def validate(world: World, rules: Rules) -> None:
         )
         if problem:
             raise ValueError(f"director.{side}: {problem}")
+    width, height = rules.bounds_m
+    for board in world.boards.values():
+        for job in board.values():
+            if job.pos is not None and not (0 <= job.pos.x <= width and 0 <= job.pos.y <= height):
+                raise ValueError(f"job {job.id}: a position outside the theater")
     for e in world.entities():
         if e.home is not None and (
             e.owner_kind != "ENEMY_DIRECTOR" or e.home not in rules.roads.pos

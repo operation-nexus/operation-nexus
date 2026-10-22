@@ -10,6 +10,7 @@ Static flip per 6 game hours with no viewer unit. The long run is simulated once
 import dataclasses
 import functools
 import itertools
+from fractions import Fraction
 from typing import Any
 
 import msgpack
@@ -99,6 +100,18 @@ NIGHT_RULES = with_director(
 OVERNIGHT_TICKS = 40_000
 
 
+def look_staleness(w: World, rules: Rules) -> Fraction:
+    """The Static's mean staleness over the theater's recon cells: 1 for a cell no sensor covered
+    within `director.recon.memory_s`, else the time since over that time (0 fresh)."""
+    dr, now = rules.director, w.campaign.running_ticks + 1
+    assert dr is not None
+    width, height = rules.bounds_m
+    cells = int(width // dr.recon_grid_m) * int(height // dr.recon_grid_m)
+    seen = w.director["ENEMY"].looked
+    fresh = sum(1 - Fraction(now - t, dr.recon_memory_ticks) for t in seen.values())
+    return Fraction(1) - Fraction(fresh) / cells
+
+
 @functools.cache
 def overnight() -> dict[str, Any]:
     """1.5 game hours with the long periods compressed, 0 viewers, no commands; stats are taken
@@ -109,10 +122,14 @@ def overnight() -> dict[str, Any]:
     stats: dict[str, Any] = {
         "tier_changes": 0, "peak_prov": 0, "over_quota": [], "over_cap": [], "idle_homed": [],
         "td2": [], "at_36000": {}, "captured": [], "kinds": set(),
+        "scouts": set(), "scout_losses": 0, "stale": [], "points": set(),
     }  # fmt: skip
     for i in range(OVERNIGHT_TICKS):
         for e in step(w, []):
             stats["kinds"].add(e.kind)
+            if e.kind == "UnitSpawned" and e.unit_kind == "ENEMY_RECON_UAV":
+                stats["scouts"].add(e.entity_id)
+            stats["scout_losses"] += e.kind == "UnitDestroyed" and e.entity_id in stats["scouts"]
             if e.kind == "ThreatTierChanged":
                 stats["tier_changes"] += 1
             if e.kind == "NodeCaptured":
@@ -125,6 +142,12 @@ def overnight() -> dict[str, Any]:
         stats["over_cap"] += [len(enemy_units(w))] if len(enemy_units(w)) > cap else []
         stats["idle_homed"] += [k for k in s.idle if (u := w.find(int(k))) and u.home]
         view = side_view(w, "ENEMY")
+        stats["stale"].append(look_staleness(w, NIGHT_RULES))
+        stats["points"] |= {
+            (j.pos.x, j.pos.y)
+            for j in w.boards["ENEMY"].values()
+            if j.pos is not None and j.key.startswith("op:RECON")
+        }
         stats["td2"] += [
             j.key
             for j in w.boards["ENEMY"].values()
@@ -148,6 +171,20 @@ def test_overnight_with_no_viewers_there_is_no_escalation_and_at_most_a_node_per
     # the capture slot fired in its period (every 21,600 game s / 12) and did not escalate
     assert run["world"].director["ENEMY"].last_offensive >= DR.offensive_ticks // COMPRESS
     assert run["world"].director["ENEMY"].tier == "PATTERN_OF_LIFE"
+
+
+def test_recon_losses_and_stock_burn_fall_well_below_nx_157s_and_the_picture_stays_fresh() -> None:
+    """Q-SIM-87 against NX-157's 0-viewer run (about 14 scouts lost and 70 stock burnt per game
+    hour; mean look staleness 0.29 over 6 hours, by the same rule from the sensors' coverage)."""
+    run = overnight()
+    hours = OVERNIGHT_TICKS / 36_000
+    recon = next(o for o in DR.operations if o.id == "RECON")
+    burn = len(run["scouts"]) * recon.cost  # a scout reused from an idle unit costs nothing
+    assert run["scout_losses"] / hours <= 14 / 4
+    assert burn / hours <= 70 / 2  # 18 an hour in this run, which starts with its opening scouts
+    assert len(run["scouts"]) > 0  # it still scouts
+    assert len(run["points"]) >= 8  # and to many places (NX-157's run: 3 nodes)
+    assert sum(run["stale"]) / len(run["stale"]) <= 0.25  # 0.17 here; NX-157's run: 0.29
 
 
 def test_upkeep_fills_each_base_to_its_quota_in_turn_and_never_beyond() -> None:

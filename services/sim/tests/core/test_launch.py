@@ -4,7 +4,7 @@ Q-TD-4, Q-TD-6, Q-TD-8, Q-TD-12, Q-SIM-78, Q-SIM-81).
 Runs on the shipped strait-1 config with the campaign layer off. A window is run by hand
 (`window`: the tier and budget set, then `launch.run`) unless a test needs the clock, which then
 uses real `step`s. Shipped numbers: costs OFFENSIVE 60, RETAKE 50, ESCORT_CONVOYS 10, REINFORCE_IADS
-15, PROBE 15, RECON 5, DECOY_BLINK 0; at most 6 new units a window; memory half-life 30 windows.
+15, PROBE 15, RECON 2, DECOY_BLINK 0; at most 6 new units a window; memory half-life 30 windows.
 On strait-1 an OFFENSIVE does not complete by itself (Q-SIM-84):
 the strike step loses jets to air defense or has too few rounds for a full base, so the chain
 tests clear the coalition's air defense and weaken the target first; that is left to balance
@@ -577,6 +577,7 @@ def test_decoy_blink_darkens_one_radar_a_window_for_dark_s_then_cools_down() -> 
     skip(w, s.blink_ready[first] - 1 - w.campaign.running_ticks)
     window(w, "PATTERN_OF_LIFE", 0)
     assert s.dark  # the cooldown is over: a radar blinks again (the noise picks which)
+    skip(w, 1)  # the hand-run window stamped the tick it ran at: the clock moves past it
     again = load(save(w))
     assert (
         again.director["ENEMY"].dark == s.dark
@@ -760,7 +761,7 @@ def test_an_operation_fills_its_slots_from_idle_units_and_pays_only_for_new_ones
         unit(w, "ENEMY_RECON_UAV", "ENEMY", "ENEMY_DIRECTOR", "east-airbase") for _ in range(2)
     ]
     before = sum(w.stock.values())
-    events = window(w, "PATTERN_OF_LIFE", 10)  # RECON x2 (5 each) in the best two sectors
+    events = window(w, "PATTERN_OF_LIFE", 4)  # RECON x2 (2 each) in the best two sectors
     assert [e.kind for e in events].count("UnitSpawned") == 0
     assert {u.job_id is not None for u in spare} == {True}
     assert before - sum(w.stock.values()) == 0  # nothing was bought
@@ -827,7 +828,14 @@ def test_forced_pressure_keeps_launching_under_small_caps_because_units_are_reus
         assert len(enemy_units(w)) <= small["BRAVO"] + DR.max_spawns_per_window
         if len(launched) > 40:
             idle_late = max(
-                idle_late, len([u for u in enemy_units(w) if u.job_id is None and u.home is None])
+                idle_late,
+                len(
+                    [
+                        u
+                        for u in enemy_units(w)
+                        if u.job_id is None and u.home is None and u.state != "RTB"
+                    ]
+                ),
             )  # a garrison unit sits idle at its base by design (Q-SIM-85)
     assert s.tier == tier
     if tier == "BRAVO":

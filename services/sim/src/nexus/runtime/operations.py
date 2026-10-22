@@ -37,7 +37,7 @@ _SELECTOR_TARGET = {
     "target": ("NODE", _GARRISON),
     "target_defenses": ("NODE",),
     "nearest_own_base": ("NODE",),
-    "sector_node": ("SECTOR",),
+    "sector_point": ("SECTOR",),
     "each_convoy": ("CONVOYS",),
 }
 _MOVER_DOMAINS = ("AIR", "GROUND")

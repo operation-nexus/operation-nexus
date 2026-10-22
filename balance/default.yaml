@@ -230,6 +230,11 @@ director:  # Threat Director (Q-SIM-78, Q-SIM-81, owner-approved starting number
     factor: 1.0  # PROPOSED – unvalidated (Q-SIM-81); memory multiplier 1 + k x c, or 1 / (1 + k x c)
     half_life_s: 1800  # PROPOSED – unvalidated (Q-SIM-81, Q-ALN-23); s (game)
   noise_scale: 0.1  # PROPOSED – unvalidated (Q-SIM-78); a score moves by up to 10% either way
+  recon:  # NX-379, Q-SIM-87: a Recon scout flies to the stalest point of the sector outside the known air-defense rings
+    loiter_s: 600  # PROPOSED – unvalidated (Q-SIM-87); s (game) the scout loiters at its point before it goes home
+    loiter_radius_m: 5000  # PROPOSED – unvalidated (Q-SIM-87); m, the loiter stays within it, and it is the clearance from a known ring and the reach of a track as the point's picture
+    grid_m: 10000  # PROPOSED – unvalidated (NX-379); m between candidate points over a sector
+    memory_s: 3600  # PROPOSED – unvalidated (NX-379); s (game) a cell a Static sensor covered counts as looked at (staleness 0 rising to 1)
   decoy_blink:
     dark_s: 120  # PROPOSED – unvalidated (Q-SIM-82, owner); s (game) a blinking radar is dark
     max_per_window: 1  # PROPOSED – unvalidated (Q-SIM-82); radars that start a blink per window
