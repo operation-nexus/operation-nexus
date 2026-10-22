@@ -15,11 +15,13 @@ from fractions import Fraction
 from pathlib import Path
 
 from nexus.contracts.gen.config.balance import BalanceConfig
+from nexus.contracts.gen.config.operations import JobTemplate as JobConfig
 from nexus.contracts.gen.config.operations import Operation, OperationsConfig
 from nexus.contracts.gen.config.unit import UnitConfig
 from nexus.core.rules import JobTemplate, OperationRules
 from nexus.runtime.config import ConfigError, canonical_hash, load_model
 
+_GARRISON = "GARRISON"  # the target of the garrison upkeep operation (Q-SIM-85)
 # What each precondition and selector can be aimed at (the closed lists of the schema).
 _PRECONDITION_TARGET = {
     "target_owner_is_coalition": "NODE",
@@ -32,11 +34,11 @@ _PRECONDITION_TARGET = {
     "has_unescorted_convoy": "CONVOYS",
 }
 _SELECTOR_TARGET = {
-    "target": "NODE",
-    "target_defenses": "NODE",
-    "nearest_own_base": "NODE",
-    "sector_node": "SECTOR",
-    "each_convoy": "CONVOYS",
+    "target": ("NODE", _GARRISON),
+    "target_defenses": ("NODE",),
+    "nearest_own_base": ("NODE",),
+    "sector_node": ("SECTOR",),
+    "each_convoy": ("CONVOYS",),
 }
 _MOVER_DOMAINS = ("AIR", "GROUND")
 
@@ -56,6 +58,16 @@ def load_operations(
     ]
     for op in cfg.operations:
         problems += [f"{op.id}: {p}" for p in _problems(op, balance, enemy)]
+    if sum(o.target == _GARRISON for o in cfg.operations) > 1:
+        problems.append("at most one GARRISON operation")
+    if balance.director.garrison.replace_per_window > balance.director.max_spawns_per_window:
+        problems.append("director.garrison.replace_per_window is above max_spawns_per_window")
+    kinds = {*balance.director.garrison.kinds.FOB, *balance.director.garrison.kinds.AIRBASE}
+    kinds |= {*balance.director.garrison.kinds.HQ, balance.director.pol.convoy_kind}
+    problems += [
+        f"director.garrison.kinds, director.pol.convoy_kind: {k} is not an ENEMY air or ground kind"
+        for k in sorted(kinds - enemy)
+    ]
     if problems:
         raise ConfigError(f"{path}: " + "; ".join(problems))
     return tuple(
@@ -64,6 +76,29 @@ def load_operations(
             key=lambda r: r.id,
         )
     )
+
+
+def _job_problems(op: Operation, where: str, job: JobConfig, enemy: set[str]) -> list[str]:
+    """One job template against its operation: the selector and kind suit the target, the unit
+    kinds are ENEMY movers (a GARRISON operation's come from `director.garrison.kinds`)."""
+    garrison = op.target == _GARRISON
+    out = []
+    if op.target not in _SELECTOR_TARGET[job.at]:
+        out.append(f"{where}: selector {job.at} does not suit target {op.target}")
+    if (job.kind == "ESCORT_CONVOY") != (job.at == "each_convoy"):
+        out.append(f"{where}: an ESCORT_CONVOY job is the one at each_convoy")
+    if garrison and job.kind != "STAGE":
+        out.append(
+            f"{where}: a GARRISON operation stages its unit (the kinds are checked for STAGE)"
+        )
+    if garrison == bool(job.unit_kinds):
+        out.append(f"{where}: unit_kinds are required, except for a GARRISON operation's")
+    out += [
+        f"{where}: {k} is not an ENEMY air or ground kind"
+        for k in dict.fromkeys(job.unit_kinds or ())
+        if k not in enemy
+    ]
+    return out
 
 
 def _problems(op: Operation, balance: BalanceConfig, enemy: set[str]) -> list[str]:
@@ -101,16 +136,7 @@ def _problems(op: Operation, balance: BalanceConfig, enemy: set[str]) -> list[st
         if _PRECONDITION_TARGET[p] != op.target
     ]
     for n, job in enumerate(op.jobs or (), 1):
-        where = f"job {n} ({job.kind})"
-        if _SELECTOR_TARGET[job.at] != op.target:
-            out.append(f"{where}: selector {job.at} does not suit target {op.target}")
-        if (job.kind == "ESCORT_CONVOY") != (job.at == "each_convoy"):
-            out.append(f"{where}: an ESCORT_CONVOY job is the one at each_convoy")
-        out += [
-            f"{where}: {k} is not an ENEMY air or ground kind"
-            for k in dict.fromkeys(job.unit_kinds)
-            if k not in enemy
-        ]
+        out += _job_problems(op, f"job {n} ({job.kind})", job, enemy)
     fixed = sum(j.slots for j in op.jobs or () if j.at != "each_convoy")
     if fixed > d.max_spawns_per_window:
         out.append(f"buys {fixed} units, above max_spawns_per_window {d.max_spawns_per_window}")
@@ -124,7 +150,9 @@ def _rules(op: Operation, priority: Fraction) -> OperationRules:
         preconditions=tuple(sorted(op.preconditions)),
         cost=op.cost,
         tiers=frozenset(op.enabled_tiers),
-        jobs=tuple(JobTemplate(j.kind, j.at, tuple(j.unit_kinds), j.slots) for j in op.jobs or ()),
+        jobs=tuple(
+            JobTemplate(j.kind, j.at, tuple(j.unit_kinds or ()), j.slots) for j in op.jobs or ()
+        ),
         effect=op.effect,
         priority=priority,
         memory=None if op.memory is None else (op.memory.counter, op.memory.effect),

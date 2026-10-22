@@ -1,0 +1,15 @@
+{
+  "campaign_id": "0192f3a4-5b6c-7d8e-9f01-23456789abcd",
+  "seed": 12345,
+  "config_hash": "93b1b34a22830d53996411efcb6b39cc7c1c5375e9c5f8d325945009f91a662f",
+  "ticks": 36000,
+  "checkpoints_every": 100,
+  "handlers": "kernel",
+  "description": "No viewers and no commands for one game hour on strait-1 with the shipped config and the long Pattern of Life periods shortened (OVERRIDES): the Static's garrison upkeep, patrols, routine scouting, radar blinks, a supply convoy and its capture operation (NX-157, Q-SIM-85). No tier move and no provocation.",
+  "rules": "shipped",
+  "overrides": {
+    "director.pol.offensive_period_s": 1800,
+    "director.pol.convoy_period_s": 1800,
+    "campaign.night_progress_cap_nodes_per_h": 1.0
+  }
+}

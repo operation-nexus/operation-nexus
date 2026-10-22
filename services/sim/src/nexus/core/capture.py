@@ -39,6 +39,16 @@ by the rules above (the gate says "can't begin", GAMEPLAY §8), and the flip set
 new owner. Idle floor (Q-GP-28, Q-GP-44): with no live viewer unit, the theater's `forward_airbase`
 while the coalition owns it is skipped, so its bar neither starts, fills nor decays.
 
+Night progress (Q-SIM-85, Q-SIM-86, NX-157): every Static flip stamps `DirectorState.last_flip`.
+With no live viewer unit, the Static may flip a node only if none flipped in the last
+`1 / campaign.night_progress_cap_nodes_per_h` game hours (`director.night_capped`); until then its
+bar holds one step short of the flip (the node is in `DirectorState.held`), and the Director
+launches no capture operation (`nexus.core.launch`). A held bar stays held until the cap frees,
+even when a viewer arrives, so a new viewer does not see held bases fall at once; coalition units
+contest it as any bar, and it leaves `held` when it is gone or drained. A unit on a PATROL job
+never counts as a capturer (it still contests and garrisons), so a patrol can turn at a neutral
+node without flipping it.
+
 Runs after `logistics` in the `logistics_capture` slot (SC-13) and not while paused (SC-11).
 Deterministic: nodes in id order, entities in id order, no RNG.
 shortcut: a scan of every entity per capturable node; use the SC-10 grid if nodes x entities shows
@@ -53,6 +63,7 @@ from nexus.contracts.gen.events.capture_started import CaptureStarted
 from nexus.contracts.gen.events.event import Event
 from nexus.contracts.gen.events.node_captured import NodeCaptured
 from nexus.core.defense import reset
+from nexus.core.director import night_capped
 from nexus.core.fog import hand_over
 from nexus.core.logistics import friendly_bases, nearest
 from nexus.core.provocation import captured
@@ -84,6 +95,7 @@ def capture(world: World, out: list[Event]) -> None:
         return
     cap = rules.capture
     nodes = [n for n, kind in rules.node_kind.items() if kind not in _UNCAPTURABLE]
+    _prune_held(world)
     near = _presence(world, rules, cap, nodes)
     viewers = world.viewer_units()
     quiet = _quiet(cap, viewers)
@@ -91,7 +103,21 @@ def capture(world: World, out: list[Event]) -> None:
     for node in nodes:  # id order
         if node == idle_node and world.owner[node] == "COALITION":
             continue  # the idle floor
-        _tick_node(world, rules, cap, node, near[node], quiet, out)
+        _tick_node(world, rules, cap, node, near[node], quiet, viewers == 0, out)
+
+
+def _prune_held(world: World) -> None:
+    """A node leaves `held` when its bar is gone, is not the Static's or has been drained."""
+    held = world.director["ENEMY"].held
+    for node in sorted(held):
+        bar = world.capture.get(node)
+        if bar is None or bar.side != "ENEMY" or bar.progress < CAPTURE_FULL - 1:
+            del held[node]
+
+
+def _patrolling(world: World, e: Entity) -> bool:
+    job = world.boards[e.side].get(e.job_id) if e.job_id is not None else None
+    return job is not None and job.kind == "PATROL"
 
 
 def _presence(world: World, rules: Rules, cap: CaptureRules, nodes: list[str]) -> _Nodes:
@@ -103,20 +129,24 @@ def _presence(world: World, rules: Rules, cap: CaptureRules, nodes: list[str]) -
             continue  # airborne: never counts (N-3); LANDED air only garrisons
         if domain not in (_AIR, _GROUND):
             continue  # facilities never contest or garrison (Q-GP-38)
+        capturing = not _patrolling(world, e)
         for n in nodes:
             x, y = rules.roads.pos[n]
             if (e.pos.x - x) ** 2 + (e.pos.y - y) ** 2 <= r2:
-                _tally(near[n][e.side], e, domain, rules, cap)
+                _tally(near[n][e.side], e, domain, rules, cap, capturing=capturing)
     return near
 
 
-def _tally(p: _Presence, e: Entity, domain: str, rules: Rules, cap: CaptureRules) -> None:
+def _tally(
+    p: _Presence, e: Entity, domain: str, rules: Rules, cap: CaptureRules, *, capturing: bool
+) -> None:
     if domain == _AIR:
         p.garrison += 1
         return
-    p.weight += cap.logi_weight if e.kind in rules.supply.carriers else 1.0
-    if e.commander_id is not None:
-        p.commanders.add(e.commander_id)
+    if capturing:
+        p.weight += cap.logi_weight if e.kind in rules.supply.carriers else 1.0
+        if e.commander_id is not None:
+            p.commanders.add(e.commander_id)
     if e.kind in rules.armed and e.damage_state != _DISABLED:  # a wreck cannot contest (Q-ALN-33)
         p.armed += 1
     else:
@@ -136,6 +166,7 @@ def _tick_node(
     node: str,
     near: dict[Side, _Presence],
     quiet: float,
+    humanless: bool,
     out: list[Event],
 ) -> None:
     owner = world.owner[node]
@@ -157,7 +188,25 @@ def _tick_node(
     time = max(cap.min_time_s, base * _modifier(cap, owner, near))
     bar.progress += max(1, round(CAPTURE_FULL * rules.world_dt / time))
     if bar.progress >= CAPTURE_FULL:
+        if _night_hold(world, rules, node, bar, humanless):
+            bar.progress = CAPTURE_FULL - 1  # the night cap holds the flip back
+            return
         _flip(world, rules, cap, node, bar.side, near, out)
+
+
+def _night_hold(world: World, rules: Rules, node: str, bar: CaptureBar, humanless: bool) -> bool:
+    """Whether the night cap holds back this Static flip (a held node stays held, Q-SIM-86); a flip
+    that goes ahead stamps the cap clock, with or without viewers."""
+    dr, static = rules.director, world.director["ENEMY"]
+    if dr is None or bar.side != "ENEMY":
+        return False
+    now = world.campaign.running_ticks + 1
+    if night_capped(static, dr, now) and (humanless or node in static.held):
+        static.held.setdefault(node, now)
+        return True
+    static.last_flip = now
+    static.held.pop(node, None)
+    return False
 
 
 def _starter(near: dict[Side, _Presence], free: list[Side]) -> Side | None:

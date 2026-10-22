@@ -29,7 +29,9 @@ from nexus.core.step import step
 from nexus.core.world import CaptureBar, Contact, Entity, Vec2, World, load, save, state_hash
 from nexus.runtime.campaign_config import load_campaign_config, start_campaign
 
-RULES = dataclasses.replace(load_campaign_config().rules, tasking=None)  # NX-374: board off
+RULES = dataclasses.replace(  # NX-374: board off; no opening garrison (Q-SIM-86)
+    load_campaign_config().rules, tasking=None, garrison_quota={}
+)
 CONFIG = dataclasses.replace(load_campaign_config(), rules=RULES)
 POS = RULES.roads.pos
 CAMPAIGN_ID = "0192f3a4-5b6c-7d8e-9f01-23456789abcd"

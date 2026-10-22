@@ -45,7 +45,9 @@ from nexus.core.world import Entity, Vec2, World, load, save, state_hash
 from nexus.runtime.campaign_config import REPO, ConfigPaths, load_campaign_config, start_campaign
 
 CONFIG = load_campaign_config()
-RULES = dataclasses.replace(CONFIG.rules, campaign=None)
+# the campaign layer off and no opening garrison (Q-SIM-86): NX-156's tests start from an empty
+# Static, test_pol.py puts the quotas back
+RULES = dataclasses.replace(CONFIG.rules, campaign=None, garrison_quota={})
 _dr = RULES.director
 if _dr is None:
     raise AssertionError("the shipped config has Director rules")
@@ -170,7 +172,7 @@ def test_candidates_follow_the_tier_and_the_preconditions() -> None:
         ids(alpha, "RETAKE") == ids(alpha, "ESCORT_CONVOYS") == ids(alpha, "REINFORCE_IADS") == []
     )
     routine = {c.op.id for c in candidates(w, "PATTERN_OF_LIFE")}
-    assert routine == {"RECON", "DECOY_BLINK"}  # no convoy yet; no offensive at Pattern of Life
+    assert routine == {"RECON", "DECOY_BLINK"}  # no quota here; no convoy yet, no offensive
 
 
 def test_a_selector_that_resolves_to_nothing_drops_the_operation() -> None:
@@ -405,13 +407,14 @@ def test_alpha_runs_one_operation_at_a_time_and_a_live_one_is_not_posted_again()
 
 
 def test_routine_operations_do_not_count_against_the_alpha_cap() -> None:
-    assert ops.routine_ops(DR) == {"RECON", "ESCORT_CONVOYS", "DECOY_BLINK"}  # from the tier data
-    w = new_world()
+    assert ops.routine_ops(DR) == {"RECON", "ESCORT_CONVOYS", "DECOY_BLINK", "GARRISON_UPKEEP"}
+    no_garrison = dataclasses.replace(RULES, garrison_quota={})  # upkeep would take the 15 first
+    w = new_world(1, no_garrison)
     for c in candidates(w):
         if c.op.id == "RECON":
             _launch(w, RULES, "ENEMY", side_view(w, "ENEMY"), w.director["ENEMY"], c, [])
     assert len(ops.live_pairs([j.key for j in w.boards["ENEMY"].values()])) == 3
-    window(w, "ALPHA", 15)  # only PROBE (15) is affordable among the rest
+    window(w, "ALPHA", 15, no_garrison)  # only PROBE (15) is affordable among the rest
     assert non_routine(w) == {("PROBE", "fob-n-w")} or {p[0] for p in non_routine(w)} == {"PROBE"}
 
 
@@ -442,7 +445,9 @@ def test_an_offensive_posts_its_template_in_order_and_its_units_take_the_jobs() 
 
 
 def test_an_offensive_stages_strikes_and_captures_on_strait_1() -> None:
-    w = new_world()
+    # the units cross the neutral bridgehead and flip it: the night cap (no viewers) would hold
+    # the base's flip back for 6 game hours, so this run has none (the cap has its own tests)
+    w = new_world(1, with_director(night_cap_ticks=1))
     clear_coalition_defenses(w)
     w.defense_hp["fob-n-w"] = 10  # two jets with a few rounds each cannot break a full base
     (cand,) = [c for c in candidates(w) if c.op.id == "OFFENSIVE" and c.target == "fob-n-w"]
@@ -557,7 +562,7 @@ def test_decoy_blink_darkens_one_radar_a_window_for_dark_s_then_cools_down() -> 
     assert s.blink_ready[first] > w.campaign.running_ticks  # cooling down: no blink yet
     skip(w, s.blink_ready[first] - 1 - w.campaign.running_ticks)
     window(w, "PATTERN_OF_LIFE", 0)
-    assert radars[first].emitting is False  # the cooldown is over
+    assert s.dark  # the cooldown is over: a radar blinks again (the noise picks which)
     again = load(save(w))
     assert (
         again.director["ENEMY"].dark == s.dark
@@ -657,7 +662,7 @@ def busy_world() -> World:
     return w
 
 
-def test_a_restored_world_runs_the_same_events_as_the_live_one_and_format_19_is_refused() -> None:
+def test_a_restored_world_runs_the_same_events_as_the_live_one_and_format_20_is_refused() -> None:
     import msgpack
 
     w = busy_world()
@@ -672,8 +677,8 @@ def test_a_restored_world_runs_the_same_events_as_the_live_one_and_format_19_is_
     ]
     assert state_hash(again) == state_hash(w)
     raw = msgpack.unpackb(save(w), raw=False)
-    raw["v"] = 19
-    with pytest.raises(ValueError, match="unsupported snapshot format version 19"):
+    raw["v"] = 20
+    with pytest.raises(ValueError, match="unsupported snapshot format version 20"):
         load(msgpack.packb(raw, use_bin_type=True))
 
 
@@ -807,7 +812,9 @@ def test_forced_pressure_keeps_launching_under_small_caps_because_units_are_reus
         retired += len([e for e in events if isinstance(e, UnitDespawned)])
         assert len(enemy_units(w)) <= small["BRAVO"] + DR.max_spawns_per_window
         if len(launched) > 40:
-            idle_late = max(idle_late, len([u for u in enemy_units(w) if u.job_id is None]))
+            idle_late = max(
+                idle_late, len([u for u in enemy_units(w) if u.job_id is None and u.home is None])
+            )  # a garrison unit sits idle at its base by design (Q-SIM-85)
     assert s.tier == tier
     if tier == "BRAVO":
         assert retired > 0  # spent units are retired, not left to fill the cap

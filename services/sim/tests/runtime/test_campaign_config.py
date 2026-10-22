@@ -68,10 +68,13 @@ def test_start_campaign_stamps_the_config_and_attaches_rules(
     assert world.campaign.config_hash == GOLDEN_CONFIG_HASH
     assert world.rules is shipped_config.rules
     assert (world.reserve_queue, world.respawn_left) == ([], {})
+    facilities = [e for e in world.entities() if e.home is None]
     assert [
-        (e.id, e.kind, e.side, e.base_id, e.variant, e.emitting, e.pos) for e in world.entities()
+        (e.id, e.kind, e.side, e.base_id, e.variant, e.emitting, e.pos) for e in facilities
     ] == STRAIT_1_FACILITIES
-    for e in world.entities():  # base-owned, parked, at full hp (NX-124)
+    # the Static's opening garrison (Q-SIM-86): its quotas 6 + 4 + 4 + 8, after the facilities
+    assert sorted(e.id for e in world.entities() if e.home) == list(range(10, 32))
+    for e in facilities:  # base-owned, parked, at full hp (NX-124)
         hp = {"RADAR_SITE": 150, "AIR_DEFENSE_SITE": 150}[e.kind]
         assert (e.owner_kind, e.commander_id, e.hp, e.path, e.vel) == (
             "AI_GARRISON", None, hp, [], Vec2(0, 0)

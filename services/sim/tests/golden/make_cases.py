@@ -13,9 +13,8 @@ from runtime.test_recovery import POISON_ID, make_join
 
 from nexus.contracts.gen.commands.command import Command
 from nexus.contracts.gen.commands.join import JoinCommand
-from nexus.runtime.campaign_config import load_campaign_config
 from nexus.runtime.command_log import CommandLogWriter
-from nexus.runtime.golden import CASE_FILE, LOG_DIR
+from nexus.runtime.golden import CASE_FILE, LOG_DIR, shipped_config
 
 HERE = Path(__file__).parent
 
@@ -69,6 +68,17 @@ STRAIT_JOINS = {
     ],
 }
 
+# Balance keys a case shortens or changes (dotted, see `golden.shipped_config`): overnight-0 would
+# need 6 game hours for the 6-hour periods; here the capture operation, the convoy and the night
+# cap (1 node per game hour instead of per 6) all fall inside one hour.
+OVERRIDES: dict[str, dict[str, float]] = {
+    "overnight-0": {
+        "director.pol.offensive_period_s": 1800,
+        "director.pol.convoy_period_s": 1800,
+        "campaign.night_progress_cap_nodes_per_h": 1.0,
+    }
+}
+
 CASES: dict[str, Plan] = {
     "empty-1h": (
         36_000,
@@ -109,6 +119,17 @@ CASES: dict[str, Plan] = {
         (),
         True,
     ),
+    "overnight-0": (
+        36_000,
+        "kernel",
+        "No viewers and no commands for one game hour on strait-1 with the shipped config and the "
+        "long Pattern of Life periods shortened (OVERRIDES): the Static's garrison upkeep, "
+        "patrols, routine scouting, radar blinks, a supply convoy and its capture operation "
+        "(NX-157, Q-SIM-85). No tier move and no provocation.",
+        {},
+        (),
+        True,
+    ),
     "capture-strait-1": (
         17_000,
         "kernel",
@@ -130,12 +151,15 @@ def write_case(case_dir: Path, plan: Plan) -> None:
     case = {
         "campaign_id": CAMPAIGN_ID,
         "seed": 12345,
-        "config_hash": load_campaign_config().config_hash if shipped else "cfg-golden",
+        "config_hash": shipped_config(OVERRIDES.get(case_dir.name, {})).config_hash
+        if shipped
+        else "cfg-golden",
         "ticks": ticks,
         "checkpoints_every": 100,
         "handlers": handlers,
         "description": description,
         **({"rules": "shipped"} if shipped else {}),
+        **({"overrides": OVERRIDES[case_dir.name]} if case_dir.name in OVERRIDES else {}),
     }
     (case_dir / CASE_FILE).write_text(json.dumps(case, indent=2) + "\n")
     log = CommandLogWriter(

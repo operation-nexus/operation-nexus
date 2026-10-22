@@ -8,6 +8,7 @@ Paths default to the shipped files, found from this file, not the working direct
 """
 
 from dataclasses import dataclass, field
+from fractions import Fraction
 from pathlib import Path
 from typing import cast
 
@@ -138,6 +139,13 @@ def load_campaign_config(paths: ConfigPaths | None = None) -> CampaignConfig:
             blink_cooldown_ticks=game_ticks(balance.director.decoy_blink.cooldown_s, balance),
             idle_retire_ticks=game_ticks(balance.director.idle_retire_s, balance),
             operations=operations,
+            patrol_ticks=game_ticks(balance.director.pol.patrol_period_s, balance),
+            convoy_ticks=game_ticks(balance.director.pol.convoy_period_s, balance),
+            offensive_ticks=game_ticks(balance.director.pol.offensive_period_s, balance),
+            night_cap_ticks=round(
+                Fraction(3600 * balance.sim.tick_hz)
+                / Fraction(repr(cc.night_progress_cap_nodes_per_h))
+            ),
         ),
     )
     if misfits := fit_problems(rules):
@@ -154,7 +162,26 @@ def start_campaign(campaign_id: str, seed: int, config: CampaignConfig | None = 
     world = World.new(Campaign(campaign_id, seed, config.config_hash), config.rules)
     world.stock = {n.id: n.start_stock for n in config.theater.nodes if n.start_stock is not None}
     _place_facilities(world, config.theater)
+    _place_garrison(world, config.rules)
     return world
+
+
+def _place_garrison(world: World, rules: Rules) -> None:
+    """Each Static base starts at its `garrison_quota` (Q-SIM-86): free, homed there, of the
+    `director.garrison.kinds` for its node kind in turn, in node id order (so ids are
+    deterministic). Setup, not an operation: no event and no stock debit."""
+    dr = rules.director
+    if dr is None:
+        return
+    for node in sorted(n for n in rules.garrison_quota if world.owner[n] == "ENEMY"):
+        kinds = dr.garrison_kinds[rules.node_kind[node]]
+        for i in range(rules.garrison_quota[node]):
+            unit = world.spawn(
+                kinds[i % len(kinds)], "ENEMY", "ENEMY_DIRECTOR", Vec2(*rules.roads.pos[node])
+            )
+            unit.last_node, unit.home = node, node
+            if rules.domain[unit.kind] == "AIR":
+                unit.state, unit.fuel = "LANDED", rules.fuel_s[unit.kind]
 
 
 def _place_facilities(world: World, theater: TheaterConfig) -> None:

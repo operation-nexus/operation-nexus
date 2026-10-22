@@ -568,6 +568,9 @@ def snapshot_of(tmp_path: Path, make_rig: MakeRig, corrupt: Callable[[World], No
     ammo: ids 1 radar, 2 SAM site, 3 SHORT_RANGE site, 5 enemy radar, 6 enemy SAM site) after
     `corrupt`; written directly, since the runtime would halt on some of these."""
     world = start_campaign(CAMPAIGN_ID, 5, load_campaign_config())
+    for e in list(world.entities()):
+        if e.home:
+            world.remove(e.id)  # without the opening garrison (Q-SIM-86): only the facilities
     rig = make_rig(tmp_path, world=world)
     corrupt(world)
     world._next_shot_id = 2  # a hand-added shot's id is below the counter

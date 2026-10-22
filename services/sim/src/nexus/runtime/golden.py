@@ -13,17 +13,25 @@ loudly instead of drifting; any other case starts from an empty world with no ru
 
 import hashlib
 import json
+import tempfile
 from collections import defaultdict
 from collections.abc import Mapping
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 from typing import Any
+
+import yaml
 
 from nexus.contracts.gen.commands.command import Command
 from nexus.contracts.gen.events.event import Event
 from nexus.core.step import Handler, step
 from nexus.core.world import Campaign, World, state_hash
-from nexus.runtime.campaign_config import load_campaign_config, start_campaign
+from nexus.runtime.campaign_config import (
+    CampaignConfig,
+    ConfigPaths,
+    load_campaign_config,
+    start_campaign,
+)
 from nexus.runtime.command_log import CommandLogReader, Tombstone
 
 CASE_FILE = "case.json"
@@ -40,6 +48,7 @@ _CASE_KEYS = {
 }
 _RULES = "rules"
 _SHIPPED = "shipped"
+_OVERRIDES = "overrides"
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,11 +63,13 @@ class GoldenResult:
 
 def load_case(case_dir: Path) -> dict[str, Any]:
     case = json.loads((case_dir / CASE_FILE).read_text())
-    if not isinstance(case, dict) or set(case) - {_RULES} != set(_CASE_KEYS):
+    if not isinstance(case, dict) or set(case) - {_RULES, _OVERRIDES} != set(_CASE_KEYS):
         raise ValueError(
             f"{case_dir.name}: {CASE_FILE} must have exactly {sorted(_CASE_KEYS)} "
-            f"and optionally {_RULES!r}"
+            f"and optionally {_RULES!r} and {_OVERRIDES!r}"
         )
+    if case.get(_OVERRIDES) and _RULES not in case:
+        raise ValueError(f"{case_dir.name}: {_OVERRIDES} need {_RULES}: {_SHIPPED!r}")
     if case.get(_RULES, _SHIPPED) != _SHIPPED:
         raise ValueError(f"{case_dir.name}: {_RULES} must be {_SHIPPED!r}")
     for key, kind in _CASE_KEYS.items():
@@ -96,13 +107,34 @@ def run_golden(case_dir: Path, registries: Mapping[str, Mapping[str, Handler]]) 
 def _world(name: str, case: dict[str, Any]) -> World:
     if _RULES not in case:
         return World.new(Campaign(case["campaign_id"], case["seed"], case["config_hash"]))
-    config = load_campaign_config()
+    config = shipped_config(case.get(_OVERRIDES, {}))
     if case["config_hash"] != config.config_hash:
         raise ValueError(
             f"{name}: config_hash {case['config_hash']} is not the shipped config's "
             f"{config.config_hash}; rewrite the case (README) and update its expected.json"
         )
     return start_campaign(case["campaign_id"], case["seed"], config)
+
+
+def shipped_config(overrides: Mapping[str, float]) -> CampaignConfig:
+    """The shipped config, with `overrides` (a dotted balance key -> number, e.g.
+    `director.pol.offensive_period_s`) applied to the balance profile: a golden case that needs a
+    long period shortened says so in its `case.json`, and its `config_hash` covers the change."""
+    if not overrides:
+        return load_campaign_config()
+    profile = yaml.safe_load(ConfigPaths().balance.read_text(encoding="utf-8"))
+    for dotted, value in sorted(overrides.items()):
+        *path, last = dotted.split(".")
+        node = profile
+        for part in path:
+            node = node[part]
+        if last not in node:
+            raise ValueError(f"override {dotted}: no such balance key")
+        node[last] = value
+    with tempfile.TemporaryDirectory() as tmp:
+        balance = Path(tmp) / "balance.yaml"
+        balance.write_text(yaml.safe_dump(profile), encoding="utf-8")
+        return load_campaign_config(replace(ConfigPaths(), balance=balance))
 
 
 def write_expected(case_dir: Path, result: GoldenResult) -> None:

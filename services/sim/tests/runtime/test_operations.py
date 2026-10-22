@@ -12,7 +12,7 @@ from nexus.runtime.operations import operations_hash
 
 SHIPPED = REPO / "content" / "operations.yaml"
 # The canonical hash of the shipped catalog: a content change moves it (and config_hash with it).
-GOLDEN_OPERATIONS_HASH = "d78874aee52c2cc36db75aeaefc133ec00e5de5925b797536cfb3081bfcad41c"
+GOLDEN_OPERATIONS_HASH = "ba6168b02f952ccfaca1e6a6b25f2a5adfeb45773ccce45f18207dbba7ee72db"
 
 
 def tree() -> dict[str, object]:
@@ -47,6 +47,7 @@ def test_shipped_catalog_is_q_sim_81_in_id_order() -> None:
         "ESCORT_CONVOYS",
         "REINFORCE_IADS",
         "DECOY_BLINK",
+        "GARRISON_UPKEEP",
     }
     assert got["OFFENSIVE"][0] == 60 and str(got["OFFENSIVE"][1]) == "1"
     assert [j[0] for j in got["OFFENSIVE"][2]] == ["STAGE", "STRIKE", "CAPTURE"]
@@ -95,6 +96,24 @@ def test_shipped_hash_is_pinned_and_ignores_file_order(tmp_path: Path) -> None:
         ),
         (lambda d: op(d, "PROBE").update(id="PROBE2"), "op_priority"),
         (lambda d: d["operations"].append(dict(op(d, "PROBE"))), "duplicate"),
+        # Q-SIM-85: the garrison operation takes its kind from director.garrison.kinds
+        (
+            lambda d: op(d, "GARRISON_UPKEEP")["jobs"][0].update(unit_kinds=["ENEMY_ARMOR"]),  # type: ignore[index]
+            "unit_kinds are required, except",
+        ),
+        (lambda d: op(d, "PROBE")["jobs"][0].pop("unit_kinds"), "unit_kinds are required"),  # type: ignore[index]
+        (
+            lambda d: op(d, "GARRISON_UPKEEP")["jobs"][0].update(kind="DEFEND"),  # type: ignore[index]
+            "stages its unit",
+        ),
+        (
+            lambda d: op(d, "GARRISON_UPKEEP")["jobs"][0].update(at="sector_node"),  # type: ignore[index]
+            "does not suit",
+        ),
+        (
+            lambda d: d["operations"].append({**op(d, "GARRISON_UPKEEP"), "id": "GARRISON_TWO"}),
+            "at most one GARRISON",
+        ),
     ],
 )
 def test_loader_rejects(tmp_path: Path, edit: object, message: str) -> None:

@@ -40,10 +40,11 @@ enabled at Pattern of Life, do not count (Q-SIM-84).
 
 import math
 from collections.abc import Mapping
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from fractions import Fraction
 from typing import NamedTuple
 
+from nexus.contracts.gen.common.enums import UnitKind
 from nexus.core.fog import SideView
 from nexus.core.rng import PcgStream
 from nexus.core.rules import CP_SCALE, DirectorRules, OperationRules, Rules, sector_at
@@ -55,6 +56,7 @@ _FOE = {"COALITION": "ENEMY", "ENEMY": "COALITION"}
 _NOT_BASES = ("BRIDGE", "SANCTUARY")
 _UNCAPTURABLE = ("SANCTUARY", "BRIDGE")
 _EACH_CONVOY = "each_convoy"
+_GARRISON = "GARRISON"  # the target of the garrison upkeep operation (Q-SIM-85)
 LIVE_PREFIX = "op:"  # a Director job's dedupe key is `op:<operation>:<target>:<job index>[:<unit>]`
 
 
@@ -70,12 +72,16 @@ class Own:
     """What the side knows of itself that its `SideView` does not hold. `convoys` are the side's
     moving carriers that follow no one and have no escort job yet, in id order, as (id, node it
     stands at or left last); `damaged_ad` the bases with an air-defense site below full HP;
-    `radars` the bases with a radar site that is not Disabled; `live_units` its mobile units."""
+    `radars` the bases with a radar site that is not Disabled; `live_units` its mobile units;
+    `homed` the kinds of its live Director units homed at each base, in id order (Q-SIM-85), and
+    `margin` each of its finite-stock bases' stock less the starvation floor (negative below it)."""
 
     convoys: tuple[tuple[int, str], ...] = ()
     damaged_ad: frozenset[str] = frozenset()
     radars: frozenset[str] = frozenset()
     live_units: int = 0
+    homed: Mapping[str, tuple[UnitKind, ...]] = field(default_factory=dict)
+    margin: Mapping[str, int] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
@@ -183,6 +189,11 @@ def _targets(op: OperationRules, view: SideView, rules: Rules, own: Own) -> list
             return [s for s, _ in rules.sectors]
         case "RADAR":
             return sorted(own.radars)
+        case "GARRISON":  # a base below its quota (Q-SIM-85, = _GARRISON; a match needs a literal)
+            return [
+                n for n in bases(view, rules)
+                if len(own.homed.get(n, ())) < rules.garrison_quota.get(n, 0)
+            ]  # fmt: skip
     return [""]  # CONVOYS
 
 
@@ -202,17 +213,25 @@ def live_pairs(keys: list[str]) -> frozenset[tuple[str, str]]:
     )  # fmt: skip
 
 
+def has_capture(op: OperationRules) -> bool:
+    return any(j.kind == "CAPTURE" for j in op.jobs)
+
+
 def candidates(
     state: DirectorState, view: SideView, rules: Rules, own: Own, now: int,
-    live: frozenset[tuple[str, str]],
+    live: frozenset[tuple[str, str]], *, capture: bool | None = None,
 ) -> list[Candidate]:  # fmt: skip
-    """Step 3, in (operation id, target id) order; `now` is the running tick."""
+    """Step 3, in (operation id, target id) order; `now` is the running tick. `capture` True
+    considers only the operations with a CAPTURE job whatever their tier (the Pattern of Life
+    capture slot, Q-SIM-85), False drops them (the night cap is spent), None the tier's own."""
     dr = rules.director
     if dr is None:
         raise ValueError("candidates need the Director rules")
     out: list[Candidate] = []
     for op in dr.operations:
-        if state.tier not in op.tiers:
+        if (capture is not True and state.tier not in op.tiers) or (
+            capture is not None and has_capture(op) != capture
+        ):
             continue
         for target in _targets(op, view, rules, own):
             if (op.target != "CONVOYS" and (op.id, target) in live) or not _eligible(
@@ -222,8 +241,27 @@ def candidates(
             wheres = tuple(_resolve(j.at, target, op, view, rules, own) for j in op.jobs)
             if all(wheres):
                 sector = _sector_of(op, target, view, rules)
-                out.append(Candidate(op, target, sector, wheres))
+                chosen = _garrison(op, target, rules, dr, own) if op.target == _GARRISON else op
+                out.append(Candidate(chosen, target, sector, wheres))
     return out
+
+
+def _garrison(
+    op: OperationRules, base: str, rules: Rules, dr: DirectorRules, own: Own
+) -> OperationRules:
+    """The garrison operation sized and filled for its base: `director.garrison.replace_per_window`
+    units (at most the shortfall), each of the kind the base is then shortest of from
+    `director.garrison.kinds` for its node kind (round-robin: fewest first, ties by list order);
+    the cost is the catalog's per unit."""
+    kinds = dr.garrison_kinds[rules.node_kind[base]]
+    have = own.homed.get(base, ())
+    count = min(dr.replace_per_window, rules.garrison_quota[base] - len(have))
+    picked: list[UnitKind] = []
+    for _ in range(count):
+        picked.append(min(kinds, key=lambda k: (have.count(k), kinds.index(k))))
+        have = (*have, picked[-1])
+    job = replace(op.jobs[0], unit_kinds=tuple(picked), slots=count)
+    return replace(op, cost=op.cost * count, jobs=(job,))
 
 
 def _eligible(
@@ -372,13 +410,90 @@ def alpha_max_ops(tier: str, dr: DirectorRules) -> int | None:
     return dr.alpha_max_ops if tier == "ALPHA" else None
 
 
-def misfits(rules: Rules) -> list[str]:
-    """Catalog problems that need the kernel rules: a unit kind that cannot do its job kind."""
+def patrol_via(view: SideView, rules: Rules, base: str) -> str | None:
+    """Where a patrol from `base` turns (Q-SIM-85, Q-SIM-86): the road neighbour (a base, not a
+    bridge or sanctuary, and not one the other side holds) on the shortest way to the nearest node
+    within `director.frontline_hops` hops that the side does not hold (the `_frontline` ring
+    search; ties by node id), neutral or not; with no front in reach, the nearest such neighbour
+    by straight line. A patrolling unit never captures (`nexus.core.capture`). None for a base
+    with no such road."""
     dr = rules.director
-    return [
+    first = [
+        n for n, _ in rules.roads.neighbours(base)
+        if view.owners.get(n) != _FOE[view.side] and rules.node_kind.get(n) not in _NOT_BASES
+    ]  # fmt: skip
+    if dr is None or not first:
+        return None
+    best: tuple[int, str] | None = None
+    for n in first:
+        seen, ring = {base, n}, [n]
+        for depth in range(1, dr.frontline_hops + 1):
+            if any(view.owners.get(m) != view.side for m in ring):
+                best = min(best or (depth, n), (depth, n))
+                break
+            ring = sorted({m for r in ring for m, _ in rules.roads.neighbours(r)} - seen)
+            seen.update(ring)
+    return best[1] if best else _nearest(view, base, sorted(first))
+
+
+def garrison_cost(dr: DirectorRules) -> int:
+    """Budget points of one replacement garrison unit: the cost of the GARRISON operation, 0 when
+    the catalog has none."""
+    return next((o.cost for o in dr.operations if o.target == _GARRISON), 0)
+
+
+def convoy_bases(view: SideView, rules: Rules, own: Own) -> list[str]:
+    """The Static bases with an upkeep shortfall (Q-SIM-85), largest first, ties by node id: the
+    cost of a base's missing garrison units less its margin over the floor (so a base below its
+    floor counts the floor less its stock too, Q-SIM-86), above zero."""
+    dr = rules.director
+    if dr is None:
+        return []
+    unit, short = garrison_cost(dr), dict[str, int]()
+    for n in bases(view, rules):
+        missing = rules.garrison_quota.get(n, 0) - len(own.homed.get(n, ()))
+        short[n] = missing * unit - own.margin.get(n, 0)
+    return sorted((n for n, s in short.items() if s > 0), key=lambda n: (-short[n], n))
+
+
+def _garrison_problem(rules: Rules, kind: UnitKind, node: str) -> str | None:
+    """Why a garrison of `kind` cannot live at `node`: it cannot stage, it is not raised there (the
+    theater's `spawns`), or it is an aircraft at a node that is no landing base (Q-SIM-86: a unit
+    must spawn at its home node and rest there)."""
+    domain = rules.domain[kind]
+    if not fits(rules, kind, "STAGE"):
+        return "cannot stage"
+    if node not in rules.supply.spawns.get(domain, ()):
+        return "is not raised"
+    if domain == "AIR" and node not in rules.landing_nodes:
+        return "cannot land"
+    return None
+
+
+def misfits(rules: Rules) -> list[str]:
+    """Catalog problems that need the kernel rules: a unit kind that cannot do its job kind, a
+    garrison or convoy kind that cannot do its job."""
+    dr = rules.director
+    out = [
         f"{op.id}: {kind} cannot take a {job.kind} job"
         for op in (dr.operations if dr else ())
         for job in op.jobs
         for kind in dict.fromkeys(job.unit_kinds)
         if not fits(rules, kind, job.kind)
     ]
+    if dr is None:
+        return out
+    for node in sorted(rules.garrison_quota):
+        kinds = dr.garrison_kinds.get(rules.node_kind[node], ())
+        if not kinds:
+            out.append(f"director.garrison.kinds has none for {node} ({rules.node_kind[node]})")
+        out += [
+            f"director.garrison.kinds: {k} {why} at {node}"
+            for k in dict.fromkeys(kinds)
+            if (why := _garrison_problem(rules, k, node))
+        ]
+    if rules.garrison_quota and not any(o.target == _GARRISON for o in dr.operations):
+        out.append("a theater garrison_quota needs a GARRISON operation in the catalog")
+    if not fits(rules, dr.convoy_kind, "RESUPPLY"):
+        out.append(f"director.pol.convoy_kind: {dr.convoy_kind} cannot take a RESUPPLY job")
+    return out

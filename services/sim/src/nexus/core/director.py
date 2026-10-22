@@ -57,6 +57,12 @@ def due(dr: DirectorRules, running_tick: int) -> bool:
     return running_tick % dr.window_ticks == 0
 
 
+def night_capped(state: DirectorState, dr: DirectorRules, running_tick: int) -> bool:
+    """The night-progress cap is spent (Q-SIM-85): the Static flipped a node while no viewer unit
+    was live less than `night_cap_ticks` ago. The caller adds the "no viewer unit" test."""
+    return state.last_flip != 0 and running_tick - state.last_flip < dr.night_cap_ticks
+
+
 def raw_cp(view: SideView, dr: DirectorRules) -> int:
     """Millionths of a CP point of the units `view` tracks now."""
     return sum(dr.cp_value.get(c.kind, 0) for c in view.tracks.values())

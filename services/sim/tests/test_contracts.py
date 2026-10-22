@@ -293,6 +293,11 @@ def test_job_events_parse_through_the_event_union(good: dict[str, object]) -> No
     assert event.kind == good["kind"] and event.model_dump(mode="json") == good
 
 
+def test_a_patrol_job_parses_and_every_job_kind_a_handler_knows_is_in_the_enum() -> None:
+    event = EVENTS.validate_python({**JOB_CREATED, "job_kind": "PATROL"})
+    assert event.job_kind == "PATROL"  # type: ignore[union-attr]  # NX-157, the Director's patrol
+
+
 @pytest.mark.parametrize(
     ("event", "bad"),
     [

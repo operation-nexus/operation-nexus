@@ -175,6 +175,7 @@ class TaskingRules:
     ]  # follow_station_m: escort, column, overwatch, wingman (Q-SIM-76)
     threat_memory_ticks: int  # how long an attacker of a group stays a group threat
     leash_m: float  # the farthest an escort leaves station to engage
+    static_offense_min_tier: ThreatTier  # the lowest tier at which the Static's board posts strikes
 
 
 @dataclass(frozen=True, slots=True)
@@ -268,6 +269,21 @@ class DirectorRules:
     memory_weights: Mapping[
         str, int
     ]  # millionths of an event per convoy/radar hit, scout/node lost
+    # Pattern of Life (Q-SIM-85, NX-157). `garrison_kinds`: the kinds that fill a base's garrison,
+    # by node kind, round-robin; the periods are game ticks on the campaign clock; `night_cap_ticks`
+    # is 1 / `campaign.night_progress_cap_nodes_per_h` game hours.
+    garrison_kinds: Mapping[NodeKind, tuple[UnitKind, ...]]
+    patrol_ticks: int
+    convoy_ticks: int
+    offensive_ticks: int
+    night_cap_ticks: int
+    convoy_kind: UnitKind  # the carrier of a Pattern of Life convoy
+    replace_per_window: int  # garrison units a short base buys in one window
+    patrols_per_base: int
+    patrol_slots: int  # units one patrol job takes
+    convoys_per_period: int
+    offensives_per_period: int
+    convoy_cost: int  # budget points of one Pattern of Life convoy
 
 
 @dataclass(frozen=True, slots=True)
@@ -384,6 +400,9 @@ class Rules:
     defense: DefenseRules | None = None  # NX-124 part 3; None: nodes have no defense HP
     tasking: TaskingRules | None = None  # NX-374; None leaves the Tasking Boards off
     director: DirectorRules | None = None  # NX-155; None leaves the Threat Director off
+    # Static base id -> `garrison_quota` of the theater (Q-SIM-85): the live Director units kept
+    # homed there.
+    garrison_quota: Mapping[str, int] = field(default_factory=dict)
     # Sector id -> polygon (id order), from the theater (NX-155): where a provocation happened;
     # `sector_at` finds a point's sector.
     sectors: tuple[tuple[str, tuple[tuple[int, int], ...]], ...] = ()
@@ -438,6 +457,7 @@ def tasking_rules(
         station_m=cfg.follow_station_m.model_dump(),
         threat_memory_ticks=threat_memory_ticks,
         leash_m=cfg.escort_leash_m,
+        static_offense_min_tier=cfg.static_offense_min_tier,
     )
 
 
@@ -485,6 +505,10 @@ def director_rules(
     blink_cooldown_ticks: int,
     idle_retire_ticks: int,
     operations: Iterable[OperationRules],
+    patrol_ticks: int,
+    convoy_ticks: int,
+    offensive_ticks: int,
+    night_cap_ticks: int,
 ) -> DirectorRules:
     """The tick counts are `cfg`'s game-time keys already converted by the config loader;
     `operations` is the validated catalog (`nexus.runtime.operations`). Raises ValueError for a
@@ -539,6 +563,20 @@ def director_rules(
         job_urgency_milli=round(Fraction(repr(cfg.job_urgency)) * 1000),
         down_below=_micro(cfg.adaptation_down_below),
         memory_weights={k: _micro(v) for k, v in cfg.memory.weights},
+        garrison_kinds={
+            cast(NodeKind, k): tuple(cast(UnitKind, u) for u in v) for k, v in cfg.garrison.kinds
+        },
+        patrol_ticks=patrol_ticks,
+        convoy_ticks=convoy_ticks,
+        offensive_ticks=offensive_ticks,
+        night_cap_ticks=night_cap_ticks,
+        convoy_kind=cfg.pol.convoy_kind,
+        replace_per_window=cfg.garrison.replace_per_window,
+        patrols_per_base=cfg.pol.patrols_per_base,
+        patrol_slots=cfg.pol.patrol_slots,
+        convoys_per_period=cfg.pol.convoys_per_period,
+        offensives_per_period=cfg.pol.offensives_per_period,
+        convoy_cost=cfg.pol.convoy_cost,
     )  # fmt: skip
 
 
@@ -810,6 +848,7 @@ def make_rules(
         defense=_defense(theater, capture, logistics, sim),
         tasking=tasking,
         director=director,
+        garrison_quota={n.id: n.garrison_quota for n in theater.nodes if n.garrison_quota},
         sectors=tuple(
             (s.id, tuple((x, y) for x, y in s.polygon))
             for s in sorted(theater.sectors, key=lambda s: s.id)

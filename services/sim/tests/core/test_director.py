@@ -75,7 +75,8 @@ TRUCK: UnitKind = "LOGI_TRUCK"
 DIRECTOR_SRC = Path(director_mod.__file__)
 CAMPAIGN_ID = "0192f3a4-5b6c-7d8e-9f01-23456789abcd"
 STRAIT = dataclasses.replace(
-    CONFIG, rules=dataclasses.replace(CONFIG.rules, campaign=None, tasking=None)
+    CONFIG,
+    rules=dataclasses.replace(CONFIG.rules, campaign=None, tasking=None, garrison_quota={}),
 )
 
 
@@ -525,7 +526,8 @@ def test_the_window_and_the_dwell_take_the_same_ticks_at_another_time_scale(
         CAMPAIGN_ID,
         5,
         dataclasses.replace(
-            slow, rules=dataclasses.replace(slow.rules, campaign=None, tasking=None)
+            slow,
+            rules=dataclasses.replace(slow.rules, campaign=None, tasking=None, garrison_quota={}),
         ),
     )
     for _ in range(WINDOW):
