@@ -110,7 +110,8 @@ export interface CommandRejected {
   /**
    * Grows one kind at a time, with each handler (AGENTS.md rule 6a).
    */
-  command_kind: "JOIN" | "SYS_SET_CALLSIGN" | "STAFF_CAMPAIGN_PAUSE" | "STAFF_CAMPAIGN_RESUME" | "STAFF_CAMPAIGN_END";
+  command_kind:
+    "JOIN" | "SYS_SET_CALLSIGN" | "STAFF_CAMPAIGN_PAUSE" | "STAFF_CAMPAIGN_RESUME" | "STAFF_CAMPAIGN_END" | "REBASE";
   /**
    * CONTRACTS §5.3. Grows one value at a time, with the code that emits it (rule 6a).
    */
@@ -128,7 +129,10 @@ export interface CommandRejected {
     | "ALREADY_PAUSED"
     | "NOT_PAUSED"
     | "CAMPAIGN_NOT_RUNNING"
-    | "REASON_REQUIRED";
+    | "REASON_REQUIRED"
+    | "NO_ACTIVE_UNIT"
+    | "NODE_NOT_FRIENDLY"
+    | "OUT_OF_REACH";
   commander_id: string | null;
 }
 /**
