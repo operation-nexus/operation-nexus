@@ -787,6 +787,24 @@ def test_convoys_per_period_and_convoy_cost_are_keys() -> None:
     assert sum(w.stock.values()) + cargo == before - spent
 
 
+def test_a_paid_convoy_is_paid_before_its_carrier_loads_so_it_never_overdraws() -> None:
+    sup = RULES.supply
+    cost = sup.forward_deploy_min_surplus  # the only surplus is the spawn base's, exactly the cost
+    rules = with_director(convoy_cost=cost, operations=GARRISON_ONLY.director.operations)  # type: ignore[union-attr]
+    w = new_world(1, rules)
+    for n in sup.starve_floor:
+        w.stock[n] = sup.starve_floor[n]
+    w.stock["east-airbase"] += cost  # the carrier spawns here and would load this surplus first
+    w.stock["fob-n-e"] -= 50  # short, so a convoy is due
+    before = sum(w.stock.values())
+    skip(w, DR.convoy_ticks - 1)
+    out = window(w, "PATTERN_OF_LIFE", 0, rules)  # paying after loading would raise here
+    spent = sum(e.amount for e in out if e.kind == "SupplyConsumed" and e.cause == "SPAWN")
+    cargo = sum(e.cargo or 0 for e in w.entities())
+    assert spent == cost
+    assert sum(w.stock.values()) + cargo == before - spent
+
+
 def test_offensives_per_period_launches_that_many_capture_operations() -> None:
     rules = with_director(
         offensives_per_period=2, max_spawns_per_window=30,

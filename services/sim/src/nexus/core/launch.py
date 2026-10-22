@@ -24,6 +24,7 @@ launched in selection order:
 """
 
 import itertools
+from collections.abc import Callable
 from fractions import Fraction
 
 from nexus.contracts.gen.common.enums import Side, UnitKind
@@ -40,7 +41,7 @@ from nexus.core.roads import shortest_path
 from nexus.core.rules import DirectorRules, JobTemplate, OperationRules, Rules, sector_at
 from nexus.core.tasking import post_job, take
 from nexus.core.tasking_gen import JobSpec, fits
-from nexus.core.world import DirectorState, Entity, Vec2, World, consumed
+from nexus.core.world import DirectorState, Entity, Job, Vec2, World, consumed
 
 _DIRECTOR = "ENEMY_DIRECTOR"
 # Defensive counter -> the adaptation it announces (ThreatAdaptation.category).
@@ -220,9 +221,7 @@ def _convoys(
         if (_CONVOY_OP, base) in live or room < 1 or surplus(view, rules, world.stock) < op.cost:
             continue
         cand = ops.Candidate(op, base, None, ((ops.Where(base),),))
-        first, spawned = _post_and_spawn(world, rules, side, cand, out)
-        _pay(world, rules, side, op.cost * spawned, first, out)
-        room -= spawned
+        room -= _post_and_spawn(world, rules, side, cand, out, lambda n: op.cost * n)
 
 
 def _launch(
@@ -235,8 +234,7 @@ def _launch(
     if c.op.effect is not None:
         _blink(world, side, state, c.target, now=world.campaign.running_ticks + 1, dr=dr)
         return
-    first, spawned = _post_and_spawn(world, rules, side, c, out)
-    _pay(world, rules, side, c.op.cost * spawned // max(1, c.units), first, out)
+    _post_and_spawn(world, rules, side, c, out, lambda n: c.op.cost * n // max(1, c.units))
     _announce_up(world, side, view, state, dr, c, out)
 
 
@@ -270,19 +268,23 @@ def _blink(
 
 
 def _post_and_spawn(
-    world: World, rules: Rules, side: Side, c: ops.Candidate, out: list[Event]
-) -> tuple[str | None, int]:
-    """Post the jobs in order and give each its units; returns the first spawned unit's base and
-    how many were spawned. A slot goes to an idle live unit of its kind first (the lowest id),
-    which is neither spawned nor paid for (Q-SIM-84)."""
+    world: World, rules: Rules, side: Side, c: ops.Candidate, out: list[Event],
+    cost: Callable[[int], int],
+) -> int:  # fmt: skip
+    """Post the jobs in order, pay `cost(spawned)` and give each job its units; returns how many
+    were spawned. A slot goes to an idle live unit of its kind first (the lowest id), which is
+    neither spawned nor paid for (Q-SIM-84). Units take their jobs only after the payment, because
+    a carrier at its source loads on taking a job, and loading first could leave too little
+    surplus to pay."""
     dr = rules.director
     if dr is None:
-        return None, 0
+        return 0
     garrison = c.op.target == "GARRISON"
     spare = {} if garrison else _reusable(world, side)  # a garrison replacement is always new
     spawned = 0
     first: str | None = None
     prev: int | None = None  # the job the next step waits for
+    given: list[tuple[Entity, Job]] = []
     for idx, (job, wheres) in enumerate(zip(c.op.jobs, c.wheres, strict=True)):
         last = prev
         for w in wheres:
@@ -296,7 +298,7 @@ def _post_and_spawn(
             for n in range(job.slots):
                 kind = job.unit_kinds[n % len(job.unit_kinds)]
                 if spare.get(kind):
-                    take(world, spare[kind].pop(0), posted, out)
+                    given.append((spare[kind].pop(0), posted))
                     continue
                 unit, base = _spawn(
                     world, rules, side, kind, _near(world, rules, side, job, w), out,
@@ -305,9 +307,12 @@ def _post_and_spawn(
                 first, spawned = first or base, spawned + 1
                 if garrison:
                     unit.home = c.target
-                take(world, unit, posted, out)
+                given.append((unit, posted))
         prev = last
-    return first, spawned
+    _pay(world, rules, side, cost(spawned), first, out)
+    for unit, posted in given:
+        take(world, unit, posted, out)
+    return spawned
 
 
 def _spare(world: World, side: Side) -> dict[str, list[Entity]]:
