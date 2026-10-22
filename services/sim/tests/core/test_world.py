@@ -150,11 +150,12 @@ def test_golden_state_hash_seed_12345() -> None:
     # band, ammo, reload, wreck timer and pending shots, v14; part 2: the rearm-stop carries and
     # the downed-crew markers, v15; NX-124 part 3: defense hp, drain carry, down flags, the defeat
     # run, node shots, Entity.defended and marker ring_m and state, v16; NX-374: both Tasking Boards
-    # with their job counter, Entity.order and Entity.job_id, v17).
+    # with their job counter, Entity.order and Entity.job_id, v17; NX-374 part 2: Entity.follow_id
+    # and fired_by, Job.entity, v18).
     # A change here breaks every recorded replay hash: needs a `golden-update` reason.
     assert (
         state_hash(golden_world())
-        == "97bb7e71543b754613ac2ab4dcc79e503121c74f5f7e2c996255e96db9ac5de9"
+        == "169494120cb762b6426c5c8c0bb8ce3bfd07cc7e5edef1bc0722d936266d410e"
     )
     e = to_canonical(golden_world(), quantize=True)["entities"][0]
     assert e["pos"] == [1000250, 2000500]  # mm

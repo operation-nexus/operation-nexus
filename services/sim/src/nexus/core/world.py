@@ -70,8 +70,9 @@ from nexus.core.rules import CAPTURE_FULL, Rules
 # pending shots (NX-124); 15: Entity.ammo_credit, repair_milli and repair_debt, the downed-crew
 # markers (NX-124 part 2); 16: node defense hp and drain carry, Campaign.defeat_ticks, structure
 # shots, FacilityMarker.ring_m and state (NX-124 part 3); 17: the Tasking Boards and their job
-# counter, Entity.order and Entity.job_id (NX-374)
-FORMAT_VERSION = 17
+# counter, Entity.order and Entity.job_id (NX-374); 18: Entity.follow_id and fired_by, Job.entity
+# (follow and escort, NX-374 part 2)
+FORMAT_VERSION = 18
 _MM = 1000.0  # metres -> millimetres; m/s -> mm/s
 _MICRO = 1e6  # ADR-0002's 1e-6 step for other floats (fuel)
 _MILLI_UNIT = 1000  # thousandths of a stock unit per unit
@@ -109,7 +110,7 @@ _V = "v"
 # one must name the job's own target (`load` checks it).
 JOB_KEY_PREFIX = {
     "RESUPPLY": "resupply:", "DEFEND": "defend:", "STRIKE": "strike:",
-    "ASSIST_OBJECTIVE": "assist:", "SCOUT": "scout:",
+    "ASSIST_OBJECTIVE": "assist:", "SCOUT": "scout:", "ESCORT_CONVOY": "escort:",
 }  # fmt: skip
 _WORLD_KEYS = (
     _BLOB_RUNS,
@@ -190,8 +191,9 @@ _ZERO = Vec2(0.0, 0.0)
 type UnitState = Literal["LANDED", "EN_ROUTE", "ON_STATION", "RTB"]
 _UNIT_STATES = get_args(UnitState.__value__)
 # An explicit order (GAMEPLAY §1b, Q-GP-19, Q-GP-23) suspends auto-tasking: HOLD from a JOIN with
-# `hold` (never completes), GOTO from a JOIN with a node target (completes on arrival).
-type Order = Literal["HOLD", "GOTO"]
+# `hold` (never completes), GOTO from a JOIN with a node target (completes on arrival), FOLLOW from
+# a JOIN with a follow target (ends when `follow_id` does, Q-GP-31).
+type Order = Literal["HOLD", "GOTO", "FOLLOW"]
 _ORDERS = get_args(Order.__value__)
 # A SIGINT blob's size bucket (FOG-OF-WAR Tier 1); kernel-internal until BlobView is a contract.
 type BlobSize = Literal["S", "M", "L"]
@@ -228,6 +230,9 @@ class Entity:
     # claim it holds. A claim and `job_id` always match while the unit lives.
     order: Order | None = None
     job_id: int | None = None
+    # Follow (NX-374 part 2, Q-GP-31): the direct leader's entity id. Set with order FOLLOW, or by
+    # the claim of an escort job; kept off any Disabled leader and re-attached when one leaves.
+    follow_id: int | None = None
     pickup: str | None = (
         None  # an empty truck on a resupply job: the source it drives to and loads at
     )
@@ -266,6 +271,9 @@ class Entity:
     # Recent hits on this unit, oldest first: [shooter id, running tick] pairs, kept for
     # `combat.assist_window_s` (assists, CB-5a). Facilities never die, so they keep none.
     hits: list[list[int]] = field(default_factory=list)
+    # Who fired at this unit lately: [shooter id, running tick] pairs, oldest first, kept for
+    # `tasking.escort_threat_memory_s` and pruned when the next shot at the unit is recorded.
+    fired_by: list[list[int]] = field(default_factory=list)
 
 
 @dataclass(frozen=True, slots=True)
@@ -372,6 +380,7 @@ class Job:
     expires: int | None = None
     depends_on: int | None = None
     objective: int | None = None
+    entity: int | None = None  # an escort job: the truck it covers
     claims: dict[int, Claim] = field(default_factory=dict)  # entity id -> claim, claim order
 
     @property
@@ -448,6 +457,7 @@ class World:
         "defense_down",
         "defense_drain",
         "defense_hp",
+        "group_threat",
         "lost",
         "markers",
         "objective",
@@ -458,6 +468,7 @@ class World:
         "rules",
         "shots",
         "sigint_age",
+        "speed_cap",
         "stock",
     )
 
@@ -524,6 +535,12 @@ class World:
         self.objective: Objective | None = None  # NX-126; at most one (O-1)
         # Pending shots in `(impact_tick, id)` order (CB-2); only the `combat` system changes it.
         self.shots: list[Shot] = []
+        # Derived afresh every running tick by `nexus.core.follow.steer` before `movement` and
+        # `combat` read it, so neither is state (no snapshot, no hash): entity id -> the base speed
+        # cap (m/s, before the road's `speed_mult`) of a follower or a formation member, and
+        # armed follower id -> the entity ids of the threats to its group (Q-SIM-76).
+        self.speed_cap: dict[int, float] = {}
+        self.group_threat: dict[int, tuple[int, ...]] = {}
 
     @classmethod
     def new(cls, campaign: Campaign, rules: Rules | None = None) -> Self:
@@ -582,7 +599,15 @@ class World:
         return shot_id
 
     def remove(self, entity_id: int) -> None:
-        del self._entities[entity_id]
+        """Remove an entity. Its followers take its own leader (Q-GP-33), or drop their order and
+        fall back to the board; an escort-job follower just drops (its job ends with the truck).
+        shortcut: a scan of every entity per removal; index followers if removals get hot."""
+        gone = self._entities.pop(entity_id)
+        for f in self._entities.values():
+            if f.follow_id == entity_id:
+                f.follow_id = gone.follow_id if f.order == "FOLLOW" else None
+                if f.follow_id is None and f.order == "FOLLOW":
+                    f.order = None
 
     def record_loss(self, commander_id: str) -> None:
         """A commander's unit was lost this tick: its respawn delay starts (GP-2).
@@ -636,6 +661,8 @@ def release_claim(world: World, job: Job, entity_id: int, out: list[Event]) -> N
     e = world.find(entity_id)
     if e is not None:
         e.job_id = e.pickup = None
+        if e.order != "FOLLOW":
+            e.follow_id = None  # an escort claim ends with its follow order
     out.append(
         JobReleased.model_construct(
             kind="JobReleased",
@@ -1045,6 +1072,7 @@ _ENTITY_CHECKS: dict[str, Callable[[object, str], Any]] = {
     "emitting": lambda v, k: None if v is None else _bool(v, k),
     "order": lambda v, k: _str(v, k, _ORDERS, optional=True),
     "job_id": lambda v, k: None if v is None else _int(v, k, 1),
+    "follow_id": lambda v, k: None if v is None else _int(v, k, 1),
     "pickup": lambda v, k: _str(v, k, optional=True),
     "cargo": lambda v, k: None if v is None else _int(v, k),
     "unload_milli": _milli,
@@ -1064,6 +1092,7 @@ _ENTITY_CHECKS: dict[str, Callable[[object, str], Any]] = {
     "reload": lambda v, k: _int_list(v, k),
     "wreck_left": lambda v, k: None if v is None else _int(v, k, 1),
     "hits": lambda v, k: _hits(v, k),
+    "fired_by": lambda v, k: _hits(v, k),
 }
 _CAMPAIGN_CHECKS: dict[str, Callable[[object, str], Any]] = {
     "id": _str,
@@ -1303,6 +1332,7 @@ def _job(d: dict[str, Any], next_entity_id: int, running_ticks: int, nodes: set[
         None if d["expires"] is None else _int(d["expires"], "job expires", 1),
         None if d["depends_on"] is None else _int(d["depends_on"], "job depends_on", 1),
         None if d["objective"] is None else _int(d["objective"], "job objective", 1),
+        None if d["entity"] is None else _int(d["entity"], "job entity", 1),
     )  # fmt: skip
     for raw in claims:
         if not isinstance(raw, list) or len(raw) != 3:
@@ -1313,11 +1343,19 @@ def _job(d: dict[str, Any], next_entity_id: int, running_ticks: int, nodes: set[
         job.claims[i] = Claim(_int(raw[1], "claim tick"), _bool(raw[2], "claim active"))
     if job.created > running_ticks or any(c.at > running_ticks for c in job.claims.values()):
         raise ValueError(f"{_BOARDS}: a job or claim from after the snapshot's clock")
-    if (job.node is None) == (job.blob is None) or (job.blob is None) != (job.pos is None):
+    escort = job.kind == "ESCORT_CONVOY"  # targets a truck, not a place
+    if escort != (job.entity is not None) or (job.entity or 0) >= next_entity_id:
+        raise ValueError(f"{_BOARDS}: only an escort job names an entity, below the counter")
+    if escort != (job.node is None and job.blob is None and job.pos is None) or (
+        not escort
+        and ((job.node is None) == (job.blob is None) or (job.blob is None) != (job.pos is None))
+    ):
         raise ValueError(f"{_BOARDS}: a job targets a node or a blob with its position")
     if (job.kind == "SCOUT") != (job.blob is not None) or (job.node or "") not in nodes | {""}:
         raise ValueError(f"{_BOARDS}: a scout job targets a blob, any other a node of the theater")
-    target = job.node if job.blob is None else job.blob.split("-")[-1]
+    target = (
+        str(job.entity) if escort else job.node if job.blob is None else job.blob.split("-")[-1]
+    )
     prefix = JOB_KEY_PREFIX[job.kind]
     others = [p for p in JOB_KEY_PREFIX.values() if p != prefix and job.key.startswith(p)]
     if others or (job.key.startswith(prefix) and job.key != f"{prefix}{target}"):
@@ -1471,7 +1509,31 @@ def load(data: bytes) -> World:
     cooldown = _fields(d[_COOLDOWN], SIDES, _COOLDOWN)
     world.cooldown = {s: _cells(cooldown[s]) for s in SIDES}
     _check_claims(world)
+    _check_follow(world)
     return world
+
+
+def _check_follow(world: World) -> None:
+    """A follower names a live unit of its side, no loop; FOLLOW needs a leader, and a leader
+    without the order means the unit holds the claim of that unit's escort job."""
+    for e in world.entities():
+        leader = None if e.follow_id is None else world.find(e.follow_id)
+        if e.follow_id is not None and (leader is None or leader.side != e.side):
+            raise ValueError(f"entity {e.id}: follows a unit that is gone or of the other side")
+        if leader is not None and (e.base_id is not None or leader.base_id is not None):
+            raise ValueError(f"entity {e.id}: a facility cannot follow or be followed")
+        if (e.order == "FOLLOW") != (e.follow_id is not None and e.job_id is None):
+            raise ValueError(f"entity {e.id}: follow_id and order FOLLOW do not match")
+        job = None if e.job_id is None else world.boards[e.side].get(e.job_id)
+        if e.follow_id is not None and e.order != "FOLLOW":
+            if job is None or job.kind != "ESCORT_CONVOY" or job.entity != e.follow_id:
+                raise ValueError(f"entity {e.id}: follows a unit without an escort claim on it")
+        chain, at = {e.id}, leader
+        while at is not None:
+            if at.id in chain:
+                raise ValueError(f"entity {e.id}: a follow loop")
+            chain.add(at.id)
+            at = None if at.follow_id is None else world.find(at.follow_id)
 
 
 def _check_views(world: World) -> None:

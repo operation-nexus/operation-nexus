@@ -137,7 +137,7 @@ def post_job(world: World, side: Side, spec: JobSpec, out: list[Event]) -> Job:
     job = Job(
         world.next_job_id(), spec.kind, spec.key, spec.slots, spec.urgency, now, spec.node,
         spec.blob, spec.pos, None if spec.objective is not None else now + tr.expire_ticks,
-        spec.depends_on, spec.objective,
+        spec.depends_on, spec.objective, spec.entity,
     )  # fmt: skip
     board[job.id] = job
     out.append(
@@ -149,6 +149,7 @@ def post_job(world: World, side: Side, spec: JobSpec, out: list[Event]) -> Job:
             job_kind=job.kind,
             node_id=job.node,
             blob_id=job.blob,
+            entity_id=job.entity,
             slots=job.slots,
             depends_on_job_id=job.depends_on,
         )
@@ -191,6 +192,8 @@ def _may_take(world: World, tr: TaskingRules, e: Entity, job: Job) -> bool:
     """An AI garrison unit never initiates offense: outside its own jobs it joins only a job a
     COMMANDER-owned unit already holds (GAMEPLAY §1b, Q-GD-26), or a strike or assist-objective
     job against a node its side lost within `tasking.counterattack_window_min` (Q-GD-31)."""
+    if job.kind == "ESCORT_CONVOY":
+        return e.owner_kind != _AI  # escorting is the players' call (Q-GP-45)
     if e.owner_kind != _AI or job.kind in _GARRISON_JOBS:
         return True
     lost = world.lost.get(job.node or "")
@@ -308,6 +311,13 @@ def _settle(
                     continue
             if e is None or e.damage_state == "DISABLED" or e.state == "RTB" or e.order is not None:
                 release_claim(world, job, entity_id, out)  # lost, sent home, or a human order wins
+            elif job.kind == "ESCORT_CONVOY":  # the progress is the follow order itself
+                if e.follow_id != job.entity:
+                    release_claim(
+                        world, job, entity_id, out
+                    )  # the truck is gone, or it re-attached
+                else:
+                    c.at, c.active = now, True
             elif e.path or _arrived(e, job):
                 c.at, c.active = now, True
             elif now - c.at >= tr.claim_lease_ticks:
@@ -357,6 +367,11 @@ def _verdict(world: World, rules: Rules, tr: TaskingRules, side: Side, job: Job)
             return "DONE" if fallen else None
         case "SCOUT":
             return "DONE" if _present(world, job) else None
+        case "ESCORT_CONVOY":
+            truck = world.find(job.entity or 0)
+            if truck is None or truck.damage_state == "DISABLED":
+                return "FAILED" if job.claims else "EXPIRED"
+            return None if truck.path else "DONE"  # it arrived (no participant: EXPIRED)
     return None  # ASSIST_OBJECTIVE ends with its objective
 
 
@@ -385,6 +400,8 @@ def _end(world: World, side: Side, job: Job, outcome: Outcome, out: list[Event])
     for i in job.claims:
         if (e := world.find(i)) is not None:
             e.job_id = e.pickup = None
+            if e.order != "FOLLOW":
+                e.follow_id = None  # an escort claim ends with its follow order
     if outcome == "DONE" and job.blob is not None and world.rules and world.rules.tasking:
         until = _now(world) + world.rules.tasking.scout_cooldown_ticks
         # The cell is not posted again yet; blob ids are `<refresh_tick>-<cell>` (Q-SIM-47).
@@ -443,9 +460,10 @@ def _assign(
             break
 
 
-def _waypoint(job: Job) -> str | Vec2:
-    """Where the job is: its node, or the blob's cell centre."""
-    target = job.node if job.node is not None else job.pos
+def _waypoint(world: World, job: Job) -> str | Vec2:
+    """Where the job is: its node, the blob's cell centre, or the escorted truck now."""
+    truck = world.find(job.entity) if job.entity is not None else None
+    target = job.node if job.node is not None else truck.pos if truck else job.pos
     if target is None:
         raise ValueError(f"job {job.id} has no target")
     return target
@@ -466,9 +484,11 @@ def _route(rules: Rules, routes: Routes, e: Entity, job: Job) -> list[str] | Non
     return _road(rules, routes, e.last_node, job.node)
 
 
-def _reaches(rules: Rules, e: Entity, job: Job, bases: tuple[str, ...], fuel: float) -> bool:
+def _reaches(
+    world: World, rules: Rules, e: Entity, job: Job, bases: tuple[str, ...], fuel: float
+) -> bool:
     """Out to the target and on to the nearest landing base with the bingo reserve left (NX-368)."""
-    goal = _waypoint(job)
+    goal = _waypoint(world, job)
     x, y = rules.roads.pos[goal] if isinstance(goal, str) else (goal.x, goal.y)
     back = min(math.hypot(bx - x, by - y) for b in bases for bx, by in [rules.roads.pos[b]])
     out = math.hypot(x - e.pos.x, y - e.pos.y)
@@ -486,14 +506,17 @@ def _feasible(world: World, rules: Rules, routes: Routes, e: Entity, job: Job) -
     if not bases or e.fuel is None or crosses_ring(world, rules, e.side, e.pos, job):
         return "no"
     armed = job.kind != "STRIKE" or any(e.ammo)
-    if armed and _reaches(rules, e, job, bases, e.fuel):
+    if armed and _reaches(world, rules, e, job, bases, e.fuel):
         return "ok"
-    return "refuel" if _reaches(rules, e, job, bases, rules.fuel_s[e.kind]) else "no"
+    return "refuel" if _reaches(world, rules, e, job, bases, rules.fuel_s[e.kind]) else "no"
 
 
 def _dispatch(world: World, rules: Rules, routes: Routes, e: Entity, job: Job) -> None:
+    if job.kind == "ESCORT_CONVOY":  # taking it is a follow order on the truck (Q-GP-29)
+        e.follow_id, e.path = job.entity, []
+        return
     if rules.domain[e.kind] == _AIR:
-        e.path = [_waypoint(job)]
+        e.path = [_waypoint(world, job)]
         return
     if job.kind == "RESUPPLY" and not e.cargo:  # reload first (Q-SIM-74)
         run = _reload_plan(world, rules, routes, e, job)
@@ -525,7 +548,9 @@ def crosses_ring(world: World, rules: Rules, side: Side, start: Vec2, job: Job) 
     """TB-2 route danger: the straight line from `start` to the target passes within the
     engagement ring of an enemy site the side has discovered and last saw not Disabled, unless
     the target is that site's own base."""
-    goal = _waypoint(job)
+    if job.kind == "ESCORT_CONVOY":
+        return False  # the convoy is where the threat is: a direct order, as a follow is
+    goal = _waypoint(world, job)
     gx, gy = rules.roads.pos[goal] if isinstance(goal, str) else (goal.x, goal.y)
     dx, dy = gx - start.x, gy - start.y
     length2 = dx * dx + dy * dy

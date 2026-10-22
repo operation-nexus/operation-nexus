@@ -171,7 +171,9 @@ In the schema now (NX-122): `slots.max_live_per_commander`, `slots.respawn_delay
 | `logistics.offroad_speed_mult` | float | multiplier | 0.5 (from raw plans P987; unvalidated) | GAMEPLAY §5 | No |
 | `logistics.bridge_repair_time_s` | float | s (world) | TBD (engineer repair time; Q-GD-11) | GAMEPLAY §5 | No |
 | `logistics.truck_bridge_repair_mult` | float | multiplier on engineer time | 5 (Q-GD-11 recommendation "e.g. 5× slower") | GAMEPLAY §5 | No |
-| `tasking.follow_station_m.<domain>` | float | m (world) | TBD (PROPOSED) | GAMEPLAY §1b, Q-GP-32 | No |
+| `tasking.follow_station_m.<pairing>` | float | m (world) | PROPOSED (Q-SIM-76): `escort` 500 (a ground combat unit ahead of its truck), `column` 200 (a ground unit behind its ground leader), `overwatch` 3000 (an aircraft over a ground unit), `wingman` 1000 (an aircraft off its lead) | GAMEPLAY §1b, Q-GP-32 | Yes |
+| `tasking.escort_threat_memory_s` | float | s (world) | PROPOSED 60 (Q-SIM-76): a tracked enemy that fired at a convoy or column member this recently is a group threat | GAMEPLAY §1b | Yes |
+| `tasking.escort_leash_m` | float | m | PROPOSED 10000 (Q-SIM-76): the farthest an escort leaves station to engage; also the range within which followers form a speed group (NX-369) | GAMEPLAY §1b, §5 | Yes |
 | `progression.follower_share` | float | fraction of the outcome's merit per follower | TBD (PROPOSED) | GAMEPLAY §1b, PROGRESSION, Q-GP-42 | No |
 | `progression.follower_share_cap` | int | max followers credited per outcome | TBD (PROPOSED) | GAMEPLAY §1b, Q-GP-42 | No |
 | `logistics.facility_repair_hp_per_stock` | int | hp per stock unit | 10 (PROPOSED, Q-SIM-68). In code (NX-124 part 2) | GAMEPLAY §5b | No |
@@ -239,12 +241,12 @@ In code since NX-125: all ten keys are the `capture` block of `balance/default.y
 | `campaign.options.unlimited_ammo` | bool | — | not in the schema yet (NX-124 part 2 does not honour it); false (Q-CBT-7; test/special-event option; set at campaign setup by owner/admin only, not GM, Q-ALN-10) | GAMEPLAY §5 | No |
 | `campaign.intermission.mode` | enum `auto_advance`\|`await_owner` | — | TBD (owner choice per campaign, Q-UX-8) | GAMEPLAY §9 | Yes |
 | `tasking.claim_lease_s` | float | s (game, Q-ALN-23) | 120 (PROPOSED, Q-SIM-73): a claim auto-releases when its unit makes no progress for this long (Q-GD-37) | GAMEPLAY §1b | Yes |
-| `tasking.priority.<job_kind>` | float | base priority | PROPOSED (Q-SIM-73), by lower-case `JobKind`: defend 60, resupply 50, assist_objective 45, strike 40, scout 30 (escort 40 joins with escort jobs; repair_bridge with NX-373) | GAMEPLAY §1b, Q-GP-20 | Yes |
+| `tasking.priority.<job_kind>` | float | base priority | PROPOSED (Q-SIM-73), by lower-case `JobKind`: defend 60, resupply 50, assist_objective 45, strike 40, scout 30, escort_convoy 40 (repair_bridge joins with NX-373) | GAMEPLAY §1b, Q-GP-20 | Yes |
 | `tasking.urgency_max` | float | multiplier cap (1.0–2.0) | 2.0 (PROPOSED, Q-SIM-73) | GAMEPLAY §1b, Q-GP-20 | Yes |
 | `tasking.priority_aging_per_min` | float | priority points/min (game, Q-ALN-23) | 1 (PROPOSED, Q-SIM-73): old jobs gain priority so they aren't starved (Q-GD-37) | GAMEPLAY §1b | Yes |
 | `tasking.reeval_every_ticks` | int | ticks | 50 (PROPOSED, Q-SIM-73): boards are re-evaluated every N running ticks, not every tick (Q-GD-37) | GAMEPLAY §1b | Yes |
 | `tasking.expire_min` | float | min (game, Q-ALN-23) | 15 (PROPOSED, Q-SIM-73): an unclaimed job expires this long after it was posted (objective jobs: with the objective) | GAMEPLAY §1b | Yes |
-| `tasking.slots.<job_kind>` | int | units | PROPOSED (Q-SIM-73): defend 2, strike 2, assist_objective 4, scout 1 (escort 2 joins with escort jobs) | GAMEPLAY §1b, TB-4 | Yes |
+| `tasking.slots.<job_kind>` | int | units | PROPOSED (Q-SIM-73): defend 2, strike 2, assist_objective 4, scout 1, escort_convoy 2 | GAMEPLAY §1b, TB-4 | Yes |
 | `tasking.resupply_stock_per_slot` | int | stock units | 100 (PROPOSED, Q-SIM-73): a resupply job gets one slot per this much missing stock (max stock minus stock, rounded up, at least 1) | GAMEPLAY §1b | Yes |
 | `tasking.resupply_slots_max` | int | units | 3 (PROPOSED, Q-SIM-73) | GAMEPLAY §1b | Yes |
 | `tasking.defend_radius_m` | float | m | 10000 (PROPOSED, Q-SIM-74): a base posts a defend job when its side tracks an enemy ground unit this close; urgency 1.0 at the radius rising to the cap at the base | GAMEPLAY §1b | Yes |

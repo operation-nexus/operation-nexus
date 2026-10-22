@@ -750,7 +750,7 @@ export interface NodeDefensesRestored {
   owner: "COALITION" | "ENEMY" | "NEUTRAL";
 }
 /**
- * A job was posted to a side's Tasking Board, OPEN (CONTRACTS §6; GAMEPLAY §1b TB-1, TB-10; NX-374). Posted by the board generator (the director and GM injection post through the same call later). Exactly one of node_id and blob_id is set in the first build (sector_id and an escort entity_id join with their jobs). A job generated for a side references only what that side's view holds (TB-9). Public view: dropped for the ENEMY side's board.
+ * A job was posted to a side's Tasking Board, OPEN (CONTRACTS §6; GAMEPLAY §1b TB-1, TB-10; NX-374). Posted by the board generator (the director and GM injection post through the same call later). Exactly one of node_id and blob_id is set, except an escort job (ESCORT_CONVOY), which sets neither and names the escorted truck in entity_id (sector_id joins with the sector scout). A job generated for a side references only what that side's view holds (TB-9). Public view: dropped for the ENEMY side's board.
  */
 export interface JobCreated {
   kind: "JobCreated";
@@ -772,11 +772,15 @@ export interface JobCreated {
   job_id: number;
   side: "COALITION" | "ENEMY";
   /**
-   * Tasking Board job kinds the code handles (GAMEPLAY §1b, CONTRACTS §3.3). ESCORT_CONVOY, REPAIR_BRIDGE, CAPTURE and RESCUE join with their jobs (rule 6a).
+   * Tasking Board job kinds the code handles (GAMEPLAY §1b, CONTRACTS §3.3). REPAIR_BRIDGE, CAPTURE and RESCUE join with their jobs (rule 6a).
    */
-  job_kind: "RESUPPLY" | "SCOUT" | "DEFEND" | "STRIKE" | "ASSIST_OBJECTIVE";
+  job_kind: "RESUPPLY" | "SCOUT" | "DEFEND" | "STRIKE" | "ASSIST_OBJECTIVE" | "ESCORT_CONVOY";
   node_id: string | null;
   blob_id: string | null;
+  /**
+   * The truck an escort job covers (ESCORT_CONVOY), else null.
+   */
+  entity_id: number | null;
   slots: number;
   depends_on_job_id: number | null;
 }

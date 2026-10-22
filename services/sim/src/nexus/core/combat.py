@@ -45,6 +45,7 @@ Targeting uses one `UniformGrid` per side and threat level (SC-10), searched in 
 
 import math
 from bisect import insort
+from collections.abc import Iterable
 
 from nexus.contracts.gen.common.enums import AltBand, Side
 from nexus.contracts.gen.events.event import Event
@@ -104,6 +105,7 @@ def _d2(a: Entity, b: Entity) -> float:
 
 def _fire(world: World, rules: Rules, cr: CombatRules, now: int, out: list[Event]) -> None:
     levels: dict[Side, list[_Level]] = {}  # built on a side's first ready shooter
+    group_levels: dict[tuple[int, ...], list[_Level]] = {}  # an escort group's threats, per group
     # nodes held at their idle floor (nothing to take); no hp changes while shots are fired
     pinned = frozenset(
         n for n, hp in world.defense_hp.items() if hp <= defense_floor(world, rules, n)
@@ -121,7 +123,14 @@ def _fire(world: World, rules: Rules, cr: CombatRules, now: int, out: list[Event
         loadout = cr.loadout(e.kind, e.variant)
         for i in ready:
             w = loadout[i]
-            pick: tuple[Entity | str, float] | None = _pick(rules, w, e, levels[e.side])
+            pick: tuple[Entity | str, float] | None = None
+            if e.id in world.group_threat:  # an escort shoots its group's threats first (Q-SIM-76)
+                own = group_levels.setdefault(
+                    world.group_threat[e.id],
+                    _levels(rules, cr, _group_targets(world, rules, e.id)),
+                )
+                pick = _pick(rules, w, e, own)
+            pick = pick or _pick(rules, w, e, levels[e.side])
             if pick is None and _STRUCTURE in w.targets:
                 pick = _pick_node(world, rules, w, e, pinned)
             if pick is not None:
@@ -136,12 +145,32 @@ def _target_levels(world: World, rules: Rules, cr: CombatRules, side: Side) -> l
     facility), highest threat level first; within a level one grid per (domain, altitude band),
     the two things a weapon filters on besides range. Nothing moves or dies while shots are fired,
     so they stay valid for the whole pass."""
+    return _levels(
+        rules,
+        cr,
+        (
+            t
+            for i, c in world.contacts[side].items()
+            if c.age is None
+            and (t := world.find(i)) is not None
+            and t.side != side
+            and not is_off_facility(rules, t)
+        ),
+    )
+
+
+def _group_targets(world: World, rules: Rules, escort: int) -> list[Entity]:
+    """The valid ones of an escort group's threats (`nexus.core.follow`)."""
+    found = (world.find(i) for i in world.group_threat[escort])
+    return [t for t in found if t is not None and not is_off_facility(rules, t)]
+
+
+def _levels(rules: Rules, cr: CombatRules, targets: Iterable[Entity]) -> list[_Level]:
+    """Group valid targets into threat levels, highest first (see `_target_levels`)."""
     groups: dict[tuple[int, str, AltBand | None], list[Entity]] = {}
-    for i, c in world.contacts[side].items():
-        t = world.find(i)
-        if c.age is None and t is not None and t.side != side and not is_off_facility(rules, t):
-            key = (cr.units[t.kind].threat, rules.domain[t.kind], t.alt_band)
-            groups.setdefault(key, []).append(t)
+    for t in targets:
+        key = (cr.units[t.kind].threat, rules.domain[t.kind], t.alt_band)
+        groups.setdefault(key, []).append(t)
     levels: dict[int, _Level] = {}
     for (threat, domain, band), members in groups.items():
         grid = UniformGrid(_CELL_M)
@@ -220,6 +249,11 @@ def _shoot(
     shooter.ammo[i] -= 1
     shooter.reload[i] = w.reload_ticks
     delay = 0 if w.speed_mps is None else math.ceil(math.sqrt(d2) / (w.speed_mps * rules.world_dt))
+    if not isinstance(target, str) and rules.tasking and rules.domain[target.kind] != _STATIC:
+        memory = rules.tasking.threat_memory_ticks  # who fired at this unit lately (Q-SIM-76)
+        target.fired_by = [
+            h for h in target.fired_by if h[0] != shooter.id and now - h[1] <= memory
+        ] + [[shooter.id, now]]
     shot = Shot(world.next_shot_id(), shooter.id, target_id, w.id, now + delay, node)
     insort(world.shots, shot, key=lambda s: (s.impact_tick, s.id))
     out.append(

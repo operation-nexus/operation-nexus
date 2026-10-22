@@ -684,6 +684,7 @@ class Priority(BaseModel):
     assist_objective: Annotated[float, Field(ge=0.0)]
     strike: Annotated[float, Field(ge=0.0)]
     scout: Annotated[float, Field(ge=0.0)]
+    escort_convoy: Annotated[float, Field(ge=0.0)]
 
 
 class Slots1(BaseModel):
@@ -694,6 +695,17 @@ class Slots1(BaseModel):
     strike: Annotated[int, Field(ge=1)]
     assist_objective: Annotated[int, Field(ge=1)]
     scout: Annotated[int, Field(ge=1)]
+    escort_convoy: Annotated[int, Field(ge=1)]
+
+
+class FollowStationM(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    escort: Annotated[float, Field(gt=0.0)]
+    column: Annotated[float, Field(gt=0.0)]
+    overwatch: Annotated[float, Field(gt=0.0)]
+    wingman: Annotated[float, Field(gt=0.0)]
 
 
 class Tasking(BaseModel):
@@ -724,7 +736,7 @@ class Tasking(BaseModel):
     priority: Annotated[
         Priority,
         Field(
-            description="Base priority per job kind (Q-GP-20), unit points; keys are the lower-case JobKind. Escort and repair-bridge join with their jobs."
+            description="Base priority per job kind (Q-GP-20), unit points; keys are the lower-case JobKind. Repair-bridge joins with its job."
         ),
     ]
     urgency_max: Annotated[
@@ -776,6 +788,26 @@ class Tasking(BaseModel):
         float,
         Field(
             description="A scout job whose cell still holds a blob after it was DONE is not posted again for this long (Q-SIM-75), unit min of game time.",
+            gt=0.0,
+        ),
+    ]
+    follow_station_m: Annotated[
+        FollowStationM,
+        Field(
+            description="Where a follower keeps station on its direct leader (Q-GP-32, Q-SIM-76), unit m: `escort` a ground combat unit ahead of a truck or convoy on the same road; `column` a ground unit behind a ground leader; `overwatch` the radius an aircraft orbits within over a ground unit; `wingman` an aircraft's distance off an aircraft lead."
+        ),
+    ]
+    escort_threat_memory_s: Annotated[
+        float,
+        Field(
+            description="An armed follower treats a tracked enemy that fired at any member of its convoy or column this recently as a threat to the group and engages it (Q-SIM-76), unit s of world time.",
+            gt=0.0,
+        ),
+    ]
+    escort_leash_m: Annotated[
+        float,
+        Field(
+            description="The farthest an armed follower leaves its station from the nearest other member of its group to engage a group threat; beyond it, it returns to station and a threat that far is not chased (Q-SIM-76), unit m.",
             gt=0.0,
         ),
     ]
