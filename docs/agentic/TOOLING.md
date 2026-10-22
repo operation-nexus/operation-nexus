@@ -35,7 +35,8 @@ Notes:
 | `security-review` (built-in) | Security review of pending changes | Claude Code |
 | `simplify` (built-in) | Cleanup and simplification pass | Claude Code |
 | **Ponytail** (`/ponytail`, `/ponytail-review`, `/ponytail-audit`, `/ponytail-debt`) | Smallest complete change; YAGNI; reviews for over-engineering | Skills vendored in `.claude/skills/` at v5.3.2 so cloud sessions have them (Q-DEV-18); the `DietrichGebert/ponytail` plugin (MIT) stays declared in `.claude/settings.json` for desktop extras |
-| **CodeRabbit** | Automatic PR review (GitHub app, installed on the `operation-nexus` org by the owner 2026-10-20, 14-day trial; paid after that, and whether public repos stay free is [UNVERIFIED]). It reviews each code PR by itself, quietly: `.coderabbit.yaml` turns off summaries, status messages and poems, skips drafts and Dependabot, and skips docs, Markdown, generated code and lockfiles, which the reviewer agent and CI cover. Add `[skip review]` to a PR title to skip it. Reply `@coderabbitai …` in a PR comment to ask it something. Its comments reach the lead through the CI watch like any review | GitHub app (no Claude plugin needed) |
+| **CodeRabbit** | Automatic PR review (GitHub app, installed on the `operation-nexus` org by the owner 2026-10-20, 14-day trial to about 2026-11-03; then $30 a month (Essentials), not renewed by default, Q-CI-7, docs/ops/COSTS.md). It reviews each code PR by itself, quietly: `.coderabbit.yaml` turns off summaries, status messages and poems, skips drafts and Dependabot, and skips docs, Markdown, generated code and lockfiles, which the reviewer agent and CI cover. Add `[skip review]` to a PR title to skip it. Reply `@coderabbitai …` in a PR comment to ask it something. Its comments reach the lead through the CI watch like any review | GitHub app (no Claude plugin needed) |
+| **Claude review action** | Automatic PR review on GitHub (Q-CI-7, NX-029): `.github/workflows/claude-review.yml` runs the Claude Code GitHub Action with the code-review plugin on PRs into `develop` that touch sensitive paths (CI workflows, chat gateway, deploy, scripts, identity, linking, LLM code), and on any PR when the `ai-review` label is added. Inline comments, advice only, never a required check. Runs on the owner's Claude plan via the `CLAUDE_CODE_OAUTH_TOKEN` secret; skips PRs it already commented on. Its comments reach the lead through the CI watch like any review | `anthropics/claude-code-action`, pinned by SHA |
 | **playwright** (Microsoft) | Browser automation for QA of the overlay, site and Command Center | claude.ai plugin directory |
 | **sentry** | Reads Sentry issues for the error pipeline (ERROR-PIPELINE) | claude.ai plugin directory, once a Sentry project exists |
 | **finecomb** | Exhaustive code and security audit checklist | claude.ai plugin directory (install via the card in chat) |
@@ -69,6 +70,8 @@ Not vendored yet. Each needs adapting first, or clashes with something here:
 3. `/ponytail-review` (over-engineering)
 4. `fact-checker` subagent (docs and external facts)
 5. Optionally `finecomb` or `review-council` for phase-gate reviews
+
+On GitHub, after the PR opens: the Claude review action (sensitive paths, or the `ai-review` label) and CodeRabbit while it is subscribed (Q-CI-7).
 
 ## 3. MCP servers ("memory graph" and context)
 
