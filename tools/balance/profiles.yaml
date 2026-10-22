@@ -1,0 +1,49 @@
+# Balance harness crowd profiles and viewer personas (NX-031 part 1, Q-SIM-91; TESTING-STRATEGY §3.5).
+#
+# The six profile NAMES and sizes (0, 5, 50, 150, 300, 500 viewers) are decided: Q-ALN-42, Q-TEST-5.
+# EVERY OTHER VALUE in this file is PROPOSED - unvalidated harness inputs, not game balance. No spec
+# gives arrival rates, ramps, persona mixes or persona behaviour; they are the lead's starting
+# point (Q-SIM-91) and are re-tuned once the first runs show what a believable crowd looks like.
+# Changing a value changes every report; the report records this file's blake2b so runs compare.
+#
+# viewers            distinct viewers who arrive during the first `ramp_min` game minutes (uniform times)
+# ramp_min           length of that ramp; a raid arrives fast, a prime-time crowd gathers slowly
+# arrivals_per_hour  further new distinct viewers per game hour after the ramp (Poisson, seeded)
+# mix                persona weights (relative); a viewer's persona is drawn once when it is scheduled
+profiles:
+  overnight-0: { viewers: 0,   ramp_min: 1,  arrivals_per_hour: 0,  mix: {} }
+  quiet-5:     { viewers: 5,   ramp_min: 30, arrivals_per_hour: 1,  mix: { lurker: 1, newbie: 1, veteran: 2, logistics-lover: 1, afk-farmer: 0 } }
+  prime-50:    { viewers: 50,  ramp_min: 30, arrivals_per_hour: 10, mix: { lurker: 4, newbie: 3, veteran: 2, logistics-lover: 2, afk-farmer: 1 } }
+  evening-150: { viewers: 150, ramp_min: 30, arrivals_per_hour: 30, mix: { lurker: 4, newbie: 3, veteran: 2, logistics-lover: 2, afk-farmer: 1 } }
+  raid-300:    { viewers: 300, ramp_min: 5,  arrivals_per_hour: 30, mix: { lurker: 3, newbie: 4, veteran: 2, logistics-lover: 1, afk-farmer: 1 } }
+  surge-500:   { viewers: 500, ramp_min: 10, arrivals_per_hour: 50, mix: { lurker: 3, newbie: 4, veteran: 2, logistics-lover: 2, afk-farmer: 1 } }
+
+# Personas use only commands that exist: JOIN (with a role; hold or no target) and REBASE.
+# role_weights   which role it joins as (relative)
+# hold           JOIN with hold=true (waits at base); false = no target, the board auto-tasks it
+# join_prob      chance it joins at all when it arrives (a lurker rarely does)
+# rejoin_prob    chance it joins again after losing its unit or being rejected; max_attempts caps
+#                consecutive losses/rejections before it gives up and leaves
+# rejoin_delay_s game seconds it waits before re-joining, uniform in [min, max] (the respawn delay
+#                is slots.respawn_delay_s, so the minimum should stay above it)
+# rebase_prob / rebase_after_s  chance, once spawned, that it sends one REBASE to the most forward
+#                friendly airbase, and when (game seconds after spawning, uniform in [min, max])
+personas:
+  lurker:          { role_weights: { STRIKE: 1, RECON: 1, LOGI: 1 }, hold: false, join_prob: 0.05, rejoin_prob: 0.2, max_attempts: 2, rejoin_delay_s: [60, 600],  rebase_prob: 0,   rebase_after_s: [0, 0] }
+  newbie:          { role_weights: { STRIKE: 1 },                    hold: false, join_prob: 1.0,  rejoin_prob: 0.7, max_attempts: 3, rejoin_delay_s: [30, 180],  rebase_prob: 0,   rebase_after_s: [0, 0] }
+  # rebase_prob is 0 for now: an accepted REBASE sets the HOLD order and nothing clears it until the
+  # parser's unit orders exist (NX-192), so a rebased unit would park for good and distort the
+  # runs. Put it back to 0.5 (the lead's first value) when a viewer can give a unit a new order.
+  veteran:         { role_weights: { STRIKE: 1 },                    hold: false, join_prob: 1.0,  rejoin_prob: 0.9, max_attempts: 5, rejoin_delay_s: [30, 120],  rebase_prob: 0,   rebase_after_s: [60, 300] }
+  logistics-lover: { role_weights: { LOGI: 1 },                      hold: false, join_prob: 1.0,  rejoin_prob: 0.9, max_attempts: 5, rejoin_delay_s: [30, 120],  rebase_prob: 0,   rebase_after_s: [0, 0] }
+  afk-farmer:      { role_weights: { STRIKE: 1 },                    hold: true,  join_prob: 1.0,  rejoin_prob: 0,   max_attempts: 1, rejoin_delay_s: [30, 120],  rebase_prob: 0,   rebase_after_s: [0, 0] }
+
+# Targets (TESTING-STRATEGY §3.5a). The numbers are the written ones; `source` names where.
+targets:
+  a1_min_h: 24            # Q-TEST-6: victory or defeat within 24-72 h (72 = campaign.time_limit_h)
+  a1_pass_frac: 0.85      # Q-TEST-4 / Q-TEST-6
+  a2_max_s: 300           # A2 "within 3-5 min": the 5 min end; PROPOSED rule: the median over newbies
+  a3_hours: 12            # A3, Q-TEST-8 (PROPOSED)
+  a3_max_nodes_lost: 1    # A3, Q-TEST-8 (PROPOSED)
+  a4_max_share: 0.40      # A4, Q-TEST-8 (PROPOSED)
+  a4_min_kills: 30        # PROPOSED: fewer pooled coalition kills per profile is "no data", not a verdict
