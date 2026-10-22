@@ -75,7 +75,7 @@ from nexus.contracts.gen.events.job_done import JobDone, Participant
 from nexus.contracts.gen.events.job_expired import JobExpired
 from nexus.contracts.gen.events.job_failed import JobFailed
 from nexus.core.fog import side_view
-from nexus.core.logistics import Run, load, nearest_base, plan_run
+from nexus.core.logistics import Run, go_home, load, nearest_base, plan_run
 from nexus.core.rng import PcgStream, RngStream
 from nexus.core.roads import shortest_path
 from nexus.core.rules import Rules, TaskingRules
@@ -466,6 +466,8 @@ def _end(world: World, side: Side, job: Job, outcome: Outcome, out: list[Event])
     people = _participants(world, job)[:_MAX_PARTICIPANTS]
     for i in job.claims:
         if (e := world.find(i)) is not None:
+            if outcome == "FAILED" and job.kind == _PATROL and world.rules is not None:
+                _abandon_patrol(world, world.rules, e, job)
             e.job_id = e.pickup = None
             if e.order != "FOLLOW":
                 e.follow_id = None  # an escort claim ends with its follow order
@@ -494,6 +496,16 @@ def _end(world: World, side: Side, job: Job, outcome: Outcome, out: list[Event])
                     _launch(world, e, dep)
         else:
             _end(world, side, dep, "FAILED", out)
+
+
+def _abandon_patrol(world: World, rules: Rules, e: Entity, job: Job) -> None:
+    """A failed patrol's unit drops its route: home to the nearest friendly base, or it stands
+    when no route avoids the other side's nodes (it retires once idle, Q-SIM-84), so it never
+    drives on into a lost base (Q-SIM-86)."""
+    go_home(world, rules, e)
+    held = {world.owner.get(n) for n in e.path if isinstance(n, str)} - {None, e.side}
+    if e.path and (e.path[-1] == job.node or held):
+        e.path = []
 
 
 def _idle(rules: Rules, e: Entity, side: Side) -> bool:

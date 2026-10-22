@@ -45,9 +45,10 @@ With no live viewer unit, the Static may flip a node only if none flipped in the
 bar holds one step short of the flip (the node is in `DirectorState.held`), and the Director
 launches no capture operation (`nexus.core.launch`). A held bar stays held until the cap frees,
 even when a viewer arrives, so a new viewer does not see held bases fall at once; coalition units
-contest it as any bar, and it leaves `held` when it is gone or drained. A unit on a PATROL job
-never counts as a capturer (it still contests and garrisons), so a patrol can turn at a neutral
-node without flipping it.
+contest it as any bar, and it leaves `held` when it is gone or drained. A garrison unit (one
+with a home base) and a unit on a PATROL job never count as capturers (they still contest and
+garrison): a garrison only defends (Q-SIM-86), so a patrol turns at a neutral node, or a failed
+one stands there, without flipping it.
 
 Runs after `logistics` in the `logistics_capture` slot (SC-13) and not while paused (SC-11).
 Deterministic: nodes in id order, entities in id order, no RNG.
@@ -116,6 +117,9 @@ def _prune_held(world: World) -> None:
 
 
 def _patrolling(world: World, e: Entity) -> bool:
+    """A garrison unit or a patrol: no capture weight."""
+    if e.home is not None:
+        return True
     job = world.boards[e.side].get(e.job_id) if e.job_id is not None else None
     return job is not None and job.kind == "PATROL"
 

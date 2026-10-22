@@ -906,12 +906,40 @@ def test_a_patrol_whose_turning_node_is_lost_still_ends_with_the_unit_home() -> 
     assert u.job_id is None and u.last_node == "fob-n-e" and not u.path
 
 
+def test_a_patrol_that_fails_on_a_lost_home_drops_its_route_and_never_captures() -> None:
+    w = new_world(1, GARRISON_ONLY)
+    u = unit(w, "ENEMY_ARMOR", "ENEMY", "ENEMY_DIRECTOR", "fob-n-e")
+    u.home = "fob-n-e"
+    skip(w, DR.patrol_ticks - 1)
+    window(w, "PATTERN_OF_LIFE", 0, GARRISON_ONLY)
+    (job,) = [j for j in w.boards["ENEMY"].values() if j.kind == "PATROL"]
+    while u.last_node != job.via:  # out at the turning node, about to head home
+        step(w, [])
+    w.owner["fob-n-e"] = "COALITION"  # its home falls while it is away: the patrol fails
+    for _ in range(20_000):
+        step(w, [])
+        assert u.job_id is None or u.job_id == job.id
+        if u.job_id is None:
+            assert not u.path or u.path[-1] != "fob-n-e"  # no stale route to the lost base
+        for node, bar in w.capture.items():
+            assert bar.side != "ENEMY", node  # a failed patrol never starts a capture
+
+
 def test_a_unit_that_is_no_patrol_does_capture_where_it_stands() -> None:
     """The control for the patrol test: the same neutral node, a unit with no job."""
     w = new_world()
     unit(w, "ENEMY_ARMOR", "ENEMY", "ENEMY_DIRECTOR", "cross-n")
     step(w, [])
     assert w.capture["cross-n"].side == "ENEMY"
+
+
+def test_a_garrison_unit_never_captures_where_it_stands() -> None:
+    """A garrison only defends (Q-SIM-86): the same neutral node as the control, a homed unit."""
+    w = new_world()
+    u = unit(w, "ENEMY_ARMOR", "ENEMY", "ENEMY_DIRECTOR", "cross-n")
+    u.home = "fob-n-e"
+    step(w, [])
+    assert "cross-n" not in w.capture
 
 
 def test_patrol_slots_is_the_crew_of_one_patrol_job() -> None:
