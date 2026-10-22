@@ -189,6 +189,9 @@ tasking:
   scout_blob_runs: 2
   scout_urgency: {small: 1.0, medium: 1.5, large: 2.0}
   strike_urgency_per_threat: 0.01
+  strike_max_scaled_slots: 3
+  strike_idle_targets_max: 2
+  strike_idle_targets_min_tier: ALPHA
 director:
   window_s: 60
   cp:
@@ -278,7 +281,7 @@ director:
 # NX-374 for the tasking keys and again for follow and escort, NX-155 for the director, and NX-157
 # for the Pattern of Life keys and the garrison operation); a
 # change means every config_hash moved.
-GOLDEN_CONFIG_HASH = "ddeb9fecedc60860a0440b97ab06421a9244d476eeb7c2f251cfbc26c0253035"
+GOLDEN_CONFIG_HASH = "33aa20e71c103a198a6e702e642e9a7f82e3068d6b4075f94e2b5e41288e3b64"
 SLOTS = {
     "max_live_per_commander": 1,
     "respawn_delay_s": 20,
@@ -409,6 +412,9 @@ TASKING = {
     "scout_blob_runs": 2,
     "scout_urgency": {"small": 1.0, "medium": 1.5, "large": 2.0},
     "strike_urgency_per_threat": 0.01,
+    "strike_max_scaled_slots": 3,
+    "strike_idle_targets_max": 2,
+    "strike_idle_targets_min_tier": "ALPHA",
 }
 DIRECTOR = {
     "window_s": 60,
@@ -831,7 +837,9 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "  follow_station_m: {escort: 500, column: 200, overwatch: 3000, wingman: 1000},\n"
         "  escort_threat_memory_s: 60, escort_leash_m: 10000,\n"
         "  follow_hold_slack: 2, overfill_factor: 2, scout_blob_runs: 2,\n"
-        "  scout_urgency: {small: 1.0, medium: 1.5, large: 2.0}, strike_urgency_per_threat: 0.01}\n"
+        "  scout_urgency: {small: 1.0, medium: 1.5, large: 2.0}, strike_urgency_per_threat: 0.01,\n"
+        "  strike_max_scaled_slots: 3, strike_idle_targets_max: 2,\n"
+        "  strike_idle_targets_min_tier: ALPHA}\n"
         "director: {window_s: 60, max_spawns_per_window: 6,\n"
         "  cp: {ema_window_s: 300, unit_value: {STRIKE_FIGHTER: 10, RECON_UAV: 3, LOGI_TRUCK: 2,\n"
         "    GARRISON_INFANTRY: 2}},\n"

@@ -37,6 +37,8 @@ from nexus.core.step import SYSTEMS, step
 from nexus.core.tasking import (
     _end,
     _load_at_source,
+    claim,
+    idle_reason,
     joinable_jobs,
     on_objective,
     post_job,
@@ -324,6 +326,126 @@ def test_strike_urgency_per_threat_is_a_key() -> None:
     board_pass(w)
     (job,) = jobs(w)
     assert (job.kind, job.urgency) == ("STRIKE", 1000 + 5 * 90)  # SAM threat 90; shipped is 1900
+
+
+def _strikes(w: World, tr: TaskingRules = TR) -> list[tuple[str, int]]:
+    """The strike jobs the coalition board would hold now (generated, before any unit claims)."""
+    specs = generate(
+        w, dataclasses.replace(RULES, tasking=tr), tr, "COALITION", side_view(w, "COALITION")
+    )
+    return [(s.key, s.slots) for s in specs if s.kind == "STRIKE"]
+
+
+def test_idle_armed_viewer_units_add_strike_slots_up_to_the_cap() -> None:
+    """Q-SIM-92: one extra slot per idle armed viewer unit, at most `strike_max_scaled_slots`."""
+    w = new_world()
+    pos = Vec2(*RULES.roads.pos["fob-n-e"])
+    w.markers["COALITION"][99] = FacilityMarker(
+        "AIR_DEFENSE_SITE", "SAM", pos, True, 1, 35_000, "HEALTHY"
+    )
+    put(w, "STRIKE_FIGHTER", "west-airbase", AI)  # not a viewer's: not counted
+    held = put(w, "STRIKE_FIGHTER", "west-airbase")
+    held.order = "HOLD"  # a HOLD keeps the board off it: not idle
+    dry = put(w, "STRIKE_FIGHTER", "west-airbase")
+    dry.ammo = [0, 0]  # nothing to strike with
+    put(w, "RECON_UAV", "west-airbase")  # unarmed
+    assert _strikes(w) == [("strike:fob-n-e", TR.slots["STRIKE"])]
+    for want in (1, 2, 3, 3):
+        put(w, "STRIKE_FIGHTER", "west-airbase")
+        assert _strikes(w) == [("strike:fob-n-e", TR.slots["STRIKE"] + want)]
+
+
+def test_idle_viewers_get_strike_jobs_on_the_nearest_known_defended_foe_nodes() -> None:
+    w = new_world()
+    w.director["ENEMY"].tier = "ALPHA"  # the gate (below) is open
+    assert _strikes(w) == []  # nobody idle: nothing posted
+    put(w, "STRIKE_FIGHTER", "west-airbase")
+    # fob-n-e and fob-s-e are as near a coalition node: the tie goes by node id
+    assert _strikes(w) == [("strike:fob-n-e", 3), ("strike:fob-s-e", 3)]
+    three = dataclasses.replace(TR, strike_idle_targets_max=3)
+    assert [k for k, _ in _strikes(w, three)] == [
+        "strike:east-airbase",
+        "strike:fob-n-e",
+        "strike:fob-s-e",
+    ]
+    w.defense_hp["fob-n-e"] = 0  # nothing left there: the next nearest takes its place
+    assert [k for k, _ in _strikes(w, three)] == [
+        "strike:east-airbase",
+        "strike:fob-s-e",
+        "strike:static-hq",
+    ]
+
+
+def test_idle_strike_targets_wait_for_the_tier_so_a_lone_viewer_provokes_nothing() -> None:
+    w = new_world()
+    put(w, "STRIKE_FIGHTER", "west-airbase")
+    assert w.director["ENEMY"].tier == "PATTERN_OF_LIFE"
+    assert _strikes(w) == []
+    w.director["ENEMY"].tier = TR.strike_idle_targets_min_tier  # ALPHA
+    assert [k for k, _ in _strikes(w)] == ["strike:fob-n-e", "strike:fob-s-e"]
+
+
+def test_no_idle_target_is_posted_while_a_marked_target_is_open() -> None:
+    w = new_world()
+    put(w, "STRIKE_FIGHTER", "west-airbase")
+    w.markers["COALITION"][99] = FacilityMarker(
+        "AIR_DEFENSE_SITE",
+        "SAM",
+        Vec2(*RULES.roads.pos["east-airbase"]),
+        True,
+        1,
+        35_000,
+        "HEALTHY",
+    )
+    assert [k for k, _ in _strikes(w)] == ["strike:east-airbase"]
+
+
+def test_zero_strike_scaling_keys_reproduce_the_old_board() -> None:
+    off = dataclasses.replace(TR, strike_max_scaled_slots=0, strike_idle_targets_max=0)
+    w = new_world()
+    w.director["ENEMY"].tier = "ALPHA"
+    for _ in range(4):
+        put(w, "STRIKE_FIGHTER", "west-airbase")
+    assert _strikes(w, off) == []
+    w.markers["COALITION"][99] = FacilityMarker(
+        "AIR_DEFENSE_SITE", "SAM", Vec2(*RULES.roads.pos["fob-n-e"]), True, 1, 35_000, "HEALTHY"
+    )
+    board_pass(w)
+    assert _strikes(w) == [("strike:fob-n-e", TR.slots["STRIKE"])]
+
+
+def test_idle_reason_names_why_an_idle_jet_holds_no_job() -> None:
+    w = new_world()
+    jet = put(w, "STRIKE_FIGHTER", "west-airbase")
+    assert idle_reason(w, jet) == "no_job"
+    job = post(w, "COALITION", "STRIKE", "east-airbase", "s", slots=1)
+    assert idle_reason(w, jet) == "other"  # it takes the job at the next pass
+    jet.ammo = [0, 0]
+    assert idle_reason(w, jet) == "ammo"
+    jet.ammo, jet.fuel = [4, 400], 1.0
+    assert idle_reason(w, jet) == "refuel"  # a full tank would reach: it is being refuelled
+    jet.fuel = RULES.fuel_s["STRIKE_FIGHTER"]
+    w.markers["COALITION"][50] = FacilityMarker(
+        "AIR_DEFENSE_SITE", "SAM", Vec2(200_000, 120_000), True, 1, 30_000, "HEALTHY"
+    )
+    assert idle_reason(w, jet) == "ring"
+    del w.markers["COALITION"][50]
+    for _ in range(2 * job.slots):  # the overfill limit
+        claim(w, put(w, "STRIKE_FIGHTER", "west-airbase"), job, [])
+    assert idle_reason(w, jet) == "full"
+
+
+def test_idle_strike_jobs_are_deterministic() -> None:
+    def run() -> str:
+        w = new_world()
+        w.director["ENEMY"].tier = "ALPHA"
+        for _ in range(3):
+            put(w, "STRIKE_FIGHTER", "west-airbase")
+        for _ in range(4):
+            board_pass(w)
+        return state_hash(w)
+
+    assert run() == run()
 
 
 # --- assignment ---------------------------------------------------------------------------------

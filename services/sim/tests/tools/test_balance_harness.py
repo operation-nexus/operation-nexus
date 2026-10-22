@@ -18,6 +18,7 @@ from nexus.contracts.gen.events.unit_destroyed import UnitDestroyed
 from nexus.contracts.gen.events.unit_spawned import UnitSpawned
 from nexus.contracts.gen.events.weapon_impact import WeaponImpact
 from nexus.core.campaign import momentum
+from nexus.core.world import Vec2
 from nexus.runtime.campaign_config import CampaignConfig, start_campaign
 from nexus.runtime.command_log import CommandLogReader, Tombstone
 
@@ -175,7 +176,9 @@ def killed(tick: int, victim: int, killer: int | None, side: str = "ENEMY") -> A
 def collector(shipped_config: CampaignConfig) -> metrics.Collector:
     world = start_campaign("c", 1, shipped_config)
     newbies = frozenset(commander(n) for n in (1, 2, 3, 4, 5))
-    return metrics.Collector(world, newbies, tick_hz=HZ, sample_ticks=600, a3_ticks=1000)
+    return metrics.Collector(
+        world, newbies, tick_hz=HZ, sample_ticks=600, a3_ticks=1000, idle_sample_ticks=600
+    )
 
 
 def test_newbie_time_to_first_impact(collector: metrics.Collector) -> None:
@@ -231,13 +234,14 @@ def test_kill_share_by_unit_kind(
         "total": 5,
         "unattributed": 2,
     }
-    few = dataclasses.replace(load().targets, a4_min_kills=1)
+    live = dataclasses.replace(load().targets, a4_suspended=False)
+    few = dataclasses.replace(live, a4_min_kills=1)
     pooled = report._a4([{"metrics": {"kills": k}}], few)
     assert pooled["status"] == report.FAIL  # the target uses the all-coalition share
     assert pooled["top"] == {"kind": "STRIKE_FIGHTER", "share": 0.6}
     assert pooled["player_share"] == {"RECON_UAV": 0.25, "STRIKE_FIGHTER": 0.75}
     assert pooled["player_kills"] == 4 and pooled["coalition_kills"] == 5
-    assert report._a4([{"metrics": {"kills": k}}], load().targets)["status"] == report.NO_DATA
+    assert report._a4([{"metrics": {"kills": k}}], live)["status"] == report.NO_DATA
 
 
 def test_nodes_lost_tier_dwell_and_outcome(collector: metrics.Collector) -> None:
@@ -379,8 +383,16 @@ def test_target_rules() -> None:
     assert report._a3([fake_run()], t, "prime-50")["status"] == "n/a"
 
 
-def test_a4_needs_a_minimum_sample() -> None:
+def test_a4_is_suspended_but_still_reports_the_top_kind() -> None:
     t = load().targets
+    assert t.a4_suspended  # Q-SIM-92
+    a4 = report._a4([fake_run(kills={"by_kind": {"A": 40, "B": 1}})], t)
+    assert a4["status"] == report.SUSPENDED and a4["top"]["kind"] == "A"
+    assert report._a4([fake_run(kills={"by_kind": {"A": 1}})], t)["status"] == report.SUSPENDED
+
+
+def test_a4_needs_a_minimum_sample() -> None:
+    t = dataclasses.replace(load().targets, a4_suspended=False)
     enough = t.a4_min_kills
     top = round(t.a4_max_share * enough)  # exactly at the limit passes
     rest = enough - top
@@ -476,3 +488,22 @@ def test_a_sim_crash_is_recorded_not_raised(
     assert run["ticks_run"] == 99 and run["final_state_hash"] is None
     a1 = report._a1([run], load().targets)
     assert a1["outcomes"] == {"CRASHED": 1} and a1["seeds_in_window"] == 0
+
+
+def test_idle_sampling_counts_idle_armed_viewer_units_and_why(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    world = start_campaign("c", 1, shipped_config)
+    collector.sample_idle(world)  # no viewer unit yet: no sample
+    assert collector.idle_shares == []
+    node = Vec2(*shipped_config.rules.roads.pos["west-airbase"])
+    jet = world.spawn("STRIKE_FIGHTER", "COALITION", "COMMANDER", node, commander_id=commander(1))
+    held = world.spawn("STRIKE_FIGHTER", "COALITION", "COMMANDER", node, commander_id=commander(2))
+    held.order = "HOLD"
+    jet.state = held.state = "LANDED"
+    collector.sample_idle(world)
+    assert collector.idle_shares == [0.5] and dict(collector.idle_reasons) == {"no_job": 1}
+    idle = collector.result(100)["idle"]
+    assert (idle["samples"], idle["share_max"], idle["reasons"]) == (1, 0.5, {"no_job": 1})
+    agg = report._idle([{"metrics": {"idle": idle}}, {"metrics": {"idle": idle}}])
+    assert (agg["samples"], agg["share_mean"], agg["reasons"]) == (2, 0.5, {"no_job": 2})
