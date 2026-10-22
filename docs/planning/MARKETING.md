@@ -37,7 +37,7 @@ See OPEN-QUESTIONS (Q-MKT-*).
 ## Timing (Q-MKT-3, owner 2026-10-17)
 - **"Done is better than perfect."** Publish early and imperfect. The devlog format *is* the work in progress.
 - Free channels only for now; no paid ads.
-- First public post: when the first map renders with moving units (P1/P2 boundary). Agents should flag this moment as a DEVLOG CHECKPOINT.
+- First public post: when the first map renders with moving units (P1/P2 boundary). Agents should flag this moment as a DEVLOG CHECKPOINT. Exception (owner, 2026-10-22): the text-only devlog 0 on Discord and Bluesky went out early; other early posts need the owner's say-so (Q-MKT-3).
 - The old Discord announcement is held back at first, to measure organic traction.
 - Simulated bot battles can be shown, **clearly labeled "simulated test"**.
 
