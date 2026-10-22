@@ -892,6 +892,20 @@ class Weights(BaseModel):
             ge=0.0,
         ),
     ]
+    recon_destroyed: Annotated[
+        float,
+        Field(
+            description="An unarmed Static recon unit (a scout kind with no weapons) destroyed or knocked to Disabled by a player-controlled unit, unit provocation points (Q-SIM-89).",
+            ge=0.0,
+        ),
+    ]
+    recon_damaged: Annotated[
+        float,
+        Field(
+            description="One hit on an unarmed Static recon unit by a player-controlled unit, unit provocation points (Q-SIM-89).",
+            ge=0.0,
+        ),
+    ]
     convoy_hit: Annotated[
         float,
         Field(

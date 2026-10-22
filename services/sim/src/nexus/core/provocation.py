@@ -1,5 +1,5 @@
 """What the Static suffers and senses: the provocation ledger (THREAT-DIRECTOR §5a, TD-2, Q-TD-11,
-Q-AI-9, Q-ALN-13, Q-SIM-78; NX-155).
+Q-AI-9, Q-ALN-13, Q-SIM-78, Q-SIM-89; NX-155).
 
 The kernel calls these where the thing happens, because only there are the actor and the victim both
 in hand: `combat` after a hit lands, `capture` at a flip, the Director slot once per window for
@@ -30,7 +30,7 @@ from typing import Literal
 
 from nexus.contracts.gen.common.enums import DamageState, NodeOwner, Side
 from nexus.core.fog import SideView
-from nexus.core.rules import DirectorRules, Rules, sector_at
+from nexus.core.rules import DirectorRules, Rules, Weights, sector_at
 from nexus.core.world import DirectorState, Entity, World
 
 DIRECTED: tuple[Side, ...] = ("ENEMY",)
@@ -84,11 +84,24 @@ def _remember_hit(
         )
 
 
+def _unit_weight(world: World, rules: Rules, w: Weights, target: Entity) -> int:
+    """The weight of a hit on a non-facility unit that was not yet Disabled. A recon unit
+    (a scout kind, `rules.painters`, with no weapons, so off `rules.armed`) has its own weights
+    (Q-SIM-89)."""
+    recon = target.kind in rules.painters and target.kind not in rules.armed
+    if world.find(target.id) is None or target.damage_state == _DISABLED:
+        return w.recon_destroyed if recon else w.destroyed
+    if recon:
+        return w.recon_damaged
+    return w.convoy_hit if target.kind in rules.supply.carriers else w.damaged
+
+
 def suffered_hit(world: World, shooter: Entity, target: Entity, was: DamageState) -> None:
     """A hit by `shooter` landed on `target`, whose damage state was `was` before it. A facility:
     Disabled by this hit (8) or just hit (3). Any other unit: destroyed, or knocked to Disabled (a
     wreck), counts as a kill (5), once: a hit on a wreck that was already Disabled adds nothing, so
-    its destruction does not count again (Q-SIM-79); else a convoy hit (3) or a unit hit (1)."""
+    its destruction does not count again (Q-SIM-79); else a convoy hit (3) or a unit hit (1).
+    An unarmed scout has its own weights (2 and 0)."""
     found = _director(world, target.side)
     if found is None:
         return
@@ -102,10 +115,8 @@ def suffered_hit(world: World, shooter: Entity, target: Entity, was: DamageState
         weight = w.facility_disabled if disabled else w.facility_damaged
     elif was == _DISABLED:
         weight = 0
-    elif world.find(target.id) is None or target.damage_state == _DISABLED:
-        weight = w.destroyed
     else:
-        weight = w.convoy_hit if target.kind in rules.supply.carriers else w.damaged
+        weight = _unit_weight(world, rules, w, target)
     _note(world, rules, target.side, weight, target.pos.x, target.pos.y)
 
 

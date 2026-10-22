@@ -301,6 +301,42 @@ def test_a_player_hit_scores_by_what_was_hit() -> None:
     assert hit_score(CONVOY, 3) == 5 * MICRO  # destroyed: 5, not also a convoy hit
 
 
+def recon_kills(n: int, kind: UnitKind) -> World:
+    """A viewer's infantry kills `n` Static units of `kind`, each with one lethal hit."""
+    w = new_world()
+    shooter = put(w, INFANTRY, "COALITION", 0, cmd=3)
+    weapon = dataclasses.replace(COMBAT.weapons["SMALL_ARMS"], damage=5000)
+    for i in range(n):
+        target = put(w, kind, "ENEMY", 500 + 10 * i)
+        _hit(w, RULES, COMBAT, shooter, target, weapon, [])
+        suffered_hit(w, shooter, target, "HEALTHY")
+        assert w.find(target.id) is None
+    return w
+
+
+def test_unarmed_scouts_provoke_by_the_recon_weights_and_armed_units_by_the_general_ones() -> None:
+    """Q-SIM-89: 2 scout kills stay under the ALPHA threshold, 5 reach it; a hit on a scout is 0."""
+    scout: UnitKind = "ENEMY_RECON_UAV"
+    assert "ENEMY_RECON_UAV" not in RULES.armed and "ENEMY_RECON_UAV" in RULES.painters
+    assert pending(recon_kills(2, scout)) == 4 * MICRO < DR.escalate
+    assert pending(recon_kills(4, scout)) == 8 * MICRO < DR.escalate
+    assert pending(recon_kills(5, scout)) == DR.escalate == 10 * MICRO
+    assert pending(recon_kills(2, "ENEMY_ARMOR")) == 10 * MICRO  # armed: 5 each, as before
+    w = new_world()
+    shooter = put(w, INFANTRY, "COALITION", 0, cmd=3)
+    target = put(w, scout, "ENEMY", 500)
+    weapon = dataclasses.replace(COMBAT.weapons["SMALL_ARMS"], damage=1)
+    _hit(w, RULES, COMBAT, shooter, target, weapon, [])
+    suffered_hit(w, shooter, target, "HEALTHY")
+    assert pending(w) == 0 and w.director["ENEMY"].last_provocation_sector is None
+
+
+def test_scout_kill_provocation_is_deterministic() -> None:
+    assert state_hash(recon_kills(3, "ENEMY_RECON_UAV")) == state_hash(
+        recon_kills(3, "ENEMY_RECON_UAV")
+    )
+
+
 def test_a_wreck_made_by_a_player_counts_as_a_kill_once() -> None:
     convoy = COMBAT.units[CONVOY]
     w = new_world()
