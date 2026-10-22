@@ -1,6 +1,6 @@
 # Broadcast Hardware
 
-Status: Draft · Q-OPS-1 · Facts verified 2026-10-17 unless marked [UNVERIFIED]
+Status: Draft · Q-OPS-1 · Facts verified 2026-10-17 (server row 2026-10-22) unless marked [UNVERIFIED]
 
 ## Owner's current PC (as reported by the owner, 2026-10-17)
 | Item | Value | Source |
@@ -15,8 +15,15 @@ Status: Draft · Q-OPS-1 · Facts verified 2026-10-17 unless marked [UNVERIFIED]
 ## Other owner hardware
 | Machine | Specs | Role today | Source |
 |---|---|---|---|
-| Linux home server | **Ubuntu 16.04 or 18.04** (owner unsure). **Both are past standard support** (16.04 ended 2021, 18.04 ended 2023, per Ubuntu's release cycle). Recommend a fresh install of a current LTS (Q-ARCH-8). Intel i5 (model —), **8 or 16 GB RAM** (owner unsure; check with `free -h`), old motherboard (model —; check with `sudo dmidecode -t baseboard` to see max RAM and free slots), runs 24/7 on the LAN | Existing home server | Owner |
-| Raspberry Pi | Not owned yet; can be bought | — | Owner |
+| Linux home server ("abberhub") | **AMD A10-6700 APU** (4 threads, 1.8–3.7 GHz; AVX but no AVX2). Corrected 2026-10-22: first recorded as an Intel i5. **7.0 GiB usable RAM** (likely 8 GB installed) + 2 GiB swap. **Ubuntu 18.04.6 LTS, 32-bit (i686) install** on a 64-bit-capable CPU (`lm` flag). Disk and motherboard: still needed. Runs 24/7 on the LAN | Existing home server | Owner's `free -h`, `lscpu`, `lsb_release -a` output, 2026-10-22 |
+| Steam Deck | Owned; specs not recorded | None yet | Owner, 2026-10-22 |
+| Raspberry Pi 3 Model B+ | Owned. USB, Ethernet, HDMI and camera ports. RAM and network speed not measured (1 GB RAM per the published spec [UNVERIFIED here]) | None yet | Owner, 2026-10-22 |
+
+### Linux server: the 32-bit install blocks the plan
+`lscpu` reports `Architecture: i686`, so the running OS is 32-bit even though the CPU is 64-bit. This matters:
+- Docker Engine publishes packages for 64-bit architectures only, so the staging stack, watchdog and backups (all planned as containers, ADR-0012) can't run on this install as it stands [UNVERIFIED: re-check Docker's install page before acting].
+- Ubuntu shipped no 32-bit desktop or server installer after 18.04, so `do-release-upgrade` can't lead to a 64-bit system. The move to a current LTS (Q-ARCH-8) has to be a **fresh 64-bit (amd64) install**; back up anything on the server first.
+- About 7 GiB of RAM covers the watchdog, monitoring and backups. A full staging stack may want more (see the note below).
 
 ## What the GTX 1070 can and can't do
 The GTX 1070 is the same Pascal generation as the GTX 1080 first recorded here, so the Pascal NVENC facts below are unchanged by the correction. Only the board-power row is card-specific.
@@ -63,7 +70,8 @@ Rule: keep total outbound ≤ 70% of the **measured** sustained upload. Measure 
 ## Still needed from the owner
 - [x] CPU: i7-8700
 - [x] Gaming PC OS: Windows
-- [ ] Linux server: CPU model, RAM amount (`free -h`), motherboard and max RAM (`sudo dmidecode -t baseboard`, `sudo dmidecode -t memory`), disk, distro
+- [x] Linux server: CPU (AMD A10-6700), RAM (7.0 GiB usable), distro (Ubuntu 18.04.6, 32-bit), reported 2026-10-22
+- [ ] Linux server: disk (`lsblk -o NAME,SIZE,TYPE,ROTA,MODEL` and `df -h`), motherboard and max RAM (`sudo dmidecode -t baseboard`, `sudo dmidecode -t memory`)
 
 Note: 8 GB is enough for the watchdog, monitoring and backups. Staging the full stack is likely to want 16 GB [ESTIMATE; confirm once the app exists].
 - [ ] Measured upload (e.g., three speed tests at different times)
