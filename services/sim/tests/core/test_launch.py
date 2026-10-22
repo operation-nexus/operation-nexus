@@ -35,7 +35,7 @@ from nexus.contracts.gen.events.unit_despawned import UnitDespawned
 from nexus.core import operations as ops
 from nexus.core.director import decide
 from nexus.core.fog import side_view
-from nexus.core.launch import _launch, _own, _spawn
+from nexus.core.launch import _launch, _own, _routine, _spawn
 from nexus.core.launch import run as launch
 from nexus.core.provocation import captured, suffered_hit
 from nexus.core.rng import RngStream
@@ -416,6 +416,20 @@ def test_routine_operations_do_not_count_against_the_alpha_cap() -> None:
     assert len(ops.live_pairs([j.key for j in w.boards["ENEMY"].values()])) == 3
     window(w, "ALPHA", 15, no_garrison)  # only PROBE (15) is affordable among the rest
     assert non_routine(w) == {("PROBE", "fob-n-w")} or {p[0] for p in non_routine(w)} == {"PROBE"}
+
+
+def test_a_live_patrol_or_pol_convoy_does_not_take_the_alpha_slot() -> None:
+    w = new_world(1, dataclasses.replace(RULES, garrison_quota={}))
+    probes = [c for c in candidates(w) if c.op.id == "PROBE"]
+    assert probes
+    live = frozenset({("POL_PATROL", "fob-n-e"), ("POL_CONVOY", "east-airbase")})
+
+    def pick(routine: frozenset[str]) -> list[str]:
+        chosen = ops.select(probes, DR, 80, DR.max_spawns_per_window, 40, live, 1, routine)
+        return [c.op.id for c in chosen]
+
+    assert pick(_routine(DR)) == ["PROBE"]
+    assert pick(ops.routine_ops(DR)) == []  # counted as operations, they would take the slot
 
 
 # --- jobs (step 8, TD-2) -------------------------------------------------------------------------

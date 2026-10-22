@@ -49,6 +49,12 @@ _MOVERS = ("AIR", "GROUND")
 _PATROL_OP, _CONVOY_OP = "POL_PATROL", "POL_CONVOY"  # the `op:` ids of the Pattern of Life jobs
 
 
+def _routine(dr: DirectorRules) -> frozenset[str]:
+    """Operations ALPHA's one-at-a-time rule skips: the catalog's routine ones and the Pattern of
+    Life patrols and convoys, which are no catalog entries."""
+    return ops.routine_ops(dr) | {_PATROL_OP, _CONVOY_OP}
+
+
 def _own(world: World, rules: Rules, side: Side) -> ops.Own:
     dr = rules.director
     share = dr.reinforce_above if dr is not None else Fraction(0)
@@ -113,7 +119,7 @@ def run(world: World, side: Side, view: SideView, rules: Rules, out: list[Event]
     chosen = ops.select(
         ranked, dr, state.budget, dr.max_spawns_per_window,
         dr.max_live_units[state.tier] - own.live_units, live,
-        ops.alpha_max_ops(state.tier, dr), ops.routine_ops(dr),
+        ops.alpha_max_ops(state.tier, dr), _routine(dr),
     )  # fmt: skip
     for c in chosen:
         _launch(world, rules, side, view, state, c, out)
@@ -158,7 +164,7 @@ def _capture_slot(
     ranked = ops.rank(cands, state, view, rules, world.rng.stream(RngStream.DIRECTOR))
     chosen = ops.select(
         ranked, dr, surplus(view, rules, world.stock), dr.max_spawns_per_window,
-        dr.max_live_units[state.tier] - own.live_units, live, None, ops.routine_ops(dr),
+        dr.max_live_units[state.tier] - own.live_units, live, None, _routine(dr),
     )  # fmt: skip
     if chosen:
         state.last_offensive = now
