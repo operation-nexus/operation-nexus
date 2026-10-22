@@ -3,15 +3,15 @@
 Things only the owner can do. Check items off here or in the linked issues.
 
 ## 1. Desktop agent setup (issue #28, NX-044)
-Mac done 2026-10-17 where checked; the Windows PC still needs every item (details: docs/agentic/TOOLING.md §5).
+Mac all done (owner, 2026-10-22); the Windows PC (WSL2, in progress 2026-10-22) still needs every item (details: docs/agentic/TOOLING.md §5).
 
 - [x] Install `jq` (the guard hook prefers it; python3 also works)
 - [x] Put the `claude` CLI on PATH (`claude install stable`)
 - [x] Clone the repo, open it in Claude Code, trust the folder, and accept the **Ponytail** plugin and **Context7** MCP prompts (Mac: approve Context7 once in the terminal `claude` too)
 - [x] Install **Serena**, then run `claude mcp add --scope user serena -- serena start-mcp-server --context claude-code --project-from-cwd` and check it with `/mcp`
-- [ ] Enable **finecomb** and **claude-code-review-council** (claude.ai plugin directory)
+- [x] Enable **finecomb** and **claude-code-review-council** (claude.ai plugin directory)
 - [ ] Optional: `claude remote-control` on the desktop so you can drive it from your phone (docs/agentic/REMOTE-WORK.md)
-- [ ] Ponytail: leave `webhookUrl` empty (docs/agentic/TOOLING.md §2)
+- [x] Ponytail: leave `webhookUrl` empty (docs/agentic/TOOLING.md §2)
 - [ ] **Git identity** on the Mac, on Windows, and inside WSL2 (it has its own `~/.gitconfig`), so every commit uses the SaltySeraphCodes noreply address (Q-LEGAL-8):
   `git config --global user.name "SaltySeraphCodes"` and `git config --global user.email "76628858+SaltySeraphCodes@users.noreply.github.com"`. Check with `git config --global --get user.email`. Agent sessions set the same identity per repo.
 
