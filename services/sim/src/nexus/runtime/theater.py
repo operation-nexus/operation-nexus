@@ -19,10 +19,8 @@ from nexus.core.roads import ROAD, Road, RoadGraph, shortest_path
 from nexus.runtime.config import ConfigError, load_model
 
 # PROPOSED (NX-120, owner may veto): how far a bridge may sit from the straight line of its edge.
+# Not a game key (NX-377, Q-DEV-21): it only validates theater data at load and changes no outcome.
 BRIDGE_TOLERANCE_M = 1000
-# PROPOSED (NX-150, owner may veto): the masking raster's cell, m (Q-FOW-3). Finer than the SC-10
-# sensing grid (60 km cells on strait-1), which would blur a 35 km-wide region into 60 km.
-MASK_CELL_M = 1000
 _BRIDGE = "BRIDGE"
 # CONFIG-AND-CONTENT §7.3: AIR_DEFENSE_SITE has short-range AAA and SAM variants; RADAR_SITE none.
 # shortcut: listed here until the unit catalog lists variants (§7a); move them there then.
@@ -48,20 +46,23 @@ def road_graph(theater: TheaterConfig) -> RoadGraph:
     return RoadGraph(pos, roads)
 
 
-def masking_cells(theater: TheaterConfig) -> tuple[int, dict[tuple[int, int], frozenset[str]]]:
-    """Q-FOW-3: the cell size `MASK_CELL_M` and every such cell whose centre is inside a masking
-    region (edges count, integer metres) -> the ids of those regions. The cell size comes with
-    the cells so a reader cannot pair them with another. Scans each region's bounding box only."""
-    half, cells = MASK_CELL_M // 2, dict[tuple[int, int], frozenset[str]]()
+def masking_cells(
+    theater: TheaterConfig, cell_m: int
+) -> tuple[int, dict[tuple[int, int], frozenset[str]]]:
+    """Q-FOW-3: `cell_m` (`fow.mask_cell_m`) and every cell of that size whose centre is inside a
+    masking region (edges count, integer metres) -> the ids of those regions. The cell size comes
+    with the cells so a reader cannot pair them with another. Scans each region's bounding box
+    only."""
+    half, cells = cell_m // 2, dict[tuple[int, int], frozenset[str]]()
     for m in theater.terrain.masking_regions:
         poly = [_pt(p) for p in m.polygon]
         xs, ys = [p[0] for p in poly], [p[1] for p in poly]
-        for i in range(min(xs) // MASK_CELL_M, max(xs) // MASK_CELL_M + 1):
-            for j in range(min(ys) // MASK_CELL_M, max(ys) // MASK_CELL_M + 1):
-                centre = (i * MASK_CELL_M + half, j * MASK_CELL_M + half)
+        for i in range(min(xs) // cell_m, max(xs) // cell_m + 1):
+            for j in range(min(ys) // cell_m, max(ys) // cell_m + 1):
+                centre = (i * cell_m + half, j * cell_m + half)
                 if in_polygon(*centre, poly):
                     cells[i, j] = cells.get((i, j), frozenset()) | {m.id}
-    return MASK_CELL_M, cells
+    return cell_m, cells
 
 
 def _check(t: TheaterConfig) -> list[str]:

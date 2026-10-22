@@ -238,6 +238,7 @@
         "garrison_mult",
         "empty_base_mult",
         "decay_per_s",
+        "min_progress_per_tick",
         "defense_hp",
         "sanctuary_repair_hp_per_s"
       ],
@@ -313,6 +314,13 @@
           "x-unit": "bar fraction/s (world)",
           "x-hot-reload": false
         },
+        "min_progress_per_tick": {
+          "description": "The least a capture bar gains per tick while a side captures, however slow the capture time, unit millionths of a percent of the bar per tick (NX-125, Q-DEV-21). 1 means a bar always moves.",
+          "type": "integer",
+          "minimum": 1,
+          "x-unit": "millionths of a percent per tick",
+          "x-hot-reload": false
+        },
         "defense_hp": {
           "description": "The most defense HP a node of each kind has (Q-SIM-71, GAMEPLAY §8): an owned node starts full, a NEUTRAL one at 0, and a node that changes hands starts at 0 for its new owner. A BRIDGE has none here (NX-373).",
           "type": "object",
@@ -353,6 +361,7 @@
         "damage_state",
         "disabled_timeout_s",
         "assist_window_s",
+        "min_damage",
         "crew_survival",
         "crew_marker_min"
       ],
@@ -489,6 +498,13 @@
             }
           }
         },
+        "min_damage": {
+          "description": "The least hp a hit takes off a target, however heavy its armor, unit hp (COMBAT CB-3, Q-DEV-21). 1 means every hit hurts.",
+          "type": "integer",
+          "minimum": 1,
+          "x-unit": "hp",
+          "x-hot-reload": false
+        },
         "assist_window_s": {
       "description": "A shooter that landed a hit on a unit within this long before the unit is destroyed is an assist on its UnitDestroyed, unit s of game time (COMBAT CB-5a, Q-SIM-66).",
       "type": "number",
@@ -590,6 +606,7 @@
       "additionalProperties": false,
       "required": [
         "paint_range_m",
+        "mask_cell_m",
         "sigint_cell_m",
         "sigint_range_mult",
         "sigint_refresh_s",
@@ -603,6 +620,14 @@
           "description": "A recon unit paints a target it tracks with its own sensor within this range, unit m (FOG-OF-WAR Tier 2 painted flag, Q-FOW-6).",
           "type": "number",
           "exclusiveMinimum": 0,
+          "x-unit": "m",
+          "x-hot-reload": false
+        },
+        "mask_cell_m": {
+          "description": "Side of the square cell that terrain masking regions are rasterized to, unit m (FOG-OF-WAR Q-FOW-3, Q-DEV-21): a cell masks when its centre is inside a region. Finer than the SIGINT cell, which would blur a narrow region. Bounded so the raster stays a sane size (a smaller cell makes the loader build millions of cells).",
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 10000,
           "x-unit": "m",
           "x-hot-reload": false
         },
@@ -673,6 +698,7 @@
         "repair_rate",
         "facility_repair_hp_per_stock",
         "facility_rearm_cost",
+        "ammo_loadout_share",
         "starve_hp_drain_per_min",
         "defense_repair_hp_per_stock"
       ],
@@ -910,6 +936,14 @@
           "x-unit": "stock units",
           "x-hot-reload": false
         },
+        "ammo_loadout_share": {
+          "description": "Of a unit's loadout_cost, the share its ammo costs when the kind has both ammo and a fuel tank; fuel pays the rest (GAMEPLAY \u00a75, Q-SIM-69, Q-DEV-21). A kind with no fuel pays all of it for ammo. Unit fraction.",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "x-unit": "fraction",
+          "x-hot-reload": false
+        },
         "starve_hp_drain_per_min": {
           "description": "Defense HP a base below its starvation floor loses per game minute, unit hp per min of game time (GAMEPLAY §8, Q-SIM-71); 0 turns the drain off. Whole hp, carried across ticks.",
           "type": "integer",
@@ -983,7 +1017,12 @@
         "follow_station_m",
         "escort_threat_memory_s",
         "escort_leash_m",
-        "static_offense_min_tier"
+        "static_offense_min_tier",
+        "follow_hold_slack",
+        "overfill_factor",
+        "scout_blob_runs",
+        "scout_urgency",
+        "strike_urgency_per_threat"
       ],
       "properties": {
         "reeval_every_ticks": {"description": "A board re-evaluates (settles, generates, assigns) every this many running ticks (TB-6), unit ticks.", "type": "integer", "minimum": 1, "x-unit": "ticks", "x-hot-reload": true},
@@ -1043,7 +1082,22 @@
           }
         },
         "escort_threat_memory_s": {"description": "An armed follower treats a tracked enemy that fired at any member of its convoy or column this recently as a threat to the group and engages it (Q-SIM-76), unit s of world time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (world)", "x-hot-reload": true},
-        "escort_leash_m": {"description": "The farthest an armed follower leaves its station from the nearest other member of its group to engage a group threat; beyond it, it returns to station and a threat that far is not chased (Q-SIM-76), unit m.", "type": "number", "exclusiveMinimum": 0, "x-unit": "m", "x-hot-reload": true}
+        "escort_leash_m": {"description": "The farthest an armed follower leaves its station from the nearest other member of its group to engage a group threat; beyond it, it returns to station and a threat that far is not chased (Q-SIM-76), unit m.", "type": "number", "exclusiveMinimum": 0, "x-unit": "m", "x-hot-reload": true},
+        "follow_hold_slack": {"description": "A stopped leader's ground followers hold where they are while within this many stations of it, instead of closing in (Q-SIM-76, Q-DEV-21), unit stations (multiples of follow_station_m).", "type": "number", "minimum": 1, "x-unit": "stations", "x-hot-reload": true},
+        "overfill_factor": {"description": "When every job is full, a job takes units up to this many times its slots (TB-4, Q-DEV-21), unit multiplier; a Recon scout's point job never overfills.", "type": "integer", "minimum": 1, "x-unit": "multiplier", "x-hot-reload": true},
+        "scout_blob_runs": {"description": "A SIGINT blob must stay in its cell for this many consecutive SIGINT refreshes before a scout job is posted for it (Q-SIM-75, Q-DEV-21), unit refreshes.", "type": "integer", "minimum": 1, "x-unit": "refreshes", "x-hot-reload": true},
+        "scout_urgency": {
+          "description": "Urgency of a generated scout job by the blob's size bucket (Q-SIM-75, Q-DEV-21), unit multiplier, from 1.0 up to urgency_max (a larger value is capped there).",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["small", "medium", "large"],
+          "properties": {
+            "small": {"type": "number", "minimum": 1, "x-unit": "multiplier", "x-hot-reload": true},
+            "medium": {"type": "number", "minimum": 1, "x-unit": "multiplier", "x-hot-reload": true},
+            "large": {"type": "number", "minimum": 1, "x-unit": "multiplier", "x-hot-reload": true}
+          }
+        },
+        "strike_urgency_per_threat": {"description": "A generated strike job on a discovered facility has urgency 1.0 plus this much per point of the facility kind's unit threat, capped at urgency_max (Q-SIM-85, Q-DEV-21), unit multiplier per threat point.", "type": "number", "minimum": 0, "x-unit": "multiplier per threat point", "x-hot-reload": true}
       }
     },
     "Slots": {

@@ -246,7 +246,7 @@ def _unload(world: World, rules: Rules, e: Entity, node: str, out: list[Event]) 
     to_build = _defense_room(world, rules, node) if sup.max_stock.get(node, 0) > 0 else 0
     if e.cargo is None or (room <= 0 and to_build <= 0):
         return
-    whole, e.unload_milli = divmod(e.unload_milli + sup.unload_milli, 1000)
+    whole, e.unload_milli = divmod(e.unload_milli + sup.unload_milli, 1000)  # 1000: milli scale
     moved = min(whole, e.cargo, room if room > 0 else to_build)
     if room > 0:
         world.stock[node] = world.stock.get(node, 0) + moved

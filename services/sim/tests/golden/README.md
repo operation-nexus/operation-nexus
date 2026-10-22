@@ -149,3 +149,5 @@ is a bug.
 The hashes are pinned to the CI image and its exact Python (3.12, `services/sim/.python-version`)
 and dependency pins (`uv.lock`); a different platform may differ (SC-3). They hold only for this
 commit's code: re-simulating an old log on new code is not promised (SC-16).
+
+NX-377 (Q-DEV-21 tunability sweep, no format change): the new keys (`tasking.follow_hold_slack`, `overfill_factor`, `scout_blob_runs`, `scout_urgency`, `strike_urgency_per_threat`, `logistics.ammo_loadout_share`, `fow.mask_cell_m`, `combat.min_damage`, `capture.min_progress_per_tick`), each defaulting to the literal it replaced, moved `config_hash` and so `capture-strait-1`, `joins-strait-1` and `overnight-0` got new `case.json` hashes and re-pinned state checkpoints. No event stream changed: every case's event count and event hash are exactly as before.

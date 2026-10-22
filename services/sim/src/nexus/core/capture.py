@@ -190,7 +190,7 @@ def _tick_node(
         return
     base = _base_time(cap, near[bar.side].weight, quiet if bar.side == "COALITION" else 1.0)
     time = max(cap.min_time_s, base * _modifier(cap, owner, near))
-    bar.progress += max(1, round(CAPTURE_FULL * rules.world_dt / time))
+    bar.progress += max(cap.min_progress, round(CAPTURE_FULL * rules.world_dt / time))
     if bar.progress >= CAPTURE_FULL:
         if _night_hold(world, rules, node, bar, humanless):
             bar.progress = CAPTURE_FULL - 1  # the night cap holds the flip back

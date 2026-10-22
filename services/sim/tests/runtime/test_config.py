@@ -42,6 +42,7 @@ fow:
   sigint_size_m_min: 3
   sigint_size_l_min: 7
   paint_range_m: 20000.0
+  mask_cell_m: 1000
 slots:
   max_live_per_commander: 1
   respawn_delay_s: 20
@@ -79,6 +80,7 @@ logistics:
     SANCTUARY: 2.0
   facility_repair_hp_per_stock: 10
   facility_rearm_cost: 10
+  ammo_loadout_share: 0.5
   starve_hp_drain_per_min: 5
   defense_repair_hp_per_stock: 2
 capture:
@@ -92,6 +94,7 @@ capture:
   garrison_mult: 3.0
   empty_base_mult: 0.5
   decay_per_s: 0.008333333333333333
+  min_progress_per_tick: 1
   defense_hp:
     AIRBASE: 500
     FOB: 300
@@ -117,6 +120,7 @@ combat:
     damaged_sensor_mult: 0.8
   disabled_timeout_s: 600
   assist_window_s: 120
+  min_damage: 1
   crew_survival:
     ENEMY_ARMOR: 0.60
     ENEMY_CONVOY: 0.70
@@ -180,6 +184,11 @@ tasking:
     wingman: 1000
   escort_threat_memory_s: 60
   escort_leash_m: 10000
+  follow_hold_slack: 2
+  overfill_factor: 2
+  scout_blob_runs: 2
+  scout_urgency: {small: 1.0, medium: 1.5, large: 2.0}
+  strike_urgency_per_threat: 0.01
 director:
   window_s: 60
   cp:
@@ -267,7 +276,7 @@ director:
 # NX-374 for the tasking keys and again for follow and escort, NX-155 for the director, and NX-157
 # for the Pattern of Life keys and the garrison operation); a
 # change means every config_hash moved.
-GOLDEN_CONFIG_HASH = "bf125a49bd47243c71a40ae8347cbd521c2ee377704cd3ec5a282171a3e4905c"
+GOLDEN_CONFIG_HASH = "bf25decee40d9b9df814173444479f148e0432fddc0b40e942c0337ad114c530"
 SLOTS = {
     "max_live_per_commander": 1,
     "respawn_delay_s": 20,
@@ -283,6 +292,7 @@ FOW = {
     "sigint_size_m_min": 3,
     "sigint_size_l_min": 7,
     "paint_range_m": 20000.0,
+    "mask_cell_m": 1000,
 }
 LOGISTICS = {
     "node_max_stock": {"AIRBASE": 2000, "BRIDGE": 0, "FOB": 1000, "HQ": 2000, "PORT": 1000},
@@ -306,6 +316,7 @@ LOGISTICS = {
     "repair_rate": {"AIRBASE": 1.0, "FOB": 0.5, "HQ": 1.0, "PORT": 1.0, "SANCTUARY": 2.0},
     "facility_repair_hp_per_stock": 10,
     "facility_rearm_cost": 10,
+    "ammo_loadout_share": 0.5,
     "starve_hp_drain_per_min": 5,
     "defense_repair_hp_per_stock": 2,
 }
@@ -320,6 +331,7 @@ CAPTURE = {
     "garrison_mult": 3.0,
     "empty_base_mult": 0.5,
     "decay_per_s": 0.008333333333333333,
+    "min_progress_per_tick": 1,
     "defense_hp": {"AIRBASE": 500, "FOB": 300, "HQ": 800, "PORT": 300, "SANCTUARY": 1000},
     "sanctuary_repair_hp_per_s": 1.0,
 }
@@ -337,6 +349,7 @@ COMBAT = {
     },
     "disabled_timeout_s": 600,
     "assist_window_s": 120,
+    "min_damage": 1,
     "crew_survival": {
         "ENEMY_ARMOR": 0.60,
         "ENEMY_CONVOY": 0.70,
@@ -389,6 +402,11 @@ TASKING = {
     "follow_station_m": {"escort": 500, "column": 200, "overwatch": 3000, "wingman": 1000},
     "escort_threat_memory_s": 60,
     "escort_leash_m": 10000,
+    "follow_hold_slack": 2,
+    "overfill_factor": 2,
+    "scout_blob_runs": 2,
+    "scout_urgency": {"small": 1.0, "medium": 1.5, "large": 2.0},
+    "strike_urgency_per_threat": 0.01,
 }
 DIRECTOR = {
     "window_s": 60,
@@ -544,6 +562,7 @@ def test_default_profile_loads_and_matches_golden_hash() -> None:
         ("  sigint_refresh_s: 54.0\n", "fow.sigint_refresh_s"),
         ("  sigint_cell_m: 10000\n", "fow.sigint_cell_m"),
         ("  paint_range_m: 20000.0\n", "fow.paint_range_m"),
+        ("  mask_cell_m: 1000\n", "fow.mask_cell_m"),
         ("  sigint_size_m_min: 3\n", "fow.sigint_size_m_min"),
         ("  sigint_size_l_min: 7\n", "fow.sigint_size_l_min"),
         ("  starve_threshold: 0.25\n", "logistics.starve_threshold"),
@@ -565,6 +584,7 @@ def test_default_profile_loads_and_matches_golden_hash() -> None:
         ("    SANCTUARY: 2.0\n", "logistics.repair_rate.SANCTUARY"),
         ("  facility_repair_hp_per_stock: 10\n", "logistics.facility_repair_hp_per_stock"),
         ("  facility_rearm_cost: 10\n", "logistics.facility_rearm_cost"),
+        ("  ammo_loadout_share: 0.5\n", "logistics.ammo_loadout_share"),
         ("  starve_hp_drain_per_min: 5\n", "logistics.starve_hp_drain_per_min"),
         ("  defense_repair_hp_per_stock: 2\n", "logistics.defense_repair_hp_per_stock"),
         ("    SANCTUARY: 1000\n", "capture.defense_hp.SANCTUARY"),
@@ -572,6 +592,8 @@ def test_default_profile_loads_and_matches_golden_hash() -> None:
         ("  defeat:\n    hold_min: 30\n", "campaign.defeat"),
         ("  disabled_timeout_s: 600\n", "combat.disabled_timeout_s"),
         ("  assist_window_s: 120\n", "combat.assist_window_s"),
+        ("  min_damage: 1\n", "combat.min_damage"),
+        ("  min_progress_per_tick: 1\n", "capture.min_progress_per_tick"),
         ("  objective_period_min: 15\n", "campaign.objective_period_min"),
         ("  objective_mode: timed\n", "campaign.objective_mode"),
         ("    objective_points: 5\n", "campaign.score.objective_points"),
@@ -620,6 +642,10 @@ def test_unknown_key_fails(tmp_path: Path, text: str) -> None:
         ("sigint_cell_m: 10000", "sigint_cell_m: 0", "fow.sigint_cell_m"),
         ("sigint_cell_m: 10000", "sigint_cell_m: 10000.5", "fow.sigint_cell_m"),
         ("paint_range_m: 20000.0", "paint_range_m: 0", "fow.paint_range_m"),
+        ("mask_cell_m: 1000", "mask_cell_m: 10", "fow.mask_cell_m"),  # a cell count in the millions
+        ("mask_cell_m: 1000", "mask_cell_m: 100000", "fow.mask_cell_m"),
+        ("min_damage: 1", "min_damage: 0", "combat.min_damage"),
+        ("min_progress_per_tick: 1", "min_progress_per_tick: 0", "capture.min_progress_per_tick"),
         ("sigint_size_m_min: 3", "sigint_size_m_min: 1", "fow.sigint_size_m_min"),
         ("sigint_size_l_min: 7", "sigint_size_l_min: 3", "fow.sigint_size_l_min"),  # == M
         ("sigint_size_l_min: 7", "sigint_size_l_min: 7.0", "fow.sigint_size_l_min"),
@@ -757,6 +783,7 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "  max_viewer_units: 500}\n"
         "air: {orbit_period_s: 120.0, bingo_reserve_frac: 0.15}\n"
         "fow: {track_fade_s: 180.0, track_every_ticks: 5, paint_range_m: 20000.0,\n"
+        "  mask_cell_m: 1000,\n"
         "  sigint_cell_m: 10000, sigint_refresh_s: 54.0, sigint_range_mult: 1.5,\n"
         "  sigint_size_l_min: 7, sigint_size_m_min: 3}\n"
         "logistics: {unload_rate: 1.0, truck_cargo: 100, starve_threshold: 0.25,\n"
@@ -765,12 +792,13 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "    ENEMY_FIGHTER: 20, ENEMY_STRIKE_FIGHTER: 20, ENEMY_RECON_UAV: 5, ENEMY_ARMOR: 15,\n"
         "    ENEMY_CONVOY: 0},\n"
         "  repair_rate: {SANCTUARY: 2.0, PORT: 1.0, HQ: 1.0, FOB: 0.5, AIRBASE: 1.0},\n"
-        "  facility_repair_hp_per_stock: 10, facility_rearm_cost: 10,\n"
+        "  facility_repair_hp_per_stock: 10, facility_rearm_cost: 10, ammo_loadout_share: 0.5,\n"
         "  starve_hp_drain_per_min: 5, defense_repair_hp_per_stock: 2,\n"
         "  node_max_stock: {PORT: 1000, HQ: 2000, FOB: 1000, BRIDGE: 0, AIRBASE: 2000}}\n"
         "capture: {radius_m: 2000.0, time_s: 120.0, multi_unit_exponent: 0.5, quiet_floor: 0.6,\n"
         "  quiet_ref: 50, min_time_s: 30.0, logi_weight: 0.5, garrison_mult: 3.0,\n"
         "  empty_base_mult: 0.5, decay_per_s: 0.008333333333333333,\n"
+        "  min_progress_per_tick: 1,\n"
         "  defense_hp: {AIRBASE: 500, FOB: 300, HQ: 800, PORT: 300, SANCTUARY: 1000},\n"
         "  sanctuary_repair_hp_per_s: 1.0}\n"
         "combat: {pk_cap: 0.95, track_quality: {painted: 1.25, track: 1.0},\n"
@@ -780,7 +808,8 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "  crew_survival: {STRIKE_FIGHTER: 0.75, LOGI_TRUCK: 0.70, GARRISON_INFANTRY: 0.50,\n"
         "    ENEMY_STRIKE_FIGHTER: 0.75, ENEMY_FIGHTER: 0.75, ENEMY_CONVOY: 0.70,\n"
         "    ENEMY_ARMOR: 0.60},\n"
-        "  crew_marker_min: 10, disabled_timeout_s: 600, assist_window_s: 120}\n"
+        "  crew_marker_min: 10, disabled_timeout_s: 600, assist_window_s: 120,\n"
+        "  min_damage: 1}\n"
         "campaign: {momentum: {supply_weight: 30, nodes_weight: 70}, objective_mode: timed,\n"
         "  score: {objective_points: 5, final_weight: 50, average_weight: 50},\n"
         "  objective_period_min: 15,\n"
@@ -796,7 +825,9 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "  counterattack_window_min: 15, scout_cooldown_min: 5, scout_open_max: 3,\n"
         "  scout_post_interval_min: 2, capture_max_restarts: 3,\n"
         "  follow_station_m: {escort: 500, column: 200, overwatch: 3000, wingman: 1000},\n"
-        "  escort_threat_memory_s: 60, escort_leash_m: 10000}\n"
+        "  escort_threat_memory_s: 60, escort_leash_m: 10000,\n"
+        "  follow_hold_slack: 2, overfill_factor: 2, scout_blob_runs: 2,\n"
+        "  scout_urgency: {small: 1.0, medium: 1.5, large: 2.0}, strike_urgency_per_threat: 0.01}\n"
         "director: {window_s: 60, max_spawns_per_window: 6,\n"
         "  cp: {ema_window_s: 300, unit_value: {STRIKE_FIGHTER: 10, RECON_UAV: 3, LOGI_TRUCK: 2,\n"
         "    GARRISON_INFANTRY: 2}},\n"

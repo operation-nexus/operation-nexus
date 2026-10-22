@@ -78,7 +78,7 @@ class RoadGraph:
         lx, ly = self.pos[last]
         for nxt, edge in self._adj[last]:
             dx, dy = self.pos[nxt][0] - lx, self.pos[nxt][1] - ly
-            along = (x - lx) * dx + (y - ly) * dy
+            along = (x - lx) * dx + (y - ly) * dy  # 1e-6: relative collinearity epsilon below
             if (
                 abs(dx * (y - ly) - dy * (x - lx)) <= 1e-6 * edge.length_m
                 and 0 <= along <= edge.length_m**2

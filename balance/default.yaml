@@ -19,6 +19,7 @@ fow:
   track_fade_s: 180.0  # PROPOSED – unvalidated (NX-150); s (world), 30 real s at 6x (CONFIG-AND-CONTENT §6.1 fow.track_fade_s)
   sigint_range_mult: 1.5  # PROPOSED – unvalidated (NX-150); x a radar site's sensor.radius_m, 180 km for a 120 km radar (CONFIG-AND-CONTENT §6.1 fow.sigint_range_mult)
   sigint_refresh_s: 54.0  # PROPOSED – unvalidated (NX-150, Q-ALN-38: 48–60); s (world), 90 ticks, 9 real s at 6x (CONFIG-AND-CONTENT §6.1 fow.sigint_refresh_s)
+  mask_cell_m: 1000  # PROPOSED – unvalidated (NX-150, Q-FOW-3, Q-DEV-21); m, the terrain-masking raster cell, finer than the SIGINT cell (CONFIG-AND-CONTENT §6.1 fow.mask_cell_m)
   sigint_cell_m: 10000  # PROPOSED – unvalidated; m (CONFIG-AND-CONTENT §6.1 fow.sigint_cell_m)
   sigint_size_m_min: 3  # PROPOSED – unvalidated (NX-150); units: a blob of 3-6 reads M, 1-2 S (CONFIG-AND-CONTENT §6.1 fow.sigint_size_m_min)
   sigint_size_l_min: 7  # PROPOSED – unvalidated (NX-150); units: a blob of 7 or more reads L (CONFIG-AND-CONTENT §6.1 fow.sigint_size_l_min)
@@ -54,6 +55,7 @@ logistics:
     PORT: 1.0
     SANCTUARY: 2.0
   facility_rearm_cost: 10  # PROPOSED – unvalidated (Q-SIM-69, owner-approved); stock units for a full reload of a facility, by ammo share (CONFIG-AND-CONTENT §6.3)
+  ammo_loadout_share: 0.5  # PROPOSED – unvalidated (Q-SIM-69, Q-DEV-21); of a loadout_cost, the share ammo costs for a kind with ammo and fuel, fuel pays the rest (CONFIG-AND-CONTENT §6.3)
   facility_repair_hp_per_stock: 10  # PROPOSED – unvalidated (Q-SIM-68, owner-approved); hp a facility regains per stock unit of its base (CONFIG-AND-CONTENT §6.3)
   starve_hp_drain_per_min: 5  # PROPOSED – unvalidated (Q-SIM-71, owner-approved; NX-031 tunes); defense hp a base below its starvation floor loses per min (game) (CONFIG-AND-CONTENT §6.3)
   defense_repair_hp_per_stock: 2  # PROPOSED – unvalidated (Q-SIM-71, owner-approved; NX-031 tunes); defense hp one stock unit unloaded into a node rebuilds (CONFIG-AND-CONTENT §6.3)
@@ -67,6 +69,7 @@ capture:
   logi_weight: 0.5  # PROPOSED – unvalidated (Q-SM-7); a logistics unit counts as half a capturer (CONFIG-AND-CONTENT §6.5)
   garrison_mult: 3.0  # PROPOSED – unvalidated (Q-SM-8); capture-time multiplier, a defender that cannot contest is at the base (CONFIG-AND-CONTENT §6.5)
   empty_base_mult: 0.5  # PROPOSED – unvalidated (Q-SM-8); capture-time multiplier, no defender at the base (CONFIG-AND-CONTENT §6.5)
+  min_progress_per_tick: 1  # PROPOSED – unvalidated (Q-SIM-57, Q-DEV-21); millionths of a percent of the bar per tick, the least a capture gains however slow the time (CONFIG-AND-CONTENT §6.5)
   decay_per_s: 0.008333333333333333  # PROPOSED – unvalidated (Q-SIM-57, owner-approved initial value; NX-031 tunes); 1/120 of the bar per s (world) (CONFIG-AND-CONTENT §6.5)
   defense_hp:  # PROPOSED – unvalidated (Q-SIM-71, owner-approved; NX-031 tunes); max defense hp by node kind, an owned node starts full, a NEUTRAL one at 0 (CONFIG-AND-CONTENT §6.5)
     AIRBASE: 500
@@ -92,6 +95,7 @@ combat:
     damaged_speed_mult: 0.75  # PROPOSED – unvalidated (Q-SIM-65); multiplier on top speed at Damaged or worse (CONFIG-AND-CONTENT §6.4)
     damaged_sensor_mult: 0.8  # PROPOSED – unvalidated (Q-SIM-65); multiplier on sensor radius at Damaged or worse (CONFIG-AND-CONTENT §6.4)
   disabled_timeout_s: 600  # PROPOSED – unvalidated (Q-CBT-14); s (game), a Disabled unit is removed after this (CONFIG-AND-CONTENT §6.4)
+  min_damage: 1  # PROPOSED – unvalidated (Q-CBT-10, Q-DEV-21); hp, the least a hit takes off a target however heavy its armor (CONFIG-AND-CONTENT §6.4)
   assist_window_s: 120  # PROPOSED – unvalidated (Q-SIM-66); s (game), a hit this recently before a kill is an assist (CONFIG-AND-CONTENT §6.4)
   crew_survival:  # PROPOSED – unvalidated (Q-SIM-68, owner-approved; NX-031 tunes); probability a crew is DOWNED, not LOST (CONFIG-AND-CONTENT §6.4 combat.crew_survival)
     ENEMY_ARMOR: 0.60
@@ -155,6 +159,14 @@ tasking:
     wingman: 1000  # an aircraft this far off its aircraft lead
   escort_threat_memory_s: 60  # PROPOSED – unvalidated (Q-SIM-76); s (world), a tracked enemy that fired at a group member this recently is a group threat (CONFIG-AND-CONTENT §6.6)
   static_offense_min_tier: ALPHA  # PROPOSED – unvalidated (Q-SIM-85); the lowest Director tier at which the Static's board posts the strike jobs it generates itself; at Pattern of Life it posts none (CONFIG-AND-CONTENT §6.6)
+  follow_hold_slack: 2  # PROPOSED – unvalidated (Q-SIM-76, Q-DEV-21); stations, a stopped leader's ground followers hold where they are within this many stations of it (CONFIG-AND-CONTENT §6.6)
+  overfill_factor: 2  # PROPOSED – unvalidated (Q-SIM-73, Q-DEV-21); with every job full a job takes units up to this times its slots (CONFIG-AND-CONTENT §6.6)
+  scout_blob_runs: 2  # PROPOSED – unvalidated (Q-SIM-75, Q-DEV-21); consecutive SIGINT refreshes a blob must stay in a cell before a scout is posted (CONFIG-AND-CONTENT §6.6)
+  scout_urgency:  # PROPOSED – unvalidated (Q-SIM-75, Q-DEV-21); multiplier by blob size, capped at urgency_max (CONFIG-AND-CONTENT §6.6)
+    small: 1.0
+    medium: 1.5
+    large: 2.0
+  strike_urgency_per_threat: 0.01  # PROPOSED – unvalidated (Q-SIM-85, Q-DEV-21); urgency per point of a facility kind's unit threat over 1.0, capped at urgency_max (CONFIG-AND-CONTENT §6.6)
   escort_leash_m: 10000  # PROPOSED – unvalidated (Q-SIM-76); m, the farthest an escort leaves station to engage a group threat (CONFIG-AND-CONTENT §6.6)
 director:  # Threat Director (Q-SIM-78, Q-SIM-81, owner-approved starting numbers; NX-031 tunes) (CONFIG-AND-CONTENT §6.7)
   window_s: 60  # PROPOSED – unvalidated (Q-ALN-23); s (game), the decision window (CONFIG-AND-CONTENT §6.7 director.window_s)

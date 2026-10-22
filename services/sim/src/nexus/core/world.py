@@ -1012,7 +1012,7 @@ def to_canonical(world: World, *, quantize: bool) -> dict[str, Any]:
 def state_hash(world: World) -> str:
     """Hex blake2b-256 of the quantized canonical msgpack (SIM-CORE §5)."""
     packed = msgpack.packb(to_canonical(world, quantize=True), use_bin_type=True)
-    return hashlib.blake2b(packed, digest_size=32).hexdigest()
+    return hashlib.blake2b(packed, digest_size=32).hexdigest()  # 32 bytes: SIM-CORE §5 hash width
 
 
 def save(world: World) -> bytes:
@@ -1413,6 +1413,7 @@ def _job(d: dict[str, Any], next_entity_id: int, running_ticks: int, nodes: set[
     claims = d["claims"]
     if not isinstance(claims, list):
         raise ValueError(f"{_BOARDS}: claims must be a list")
+    # job urgency 1000: the floor, 1.0 in thousandths (a fixed-point scale)
     job = Job(
         _int(d["id"], "job id", 1), _str(d["kind"], "job kind", _JOB_KINDS),
         _str(d["key"], "job key"), _int(d["slots"], "job slots", 1),
@@ -1595,6 +1596,7 @@ def _director(value: object, running_ticks: int) -> dict[Side, DirectorState]:
             held=_counts(d["held"], "held"),
             looked=_looked(d["looked"], running_ticks),
         )
+        # 2: the highest tier index (BRAVO); the ladder is structure (provocation._TIER_INDEX)
         if max(state.prov_level, state.ceiling) > 2 or state.ceiling < 1:
             raise ValueError(f"{_DIRECTOR}.{side}: a level must be 0..2 and the ceiling at least 1")
         stamps = (state.last_patrol, state.last_convoy, state.last_offensive, state.last_flip)

@@ -61,8 +61,6 @@ POST_GATE = (
 GENERATED = ("resupply:", "defend:", "strike:", "assist:", "scout:", "escort:")
 _GROUND, _AIR = "GROUND", "AIR"
 _UNDEFENDED = ("SANCTUARY", "BRIDGE")  # never captured (N-4, NX-373)
-_BLOB_RUN = 2  # consecutive SIGINT refreshes a blob must stay in a cell before a scout is posted
-_BLOB_URGENCY = {"S": 1000, "M": 1500, "L": 2000}  # thousandths: the size bucket spans 1.0 to 2.0
 _JOB_KINDS: tuple[JobKind, ...] = (
     "RESUPPLY", "SCOUT", "DEFEND", "STRIKE", "ASSIST_OBJECTIVE", "ESCORT_CONVOY",
 )  # fmt: skip
@@ -127,6 +125,8 @@ def _able(world: World, rules: Rules, side: Side) -> set[JobKind]:
 
 
 def _urgency(tr: TaskingRules, share: Fraction) -> int:
+    # Q-GP-20: an urgency runs from 1.0 (1000 thousandths) by `share` (0..1) up to the tunable
+    # `urgency_max`; the 1.0 floor and the unit-width share are the definition of the multiplier.
     return min(tr.urgency_max_milli, 1000 + math.floor(share * 1000))
 
 
@@ -260,10 +260,10 @@ def _strike(
         ):  # fmt: skip
             continue
         threat = rules.combat.units[m.kind].threat if rules.combat else 0
-        threats[node] = max(threats.get(node, 0), min(threat, 100))
+        threats[node] = max(threats.get(node, 0), threat)
     for node, threat in sorted(threats.items()):
         if node not in targets:
-            urgency = min(tr.urgency_max_milli, 1000 + 10 * threat)
+            urgency = min(tr.urgency_max_milli, 1000 + tr.strike_urgency_per_threat_milli * threat)
             targets[node] = JobSpec("STRIKE", f"strike:{node}", slots, urgency, node=node)
     for node in sorted(targets):
         yield targets[node]
@@ -286,9 +286,9 @@ def _scout(tr: TaskingRules, view: SideView, world: World, side: Side) -> Iterat
     )
     for b in view.blobs:
         cell = b.id.split("-")[1]  # the refresh tick changes, the cell is the dedupe key
-        if runs.get(cell, 0) < _BLOB_RUN or cooling.get(cell, 0) > now:
-            continue  # not there for 2 refreshes yet, or scouted lately (Q-SIM-75)
-        urgency = min(tr.urgency_max_milli, _BLOB_URGENCY[b.size])
+        if runs.get(cell, 0) < tr.scout_blob_runs or cooling.get(cell, 0) > now:
+            continue  # not there for `scout_blob_runs` refreshes yet, or scouted lately (Q-SIM-75)
+        urgency = min(tr.urgency_max_milli, tr.scout_urgency_milli[b.size])
         yield JobSpec("SCOUT", f"scout:{cell}", tr.slots["SCOUT"], urgency, blob=b.id, pos=b.pos)
 
 

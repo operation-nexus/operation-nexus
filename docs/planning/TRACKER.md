@@ -10,7 +10,7 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | Phase | Items | Done | Status |
 |---|---|---|---|
 | P0 Foundations | 42 | 19 | 🟨 |
-| P1 Sim kernel | 39 | 28 | 🟨 |
+| P1 Sim kernel | 39 | 29 | 🟨 |
 | P2 Closed alpha | 34 | 0 | ⬜ |
 | P3 Public beta | 22 | 0 | ⬜ |
 | P4 Depth | 67 | 1 | ⬜ |
@@ -108,9 +108,9 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-373 | Bridges: bridge HP from STRUCTURE fire, a destroyed bridge cuts its road (paths reroute), truck repair (STATE-MACHINES §4.3, Q-GD-11, Q-SIM-71) | M | ⬜ | NX-124 | B-1, B-2; convoys reroute around a cut bridge; repair numbers approved by the owner first |
 | NX-374 [#220](https://github.com/operation-nexus/operation-nexus/issues/220) | Tasking Board core, pulled into P1 from NX-309 (owner, Q-SIM-73): part 1 jobs, lifecycle, leases, priorities and aging, slots and dedupe, dependencies, deterministic assignment, per-side fog, events; resupply, defend, strike, assist-objective and scout jobs; AI garrison takes jobs; parameterless `!join`; part 2 follow and escort (Q-GP-31 to Q-GP-33). Part 1 done (Q-SIM-74, Q-SIM-75); part 2 with NX-369 done (Q-SIM-76) | L | ✅ | NX-126 | TB-1 to TB-10 tests per GAMEPLAY §1b; same seed same assignments; the AI garrison never initiates offense |
 | NX-376 | Worst-case tick budget: QA's 1,000-unit convoy scene (every unit tracked, ~700 followers) runs a p99 of about 31 ms with escort generation off, over the SC-10 25 ms line; profile the board pass, sensing and movement together and bring p99 under budget. Also explain the rare single-tick spikes seen in long PoL runs (one 127.8 ms tick in 6 h, NX-379 QA, not reproduced; 35 ms in NX-157 QA's 48 h run) | M | ⬜ | NX-374 | p99 < 25 ms on QA's worst-case scene in the container and an i7 re-run |
-| NX-377 | Tunability sweep (Q-DEV-21): move every outcome-affecting constant in `nexus.core` into balance or content keys (e.g. the follow hold slack, the decay ratio bound, the scout cap if left in code), documented in CONFIG-AND-CONTENT, with a test that fails on new outcome-affecting literals in kernel modules | S | ⬜ | NX-156 | No gameplay number lives only in code; config docs list every key |
+| NX-377 | Tunability sweep (Q-DEV-21): move every outcome-affecting constant in `nexus.core` into balance or content keys (e.g. the follow hold slack, the decay ratio bound, the scout cap if left in code), documented in CONFIG-AND-CONTENT, with a test that fails on new outcome-affecting literals in kernel modules | S | 👀 | NX-156 | No gameplay number lives only in code; config docs list every key |
 | NX-378 | Entertainment review at P1 exit (Q-DEV-22): read long seeded balance-harness runs as each audience would see them (watcher, player, site watcher, VOD and clip watcher); report in docs/review per docs/quality/ENTERTAINMENT-REVIEW.md | S | ⬜ | NX-031, NX-032 | A report with a score, evidence and suggestions per audience; the owner has decided on each suggestion |
-| NX-379 | Static recon that explores instead of feeding the air defenses (Q-SIM-87): cheaper Recon, stale-area loiter points outside known air-defense rings, route-danger check, loiter then home | S | 👀 | NX-157 | Overnight 0-viewer run: recon losses and stock burn well below NX-157's (about 14 UAVs and 70 stock per game hour) while the Static's last-known picture stays fresh |
+| NX-379 | Static recon that explores instead of feeding the air defenses (Q-SIM-87): cheaper Recon, stale-area loiter points outside known air-defense rings, route-danger check, loiter then home | S | ✅ | NX-157 | Overnight 0-viewer run: recon losses and stock burn well below NX-157's (about 14 UAVs and 70 stock per game hour) while the Static's last-known picture stays fresh |
 | NX-151 | Enemy-side view for director (FOW-4) | M | ✅ | NX-150 | Director API accepts only `EnemyView` |
 | NX-155 | Director: CP, tiers w/ hysteresis, budget | M | ✅ | NX-151, NX-374 | Hysteresis property |
 | NX-156 | Director: operations library + scoring + threat memory | L | ✅ | NX-155 | "Convoy raids → escorts" golden scenario |

@@ -86,6 +86,8 @@ class Supply:
     repair_milli: Mapping[NodeKind, int] = field(default_factory=dict)
     facility_hp_per_stock: int = 10  # logistics.facility_repair_hp_per_stock (GAMEPLAY §5b)
     facility_rearm_cost: int = 10  # logistics.facility_rearm_cost: a full reload of a facility
+    # logistics.ammo_loadout_share: of a loadout_cost, what a kind with ammo and fuel pays for ammo
+    ammo_loadout_share: Fraction = Fraction(1, 2)
     # Domain -> the theater `spawns` nodes that take that domain (GP-7, Q-SIM-54).
     spawns: Mapping[Domain, frozenset[str]] = field(default_factory=dict)
 
@@ -105,6 +107,7 @@ class CaptureRules:
     garrison_mult: float
     empty_base_mult: float
     decay_micro: int  # capture.decay_per_s x world_dt, as millionths of a percent of the bar
+    min_progress: int  # capture.min_progress_per_tick, millionths of a percent of the bar
 
 
 @dataclass(frozen=True, slots=True)
@@ -176,6 +179,11 @@ class TaskingRules:
     threat_memory_ticks: int  # how long an attacker of a group stays a group threat
     leash_m: float  # the farthest an escort leaves station to engage
     static_offense_min_tier: ThreatTier  # the lowest tier at which the Static's board posts strikes
+    follow_hold_slack: float  # a stopped leader's followers hold within this many stations of it
+    overfill_factor: int  # with every job full, a job takes units up to this times its slots
+    scout_blob_runs: int  # SIGINT refreshes a blob must stay in a cell before a scout is posted
+    scout_urgency_milli: Mapping[str, int]  # by blob size S / M / L, in thousandths
+    strike_urgency_per_threat_milli: int  # urgency a facility's `threat` point adds, thousandths
 
 
 @dataclass(frozen=True, slots=True)
@@ -354,6 +362,7 @@ class CombatRules:
     crew_marker_ticks: int  # combat.crew_marker_min as game ticks, rounded up (CB-8)
     damaged_speed_mult: float  # x top speed at Damaged or worse (CB-6, Q-SIM-65)
     damaged_sensor_mult: float  # x sensor radius at Damaged or worse
+    min_damage: int  # combat.min_damage: the least hp a hit takes, however heavy the armor
 
     def loadout(self, kind: UnitKind, variant: str | None) -> tuple[WeaponRules, ...]:
         return self.loadouts.get((kind, variant), self.loadouts[(kind, None)])
@@ -464,13 +473,20 @@ def tasking_rules(
         threat_memory_ticks=threat_memory_ticks,
         leash_m=cfg.escort_leash_m,
         static_offense_min_tier=cfg.static_offense_min_tier,
+        follow_hold_slack=cfg.follow_hold_slack,
+        overfill_factor=cfg.overfill_factor,
+        scout_blob_runs=cfg.scout_blob_runs,
+        scout_urgency_milli={
+            k[0].upper(): round(Fraction(repr(v)) * 1000) for k, v in cfg.scout_urgency
+        },
+        strike_urgency_per_threat_milli=round(Fraction(repr(cfg.strike_urgency_per_threat)) * 1000),
     )
 
 
 _Q = 2**40  # the provocation decay multiplier's denominator
 # The reduced half-life : window ratio p / q may have neither part above this: the bisection below
 # raises numbers to the power p, which stays under a millisecond or so up to 256 (shipped: 15 / 1).
-DECAY_RATIO_MAX = 256
+DECAY_RATIO_MAX = 256  # a bound on the bisection's cost, not a game rule: it rejects a config
 
 
 def _decay(half_life_ticks: int, window_ticks: int) -> tuple[int, int]:
@@ -609,7 +625,7 @@ def _capture(capture: Capture, dt: float) -> CaptureRules:
     return CaptureRules(
         capture.radius_m, capture.time_s, capture.multi_unit_exponent, capture.quiet_floor,
         capture.quiet_ref, capture.min_time_s, capture.logi_weight, capture.garrison_mult,
-        capture.empty_base_mult, decay_micro,
+        capture.empty_base_mult, decay_micro, capture.min_progress_per_tick,
     )  # fmt: skip
 
 
@@ -625,7 +641,7 @@ def _defense(
                 if n.kind in by_kind},
         repair_per_stock=logistics.defense_repair_hp_per_stock,
         drain_per_min=logistics.starve_hp_drain_per_min,
-        ticks_per_min=60 * sim.tick_hz,
+        ticks_per_min=60 * sim.tick_hz,  # 60: seconds per minute, a unit conversion
         sanctuary_repair_milli=repair_milli,
         forward_airbase=theater.forward_airbase,
     )  # fmt: skip
@@ -663,6 +679,7 @@ def _supply(theater: TheaterConfig, logistics: Logistics, dt: float) -> Supply:
         repair_milli=repair_milli,
         facility_hp_per_stock=logistics.facility_repair_hp_per_stock,
         facility_rearm_cost=logistics.facility_rearm_cost,
+        ammo_loadout_share=Fraction(repr(logistics.ammo_loadout_share)),
         spawns={d: frozenset(s.node for s in theater.spawns if d in s.domains) for d in _DOMAINS},
     )
 
@@ -755,6 +772,7 @@ def combat_rules(
         crew_marker_ticks=crew_marker_ticks,
         damaged_speed_mult=ds.damaged_speed_mult,
         damaged_sensor_mult=ds.damaged_sensor_mult,
+        min_damage=cfg.min_damage,
     )
 
 

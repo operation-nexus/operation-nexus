@@ -560,6 +560,22 @@ def test_damage_floors_exactly_and_is_at_least_one() -> None:
     assert armor.hp == 192 - 7  # 10 x 0.7 is exactly 7: no float error
 
 
+def test_min_damage_is_the_floor_of_a_hit_and_a_key() -> None:
+    w = new_world()
+    shooter = put(w, INFANTRY, "COALITION", 0)
+    armor = put(w, ARMOR, "ENEMY", 100)
+    heavy = dataclasses.replace(
+        COMBAT,
+        units={
+            **COMBAT.units,
+            ARMOR: dataclasses.replace(COMBAT.units[ARMOR], armor=Fraction(9, 10)),
+        },
+        min_damage=3,
+    )
+    _hit(w, RULES, heavy, shooter, armor, COMBAT.weapons["SMALL_ARMS"], [])  # 0.8 floors to 0
+    assert armor.hp == 200 - 3
+
+
 @pytest.mark.parametrize(
     ("hp", "state"),
     [(100, "HEALTHY"), (70, "HEALTHY"), (69, "DAMAGED"), (35, "DAMAGED"), (34, "MISSION_KILL"),

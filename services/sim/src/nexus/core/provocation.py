@@ -188,6 +188,7 @@ def note_redemption(world: World, side: Side, klass: Literal["support", "cosmeti
         )
 
 
+# Tier -> its index; the ladder order is structure (ThreatTier), not a tunable.
 _TIER_INDEX = {"PATTERN_OF_LIFE": 0, "ALPHA": 1, "BRAVO": 2}
 
 

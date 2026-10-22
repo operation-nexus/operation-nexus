@@ -256,6 +256,29 @@ def test_followers_hold_where_a_leader_stops_off_base() -> None:
     assert armor.pos == held
 
 
+def test_follow_hold_slack_decides_how_near_a_follower_holds_and_is_a_key() -> None:
+    """A convoy stopped off base with an escort 600 m behind it: within 2 stations (1,000 m) the
+    escort holds; with a slack of 0.5 (250 m) it closes in."""
+    base = RULES.tasking
+    assert base is not None
+
+    def escort_moved(slack: float) -> bool:
+        tasking = dataclasses.replace(base, follow_hold_slack=slack)
+        rules = dataclasses.replace(
+            RULES, tasking=tasking, node_kind={**RULES.node_kind, "static-hq": "BRIDGE"}
+        )
+        w = new_world(rules=rules)
+        lead = on_road(w, "ENEMY_CONVOY", 69_000)
+        armor = on_road(w, "ENEMY_ARMOR", 68_400)
+        lead.path, lead.last_node = [], "static-hq"
+        follow(armor, lead)
+        start = armor.pos
+        run(w, 50)
+        return armor.pos != start
+
+    assert not escort_moved(2.0) and escort_moved(0.5)
+
+
 def test_an_aircraft_covers_a_ground_unit_within_3000_m() -> None:
     w = new_world()
     lead = put(w, "LOGI_TRUCK", "west-airbase", cargo=100)

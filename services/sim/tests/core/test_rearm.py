@@ -10,6 +10,7 @@ the share of its hp repaired, a facility 1 stock per 10 hp. West-airbase (floor 
 """
 
 import dataclasses
+from fractions import Fraction
 from typing import Any
 
 import pytest
@@ -29,6 +30,7 @@ from nexus.contracts.gen.events.unit_repaired import UnitRepaired
 from nexus.contracts.gen.events.unit_spawned import UnitSpawned
 from nexus.core.combat import _hit, validate
 from nexus.core.fog import tracked_by
+from nexus.core.rearm import ammo_price
 from nexus.core.rules import CAPTURE_FULL
 from nexus.core.world import (
     CaptureBar,
@@ -96,6 +98,16 @@ def test_a_full_rearm_costs_half_for_the_tank_and_half_for_the_rounds() -> None:
     assert (jet.ammo, jet.ammo_credit, jet.rearm_milli) == ([4, 400], 0, 0)
     assert w.stock[WEST] == 1000 - 20 and consumed(events) == [(WEST, 20, "REARM")]
     assert stalled(events) == [] and run(w, 5) == []
+
+
+def test_ammo_loadout_share_sets_the_ammo_price_of_a_unit_with_a_tank() -> None:
+    w = new_world()
+    jet = aircraft(w, WEST, 0.0)
+    assert ammo_price(RULES, jet) == 10_000  # shipped 0.5 of the 20-stock loadout
+    quarter = dataclasses.replace(RULES.supply, ammo_loadout_share=Fraction(1, 4))
+    assert ammo_price(dataclasses.replace(RULES, supply=quarter), jet) == 5_000
+    armor = ground(w, ARMOR, "static-hq", "ENEMY")  # no fuel: all of its 15, whatever the share
+    assert ammo_price(dataclasses.replace(RULES, supply=quarter), armor) == 15_000
 
 
 def test_a_unit_with_ammo_and_no_fuel_pays_the_whole_cost_for_its_rounds() -> None:

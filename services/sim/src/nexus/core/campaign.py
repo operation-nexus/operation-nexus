@@ -61,7 +61,7 @@ from nexus.core.world import Objective, World
 
 _COALITION: Side = "COALITION"
 _ENEMY: Side = "ENEMY"
-_HALF = Fraction(1, 2)
+_HALF = Fraction(1, 2)  # round half up; the rounding rule, not a tunable
 
 
 class Momentum(NamedTuple):
@@ -81,7 +81,7 @@ def campaign_rules(world: World) -> tuple[Rules, CampaignRules]:
 
 def _pct(share: Fraction) -> int:
     """A share as a whole percent, rounded to nearest with halves up."""
-    return math.floor(share * 100 + _HALF)
+    return math.floor(share * 100 + _HALF)  # 100: a percent is a hundredth, a scale
 
 
 def _held(world: World, rc: CampaignRules, side: Side) -> int:
@@ -101,6 +101,7 @@ def momentum(world: World) -> Momentum:
     cap = sum(rules.supply.max_stock[n] for n in bases)
     fill = Fraction(sum(world.stock.get(n, 0) for n in bases), cap) if cap else Fraction(0)
     total = rc.nodes_weight * nodes + rc.supply_weight * fill
+    # 0..100 is the Momentum scale (the two weights are validated to sum to 100)
     return Momentum(min(100, max(0, math.floor(total + _HALF))), _pct(nodes), _pct(fill))
 
 
