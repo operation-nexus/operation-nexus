@@ -150,6 +150,7 @@ tasking:
     assist_objective: 45
     strike: 40
     scout: 30
+    escort_convoy: 40
   urgency_max: 2.0
   priority_aging_per_min: 1
   slots:
@@ -157,11 +158,19 @@ tasking:
     strike: 2
     assist_objective: 4
     scout: 1
+    escort_convoy: 2
   resupply_stock_per_slot: 100
   resupply_slots_max: 3
   defend_radius_m: 10000
   counterattack_window_min: 15
   scout_cooldown_min: 5
+  follow_station_m:
+    escort: 500
+    column: 200
+    overwatch: 3000
+    wingman: 1000
+  escort_threat_memory_s: 60
+  escort_leash_m: 10000
 """
 # Pinned from this implementation's first run (NX-367: balance, units, theater; re-pinned NX-121
 # for speed_mps, NX-122 for slots and again for the GP-3 cap and queue, NX-368 for air fuel and
@@ -169,9 +178,9 @@ tasking:
 # for logistics and the rear source, NX-123 part 2 for loadouts, rearm and forward deploy, NX-125
 # for capture, NX-126 for campaign, NX-124 for combat and its assist window, and NX-124 part 2 for
 # repair, crew and the damage multipliers, NX-124 part 3 for defense hp and the defeat hold, and
-# NX-374 for the tasking keys); a
+# NX-374 for the tasking keys and again for follow and escort); a
 # change means every config_hash moved.
-GOLDEN_CONFIG_HASH = "b10ff8e4d6c2a02226761a53af04f05dd22cf36d6728be24018359b9d733fc41"
+GOLDEN_CONFIG_HASH = "b082e1c37bfcae6669bdfc1cf78c0c2255ec17d05ab51657494d9af39aca4ec4"
 SLOTS = {
     "max_live_per_commander": 1,
     "respawn_delay_s": 20,
@@ -266,15 +275,25 @@ TASKING = {
     "reeval_every_ticks": 50,
     "claim_lease_s": 120,
     "expire_min": 15,
-    "priority": {"defend": 60, "resupply": 50, "assist_objective": 45, "strike": 40, "scout": 30},
+    "priority": {
+        "defend": 60,
+        "resupply": 50,
+        "assist_objective": 45,
+        "strike": 40,
+        "scout": 30,
+        "escort_convoy": 40,
+    },
     "urgency_max": 2.0,
     "priority_aging_per_min": 1,
-    "slots": {"defend": 2, "strike": 2, "assist_objective": 4, "scout": 1},
+    "slots": {"defend": 2, "strike": 2, "assist_objective": 4, "scout": 1, "escort_convoy": 2},
     "resupply_stock_per_slot": 100,
     "resupply_slots_max": 3,
     "defend_radius_m": 10000,
     "counterattack_window_min": 15,
     "scout_cooldown_min": 5,
+    "follow_station_m": {"escort": 500, "column": 200, "overwatch": 3000, "wingman": 1000},
+    "escort_threat_memory_s": 60,
+    "escort_leash_m": 10000,
 }
 CFG = BalanceConfig.model_validate(
     {
@@ -575,11 +594,14 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "  victory_hold_min: 30, defeat: {hold_min: 30}, victory_node_frac: 0.80,\n"
         "  time_limit_h: 72}\n"
         "tasking: {reeval_every_ticks: 50, claim_lease_s: 120, expire_min: 15,\n"
-        "  priority: {scout: 30, strike: 40, assist_objective: 45, resupply: 50, defend: 60},\n"
+        "  priority: {scout: 30, strike: 40, assist_objective: 45, resupply: 50, defend: 60,\n"
+        "    escort_convoy: 40},\n"
         "  urgency_max: 2.0, priority_aging_per_min: 1,\n"
-        "  slots: {scout: 1, assist_objective: 4, strike: 2, defend: 2},\n"
+        "  slots: {scout: 1, assist_objective: 4, strike: 2, defend: 2, escort_convoy: 2},\n"
         "  resupply_stock_per_slot: 100, resupply_slots_max: 3, defend_radius_m: 10000,\n"
-        "  counterattack_window_min: 15, scout_cooldown_min: 5}\n"
+        "  counterattack_window_min: 15, scout_cooldown_min: 5,\n"
+        "  follow_station_m: {escort: 500, column: 200, overwatch: 3000, wingman: 1000},\n"
+        "  escort_threat_memory_s: 60, escort_leash_m: 10000}\n"
         "schema_version:   1\n"
     )
     assert balance_hash(write(tmp_path, reformatted)) == balance_hash(DEFAULT)

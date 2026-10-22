@@ -24,6 +24,12 @@ refers to an entity id, so a job names a node, or a SIGINT blob with its cell ce
 - **Scout** (`scout:<cell>`): each SIGINT blob in the side's view (a group it senses but cannot
   track) whose cell is not cooling down after a finished scout (`tasking.scout_cooldown_min`).
   Urgency by size bucket: S 1.0, M 1.5, L 2.0 (capped).
+- **Escort convoy** (`escort:<truck id>`, Q-GP-29, Q-GP-47): a carrier of the side that has a road
+  path and follows no one (a column is covered by its lead truck's job), whose route (its position
+  through the nodes of its path) passes within a detected threat: the ring of a discovered
+  air-defense site last seen not Disabled, or within `tasking.defend_radius_m` of a currently
+  tracked enemy (last-known tracks and unseen emitters do not count). Urgency 1.0. Taking it is a
+  follow order on the truck; it ends when the truck arrives.
 
 A kind is generated only while the side can staff it: a live unit of the side fits it, or, for
 the coalition, a viewer can JOIN as a role that fits. A scout is posted for a cell only once a
@@ -38,6 +44,7 @@ GM) is not.
 import math
 from collections.abc import Iterator
 from fractions import Fraction
+from itertools import pairwise
 from typing import NamedTuple
 
 from nexus.contracts.gen.common.enums import JobKind, Side, UnitKind
@@ -45,12 +52,14 @@ from nexus.core.fog import SideView
 from nexus.core.rules import CAPTURE_FULL, Rules, TaskingRules
 from nexus.core.world import Vec2, World
 
-GENERATED = ("resupply:", "defend:", "strike:", "assist:", "scout:")
+GENERATED = ("resupply:", "defend:", "strike:", "assist:", "scout:", "escort:")
 _GROUND, _AIR = "GROUND", "AIR"
 _UNDEFENDED = ("SANCTUARY", "BRIDGE")  # never captured (N-4, NX-373)
 _BLOB_RUN = 2  # consecutive SIGINT refreshes a blob must stay in a cell before a scout is posted
 _BLOB_URGENCY = {"S": 1000, "M": 1500, "L": 2000}  # thousandths: the size bucket spans 1.0 to 2.0
-_JOB_KINDS: tuple[JobKind, ...] = ("RESUPPLY", "SCOUT", "DEFEND", "STRIKE", "ASSIST_OBJECTIVE")
+_JOB_KINDS: tuple[JobKind, ...] = (
+    "RESUPPLY", "SCOUT", "DEFEND", "STRIKE", "ASSIST_OBJECTIVE", "ESCORT_CONVOY",
+)  # fmt: skip
 _FOE: dict[Side, Side] = {"COALITION": "ENEMY", "ENEMY": "COALITION"}
 
 
@@ -67,12 +76,14 @@ class JobSpec(NamedTuple):
     pos: Vec2 | None = None
     objective: int | None = None
     depends_on: int | None = None
+    entity: int | None = None  # an escort job: the truck
 
 
 def fits(rules: Rules, kind: UnitKind, job_kind: JobKind) -> bool:
     """Whether a unit kind can do a job kind (the role(s) that fit, GAMEPLAY §1b), from what the
     kind can do: carriers resupply, painters (recon) scout, armed aircraft strike, armed aircraft
-    and ground units defend, any ground unit (a capturer) assists an objective."""
+    and ground units defend, any ground unit (a capturer) assists an objective, armed or recon
+    aircraft escort (strike and recon units, GAMEPLAY §1b)."""
     domain = rules.domain[kind]
     match job_kind:
         case "RESUPPLY":
@@ -87,6 +98,8 @@ def fits(rules: Rules, kind: UnitKind, job_kind: JobKind) -> bool:
             return domain in (_AIR, _GROUND) and kind in rules.armed
         case "ASSIST_OBJECTIVE":
             return domain == _GROUND
+        case "ESCORT_CONVOY":
+            return domain == _AIR and (kind in rules.armed or kind in rules.painters)
     return False
 
 
@@ -113,6 +126,7 @@ def generate(
         *_strike(world, rules, tr, side, view),
         *_assist(world, tr, side),
         *_scout(tr, view, world, side),
+        *_escort(world, rules, tr, side, view),
     ]
     return [s for s in specs if s.kind in able]
 
@@ -225,3 +239,35 @@ def _scout(tr: TaskingRules, view: SideView, world: World, side: Side) -> Iterat
             continue  # not there for 2 refreshes yet, or scouted lately (Q-SIM-75)
         urgency = min(tr.urgency_max_milli, _BLOB_URGENCY[b.size])
         yield JobSpec("SCOUT", f"scout:{cell}", tr.slots["SCOUT"], urgency, blob=b.id, pos=b.pos)
+
+
+def _near_route(route: list[tuple[float, float]], x: float, y: float, reach: float) -> bool:
+    """The polyline passes within `reach` of the point."""
+    for (ax, ay), (bx, by) in pairwise(route):
+        dx, dy = bx - ax, by - ay
+        length2 = dx * dx + dy * dy
+        k = 0.0 if length2 == 0 else max(0.0, min(1.0, ((x - ax) * dx + (y - ay) * dy) / length2))
+        if math.hypot(ax + k * dx - x, ay + k * dy - y) <= reach:
+            return True
+    return False
+
+
+def _escort(
+    world: World, rules: Rules, tr: TaskingRules, side: Side, view: SideView
+) -> Iterator[JobSpec]:
+    rings = [(m.pos, m.ring_m) for _, m in sorted(view.markers.items())
+             if m.ring_m is not None and m.state != "DISABLED"]  # fmt: skip
+    for e in world.entities():
+        if (
+            e.side != side or e.kind not in rules.supply.carriers or not e.path
+            or e.follow_id is not None or e.damage_state == "DISABLED"
+        ):  # fmt: skip
+            continue
+        route = [(e.pos.x, e.pos.y), *(rules.roads.pos[str(p)] for p in e.path)]
+        threatened = any(_near_route(route, p.x, p.y, ring) for p, ring in rings) or any(
+            _near_route(route, c.pos.x, c.pos.y, tr.defend_radius_m) for c in view.tracks.values()
+        )
+        if threatened:
+            yield JobSpec(
+                "ESCORT_CONVOY", f"escort:{e.id}", tr.slots["ESCORT_CONVOY"], 1000, entity=e.id
+            )

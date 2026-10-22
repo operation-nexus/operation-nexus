@@ -14,6 +14,7 @@ from nexus.core.capture import capture
 from nexus.core.combat import resolve as resolve_combat
 from nexus.core.defense import drain
 from nexus.core.fog import sense
+from nexus.core.follow import steer
 from nexus.core.handlers import HANDLERS as HANDLERS
 from nexus.core.handlers import Handler as Handler
 from nexus.core.handlers import reject, serve_reserve_queue
@@ -54,8 +55,10 @@ def apply_commands(
 def director(
     world: World, c: Sequence[Command], h: Mapping[str, Handler], out: list[Event]
 ) -> None:
-    """The Tasking Boards (`nexus.core.tasking`, NX-374); the director's own orders: NX-155."""
+    """The Tasking Boards (`nexus.core.tasking`, NX-374), then every follower's station and the
+    formation speed caps (`nexus.core.follow`, NX-374 part 2); the director's own orders: NX-155."""
     run_tasking(world, out)
+    steer(world)
 
 
 def movement(
@@ -89,7 +92,7 @@ def movement(
                 lost.append(e)
         else:
             if e.path:
-                _move(e, rules)
+                _move(e, rules, world.speed_cap.get(e.id))
             else:
                 e.vel = _STOPPED
     for e in lost:  # removed after the loop, in id order
@@ -205,20 +208,23 @@ def _orbit(e: Entity, centre: Vec2, rules: Rules) -> None:
     e.vel = Vec2(-speed * sin, speed * cos)
 
 
-def _waypoint(e: Entity, rules: Rules) -> tuple[Vec2, float]:
-    """The next waypoint and the speed to it in m/s (world)."""
+def _waypoint(e: Entity, rules: Rules, cap: float | None = None) -> tuple[Vec2, float]:
+    """The next waypoint and the speed to it in m/s (world); `cap` (a follower's station or its
+    formation's slowest member, `nexus.core.follow`) lowers the speed before the road's mult."""
     wp, speed = e.path[0], rules.speed(e.kind, e.damage_state)
+    if cap is not None:
+        speed = min(speed, cap)
     if rules.domain[e.kind] == _GROUND:
         if not isinstance(wp, str) or e.last_node is None:
             raise ValueError(f"ground entity {e.id} must move node to node on the road graph")
-        speed *= rules.roads.edge(e.last_node, wp).speed_mult
+        speed *= rules.roads.speed_mult_at(e.last_node, wp, e.pos.x, e.pos.y)
     if isinstance(wp, str):
         x, y = rules.roads.pos[wp]
         return Vec2(x, y), speed
     return wp, speed
 
 
-def _move(e: Entity, rules: Rules) -> tuple[float, float] | None:
+def _move(e: Entity, rules: Rules, cap: float | None = None) -> tuple[float, float] | None:
     """Returns the unit heading of the last leg finished this tick, if any had a length."""
     left = rules.world_dt  # world seconds still to spend this tick
     leg = None
@@ -226,7 +232,7 @@ def _move(e: Entity, rules: Rules) -> tuple[float, float] | None:
         if e.path[0] == e.last_node and e.pos == Vec2(*rules.roads.pos[e.last_node]):
             e.path.pop(0)  # already there: a route from `shortest_path` starts at its own node
             continue
-        target, speed = _waypoint(e, rules)
+        target, speed = _waypoint(e, rules, cap)
         dx, dy = target.x - e.pos.x, target.y - e.pos.y
         dist, reach = math.hypot(dx, dy), speed * left
         if dist > reach:
@@ -238,7 +244,7 @@ def _move(e: Entity, rules: Rules) -> tuple[float, float] | None:
             left -= dist / speed
             leg = (dx / dist, dy / dist)
         _arrive(e, target)  # snap exactly: no drift at nodes
-    e.vel = _velocity(e, rules)
+    e.vel = _velocity(e, rules, cap)
     return leg
 
 
@@ -249,11 +255,11 @@ def _arrive(e: Entity, target: Vec2) -> None:
         e.last_node = wp
 
 
-def _velocity(e: Entity, rules: Rules) -> Vec2:
+def _velocity(e: Entity, rules: Rules, cap: float | None) -> Vec2:
     """Heading to the next waypoint at the current speed; zero once the path is done."""
     if not e.path:
         return _STOPPED
-    target, speed = _waypoint(e, rules)
+    target, speed = _waypoint(e, rules, cap)
     dx, dy = target.x - e.pos.x, target.y - e.pos.y
     dist = math.hypot(dx, dy)
     return Vec2(dx / dist * speed, dy / dist * speed) if dist and speed > 0.0 else _STOPPED

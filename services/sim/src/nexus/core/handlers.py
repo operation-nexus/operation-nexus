@@ -23,6 +23,7 @@ from nexus.contracts.gen.events.event import Event
 from nexus.contracts.gen.events.reserve_queue_joined import ReserveQueueJoined
 from nexus.contracts.gen.events.unit_spawned import UnitSpawned
 from nexus.core.campaign import end_campaign
+from nexus.core.follow import can_follow
 from nexus.core.logistics import Run, load, pay_loadout, plan_deploy, plan_run
 from nexus.core.roads import shortest_path
 from nexus.core.rules import Rules
@@ -41,6 +42,7 @@ class _Plan(NamedTuple):
     cargo: int | None
     path: Sequence[str | Vec2]
     job: int | None = None  # the Tasking Board job a parameterless JOIN takes (Q-GP-23)
+    follow: int | None = None  # the unit a follow JOIN keeps station on (Q-GP-31)
 
 
 _COMMANDER: OwnerKind = "COMMANDER"
@@ -150,7 +152,7 @@ def _enqueue(world: World, command: JoinCommand, rules: Rules, out: list[Event])
 
 
 def _spawn(world: World, command: JoinCommand, plan: _Plan, rules: Rules, out: list[Event]) -> None:
-    kind, node, cargo, path, job = plan
+    kind, node, cargo, path, job, follow = plan
     unit = world.spawn(
         kind,
         _COALITION,
@@ -161,7 +163,7 @@ def _spawn(world: World, command: JoinCommand, plan: _Plan, rules: Rules, out: l
         hp=None,
     )
     unit.last_node, unit.path, unit.cargo = node, list(path), cargo
-    unit.order = _order(command)
+    unit.order, unit.follow_id = _order(command), follow
     if cargo:  # the plan and the spawn are one step of one tick: the stock is as planned
         load(world, Run(node, cargo, []))
     pay_loadout(world, rules, kind, node, out)
@@ -188,8 +190,10 @@ def _spawn(world: World, command: JoinCommand, plan: _Plan, rules: Rules, out: l
 
 
 def _order(command: JoinCommand) -> Order | None:
-    """The explicit order a JOIN gives (GAMEPLAY §1b): `hold` waits, a node goes there; neither
-    (auto-tasking) leaves the board in charge."""
+    """The explicit order a JOIN gives (GAMEPLAY §1b): `hold` waits, a node goes there, a unit is
+    followed; none (auto-tasking) leaves the board in charge."""
+    if isinstance(command.target, FollowTarget):
+        return "FOLLOW"
     return "HOLD" if command.hold else "GOTO" if command.target is not None else None
 
 
@@ -210,6 +214,9 @@ def _plan(world: World, command: JoinCommand, rules: Rules) -> _Plan | RejectRea
         return "UNIT_IN_SORTIE"  # retarget or switch at base needs unit states (GP-1)
     if commander in world.respawn_left:
         return "RESPAWN_COOLDOWN"
+    leader = command.target.follow_entity_id if isinstance(command.target, FollowTarget) else 0
+    if leader and not can_follow(world, rules, kind, leader, None):
+        return "FOLLOW_TARGET_INVALID"  # unknown, other side, Disabled, or no station to keep
     if command.target is None and not command.hold:
         for job in joinable_jobs(world, kind):
             plan = _route_job(world, job, kind, rules)
@@ -242,7 +249,7 @@ def _route(
     if target is None:
         return _Plan(kind, rules.sanctuary, cargo, [])
     if isinstance(target, FollowTarget):
-        return "FOLLOW_TARGET_INVALID"  # every follow, until follow (Q-GP-31) lands
+        return _follow_plan(world, rules, kind, target.follow_entity_id, cargo)
     if target.node_id not in rules.roads.pos:
         return "NODE_UNKNOWN"
     domain = rules.domain[kind]
@@ -258,6 +265,22 @@ def _route(
         return _Plan(kind, rules.sanctuary, None, [target.node_id])
     route = shortest_path(rules.roads, rules.sanctuary, target.node_id, blocked=_NO_BLOCKED)
     return "NODE_INVALID_FOR_UNIT" if route is None else _Plan(kind, rules.sanctuary, None, route)
+
+
+def _follow_plan(
+    world: World, rules: Rules, kind: UnitKind, leader_id: int, cargo: int | None
+) -> _Plan | RejectReason:
+    """A follower spawns at the sanctuary and steers to its station (`nexus.core.follow`); a truck
+    spawns at the source `plan_run` picks for the leader's destination and loads there (the
+    `!join logi` source rule, Q-GP-31), so it can unload at the column's destination."""
+    if cargo is None:
+        return _Plan(kind, rules.sanctuary, None, [], follow=leader_id)
+    leader = world.get(leader_id)
+    dest = leader.path[-1] if leader.path else leader.last_node
+    run = plan_run(world, rules, _COALITION, dest) if isinstance(dest, str) else None
+    if run is None:
+        return "NODE_INVALID_FOR_UNIT"
+    return _Plan(kind, run.source, run.cargo, [], follow=leader_id)
 
 
 def set_callsign(world: World, command: Command, out: list[Event]) -> None:

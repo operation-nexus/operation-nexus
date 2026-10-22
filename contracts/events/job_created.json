@@ -2,10 +2,10 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://nexus.local/contracts/events/job_created.json",
   "title": "JobCreated",
-  "description": "A job was posted to a side's Tasking Board, OPEN (CONTRACTS \u00a76; GAMEPLAY \u00a71b TB-1, TB-10; NX-374). Posted by the board generator (the director and GM injection post through the same call later). Exactly one of node_id and blob_id is set in the first build (sector_id and an escort entity_id join with their jobs). A job generated for a side references only what that side's view holds (TB-9). Public view: dropped for the ENEMY side's board.",
+  "description": "A job was posted to a side's Tasking Board, OPEN (CONTRACTS \u00a76; GAMEPLAY \u00a71b TB-1, TB-10; NX-374). Posted by the board generator (the director and GM injection post through the same call later). Exactly one of node_id and blob_id is set, except an escort job (ESCORT_CONVOY), which sets neither and names the escorted truck in entity_id (sector_id joins with the sector scout). A job generated for a side references only what that side's view holds (TB-9). Public view: dropped for the ENEMY side's board.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["kind", "tick", "event_seq", "campaign_id", "job_id", "side", "job_kind", "node_id", "blob_id", "slots", "depends_on_job_id"],
+  "required": ["kind", "tick", "event_seq", "campaign_id", "job_id", "side", "job_kind", "node_id", "blob_id", "entity_id", "slots", "depends_on_job_id"],
   "properties": {
     "kind": {"const": "JobCreated"},
     "tick": {"$ref": "../common/ids.json#/$defs/Tick"},
@@ -16,6 +16,7 @@
     "job_kind": {"$ref": "../common/enums.json#/$defs/JobKind"},
     "node_id": {"anyOf": [{"$ref": "../common/ids.json#/$defs/NodeId"}, {"type": "null"}]},
     "blob_id": {"anyOf": [{"$ref": "../common/ids.json#/$defs/BlobId"}, {"type": "null"}]},
+    "entity_id": {"anyOf": [{"$ref": "../common/ids.json#/$defs/EntityId"}, {"type": "null"}], "description": "The truck an escort job covers (ESCORT_CONVOY), else null."},
     "slots": {"type": "integer", "minimum": 1, "x-unit": "units"},
     "depends_on_job_id": {"anyOf": [{"$ref": "../common/ids.json#/$defs/TaskingJobId"}, {"type": "null"}]}
   }

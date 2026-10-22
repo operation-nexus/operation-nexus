@@ -72,6 +72,28 @@ class RoadGraph:
                 return edge
         raise ValueError(f"no road between {a!r} and {b!r}")
 
+    def edge_at(self, last: str, x: float, y: float) -> tuple[str, Edge] | None:
+        """The neighbour of `last` and the edge to it whose segment holds the point (x, y): the
+        road a unit that left `last` is on, so it can turn back (NX-374, followers)."""
+        lx, ly = self.pos[last]
+        for nxt, edge in self._adj[last]:
+            dx, dy = self.pos[nxt][0] - lx, self.pos[nxt][1] - ly
+            along = (x - lx) * dx + (y - ly) * dy
+            if (
+                abs(dx * (y - ly) - dy * (x - lx)) <= 1e-6 * edge.length_m
+                and 0 <= along <= edge.length_m**2
+            ):
+                return nxt, edge
+        return None
+
+    def speed_mult_at(self, last: str, heading: str, x: float, y: float) -> float:
+        """`speed_mult` of the road a unit at (x, y) is on, having left `last` for `heading`; when
+        `heading` is `last` it is turning back and the road is found by position (`edge_at`)."""
+        if heading != last:
+            return self.edge(last, heading).speed_mult
+        found = self.edge_at(last, x, y)
+        return 1.0 if found is None else found[1].speed_mult
+
     def heuristic(self, node: str, goal: str) -> float:
         """Straight line / fastest speed_mult: never above the true cost, so A* stays optimal."""
         (x, y), (gx, gy) = self.pos[node], self.pos[goal]

@@ -964,23 +964,27 @@
         "resupply_slots_max",
         "defend_radius_m",
         "counterattack_window_min",
-        "scout_cooldown_min"
+        "scout_cooldown_min",
+        "follow_station_m",
+        "escort_threat_memory_s",
+        "escort_leash_m"
       ],
       "properties": {
         "reeval_every_ticks": {"description": "A board re-evaluates (settles, generates, assigns) every this many running ticks (TB-6), unit ticks.", "type": "integer", "minimum": 1, "x-unit": "ticks", "x-hot-reload": true},
         "claim_lease_s": {"description": "A claim with no progress for this long is released and the job returns to OPEN (TB-1, Q-ALN-23), unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true},
         "expire_min": {"description": "An unclaimed job expires this long after it was posted (Q-SIM-73), unit min of game time. Objective jobs expire with the objective instead.", "type": "number", "exclusiveMinimum": 0, "x-unit": "min (game)", "x-hot-reload": true},
         "priority": {
-          "description": "Base priority per job kind (Q-GP-20), unit points; keys are the lower-case JobKind. Escort and repair-bridge join with their jobs.",
+          "description": "Base priority per job kind (Q-GP-20), unit points; keys are the lower-case JobKind. Repair-bridge joins with its job.",
           "type": "object",
           "additionalProperties": false,
-          "required": ["defend", "resupply", "assist_objective", "strike", "scout"],
+          "required": ["defend", "resupply", "assist_objective", "strike", "scout", "escort_convoy"],
           "properties": {
             "defend": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true},
             "resupply": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true},
             "assist_objective": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true},
             "strike": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true},
-            "scout": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true}
+            "scout": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true},
+            "escort_convoy": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true}
           }
         },
         "urgency_max": {"description": "The most the triggering condition can multiply a base priority by (Q-GP-20), unit multiplier; the least is 1.0.", "type": "number", "minimum": 1, "maximum": 2, "x-unit": "multiplier", "x-hot-reload": true},
@@ -989,19 +993,34 @@
           "description": "Units a job needs (TB-4), by lower-case JobKind; resupply is sized from the missing stock instead (resupply_stock_per_slot).",
           "type": "object",
           "additionalProperties": false,
-          "required": ["defend", "strike", "assist_objective", "scout"],
+          "required": ["defend", "strike", "assist_objective", "scout", "escort_convoy"],
           "properties": {
             "defend": {"type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true},
             "strike": {"type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true},
             "assist_objective": {"type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true},
-            "scout": {"type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true}
+            "scout": {"type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true},
+            "escort_convoy": {"type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true}
           }
         },
         "resupply_stock_per_slot": {"description": "A resupply job gets one slot per this much missing stock (max stock minus stock, rounded up, at least one), unit stock units.", "type": "integer", "minimum": 1, "x-unit": "stock units", "x-hot-reload": true},
         "resupply_slots_max": {"description": "The most slots a resupply job gets, unit units.", "type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true},
         "defend_radius_m": {"description": "A friendly base posts a defend job when its side tracks an enemy ground unit within this distance of it (Q-SIM-74), unit m. Urgency rises as the nearest tracked enemy closes: 1.0 at the radius, the cap at the base.", "type": "number", "exclusiveMinimum": 0, "x-unit": "m", "x-hot-reload": true},
         "counterattack_window_min": {"description": "For this long after a side loses a node, its AI garrison may take strike and assist-objective jobs against it (Q-GD-31, Q-SIM-74), unit min of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "min (game)", "x-hot-reload": true},
-        "scout_cooldown_min": {"description": "A scout job whose cell still holds a blob after it was DONE is not posted again for this long (Q-SIM-75), unit min of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "min (game)", "x-hot-reload": true}
+        "scout_cooldown_min": {"description": "A scout job whose cell still holds a blob after it was DONE is not posted again for this long (Q-SIM-75), unit min of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "min (game)", "x-hot-reload": true},
+        "follow_station_m": {
+          "description": "Where a follower keeps station on its direct leader (Q-GP-32, Q-SIM-76), unit m: `escort` a ground combat unit ahead of a truck or convoy on the same road; `column` a ground unit behind a ground leader; `overwatch` the radius an aircraft orbits within over a ground unit; `wingman` an aircraft's distance off an aircraft lead.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["escort", "column", "overwatch", "wingman"],
+          "properties": {
+            "escort": {"type": "number", "exclusiveMinimum": 0, "x-unit": "m", "x-hot-reload": true},
+            "column": {"type": "number", "exclusiveMinimum": 0, "x-unit": "m", "x-hot-reload": true},
+            "overwatch": {"type": "number", "exclusiveMinimum": 0, "x-unit": "m", "x-hot-reload": true},
+            "wingman": {"type": "number", "exclusiveMinimum": 0, "x-unit": "m", "x-hot-reload": true}
+          }
+        },
+        "escort_threat_memory_s": {"description": "An armed follower treats a tracked enemy that fired at any member of its convoy or column this recently as a threat to the group and engages it (Q-SIM-76), unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true},
+        "escort_leash_m": {"description": "The farthest an armed follower leaves its station from the nearest other member of its group to engage a group threat; beyond it, it returns to station and a threat that far is not chased (Q-SIM-76), unit m.", "type": "number", "exclusiveMinimum": 0, "x-unit": "m", "x-hot-reload": true}
       }
     },
     "Slots": {

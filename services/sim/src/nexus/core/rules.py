@@ -155,6 +155,11 @@ class TaskingRules:
     defend_radius_m: float
     counterattack_window_ticks: int  # how long after a loss the garrison may counterattack
     scout_cooldown_ticks: int  # how long a scouted cell is not posted again
+    station_m: Mapping[
+        str, float
+    ]  # follow_station_m: escort, column, overwatch, wingman (Q-SIM-76)
+    threat_memory_ticks: int  # how long an attacker of a group stays a group threat
+    leash_m: float  # the farthest an escort leaves station to engage
 
 
 @dataclass(frozen=True, slots=True)
@@ -297,6 +302,7 @@ def tasking_rules(
     ticks_per_min: int,
     counterattack_window_ticks: int,
     scout_cooldown_ticks: int,
+    threat_memory_ticks: int,
 ) -> TaskingRules:
     """The tick counts are `cfg`'s game-time keys already converted by the config loader."""
     return TaskingRules(
@@ -313,6 +319,9 @@ def tasking_rules(
         defend_radius_m=cfg.defend_radius_m,
         counterattack_window_ticks=counterattack_window_ticks,
         scout_cooldown_ticks=scout_cooldown_ticks,
+        station_m=cfg.follow_station_m.model_dump(),
+        threat_memory_ticks=threat_memory_ticks,
+        leash_m=cfg.escort_leash_m,
     )
 
 

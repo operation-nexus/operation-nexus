@@ -25,5 +25,9 @@ class JobCreated(BaseModel):
     job_kind: enums.JobKind
     node_id: ids.NodeId | None
     blob_id: ids.BlobId | None
+    entity_id: Annotated[
+        ids.EntityId | None,
+        Field(description="The truck an escort job covers (ESCORT_CONVOY), else null."),
+    ]
     slots: Annotated[int, Field(ge=1)]
     depends_on_job_id: ids.TaskingJobId | None

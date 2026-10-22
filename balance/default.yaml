@@ -127,6 +127,7 @@ tasking:
     assist_objective: 45
     strike: 40
     scout: 30
+    escort_convoy: 40  # PROPOSED – unvalidated (Q-SIM-73)
   urgency_max: 2.0  # PROPOSED – unvalidated (Q-GP-20, Q-SIM-73); multiplier, the least is 1.0 (CONFIG-AND-CONTENT §6.6)
   priority_aging_per_min: 1  # PROPOSED – unvalidated (Q-SIM-73); points per min (game) (CONFIG-AND-CONTENT §6.6)
   slots:  # PROPOSED – unvalidated (Q-SIM-73); units per lower-case JobKind (CONFIG-AND-CONTENT §6.6 tasking.slots.<job_kind>)
@@ -134,8 +135,16 @@ tasking:
     strike: 2
     assist_objective: 4
     scout: 1
+    escort_convoy: 2  # PROPOSED – unvalidated (Q-SIM-73)
   resupply_stock_per_slot: 100  # PROPOSED – unvalidated (Q-SIM-73); stock units, one resupply slot per this much missing stock (CONFIG-AND-CONTENT §6.6)
   resupply_slots_max: 3  # PROPOSED – unvalidated (Q-SIM-73); units (CONFIG-AND-CONTENT §6.6)
   defend_radius_m: 10000  # PROPOSED – unvalidated (Q-SIM-74); m, a tracked enemy ground unit this close to a base posts a defend job (CONFIG-AND-CONTENT §6.6)
   counterattack_window_min: 15  # PROPOSED – unvalidated (Q-SIM-74, Q-GD-31); min (game), the AI garrison may counterattack a node just lost (CONFIG-AND-CONTENT §6.6)
   scout_cooldown_min: 5  # PROPOSED – unvalidated (Q-SIM-75); min (game), a scouted cell is not posted again (CONFIG-AND-CONTENT §6.6)
+  follow_station_m:  # PROPOSED – unvalidated (Q-SIM-76, owner-approved start; NX-031 tunes); m (CONFIG-AND-CONTENT §6.6 tasking.follow_station_m.<pairing>)
+    escort: 500  # a ground combat unit ahead of its truck or convoy on the same road
+    column: 200  # a ground unit behind its ground leader
+    overwatch: 3000  # an aircraft orbits within this of the ground unit it covers
+    wingman: 1000  # an aircraft this far off its aircraft lead
+  escort_threat_memory_s: 60  # PROPOSED – unvalidated (Q-SIM-76); s (game), a tracked enemy that fired at a group member this recently is a group threat (CONFIG-AND-CONTENT §6.6)
+  escort_leash_m: 10000  # PROPOSED – unvalidated (Q-SIM-76); m, the farthest an escort leaves station to engage a group threat (CONFIG-AND-CONTENT §6.6)

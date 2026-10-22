@@ -69,6 +69,9 @@ def go_home(world: World, rules: Rules, e: Entity) -> None:
     heading for one. Anything else (a facility) does nothing.
     shortcut: with no reachable base a ground unit searches once and stays put."""
     domain = rules.domain[e.kind]
+    e.follow_id = None  # sent home: it stops following (an escort claim is released by its pass)
+    if e.order == "FOLLOW":
+        e.order = None
     if domain == "AIR":
         bases = world.landing_bases(e.side)
         if bases and e.state in ("EN_ROUTE", "ON_STATION"):

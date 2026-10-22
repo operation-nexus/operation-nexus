@@ -234,7 +234,7 @@ def test_combat_events_reject_bad_fields(event: dict[str, object], bad: dict[str
 
 JOB_CREATED = {**_BASE, "kind": "JobCreated", "job_id": 3, "side": "COALITION",
                "job_kind": "SCOUT", "node_id": None, "blob_id": "270-493", "slots": 1,
-               "depends_on_job_id": None}  # fmt: skip
+               "depends_on_job_id": None, "entity_id": None}  # fmt: skip
 JOB_CLAIMED = {**_BASE, "kind": "JobClaimed", "job_id": 3, "entity_id": 12}
 JOB_RELEASED = {**JOB_CLAIMED, "kind": "JobReleased"}
 _PARTICIPANT = {"entity_id": 12, "commander_id": COMMANDER, "auto": False}
@@ -255,7 +255,8 @@ def test_job_events_parse_through_the_event_union(good: dict[str, object]) -> No
 @pytest.mark.parametrize(
     ("event", "bad"),
     [
-        (JOB_CREATED, {"job_kind": "ESCORT_CONVOY"}),  # no producer yet (rule 6a)
+        (JOB_CREATED, {"job_kind": "REPAIR_BRIDGE"}),  # no producer yet (rule 6a)
+        (JOB_CREATED, {"entity_id": 0}),
         (JOB_CREATED, {"blob_id": "7"}),  # <refresh_tick>-<cell_index>
         (JOB_CREATED, {"node_id": "West Airbase"}),
         (JOB_CREATED, {"slots": 0}),

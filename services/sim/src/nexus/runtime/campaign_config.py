@@ -113,6 +113,7 @@ def load_campaign_config(paths: ConfigPaths | None = None) -> CampaignConfig:
                 balance.tasking.counterattack_window_min, balance, unit_s=60
             ),
             scout_cooldown_ticks=game_ticks(balance.tasking.scout_cooldown_min, balance, unit_s=60),
+            threat_memory_ticks=game_ticks(balance.tasking.escort_threat_memory_s, balance),
         ),
     )
     return CampaignConfig(balance, catalog, theater, digest, rules)
