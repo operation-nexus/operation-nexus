@@ -33,6 +33,12 @@ delay and, once per unit, its crew roll (COMBAT CB-8: a wreck rolled when it bec
 Disabled wreck cannot escape.
 Stock stays with the node. A SANCTUARY or BRIDGE node is never captured (N-4).
 
+Defense HP (NX-124 part 3, `nexus.core.defense`, Q-GD-18): a bar cannot start on a node whose
+defense HP is above 0. A bar already running is not stopped by a later repair: it fills or decays
+by the rules above (the gate says "can't begin", GAMEPLAY §8), and the flip sets the HP to 0 for the
+new owner. Idle floor (Q-GP-28, Q-GP-44): with no live viewer unit, the theater's `forward_airbase`
+while the coalition owns it is skipped, so its bar neither starts, fills nor decays.
+
 Runs after `logistics` in the `logistics_capture` slot (SC-13) and not while paused (SC-11).
 Deterministic: nodes in id order, entities in id order, no RNG.
 shortcut: a scan of every entity per capturable node; use the SC-10 grid if nodes x entities shows
@@ -46,10 +52,11 @@ from nexus.contracts.gen.common.enums import NodeKind, NodeOwner, Side
 from nexus.contracts.gen.events.capture_started import CaptureStarted
 from nexus.contracts.gen.events.event import Event
 from nexus.contracts.gen.events.node_captured import NodeCaptured
+from nexus.core.defense import reset
 from nexus.core.fog import hand_over
-from nexus.core.logistics import end_stop, friendly_bases, nearest
+from nexus.core.logistics import friendly_bases, nearest
 from nexus.core.rules import CAPTURE_FULL, CaptureRules, Rules
-from nexus.core.world import SIDES, CaptureBar, Entity, World, lose_unit
+from nexus.core.world import SIDES, CaptureBar, Entity, World, end_stop, lose_unit
 
 _UNCAPTURABLE: tuple[NodeKind, ...] = ("SANCTUARY", "BRIDGE")
 _OTHER: dict[Side, Side] = {"COALITION": "ENEMY", "ENEMY": "COALITION"}
@@ -77,8 +84,12 @@ def capture(world: World, out: list[Event]) -> None:
     cap = rules.capture
     nodes = [n for n, kind in rules.node_kind.items() if kind not in _UNCAPTURABLE]
     near = _presence(world, rules, cap, nodes)
-    quiet = _quiet(world, cap)
+    viewers = world.viewer_units()
+    quiet = _quiet(cap, viewers)
+    idle_node = rules.defense.forward_airbase if viewers == 0 and rules.defense else None
     for node in nodes:  # id order
+        if node == idle_node and world.owner[node] == "COALITION":
+            continue  # the idle floor
         _tick_node(world, rules, cap, node, near[node], quiet, out)
 
 
@@ -111,9 +122,9 @@ def _tally(p: _Presence, e: Entity, domain: str, rules: Rules, cap: CaptureRules
         p.garrison += 1
 
 
-def _quiet(world: World, cap: CaptureRules) -> float:
+def _quiet(cap: CaptureRules, viewers: int) -> float:
     """`quiet_mult(v)`: `quiet_floor` at 0 viewer units, linear to 1.0 at `quiet_ref`."""
-    share = min(world.viewer_units(), cap.quiet_ref) / cap.quiet_ref
+    share = min(viewers, cap.quiet_ref) / cap.quiet_ref
     return cap.quiet_floor + (1.0 - cap.quiet_floor) * share
 
 
@@ -131,6 +142,8 @@ def _tick_node(
     free = [s for s in capturers if not near[_OTHER[s]].armed]
     bar = world.capture.get(node)
     if bar is None:
+        if world.defense_hp.get(node):
+            return  # the defenses are up: no bar (Q-GD-18)
         starter = _starter(near, free)
         if starter is None:
             return
@@ -198,6 +211,7 @@ def _flip(
     before = world.owner[node]
     world.owner[node] = to
     del world.capture[node]
+    reset(world, node)
     out.append(
         NodeCaptured.model_construct(
             kind="NodeCaptured",

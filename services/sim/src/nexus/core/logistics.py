@@ -25,11 +25,11 @@ from typing import NamedTuple
 
 from nexus.contracts.gen.common.enums import Side, UnitKind
 from nexus.contracts.gen.events.event import Event
-from nexus.contracts.gen.events.supply_delivered import SupplyDelivered
+from nexus.core.defense import rebuild
 from nexus.core.rearm import restock
 from nexus.core.roads import shortest_path
 from nexus.core.rules import Rules
-from nexus.core.world import Entity, World, consumed
+from nexus.core.world import Entity, World, consumed, end_stop
 
 _NO_BLOCKED = frozenset[str]()  # no bridge is destroyed until combat part 3 (NX-124)
 
@@ -217,35 +217,32 @@ def logistics(world: World, out: list[Event]) -> None:
 def _unload(world: World, rules: Rules, e: Entity, node: str, out: list[Event]) -> None:
     sup = rules.supply
     room = sup.max_stock.get(node, 0) - world.stock.get(node, 0)
-    if e.cargo is None or room <= 0:
+    # whole stock units the defenses of a finite-stock node can still take
+    to_build = _defense_room(world, rules, node) if sup.max_stock.get(node, 0) > 0 else 0
+    if e.cargo is None or (room <= 0 and to_build <= 0):
         return
     whole, e.unload_milli = divmod(e.unload_milli + sup.unload_milli, 1000)
-    moved = min(whole, e.cargo, room)
-    world.stock[node] = world.stock.get(node, 0) + moved
+    moved = min(whole, e.cargo, room if room > 0 else to_build)
+    if room > 0:
+        world.stock[node] = world.stock.get(node, 0) + moved
+    else:  # full stock: each unit goes straight into the defenses (Q-SIM-71)
+        e.defended += moved
     e.cargo -= moved
     e.delivered += moved
+    rebuild(world, rules, node, moved, out)  # defense hp, same tick (Q-SIM-71)
     if e.cargo == 0:
         e.unload_milli = 0
-    if e.cargo == 0 or moved == room:
+    full_stock = sup.max_stock.get(node, 0) - world.stock.get(node, 0) <= 0
+    if e.cargo == 0 or (full_stock and _defense_room(world, rules, node) <= 0):
         end_stop(world, e, node, out)
 
 
-def end_stop(world: World, e: Entity, node: str, out: list[Event]) -> None:
-    """Report the stop's delivery (none for 0 units) and reset its count; unload_milli carries."""
-    if e.delivered:
-        out.append(
-            SupplyDelivered.model_construct(
-                kind="SupplyDelivered",
-                tick=world.campaign.tick + 1,
-                event_seq=world.next_event_seq(),
-                campaign_id=world.campaign.id,
-                node_id=node,
-                amount=e.delivered,
-                carrier_id=e.id,
-                commander_id=e.commander_id,
-            )
-        )
-    e.delivered = 0
+def _defense_room(world: World, rules: Rules, node: str) -> int:
+    """Whole stock units the node's defenses can still take before they are full."""
+    d = rules.defense
+    if d is None or node not in world.defense_hp:
+        return 0
+    return -(-(d.max_hp[node] - world.defense_hp[node]) // d.repair_per_stock)
 
 
 def _divert(world: World, rules: Rules, e: Entity, node: str, out: list[Event]) -> None:

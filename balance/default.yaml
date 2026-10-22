@@ -55,6 +55,8 @@ logistics:
     SANCTUARY: 2.0
   facility_rearm_cost: 10  # PROPOSED – unvalidated (Q-SIM-69, owner-approved); stock units for a full reload of a facility, by ammo share (CONFIG-AND-CONTENT §6.3)
   facility_repair_hp_per_stock: 10  # PROPOSED – unvalidated (Q-SIM-68, owner-approved); hp a facility regains per stock unit of its base (CONFIG-AND-CONTENT §6.3)
+  starve_hp_drain_per_min: 5  # PROPOSED – unvalidated (Q-SIM-71, owner-approved; NX-031 tunes); defense hp a base below its starvation floor loses per min (game) (CONFIG-AND-CONTENT §6.3)
+  defense_repair_hp_per_stock: 2  # PROPOSED – unvalidated (Q-SIM-71, owner-approved; NX-031 tunes); defense hp one stock unit unloaded into a node rebuilds (CONFIG-AND-CONTENT §6.3)
 capture:
   radius_m: 2000.0  # PROPOSED – unvalidated (Q-SIM-57, owner-approved initial value; NX-031 tunes); m (CONFIG-AND-CONTENT §6.5 capture.radius_m)
   time_s: 120.0  # PROPOSED – unvalidated; s (world), one capturer, no modifiers (CONFIG-AND-CONTENT §6.5 capture.time_s)
@@ -66,6 +68,13 @@ capture:
   garrison_mult: 3.0  # PROPOSED – unvalidated (Q-SM-8); capture-time multiplier, a defender that cannot contest is at the base (CONFIG-AND-CONTENT §6.5)
   empty_base_mult: 0.5  # PROPOSED – unvalidated (Q-SM-8); capture-time multiplier, no defender at the base (CONFIG-AND-CONTENT §6.5)
   decay_per_s: 0.008333333333333333  # PROPOSED – unvalidated (Q-SIM-57, owner-approved initial value; NX-031 tunes); 1/120 of the bar per s (world) (CONFIG-AND-CONTENT §6.5)
+  defense_hp:  # PROPOSED – unvalidated (Q-SIM-71, owner-approved; NX-031 tunes); max defense hp by node kind, an owned node starts full, a NEUTRAL one at 0 (CONFIG-AND-CONTENT §6.5)
+    AIRBASE: 500
+    FOB: 300
+    HQ: 800
+    PORT: 300
+    SANCTUARY: 1000
+  sanctuary_repair_hp_per_s: 1.0  # PROPOSED – unvalidated (Q-SIM-71, owner-approved; NX-031 tunes); defense hp per s (world) per logistics unit parked at its sanctuary (CONFIG-AND-CONTENT §6.5)
 combat:
   pk_cap: 0.95  # PROPOSED – unvalidated (Q-CBT-10); max hit probability, every shot can miss (CONFIG-AND-CONTENT §6.4 combat.pk_cap)
   track_quality:
@@ -98,6 +107,8 @@ campaign:
   victory_node_frac: 0.80  # PROPOSED – unvalidated; fraction of strategic nodes (CONFIG-AND-CONTENT §6.6)
   victory_hold_min: 30  # PROPOSED – unvalidated; min (game), held without a dip (CONFIG-AND-CONTENT §6.6)
   objective_period_min: 15  # PROPOSED – unvalidated; min (game), how long an objective lasts (CONFIG-AND-CONTENT §6.6)
+  defeat:
+    hold_min: 30  # PROPOSED – unvalidated (Q-TH-7); min (game), the coalition sanctuary's defense HP stays at 0 this long to lose (CONFIG-AND-CONTENT §6.6)
   objective_mode: timed  # timed (Q-GD-19); set per campaign by the owner or an admin (CONFIG-AND-CONTENT §6.6)
   score:
     average_weight: 50  # PROPOSED – unvalidated (Q-SIM-64); points x a side's average share of strategic nodes over the campaign (CONFIG-AND-CONTENT §6.6)

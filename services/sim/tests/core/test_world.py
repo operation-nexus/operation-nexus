@@ -80,7 +80,9 @@ def golden_world() -> World:
     w.campaign.tick = 5
     sam = w.spawn("AIR_DEFENSE_SITE", "COALITION", "AI_GARRISON", Vec2(90e3, 120e3), hp=150)
     sam.base_id, sam.variant, sam.emitting = "west-airbase", "SAM", True
-    w.markers["ENEMY"][4] = FacilityMarker("AIR_DEFENSE_SITE", "SAM", Vec2(90e3, 120e3), True, 2)
+    w.markers["ENEMY"][4] = FacilityMarker(
+        "AIR_DEFENSE_SITE", "SAM", Vec2(90e3, 120e3), True, 2, 35_000, "DAMAGED"
+    )
     # NX-150 part 2b: the coalition's blobs from the tick-3 refresh, 2 running ticks ago.
     w.blobs["COALITION"] = (Blob("3-7", Vec2(75e3, 5e3), "S"), Blob("3-48", Vec2(85e3, 15e3), "L"))
     w.sigint_age = 2
@@ -115,11 +117,12 @@ def test_golden_state_hash_seed_12345() -> None:
     # stalled, v11; NX-125: node owner and capture bars, v12; NX-126: the campaign clock, pause
     # reason, end flag, score sums and the active objective, v13; NX-124: damage state, altitude
     # band, ammo, reload, wreck timer and pending shots, v14; part 2: the rearm-stop carries and
-    # the downed-crew markers, v15).
+    # the downed-crew markers, v15; NX-124 part 3: defense hp, drain carry, down flags, the defeat
+    # run, node shots, Entity.defended and marker ring_m and state, v16).
     # A change here breaks every recorded replay hash: needs a `golden-update` reason.
     assert (
         state_hash(golden_world())
-        == "86c4216511b5487e17b2b926f22e342dcf4ae6fe696361d1d7da5127ade6d7fc"
+        == "4a99c6df90a848cde79cd5861c6d8ffe351c73159ac4d5df380fcb894cfef679"
     )
     e = to_canonical(golden_world(), quantize=True)["entities"][0]
     assert e["pos"] == [1000250, 2000500]  # mm
@@ -140,7 +143,7 @@ def test_golden_state_hash_seed_12345() -> None:
     }  # fmt: skip
     assert to_canonical(golden_world(), quantize=True)["markers"]["ENEMY"] == [
         {"confirmed_tick": 2, "emitting": True, "id": 4, "kind": "AIR_DEFENSE_SITE",
-         "pos": [90000000, 120000000], "variant": "SAM"}
+         "pos": [90000000, 120000000], "ring_m": 35000, "state": "DAMAGED", "variant": "SAM"}
     ]  # fmt: skip
 
 
@@ -254,7 +257,15 @@ def worlds(draw: st.DrawFn) -> World:
         e.emitting = draw(st.none() | st.booleans())
         if draw(st.booleans()):  # FOW-13
             seen = draw(st.integers(0, w.campaign.tick))
-            w.markers[knower][i] = FacilityMarker(e.kind, e.variant, draw(vecs), e.emitting, seen)
+            w.markers[knower][i] = FacilityMarker(
+                e.kind,
+                e.variant,
+                draw(vecs),
+                e.emitting,
+                seen,
+                draw(st.none() | st.integers(1, 10**5)),
+                draw(st.sampled_from(world_mod._DAMAGE_STATES)),
+            )
     refresh = draw(st.integers(0, w.campaign.tick))  # NX-150 part 2b
     for side in ("COALITION", "ENEMY"):
         cells = sorted(draw(st.sets(st.integers(0, 10**4), max_size=3)))

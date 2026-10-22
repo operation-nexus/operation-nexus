@@ -85,6 +85,7 @@ def load_campaign_config(paths: ConfigPaths | None = None) -> CampaignConfig:
             roads,
             time_limit_ticks=game_ticks(cc.time_limit_h, balance, unit_s=3600),
             victory_hold_ticks=game_ticks(cc.victory_hold_min, balance, unit_s=60),
+            defeat_hold_ticks=game_ticks(cc.defeat.hold_min, balance, unit_s=60),
             objective_period_ticks=game_ticks(cc.objective_period_min, balance, unit_s=60),
         ),
         combat=combat_rules(

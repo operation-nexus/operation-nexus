@@ -18,6 +18,7 @@ from pathlib import Path
 from nexus.contracts.gen.commands.command import Command
 from nexus.contracts.gen.events.event import Event
 from nexus.core.combat import validate as validate_combat
+from nexus.core.defense import validate as validate_defense
 from nexus.core.rules import Rules
 from nexus.core.step import HANDLERS, Handler, step
 from nexus.core.world import World
@@ -108,6 +109,7 @@ def restore(
         raise ValueError("the snapshot's node owners do not match the rules' theater nodes")
     if rules is not None:
         validate_combat(world, rules)  # a snapshot carries no rules; its combat state must fit them
+        validate_defense(world, rules)
     world.rules = rules
     by_tick: defaultdict[int, list[Command]] = defaultdict(list)
     tombstones: set[int] = set()

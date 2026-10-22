@@ -57,6 +57,19 @@ class Momentum(BaseModel):
     ]
 
 
+class Defeat(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    hold_min: Annotated[
+        float,
+        Field(
+            description="Game minutes the coalition sanctuary's defense HP must stay at 0 before the campaign is lost, unit min of game time (Q-TH-7).",
+            gt=0.0,
+        ),
+    ]
+
+
 class Campaign(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -103,6 +116,9 @@ class Campaign(BaseModel):
             description="Momentum weights (Q-SIM-60): momentum % = nodes_weight x the coalition's share of strategic nodes + supply_weight x its supply fill. They must add up to 100."
         ),
     ]
+    defeat: Annotated[
+        Defeat, Field(description="The coalition's defeat (Q-TH-7, GAMEPLAY §9, NX-124 part 3).")
+    ]
 
 
 class Air(BaseModel):
@@ -124,6 +140,17 @@ class Air(BaseModel):
             gt=0.0,
         ),
     ]
+
+
+class DefenseHp(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    AIRBASE: Annotated[int, Field(ge=1)]
+    FOB: Annotated[int, Field(ge=1)]
+    HQ: Annotated[int, Field(ge=1)]
+    PORT: Annotated[int, Field(ge=1)]
+    SANCTUARY: Annotated[int, Field(ge=1)]
 
 
 class Capture(BaseModel):
@@ -198,6 +225,19 @@ class Capture(BaseModel):
         float,
         Field(
             description="Share of the capture bar that drains per world second while the capturers are gone, unit fraction of the bar per s of world time (Q-SIM-23, Q-SIM-57). Counted in millionths of a percent per tick, rounded.",
+            gt=0.0,
+        ),
+    ]
+    defense_hp: Annotated[
+        DefenseHp,
+        Field(
+            description="The most defense HP a node of each kind has (Q-SIM-71, GAMEPLAY §8): an owned node starts full, a NEUTRAL one at 0, and a node that changes hands starts at 0 for its new owner. A BRIDGE has none here (NX-373)."
+        ),
+    ]
+    sanctuary_repair_hp_per_s: Annotated[
+        float,
+        Field(
+            description="Defense HP per world second that each friendly logistics unit parked at its side's SANCTUARY (no path, not Disabled) rebuilds there, from the sanctuary's infinite supply with no stock debit, unit hp per s of world time per unit (GAMEPLAY §9, Q-SIM-71). Counted in thousandths of an hp per tick, rounded.",
             gt=0.0,
         ),
     ]
@@ -592,6 +632,20 @@ class Logistics(BaseModel):
         int,
         Field(
             description="Stock a facility's base pays for a full reload of all the facility's weapons, unit stock units, in proportion to the ammo share used (GAMEPLAY §5b, Q-SIM-69); free at a sanctuary.",
+            ge=1,
+        ),
+    ]
+    starve_hp_drain_per_min: Annotated[
+        int,
+        Field(
+            description="Defense HP a base below its starvation floor loses per game minute, unit hp per min of game time (GAMEPLAY §8, Q-SIM-71); 0 turns the drain off. Whole hp, carried across ticks.",
+            ge=0,
+        ),
+    ]
+    defense_repair_hp_per_stock: Annotated[
+        int,
+        Field(
+            description="Defense HP one stock unit unloaded into a node rebuilds, unit hp per stock unit (GAMEPLAY §8, Q-SIM-71), up to the node's defense_hp.",
             ge=1,
         ),
     ]

@@ -18,7 +18,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from nexus.contracts.gen.common.enums import DamageState, Side, UnitKind
+from nexus.contracts.gen.common.enums import AltBand, DamageState, Side, UnitKind
 from nexus.core.fog import side_view, spotted, tracked_by, visible
 from nexus.core.rules import Rules
 from nexus.core.step import step
@@ -214,7 +214,7 @@ def _cell_regions(rules: Rules, e: Entity) -> frozenset[str]:
 
 def brute(w: World, side: Side, rules: Rules = RULES) -> list[int]:
     """O(n^2) oracle: every enemy within some live sensor's radius x the target's stealth, unless
-    it is a GROUND unit in a masking region the sensor is not in."""
+    it is a GROUND unit or a NOE/LOW aircraft in a masking region the sensor is not in."""
     sensors = [
         s
         for s in w.entities()
@@ -224,7 +224,8 @@ def brute(w: World, side: Side, rules: Rules = RULES) -> list[int]:
     def sees(s: Entity, t: Entity) -> bool:
         radius = rules.sensor_radius_m[s.kind] * (0.8 if s.damage_state != "HEALTHY" else 1.0)
         reach = radius * rules.stealth[t.kind]  # damaged_sensor_mult 0.8 at Damaged or worse
-        hidden = rules.domain[t.kind] == "GROUND" and bool(_cell_regions(rules, t))
+        low_air = rules.domain[t.kind] == "AIR" and t.alt_band in ("NOE", "LOW")
+        hidden = (rules.domain[t.kind] == "GROUND" or low_air) and bool(_cell_regions(rules, t))
         hidden = hidden and not (_cell_regions(rules, t) & _cell_regions(rules, s))
         return (t.pos.x - s.pos.x) ** 2 + (t.pos.y - s.pos.y) ** 2 <= reach**2 and not hidden
 
@@ -399,6 +400,30 @@ def test_ground_unit_in_masking_region_hidden_from_sensors_outside_it(
     assert tracked_by(w, "COALITION", site.id) and tracked_by(w, "COALITION", outside.id)
 
 
+@pytest.mark.parametrize(
+    ("band", "radar_x", "tracked"),
+    [
+        ("NOE", 2500.0, True),  # the radar stands in the same region
+        ("NOE", 5500.0, False),  # another region
+        ("LOW", 4500.0, False),  # no region
+        ("LOW", 2500.0, True),
+        ("MED", 5500.0, True),  # a medium-altitude aircraft is never masked
+        ("HIGH", 4500.0, True),
+    ],
+)
+def test_noe_and_low_aircraft_in_a_masking_region_hidden_from_sensors_outside_it(
+    band: AltBand, radar_x: float, tracked: bool
+) -> None:
+    """Q-FOW-3 (NX-124 part 3): the rule ground units have, by altitude band."""
+    w = world(MASKED)
+    put(w, RADAR, "COALITION", radar_x, 500.0)
+    jet = put(w, "ENEMY_FIGHTER", "ENEMY", 500.0, 500.0)  # in "hills", 3 km from the nearest radar
+    jet.alt_band = band
+    jet.state, jet.fuel = "LANDED", 3600.0
+    run_to(w, 5)
+    assert tracked_by(w, "COALITION", jet.id) is tracked
+
+
 # --- NX-150 part 2: emitters, passive sensors, facility markers (FOW-11, FOW-13) ---
 
 UAV: UnitKind = "RECON_UAV"
@@ -434,7 +459,9 @@ def test_emitting_site_in_passive_range_is_discovered_dark_one_never(ear: str) -
     before = w.rng.to_state()
     run_to(w, 5)
     pos = Vec2(reach, 0.0)
-    assert w.markers["COALITION"] == {emitting.id: FacilityMarker(SAM, "SAM", pos, True, 5)}
+    assert w.markers["COALITION"] == {
+        emitting.id: FacilityMarker(SAM, "SAM", pos, True, 5, 35_000, "HEALTHY")
+    }
     assert not any(tracked_by(w, "COALITION", e.id) for e in (emitting, dark, silent, beyond))
     assert w.rng.to_state() == before  # no RNG draw
     view = side_view(w, "COALITION")
@@ -465,6 +492,38 @@ def test_dark_site_gives_no_coverage_and_hears_nothing() -> None:
     assert spotted(w, truck) and list(w.markers["ENEMY"]) == [ours.id]
 
 
+def test_marker_carries_the_ring_and_the_state_as_last_observed() -> None:
+    """NX-124 part 3: `ring_m` is the longest AIR weapon range for the variant (SAM 35 km; the
+    SHORT_RANGE variant keeps only the 4 km gun; a radar site has none) and `state` the damage
+    state as of the last pass that observed the site; an unsensed change is never revealed."""
+    w = world(LISTENING)
+    radar = put(w, RADAR, "COALITION", 0.0)
+    sam = site(w, "ENEMY", 500.0, True)
+    short = site(w, "ENEMY", 600.0, None)
+    short.variant = "SHORT_RANGE"
+    enemy_radar = site(w, "ENEMY", 700.0, True, RADAR)
+    sam.hp, sam.damage_state = 60, "DAMAGED"
+    run_to(w, 5)
+    seen = w.markers["COALITION"]
+    assert [(m.ring_m, m.state) for m in seen.values()] == [
+        (35_000, "DAMAGED"),
+        (4_000, "HEALTHY"),
+        (None, "HEALTHY"),
+    ]
+    assert list(seen) == [sam.id, short.id, enemy_radar.id]
+    radar.pos = Vec2(-10_000.0, 0.0)  # out of range: nothing observes the sites any more
+    sam.hp, sam.damage_state = 5, "DISABLED"  # a strike the side did not sense
+    run_to(w, 50)
+    assert w.markers["COALITION"][sam.id].state == "DAMAGED"
+    radar.pos = Vec2(0.0, 0.0)
+    run_to(w, 55)  # observed again: refreshed
+    # (the base repairs it meanwhile, so it is no longer Disabled, but the marker follows it)
+    marker = w.markers["COALITION"][sam.id]
+    assert marker.state == w.get(sam.id).damage_state and marker.state != "DAMAGED"
+    restored = load(save(w))
+    assert restored.markers == w.markers
+
+
 def test_marker_never_fades_and_keeps_unobserved_details() -> None:
     """FOW-13: a site the side no longer observes keeps its marker with the old values and
     confirmed_tick, past the track fade and past its removal; observing it again refreshes."""
@@ -472,7 +531,7 @@ def test_marker_never_fades_and_keeps_unobserved_details() -> None:
     radar = put(w, RADAR, "COALITION", 0.0)
     sam = site(w, "ENEMY", 500.0, True)
     run_to(w, 5)
-    first = FacilityMarker(SAM, "SAM", Vec2(500, 0), True, 5)
+    first = FacilityMarker(SAM, "SAM", Vec2(500, 0), True, 5, 35_000, "HEALTHY")
     assert w.markers["COALITION"] == {sam.id: first} and tracked_by(w, "COALITION", sam.id)
     radar.pos = Vec2(-10_000.0, 0.0)  # out of active and passive range
     sam.emitting = False  # an unsensed change (DecoyBlink later)
@@ -515,7 +574,9 @@ def test_pause_freezes_discovery_and_markers_round_trip() -> None:
     run_to(w, 40)
     run_to(restored, 40)
     # Discovered at the first pass after resuming (35), refreshed on every pass since.
-    assert w.markers["COALITION"] == {sam.id: FacilityMarker(SAM, "SAM", Vec2(1000, 0), True, 40)}
+    assert w.markers["COALITION"] == {
+        sam.id: FacilityMarker(SAM, "SAM", Vec2(1000, 0), True, 40, 35_000, "HEALTHY")
+    }
     assert state_hash(restored) == state_hash(w)
 
 

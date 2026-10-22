@@ -21,7 +21,16 @@ class WeaponFired(BaseModel):
     ]
     campaign_id: ids.CampaignId
     shooter_id: Annotated[ids.EntityId, Field(description="The firing unit.")]
-    target_id: Annotated[ids.EntityId, Field(description="The unit fired on.")]
+    target_id: Annotated[
+        ids.EntityId | None,
+        Field(
+            description="The unit fired on; null for a shot at a node's defenses (then target_node_id is set; COMBAT CB-10)."
+        ),
+    ]
+    target_node_id: Annotated[
+        ids.NodeId | None,
+        Field(description="The node whose defenses were fired on; null for a shot at a unit."),
+    ]
     weapon: ids.WeaponId
     impact_tick: Annotated[
         int, Field(description="The campaign-clock tick the shot lands on.", ge=1)

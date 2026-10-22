@@ -186,16 +186,22 @@ def test_unit_destroyed_rejects_bad_fields(bad: dict[str, object]) -> None:
 
 
 _BASE = {"tick": 30, "event_seq": 9, "campaign_id": "0192f3a4-5b6c-7d8e-9f01-23456789abcd"}
-FIRED = {**_BASE, "kind": "WeaponFired", "shooter_id": 4, "target_id": 7, "weapon": "SAM",
-         "impact_tick": 52}  # fmt: skip
-IMPACT = {**_BASE, "kind": "WeaponImpact", "shooter_id": 4, "target_id": 7, "weapon": "SAM",
-          "hit": True}  # fmt: skip
+FIRED = {**_BASE, "kind": "WeaponFired", "shooter_id": 4, "target_id": 7,
+         "target_node_id": None, "weapon": "SAM", "impact_tick": 52}  # fmt: skip
+IMPACT = {**_BASE, "kind": "WeaponImpact", "shooter_id": 4, "target_id": 7,
+          "target_node_id": None, "weapon": "SAM", "hit": True}  # fmt: skip
 STATE_CHANGED = {**_BASE, "kind": "UnitDamageStateChanged", "entity_id": 7, "from": "HEALTHY",
                  "to": "DAMAGED"}  # fmt: skip
 DESPAWNED = {**_BASE, "kind": "UnitDespawned", "entity_id": 7, "reason": "WRECKED"}
+FIRED_AT_NODE = {**FIRED, "target_id": None, "target_node_id": "east-airbase"}
+DEFENSES_DOWN = {**_BASE, "kind": "NodeDefensesDown", "node_id": "east-airbase", "owner": "ENEMY"}
+DEFENSES_RESTORED = {**DEFENSES_DOWN, "kind": "NodeDefensesRestored"}
 
 
-@pytest.mark.parametrize("good", [FIRED, IMPACT, STATE_CHANGED, DESPAWNED])
+@pytest.mark.parametrize(
+    "good",
+    [FIRED, IMPACT, STATE_CHANGED, DESPAWNED, FIRED_AT_NODE, DEFENSES_DOWN, DEFENSES_RESTORED],
+)
 def test_combat_events_parse_through_the_event_union(good: dict[str, object]) -> None:
     event = EVENTS.validate_python(good)
     assert event.kind == good["kind"]
@@ -214,6 +220,11 @@ def test_combat_events_parse_through_the_event_union(good: dict[str, object]) ->
         (STATE_CHANGED, {"from": "BROKEN"}),
         (DESPAWNED, {"reason": "IDLE"}),  # no producer yet (rule 6a)
         (DESPAWNED, {"entity_id": 0}),
+        (FIRED, {"target_node_id": "East Airbase"}),  # a NodeId slug
+        (FIRED, {"target_node_id": None, "target_id": 0}),
+        (DEFENSES_DOWN, {"owner": "RED"}),
+        (DEFENSES_DOWN, {"hp": 0}),  # no per-hit or hp field: the HUD reads NodeView.hp_pct
+        (DEFENSES_RESTORED, {"node_id": "Bad Node"}),
     ],
 )
 def test_combat_events_reject_bad_fields(event: dict[str, object], bad: dict[str, object]) -> None:

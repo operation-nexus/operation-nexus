@@ -95,6 +95,21 @@ class CaptureRules:
 
 
 @dataclass(frozen=True, slots=True)
+class DefenseRules:
+    """Node defense HP (NX-124 part 3, GAMEPLAY §8, Q-SIM-71): whole hp, so a rebuild or drain is
+    exact. `max_hp` lists the nodes that have defenses (every kind but BRIDGE, NX-373)."""
+
+    max_hp: Mapping[str, int]  # node id -> capture.defense_hp.<kind>
+    repair_per_stock: int  # logistics.defense_repair_hp_per_stock
+    drain_per_min: int  # logistics.starve_hp_drain_per_min, hp per game minute
+    ticks_per_min: int  # running ticks in a game minute: the drain carry's modulus
+    # capture.sanctuary_repair_hp_per_s x world_dt in thousandths of an hp per tick per parked
+    # logistics unit (Q-SIM-71); the sanctuary's `defense_drain` carries its thousandths.
+    sanctuary_repair_milli: int
+    forward_airbase: str  # the coalition AIRBASE the idle floor protects (Q-TH-2)
+
+
+@dataclass(frozen=True, slots=True)
 class CampaignRules:
     """Campaign rules (NX-126, GAMEPLAY §9): clock limits in whole running game ticks, the exact
     (Fraction) weights and fractions so a threshold or a tie is exact, and the theater's
@@ -102,6 +117,7 @@ class CampaignRules:
 
     time_limit_ticks: int  # campaign.time_limit_h
     victory_hold_ticks: int  # campaign.victory_hold_min
+    defeat_hold_ticks: int  # campaign.defeat.hold_min (Q-TH-7)
     objective_period_ticks: int  # campaign.objective_period_min
     objectives_on: bool  # campaign.objective_mode is timed
     victory_node_frac: Fraction
@@ -229,6 +245,7 @@ class Rules:
     capture: CaptureRules | None = None
     campaign: CampaignRules | None = None  # NX-126; None leaves the campaign layer off
     combat: CombatRules | None = None  # NX-124; None leaves combat off
+    defense: DefenseRules | None = None  # NX-124 part 3; None: nodes have no defense HP
 
     def speed(self, kind: UnitKind, state: DamageState) -> float:
         """A unit's top speed now: x `damaged_speed_mult` at Damaged or worse, but an aircraft never
@@ -266,6 +283,24 @@ def _capture(capture: Capture, dt: float) -> CaptureRules:
         capture.radius_m, capture.time_s, capture.multi_unit_exponent, capture.quiet_floor,
         capture.quiet_ref, capture.min_time_s, capture.logi_weight, capture.garrison_mult,
         capture.empty_base_mult, decay_micro,
+    )  # fmt: skip
+
+
+def _defense(
+    theater: TheaterConfig, capture: Capture, logistics: Logistics, sim: Sim
+) -> DefenseRules:
+    repair_milli = round(capture.sanctuary_repair_hp_per_s * world_dt(sim) * _MILLI)
+    if repair_milli < 1:
+        raise ValueError("capture.sanctuary_repair_hp_per_s x world_dt is below 0.001 hp per tick")
+    by_kind = capture.defense_hp.model_dump()
+    return DefenseRules(
+        max_hp={n.id: by_kind[n.kind] for n in sorted(theater.nodes, key=lambda n: n.id)
+                if n.kind in by_kind},
+        repair_per_stock=logistics.defense_repair_hp_per_stock,
+        drain_per_min=logistics.starve_hp_drain_per_min,
+        ticks_per_min=60 * sim.tick_hz,
+        sanctuary_repair_milli=repair_milli,
+        forward_airbase=theater.forward_airbase,
     )  # fmt: skip
 
 
@@ -312,6 +347,7 @@ def campaign_rules(
     *,
     time_limit_ticks: int,
     victory_hold_ticks: int,
+    defeat_hold_ticks: int,
     objective_period_ticks: int,
 ) -> CampaignRules:
     """The tick counts are `cfg`'s game-time keys already converted by the config loader."""
@@ -321,6 +357,7 @@ def campaign_rules(
     return CampaignRules(
         time_limit_ticks=time_limit_ticks,
         victory_hold_ticks=victory_hold_ticks,
+        defeat_hold_ticks=defeat_hold_ticks,
         objective_period_ticks=objective_period_ticks,
         objectives_on=cfg.objective_mode == "timed",
         victory_node_frac=Fraction(repr(cfg.victory_node_frac)),
@@ -491,4 +528,5 @@ def make_rules(
         capture=_capture(capture, world_dt(sim)),
         campaign=campaign,
         combat=combat,
+        defense=_defense(theater, capture, logistics, sim),
     )

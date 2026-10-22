@@ -25,7 +25,9 @@ export type Event =
   | UnitDespawned
   | MunitionsDepleted
   | CrewDowned
-  | UnitRepaired;
+  | UnitRepaired
+  | NodeDefensesDown
+  | NodeDefensesRestored;
 
 /**
  * A unit appears (CONTRACTS §6). Public view: an ENEMY spawn only if its spawn point is tracked; otherwise dropped.
@@ -501,9 +503,13 @@ export interface WeaponFired {
    */
   shooter_id: number;
   /**
-   * Sequential per campaign, never reused (SC-4).
+   * The unit fired on; null for a shot at a node's defenses (then target_node_id is set; COMBAT CB-10).
    */
-  target_id: number;
+  target_id: number | null;
+  /**
+   * The node whose defenses were fired on; null for a shot at a unit.
+   */
+  target_node_id: string | null;
   /**
    * Weapon profile id from content/weapons.yaml (CONFIG-AND-CONTENT §7.2).
    */
@@ -535,9 +541,13 @@ export interface WeaponImpact {
    */
   shooter_id: number;
   /**
-   * Sequential per campaign, never reused (SC-4).
+   * The unit fired on; null for a shot at a node's defenses (then target_node_id is set; COMBAT CB-10).
    */
-  target_id: number;
+  target_id: number | null;
+  /**
+   * The node whose defenses were fired on; null for a shot at a unit.
+   */
+  target_node_id: string | null;
   /**
    * Weapon profile id from content/weapons.yaml (CONFIG-AND-CONTENT §7.2).
    */
@@ -680,4 +690,56 @@ export interface UnitRepaired {
    * The base that repaired it; null for a repair away from a base (engineers, P4).
    */
   node_id: string | null;
+}
+/**
+ * A node's defense HP reached 0, from fire or starvation (CONTRACTS 6; GAMEPLAY 8, COMBAT CB-10; NX-124 part 3): capture of the node can now start. Not emitted for a node that begins at 0 (a NEUTRAL one or one that just changed hands). Individual hits are WeaponImpact; the HUD reads the hp from NodeView.hp_pct.
+ */
+export interface NodeDefensesDown {
+  kind: "NodeDefensesDown";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Stable slug from the theater file.
+   */
+  node_id: string;
+  /**
+   * The node's owner at the time.
+   */
+  owner: "COALITION" | "ENEMY" | "NEUTRAL";
+}
+/**
+ * A node announced down by NodeDefensesDown has been rebuilt all the way to full HP, from deliveries or parked sanctuary trucks (CONTRACTS 6; GAMEPLAY 8; NX-124 part 3). Fires once per down cycle, never while only partly rebuilt, and never for a node that was not down.
+ */
+export interface NodeDefensesRestored {
+  kind: "NodeDefensesRestored";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Stable slug from the theater file.
+   */
+  node_id: string;
+  /**
+   * The node's owner at the time.
+   */
+  owner: "COALITION" | "ENEMY" | "NEUTRAL";
 }
