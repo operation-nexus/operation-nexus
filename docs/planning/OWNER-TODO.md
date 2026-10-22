@@ -40,7 +40,7 @@ Applied and verified through the GitHub API on 2026-10-18 where checked.
 
 ## 4. Accounts and brand (NX-297)
 - [ ] Reserve the **Hiveplex** handle on YouTube, TikTok, Bluesky and Discord the same day (all looked free on 2026-10-18), and after a manual look on X, Instagram, Reddit and a GitHub organization. **Twitch `hiveplex` is already taken** by a dormant 2015 account: register `hiveplextv` and ask Twitch support about releasing the original (docs/review/HANDLE-AND-DOMAIN-CHECK-2026-10-18.md, Q-MKT-10) (Q-BRAND-6, accepted risk), and the studio byline handle as a defensive hold; follow the setup runbook when it exists (NX-336). Accounts are created by hand: platforms bar automated creation
-- [ ] Epidemic Sound: ask support (a) whether a 24/7 monetized game stream is covered, (b) what happens to published content after cancelling; then choose upgrade vs a separate subscription
+- [x] Epidemic Sound: ask support (a) whether a 24/7 monetized game stream is covered, (b) what happens to published content after cancelling; then choose upgrade vs a separate subscription Owner reported 2026-10-22: 24/7 music is fine (the answer's source is not recorded here, and no session has seen it; the VOD-archive and lapse questions are not recorded).
 - [x] Create the private `operation-nexus-ops` repo (secrets, NX-299): on GitHub choose New repository, Private, README on, under the future organization if it exists (a transfer later is fine). The cloud session's GitHub integration cannot create repos (403). Then run `age-keygen` on your own machine, keep the private key in your password manager, and send only the public key (starts with `age1`) so `.sops.yaml` can be added (Q-OPS-10) Repos `operation-nexus-ops` and `operation-nexus-vault` created in the organization; the age key is still to do (§4d).
 - [ ] Later (P3, with the lore pilot): create the private `operation-nexus-vault` repo for lore, marketing drafts and licensed art/audio, separate from the secrets repo (Q-OPS-10, AGENT-TEAMS.md)
 
@@ -58,19 +58,19 @@ The research could not reach any official register (docs/review/NAME-CLEARANCE.m
 ## 4b. Follow-ups from the research session (2026-10-18)
 - [x] Web-dependent verification (Q-PROC-3): Network access raised to full on 2026-10-18; verification passes now run from the cloud session (NX-333, in progress)
 - [ ] Read the primary platform policy pages from the prepared checklist (NX-333); record what you find
-- [ ] Send Epidemic Sound the written questions (NX-332) before relying on it for 24/7 audio
+- [x] Send Epidemic Sound the written questions (NX-332) before relying on it for 24/7 audio Owner reported 2026-10-22: 24/7 use is fine. There is no GitHub issue for NX-332; it is a tracker row, and the three questions are in `docs/review/LICENSE-AND-MUSIC-VERIFICATION-2026-10-18.md` §3.2.
 - [ ] Ask Twitch support whether an intermission/replay loop on a 24/7 channel needs the Rerun label, before the closed alpha; check the Twitch setting that lets content train generative AI
 - [ ] Put the Google OAuth app in production with verification when the YouTube integration starts (otherwise refresh tokens last 7 days)
 - [ ] Turn on passkeys everywhere they exist; add a hardware key if you own one; keep one project mailbox
 - [x] Channel naming confirmed (Q-MKT-7): channels named Hiveplex, studio handle as a byline hold
 - [x] Create the brand mailbox and register a domain for the public contact addresses (Q-MKT-11); check `.gg`, `.io`, `.co` at a registrar (no public registry data for those endings) Mailbox `projecthiveplex@gmail.com` created; domain decision is Q-MKT-12.
-- [ ] Pick the first 2-3 moderators from your trusted team before the public beta (Q-MOD-7)
+- [ ] Pick the first 2-3 moderators from your trusted team before the public beta (Q-MOD-7) In progress 2026-10-22: the owner is adding moderators to the Discord now; tick when done.
 
 ## 4c. Manual steps left by the verification passes (2026-10-18)
 Only you can do these; each report's last section has the detail. Reports: PLATFORM-POLICY-VERIFICATION, TRADEMARK-AND-NAME-VERIFICATION, LICENSE-AND-MUSIC-VERIFICATION under `docs/review/`.
 - [x] **Twitch `hiveplex`:** tell me whether this account is yours. If it is, log in now and at least yearly (Twitch reclaims accounts after 12 months of no activity, per its 2017 policy post). If it isn't, use the fallback handle (Q-MKT-10) Answered 2026-10-18: not the owner's account; handles are the project_hiveplex family (docs/planning/BRAND-ACCOUNTS.md).
 - [x] **GitHub user `hiveplex`** (id 4049119) exists: check whether it is yours; it affects the organization name choice Moot: the organization is `operation-nexus`.
-- [ ] **Trademark registers I could not search:** EUIPO eSearch, TMview, WIPO Global Brand Database, UKIPO: search `HIVEPLEX` and `HIVE PLEX` in classes 9, 28, 35, 38, 41, 42, or hand it to the attorney (ten questions are listed in the trademark report). Also find HIVEPLEX LTD's trading name
+- [ ] **Trademark registers I could not search:** (owner reported 2026-10-22: searched and found no HIVEPLEX entries; which registers were searched is not recorded, so left open) EUIPO eSearch, TMview, WIPO Global Brand Database, UKIPO: search `HIVEPLEX` and `HIVE PLEX` in classes 9, 28, 35, 38, 41, 42, or hand it to the attorney (ten questions are listed in the trademark report). Also find HIVEPLEX LTD's trading name
 - [ ] **hiveplex.com** expires 2026-11-22 and is parked on BrandBucket: read the asking price there; decide whether a clean ending is enough (Q-MKT-10)
 - [ ] **YouTube:** run one real test upload on a fresh Google Cloud project to settle whether unverified projects are locked to private (Google's docs contradict each other); check in the Cloud Console whether `youtube.upload` is a sensitive or restricted scope
 - [ ] **Twitch pages that need a browser:** the help articles on reruns, Always On and the 48-hour limit; the AI-disclosure, music and viewbotting wording; set the "Training for Generative AI" toggle at `twitch.tv/settings/security`
