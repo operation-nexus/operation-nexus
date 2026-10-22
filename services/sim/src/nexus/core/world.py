@@ -48,6 +48,7 @@ from nexus.contracts.gen.common.enums import (
     PauseReasonCategory,
     Side,
     StaffPauseSubReason,
+    ThreatTier,
     UnitKind,
 )
 from nexus.contracts.gen.events.crew_downed import CrewDowned, Pos
@@ -71,8 +72,8 @@ from nexus.core.rules import CAPTURE_FULL, Rules
 # markers (NX-124 part 2); 16: node defense hp and drain carry, Campaign.defeat_ticks, structure
 # shots, FacilityMarker.ring_m and state (NX-124 part 3); 17: the Tasking Boards and their job
 # counter, Entity.order and Entity.job_id (NX-374); 18: Entity.follow_id and fired_by, Job.entity
-# (follow and escort, NX-374 part 2)
-FORMAT_VERSION = 18
+# (follow and escort, NX-374 part 2); 19: each side's Threat Director state (NX-155)
+FORMAT_VERSION = 19
 _MM = 1000.0  # metres -> millimetres; m/s -> mm/s
 _MICRO = 1e6  # ADR-0002's 1e-6 step for other floats (fuel)
 _MILLI_UNIT = 1000  # thousandths of a stock unit per unit
@@ -89,6 +90,7 @@ _CREW_MARKERS = "crew_markers"
 _DEFENSE_HP = "defense_hp"
 _DEFENSE_DOWN = "defense_down"
 _DEFENSE_DRAIN = "defense_drain"
+_DIRECTOR = "director"
 _MARKERS = "markers"
 _OBJECTIVE = "objective"
 _ENTITIES = "entities"
@@ -125,6 +127,7 @@ _WORLD_KEYS = (
     _DEFENSE_DOWN,
     _DEFENSE_DRAIN,
     _DEFENSE_HP,
+    _DIRECTOR,
     _ENTITIES,
     _LOST,
     _MARKERS,
@@ -166,6 +169,7 @@ _PAUSE_SUB_REASONS = _literal_values(StaffPauseSubReason)
 _DAMAGE_STATES = _literal_values(DamageState)
 _ALT_BANDS = _literal_values(AltBand)
 _JOB_KINDS = _literal_values(JobKind)
+_TIERS = cast(tuple[ThreatTier, ...], _literal_values(ThreatTier))
 
 
 @dataclass(frozen=True, slots=True)
@@ -426,6 +430,32 @@ class Objective:
     hold: bool
 
 
+@dataclass(slots=True)
+class DirectorState:
+    """One side's Threat Director (THREAT-DIRECTOR §2-§5a, NX-155; `nexus.core.director`). Coalition
+    power `cp` (an EMA) and `provocation` are whole millionths of a point, `pending` the provocation
+    noted since the last decision window (`nexus.core.provocation`). `prov_level` and `ceiling`
+    (0 PATTERN_OF_LIFE, 1 ALPHA, 2 BRAVO) hold the hysteresis; `dwell` is the running ticks in
+    `tier`, added a window at a time and held at `min_dwell_s`; `windows` the decision windows run;
+    `budget` this window's. The sector of the most recent noted provocation is
+    `last_provocation_sector`, at running tick `last_provocation_tick`."""
+
+    cp: int = 0
+    provocation: int = 0
+    pending: int = 0
+    tier: ThreatTier = "PATTERN_OF_LIFE"
+    prov_level: int = 0
+    ceiling: int = 1
+    dwell: int = 0
+    windows: int = 0
+    budget: int = 0
+    last_provocation_sector: str | None = None
+    last_provocation_tick: int = 0
+
+
+_DIRECTOR_KEYS = tuple(f.name for f in fields(DirectorState))
+
+
 _ENTITY_KEYS = tuple(f.name for f in fields(Entity))
 _JOB_KEYS = tuple(f.name for f in fields(Job))
 _CAMPAIGN_KEYS = tuple(f.name for f in fields(Campaign))
@@ -457,6 +487,7 @@ class World:
         "defense_down",
         "defense_drain",
         "defense_hp",
+        "director",
         "group_threat",
         "lost",
         "markers",
@@ -532,6 +563,9 @@ class World:
         # Nodes whose defense hp reached 0 and has not been rebuilt to full since: they announced
         # `NodeDefensesDown` and will announce `NodeDefensesRestored` once (no per-hit spam).
         self.defense_down: set[str] = set()
+        # Side -> its Threat Director (NX-155); only the ENEMY's runs until NX-375, the other stays
+        # at its start values.
+        self.director: dict[Side, DirectorState] = {side: DirectorState() for side in SIDES}
         self.objective: Objective | None = None  # NX-126; at most one (O-1)
         # Pending shots in `(impact_tick, id)` order (CB-2); only the `combat` system changes it.
         self.shots: list[Shot] = []
@@ -910,6 +944,7 @@ def to_canonical(world: World, *, quantize: bool) -> dict[str, Any]:
         _DEFENSE_DOWN: sorted(world.defense_down),
         _DEFENSE_DRAIN: dict(sorted(world.defense_drain.items())),
         _DEFENSE_HP: dict(sorted(world.defense_hp.items())),
+        _DIRECTOR: {s: asdict(d) for s, d in world.director.items()},
         _ENTITIES: [_entity_data(e, quantize) for e in world.entities()],
         _MARKERS: _markers_data(world, quantize),
         _OBJECTIVE: None if world.objective is None else asdict(world.objective),
@@ -1423,6 +1458,35 @@ def _cells(value: object) -> dict[str, int]:
     return {_str(k, "cell"): _int(v, _COOLDOWN) for k, v in value.items()}
 
 
+def _director(value: object, running_ticks: int) -> dict[Side, DirectorState]:
+    sides = _fields(value, SIDES, _DIRECTOR)
+    out: dict[Side, DirectorState] = {}
+    for side in SIDES:
+        d = _fields(sides[side], _DIRECTOR_KEYS, f"{_DIRECTOR}.{side}")
+        sector = _str(d["last_provocation_sector"], "last_provocation_sector", optional=True)
+        state = DirectorState(
+            cp=_int(d["cp"], "cp"),
+            provocation=_int(d["provocation"], "provocation"),
+            pending=_int(d["pending"], "pending"),
+            tier=_str(d["tier"], "tier", _TIERS),
+            prov_level=_int(d["prov_level"], "prov_level"),
+            ceiling=_int(d["ceiling"], "ceiling"),
+            dwell=_int(d["dwell"], "dwell"),
+            windows=_int(d["windows"], "windows"),
+            budget=_int(d["budget"], "budget"),
+            last_provocation_sector=sector,
+            last_provocation_tick=_int(d["last_provocation_tick"], "last_provocation_tick"),
+        )
+        if max(state.prov_level, state.ceiling) > 2 or state.ceiling < 1:
+            raise ValueError(f"{_DIRECTOR}.{side}: a level must be 0..2 and the ceiling at least 1")
+        if state.windows > running_ticks or state.last_provocation_tick > running_ticks:
+            raise ValueError(f"{_DIRECTOR}.{side}: a count after the snapshot's running ticks")
+        if (sector is None) != (state.last_provocation_tick == 0):
+            raise ValueError(f"{_DIRECTOR}.{side}: the provocation sector and tick go together")
+        out[side] = state
+    return out
+
+
 def _check_claims(world: World) -> None:
     """A unit holds at most one claim, on its own side's board, and a live unit's `job_id` is it."""
     claimed: dict[int, tuple[Side, int]] = {}
@@ -1482,6 +1546,7 @@ def load(data: bytes) -> World:
         raise ValueError(f"{_DEFENSE_DOWN} must list defended nodes")
     world.objective = _load_objective(d[_OBJECTIVE], world.campaign)
     c = world.campaign
+    world.director = _director(d[_DIRECTOR], c.running_ticks)
     # A side holds at most every node each running tick; the strategic count needs the rules.
     if max(c.held_ticks_coalition, c.held_ticks_enemy) > len(world.owner) * c.running_ticks:
         raise ValueError("campaign: held-node tick sum above nodes x running ticks")

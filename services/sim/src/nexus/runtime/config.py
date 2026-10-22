@@ -23,6 +23,7 @@ import yaml
 from pydantic import BaseModel, ValidationError
 
 from nexus.contracts.gen.config.balance import BalanceConfig
+from nexus.core.rules import DECAY_RATIO_MAX
 
 _TAG = "tag:yaml.org,2002:"
 _YAML11_WORD_TAG = "tag:nexus,2026:yaml11-bool-word"
@@ -177,6 +178,17 @@ def load_balance(path: Path) -> BalanceConfig:
     if not ds.disabled_below < ds.mission_kill_below < ds.damaged_below:
         raise ConfigError(
             f"{path}: combat.damage_state: need disabled_below < mission_kill_below < damaged_below"
+        )
+    pv = cfg.director.provocation
+    if not pv.bravo_threshold > pv.escalate_threshold:
+        raise ConfigError(
+            f"{path}: director.provocation.bravo_threshold: must be above escalate_threshold"
+        )
+    decay = Fraction(game_ticks(pv.half_life_s, cfg), game_ticks(cfg.director.window_s, cfg))
+    if max(decay.numerator, decay.denominator) > DECAY_RATIO_MAX:
+        raise ConfigError(
+            f"{path}: director.provocation.half_life_s: half-life over window_s reduces to "
+            f"{decay.numerator} / {decay.denominator}; neither part may exceed {DECAY_RATIO_MAX}"
         )
     weights = cfg.campaign.momentum
     if _exact(weights.nodes_weight) + _exact(weights.supply_weight) != 100:

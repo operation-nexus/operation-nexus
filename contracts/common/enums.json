@@ -16,6 +16,7 @@
     "Domain": {"enum": ["AIR", "GROUND", "SEA", "STATIC"], "description": "SEA is P3 (Q-GD-8). STATIC = facilities (Q-GP-25)."},
     "AltBand": {"enum": ["NOE", "LOW", "MED", "HIGH"], "description": "AIR only (COMBAT \u00a75.3). Adding a band is a contract and content change."},
     "DamageState": {"enum": ["HEALTHY", "DAMAGED", "MISSION_KILL", "DISABLED"], "description": "Q-CBT-1. Destroyed is a lifecycle event (UnitDestroyed), not a damage state."},
+    "ThreatTier": {"enum": ["PATTERN_OF_LIFE", "ALPHA", "BRAVO"], "description": "THREAT-DIRECTOR §3; CHARLIE is parked (Q-TD-3)."},
     "CallsignKind": {"enum": ["GENERATED", "CUSTOM", "TOMBSTONE"], "description": "IDENTITY \u00a72, DATA-MODEL \u00a74.2."},
     "CommandSource": {"enum": ["CHAT", "ADVISOR", "STAFF", "SYSTEM"]},
     "PauseReasonCategory": {"enum": ["STAFF", "TECHNICAL", "MAINTENANCE", "CEASEFIRE"], "description": "Q-ALN-3. STAFF = a manual pause; TECHNICAL = offline auto-pause; MAINTENANCE = weekly window; CEASEFIRE = owner Ceasefire mode."},

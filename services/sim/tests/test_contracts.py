@@ -196,11 +196,22 @@ DESPAWNED = {**_BASE, "kind": "UnitDespawned", "entity_id": 7, "reason": "WRECKE
 FIRED_AT_NODE = {**FIRED, "target_id": None, "target_node_id": "east-airbase"}
 DEFENSES_DOWN = {**_BASE, "kind": "NodeDefensesDown", "node_id": "east-airbase", "owner": "ENEMY"}
 DEFENSES_RESTORED = {**DEFENSES_DOWN, "kind": "NodeDefensesRestored"}
+TIER_CHANGED = {**_BASE, "kind": "ThreatTierChanged", "side": "ENEMY", "from": "PATTERN_OF_LIFE",
+                "to": "ALPHA", "cp_smoothed": 12.5}  # fmt: skip
 
 
 @pytest.mark.parametrize(
     "good",
-    [FIRED, IMPACT, STATE_CHANGED, DESPAWNED, FIRED_AT_NODE, DEFENSES_DOWN, DEFENSES_RESTORED],
+    [
+        FIRED,
+        IMPACT,
+        STATE_CHANGED,
+        DESPAWNED,
+        FIRED_AT_NODE,
+        DEFENSES_DOWN,
+        DEFENSES_RESTORED,
+        TIER_CHANGED,
+    ],
 )
 def test_combat_events_parse_through_the_event_union(good: dict[str, object]) -> None:
     event = EVENTS.validate_python(good)
@@ -225,11 +236,22 @@ def test_combat_events_parse_through_the_event_union(good: dict[str, object]) ->
         (DEFENSES_DOWN, {"owner": "RED"}),
         (DEFENSES_DOWN, {"hp": 0}),  # no per-hit or hp field: the HUD reads NodeView.hp_pct
         (DEFENSES_RESTORED, {"node_id": "Bad Node"}),
+        (TIER_CHANGED, {"to": "CHARLIE"}),  # parked (Q-TD-3)
+        (TIER_CHANGED, {"from": "BRAVO!"}),
+        (TIER_CHANGED, {"cp_smoothed": -0.1}),
+        (TIER_CHANGED, {"side": "NEUTRAL"}),
+        (TIER_CHANGED, {"ops": 1}),
     ],
 )
 def test_combat_events_reject_bad_fields(event: dict[str, object], bad: dict[str, object]) -> None:
     with pytest.raises(ValidationError):
         EVENTS.validate_python({**event, **bad})
+
+
+def test_threat_tier_changed_requires_its_side() -> None:
+    without = {k: v for k, v in TIER_CHANGED.items() if k != "side"}
+    with pytest.raises(ValidationError):
+        EVENTS.validate_python(without)
 
 
 JOB_CREATED = {**_BASE, "kind": "JobCreated", "job_id": 3, "side": "COALITION",

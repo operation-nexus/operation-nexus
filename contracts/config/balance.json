@@ -15,7 +15,8 @@
     "capture",
     "combat",
     "campaign",
-    "tasking"
+    "tasking",
+    "director"
   ],
   "properties": {
     "schema_version": {
@@ -50,6 +51,9 @@
     },
     "tasking": {
       "$ref": "#/$defs/Tasking"
+    },
+    "director": {
+      "$ref": "#/$defs/Director"
     }
   },
   "$defs": {
@@ -1061,6 +1065,320 @@
           "minimum": 1,
           "x-unit": "entries",
           "x-hot-reload": true
+        }
+      }
+    },
+    "Director": {
+      "description": "Threat Director part 1 (CONFIG-AND-CONTENT \u00a76.7, THREAT-DIRECTOR \u00a72-\u00a75a, Q-SIM-78; NX-151, NX-155). Durations are game time, converted to ticks at load.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "window_s",
+        "cp",
+        "tier",
+        "provocation",
+        "budget",
+        "max_spawns_per_window",
+        "max_live_units"
+      ],
+      "properties": {
+        "window_s": {
+          "description": "The decision window: CP, provocation, tier and budget update once per window, unit s of game time (TD-1, Q-ALN-23).",
+          "type": "number",
+          "x-unit": "s (game)",
+          "x-hot-reload": false,
+          "exclusiveMinimum": 0
+        },
+        "cp": {
+          "description": "Coalition power (THREAT-DIRECTOR \u00a72, Q-TD-2).",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "unit_value",
+            "ema_window_s"
+          ],
+          "properties": {
+            "unit_value": {
+              "description": "CP points of one currently tracked coalition unit, by kind; one entry per coalition-side kind in the unit catalog (the loader refuses a missing one); every other kind counts 0.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "STRIKE_FIGHTER",
+                "RECON_UAV",
+                "LOGI_TRUCK",
+                "GARRISON_INFANTRY"
+              ],
+              "properties": {
+                "STRIKE_FIGHTER": {
+                  "description": "CP points of one tracked unit of this kind.",
+                  "type": "number",
+                  "x-unit": "CP points",
+                  "x-hot-reload": true,
+                  "minimum": 0
+                },
+                "RECON_UAV": {
+                  "description": "CP points of one tracked unit of this kind.",
+                  "type": "number",
+                  "x-unit": "CP points",
+                  "x-hot-reload": true,
+                  "minimum": 0
+                },
+                "LOGI_TRUCK": {
+                  "description": "CP points of one tracked unit of this kind.",
+                  "type": "number",
+                  "x-unit": "CP points",
+                  "x-hot-reload": true,
+                  "minimum": 0
+                },
+                "GARRISON_INFANTRY": {
+                  "description": "CP points of one tracked unit of this kind.",
+                  "type": "number",
+                  "x-unit": "CP points",
+                  "x-hot-reload": true,
+                  "minimum": 0
+                }
+              }
+            },
+            "ema_window_s": {
+              "description": "The EMA window of coalition power, unit s of game time (Q-ALN-23).",
+              "type": "number",
+              "x-unit": "s (game)",
+              "x-hot-reload": true,
+              "exclusiveMinimum": 0
+            }
+          }
+        },
+        "tier": {
+          "description": "Tiers (THREAT-DIRECTOR \u00a73, Q-TD-1).",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "bravo_enter_cp",
+            "exit_ratio",
+            "min_dwell_s"
+          ],
+          "properties": {
+            "bravo_enter_cp": {
+              "description": "Smoothed CP at which the CP ceiling rises to BRAVO, unit CP points.",
+              "type": "number",
+              "x-unit": "CP points",
+              "x-hot-reload": true,
+              "exclusiveMinimum": 0
+            },
+            "exit_ratio": {
+              "description": "A level (CP ceiling or provocation) drops only below its threshold times this, unit fraction of the enter value.",
+              "type": "number",
+              "x-unit": "fraction of enter",
+              "x-hot-reload": true,
+              "exclusiveMinimum": 0,
+              "maximum": 1
+            },
+            "min_dwell_s": {
+              "description": "The least time in a tier before it may change, unit s of game time.",
+              "type": "number",
+              "x-unit": "s (game)",
+              "x-hot-reload": true,
+              "exclusiveMinimum": 0
+            }
+          }
+        },
+        "provocation": {
+          "description": "The decaying provocation score (THREAT-DIRECTOR \u00a75a, Q-TD-11).",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "half_life_s",
+            "escalate_threshold",
+            "bravo_threshold",
+            "weights"
+          ],
+          "properties": {
+            "half_life_s": {
+              "description": "The score halves over this long, unit s of game time.",
+              "type": "number",
+              "x-unit": "s (game)",
+              "x-hot-reload": true,
+              "exclusiveMinimum": 0
+            },
+            "escalate_threshold": {
+              "description": "Provocation at which the level reaches ALPHA, unit provocation points.",
+              "type": "number",
+              "x-unit": "points",
+              "x-hot-reload": true,
+              "exclusiveMinimum": 0
+            },
+            "bravo_threshold": {
+              "description": "Provocation at which the level reaches BRAVO (above escalate_threshold; the loader checks), unit provocation points.",
+              "type": "number",
+              "x-unit": "points",
+              "x-hot-reload": true,
+              "exclusiveMinimum": 0
+            },
+            "weights": {
+              "description": "Points per sensed or suffered action caused by a player-controlled unit.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "unit_destroyed",
+                "unit_damaged",
+                "convoy_hit",
+                "facility_damaged",
+                "facility_disabled",
+                "base_captured",
+                "scout_in_rear",
+                "redemption"
+              ],
+              "properties": {
+                "unit_destroyed": {
+                  "description": "A Static unit destroyed by a player-controlled unit, unit provocation points (Q-SIM-78, Q-TD-11).",
+                  "type": "number",
+                  "x-unit": "points",
+                  "x-hot-reload": true,
+                  "minimum": 0
+                },
+                "unit_damaged": {
+                  "description": "One hit on a Static unit (not a convoy or a facility) by a player-controlled unit, unit provocation points (Q-SIM-78, Q-TD-11).",
+                  "type": "number",
+                  "x-unit": "points",
+                  "x-hot-reload": true,
+                  "minimum": 0
+                },
+                "convoy_hit": {
+                  "description": "One hit on a Static convoy (a carrier kind) by a player-controlled unit, unit provocation points (Q-SIM-78, Q-TD-11).",
+                  "type": "number",
+                  "x-unit": "points",
+                  "x-hot-reload": true,
+                  "minimum": 0
+                },
+                "facility_damaged": {
+                  "description": "One hit on a Static facility by a player-controlled unit, unit provocation points (Q-SIM-78, Q-TD-11).",
+                  "type": "number",
+                  "x-unit": "points",
+                  "x-hot-reload": true,
+                  "minimum": 0
+                },
+                "facility_disabled": {
+                  "description": "A Static facility brought to Disabled by a player-controlled unit (replaces the hit's facility_damaged), unit provocation points (Q-SIM-78, Q-TD-11).",
+                  "type": "number",
+                  "x-unit": "points",
+                  "x-hot-reload": true,
+                  "minimum": 0
+                },
+                "base_captured": {
+                  "description": "A Static base flipped to the coalition by a capture with at least one commander in radius, unit provocation points (Q-SIM-78, Q-TD-11).",
+                  "type": "number",
+                  "x-unit": "points",
+                  "x-hot-reload": true,
+                  "minimum": 0
+                },
+                "scout_in_rear": {
+                  "description": "A player-controlled coalition scout the Static tracks in its rear, once per decision window, unit provocation points (Q-SIM-78, Q-TD-11).",
+                  "type": "number",
+                  "x-unit": "points",
+                  "x-hot-reload": true,
+                  "minimum": 0
+                },
+                "redemption": {
+                  "description": "Provocation of a channel-point redemption by class (Q-AI-9, Q-ALN-13); no redemption command exists yet, so the weights are read by `provocation.redemption_weight` only.",
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "support",
+                    "cosmetic"
+                  ],
+                  "properties": {
+                    "support": {
+                      "description": "A support redemption (supply drop, respawn skip, queue jump), unit provocation points.",
+                      "type": "number",
+                      "x-unit": "points",
+                      "x-hot-reload": true,
+                      "minimum": 0
+                    },
+                    "cosmetic": {
+                      "description": "A cosmetic redemption (color, ping, shoutout, spectacle), unit provocation points.",
+                      "type": "number",
+                      "x-unit": "points",
+                      "x-hot-reload": true,
+                      "minimum": 0
+                    }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "budget": {
+          "description": "The most budget points one decision window can spend, by tier (Q-TD-5); also capped by the real surplus of the Static's bases.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "pattern_of_life",
+            "alpha",
+            "bravo"
+          ],
+          "properties": {
+            "pattern_of_life": {
+              "description": "Budget points per window in this tier.",
+              "type": "integer",
+              "x-unit": "budget points / window",
+              "x-hot-reload": true,
+              "minimum": 0
+            },
+            "alpha": {
+              "description": "Budget points per window in this tier.",
+              "type": "integer",
+              "x-unit": "budget points / window",
+              "x-hot-reload": true,
+              "minimum": 0
+            },
+            "bravo": {
+              "description": "Budget points per window in this tier.",
+              "type": "integer",
+              "x-unit": "budget points / window",
+              "x-hot-reload": true,
+              "minimum": 0
+            }
+          }
+        },
+        "max_spawns_per_window": {
+          "description": "The most new Static units per window (Q-TD-12); read by spawning, which is not built yet.",
+          "type": "integer",
+          "x-unit": "units / window",
+          "x-hot-reload": true,
+          "minimum": 1
+        },
+        "max_live_units": {
+          "description": "The most live Static units by tier (Q-TD-12); read by spawning, which is not built yet.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "pattern_of_life",
+            "alpha",
+            "bravo"
+          ],
+          "properties": {
+            "pattern_of_life": {
+              "description": "Live Static units allowed in this tier.",
+              "type": "integer",
+              "x-unit": "units",
+              "x-hot-reload": true,
+              "minimum": 1
+            },
+            "alpha": {
+              "description": "Live Static units allowed in this tier.",
+              "type": "integer",
+              "x-unit": "units",
+              "x-hot-reload": true,
+              "minimum": 1
+            },
+            "bravo": {
+              "description": "Live Static units allowed in this tier.",
+              "type": "integer",
+              "x-unit": "units",
+              "x-hot-reload": true,
+              "minimum": 1
+            }
+          }
         }
       }
     }

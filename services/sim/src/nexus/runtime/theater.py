@@ -14,6 +14,7 @@ from fractions import Fraction
 from pathlib import Path
 
 from nexus.contracts.gen.config.theater import Node, TheaterConfig
+from nexus.core.geometry import in_polygon
 from nexus.core.roads import ROAD, Road, RoadGraph, shortest_path
 from nexus.runtime.config import ConfigError, load_model
 
@@ -58,7 +59,7 @@ def masking_cells(theater: TheaterConfig) -> tuple[int, dict[tuple[int, int], fr
         for i in range(min(xs) // MASK_CELL_M, max(xs) // MASK_CELL_M + 1):
             for j in range(min(ys) // MASK_CELL_M, max(ys) // MASK_CELL_M + 1):
                 centre = (i * MASK_CELL_M + half, j * MASK_CELL_M + half)
-                if _in_polygon(centre, poly):
+                if in_polygon(*centre, poly):
                     cells[i, j] = cells.get((i, j), frozenset()) | {m.id}
     return MASK_CELL_M, cells
 
@@ -164,7 +165,7 @@ def _placement(t: TheaterConfig) -> list[str]:  # TH-6
     problems = [f"{k}: {p} is outside bounds_m" for k, p in points if p[0] > w or p[1] > h]
     sectors = {s.id: [_pt(p) for p in s.polygon] for s in t.sectors}
     for i, n in enumerate(t.nodes):
-        if n.sector in sectors and not _in_polygon(_pt(n.pos), sectors[n.sector]):
+        if n.sector in sectors and not in_polygon(*_pt(n.pos), sectors[n.sector]):
             problems.append(f"nodes.{i}.pos: not inside sector {n.sector!r}")
     return problems
 
@@ -198,16 +199,3 @@ def _dist2_to_segment(p: Point, a: Point, b: Point) -> Fraction:
     t = Fraction((p[0] - a[0]) * dx + (p[1] - a[1]) * dy, length2) if length2 else Fraction(0)
     t = min(max(t, Fraction(0)), Fraction(1))
     return (p[0] - a[0] - t * dx) ** 2 + (p[1] - a[1] - t * dy) ** 2
-
-
-def _in_polygon(p: Point, poly: list[Point]) -> bool:
-    """Even-odd rule in exact integer arithmetic; a point on an edge counts as inside."""
-    x, y = p
-    inside = False
-    for (x1, y1), (x2, y2) in zip(poly, poly[1:] + poly[:1], strict=True):
-        cross = (x2 - x1) * (y - y1) - (y2 - y1) * (x - x1)
-        if cross == 0 and min(x1, x2) <= x <= max(x1, x2) and min(y1, y2) <= y <= max(y1, y2):
-            return True
-        if (y1 > y) != (y2 > y) and (cross > 0) == (y2 > y1):
-            inside = not inside
-    return inside

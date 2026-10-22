@@ -33,7 +33,8 @@ export type Event =
   | JobReleased
   | JobDone
   | JobFailed
-  | JobExpired;
+  | JobExpired
+  | ThreatTierChanged;
 
 /**
  * A unit appears (CONTRACTS §6). Public view: an ENEMY spawn only if its spawn point is tracked; otherwise dropped.
@@ -912,4 +913,38 @@ export interface JobExpired {
    * Tasking Board job id: per campaign, one counter for both sides' boards, never reused (GAMEPLAY §1b).
    */
   job_id: number;
+}
+/**
+ * The Static's Threat Director moved one tier (CONTRACTS §6; THREAT-DIRECTOR §3, Q-TD-1; NX-155). Emitted in the decision window that changes it, never while paused. `cp_smoothed` is the EMA of coalition power at that window. `side` names the Director that moved (only the ENEMY's runs until NX-375). Public view: cp_smoothed omitted (proposed).
+ */
+export interface ThreatTierChanged {
+  kind: "ThreatTierChanged";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * The side whose Director moved (only the ENEMY's runs until NX-375).
+   */
+  side: "COALITION" | "ENEMY";
+  /**
+   * THREAT-DIRECTOR §3; CHARLIE is parked (Q-TD-3).
+   */
+  from: "PATTERN_OF_LIFE" | "ALPHA" | "BRAVO";
+  /**
+   * THREAT-DIRECTOR §3; CHARLIE is parked (Q-TD-3).
+   */
+  to: "PATTERN_OF_LIFE" | "ALPHA" | "BRAVO";
+  /**
+   * Smoothed coalition power at the decision window.
+   */
+  cp_smoothed: number;
 }

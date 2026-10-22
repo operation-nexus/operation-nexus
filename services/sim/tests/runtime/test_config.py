@@ -171,6 +171,43 @@ tasking:
     wingman: 1000
   escort_threat_memory_s: 60
   escort_leash_m: 10000
+director:
+  window_s: 60
+  cp:
+    unit_value:
+      STRIKE_FIGHTER: 10
+      RECON_UAV: 3
+      LOGI_TRUCK: 2
+      GARRISON_INFANTRY: 2
+    ema_window_s: 300
+  tier:
+    bravo_enter_cp: 60
+    exit_ratio: 0.8
+    min_dwell_s: 600
+  provocation:
+    half_life_s: 900
+    escalate_threshold: 10
+    bravo_threshold: 40
+    weights:
+      unit_destroyed: 5
+      unit_damaged: 1
+      convoy_hit: 3
+      facility_damaged: 3
+      facility_disabled: 8
+      base_captured: 15
+      scout_in_rear: 2
+      redemption:
+        support: 1
+        cosmetic: 0
+  budget:
+    pattern_of_life: 10
+    alpha: 30
+    bravo: 80
+  max_spawns_per_window: 6
+  max_live_units:
+    pattern_of_life: 24
+    alpha: 40
+    bravo: 70
 """
 # Pinned from this implementation's first run (NX-367: balance, units, theater; re-pinned NX-121
 # for speed_mps, NX-122 for slots and again for the GP-3 cap and queue, NX-368 for air fuel and
@@ -178,9 +215,9 @@ tasking:
 # for logistics and the rear source, NX-123 part 2 for loadouts, rearm and forward deploy, NX-125
 # for capture, NX-126 for campaign, NX-124 for combat and its assist window, and NX-124 part 2 for
 # repair, crew and the damage multipliers, NX-124 part 3 for defense hp and the defeat hold, and
-# NX-374 for the tasking keys and again for follow and escort); a
+# NX-374 for the tasking keys and again for follow and escort, and NX-155 for the director); a
 # change means every config_hash moved.
-GOLDEN_CONFIG_HASH = "b082e1c37bfcae6669bdfc1cf78c0c2255ec17d05ab51657494d9af39aca4ec4"
+GOLDEN_CONFIG_HASH = "a34515743818337a7fbc1e9a145ea48c688d591791eec505ac5add963b866016"
 SLOTS = {
     "max_live_per_commander": 1,
     "respawn_delay_s": 20,
@@ -295,6 +332,37 @@ TASKING = {
     "escort_threat_memory_s": 60,
     "escort_leash_m": 10000,
 }
+DIRECTOR = {
+    "window_s": 60,
+    "cp": {
+        "unit_value": {
+            "STRIKE_FIGHTER": 10,
+            "RECON_UAV": 3,
+            "LOGI_TRUCK": 2,
+            "GARRISON_INFANTRY": 2,
+        },
+        "ema_window_s": 300,
+    },
+    "tier": {"bravo_enter_cp": 60, "exit_ratio": 0.8, "min_dwell_s": 600},
+    "provocation": {
+        "half_life_s": 900,
+        "escalate_threshold": 10,
+        "bravo_threshold": 40,
+        "weights": {
+            "unit_destroyed": 5,
+            "unit_damaged": 1,
+            "convoy_hit": 3,
+            "facility_damaged": 3,
+            "facility_disabled": 8,
+            "base_captured": 15,
+            "scout_in_rear": 2,
+            "redemption": {"support": 1, "cosmetic": 0},
+        },
+    },
+    "budget": {"pattern_of_life": 10, "alpha": 30, "bravo": 80},
+    "max_spawns_per_window": 6,
+    "max_live_units": {"pattern_of_life": 24, "alpha": 40, "bravo": 70},
+}
 CFG = BalanceConfig.model_validate(
     {
         "schema_version": 1,
@@ -307,6 +375,7 @@ CFG = BalanceConfig.model_validate(
         "combat": COMBAT,
         "campaign": CAMPAIGN,
         "tasking": TASKING,
+        "director": DIRECTOR,
     }
 )
 
@@ -436,6 +505,12 @@ def test_unknown_key_fails(tmp_path: Path, text: str) -> None:
         ("sigint_size_m_min: 3", "sigint_size_m_min: 1", "fow.sigint_size_m_min"),
         ("sigint_size_l_min: 7", "sigint_size_l_min: 3", "fow.sigint_size_l_min"),  # == M
         ("sigint_size_l_min: 7", "sigint_size_l_min: 7.0", "fow.sigint_size_l_min"),
+        # NX-155: the Director's thresholds are ordered (Q-TD-1), and a CP value cannot be left out
+        ("bravo_threshold: 40", "bravo_threshold: 10", "director.provocation.bravo_threshold"),
+        ("bravo_threshold: 40", "bravo_threshold: 5", "director.provocation.bravo_threshold"),
+        ("      LOGI_TRUCK: 2\n", "", "director.cp.unit_value.LOGI_TRUCK"),
+        ("exit_ratio: 0.8", "exit_ratio: 1.5", "director.tier.exit_ratio"),
+        ("window_s: 60", "window_s: 0", "director.window_s"),
     ],
 )
 def test_wrong_type_or_value_fails_naming_key(tmp_path: Path, old: str, new: str, key: str) -> None:
@@ -602,6 +677,16 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "  counterattack_window_min: 15, scout_cooldown_min: 5,\n"
         "  follow_station_m: {escort: 500, column: 200, overwatch: 3000, wingman: 1000},\n"
         "  escort_threat_memory_s: 60, escort_leash_m: 10000}\n"
+        "director: {window_s: 60, max_spawns_per_window: 6,\n"
+        "  cp: {ema_window_s: 300, unit_value: {STRIKE_FIGHTER: 10, RECON_UAV: 3, LOGI_TRUCK: 2,\n"
+        "    GARRISON_INFANTRY: 2}},\n"
+        "  tier: {bravo_enter_cp: 60, exit_ratio: 0.8, min_dwell_s: 600},\n"
+        "  provocation: {half_life_s: 900, escalate_threshold: 10, bravo_threshold: 40,\n"
+        "    weights: {unit_destroyed: 5, unit_damaged: 1, convoy_hit: 3, facility_damaged: 3,\n"
+        "      facility_disabled: 8, base_captured: 15, scout_in_rear: 2,\n"
+        "      redemption: {support: 1, cosmetic: 0}}},\n"
+        "  budget: {pattern_of_life: 10, alpha: 30, bravo: 80},\n"
+        "  max_live_units: {pattern_of_life: 24, alpha: 40, bravo: 70}}\n"
         "schema_version:   1\n"
     )
     assert balance_hash(write(tmp_path, reformatted)) == balance_hash(DEFAULT)
@@ -679,6 +764,7 @@ def test_world_ticks_is_the_least_whole_tick_count_not_shorter(
             "combat": COMBAT,
             "campaign": CAMPAIGN,
             "tasking": TASKING,
+            "director": DIRECTOR,
         }
     )
     n = world_ticks(seconds, cfg)

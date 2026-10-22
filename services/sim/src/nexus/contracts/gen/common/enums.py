@@ -83,6 +83,12 @@ type DamageState = Annotated[
 ]
 
 
+type ThreatTier = Annotated[
+    Literal["PATTERN_OF_LIFE", "ALPHA", "BRAVO"],
+    Field(description="THREAT-DIRECTOR §3; CHARLIE is parked (Q-TD-3)."),
+]
+
+
 type CallsignKind = Annotated[
     Literal["GENERATED", "CUSTOM", "TOMBSTONE"], Field(description="IDENTITY §2, DATA-MODEL §4.2.")
 ]

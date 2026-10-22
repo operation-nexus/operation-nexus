@@ -55,6 +55,7 @@ from nexus.contracts.gen.events.node_captured import NodeCaptured
 from nexus.core.defense import reset
 from nexus.core.fog import hand_over
 from nexus.core.logistics import friendly_bases, nearest
+from nexus.core.provocation import captured
 from nexus.core.rules import CAPTURE_FULL, CaptureRules, Rules
 from nexus.core.world import SIDES, CaptureBar, Entity, World, end_stop, lose_unit
 
@@ -226,6 +227,7 @@ def _flip(
             participant_commander_ids=sorted(near[to].commanders),
         )
     )
+    captured(world, node, before, to, len(near[to].commanders))  # the Static's provocation
     _switch_facilities(world, node, to)
     if before != "NEUTRAL":
         _resolve_units(world, rules, cap, node, before, out)

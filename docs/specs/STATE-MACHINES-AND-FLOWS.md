@@ -292,7 +292,7 @@ stateDiagram-v2
 | State | Event / guard | Action | Next |
 |---|---|---|---|
 | any | Decision window (every `director.window_s`, game time, Q-ALN-23), with CP computed from the **enemy view only** (FOW-4) | Evaluate the escalation rule (THREAT-DIRECTOR §3, Q-TD-1): tier = min(provocation level, CP ceiling from `director.tier.bravo_enter_cp`), with hysteresis (`director.tier.exit_ratio`) and `director.tier.min_dwell_s` (game time, Q-ALN-23) | same / adjacent tier |
-| any | Tier changes | Emit `ThreatTierChanged{from, to}`. Queue a sitrep. Update the HUD. | new tier |
+| any | Tier changes | Emit `ThreatTierChanged{side, from, to, cp_smoothed}`. Queue a sitrep. Update the HUD. | new tier |
 | any | `STAFF_DIRECTOR_OVERRIDE{force_tier}` command (OPS-ADMIN §3) while the campaign is Running; rejected with `CAMPAIGN_PAUSED` while Paused (Q-ALN-24) | Force the tier and record the override | forced tier |
 
 **Invariants**
@@ -634,7 +634,7 @@ sequenceDiagram
 | B-1, B-2 | Property: pathfinding after destruction | `.../test_bridges.py` |
 | C-1…C-5 | Scenario + golden replay (including a time-limit end with a clear winner and an exact tie) | `.../test_campaign.py`, `tests/golden/` |
 | O-1, O-2 | Property | `.../test_objectives.py` |
-| D-1…D-4 | Property: oscillating CP and provocation | `.../test_director_tiers.py` |
+| D-1…D-4 | Property: oscillating CP and provocation | `.../test_director.py` |
 | ID-1…ID-4 | Unit + integration (SQLite) | `services/sim/tests/identity/` |
 | PA-1…PA-3 | Adapter fixture tests | `services/sim/tests/gateway/` |
 | OC-1, OC-2 | Vitest + Playwright | `apps/overlay/tests/` |

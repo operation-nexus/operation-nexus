@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nexus.local/contracts/events/threat_tier_changed.json",
+  "title": "ThreatTierChanged",
+  "description": "The Static's Threat Director moved one tier (CONTRACTS §6; THREAT-DIRECTOR §3, Q-TD-1; NX-155). Emitted in the decision window that changes it, never while paused. `cp_smoothed` is the EMA of coalition power at that window. `side` names the Director that moved (only the ENEMY's runs until NX-375). Public view: cp_smoothed omitted (proposed).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "tick",
+    "event_seq",
+    "campaign_id",
+    "side",
+    "from",
+    "to",
+    "cp_smoothed"
+  ],
+  "properties": {
+    "kind": {
+      "const": "ThreatTierChanged"
+    },
+    "tick": {
+      "$ref": "../common/ids.json#/$defs/Tick"
+    },
+    "event_seq": {
+      "type": "integer",
+      "minimum": 1,
+      "description": "Campaign-wide, monotonic, deterministic (SC-14)."
+    },
+    "campaign_id": {
+      "$ref": "../common/ids.json#/$defs/CampaignId"
+    },
+    "side": {
+      "$ref": "../common/enums.json#/$defs/Side",
+      "description": "The side whose Director moved (only the ENEMY's runs until NX-375)."
+    },
+    "from": {
+      "$ref": "../common/enums.json#/$defs/ThreatTier"
+    },
+    "to": {
+      "$ref": "../common/enums.json#/$defs/ThreatTier"
+    },
+    "cp_smoothed": {
+      "type": "number",
+      "minimum": 0,
+      "x-unit": "CP points",
+      "description": "Smoothed coalition power at the decision window."
+    }
+  }
+}

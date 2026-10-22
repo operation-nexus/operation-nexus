@@ -18,6 +18,7 @@ from nexus.core.rules import (
     Rules,
     campaign_rules,
     combat_rules,
+    director_rules,
     make_rules,
     tasking_rules,
     world_dt,
@@ -114,6 +115,14 @@ def load_campaign_config(paths: ConfigPaths | None = None) -> CampaignConfig:
             ),
             scout_cooldown_ticks=game_ticks(balance.tasking.scout_cooldown_min, balance, unit_s=60),
             threat_memory_ticks=world_ticks(balance.tasking.escort_threat_memory_s, balance),
+        ),
+        director=director_rules(
+            balance.director,
+            catalog.units,
+            window_ticks=game_ticks(balance.director.window_s, balance),
+            ema_ticks=game_ticks(balance.director.cp.ema_window_s, balance),
+            half_life_ticks=game_ticks(balance.director.provocation.half_life_s, balance),
+            min_dwell_ticks=game_ticks(balance.director.tier.min_dwell_s, balance),
         ),
     )
     return CampaignConfig(balance, catalog, theater, digest, rules)
