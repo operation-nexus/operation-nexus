@@ -57,6 +57,7 @@ from nexus.core.defense import damage as damage_defense
 from nexus.core.defense import floor as defense_floor
 from nexus.core.fog import LOW_BANDS, in_masking_region, is_off_facility
 from nexus.core.logistics import go_home
+from nexus.core.provocation import suffered_defense_hit, suffered_hit
 from nexus.core.rearm import stop_problem
 from nexus.core.rng import RngStream
 from nexus.core.rules import CombatRules, Rules, WeaponRules
@@ -327,8 +328,12 @@ def _land(world: World, rules: Rules, cr: CombatRules, now: int, out: list[Event
         )
         if hit and shot.node is not None:
             damage_defense(world, rules, shot.node, w.damage, out)  # armor 0 (Q-CBT-22)
+            if shooter is not None:
+                suffered_defense_hit(world, shooter, shot.node)  # NX-155, Q-SIM-79
         elif hit and shooter is not None and target is not None:
+            was = target.damage_state
             _hit(world, rules, cr, shooter, target, w, out)
+            suffered_hit(world, shooter, target, was)  # the Static's provocation (NX-155)
 
 
 def _pk_node(

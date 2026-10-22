@@ -9,17 +9,20 @@ from collections.abc import Callable, Mapping, Sequence
 
 from nexus.contracts.gen.commands.command import Command
 from nexus.contracts.gen.events.event import Event
+from nexus.contracts.gen.events.threat_tier_changed import ThreatTierChanged
 from nexus.core.campaign import campaign
 from nexus.core.capture import capture
 from nexus.core.combat import resolve as resolve_combat
 from nexus.core.defense import drain
-from nexus.core.fog import sense
+from nexus.core.director import decide, due
+from nexus.core.fog import sense, side_view
 from nexus.core.follow import steer
 from nexus.core.handlers import HANDLERS as HANDLERS
 from nexus.core.handlers import Handler as Handler
 from nexus.core.handlers import reject, serve_reserve_queue
 from nexus.core.logistics import logistics, nearest_base
-from nexus.core.rules import Rules
+from nexus.core.provocation import DIRECTED, scan_rear
+from nexus.core.rules import CP_SCALE, Rules
 from nexus.core.tasking import run as run_tasking
 from nexus.core.world import SIDES, Entity, UnitState, Vec2, World, lose_unit
 
@@ -55,10 +58,39 @@ def apply_commands(
 def director(
     world: World, c: Sequence[Command], h: Mapping[str, Handler], out: list[Event]
 ) -> None:
-    """The Tasking Boards (`nexus.core.tasking`, NX-374), then every follower's station and the
-    formation speed caps (`nexus.core.follow`, NX-374 part 2); the director's own orders: NX-155."""
+    """The Threat Director's decision window (NX-155), then the Tasking Boards
+    (`nexus.core.tasking`, NX-374) and every follower's station and the formation speed caps
+    (`nexus.core.follow`, NX-374 part 2): the Director decides first and posts no jobs yet."""
+    _decide(world, out)
     run_tasking(world, out)
     steer(world)
+
+
+def _decide(world: World, out: list[Event]) -> None:
+    """Every `director.window_s` running ticks, each directed side decides from its own view
+    (`nexus.core.director`); a tier move is announced with `ThreatTierChanged` (TD-1, SC-11)."""
+    rules = world.rules
+    if world.frozen or rules is None or rules.director is None:
+        return
+    if not due(rules.director, world.campaign.running_ticks + 1):
+        return
+    for side in DIRECTED:
+        view = side_view(world, side)
+        scan_rear(world, side, view)
+        change = decide(world.director[side], view, rules, world.stock)
+        if change is not None:
+            out.append(
+                ThreatTierChanged.model_construct(
+                    kind="ThreatTierChanged",
+                    tick=world.campaign.tick + 1,
+                    event_seq=world.next_event_seq(),
+                    campaign_id=world.campaign.id,
+                    side=side,
+                    from_=change.before,
+                    to=change.after,
+                    cp_smoothed=change.cp / CP_SCALE,
+                )
+            )
 
 
 def movement(

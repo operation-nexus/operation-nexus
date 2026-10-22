@@ -148,3 +148,40 @@ tasking:
     wingman: 1000  # an aircraft this far off its aircraft lead
   escort_threat_memory_s: 60  # PROPOSED – unvalidated (Q-SIM-76); s (world), a tracked enemy that fired at a group member this recently is a group threat (CONFIG-AND-CONTENT §6.6)
   escort_leash_m: 10000  # PROPOSED – unvalidated (Q-SIM-76); m, the farthest an escort leaves station to engage a group threat (CONFIG-AND-CONTENT §6.6)
+director:  # Threat Director part 1 (Q-SIM-78, owner-approved starting numbers; NX-031 tunes) (CONFIG-AND-CONTENT §6.7)
+  window_s: 60  # PROPOSED – unvalidated (Q-ALN-23); s (game), the decision window (CONFIG-AND-CONTENT §6.7 director.window_s)
+  cp:
+    unit_value:  # PROPOSED – unvalidated (Q-SIM-78); CP points of one tracked coalition unit by kind, every coalition-side kind listed (CONFIG-AND-CONTENT §6.7)
+      STRIKE_FIGHTER: 10
+      RECON_UAV: 3
+      LOGI_TRUCK: 2
+      GARRISON_INFANTRY: 2
+    ema_window_s: 300  # PROPOSED – unvalidated (Q-ALN-23); s (game) (CONFIG-AND-CONTENT §6.7)
+  tier:
+    bravo_enter_cp: 60  # PROPOSED – unvalidated (Q-SIM-78); CP points (CONFIG-AND-CONTENT §6.7)
+    exit_ratio: 0.8  # PROPOSED – unvalidated (Q-TD-1); fraction of the enter value (CONFIG-AND-CONTENT §6.7)
+    min_dwell_s: 600  # PROPOSED – unvalidated (Q-ALN-23); s (game) (CONFIG-AND-CONTENT §6.7)
+  provocation:
+    half_life_s: 900  # PROPOSED – unvalidated (Q-SIM-78); s (game) (CONFIG-AND-CONTENT §6.7)
+    escalate_threshold: 10  # PROPOSED – unvalidated (Q-SIM-78); points, ALPHA (CONFIG-AND-CONTENT §6.7)
+    bravo_threshold: 40  # PROPOSED – unvalidated (Q-SIM-78); points, BRAVO (CONFIG-AND-CONTENT §6.7)
+    weights:  # PROPOSED – unvalidated (Q-SIM-78); points per action caused by a player-controlled unit (CONFIG-AND-CONTENT §6.7)
+      unit_destroyed: 5
+      unit_damaged: 1
+      convoy_hit: 3
+      facility_damaged: 3
+      facility_disabled: 8
+      base_captured: 15
+      scout_in_rear: 2
+      redemption:
+        support: 1  # PROPOSED – unvalidated (Q-SIM-78, Q-AI-9)
+        cosmetic: 0  # Q-AI-9, Q-ALN-13: cosmetic redemptions never provoke
+  budget:  # PROPOSED – unvalidated (Q-SIM-78); budget points per window by tier, never above the real surplus (CONFIG-AND-CONTENT §6.7)
+    pattern_of_life: 10
+    alpha: 30
+    bravo: 80
+  max_spawns_per_window: 6  # PROPOSED – unvalidated (Q-SIM-78, Q-TD-12); units (CONFIG-AND-CONTENT §6.7)
+  max_live_units:  # PROPOSED – unvalidated (Q-SIM-78, Q-TD-12); live Static units by tier (CONFIG-AND-CONTENT §6.7)
+    pattern_of_life: 24
+    alpha: 40
+    bravo: 70

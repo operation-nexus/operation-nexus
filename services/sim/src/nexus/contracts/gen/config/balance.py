@@ -844,6 +844,240 @@ class Slots(BaseModel):
     ]
 
 
+class UnitValue(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    STRIKE_FIGHTER: Annotated[
+        float, Field(description="CP points of one tracked unit of this kind.", ge=0.0)
+    ]
+    RECON_UAV: Annotated[
+        float, Field(description="CP points of one tracked unit of this kind.", ge=0.0)
+    ]
+    LOGI_TRUCK: Annotated[
+        float, Field(description="CP points of one tracked unit of this kind.", ge=0.0)
+    ]
+    GARRISON_INFANTRY: Annotated[
+        float, Field(description="CP points of one tracked unit of this kind.", ge=0.0)
+    ]
+
+
+class Cp(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    unit_value: Annotated[
+        UnitValue,
+        Field(
+            description="CP points of one currently tracked coalition unit, by kind; one entry per coalition-side kind in the unit catalog (the loader refuses a missing one); every other kind counts 0."
+        ),
+    ]
+    ema_window_s: Annotated[
+        float,
+        Field(
+            description="The EMA window of coalition power, unit s of game time (Q-ALN-23).", gt=0.0
+        ),
+    ]
+
+
+class Tier(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    bravo_enter_cp: Annotated[
+        float,
+        Field(
+            description="Smoothed CP at which the CP ceiling rises to BRAVO, unit CP points.",
+            gt=0.0,
+        ),
+    ]
+    exit_ratio: Annotated[
+        float,
+        Field(
+            description="A level (CP ceiling or provocation) drops only below its threshold times this, unit fraction of the enter value.",
+            gt=0.0,
+            le=1.0,
+        ),
+    ]
+    min_dwell_s: Annotated[
+        float,
+        Field(
+            description="The least time in a tier before it may change, unit s of game time.",
+            gt=0.0,
+        ),
+    ]
+
+
+class Redemption(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    support: Annotated[
+        float,
+        Field(
+            description="A support redemption (supply drop, respawn skip, queue jump), unit provocation points.",
+            ge=0.0,
+        ),
+    ]
+    cosmetic: Annotated[
+        float,
+        Field(
+            description="A cosmetic redemption (color, ping, shoutout, spectacle), unit provocation points.",
+            ge=0.0,
+        ),
+    ]
+
+
+class Weights(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    unit_destroyed: Annotated[
+        float,
+        Field(
+            description="A Static unit destroyed by a player-controlled unit, unit provocation points (Q-SIM-78, Q-TD-11).",
+            ge=0.0,
+        ),
+    ]
+    unit_damaged: Annotated[
+        float,
+        Field(
+            description="One hit on a Static unit (not a convoy or a facility) by a player-controlled unit, unit provocation points (Q-SIM-78, Q-TD-11).",
+            ge=0.0,
+        ),
+    ]
+    convoy_hit: Annotated[
+        float,
+        Field(
+            description="One hit on a Static convoy (a carrier kind) by a player-controlled unit, unit provocation points (Q-SIM-78, Q-TD-11).",
+            ge=0.0,
+        ),
+    ]
+    facility_damaged: Annotated[
+        float,
+        Field(
+            description="One hit on a Static facility by a player-controlled unit, unit provocation points (Q-SIM-78, Q-TD-11).",
+            ge=0.0,
+        ),
+    ]
+    facility_disabled: Annotated[
+        float,
+        Field(
+            description="A Static facility brought to Disabled by a player-controlled unit (replaces the hit's facility_damaged), unit provocation points (Q-SIM-78, Q-TD-11).",
+            ge=0.0,
+        ),
+    ]
+    base_captured: Annotated[
+        float,
+        Field(
+            description="A Static base flipped to the coalition by a capture with at least one commander in radius, unit provocation points (Q-SIM-78, Q-TD-11).",
+            ge=0.0,
+        ),
+    ]
+    scout_in_rear: Annotated[
+        float,
+        Field(
+            description="A player-controlled coalition scout the Static tracks in its rear, once per decision window, unit provocation points (Q-SIM-78, Q-TD-11).",
+            ge=0.0,
+        ),
+    ]
+    redemption: Annotated[
+        Redemption,
+        Field(
+            description="Provocation of a channel-point redemption by class (Q-AI-9, Q-ALN-13); no redemption command exists yet, so the weights are read by `provocation.redemption_weight` only."
+        ),
+    ]
+
+
+class Provocation(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    half_life_s: Annotated[
+        float, Field(description="The score halves over this long, unit s of game time.", gt=0.0)
+    ]
+    escalate_threshold: Annotated[
+        float,
+        Field(
+            description="Provocation at which the level reaches ALPHA, unit provocation points.",
+            gt=0.0,
+        ),
+    ]
+    bravo_threshold: Annotated[
+        float,
+        Field(
+            description="Provocation at which the level reaches BRAVO (above escalate_threshold; the loader checks), unit provocation points.",
+            gt=0.0,
+        ),
+    ]
+    weights: Annotated[
+        Weights,
+        Field(
+            description="Points per sensed or suffered action caused by a player-controlled unit."
+        ),
+    ]
+
+
+class Budget(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    pattern_of_life: Annotated[
+        int, Field(description="Budget points per window in this tier.", ge=0)
+    ]
+    alpha: Annotated[int, Field(description="Budget points per window in this tier.", ge=0)]
+    bravo: Annotated[int, Field(description="Budget points per window in this tier.", ge=0)]
+
+
+class MaxLiveUnits(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    pattern_of_life: Annotated[
+        int, Field(description="Live Static units allowed in this tier.", ge=1)
+    ]
+    alpha: Annotated[int, Field(description="Live Static units allowed in this tier.", ge=1)]
+    bravo: Annotated[int, Field(description="Live Static units allowed in this tier.", ge=1)]
+
+
+class Director(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    window_s: Annotated[
+        float,
+        Field(
+            description="The decision window: CP, provocation, tier and budget update once per window, unit s of game time (TD-1, Q-ALN-23).",
+            gt=0.0,
+        ),
+    ]
+    cp: Annotated[Cp, Field(description="Coalition power (THREAT-DIRECTOR §2, Q-TD-2).")]
+    tier: Annotated[Tier, Field(description="Tiers (THREAT-DIRECTOR §3, Q-TD-1).")]
+    provocation: Annotated[
+        Provocation,
+        Field(description="The decaying provocation score (THREAT-DIRECTOR §5a, Q-TD-11)."),
+    ]
+    budget: Annotated[
+        Budget,
+        Field(
+            description="The most budget points one decision window can spend, by tier (Q-TD-5); also capped by the real surplus of the Static's bases."
+        ),
+    ]
+    max_spawns_per_window: Annotated[
+        int,
+        Field(
+            description="The most new Static units per window (Q-TD-12); read by spawning, which is not built yet.",
+            ge=1,
+        ),
+    ]
+    max_live_units: Annotated[
+        MaxLiveUnits,
+        Field(
+            description="The most live Static units by tier (Q-TD-12); read by spawning, which is not built yet."
+        ),
+    ]
+
+
 class BalanceConfig(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -865,3 +1099,4 @@ class BalanceConfig(BaseModel):
     combat: Combat
     campaign: Campaign
     tasking: Tasking
+    director: Director

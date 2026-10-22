@@ -268,6 +268,17 @@ def test_restore_refuses_rules_whose_nodes_differ_from_the_snapshots_owners(
         restore(rig.snaps, rig.logs, handlers=STUB, rules=load_campaign_config().rules)
 
 
+def test_restore_refuses_a_director_state_the_clock_could_not_have_made(
+    tmp_path: Path, make_rig: MakeRig
+) -> None:
+    world = start_campaign(CAMPAIGN_ID, 12345)
+    world.director["ENEMY"].windows = 5  # five 600-tick windows in a 300-tick run (NX-155)
+    rig = make_rig(tmp_path, world=world)
+    rig.run_to(310)
+    with pytest.raises(ValueError, match=r"director\.ENEMY: more windows"):
+        restore(rig.snaps, rig.logs, handlers=STUB, rules=load_campaign_config().rules)
+
+
 def test_system_bug_halts_after_three_crashes(
     tmp_path: Path, make_rig: MakeRig, monkeypatch: pytest.MonkeyPatch
 ) -> None:

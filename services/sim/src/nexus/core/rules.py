@@ -20,18 +20,30 @@ from nexus.contracts.gen.common.enums import (
     NodeOwner,
     Role,
     Side,
+    ThreatTier,
     UnitKind,
 )
-from nexus.contracts.gen.config.balance import Air, Capture, Fow, Logistics, Sim, Slots, Tasking
+from nexus.contracts.gen.config.balance import (
+    Air,
+    Capture,
+    Director,
+    Fow,
+    Logistics,
+    Sim,
+    Slots,
+    Tasking,
+)
 from nexus.contracts.gen.config.balance import Campaign as CampaignBalance
 from nexus.contracts.gen.config.balance import Combat as CombatBalance
 from nexus.contracts.gen.config.roles import Roles
 from nexus.contracts.gen.config.theater import TheaterConfig
 from nexus.contracts.gen.config.unit import UnitConfig
 from nexus.contracts.gen.config.weapons import Weapon
+from nexus.core.geometry import in_polygon
 from nexus.core.roads import RoadGraph
 
 CAPTURE_FULL = 100_000_000  # a full capture bar, in millionths of a percent (NX-125)
+CP_SCALE = 1_000_000  # coalition power and provocation are whole millionths of a point (NX-155)
 
 _LANDING_KINDS = ("AIRBASE", "SANCTUARY")  # aircraft land only here (Q-SIM-38, NX-368)
 _SIDES: tuple[Side, ...] = ("COALITION", "ENEMY")
@@ -163,6 +175,44 @@ class TaskingRules:
 
 
 @dataclass(frozen=True, slots=True)
+class Weights:
+    """Provocation per action, in millionths of a point (Q-SIM-78, Q-TD-11)."""
+
+    destroyed: int
+    damaged: int
+    convoy_hit: int
+    facility_damaged: int
+    facility_disabled: int
+    captured: int
+    scout_in_rear: int
+    redemption_support: int
+    redemption_cosmetic: int
+
+
+@dataclass(frozen=True, slots=True)
+class DirectorRules:
+    """Threat Director part 1 (NX-155, THREAT-DIRECTOR §2-§5a). Coalition power and provocation are
+    whole millionths of a point and the tick counts are game ticks, so every threshold, EMA step and
+    decay is exact integer arithmetic (floor division) and a snapshot restores them bit for bit.
+    `decay` is the per-window multiplier `num / den` of the provocation half-life; `ema` the
+    per-window EMA step. `max_spawns_per_window` and `max_live_units` wait for spawning (part 2)."""
+
+    window_ticks: int
+    cp_value: Mapping[UnitKind, int]  # a kind not listed counts 0
+    ema: tuple[int, int]
+    bravo_enter_cp: int
+    exit_ratio: Fraction
+    min_dwell_ticks: int
+    escalate: int
+    bravo: int
+    decay: tuple[int, int]
+    weights: Weights
+    budget: Mapping[ThreatTier, int]
+    max_spawns_per_window: int
+    max_live_units: Mapping[ThreatTier, int]
+
+
+@dataclass(frozen=True, slots=True)
 class WeaponRules:
     """One weapon profile (COMBAT CB-1..CB-5): `reload_ticks` is `reload_s` in whole world ticks,
     rounded up (CFG-9); `speed_mps` None is a gun, which lands on the fire tick."""
@@ -275,6 +325,10 @@ class Rules:
     combat: CombatRules | None = None  # NX-124; None leaves combat off
     defense: DefenseRules | None = None  # NX-124 part 3; None: nodes have no defense HP
     tasking: TaskingRules | None = None  # NX-374; None leaves the Tasking Boards off
+    director: DirectorRules | None = None  # NX-155; None leaves the Threat Director off
+    # Sector id -> polygon (id order), from the theater (NX-155): where a provocation happened;
+    # `sector_at` finds a point's sector.
+    sectors: tuple[tuple[str, tuple[tuple[int, int], ...]], ...] = ()
 
     def speed(self, kind: UnitKind, state: DamageState) -> float:
         """A unit's top speed now: x `damaged_speed_mult` at Damaged or worse, but an aircraft never
@@ -323,6 +377,77 @@ def tasking_rules(
         threat_memory_ticks=threat_memory_ticks,
         leash_m=cfg.escort_leash_m,
     )
+
+
+_Q = 2**40  # the provocation decay multiplier's denominator
+# The reduced half-life : window ratio p / q may have neither part above this: the bisection below
+# raises numbers to the power p, which stays under a millisecond or so up to 256 (shipped: 15 / 1).
+DECAY_RATIO_MAX = 256
+
+
+def _decay(half_life_ticks: int, window_ticks: int) -> tuple[int, int]:
+    """`2 ** -(window / half_life)` as `m / _Q`: `m` is the largest integer with
+    `(m / _Q) ** p * 2 ** q <= 1`, for `p / q = half_life / window` in lowest terms. An exact
+    integer bisection, no float."""
+    ratio = Fraction(half_life_ticks, window_ticks)
+    p, q = ratio.numerator, ratio.denominator
+    if max(p, q) > DECAY_RATIO_MAX:
+        raise ValueError(
+            f"half-life : window is {p} / {q}; neither part may exceed {DECAY_RATIO_MAX}"
+        )
+    lo, hi = 0, _Q
+    while lo < hi:
+        mid = (lo + hi + 1) // 2
+        if mid**p * 2**q <= _Q**p:
+            lo = mid
+        else:
+            hi = mid - 1
+    return lo, _Q
+
+
+def _micro(value: float) -> int:
+    return round(Fraction(repr(value)) * CP_SCALE)
+
+
+def director_rules(
+    cfg: Director,
+    units: Iterable[UnitConfig],
+    *,
+    window_ticks: int,
+    ema_ticks: int,
+    half_life_ticks: int,
+    min_dwell_ticks: int,
+) -> DirectorRules:
+    """The tick counts are `cfg`'s game-time keys already converted by the config loader. Raises
+    ValueError for a coalition-side kind without a `cp.unit_value` (the threshold order is
+    checked by `load_balance`)."""
+    values = {cast(UnitKind, k): _micro(v) for k, v in cfg.cp.unit_value}
+    missing = sorted(u.kind for u in units if u.side == "COALITION" and u.kind not in values)
+    if missing:
+        raise ValueError(f"director.cp.unit_value has no value for the coalition kinds {missing}")
+    pv = cfg.provocation
+    w, r = pv.weights, pv.weights.redemption
+    return DirectorRules(
+        window_ticks=window_ticks,
+        cp_value=values,
+        ema=(min(window_ticks, ema_ticks), ema_ticks),
+        bravo_enter_cp=_micro(cfg.tier.bravo_enter_cp),
+        exit_ratio=Fraction(repr(cfg.tier.exit_ratio)),
+        min_dwell_ticks=min_dwell_ticks,
+        escalate=_micro(pv.escalate_threshold),
+        bravo=_micro(pv.bravo_threshold),
+        decay=_decay(half_life_ticks, window_ticks),
+        weights=Weights(
+            _micro(w.unit_destroyed), _micro(w.unit_damaged), _micro(w.convoy_hit),
+            _micro(w.facility_damaged), _micro(w.facility_disabled), _micro(w.base_captured),
+            _micro(w.scout_in_rear), _micro(r.support), _micro(r.cosmetic),
+        ),
+        budget={"PATTERN_OF_LIFE": cfg.budget.pattern_of_life, "ALPHA": cfg.budget.alpha,
+                "BRAVO": cfg.budget.bravo},
+        max_spawns_per_window=cfg.max_spawns_per_window,
+        max_live_units={"PATTERN_OF_LIFE": cfg.max_live_units.pattern_of_life,
+                        "ALPHA": cfg.max_live_units.alpha, "BRAVO": cfg.max_live_units.bravo},
+    )  # fmt: skip
 
 
 def world_dt(sim: Sim) -> float:
@@ -538,6 +663,7 @@ def make_rules(
     campaign: CampaignRules | None = None,
     combat: CombatRules | None = None,
     tasking: TaskingRules | None = None,
+    director: DirectorRules | None = None,
 ) -> Rules:
     """`respawn_delay_ticks`, `track_fade_ticks` and `sigint_refresh_ticks` are
     `slots.respawn_delay_s`, `fow.track_fade_s` and `fow.sigint_refresh_s` already converted by
@@ -591,4 +717,18 @@ def make_rules(
         combat=combat,
         defense=_defense(theater, capture, logistics, sim),
         tasking=tasking,
+        director=director,
+        sectors=tuple(
+            (s.id, tuple((x, y) for x, y in s.polygon))
+            for s in sorted(theater.sectors, key=lambda s: s.id)
+        ),
     )
+
+
+def sector_at(rules: Rules, x: float, y: float) -> str | None:
+    """The first sector, by id, whose polygon holds the point (an edge counts as inside); None when
+    outside every one (`nexus.core.geometry`)."""
+    for sector, poly in rules.sectors:
+        if in_polygon(x, y, poly):
+            return sector
+    return None
