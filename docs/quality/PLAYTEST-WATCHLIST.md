@@ -27,4 +27,3 @@ Things the specs deliberately simplified or set to PROPOSED values, to re-check 
 | Spawn location | Free sanctuary spawn; forward deploy only from surplus | Players feel stuck far from the front, or forward bases never qualify | Q-GP-41 |
 | Single supply source | Stock only from the sanctuary by truck; factories parked | Convoys from one source can't keep the front alive | Q-GP-41 |
 | Follower credit | Capped share of the leader's outcome merit | Follow chains become merit farms, or followers feel unrewarded | Q-GP-42 |
-| Director Offensive success | Offensive chain stage → strike → capture with the shipped catalog numbers; no code tilt toward success (Q-SIM-81, Q-SIM-84) | Offensives keep failing at the strike step (in NX-156 QA, all 9 Offensives in 150 forced-BRAVO windows on strait-1 staged, but every strike expired because jets were lost to air defense or fired at units first, Q-SIM-71) | Q-SIM-84 |
