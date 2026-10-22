@@ -210,6 +210,8 @@ def _flip(
 ) -> None:
     before = world.owner[node]
     world.owner[node] = to
+    if before != "NEUTRAL":  # a node lost to the other side opens the counterattack window
+        world.lost[node] = world.campaign.running_ticks + 1
     del world.capture[node]
     reset(world, node)
     out.append(

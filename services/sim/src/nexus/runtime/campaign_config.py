@@ -14,7 +14,14 @@ from typing import cast
 from nexus.contracts.gen.common.enums import Side
 from nexus.contracts.gen.config.balance import BalanceConfig
 from nexus.contracts.gen.config.theater import TheaterConfig
-from nexus.core.rules import Rules, campaign_rules, combat_rules, make_rules, world_dt
+from nexus.core.rules import (
+    Rules,
+    campaign_rules,
+    combat_rules,
+    make_rules,
+    tasking_rules,
+    world_dt,
+)
 from nexus.core.world import Campaign, Vec2, World
 from nexus.runtime.config import (
     canonical_hash,
@@ -96,6 +103,16 @@ def load_campaign_config(paths: ConfigPaths | None = None) -> CampaignConfig:
             disabled_timeout_ticks=game_ticks(balance.combat.disabled_timeout_s, balance),
             assist_window_ticks=game_ticks(balance.combat.assist_window_s, balance),
             crew_marker_ticks=game_ticks(balance.combat.crew_marker_min, balance, unit_s=60),
+        ),
+        tasking=tasking_rules(
+            balance.tasking,
+            claim_lease_ticks=game_ticks(balance.tasking.claim_lease_s, balance),
+            expire_ticks=game_ticks(balance.tasking.expire_min, balance, unit_s=60),
+            ticks_per_min=game_ticks(1, balance, unit_s=60),
+            counterattack_window_ticks=game_ticks(
+                balance.tasking.counterattack_window_min, balance, unit_s=60
+            ),
+            scout_cooldown_ticks=game_ticks(balance.tasking.scout_cooldown_min, balance, unit_s=60),
         ),
     )
     return CampaignConfig(balance, catalog, theater, digest, rules)

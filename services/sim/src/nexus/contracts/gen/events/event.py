@@ -15,6 +15,12 @@ from . import (
     capture_started,
     command_rejected,
     crew_downed,
+    job_claimed,
+    job_created,
+    job_done,
+    job_expired,
+    job_failed,
+    job_released,
     munitions_depleted,
     node_captured,
     node_defenses_down,
@@ -58,7 +64,13 @@ type Event = Annotated[
     | crew_downed.CrewDowned
     | unit_repaired.UnitRepaired
     | node_defenses_down.NodeDefensesDown
-    | node_defenses_restored.NodeDefensesRestored,
+    | node_defenses_restored.NodeDefensesRestored
+    | job_created.JobCreated
+    | job_claimed.JobClaimed
+    | job_released.JobReleased
+    | job_done.JobDone
+    | job_failed.JobFailed
+    | job_expired.JobExpired,
     Field(
         description="Discriminated union of all sim events on kind (CONTRACTS §6).",
         discriminator="kind",

@@ -41,7 +41,9 @@ from nexus.runtime.units import load_catalog
 
 CONFIG = load_campaign_config()
 # No campaign layer, no sensing pass: these tests are about combat (NX-126, NX-150).
-RULES = dataclasses.replace(CONFIG.rules, campaign=None, track_every_ticks=10**9)
+RULES = dataclasses.replace(
+    CONFIG.rules, campaign=None, tasking=None, track_every_ticks=10**9
+)  # NX-374: board off
 
 
 def _combat(rules: Rules) -> CombatRules:

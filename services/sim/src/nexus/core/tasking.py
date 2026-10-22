@@ -1,0 +1,574 @@
+"""The Tasking Board: jobs, leases, assignment and outcomes for both sides (GAMEPLAY §1b, TB-1 to
+TB-10; STATE-MACHINES §4.1 Holding; SIM-CORE SC-5, SC-11, SC-13; NX-374, Q-SIM-73).
+
+`World.boards[side]` holds a side's live jobs (`nexus.core.world.Job`); a job that reaches DONE,
+FAILED or EXPIRED leaves the board in that pass and its event is the durable record (TB-10). `run`
+is the `director` slot (SC-13), before `movement`. Every `tasking.reeval_every_ticks` running ticks
+(TB-6: the pass at running tick `now = running_ticks + 1` is due when it divides `now`), and never
+while frozen (SC-11), for each side in COALITION, ENEMY order:
+
+1. **Order completion.** A GOTO order ends when its unit has no path, no cargo and no capture bar of
+   its side filling where it stands (it arrived, its unloading stop or capture run ended); a HOLD
+   never ends. An order keeps the board off the unit (TB-7).
+2. **Settle.** A claim is released (`JobReleased`) when its unit is lost, Disabled, sent home (RTB)
+   or given an explicit order (a human order wins, TB-7). A unit with a path, or arrived, has made
+   progress: its claim becomes ACTIVE and its lease clock restarts; with none for
+   `tasking.claim_lease_s` the claim is released and the job is OPEN again (TB-1). Then the outcome:
+   - RESUPPLY: DONE when a claimant stands at the node with its cargo gone (the delivery stop
+     ended); FAILED when the side lost the node. DEFEND: FAILED likewise; DONE when a claimant
+     stands at the node and the threat is gone (no bar of the other side, and the side tracks no
+     enemy GROUND unit within `tasking.defend_radius_m`)). STRIKE: DONE when the node's
+     defense hp is 0 or the side owns it. SCOUT: DONE when a claimant has arrived at the blob's
+     cell. ASSIST_OBJECTIVE and an objective's STRIKE also end with the objective (`on_objective`).
+   - DONE needs a participant (a live ACTIVE claimant), else EXPIRED. A job with no claim expires
+     `tasking.expire_min` after posting (an objective's job: with the objective).
+   - A job that depends on an ended one (TB-8) loses the dependency when it was DONE, else FAILS.
+3. **Generate** (`nexus.core.tasking_gen`, from the side's `SideView`, TB-9) and post by dedupe key
+   (`post_job`, TB-4; later also the director's entry). An unclaimed generated job that is no
+   longer generated expires.
+4. **Assign** (TB-2, TB-5, TB-7). Each idle unit of the side (aircraft or ground, not Disabled, no
+   path, not RTB, no job, no explicit order), in id order, takes the first job in rank order that
+   fits it (`fits`), has no open dependency, may be taken by it, has a free slot (when every
+   fitting job is full: any) and is feasible. Rank: `tasking.priority.<kind>` x urgency +
+   `priority_aging_per_min` x game minutes waited, an exact Fraction, highest first; runs of equal
+   priority are ordered by one `tasking` draw each, in job id order, then by id. Feasible: a
+   GROUND unit has a road route (an empty truck on a resupply job reloads at a source first);
+   an aircraft reaches the target and a landing base of its side with the bingo reserve left,
+   its straight route crosses no discovered, not-Disabled enemy air-defense ring unless the
+   target is that site's base (`crosses_ring`, also applied to a parameterless JOIN), and a strike
+   job needs a round. A carrier (truck, convoy) fits resupply jobs only. An
+   aircraft that fails only for fuel or rounds takes a refuel step instead: it flies to the
+   nearest landing base with stock, where `logistics` restocks it, and tries again next pass. A
+   claim sets the path: a GROUND unit by road, an aircraft straight.
+
+A non-garrison unit may displace an AI garrison claimant (Q-TD-11). An AI garrison unit takes
+DEFEND, RESUPPLY and SCOUT freely and any other job only once a COMMANDER-owned unit holds a claim
+on it (it never initiates offense). A parameterless JOIN takes the best job at once
+(`joinable_jobs`, ties by id). For `tasking.counterattack_window_min` after its side loses a node
+(`World.lost`) the garrison may also take strike and assist-objective jobs against it (Q-GD-31).
+Deterministic: integers and Fractions, jobs and units in id order, one RNG stream.
+"""
+
+import math
+from collections.abc import Sequence
+from fractions import Fraction
+from typing import Any, Literal
+
+from nexus.contracts.gen.common.enums import JobKind, Side, UnitKind
+from nexus.contracts.gen.events.event import Event
+from nexus.contracts.gen.events.job_claimed import JobClaimed
+from nexus.contracts.gen.events.job_created import JobCreated
+from nexus.contracts.gen.events.job_done import JobDone, Participant
+from nexus.contracts.gen.events.job_expired import JobExpired
+from nexus.contracts.gen.events.job_failed import JobFailed
+from nexus.core.fog import side_view
+from nexus.core.logistics import Run, load, nearest_base, plan_run
+from nexus.core.rng import PcgStream, RngStream
+from nexus.core.roads import shortest_path
+from nexus.core.rules import Rules, TaskingRules
+from nexus.core.tasking_gen import GENERATED, JobSpec, fits, generate
+from nexus.core.world import SIDES, Claim, Entity, Job, Vec2, World, release_claim
+
+type Outcome = Literal["DONE", "FAILED", "EXPIRED"]
+type Verdict = Literal["ok", "refuel", "no"]
+type Routes = dict[tuple[str, str], list[str] | None]
+_AIR, _GROUND = "AIR", "GROUND"
+_AI, _HUMAN = "AI_GARRISON", "COMMANDER"
+_NO_BLOCKED = frozenset[str]()  # no bridge is destroyed until NX-373
+_GARRISON_JOBS: frozenset[JobKind] = frozenset({"DEFEND", "RESUPPLY", "SCOUT"})
+_MAX_PARTICIPANTS = 64  # JobDone.participants maxItems
+_TIE_DRAW = 1 << 32
+_OVERFILL = 2  # when every job is full, a job takes units up to this many times its slots
+
+
+def _now(world: World) -> int:
+    """The running tick being computed, on the campaign clock."""
+    return world.campaign.running_ticks + 1
+
+
+def _base(world: World) -> dict[str, Any]:
+    return {
+        "tick": world.campaign.tick + 1,
+        "event_seq": world.next_event_seq(),
+        "campaign_id": world.campaign.id,
+    }
+
+
+def priority(tr: TaskingRules, job: Job, now: int) -> Fraction:
+    """`tasking.priority.<kind>` x urgency, plus linear aging per game minute waited (TB-3)."""
+    waited = Fraction(now - job.created, tr.ticks_per_min)
+    return tr.priority[job.kind] * Fraction(job.urgency, 1000) + tr.aging_per_min * waited
+
+
+def rank(tr: TaskingRules, jobs: Sequence[Job], now: int, tie: PcgStream | None) -> list[Job]:
+    """Best first: priority descending, then job id. With `tie`, each run of equal priority is
+    ordered by one draw per job (in id order) before the id (TB-5); without, by id alone."""
+    scored = sorted(((priority(tr, j, now), j) for j in jobs), key=lambda pj: (-pj[0], pj[1].id))
+    out: list[Job] = []
+    i = 0
+    while i < len(scored):
+        j = i
+        while j < len(scored) and scored[j][0] == scored[i][0]:
+            j += 1
+        run = [job for _, job in scored[i:j]]
+        if tie is not None and len(run) > 1:
+            draws = {job.id: tie.randbelow(_TIE_DRAW) for job in run}
+            run.sort(key=lambda job: (draws[job.id], job.id))
+        out += run
+        i = j
+    return out
+
+
+def post_job(world: World, side: Side, spec: JobSpec, out: list[Event]) -> Job:
+    """Post a job to `side`'s board, or update the live job with the same dedupe key instead of
+    adding a second one (TB-4: slots and urgency follow the new spec, the posting time and expiry
+    stay). The one entry for the generator and, later, the director's operation templates."""
+    tr = _rules(world)[1]
+    board = world.boards[side]
+    job = next((j for j in board.values() if j.key == spec.key), None)
+    if job is not None:
+        job.slots, job.urgency = spec.slots, spec.urgency
+        if spec.blob is not None:
+            job.blob, job.pos = spec.blob, spec.pos
+        if spec.objective is not None:  # e.g. a marker strike that became the objective
+            job.objective, job.expires = spec.objective, None
+        return job
+    now = _now(world)
+    job = Job(
+        world.next_job_id(), spec.kind, spec.key, spec.slots, spec.urgency, now, spec.node,
+        spec.blob, spec.pos, None if spec.objective is not None else now + tr.expire_ticks,
+        spec.depends_on, spec.objective,
+    )  # fmt: skip
+    board[job.id] = job
+    out.append(
+        JobCreated.model_construct(
+            kind="JobCreated",
+            **_base(world),
+            job_id=job.id,
+            side=side,
+            job_kind=job.kind,
+            node_id=job.node,
+            blob_id=job.blob,
+            slots=job.slots,
+            depends_on_job_id=job.depends_on,
+        )
+    )
+    return job
+
+
+def _rules(world: World) -> tuple[Rules, TaskingRules]:
+    if world.rules is None or world.rules.tasking is None:
+        raise ValueError("the Tasking Board needs the world's rules with tasking rules")
+    return world.rules, world.rules.tasking
+
+
+def _is_ai(world: World, entity_id: int) -> bool:
+    e = world.find(entity_id)
+    return e is not None and e.owner_kind == _AI
+
+
+def _full(world: World, job: Job, *, ai: bool) -> bool:
+    """No free slot for a unit (`ai`: an AI garrison unit). Any other unit does not count the
+    garrison's claims: it displaces one (`claim`)."""
+    if ai:
+        return len(job.claims) >= job.slots
+    humans = 0
+    for i in job.claims:
+        humans += not _is_ai(world, i)
+        if humans >= job.slots:
+            return True
+    return False
+
+
+def _open(world: World, pool: list[Job], *, ai: bool) -> list[Job]:
+    """The jobs a unit may take, in rank order: those with a free slot, else (every one full) those
+    not yet at `_OVERFILL` times their slots; beyond that the unit waits for the next pass."""
+    free = [j for j in pool if not _full(world, j, ai=ai)]
+    return free or [j for j in pool if len(j.claims) < _OVERFILL * j.slots]
+
+
+def _may_take(world: World, tr: TaskingRules, e: Entity, job: Job) -> bool:
+    """An AI garrison unit never initiates offense: outside its own jobs it joins only a job a
+    COMMANDER-owned unit already holds (GAMEPLAY §1b, Q-GD-26), or a strike or assist-objective
+    job against a node its side lost within `tasking.counterattack_window_min` (Q-GD-31)."""
+    if e.owner_kind != _AI or job.kind in _GARRISON_JOBS:
+        return True
+    lost = world.lost.get(job.node or "")
+    owner = world.owner.get(job.node or "")
+    if lost is not None and _now(world) - lost < tr.counterattack_window_ticks:
+        if owner not in (e.side, "NEUTRAL"):
+            return True
+    return any((c := world.find(i)) is not None and c.owner_kind == _HUMAN for i in job.claims)
+
+
+def claim(world: World, e: Entity, job: Job, out: list[Event]) -> None:
+    """`e` takes a slot of `job` (JobClaimed; the lease starts). A job whose slots are full gives
+    one to a non-garrison unit by releasing its AI garrison claimant with the highest entity id
+    (Q-TD-11), which stops where it is (an aircraft orbits; a ground unit finishes its road leg); a
+    job full of humans is overfilled, which only happens when every job is full. Claims are kept in
+    entity-id order, as a snapshot restores them, so a restored world emits the same events."""
+    if e.owner_kind != _AI and len(job.claims) >= job.slots and not _full(world, job, ai=False):
+        evicted = max(i for i in job.claims if _is_ai(world, i))
+        release_claim(world, job, evicted, out)
+        if (v := world.find(evicted)) is not None:
+            v.path = (
+                v.path[:1]
+                if v.path and world.rules and world.rules.domain[v.kind] == _GROUND
+                else []
+            )
+    job.claims[e.id] = Claim(_now(world))
+    job.claims = dict(sorted(job.claims.items()))
+    e.job_id = job.id
+    out.append(
+        JobClaimed.model_construct(kind="JobClaimed", **_base(world), job_id=job.id, entity_id=e.id)
+    )
+
+
+def joinable_jobs(world: World, kind: UnitKind) -> list[Job]:
+    """The coalition jobs a new `kind` unit may take on a parameterless JOIN (Q-GP-23), best first:
+    it fits the kind, has no open dependency and a free slot (every one full: up to the overfill
+    cap), by priority then job id. The caller plans the first it can route and that an aircraft's
+    route danger allows (`crosses_ring`); a new unit is full of fuel and rounds."""
+    if world.rules is None or world.rules.tasking is None:
+        return []  # the boards are off
+    rules, tr = world.rules, world.rules.tasking
+    jobs = [
+        j for j in world.boards["COALITION"].values()
+        if j.depends_on is None and fits(rules, kind, j.kind)
+    ]  # fmt: skip
+    return rank(tr, _open(world, jobs, ai=False), _now(world), None)
+
+
+def run(world: World, out: list[Event]) -> None:
+    """The `director` slot (module docstring)."""
+    if world.frozen or world.rules is None or world.rules.tasking is None:
+        return
+    rules, tr = world.rules, world.rules.tasking
+    now = _now(world)
+    if now % tr.reeval_every_ticks:
+        return
+    world.lost = {n: t for n, t in world.lost.items() if now - t < tr.counterattack_window_ticks}
+    for side in SIDES:
+        world.cooldown[side] = {c: u for c, u in world.cooldown[side].items() if u > now}
+    for e in world.entities():
+        if e.order == "GOTO" and not e.path and not e.cargo and not _capturing(world, rules, e):
+            e.order = None  # arrived (a truck: its stop ended, any capture run done)
+    routes: Routes = {}  # road routes found this pass, shared by every unit
+    for side in SIDES:
+        _settle(world, rules, tr, side, now, routes, out)
+        specs = generate(world, rules, tr, side, side_view(world, side))
+        for spec in specs:
+            post_job(world, side, spec, out)
+        wanted = {s.key for s in specs}
+        for job in list(world.boards[side].values()):
+            if job.key.startswith(GENERATED) and job.key not in wanted and not job.claims:
+                _end(world, side, job, "EXPIRED", out)  # its condition ended
+        _assign(world, rules, tr, side, now, routes, out)
+
+
+def _capturing(world: World, rules: Rules, e: Entity) -> bool:
+    """A ground unit standing where its side's capture bar is filling: its capture run goes on."""
+    bar = world.capture.get(e.last_node or "")
+    return rules.domain[e.kind] == _GROUND and bar is not None and bar.side == e.side
+
+
+def on_objective(world: World, objective_id: int, completed: bool, out: list[Event]) -> None:
+    """The objective resolved (`nexus.core.campaign`): its jobs end, DONE if it was completed and
+    a claimant made progress, else EXPIRED."""
+    for side in SIDES:
+        for job in list(world.boards[side].values()):
+            if job.objective == objective_id and job.id in world.boards[side]:
+                done = completed and _participants(world, job)
+                _end(world, side, job, "DONE" if done else "EXPIRED", out)
+
+
+def _arrived(e: Entity, job: Job) -> bool:
+    """At the job's target with nothing left to fly or drive: a node job when `last_node` is the
+    node; a blob job when the aircraft is orbiting at the end of its path."""
+    if e.path:
+        return False
+    return e.last_node == job.node if job.node is not None else e.state == "ON_STATION"
+
+
+def _settle(
+    world: World, rules: Rules, tr: TaskingRules, side: Side, now: int, routes: Routes,
+    out: list[Event],
+) -> None:  # fmt: skip
+    board = world.boards[side]
+    for job in list(board.values()):
+        if job.id not in board:
+            continue  # ended by a dependency cascade
+        for entity_id, c in list(job.claims.items()):
+            e = world.find(entity_id)
+            if e is not None and e.pickup is not None and not e.path and e.last_node == e.pickup:
+                if not _load_at_source(
+                    world, rules, routes, e, job
+                ):  # the reload step reached its source
+                    release_claim(world, job, entity_id, out)  # ... and found nothing to load
+                    continue
+            if e is None or e.damage_state == "DISABLED" or e.state == "RTB" or e.order is not None:
+                release_claim(world, job, entity_id, out)  # lost, sent home, or a human order wins
+            elif e.path or _arrived(e, job):
+                c.at, c.active = now, True
+            elif now - c.at >= tr.claim_lease_ticks:
+                release_claim(world, job, entity_id, out)  # no progress for the whole lease
+        outcome = _outcome(world, rules, tr, side, job, now)
+        if outcome is not None:
+            _end(world, side, job, outcome, out)
+
+
+def _present(world: World, job: Job, *, delivered: bool = False) -> bool:
+    """A live claimant has arrived (with its cargo gone, for a delivery)."""
+    return any(
+        (e := world.find(i)) is not None and _arrived(e, job) and not (delivered and e.cargo)
+        for i in job.claims
+    )
+
+
+def _menaced(world: World, rules: Rules, tr: TaskingRules, side: Side, node: str) -> bool:
+    """The other side's bar is on the node, or the side tracks an enemy ground unit within
+    `tasking.defend_radius_m` of it (what the side knows, as when the job was posted)."""
+    bar = world.capture.get(node)
+    if bar is not None and bar.side != side:
+        return True
+    x, y = rules.roads.pos[node]
+    return any(
+        c.age is None and rules.domain[c.kind] == _GROUND
+        and math.hypot(c.pos.x - x, c.pos.y - y) <= tr.defend_radius_m
+        for c in world.contacts[side].values()
+    )  # fmt: skip
+
+
+def _verdict(world: World, rules: Rules, tr: TaskingRules, side: Side, job: Job) -> Outcome | None:
+    node = job.node
+    lost = node is not None and world.owner.get(node) != side
+    match job.kind:
+        case "RESUPPLY":
+            if lost:
+                return "FAILED"
+            return "DONE" if _present(world, job, delivered=True) else None
+        case "DEFEND":
+            if lost:
+                return "FAILED"
+            held = node is not None and _present(world, job)
+            return "DONE" if held and not _menaced(world, rules, tr, side, str(node)) else None
+        case "STRIKE":
+            fallen = node is not None and (not lost or not world.defense_hp.get(node, 0))
+            return "DONE" if fallen else None
+        case "SCOUT":
+            return "DONE" if _present(world, job) else None
+    return None  # ASSIST_OBJECTIVE ends with its objective
+
+
+def _outcome(
+    world: World, rules: Rules, tr: TaskingRules, side: Side, job: Job, now: int
+) -> Outcome | None:
+    verdict = _verdict(world, rules, tr, side, job)
+    if verdict == "DONE" and not _participants(world, job):
+        verdict = "EXPIRED"  # nobody to credit
+    if verdict is None and not job.claims and job.expires is not None and now >= job.expires:
+        verdict = "EXPIRED"
+    return verdict
+
+
+def _participants(world: World, job: Job) -> list[Entity]:
+    return [
+        e for i, c in sorted(job.claims.items()) if c.active and (e := world.find(i)) is not None
+    ]
+
+
+def _end(world: World, side: Side, job: Job, outcome: Outcome, out: list[Event]) -> None:
+    """Remove the job, free its claimants and emit its outcome; jobs that depend on it lose the
+    dependency (DONE) or fail with it (TB-8)."""
+    board = world.boards[side]
+    people = _participants(world, job)[:_MAX_PARTICIPANTS]
+    for i in job.claims:
+        if (e := world.find(i)) is not None:
+            e.job_id = e.pickup = None
+    if outcome == "DONE" and job.blob is not None and world.rules and world.rules.tasking:
+        until = _now(world) + world.rules.tasking.scout_cooldown_ticks
+        # The cell is not posted again yet; blob ids are `<refresh_tick>-<cell>` (Q-SIM-47).
+        world.cooldown[side][job.blob.split("-")[-1]] = until
+    del board[job.id]
+    base = {**_base(world), "job_id": job.id}
+    if outcome == "DONE":
+        done = [
+            Participant(entity_id=e.id, commander_id=e.commander_id, auto=False) for e in people
+        ]
+        out.append(JobDone.model_construct(kind="JobDone", **base, participants=done))
+    elif outcome == "FAILED":
+        out.append(JobFailed.model_construct(kind="JobFailed", **base))
+    else:
+        out.append(JobExpired.model_construct(kind="JobExpired", **base))
+    for dep in [j for j in board.values() if j.depends_on == job.id]:
+        if outcome == "DONE":
+            dep.depends_on = None
+        else:
+            _end(world, side, dep, "FAILED", out)
+
+
+def _idle(rules: Rules, e: Entity, side: Side) -> bool:
+    return (
+        e.side == side and e.job_id is None and e.order is None and not e.path
+        and e.damage_state != "DISABLED" and e.state != "RTB"
+        and rules.domain[e.kind] in (_AIR, _GROUND)
+    )  # fmt: skip
+
+
+def _assign(
+    world: World, rules: Rules, tr: TaskingRules, side: Side, now: int, routes: Routes,
+    out: list[Event],
+) -> None:  # fmt: skip
+    jobs = list(world.boards[side].values())
+    if not jobs:
+        return
+    idle = sorted((e for e in world.entities() if _idle(rules, e, side)), key=lambda e: e.id)
+    if not idle:
+        return
+    ranked = rank(tr, jobs, now, world.rng.stream(RngStream.TASKING))
+    for e in idle:
+        pool = [
+            j for j in ranked
+            if j.depends_on is None and fits(rules, e.kind, j.kind) and _may_take(world, tr, e, j)
+        ]  # fmt: skip
+        for job in _open(world, pool, ai=e.owner_kind == _AI):
+            verdict = _feasible(world, rules, routes, e, job)
+            if verdict == "no":
+                continue
+            if verdict == "ok":
+                claim(world, e, job, out)
+                _dispatch(world, rules, routes, e, job)
+            else:
+                _refuel(world, rules, e)
+            break
+
+
+def _waypoint(job: Job) -> str | Vec2:
+    """Where the job is: its node, or the blob's cell centre."""
+    target = job.node if job.node is not None else job.pos
+    if target is None:
+        raise ValueError(f"job {job.id} has no target")
+    return target
+
+
+def _road(rules: Rules, routes: Routes, a: str, b: str) -> list[str] | None:
+    """The road route `a` to `b`, found once per pass (roads and blocked bridges do not change
+    inside one)."""
+    if (a, b) not in routes:
+        routes[a, b] = shortest_path(rules.roads, a, b, blocked=_NO_BLOCKED)
+    return routes[a, b]
+
+
+def _route(rules: Rules, routes: Routes, e: Entity, job: Job) -> list[str] | None:
+    """A ground unit's road route from the node it stands on, or None (not on a node, no road)."""
+    if e.last_node is None or job.node is None or e.pos != Vec2(*rules.roads.pos[e.last_node]):
+        return None
+    return _road(rules, routes, e.last_node, job.node)
+
+
+def _reaches(rules: Rules, e: Entity, job: Job, bases: tuple[str, ...], fuel: float) -> bool:
+    """Out to the target and on to the nearest landing base with the bingo reserve left (NX-368)."""
+    goal = _waypoint(job)
+    x, y = rules.roads.pos[goal] if isinstance(goal, str) else (goal.x, goal.y)
+    back = min(math.hypot(bx - x, by - y) for b in bases for bx, by in [rules.roads.pos[b]])
+    out = math.hypot(x - e.pos.x, y - e.pos.y)
+    reserve = rules.bingo_reserve_frac * rules.fuel_s[e.kind]
+    return fuel > (out + back) / rules.speed(e.kind, e.damage_state) + reserve
+
+
+def _feasible(world: World, rules: Rules, routes: Routes, e: Entity, job: Job) -> Verdict:
+    """TB-2. `refuel`: it fails now, but a full tank and load (a rearm step) would do."""
+    if rules.domain[e.kind] == _GROUND:
+        if job.kind == "RESUPPLY" and not e.cargo:
+            return "ok" if _reload_plan(world, rules, routes, e, job) is not None else "no"
+        return "no" if _route(rules, routes, e, job) is None else "ok"
+    bases = world.landing_bases(e.side)
+    if not bases or e.fuel is None or crosses_ring(world, rules, e.side, e.pos, job):
+        return "no"
+    armed = job.kind != "STRIKE" or any(e.ammo)
+    if armed and _reaches(rules, e, job, bases, e.fuel):
+        return "ok"
+    return "refuel" if _reaches(rules, e, job, bases, rules.fuel_s[e.kind]) else "no"
+
+
+def _dispatch(world: World, rules: Rules, routes: Routes, e: Entity, job: Job) -> None:
+    if rules.domain[e.kind] == _AIR:
+        e.path = [_waypoint(job)]
+        return
+    if job.kind == "RESUPPLY" and not e.cargo:  # reload first (Q-SIM-74)
+        run = _reload_plan(world, rules, routes, e, job)
+        if run is None:
+            return
+        if run.source == e.last_node:
+            _load(world, e, run.source)
+        else:
+            e.pickup = run.source
+            e.path = [*(_road(rules, routes, str(e.last_node), run.source) or [])]
+            return
+    route = _route(rules, routes, e, job)
+    e.path = [] if route is None else [*route]
+
+
+def _reload_plan(world: World, rules: Rules, routes: Routes, e: Entity, job: Job) -> Run | None:
+    """Where an empty truck loads for a resupply job: the JOIN source rule (`plan_run`: the nearest
+    friendly base with surplus to the destination, never the destination, the sanctuary last),
+    provided there is something to carry and the truck can drive there."""
+    if e.last_node is None or job.node is None:
+        return None
+    run = plan_run(world, rules, e.side, job.node)
+    if run is None or run.cargo <= 0:
+        return None
+    return run if _road(rules, routes, e.last_node, run.source) is not None else None
+
+
+def crosses_ring(world: World, rules: Rules, side: Side, start: Vec2, job: Job) -> bool:
+    """TB-2 route danger: the straight line from `start` to the target passes within the
+    engagement ring of an enemy site the side has discovered and last saw not Disabled, unless
+    the target is that site's own base."""
+    goal = _waypoint(job)
+    gx, gy = rules.roads.pos[goal] if isinstance(goal, str) else (goal.x, goal.y)
+    dx, dy = gx - start.x, gy - start.y
+    length2 = dx * dx + dy * dy
+    for m in world.markers[side].values():
+        if m.ring_m is None or m.state == "DISABLED" or (m.pos.x, m.pos.y) == (gx, gy):
+            continue
+        k = (
+            0.0
+            if length2 == 0
+            else max(0.0, min(1.0, ((m.pos.x - start.x) * dx + (m.pos.y - start.y) * dy) / length2))
+        )
+        if math.hypot(start.x + k * dx - m.pos.x, start.y + k * dy - m.pos.y) <= m.ring_m:
+            return True
+    return False
+
+
+def _load(world: World, e: Entity, source: str) -> None:
+    """Load as a spawn does: `min(truck_cargo, surplus)` leaves the source's stock (the sanctuary
+    is infinite), so stock plus cargo is conserved."""
+    sup = world.rules.supply if world.rules else None
+    if sup is None:
+        return
+    surplus = world.stock[source] - sup.starve_floor[source] if source in world.stock else None
+    cargo = sup.truck_cargo if surplus is None else max(0, min(sup.truck_cargo, surplus))
+    load(world, Run(source, cargo, []))
+    e.cargo = cargo
+
+
+def _load_at_source(world: World, rules: Rules, routes: Routes, e: Entity, job: Job) -> bool:
+    """The truck reached its source: load and head for the destination. False: nothing to carry,
+    or no road on (the truck keeps no path then)."""
+    source = e.pickup or ""
+    e.pickup = None
+    if world.owner.get(source) == e.side:
+        _load(world, e, source)
+    route = _route(rules, routes, e, job) if e.cargo else None
+    e.path = [] if route is None else [*route]
+    return route is not None
+
+
+def _refuel(world: World, rules: Rules, e: Entity) -> None:
+    """The rearm/refuel step (GAMEPLAY §1b, Q-GD-17): head for the nearest landing base of the
+    side that has stock, unless already landed at one (`logistics` restocks it there)."""
+    bases = tuple(b for b in world.landing_bases(e.side) if b not in world.stock or world.stock[b])
+    if bases and not (e.state == "LANDED" and e.last_node in bases):
+        e.path, e.orbit = [nearest_base(e, rules, bases)[1]], None

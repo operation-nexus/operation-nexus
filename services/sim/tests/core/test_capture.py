@@ -29,8 +29,8 @@ from nexus.core.step import step
 from nexus.core.world import CaptureBar, Contact, Entity, Vec2, World, load, save, state_hash
 from nexus.runtime.campaign_config import load_campaign_config, start_campaign
 
-CONFIG = load_campaign_config()
-RULES = CONFIG.rules
+RULES = dataclasses.replace(load_campaign_config().rules, tasking=None)  # NX-374: board off
+CONFIG = dataclasses.replace(load_campaign_config(), rules=RULES)
 POS = RULES.roads.pos
 CAMPAIGN_ID = "0192f3a4-5b6c-7d8e-9f01-23456789abcd"
 NEUTRAL_FOB = "cross-n"
@@ -143,6 +143,7 @@ def test_the_flip_lands_on_the_first_tick_the_bar_reaches_full_and_never_twice()
     assert (captured.from_, captured.to, captured.tick) == ("NEUTRAL", "COALITION", 121)
     assert captured.participant_commander_ids == []  # an AI unit has no commander
     assert w.owner[NEUTRAL_FOB] == "COALITION" and NEUTRAL_FOB not in w.capture
+    assert w.lost == {}  # taking a neutral node loses nobody anything
     assert of(run(w, 50), NodeCaptured) == []  # an owner is never a capturer
 
 
@@ -417,6 +418,7 @@ def test_a_flip_switches_the_nodes_facilities_keeping_damage_and_keeps_the_stock
     put(w, INFANTRY, "COALITION", ENEMY_FOB)
     (captured,) = of(run(w), NodeCaptured)
     assert (captured.from_, captured.to) == ("ENEMY", "COALITION")
+    assert w.lost == {ENEMY_FOB: 1}  # the Static lost it on running tick 1 (counterattack window)
     assert (site.side, site.hp, site.owner_kind) == ("COALITION", 77, "AI_GARRISON")
     other = next(e for e in w.entities() if e.base_id == "fob-s-e")
     assert other.side == "ENEMY"  # another base's facility is untouched

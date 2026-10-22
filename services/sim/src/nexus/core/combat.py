@@ -65,6 +65,7 @@ from nexus.core.world import (
     Entity,
     Shot,
     World,
+    drop_claim,
     end_rearm,
     lose_unit,
     roll_crew,
@@ -397,6 +398,7 @@ def _destroy(
 def _remove_wrecks(world: World, out: list[Event]) -> None:
     for e in [e for e in world.entities() if e.wreck_left == 0]:
         end_rearm(world, e, out)
+        drop_claim(world, e, out)
         world.remove(e.id)
         if e.commander_id is not None:
             world.record_loss(e.commander_id)

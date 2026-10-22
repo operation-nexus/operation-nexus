@@ -17,6 +17,8 @@ the pending `shots` with their id counter (NX-124): thresholds, reloads and impa
 integers. So are the downed-crew markers with their id counter, and the rest of each rearm stop's
 progress (`ammo_credit`, `repair_milli`, `repair_debt`; NX-124 part 2). So are each node's
 defense hp with its starvation-drain carry, the defeat run and the shots at nodes (NX-124 part 3).
+So are both sides' Tasking Boards with their job counter, and each entity's explicit order and
+claimed job (NX-374): leases, expiries and urgencies are integers.
 So are each node's `stock` and each carrier's `cargo` (integer stock units) with its
 `unload_milli` progress and `delivered` count (NX-123), and each aircraft's refuel progress
 (`rearm_milli`, `rearm_spent`,
@@ -40,6 +42,7 @@ from nexus.contracts.gen.commands.join import JoinCommand
 from nexus.contracts.gen.common.enums import (
     AltBand,
     DamageState,
+    JobKind,
     NodeOwner,
     OwnerKind,
     PauseReasonCategory,
@@ -49,6 +52,7 @@ from nexus.contracts.gen.common.enums import (
 )
 from nexus.contracts.gen.events.crew_downed import CrewDowned, Pos
 from nexus.contracts.gen.events.event import Event
+from nexus.contracts.gen.events.job_released import JobReleased
 from nexus.contracts.gen.events.supply_consumed import SupplyConsumed
 from nexus.contracts.gen.events.supply_delivered import SupplyDelivered
 from nexus.contracts.gen.events.unit_damage_state_changed import UnitDamageStateChanged
@@ -65,13 +69,18 @@ from nexus.core.rules import CAPTURE_FULL, Rules
 # (NX-126); 14: Entity.hp is always real, damage_state, alt_band, ammo, reload, wreck_left, and the
 # pending shots (NX-124); 15: Entity.ammo_credit, repair_milli and repair_debt, the downed-crew
 # markers (NX-124 part 2); 16: node defense hp and drain carry, Campaign.defeat_ticks, structure
-# shots, FacilityMarker.ring_m and state (NX-124 part 3)
-FORMAT_VERSION = 16
+# shots, FacilityMarker.ring_m and state (NX-124 part 3); 17: the Tasking Boards and their job
+# counter, Entity.order and Entity.job_id (NX-374)
+FORMAT_VERSION = 17
 _MM = 1000.0  # metres -> millimetres; m/s -> mm/s
 _MICRO = 1e6  # ADR-0002's 1e-6 step for other floats (fuel)
 _MILLI_UNIT = 1000  # thousandths of a stock unit per unit
 _MAX_ABS = 1e9  # m or m/s; keeps mm quantization well inside int64
 _BLOBS = "blobs"
+_BLOB_RUNS = "blob_runs"
+_BOARDS = "boards"
+_COOLDOWN = "cooldown"
+_LOST = "lost"
 _CAPTURE = "capture"
 _CAMPAIGN = "campaign"
 _CONTACTS = "contacts"
@@ -85,6 +94,7 @@ _ENTITIES = "entities"
 _CALLSIGNS = "callsigns"
 _RESPAWN_LEFT = "respawn_left"
 _SHOTS = "shots"
+_NEXT_JOB_ID = "next_job_id"
 _NEXT_MARKER_ID = "next_marker_id"
 _NEXT_SHOT_ID = "next_shot_id"
 _RESERVE_QUEUE = "reserve_queue"
@@ -95,20 +105,31 @@ _RNG = "rng"
 _SIGINT_AGE = "sigint_age"
 _STOCK = "stock"
 _V = "v"
+# The dedupe-key prefix of each job kind the board generates (`nexus.core.tasking_gen`); a key with
+# one must name the job's own target (`load` checks it).
+JOB_KEY_PREFIX = {
+    "RESUPPLY": "resupply:", "DEFEND": "defend:", "STRIKE": "strike:",
+    "ASSIST_OBJECTIVE": "assist:", "SCOUT": "scout:",
+}  # fmt: skip
 _WORLD_KEYS = (
+    _BLOB_RUNS,
     _BLOBS,
+    _BOARDS,
     _CALLSIGNS,
     _CAMPAIGN,
     _CAPTURE,
     _CONTACTS,
+    _COOLDOWN,
     _CREW_MARKERS,
     _DEFENSE_DOWN,
     _DEFENSE_DRAIN,
     _DEFENSE_HP,
     _ENTITIES,
+    _LOST,
     _MARKERS,
     _NEXT_ENTITY_ID,
     _NEXT_EVENT_SEQ,
+    _NEXT_JOB_ID,
     _NEXT_MARKER_ID,
     _NEXT_SHOT_ID,
     _OBJECTIVE,
@@ -143,6 +164,7 @@ _PAUSE_REASONS = _literal_values(PauseReasonCategory)
 _PAUSE_SUB_REASONS = _literal_values(StaffPauseSubReason)
 _DAMAGE_STATES = _literal_values(DamageState)
 _ALT_BANDS = _literal_values(AltBand)
+_JOB_KINDS = _literal_values(JobKind)
 
 
 @dataclass(frozen=True, slots=True)
@@ -167,6 +189,10 @@ _ZERO = Vec2(0.0, 0.0)
 # event carries a unit state; then it moves to contracts/common/enums.json.
 type UnitState = Literal["LANDED", "EN_ROUTE", "ON_STATION", "RTB"]
 _UNIT_STATES = get_args(UnitState.__value__)
+# An explicit order (GAMEPLAY §1b, Q-GP-19, Q-GP-23) suspends auto-tasking: HOLD from a JOIN with
+# `hold` (never completes), GOTO from a JOIN with a node target (completes on arrival).
+type Order = Literal["HOLD", "GOTO"]
+_ORDERS = get_args(Order.__value__)
 # A SIGINT blob's size bucket (FOG-OF-WAR Tier 1); kernel-internal until BlobView is a contract.
 type BlobSize = Literal["S", "M", "L"]
 _BLOB_SIZES = get_args(BlobSize.__value__)
@@ -198,6 +224,13 @@ class Entity:
     variant: str | None = None  # facilities: the theater's catalog variant, e.g. SAM
     # FOW-11: None for a kind that never emits; True emitting, False dark (DecoyBlink, later).
     emitting: bool | None = None
+    # Tasking (NX-374): the explicit order that keeps the board off this unit, and the job whose
+    # claim it holds. A claim and `job_id` always match while the unit lives.
+    order: Order | None = None
+    job_id: int | None = None
+    pickup: str | None = (
+        None  # an empty truck on a resupply job: the source it drives to and loads at
+    )
     # Carriers (LOGI_TRUCK, ENEMY_CONVOY; NX-123): stock units aboard, else None. `unload_milli` is
     # the thousandths of a unit unloaded so far toward the next whole one, 0 to 999.
     cargo: int | None = None
@@ -311,6 +344,44 @@ class CaptureBar:
 
 
 @dataclass(slots=True)
+class Claim:
+    """One unit's claim on a job slot (TB-1). `at` is the running tick of its last progress (the
+    lease clock, `tasking.claim_lease_s`); `active` once progress was seen (CLAIMED -> ACTIVE)."""
+
+    at: int
+    active: bool = False
+
+
+@dataclass(slots=True)
+class Job:
+    """A Tasking Board job (GAMEPLAY §1b, TB-1..TB-9). The target is a node, or
+    a SIGINT blob with its cell centre `pos` (a scout job). `urgency` is thousandths, 1000 to the
+    configured maximum. `created` and `expires` are on the campaign clock (running ticks);
+    `expires` None for an objective's job (`objective` is that objective's id). `depends_on`: the
+    job that must be DONE before this one can be claimed (TB-8). Terminal jobs leave the board."""
+
+    id: int
+    kind: JobKind
+    key: str
+    slots: int
+    urgency: int
+    created: int
+    node: str | None = None
+    blob: str | None = None
+    pos: Vec2 | None = None
+    expires: int | None = None
+    depends_on: int | None = None
+    objective: int | None = None
+    claims: dict[int, Claim] = field(default_factory=dict)  # entity id -> claim, claim order
+
+    @property
+    def state(self) -> Literal["OPEN", "CLAIMED", "ACTIVE"]:
+        if not self.claims:
+            return "OPEN"
+        return "ACTIVE" if any(c.active for c in self.claims.values()) else "CLAIMED"
+
+
+@dataclass(slots=True)
 class Campaign:
     """`tick` counts every tick; `running_ticks` only the unpaused ones: the campaign clock
     (STATE-MACHINES C-1, NX-126). `hold_ticks` is the current run of running ticks the coalition
@@ -347,6 +418,7 @@ class Objective:
 
 
 _ENTITY_KEYS = tuple(f.name for f in fields(Entity))
+_JOB_KEYS = tuple(f.name for f in fields(Job))
 _CAMPAIGN_KEYS = tuple(f.name for f in fields(Campaign))
 
 
@@ -361,17 +433,22 @@ class World:
         "_entities",
         "_next_entity_id",
         "_next_event_seq",
+        "_next_job_id",
         "_next_marker_id",
         "_next_shot_id",
+        "blob_runs",
         "blobs",
+        "boards",
         "callsigns",
         "campaign",
         "capture",
         "contacts",
+        "cooldown",
         "crew_markers",
         "defense_down",
         "defense_drain",
         "defense_hp",
+        "lost",
         "markers",
         "objective",
         "owner",
@@ -393,6 +470,15 @@ class World:
         self._next_event_seq = 1
         self._next_shot_id = 1
         self._next_marker_id = 1
+        self._next_job_id = 1
+        # Side -> its Tasking Board: live jobs by id, ascending (= posting order); only
+        # `nexus.core.tasking` changes it (NX-374). One id counter for both sides.
+        self.boards: dict[Side, dict[int, Job]] = {side: {} for side in SIDES}
+        # Node -> the running tick it was lost to the other side (capture sets it; the board prunes
+        # it after `tasking.counterattack_window_min`, Q-GD-31), and per side the scouted cells not
+        # posted again until a running tick (`tasking.scout_cooldown_min`, Q-SIM-75).
+        self.lost: dict[str, int] = {}
+        self.cooldown: dict[Side, dict[str, int]] = {side: {} for side in SIDES}
         # Downed-crew markers by id, ascending (= creation order); `combat` removes the expired.
         self.crew_markers: dict[int, CrewMarker] = {}
         # commander_id -> running ticks left of its respawn delay, always >= 1 (GP-2, SC-11).
@@ -411,6 +497,9 @@ class World:
         self.markers: dict[Side, dict[int, FacilityMarker]] = {side: {} for side in SIDES}
         # Side -> its SIGINT blobs from the last refresh, by cell index (Tier 1); replaced whole.
         self.blobs: dict[Side, tuple[Blob, ...]] = {side: () for side in SIDES}
+        # Side -> blob cell index -> the consecutive SIGINT refreshes a blob was in that cell (the
+        # sensing system rebuilds it with the blobs); the board posts a scout only from 2 (NX-374).
+        self.blob_runs: dict[Side, dict[str, int]] = {side: {} for side in SIDES}
         self.sigint_age = 0  # running ticks since the last SIGINT refresh (FOW-9)
         # Node id -> whole stock units, for the nodes with finite stock (SANCTUARY nodes are
         # infinite by rule and absent). `start_campaign` fills it from the theater (NX-123).
@@ -480,6 +569,12 @@ class World:
         """The entity, or None once it is gone (destroyed or despawned)."""
         return self._entities.get(entity_id)
 
+    def next_job_id(self) -> int:
+        """The next Tasking Board job id, starting at 1."""
+        job_id = self._next_job_id
+        self._next_job_id += 1
+        return job_id
+
     def next_shot_id(self) -> int:
         """The next shot id, starting at 1 (CB-2)."""
         shot_id = self._next_shot_id
@@ -534,6 +629,33 @@ class World:
         return len(self._entities)
 
 
+def release_claim(world: World, job: Job, entity_id: int, out: list[Event]) -> None:
+    """Free `entity_id`'s slot of `job` with `JobReleased` (lease, preemption, eviction, or the
+    unit's removal): the unit, if it lives, holds no job and no pickup."""
+    del job.claims[entity_id]
+    e = world.find(entity_id)
+    if e is not None:
+        e.job_id = e.pickup = None
+    out.append(
+        JobReleased.model_construct(
+            kind="JobReleased",
+            tick=world.campaign.tick + 1,
+            event_seq=world.next_event_seq(),
+            campaign_id=world.campaign.id,
+            job_id=job.id,
+            entity_id=entity_id,
+        )
+    )
+
+
+def drop_claim(world: World, e: Entity, out: list[Event]) -> None:
+    """Call before removing `e`: its claim, if any, is released now, so the slot is right before the
+    next board pass."""
+    job = None if e.job_id is None else world.boards[e.side].get(e.job_id)
+    if job is not None and e.id in job.claims:
+        release_claim(world, job, e.id, out)
+
+
 def lose_unit(
     world: World,
     e: Entity,
@@ -548,6 +670,7 @@ def lose_unit(
     if e.delivered and e.last_node is not None:
         end_stop(world, e, e.last_node, out)  # an open unloading stop reports its units first
     end_rearm(world, e, out)  # a unit lost mid-stop still reports what its stop cost
+    drop_claim(world, e, out)
     world.remove(e.id)
     if e.commander_id is not None:
         world.record_loss(e.commander_id)
@@ -726,6 +849,17 @@ def _blobs_data(world: World, quantize: bool) -> dict[str, Any]:
     }
 
 
+def _job_data(j: Job, quantize: bool) -> dict[str, Any]:
+    data = {k: getattr(j, k) for k in _JOB_KEYS}
+    data["claims"] = [[i, c.at, c.active] for i, c in sorted(j.claims.items())]
+    data["pos"] = None if j.pos is None else _xy(j.pos, quantize)
+    return dict(sorted(data.items()))
+
+
+def _boards_data(world: World, quantize: bool) -> dict[str, Any]:
+    return {side: [_job_data(j, quantize) for j in world.boards[side].values()] for side in SIDES}
+
+
 def _sorted(value: Any) -> Any:
     """Plain JSON data with every dict's keys sorted, at any depth."""
     if isinstance(value, dict):
@@ -736,8 +870,12 @@ def _sorted(value: Any) -> Any:
 def to_canonical(world: World, *, quantize: bool) -> dict[str, Any]:
     """Plain data with sorted keys and entities in id order; quantized for the hash only."""
     data = {
+        _BLOB_RUNS: {s: dict(sorted(r.items())) for s, r in world.blob_runs.items()},
         _BLOBS: _blobs_data(world, quantize),
+        _BOARDS: _boards_data(world, quantize),
         _CALLSIGNS: dict(sorted(world.callsigns.items())),
+        _COOLDOWN: {s: dict(sorted(c.items())) for s, c in world.cooldown.items()},
+        _LOST: dict(sorted(world.lost.items())),
         _CAMPAIGN: {k: getattr(world.campaign, k) for k in sorted(_CAMPAIGN_KEYS)},
         _CAPTURE: _capture_data(world),
         _CONTACTS: _contacts_data(world, quantize),
@@ -753,6 +891,7 @@ def to_canonical(world: World, *, quantize: bool) -> dict[str, Any]:
         _RESERVE_QUEUE: [_sorted(c.model_dump(mode="json")) for c in world.reserve_queue],
         _NEXT_ENTITY_ID: world._next_entity_id,
         _NEXT_EVENT_SEQ: world._next_event_seq,
+        _NEXT_JOB_ID: world._next_job_id,
         _NEXT_MARKER_ID: world._next_marker_id,
         _NEXT_SHOT_ID: world._next_shot_id,
         _RNG: {name: dict(sorted(s.items())) for name, s in world.rng.to_state().items()},
@@ -904,6 +1043,9 @@ _ENTITY_CHECKS: dict[str, Callable[[object, str], Any]] = {
     "base_id": lambda v, k: _str(v, k, optional=True),
     "variant": lambda v, k: _str(v, k, optional=True),
     "emitting": lambda v, k: None if v is None else _bool(v, k),
+    "order": lambda v, k: _str(v, k, _ORDERS, optional=True),
+    "job_id": lambda v, k: None if v is None else _int(v, k, 1),
+    "pickup": lambda v, k: _str(v, k, optional=True),
     "cargo": lambda v, k: None if v is None else _int(v, k),
     "unload_milli": _milli,
     "delivered": lambda v, k: _int(v, k),
@@ -1148,6 +1290,116 @@ def _load_objective(value: object, campaign: Campaign) -> Objective | None:
     return o
 
 
+def _job(d: dict[str, Any], next_entity_id: int, running_ticks: int, nodes: set[str]) -> Job:
+    claims = d["claims"]
+    if not isinstance(claims, list):
+        raise ValueError(f"{_BOARDS}: claims must be a list")
+    job = Job(
+        _int(d["id"], "job id", 1), _str(d["kind"], "job kind", _JOB_KINDS),
+        _str(d["key"], "job key"), _int(d["slots"], "job slots", 1),
+        _int(d["urgency"], "job urgency", 1000), _int(d["created"], "job created"),
+        _str(d["node"], "job node", optional=True), _str(d["blob"], "job blob", optional=True),
+        None if d["pos"] is None else _vec(d["pos"], "job pos"),
+        None if d["expires"] is None else _int(d["expires"], "job expires", 1),
+        None if d["depends_on"] is None else _int(d["depends_on"], "job depends_on", 1),
+        None if d["objective"] is None else _int(d["objective"], "job objective", 1),
+    )  # fmt: skip
+    for raw in claims:
+        if not isinstance(raw, list) or len(raw) != 3:
+            raise ValueError(f"{_BOARDS}: a claim is [entity id, tick, active]")
+        i = _int(raw[0], "claim entity id", 1)
+        if i >= next_entity_id or i in job.claims or i < max(job.claims, default=0):
+            raise ValueError(f"{_BOARDS}: claims must ascend by entity id below the counter")
+        job.claims[i] = Claim(_int(raw[1], "claim tick"), _bool(raw[2], "claim active"))
+    if job.created > running_ticks or any(c.at > running_ticks for c in job.claims.values()):
+        raise ValueError(f"{_BOARDS}: a job or claim from after the snapshot's clock")
+    if (job.node is None) == (job.blob is None) or (job.blob is None) != (job.pos is None):
+        raise ValueError(f"{_BOARDS}: a job targets a node or a blob with its position")
+    if (job.kind == "SCOUT") != (job.blob is not None) or (job.node or "") not in nodes | {""}:
+        raise ValueError(f"{_BOARDS}: a scout job targets a blob, any other a node of the theater")
+    target = job.node if job.blob is None else job.blob.split("-")[-1]
+    prefix = JOB_KEY_PREFIX[job.kind]
+    others = [p for p in JOB_KEY_PREFIX.values() if p != prefix and job.key.startswith(p)]
+    if others or (job.key.startswith(prefix) and job.key != f"{prefix}{target}"):
+        raise ValueError(f"{_BOARDS}: job key {job.key!r} does not name its kind and target")
+    return job
+
+
+def _boards(value: object, world: World) -> dict[Side, dict[int, Job]]:
+    """Both sides' jobs ascending by id below the counter; a dependency names a job on its board,
+    and a claim matches its unit's `job_id` while the unit lives (the unit may be gone)."""
+    sides = _fields(value, SIDES, _BOARDS)
+    boards: dict[Side, dict[int, Job]] = {}
+    seen: set[int] = set()
+    for side in SIDES:
+        if not isinstance(sides[side], list):
+            raise ValueError(f"{_BOARDS}.{side} must be a list")
+        jobs = [
+            _job(
+                _fields(raw, _JOB_KEYS, _BOARDS),
+                world._next_entity_id,
+                world.campaign.running_ticks,
+                set(world.owner),
+            )
+            for raw in sides[side]
+        ]
+        ids = [j.id for j in jobs]
+        if ids != sorted(set(ids)) or seen & set(ids) or (ids and ids[-1] >= world._next_job_id):
+            raise ValueError(
+                f"{_BOARDS}.{side}: ids must be unique, ascend and stay below the counter"
+            )
+        if len({j.key for j in jobs}) != len(jobs) or any(
+            j.depends_on is not None and j.depends_on not in ids for j in jobs
+        ):
+            raise ValueError(
+                f"{_BOARDS}.{side}: duplicate dedupe key, or a dependency off the board"
+            )
+        seen.update(ids)
+        boards[side] = {j.id: j for j in jobs}
+    return boards
+
+
+def _tick_map(value: object, nodes: dict[str, NodeOwner], limit: int, what: str) -> dict[str, int]:
+    """Node -> a running tick, for nodes that exist, not after the snapshot's clock."""
+    if not isinstance(value, dict):
+        raise ValueError(f"{what} must be a map")
+    out = {_str(k, "node id"): _int(v, what) for k, v in value.items()}
+    if not set(out) <= set(nodes) or any(v > limit for v in out.values()):
+        raise ValueError(f"{what}: a node that does not exist, or a tick after the snapshot")
+    return out
+
+
+def _runs(value: object, blobs: tuple[Blob, ...]) -> dict[str, int]:
+    """Runs of at least 1, exactly for the cells the side's current blobs are in."""
+    if not isinstance(value, dict):
+        raise ValueError(f"{_BLOB_RUNS} must be a map")
+    out = {_str(k, "cell"): _int(v, _BLOB_RUNS, 1) for k, v in value.items()}
+    if set(out) != {b.id.split("-")[1] for b in blobs}:
+        raise ValueError(f"{_BLOB_RUNS} must name the cells of the current blobs")
+    return out
+
+
+def _cells(value: object) -> dict[str, int]:
+    if not isinstance(value, dict):
+        raise ValueError(f"{_COOLDOWN} must map cells to ticks")
+    return {_str(k, "cell"): _int(v, _COOLDOWN) for k, v in value.items()}
+
+
+def _check_claims(world: World) -> None:
+    """A unit holds at most one claim, on its own side's board, and a live unit's `job_id` is it."""
+    claimed: dict[int, tuple[Side, int]] = {}
+    for side, board in world.boards.items():
+        for job in board.values():
+            for i in job.claims:
+                if i in claimed:
+                    raise ValueError(f"{_BOARDS}: entity {i} holds two claims")
+                claimed[i] = (side, job.id)
+    for e in world.entities():
+        side_job = claimed.get(e.id)
+        if (side_job[1] if side_job else None) != e.job_id or (side_job and side_job[0] != e.side):
+            raise ValueError(f"entity {e.id}: job_id does not match a claim on its side's board")
+
+
 def load(data: bytes) -> World:
     """Rebuild a world from `save` output; the run continues exactly as before."""
     raw = msgpack.unpackb(data, raw=False)
@@ -1161,6 +1413,7 @@ def load(data: bytes) -> World:
     world._next_event_seq = _int(d[_NEXT_EVENT_SEQ], _NEXT_EVENT_SEQ, 1)
     world._next_shot_id = _int(d[_NEXT_SHOT_ID], _NEXT_SHOT_ID, 1)
     world._next_marker_id = _int(d[_NEXT_MARKER_ID], _NEXT_MARKER_ID, 1)
+    world._next_job_id = _int(d[_NEXT_JOB_ID], _NEXT_JOB_ID, 1)
     world.crew_markers = _crew_markers(
         d[_CREW_MARKERS], world._next_marker_id, world._next_entity_id
     )
@@ -1173,6 +1426,8 @@ def load(data: bytes) -> World:
     )
     world.markers = _per_side(d[_MARKERS], _MARKERS, _MARKER_KEYS, world._next_entity_id, _marker)
     world.blobs = _blobs(d[_BLOBS], world.campaign.tick)
+    runs = _fields(d[_BLOB_RUNS], SIDES, _BLOB_RUNS)
+    world.blob_runs = {s: _runs(runs[s], world.blobs[s]) for s in SIDES}
     world.sigint_age = _int(d[_SIGINT_AGE], _SIGINT_AGE)
     world.stock = _stock(d[_STOCK])
     world.owner = _owner(d[_OWNER])
@@ -1211,6 +1466,11 @@ def load(data: bytes) -> World:
         last_id = entity.id
         world._entities[entity.id] = entity
     _check_views(world)
+    world.boards = _boards(d[_BOARDS], world)
+    world.lost = _tick_map(d[_LOST], world.owner, world.campaign.running_ticks, _LOST)
+    cooldown = _fields(d[_COOLDOWN], SIDES, _COOLDOWN)
+    world.cooldown = {s: _cells(cooldown[s]) for s in SIDES}
+    _check_claims(world)
     return world
 
 

@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nexus.local/contracts/events/job_released.json",
+  "title": "JobReleased",
+  "description": "A claim was released and the slot returned to the board (TB-1, TB-7): the lease ran out with no progress, a human order preempted it, a human wanted the slot of an AI unit (Q-TD-11), or the unit was lost, Disabled or sent home.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "tick", "event_seq", "campaign_id", "job_id", "entity_id"],
+  "properties": {
+    "kind": {"const": "JobReleased"},
+    "tick": {"$ref": "../common/ids.json#/$defs/Tick"},
+    "event_seq": {"type": "integer", "minimum": 1, "description": "Campaign-wide, monotonic, deterministic (SC-14)."},
+    "campaign_id": {"$ref": "../common/ids.json#/$defs/CampaignId"},
+    "job_id": {"$ref": "../common/ids.json#/$defs/TaskingJobId"},
+    "entity_id": {"$ref": "../common/ids.json#/$defs/EntityId"}
+  }
+}

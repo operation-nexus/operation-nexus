@@ -21,7 +21,7 @@ from nexus.runtime.loop import SimRuntime
 CAMPAIGN_ID = "0192f3a4-5b6c-7d8e-9f01-23456789abcd"
 COMMANDER = "0192f0c1-7a2b-7c3d-8e4f-0123456789ab"
 # The campaign layer is off: these tests are about the runtime loop (NX-126).
-RULES = dataclasses.replace(load_campaign_config().rules, campaign=None)
+RULES = dataclasses.replace(load_campaign_config().rules, campaign=None, tasking=None)
 
 
 def make_join(**fields: object) -> JoinCommand:

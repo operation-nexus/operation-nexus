@@ -53,6 +53,25 @@ type EntityId = Annotated[
 ]
 
 
+type TaskingJobId = Annotated[
+    int,
+    Field(
+        description="Tasking Board job id: per campaign, one counter for both sides' boards, never reused (GAMEPLAY §1b).",
+        ge=1,
+    ),
+]
+
+
+type BlobId = Annotated[
+    str,
+    Field(
+        description="A SIGINT blob, <refresh_tick>-<cell_index> (FOG-OF-WAR FOW-2). Opaque to clients.",
+        max_length=32,
+        pattern="^(0|[1-9][0-9]*)-(0|[1-9][0-9]*)$",
+    ),
+]
+
+
 type CrewMarkerId = Annotated[
     int,
     Field(

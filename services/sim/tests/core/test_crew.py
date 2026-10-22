@@ -41,7 +41,7 @@ from nexus.core.world import Entity, Vec2, World, load, lose_unit, roll_crew, sa
 from nexus.runtime.campaign_config import load_campaign_config
 
 UAV: UnitKind = "RECON_UAV"
-RULES_CAMPAIGN = load_campaign_config().rules
+RULES_CAMPAIGN = dataclasses.replace(load_campaign_config().rules, tasking=None)  # NX-374
 
 
 def surviving(p: float) -> Rules:

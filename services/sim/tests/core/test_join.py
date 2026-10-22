@@ -25,7 +25,7 @@ from nexus.runtime.campaign_config import load_campaign_config
 
 CAMPAIGN_ID = "0192f3a4-5b6c-7d8e-9f01-23456789abcd"
 # The campaign layer is off: these tests are about JOIN, not objectives (NX-126).
-RULES = dataclasses.replace(load_campaign_config().rules, campaign=None)
+RULES = dataclasses.replace(load_campaign_config().rules, campaign=None, tasking=None)
 HAVEN = Vec2(20_000, 120_000)
 
 

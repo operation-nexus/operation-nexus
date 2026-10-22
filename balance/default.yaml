@@ -117,3 +117,25 @@ campaign:
   momentum:
     nodes_weight: 70  # PROPOSED – unvalidated (Q-SIM-60); percentage points x the coalition's share of strategic nodes (CONFIG-AND-CONTENT §6.6)
     supply_weight: 30  # PROPOSED – unvalidated (Q-SIM-60); percentage points x the coalition's supply fill (CONFIG-AND-CONTENT §6.6)
+tasking:
+  reeval_every_ticks: 50  # PROPOSED – unvalidated (Q-SIM-73, owner-approved start; NX-031 tunes); ticks (CONFIG-AND-CONTENT §6.6 tasking.reeval_every_ticks)
+  claim_lease_s: 120  # PROPOSED – unvalidated (Q-SIM-73); s (game) (CONFIG-AND-CONTENT §6.6 tasking.claim_lease_s)
+  expire_min: 15  # PROPOSED – unvalidated (Q-SIM-73); min (game), unclaimed jobs (CONFIG-AND-CONTENT §6.6 tasking.expire_min)
+  priority:  # PROPOSED – unvalidated (Q-SIM-73, owner-approved start; NX-031 tunes); points per lower-case JobKind (CONFIG-AND-CONTENT §6.6 tasking.priority.<job_kind>)
+    defend: 60
+    resupply: 50
+    assist_objective: 45
+    strike: 40
+    scout: 30
+  urgency_max: 2.0  # PROPOSED – unvalidated (Q-GP-20, Q-SIM-73); multiplier, the least is 1.0 (CONFIG-AND-CONTENT §6.6)
+  priority_aging_per_min: 1  # PROPOSED – unvalidated (Q-SIM-73); points per min (game) (CONFIG-AND-CONTENT §6.6)
+  slots:  # PROPOSED – unvalidated (Q-SIM-73); units per lower-case JobKind (CONFIG-AND-CONTENT §6.6 tasking.slots.<job_kind>)
+    defend: 2
+    strike: 2
+    assist_objective: 4
+    scout: 1
+  resupply_stock_per_slot: 100  # PROPOSED – unvalidated (Q-SIM-73); stock units, one resupply slot per this much missing stock (CONFIG-AND-CONTENT §6.6)
+  resupply_slots_max: 3  # PROPOSED – unvalidated (Q-SIM-73); units (CONFIG-AND-CONTENT §6.6)
+  defend_radius_m: 10000  # PROPOSED – unvalidated (Q-SIM-74); m, a tracked enemy ground unit this close to a base posts a defend job (CONFIG-AND-CONTENT §6.6)
+  counterattack_window_min: 15  # PROPOSED – unvalidated (Q-SIM-74, Q-GD-31); min (game), the AI garrison may counterattack a node just lost (CONFIG-AND-CONTENT §6.6)
+  scout_cooldown_min: 5  # PROPOSED – unvalidated (Q-SIM-75); min (game), a scouted cell is not posted again (CONFIG-AND-CONTENT §6.6)
