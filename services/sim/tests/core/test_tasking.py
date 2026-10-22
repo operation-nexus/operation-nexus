@@ -63,7 +63,7 @@ from nexus.core.world import (
 from nexus.runtime.campaign_config import load_campaign_config, start_campaign
 
 CONFIG = load_campaign_config()
-RULES = dataclasses.replace(CONFIG.rules, campaign=None)
+RULES = dataclasses.replace(CONFIG.rules, campaign=None, garrison_quota={})  # no opening garrison
 _tasking = RULES.tasking
 if _tasking is None:
     raise AssertionError("the shipped config has tasking rules")

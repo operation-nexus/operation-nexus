@@ -27,6 +27,8 @@ while frozen (SC-11), for each side in COALITION, ENEMY order:
      `nexus.core.capture`; DONE when the node is the side's, EXPIRED at its expiry even with
      claimants (a claimant still driving gets a fresh clock, at most
      `tasking.capture_max_restarts` times).
+     PATROL (the Director's, NX-157): drive out to `Job.via` and then home to the base; DONE when a
+     claimant is back at the base, FAILED with no claimant left or when the side lost the base.
    - DONE needs a participant (a live ACTIVE claimant), else EXPIRED, unless another job waits for
      it (the Director's chains, NX-156): its goal was met, so the next step must not fail with it.
      A job with no claim expires `tasking.expire_min` after posting (an objective's job: with the
@@ -73,7 +75,7 @@ from nexus.contracts.gen.events.job_done import JobDone, Participant
 from nexus.contracts.gen.events.job_expired import JobExpired
 from nexus.contracts.gen.events.job_failed import JobFailed
 from nexus.core.fog import side_view
-from nexus.core.logistics import Run, load, nearest_base, plan_run
+from nexus.core.logistics import Run, go_home, load, nearest_base, plan_run
 from nexus.core.rng import PcgStream, RngStream
 from nexus.core.roads import shortest_path
 from nexus.core.rules import Rules, TaskingRules
@@ -84,6 +86,7 @@ type Outcome = Literal["DONE", "FAILED", "EXPIRED"]
 type Verdict = Literal["ok", "refuel", "no"]
 type Routes = dict[tuple[str, str], list[str] | None]
 _AIR, _GROUND = "AIR", "GROUND"
+_PATROL: JobKind = "PATROL"  # the Director's alone (NX-157)
 _AI, _HUMAN = "AI_GARRISON", "COMMANDER"
 _NO_BLOCKED = frozenset[str]()  # no bridge is destroyed until NX-373
 _GARRISON_JOBS: frozenset[JobKind] = frozenset({"DEFEND", "RESUPPLY", "SCOUT"})
@@ -148,7 +151,7 @@ def post_job(world: World, side: Side, spec: JobSpec, out: list[Event]) -> Job:
     job = Job(
         world.next_job_id(), spec.kind, spec.key, spec.slots, spec.urgency, now, spec.node,
         spec.blob, spec.pos, None if spec.objective is not None else now + tr.expire_ticks,
-        spec.depends_on, spec.objective, spec.entity,
+        spec.depends_on, spec.objective, spec.entity, via=spec.via,
     )  # fmt: skip
     board[job.id] = job
     out.append(
@@ -423,6 +426,10 @@ def _verdict(world: World, rules: Rules, tr: TaskingRules, side: Side, job: Job)
             return "DONE" if _staged(world, job) else None
         case "CAPTURE":
             return "DONE" if node is not None and world.owner.get(node) == side else None
+        case "PATROL":  # = _PATROL; a match needs a literal
+            if lost or not job.claims:  # no unit left to drive, or the base is gone
+                return "FAILED"
+            return "DONE" if _present(world, job) else None  # home again
         case "ESCORT_CONVOY":
             truck = world.find(job.entity or 0)
             if truck is None or truck.damage_state == "DISABLED":
@@ -459,6 +466,8 @@ def _end(world: World, side: Side, job: Job, outcome: Outcome, out: list[Event])
     people = _participants(world, job)[:_MAX_PARTICIPANTS]
     for i in job.claims:
         if (e := world.find(i)) is not None:
+            if outcome == "FAILED" and job.kind == _PATROL and world.rules is not None:
+                _abandon_patrol(world, world.rules, e, job)
             e.job_id = e.pickup = None
             if e.order != "FOLLOW":
                 e.follow_id = None  # an escort claim ends with its follow order
@@ -489,12 +498,30 @@ def _end(world: World, side: Side, job: Job, outcome: Outcome, out: list[Event])
             _end(world, side, dep, "FAILED", out)
 
 
+def _abandon_patrol(world: World, rules: Rules, e: Entity, job: Job) -> None:
+    """A failed patrol's unit drops its route: home to the nearest friendly base, or it stands
+    when no route avoids the other side's nodes (it retires once idle, Q-SIM-84), so it never
+    drives on into a lost base (Q-SIM-86)."""
+    go_home(world, rules, e)
+    held = {world.owner.get(n) for n in e.path if isinstance(n, str)} - {None, e.side}
+    if e.path and (e.path[-1] == job.node or held):
+        e.path = []
+
+
 def _idle(rules: Rules, e: Entity, side: Side) -> bool:
     return (
         e.side == side and e.job_id is None and e.order is None and not e.path
         and e.damage_state != "DISABLED" and e.state != "RTB"
         and rules.domain[e.kind] in (_AIR, _GROUND)
     )  # fmt: skip
+
+
+def _board_may_give(e: Entity, job: Job) -> bool:
+    """A PATROL is the Director's alone, and a garrison unit (`Entity.home`) stays at its base: the
+    board gives it only a DEFEND of that base; the Director sends it elsewhere (Q-SIM-85)."""
+    if job.kind == _PATROL:
+        return False
+    return e.home is None or (job.kind == "DEFEND" and job.node == e.home)
 
 
 def _assign(
@@ -511,7 +538,8 @@ def _assign(
     for e in idle:
         pool = [
             j for j in ranked
-            if j.depends_on is None and fits(rules, e.kind, j.kind) and _may_take(world, tr, e, j)
+            if j.depends_on is None and _board_may_give(e, j)
+            and fits(rules, e.kind, j.kind) and _may_take(world, tr, e, j)
         ]  # fmt: skip
         for job in _open(world, pool, ai=e.owner_kind == _AI):
             verdict = _feasible(world, rules, routes, e, job)
@@ -549,6 +577,18 @@ def _route(rules: Rules, routes: Routes, e: Entity, job: Job) -> list[str] | Non
     return _road(rules, routes, e.last_node, job.node)
 
 
+def _patrol_route(rules: Rules, routes: Routes, e: Entity, job: Job) -> list[str] | None:
+    """A patrol's road route: out to `job.via`, then home to the job's node (NX-157); the leg
+    shared by both is the node it turns at, listed once."""
+    if e.last_node is None or job.node is None or job.via is None:
+        return None
+    if e.pos != Vec2(*rules.roads.pos[e.last_node]):
+        return None
+    out = _road(rules, routes, e.last_node, job.via)
+    home = _road(rules, routes, job.via, job.node)
+    return None if out is None or home is None else [*out, *home[1:]]
+
+
 def _reaches(
     world: World, rules: Rules, e: Entity, job: Job, bases: tuple[str, ...], fuel: float
 ) -> bool:
@@ -566,6 +606,8 @@ def _feasible(world: World, rules: Rules, routes: Routes, e: Entity, job: Job) -
     if rules.domain[e.kind] == _GROUND:
         if job.kind == "RESUPPLY" and not e.cargo:
             return "ok" if _reload_plan(world, rules, routes, e, job) is not None else "no"
+        if job.kind == _PATROL:
+            return "no" if _patrol_route(rules, routes, e, job) is None else "ok"
         return "no" if _route(rules, routes, e, job) is None else "ok"
     bases = world.landing_bases(e.side)
     if not bases or e.fuel is None or crosses_ring(world, rules, e.side, e.pos, job):
@@ -593,7 +635,11 @@ def _dispatch(world: World, rules: Rules, routes: Routes, e: Entity, job: Job) -
             e.pickup = run.source
             e.path = [*(_road(rules, routes, str(e.last_node), run.source) or [])]
             return
-    route = _route(rules, routes, e, job)
+    route = (
+        _patrol_route(rules, routes, e, job)
+        if job.kind == _PATROL
+        else _route(rules, routes, e, job)
+    )
     e.path = [] if route is None else [*route]
 
 

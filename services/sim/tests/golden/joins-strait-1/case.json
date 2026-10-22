@@ -1,7 +1,7 @@
 {
   "campaign_id": "0192f3a4-5b6c-7d8e-9f01-23456789abcd",
   "seed": 12345,
-  "config_hash": "4e198defe768519ec381ccfb0077e0851ab4fa6cc9233675b40a885b08d6c1a5",
+  "config_hash": "584c35f5967bca39b8134ae38abeeb5b74b77dcbe9fea951756a8848b0de1c15",
   "ticks": 6000,
   "checkpoints_every": 100,
   "handlers": "kernel",

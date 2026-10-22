@@ -50,6 +50,7 @@ from itertools import pairwise
 from typing import NamedTuple
 
 from nexus.contracts.gen.common.enums import JobKind, Side, UnitKind
+from nexus.core.director import TIERS
 from nexus.core.fog import SideView
 from nexus.core.rules import CAPTURE_FULL, Rules, TaskingRules
 from nexus.core.world import Vec2, World
@@ -65,6 +66,7 @@ _BLOB_URGENCY = {"S": 1000, "M": 1500, "L": 2000}  # thousandths: the size bucke
 _JOB_KINDS: tuple[JobKind, ...] = (
     "RESUPPLY", "SCOUT", "DEFEND", "STRIKE", "ASSIST_OBJECTIVE", "ESCORT_CONVOY",
 )  # fmt: skip
+_STATIC: Side = "ENEMY"
 _FOE: dict[Side, Side] = {"COALITION": "ENEMY", "ENEMY": "COALITION"}
 
 
@@ -82,6 +84,7 @@ class JobSpec(NamedTuple):
     objective: int | None = None
     depends_on: int | None = None
     entity: int | None = None  # an escort job: the truck
+    via: str | None = None  # a patrol job: the node it drives out to before it goes home
 
 
 def fits(rules: Rules, kind: UnitKind, job_kind: JobKind) -> bool:
@@ -89,7 +92,8 @@ def fits(rules: Rules, kind: UnitKind, job_kind: JobKind) -> bool:
     kind can do: carriers resupply, painters (recon) scout, armed aircraft strike, armed aircraft
     and ground units defend, any ground unit (a capturer) assists an objective, armed or recon
     aircraft escort (strike and recon units, GAMEPLAY §1b). The Director's jobs (NX-156): any
-    aircraft or ground unit that is not a carrier stages, a ground one captures."""
+    aircraft or ground unit that is not a carrier stages, a ground one captures or patrols
+    (NX-157)."""
     domain = rules.domain[kind]
     match job_kind:
         case "RESUPPLY":
@@ -108,7 +112,7 @@ def fits(rules: Rules, kind: UnitKind, job_kind: JobKind) -> bool:
             return domain == _AIR and (kind in rules.armed or kind in rules.painters)
         case "STAGE":
             return domain in (_AIR, _GROUND)
-        case "CAPTURE":
+        case "CAPTURE" | "PATROL":
             return domain == _GROUND
     return False
 
@@ -133,12 +137,21 @@ def generate(
     specs = [
         *_resupply(world, rules, tr, side, view),
         *_defend(world, rules, tr, side, view),
-        *_strike(world, rules, tr, side, view),
+        *(_strike(world, rules, tr, side, view) if _offense_open(world, tr, side) else ()),
         *_assist(world, tr, side),
         *_scout(tr, view, world, side),
         *_escort(world, rules, tr, side, view),
     ]
     return _cap_scouts([s for s in specs if s.kind in able], world, tr, side)
+
+
+def _offense_open(world: World, tr: TaskingRules, side: Side) -> bool:
+    """The Static's board posts the strikes it generates only from `tasking.static_offense_min_tier`
+    up (Q-SIM-85: no offensives from the board at Pattern of Life); the Director's own operations
+    post their jobs themselves, and the coalition's board is not gated."""
+    if side != _STATIC:
+        return True
+    return TIERS.index(world.director[side].tier) >= TIERS.index(tr.static_offense_min_tier)
 
 
 def _cap_scouts(specs: list[JobSpec], world: World, tr: TaskingRules, side: Side) -> list[JobSpec]:

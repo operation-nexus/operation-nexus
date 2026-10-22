@@ -36,7 +36,7 @@ from nexus.core.world import Campaign, Entity, Objective, Vec2, World, load, sav
 from nexus.runtime.campaign_config import load_campaign_config, start_campaign
 
 CONFIG = load_campaign_config()
-RULES = dataclasses.replace(CONFIG.rules, tasking=None)  # NX-374: board off
+RULES = dataclasses.replace(CONFIG.rules, tasking=None, garrison_quota={})  # no board or garrison
 assert RULES.campaign is not None
 RC = RULES.campaign
 POS = RULES.roads.pos
@@ -671,7 +671,7 @@ def test_format_12_snapshots_are_refused() -> None:
     raw["v"] = 12
     with pytest.raises(ValueError, match="unsupported snapshot format version 12"):
         load(msgpack.packb(raw, use_bin_type=True))
-    assert world_mod.FORMAT_VERSION == 20
+    assert world_mod.FORMAT_VERSION == 21
 
 
 @pytest.mark.parametrize(

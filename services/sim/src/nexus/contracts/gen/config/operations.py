@@ -32,9 +32,12 @@ class JobTemplate(BaseModel):
         ),
     ]
     unit_kinds: Annotated[
-        list[enums.UnitKind],
-        Field(description="ENEMY kinds bought for the job's slots, in turn.", min_length=1),
-    ]
+        list[enums.UnitKind] | None,
+        Field(
+            description="ENEMY kinds bought for the job's slots, in turn. Required, except for a GARRISON operation, whose kind is `director.garrison.kinds` (loader).",
+            min_length=1,
+        ),
+    ] = None
     slots: Annotated[int, Field(ge=1)]
 
 
@@ -50,9 +53,9 @@ class Operation(BaseModel):
         ),
     ]
     target: Annotated[
-        Literal["NODE", "SECTOR", "RADAR", "CONVOYS"],
+        Literal["NODE", "SECTOR", "RADAR", "CONVOYS", "GARRISON"],
         Field(
-            description="What a candidate aims at: NODE (a node id), SECTOR (a sector id), RADAR (a Static radar, named by its base node) or CONVOYS (the Static's unescorted convoys, one candidate)."
+            description="What a candidate aims at: NODE (a node id), SECTOR (a sector id), RADAR (a Static radar, named by its base node), CONVOYS (the Static's unescorted convoys, one candidate) or GARRISON (a Static base with fewer live Director units homed there than its garrison_quota, Q-SIM-85; the kind bought comes from `director.garrison.kinds`, so its jobs omit `unit_kinds`)."
         ),
     ]
     preconditions: Annotated[

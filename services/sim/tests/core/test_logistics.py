@@ -31,7 +31,7 @@ from nexus.runtime.campaign_config import load_campaign_config, start_campaign
 
 CONFIG = load_campaign_config()
 # The campaign layer is off: these tests are about logistics, not objectives (NX-126).
-RULES = dataclasses.replace(CONFIG.rules, campaign=None, tasking=None)
+RULES = dataclasses.replace(CONFIG.rules, campaign=None, tasking=None, garrison_quota={})
 POS = RULES.roads.pos
 
 

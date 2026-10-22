@@ -42,12 +42,13 @@
           "pattern": "^[A-Z][A-Z0-9_]{0,31}$"
         },
         "target": {
-          "description": "What a candidate aims at: NODE (a node id), SECTOR (a sector id), RADAR (a Static radar, named by its base node) or CONVOYS (the Static's unescorted convoys, one candidate).",
+          "description": "What a candidate aims at: NODE (a node id), SECTOR (a sector id), RADAR (a Static radar, named by its base node), CONVOYS (the Static's unescorted convoys, one candidate) or GARRISON (a Static base with fewer live Director units homed there than its garrison_quota, Q-SIM-85; the kind bought comes from `director.garrison.kinds`, so its jobs omit `unit_kinds`).",
           "enum": [
             "NODE",
             "SECTOR",
             "RADAR",
-            "CONVOYS"
+            "CONVOYS",
+            "GARRISON"
           ]
         },
         "preconditions": {
@@ -130,7 +131,6 @@
       "required": [
         "kind",
         "at",
-        "unit_kinds",
         "slots"
       ],
       "properties": {
@@ -148,7 +148,7 @@
           ]
         },
         "unit_kinds": {
-          "description": "ENEMY kinds bought for the job's slots, in turn.",
+          "description": "ENEMY kinds bought for the job's slots, in turn. Required, except for a GARRISON operation, whose kind is `director.garrison.kinds` (loader).",
           "type": "array",
           "minItems": 1,
           "items": {

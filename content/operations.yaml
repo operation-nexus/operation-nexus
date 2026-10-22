@@ -3,7 +3,7 @@
 # before it (TB-8). Costs are the owner-approved starting numbers (Q-SIM-78), PROPOSED, tuned by the balance harness (NX-031).
 # Priority is not here: it is `director.op_priority.<id>` in balance/default.yaml. One unit is bought per slot, spawned by
 # GP-7 parity (THREAT-DIRECTOR §4 step 7). `enabled_tiers` follow THREAT-DIRECTOR §3: Pattern of Life is routine only
-# (Recon, EscortConvoys, DecoyBlink); the rest need ALPHA. STRIKE_BRIDGE waits for NX-373.
+# (Recon, EscortConvoys, DecoyBlink, GarrisonUpkeep); the rest need ALPHA. STRIKE_BRIDGE waits for NX-373.
 schema_version: 1
 operations:
   - id: OFFENSIVE            # stage 2 armor at the nearest own base, 2 strike jets on the target's defenses, 2 armor capture
@@ -62,3 +62,10 @@ operations:
     cost: 0                  # PROPOSED – unvalidated (Q-SIM-78)
     enabled_tiers: [PATTERN_OF_LIFE, ALPHA, BRAVO]
     effect: EMISSION_BLINK
+  - id: GARRISON_UPKEEP      # one replacement unit staged at a Static base below its garrison_quota; the kind is director.garrison.kinds (Q-SIM-85)
+    target: GARRISON
+    preconditions: []
+    cost: 8                  # PROPOSED – unvalidated (Q-SIM-85): between Recon (5) and Escort (10); the same for every kind
+    enabled_tiers: [PATTERN_OF_LIFE, ALPHA, BRAVO]
+    jobs:
+      - { kind: STAGE, at: target, slots: 1 }

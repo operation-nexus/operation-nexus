@@ -114,6 +114,7 @@ campaign:
     average_weight: 50  # PROPOSED – unvalidated (Q-SIM-64); points x a side's average share of strategic nodes over the campaign (CONFIG-AND-CONTENT §6.6)
     final_weight: 50  # PROPOSED – unvalidated (Q-SIM-64); points x a side's share of strategic nodes at the final tick (CONFIG-AND-CONTENT §6.6)
     objective_points: 5  # PROPOSED – unvalidated (Q-SM-9); points per completed objective, coalition (CONFIG-AND-CONTENT §6.6)
+  night_progress_cap_nodes_per_h: 0.16666666666666666  # PROPOSED – unvalidated (Q-ALN-23, Q-SIM-85); nodes/h (game), 1/6: with no viewer unit the Static flips at most one node per 6 game hours (CONFIG-AND-CONTENT §6.6)
   momentum:
     nodes_weight: 70  # PROPOSED – unvalidated (Q-SIM-60); percentage points x the coalition's share of strategic nodes (CONFIG-AND-CONTENT §6.6)
     supply_weight: 30  # PROPOSED – unvalidated (Q-SIM-60); percentage points x the coalition's supply fill (CONFIG-AND-CONTENT §6.6)
@@ -130,6 +131,7 @@ tasking:
     escort_convoy: 40  # PROPOSED – unvalidated (Q-SIM-73)
     stage: 20  # PROPOSED – unvalidated (lead decision, NX-156): below scout, so an idle unit never prefers staging; units take it at spawn
     capture: 45  # PROPOSED – unvalidated (lead decision, NX-156): as assist_objective, the other ground job
+    patrol: 15  # PROPOSED – unvalidated (Q-SIM-85, lead decision): below stage, so an idle unit never prefers a patrol; the Director's patrol is taken at posting
   urgency_max: 2.0  # PROPOSED – unvalidated (Q-GP-20, Q-SIM-73); multiplier, the least is 1.0 (CONFIG-AND-CONTENT §6.6)
   priority_aging_per_min: 1  # PROPOSED – unvalidated (Q-SIM-73); points per min (game) (CONFIG-AND-CONTENT §6.6)
   slots:  # PROPOSED – unvalidated (Q-SIM-73); units per lower-case JobKind (CONFIG-AND-CONTENT §6.6 tasking.slots.<job_kind>)
@@ -152,6 +154,7 @@ tasking:
     overwatch: 3000  # an aircraft orbits within this of the ground unit it covers
     wingman: 1000  # an aircraft this far off its aircraft lead
   escort_threat_memory_s: 60  # PROPOSED – unvalidated (Q-SIM-76); s (world), a tracked enemy that fired at a group member this recently is a group threat (CONFIG-AND-CONTENT §6.6)
+  static_offense_min_tier: ALPHA  # PROPOSED – unvalidated (Q-SIM-85); the lowest Director tier at which the Static's board posts the strike jobs it generates itself; at Pattern of Life it posts none (CONFIG-AND-CONTENT §6.6)
   escort_leash_m: 10000  # PROPOSED – unvalidated (Q-SIM-76); m, the farthest an escort leaves station to engage a group threat (CONFIG-AND-CONTENT §6.6)
 director:  # Threat Director (Q-SIM-78, Q-SIM-81, owner-approved starting numbers; NX-031 tunes) (CONFIG-AND-CONTENT §6.7)
   window_s: 60  # PROPOSED – unvalidated (Q-ALN-23); s (game), the decision window (CONFIG-AND-CONTENT §6.7 director.window_s)
@@ -186,11 +189,12 @@ director:  # Threat Director (Q-SIM-78, Q-SIM-81, owner-approved starting number
     alpha: 30
     bravo: 80
   max_spawns_per_window: 6  # PROPOSED – unvalidated (Q-SIM-78, Q-TD-12); units (CONFIG-AND-CONTENT §6.7)
-  max_live_units:  # PROPOSED – unvalidated (Q-SIM-78, Q-TD-12); live Static units by tier (CONFIG-AND-CONTENT §6.7)
-    pattern_of_life: 24
+  max_live_units:  # PROPOSED – unvalidated (Q-SIM-78, Q-TD-12); live Static units by tier; Pattern of Life 40 = the 22 garrison units of strait-1 + routine units + one capture operation (Q-SIM-85) (CONFIG-AND-CONTENT §6.7)
+    pattern_of_life: 40
     alpha: 40
     bravo: 70
   op_priority:  # PROPOSED – unvalidated (Q-SIM-78); exactly the operations of content/operations.yaml (CONFIG-AND-CONTENT §6.7, §8a)
+    GARRISON_UPKEEP: 0.9  # PROPOSED – unvalidated (Q-SIM-85)
     RETAKE: 1.2
     OFFENSIVE: 1.0
     ESCORT_CONVOYS: 0.8
@@ -231,3 +235,19 @@ director:  # Threat Director (Q-SIM-78, Q-SIM-81, owner-approved starting number
     max_per_window: 1  # PROPOSED – unvalidated (Q-SIM-82); radars that start a blink per window
     cooldown_s: 600  # PROPOSED – unvalidated (Q-SIM-82, owner); s (game) before the same radar can blink again
   retake_window_min: 30  # PROPOSED – unvalidated (Q-SIM-81); min (game)
+  garrison:
+    replace_per_window: 1  # PROPOSED – unvalidated (Q-SIM-85); units a Static base below its garrison_quota buys in one window
+    kinds:  # PROPOSED – unvalidated (Q-SIM-85, NX-157); ENEMY kinds that fill a Static base's garrison_quota, by node kind, round-robin (CONFIG-AND-CONTENT §6.7)
+      FOB: [ENEMY_ARMOR]  # ground forces hold a forward base
+      AIRBASE: [ENEMY_FIGHTER, ENEMY_ARMOR]  # a fighter flight with an armor picket
+      HQ: [ENEMY_ARMOR]  # an armor guard (the HQ is no landing base, so no aircraft rest there, Q-SIM-86)
+  pol:
+    patrol_period_s: 1800  # PROPOSED – unvalidated (Q-SIM-85); s (game), each Static base with an idle garrison unit posts one patrol
+    convoy_period_s: 3600  # PROPOSED – unvalidated (Q-SIM-85); s (game), one supply convoy to the base with the largest upkeep shortfall
+    offensive_period_s: 21600  # PROPOSED – unvalidated (Q-SIM-85); s (game), one capture operation at Pattern of Life, paid from real surplus
+    patrol_slots: 1  # PROPOSED – unvalidated (Q-SIM-86); units one patrol job takes
+    patrols_per_base: 1  # PROPOSED – unvalidated (Q-SIM-85); patrols a Static base has out at once per patrol period
+    convoys_per_period: 1  # PROPOSED – unvalidated (Q-SIM-85); supply convoys per convoy period, to different bases, largest shortfall first
+    offensives_per_period: 1  # PROPOSED – unvalidated (Q-SIM-85); capture operations the Pattern of Life slot may launch per offensive period
+    convoy_cost: 0  # PROPOSED – unvalidated (Q-SIM-85); budget points of one Pattern of Life convoy, from surplus (a reused convoy is free)
+    convoy_kind: ENEMY_CONVOY  # PROPOSED – unvalidated (Q-SIM-85); the carrier of a Pattern of Life convoy

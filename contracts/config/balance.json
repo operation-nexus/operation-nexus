@@ -69,7 +69,8 @@
         "objective_mode",
         "score",
         "momentum",
-        "defeat"
+        "defeat",
+        "night_progress_cap_nodes_per_h"
       ],
       "properties": {
         "time_limit_h": {
@@ -142,6 +143,13 @@
               "x-hot-reload": false
             }
           }
+        },
+        "night_progress_cap_nodes_per_h": {
+          "description": "While no viewer unit is live, the Static may flip at most one node per 1 / this many game hours; its capture bar holds just short of a flip until then and the Director launches no capture operation (Q-SIM-85, THREAT-DIRECTOR \u00a75), unit nodes per game hour.",
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "x-unit": "nodes/h (game)",
+          "x-hot-reload": false
         },
         "momentum": {
           "description": "Momentum weights (Q-SIM-60): momentum % = nodes_weight x the coalition's share of strategic nodes + supply_weight x its supply fill. They must add up to 100.",
@@ -974,7 +982,8 @@
         "capture_max_restarts",
         "follow_station_m",
         "escort_threat_memory_s",
-        "escort_leash_m"
+        "escort_leash_m",
+        "static_offense_min_tier"
       ],
       "properties": {
         "reeval_every_ticks": {"description": "A board re-evaluates (settles, generates, assigns) every this many running ticks (TB-6), unit ticks.", "type": "integer", "minimum": 1, "x-unit": "ticks", "x-hot-reload": true},
@@ -984,7 +993,7 @@
           "description": "Base priority per job kind (Q-GP-20), unit points; keys are the lower-case JobKind. Repair-bridge joins with its job.",
           "type": "object",
           "additionalProperties": false,
-          "required": ["defend", "resupply", "assist_objective", "strike", "scout", "escort_convoy", "stage", "capture"],
+          "required": ["defend", "resupply", "assist_objective", "strike", "scout", "escort_convoy", "stage", "capture", "patrol"],
           "properties": {
             "defend": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true},
             "resupply": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true},
@@ -993,9 +1002,11 @@
             "scout": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true},
             "escort_convoy": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true},
             "stage": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true},
-            "capture": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true}
+            "capture": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true},
+            "patrol": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true}
           }
         },
+        "static_offense_min_tier": {"description": "The lowest Threat Director tier at which the Static's board posts the offensive jobs it generates itself (a strike on a discovered site); below it the board posts none. The Director's own operations are not affected (Q-SIM-85, THREAT-DIRECTOR 5a).", "$ref": "../common/enums.json#/$defs/ThreatTier", "x-unit": "tier", "x-hot-reload": true},
         "urgency_max": {"description": "The most the triggering condition can multiply a base priority by (Q-GP-20), unit multiplier; the least is 1.0.", "type": "number", "minimum": 1, "maximum": 2, "x-unit": "multiplier", "x-hot-reload": true},
         "priority_aging_per_min": {"description": "Priority points an open job gains per game minute it has waited (TB-3, Q-ALN-23), unit points/min of game time.", "type": "number", "minimum": 0, "x-unit": "points/min (game)", "x-hot-reload": true},
         "slots": {
@@ -1076,6 +1087,14 @@
         }
       }
     },
+    "GarrisonKinds": {
+      "description": "ENEMY unit kinds that garrison a base, in round-robin order; at least one.",
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "../common/enums.json#/$defs/UnitKind"},
+      "x-unit": "unit kinds",
+      "x-hot-reload": true
+    },
     "Director": {
       "description": "Threat Director (CONFIG-AND-CONTENT \u00a76.7, THREAT-DIRECTOR \u00a72-\u00a75a, Q-SIM-78, Q-SIM-81; NX-151, NX-155, NX-156). Durations are game time, converted to ticks at load.",
       "type": "object",
@@ -1101,7 +1120,9 @@
         "adaptation_up_above",
         "reinforce_damage_above",
         "escort_min_convoys",
-        "frontline_hops"
+        "frontline_hops",
+        "garrison",
+        "pol"
       ],
       "properties": {
         "window_s": {
@@ -1573,6 +1594,42 @@
             "dark_s": {"description": "How long a blinking radar stays dark, unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true},
             "max_per_window": {"description": "The most radars that start a blink in one decision window, unit radars.", "type": "integer", "minimum": 1, "x-unit": "radars", "x-hot-reload": true},
             "cooldown_s": {"description": "How soon after it went dark the same radar may blink again, unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true}
+          }
+        },
+        "garrison": {
+          "description": "Garrison upkeep (Q-SIM-85): the unit kinds that replace a Static base's missing garrison units, by node kind, used round-robin (the kind the base has fewest of, ties by list order).",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["kinds", "replace_per_window"],
+          "properties": {
+            "replace_per_window": {"description": "Units a Static base below its garrison_quota buys in one decision window (at most its shortfall, at most max_spawns_per_window), unit units.", "type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true},
+            "kinds": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["FOB", "AIRBASE", "HQ"],
+              "properties": {
+                "FOB": {"$ref": "#/$defs/GarrisonKinds"},
+                "AIRBASE": {"$ref": "#/$defs/GarrisonKinds"},
+                "HQ": {"$ref": "#/$defs/GarrisonKinds"}
+              }
+            }
+          }
+        },
+        "pol": {
+          "description": "Pattern of Life periods (Q-SIM-85, THREAT-DIRECTOR \u00a75a); game time, converted to ticks at load, counted on the campaign clock so a pause freezes them.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["patrol_period_s", "convoy_period_s", "offensive_period_s", "convoy_kind", "patrols_per_base", "convoys_per_period", "offensives_per_period", "convoy_cost", "patrol_slots"],
+          "properties": {
+            "patrol_slots": {"description": "Units (idle ground garrison units of the base) one patrol job takes, unit units.", "type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true},
+            "patrols_per_base": {"description": "Patrols (one idle ground garrison unit each) a Static base has out at once per patrol period, unit patrols.", "type": "integer", "minimum": 1, "x-unit": "patrols", "x-hot-reload": true},
+            "convoys_per_period": {"description": "Supply convoys sent per convoy period, each to a different Static base, largest upkeep shortfall first, unit convoys.", "type": "integer", "minimum": 1, "x-unit": "convoys", "x-hot-reload": true},
+            "offensives_per_period": {"description": "Capture operations the Pattern of Life slot may launch per offensive period, unit operations.", "type": "integer", "minimum": 1, "x-unit": "operations", "x-hot-reload": true},
+            "convoy_cost": {"description": "Budget points one Pattern of Life convoy costs, debited from the Static's surplus like an operation (a reused convoy is free), unit budget points.", "type": "integer", "minimum": 0, "x-unit": "budget points", "x-hot-reload": true},
+            "convoy_kind": {"description": "The ENEMY carrier kind of a Pattern of Life supply convoy (it takes a RESUPPLY job), unit unit kind.", "$ref": "../common/enums.json#/$defs/UnitKind", "x-unit": "unit kind", "x-hot-reload": true},
+            "patrol_period_s": {"description": "Every this long each Static base with an idle garrison unit posts one patrol, unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true},
+            "convoy_period_s": {"description": "Every this long one supply convoy runs to the Static base with the largest upkeep shortfall, unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true},
+            "offensive_period_s": {"description": "At Pattern of Life, one capture operation may launch this often, outside the window budget but paid from real surplus, unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true}
           }
         },
         "retake_window_min": {

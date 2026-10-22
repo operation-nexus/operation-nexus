@@ -196,7 +196,8 @@ def validate(world: World, rules: Rules) -> None:
     none); raises ValueError naming the side. Only a directed side ever changes from its start
     state, and a state must be reachable: no more windows than the clock allows, a dwell that is
     whole windows within the minimum, a tier no higher than the windows run could have reached
-    (each step needs a full dwell), a budget within the tier's, a theater sector."""
+    (each step needs a full dwell), a budget within the tier's, a theater sector, a Pattern of Life
+    timer a window could have set, a garrison home that is a node of a Director unit."""
     dr = rules.director
     if dr is None:
         return
@@ -228,6 +229,10 @@ def validate(world: World, rules: Rules) -> None:
             > world.campaign.running_ticks + dr.blink_cooldown_ticks
             else "an idle unit that does not exist or an idle tick after the clock"
             if any(int(k) >= world._next_entity_id for k in d.idle)
+            else "a Pattern of Life timer that no decision window could have set"
+            if any(t % dr.window_ticks for t in (d.last_patrol, d.last_convoy, d.last_offensive))
+            else "a held capture bar at a node that does not exist"
+            if not d.held.keys() <= rules.roads.pos.keys()
             else "an adaptation that is not announced in a theater sector"
             if not set(d.adapted.values()) <= sectors
             else "a provocation sector that is not in the theater"
@@ -236,3 +241,10 @@ def validate(world: World, rules: Rules) -> None:
         )
         if problem:
             raise ValueError(f"director.{side}: {problem}")
+    for e in world.entities():
+        if e.home is not None and (
+            e.owner_kind != "ENEMY_DIRECTOR" or e.home not in rules.roads.pos
+        ):
+            raise ValueError(
+                f"entity {e.id}: a home that is not a node, or on a unit that is no Director's"
+            )

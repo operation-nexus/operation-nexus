@@ -33,6 +33,7 @@ def test_every_case_is_found() -> None:
         "capture-strait-1",
         "empty-1h",
         "joins-strait-1",
+        "overnight-0",
         "poison-crash",
         "stub-commands",
     ]

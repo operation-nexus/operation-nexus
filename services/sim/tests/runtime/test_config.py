@@ -141,6 +141,7 @@ campaign:
   momentum:
     nodes_weight: 70
     supply_weight: 30
+  night_progress_cap_nodes_per_h: 0.16666666666666666
 tasking:
   reeval_every_ticks: 50
   claim_lease_s: 120
@@ -154,6 +155,8 @@ tasking:
     escort_convoy: 40
     stage: 20
     capture: 45
+    patrol: 15
+  static_offense_min_tier: ALPHA
   urgency_max: 2.0
   priority_aging_per_min: 1
   slots:
@@ -237,6 +240,22 @@ director:
   adaptation_down_below: 1
   noise_scale: 0.1
   retake_window_min: 30
+  garrison:
+    replace_per_window: 1
+    kinds:
+      FOB: [ENEMY_ARMOR]
+      AIRBASE: [ENEMY_FIGHTER, ENEMY_ARMOR]
+      HQ: [ENEMY_ARMOR]
+  pol:
+    patrol_period_s: 1800
+    convoy_period_s: 3600
+    offensive_period_s: 21600
+    patrol_slots: 1
+    patrols_per_base: 1
+    convoys_per_period: 1
+    offensives_per_period: 1
+    convoy_cost: 0
+    convoy_kind: ENEMY_CONVOY
 """
 # Pinned from this implementation's first run (NX-367: balance, units, theater; re-pinned NX-121
 # for speed_mps, NX-122 for slots and again for the GP-3 cap and queue, NX-368 for air fuel and
@@ -244,9 +263,10 @@ director:
 # for logistics and the rear source, NX-123 part 2 for loadouts, rearm and forward deploy, NX-125
 # for capture, NX-126 for campaign, NX-124 for combat and its assist window, and NX-124 part 2 for
 # repair, crew and the damage multipliers, NX-124 part 3 for defense hp and the defeat hold, and
-# NX-374 for the tasking keys and again for follow and escort, and NX-155 for the director); a
+# NX-374 for the tasking keys and again for follow and escort, NX-155 for the director, and NX-157
+# for the Pattern of Life keys and the garrison operation); a
 # change means every config_hash moved.
-GOLDEN_CONFIG_HASH = "4e198defe768519ec381ccfb0077e0851ab4fa6cc9233675b40a885b08d6c1a5"
+GOLDEN_CONFIG_HASH = "584c35f5967bca39b8134ae38abeeb5b74b77dcbe9fea951756a8848b0de1c15"
 SLOTS = {
     "max_live_per_commander": 1,
     "respawn_delay_s": 20,
@@ -336,6 +356,7 @@ CAMPAIGN = {
     "objective_mode": "timed",
     "score": {"average_weight": 50, "final_weight": 50, "objective_points": 5},
     "momentum": {"nodes_weight": 70, "supply_weight": 30},
+    "night_progress_cap_nodes_per_h": 0.16666666666666666,
 }
 TASKING = {
     "reeval_every_ticks": 50,
@@ -350,7 +371,9 @@ TASKING = {
         "escort_convoy": 40,
         "stage": 20,
         "capture": 45,
+        "patrol": 15,
     },
+    "static_offense_min_tier": "ALPHA",
     "urgency_max": 2.0,
     "priority_aging_per_min": 1,
     "slots": {"defend": 2, "strike": 2, "assist_objective": 4, "scout": 1, "escort_convoy": 2},
@@ -395,7 +418,7 @@ DIRECTOR = {
     },
     "budget": {"pattern_of_life": 10, "alpha": 30, "bravo": 80},
     "max_spawns_per_window": 6,
-    "max_live_units": {"pattern_of_life": 24, "alpha": 40, "bravo": 70},
+    "max_live_units": {"pattern_of_life": 40, "alpha": 40, "bravo": 70},
     "op_priority": {
         "RETAKE": 1.2,
         "OFFENSIVE": 1.0,
@@ -404,6 +427,7 @@ DIRECTOR = {
         "PROBE": 0.6,
         "RECON": 0.5,
         "DECOY_BLINK": 0.3,
+        "GARRISON_UPKEEP": 0.9,
     },
     "score": {
         "target_value": {"AIRBASE": 1.5, "FOB": 1.0, "PORT": 1.0, "SANCTUARY": 2.0},
@@ -429,6 +453,25 @@ DIRECTOR = {
     "adaptation_down_below": 1,
     "noise_scale": 0.1,
     "retake_window_min": 30,
+    "garrison": {
+        "replace_per_window": 1,
+        "kinds": {
+            "FOB": ["ENEMY_ARMOR"],
+            "AIRBASE": ["ENEMY_FIGHTER", "ENEMY_ARMOR"],
+            "HQ": ["ENEMY_ARMOR"],
+        },
+    },
+    "pol": {
+        "patrol_period_s": 1800,
+        "convoy_period_s": 3600,
+        "offensive_period_s": 21600,
+        "convoy_kind": "ENEMY_CONVOY",
+        "patrol_slots": 1,
+        "patrols_per_base": 1,
+        "convoys_per_period": 1,
+        "offensives_per_period": 1,
+        "convoy_cost": 0,
+    },
 }
 CFG = BalanceConfig.model_validate(
     {
@@ -740,10 +783,11 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "  score: {objective_points: 5, final_weight: 50, average_weight: 50},\n"
         "  objective_period_min: 15,\n"
         "  victory_hold_min: 30, defeat: {hold_min: 30}, victory_node_frac: 0.80,\n"
-        "  time_limit_h: 72}\n"
+        "  time_limit_h: 72, night_progress_cap_nodes_per_h: 0.16666666666666666}\n"
         "tasking: {reeval_every_ticks: 50, claim_lease_s: 120, expire_min: 15,\n"
         "  priority: {scout: 30, strike: 40, assist_objective: 45, resupply: 50, defend: 60,\n"
-        "    escort_convoy: 40, stage: 20, capture: 45},\n"
+        "    escort_convoy: 40, stage: 20, capture: 45, patrol: 15},\n"
+        "  static_offense_min_tier: ALPHA,\n"
         "  urgency_max: 2.0, priority_aging_per_min: 1,\n"
         "  slots: {scout: 1, assist_objective: 4, strike: 2, defend: 2, escort_convoy: 2},\n"
         "  resupply_stock_per_slot: 100, resupply_slots_max: 3, defend_radius_m: 10000,\n"
@@ -760,9 +804,9 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "      facility_disabled: 8, base_captured: 15, scout_in_rear: 2,\n"
         "      redemption: {support: 1, cosmetic: 0}}},\n"
         "  budget: {pattern_of_life: 10, alpha: 30, bravo: 80},\n"
-        "  max_live_units: {pattern_of_life: 24, alpha: 40, bravo: 70},\n"
+        "  max_live_units: {pattern_of_life: 40, alpha: 40, bravo: 70},\n"
         "  op_priority: {RETAKE: 1.2, OFFENSIVE: 1.0, ESCORT_CONVOYS: 0.8, REINFORCE_IADS: 0.7,\n"
-        "    PROBE: 0.6, RECON: 0.5, DECOY_BLINK: 0.3},\n"
+        "    PROBE: 0.6, RECON: 0.5, DECOY_BLINK: 0.3, GARRISON_UPKEEP: 0.9},\n"
         "  score: {target_value: {AIRBASE: 1.5, FOB: 1.0, PORT: 1.0, SANCTUARY: 2.0},\n"
         "    weakness_max: 2.0, own_node_value: 1.0, weakness_min: 1.0, stale_factor: 1.0,\n"
         "    provocation_proximity: 1.5},\n"
@@ -772,7 +816,13 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "  alpha_max_ops: 1, job_urgency: 1.0,\n"
         "  idle_retire_s: 600, adaptation_up_above: 0, reinforce_damage_above: 0,\n"
         "  escort_min_convoys: 1, frontline_hops: 1,\n"
-        "  adaptation_down_below: 1, noise_scale: 0.1, retake_window_min: 30}\n"
+        "  adaptation_down_below: 1, noise_scale: 0.1, retake_window_min: 30,\n"
+        "  garrison: {replace_per_window: 1, kinds: {FOB: [ENEMY_ARMOR],\n"
+        "    AIRBASE: [ENEMY_FIGHTER, ENEMY_ARMOR],\n"
+        "    HQ: [ENEMY_ARMOR]}},\n"
+        "  pol: {patrol_period_s: 1800, convoy_period_s: 3600, offensive_period_s: 21600,\n"
+        "    convoy_kind: ENEMY_CONVOY, patrol_slots: 1, patrols_per_base: 1,\n"
+        "    convoys_per_period: 1, offensives_per_period: 1, convoy_cost: 0}}\n"
         "schema_version:   1\n"
     )
     assert balance_hash(write(tmp_path, reformatted)) == balance_hash(DEFAULT)

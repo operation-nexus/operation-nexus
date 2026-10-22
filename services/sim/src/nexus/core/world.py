@@ -73,8 +73,9 @@ from nexus.core.rules import CAPTURE_FULL, Rules
 # shots, FacilityMarker.ring_m and state (NX-124 part 3); 17: the Tasking Boards and their job
 # counter, Entity.order and Entity.job_id (NX-374); 18: Entity.follow_id and fired_by, Job.entity
 # (follow and escort, NX-374 part 2); 19: each side's Threat Director state (NX-155); 20: its threat
-# memory, lost nodes and adaptations (NX-156), radar blinks (Q-SIM-82)
-FORMAT_VERSION = 20
+# memory, lost nodes and adaptations (NX-156), radar blinks (Q-SIM-82); 21: Entity.home, Job.via and
+# the Pattern of Life timers last_patrol, last_convoy, last_offensive and last_flip (NX-157)
+FORMAT_VERSION = 21
 _MM = 1000.0  # metres -> millimetres; m/s -> mm/s
 _MICRO = 1e6  # ADR-0002's 1e-6 step for other floats (fuel)
 _MILLI_UNIT = 1000  # thousandths of a stock unit per unit
@@ -280,6 +281,9 @@ class Entity:
     # Who fired at this unit lately: [shooter id, running tick] pairs, oldest first, kept for
     # `tasking.escort_threat_memory_s` and pruned when the next shot at the unit is recorded.
     fired_by: list[list[int]] = field(default_factory=list)
+    # A Director unit's home base (Q-SIM-85, NX-157): the Static base whose garrison quota it counts
+    # toward; None for a unit that is not part of a garrison.
+    home: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -388,6 +392,7 @@ class Job:
     objective: int | None = None
     entity: int | None = None  # an escort job: the truck it covers
     restarts: int = 0  # a CAPTURE job's fresh expiries while its claimants drove (Q-SIM-84)
+    via: str | None = None  # a PATROL job: the node the patrol drives out to before it goes home
     claims: dict[int, Claim] = field(default_factory=dict)  # entity id -> claim, claim order
 
     @property
@@ -449,7 +454,13 @@ class DirectorState:
     for the Retake window; `adapted` maps an adaptation category to the sector announced up. `dark`
     maps a base whose radar blinked to the running tick it comes back on, `blink_ready` to the tick
     its radar may blink again (Q-SIM-82). `idle` maps a Director unit with no job (its id as text)
-    to the running tick it was first seen so, for `director.idle_retire_s` (Q-SIM-84)."""
+    to the running tick it was first seen so, for `director.idle_retire_s` (Q-SIM-84).
+
+    Pattern of Life (Q-SIM-85, NX-157), all on the campaign clock (running ticks, 0 = never):
+    `last_patrol`, `last_convoy` and `last_offensive` are when the periodic patrol, supply convoy
+    and capture operation last launched; `last_flip` is when the Static last flipped a node (with
+    or without viewers), which the night-progress cap counts from; `held` maps a node whose Static
+    capture bar the cap holds back to the tick it was first held (Q-SIM-86)."""
 
     cp: int = 0
     provocation: int = 0
@@ -471,6 +482,11 @@ class DirectorState:
     dark: dict[str, int] = field(default_factory=dict)
     blink_ready: dict[str, int] = field(default_factory=dict)
     idle: dict[str, int] = field(default_factory=dict)  # entity id (as text, msgpack) -> tick
+    last_patrol: int = 0
+    last_convoy: int = 0
+    last_offensive: int = 0
+    last_flip: int = 0
+    held: dict[str, int] = field(default_factory=dict)
 
 
 _DIRECTOR_KEYS = tuple(f.name for f in fields(DirectorState))
@@ -1148,6 +1164,7 @@ _ENTITY_CHECKS: dict[str, Callable[[object, str], Any]] = {
     "wreck_left": lambda v, k: None if v is None else _int(v, k, 1),
     "hits": lambda v, k: _hits(v, k),
     "fired_by": lambda v, k: _hits(v, k),
+    "home": lambda v, k: _str(v, k, optional=True),
 }
 _CAMPAIGN_CHECKS: dict[str, Callable[[object, str], Any]] = {
     "id": _str,
@@ -1389,6 +1406,7 @@ def _job(d: dict[str, Any], next_entity_id: int, running_ticks: int, nodes: set[
         None if d["objective"] is None else _int(d["objective"], "job objective", 1),
         None if d["entity"] is None else _int(d["entity"], "job entity", 1),
         _int(d["restarts"], "job restarts"),
+        _str(d["via"], "job via", optional=True),
     )  # fmt: skip
     for raw in claims:
         if not isinstance(raw, list) or len(raw) != 3:
@@ -1399,6 +1417,8 @@ def _job(d: dict[str, Any], next_entity_id: int, running_ticks: int, nodes: set[
         job.claims[i] = Claim(_int(raw[1], "claim tick"), _bool(raw[2], "claim active"))
     if job.created > running_ticks or any(c.at > running_ticks for c in job.claims.values()):
         raise ValueError(f"{_BOARDS}: a job or claim from after the snapshot's clock")
+    if (job.via is not None) != (job.kind == "PATROL") or (job.via or "") not in nodes | {""}:
+        raise ValueError(f"{_BOARDS}: only a patrol job names a node to drive out to")
     escort = job.kind == "ESCORT_CONVOY"  # targets a truck, not a place
     if escort != (job.entity is not None) or (job.entity or 0) >= next_entity_id:
         raise ValueError(f"{_BOARDS}: only an escort job names an entity, below the counter")
@@ -1535,9 +1555,17 @@ def _director(value: object, running_ticks: int) -> dict[Side, DirectorState]:
             dark=_counts(d["dark"], "dark"),
             blink_ready=_counts(d["blink_ready"], "blink_ready"),
             idle=_idle(d["idle"], running_ticks),
+            last_patrol=_int(d["last_patrol"], "last_patrol"),
+            last_convoy=_int(d["last_convoy"], "last_convoy"),
+            last_offensive=_int(d["last_offensive"], "last_offensive"),
+            last_flip=_int(d["last_flip"], "last_flip"),
+            held=_counts(d["held"], "held"),
         )
         if max(state.prov_level, state.ceiling) > 2 or state.ceiling < 1:
             raise ValueError(f"{_DIRECTOR}.{side}: a level must be 0..2 and the ceiling at least 1")
+        stamps = (state.last_patrol, state.last_convoy, state.last_offensive, state.last_flip)
+        if max((*stamps, *state.held.values())) > running_ticks:
+            raise ValueError(f"{_DIRECTOR}.{side}: a timer from after the snapshot's running ticks")
         if state.windows > running_ticks or state.last_provocation_tick > running_ticks:
             raise ValueError(f"{_DIRECTOR}.{side}: a count after the snapshot's running ticks")
         if (sector is None) != (state.last_provocation_tick == 0):

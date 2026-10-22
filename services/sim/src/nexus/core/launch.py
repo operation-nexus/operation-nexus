@@ -23,26 +23,37 @@ launched in selection order:
   sector level; when the counter has decayed below one event it announces `DOWN`.
 """
 
+import itertools
+from collections.abc import Callable
 from fractions import Fraction
 
-from nexus.contracts.gen.common.enums import Side
+from nexus.contracts.gen.common.enums import Side, UnitKind
 from nexus.contracts.gen.events.event import Event
 from nexus.contracts.gen.events.threat_adaptation import ThreatAdaptation
 from nexus.contracts.gen.events.unit_despawned import UnitDespawned
 from nexus.contracts.gen.events.unit_spawned import UnitSpawned
 from nexus.core import operations as ops
+from nexus.core.director import night_capped, surplus
 from nexus.core.fog import SideView
 from nexus.core.logistics import plan_deploy
 from nexus.core.rng import RngStream
-from nexus.core.rules import DirectorRules, JobTemplate, Rules, sector_at
+from nexus.core.roads import shortest_path
+from nexus.core.rules import DirectorRules, JobTemplate, OperationRules, Rules, sector_at
 from nexus.core.tasking import post_job, take
-from nexus.core.tasking_gen import JobSpec
-from nexus.core.world import DirectorState, Entity, Vec2, World, consumed
+from nexus.core.tasking_gen import JobSpec, fits
+from nexus.core.world import DirectorState, Entity, Job, Vec2, World, consumed
 
 _DIRECTOR = "ENEMY_DIRECTOR"
 # Defensive counter -> the adaptation it announces (ThreatAdaptation.category).
 _ADAPTATION = {"convoy_attacks": "CONVOY_ESCORT", "radar_strikes": "IADS_REINFORCED"}
 _MOVERS = ("AIR", "GROUND")
+_PATROL_OP, _CONVOY_OP = "POL_PATROL", "POL_CONVOY"  # the `op:` ids of the Pattern of Life jobs
+
+
+def _routine(dr: DirectorRules) -> frozenset[str]:
+    """Operations ALPHA's one-at-a-time rule skips: the catalog's routine ones and the Pattern of
+    Life patrols and convoys, which are no catalog entries."""
+    return ops.routine_ops(dr) | {_PATROL_OP, _CONVOY_OP}
 
 
 def _own(world: World, rules: Rules, side: Side) -> ops.Own:
@@ -55,10 +66,13 @@ def _own(world: World, rules: Rules, side: Side) -> ops.Own:
     damaged: set[str] = set()
     radars: set[str] = set()
     live = 0
+    homed: dict[str, list[UnitKind]] = {}
     for e in world.entities():
         if e.side != side:
             continue
         live += rules.domain[e.kind] in _MOVERS
+        if e.home is not None and e.owner_kind == _DIRECTOR:
+            homed.setdefault(e.home, []).append(e.kind)
         if (
             e.kind in rules.supply.carriers
             and e.path
@@ -74,7 +88,15 @@ def _own(world: World, rules: Rules, side: Side) -> ops.Own:
         elif e.base_id is not None and e.kind == "RADAR_SITE" and e.damage_state != "DISABLED":
             if state.blink_ready.get(e.base_id, 0) <= now and e.base_id not in state.dark:
                 radars.add(e.base_id)  # not dark, not cooling down (Q-SIM-82)
-    return ops.Own(tuple(convoys), frozenset(damaged), frozenset(radars), live)
+    free = {
+        n: world.stock[n] - floor
+        for n, floor in rules.supply.starve_floor.items()
+        if world.owner.get(n) == side and n in world.stock
+    }
+    return ops.Own(
+        tuple(convoys), frozenset(damaged), frozenset(radars), live,
+        {n: tuple(k) for n, k in homed.items()}, free,
+    )  # fmt: skip
 
 
 def run(world: World, side: Side, view: SideView, rules: Rules, out: list[Event]) -> None:
@@ -88,18 +110,118 @@ def run(world: World, side: Side, view: SideView, rules: Rules, out: list[Event]
             del state.lost[node]
     _announce_down(world, side, state, dr, out)
     _resume(world, side, state, now)
-    _retire_idle(world, side, state, dr, now, out)
+    _retire_idle(world, rules, side, state, dr, now, out)
+    _recall(world, rules, side)
     own = _own(world, rules, side)
     live = ops.live_pairs([j.key for j in world.boards[side].values()])
-    cands = ops.candidates(state, view, rules, own, now, live)
+    capped = world.viewer_units() == 0 and night_capped(state, dr, now)  # no capture operations
+    cands = ops.candidates(state, view, rules, own, now, live, capture=False if capped else None)
     ranked = ops.rank(cands, state, view, rules, world.rng.stream(RngStream.DIRECTOR))
     chosen = ops.select(
         ranked, dr, state.budget, dr.max_spawns_per_window,
         dr.max_live_units[state.tier] - own.live_units, live,
-        ops.alpha_max_ops(state.tier, dr), ops.routine_ops(dr),
+        ops.alpha_max_ops(state.tier, dr), _routine(dr),
     )  # fmt: skip
     for c in chosen:
         _launch(world, rules, side, view, state, c, out)
+    _pattern_of_life(world, rules, side, view, state, capped, now, out)
+
+
+def _pattern_of_life(
+    world: World, rules: Rules, side: Side, view: SideView, state: DirectorState, capped: bool,
+    now: int, out: list[Event],
+) -> None:  # fmt: skip
+    """The periodic Pattern of Life work (Q-SIM-85), each on its own timer in `DirectorState`: the
+    patrols, the supply convoys, and at Pattern of Life the capture operations, which wait for the
+    night-progress cap and are paid from the real surplus, not the window's budget."""
+    dr = rules.director
+    if dr is None:
+        return
+    if now - state.last_patrol >= dr.patrol_ticks:
+        state.last_patrol = now
+        _patrols(world, rules, side, view, dr, out)
+    if now - state.last_convoy >= dr.convoy_ticks:
+        state.last_convoy = now
+        _convoys(world, rules, side, view, state, dr, out)
+    if (
+        state.tier == "PATTERN_OF_LIFE"
+        and not capped
+        and now - state.last_offensive >= dr.offensive_ticks
+    ):
+        _capture_slot(world, rules, side, view, state, dr, now, out)
+
+
+def _capture_slot(
+    world: World, rules: Rules, side: Side, view: SideView, state: DirectorState,
+    dr: DirectorRules, now: int, out: list[Event],
+) -> None:  # fmt: skip
+    """Up to `director.pol.offensives_per_period` capture operations, whatever their tier, ranked
+    and selected as usual against the real surplus and the Pattern of Life unit room."""
+    own = _own(world, rules, side)
+    live = ops.live_pairs([j.key for j in world.boards[side].values()])
+    cands = ops.candidates(state, view, rules, own, now, live, capture=True)
+    if not cands:
+        return
+    ranked = ops.rank(cands, state, view, rules, world.rng.stream(RngStream.DIRECTOR))
+    chosen = ops.select(
+        ranked, dr, surplus(view, rules, world.stock), dr.max_spawns_per_window,
+        dr.max_live_units[state.tier] - own.live_units, live, None, _routine(dr),
+    )  # fmt: skip
+    if chosen:
+        state.last_offensive = now
+    for c in chosen[: dr.offensives_per_period]:
+        _launch(world, rules, side, view, state, c, out)
+
+
+def _patrols(
+    world: World, rules: Rules, side: Side, view: SideView, dr: DirectorRules, out: list[Event]
+) -> None:
+    """Per Static base, idle ground garrison units homed there (lowest ids first) take patrol jobs
+    of `director.pol.patrol_slots` units until `director.pol.patrols_per_base` are out: each
+    drives to the road node toward the front, then home (Q-SIM-85, Q-SIM-86)."""
+    keys = {j.key for j in world.boards[side].values()}
+    idle: dict[str, list[Entity]] = {}
+    for e in sorted((e for es in _spare(world, side).values() for e in es), key=lambda e: e.id):
+        if e.home is not None and fits(rules, e.kind, "PATROL"):
+            idle.setdefault(e.home, []).append(e)
+    for base in ops.bases(view, rules):
+        via, prefix = ops.patrol_via(view, rules, base), f"{ops.LIVE_PREFIX}{_PATROL_OP}:{base}:"
+        if via is None:
+            continue
+        out_now = sum(k.startswith(prefix) for k in keys)
+        crews = idle.get(base, [])
+        for _ in range(max(0, dr.patrols_per_base - out_now)):
+            crew, crews = crews[: dr.patrol_slots], crews[dr.patrol_slots :]
+            if not crew:
+                break
+            key = next(k for n in itertools.count() if (k := f"{prefix}{n}") not in keys)
+            keys.add(key)
+            spec = JobSpec("PATROL", key, dr.patrol_slots, dr.job_urgency_milli, node=base, via=via)
+            job = post_job(world, side, spec, out)
+            for unit in crew:
+                take(world, unit, job, out)
+
+
+def _convoys(
+    world: World, rules: Rules, side: Side, view: SideView, state: DirectorState,
+    dr: DirectorRules, out: list[Event],
+) -> None:  # fmt: skip
+    """Up to `director.pol.convoys_per_period` RESUPPLY jobs, to the bases with the largest upkeep
+    shortfall (one each), taken by an idle carrier of `director.pol.convoy_kind` or a new one,
+    within the unit caps; a new carrier costs `director.pol.convoy_cost` from the surplus
+    (Q-SIM-85)."""
+    own = _own(world, rules, side)
+    live = ops.live_pairs([j.key for j in world.boards[side].values()])
+    room = min(dr.max_spawns_per_window, dr.max_live_units[state.tier] - own.live_units)
+    op = OperationRules(
+        _CONVOY_OP, "NODE", (), dr.convoy_cost, frozenset(),
+        (JobTemplate("RESUPPLY", "target", (dr.convoy_kind,), 1),), None, Fraction(0),
+    )  # fmt: skip
+    for base in ops.convoy_bases(view, rules, own)[: dr.convoys_per_period]:
+        if (_CONVOY_OP, base) in live or room < 1 or surplus(view, rules, world.stock) < op.cost:
+            continue
+        cand = ops.Candidate(op, base, None, ((ops.Where(base),),))
+        room -= _post_and_spawn(world, rules, side, cand, out, lambda n: op.cost * n)
 
 
 def _launch(
@@ -112,8 +234,7 @@ def _launch(
     if c.op.effect is not None:
         _blink(world, side, state, c.target, now=world.campaign.running_ticks + 1, dr=dr)
         return
-    first, spawned = _post_and_spawn(world, rules, side, c, out)
-    _pay(world, rules, side, c.op.cost * spawned // max(1, c.units), first, out)
+    _post_and_spawn(world, rules, side, c, out, lambda n: c.op.cost * n // max(1, c.units))
     _announce_up(world, side, view, state, dr, c, out)
 
 
@@ -147,18 +268,23 @@ def _blink(
 
 
 def _post_and_spawn(
-    world: World, rules: Rules, side: Side, c: ops.Candidate, out: list[Event]
-) -> tuple[str | None, int]:
-    """Post the jobs in order and give each its units; returns the first spawned unit's base and
-    how many were spawned. A slot goes to an idle live unit of its kind first (the lowest id),
-    which is neither spawned nor paid for (Q-SIM-84)."""
+    world: World, rules: Rules, side: Side, c: ops.Candidate, out: list[Event],
+    cost: Callable[[int], int],
+) -> int:  # fmt: skip
+    """Post the jobs in order, pay `cost(spawned)` and give each job its units; returns how many
+    were spawned. A slot goes to an idle live unit of its kind first (the lowest id), which is
+    neither spawned nor paid for (Q-SIM-84). Units take their jobs only after the payment, because
+    a carrier at its source loads on taking a job, and loading first could leave too little
+    surplus to pay."""
     dr = rules.director
     if dr is None:
-        return None, 0
-    spare = _spare(world, side)
+        return 0
+    garrison = c.op.target == "GARRISON"
+    spare = {} if garrison else _reusable(world, side)  # a garrison replacement is always new
     spawned = 0
     first: str | None = None
     prev: int | None = None  # the job the next step waits for
+    given: list[tuple[Entity, Job]] = []
     for idx, (job, wheres) in enumerate(zip(c.op.jobs, c.wheres, strict=True)):
         last = prev
         for w in wheres:
@@ -172,15 +298,21 @@ def _post_and_spawn(
             for n in range(job.slots):
                 kind = job.unit_kinds[n % len(job.unit_kinds)]
                 if spare.get(kind):
-                    take(world, spare[kind].pop(0), posted, out)
+                    given.append((spare[kind].pop(0), posted))
                     continue
                 unit, base = _spawn(
-                    world, rules, side, kind, _near(world, rules, side, job, w), out
-                )
+                    world, rules, side, kind, _near(world, rules, side, job, w), out,
+                    at=c.target if garrison else None,
+                )  # fmt: skip
                 first, spawned = first or base, spawned + 1
-                take(world, unit, posted, out)
+                if garrison:
+                    unit.home = c.target
+                given.append((unit, posted))
         prev = last
-    return first, spawned
+    _pay(world, rules, side, cost(spawned), first, out)
+    for unit, posted in given:
+        take(world, unit, posted, out)
+    return spawned
 
 
 def _spare(world: World, side: Side) -> dict[str, list[Entity]]:
@@ -196,14 +328,70 @@ def _spare(world: World, side: Side) -> dict[str, list[Entity]]:
     return out
 
 
+def _within_quota(world: World, rules: Rules, side: Side) -> set[int]:
+    """The Director units that count toward their home base's garrison quota: the lowest ids homed
+    at a base the side still holds, up to `garrison_quota` (Q-SIM-85)."""
+    count: dict[str, int] = {}
+    kept: set[int] = set()
+    for e in world.entities():
+        if e.side == side and e.owner_kind == _DIRECTOR and e.home is not None:
+            n = count.get(e.home, 0)
+            if world.owner.get(e.home) == side and n < rules.garrison_quota.get(e.home, 0):
+                kept.add(e.id)
+            count[e.home] = n + 1
+    return kept
+
+
+def _away(rules: Rules, e: Entity) -> bool:
+    """A garrison unit is away from its home when it rests at another node or, an aircraft, orbits
+    somewhere else."""
+    if e.home is None:
+        return False
+    home = Vec2(*rules.roads.pos[e.home])
+    return e.last_node != e.home or (e.state == "ON_STATION" and e.orbit not in (None, home))
+
+
+def _recall(world: World, rules: Rules, side: Side) -> None:
+    """An idle garrison unit away from its home base, while the side holds it, is sent home
+    (Q-SIM-86): a ground unit by the road from the node it stands on, an aircraft straight."""
+    for es in _spare(world, side).values():
+        for e in es:
+            if e.home is None or world.owner.get(e.home) != side or not _away(rules, e):
+                continue
+            if rules.domain[e.kind] == "AIR":
+                e.path = [e.home]
+            elif e.last_node is not None and e.pos == Vec2(*rules.roads.pos[e.last_node]):
+                route = shortest_path(rules.roads, e.last_node, e.home, blocked=frozenset())
+                e.path = [] if route is None else [*route]
+
+
+def _reusable(world: World, side: Side) -> dict[str, list[Entity]]:
+    """`_spare` without the garrison units: an operation never takes one (Q-SIM-85)."""
+    return {
+        kind: free for kind, es in _spare(world, side).items()
+        if (free := [e for e in es if e.home is None])
+    }  # fmt: skip
+
+
 def _retire_idle(
-    world: World, side: Side, state: DirectorState, dr: DirectorRules, now: int, out: list[Event]
+    world: World,
+    rules: Rules,
+    side: Side,
+    state: DirectorState,
+    dr: DirectorRules,
+    now: int,
+    out: list[Event],
 ) -> None:
     """A Director unit with no job and no path for `director.idle_retire_s` is removed, no refund
     (Q-SIM-84); it is reported as `UnitDespawned{RETIRED}`, not a loss (no memory, stats or crew).
     `state.idle` holds the tick each was first seen idle. A carrier with cargo is kept, so
-    stock + cargo + consumed stays exact."""
-    idle = {str(e.id) for es in _spare(world, side).values() for e in es if not e.cargo}
+    stock + cargo + consumed stays exact. Only a unit above its home base's garrison quota (the
+    highest ids) is retired: a garrison sitting at its base is never churned (Q-SIM-85)."""
+    kept = _within_quota(world, rules, side)
+    idle = {
+        str(e.id) for es in _spare(world, side).values() for e in es
+        if not e.cargo and e.id not in kept
+    }  # fmt: skip
     for key in sorted(state.idle, key=int):
         if key not in idle:
             del state.idle[key]
@@ -230,11 +418,13 @@ def _near(world: World, rules: Rules, side: Side, job: JobTemplate, w: ops.Where
 
 
 def _spawn(
-    world: World, rules: Rules, side: Side, kind: str, near: str, out: list[Event]
-) -> tuple[Entity, str]:
-    """One Director unit at `plan_deploy`'s base for a job at `near`, else the rear source."""
-    deploy = plan_deploy(world, rules, side, kind, near)  # type: ignore[arg-type]  # a UnitKind
-    node = deploy[0] if deploy else rules.supply.rear[side]
+    world: World, rules: Rules, side: Side, kind: str, near: str, out: list[Event], *,
+    at: str | None = None,
+) -> tuple[Entity, str]:  # fmt: skip
+    """One Director unit at `plan_deploy`'s base for a job at `near`, else the rear source; at
+    `at` instead when given (a garrison replacement is raised at its own base, Q-SIM-85)."""
+    deploy = None if at else plan_deploy(world, rules, side, kind, near)  # type: ignore[arg-type]
+    node = at or (deploy[0] if deploy else rules.supply.rear[side])
     unit = world.spawn(kind, side, _DIRECTOR, Vec2(*rules.roads.pos[node]))  # type: ignore[arg-type]
     unit.last_node = node
     if kind in rules.supply.carriers:
