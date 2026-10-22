@@ -134,7 +134,7 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-180 | Palette/colorblind script + visual snapshot tests | M | ⬜ | NX-177 |
 | NX-190 | Gateway: `ChatSource`/`ChatSink` ports + `Capabilities` + conformance suite skeleton (from NX-050, ADR-0010 N-3/N-4) + normalization + rate limits | M | ⬜ | NX-021 |
 | NX-191 | Twitch EventSub adapter + moderation event sync + batched replies | L | ⬜ | NX-190 |
-| NX-192 | Command parser + grammar + fuzz tests | M | ⬜ | NX-190. Fuzzy callsign matching and the always-answer feedback rule (Q-SIM-77) |
+| NX-192 | Command parser + grammar + fuzz tests, with fuzzy callsign matching and the always-answer feedback rule (Q-SIM-77) | M | ⬜ | NX-190 |
 | NX-193 | Viewer simulator (`tools/chatsim`): scripted bot operators (personas from the balance harness) sending real chat-shaped commands through the LocalSim adapter; runnable against staging for long tests during viewer droughts. Bots are always labeled as simulated and never counted as humans (DI-5). Never on the public channel: commands go straight into the internal command queue, and the simulator refuses to start when config targets the production channel (Q-LEGAL-7). | M | ⬜ | NX-190 |
 | NX-200 | Commanders + identities + generated callsigns (SQLite, migrations) | M | ⬜ | NX-010 |
 | NX-201 | Persistence writer task + backups | M | ⬜ | NX-200 |
