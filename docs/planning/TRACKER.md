@@ -116,7 +116,7 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-156 | Director: operations library + scoring + threat memory | L | ✅ | NX-155 | "Convoy raids → escorts" golden scenario |
 | NX-369 [#189](https://github.com/operation-nexus/operation-nexus/issues/189) | Formation speed: an escorted group moves at its slowest member's speed (Q-SIM-38) | S | ✅ | NX-121, NX-156 | Property: an escorted convoy never outruns its escort; both sides; adds the min-speed clamp for aircraft in a formation (Q-SIM-43) |
 | NX-157 | AI garrison + Pattern of Life + provocation-gated escalation (THREAT-DIRECTOR §5a) | M | ✅ | NX-155, NX-374 | overnight-0: no escalation, at most one node lost per 6 game hours (Q-SIM-85); 0→1 viewer: no escalation until provocation; staging visible to scouts |
-| NX-158 | `!rebase` and base-to-base repositioning for both sides | S | ⬜ | NX-121 | Units stage forward and refuel at the destination base |
+| NX-158 | `!rebase` and base-to-base repositioning for both sides | S | 👀 | NX-121 | Units stage forward and refuel at the destination base |
 | NX-031 | Balance harness (`tools/balance`) + bot personas + report | L | ⬜ | NX-126 | Standard scenarios (crowd profiles of 0, 5, 50, 150, 300 and 500 simulated viewers plus the adversarial profiles, Q-ALN-42): 20-seed balance-diff report; the 50-seed acceptance run of TESTING-STRATEGY §3.5a (Q-TEST-4); unit speeds (`speed_mps`, `min_speed_mps`) are tuned from playtests too (Q-SIM-38) |
 | NX-032 [#176](https://github.com/operation-nexus/operation-nexus/issues/176) | Replay CLI + measured storage size | S | ✅ | NX-103 | Size documented in CLIPS-REPLAY |
 | NX-033 | Headless soak (6h) in nightly | M | ⬜ | NX-016 | No memory growth; hashes replay |
@@ -138,7 +138,7 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-180 | Palette/colorblind script + visual snapshot tests | M | ⬜ | NX-177 |
 | NX-190 | Gateway: `ChatSource`/`ChatSink` ports + `Capabilities` + conformance suite skeleton (from NX-050, ADR-0010 N-3/N-4) + normalization + rate limits | M | ⬜ | NX-021 |
 | NX-191 | Twitch EventSub adapter + moderation event sync + batched replies | L | ⬜ | NX-190 |
-| NX-192 | Command parser + grammar + fuzz tests, with fuzzy callsign matching and the always-answer feedback rule (Q-SIM-77) | M | ⬜ | NX-190 |
+| NX-192 | Command parser + grammar + fuzz tests, with fuzzy callsign matching and the always-answer feedback rule (Q-SIM-77); the parser's unit orders (`!target`, `!rtb`, a `!join` role switch) clear a unit's `HOLD` order, the only way out of a hold after `!rebase` today (NX-158 QA) | M | ⬜ | NX-190 |
 | NX-193 | Viewer simulator (`tools/chatsim`): scripted bot operators (personas from the balance harness) sending real chat-shaped commands through the LocalSim adapter; runnable against staging for long tests during viewer droughts. Bots are always labeled as simulated and never counted as humans (DI-5). Never on the public channel: commands go straight into the internal command queue, and the simulator refuses to start when config targets the production channel (Q-LEGAL-7). | M | ⬜ | NX-190 |
 | NX-200 | Commanders + identities + generated callsigns (SQLite, migrations) | M | ⬜ | NX-010 |
 | NX-201 | Persistence writer task + backups | M | ⬜ | NX-200 |
