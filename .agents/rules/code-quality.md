@@ -63,6 +63,9 @@ side wins; stop and ask. Related: `docs/quality/DATA-INTEGRITY.md`, `REVIEW-CHEC
 - Keep functions small and shallow (aim for a cognitive complexity of 15 or less): extract helpers rather than
   nesting. When touching a function over the limit, leave it smaller than you found it.
 - No string literal repeated 3+ times in a module: make it a constant.
+- No hard-coded gameplay values (Q-DEV-21): any number or rule that changes an outcome (a range, a cost, a period,
+  a threshold, a formula coefficient) is a balance or content key with a schema entry and a CONFIG-AND-CONTENT row.
+  Only performance constants with no effect on outcomes (grid cell sizes and the like) may stay in code.
 - No emojis in code, comments or commit messages. Docs use them sparingly; the tracker's status glyphs are its legend
   and stay.
 

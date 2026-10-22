@@ -17,3 +17,4 @@ Each phase ends with:
 2. A security review of the phase diff (`security-review`).
 3. A retro, with updates to the specs and to OPEN-QUESTIONS.
 4. A go/no-go decision recorded in `docs/planning/decisions/PHASE-Pn.md`.
+5. An entertainment review for the four audiences (watcher, player, site watcher, VOD and clip watcher), per [ENTERTAINMENT-REVIEW](../quality/ENTERTAINMENT-REVIEW.md) (Q-DEV-22). Also run at major checkpoints.
