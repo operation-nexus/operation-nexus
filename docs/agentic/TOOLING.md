@@ -104,13 +104,13 @@ The spike measures tokens per task and answer accuracy on 10 real questions abou
 6. Serena symbol lookups beat reading whole files.
 
 ## 5. Owner setup checklist (desktop)
-Done on the Mac on 2026-10-17 where checked. Repeat every item on the Windows PC. The owner ticks progress in
+Mac: all done (2026-10-17; review plugins and Node 22 confirmed by the owner 2026-10-22). Windows PC: done 2026-10-22 in a WSL2 distro (Ubuntu; repo cloned inside the Linux home, Claude desktop app pointed at the distro): `claude mcp list` from the repo shows serena and context7 connected. Plugins (Ponytail, finecomb, review-council) are not available in WSL sessions per the [desktop docs](https://code.claude.com/docs/en/desktop.md), so they apply on the Mac and in Windows-native sessions only; in WSL, run `claude mcp add` in a WSL terminal and approve project MCP servers from the repo folder. The owner ticks progress in
 [OWNER-TODO §1](../planning/OWNER-TODO.md); keep the two lists in step.
 
 - [x] Install `jq` (the guard hook needs it)
-- [ ] Node 22 first on PATH. `.node-version` pins the major; CI reads it and `make bootstrap` / `make check` stop with an error on any other major (an older Node 20 in `/usr/local/bin` once broke vitest silently). On macOS: `brew install node@22`. It is keg-only, so add `export PATH="/opt/homebrew/opt/node@22/bin:$PATH"` to `~/.zshrc`, or use a version manager that reads `.node-version`. Then delete `apps/overlay/node_modules` and run `make bootstrap`, since native bindings are built for the Node that installed them. Python needs nothing: uv reads `services/sim/.python-version` (3.12) and fetches it if missing.
+- [x] Node 22 first on PATH. `.node-version` pins the major; CI reads it and `make bootstrap` / `make check` stop with an error on any other major (an older Node 20 in `/usr/local/bin` once broke vitest silently). On macOS: `brew install node@22`. It is keg-only, so add `export PATH="/opt/homebrew/opt/node@22/bin:$PATH"` to `~/.zshrc`, or use a version manager that reads `.node-version`. Then delete `apps/overlay/node_modules` and run `make bootstrap`, since native bindings are built for the Node that installed them. Python needs nothing: uv reads `services/sim/.python-version` (3.12) and fetches it if missing.
 - [x] Put the `claude` CLI on PATH (the desktop app does not): run `claude install stable` from the app's bundled binary, or the native installer from the Claude Code docs. It installs to `~/.local/bin/claude` and updates itself.
 - [x] Open the repo in Claude Code and trust the folder. Accept the Ponytail plugin. Approve the Context7 MCP (the desktop app has it; the `claude` CLI still shows it pending until approved there once).
 - [x] Install Serena and run the user-scope `claude mcp add` command above. Check it with `/mcp` or `claude mcp list`.
-- [ ] Enable finecomb and review-council from the plugin card in chat
-- [ ] Ponytail: leave `webhookUrl` empty
+- [x] Enable finecomb and review-council from the plugin card in chat
+- [x] Ponytail: leave `webhookUrl` empty

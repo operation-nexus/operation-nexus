@@ -31,3 +31,7 @@
 - { name: "size:L", color: "f9a03f", description: "400-999 changed lines: split if you can (AGENTS.md rule 7)" }
 - { name: "size:XL", color: "d93f0b", description: "1000+ changed lines: split it" }
 - { name: "ai-review", color: "5319e7", description: "Run the Claude review action on this PR (NX-029, Q-CI-7)" }
+- { name: "harness-run", color: "1d76db", description: "Queue a balance-harness run on the owner's PC (NX-381, Q-OPS-14)" }
+- { name: "harness-running", color: "fbca04", description: "The local harness queue is running this request (NX-381)" }
+- { name: "harness-done", color: "0e8a16", description: "Harness run finished; report is in the comments (NX-381)" }
+- { name: "harness-failed", color: "b60205", description: "Harness run failed; see the comment (NX-381)" }
