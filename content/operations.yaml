@@ -31,15 +31,15 @@ operations:
     enabled_tiers: [ALPHA, BRAVO]
     jobs:
       - { kind: STRIKE, at: target_defenses, unit_kinds: [ENEMY_STRIKE_FIGHTER], slots: 1 }
-  - id: RECON                # 1 recon UAV scouts a sector
+  - id: RECON                # 1 recon UAV loiters at the stalest point of a sector outside the known air-defense rings (Q-SIM-87)
     target: SECTOR
     preconditions: []
-    cost: 5                  # PROPOSED – unvalidated (Q-SIM-78)
+    cost: 2                  # PROPOSED – unvalidated (Q-SIM-87; 5 in Q-SIM-78): scouts that avoid known air defenses are lost less
     enabled_tiers: [PATTERN_OF_LIFE, ALPHA, BRAVO]
     memory: { counter: recon_losses_by_sector, effect: LOWER }   # fewer where scouts were lost
     track_age: true                                              # more where the picture is stale (TD-5)
     jobs:
-      - { kind: SCOUT, at: sector_node, unit_kinds: [ENEMY_RECON_UAV], slots: 1 }
+      - { kind: SCOUT, at: sector_point, unit_kinds: [ENEMY_RECON_UAV], slots: 1 }
   - id: ESCORT_CONVOYS       # 1 fighter follows each unescorted Static convoy
     target: CONVOYS
     preconditions: [has_unescorted_convoy]

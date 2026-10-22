@@ -1051,6 +1051,40 @@ class Memory(BaseModel):
     ]
 
 
+class Recon(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    loiter_s: Annotated[
+        float,
+        Field(
+            description="How long the scout loiters at its point once it arrives; the job is done then and the scout goes home, unit s of game time.",
+            gt=0.0,
+        ),
+    ]
+    loiter_radius_m: Annotated[
+        float,
+        Field(
+            description="The loiter pattern stays within this distance of the point, which also keeps clear of every known air-defense ring by this much, and a last-known track within it counts as the picture of the point, unit m.",
+            gt=0.0,
+        ),
+    ]
+    grid_m: Annotated[
+        int,
+        Field(
+            description="Spacing of the candidate grid over a sector from which Recon picks its point, unit m.",
+            ge=1,
+        ),
+    ]
+    memory_s: Annotated[
+        float,
+        Field(
+            description="How long a grid cell that a Static sensor covered counts as freshly looked at: its staleness rises from 0 to 1 over this time, and the entry is dropped then, unit s of game time.",
+            gt=0.0,
+        ),
+    ]
+
+
 class DecoyBlink(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1411,6 +1445,12 @@ class Director(BaseModel):
         Field(
             description="A ThreatAdaptation goes DOWN when its threat-memory counter falls below this many events (THREAT-DIRECTOR step 5).",
             gt=0.0,
+        ),
+    ]
+    recon: Annotated[
+        Recon,
+        Field(
+            description="Recon scouting (NX-379, Q-SIM-87, THREAT-DIRECTOR TD-5): a scout flies to a point of the sector, loiters there, then goes home."
         ),
     ]
     decoy_blink: Annotated[

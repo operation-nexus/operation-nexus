@@ -284,6 +284,12 @@ class DirectorRules:
     convoys_per_period: int
     offensives_per_period: int
     convoy_cost: int  # budget points of one Pattern of Life convoy
+    # Recon (NX-379, Q-SIM-87): a scout loiters `recon_loiter_ticks` within `recon_loiter_radius_m`
+    # of its point, picked from a grid of `recon_grid_m` over the sector.
+    recon_loiter_ticks: int
+    recon_loiter_radius_m: float
+    recon_grid_m: int
+    recon_memory_ticks: int  # how long a cell a sensor covered counts as looked at
 
 
 @dataclass(frozen=True, slots=True)
@@ -509,6 +515,8 @@ def director_rules(
     convoy_ticks: int,
     offensive_ticks: int,
     night_cap_ticks: int,
+    recon_loiter_ticks: int,
+    recon_memory_ticks: int,
 ) -> DirectorRules:
     """The tick counts are `cfg`'s game-time keys already converted by the config loader;
     `operations` is the validated catalog (`nexus.runtime.operations`). Raises ValueError for a
@@ -577,6 +585,10 @@ def director_rules(
         convoys_per_period=cfg.pol.convoys_per_period,
         offensives_per_period=cfg.pol.offensives_per_period,
         convoy_cost=cfg.pol.convoy_cost,
+        recon_loiter_ticks=recon_loiter_ticks,
+        recon_loiter_radius_m=cfg.recon.loiter_radius_m,
+        recon_grid_m=cfg.recon.grid_m,
+        recon_memory_ticks=recon_memory_ticks,
     )  # fmt: skip
 
 

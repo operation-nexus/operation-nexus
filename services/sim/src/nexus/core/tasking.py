@@ -63,7 +63,7 @@ Deterministic: integers and Fractions, jobs and units in id order, one RNG strea
 """
 
 import math
-from collections.abc import Sequence
+from collections.abc import Iterable, Sequence
 from fractions import Fraction
 from typing import Any, Literal
 
@@ -80,7 +80,16 @@ from nexus.core.rng import PcgStream, RngStream
 from nexus.core.roads import shortest_path
 from nexus.core.rules import Rules, TaskingRules
 from nexus.core.tasking_gen import GENERATED, POST_GATE, JobSpec, fits, generate
-from nexus.core.world import SIDES, Claim, Entity, Job, Vec2, World, release_claim
+from nexus.core.world import (
+    SIDES,
+    Claim,
+    Entity,
+    FacilityMarker,
+    Job,
+    Vec2,
+    World,
+    release_claim,
+)
 
 type Outcome = Literal["DONE", "FAILED", "EXPIRED"]
 type Verdict = Literal["ok", "refuel", "no"]
@@ -195,11 +204,17 @@ def _full(world: World, job: Job, *, ai: bool) -> bool:
     return False
 
 
+def _overfill(job: Job) -> int:
+    """The claims a job takes when every job is full: `_OVERFILL` times its slots, but a Recon
+    scout's point job never doubles (a second scout would only burn fuel and rearm, NX-379)."""
+    return job.slots if _is_point(job) else _OVERFILL * job.slots
+
+
 def _open(world: World, pool: list[Job], *, ai: bool) -> list[Job]:
     """The jobs a unit may take, in rank order: those with a free slot, else (every one full) those
     not yet at `_OVERFILL` times their slots; beyond that the unit waits for the next pass."""
     free = [j for j in pool if not _full(world, j, ai=ai)]
-    return free or [j for j in pool if len(j.claims) < _OVERFILL * j.slots]
+    return free or [j for j in pool if len(j.claims) < _overfill(j)]
 
 
 def _may_take(world: World, tr: TaskingRules, e: Entity, job: Job) -> bool:
@@ -367,6 +382,8 @@ def _settle(
             and any((e := world.find(i)) is not None and e.path for i in job.claims)
         ):  # units still driving get a fresh clock, at most `capture_max_restarts` times
             job.expires, job.restarts = now + tr.expire_ticks, job.restarts + 1
+        if _is_point(job):
+            _loiter(world, rules, tr, job, now)
         outcome = _outcome(world, rules, tr, side, job, now)
         if outcome is not None:
             _end(world, side, job, outcome, out)
@@ -419,6 +436,9 @@ def _verdict(world: World, rules: Rules, tr: TaskingRules, side: Side, job: Job)
             fallen = node is not None and (not lost or not world.defense_hp.get(node, 0))
             return "DONE" if fallen else None
         case "SCOUT":
+            if _is_point(job):  # done when the loiter ends or a ring covers it (NX-379)
+                over = _loiter_over(rules, job, _now(world)) or _ring_over(world, rules, side, job)
+                return "DONE" if over else None
             return "DONE" if _present(world, job) else None
         case "STAGE":
             if lost or not job.claims:  # no unit left to hold the base
@@ -468,6 +488,8 @@ def _end(world: World, side: Side, job: Job, outcome: Outcome, out: list[Event])
         if (e := world.find(i)) is not None:
             if outcome == "FAILED" and job.kind == _PATROL and world.rules is not None:
                 _abandon_patrol(world, world.rules, e, job)
+            if outcome == "DONE" and _is_point(job) and world.rules is not None:
+                go_home(world, world.rules, e)  # the loiter is over (NX-379)
             e.job_id = e.pickup = None
             if e.order != "FOLLOW":
                 e.follow_id = None  # an escort claim ends with its follow order
@@ -496,6 +518,64 @@ def _end(world: World, side: Side, job: Job, outcome: Outcome, out: list[Event])
                     _launch(world, e, dep)
         else:
             _end(world, side, dep, "FAILED", out)
+
+
+def _is_point(job: Job) -> bool:
+    """A Recon scout job at a point of a sector (NX-379): no node, no blob, a position."""
+    return job.kind == "SCOUT" and job.node is None and job.blob is None
+
+
+def _loiter_over(rules: Rules, job: Job, now: int) -> bool:
+    dr = rules.director
+    return job.arrived is not None and (dr is None or now - job.arrived >= dr.recon_loiter_ticks)
+
+
+def _ring_over(world: World, rules: Rules, side: Side, job: Job) -> bool:
+    """A discovered air-defense ring that was not last seen Disabled now covers the job's point,
+    with the loiter radius of clearance (Q-SIM-87): the scout ends the job and goes home."""
+    dr = rules.director
+    if dr is None or job.pos is None:
+        return False
+    return ring_crossed(
+        world.markers[side].values(), job.pos, (job.pos.x, job.pos.y), dr.recon_loiter_radius_m
+    )
+
+
+def _loiter(world: World, rules: Rules, tr: TaskingRules, job: Job, now: int) -> None:
+    """Q-SIM-87: the loiter starts when a claimant arrives at the point and lasts
+    `director.recon.loiter_s`. Meanwhile each claimant with no path flies to the next corner of
+    the square of `director.recon.loiter_radius_m` around the point (corners E, S, W, N; the
+    one after the corner nearest its position, ties first), so it stays within the radius. The
+    job is DONE when the loiter ends (`_verdict`); with no claimant the loiter restarts."""
+    dr = rules.director
+    if dr is None or job.pos is None:
+        return
+    if not job.claims:
+        job.arrived = None
+        return
+    if job.arrived is None:
+        if not _present(world, job):
+            return
+        job.arrived = now
+    if _loiter_over(rules, job, now):
+        return
+    for i in job.claims:
+        e = world.find(i)
+        if e is not None and not e.path and e.state == "ON_STATION":
+            e.path = [_corner(rules, job.pos, e.pos, dr.recon_loiter_radius_m)]
+
+
+def _corner(rules: Rules, centre: Vec2, at: Vec2, radius: float) -> Vec2:
+    """The loiter corner after the one nearest `at`, kept inside the theater."""
+    w, h = rules.bounds_m
+    corners = [
+        Vec2(min(max(centre.x + dx, 0.0), w), min(max(centre.y + dy, 0.0), h))
+        for dx, dy in ((radius, 0.0), (0.0, radius), (-radius, 0.0), (0.0, -radius))
+    ]
+    near = min(
+        range(len(corners)), key=lambda k: (math.hypot(corners[k].x - at.x, corners[k].y - at.y), k)
+    )
+    return corners[(near + 1) % len(corners)]
 
 
 def _abandon_patrol(world: World, rules: Rules, e: Entity, job: Job) -> None:
@@ -663,17 +743,28 @@ def crosses_ring(world: World, rules: Rules, side: Side, start: Vec2, job: Job) 
         return False  # the convoy is where the threat is: a direct order, as a follow is
     goal = _waypoint(world, job)
     gx, gy = rules.roads.pos[goal] if isinstance(goal, str) else (goal.x, goal.y)
+    others = (m for m in world.markers[side].values() if (m.pos.x, m.pos.y) != (gx, gy))
+    return ring_crossed(others, start, (gx, gy))
+
+
+def ring_crossed(
+    markers: Iterable[FacilityMarker], start: Vec2, goal: tuple[float, float], margin: float = 0.0
+) -> bool:
+    """The straight line from `start` to `goal` passes within an engagement ring (plus `margin`, m)
+    of one of the markers whose site has a ring and was last seen not Disabled. Pure: the Director
+    asks it of the Static's discovered markers (TD-2) as the board does of the side's (TB-2)."""
+    gx, gy = goal
     dx, dy = gx - start.x, gy - start.y
     length2 = dx * dx + dy * dy
-    for m in world.markers[side].values():
-        if m.ring_m is None or m.state == "DISABLED" or (m.pos.x, m.pos.y) == (gx, gy):
+    for m in markers:
+        if m.ring_m is None or m.state == "DISABLED":
             continue
         k = (
             0.0
             if length2 == 0
             else max(0.0, min(1.0, ((m.pos.x - start.x) * dx + (m.pos.y - start.y) * dy) / length2))
         )
-        if math.hypot(start.x + k * dx - m.pos.x, start.y + k * dy - m.pos.y) <= m.ring_m:
+        if math.hypot(start.x + k * dx - m.pos.x, start.y + k * dy - m.pos.y) <= m.ring_m + margin:
             return True
     return False
 

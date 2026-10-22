@@ -74,8 +74,9 @@ from nexus.core.rules import CAPTURE_FULL, Rules
 # counter, Entity.order and Entity.job_id (NX-374); 18: Entity.follow_id and fired_by, Job.entity
 # (follow and escort, NX-374 part 2); 19: each side's Threat Director state (NX-155); 20: its threat
 # memory, lost nodes and adaptations (NX-156), radar blinks (Q-SIM-82); 21: Entity.home, Job.via and
-# the Pattern of Life timers last_patrol, last_convoy, last_offensive and last_flip (NX-157)
-FORMAT_VERSION = 21
+# the Pattern of Life timers last_patrol, last_convoy, last_offensive and last_flip (NX-157); 22:
+# Job.arrived, a Recon scout job's loiter start, and a scout job at a point (NX-379)
+FORMAT_VERSION = 22
 _MM = 1000.0  # metres -> millimetres; m/s -> mm/s
 _MICRO = 1e6  # ADR-0002's 1e-6 step for other floats (fuel)
 _MILLI_UNIT = 1000  # thousandths of a stock unit per unit
@@ -393,6 +394,7 @@ class Job:
     entity: int | None = None  # an escort job: the truck it covers
     restarts: int = 0  # a CAPTURE job's fresh expiries while its claimants drove (Q-SIM-84)
     via: str | None = None  # a PATROL job: the node the patrol drives out to before it goes home
+    arrived: int | None = None  # a Recon scout job at a point: the tick its scout began to loiter
     claims: dict[int, Claim] = field(default_factory=dict)  # entity id -> claim, claim order
 
     @property
@@ -460,7 +462,12 @@ class DirectorState:
     `last_patrol`, `last_convoy` and `last_offensive` are when the periodic patrol, supply convoy
     and capture operation last launched; `last_flip` is when the Static last flipped a node (with
     or without viewers), which the night-progress cap counts from; `held` maps a node whose Static
-    capture bar the cap holds back to the tick it was first held (Q-SIM-86)."""
+    capture bar the cap holds back to the tick it was first held (Q-SIM-86).
+
+    Recon memory (NX-379, Q-SIM-87): `looked` maps a cell of the `director.recon.grid_m` grid
+    (its centre as text, `x:y`, m) that a sensor of the side covered at a decision window to the
+    running tick of the last such window; entries older than `director.recon.memory_s` are
+    dropped, so it holds only the cells seen within that time."""
 
     cp: int = 0
     provocation: int = 0
@@ -487,6 +494,7 @@ class DirectorState:
     last_offensive: int = 0
     last_flip: int = 0
     held: dict[str, int] = field(default_factory=dict)
+    looked: dict[str, int] = field(default_factory=dict)
 
 
 _DIRECTOR_KEYS = tuple(f.name for f in fields(DirectorState))
@@ -1391,6 +1399,16 @@ def _load_objective(value: object, campaign: Campaign) -> Objective | None:
     return o
 
 
+def _target_ok(job: Job, *, escort: bool, point: bool) -> bool:
+    """A job targets what its kind says: an escort a truck (no place), a scout a point (a position
+    only), a blob job a blob and its position, any other a node."""
+    if escort:
+        return job.node is None and job.blob is None and job.pos is None
+    if point:
+        return job.node is None and job.pos is not None
+    return (job.node is None) != (job.blob is None) and (job.blob is None) == (job.pos is None)
+
+
 def _job(d: dict[str, Any], next_entity_id: int, running_ticks: int, nodes: set[str]) -> Job:
     claims = d["claims"]
     if not isinstance(claims, list):
@@ -1407,6 +1425,7 @@ def _job(d: dict[str, Any], next_entity_id: int, running_ticks: int, nodes: set[
         None if d["entity"] is None else _int(d["entity"], "job entity", 1),
         _int(d["restarts"], "job restarts"),
         _str(d["via"], "job via", optional=True),
+        None if d["arrived"] is None else _int(d["arrived"], "job arrived"),
     )  # fmt: skip
     for raw in claims:
         if not isinstance(raw, list) or len(raw) != 3:
@@ -1422,16 +1441,19 @@ def _job(d: dict[str, Any], next_entity_id: int, running_ticks: int, nodes: set[
     escort = job.kind == "ESCORT_CONVOY"  # targets a truck, not a place
     if escort != (job.entity is not None) or (job.entity or 0) >= next_entity_id:
         raise ValueError(f"{_BOARDS}: only an escort job names an entity, below the counter")
-    if escort != (job.node is None and job.blob is None and job.pos is None) or (
-        not escort
-        and ((job.node is None) == (job.blob is None) or (job.blob is None) != (job.pos is None))
-    ):
-        raise ValueError(f"{_BOARDS}: a job targets a node or a blob with its position")
-    scout_node = job.kind == "SCOUT" and job.blob is None and job.key.startswith("op:")
-    if (job.kind == "SCOUT") != (job.blob is not None or scout_node) or (
-        job.node or ""
-    ) not in nodes | {""}:
-        raise ValueError(f"{_BOARDS}: a scout job targets a blob, any other a node of the theater")
+    point = job.kind == "SCOUT" and job.blob is None and job.key.startswith("op:")  # NX-379
+    if not _target_ok(job, escort=escort, point=point):
+        raise ValueError(
+            f"{_BOARDS}: a job targets a node or a blob with its position (a scout job: a point)"
+        )
+    if (job.kind == "SCOUT") != (job.blob is not None or point) or (job.node or "") not in nodes | {
+        ""
+    }:
+        raise ValueError(
+            f"{_BOARDS}: a scout job targets a blob or a point, any other a node of the theater"
+        )
+    if job.arrived is not None and (not point or job.arrived > running_ticks):
+        raise ValueError(f"{_BOARDS}: only a scout job at a point loiters, from a past tick")
     target = (
         str(job.entity) if escort else job.node if job.blob is None else job.blob.split("-")[-1]
     )
@@ -1522,6 +1544,17 @@ def _idle(value: object, running_ticks: int) -> dict[str, int]:
     return out
 
 
+def _looked(value: object, running_ticks: int) -> dict[str, int]:
+    if not isinstance(value, dict):
+        raise ValueError(f"{_DIRECTOR}.looked must be a map")
+    out = {_str(k, "looked cell"): _int(v, "looked tick", 1) for k, v in value.items()}
+    if not all(len(k.split(":")) == 2 and all(p.isdigit() for p in k.split(":")) for k in out):
+        raise ValueError(f"{_DIRECTOR}.looked: keys are cell centres x:y")
+    if any(v > running_ticks for v in out.values()):
+        raise ValueError(f"{_DIRECTOR}.looked: a tick after the snapshot's running ticks")
+    return out
+
+
 def _labels(value: object) -> dict[str, str]:
     if not isinstance(value, dict):
         raise ValueError(f"{_DIRECTOR}.adapted must be a map")
@@ -1560,6 +1593,7 @@ def _director(value: object, running_ticks: int) -> dict[Side, DirectorState]:
             last_offensive=_int(d["last_offensive"], "last_offensive"),
             last_flip=_int(d["last_flip"], "last_flip"),
             held=_counts(d["held"], "held"),
+            looked=_looked(d["looked"], running_ticks),
         )
         if max(state.prov_level, state.ceiling) > 2 or state.ceiling < 1:
             raise ValueError(f"{_DIRECTOR}.{side}: a level must be 0..2 and the ceiling at least 1")

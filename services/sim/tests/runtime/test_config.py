@@ -230,6 +230,7 @@ director:
     factor: 1.0
     weights: {convoy_hit: 1, radar_hit: 1, scout_lost: 1, node_lost: 1}
   decoy_blink: {dark_s: 120, cooldown_s: 600, max_per_window: 1}
+  recon: {loiter_s: 600, loiter_radius_m: 5000, grid_m: 10000, memory_s: 3600}
   alpha_max_ops: 1
   idle_retire_s: 600
   adaptation_up_above: 0
@@ -266,7 +267,7 @@ director:
 # NX-374 for the tasking keys and again for follow and escort, NX-155 for the director, and NX-157
 # for the Pattern of Life keys and the garrison operation); a
 # change means every config_hash moved.
-GOLDEN_CONFIG_HASH = "584c35f5967bca39b8134ae38abeeb5b74b77dcbe9fea951756a8848b0de1c15"
+GOLDEN_CONFIG_HASH = "bf125a49bd47243c71a40ae8347cbd521c2ee377704cd3ec5a282171a3e4905c"
 SLOTS = {
     "max_live_per_commander": 1,
     "respawn_delay_s": 20,
@@ -443,6 +444,7 @@ DIRECTOR = {
         "weights": {"convoy_hit": 1, "radar_hit": 1, "scout_lost": 1, "node_lost": 1},
     },
     "decoy_blink": {"dark_s": 120, "cooldown_s": 600, "max_per_window": 1},
+    "recon": {"loiter_s": 600, "loiter_radius_m": 5000, "grid_m": 10000, "memory_s": 3600},
     "alpha_max_ops": 1,
     "idle_retire_s": 600,
     "adaptation_up_above": 0,
@@ -813,6 +815,7 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "  memory: {half_life_s: 1800, factor: 1.0,\n"
         "    weights: {convoy_hit: 1, radar_hit: 1, scout_lost: 1, node_lost: 1}},\n"
         "  decoy_blink: {dark_s: 120, cooldown_s: 600, max_per_window: 1},\n"
+        "  recon: {loiter_s: 600, loiter_radius_m: 5000, grid_m: 10000, memory_s: 3600},\n"
         "  alpha_max_ops: 1, job_urgency: 1.0,\n"
         "  idle_retire_s: 600, adaptation_up_above: 0, reinforce_damage_above: 0,\n"
         "  escort_min_convoys: 1, frontline_hops: 1,\n"

@@ -20,6 +20,7 @@ node id.
 """
 
 import math
+from collections.abc import Mapping, Sequence
 from itertools import pairwise
 from typing import NamedTuple
 
@@ -141,6 +142,33 @@ def _surplus(world: World, rules: Rules, node: str) -> int:
     return world.stock.get(node, 0) - rules.supply.starve_floor[node]
 
 
+def deploy_pool(
+    rules: Rules, kind: UnitKind, side: Side, owners: Mapping[str, str], surplus: Mapping[str, int]
+) -> list[str]:
+    """The nodes a `kind` of `side` may forward-deploy at (GP-7, Q-SIM-54), by node id: the
+    theater's `spawns` nodes for the kind's domain that the side owns (an AIR one must also be a
+    landing base: AIRBASE or SANCTUARY, Q-SIM-42), with finite stock (a key of `surplus`, the
+    stock over the starvation floor) at least `forward_deploy_min_surplus` over its floor and at
+    least the kind's `loadout_cost` over it, so the debit never takes a base below its floor. The
+    one rule `plan_deploy` and the Director's `launch_base` share."""
+    sup, domain = rules.supply, rules.domain[kind]
+    need = max(sup.forward_deploy_min_surplus, sup.loadout_cost.get(kind, 0))
+    return [
+        n for n in sorted(sup.spawns.get(domain, ()))
+        if n in surplus and owners.get(n) == side and surplus[n] >= need
+        and (domain != "AIR" or n in rules.landing_nodes)
+    ]  # fmt: skip
+
+
+def nearest_by_air(rules: Rules, pool: Sequence[str], x: float, y: float) -> str | None:
+    """The node of `pool` nearest the point by straight line, ties by node id (an aircraft's)."""
+    near = min(
+        ((math.hypot(px - x, py - y), n) for n in pool for px, py in [rules.roads.pos[n]]),
+        default=None,
+    )
+    return None if near is None else near[1]
+
+
 def plan_deploy(
     world: World, rules: Rules, side: Side, kind: UnitKind, target: str
 ) -> tuple[str, list[str]] | None:
@@ -157,19 +185,13 @@ def plan_deploy(
     sup, domain = rules.supply, rules.domain[kind]
     if target == sup.rear[side]:
         return None  # a JOIN to its own sanctuary spawns there, free
-    need = max(sup.forward_deploy_min_surplus, sup.loadout_cost.get(kind, 0))
-    pool = [
-        n for n in sorted(sup.spawns.get(domain, ()))
-        if n in world.stock and friendly(world, side, n) and _surplus(world, rules, n) >= need
-        and (domain != "AIR" or n in world.landing_bases(side))
-    ]  # fmt: skip
+    pool = deploy_pool(
+        rules, kind, side, world.owner,
+        {n: _surplus(world, rules, n) for n in world.stock if n in rules.supply.starve_floor},
+    )  # fmt: skip
     if domain == "AIR":
-        tx, ty = rules.roads.pos[target]
-        near = min(
-            ((math.hypot(x - tx, y - ty), n) for n in pool for x, y in [rules.roads.pos[n]]),
-            default=None,
-        )
-        return None if near is None else (near[1], [target])
+        near = nearest_by_air(rules, pool, *rules.roads.pos[target])
+        return None if near is None else (near, [target])
     best = nearest(rules, target, pool)  # roads are two-way, so target -> base measures it
     route = None if best is None else _route(rules, best[0], target)
     return None if best is None or route is None else (best[0], list(route))

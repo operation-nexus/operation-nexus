@@ -24,6 +24,7 @@ launched in selection order:
 """
 
 import itertools
+import math
 from collections.abc import Callable
 from fractions import Fraction
 
@@ -34,7 +35,7 @@ from nexus.contracts.gen.events.unit_despawned import UnitDespawned
 from nexus.contracts.gen.events.unit_spawned import UnitSpawned
 from nexus.core import operations as ops
 from nexus.core.director import night_capped, surplus
-from nexus.core.fog import SideView
+from nexus.core.fog import SideView, is_off_facility
 from nexus.core.logistics import plan_deploy
 from nexus.core.rng import RngStream
 from nexus.core.roads import shortest_path
@@ -99,6 +100,30 @@ def _own(world: World, rules: Rules, side: Side) -> ops.Own:
     )  # fmt: skip
 
 
+def look(world: World, rules: Rules, side: Side, state: DirectorState, now: int) -> None:
+    """Recon memory (Q-SIM-87): every cell of the `director.recon.grid_m` grid within the sensor
+    radius of one of the side's emitting units now is marked looked at, `now`; marks older than
+    `director.recon.memory_s` are dropped first (their staleness is 1, as no mark). Units in id
+    order, cells ascending, so the result does not depend on any iteration order."""
+    dr = rules.director
+    if dr is None:
+        return
+    step, width, height = dr.recon_grid_m, *rules.bounds_m
+    state.looked = {k: t for k, t in state.looked.items() if now - t < dr.recon_memory_ticks}
+    for e in world.entities():
+        radius = rules.sensor_radius(e.kind, e.damage_state)
+        if e.side != side or radius <= 0 or e.emitting is False or is_off_facility(rules, e):
+            continue
+        for x in ops.span(e.pos.x, radius, step):
+            for y in ops.span(e.pos.y, radius, step):
+                if (
+                    0 < x <= width
+                    and 0 < y <= height
+                    and math.hypot(x - e.pos.x, y - e.pos.y) <= radius
+                ):
+                    state.looked[ops.cell_key(x, y)] = now
+
+
 def run(world: World, side: Side, view: SideView, rules: Rules, out: list[Event]) -> None:
     """One window's operations for `side` (module docstring); `decide` has set the budget."""
     dr = rules.director
@@ -109,6 +134,7 @@ def run(world: World, side: Side, view: SideView, rules: Rules, out: list[Event]
         if view.owners.get(node) == side or now - state.lost[node] >= dr.retake_ticks:
             del state.lost[node]
     _announce_down(world, side, state, dr, out)
+    look(world, rules, side, state, now)
     _resume(world, side, state, now)
     _retire_idle(world, rules, side, state, dr, now, out)
     _recall(world, rules, side)
@@ -291,18 +317,20 @@ def _post_and_spawn(
             tail = "" if w.entity is None else f":{w.entity}"
             spec = JobSpec(
                 job.kind, f"{ops.LIVE_PREFIX}{c.op.id}:{c.target}:{idx}{tail}", job.slots,
-                dr.job_urgency_milli, node=w.node, depends_on=prev, entity=w.entity,
+                dr.job_urgency_milli, node=w.node, depends_on=prev, entity=w.entity, pos=w.pos,
             )  # fmt: skip
             posted = post_job(world, side, spec, out)
             last = posted.id
             for n in range(job.slots):
                 kind = job.unit_kinds[n % len(job.unit_kinds)]
-                if spare.get(kind):
-                    given.append((spare[kind].pop(0), posted))
+                idle = [u for u in spare.get(kind, []) if w.origin in (None, u.last_node)]
+                if idle:  # a scout for a point must rest at the base its route was checked from
+                    spare[kind].remove(idle[0])
+                    given.append((idle[0], posted))
                     continue
                 unit, base = _spawn(
                     world, rules, side, kind, _near(world, rules, side, job, w), out,
-                    at=c.target if garrison else None,
+                    at=c.target if garrison else w.origin,
                 )  # fmt: skip
                 first, spawned = first or base, spawned + 1
                 if garrison:
