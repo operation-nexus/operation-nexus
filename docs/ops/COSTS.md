@@ -1,0 +1,25 @@
+# Running costs
+
+A ledger of what Operation Nexus costs each month: plans, subscriptions and APIs, actual or planned. Update it whenever a cost starts, stops or changes. Amounts are what the owner pays or has stated; anything not yet known is left blank, not estimated (DATA-INTEGRITY).
+
+Budget: Q-OPS-3 set a ceiling of **$75–100 per month** for running the game (power, AI and hosting). The owner counts the Claude plan used to build the project in the budget too (2026-10-22).
+
+## Current
+
+| Item | Purpose | Monthly | Since | Status | Decision |
+|---|---|---|---|---|---|
+| Claude plan (Anthropic) | Development: Claude Code sessions, and the PR review action (NX-029) | $100 | | Active | Owner, 2026-10-22 |
+| CodeRabbit | Automatic PR review on GitHub | $30 after the trial | Trial from 2026-10-20 (14 days) | Trial ends about 2026-11-03; not renewed by default | Q-CI-7 |
+
+**Known total:** $100 a month, or $130 if CodeRabbit is renewed.
+
+## Planned
+
+| Item | Purpose | Monthly | When | Decision |
+|---|---|---|---|---|
+| Game runtime LLM (advisor, narration, `!order`) | Phase 4 | Hard cap $20, alert at 80% | P4 | Q-AI-5, [LOCAL-VS-API-COST](LOCAL-VS-API-COST.md) |
+| Power, hosting | Running the stream and servers | | P2 | Q-OPS-3, [HARDWARE](HARDWARE.md) (owner's figures still to come, NX-007) |
+
+## Notes
+- **Two reviewers are wanted when the budget allows:** CodeRabbit plus the Claude review action, each run only some of the time (Q-CI-7).
+- Until then the Claude review action runs on the Claude plan, so it adds no separate charge.
