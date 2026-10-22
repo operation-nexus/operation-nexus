@@ -145,6 +145,7 @@ type CommandKind = Annotated[
         "STAFF_CAMPAIGN_PAUSE",
         "STAFF_CAMPAIGN_RESUME",
         "STAFF_CAMPAIGN_END",
+        "REBASE",
     ],
     Field(description="Grows one kind at a time, with each handler (AGENTS.md rule 6a)."),
 ]
@@ -166,6 +167,9 @@ type RejectReason = Annotated[
         "NOT_PAUSED",
         "CAMPAIGN_NOT_RUNNING",
         "REASON_REQUIRED",
+        "NO_ACTIVE_UNIT",
+        "NODE_NOT_FRIENDLY",
+        "OUT_OF_REACH",
     ],
     Field(
         description="CONTRACTS §5.3. Grows one value at a time, with the code that emits it (rule 6a)."

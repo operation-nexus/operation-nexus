@@ -674,7 +674,12 @@ def _reaches(
     world: World, rules: Rules, e: Entity, job: Job, bases: tuple[str, ...], fuel: float
 ) -> bool:
     """Out to the target and on to the nearest landing base with the bingo reserve left (NX-368)."""
-    goal = _waypoint(world, job)
+    return reaches(rules, e, _waypoint(world, job), bases, fuel)
+
+
+def reaches(rules: Rules, e: Entity, goal: str | Vec2, bases: tuple[str, ...], fuel: float) -> bool:
+    """`e` can fly to `goal` and on to the nearest of `bases` with the bingo reserve left; a goal
+    that is itself a base (a rebase, Q-SIM-90) leaves nothing to fly on."""
     x, y = rules.roads.pos[goal] if isinstance(goal, str) else (goal.x, goal.y)
     back = min(math.hypot(bx - x, by - y) for b in bases for bx, by in [rules.roads.pos[b]])
     out = math.hypot(x - e.pos.x, y - e.pos.y)

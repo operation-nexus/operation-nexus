@@ -9,6 +9,7 @@ from pydantic import Field
 
 from . import (
     join,
+    rebase,
     staff_campaign_end,
     staff_campaign_pause,
     staff_campaign_resume,
@@ -20,7 +21,8 @@ type Command = Annotated[
     | sys_set_callsign.SysSetCallsignCommand
     | staff_campaign_pause.StaffCampaignPauseCommand
     | staff_campaign_resume.StaffCampaignResumeCommand
-    | staff_campaign_end.StaffCampaignEndCommand,
+    | staff_campaign_end.StaffCampaignEndCommand
+    | rebase.RebaseCommand,
     Field(
         description="Discriminated union of all commands on kind (CONTRACTS §5).",
         discriminator="kind",

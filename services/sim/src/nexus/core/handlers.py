@@ -10,6 +10,7 @@ from typing import NamedTuple
 
 from nexus.contracts.gen.commands.command import Command
 from nexus.contracts.gen.commands.join import FollowTarget, JoinCommand, NodeTarget
+from nexus.contracts.gen.commands.rebase import RebaseCommand
 from nexus.contracts.gen.commands.staff_campaign_end import StaffCampaignEndCommand
 from nexus.contracts.gen.commands.staff_campaign_pause import StaffCampaignPauseCommand
 from nexus.contracts.gen.commands.staff_campaign_resume import StaffCampaignResumeCommand
@@ -24,11 +25,19 @@ from nexus.contracts.gen.events.reserve_queue_joined import ReserveQueueJoined
 from nexus.contracts.gen.events.unit_spawned import UnitSpawned
 from nexus.core.campaign import end_campaign
 from nexus.core.follow import can_follow
-from nexus.core.logistics import Run, load, pay_loadout, plan_deploy, plan_run
+from nexus.core.logistics import (
+    Run,
+    friendly_bases,
+    load,
+    nearest,
+    pay_loadout,
+    plan_deploy,
+    plan_run,
+)
 from nexus.core.roads import shortest_path
 from nexus.core.rules import Rules
-from nexus.core.tasking import claim, crosses_ring, joinable_jobs
-from nexus.core.world import Job, Order, Vec2, World
+from nexus.core.tasking import claim, crosses_ring, joinable_jobs, reaches
+from nexus.core.world import Entity, Job, Order, Vec2, World, end_stop, release_claim
 
 type Handler = Callable[[World, Command, list[Event]], None]
 
@@ -60,7 +69,11 @@ def reject(world: World, command: Command, reason: RejectReason) -> CommandRejec
         command_kind=command.kind,
         reason=reason,
         # Staff, system and advisor issuers have no commander.
-        commander_id=command.issuer.commander_id if isinstance(command, JoinCommand) else None,
+        commander_id=(
+            command.issuer.commander_id
+            if isinstance(command, JoinCommand | RebaseCommand)
+            else None
+        ),
     )
 
 
@@ -89,6 +102,71 @@ def join(world: World, command: Command, out: list[Event]) -> None:
         _enqueue(world, command, rules, out)
     else:
         _spawn(world, command, plan, rules, out)
+
+
+def rebase(world: World, command: Command, out: list[Event]) -> None:
+    """REBASE (GAMEPLAY §3, Q-SIM-90): move the commander's live unit to a friendly base.
+
+    Rejected, in this order: `CAMPAIGN_PAUSED` (Q-ALN-2), `NO_ACTIVE_UNIT` (no live, non-Disabled
+    unit), `NODE_UNKNOWN`, `NODE_NOT_FRIENDLY`, `NODE_INVALID_FOR_UNIT` (an aircraft needs a landing
+    base, a ground unit a base it has a road route to), `OUT_OF_REACH` (an aircraft that cannot fly
+    there with its bingo reserve, `tasking.reaches`). An accepted rebase is an explicit order
+    (TB-7): it releases the unit's board job, ends a follow, cuts a truck's unloading stop, and sets
+    the HOLD order, so the unit takes no board job on the way or at the base until its commander's
+    next order. Arrival, landing, refuelling and rearming are the ordinary `movement` and
+    `logistics` systems.
+    """
+    if not isinstance(command, RebaseCommand):
+        raise TypeError(f"REBASE handler got {command.kind}")
+    rules = _rules(world)
+    if world.campaign.clock_paused:
+        out.append(reject(world, command, "CAMPAIGN_PAUSED"))  # Q-ALN-2: no change while paused
+        return
+    unit = next(
+        (
+            e for e in world.entities()
+            if e.commander_id == command.issuer.commander_id and e.damage_state != "DISABLED"
+        ),
+        None,
+    )  # fmt: skip
+    if unit is None:
+        out.append(reject(world, command, "NO_ACTIVE_UNIT"))
+        return
+    path = _rebase_path(world, rules, unit, command.node_id)
+    if isinstance(path, str):
+        out.append(reject(world, command, path))
+        return
+    if unit.job_id is not None:
+        release_claim(world, world.boards[unit.side][unit.job_id], unit.id, out)
+    if unit.delivered and unit.last_node is not None:
+        end_stop(world, unit, unit.last_node, out)  # leaving cuts the unloading stop
+    unit.path, unit.order, unit.follow_id = path, "HOLD", None
+
+
+def _rebase_path(
+    world: World, rules: Rules, unit: Entity, node: str
+) -> list[str | Vec2] | RejectReason:
+    """The path of a valid rebase, or why it is rejected (see `rebase`). Pure."""
+    if node not in rules.roads.pos:
+        return "NODE_UNKNOWN"
+    if world.owner.get(node) != _COALITION:
+        return "NODE_NOT_FRIENDLY"
+    domain = rules.domain[unit.kind]
+    if domain == "AIR":
+        bases = world.landing_bases(_COALITION)
+        if node not in bases:
+            return "NODE_INVALID_FOR_UNIT"
+        fuel = unit.fuel if unit.fuel is not None else 0.0
+        return [node] if reaches(rules, unit, node, bases, fuel) else "OUT_OF_REACH"
+    if domain != "GROUND" or node not in friendly_bases(world, rules, _COALITION):
+        return "NODE_INVALID_FOR_UNIT"
+    start = unit.path[0] if unit.path else unit.last_node  # a unit mid-road finishes its leg
+    if not isinstance(start, str):
+        return "NODE_INVALID_FOR_UNIT"
+    if not unit.path and unit.pos == Vec2(*rules.roads.pos[node]):
+        return []  # already there; a unit stopped on the road is routed to the node it left
+    best = nearest(rules, start, [node])
+    return "NODE_INVALID_FOR_UNIT" if best is None else list(best[1])
 
 
 def serve_reserve_queue(world: World, out: list[Event], *, drop: bool = False) -> None:
@@ -373,6 +451,7 @@ def staff_campaign_end(world: World, command: Command, out: list[Event]) -> None
 
 HANDLERS: Mapping[str, Handler] = {
     "JOIN": join,
+    "REBASE": rebase,
     "SYS_SET_CALLSIGN": set_callsign,
     "STAFF_CAMPAIGN_PAUSE": staff_campaign_pause,
     "STAFF_CAMPAIGN_RESUME": staff_campaign_resume,

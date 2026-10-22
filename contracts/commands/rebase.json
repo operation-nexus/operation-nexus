@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nexus.local/contracts/commands/rebase.json",
+  "title": "RebaseCommand",
+  "description": "!rebase <node> (CONTRACTS \u00a75.2, Q-SIM-90). Header and payload are flat.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "kind",
+    "source",
+    "issuer",
+    "target_tick",
+    "arrival_seq",
+    "correlation_id",
+    "node_id"
+  ],
+  "properties": {
+    "kind": {
+      "const": "REBASE"
+    },
+    "source": {
+      "const": "CHAT"
+    },
+    "issuer": {
+      "$ref": "#/$defs/CommanderIssuer"
+    },
+    "target_tick": {
+      "$ref": "../common/ids.json#/$defs/Tick"
+    },
+    "arrival_seq": {
+      "$ref": "../common/ids.json#/$defs/CommandSeq"
+    },
+    "correlation_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 64
+    },
+    "node_id": {
+      "$ref": "../common/ids.json#/$defs/NodeId",
+      "description": "A friendly base valid for the unit's domain: a landing base (AIRBASE or SANCTUARY) for an aircraft, any non-bridge base for a ground unit."
+    }
+  },
+  "$defs": {
+    "CommanderIssuer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "commander_id"
+      ],
+      "properties": {
+        "commander_id": {
+          "$ref": "../common/ids.json#/$defs/CommanderId"
+        }
+      },
+      "description": "REBASE is issued by a commander."
+    }
+  }
+}
