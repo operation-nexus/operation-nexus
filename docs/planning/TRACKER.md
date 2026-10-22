@@ -162,6 +162,7 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 
 | ID | Item | Status |
 |---|---|---|
+| NX-375 | Configurable sides (owner, 2026-10-22): a campaign setting for which side chat plays, an AI Director per side (agent vs agent), symmetric or per-campaign win rules, objectives, idle protection and quiet multiplier, and a mirrored theater layout; agent vs agent is also a balance-harness and soak-test mode (NX-031, NX-033). Chat vs chat (team assignment and balancing) is a later step | ⬜ |
 | NX-210 | XP events → progression, diminishing returns, ranks O-1..O-3 | ⬜ |
 | NX-211 | Leaderboards per role + rotating panel data | ⬜ |
 | NX-202 | Custom callsigns + approval queue | ⬜ |
