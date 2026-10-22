@@ -209,6 +209,8 @@ director:
     weights:
       unit_destroyed: 5
       unit_damaged: 1
+      recon_destroyed: 2
+      recon_damaged: 0
       convoy_hit: 3
       facility_damaged: 3
       facility_disabled: 8
@@ -276,7 +278,7 @@ director:
 # NX-374 for the tasking keys and again for follow and escort, NX-155 for the director, and NX-157
 # for the Pattern of Life keys and the garrison operation); a
 # change means every config_hash moved.
-GOLDEN_CONFIG_HASH = "bf25decee40d9b9df814173444479f148e0432fddc0b40e942c0337ad114c530"
+GOLDEN_CONFIG_HASH = "ddeb9fecedc60860a0440b97ab06421a9244d476eeb7c2f251cfbc26c0253035"
 SLOTS = {
     "max_live_per_commander": 1,
     "respawn_delay_s": 20,
@@ -427,6 +429,8 @@ DIRECTOR = {
         "weights": {
             "unit_destroyed": 5,
             "unit_damaged": 1,
+            "recon_destroyed": 2,
+            "recon_damaged": 0,
             "convoy_hit": 3,
             "facility_damaged": 3,
             "facility_disabled": 8,
@@ -833,7 +837,8 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "    GARRISON_INFANTRY: 2}},\n"
         "  tier: {bravo_enter_cp: 60, exit_ratio: 0.8, min_dwell_s: 600},\n"
         "  provocation: {half_life_s: 900, escalate_threshold: 10, bravo_threshold: 40,\n"
-        "    weights: {unit_destroyed: 5, unit_damaged: 1, convoy_hit: 3, facility_damaged: 3,\n"
+        "    weights: {unit_destroyed: 5, unit_damaged: 1, recon_destroyed: 2, recon_damaged: 0,\n"
+        "      convoy_hit: 3, facility_damaged: 3,\n"
         "      facility_disabled: 8, base_captured: 15, scout_in_rear: 2,\n"
         "      redemption: {support: 1, cosmetic: 0}}},\n"
         "  budget: {pattern_of_life: 10, alpha: 30, bravo: 80},\n"

@@ -188,6 +188,8 @@ director:  # Threat Director (Q-SIM-78, Q-SIM-81, owner-approved starting number
     weights:  # PROPOSED – unvalidated (Q-SIM-78); points per action caused by a player-controlled unit (CONFIG-AND-CONTENT §6.7)
       unit_destroyed: 5
       unit_damaged: 1
+      recon_destroyed: 2  # PROPOSED – unvalidated (Q-SIM-89); an unarmed scout kill
+      recon_damaged: 0  # PROPOSED – unvalidated (Q-SIM-89); a hit on an unarmed scout
       convoy_hit: 3
       facility_damaged: 3
       facility_disabled: 8

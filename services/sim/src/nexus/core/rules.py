@@ -192,6 +192,8 @@ class Weights:
 
     destroyed: int
     damaged: int
+    recon_destroyed: int
+    recon_damaged: int
     convoy_hit: int
     facility_damaged: int
     facility_disabled: int
@@ -555,7 +557,8 @@ def director_rules(
         bravo=_micro(pv.bravo_threshold),
         decay=_decay(half_life_ticks, window_ticks),
         weights=Weights(
-            _micro(w.unit_destroyed), _micro(w.unit_damaged), _micro(w.convoy_hit),
+            _micro(w.unit_destroyed), _micro(w.unit_damaged),
+            _micro(w.recon_destroyed), _micro(w.recon_damaged), _micro(w.convoy_hit),
             _micro(w.facility_damaged), _micro(w.facility_disabled), _micro(w.base_captured),
             _micro(w.scout_in_rear), _micro(r.support), _micro(r.cosmetic),
         ),
