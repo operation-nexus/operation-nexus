@@ -104,7 +104,7 @@ The spike measures tokens per task and answer accuracy on 10 real questions abou
 6. Serena symbol lookups beat reading whole files.
 
 ## 5. Owner setup checklist (desktop)
-Mac: all done (2026-10-17; review plugins and Node 22 confirmed by the owner 2026-10-22). Repeat every item on the Windows PC. The owner ticks progress in
+Mac: all done (2026-10-17; review plugins and Node 22 confirmed by the owner 2026-10-22). Windows PC: done 2026-10-22 in a WSL2 distro (Ubuntu; repo cloned inside the Linux home, Claude desktop app pointed at the distro): `claude mcp list` from the repo shows serena and context7 connected. Plugins (Ponytail, finecomb, review-council) are not available in WSL sessions per the [desktop docs](https://code.claude.com/docs/en/desktop.md), so they apply on the Mac and in Windows-native sessions only; in WSL, run `claude mcp add` in a WSL terminal and approve project MCP servers from the repo folder. The owner ticks progress in
 [OWNER-TODO §1](../planning/OWNER-TODO.md); keep the two lists in step.
 
 - [x] Install `jq` (the guard hook needs it)

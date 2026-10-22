@@ -3,7 +3,7 @@
 Things only the owner can do. Check items off here or in the linked issues.
 
 ## 1. Desktop agent setup (issue #28, NX-044)
-Mac all done (owner, 2026-10-22); the Windows PC (WSL2, in progress 2026-10-22) still needs every item (details: docs/agentic/TOOLING.md §5).
+Mac all done (owner, 2026-10-22); Windows PC done in WSL2 (owner, 2026-10-22: serena and context7 connected; plugins are not available in WSL sessions) (details: docs/agentic/TOOLING.md §5).
 
 - [x] Install `jq` (the guard hook prefers it; python3 also works)
 - [x] Put the `claude` CLI on PATH (`claude install stable`)
