@@ -21,4 +21,4 @@ class UnitDespawned(BaseModel):
     ]
     campaign_id: ids.CampaignId
     entity_id: Annotated[ids.EntityId, Field(description="The unit removed.")]
-    reason: Literal["WRECKED"]
+    reason: Literal["WRECKED", "RETIRED"]

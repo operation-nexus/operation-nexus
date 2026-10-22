@@ -1,0 +1,64 @@
+# The Threat Director's operation catalog (CONFIG-AND-CONTENT §8a, THREAT-DIRECTOR §4, Q-TD-7, Q-SIM-81).
+# Content, not code: a job template per operation, posted on the Static's Tasking Board; each later job waits for the one
+# before it (TB-8). Costs are the owner-approved starting numbers (Q-SIM-78), PROPOSED, tuned by the balance harness (NX-031).
+# Priority is not here: it is `director.op_priority.<id>` in balance/default.yaml. One unit is bought per slot, spawned by
+# GP-7 parity (THREAT-DIRECTOR §4 step 7). `enabled_tiers` follow THREAT-DIRECTOR §3: Pattern of Life is routine only
+# (Recon, EscortConvoys, DecoyBlink); the rest need ALPHA. STRIKE_BRIDGE waits for NX-373.
+schema_version: 1
+operations:
+  - id: OFFENSIVE            # stage 2 armor at the nearest own base, 2 strike jets on the target's defenses, 2 armor capture
+    target: NODE
+    preconditions: [target_owner_is_coalition, target_in_enemy_view, target_capturable]
+    cost: 60                 # PROPOSED – unvalidated (Q-SIM-78)
+    enabled_tiers: [ALPHA, BRAVO]
+    jobs:
+      - { kind: STAGE,   at: nearest_own_base, unit_kinds: [ENEMY_ARMOR],          slots: 2 }
+      - { kind: STRIKE,  at: target_defenses,  unit_kinds: [ENEMY_STRIKE_FIGHTER], slots: 2 }
+      - { kind: CAPTURE, at: target,           unit_kinds: [ENEMY_ARMOR],          slots: 2 }
+  - id: RETAKE               # a base lost in the last 30 game minutes: 1 strike jet on its defenses, then 3 armor capture
+    target: NODE
+    preconditions: [target_owner_is_coalition, target_in_enemy_view, target_capturable, target_recently_lost]
+    cost: 50                 # PROPOSED – unvalidated (Q-SIM-78)
+    enabled_tiers: [ALPHA, BRAVO]
+    memory: { counter: node_losses_by_sector, effect: RAISE }    # bases lost in the target's sector
+    jobs:
+      - { kind: STRIKE,  at: target_defenses, unit_kinds: [ENEMY_STRIKE_FIGHTER], slots: 1 }
+      - { kind: CAPTURE, at: target,          unit_kinds: [ENEMY_ARMOR],          slots: 3 }
+  - id: PROBE                # 1 strike jet on the defenses of a coalition base on the front
+    target: NODE
+    preconditions: [target_owner_is_coalition, target_in_enemy_view, target_is_frontline]
+    cost: 15                 # PROPOSED – unvalidated (Q-SIM-78)
+    enabled_tiers: [ALPHA, BRAVO]
+    jobs:
+      - { kind: STRIKE, at: target_defenses, unit_kinds: [ENEMY_STRIKE_FIGHTER], slots: 1 }
+  - id: RECON                # 1 recon UAV scouts a sector
+    target: SECTOR
+    preconditions: []
+    cost: 5                  # PROPOSED – unvalidated (Q-SIM-78)
+    enabled_tiers: [PATTERN_OF_LIFE, ALPHA, BRAVO]
+    memory: { counter: recon_losses_by_sector, effect: LOWER }   # fewer where scouts were lost
+    track_age: true                                              # more where the picture is stale (TD-5)
+    jobs:
+      - { kind: SCOUT, at: sector_node, unit_kinds: [ENEMY_RECON_UAV], slots: 1 }
+  - id: ESCORT_CONVOYS       # 1 fighter follows each unescorted Static convoy
+    target: CONVOYS
+    preconditions: [has_unescorted_convoy]
+    cost: 10                 # PROPOSED – unvalidated (Q-SIM-82; 20 in Q-SIM-78): Pattern of Life can afford it
+    enabled_tiers: [PATTERN_OF_LIFE, ALPHA, BRAVO]
+    memory: { counter: convoy_attacks, effect: RAISE }
+    jobs:
+      - { kind: ESCORT_CONVOY, at: each_convoy, unit_kinds: [ENEMY_FIGHTER], slots: 1 }
+  - id: REINFORCE_IADS       # 1 convoy resupplies the base whose air-defense site is damaged (stock repairs it)
+    target: NODE
+    preconditions: [target_has_damaged_air_defense]
+    cost: 15                 # PROPOSED – unvalidated (Q-SIM-78)
+    enabled_tiers: [ALPHA, BRAVO]
+    memory: { counter: radar_strikes, effect: RAISE }
+    jobs:
+      - { kind: RESUPPLY, at: target, unit_kinds: [ENEMY_CONVOY], slots: 1 }
+  - id: DECOY_BLINK          # a radar goes dark for a while, directly (FOW-11, Q-SIM-82); no units, no jobs
+    target: RADAR
+    preconditions: [target_radar_operational]
+    cost: 0                  # PROPOSED – unvalidated (Q-SIM-78)
+    enabled_tiers: [PATTERN_OF_LIFE, ALPHA, BRAVO]
+    effect: EMISSION_BLINK

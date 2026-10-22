@@ -167,6 +167,9 @@ class TaskingRules:
     defend_radius_m: float
     counterattack_window_ticks: int  # how long after a loss the garrison may counterattack
     scout_cooldown_ticks: int  # how long a scouted cell is not posted again
+    scout_post_interval_ticks: int  # at most one new generated scout job per board this often
+    capture_max_restarts: int  # fresh CAPTURE expiries while the claimants are still driving
+    scout_open_max: int  # the most generated scout jobs a board holds at once (NX-156)
     station_m: Mapping[
         str, float
     ]  # follow_station_m: escort, column, overwatch, wingman (Q-SIM-76)
@@ -190,12 +193,42 @@ class Weights:
 
 
 @dataclass(frozen=True, slots=True)
+class JobTemplate:
+    """One job of an operation (`content/operations.yaml`, CONFIG-AND-CONTENT §8a): `at` is a
+    selector (`nexus.core.operations`), `slots` units are bought, taking `unit_kinds` in turn."""
+
+    kind: JobKind
+    at: str
+    unit_kinds: tuple[UnitKind, ...]
+    slots: int
+
+
+@dataclass(frozen=True, slots=True)
+class OperationRules:
+    """One catalog operation with its `director.op_priority` (exact). `jobs` or `effect`, not both.
+    `memory` is the threat-memory counter that moves its score, and how."""
+
+    id: str
+    target: str
+    preconditions: tuple[str, ...]
+    cost: int
+    tiers: frozenset[ThreatTier]
+    jobs: tuple[JobTemplate, ...]
+    effect: str | None
+    priority: Fraction
+    memory: tuple[str, str] | None = None  # (counter, RAISE or LOWER), THREAT-DIRECTOR §2
+    track_age: bool = False  # TD-5: the score rises with the staleness of the sector's picture
+
+
+@dataclass(frozen=True, slots=True)
 class DirectorRules:
-    """Threat Director part 1 (NX-155, THREAT-DIRECTOR §2-§5a). Coalition power and provocation are
+    """Threat Director (NX-155, NX-156, THREAT-DIRECTOR §2-§5a). Coalition power and provocation are
     whole millionths of a point and the tick counts are game ticks, so every threshold, EMA step and
     decay is exact integer arithmetic (floor division) and a snapshot restores them bit for bit.
-    `decay` is the per-window multiplier `num / den` of the provocation half-life; `ema` the
-    per-window EMA step. `max_spawns_per_window` and `max_live_units` wait for spawning (part 2)."""
+    `decay` is the per-window multiplier `num / den` of the provocation half-life, `memory_decay`
+    that of the threat-memory half-life; `ema` the per-window EMA step. Scoring (§4 step 4) is
+    exact Fractions: `target_value` by node kind, `weakness_max`, `proximity` and `noise`.
+    `operations` are the catalog in id order; `retake_ticks` how long a lost node can be retaken."""
 
     window_ticks: int
     cp_value: Mapping[UnitKind, int]  # a kind not listed counts 0
@@ -210,6 +243,31 @@ class DirectorRules:
     budget: Mapping[ThreatTier, int]
     max_spawns_per_window: int
     max_live_units: Mapping[ThreatTier, int]
+    operations: tuple[OperationRules, ...]
+    target_value: Mapping[NodeKind, Fraction]
+    weakness_max: Fraction
+    proximity: Fraction
+    noise: Fraction
+    memory_decay: tuple[int, int]
+    retake_ticks: int
+    dark_ticks: int  # how long a blinking radar is dark (Q-SIM-82)
+    blink_cooldown_ticks: int  # before the same radar may blink again
+    alpha_max_ops: int  # operations with jobs ALPHA runs at once
+    idle_retire_ticks: int  # a Director unit with no job this long is retired (Q-SIM-84)
+    blink_max: int  # radars that start a blink in one window
+    up_above: int  # millionths of an event: a ThreatAdaptation goes UP above it
+    reinforce_above: Fraction  # share of a site's HP missing above which ReinforceIADS fires
+    escort_min_convoys: int  # the fewest convoys an escort operation is cut to
+    frontline_hops: int  # road hops that define the front
+    memory_factor: Fraction  # k in 1 + k c, 1 / (1 + k c)
+    own_node_value: Fraction  # target value of a node the side already holds
+    weakness_min: Fraction  # weakness multiplier at full defenses
+    stale_factor: Fraction  # coefficient of the Recon staleness term
+    job_urgency_milli: int  # urgency of an operation's jobs, thousandths
+    down_below: int  # millionths of an event: a ThreatAdaptation goes DOWN below it
+    memory_weights: Mapping[
+        str, int
+    ]  # millionths of an event per convoy/radar hit, scout/node lost
 
 
 @dataclass(frozen=True, slots=True)
@@ -356,6 +414,7 @@ def tasking_rules(
     ticks_per_min: int,
     counterattack_window_ticks: int,
     scout_cooldown_ticks: int,
+    scout_post_interval_ticks: int,
     threat_memory_ticks: int,
 ) -> TaskingRules:
     """The tick counts are `cfg`'s game-time keys already converted by the config loader."""
@@ -373,6 +432,9 @@ def tasking_rules(
         defend_radius_m=cfg.defend_radius_m,
         counterattack_window_ticks=counterattack_window_ticks,
         scout_cooldown_ticks=scout_cooldown_ticks,
+        scout_open_max=cfg.scout_open_max,
+        capture_max_restarts=cfg.capture_max_restarts,
+        scout_post_interval_ticks=scout_post_interval_ticks,
         station_m=cfg.follow_station_m.model_dump(),
         threat_memory_ticks=threat_memory_ticks,
         leash_m=cfg.escort_leash_m,
@@ -417,10 +479,17 @@ def director_rules(
     ema_ticks: int,
     half_life_ticks: int,
     min_dwell_ticks: int,
+    memory_half_life_ticks: int,
+    retake_ticks: int,
+    dark_ticks: int,
+    blink_cooldown_ticks: int,
+    idle_retire_ticks: int,
+    operations: Iterable[OperationRules],
 ) -> DirectorRules:
-    """The tick counts are `cfg`'s game-time keys already converted by the config loader. Raises
-    ValueError for a coalition-side kind without a `cp.unit_value` (the threshold order is
-    checked by `load_balance`)."""
+    """The tick counts are `cfg`'s game-time keys already converted by the config loader;
+    `operations` is the validated catalog (`nexus.runtime.operations`). Raises ValueError for a
+    coalition-side kind without a `cp.unit_value` (the threshold order is checked by
+    `load_balance`)."""
     values = {cast(UnitKind, k): _micro(v) for k, v in cfg.cp.unit_value}
     missing = sorted(u.kind for u in units if u.side == "COALITION" and u.kind not in values)
     if missing:
@@ -447,6 +516,29 @@ def director_rules(
         max_spawns_per_window=cfg.max_spawns_per_window,
         max_live_units={"PATTERN_OF_LIFE": cfg.max_live_units.pattern_of_life,
                         "ALPHA": cfg.max_live_units.alpha, "BRAVO": cfg.max_live_units.bravo},
+        operations=tuple(sorted(operations, key=lambda o: o.id)),
+        target_value={cast(NodeKind, k): Fraction(repr(v)) for k, v in cfg.score.target_value},
+        weakness_max=Fraction(repr(cfg.score.weakness_max)),
+        proximity=Fraction(repr(cfg.score.provocation_proximity)),
+        noise=Fraction(repr(cfg.noise_scale)),
+        memory_decay=_decay(memory_half_life_ticks, window_ticks),
+        retake_ticks=retake_ticks,
+        dark_ticks=dark_ticks,
+        blink_cooldown_ticks=blink_cooldown_ticks,
+        alpha_max_ops=cfg.alpha_max_ops,
+        idle_retire_ticks=idle_retire_ticks,
+        blink_max=cfg.decoy_blink.max_per_window,
+        up_above=_micro(cfg.adaptation_up_above),
+        reinforce_above=Fraction(repr(cfg.reinforce_damage_above)),
+        escort_min_convoys=cfg.escort_min_convoys,
+        frontline_hops=cfg.frontline_hops,
+        memory_factor=Fraction(repr(cfg.memory.factor)),
+        own_node_value=Fraction(repr(cfg.score.own_node_value)),
+        weakness_min=Fraction(repr(cfg.score.weakness_min)),
+        stale_factor=Fraction(repr(cfg.score.stale_factor)),
+        job_urgency_milli=round(Fraction(repr(cfg.job_urgency)) * 1000),
+        down_below=_micro(cfg.adaptation_down_below),
+        memory_weights={k: _micro(v) for k, v in cfg.memory.weights},
     )  # fmt: skip
 
 

@@ -12,7 +12,8 @@ One decision window is `director.window_s` of game time, i.e. every `window_tick
 it, in order:
 
 1. Provocation decays by one window's multiplier (an exact integer ratio of the half-life), then
-   what was noted since the last window is added.
+   what was noted since the last window is added; so does every threat-memory counter, by its own
+   half-life (§2).
 2. Coalition power (CP, §2, Q-TD-2): the sum of `director.cp.unit_value.<kind>` over the units the
    side tracks now (never last-known tracks, Q-FOW-14; a kind not listed counts 0), moved a
    `window / ema_window` step toward it from the old smoothed value. It starts at 0.
@@ -91,6 +92,15 @@ def decide(
     num, den = dr.decay
     state.provocation = state.provocation * num // den + state.pending
     state.pending = 0
+    mn, md = dr.memory_decay
+    state.convoy_attacks = state.convoy_attacks * mn // md
+    state.radar_strikes = state.radar_strikes * mn // md
+    for counts in (state.node_losses, state.recon_losses):
+        for sector, v in sorted(counts.items()):
+            if v := v * mn // md:
+                counts[sector] = v
+            else:
+                del counts[sector]
     n, d = dr.ema
     state.cp += (raw_cp(view, dr) - state.cp) * n // d
     state.prov_level = level(

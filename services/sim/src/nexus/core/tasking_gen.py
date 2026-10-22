@@ -22,7 +22,9 @@ refers to an entity id, so a job names a node, or a SIGINT blob with its cell ce
 - **Assist objective** (`assist:<node>`, coalition only): the active objective's node, urgency at
   the cap (the objective flag). It ends with the objective.
 - **Scout** (`scout:<cell>`): each SIGINT blob in the side's view (a group it senses but cannot
-  track) whose cell is not cooling down after a finished scout (`tasking.scout_cooldown_min`).
+  track) whose cell is not cooling down after a scout job ended, however
+  (`tasking.scout_cooldown_min`), at most
+  `tasking.scout_open_max` of them at once.
   Urgency by size bucket: S 1.0, M 1.5, L 2.0 (capped).
 - **Escort convoy** (`escort:<truck id>`, Q-GP-29, Q-GP-47): a carrier of the side that has a road
   path and follows no one (a column is covered by its lead truck's job), whose route (its position
@@ -52,6 +54,9 @@ from nexus.core.fog import SideView
 from nexus.core.rules import CAPTURE_FULL, Rules, TaskingRules
 from nexus.core.world import Vec2, World
 
+POST_GATE = (
+    "post-gate"  # a `World.cooldown` key (cells are digits): no new scout job until its tick
+)
 GENERATED = ("resupply:", "defend:", "strike:", "assist:", "scout:", "escort:")
 _GROUND, _AIR = "GROUND", "AIR"
 _UNDEFENDED = ("SANCTUARY", "BRIDGE")  # never captured (N-4, NX-373)
@@ -83,7 +88,8 @@ def fits(rules: Rules, kind: UnitKind, job_kind: JobKind) -> bool:
     """Whether a unit kind can do a job kind (the role(s) that fit, GAMEPLAY §1b), from what the
     kind can do: carriers resupply, painters (recon) scout, armed aircraft strike, armed aircraft
     and ground units defend, any ground unit (a capturer) assists an objective, armed or recon
-    aircraft escort (strike and recon units, GAMEPLAY §1b)."""
+    aircraft escort (strike and recon units, GAMEPLAY §1b). The Director's jobs (NX-156): any
+    aircraft or ground unit that is not a carrier stages, a ground one captures."""
     domain = rules.domain[kind]
     match job_kind:
         case "RESUPPLY":
@@ -100,6 +106,10 @@ def fits(rules: Rules, kind: UnitKind, job_kind: JobKind) -> bool:
             return domain == _GROUND
         case "ESCORT_CONVOY":
             return domain == _AIR and (kind in rules.armed or kind in rules.painters)
+        case "STAGE":
+            return domain in (_AIR, _GROUND)
+        case "CAPTURE":
+            return domain == _GROUND
     return False
 
 
@@ -128,7 +138,35 @@ def generate(
         *_scout(tr, view, world, side),
         *_escort(world, rules, tr, side, view),
     ]
-    return [s for s in specs if s.kind in able]
+    return _cap_scouts([s for s in specs if s.kind in able], world, tr, side)
+
+
+def _cap_scouts(specs: list[JobSpec], world: World, tr: TaskingRules, side: Side) -> list[JobSpec]:
+    """At most `tasking.scout_open_max` generated scout jobs on the board: those already claimed
+    stay, then those already posted, then at most one new one per `tasking.scout_post_interval_min`
+    (the highest urgency, ties by key; the blob jobs of moving
+    units would otherwise flood a board, NX-156). An unclaimed one left out expires as no longer
+    generated."""
+    posted = {
+        j.key: bool(j.claims) for j in world.boards[side].values() if j.key.startswith("scout:")
+    }
+    claimed = {k for k, c in posted.items() if c}
+    # claimed first, then those already posted (no churn), then the highest urgency, then key
+    rest = sorted(
+        (s for s in specs if s.kind == "SCOUT" and s.key not in claimed),
+        key=lambda s: (s.key not in posted, -s.urgency, s.key),
+    )
+    keep = set(claimed)
+    gated = world.cooldown[side].get(POST_GATE, 0) > world.campaign.running_ticks + 1
+    for s in rest:
+        if len(keep) >= tr.scout_open_max:
+            break
+        if s.key in posted:
+            keep.add(s.key)
+        elif not gated:  # one new scout job per board per interval (Q-DEV-21)
+            keep.add(s.key)
+            gated = True
+    return [s for s in specs if s.kind != "SCOUT" or s.key in keep]
 
 
 def _facility_damage(world: World, rules: Rules, side: Side) -> dict[str, tuple[int, int]]:

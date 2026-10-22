@@ -14,6 +14,7 @@ from typing import cast
 from nexus.contracts.gen.common.enums import Side
 from nexus.contracts.gen.config.balance import BalanceConfig
 from nexus.contracts.gen.config.theater import TheaterConfig
+from nexus.core.operations import misfits as fit_problems
 from nexus.core.rules import (
     Rules,
     campaign_rules,
@@ -25,12 +26,14 @@ from nexus.core.rules import (
 )
 from nexus.core.world import Campaign, Vec2, World
 from nexus.runtime.config import (
+    ConfigError,
     canonical_hash,
     config_hash,
     game_ticks,
     load_balance,
     world_ticks,
 )
+from nexus.runtime.operations import load_operations, operations_hash
 from nexus.runtime.theater import load_theater, masking_cells, road_graph
 from nexus.runtime.units import UnitCatalog, catalog_hash, load_catalog
 
@@ -46,6 +49,7 @@ class ConfigPaths:
     weapons: Path = REPO / "content" / "weapons.yaml"
     roles: Path = REPO / "content" / "roles.yaml"
     theater: Path = REPO / "content" / "theaters" / "strait-1.yaml"
+    operations: Path = REPO / "content" / "operations.yaml"
 
 
 @dataclass(frozen=True, slots=True)
@@ -53,7 +57,7 @@ class CampaignConfig:
     balance: BalanceConfig
     catalog: UnitCatalog
     theater: TheaterConfig
-    config_hash: str  # balance, units, theater (§4.4)
+    config_hash: str  # balance, units, operations, theater (§4.4)
     rules: Rules = field(compare=False)
 
 
@@ -63,9 +67,11 @@ def load_campaign_config(paths: ConfigPaths | None = None) -> CampaignConfig:
     balance = load_balance(paths.balance)
     catalog = load_catalog(paths.units, paths.weapons, paths.roles)
     theater = load_theater(paths.theater)
+    operations = load_operations(paths.operations, balance, catalog.units)
     digest = config_hash(
         canonical_hash(balance.model_dump()),
         catalog_hash(catalog),
+        operations_hash(operations),
         canonical_hash(theater.model_dump()),
     )
     mask_cell_m, masking = masking_cells(theater)
@@ -114,6 +120,9 @@ def load_campaign_config(paths: ConfigPaths | None = None) -> CampaignConfig:
                 balance.tasking.counterattack_window_min, balance, unit_s=60
             ),
             scout_cooldown_ticks=game_ticks(balance.tasking.scout_cooldown_min, balance, unit_s=60),
+            scout_post_interval_ticks=game_ticks(
+                balance.tasking.scout_post_interval_min, balance, unit_s=60
+            ),
             threat_memory_ticks=world_ticks(balance.tasking.escort_threat_memory_s, balance),
         ),
         director=director_rules(
@@ -123,8 +132,16 @@ def load_campaign_config(paths: ConfigPaths | None = None) -> CampaignConfig:
             ema_ticks=game_ticks(balance.director.cp.ema_window_s, balance),
             half_life_ticks=game_ticks(balance.director.provocation.half_life_s, balance),
             min_dwell_ticks=game_ticks(balance.director.tier.min_dwell_s, balance),
+            memory_half_life_ticks=game_ticks(balance.director.memory.half_life_s, balance),
+            retake_ticks=game_ticks(balance.director.retake_window_min, balance, unit_s=60),
+            dark_ticks=game_ticks(balance.director.decoy_blink.dark_s, balance),
+            blink_cooldown_ticks=game_ticks(balance.director.decoy_blink.cooldown_s, balance),
+            idle_retire_ticks=game_ticks(balance.director.idle_retire_s, balance),
+            operations=operations,
         ),
     )
+    if misfits := fit_problems(rules):
+        raise ConfigError(f"{paths.operations}: " + "; ".join(misfits))
     return CampaignConfig(balance, catalog, theater, digest, rules)
 
 

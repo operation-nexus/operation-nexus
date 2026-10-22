@@ -84,7 +84,7 @@ Precedence: the env var `NEXUS__SECTION__KEY` overrides the file. **Every effect
   - a key repeated in one mapping (a `<<` merge followed by an explicit key is an override, not a duplicate);
   - YAML 1.1 number forms (hex `0x`, octal `0o` or a leading zero, `_` separators, sexagesimal `1:30`): they stay strings, which the schema then rejects for a numeric key.
 - **Bounds:** durations given to the tick conversion (CFG-9) must be finite and ≥ 0; a schema key gets a maximum only once the balance harness proposes one (NX-031).
-- **`config_hash`** = blake2b-256 over the concatenation of the canonical hashes (raw 32-byte digests), in a fixed order: `balance`, `units`, `doctrines`, `theater` (the one selected for the campaign), `text`. Each part joins with its loader; until then the hash covers only the parts that exist (today `balance`, NX-106, `units`, NX-367, and `theater`, NX-120), never a placeholder for a missing part. The `units` digest is `units.catalog_hash`: the canonical hash of the validated tree `{units: [by kind], weapons: [by id], roles: {...}}`, so file order and formatting do not matter.
+- **`config_hash`** = blake2b-256 over the concatenation of the canonical hashes (raw 32-byte digests), in a fixed order: `balance`, `units`, `operations`, `doctrines`, `theater` (the one selected for the campaign), `text`. Each part joins with its loader; until then the hash covers only the parts that exist (today `balance`, NX-106, `units`, NX-367, `operations`, NX-156, and `theater`, NX-120). The `operations` digest is `operations.operations_hash`: the canonical hash of the validated catalog in id order, so file order does not matter, never a placeholder for a missing part. The `units` digest is `units.catalog_hash`: the canonical hash of the validated tree `{units: [by kind], weapons: [by id], roles: {...}}`, so file order and formatting do not matter.
 - **Manifest:** every `config_hash` is registered with a manifest listing each contributing file (path, kind, sha256) plus the full content, so crash bundles and replays never depend on git (DATA-MODEL §4.7).
 - **`schema_version`:** every file carries an integer `schema_version`. A loader accepts only versions it knows. A schema bump that changes meaning requires a migration script under `tools/config_migrate/` with tests.
 - **`content_version`:** a human-facing semver per content file (e.g. a theater's `version: 1.2.0`), shown in the AAR and in replay headers. It is informational only; `config_hash` is what's authoritative.
@@ -138,7 +138,6 @@ Legend: **HR** = hot-reloadable (§5). "TBD" = TBD by harness. **Source** = the 
 | `fow.sigint_size_m_min` | int | units, ≥ 2 | 3 (PROPOSED by NX-150). A blob of at least this many units reads M; fewer reads S. In the schema now (NX-150) | FOG-OF-WAR Tier 1 | No |
 | `fow.sigint_size_l_min` | int | units, > `fow.sigint_size_m_min` (checked at load) | 7 (PROPOSED by NX-150). A blob of at least this many units reads L. In the schema now (NX-150) | FOG-OF-WAR Tier 1 | No |
 | `fow.paint_range_m` | float | m, > 0 | 20000 (PROPOSED by NX-150: a third of a recon UAV's 60 km sensor). A recon unit paints a target it tracks itself within this range. In the schema now (NX-150) | FOG-OF-WAR Tier 2 painted flag, Q-FOW-6 | No |
-| `director.decoy_blink.dark_s` | float | s (world) | TBD (PROPOSED) | FOG-OF-WAR FOW-11, Q-FOW-10 | No |
 | `air.bingo_reserve_frac` | float | fraction of the kind's `fuel_s`, 0–1 | 0.15 (PROPOSED by NX-368). Bingo: an airborne aircraft RTBs once its fuel is at most the flight time to the nearest base it can land at plus this reserve. In the schema now (NX-368) | STATE-MACHINES §4.1, Q-SIM-38 | No |
 | `air.orbit_period_s` | float | s (world), > 0 | 120 (PROPOSED by NX-368). One lap of an idle airborne aircraft's orbit at its `min_speed_mps`; the radius is `min_speed_mps` × this / 2π (about 1.9 km for a jet). In the schema now (NX-368) | SIM-CORE §4, GAMEPLAY §5 | No |
 
@@ -241,7 +240,7 @@ In code since NX-125: all ten keys are the `capture` block of `balance/default.y
 | `campaign.options.unlimited_ammo` | bool | — | not in the schema yet (NX-124 part 2 does not honour it); false (Q-CBT-7; test/special-event option; set at campaign setup by owner/admin only, not GM, Q-ALN-10) | GAMEPLAY §5 | No |
 | `campaign.intermission.mode` | enum `auto_advance`\|`await_owner` | — | TBD (owner choice per campaign, Q-UX-8) | GAMEPLAY §9 | Yes |
 | `tasking.claim_lease_s` | float | s (game, Q-ALN-23) | 120 (PROPOSED, Q-SIM-73): a claim auto-releases when its unit makes no progress for this long (Q-GD-37) | GAMEPLAY §1b | Yes |
-| `tasking.priority.<job_kind>` | float | base priority | PROPOSED (Q-SIM-73), by lower-case `JobKind`: defend 60, resupply 50, assist_objective 45, strike 40, scout 30, escort_convoy 40 (repair_bridge joins with NX-373) | GAMEPLAY §1b, Q-GP-20 | Yes |
+| `tasking.priority.<job_kind>` | float | base priority | PROPOSED (Q-SIM-73), by lower-case `JobKind`: defend 60, resupply 50, assist_objective 45, strike 40, scout 30, escort_convoy 40, stage 20, capture 45 (the Director's two kinds, lead decision, NX-156; repair_bridge joins with NX-373) | GAMEPLAY §1b, Q-GP-20 | Yes |
 | `tasking.urgency_max` | float | multiplier cap (1.0–2.0) | 2.0 (PROPOSED, Q-SIM-73) | GAMEPLAY §1b, Q-GP-20 | Yes |
 | `tasking.priority_aging_per_min` | float | priority points/min (game, Q-ALN-23) | 1 (PROPOSED, Q-SIM-73): old jobs gain priority so they aren't starved (Q-GD-37) | GAMEPLAY §1b | Yes |
 | `tasking.reeval_every_ticks` | int | ticks | 50 (PROPOSED, Q-SIM-73): boards are re-evaluated every N running ticks, not every tick (Q-GD-37) | GAMEPLAY §1b | Yes |
@@ -251,7 +250,10 @@ In code since NX-125: all ten keys are the `capture` block of `balance/default.y
 | `tasking.resupply_slots_max` | int | units | 3 (PROPOSED, Q-SIM-73) | GAMEPLAY §1b | Yes |
 | `tasking.defend_radius_m` | float | m | 10000 (PROPOSED, Q-SIM-74): a base posts a defend job when its side tracks an enemy ground unit this close; urgency 1.0 at the radius rising to the cap at the base | GAMEPLAY §1b | Yes |
 | `tasking.counterattack_window_min` | float | min (game, Q-ALN-23) | 15 (PROPOSED, Q-SIM-74, Q-GD-31): for this long after a node is lost the AI garrison may take strike and assist-objective jobs against it | GAMEPLAY §1b | Yes |
-| `tasking.scout_cooldown_min` | float | min (game, Q-ALN-23) | 5 (PROPOSED, Q-SIM-75): a scout job for a cell that was DONE is not posted again this long | GAMEPLAY §1b | Yes |
+| `tasking.scout_post_interval_min` | float | min (game) | 2 (PROPOSED, Q-DEV-21): at most one new generated scout job per board per this long (highest urgency, ties by key) | GAMEPLAY §1b | Yes |
+| `tasking.capture_max_restarts` | int | restarts | 3 (PROPOSED, Q-SIM-84): a CAPTURE job whose claimants are still driving at its expiry gets a fresh one this many times, then expires normally | GAMEPLAY §1b | Yes |
+| `tasking.scout_open_max` | int | jobs | 3 (PROPOSED, Q-SIM-82, NX-156): the most generated scout jobs a board holds at once; claimed ones stay, then highest urgency, ties by key | GAMEPLAY §1b | Yes |
+| `tasking.scout_cooldown_min` | float | min (game, Q-ALN-23) | 5 (PROPOSED, Q-SIM-75): a generated scout job for a cell that ended (DONE, EXPIRED or FAILED) is not posted again this long (Q-DEV-21) | GAMEPLAY §1b | Yes |
 | `director.pol.patrol_period_s` | float | s (game, Q-ALN-23) | TBD by harness | THREAT-DIRECTOR §5a | Yes |
 | `director.pol.convoy_period_s` | float | s (game, Q-ALN-23) | TBD by harness | THREAT-DIRECTOR §5a | Yes |
 | `director.provocation.weights.<action>` | float | score per action | `unit_destroyed` 5, `unit_damaged` 1 (per hit), `convoy_hit` 3, `facility_damaged` 3, `facility_disabled` 8, `base_captured` 15, `scout_in_rear` 2 (per window) (PROPOSED, Q-SIM-78); only player-controlled units cause them | THREAT-DIRECTOR §5a | Yes |
@@ -281,14 +283,32 @@ In code since NX-374: the required `tasking` block of `balance/default.yaml` (`c
 | `director.budget.<tier>` | int | budget points / window | `pattern_of_life` 10, `alpha` 30, `bravo` 80 (PROPOSED, Q-SIM-78); never above the Static's real surplus (Q-TD-5) | THREAT-DIRECTOR §4 | Yes |
 | `director.max_spawns_per_window` | int | units / window | 6 (PROPOSED, Q-SIM-78) | THREAT-DIRECTOR §4, Q-TD-12 | Yes |
 | `director.max_live_units.<tier>` | int | units | `pattern_of_life` 24, `alpha` 40, `bravo` 70 (PROPOSED, Q-SIM-78) | THREAT-DIRECTOR §4, Q-TD-12 | Yes |
-| `director.op_priority.<op>` | float | base priority | TBD by harness | THREAT-DIRECTOR §4, Q-TD-6 | Yes |
-| `director.score.target_value.<node_kind>` | float | multiplier | TBD by harness | THREAT-DIRECTOR §4, Q-TD-6 | Yes |
-| `director.score.provocation_proximity` | float | multiplier | TBD by harness | THREAT-DIRECTOR §5, Q-TD-4 | Yes |
+| `director.op_priority.<op>` | float | base priority | RETAKE 1.2, OFFENSIVE 1.0, ESCORT_CONVOYS 0.8, REINFORCE_IADS 0.7, PROBE 0.6, RECON 0.5, DECOY_BLINK 0.3 (PROPOSED, Q-SIM-78); exactly the catalog's ids | THREAT-DIRECTOR §4, Q-TD-6 | Yes |
+| `director.score.target_value.<node_kind>` | float | multiplier | AIRBASE 1.5, FOB 1.0, PORT 1.0, SANCTUARY 2.0 (PROPOSED, Q-SIM-78); a kind not listed is never a target |
+| `director.score.weakness_max` | float | multiplier | 2.0 (PROPOSED, Q-SIM-78): the weakness multiplier at no defenses, 1.0 at full, linear | THREAT-DIRECTOR §4 | Yes | THREAT-DIRECTOR §4, Q-TD-6 | Yes |
+| `director.score.provocation_proximity` | float | multiplier | 1.5 (PROPOSED, Q-SIM-78) | THREAT-DIRECTOR §5, Q-TD-4 | Yes |
 | `director.memory.half_life_s` | float | s (game, Q-ALN-23) | 1800 | THREAT-DIRECTOR §2 | Yes |
-| `director.noise_scale` | float | utility units | TBD | THREAT-DIRECTOR §4 | Yes |
+| `director.noise_scale` | float | fraction of the score | 0.1 (PROPOSED, Q-SIM-78) | THREAT-DIRECTOR §4 | Yes |
+| `director.decoy_blink.dark_s` | float | s (game) | 120 (PROPOSED, Q-SIM-82, owner): how long a blinking radar stays dark | FOG-OF-WAR FOW-11 | Yes |
+| `director.decoy_blink.cooldown_s` | float | s (game) | 600 (PROPOSED, Q-SIM-82, owner): before the same radar can blink again; one radar blinks per window | FOG-OF-WAR FOW-11 | Yes |
+| `director.decoy_blink.max_per_window` | int | radars | 1 (PROPOSED, Q-SIM-82): radars that start a blink per decision window | FOG-OF-WAR FOW-11 | Yes |
+| `director.adaptation_up_above` | float | events | 0 (PROPOSED): a ThreatAdaptation goes UP when its counter is above this as the matching operation launches | THREAT-DIRECTOR §4 step 5 | Yes |
+| `director.reinforce_damage_above` | float | fraction | 0 (PROPOSED, Q-SIM-81): share of an air-defense site's HP missing above which ReinforceIADS counts it damaged (0 = any damage) | THREAT-DIRECTOR §4 | Yes |
+| `director.escort_min_convoys` | int | convoys | 1 (PROPOSED): the fewest convoys an escort operation is cut to when units are short | THREAT-DIRECTOR §4 step 6 | Yes |
+| `director.frontline_hops` | int | road hops | 1 (PROPOSED): a node is on the front when a node within this many hops has another owner | THREAT-DIRECTOR §4 | Yes |
+| `director.memory.factor` | float | multiplier | 1 (PROPOSED): k in the memory multiplier 1 + k c (RAISE) or 1 / (1 + k c) (LOWER) | THREAT-DIRECTOR §2, §4 | Yes |
+| `director.score.own_node_value` | float | multiplier | 1.0 (PROPOSED, Q-DEV-21): target value of a node the Static already holds (ReinforceIADS) | THREAT-DIRECTOR §4 | Yes |
+| `director.score.weakness_min` | float | multiplier | 1.0 (PROPOSED, Q-SIM-78): the weakness multiplier at full defenses; linear up to `weakness_max` | THREAT-DIRECTOR §4 | Yes |
+| `director.score.stale_factor` | float | multiplier | 1.0 (PROPOSED, TD-5): f in the Recon staleness term 1 + f s | THREAT-DIRECTOR §4, TD-5 | Yes |
+| `director.idle_retire_s` | float | s (game) | 600 (PROPOSED, Q-SIM-84): a Director unit with no job and no path this long is retired (removed, no refund) | THREAT-DIRECTOR §4 | Yes |
+| `director.alpha_max_ops` | int | operations | 1 (PROPOSED, THREAT-DIRECTOR §3): operations with jobs ALPHA runs at once | THREAT-DIRECTOR §3 | Yes |
+| `director.job_urgency` | float | multiplier | 1.0 (PROPOSED): urgency of an operation's jobs | THREAT-DIRECTOR §4 | Yes |
+| `director.adaptation_down_below` | float | events | 1 (PROPOSED): a ThreatAdaptation goes DOWN below this many events | THREAT-DIRECTOR §4 step 5 | Yes |
+| `director.memory.weights.<convoy_hit,radar_hit,scout_lost,node_lost>` | float | events | 1 each (PROPOSED): what one occurrence adds to its counter | THREAT-DIRECTOR §2 | Yes |
+| `director.retake_window_min` | float | min (game) | 30 (PROPOSED, Q-SIM-81): a lost Static node can be retaken this long | THREAT-DIRECTOR §4 | Yes |
 | `director.advisor.top_k` | int | candidates | TBD (P4) | THREAT-DIRECTOR §6 | Yes |
 
-In code since NX-155 (Threat Director part 1): the required `director` block of `balance/default.yaml` (`contracts/config/balance.json`) holds the keys above through `max_live_units` (`budget` and `max_live_units` are objects keyed by lower-case tier; `cp.unit_value` by unit kind; `provocation.weights` by action). The game-time keys become running ticks at load (`Rules.director`); coalition power and provocation are kept as whole millionths of a point, the half-life as an exact integer per-window multiplier, the dwell, EMA step and exit ratio exactly, so thresholds never meet a float. `provocation.half_life_s` over `window_s` must reduce to a ratio with neither part above 256 (the loader refuses more). `max_spawns_per_window` and `max_live_units` are loaded and validated; spawning (part 2) reads them. `director.pol.*`, `op_priority`, `score.*`, `memory.half_life_s`, `noise_scale` and `advisor.top_k` have no code yet.
+In code since NX-155 (Threat Director part 1): the required `director` block of `balance/default.yaml` (`contracts/config/balance.json`) holds the keys above through `max_live_units` (`budget` and `max_live_units` are objects keyed by lower-case tier; `cp.unit_value` by unit kind; `provocation.weights` by action). The game-time keys become running ticks at load (`Rules.director`); coalition power and provocation are kept as whole millionths of a point, the half-life as an exact integer per-window multiplier, the dwell, EMA step and exit ratio exactly, so thresholds never meet a float. `provocation.half_life_s` over `window_s` must reduce to a ratio with neither part above 256 (the loader refuses more). `max_spawns_per_window` and `max_live_units` are read by spawning (NX-156). In code since NX-156 (part 2): `op_priority` (an open map by operation id; the loader requires exactly the catalog's ids), `score.target_value`, `score.weakness_max`, `score.provocation_proximity`, `memory.half_life_s` (an exact integer per-window multiplier like the provocation half-life), `noise_scale` (an exact Fraction), `retake_window_min` and the `tasking.priority` keys `stage` (20) and `capture` (45), which are lead decisions, PROPOSED, for the Director's two job kinds. `director.pol.*` and `advisor.top_k` have no code yet.
 
 ### 6.8 Progression
 | Key | Type | Unit | PROPOSED | Source | HR |
@@ -450,23 +470,27 @@ doctrines:
 
 
 ## 8a. Operation catalog (`content/operations.yaml`, Q-TD-7)
-The director's operations are content, not kernel code. Each entry names its preconditions (a closed list in the schema), cost, enabled tiers and a **job template**: an ordered list of Tasking Board jobs (job kinds from CONTRACTS `JobKind`, with role, slot count and dependencies) that the operation posts on the Static's board. Selectors such as `target_defenses` and `nearest_own_base` resolve only against the Static's view (THREAT-DIRECTOR TD-2). Adding or changing an operation is a content change validated at load (unknown job kinds, missing preconditions or a cost outside the envelope are rejected); new behaviour the job kinds can't express needs a spec change first.
+The director's operations are content, not kernel code. Each entry names its preconditions (a closed list in the schema), cost, enabled tiers and a **job template**: an ordered list of Tasking Board jobs (job kinds from CONTRACTS `JobKind`, with unit kinds, slot count and an `at` selector; each job after the first depends on the one before) that the operation posts on the Static's board, or an `effect` with no jobs. Selectors resolve only against the Static's view (THREAT-DIRECTOR TD-2). Adding or changing an operation is a content change validated at load (unknown job kinds, selectors or preconditions, a cost outside the envelope are rejected); new behaviour the job kinds can't express needs a spec change first. In code since NX-156: the schema is `contracts/config/operations.json`, the loader `nexus.runtime.operations`, and the shipped file is Q-SIM-81.
 
 ```yaml
 schema_version: 1
 operations:
-  - id: OFFENSIVE                     # THREAT-DIRECTOR §4 step 3
-    target: NODE
-    preconditions: [target_owner_is_coalition, target_in_enemy_view]   # closed enum in the schema
-    cost: <int>                       # budget points, TBD by harness (the only home of an operation's cost)
+  - id: OFFENSIVE                     # also the <op> of director.op_priority.<op>
+    target: NODE                      # NODE | SECTOR | RADAR | CONVOYS
+    preconditions: [target_owner_is_coalition, target_in_enemy_view, target_capturable]
+    cost: 60                          # whole budget points, the only home of an operation's cost (Q-SIM-78)
     enabled_tiers: [ALPHA, BRAVO]     # Pattern of Life allows Offensive only under the night cap
-    # priority comes from director.op_priority.<id>
-    jobs:                             # posted in order; each later job depends on the earlier one
-      - { kind: DEFEND, at: nearest_own_base, unit_kinds: [ENEMY_STRIKE_FIGHTER], slots: <int> }   # stage
-      - { kind: STRIKE, at: target_defenses, unit_kinds: [ENEMY_STRIKE_FIGHTER], slots: <int> }
-      - { kind: CAPTURE, at: target, unit_kinds: [ENEMY_ARMOR], slots: <int> }
+    memory: { counter: node_losses_by_sector, effect: RAISE }   # optional; RAISE = x (1 + c), LOWER = / (1 + c)
+    track_age: true                   # optional, SECTOR targets: the score rises with a stale picture (TD-5)
+    jobs:                             # one unit is bought per slot
+      - { kind: STAGE,   at: nearest_own_base, unit_kinds: [ENEMY_ARMOR],          slots: 2 }
+      - { kind: STRIKE,  at: target_defenses,  unit_kinds: [ENEMY_STRIKE_FIGHTER], slots: 2 }
+      - { kind: CAPTURE, at: target,           unit_kinds: [ENEMY_ARMOR],          slots: 2 }
+    # effect: EMISSION_BLINK          # instead of jobs (DecoyBlink)
 ```
-Values are PROPOSED; the first-build list is Probe, Recon, Offensive, Retake, EscortConvoys, ReinforceIADS, StrikeBridge and DecoyBlink (DecoyBlink sets an emission flag and has no jobs, FOG-OF-WAR FOW-11).
+- **Closed lists.** Preconditions: `target_owner_is_coalition` (the other side's node), `target_in_enemy_view`, `target_capturable` (not a sanctuary or bridge), `target_is_frontline` (a road neighbour not of the node's owner), `target_recently_lost` (within `director.retake_window_min`), `target_has_damaged_air_defense`, `target_radar_operational`, `has_unescorted_convoy`. Selectors: `target`, `target_defenses`, `nearest_own_base`, `sector_node`, `each_convoy`. Each suits one target kind (the loader checks), and an `ESCORT_CONVOY` job is the one at `each_convoy`.
+- **Cost envelope (Q-TD-7).** A whole number of points from 0 to the largest `director.budget.<tier>`: an operation above it could never run. The loader also checks that a priority exists for every operation and none for another, that the units are ENEMY air or ground kinds that fit the job kind (`tasking_gen.fits`) and that the units bought fit `director.max_spawns_per_window`.
+- **Shipped (Q-SIM-81, costs and priorities Q-SIM-78):** OFFENSIVE 60 (stage 2 ENEMY_ARMOR, 2 ENEMY_STRIKE_FIGHTER strike, 2 ENEMY_ARMOR capture), RETAKE 50 (1 strike jet, 3 armor capture; the node lost within 30 game minutes), PROBE 15 (1 strike jet on a frontline base's defenses), RECON 5 (1 ENEMY_RECON_UAV scouts a sector), ESCORT_CONVOYS 10 (Q-SIM-82; 20 in Q-SIM-78) (1 ENEMY_FIGHTER per unescorted convoy), REINFORCE_IADS 15 (1 ENEMY_CONVOY resupplies the base whose air-defense site is damaged), DECOY_BLINK 0 (a radar goes dark for `decoy_blink.dark_s`). Tiers: DECOY_BLINK, RECON and ESCORT_CONVOYS at every tier, the rest at ALPHA and BRAVO. STRIKE_BRIDGE waits for NX-373.
 
 ## 9. Theater file format (`content/theaters/<slug>.yaml`)
 

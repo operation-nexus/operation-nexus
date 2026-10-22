@@ -128,6 +128,8 @@ tasking:
     strike: 40
     scout: 30
     escort_convoy: 40  # PROPOSED – unvalidated (Q-SIM-73)
+    stage: 20  # PROPOSED – unvalidated (lead decision, NX-156): below scout, so an idle unit never prefers staging; units take it at spawn
+    capture: 45  # PROPOSED – unvalidated (lead decision, NX-156): as assist_objective, the other ground job
   urgency_max: 2.0  # PROPOSED – unvalidated (Q-GP-20, Q-SIM-73); multiplier, the least is 1.0 (CONFIG-AND-CONTENT §6.6)
   priority_aging_per_min: 1  # PROPOSED – unvalidated (Q-SIM-73); points per min (game) (CONFIG-AND-CONTENT §6.6)
   slots:  # PROPOSED – unvalidated (Q-SIM-73); units per lower-case JobKind (CONFIG-AND-CONTENT §6.6 tasking.slots.<job_kind>)
@@ -140,6 +142,9 @@ tasking:
   resupply_slots_max: 3  # PROPOSED – unvalidated (Q-SIM-73); units (CONFIG-AND-CONTENT §6.6)
   defend_radius_m: 10000  # PROPOSED – unvalidated (Q-SIM-74); m, a tracked enemy ground unit this close to a base posts a defend job (CONFIG-AND-CONTENT §6.6)
   counterattack_window_min: 15  # PROPOSED – unvalidated (Q-SIM-74, Q-GD-31); min (game), the AI garrison may counterattack a node just lost (CONFIG-AND-CONTENT §6.6)
+  capture_max_restarts: 3  # PROPOSED – unvalidated (Q-SIM-84); fresh expiries for a capture run still driving
+  scout_post_interval_min: 2  # PROPOSED – unvalidated (Q-DEV-21); min (game), at most one new generated scout job per board per interval
+  scout_open_max: 3  # PROPOSED – unvalidated (Q-SIM-82); open generated scout jobs a board holds at once
   scout_cooldown_min: 5  # PROPOSED – unvalidated (Q-SIM-75); min (game), a scouted cell is not posted again (CONFIG-AND-CONTENT §6.6)
   follow_station_m:  # PROPOSED – unvalidated (Q-SIM-76, owner-approved start; NX-031 tunes); m (CONFIG-AND-CONTENT §6.6 tasking.follow_station_m.<pairing>)
     escort: 500  # a ground combat unit ahead of its truck or convoy on the same road
@@ -148,7 +153,7 @@ tasking:
     wingman: 1000  # an aircraft this far off its aircraft lead
   escort_threat_memory_s: 60  # PROPOSED – unvalidated (Q-SIM-76); s (world), a tracked enemy that fired at a group member this recently is a group threat (CONFIG-AND-CONTENT §6.6)
   escort_leash_m: 10000  # PROPOSED – unvalidated (Q-SIM-76); m, the farthest an escort leaves station to engage a group threat (CONFIG-AND-CONTENT §6.6)
-director:  # Threat Director part 1 (Q-SIM-78, owner-approved starting numbers; NX-031 tunes) (CONFIG-AND-CONTENT §6.7)
+director:  # Threat Director (Q-SIM-78, Q-SIM-81, owner-approved starting numbers; NX-031 tunes) (CONFIG-AND-CONTENT §6.7)
   window_s: 60  # PROPOSED – unvalidated (Q-ALN-23); s (game), the decision window (CONFIG-AND-CONTENT §6.7 director.window_s)
   cp:
     unit_value:  # PROPOSED – unvalidated (Q-SIM-78); CP points of one tracked coalition unit by kind, every coalition-side kind listed (CONFIG-AND-CONTENT §6.7)
@@ -185,3 +190,44 @@ director:  # Threat Director part 1 (Q-SIM-78, owner-approved starting numbers; 
     pattern_of_life: 24
     alpha: 40
     bravo: 70
+  op_priority:  # PROPOSED – unvalidated (Q-SIM-78); exactly the operations of content/operations.yaml (CONFIG-AND-CONTENT §6.7, §8a)
+    RETAKE: 1.2
+    OFFENSIVE: 1.0
+    ESCORT_CONVOYS: 0.8
+    REINFORCE_IADS: 0.7
+    PROBE: 0.6
+    RECON: 0.5
+    DECOY_BLINK: 0.3
+  score:
+    target_value:  # PROPOSED – unvalidated (Q-SIM-78); multiplier by node kind
+      AIRBASE: 1.5
+      FOB: 1.0
+      PORT: 1.0
+      SANCTUARY: 2.0
+    own_node_value: 1.0  # PROPOSED – unvalidated (Q-DEV-21); target value of a node the Static holds
+    weakness_min: 1.0  # PROPOSED – unvalidated (Q-SIM-78); multiplier at full defenses
+    stale_factor: 1.0  # PROPOSED – unvalidated (TD-5); Recon score x (1 + factor x staleness)
+    weakness_max: 2.0  # PROPOSED – unvalidated (Q-SIM-78); 1.0 at full defenses, rising linearly to this at none
+    provocation_proximity: 1.5  # PROPOSED – unvalidated (Q-SIM-78, Q-TD-4)
+  adaptation_up_above: 0  # PROPOSED – unvalidated (NX-156); events: a ThreatAdaptation goes UP above this
+  reinforce_damage_above: 0  # PROPOSED – unvalidated (Q-SIM-81); share of HP missing, 0 = any damage
+  escort_min_convoys: 1  # PROPOSED – unvalidated (NX-156); fewest convoys an escort operation is cut to
+  frontline_hops: 1  # PROPOSED – unvalidated (NX-156); road hops that define the front
+  idle_retire_s: 600  # PROPOSED – unvalidated (Q-SIM-84); s (game) a Director unit with no job is retired
+  alpha_max_ops: 1  # PROPOSED – unvalidated (THREAT-DIRECTOR §3); operations with jobs ALPHA runs at once
+  job_urgency: 1.0  # PROPOSED – unvalidated (NX-156); urgency of an operation's jobs, x the job kind's priority
+  adaptation_down_below: 1  # PROPOSED – unvalidated (NX-156); events: below this a ThreatAdaptation goes DOWN
+  memory:
+    weights:  # PROPOSED – unvalidated (NX-156); events one occurrence adds to its counter
+      convoy_hit: 1
+      radar_hit: 1
+      scout_lost: 1
+      node_lost: 1
+    factor: 1.0  # PROPOSED – unvalidated (Q-SIM-81); memory multiplier 1 + k x c, or 1 / (1 + k x c)
+    half_life_s: 1800  # PROPOSED – unvalidated (Q-SIM-81, Q-ALN-23); s (game)
+  noise_scale: 0.1  # PROPOSED – unvalidated (Q-SIM-78); a score moves by up to 10% either way
+  decoy_blink:
+    dark_s: 120  # PROPOSED – unvalidated (Q-SIM-82, owner); s (game) a blinking radar is dark
+    max_per_window: 1  # PROPOSED – unvalidated (Q-SIM-82); radars that start a blink per window
+    cooldown_s: 600  # PROPOSED – unvalidated (Q-SIM-82, owner); s (game) before the same radar can blink again
+  retake_window_min: 30  # PROPOSED – unvalidated (Q-SIM-81); min (game)

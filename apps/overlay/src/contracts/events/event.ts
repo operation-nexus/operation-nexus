@@ -34,7 +34,8 @@ export type Event =
   | JobDone
   | JobFailed
   | JobExpired
-  | ThreatTierChanged;
+  | ThreatTierChanged
+  | ThreatAdaptation;
 
 /**
  * A unit appears (CONTRACTS §6). Public view: an ENEMY spawn only if its spawn point is tracked; otherwise dropped.
@@ -592,7 +593,7 @@ export interface UnitDamageStateChanged {
   to: "HEALTHY" | "DAMAGED" | "MISSION_KILL" | "DISABLED";
 }
 /**
- * A unit was removed without being destroyed (CONTRACTS §6). WRECKED is the first producer: a Disabled unit removed after combat.disabled_timeout_s, its cargo lost (COMBAT CB-7, Q-CBT-14). Other reasons join with their producers (rule 6a). Public view: a hidden ENEMY unit is dropped.
+ * A unit was removed without being destroyed (CONTRACTS §6). WRECKED is the first producer: a Disabled unit removed after combat.disabled_timeout_s, its cargo lost (COMBAT CB-7, Q-CBT-14). RETIRED: a Threat Director unit with no job for director.idle_retire_s, removed with no refund; it is not a loss (NX-156, Q-SIM-84). Other reasons join with their producers (rule 6a). Public view: a hidden ENEMY unit is dropped.
  */
 export interface UnitDespawned {
   kind: "UnitDespawned";
@@ -612,7 +613,7 @@ export interface UnitDespawned {
    * Sequential per campaign, never reused (SC-4).
    */
   entity_id: number;
-  reason: "WRECKED";
+  reason: "WRECKED" | "RETIRED";
 }
 /**
  * A unit spent its last missile, bomb or other non-gun round (CONTRACTS §6; COMBAT CB-11, GAMEPLAY §5): emitted on the shot that empties the non-gun weapons, once per load; guns_only is true when gun rounds remain. A unit that carries no non-gun weapon never emits it. Public view: dropped for a hidden ENEMY unit (FOW-13).
@@ -773,9 +774,9 @@ export interface JobCreated {
   job_id: number;
   side: "COALITION" | "ENEMY";
   /**
-   * Tasking Board job kinds the code handles (GAMEPLAY §1b, CONTRACTS §3.3). REPAIR_BRIDGE, CAPTURE and RESCUE join with their jobs (rule 6a).
+   * Tasking Board job kinds the code handles (GAMEPLAY §1b, CONTRACTS §3.3). STAGE and CAPTURE are posted by the Threat Director on the Static board only (Q-SIM-81, Q-TD-14). REPAIR_BRIDGE and RESCUE join with their jobs (rule 6a).
    */
-  job_kind: "RESUPPLY" | "SCOUT" | "DEFEND" | "STRIKE" | "ASSIST_OBJECTIVE" | "ESCORT_CONVOY";
+  job_kind: "RESUPPLY" | "SCOUT" | "DEFEND" | "STRIKE" | "ASSIST_OBJECTIVE" | "ESCORT_CONVOY" | "STAGE" | "CAPTURE";
   node_id: string | null;
   blob_id: string | null;
   /**
@@ -947,4 +948,35 @@ export interface ThreatTierChanged {
    * Smoothed coalition power at the decision window.
    */
   cp_smoothed: number;
+}
+/**
+ * The Static's Threat Director adapted its defense to what it suffered (CONTRACTS §6; THREAT-DIRECTOR §4 step 5, C37; NX-156). `UP` when the matching operation launched (escorts appear, air defense is reinforced), `DOWN` when its threat-memory counter has decayed away again. Sector level only: it names no site and updates no facility marker (Q-FOW-17, FOG-OF-WAR FOW-13). Public view: this INTEL line.
+ */
+export interface ThreatAdaptation {
+  kind: "ThreatAdaptation";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * The side whose Director adapted (only the ENEMY's runs until NX-375).
+   */
+  side: "COALITION" | "ENEMY";
+  /**
+   * CONVOY_ESCORT: escorts for convoys after `convoy_attacks`. IADS_REINFORCED: air defense reinforced after `radar_strikes`.
+   */
+  category: "CONVOY_ESCORT" | "IADS_REINFORCED";
+  /**
+   * Named map region from the theater file (OVERLAY AN-1).
+   */
+  sector_id: string;
+  direction: "UP" | "DOWN";
 }

@@ -14,6 +14,14 @@ counts (Q-FOW-15). A weight of 0 (a cosmetic redemption) changes nothing, not ev
 replaces it; within one tick the lowest sector id wins). Directors run for `DIRECTED` sides, the
 ENEMY only until NX-375.
 
+**Threat memory (§2, NX-156)** is fed at the same places, but by what the side suffers from any
+actor, not only a commander's unit (the Static adapts to a raid whoever flies it; provocation,
+which escalates the war, stays the people's). A hit on a carrier adds to `convoy_attacks`, a hit
+on a RADAR_SITE to `radar_strikes`, a scout destroyed or knocked to Disabled to `recon_losses` in
+the sector it was in, and a base of the side lost to `node_losses` in the base's sector (it also
+starts the node's Retake window, `lost`). A counter is whole millionths of an event; what one
+occurrence adds is `director.memory.weights`.
+
 shortcut: a killer destroyed later in the same tick still counts (it is in hand when its hit
 lands).
 """
@@ -49,15 +57,45 @@ def _note(world: World, rules: Rules, side: Side, weight: int, x: float, y: floa
         state.last_provocation_sector, state.last_provocation_tick = sector, now
 
 
+def _add(counts: dict[str, int], key: str | None, amount: int) -> None:
+    """One event in a per-sector counter; a point outside every sector is not remembered."""
+    if key is not None:
+        counts[key] = counts.get(key, 0) + amount
+
+
+def _remember_hit(
+    world: World, rules: Rules, dr: DirectorRules, target: Entity, was: DamageState
+) -> None:
+    """Threat memory for a hit on the side's `target` (the module docstring)."""
+    state = world.director[target.side]
+    if was == _DISABLED:
+        return  # a hit on a wreck or a Disabled site is no new attack
+    if rules.domain[target.kind] == "STATIC":
+        state.radar_strikes += dr.memory_weights["radar_hit"] if target.kind == "RADAR_SITE" else 0
+    elif target.kind in rules.supply.carriers:
+        state.convoy_attacks += dr.memory_weights["convoy_hit"]
+    elif target.kind in rules.painters and (
+        world.find(target.id) is None or target.damage_state == _DISABLED
+    ):
+        _add(
+            state.recon_losses,
+            sector_at(rules, target.pos.x, target.pos.y),
+            dr.memory_weights["scout_lost"],
+        )
+
+
 def suffered_hit(world: World, shooter: Entity, target: Entity, was: DamageState) -> None:
     """A hit by `shooter` landed on `target`, whose damage state was `was` before it. A facility:
     Disabled by this hit (8) or just hit (3). Any other unit: destroyed, or knocked to Disabled (a
     wreck), counts as a kill (5), once: a hit on a wreck that was already Disabled adds nothing, so
     its destruction does not count again (Q-SIM-79); else a convoy hit (3) or a unit hit (1)."""
     found = _director(world, target.side)
-    if found is None or shooter.owner_kind != _PLAYER:
+    if found is None:
         return
     rules, dr = found
+    _remember_hit(world, rules, dr, target, was)
+    if shooter.owner_kind != _PLAYER:
+        return
     w = dr.weights
     if rules.domain[target.kind] == "STATIC":
         disabled = target.damage_state == _DISABLED and was != _DISABLED
@@ -83,12 +121,20 @@ def suffered_defense_hit(world: World, shooter: Entity, node: str) -> None:
 
 def captured(world: World, node: str, before: NodeOwner, to: Side, commanders: int) -> None:
     """A base flipped from `before` to `to` with `commanders` commanders in radius: a Static base
-    taken by the coalition's people."""
+    taken by the coalition's people provokes; any loss of a base is remembered (and retakable)."""
     for side in DIRECTED:
         found = _director(world, side)
-        if found and before == side and to != side and commanders:
-            x, y = found[0].roads.pos[node]
-            _note(world, found[0], side, found[1].weights.captured, x, y)
+        if not found:
+            continue
+        x, y = found[0].roads.pos[node]
+        state = world.director[side]
+        if before == side and to != side:
+            _add(state.node_losses, sector_at(found[0], x, y), found[1].memory_weights["node_lost"])
+            state.lost[node] = world.campaign.running_ticks + 1
+            if commanders:
+                _note(world, found[0], side, found[1].weights.captured, x, y)
+        elif to == side:
+            state.lost.pop(node, None)
 
 
 def in_rear(view: SideView, rules: Rules, x: float, y: float) -> bool:
@@ -168,6 +214,22 @@ def validate(world: World, rules: Rules) -> None:
             if _TIER_INDEX[d.tier] * dr.min_dwell_ticks > windows
             else "a budget above the tier's"
             if d.budget > dr.budget[d.tier]
+            else "threat memory outside the theater's sectors"
+            if not {*d.node_losses, *d.recon_losses} <= sectors
+            else "a lost node that does not exist or fell after the clock"
+            if not d.lost.keys() <= rules.roads.pos.keys()
+            or max(d.lost.values(), default=0) > world.campaign.running_ticks
+            else "a blinking radar at a node that does not exist"
+            if not {*d.dark, *d.blink_ready} <= rules.roads.pos.keys()
+            else "a radar dark without a cooldown, or a blink tick past what the clock allows"
+            if not d.dark.keys() <= d.blink_ready.keys()
+            or max(d.dark.values(), default=0) > world.campaign.running_ticks + dr.dark_ticks
+            or max(d.blink_ready.values(), default=0)
+            > world.campaign.running_ticks + dr.blink_cooldown_ticks
+            else "an idle unit that does not exist or an idle tick after the clock"
+            if any(int(k) >= world._next_entity_id for k in d.idle)
+            else "an adaptation that is not announced in a theater sector"
+            if not set(d.adapted.values()) <= sectors
             else "a provocation sector that is not in the theater"
             if d.last_provocation_sector not in (sectors | {None})
             else None

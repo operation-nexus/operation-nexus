@@ -19,10 +19,21 @@ while frozen (SC-11), for each side in COALITION, ENEMY order:
      stands at the node and the threat is gone (no bar of the other side, and the side tracks no
      enemy GROUND unit within `tasking.defend_radius_m`)). STRIKE: DONE when the node's
      defense hp is 0 or the side owns it. SCOUT: DONE when a claimant has arrived at the blob's
-     cell. ASSIST_OBJECTIVE and an objective's STRIKE also end with the objective (`on_objective`).
-   - DONE needs a participant (a live ACTIVE claimant), else EXPIRED. A job with no claim expires
-     `tasking.expire_min` after posting (an objective's job: with the objective).
+     cell (or the node). ASSIST_OBJECTIVE and an objective's STRIKE also end with the objective
+     (`on_objective`). STAGE (the Director's, NX-156): go to the base and hold; DONE when every
+     current claimant is there and every slot is claimed or the expiry has passed (the job that
+     depends on it opens then), FAILED with no claimant left or when the side lost the base.
+     CAPTURE (the Director's): go to the node and stay, the capture run itself being
+     `nexus.core.capture`; DONE when the node is the side's, EXPIRED at its expiry even with
+     claimants (a claimant still driving gets a fresh clock, at most
+     `tasking.capture_max_restarts` times).
+   - DONE needs a participant (a live ACTIVE claimant), else EXPIRED, unless another job waits for
+     it (the Director's chains, NX-156): its goal was met, so the next step must not fail with it.
+     A job with no claim expires `tasking.expire_min` after posting (an objective's job: with the
+     objective); one waiting for another does not expire.
    - A job that depends on an ended one (TB-8) loses the dependency when it was DONE, else FAILS.
+     When it loses it, its expiry clock restarts and its claimants (units that took it at spawn,
+     `take`, and waited with their lease held) set off.
 3. **Generate** (`nexus.core.tasking_gen`, from the side's `SideView`, TB-9) and post by dedupe key
    (`post_job`, TB-4; later also the director's entry). An unclaimed generated job that is no
    longer generated expires.
@@ -66,7 +77,7 @@ from nexus.core.logistics import Run, load, nearest_base, plan_run
 from nexus.core.rng import PcgStream, RngStream
 from nexus.core.roads import shortest_path
 from nexus.core.rules import Rules, TaskingRules
-from nexus.core.tasking_gen import GENERATED, JobSpec, fits, generate
+from nexus.core.tasking_gen import GENERATED, POST_GATE, JobSpec, fits, generate
 from nexus.core.world import SIDES, Claim, Entity, Job, Vec2, World, release_claim
 
 type Outcome = Literal["DONE", "FAILED", "EXPIRED"]
@@ -204,6 +215,22 @@ def _may_take(world: World, tr: TaskingRules, e: Entity, job: Job) -> bool:
     return any((c := world.find(i)) is not None and c.owner_kind == _HUMAN for i in job.claims)
 
 
+def take(world: World, e: Entity, job: Job, out: list[Event]) -> None:
+    """A unit the Director has just spawned takes `job` at once (NX-156, Q-SIM-81): it claims it
+    and, when no earlier job holds it back, sets off if the job is feasible for it (a job still
+    waiting is held by its claimants' leases, and they set off when it opens)."""
+    claim(world, e, job, out)
+    if job.depends_on is None:
+        _launch(world, e, job)
+
+
+def _launch(world: World, e: Entity, job: Job) -> None:
+    rules = _rules(world)[0]
+    routes: Routes = {}
+    if _feasible(world, rules, routes, e, job) == "ok":
+        _dispatch(world, rules, routes, e, job)
+
+
 def claim(world: World, e: Entity, job: Job, out: list[Event]) -> None:
     """`e` takes a slot of `job` (JobClaimed; the lease starts). A job whose slots are full gives
     one to a non-garrison unit by releasing its AI garrison claimant with the highest entity id
@@ -260,8 +287,13 @@ def run(world: World, out: list[Event]) -> None:
     for side in SIDES:
         _settle(world, rules, tr, side, now, routes, out)
         specs = generate(world, rules, tr, side, side_view(world, side))
+        before = {j.key for j in world.boards[side].values()}
         for spec in specs:
             post_job(world, side, spec, out)
+        if any(
+            j.key.startswith("scout:") and j.key not in before for j in world.boards[side].values()
+        ):
+            world.cooldown[side][POST_GATE] = now + tr.scout_post_interval_ticks
         wanted = {s.key for s in specs}
         for job in list(world.boards[side].values()):
             if job.key.startswith(GENERATED) and job.key not in wanted and not job.claims:
@@ -320,8 +352,18 @@ def _settle(
                     c.at, c.active = now, True
             elif e.path or _arrived(e, job):
                 c.at, c.active = now, True
+            elif job.depends_on is not None:
+                c.at = now  # waiting for the job before it (a unit that took it at spawn)
             elif now - c.at >= tr.claim_lease_ticks:
                 release_claim(world, job, entity_id, out)  # no progress for the whole lease
+        if (
+            job.kind == "CAPTURE"
+            and job.expires is not None
+            and now >= job.expires
+            and job.restarts < tr.capture_max_restarts
+            and any((e := world.find(i)) is not None and e.path for i in job.claims)
+        ):  # units still driving get a fresh clock, at most `capture_max_restarts` times
+            job.expires, job.restarts = now + tr.expire_ticks, job.restarts + 1
         outcome = _outcome(world, rules, tr, side, job, now)
         if outcome is not None:
             _end(world, side, job, outcome, out)
@@ -333,6 +375,14 @@ def _present(world: World, job: Job, *, delivered: bool = False) -> bool:
         (e := world.find(i)) is not None and _arrived(e, job) and not (delivered and e.cargo)
         for i in job.claims
     )
+
+
+def _staged(world: World, job: Job) -> bool:
+    """Every current claimant has arrived and either every slot is claimed or the job's expiry has
+    passed (a unit lost on the way must not hold the job for ever, Q-SIM-84)."""
+    mine = [world.find(i) for i in job.claims]
+    full = len(mine) >= job.slots or (job.expires is not None and _now(world) >= job.expires)
+    return full and all(e is not None and _arrived(e, job) for e in mine)
 
 
 def _menaced(world: World, rules: Rules, tr: TaskingRules, side: Side, node: str) -> bool:
@@ -367,6 +417,12 @@ def _verdict(world: World, rules: Rules, tr: TaskingRules, side: Side, job: Job)
             return "DONE" if fallen else None
         case "SCOUT":
             return "DONE" if _present(world, job) else None
+        case "STAGE":
+            if lost or not job.claims:  # no unit left to hold the base
+                return "FAILED"
+            return "DONE" if _staged(world, job) else None
+        case "CAPTURE":
+            return "DONE" if node is not None and world.owner.get(node) == side else None
         case "ESCORT_CONVOY":
             truck = world.find(job.entity or 0)
             if truck is None or truck.damage_state == "DISABLED":
@@ -379,9 +435,13 @@ def _outcome(
     world: World, rules: Rules, tr: TaskingRules, side: Side, job: Job, now: int
 ) -> Outcome | None:
     verdict = _verdict(world, rules, tr, side, job)
-    if verdict == "DONE" and not _participants(world, job):
-        verdict = "EXPIRED"  # nobody to credit
-    if verdict is None and not job.claims and job.expires is not None and now >= job.expires:
+    waited_on = any(j.depends_on == job.id for j in world.boards[side].values())
+    if verdict == "DONE" and not _participants(world, job) and not waited_on:
+        verdict = "EXPIRED"  # nobody to credit (a job another waits for is DONE: its goal is met)
+    # A job waiting for another does not expire (the one before it ends or fails it, TB-8); a
+    # capture run ends at its expiry even with claimants (NX-156).
+    held = job.depends_on is not None or (job.claims and job.kind != "CAPTURE")
+    if verdict is None and not held and job.expires is not None and now >= job.expires:
         verdict = "EXPIRED"
     return verdict
 
@@ -402,7 +462,7 @@ def _end(world: World, side: Side, job: Job, outcome: Outcome, out: list[Event])
             e.job_id = e.pickup = None
             if e.order != "FOLLOW":
                 e.follow_id = None  # an escort claim ends with its follow order
-    if outcome == "DONE" and job.blob is not None and world.rules and world.rules.tasking:
+    if job.blob is not None and world.rules and world.rules.tasking:  # any outcome (Q-DEV-21)
         until = _now(world) + world.rules.tasking.scout_cooldown_ticks
         # The cell is not posted again yet; blob ids are `<refresh_tick>-<cell>` (Q-SIM-47).
         world.cooldown[side][job.blob.split("-")[-1]] = until
@@ -420,6 +480,11 @@ def _end(world: World, side: Side, job: Job, outcome: Outcome, out: list[Event])
     for dep in [j for j in board.values() if j.depends_on == job.id]:
         if outcome == "DONE":
             dep.depends_on = None
+            if dep.expires is not None and world.rules and world.rules.tasking:
+                dep.expires = _now(world) + world.rules.tasking.expire_ticks
+            for i in dep.claims:
+                if (e := world.find(i)) is not None:
+                    _launch(world, e, dep)
         else:
             _end(world, side, dep, "FAILED", out)
 

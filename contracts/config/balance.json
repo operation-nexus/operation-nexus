@@ -969,6 +969,9 @@
         "defend_radius_m",
         "counterattack_window_min",
         "scout_cooldown_min",
+        "scout_open_max",
+        "scout_post_interval_min",
+        "capture_max_restarts",
         "follow_station_m",
         "escort_threat_memory_s",
         "escort_leash_m"
@@ -981,14 +984,16 @@
           "description": "Base priority per job kind (Q-GP-20), unit points; keys are the lower-case JobKind. Repair-bridge joins with its job.",
           "type": "object",
           "additionalProperties": false,
-          "required": ["defend", "resupply", "assist_objective", "strike", "scout", "escort_convoy"],
+          "required": ["defend", "resupply", "assist_objective", "strike", "scout", "escort_convoy", "stage", "capture"],
           "properties": {
             "defend": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true},
             "resupply": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true},
             "assist_objective": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true},
             "strike": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true},
             "scout": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true},
-            "escort_convoy": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true}
+            "escort_convoy": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true},
+            "stage": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true},
+            "capture": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true}
           }
         },
         "urgency_max": {"description": "The most the triggering condition can multiply a base priority by (Q-GP-20), unit multiplier; the least is 1.0.", "type": "number", "minimum": 1, "maximum": 2, "x-unit": "multiplier", "x-hot-reload": true},
@@ -1010,6 +1015,9 @@
         "resupply_slots_max": {"description": "The most slots a resupply job gets, unit units.", "type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true},
         "defend_radius_m": {"description": "A friendly base posts a defend job when its side tracks an enemy ground unit within this distance of it (Q-SIM-74), unit m. Urgency rises as the nearest tracked enemy closes: 1.0 at the radius, the cap at the base.", "type": "number", "exclusiveMinimum": 0, "x-unit": "m", "x-hot-reload": true},
         "counterattack_window_min": {"description": "For this long after a side loses a node, its AI garrison may take strike and assist-objective jobs against it (Q-GD-31, Q-SIM-74), unit min of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "min (game)", "x-hot-reload": true},
+        "capture_max_restarts": {"description": "A CAPTURE job whose claimants are still driving when its expiry passes gets a fresh expiry at most this many times, then expires normally (NX-156, Q-SIM-84), unit restarts.", "type": "integer", "minimum": 0, "x-unit": "restarts", "x-hot-reload": true},
+        "scout_post_interval_min": {"description": "At most one new generated scout job per board per this long (the highest urgency, ties by key), unit min of game time (NX-156, Q-DEV-21).", "type": "number", "exclusiveMinimum": 0, "x-unit": "min (game)", "x-hot-reload": true},
+        "scout_open_max": {"description": "The most generated scout jobs a board holds at once (the highest urgency first, ties by key; claimed ones always stay), unit jobs (NX-156).", "type": "integer", "minimum": 1, "x-unit": "jobs", "x-hot-reload": true},
         "scout_cooldown_min": {"description": "A scout job whose cell still holds a blob after it was DONE is not posted again for this long (Q-SIM-75), unit min of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "min (game)", "x-hot-reload": true},
         "follow_station_m": {
           "description": "Where a follower keeps station on its direct leader (Q-GP-32, Q-SIM-76), unit m: `escort` a ground combat unit ahead of a truck or convoy on the same road; `column` a ground unit behind a ground leader; `overwatch` the radius an aircraft orbits within over a ground unit; `wingman` an aircraft's distance off an aircraft lead.",
@@ -1069,7 +1077,7 @@
       }
     },
     "Director": {
-      "description": "Threat Director part 1 (CONFIG-AND-CONTENT \u00a76.7, THREAT-DIRECTOR \u00a72-\u00a75a, Q-SIM-78; NX-151, NX-155). Durations are game time, converted to ticks at load.",
+      "description": "Threat Director (CONFIG-AND-CONTENT \u00a76.7, THREAT-DIRECTOR \u00a72-\u00a75a, Q-SIM-78, Q-SIM-81; NX-151, NX-155, NX-156). Durations are game time, converted to ticks at load.",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -1079,7 +1087,21 @@
         "provocation",
         "budget",
         "max_spawns_per_window",
-        "max_live_units"
+        "max_live_units",
+        "op_priority",
+        "score",
+        "memory",
+        "noise_scale",
+        "retake_window_min",
+        "decoy_blink",
+        "alpha_max_ops",
+        "job_urgency",
+        "adaptation_down_below",
+        "idle_retire_s",
+        "adaptation_up_above",
+        "reinforce_damage_above",
+        "escort_min_convoys",
+        "frontline_hops"
       ],
       "properties": {
         "window_s": {
@@ -1341,14 +1363,14 @@
           }
         },
         "max_spawns_per_window": {
-          "description": "The most new Static units per window (Q-TD-12); read by spawning, which is not built yet.",
+          "description": "The most new Static units per window (Q-TD-12).",
           "type": "integer",
           "x-unit": "units / window",
           "x-hot-reload": true,
           "minimum": 1
         },
         "max_live_units": {
-          "description": "The most live Static units by tier (Q-TD-12); read by spawning, which is not built yet.",
+          "description": "The most live Static units by tier (Q-TD-12).",
           "type": "object",
           "additionalProperties": false,
           "required": [
@@ -1379,6 +1401,186 @@
               "minimum": 1
             }
           }
+        },
+        "op_priority": {
+          "description": "Base priority of each operation of the catalog, by operation id (Q-TD-6, Q-SIM-78); exactly the catalog's ids (the loader checks).",
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[A-Z][A-Z0-9_]{0,31}$"
+          },
+          "additionalProperties": {
+            "type": "number",
+            "minimum": 0,
+            "x-unit": "priority",
+            "x-hot-reload": true
+          }
+        },
+        "score": {
+          "description": "Operation scoring (THREAT-DIRECTOR step 4, Q-TD-6, Q-SIM-78).",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "target_value",
+            "own_node_value",
+            "weakness_min",
+            "stale_factor",
+            "weakness_max",
+            "provocation_proximity"
+          ],
+          "properties": {
+            "target_value": {
+              "description": "Target-value multiplier by node kind; a kind not listed is never a target.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "AIRBASE",
+                "FOB",
+                "PORT",
+                "SANCTUARY"
+              ],
+              "properties": {
+                "AIRBASE": {
+                  "description": "Target-value multiplier of a AIRBASE node (Q-SIM-78).",
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "x-unit": "multiplier",
+                  "x-hot-reload": true
+                },
+                "FOB": {
+                  "description": "Target-value multiplier of a FOB node (Q-SIM-78).",
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "x-unit": "multiplier",
+                  "x-hot-reload": true
+                },
+                "PORT": {
+                  "description": "Target-value multiplier of a PORT node (Q-SIM-78).",
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "x-unit": "multiplier",
+                  "x-hot-reload": true
+                },
+                "SANCTUARY": {
+                  "description": "Target-value multiplier of a SANCTUARY node (Q-SIM-78).",
+                  "type": "number",
+                  "exclusiveMinimum": 0,
+                  "x-unit": "multiplier",
+                  "x-hot-reload": true
+                }
+              }
+            },
+            "own_node_value": {"description": "Target-value multiplier of a node the side already holds (REINFORCE_IADS aims at one), unit multiplier (Q-DEV-21).", "type": "number", "exclusiveMinimum": 0, "x-unit": "multiplier", "x-hot-reload": true},
+            "weakness_min": {"description": "The weakness multiplier of a node at full defenses (Q-SIM-78); the curve is linear from here to weakness_max.", "type": "number", "exclusiveMinimum": 0, "x-unit": "multiplier", "x-hot-reload": true},
+            "stale_factor": {"description": "Coefficient of the Recon staleness term, score x (1 + factor x s) (TD-5).", "type": "number", "minimum": 0, "x-unit": "multiplier", "x-hot-reload": true},
+            "weakness_max": {
+              "description": "The weakness multiplier of a node with no defenses left; it rises linearly from weakness_min at full defenses (Q-SIM-78).",
+              "type": "number",
+              "minimum": 1,
+              "x-unit": "multiplier",
+              "x-hot-reload": true
+            },
+            "provocation_proximity": {
+              "description": "Multiplier for a target in the last provocation sector while the CP ceiling is ALPHA (Q-TD-4, Q-SIM-78).",
+              "type": "number",
+              "minimum": 1,
+              "x-unit": "multiplier",
+              "x-hot-reload": true
+            }
+          }
+        },
+        "memory": {
+          "description": "Threat memory (THREAT-DIRECTOR section 2).",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "half_life_s",
+            "factor",
+            "weights"
+          ],
+          "properties": {
+            "half_life_s": {
+              "description": "Half-life of every threat-memory counter, unit s of game time (Q-ALN-23, Q-SIM-81).",
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "x-unit": "s (game)",
+              "x-hot-reload": true
+            },
+            "factor": {"description": "Coefficient k of the memory multiplier: RAISE 1 + k x c, LOWER 1 / (1 + k x c), c in events (THREAT-DIRECTOR step 4).", "type": "number", "minimum": 0, "x-unit": "multiplier", "x-hot-reload": true},
+            "weights": {
+              "description": "Events one occurrence adds to its counter (THREAT-DIRECTOR section 2, Q-SIM-81).",
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "convoy_hit",
+                "radar_hit",
+                "scout_lost",
+                "node_lost"
+              ],
+              "properties": {
+                "convoy_hit": {
+                  "description": "Events one convoy hit adds.",
+                  "type": "number",
+                  "minimum": 0,
+                  "x-unit": "events",
+                  "x-hot-reload": true
+                },
+                "radar_hit": {
+                  "description": "Events one radar hit adds.",
+                  "type": "number",
+                  "minimum": 0,
+                  "x-unit": "events",
+                  "x-hot-reload": true
+                },
+                "scout_lost": {
+                  "description": "Events one scout lost adds.",
+                  "type": "number",
+                  "minimum": 0,
+                  "x-unit": "events",
+                  "x-hot-reload": true
+                },
+                "node_lost": {
+                  "description": "Events one node lost adds.",
+                  "type": "number",
+                  "minimum": 0,
+                  "x-unit": "events",
+                  "x-hot-reload": true
+                }
+              }
+            }
+          }
+        },
+        "noise_scale": {
+          "description": "The scoring noise: a candidate's score moves by up to this fraction either way, drawn from the `director` stream (Q-SIM-78).",
+          "type": "number",
+          "minimum": 0,
+          "x-unit": "fraction",
+          "x-hot-reload": true
+        },
+        "adaptation_up_above": {"description": "A ThreatAdaptation goes UP when its threat-memory counter is above this many events as the matching operation launches (THREAT-DIRECTOR step 5).", "type": "number", "minimum": 0, "x-unit": "events", "x-hot-reload": true},
+        "reinforce_damage_above": {"description": "Share of an air-defense site's HP missing above which ReinforceIADS counts it damaged; 0 is any damage (Q-SIM-81).", "type": "number", "minimum": 0, "maximum": 1, "x-unit": "fraction", "x-hot-reload": true},
+        "escort_min_convoys": {"description": "The fewest convoys an escort operation may be cut to when the spawn cap or live-unit room is short; below it the operation is skipped (THREAT-DIRECTOR step 6), unit convoys.", "type": "integer", "minimum": 1, "x-unit": "convoys", "x-hot-reload": true},
+        "frontline_hops": {"description": "A node is on the front when a node within this many road hops has another owner (PROBE's target_is_frontline); 1 is a direct road neighbour, unit hops.", "type": "integer", "minimum": 1, "x-unit": "hops", "x-hot-reload": true},
+        "idle_retire_s": {"description": "A Director unit with no job and no path for this long is retired: removed, no refund (Q-SIM-84), unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true},
+        "alpha_max_ops": {"description": "The most operations with jobs ALPHA runs at once (THREAT-DIRECTOR section 3), unit operations.", "type": "integer", "minimum": 1, "x-unit": "operations", "x-hot-reload": true},
+        "job_urgency": {"description": "Urgency of the jobs an operation posts, a multiplier on the job kind's base priority (TB-3), from 1.0 up to tasking.urgency_max.", "type": "number", "minimum": 1, "x-unit": "multiplier", "x-hot-reload": true},
+        "adaptation_down_below": {"description": "A ThreatAdaptation goes DOWN when its threat-memory counter falls below this many events (THREAT-DIRECTOR step 5).", "type": "number", "exclusiveMinimum": 0, "x-unit": "events", "x-hot-reload": true},
+        "decoy_blink": {
+          "description": "DecoyBlink timing (FOG-OF-WAR FOW-11, Q-SIM-82): a selected radar is dark this long, then emits again; it cannot blink again for the cooldown, counted from the start of the blink; at most one radar blinks per window.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["dark_s", "cooldown_s", "max_per_window"],
+          "properties": {
+            "dark_s": {"description": "How long a blinking radar stays dark, unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true},
+            "max_per_window": {"description": "The most radars that start a blink in one decision window, unit radars.", "type": "integer", "minimum": 1, "x-unit": "radars", "x-hot-reload": true},
+            "cooldown_s": {"description": "How soon after it went dark the same radar may blink again, unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true}
+          }
+        },
+        "retake_window_min": {
+          "description": "A Static node counts as lost for a Retake operation this many game minutes after it fell (Q-SIM-81).",
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "x-unit": "min (game)",
+          "x-hot-reload": true
         }
       }
     }

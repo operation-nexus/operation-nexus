@@ -1,0 +1,166 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nexus.local/contracts/config/operations.json",
+  "title": "OperationsConfig",
+  "description": "The Threat Director's operation catalog, content/operations.yaml (CONFIG-AND-CONTENT §8a, THREAT-DIRECTOR §4, Q-TD-7, Q-SIM-81; NX-156). Each operation is a job template posted on the Static's Tasking Board, or an effect with no jobs. Priority is not here: it is `director.op_priority.<id>` in the balance profile. The loader also checks the cross-file rules: a priority for every operation and none for another, unit kinds that are ENEMY movers, a unit kind that fits its job kind, a selector that suits its job kind, a precondition that suits the target, a cost within the largest tier budget, and no operation needing more units than `director.max_spawns_per_window`.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "operations"
+  ],
+  "properties": {
+    "schema_version": {
+      "description": "File format version, unitless; the loader accepts only 1 (§4.4).",
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 1
+    },
+    "operations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/Operation"
+      }
+    }
+  },
+  "$defs": {
+    "Operation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "target",
+        "preconditions",
+        "cost",
+        "enabled_tiers"
+      ],
+      "properties": {
+        "id": {
+          "description": "UPPER_SNAKE, unique. Also the <op> of director.op_priority.<op> and what STAFF_DIRECTOR_OVERRIDE.trigger_operation names.",
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9_]{0,31}$"
+        },
+        "target": {
+          "description": "What a candidate aims at: NODE (a node id), SECTOR (a sector id), RADAR (a Static radar, named by its base node) or CONVOYS (the Static's unescorted convoys, one candidate).",
+          "enum": [
+            "NODE",
+            "SECTOR",
+            "RADAR",
+            "CONVOYS"
+          ]
+        },
+        "preconditions": {
+          "description": "Closed list; each must hold for a candidate. Which targets suit which is checked by the loader. No duplicates (loader).",
+          "type": "array",
+          "items": {
+            "enum": [
+              "target_owner_is_coalition",
+              "target_in_enemy_view",
+              "target_capturable",
+              "target_is_frontline",
+              "target_recently_lost",
+              "target_has_damaged_air_defense",
+              "target_radar_operational",
+              "has_unescorted_convoy"
+            ]
+          }
+        },
+        "cost": {
+          "description": "Budget points, whole, the operation's only price (Q-TD-8, Q-TD-12); its units cost nothing extra.",
+          "type": "integer",
+          "minimum": 0,
+          "x-unit": "budget points"
+        },
+        "enabled_tiers": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "../common/enums.json#/$defs/ThreatTier"
+          }
+        },
+        "effect": {
+          "description": "What an operation without jobs does: EMISSION_BLINK turns the target radar dark for `director.decoy_blink.dark_s` (DecoyBlink, FOW-11, Q-SIM-82). Exactly one of `effect` and `jobs`.",
+          "enum": [
+            "EMISSION_BLINK"
+          ]
+        },
+        "jobs": {
+          "description": "Posted in order; each later job depends on the one before (TB-8). One unit is bought per slot.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "#/$defs/JobTemplate"
+          }
+        },
+        "memory": {
+          "description": "The threat-memory counter that moves this operation's score (THREAT-DIRECTOR §2, §4 step 4): RAISE multiplies by 1 + the counter (the counter counts events, decayed), LOWER divides by it. A by-sector counter reads the target's sector (a NODE or SECTOR target). Omitted: no counter matches, multiplier 1.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "counter",
+            "effect"
+          ],
+          "properties": {
+            "counter": {
+              "enum": [
+                "convoy_attacks",
+                "radar_strikes",
+                "node_losses_by_sector",
+                "recon_losses_by_sector"
+              ]
+            },
+            "effect": {
+              "enum": [
+                "RAISE",
+                "LOWER"
+              ]
+            }
+          }
+        },
+        "track_age": {
+          "description": "SECTOR targets only: the score is also multiplied by 1 + how stale the Static's picture of the sector is, 0 with a current track there, up to 1 for a last-known track about to fade or none at all (TD-5).",
+          "type": "boolean"
+        }
+      }
+    },
+    "JobTemplate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "at",
+        "unit_kinds",
+        "slots"
+      ],
+      "properties": {
+        "kind": {
+          "$ref": "../common/enums.json#/$defs/JobKind"
+        },
+        "at": {
+          "description": "Where, resolved against the Static's view (TD-2): target, target_defenses (the target node's defenses), nearest_own_base (the Static base nearest the target), sector_node (the sector's non-Static node nearest the Static's rear source) or each_convoy (one job per unescorted Static convoy).",
+          "enum": [
+            "target",
+            "target_defenses",
+            "nearest_own_base",
+            "sector_node",
+            "each_convoy"
+          ]
+        },
+        "unit_kinds": {
+          "description": "ENEMY kinds bought for the job's slots, in turn.",
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "$ref": "../common/enums.json#/$defs/UnitKind"
+          }
+        },
+        "slots": {
+          "type": "integer",
+          "minimum": 1,
+          "x-unit": "units"
+        }
+      }
+    }
+  }
+}
