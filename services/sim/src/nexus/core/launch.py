@@ -8,7 +8,8 @@ launched in selection order:
 - **Pay.** "The budget is the stock" (Q-TD-12): the operation's cost is debited from the surplus of
   the side's finite-stock bases (above their starvation floors), the base its first unit spawned at
   first, then the rest in id order, one `SupplyConsumed{SPAWN}` per base. Units cost nothing more
-  (no loadout charge), so the sum of costs never exceeds the real surplus.
+  (no loadout charge). The window's budget is a plan: an operation whose cost the real surplus
+  cannot pay at launch (earlier ones loaded carriers from it) is skipped whole, never part-paid.
 - **Spawn (Q-TD-8).** One unit per slot, kinds in turn, owned by the ENEMY_DIRECTOR, full of fuel
   and rounds, at `plan_deploy`'s base for the unit's job (GP-7: the nearest base with surplus,
   else the rear source), planned on the stock before the debit.
@@ -247,7 +248,7 @@ def _convoys(
         if (_CONVOY_OP, base) in live or room < 1 or surplus(view, rules, world.stock) < op.cost:
             continue
         cand = ops.Candidate(op, base, None, ((ops.Where(base),),))
-        room -= _post_and_spawn(world, rules, side, cand, out, lambda n: op.cost * n)
+        room -= _post_and_spawn(world, rules, side, cand, out, lambda n: op.cost * n) or 0
 
 
 def _launch(
@@ -260,7 +261,9 @@ def _launch(
     if c.op.effect is not None:
         _blink(world, side, state, c.target, now=world.campaign.running_ticks + 1, dr=dr)
         return
-    _post_and_spawn(world, rules, side, c, out, lambda n: c.op.cost * n // max(1, c.units))
+    paid = _post_and_spawn(world, rules, side, c, out, lambda n: c.op.cost * n // max(1, c.units))
+    if paid is None:  # it could not pay: nothing was posted, so nothing to announce
+        return
     _announce_up(world, side, view, state, dr, c, out)
 
 
@@ -296,17 +299,21 @@ def _blink(
 def _post_and_spawn(
     world: World, rules: Rules, side: Side, c: ops.Candidate, out: list[Event],
     cost: Callable[[int], int],
-) -> int:  # fmt: skip
+) -> int | None:  # fmt: skip
     """Post the jobs in order, pay `cost(spawned)` and give each job its units; returns how many
-    were spawned. A slot goes to an idle live unit of its kind first (the lowest id), which is
-    neither spawned nor paid for (Q-SIM-84). Units take their jobs only after the payment, because
-    a carrier at its source loads on taking a job, and loading first could leave too little
-    surplus to pay."""
+    were spawned, or None when the real surplus now cannot pay for them and nothing was posted:
+    the window's budget is only a plan, because the operations launched before this one load
+    carriers from the same surplus (`_payable`). A slot goes to an idle live unit of its kind
+    first (the lowest id), which is neither spawned nor paid for (Q-SIM-84). Units take their
+    jobs only after the payment, because a carrier at its source loads on taking a job, and
+    loading first could leave too little surplus to pay."""
     dr = rules.director
     if dr is None:
         return 0
     garrison = c.op.target == "GARRISON"
     spare = {} if garrison else _reusable(world, side)  # a garrison replacement is always new
+    if _payable(world, rules, side) < cost(_new_units(c, spare)):
+        return None
     spawned = 0
     first: str | None = None
     prev: int | None = None  # the job the next step waits for
@@ -341,6 +348,23 @@ def _post_and_spawn(
     for unit, posted in given:
         take(world, unit, posted, out)
     return spawned
+
+
+def _new_units(c: ops.Candidate, spare: dict[str, list[Entity]]) -> int:
+    """How many units `_post_and_spawn` will spawn for `c`: its slots less those an idle unit fills
+    (the same matching, on a copy of `spare`)."""
+    left = {k: list(v) for k, v in spare.items()}
+    new = 0
+    for job, wheres in zip(c.op.jobs, c.wheres, strict=True):
+        for w in wheres:
+            for n in range(job.slots):
+                kind = job.unit_kinds[n % len(job.unit_kinds)]
+                idle = [u for u in left.get(kind, []) if w.origin in (None, u.last_node)]
+                if idle:
+                    left[kind].remove(idle[0])
+                else:
+                    new += 1
+    return new
 
 
 def _spare(world: World, side: Side) -> dict[str, list[Entity]]:
@@ -467,6 +491,15 @@ def _spawn(
         )
     )  # fmt: skip
     return unit, node
+
+
+def _payable(world: World, rules: Rules, side: Side) -> int:
+    """What `_pay` can debit now: the stock above the floor of the side's finite-stock bases."""
+    return sum(
+        max(0, world.stock[n] - floor)
+        for n, floor in rules.supply.starve_floor.items()
+        if world.owner.get(n) == side and n in world.stock
+    )
 
 
 def _pay(
