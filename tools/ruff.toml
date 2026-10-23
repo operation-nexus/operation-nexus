@@ -1,0 +1,7 @@
+# Tools are linted from services/sim (`make check-python`); this keeps the sim rules
+# and adds the test ignores that pyproject's "tests/**" cannot match from here.
+extend = "../services/sim/pyproject.toml"
+src = ["../services/sim/src"]  # nexus is first-party, as when linted from services/sim
+
+[lint.per-file-ignores]
+"**/tests/**" = ["S101", "S105"]

@@ -102,7 +102,7 @@ A harness exception outside the sim (a bug here) is recorded as `harness_error` 
 
 ## Tests
 
-`services/sim/tests/tools/test_balance_harness.py`, picked up by `make check` (the test puts `tools/balance` on `sys.path` itself; mypy sees the harness modules as `Any` from there). Same seed gives the same report and command log, the log replays to the same `state_hash`, every persona emits only valid commands, each metric and target rule is checked on a hand-built event stream, and the report is the same for 1 and 2 workers. `make check` does not lint or type-check `tools/balance` itself (the Makefile is owner-only); run both by hand after a change: `cd services/sim && uv run --frozen ruff check ../../tools/balance && uv run --frozen ruff format --check ../../tools/balance && uv run --frozen mypy ../../tools/balance`. The tests are linted and type-checked by `make check`; the harness modules are typed `Any` there.
+`services/sim/tests/tools/test_balance_harness.py`, picked up by `make check` (the test puts `tools/balance` on `sys.path` itself; mypy sees the harness modules as `Any` from there). Same seed gives the same report and command log, the log replays to the same `state_hash`, every persona emits only valid commands, each metric and target rule is checked on a hand-built event stream, and the report is the same for 1 and 2 workers. `make check` also lints `tools/balance` and type-checks it with `mypy --strict` (it is in the Makefile's `TOOLS_TYPED`), so the harness modules are checked directly, not only as `Any` through the tests.
 
 ## Local run queue (NX-381)
 

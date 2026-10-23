@@ -22,10 +22,16 @@ bootstrap: node-version
 
 check: check-python check-overlay
 
+# Maintained tools under mypy --strict. Not typed: tools/sim-bench/bench.py and grid_bench.py
+# (spikes) and tools/discord-setup/tests (108 errors, untyped test script).
+TOOLS_TYPED := ../../tools/balance ../../tools/replay ../../tools/sim-determinism \
+  ../../tools/sim-bench/kernel_bench.py ../../tools/discord-setup/setup.py
+
 check-python:
-	cd $(SIM) && uv run --frozen ruff check .
-	cd $(SIM) && uv run --frozen ruff format --check .
+	cd $(SIM) && uv run --frozen ruff check . ../../tools
+	cd $(SIM) && uv run --frozen ruff format --check . ../../tools
 	cd $(SIM) && uv run --frozen mypy src tests
+	cd $(SIM) && MYPYPATH=src:tests uv run --frozen mypy $(TOOLS_TYPED)
 	cd $(SIM) && uv run --frozen lint-imports
 	cd $(SIM) && uv run --frozen pytest
 	python3 scripts/tests/test_repo_checks.py
