@@ -1,12 +1,12 @@
 """Scripted viewers (NX-031 part 1, Q-SIM-91). A viewer is a synthetic commander with a persona; it
-sends only commands that exist: JOIN (a role, no target or hold) and REBASE. Each viewer has its
-own `random.Random`, so one viewer's luck never shifts another's. Behaviour numbers are in
-profiles.yaml (PROPOSED)."""
+sends only commands that exist: JOIN (a role; a striker adds a node target) and REBASE. Each
+viewer has its own `random.Random`, so one viewer's luck never shifts another's. Behaviour
+numbers are in profiles.yaml (PROPOSED)."""
 
 import random
 from dataclasses import dataclass
 
-from profiles import Persona
+from profiles import Persona, Profile
 
 from nexus.contracts.gen.commands.join import JoinCommand
 from nexus.contracts.gen.commands.rebase import RebaseCommand
@@ -16,12 +16,17 @@ from nexus.contracts.gen.commands.rebase import RebaseCommand
 IDLE, PENDING, ALIVE, GONE = "idle", "pending", "alive", "gone"
 
 
+# Persona kind (Q-SIM-95) -> the role it always joins as; "auto" keeps the persona's own role.
+KIND_ROLE = {"striker": "STRIKE", "hauler": "LOGI", "scout": "RECON"}
+
+
 @dataclass(slots=True)
 class Viewer:
     index: int
     commander_id: str
     persona: Persona
     rng: random.Random
+    kind: str = "auto"  # auto-tasked, striker, hauler or scout (Q-SIM-95)
     status: str = IDLE
     entity: int | None = None
     attempts: int = 0  # consecutive losses and rejections since the last spawn
@@ -32,9 +37,22 @@ def commander_id(index: int) -> str:
     return f"0192f0c1-7a2b-7c3d-8e4f-{index:012d}"
 
 
-def new_viewer(index: int, persona: Persona, profile: str, seed: int) -> Viewer:
+def new_viewer(index: int, persona: Persona, profile: str, seed: int, kind: str = "auto") -> Viewer:
     rng = random.Random(f"balance/viewer/{profile}/{seed}/{index}")  # noqa: S311  # harness RNG
-    return Viewer(index, commander_id(index), persona, rng)
+    return Viewer(index, commander_id(index), persona, rng, kind)
+
+
+def draw_kind(profile: Profile, seed: int, index: int) -> str:
+    """The viewer's persona kind: a seeded draw from the profile's `kinds` shares, from its own
+    RNG so it never shifts the viewer's or the sim's streams."""
+    rng = random.Random(f"balance/kind/{profile.name}/{seed}/{index}")  # noqa: S311  # harness RNG
+    names = list(profile.kinds)
+    return rng.choices(names, [profile.kinds[n] for n in names])[0]
+
+
+def pick_node(v: Viewer, defended_foes: list[str]) -> str | None:
+    """A striker's target: a seeded pick among the known defended foe nodes (sorted), or None."""
+    return v.rng.choice(defended_foes) if v.kind == "striker" and defended_foes else None
 
 
 def joins_on_arrival(v: Viewer) -> bool:
@@ -58,10 +76,11 @@ def rebase_at(v: Viewer, now: int, tick_hz: int) -> int | None:
     return now + round(v.rng.uniform(*p.rebase_after_s) * tick_hz)
 
 
-def join_command(v: Viewer, tick: int, seq: int) -> JoinCommand:
+def join_command(v: Viewer, tick: int, seq: int, node: str | None = None) -> JoinCommand:
+    """The JOIN: the persona's role (auto) or the kind's; a node target only for a striker."""
     p = v.persona
     roles = list(p.role_weights)
-    role = v.rng.choices(roles, [p.role_weights[r] for r in roles])[0]
+    role = KIND_ROLE.get(v.kind) or v.rng.choices(roles, [p.role_weights[r] for r in roles])[0]
     return JoinCommand.model_validate(
         {
             "kind": "JOIN",
@@ -71,8 +90,8 @@ def join_command(v: Viewer, tick: int, seq: int) -> JoinCommand:
             "arrival_seq": seq,
             "correlation_id": f"v{v.index}-{seq}",
             "role": role,
-            "target": None,
-            "hold": p.hold,
+            "target": None if node is None else {"node_id": node},
+            "hold": p.hold and node is None,
         }
     )
 

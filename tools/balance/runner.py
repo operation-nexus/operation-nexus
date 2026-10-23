@@ -20,6 +20,7 @@ import profiles
 from metrics import Collector
 
 from nexus.contracts.gen.commands.command import Command
+from nexus.core.fog import side_view
 from nexus.core.step import HANDLERS, step
 from nexus.core.world import World, state_hash
 from nexus.runtime.campaign_config import CampaignConfig, load_campaign_config, start_campaign
@@ -34,6 +35,12 @@ def campaign_id(profile: str, seed: int) -> str:
     """A deterministic UUIDv7-shaped campaign id per (profile, seed)."""
     h = hashlib.blake2b(f"{profile}/{seed}".encode(), digest_size=16).hexdigest()
     return f"{h[:8]}-{h[8:12]}-7{h[13:16]}-8{h[17:20]}-{h[20:32]}"
+
+
+def defended_foes(world: World) -> list[str]:
+    """Foe-held nodes with defense HP in the coalition's view (public state, FOW-10), sorted."""
+    view = side_view(world, "COALITION")
+    return [n for n, o in sorted(view.owners.items()) if o == "ENEMY" and view.defense_hp.get(n, 0)]
 
 
 def forward_base(world: World) -> str | None:
@@ -51,9 +58,16 @@ class _Crowd:
     def __init__(self, sched: list[tuple[int, str]], data: profiles.Data, profile: str, seed: int):
         self.data = data
         self.viewers = [
-            ps.new_viewer(i, data.personas[persona], profile, seed)
+            ps.new_viewer(
+                i,
+                data.personas[persona],
+                profile,
+                seed,
+                ps.draw_kind(data.profiles[profile], seed, i),
+            )
             for i, (_, persona) in enumerate(sched)
         ]
+        self.striker_fallbacks = 0  # striker JOINs sent without a node: no defended foe was known
         self.by_commander = {v.commander_id: v for v in self.viewers}
         self.by_entity: dict[int, ps.Viewer] = {}
         self.wake = [(tick, i, "arrive") for i, (tick, _) in enumerate(sched)]  # sorted: a heap
@@ -70,20 +84,22 @@ class _Crowd:
             if action == "rebase" and v.status == ps.ALIVE and (node := forward_base(world)):
                 cmd = ps.rebase_command(v, node, tick, self.seq)
             elif action in ("arrive", "join") and v.status == ps.IDLE:
-                cmd = self._join(v, action, tick)
+                cmd = self._join(world, v, action, tick)
                 if cmd is not None:
-                    collector.note_join(v.commander_id, tick)
+                    collector.note_join(v.commander_id, tick, world.director["ENEMY"].tier)
             if cmd is not None:
                 out.append(cmd)
                 self.seq += 1
         return out
 
-    def _join(self, v: ps.Viewer, action: str, tick: int) -> Command | None:
+    def _join(self, world: World, v: ps.Viewer, action: str, tick: int) -> Command | None:
         if action == "arrive" and not ps.joins_on_arrival(v):
             v.status = ps.GONE
             return None
         v.status = ps.PENDING
-        return ps.join_command(v, tick, self.seq)
+        node = ps.pick_node(v, defended_foes(world)) if v.kind == "striker" else None
+        self.striker_fallbacks += v.kind == "striker" and node is None
+        return ps.join_command(v, tick, self.seq, node)
 
     def react(self, events: list[Any], tick: int, hz: int, seen: Counter[str]) -> None:
         for e in events:
@@ -151,10 +167,13 @@ def run(
     collector = Collector(
         world,
         newbies,
+        kinds={v.commander_id: v.kind for v in crowd.viewers},
+        a2_min_tier=data.targets.a2_min_tier,
         tick_hz=hz,
         sample_ticks=SAMPLE_S * hz,
         a3_ticks=round(data.targets.a3_hours * 3600 * hz),
         idle_sample_ticks=round(data.idle_sample_min * 60 * hz),
+        impact_check_ticks=max(1, round(data.impact_check_s * hz)),
     )
     log_dir.mkdir(parents=True)
     log = CommandLogWriter(
@@ -180,6 +199,8 @@ def run(
             collector.observe(world)
             if tick % collector.sample_ticks == 0:
                 collector.sample(world)
+            if tick % collector.impact_check_ticks == 0:
+                collector.check_impact(world)
             if tick % collector.idle_sample_ticks == 0:
                 collector.sample_idle(world)
             crowd.react(events, tick, hz, seen)
@@ -204,6 +225,8 @@ def run(
             "distinct": len(crowd.viewers),
             "peak_concurrent": crowd.peak,  # most viewers with a live unit at once
             "by_persona": dict(sorted(Counter(v.persona.name for v in crowd.viewers).items())),
+            "by_kind": dict(sorted(Counter(v.kind for v in crowd.viewers).items())),
+            "striker_fallbacks": crowd.striker_fallbacks,
         },
         "commands": dict(sorted(counts.items())),
         "responses": dict(sorted(seen.items())),
@@ -240,7 +263,13 @@ def failed_run(profile: str, seed: int, hours: float, error: str) -> dict[str, A
         "time_limit_h": None,
         "ticks_run": 0,
         "a3_ticks": 0,
-        "viewers": {"distinct": 0, "peak_concurrent": 0, "by_persona": {}},
+        "viewers": {
+            "distinct": 0,
+            "peak_concurrent": 0,
+            "by_persona": {},
+            "by_kind": {},
+            "striker_fallbacks": 0,
+        },
         "commands": {},
         "responses": {},
         "crash": None,
@@ -249,7 +278,16 @@ def failed_run(profile: str, seed: int, hours: float, error: str) -> dict[str, A
         "metrics": {
             "outcome": {"ended": False, "result": None, "length_h": None, "end_tick": None},
             "momentum": {"sample_every_s": SAMPLE_S, "samples": []},
-            "newbie": {"joined": 0, "ttfi_s": [], "no_impact_observed_s": []},
+            "newbie": {
+                "joined": 0,
+                "joined_below_tier": 0,
+                "below_tier_ttfi_s": [],
+                "joined_counted": 0,
+                "ttfi_s": [],
+                "no_impact_observed_s": [],
+                "first_impact_kinds": {},
+                "by_kind": {},
+            },
             "kills": {"by_kind": {}, "player_by_kind": {}, "total": 0, "unattributed": 0},
             "nodes_lost": [],
             "nodes_lost_in_a3_window": 0,

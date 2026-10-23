@@ -47,12 +47,43 @@ A profile has `viewers` distinct viewers arriving at uniform seeded times in the
 |---|---|---|
 | Campaign outcome and length | `CampaignEnded` | A1: at least 85% of seeds end by victory or defeat in 24 to 72 h (the limit is `campaign.time_limit_h`). Needs a run at least as long as the limit |
 | Momentum curve | `momentum(world)` once per game minute | none (reported: mean, final median) |
-| Newbie time to first impact | from a newbie's first JOIN to the first of: a hit by its unit, a kill by it, a `SupplyDelivered` with its commander id, or a `NodeCaptured` naming it a participant | A2, measured for a bare `!join <role>` script (STRIKE, no target) only: the median is at most 300 s (the 5 min end of "3 to 5 min"; the median rule is PROPOSED). A newbie with no impact after 300 s counts as a miss; one still inside its first 300 s when the run ends is "unresolved" and left out |
+| Newbie time to first impact | from a newbie's first JOIN to its first impact (see "A2 and impact" below) | A2: the median over newbies who arrived at the Static's tier ALPHA or above is at most 300 s (the 5 min end of "3 to 5 min"; the median rule is PROPOSED). A newbie with no impact after 300 s counts as a miss; one still inside its first 300 s when the run ends is "unresolved" and left out |
 | Coalition kill share by unit kind | `UnitDestroyed` of an enemy unit, by the killer's kind (assists are not counted) | A4: no kind over 40% of all the coalition's kills (AI garrison and facilities included), pooled over seeds (PROPOSED, Q-TEST-8). A4 is suspended (`a4_suspended` in profiles.yaml, Q-SIM-92) until a second armed viewer unit kind exists: the report shows `suspended (Q-SIM-92): needs a second armed viewer unit kind`, never a fail, and still prints the measured top kind and share. Fewer than `a4_min_kills` (30, PROPOSED) pooled kills is `no data`. The report also gives the player-only share (commander-owned killers), which the target does not use |
 | Idle armed viewer-unit share | `Collector.sample_idle(world)` every `idle_sample_min` game minutes (profiles.yaml, 5, PROPOSED): commander-owned units of an armed kind, not Disabled, with no job, order or route, over all such units | none (reported: mean and max per profile). For each idle unit, `tasking.idle_reason` (the board's own pool, `_open` and `_feasible`, read-only) says why it holds no job: `no_job`, `full`, `ring`, `ammo`, `refuel` (a rearm step would fix it), `reach_fuel` (a full tank would not reach) or `other`; the report sums the reasons over samples (Q-SIM-92, NX-380) |
 | Strategic nodes lost, sanctuary defense HP | `NodeCaptured` from COALITION; `defense_hp` every tick | A3, `overnight-0` only: at most one strategic node lost and the sanctuary's HP above 0 in the first 12 h, every seed (PROPOSED, Q-TEST-8). A sim crash inside the window is a fail; a seed that stopped short of 12 h (or hit a harness error) makes A3 `not evaluable`. With no viewer units the sim's idle floor keeps the sanctuary at 1 or more, so the HP half of A3 cannot fail at 0 viewers; the nodes half is the real test |
 | Director tier dwell | `ThreatTierChanged` (the Static's Director) | none |
 | Supply-starvation minutes | coalition-held finite-stock nodes below their starvation floor, sampled once per game minute: node-minutes and minutes with at least one | none |
+
+### A2 and impact (NX-383, Q-SIM-93)
+
+**Which newbies.** A2 judges only newbies whose first JOIN finds the Static Director's tier (`world.director["ENEMY"].tier`, as `tasking_gen._idle_targets_open` reads it) at `targets.a2_min_tier` (ALPHA) or above. At Pattern of Life the board posts no strike work by design (Q-SIM-85, Q-SIM-92). Those arrivals are counted (`joined_below_tier`, their times in `below_tier_ttfi_s`) and shown as "information only"; the report names both counts and never judges the second.
+
+**What is an impact.** Any real contribution; the first of these by the newbie's unit sets its time:
+
+| Kind | Source |
+|---|---|
+| `hit` | `WeaponImpact` with `hit` true, shooter owned by the newbie |
+| `kill` | `UnitDestroyed` of an enemy, the newbie's unit the killer |
+| `delivery` | `SupplyDelivered` with the newbie's commander id |
+| `capture` | `NodeCaptured` naming the newbie a participant; or, derived from world state every `impact_check_s`, a GROUND unit of the newbie inside `capture.radius_m` of a node whose capture bar the coalition fills (no `CaptureProgress` event is emitted, and `CaptureStarted` names no commander) |
+| `scout` | derived from world state every `impact_check_s`: a coalition track not seen before, within the newbie's recon unit's sensor reach (radius x the target's stealth). No event says who tracked what, and masking is not applied, so this is an approximation |
+
+When two kinds land in the same tick the earlier row of `metrics.IMPACT_KINDS` (kill, capture, delivery, scout, hit) is recorded. The report shows the first-impact kind breakdown, overall and per persona kind.
+
+### Persona kinds (Q-SIM-95)
+
+Each viewer also draws a kind from its profile's `kinds` shares (a harness RNG per viewer, apart from the sim's streams and the viewer's own). The shares are `profiles.yaml` keys (PROPOSED) and must sum to 1 (checked on load).
+
+| Kind | JOIN it sends |
+|---|---|
+| auto | today's bare `!join <role>` with the persona's role; the board auto-tasks it |
+| striker | STRIKE with a node target: a seeded pick (the viewer's RNG) among foe-held nodes with defense HP in the coalition's view. It may strike a base alone. With none known it sends the bare JOIN and counts it in `viewers.striker_fallbacks` |
+| hauler | bare `JOIN LOGI` |
+| scout | bare `JOIN RECON` |
+
+Every command still goes through the ordinary path and the command log. The report breaks A2 down per kind (`A2.by_persona_kind`).
+
+Other new keys: `targets.a2_min_tier` (ALPHA) and `impact_check_s` (1 game second between the two state checks), both PROPOSED.
 
 A target with nothing to judge says so: `not evaluable` (the run was shorter than the window), `no data` (for example no kills), `not measurable yet`. **Not measurable yet:** the kill-share Gini by rank (no ranks until PROGRESSION), A5 and A6 (part 2). The CLI exit code is 0 whatever the targets say.
 
@@ -96,6 +127,8 @@ An issue is eligible when it is open, carries the `harness-run` label and was op
 
    [Service]
    Type=oneshot
+   # Lower CPU priority so long runs never slow the desktop.
+   Nice=15
    Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
    ExecStart=%h/nexus-harness/operation-nexus/tools/balance/queue-tick.sh %h/nexus-harness/operation-nexus
    ```

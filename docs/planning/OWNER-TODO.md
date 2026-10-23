@@ -12,7 +12,7 @@ Mac all done (owner, 2026-10-22); Windows PC done in WSL2 (owner, 2026-10-22: se
 - [x] Enable **finecomb** and **claude-code-review-council** (claude.ai plugin directory)
 - [ ] Optional: `claude remote-control` on the desktop so you can drive it from your phone (docs/agentic/REMOTE-WORK.md)
 - [x] Ponytail: leave `webhookUrl` empty (docs/agentic/TOOLING.md §2)
-- [ ] **Git identity** on the Mac, on Windows, and inside WSL2 (it has its own `~/.gitconfig`), so every commit uses the SaltySeraphCodes noreply address (Q-LEGAL-8):
+- [ ] **Git identity** on the Mac, on Windows, and inside WSL2 (it has its own `~/.gitconfig`), so every commit uses the SaltySeraphCodes noreply address (Q-LEGAL-8). WSL2 done 2026-10-22:
   `git config --global user.name "SaltySeraphCodes"` and `git config --global user.email "76628858+SaltySeraphCodes@users.noreply.github.com"`. Check with `git config --global --get user.email`. Agent sessions set the same identity per repo.
 
 ## 2. GitHub settings (issue #20, NX-022; NX-049)
