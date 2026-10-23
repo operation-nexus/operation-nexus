@@ -17,6 +17,7 @@ from test_join import CAMPAIGN_ID, RULES, at_tick, cid, join, reasons
 from nexus.contracts.gen.events.command_rejected import CommandRejected
 from nexus.contracts.gen.events.event import Event
 from nexus.contracts.gen.events.reserve_queue_joined import ReserveQueueJoined
+from nexus.contracts.gen.events.reserve_queue_left import ReserveQueueLeft
 from nexus.contracts.gen.events.unit_spawned import UnitSpawned
 from nexus.core.rules import Rules
 from nexus.core.step import step
@@ -104,7 +105,7 @@ def test_paused_join_queues_even_with_a_free_slot_and_spawns_fifo_after_resume()
     w.campaign.clock_paused = False
     events = at_tick(w, 31)
     assert spawned(events) == [cid(2), cid(1)]
-    assert [e.tick for e in events] == [31, 31]
+    assert [e.tick for e in events] == [31] * 4  # Left, UnitSpawned for each
     assert queue_of(w) == []
 
 
@@ -170,8 +171,9 @@ def test_an_entry_invalid_at_serve_time_is_rejected_and_the_next_is_served() -> 
     w.rules = dataclasses.replace(CAP2, domain={**CAP2.domain, truck: "STATIC"})
     w.remove(1)
     events = at_tick(w, 2)
-    rejected = events[0]
-    assert isinstance(rejected, CommandRejected) and isinstance(events[1], UnitSpawned)
+    left, rejected = events[:2]  # each exit: its Left, then the reject or the spawn
+    assert isinstance(left, ReserveQueueLeft) and left.reason == "REJECTED"
+    assert isinstance(rejected, CommandRejected) and isinstance(events[3], UnitSpawned)
     assert (rejected.reason, rejected.commander_id, rejected.arrival_seq) == (
         "NODE_INVALID_FOR_UNIT",
         cid(3),
@@ -249,7 +251,7 @@ def test_a_tombstoned_tick_drops_the_entries_it_would_serve() -> None:
         (e.reason, e.commander_id, e.arrival_seq) for e in events if isinstance(e, CommandRejected)
     ]
     assert dropped == [("INTERNAL_ERROR", cid(3), 3), ("INTERNAL_ERROR", cid(4), 4)]
-    assert (len(events), len(w), queue_of(w)) == (2, 0, [cid(5)])
+    assert (len(events), len(w), queue_of(w)) == (4, 0, [cid(5)])  # two Left, two rejects
 
 
 def test_a_tombstoned_tick_drops_at_least_the_head_and_nothing_while_paused() -> None:

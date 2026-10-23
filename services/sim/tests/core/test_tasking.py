@@ -859,7 +859,8 @@ def test_a_queued_join_takes_its_job_when_served() -> None:
     (first,) = [e for e in w.entities() if e.commander_id == cid(1)]
     w.remove(first.id)
     events = step(w, [])
-    assert kinds(events) == ["SupplyConsumed", "UnitSpawned", "JobClaimed"] and len(job.claims) == 1
+    assert len(job.claims) == 1
+    assert kinds(events) == ["ReserveQueueLeft", "SupplyConsumed", "UnitSpawned", "JobClaimed"]
 
 
 # --- freeze, snapshot, determinism --------------------------------------------------------------

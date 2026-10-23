@@ -1,0 +1,26 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nexus.local/contracts/commands/sys_queue_timeout.json",
+  "title": "SysQueueTimeoutCommand",
+  "description": "The runtime removes a commander's reserve-queue entry after slots.queue_idle_min of real time without a JOIN (CONTRACTS §5.2; GAMEPLAY RQ-1). Not a chat command: it has no parser entry. Wall-clock time is the runtime's; the sim only applies this logged command. Header and payload are flat.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "source", "issuer", "target_tick", "arrival_seq", "correlation_id", "commander_id"],
+  "properties": {
+    "kind": {"const": "SYS_QUEUE_TIMEOUT"},
+    "source": {"const": "SYSTEM"},
+    "issuer": {"$ref": "#/$defs/SystemIssuer"},
+    "target_tick": {"$ref": "../common/ids.json#/$defs/Tick"},
+    "arrival_seq": {"$ref": "../common/ids.json#/$defs/CommandSeq"},
+    "correlation_id": {"type": "string", "minLength": 1, "maxLength": 64},
+    "commander_id": {"$ref": "../common/ids.json#/$defs/CommanderId"}
+  },
+  "$defs": {
+    "SystemIssuer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["system"],
+      "properties": {"system": {"type": "string", "minLength": 1, "maxLength": 64}}
+    }
+  }
+}

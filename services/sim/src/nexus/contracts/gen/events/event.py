@@ -29,6 +29,7 @@ from . import (
     objective_resolved,
     rearm_stalled,
     reserve_queue_joined,
+    reserve_queue_left,
     supply_consumed,
     supply_delivered,
     threat_adaptation,
@@ -46,6 +47,7 @@ type Event = Annotated[
     unit_spawned.UnitSpawned
     | command_rejected.CommandRejected
     | reserve_queue_joined.ReserveQueueJoined
+    | reserve_queue_left.ReserveQueueLeft
     | unit_destroyed.UnitDestroyed
     | callsign_changed.CallsignChanged
     | supply_delivered.SupplyDelivered

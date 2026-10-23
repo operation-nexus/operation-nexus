@@ -150,6 +150,52 @@ def test_reserve_queue_joined_rejects_bad_fields(bad: dict[str, object]) -> None
         EVENTS.validate_python({**QUEUE_JOINED, **bad})
 
 
+QUEUE_LEFT = {
+    "kind": "ReserveQueueLeft",
+    "tick": 13,
+    "event_seq": 5,
+    "campaign_id": "0192f3a4-5b6c-7d8e-9f01-23456789abcd",
+    "commander_id": COMMANDER,
+    "reason": "TIMEOUT",
+}
+
+
+def test_event_union_parses_reserve_queue_left() -> None:
+    assert EVENTS.validate_python(QUEUE_LEFT).kind == "ReserveQueueLeft"
+
+
+@pytest.mark.parametrize(
+    "bad",
+    [{"reason": "LEFT"}, {"reason": "IDLE"}, {"commander_id": None}, {"position": 1}],
+)
+def test_reserve_queue_left_rejects_bad_fields(bad: dict[str, object]) -> None:
+    with pytest.raises(ValidationError):
+        EVENTS.validate_python({**QUEUE_LEFT, **bad})
+
+
+QUEUE_TIMEOUT = {
+    "kind": "SYS_QUEUE_TIMEOUT",
+    "source": "SYSTEM",
+    "issuer": {"system": "queue-idle"},
+    "target_tick": 11,
+    "arrival_seq": 1,
+    "correlation_id": "idle-1",
+    "commander_id": COMMANDER,
+}
+
+
+def test_command_union_parses_sys_queue_timeout() -> None:
+    assert COMMANDS.validate_python(QUEUE_TIMEOUT).kind == "SYS_QUEUE_TIMEOUT"
+
+
+@pytest.mark.parametrize(
+    "bad", [{"source": "CHAT"}, {"commander_id": "viewer-1"}, {"extra": 1}, {"issuer": {}}]
+)
+def test_sys_queue_timeout_rejects_bad_fields(bad: dict[str, object]) -> None:
+    with pytest.raises(ValidationError):
+        COMMANDS.validate_python({**QUEUE_TIMEOUT, **bad})
+
+
 DESTROYED = {
     "kind": "UnitDestroyed",
     "tick": 30,

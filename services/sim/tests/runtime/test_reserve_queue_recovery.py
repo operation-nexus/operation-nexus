@@ -11,6 +11,7 @@ from nexus.contracts.gen.commands.command import Command
 from nexus.contracts.gen.commands.join import JoinCommand
 from nexus.contracts.gen.events.command_rejected import CommandRejected
 from nexus.contracts.gen.events.event import Event
+from nexus.contracts.gen.events.reserve_queue_left import ReserveQueueLeft
 from nexus.contracts.gen.events.unit_spawned import UnitSpawned
 from nexus.core import handlers as handlers_module
 from nexus.core.handlers import Handler, join
@@ -116,9 +117,11 @@ def test_a_queued_join_that_crashes_when_served_is_dropped_on_recovery(
     # The tick's own command, then the poison entry: both INTERNAL_ERROR, each its arrival_seq.
     assert [(type(e), getattr(e, "arrival_seq", None)) for e in at_3] == [
         (CommandRejected, 4),
+        (ReserveQueueLeft, None),
         (CommandRejected, 2),
     ]
-    assert {getattr(e, "reason", None) for e in at_3} == {"INTERNAL_ERROR"}
+    rejects = [e for e in at_3 if isinstance(e, CommandRejected)]
+    assert {e.reason for e in rejects} == {"INTERNAL_ERROR"}
     # The free was dropped with its tick (commander 1 kept the slot), yet the poison is gone:
     # the next free, on tick 6, serves commander 3.
     served = [(e.tick, e.commander_id) for e in rig.events if isinstance(e, UnitSpawned)]

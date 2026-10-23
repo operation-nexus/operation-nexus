@@ -143,14 +143,14 @@ Legend: **HR** = hot-reloadable (§5). "TBD" = TBD by harness. **Source** = the 
 | `air.orbit_period_s` | float | s (world), > 0 | 120 (PROPOSED by NX-368). One lap of an idle airborne aircraft's orbit at its `min_speed_mps`; the radius is `min_speed_mps` × this / 2π (about 1.9 km for a jet). In the schema now (NX-368) | SIM-CORE §4, GAMEPLAY §5 | No |
 
 ### 6.2 Slots, respawn, reserve
-In the schema now (NX-122): `slots.max_live_per_commander`, `slots.respawn_delay_s`, `slots.max_viewer_units` and `slots.reserve_queue_max`, read by the JOIN handler and the reserve queue (SIM-CORE §4). The hot-reloadable ones are read once at load until config reload exists; a reload must rebuild the kernel's `Rules` and be logged. `slots.queue_idle_min` joins with the runtime's queue timeout.
+In the schema now (NX-122): `slots.max_live_per_commander`, `slots.respawn_delay_s`, `slots.max_viewer_units` and `slots.reserve_queue_max`, read by the JOIN handler and the reserve queue (SIM-CORE §4). The hot-reloadable ones are read once at load until config reload exists; a reload must rebuild the kernel's `Rules` and be logged. `slots.queue_idle_min` (NX-371) is read by the runtime only (`nexus.runtime.queue_idle`), never by the sim's `Rules`: the runtime, given each queued commander's last chat time on a running-real-time clock, logs a `SYS_QUEUE_TIMEOUT` for each idle entry. The runtime host loop that calls it is not wired yet.
 
 | Key | Type | Unit | PROPOSED | Source | HR |
 |---|---|---|---|---|---|
 | `slots.max_live_per_commander` | int | units | 1 | GAMEPLAY GP-1 | No |
 | `slots.respawn_delay_s` | float | s (game) | 20 | GAMEPLAY GP-2 (game time: the JOIN guard runs in the sim, Q-ALN-5) | Yes |
 | `slots.max_viewer_units` | int | units | 500 | GAMEPLAY GP-3, Q-GD-6, Q-SIM-6 | Yes |
-| `slots.queue_idle_min` | int | min (real time) | 15 | GAMEPLAY RQ-1, Q-SIM-12 | Yes |
+| `slots.queue_idle_min` | int | min (real time) | 15 (PROPOSED; in the schema and `balance/default.yaml` since NX-371). Idle = no chat message from that commander for the full time, on a clock that leaves out paused time (an outage pause must not empty the queue; NX-371 lead decision) | GAMEPLAY RQ-1, Q-SIM-12 | Yes |
 | `slots.reserve_queue_max` | int | entries | 1000 (PROPOSED by NX-122, Q-CFG-11: twice the cap; bounds the queue a flood of new commanders can build in world state and snapshots). A newcomer to a full queue gets `RESERVE_QUEUE_FULL` | GAMEPLAY GP-3 | Yes |
 | `presence.idle_handoff_min` | float | min (game) | 10 (Q-GD-35). With no command from its operator for this long, a live unit finishes its current order and joins the Tasking Board as an AI-run unit (AUTO tag). Any command from the operator restores control | GAMEPLAY §1b, STATE-MACHINES §4.1 | Yes |
 | `presence.idle_retire_min` | float | min (game) | 30 (Q-GD-35). With no command for this long, the unit RTBs and despawns; carried supplies return to the reserve. Together with `presence.idle_handoff_min` it replaces the old idle-despawn timer entirely (Q-ALN-8) | STATE-MACHINES §4.1 | Yes |
