@@ -190,6 +190,11 @@ class Vec2:
     y: float
 
     def __post_init__(self) -> None:
+        x, y = self.x, self.y
+        # Fast path (hot: millions of calls per run): plain floats in range. NaN and inf fail the
+        # magnitude test, so this accepts exactly what the loop below accepts.
+        if type(x) is float and type(y) is float and abs(x) <= _MAX_ABS and abs(y) <= _MAX_ABS:
+            return
         for name in ("x", "y"):
             v = getattr(self, name)
             number = isinstance(v, int | float) and not isinstance(v, bool)

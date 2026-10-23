@@ -24,7 +24,7 @@ type _Point = tuple[Entity, float, float]  # (entity, x, y) at rebuild
 class UniformGrid:
     """Entities bucketed by `(floor(x / cell_m), floor(y / cell_m))`; unbounded, keyed by cell."""
 
-    __slots__ = ("_cell_m", "_cells")
+    __slots__ = ("_box", "_cell_m", "_cells")
 
     def __init__(self, cell_m: float) -> None:
         if isinstance(cell_m, bool) or not (
@@ -33,6 +33,8 @@ class UniformGrid:
             raise ValueError(f"cell_m must be finite and > 0, got {cell_m!r}")
         self._cell_m = float(cell_m)
         self._cells: dict[_Cell, list[_Point]] = {}
+        # (min x, min y, max x, max y) of the entities at `rebuild`; `remove` never shrinks it.
+        self._box: tuple[float, float, float, float] | None = None
 
     def _key(self, x: float, y: float) -> _Cell:
         return math.floor(x / self._cell_m), math.floor(y / self._cell_m)
@@ -42,10 +44,15 @@ class UniformGrid:
         movement. Full rebuild is the simplest correct approach; incremental update is a later
         optimisation only if the NX-104 benchmark shows it is needed."""
         cells: dict[_Cell, list[_Point]] = {}
+        xs: list[float] = []
+        ys: list[float] = []
         for e in entities:
             x, y = e.pos.x, e.pos.y
             cells.setdefault(self._key(x, y), []).append((e, x, y))
+            xs.append(x)
+            ys.append(y)
         self._cells = cells
+        self._box = (min(xs), min(ys), max(xs), max(ys)) if xs else None
 
     def remove(self, entity: Entity) -> None:
         """Drop `entity` from the grid. It must be in the grid and must not have moved since
@@ -69,17 +76,24 @@ class UniformGrid:
         if not (math.isfinite(radius_m) and radius_m >= 0):
             raise ValueError(f"radius_m must be finite and >= 0, got {radius_m!r}")
         cx, cy, r2 = center.x, center.y, radius_m * radius_m
-        x0, y0 = self._key(cx - radius_m - _PAD_M, cy - radius_m - _PAD_M)
-        x1, y1 = self._key(cx + radius_m + _PAD_M, cy + radius_m + _PAD_M)
-        if (x1 - x0 + 1) * (y1 - y0 + 1) > len(self._cells):
+        box = self._box
+        if box is None:
+            return []
+        # Out of reach of every point: float subtraction and squaring are monotone, so the exact
+        # test below would reject them all too.
+        gx, gy = max(box[0] - cx, 0.0, cx - box[2]), max(box[1] - cy, 0.0, cy - box[3])
+        if gx * gx + gy * gy > r2:
+            return []
+        cell, floor, cells = self._cell_m, math.floor, self._cells
+        x0, y0 = floor((cx - radius_m - _PAD_M) / cell), floor((cy - radius_m - _PAD_M) / cell)
+        x1, y1 = floor((cx + radius_m + _PAD_M) / cell), floor((cy + radius_m + _PAD_M) / cell)
+        if (x1 - x0 + 1) * (y1 - y0 + 1) > len(cells):
             # A huge radius: scanning the occupied cells is cheaper than the empty range.
-            buckets = list(self._cells.values())
+            buckets = list(cells.values())
         else:
+            get = cells.get
             buckets = [
-                b
-                for kx in range(x0, x1 + 1)
-                for ky in range(y0, y1 + 1)
-                if (b := self._cells.get((kx, ky))) is not None
+                b for kx in range(x0, x1 + 1) for ky in range(y0, y1 + 1) if (b := get((kx, ky)))
             ]
         return [
             e for b in buckets for e, x, y in b if (x - cx) * (x - cx) + (y - cy) * (y - cy) <= r2
