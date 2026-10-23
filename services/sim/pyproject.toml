@@ -103,6 +103,34 @@ forbidden_modules = [
   "nexus.ops",
 ]
 
+# ERROR-PIPELINE EP-4: the kernel never calls the reporter; the runtime around it does.
+[[tool.importlinter.contracts]]
+name = "nexus.core never imports nexus.errors (ERROR-PIPELINE EP-4)"
+type = "forbidden"
+source_modules = ["nexus.core"]
+forbidden_modules = ["nexus.errors"]
+
+[[tool.importlinter.contracts]]
+name = "nexus.errors is a leaf: it imports nothing else from nexus (ERROR-PIPELINE EP-1)"
+type = "forbidden"
+source_modules = ["nexus.errors"]
+forbidden_modules = [
+  "nexus.contracts",
+  "nexus.core",
+  "nexus.obs",
+  "nexus.runtime",
+  "nexus.gateway",
+  "nexus.commands",
+  "nexus.moderation",
+  "nexus.broadcast",
+  "nexus.progression",
+  "nexus.persistence",
+  "nexus.advisors",
+  "nexus.audio",
+  "nexus.clips",
+  "nexus.ops",
+]
+
 [[tool.importlinter.contracts]]
 name = "nexus.obs is a leaf: it imports nothing else from nexus (SYSTEM-DESIGN §4, Q-DEV-20)"
 type = "forbidden"
