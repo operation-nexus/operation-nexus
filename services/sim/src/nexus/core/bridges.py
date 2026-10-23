@@ -14,15 +14,25 @@ full (repair is part 2), so the set, not the hp, is what cuts the road.
   `BridgeDestroyed{node_id, by_id}` names the shooter, once per down cycle.
 - **Roads (B-1):** every path planner passes `blocked(world)` to `roads.shortest_path`, so a down
   bridge's edge is in no path computed after the tick it fell.
+- **Paths already set (NX-373 part 1b, Q-SIM-108):** the hit that brings a bridge down calls
+  `reroute`: every GROUND unit with a path, in id order, whose remaining road (its position, then
+  its path) crosses a down bridge's cut point (the bridge node's position projected on the edge)
+  replans from the last node before the crossing (a coalition patrol through held nodes only, as
+  `tasking._patrol_route`), or stops there with no route. A unit on the cut
+  edge that has reached the cut point carries on and takes no damage; aircraft are not affected.
 
 No regeneration and no starvation drain (a bridge has no stock). Deterministic: integer state, no
 RNG of its own.
 """
 
+from itertools import pairwise
+
+from nexus.contracts.gen.common.enums import Side
 from nexus.contracts.gen.events.bridge_destroyed import BridgeDestroyed
 from nexus.contracts.gen.events.event import Event
+from nexus.core.roads import shortest_path
 from nexus.core.rules import Rules, WeaponRules
-from nexus.core.world import Entity, World
+from nexus.core.world import Entity, Vec2, World
 
 
 def blocked(world: World) -> frozenset[str]:
@@ -42,8 +52,11 @@ def target(world: World, rules: Rules, w: WeaponRules, shooter: Entity) -> tuple
     return (node, d2) if d2 <= w.range_m**2 else None
 
 
-def damage(world: World, node: str, amount: int, by_id: int, out: list[Event]) -> None:
-    """Remove `amount` hp, not below 0; at 0 the bridge goes down and announces it once."""
+def damage(
+    world: World, rules: Rules, node: str, amount: int, by_id: int, out: list[Event]
+) -> None:
+    """Remove `amount` hp, not below 0; at 0 the bridge goes down, announces it once and the units
+    whose road crosses it are rerouted (`reroute`)."""
     world.bridge_hp[node] = max(0, world.bridge_hp[node] - amount)
     if world.bridge_hp[node] or node in world.bridge_down:
         return
@@ -58,6 +71,52 @@ def damage(world: World, node: str, amount: int, by_id: int, out: list[Event]) -
             by_id=by_id,
         )
     )
+    reroute(world, rules)
+
+
+def not_held(world: World, rules: Rules, side: Side) -> frozenset[str]:
+    """The nodes `side` does not hold: a coalition patrol's road `avoid` (Q-SIM-94)."""
+    return frozenset(n for n in rules.roads.pos if world.owner.get(n) != side)
+
+
+def crosses(world: World, rules: Rules, frm: str, to: str, pos: Vec2) -> bool:
+    """True when a unit at `pos` on the road `frm` -> `to`, driving toward `to`, has a down
+    bridge's cut point still ahead of it: the edge's bridge is down and `pos` projects onto the
+    edge short of the bridge node's position. At or past the cut point: False (it carries on)."""
+    bridge = rules.roads.edge(frm, to).bridge
+    if bridge not in world.bridge_down:
+        return False
+    (ax, ay), (bx, by), (cx, cy) = (rules.roads.pos[n] for n in (frm, to, bridge))
+    dx, dy = bx - ax, by - ay
+    return (pos.x - ax) * dx + (pos.y - ay) * dy < (cx - ax) * dx + (cy - ay) * dy
+
+
+def reroute(world: World, rules: Rules) -> None:
+    """Replan every GROUND unit, in id order, whose remaining road crosses a down bridge
+    (Q-SIM-108): its current leg toward the cut point turns back to the node it came from; a later
+    hop over a cut edge keeps the path up to the node before it. From that node it takes
+    `roads.shortest_path` (with `blocked`) to its last path node, or stops there with none."""
+    cut = blocked(world)
+    for e in world.entities():
+        path = [n for n in e.path if isinstance(n, str)]
+        if rules.domain[e.kind] != "GROUND" or not path or e.last_node is None:
+            continue
+        origin = e.last_node  # where the current leg began
+        at_node = e.pos == Vec2(*rules.roads.pos[origin])
+        if path[0] == origin and not at_node:  # turning back: the leg began at the far end
+            found = rules.roads.edge_at(origin, e.pos.x, e.pos.y)
+            if found is None:  # off its road: ground units stay on their segment, so never
+                continue
+            origin = found[0]
+        seq = [origin, *path[1:]] if path[0] == origin else [origin, *path]
+        job = None if e.job_id is None else world.boards[e.side].get(e.job_id)
+        held = job is not None and job.kind == "PATROL" and job.via is None  # coalition patrol
+        avoid = not_held(world, rules, e.side) if held else frozenset()
+        for k, (a, b) in enumerate(pairwise(seq)):
+            if rules.roads.edge(a, b).bridge in cut and (k or crosses(world, rules, a, b, e.pos)):
+                route = shortest_path(rules.roads, a, seq[-1], blocked=cut, avoid=avoid)
+                e.path = [*seq[1:k], *(route or [a])]
+                break
 
 
 def validate(world: World, rules: Rules) -> None:

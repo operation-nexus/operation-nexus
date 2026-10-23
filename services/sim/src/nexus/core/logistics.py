@@ -11,12 +11,11 @@ truck as `Entity.unload_milli` so no fraction is ever lost to rounding. A unit a
 rounds and hp in thousandths of stock and owes `Entity.rearm_milli`; a whole unit leaves the stock
 as the debt reaches 1000, so every unit debited equals thousandths bought.
 
-"Friendly" is the node's live owner (`World.owner`, which capture changes, NX-125). Routes avoid
-no bridge until combat can destroy one (NX-124 part 3). A Disabled unit neither unloads nor
-restocks and keeps its cargo until it is removed as a wreck (COMBAT CB-7, GP-5); a Disabled
-facility is not a wreck and repairs. The `logistics`
-system is deterministic: entities in id order, candidate nodes in id order, ties on distance by
-node id.
+"Friendly" is the node's live owner (`World.owner`, which capture changes, NX-125). Every route
+passes `bridges.blocked`, so none crosses a down bridge (NX-373). A Disabled unit neither unloads
+nor restocks and keeps its cargo until it is removed as a wreck (COMBAT CB-7, GP-5); a Disabled
+facility is not a wreck and repairs. The `logistics` system is deterministic: entities in id
+order, candidate nodes in id order, ties on distance by node id.
 """
 
 import math
@@ -300,7 +299,7 @@ def _defense_room(world: World, rules: Rules, node: str) -> int:
 
 def _divert(world: World, rules: Rules, e: Entity, node: str, out: list[Event]) -> None:
     # shortcut: a truck with no reachable friendly base re-plans every tick; cache it once roads
-    # or ownership can change (bridges NX-124) if it shows in the tick budget.
+    # or ownership can change (bridges, NX-373) if it shows in the tick budget.
     sup = rules.supply
     bases = [n for n, top in sup.max_stock.items() if top > 0 and friendly(world, e.side, n)]
     with_room = [n for n in bases if world.stock.get(n, 0) < sup.max_stock[n]]

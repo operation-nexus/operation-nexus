@@ -332,7 +332,7 @@ def _land(world: World, rules: Rules, cr: CombatRules, now: int, out: list[Event
         if hit and shot.node is not None and shot.node in world.bridge_hp:  # a hit: shooter lives
             # Armor 0 (Q-CBT-22). No provocation: a bridge is nobody's, so no Director counts the
             # hit (Q-SIM-105).
-            bridges.damage(world, shot.node, w.damage, shot.shooter, out)
+            bridges.damage(world, rules, shot.node, w.damage, shot.shooter, out)
         elif hit and shot.node is not None:
             damage_defense(world, rules, shot.node, w.damage, out)  # armor 0 (Q-CBT-22)
             if shooter is not None:

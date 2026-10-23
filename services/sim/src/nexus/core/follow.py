@@ -51,7 +51,7 @@ import math
 from collections.abc import Sequence
 
 from nexus.contracts.gen.common.enums import Side, UnitKind
-from nexus.core.bridges import blocked
+from nexus.core.bridges import blocked, crosses
 from nexus.core.roads import shortest_path
 from nexus.core.rules import Rules, TaskingRules
 from nexus.core.spatial import UniformGrid
@@ -353,7 +353,7 @@ def _approach(world: World, rules: Rules, f: Entity, p: Vec2) -> bool:
         cut = blocked(world)
         options = [n for n, edge in rules.roads.neighbours(f.last_node) if edge.bridge not in cut]
     else:
-        options = [n for n in _ends(rules, f) if isinstance(n, str)]
+        options = [n for n in _ends(world, rules, f) if isinstance(n, str)]
     best: tuple[float, str] | None = None
     for node in options:
         x, y = rules.roads.pos[node]
@@ -372,16 +372,20 @@ def _at_node(rules: Rules, f: Entity) -> bool:
     return f.last_node is not None and f.pos == Vec2(*rules.roads.pos[f.last_node])
 
 
-def _ends(rules: Rules, f: Entity) -> list[str | Vec2 | None]:
+def _ends(world: World, rules: Rules, f: Entity) -> list[str | Vec2 | None]:
     """The nodes a ground unit may route from: the one it heads for, and mid-edge also the one it
-    left (found by position when it already turned back)."""
+    left (found by position when it already turned back), but never an end across a down bridge's
+    cut point from it (the bank rule, Q-SIM-108)."""
     if _at_node(rules, f) or f.last_node is None:
         return [f.path[0] if f.path else f.last_node]
     ahead = f.path[0] if f.path and f.path[0] != f.last_node else None
     if ahead is None:
         found = rules.roads.edge_at(f.last_node, f.pos.x, f.pos.y)
         ahead = None if found is None else found[0]
-    return [ahead, f.last_node]
+    if not isinstance(ahead, str):
+        return [ahead, f.last_node]
+    ends = ((ahead, f.last_node), (f.last_node, ahead))
+    return [n for n, m in ends if not crosses(world, rules, m, n, f.pos)]
 
 
 def _drive(world: World, rules: Rules, f: Entity, goal: str) -> bool:
@@ -391,7 +395,7 @@ def _drive(world: World, rules: Rules, f: Entity, goal: str) -> bool:
     at_node = _at_node(rules, f)
     if (f.path[-1] if f.path else f.last_node) == goal and (f.path or at_node):
         return True
-    starts = [n for n in _ends(rules, f) if isinstance(n, str)]
+    starts = [n for n in _ends(world, rules, f) if isinstance(n, str)]
     best: tuple[float, list[str]] | None = None
     for start in starts:
         route = shortest_path(rules.roads, start, goal, blocked=blocked(world))

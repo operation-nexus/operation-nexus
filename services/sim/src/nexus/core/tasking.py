@@ -88,7 +88,7 @@ from nexus.contracts.gen.events.job_created import JobCreated
 from nexus.contracts.gen.events.job_done import JobDone, Participant
 from nexus.contracts.gen.events.job_expired import JobExpired
 from nexus.contracts.gen.events.job_failed import JobFailed
-from nexus.core.bridges import blocked
+from nexus.core.bridges import blocked, not_held
 from nexus.core.fog import SideView, side_view
 from nexus.core.logistics import Run, go_home, keeps, load, nearest_base, plan_run
 from nexus.core.rng import PcgStream, RngStream
@@ -891,7 +891,7 @@ def _patrol_route(
     if e.pos != Vec2(*rules.roads.pos[e.last_node]):
         return None
     if job.via is None:
-        avoid = frozenset(n for n in rules.roads.pos if world.owner.get(n) != e.side)
+        avoid = not_held(world, rules, e.side)
         cut = blocked(world)
         return shortest_path(rules.roads, e.last_node, job.node, blocked=cut, avoid=avoid)
     out = _road(world, rules, routes, e.last_node, job.via)
