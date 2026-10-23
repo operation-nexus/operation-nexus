@@ -383,6 +383,10 @@ def _route(
     if domain not in ("AIR", "GROUND"):
         return "NODE_INVALID_FOR_UNIT"  # SEA joins with the naval graph (P3); STATIC never moves
     if cargo is not None:
+        if rules.node_kind.get(target.node_id) in rules.uncapturable and (
+            world.owner.get(target.node_id) != _COALITION
+        ):
+            return "NODE_INVALID_FOR_UNIT"  # a node that can never be captured (Q-SIM-111)
         run = plan_run(world, rules, _COALITION, target.node_id)
         return "NODE_INVALID_FOR_UNIT" if run is None else _Plan(kind, *run)
     deploy = plan_deploy(world, rules, _COALITION, kind, target.node_id)
