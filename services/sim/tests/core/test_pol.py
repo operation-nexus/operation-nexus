@@ -214,14 +214,19 @@ def test_stock_plus_cargo_plus_consumed_stays_exact_with_upkeep_and_convoys() ->
     def total() -> int:
         return sum(w.stock.values()) + sum(e.cargo or 0 for e in w.entities())
 
-    start, spent, convoys = total(), 0, 0
+    start, spent, convoys, loaded = total(), 0, 0, 0
+    aboard: dict[int, int] = {}
     for _ in range(DR.convoy_ticks + 4 * DR.window_ticks):
         for e in step(w, []):
             spent += e.amount if e.kind == "SupplyConsumed" else 0
             convoys += e.kind == "UnitSpawned" and e.unit_kind == DR.convoy_kind
-    # nothing is created but cargo loaded at an infinite source, and every unit it holds counts
+        for u in w.entities():  # every load (a truck's cargo rising), however often it reloads
+            loaded += max(0, (u.cargo or 0) - aboard.get(u.id, 0))
+            aboard[u.id] = u.cargo or 0
+    # nothing is created but cargo loaded at an infinite source, and every unit it holds counts;
+    # stocking jobs (Q-SIM-100) send a convoy back for more, so the bound is the loads, not spawns
     gained = total() + spent - start
-    assert convoys >= 1 and 0 <= gained <= convoys * RULES.supply.truck_cargo
+    assert convoys >= 1 and 0 < gained <= loaded
     assert all(0 <= s <= RULES.supply.max_stock[n] for n, s in w.stock.items())
 
 

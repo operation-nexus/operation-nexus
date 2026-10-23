@@ -103,7 +103,7 @@ ALLOWED: dict[Key, str] = {
     ("world.py", 2): "STRUCT: highest tier index (BRAVO) in a loaded Director state",
     ("world.py", 3): "STRUCT: a saved claim is [entity id, tick, active]",
     ("world.py", 32): "STRUCT: state hash width (SIM-CORE section 5)",
-    ("world.py", 1000): "SCALE: thousandths; the urgency floor on load",
+    ("world.py", 1000): "SCALE: thousandths; the urgency floor on load (RESUPPLY may go below)",
 }
 
 

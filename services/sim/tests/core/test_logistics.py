@@ -31,7 +31,13 @@ from nexus.runtime.campaign_config import load_campaign_config, start_campaign
 
 CONFIG = load_campaign_config()
 # The campaign layer is off: these tests are about logistics, not objectives (NX-126).
-RULES = dataclasses.replace(CONFIG.rules, campaign=None, tasking=None, garrison_quota={})
+SHIPPED = dataclasses.replace(CONFIG.rules, campaign=None, tasking=None, garrison_quota={})
+# Stocking runs off (target = floor): the tests below the floor rule (Q-GP-24) run without the
+# forward stock target, since every shipped base starts below it; the stocking tests use SHIPPED.
+RULES = dataclasses.replace(
+    SHIPPED,
+    supply=dataclasses.replace(SHIPPED.supply, stock_target=SHIPPED.supply.starve_floor),
+)
 POS = RULES.roads.pos
 
 
@@ -152,6 +158,94 @@ def test_enemy_convoy_loads_from_the_static_nodes_and_the_rear_source() -> None:
     assert rear and (rear.source, rear.cargo) == ("static-rear", 100)
     assert rear.route == ["static-rear", "static-hq", "fob-n-e"]
     assert friendly(w, "ENEMY", "static-hq") and not friendly(w, "COALITION", "static-hq")
+
+
+# --- stocking runs (Q-SIM-100, Q-SIM-102, NX-389): target 0.8 is 1600 on west-airbase, 800 on a FOB
+
+
+def test_stocking_runs_between_bases_below_target_load_at_the_rear_never_from_each_other() -> None:
+    w = new_world(SHIPPED)  # every base starts at 50%: west-airbase 1000, each FOB 500
+    for dest in ("fob-n-w", "fob-s-w", "west-airbase"):
+        run = plan_run(w, SHIPPED, "COALITION", dest)
+        assert run and (run.source, run.cargo) == ("haven", 100), dest
+    for dest in ("fob-n-e", "fob-s-e", "east-airbase", "static-hq"):
+        run = plan_run(w, SHIPPED, "ENEMY", dest)
+        assert run and (run.source, run.cargo) == ("static-rear", 100), dest
+    t = truck_for(w, 1, "fob-n-w")  # a JOIN to a stocking base spawns at the sanctuary, loaded
+    assert (t.last_node, t.cargo) == ("haven", 100)
+    assert (w.stock["west-airbase"], w.stock["fob-s-w"]) == (1000, 500)  # nobody was stripped
+
+
+def test_a_source_above_its_target_ships_only_what_is_above_it() -> None:
+    w = new_world(SHIPPED)
+    w.stock["fob-s-w"] = 850  # 50 above its target 800; west-airbase (1000 of 1600) is nearer
+    t = truck_for(w, 1, "fob-n-w")
+    assert (t.last_node, t.cargo, w.stock["fob-s-w"]) == ("fob-s-w", 50, 800)
+    assert w.stock["west-airbase"] == 1000
+
+
+def test_runs_to_a_starving_damaged_or_stocked_base_keep_the_floor_rule() -> None:
+    for stock, hurt in ((100, False), (500, True), (900, False)):  # starving, damaged, at target
+        w = new_world(SHIPPED)
+        w.stock["fob-n-w"] = stock
+        if hurt:
+            (site,) = [e for e in w.entities() if e.base_id == "fob-n-w"]
+            site.hp -= 1
+        run = plan_run(w, SHIPPED, "COALITION", "fob-n-w")
+        # west-airbase is the nearest source, 500 over its floor though 600 under its target
+        assert run and (run.source, run.cargo) == ("west-airbase", 100), (stock, hurt)
+
+
+def test_the_stocking_band_starts_at_the_floor_and_ends_below_the_target() -> None:
+    w = new_world(SHIPPED)  # west-airbase 1000 (floor 500, target 1600), fob-s-w 500 (target 800)
+    w.stock["fob-n-w"] = 250  # exactly its floor: a stocking run, so no base below target ships
+    run = plan_run(w, SHIPPED, "COALITION", "fob-n-w")
+    assert run and (run.source, run.cargo) == ("haven", 100)
+    w.stock["fob-n-w"] = 800  # exactly its target: the floor rule, west-airbase has 500 spare
+    run = plan_run(w, SHIPPED, "COALITION", "fob-n-w")
+    assert run and (run.source, run.cargo) == ("west-airbase", 100)
+
+
+# Independent of the code's mappings: the shipped fractions are 1/4 (floor) and 4/5 (target), so
+# a base of maximum m keeps ceil(m/4) or ceil(4m/5), and a destination with stock s and no damaged
+# facility is in the stocking band when s/m >= 1/4 and s/m < 4/5.
+_BASES = {
+    "COALITION": ("west-airbase", "fob-n-w", "fob-s-w"),
+    "ENEMY": ("east-airbase", "fob-n-e", "fob-s-e", "static-hq"),
+}
+_MAX = {"west-airbase": 2000, "east-airbase": 2000, "static-hq": 2000}  # the FOBs hold 1000
+
+
+@given(
+    st.sampled_from(["COALITION", "ENEMY"]),
+    st.data(),
+    st.booleans(),
+)
+def test_a_run_ships_only_spare_above_what_each_source_keeps(
+    side: Side, data: st.DataObject, damaged: bool
+) -> None:
+    w = new_world(SHIPPED)
+    bases = _BASES[side]
+    top = {n: _MAX.get(n, 1000) for n in bases}
+    for n in bases:
+        w.stock[n] = data.draw(st.integers(0, top[n]), label=n)
+    dest = data.draw(st.sampled_from(bases), label="dest")
+    if damaged:
+        site = next(e for e in w.entities() if e.base_id == dest)
+        site.hp -= 1
+    s, m = w.stock[dest], top[dest]
+    band = not damaged and 4 * s >= m and 5 * s < 4 * m
+
+    def keep(n: str) -> int:
+        return -(-4 * top[n] // 5) if band else -(-top[n] // 4)
+
+    spare = {n: w.stock[n] - keep(n) for n in bases if n != dest}
+    run = plan_run(w, SHIPPED, side, dest)
+    assert run is not None and run.source != dest
+    if run.source == SHIPPED.supply.rear[side]:
+        assert all(v <= 0 for v in spare.values()) and run.cargo == 100
+    else:
+        assert run.cargo == min(100, spare[run.source]) and spare[run.source] > 0
 
 
 def test_a_truck_unloads_at_the_rate_and_parks_empty() -> None:

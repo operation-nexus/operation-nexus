@@ -8,9 +8,12 @@ refers to an entity id, so a job names a node, or a SIGINT blob with its cell ce
 
 - **Resupply** (`resupply:<node>`): a node the side owns, with stock, below its starvation floor or
   with damaged facilities (Q-GP-47). Urgency: the larger of the stock deficit share (floor - stock)
-  / floor and the facilities' missing hp share, on top of 1.0. Slots: one per
-  `resupply_stock_per_slot` of missing stock (max stock - stock, rounded up), 1 to
-  `resupply_slots_max`.
+  / floor and the facilities' missing hp share, on top of 1.0. A node below its forward stock
+  target (`Supply.stock_target`, Q-SIM-100, NX-389) gets one too (stocking), urgency
+  `tasking.stock_urgency` plus `tasking.stock_front_bonus` on the front line (`_on_front`, the
+  patrol rule), below 1.0; when both apply the higher urgency wins. Slots: one per
+  `resupply_stock_per_slot` of missing stock (max stock - stock, rounded up; for a stocking-only
+  job, target - stock), 1 to `resupply_slots_max`.
 - **Defend** (`defend:<node>`): a node the side owns that can be captured and is threatened: the
   other side's capture bar is on it, or a tracked enemy GROUND unit is within
   `tasking.defend_radius_m` of it (Q-SIM-74). Urgency: 1.0 + the larger of the bar's share and
@@ -69,6 +72,7 @@ from typing import NamedTuple
 from nexus.contracts.gen.common.enums import JobKind, NodeOwner, Side, UnitKind
 from nexus.core.director import TIERS
 from nexus.core.fog import SideView
+from nexus.core.logistics import facility_damage
 from nexus.core.rules import CAPTURE_FULL, Rules, TaskingRules
 from nexus.core.world import Contact, Entity, Vec2, World
 
@@ -292,23 +296,10 @@ def _cap_scouts(specs: list[JobSpec], world: World, tr: TaskingRules, side: Side
     return [s for s in specs if s.kind != "SCOUT" or s.key in keep]
 
 
-def _facility_damage(world: World, rules: Rules, side: Side) -> dict[str, tuple[int, int]]:
-    """Base -> (missing hp, max hp) over the side's facilities there (the side's own state)."""
-    cr = rules.combat
-    totals: dict[str, list[int]] = {}
-    for e in world.entities():
-        if cr is not None and e.side == side and e.base_id is not None:
-            top = cr.units[e.kind].hp
-            t = totals.setdefault(e.base_id, [0, 0])
-            t[0] += top - e.hp
-            t[1] += top
-    return {n: (t[0], t[1]) for n, t in totals.items()}
-
-
 def _resupply(
     world: World, rules: Rules, tr: TaskingRules, side: Side, view: SideView
 ) -> Iterator[JobSpec]:
-    sup, damage = rules.supply, _facility_damage(world, rules, side)
+    sup, damage = rules.supply, facility_damage(world, rules, side)
     for node in sorted(sup.max_stock):
         top, stock, floor = sup.max_stock[node], world.stock.get(node, 0), sup.starve_floor[node]
         if top <= 0 or view.owners.get(node) != side:
@@ -316,11 +307,16 @@ def _resupply(
         starved = Fraction(floor - stock, floor) if stock < floor else Fraction(0)
         missing_hp, max_hp = damage.get(node, (0, 1))
         need = max(starved, Fraction(missing_hp, max_hp))
-        if need:
-            slots = -(-(top - stock) // tr.resupply_stock_per_slot)
+        stocking = 0  # below the forward stock target (Q-SIM-100): the stocking urgency
+        if stock < sup.stock_target[node]:
+            front = tr.stock_front_bonus_milli if _on_front(rules, view, side, node) else 0
+            stocking = tr.stock_urgency_milli + front
+        if need or stocking:
+            fill = top if need else sup.stock_target[node]  # stocking fills up to the target only
+            slots = -(-(fill - stock) // tr.resupply_stock_per_slot)
             yield JobSpec(
                 "RESUPPLY", f"resupply:{node}", min(tr.resupply_slots_max, max(1, slots)),
-                _urgency(tr, need), node=node,
+                max(_urgency(tr, need) if need else 0, stocking), node=node,
             )  # fmt: skip
 
 
@@ -421,11 +417,20 @@ def _patrol(
     front = sorted(
         (min(((x - fx) ** 2 + (y - fy) ** 2 for fx, fy in foe), default=math.inf), n)
         for n, (x, y) in view.nodes.items()
-        if view.owners.get(n) == side and rules.node_kind[n] not in rules.uncapturable
-        and any(view.owners.get(m) != side for m, _ in rules.roads.neighbours(n))
-    )  # fmt: skip
+        if _on_front(rules, view, side, n)
+    )
     for _, n in front[: tr.patrol_max_nodes]:
         yield JobSpec("PATROL", f"patrol:{n}", tr.slots["PATROL"], 1000, node=n)
+
+
+def _on_front(rules: Rules, view: SideView, side: Side, n: str) -> bool:
+    """A front-line node (Q-SIM-94): held by the side, capturable (not a sanctuary or bridge), with
+    a road neighbour the side does not hold. Patrols and the stocking bonus share it."""
+    return (
+        view.owners.get(n) == side
+        and rules.node_kind[n] not in rules.uncapturable
+        and any(view.owners.get(m) != side for m, _ in rules.roads.neighbours(n))
+    )
 
 
 def _intercept(
