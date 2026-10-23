@@ -16,6 +16,7 @@ from nexus.contracts.gen.common.enums import Side
 from nexus.contracts.gen.config.balance import BalanceConfig
 from nexus.contracts.gen.config.theater import TheaterConfig
 from nexus.core.operations import misfits as fit_problems
+from nexus.core.provocation import DIRECTED
 from nexus.core.rules import (
     Rules,
     campaign_rules,
@@ -171,6 +172,9 @@ def start_campaign(campaign_id: str, seed: int, config: CampaignConfig | None = 
     world.stock = {n.id: n.start_stock for n in config.theater.nodes if n.start_stock is not None}
     _place_facilities(world, config.theater)
     _place_garrison(world, config.rules)
+    if config.rules.director is not None:  # `director.tier.start` (Q-CFG-16), dwell 0
+        for side in DIRECTED:
+            world.director[side].tier = config.rules.director.start_tier
     return world
 
 

@@ -120,9 +120,9 @@ def rebase(world: World, command: Command, out: list[Event]) -> None:
     base, a ground unit a base it has a road route to), `OUT_OF_REACH` (an aircraft that cannot fly
     there with its bingo reserve, `tasking.reaches`). An accepted rebase is an explicit order
     (TB-7): it releases the unit's board job, ends a follow, cuts a truck's unloading stop, and sets
-    the HOLD order, so the unit takes no board job on the way or at the base until its commander's
-    next order. Arrival, landing, refuelling and rearming are the ordinary `movement` and
-    `logistics` systems.
+    the order `slots.rebase_order` (HOLD, its only value, Q-CFG-16), so the unit takes no board job
+    on the way or at the base until its commander's next order. Arrival, landing, refuelling and
+    rearming are the ordinary `movement` and `logistics` systems.
     """
     if not isinstance(command, RebaseCommand):
         raise TypeError(f"REBASE handler got {command.kind}")
@@ -148,7 +148,7 @@ def rebase(world: World, command: Command, out: list[Event]) -> None:
         release_claim(world, world.boards[unit.side][unit.job_id], unit.id, out)
     if unit.delivered and unit.last_node is not None:
         end_stop(world, unit, unit.last_node, out)  # leaving cuts the unloading stop
-    unit.path, unit.order, unit.follow_id = path, "HOLD", None
+    unit.path, unit.order, unit.follow_id = path, rules.rebase_order, None
 
 
 def _rebase_path(

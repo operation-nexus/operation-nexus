@@ -9,7 +9,7 @@ import math
 from collections.abc import Collection, Iterable, Mapping
 from dataclasses import dataclass, field
 from fractions import Fraction
-from typing import cast
+from typing import Literal, cast
 
 from nexus.contracts.gen.common.enums import (
     AltBand,
@@ -204,6 +204,9 @@ class TaskingRules:
     patrol_dwell_ticks: int  # a coalition patrol is done this long after it is on station
     stock_urgency_milli: int  # a stocking resupply job's urgency (Q-SIM-100, NX-389)
     stock_front_bonus_milli: int  # added to it on a front-line base
+    ai_jobs: frozenset[JobKind]  # tasking.ai_jobs: an AI garrison unit takes these by itself
+    ai_excluded_jobs: frozenset[JobKind]  # tasking.ai_excluded_jobs: and never these (Q-GP-45)
+    human_displaces_ai: bool  # tasking.human_displaces_ai: a viewer's unit bumps an AI claimant
 
 
 @dataclass(frozen=True, slots=True)
@@ -268,10 +271,13 @@ class DirectorRules:
     bravo_enter_cp: int
     exit_ratio: Fraction
     min_dwell_ticks: int
+    start_tier: ThreatTier  # director.tier.start: the tier a campaign starts in
+    max_step: int  # director.tier.max_step: tier steps one move takes (Q-TD-1: 1)
     escalate: int
     bravo: int
     decay: tuple[int, int]
     weights: Weights
+    ai_shooter_mult: Fraction  # director.provocation.ai_shooter_mult: x a hit by no player's unit
     budget: Mapping[ThreatTier, int]
     max_spawns_per_window: int
     max_live_units: Mapping[ThreatTier, int]
@@ -317,6 +323,7 @@ class DirectorRules:
     convoy_slots: int  # units one Pattern of Life convoy job takes
     convoys_per_period: int
     offensives_per_period: int
+    capture_slot_tiers: frozenset[ThreatTier]  # director.pol.capture_slot_tiers (Q-SIM-85)
     convoy_cost: int  # budget points of one Pattern of Life convoy
     # Recon (NX-379, Q-SIM-87): a scout loiters `recon_loiter_ticks` within `recon_loiter_radius_m`
     # of its point, picked from a grid of `recon_grid_m` over the sector.
@@ -460,6 +467,9 @@ class Rules:
     # Sector id -> polygon (id order), from the theater (NX-155): where a provocation happened;
     # `sector_at` finds a point's sector.
     sectors: tuple[tuple[str, tuple[tuple[int, int], ...]], ...] = ()
+    # slots.rebase_order (Q-SIM-90): the order a rebased unit is left with; the default is for
+    # hand-built rules, the shipped value comes from `balance/default.yaml`.
+    rebase_order: Literal["HOLD"] = "HOLD"
 
     def speed(self, kind: UnitKind, state: DamageState) -> float:
         """A unit's top speed now: x `damaged_speed_mult` at Damaged or worse, but an aircraft never
@@ -540,6 +550,9 @@ def tasking_rules(
         patrol_dwell_ticks=patrol_dwell_ticks,
         stock_urgency_milli=stock_urgency,
         stock_front_bonus_milli=front_bonus,
+        ai_jobs=frozenset(cfg.ai_jobs),
+        ai_excluded_jobs=frozenset(cfg.ai_excluded_jobs),
+        human_displaces_ai=cfg.human_displaces_ai,
     )
 
 
@@ -615,6 +628,8 @@ def director_rules(
         bravo_enter_cp=_micro(cfg.tier.bravo_enter_cp),
         exit_ratio=Fraction(repr(cfg.tier.exit_ratio)),
         min_dwell_ticks=min_dwell_ticks,
+        start_tier=cfg.tier.start,
+        max_step=cfg.tier.max_step,
         escalate=_micro(pv.escalate_threshold),
         bravo=_micro(pv.bravo_threshold),
         decay=_decay(half_life_ticks, window_ticks),
@@ -624,6 +639,7 @@ def director_rules(
             _micro(w.facility_damaged), _micro(w.facility_disabled), _micro(w.base_captured),
             _micro(w.scout_in_rear), _micro(r.support), _micro(r.cosmetic),
         ),
+        ai_shooter_mult=Fraction(repr(pv.ai_shooter_mult)),
         budget={"PATTERN_OF_LIFE": cfg.budget.pattern_of_life, "ALPHA": cfg.budget.alpha,
                 "BRAVO": cfg.budget.bravo},
         max_spawns_per_window=cfg.max_spawns_per_window,
@@ -671,6 +687,7 @@ def director_rules(
         convoy_slots=cfg.pol.convoy_slots,
         convoys_per_period=cfg.pol.convoys_per_period,
         offensives_per_period=cfg.pol.offensives_per_period,
+        capture_slot_tiers=frozenset(cfg.pol.capture_slot_tiers),
         convoy_cost=cfg.pol.convoy_cost,
         recon_loiter_ticks=recon_loiter_ticks,
         recon_loiter_radius_m=cfg.recon.loiter_radius_m,
@@ -973,6 +990,7 @@ def make_rules(
             (s.id, tuple((x, y) for x, y in s.polygon))
             for s in sorted(theater.sectors, key=lambda s: s.id)
         ),
+        rebase_order=slots.rebase_order,
     )
 
 

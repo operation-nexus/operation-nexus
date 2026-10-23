@@ -1070,7 +1070,10 @@
         "patrol_orbit_m",
         "patrol_dwell_s",
         "stock_urgency",
-        "stock_front_bonus"
+        "stock_front_bonus",
+        "ai_jobs",
+        "ai_excluded_jobs",
+        "human_displaces_ai"
       ],
       "properties": {
         "reeval_every_ticks": {"description": "A board re-evaluates (settles, generates, assigns) every this many running ticks (TB-6), unit ticks.", "type": "integer", "minimum": 1, "x-unit": "ticks", "x-hot-reload": true},
@@ -1137,6 +1140,9 @@
         "follow_hold_slack": {"description": "A stopped leader's ground followers hold where they are while within this many stations of it, instead of closing in (Q-SIM-76, Q-DEV-21), unit stations (multiples of follow_station_m).", "type": "number", "minimum": 1, "x-unit": "stations", "x-hot-reload": true},
         "overfill_point_jobs": {"description": "Whether a Recon scout's point job overfills like any other (true), or never takes more than its slots (false) (NX-379, Q-DEV-21), unit flag.", "type": "boolean", "x-unit": "flag", "x-hot-reload": true},
         "join_excluded_jobs": {"description": "Job kinds a parameterless JOIN never takes for a new coalition unit (the unit can still take them through the board); [] excludes none (Q-GP-23, Q-SIM-94, Q-DEV-21), unit job kinds.", "type": "array", "items": {"$ref": "../common/enums.json#/$defs/JobKind"}, "x-unit": "job kinds", "x-hot-reload": true},
+        "ai_jobs": {"description": "Job kinds a coalition AI garrison unit takes by itself; any other kind not in ai_excluded_jobs it joins only once a COMMANDER-owned unit holds a claim on the job, or as a counterattack (GAMEPLAY \u00a71b, Q-GD-26, Q-GD-31; decided rule as default, Q-CFG-16 option). Must not overlap ai_excluded_jobs; INTERCEPT has its own rule and may be in neither (the loader checks both), unit job kinds.", "type": "array", "items": {"$ref": "../common/enums.json#/$defs/JobKind"}, "x-unit": "job kinds", "x-hot-reload": true},
+        "ai_excluded_jobs": {"description": "Job kinds an AI garrison unit never takes, even beside a player (Q-GP-45: escorting, Q-SIM-94: patrolling are the players' call; decided rule as default, Q-CFG-16 option), unit job kinds.", "type": "array", "items": {"$ref": "../common/enums.json#/$defs/JobKind"}, "x-unit": "job kinds", "x-hot-reload": true},
+        "human_displaces_ai": {"description": "Whether a viewer's unit that finds a job's slots full takes the slot of its AI garrison claimant with the highest entity id (Q-TD-11; decided rule as default, Q-CFG-16 option); false counts AI claims like any other, unit switch.", "type": "boolean", "x-unit": "switch", "x-hot-reload": true},
         "overfill_factor": {"description": "When every job is full, a job takes units up to this many times its slots (TB-4, Q-DEV-21), unit multiplier; a Recon scout's point job overfills only with overfill_point_jobs.", "type": "integer", "minimum": 1, "x-unit": "multiplier", "x-hot-reload": true},
         "scout_blob_runs": {"description": "A SIGINT blob must stay in its cell for this many consecutive SIGINT refreshes before a scout job is posted for it (Q-SIM-75, Q-DEV-21), unit refreshes.", "type": "integer", "minimum": 1, "x-unit": "refreshes", "x-hot-reload": true},
         "scout_urgency": {
@@ -1170,7 +1176,8 @@
         "respawn_delay_s",
         "max_viewer_units",
         "reserve_queue_max",
-        "queue_idle_min"
+        "queue_idle_min",
+        "rebase_order"
       ],
       "properties": {
         "max_live_per_commander": {
@@ -1207,7 +1214,8 @@
           "minimum": 1,
           "x-unit": "min (real)",
           "x-hot-reload": true
-        }
+        },
+        "rebase_order": {"description": "The explicit order an accepted REBASE leaves the unit with: HOLD, it takes no board job on the way or at the base until its commander's next order (Q-SIM-90; decided rule as default, Q-CFG-16 option). The only value today: GOTO would never end for a truck that keeps its cargo aboard, unit enum.", "enum": ["HOLD"], "x-unit": "enum", "x-hot-reload": false}
       }
     },
     "GarrisonKinds": {
@@ -1324,7 +1332,9 @@
             "alpha_enter_cp",
             "bravo_enter_cp",
             "exit_ratio",
-            "min_dwell_s"
+            "min_dwell_s",
+            "start",
+            "max_step"
           ],
           "properties": {
             "alpha_enter_cp": {
@@ -1355,7 +1365,9 @@
               "x-unit": "s (game)",
               "x-hot-reload": true,
               "exclusiveMinimum": 0
-            }
+            },
+            "start": {"description": "The tier the Director starts a campaign in, with dwell 0 and both levels at their usual start values, so after the first minimum dwell it moves toward min(provocation level, CP ceiling) like from any tier (THREAT-DIRECTOR \u00a73; decided rule as default, Q-CFG-16 option), unit tier.", "$ref": "../common/enums.json#/$defs/ThreatTier", "x-unit": "tier", "x-hot-reload": false},
+            "max_step": {"description": "The most tier steps one move takes toward min(provocation level, CP ceiling) (Q-TD-1: one; decided rule as default, Q-CFG-16 option); 2 lets PATTERN_OF_LIFE and BRAVO change in one move, unit tier steps.", "type": "integer", "minimum": 1, "maximum": 2, "x-unit": "tier steps", "x-hot-reload": true}
           }
         },
         "provocation": {
@@ -1367,7 +1379,8 @@
             "escalate_threshold",
             "bravo_threshold",
             "scout_in_rear_max_per_window",
-            "weights"
+            "weights",
+            "ai_shooter_mult"
           ],
           "properties": {
             "half_life_s": {
@@ -1391,6 +1404,7 @@
               "x-hot-reload": true,
               "exclusiveMinimum": 0
             },
+            "ai_shooter_mult": {"description": "The share of a hit's weight that counts when the shooter is not a COMMANDER-owned unit (AI garrison, facility), on units, facilities and base defenses alike, rounded down to whole millionths; 0 means only people provoke (Q-TD-11; decided rule as default, Q-CFG-16 option). Captures and scouts in the rear stay the players' alone, unit multiplier.", "type": "number", "minimum": 0, "x-unit": "multiplier", "x-hot-reload": true},
             "scout_in_rear_max_per_window": {
               "description": "The most scout-in-rear notes (weights.scout_in_rear each) one decision window adds, lowest track id first (Q-SIM-79, Q-DEV-21), unit notes.",
               "type": "integer",
@@ -1812,7 +1826,7 @@
           "description": "Pattern of Life periods (Q-SIM-85, THREAT-DIRECTOR \u00a75a); game time, converted to ticks at load, counted on the campaign clock so a pause freezes them.",
           "type": "object",
           "additionalProperties": false,
-          "required": ["patrol_period_s", "convoy_period_s", "offensive_period_s", "convoy_kind", "patrols_per_base", "convoys_per_period", "offensives_per_period", "convoy_cost", "patrol_slots", "convoy_slots"],
+          "required": ["patrol_period_s", "convoy_period_s", "offensive_period_s", "convoy_kind", "patrols_per_base", "convoys_per_period", "offensives_per_period", "convoy_cost", "patrol_slots", "convoy_slots", "capture_slot_tiers"],
           "properties": {
             "patrol_slots": {"description": "Units (idle ground garrison units of the base) one patrol job takes, unit units.", "type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true},
             "convoy_slots": {"description": "Units (carriers) one Pattern of Life supply convoy job takes, unit units.", "type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true},
@@ -1823,6 +1837,7 @@
             "convoy_kind": {"description": "The ENEMY carrier kind of a Pattern of Life supply convoy (it takes a RESUPPLY job), unit unit kind.", "$ref": "../common/enums.json#/$defs/UnitKind", "x-unit": "unit kind", "x-hot-reload": true},
             "patrol_period_s": {"description": "Every this long each Static base with an idle garrison unit posts one patrol, unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true},
             "convoy_period_s": {"description": "Every this long one supply convoy runs to the Static base with the largest upkeep shortfall, unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true},
+            "capture_slot_tiers": {"description": "The tiers at which the periodic capture slot (offensives_per_period per offensive_period_s, outside the window budget) runs (Q-SIM-85: Pattern of Life only; decided rule as default, Q-CFG-16 option); empty turns it off, unit tiers.", "type": "array", "items": {"$ref": "../common/enums.json#/$defs/ThreatTier"}, "x-unit": "tiers", "x-hot-reload": true},
             "offensive_period_s": {"description": "At Pattern of Life, one capture operation may launch this often, outside the window budget but paid from real surplus, unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true}
           }
         },

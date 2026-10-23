@@ -51,6 +51,7 @@ slots:
   max_viewer_units: 500
   reserve_queue_max: 1000
   queue_idle_min: 15
+  rebase_order: HOLD
 logistics:
   node_max_stock:
     AIRBASE: 2000
@@ -208,6 +209,9 @@ tasking:
   overfill_factor: 2
   overfill_point_jobs: false
   join_excluded_jobs: [PATROL]
+  ai_jobs: [DEFEND, RESUPPLY, SCOUT]
+  ai_excluded_jobs: [ESCORT_CONVOY, PATROL]
+  human_displaces_ai: true
   scout_blob_runs: 2
   scout_urgency: {small: 1.0, medium: 1.5, large: 2.0}
   strike_urgency_per_threat: 0.01
@@ -233,11 +237,14 @@ director:
     bravo_enter_cp: 60
     exit_ratio: 0.8
     min_dwell_s: 600
+    start: PATTERN_OF_LIFE
+    max_step: 1
   provocation:
     half_life_s: 900
     escalate_threshold: 10
     bravo_threshold: 40
     scout_in_rear_max_per_window: 1
+    ai_shooter_mult: 0
     weights:
       unit_destroyed: 5
       unit_damaged: 1
@@ -305,6 +312,7 @@ director:
     convoy_cost: 0
     convoy_slots: 1
     convoy_kind: ENEMY_CONVOY
+    capture_slot_tiers: [PATTERN_OF_LIFE]
 """
 # Pinned from this implementation's first run (NX-367: balance, units, theater; re-pinned NX-121
 # for speed_mps, NX-122 for slots and again for the GP-3 cap and queue, NX-368 for air fuel and
@@ -314,9 +322,10 @@ director:
 # repair, crew and the damage multipliers, NX-124 part 3 for defense hp and the defeat hold, and
 # NX-374 for the tasking keys and again for follow and escort, NX-155 for the director, and NX-157
 # for the Pattern of Life keys and the garrison operation, NX-389 for the forward stock keys,
-# NX-388 part 2 for the Q-CFG-16 rule options); a
+# NX-388 part 2 for the Q-CFG-16 rule options, NX-388 part 2b for the Director, tasking and
+# rebase rule options); a
 # change means every config_hash moved.
-GOLDEN_CONFIG_HASH = "0a81a80113e039490f339ec3bc371c60ec4dbf0dfc98fcb982a7c8d30f204a89"
+GOLDEN_CONFIG_HASH = "0190fcf32a2cbeffe4f2ce1753945d84a4f0359592953c0734c46c7953862d57"
 AIR = {
     "bingo_reserve_frac": 0.15,
     "orbit_period_s": 120.0,
@@ -328,6 +337,7 @@ SLOTS = {
     "max_viewer_units": 500,
     "reserve_queue_max": 1000,
     "queue_idle_min": 15,
+    "rebase_order": "HOLD",
 }
 FOW = {
     "track_every_ticks": 5,
@@ -473,6 +483,9 @@ TASKING = {
     "overfill_factor": 2,
     "overfill_point_jobs": False,
     "join_excluded_jobs": ["PATROL"],
+    "ai_jobs": ["DEFEND", "RESUPPLY", "SCOUT"],
+    "ai_excluded_jobs": ["ESCORT_CONVOY", "PATROL"],
+    "human_displaces_ai": True,
     "scout_blob_runs": 2,
     "scout_urgency": {"small": 1.0, "medium": 1.5, "large": 2.0},
     "strike_urgency_per_threat": 0.01,
@@ -496,12 +509,20 @@ DIRECTOR = {
         },
         "ema_window_s": 300,
     },
-    "tier": {"alpha_enter_cp": 0, "bravo_enter_cp": 60, "exit_ratio": 0.8, "min_dwell_s": 600},
+    "tier": {
+        "alpha_enter_cp": 0,
+        "bravo_enter_cp": 60,
+        "exit_ratio": 0.8,
+        "min_dwell_s": 600,
+        "start": "PATTERN_OF_LIFE",
+        "max_step": 1,
+    },
     "provocation": {
         "half_life_s": 900,
         "escalate_threshold": 10,
         "bravo_threshold": 40,
         "scout_in_rear_max_per_window": 1,
+        "ai_shooter_mult": 0,
         "weights": {
             "unit_destroyed": 5,
             "unit_damaged": 1,
@@ -580,6 +601,7 @@ DIRECTOR = {
         "offensives_per_period": 1,
         "convoy_cost": 0,
         "convoy_slots": 1,
+        "capture_slot_tiers": ["PATTERN_OF_LIFE"],
     },
 }
 CFG = BalanceConfig.model_validate(
@@ -697,6 +719,14 @@ def test_default_profile_loads_and_matches_golden_hash() -> None:
         ("  air_weight: 1.0\n", "capture.air_weight"),
         ("  quiet_sides: [COALITION]\n", "capture.quiet_sides"),
         ("  facility_indestructible: true\n", "combat.facility_indestructible"),
+        ("    start: PATTERN_OF_LIFE\n", "director.tier.start"),
+        ("    max_step: 1\n", "director.tier.max_step"),
+        ("    ai_shooter_mult: 0\n", "director.provocation.ai_shooter_mult"),
+        ("    capture_slot_tiers: [PATTERN_OF_LIFE]\n", "director.pol.capture_slot_tiers"),
+        ("  ai_jobs: [DEFEND, RESUPPLY, SCOUT]\n", "tasking.ai_jobs"),
+        ("  ai_excluded_jobs: [ESCORT_CONVOY, PATROL]\n", "tasking.ai_excluded_jobs"),
+        ("  human_displaces_ai: true\n", "tasking.human_displaces_ai"),
+        ("  rebase_order: HOLD\n", "slots.rebase_order"),
         ("    objective_points: 5\n", "campaign.score.objective_points"),
         ("    final_weight: 50\n", "campaign.score.final_weight"),
         ("    supply_weight: 30\n", "campaign.momentum.supply_weight"),
@@ -887,7 +917,7 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "# same profile, other layout\n"
         "sim: {snapshot_every_ticks: 300, time_scale: 6.0, tick_hz: 10}\n"
         "slots: {respawn_delay_s: 20, max_live_per_commander: 1, reserve_queue_max: 1000,\n"
-        "  max_viewer_units: 500, queue_idle_min: 15}\n"
+        "  max_viewer_units: 500, queue_idle_min: 15, rebase_order: HOLD}\n"
         "air: {orbit_period_s: 120.0, bingo_reserve_frac: 0.15,\n"
         "  landing_node_kinds: [AIRBASE, SANCTUARY]}\n"
         "fow: {track_fade_s: 180.0, track_every_ticks: 5, paint_range_m: 20000.0,\n"
@@ -944,6 +974,8 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "  escort_threat_memory_s: 60, escort_leash_m: 10000,\n"
         "  follow_hold_slack: 2, overfill_factor: 2, scout_blob_runs: 2,\n"
         "  overfill_point_jobs: false, join_excluded_jobs: [PATROL],\n"
+        "  human_displaces_ai: true, ai_excluded_jobs: [ESCORT_CONVOY, PATROL],\n"
+        "  ai_jobs: [DEFEND, RESUPPLY, SCOUT],\n"
         "  scout_urgency: {small: 1.0, medium: 1.5, large: 2.0}, strike_urgency_per_threat: 0.01,\n"
         "  strike_max_scaled_slots: 3, strike_idle_targets_max: 2,\n"
         "  strike_idle_targets_min_tier: ALPHA,\n"
@@ -952,9 +984,10 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "director: {window_s: 60, max_spawns_per_window: 6,\n"
         "  cp: {ema_window_s: 300, unit_value: {STRIKE_FIGHTER: 10, RECON_UAV: 3, LOGI_TRUCK: 2,\n"
         "    GARRISON_INFANTRY: 2}},\n"
-        "  tier: {alpha_enter_cp: 0, bravo_enter_cp: 60, exit_ratio: 0.8, min_dwell_s: 600},\n"
+        "  tier: {max_step: 1, start: PATTERN_OF_LIFE,\n"
+        "    alpha_enter_cp: 0, bravo_enter_cp: 60, exit_ratio: 0.8, min_dwell_s: 600},\n"
         "  provocation: {half_life_s: 900, escalate_threshold: 10, bravo_threshold: 40,\n"
-        "    scout_in_rear_max_per_window: 1,\n"
+        "    scout_in_rear_max_per_window: 1, ai_shooter_mult: 0,\n"
         "    weights: {unit_destroyed: 5, unit_damaged: 1, recon_destroyed: 2, recon_damaged: 0,\n"
         "      convoy_hit: 3, facility_damaged: 3,\n"
         "      facility_disabled: 8, base_captured: 15, scout_in_rear: 2,\n"
@@ -981,7 +1014,8 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "    HQ: [ENEMY_ARMOR]}},\n"
         "  pol: {patrol_period_s: 1800, convoy_period_s: 3600, offensive_period_s: 21600,\n"
         "    convoy_kind: ENEMY_CONVOY, patrol_slots: 1, patrols_per_base: 1,\n"
-        "    convoys_per_period: 1, offensives_per_period: 1, convoy_cost: 0, convoy_slots: 1}}\n"
+        "    convoys_per_period: 1, offensives_per_period: 1, convoy_cost: 0, convoy_slots: 1,\n"
+        "    capture_slot_tiers: [PATTERN_OF_LIFE]}}\n"
         "schema_version:   1\n"
     )
     assert balance_hash(write(tmp_path, reformatted)) == balance_hash(DEFAULT)

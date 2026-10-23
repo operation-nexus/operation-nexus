@@ -21,9 +21,10 @@ it, in order:
    `escalate_threshold`, 2 BRAVO from `bravo_threshold`) and the CP ceiling (ALPHA from
    `tier.alpha_enter_cp`, 0 by default so always; PATTERN_OF_LIFE below it; BRAVO from
    `bravo_enter_cp`); a level drops only below its enter value x `exit_ratio`.
-4. The tier moves at most one step toward min(level, ceiling), and only once it has been in the
-   current tier for `min_dwell_s` (`dwell` is running ticks, added a window at a time and held at
-   `min_dwell_ticks`; a new campaign starts in PATTERN_OF_LIFE with dwell 0).
+4. The tier moves at most `tier.max_step` steps (1 by default, Q-TD-1) toward min(level, ceiling),
+   and only once it has been in the current tier for `min_dwell_s` (`dwell` is running ticks, added
+   a window at a time and held at `min_dwell_ticks`; a new campaign starts in `tier.start`,
+   PATTERN_OF_LIFE by default, with dwell 0: `nexus.runtime.campaign_config.start_campaign`).
 5. The window's budget (§4 step 2, Q-TD-5, Q-TD-12): min(`director.budget.<tier>`, the summed
    surplus of the side's bases above their starvation floors). A node without finite stock, i.e. the
    rear source, has no entry in `starve_floor` and so adds nothing.
@@ -121,7 +122,8 @@ def decide(
     at, target = TIERS.index(state.tier), min(state.prov_level, state.ceiling)
     if target != at and state.dwell >= dr.min_dwell_ticks:
         before = state.tier
-        state.tier = TIERS[at + (1 if target > at else -1)]
+        step = min(dr.max_step, abs(target - at))
+        state.tier = TIERS[at + (step if target > at else -step)]
         state.dwell = 0
         change = TierChange(before, state.tier, state.cp)
     state.budget = min(dr.budget[state.tier], surplus(view, rules, stock))

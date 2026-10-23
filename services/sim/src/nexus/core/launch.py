@@ -159,8 +159,9 @@ def _pattern_of_life(
     now: int, out: list[Event],
 ) -> None:  # fmt: skip
     """The periodic Pattern of Life work (Q-SIM-85), each on its own timer in `DirectorState`: the
-    patrols, the supply convoys, and at Pattern of Life the capture operations, which wait for the
-    night-progress cap and are paid from the real surplus, not the window's budget."""
+    patrols, the supply convoys, and at the `director.pol.capture_slot_tiers` (Pattern of Life by
+    default) the capture operations, which wait for the night-progress cap and are paid from the
+    real surplus, not the window's budget."""
     dr = rules.director
     if dr is None:
         return
@@ -171,7 +172,7 @@ def _pattern_of_life(
         state.last_convoy = now
         _convoys(world, rules, side, view, state, dr, out)
     if (
-        state.tier == "PATTERN_OF_LIFE"
+        state.tier in dr.capture_slot_tiers
         and not capped
         and now - state.last_offensive >= dr.offensive_ticks
     ):
