@@ -30,7 +30,7 @@ The raw plan's testing section ("80% coverage", "Playwright guarantees 60 FPS") 
 | Integration | docker compose + scripted bots | every PR (path-filtered) | < 5 min |
 | E2E / visual | Playwright | every PR touching overlay | < 3 min |
 | Soak | full stack, 6 h | nightly | — |
-| Balance | harness: 20 seeds × scenarios (balance-diff report); 50 seeds for the acceptance run (§3.5a, Q-TEST-4) | nightly + on balance PRs; acceptance before P1 exit | < 20 min for the diff (not met yet: see `tools/balance/README.md` Cost); acceptance not time-boxed yet |
+| Balance | harness: 20 seeds × scenarios (balance-diff report); 50 seeds for the acceptance run (§3.5a, Q-TEST-4) | nightly + on balance PRs; a reduced acceptance run before P1 exit, the full run during P2 (Q-TEST-10) | < 20 min for the diff (not met yet: see `tools/balance/README.md` Cost); acceptance not time-boxed yet |
 
 ## 3. Details
 
@@ -63,7 +63,7 @@ Examples that must always hold after any sequence of valid commands:
 Scripted viewer populations (lurker, newbie, veteran, logistics-lover, troll, AFK farmer) drive the sim headless at many times real time. Standard scenarios are the crowd profiles of 0, 5, 50, 150, 300 and 500 simulated viewers (`overnight-0`, `quiet-5`, `prime-50`, `evening-150`, `raid-300`, `surge-500`; Q-TEST-5), plus the adversarial profiles (`troll-swarm`, spammer, alt farmer, griefer, raid wave; NX-321) (Q-ALN-42). Metrics: momentum curve, campaign length, newbie time-to-first-impact, kill-share Gini by rank, director tier dwell time, supply starvation minutes. Results go to a nightly artifact and trend chart.
 
 ### 3.5a Balance acceptance criteria (NX-312, Q-TEST-2, Q-TEST-4 … Q-TEST-8)
-A value drops its PROPOSED label (DI-7), and P1 can exit, only when an acceptance run passes: **50 seeds** across every standard and adversarial profile, campaigns at the default `campaign.time_limit_h` (72) with no extension, and a saved report with the config hash and each target's result (NX-321). Per-PR balance-diff reports use 20 seeds and do not count as acceptance. Thresholds marked PROPOSED are re-tuned after the first runs and tracked on the playtest watch list.
+A value drops its PROPOSED label (DI-7) only when an acceptance run passes: **50 seeds** across every standard and adversarial profile, campaigns at the default `campaign.time_limit_h` (72) with no extension, and a saved report with the config hash and each target's result (NX-321). Per-PR balance-diff reports use 20 seeds and do not count as acceptance. **P1 exit** uses a reduced run, 10 seeds per standard crowd profile at 72 h, judged on A1 to A4; the full run finishes on the owner PC queue during P2 (Q-TEST-10). Thresholds marked PROPOSED are re-tuned after the first runs and tracked on the playtest watch list.
 
 | # | Target | Pass when | Status |
 |---|---|---|---|
