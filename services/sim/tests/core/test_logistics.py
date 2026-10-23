@@ -477,6 +477,7 @@ def test_make_rules_refuses_a_start_stock_above_its_kinds_maximum() -> None:
             CONFIG.balance.sim, CONFIG.catalog.units, RULES.roads, roles=CONFIG.catalog.roles.roles,
             theater=CONFIG.theater, slots=CONFIG.balance.slots, air=CONFIG.balance.air,
             fow=CONFIG.balance.fow, logistics=logistics, capture=CONFIG.balance.capture,
+            idle_floor=CONFIG.balance.campaign.idle_floor,
             respawn_delay_ticks=0,
             track_fade_ticks=1, sigint_refresh_ticks=1, mask_cell_m=1000.0, masking={},
         )  # fmt: skip
@@ -491,6 +492,7 @@ def test_make_rules_refuses_an_unload_rate_below_a_thousandth_per_tick() -> None
             CONFIG.balance.sim, CONFIG.catalog.units, RULES.roads, roles=CONFIG.catalog.roles.roles,
             theater=CONFIG.theater, slots=CONFIG.balance.slots, air=CONFIG.balance.air,
             fow=CONFIG.balance.fow, logistics=logistics, capture=CONFIG.balance.capture,
+            idle_floor=CONFIG.balance.campaign.idle_floor,
             respawn_delay_ticks=0,
             track_fade_ticks=1, sigint_refresh_ticks=1, mask_cell_m=1000.0, masking={},
         )  # fmt: skip

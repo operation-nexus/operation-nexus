@@ -67,7 +67,7 @@ capture:
   radius_m: 2000.0  # PROPOSED – unvalidated (Q-SIM-57, owner-approved initial value; NX-031 tunes); m (CONFIG-AND-CONTENT §6.5 capture.radius_m)
   time_s: 120.0  # PROPOSED – unvalidated; s (world), one capturer, no modifiers (CONFIG-AND-CONTENT §6.5 capture.time_s)
   multi_unit_exponent: 0.5  # PROPOSED – unvalidated (Q-SIM-26); exponent: time ÷ n^0.5 (CONFIG-AND-CONTENT §6.5)
-  quiet_floor: 0.6  # PROPOSED – unvalidated (Q-SIM-26); multiplier at 0 viewer units, coalition only (CONFIG-AND-CONTENT §6.5)
+  quiet_floor: 0.6  # PROPOSED – unvalidated (Q-SIM-26); multiplier at 0 viewer units, for the quiet_sides (CONFIG-AND-CONTENT §6.5)
   quiet_ref: 50  # PROPOSED – unvalidated (Q-SIM-26); viewer units at which the multiplier reaches 1.0 (CONFIG-AND-CONTENT §6.5)
   min_time_s: 30.0  # PROPOSED – unvalidated (Q-SIM-26, Q-GP-4); s (world) (CONFIG-AND-CONTENT §6.5)
   logi_weight: 0.5  # PROPOSED – unvalidated (Q-SM-7); a logistics unit counts as half a capturer (CONFIG-AND-CONTENT §6.5)
@@ -83,6 +83,10 @@ capture:
     SANCTUARY: 1000
   sanctuary_repair_hp_per_s: 1.0  # PROPOSED – unvalidated (Q-SIM-71, owner-approved; NX-031 tunes); defense hp per s (world) per logistics unit parked at its sanctuary (CONFIG-AND-CONTENT §6.5)
   uncapturable_node_kinds: [SANCTUARY, BRIDGE]  # decided rule as default, Q-DEV-21 option; node kinds never captured (CONFIG-AND-CONTENT §6.5 capture.uncapturable_node_kinds)
+  requires_defenses_down: true  # decided rule as default, Q-CFG-16 option (Q-GD-18); a capture bar starts only at 0 defense hp (CONFIG-AND-CONTENT §6.5)
+  air_counts: false  # decided rule as default, Q-CFG-16 option (N-3, Q-GP-38); airborne aircraft never capture (CONFIG-AND-CONTENT §6.5)
+  air_weight: 1.0  # Q-CFG-16 option; capturer weight of an airborne aircraft, read only when air_counts is true (CONFIG-AND-CONTENT §6.5)
+  quiet_sides: [COALITION]  # decided rule as default, Q-CFG-16 option (Q-SIM-26); sides that get the quiet-stream multiplier (CONFIG-AND-CONTENT §6.5)
 combat:
   pk_cap: 0.95  # PROPOSED – unvalidated (Q-CBT-10); max hit probability, every shot can miss (CONFIG-AND-CONTENT §6.4 combat.pk_cap)
   track_quality:
@@ -111,6 +115,7 @@ combat:
     LOGI_TRUCK: 0.70
     STRIKE_FIGHTER: 0.75
   crew_marker_min: 10  # PROPOSED – unvalidated (Q-SIM-68, owner-approved); min (game), a downed crew is a map marker this long (CONFIG-AND-CONTENT §6.4)
+  facility_indestructible: true  # decided rule as default, Q-CFG-16 option (CB-9, Q-GP-37); a facility's hp floors at Disabled, never Destroyed (CONFIG-AND-CONTENT §6.4)
 campaign:
   time_limit_h: 72  # PROPOSED – unvalidated (Q-TEST-6); h (game) (CONFIG-AND-CONTENT §6.6 campaign.time_limit_h)
   victory_node_frac: 0.80  # PROPOSED – unvalidated; fraction of strategic nodes (CONFIG-AND-CONTENT §6.6)
@@ -120,6 +125,12 @@ campaign:
   defeat:
     hold_min: 30  # PROPOSED – unvalidated (Q-TH-7); min (game), the coalition sanctuary's defense HP stays at 0 this long to lose (CONFIG-AND-CONTENT §6.6)
   objective_mode: timed  # timed (Q-GD-19); set per campaign by the owner or an admin (CONFIG-AND-CONTENT §6.6)
+  objective_pick: uniform  # decided rule as default, Q-CFG-16 option; the only value today (CONFIG-AND-CONTENT §6.6)
+  victory:
+    hq_capture: true  # decided rule as default, Q-CFG-16 option; capturing the enemy HQ wins at once (CONFIG-AND-CONTENT §6.6)
+  idle_floor:  # decided rule as default, Q-CFG-16 option (Q-GP-28, Q-GP-44); with no live viewer unit (CONFIG-AND-CONTENT §6.6)
+    enabled: true
+    sanctuary_min_hp: 1  # hp, the coalition sanctuary's floor while the idle floor holds
   score:
     average_weight: 50  # PROPOSED – unvalidated (Q-SIM-64); points x a side's average share of strategic nodes over the campaign (CONFIG-AND-CONTENT §6.6)
     final_weight: 50  # PROPOSED – unvalidated (Q-SIM-64); points x a side's share of strategic nodes at the final tick (CONFIG-AND-CONTENT §6.6)

@@ -54,7 +54,17 @@ from dataclasses import dataclass, replace
 from nexus.contracts.gen.common.enums import DamageState, NodeOwner, Side, UnitKind
 from nexus.core.rules import Rules
 from nexus.core.spatial import UniformGrid
-from nexus.core.world import _ZERO, Blob, BlobSize, Contact, Entity, FacilityMarker, Vec2, World
+from nexus.core.world import (
+    _ZERO,
+    SIDES,
+    Blob,
+    BlobSize,
+    Contact,
+    Entity,
+    FacilityMarker,
+    Vec2,
+    World,
+)
 
 _STATIC = "STATIC"
 _STATES: tuple[DamageState, ...] = ("HEALTHY", "DAMAGED")  # a radius is the same at worse states
@@ -283,6 +293,14 @@ def hand_over(world: World, facility: Entity, loser: Side) -> None:
         else _marker(world.rules, facility, tick)
     )  # fmt: skip
     world.markers[loser] = dict(sorted(markers.items()))
+
+
+def forget(world: World, facility_id: int) -> None:
+    """A destroyed facility (`combat.facility_indestructible` false, Q-CFG-16): no side keeps a
+    contact or marker of it, so no ring or threat outlives it. Sides in a fixed order."""
+    for side in SIDES:
+        world.contacts[side].pop(facility_id, None)
+        world.markers[side].pop(facility_id, None)
 
 
 def _sigint(world: World, rules: Rules, side: Side) -> tuple[Blob, ...]:

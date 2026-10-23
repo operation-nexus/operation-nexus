@@ -107,6 +107,10 @@ capture:
     SANCTUARY: 1000
   sanctuary_repair_hp_per_s: 1.0
   uncapturable_node_kinds: [SANCTUARY, BRIDGE]
+  requires_defenses_down: true
+  air_counts: false
+  air_weight: 1.0
+  quiet_sides: [COALITION]
 combat:
   pk_cap: 0.95
   track_quality:
@@ -135,6 +139,7 @@ combat:
     LOGI_TRUCK: 0.70
     STRIKE_FIGHTER: 0.75
   crew_marker_min: 10
+  facility_indestructible: true
 campaign:
   time_limit_h: 72
   victory_node_frac: 0.80
@@ -144,6 +149,12 @@ campaign:
     hold_min: 30
   objective_period_min: 15
   objective_mode: timed
+  objective_pick: uniform
+  victory:
+    hq_capture: true
+  idle_floor:
+    enabled: true
+    sanctuary_min_hp: 1
   score:
     average_weight: 50
     final_weight: 50
@@ -302,9 +313,10 @@ director:
 # for capture, NX-126 for campaign, NX-124 for combat and its assist window, and NX-124 part 2 for
 # repair, crew and the damage multipliers, NX-124 part 3 for defense hp and the defeat hold, and
 # NX-374 for the tasking keys and again for follow and escort, NX-155 for the director, and NX-157
-# for the Pattern of Life keys and the garrison operation, NX-389 for the forward stock keys); a
+# for the Pattern of Life keys and the garrison operation, NX-389 for the forward stock keys,
+# NX-388 part 2 for the Q-CFG-16 rule options); a
 # change means every config_hash moved.
-GOLDEN_CONFIG_HASH = "7157ac73d67c0b5459ff7108b341ecef8f0582a3f3ddb4db9364a624e6c29790"
+GOLDEN_CONFIG_HASH = "0a81a80113e039490f339ec3bc371c60ec4dbf0dfc98fcb982a7c8d30f204a89"
 AIR = {
     "bingo_reserve_frac": 0.15,
     "orbit_period_s": 120.0,
@@ -371,6 +383,10 @@ CAPTURE = {
     "defense_hp": {"AIRBASE": 500, "FOB": 300, "HQ": 800, "PORT": 300, "SANCTUARY": 1000},
     "sanctuary_repair_hp_per_s": 1.0,
     "uncapturable_node_kinds": ["SANCTUARY", "BRIDGE"],
+    "requires_defenses_down": True,
+    "air_counts": False,
+    "air_weight": 1.0,
+    "quiet_sides": ["COALITION"],
 }
 COMBAT = {
     "pk_cap": 0.95,
@@ -397,6 +413,7 @@ COMBAT = {
         "STRIKE_FIGHTER": 0.75,
     },
     "crew_marker_min": 10,
+    "facility_indestructible": True,
 }
 CAMPAIGN = {
     "time_limit_h": 72,
@@ -406,6 +423,9 @@ CAMPAIGN = {
     "defeat": {"hold_min": 30},
     "objective_period_min": 15,
     "objective_mode": "timed",
+    "objective_pick": "uniform",
+    "victory": {"hq_capture": True},
+    "idle_floor": {"enabled": True, "sanctuary_min_hp": 1},
     "score": {"average_weight": 50, "final_weight": 50, "objective_points": 5},
     "momentum": {"nodes_weight": 70, "supply_weight": 30},
     "night_progress_cap_nodes_per_h": 0.16666666666666666,
@@ -669,6 +689,14 @@ def test_default_profile_loads_and_matches_golden_hash() -> None:
         ("  min_progress_per_tick: 1\n", "capture.min_progress_per_tick"),
         ("  objective_period_min: 15\n", "campaign.objective_period_min"),
         ("  objective_mode: timed\n", "campaign.objective_mode"),
+        ("  objective_pick: uniform\n", "campaign.objective_pick"),
+        ("  victory:\n    hq_capture: true\n", "campaign.victory"),
+        ("    sanctuary_min_hp: 1\n", "campaign.idle_floor.sanctuary_min_hp"),
+        ("  requires_defenses_down: true\n", "capture.requires_defenses_down"),
+        ("  air_counts: false\n", "capture.air_counts"),
+        ("  air_weight: 1.0\n", "capture.air_weight"),
+        ("  quiet_sides: [COALITION]\n", "capture.quiet_sides"),
+        ("  facility_indestructible: true\n", "combat.facility_indestructible"),
         ("    objective_points: 5\n", "campaign.score.objective_points"),
         ("    final_weight: 50\n", "campaign.score.final_weight"),
         ("    supply_weight: 30\n", "campaign.momentum.supply_weight"),
@@ -881,7 +909,9 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "  empty_base_mult: 0.5, decay_per_s: 0.008333333333333333,\n"
         "  min_progress_per_tick: 1,\n"
         "  defense_hp: {AIRBASE: 500, FOB: 300, HQ: 800, PORT: 300, SANCTUARY: 1000},\n"
-        "  sanctuary_repair_hp_per_s: 1.0, uncapturable_node_kinds: [SANCTUARY, BRIDGE]}\n"
+        "  sanctuary_repair_hp_per_s: 1.0, uncapturable_node_kinds: [SANCTUARY, BRIDGE],\n"
+        "  quiet_sides: [COALITION], air_weight: 1.0, air_counts: false,\n"
+        "  requires_defenses_down: true}\n"
         "combat: {pk_cap: 0.95, track_quality: {painted: 1.25, track: 1.0},\n"
         "  range: {min_mult: 0.5, full_pk_frac: 0.5}, pk_mult: {terrain_masked: 0.5},\n"
         "  damage_state: {disabled_below: 0.10, damaged_below: 0.70, mission_kill_below: 0.35,\n"
@@ -890,12 +920,14 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "    ENEMY_STRIKE_FIGHTER: 0.75, ENEMY_FIGHTER: 0.75, ENEMY_CONVOY: 0.70,\n"
         "    ENEMY_ARMOR: 0.60},\n"
         "  crew_marker_min: 10, disabled_timeout_s: 600, assist_window_s: 120,\n"
-        "  min_damage: 1}\n"
+        "  min_damage: 1, facility_indestructible: true}\n"
         "campaign: {momentum: {supply_weight: 30, nodes_weight: 70}, objective_mode: timed,\n"
         "  score: {objective_points: 5, final_weight: 50, average_weight: 50},\n"
         "  objective_period_min: 15,\n"
         "  victory_hold_min: 30, defeat: {hold_min: 30}, victory_node_frac: 0.80,\n"
         "  strategic_node_kinds: [AIRBASE, FOB, PORT],\n"
+        "  idle_floor: {sanctuary_min_hp: 1, enabled: true}, victory: {hq_capture: true},\n"
+        "  objective_pick: uniform,\n"
         "  time_limit_h: 72, night_progress_cap_nodes_per_h: 0.16666666666666666}\n"
         "tasking: {reeval_every_ticks: 50, claim_lease_s: 120, expire_min: 15,\n"
         "  priority: {scout: 30, strike: 40, assist_objective: 45, resupply: 50, defend: 60,\n"

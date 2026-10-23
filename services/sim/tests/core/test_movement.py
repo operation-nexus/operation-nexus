@@ -59,6 +59,7 @@ def scaled(time_scale: float) -> Rules:
         fow=BALANCE.fow,
         logistics=BALANCE.logistics,
         capture=BALANCE.capture,
+        idle_floor=BALANCE.campaign.idle_floor,
         respawn_delay_ticks=0,
         track_fade_ticks=1,
         sigint_refresh_ticks=1,
@@ -73,7 +74,8 @@ def test_make_rules_refuses_a_sigint_cell_that_does_not_divide_the_bounds() -> N
         make_rules(
             BALANCE.sim, UNITS, ROADS, roles=ROLES, theater=STRAIT_1, slots=BALANCE.slots,
             air=BALANCE.air, fow=fow, logistics=BALANCE.logistics, capture=BALANCE.capture,
-            respawn_delay_ticks=0, track_fade_ticks=1, sigint_refresh_ticks=1,
+            idle_floor=BALANCE.campaign.idle_floor, respawn_delay_ticks=0, track_fade_ticks=1,
+            sigint_refresh_ticks=1,
             mask_cell_m=1000.0, masking={},
         )  # fmt: skip
 
@@ -87,7 +89,8 @@ def replace_mask_cell(cell_m: float) -> Rules:
     return make_rules(
         BALANCE.sim, UNITS, ROADS, roles=ROLES, theater=STRAIT_1, slots=BALANCE.slots,
         air=BALANCE.air, fow=BALANCE.fow, logistics=BALANCE.logistics, capture=BALANCE.capture,
-        respawn_delay_ticks=0, track_fade_ticks=1, sigint_refresh_ticks=1, mask_cell_m=cell_m,
+        idle_floor=BALANCE.campaign.idle_floor, respawn_delay_ticks=0, track_fade_ticks=1,
+        sigint_refresh_ticks=1, mask_cell_m=cell_m,
         masking={},
     )  # fmt: skip
 

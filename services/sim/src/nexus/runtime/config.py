@@ -191,6 +191,11 @@ def load_balance(path: Path) -> BalanceConfig:
         raise ConfigError(
             f"{path}: capture.uncapturable_node_kinds: must include BRIDGE (a bridge has no owner)"
         )
+    if cfg.campaign.idle_floor.sanctuary_min_hp > cfg.capture.defense_hp.SANCTUARY:
+        raise ConfigError(
+            f"{path}: campaign.idle_floor.sanctuary_min_hp: must not exceed "
+            "capture.defense_hp.SANCTUARY"
+        )
     decay = Fraction(game_ticks(pv.half_life_s, cfg), game_ticks(cfg.director.window_s, cfg))
     if max(decay.numerator, decay.denominator) > DECAY_RATIO_MAX:
         raise ConfigError(
