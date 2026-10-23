@@ -171,6 +171,7 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | ID | Item | Status |
 |---|---|---|
 | NX-375 | Configurable sides (owner, 2026-10-22): a campaign setting for which side chat plays, an AI Director per side (agent vs agent), symmetric or per-campaign win rules, objectives, idle protection and quiet multiplier, and a mirrored theater layout; agent vs agent is also a balance-harness and soak-test mode (NX-031, NX-033). Chat vs chat (team assignment and balancing) is a later step | ⬜ |
+| NX-386 | Rule presets (Q-GP-48, owner 2026-10-23): a default rule set plus named operator presets chosen per campaign (unit caps, units per viewer, budgets, resources and stock), validated against the config schema and recorded in the config hash; admins apply, GMs draft (Q-ALN-22); first preset idea "chaos mode". Needs a spec first (units per viewer > 1 touches JOIN, the reserve queue and the overlay) and the NX-376 scaling ladder for its unit ceiling | ⬜ |
 | NX-385 | Benchmark theater for the balance harness (owner, 2026-10-23): a larger hand-made test theater (24 to 30 nodes) to run the crowd profiles at a different map size and base density with `balance.py --theater` (NX-031); content and layout are a design choice for the owner | ⬜ |
 | NX-210 | XP events → progression, diminishing returns, ranks O-1..O-3 | ⬜ |
 | NX-384 | Discovery XP for scouting new information, anti-farm cooldown and per-sortie cap (Q-PROG-10, PROGRESSION PROG-13) | ⬜ |
