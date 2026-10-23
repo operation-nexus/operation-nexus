@@ -28,6 +28,7 @@ from nexus.contracts.gen.config.balance import (
     Capture,
     Director,
     Fow,
+    IdleFloor,
     Logistics,
     Sim,
     Slots,
@@ -108,6 +109,9 @@ class CaptureRules:
     empty_base_mult: float
     decay_micro: int  # capture.decay_per_s x world_dt, as millionths of a percent of the bar
     min_progress: int  # capture.min_progress_per_tick, millionths of a percent of the bar
+    requires_defenses_down: bool  # a bar starts only at 0 defense hp (Q-GD-18)
+    air_weight: float | None  # capture.air_weight when capture.air_counts, else None (N-3)
+    quiet_sides: frozenset[Side]  # the sides the quiet-stream multiplier applies to (Q-SIM-26)
 
 
 @dataclass(frozen=True, slots=True)
@@ -123,6 +127,8 @@ class DefenseRules:
     # logistics unit (Q-SIM-71); the sanctuary's `defense_drain` carries its thousandths.
     sanctuary_repair_milli: int
     forward_airbase: str  # the coalition AIRBASE the idle floor protects (Q-TH-2)
+    idle_floor: bool  # campaign.idle_floor.enabled (Q-GP-44)
+    sanctuary_min_hp: int  # campaign.idle_floor.sanctuary_min_hp
 
 
 @dataclass(frozen=True, slots=True)
@@ -143,7 +149,9 @@ class CampaignRules:
     nodes_weight: Fraction  # campaign.momentum.nodes_weight (Q-SIM-60)
     supply_weight: Fraction
     strategic: tuple[str, ...]  # AIRBASE, FOB and PORT nodes, by id (Q-GP-17, Q-GP-21)
-    enemy_hq: str  # its capture by the coalition wins
+    enemy_hq: str  # its capture by the coalition wins, when `hq_capture`
+    hq_capture: bool  # campaign.victory.hq_capture
+    objective_pick: str  # campaign.objective_pick: "uniform", the only value so far
     # Objective candidates by id (never SANCTUARY, BRIDGE or the enemy HQ; Q-SM-11) -> the ids of
     # their road neighbours that can have an owner (not BRIDGE): a candidate with a neighbour of
     # another owner is on the frontline.
@@ -390,6 +398,7 @@ class CombatRules:
     damaged_speed_mult: float  # x top speed at Damaged or worse (CB-6, Q-SIM-65)
     damaged_sensor_mult: float  # x sensor radius at Damaged or worse
     min_damage: int  # combat.min_damage: the least hp a hit takes, however heavy the armor
+    facility_indestructible: bool  # combat.facility_indestructible: the CB-9 hp floor
 
     def loadout(self, kind: UnitKind, variant: str | None) -> tuple[WeaponRules, ...]:
         return self.loadouts.get((kind, variant), self.loadouts[(kind, None)])
@@ -693,11 +702,13 @@ def _capture(capture: Capture, dt: float) -> CaptureRules:
         capture.radius_m, capture.time_s, capture.multi_unit_exponent, capture.quiet_floor,
         capture.quiet_ref, capture.min_time_s, capture.logi_weight, capture.garrison_mult,
         capture.empty_base_mult, decay_micro, capture.min_progress_per_tick,
+        capture.requires_defenses_down, capture.air_weight if capture.air_counts else None,
+        frozenset(capture.quiet_sides),
     )  # fmt: skip
 
 
 def _defense(
-    theater: TheaterConfig, capture: Capture, logistics: Logistics, sim: Sim
+    theater: TheaterConfig, capture: Capture, logistics: Logistics, sim: Sim, idle: IdleFloor
 ) -> DefenseRules:
     repair_milli = round(capture.sanctuary_repair_hp_per_s * world_dt(sim) * _MILLI)
     if repair_milli < 1:
@@ -711,6 +722,8 @@ def _defense(
         ticks_per_min=60 * sim.tick_hz,  # 60: seconds per minute, a unit conversion
         sanctuary_repair_milli=repair_milli,
         forward_airbase=theater.forward_airbase,
+        idle_floor=idle.enabled,
+        sanctuary_min_hp=idle.sanctuary_min_hp,
     )  # fmt: skip
 
 
@@ -781,6 +794,8 @@ def campaign_rules(
         supply_weight=Fraction(repr(cfg.momentum.supply_weight)),
         strategic=tuple(sorted(n for n, k in kind.items() if k in cfg.strategic_node_kinds)),
         enemy_hq=theater.enemy_hq,
+        hq_capture=cfg.victory.hq_capture,
+        objective_pick=cfg.objective_pick,
         candidates={
             n: tuple(m for m, _ in roads.neighbours(n) if m in ownable)
             for n in sorted(kind)
@@ -842,6 +857,7 @@ def combat_rules(
         damaged_speed_mult=ds.damaged_speed_mult,
         damaged_sensor_mult=ds.damaged_sensor_mult,
         min_damage=cfg.min_damage,
+        facility_indestructible=cfg.facility_indestructible,
     )
 
 
@@ -884,6 +900,7 @@ def make_rules(
     fow: Fow,
     logistics: Logistics,
     capture: Capture,
+    idle_floor: IdleFloor,
     respawn_delay_ticks: int,
     track_fade_ticks: int,
     sigint_refresh_ticks: int,
@@ -948,7 +965,7 @@ def make_rules(
         capture=_capture(capture, world_dt(sim)),
         campaign=campaign,
         combat=combat,
-        defense=_defense(theater, capture, logistics, sim),
+        defense=_defense(theater, capture, logistics, sim, idle_floor),
         tasking=tasking,
         director=director,
         garrison_quota={n.id: n.garrison_quota for n in theater.nodes if n.garrison_quota},

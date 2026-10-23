@@ -22,7 +22,8 @@ starts full, a NEUTRAL one at 0, and a node that changes hands is set to 0 for i
   full hp. Not while paused.
 - **Idle floor (Q-GP-44, Q-TH-7):** with no live viewer unit (`World.viewer_units() == 0`; AUTO is
   not in code yet, when it is its units will not count) the coalition sanctuary's hp
-  cannot be reduced below 1 (`floor`).
+  cannot be reduced below `campaign.idle_floor.sanctuary_min_hp` (`floor`; off with
+  `campaign.idle_floor.enabled` false, Q-CFG-16).
 - **Events (no spam):** `NodeDefensesDown` when hp reaches 0, which puts the node in
   `World.defense_down`; `NodeDefensesRestored` only when a rebuild takes a node in that set all the
   way to full, which removes it. A node flapping around 0 gives one Down and one Restored per
@@ -42,8 +43,12 @@ _MILLI = 1000  # thousandths of an hp
 
 
 def floor(world: World, rules: Rules, node: str) -> int:
-    """The least hp `node` may be reduced to: 1 for the coalition sanctuary while nobody plays."""
-    return 1 if node == rules.sanctuary and world.viewer_units() == 0 else 0
+    """The least hp `node` may be reduced to: `sanctuary_min_hp` for the coalition sanctuary while
+    nobody plays and the idle floor is on."""
+    d = rules.defense
+    if d is None or not d.idle_floor or node != rules.sanctuary or world.viewer_units():
+        return 0
+    return d.sanctuary_min_hp
 
 
 def _announce(world: World, node: str, down: bool, out: list[Event]) -> None:

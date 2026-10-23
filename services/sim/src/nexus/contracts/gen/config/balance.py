@@ -37,6 +37,37 @@ class Score(BaseModel):
     ]
 
 
+class Victory(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    hq_capture: Annotated[
+        bool,
+        Field(
+            description="Whether the coalition capturing the enemy HQ wins the campaign at once (GAMEPLAY §9; decided rule as default, Q-CFG-16 option); false leaves the hold and time-limit endings, unit switch."
+        ),
+    ]
+
+
+class IdleFloor(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    enabled: Annotated[
+        bool,
+        Field(
+            description="Whether the idle floor applies with no live viewer unit: the theater's forward airbase's capture bar is frozen while the coalition owns it, the coalition sanctuary's defense HP cannot drop below sanctuary_min_hp, and the defeat clock does not advance (GAMEPLAY §0 and §9; decided rule as default, Q-CFG-16 option), unit switch."
+        ),
+    ]
+    sanctuary_min_hp: Annotated[
+        int,
+        Field(
+            description="The least defense HP the coalition sanctuary may be reduced to while the idle floor holds (Q-GP-44, Q-TH-7); at most capture.defense_hp.SANCTUARY, unit hp.",
+            ge=1,
+        ),
+    ]
+
+
 class Momentum(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -270,8 +301,14 @@ class Combat(BaseModel):
     crew_marker_min: Annotated[
         float,
         Field(
-            description="A downed crew stays a map marker this long, unit min of game time (CB-8, Q-SIM-68).",
+            description="A downed crew stays a map marker this long, unit min of game time (CB-8, Q-SIM-68). Hot reload applies to markers placed after it (Q-CFG-16).",
             gt=0.0,
+        ),
+    ]
+    facility_indestructible: Annotated[
+        bool,
+        Field(
+            description="Whether a facility's hp floors at its Disabled threshold so it is never Destroyed (COMBAT CB-9, Q-GP-37; decided rule as default, Q-CFG-16 option); false lets a hit that takes it to 0 hp destroy it like any unit, unit switch."
         ),
     ]
 
@@ -982,7 +1019,7 @@ class Campaign(BaseModel):
     objective_period_min: Annotated[
         float,
         Field(
-            description="Game minutes an objective lasts before it expires, unit min of game time (GAMEPLAY §9, STATE-MACHINES 4.5).",
+            description="Game minutes an objective lasts before it expires, unit min of game time (GAMEPLAY §9, STATE-MACHINES 4.5). Hot reload applies from the next objective (Q-CFG-16).",
             gt=0.0,
         ),
     ]
@@ -998,6 +1035,19 @@ class Campaign(BaseModel):
         Field(
             description="While no viewer unit is live, the Static may flip at most one node per 1 / this many game hours; its capture bar holds just short of a flip until then and the Director launches no capture operation (Q-SIM-85, THREAT-DIRECTOR §5), unit nodes per game hour.",
             gt=0.0,
+        ),
+    ]
+    victory: Annotated[Victory, Field(description="Victory rules (GAMEPLAY §9, Q-CFG-16).")]
+    idle_floor: Annotated[
+        IdleFloor,
+        Field(
+            description="The idle floor while no viewer unit is live (Q-GP-28, Q-GP-44, Q-CFG-16)."
+        ),
+    ]
+    objective_pick: Annotated[
+        Literal["uniform"],
+        Field(
+            description="How a timed objective's node is picked among the frontline candidates: uniform, one draw on the objective stream (GAMEPLAY §9, Q-CFG-16; the only value today, the key exists for later weightings). Objectives score for the coalition only either way, unit enum."
         ),
     ]
     momentum: Annotated[
@@ -1067,7 +1117,7 @@ class Capture(BaseModel):
     quiet_floor: Annotated[
         float,
         Field(
-            description="The quiet-stream multiplier on the coalition's capture time at 0 live viewer units, rising linearly to 1.0 at quiet_ref, unit multiplier (Q-SIM-26).",
+            description="The quiet-stream multiplier on the capture time of the quiet_sides at 0 live viewer units, rising linearly to 1.0 at quiet_ref, unit multiplier (Q-SIM-26). Hot-reloadable (Q-CFG-16).",
             gt=0.0,
             le=1.0,
         ),
@@ -1138,6 +1188,31 @@ class Capture(BaseModel):
         list[enums.NodeKind],
         Field(
             description="Node kinds that are never captured: no capture bar, not a base for the Director's targets, not a timed-objective candidate, no defenses to rebuild for the Static board (GAMEPLAY §8, N-4, NX-373, Q-DEV-21); must include BRIDGE (a bridge has no owner or stock); SANCTUARY may be removed, which also makes a sanctuary a Director base and patrol point, unit node kinds."
+        ),
+    ]
+    requires_defenses_down: Annotated[
+        bool,
+        Field(
+            description="Whether a capture bar can start only on a node whose defense HP is 0 (GAMEPLAY §8, Q-GD-18; decided rule as default, Q-CFG-16 option); false lets a bar start whatever the defenses, unit switch."
+        ),
+    ]
+    air_counts: Annotated[
+        bool,
+        Field(
+            description="Whether airborne aircraft count as capturers, each weighing air_weight (GAMEPLAY §8, N-3; decided rule as default: they never count, Q-CFG-16 option). They never contest either way; LANDED aircraft only garrison, unit switch."
+        ),
+    ]
+    air_weight: Annotated[
+        float,
+        Field(
+            description="How much of a capturer an airborne aircraft counts for, read only when air_counts is true (Q-CFG-16), unit capturer weight.",
+            gt=0.0,
+        ),
+    ]
+    quiet_sides: Annotated[
+        list[enums.Side],
+        Field(
+            description="The sides whose capture time gets the quiet-stream multiplier (Q-SIM-26: the coalition only, a documented asymmetry; Q-CFG-16 option); empty turns it off, unit sides."
         ),
     ]
 

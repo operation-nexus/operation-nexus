@@ -9,14 +9,15 @@ and the decay are exact and a snapshot restores them bit for bit. Each tick's ga
 is the only cap on how fast a crowd can flip a base (Q-GP-4).
 
 Who counts (by position within `capture.radius_m` of the node): GROUND units are capturers, a
-logistics unit (`Supply.carriers`) weighing `logi_weight`; air never counts (N-3) and facilities
-never contest or garrison (Q-GP-38). A ground unit whose catalog has weapons and that is not
-Disabled is combat-capable: on the side opposing a capturer it contests the bar: the bar then
-drains. A defender that cannot contest (an unarmed or Disabled ground unit, or an aircraft LANDED
-at the base) applies `garrison_mult` instead; an owner with no unit there applies
-`empty_base_mult`; a NEUTRAL node uses neither.
-The quiet-stream `quiet_mult` applies to the coalition only (Q-SIM-26) and `v` is the live
-viewer units, as JOIN counts them (`World.viewer_units`).
+logistics unit (`Supply.carriers`) weighing `logi_weight`; airborne air never counts (N-3; with the
+Q-CFG-16 option `capture.air_counts` it is a capturer weighing `air_weight` that never contests or
+garrisons) and facilities never contest or garrison (Q-GP-38). A ground unit whose catalog has
+weapons and that is not Disabled is combat-capable: on the side opposing a capturer it contests
+the bar: the bar then drains. A defender that cannot contest (an unarmed or Disabled ground unit,
+or an aircraft LANDED at the base) applies `garrison_mult` instead; an owner with no unit there
+applies `empty_base_mult`; a NEUTRAL node uses neither.
+The quiet-stream `quiet_mult` applies to the `capture.quiet_sides` (default the coalition only,
+Q-SIM-26) and `v` is the live viewer units, as JOIN counts them (`World.viewer_units`).
 
 A side `S` that is not the owner and has capturers is free when the other side has no combat-capable
 unit there. A node with no bar starts one for the only free side (`CaptureStarted`); with two free
@@ -34,9 +35,10 @@ Disabled wreck cannot escape.
 Stock stays with the node. A SANCTUARY or BRIDGE node is never captured (N-4).
 
 Defense HP (NX-124 part 3, `nexus.core.defense`, Q-GD-18): a bar cannot start on a node whose
-defense HP is above 0. A bar already running is not stopped by a later repair: it fills or decays
-by the rules above (the gate says "can't begin", GAMEPLAY §8), and the flip sets the HP to 0 for the
-new owner. Idle floor (Q-GP-28, Q-GP-44): with no live viewer unit, the theater's `forward_airbase`
+defense HP is above 0 (`capture.requires_defenses_down`, a Q-CFG-16 option). A bar already
+running is not stopped by a later repair: it fills or decays by the rules above (the gate says
+"can't begin", GAMEPLAY §8), and the flip sets the HP to 0 for the new owner. Idle floor (Q-GP-28,
+Q-GP-44; `campaign.idle_floor.enabled`): with no live viewer unit, the theater's `forward_airbase`
 while the coalition owns it is skipped, so its bar neither starts, fills nor decays.
 
 Night progress (Q-SIM-85, Q-SIM-86, NX-157): every Static flip stamps `DirectorState.last_flip`.
@@ -99,7 +101,8 @@ def capture(world: World, out: list[Event]) -> None:
     near = _presence(world, rules, cap, nodes)
     viewers = world.viewer_units()
     quiet = _quiet(cap, viewers)
-    idle_node = rules.defense.forward_airbase if viewers == 0 and rules.defense else None
+    d = rules.defense
+    idle_node = d.forward_airbase if viewers == 0 and d and d.idle_floor else None
     for node in nodes:  # id order
         if node == idle_node and world.owner[node] == "COALITION":
             continue  # the idle floor
@@ -128,10 +131,10 @@ def _presence(world: World, rules: Rules, cap: CaptureRules, nodes: list[str]) -
     r2 = cap.radius_m**2
     for e in world.entities():
         domain = rules.domain[e.kind]
-        if domain == _AIR and e.state != "LANDED":
-            continue  # airborne: never counts (N-3); LANDED air only garrisons
         if domain not in (_AIR, _GROUND):
             continue  # facilities never contest or garrison (Q-GP-38)
+        if domain == _AIR and e.state != "LANDED" and cap.air_weight is None:
+            continue  # airborne: never counts (N-3) unless capture.air_counts
         capturing = not _patrolling(world, e)
         for n in nodes:
             x, y = rules.roads.pos[n]
@@ -143,17 +146,25 @@ def _presence(world: World, rules: Rules, cap: CaptureRules, nodes: list[str]) -
 def _tally(
     p: _Presence, e: Entity, domain: str, rules: Rules, cap: CaptureRules, *, capturing: bool
 ) -> None:
-    if domain == _AIR:
-        p.garrison += 1
+    if domain == _AIR and e.state == "LANDED":
+        p.garrison += 1  # LANDED air only garrisons
         return
     if capturing:
-        p.weight += cap.logi_weight if e.kind in rules.supply.carriers else 1.0
+        p.weight += _weight(e, domain, rules, cap)
         if e.commander_id is not None:
             p.commanders.add(e.commander_id)
+    if domain == _AIR:
+        return  # airborne (capture.air_counts): a capturer, never a defender
     if e.kind in rules.armed and e.damage_state != _DISABLED:  # a wreck cannot contest (Q-ALN-33)
         p.armed += 1
     else:
         p.garrison += 1
+
+
+def _weight(e: Entity, domain: str, rules: Rules, cap: CaptureRules) -> float:
+    if domain == _AIR and cap.air_weight is not None:
+        return cap.air_weight
+    return cap.logi_weight if e.kind in rules.supply.carriers else 1.0
 
 
 def _quiet(cap: CaptureRules, viewers: int) -> float:
@@ -177,7 +188,7 @@ def _tick_node(
     free = [s for s in capturers if not near[_OTHER[s]].armed]
     bar = world.capture.get(node)
     if bar is None:
-        if world.defense_hp.get(node):
+        if cap.requires_defenses_down and world.defense_hp.get(node):
             return  # the defenses are up: no bar (Q-GD-18)
         starter = _starter(near, free)
         if starter is None:
@@ -187,7 +198,7 @@ def _tick_node(
     elif bar.side not in free:  # abandoned, or contested: it drains alike (Q-SIM-23)
         _decay(world, cap, node, bar)
         return
-    base = _base_time(cap, near[bar.side].weight, quiet if bar.side == "COALITION" else 1.0)
+    base = _base_time(cap, near[bar.side].weight, quiet if bar.side in cap.quiet_sides else 1.0)
     time = max(cap.min_time_s, base * _modifier(cap, owner, near))
     bar.progress += max(cap.min_progress, round(CAPTURE_FULL * rules.world_dt / time))
     if bar.progress >= CAPTURE_FULL:

@@ -7,12 +7,13 @@ the tick to the clock, adds each side's held strategic nodes (AIRBASE, FOB, PORT
 SANCTUARY, HQ or a facility) to its running sum, resolves the active objective, then checks the end:
 
 - **Victory** (coalition only: the Static has no mid-war win, Q-SIM-64): the coalition owns the
-  enemy HQ,
+  enemy HQ (with `campaign.victory.hq_capture`, the default; a Q-CFG-16 option),
   or has held at least `victory_node_frac` of the strategic nodes for `victory_hold_ticks` running
   ticks in a row (a dip below the fraction resets the run). The HQ is checked first.
 - **Defeat** (Q-TH-7): the coalition sanctuary's defense HP has been 0 for `defeat_hold_ticks`
   running ticks in a row (a repair above 0 resets the run; while nobody plays the run does not
-  advance, so a war is never lost while chat is asleep, Q-GP-28). `CampaignEnded{DEFEAT}` with
+  advance, so a war is never lost while chat is asleep, Q-GP-28; that is the idle floor,
+  `campaign.idle_floor.enabled`). `CampaignEnded{DEFEAT}` with
   winner ENEMY. Checked after victory and before the time limit, so a victory beats it on the same
   tick and it beats the limit.
 - **Time limit** (Q-SIM-64): at `time_limit_ticks` running ticks. Score per side =
@@ -31,10 +32,11 @@ command.
 **Timed objectives**: in `timed` mode there is always exactly one active objective while the
 campaign runs (O-1): the first is announced on the first running tick, and the next on the tick the
 previous resolves, so the period (`objective_period_ticks`) is an objective's lifetime and an early
-completion starts the next one at once. A node is picked uniformly (the `objective` stream, sorted
-candidates) among the frontline candidates: ones with a road neighbour of another owner. With none,
-nothing is announced and no draw is made, and it is tried again next tick. An enemy-held or neutral
-node is a capture: completed when the coalition captures it (participants: that `NodeCaptured`'s).
+completion starts the next one at once. A node is picked uniformly (`campaign.objective_pick`
+uniform, its only value; the `objective` stream, sorted candidates) among the frontline
+candidates: ones with a road neighbour of another owner. With none, nothing is announced and no
+draw is made, and it is tried again next tick. An enemy-held or neutral node is a capture:
+completed when the coalition captures it (participants: that `NodeCaptured`'s).
 A coalition node is a hold: completed only if the coalition owns it when the deadline arrives
 (Q-SIM-61); participants are the coalition commanders whose ground units, or aircraft LANDED, are
 within `capture.radius_m` of it then. Otherwise it expires at the deadline. `deadline_tick` is on
@@ -169,7 +171,8 @@ def campaign(world: World, out: list[Event]) -> None:
     c.hold_ticks = c.hold_ticks + 1 if holding else 0
     c.defeat_ticks = _defeat_run(world)
     _resolve_objective(world, world.rules, rc, out)
-    if world.owner.get(rc.enemy_hq) == _COALITION or c.hold_ticks >= rc.victory_hold_ticks:
+    hq = rc.hq_capture and world.owner.get(rc.enemy_hq) == _COALITION
+    if hq or c.hold_ticks >= rc.victory_hold_ticks:
         end_campaign(world, "VICTORY", out)
     elif c.defeat_ticks >= rc.defeat_hold_ticks:
         end_campaign(world, "DEFEAT", out)
@@ -181,12 +184,13 @@ def campaign(world: World, out: list[Event]) -> None:
 
 def _defeat_run(world: World) -> int:
     """The run of running ticks the coalition sanctuary's defense HP has been 0 (Q-TH-7): reset by
-    a repair, held (not advanced) while no viewer unit plays."""
-    sanctuary = world.rules.sanctuary if world.rules else None
-    if sanctuary is None or world.defense_hp.get(sanctuary, 1) != 0:
+    a repair, held (not advanced) while no viewer unit plays and the idle floor is on."""
+    rules = world.rules
+    d = rules.defense if rules else None
+    if rules is None or d is None or world.defense_hp.get(rules.sanctuary, 1) != 0:
         return 0
     run = world.campaign.defeat_ticks
-    return run if world.viewer_units() == 0 else run + 1
+    return run if d.idle_floor and world.viewer_units() == 0 else run + 1
 
 
 def _announce(world: World, rc: CampaignRules, out: list[Event]) -> None:

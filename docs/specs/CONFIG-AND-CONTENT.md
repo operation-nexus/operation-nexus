@@ -95,7 +95,7 @@ Precedence: the env var `NEXUS__SECTION__KEY` overrides the file. **Every effect
 | Rate limits, reply cadence, sitrep cadence, PiP dwell, reserve-queue cap, HUD rotation, taunt cooldowns, idle handoff/retire timers, offline-pause threshold | **Yes** | Don't change world physics. Needed for incident response (raids) |
 | Director budgets and tier thresholds | **Yes**, at the next director window | Staff may need to de-escalate. Logged as a command, so replays match |
 | XP table, soft cap, rank table (admin presets, §5a) | **Yes**, effective for events after the reload tick; a new rank table applies to future promotions only (Q-CFG-2) | Progression is outside the sim kernel |
-| Combat pk, weapon profiles, unit stats, logistics rates, capture timings | **No**: new campaign only | Changing physics mid-war breaks fairness and invalidates comparisons |
+| Combat pk, weapon profiles, unit stats, logistics rates, capture timings | **No**: new campaign only. Exception (owner, Q-CFG-16): the quiet-stream keys `capture.quiet_floor` and `capture.quiet_ref` are hot-reloadable; they apply from the next tick | Changing physics mid-war breaks fairness and invalidates comparisons |
 | Theater, unit catalog, doctrines | **No**: new campaign only | Structural |
 | Time scale, tick rate | **No**: new campaign only (tick rate is fixed by ADR-0002) | Determinism |
 
@@ -206,7 +206,8 @@ In the schema now (NX-122): `slots.max_live_per_commander`, `slots.respawn_delay
 | `combat.damage_state.disabled_below` | float | hp fraction | 0.10 (PROPOSED). In code (NX-124); a facility's hp floors just under it | COMBAT CB-6, Q-GP-8 | No |
 | `combat.damage_state.damaged_speed_mult`, `.damaged_sensor_mult` | float | multiplier | 0.75 and 0.8 (PROPOSED, Q-SIM-65). In code (NX-124 part 2) | COMBAT CB-6 (Q-CBT-1) | No |
 | `combat.crew_survival.<kind>` | float | probability | aircraft 0.75, ENEMY_ARMOR 0.60, GARRISON_INFANTRY 0.50, LOGI_TRUCK and ENEMY_CONVOY 0.70 (PROPOSED, Q-SIM-68). In code (NX-124 part 2): one per kind with crew above 0, all required | COMBAT CB-8 | No |
-| `combat.crew_marker_min` | float | min (game) | 10 (PROPOSED, Q-SIM-68). In code (NX-124 part 2) | COMBAT CB-8 | No |
+| `combat.crew_marker_min` | float | min (game) | 10 (PROPOSED, Q-SIM-68). In code (NX-124 part 2) | COMBAT CB-8 | Yes, for markers placed after the reload (Q-CFG-16) |
+| `combat.facility_indestructible` | bool | switch | true (decided rule as default, Q-CFG-16 option (NX-388)): a facility's hp floors at the Disabled threshold, never Destroyed (CB-9, Q-GP-37). False: a hit that takes a facility to 0 hp destroys it like any unit (`UnitDestroyed`, no wreck: it is removed), and every side drops its contact and marker of it, so no ring or strike target outlives it. A Disabled facility is still no valid target (CB-1), so only a hit from above the floor can kill one | COMBAT CB-9 | No (combat rule, like its neighbours) |
 | `slots.respawn_loss_window_s` / `slots.respawn_loss_step_s` | float | s (game) | TBD (respawn grows with repeated losses, Q-CBT-9; game time per Q-ALN-5) | GAMEPLAY GP-2 | Yes |
 
 ### 6.5 Capture
@@ -215,8 +216,12 @@ In the schema now (NX-122): `slots.max_live_per_commander`, `slots.respawn_delay
 | `capture.radius_m` | float | m | 2000 (PROPOSED, owner-approved initial value, Q-SIM-57): a ground unit this close counts for the node; a defender's unit this close is at the base | GAMEPLAY §8 | No |
 | `capture.time_s` | float | s (world, Q-ALN-23) | 120 | GAMEPLAY §8 | No |
 | `capture.multi_unit_exponent` | float | exponent (diminishing returns) | 0.5 (PROPOSED) | GAMEPLAY §8, Q-SIM-26 | No |
-| `capture.quiet_floor` | float | multiplier at 0 viewer units | 0.6 (PROPOSED) | GAMEPLAY §8, Q-SIM-26 | No |
-| `capture.quiet_ref` | int | viewer units at which the multiplier reaches 1.0 | 50 (PROPOSED) | GAMEPLAY §8, Q-SIM-26 | No |
+| `capture.quiet_floor` | float | multiplier at 0 viewer units | 0.6 (PROPOSED) | GAMEPLAY §8, Q-SIM-26 | Yes, from the next tick (Q-CFG-16) |
+| `capture.quiet_ref` | int | viewer units at which the multiplier reaches 1.0 | 50 (PROPOSED) | GAMEPLAY §8, Q-SIM-26 | Yes, from the next tick (Q-CFG-16) |
+| `capture.quiet_sides` | list of sides | sides | [COALITION] (decided rule as default, Q-CFG-16 option (NX-388)): the sides whose capture time gets the quiet-stream multiplier (Q-SIM-26's documented asymmetry, GAMEPLAY §0); empty turns it off | GAMEPLAY §8, Q-SIM-26 | No (capture rule) |
+| `capture.requires_defenses_down` | bool | switch | true (decided rule as default, Q-CFG-16 option (NX-388)): a capture bar can start only on a node whose defense HP is 0 (Q-GD-18). False: a bar starts whatever the defenses | GAMEPLAY §8 | No (capture rule) |
+| `capture.air_counts` | bool | switch | false (decided rule as default, Q-CFG-16 option (NX-388)): airborne aircraft never capture (N-3); LANDED air only garrisons and facilities never count (Q-GP-38). True: an airborne aircraft within `radius_m` is a capturer weighing `air_weight`; it never contests nor garrisons, and LANDED air is unchanged. With it on, airborne commanders count as capture participants (`NodeCaptured` participants, so merit and the Static's provocation), but a hold objective still counts only ground units and LANDED aircraft | GAMEPLAY §8, STATE-MACHINES §4.2 | No (capture rule) |
+| `capture.air_weight` | float | capturer weight, > 0 | 1.0 (Q-CFG-16 option (NX-388)); read only when `air_counts` is true | GAMEPLAY §8 | No |
 | `capture.min_time_s` | float | s (world, Q-ALN-23) | 30 (PROPOSED) | GAMEPLAY §8, Q-SIM-26 | No |
 | `capture.logi_weight` | float | capturer weight | 0.5 (PROPOSED): a logistics unit counts as half a capturer (Q-SM-7) | STATE-MACHINES §4.2 | No |
 | `capture.garrison_mult` | float | capture-time multiplier | 3.0 (PROPOSED): a defender that cannot contest is at the base (Q-GD-32, Q-SM-8) | STATE-MACHINES §4.2 | No |
@@ -229,6 +234,8 @@ In the schema now (NX-122): `slots.max_live_per_commander`, `slots.respawn_delay
 
 In code since NX-125: all ten keys are the `capture` block of `balance/default.yaml` (`contracts/config/balance.json`), read by `nexus.core.capture`; the shipped values are the PROPOSED column.
 
+Rule options (NX-388 part 2, Q-CFG-16): `capture.requires_defenses_down`, `air_counts`, `air_weight` and `quiet_sides`, `campaign.victory.hq_capture`, `campaign.idle_floor.*`, `campaign.objective_pick` and `combat.facility_indestructible` are required keys whose defaults are the rules as they were; they are read once into `Rules` (`CaptureRules`, `DefenseRules`, `CampaignRules`, `CombatRules`). The five keys made hot-reloadable by Q-CFG-16 are read from `Rules` where they are used (no copy in world state), so a reload that rebuilds `Rules` (§5) applies them as the HR column says; `tests/core/test_rule_options.py` shows each by swapping `World.rules` mid-run.
+
 ### 6.6 Campaign
 | Key | Type | Unit | PROPOSED | Source | HR |
 |---|---|---|---|---|---|
@@ -238,7 +245,11 @@ In code since NX-125: all ten keys are the `capture` block of `balance/default.y
 | `campaign.score.average_weight` | float | points | 50 (PROPOSED, Q-SIM-64): × a side's average share of strategic nodes over the campaign (replaces `node_share_weight` 100, Q-SM-9) | STATE-MACHINES §4.4 | No |
 | `campaign.score.final_weight` | float | points | 50 (PROPOSED, Q-SIM-64): × a side's share of strategic nodes at the final tick | STATE-MACHINES §4.4 | No |
 | `campaign.score.objective_points` | float | points per completed objective | 5 (PROPOSED, Q-GD-29, Q-SM-9) | STATE-MACHINES §4.4 | No |
-| `campaign.objective_period_min` | float | min (game) | 15: an objective's lifetime; the next is announced when one resolves (STATE-MACHINES §4.5) | GAMEPLAY §9 | No |
+| `campaign.objective_period_min` | float | min (game) | 15: an objective's lifetime; the next is announced when one resolves (STATE-MACHINES §4.5) | GAMEPLAY §9 | Yes, from the next objective (Q-CFG-16) |
+| `campaign.objective_pick` | enum `uniform` | — | `uniform` (decided rule as default, Q-CFG-16 option (NX-388)): one uniform draw on the `objective` stream among the frontline candidates. The only value so far; the key exists for later weightings. Objectives score for the coalition only, which stays fixed | GAMEPLAY §9 | No (like `objective_mode`) |
+| `campaign.victory.hq_capture` | bool | switch | true (decided rule as default, Q-CFG-16 option (NX-388)): the coalition owning the enemy HQ wins at once. False: only the hold (`victory_node_frac` for `victory_hold_min`) and the time limit end the war | GAMEPLAY §9 | No (end condition) |
+| `campaign.idle_floor.enabled` | bool | switch | true (decided rule as default, Q-CFG-16 option (NX-388)): with no live viewer unit the theater's forward airbase's capture bar is frozen while the coalition owns it, the coalition sanctuary's defense HP cannot drop below `sanctuary_min_hp`, and the defeat clock does not advance (Q-GP-28, Q-GP-44). False: none of the three; the night cap (`night_progress_cap_nodes_per_h`) is a separate key | GAMEPLAY §0, §9 | No (end condition) |
+| `campaign.idle_floor.sanctuary_min_hp` | int | hp, 1 to `capture.defense_hp.SANCTUARY` | 1 (decided rule as default, Q-CFG-16 option (NX-388)); the loader refuses a value above the sanctuary's maximum | GAMEPLAY §9, Q-TH-7 | No |
 | `campaign.victory_node_frac` | float | fraction | 0.80 | GAMEPLAY §9 | No |
 | `campaign.strategic_node_kinds` | list of node kinds | at least one | [AIRBASE, FOB, PORT] (decided rule as default, Q-DEV-21 option (NX-388)). The strategic nodes: the denominator of `victory_node_frac`, of the score shares and of Momentum (Q-GP-21). No: the list becomes a precomputed id tuple | GAMEPLAY §9 | No |
 | `campaign.victory_hold_min` | float | min (game) | 30 | GAMEPLAY §9 | No |
@@ -299,7 +310,7 @@ In code since NX-125: all ten keys are the `capture` block of `balance/default.y
 | `director.provocation.half_life_s` | float | s (game, Q-ALN-23) | 900 (PROPOSED, Q-SIM-78) | THREAT-DIRECTOR §5a | Yes |
 | `presence.window_s` | float | s (real) | TBD (drives the HUD operator count and breakdown only; the clock never pauses for lack of operators, Q-GD-4 amended / Q-SM-5; pauses come only from the `PauseReasonCategory` causes in CFG-9, Q-ALN-3) | CONTRACTS §6 `PresenceSnapshot` | No |
 | `presence.emit_every_ticks` | int | ticks | TBD | CONTRACTS §6 `PresenceSnapshot` | No |
-| `campaign.night_progress_cap_nodes_per_h` | float | nodes/h (game, Q-ALN-23) | 1/6 (PROPOSED; written 0.16666666666666666): with no live viewer unit the Static flips at most one node per 1 / this many game hours (6), every Static flip starting the clock; its capture bar holds one step short of a flip until then (and stays held if a viewer arrives), and the Director launches no capture operation (Q-SIM-85, Q-SIM-86, in code since NX-157) | THREAT-DIRECTOR §5, Q-GD-4 (amended) | No |
+| `campaign.night_progress_cap_nodes_per_h` | float | nodes/h (game, Q-ALN-23) | 1/6 (PROPOSED; written 0.16666666666666666): with no live viewer unit the Static flips at most one node per 1 / this many game hours (6), every Static flip starting the clock; its capture bar holds one step short of a flip until then (and stays held if a viewer arrives), and the Director launches no capture operation (Q-SIM-85, Q-SIM-86, in code since NX-157) | THREAT-DIRECTOR §5, Q-GD-4 (amended) | Yes, from the next check (Q-CFG-16) |
 | `campaign.aar_duration_s` | float | s (real) | 300 | GAMEPLAY §9 | Yes |
 
 In code since NX-126: the `campaign` block of `balance/default.yaml` (`contracts/config/balance.json`) holds `time_limit_h`, `victory_node_frac`, `victory_hold_min`, `objective_period_min`, `objective_mode` (read from the balance profile until a per-campaign setting exists), `score.average_weight`, `score.final_weight`, `score.objective_points` and `momentum.nodes_weight` and `supply_weight`; `nexus.core.campaign` reads them. The three durations are game time, converted once at load (`game_ticks`, with the key's unit: 72 h = 2,592,000 ticks, 30 min = 18,000, 15 min = 9,000 at 10 Hz). The fractions and weights are read as the exact decimals written, so a threshold or a score tie is exact. `target_duration_h`, `max_extension_h`, `defeat`, `options`, `intermission`, `rubber_band_zone` and the night cap are not read yet.

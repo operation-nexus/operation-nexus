@@ -26,7 +26,8 @@ The `combat` slot, each running tick (not while frozen, SC-11), in this order:
 4. **Damage (CB-5, CB-6, CB-9).** A hit removes `floor(damage x (1 - armor))` hp, at least 1, with
    `armor` an exact decimal (0 for a structure: `damage` hp off the node's defenses, floored at the
    idle floor, `nexus.core.defense`). The damage state follows hp against the kind's thresholds
-   (`UnitRules.cuts`). A facility (STATIC) floors at the Disabled threshold, never Destroyed; any
+   (`UnitRules.cuts`). A facility (STATIC) floors at the Disabled threshold, never Destroyed
+   (`combat.facility_indestructible`, a Q-CFG-16 option: false lets 0 hp destroy it); any
    other unit at 0 hp is removed with `UnitDestroyed{killer_id = the shooter, assist_ids}`, and so
    is an aircraft that is not LANDED the moment it becomes Disabled (Q-SIM-66; that hit emits
    `UnitDestroyed` alone, no state change). Any other unit that becomes Disabled is a wreck: it
@@ -55,7 +56,7 @@ from nexus.contracts.gen.events.weapon_fired import WeaponFired
 from nexus.contracts.gen.events.weapon_impact import WeaponImpact
 from nexus.core.defense import damage as damage_defense
 from nexus.core.defense import floor as defense_floor
-from nexus.core.fog import in_masking_region, is_off_facility
+from nexus.core.fog import forget, in_masking_region, is_off_facility
 from nexus.core.logistics import go_home
 from nexus.core.provocation import suffered_defense_hit, suffered_hit
 from nexus.core.rearm import stop_problem
@@ -401,15 +402,18 @@ def _hit(
     stats = cr.units[target.kind]
     facility = rules.domain[target.kind] == _STATIC
     hp = target.hp - max(cr.min_damage, math.floor(w.damage * (1 - stats.armor)))
-    if facility:
+    if facility and cr.facility_indestructible:
         hp = max(hp, stats.floor)  # never Destroyed (CB-9)
     else:
         now = world.campaign.running_ticks + 1
         recent = [h for h in target.hits if now - h[1] <= cr.assist_window_ticks]
         if hp <= 0:
+            if facility:
+                forget(world, target.id)  # no phantom ring or threat (Q-CFG-16)
             _destroy(world, target, shooter, recent, out)
             return
-        target.hits = [*recent, [shooter.id, now]]
+        if not facility:  # a facility keeps no hits (CB-5a)
+            target.hits = [*recent, [shooter.id, now]]
     target.hp = hp
     state = stats.state(hp)
     if state == target.damage_state:
