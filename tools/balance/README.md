@@ -87,10 +87,11 @@ Each viewer also draws a kind from its profile's `kinds` shares (a harness RNG p
 | striker | STRIKE with a node target: a seeded pick (the viewer's RNG) among foe-held nodes with defense HP in the coalition's view. It may strike a base alone. With none known it sends the bare JOIN and counts it in `viewers.striker_fallbacks` |
 | hauler | bare `JOIN LOGI` |
 | scout | bare `JOIN RECON` |
+| capturer | `JOIN LOGI` with a node target: a seeded pick (the viewer's RNG) among foe-held, capturable nodes (not an `uncapturable_node_kinds` kind: the rear SANCTUARY, BRIDGE) whose defense HP is 0 in the coalition's view. A capture run with no cargo (Q-GP-24); the progress of its bar is a capture impact. With none known it sends the bare `JOIN LOGI` and counts it in `viewers.capturer_fallbacks`. PROPOSED share 0.1 (Q-SIM-104) |
 
 Every command still goes through the ordinary path and the command log. The report breaks A2 down per kind (`A2.by_persona_kind`).
 
-Other new keys: `momentum_sample_s` (60, game seconds between momentum and starvation samples; > 0) and `kind_roles` (`striker: STRIKE, hauler: LOGI, scout: RECON`: the JOIN role each non-auto persona kind sends; values must be playable roles and every kind a profile uses needs one), checked on load; `targets.a2_min_tier` (ALPHA), `targets.a2_tail_s` and `a2_tail_share` (Q-SIM-97; positive, share in (0, 1]) and `impact_check_s` (1 game second between the two state checks), both PROPOSED.
+Other new keys: `momentum_sample_s` (60, game seconds between momentum and starvation samples; > 0) and `kind_roles` (`striker: STRIKE, hauler: LOGI, scout: RECON, capturer: LOGI`: the JOIN role each non-auto persona kind sends; values must be playable roles and every kind a profile uses needs one), checked on load; `targets.a2_min_tier` (ALPHA), `targets.a2_tail_s` and `a2_tail_share` (Q-SIM-97; positive, share in (0, 1]) and `impact_check_s` (1 game second between the two state checks), both PROPOSED.
 
 A target with nothing to judge says so: `not evaluable` (the run was shorter than the window), `no data` (for example no kills), `not measurable yet`. **Not measurable yet:** the kill-share Gini by rank (no ranks until PROGRESSION), A5 and A6 (part 2). The CLI exit code is 0 whatever the targets say.
 

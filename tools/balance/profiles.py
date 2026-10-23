@@ -13,7 +13,7 @@ import yaml
 from nexus.core.director import TIERS
 
 DATA = Path(__file__).resolve().parent / "profiles.yaml"
-KINDS = ("auto", "striker", "hauler", "scout")  # persona kinds (Q-SIM-95)
+KINDS = ("auto", "striker", "hauler", "scout", "capturer")  # persona kinds (Q-SIM-95)
 ROLES = ("STRIKE", "RECON", "LOGI")  # the playable roles (content/roles.yaml); NAVY is P3
 
 

@@ -1,6 +1,6 @@
 """Scripted viewers (NX-031 part 1, Q-SIM-91). A viewer is a synthetic commander with a persona; it
-sends only commands that exist: JOIN (a role; a striker adds a node target) and REBASE. Each
-viewer has its own `random.Random`, so one viewer's luck never shifts another's. Behaviour
+sends only commands that exist: JOIN (a role; a striker or capturer adds a node target) and REBASE.
+Each viewer has its own `random.Random`, so one viewer's luck never shifts another's. Behaviour
 numbers are in profiles.yaml (PROPOSED)."""
 
 import random
@@ -14,6 +14,7 @@ from nexus.contracts.gen.commands.rebase import RebaseCommand
 
 # Idle: nothing in flight. Pending: a JOIN is sent and not yet answered. Alive: has a unit.
 # Gone: left (a viewer leaves only by losing its unit; there is no leave command, Q-SIM-91).
+NODE_KINDS = ("striker", "capturer")  # kinds whose JOIN names a node
 IDLE, PENDING, ALIVE, GONE = "idle", "pending", "alive", "gone"
 
 
@@ -23,7 +24,7 @@ class Viewer:
     commander_id: str
     persona: Persona
     rng: random.Random
-    kind: str = "auto"  # auto-tasked, striker, hauler or scout (Q-SIM-95)
+    kind: str = "auto"  # auto-tasked, striker, hauler, scout or capturer (Q-SIM-95)
     status: str = IDLE
     entity: int | None = None
     attempts: int = 0  # consecutive losses and rejections since the last spawn
@@ -48,8 +49,9 @@ def draw_kind(profile: Profile, seed: int, index: int) -> str:
 
 
 def pick_node(v: Viewer, defended_foes: list[str]) -> str | None:
-    """A striker's target: a seeded pick among the known defended foe nodes (sorted), or None."""
-    return v.rng.choice(defended_foes) if v.kind == "striker" and defended_foes else None
+    """A striker's or capturer's target: a seeded pick among the candidate foe nodes the caller
+    chose for its kind (sorted), or None."""
+    return v.rng.choice(defended_foes) if v.kind in NODE_KINDS and defended_foes else None
 
 
 def joins_on_arrival(v: Viewer) -> bool:
@@ -77,7 +79,7 @@ def join_command(
     v: Viewer, tick: int, seq: int, node: str | None, kind_roles: Mapping[str, str]
 ) -> JoinCommand:
     """The JOIN: the persona's role (auto) or the kind's (`kind_roles`, profiles.yaml); a node
-    target only for a striker."""
+    target only for a striker or capturer."""
     p = v.persona
     roles = list(p.role_weights)
     role = kind_roles.get(v.kind) or v.rng.choices(roles, [p.role_weights[r] for r in roles])[0]

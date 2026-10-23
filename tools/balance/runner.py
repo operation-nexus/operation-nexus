@@ -43,6 +43,23 @@ def defended_foes(world: World) -> list[str]:
     return [n for n, o in sorted(view.owners.items()) if o == "ENEMY" and view.defense_hp.get(n, 0)]
 
 
+def capturable_foes(world: World) -> list[str]:
+    """Foe-held, capturable nodes whose defense HP is 0 in the coalition's view, sorted: where a
+    capture run (JOIN LOGI with a node, Q-GP-24) can start a bar. Uncapturable kinds (the rear
+    SANCTUARY, BRIDGE) never count."""
+    rules = world.rules
+    if rules is None:
+        raise ValueError("capturable_foes needs the world's rules")
+    view = side_view(world, "COALITION")
+    return [
+        n
+        for n, o in sorted(view.owners.items())
+        if o == "ENEMY"
+        and not view.defense_hp.get(n, 0)
+        and rules.node_kind.get(n) not in rules.uncapturable
+    ]
+
+
 def forward_base(world: World) -> str | None:
     """The most forward (eastmost) landing base the coalition owns, the sanctuary aside."""
     rules = world.rules
@@ -68,6 +85,7 @@ class _Crowd:
             for i, (_, persona) in enumerate(sched)
         ]
         self.striker_fallbacks = 0  # striker JOINs sent without a node: no defended foe was known
+        self.capturer_fallbacks = 0  # capturer JOINs sent without a node: no capturable foe known
         self.by_commander = {v.commander_id: v for v in self.viewers}
         self.by_entity: dict[int, ps.Viewer] = {}
         self.wake = [(tick, i, "arrive") for i, (tick, _) in enumerate(sched)]  # sorted: a heap
@@ -97,8 +115,13 @@ class _Crowd:
             v.status = ps.GONE
             return None
         v.status = ps.PENDING
-        node = ps.pick_node(v, defended_foes(world)) if v.kind == "striker" else None
-        self.striker_fallbacks += v.kind == "striker" and node is None
+        node = None
+        if v.kind == "striker":
+            node = ps.pick_node(v, defended_foes(world))
+            self.striker_fallbacks += node is None
+        elif v.kind == "capturer":
+            node = ps.pick_node(v, capturable_foes(world))
+            self.capturer_fallbacks += node is None
         return ps.join_command(v, tick, self.seq, node, self.data.kind_roles)
 
     def react(self, events: list[Any], tick: int, hz: int, seen: Counter[str]) -> None:
@@ -233,6 +256,7 @@ def run(
             "by_persona": dict(sorted(Counter(v.persona.name for v in crowd.viewers).items())),
             "by_kind": dict(sorted(Counter(v.kind for v in crowd.viewers).items())),
             "striker_fallbacks": crowd.striker_fallbacks,
+            "capturer_fallbacks": crowd.capturer_fallbacks,
         },
         "commands": dict(sorted(counts.items())),
         "responses": dict(sorted(seen.items())),
@@ -275,6 +299,7 @@ def failed_run(profile: str, seed: int, hours: float, error: str) -> dict[str, A
             "by_persona": {},
             "by_kind": {},
             "striker_fallbacks": 0,
+            "capturer_fallbacks": 0,
         },
         "commands": {},
         "responses": {},
