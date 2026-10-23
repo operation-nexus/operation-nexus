@@ -34,9 +34,9 @@ Non-goals for now: Kubernetes, Helm, multi-region, canary traffic splitting (ADR
    ├─ pr-hygiene ── title lint · size label · tracker-ID check · changed-paths filter
    │
    ├─ python (paths: services/**, tools/**, scripts/**, contracts/**)
-   │     ruff check · ruff format --check · mypy --strict (all run in services/sim only; tools/
-   │     is not linted or type-checked yet, a pending owner PR adds it; tools/ tests run through
-   │     services/sim pytest, tests/tools/) · pytest (unit + property)
+   │     ruff check · ruff format --check (services/sim and tools/, tools/ruff.toml) · mypy --strict
+   │     (src, tests, and the maintained tools in the Makefile's TOOLS_TYPED; tools/ tests run
+   │     through services/sim pytest, tests/tools/) · pytest (unit + property)
    │     coverage gate (diff coverage ≥ 90%, sim-core total ≥ 85%)
    │
    ├─ typescript (paths: apps/**, contracts/**)
