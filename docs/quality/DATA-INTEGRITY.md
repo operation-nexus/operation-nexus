@@ -42,6 +42,7 @@ Examples that qualify:
 | FB-5 | Support redemptions | Owner-entered FX table (`support.fx_table`, dated) to compare currencies, **only if the owner enables it** | Lets one rule cover several currencies without a live FX feed. The values are owner-entered and dated, never guessed. | Admin UI labels "owner-set FX, as of <date>"; every use is logged |
 | FB-4 | Overlay | Last good frame + "COMMS RESYNC" banner on WS loss | The stream must not show broken UI | Banner text says so |
 | FB-6 | Combat | Pk multiplier 1.0 for factors not built yet: radar lock, jamming, countermeasures, weather and night (COMBAT §5.2) | The factor is real design but has no unit or phase producing it yet; 1.0 means "no effect", not a guessed value. Owner-approved 2026-10-20 (Q-GP-6, Q-CBT-10). Each entry is removed when its factor is built (Q-CBT-20). | Listed in COMBAT §5.2; the PiP Pk shows only built factors |
+| FB-7 | Error reporting | The log adapter when `SENTRY_DSN` is set but the Sentry adapter is not built yet (NX-364 part 1, Q-DEV-24) | Reports must not be dropped silently; the structured log line (allowlisted fields only) is the honest local record | A startup warning "SENTRY_DSN is set but the Sentry adapter is not built yet; using the log adapter" (the DSN itself is never logged); removed when the Sentry adapter lands |
 
 New entries need owner approval in the PR that introduces them.
 

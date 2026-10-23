@@ -27,6 +27,8 @@ from nexus.contracts.gen.commands.command import Command
 from nexus.contracts.gen.events.event import Event
 from nexus.core.step import HANDLERS, TICK_DT, Handler, step
 from nexus.core.world import World
+from nexus.errors import ErrorReporter, report_safely
+from nexus.errors.adapters.noop import NoOpReporter
 from nexus.runtime.clock import FixedStepClock
 from nexus.runtime.command_log import CommandLogWriter
 from nexus.runtime.fsutil import fsync_dir
@@ -67,6 +69,7 @@ class SimRuntime:
         created_at: Callable[[], str],  # UTC ISO-8601 now; never enters state
         snapshot_every: int = 300,  # ops cadence, no effect on outcomes
         handlers: Mapping[str, Handler] = HANDLERS,
+        reporter: ErrorReporter | None = None,  # EP-4: the runtime reports, the kernel never does
     ) -> None:
         if world.rules is None:  # JOIN and movement need them (start_campaign, or restore rules=)
             raise ValueError("SimRuntime needs a world with rules")
@@ -82,6 +85,7 @@ class SimRuntime:
         self.created_at = created_at
         self.snapshot_every = snapshot_every
         self.handlers = handlers
+        self.reporter: ErrorReporter = NoOpReporter() if reporter is None else reporter
         self.crash_ticks: deque[int] = deque(maxlen=CRASH_LIMIT)
         self.halted = False
         self.halt_reason = ""
@@ -127,6 +131,12 @@ class SimRuntime:
         self.log.append_tombstone(tick)
         self.log.flush()
         while True:
+            report_safely(
+                self.reporter,
+                error,
+                component="sim.step",
+                tags={"tick": str(tick), "campaign_id": self.world.campaign.id},
+            )
             self.crash_ticks.append(tick)
             # The half-updated world is discarded (SC-8); the log is durable up to this tick.
             self.world = recover(

@@ -20,6 +20,7 @@ from nexus.core.roads import RoadGraph
 from nexus.core.rules import Rules
 from nexus.core.step import TICK_DT, Handler
 from nexus.core.world import Campaign, Shot, Vec2, World, state_hash
+from nexus.errors import ErrorReporter
 from nexus.runtime import loop
 from nexus.runtime.campaign_config import load_campaign_config, start_campaign
 from nexus.runtime.clock import FixedStepClock
@@ -113,6 +114,7 @@ class Rig:
         next_seq: int = 1,
         segment: int = 1,
         snapshot_every: int = 300,
+        reporter: ErrorReporter | None = None,
     ) -> None:
         self.snaps, self.logs = root / "snapshots", root / "logs"
         self.snaps.mkdir(parents=True, exist_ok=True)
@@ -132,6 +134,7 @@ class Rig:
             created_at=lambda: "2026-10-21T12:00:00Z",
             snapshot_every=snapshot_every,
             handlers=handlers,
+            reporter=reporter,
         )
         self.events: list[Event] = []
 
@@ -239,6 +242,52 @@ def test_poison_command_is_tombstoned_dropped_and_replayed(
     assert (
         state_hash(restore(rig.snaps, rig.logs, handlers=POISON, rules=None).world) == hashes[350]
     )
+
+
+class Recorder:
+    """An ErrorReporter that keeps what it is given (the boundary, EP-1)."""
+
+    def __init__(self, fail: bool = False) -> None:
+        self.fail = fail
+        self.calls: list[tuple[BaseException, str, dict[str, str]]] = []
+
+    def capture(self, exc: BaseException, *, component: str, tags: dict[str, str]) -> None:
+        self.calls.append((exc, component, tags))
+        if self.fail:
+            raise OSError("reporter down")
+
+    def flush(self, timeout_s: float) -> None:
+        return None
+
+
+def test_crash_is_reported_with_component_and_id_only_tags(
+    tmp_path: Path, make_rig: MakeRig
+) -> None:
+    recorder = Recorder()
+    rig = make_rig(tmp_path, handlers=POISON, reporter=recorder)
+    rig.run_to(350, poison_at=(320,))
+    ((exc, component, tags),) = recorder.calls
+    assert isinstance(exc, RuntimeError) and str(exc) == "poison command"
+    assert component == "sim.step"
+    assert tags == {"tick": "320", "campaign_id": CAMPAIGN_ID}
+
+
+def test_every_crash_of_a_halting_tick_is_reported(
+    tmp_path: Path, make_rig: MakeRig, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    break_systems_from(monkeypatch, 5)
+    recorder = Recorder()
+    make_rig(tmp_path, reporter=recorder).run_to(10)
+    assert [c[2]["tick"] for c in recorder.calls] == ["5", "5", "5"]
+
+
+def test_raising_reporter_does_not_change_crash_recovery(tmp_path: Path, make_rig: MakeRig) -> None:
+    recorder = Recorder(fail=True)
+    rig = make_rig(tmp_path, handlers=POISON, reporter=recorder)
+    rig.run_to(350, poison_at=(320,))
+    assert len(recorder.calls) == 1
+    assert list(rig.rt.crash_ticks) == [320] and not rig.rt.halted
+    assert rig.rt.world.campaign.tick == 350
 
 
 def test_crash_recovery_keeps_the_campaign_rules(tmp_path: Path, make_rig: MakeRig) -> None:
