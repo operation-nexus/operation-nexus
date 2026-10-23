@@ -67,27 +67,51 @@ def _a1(runs: list[dict[str, Any]], t: Targets) -> dict[str, Any]:
     }
 
 
-def _a2(runs: list[dict[str, Any]], t: Targets) -> dict[str, Any]:
-    ttfi: list[float] = []
-    never = unresolved = 0
-    for r in runs:
-        n = r["metrics"]["newbie"]
-        ttfi += n["ttfi_s"]
-        never += sum(s >= t.a2_max_s for s in n["no_impact_observed_s"])  # watched long enough
-        unresolved += sum(s < t.a2_max_s for s in n["no_impact_observed_s"])  # run ended first
+def _a2_group(groups: list[dict[str, Any]], t: Targets) -> dict[str, Any]:
+    """A2 over groups of counted newbies (their `ttfi_s`, `no_impact_observed_s`, impact kinds)."""
+    ttfi = [v for g in groups for v in g["ttfi_s"]]
+    never = sum(
+        s >= t.a2_max_s for g in groups for s in g["no_impact_observed_s"]
+    )  # watched long enough
+    unresolved = sum(s < t.a2_max_s for g in groups for s in g["no_impact_observed_s"])  # run ended
     values = sorted(ttfi + [float("inf")] * never)
     median = _med(values)
-    status = NO_DATA if median is None else PASS if median <= t.a2_max_s else FAIL
+    kinds: Counter[str] = Counter()
+    for g in groups:
+        kinds.update(g["first_impact_kinds"])
     return {
-        "status": status,
+        "status": NO_DATA if median is None else PASS if median <= t.a2_max_s else FAIL,
         "newbies": len(ttfi) + never + unresolved,
         "with_impact": len(ttfi),
         "no_impact_within_window": never,
         "unresolved_run_ended": unresolved,
         "median_s": None if median in (None, float("inf")) else median,
-        "detail": f"median time to first impact over {len(values)} newbies "
-        f"(needs <= {t.a2_max_s:g} s); {unresolved} still unresolved when the run ended",
+        "first_impact_kinds": dict(sorted(kinds.items())),
     }
+
+
+def _a2(runs: list[dict[str, Any]], t: Targets) -> dict[str, Any]:
+    """A2 (Q-SIM-93): only newbies who arrived at `a2_min_tier` or above are judged; the ones who
+    arrived below it are counted and reported, never judged. Impact is any real contribution."""
+    news = [r["metrics"]["newbie"] for r in runs]
+    out = _a2_group(news, t)
+    below = [v for n in news for v in n["below_tier_ttfi_s"]]
+    out["below_tier"] = {
+        "newbies": sum(n["joined_below_tier"] for n in news),
+        "with_impact": len(below),
+        "median_s": _med(below),
+    }
+    kinds = sorted({k for n in news for k in n["by_kind"]})
+    out["by_persona_kind"] = {
+        k: _a2_group([n["by_kind"][k] for n in news if k in n["by_kind"]], t) for k in kinds
+    }
+    out["detail"] = (
+        f"median time to first impact over {out['newbies']} newbies who arrived at {t.a2_min_tier} "
+        f"or above (needs <= {t.a2_max_s:g} s); {out['unresolved_run_ended']} unresolved when the "
+        f"run ended; {out['below_tier']['newbies']} more arrived below {t.a2_min_tier} "
+        "(information only)"
+    )
+    return out
 
 
 def _a3(runs: list[dict[str, Any]], t: Targets, profile: str) -> dict[str, Any]:
@@ -291,6 +315,20 @@ def markdown(report: dict[str, Any]) -> str:
         "units with no job, order or route, sampled every `idle_sample_min`.",
         "",
     ]
+    lines += ["## A2 first impact (newbies arriving at the A2 tier or above)", ""]
+    for n, a in report["profiles"].items():
+        a2 = a["A2"]
+        lines += [
+            f"- {n}: counted {a2['newbies']} newbies ({a2['with_impact']} with impact), "
+            f"below-tier (information only) {a2['below_tier']['newbies']}; "
+            f"first impact kinds {a2['first_impact_kinds']}",
+            *(
+                f"  - {k}: {g['newbies']} newbies, median {_fmt(g['median_s'])} s, "
+                f"{g['first_impact_kinds']}"
+                for k, g in a2["by_persona_kind"].items()
+            ),
+        ]
+    lines += [""]
     lines += ["## Why idle armed units hold no job (summed over samples)", ""]
     lines += [f"- {n}: {a['idle']['reasons']}" for n, a in report["profiles"].items()]
     lines += [""]
