@@ -51,13 +51,13 @@ import math
 from collections.abc import Sequence
 
 from nexus.contracts.gen.common.enums import Side, UnitKind
+from nexus.core.bridges import blocked
 from nexus.core.roads import shortest_path
 from nexus.core.rules import Rules, TaskingRules
 from nexus.core.spatial import UniformGrid
 from nexus.core.world import Entity, Vec2, World
 
 _GROUND, _AIR, _STATIC = "GROUND", "AIR", "STATIC"
-_NO_BLOCKED = frozenset[str]()  # no bridge is destroyed until NX-373
 _LONG_M = 15_000.0  # a kind reaching farther than this is kept out of the track grid
 _CELL_M = 8_000.0  # track grid cell
 
@@ -140,7 +140,7 @@ def steer(world: World) -> None:
         group = _group_threats(ctx, f, members, threats)
         if group:
             world.group_threat[f.id] = tuple(sorted(t.id for t in group))
-        if group and _engage(rules, f, members, group, capped):
+        if group and _engage(world, rules, f, members, group, capped):
             continue
         if rules.domain[f.kind] == _AIR:
             _station_air(world, rules, rules.tasking, f, leader)
@@ -301,7 +301,12 @@ def _own_reach(rules: Rules, shooter: Entity, target: Entity) -> float:
 
 
 def _engage(
-    rules: Rules, f: Entity, members: list[Entity], threats: list[Entity], capped: dict[int, float]
+    world: World,
+    rules: Rules,
+    f: Entity,
+    members: list[Entity],
+    threats: list[Entity],
+    capped: dict[int, float],
 ) -> bool:
     """Break station toward the nearest threat `f` can hit (module docstring, 2); False: keep
     station (no such threat, `f` is beyond the leash of the convoy, or no road leads toward it).
@@ -325,7 +330,7 @@ def _engage(
     elif d <= reach:
         capped[f.id] = 0.0  # in range: it stops where it is, on its road, and fires
     else:
-        return _approach(rules, f, t.pos)
+        return _approach(world, rules, f, t.pos)
     return True
 
 
@@ -337,14 +342,16 @@ def _seg_dist(ax: float, ay: float, bx: float, by: float, p: Vec2) -> float:
     return math.hypot(ax + k * dx - p.x, ay + k * dy - p.y)
 
 
-def _approach(rules: Rules, f: Entity, p: Vec2) -> bool:
+def _approach(world: World, rules: Rules, f: Entity, p: Vec2) -> bool:
     """Head down the road that passes nearest `p`: the node it heads for or the one it left
-    (mid-edge), or the neighbour of its node. Greedy, one leg at a time, so only nodes with a road
-    are ever chosen (a BRIDGE has none). False, path unchanged, when no leg gets closer to `p`."""
+    (mid-edge), or the neighbour of its node over a road no down bridge cuts (B-1). Greedy, one leg
+    at a time, so only nodes with a road are ever chosen (a BRIDGE has none). False, path
+    unchanged, when no leg gets closer to `p`."""
     if f.last_node is None:
         return False
     if _at_node(rules, f):
-        options = [n for n, _ in rules.roads.neighbours(f.last_node)]
+        cut = blocked(world)
+        options = [n for n, edge in rules.roads.neighbours(f.last_node) if edge.bridge not in cut]
     else:
         options = [n for n in _ends(rules, f) if isinstance(n, str)]
     best: tuple[float, str] | None = None
@@ -377,7 +384,7 @@ def _ends(rules: Rules, f: Entity) -> list[str | Vec2 | None]:
     return [ahead, f.last_node]
 
 
-def _drive(rules: Rules, f: Entity, goal: str) -> bool:
+def _drive(world: World, rules: Rules, f: Entity, goal: str) -> bool:
     """Set `f`'s road path to `goal`; True when its path ends there. Unchanged when it already
     does, or there is no road. Mid-edge it may go on to the node it heads for or turn back to the
     one it left, whichever is the shorter way (`movement` drives a turn back)."""
@@ -387,7 +394,7 @@ def _drive(rules: Rules, f: Entity, goal: str) -> bool:
     starts = [n for n in _ends(rules, f) if isinstance(n, str)]
     best: tuple[float, list[str]] | None = None
     for start in starts:
-        route = shortest_path(rules.roads, start, goal, blocked=_NO_BLOCKED)
+        route = shortest_path(rules.roads, start, goal, blocked=blocked(world))
         if route is not None:
             x, y = rules.roads.pos[start]
             cost = math.hypot(x - f.pos.x, y - f.pos.y) + _length(Vec2(x, y), route[1:], rules)
@@ -426,7 +433,7 @@ def _station_ground(
     if stopped and not parked and _dist(f, leader) <= tr.follow_hold_slack * station:
         capped[f.id] = 0.0  # hold station where it is
         return True
-    if not _drive(rules, f, dest):
+    if not _drive(world, rules, f, dest):
         return False
     r_leader = _length(leader.pos, leader.path, rules)
     target = 0.0 if parked else max(r_leader - station if ahead else r_leader + station, 0.0)

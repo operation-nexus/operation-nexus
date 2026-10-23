@@ -342,7 +342,7 @@
           "x-hot-reload": false
         },
         "defense_hp": {
-          "description": "The most defense HP a node of each kind has (Q-SIM-71, GAMEPLAY §8): an owned node starts full, a NEUTRAL one at 0, and a node that changes hands starts at 0 for its new owner. A BRIDGE has none here (NX-373).",
+          "description": "The most defense HP a node of each kind has (Q-SIM-71, GAMEPLAY §8): an owned node starts full, a NEUTRAL one at 0, and a node that changes hands starts at 0 for its new owner. A BRIDGE has none here: its hp is logistics.bridge_hp (NX-373).",
           "type": "object",
           "additionalProperties": false,
           "required": [
@@ -730,7 +730,8 @@
         "facility_rearm_cost",
         "ammo_loadout_share",
         "starve_hp_drain_per_min",
-        "defense_repair_hp_per_stock"
+        "defense_repair_hp_per_stock",
+        "bridge_hp"
       ],
       "properties": {
         "node_max_stock": {
@@ -994,6 +995,13 @@
           "type": "integer",
           "minimum": 1,
           "x-unit": "hp per stock unit",
+          "x-hot-reload": false
+        },
+        "bridge_hp": {
+          "description": "The most HP a BRIDGE node has, unit hp (STATE-MACHINES §4.3, Q-SIM-101, NX-373): every bridge starts full; STRUCTURE fire from a unit striking it lowers it, and at 0 the bridge is down and its road edge is cut for path planning until it is repaired to full. Not a capture defense (capture.defense_hp).",
+          "type": "integer",
+          "minimum": 1,
+          "x-unit": "hp",
           "x-hot-reload": false
         }
       }

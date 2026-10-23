@@ -31,6 +31,7 @@ from nexus.contracts.gen.events.event import Event
 from nexus.contracts.gen.events.reserve_queue_joined import ReserveQueueJoined
 from nexus.contracts.gen.events.reserve_queue_left import ReserveQueueLeft
 from nexus.contracts.gen.events.unit_spawned import UnitSpawned
+from nexus.core.bridges import blocked
 from nexus.core.campaign import end_campaign
 from nexus.core.follow import can_follow
 from nexus.core.logistics import (
@@ -64,7 +65,6 @@ class _Plan(NamedTuple):
 
 _COMMANDER: OwnerKind = "COMMANDER"
 _COALITION: Side = "COALITION"  # every chat commander plays the coalition
-_NO_BLOCKED = frozenset[str]()  # no bridge is destroyed until combat (NX-124)
 
 
 def reject(world: World, command: Command, reason: RejectReason) -> CommandRejected:
@@ -173,7 +173,7 @@ def _rebase_path(
         return "NODE_INVALID_FOR_UNIT"
     if not unit.path and unit.pos == Vec2(*rules.roads.pos[node]):
         return []  # already there; a unit stopped on the road is routed to the node it left
-    best = nearest(rules, start, [node])
+    best = nearest(world, rules, start, [node])
     return "NODE_INVALID_FOR_UNIT" if best is None else list(best[1])
 
 
@@ -387,7 +387,7 @@ def _route(
         return _Plan(kind, deploy[0], None, deploy[1])
     if domain == "AIR":
         return _Plan(kind, rules.sanctuary, None, [target.node_id])
-    route = shortest_path(rules.roads, rules.sanctuary, target.node_id, blocked=_NO_BLOCKED)
+    route = shortest_path(rules.roads, rules.sanctuary, target.node_id, blocked=blocked(world))
     return "NODE_INVALID_FOR_UNIT" if route is None else _Plan(kind, rules.sanctuary, None, route)
 
 

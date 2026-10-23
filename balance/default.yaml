@@ -64,6 +64,7 @@ logistics:
   facility_repair_hp_per_stock: 10  # PROPOSED – unvalidated (Q-SIM-68, owner-approved); hp a facility regains per stock unit of its base (CONFIG-AND-CONTENT §6.3)
   starve_hp_drain_per_min: 5  # PROPOSED – unvalidated (Q-SIM-71, owner-approved; NX-031 tunes); defense hp a base below its starvation floor loses per min (game) (CONFIG-AND-CONTENT §6.3)
   defense_repair_hp_per_stock: 2  # PROPOSED – unvalidated (Q-SIM-71, owner-approved; NX-031 tunes); defense hp one stock unit unloaded into a node rebuilds (CONFIG-AND-CONTENT §6.3)
+  bridge_hp: 300  # PROPOSED – unvalidated (Q-SIM-101, next to FOB defense hp 300; NX-031 tunes); hp, max hp of every BRIDGE node, 0 cuts its road until repaired (CONFIG-AND-CONTENT §6.3)
 capture:
   radius_m: 2000.0  # PROPOSED – unvalidated (Q-SIM-57, owner-approved initial value; NX-031 tunes); m (CONFIG-AND-CONTENT §6.5 capture.radius_m)
   time_s: 120.0  # PROPOSED – unvalidated; s (world), one capturer, no modifiers (CONFIG-AND-CONTENT §6.5 capture.time_s)

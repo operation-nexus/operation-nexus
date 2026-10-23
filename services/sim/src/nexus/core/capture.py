@@ -335,7 +335,7 @@ def _escape_ground(world: World, rules: Rules, e: Entity, node: str, out: list[E
     start = e.path[0] if e.path else e.last_node
     best = None
     if isinstance(start, str):
-        best = nearest(rules, start, friendly_bases(world, rules, e.side))
+        best = nearest(world, rules, start, friendly_bases(world, rules, e.side))
     if best is None:
         return False
     if e.delivered:

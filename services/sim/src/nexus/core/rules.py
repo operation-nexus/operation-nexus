@@ -91,6 +91,8 @@ class Supply:
     ammo_loadout_share: Fraction = Fraction(1, 2)
     # Domain -> the theater `spawns` nodes that take that domain (GP-7, Q-SIM-54).
     spawns: Mapping[Domain, frozenset[str]] = field(default_factory=dict)
+    # BRIDGE node -> its max hp, `logistics.bridge_hp`, in id order (NX-373; empty: hand-built).
+    bridge_hp: Mapping[str, int] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
@@ -779,6 +781,11 @@ def _supply(theater: TheaterConfig, logistics: Logistics, dt: float) -> Supply:
         facility_rearm_cost=logistics.facility_rearm_cost,
         ammo_loadout_share=Fraction(repr(logistics.ammo_loadout_share)),
         spawns={d: frozenset(s.node for s in theater.spawns if d in s.domains) for d in _DOMAINS},
+        bridge_hp={
+            n.id: logistics.bridge_hp
+            for n in sorted(theater.nodes, key=lambda n: n.id)
+            if n.kind == "BRIDGE"
+        },
     )
 
 

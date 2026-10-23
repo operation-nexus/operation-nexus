@@ -35,6 +35,7 @@ from nexus.contracts.gen.events.threat_adaptation import ThreatAdaptation
 from nexus.contracts.gen.events.unit_despawned import UnitDespawned
 from nexus.contracts.gen.events.unit_spawned import UnitSpawned
 from nexus.core import operations as ops
+from nexus.core.bridges import blocked
 from nexus.core.director import night_capped, surplus
 from nexus.core.fog import SideView, is_off_facility
 from nexus.core.logistics import plan_deploy
@@ -419,7 +420,7 @@ def _recall(world: World, rules: Rules, side: Side) -> None:
             if rules.domain[e.kind] == "AIR":
                 e.path = [e.home]
             elif e.last_node is not None and e.pos == Vec2(*rules.roads.pos[e.last_node]):
-                route = shortest_path(rules.roads, e.last_node, e.home, blocked=frozenset())
+                route = shortest_path(rules.roads, e.last_node, e.home, blocked=blocked(world))
                 e.path = [] if route is None else [*route]
 
 

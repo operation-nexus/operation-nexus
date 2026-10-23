@@ -487,6 +487,13 @@ class Logistics(BaseModel):
             ge=1,
         ),
     ]
+    bridge_hp: Annotated[
+        int,
+        Field(
+            description="The most HP a BRIDGE node has, unit hp (STATE-MACHINES §4.3, Q-SIM-101, NX-373): every bridge starts full; STRUCTURE fire from a unit striking it lowers it, and at 0 the bridge is down and its road edge is cut for path planning until it is repaired to full. Not a capture defense (capture.defense_hp).",
+            ge=1,
+        ),
+    ]
 
 
 class Sim(BaseModel):
@@ -1152,7 +1159,7 @@ class Capture(BaseModel):
     defense_hp: Annotated[
         DefenseHp,
         Field(
-            description="The most defense HP a node of each kind has (Q-SIM-71, GAMEPLAY §8): an owned node starts full, a NEUTRAL one at 0, and a node that changes hands starts at 0 for its new owner. A BRIDGE has none here (NX-373)."
+            description="The most defense HP a node of each kind has (Q-SIM-71, GAMEPLAY §8): an owned node starts full, a NEUTRAL one at 0, and a node that changes hands starts at 0 for its new owner. A BRIDGE has none here: its hp is logistics.bridge_hp (NX-373)."
         ),
     ]
     sanctuary_repair_hp_per_s: Annotated[

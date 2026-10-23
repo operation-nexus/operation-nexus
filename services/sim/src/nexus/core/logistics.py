@@ -26,13 +26,12 @@ from typing import NamedTuple
 
 from nexus.contracts.gen.common.enums import Side, UnitKind
 from nexus.contracts.gen.events.event import Event
+from nexus.core.bridges import blocked
 from nexus.core.defense import rebuild
 from nexus.core.rearm import restock
 from nexus.core.roads import shortest_path
 from nexus.core.rules import Rules
 from nexus.core.world import Entity, World, consumed, end_stop
-
-_NO_BLOCKED = frozenset[str]()  # no bridge is destroyed until combat part 3 (NX-124)
 
 
 class Run(NamedTuple):
@@ -82,13 +81,13 @@ def go_home(world: World, rules: Rules, e: Entity) -> None:
         start = e.path[0] if e.path else e.last_node
         if (e.path[-1] if e.path else e.last_node) in homes or not isinstance(start, str):
             return
-        best = nearest(rules, start, homes)
+        best = nearest(world, rules, start, homes)
         if best is not None:
             e.path = list(best[1])
 
 
-def _route(rules: Rules, a: str, b: str) -> list[str] | None:
-    return shortest_path(rules.roads, a, b, blocked=_NO_BLOCKED)
+def _route(world: World, rules: Rules, a: str, b: str) -> list[str] | None:
+    return shortest_path(rules.roads, a, b, blocked=blocked(world))
 
 
 def _length(rules: Rules, route: list[str]) -> float:
@@ -96,11 +95,13 @@ def _length(rules: Rules, route: list[str]) -> float:
     return sum(rules.roads.edge(a, b).length_m for a, b in pairwise(route))
 
 
-def nearest(rules: Rules, start: str, candidates: list[str]) -> tuple[str, list[str]] | None:
+def nearest(
+    world: World, rules: Rules, start: str, candidates: list[str]
+) -> tuple[str, list[str]] | None:
     """The candidate with the shortest road route from `start` (ties by node id), and that route."""
     best: tuple[float, str, list[str]] | None = None
     for node in sorted(candidates):
-        route = _route(rules, start, node)
+        route = _route(world, rules, start, node)
         if route is None:
             continue
         length = _length(rules, route)
@@ -126,16 +127,16 @@ def plan_run(world: World, rules: Rules, side: Side, dest: str) -> Run | None:
             n for n in sup.max_stock
             if n != dest and friendly(world, side, n) and world.stock.get(n, 0) > keep[n]
         ]  # fmt: skip
-        best = nearest(rules, dest, sources)  # roads are two-way, so dest -> source measures it
+        best = nearest(world, rules, dest, sources)  # roads are two-way: dest -> source measures it
         if best is not None:
             source = best[0]
-            route = _route(rules, source, dest)
+            route = _route(world, rules, source, dest)
             cargo = min(sup.truck_cargo, world.stock.get(source, 0) - keep[source])
             return None if route is None else Run(source, cargo, route)
         cargo = sup.truck_cargo
     else:
         cargo = 0
-    route = _route(rules, rear, dest)
+    route = _route(world, rules, rear, dest)
     return None if route is None else Run(rear, cargo, route)
 
 
@@ -219,8 +220,8 @@ def plan_deploy(
     if domain == "AIR":
         near = nearest_by_air(rules, pool, *rules.roads.pos[target])
         return None if near is None else (near, [target])
-    best = nearest(rules, target, pool)  # roads are two-way, so target -> base measures it
-    route = None if best is None else _route(rules, best[0], target)
+    best = nearest(world, rules, target, pool)  # roads are two-way, so target -> base measures it
+    route = None if best is None else _route(world, rules, best[0], target)
     return None if best is None or route is None else (best[0], list(route))
 
 
@@ -303,7 +304,7 @@ def _divert(world: World, rules: Rules, e: Entity, node: str, out: list[Event]) 
     sup = rules.supply
     bases = [n for n, top in sup.max_stock.items() if top > 0 and friendly(world, e.side, n)]
     with_room = [n for n in bases if world.stock.get(n, 0) < sup.max_stock[n]]
-    best = nearest(rules, node, with_room) or nearest(rules, node, bases)
+    best = nearest(world, rules, node, with_room) or nearest(world, rules, node, bases)
     if best is not None:
         end_stop(world, e, node, out)  # a stop cut short by the node turning hostile
         e.path = list(best[1])
