@@ -98,7 +98,7 @@ def test_every_logged_command_is_valid_and_existing(first: Any) -> None:
         assert e["kind"] in ("JOIN", "REBASE")  # no other command exists for a persona
         if e["kind"] == "JOIN":
             assert e["role"] in ROLES
-            assert e["target"] is None or e["role"] == "STRIKE"  # only a striker names a node
+            assert e["target"] is None or e["role"] in ("STRIKE", "LOGI")  # striker or capturer
     assert a["commands"] == {
         k: sum(e["kind"] == k for e in entries) for k in sorted({e["kind"] for e in entries})
     }
@@ -655,6 +655,63 @@ def test_a_run_has_strikers_with_valid_targets_and_reports_per_kind(
     targets = [e["target"] for e in log_entries(tmp / "a") if e["kind"] == "JOIN" and e["target"]]
     assert targets and all(t["node_id"] in shipped_config.rules.roads.pos for t in targets)
     assert set(a["metrics"]["newbie"]["by_kind"]) <= set(KINDS)
+
+
+def test_capturer_picks_only_a_zero_defense_capturable_foe_node(
+    shipped_config: CampaignConfig,
+) -> None:
+    world = start_campaign("c", 1, shipped_config)
+    rules = world.rules
+    assert rules is not None
+    foes = sorted(n for n, o in world.owner.items() if o == "ENEMY")
+    assert runner.capturable_foes(world) == []  # every foe base starts defended
+    rear = rules.supply.rear["ENEMY"]
+    assert rear in foes and rules.node_kind[rear] in rules.uncapturable
+    for n in foes:
+        world.defense_hp[n] = 0  # all stripped, the rear and any uncapturable kind included
+    open_ = runner.capturable_foes(world)
+    assert len(open_) > 2 and rear not in open_
+    assert all(rules.node_kind[n] not in rules.uncapturable for n in open_)
+    world.defense_hp[open_[0]] = 5  # a defended node is not capturable yet
+    assert open_[0] not in runner.capturable_foes(world)
+    world.owner[open_[1]] = "COALITION"  # a coalition node is no target
+    assert open_[1] not in runner.capturable_foes(world)
+
+    d = load()
+    cands = runner.capturable_foes(world)
+    picks = []
+    for i in range(40):
+        v = personas.new_viewer(i, d.personas["newbie"], "prime-50", 1, "capturer")
+        node = personas.pick_node(v, cands)
+        assert node in cands
+        j = personas.join_command(v, 5, 1, node, d.kind_roles)
+        assert (j.role, j.target.node_id, j.hold) == ("LOGI", node, False)
+        again = personas.new_viewer(i, d.personas["newbie"], "prime-50", 1, "capturer")
+        assert personas.pick_node(again, cands) == node  # seeded: same seed, same pick
+        picks.append(node)
+    assert len(set(picks)) > 1
+    hauler = personas.new_viewer(1, d.personas["newbie"], "prime-50", 1, "hauler")
+    assert personas.pick_node(hauler, cands) is None  # only striker and capturer name a node
+
+
+def test_capturer_falls_back_to_a_bare_logi_join_and_counts_it(
+    shipped_config: CampaignConfig,
+) -> None:
+    d = load()
+    world = start_campaign("c", 1, shipped_config)
+    crowd = runner._Crowd([(1, "newbie")], d, "prime-50", 1)
+    (a,) = crowd.viewers
+    a.kind = "capturer"
+    ja = crowd._join(world, a, "join", 1)
+    assert ja is not None and (ja.role, ja.target) == ("LOGI", None)
+    assert (crowd.capturer_fallbacks, crowd.striker_fallbacks) == (1, 0)  # no foe is open yet
+    for n in [n for n, o in world.owner.items() if o == "ENEMY"]:
+        world.defense_hp[n] = 0
+    a.status = personas.IDLE
+    ja = crowd._join(world, a, "join", 2)
+    assert ja is not None and ja.target is not None
+    assert (crowd.capturer_fallbacks, crowd.striker_fallbacks) == (1, 0)
+    assert runner.failed_run("p", 1, 1, "x")["viewers"]["capturer_fallbacks"] == 0
 
 
 KEY = "tasking.strike_idle_targets_max"
