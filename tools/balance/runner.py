@@ -203,6 +203,7 @@ def run(
                 collector.check_impact(world)
             if tick % collector.idle_sample_ticks == 0:
                 collector.sample_idle(world)
+                collector.sample_density(world)
             crowd.react(events, tick, hz, seen)
             if tick % FLUSH_TICKS == 0:
                 log.flush()

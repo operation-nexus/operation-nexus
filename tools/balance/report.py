@@ -194,6 +194,17 @@ def _idle(runs: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _density(runs: list[dict[str, Any]]) -> dict[str, Any]:
+    """Board density (open job slots per live viewer unit; open jobs per node), pooled over the
+    samples of every seed."""
+    ms = [r["metrics"]["density"] for r in runs if "density" in r["metrics"]]
+    out: dict[str, Any] = {}
+    for key in ("slots_per_unit", "jobs_per_node"):
+        n = sum(m[f"{key}_samples"] for m in ms)
+        out[key] = sum(m[f"{key}_sum"] for m in ms) / n if n else None
+    return out
+
+
 def _mean(values: list[float]) -> float | None:
     return statistics.fmean(values) if values else None
 
@@ -212,6 +223,7 @@ def aggregate(profile: str, runs: list[dict[str, Any]], t: Targets) -> dict[str,
         "A3": _a3(runs, t, profile),
         "A4": _a4(runs, t),
         "idle": _idle(runs),
+        "density": _density(runs),
         "momentum": {
             "mean_pct": _mean(momentum),
             "final_median_pct": _med(
@@ -271,6 +283,8 @@ def _profile_row(name: str, a: dict[str, Any]) -> list[str]:
         "-"
         if a["idle"]["share_mean"] is None
         else f"{a['idle']['share_mean']:.0%} / {a['idle']['share_max']:.0%}",
+        _fmt(a["density"]["slots_per_unit"], ".2f"),
+        _fmt(a["density"]["jobs_per_node"], ".2f"),
         "-" if top is None else f"{top['kind']} {top['share']:.0%}",
         _fmt(a["starvation_node_minutes"]["mean"]),
     ]
@@ -283,6 +297,14 @@ def markdown(report: dict[str, Any]) -> str:
         "# Balance run",
         "",
         f"- config hash: `{cfg['config_hash']}`",
+        *(
+            [
+                f"- **theater: `{t['slug']}` ({t['name']}), {t['nodes']} nodes, "
+                f"{t['landing_bases']} landing bases**"
+            ]
+            if (t := cfg.get("theater"))
+            else []
+        ),
         *(
             [f"- **balance overrides: {', '.join(f'`{o}`' for o in cfg['overrides'])}**"]
             if cfg.get("overrides")
@@ -310,6 +332,8 @@ def markdown(report: dict[str, Any]) -> str:
             "Momentum %",
             "Newbie s",
             "Idle armed mean / max",
+            "Slots / unit",
+            "Jobs / node",
             "Top kind",
             "Starved",
         ],
@@ -318,7 +342,11 @@ def markdown(report: dict[str, Any]) -> str:
     lines += [
         "Viewers: mean per run, distinct arrivals / peak with a live unit at once. "
         "Starved: mean supply-starved node-minutes. Idle armed: share of commander-owned armed "
-        "units with no job, order or route, sampled every `idle_sample_min`.",
+        "units with no job, order or route, sampled every `idle_sample_min`. "
+        "Slots / unit: open job slots on the coalition board per live (not Disabled) "
+        "commander-owned unit (mean over samples with a unit). Jobs / node: open coalition jobs "
+        "per theater node (mean). "
+        "A job is open while it has an unfilled slot.",
         "",
     ]
     lines += ["## A2 first impact (newbies arriving at the A2 tier or above)", ""]
