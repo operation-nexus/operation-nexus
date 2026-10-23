@@ -149,6 +149,7 @@ def rebase(world: World, command: Command, out: list[Event]) -> None:
     if unit.delivered and unit.last_node is not None:
         end_stop(world, unit, unit.last_node, out)  # leaving cuts the unloading stop
     unit.path, unit.order, unit.follow_id = path, rules.rebase_order, None
+    unit.held_since = unit.order_node = None  # a new order ends a GOTO and its hold (Q-SIM-110)
 
 
 def _rebase_path(
@@ -287,6 +288,8 @@ def _spawn(world: World, command: JoinCommand, plan: _Plan, rules: Rules, out: l
     )
     unit.last_node, unit.path, unit.cargo = node, list(path), cargo
     unit.order, unit.follow_id = _order(command), follow
+    if unit.order == "GOTO" and isinstance(command.target, NodeTarget):
+        unit.order_node = command.target.node_id  # where an armed unit holds (Q-SIM-110)
     if cargo:  # the plan and the spawn are one step of one tick: the stock is as planned
         load(world, Run(node, cargo, []))
     pay_loadout(world, rules, kind, node, out)

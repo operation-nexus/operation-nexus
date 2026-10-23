@@ -9,7 +9,12 @@ while frozen (SC-11), for each side in COALITION, ENEMY order:
 
 1. **Order completion.** A GOTO order ends when its unit has no path, no cargo and no capture bar of
    its side filling where it stands (it arrived, its unloading stop or capture run ended); a HOLD
-   never ends. An order keeps the board off the unit (TB-7).
+   never ends. An order keeps the board off the unit (TB-7). An armed unit (a round left) that
+   arrived at the order's node (`Entity.order_node`) holds it instead (Q-SIM-110, `_order_over`):
+   an aircraft orbits it, a ground unit stands on it, and both engage by CB-1; the order ends at
+   bingo or RTB (it has a path again), ammo out, landing, Disabled, or `tasking.order_dwell_s`
+   after the hold began (`Entity.held_since`). One that stopped short of the node hands back as
+   before. A new order (REBASE) replaces it.
 2. **Settle.** A claim is released (`JobReleased`) when its unit is lost, Disabled, sent home (RTB)
    or given an explicit order (a human order wins, TB-7). A unit with a path, or arrived, has made
    progress: its claim becomes ACTIVE and its lease clock restarts; with none for
@@ -111,6 +116,7 @@ from nexus.core.world import (
     Entity,
     FacilityMarker,
     Job,
+    UnitState,
     Vec2,
     World,
     release_claim,
@@ -125,6 +131,7 @@ _PATROL: JobKind = "PATROL"  # the Director's (NX-157), and the coalition board'
 _COALITION: Side = "COALITION"
 _STATIC: Side = "ENEMY"
 _AI, _HUMAN = "AI_GARRISON", "COMMANDER"
+_ON_STATION: UnitState = "ON_STATION"
 _MAX_PARTICIPANTS = 64  # JobDone.participants maxItems
 _TIE_DRAW = 1 << 32  # width of the tie-break draw; it only orders equals, not a tunable
 
@@ -336,8 +343,8 @@ def run(world: World, out: list[Event]) -> None:
     for side in SIDES:
         world.cooldown[side] = {c: u for c, u in world.cooldown[side].items() if u > now}
     for e in world.entities():
-        if e.order == "GOTO" and not e.path and not e.cargo and not _capturing(world, rules, e):
-            e.order = None  # arrived (a truck: its stop ended, any capture run done)
+        if e.order == "GOTO" and _order_over(world, rules, tr, e, now):
+            e.order = e.held_since = e.order_node = None
     routes: Routes = {}  # road routes found this pass, shared by every unit
     for side in SIDES:
         _settle(world, rules, tr, side, now, routes, out)
@@ -368,10 +375,37 @@ def _watch(world: World, rules: Rules, view: SideView, now: int) -> None:
     world.intercept_seen = {i: seen.get(i, now) for i in watched(world, rules, view)}
 
 
-def _capturing(world: World, rules: Rules, e: Entity) -> bool:
-    """A ground unit standing where its side's capture bar is filling: its capture run goes on."""
+def _order_over(world: World, rules: Rules, tr: TaskingRules, e: Entity, now: int) -> bool:
+    """Whether `e`'s GOTO order ends at this pass (step 1); starts its hold on arrival."""
+    if e.held_since is not None and e.path:
+        return True  # it was holding and turned for home (bingo, RTB)
+    if e.path or order_working(world, e):
+        return False  # under way (a truck: still unloading or capturing)
+    if (
+        not any(e.ammo) or e.state not in (None, _ON_STATION) or e.damage_state == "DISABLED"
+        or not _at_order_node(rules, e)
+    ):  # fmt: skip
+        return True  # unarmed, ammo out, landed, Disabled, or stopped short of the node
+    if e.held_since is None:
+        e.held_since = now
+    return now - e.held_since >= tr.order_dwell_ticks
+
+
+def _at_order_node(rules: Rules, e: Entity) -> bool:
+    """At the node its GOTO named: an aircraft last reached it (it orbits there), a ground unit
+    stands on it (one stopped short, e.g. by a down bridge, is not)."""
+    if e.order_node is None or e.last_node != e.order_node:
+        return False
+    return rules.domain[e.kind] == _AIR or e.pos == Vec2(*rules.roads.pos[e.order_node])
+
+
+def order_working(world: World, e: Entity) -> bool:
+    """A unit with no path still carrying out its GOTO: a truck with cargo (its unloading stop),
+    or a ground unit standing where its side's capture bar is filling (its capture run). The
+    balance harness's order checks ask the same (`tools/balance/orders.py`)."""
     bar = world.capture.get(e.last_node or "")
-    return rules.domain[e.kind] == _GROUND and bar is not None and bar.side == e.side
+    ground = world.rules is not None and world.rules.domain[e.kind] == _GROUND
+    return bool(e.cargo) or (ground and bar is not None and bar.side == e.side)
 
 
 def on_objective(world: World, objective_id: int, completed: bool, out: list[Event]) -> None:
@@ -389,7 +423,7 @@ def _arrived(e: Entity, job: Job) -> bool:
     node; a blob job when the aircraft is orbiting at the end of its path."""
     if e.path:
         return False
-    return e.last_node == job.node if job.node is not None else e.state == "ON_STATION"
+    return e.last_node == job.node if job.node is not None else e.state == _ON_STATION
 
 
 def _settle(
@@ -670,7 +704,7 @@ def _loiter(world: World, rules: Rules, tr: TaskingRules, job: Job, now: int) ->
         return
     for i in job.claims:
         e = world.find(i)
-        if e is not None and not e.path and e.state == "ON_STATION":
+        if e is not None and not e.path and e.state == _ON_STATION:
             e.path = [_corner(rules, job.pos, e.pos, dr.recon_loiter_radius_m)]
 
 
@@ -767,7 +801,7 @@ def _dwell(world: World, rules: Rules, tr: TaskingRules, job: Job, now: int) -> 
     centre = Vec2(*rules.roads.pos[job.node])
     for i in job.claims:
         e = world.find(i)
-        if e is not None and not e.path and e.state == "ON_STATION":
+        if e is not None and not e.path and e.state == _ON_STATION:
             e.path = [_corner(rules, centre, e.pos, tr.patrol_orbit_m)]
 
 

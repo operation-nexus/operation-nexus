@@ -644,6 +644,7 @@ def test_a_unit_with_a_job_or_an_order_is_left_alone() -> None:
     going = put(w, "GARRISON_INFANTRY", "west-airbase")
     going.order = "GOTO"
     going.path = ["fob-s-w"]
+    going.ammo = [0] * len(going.ammo)  # out of rounds: an armed unit holds first (Q-SIM-110)
     moving = put(w, "GARRISON_INFANTRY", "west-airbase")
     moving.path = ["fob-s-w"]
     board_pass(w)

@@ -19,6 +19,7 @@ from typing import Any
 import personas as ps
 import profiles
 from metrics import Collector
+from orders import Orders
 
 from nexus.contracts.gen.commands.command import Command
 from nexus.core.fog import side_view
@@ -122,6 +123,8 @@ class _Crowd:
         elif v.kind == "capturer":
             node = ps.pick_node(v, capturable_foes(world))
             self.capturer_fallbacks += node is None
+        elif v.kind == "freelancer" and world.rules is not None:  # any node: rear, bridges, own
+            node = ps.pick_node(v, sorted(world.rules.roads.pos))  # sanctuary (NX-398, Q-SIM-110)
         return ps.join_command(v, tick, self.seq, node, self.data.kind_roles)
 
     def react(self, events: list[Any], tick: int, hz: int, seen: Counter[str]) -> None:
@@ -200,6 +203,9 @@ def run(
         idle_sample_ticks=round(data.idle_sample_min * 60 * hz),
         impact_check_ticks=max(1, round(data.impact_check_s * hz)),
     )
+    orders = Orders(
+        world, frozenset(v.commander_id for v in crowd.viewers if v.kind == "freelancer")
+    )
     log_dir.mkdir(parents=True)
     log = CommandLogWriter(
         log_dir, campaign_id=world.campaign.id, protocol_version=PROTOCOL, next_arrival_seq=1
@@ -224,6 +230,8 @@ def run(
                 break
             collector.feed(events)
             collector.observe(world)
+            orders.feed(events)
+            orders.observe(world)
             if tick % collector.sample_ticks == 0:
                 collector.sample(world)
             if tick % collector.impact_check_ticks == 0:
@@ -261,6 +269,7 @@ def run(
         "commands": dict(sorted(counts.items())),
         "responses": dict(sorted(seen.items())),
         "metrics": collector.result(ran),
+        "orders": orders.result(),
         "crash": crash,
         "harness_error": None,
         "a3_ticks": collector.a3_ticks,
@@ -303,6 +312,7 @@ def failed_run(profile: str, seed: int, hours: float, error: str) -> dict[str, A
         },
         "commands": {},
         "responses": {},
+        "orders": None,
         "crash": None,
         "harness_error": error,
         "final_state_hash": None,

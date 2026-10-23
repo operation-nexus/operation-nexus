@@ -13,7 +13,9 @@ import yaml
 from nexus.core.director import TIERS
 
 DATA = Path(__file__).resolve().parent / "profiles.yaml"
-KINDS = ("auto", "striker", "hauler", "scout", "capturer")  # persona kinds (Q-SIM-95)
+KINDS = ("auto", "striker", "hauler", "scout", "capturer", "freelancer")  # persona kinds (Q-SIM-95)
+CHECKS = ("freelance-50",)  # check profiles (NX-398): named only, never in `--profile all`
+OWN_ROLE = ("auto", "freelancer")  # kinds that join with the persona's own role, not kind_roles
 ROLES = ("STRIKE", "RECON", "LOGI")  # the playable roles (content/roles.yaml); NAVY is P3
 
 
@@ -133,10 +135,11 @@ def load(path: Path = DATA) -> Data:
     if not 0 < sample_s < math.inf:
         raise ValueError("momentum_sample_s must be > 0")
     kind_roles = {str(k): str(v) for k, v in sorted(doc["kind_roles"].items())}
-    if not set(kind_roles) <= set(KINDS) - {"auto"} or not set(kind_roles.values()) <= set(ROLES):
-        raise ValueError(f"kind_roles: keys must be non-auto kinds of {KINDS}, values of {ROLES}")
+    keyed = set(KINDS) - set(OWN_ROLE)
+    if not set(kind_roles) <= keyed or not set(kind_roles.values()) <= set(ROLES):
+        raise ValueError(f"kind_roles: keys must be kinds of {sorted(keyed)}, values of {ROLES}")
     for pr in profiles.values():
-        if missing := {k for k in pr.kinds if k != "auto"} - set(kind_roles):
+        if missing := set(pr.kinds) - set(OWN_ROLE) - set(kind_roles):
             raise ValueError(f"profile {pr.name}: kinds {sorted(missing)} have no kind_roles role")
     return Data(
         profiles,

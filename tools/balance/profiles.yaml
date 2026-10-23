@@ -15,8 +15,11 @@
 #                    known defended foe node (may hit a base alone); hauler = bare JOIN LOGI; scout =
 #                    bare JOIN RECON; capturer = JOIN LOGI on a seeded-random known capturable foe
 #                    node with 0 defense HP (a capture run, Q-GP-24; PROPOSED share 0.1, Q-SIM-104),
-#                    else a bare JOIN LOGI. Drawn once per viewer by a harness RNG, separate from the
-#                    sim's.
+#                    else a bare JOIN LOGI; freelancer = the persona's own role (as auto) with a
+#                    seeded-random target among ALL theater nodes, the Static rear, bridges and the
+#                    coalition sanctuary included (NX-398, Q-SIM-110: direct orders must never break
+#                    or stick; only freelance-50 uses it, so the other profiles stay comparable).
+#                    Drawn once per viewer by a harness RNG, separate from the sim's.
 profiles:
   overnight-0: { viewers: 0,   ramp_min: 1,  arrivals_per_hour: 0,  mix: {}, kinds: { auto: 1 } }
   quiet-5:     { viewers: 5,   ramp_min: 30, arrivals_per_hour: 1,  mix: { lurker: 1, newbie: 1, veteran: 2, logistics-lover: 1, afk-farmer: 0 }, kinds: { auto: 0.6, striker: 0.1, hauler: 0.1, scout: 0.1, capturer: 0.1 } }
@@ -24,6 +27,8 @@ profiles:
   evening-150: { viewers: 150, ramp_min: 30, arrivals_per_hour: 30, mix: { lurker: 4, newbie: 3, veteran: 2, logistics-lover: 2, afk-farmer: 1 }, kinds: { auto: 0.6, striker: 0.1, hauler: 0.1, scout: 0.1, capturer: 0.1 } }
   raid-300:    { viewers: 300, ramp_min: 5,  arrivals_per_hour: 30, mix: { lurker: 3, newbie: 4, veteran: 2, logistics-lover: 1, afk-farmer: 1 }, kinds: { auto: 0.6, striker: 0.1, hauler: 0.1, scout: 0.1, capturer: 0.1 } }
   surge-500:   { viewers: 500, ramp_min: 10, arrivals_per_hour: 50, mix: { lurker: 3, newbie: 4, veteran: 2, logistics-lover: 2, afk-farmer: 1 }, kinds: { auto: 0.6, striker: 0.1, hauler: 0.1, scout: 0.1, capturer: 0.1 } }
+  # The direct-order check (NX-398), not one of the six crowd sizes: prime-50's crowd, half freelancers.
+  freelance-50: { viewers: 50, ramp_min: 30, arrivals_per_hour: 10, mix: { lurker: 4, newbie: 3, veteran: 2, logistics-lover: 2, afk-farmer: 1 }, kinds: { auto: 0.5, freelancer: 0.5 } }
 
 # Personas use only commands that exist: JOIN (with a role; hold or no target) and REBASE.
 # role_weights   which role it joins as (relative)

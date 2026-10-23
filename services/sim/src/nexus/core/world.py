@@ -80,8 +80,9 @@ from nexus.core.rules import CAPTURE_FULL, Rules
 # 23: intercept_seen, when the Static first tracked each coalition scout inside a node's radius, and
 # the Static's INTERCEPT job (`intercept:<entity>`: Job.entity, last-known pos, lost; NX-382); a
 # RESUPPLY job's urgency may be below 1000 (a stocking job, NX-389, Q-SIM-100, no bump: same shape);
-# 24: bridge hp and the down bridges (NX-373 part 1a)
-FORMAT_VERSION = 24
+# 24: bridge hp and the down bridges (NX-373 part 1a); 25: Entity.order_node, the node a GOTO order
+# names, and held_since, when an armed unit began holding it (Q-SIM-110, NX-398)
+FORMAT_VERSION = 25
 _MM = 1000.0  # metres -> millimetres; m/s -> mm/s
 _MICRO = 1e6  # ADR-0002's 1e-6 step for other floats (fuel)
 _MILLI_UNIT = 1000  # thousandths of a stock unit per unit
@@ -216,7 +217,8 @@ _ZERO = Vec2(0.0, 0.0)
 type UnitState = Literal["LANDED", "EN_ROUTE", "ON_STATION", "RTB"]
 _UNIT_STATES = get_args(UnitState.__value__)
 # An explicit order (GAMEPLAY §1b, Q-GP-19, Q-GP-23) suspends auto-tasking: HOLD from a JOIN with
-# `hold` (never completes), GOTO from a JOIN with a node target (completes on arrival), FOLLOW from
+# `hold` (never completes), GOTO from a JOIN with a node target (completes on arrival; an armed unit
+# holds the node first, Q-SIM-110), FOLLOW from
 # a JOIN with a follow target (ends when `follow_id` does, Q-GP-31).
 type Order = Literal["HOLD", "GOTO", "FOLLOW"]
 _ORDERS = get_args(Order.__value__)
@@ -255,6 +257,10 @@ class Entity:
     # claim it holds. A claim and `job_id` always match while the unit lives.
     order: Order | None = None
     job_id: int | None = None
+    # Q-SIM-110 (NX-398): the node a JOIN's GOTO order names, and the running tick an armed unit
+    # began holding it (`nexus.core.tasking`); None while it is not holding. Only with order GOTO.
+    order_node: str | None = None
+    held_since: int | None = None
     # Follow (NX-374 part 2, Q-GP-31): the direct leader's entity id. Set with order FOLLOW, or by
     # the claim of an escort job; kept off any Disabled leader and re-attached when one leaves.
     follow_id: int | None = None
@@ -1184,6 +1190,8 @@ _ENTITY_CHECKS: dict[str, Callable[[object, str], Any]] = {
     "emitting": lambda v, k: None if v is None else _bool(v, k),
     "order": lambda v, k: _str(v, k, _ORDERS, optional=True),
     "job_id": lambda v, k: None if v is None else _int(v, k, 1),
+    "order_node": lambda v, k: _str(v, k, optional=True),
+    "held_since": lambda v, k: None if v is None else _int(v, k, 1),
     "follow_id": lambda v, k: None if v is None else _int(v, k, 1),
     "pickup": lambda v, k: _str(v, k, optional=True),
     "cargo": lambda v, k: None if v is None else _int(v, k),
@@ -1772,6 +1780,11 @@ def load(data: bytes) -> World:
         if not last_id < entity.id < world._next_entity_id:
             raise ValueError("entity ids must ascend and stay below next_entity_id")
         last_id = entity.id
+        held, node = entity.held_since, entity.order_node
+        if (held is not None or node is not None) and entity.order != "GOTO":
+            raise ValueError(f"entity {entity.id}: order_node or held_since needs order GOTO")
+        if held is not None and (node is None or held > world.campaign.running_ticks):
+            raise ValueError(f"entity {entity.id}: held_since needs order_node and a past tick")
         world._entities[entity.id] = entity
     _check_views(world)
     world.boards = _boards(d[_BOARDS], world)

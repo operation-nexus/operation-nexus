@@ -200,6 +200,7 @@ tasking:
   patrol_max_nodes: 3  # PROPOSED – unvalidated (Q-SIM-94, NX-382); jobs, front-line nodes the coalition board posts a patrol on at once; 0 = off
   patrol_orbit_m: 5000  # PROPOSED – unvalidated (Q-SIM-94, NX-382); m, an aircraft patrol circles its node at this distance and needs it clear of discovered rings
   patrol_dwell_s: 300  # PROPOSED – unvalidated (Q-SIM-94, NX-382, lead decision: short enough for an aircraft to finish one on a tank); s (game), a coalition patrol is done after this long on station
+  order_dwell_s: 600  # PROPOSED – unvalidated (Q-SIM-110, NX-398); s (game), the longest an armed unit holds the node of its direct order before the board takes it (a strike jet's full tank is 600 game s, so it bingos first)
   stock_urgency: 0.5  # PROPOSED – unvalidated (Q-SIM-100, NX-389); multiplier, a stocking resupply job's urgency, below 1.0 so a starving or damaged base ranks first (CONFIG-AND-CONTENT §6.6)
   stock_front_bonus: 0.25  # PROPOSED – unvalidated (Q-SIM-100, NX-389); multiplier added to a stocking job on a front-line base (CONFIG-AND-CONTENT §6.6)
   escort_leash_m: 10000  # PROPOSED – unvalidated (Q-SIM-76); m, the farthest an escort leaves station to engage a group threat (CONFIG-AND-CONTENT §6.6)

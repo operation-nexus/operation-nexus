@@ -11,7 +11,7 @@ cd services/sim && uv run --frozen python ../../tools/balance/balance.py \
 
 | Flag | Meaning |
 |---|---|
-| `--profile` | one of `overnight-0`, `quiet-5`, `prime-50`, `evening-150`, `raid-300`, `surge-500`; a comma list; or `all` (default) |
+| `--profile` | one of `overnight-0`, `quiet-5`, `prime-50`, `evening-150`, `raid-300`, `surge-500`, or the check profile `freelance-50` (below); a comma list; or `all` (default: the six standard profiles, never `freelance-50`) |
 | `--seeds` | a count N (seeds 1..N) or a comma list; the sim seed is the seed itself |
 | `--hours` | game hours per run, default `campaign.time_limit_h` of the config in use (72 shipped, the acceptance length; follows `--set campaign.time_limit_h=...`). A run stops early when the campaign ends. Short runs work; targets that need a longer window say `not evaluable` |
 | `--workers` | parallel processes, one run each (default 1), started biggest crowd first to cut wall time. The report does not depend on it |
@@ -88,10 +88,13 @@ Each viewer also draws a kind from its profile's `kinds` shares (a harness RNG p
 | hauler | bare `JOIN LOGI` |
 | scout | bare `JOIN RECON` |
 | capturer | `JOIN LOGI` with a node target: a seeded pick (the viewer's RNG) among foe-held, capturable nodes (not an `uncapturable_node_kinds` kind: the rear SANCTUARY, BRIDGE) whose defense HP is 0 in the coalition's view. A capture run with no cargo (Q-GP-24); the progress of its bar is a capture impact. With none known it sends the bare `JOIN LOGI` and counts it in `viewers.capturer_fallbacks`. PROPOSED share 0.1 (Q-SIM-104) |
+| freelancer | the persona's own role (as auto) with a node target: a seeded pick (the viewer's RNG) among **all** theater nodes, the Static rear, bridges and the coalition sanctuary included (NX-398, Q-SIM-110). Only the check profile `freelance-50` has it (prime-50's crowd, kinds `auto: 0.5, freelancer: 0.5`), so the standard profiles' results stay comparable |
+
+**Direct-order checks (NX-398, `orders.py`).** Every run's JSON has `orders`: `stuck_goto` (units whose GOTO order had an empty path at two board passes in a row without a hold, or held `tasking.order_dwell_s` or more; a unit `tasking.order_working` says is still working, a truck with cargo or a ground unit on its side's filling capture bar, is not counted, and a cargo stop has no bound here), `stale_claims` (board claims, both sides, with no progress for `tasking.claim_lease_s` or more after a pass), and for freelancers `direct_orders_ended`, `no_effect` (orders that ended, by the order going or the unit going, with no shot fired, no delivery and no capture by that unit) and `no_effect_share`. Crashes are the run's `crash` and `harness_error`. Run it with `--profile freelance-50`. `report.json` and `report.md` aggregate `orders` per profile (summed over seeds) as the `orders` row of the targets table: `fail` when any run has a stuck GOTO or a stale claim, `no data` when no run has the checks (a harness error); the no-effect share is information only. Like every target, it never changes the exit code. `services/sim/tests/tools/test_balance_harness.py` runs it for 12 game minutes with a fast 40-viewer crowd and asserts no crash, no stuck order and no stale claim.
 
 Every command still goes through the ordinary path and the command log. The report breaks A2 down per kind (`A2.by_persona_kind`).
 
-Other new keys: `momentum_sample_s` (60, game seconds between momentum and starvation samples; > 0) and `kind_roles` (`striker: STRIKE, hauler: LOGI, scout: RECON, capturer: LOGI`: the JOIN role each non-auto persona kind sends; values must be playable roles and every kind a profile uses needs one), checked on load; `targets.a2_min_tier` (ALPHA), `targets.a2_tail_s` and `a2_tail_share` (Q-SIM-97; positive, share in (0, 1]) and `impact_check_s` (1 game second between the two state checks), both PROPOSED.
+Other new keys: `momentum_sample_s` (60, game seconds between momentum and starvation samples; > 0) and `kind_roles` (`striker: STRIKE, hauler: LOGI, scout: RECON, capturer: LOGI`: the JOIN role each persona kind but auto and freelancer sends; values must be playable roles and every kind a profile uses needs one), checked on load; `targets.a2_min_tier` (ALPHA), `targets.a2_tail_s` and `a2_tail_share` (Q-SIM-97; positive, share in (0, 1]) and `impact_check_s` (1 game second between the two state checks), both PROPOSED.
 
 A target with nothing to judge says so: `not evaluable` (the run was shorter than the window), `no data` (for example no kills), `not measurable yet`. **Not measurable yet:** the kill-share Gini by rank (no ranks until PROGRESSION), A5 and A6 (part 2). The CLI exit code is 0 whatever the targets say.
 

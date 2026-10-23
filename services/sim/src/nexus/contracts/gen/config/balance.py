@@ -1513,6 +1513,13 @@ class Tasking(BaseModel):
             gt=0.0,
         ),
     ]
+    order_dwell_s: Annotated[
+        float,
+        Field(
+            description="An armed unit whose direct node order (JOIN with a node) has arrived holds that node and engages; the order ends, and the board takes the unit, at bingo or RTB, ammo out, a new order, or this long after it began holding (Q-SIM-110, NX-398), unit s of game time.",
+            gt=0.0,
+        ),
+    ]
     stock_urgency: Annotated[
         float,
         Field(

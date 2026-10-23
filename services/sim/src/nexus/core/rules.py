@@ -204,6 +204,7 @@ class TaskingRules:
     patrol_max_nodes: int  # coalition front-line nodes with a patrol job at once (Q-SIM-94)
     patrol_orbit_m: float  # an aircraft patrol circles its node this far out (Q-SIM-94)
     patrol_dwell_ticks: int  # a coalition patrol is done this long after it is on station
+    order_dwell_ticks: int  # an armed unit holds its GOTO node at most this long (Q-SIM-110)
     stock_urgency_milli: int  # a stocking resupply job's urgency (Q-SIM-100, NX-389)
     stock_front_bonus_milli: int  # added to it on a front-line base
     ai_jobs: frozenset[JobKind]  # tasking.ai_jobs: an AI garrison unit takes these by itself
@@ -502,6 +503,7 @@ def tasking_rules(
     scout_post_interval_ticks: int,
     threat_memory_ticks: int,
     patrol_dwell_ticks: int,
+    order_dwell_ticks: int,
 ) -> TaskingRules:
     """The tick counts are `cfg`'s game-time keys already converted by the config loader. Raises
     ValueError when the stocking urgency rounds to 0 thousandths, or a front-line stocking job
@@ -550,6 +552,7 @@ def tasking_rules(
         patrol_max_nodes=cfg.patrol_max_nodes,
         patrol_orbit_m=cfg.patrol_orbit_m,
         patrol_dwell_ticks=patrol_dwell_ticks,
+        order_dwell_ticks=order_dwell_ticks,
         stock_urgency_milli=stock_urgency,
         stock_front_bonus_milli=front_bonus,
         ai_jobs=frozenset(cfg.ai_jobs),

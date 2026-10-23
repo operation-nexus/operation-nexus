@@ -30,6 +30,7 @@ from nexus.runtime.command_log import CommandLogReader, Tombstone
 sys.path.insert(0, str(Path(__file__).resolve().parents[4] / "tools" / "balance"))
 import balance  # type: ignore[import-not-found,unused-ignore]
 import metrics  # type: ignore[import-not-found,unused-ignore]
+import orders  # type: ignore[import-not-found,unused-ignore]
 import personas  # type: ignore[import-not-found,unused-ignore]
 import report  # type: ignore[import-not-found,unused-ignore]
 import runner  # type: ignore[import-not-found,unused-ignore]
@@ -493,6 +494,7 @@ def test_cli_report_is_the_same_with_any_worker_count(
         == report.NOT_MEASURABLE
     )
     assert rows[("A1", "quiet-5")].startswith("not evaluable")  # 0.02 h is far short of 72 h
+    assert rows[("orders", "quiet-5")] == report.PASS  # no stuck order, no stale claim
 
 
 def test_a_sim_crash_is_recorded_not_raised(
@@ -1054,3 +1056,120 @@ def test_hours_default_follows_the_balance_config(
     go("b", "--set", "campaign.time_limit_h=36")
     go("c", "--hours", "1", "--set", "campaign.time_limit_h=36")
     assert seen == [72.0, 36.0, 1.0]
+
+
+# --- direct orders (NX-398, Q-SIM-110) ---------------------------------------------------------
+def test_freelancers_send_any_node_and_no_direct_order_breaks_or_sticks(
+    tmp_path: Path, shipped_config: CampaignConfig
+) -> None:
+    """freelance-50 with a fast, small crowd: random direct orders to every node (the rear,
+    bridges, the sanctuary) crash nothing, leave no GOTO stuck and no claim past its lease."""
+    full = load()
+    crowd = dataclasses.replace(full.profiles["freelance-50"], viewers=40, ramp_min=1)
+    d = dataclasses.replace(full, profiles={**full.profiles, "freelance-50": crowd})
+    r = runner.run("freelance-50", 1, 2 * TICKS / HZ / 3600, tmp_path / "f", d, shipped_config)
+    assert (r["crash"], r["harness_error"]) == (None, None)
+    assert r["viewers"]["by_kind"]["freelancer"] > 0
+    targets = {
+        e["target"]["node_id"]
+        for e in log_entries(tmp_path / "f")
+        if e["kind"] == "JOIN" and e["target"]
+    }
+    assert {"static-rear", "haven"} & targets  # the rear or the sanctuary was ordered
+    o = r["orders"]
+    assert (o["stuck_goto"], o["stale_claims"]) == (0, 0)
+    assert o["direct_orders_ended"] > 0 and 0 <= o["no_effect"] <= o["direct_orders_ended"]
+
+
+def test_only_freelance_50_has_freelancers() -> None:
+    for name, p in load().profiles.items():
+        assert ("freelancer" in p.kinds) == (name == "freelance-50")
+
+
+def test_the_order_checks_flag_a_stuck_goto_a_held_too_long_and_a_stale_claim(
+    shipped_config: CampaignConfig,
+) -> None:
+    from nexus.core.tasking import post_job
+    from nexus.core.tasking_gen import JobSpec
+
+    world = start_campaign("c", 1, shipped_config)
+    tr = shipped_config.rules.tasking
+    assert tr is not None
+    o = orders.Orders(world, frozenset())
+    x, y = shipped_config.rules.roads.pos["fob-n-w"]
+    stuck = world.spawn("LOGI_TRUCK", "COALITION", "COMMANDER", Vec2(x, y), commander_id="a")
+    held = world.spawn("STRIKE_FIGHTER", "COALITION", "COMMANDER", Vec2(x, y), commander_id="b")
+    stuck.order = held.order = "GOTO"
+    every = tr.reeval_every_ticks
+    held.order_node, held.held_since = "fob-n-w", every  # began holding at a pass
+    job = post_job(world, "COALITION", JobSpec("DEFEND", "op:x", 1, 1000, node="fob-n-w"), [])
+    job.claims[held.id] = Claim(every)
+    world.campaign.running_ticks = every  # a pass: the truck idle once, nothing else yet
+    o.observe(world)
+    assert (o.result()["stuck_goto"], o.result()["stale_claims"]) == (0, 0)
+    world.campaign.running_ticks = every + tr.order_dwell_ticks - every  # the last pass before
+    o.observe(world)  # the truck idle at two passes; the jet's hold is one pass short of the dwell
+    assert (o.result()["stuck_goto"], o.result()["stale_claims"]) == (1, 1)
+    world.campaign.running_ticks = every + tr.order_dwell_ticks  # exactly the dwell: should be over
+    o.observe(world)
+    assert o.result()["stuck_goto"] == 2
+
+
+def test_a_freelancer_order_without_a_shot_delivery_or_capture_counts_as_no_effect(
+    shipped_config: CampaignConfig,
+) -> None:
+    world = start_campaign("c", 1, shipped_config)
+    o = orders.Orders(world, frozenset({"a", "b", "c", "d"}))
+    units = {}
+    for c in "abcd":
+        units[c] = world.spawn(
+            "STRIKE_FIGHTER", "COALITION", "COMMANDER", Vec2(0, 0), commander_id=c
+        )
+        units[c].order = "GOTO"
+        o.feed([SimpleNamespace(kind="UnitSpawned", commander_id=c, entity_id=units[c].id)])
+    o.feed(
+        [
+            SimpleNamespace(kind="WeaponFired", shooter_id=units["a"].id),
+            SimpleNamespace(kind="SupplyDelivered", commander_id="b"),
+            SimpleNamespace(kind="NodeCaptured", participant_commander_ids=["c"]),
+        ]
+    )
+    o.observe(world)
+    assert o.result()["direct_orders_ended"] == 0  # every order still on
+    for e in units.values():
+        e.order = None
+    o.observe(world)
+    assert o.result() | {"stuck_goto": 0, "stale_claims": 0} == {
+        "direct_orders_ended": 4,
+        "no_effect": 1,
+        "no_effect_share": 0.25,
+        "stuck_goto": 0,
+        "stale_claims": 0,
+    }
+
+
+def test_profile_all_is_the_standard_profiles_and_a_check_profile_is_named_only() -> None:
+    d = load()
+    assert balance.resolve("all", d) == [n for n in d.profiles if n != "freelance-50"]
+    assert balance.resolve("all", d) == [
+        "overnight-0", "quiet-5", "prime-50", "evening-150", "raid-300", "surge-500"
+    ]  # fmt: skip
+    assert balance.resolve("freelance-50", d) == ["freelance-50"]
+    assert balance.resolve("prime-50,freelance-50", d) == ["prime-50", "freelance-50"]
+    with pytest.raises(ValueError, match="unknown profiles"):
+        balance.resolve("prime-50,nope", d)
+
+
+def test_the_report_fails_a_profile_with_a_stuck_order_or_a_stale_claim() -> None:
+    clean = {"stuck_goto": 0, "stale_claims": 0, "direct_orders_ended": 8, "no_effect": 2}
+    ok = report._orders([{"orders": clean}, {"orders": clean}])
+    got = (ok["status"], ok["direct_orders_ended"], ok["no_effect_share"])
+    assert got == (report.PASS, 16, 0.25)
+    skip = {k: {"status": "n/a"} for k in ("A1", "A2", "A3", "A4")}
+    for bad in ({"stuck_goto": 1}, {"stale_claims": 3}):
+        agg = report._orders([{"orders": clean}, {"orders": clean | bad}])
+        assert agg["status"] == report.FAIL
+        rows = report.target_table({"freelance-50": skip | {"orders": agg}})
+        (row,) = [r for r in rows if r["target"] == "orders"]
+        assert row["status"] == report.FAIL and "stuck GOTO orders" in row["detail"]
+    assert report._orders([{"orders": None}])["status"] == report.NO_DATA  # a failed run
