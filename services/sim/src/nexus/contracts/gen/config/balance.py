@@ -738,6 +738,7 @@ class Slots1(BaseModel):
     assist_objective: Annotated[int, Field(ge=1)]
     scout: Annotated[int, Field(ge=1)]
     escort_convoy: Annotated[int, Field(ge=1)]
+    patrol: Annotated[int, Field(ge=1)]
 
 
 class FollowStationM(BaseModel):
@@ -1344,6 +1345,27 @@ class Tasking(BaseModel):
         enums.ThreatTier,
         Field(
             description="The lowest Threat Director tier at which the coalition board posts strike jobs on known defended foe nodes for idle armed viewer units; below it only the slot scaling applies, so a lone new viewer does not provoke the Director by itself (Q-SIM-92, Q-SIM-86)."
+        ),
+    ]
+    patrol_max_nodes: Annotated[
+        int,
+        Field(
+            description="The most front-line nodes the coalition board posts a patrol job on at once, nearest a node the other side holds first; 0 turns player patrols off (Q-SIM-94, NX-382), unit jobs.",
+            ge=0,
+        ),
+    ]
+    patrol_orbit_m: Annotated[
+        float,
+        Field(
+            description="An aircraft on a coalition patrol circles its node at this distance, which is also the clearance from a discovered air-defense ring it needs to take the job (Q-SIM-94, NX-382), unit m.",
+            gt=0.0,
+        ),
+    ]
+    patrol_dwell_s: Annotated[
+        float,
+        Field(
+            description="A coalition patrol job is done once a unit has been on station this long (Q-SIM-94, NX-382), unit s of game time.",
+            gt=0.0,
         ),
     ]
 

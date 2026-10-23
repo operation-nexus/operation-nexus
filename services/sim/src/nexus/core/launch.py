@@ -209,7 +209,11 @@ def _patrols(
     keys = {j.key for j in world.boards[side].values()}
     idle: dict[str, list[Entity]] = {}
     for e in sorted((e for es in _spare(world, side).values() for e in es), key=lambda e: e.id):
-        if e.home is not None and fits(rules, e.kind, "PATROL"):
+        if (
+            e.home is not None
+            and rules.domain[e.kind] == "GROUND"
+            and fits(rules, e.kind, "PATROL")
+        ):
             idle.setdefault(e.home, []).append(e)
     for base in ops.bases(view, rules):
         via, prefix = ops.patrol_via(view, rules, base), f"{ops.LIVE_PREFIX}{_PATROL_OP}:{base}:"

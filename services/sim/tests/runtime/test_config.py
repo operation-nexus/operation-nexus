@@ -169,6 +169,7 @@ tasking:
     assist_objective: 4
     scout: 1
     escort_convoy: 2
+    patrol: 2
   resupply_stock_per_slot: 100
   resupply_slots_max: 3
   defend_radius_m: 10000
@@ -192,6 +193,9 @@ tasking:
   strike_max_scaled_slots: 3
   strike_idle_targets_max: 2
   strike_idle_targets_min_tier: ALPHA
+  patrol_max_nodes: 3
+  patrol_orbit_m: 5000
+  patrol_dwell_s: 300
 director:
   window_s: 60
   cp:
@@ -281,7 +285,7 @@ director:
 # NX-374 for the tasking keys and again for follow and escort, NX-155 for the director, and NX-157
 # for the Pattern of Life keys and the garrison operation); a
 # change means every config_hash moved.
-GOLDEN_CONFIG_HASH = "33aa20e71c103a198a6e702e642e9a7f82e3068d6b4075f94e2b5e41288e3b64"
+GOLDEN_CONFIG_HASH = "cdd2cb14aff95c85d1630c264209cd268e43a343396d2a02aa4d7fa355ab89ca"
 SLOTS = {
     "max_live_per_commander": 1,
     "respawn_delay_s": 20,
@@ -395,7 +399,14 @@ TASKING = {
     "static_offense_min_tier": "ALPHA",
     "urgency_max": 2.0,
     "priority_aging_per_min": 1,
-    "slots": {"defend": 2, "strike": 2, "assist_objective": 4, "scout": 1, "escort_convoy": 2},
+    "slots": {
+        "defend": 2,
+        "strike": 2,
+        "assist_objective": 4,
+        "scout": 1,
+        "escort_convoy": 2,
+        "patrol": 2,
+    },
     "resupply_stock_per_slot": 100,
     "resupply_slots_max": 3,
     "defend_radius_m": 10000,
@@ -415,6 +426,9 @@ TASKING = {
     "strike_max_scaled_slots": 3,
     "strike_idle_targets_max": 2,
     "strike_idle_targets_min_tier": "ALPHA",
+    "patrol_max_nodes": 3,
+    "patrol_orbit_m": 5000,
+    "patrol_dwell_s": 300,
 }
 DIRECTOR = {
     "window_s": 60,
@@ -830,7 +844,8 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "    escort_convoy: 40, stage: 20, capture: 45, patrol: 15},\n"
         "  static_offense_min_tier: ALPHA,\n"
         "  urgency_max: 2.0, priority_aging_per_min: 1,\n"
-        "  slots: {scout: 1, assist_objective: 4, strike: 2, defend: 2, escort_convoy: 2},\n"
+        "  slots: {scout: 1, assist_objective: 4, strike: 2, defend: 2, escort_convoy: 2,\n"
+        "    patrol: 2},\n"
         "  resupply_stock_per_slot: 100, resupply_slots_max: 3, defend_radius_m: 10000,\n"
         "  counterattack_window_min: 15, scout_cooldown_min: 5, scout_open_max: 3,\n"
         "  scout_post_interval_min: 2, capture_max_restarts: 3,\n"
@@ -839,7 +854,8 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "  follow_hold_slack: 2, overfill_factor: 2, scout_blob_runs: 2,\n"
         "  scout_urgency: {small: 1.0, medium: 1.5, large: 2.0}, strike_urgency_per_threat: 0.01,\n"
         "  strike_max_scaled_slots: 3, strike_idle_targets_max: 2,\n"
-        "  strike_idle_targets_min_tier: ALPHA}\n"
+        "  strike_idle_targets_min_tier: ALPHA,\n"
+        "  patrol_max_nodes: 3, patrol_orbit_m: 5000, patrol_dwell_s: 300}\n"
         "director: {window_s: 60, max_spawns_per_window: 6,\n"
         "  cp: {ema_window_s: 300, unit_value: {STRIKE_FIGHTER: 10, RECON_UAV: 3, LOGI_TRUCK: 2,\n"
         "    GARRISON_INFANTRY: 2}},\n"

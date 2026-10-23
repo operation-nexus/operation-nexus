@@ -37,6 +37,11 @@ refers to an entity id, so a job names a node, or a SIGINT blob with its cell ce
   air-defense site last seen not Disabled, or within `tasking.defend_radius_m` of a currently
   tracked enemy (last-known tracks and unseen emitters do not count). Urgency 1.0. Taking it is a
   follow order on the truck; it ends when the truck arrives.
+- **Patrol** (`patrol:<node>`, coalition only, Q-SIM-94, NX-382): a front-line node: held by the
+  side, not a sanctuary or bridge, with a road neighbour the side does not hold. At most
+  `tasking.patrol_max_nodes`, those nearest a node the other side holds first (exact squared
+  straight-line distance, as the idle strike targets are ordered by distance; ties by node id), and
+  only while a viewer's armed or recon unit of the side is idle. Urgency 1.0.
 
 A kind is generated only while the side can staff it: a live unit of the side fits it, or, for
 the coalition, a viewer can JOIN as a role that fits. A scout is posted for a cell only once a
@@ -63,11 +68,11 @@ from nexus.core.world import Entity, Vec2, World
 POST_GATE = (
     "post-gate"  # a `World.cooldown` key (cells are digits): no new scout job until its tick
 )
-GENERATED = ("resupply:", "defend:", "strike:", "assist:", "scout:", "escort:")
+GENERATED = ("resupply:", "defend:", "strike:", "assist:", "scout:", "escort:", "patrol:")
 _GROUND, _AIR = "GROUND", "AIR"
 _UNDEFENDED = ("SANCTUARY", "BRIDGE")  # never captured (N-4, NX-373)
 _JOB_KINDS: tuple[JobKind, ...] = (
-    "RESUPPLY", "SCOUT", "DEFEND", "STRIKE", "ASSIST_OBJECTIVE", "ESCORT_CONVOY",
+    "RESUPPLY", "SCOUT", "DEFEND", "STRIKE", "ASSIST_OBJECTIVE", "ESCORT_CONVOY", "PATROL",
 )  # fmt: skip
 _STATIC: Side = "ENEMY"
 _FOE: dict[Side, Side] = {"COALITION": "ENEMY", "ENEMY": "COALITION"}
@@ -95,8 +100,9 @@ def fits(rules: Rules, kind: UnitKind, job_kind: JobKind) -> bool:
     kind can do: carriers resupply, painters (recon) scout, armed aircraft strike, armed aircraft
     and ground units defend, any ground unit (a capturer) assists an objective, armed or recon
     aircraft escort (strike and recon units, GAMEPLAY §1b). The Director's jobs (NX-156): any
-    aircraft or ground unit that is not a carrier stages, a ground one captures or patrols
-    (NX-157)."""
+    aircraft or ground unit that is not a carrier stages, a ground one captures (NX-157). A patrol
+    (the Director's, and the coalition board's, Q-SIM-94) takes an armed or recon unit of either
+    domain."""
     domain = rules.domain[kind]
     match job_kind:
         case "RESUPPLY":
@@ -115,7 +121,9 @@ def fits(rules: Rules, kind: UnitKind, job_kind: JobKind) -> bool:
             return domain == _AIR and (kind in rules.armed or kind in rules.painters)
         case "STAGE":
             return domain in (_AIR, _GROUND)
-        case "CAPTURE" | "PATROL":
+        case "PATROL":
+            return domain in (_AIR, _GROUND) and (kind in rules.armed or kind in rules.painters)
+        case "CAPTURE":
             return domain == _GROUND
     return False
 
@@ -138,6 +146,14 @@ def _idle_strikers(world: World, rules: Rules, side: Side) -> int:
         and is_idle(rules, e, side)
         and any(e.ammo)
         and fits(rules, e.kind, "STRIKE")
+        for e in world.entities()
+    )
+
+
+def _idle_patrollers(world: World, rules: Rules, side: Side) -> bool:
+    """Whether a viewer-owned unit of the side that fits a patrol is idle (Q-SIM-94)."""
+    return any(
+        e.owner_kind == "COMMANDER" and is_idle(rules, e, side) and fits(rules, e.kind, "PATROL")
         for e in world.entities()
     )
 
@@ -168,6 +184,7 @@ def generate(
         *_assist(world, tr, side),
         *_scout(tr, view, world, side),
         *_escort(world, rules, tr, side, view),
+        *_patrol(world, rules, tr, side, view),
     ]
     return _cap_scouts([s for s in specs if s.kind in able], world, tr, side)
 
@@ -334,6 +351,22 @@ def _scout(tr: TaskingRules, view: SideView, world: World, side: Side) -> Iterat
             continue  # not there for `scout_blob_runs` refreshes yet, or scouted lately (Q-SIM-75)
         urgency = min(tr.urgency_max_milli, tr.scout_urgency_milli[b.size])
         yield JobSpec("SCOUT", f"scout:{cell}", tr.slots["SCOUT"], urgency, blob=b.id, pos=b.pos)
+
+
+def _patrol(
+    world: World, rules: Rules, tr: TaskingRules, side: Side, view: SideView
+) -> Iterator[JobSpec]:
+    if side != "COALITION" or not _idle_patrollers(world, rules, side):
+        return
+    foe = [p for n, p in view.nodes.items() if view.owners.get(n) == _FOE[side]]
+    front = sorted(
+        (min(((x - fx) ** 2 + (y - fy) ** 2 for fx, fy in foe), default=math.inf), n)
+        for n, (x, y) in view.nodes.items()
+        if view.owners.get(n) == side and rules.node_kind[n] not in _UNDEFENDED
+        and any(view.owners.get(m) != side for m, _ in rules.roads.neighbours(n))
+    )  # fmt: skip
+    for _, n in front[: tr.patrol_max_nodes]:
+        yield JobSpec("PATROL", f"patrol:{n}", tr.slots["PATROL"], 1000, node=n)
 
 
 type _Segment = tuple[float, float, float, float, float]  # ax, ay, dx, dy, dx^2 + dy^2

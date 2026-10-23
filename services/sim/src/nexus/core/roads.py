@@ -101,9 +101,15 @@ class RoadGraph:
 
 
 def shortest_path(
-    graph: RoadGraph, start: str, goal: str, *, blocked: frozenset[str]
+    graph: RoadGraph,
+    start: str,
+    goal: str,
+    *,
+    blocked: frozenset[str],
+    avoid: frozenset[str] = frozenset(),
 ) -> list[str] | None:
-    """Cheapest node path from `start` to `goal` avoiding edges whose bridge is in `blocked`.
+    """Cheapest node path from `start` to `goal` avoiding edges whose bridge is in `blocked` and
+    never entering a node of `avoid` (the start is exempt; a goal in `avoid` is unreachable).
 
     Ties break by f, then g, then node id. A stale heap entry is skipped rather than using a closed
     set, so a float-rounding inconsistency in the heuristic re-expands a node instead of losing it.
@@ -124,7 +130,7 @@ def shortest_path(
                 path.append(came_from[path[-1]])
             return path[::-1]
         for nxt, edge in graph.neighbours(node):
-            if edge.bridge in blocked:
+            if edge.bridge in blocked or nxt in avoid:
                 continue
             cost = g + edge.length_m / edge.speed_mult
             if cost < best.get(nxt, math.inf):

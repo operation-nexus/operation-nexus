@@ -125,6 +125,7 @@ def load_campaign_config(paths: ConfigPaths | None = None) -> CampaignConfig:
                 balance.tasking.scout_post_interval_min, balance, unit_s=60
             ),
             threat_memory_ticks=world_ticks(balance.tasking.escort_threat_memory_s, balance),
+            patrol_dwell_ticks=game_ticks(balance.tasking.patrol_dwell_s, balance),
         ),
         director=director_rules(
             balance.director,

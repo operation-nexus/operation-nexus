@@ -144,6 +144,7 @@ tasking:
     assist_objective: 4
     scout: 1
     escort_convoy: 2  # PROPOSED – unvalidated (Q-SIM-73)
+    patrol: 2  # PROPOSED – unvalidated (Q-SIM-94, NX-382); a coalition front-line patrol
   resupply_stock_per_slot: 100  # PROPOSED – unvalidated (Q-SIM-73); stock units, one resupply slot per this much missing stock (CONFIG-AND-CONTENT §6.6)
   resupply_slots_max: 3  # PROPOSED – unvalidated (Q-SIM-73); units (CONFIG-AND-CONTENT §6.6)
   defend_radius_m: 10000  # PROPOSED – unvalidated (Q-SIM-74); m, a tracked enemy ground unit this close to a base posts a defend job (CONFIG-AND-CONTENT §6.6)
@@ -170,6 +171,9 @@ tasking:
   strike_max_scaled_slots: 3  # PROPOSED – unvalidated (Q-SIM-92); slots, a strike job gets one extra per idle armed coalition viewer unit up to this many; 0 = off (CONFIG-AND-CONTENT §6.6)
   strike_idle_targets_max: 2  # PROPOSED – unvalidated (Q-SIM-92); jobs, strikes posted on known defended foe nodes while idle armed viewer units remain and no marked target is open; 0 = off (CONFIG-AND-CONTENT §6.6)
   strike_idle_targets_min_tier: ALPHA  # PROPOSED – unvalidated (Q-SIM-92, Q-SIM-86); the lowest Director tier at which idle armed viewer units get strike jobs on known defended foe nodes; below it a lone new viewer provokes nothing (CONFIG-AND-CONTENT §6.6)
+  patrol_max_nodes: 3  # PROPOSED – unvalidated (Q-SIM-94, NX-382); jobs, front-line nodes the coalition board posts a patrol on at once; 0 = off
+  patrol_orbit_m: 5000  # PROPOSED – unvalidated (Q-SIM-94, NX-382); m, an aircraft patrol circles its node at this distance and needs it clear of discovered rings
+  patrol_dwell_s: 300  # PROPOSED – unvalidated (Q-SIM-94, NX-382, lead decision: short enough for an aircraft to finish one on a tank); s (game), a coalition patrol is done after this long on station
   escort_leash_m: 10000  # PROPOSED – unvalidated (Q-SIM-76); m, the farthest an escort leaves station to engage a group threat (CONFIG-AND-CONTENT §6.6)
 director:  # Threat Director (Q-SIM-78, Q-SIM-81, owner-approved starting numbers; NX-031 tunes) (CONFIG-AND-CONTENT §6.7)
   window_s: 60  # PROPOSED – unvalidated (Q-ALN-23); s (game), the decision window (CONFIG-AND-CONTENT §6.7 director.window_s)

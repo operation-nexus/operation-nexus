@@ -189,6 +189,9 @@ class TaskingRules:
     )
     strike_idle_targets_max: int  # strike jobs on known defended foe nodes at once (Q-SIM-92)
     strike_idle_targets_min_tier: ThreatTier  # the lowest Static tier at which they are posted
+    patrol_max_nodes: int  # coalition front-line nodes with a patrol job at once (Q-SIM-94)
+    patrol_orbit_m: float  # an aircraft patrol circles its node this far out (Q-SIM-94)
+    patrol_dwell_ticks: int  # a coalition patrol is done this long after it is on station
 
 
 @dataclass(frozen=True, slots=True)
@@ -457,6 +460,7 @@ def tasking_rules(
     scout_cooldown_ticks: int,
     scout_post_interval_ticks: int,
     threat_memory_ticks: int,
+    patrol_dwell_ticks: int,
 ) -> TaskingRules:
     """The tick counts are `cfg`'s game-time keys already converted by the config loader."""
     return TaskingRules(
@@ -490,6 +494,9 @@ def tasking_rules(
         strike_max_scaled_slots=cfg.strike_max_scaled_slots,
         strike_idle_targets_max=cfg.strike_idle_targets_max,
         strike_idle_targets_min_tier=cfg.strike_idle_targets_min_tier,
+        patrol_max_nodes=cfg.patrol_max_nodes,
+        patrol_orbit_m=cfg.patrol_orbit_m,
+        patrol_dwell_ticks=patrol_dwell_ticks,
     )
 
 

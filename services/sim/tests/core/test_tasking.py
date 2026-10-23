@@ -66,11 +66,14 @@ from nexus.core.world import (
 from nexus.runtime.campaign_config import load_campaign_config, start_campaign
 
 CONFIG = load_campaign_config()
-RULES = dataclasses.replace(CONFIG.rules, campaign=None, garrison_quota={})  # no opening garrison
-_tasking = RULES.tasking
-if _tasking is None:
+_shipped = CONFIG.rules.tasking
+if _shipped is None:
     raise AssertionError("the shipped config has tasking rules")
-TR: TaskingRules = _tasking
+PATROL_TR: TaskingRules = _shipped  # the shipped patrol keys: the player patrol tests use it
+TR: TaskingRules = dataclasses.replace(_shipped, patrol_max_nodes=0)  # patrols off: the older tests
+RULES = dataclasses.replace(  # no opening garrison
+    CONFIG.rules, campaign=None, garrison_quota={}, tasking=TR
+)
 EVERY = TR.reeval_every_ticks
 LEASE = TR.claim_lease_ticks
 HUMAN: OwnerKind = "COMMANDER"
@@ -1491,3 +1494,368 @@ def test_a_board_holds_at_most_scout_open_max_scout_jobs_highest_urgency_first()
     # urgency L 2.0, L 2.0, M 1.5 beat S 1.0; the L tie goes by key; never more than 3
     assert seen == [1, 2, 3, 3, 3]
     assert sorted(j.key for j in jobs(w) if j.kind == "SCOUT") == ["scout:2", "scout:4", "scout:5"]
+
+
+# --- coalition front-line patrols (Q-SIM-94, NX-382) ---------------------------------------------
+# Strait-1 at the start: fob-n-w and fob-s-w (130 km, 60 and 180 km) face the neutral crossings,
+# west-airbase and the haven sanctuary do not; the Static holds fob-n-e, fob-s-e and east-airbase.
+PATROL_RULES = dataclasses.replace(RULES, tasking=PATROL_TR)
+CORNER_TEST_NODE = "fob-n-w"
+
+
+def pw(tr: TaskingRules = PATROL_TR) -> World:
+    return new_world(1, dataclasses.replace(RULES, tasking=tr))
+
+
+def _patrols(w: World, tr: TaskingRules = PATROL_TR) -> list[tuple[str, int]]:
+    specs = generate(
+        w, dataclasses.replace(RULES, tasking=tr), tr, "COALITION", side_view(w, "COALITION")
+    )
+    return [(s.key, s.slots) for s in specs if s.kind == "PATROL"]
+
+
+def test_front_line_nodes_are_posted_nearest_the_foe_first_and_capped() -> None:
+    w = pw()
+    put(w, "GARRISON_INFANTRY", "west-airbase")
+    # both face the neutral crossings, as far from the Static's nodes as each other: the tie by id
+    assert _patrols(w) == [("patrol:fob-n-w", 2), ("patrol:fob-s-w", 2)]
+    w.owner["cross-n"] = "COALITION"  # the front moves up: cross-n is 63 km from fob-n-e ...
+    w.owner["east-airbase"] = "COALITION"  # ... east-airbase 70 km from static-hq, fob-s-w 160 km
+    assert [k for k, _ in _patrols(w)] == [
+        "patrol:cross-n",
+        "patrol:east-airbase",
+        "patrol:fob-s-w",
+    ]
+    one = dataclasses.replace(PATROL_TR, patrol_max_nodes=1)
+    assert [k for k, _ in _patrols(w, one)] == ["patrol:cross-n"]  # the cap
+    off = dataclasses.replace(PATROL_TR, patrol_max_nodes=0)
+    assert _patrols(w, off) == []
+
+
+def test_a_sanctuary_is_never_a_front_line_node_and_a_back_node_is_not_one() -> None:
+    w = pw()
+    put(w, "GARRISON_INFANTRY", "west-airbase")
+    w.owner["west-airbase"] = (
+        "ENEMY"  # haven (a sanctuary) now has a road neighbour the Static holds
+    )
+    keys = [k for k, _ in _patrols(w)]
+    assert "patrol:haven" not in keys and keys == ["patrol:fob-n-w", "patrol:fob-s-w"]
+    w.owner["west-airbase"] = "COALITION"
+    w.owner["cross-n"] = w.owner["cross-s"] = "COALITION"
+    assert "patrol:west-airbase" not in [k for k, _ in _patrols(w)]  # every neighbour is ours
+
+
+def test_patrols_are_posted_only_while_a_viewer_unit_that_fits_is_idle() -> None:
+    w = pw()
+    assert _patrols(w) == []  # nobody
+    put(w, "GARRISON_INFANTRY", "west-airbase", AI)  # the garrison does not count
+    put(w, "LOGI_TRUCK", "west-airbase")  # a carrier does not fit
+    assert _patrols(w) == []
+    held = put(w, "STRIKE_FIGHTER", "west-airbase")
+    held.order = "HOLD"  # an explicit order keeps the board off the unit
+    assert _patrols(w) == []
+    held.order = None
+    assert [k for k, _ in _patrols(w)] == ["patrol:fob-n-w", "patrol:fob-s-w"]
+    recon = put(w, "RECON_UAV", "west-airbase")
+    held.job_id = 99  # busy; the recon aircraft (armed or recon, either domain) is enough
+    assert [k for k, _ in _patrols(w)] == ["patrol:fob-n-w", "patrol:fob-s-w"]
+    recon.job_id = 99
+    assert _patrols(w) == []
+
+
+def test_the_ai_garrison_never_takes_a_patrol_and_a_viewer_unit_does() -> None:
+    w = pw()
+    grunt = put(w, "GARRISON_INFANTRY", "west-airbase")
+    ai = put(w, "GARRISON_INFANTRY", "west-airbase", AI)  # after the viewer's claim, which AI joins
+    board_pass(w)
+    assert ai.job_id is None and grunt.job_id is not None
+    job = w.boards["COALITION"][grunt.job_id]
+    assert (job.kind, job.via, job.slots) == ("PATROL", None, PATROL_TR.slots["PATROL"])
+    assert grunt.path[-1] == job.node  # it drives out to the node
+
+
+def test_a_patrol_is_the_lowest_priority_so_a_defend_wins() -> None:
+    w = pw()
+    unit = put(w, "GARRISON_INFANTRY", "west-airbase")
+    w.owner["cross-n"] = "COALITION"
+    defend = post(w, "COALITION", "DEFEND", "fob-s-w", "d")
+    board_pass(w)
+    assert unit.job_id == defend.id
+
+
+def test_an_aircraft_skips_a_patrol_whose_orbit_reaches_a_discovered_ring() -> None:
+    one = dataclasses.replace(PATROL_TR, patrol_max_nodes=1)  # only patrol:fob-n-w (130, 60 km)
+    w = pw(one)
+    jet = put(w, "STRIKE_FIGHTER", "west-airbase")
+    # a SAM 33 km north of the node with a 30 km ring: outside the ring, inside ring + 5 km orbit
+    w.markers["COALITION"][50] = FacilityMarker(
+        "AIR_DEFENSE_SITE", "SAM", Vec2(130_000, 27_000), True, 1, 30_000, "HEALTHY"
+    )
+    board_pass(w)
+    assert jet.job_id is None and [j.key for j in jobs(w)] == ["patrol:fob-n-w"]
+    w.markers["COALITION"][50].state = "DISABLED"  # last seen Disabled: no danger
+    board_pass(w)
+    assert jet.job_id is not None and jet.path == ["fob-n-w"]
+
+
+def test_a_ground_patrol_never_routes_through_a_node_the_side_does_not_hold() -> None:
+    one = dataclasses.replace(PATROL_TR, patrol_max_nodes=1)
+    w = pw(one)
+    w.owner["west-airbase"] = "ENEMY"  # the only road between the two forward bases
+    unit = put(w, "GARRISON_INFANTRY", "fob-s-w")
+    assert _patrols(w, one) == [("patrol:fob-n-w", 2)]
+    board_pass(w)
+    assert unit.job_id is None and not unit.path  # the short way is the Static's; no other is ours
+    w.owner["west-airbase"] = "COALITION"
+    board_pass(w)
+    assert unit.path == ["fob-s-w", "west-airbase", "fob-n-w"]
+
+
+@settings(max_examples=60, deadline=None)
+@given(
+    owners=st.lists(
+        st.sampled_from(["COALITION", "ENEMY", "NEUTRAL"]),
+        min_size=len(RULES.roads.pos),
+        max_size=len(RULES.roads.pos),
+    ),
+    start=st.integers(0, len(RULES.roads.pos) - 1),
+)
+def test_a_coalition_patrol_never_names_a_node_the_coalition_does_not_hold(
+    owners: list[str], start: int
+) -> None:
+    w = pw()
+    for n, o in zip(sorted(RULES.roads.pos), owners, strict=True):
+        w.owner[n] = o  # type: ignore[assignment]  # one of the three owners
+    here = sorted(n for n in RULES.roads.pos if w.owner[n] == "COALITION")
+    if not here:
+        return
+    unit = put(w, "GARRISON_INFANTRY", here[start % len(here)])
+    jet = put(w, "STRIKE_FIGHTER", here[start % len(here)])
+    board_pass(w)
+    for e in (unit, jet):
+        job = w.boards["COALITION"].get(e.job_id or 0)
+        if job is not None and job.kind == "PATROL":
+            assert job.node is not None and w.owner[job.node] == "COALITION"
+            assert all(w.owner[n] == "COALITION" for n in e.path if isinstance(n, str))
+
+
+def test_a_patrol_is_done_after_the_dwell_and_the_unit_returns_to_the_board() -> None:
+    one = dataclasses.replace(PATROL_TR, patrol_max_nodes=1)
+    w = pw(one)
+    unit = put(w, "GARRISON_INFANTRY", CORNER_TEST_NODE)
+    jet = put(w, "STRIKE_FIGHTER", "west-airbase")
+    board_pass(w)
+    job = jobs(w)[0]
+    assert unit.job_id == job.id and jet.job_id == job.id  # two slots
+    unit.path.clear()  # it has arrived
+    jet.path.clear()
+    jet.last_node, jet.state, jet.pos = job.node, "ON_STATION", unit.pos
+    board_pass(w)
+    assert job.arrived is not None and job.id in w.boards["COALITION"]
+    node = Vec2(*RULES.roads.pos[CORNER_TEST_NODE])
+    assert [(p.x - node.x, p.y - node.y) for p in jet.path if isinstance(p, Vec2)] in (
+        [(5000, 0)],
+        [(0, 5000)],
+        [(-5000, 0)],
+        [(0, -5000)],
+    )  # it circles the node at patrol_orbit_m
+    w.campaign.running_ticks += PATROL_TR.patrol_dwell_ticks - 2 * EVERY
+    out = board_pass(w)
+    assert job.id in w.boards["COALITION"] and not of(out, JobDone)  # not yet
+    w.campaign.running_ticks += 2 * EVERY
+    out = board_pass(w)
+    done = of(out, JobDone)
+    assert [d.job_id for d in done] == [job.id]
+    assert sorted(p.entity_id for p in done[0].participants) == [unit.id, jet.id]
+    assert unit.job_id is None or unit.job_id != job.id  # back on the board
+
+
+def test_a_patrol_fails_and_its_unit_stops_when_its_node_is_lost() -> None:
+    one = dataclasses.replace(PATROL_TR, patrol_max_nodes=1)
+    w = pw(one)
+    unit = put(w, "GARRISON_INFANTRY", "west-airbase")
+    board_pass(w)
+    assert unit.path[-1] == "fob-n-w"
+    w.owner["fob-n-w"] = "ENEMY"
+    out = board_pass(w)
+    assert [e.kind for e in out if e.kind == "JobFailed"] == ["JobFailed"]
+    assert "fob-n-w" not in unit.path and unit.job_id is None
+
+
+def test_a_patrol_replays_identically() -> None:
+    def hashes() -> list[str]:
+        w = pw()
+        put(w, "GARRISON_INFANTRY", "west-airbase")
+        put(w, "RECON_UAV", "west-airbase")
+        out = []
+        for _ in range(3):
+            board_pass(w)
+            out.append(state_hash(w))
+        return out
+
+    assert hashes() == hashes()
+
+
+# --- patrol fix round (NX-382): preemption, the per-tick hold check, snapshot rules ---------------
+
+
+def _one() -> TaskingRules:
+    return dataclasses.replace(PATROL_TR, patrol_max_nodes=1)  # only patrol:fob-n-w
+
+
+def test_a_patrolling_unit_switches_to_a_better_job_it_can_take() -> None:
+    w = pw(_one())
+    jet = put(w, "STRIKE_FIGHTER", "west-airbase")
+    board_pass(w)
+    patrol = w.boards["COALITION"][jet.job_id or 0]
+    assert patrol.kind == "PATROL"
+    strike = post(w, "COALITION", "STRIKE", "fob-n-e", "s")
+    out = board_pass(w)
+    assert jet.job_id == strike.id and jet.job_id != patrol.id
+    assert [e.kind for e in out if e.kind == "JobReleased"] == ["JobReleased"]
+    assert patrol.claims == {}
+
+
+def test_a_ground_patrol_unit_switches_to_a_defend() -> None:
+    w = pw(_one())
+    unit = put(w, "GARRISON_INFANTRY", "west-airbase")
+    board_pass(w)
+    assert w.boards["COALITION"][unit.job_id or 0].kind == "PATROL"
+    defend = post(w, "COALITION", "DEFEND", "fob-s-w", "d")
+    board_pass(w)
+    assert unit.job_id == defend.id
+
+
+def test_a_patrol_is_kept_for_a_better_job_the_unit_cannot_take() -> None:
+    w = pw(_one())
+    jet = put(w, "STRIKE_FIGHTER", "west-airbase")
+    board_pass(w)
+    patrol_id = jet.job_id
+    # east-airbase: a discovered ring straight across the jet's way there (TB-2 refuses it)
+    post(w, "COALITION", "STRIKE", "static-hq", "hq")
+    w.markers["COALITION"][50] = FacilityMarker(
+        "AIR_DEFENSE_SITE", "SAM", Vec2(300_000, 100_000), True, 1, 30_000, "HEALTHY"
+    )
+    out = board_pass(w)
+    assert jet.job_id == patrol_id
+    assert not of(out, JobReleased)  # kept, not dropped and re-claimed
+
+
+def test_a_patrol_is_kept_for_a_better_job_that_is_full() -> None:
+    w = pw(_one())
+    jet = put(w, "STRIKE_FIGHTER", "west-airbase")
+    board_pass(w)
+    patrol_id = jet.job_id
+    strike = post(w, "COALITION", "STRIKE", "fob-n-e", "s", slots=1)
+    claim(w, put(w, "STRIKE_FIGHTER", "west-airbase"), strike, [])  # its one slot is taken
+    out = board_pass(w)
+    assert jet.job_id == patrol_id and not of(out, JobReleased)
+
+
+def test_a_patrol_is_kept_for_a_job_that_is_not_better() -> None:
+    low = dataclasses.replace(_one(), priority={**PATROL_TR.priority, "STRIKE": Fraction(10)})
+    w = pw(low)
+    jet = put(w, "STRIKE_FIGHTER", "west-airbase")
+    board_pass(w)
+    patrol_id = jet.job_id
+    post(w, "COALITION", "STRIKE", "fob-n-e", "s")  # open, feasible, fits: priority 10 < 15
+    out = board_pass(w)
+    assert jet.job_id == patrol_id and not of(out, JobReleased)
+
+
+def test_a_shipped_strike_fighter_finishes_a_patrol_before_bingo() -> None:
+    w = pw(_one())
+    jet = put(w, "STRIKE_FIGHTER", "west-airbase")
+    done: list[JobDone] = []
+    for _ in range(PATROL_TR.claim_lease_ticks * 10):
+        done += of(step(w, []), JobDone)
+        if done:
+            break
+        assert jet.state != "RTB"  # bingo would end the patrol early
+    assert [p.entity_id for d in done for p in d.participants] == [jet.id]
+
+
+def test_a_node_lost_mid_route_is_never_entered() -> None:
+    w = pw(_one())
+    unit = put(w, "GARRISON_INFANTRY", "west-airbase")
+    board_pass(w)
+    assert unit.path == ["west-airbase", "fob-n-w"]
+    (ax, ay), (bx, by) = RULES.roads.pos["west-airbase"], RULES.roads.pos["fob-n-w"]
+    k = 1 - 60 / ((bx - ax) ** 2 + (by - ay) ** 2) ** 0.5  # 60 m short of the node
+    unit.pos, unit.path = Vec2(ax + k * (bx - ax), ay + k * (by - ay)), ["fob-n-w"]
+    w.owner["fob-n-w"] = "ENEMY"  # flips between two board passes
+    node = Vec2(bx, by)
+    for _ in range(30):
+        step(w, [])
+        assert unit.pos != node and unit.last_node != "fob-n-w"
+    assert unit.job_id is None and not unit.path
+
+
+def test_a_lost_route_node_fails_the_patrol_though_its_own_node_is_held() -> None:
+    w = pw(_one())
+    unit = put(w, "GARRISON_INFANTRY", "fob-s-w")
+    board_pass(w)
+    assert unit.path == ["fob-s-w", "west-airbase", "fob-n-w"]
+    w.owner["west-airbase"] = "ENEMY"  # not the job's node: a node on the way
+    out: list[Event] = []
+    run(w, out)  # a tick that is no board pass
+    assert [e.kind for e in out] == ["JobFailed"]
+    assert "west-airbase" not in unit.path and unit.job_id is None
+
+
+def test_the_dwell_restarts_when_no_claimant_is_left() -> None:
+    w = pw(_one())
+    unit = put(w, "GARRISON_INFANTRY", CORNER_TEST_NODE)
+    board_pass(w)
+    unit.path.clear()
+    board_pass(w)
+    job = jobs(w)[0]
+    assert job.arrived is not None
+    unit.order = "HOLD"  # a human order releases the claim
+    board_pass(w)
+    assert job.claims == {} and job.arrived is None
+
+
+def test_a_parameterless_join_never_takes_a_patrol() -> None:
+    w = pw(_one())
+    put(w, "GARRISON_INFANTRY", "west-airbase")
+    board_pass(w)
+    assert [j.kind for j in jobs(w)] == ["PATROL"]  # open: a slot is free
+    for kind in ("STRIKE_FIGHTER", "RECON_UAV", "GARRISON_INFANTRY"):
+        assert joinable_jobs(w, kind) == []
+
+
+def _reload(w: World, edit: Any) -> None:
+    w.campaign.tick = w.campaign.running_ticks  # board_pass moves only the running clock
+    raw = msgpack.unpackb(save(w), raw=False)
+    edit(raw["boards"])
+    load(msgpack.packb(raw, use_bin_type=True))
+
+
+def test_snapshot_patrol_jobs_follow_their_board() -> None:
+    w = pw(_one())
+    unit = put(w, "GARRISON_INFANTRY", CORNER_TEST_NODE)
+    board_pass(w)
+    unit.path.clear()
+    board_pass(w)  # a coalition patrol that dwells
+    assert jobs(w)[0].arrived is not None
+    _reload(w, lambda b: None)  # valid as it is
+    post_job(w, "ENEMY", JobSpec("PATROL", "op:p", 1, 1000, node="east-airbase", via="cross-n"), [])
+    w.campaign.running_ticks += 1
+    _reload(w, lambda b: None)
+
+    def coalition(b: Any) -> Any:
+        return next(j for j in b["COALITION"] if j["kind"] == "PATROL")
+
+    def enemy(b: Any) -> Any:
+        return next(j for j in b["ENEMY"] if j["kind"] == "PATROL")
+
+    bad: list[tuple[Any, str]] = [
+        (lambda b: coalition(b).update(via="cross-n"), "Static's patrol"),
+        (lambda b: enemy(b).update(via=None), "Static's patrol"),
+        (lambda b: enemy(b).update(arrived=5), "dwells"),
+        (lambda b: enemy(b).update(key="patrol:east-airbase"), "coalition board's"),
+    ]
+    for edit, why in bad:
+        with pytest.raises(ValueError, match=why):
+            _reload(w, edit)
