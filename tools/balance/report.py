@@ -123,7 +123,7 @@ def _a2(runs: list[dict[str, Any]], t: Targets) -> dict[str, Any]:
     tail_txt = (
         "no tail data"
         if tail["share"] is None
-        else f"{tail['share']:.0%} over {t.a2_tail_s:g} s ({tail['over']}/{tail['judged']})"
+        else f"{tail['share']:.1%} over {t.a2_tail_s:g} s ({tail['over']}/{tail['judged']})"
     )
     out["detail"] = (
         f"{med} time to first impact over {out['newbies']} newbies who arrived at {t.a2_min_tier} "
@@ -374,12 +374,12 @@ def markdown(report: dict[str, Any]) -> str:
         a2 = a["A2"]
         lines += [
             f"- {n}: counted {a2['newbies']} newbies ({a2['with_impact']} with impact), "
-            f"tail over {a2['tail']['limit_s']:g} s: {_fmt(a2['tail']['share'], '.0%')}, "
+            f"tail over {a2['tail']['limit_s']:g} s: {_fmt(a2['tail']['share'], '.1%')}, "
             f"below-tier (information only) {a2['below_tier']['newbies']}; "
             f"first impact kinds {a2['first_impact_kinds']}",
             *(
                 f"  - {k}: {g['newbies']} newbies, median {_fmt(g['median_s'])} s, "
-                f"tail {_fmt(g['tail']['share'], '.0%')}, {g['first_impact_kinds']}"
+                f"tail {_fmt(g['tail']['share'], '.1%')}, {g['first_impact_kinds']}"
                 for k, g in a2["by_persona_kind"].items()
             ),
         ]
