@@ -49,7 +49,7 @@ A profile has `viewers` distinct viewers arriving at uniform seeded times in the
 |---|---|---|
 | Campaign outcome and length | `CampaignEnded` | A1: at least 85% of seeds end by victory or defeat in 24 to 72 h (the limit is `campaign.time_limit_h`). Needs a run at least as long as the limit |
 | Momentum curve | `momentum(world)` once per game minute | none (reported: mean, final median) |
-| Newbie time to first impact | from a newbie's first JOIN to its first impact (see "A2 and impact" below) | A2: the median over newbies who arrived at the Static's tier ALPHA or above is at most 300 s (the 5 min end of "3 to 5 min"; the median rule is PROPOSED). A newbie with no impact after 300 s counts as a miss; one still inside its first 300 s when the run ends is "unresolved" and left out |
+| Newbie time to first impact | from a newbie's first JOIN to its first impact (see "A2 and impact" below) | A2 (Q-SIM-97, TESTING-STRATEGY §3.5a): for newbies who arrived at the Static's tier ALPHA or above, the median is at most 480 s (8 min, the top of a sortie) and at most 10% have a first impact later than 900 s (15 min). Tail rule below |
 | Coalition kill share by unit kind | `UnitDestroyed` of an enemy unit, by the killer's kind (assists are not counted) | A4: no kind over 40% of all the coalition's kills (AI garrison and facilities included), pooled over seeds (PROPOSED, Q-TEST-8). A4 is suspended (`a4_suspended` in profiles.yaml, Q-SIM-92) until a second armed viewer unit kind exists: the report shows `suspended (Q-SIM-92): needs a second armed viewer unit kind`, never a fail, and still prints the measured top kind and share. Fewer than `a4_min_kills` (30, PROPOSED) pooled kills is `no data`. The report also gives the player-only share (commander-owned killers), which the target does not use |
 | Idle armed viewer-unit share | `Collector.sample_idle(world)` every `idle_sample_min` game minutes (profiles.yaml, 5, PROPOSED): commander-owned units of an armed kind, not Disabled, with no job, order or route, over all such units | none (reported: mean and max per profile). For each idle unit, `tasking.idle_reason` (the board's own pool, `_open` and `_feasible`, read-only) says why it holds no job: `no_job`, `full`, `ring`, `ammo`, `refuel` (a rearm step would fix it), `reach_fuel` (a full tank would not reach) or `other`; the report sums the reasons over samples (Q-SIM-92, NX-380) |
 | Slots per unit | `Collector.sample_density(world)` on the same cadence: unfilled slots (`slots - claims`) of the coalition board's open jobs (a job with an unfilled slot) over all live (not Disabled) commander-owned units; mean over samples, a sample with no such unit is skipped | none (reported) |
@@ -70,9 +70,12 @@ A profile has `viewers` distinct viewers arriving at uniform seeded times in the
 | `kill` | `UnitDestroyed` of an enemy, the newbie's unit the killer |
 | `delivery` | `SupplyDelivered` with the newbie's commander id |
 | `capture` | `NodeCaptured` naming the newbie a participant; or, derived from world state every `impact_check_s`, a GROUND unit of the newbie inside `capture.radius_m` of a node whose capture bar the coalition fills (no `CaptureProgress` event is emitted, and `CaptureStarted` names no commander) |
+| `departure` | derived from world state every tick (`Collector.observe`, so the tick is exact): the first tick a newbie's own truck (a `supply.carriers` kind) holds cargo and a path, i.e. it loaded at its source and set off for a delivery. No event names the load. A truck that spawns or sets off empty (a capture run, a bare JOIN waiting for work) does not count; its later `delivery` does. Applies to every persona kind |
 | `scout` | derived from world state every `impact_check_s`: a coalition track not seen before, within the newbie's recon unit's sensor reach (radius x the target's stealth). No event says who tracked what, and masking is not applied, so this is an approximation |
 
-When two kinds land in the same tick the earlier row of `metrics.IMPACT_KINDS` (kill, capture, delivery, scout, hit) is recorded. The report shows the first-impact kind breakdown, overall and per persona kind.
+When two kinds land in the same tick the earlier row of `metrics.IMPACT_KINDS` (kill, capture, delivery, departure, scout, hit) is recorded. `scout` is the first coalition track never seen before that falls inside the sensor reach of a recon (painter) unit of the newbie's own.
+
+**A2 rule (Q-SIM-97).** Pass needs both. (1) The median time to first impact is at most `targets.a2_max_s` (480 s). A newbie with no impact after being watched `a2_max_s` or longer counts as a miss (infinite); one watched for less when the run ended is unresolved and left out. (2) The tail share is at most `targets.a2_tail_share` (10%): of the newbies whose fate is known past `targets.a2_tail_s` (900 s), those whose first impact came later than 900 s or who had none after being watched more than 900 s. A newbie with no impact who was watched 900 s or less is unresolved for the tail and left out of its denominator. Exactly 10% passes; an impact at exactly 900 s is not in the tail. The detail line reads like "12.0% over 900 s (3/25), needs <= 10%" (one decimal, so 10.4% never shows as the 10% limit); the JSON has `A2.tail` (`limit_s`, `over`, `judged`, `share`), per persona kind too. The report shows the first-impact kind breakdown, overall and per persona kind.
 
 ### Persona kinds (Q-SIM-95)
 
@@ -87,7 +90,7 @@ Each viewer also draws a kind from its profile's `kinds` shares (a harness RNG p
 
 Every command still goes through the ordinary path and the command log. The report breaks A2 down per kind (`A2.by_persona_kind`).
 
-Other new keys: `targets.a2_min_tier` (ALPHA) and `impact_check_s` (1 game second between the two state checks), both PROPOSED.
+Other new keys: `targets.a2_min_tier` (ALPHA), `targets.a2_tail_s` and `a2_tail_share` (Q-SIM-97; positive, share in (0, 1]) and `impact_check_s` (1 game second between the two state checks), both PROPOSED.
 
 A target with nothing to judge says so: `not evaluable` (the run was shorter than the window), `no data` (for example no kills), `not measurable yet`. **Not measurable yet:** the kill-share Gini by rank (no ranks until PROGRESSION), A5 and A6 (part 2). The CLI exit code is 0 whatever the targets say.
 

@@ -2,6 +2,7 @@
 (NX-031 part 1, Q-SIM-91). The schedule uses its own `random.Random`, never the sim's streams."""
 
 import hashlib
+import math
 import random
 from dataclasses import dataclass
 from pathlib import Path
@@ -45,6 +46,8 @@ class Targets:
     a1_pass_frac: float
     a2_min_tier: str  # A2 counts newbies who arrive at this Static tier or above (Q-SIM-93)
     a2_max_s: float
+    a2_tail_s: float  # A2 tail: first impact later than this (Q-SIM-97)
+    a2_tail_share: float  # ... for at most this share of newbies
     a3_hours: float
     a3_max_nodes_lost: int
     a4_max_share: float
@@ -116,6 +119,8 @@ def load(path: Path = DATA) -> Data:
     targets = Targets(**doc["targets"])
     if targets.a2_min_tier not in TIERS:
         raise ValueError(f"targets.a2_min_tier must be one of {TIERS}")
+    if not 0 < targets.a2_tail_s < math.inf or not 0 < targets.a2_tail_share <= 1:
+        raise ValueError("targets.a2_tail_s must be > 0 and a2_tail_share in (0, 1]")
     check_s = float(doc["impact_check_s"])
     if check_s <= 0:
         raise ValueError("impact_check_s must be > 0")
