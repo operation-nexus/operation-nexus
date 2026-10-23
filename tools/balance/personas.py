@@ -4,6 +4,7 @@ viewer has its own `random.Random`, so one viewer's luck never shifts another's.
 numbers are in profiles.yaml (PROPOSED)."""
 
 import random
+from collections.abc import Mapping
 from dataclasses import dataclass
 
 from profiles import Persona, Profile
@@ -14,10 +15,6 @@ from nexus.contracts.gen.commands.rebase import RebaseCommand
 # Idle: nothing in flight. Pending: a JOIN is sent and not yet answered. Alive: has a unit.
 # Gone: left (a viewer leaves only by losing its unit; there is no leave command, Q-SIM-91).
 IDLE, PENDING, ALIVE, GONE = "idle", "pending", "alive", "gone"
-
-
-# Persona kind (Q-SIM-95) -> the role it always joins as; "auto" keeps the persona's own role.
-KIND_ROLE = {"striker": "STRIKE", "hauler": "LOGI", "scout": "RECON"}
 
 
 @dataclass(slots=True)
@@ -76,11 +73,14 @@ def rebase_at(v: Viewer, now: int, tick_hz: int) -> int | None:
     return now + round(v.rng.uniform(*p.rebase_after_s) * tick_hz)
 
 
-def join_command(v: Viewer, tick: int, seq: int, node: str | None = None) -> JoinCommand:
-    """The JOIN: the persona's role (auto) or the kind's; a node target only for a striker."""
+def join_command(
+    v: Viewer, tick: int, seq: int, node: str | None, kind_roles: Mapping[str, str]
+) -> JoinCommand:
+    """The JOIN: the persona's role (auto) or the kind's (`kind_roles`, profiles.yaml); a node
+    target only for a striker."""
     p = v.persona
     roles = list(p.role_weights)
-    role = KIND_ROLE.get(v.kind) or v.rng.choices(roles, [p.role_weights[r] for r in roles])[0]
+    role = kind_roles.get(v.kind) or v.rng.choices(roles, [p.role_weights[r] for r in roles])[0]
     return JoinCommand.model_validate(
         {
             "kind": "JOIN",

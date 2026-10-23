@@ -62,6 +62,8 @@ class Data:
     targets: Targets
     impact_check_s: float  # game seconds between the capture-progress and scouting checks
     idle_sample_min: float  # game minutes between idle armed viewer-unit samples (Q-SIM-92)
+    momentum_sample_s: float  # game seconds between momentum and starvation samples
+    kind_roles: dict[str, str]  # persona kind (not auto) -> the JOIN role it always sends
     digest: str  # blake2b of the file, in every report
 
 
@@ -127,12 +129,23 @@ def load(path: Path = DATA) -> Data:
     idle_min = float(doc["idle_sample_min"])
     if idle_min <= 0:
         raise ValueError("idle_sample_min must be > 0")
+    sample_s = float(doc["momentum_sample_s"])
+    if not 0 < sample_s < math.inf:
+        raise ValueError("momentum_sample_s must be > 0")
+    kind_roles = {str(k): str(v) for k, v in sorted(doc["kind_roles"].items())}
+    if not set(kind_roles) <= set(KINDS) - {"auto"} or not set(kind_roles.values()) <= set(ROLES):
+        raise ValueError(f"kind_roles: keys must be non-auto kinds of {KINDS}, values of {ROLES}")
+    for pr in profiles.values():
+        if missing := {k for k in pr.kinds if k != "auto"} - set(kind_roles):
+            raise ValueError(f"profile {pr.name}: kinds {sorted(missing)} have no kind_roles role")
     return Data(
         profiles,
         personas,
         targets,
         check_s,
         idle_min,
+        sample_s,
+        kind_roles,
         hashlib.blake2b(raw, digest_size=16).hexdigest(),
     )
 
