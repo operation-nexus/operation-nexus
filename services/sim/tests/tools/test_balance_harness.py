@@ -20,6 +20,7 @@ from nexus.contracts.gen.events.unit_destroyed import UnitDestroyed
 from nexus.contracts.gen.events.unit_spawned import UnitSpawned
 from nexus.contracts.gen.events.weapon_impact import WeaponImpact
 from nexus.core.campaign import momentum
+from nexus.core.step import HANDLERS, step
 from nexus.core.world import CaptureBar, Claim, Contact, Job, Vec2
 from nexus.runtime.campaign_config import CampaignConfig, start_campaign
 from nexus.runtime.command_log import CommandLogReader, Tombstone
@@ -385,7 +386,8 @@ def test_target_rules() -> None:
     assert report._a2([slow], t)["status"] == report.FAIL  # two of three never saw an impact
     assert report._a2([fake_run()], t)["status"] == report.PASS
     two = report._a2([fake_run(newbie=newbie([100.0, 700.0], []))], t)
-    assert two["status"] == report.FAIL and "median 400 s time to first impact" in two["detail"]
+    assert two["status"] == report.PASS and "median 400 s time to first impact" in two["detail"]
+    assert report._a2([fake_run(newbie=newbie([100.0, 900.0], []))], t)["status"] == report.FAIL
     unresolved = fake_run(newbie=newbie([], [10.0]))
     assert report._a2([unresolved], t)["status"] == report.NO_DATA
     assert report._a3([fake_run()], t, "overnight-0")["status"] == report.PASS
@@ -831,3 +833,99 @@ def test_board_density_on_a_hand_built_sample(
     agg = report._density([{"metrics": {"density": d}}, {"metrics": {"density": d}}])
     assert agg["slots_per_unit"] == 2.0 and agg["jobs_per_node"] == pytest.approx(1.5 / 13)
     assert report._density([{"metrics": {}}]) == {"slots_per_unit": None, "jobs_per_node": None}
+
+
+# --- A2 target 480 s median + 15 min tail, hauler departure (Q-SIM-97) ---------------------------
+def a2(ttfi: list[float], never: list[float]) -> dict[str, Any]:
+    out: dict[str, Any] = report._a2([fake_run(newbie=newbie(ttfi, never))], load().targets)
+    return out
+
+
+def test_a2_median_boundary_is_480_s() -> None:
+    assert load().targets.a2_max_s == 480
+    assert [a2([m], [])["status"] for m in (479.0, 480.0, 481.0)] == ["pass", "pass", "fail"]
+
+
+def test_a2_tail_share_boundary_is_10_percent() -> None:
+    fast, slow = [60.0] * 9, [901.0]  # 1 of 10 later than 900 s: exactly 10%
+    ok = a2(fast + slow, [])
+    assert ok["status"] == report.PASS and ok["tail"]["share"] == 0.1
+    assert "10% over 900 s (1/10), needs <= 10%" in ok["detail"]
+    assert a2([60.0] * 8 + [901.0] * 2, [])["status"] == report.FAIL  # 20%
+    assert a2([60.0] * 8 + [901.0, 900.0], [])["status"] == report.PASS  # 900 s is not over 900 s
+    # watched past 900 s with no impact is in the tail (and a miss for the median, once 480 s)
+    assert a2([60.0] * 8, [901.0, 901.0])["status"] == report.FAIL
+
+
+def test_a2_tail_leaves_unresolved_newbies_out() -> None:
+    # 1 of 10 over the tail; 5 more are still inside their first 900 s with no impact: left out
+    r = a2([60.0] * 9 + [901.0], [500.0, 600.0, 700.0, 800.0, 900.0])
+    assert r["tail"] == {"limit_s": 900.0, "over": 1, "judged": 10, "share": 0.1}
+    assert r["unresolved_run_ended"] == 0 and r["no_impact_within_window"] == 5
+    # the median still counts the 500..900 s ones as misses: 15 newbies, 5 inf; median is 60 s
+    assert r["status"] == report.PASS
+    only = a2([], [100.0])  # nothing resolved at all
+    assert only["status"] == report.NO_DATA and only["tail"]["share"] is None
+
+
+def test_a2_detail_names_the_tail() -> None:
+    r = a2([60.0, 1000.0], [])
+    assert r["tail"]["over"] == 1 and r["status"] == report.FAIL  # median 530 s too
+    assert "50% over 900 s (1/2), needs <= 10%" in r["detail"]
+    assert a2([60.0, 100.0, 1000.0], [])["status"] == report.FAIL  # median 100 s: the tail alone
+
+
+def test_profiles_reject_a_bad_tail(tmp_path: Path) -> None:
+    for key, bad in (("a2_tail_s", 0), ("a2_tail_share", 0), ("a2_tail_share", 1.5)):
+        raw = yaml.safe_load(DATA.read_text())
+        raw["targets"][key] = bad
+        doc = tmp_path / "bad.yaml"
+        doc.write_text(yaml.safe_dump(raw))
+        with pytest.raises(ValueError, match="a2_tail"):
+            load(doc)
+
+
+def join_hauler(
+    config: CampaignConfig, node: str | None
+) -> tuple[Any, metrics.Collector, list[Any]]:
+    """A newbie hauler's JOIN LOGI at tick 5 (to `node`, or bare), stepped for 60 ticks."""
+    world = start_campaign("c", 1, config)
+    cmdr = commander(1)
+    collector = metrics.Collector(
+        world, frozenset([cmdr]), tick_hz=HZ, sample_ticks=600, a3_ticks=1000,
+        idle_sample_ticks=600, impact_check_ticks=10, kinds={cmdr: "hauler"}, a2_min_tier="ALPHA",
+    )  # fmt: skip
+    collector.note_join(cmdr, 5, "ALPHA")
+    v = personas.new_viewer(1, load().personas["newbie"], "prime-50", 1, "hauler")
+    spawns: list[Any] = []
+    for tick in range(1, 61):
+        cmds = [personas.join_command(v, tick, 1, node)] if tick == 5 else []
+        events = step(world, cmds, HANDLERS)
+        spawns += [e for e in events if e.kind == "UnitSpawned" and e.commander_id == cmdr]
+        collector.feed(events)
+        collector.observe(world)
+    return world, collector, spawns
+
+
+def test_a_hauler_leaving_its_source_loaded_is_a_departure(shipped_config: CampaignConfig) -> None:
+    rules = shipped_config.rules
+    world = start_campaign("c", 1, shipped_config)
+    dest = next(  # a coalition base that takes stock, not the rear: the truck loads at another one
+        n for n, o in sorted(world.owner.items())
+        if o == "COALITION" and rules.supply.max_stock.get(n, 0) > 0 and n != rules.sanctuary
+    )  # fmt: skip
+    world, collector, spawns = join_hauler(shipped_config, dest)
+    assert len(spawns) == 1
+    truck = world.find(spawns[0].entity_id)
+    assert truck is not None and truck.cargo and truck.cargo > 0 and truck.path
+    assert collector.impact[commander(1)] == (spawns[0].tick, "departure")
+    assert collector.result(60)["newbie"]["first_impact_kinds"] == {"departure": 1}
+
+
+def test_a_truck_leaving_empty_is_no_departure(shipped_config: CampaignConfig) -> None:
+    world = start_campaign("c", 1, shipped_config)
+    foe = next(n for n, o in sorted(world.owner.items()) if o == "ENEMY")  # a capture run: no load
+    world, collector, spawns = join_hauler(shipped_config, foe)
+    truck = world.find(spawns[0].entity_id)
+    assert truck is not None and truck.path and not truck.cargo
+    assert collector.impact == {}

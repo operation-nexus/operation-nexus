@@ -68,24 +68,37 @@ def _a1(runs: list[dict[str, Any]], t: Targets) -> dict[str, Any]:
 
 
 def _a2_group(groups: list[dict[str, Any]], t: Targets) -> dict[str, Any]:
-    """A2 over groups of counted newbies (their `ttfi_s`, `no_impact_observed_s`, impact kinds)."""
+    """A2 over groups of counted newbies (their `ttfi_s`, `no_impact_observed_s`, impact kinds).
+
+    Median (Q-SIM-97): a newbie watched `a2_max_s` or longer with no impact counts as a miss
+    (infinity); one watched less is unresolved and left out. Tail: of the newbies whose fate is
+    known past `a2_tail_s` (an impact at any time, or no impact after being watched longer than
+    that), the share whose first impact came later than it or never. A newbie with no impact and
+    watched `a2_tail_s` or less is unresolved for the tail and left out of its denominator."""
     ttfi = [v for g in groups for v in g["ttfi_s"]]
-    never = sum(
-        s >= t.a2_max_s for g in groups for s in g["no_impact_observed_s"]
-    )  # watched long enough
-    unresolved = sum(s < t.a2_max_s for g in groups for s in g["no_impact_observed_s"])  # run ended
+    watched = [s for g in groups for s in g["no_impact_observed_s"]]
+    never = sum(s >= t.a2_max_s for s in watched)  # watched long enough for the median
+    unresolved = len(watched) - never  # run ended first
     values = sorted(ttfi + [float("inf")] * never)
     median = _med(values)
+    over = sum(v > t.a2_tail_s for v in ttfi) + sum(s > t.a2_tail_s for s in watched)
+    judged = len(ttfi) + sum(s > t.a2_tail_s for s in watched)
+    share = over / judged if judged else None
     kinds: Counter[str] = Counter()
     for g in groups:
         kinds.update(g["first_impact_kinds"])
+    if median is None:
+        status = NO_DATA
+    else:
+        status = PASS if median <= t.a2_max_s and (share or 0) <= t.a2_tail_share else FAIL
     return {
-        "status": NO_DATA if median is None else PASS if median <= t.a2_max_s else FAIL,
+        "status": status,
         "newbies": len(ttfi) + never + unresolved,
         "with_impact": len(ttfi),
         "no_impact_within_window": never,
         "unresolved_run_ended": unresolved,
         "median_s": None if median in (None, float("inf")) else median,
+        "tail": {"limit_s": t.a2_tail_s, "over": over, "judged": judged, "share": share},
         "first_impact_kinds": dict(sorted(kinds.items())),
     }
 
@@ -106,9 +119,16 @@ def _a2(runs: list[dict[str, Any]], t: Targets) -> dict[str, Any]:
         k: _a2_group([n["by_kind"][k] for n in news if k in n["by_kind"]], t) for k in kinds
     }
     med = "no median" if out["median_s"] is None else f"median {out['median_s']:.0f} s"
+    tail = out["tail"]
+    tail_txt = (
+        "no tail data"
+        if tail["share"] is None
+        else f"{tail['share']:.0%} over {t.a2_tail_s:g} s ({tail['over']}/{tail['judged']})"
+    )
     out["detail"] = (
         f"{med} time to first impact over {out['newbies']} newbies who arrived at {t.a2_min_tier} "
-        f"or above (needs <= {t.a2_max_s:g} s); {out['unresolved_run_ended']} unresolved when the "
+        f"or above (needs <= {t.a2_max_s:g} s); {tail_txt}, needs <= {t.a2_tail_share:.0%}; "
+        f"{out['unresolved_run_ended']} unresolved when the "
         f"run ended; {out['below_tier']['newbies']} more arrived below {t.a2_min_tier} "
         "(information only)"
     )
@@ -354,11 +374,12 @@ def markdown(report: dict[str, Any]) -> str:
         a2 = a["A2"]
         lines += [
             f"- {n}: counted {a2['newbies']} newbies ({a2['with_impact']} with impact), "
+            f"tail over {a2['tail']['limit_s']:g} s: {_fmt(a2['tail']['share'], '.0%')}, "
             f"below-tier (information only) {a2['below_tier']['newbies']}; "
             f"first impact kinds {a2['first_impact_kinds']}",
             *(
                 f"  - {k}: {g['newbies']} newbies, median {_fmt(g['median_s'])} s, "
-                f"{g['first_impact_kinds']}"
+                f"tail {_fmt(g['tail']['share'], '.0%')}, {g['first_impact_kinds']}"
                 for k, g in a2["by_persona_kind"].items()
             ),
         ]
