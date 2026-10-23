@@ -13,12 +13,14 @@ from . import (
     staff_campaign_end,
     staff_campaign_pause,
     staff_campaign_resume,
+    sys_queue_timeout,
     sys_set_callsign,
 )
 
 type Command = Annotated[
     join.JoinCommand
     | sys_set_callsign.SysSetCallsignCommand
+    | sys_queue_timeout.SysQueueTimeoutCommand
     | staff_campaign_pause.StaffCampaignPauseCommand
     | staff_campaign_resume.StaffCampaignResumeCommand
     | staff_campaign_end.StaffCampaignEndCommand

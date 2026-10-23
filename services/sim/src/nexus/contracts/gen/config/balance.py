@@ -791,6 +791,13 @@ class Slots(BaseModel):
             ge=1,
         ),
     ]
+    queue_idle_min: Annotated[
+        int,
+        Field(
+            description="A queued commander with no JOIN for this long leaves the queue, unit min of real time (GAMEPLAY RQ-1, Q-SIM-12). Read by the runtime, which submits SYS_QUEUE_TIMEOUT; the sim never reads it (NX-371).",
+            ge=1,
+        ),
+    ]
 
 
 class UnitValue(BaseModel):

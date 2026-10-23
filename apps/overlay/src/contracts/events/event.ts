@@ -7,6 +7,7 @@ export type Event =
   | UnitSpawned
   | CommandRejected
   | ReserveQueueJoined
+  | ReserveQueueLeft
   | UnitDestroyed
   | CallsignChanged
   | SupplyDelivered
@@ -111,7 +112,13 @@ export interface CommandRejected {
    * Grows one kind at a time, with each handler (AGENTS.md rule 6a).
    */
   command_kind:
-    "JOIN" | "SYS_SET_CALLSIGN" | "STAFF_CAMPAIGN_PAUSE" | "STAFF_CAMPAIGN_RESUME" | "STAFF_CAMPAIGN_END" | "REBASE";
+    | "JOIN"
+    | "SYS_SET_CALLSIGN"
+    | "SYS_QUEUE_TIMEOUT"
+    | "STAFF_CAMPAIGN_PAUSE"
+    | "STAFF_CAMPAIGN_RESUME"
+    | "STAFF_CAMPAIGN_END"
+    | "REBASE";
   /**
    * CONTRACTS §5.3. Grows one value at a time, with the code that emits it (rule 6a).
    */
@@ -160,6 +167,32 @@ export interface ReserveQueueJoined {
    * 1-based place in the queue; 1 is served next.
    */
   position: number;
+}
+/**
+ * An entry left the reserve queue (CONTRACTS §6; GAMEPLAY RQ-1; STATE-MACHINES §4.1). Every exit emits exactly one, so every ReserveQueueJoined (a replacement emits Left REPLACED, then Joined) is matched by one Left and the queue length is derivable from events alone. Public view: queue length only.
+ */
+export interface ReserveQueueLeft {
+  kind: "ReserveQueueLeft";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * UUIDv7, canonical lowercase (IDENTITY §1). Not a platform id.
+   */
+  commander_id: string;
+  /**
+   * Why an entry left the reserve queue (CONTRACTS §6, NX-371): served a slot, replaced by the commander's own new JOIN, rejected when re-checked at serve time, or idle past slots.queue_idle_min. LEFT (a voluntary leave) joins with its command.
+   */
+  reason: "SLOT_FREED" | "REPLACED" | "REJECTED" | "TIMEOUT";
 }
 /**
  * A unit is lost (CONTRACTS §6; STATE-MACHINES §4.1 Destroyed). Produced by fuel exhaustion (NX-368) and a captured base (NX-125), both with killer null and no assists, and by combat (NX-124): killer is the shooter of the killing hit and the assists are the other shooters that hit the unit within combat.assist_window_s. Public view: a hidden killer becomes null (FOW-3); a hidden victim is dropped.

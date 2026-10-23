@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nexus.local/contracts/events/reserve_queue_left.json",
+  "title": "ReserveQueueLeft",
+  "description": "An entry left the reserve queue (CONTRACTS §6; GAMEPLAY RQ-1; STATE-MACHINES §4.1). Every exit emits exactly one, so every ReserveQueueJoined (a replacement emits Left REPLACED, then Joined) is matched by one Left and the queue length is derivable from events alone. Public view: queue length only.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "tick", "event_seq", "campaign_id", "commander_id", "reason"],
+  "properties": {
+    "kind": {"const": "ReserveQueueLeft"},
+    "tick": {"$ref": "../common/ids.json#/$defs/Tick"},
+    "event_seq": {"type": "integer", "minimum": 1, "description": "Campaign-wide, monotonic, deterministic (SC-14)."},
+    "campaign_id": {"$ref": "../common/ids.json#/$defs/CampaignId"},
+    "commander_id": {"$ref": "../common/ids.json#/$defs/CommanderId"},
+    "reason": {"$ref": "../common/enums.json#/$defs/QueueLeaveReason"}
+  }
+}

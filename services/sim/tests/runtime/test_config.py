@@ -48,6 +48,7 @@ slots:
   respawn_delay_s: 20
   max_viewer_units: 500
   reserve_queue_max: 1000
+  queue_idle_min: 15
 logistics:
   node_max_stock:
     AIRBASE: 2000
@@ -288,12 +289,13 @@ director:
 # NX-374 for the tasking keys and again for follow and escort, NX-155 for the director, and NX-157
 # for the Pattern of Life keys and the garrison operation); a
 # change means every config_hash moved.
-GOLDEN_CONFIG_HASH = "f9e071c02cdf8ac6aa6d04f517482f364641bd000fc2a304a31e8f7716e503cb"
+GOLDEN_CONFIG_HASH = "6feef752cae8e068523e0eef5d0ebbe83285d8274414753afef0cfb69ad62387"
 SLOTS = {
     "max_live_per_commander": 1,
     "respawn_delay_s": 20,
     "max_viewer_units": 500,
     "reserve_queue_max": 1000,
+    "queue_idle_min": 15,
 }
 FOW = {
     "track_every_ticks": 5,
@@ -590,6 +592,7 @@ def test_default_profile_loads_and_matches_golden_hash() -> None:
         ("  respawn_delay_s: 20\n", "slots.respawn_delay_s"),
         ("  max_viewer_units: 500\n", "slots.max_viewer_units"),
         ("  reserve_queue_max: 1000\n", "slots.reserve_queue_max"),
+        ("  queue_idle_min: 15\n", "slots.queue_idle_min"),
         ("  bingo_reserve_frac: 0.15\n", "air.bingo_reserve_frac"),
         ("  orbit_period_s: 120.0\n", "air.orbit_period_s"),
         ("  track_every_ticks: 5\n", "fow.track_every_ticks"),
@@ -816,7 +819,7 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "# same profile, other layout\n"
         "sim: {snapshot_every_ticks: 300, time_scale: 6.0, tick_hz: 10}\n"
         "slots: {respawn_delay_s: 20, max_live_per_commander: 1, reserve_queue_max: 1000,\n"
-        "  max_viewer_units: 500}\n"
+        "  max_viewer_units: 500, queue_idle_min: 15}\n"
         "air: {orbit_period_s: 120.0, bingo_reserve_frac: 0.15}\n"
         "fow: {track_fade_s: 180.0, track_every_ticks: 5, paint_range_m: 20000.0,\n"
         "  mask_cell_m: 1000,\n"
