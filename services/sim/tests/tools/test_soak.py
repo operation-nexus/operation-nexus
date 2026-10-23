@@ -108,6 +108,31 @@ def test_a_replay_that_differs_fails_and_lists_the_ticks(
     assert "# Soak: FAIL" in (tmp_path / "o" / "soak.md").read_text()
 
 
+def test_a_replay_that_raises_fails_and_still_writes_the_report(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def broken(*_: object) -> dict[int, str]:
+        raise KeyError("lost segment")
+
+    monkeypatch.setattr(soak, "replay_checkpoints", broken)
+    assert soak.main(short_argv(tmp_path / "o")) == 1
+    doc = json.loads((tmp_path / "o" / "soak.json").read_text())
+    assert doc["replay"]["error"] == "KeyError: 'lost segment'"
+    assert doc["reasons"] == ["replay error: KeyError: 'lost segment'"]
+    assert "replay: error: KeyError" in (tmp_path / "o" / "soak.md").read_text()
+
+
+def test_a_bad_profile_file_is_a_usage_error(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    def bad() -> None:
+        raise ValueError("profile x: a crowd needs a persona mix")
+
+    monkeypatch.setattr(soak.profiles, "load", bad)
+    assert soak.main(short_argv(tmp_path / "o")) == 2
+    assert "persona mix" in capsys.readouterr().err
+
+
 def test_a_tiny_wall_budget_stops_the_run(tmp_path: Path) -> None:
     assert soak.main(short_argv(tmp_path / "o", "--minutes", "0.0001", "--hours", "5")) == 0
     doc = json.loads((tmp_path / "o" / "soak.json").read_text())

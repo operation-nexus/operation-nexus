@@ -41,6 +41,7 @@ from nexus.runtime.campaign_config import (
     start_campaign,
 )
 from nexus.runtime.command_log import CommandLogReader, Tombstone
+from nexus.runtime.config import ConfigError
 
 SC10_P99_MS = 25.0  # SC-10 line, reported beside the p99 and never gated here (shared runners)
 BUCKET = (
@@ -188,6 +189,8 @@ def verdict(
     if replay is None:
         if not (run["crash"] or run["harness_error"]):
             reasons.append("replay did not run")
+    elif replay.get("error"):
+        reasons.append(f"replay error: {replay['error']}")
     elif replay["mismatches"]:
         reasons.append(f"replay hash mismatch at ticks {replay['mismatches']}")
     return reasons
@@ -227,13 +230,19 @@ def soak(args: argparse.Namespace, data: profiles.Data, config: CampaignConfig) 
     if not (run["crash"] or run["harness_error"]):
         probe.checkpoints[ran] = run["final_state_hash"]  # the last tick is a checkpoint too
         t0 = time.perf_counter()
-        got = replay_checkpoints(
-            log_dir, args.seed, args.profile, ran, config, set(probe.checkpoints)
-        )
-        bad = [t for t, h in sorted(probe.checkpoints.items()) if got.get(t) != h]
+        error: str | None = None
+        bad: list[int] = []
+        try:
+            got = replay_checkpoints(
+                log_dir, args.seed, args.profile, ran, config, set(probe.checkpoints)
+            )
+            bad = [t for t, h in sorted(probe.checkpoints.items()) if got.get(t) != h]
+        except Exception as e:  # noqa: BLE001  # a replay that raises fails the soak; keep the report
+            error = f"{type(e).__name__}: {e}"
         replay = {
             "checkpoints": len(probe.checkpoints),
             "mismatches": bad,
+            "error": error,
             "wall_s": time.perf_counter() - t0,
         }
     slope = slope_per_hour(probe.memory, args.warmup_h)
@@ -295,12 +304,15 @@ def num(value: float | None, fmt: str = ".2f") -> str:
 
 def markdown(r: dict[str, Any]) -> str:
     s, m, rp = r["step_ms"], r["memory"], r["replay"]
-    replay = (
-        "did not run"
-        if rp is None
-        else f"{rp['checkpoints'] - len(rp['mismatches'])}/{rp['checkpoints']} checkpoints match "
-        f"({rp['wall_s']:.0f} s)"
-    )
+    if rp is None:
+        replay = "did not run"
+    elif rp.get("error"):
+        replay = f"error: {rp['error']} ({rp['wall_s']:.0f} s)"
+    else:
+        replay = (
+            f"{rp['checkpoints'] - len(rp['mismatches'])}/{rp['checkpoints']} checkpoints match "
+            f"({rp['wall_s']:.0f} s)"
+        )
     unmeasured = r["pass"] and not m["gate_applied"]
     headline = "FAIL" if not r["pass"] else "PASS (memory not measured)" if unmeasured else "PASS"
     lines = [
@@ -397,7 +409,11 @@ def parser() -> argparse.ArgumentParser:
 
 def main(argv: list[str] | None = None) -> int:
     args = parser().parse_args(argv)
-    data, config = profiles.load(), load_campaign_config()
+    try:
+        data, config = profiles.load(), load_campaign_config()
+    except (ValueError, OSError, ConfigError) as e:  # as balance.py: a bad profile or config file
+        print(f"error: {e}", file=sys.stderr)
+        return 2
     if args.profile not in data.profiles:
         print(f"error: unknown profile {args.profile!r}", file=sys.stderr)
         return 2
