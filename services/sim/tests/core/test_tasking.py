@@ -2047,3 +2047,23 @@ def test_the_static_still_strikes_the_coalition_sanctuary() -> None:
     )
     specs = generate(w, RULES, TR, "ENEMY", side_view(w, "ENEMY"))
     assert f"strike:{sanctuary}" in [s.key for s in specs if s.kind == "STRIKE"]
+
+
+def test_rear_source_strike_generation_is_deterministic() -> None:
+    """NX-396: two independent worlds with a defended rear source give the same ordered jobs
+    and the same state after board passes."""
+
+    def run() -> tuple[list[tuple[str, int]], str]:
+        w = new_world()
+        w.director["ENEMY"].tier = "ALPHA"
+        _rear_with_hp(w)
+        for _ in range(3):
+            put(w, "STRIKE_FIGHTER", "west-airbase")
+        specs = _strikes(w, dataclasses.replace(TR, strike_idle_targets_max=20))
+        for _ in range(4):
+            board_pass(w)
+        return specs, state_hash(w)
+
+    first = run()
+    assert first == run()
+    assert "strike:static-rear" not in [k for k, _ in first[0]]
