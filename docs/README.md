@@ -130,6 +130,7 @@ When you add, rename or remove a doc, update this index in the same PR.
 | [NAME-CLEARANCE.md](review/NAME-CLEARANCE.md) | Name clearance research, rounds 1–3 (Q-LEGAL-5, Q-BRAND-6), with the owner's manual check steps. |
 | [HANDLE-AND-DOMAIN-CHECK-2026-10-18.md](review/HANDLE-AND-DOMAIN-CHECK-2026-10-18.md) | Handle and domain availability check for "hiveplex" (point-in-time snapshot, not a reservation). |
 | [TRADEMARK-AND-NAME-VERIFICATION-2026-10-18.md](review/TRADEMARK-AND-NAME-VERIFICATION-2026-10-18.md) | Trademark, store and company-register knockout verification for the brand and in-world names (not legal advice). |
+| [TRADEMARK-OWNER-SEARCH-2026-10-22.md](review/TRADEMARK-OWNER-SEARCH-2026-10-22.md) | Owner's USPTO, EUIPO, WIPO and UKIPO searches for HIVEPLEX and a plain-language reading (not legal advice). |
 | [LEGAL-AND-NAME-SWEEP-2026-10-18.md](review/LEGAL-AND-NAME-SWEEP-2026-10-18.md) | Legal, license and name sweep, round 4 (research, not legal advice). |
 | [LICENSE-AND-MUSIC-VERIFICATION-2026-10-18.md](review/LICENSE-AND-MUSIC-VERIFICATION-2026-10-18.md) | License, music-terms and tool-license verification from primary sources (NX-332). |
 | [PLATFORM-POLICY-VERIFICATION-2026-10-18.md](review/PLATFORM-POLICY-VERIFICATION-2026-10-18.md) | Platform policy and API limit verification from primary sources (NX-333). |
