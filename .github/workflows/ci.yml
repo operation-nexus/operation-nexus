@@ -98,9 +98,13 @@ jobs:
           cache-dependency-glob: services/sim/uv.lock
       # Same commands as `make check-python`.
       - run: uv sync --frozen
-      - run: uv run --frozen ruff check .
-      - run: uv run --frozen ruff format --check .
+      - run: uv run --frozen ruff check . ../../tools
+      - run: uv run --frozen ruff format --check . ../../tools
       - run: uv run --frozen mypy src tests
+      - run: >-
+          MYPYPATH=src:tests uv run --frozen mypy
+          ../../tools/balance ../../tools/replay ../../tools/sim-determinism
+          ../../tools/sim-bench/kernel_bench.py ../../tools/discord-setup/setup.py
       - run: uv run --frozen lint-imports
 
   python-test:

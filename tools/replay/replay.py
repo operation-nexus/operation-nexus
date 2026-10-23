@@ -177,7 +177,12 @@ def main() -> int:
         if args.command != "size":
             args.config = load_campaign_config(
                 ConfigPaths(
-                    args.balance, args.units, args.weapons, args.roles, args.theater, args.operations
+                    args.balance,
+                    args.units,
+                    args.weapons,
+                    args.roles,
+                    args.theater,
+                    args.operations,
                 )
             )
         return int(args.fn(args))
