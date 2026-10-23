@@ -112,6 +112,17 @@ An issue is eligible when it is open, carries the `harness-run` label and was op
 
 **Trust.** The `harness-run` label gate is only as strong as the list of people with triage rights. A collaborator could edit a trusted author's issue; the damage is still bounded to SHAs on `develop`, profiles that exist in `profiles.yaml` and capped numbers (`max_*`, `job_timeout_hours` in `queue.yaml`). GitHub login reuse (a deleted account's name re-registered) is a residual risk, so keep `trusted_authors` current. A job past `job_timeout_hours` is killed with its child processes and marked `harness-failed`; an issue left `harness-running` by a crash or reboot is marked failed at the start of the next tick.
 
+### Expected wall time
+
+The Cost section above was measured on a 4-core cloud box. The owner's PC runs about 200 to 380 ticks per second per run. A game hour is 36,000 ticks (10 Hz), so one run takes about:
+
+| Run length | Wall time per run, per worker |
+|---|---|
+| 6 game hours | about 10 to 20 minutes |
+| 72 game hours | about 2 to 3.6 hours |
+
+Add up to 60 minutes until the next hourly tick, and the time of any job ahead in the queue. One tick drains every eligible issue serially under one lock (`run_once` loops over `eligible()` and calls `process` for each). A tick that fires during a long run finds the lock held, logs it and exits 0, so a later issue starts on the first tick after the earlier run ends. Schedule check-ins on these times, not on the hourly timer. The throughput comes from the per-run Ticks/s column of the queue's own reports on the owner's PC (issues #253, #259, #260, #261 and #267, 2026-10-22 and 23: raid-300 about 180-230, evening-150 about 280-390, quiet-5 about 1,150-1,480 ticks/s, 6-8 workers).
+
 ### Setup on the PC
 
 1. Prerequisites: `git`, `uv` and `gh`. Log `gh` in as **canthony224** (a trusted author that is not the owner's notification account, so results notify the owner) with a **fine-grained personal access token**: resource owner `operation-nexus`, only the `operation-nexus` repository, Repository permissions → Issues: Read and write (Metadata read comes with it); 90-day expiry. The queue only lists issues, relabels and comments, and `git fetch` needs no token on a public repo, so an Issues-only token keeps a leaked PC from pushing code or touching settings. WSL has no browser for `gh auth login`'s web flow, so use `gh auth login --with-token`, paste the token, press Ctrl-D, then check `gh auth status`. Renew the token before it expires (owner, 2026-10-22). The organization must approve a new fine-grained token (as an org owner: organization Settings → Personal access tokens → Pending requests); until it does, reads of the public repo work but every write fails, and the tick logs `skipped after QueueError: ...` and leaves the issue untouched for the next tick. `journalctl --user -u nexus-harness` shows the full error text.

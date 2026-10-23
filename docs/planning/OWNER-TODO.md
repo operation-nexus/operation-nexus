@@ -30,7 +30,7 @@ Applied and verified through the GitHub API on 2026-10-18 where checked.
 - [x] Review PR #37 (repo skeleton) and merge it into `develop` if happy
 - [ ] **Delete merged branches.** Auto-delete only covers PRs merged on GitHub; a branch merged locally (`Merge branch '…' into develop`) stays until deleted by hand: `git push origin --delete <branch>`. Checked 2026-10-18: the remote had only `develop` and `main`. On each machine, drop stale local refs and branches: `git fetch --prune`, then `git branch --merged develop` and `git branch -d <branch>` for each listed feature branch (AGENTS.md rule 11).
 - [ ] Close the issues for work that has landed, if you agree: #8 (NX-010, repo skeleton merged; `make check` green), and #20 (NX-022) and #32 (NX-049) once the settings above are confirmed
-- [ ] **GitHub organization (Q-LEGAL-8, NX-320):** create an organization owned by the saltyseraphcodes account (name: your choice after the handle checks in §4a), then transfer this repo into it (repo Settings → General → Danger Zone → Transfer). Issues, PRs and links move and old URLs redirect. Afterwards re-check rulesets, environments, the Actions allowlist and security settings in the new home, since which settings carry over is [UNVERIFIED]; then update CODEOWNERS, tracker issue links and badges (NX-320)
+- [x] **GitHub organization (Q-LEGAL-8, NX-320):** done 2026-10-18, see §4d. Original item: create an organization owned by the saltyseraphcodes account (name: your choice after the handle checks in §4a), then transfer this repo into it (repo Settings → General → Danger Zone → Transfer). Issues, PRs and links move and old URLs redirect. Afterwards re-check rulesets, environments, the Actions allowlist and security settings in the new home, since which settings carry over is [UNVERIFIED]; then update CODEOWNERS, tracker issue links and badges (NX-320)
 
 ## 3. Hardware (issue #6, NX-007)
 - [ ] Linux server: `free -h`, `sudo dmidecode -t memory`, `lscpu`, `lsb_release -a` (record the results in docs/ops/HARDWARE.md)
@@ -82,13 +82,19 @@ Only you can do these; each report's last section has the detail. Reports: PLATF
 Accounts, handles and repos are listed in `docs/planning/BRAND-ACCOUNTS.md`.
 - [x] **Install the Claude GitHub App on the `operation-nexus` organization** (done 2026-10-18) (https://github.com/apps/claude/installations/select_target) and give it this repo plus `operation-nexus-ops` and `operation-nexus-vault`. Until then cloud sessions cannot see the organization's repos (checked 2026-10-18: access denied)
 - [x] **Transfer this repo** to the organization (done 2026-10-18). Rulesets, `ci-gate`, auto-merge and branch cleanup were re-checked; CODEOWNERS names `@saltyseraphcodes` until the org teams (`developers`, `maintainers`, `testers`) are used for ownership; tracker issue links point at the organization (NX-320)
-- [ ] **Git identity on your machine:** use the `saltyseraphcodes` noreply address for commits in this organization (Q-LEGAL-8), and sign the GitHub CLI or browser in as `saltyseraphcodes`, not any personal account
+- [ ] **Git identity on your machine:** commits use the `SaltySeraphCodes` noreply address (Q-LEGAL-8). Agent and harness `gh` sessions use `canthony224` (Q-DEV-16; see `docs/agentic/TOOLING.md` and `ISSUE-WORKFLOW.md`). Your own browser uses `SaltySeraphCodes`, not any personal account
 - [x] **Install `age` and make the secrets key** (done 2026-10-18: public key sent, `.sops.yaml` added to the ops repo) (needed once, on your own computer, never in a cloud session):
   1. Install: macOS `brew install age`; Windows `winget install FiloSottile.age` (or `scoop install age`); Debian/Ubuntu `sudo apt install age`. The package includes `age-keygen`.
   2. Run `age-keygen -o key.txt`. It prints a line `Public key: age1...`.
   3. Put the whole `key.txt` in your password manager as a secure note, make a second offline backup, then delete the plain file. Never commit it, paste it into chat or put it in an issue.
   4. Send me only the `age1...` line. That public key is safe to share; it can only encrypt.
   Losing the private key means re-encrypting every secret, so back it up before anything else. I add `.sops.yaml` to the ops repo with that key; sops itself is installed later when the first secret is stored (NX-299)
+
+## 4e. Open items from the harness and review setup (2026-10-23)
+- [ ] **Renew the harness token** before its 90-day expiry: the fine-grained PAT used by `gh` on the harness PC was created 2026-10-22, so it expires about 2027-01-20 (`tools/balance/README.md`, Setup on the PC). The organization must approve the new token.
+- [ ] **CodeRabbit:** decide whether to renew before the trial ends about 2026-11-03 (`docs/ops/COSTS.md`; $30 a month after the trial, not renewed by default, Q-CI-7).
+- [ ] **Harness timer in WSL:** confirm the timer fires with no terminal open (`tools/balance/README.md` marks this **[UNVERIFIED]**).
+- [ ] **Merge commits (Q-LEGAL-8):** GitHub's merge commits on `develop` are authored by the account that enabled auto-merge, `canthony224`, not `SaltySeraphCodes` (`docs/planning/ISSUE-WORKFLOW.md` rule 5). Say whether that meets Q-LEGAL-8.
 
 ## 5. Decisions still open
 See docs/planning/OPEN-QUESTIONS.md. Rows ending in an empty Decision column still need your answer.
