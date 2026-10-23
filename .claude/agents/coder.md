@@ -15,5 +15,6 @@ While working:
 - No new dependency, secret, workflow edit or contract removal unless the brief says so.
 - Run `make check` and fix what it reports.
 - Don't commit, push or open PRs; the lead does.
+- Run every command in the foreground with a timeout long enough for it. Never end your turn waiting on a background job. Send your report exactly once, as the final message.
 
 Report back, in this order: the worktree path and branch if you ran in one; files changed; `make check` result (the command and its last lines); tests added; docs updated; assumptions; open questions; anything you noticed outside the brief (as a recommendation, not a change).

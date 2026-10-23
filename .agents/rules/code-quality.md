@@ -97,6 +97,8 @@ TESTING-STRATEGY says *what* to test per risk; these rules say how to make each 
 ## 8. Before every commit
 
 1. `make check` (or the subset for the package you touched) passes. Run tests before committing, never after.
+   It lints `services/sim` and `tools/` and type-checks the maintained tools (`TOOLS_TYPED` in the Makefile); a new
+   typed tool goes into that list and the CI `python` job together.
 2. Commit specific paths (`git add <paths>`), never `git add -A` across unrelated work.
 3. `python3 scripts/check_tracked_files.py` passes: no tracked file that is gitignored, a recording/capture
    (clips, audio, `.db`) or over 5 MB.
@@ -108,4 +110,9 @@ TESTING-STRATEGY says *what* to test per risk; these rules say how to make each 
 Add a line when a review, incident or bug in this repo teaches something a rule above does not cover:
 `- YYYY-MM-DD (NX-###): what happened -> the rule`. Promote a lesson into a section above once it has bitten twice.
 
-- _(none yet)_
+- 2026-10-23 (NX-031): a format miss and an unused import in tools/balance and a 101-char line in tools/replay reached develop because make check and CI lint only services/sim -> make check and CI now lint tools/ too (`tools/ruff.toml`, `TOOLS_TYPED`); keep new tools inside that net.
+- 2026-10-23 (NX-031): a review-fix commit was pushed seconds after its PR auto-merged and the branch was auto-deleted, so the fix missed develop and needed a second PR -> before pushing to an open PR, check it is still open and turn auto-merge off; turn it back on after the push.
+- 2026-10-23 (NX-381): check-ins on harness-queue runs were scheduled long before results could exist -> estimate wall time (game hours x 36,000 ticks / 200-380 ticks/s on the owner PC, plus up to an hour to the next tick) before scheduling a check-in.
+- 2026-10-23 (NX-382): background subagents ended turns waiting on background work and re-sent the same report -> subagents run commands in the foreground and send one final report.
+- 2026-10-23 (NX-382): an XL size label came mostly from regenerated goldens, tests and generated contracts -> the ~400-line budget is non-test, non-generated source; state the split in the PR body.
+- 2026-10-23 (NX-382): QA mutation checks found tests that passed whatever the code did (a bool-leaf test that skipped its only assert; preemption conditions no test caught) -> mutation-check the key branches of every new rule before PASS.

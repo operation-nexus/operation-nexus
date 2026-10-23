@@ -30,7 +30,7 @@ The raw plan's testing section ("80% coverage", "Playwright guarantees 60 FPS") 
 | Integration | docker compose + scripted bots | every PR (path-filtered) | < 5 min |
 | E2E / visual | Playwright | every PR touching overlay | < 3 min |
 | Soak | full stack, 6 h | nightly | — |
-| Balance | harness: 20 seeds × scenarios (balance-diff report); 50 seeds for the acceptance run (§3.5a, Q-TEST-4) | nightly + on balance PRs; acceptance before P1 exit | < 20 min for the diff; acceptance not time-boxed yet |
+| Balance | harness: 20 seeds × scenarios (balance-diff report); 50 seeds for the acceptance run (§3.5a, Q-TEST-4) | nightly + on balance PRs; acceptance before P1 exit | < 20 min for the diff (not met yet: see `tools/balance/README.md` Cost); acceptance not time-boxed yet |
 
 ## 3. Details
 

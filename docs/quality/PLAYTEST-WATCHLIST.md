@@ -13,7 +13,9 @@ Things the specs deliberately simplified or set to PROPOSED values, to re-check 
 | Terrain masking and evasion | Masking 0.5 for NOE/LOW/ground; evasion 0.6–1.0 per kind | Low flying is always or never worth it; fighters are unkillable or paper | Q-CBT-11, Q-CBT-12 |
 | Wreck timeout | Disabled units removed after 600 s game time, no field repair | Commanders wait too long to rejoin, or wrecks clutter the map | Q-CBT-14 |
 | Campaign time limit | 72 h default, owner/Admin extensions capped at 48 h total, no unlimited mode | Wars routinely hit the limit, or viewers ask for endless campaigns | Q-TEST-6, Q-TEST-7 |
-| Balance thresholds | Max 40% kill share per kind; adversarial shift < 20%; overnight-0 loses ≤ 1 node in 12 h | The first harness runs show these are trivially met or impossible | Q-TEST-8 |
+| Balance thresholds | Max 40% kill share per kind (A4 is suspended until a second armed viewer unit kind exists, Q-SIM-92); adversarial shift < 20%; overnight-0 loses ≤ 1 node in 12 h | The first harness runs show these are trivially met or impossible | Q-TEST-8 |
+| A2 thresholds | New-viewer time to first impact: median at most 8 min and at most 10% over 15 min, by role, for newbies who arrive at ALPHA or above (all PROPOSED) | The first runs show these are trivially met or impossible | Q-SIM-97 |
+| Rule presets vs the tuned game | One default rule set is what normal play runs and what the harness tunes; presets (chaos mode) are customization | A preset's values leak into the default config or into what the harness tunes, or presets drift from the default unnoticed | Q-GP-48, NX-386 |
 | Static threat score | Fixed per-kind `threat` drives target priority | Units ignore the obvious danger (an attacker, an emitting SAM) | Q-CBT-16, Q-CBT-17 |
 | Shot flight time | Impact after range/speed, Pk rolled at impact, no projectile entity | Viewers can't follow what hit what, or SAM intercepts are wanted | Q-GP-7, Q-GP-12 |
 | Damage-state thresholds | Damaged < 70%, Mission-kill < 35%, Disabled < 10% of hp | Units spend too long or too little time in a state | Q-GP-8 |

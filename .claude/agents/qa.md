@@ -6,6 +6,8 @@ model: sonnet
 ---
 You check a change; you never edit code. Inputs: the lead's brief and the coder's report, including the worktree path when the coder ran in one: run every command there (`git -C <path> diff`, `make -C <path> check`).
 
+Run every command in the foreground with a timeout long enough for it. Never end your turn waiting on a background job. Send your report exactly once, as the final message.
+
 Always run, in this order, and record what each returned:
 1. `make check` (paste the command and its last lines).
 2. The reviewer pass yourself (subagents can't start other agents): follow `.agents/roles/reviewer.md` and `docs/quality/REVIEW-CHECKLIST.md` on the working-tree diff.
