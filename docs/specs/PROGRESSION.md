@@ -18,6 +18,7 @@ The values below are the initial PROPOSED preset. They are config data, not code
 | Node capture participation | 60 | 20 |
 | Theater objective completed (participant) | 80 | 30 |
 | Recon paint → assist | 15 | 5 |
+| Discovery (Q-PROG-10): new information found by the commander's unit's sensors: a facility marker first discovered (most), a base's garrison or stock change first seen in `progression.discovery.stale_min` (PROPOSED 30 min), a unit first tracked by anyone on the side (least) | PROPOSED small: 5 / 3 / 1 | 1 / 1 / 0 |
 | CSAR rescue completed (GAMEPLAY §6a: "large" bonus) | TBD by harness | TBD by harness |
 | Kill | 10 | 3 |
 | Following a unit whose outcome earns credit (within station range; GAMEPLAY §1b, Q-GP-42) | — | capped share of that outcome's merit (`progression.follower_share`, PROPOSED) |
@@ -28,6 +29,7 @@ The values below are the initial PROPOSED preset. They are config data, not code
 **PROG-3** Merges never sum XP (IDENTITY §4).
 **PROG-4** Anti-farming is layered, with no captcha (Q-PROG-3, Q-PROG-6, NX-277): (1) platform account age where the platform API exposes it [UNVERIFIED per platform]; (2) our own first-seen age (IDENTITY §1); (3) the first-completed-mission gate (PROG-2); (4) hourly diminishing returns (PROG-1); (5) Command Center anomaly flags for many new accounts acting in lockstep; (6) a mod/admin action that voids XP, audited, which writes compensating ledger rows and never deletes ledger rows.
 **PROG-5** Nobody grants XP or merit directly: there is no admin, mod or GM command that awards XP or merit to a player (Q-AI-8). XP and merit come only from the §2 sources. PROG-4 (6) can only remove.
+**PROG-13 Discovery credit can't be farmed (Q-PROG-10):** each enemy entity pays discovery credit once per `progression.discovery.cooldown_min` (PROPOSED 60 game min) to the whole coalition, so re-spotting pays nothing; a commander's discovery credit per sortie has diminishing returns and a cap (`progression.discovery.sortie_cap_xp`, PROPOSED); AUTO units earn none (PROG-12). Paint → assist stays the main recon reward, so spotting what gets engaged beats spotting everything. The recon leaderboard metric is unchanged. Built with NX-210.
 **PROG-12** **AUTO assists (Q-ALN-30, Q-ALN-34):** no action by a commander's unit while it is AI-run (AUTO, GAMEPLAY GP-4) earns XP or merit or counts toward any leaderboard metric (§6): not a kill, a supply delivery, capture participation or a completed Tasking Board job. Each such action is recorded as an **AUTO assist** for recaps only. Progression tells these apart by the `auto` flag on the job's completion event (CONTRACTS, Tasking Board events).
 
 ## 3. Ranks (one table; resolves critique #8 and #14)

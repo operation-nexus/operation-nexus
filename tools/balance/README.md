@@ -127,6 +127,8 @@ An issue is eligible when it is open, carries the `harness-run` label and was op
 
    [Service]
    Type=oneshot
+   # Lower CPU priority so long runs never slow the desktop.
+   Nice=15
    Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
    ExecStart=%h/nexus-harness/operation-nexus/tools/balance/queue-tick.sh %h/nexus-harness/operation-nexus
    ```
