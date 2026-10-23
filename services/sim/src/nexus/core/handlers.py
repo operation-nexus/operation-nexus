@@ -14,14 +14,22 @@ from nexus.contracts.gen.commands.rebase import RebaseCommand
 from nexus.contracts.gen.commands.staff_campaign_end import StaffCampaignEndCommand
 from nexus.contracts.gen.commands.staff_campaign_pause import StaffCampaignPauseCommand
 from nexus.contracts.gen.commands.staff_campaign_resume import StaffCampaignResumeCommand
+from nexus.contracts.gen.commands.sys_queue_timeout import SysQueueTimeoutCommand
 from nexus.contracts.gen.commands.sys_set_callsign import SysSetCallsignCommand
-from nexus.contracts.gen.common.enums import OwnerKind, RejectReason, Side, UnitKind
+from nexus.contracts.gen.common.enums import (
+    OwnerKind,
+    QueueLeaveReason,
+    RejectReason,
+    Side,
+    UnitKind,
+)
 from nexus.contracts.gen.events.callsign_changed import CallsignChanged
 from nexus.contracts.gen.events.campaign_clock_paused import CampaignClockPaused
 from nexus.contracts.gen.events.campaign_clock_resumed import CampaignClockResumed
 from nexus.contracts.gen.events.command_rejected import CommandRejected
 from nexus.contracts.gen.events.event import Event
 from nexus.contracts.gen.events.reserve_queue_joined import ReserveQueueJoined
+from nexus.contracts.gen.events.reserve_queue_left import ReserveQueueLeft
 from nexus.contracts.gen.events.unit_spawned import UnitSpawned
 from nexus.core.campaign import end_campaign
 from nexus.core.follow import can_follow
@@ -189,6 +197,12 @@ def serve_reserve_queue(world: World, out: list[Event], *, drop: bool = False) -
     while world.reserve_queue and free > 0:
         command = world.reserve_queue.pop(0)
         plan = "INTERNAL_ERROR" if drop else _plan(world, command, rules)
+        _left(
+            world,
+            command.issuer.commander_id,
+            "REJECTED" if isinstance(plan, str) else "SLOT_FREED",
+            out,
+        )
         if isinstance(plan, str):
             out.append(reject(world, command, plan))
             if drop:
@@ -210,6 +224,7 @@ def _enqueue(world: World, command: JoinCommand, rules: Rules, out: list[Event])
     queue = world.reserve_queue
     position = next((i for i, c in enumerate(queue, 1) if c.issuer.commander_id == commander), 0)
     if position:
+        _left(world, commander, "REPLACED", out)  # Joined below re-adds it: Joined/Left stay 1:1
         queue[position - 1] = command
     elif len(queue) >= rules.reserve_queue_max:
         out.append(reject(world, command, "RESERVE_QUEUE_FULL"))
@@ -227,6 +242,36 @@ def _enqueue(world: World, command: JoinCommand, rules: Rules, out: list[Event])
             position=position,
         )
     )
+
+
+def _left(world: World, commander: str, reason: QueueLeaveReason, out: list[Event]) -> None:
+    """The one place an entry's exit becomes an event (NX-371): every exit emits exactly one."""
+    out.append(
+        ReserveQueueLeft.model_construct(
+            kind="ReserveQueueLeft",
+            tick=world.campaign.tick + 1,
+            event_seq=world.next_event_seq(),
+            campaign_id=world.campaign.id,
+            commander_id=commander,
+            reason=reason,
+        )
+    )
+
+
+def queue_timeout(world: World, command: Command, out: list[Event]) -> None:
+    """SYS_QUEUE_TIMEOUT (GAMEPLAY RQ-1, NX-371): remove the commander's queue entry and emit
+    `ReserveQueueLeft{TIMEOUT}`. The runtime decides the entry is idle (wall-clock time) and logs
+    this command, so replays reproduce it. Allowed while paused. A commander no longer queued
+    (served or replaced meanwhile) is ignored: the command raced the queue, nothing to report.
+    """
+    if not isinstance(command, SysQueueTimeoutCommand):
+        raise TypeError(f"SYS_QUEUE_TIMEOUT handler got {command.kind}")
+    queue = world.reserve_queue
+    for i, entry in enumerate(queue):
+        if entry.issuer.commander_id == command.commander_id:
+            del queue[i]
+            _left(world, command.commander_id, "TIMEOUT", out)
+            return
 
 
 def _spawn(world: World, command: JoinCommand, plan: _Plan, rules: Rules, out: list[Event]) -> None:
@@ -453,6 +498,7 @@ HANDLERS: Mapping[str, Handler] = {
     "JOIN": join,
     "REBASE": rebase,
     "SYS_SET_CALLSIGN": set_callsign,
+    "SYS_QUEUE_TIMEOUT": queue_timeout,
     "STAFF_CAMPAIGN_PAUSE": staff_campaign_pause,
     "STAFF_CAMPAIGN_RESUME": staff_campaign_resume,
     "STAFF_CAMPAIGN_END": staff_campaign_end,

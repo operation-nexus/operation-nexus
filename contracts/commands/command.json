@@ -3,6 +3,6 @@
   "$id": "https://nexus.local/contracts/commands/command.json",
   "title": "Command",
   "description": "Discriminated union of all commands on kind (CONTRACTS §5).",
-  "oneOf": [{"$ref": "join.json"}, {"$ref": "sys_set_callsign.json"}, {"$ref": "staff_campaign_pause.json"}, {"$ref": "staff_campaign_resume.json"}, {"$ref": "staff_campaign_end.json"}, {"$ref": "rebase.json"}],
+  "oneOf": [{"$ref": "join.json"}, {"$ref": "sys_set_callsign.json"}, {"$ref": "sys_queue_timeout.json"}, {"$ref": "staff_campaign_pause.json"}, {"$ref": "staff_campaign_resume.json"}, {"$ref": "staff_campaign_end.json"}, {"$ref": "rebase.json"}],
   "discriminator": {"propertyName": "kind"}
 }

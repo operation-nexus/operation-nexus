@@ -94,6 +94,14 @@ type CallsignKind = Annotated[
 ]
 
 
+type QueueLeaveReason = Annotated[
+    Literal["SLOT_FREED", "REPLACED", "REJECTED", "TIMEOUT"],
+    Field(
+        description="Why an entry left the reserve queue (CONTRACTS §6, NX-371): served a slot, replaced by the commander's own new JOIN, rejected when re-checked at serve time, or idle past slots.queue_idle_min. LEFT (a voluntary leave) joins with its command."
+    ),
+]
+
+
 type CommandSource = Literal["CHAT", "ADVISOR", "STAFF", "SYSTEM"]
 
 
@@ -143,6 +151,7 @@ type CommandKind = Annotated[
     Literal[
         "JOIN",
         "SYS_SET_CALLSIGN",
+        "SYS_QUEUE_TIMEOUT",
         "STAFF_CAMPAIGN_PAUSE",
         "STAFF_CAMPAIGN_RESUME",
         "STAFF_CAMPAIGN_END",
@@ -183,6 +192,7 @@ type EventKind = Annotated[
         "UnitSpawned",
         "CommandRejected",
         "ReserveQueueJoined",
+        "ReserveQueueLeft",
         "UnitDestroyed",
         "CallsignChanged",
         "CampaignClockPaused",
