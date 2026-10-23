@@ -125,3 +125,19 @@ def test_smoke_benchmark_1000_entities() -> None:
         entities = list(w.entities())
         for e in entities[tick::97]:
             assert results[e.id - 1] == brute(entities, e.pos, r)
+
+
+def test_bounding_box_prune_keeps_borders_and_empty_grids() -> None:
+    grid = UniformGrid(KM)
+    assert grid.within(Vec2(0, 0), 10 * KM) == []  # never rebuilt
+    grid.rebuild([])
+    assert grid.within(Vec2(0, 0), 10 * KM) == []  # rebuilt empty
+    w = world_with([(10 * KM, 10 * KM), (20 * KM, 10 * KM)])
+    grid.rebuild(w.entities())
+    # Exactly 3 km west of the box edge (x 10 km): a 3 km reach touches it, 3 km less one metre not.
+    assert grid.query_radius(Vec2(7 * KM, 10 * KM), 3 * KM) == [1]
+    assert grid.query_radius(Vec2(7 * KM, 10 * KM), 3 * KM - 1) == []
+    # Diagonal off the box corner (10 km, 10 km): a 3-4-5 triangle.
+    assert grid.query_radius(Vec2(7 * KM, 6 * KM), 5 * KM) == [1]
+    assert grid.query_radius(Vec2(7 * KM, 6 * KM), 5 * KM - 1) == []
+    assert grid.query_radius(Vec2(15 * KM, 10 * KM), 5 * KM) == [1, 2]  # inside the box
