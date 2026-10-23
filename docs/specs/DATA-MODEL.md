@@ -605,7 +605,7 @@ Decided 2026-10-18 (spec-alignment batch):
 Not modeled yet:
 - AUTO assists other than jobs (a kill, a supply delivery or capture participation by an AUTO unit, Q-ALN-34): no recap store is specified yet.
 - Season and per-role leaderboard source rows (recon assists that led to engagements, threat-weighted kills, objective damage, hours played, the season key): NX-314 (Q-ALN-16).
-- CONTRACTS names no event for the DONE and FAILED job outcomes yet; §4.13a needs one, and it must say whether the resolving unit was AI-run at that tick (fills `ai_run_at_end`, Q-ALN-30).
+- `JobDone` and `JobFailed` exist in `contracts/events/`. Each `JobDone.participants[].auto` says whether that unit was AI-run at completion; the writer maps it to `ai_run_at_end` (Q-ALN-30). Wiring the writer is pending.
 
 ## Data model additions pending merge (2026-10-17)
 - **From [ADMIN-RBAC](ADMIN-RBAC.md):**

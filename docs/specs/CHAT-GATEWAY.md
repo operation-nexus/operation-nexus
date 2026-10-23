@@ -75,7 +75,7 @@ Replies are an aggregated digest, e.g. "12 new commanders deployed: VIPER-27, โ€
 |---|---|
 | Disconnect | Backoff and reconnect. The overlay shows "UPLINK LOST" if it's down for more than 30 s. Alert after 5 min. |
 | Duplicate delivery | Dedupe by message id (LRU of 10k). |
-| Quota exhausted (YouTube) | Adapter pauses. Overlay shows "YouTube commands paused" with the resume time as a relative time, or as UTC plus the broadcast time zone (OVERLAY OV-19, Q-CFG-8). Alert. |
+| Quota exhausted (YouTube) | Adapter pauses. Overlay shows "YouTube commands paused" with the resume time as a relative time, or as UTC plus the broadcast time zone (OVERLAY OV-25, Q-CFG-8). Alert. |
 | One platform's chat down while the broadcast is live | The sim keeps running. The offline auto-pause is triggered by stream-offline detection only, never by a single chat platform dropping (Q-OPS-8). |
 
 ## 9. Gateway-only commands (moved from GAMEPLAY ยง3, Q-GP-2)
