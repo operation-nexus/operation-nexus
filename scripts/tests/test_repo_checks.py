@@ -14,6 +14,8 @@ sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."
 from check_commit_msg import problems  # noqa: E402  (path set up above)
 from check_contracts_compat import breaking_changes  # noqa: E402
 from check_contracts_compat import main as compat_main  # noqa: E402
+from gen_config_reference import problems as registry_problems  # noqa: E402
+from gen_config_reference import render as registry_render  # noqa: E402
 from check_osv_report import findings, main  # noqa: E402
 from check_site import page_problems, site_problems  # noqa: E402
 from check_tracked_files import violations  # noqa: E402
@@ -155,10 +157,84 @@ def test_contracts_compat():
             assert compat_main(["x", os.path.join(tmp, "base"), os.path.join(tmp, "bump")]) == 0
             assert compat_main(["x", os.path.join(tmp, "base"), os.path.join(tmp, "pre")]) == 0
 
+def _registry_schema():
+    meta = {"x-unit": "s (world)", "x-hot-reload": False, "x-category": "WORLD", "x-audience": "TUNER",
+            "x-edit-role": "ADMIN", "x-source": "SIM-CORE SC-2", "x-status": "PROPOSED"}
+    tune = {"min": 1, "max": 4, "step": 1, "scale": "LINEAR"}
+    return {
+        "type": "object",
+        "properties": {
+            "schema_version": {"type": "integer"},
+            "sim": {"$ref": "#/$defs/Sim"},
+            "logistics": {"$ref": "#/$defs/Logistics"},
+        },
+        "$defs": {
+            "Sim": {"type": "object", "properties": {
+                "rate": {"description": "A rate | with a bar.", "type": "integer", "minimum": 1, "maximum": 9,
+                         **meta, "x-tune": tune},
+                "mode": {"enum": ["A", "B"], **meta, "x-tune": None},
+                "by_id": {"type": "object", "additionalProperties": {"type": "number", "exclusiveMinimum": 0,
+                                                                     **meta, "x-tune": None}},
+            }},
+            "Logistics": {"type": "object", "properties": {
+                "cargo": {"type": "integer", "x-unit": "units", "x-hot-reload": False},
+            }},
+        },
+    }
+
+
+def test_config_registry():
+    schema = _registry_schema()
+    assert registry_problems(schema, pending=["logistics"]) == []
+    # Each registry field is named when missing; x-unit and x-hot-reload are required even in a pending block.
+    for field in ("x-category", "x-audience", "x-edit-role", "x-tune", "x-source", "x-status", "x-unit",
+                  "x-hot-reload"):
+        bad = _registry_schema()
+        del bad["$defs"]["Sim"]["properties"]["rate"][field]
+        assert registry_problems(bad, pending=["logistics"]) == [f"sim.rate: missing {field}"]
+    bad = _registry_schema()
+    del bad["$defs"]["Logistics"]["properties"]["cargo"]["x-unit"]
+    assert registry_problems(bad, pending=["logistics"]) == ["logistics.cargo: missing x-unit"]
+    # A map carries its metadata on additionalProperties.
+    bad = _registry_schema()
+    del bad["$defs"]["Sim"]["properties"]["by_id"]["additionalProperties"]["x-source"]
+    assert registry_problems(bad, pending=["logistics"]) == ["sim.by_id.*: missing x-source"]
+    # Bad enum values and a category that does not match the block.
+    for field, value in (("x-audience", "ROOT"), ("x-edit-role", "OWNER"), ("x-status", "GUESS")):
+        bad = _registry_schema()
+        bad["$defs"]["Sim"]["properties"]["rate"][field] = value
+        assert len(registry_problems(bad, pending=["logistics"])) == 1
+    bad = _registry_schema()
+    bad["$defs"]["Sim"]["properties"]["rate"]["x-category"] = "SLOTS"
+    assert len(registry_problems(bad, pending=["logistics"])) == 1
+    # x-tune: min > max, step <= 0, outside the schema bounds, an object on a non-numeric key, bad scale.
+    for tune in ({"min": 5, "max": 4, "step": 1, "scale": "LINEAR"}, {"min": 1, "max": 4, "step": 0, "scale": "LINEAR"},
+                 {"min": 0, "max": 4, "step": 1, "scale": "LINEAR"}, {"min": 1, "max": 10, "step": 1, "scale": "LINEAR"},
+                 {"min": 1, "max": 4, "step": 1, "scale": "EXP"}, {"min": 1.5, "max": 4, "step": 1, "scale": "LINEAR"}):
+        bad = _registry_schema()
+        bad["$defs"]["Sim"]["properties"]["rate"]["x-tune"] = tune
+        assert len(registry_problems(bad, pending=["logistics"])) == 1, tune
+    bad = _registry_schema()
+    bad["$defs"]["Sim"]["properties"]["mode"]["x-tune"] = {"min": 1, "max": 2, "step": 1, "scale": "LINEAR"}
+    assert registry_problems(bad, pending=["logistics"]) == ["sim.mode: x-tune must be null on a non-numeric key"]
+    # PENDING_BLOCKS: a stale entry (fully annotated block) or an unknown name is a problem.
+    assert len(registry_problems(schema, pending=["logistics", "sim"])) == 1
+    assert len(registry_problems(schema, pending=["logistics", "nope"])) == 1
+    assert registry_problems(schema, pending=[])  # logistics has no registry fields
+    # Hand-written expected markdown, byte-identical across runs.
+    text = registry_render(schema)
+    assert text == registry_render(_registry_schema())
+    assert "| `sim.rate` | integer | s (world) | ≥ 1, ≤ 9 | No | 1 to 4, step 1, LINEAR | TUNER | ADMIN | PROPOSED " \
+           "| SIM-CORE SC-2 | A rate \\| with a bar. |" in text
+    assert "| `logistics.cargo` | integer | units | — | No | — | — | — | — | — | — |" in text
+    assert text.index("## WORLD") < text.index("## LOGISTICS")
+
+
 if __name__ == "__main__":
     test_commit_msg()
     test_tracked_files()
     test_osv_report()
     test_site()
     test_contracts_compat()
+    test_config_registry()
     print("ok")

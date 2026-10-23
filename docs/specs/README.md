@@ -21,6 +21,7 @@
 | [CONTRACTS](CONTRACTS.md) | Enums, commands, events, wire messages, internal and admin API | P0–P2 |
 | [DATA-MODEL](DATA-MODEL.md) | SQLite schema, ledgers, snapshot and log formats, retention, backups | P1–P3 |
 | [CONFIG-AND-CONTENT](CONFIG-AND-CONTENT.md) | Config layers, balance key reference, unit catalog, theater format | P1 |
+| [CONFIG-REFERENCE](CONFIG-REFERENCE.md) | Generated settings reference from the balance schema (do not edit) | P1 |
 | [STATE-MACHINES-AND-FLOWS](STATE-MACHINES-AND-FLOWS.md) | Lifecycles, transition tables, end-to-end sequences | P1–P2 |
 | [ADMIN-RBAC](ADMIN-RBAC.md) | Roles and permissions, moderation, GM takeover, scheduling, rules editor, theater generation | P2–P4 |
 | [SUPPORT-REDEMPTIONS](SUPPORT-REDEMPTIONS.md) | Bits, channel points, Super Chats, tips → capped redemptions | P4–P5 |

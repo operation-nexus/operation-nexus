@@ -64,7 +64,7 @@ jobs:
           # (a name like "::error::..." would be parsed as a workflow command).
           changed="$(git diff --name-only HEAD^1 HEAD)"
           echo "Changed files: $(printf '%s\n' "$changed" | grep -c . || true)"
-          shared='^(contracts/|Makefile$|\.node-version$|\.github/workflows/ci\.yml$)'
+          shared='^(contracts/|Makefile$|\.node-version$|\.github/workflows/ci\.yml$|docs/specs/CONFIG-REFERENCE\.md$)'
           if printf '%s\n' "$changed" | grep -Eq "^(services/|tools/|scripts/)|$shared"; then
             echo "python=true" >> "$GITHUB_OUTPUT"
           else
@@ -251,8 +251,8 @@ jobs:
         run: |
           set -euo pipefail
           make contracts
-          git diff --exit-code -- services/sim/src/nexus/contracts apps/overlay/src/contracts
-          test -z "$(git status --porcelain -- services/sim/src/nexus/contracts apps/overlay/src/contracts)"
+          git diff --exit-code -- services/sim/src/nexus/contracts apps/overlay/src/contracts docs/specs/CONFIG-REFERENCE.md
+          test -z "$(git status --porcelain -- services/sim/src/nexus/contracts apps/overlay/src/contracts docs/specs/CONFIG-REFERENCE.md)"
       - name: Compat report against the PR base
         if: github.event_name == 'pull_request'
         env:

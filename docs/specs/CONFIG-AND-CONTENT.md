@@ -26,7 +26,7 @@ Define every input the system reads that isn't code: runtime settings, balance t
 - **CFG-2** Required keys MUST NOT have code defaults. A missing required key MUST fail startup with a message naming the key and file (DI-7). Optional keys MUST state their absent-meaning in the schema (e.g. "absent = feature off"), never a substituted value.
 - **CFG-3** Balance and content files MUST be hashed canonically (§4.4). The resulting `config_hash` MUST be stored on the campaign record and in every snapshot and replay header.
 - **CFG-4** Values that affect sim state MUST NOT change mid-campaign except through a logged `STAFF_CONFIG_RELOAD` command (CONTRACTS §5.2) applied at a tick boundary, and only for keys marked hot-reloadable (§5). Replays MUST reproduce the reload.
-- **CFG-5** Every balance key MUST carry its unit in the schema (`x-unit` annotation; `x-hot-reload` carries the §6 HR column) and in this spec. All rates are per second of **world** time (CFG-9) unless the unit says otherwise (SIM-CORE SC-2).
+- **CFG-5** Every balance key MUST carry its unit in the schema (`x-unit` annotation; `x-hot-reload` carries the §6 HR column) and in this spec. Each key also carries six registry fields (Q-CFG-15, Q-CFG-17..22): `x-category`, `x-audience`, `x-edit-role`, `x-tune`, `x-source` and `x-status`; `scripts/gen_config_reference.py` checks them in `make contracts` and writes [CONFIG-REFERENCE](CONFIG-REFERENCE.md). All rates are per second of **world** time (CFG-9) unless the unit says otherwise (SIM-CORE SC-2).
 - **CFG-6** Content cross-references (unit kinds in theaters, doctrine perks naming unit kinds, template slots) MUST be validated at load and in CI (§8).
 - **CFG-7** Secrets MUST NOT appear in any config file. Config refers to secrets by name only (`secret_ref`), and the values come from the environment / secret store (THREAT-MODEL SEC-CI, CICD §8).
 - **CFG-8** All user-visible authored text (node names, callsign words, sitrep templates) MUST pass the moderation denylist in CI (SEC-MOD-1).
@@ -121,6 +121,8 @@ Every reload is audited (who, when, diff), and is visible in the admin console h
 
 ## 6. Balance schema: key reference
 Legend: **HR** = hot-reloadable (§5). "TBD" = TBD by harness. **Source** = the spec the key comes from. All values are PROPOSED (DI-7).
+
+The generated [CONFIG-REFERENCE](CONFIG-REFERENCE.md) lists every key of the schema by category with its unit, bounds, hot-reload flag, tune range, audience, edit role, status and source (Q-CFG-15). Blocks listed in `PENDING_BLOCKS` in `scripts/gen_config_reference.py` are not annotated yet (NX-390).
 
 ### 6.1 Sim time & world
 | Key | Type | Unit | PROPOSED | Source | HR |
@@ -718,7 +720,7 @@ A PR without a harness run fails the `balance-report` check. A change that touch
 | CFG-2 | Loader test: each required key removed in turn fails with the key named; grep test: no defaults in the config models (Semgrep `getenv` default rule, DATA-INTEGRITY §6) |
 | CFG-3 | Hash stability: the same tree with reordered keys or different YAML formatting gives the same hash; a single-value change gives a different hash; the golden `config_hash` is stored in replay fixtures |
 | CFG-4 | Replay with a mid-campaign HR reload reproduces state hashes; a reload touching a non-HR key is rejected; a reload requested while paused is registered but applied at the first tick after resume, and that tick is its `effective_tick` (Q-ALN-24) |
-| CFG-5 | Lint: every schema numeric field has an `x-unit` annotation |
+| CFG-5 | Lint: every schema numeric field has an `x-unit` annotation. Enforced (NX-390): `scripts/gen_config_reference.py` in `make contracts` and the `contracts` CI job requires `x-unit` and `x-hot-reload` on every key and the six registry fields outside `PENDING_BLOCKS`; `services/sim/tests/test_config_registry.py` checks each default sits inside its `x-tune` range and the committed reference is current |
 | CFG-6 | `config_lint` positive/negative fixtures per cross-reference |
 | CFG-7 | Semgrep / secret scan over `balance/`, `content/`, `deploy/*/app.yaml`; schema forbids secret-shaped fields except `secret_ref` |
 | CFG-8 | The moderation corpus includes evasion cases; CI fails on a seeded bad node name |
