@@ -597,6 +597,12 @@ class Slots(BaseModel):
             ge=1,
         ),
     ]
+    rebase_order: Annotated[
+        Literal["HOLD"],
+        Field(
+            description="The explicit order an accepted REBASE leaves the unit with: HOLD, it takes no board job on the way or at the base until its commander's next order (Q-SIM-90; decided rule as default, Q-CFG-16 option). The only value today: GOTO would never end for a truck that keeps its cargo aboard, unit enum."
+        ),
+    ]
 
 
 class UnitValue(BaseModel):
@@ -631,41 +637,6 @@ class Cp(BaseModel):
         float,
         Field(
             description="The EMA window of coalition power, unit s of game time (Q-ALN-23).", gt=0.0
-        ),
-    ]
-
-
-class Tier(BaseModel):
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    alpha_enter_cp: Annotated[
-        float,
-        Field(
-            description="Smoothed CP at which the CP ceiling rises from PATTERN_OF_LIFE to ALPHA, unit CP points; 0 means the ceiling is never below ALPHA (THREAT-DIRECTOR section 3, Q-TD-1, Q-DEV-21). The loader checks it is below bravo_enter_cp.",
-            ge=0.0,
-        ),
-    ]
-    bravo_enter_cp: Annotated[
-        float,
-        Field(
-            description="Smoothed CP at which the CP ceiling rises to BRAVO, unit CP points.",
-            gt=0.0,
-        ),
-    ]
-    exit_ratio: Annotated[
-        float,
-        Field(
-            description="A level (CP ceiling or provocation) drops only below its threshold times this, unit fraction of the enter value.",
-            gt=0.0,
-            le=1.0,
-        ),
-    ]
-    min_dwell_s: Annotated[
-        float,
-        Field(
-            description="The least time in a tier before it may change, unit s of game time.",
-            gt=0.0,
         ),
     ]
 
@@ -784,6 +755,13 @@ class Provocation(BaseModel):
         Field(
             description="Provocation at which the level reaches BRAVO (above escalate_threshold; the loader checks), unit provocation points.",
             gt=0.0,
+        ),
+    ]
+    ai_shooter_mult: Annotated[
+        float,
+        Field(
+            description="The share of a hit's weight that counts when the shooter is not a COMMANDER-owned unit (AI garrison, facility), on units, facilities and base defenses alike, rounded down to whole millionths; 0 means only people provoke (Q-TD-11; decided rule as default, Q-CFG-16 option). Captures and scouts in the rear stay the players' alone, unit multiplier.",
+            ge=0.0,
         ),
     ]
     scout_in_rear_max_per_window: Annotated[
@@ -1442,6 +1420,24 @@ class Tasking(BaseModel):
             description="Job kinds a parameterless JOIN never takes for a new coalition unit (the unit can still take them through the board); [] excludes none (Q-GP-23, Q-SIM-94, Q-DEV-21), unit job kinds."
         ),
     ]
+    ai_jobs: Annotated[
+        list[enums.JobKind],
+        Field(
+            description="Job kinds a coalition AI garrison unit takes by itself; any other kind not in ai_excluded_jobs it joins only once a COMMANDER-owned unit holds a claim on the job, or as a counterattack (GAMEPLAY §1b, Q-GD-26, Q-GD-31; decided rule as default, Q-CFG-16 option). Must not overlap ai_excluded_jobs; INTERCEPT has its own rule and may be in neither (the loader checks both), unit job kinds."
+        ),
+    ]
+    ai_excluded_jobs: Annotated[
+        list[enums.JobKind],
+        Field(
+            description="Job kinds an AI garrison unit never takes, even beside a player (Q-GP-45: escorting, Q-SIM-94: patrolling are the players' call; decided rule as default, Q-CFG-16 option), unit job kinds."
+        ),
+    ]
+    human_displaces_ai: Annotated[
+        bool,
+        Field(
+            description="Whether a viewer's unit that finds a job's slots full takes the slot of its AI garrison claimant with the highest entity id (Q-TD-11; decided rule as default, Q-CFG-16 option); false counts AI claims like any other, unit switch."
+        ),
+    ]
     overfill_factor: Annotated[
         int,
         Field(
@@ -1535,6 +1531,55 @@ type GarrisonKinds = Annotated[
         min_length=1,
     ),
 ]
+
+
+class Tier(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    alpha_enter_cp: Annotated[
+        float,
+        Field(
+            description="Smoothed CP at which the CP ceiling rises from PATTERN_OF_LIFE to ALPHA, unit CP points; 0 means the ceiling is never below ALPHA (THREAT-DIRECTOR section 3, Q-TD-1, Q-DEV-21). The loader checks it is below bravo_enter_cp.",
+            ge=0.0,
+        ),
+    ]
+    bravo_enter_cp: Annotated[
+        float,
+        Field(
+            description="Smoothed CP at which the CP ceiling rises to BRAVO, unit CP points.",
+            gt=0.0,
+        ),
+    ]
+    exit_ratio: Annotated[
+        float,
+        Field(
+            description="A level (CP ceiling or provocation) drops only below its threshold times this, unit fraction of the enter value.",
+            gt=0.0,
+            le=1.0,
+        ),
+    ]
+    min_dwell_s: Annotated[
+        float,
+        Field(
+            description="The least time in a tier before it may change, unit s of game time.",
+            gt=0.0,
+        ),
+    ]
+    start: Annotated[
+        enums.ThreatTier,
+        Field(
+            description="The tier the Director starts a campaign in, with dwell 0 and both levels at their usual start values, so after the first minimum dwell it moves toward min(provocation level, CP ceiling) like from any tier (THREAT-DIRECTOR §3; decided rule as default, Q-CFG-16 option), unit tier."
+        ),
+    ]
+    max_step: Annotated[
+        int,
+        Field(
+            description="The most tier steps one move takes toward min(provocation level, CP ceiling) (Q-TD-1: one; decided rule as default, Q-CFG-16 option); 2 lets PATTERN_OF_LIFE and BRAVO change in one move, unit tier steps.",
+            ge=1,
+            le=2,
+        ),
+    ]
 
 
 class Score1(BaseModel):
@@ -1677,6 +1722,12 @@ class Pol(BaseModel):
         Field(
             description="Every this long one supply convoy runs to the Static base with the largest upkeep shortfall, unit s of game time.",
             gt=0.0,
+        ),
+    ]
+    capture_slot_tiers: Annotated[
+        list[enums.ThreatTier],
+        Field(
+            description="The tiers at which the periodic capture slot (offensives_per_period per offensive_period_s, outside the window budget) runs (Q-SIM-85: Pattern of Life only; decided rule as default, Q-CFG-16 option); empty turns it off, unit tiers."
         ),
     ]
     offensive_period_s: Annotated[

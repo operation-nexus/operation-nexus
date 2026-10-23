@@ -12,6 +12,7 @@ slots:
   max_viewer_units: 500  # PROPOSED – unvalidated; units (CONFIG-AND-CONTENT §6.2 slots.max_viewer_units)
   queue_idle_min: 15  # PROPOSED – unvalidated; min (real time) (CONFIG-AND-CONTENT §6.2 slots.queue_idle_min); read by the runtime, not the sim
   reserve_queue_max: 1000  # PROPOSED – unvalidated; entries (CONFIG-AND-CONTENT §6.2 slots.reserve_queue_max)
+  rebase_order: HOLD  # decided rule as default, Q-CFG-16 option (Q-SIM-90); the order a rebased unit is left with, the only value today (CONFIG-AND-CONTENT §6.2)
 air:
   bingo_reserve_frac: 0.15  # PROPOSED – unvalidated; fraction of fuel_s (CONFIG-AND-CONTENT §6.1 air.bingo_reserve_frac)
   orbit_period_s: 120.0  # PROPOSED – unvalidated; s (world) (CONFIG-AND-CONTENT §6.1 air.orbit_period_s)
@@ -183,6 +184,9 @@ tasking:
   overfill_factor: 2  # PROPOSED – unvalidated (Q-SIM-73, Q-DEV-21); with every job full a job takes units up to this times its slots (CONFIG-AND-CONTENT §6.6)
   overfill_point_jobs: false  # decided rule as default, Q-DEV-21 option; whether a Recon point job overfills like any other (CONFIG-AND-CONTENT §6.6)
   join_excluded_jobs: [PATROL]  # decided rule as default, Q-DEV-21 option; job kinds a bare JOIN never takes (CONFIG-AND-CONTENT §6.6)
+  ai_jobs: [DEFEND, RESUPPLY, SCOUT]  # decided rule as default, Q-CFG-16 option (Q-GD-26); job kinds the AI garrison takes by itself (CONFIG-AND-CONTENT §6.6)
+  ai_excluded_jobs: [ESCORT_CONVOY, PATROL]  # decided rule as default, Q-CFG-16 option (Q-GP-45, Q-SIM-94); job kinds the AI garrison never takes (CONFIG-AND-CONTENT §6.6)
+  human_displaces_ai: true  # decided rule as default, Q-CFG-16 option (Q-TD-11); a viewer's unit takes a full job's slot from its highest-id AI claimant (CONFIG-AND-CONTENT §6.6)
   scout_blob_runs: 2  # PROPOSED – unvalidated (Q-SIM-75, Q-DEV-21); consecutive SIGINT refreshes a blob must stay in a cell before a scout is posted (CONFIG-AND-CONTENT §6.6)
   scout_urgency:  # PROPOSED – unvalidated (Q-SIM-75, Q-DEV-21); multiplier by blob size, capped at urgency_max (CONFIG-AND-CONTENT §6.6)
     small: 1.0
@@ -212,11 +216,14 @@ director:  # Threat Director (Q-SIM-78, Q-SIM-81, owner-approved starting number
     bravo_enter_cp: 60  # PROPOSED – unvalidated (Q-SIM-78); CP points (CONFIG-AND-CONTENT §6.7)
     exit_ratio: 0.8  # PROPOSED – unvalidated (Q-TD-1); fraction of the enter value (CONFIG-AND-CONTENT §6.7)
     min_dwell_s: 600  # PROPOSED – unvalidated (Q-ALN-23); s (game) (CONFIG-AND-CONTENT §6.7)
+    start: PATTERN_OF_LIFE  # decided rule as default, Q-CFG-16 option; the tier a campaign starts in (CONFIG-AND-CONTENT §6.7)
+    max_step: 1  # decided rule as default, Q-CFG-16 option (Q-TD-1); tier steps one move takes (CONFIG-AND-CONTENT §6.7)
   provocation:
     half_life_s: 900  # PROPOSED – unvalidated (Q-SIM-78); s (game) (CONFIG-AND-CONTENT §6.7)
     escalate_threshold: 10  # PROPOSED – unvalidated (Q-SIM-78); points, ALPHA (CONFIG-AND-CONTENT §6.7)
     bravo_threshold: 40  # PROPOSED – unvalidated (Q-SIM-78); points, BRAVO (CONFIG-AND-CONTENT §6.7)
     scout_in_rear_max_per_window: 1  # decided rule as default, Q-DEV-21 option; scout-in-rear notes one window adds (CONFIG-AND-CONTENT §6.7)
+    ai_shooter_mult: 0  # decided rule as default, Q-CFG-16 option (Q-TD-11); share of a hit's weight when the shooter is no player's unit; 0 = only people provoke (CONFIG-AND-CONTENT §6.7)
     weights:  # PROPOSED – unvalidated (Q-SIM-78); points per action caused by a player-controlled unit (CONFIG-AND-CONTENT §6.7)
       unit_destroyed: 5
       unit_damaged: 1
@@ -312,3 +319,4 @@ director:  # Threat Director (Q-SIM-78, Q-SIM-81, owner-approved starting number
     convoy_cost: 0  # PROPOSED – unvalidated (Q-SIM-85); budget points of one Pattern of Life convoy, from surplus (a reused convoy is free)
     convoy_kind: ENEMY_CONVOY  # PROPOSED – unvalidated (Q-SIM-85); the carrier of a Pattern of Life convoy
     convoy_slots: 1  # decided rule as default, Q-DEV-21 option; units one Pattern of Life convoy job takes (CONFIG-AND-CONTENT §6.7)
+    capture_slot_tiers: [PATTERN_OF_LIFE]  # decided rule as default, Q-CFG-16 option (Q-SIM-85); tiers at which the periodic capture slot runs (CONFIG-AND-CONTENT §6.7)

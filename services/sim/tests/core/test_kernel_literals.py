@@ -123,10 +123,6 @@ KINDS: dict[Name, str] = {
         "_VARIANT_WEAPONS",
     ): "SHORTCUT: a facility variant's weapons, until the unit catalog lists variants",
     (
-        "tasking.py",
-        "_GARRISON_JOBS",
-    ): "SHORTCUT: jobs an AI garrison unit takes by itself (GAMEPLAY section 1b, Q-GD-26)",
-    (
         "tasking_gen.py",
         "_JOB_KINDS",
     ): "STRUCT: the board's job kinds a unit kind is checked against",

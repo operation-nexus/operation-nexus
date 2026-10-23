@@ -65,11 +65,13 @@ while frozen (SC-11), for each side in COALITION, ENEMY order:
 Before each Static pass `World.intercept_seen` is brought up to date (`_watch`: the first pass a
 coalition scout was tracked inside a held node's radius, dropped when it is not).
 
-A non-garrison unit may displace an AI garrison claimant (Q-TD-11). An AI garrison unit takes
-DEFEND, RESUPPLY and SCOUT freely and any other job only once a COMMANDER-owned unit holds a claim
-on it (it never initiates offense). A parameterless JOIN takes the best job at once
-(`joinable_jobs`, ties by id). For `tasking.counterattack_window_min` after its side loses a node
-(`World.lost`) the garrison may also take strike and assist-objective jobs against it (Q-GD-31).
+A non-garrison unit may displace an AI garrison claimant (Q-TD-11; `tasking.human_displaces_ai`).
+An AI garrison unit takes the `tasking.ai_jobs` (DEFEND, RESUPPLY, SCOUT) freely, never the
+`tasking.ai_excluded_jobs` (ESCORT_CONVOY, PATROL), and any other job only once a COMMANDER-owned
+unit holds a claim on it (it never initiates offense). A parameterless JOIN takes the best job at
+once (`joinable_jobs`, ties by id). For `tasking.counterattack_window_min` after its side loses a
+node (`World.lost`) the garrison may also take strike and assist-objective jobs against it
+(Q-GD-31).
 Deterministic: integers and Fractions, jobs and units in id order, one RNG stream.
 """
 
@@ -122,7 +124,6 @@ _COALITION: Side = "COALITION"
 _STATIC: Side = "ENEMY"
 _AI, _HUMAN = "AI_GARRISON", "COMMANDER"
 _NO_BLOCKED = frozenset[str]()  # no bridge is destroyed until NX-373
-_GARRISON_JOBS: frozenset[JobKind] = frozenset({"DEFEND", "RESUPPLY", "SCOUT"})
 _MAX_PARTICIPANTS = 64  # JobDone.participants maxItems
 _TIE_DRAW = 1 << 32  # width of the tie-break draw; it only orders equals, not a tunable
 
@@ -217,8 +218,8 @@ def _is_ai(world: World, entity_id: int) -> bool:
 
 def _full(world: World, job: Job, *, ai: bool) -> bool:
     """No free slot for a unit (`ai`: an AI garrison unit). Any other unit does not count the
-    garrison's claims: it displaces one (`claim`)."""
-    if ai:
+    garrison's claims while `tasking.human_displaces_ai`: it displaces one (`claim`)."""
+    if ai or not _rules(world)[1].human_displaces_ai:
         return len(job.claims) >= job.slots
     humans = 0
     for i in job.claims:
@@ -253,9 +254,9 @@ def _may_take(world: World, tr: TaskingRules, e: Entity, job: Job) -> bool:
     if job.kind == _INTERCEPT:  # the garrison's own call: a round that can hit the scout
         track = world.contacts[e.side].get(job.entity or 0)
         return track is not None and world.rules is not None and can_hit(world.rules, e, track.kind)
-    if job.kind in ("ESCORT_CONVOY", _PATROL):
+    if job.kind in tr.ai_excluded_jobs:
         return e.owner_kind != _AI  # escorting, patrolling: the players' call (Q-GP-45, Q-SIM-94)
-    if e.owner_kind != _AI or job.kind in _GARRISON_JOBS:
+    if e.owner_kind != _AI or job.kind in tr.ai_jobs:
         return True
     lost = world.lost.get(job.node or "")
     owner = world.owner.get(job.node or "")
@@ -283,9 +284,10 @@ def _launch(world: World, e: Entity, job: Job) -> None:
 
 def claim(world: World, e: Entity, job: Job, out: list[Event]) -> None:
     """`e` takes a slot of `job` (JobClaimed; the lease starts). A job whose slots are full gives
-    one to a non-garrison unit by releasing its AI garrison claimant with the highest entity id
-    (Q-TD-11), which stops where it is (an aircraft orbits; a ground unit finishes its road leg); a
-    job full of humans is overfilled, which only happens when every job is full. Claims are kept in
+    one to a non-garrison unit (while `tasking.human_displaces_ai`) by releasing its AI garrison
+    claimant with the highest entity id (Q-TD-11), which stops where it is (an aircraft orbits; a
+    ground unit finishes its road leg); a job full of humans is overfilled, which only happens when
+    every job is full. Claims are kept in
     entity-id order, as a snapshot restores them, so a restored world emits the same events."""
     if e.owner_kind != _AI and len(job.claims) >= job.slots and not _full(world, job, ai=False):
         evicted = max(i for i in job.claims if _is_ai(world, i))
@@ -719,9 +721,10 @@ def _preempt_patrols(
     """A patrol never holds a unit a better job needs (GAMEPLAY §1b): in unit id order, a patrol
     claimant is released when an open job of higher priority has a free slot and the unit fits it,
     may take it and finds it feasible (the assignment's own checks, so it does not drop the patrol
-    only to be refused). `_assign` then gives it a job. A claimant is a viewer's unit (the garrison
-    never takes a patrol) with no `home` (the Director's units only), so `_board_may_give` always
-    holds for it and is not asked.
+    only to be refused). `_assign` then gives it a job. A claimant is a viewer's unit, or a
+    garrison unit when `tasking.ai_excluded_jobs` allows patrols (by default it never takes one),
+    with no `home` (the Director's units only), so `_board_may_give` always holds for it and is
+    not asked.
 
     shortcut: `_feasible` routes a ground unit only from the node it stands on, so a ground
     patrol is preempted once it stands on a node (an aircraft any time); the wait is bounded by

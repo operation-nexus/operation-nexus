@@ -191,6 +191,14 @@ def load_balance(path: Path) -> BalanceConfig:
         raise ConfigError(
             f"{path}: capture.uncapturable_node_kinds: must include BRIDGE (a bridge has no owner)"
         )
+    tk = cfg.tasking
+    if set(tk.ai_jobs) & set(tk.ai_excluded_jobs) or "INTERCEPT" in {
+        *tk.ai_jobs,
+        *tk.ai_excluded_jobs,
+    }:
+        raise ConfigError(
+            f"{path}: tasking.ai_jobs, ai_excluded_jobs: must not overlap or list INTERCEPT"
+        )
     if cfg.campaign.idle_floor.sanctuary_min_hp > cfg.capture.defense_hp.SANCTUARY:
         raise ConfigError(
             f"{path}: campaign.idle_floor.sanctuary_min_hp: must not exceed "

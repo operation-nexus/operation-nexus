@@ -297,7 +297,7 @@ stateDiagram-v2
 | any | `STAFF_DIRECTOR_OVERRIDE{force_tier}` command (OPS-ADMIN §3) while the campaign is Running; rejected with `CAMPAIGN_PAUSED` while Paused (Q-ALN-24) | Force the tier and record the override | forced tier |
 
 **Invariants**
-- D-1: tiers only move between adjacent levels, one step per decision window (never PATTERN_OF_LIFE↔BRAVO in one step), except a staff override.
+- D-1: tiers only move between adjacent levels, one step per decision window (never PATTERN_OF_LIFE↔BRAVO in one step), except a staff override. Default; Q-CFG-16 option `director.tier.max_step` 2 allows the two-step move, and the property then does not hold.
 - D-2: no transition happens before the minimum dwell has elapsed (except a staff override).
 - D-3: under CP or provocation oscillating within the hysteresis band, no flapping (property test).
 - D-4: spend per window ≤ the tier budget.

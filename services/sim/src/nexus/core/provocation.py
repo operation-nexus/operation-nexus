@@ -6,7 +6,9 @@ in hand: `combat` after a hit lands, `capture` at a flip, the Director slot once
 scouts. Each adds the action's weight to the side's `DirectorState.pending`, which the Director
 folds into its decaying score at its next window (`nexus.core.director.decide`, which never sees the
 world). **Only people provoke:** an action counts only when the actor is a COMMANDER-owned unit
-(AI garrison and facility actions add 0; AUTO joins the exclusion with the AUTO state, Q-ALN-9). The
+(AI garrison and facility actions add 0; AUTO joins the exclusion with the AUTO state, Q-ALN-9).
+That is the default: a hit by any other shooter counts x `director.provocation.ai_shooter_mult`
+(0, Q-CFG-16 option); captures and scouts stay the players' alone. The
 victim is the Static's own loss or damage, or its own tracked scout contact, so nothing unsensed
 counts (Q-FOW-15). A weight of 0 (a cosmetic redemption) changes nothing, not even the sector.
 
@@ -28,7 +30,7 @@ lands).
 
 from typing import Literal
 
-from nexus.contracts.gen.common.enums import DamageState, NodeOwner, Side
+from nexus.contracts.gen.common.enums import DamageState, NodeOwner, Side, ThreatTier
 from nexus.core.fog import SideView
 from nexus.core.rules import DirectorRules, Rules, Weights, sector_at
 from nexus.core.world import DirectorState, Entity, World
@@ -96,6 +98,16 @@ def _unit_weight(world: World, rules: Rules, w: Weights, target: Entity) -> int:
     return w.convoy_hit if target.kind in rules.supply.carriers else w.damaged
 
 
+def _by(dr: DirectorRules, shooter: Entity, weight: int) -> int:
+    """A hit's weight as noted: whole for a COMMANDER-owned shooter, else x
+    `director.provocation.ai_shooter_mult` (0 by default: only people provoke, Q-TD-11), floored
+    to whole millionths."""
+    if shooter.owner_kind == _PLAYER:
+        return weight
+    m = dr.ai_shooter_mult
+    return weight * m.numerator // m.denominator
+
+
 def suffered_hit(world: World, shooter: Entity, target: Entity, was: DamageState) -> None:
     """A hit by `shooter` landed on `target`, whose damage state was `was` before it. A facility:
     Disabled by this hit (8) or just hit (3). Any other unit: destroyed, or knocked to Disabled (a
@@ -107,8 +119,6 @@ def suffered_hit(world: World, shooter: Entity, target: Entity, was: DamageState
         return
     rules, dr = found
     _remember_hit(world, rules, dr, target, was)
-    if shooter.owner_kind != _PLAYER:
-        return
     w = dr.weights
     if rules.domain[target.kind] == "STATIC":
         disabled = target.damage_state == _DISABLED and was != _DISABLED
@@ -117,17 +127,18 @@ def suffered_hit(world: World, shooter: Entity, target: Entity, was: DamageState
         weight = 0
     else:
         weight = _unit_weight(world, rules, w, target)
-    _note(world, rules, target.side, weight, target.pos.x, target.pos.y)
+    _note(world, rules, target.side, _by(dr, shooter, weight), target.pos.x, target.pos.y)
 
 
 def suffered_defense_hit(world: World, shooter: Entity, node: str) -> None:
     """A hit on the defense HP of a base: counts like a facility hit when the base is the Static's
-    and the shooter a commander's (Q-SIM-79)."""
+    (Q-SIM-79), x `ai_shooter_mult` when the shooter is no commander's (`_by`)."""
     for side in DIRECTED:
         found = _director(world, side)
-        if found and world.owner[node] == side and shooter.owner_kind == _PLAYER:
-            x, y = found[0].roads.pos[node]
-            _note(world, found[0], side, found[1].weights.facility_damaged, x, y)
+        if found and world.owner[node] == side:
+            rules, dr = found
+            x, y = rules.roads.pos[node]
+            _note(world, rules, side, _by(dr, shooter, dr.weights.facility_damaged), x, y)
 
 
 def captured(world: World, node: str, before: NodeOwner, to: Side, commanders: int) -> None:
@@ -206,6 +217,13 @@ def note_redemption(world: World, side: Side, klass: Literal["support", "cosmeti
 _TIER_INDEX = {"PATTERN_OF_LIFE": 0, "ALPHA": 1, "BRAVO": 2}
 
 
+def _moves(dr: DirectorRules, side: Side, tier: ThreatTier) -> int:
+    """The fewest tier moves to `tier`, `max_step` steps a move, from where `side` started: a
+    directed side in `director.tier.start`, any other in its start state."""
+    start = dr.start_tier if side in DIRECTED else DirectorState().tier
+    return -(-abs(_TIER_INDEX[tier] - _TIER_INDEX[start]) // dr.max_step)
+
+
 def _cells_ok(looked: dict[str, int], rules: Rules, grid: int) -> bool:
     """Every key is the centre of a `grid` cell inside the theater, so the map is bounded."""
     width, height = rules.bounds_m
@@ -237,7 +255,7 @@ def validate(world: World, rules: Rules) -> None:
             else "dwell is not whole windows within the minimum dwell and the windows run"
             if d.dwell % dr.window_ticks or d.dwell > min(dr.min_dwell_ticks, windows)
             else "a tier the windows run could not have reached"
-            if _TIER_INDEX[d.tier] * dr.min_dwell_ticks > windows
+            if _moves(dr, side, d.tier) * dr.min_dwell_ticks > windows
             else "a budget above the tier's"
             if d.budget > dr.budget[d.tier]
             else "threat memory outside the theater's sectors"
