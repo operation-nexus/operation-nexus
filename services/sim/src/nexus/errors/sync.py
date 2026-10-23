@@ -29,6 +29,7 @@ DEFAULT_MAX_NEW = 10  # PROPOSED (EP-9, errors.sync_max_new_per_run); the owner 
 UPDATE_INTERVAL = timedelta(hours=1)  # EP-9: an issue gets a comment at most this often
 FLOOD_ISSUE = "flood_issue"
 FLOOD_SYNCED_AT = "flood_synced_at"
+BOUND_REPO = "repo"  # the repo this store's issue numbers belong to
 # owner/name; a segment of only dots (`..`) would climb the API path, so it is refused
 _REPO = re.compile(r"(?!\.+(?:/|$))[A-Za-z0-9_.-]+/(?!\.+$)[A-Za-z0-9_.-]+")
 _API = "https://api.github.com"
@@ -245,7 +246,10 @@ def main(
         "--max-new",
         type=int,
         default=DEFAULT_MAX_NEW,
-        help=f"most new issues per run, then one flood issue (default {DEFAULT_MAX_NEW}; PROPOSED)",
+        help=(
+            f"most new-issue attempts per run, then one flood issue "
+            f"(default {DEFAULT_MAX_NEW}; PROPOSED)"
+        ),
     )
     parser.add_argument("--dry-run", action="store_true", help="print the plan; no token needed")
     args = parser.parse_args(argv)
@@ -267,8 +271,20 @@ def main(
             print("NEXUS_ERRORS_GH_TOKEN is required", file=sys.stderr)
             return 2
         client = GitHubClient(repo, token)
+    store = Store(Path(db))
     try:
-        failures = run_sync(Store(Path(db)), client, clock(), args.max_new, args.dry_run)
+        # Issue numbers in the store belong to one repo: never reuse them in another (a changed
+        # NEXUS_ERRORS_REPO with an old store would reopen and comment on unrelated issues).
+        bound = store.meta_get(BOUND_REPO)
+        if bound is not None and bound.lower() != repo.lower():
+            print(
+                f"the error store belongs to {bound}, not {repo}: use a new NEXUS_ERRORS_DB",
+                file=sys.stderr,
+            )
+            return 2
+        if bound is None and not args.dry_run:
+            store.meta_set(BOUND_REPO, repo)
+        failures = run_sync(store, client, clock(), args.max_new, args.dry_run)
     except sqlite3.Error as failure:  # the store itself is unreadable
         print(f"sync aborted: store error {type(failure).__name__}", file=sys.stderr)
         return 1
