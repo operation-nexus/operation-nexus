@@ -8,6 +8,6 @@ Hard rules:
 - No `time.time()`, `datetime.now()`, `random.*`, `uuid4()`, `asyncio`, or I/O inside the core. Time is `tick: int`. Randomness comes from the injected `SimRng` seeded per campaign.
 - Iterate collections in a stable order (sorted by entity id).
 - Commands and events are the generated types in `nexus.contracts.gen`; build events with `model_construct` on the hot path (Q-CT-7). A new command or event follows the `contracts/README.md` checklist in the same PR as its handler.
-- All tunables live in versioned balance config files, not literals.
+- Every outcome-changing number is a balance or content key with a schema entry and a CONFIG-AND-CONTENT row (Q-DEV-21), not a literal. `tests/core/test_kernel_literals.py` fails on a new kernel literal; a literal that stays carries a reason (PERF, SCALE or STRUCT).
 - Each feature ships with: unit tests, a property test (hypothesis) for invariants, and a golden replay test (same seed + same command log yields the same state hash).
 - Performance: stay within the tick budget in SIM-CORE §Budgets. Add a benchmark when you add an O(n²)-or-worse loop.

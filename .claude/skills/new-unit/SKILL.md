@@ -10,7 +10,7 @@ walks you from a plain description to a proposed catalog entry that matches the 
 CONFIG-AND-CONTENT §5 (hot-reload), §7, §7.2, §7.3, §7a, §11.2; CONTRACTS §3.3 (`UnitKind`); GAMEPLAY §0, §5b;
 COMBAT (all of it, especially §5.1, §5.7); FOG-OF-WAR; AGENTS.md rules 0, 6, 6a; `docs/quality/DATA-INTEGRITY.md`.
 
-**Early build.** `content/units/<kind-in-kebab-case>.yaml`, `content/weapons.yaml` and `content/roles.yaml` exist (NX-367). A unit file has kind, side, domain, playable_by, min_rank, `speed_mps` (NX-121), `min_speed_mps` and `fuel_s` for AIR kinds (NX-368), the required `sensor: {radius_m}` and `stealth` (NX-150), the combat stats `hp`, `armor`, `evasion`, `crew`, `threat` and, for AIR kinds, `alt_bands` and `default_alt_band` (NX-124), plus weapons (weapon id, targets, `bands`, `range_m`, `projectile_speed_mps`, `base_pk`, `damage`, `reload_s`, `ammo`); the loader is `nexus.runtime.units`, so run its tests. A facility variant's weapon split is a constant in `nexus.core.rules` for now. Other stats and passive sensors join with later items, and `tools/config_lint` and the balance harness (NX-031) don't exist yet: until they do, put the stat draft in the PR description. A new kind also needs its `UnitKind` value (CONTRACTS §3.3) and the §7.3 row. Run the tools and paste the commands and output (DOC-4). Never say a check passed that you didn't run.
+**Early build.** `content/units/<kind-in-kebab-case>.yaml`, `content/weapons.yaml` and `content/roles.yaml` exist (NX-367). A unit file has kind, side, domain, playable_by, min_rank, `speed_mps` (NX-121), `min_speed_mps` and `fuel_s` for AIR kinds (NX-368), the required `sensor: {radius_m}` and `stealth` (NX-150), the combat stats `hp`, `armor`, `evasion`, `crew`, `threat` and, for AIR kinds, `alt_bands` and `default_alt_band` (NX-124), plus weapons (weapon id, targets, `bands`, `range_m`, `projectile_speed_mps`, `base_pk`, `damage`, `reload_s`, `ammo`); the loader is `nexus.runtime.units`, so run its tests. A facility variant's weapon split is a constant in `nexus.core.rules` for now. Other stats and passive sensors join with later items. The balance harness exists (`tools/balance`, see its README): `--set key=value` overrides a numeric balance key, and runs over about an hour go through the `harness-run` issue queue. `tools/config_lint` doesn't exist yet, so check the draft by loading it (the unit and config tests). `services/sim/tests/core/test_kernel_literals.py` fails on a new numeric literal in the kernel: an outcome-changing number must be a balance or content key. A new kind also needs its `UnitKind` value (CONTRACTS §3.3) and the §7.3 row. Run the checks and paste the commands and output (DOC-4). Never say a check passed that you didn't run.
 
 ## 1. Can data do it?
 
@@ -39,7 +39,7 @@ Use the §7.1 schema field for field, plus §7a `category` (and optional sanitiz
 §7.2. Rules:
 
 - **No invented stats.** Every number is `TBD` and carries `# PROPOSED – unvalidated` (DI-7, DOC-2) until the harness
-  validates it. Relative intent ("longer range than the SAM variant") is fine as a comment; a made-up number is not.
+  validates it (run `tools/balance`). Relative intent ("longer range than the SAM variant") is fine as a comment; a made-up number is not.
   Values that follow from the kind itself are not guesses: `domain: STATIC`, `alt_bands` only for AIR, `fuel_s: null`
   for STATIC, `can_capture: false` for a facility. Say why for each.
 - **Stat envelope.** Each value must sit inside the configured min/max bands (§7a). The band keys are not defined in
@@ -55,13 +55,13 @@ Use the §7.1 schema field for field, plus §7a `category` (and optional sanitiz
 1. CONFIG-AND-CONTENT §7.3 row (and §7.2 weapon entries if new).
 2. CONTRACTS §3.3 `UnitKind`: add the value to the spec table **and** to `contracts/common/enums.json`, bump
    `contracts/VERSION`, run `make contracts` and commit the regenerated types (contracts/README.md checklist).
-   Catalog kinds must equal the enum exactly; `config_lint` checks it (§11.2). Removing a kind removes both, together.
+   Catalog kinds must equal the enum exactly; `config_lint` will check it (§11.2), and the loader tests cover it until then. Removing a kind removes both, together.
 3. Any spec section whose rule mentions the kind (e.g. GAMEPLAY §5b for a facility, FOG-OF-WAR for a sensor).
 4. `docs/quality/PLAYTEST-WATCHLIST.md` row if it introduces a new mechanic or a simplification to revisit (step 7).
 5. COMBAT §5.1 who-can-shoot-whom table: add or change the kind's row so it matches its weapons' `targets:`. The
    matrix test fails CI when the table and the content disagree (Q-CBT-15).
 6. Any change to a combat stat (`hp`, `armor`, `evasion`, `threat`, a weapon's `base_pk`, `damage`, `range_m`) attaches
-   the balance-diff report (CONFIG-AND-CONTENT §11.4) once the harness exists; until then say it wasn't run.
+   a before/after balance run (CONFIG-AND-CONTENT §11.4) from `tools/balance` at the same SHA; if you didn't run it, say so.
 
 `TRACKER.md` and `OPEN-QUESTIONS.md` are shared files: if you are a parallel session, list the edits you need in the
 PR description instead (AGENTS.md rule 11b).

@@ -8,7 +8,7 @@ Implement tracker item <NX-###> as described in docs/planning/TRACKER.md and spe
 2. Write failing tests first (unit, plus a property/golden test where the role card requires one).
 3. Implement the minimum to pass. Keep the diff under ~400 lines.
 4. Run `make check`. Fix everything it reports.
-5. Update the spec (if behavior was clarified), the tracker status, and the CHANGELOG fragment.
+5. Update the spec (if behavior was clarified), the tracker status, and note that CHANGELOG entries come from Conventional Commits once release-please lands (NX-015).
 6. Self-review using .agents/roles/reviewer.md. Report the results.
 Push and open a PR into `develop` only as AGENTS.md rule 10 allows.
 ```
