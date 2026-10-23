@@ -10,7 +10,7 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | Phase | Items | Done | Status |
 |---|---|---|---|
 | P0 Foundations | 44 | 31 | 🟨 |
-| P1 Sim kernel | 46 | 39 | 🟨 |
+| P1 Sim kernel | 47 | 39 | 🟨 |
 | P2 Closed alpha | 40 | 0 | ⬜ |
 | P3 Public beta | 26 | 0 | ⬜ |
 | P4 Depth | 69 | 1 | ⬜ |
@@ -118,6 +118,7 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-389 | Hauler forward stock (Q-SIM-100): a standing job that hauls surplus stock from rear to forward bases up to a target level, so haulers always have work and forward bases have stock for upgrades and repairs; spec section first, PROPOSED keys. Built (#289, Q-SIM-102): stocking jobs fill forward bases to the target from the rear; deliveries about double in the harness. Diagnosis (2026-10-23): a stuck strike job on the Static rear source stalled the war (fixed, NX-396); after that the war froze once Static defenses hit 0 because no harness persona captured. Lead decisions Q-SIM-104: `resupply_slots_max` stays 3 (6 slots cut auto impact to 3/39, 8/47, 0/44), and a `capturer` persona kind (share 0.1) sends capture runs; raid-300 seeds 4/5/7, 6 h: A2 median 490 → 239 s, tail 43.1% → 34.9%, coalition 4 → 7-8 nodes, two seeds won inside 6 h (A1 wants 24-72 h). Open: hauler A2 (0/4, 0/10, 3/5) and the early victories | M | 🟨 | NX-374 | A2 hauler first-impact median within target in the harness; forward bases hold stock near the target level without starving the rear |
 | NX-390 | Settings registry (Q-CFG-15): `x-category`, `x-audience`, `x-edit-role`, `x-tune`, `x-source`, `x-status` metadata on every config key; generated `docs/specs/CONFIG-REFERENCE.md` with a CI drift check; metadata guard tests; `add-config-key` skill and path rule; later the harness `--sweep` and queue `sweep:` with a `tune` skill | M | 🟨 PR1 in review: generator, guard, CI drift, reference doc, metadata for sim/slots/air/fow (Q-CFG-17..22) | NX-388 | A key without metadata fails a test; the reference doc is regenerated in CI and drift fails |
 | NX-396 | Tasking: never post a coalition STRIKE job on the Static's rear source (`supply.rear[ENEMY]`), in the objective, marker and idle-viewer paths, mirroring combat's exclusion (Q-SIM-64, Q-SIM-103). Merged in #294. Found in the raid-300 harness: a stuck `strike:static-rear` job held 10 strikers with zero hits | S | ✅ | NX-380 | No coalition strike job on the Static rear source; harness raid-300 no longer shows a stuck strike job |
+| NX-397 | Tasking: a coalition (or Static) patrol that fails while its ground unit is mid-edge no longer strands the unit on the road; it goes to the held end of its edge, else stops (Q-SIM-109). Found by QA during NX-373 part 1b | S | 🟨 | NX-382 | A failed patrol's ground unit reaches a held node and is re-tasked; it never enters a node lost at the moment of failure |
 | NX-151 | Enemy-side view for director (FOW-4) | M | ✅ | NX-150 | Director API accepts only `EnemyView` |
 | NX-155 | Director: CP, tiers w/ hysteresis, budget | M | ✅ | NX-151, NX-374 | Hysteresis property |
 | NX-156 | Director: operations library + scoring + threat memory | L | ✅ | NX-155 | "Convoy raids → escorts" golden scenario |
