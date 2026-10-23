@@ -82,7 +82,7 @@ def test_parse_uses_first_block_only(cfg: dict[str, Any]) -> None:
         (block(hours="0"), "key: hours"),
         (block(hours="73"), "key: hours"),
         (block(hours="$(id)"), "key: hours"),
-        (block(workers="9"), "key: workers"),
+        (block(workers="13"), "key: workers"),
         (block(extra="1"), "unknown or malformed"),
         (block(**{"Bad Key": "1"}), "unknown"),
         ("```harness\nsha: " + SHA + "\n```", "missing keys: profiles, seeds, hours"),

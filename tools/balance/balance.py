@@ -7,7 +7,8 @@ the crowd profiles of Q-TEST-5, and writes a report per run and per profile (JSO
       --profile prime-50 --seeds 5 --hours 72 --workers 4 --out /path/to/report-dir
 
 `--profile` is one name, a comma list, or `all`; `--seeds` a count N (seeds 1..N) or a comma list;
-`--hours` the game hours per run (72 for acceptance; a run stops early when the campaign ends);
+`--hours` the game hours per run (default `campaign.time_limit_h`, 72 shipped;
+a run stops early when the campaign ends);
 `--workers` the number of parallel processes (seeds are independent, so the report does not depend
 on it). `--set key=number` (repeatable) overrides one numeric balance key of the shipped config
 (e.g. `--set tasking.strike_idle_targets_max=0`); the config is then validated as usual, the
@@ -148,7 +149,9 @@ def parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(description=__doc__.split("\n")[0] if __doc__ else None)
     p.add_argument("--profile", default="all", help="a profile name, a comma list, or 'all'")
     p.add_argument("--seeds", type=_seeds, default=_seeds("1"), help="a count N or a comma list")
-    p.add_argument("--hours", type=float, default=72.0, help="game hours per run (default 72)")
+    p.add_argument(
+        "--hours", type=float, default=None, help="game hours per run (default: the config's limit)"
+    )
     p.add_argument("--workers", type=int, default=1, help="parallel processes (default 1)")
     p.add_argument(
         "--set", dest="overrides", action="append", default=[], metavar="KEY=NUMBER",
@@ -168,9 +171,12 @@ def main() -> int:
     try:
         if unknown := [n for n in names if n not in data.profiles]:
             raise ValueError(f"unknown profiles {unknown}; known: {list(data.profiles)}")
+        balance_text = override_balance(args.overrides) if args.overrides else None
+        if args.hours is None:  # the (possibly overridden) config's campaign length
+            tree = yaml.safe_load(balance_text or ConfigPaths().balance.read_text())
+            args.hours = float(tree["campaign"]["time_limit_h"])
         if args.hours <= 0 or args.workers < 1:
             raise ValueError("--hours must be > 0 and --workers >= 1")
-        balance_text = override_balance(args.overrides) if args.overrides else None
         theater = None
         theater_text = args.theater.read_text() if args.theater else None
         if theater_text is not None:  # validate (and cross-check with the balance) before `out`

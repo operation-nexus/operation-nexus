@@ -110,7 +110,7 @@ def test_persona_emits_only_valid_commands(name: str) -> None:
     persona = load().personas[name]
     v = personas.new_viewer(7, persona, "prime-50", 1)
     adapter: TypeAdapter[Command] = TypeAdapter(Command)
-    join = personas.join_command(v, 5, 1)
+    join = personas.join_command(v, 5, 1, None, load().kind_roles)
     rebase = personas.rebase_command(v, "west-airbase", 6, 2)
     for cmd in (join, rebase):
         adapter.validate_python(cmd.model_dump(mode="json"))
@@ -636,14 +636,14 @@ def test_persona_kinds_are_seeded_validated_and_a_striker_names_a_defended_foe(
     assert foes and all(world.owner[n] == "ENEMY" and world.defense_hp[n] for n in foes)
     v = personas.new_viewer(3, d.personas["newbie"], "prime-50", 1, "striker")
     node = personas.pick_node(v, foes)
-    join = personas.join_command(v, 5, 1, node)
+    join = personas.join_command(v, 5, 1, node, d.kind_roles)
     assert (join.role, join.hold, join.target.node_id) == ("STRIKE", False, node)
     assert node == personas.pick_node(
         personas.new_viewer(3, d.personas["newbie"], "prime-50", 1, "striker"), foes
     )
     for kind, role in (("hauler", "LOGI"), ("scout", "RECON")):
         other = personas.new_viewer(4, d.personas["newbie"], "prime-50", 1, kind)
-        j = personas.join_command(other, 5, 1, personas.pick_node(other, foes))
+        j = personas.join_command(other, 5, 1, personas.pick_node(other, foes), d.kind_roles)
         assert (j.role, j.target) == (role, None)
 
 
@@ -907,7 +907,7 @@ def join_hauler(
     v = personas.new_viewer(1, load().personas["newbie"], "prime-50", 1, "hauler")
     spawns: list[Any] = []
     for tick in range(1, 61):
-        cmds = [personas.join_command(v, tick, 1, node)] if tick == 5 else []
+        cmds = [personas.join_command(v, tick, 1, node, load().kind_roles)] if tick == 5 else []
         events = step(world, cmds, HANDLERS)
         spawns += [e for e in events if e.kind == "UnitSpawned" and e.commander_id == cmdr]
         collector.feed(events)
@@ -937,3 +937,63 @@ def test_a_truck_leaving_empty_is_no_departure(shipped_config: CampaignConfig) -
     truck = world.find(spawns[0].entity_id)
     assert truck is not None and truck.path and not truck.cargo
     assert collector.impact == {}
+
+
+# --- harness keys in config: momentum_sample_s, kind_roles, --hours default ------------------
+
+
+@pytest.mark.parametrize(
+    ("key", "value", "match"),
+    [
+        ("momentum_sample_s", 0, "momentum_sample_s"),
+        ("momentum_sample_s", -5, "momentum_sample_s"),
+        ("kind_roles", {"striker": "STRIKE", "hauler": "LOGI", "scout": "NAVY"}, "kind_roles"),
+        ("kind_roles", {"auto": "STRIKE", "striker": "STRIKE"}, "kind_roles"),
+        ("kind_roles", {"striker": "STRIKE", "hauler": "LOGI"}, "scout"),  # scout is used
+    ],
+)
+def test_new_profile_keys_are_validated(key: str, value: Any, match: str, tmp_path: Path) -> None:
+    raw = yaml.safe_load(DATA.read_text())
+    raw[key] = value
+    doc = tmp_path / "bad.yaml"
+    doc.write_text(yaml.safe_dump(raw))
+    with pytest.raises(ValueError, match=match):
+        load(doc)
+
+
+def test_sampling_interval_and_kind_roles_come_from_the_config(
+    tmp_path: Path, data: Data, shipped_config: CampaignConfig
+) -> None:
+    assert load().momentum_sample_s == 60
+    fast = dataclasses.replace(data, momentum_sample_s=30)
+    run = run_once(tmp_path, "fast", fast, shipped_config)
+    assert run["metrics"]["momentum"]["sample_every_s"] == 30
+    std = run_once(tmp_path, "std", data, shipped_config)
+    assert std["metrics"]["momentum"]["sample_every_s"] == 60
+    n_fast, n_std = (len(r["metrics"]["momentum"]["samples"]) for r in (run, std))
+    assert n_fast > n_std + 3
+    swapped = {"striker": "STRIKE", "hauler": "RECON", "scout": "LOGI"}
+    v = personas.new_viewer(4, load().personas["newbie"], "prime-50", 1, "hauler")
+    assert personas.join_command(v, 5, 1, None, swapped).role == "RECON"
+
+
+def test_hours_default_follows_the_balance_config(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    seen: list[float] = []
+
+    def spy(profile: str, seed: int, hours: float, *args: Any, **kw: Any) -> Any:
+        seen.append(hours)
+        return runner.failed_run(profile, seed, hours, "spy")
+
+    monkeypatch.setattr(runner, "run", spy)
+
+    def go(out: str, *extra: str) -> None:
+        argv = ["balance.py", "--profile", "overnight-0", "--out", str(tmp_path / out), *extra]
+        monkeypatch.setattr(sys, "argv", argv)
+        assert balance.main() == 0
+
+    go("a")
+    go("b", "--set", "campaign.time_limit_h=36")
+    go("c", "--hours", "1", "--set", "campaign.time_limit_h=36")
+    assert seen == [72.0, 36.0, 1.0]

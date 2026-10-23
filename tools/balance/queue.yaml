@@ -15,7 +15,7 @@ labels:
 # Upper bounds for a request's `seeds`, `hours` (game hours per run) and `workers`.
 max_seeds: 50
 max_hours: 72
-max_workers: 8
+max_workers: 12
 # Most `set:` balance overrides (key=number pairs) in one request.
 max_overrides: 4
 # Most distinct profiles in one request (the number in profiles.yaml).

@@ -27,7 +27,6 @@ from nexus.runtime.campaign_config import CampaignConfig, load_campaign_config, 
 from nexus.runtime.command_log import CommandLogReader, CommandLogWriter, Tombstone
 
 PROTOCOL = "0.2"  # the command log's protocol_version (same as the runtime tests)
-SAMPLE_S = 60  # game seconds between momentum and starvation samples
 FLUSH_TICKS = 600
 
 
@@ -99,7 +98,7 @@ class _Crowd:
         v.status = ps.PENDING
         node = ps.pick_node(v, defended_foes(world)) if v.kind == "striker" else None
         self.striker_fallbacks += v.kind == "striker" and node is None
-        return ps.join_command(v, tick, self.seq, node)
+        return ps.join_command(v, tick, self.seq, node, self.data.kind_roles)
 
     def react(self, events: list[Any], tick: int, hz: int, seen: Counter[str]) -> None:
         for e in events:
@@ -170,7 +169,7 @@ def run(
         kinds={v.commander_id: v.kind for v in crowd.viewers},
         a2_min_tier=data.targets.a2_min_tier,
         tick_hz=hz,
-        sample_ticks=SAMPLE_S * hz,
+        sample_ticks=max(1, round(data.momentum_sample_s * hz)),
         a3_ticks=round(data.targets.a3_hours * 3600 * hz),
         idle_sample_ticks=round(data.idle_sample_min * 60 * hz),
         impact_check_ticks=max(1, round(data.impact_check_s * hz)),
@@ -278,7 +277,7 @@ def failed_run(profile: str, seed: int, hours: float, error: str) -> dict[str, A
         "final_state_hash": None,
         "metrics": {
             "outcome": {"ended": False, "result": None, "length_h": None, "end_tick": None},
-            "momentum": {"sample_every_s": SAMPLE_S, "samples": []},
+            "momentum": {"sample_every_s": None, "samples": []},
             "newbie": {
                 "joined": 0,
                 "joined_below_tier": 0,

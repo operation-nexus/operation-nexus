@@ -46,6 +46,13 @@ personas:
 # (Q-SIM-92, NX-380). PROPOSED.
 idle_sample_min: 5
 
+# Game seconds between momentum and starvation samples (the report's momentum curve). PROPOSED.
+momentum_sample_s: 60
+
+# The JOIN role each non-auto persona kind always sends (Q-SIM-95); auto keeps the persona's own
+# role. Values must be playable roles (STRIKE, RECON, LOGI); every kind a profile uses needs one.
+kind_roles: { striker: STRIKE, hauler: LOGI, scout: RECON }
+
 # Game seconds between state checks for the impact kinds no event names: capture progress (a
 # ground unit inside a coalition-filled bar's radius) and a new enemy track found by scouting.
 # PROPOSED.

@@ -13,7 +13,7 @@ cd services/sim && uv run --frozen python ../../tools/balance/balance.py \
 |---|---|
 | `--profile` | one of `overnight-0`, `quiet-5`, `prime-50`, `evening-150`, `raid-300`, `surge-500`; a comma list; or `all` (default) |
 | `--seeds` | a count N (seeds 1..N) or a comma list; the sim seed is the seed itself |
-| `--hours` | game hours per run, default 72 (the acceptance length). A run stops early when the campaign ends. Short runs work; targets that need a longer window say `not evaluable` |
+| `--hours` | game hours per run, default `campaign.time_limit_h` of the config in use (72 shipped, the acceptance length; follows `--set campaign.time_limit_h=...`). A run stops early when the campaign ends. Short runs work; targets that need a longer window say `not evaluable` |
 | `--workers` | parallel processes, one run each (default 1), started biggest crowd first to cut wall time. The report does not depend on it |
 | `--set` | `key=number`, repeatable: override one numeric key of the shipped balance config (dotted path, e.g. `tasking.strike_idle_targets_max=0`). An unknown or non-numeric key, a float for an integer key, a key given twice or a value the schema rejects exits 2 before any run. The overridden copy is saved as `<out>/balance.yaml`, every worker loads it, and the report header lists the overrides next to the (changed) config hash |
 | `--theater` | a theater file to run on instead of `content/theaters/strait-1.yaml`. Loaded with the sim's own loader (and cross-checked with the balance config) before any run: a missing, malformed or inconsistent file exits 2 with one stderr line, before `--out` exists. The loader wants the slug to equal the file name, so the copy is saved as `<out>/theater/<file name>` (not a fixed `theater.yaml`; a subdirectory so a file named `balance.yaml` cannot clobber the `--set` copy), every worker loads that copy, and the report header shows its slug, name, node count, landing-base count and the config hash (the theater is part of `config_hash`). The queue has no theater key on purpose: a hostile issue naming files on the owner's PC is a security surface, so adding one is a separate owner decision |
@@ -90,7 +90,7 @@ Each viewer also draws a kind from its profile's `kinds` shares (a harness RNG p
 
 Every command still goes through the ordinary path and the command log. The report breaks A2 down per kind (`A2.by_persona_kind`).
 
-Other new keys: `targets.a2_min_tier` (ALPHA), `targets.a2_tail_s` and `a2_tail_share` (Q-SIM-97; positive, share in (0, 1]) and `impact_check_s` (1 game second between the two state checks), both PROPOSED.
+Other new keys: `momentum_sample_s` (60, game seconds between momentum and starvation samples; > 0) and `kind_roles` (`striker: STRIKE, hauler: LOGI, scout: RECON`: the JOIN role each non-auto persona kind sends; values must be playable roles and every kind a profile uses needs one), checked on load; `targets.a2_min_tier` (ALPHA), `targets.a2_tail_s` and `a2_tail_share` (Q-SIM-97; positive, share in (0, 1]) and `impact_check_s` (1 game second between the two state checks), both PROPOSED.
 
 A target with nothing to judge says so: `not evaluable` (the run was shorter than the window), `no data` (for example no kills), `not measurable yet`. **Not measurable yet:** the kill-share Gini by rank (no ranks until PROGRESSION), A5 and A6 (part 2). The CLI exit code is 0 whatever the targets say.
 
@@ -182,4 +182,4 @@ set: tasking.strike_idle_targets_max=0
 ```
 ````
 
-`sha` is 40 lowercase hex characters on `develop`; `profiles` are names from `profiles.yaml`; `seeds` is 1 to `max_seeds`; `hours` is above 0 and at most `max_hours`; `workers` is optional (1 to `max_workers`, default from `queue.yaml`); `set` is optional: up to `max_overrides` comma-separated `key=number` balance overrides (see `--set`; the key must exist at that `sha`, which must also have `--set`), echoed in the result comment. For a sweep, open one issue per value (0, 1, 2, 4). Wait for the next hourly tick.
+`sha` is 40 lowercase hex characters on `develop`; `profiles` are names from `profiles.yaml`; `seeds` is 1 to `max_seeds`; `hours` is above 0 and at most `max_hours`; `workers` is optional (1 to `max_workers`, default from `queue.yaml`; `max_workers` is 12 and the default `workers` stays 2: ask for 12 on overnight jobs, about 20% less wall time per job with each run about 25% slower (issue #278), and leave it out by day); `set` is optional: up to `max_overrides` comma-separated `key=number` balance overrides (see `--set`; the key must exist at that `sha`, which must also have `--set`), echoed in the result comment. For a sweep, open one issue per value (0, 1, 2, 4). Wait for the next hourly tick.
