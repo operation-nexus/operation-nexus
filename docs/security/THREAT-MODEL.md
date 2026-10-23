@@ -111,7 +111,7 @@ Kick is an optional platform, not a committed one (Q-PROD-2); its B1 path exists
 - **SEC-CI-4.** Python and Node lockfiles MUST pin hashes (`uv.lock`, `pnpm-lock.yaml`). Builds use `--frozen`.
 - **SEC-CI-5.** No self-hosted runner may execute untrusted PR code.
 
-## 6. Residual risks accepted (pending owner sign-off)
+## 6. Residual risks accepted
 - Platform outages and policy changes are outside our control. Mitigation: multi-platform support, graceful degradation, and monitoring.
 - Usernames inside clips that were already posted can't be erased.
 - The moderation denylist will never be complete. Defense in depth: generated callsigns by default and a staff kill switch.
