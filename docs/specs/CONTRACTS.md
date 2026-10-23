@@ -346,8 +346,9 @@ Decided and folded in (2026-10-18, second batch): Q-ALN-11 (GM job injection int
 
 Decided and folded in (2026-10-18, third batch): Q-ALN-36 (remaining commands while paused, §5.2, §5.3), Q-ALN-39 (the sub-reason never reaches a public payload; the overlay gets only the category, §6, §7).
 
+Decided (2026-10-18): Q-GW-2 (raid-origin viewers are normal viewers; accepted under the usual rate limits).
+
 Still open:
-- Q-GW-2 (Shared Chat / raid-origin commands).
 - Which field carries the `REDACTED-` tag to renderers (a `CallsignChanged` field or a lookup at render time); DATA-MODEL §4.2 stores it.
 - The config keys for the score weights (Q-GD-29).
 
