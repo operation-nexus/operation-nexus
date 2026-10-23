@@ -1,5 +1,6 @@
 """World model, canonical state_hash and snapshot tests (NX-101, SIM-CORE SC-4 / SC-9, ADR-0002)."""
 
+import math
 import os
 import subprocess
 import sys
@@ -212,6 +213,18 @@ def test_vec2_rejects_non_finite_huge_and_non_numbers(bad: Any) -> None:
         Vec2(bad, 0.0)
     with pytest.raises(ValueError):
         Vec2(0.0, bad)
+
+
+@pytest.mark.parametrize("ok", [0, -0.0, 7, -1e9, 1e9, 10**9, 1.5e-300])
+def test_vec2_accepts_in_range_numbers_as_floats(ok: Any) -> None:
+    v = Vec2(ok, ok)
+    assert (v.x, v.y) == (float(ok), float(ok))
+    assert type(v.x) is float and type(v.y) is float
+
+
+def test_vec2_just_over_the_limit_is_rejected() -> None:
+    with pytest.raises(ValueError):
+        Vec2(math.nextafter(1e9, math.inf), 0.0)
 
 
 finite = st.floats(min_value=-1e6, max_value=1e6, allow_nan=False)

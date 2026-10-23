@@ -244,9 +244,9 @@ def _orbit(e: Entity, centre: Vec2, rules: Rules) -> None:
     e.vel = Vec2(-speed * sin, speed * cos)
 
 
-def _waypoint(e: Entity, rules: Rules, cap: float | None = None) -> tuple[Vec2, float]:
-    """The next waypoint and the speed to it in m/s (world); `cap` (a follower's station or its
-    formation's slowest member, `nexus.core.follow`) lowers the speed before the road's mult."""
+def _waypoint(e: Entity, rules: Rules, cap: float | None = None) -> tuple[float, float, float]:
+    """The next waypoint's x, y and the speed to it in m/s (world); `cap` (a follower's station or
+    its formation's slowest member, `nexus.core.follow`) lowers the speed before the road's mult."""
     wp, speed = e.path[0], rules.speed(e.kind, e.damage_state)
     if cap is not None:
         speed = min(speed, cap)
@@ -256,8 +256,8 @@ def _waypoint(e: Entity, rules: Rules, cap: float | None = None) -> tuple[Vec2, 
         speed *= rules.roads.speed_mult_at(e.last_node, wp, e.pos.x, e.pos.y)
     if isinstance(wp, str):
         x, y = rules.roads.pos[wp]
-        return Vec2(x, y), speed
-    return wp, speed
+        return x, y, speed
+    return wp.x, wp.y, speed
 
 
 def _move(e: Entity, rules: Rules, cap: float | None = None) -> tuple[float, float] | None:
@@ -265,11 +265,11 @@ def _move(e: Entity, rules: Rules, cap: float | None = None) -> tuple[float, flo
     left = rules.world_dt  # world seconds still to spend this tick
     leg = None
     while e.path:
-        if e.path[0] == e.last_node and e.pos == Vec2(*rules.roads.pos[e.last_node]):
+        if e.path[0] == e.last_node and (e.pos.x, e.pos.y) == rules.roads.pos[e.last_node]:
             e.path.pop(0)  # already there: a route from `shortest_path` starts at its own node
             continue
-        target, speed = _waypoint(e, rules, cap)
-        dx, dy = target.x - e.pos.x, target.y - e.pos.y
+        tx, ty, speed = _waypoint(e, rules, cap)
+        dx, dy = tx - e.pos.x, ty - e.pos.y
         dist, reach = math.hypot(dx, dy), speed * left
         if dist > reach:
             if reach > 0.0:
@@ -279,24 +279,25 @@ def _move(e: Entity, rules: Rules, cap: float | None = None) -> tuple[float, flo
         if dist > 0.0:  # so speed > 0
             left -= dist / speed
             leg = (dx / dist, dy / dist)
-        _arrive(e, target)  # snap exactly: no drift at nodes
+        _arrive(e, rules)  # snap exactly: no drift at nodes
     e.vel = _velocity(e, rules, cap)
     return leg
 
 
-def _arrive(e: Entity, target: Vec2) -> None:
-    e.pos = target
+def _arrive(e: Entity, rules: Rules) -> None:
     wp = e.path.pop(0)
     if isinstance(wp, str):
-        e.last_node = wp
+        e.pos, e.last_node = Vec2(*rules.roads.pos[wp]), wp
+    else:
+        e.pos = wp
 
 
 def _velocity(e: Entity, rules: Rules, cap: float | None) -> Vec2:
     """Heading to the next waypoint at the current speed; zero once the path is done."""
     if not e.path:
         return _STOPPED
-    target, speed = _waypoint(e, rules, cap)
-    dx, dy = target.x - e.pos.x, target.y - e.pos.y
+    tx, ty, speed = _waypoint(e, rules, cap)
+    dx, dy = tx - e.pos.x, ty - e.pos.y
     dist = math.hypot(dx, dy)
     return Vec2(dx / dist * speed, dy / dist * speed) if dist and speed > 0.0 else _STOPPED
 
