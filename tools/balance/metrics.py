@@ -28,8 +28,10 @@ _COALITION: Final = "COALITION"
 # in the same tick; the earlier in this tuple wins a same-tick tie. `capture` is the NodeCaptured
 # event or, between those, a ground unit inside a coalition-filled bar's radius (derived from the
 # world, no event names the capturers until it flips); `scout` is a new coalition track within the
-# newbie's recon unit's sensor reach (derived: no event says who tracked what).
-IMPACT_KINDS = ("kill", "capture", "delivery", "scout", "hit")
+# newbie's recon unit's sensor reach (derived: no event says who tracked what); `departure`
+# (Q-SIM-97) is the first tick a newbie's truck holds cargo and a path: it loaded at its source and
+# set off for a delivery (no event says so; `observe` reads the truck every tick, so it is exact).
+IMPACT_KINDS = ("kill", "capture", "delivery", "departure", "scout", "hit")
 
 
 class Collector:
@@ -67,6 +69,7 @@ class Collector:
         self.commander_of: dict[int, str] = {
             e.id: e.commander_id for e in world.entities() if e.commander_id
         }
+        self.trucks: set[int] = set()  # newbies' trucks not yet seen loaded and under way
         self.join_tick: dict[str, int] = {}
         self.join_tier: dict[str, int] = {}  # the Static's tier index when the newbie first joined
         self.impact: dict[str, tuple[int, str]] = {}  # commander -> (tick, kind) of first impact
@@ -140,6 +143,13 @@ class Collector:
                 handler(event)
 
     def observe(self, world: World) -> None:
+        for eid in sorted(self.trucks):  # a truck leaving its source loaded (Q-SIM-97)
+            e = world.find(eid)
+            if e is None:
+                self.trucks.discard(eid)
+            elif e.cargo and e.path:
+                self.trucks.discard(eid)
+                self._credit(e.commander_id, world.campaign.tick, "departure")
         hp = world.defense_hp[self._sanctuary]
         self.sanctuary_min = min(self.sanctuary_min, hp)
         if world.campaign.tick <= self.a3_ticks:
@@ -192,6 +202,8 @@ class Collector:
         self.entity[e.entity_id] = (e.unit_kind, e.side)
         if e.commander_id:
             self.commander_of[e.entity_id] = e.commander_id
+            if e.commander_id in self.newbies and e.unit_kind in self._world_rules.supply.carriers:
+                self.trucks.add(e.entity_id)
 
     def _credit(self, commander: str | None, tick: int, kind: str) -> None:
         if commander is None or commander not in self.newbies or commander not in self.join_tick:

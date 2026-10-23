@@ -56,7 +56,9 @@ targets:
   a1_min_h: 24            # Q-TEST-6: victory or defeat within 24-72 h (72 = campaign.time_limit_h)
   a1_pass_frac: 0.85      # Q-TEST-4 / Q-TEST-6
   a2_min_tier: ALPHA      # Q-SIM-93: A2 counts only newbies who arrive at this Static tier or above
-  a2_max_s: 300           # A2 "within 3-5 min": the 5 min end; PROPOSED rule: the median over newbies
+  a2_max_s: 480           # Q-SIM-97 (owner, 2026-10-23): the median time to first impact is at most 8 min (a sortie, SIM-CORE world scale)
+  a2_tail_s: 900          # Q-SIM-97: a newbie still without an impact after 15 min is "in the tail"
+  a2_tail_share: 0.10     # Q-SIM-97: at most 10% of newbies may be in the tail
   a3_hours: 12            # A3, Q-TEST-8 (PROPOSED)
   a3_max_nodes_lost: 1    # A3, Q-TEST-8 (PROPOSED)
   a4_max_share: 0.40      # A4, Q-TEST-8 (PROPOSED)
