@@ -19,7 +19,7 @@ Facts here were verified on 2026-10-17 against the cited sources. Anything marke
 | `.agents/` | Role cards, rules (`rules/code-quality.md`), reusable prompts, and the owner's context drop zone. |
 | `.claude/skills/` | Project skills: ours plus a pinned, MIT-licensed copy of selected `mattpocock/skills` (index and local changes: `VENDORED.md`). |
 | `.serena/project.yml` | Serena project config (languages: python, typescript, bash). `cache/` and `project.local.yml` are ignored by `.serena/.gitignore`. |
-| `scripts/` | `check_commit_msg.py` (Conventional Commits, no AI trailer) and `check_tracked_files.py` (no ignored, recorded or oversized files), with tests in `scripts/tests/`. `make check` and the CI `python-test` job run those tests; running the checks themselves in pre-commit (commit-msg hook) and CI is still open under NX-011. |
+| `scripts/` | `check_commit_msg.py` (Conventional Commits, no AI trailer) and `check_tracked_files.py` (no ignored, recorded or oversized files), with tests in `scripts/tests/`. `make check` and the CI `python-test` job run those tests; the CI `pr-hygiene` workflow also runs `check_commit_msg.py` on the PR title and every PR commit (NX-017). `check_tracked_files.py` is not run in CI or in pre-commit, and `.pre-commit-config.yaml` has no commit-msg hook. |
 
 Notes:
 - Project `allow` rules and `extraKnownMarketplaces` take effect only after you trust the folder. `deny` rules apply immediately ([settings docs](https://code.claude.com/docs/en/settings)).
@@ -58,7 +58,7 @@ Not vendored yet. Each needs adapting first, or clashes with something here:
 | Skill | Why it could help | Why not yet |
 |---|---|---|
 | `to-spec`, `to-tickets` | Turn a grill session into a spec and tracer-bullet tickets | They publish to GitHub Issues with their own templates and `ready-for-agent` labels; ours are `docs/specs/_TEMPLATE.md`, NX IDs and `.github/labels.yml`. Adapt, then run `setup-matt-pocock-skills`' config by hand (`docs/agents/`). |
-| `tdd`, `diagnosing-bugs`, `codebase-design`, `prototype` | Implementation discipline (red-green slices, bug loops, deep modules, throwaway prototypes) | No code yet (P1). `prototype` shadows a Claude Code built-in name. |
+| `tdd`, `diagnosing-bugs`, `codebase-design`, `prototype` | Implementation discipline (red-green slices, bug loops, deep modules, throwaway prototypes) | Code exists now; not adopted yet. `prototype` shadows a Claude Code built-in name. |
 | `implement`, `implement-spec` | Drive a spec to done with subagents | They call upstream `/code-review` and `/tdd`; our `code-review` is the built-in. |
 | `code-review`, `research` | Standards + spec two-axis review; cited research notes | Same names as Claude Code built-ins we already use. Would need renaming. |
 | `writing-for-agents` | How to write AGENTS.md, rules and skills compactly | Useful now; model-invoked, so it would load whenever docs for agents are edited. |
@@ -81,7 +81,7 @@ On GitHub, after the PR opens: the Claude review action (sensitive paths, or the
 | **Context7** | Current library docs, so agents don't hallucinate APIs | Project (`.mcp.json`) | Committed. Works without a key at low rate limits. Optionally set your own key later via a user-scope entry. In cloud sessions the environment's network policy currently blocks it (proxy 403, seen 2026-10-17), so it only works on desktop unless the cloud environment's allowed hosts are changed. Privacy: Context7 stores the search queries the agent sends, not your code ([privacy](https://context7.com/docs/security/data-privacy)). Docs are community-sourced, so treat them as a pointer, not truth. |
 | **Serena** | LSP-backed symbol search, references and edits. Answers come from a real language server, which is the most grounded and token-efficient way to navigate code. | **User scope on your desktop**, not committed (it needs a local install, and cloud sessions would fail to start it) | `claude mcp add --scope user serena -- serena start-mcp-server --context claude-code --project-from-cwd` ([Serena client docs](https://github.com/oraios/serena/blob/main/docs/02-usage/030_clients.md)). Install Serena per its README first. The README warns against installing it via a plugin marketplace. License is GPL-3.0 for the app, which is fine for local use. Mac (2026-10-17): installed as a `uv` tool (`serena-agent` 2.0.0), `serena init` run, registered with the command above, `claude mcp list` shows it connected. On first use in a repo Serena writes `.serena/` there; `project.yml` is committed. Its web dashboard opens a browser tab on every start (`web_dashboard_open_on_launch` in `~/.serena/serena_config.yml`; set `false` to stop it). |
 
-### Evaluate at P1, once real code exists (NX-045 spike)
+### Evaluate once real code exists (NX-045 spike, code exists and the spike is unblocked)
 A code **knowledge graph** (calls, imports, inheritance) only pays off once there is code to index. Candidates:
 
 | Server | Storage | License | Notes |

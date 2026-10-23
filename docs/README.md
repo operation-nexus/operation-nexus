@@ -94,6 +94,7 @@ When you add, rename or remove a doc, update this index in the same PR.
 |---|---|
 | [DATA-INTEGRITY.md](quality/DATA-INTEGRITY.md) | **Mandatory** no-fabricated-data policy and the registry of approved fallbacks. |
 | [DEFINITION-OF-DONE.md](quality/DEFINITION-OF-DONE.md) | What must be true before a tracker item is Done. |
+| [ENTERTAINMENT-REVIEW.md](quality/ENTERTAINMENT-REVIEW.md) | Four-audience entertainment review at every phase exit and major checkpoint (Q-DEV-22). |
 | [REVIEW-CHECKLIST.md](quality/REVIEW-CHECKLIST.md) | Checklist for human and agent reviewers. |
 | [PLAYTEST-WATCHLIST.md](quality/PLAYTEST-WATCHLIST.md) | Simplified or PROPOSED decisions to re-check in playtests. |
 | [TESTING-STRATEGY.md](quality/TESTING-STRATEGY.md) | Risk-to-test mapping, test pyramid and budgets, coverage policy, flaky-test handling. |
