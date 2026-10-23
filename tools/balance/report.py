@@ -105,8 +105,9 @@ def _a2(runs: list[dict[str, Any]], t: Targets) -> dict[str, Any]:
     out["by_persona_kind"] = {
         k: _a2_group([n["by_kind"][k] for n in news if k in n["by_kind"]], t) for k in kinds
     }
+    med = "no median" if out["median_s"] is None else f"median {out['median_s']:.0f} s"
     out["detail"] = (
-        f"median time to first impact over {out['newbies']} newbies who arrived at {t.a2_min_tier} "
+        f"{med} time to first impact over {out['newbies']} newbies who arrived at {t.a2_min_tier} "
         f"or above (needs <= {t.a2_max_s:g} s); {out['unresolved_run_ended']} unresolved when the "
         f"run ended; {out['below_tier']['newbies']} more arrived below {t.a2_min_tier} "
         "(information only)"
@@ -282,6 +283,11 @@ def markdown(report: dict[str, Any]) -> str:
         "# Balance run",
         "",
         f"- config hash: `{cfg['config_hash']}`",
+        *(
+            [f"- **balance overrides: {', '.join(f'`{o}`' for o in cfg['overrides'])}**"]
+            if cfg.get("overrides")
+            else []
+        ),
         f"- profiles.yaml digest: `{cfg['profiles_digest']}` (every value in it is PROPOSED)",
         f"- seeds: {report['seeds']}; game hours per run: {report['hours']:g}",
         f"- workers: {report['workers']}; wall time {timing['elapsed_s']:.1f} s elapsed, "

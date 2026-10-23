@@ -4,6 +4,7 @@ import dataclasses
 import json
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 from typing import Any
 
 import pytest
@@ -383,6 +384,8 @@ def test_target_rules() -> None:
     slow = fake_run(newbie=newbie([100.0], [400.0, 500.0]))
     assert report._a2([slow], t)["status"] == report.FAIL  # two of three never saw an impact
     assert report._a2([fake_run()], t)["status"] == report.PASS
+    two = report._a2([fake_run(newbie=newbie([100.0, 700.0], []))], t)
+    assert two["status"] == report.FAIL and "median 400 s time to first impact" in two["detail"]
     unresolved = fake_run(newbie=newbie([], [10.0]))
     assert report._a2([unresolved], t)["status"] == report.NO_DATA
     assert report._a3([fake_run()], t, "overnight-0")["status"] == report.PASS
@@ -431,10 +434,10 @@ def test_a_harness_error_is_recorded_and_the_batch_goes_on(
 ) -> None:
     real = runner.run
 
-    def flaky(profile: str, seed: int, *args: Any) -> Any:
+    def flaky(profile: str, seed: int, *args: Any, **kw: Any) -> Any:
         if profile == "quiet-5":
             raise KeyError("oops")
-        return real(profile, seed, *args)
+        return real(profile, seed, *args, **kw)
 
     monkeypatch.setattr(runner, "run", flaky)
     out = tmp_path / "o"
@@ -650,3 +653,65 @@ def test_a_run_has_strikers_with_valid_targets_and_reports_per_kind(
     targets = [e["target"] for e in log_entries(tmp / "a") if e["kind"] == "JOIN" and e["target"]]
     assert targets and all(t["node_id"] in shipped_config.rules.roads.pos for t in targets)
     assert set(a["metrics"]["newbie"]["by_kind"]) <= set(KINDS)
+
+
+KEY = "tasking.strike_idle_targets_max"
+
+
+def cli(monkeypatch: pytest.MonkeyPatch, out: Path, *extra: str) -> int:
+    argv = ["balance.py", "--profile", "overnight-0", "--hours", "0.01", "--out", str(out), *extra]
+    monkeypatch.setattr(sys, "argv", argv)
+    return int(balance.main())
+
+
+def test_set_changes_the_config_and_reaches_every_worker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, shipped_config: CampaignConfig
+) -> None:
+    out = tmp_path / "o"
+    assert cli(monkeypatch, out, "--seeds", "1,2", "--workers", "2", "--set", f"{KEY}=0") == 0
+    doc = json.loads((out / "report.json").read_text())
+    assert doc["config"]["overrides"] == [f"{KEY}=0"]
+    assert doc["config"]["config_hash"] != shipped_config.config_hash
+    hashes = {json.loads(f.read_text())["config_hash"] for f in (out / "runs").glob("*.json")}
+    assert hashes == {doc["config"]["config_hash"]}
+    assert f"balance overrides: `{KEY}=0`" in (out / "report.md").read_text()
+    loaded = balance.load_campaign_config(balance.ConfigPaths(balance=out / "balance.yaml"))
+    assert loaded.balance.tasking.strike_idle_targets_max == 0
+    assert shipped_config.balance.tasking.strike_idle_targets_max != 0
+
+
+@pytest.mark.parametrize(
+    "pair",
+    [
+        "tasking.nope=1",  # unknown key
+        "nope.strike_idle_targets_max=1",  # unknown section
+        "tasking=1",  # not a leaf
+        "sim.tick_hz=x",  # not a number
+        f"{KEY}=1.5",  # float for an int key
+        f"{KEY}=-1",  # schema minimum
+        f"{KEY}=nan",
+    ],
+)
+def test_set_rejections_exit_2_before_any_run(
+    pair: str, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    out = tmp_path / "o"
+    assert cli(monkeypatch, out, "--set", pair) == 2
+    assert capsys.readouterr().err.startswith("error:") and not out.exists()
+
+
+def test_set_rejects_a_bool_leaf(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    # The shipped config has no bool leaf today, so feed one: True must not be coerced to 1.
+    tree = yaml.safe_load(balance.ConfigPaths().balance.read_text())
+    tree["debug_flag"] = True
+    (shipped := tmp_path / "balance.yaml").write_text(yaml.safe_dump(tree))
+    monkeypatch.setattr(balance, "ConfigPaths", lambda: SimpleNamespace(balance=shipped))
+    with pytest.raises(ValueError, match="numeric"):
+        balance.override_balance(["debug_flag=1"])
+
+
+def test_set_rejects_a_repeated_key() -> None:
+    with pytest.raises(ValueError, match="twice"):
+        balance.override_balance(
+            ["tasking.strike_idle_targets_max=1", "tasking.strike_idle_targets_max=2"]
+        )

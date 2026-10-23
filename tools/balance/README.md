@@ -15,6 +15,7 @@ cd services/sim && uv run --frozen python ../../tools/balance/balance.py \
 | `--seeds` | a count N (seeds 1..N) or a comma list; the sim seed is the seed itself |
 | `--hours` | game hours per run, default 72 (the acceptance length). A run stops early when the campaign ends. Short runs work; targets that need a longer window say `not evaluable` |
 | `--workers` | parallel processes, one run each (default 1), started biggest crowd first to cut wall time. The report does not depend on it |
+| `--set` | `key=number`, repeatable: override one numeric key of the shipped balance config (dotted path, e.g. `tasking.strike_idle_targets_max=0`). An unknown or non-numeric key, a float for an integer key, a key given twice or a value the schema rejects exits 2 before any run. The overridden copy is saved as `<out>/balance.yaml`, every worker loads it, and the report header lists the overrides next to the (changed) config hash |
 | `--out` | report directory; must not exist |
 
 Output: `report.md` and `report.json` (config hash, profiles.yaml digest, seeds, hours, wall times, the target table, per-profile aggregates, one headline row per run), `runs/<profile>-s<seed>.json` (the full per-run report: metrics, momentum curve at one sample per game minute, command and response counts, final `state_hash`, timing) and `logs/<profile>-s<seed>/` (the run's command log). Wall time and ticks per second are the only values that differ between two runs of the same seed; they sit under `timing` (and `wall_s` and `ticks_per_s` in the run rows).
@@ -160,7 +161,8 @@ profiles: prime-50, evening-150
 seeds: 5
 hours: 72
 workers: 4
+set: tasking.strike_idle_targets_max=0
 ```
 ````
 
-`sha` is 40 lowercase hex characters on `develop`; `profiles` are names from `profiles.yaml`; `seeds` is 1 to `max_seeds`; `hours` is above 0 and at most `max_hours`; `workers` is optional (1 to `max_workers`, default from `queue.yaml`). Wait for the next hourly tick.
+`sha` is 40 lowercase hex characters on `develop`; `profiles` are names from `profiles.yaml`; `seeds` is 1 to `max_seeds`; `hours` is above 0 and at most `max_hours`; `workers` is optional (1 to `max_workers`, default from `queue.yaml`); `set` is optional: up to `max_overrides` comma-separated `key=number` balance overrides (see `--set`; the key must exist at that `sha`, which must also have `--set`), echoed in the result comment. For a sweep, open one issue per value (0, 1, 2, 4). Wait for the next hourly tick.
