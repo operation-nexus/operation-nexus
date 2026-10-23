@@ -68,11 +68,12 @@ A value drops its PROPOSED label (DI-7), and P1 can exit, only when an acceptanc
 | # | Target | Pass when | Status |
 |---|---|---|---|
 | A1 | Campaign length | ≥85% of seeds end in **victory or defeat** within 24–72 h of game time; a time-limit ending counts as a miss (Q-TEST-6) | decided |
-| A2 | New-player impact | a scripted newbie who arrives while the Static Director's tier is ALPHA or above makes a real contribution of their own (a weapon hit, a kill, a delivery, capture progress, or a new enemy track found by scouting) within 3–5 min; newbies who arrive at Pattern of Life are reported, not judged (Q-SIM-93) | decided |
+| A2 | New-player impact | newbies who arrive while the Static Director's tier is ALPHA or above make a real contribution of their own: the **median** time to first impact is at most 8 min (the top of a sortie, SIM-CORE world scale) and **at most 10%** wait over 15 min. Impact by role: a striker or auto-tasked unit lands a weapon hit, a kill or capture progress; a scout finds a new enemy track; a hauler departs a source loaded with cargo for a delivery (its delivery comes later and counts too). Newbies who arrive at Pattern of Life are reported, not judged (Q-SIM-93, Q-SIM-97) | decided |
 | A3 | Garrison holds at 0 viewers | `overnight-0` over 12 h loses at most one strategic node and the sanctuary's defense HP never reaches 0 | PROPOSED (Q-TEST-8) |
 | A4 | No dominant kind | no unit kind gets more than 40% of the coalition's kills in any profile | PROPOSED (Q-TEST-8); suspended until a second armed viewer unit kind exists, the harness reports it as suspended (owner, Q-SIM-92) |
 | A5 | Adversarial bound | each adversarial profile shifts the median campaign length by under 20% vs the same crowd size without it, and moves no leaderboard | PROPOSED (Q-TEST-8) |
 | A6 | Conduct | the conduct system flags the adversarial personas once it exists | decided; measured from NX-291 |
+| A7 | First impression | a viewer who joins gets the command acknowledgement and sees their unit on the overlay within 5 s (the ack itself stays under §3.6's 500 ms) | decided (Q-SIM-97); measured from P2, when the gateway and overlay exist |
 
 ### 3.6 Performance budgets (initial; SYSTEM-DESIGN §3 NFRs)
 - Sim tick p99 < 25 ms at 1,000 entities (10 Hz → 100 ms budget, leaving headroom).
