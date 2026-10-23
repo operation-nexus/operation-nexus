@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://nexus.local/contracts/config/balance.json",
   "title": "BalanceConfig",
-  "description": "A balance profile, balance/<profile>.yaml (CONFIG-AND-CONTENT \u00a74.1, \u00a76). Keys land with the code that reads them. x-unit names each value's unit and, for durations, its clock (CFG-5, CFG-9); x-hot-reload is the \u00a76 HR column. Fixed values use minimum = maximum, not const: const generates a Literal that also accepts true and 1.0.",
+  "description": "A balance profile, balance/<profile>.yaml (CONFIG-AND-CONTENT \u00a74.1, \u00a76). Keys land with the code that reads them. x-unit names each value's unit and, for durations, its clock (CFG-5, CFG-9); x-hot-reload is the \u00a76 HR column. The settings registry (Q-CFG-15, NX-390) adds x-category, x-audience (OPERATOR, TUNER or DEVELOPER), x-edit-role (ADMIN or NONE), x-tune (a sweep range {min, max, step, scale}, not validation, or null), x-source and x-status (PROPOSED, RULE_DEFAULT, VALIDATED or FIXED) to each key; scripts/gen_config_reference.py checks them and writes docs/specs/CONFIG-REFERENCE.md. Fixed values use minimum = maximum, not const: const generates a Literal that also accepts true and 1.0.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -226,16 +226,28 @@
           "minimum": 0,
           "maximum": 1,
           "x-unit": "fraction of fuel_s",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "WORLD",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 0.075, "max": 0.3, "step": 0.025, "scale": "LINEAR"},
+          "x-source": "STATE-MACHINES §4.1, Q-SIM-38",
+          "x-status": "PROPOSED"
         },
         "orbit_period_s": {
           "description": "One lap of an idle airborne aircraft's orbit at its min_speed_mps, unit s of world time; the radius is min_speed_mps x orbit_period_s / 2 pi (SIM-CORE §4, NX-368).",
           "type": "number",
           "exclusiveMinimum": 0,
           "x-unit": "s (world)",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "WORLD",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 60.0, "max": 240.0, "step": 10.0, "scale": "LINEAR"},
+          "x-source": "SIM-CORE §4, GAMEPLAY §5",
+          "x-status": "PROPOSED"
         },
-        "landing_node_kinds": {"description": "Node kinds an aircraft may land at (and bingo or rebase to), when the side owns the node (Q-SIM-38, NX-368, Q-DEV-21), unit node kinds.", "type": "array", "minItems": 1, "items": {"$ref": "../common/enums.json#/$defs/NodeKind"}, "x-unit": "node kinds", "x-hot-reload": false}
+        "landing_node_kinds": {"description": "Node kinds an aircraft may land at (and bingo or rebase to), when the side owns the node (Q-SIM-38, NX-368, Q-DEV-21), unit node kinds.", "type": "array", "minItems": 1, "items": {"$ref": "../common/enums.json#/$defs/NodeKind"}, "x-unit": "node kinds", "x-hot-reload": false, "x-category": "WORLD", "x-audience": "OPERATOR", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "SIM-CORE §4, GAMEPLAY §5", "x-status": "RULE_DEFAULT"}
       }
     },
     "Capture": {
@@ -649,7 +661,13 @@
           "type": "number",
           "exclusiveMinimum": 0,
           "x-unit": "m",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "WORLD",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 10000.0, "max": 40000.0, "step": 1000.0, "scale": "LINEAR"},
+          "x-source": "FOG-OF-WAR Tier 2 painted flag, Q-FOW-6",
+          "x-status": "PROPOSED"
         },
         "mask_cell_m": {
           "description": "Side of the square cell that terrain masking regions are rasterized to, unit m (FOG-OF-WAR Q-FOW-3, Q-DEV-21): a cell masks when its centre is inside a region. Finer than the SIGINT cell, which would blur a narrow region. Bounded so the raster stays a sane size (a smaller cell makes the loader build millions of cells).",
@@ -657,57 +675,105 @@
           "minimum": 100,
           "maximum": 10000,
           "x-unit": "m",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "WORLD",
+          "x-audience": "DEVELOPER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 500, "max": 2000, "step": 500, "scale": "LINEAR"},
+          "x-source": "FOG-OF-WAR Q-FOW-3",
+          "x-status": "PROPOSED"
         },
-        "masked_alt_bands": {"description": "Altitude bands that terrain masking hides: an aircraft in one of them, inside a masking region, is seen only by a sensor in the region, and a weapon fired at it takes combat.pk_mult.terrain_masked (FOG-OF-WAR Q-FOW-3, COMBAT \u00a75.2, Q-DEV-21), unit altitude bands.", "type": "array", "items": {"$ref": "../common/enums.json#/$defs/AltBand"}, "x-unit": "altitude bands", "x-hot-reload": false},
+        "masked_alt_bands": {"description": "Altitude bands that terrain masking hides: an aircraft in one of them, inside a masking region, is seen only by a sensor in the region, and a weapon fired at it takes combat.pk_mult.terrain_masked (FOG-OF-WAR Q-FOW-3, COMBAT \u00a75.2, Q-DEV-21), unit altitude bands.", "type": "array", "items": {"$ref": "../common/enums.json#/$defs/AltBand"}, "x-unit": "altitude bands", "x-hot-reload": false, "x-category": "WORLD", "x-audience": "OPERATOR", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "FOG-OF-WAR Q-FOW-3, COMBAT §5.2", "x-status": "RULE_DEFAULT"},
         "sigint_cell_m": {
           "description": "Side of the square SIGINT cell that blobs aggregate into and are drawn at, unit m (FOG-OF-WAR Tier 1, FOW-2).",
           "type": "integer",
           "minimum": 1,
           "x-unit": "m",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "WORLD",
+          "x-audience": "DEVELOPER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 5000, "max": 20000, "step": 5000, "scale": "LINEAR"},
+          "x-source": "FOG-OF-WAR Tier 1",
+          "x-status": "PROPOSED"
         },
         "sigint_range_mult": {
           "description": "A SIGINT blob forms within this multiple of a friendly radar site's sensor radius, unitless multiplier (FOG-OF-WAR Tier 1, Q-FOW-7).",
           "type": "number",
           "exclusiveMinimum": 0,
           "x-unit": "x a radar site's sensor.radius_m",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "WORLD",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 0.75, "max": 3.0, "step": 0.25, "scale": "LINEAR"},
+          "x-source": "FOG-OF-WAR Tier 1, Q-FOW-7",
+          "x-status": "PROPOSED"
         },
         "sigint_refresh_s": {
           "description": "SIGINT blobs are rebuilt after this much running world time, unit s of world time, frozen while paused (FOG-OF-WAR FOW-5, FOW-9).",
           "type": "number",
           "exclusiveMinimum": 0,
           "x-unit": "s (world)",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "WORLD",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 48.0, "max": 60.0, "step": 2.0, "scale": "LINEAR"},
+          "x-source": "FOG-OF-WAR FOW-5, FOW-9",
+          "x-status": "PROPOSED"
         },
         "sigint_size_l_min": {
           "description": "A SIGINT blob of at least this many units reads L, unit count; must be above sigint_size_m_min (FOG-OF-WAR Tier 1).",
           "type": "integer",
           "minimum": 3,
           "x-unit": "units",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "WORLD",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 4, "max": 14, "step": 1, "scale": "LINEAR"},
+          "x-source": "FOG-OF-WAR Tier 1",
+          "x-status": "PROPOSED"
         },
         "sigint_size_m_min": {
           "description": "A SIGINT blob of at least this many units reads M (fewer reads S), unit count; must be below sigint_size_l_min (FOG-OF-WAR Tier 1).",
           "type": "integer",
           "minimum": 2,
           "x-unit": "units",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "WORLD",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 2, "max": 6, "step": 1, "scale": "LINEAR"},
+          "x-source": "FOG-OF-WAR Tier 1",
+          "x-status": "PROPOSED"
         },
         "track_every_ticks": {
           "description": "Tier 2 tracks are computed on ticks where tick % track_every_ticks == 0, unit ticks (FOG-OF-WAR FOW-5, Q-FOW-6).",
           "type": "integer",
           "minimum": 1,
           "x-unit": "ticks",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "WORLD",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 3, "max": 10, "step": 1, "scale": "LINEAR"},
+          "x-source": "FOG-OF-WAR FOW-5, Q-FOW-6",
+          "x-status": "PROPOSED"
         },
         "track_fade_s": {
           "description": "A last-known track is dropped after this long untracked, unit s of world time, frozen while paused (FOG-OF-WAR FOW-6a, FOW-9).",
           "type": "number",
           "exclusiveMinimum": 0,
           "x-unit": "s (world)",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "WORLD",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 90.0, "max": 360.0, "step": 10.0, "scale": "LINEAR"},
+          "x-source": "FOG-OF-WAR FOW-6a, Q-FOW-1",
+          "x-status": "PROPOSED"
         }
       }
     },
@@ -1021,6 +1087,12 @@
           "type": "integer",
           "x-unit": "Hz",
           "x-hot-reload": false,
+          "x-category": "WORLD",
+          "x-audience": "DEVELOPER",
+          "x-edit-role": "NONE",
+          "x-tune": null,
+          "x-source": "SIM-CORE SC-2",
+          "x-status": "FIXED",
           "minimum": 10,
           "maximum": 10
         },
@@ -1029,14 +1101,26 @@
           "type": "number",
           "exclusiveMinimum": 0,
           "x-unit": "\u00d7 real time",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "WORLD",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 3.0, "max": 12.0, "step": 0.5, "scale": "LINEAR"},
+          "x-source": "SIM-CORE §4",
+          "x-status": "PROPOSED"
         },
         "snapshot_every_ticks": {
           "description": "Snapshot cadence, unit ticks (SIM-CORE \u00a75).",
           "type": "integer",
           "minimum": 1,
           "x-unit": "ticks",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "WORLD",
+          "x-audience": "DEVELOPER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 150, "max": 600, "step": 1, "scale": "LINEAR"},
+          "x-source": "SIM-CORE §5",
+          "x-status": "PROPOSED"
         }
       }
     },
@@ -1193,37 +1277,67 @@
           "type": "integer",
           "minimum": 1,
           "x-unit": "units",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "SLOTS",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 1, "max": 2, "step": 1, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY GP-1",
+          "x-status": "PROPOSED"
         },
         "respawn_delay_s": {
           "description": "Wait after losing a unit before the next JOIN, unit s of game time (GAMEPLAY GP-2, Q-ALN-5).",
           "type": "number",
           "minimum": 0,
           "x-unit": "s (game)",
-          "x-hot-reload": true
+          "x-hot-reload": true,
+          "x-category": "SLOTS",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 10.0, "max": 40.0, "step": 5.0, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY GP-2",
+          "x-status": "PROPOSED"
         },
         "max_viewer_units": {
           "description": "Live viewer (COMMANDER-owned, AUTO included) units before JOINs queue, unit units (GAMEPLAY GP-3, Q-ALN-9).",
           "type": "integer",
           "minimum": 1,
           "x-unit": "units",
-          "x-hot-reload": true
+          "x-hot-reload": true,
+          "x-category": "SLOTS",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 250, "max": 1000, "step": 1, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY GP-3, Q-GD-6, Q-SIM-6",
+          "x-status": "PROPOSED"
         },
         "reserve_queue_max": {
           "description": "Reserve queue entries before a JOIN is rejected RESERVE_QUEUE_FULL, unit entries (GAMEPLAY GP-3).",
           "type": "integer",
           "minimum": 1,
           "x-unit": "entries",
-          "x-hot-reload": true
+          "x-hot-reload": true,
+          "x-category": "SLOTS",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 500, "max": 2000, "step": 1, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY GP-3",
+          "x-status": "PROPOSED"
         },
         "queue_idle_min": {
           "description": "A queued commander with no JOIN for this long leaves the queue, unit min of real time (GAMEPLAY RQ-1, Q-SIM-12). Read by the runtime, which submits SYS_QUEUE_TIMEOUT; the sim never reads it (NX-371).",
           "type": "integer",
           "minimum": 1,
           "x-unit": "min (real)",
-          "x-hot-reload": true
+          "x-hot-reload": true,
+          "x-category": "SLOTS",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 8, "max": 30, "step": 1, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY RQ-1, Q-SIM-12",
+          "x-status": "PROPOSED"
         },
-        "rebase_order": {"description": "The explicit order an accepted REBASE leaves the unit with: HOLD, it takes no board job on the way or at the base until its commander's next order (Q-SIM-90; decided rule as default, Q-CFG-16 option). The only value today: GOTO would never end for a truck that keeps its cargo aboard, unit enum.", "enum": ["HOLD"], "x-unit": "enum", "x-hot-reload": false}
+        "rebase_order": {"description": "The explicit order an accepted REBASE leaves the unit with: HOLD, it takes no board job on the way or at the base until its commander's next order (Q-SIM-90; decided rule as default, Q-CFG-16 option). The only value today: GOTO would never end for a truck that keeps its cargo aboard, unit enum.", "enum": ["HOLD"], "x-unit": "enum", "x-hot-reload": false, "x-category": "SLOTS", "x-audience": "OPERATOR", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "GAMEPLAY §3, SIM-CORE §4 REBASE", "x-status": "RULE_DEFAULT"}
       }
     },
     "GarrisonKinds": {

@@ -51,6 +51,7 @@ check-overlay: node-version
 # `make contracts` run and the regenerated output in the same PR.
 CONTRACT_GROUPS := common commands events wire config
 contracts:
+	python3 scripts/gen_config_reference.py
 	rm -rf $(SIM)/src/nexus/contracts/gen $(OVERLAY)/src/contracts
 	tmp="$$(mktemp -d)"; mkdir "$$tmp/contracts" && cp -R $(addprefix contracts/,$(CONTRACT_GROUPS)) "$$tmp/contracts"/ && \
 	  cd $(SIM) && uv run --frozen datamodel-codegen --input "$$tmp/contracts" --input-file-type jsonschema \
