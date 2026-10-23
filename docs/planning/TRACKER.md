@@ -11,7 +11,7 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 |---|---|---|---|
 | P0 Foundations | 44 | 30 | 🟨 |
 | P1 Sim kernel | 45 | 37 | 🟨 |
-| P2 Closed alpha | 36 | 0 | ⬜ |
+| P2 Closed alpha | 39 | 0 | ⬜ |
 | P3 Public beta | 26 | 0 | ⬜ |
 | P4 Depth | 69 | 1 | ⬜ |
 
@@ -142,6 +142,9 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-182 | Map annotation layer (OVERLAY §2a): sectors, optional grid reference, direction cues, ephemeral pins, circles and arrows with TTL and collision handling | M | ⬜ | NX-177 |
 | NX-179 | PiP 2D intercept scope + PiP director scoring | M | ⬜ | NX-177 |
 | NX-391 | Overlay callout "BANDITS SCRAMBLED" when the Static posts an INTERCEPT job (`JobCreated`), from the 2026-10-23 entertainment checkpoint (Q-DEV-27) | S | ⬜ | NX-177 |
+| NX-392 | Error pipeline part 2 (Q-DEV-28, ERROR-PIPELINE EP-8, EP-9): local fingerprint store (SQLite) fed by the log adapter, host-side issue sync to `operation-nexus-ops` with a fine-grained token, flood cap and hourly update throttle; daily routine reads ops-repo `error` issues | M | ⬜ | NX-364 | EP-5, EP-8 and EP-9 tests pass; a seeded error becomes one ops-repo issue |
+| NX-393 | Self-hosted GlitchTip on the owner's hardware (compose) + Sentry-SDK adapter (allowlist `before_send`, own queue thread for EP-3, the EP-8 fingerprint as the event fingerprint) + its MCP server for agents (Q-DEV-28, EP-7; the Sentry research note) | M | ⬜ | NX-392, NX-255 | EP-2 scrub test against a recording transport; an event appears in GlitchTip under the local fingerprint |
+| NX-394 | Browser error capture for the overlay and Command Center (EP-10): `window.onerror` / `unhandledrejection`, allowlisted report, per-page rate limit, sent over the existing WS / admin API to the EP-8 store; plan now, build after NX-255 | S | ⬜ | NX-392, NX-170 | A browser error with a chat line in its message reaches the store with the message dropped |
 | NX-180 | Palette/colorblind script + visual snapshot tests | M | ⬜ | NX-177 |
 | NX-190 | Gateway: `ChatSource`/`ChatSink` ports + `Capabilities` + conformance suite skeleton (from NX-050, ADR-0010 N-3/N-4) + normalization + rate limits | M | ⬜ | NX-021 |
 | NX-387 | Reserve queue, remaining NX-371 parts: the runtime host feeds `idle_entries` (last chat activity from the gateway, running real time with pauses left out) and submits the timeouts; RQ-1 position milestones once the overlay or chat replies use them; `STAFF_BAN` and `FORGET` remove the queue entry when those commands are built | S | ⬜ | NX-371, NX-190 | A queued viewer silent for 15 unpaused minutes leaves the queue with `ReserveQueueLeft{TIMEOUT}` in a live run |
@@ -253,7 +256,7 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-296 | AAR + War Briefing: full AAR screen; short briefing card looping between wars; auto-published to site and Discord (via `ChatSink`/`CommunityBot` ports); data-only content (no invented text) | ⬜ |
 | NX-297 | Brand accounts setup: new Twitch/YouTube/TikTok/Instagram profiles + handles (check availability), Epidemic Sound plan decision (upgrade vs separate subscription; ask support about coverage after cancellation), Discord re-brand | ⬜ |
 | NX-298 | Scheduled post queue: approved clips/devlog posts scheduled per platform from the Command Center (phone-friendly). Uploads stay manual or private until platform audits pass (ADR-0008). | ⬜ |
-| NX-299 | Create the private `operation-nexus-ops` repo; set up sops+age, enroll machine keys, document rotation (ties to NX-027) | ⬜ |
+| NX-299 | Create the private `operation-nexus-ops` repo; set up sops+age, enroll machine keys, document rotation (ties to NX-027). The repo exists with a sops+age config (ops PR #1); it also holds the `error` issues (Q-DEV-28) | 🟨 |
 | NX-300 | Observability on the Linux server: Prometheus + Grafana + Loki via compose; stream-health dashboard; alert rules → ntfy/Discord | ⬜ |
 | NX-302 | Target handoff for long-range strikes (FOW-7) | ⬜ |
 | NX-303 | Base upgrades via surplus supply (GAMEPLAY §5a). The node tier/modifier layer is in the MVP world model. | ⬜ |
