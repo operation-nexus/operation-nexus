@@ -79,7 +79,7 @@ from nexus.core.logistics import Run, go_home, load, nearest_base, plan_run
 from nexus.core.rng import PcgStream, RngStream
 from nexus.core.roads import shortest_path
 from nexus.core.rules import Rules, TaskingRules
-from nexus.core.tasking_gen import GENERATED, POST_GATE, JobSpec, fits, generate
+from nexus.core.tasking_gen import GENERATED, POST_GATE, JobSpec, fits, generate, is_idle
 from nexus.core.world import (
     SIDES,
     Claim,
@@ -589,14 +589,6 @@ def _abandon_patrol(world: World, rules: Rules, e: Entity, job: Job) -> None:
         e.path = []
 
 
-def _idle(rules: Rules, e: Entity, side: Side) -> bool:
-    return (
-        e.side == side and e.job_id is None and e.order is None and not e.path
-        and e.damage_state != "DISABLED" and e.state != "RTB"
-        and rules.domain[e.kind] in (_AIR, _GROUND)
-    )  # fmt: skip
-
-
 def _board_may_give(e: Entity, job: Job) -> bool:
     """A PATROL is the Director's alone, and a garrison unit (`Entity.home`) stays at its base: the
     board gives it only a DEFEND of that base; the Director sends it elsewhere (Q-SIM-85)."""
@@ -612,7 +604,7 @@ def _assign(
     jobs = list(world.boards[side].values())
     if not jobs:
         return
-    idle = sorted((e for e in world.entities() if _idle(rules, e, side)), key=lambda e: e.id)
+    idle = sorted((e for e in world.entities() if is_idle(rules, e, side)), key=lambda e: e.id)
     if not idle:
         return
     ranked = rank(tr, jobs, now, world.rng.stream(RngStream.TASKING))
@@ -632,6 +624,37 @@ def _assign(
             else:
                 _refuel(world, rules, e)
             break
+
+
+def idle_reason(world: World, e: Entity) -> str:
+    """Why an idle unit holds no job: `no_job` (nothing it may take is on the board), `full` (only
+    full ones), or the reason the first job it may take is refused: `ring`, `ammo`, `refuel` (a
+    rearm step would fix it, so it is refuelling now) or `reach_fuel` (a full tank would not
+    reach either); else `other`. A read-only diagnostic for the balance harness (Q-SIM-92): it
+    applies `_assign`'s own pool, `_open` and `_feasible`, but never ranks (that draws from the
+    tasking stream)."""
+    rules, tr = _rules(world)
+    pool = [
+        j for j in world.boards[e.side].values()
+        if j.depends_on is None and _board_may_give(e, j)
+        and fits(rules, e.kind, j.kind) and _may_take(world, tr, e, j)
+    ]  # fmt: skip
+    if not pool:
+        return "no_job"
+    jobs = _open(tr, world, pool, ai=e.owner_kind == _AI)
+    if not jobs:
+        return "full"
+    verdicts = [(j, _feasible(world, rules, {}, e, j)) for j in jobs]
+    if any(v == "ok" for _, v in verdicts):
+        return "other"  # it takes one at the next pass
+    job, verdict = verdicts[0]
+    if rules.domain[e.kind] != _AIR or not world.landing_bases(e.side) or e.fuel is None:
+        return "other"
+    if crosses_ring(world, rules, e.side, e.pos, job):
+        return "ring"
+    if job.kind == "STRIKE" and not any(e.ammo):
+        return "ammo"
+    return "refuel" if verdict == "refuel" else "reach_fuel"
 
 
 def _waypoint(world: World, job: Job) -> str | Vec2:

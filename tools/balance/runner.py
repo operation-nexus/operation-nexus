@@ -154,6 +154,7 @@ def run(
         tick_hz=hz,
         sample_ticks=SAMPLE_S * hz,
         a3_ticks=round(data.targets.a3_hours * 3600 * hz),
+        idle_sample_ticks=round(data.idle_sample_min * 60 * hz),
     )
     log_dir.mkdir(parents=True)
     log = CommandLogWriter(
@@ -179,6 +180,8 @@ def run(
             collector.observe(world)
             if tick % collector.sample_ticks == 0:
                 collector.sample(world)
+            if tick % collector.idle_sample_ticks == 0:
+                collector.sample_idle(world)
             crowd.react(events, tick, hz, seen)
             if tick % FLUSH_TICKS == 0:
                 log.flush()
@@ -252,6 +255,13 @@ def failed_run(profile: str, seed: int, hours: float, error: str) -> dict[str, A
             "nodes_lost_in_a3_window": 0,
             "sanctuary_hp": {"min": None, "min_in_a3_window": None},
             "director": {"tier_dwell_s": {}, "tier_changes": 0},
+            "idle": {
+                "sample_every_s": 0,
+                "samples": 0,
+                "share_sum": 0.0,
+                "share_max": None,
+                "reasons": {},
+            },
             "starvation": {"any_node_minutes": 0.0, "node_minutes": 0.0},
         },
         "timing": {"wall_s": 0.0, "ticks_per_s": None},

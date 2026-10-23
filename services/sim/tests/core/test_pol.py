@@ -522,7 +522,7 @@ def test_the_pol_capture_slot_waits_while_the_cap_is_spent_and_is_pol_only() -> 
 
 
 def test_one_viewer_arriving_changes_nothing_until_that_operator_provokes() -> None:
-    w = new_world(opening=True)
+    w = new_world(opening=True)  # the shipped config: the idle-viewer strike gate (Q-SIM-92) holds
     viewer(w)
     s = w.director["ENEMY"]
     events = run_clock(w, 24 * DR.window_ticks)
