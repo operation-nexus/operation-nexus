@@ -22,7 +22,8 @@ def idle_entries(
 ) -> list[SysQueueTimeoutCommand]:
     """One timeout command per commander whose last activity is `queue_idle_min` or more minutes
     before `now` (both in running-real-time seconds, see the module doc), in `last_active` order.
-    Pure. `Inbox.submit` stamps `target_tick` and `arrival_seq`; the values here are placeholders."""
+    Pure. `Inbox.submit` stamps `target_tick` and `arrival_seq`; the values here are
+    placeholders."""
     limit = queue_idle_min * 60
     return [
         SysQueueTimeoutCommand.model_validate(
