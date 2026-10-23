@@ -1,0 +1,28 @@
+# Config for harness_queue.py (NX-381, Q-OPS-14). Paths expand "~".
+
+# GitHub repo whose issues are the queue ("owner/name"). gh must be logged in with access to it.
+repo: operation-nexus/operation-nexus
+# Only issues opened by these logins are run; anyone else is ignored without a comment.
+trusted_authors:
+  - canthony224
+  - SaltySeraphCodes
+# Label names. A requester adds `run`; the queue swaps it for `running`, then `done` or `failed`.
+labels:
+  run: harness-run
+  running: harness-running
+  done: harness-done
+  failed: harness-failed
+# Upper bounds for a request's `seeds`, `hours` (game hours per run) and `workers`.
+max_seeds: 50
+max_hours: 72
+max_workers: 8
+# Most distinct profiles in one request (the number in profiles.yaml).
+max_profiles: 6
+# A uv sync or balance.py step running longer than this is killed and the job marked failed.
+job_timeout_hours: 96
+# Parallel processes when a request leaves `workers` out.
+workers: 2
+# Throwaway git worktrees and the lock file live here.
+work_dir: ~/.local/share/nexus-harness/work
+# One <issue>-<sha8>/ report directory and <issue>-<sha8>.log per job.
+results_dir: ~/.local/share/nexus-harness/results

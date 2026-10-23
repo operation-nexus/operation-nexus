@@ -65,3 +65,68 @@ A harness exception outside the sim (a bug here) is recorded as `harness_error` 
 ## Tests
 
 `services/sim/tests/tools/test_balance_harness.py`, picked up by `make check` (the test puts `tools/balance` on `sys.path` itself; mypy sees the harness modules as `Any` from there). Same seed gives the same report and command log, the log replays to the same `state_hash`, every persona emits only valid commands, each metric and target rule is checked on a hand-built event stream, and the report is the same for 1 and 2 workers. `make check` does not lint or type-check `tools/balance` itself (the Makefile is owner-only); run both by hand after a change: `cd services/sim && uv run --frozen ruff check ../../tools/balance && uv run --frozen ruff format --check ../../tools/balance && uv run --frozen mypy ../../tools/balance`. The tests are linted and type-checked by `make check`; the harness modules are typed `Any` there.
+
+## Local run queue (NX-381)
+
+Spec: Q-OPS-14. Long runs go to the owner's PC (WSL2 Ubuntu). A cloud session opens a GitHub issue labelled `harness-run`; an hourly timer runs `tools/balance/harness_queue.py run-once`, which runs each eligible issue with `balance.py` at the requested commit and comments `report.md` back, swapping the label to `harness-done` (or `harness-failed`, with the exit code and the last 40 log lines). The file is `harness_queue.py`, not `queue.py`, because a `queue.py` beside `balance.py` would shadow the standard library's `queue`. Config: `queue.yaml` (every key is commented). Tests: `services/sim/tests/tools/test_balance_queue.py`.
+
+An issue is eligible when it is open, carries the `harness-run` label and was opened by a login in `trusted_authors`. Anyone else's issue is ignored without a comment. The labels need triage rights, so they are the first gate. The request is parsed from the first ```` ```harness ```` block with strict `key: value` lines; an unknown key, a duplicate or a bad value is refused with a comment that names keys only, never the value. Issue text never reaches a shell. The SHA must be reachable from `origin/develop` (`git merge-base --is-ancestor` after a fetch). The run happens in a throwaway `git worktree` (`uv sync --frozen`, then `balance.py`), removed afterwards. A lock file stops two ticks overlapping; a second instance logs and exits 0.
+
+**Trust.** The `harness-run` label gate is only as strong as the list of people with triage rights. A collaborator could edit a trusted author's issue; the damage is still bounded to SHAs on `develop`, profiles that exist in `profiles.yaml` and capped numbers (`max_*`, `job_timeout_hours` in `queue.yaml`). GitHub login reuse (a deleted account's name re-registered) is a residual risk, so keep `trusted_authors` current. A job past `job_timeout_hours` is killed with its child processes and marked `harness-failed`; an issue left `harness-running` by a crash or reboot is marked failed at the start of the next tick.
+
+### Setup on the PC
+
+1. Prerequisites: `git`, `uv`, and `gh auth login` as the owner (the account needs to comment and relabel on the repo).
+2. A dedicated clone, never your working clone (the tick runs `git reset --hard origin/develop` in it):
+   ```
+   mkdir -p ~/nexus-harness && git clone https://github.com/operation-nexus/operation-nexus ~/nexus-harness/operation-nexus
+   chmod +x ~/nexus-harness/operation-nexus/tools/balance/queue-tick.sh
+   touch ~/nexus-harness/operation-nexus/.nexus-harness-clone
+   ```
+   The marker file `.nexus-harness-clone` is required: `queue-tick.sh` refuses to run in a directory without it (or one that is not a git top level), so it can never `reset --hard` a working clone. It is untracked, so the reset keeps it.
+3. Test without side effects (reads issues and fetches `develop`, comments, relabels and runs nothing):
+   ```
+   cd ~/nexus-harness/operation-nexus/services/sim
+   uv run --frozen python ../../tools/balance/harness_queue.py run-once --dry-run
+   ```
+4. Timer, systemd user units. `~/.config/systemd/user/nexus-harness.service`:
+   ```
+   [Unit]
+   Description=Nexus balance harness queue (NX-381)
+
+   [Service]
+   Type=oneshot
+   ExecStart=%h/nexus-harness/operation-nexus/tools/balance/queue-tick.sh %h/nexus-harness/operation-nexus
+   ```
+   `~/.config/systemd/user/nexus-harness.timer`:
+   ```
+   [Unit]
+   Description=Hourly Nexus balance harness queue
+
+   [Timer]
+   OnCalendar=hourly
+   Persistent=true
+
+   [Install]
+   WantedBy=timers.target
+   ```
+   Then `systemctl --user daemon-reload && systemctl --user enable --now nexus-harness.timer` and `loginctl enable-linger "$USER"` (user timers keep running without a login session). WSL needs systemd on: `[boot]` / `systemd=true` in `/etc/wsl.conf`, then `wsl --shutdown` from Windows. A timer fires only while the WSL distro is running; whether WSL stays up with no open terminal after `enable-linger` depends on the Windows and WSL versions and the `vmIdleTimeout` setting **[UNVERIFIED]**: check that a tick fires with every terminal closed, and keep a WSL session open if it does not. `uv` and `gh` must be on the `PATH` systemd gives the service; if not, add `Environment=PATH=...` to the unit **[UNVERIFIED]** for your install paths.
+5. Cron alternative (no systemd): `crontab -e`, add `0 * * * * $HOME/nexus-harness/operation-nexus/tools/balance/queue-tick.sh $HOME/nexus-harness/operation-nexus >> $HOME/.local/share/nexus-harness/tick.log 2>&1` (create that directory first; cron needs the WSL cron service running **[UNVERIFIED]**, and a minimal `PATH` that includes `uv` and `gh`).
+
+Where things are: the journal (`journalctl --user -u nexus-harness`) holds the queue's log (it logs to stdout); results are in `~/.local/share/nexus-harness/results/<issue>-<sha8>/` with the run's output in `<issue>-<sha8>.log` beside it; worktrees and the lock live in `~/.local/share/nexus-harness/work/`. Change the paths and limits in `queue.yaml`.
+
+### Requesting a run
+
+Open an issue with the `harness-run` label (you need triage rights, and be a trusted author). Body:
+
+````
+```harness
+sha: 0123456789abcdef0123456789abcdef01234567
+profiles: prime-50, evening-150
+seeds: 5
+hours: 72
+workers: 4
+```
+````
+
+`sha` is 40 lowercase hex characters on `develop`; `profiles` are names from `profiles.yaml`; `seeds` is 1 to `max_seeds`; `hours` is above 0 and at most `max_hours`; `workers` is optional (1 to `max_workers`, default from `queue.yaml`). Wait for the next hourly tick.
