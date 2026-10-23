@@ -20,7 +20,7 @@ from nexus.contracts.gen.events.unit_destroyed import UnitDestroyed
 from nexus.contracts.gen.events.unit_spawned import UnitSpawned
 from nexus.contracts.gen.events.weapon_impact import WeaponImpact
 from nexus.core.campaign import momentum
-from nexus.core.world import CaptureBar, Contact, Vec2
+from nexus.core.world import CaptureBar, Claim, Contact, Job, Vec2
 from nexus.runtime.campaign_config import CampaignConfig, start_campaign
 from nexus.runtime.command_log import CommandLogReader, Tombstone
 
@@ -715,3 +715,119 @@ def test_set_rejects_a_repeated_key() -> None:
         balance.override_balance(
             ["tasking.strike_idle_targets_max=1", "tasking.strike_idle_targets_max=2"]
         )
+
+
+# --- --theater and board density (NX-031) ----------------------------------------------------
+def variant_theater(tmp: Path) -> Path:
+    """A copy of strait-1 under another name plus one extra node (a sea-side outpost on a road)."""
+    tree = yaml.safe_load(balance.ConfigPaths().theater.read_text())
+    tree["name"] = "Strait Variant"
+    tree["nodes"].append(
+        {"id": "outpost", "name": "Outpost", "kind": "FOB", "pos": [130000, 120000],
+         "start_owner": "COALITION", "start_stock": 100, "sector": "centre"}
+    )  # fmt: skip
+    tree["edges"].append({"a": "west-airbase", "b": "outpost", "layer": "ROAD", "speed_mult": 1.0})
+    (path := tmp / "strait-1.yaml").write_text(yaml.safe_dump(tree, sort_keys=False))
+    return path
+
+
+def test_theater_runs_on_the_file_in_every_worker(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, shipped_config: CampaignConfig
+) -> None:
+    src = tmp_path / "src"
+    src.mkdir()
+    theater = variant_theater(src)
+    out = tmp_path / "o"
+    assert cli(monkeypatch, out, "--seeds", "1,2", "--workers", "2", "--theater", str(theater)) == 0
+    doc = json.loads((out / "report.json").read_text())
+    shipped_nodes = len(shipped_config.theater.nodes)
+    assert doc["config"]["theater"]["nodes"] == shipped_nodes + 1
+    assert doc["config"]["theater"]["name"] == "Strait Variant"
+    assert f"{shipped_nodes + 1} nodes" in (out / "report.md").read_text()
+    # the hash covers the theater, and every worker ran on it
+    assert doc["config"]["config_hash"] != shipped_config.config_hash
+    hashes = {json.loads(f.read_text())["config_hash"] for f in (out / "runs").glob("*.json")}
+    assert len(list((out / "runs").glob("*.json"))) == 2
+    assert hashes == {doc["config"]["config_hash"]}
+    assert (out / "theater" / "strait-1.yaml").read_text() == theater.read_text()
+    # the density denominator is the variant's node count, not strait-1's
+    run = runner.run(
+        "overnight-0",
+        1,
+        0.01,
+        tmp_path / "l",
+        config=balance.load_campaign_config(
+            balance.ConfigPaths(theater=out / "theater" / "strait-1.yaml")
+        ),
+    )
+    assert run["config_hash"] == doc["config"]["config_hash"]
+    world = start_campaign(
+        "c", 1, balance.load_campaign_config(balance.ConfigPaths(theater=theater))
+    )
+    world.boards["COALITION"][1] = Job(1, "STRIKE", "a", 1, 1000, 0)
+    col = metrics.Collector(world, frozenset(), tick_hz=HZ, sample_ticks=1, a3_ticks=1,
+        idle_sample_ticks=1, impact_check_ticks=1, kinds={}, a2_min_tier="ALPHA")  # fmt: skip
+    col.sample_density(world)
+    assert col.jobs_per_node == [1 / (shipped_nodes + 1)]
+
+
+def test_theater_named_balance_yaml_does_not_clobber_the_set_copy(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    tree = yaml.safe_load(balance.ConfigPaths().theater.read_text())
+    tree["slug"] = "balance"
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "balance.yaml").write_text(yaml.safe_dump(tree, sort_keys=False))
+    out = tmp_path / "o"
+    assert cli(monkeypatch, out, "--set", f"{KEY}=0", "--theater", str(src / "balance.yaml")) == 0
+    run = json.loads(next((out / "runs").glob("*.json")).read_text())
+    assert run["harness_error"] is None
+    loaded = balance.load_campaign_config(balance.ConfigPaths(balance=out / "balance.yaml"))
+    assert loaded.balance.tasking.strike_idle_targets_max == 0
+    assert (out / "theater" / "balance.yaml").exists()
+
+
+def test_a_bad_theater_exits_2_before_out_exists(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    bad = tmp_path / "bad.yaml"
+    bad.write_text("slug: bad\nnodes: 3\n")
+    out = tmp_path / "o"
+    assert cli(monkeypatch, out, "--theater", str(bad)) == 2
+    err = capsys.readouterr().err
+    assert err.startswith("error:") and err.count("\n") == 1 and not out.exists()
+    assert cli(monkeypatch, out, "--theater", str(tmp_path / "missing.yaml")) == 2
+    assert not out.exists()
+
+
+def test_board_density_on_a_hand_built_sample(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    nodes = len(yaml.safe_load(balance.ConfigPaths().theater.read_text())["nodes"])
+    assert nodes == 13  # strait-1 today; the expected values below are written for 13
+    world = start_campaign("c", 1, shipped_config)
+    node = Vec2(*shipped_config.rules.roads.pos["west-airbase"])
+    for n in (1, 2):
+        world.spawn("STRIKE_FIGHTER", "COALITION", "COMMANDER", node, commander_id=commander(n))
+    world.spawn("STRIKE_FIGHTER", "COALITION", "AI_GARRISON", node)  # not a viewer unit
+    board = world.boards["COALITION"]
+    board[1] = Job(1, "STRIKE", "a", 3, 1000, 0)  # 3 unfilled
+    board[2] = Job(2, "STRIKE", "b", 2, 1000, 0, claims={7: Claim(0)})  # 1 unfilled
+    board[3] = Job(3, "STRIKE", "c", 1, 1000, 0, claims={8: Claim(0)})  # full: not open
+    gone = world.spawn("STRIKE_FIGHTER", "COALITION", "COMMANDER", node, commander_id=commander(3))
+    gone.damage_state = "DISABLED"  # not live: out of the denominator
+    world.boards["ENEMY"][4] = Job(4, "STRIKE", "d", 5, 1000, 0)  # the other side's: ignored
+    collector.sample_density(world)
+    # (3 + 1) unfilled slots / 2 viewer units; 2 open jobs / 13 nodes
+    assert collector.slots_per_unit == [2.0]
+    assert collector.jobs_per_node == [2 / 13]
+    empty = start_campaign("c", 1, shipped_config)  # no viewer unit: slots sample skipped
+    empty.boards["COALITION"][1] = Job(1, "STRIKE", "a", 3, 1000, 0)
+    collector.sample_density(empty)
+    assert collector.slots_per_unit == [2.0] and collector.jobs_per_node == [2 / 13, 1 / 13]
+    d = collector.result(100)["density"]
+    assert (d["slots_per_unit_samples"], d["jobs_per_node_samples"]) == (1, 2)
+    agg = report._density([{"metrics": {"density": d}}, {"metrics": {"density": d}}])
+    assert agg["slots_per_unit"] == 2.0 and agg["jobs_per_node"] == pytest.approx(1.5 / 13)
+    assert report._density([{"metrics": {}}]) == {"slots_per_unit": None, "jobs_per_node": None}

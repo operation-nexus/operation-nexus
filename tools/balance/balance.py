@@ -35,7 +35,7 @@ import report
 import runner
 import yaml
 
-from nexus.runtime.campaign_config import CampaignConfig, ConfigPaths, load_campaign_config
+from nexus.runtime.campaign_config import ConfigPaths, load_campaign_config
 from nexus.runtime.config import ConfigError, load_balance
 
 
@@ -69,14 +69,12 @@ def override_balance(pairs: list[str]) -> str:
     return dumped
 
 
-def _one(job: tuple[str, int, float, Path, Path | None]) -> dict[str, Any]:
+def _one(job: tuple[str, int, float, Path, ConfigPaths | None]) -> dict[str, Any]:
     """A worker: one (profile, seed) run, its JSON written next to the others."""
-    profile, seed, hours, out, balance_file = job
+    profile, seed, hours, out, paths = job
     name = f"{profile}-s{seed}"
     try:
-        config: CampaignConfig | None = None
-        if balance_file:
-            config = load_campaign_config(ConfigPaths(balance=balance_file))
+        config = load_campaign_config(paths) if paths else None
         run = runner.run(profile, seed, hours, out / "logs" / name, config=config)
     except Exception as e:  # noqa: BLE001  # one run's failure must not kill the batch
         run = runner.failed_run(profile, seed, hours, f"{type(e).__name__}: {e}")
@@ -108,6 +106,7 @@ def build_report(
     workers: int,
     elapsed: float,
     overrides: list[str] | None = None,
+    theater: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     by_profile: dict[str, list[dict[str, Any]]] = {}
     for r in runs:
@@ -119,6 +118,7 @@ def build_report(
             "config_hash": next((r["config_hash"] for r in runs if r["config_hash"]), None),
             "profiles_digest": data.digest,
             "overrides": overrides or [],
+            "theater": theater,  # None: the shipped one
         },
         "seeds": sorted({r["seed"] for r in runs}),
         "hours": first["hours"],
@@ -154,6 +154,9 @@ def parser() -> argparse.ArgumentParser:
         "--set", dest="overrides", action="append", default=[], metavar="KEY=NUMBER",
         help="override a numeric balance key, e.g. tasking.strike_idle_targets_max=0 (repeatable)",
     )  # fmt: skip
+    p.add_argument(
+        "--theater", type=Path, help="a theater file to run on instead of the shipped one"
+    )
     p.add_argument("--out", type=Path, required=True, help="report directory (must not exist)")
     return p
 
@@ -168,13 +171,36 @@ def main() -> int:
         if args.hours <= 0 or args.workers < 1:
             raise ValueError("--hours must be > 0 and --workers >= 1")
         balance_text = override_balance(args.overrides) if args.overrides else None
+        theater = None
+        theater_text = args.theater.read_text() if args.theater else None
+        if theater_text is not None:  # validate (and cross-check with the balance) before `out`
+            with tempfile.TemporaryDirectory() as d:
+                bal = ConfigPaths().balance
+                if balance_text:
+                    (bal := Path(d) / "balance.yaml").write_text(balance_text)
+                cfg = load_campaign_config(ConfigPaths(balance=bal, theater=args.theater))
+            theater = {
+                "slug": cfg.theater.slug,
+                "name": cfg.theater.name,
+                "nodes": len(cfg.theater.nodes),
+                "landing_bases": len(cfg.rules.landing_nodes),
+            }
         args.out.mkdir(parents=True)
         (args.out / "runs").mkdir()
-        balance_file = None
-        if balance_text:
-            balance_file = args.out / "balance.yaml"
-            balance_file.write_text(balance_text)
-        jobs = [(n, s, args.hours, args.out, balance_file) for n in names for s in args.seeds]
+        paths = None
+        if balance_text or theater_text is not None:
+            kw: dict[str, Path] = {}
+            if balance_text:
+                kw["balance"] = args.out / "balance.yaml"
+                kw["balance"].write_text(balance_text)
+            if theater_text is not None:
+                # the loader wants the slug to be the file name, so keep the original file name;
+                # a subdirectory keeps it clear of balance.yaml, report.*, runs/ and logs/
+                (args.out / "theater").mkdir()
+                kw["theater"] = args.out / "theater" / args.theater.name
+                kw["theater"].write_text(theater_text)
+            paths = ConfigPaths(**kw)
+        jobs = [(n, s, args.hours, args.out, paths) for n in names for s in args.seeds]
         started = time.perf_counter()
         if args.workers == 1:
             runs = [_one(j) for j in jobs]
@@ -188,7 +214,7 @@ def main() -> int:
                 )
             runs = [done[(j[0], j[1])] for j in jobs]
         elapsed = time.perf_counter() - started
-        result = build_report(runs, data, args.workers, elapsed, args.overrides)
+        result = build_report(runs, data, args.workers, elapsed, args.overrides, theater)
     except (ValueError, OSError, ConfigError) as e:
         print(f"error: {e}", file=sys.stderr)
         return 2
