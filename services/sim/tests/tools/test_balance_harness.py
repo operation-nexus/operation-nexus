@@ -850,8 +850,10 @@ def test_a2_tail_share_boundary_is_10_percent() -> None:
     fast, slow = [60.0] * 9, [901.0]  # 1 of 10 later than 900 s: exactly 10%
     ok = a2(fast + slow, [])
     assert ok["status"] == report.PASS and ok["tail"]["share"] == 0.1
-    assert "10% over 900 s (1/10), needs <= 10%" in ok["detail"]
+    assert "10.0% over 900 s (1/10), needs <= 10%" in ok["detail"]
     assert a2([60.0] * 8 + [901.0] * 2, [])["status"] == report.FAIL  # 20%
+    just_over = a2([60.0] * 26 + [901.0] * 3, [])  # 3/29 = 10.3%: fails and must not read as 10%
+    assert just_over["status"] == report.FAIL and "10.3% over 900 s (3/29)" in just_over["detail"]
     assert a2([60.0] * 8 + [901.0, 900.0], [])["status"] == report.PASS  # 900 s is not over 900 s
     # watched past 900 s with no impact is in the tail (and a miss for the median, once 480 s)
     assert a2([60.0] * 8, [901.0, 901.0])["status"] == report.FAIL
@@ -871,12 +873,18 @@ def test_a2_tail_leaves_unresolved_newbies_out() -> None:
 def test_a2_detail_names_the_tail() -> None:
     r = a2([60.0, 1000.0], [])
     assert r["tail"]["over"] == 1 and r["status"] == report.FAIL  # median 530 s too
-    assert "50% over 900 s (1/2), needs <= 10%" in r["detail"]
+    assert "50.0% over 900 s (1/2), needs <= 10%" in r["detail"]
     assert a2([60.0, 100.0, 1000.0], [])["status"] == report.FAIL  # median 100 s: the tail alone
 
 
 def test_profiles_reject_a_bad_tail(tmp_path: Path) -> None:
-    for key, bad in (("a2_tail_s", 0), ("a2_tail_share", 0), ("a2_tail_share", 1.5)):
+    bads = (
+        ("a2_tail_s", 0),
+        ("a2_tail_s", float("inf")),
+        ("a2_tail_share", 0),
+        ("a2_tail_share", 1.5),
+    )
+    for key, bad in bads:
         raw = yaml.safe_load(DATA.read_text())
         raw["targets"][key] = bad
         doc = tmp_path / "bad.yaml"

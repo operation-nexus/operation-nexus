@@ -2,6 +2,7 @@
 (NX-031 part 1, Q-SIM-91). The schedule uses its own `random.Random`, never the sim's streams."""
 
 import hashlib
+import math
 import random
 from dataclasses import dataclass
 from pathlib import Path
@@ -118,7 +119,7 @@ def load(path: Path = DATA) -> Data:
     targets = Targets(**doc["targets"])
     if targets.a2_min_tier not in TIERS:
         raise ValueError(f"targets.a2_min_tier must be one of {TIERS}")
-    if targets.a2_tail_s <= 0 or not 0 < targets.a2_tail_share <= 1:
+    if not 0 < targets.a2_tail_s < math.inf or not 0 < targets.a2_tail_share <= 1:
         raise ValueError("targets.a2_tail_s must be > 0 and a2_tail_share in (0, 1]")
     check_s = float(doc["impact_check_s"])
     if check_s <= 0:
