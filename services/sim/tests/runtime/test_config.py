@@ -33,6 +33,7 @@ sim:
 air:
   bingo_reserve_frac: 0.15
   orbit_period_s: 120.0
+  landing_node_kinds: [AIRBASE, SANCTUARY]
 fow:
   track_every_ticks: 5
   track_fade_s: 180.0
@@ -43,6 +44,7 @@ fow:
   sigint_size_l_min: 7
   paint_range_m: 20000.0
   mask_cell_m: 1000
+  masked_alt_bands: [NOE, LOW]
 slots:
   max_live_per_commander: 1
   respawn_delay_s: 20
@@ -103,6 +105,7 @@ capture:
     PORT: 300
     SANCTUARY: 1000
   sanctuary_repair_hp_per_s: 1.0
+  uncapturable_node_kinds: [SANCTUARY, BRIDGE]
 combat:
   pk_cap: 0.95
   track_quality:
@@ -134,6 +137,7 @@ combat:
 campaign:
   time_limit_h: 72
   victory_node_frac: 0.80
+  strategic_node_kinds: [AIRBASE, FOB, PORT]
   victory_hold_min: 30
   defeat:
     hold_min: 30
@@ -190,6 +194,8 @@ tasking:
   escort_leash_m: 10000
   follow_hold_slack: 2
   overfill_factor: 2
+  overfill_point_jobs: false
+  join_excluded_jobs: [PATROL]
   scout_blob_runs: 2
   scout_urgency: {small: 1.0, medium: 1.5, large: 2.0}
   strike_urgency_per_threat: 0.01
@@ -209,6 +215,7 @@ director:
       GARRISON_INFANTRY: 2
     ema_window_s: 300
   tier:
+    alpha_enter_cp: 0
     bravo_enter_cp: 60
     exit_ratio: 0.8
     min_dwell_s: 600
@@ -216,6 +223,7 @@ director:
     half_life_s: 900
     escalate_threshold: 10
     bravo_threshold: 40
+    scout_in_rear_max_per_window: 1
     weights:
       unit_destroyed: 5
       unit_damaged: 1
@@ -246,6 +254,7 @@ director:
     weakness_min: 1.0
     stale_factor: 1.0
     provocation_proximity: 1.5
+    proximity_tiers: [ALPHA]
   memory:
     half_life_s: 1800
     factor: 1.0
@@ -253,7 +262,9 @@ director:
   decoy_blink: {dark_s: 120, cooldown_s: 600, max_per_window: 1}
   recon: {loiter_s: 600, loiter_radius_m: 5000, grid_m: 10000, memory_s: 3600}
   intercept: {radius_m: 30000, reaction_s: 60, pol_linger_s: 600, leash_m: 80000, lost_s: 120}
-  alpha_max_ops: 1
+  max_ops:
+    alpha: 1
+    bravo: null
   idle_retire_s: 600
   adaptation_up_above: 0
   reinforce_damage_above: 0
@@ -278,6 +289,7 @@ director:
     convoys_per_period: 1
     offensives_per_period: 1
     convoy_cost: 0
+    convoy_slots: 1
     convoy_kind: ENEMY_CONVOY
 """
 # Pinned from this implementation's first run (NX-367: balance, units, theater; re-pinned NX-121
@@ -289,7 +301,12 @@ director:
 # NX-374 for the tasking keys and again for follow and escort, NX-155 for the director, and NX-157
 # for the Pattern of Life keys and the garrison operation); a
 # change means every config_hash moved.
-GOLDEN_CONFIG_HASH = "6feef752cae8e068523e0eef5d0ebbe83285d8274414753afef0cfb69ad62387"
+GOLDEN_CONFIG_HASH = "88854861dd7dc77b8a4e37f9950fa3866f56407fad9e7dfaaf91c522346a2308"
+AIR = {
+    "bingo_reserve_frac": 0.15,
+    "orbit_period_s": 120.0,
+    "landing_node_kinds": ["AIRBASE", "SANCTUARY"],
+}
 SLOTS = {
     "max_live_per_commander": 1,
     "respawn_delay_s": 20,
@@ -307,6 +324,7 @@ FOW = {
     "sigint_size_l_min": 7,
     "paint_range_m": 20000.0,
     "mask_cell_m": 1000,
+    "masked_alt_bands": ["NOE", "LOW"],
 }
 LOGISTICS = {
     "node_max_stock": {"AIRBASE": 2000, "BRIDGE": 0, "FOB": 1000, "HQ": 2000, "PORT": 1000},
@@ -348,6 +366,7 @@ CAPTURE = {
     "min_progress_per_tick": 1,
     "defense_hp": {"AIRBASE": 500, "FOB": 300, "HQ": 800, "PORT": 300, "SANCTUARY": 1000},
     "sanctuary_repair_hp_per_s": 1.0,
+    "uncapturable_node_kinds": ["SANCTUARY", "BRIDGE"],
 }
 COMBAT = {
     "pk_cap": 0.95,
@@ -378,6 +397,7 @@ COMBAT = {
 CAMPAIGN = {
     "time_limit_h": 72,
     "victory_node_frac": 0.80,
+    "strategic_node_kinds": ["AIRBASE", "FOB", "PORT"],
     "victory_hold_min": 30,
     "defeat": {"hold_min": 30},
     "objective_period_min": 15,
@@ -427,6 +447,8 @@ TASKING = {
     "escort_leash_m": 10000,
     "follow_hold_slack": 2,
     "overfill_factor": 2,
+    "overfill_point_jobs": False,
+    "join_excluded_jobs": ["PATROL"],
     "scout_blob_runs": 2,
     "scout_urgency": {"small": 1.0, "medium": 1.5, "large": 2.0},
     "strike_urgency_per_threat": 0.01,
@@ -448,11 +470,12 @@ DIRECTOR = {
         },
         "ema_window_s": 300,
     },
-    "tier": {"bravo_enter_cp": 60, "exit_ratio": 0.8, "min_dwell_s": 600},
+    "tier": {"alpha_enter_cp": 0, "bravo_enter_cp": 60, "exit_ratio": 0.8, "min_dwell_s": 600},
     "provocation": {
         "half_life_s": 900,
         "escalate_threshold": 10,
         "bravo_threshold": 40,
+        "scout_in_rear_max_per_window": 1,
         "weights": {
             "unit_destroyed": 5,
             "unit_damaged": 1,
@@ -486,6 +509,7 @@ DIRECTOR = {
         "weakness_min": 1.0,
         "stale_factor": 1.0,
         "provocation_proximity": 1.5,
+        "proximity_tiers": ["ALPHA"],
     },
     "memory": {
         "half_life_s": 1800,
@@ -501,7 +525,7 @@ DIRECTOR = {
         "leash_m": 80000,
         "lost_s": 120,
     },
-    "alpha_max_ops": 1,
+    "max_ops": {"alpha": 1, "bravo": None},
     "idle_retire_s": 600,
     "adaptation_up_above": 0,
     "reinforce_damage_above": 0,
@@ -529,6 +553,7 @@ DIRECTOR = {
         "convoys_per_period": 1,
         "offensives_per_period": 1,
         "convoy_cost": 0,
+        "convoy_slots": 1,
     },
 }
 CFG = BalanceConfig.model_validate(
@@ -536,7 +561,7 @@ CFG = BalanceConfig.model_validate(
         "schema_version": 1,
         "sim": {"tick_hz": 10, "time_scale": 6.0, "snapshot_every_ticks": 300},
         "slots": SLOTS,
-        "air": {"bingo_reserve_frac": 0.15, "orbit_period_s": 120.0},
+        "air": AIR,
         "fow": FOW,
         "logistics": LOGISTICS,
         "capture": CAPTURE,
@@ -820,9 +845,10 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "sim: {snapshot_every_ticks: 300, time_scale: 6.0, tick_hz: 10}\n"
         "slots: {respawn_delay_s: 20, max_live_per_commander: 1, reserve_queue_max: 1000,\n"
         "  max_viewer_units: 500, queue_idle_min: 15}\n"
-        "air: {orbit_period_s: 120.0, bingo_reserve_frac: 0.15}\n"
+        "air: {orbit_period_s: 120.0, bingo_reserve_frac: 0.15,\n"
+        "  landing_node_kinds: [AIRBASE, SANCTUARY]}\n"
         "fow: {track_fade_s: 180.0, track_every_ticks: 5, paint_range_m: 20000.0,\n"
-        "  mask_cell_m: 1000,\n"
+        "  mask_cell_m: 1000, masked_alt_bands: [NOE, LOW],\n"
         "  sigint_cell_m: 10000, sigint_refresh_s: 54.0, sigint_range_mult: 1.5,\n"
         "  sigint_size_l_min: 7, sigint_size_m_min: 3}\n"
         "logistics: {unload_rate: 1.0, truck_cargo: 100, starve_threshold: 0.25,\n"
@@ -839,7 +865,7 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "  empty_base_mult: 0.5, decay_per_s: 0.008333333333333333,\n"
         "  min_progress_per_tick: 1,\n"
         "  defense_hp: {AIRBASE: 500, FOB: 300, HQ: 800, PORT: 300, SANCTUARY: 1000},\n"
-        "  sanctuary_repair_hp_per_s: 1.0}\n"
+        "  sanctuary_repair_hp_per_s: 1.0, uncapturable_node_kinds: [SANCTUARY, BRIDGE]}\n"
         "combat: {pk_cap: 0.95, track_quality: {painted: 1.25, track: 1.0},\n"
         "  range: {min_mult: 0.5, full_pk_frac: 0.5}, pk_mult: {terrain_masked: 0.5},\n"
         "  damage_state: {disabled_below: 0.10, damaged_below: 0.70, mission_kill_below: 0.35,\n"
@@ -853,6 +879,7 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "  score: {objective_points: 5, final_weight: 50, average_weight: 50},\n"
         "  objective_period_min: 15,\n"
         "  victory_hold_min: 30, defeat: {hold_min: 30}, victory_node_frac: 0.80,\n"
+        "  strategic_node_kinds: [AIRBASE, FOB, PORT],\n"
         "  time_limit_h: 72, night_progress_cap_nodes_per_h: 0.16666666666666666}\n"
         "tasking: {reeval_every_ticks: 50, claim_lease_s: 120, expire_min: 15,\n"
         "  priority: {scout: 30, strike: 40, assist_objective: 45, resupply: 50, defend: 60,\n"
@@ -868,6 +895,7 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "  follow_station_m: {escort: 500, column: 200, overwatch: 3000, wingman: 1000},\n"
         "  escort_threat_memory_s: 60, escort_leash_m: 10000,\n"
         "  follow_hold_slack: 2, overfill_factor: 2, scout_blob_runs: 2,\n"
+        "  overfill_point_jobs: false, join_excluded_jobs: [PATROL],\n"
         "  scout_urgency: {small: 1.0, medium: 1.5, large: 2.0}, strike_urgency_per_threat: 0.01,\n"
         "  strike_max_scaled_slots: 3, strike_idle_targets_max: 2,\n"
         "  strike_idle_targets_min_tier: ALPHA,\n"
@@ -875,8 +903,9 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "director: {window_s: 60, max_spawns_per_window: 6,\n"
         "  cp: {ema_window_s: 300, unit_value: {STRIKE_FIGHTER: 10, RECON_UAV: 3, LOGI_TRUCK: 2,\n"
         "    GARRISON_INFANTRY: 2}},\n"
-        "  tier: {bravo_enter_cp: 60, exit_ratio: 0.8, min_dwell_s: 600},\n"
+        "  tier: {alpha_enter_cp: 0, bravo_enter_cp: 60, exit_ratio: 0.8, min_dwell_s: 600},\n"
         "  provocation: {half_life_s: 900, escalate_threshold: 10, bravo_threshold: 40,\n"
+        "    scout_in_rear_max_per_window: 1,\n"
         "    weights: {unit_destroyed: 5, unit_damaged: 1, recon_destroyed: 2, recon_damaged: 0,\n"
         "      convoy_hit: 3, facility_damaged: 3,\n"
         "      facility_disabled: 8, base_captured: 15, scout_in_rear: 2,\n"
@@ -887,14 +916,14 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "    PROBE: 0.6, RECON: 0.5, DECOY_BLINK: 0.3, GARRISON_UPKEEP: 0.9},\n"
         "  score: {target_value: {AIRBASE: 1.5, FOB: 1.0, PORT: 1.0, SANCTUARY: 2.0},\n"
         "    weakness_max: 2.0, own_node_value: 1.0, weakness_min: 1.0, stale_factor: 1.0,\n"
-        "    provocation_proximity: 1.5},\n"
+        "    provocation_proximity: 1.5, proximity_tiers: [ALPHA]},\n"
         "  memory: {half_life_s: 1800, factor: 1.0,\n"
         "    weights: {convoy_hit: 1, radar_hit: 1, scout_lost: 1, node_lost: 1}},\n"
         "  decoy_blink: {dark_s: 120, cooldown_s: 600, max_per_window: 1},\n"
         "  recon: {loiter_s: 600, loiter_radius_m: 5000, grid_m: 10000, memory_s: 3600},\n"
         "  intercept: {radius_m: 30000, reaction_s: 60, pol_linger_s: 600, leash_m: 80000,\n"
         "    lost_s: 120},\n"
-        "  alpha_max_ops: 1, job_urgency: 1.0,\n"
+        "  max_ops: {alpha: 1, bravo: null}, job_urgency: 1.0,\n"
         "  idle_retire_s: 600, adaptation_up_above: 0, reinforce_damage_above: 0,\n"
         "  escort_min_convoys: 1, frontline_hops: 1,\n"
         "  adaptation_down_below: 1, noise_scale: 0.1, retake_window_min: 30,\n"
@@ -903,7 +932,7 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "    HQ: [ENEMY_ARMOR]}},\n"
         "  pol: {patrol_period_s: 1800, convoy_period_s: 3600, offensive_period_s: 21600,\n"
         "    convoy_kind: ENEMY_CONVOY, patrol_slots: 1, patrols_per_base: 1,\n"
-        "    convoys_per_period: 1, offensives_per_period: 1, convoy_cost: 0}}\n"
+        "    convoys_per_period: 1, offensives_per_period: 1, convoy_cost: 0, convoy_slots: 1}}\n"
         "schema_version:   1\n"
     )
     assert balance_hash(write(tmp_path, reformatted)) == balance_hash(DEFAULT)
@@ -977,7 +1006,7 @@ def test_world_ticks_is_the_least_whole_tick_count_not_shorter(
             "schema_version": 1,
             "sim": {"tick_hz": 10, "time_scale": time_scale, "snapshot_every_ticks": 1},
             "slots": SLOTS,
-            "air": {"bingo_reserve_frac": 0.15, "orbit_period_s": 120.0},
+            "air": AIR,
             "fow": FOW,
             "logistics": LOGISTICS,
             "capture": CAPTURE,

@@ -179,6 +179,24 @@ def test_levels_rise_at_the_enter_value_and_can_skip() -> None:
     assert level(32 * MICRO, 2, ENTERS, EXIT) == 2 and level(32 * MICRO - 1, 2, ENTERS, EXIT) == 1
 
 
+def test_alpha_enter_cp_is_where_the_cp_ceiling_leaves_pattern_of_life() -> None:
+    """NX-388, Q-DEV-21: the shipped 0 puts the ceiling at ALPHA from the first window."""
+    high = dataclasses.replace(RULES, director=dataclasses.replace(DR, alpha_enter_cp=20 * MICRO))
+    state = DirectorState()
+    decide(state, view(), RULES, {})
+    assert state.ceiling == 1
+    state = DirectorState()
+    for _ in range(3 * DWELL_WINDOWS):  # provocation alone would reach ALPHA by the dwell
+        state.pending += 100 * MICRO
+        decide(state, view(), high, {})
+    assert (state.ceiling, state.tier) == (0, "PATTERN_OF_LIFE")
+    state = DirectorState()
+    for _ in range(3 * DWELL_WINDOWS):
+        state.pending += 100 * MICRO
+        decide(state, view([FIGHTER] * 10), high, {})
+    assert state.tier != "PATTERN_OF_LIFE"  # CP above 20 lifts the ceiling
+
+
 def test_zero_provocation_with_high_cp_stays_pattern_of_life() -> None:
     assert set(tiers(200, [FIGHTER] * 30, 0)) == {"PATTERN_OF_LIFE"}
 
@@ -432,6 +450,19 @@ def test_a_tracked_player_scout_in_the_rear_adds_two_once_per_window() -> None:
     assert w.director["ENEMY"].last_provocation_sector == "centre"
 
 
+def test_scout_in_rear_notes_per_window_is_a_key() -> None:
+    """NX-388, Q-DEV-21: the shipped 1 is the old one note per window; 2 notes both scouts."""
+    w = rear_scene(385_000, cmd=1)
+    second = put(w, SCOUT, "COALITION", 390_000, 120_000, cmd=2)
+    w.contacts["ENEMY"][second.id] = Contact(second.kind, second.pos, second.vel)
+    assert w.rules is not None and w.rules.director is not None
+    w.rules = dataclasses.replace(
+        w.rules, director=dataclasses.replace(w.rules.director, scout_in_rear_max=2)
+    )
+    scan(w)
+    assert pending(w) == 4 * MICRO
+
+
 @pytest.mark.parametrize(
     ("x", "cmd", "tracked"),
     [
@@ -682,7 +713,7 @@ def test_format_18_snapshots_are_refused() -> None:
     ("change", "message"),
     [
         ({"tier": "CHARLIE"}, "bad tier"),
-        ({"ceiling": 0}, "ceiling at least 1"),
+        ({"ceiling": 3}, "ceiling must be 0..2"),
         ({"prov_level": 3}, "0..2"),
         ({"cp": -1}, "cp must be an int"),
         ({"windows": 9999}, "after the snapshot's running ticks"),

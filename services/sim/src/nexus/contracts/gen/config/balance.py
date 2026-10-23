@@ -72,85 +72,6 @@ class Defeat(BaseModel):
     ]
 
 
-class Campaign(BaseModel):
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    time_limit_h: Annotated[
-        float,
-        Field(
-            description="Game hours of running clock until the time limit ends the campaign, unit h of game time (Q-GD-29, Q-TEST-6).",
-            gt=0.0,
-        ),
-    ]
-    victory_node_frac: Annotated[
-        float,
-        Field(
-            description="Share of strategic nodes (AIRBASE, FOB, PORT) the coalition must hold to win, unit fraction (GAMEPLAY §9).",
-            gt=0.0,
-            le=1.0,
-        ),
-    ]
-    victory_hold_min: Annotated[
-        float,
-        Field(
-            description="Game minutes the coalition must hold victory_node_frac without a dip, unit min of game time (GAMEPLAY §9).",
-            gt=0.0,
-        ),
-    ]
-    objective_period_min: Annotated[
-        float,
-        Field(
-            description="Game minutes an objective lasts before it expires, unit min of game time (GAMEPLAY §9, STATE-MACHINES 4.5).",
-            gt=0.0,
-        ),
-    ]
-    objective_mode: Annotated[
-        Literal["timed", "off"],
-        Field(
-            description="timed: one system objective at a time; off: none (Q-GD-19). Set per campaign by the owner or an admin (Q-ALN-10)."
-        ),
-    ]
-    score: Annotated[Score, Field(description="Time-limit score (Q-GD-29, Q-SIM-64).")]
-    night_progress_cap_nodes_per_h: Annotated[
-        float,
-        Field(
-            description="While no viewer unit is live, the Static may flip at most one node per 1 / this many game hours; its capture bar holds just short of a flip until then and the Director launches no capture operation (Q-SIM-85, THREAT-DIRECTOR §5), unit nodes per game hour.",
-            gt=0.0,
-        ),
-    ]
-    momentum: Annotated[
-        Momentum,
-        Field(
-            description="Momentum weights (Q-SIM-60): momentum % = nodes_weight x the coalition's share of strategic nodes + supply_weight x its supply fill. They must add up to 100."
-        ),
-    ]
-    defeat: Annotated[
-        Defeat, Field(description="The coalition's defeat (Q-TH-7, GAMEPLAY §9, NX-124 part 3).")
-    ]
-
-
-class Air(BaseModel):
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    bingo_reserve_frac: Annotated[
-        float,
-        Field(
-            description="Fuel kept in reserve at bingo, unit fraction of the kind's fuel_s: an airborne aircraft returns to base once its fuel is at most the flight time to the nearest base it can land at plus this reserve (STATE-MACHINES §4.1, NX-368).",
-            ge=0.0,
-            le=1.0,
-        ),
-    ]
-    orbit_period_s: Annotated[
-        float,
-        Field(
-            description="One lap of an idle airborne aircraft's orbit at its min_speed_mps, unit s of world time; the radius is min_speed_mps x orbit_period_s / 2 pi (SIM-CORE §4, NX-368).",
-            gt=0.0,
-        ),
-    ]
-
-
 class DefenseHp(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -160,103 +81,6 @@ class DefenseHp(BaseModel):
     HQ: Annotated[int, Field(ge=1)]
     PORT: Annotated[int, Field(ge=1)]
     SANCTUARY: Annotated[int, Field(ge=1)]
-
-
-class Capture(BaseModel):
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    radius_m: Annotated[
-        float,
-        Field(
-            description="A ground unit this close to a node counts for its capture, unit m (GAMEPLAY §8, Q-SIM-57).",
-            gt=0.0,
-        ),
-    ]
-    time_s: Annotated[
-        float,
-        Field(
-            description="World seconds one capturer takes to fill a node's capture bar before the quiet-stream and garrison modifiers, unit s of world time (GAMEPLAY §8).",
-            gt=0.0,
-        ),
-    ]
-    multi_unit_exponent: Annotated[
-        float,
-        Field(
-            description="Diminishing returns: the capture time is divided by n to this power, n the weighted capturers in radius, unit exponent (Q-SIM-26).",
-            ge=0.0,
-        ),
-    ]
-    quiet_floor: Annotated[
-        float,
-        Field(
-            description="The quiet-stream multiplier on the coalition's capture time at 0 live viewer units, rising linearly to 1.0 at quiet_ref, unit multiplier (Q-SIM-26).",
-            gt=0.0,
-            le=1.0,
-        ),
-    ]
-    quiet_ref: Annotated[
-        int,
-        Field(
-            description="Live viewer units at which the quiet-stream multiplier reaches 1.0, unit viewer units (Q-SIM-26).",
-            ge=1,
-        ),
-    ]
-    min_time_s: Annotated[
-        float,
-        Field(
-            description="The shortest a capture may take, before the garrison modifier, unit s of world time (Q-GP-4).",
-            gt=0.0,
-        ),
-    ]
-    logi_weight: Annotated[
-        float,
-        Field(
-            description="How much of a capturer a logistics unit counts for, unit capturer weight (Q-SM-7).",
-            gt=0.0,
-        ),
-    ]
-    garrison_mult: Annotated[
-        float,
-        Field(
-            description="Capture-time multiplier while a defender that cannot contest (parked air, an unarmed ground unit) is at the base, unit multiplier (Q-GD-32, Q-SM-8).",
-            gt=0.0,
-        ),
-    ]
-    empty_base_mult: Annotated[
-        float,
-        Field(
-            description="Capture-time multiplier while the owning side has no unit at the base, unit multiplier (Q-GD-32, Q-SM-8).",
-            gt=0.0,
-        ),
-    ]
-    decay_per_s: Annotated[
-        float,
-        Field(
-            description="Share of the capture bar that drains per world second while the capturers are gone, unit fraction of the bar per s of world time (Q-SIM-23, Q-SIM-57). Counted in millionths of a percent per tick, rounded.",
-            gt=0.0,
-        ),
-    ]
-    min_progress_per_tick: Annotated[
-        int,
-        Field(
-            description="The least a capture bar gains per tick while a side captures, however slow the capture time, unit millionths of a percent of the bar per tick (NX-125, Q-DEV-21). 1 means a bar always moves.",
-            ge=1,
-        ),
-    ]
-    defense_hp: Annotated[
-        DefenseHp,
-        Field(
-            description="The most defense HP a node of each kind has (Q-SIM-71, GAMEPLAY §8): an owned node starts full, a NEUTRAL one at 0, and a node that changes hands starts at 0 for its new owner. A BRIDGE has none here (NX-373)."
-        ),
-    ]
-    sanctuary_repair_hp_per_s: Annotated[
-        float,
-        Field(
-            description="Defense HP per world second that each friendly logistics unit parked at its side's SANCTUARY (no path, not Disabled) rebuilds there, from the sanctuary's infinite supply with no stock debit, unit hp per s of world time per unit (GAMEPLAY §9, Q-SIM-71). Counted in thousandths of an hp per tick, rounded.",
-            gt=0.0,
-        ),
-    ]
 
 
 class TrackQuality(BaseModel):
@@ -447,76 +271,6 @@ class Combat(BaseModel):
         float,
         Field(
             description="A downed crew stays a map marker this long, unit min of game time (CB-8, Q-SIM-68).",
-            gt=0.0,
-        ),
-    ]
-
-
-class Fow(BaseModel):
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    paint_range_m: Annotated[
-        float,
-        Field(
-            description="A recon unit paints a target it tracks with its own sensor within this range, unit m (FOG-OF-WAR Tier 2 painted flag, Q-FOW-6).",
-            gt=0.0,
-        ),
-    ]
-    mask_cell_m: Annotated[
-        int,
-        Field(
-            description="Side of the square cell that terrain masking regions are rasterized to, unit m (FOG-OF-WAR Q-FOW-3, Q-DEV-21): a cell masks when its centre is inside a region. Finer than the SIGINT cell, which would blur a narrow region. Bounded so the raster stays a sane size (a smaller cell makes the loader build millions of cells).",
-            ge=100,
-            le=10000,
-        ),
-    ]
-    sigint_cell_m: Annotated[
-        int,
-        Field(
-            description="Side of the square SIGINT cell that blobs aggregate into and are drawn at, unit m (FOG-OF-WAR Tier 1, FOW-2).",
-            ge=1,
-        ),
-    ]
-    sigint_range_mult: Annotated[
-        float,
-        Field(
-            description="A SIGINT blob forms within this multiple of a friendly radar site's sensor radius, unitless multiplier (FOG-OF-WAR Tier 1, Q-FOW-7).",
-            gt=0.0,
-        ),
-    ]
-    sigint_refresh_s: Annotated[
-        float,
-        Field(
-            description="SIGINT blobs are rebuilt after this much running world time, unit s of world time, frozen while paused (FOG-OF-WAR FOW-5, FOW-9).",
-            gt=0.0,
-        ),
-    ]
-    sigint_size_l_min: Annotated[
-        int,
-        Field(
-            description="A SIGINT blob of at least this many units reads L, unit count; must be above sigint_size_m_min (FOG-OF-WAR Tier 1).",
-            ge=3,
-        ),
-    ]
-    sigint_size_m_min: Annotated[
-        int,
-        Field(
-            description="A SIGINT blob of at least this many units reads M (fewer reads S), unit count; must be below sigint_size_l_min (FOG-OF-WAR Tier 1).",
-            ge=2,
-        ),
-    ]
-    track_every_ticks: Annotated[
-        int,
-        Field(
-            description="Tier 2 tracks are computed on ticks where tick % track_every_ticks == 0, unit ticks (FOG-OF-WAR FOW-5, Q-FOW-6).",
-            ge=1,
-        ),
-    ]
-    track_fade_s: Annotated[
-        float,
-        Field(
-            description="A last-known track is dropped after this long untracked, unit s of world time, frozen while paused (FOG-OF-WAR FOW-6a, FOW-9).",
             gt=0.0,
         ),
     ]
@@ -840,6 +594,13 @@ class Tier(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
+    alpha_enter_cp: Annotated[
+        float,
+        Field(
+            description="Smoothed CP at which the CP ceiling rises from PATTERN_OF_LIFE to ALPHA, unit CP points; 0 means the ceiling is never below ALPHA (THREAT-DIRECTOR section 3, Q-TD-1, Q-DEV-21). The loader checks it is below bravo_enter_cp.",
+            ge=0.0,
+        ),
+    ]
     bravo_enter_cp: Annotated[
         float,
         Field(
@@ -980,6 +741,13 @@ class Provocation(BaseModel):
             gt=0.0,
         ),
     ]
+    scout_in_rear_max_per_window: Annotated[
+        int,
+        Field(
+            description="The most scout-in-rear notes (weights.scout_in_rear each) one decision window adds, lowest track id first (Q-SIM-79, Q-DEV-21), unit notes.",
+            ge=1,
+        ),
+    ]
     weights: Annotated[
         Weights,
         Field(
@@ -1031,53 +799,6 @@ class TargetValue(BaseModel):
     ]
 
 
-class Score1(BaseModel):
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    target_value: Annotated[
-        TargetValue,
-        Field(
-            description="Target-value multiplier by node kind; a kind not listed is never a target."
-        ),
-    ]
-    own_node_value: Annotated[
-        float,
-        Field(
-            description="Target-value multiplier of a node the side already holds (REINFORCE_IADS aims at one), unit multiplier (Q-DEV-21).",
-            gt=0.0,
-        ),
-    ]
-    weakness_min: Annotated[
-        float,
-        Field(
-            description="The weakness multiplier of a node at full defenses (Q-SIM-78); the curve is linear from here to weakness_max.",
-            gt=0.0,
-        ),
-    ]
-    stale_factor: Annotated[
-        float,
-        Field(
-            description="Coefficient of the Recon staleness term, score x (1 + factor x s) (TD-5).",
-            ge=0.0,
-        ),
-    ]
-    weakness_max: Annotated[
-        float,
-        Field(
-            description="The weakness multiplier of a node with no defenses left; it rises linearly from weakness_min at full defenses (Q-SIM-78).",
-            ge=1.0,
-        ),
-    ]
-    provocation_proximity: Annotated[
-        float,
-        Field(
-            description="Multiplier for a target in the last provocation sector while the CP ceiling is ALPHA (Q-TD-4, Q-SIM-78).",
-            ge=1.0,
-        ),
-    ]
-
-
 class Weights1(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1112,6 +833,14 @@ class Memory(BaseModel):
             description="Events one occurrence adds to its counter (THREAT-DIRECTOR section 2, Q-SIM-81)."
         ),
     ]
+
+
+class MaxOps(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    alpha: Annotated[int | None, Field(description="The cap at this tier, or null for none.", ge=1)]
+    bravo: Annotated[int | None, Field(description="The cap at this tier, or null for none.", ge=1)]
 
 
 class Recon(BaseModel):
@@ -1204,6 +933,278 @@ class DecoyBlink(BaseModel):
         float,
         Field(
             description="How soon after it went dark the same radar may blink again, unit s of game time.",
+            gt=0.0,
+        ),
+    ]
+
+
+class Campaign(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    time_limit_h: Annotated[
+        float,
+        Field(
+            description="Game hours of running clock until the time limit ends the campaign, unit h of game time (Q-GD-29, Q-TEST-6).",
+            gt=0.0,
+        ),
+    ]
+    strategic_node_kinds: Annotated[
+        list[enums.NodeKind],
+        Field(
+            description="Node kinds that count as strategic nodes: the denominator of victory_node_frac and of the score and Momentum node shares (GAMEPLAY §9, Q-GP-21, Q-DEV-21), unit node kinds.",
+            min_length=1,
+        ),
+    ]
+    victory_node_frac: Annotated[
+        float,
+        Field(
+            description="Share of strategic nodes (AIRBASE, FOB, PORT) the coalition must hold to win, unit fraction (GAMEPLAY §9).",
+            gt=0.0,
+            le=1.0,
+        ),
+    ]
+    victory_hold_min: Annotated[
+        float,
+        Field(
+            description="Game minutes the coalition must hold victory_node_frac without a dip, unit min of game time (GAMEPLAY §9).",
+            gt=0.0,
+        ),
+    ]
+    objective_period_min: Annotated[
+        float,
+        Field(
+            description="Game minutes an objective lasts before it expires, unit min of game time (GAMEPLAY §9, STATE-MACHINES 4.5).",
+            gt=0.0,
+        ),
+    ]
+    objective_mode: Annotated[
+        Literal["timed", "off"],
+        Field(
+            description="timed: one system objective at a time; off: none (Q-GD-19). Set per campaign by the owner or an admin (Q-ALN-10)."
+        ),
+    ]
+    score: Annotated[Score, Field(description="Time-limit score (Q-GD-29, Q-SIM-64).")]
+    night_progress_cap_nodes_per_h: Annotated[
+        float,
+        Field(
+            description="While no viewer unit is live, the Static may flip at most one node per 1 / this many game hours; its capture bar holds just short of a flip until then and the Director launches no capture operation (Q-SIM-85, THREAT-DIRECTOR §5), unit nodes per game hour.",
+            gt=0.0,
+        ),
+    ]
+    momentum: Annotated[
+        Momentum,
+        Field(
+            description="Momentum weights (Q-SIM-60): momentum % = nodes_weight x the coalition's share of strategic nodes + supply_weight x its supply fill. They must add up to 100."
+        ),
+    ]
+    defeat: Annotated[
+        Defeat, Field(description="The coalition's defeat (Q-TH-7, GAMEPLAY §9, NX-124 part 3).")
+    ]
+
+
+class Air(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    bingo_reserve_frac: Annotated[
+        float,
+        Field(
+            description="Fuel kept in reserve at bingo, unit fraction of the kind's fuel_s: an airborne aircraft returns to base once its fuel is at most the flight time to the nearest base it can land at plus this reserve (STATE-MACHINES §4.1, NX-368).",
+            ge=0.0,
+            le=1.0,
+        ),
+    ]
+    orbit_period_s: Annotated[
+        float,
+        Field(
+            description="One lap of an idle airborne aircraft's orbit at its min_speed_mps, unit s of world time; the radius is min_speed_mps x orbit_period_s / 2 pi (SIM-CORE §4, NX-368).",
+            gt=0.0,
+        ),
+    ]
+    landing_node_kinds: Annotated[
+        list[enums.NodeKind],
+        Field(
+            description="Node kinds an aircraft may land at (and bingo or rebase to), when the side owns the node (Q-SIM-38, NX-368, Q-DEV-21), unit node kinds.",
+            min_length=1,
+        ),
+    ]
+
+
+class Capture(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    radius_m: Annotated[
+        float,
+        Field(
+            description="A ground unit this close to a node counts for its capture, unit m (GAMEPLAY §8, Q-SIM-57).",
+            gt=0.0,
+        ),
+    ]
+    time_s: Annotated[
+        float,
+        Field(
+            description="World seconds one capturer takes to fill a node's capture bar before the quiet-stream and garrison modifiers, unit s of world time (GAMEPLAY §8).",
+            gt=0.0,
+        ),
+    ]
+    multi_unit_exponent: Annotated[
+        float,
+        Field(
+            description="Diminishing returns: the capture time is divided by n to this power, n the weighted capturers in radius, unit exponent (Q-SIM-26).",
+            ge=0.0,
+        ),
+    ]
+    quiet_floor: Annotated[
+        float,
+        Field(
+            description="The quiet-stream multiplier on the coalition's capture time at 0 live viewer units, rising linearly to 1.0 at quiet_ref, unit multiplier (Q-SIM-26).",
+            gt=0.0,
+            le=1.0,
+        ),
+    ]
+    quiet_ref: Annotated[
+        int,
+        Field(
+            description="Live viewer units at which the quiet-stream multiplier reaches 1.0, unit viewer units (Q-SIM-26).",
+            ge=1,
+        ),
+    ]
+    min_time_s: Annotated[
+        float,
+        Field(
+            description="The shortest a capture may take, before the garrison modifier, unit s of world time (Q-GP-4).",
+            gt=0.0,
+        ),
+    ]
+    logi_weight: Annotated[
+        float,
+        Field(
+            description="How much of a capturer a logistics unit counts for, unit capturer weight (Q-SM-7).",
+            gt=0.0,
+        ),
+    ]
+    garrison_mult: Annotated[
+        float,
+        Field(
+            description="Capture-time multiplier while a defender that cannot contest (parked air, an unarmed ground unit) is at the base, unit multiplier (Q-GD-32, Q-SM-8).",
+            gt=0.0,
+        ),
+    ]
+    empty_base_mult: Annotated[
+        float,
+        Field(
+            description="Capture-time multiplier while the owning side has no unit at the base, unit multiplier (Q-GD-32, Q-SM-8).",
+            gt=0.0,
+        ),
+    ]
+    decay_per_s: Annotated[
+        float,
+        Field(
+            description="Share of the capture bar that drains per world second while the capturers are gone, unit fraction of the bar per s of world time (Q-SIM-23, Q-SIM-57). Counted in millionths of a percent per tick, rounded.",
+            gt=0.0,
+        ),
+    ]
+    min_progress_per_tick: Annotated[
+        int,
+        Field(
+            description="The least a capture bar gains per tick while a side captures, however slow the capture time, unit millionths of a percent of the bar per tick (NX-125, Q-DEV-21). 1 means a bar always moves.",
+            ge=1,
+        ),
+    ]
+    defense_hp: Annotated[
+        DefenseHp,
+        Field(
+            description="The most defense HP a node of each kind has (Q-SIM-71, GAMEPLAY §8): an owned node starts full, a NEUTRAL one at 0, and a node that changes hands starts at 0 for its new owner. A BRIDGE has none here (NX-373)."
+        ),
+    ]
+    sanctuary_repair_hp_per_s: Annotated[
+        float,
+        Field(
+            description="Defense HP per world second that each friendly logistics unit parked at its side's SANCTUARY (no path, not Disabled) rebuilds there, from the sanctuary's infinite supply with no stock debit, unit hp per s of world time per unit (GAMEPLAY §9, Q-SIM-71). Counted in thousandths of an hp per tick, rounded.",
+            gt=0.0,
+        ),
+    ]
+    uncapturable_node_kinds: Annotated[
+        list[enums.NodeKind],
+        Field(
+            description="Node kinds that are never captured: no capture bar, not a base for the Director's targets, not a timed-objective candidate, no defenses to rebuild for the Static board (GAMEPLAY §8, N-4, NX-373, Q-DEV-21); must include BRIDGE (a bridge has no owner or stock); SANCTUARY may be removed, which also makes a sanctuary a Director base and patrol point, unit node kinds."
+        ),
+    ]
+
+
+class Fow(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    paint_range_m: Annotated[
+        float,
+        Field(
+            description="A recon unit paints a target it tracks with its own sensor within this range, unit m (FOG-OF-WAR Tier 2 painted flag, Q-FOW-6).",
+            gt=0.0,
+        ),
+    ]
+    mask_cell_m: Annotated[
+        int,
+        Field(
+            description="Side of the square cell that terrain masking regions are rasterized to, unit m (FOG-OF-WAR Q-FOW-3, Q-DEV-21): a cell masks when its centre is inside a region. Finer than the SIGINT cell, which would blur a narrow region. Bounded so the raster stays a sane size (a smaller cell makes the loader build millions of cells).",
+            ge=100,
+            le=10000,
+        ),
+    ]
+    masked_alt_bands: Annotated[
+        list[enums.AltBand],
+        Field(
+            description="Altitude bands that terrain masking hides: an aircraft in one of them, inside a masking region, is seen only by a sensor in the region, and a weapon fired at it takes combat.pk_mult.terrain_masked (FOG-OF-WAR Q-FOW-3, COMBAT §5.2, Q-DEV-21), unit altitude bands."
+        ),
+    ]
+    sigint_cell_m: Annotated[
+        int,
+        Field(
+            description="Side of the square SIGINT cell that blobs aggregate into and are drawn at, unit m (FOG-OF-WAR Tier 1, FOW-2).",
+            ge=1,
+        ),
+    ]
+    sigint_range_mult: Annotated[
+        float,
+        Field(
+            description="A SIGINT blob forms within this multiple of a friendly radar site's sensor radius, unitless multiplier (FOG-OF-WAR Tier 1, Q-FOW-7).",
+            gt=0.0,
+        ),
+    ]
+    sigint_refresh_s: Annotated[
+        float,
+        Field(
+            description="SIGINT blobs are rebuilt after this much running world time, unit s of world time, frozen while paused (FOG-OF-WAR FOW-5, FOW-9).",
+            gt=0.0,
+        ),
+    ]
+    sigint_size_l_min: Annotated[
+        int,
+        Field(
+            description="A SIGINT blob of at least this many units reads L, unit count; must be above sigint_size_m_min (FOG-OF-WAR Tier 1).",
+            ge=3,
+        ),
+    ]
+    sigint_size_m_min: Annotated[
+        int,
+        Field(
+            description="A SIGINT blob of at least this many units reads M (fewer reads S), unit count; must be below sigint_size_l_min (FOG-OF-WAR Tier 1).",
+            ge=2,
+        ),
+    ]
+    track_every_ticks: Annotated[
+        int,
+        Field(
+            description="Tier 2 tracks are computed on ticks where tick % track_every_ticks == 0, unit ticks (FOG-OF-WAR FOW-5, Q-FOW-6).",
+            ge=1,
+        ),
+    ]
+    track_fade_s: Annotated[
+        float,
+        Field(
+            description="A last-known track is dropped after this long untracked, unit s of world time, frozen while paused (FOG-OF-WAR FOW-6a, FOW-9).",
             gt=0.0,
         ),
     ]
@@ -1346,10 +1347,22 @@ class Tasking(BaseModel):
             ge=1.0,
         ),
     ]
+    overfill_point_jobs: Annotated[
+        bool,
+        Field(
+            description="Whether a Recon scout's point job overfills like any other (true), or never takes more than its slots (false) (NX-379, Q-DEV-21), unit flag."
+        ),
+    ]
+    join_excluded_jobs: Annotated[
+        list[enums.JobKind],
+        Field(
+            description="Job kinds a parameterless JOIN never takes for a new coalition unit (the unit can still take them through the board); [] excludes none (Q-GP-23, Q-SIM-94, Q-DEV-21), unit job kinds."
+        ),
+    ]
     overfill_factor: Annotated[
         int,
         Field(
-            description="When every job is full, a job takes units up to this many times its slots (TB-4, Q-DEV-21), unit multiplier; a Recon scout's point job never overfills.",
+            description="When every job is full, a job takes units up to this many times its slots (TB-4, Q-DEV-21), unit multiplier; a Recon scout's point job overfills only with overfill_point_jobs.",
             ge=1,
         ),
     ]
@@ -1425,6 +1438,59 @@ type GarrisonKinds = Annotated[
 ]
 
 
+class Score1(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    target_value: Annotated[
+        TargetValue,
+        Field(
+            description="Target-value multiplier by node kind; a kind not listed is never a target."
+        ),
+    ]
+    own_node_value: Annotated[
+        float,
+        Field(
+            description="Target-value multiplier of a node the side already holds (REINFORCE_IADS aims at one), unit multiplier (Q-DEV-21).",
+            gt=0.0,
+        ),
+    ]
+    weakness_min: Annotated[
+        float,
+        Field(
+            description="The weakness multiplier of a node at full defenses (Q-SIM-78); the curve is linear from here to weakness_max.",
+            gt=0.0,
+        ),
+    ]
+    stale_factor: Annotated[
+        float,
+        Field(
+            description="Coefficient of the Recon staleness term, score x (1 + factor x s) (TD-5).",
+            ge=0.0,
+        ),
+    ]
+    weakness_max: Annotated[
+        float,
+        Field(
+            description="The weakness multiplier of a node with no defenses left; it rises linearly from weakness_min at full defenses (Q-SIM-78).",
+            ge=1.0,
+        ),
+    ]
+    provocation_proximity: Annotated[
+        float,
+        Field(
+            description="Multiplier for a target in the last provocation sector while the CP ceiling is one of proximity_tiers (Q-TD-4, Q-SIM-78).",
+            ge=1.0,
+        ),
+    ]
+    proximity_tiers: Annotated[
+        list[enums.ThreatTier],
+        Field(
+            description="CP ceilings at which provocation_proximity applies (Q-TD-4, Q-DEV-21), unit tiers."
+        ),
+    ]
+
+
 class Kinds(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1456,6 +1522,13 @@ class Pol(BaseModel):
         int,
         Field(
             description="Units (idle ground garrison units of the base) one patrol job takes, unit units.",
+            ge=1,
+        ),
+    ]
+    convoy_slots: Annotated[
+        int,
+        Field(
+            description="Units (carriers) one Pattern of Life supply convoy job takes, unit units.",
             ge=1,
         ),
     ]
@@ -1601,11 +1674,10 @@ class Director(BaseModel):
             gt=0.0,
         ),
     ]
-    alpha_max_ops: Annotated[
-        int,
+    max_ops: Annotated[
+        MaxOps,
         Field(
-            description="The most operations with jobs ALPHA runs at once (THREAT-DIRECTOR section 3), unit operations.",
-            ge=1,
+            description="The most non-routine operations with jobs a tier runs at once (THREAT-DIRECTOR section 3, Q-DEV-21); null means no cap (the budget bounds the tier). Routine operations (those enabled at Pattern of Life) are never counted, so Pattern of Life has no cap key."
         ),
     ]
     job_urgency: Annotated[

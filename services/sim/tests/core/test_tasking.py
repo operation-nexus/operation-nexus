@@ -244,6 +244,19 @@ def test_defend_needs_a_tracked_ground_threat_or_a_bar_against_the_node() -> Non
     assert jobs(w)[0].urgency == 1800
 
 
+def test_an_uncapturable_node_is_never_defended_unless_the_key_says_so() -> None:
+    def defend_jobs(rules: Rules) -> list[str | None]:
+        w = new_world(rules=rules)
+        x, y = rules.roads.pos["haven"]
+        armor = w.spawn("ENEMY_ARMOR", "ENEMY", "ENEMY_DIRECTOR", Vec2(x + 1500, y))
+        w.contacts["COALITION"][armor.id] = Contact("ENEMY_ARMOR", armor.pos, Vec2(0, 0))
+        board_pass(w)
+        return [j.node for j in jobs(w) if j.kind == "DEFEND"]
+
+    assert defend_jobs(RULES) == []  # the sanctuary is in capture.uncapturable_node_kinds
+    assert defend_jobs(dataclasses.replace(RULES, uncapturable=frozenset({"BRIDGE"}))) == ["haven"]
+
+
 def test_strike_targets_the_enemy_held_objective_then_discovered_sites() -> None:
     w = new_world()
     w.objective = Objective(1, "east-airbase", 90_000, False)
@@ -1209,6 +1222,36 @@ def test_overfill_factor_is_a_key_not_a_constant() -> None:
         put(w, "GARRISON_INFANTRY", "west-airbase")
     board_pass(w)
     assert len(job.claims) == 6  # three times its slots, not twice
+
+
+def test_a_recon_point_job_overfills_only_with_the_overfill_point_jobs_key() -> None:
+    """NX-388, Q-DEV-21: the shipped false is the old rule; true treats it like any job."""
+    for flag, claims in ((False, 1), (True, 2)):
+        rules = dataclasses.replace(
+            RULES, tasking=dataclasses.replace(TR, overfill_point_jobs=flag)
+        )
+        w = new_world(rules=rules)
+        job = post_job(
+            w, "COALITION", JobSpec("SCOUT", "op:pt", 1, 1000, pos=Vec2(200_000, 120_000)), []
+        )
+        for _ in range(3):
+            put(w, "RECON_UAV", "west-airbase")
+        board_pass(w)
+        assert len(job.claims) == claims
+
+
+def test_a_bare_join_skips_the_kinds_in_join_excluded_jobs_and_none_when_empty() -> None:
+    """NX-388, Q-DEV-21: the shipped [PATROL] is the old rule; [] lets a JOIN take a patrol."""
+    cases: list[tuple[frozenset[JobKind], list[str]]] = [
+        (frozenset({"PATROL"}), []), (frozenset(), ["PATROL"])
+    ]  # fmt: skip
+    for excluded, got in cases:
+        tr = dataclasses.replace(TR, join_excluded_jobs=excluded)
+        w = new_world(rules=dataclasses.replace(RULES, tasking=tr))
+        post_job(
+            w, "COALITION", JobSpec("PATROL", "op:pat", 1, 1000, node="fob-n-w", via="cross-n"), []
+        )
+        assert [j.kind for j in joinable_jobs(w, "STRIKE_FIGHTER")] == got
 
 
 def test_the_garrison_may_counterattack_a_node_just_lost_within_the_window() -> None:

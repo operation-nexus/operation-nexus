@@ -53,8 +53,8 @@ _PATROL_OP, _CONVOY_OP = "POL_PATROL", "POL_CONVOY"  # the `op:` ids of the Patt
 
 
 def _routine(dr: DirectorRules) -> frozenset[str]:
-    """Operations ALPHA's one-at-a-time rule skips: the catalog's routine ones and the Pattern of
-    Life patrols and convoys, which are no catalog entries."""
+    """Operations the `director.max_ops.<tier>` caps skip: the catalog's routine ones and the
+    Pattern of Life patrols and convoys, which are no catalog entries."""
     return ops.routine_ops(dr) | {_PATROL_OP, _CONVOY_OP}
 
 
@@ -147,7 +147,7 @@ def run(world: World, side: Side, view: SideView, rules: Rules, out: list[Event]
     chosen = ops.select(
         ranked, dr, state.budget, dr.max_spawns_per_window,
         dr.max_live_units[state.tier] - own.live_units, live,
-        ops.alpha_max_ops(state.tier, dr), _routine(dr),
+        ops.max_ops(state.tier, dr), _routine(dr),
     )  # fmt: skip
     for c in chosen:
         _launch(world, rules, side, view, state, c, out)
@@ -246,10 +246,11 @@ def _convoys(
     room = min(dr.max_spawns_per_window, dr.max_live_units[state.tier] - own.live_units)
     op = OperationRules(
         _CONVOY_OP, "NODE", (), dr.convoy_cost, frozenset(),
-        (JobTemplate("RESUPPLY", "target", (dr.convoy_kind,), 1),), None, Fraction(0),
+        (JobTemplate("RESUPPLY", "target", (dr.convoy_kind,), dr.convoy_slots),), None, Fraction(0),
     )  # fmt: skip
     for base in ops.convoy_bases(view, rules, own)[: dr.convoys_per_period]:
-        if (_CONVOY_OP, base) in live or room < 1 or surplus(view, rules, world.stock) < op.cost:
+        short = room < dr.convoy_slots  # the job spawns up to `convoy_slots` units
+        if (_CONVOY_OP, base) in live or short or surplus(view, rules, world.stock) < op.cost:
             continue
         cand = ops.Candidate(op, base, None, ((ops.Where(base),),))
         room -= _post_and_spawn(world, rules, side, cand, out, lambda n: op.cost * n) or 0

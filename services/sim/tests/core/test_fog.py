@@ -424,6 +424,27 @@ def test_noe_and_low_aircraft_in_a_masking_region_hidden_from_sensors_outside_it
     assert tracked_by(w, "COALITION", jet.id) is tracked
 
 
+@pytest.mark.parametrize(
+    ("bands", "band", "tracked"),
+    [
+        (frozenset({"NOE"}), "LOW", True),  # LOW is not masked once the key drops it
+        (frozenset({"MED"}), "MED", False),  # and MED can be added
+        (frozenset(), "NOE", True),
+    ],
+)
+def test_masked_alt_bands_is_the_set_of_bands_terrain_hides(
+    bands: frozenset[AltBand], band: AltBand, tracked: bool
+) -> None:
+    """NX-388, Q-DEV-21: the shipped [NOE, LOW] is the old rule."""
+    w = world(replace(MASKED, masked_bands=bands))
+    put(w, RADAR, "COALITION", 5500.0, 500.0)  # another region than the jet's
+    jet = put(w, "ENEMY_FIGHTER", "ENEMY", 500.0, 500.0)
+    jet.alt_band = band
+    jet.state, jet.fuel = "LANDED", 3600.0
+    run_to(w, 5)
+    assert tracked_by(w, "COALITION", jet.id) is tracked
+
+
 # --- NX-150 part 2: emitters, passive sensors, facility markers (FOW-11, FOW-13) ---
 
 UAV: UnitKind = "RECON_UAV"

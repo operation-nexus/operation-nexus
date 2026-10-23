@@ -59,7 +59,6 @@ from nexus.core.world import _ZERO, Blob, BlobSize, Contact, Entity, FacilityMar
 _STATIC = "STATIC"
 _STATES: tuple[DamageState, ...] = ("HEALTHY", "DAMAGED")  # a radius is the same at worse states
 _GROUND, _AIR = "GROUND", "AIR"
-LOW_BANDS = ("NOE", "LOW")  # the altitude bands terrain masks (Q-FOW-3, COMBAT §5.2)
 _NOWHERE: frozenset[str] = frozenset()
 _ENEMY_OF: Mapping[Side, Side] = {"COALITION": "ENEMY", "ENEMY": "COALITION"}
 _RADAR: UnitKind = "RADAR_SITE"
@@ -202,7 +201,7 @@ def _masked(rules: Rules, target: Entity, sensor_regions: frozenset[str]) -> boo
     """A GROUND target, or an aircraft at a low band, in a masking region, seen by a sensor in none
     of its regions."""
     domain = rules.domain[target.kind]
-    if domain != _GROUND and not (domain == _AIR and target.alt_band in LOW_BANDS):
+    if domain != _GROUND and not (domain == _AIR and target.alt_band in rules.masked_bands):
         return False
     regions = _regions(rules, target.pos)
     return bool(regions) and regions.isdisjoint(sensor_regions)

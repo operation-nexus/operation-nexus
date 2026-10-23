@@ -59,7 +59,7 @@ in the tick budget.
 import math
 from dataclasses import dataclass, field
 
-from nexus.contracts.gen.common.enums import NodeKind, NodeOwner, Side
+from nexus.contracts.gen.common.enums import NodeOwner, Side
 from nexus.contracts.gen.events.capture_started import CaptureStarted
 from nexus.contracts.gen.events.event import Event
 from nexus.contracts.gen.events.node_captured import NodeCaptured
@@ -71,7 +71,6 @@ from nexus.core.provocation import captured
 from nexus.core.rules import CAPTURE_FULL, CaptureRules, Rules
 from nexus.core.world import SIDES, CaptureBar, Entity, World, end_stop, lose_unit
 
-_UNCAPTURABLE: tuple[NodeKind, ...] = ("SANCTUARY", "BRIDGE")
 _OTHER: dict[Side, Side] = {"COALITION": "ENEMY", "ENEMY": "COALITION"}
 _AIR, _GROUND = "AIR", "GROUND"
 _DISABLED = "DISABLED"
@@ -95,7 +94,7 @@ def capture(world: World, out: list[Event]) -> None:
     if world.frozen or rules is None or rules.capture is None:
         return
     cap = rules.capture
-    nodes = [n for n, kind in rules.node_kind.items() if kind not in _UNCAPTURABLE]
+    nodes = [n for n, kind in rules.node_kind.items() if kind not in rules.uncapturable]
     _prune_held(world)
     near = _presence(world, rules, cap, nodes)
     viewers = world.viewer_units()

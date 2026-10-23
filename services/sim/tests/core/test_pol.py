@@ -824,6 +824,50 @@ def test_convoys_per_period_and_convoy_cost_are_keys() -> None:
     assert sum(w.stock.values()) + cargo == before - spent
 
 
+def test_convoy_slots_is_the_units_one_pol_convoy_job_takes() -> None:
+    """NX-388, Q-DEV-21: the shipped 1 is the old single-truck convoy; 2 posts a 2-slot job."""
+    for slots in (1, 2):
+        rules = with_director(
+            convoy_slots=slots,
+            operations=GARRISON_ONLY.director.operations,  # type: ignore[union-attr]
+        )
+        w = new_world(1, rules)
+        w.stock["fob-n-e"] = RULES.supply.starve_floor["fob-n-e"]
+        skip(w, DR.convoy_ticks - 1)
+        window(w, "PATTERN_OF_LIFE", 0, rules)
+        (job,) = [j for j in w.boards["ENEMY"].values() if j.kind == "RESUPPLY"]
+        assert job.slots == slots
+
+
+def test_a_convoy_needs_room_for_all_its_slots() -> None:
+    """A 3-slot job spawns 3 units, so it waits for room for 3 (spawn window and live caps)."""
+    ops_ = GARRISON_ONLY.director.operations  # type: ignore[union-attr]
+    for room, spawned in ((1, 0), (3, 3)):
+        rules = with_director(
+            convoy_slots=3, max_spawns_per_window=room, operations=ops_,
+            max_live_units={t: 90 for t in DR.max_live_units},
+        )  # fmt: skip
+        w = new_world(1, rules)
+        w.stock["fob-n-e"] = RULES.supply.starve_floor["fob-n-e"]
+        before = len(list(w.entities()))
+        skip(w, DR.convoy_ticks - 1)
+        window(w, "PATTERN_OF_LIFE", 0, rules)
+        assert len(list(w.entities())) - before == spawned
+
+
+def test_a_snapshot_with_a_pattern_of_life_ceiling_restores() -> None:
+    """`director.tier.alpha_enter_cp` > 0 holds the ceiling at 0; the load check allows it."""
+    rules = with_director(alpha_enter_cp=20 * CP_SCALE)
+    w = new_world(1, rules)
+    for _ in range(DR.window_ticks):  # one real decision window
+        step(w, [])
+    state = w.director["ENEMY"]
+    assert state.windows >= 1 and state.ceiling == 0
+    again = load(save(w))
+    again.rules = rules
+    assert again.director["ENEMY"].ceiling == 0 and state_hash(again) == state_hash(w)
+
+
 def test_a_paid_convoy_is_paid_before_its_carrier_loads_so_it_never_overdraws() -> None:
     sup = RULES.supply
     cost = sup.forward_deploy_min_surplus  # the only surplus is the spawn base's, exactly the cost

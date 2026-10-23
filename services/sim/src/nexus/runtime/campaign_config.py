@@ -102,6 +102,7 @@ def load_campaign_config(paths: ConfigPaths | None = None) -> CampaignConfig:
             victory_hold_ticks=game_ticks(cc.victory_hold_min, balance, unit_s=60),
             defeat_hold_ticks=game_ticks(cc.defeat.hold_min, balance, unit_s=60),
             objective_period_ticks=game_ticks(cc.objective_period_min, balance, unit_s=60),
+            uncapturable=balance.capture.uncapturable_node_kinds,
         ),
         combat=combat_rules(
             balance.combat,

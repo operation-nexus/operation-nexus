@@ -6,7 +6,7 @@ kernel stays free of `nexus.runtime`; the runtime loads the files and builds the
 """
 
 import math
-from collections.abc import Iterable, Mapping
+from collections.abc import Collection, Iterable, Mapping
 from dataclasses import dataclass, field
 from fractions import Fraction
 from typing import cast
@@ -45,7 +45,6 @@ from nexus.core.roads import RoadGraph
 CAPTURE_FULL = 100_000_000  # a full capture bar, in millionths of a percent (NX-125)
 CP_SCALE = 1_000_000  # coalition power and provocation are whole millionths of a point (NX-155)
 
-_LANDING_KINDS = ("AIRBASE", "SANCTUARY")  # aircraft land only here (Q-SIM-38, NX-368)
 _SIDES: tuple[Side, ...] = ("COALITION", "ENEMY")
 # Recon units paint targets (CONFIG-AND-CONTENT §7.3, FOG-OF-WAR Q-FOW-6). shortcut: named here
 # until the unit catalog lists capabilities; then it becomes a catalog field.
@@ -53,7 +52,6 @@ _PAINTERS: tuple[UnitKind, ...] = ("RECON_UAV", "ENEMY_RECON_UAV")
 # Kinds that haul cargo (GAMEPLAY §5). shortcut: named here until the unit catalog gets its `cargo`
 # field (CONFIG-AND-CONTENT §7.3); the amount is the one global `logistics.truck_cargo`.
 _CARRIERS: tuple[UnitKind, ...] = ("LOGI_TRUCK", "ENEMY_CONVOY")
-_STRATEGIC_KINDS = ("AIRBASE", "FOB", "PORT")  # count toward the hold fractions (Q-GP-21)
 _DOMAINS: tuple[Domain, ...] = ("AIR", "GROUND", "SEA", "STATIC")
 _MILLI = 1000  # a truck's unload progress is counted in thousandths of a stock unit
 # A facility variant carries only these of its kind's catalog weapons (SHORT_RANGE: the gun, no
@@ -181,6 +179,8 @@ class TaskingRules:
     static_offense_min_tier: ThreatTier  # the lowest tier at which the Static's board posts strikes
     follow_hold_slack: float  # a stopped leader's followers hold within this many stations of it
     overfill_factor: int  # with every job full, a job takes units up to this times its slots
+    overfill_point_jobs: bool  # tasking.overfill_point_jobs: a Recon point job overfills too
+    join_excluded_jobs: frozenset[JobKind]  # tasking.join_excluded_jobs: a bare JOIN never takes
     scout_blob_runs: int  # SIGINT refreshes a blob must stay in a cell before a scout is posted
     scout_urgency_milli: Mapping[str, int]  # by blob size S / M / L, in thousandths
     strike_urgency_per_threat_milli: int  # urgency a facility's `threat` point adds, thousandths
@@ -252,6 +252,7 @@ class DirectorRules:
     window_ticks: int
     cp_value: Mapping[UnitKind, int]  # a kind not listed counts 0
     ema: tuple[int, int]
+    alpha_enter_cp: int
     bravo_enter_cp: int
     exit_ratio: Fraction
     min_dwell_ticks: int
@@ -271,7 +272,9 @@ class DirectorRules:
     retake_ticks: int
     dark_ticks: int  # how long a blinking radar is dark (Q-SIM-82)
     blink_cooldown_ticks: int  # before the same radar may blink again
-    alpha_max_ops: int  # operations with jobs ALPHA runs at once
+    max_ops: Mapping[ThreatTier, int | None]  # ALPHA, BRAVO: non-routine ops at once
+    proximity_tiers: frozenset[ThreatTier]  # CP ceilings at which `proximity` applies
+    scout_in_rear_max: int  # scout-in-rear notes one window adds
     idle_retire_ticks: int  # a Director unit with no job this long is retired (Q-SIM-84)
     blink_max: int  # radars that start a blink in one window
     up_above: int  # millionths of an event: a ThreatAdaptation goes UP above it
@@ -299,6 +302,7 @@ class DirectorRules:
     replace_per_window: int  # garrison units a short base buys in one window
     patrols_per_base: int
     patrol_slots: int  # units one patrol job takes
+    convoy_slots: int  # units one Pattern of Life convoy job takes
     convoys_per_period: int
     offensives_per_period: int
     convoy_cost: int  # budget points of one Pattern of Life convoy
@@ -428,6 +432,9 @@ class Rules:
     # `capture` of None leave capture off. `armed`: the kinds whose catalog has weapons.
     node_kind: Mapping[str, NodeKind] = field(default_factory=dict)
     armed: frozenset[UnitKind] = frozenset()
+    # capture.uncapturable_node_kinds: never captured, no defenses, not a base (empty: hand-built).
+    uncapturable: frozenset[NodeKind] = frozenset()
+    masked_bands: frozenset[AltBand] = frozenset()  # fow.masked_alt_bands (empty: hand-built)
     capture: CaptureRules | None = None
     campaign: CampaignRules | None = None  # NX-126; None leaves the campaign layer off
     combat: CombatRules | None = None  # NX-124; None leaves combat off
@@ -495,6 +502,8 @@ def tasking_rules(
         static_offense_min_tier=cfg.static_offense_min_tier,
         follow_hold_slack=cfg.follow_hold_slack,
         overfill_factor=cfg.overfill_factor,
+        overfill_point_jobs=cfg.overfill_point_jobs,
+        join_excluded_jobs=frozenset(cfg.join_excluded_jobs),
         scout_blob_runs=cfg.scout_blob_runs,
         scout_urgency_milli={
             k[0].upper(): round(Fraction(repr(v)) * 1000) for k, v in cfg.scout_urgency
@@ -577,6 +586,7 @@ def director_rules(
         window_ticks=window_ticks,
         cp_value=values,
         ema=(min(window_ticks, ema_ticks), ema_ticks),
+        alpha_enter_cp=_micro(cfg.tier.alpha_enter_cp),
         bravo_enter_cp=_micro(cfg.tier.bravo_enter_cp),
         exit_ratio=Fraction(repr(cfg.tier.exit_ratio)),
         min_dwell_ticks=min_dwell_ticks,
@@ -603,7 +613,12 @@ def director_rules(
         retake_ticks=retake_ticks,
         dark_ticks=dark_ticks,
         blink_cooldown_ticks=blink_cooldown_ticks,
-        alpha_max_ops=cfg.alpha_max_ops,
+        max_ops={
+            "ALPHA": cfg.max_ops.alpha,
+            "BRAVO": cfg.max_ops.bravo,
+        },
+        proximity_tiers=frozenset(cfg.score.proximity_tiers),
+        scout_in_rear_max=pv.scout_in_rear_max_per_window,
         idle_retire_ticks=idle_retire_ticks,
         blink_max=cfg.decoy_blink.max_per_window,
         up_above=_micro(cfg.adaptation_up_above),
@@ -628,6 +643,7 @@ def director_rules(
         replace_per_window=cfg.garrison.replace_per_window,
         patrols_per_base=cfg.pol.patrols_per_base,
         patrol_slots=cfg.pol.patrol_slots,
+        convoy_slots=cfg.pol.convoy_slots,
         convoys_per_period=cfg.pol.convoys_per_period,
         offensives_per_period=cfg.pol.offensives_per_period,
         convoy_cost=cfg.pol.convoy_cost,
@@ -728,11 +744,12 @@ def campaign_rules(
     victory_hold_ticks: int,
     defeat_hold_ticks: int,
     objective_period_ticks: int,
+    uncapturable: Collection[NodeKind],
 ) -> CampaignRules:
     """The tick counts are `cfg`'s game-time keys already converted by the config loader."""
     kind = {n.id: n.kind for n in theater.nodes}
     ownable = {n for n, k in kind.items() if k != "BRIDGE"}
-    skip = {n for n, k in kind.items() if k in ("SANCTUARY", "BRIDGE")} | {theater.enemy_hq}
+    skip = {n for n, k in kind.items() if k in uncapturable} | {theater.enemy_hq}
     return CampaignRules(
         time_limit_ticks=time_limit_ticks,
         victory_hold_ticks=victory_hold_ticks,
@@ -745,7 +762,7 @@ def campaign_rules(
         objective_points=Fraction(repr(cfg.score.objective_points)),
         nodes_weight=Fraction(repr(cfg.momentum.nodes_weight)),
         supply_weight=Fraction(repr(cfg.momentum.supply_weight)),
-        strategic=tuple(sorted(n for n, k in kind.items() if k in _STRATEGIC_KINDS)),
+        strategic=tuple(sorted(n for n, k in kind.items() if k in cfg.strategic_node_kinds)),
         enemy_hq=theater.enemy_hq,
         candidates={
             n: tuple(m for m, _ in roads.neighbours(n) if m in ownable)
@@ -887,7 +904,9 @@ def make_rules(
         min_speed_mps={u.kind: u.min_speed_mps for u in units if u.min_speed_mps is not None},
         fuel_s={u.kind: u.fuel_s for u in units if u.fuel_s is not None},
         bingo_reserve_frac=air.bingo_reserve_frac,
-        landing_nodes=tuple(sorted(n.id for n in theater.nodes if n.kind in _LANDING_KINDS)),
+        landing_nodes=tuple(
+            sorted(n.id for n in theater.nodes if n.kind in air.landing_node_kinds)
+        ),
         bounds_m=(float(theater.bounds_m.w), float(theater.bounds_m.h)),
         orbit_period_s=air.orbit_period_s,
         sensor_radius_m={u.kind: u.sensor.radius_m for u in units},
@@ -907,6 +926,8 @@ def make_rules(
         supply=supply,
         node_kind={n.id: n.kind for n in sorted(theater.nodes, key=lambda n: n.id)},
         armed=frozenset(u.kind for u in units if u.weapons),
+        uncapturable=frozenset(capture.uncapturable_node_kinds),
+        masked_bands=frozenset(fow.masked_alt_bands),
         capture=_capture(capture, world_dt(sim)),
         campaign=campaign,
         combat=combat,

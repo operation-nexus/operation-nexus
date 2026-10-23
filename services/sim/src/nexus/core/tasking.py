@@ -230,9 +230,13 @@ def _full(world: World, job: Job, *, ai: bool) -> bool:
 
 def _overfill(tr: TaskingRules, job: Job) -> int:
     """The claims a job takes when every job is full: `tasking.overfill_factor` times its slots,
-    but a Recon scout's point job never doubles (a second scout would only burn fuel and rearm,
-    NX-379)."""
-    return job.slots if _is_point(job) else tr.overfill_factor * job.slots
+    but a Recon scout's point job never doubles unless `tasking.overfill_point_jobs` (a second scout
+    would only burn fuel and rearm, NX-379)."""
+    return (
+        job.slots
+        if _is_point(job) and not tr.overfill_point_jobs
+        else tr.overfill_factor * job.slots
+    )
 
 
 def _open(tr: TaskingRules, world: World, pool: list[Job], *, ai: bool) -> list[Job]:
@@ -310,7 +314,8 @@ def joinable_jobs(world: World, kind: UnitKind) -> list[Job]:
     rules, tr = world.rules, world.rules.tasking
     jobs = [
         j for j in world.boards["COALITION"].values()
-        if j.depends_on is None and j.kind != _PATROL and fits(rules, kind, j.kind)
+        if j.depends_on is None and j.kind not in tr.join_excluded_jobs
+        and fits(rules, kind, j.kind)
     ]  # fmt: skip
     return rank(tr, _open(tr, world, jobs, ai=False), _now(world), None)
 

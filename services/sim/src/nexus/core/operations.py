@@ -25,7 +25,7 @@ for the same target, except CONVOYS, whose candidate is only the convoys not yet
   current track there, `age / fade` of the oldest last-known track (at most 1), and 1 with no
   track of any kind;
 - proximity: `score.provocation_proximity` for a target in `last_provocation_sector` while the CP
-  ceiling is ALPHA (Q-TD-4).
+  ceiling is one of `score.proximity_tiers` (Q-TD-4).
 Then noise: one `director` draw per candidate in enumeration order, `r` in [-1000, 1000], moves the
 score by `noise_scale x r / 1000` of itself. Order for selection: score descending, operation id,
 target id.
@@ -33,7 +33,7 @@ target id.
 **Selection (step 6).** Greedy in that order within the window budget and the unit caps: an
 operation is taken if its cost is left and its units fit `max_spawns_per_window` and the room below
 `max_live_units.<tier>`; an escort operation shrinks to the convoys that fit (at least one); at
-most one effect operation (a radar blink) a window. ALPHA runs at most `director.alpha_max_ops`
+most one effect operation (a radar blink) a window. A tier runs at most `director.max_ops.<tier>`
 operations with jobs at a time (§3), counting those still on the board; the routine ones, those
 enabled at Pattern of Life, do not count (Q-SIM-84).
 """
@@ -44,7 +44,7 @@ from dataclasses import dataclass, field, replace
 from fractions import Fraction
 from typing import NamedTuple
 
-from nexus.contracts.gen.common.enums import UnitKind
+from nexus.contracts.gen.common.enums import ThreatTier, UnitKind
 from nexus.core.director import TIERS
 from nexus.core.fog import SideView
 from nexus.core.logistics import deploy_pool, nearest_by_air
@@ -58,8 +58,6 @@ from nexus.core.world import DirectorState, Vec2
 # stream: it sets the draw resolution and a change reshuffles every seeded decision (not a tunable).
 NOISE_STEPS = 1000
 _FOE = {"COALITION": "ENEMY", "ENEMY": "COALITION"}
-_NOT_BASES = ("BRIDGE", "SANCTUARY")
-_UNCAPTURABLE = ("SANCTUARY", "BRIDGE")
 _EACH_CONVOY = "each_convoy"
 _GARRISON = "GARRISON"  # the target of the garrison upkeep operation (Q-SIM-85)
 LIVE_PREFIX = "op:"  # a Director job's dedupe key is `op:<operation>:<target>:<job index>[:<unit>]`
@@ -112,7 +110,7 @@ def bases(view: SideView, rules: Rules) -> list[str]:
     """The nodes the side owns now that count as its bases: not a bridge, not a sanctuary."""
     return [
         n for n in sorted(view.nodes)
-        if view.owners.get(n) == view.side and rules.node_kind.get(n) not in _NOT_BASES
+        if view.owners.get(n) == view.side and rules.node_kind.get(n) not in rules.uncapturable
     ]  # fmt: skip
 
 
@@ -261,7 +259,7 @@ def _holds(
         case "target_in_enemy_view":
             return node in view.nodes
         case "target_capturable":
-            return rules.node_kind.get(node) not in _UNCAPTURABLE
+            return rules.node_kind.get(node) not in rules.uncapturable
         case "target_is_frontline":
             return rules.director is not None and _frontline(
                 view, rules, node, rules.director.frontline_hops
@@ -441,7 +439,7 @@ def rank(
     if dr is None:
         raise ValueError("rank needs the Director rules")
     stale = staleness(view, rules, dr) if any(c.op.track_age for c in cands) else {}
-    near = state.ceiling == TIERS.index("ALPHA") and state.last_provocation_sector is not None
+    near = TIERS[state.ceiling] in dr.proximity_tiers and state.last_provocation_sector is not None
     scored = []
     for c in cands:
         s = c.op.priority * _node_factors(c, view, rules, dr) * _memory(c.op, state, c.sector, dr)
@@ -498,14 +496,15 @@ def select(
 
 
 def routine_ops(dr: DirectorRules) -> frozenset[str]:
-    """Operations enabled at Pattern of Life are routine: ALPHA's one-at-a-time rule skips them."""
+    """Operations enabled at Pattern of Life are routine: `director.max_ops.<tier>` skips them."""
     return frozenset(o.id for o in dr.operations if "PATTERN_OF_LIFE" in o.tiers)
 
 
-def alpha_max_ops(tier: str, dr: DirectorRules) -> int | None:
-    """§3: ALPHA runs at most `director.alpha_max_ops` operations at a time; the other tiers are
-    bounded by budget."""
-    return dr.alpha_max_ops if tier == "ALPHA" else None
+def max_ops(tier: ThreatTier, dr: DirectorRules) -> int | None:
+    """§3: a tier runs at most `director.max_ops.<tier>` operations at a time, None for no cap
+    (the budget bounds it). Pattern of Life has no key: all its operations are routine, which
+    never count (STRUCT)."""
+    return dr.max_ops.get(tier)
 
 
 def patrol_via(view: SideView, rules: Rules, base: str) -> str | None:
@@ -518,7 +517,8 @@ def patrol_via(view: SideView, rules: Rules, base: str) -> str | None:
     dr = rules.director
     first = [
         n for n, _ in rules.roads.neighbours(base)
-        if view.owners.get(n) != _FOE[view.side] and rules.node_kind.get(n) not in _NOT_BASES
+        if view.owners.get(n) != _FOE[view.side]
+        and rules.node_kind.get(n) not in rules.uncapturable
     ]  # fmt: skip
     if dr is None or not first:
         return None
