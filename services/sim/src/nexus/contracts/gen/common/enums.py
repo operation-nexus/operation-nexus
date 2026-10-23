@@ -94,6 +94,14 @@ type CallsignKind = Annotated[
 ]
 
 
+type LossCause = Annotated[
+    Literal["BRIDGE_COLLAPSE"],
+    Field(
+        description="Why a unit was lost when it was not a plain kill, fuel exhaustion or a captured base (CONTRACTS §6, Q-SIM-112, NX-400): BRIDGE_COLLAPSE = on a bridge's road edge near the cut point when the bridge fell. Grows one value at a time, with the code that emits it (rule 6a)."
+    ),
+]
+
+
 type QueueLeaveReason = Annotated[
     Literal["SLOT_FREED", "REPLACED", "REJECTED", "TIMEOUT"],
     Field(

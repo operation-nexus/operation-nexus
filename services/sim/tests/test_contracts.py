@@ -205,6 +205,7 @@ DESTROYED = {
     "killer_id": None,
     "assist_ids": [],
     "side": "COALITION",
+    "cause": None,
 }
 
 
@@ -215,6 +216,8 @@ def test_event_union_parses_unit_destroyed() -> None:
     with_killer = EVENTS.validate_python({**DESTROYED, "killer_id": 7, "assist_ids": [3, 2]})
     assert with_killer.kind == "UnitDestroyed"
     assert with_killer.assist_ids == [3, 2]  # a list: order kept as produced
+    collapse = EVENTS.validate_python({**DESTROYED, "killer_id": 7, "cause": "BRIDGE_COLLAPSE"})
+    assert collapse.kind == "UnitDestroyed" and collapse.cause == "BRIDGE_COLLAPSE"
 
 
 @pytest.mark.parametrize(
@@ -224,6 +227,7 @@ def test_event_union_parses_unit_destroyed() -> None:
         {"side": "NEUTRAL"},  # a unit's side
         {"assist_ids": list(range(1, 34))},  # maxItems 32
         {"commander_id": None},  # not a field of this event
+        {"cause": "FRIENDLY_FIRE"},  # LossCause grows with its producer (rule 6a)
     ],
 )
 def test_unit_destroyed_rejects_bad_fields(bad: dict[str, object]) -> None:
@@ -243,7 +247,8 @@ RETIRED = {**DESPAWNED, "reason": "RETIRED"}
 FIRED_AT_NODE = {**FIRED, "target_id": None, "target_node_id": "east-airbase"}
 DEFENSES_DOWN = {**_BASE, "kind": "NodeDefensesDown", "node_id": "east-airbase", "owner": "ENEMY"}
 DEFENSES_RESTORED = {**DEFENSES_DOWN, "kind": "NodeDefensesRestored"}
-BRIDGE_DOWN = {**_BASE, "kind": "BridgeDestroyed", "node_id": "bridge-n", "by_id": 4}
+BRIDGE_DOWN = {**_BASE, "kind": "BridgeDestroyed", "node_id": "bridge-n", "by_id": 4,
+               "lost_ids": []}  # fmt: skip
 TIER_CHANGED = {**_BASE, "kind": "ThreatTierChanged", "side": "ENEMY", "from": "PATTERN_OF_LIFE",
                 "to": "ALPHA", "cp_smoothed": 12.5}  # fmt: skip
 ADAPTATION = {**_BASE, "kind": "ThreatAdaptation", "side": "ENEMY", "category": "CONVOY_ESCORT",
@@ -264,6 +269,7 @@ ADAPTATION = {**_BASE, "kind": "ThreatAdaptation", "side": "ENEMY", "category": 
         DEFENSES_RESTORED,
         BRIDGE_DOWN,
         {**BRIDGE_DOWN, "by_id": None},  # a hidden actor in a filtered view
+        {**BRIDGE_DOWN, "lost_ids": [3, 8]},  # the collapse's victims (Q-SIM-112)
         TIER_CHANGED,
     ],
 )
@@ -293,6 +299,8 @@ def test_combat_events_parse_through_the_event_union(good: dict[str, object]) ->
         (BRIDGE_DOWN, {"by_id": 0}),  # an EntityId is at least 1
         (BRIDGE_DOWN, {"hp": 0}),  # no hp field
         (BRIDGE_DOWN, {"node_id": "Bridge N"}),
+        (BRIDGE_DOWN, {"lost_ids": [0]}),  # entity ids
+        (BRIDGE_DOWN, {"lost_ids": None}),  # a list, empty when nobody was on it
         (TIER_CHANGED, {"to": "CHARLIE"}),  # parked (Q-TD-3)
         (TIER_CHANGED, {"from": "BRAVO!"}),
         (TIER_CHANGED, {"cp_smoothed": -0.1}),

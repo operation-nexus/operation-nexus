@@ -27,3 +27,9 @@ class BridgeDestroyed(BaseModel):
             description="The unit whose hit took the bridge to 0; null for a hidden actor in a filtered view."
         ),
     ]
+    lost_ids: Annotated[
+        list[ids.EntityId],
+        Field(
+            description="The GROUND units the fall destroyed (Q-SIM-112: on the cut edge within logistics.bridge_collapse_radius_m of the cut point), sorted, no duplicates (producer); each also gets UnitDestroyed with cause BRIDGE_COLLAPSE. Not capped: every loss is named. A filtered view drops a hidden victim's id."
+        ),
+    ]

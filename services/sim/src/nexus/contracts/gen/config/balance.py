@@ -494,6 +494,13 @@ class Logistics(BaseModel):
             ge=1,
         ),
     ]
+    bridge_collapse_radius_m: Annotated[
+        float,
+        Field(
+            description="How far from a bridge's cut point, measured along its road edge, a GROUND unit (either side) on that edge is destroyed when the bridge falls, unit m (STATE-MACHINES §4.3, Q-SIM-112, NX-400): Destroyed with its cargo, the shooter of the dropping hit credited, before paths are rerouted. Aircraft are not affected.",
+            ge=0.0,
+        ),
+    ]
 
 
 class Sim(BaseModel):

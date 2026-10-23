@@ -1,6 +1,8 @@
 """NX-373 parts 1a and 1b: bridge hp, STRUCTURE fire on a bridge, the cut road, `BridgeDestroyed`
 and the reroute of paths already set (STATE-MACHINES §4.3 B-1 and B-2, GAMEPLAY §5, COMBAT CB-10,
-Q-SIM-105..108).
+Q-SIM-105..108); NX-400: a direct order fires at a bridge and its fall destroys the ground units
+near the cut point (Q-SIM-112; `logistics.bridge_collapse_radius_m` 1000, the edge
+fob-n-w (130 km) ~ cross-n (230 km) at y 60 km is 100 km long, so x 199..201 km is inside).
 
 Shipped strait-1 numbers: bridge-n (200 km, 60 km) carries fob-n-w~cross-n and bridge-s (200 km,
 180 km) fob-s-w~cross-s; `logistics.bridge_hp` 300; AG_LIGHT does 50 damage at 10 km, 300 m/s
@@ -15,13 +17,30 @@ from itertools import pairwise
 import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
-from test_combat import ARMOR, CONFIG, JET, RULES, TRUCK, new_world, of, put, run, sure, track
+from pydantic import TypeAdapter
+from test_combat import (
+    ARMOR,
+    CONFIG,
+    CONVOY,
+    INFANTRY,
+    JET,
+    RULES,
+    TRUCK,
+    new_world,
+    of,
+    put,
+    run,
+    sure,
+    track,
+)
 
 from nexus.contracts.gen.commands.join import NodeTarget
-from nexus.contracts.gen.common.enums import JobKind
+from nexus.contracts.gen.common.enums import JobKind, Side, UnitKind
 from nexus.contracts.gen.events.bridge_destroyed import BridgeDestroyed
+from nexus.contracts.gen.events.crew_downed import CrewDowned
 from nexus.contracts.gen.events.event import Event
 from nexus.contracts.gen.events.job_done import JobDone
+from nexus.contracts.gen.events.unit_destroyed import UnitDestroyed
 from nexus.contracts.gen.events.weapon_fired import WeaponFired
 from nexus.contracts.gen.events.weapon_impact import WeaponImpact
 from nexus.core import bridges, follow, handlers, launch, tasking
@@ -134,6 +153,29 @@ def test_units_come_first_and_the_bridge_must_be_in_range() -> None:
     far = new_world(SURE)
     strike(far, jet_at(far, dx=10_001), NORTH)  # AG_LIGHT reaches 10 km
     assert of(run(far, 30), WeaponFired) == []
+
+
+def ordered(e: Entity, node: str) -> None:
+    """`e` holds a direct GOTO order to `node` (Q-SIM-110; tasking is off in these worlds)."""
+    e.order, e.order_node = "GOTO", node
+
+
+def test_a_unit_holding_a_direct_order_on_the_bridge_shoots_it_down() -> None:
+    w = new_world(SURE)
+    jet = jet_at(w)
+    ordered(jet, NORTH)
+    w.bridge_hp[NORTH] = 100  # two AG_LIGHT hits
+    events = run(w, 60)
+    assert [(s.shooter_id, s.target_node_id) for s in bridge_shots(events)] == [(jet.id, NORTH)] * 2
+    (down,) = of(events, BridgeDestroyed)
+    assert (down.node_id, down.by_id) == (NORTH, jet.id) and w.bridge_down == {NORTH}
+
+
+@pytest.mark.parametrize("node", ["fob-n-e", SOUTH])  # a GOTO elsewhere, the other bridge
+def test_a_direct_order_to_another_node_never_shoots_this_bridge(node: str) -> None:
+    w = new_world(SURE)
+    ordered(jet_at(w), node)  # SOUTH is 120 km off, out of range
+    assert of(run(w, 30), WeaponFired) == [] and w.bridge_hp == {NORTH: MAX_HP, SOUTH: MAX_HP}
 
 
 # --- destruction ------------------------------------------------------------------------------
@@ -319,14 +361,14 @@ def test_a_truck_short_of_the_cut_turns_back_and_takes_the_other_bridge() -> Non
     assert e.pos.x < 150_000 and e.pos.y == 60_000  # it drives back toward fob-n-w
 
 
-def test_a_truck_at_or_past_the_cut_carries_on() -> None:
+def test_a_truck_past_the_cut_and_the_collapse_radius_carries_on() -> None:
     w = new_world()
     past = truck(w, 210_000, 60_000, "fob-n-w", ["cross-n", "fob-n-e"])
-    at = truck(w, *POS[NORTH], "fob-n-w", ["cross-n"])
-    hp = at.hp
+    edge = truck(w, 201_001, 60_000, "fob-n-w", ["cross-n"])  # 1 m beyond the radius
+    hp = edge.hp
     fall(w, NORTH)
-    assert past.path == ["cross-n", "fob-n-e"] and at.path == ["cross-n"]
-    assert at.hp == hp  # no damage to a unit on the falling bridge
+    assert past.path == ["cross-n", "fob-n-e"] and edge.path == ["cross-n"]
+    assert w.find(edge.id) is edge and edge.hp == hp  # untouched by the fall
 
 
 def test_with_both_bridges_down_a_truck_stops_at_its_bank_node() -> None:
@@ -607,6 +649,174 @@ def test_after_a_fall_no_ground_path_crosses_a_cut_bridge(
         if e.kind == TRUCK:
             assert not _crosses_a_cut(w, e), (e.pos, paths[e.id], e.path)
             assert e.path, "a rerouted unit always keeps its stop node"
+
+
+# --- the collapse (NX-400, Q-SIM-112) --------------------------------------------------------
+
+EVENTS: TypeAdapter[Event] = TypeAdapter(Event)
+COLLAPSE = "BRIDGE_COLLAPSE"
+
+
+def ground(w: World, kind: UnitKind, side: Side, x: float, last: str, path: list[str]) -> Entity:
+    """A ground unit at (x, 60 km), on the north bridge's road, that last reached `last`."""
+    e = put(w, kind, side, x, 60_000)
+    e.last_node, e.path = last, [*path]
+    return e
+
+
+def drop(w: World, rules: Rules, by: Entity) -> list[Event]:
+    out: list[Event] = []
+    bridges.damage(w, rules, NORTH, MAX_HP, by.id, out)
+    return out
+
+
+def test_the_fall_destroys_ground_units_of_both_sides_near_the_cut_point_only() -> None:
+    w = new_world()
+    jet = jet_at(w, "fob-n-w")  # the shooter, far off
+    near = ground(w, TRUCK, "COALITION", 199_500, "fob-n-w", ["cross-n"])
+    near.commander_id, near.cargo = jet.commander_id, 100
+    rim = ground(w, CONVOY, "ENEMY", 201_000, "cross-n", ["fob-n-w"])  # exactly at the radius
+    outside = ground(w, TRUCK, "COALITION", 198_999, "fob-n-w", ["cross-n"])  # 1 m beyond
+    other = put(w, ARMOR, "ENEMY", *POS[SOUTH])  # on the south bridge's edge
+    other.last_node, other.path = "fob-s-w", ["cross-s"]
+    over = jet_at(w)  # an aircraft over the bridge
+    over.state, over.last_node, over.path = "EN_ROUTE", "fob-n-w", ["cross-n"]
+    stock = dict(w.stock)
+    out = drop(w, RULES, jet)
+    (down,) = of(out, BridgeDestroyed)
+    assert down.lost_ids == [near.id, rim.id]
+    lost = of(out, UnitDestroyed)
+    assert [(d.entity_id, d.killer_id, d.assist_ids, d.cause, d.side) for d in lost] == [
+        (near.id, jet.id, [], COLLAPSE, "COALITION"),
+        (rim.id, jet.id, [], COLLAPSE, "ENEMY"),
+    ]
+    assert out.index(down) < out.index(lost[0])  # the fall, then its losses
+    assert all(EVENTS.validate_python(e.model_dump(by_alias=True)) == e for e in out)
+    assert w.find(near.id) is None and w.find(rim.id) is None
+    assert all(w.find(e.id) is e for e in (outside, other, over, jet))
+    assert w.stock == stock  # the cargo went down with the truck, delivered nowhere
+    assert w.respawn_left == {near.commander_id: RULES.respawn_delay_ticks}
+
+
+def test_units_on_the_edge_only_and_never_standing_on_its_end_node() -> None:
+    wide = dataclasses.replace(
+        RULES, supply=dataclasses.replace(RULES.supply, bridge_collapse_m=80_000.0)
+    )  # reaches fob-n-w (70 km from the cut point) and beyond
+    w = new_world(wide)
+    jet = jet_at(w, "haven")
+    at_node = ground(w, INFANTRY, "COALITION", POS["fob-n-w"][0], "fob-n-w", ["cross-n"])
+    just_off = ground(w, INFANTRY, "COALITION", POS["fob-n-w"][0] + 1, "fob-n-w", ["cross-n"])
+    (ax, ay), (bx, by) = POS["west-airbase"], POS["fob-n-w"]
+    beside = put(w, ARMOR, "ENEMY", (ax + bx) / 2, (ay + by) / 2)  # another edge, near enough
+    beside.last_node, beside.path = "west-airbase", ["fob-n-w"]
+    loose = put(w, ARMOR, "ENEMY", *POS[NORTH])  # on no road
+    (down,) = of(drop(w, wide, jet), BridgeDestroyed)
+    assert down.lost_ids == [just_off.id]
+    assert all(w.find(e.id) is e for e in (at_node, beside, loose))
+
+
+@pytest.mark.parametrize("p", [0.0, 1.0])
+def test_each_loss_rolls_its_crew_once_and_a_wreck_never_again(p: float) -> None:
+    combat = RULES.combat
+    assert combat is not None
+    units = {k: dataclasses.replace(u, crew_survival=p) for k, u in combat.units.items()}
+    rules = dataclasses.replace(RULES, combat=dataclasses.replace(combat, units=units))
+    w = new_world(rules)
+    jet = jet_at(w, "fob-n-w")
+    truck_ = ground(w, TRUCK, "COALITION", 199_800, "fob-n-w", ["cross-n"])
+    wreck = ground(w, ARMOR, "ENEMY", 200_200, "cross-n", [])
+    wreck.damage_state, wreck.wreck_left = "DISABLED", 10  # it rolled when it became Disabled
+    out = drop(w, rules, jet)
+    assert [d.entity_id for d in of(out, UnitDestroyed)] == [truck_.id, wreck.id]
+    assert [c.entity_id for c in of(out, CrewDowned)] == ([truck_.id] if p else [])
+
+
+def test_the_losses_come_before_the_reroute() -> None:
+    w = new_world()
+    jet = jet_at(w, "haven")
+    lost = ground(w, TRUCK, "COALITION", 199_500, "fob-n-w", ["cross-n", "fob-n-e"])
+    kept = ground(w, TRUCK, "COALITION", 198_999, "fob-n-w", ["cross-n", "fob-n-e"])
+    drop(w, RULES, jet)
+    assert w.find(lost.id) is None and lost.path == ["cross-n", "fob-n-e"]  # never replanned
+    assert kept.path[0] == "fob-n-w" and NORTH not in bridges_on([str(p) for p in kept.path])
+
+
+@pytest.mark.parametrize(
+    ("cmd", "shooter_side", "points", "memory"),
+    [
+        (1, "COALITION", 5, 1),  # a commander's kill: provocation weights.unit_destroyed 5
+        (None, "COALITION", 0, 1),  # an AI shooter: ai_shooter_mult 0; memory counts any actor
+        (None, "ENEMY", 0, 0),  # the Static drops it on its own convoy: no attack to remember
+    ],
+)
+def test_a_collapse_kill_counts_for_the_static_like_any_kill(
+    cmd: int | None, shooter_side: Side, points: int, memory: int
+) -> None:
+    w = new_world()
+    x, y = POS["fob-n-w"]
+    kind: UnitKind = JET if shooter_side == "COALITION" else "ENEMY_STRIKE_FIGHTER"
+    shooter = put(w, kind, shooter_side, x, y, cmd=cmd)
+    ground(w, CONVOY, "ENEMY", 200_000, "fob-n-w", ["cross-n"])
+    drop(w, RULES, shooter)
+    state = w.director["ENEMY"]
+    assert state.pending == points * 1_000_000  # whole millionths
+    # threat memory: director.memory.weights.convoy_hit 1 per convoy lost
+    assert state.convoy_attacks == memory * 1_000_000
+
+
+def test_a_collapse_in_combat_is_deterministic() -> None:
+    def once() -> tuple[str, list[str]]:
+        w = new_world(RULES)  # the shipped Pk and crew rolls on the combat stream
+        for dx in (0.0, 3_000.0):
+            strike(w, jet_at(w, dx=dx), NORTH)
+        for i, x in enumerate((199_200, 199_700, 200_400, 200_900)):
+            side: Side = "ENEMY" if i % 2 else "COALITION"
+            ground(w, TRUCK if i < 2 else ARMOR, side, x, "fob-n-w", [])  # parked: no drift
+        events = run(w, 400)
+        return state_hash(w), [e.model_dump_json() for e in events]
+
+    a, b = once(), once()
+    assert a == b and sum(COLLAPSE in e for e in a[1]) == 4
+
+
+NORTH_EDGE = ("cross-n", "fob-n-w")
+GROUND_KINDS: list[UnitKind] = [TRUCK, ARMOR, CONVOY, INFANTRY]
+
+
+@settings(max_examples=80, deadline=None)
+@given(
+    units=st.lists(
+        st.tuples(
+            st.sampled_from(EDGES),
+            st.one_of(  # whole metres from one end; dense near the north cut (70 km / 30 km)
+                st.integers(0, 100_000), st.integers(68_900, 71_100), st.integers(28_900, 31_100)
+            ),
+            st.booleans(),
+            st.sampled_from(["COALITION", "ENEMY"]),
+            st.sampled_from([*GROUND_KINDS, JET]),
+        ),
+        min_size=1,
+        max_size=8,
+    )
+)
+def test_the_lost_set_is_exactly_the_ground_units_within_the_radius_on_the_cut_edge(
+    units: list[tuple[tuple[str, str], int, bool, Side, UnitKind]],
+) -> None:
+    w = new_world()
+    jet = jet_at(w, "haven")
+    expected = []
+    for (a, b), k, flip, side, kind in units:
+        a, b = (b, a) if flip else (a, b)
+        (ax, ay), (bx, by) = POS[a], POS[b]
+        x, y = ax + (bx - ax) * k / 100_000, ay + (by - ay) * k / 100_000
+        e = put(w, kind, side, x, y)
+        e.last_node, e.path = a, [b]
+        if kind != JET and tuple(sorted((a, b))) == NORTH_EDGE and k and abs(x - 200_000) <= 1000:
+            expected.append(e.id)
+    out = drop(w, RULES, jet)
+    (down,) = of(out, BridgeDestroyed)
+    assert down.lost_ids == expected
+    assert [d.entity_id for d in of(out, UnitDestroyed)] == expected  # each lost once, in order
 
 
 # --- hp bounds (B-2 for damage; repair is part 2) ---------------------------------------------

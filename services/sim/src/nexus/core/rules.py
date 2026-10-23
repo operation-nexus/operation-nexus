@@ -93,6 +93,9 @@ class Supply:
     spawns: Mapping[Domain, frozenset[str]] = field(default_factory=dict)
     # BRIDGE node -> its max hp, `logistics.bridge_hp`, in id order (NX-373; empty: hand-built).
     bridge_hp: Mapping[str, int] = field(default_factory=dict)
+    # `logistics.bridge_collapse_radius_m` (Q-SIM-112): how far along the cut edge a bridge's fall
+    # destroys GROUND units (0 in hand-built rules: only a unit exactly at the cut point).
+    bridge_collapse_m: float = 0.0
 
 
 @dataclass(frozen=True, slots=True)
@@ -789,6 +792,7 @@ def _supply(theater: TheaterConfig, logistics: Logistics, dt: float) -> Supply:
             for n in sorted(theater.nodes, key=lambda n: n.id)
             if n.kind == "BRIDGE"
         },
+        bridge_collapse_m=logistics.bridge_collapse_radius_m,
     )
 
 

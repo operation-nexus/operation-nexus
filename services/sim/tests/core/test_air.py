@@ -309,6 +309,7 @@ def test_out_of_fuel_the_aircraft_is_lost() -> None:
             killer_id=None,
             assist_ids=[],
             side="COALITION",
+            cause=None,
         )
     ]
     assert (len(w), w.respawn_left) == (0, {CID: 4})  # its slot is free

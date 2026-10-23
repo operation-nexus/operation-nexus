@@ -15,7 +15,9 @@ The `combat` slot, each running tick (not while frozen, SC-11), in this order:
    target in range (units always come first) fires at the defense HP of the nearest node, ties by
    id, that the enemy owns and whose HP is above 0, within `range_m` of the node's position (nodes
    are always known, FOW-10, so no track is needed). Before that fallback, a unit holding a STRIKE
-   claim on a bridge fires at the bridge (`nexus.core.bridges.target`, Q-SIM-105).
+   claim on a bridge, or a direct GOTO order to one, fires at the bridge
+   (`nexus.core.bridges.target`, Q-SIM-105, Q-SIM-112); the hit that drops it destroys the ground
+   units on it (`bridges.collapsing`).
 3. **Impacts (CB-3, CB-4).** Shots due, in `(impact_tick, id)` order. A shot fizzles, with no RNG
    draw, when the shooter or target is gone, the shooter's side no longer tracks the target, or the
    target left the weapon's range or bands, or became a Disabled facility (Q-FOW-16). Otherwise
@@ -331,7 +333,7 @@ def _land(world: World, rules: Rules, cr: CombatRules, now: int, out: list[Event
         )
         if hit and shot.node is not None and shot.node in world.bridge_hp:  # a hit: shooter lives
             # Armor 0 (Q-CBT-22). No provocation: a bridge is nobody's, so no Director counts the
-            # hit (Q-SIM-105).
+            # hit (Q-SIM-105); its collapse kills do count (`bridges.damage`, Q-SIM-112).
             bridges.damage(world, rules, shot.node, w.damage, shot.shooter, out)
         elif hit and shot.node is not None:
             damage_defense(world, rules, shot.node, w.damage, out)  # armor 0 (Q-CBT-22)

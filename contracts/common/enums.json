@@ -18,6 +18,7 @@
     "DamageState": {"enum": ["HEALTHY", "DAMAGED", "MISSION_KILL", "DISABLED"], "description": "Q-CBT-1. Destroyed is a lifecycle event (UnitDestroyed), not a damage state."},
     "ThreatTier": {"enum": ["PATTERN_OF_LIFE", "ALPHA", "BRAVO"], "description": "THREAT-DIRECTOR §3; CHARLIE is parked (Q-TD-3)."},
     "CallsignKind": {"enum": ["GENERATED", "CUSTOM", "TOMBSTONE"], "description": "IDENTITY \u00a72, DATA-MODEL \u00a74.2."},
+    "LossCause": {"enum": ["BRIDGE_COLLAPSE"], "description": "Why a unit was lost when it was not a plain kill, fuel exhaustion or a captured base (CONTRACTS \u00a76, Q-SIM-112, NX-400): BRIDGE_COLLAPSE = on a bridge's road edge near the cut point when the bridge fell. Grows one value at a time, with the code that emits it (rule 6a)."},
     "QueueLeaveReason": {"enum": ["SLOT_FREED", "REPLACED", "REJECTED", "TIMEOUT"], "description": "Why an entry left the reserve queue (CONTRACTS \u00a76, NX-371): served a slot, replaced by the commander's own new JOIN, rejected when re-checked at serve time, or idle past slots.queue_idle_min. LEFT (a voluntary leave) joins with its command."},
     "CommandSource": {"enum": ["CHAT", "ADVISOR", "STAFF", "SYSTEM"]},
     "PauseReasonCategory": {"enum": ["STAFF", "TECHNICAL", "MAINTENANCE", "CEASEFIRE"], "description": "Q-ALN-3. STAFF = a manual pause; TECHNICAL = offline auto-pause; MAINTENANCE = weekly window; CEASEFIRE = owner Ceasefire mode."},
