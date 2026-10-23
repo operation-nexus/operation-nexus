@@ -1,0 +1,341 @@
+schema_version: 1
+sim:
+  tick_hz: 10
+  time_scale: 6.0
+  snapshot_every_ticks: 300
+slots:
+  max_live_per_commander: 1
+  respawn_delay_s: 20
+  max_viewer_units: 500
+  queue_idle_min: 15
+  reserve_queue_max: 1000
+  rebase_order: HOLD
+air:
+  bingo_reserve_frac: 0.15
+  orbit_period_s: 120.0
+  landing_node_kinds:
+  - AIRBASE
+  - SANCTUARY
+fow:
+  track_every_ticks: 5
+  track_fade_s: 180.0
+  sigint_range_mult: 1.5
+  sigint_refresh_s: 54.0
+  mask_cell_m: 1000
+  masked_alt_bands:
+  - NOE
+  - LOW
+  sigint_cell_m: 10000
+  sigint_size_m_min: 3
+  sigint_size_l_min: 7
+  paint_range_m: 20000.0
+logistics:
+  node_max_stock:
+    AIRBASE: 2000
+    BRIDGE: 0
+    FOB: 1000
+    HQ: 2000
+    PORT: 1000
+  starve_threshold: 0.25
+  stock_target_frac: 0.8
+  truck_cargo: 100
+  unload_rate: 1.0
+  rearm_rate: 0.5
+  forward_deploy_min_surplus: 50
+  starved_loadout:
+    fuel_frac: 0.5
+  loadout_cost:
+    ENEMY_ARMOR: 15
+    ENEMY_CONVOY: 0
+    ENEMY_FIGHTER: 20
+    ENEMY_RECON_UAV: 5
+    ENEMY_STRIKE_FIGHTER: 20
+    GARRISON_INFANTRY: 5
+    LOGI_TRUCK: 0
+    RECON_UAV: 5
+    STRIKE_FIGHTER: 20
+  repair_rate:
+    AIRBASE: 1.0
+    FOB: 0.5
+    HQ: 1.0
+    PORT: 1.0
+    SANCTUARY: 2.0
+  facility_rearm_cost: 10
+  ammo_loadout_share: 0.5
+  facility_repair_hp_per_stock: 10
+  starve_hp_drain_per_min: 5
+  defense_repair_hp_per_stock: 2
+capture:
+  radius_m: 2000.0
+  time_s: 120.0
+  multi_unit_exponent: 0.5
+  quiet_floor: 0.6
+  quiet_ref: 50
+  min_time_s: 30.0
+  logi_weight: 0.5
+  garrison_mult: 3.0
+  empty_base_mult: 0.5
+  min_progress_per_tick: 1
+  decay_per_s: 0.008333333333333333
+  defense_hp:
+    AIRBASE: 500
+    FOB: 300
+    HQ: 800
+    PORT: 300
+    SANCTUARY: 1000
+  sanctuary_repair_hp_per_s: 1.0
+  uncapturable_node_kinds:
+  - SANCTUARY
+  - BRIDGE
+  requires_defenses_down: true
+  air_counts: false
+  air_weight: 1.0
+  quiet_sides:
+  - COALITION
+combat:
+  pk_cap: 0.95
+  track_quality:
+    track: 1.0
+    painted: 1.25
+  range:
+    full_pk_frac: 0.5
+    min_mult: 0.5
+  pk_mult:
+    terrain_masked: 0.5
+  damage_state:
+    damaged_below: 0.7
+    mission_kill_below: 0.35
+    disabled_below: 0.1
+    damaged_speed_mult: 0.75
+    damaged_sensor_mult: 0.8
+  disabled_timeout_s: 600
+  min_damage: 1
+  assist_window_s: 120
+  crew_survival:
+    ENEMY_ARMOR: 0.6
+    ENEMY_CONVOY: 0.7
+    ENEMY_FIGHTER: 0.75
+    ENEMY_STRIKE_FIGHTER: 0.75
+    GARRISON_INFANTRY: 0.5
+    LOGI_TRUCK: 0.7
+    STRIKE_FIGHTER: 0.75
+  crew_marker_min: 10
+  facility_indestructible: true
+campaign:
+  time_limit_h: 72
+  victory_node_frac: 0.8
+  strategic_node_kinds:
+  - AIRBASE
+  - FOB
+  - PORT
+  victory_hold_min: 30
+  objective_period_min: 15
+  defeat:
+    hold_min: 30
+  objective_mode: timed
+  objective_pick: uniform
+  victory:
+    hq_capture: true
+  idle_floor:
+    enabled: true
+    sanctuary_min_hp: 1
+  score:
+    average_weight: 50
+    final_weight: 50
+    objective_points: 5
+  night_progress_cap_nodes_per_h: 0.16666666666666666
+  momentum:
+    nodes_weight: 70
+    supply_weight: 30
+tasking:
+  reeval_every_ticks: 50
+  claim_lease_s: 120
+  expire_min: 15
+  priority:
+    defend: 60
+    resupply: 50
+    assist_objective: 45
+    strike: 40
+    scout: 30
+    escort_convoy: 40
+    stage: 20
+    capture: 45
+    intercept: 45
+    patrol: 15
+  urgency_max: 2.0
+  priority_aging_per_min: 1
+  slots:
+    defend: 2
+    strike: 2
+    assist_objective: 4
+    scout: 1
+    escort_convoy: 2
+    patrol: 2
+    intercept: 1
+  resupply_stock_per_slot: 100
+  resupply_slots_max: 6
+  defend_radius_m: 10000
+  counterattack_window_min: 15
+  capture_max_restarts: 3
+  scout_post_interval_min: 2
+  scout_open_max: 3
+  scout_cooldown_min: 5
+  follow_station_m:
+    escort: 500
+    column: 200
+    overwatch: 3000
+    wingman: 1000
+  escort_threat_memory_s: 60
+  static_offense_min_tier: ALPHA
+  follow_hold_slack: 2
+  overfill_factor: 2
+  overfill_point_jobs: false
+  join_excluded_jobs:
+  - PATROL
+  ai_jobs:
+  - DEFEND
+  - RESUPPLY
+  - SCOUT
+  ai_excluded_jobs:
+  - ESCORT_CONVOY
+  - PATROL
+  human_displaces_ai: true
+  scout_blob_runs: 2
+  scout_urgency:
+    small: 1.0
+    medium: 1.5
+    large: 2.0
+  strike_urgency_per_threat: 0.01
+  strike_max_scaled_slots: 3
+  strike_idle_targets_max: 2
+  strike_idle_targets_min_tier: ALPHA
+  patrol_max_nodes: 3
+  patrol_orbit_m: 5000
+  patrol_dwell_s: 300
+  stock_urgency: 0.5
+  stock_front_bonus: 0.25
+  escort_leash_m: 10000
+director:
+  window_s: 60
+  cp:
+    unit_value:
+      STRIKE_FIGHTER: 10
+      RECON_UAV: 3
+      LOGI_TRUCK: 2
+      GARRISON_INFANTRY: 2
+    ema_window_s: 300
+  tier:
+    alpha_enter_cp: 0
+    bravo_enter_cp: 60
+    exit_ratio: 0.8
+    min_dwell_s: 600
+    start: PATTERN_OF_LIFE
+    max_step: 1
+  provocation:
+    half_life_s: 900
+    escalate_threshold: 10
+    bravo_threshold: 40
+    scout_in_rear_max_per_window: 1
+    ai_shooter_mult: 0
+    weights:
+      unit_destroyed: 5
+      unit_damaged: 1
+      recon_destroyed: 2
+      recon_damaged: 0
+      convoy_hit: 3
+      facility_damaged: 3
+      facility_disabled: 8
+      base_captured: 15
+      scout_in_rear: 2
+      redemption:
+        support: 1
+        cosmetic: 0
+  budget:
+    pattern_of_life: 10
+    alpha: 30
+    bravo: 80
+  max_spawns_per_window: 6
+  max_live_units:
+    pattern_of_life: 40
+    alpha: 40
+    bravo: 70
+  op_priority:
+    GARRISON_UPKEEP: 0.9
+    RETAKE: 1.2
+    OFFENSIVE: 1.0
+    ESCORT_CONVOYS: 0.8
+    REINFORCE_IADS: 0.7
+    PROBE: 0.6
+    RECON: 0.5
+    DECOY_BLINK: 0.3
+  score:
+    target_value:
+      AIRBASE: 1.5
+      FOB: 1.0
+      PORT: 1.0
+      SANCTUARY: 2.0
+    own_node_value: 1.0
+    weakness_min: 1.0
+    stale_factor: 1.0
+    weakness_max: 2.0
+    provocation_proximity: 1.5
+    proximity_tiers:
+    - ALPHA
+  adaptation_up_above: 0
+  reinforce_damage_above: 0
+  escort_min_convoys: 1
+  frontline_hops: 1
+  idle_retire_s: 600
+  max_ops:
+    alpha: 1
+    bravo: null
+  job_urgency: 1.0
+  adaptation_down_below: 1
+  memory:
+    weights:
+      convoy_hit: 1
+      radar_hit: 1
+      scout_lost: 1
+      node_lost: 1
+    factor: 1.0
+    half_life_s: 1800
+  noise_scale: 0.1
+  recon:
+    loiter_s: 600
+    loiter_radius_m: 5000
+    grid_m: 10000
+    memory_s: 3600
+  intercept:
+    radius_m: 30000
+    reaction_s: 60
+    pol_linger_s: 600
+    leash_m: 80000
+    lost_s: 120
+  decoy_blink:
+    dark_s: 120
+    max_per_window: 1
+    cooldown_s: 600
+  retake_window_min: 30
+  garrison:
+    replace_per_window: 1
+    kinds:
+      FOB:
+      - ENEMY_ARMOR
+      AIRBASE:
+      - ENEMY_FIGHTER
+      - ENEMY_ARMOR
+      HQ:
+      - ENEMY_ARMOR
+  pol:
+    patrol_period_s: 1800
+    convoy_period_s: 3600
+    offensive_period_s: 21600
+    patrol_slots: 1
+    patrols_per_base: 1
+    convoys_per_period: 1
+    offensives_per_period: 1
+    convoy_cost: 0
+    convoy_kind: ENEMY_CONVOY
+    convoy_slots: 1
+    capture_slot_tiers:
+    - PATTERN_OF_LIFE

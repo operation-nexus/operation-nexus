@@ -1,0 +1,253 @@
+{
+ "config": {
+  "config_hash": "71cb6811b4fff29342ed2b9c2420341c280f94593033368bb91edeea5ae46e82",
+  "overrides": [
+   "tasking.resupply_slots_max=6"
+  ],
+  "profiles_digest": "08fbf4f71a41cbabc67dea69148f4395",
+  "theater": null
+ },
+ "hours": 6.0,
+ "profiles": {
+  "raid-300": {
+   "A1": {
+    "detail": "0 sim crashes, 0 harness errors; 0/3 seeds ended by victory or defeat in 24-72 h (need 85%)",
+    "frac": 0.0,
+    "median_length_h": null,
+    "outcomes": {
+     "NOT_ENDED": 3
+    },
+    "seeds_in_window": 0,
+    "status": "not evaluable: ran 6 h, needs 72 h"
+   },
+   "A2": {
+    "below_tier": {
+     "median_s": 445.95,
+     "newbies": 396,
+     "with_impact": 278
+    },
+    "by_persona_kind": {
+     "auto": {
+      "first_impact_kinds": {
+       "hit": 14
+      },
+      "median_s": null,
+      "newbies": 80,
+      "no_impact_within_window": 66,
+      "status": "fail",
+      "tail": {
+       "judged": 80,
+       "limit_s": 900,
+       "over": 77,
+       "share": 0.9625
+      },
+      "unresolved_run_ended": 0,
+      "with_impact": 14
+     },
+     "hauler": {
+      "first_impact_kinds": {
+       "departure": 5
+      },
+      "median_s": null,
+      "newbies": 12,
+      "no_impact_within_window": 7,
+      "status": "fail",
+      "tail": {
+       "judged": 12,
+       "limit_s": 900,
+       "over": 9,
+       "share": 0.75
+      },
+      "unresolved_run_ended": 0,
+      "with_impact": 5
+     },
+     "scout": {
+      "first_impact_kinds": {},
+      "median_s": null,
+      "newbies": 6,
+      "no_impact_within_window": 6,
+      "status": "fail",
+      "tail": {
+       "judged": 6,
+       "limit_s": 900,
+       "over": 6,
+       "share": 1.0
+      },
+      "unresolved_run_ended": 0,
+      "with_impact": 0
+     },
+     "striker": {
+      "first_impact_kinds": {
+       "hit": 8,
+       "kill": 1
+      },
+      "median_s": 239.3,
+      "newbies": 15,
+      "no_impact_within_window": 6,
+      "status": "fail",
+      "tail": {
+       "judged": 15,
+       "limit_s": 900,
+       "over": 6,
+       "share": 0.4
+      },
+      "unresolved_run_ended": 0,
+      "with_impact": 9
+     }
+    },
+    "detail": "no median time to first impact over 113 newbies who arrived at ALPHA or above (needs <= 480 s); 86.7% over 900 s (98/113), needs <= 10%; 0 unresolved when the run ended; 396 more arrived below ALPHA (information only)",
+    "first_impact_kinds": {
+     "departure": 5,
+     "hit": 22,
+     "kill": 1
+    },
+    "median_s": null,
+    "newbies": 113,
+    "no_impact_within_window": 85,
+    "status": "fail",
+    "tail": {
+     "judged": 113,
+     "limit_s": 900,
+     "over": 98,
+     "share": 0.8672566371681416
+    },
+    "unresolved_run_ended": 0,
+    "with_impact": 28
+   },
+   "A3": {
+    "detail": "A3 is judged on overnight-0 only",
+    "status": "n/a"
+   },
+   "A4": {
+    "by_kind": {
+     "STRIKE_FIGHTER": 208
+    },
+    "coalition_kills": 208,
+    "detail": "no unit kind over 40% of all the coalition's kills (AI garrison included), pooled over seeds; needs 30 kills, saw 208",
+    "player_kills": 208,
+    "player_share": {
+     "STRIKE_FIGHTER": 1.0
+    },
+    "share": {
+     "STRIKE_FIGHTER": 1.0
+    },
+    "status": "suspended (Q-SIM-92): needs a second armed viewer unit kind",
+    "top": {
+     "kind": "STRIKE_FIGHTER",
+     "share": 1.0
+    }
+   },
+   "density": {
+    "jobs_per_node": 0.010683760683760686,
+    "slots_per_unit": 0.002190125083713248
+   },
+   "idle": {
+    "reasons": {
+     "full": 28834,
+     "refuel": 476
+    },
+    "samples": 216,
+    "share_max": 0.8097165991902834,
+    "share_mean": 0.7006248366811699
+   },
+   "momentum": {
+    "final_median_pct": 50,
+    "mean_pct": 46.721296296296295
+   },
+   "profile": "raid-300",
+   "seeds": [
+    4,
+    5,
+    7
+   ],
+   "starvation_node_minutes": {
+    "max": 93.0,
+    "mean": 78.33333333333333
+   },
+   "tier_dwell_h_mean": {
+    "ALPHA": 2.2888888888888888,
+    "BRAVO": 1.2333333333333334,
+    "PATTERN_OF_LIFE": 2.477777777777778
+   },
+   "viewers_distinct_mean": 479.0,
+   "viewers_peak_mean": 342.6666666666667
+  }
+ },
+ "runs": [
+  {
+   "final_state_hash": "918b214524f0acd3584240dc0c2b750c634368beb30d6dc7b2e1499bc08acd5a",
+   "outcome": "not ended",
+   "profile": "raid-300",
+   "seed": 4,
+   "ticks_per_s": 489.90189950624585,
+   "ticks_run": 216000,
+   "wall_s": 440.90459787500004
+  },
+  {
+   "final_state_hash": "fb939450639a2dfc787c6b9e72f48e6421647e7902173fc7869000b856d33e66",
+   "outcome": "not ended",
+   "profile": "raid-300",
+   "seed": 5,
+   "ticks_per_s": 472.5844573256433,
+   "ticks_run": 216000,
+   "wall_s": 457.0611594430011
+  },
+  {
+   "final_state_hash": "374ff9b3b3f3c2ea05df675b5110d1489297fdae729c4bdad1dc620b7346c72a",
+   "outcome": "not ended",
+   "profile": "raid-300",
+   "seed": 7,
+   "ticks_per_s": 441.94130479126557,
+   "ticks_run": 216000,
+   "wall_s": 488.75268651799706
+  }
+ ],
+ "seeds": [
+  4,
+  5,
+  7
+ ],
+ "targets": [
+  {
+   "detail": "0 sim crashes, 0 harness errors; 0/3 seeds ended by victory or defeat in 24-72 h (need 85%)",
+   "profile": "raid-300",
+   "status": "not evaluable: ran 6 h, needs 72 h",
+   "target": "A1"
+  },
+  {
+   "detail": "no median time to first impact over 113 newbies who arrived at ALPHA or above (needs <= 480 s); 86.7% over 900 s (98/113), needs <= 10%; 0 unresolved when the run ended; 396 more arrived below ALPHA (information only)",
+   "profile": "raid-300",
+   "status": "fail",
+   "target": "A2"
+  },
+  {
+   "detail": "no unit kind over 40% of all the coalition's kills (AI garrison included), pooled over seeds; needs 30 kills, saw 208",
+   "profile": "raid-300",
+   "status": "suspended (Q-SIM-92): needs a second armed viewer unit kind",
+   "target": "A4"
+  },
+  {
+   "detail": "needs ranks (PROGRESSION), not built yet",
+   "profile": "all",
+   "status": "not measurable yet",
+   "target": "Gini of kill share by rank"
+  },
+  {
+   "detail": "part 2 (NX-321): needs the adversarial profiles",
+   "profile": "all",
+   "status": "not measurable yet",
+   "target": "A5 adversarial bound"
+  },
+  {
+   "detail": "part 2 (NX-321): needs the chat gateway and the conduct system (NX-291)",
+   "profile": "all",
+   "status": "not measurable yet",
+   "target": "A6 conduct"
+  }
+ ],
+ "timing": {
+  "elapsed_s": 488.86934841600305,
+  "run_wall_s": 1386.7184438359982
+ },
+ "workers": 4
+}

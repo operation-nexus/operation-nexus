@@ -1,0 +1,1122 @@
+{
+ "a3_ticks": 432000,
+ "campaign_id": "5ce4269e-e043-7a35-8055-0cfc94290618",
+ "commands": {
+  "JOIN": 382
+ },
+ "config_hash": "71cb6811b4fff29342ed2b9c2420341c280f94593033368bb91edeea5ae46e82",
+ "crash": null,
+ "final_state_hash": "fb939450639a2dfc787c6b9e72f48e6421647e7902173fc7869000b856d33e66",
+ "harness_error": null,
+ "hours": 6.0,
+ "metrics": {
+  "density": {
+   "jobs_per_node_samples": 72,
+   "jobs_per_node_sum": 0.38461538461538464,
+   "slots_per_unit_samples": 72,
+   "slots_per_unit_sum": 0.07956512609719107
+  },
+  "diag": {
+   "claims": {
+    "COALITION|ESCORT_CONVOY|RECON_UAV|COMMANDER": 35,
+    "COALITION|ESCORT_CONVOY|STRIKE_FIGHTER|COMMANDER": 134,
+    "COALITION|PATROL|RECON_UAV|COMMANDER": 230,
+    "COALITION|PATROL|STRIKE_FIGHTER|COMMANDER": 416,
+    "COALITION|RESUPPLY|LOGI_TRUCK|COMMANDER": 422,
+    "COALITION|SCOUT|RECON_UAV|COMMANDER": 2,
+    "COALITION|STRIKE|STRIKE_FIGHTER|COMMANDER": 1148,
+    "ENEMY|CAPTURE|ENEMY_ARMOR|ENEMY_DIRECTOR": 6,
+    "ENEMY|ESCORT_CONVOY|ENEMY_FIGHTER|ENEMY_DIRECTOR": 5,
+    "ENEMY|PATROL|ENEMY_ARMOR|ENEMY_DIRECTOR": 5,
+    "ENEMY|RESUPPLY|ENEMY_CONVOY|ENEMY_DIRECTOR": 10,
+    "ENEMY|SCOUT|ENEMY_RECON_UAV|ENEMY_DIRECTOR": 6,
+    "ENEMY|STAGE|ENEMY_ARMOR|ENEMY_DIRECTOR": 8,
+    "ENEMY|STAGE|ENEMY_FIGHTER|ENEMY_DIRECTOR": 20,
+    "ENEMY|STRIKE|ENEMY_FIGHTER|ENEMY_DIRECTOR": 1,
+    "ENEMY|STRIKE|ENEMY_STRIKE_FIGHTER|ENEMY_DIRECTOR": 13
+   },
+   "cmd_hits_by_job": {
+    "job:ESCORT_CONVOY": 3,
+    "job:PATROL": 3,
+    "job:STRIKE": 1086,
+    "none": 65,
+    "order": 68
+   },
+   "cmd_strike_state": {
+    "idle": 9315,
+    "job:ESCORT_CONVOY": 137,
+    "job:PATROL": 335,
+    "job:STRIKE": 858,
+    "order": 1934,
+    "path": 735
+   },
+   "created": {
+    "COALITION|ESCORT_CONVOY": 18,
+    "COALITION|PATROL": 120,
+    "COALITION|RESUPPLY": 43,
+    "COALITION|SCOUT": 1,
+    "COALITION|STRIKE": 7,
+    "ENEMY|CAPTURE": 3,
+    "ENEMY|ESCORT_CONVOY": 46,
+    "ENEMY|PATROL": 5,
+    "ENEMY|RESUPPLY": 41,
+    "ENEMY|SCOUT": 12,
+    "ENEMY|STAGE": 23,
+    "ENEMY|STRIKE": 6
+   },
+   "prov": [
+    [
+     3000,
+     189549483,
+     "PATTERN_OF_LIFE"
+    ],
+    [
+     6000,
+     701862218,
+     "ALPHA"
+    ],
+    [
+     9000,
+     1099436764,
+     "ALPHA"
+    ],
+    [
+     12000,
+     1414970139,
+     "BRAVO"
+    ],
+    [
+     15000,
+     1567787878,
+     "BRAVO"
+    ],
+    [
+     18000,
+     1692095645,
+     "BRAVO"
+    ],
+    [
+     21000,
+     1516593275,
+     "BRAVO"
+    ],
+    [
+     24000,
+     1386506523,
+     "BRAVO"
+    ],
+    [
+     27000,
+     1246023465,
+     "BRAVO"
+    ],
+    [
+     30000,
+     1203608422,
+     "ALPHA"
+    ],
+    [
+     33000,
+     1039778978,
+     "ALPHA"
+    ],
+    [
+     36000,
+     859833133,
+     "ALPHA"
+    ],
+    [
+     39000,
+     720153723,
+     "ALPHA"
+    ],
+    [
+     42000,
+     596543796,
+     "BRAVO"
+    ],
+    [
+     45000,
+     495932921,
+     "BRAVO"
+    ],
+    [
+     48000,
+     420111941,
+     "BRAVO"
+    ],
+    [
+     51000,
+     378364742,
+     "ALPHA"
+    ],
+    [
+     54000,
+     479817039,
+     "ALPHA"
+    ],
+    [
+     57000,
+     456682831,
+     "BRAVO"
+    ],
+    [
+     60000,
+     536441074,
+     "BRAVO"
+    ],
+    [
+     63000,
+     540745847,
+     "ALPHA"
+    ],
+    [
+     66000,
+     561192636,
+     "ALPHA"
+    ],
+    [
+     69000,
+     466076225,
+     "ALPHA"
+    ],
+    [
+     72000,
+     369924943,
+     "ALPHA"
+    ],
+    [
+     75000,
+     300259523,
+     "ALPHA"
+    ],
+    [
+     78000,
+     238316140,
+     "ALPHA"
+    ],
+    [
+     81000,
+     189151642,
+     "ALPHA"
+    ],
+    [
+     84000,
+     150129755,
+     "ALPHA"
+    ],
+    [
+     87000,
+     119158062,
+     "ALPHA"
+    ],
+    [
+     90000,
+     94575814,
+     "ALPHA"
+    ],
+    [
+     93000,
+     75064870,
+     "ALPHA"
+    ],
+    [
+     96000,
+     59579024,
+     "ALPHA"
+    ],
+    [
+     99000,
+     47287900,
+     "ALPHA"
+    ],
+    [
+     102000,
+     37532429,
+     "ALPHA"
+    ],
+    [
+     105000,
+     29789506,
+     "ALPHA"
+    ],
+    [
+     108000,
+     23643944,
+     "ALPHA"
+    ],
+    [
+     111000,
+     25416112,
+     "ALPHA"
+    ],
+    [
+     114000,
+     20172779,
+     "ALPHA"
+    ],
+    [
+     117000,
+     16011143,
+     "ALPHA"
+    ],
+    [
+     120000,
+     12708050,
+     "ALPHA"
+    ],
+    [
+     123000,
+     10086384,
+     "ALPHA"
+    ],
+    [
+     126000,
+     8005567,
+     "ALPHA"
+    ],
+    [
+     129000,
+     6354021,
+     "PATTERN_OF_LIFE"
+    ],
+    [
+     132000,
+     5043187,
+     "PATTERN_OF_LIFE"
+    ],
+    [
+     135000,
+     4002778,
+     "PATTERN_OF_LIFE"
+    ],
+    [
+     138000,
+     3177005,
+     "PATTERN_OF_LIFE"
+    ],
+    [
+     141000,
+     2521588,
+     "PATTERN_OF_LIFE"
+    ],
+    [
+     144000,
+     2001384,
+     "PATTERN_OF_LIFE"
+    ],
+    [
+     147000,
+     8238400,
+     "PATTERN_OF_LIFE"
+    ],
+    [
+     150000,
+     6538821,
+     "PATTERN_OF_LIFE"
+    ],
+    [
+     153000,
+     5189863,
+     "PATTERN_OF_LIFE"
+    ],
+    [
+     156000,
+     4119195,
+     "PATTERN_OF_LIFE"
+    ],
+    [
+     159000,
+     3269404,
+     "PATTERN_OF_LIFE"
+    ],
+    [
+     162000,
+     2594926,
+     "PATTERN_OF_LIFE"
+    ],
+    [
+     165000,
+     2059592,
+     "PATTERN_OF_LIFE"
+    ],
+    [
+     168000,
+     1634697,
+     "PATTERN_OF_LIFE"
+    ],
+    [
+     171000,
+     1297457,
+     "PATTERN_OF_LIFE"
+    ],
+    [
+     174000,
+     1029789,
+     "PATTERN_OF_LIFE"
+    ],
+    [
+     177000,
+     817342,
+     "PATTERN_OF_LIFE"
+    ],
+    [
+     180000,
+     648723,
+     "PATTERN_OF_LIFE"
+    ],
+    [
+     183000,
+     7164792,
+     "PATTERN_OF_LIFE"
+    ],
+    [
+     186000,
+     5686696,
+     "PATTERN_OF_LIFE"
+    ],
+    [
+     189000,
+     4513530,
+     "PATTERN_OF_LIFE"
+    ],
+    [
+     192000,
+     3582390,
+     "PATTERN_OF_LIFE"
+    ],
+    [
+     195000,
+     2843343,
+     "PATTERN_OF_LIFE"
+    ],
+    [
+     198000,
+     2256761,
+     "PATTERN_OF_LIFE"
+    ],
+    [
+     201000,
+     1791190,
+     "PATTERN_OF_LIFE"
+    ],
+    [
+     204000,
+     1421666,
+     "PATTERN_OF_LIFE"
+    ],
+    [
+     207000,
+     1128375,
+     "PATTERN_OF_LIFE"
+    ],
+    [
+     210000,
+     895589,
+     "PATTERN_OF_LIFE"
+    ],
+    [
+     213000,
+     710828,
+     "PATTERN_OF_LIFE"
+    ],
+    [
+     216000,
+     564182,
+     "PATTERN_OF_LIFE"
+    ]
+   ],
+   "trucks_state": {
+    "COMMANDER|None": 3897,
+    "COMMANDER|RESUPPLY": 705
+   }
+  },
+  "director": {
+   "tier_changes": 8,
+   "tier_dwell_s": {
+    "ALPHA": 8880.0,
+    "BRAVO": 3180.0,
+    "PATTERN_OF_LIFE": 9540.0
+   }
+  },
+  "idle": {
+   "reasons": {
+    "full": 9025,
+    "refuel": 290
+   },
+   "sample_every_s": 300.0,
+   "samples": 72,
+   "share_max": 0.7922077922077922,
+   "share_sum": 49.35581191050941
+  },
+  "kills": {
+   "by_kind": {
+    "STRIKE_FIGHTER": 72
+   },
+   "player_by_kind": {
+    "STRIKE_FIGHTER": 72
+   },
+   "total": 72,
+   "unattributed": 0
+  },
+  "momentum": {
+   "sample_every_s": 60.0,
+   "samples": [
+    40,
+    39,
+    39,
+    38,
+    38,
+    37,
+    37,
+    37,
+    38,
+    40,
+    43,
+    41,
+    41,
+    40,
+    39,
+    39,
+    44,
+    55,
+    56,
+    56,
+    56,
+    55,
+    55,
+    54,
+    56,
+    56,
+    55,
+    54,
+    54,
+    53,
+    52,
+    51,
+    51,
+    49,
+    49,
+    48,
+    47,
+    45,
+    44,
+    44,
+    43,
+    43,
+    43,
+    43,
+    42,
+    43,
+    43,
+    43,
+    43,
+    39,
+    38,
+    38,
+    38,
+    38,
+    37,
+    37,
+    37,
+    34,
+    33,
+    33,
+    33,
+    33,
+    33,
+    33,
+    33,
+    35,
+    35,
+    35,
+    35,
+    35,
+    35,
+    35,
+    35,
+    37,
+    34,
+    34,
+    33,
+    33,
+    33,
+    33,
+    33,
+    37,
+    34,
+    34,
+    34,
+    33,
+    33,
+    33,
+    33,
+    39,
+    40,
+    40,
+    40,
+    40,
+    40,
+    40,
+    40,
+    44,
+    45,
+    45,
+    45,
+    45,
+    45,
+    45,
+    45,
+    44,
+    48,
+    48,
+    47,
+    46,
+    46,
+    46,
+    45,
+    45,
+    45,
+    44,
+    44,
+    44,
+    43,
+    43,
+    43,
+    45,
+    46,
+    44,
+    44,
+    44,
+    44,
+    43,
+    43,
+    43,
+    43,
+    47,
+    47,
+    47,
+    47,
+    46,
+    46,
+    46,
+    46,
+    45,
+    45,
+    45,
+    45,
+    45,
+    45,
+    44,
+    44,
+    48,
+    48,
+    48,
+    48,
+    48,
+    48,
+    48,
+    47,
+    53,
+    53,
+    53,
+    53,
+    53,
+    53,
+    53,
+    53,
+    53,
+    53,
+    53,
+    53,
+    53,
+    53,
+    53,
+    53,
+    53,
+    53,
+    53,
+    53,
+    52,
+    52,
+    52,
+    52,
+    52,
+    51,
+    51,
+    51,
+    51,
+    50,
+    50,
+    50,
+    50,
+    50,
+    50,
+    49,
+    49,
+    49,
+    49,
+    49,
+    48,
+    48,
+    48,
+    48,
+    48,
+    47,
+    49,
+    49,
+    49,
+    48,
+    48,
+    49,
+    49,
+    49,
+    51,
+    51,
+    50,
+    50,
+    51,
+    52,
+    51,
+    51,
+    53,
+    53,
+    53,
+    52,
+    52,
+    52,
+    52,
+    52,
+    52,
+    51,
+    51,
+    53,
+    53,
+    52,
+    52,
+    52,
+    52,
+    52,
+    52,
+    51,
+    51,
+    51,
+    51,
+    51,
+    50,
+    50,
+    49,
+    49,
+    49,
+    49,
+    49,
+    49,
+    48,
+    48,
+    48,
+    48,
+    48,
+    47,
+    47,
+    47,
+    48,
+    48,
+    51,
+    51,
+    51,
+    50,
+    50,
+    52,
+    51,
+    51,
+    51,
+    51,
+    51,
+    51,
+    51,
+    51,
+    53,
+    53,
+    53,
+    53,
+    53,
+    53,
+    53,
+    53,
+    53,
+    53,
+    53,
+    53,
+    52,
+    52,
+    52,
+    52,
+    52,
+    51,
+    51,
+    51,
+    51,
+    51,
+    50,
+    50,
+    50,
+    50,
+    50,
+    49,
+    49,
+    49,
+    49,
+    49,
+    49,
+    48,
+    48,
+    48,
+    48,
+    48,
+    48,
+    48,
+    47,
+    48,
+    48,
+    49,
+    49,
+    49,
+    49,
+    50,
+    52,
+    52,
+    52,
+    53,
+    53,
+    52,
+    52,
+    52,
+    53,
+    53,
+    53,
+    53,
+    53,
+    53,
+    53,
+    53,
+    53,
+    53,
+    53,
+    53,
+    53,
+    53,
+    53,
+    53,
+    53,
+    53,
+    53,
+    53,
+    52,
+    52,
+    52,
+    52,
+    52,
+    52,
+    51,
+    51,
+    51,
+    51,
+    51
+   ]
+  },
+  "newbie": {
+   "below_tier_ttfi_s": [
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.0,
+    0.8,
+    119.2,
+    142.5,
+    142.5,
+    142.5,
+    142.5,
+    142.5,
+    142.7,
+    186.6,
+    188.8,
+    189.1,
+    189.8,
+    189.9,
+    195.0,
+    264.1,
+    276.9,
+    280.0,
+    280.9,
+    287.0,
+    287.9,
+    288.5,
+    289.6,
+    290.5,
+    291.3,
+    294.2,
+    295.3,
+    295.9,
+    301.3,
+    302.2,
+    303.7,
+    320.1,
+    325.5,
+    336.5,
+    417.9,
+    420.4,
+    427.0,
+    428.9,
+    430.3,
+    430.4,
+    430.5,
+    430.6,
+    433.6,
+    444.1,
+    445.7,
+    493.9,
+    495.9,
+    503.9,
+    504.5,
+    506.7,
+    513.5,
+    621.5,
+    725.3,
+    731.1,
+    738.3,
+    742.3,
+    743.8,
+    781.6,
+    838.9,
+    904.3,
+    913.4,
+    914.6,
+    1395.0,
+    1502.2,
+    1506.0,
+    1659.5,
+    1888.0,
+    2409.5,
+    2412.2,
+    2412.9,
+    2473.6,
+    2476.9,
+    2552.4,
+    2857.2,
+    2872.3,
+    3201.4,
+    3460.1,
+    3460.3,
+    3549.0,
+    3554.2,
+    3558.2,
+    3559.9,
+    3685.5,
+    4204.5,
+    4275.5,
+    4282.1,
+    4282.3,
+    4283.7,
+    4535.5,
+    4644.8,
+    5082.6,
+    5201.0
+   ],
+   "by_kind": {
+    "auto": {
+     "first_impact_kinds": {
+      "hit": 8
+     },
+     "joined_counted": 26,
+     "no_impact_observed_s": [
+      9250.1,
+      9442.4,
+      9609.6,
+      10259.9,
+      10560.2,
+      10765.3,
+      10776.1,
+      11069.1,
+      13263.9,
+      13391.3,
+      14329.7,
+      15026.3,
+      15307.6,
+      15538.1,
+      16140.3,
+      16609.1,
+      16923.2,
+      17134.2
+     ],
+     "ttfi_s": [
+      187.1,
+      571.7,
+      1178.9,
+      1179.3,
+      1215.1,
+      1731.0,
+      1754.2,
+      1761.8
+     ]
+    },
+    "hauler": {
+     "first_impact_kinds": {
+      "departure": 1
+     },
+     "joined_counted": 5,
+     "no_impact_observed_s": [
+      9042.6,
+      9066.6,
+      9617.4,
+      11924.1
+     ],
+     "ttfi_s": [
+      3315.3
+     ]
+    },
+    "striker": {
+     "first_impact_kinds": {
+      "hit": 2
+     },
+     "joined_counted": 5,
+     "no_impact_observed_s": [
+      9931.3,
+      11235.9,
+      11519.4
+     ],
+     "ttfi_s": [
+      209.3,
+      224.6
+     ]
+    }
+   },
+   "first_impact_kinds": {
+    "departure": 1,
+    "hit": 10
+   },
+   "joined": 180,
+   "joined_below_tier": 144,
+   "joined_counted": 36,
+   "no_impact_observed_s": [
+    9042.6,
+    9066.6,
+    9250.1,
+    9442.4,
+    9609.6,
+    9617.4,
+    9931.3,
+    10259.9,
+    10560.2,
+    10765.3,
+    10776.1,
+    11069.1,
+    11235.9,
+    11519.4,
+    11924.1,
+    13263.9,
+    13391.3,
+    14329.7,
+    15026.3,
+    15307.6,
+    15538.1,
+    16140.3,
+    16609.1,
+    16923.2,
+    17134.2
+   ],
+   "ttfi_s": [
+    187.1,
+    209.3,
+    224.6,
+    571.7,
+    1178.9,
+    1179.3,
+    1215.1,
+    1731.0,
+    1754.2,
+    1761.8,
+    3315.3
+   ]
+  },
+  "nodes_lost": [],
+  "nodes_lost_in_a3_window": 0,
+  "nx389": {
+   "carriers_spawned": {
+    "COALITION": 76,
+    "ENEMY": 9
+   },
+   "consumed": {
+    "COALITION": 14428,
+    "ENEMY": 2897
+   },
+   "delivered": {
+    "COALITION": 19619,
+    "ENEMY": 100
+   },
+   "lateral_loaded": {
+    "COALITION": 3919,
+    "ENEMY": 203
+   },
+   "rear_loaded": {
+    "COALITION": 15700,
+    "ENEMY": 600
+   },
+   "stock_end": {
+    "COALITION": 3272,
+    "ENEMY": 0
+   },
+   "stock_start": {
+    "COALITION": 2000,
+    "ENEMY": 3000
+   }
+  },
+  "outcome": {
+   "end_tick": null,
+   "ended": false,
+   "length_h": null,
+   "nodes_held_pct": null,
+   "result": null,
+   "ticks_run": 216000,
+   "winner": null
+  },
+  "sanctuary_hp": {
+   "min": 1000,
+   "min_in_a3_window": 1000
+  },
+  "starvation": {
+   "any_node_minutes": 70.0,
+   "node_minutes": 70.0
+  }
+ },
+ "profile": "raid-300",
+ "profiles_digest": "08fbf4f71a41cbabc67dea69148f4395",
+ "responses": {},
+ "seed": 5,
+ "ticks_run": 216000,
+ "time_limit_h": 72.0,
+ "timing": {
+  "ticks_per_s": 472.5844573256433,
+  "wall_s": 457.0611594430011
+ },
+ "viewers": {
+  "by_kind": {
+   "auto": 330,
+   "hauler": 59,
+   "scout": 45,
+   "striker": 47
+  },
+  "by_persona": {
+   "afk-farmer": 44,
+   "logistics-lover": 45,
+   "lurker": 130,
+   "newbie": 180,
+   "veteran": 82
+  },
+  "distinct": 481,
+  "peak_concurrent": 342,
+  "striker_fallbacks": 0
+ }
+}

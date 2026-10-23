@@ -1,0 +1,1 @@
+- 2026-10-23 (NX-388): the lead undid a mutation with `git checkout -- <file>` in a worktree whose change was still uncommitted and lost the coder's edits to that file (recovered from QA's scratch copy) -> mutate a copy, or back the file up and restore from the backup; never `git checkout` a file in an uncommitted worktree.
