@@ -102,8 +102,7 @@ TESTING-STRATEGY says *what* to test per risk; these rules say how to make each 
 2. Commit specific paths (`git add <paths>`), never `git add -A` across unrelated work.
 3. `python3 scripts/check_tracked_files.py` passes: no tracked file that is gitignored, a recording/capture
    (clips, audio, `.db`) or over 5 MB.
-4. The message passes `python3 scripts/check_commit_msg.py`: Conventional Commits, no AI attribution trailer
-   (AGENTS.md rule 12).
+4. The message passes `python3 scripts/check_commit_msg.py`: Conventional Commits (AGENTS.md rule 12).
 
 ## 9. Lessons learned here
 

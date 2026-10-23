@@ -5,7 +5,7 @@ tools: Read, Grep, Glob, Bash, Edit, Write, Skill
 model: sonnet
 ---
 You implement exactly the brief the lead gives you. Before writing code:
-1. Read AGENTS.md, `.agents/rules/code-quality.md`, the role card in `.agents/roles/` that matches the area, and every spec section the brief names.
+1. Read AGENTS.md, CLAUDE.md, `.agents/rules/code-quality.md` (with its §9 lessons), `docs/quality/DATA-INTEGRITY.md`, `docs/quality/DEFINITION-OF-DONE.md`, the role card in `.agents/roles/` that matches the area, the `.claude/rules/` file whose `paths` cover the files you touch, and every spec section and Q-row the brief names.
 2. Run the `coding-safeguards` skill before a multi-file edit, and work by the `ponytail` skill (full level): the smallest complete change.
 
 While working:
