@@ -164,13 +164,22 @@ def parser() -> argparse.ArgumentParser:
     return p
 
 
+def resolve(arg: str, data: profiles.Data) -> list[str]:
+    """`--profile`: `all` is every standard profile (never a check profile, `profiles.CHECKS`, so
+    default reports stay comparable); else a name or a comma list, each one known."""
+    if arg == "all":
+        return [n for n in data.profiles if n not in profiles.CHECKS]
+    names = arg.split(",")
+    if unknown := [n for n in names if n not in data.profiles]:
+        raise ValueError(f"unknown profiles {unknown}; known: {list(data.profiles)}")
+    return names
+
+
 def main() -> int:
     args = parser().parse_args()
     data = profiles.load()
-    names = list(data.profiles) if args.profile == "all" else args.profile.split(",")
     try:
-        if unknown := [n for n in names if n not in data.profiles]:
-            raise ValueError(f"unknown profiles {unknown}; known: {list(data.profiles)}")
+        names = resolve(args.profile, data)
         balance_text = override_balance(args.overrides) if args.overrides else None
         if args.hours is None:  # the (possibly overridden) config's campaign length
             tree = yaml.safe_load(balance_text or ConfigPaths().balance.read_text())

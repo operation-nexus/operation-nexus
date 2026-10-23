@@ -222,6 +222,7 @@ tasking:
   patrol_max_nodes: 3
   patrol_orbit_m: 5000
   patrol_dwell_s: 300
+  order_dwell_s: 600
   stock_urgency: 0.5
   stock_front_bonus: 0.25
 director:
@@ -324,9 +325,9 @@ director:
 # NX-374 for the tasking keys and again for follow and escort, NX-155 for the director, and NX-157
 # for the Pattern of Life keys and the garrison operation, NX-389 for the forward stock keys,
 # NX-388 part 2 for the Q-CFG-16 rule options, NX-388 part 2b for the Director, tasking and
-# rebase rule options, NX-373 for the bridge hp); a
+# rebase rule options, NX-373 for the bridge hp, NX-398 for `tasking.order_dwell_s`); a
 # change means every config_hash moved.
-GOLDEN_CONFIG_HASH = "da4c7c6d54aa6dd7e6daf8cfaa6efa8643265354306761480331e410f08d5638"
+GOLDEN_CONFIG_HASH = "a5ab6650e1ed65f91b75b75283b257711dc15aca69b2661d690333f78678a05f"
 AIR = {
     "bingo_reserve_frac": 0.15,
     "orbit_period_s": 120.0,
@@ -497,6 +498,7 @@ TASKING = {
     "patrol_max_nodes": 3,
     "patrol_orbit_m": 5000,
     "patrol_dwell_s": 300,
+    "order_dwell_s": 600,
     "stock_urgency": 0.5,
     "stock_front_bonus": 0.25,
 }
@@ -982,7 +984,7 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "  scout_urgency: {small: 1.0, medium: 1.5, large: 2.0}, strike_urgency_per_threat: 0.01,\n"
         "  strike_max_scaled_slots: 3, strike_idle_targets_max: 2,\n"
         "  strike_idle_targets_min_tier: ALPHA,\n"
-        "  patrol_max_nodes: 3, patrol_orbit_m: 5000, patrol_dwell_s: 300,\n"
+        "  patrol_max_nodes: 3, patrol_orbit_m: 5000, patrol_dwell_s: 300, order_dwell_s: 600,\n"
         "  stock_urgency: 0.5, stock_front_bonus: 0.25}\n"
         "director: {window_s: 60, max_spawns_per_window: 6,\n"
         "  cp: {ema_window_s: 300, unit_value: {STRIKE_FIGHTER: 10, RECON_UAV: 3, LOGI_TRUCK: 2,\n"

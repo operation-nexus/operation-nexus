@@ -129,6 +129,7 @@ def load_campaign_config(paths: ConfigPaths | None = None) -> CampaignConfig:
             ),
             threat_memory_ticks=world_ticks(balance.tasking.escort_threat_memory_s, balance),
             patrol_dwell_ticks=game_ticks(balance.tasking.patrol_dwell_s, balance),
+            order_dwell_ticks=game_ticks(balance.tasking.order_dwell_s, balance),
         ),
         director=director_rules(
             balance.director,

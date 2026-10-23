@@ -1161,6 +1161,7 @@
         "patrol_max_nodes",
         "patrol_orbit_m",
         "patrol_dwell_s",
+        "order_dwell_s",
         "stock_urgency",
         "stock_front_bonus",
         "ai_jobs",
@@ -1255,6 +1256,7 @@
         "patrol_max_nodes": {"description": "The most front-line nodes the coalition board posts a patrol job on at once, nearest a node the other side holds first; 0 turns player patrols off (Q-SIM-94, NX-382), unit jobs.", "type": "integer", "minimum": 0, "x-unit": "jobs", "x-hot-reload": true},
         "patrol_orbit_m": {"description": "An aircraft on a coalition patrol circles its node at this distance, which is also the clearance from a discovered air-defense ring it needs to take the job (Q-SIM-94, NX-382), unit m.", "type": "number", "exclusiveMinimum": 0, "x-unit": "m", "x-hot-reload": true},
         "patrol_dwell_s": {"description": "A coalition patrol job is done once a unit has been on station this long (Q-SIM-94, NX-382), unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true},
+        "order_dwell_s": {"description": "An armed unit whose direct node order (JOIN with a node) has arrived holds that node and engages; the order ends, and the board takes the unit, at bingo or RTB, ammo out, a new order, or this long after it began holding (Q-SIM-110, NX-398), unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true},
         "stock_urgency": {"description": "Urgency of a stocking resupply job: a base below logistics.stock_target_frac that is not starved and has no damaged facility (Q-SIM-100, NX-389), unit multiplier. It must round to at least 0.001 and, with stock_front_bonus, stay below 1.0 in whole thousandths (checked at load), so a starving or damaged base always ranks first; the higher of the two urgencies wins when both apply.", "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1, "x-unit": "multiplier", "x-hot-reload": true},
         "stock_front_bonus": {"description": "Urgency added to a stocking resupply job when its base is on the front line (held, capturable, with a road neighbour the side does not hold: the patrol rule, Q-SIM-94) (Q-SIM-100, NX-389), unit multiplier; stock_urgency + stock_front_bonus must stay below 1.0.", "type": "number", "minimum": 0, "exclusiveMaximum": 1, "x-unit": "multiplier", "x-hot-reload": true}
       }

@@ -17,6 +17,7 @@ NOT_BUILT = (
     ("A6 conduct", "part 2 (NX-321): needs the chat gateway and the conduct system (NX-291)"),
 )
 _A3_PROFILE = "overnight-0"
+ORDER_COUNTS = ("stuck_goto", "stale_claims", "direct_orders_ended", "no_effect")
 
 
 def _med(values: list[float]) -> float | None:
@@ -225,6 +226,23 @@ def _density(runs: list[dict[str, Any]]) -> dict[str, Any]:
     return out
 
 
+def _orders(runs: list[dict[str, Any]]) -> dict[str, Any]:
+    """Direct-order health (NX-398, `orders.py`), summed over the runs that have it: any stuck GOTO
+    or stale claim fails; the freelancers' no-effect share is information only."""
+    ms = [r["orders"] for r in runs if r.get("orders")]
+    total = {k: sum(m[k] for m in ms) for k in ORDER_COUNTS}
+    ended, bad = total["direct_orders_ended"], total["stuck_goto"] + total["stale_claims"]
+    share = total["no_effect"] / ended if ended else None
+    return {
+        **total,
+        "no_effect_share": share,
+        "status": NO_DATA if not ms else FAIL if bad else PASS,
+        "detail": f"stuck GOTO orders {total['stuck_goto']}, stale claims "
+        f"{total['stale_claims']} over {len(ms)} runs (any is a fail); freelancer orders ended "
+        f"{ended}, with no shot, delivery or capture {total['no_effect']} ({_fmt(share, '.0%')})",
+    }
+
+
 def _mean(values: list[float]) -> float | None:
     return statistics.fmean(values) if values else None
 
@@ -244,6 +262,7 @@ def aggregate(profile: str, runs: list[dict[str, Any]], t: Targets) -> dict[str,
         "A4": _a4(runs, t),
         "idle": _idle(runs),
         "density": _density(runs),
+        "orders": _orders(runs),
         "momentum": {
             "mean_pct": _mean(momentum),
             "final_median_pct": _med(
@@ -269,7 +288,7 @@ def target_table(profiles: dict[str, dict[str, Any]]) -> list[dict[str, str]]:
     rows = [
         {"target": key, "profile": name, "status": agg[key]["status"], "detail": agg[key]["detail"]}
         for name, agg in profiles.items()
-        for key in ("A1", "A2", "A3", "A4")
+        for key in ("A1", "A2", "A3", "A4", "orders")
         if agg[key]["status"] != "n/a"
     ]
     rows += [
