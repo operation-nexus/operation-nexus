@@ -288,7 +288,7 @@ def test_real_timeout_kills_process_group(tmp_path: Path) -> None:
 
 
 def test_unexpected_error_marks_failed_with_type_only(
-    cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+    cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
     fake = Fake([issue(13), issue(14)])
     monkeypatch.setattr(hq, "run_cmd", fake)
@@ -300,6 +300,7 @@ def test_unexpected_error_marks_failed_with_type_only(
     hq.run_once(cfg, False)
     assert [e[1] for e in fake.edits()] == ["harness-running", "harness-failed"] * 2
     assert "ValueError" in fake.stdin[0] and "secret detail" not in fake.stdin[0]
+    assert "ValueError: secret detail" in capsys.readouterr().out  # the local log keeps the text
 
 
 def test_stale_running_recovered(cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch) -> None:

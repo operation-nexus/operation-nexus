@@ -272,7 +272,7 @@ def process(cfg: dict[str, Any], issue: dict[str, Any], dry: bool) -> None:
             )
         log(f"#{n}: exit code {rc} after {wall}")
     except Exception as e:  # noqa: BLE001  # never leave the issue in `running`
-        log(f"#{n}: error {type(e).__name__}")
+        log(f"#{n}: error {type(e).__name__}: {e}")  # local log only; the comment stays type-only
         fail(cfg, n, f"Run failed: internal error ({type(e).__name__}).")
 
 
@@ -308,7 +308,7 @@ def run_once(cfg: dict[str, Any], dry: bool) -> int:
             try:
                 process(cfg, issue, dry)
             except Exception as e:  # noqa: BLE001  # one issue's failure must not stop the tick
-                log(f"#{issue['number']}: skipped after {type(e).__name__}")
+                log(f"#{issue['number']}: skipped after {type(e).__name__}: {e}")  # local log only
     return 0
 
 
