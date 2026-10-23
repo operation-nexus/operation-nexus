@@ -3,7 +3,7 @@
 Written 2026-10-22 by the local (WSL) agent session on the owner's harness PC, for the lead. The report is kept as
 written (§1). The lead's review and the follow-ups are in §2 and §3. Tags in §1: [MEASURED] was observed on this PC;
 [REPO] comes from a repo file; [GENERAL] is general Python knowledge not tested on this sim; [UNKNOWN] was not
-measured.
+measured. §4 has the reference-host bench results (2026-10-23), which close NX-376.
 
 ## 1. Report (local session, verbatim)
 
@@ -100,7 +100,7 @@ corrections and additions:
    FIFO queue are decided (Q-SIM-6, GAMEPLAY §4a). Several units per viewer with an unlimited budget would change
    them. It is recorded as an open owner question (Q-GP-48); the scaling ladder gives its performance facts.
 
-## 3. Follow-ups (recorded, not started)
+## 3. Follow-ups (recorded 2026-10-23; NX-376 done, see §4)
 
 - **NX-376 (P1):** build a real-kernel scaling bench in the repo:
   - an entity-count ladder of 150, 300, 500, 1,000 and 2,000 units, including QA's 1,000-unit convoy scene;
@@ -117,3 +117,43 @@ corrections and additions:
 - **Q-GP-48 chaos mode:** an owner decision, after the NX-376 ladder.
 - **New PC:** re-baseline SC-10 on it (SIM-CORE SC-10). Prefer single-thread speed for the live sim, and cores for
   sweeps.
+
+## 4. Reference-host results (NX-376, 2026-10-23)
+
+Run by the local session on this PC and posted on issue #278. All [MEASURED]. Bench:
+`tools/sim-bench/kernel_bench.py`, seed 376, **step only** (no frame build exists yet, so this is a lower bound on
+SC-10).
+
+- **Before** the perf fix (#273): sha `774e0db`, one run per rung, ladder 150 to 2,000.
+- **After:** sha `9e1dded` (contains #273), three repeats per scene, ladder 500, 1,000 and 2,000. Cells are the median
+  of the three; the full min / median / max table is on #278.
+
+| scene | entities | p99 before | p99 after | max after | ticks/s before | ticks/s after |
+|---|---|---|---|---|---|---|
+| convoy | 500 | 13.8 ms | 7.7 ms | 18.7 ms | 121.6 | 194.3 |
+| convoy | 1,000 | 29.2 ms | **16.4 ms** | 32.9 ms | 59.9 | 94.0 |
+| convoy | 2,000 | 87.0 ms | 37.0 ms | 59.7 ms | 26.0 | 45.2 |
+| mixed | 500 | 10.4 ms | 5.6 ms | 18.1 ms | 182.6 | 317.6 |
+| mixed | 1,000 | 30.9 ms | **12.0 ms** | 31.0 ms | 69.4 | 151.1 |
+| mixed | 2,000 | 100.8 ms | 27.7 ms | 60.3 ms | 25.2 | 81.1 |
+
+"Before" has no spread (single runs), so the comparison is rough. The mixed scene loses units in combat during the
+timed ticks: `entities_after` is 371, 747 and 1,496, the same in all three repeats.
+
+**Reading (lead):**
+
+1. **SC-10 passes for `step` at 1,000 entities**, with about 8.6 ms (convoy) and 13 ms (mixed) left for the frame
+   build. The frame's own cost on the real kernel is not measured (NX-345 timed step plus frames together, 9.2 ms
+   p99, on a synthetic world on this PC); NX-170 benches step plus frame build on the real kernel.
+2. **2,000 entities is over budget** (p99 37 ms convoy, 27.7 ms mixed). That is the ceiling a high-count rule preset
+   (Q-GP-48, NX-386) must respect until more optimisation.
+3. **Cost now scales about linearly** (log-log slope 0.98 to 1.05 over 500 to 2,000; before, 1.13 to 1.21 over 150
+   to 2,000, so not directly comparable). The grid query (`spatial.within`) and `Vec2` construction left the top of the
+   profile. Movement (`_move`, `_fly`), combat `_fire` and convoy `steer` lead now.
+4. **Single-tick max** reaches about 33 ms at 1,000 entities. That counts against the catch-up rule (SIM-CORE §5),
+   not p99. The rare long-run spikes (127.8 ms once in 6 h) were not reproduced here; the soak (NX-033) watches for
+   them.
+
+**Worker counts** (same issue, before the fix): 12 harness workers finished a 12-run job 20% faster on wall time than
+6, with each run about 25% slower. PR #279 (NX-031) raises the `queue.yaml` `max_workers` cap to 12; the default
+stays 2.
