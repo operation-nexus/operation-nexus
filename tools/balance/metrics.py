@@ -59,6 +59,8 @@ class Collector:
         self.known_tracks = set(world.contacts[_COALITION])  # ids the coalition has ever tracked
         self.idle_shares: list[float] = []  # idle armed viewer units / all, per sample
         self.idle_reasons: Counter[str] = Counter()  # why the idle ones hold no job, summed
+        self.slots_per_unit: list[float] = []  # open job slots / live viewer units, per sample
+        self.jobs_per_node: list[float] = []  # open coalition jobs / theater nodes, per sample
         self.newbies = newbies
         # entity id -> (unit kind, side), from the setup (garrison, facilities) and UnitSpawned
         self.entity = {e.id: (e.kind, e.side) for e in world.entities()}
@@ -173,6 +175,18 @@ class Collector:
         self.idle_shares.append(len(idle) / len(armed))
         self.idle_reasons.update(idle_reason(world, e) for e in idle)
 
+    def sample_density(self, world: World) -> None:
+        """Job density on the coalition board. An open job has an unfilled slot; its unfilled slots
+        are `slots - claims`. Slots per live (not Disabled) viewer unit skips a sample with no such
+        unit."""
+        open_jobs = [j for j in world.boards[_COALITION].values() if len(j.claims) < j.slots]
+        self.jobs_per_node.append(len(open_jobs) / len(world.owner))
+        units = sum(
+            e.owner_kind == "COMMANDER" and e.damage_state != "DISABLED" for e in world.entities()
+        )
+        if units:
+            self.slots_per_unit.append(sum(j.slots - len(j.claims) for j in open_jobs) / units)
+
     # --- event handlers ---------------------------------------------------------------------
     def _spawned(self, e: Any) -> None:
         self.entity[e.entity_id] = (e.unit_kind, e.side)
@@ -274,6 +288,12 @@ class Collector:
                 "share_sum": sum(self.idle_shares),
                 "share_max": max(self.idle_shares, default=None),
                 "reasons": dict(sorted(self.idle_reasons.items())),
+            },
+            "density": {
+                "slots_per_unit_samples": len(self.slots_per_unit),
+                "slots_per_unit_sum": sum(self.slots_per_unit),
+                "jobs_per_node_samples": len(self.jobs_per_node),
+                "jobs_per_node_sum": sum(self.jobs_per_node),
             },
             "starvation": {
                 "any_node_minutes": self.starved_any * self.sample_ticks / s / 60,

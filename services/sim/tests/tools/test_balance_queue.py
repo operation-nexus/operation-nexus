@@ -58,6 +58,7 @@ def test_parse_valid(cfg: dict[str, Any]) -> None:
         "seeds": 2,
         "hours": 1.5,
         "workers": 3,
+        "set": [],
     }
     assert hq.parse_block(block(), cfg, NAMES)["workers"] == cfg["workers"]
 
@@ -329,3 +330,24 @@ def test_tail_hides_the_home_path_and_closing_fences(tmp_path: Path) -> None:
     assert str(Path.home()) not in out
     assert "~/proj/run.py" in out
     assert "```" not in out
+
+
+def test_set_parsed_into_argv_pairs(cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch) -> None:
+    req = hq.parse_block(block(set="tasking.strike_idle_targets_max=0, a.b_1=-2.5"), cfg, NAMES)
+    assert req["set"] == ["tasking.strike_idle_targets_max=0", "a.b_1=-2.5"]
+    assert hq.parse_block(block(), cfg, NAMES)["set"] == []
+    fake = Fake([])
+    monkeypatch.setattr(hq, "run_cmd", fake)
+    hq.execute(cfg, 11, req)
+    assert fake.calls[2][-4:] == [
+        "--set", "tasking.strike_idle_targets_max=0", "--set", "a.b_1=-2.5",
+    ]  # fmt: skip
+
+
+@pytest.mark.parametrize(
+    "value",
+    ["a=1,b=2,c=3,d=4,e=5", "A.b=1", "a..b=1", "a=1;rm", "a=1e9", "a=$(x)", "a=", "a=1234567890"],
+)
+def test_set_refusals(cfg: dict[str, Any], value: str) -> None:
+    with pytest.raises(hq.Refusal, match="bad value for key: set"):
+        hq.parse_block(block(set=value), cfg, NAMES)

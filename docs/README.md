@@ -141,3 +141,4 @@ When you add, rename or remove a doc, update this index in the same PR.
 | [SKILLS-AND-PLUGINS-RESEARCH-2026-10-18.md](review/SKILLS-AND-PLUGINS-RESEARCH-2026-10-18.md) | Skills, plugins and tools for the vault workflows (agent-compiled, not verified). |
 | [CONTRIBUTOR-AGREEMENT-EXAMPLES-2026-10-19.md](review/CONTRIBUTOR-AGREEMENT-EXAMPLES-2026-10-19.md) | Public contributor agreement examples (agent-compiled, not verified, not legal advice). |
 | [LINK-PAGE-EXAMPLES-2026-10-19.md](review/LINK-PAGE-EXAMPLES-2026-10-19.md) | Link page research for hiveplex.live (agent-compiled, not verified). |
+| [REALTIME-SCALING-2026-10-22.md](review/REALTIME-SCALING-2026-10-22.md) | Real-time scaling, threading and profiling on the harness PC (local session report, measured on the SC-10 reference host) with the lead review and follow-ups (NX-376, Q-GP-48). |

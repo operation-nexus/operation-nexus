@@ -29,7 +29,8 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parents[2]
 BLOCK = re.compile(r"^```harness[ \t]*\r?\n(.*?)^```[ \t]*\r?$", re.DOTALL | re.MULTILINE)
 LINE = re.compile(r"([a-z_]+): ([^\r\n]+)")
-KEYS = ("sha", "profiles", "seeds", "hours", "workers")
+OVERRIDE = re.compile(r"[a-z0-9_]+(\.[a-z0-9_]+)*=-?\d{1,9}(\.\d{1,9})?")
+KEYS = ("sha", "profiles", "seeds", "hours", "workers", "set")
 COMMENT_MAX = 60000  # GitHub's limit is 65536 characters; leave room for the framing
 FOOTER = "_Posted by the local harness queue (NX-381)_"
 
@@ -129,6 +130,9 @@ def parse_block(body: str, cfg: dict[str, Any], known: list[str]) -> dict[str, A
         0 < float(raw["hours"]) <= cfg["max_hours"]
     ):
         raise Refusal("bad value for key: hours")
+    overrides = [x.strip() for x in raw["set"].split(",")] if "set" in raw else []
+    if len(overrides) > cfg["max_overrides"] or not all(OVERRIDE.fullmatch(o) for o in overrides):
+        raise Refusal("bad value for key: set")
     return {
         "sha": raw["sha"],
         "profiles": names,
@@ -137,6 +141,7 @@ def parse_block(body: str, cfg: dict[str, Any], known: list[str]) -> dict[str, A
         "workers": bounded_int("workers", cfg["max_workers"])
         if "workers" in raw
         else cfg["workers"],
+        "set": overrides,
     }
 
 
@@ -210,6 +215,7 @@ def execute(cfg: dict[str, Any], number: int, req: dict[str, Any]) -> tuple[int,
         "uv", "run", "--frozen", "python", "../../tools/balance/balance.py",
         "--profile", ",".join(req["profiles"]), "--seeds", str(req["seeds"]),
         "--hours", str(req["hours"]), "--workers", str(req["workers"]), "--out", str(out),
+        *[x for o in req["set"] for x in ("--set", o)],
     ]  # fmt: skip
     limit = cfg["job_timeout_hours"] * 3600
     try:
@@ -259,7 +265,8 @@ def process(cfg: dict[str, Any], issue: dict[str, Any], dry: bool) -> None:
         report = out / "report.md"
         if rc == 0 and report.exists():
             body = truncate(report.read_text(), report)
-            comment(cfg, n, f"Run finished in {wall}. Results: `{shown(out)}`\n\n{body}")
+            sets = f" Overrides: `{' '.join(req['set'])}`." if req["set"] else ""
+            comment(cfg, n, f"Run finished in {wall}.{sets} Results: `{shown(out)}`\n\n{body}")
             relabel(
                 cfg, n, labels["done"], labels["running"]
             )  # last, so a failure here can't leave both labels
