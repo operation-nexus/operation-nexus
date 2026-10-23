@@ -29,6 +29,9 @@ while frozen (SC-11), for each side in COALITION, ENEMY order:
      `tasking.capture_max_restarts` times).
      PATROL (the Director's, NX-157): drive out to `Job.via` and then home to the base; DONE when a
      claimant is back at the base, FAILED with no claimant left or when the side lost the base.
+     PATROL (the coalition's, Q-SIM-94): hold the node (an aircraft circles it); DONE
+     `tasking.patrol_dwell_s` after the first claimant is on station, FAILED when the node or a
+     node on a claimant's route is no longer the side's.
    - DONE needs a participant (a live ACTIVE claimant), else EXPIRED, unless another job waits for
      it (the Director's chains, NX-156): its goal was met, so the next step must not fail with it.
      A job with no claim expires `tasking.expire_min` after posting (an objective's job: with the
@@ -95,7 +98,8 @@ type Outcome = Literal["DONE", "FAILED", "EXPIRED"]
 type Verdict = Literal["ok", "refuel", "no"]
 type Routes = dict[tuple[str, str], list[str] | None]
 _AIR, _GROUND = "AIR", "GROUND"
-_PATROL: JobKind = "PATROL"  # the Director's alone (NX-157)
+_PATROL: JobKind = "PATROL"  # the Director's (NX-157), and the coalition board's (NX-382)
+_COALITION: Side = "COALITION"
 _AI, _HUMAN = "AI_GARRISON", "COMMANDER"
 _NO_BLOCKED = frozenset[str]()  # no bridge is destroyed until NX-373
 _GARRISON_JOBS: frozenset[JobKind] = frozenset({"DEFEND", "RESUPPLY", "SCOUT"})
@@ -222,8 +226,8 @@ def _may_take(world: World, tr: TaskingRules, e: Entity, job: Job) -> bool:
     """An AI garrison unit never initiates offense: outside its own jobs it joins only a job a
     COMMANDER-owned unit already holds (GAMEPLAY §1b, Q-GD-26), or a strike or assist-objective
     job against a node its side lost within `tasking.counterattack_window_min` (Q-GD-31)."""
-    if job.kind == "ESCORT_CONVOY":
-        return e.owner_kind != _AI  # escorting is the players' call (Q-GP-45)
+    if job.kind in ("ESCORT_CONVOY", _PATROL):
+        return e.owner_kind != _AI  # escorting, patrolling: the players' call (Q-GP-45, Q-SIM-94)
     if e.owner_kind != _AI or job.kind in _GARRISON_JOBS:
         return True
     lost = world.lost.get(job.node or "")
@@ -283,7 +287,7 @@ def joinable_jobs(world: World, kind: UnitKind) -> list[Job]:
     rules, tr = world.rules, world.rules.tasking
     jobs = [
         j for j in world.boards["COALITION"].values()
-        if j.depends_on is None and fits(rules, kind, j.kind)
+        if j.depends_on is None and j.kind != _PATROL and fits(rules, kind, j.kind)
     ]  # fmt: skip
     return rank(tr, _open(tr, world, jobs, ai=False), _now(world), None)
 
@@ -294,6 +298,7 @@ def run(world: World, out: list[Event]) -> None:
         return
     rules, tr = world.rules, world.rules.tasking
     now = _now(world)
+    _guard_patrols(world, out)
     if now % tr.reeval_every_ticks:
         return
     world.lost = {n: t for n, t in world.lost.items() if now - t < tr.counterattack_window_ticks}
@@ -317,6 +322,8 @@ def run(world: World, out: list[Event]) -> None:
         for job in list(world.boards[side].values()):
             if job.key.startswith(GENERATED) and job.key not in wanted and not job.claims:
                 _end(world, side, job, "EXPIRED", out)  # its condition ended
+        if side == _COALITION:
+            _preempt_patrols(world, rules, tr, now, routes, out)
         _assign(world, rules, tr, side, now, routes, out)
 
 
@@ -385,6 +392,8 @@ def _settle(
             job.expires, job.restarts = now + tr.expire_ticks, job.restarts + 1
         if _is_point(job):
             _loiter(world, rules, tr, job, now)
+        elif _is_station_patrol(side, job):
+            _dwell(world, rules, tr, job, now)
         outcome = _outcome(world, rules, tr, side, job, now)
         if outcome is not None:
             _end(world, side, job, outcome, out)
@@ -447,6 +456,8 @@ def _verdict(world: World, rules: Rules, tr: TaskingRules, side: Side, job: Job)
             return "DONE" if _staged(world, job) else None
         case "CAPTURE":
             return "DONE" if node is not None and world.owner.get(node) == side else None
+        case "PATROL" if _is_station_patrol(side, job):
+            return _station_verdict(world, tr, job)
         case "PATROL":  # = _PATROL; a match needs a literal
             if lost or not job.claims:  # no unit left to drive, or the base is gone
                 return "FAILED"
@@ -579,6 +590,89 @@ def _corner(rules: Rules, centre: Vec2, at: Vec2, radius: float) -> Vec2:
     return corners[(near + 1) % len(corners)]
 
 
+def _is_station_patrol(side: Side, job: Job) -> bool:
+    """A coalition patrol (Q-SIM-94, NX-382) holds at its node; the Director's goes out and back."""
+    return job.kind == _PATROL and side == _COALITION
+
+
+def _station_verdict(world: World, tr: TaskingRules, job: Job) -> Outcome | None:
+    """DONE after `tasking.patrol_dwell_s` on station (a lost node fails it in `_guard_patrols`)."""
+    held = job.arrived is not None and _now(world) - job.arrived >= tr.patrol_dwell_ticks
+    return "DONE" if held else None
+
+
+def _patrol_exposed(world: World, side: Side, job: Job) -> bool:
+    """A claimed coalition patrol whose node, or a node on a claimant's path, the side no longer
+    holds: it must never enter one (Q-SIM-94)."""
+    return any(
+        isinstance(n, str) and world.owner.get(n) != side
+        for i in job.claims
+        if (e := world.find(i)) is not None
+        for n in [job.node, *e.path]
+    )
+
+
+def _guard_patrols(world: World, out: list[Event]) -> None:
+    """Every tick, before movement: a coalition patrol whose node or route lost its side's hold
+    FAILS now and its units stop or go home (`_abandon_patrol`), so none enters a lost node. Only
+    claimed patrols are looked at."""
+    for job in list(world.boards[_COALITION].values()):
+        if job.kind == _PATROL and job.claims and _patrol_exposed(world, _COALITION, job):
+            _end(world, _COALITION, job, "FAILED", out)
+
+
+def _preempt_patrols(
+    world: World, rules: Rules, tr: TaskingRules, now: int, routes: Routes, out: list[Event]
+) -> None:
+    """A patrol never holds a unit a better job needs (GAMEPLAY §1b): in unit id order, a patrol
+    claimant is released when an open job of higher priority has a free slot and the unit fits it,
+    may take it and finds it feasible (the assignment's own checks, so it does not drop the patrol
+    only to be refused). `_assign` then gives it a job. A claimant is a viewer's unit (the garrison
+    never takes a patrol) with no `home` (the Director's units only), so `_board_may_give` always
+    holds for it and is not asked.
+
+    shortcut: `_feasible` routes a ground unit only from the node it stands on, so a ground
+    patrol is preempted once it stands on a node (an aircraft any time); the wait is bounded by
+    its transit. Upgrade: route from the unit's next path node."""
+    board = world.boards[_COALITION]
+    claimants = sorted(
+        (i, job) for job in board.values() if job.kind == _PATROL for i in job.claims
+    )
+    for i, job in claimants:
+        e = world.find(i)
+        if e is None:
+            continue
+        mine = priority(tr, job, now)
+        if any(
+            j.kind != _PATROL and j.depends_on is None and priority(tr, j, now) > mine
+            and not _full(world, j, ai=False)
+            and fits(rules, e.kind, j.kind) and _may_take(world, tr, e, j)
+            and _feasible(world, rules, routes, e, j) == "ok"
+            for j in board.values()
+        ):  # fmt: skip
+            release_claim(world, job, i, out)
+            e.path = []
+
+
+def _dwell(world: World, rules: Rules, tr: TaskingRules, job: Job, now: int) -> None:
+    """Q-SIM-94: the dwell starts when a claimant is on station at the node. A patrolling aircraft
+    flies to the next corner of the square of `tasking.patrol_orbit_m` around the node (the
+    scout loiter's corners, `_corner`), so it stays within that distance. With no claimant the
+    dwell restarts."""
+    if not job.claims or job.node is None:
+        job.arrived = None
+        return
+    if job.arrived is None:
+        if not _present(world, job):
+            return
+        job.arrived = now
+    centre = Vec2(*rules.roads.pos[job.node])
+    for i in job.claims:
+        e = world.find(i)
+        if e is not None and not e.path and e.state == "ON_STATION":
+            e.path = [_corner(rules, centre, e.pos, tr.patrol_orbit_m)]
+
+
 def _abandon_patrol(world: World, rules: Rules, e: Entity, job: Job) -> None:
     """A failed patrol's unit drops its route: home to the nearest friendly base, or it stands
     when no route avoids the other side's nodes (it retires once idle, Q-SIM-84), so it never
@@ -590,9 +684,10 @@ def _abandon_patrol(world: World, rules: Rules, e: Entity, job: Job) -> None:
 
 
 def _board_may_give(e: Entity, job: Job) -> bool:
-    """A PATROL is the Director's alone, and a garrison unit (`Entity.home`) stays at its base: the
-    board gives it only a DEFEND of that base; the Director sends it elsewhere (Q-SIM-85)."""
-    if job.kind == _PATROL:
+    """A PATROL on the Static's board is the Director's alone (the coalition board posts its own,
+    Q-SIM-94), and a garrison unit (`Entity.home`) stays at its base: the board gives it only a
+    DEFEND of that base; the Director sends it elsewhere (Q-SIM-85)."""
+    if job.kind == _PATROL and e.side != _COALITION:
         return False
     return e.home is None or (job.kind == "DEFEND" and job.node == e.home)
 
@@ -681,13 +776,19 @@ def _route(rules: Rules, routes: Routes, e: Entity, job: Job) -> list[str] | Non
     return _road(rules, routes, e.last_node, job.node)
 
 
-def _patrol_route(rules: Rules, routes: Routes, e: Entity, job: Job) -> list[str] | None:
+def _patrol_route(
+    world: World, rules: Rules, routes: Routes, e: Entity, job: Job
+) -> list[str] | None:
     """A patrol's road route: out to `job.via`, then home to the job's node (NX-157); the leg
-    shared by both is the node it turns at, listed once."""
-    if e.last_node is None or job.node is None or job.via is None:
+    shared by both is the node it turns at, listed once. A coalition patrol has no `via`: its route
+    runs to its node through nodes its side holds only (Q-SIM-94)."""
+    if e.last_node is None or job.node is None:
         return None
     if e.pos != Vec2(*rules.roads.pos[e.last_node]):
         return None
+    if job.via is None:
+        avoid = frozenset(n for n in rules.roads.pos if world.owner.get(n) != e.side)
+        return shortest_path(rules.roads, e.last_node, job.node, blocked=_NO_BLOCKED, avoid=avoid)
     out = _road(rules, routes, e.last_node, job.via)
     home = _road(rules, routes, job.via, job.node)
     return None if out is None or home is None else [*out, *home[1:]]
@@ -716,7 +817,7 @@ def _feasible(world: World, rules: Rules, routes: Routes, e: Entity, job: Job) -
         if job.kind == "RESUPPLY" and not e.cargo:
             return "ok" if _reload_plan(world, rules, routes, e, job) is not None else "no"
         if job.kind == _PATROL:
-            return "no" if _patrol_route(rules, routes, e, job) is None else "ok"
+            return "no" if _patrol_route(world, rules, routes, e, job) is None else "ok"
         return "no" if _route(rules, routes, e, job) is None else "ok"
     bases = world.landing_bases(e.side)
     if not bases or e.fuel is None or crosses_ring(world, rules, e.side, e.pos, job):
@@ -745,7 +846,7 @@ def _dispatch(world: World, rules: Rules, routes: Routes, e: Entity, job: Job) -
             e.path = [*(_road(rules, routes, str(e.last_node), run.source) or [])]
             return
     route = (
-        _patrol_route(rules, routes, e, job)
+        _patrol_route(world, rules, routes, e, job)
         if job.kind == _PATROL
         else _route(rules, routes, e, job)
     )
@@ -773,7 +874,8 @@ def crosses_ring(world: World, rules: Rules, side: Side, start: Vec2, job: Job) 
     goal = _waypoint(world, job)
     gx, gy = rules.roads.pos[goal] if isinstance(goal, str) else (goal.x, goal.y)
     others = (m for m in world.markers[side].values() if (m.pos.x, m.pos.y) != (gx, gy))
-    return ring_crossed(others, start, (gx, gy))
+    orbit = rules.tasking.patrol_orbit_m if job.kind == _PATROL and rules.tasking else 0.0
+    return ring_crossed(others, start, (gx, gy), orbit)  # a patrol's orbit needs clearance too
 
 
 def ring_crossed(

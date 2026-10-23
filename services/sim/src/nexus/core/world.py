@@ -75,7 +75,8 @@ from nexus.core.rules import CAPTURE_FULL, Rules
 # (follow and escort, NX-374 part 2); 19: each side's Threat Director state (NX-155); 20: its threat
 # memory, lost nodes and adaptations (NX-156), radar blinks (Q-SIM-82); 21: Entity.home, Job.via and
 # the Pattern of Life timers last_patrol, last_convoy, last_offensive and last_flip (NX-157); 22:
-# Job.arrived, a Recon scout job's loiter start, and a scout job at a point (NX-379)
+# Job.arrived, a Recon scout job's loiter start, and a scout job at a point (NX-379); a coalition
+# patrol job (key `patrol:<node>`, no `via`) reuses `arrived` as its dwell start (NX-382, no bump)
 FORMAT_VERSION = 22
 _MM = 1000.0  # metres -> millimetres; m/s -> mm/s
 _MICRO = 1e6  # ADR-0002's 1e-6 step for other floats (fuel)
@@ -117,6 +118,7 @@ _V = "v"
 JOB_KEY_PREFIX = {
     "RESUPPLY": "resupply:", "DEFEND": "defend:", "STRIKE": "strike:",
     "ASSIST_OBJECTIVE": "assist:", "SCOUT": "scout:", "ESCORT_CONVOY": "escort:",
+    "PATROL": "patrol:",
 }  # fmt: skip
 _WORLD_KEYS = (
     _BLOB_RUNS,
@@ -394,7 +396,8 @@ class Job:
     entity: int | None = None  # an escort job: the truck it covers
     restarts: int = 0  # a CAPTURE job's fresh expiries while its claimants drove (Q-SIM-84)
     via: str | None = None  # a PATROL job: the node the patrol drives out to before it goes home
-    arrived: int | None = None  # a Recon scout job at a point: the tick its scout began to loiter
+    arrived: int | None = None  # a scout job at a point, or a coalition patrol: the tick its unit
+    # began to loiter or dwell
     claims: dict[int, Claim] = field(default_factory=dict)  # entity id -> claim, claim order
 
     @property
@@ -1409,7 +1412,9 @@ def _target_ok(job: Job, *, escort: bool, point: bool) -> bool:
     return (job.node is None) != (job.blob is None) and (job.blob is None) == (job.pos is None)
 
 
-def _job(d: dict[str, Any], next_entity_id: int, running_ticks: int, nodes: set[str]) -> Job:
+def _job(
+    d: dict[str, Any], next_entity_id: int, running_ticks: int, nodes: set[str], side: Side
+) -> Job:
     claims = d["claims"]
     if not isinstance(claims, list):
         raise ValueError(f"{_BOARDS}: claims must be a list")
@@ -1437,8 +1442,11 @@ def _job(d: dict[str, Any], next_entity_id: int, running_ticks: int, nodes: set[
         job.claims[i] = Claim(_int(raw[1], "claim tick"), _bool(raw[2], "claim active"))
     if job.created > running_ticks or any(c.at > running_ticks for c in job.claims.values()):
         raise ValueError(f"{_BOARDS}: a job or claim from after the snapshot's clock")
-    if (job.via is not None) != (job.kind == "PATROL") or (job.via or "") not in nodes | {""}:
-        raise ValueError(f"{_BOARDS}: only a patrol job names a node to drive out to")
+    # the Director's patrol (Static board) drives out to a node; the coalition's holds its own
+    if (job.via is not None) != (job.kind == "PATROL" and side == "ENEMY") or (
+        job.via or ""
+    ) not in nodes | {""}:
+        raise ValueError(f"{_BOARDS}: only the Static's patrol job names a node to drive out to")
     escort = job.kind == "ESCORT_CONVOY"  # targets a truck, not a place
     if escort != (job.entity is not None) or (job.entity or 0) >= next_entity_id:
         raise ValueError(f"{_BOARDS}: only an escort job names an entity, below the counter")
@@ -1453,8 +1461,13 @@ def _job(d: dict[str, Any], next_entity_id: int, running_ticks: int, nodes: set[
         raise ValueError(
             f"{_BOARDS}: a scout job targets a blob or a point, any other a node of the theater"
         )
-    if job.arrived is not None and (not point or job.arrived > running_ticks):
-        raise ValueError(f"{_BOARDS}: only a scout job at a point loiters, from a past tick")
+    dwell = job.kind == "PATROL" and side == "COALITION"
+    if job.key.startswith("patrol:") and not dwell:
+        raise ValueError(f"{_BOARDS}: a patrol:<node> job is the coalition board's")
+    if job.arrived is not None and (not (point or dwell) or job.arrived > running_ticks):
+        raise ValueError(
+            f"{_BOARDS}: only a scout job at a point loiters and a patrol dwells, from a past tick"
+        )
     target = (
         str(job.entity) if escort else job.node if job.blob is None else job.blob.split("-")[-1]
     )
@@ -1480,6 +1493,7 @@ def _boards(value: object, world: World) -> dict[Side, dict[int, Job]]:
                 world._next_entity_id,
                 world.campaign.running_ticks,
                 set(world.owner),
+                side,
             )
             for raw in sides[side]
         ]
