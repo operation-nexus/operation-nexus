@@ -18,11 +18,12 @@ while frozen (SC-11), for each side in COALITION, ENEMY order:
      ended); FAILED when the side lost the node. DEFEND: FAILED likewise; DONE when a claimant
      stands at the node and the threat is gone (no bar of the other side, and the side tracks no
      enemy GROUND unit within `tasking.defend_radius_m`)). STRIKE: DONE when the node's
-     defense hp is 0 or the side owns it. SCOUT: DONE when a claimant has arrived at the blob's
-     cell (or the node). ASSIST_OBJECTIVE and an objective's STRIKE also end with the objective
-     (`on_objective`). STAGE (the Director's, NX-156): go to the base and hold; DONE when every
-     current claimant is there and every slot is claimed or the expiry has passed (the job that
-     depends on it opens then), FAILED with no claimant left or when the side lost the base.
+     defense hp is 0 or the side owns it; on a bridge, when the bridge is down (NX-373). SCOUT:
+     DONE when a claimant has arrived at the blob's cell (or the node). ASSIST_OBJECTIVE and an
+     objective's STRIKE also end with the objective (`on_objective`). STAGE (the Director's,
+     NX-156): go to the base and hold; DONE when every current claimant is there and every slot
+     is claimed or the expiry has passed (the job that depends on it opens then), FAILED with no
+     claimant left or when the side lost the base.
      CAPTURE (the Director's): go to the node and stay, the capture run itself being
      `nexus.core.capture`; DONE when the node is the side's, EXPIRED at its expiry even with
      claimants (a claimant still driving gets a fresh clock, at most
@@ -87,6 +88,7 @@ from nexus.contracts.gen.events.job_created import JobCreated
 from nexus.contracts.gen.events.job_done import JobDone, Participant
 from nexus.contracts.gen.events.job_expired import JobExpired
 from nexus.contracts.gen.events.job_failed import JobFailed
+from nexus.core.bridges import blocked
 from nexus.core.fog import SideView, side_view
 from nexus.core.logistics import Run, go_home, keeps, load, nearest_base, plan_run
 from nexus.core.rng import PcgStream, RngStream
@@ -123,7 +125,6 @@ _PATROL: JobKind = "PATROL"  # the Director's (NX-157), and the coalition board'
 _COALITION: Side = "COALITION"
 _STATIC: Side = "ENEMY"
 _AI, _HUMAN = "AI_GARRISON", "COMMANDER"
-_NO_BLOCKED = frozenset[str]()  # no bridge is destroyed until NX-373
 _MAX_PARTICIPANTS = 64  # JobDone.participants maxItems
 _TIE_DRAW = 1 << 32  # width of the tie-break draw; it only orders equals, not a tunable
 
@@ -529,6 +530,8 @@ def _verdict(world: World, rules: Rules, tr: TaskingRules, side: Side, job: Job)
                 return "FAILED"
             held = node is not None and _present(world, job)
             return "DONE" if held and not _menaced(world, rules, tr, side, str(node)) else None
+        case "STRIKE" if node in world.bridge_hp:  # a bridge is nobody's: done once down
+            return "DONE" if node in world.bridge_down else None
         case "STRIKE":
             fallen = node is not None and (not lost or not world.defense_hp.get(node, 0))
             return "DONE" if fallen else None
@@ -862,19 +865,19 @@ def _waypoint(world: World, job: Job) -> str | Vec2:
     return target
 
 
-def _road(rules: Rules, routes: Routes, a: str, b: str) -> list[str] | None:
-    """The road route `a` to `b`, found once per pass (roads and blocked bridges do not change
+def _road(world: World, rules: Rules, routes: Routes, a: str, b: str) -> list[str] | None:
+    """The road route `a` to `b`, found once per pass (roads and down bridges do not change
     inside one)."""
     if (a, b) not in routes:
-        routes[a, b] = shortest_path(rules.roads, a, b, blocked=_NO_BLOCKED)
+        routes[a, b] = shortest_path(rules.roads, a, b, blocked=blocked(world))
     return routes[a, b]
 
 
-def _route(rules: Rules, routes: Routes, e: Entity, job: Job) -> list[str] | None:
+def _route(world: World, rules: Rules, routes: Routes, e: Entity, job: Job) -> list[str] | None:
     """A ground unit's road route from the node it stands on, or None (not on a node, no road)."""
     if e.last_node is None or job.node is None or e.pos != Vec2(*rules.roads.pos[e.last_node]):
         return None
-    return _road(rules, routes, e.last_node, job.node)
+    return _road(world, rules, routes, e.last_node, job.node)
 
 
 def _patrol_route(
@@ -889,9 +892,10 @@ def _patrol_route(
         return None
     if job.via is None:
         avoid = frozenset(n for n in rules.roads.pos if world.owner.get(n) != e.side)
-        return shortest_path(rules.roads, e.last_node, job.node, blocked=_NO_BLOCKED, avoid=avoid)
-    out = _road(rules, routes, e.last_node, job.via)
-    home = _road(rules, routes, job.via, job.node)
+        cut = blocked(world)
+        return shortest_path(rules.roads, e.last_node, job.node, blocked=cut, avoid=avoid)
+    out = _road(world, rules, routes, e.last_node, job.via)
+    home = _road(world, rules, routes, job.via, job.node)
     return None if out is None or home is None else [*out, *home[1:]]
 
 
@@ -919,7 +923,7 @@ def _feasible(world: World, rules: Rules, routes: Routes, e: Entity, job: Job) -
             return "ok" if _reload_plan(world, rules, routes, e, job) is not None else "no"
         if job.kind == _PATROL:
             return "no" if _patrol_route(world, rules, routes, e, job) is None else "ok"
-        return "no" if _route(rules, routes, e, job) is None else "ok"
+        return "no" if _route(world, rules, routes, e, job) is None else "ok"
     bases = world.landing_bases(e.side)
     if not bases or e.fuel is None or crosses_ring(world, rules, e.side, e.pos, job):
         return "no"
@@ -944,12 +948,12 @@ def _dispatch(world: World, rules: Rules, routes: Routes, e: Entity, job: Job) -
             _load(world, e, run.source, job.node)
         else:
             e.pickup = run.source
-            e.path = [*(_road(rules, routes, str(e.last_node), run.source) or [])]
+            e.path = [*(_road(world, rules, routes, str(e.last_node), run.source) or [])]
             return
     route = (
         _patrol_route(world, rules, routes, e, job)
         if job.kind == _PATROL
-        else _route(rules, routes, e, job)
+        else _route(world, rules, routes, e, job)
     )
     e.path = [] if route is None else [*route]
 
@@ -963,7 +967,7 @@ def _reload_plan(world: World, rules: Rules, routes: Routes, e: Entity, job: Job
     run = plan_run(world, rules, e.side, job.node)
     if run is None or run.cargo <= 0:
         return None
-    return run if _road(rules, routes, e.last_node, run.source) is not None else None
+    return run if _road(world, rules, routes, e.last_node, run.source) is not None else None
 
 
 def crosses_ring(world: World, rules: Rules, side: Side, start: Vec2, job: Job) -> bool:
@@ -1029,7 +1033,7 @@ def _load_at_source(world: World, rules: Rules, routes: Routes, e: Entity, job: 
     e.pickup = None
     if world.owner.get(source) == e.side:
         _load(world, e, source, job.node)
-    route = _route(rules, routes, e, job) if e.cargo else None
+    route = _route(world, rules, routes, e, job) if e.cargo else None
     e.path = [] if route is None else [*route]
     return route is not None
 

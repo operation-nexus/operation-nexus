@@ -14,7 +14,8 @@ The `combat` slot, each running tick (not while frozen, SC-11), in this order:
    **Structures (CB-10, Q-SIM-71):** a weapon whose `targets` include STRUCTURE with no valid unit
    target in range (units always come first) fires at the defense HP of the nearest node, ties by
    id, that the enemy owns and whose HP is above 0, within `range_m` of the node's position (nodes
-   are always known, FOW-10, so no track is needed).
+   are always known, FOW-10, so no track is needed). Before that fallback, a unit holding a STRIKE
+   claim on a bridge fires at the bridge (`nexus.core.bridges.target`, Q-SIM-105).
 3. **Impacts (CB-3, CB-4).** Shots due, in `(impact_tick, id)` order. A shot fizzles, with no RNG
    draw, when the shooter or target is gone, the shooter's side no longer tracks the target, or the
    target left the weapon's range or bands, or became a Disabled facility (Q-FOW-16). Otherwise
@@ -22,7 +23,7 @@ The `combat` slot, each running tick (not while frozen, SC-11), in this order:
    stream decides the hit. A shot at a node's defenses fizzles when its shooter is gone, the node
    changed hands or is already at 0 hp, or it is out of range; else its Pk has track `track`,
    evasion
-   1.0 and no masking (Q-CBT-22).
+   1.0 and no masking (Q-CBT-22). A shot at a bridge fizzles at 0 bridge hp or out of range.
 4. **Damage (CB-5, CB-6, CB-9).** A hit removes `floor(damage x (1 - armor))` hp, at least 1, with
    `armor` an exact decimal (0 for a structure: `damage` hp off the node's defenses, floored at the
    idle floor, `nexus.core.defense`). The damage state follows hp against the kind's thresholds
@@ -54,6 +55,7 @@ from nexus.contracts.gen.events.munitions_depleted import MunitionsDepleted
 from nexus.contracts.gen.events.unit_despawned import UnitDespawned
 from nexus.contracts.gen.events.weapon_fired import WeaponFired
 from nexus.contracts.gen.events.weapon_impact import WeaponImpact
+from nexus.core import bridges
 from nexus.core.defense import damage as damage_defense
 from nexus.core.defense import floor as defense_floor
 from nexus.core.fog import forget, in_masking_region, is_off_facility
@@ -134,7 +136,7 @@ def _fire(world: World, rules: Rules, cr: CombatRules, now: int, out: list[Event
                 pick = _pick(rules, w, e, own)
             pick = pick or _pick(rules, w, e, levels[e.side])
             if pick is None and _STRUCTURE in w.targets:
-                pick = _pick_node(world, rules, w, e, pinned)
+                pick = bridges.target(world, rules, w, e) or _pick_node(world, rules, w, e, pinned)
             if pick is not None:
                 _shoot(world, rules, e, i, w, pick, now, out)
 
@@ -327,7 +329,11 @@ def _land(world: World, rules: Rules, cr: CombatRules, now: int, out: list[Event
                 hit=hit,
             )
         )
-        if hit and shot.node is not None:
+        if hit and shot.node is not None and shot.node in world.bridge_hp:  # a hit: shooter lives
+            # Armor 0 (Q-CBT-22). No provocation: a bridge is nobody's, so no Director counts the
+            # hit (Q-SIM-105).
+            bridges.damage(world, shot.node, w.damage, shot.shooter, out)
+        elif hit and shot.node is not None:
             damage_defense(world, rules, shot.node, w.damage, out)  # armor 0 (Q-CBT-22)
             if shooter is not None:
                 suffered_defense_hit(world, shooter, shot.node)  # NX-155, Q-SIM-79
@@ -344,11 +350,13 @@ def _pk_node(
     is always known (FOW-10), has evasion 1.0 and is never masked (Q-CBT-22)."""
     x, y = rules.roads.pos[node]
     d2 = (shooter.pos.x - x) ** 2 + (shooter.pos.y - y) ** 2
-    if (
-        world.defense_hp[node] <= defense_floor(world, rules, node)
+    gone = (
+        not world.bridge_hp[node]  # a bridge: nobody's, so only its hp counts (Q-SIM-105)
+        if node in world.bridge_hp
+        else world.defense_hp[node] <= defense_floor(world, rules, node)
         or world.owner[node] in (shooter.side, "NEUTRAL")
-        or d2 > w.range_m**2
-    ):
+    )
+    if gone or d2 > w.range_m**2:
         return None
     return min(cr.pk_cap, w.base_pk * cr.track_mult * _range_factor(cr, math.sqrt(d2), w.range_m))
 
@@ -469,7 +477,7 @@ def validate(world: World, rules: Rules) -> None:
     for s in world.shots:
         shooter = world.find(s.shooter)
         target = None if s.target is None else world.find(s.target)
-        if s.node is not None and s.node not in world.defense_hp:
+        if s.node is not None and s.node not in world.defense_hp and s.node not in world.bridge_hp:
             raise ValueError(f"shot {s.id}: node {s.node} has no defenses")
         if s.weapon_id not in cr.weapons or s.impact_tick <= now:
             raise ValueError(f"shot {s.id}: unknown weapon {s.weapon_id!r} or already due")

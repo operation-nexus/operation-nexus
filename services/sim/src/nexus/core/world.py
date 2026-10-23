@@ -79,8 +79,9 @@ from nexus.core.rules import CAPTURE_FULL, Rules
 # patrol job (key `patrol:<node>`, no `via`) reuses `arrived` as its dwell start (NX-382, no bump);
 # 23: intercept_seen, when the Static first tracked each coalition scout inside a node's radius, and
 # the Static's INTERCEPT job (`intercept:<entity>`: Job.entity, last-known pos, lost; NX-382); a
-# RESUPPLY job's urgency may be below 1000 (a stocking job, NX-389, Q-SIM-100, no bump: same shape)
-FORMAT_VERSION = 23
+# RESUPPLY job's urgency may be below 1000 (a stocking job, NX-389, Q-SIM-100, no bump: same shape);
+# 24: bridge hp and the down bridges (NX-373 part 1a)
+FORMAT_VERSION = 24
 _MM = 1000.0  # metres -> millimetres; m/s -> mm/s
 _MICRO = 1e6  # ADR-0002's 1e-6 step for other floats (fuel)
 _MILLI_UNIT = 1000  # thousandths of a stock unit per unit
@@ -88,6 +89,8 @@ _MAX_ABS = 1e9  # m or m/s; keeps mm quantization well inside int64
 _BLOBS = "blobs"
 _BLOB_RUNS = "blob_runs"
 _BOARDS = "boards"
+_BRIDGE_DOWN = "bridge_down"
+_BRIDGE_HP = "bridge_hp"
 _INTERCEPT_SEEN = "intercept_seen"
 _COOLDOWN = "cooldown"
 _LOST = "lost"
@@ -128,6 +131,8 @@ _WORLD_KEYS = (
     _BLOB_RUNS,
     _BLOBS,
     _BOARDS,
+    _BRIDGE_DOWN,
+    _BRIDGE_HP,
     _CALLSIGNS,
     _CAMPAIGN,
     _CAPTURE,
@@ -537,6 +542,8 @@ class World:
         "blob_runs",
         "blobs",
         "boards",
+        "bridge_down",
+        "bridge_hp",
         "callsigns",
         "campaign",
         "capture",
@@ -626,6 +633,10 @@ class World:
         # Nodes whose defense hp reached 0 and has not been rebuilt to full since: they announced
         # `NodeDefensesDown` and will announce `NodeDefensesRestored` once (no per-hit spam).
         self.defense_down: set[str] = set()
+        # BRIDGE node -> hp, every bridge in id order, starting full (NX-373), and the bridges that
+        # reached 0 hp: down (their road edge is cut) until repaired to full (`nexus.core.bridges`).
+        self.bridge_hp: dict[str, int] = dict(rules.supply.bridge_hp) if rules else {}
+        self.bridge_down: set[str] = set()
         # Side -> its Threat Director (NX-155); only the ENEMY's runs until NX-375, the other stays
         # at its start values.
         self.director: dict[Side, DirectorState] = {side: DirectorState() for side in SIDES}
@@ -997,6 +1008,8 @@ def to_canonical(world: World, *, quantize: bool) -> dict[str, Any]:
         _BLOB_RUNS: {s: dict(sorted(r.items())) for s, r in world.blob_runs.items()},
         _BLOBS: _blobs_data(world, quantize),
         _BOARDS: _boards_data(world, quantize),
+        _BRIDGE_DOWN: sorted(world.bridge_down),
+        _BRIDGE_HP: dict(sorted(world.bridge_hp.items())),
         _CALLSIGNS: dict(sorted(world.callsigns.items())),
         _COOLDOWN: {s: dict(sorted(c.items())) for s, c in world.cooldown.items()},
         _LOST: dict(sorted(world.lost.items())),
@@ -1729,6 +1742,13 @@ def load(data: bytes) -> World:
     world.defense_down = {_str(n, "node id") for n in down}
     if not world.defense_down <= set(world.defense_hp):
         raise ValueError(f"{_DEFENSE_DOWN} must list defended nodes")
+    world.bridge_hp = _defense(d[_BRIDGE_HP], _BRIDGE_HP, world.owner)
+    down = d[_BRIDGE_DOWN]
+    if not isinstance(down, list):
+        raise ValueError(f"{_BRIDGE_DOWN} must be a list")
+    world.bridge_down = {_str(n, "node id") for n in down}
+    if not world.bridge_down <= set(world.bridge_hp):
+        raise ValueError(f"{_BRIDGE_DOWN} must list bridges")
     world.objective = _load_objective(d[_OBJECTIVE], world.campaign)
     c = world.campaign
     world.director = _director(d[_DIRECTOR], c.running_ticks)

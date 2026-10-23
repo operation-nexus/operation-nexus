@@ -4,7 +4,7 @@ Pure and deterministic: built from plain data (the runtime turns a loaded theate
 adjacency is held in node-id order, and heap entries carry explicit `(f, g, node_id)` keys, so no
 result depends on dict, set or hash order. Travel cost is `length_m / speed_mult` (GAMEPLAY §5);
 `length_m` is the straight line between the endpoints. A destroyed bridge removes its edge until
-repaired (Q-GD-11): pass its node id in `blocked`.
+repaired (Q-GD-11): pass its node id in `blocked` (every planner passes `bridges.blocked`).
 """
 
 import heapq

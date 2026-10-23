@@ -243,6 +243,7 @@ RETIRED = {**DESPAWNED, "reason": "RETIRED"}
 FIRED_AT_NODE = {**FIRED, "target_id": None, "target_node_id": "east-airbase"}
 DEFENSES_DOWN = {**_BASE, "kind": "NodeDefensesDown", "node_id": "east-airbase", "owner": "ENEMY"}
 DEFENSES_RESTORED = {**DEFENSES_DOWN, "kind": "NodeDefensesRestored"}
+BRIDGE_DOWN = {**_BASE, "kind": "BridgeDestroyed", "node_id": "bridge-n", "by_id": 4}
 TIER_CHANGED = {**_BASE, "kind": "ThreatTierChanged", "side": "ENEMY", "from": "PATTERN_OF_LIFE",
                 "to": "ALPHA", "cp_smoothed": 12.5}  # fmt: skip
 ADAPTATION = {**_BASE, "kind": "ThreatAdaptation", "side": "ENEMY", "category": "CONVOY_ESCORT",
@@ -261,6 +262,8 @@ ADAPTATION = {**_BASE, "kind": "ThreatAdaptation", "side": "ENEMY", "category": 
         FIRED_AT_NODE,
         DEFENSES_DOWN,
         DEFENSES_RESTORED,
+        BRIDGE_DOWN,
+        {**BRIDGE_DOWN, "by_id": None},  # a hidden actor in a filtered view
         TIER_CHANGED,
     ],
 )
@@ -287,6 +290,9 @@ def test_combat_events_parse_through_the_event_union(good: dict[str, object]) ->
         (DEFENSES_DOWN, {"owner": "RED"}),
         (DEFENSES_DOWN, {"hp": 0}),  # no per-hit or hp field: the HUD reads NodeView.hp_pct
         (DEFENSES_RESTORED, {"node_id": "Bad Node"}),
+        (BRIDGE_DOWN, {"by_id": 0}),  # an EntityId is at least 1
+        (BRIDGE_DOWN, {"hp": 0}),  # no hp field
+        (BRIDGE_DOWN, {"node_id": "Bridge N"}),
         (TIER_CHANGED, {"to": "CHARLIE"}),  # parked (Q-TD-3)
         (TIER_CHANGED, {"from": "BRAVO!"}),
         (TIER_CHANGED, {"cp_smoothed": -0.1}),

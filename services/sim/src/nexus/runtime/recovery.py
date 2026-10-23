@@ -17,6 +17,7 @@ from pathlib import Path
 
 from nexus.contracts.gen.commands.command import Command
 from nexus.contracts.gen.events.event import Event
+from nexus.core.bridges import validate as validate_bridges
 from nexus.core.combat import validate as validate_combat
 from nexus.core.defense import validate as validate_defense
 from nexus.core.provocation import validate as validate_director
@@ -111,6 +112,7 @@ def restore(
     if rules is not None:
         validate_combat(world, rules)  # a snapshot carries no rules; its combat state must fit them
         validate_defense(world, rules)
+        validate_bridges(world, rules)
         validate_director(world, rules)
     world.rules = rules
     by_tick: defaultdict[int, list[Command]] = defaultdict(list)

@@ -29,6 +29,7 @@ export type Event =
   | UnitRepaired
   | NodeDefensesDown
   | NodeDefensesRestored
+  | BridgeDestroyed
   | JobCreated
   | JobClaimed
   | JobReleased
@@ -787,6 +788,32 @@ export interface NodeDefensesRestored {
    * The node's owner at the time.
    */
   owner: "COALITION" | "ENEMY" | "NEUTRAL";
+}
+/**
+ * A bridge's HP reached 0 (CONTRACTS 6; STATE-MACHINES 4.3, COMBAT CB-10; NX-373): its road edge is cut for path planning until it is repaired to full. Once per down cycle, never per hit; individual hits are WeaponImpact.
+ */
+export interface BridgeDestroyed {
+  kind: "BridgeDestroyed";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Stable slug from the theater file.
+   */
+  node_id: string;
+  /**
+   * The unit whose hit took the bridge to 0; null for a hidden actor in a filtered view.
+   */
+  by_id: number | null;
 }
 /**
  * A job was posted to a side's Tasking Board, OPEN (CONTRACTS §6; GAMEPLAY §1b TB-1, TB-10; NX-374). Posted by the board generator (the director and GM injection post through the same call later). Exactly one of node_id and blob_id is set, except an escort job (ESCORT_CONVOY) and an intercept job (INTERCEPT), which set neither and name the escorted truck or the hunted scout in entity_id (sector_id joins with the sector scout). A job generated for a side references only what that side's view holds (TB-9). Public view: dropped for the ENEMY side's board.
