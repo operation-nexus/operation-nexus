@@ -351,8 +351,12 @@ def _strike(
     foe, free = _FOE[side], _idle_strikers(world, rules, side)
     slots = tr.slots["STRIKE"] + min(tr.strike_max_scaled_slots, free)  # Q-SIM-92
     targets: dict[str, JobSpec] = {}
+    rear = rules.supply.rear["ENEMY"]  # never struck: combat never fires at it (Q-SIM-64, NX-396)
     o = world.objective if side == "COALITION" else None
-    if o is not None and view.owners.get(o.node_id) == foe and view.defense_hp.get(o.node_id, 0):
+    if (
+        o is not None and o.node_id != rear
+        and view.owners.get(o.node_id) == foe and view.defense_hp.get(o.node_id, 0)
+    ):  # fmt: skip
         targets[o.node_id] = JobSpec(
             "STRIKE", f"strike:{o.node_id}", slots, tr.urgency_max_milli, node=o.node_id,
             objective=o.id,
@@ -362,7 +366,7 @@ def _strike(
     for _, m in sorted(view.markers.items()):
         node = at.get((m.pos.x, m.pos.y))
         if (
-            node is None or view.owners.get(node) != foe
+            node is None or node == rear or view.owners.get(node) != foe
             or m.state == "DISABLED" or not view.defense_hp.get(node, 0)
         ):  # fmt: skip
             continue
@@ -377,7 +381,7 @@ def _strike(
         near = sorted(
             (min((math.hypot(x - mx, y - my) for mx, my in mine), default=math.inf), n)
             for n, (x, y) in view.nodes.items()
-            if view.owners.get(n) == foe and view.defense_hp.get(n, 0)
+            if n != rear and view.owners.get(n) == foe and view.defense_hp.get(n, 0)
         )
         for _, n in near[: tr.strike_idle_targets_max]:
             targets[n] = JobSpec("STRIKE", f"strike:{n}", slots, 1000, node=n)

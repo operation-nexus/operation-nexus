@@ -2005,3 +2005,45 @@ def test_snapshot_patrol_jobs_follow_their_board() -> None:
     for edit, why in bad:
         with pytest.raises(ValueError, match=why):
             _reload(w, edit)
+
+
+def _rear_with_hp(w: World) -> None:
+    w.defense_hp["static-rear"] = 5  # a rear source with defense hp (it still is never a target)
+
+
+def test_idle_viewers_never_get_a_strike_job_on_the_static_rear_source() -> None:
+    """NX-396, Q-SIM-64: combat never fires at it, so a job there could never be done."""
+    w = new_world()
+    w.director["ENEMY"].tier = "ALPHA"
+    put(w, "STRIKE_FIGHTER", "west-airbase")
+    _rear_with_hp(w)
+    many = dataclasses.replace(TR, strike_idle_targets_max=20)
+    keys = [k for k, _ in _strikes(w, many)]
+    assert "strike:static-rear" not in keys
+    assert "strike:static-hq" in keys  # a normal defended foe node still gets its job
+
+
+def test_a_marker_or_objective_at_the_static_rear_source_posts_no_strike_job() -> None:
+    w = new_world()
+    _rear_with_hp(w)
+    pos = Vec2(*RULES.roads.pos["static-rear"])
+    w.markers["COALITION"][99] = FacilityMarker(
+        "AIR_DEFENSE_SITE", "SAM", pos, True, 1, 35_000, "HEALTHY"
+    )
+    assert _strikes(w) == []
+    w.objective = Objective(1, "static-rear", 90_000, False)
+    assert _strikes(w) == []
+
+
+def test_the_static_still_strikes_the_coalition_sanctuary() -> None:
+    w = new_world()
+    w.director["ENEMY"].tier = "ALPHA"
+    put(w, "ENEMY_STRIKE_FIGHTER", "static-hq", AI)  # the Static can staff a strike
+    sanctuary = RULES.supply.rear["COALITION"]
+    w.defense_hp[sanctuary] = 5
+    pos = Vec2(*RULES.roads.pos[sanctuary])
+    w.markers["ENEMY"][99] = FacilityMarker(
+        "AIR_DEFENSE_SITE", "SAM", pos, True, 1, 35_000, "HEALTHY"
+    )
+    specs = generate(w, RULES, TR, "ENEMY", side_view(w, "ENEMY"))
+    assert f"strike:{sanctuary}" in [s.key for s in specs if s.kind == "STRIKE"]
