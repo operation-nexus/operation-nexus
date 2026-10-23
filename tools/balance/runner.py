@@ -12,6 +12,7 @@ import hashlib
 import heapq
 import time
 from collections import Counter, defaultdict
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
@@ -149,9 +150,11 @@ def run(
     log_dir: Path,
     data: profiles.Data | None = None,
     config: CampaignConfig | None = None,
+    on_tick: Callable[[int, float, World], bool] | None = None,
 ) -> dict[str, Any]:
     """Run one (profile, seed) for up to `hours` game hours (it stops at the campaign's end) and
-    return its report. The command log goes to `log_dir`."""
+    return its report. The command log goes to `log_dir`. `on_tick(tick, step_seconds, world)`
+    (the soak tool, NX-033) is called after each completed tick; a true return stops the run."""
     data = data or profiles.load()
     config = config or load_campaign_config()
     hz = config.balance.sim.tick_hz
@@ -189,8 +192,10 @@ def run(
                 counts[c.kind] += 1
             if cmds:
                 log.append(cmds)
+            t0 = time.perf_counter()
             try:
                 events = step(world, cmds, HANDLERS)
+                step_s = time.perf_counter() - t0
             except Exception as e:  # noqa: BLE001  # a sim crash is a finding: record it, stop the run
                 crash = {"tick": tick, "error": f"{type(e).__name__}: {e}"}
                 break
@@ -206,7 +211,8 @@ def run(
             crowd.react(events, tick, hz, seen)
             if tick % FLUSH_TICKS == 0:
                 log.flush()
-            if world.campaign.ended:
+            stop = on_tick is not None and on_tick(tick, step_s, world)
+            if stop or world.campaign.ended:
                 break
     finally:
         log.close()

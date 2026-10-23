@@ -102,9 +102,10 @@ jobs:
       - run: uv run --frozen ruff format --check . ../../tools
       - run: uv run --frozen mypy src tests
       - run: >-
-          MYPYPATH=src:tests uv run --frozen mypy
+          MYPYPATH=src:tests:../../tools/balance uv run --frozen mypy
           ../../tools/balance ../../tools/replay ../../tools/sim-determinism
           ../../tools/sim-bench/kernel_bench.py ../../tools/discord-setup/setup.py
+          ../../tools/soak/soak.py
       - run: uv run --frozen lint-imports
 
   python-test:
