@@ -32,6 +32,11 @@ while frozen (SC-11), for each side in COALITION, ENEMY order:
      PATROL (the coalition's, Q-SIM-94): hold the node (an aircraft circles it); DONE
      `tasking.patrol_dwell_s` after the first claimant is on station, FAILED when the node or a
      node on a claimant's route is no longer the side's.
+     INTERCEPT (the Static's, Q-SIM-96, NX-382): each pass its claimants fly to the scout's
+     last-known track position; DONE when the scout is destroyed or Disabled (a participant
+     needed, else EXPIRED), EXPIRED when the side has not tracked it for
+     `director.intercept.lost_s` (`Job.lost`: when it was first found untracked) or its last track
+     is no longer within `director.intercept.radius_m` of a node the side holds.
    - DONE needs a participant (a live ACTIVE claimant), else EXPIRED, unless another job waits for
      it (the Director's chains, NX-156): its goal was met, so the next step must not fail with it.
      A job with no claim expires `tasking.expire_min` after posting (an objective's job: with the
@@ -57,6 +62,9 @@ while frozen (SC-11), for each side in COALITION, ENEMY order:
    nearest landing base with stock, where `logistics` restocks it, and tries again next pass. A
    claim sets the path: a GROUND unit by road, an aircraft straight.
 
+Before each Static pass `World.intercept_seen` is brought up to date (`_watch`: the first pass a
+coalition scout was tracked inside a held node's radius, dropped when it is not).
+
 A non-garrison unit may displace an AI garrison claimant (Q-TD-11). An AI garrison unit takes
 DEFEND, RESUPPLY and SCOUT freely and any other job only once a COMMANDER-owned unit holds a claim
 on it (it never initiates offense). A parameterless JOIN takes the best job at once
@@ -77,12 +85,22 @@ from nexus.contracts.gen.events.job_created import JobCreated
 from nexus.contracts.gen.events.job_done import JobDone, Participant
 from nexus.contracts.gen.events.job_expired import JobExpired
 from nexus.contracts.gen.events.job_failed import JobFailed
-from nexus.core.fog import side_view
+from nexus.core.fog import SideView, side_view
 from nexus.core.logistics import Run, go_home, load, nearest_base, plan_run
 from nexus.core.rng import PcgStream, RngStream
 from nexus.core.roads import shortest_path
 from nexus.core.rules import Rules, TaskingRules
-from nexus.core.tasking_gen import GENERATED, POST_GATE, JobSpec, fits, generate, is_idle
+from nexus.core.tasking_gen import (
+    GENERATED,
+    POST_GATE,
+    JobSpec,
+    can_hit,
+    fits,
+    generate,
+    held_within,
+    is_idle,
+    watched,
+)
 from nexus.core.world import (
     SIDES,
     Claim,
@@ -98,8 +116,10 @@ type Outcome = Literal["DONE", "FAILED", "EXPIRED"]
 type Verdict = Literal["ok", "refuel", "no"]
 type Routes = dict[tuple[str, str], list[str] | None]
 _AIR, _GROUND = "AIR", "GROUND"
+_INTERCEPT: JobKind = "INTERCEPT"  # the Static board's hunt of a scout (Q-SIM-96, NX-382)
 _PATROL: JobKind = "PATROL"  # the Director's (NX-157), and the coalition board's (NX-382)
 _COALITION: Side = "COALITION"
+_STATIC: Side = "ENEMY"
 _AI, _HUMAN = "AI_GARRISON", "COMMANDER"
 _NO_BLOCKED = frozenset[str]()  # no bridge is destroyed until NX-373
 _GARRISON_JOBS: frozenset[JobKind] = frozenset({"DEFEND", "RESUPPLY", "SCOUT"})
@@ -226,6 +246,9 @@ def _may_take(world: World, tr: TaskingRules, e: Entity, job: Job) -> bool:
     """An AI garrison unit never initiates offense: outside its own jobs it joins only a job a
     COMMANDER-owned unit already holds (GAMEPLAY §1b, Q-GD-26), or a strike or assist-objective
     job against a node its side lost within `tasking.counterattack_window_min` (Q-GD-31)."""
+    if job.kind == _INTERCEPT:  # the garrison's own call: a round that can hit the scout
+        track = world.contacts[e.side].get(job.entity or 0)
+        return track is not None and world.rules is not None and can_hit(world.rules, e, track.kind)
     if job.kind in ("ESCORT_CONVOY", _PATROL):
         return e.owner_kind != _AI  # escorting, patrolling: the players' call (Q-GP-45, Q-SIM-94)
     if e.owner_kind != _AI or job.kind in _GARRISON_JOBS:
@@ -310,7 +333,10 @@ def run(world: World, out: list[Event]) -> None:
     routes: Routes = {}  # road routes found this pass, shared by every unit
     for side in SIDES:
         _settle(world, rules, tr, side, now, routes, out)
-        specs = generate(world, rules, tr, side, side_view(world, side))
+        view = side_view(world, side)
+        if side == _STATIC:
+            _watch(world, rules, view, now)
+        specs = generate(world, rules, tr, side, view)
         before = {j.key for j in world.boards[side].values()}
         for spec in specs:
             post_job(world, side, spec, out)
@@ -325,6 +351,13 @@ def run(world: World, out: list[Event]) -> None:
         if side == _COALITION:
             _preempt_patrols(world, rules, tr, now, routes, out)
         _assign(world, rules, tr, side, now, routes, out)
+
+
+def _watch(world: World, rules: Rules, view: SideView, now: int) -> None:
+    """The intercept clock (Q-SIM-96): a scout watched now keeps the pass it was first watched
+    (consecutive passes), any other starts at `now`; one that is not watched loses its entry."""
+    seen = world.intercept_seen
+    world.intercept_seen = {i: seen.get(i, now) for i in watched(world, rules, view)}
 
 
 def _capturing(world: World, rules: Rules, e: Entity) -> bool:
@@ -390,6 +423,8 @@ def _settle(
             and any((e := world.find(i)) is not None and e.path for i in job.claims)
         ):  # units still driving get a fresh clock, at most `capture_max_restarts` times
             job.expires, job.restarts = now + tr.expire_ticks, job.restarts + 1
+        if job.kind == _INTERCEPT:
+            _chase(world, side, job, out)
         if _is_point(job):
             _loiter(world, rules, tr, job, now)
         elif _is_station_patrol(side, job):
@@ -397,6 +432,51 @@ def _settle(
         outcome = _outcome(world, rules, tr, side, job, now)
         if outcome is not None:
             _end(world, side, job, outcome, out)
+
+
+def _in_leash(rules: Rules, e: Entity, pos: Vec2) -> bool:
+    """`pos` is within `director.intercept.leash_m` of the garrison unit's home (a unit without a
+    home has no leash)."""
+    dr = rules.director
+    if e.home is None:
+        return True
+    hx, hy = rules.roads.pos[e.home]
+    return dr is not None and math.hypot(pos.x - hx, pos.y - hy) <= dr.intercept_leash_m
+
+
+def _chase(world: World, side: Side, job: Job, out: list[Event]) -> None:
+    """Q-SIM-96: the job's position follows the side's track of the scout (last-known once lost,
+    never the scout's true position, FOW), and each claimant flies to it. A garrison claimant
+    whose scout's track passes its leash is released and stops; the recall takes it home."""
+    c = world.contacts[side].get(job.entity or 0)
+    if c is not None:
+        job.pos = c.pos
+    if c is not None and c.age is None:
+        job.lost = None
+    elif job.lost is None:  # first found untracked: the track's age says since when
+        job.lost = _now(world) - (0 if c is None else c.age or 0)
+    if c is None:
+        return
+    for i in list(job.claims):
+        if (e := world.find(i)) is None:
+            continue
+        if world.rules is not None and not _in_leash(world.rules, e, c.pos):
+            release_claim(world, job, i, out)
+            e.path = []
+        else:
+            e.path = [c.pos]
+
+
+def _escaped(world: World, rules: Rules, side: Side, job: Job) -> bool:
+    """The scout was untracked for `director.intercept.lost_s`, or its last track is not within
+    `director.intercept.radius_m` of a node the side holds."""
+    dr = rules.director
+    if dr is None or job.pos is None:
+        return True
+    lost = job.lost is not None and _now(world) - job.lost >= dr.intercept_lost_ticks
+    return lost or not held_within(
+        rules.roads.pos, world.owner, side, job.pos.x, job.pos.y, dr.intercept_radius_m
+    )
 
 
 def _present(world: World, job: Job, *, delivered: bool = False) -> bool:
@@ -462,6 +542,11 @@ def _verdict(world: World, rules: Rules, tr: TaskingRules, side: Side, job: Job)
             if lost or not job.claims:  # no unit left to drive, or the base is gone
                 return "FAILED"
             return "DONE" if _present(world, job) else None  # home again
+        case "INTERCEPT":
+            scout = world.find(job.entity or 0)  # a kill is seen by those who made it
+            if scout is None or scout.damage_state == "DISABLED":
+                return "DONE"
+            return "EXPIRED" if _escaped(world, rules, side, job) else None
         case "ESCORT_CONVOY":
             truck = world.find(job.entity or 0)
             if truck is None or truck.damage_state == "DISABLED":
@@ -502,6 +587,8 @@ def _end(world: World, side: Side, job: Job, outcome: Outcome, out: list[Event])
                 _abandon_patrol(world, world.rules, e, job)
             if outcome == "DONE" and _is_point(job) and world.rules is not None:
                 go_home(world, world.rules, e)  # the loiter is over (NX-379)
+            if job.kind == _INTERCEPT:
+                e.path = []  # it stops where it is, not at a dead scout's last position
             e.job_id = e.pickup = None
             if e.order != "FOLLOW":
                 e.follow_id = None  # an escort claim ends with its follow order
@@ -683,13 +770,18 @@ def _abandon_patrol(world: World, rules: Rules, e: Entity, job: Job) -> None:
         e.path = []
 
 
-def _board_may_give(e: Entity, job: Job) -> bool:
+def _board_may_give(rules: Rules, e: Entity, job: Job) -> bool:
     """A PATROL on the Static's board is the Director's alone (the coalition board posts its own,
     Q-SIM-94), and a garrison unit (`Entity.home`) stays at its base: the board gives it only a
-    DEFEND of that base; the Director sends it elsewhere (Q-SIM-85)."""
+    DEFEND of that base, or an INTERCEPT of a scout within `director.intercept.leash_m` of it, the
+    one exception (Q-SIM-96); the Director sends it elsewhere (Q-SIM-85)."""
     if job.kind == _PATROL and e.side != _COALITION:
         return False
-    return e.home is None or (job.kind == "DEFEND" and job.node == e.home)
+    if e.home is None:
+        return True
+    if job.kind == _INTERCEPT:
+        return job.pos is not None and _in_leash(rules, e, job.pos)
+    return job.kind == "DEFEND" and job.node == e.home
 
 
 def _assign(
@@ -706,7 +798,7 @@ def _assign(
     for e in idle:
         pool = [
             j for j in ranked
-            if j.depends_on is None and _board_may_give(e, j)
+            if j.depends_on is None and _board_may_give(rules, e, j)
             and fits(rules, e.kind, j.kind) and _may_take(world, tr, e, j)
         ]  # fmt: skip
         for job in _open(tr, world, pool, ai=e.owner_kind == _AI):
@@ -731,7 +823,7 @@ def idle_reason(world: World, e: Entity) -> str:
     rules, tr = _rules(world)
     pool = [
         j for j in world.boards[e.side].values()
-        if j.depends_on is None and _board_may_give(e, j)
+        if j.depends_on is None and _board_may_give(rules, e, j)
         and fits(rules, e.kind, j.kind) and _may_take(world, tr, e, j)
     ]  # fmt: skip
     if not pool:
@@ -754,7 +846,8 @@ def idle_reason(world: World, e: Entity) -> str:
 
 def _waypoint(world: World, job: Job) -> str | Vec2:
     """Where the job is: its node, the blob's cell centre, or the escorted truck now."""
-    truck = world.find(job.entity) if job.entity is not None else None
+    escorted = job.kind == "ESCORT_CONVOY" and job.entity is not None  # an intercept: its track
+    truck = world.find(job.entity or 0) if escorted else None
     target = job.node if job.node is not None else truck.pos if truck else job.pos
     if target is None:
         raise ValueError(f"job {job.id} has no target")

@@ -160,6 +160,7 @@ tasking:
     stage: 20
     capture: 45
     patrol: 15
+    intercept: 45
   static_offense_min_tier: ALPHA
   urgency_max: 2.0
   priority_aging_per_min: 1
@@ -170,6 +171,7 @@ tasking:
     scout: 1
     escort_convoy: 2
     patrol: 2
+    intercept: 1
   resupply_stock_per_slot: 100
   resupply_slots_max: 3
   defend_radius_m: 10000
@@ -249,6 +251,7 @@ director:
     weights: {convoy_hit: 1, radar_hit: 1, scout_lost: 1, node_lost: 1}
   decoy_blink: {dark_s: 120, cooldown_s: 600, max_per_window: 1}
   recon: {loiter_s: 600, loiter_radius_m: 5000, grid_m: 10000, memory_s: 3600}
+  intercept: {radius_m: 30000, reaction_s: 60, pol_linger_s: 600, leash_m: 80000, lost_s: 120}
   alpha_max_ops: 1
   idle_retire_s: 600
   adaptation_up_above: 0
@@ -285,7 +288,7 @@ director:
 # NX-374 for the tasking keys and again for follow and escort, NX-155 for the director, and NX-157
 # for the Pattern of Life keys and the garrison operation); a
 # change means every config_hash moved.
-GOLDEN_CONFIG_HASH = "cdd2cb14aff95c85d1630c264209cd268e43a343396d2a02aa4d7fa355ab89ca"
+GOLDEN_CONFIG_HASH = "f9e071c02cdf8ac6aa6d04f517482f364641bd000fc2a304a31e8f7716e503cb"
 SLOTS = {
     "max_live_per_commander": 1,
     "respawn_delay_s": 20,
@@ -395,6 +398,7 @@ TASKING = {
         "stage": 20,
         "capture": 45,
         "patrol": 15,
+        "intercept": 45,
     },
     "static_offense_min_tier": "ALPHA",
     "urgency_max": 2.0,
@@ -406,6 +410,7 @@ TASKING = {
         "scout": 1,
         "escort_convoy": 2,
         "patrol": 2,
+        "intercept": 1,
     },
     "resupply_stock_per_slot": 100,
     "resupply_slots_max": 3,
@@ -487,6 +492,13 @@ DIRECTOR = {
     },
     "decoy_blink": {"dark_s": 120, "cooldown_s": 600, "max_per_window": 1},
     "recon": {"loiter_s": 600, "loiter_radius_m": 5000, "grid_m": 10000, "memory_s": 3600},
+    "intercept": {
+        "radius_m": 30000,
+        "reaction_s": 60,
+        "pol_linger_s": 600,
+        "leash_m": 80000,
+        "lost_s": 120,
+    },
     "alpha_max_ops": 1,
     "idle_retire_s": 600,
     "adaptation_up_above": 0,
@@ -841,11 +853,12 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "  time_limit_h: 72, night_progress_cap_nodes_per_h: 0.16666666666666666}\n"
         "tasking: {reeval_every_ticks: 50, claim_lease_s: 120, expire_min: 15,\n"
         "  priority: {scout: 30, strike: 40, assist_objective: 45, resupply: 50, defend: 60,\n"
-        "    escort_convoy: 40, stage: 20, capture: 45, patrol: 15},\n"
+        "    escort_convoy: 40, stage: 20, capture: 45, patrol: 15,\n"
+        "    intercept: 45},\n"
         "  static_offense_min_tier: ALPHA,\n"
         "  urgency_max: 2.0, priority_aging_per_min: 1,\n"
         "  slots: {scout: 1, assist_objective: 4, strike: 2, defend: 2, escort_convoy: 2,\n"
-        "    patrol: 2},\n"
+        "    patrol: 2, intercept: 1},\n"
         "  resupply_stock_per_slot: 100, resupply_slots_max: 3, defend_radius_m: 10000,\n"
         "  counterattack_window_min: 15, scout_cooldown_min: 5, scout_open_max: 3,\n"
         "  scout_post_interval_min: 2, capture_max_restarts: 3,\n"
@@ -876,6 +889,8 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "    weights: {convoy_hit: 1, radar_hit: 1, scout_lost: 1, node_lost: 1}},\n"
         "  decoy_blink: {dark_s: 120, cooldown_s: 600, max_per_window: 1},\n"
         "  recon: {loiter_s: 600, loiter_radius_m: 5000, grid_m: 10000, memory_s: 3600},\n"
+        "  intercept: {radius_m: 30000, reaction_s: 60, pol_linger_s: 600, leash_m: 80000,\n"
+        "    lost_s: 120},\n"
         "  alpha_max_ops: 1, job_urgency: 1.0,\n"
         "  idle_retire_s: 600, adaptation_up_above: 0, reinforce_damage_above: 0,\n"
         "  escort_min_convoys: 1, frontline_hops: 1,\n"

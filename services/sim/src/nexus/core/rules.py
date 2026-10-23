@@ -308,6 +308,15 @@ class DirectorRules:
     recon_loiter_radius_m: float
     recon_grid_m: int
     recon_memory_ticks: int  # how long a cell a sensor covered counts as looked at
+    # Scout intercepts (Q-SIM-96, NX-382): a coalition scout tracked inside `intercept_radius_m` of
+    # a Static-held node for `intercept_reaction_ticks` (`intercept_pol_linger_ticks` at Pattern of
+    # Life) draws an interceptor; a garrison fighter takes one within `intercept_leash_m` of its
+    # home; the job ends once the scout was untracked `intercept_lost_ticks`.
+    intercept_radius_m: float
+    intercept_leash_m: float
+    intercept_reaction_ticks: int
+    intercept_pol_linger_ticks: int
+    intercept_lost_ticks: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -550,6 +559,9 @@ def director_rules(
     night_cap_ticks: int,
     recon_loiter_ticks: int,
     recon_memory_ticks: int,
+    intercept_reaction_ticks: int,
+    intercept_pol_linger_ticks: int,
+    intercept_lost_ticks: int,
 ) -> DirectorRules:
     """The tick counts are `cfg`'s game-time keys already converted by the config loader;
     `operations` is the validated catalog (`nexus.runtime.operations`). Raises ValueError for a
@@ -623,6 +635,11 @@ def director_rules(
         recon_loiter_radius_m=cfg.recon.loiter_radius_m,
         recon_grid_m=cfg.recon.grid_m,
         recon_memory_ticks=recon_memory_ticks,
+        intercept_radius_m=cfg.intercept.radius_m,
+        intercept_leash_m=cfg.intercept.leash_m,
+        intercept_reaction_ticks=intercept_reaction_ticks,
+        intercept_pol_linger_ticks=intercept_pol_linger_ticks,
+        intercept_lost_ticks=intercept_lost_ticks,
     )  # fmt: skip
 
 

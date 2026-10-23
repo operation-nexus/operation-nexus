@@ -756,7 +756,7 @@ export interface NodeDefensesRestored {
   owner: "COALITION" | "ENEMY" | "NEUTRAL";
 }
 /**
- * A job was posted to a side's Tasking Board, OPEN (CONTRACTS §6; GAMEPLAY §1b TB-1, TB-10; NX-374). Posted by the board generator (the director and GM injection post through the same call later). Exactly one of node_id and blob_id is set, except an escort job (ESCORT_CONVOY), which sets neither and names the escorted truck in entity_id (sector_id joins with the sector scout). A job generated for a side references only what that side's view holds (TB-9). Public view: dropped for the ENEMY side's board.
+ * A job was posted to a side's Tasking Board, OPEN (CONTRACTS §6; GAMEPLAY §1b TB-1, TB-10; NX-374). Posted by the board generator (the director and GM injection post through the same call later). Exactly one of node_id and blob_id is set, except an escort job (ESCORT_CONVOY) and an intercept job (INTERCEPT), which set neither and name the escorted truck or the hunted scout in entity_id (sector_id joins with the sector scout). A job generated for a side references only what that side's view holds (TB-9). Public view: dropped for the ENEMY side's board.
  */
 export interface JobCreated {
   kind: "JobCreated";
@@ -778,14 +778,23 @@ export interface JobCreated {
   job_id: number;
   side: "COALITION" | "ENEMY";
   /**
-   * Tasking Board job kinds the code handles (GAMEPLAY §1b, CONTRACTS §3.3). STAGE and CAPTURE are posted by the Threat Director on the Static board only (Q-SIM-81, Q-TD-14). PATROL is the Director's on the Static board (Q-SIM-85) and the coalition board's front-line patrol (Q-SIM-94). REPAIR_BRIDGE and RESCUE join with their jobs (rule 6a).
+   * Tasking Board job kinds the code handles (GAMEPLAY §1b, CONTRACTS §3.3). STAGE and CAPTURE are posted by the Threat Director on the Static board only (Q-SIM-81, Q-TD-14). PATROL is the Director's on the Static board (Q-SIM-85) and the coalition board's front-line patrol (Q-SIM-94). INTERCEPT is the Static board's hunt of a coalition scout it tracks (Q-SIM-96). REPAIR_BRIDGE and RESCUE join with their jobs (rule 6a).
    */
   job_kind:
-    "RESUPPLY" | "SCOUT" | "DEFEND" | "STRIKE" | "ASSIST_OBJECTIVE" | "ESCORT_CONVOY" | "STAGE" | "CAPTURE" | "PATROL";
+    | "RESUPPLY"
+    | "SCOUT"
+    | "DEFEND"
+    | "STRIKE"
+    | "ASSIST_OBJECTIVE"
+    | "ESCORT_CONVOY"
+    | "STAGE"
+    | "CAPTURE"
+    | "PATROL"
+    | "INTERCEPT";
   node_id: string | null;
   blob_id: string | null;
   /**
-   * The truck an escort job covers (ESCORT_CONVOY), else null.
+   * The truck an escort job covers (ESCORT_CONVOY) or the scout an intercept job hunts (INTERCEPT), else null.
    */
   entity_id: number | null;
   slots: number;
