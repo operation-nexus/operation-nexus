@@ -366,6 +366,33 @@ def test_main_runs_with_an_injected_client_and_reports_failure_as_exit_1(tmp_pat
         main(["--max-new", "-1"], env=env, client=client)
 
 
+def test_a_store_never_syncs_to_a_different_repo(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    db = seeded_db(tmp_path)
+    client = FakeClient()
+    env = {"NEXUS_ERRORS_DB": str(db), "NEXUS_ERRORS_REPO": "owner/ops"}
+    assert main(["--dry-run"], env=env, clock=lambda: T0) == 0
+    assert Store(db).meta_get("repo") is None  # a dry run binds nothing
+    assert main([], env=env, client=client, clock=lambda: T0) == 0
+    assert Store(db).meta_get("repo") == "owner/ops"
+    capture_n(Store(db), 1, now=T0 + timedelta(hours=2))  # a recurrence for the same issue
+    calls = len(client.calls)
+    other = {**env, "NEXUS_ERRORS_REPO": "owner/elsewhere"}
+    assert main([], env=other, client=client, clock=lambda: T0 + timedelta(hours=3)) == 2
+    assert "belongs to owner/ops, not owner/elsewhere" in capsys.readouterr().err
+    assert len(client.calls) == calls  # no reopen or comment went anywhere
+    assert (
+        main(
+            [],
+            env={**env, "NEXUS_ERRORS_REPO": "Owner/OPS"},
+            client=client,
+            clock=lambda: T0 + timedelta(hours=3),
+        )
+        == 0
+    )  # GitHub names ignore case
+
+
 class FakeResponse(io.BytesIO):
     def __enter__(self) -> "FakeResponse":
         return self

@@ -22,7 +22,8 @@ python -m nexus.errors.sync [--max-new N] [--dry-run]
 - `NEXUS_ERRORS_REPO` and `NEXUS_ERRORS_GH_TOKEN` are required (no defaults). The token is read from
   the environment only, never logged or printed. Keep it with sops+age in the ops repo.
 - `--dry-run` prints what it would do, needs no token, calls nothing and marks nothing.
-- `--max-new` (default 10, PROPOSED) caps new issues per run; the rest go into one flood issue.
+- `--max-new` (default 10, PROPOSED) caps new-issue attempts per run (a failed create counts, so a failing API sees at most N calls); the rest go into one flood issue.
+- The first real (non-dry) run binds the store to `NEXUS_ERRORS_REPO`; a later run against another repo stops with exit 2, so stored issue numbers are never reused elsewhere. Moving to a new repo means a new `NEXUS_ERRORS_DB`.
 - Exit 0: done (or no store yet). 1: at least one GitHub call failed; those fingerprints stay
   unsynced and the next run retries. 2: bad or missing configuration.
 - Run it at least hourly; an issue is commented at most once an hour.
