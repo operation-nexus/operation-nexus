@@ -55,7 +55,7 @@ from nexus.contracts.gen.events.weapon_fired import WeaponFired
 from nexus.contracts.gen.events.weapon_impact import WeaponImpact
 from nexus.core.defense import damage as damage_defense
 from nexus.core.defense import floor as defense_floor
-from nexus.core.fog import LOW_BANDS, in_masking_region, is_off_facility
+from nexus.core.fog import in_masking_region, is_off_facility
 from nexus.core.logistics import go_home
 from nexus.core.provocation import suffered_defense_hit, suffered_hit
 from nexus.core.rearm import stop_problem
@@ -368,7 +368,7 @@ def _pk(
         or (domain == _AIR and target.alt_band not in w.bands)
     ):
         return None
-    masked = (domain == _AIR and target.alt_band in LOW_BANDS) or (
+    masked = (domain == _AIR and target.alt_band in rules.masked_bands) or (
         domain == _GROUND and in_masking_region(rules, target.pos)
     )
     return min(

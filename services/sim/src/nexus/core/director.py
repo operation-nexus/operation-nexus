@@ -18,8 +18,9 @@ it, in order:
    side tracks now (never last-known tracks, Q-FOW-14; a kind not listed counts 0), moved a
    `window / ema_window` step toward it from the old smoothed value. It starts at 0.
 3. Levels with hysteresis (Q-TD-1): the provocation level (0 PATTERN_OF_LIFE, 1 ALPHA from
-   `escalate_threshold`, 2 BRAVO from `bravo_threshold`) and the CP ceiling (ALPHA always, BRAVO
-   from `bravo_enter_cp`); a level drops only below its enter value x `exit_ratio`.
+   `escalate_threshold`, 2 BRAVO from `bravo_threshold`) and the CP ceiling (ALPHA from
+   `tier.alpha_enter_cp`, 0 by default so always; PATTERN_OF_LIFE below it; BRAVO from
+   `bravo_enter_cp`); a level drops only below its enter value x `exit_ratio`.
 4. The tier moves at most one step toward min(level, ceiling), and only once it has been in the
    current tier for `min_dwell_s` (`dwell` is running ticks, added a window at a time and held at
    `min_dwell_ticks`; a new campaign starts in PATTERN_OF_LIFE with dwell 0).
@@ -112,7 +113,9 @@ def decide(
     state.prov_level = level(
         state.provocation, state.prov_level, (dr.escalate, dr.bravo), dr.exit_ratio
     )
-    state.ceiling = level(state.cp, state.ceiling, (0, dr.bravo_enter_cp), dr.exit_ratio)
+    state.ceiling = level(
+        state.cp, state.ceiling, (dr.alpha_enter_cp, dr.bravo_enter_cp), dr.exit_ratio
+    )
     state.dwell = min(state.dwell + dr.window_ticks, dr.min_dwell_ticks)
     change = None
     at, target = TIERS.index(state.tier), min(state.prov_level, state.ceiling)

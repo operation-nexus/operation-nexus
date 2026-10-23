@@ -64,6 +64,7 @@
       "required": [
         "time_limit_h",
         "victory_node_frac",
+        "strategic_node_kinds",
         "victory_hold_min",
         "objective_period_min",
         "objective_mode",
@@ -80,6 +81,7 @@
           "x-unit": "h (game)",
           "x-hot-reload": false
         },
+        "strategic_node_kinds": {"description": "Node kinds that count as strategic nodes: the denominator of victory_node_frac and of the score and Momentum node shares (GAMEPLAY \u00a79, Q-GP-21, Q-DEV-21), unit node kinds.", "type": "array", "minItems": 1, "items": {"$ref": "../common/enums.json#/$defs/NodeKind"}, "x-unit": "node kinds", "x-hot-reload": false},
         "victory_node_frac": {
           "description": "Share of strategic nodes (AIRBASE, FOB, PORT) the coalition must hold to win, unit fraction (GAMEPLAY §9).",
           "type": "number",
@@ -203,7 +205,8 @@
       "additionalProperties": false,
       "required": [
         "bingo_reserve_frac",
-        "orbit_period_s"
+        "orbit_period_s",
+        "landing_node_kinds"
       ],
       "properties": {
         "bingo_reserve_frac": {
@@ -220,7 +223,8 @@
           "exclusiveMinimum": 0,
           "x-unit": "s (world)",
           "x-hot-reload": false
-        }
+        },
+        "landing_node_kinds": {"description": "Node kinds an aircraft may land at (and bingo or rebase to), when the side owns the node (Q-SIM-38, NX-368, Q-DEV-21), unit node kinds.", "type": "array", "minItems": 1, "items": {"$ref": "../common/enums.json#/$defs/NodeKind"}, "x-unit": "node kinds", "x-hot-reload": false}
       }
     },
     "Capture": {
@@ -240,7 +244,8 @@
         "decay_per_s",
         "min_progress_per_tick",
         "defense_hp",
-        "sanctuary_repair_hp_per_s"
+        "sanctuary_repair_hp_per_s",
+        "uncapturable_node_kinds"
       ],
       "properties": {
         "radius_m": {
@@ -346,7 +351,8 @@
           "exclusiveMinimum": 0,
           "x-unit": "hp/s (world) per unit",
           "x-hot-reload": false
-        }
+        },
+        "uncapturable_node_kinds": {"description": "Node kinds that are never captured: no capture bar, not a base for the Director's targets, not a timed-objective candidate, no defenses to rebuild for the Static board (GAMEPLAY \u00a78, N-4, NX-373, Q-DEV-21); must include BRIDGE (a bridge has no owner or stock); SANCTUARY may be removed, which also makes a sanctuary a Director base and patrol point, unit node kinds.", "type": "array", "items": {"$ref": "../common/enums.json#/$defs/NodeKind"}, "x-unit": "node kinds", "x-hot-reload": false}
       }
     },
     "Combat": {
@@ -607,6 +613,7 @@
       "required": [
         "paint_range_m",
         "mask_cell_m",
+        "masked_alt_bands",
         "sigint_cell_m",
         "sigint_range_mult",
         "sigint_refresh_s",
@@ -631,6 +638,7 @@
           "x-unit": "m",
           "x-hot-reload": false
         },
+        "masked_alt_bands": {"description": "Altitude bands that terrain masking hides: an aircraft in one of them, inside a masking region, is seen only by a sensor in the region, and a weapon fired at it takes combat.pk_mult.terrain_masked (FOG-OF-WAR Q-FOW-3, COMBAT \u00a75.2, Q-DEV-21), unit altitude bands.", "type": "array", "items": {"$ref": "../common/enums.json#/$defs/AltBand"}, "x-unit": "altitude bands", "x-hot-reload": false},
         "sigint_cell_m": {
           "description": "Side of the square SIGINT cell that blobs aggregate into and are drawn at, unit m (FOG-OF-WAR Tier 1, FOW-2).",
           "type": "integer",
@@ -1020,6 +1028,8 @@
         "static_offense_min_tier",
         "follow_hold_slack",
         "overfill_factor",
+        "overfill_point_jobs",
+        "join_excluded_jobs",
         "scout_blob_runs",
         "scout_urgency",
         "strike_urgency_per_threat",
@@ -1093,7 +1103,9 @@
         "escort_threat_memory_s": {"description": "An armed follower treats a tracked enemy that fired at any member of its convoy or column this recently as a threat to the group and engages it (Q-SIM-76), unit s of world time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (world)", "x-hot-reload": true},
         "escort_leash_m": {"description": "The farthest an armed follower leaves its station from the nearest other member of its group to engage a group threat; beyond it, it returns to station and a threat that far is not chased (Q-SIM-76), unit m.", "type": "number", "exclusiveMinimum": 0, "x-unit": "m", "x-hot-reload": true},
         "follow_hold_slack": {"description": "A stopped leader's ground followers hold where they are while within this many stations of it, instead of closing in (Q-SIM-76, Q-DEV-21), unit stations (multiples of follow_station_m).", "type": "number", "minimum": 1, "x-unit": "stations", "x-hot-reload": true},
-        "overfill_factor": {"description": "When every job is full, a job takes units up to this many times its slots (TB-4, Q-DEV-21), unit multiplier; a Recon scout's point job never overfills.", "type": "integer", "minimum": 1, "x-unit": "multiplier", "x-hot-reload": true},
+        "overfill_point_jobs": {"description": "Whether a Recon scout's point job overfills like any other (true), or never takes more than its slots (false) (NX-379, Q-DEV-21), unit flag.", "type": "boolean", "x-unit": "flag", "x-hot-reload": true},
+        "join_excluded_jobs": {"description": "Job kinds a parameterless JOIN never takes for a new coalition unit (the unit can still take them through the board); [] excludes none (Q-GP-23, Q-SIM-94, Q-DEV-21), unit job kinds.", "type": "array", "items": {"$ref": "../common/enums.json#/$defs/JobKind"}, "x-unit": "job kinds", "x-hot-reload": true},
+        "overfill_factor": {"description": "When every job is full, a job takes units up to this many times its slots (TB-4, Q-DEV-21), unit multiplier; a Recon scout's point job overfills only with overfill_point_jobs.", "type": "integer", "minimum": 1, "x-unit": "multiplier", "x-hot-reload": true},
         "scout_blob_runs": {"description": "A SIGINT blob must stay in its cell for this many consecutive SIGINT refreshes before a scout job is posted for it (Q-SIM-75, Q-DEV-21), unit refreshes.", "type": "integer", "minimum": 1, "x-unit": "refreshes", "x-hot-reload": true},
         "scout_urgency": {
           "description": "Urgency of a generated scout job by the blob's size bucket (Q-SIM-75, Q-DEV-21), unit multiplier, from 1.0 up to urgency_max (a larger value is capped there).",
@@ -1190,7 +1202,7 @@
         "noise_scale",
         "retake_window_min",
         "decoy_blink",
-        "alpha_max_ops",
+        "max_ops",
         "job_urgency",
         "adaptation_down_below",
         "idle_retire_s",
@@ -1275,11 +1287,19 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
+            "alpha_enter_cp",
             "bravo_enter_cp",
             "exit_ratio",
             "min_dwell_s"
           ],
           "properties": {
+            "alpha_enter_cp": {
+              "description": "Smoothed CP at which the CP ceiling rises from PATTERN_OF_LIFE to ALPHA, unit CP points; 0 means the ceiling is never below ALPHA (THREAT-DIRECTOR section 3, Q-TD-1, Q-DEV-21). The loader checks it is below bravo_enter_cp.",
+              "type": "number",
+              "x-unit": "CP points",
+              "x-hot-reload": true,
+              "minimum": 0
+            },
             "bravo_enter_cp": {
               "description": "Smoothed CP at which the CP ceiling rises to BRAVO, unit CP points.",
               "type": "number",
@@ -1312,6 +1332,7 @@
             "half_life_s",
             "escalate_threshold",
             "bravo_threshold",
+            "scout_in_rear_max_per_window",
             "weights"
           ],
           "properties": {
@@ -1335,6 +1356,13 @@
               "x-unit": "points",
               "x-hot-reload": true,
               "exclusiveMinimum": 0
+            },
+            "scout_in_rear_max_per_window": {
+              "description": "The most scout-in-rear notes (weights.scout_in_rear each) one decision window adds, lowest track id first (Q-SIM-79, Q-DEV-21), unit notes.",
+              "type": "integer",
+              "x-unit": "notes",
+              "x-hot-reload": true,
+              "minimum": 1
             },
             "weights": {
               "description": "Points per sensed or suffered action caused by a player-controlled unit.",
@@ -1541,7 +1569,8 @@
             "weakness_min",
             "stale_factor",
             "weakness_max",
-            "provocation_proximity"
+            "provocation_proximity",
+            "proximity_tiers"
           ],
           "properties": {
             "target_value": {
@@ -1596,12 +1625,13 @@
               "x-hot-reload": true
             },
             "provocation_proximity": {
-              "description": "Multiplier for a target in the last provocation sector while the CP ceiling is ALPHA (Q-TD-4, Q-SIM-78).",
+              "description": "Multiplier for a target in the last provocation sector while the CP ceiling is one of proximity_tiers (Q-TD-4, Q-SIM-78).",
               "type": "number",
               "minimum": 1,
               "x-unit": "multiplier",
               "x-hot-reload": true
-            }
+            },
+            "proximity_tiers": {"description": "CP ceilings at which provocation_proximity applies (Q-TD-4, Q-DEV-21), unit tiers.", "type": "array", "items": {"$ref": "../common/enums.json#/$defs/ThreatTier"}, "x-unit": "tiers", "x-hot-reload": true}
           }
         },
         "memory": {
@@ -1677,7 +1707,16 @@
         "escort_min_convoys": {"description": "The fewest convoys an escort operation may be cut to when the spawn cap or live-unit room is short; below it the operation is skipped (THREAT-DIRECTOR step 6), unit convoys.", "type": "integer", "minimum": 1, "x-unit": "convoys", "x-hot-reload": true},
         "frontline_hops": {"description": "A node is on the front when a node within this many road hops has another owner (PROBE's target_is_frontline); 1 is a direct road neighbour, unit hops.", "type": "integer", "minimum": 1, "x-unit": "hops", "x-hot-reload": true},
         "idle_retire_s": {"description": "A Director unit with no job and no path for this long is retired: removed, no refund (Q-SIM-84), unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true},
-        "alpha_max_ops": {"description": "The most operations with jobs ALPHA runs at once (THREAT-DIRECTOR section 3), unit operations.", "type": "integer", "minimum": 1, "x-unit": "operations", "x-hot-reload": true},
+        "max_ops": {
+          "description": "The most non-routine operations with jobs a tier runs at once (THREAT-DIRECTOR section 3, Q-DEV-21); null means no cap (the budget bounds the tier). Routine operations (those enabled at Pattern of Life) are never counted, so Pattern of Life has no cap key.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["alpha", "bravo"],
+          "properties": {
+            "alpha": {"description": "The cap at this tier, or null for none.", "type": ["integer", "null"], "minimum": 1, "x-unit": "operations", "x-hot-reload": true},
+            "bravo": {"description": "The cap at this tier, or null for none.", "type": ["integer", "null"], "minimum": 1, "x-unit": "operations", "x-hot-reload": true}
+          }
+        },
         "job_urgency": {"description": "Urgency of the jobs an operation posts, a multiplier on the job kind's base priority (TB-3), from 1.0 up to tasking.urgency_max.", "type": "number", "minimum": 1, "x-unit": "multiplier", "x-hot-reload": true},
         "adaptation_down_below": {"description": "A ThreatAdaptation goes DOWN when its threat-memory counter falls below this many events (THREAT-DIRECTOR step 5).", "type": "number", "exclusiveMinimum": 0, "x-unit": "events", "x-hot-reload": true},
         "recon": {
@@ -1739,9 +1778,10 @@
           "description": "Pattern of Life periods (Q-SIM-85, THREAT-DIRECTOR \u00a75a); game time, converted to ticks at load, counted on the campaign clock so a pause freezes them.",
           "type": "object",
           "additionalProperties": false,
-          "required": ["patrol_period_s", "convoy_period_s", "offensive_period_s", "convoy_kind", "patrols_per_base", "convoys_per_period", "offensives_per_period", "convoy_cost", "patrol_slots"],
+          "required": ["patrol_period_s", "convoy_period_s", "offensive_period_s", "convoy_kind", "patrols_per_base", "convoys_per_period", "offensives_per_period", "convoy_cost", "patrol_slots", "convoy_slots"],
           "properties": {
             "patrol_slots": {"description": "Units (idle ground garrison units of the base) one patrol job takes, unit units.", "type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true},
+            "convoy_slots": {"description": "Units (carriers) one Pattern of Life supply convoy job takes, unit units.", "type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true},
             "patrols_per_base": {"description": "Patrols (one idle ground garrison unit each) a Static base has out at once per patrol period, unit patrols.", "type": "integer", "minimum": 1, "x-unit": "patrols", "x-hot-reload": true},
             "convoys_per_period": {"description": "Supply convoys sent per convoy period, each to a different Static base, largest upkeep shortfall first, unit convoys.", "type": "integer", "minimum": 1, "x-unit": "convoys", "x-hot-reload": true},
             "offensives_per_period": {"description": "Capture operations the Pattern of Life slot may launch per offensive period, unit operations.", "type": "integer", "minimum": 1, "x-unit": "operations", "x-hot-reload": true},

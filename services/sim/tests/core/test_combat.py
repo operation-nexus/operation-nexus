@@ -464,6 +464,20 @@ def test_the_worked_example_is_042() -> None:
     assert pk_of(w, shooter, target, weapon) == pytest.approx(0.42 * 1.25 * 0.5)
 
 
+def test_masked_alt_bands_decide_which_aircraft_the_masked_multiplier_hits() -> None:
+    """NX-388, Q-DEV-21: with no masked band a LOW target takes no masked_mult."""
+    w = new_world()
+    shooter = put(w, ENEMY_JET, "ENEMY", 0)
+    target = put(w, JET, "COALITION", 15_000)
+    track(w, shooter, target)
+    weapon = dataclasses.replace(COMBAT.weapons["AA_MISSILE"], base_pk=0.8, range_m=20_000.0)
+    target.alt_band = "LOW"
+    assert pk_of(w, shooter, target, weapon) == pytest.approx(0.42 * 0.5)
+    assert w.rules is not None
+    w.rules = dataclasses.replace(w.rules, masked_bands=frozenset())
+    assert pk_of(w, shooter, target, weapon) == pytest.approx(0.42)
+
+
 def test_range_factor_is_full_to_half_range_then_linear_to_the_minimum() -> None:
     for frac, expected in [(0.0, 1.0), (0.25, 1.0), (0.5, 1.0), (0.75, 0.75), (1.0, 0.5)]:
         assert _range_factor(COMBAT, frac * 8_000.0, 8_000.0) == pytest.approx(expected)

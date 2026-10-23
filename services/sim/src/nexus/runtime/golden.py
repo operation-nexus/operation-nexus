@@ -116,8 +116,8 @@ def _world(name: str, case: dict[str, Any]) -> World:
     return start_campaign(case["campaign_id"], case["seed"], config)
 
 
-def shipped_config(overrides: Mapping[str, float]) -> CampaignConfig:
-    """The shipped config, with `overrides` (a dotted balance key -> number, e.g.
+def shipped_config(overrides: Mapping[str, object]) -> CampaignConfig:
+    """The shipped config, with `overrides` (a dotted balance key -> number or list, e.g.
     `director.pol.offensive_period_s`) applied to the balance profile: a golden case that needs a
     long period shortened says so in its `case.json`, and its `config_hash` covers the change."""
     if not overrides:

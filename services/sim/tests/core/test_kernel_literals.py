@@ -19,12 +19,19 @@ Reason prefixes: PERF (speed only, never changes a result), SCALE (a fixed-point
 conversion or percent), STRUCT (an enum order, wire or schema limit, algorithm constant, a
 mechanism a spec defines, or a value fixed with the RNG stream).
 
+The same goes for kind names (NX-388): a module-level tuple, list, set, frozenset or dict that holds
+UnitKind, NodeKind, JobKind, ThreatTier or AltBand names is a gameplay table (which kinds land,
+count, get captured, are masked...). Make it a balance key (read once into `Rules`), or list it
+in `KINDS`, by (module, name), with a reason: STRUCT (an order, wire format or enum listing the code
+needs), or SHORTCUT (a rule named in code until the unit catalog or a key carries it: the debt).
+
 Known limits (not a linter): a number built from other literals (`1 + 1 + 1`, `True + True`),
 parsed from a string (`int("5")`), or read from a table by index is not seen. Review catches
 those; this test catches the casual new constant.
 """
 
 import ast
+import json
 from pathlib import Path
 
 import nexus.core
@@ -100,6 +107,33 @@ ALLOWED: dict[Key, str] = {
 }
 
 
+KINDS: dict[Name, str] = {
+    ("director.py", "TIERS"): "STRUCT: the tier ladder order, indexed by DirectorState.ceiling",
+    ("provocation.py", "_TIER_INDEX"): "STRUCT: the tier ladder order as an index",
+    (
+        "rules.py",
+        "_CARRIERS",
+    ): "SHORTCUT: kinds that haul cargo, until the unit catalog gets a `cargo` field",
+    (
+        "rules.py",
+        "_PAINTERS",
+    ): "SHORTCUT: kinds that paint targets, until the unit catalog lists capabilities",
+    (
+        "rules.py",
+        "_VARIANT_WEAPONS",
+    ): "SHORTCUT: a facility variant's weapons, until the unit catalog lists variants",
+    (
+        "tasking.py",
+        "_GARRISON_JOBS",
+    ): "SHORTCUT: jobs an AI garrison unit takes by itself (GAMEPLAY section 1b, Q-GD-26)",
+    (
+        "tasking_gen.py",
+        "_JOB_KINDS",
+    ): "STRUCT: the board's job kinds a unit kind is checked against",
+    ("world.py", "JOB_KEY_PREFIX"): "STRUCT: the generated job key format, checked on load",
+}
+
+
 def _trivial(node: ast.Constant, parent: ast.AST | None) -> bool:
     value = node.value
     if value in (0, 1, -1):
@@ -166,3 +200,53 @@ def test_every_allowed_literal_and_named_constant_still_exists() -> None:
     assert not stale, f"stale ALLOWED entries: {stale}"
     assert not sorted(k for k in NAMED if k not in names), "stale NAMED entries"
     assert all(len(reason) > 12 for reason in [*ALLOWED.values(), *NAMED.values()])
+
+
+ENUMS = Path(__file__).resolve().parents[4] / "contracts" / "common" / "enums.json"
+_KIND_ENUMS = ("UnitKind", "NodeKind", "JobKind", "ThreatTier", "AltBand")
+_TABLES = (ast.Tuple, ast.List, ast.Set, ast.Dict)
+_TABLE_CALLS = ("frozenset", "set", "tuple", "list", "dict")
+
+
+def _kind_names() -> frozenset[str]:
+    defs = json.loads(ENUMS.read_text())["$defs"]
+    return frozenset(name for enum in _KIND_ENUMS for name in defs[enum]["enum"])
+
+
+def _is_table(node: ast.AST) -> bool:
+    return isinstance(node, _TABLES) or (
+        isinstance(node, ast.Call) and getattr(node.func, "id", "") in _TABLE_CALLS
+    )
+
+
+def _kind_tables() -> set[Name]:
+    """Module-level names whose value holds a collection with a kind-name string in it."""
+    kinds = _kind_names()
+    found: set[Name] = set()
+    for path in sorted(CORE.rglob("*.py")):
+        tree = ast.parse(path.read_text())
+        for name, value in _named(tree).items():
+            holds = any(
+                isinstance(c, ast.Constant) and c.value in kinds
+                for table in ast.walk(value)
+                if _is_table(table)
+                for c in ast.walk(table)
+            )
+            if holds:
+                found.add((path.relative_to(CORE).as_posix(), name))
+    return found
+
+
+def test_a_kind_table_in_the_kernel_is_a_key_or_listed_with_a_reason() -> None:
+    new = sorted(_kind_tables() - KINDS.keys())
+    assert not new, (
+        f"module-level tables of kind names in nexus/core: {new}. If it says which kinds a rule "
+        "applies to (land, count, capture, mask, take a job...) make it a balance key read once "
+        "into Rules (Q-DEV-21, NX-388); else add it to KINDS with the reason."
+    )
+
+
+def test_every_listed_kind_table_still_exists() -> None:
+    stale = sorted(KINDS.keys() - _kind_tables())
+    assert not stale, f"stale KINDS entries: {stale}"
+    assert all(len(reason) > 12 for reason in KINDS.values())

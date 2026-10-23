@@ -169,12 +169,13 @@ def in_rear(view: SideView, rules: Rules, x: float, y: float) -> bool:
 def scan_rear(world: World, side: Side, view: SideView) -> None:
     """Once per window: a scout that `side` tracks now inside its rear, and that a commander flies,
     adds `scout_in_rear` at the track's position (not the unit's: the Static knows only the track).
-    One note per window however many scouts, the lowest track id first. An AI scout adds 0. The
-    rear is `nexus.core.director.in_rear` on `view` (Q-SIM-79)."""
+    At most `director.provocation.scout_in_rear_max_per_window` notes per window, the lowest track
+    id first. An AI scout adds 0. The rear is `nexus.core.director.in_rear` on `view` (Q-SIM-79)."""
     found = _director(world, side)
     if found is None:
         return
     rules, dr = found
+    left = dr.scout_in_rear_max
     for i, track in sorted(world.contacts[side].items()):
         e = world.find(i)
         if (
@@ -185,7 +186,9 @@ def scan_rear(world: World, side: Side, view: SideView) -> None:
             and in_rear(view, rules, track.pos.x, track.pos.y)
         ):
             _note(world, rules, side, dr.weights.scout_in_rear, track.pos.x, track.pos.y)
-            return
+            left -= 1
+            if left == 0:
+                return
 
 
 def note_redemption(world: World, side: Side, klass: Literal["support", "cosmetic"]) -> None:

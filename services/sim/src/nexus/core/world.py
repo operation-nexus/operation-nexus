@@ -1651,8 +1651,8 @@ def _director(value: object, running_ticks: int) -> dict[Side, DirectorState]:
             looked=_looked(d["looked"], running_ticks),
         )
         # 2: the highest tier index (BRAVO); the ladder is structure (provocation._TIER_INDEX)
-        if max(state.prov_level, state.ceiling) > 2 or state.ceiling < 1:
-            raise ValueError(f"{_DIRECTOR}.{side}: a level must be 0..2 and the ceiling at least 1")
+        if max(state.prov_level, state.ceiling) > 2 or state.ceiling < 0:
+            raise ValueError(f"{_DIRECTOR}.{side}: a level and the ceiling must be 0..2")
         stamps = (state.last_patrol, state.last_convoy, state.last_offensive, state.last_flip)
         if max((*stamps, *state.held.values())) > running_ticks:
             raise ValueError(f"{_DIRECTOR}.{side}: a timer from after the snapshot's running ticks")

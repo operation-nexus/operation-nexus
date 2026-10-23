@@ -6,6 +6,8 @@ from pathlib import Path
 
 import pytest
 
+from nexus.core import operations as ops
+from nexus.core.fog import side_view
 from nexus.core.world import Vec2, state_hash
 from nexus.runtime.campaign_config import (
     CampaignConfig,
@@ -14,6 +16,7 @@ from nexus.runtime.campaign_config import (
     start_campaign,
 )
 from nexus.runtime.config import ConfigError
+from nexus.runtime.golden import shipped_config as shipped_config_with
 from nexus.runtime.recovery import recover, restore
 
 from .test_config import GOLDEN_CONFIG_HASH
@@ -110,3 +113,88 @@ def test_restore_and_recover_require_rules(tmp_path: Path) -> None:
         restore(tmp_path, tmp_path)  # type: ignore[call-arg]
     with pytest.raises(TypeError, match="rules"):
         recover(tmp_path, None)  # type: ignore[call-arg, arg-type]
+
+
+# --- NX-388, Q-DEV-21: gameplay kind tables and hidden 0/1 counts are balance keys ---
+
+
+def test_kind_key_defaults_are_the_old_hard_coded_values(shipped_config: CampaignConfig) -> None:
+    rules = shipped_config.rules
+    dr, tr = rules.director, rules.tasking
+    assert dr is not None and tr is not None and rules.campaign is not None
+    assert rules.uncapturable == {"SANCTUARY", "BRIDGE"}
+    assert rules.masked_bands == {"NOE", "LOW"}
+    strategic = {"AIRBASE", "FOB", "PORT"}
+    assert rules.campaign.strategic == tuple(
+        sorted(n.id for n in shipped_config.theater.nodes if n.kind in strategic)
+    )
+    assert tr.join_excluded_jobs == {"PATROL"} and tr.overfill_point_jobs is False
+    assert dr.max_ops == {"ALPHA": 1, "BRAVO": None}
+    assert dr.proximity_tiers == {"ALPHA"}
+    assert (dr.alpha_enter_cp, dr.scout_in_rear_max, dr.convoy_slots) == (0, 1, 1)
+
+
+def overridden(**keys: object) -> CampaignConfig:
+    return shipped_config_with({k.replace("__", "."): v for k, v in keys.items()})
+
+
+def test_non_default_kind_keys_reach_the_rules() -> None:
+    cfg = overridden(
+        air__landing_node_kinds=["AIRBASE", "SANCTUARY", "FOB"],
+        campaign__strategic_node_kinds=["AIRBASE"],
+        capture__uncapturable_node_kinds=["BRIDGE"],
+        fow__masked_alt_bands=["NOE"],
+        director__tier__alpha_enter_cp=20,
+        director__score__proximity_tiers=["ALPHA", "BRAVO"],
+        director__provocation__scout_in_rear_max_per_window=3,
+        director__pol__convoy_slots=2,
+        director__max_ops__bravo=2,
+        director__max_ops__alpha=None,
+        tasking__overfill_point_jobs=True,
+        tasking__join_excluded_jobs=[],
+    )
+    rules = cfg.rules
+    dr, tr = rules.director, rules.tasking
+    assert dr is not None and tr is not None and rules.campaign is not None
+    assert {rules.node_kind[n] for n in rules.landing_nodes} == {"AIRBASE", "SANCTUARY", "FOB"}
+    assert {rules.node_kind[n] for n in rules.campaign.strategic} == {"AIRBASE"}
+    assert rules.uncapturable == {"BRIDGE"} and "haven" in rules.campaign.candidates
+    assert rules.masked_bands == {"NOE"}
+    assert dr.alpha_enter_cp == 20_000_000 and dr.proximity_tiers == {"ALPHA", "BRAVO"}
+    assert (dr.scout_in_rear_max, dr.convoy_slots) == (3, 2)
+    assert dr.max_ops == {"ALPHA": None, "BRAVO": 2}
+    assert tr.overfill_point_jobs is True and tr.join_excluded_jobs == frozenset()
+
+
+def test_landing_and_uncapturable_kinds_change_what_the_world_and_the_director_see() -> None:
+    base = start_campaign(CAMPAIGN, 1, overridden())
+    assert "fob-n-w" not in base.landing_bases("COALITION")
+    assert "haven" not in ops.bases(side_view(base, "COALITION"), base.rules)  # type: ignore[arg-type]
+    cfg = overridden(
+        air__landing_node_kinds=["AIRBASE", "SANCTUARY", "FOB"],
+        capture__uncapturable_node_kinds=["BRIDGE"],
+    )
+    w = start_campaign(CAMPAIGN, 1, cfg)
+    assert "fob-n-w" in w.landing_bases("COALITION")  # an aircraft may land at a FOB it owns
+    assert "haven" in ops.bases(side_view(w, "COALITION"), cfg.rules)  # no longer "not a base"
+
+
+@pytest.mark.parametrize(
+    ("key", "value"),
+    [
+        ("air.landing_node_kinds", ["AIRBASE", "FORT"]),
+        ("air.landing_node_kinds", []),
+        ("campaign.strategic_node_kinds", ["FORT"]),
+        ("capture.uncapturable_node_kinds", ["FORT"]),
+        ("capture.uncapturable_node_kinds", ["SANCTUARY"]),  # BRIDGE must stay in
+        ("capture.uncapturable_node_kinds", []),
+        ("fow.masked_alt_bands", ["TREETOP"]),
+        ("tasking.join_excluded_jobs", ["PARADE"]),
+        ("director.score.proximity_tiers", ["CHARLIE"]),
+        ("director.max_ops.alpha", 0),
+        ("director.tier.alpha_enter_cp", 60),
+    ],
+)
+def test_the_loader_rejects_an_unknown_kind_or_a_bad_count(key: str, value: object) -> None:
+    with pytest.raises(ConfigError):
+        shipped_config_with({key: value})

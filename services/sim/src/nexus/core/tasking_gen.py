@@ -86,7 +86,6 @@ GENERATED = (
     "intercept:",
 )
 _GROUND, _AIR = "GROUND", "AIR"
-_UNDEFENDED = ("SANCTUARY", "BRIDGE")  # never captured (N-4, NX-373)
 _JOB_KINDS: tuple[JobKind, ...] = (
     "RESUPPLY", "SCOUT", "DEFEND", "STRIKE", "ASSIST_OBJECTIVE", "ESCORT_CONVOY", "PATROL",
     "INTERCEPT",
@@ -330,7 +329,7 @@ def _defend(
 ) -> Iterator[JobSpec]:
     reach = tr.defend_radius_m
     for node, (x, y) in sorted(view.nodes.items()):
-        if view.owners.get(node) != side or rules.node_kind[node] in _UNDEFENDED:
+        if view.owners.get(node) != side or rules.node_kind[node] in rules.uncapturable:
             continue
         bar = world.capture.get(node)  # a bar on an owned node is always the other side's
         share = Fraction(bar.progress, CAPTURE_FULL) if bar is not None else Fraction(0)
@@ -422,7 +421,7 @@ def _patrol(
     front = sorted(
         (min(((x - fx) ** 2 + (y - fy) ** 2 for fx, fy in foe), default=math.inf), n)
         for n, (x, y) in view.nodes.items()
-        if view.owners.get(n) == side and rules.node_kind[n] not in _UNDEFENDED
+        if view.owners.get(n) == side and rules.node_kind[n] not in rules.uncapturable
         and any(view.owners.get(m) != side for m, _ in rules.roads.neighbours(n))
     )  # fmt: skip
     for _, n in front[: tr.patrol_max_nodes]:

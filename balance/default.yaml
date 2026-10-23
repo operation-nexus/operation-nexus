@@ -15,12 +15,14 @@ slots:
 air:
   bingo_reserve_frac: 0.15  # PROPOSED – unvalidated; fraction of fuel_s (CONFIG-AND-CONTENT §6.1 air.bingo_reserve_frac)
   orbit_period_s: 120.0  # PROPOSED – unvalidated; s (world) (CONFIG-AND-CONTENT §6.1 air.orbit_period_s)
+  landing_node_kinds: [AIRBASE, SANCTUARY]  # decided rule as default, Q-DEV-21 option; node kinds an aircraft may land at (CONFIG-AND-CONTENT §6.1 air.landing_node_kinds)
 fow:
   track_every_ticks: 5  # PROPOSED – unvalidated; ticks, 0.5 s game (CONFIG-AND-CONTENT §6.1 fow.track_every_ticks)
   track_fade_s: 180.0  # PROPOSED – unvalidated (NX-150); s (world), 30 real s at 6x (CONFIG-AND-CONTENT §6.1 fow.track_fade_s)
   sigint_range_mult: 1.5  # PROPOSED – unvalidated (NX-150); x a radar site's sensor.radius_m, 180 km for a 120 km radar (CONFIG-AND-CONTENT §6.1 fow.sigint_range_mult)
   sigint_refresh_s: 54.0  # PROPOSED – unvalidated (NX-150, Q-ALN-38: 48–60); s (world), 90 ticks, 9 real s at 6x (CONFIG-AND-CONTENT §6.1 fow.sigint_refresh_s)
   mask_cell_m: 1000  # PROPOSED – unvalidated (NX-150, Q-FOW-3, Q-DEV-21); m, the terrain-masking raster cell, finer than the SIGINT cell (CONFIG-AND-CONTENT §6.1 fow.mask_cell_m)
+  masked_alt_bands: [NOE, LOW]  # decided rule as default, Q-DEV-21 option; altitude bands terrain masking hides (CONFIG-AND-CONTENT §6.1 fow.masked_alt_bands)
   sigint_cell_m: 10000  # PROPOSED – unvalidated; m (CONFIG-AND-CONTENT §6.1 fow.sigint_cell_m)
   sigint_size_m_min: 3  # PROPOSED – unvalidated (NX-150); units: a blob of 3-6 reads M, 1-2 S (CONFIG-AND-CONTENT §6.1 fow.sigint_size_m_min)
   sigint_size_l_min: 7  # PROPOSED – unvalidated (NX-150); units: a blob of 7 or more reads L (CONFIG-AND-CONTENT §6.1 fow.sigint_size_l_min)
@@ -79,6 +81,7 @@ capture:
     PORT: 300
     SANCTUARY: 1000
   sanctuary_repair_hp_per_s: 1.0  # PROPOSED – unvalidated (Q-SIM-71, owner-approved; NX-031 tunes); defense hp per s (world) per logistics unit parked at its sanctuary (CONFIG-AND-CONTENT §6.5)
+  uncapturable_node_kinds: [SANCTUARY, BRIDGE]  # decided rule as default, Q-DEV-21 option; node kinds never captured (CONFIG-AND-CONTENT §6.5 capture.uncapturable_node_kinds)
 combat:
   pk_cap: 0.95  # PROPOSED – unvalidated (Q-CBT-10); max hit probability, every shot can miss (CONFIG-AND-CONTENT §6.4 combat.pk_cap)
   track_quality:
@@ -110,6 +113,7 @@ combat:
 campaign:
   time_limit_h: 72  # PROPOSED – unvalidated (Q-TEST-6); h (game) (CONFIG-AND-CONTENT §6.6 campaign.time_limit_h)
   victory_node_frac: 0.80  # PROPOSED – unvalidated; fraction of strategic nodes (CONFIG-AND-CONTENT §6.6)
+  strategic_node_kinds: [AIRBASE, FOB, PORT]  # decided rule as default, Q-DEV-21 option; node kinds that count toward the hold fractions and the score (CONFIG-AND-CONTENT §6.6 campaign.strategic_node_kinds)
   victory_hold_min: 30  # PROPOSED – unvalidated; min (game), held without a dip (CONFIG-AND-CONTENT §6.6)
   objective_period_min: 15  # PROPOSED – unvalidated; min (game), how long an objective lasts (CONFIG-AND-CONTENT §6.6)
   defeat:
@@ -165,6 +169,8 @@ tasking:
   static_offense_min_tier: ALPHA  # PROPOSED – unvalidated (Q-SIM-85); the lowest Director tier at which the Static's board posts the strike jobs it generates itself; at Pattern of Life it posts none (CONFIG-AND-CONTENT §6.6)
   follow_hold_slack: 2  # PROPOSED – unvalidated (Q-SIM-76, Q-DEV-21); stations, a stopped leader's ground followers hold where they are within this many stations of it (CONFIG-AND-CONTENT §6.6)
   overfill_factor: 2  # PROPOSED – unvalidated (Q-SIM-73, Q-DEV-21); with every job full a job takes units up to this times its slots (CONFIG-AND-CONTENT §6.6)
+  overfill_point_jobs: false  # decided rule as default, Q-DEV-21 option; whether a Recon point job overfills like any other (CONFIG-AND-CONTENT §6.6)
+  join_excluded_jobs: [PATROL]  # decided rule as default, Q-DEV-21 option; job kinds a bare JOIN never takes (CONFIG-AND-CONTENT §6.6)
   scout_blob_runs: 2  # PROPOSED – unvalidated (Q-SIM-75, Q-DEV-21); consecutive SIGINT refreshes a blob must stay in a cell before a scout is posted (CONFIG-AND-CONTENT §6.6)
   scout_urgency:  # PROPOSED – unvalidated (Q-SIM-75, Q-DEV-21); multiplier by blob size, capped at urgency_max (CONFIG-AND-CONTENT §6.6)
     small: 1.0
@@ -188,6 +194,7 @@ director:  # Threat Director (Q-SIM-78, Q-SIM-81, owner-approved starting number
       GARRISON_INFANTRY: 2
     ema_window_s: 300  # PROPOSED – unvalidated (Q-ALN-23); s (game) (CONFIG-AND-CONTENT §6.7)
   tier:
+    alpha_enter_cp: 0  # decided rule as default, Q-DEV-21 option; CP points; 0 = the CP ceiling is never below ALPHA (CONFIG-AND-CONTENT §6.7)
     bravo_enter_cp: 60  # PROPOSED – unvalidated (Q-SIM-78); CP points (CONFIG-AND-CONTENT §6.7)
     exit_ratio: 0.8  # PROPOSED – unvalidated (Q-TD-1); fraction of the enter value (CONFIG-AND-CONTENT §6.7)
     min_dwell_s: 600  # PROPOSED – unvalidated (Q-ALN-23); s (game) (CONFIG-AND-CONTENT §6.7)
@@ -195,6 +202,7 @@ director:  # Threat Director (Q-SIM-78, Q-SIM-81, owner-approved starting number
     half_life_s: 900  # PROPOSED – unvalidated (Q-SIM-78); s (game) (CONFIG-AND-CONTENT §6.7)
     escalate_threshold: 10  # PROPOSED – unvalidated (Q-SIM-78); points, ALPHA (CONFIG-AND-CONTENT §6.7)
     bravo_threshold: 40  # PROPOSED – unvalidated (Q-SIM-78); points, BRAVO (CONFIG-AND-CONTENT §6.7)
+    scout_in_rear_max_per_window: 1  # decided rule as default, Q-DEV-21 option; scout-in-rear notes one window adds (CONFIG-AND-CONTENT §6.7)
     weights:  # PROPOSED – unvalidated (Q-SIM-78); points per action caused by a player-controlled unit (CONFIG-AND-CONTENT §6.7)
       unit_destroyed: 5
       unit_damaged: 1
@@ -237,12 +245,15 @@ director:  # Threat Director (Q-SIM-78, Q-SIM-81, owner-approved starting number
     stale_factor: 1.0  # PROPOSED – unvalidated (TD-5); Recon score x (1 + factor x staleness)
     weakness_max: 2.0  # PROPOSED – unvalidated (Q-SIM-78); 1.0 at full defenses, rising linearly to this at none
     provocation_proximity: 1.5  # PROPOSED – unvalidated (Q-SIM-78, Q-TD-4)
+    proximity_tiers: [ALPHA]  # decided rule as default, Q-DEV-21 option; CP ceilings at which provocation_proximity applies (CONFIG-AND-CONTENT §6.7)
   adaptation_up_above: 0  # PROPOSED – unvalidated (NX-156); events: a ThreatAdaptation goes UP above this
   reinforce_damage_above: 0  # PROPOSED – unvalidated (Q-SIM-81); share of HP missing, 0 = any damage
   escort_min_convoys: 1  # PROPOSED – unvalidated (NX-156); fewest convoys an escort operation is cut to
   frontline_hops: 1  # PROPOSED – unvalidated (NX-156); road hops that define the front
   idle_retire_s: 600  # PROPOSED – unvalidated (Q-SIM-84); s (game) a Director unit with no job is retired
-  alpha_max_ops: 1  # PROPOSED – unvalidated (THREAT-DIRECTOR §3); operations with jobs ALPHA runs at once
+  max_ops:  # PROPOSED – unvalidated (THREAT-DIRECTOR §3, Q-DEV-21); non-routine operations with jobs a tier runs at once, null = no cap (CONFIG-AND-CONTENT §6.7)
+    alpha: 1
+    bravo: null
   job_urgency: 1.0  # PROPOSED – unvalidated (NX-156); urgency of an operation's jobs, x the job kind's priority
   adaptation_down_below: 1  # PROPOSED – unvalidated (NX-156); events: below this a ThreatAdaptation goes DOWN
   memory:
@@ -286,3 +297,4 @@ director:  # Threat Director (Q-SIM-78, Q-SIM-81, owner-approved starting number
     offensives_per_period: 1  # PROPOSED – unvalidated (Q-SIM-85); capture operations the Pattern of Life slot may launch per offensive period
     convoy_cost: 0  # PROPOSED – unvalidated (Q-SIM-85); budget points of one Pattern of Life convoy, from surplus (a reused convoy is free)
     convoy_kind: ENEMY_CONVOY  # PROPOSED – unvalidated (Q-SIM-85); the carrier of a Pattern of Life convoy
+    convoy_slots: 1  # decided rule as default, Q-DEV-21 option; units one Pattern of Life convoy job takes (CONFIG-AND-CONTENT §6.7)

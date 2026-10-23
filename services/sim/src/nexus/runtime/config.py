@@ -184,6 +184,13 @@ def load_balance(path: Path) -> BalanceConfig:
         raise ConfigError(
             f"{path}: director.provocation.bravo_threshold: must be above escalate_threshold"
         )
+    tier = cfg.director.tier
+    if not tier.alpha_enter_cp < tier.bravo_enter_cp:
+        raise ConfigError(f"{path}: director.tier.alpha_enter_cp: must be below bravo_enter_cp")
+    if "BRIDGE" not in cfg.capture.uncapturable_node_kinds:
+        raise ConfigError(
+            f"{path}: capture.uncapturable_node_kinds: must include BRIDGE (a bridge has no owner)"
+        )
     decay = Fraction(game_ticks(pv.half_life_s, cfg), game_ticks(cfg.director.window_s, cfg))
     if max(decay.numerator, decay.denominator) > DECAY_RATIO_MAX:
         raise ConfigError(

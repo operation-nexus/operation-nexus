@@ -282,6 +282,52 @@ def test_q_td_4_after_a_sensed_strike_in_a_sector_the_top_candidate_targets_it()
     assert scores(w, quiet)["OFFENSIVE", "fob-s-w"] == Fraction(3, 2)
 
 
+def test_proximity_tiers_pick_the_ceilings_where_the_bonus_applies() -> None:
+    """NX-388, Q-DEV-21: [ALPHA] is the old rule; adding BRAVO keeps the bonus at BRAVO too."""
+    w = new_world()
+    victim = unit(w, "ENEMY_ARMOR", "ENEMY", "ENEMY_DIRECTOR", "fob-s-e")
+    suffered_hit(
+        w, unit(w, "STRIKE_FIGHTER", "COALITION", "COMMANDER", "west-airbase"), victim, "HEALTHY"
+    )
+    w.defense_hp["fob-s-w"] = RULES.defense.max_hp["fob-s-w"] // 2  # type: ignore[union-attr]
+    got = {}
+    shapes: list[frozenset[ThreatTier]] = [
+        frozenset({"ALPHA"}), frozenset({"ALPHA", "BRAVO"}), frozenset()
+    ]  # fmt: skip
+    for tiers in shapes:
+        rules = dataclasses.replace(
+            RULES,
+            director=dataclasses.replace(DR, noise=Fraction(0), proximity_tiers=tiers),
+        )
+        for ceiling in (1, 2):
+            w.director["ENEMY"].ceiling = ceiling
+            got[tuple(sorted(tiers)), ceiling] = scores(w, rules)["OFFENSIVE", "fob-s-w"]
+    bonus, plain = Fraction(9, 4), Fraction(3, 2)
+    assert got == {
+        (("ALPHA",), 1): bonus, (("ALPHA",), 2): plain,
+        (("ALPHA", "BRAVO"), 1): bonus, (("ALPHA", "BRAVO"), 2): bonus,
+        ((), 1): plain, ((), 2): plain,
+    }  # fmt: skip
+
+
+def test_max_ops_caps_each_tier_by_its_own_key() -> None:
+    """NX-388, Q-DEV-21: shipped is the old rule (ALPHA 1, the others uncapped); BRAVO can take
+    a cap, and ALPHA can drop it. Pattern of Life has no key: never capped (STRUCT)."""
+    assert [ops.max_ops(t, DR) for t in ("PATTERN_OF_LIFE", "ALPHA", "BRAVO")] == [None, 1, None]
+    w = new_world(1, dataclasses.replace(RULES, garrison_quota={}))
+    routine = ops.routine_ops(DR)
+
+    def runs(tier: ThreatTier, cap: int | None) -> int:
+        dr = dataclasses.replace(DR, max_ops={**DR.max_ops, tier: cap})
+        chosen = ops.select(
+            candidates(w, tier), dr, 1000, 100, 100, frozenset(), ops.max_ops(tier, dr), routine
+        )
+        return len([c for c in chosen if c.op.id not in routine])
+
+    assert runs("ALPHA", 1) == 1 and runs("ALPHA", None) > 1
+    assert runs("BRAVO", None) > 1 and runs("BRAVO", 1) == 1
+
+
 def test_same_seed_same_scores_and_the_order_of_the_catalog_file_changes_nothing(
     tmp_path: Path,
 ) -> None:
