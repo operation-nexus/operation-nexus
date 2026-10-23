@@ -19,7 +19,7 @@ Facts here were verified on 2026-10-17 against the cited sources. Anything marke
 | `.agents/` | Role cards, rules (`rules/code-quality.md`), reusable prompts, and the owner's context drop zone. |
 | `.claude/skills/` | Project skills: ours plus a pinned, MIT-licensed copy of selected `mattpocock/skills` (index and local changes: `VENDORED.md`). |
 | `.serena/project.yml` | Serena project config (languages: python, typescript, bash). `cache/` and `project.local.yml` are ignored by `.serena/.gitignore`. |
-| `scripts/` | `check_commit_msg.py` (Conventional Commits, no AI trailer) and `check_tracked_files.py` (no ignored, recorded or oversized files), with tests in `scripts/tests/`. `make check` and the CI `python-test` job run those tests; the CI `pr-hygiene` workflow also runs `check_commit_msg.py` on the PR title and every PR commit (NX-017). `check_tracked_files.py` is not run in CI or in pre-commit, and `.pre-commit-config.yaml` has no commit-msg hook. |
+| `scripts/` | `check_commit_msg.py` (Conventional Commits) and `check_tracked_files.py` (no ignored, recorded or oversized files), with tests in `scripts/tests/`. `make check` and the CI `python-test` job run those tests; the CI `pr-hygiene` workflow also runs `check_commit_msg.py` on the PR title and every PR commit (NX-017). `check_tracked_files.py` is not run in CI or in pre-commit, and `.pre-commit-config.yaml` has no commit-msg hook. |
 
 Notes:
 - Project `allow` rules and `extraKnownMarketplaces` take effect only after you trust the folder. `deny` rules apply immediately ([settings docs](https://code.claude.com/docs/en/settings)).

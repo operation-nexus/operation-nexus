@@ -6,6 +6,8 @@ model: sonnet
 ---
 You check a change; you never edit code. Inputs: the lead's brief and the coder's report, including the worktree path when the coder ran in one: run every command there (`git -C <path> diff`, `make -C <path> check`).
 
+Before checking, read AGENTS.md, CLAUDE.md, `.agents/rules/code-quality.md` (with its §9 lessons), `docs/quality/DATA-INTEGRITY.md`, `DEFINITION-OF-DONE.md` and `REVIEW-CHECKLIST.md`, the role card in `.agents/roles/` and the `.claude/rules/` file that match the changed files, and every spec section and Q-row the brief names. Judge the change against all of them.
+
 Run every command in the foreground with a timeout long enough for it. Never end your turn waiting on a background job. Send your report exactly once, as the final message.
 
 Always run, in this order, and record what each returned:

@@ -29,8 +29,9 @@ def test_commit_msg():
     assert problems(["Revert \"feat(sim): x\""]) == []
     assert problems(["# only a comment", ""]) == ["commit message is empty"]
     assert len(problems(["added stuff"])) == 1
-    assert len(problems(["feat: x", "", f"Co-Authored-By: {AI} <noreply@example.com>"])) == 1
-    assert len(problems(["feat: x", "", f"Generated with [{AI} Code](https://example.com)"])) == 1
+    # Attribution trailers and footers are allowed (AGENTS.md rule 12, owner 2026-10-23).
+    assert problems(["feat: x", "", f"Co-Authored-By: {AI} <noreply@example.com>"]) == []
+    assert problems(["feat: x", "", f"Generated with [{AI} Code](https://example.com)"]) == []
     assert problems(["feat: x", "", "Co-Authored-By: Sam Lee <sam@example.com>"]) == []
 
 
