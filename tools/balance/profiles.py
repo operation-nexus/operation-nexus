@@ -9,7 +9,10 @@ from typing import Any
 
 import yaml
 
+from nexus.core.director import TIERS
+
 DATA = Path(__file__).resolve().parent / "profiles.yaml"
+KINDS = ("auto", "striker", "hauler", "scout")  # persona kinds (Q-SIM-95)
 ROLES = ("STRIKE", "RECON", "LOGI")  # the playable roles (content/roles.yaml); NAVY is P3
 
 
@@ -33,12 +36,14 @@ class Profile:
     ramp_min: float
     arrivals_per_hour: float
     mix: dict[str, float]
+    kinds: dict[str, float]  # persona-kind shares, sum to 1 (Q-SIM-95)
 
 
 @dataclass(frozen=True, slots=True)
 class Targets:
     a1_min_h: float
     a1_pass_frac: float
+    a2_min_tier: str  # A2 counts newbies who arrive at this Static tier or above (Q-SIM-93)
     a2_max_s: float
     a3_hours: float
     a3_max_nodes_lost: int
@@ -52,6 +57,7 @@ class Data:
     profiles: dict[str, Profile]
     personas: dict[str, Persona]
     targets: Targets
+    impact_check_s: float  # game seconds between the capture-progress and scouting checks
     idle_sample_min: float  # game minutes between idle armed viewer-unit samples (Q-SIM-92)
     digest: str  # blake2b of the file, in every report
 
@@ -92,6 +98,7 @@ def load(path: Path = DATA) -> Data:
             float(p["ramp_min"]),
             float(p["arrivals_per_hour"]),
             {k: float(v) for k, v in sorted(p["mix"].items())},
+            {k: float(v) for k, v in sorted(p["kinds"].items())},
         )
         for name, p in doc["profiles"].items()
     }
@@ -100,12 +107,28 @@ def load(path: Path = DATA) -> Data:
             raise ValueError(f"profile {pr.name}: a crowd needs a persona mix")
         if unknown := set(pr.mix) - set(personas):
             raise ValueError(f"profile {pr.name}: unknown personas {sorted(unknown)}")
+        if not set(pr.kinds) <= set(KINDS) or min(pr.kinds.values(), default=-1) < 0:
+            raise ValueError(f"profile {pr.name}: kinds must be shares of {KINDS}")
+        if abs(sum(pr.kinds.values()) - 1) > 1e-9:
+            raise ValueError(
+                f"profile {pr.name}: kinds must sum to 1, got {sum(pr.kinds.values())}"
+            )
     targets = Targets(**doc["targets"])
+    if targets.a2_min_tier not in TIERS:
+        raise ValueError(f"targets.a2_min_tier must be one of {TIERS}")
+    check_s = float(doc["impact_check_s"])
+    if check_s <= 0:
+        raise ValueError("impact_check_s must be > 0")
     idle_min = float(doc["idle_sample_min"])
     if idle_min <= 0:
         raise ValueError("idle_sample_min must be > 0")
     return Data(
-        profiles, personas, targets, idle_min, hashlib.blake2b(raw, digest_size=16).hexdigest()
+        profiles,
+        personas,
+        targets,
+        check_s,
+        idle_min,
+        hashlib.blake2b(raw, digest_size=16).hexdigest(),
     )
 
 

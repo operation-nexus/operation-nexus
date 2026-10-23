@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+import yaml
 from pydantic import TypeAdapter
 
 from nexus.contracts.gen.commands.command import Command
@@ -18,7 +19,7 @@ from nexus.contracts.gen.events.unit_destroyed import UnitDestroyed
 from nexus.contracts.gen.events.unit_spawned import UnitSpawned
 from nexus.contracts.gen.events.weapon_impact import WeaponImpact
 from nexus.core.campaign import momentum
-from nexus.core.world import Vec2
+from nexus.core.world import CaptureBar, Contact, Vec2
 from nexus.runtime.campaign_config import CampaignConfig, start_campaign
 from nexus.runtime.command_log import CommandLogReader, Tombstone
 
@@ -30,7 +31,7 @@ import metrics  # type: ignore[import-not-found,unused-ignore]
 import personas  # type: ignore[import-not-found,unused-ignore]
 import report  # type: ignore[import-not-found,unused-ignore]
 import runner  # type: ignore[import-not-found,unused-ignore]
-from profiles import ROLES, Data, load, schedule  # type: ignore[import-not-found,unused-ignore]
+from profiles import DATA, KINDS, ROLES, Data, load, schedule  # type: ignore[import-not-found,unused-ignore]
 
 HZ = 10
 TICKS = 3600  # 6 game minutes
@@ -94,7 +95,8 @@ def test_every_logged_command_is_valid_and_existing(first: Any) -> None:
         adapter.validate_python(e)
         assert e["kind"] in ("JOIN", "REBASE")  # no other command exists for a persona
         if e["kind"] == "JOIN":
-            assert e["role"] in ROLES and e["target"] is None
+            assert e["role"] in ROLES
+            assert e["target"] is None or e["role"] == "STRIKE"  # only a striker names a node
     assert a["commands"] == {
         k: sum(e["kind"] == k for e in entries) for k in sorted({e["kind"] for e in entries})
     }
@@ -177,14 +179,22 @@ def collector(shipped_config: CampaignConfig) -> metrics.Collector:
     world = start_campaign("c", 1, shipped_config)
     newbies = frozenset(commander(n) for n in (1, 2, 3, 4, 5))
     return metrics.Collector(
-        world, newbies, tick_hz=HZ, sample_ticks=600, a3_ticks=1000, idle_sample_ticks=600
+        world,
+        newbies,
+        tick_hz=HZ,
+        sample_ticks=600,
+        a3_ticks=1000,
+        idle_sample_ticks=600,
+        impact_check_ticks=10,
+        kinds={commander(n): "scout" if n == 5 else "auto" for n in range(1, 7)},
+        a2_min_tier="ALPHA",
     )
 
 
 def test_newbie_time_to_first_impact(collector: metrics.Collector) -> None:
     for n in (1, 2, 3, 4, 5, 6):  # 6 is not a newbie
-        collector.note_join(commander(n), 100)
-    collector.note_join(commander(1), 900)  # only the first JOIN counts
+        collector.note_join(commander(n), 100, "ALPHA")
+    collector.note_join(commander(1), 900, "BRAVO")  # only the first JOIN counts
     collector.feed([spawned(110, 901, "STRIKE_FIGHTER", "COALITION", commander(1))])
     collector.feed([spawned(110, 902, "LOGI_TRUCK", "COALITION", commander(2))])
     collector.feed([spawned(110, 906, "STRIKE_FIGHTER", "COALITION", commander(6))])
@@ -327,6 +337,17 @@ def test_samples_and_sanctuary_hp(
 
 
 # --- report and CLI -----------------------------------------------------------------------------
+def newbie(ttfi: list[float], never: list[float]) -> dict[str, Any]:
+    return {
+        "joined_below_tier": 0,
+        "below_tier_ttfi_s": [],
+        "ttfi_s": ttfi,
+        "no_impact_observed_s": never,
+        "first_impact_kinds": {},
+        "by_kind": {},
+    }
+
+
 def fake_run(hours: float = 72, **over: Any) -> dict[str, Any]:
     outcome = {"ended": True, "result": "VICTORY", "length_h": 40.0}
     run: dict[str, Any] = {
@@ -339,7 +360,7 @@ def fake_run(hours: float = 72, **over: Any) -> dict[str, Any]:
         "time_limit_h": 72.0,
         "metrics": {
             "outcome": outcome,
-            "newbie": {"ttfi_s": [60.0, 120.0], "no_impact_observed_s": []},
+            "newbie": newbie([60.0, 120.0], []),
             "nodes_lost_in_a3_window": 0,
             "sanctuary_hp": {"min_in_a3_window": 500},
         },
@@ -359,10 +380,10 @@ def test_target_rules() -> None:
     assert report._a1([fake_run(hours=2)], t)["status"].startswith("not evaluable")
     early = fake_run(outcome={"ended": True, "result": "DEFEAT", "length_h": 3.0})
     assert report._a1([early], t)["seeds_in_window"] == 0  # under 24 h is a miss
-    slow = fake_run(newbie={"ttfi_s": [100.0], "no_impact_observed_s": [400.0, 500.0]})
+    slow = fake_run(newbie=newbie([100.0], [400.0, 500.0]))
     assert report._a2([slow], t)["status"] == report.FAIL  # two of three never saw an impact
     assert report._a2([fake_run()], t)["status"] == report.PASS
-    unresolved = fake_run(newbie={"ttfi_s": [], "no_impact_observed_s": [10.0]})
+    unresolved = fake_run(newbie=newbie([], [10.0]))
     assert report._a2([unresolved], t)["status"] == report.NO_DATA
     assert report._a3([fake_run()], t, "overnight-0")["status"] == report.PASS
     assert (
@@ -507,3 +528,125 @@ def test_idle_sampling_counts_idle_armed_viewer_units_and_why(
     assert (idle["samples"], idle["share_max"], idle["reasons"]) == (1, 0.5, {"no_job": 1})
     agg = report._idle([{"metrics": {"idle": idle}}, {"metrics": {"idle": idle}}])
     assert (agg["samples"], agg["share_mean"], agg["reasons"]) == (2, 0.5, {"no_job": 2})
+
+
+# --- A2 at ALPHA or above, impact kinds, persona kinds (NX-383, Q-SIM-93, Q-SIM-95) ---------
+def test_a2_counts_only_arrivals_at_alpha_or_above(collector: metrics.Collector) -> None:
+    collector.note_join(commander(1), 100, "PATTERN_OF_LIFE")
+    collector.note_join(commander(2), 100, "ALPHA")
+    collector.note_join(commander(3), 100, "BRAVO")
+    collector.feed([spawned(110, 902, "STRIKE_FIGHTER", "COALITION", commander(2))])
+    collector.feed([spawned(110, 901, "STRIKE_FIGHTER", "COALITION", commander(1))])
+    for shooter, tick in ((901, 200), (902, 400)):
+        collector.feed(
+            [
+                WeaponImpact.model_construct(
+                    kind="WeaponImpact", tick=tick, shooter_id=shooter, hit=True
+                )
+            ]
+        )
+    n = collector.result(2000)["newbie"]
+    assert (n["joined"], n["joined_below_tier"], n["joined_counted"]) == (3, 1, 2)
+    assert n["ttfi_s"] == [30.0] and n["no_impact_observed_s"] == [190.0]  # 2 and 3 only
+    assert n["below_tier_ttfi_s"] == [10.0]  # 1: reported, not judged
+    a2 = report._a2([{"metrics": {"newbie": n}}], load().targets)
+    assert (a2["newbies"], a2["below_tier"]["newbies"]) == (2, 1)
+
+
+def test_each_impact_kind_is_detected(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    for n in (1, 2, 3, 4, 5):
+        collector.note_join(commander(n), 100, "ALPHA")
+    collector.feed(
+        [spawned(110, 900 + n, "STRIKE_FIGHTER", "COALITION", commander(n)) for n in (1, 2)]
+    )
+    collector.feed(
+        [WeaponImpact.model_construct(kind="WeaponImpact", tick=200, shooter_id=901, hit=True)]
+    )
+    collector.feed([killed(300, 950, 902)])
+    collector.feed(
+        [
+            SupplyDelivered.model_construct(
+                kind="SupplyDelivered", tick=400, commander_id=commander(3)
+            )
+        ]
+    )
+    # derived from world state: 4 stands in a coalition capture bar, 5 (a scout) sees a new track
+    world = start_campaign("c", 1, shipped_config)
+    rules = shipped_config.rules
+    node = next(n for n, o in sorted(world.owner.items()) if o == "ENEMY")
+    x, y = rules.roads.pos[node]
+    ground = next(k for k, d in sorted(rules.domain.items()) if d == "GROUND")
+    world.spawn(ground, "COALITION", "COMMANDER", Vec2(x, y), commander_id=commander(4))
+    world.capture[node] = CaptureBar("COALITION", 1)
+    recon = next(k for k in sorted(rules.painters))
+    enemy = next(e for e in world.entities() if e.side == "ENEMY" and rules.stealth[e.kind] > 0)
+    world.spawn(
+        recon, "COALITION", "COMMANDER", Vec2(enemy.pos.x, enemy.pos.y), commander_id=commander(5)
+    )
+    world.contacts["COALITION"][enemy.id] = Contact(
+        enemy.kind, Vec2(enemy.pos.x, enemy.pos.y), Vec2(0, 0)
+    )
+    collector.check_impact(world)
+    kinds = {c: k for c, (_, k) in collector.impact.items()}
+    assert kinds == {
+        commander(1): "hit",
+        commander(2): "kill",
+        commander(3): "delivery",
+        commander(4): "capture",
+        commander(5): "scout",
+    }
+    assert collector.result(2000)["newbie"]["first_impact_kinds"] == {
+        "capture": 1,
+        "delivery": 1,
+        "hit": 1,
+        "kill": 1,
+        "scout": 1,
+    }
+    collector.check_impact(world)  # the track is no longer new: nothing changes
+    assert len(collector.impact) == 5
+
+
+def test_persona_kinds_are_seeded_validated_and_a_striker_names_a_defended_foe(
+    shipped_config: CampaignConfig, tmp_path: Path
+) -> None:
+    d = load()
+    p = d.profiles["prime-50"]
+    kinds = [personas.draw_kind(p, 1, i) for i in range(400)]
+    assert kinds == [personas.draw_kind(p, 1, i) for i in range(400)]
+    assert kinds != [personas.draw_kind(p, 2, i) for i in range(400)]
+    assert {k: round(kinds.count(k) / 400, 1) for k in p.kinds} == {
+        k: round(v, 1) for k, v in p.kinds.items()
+    }
+    for bad in ({"auto": 0.5, "striker": 0.4}, {"auto": 1.0, "boss": 0.0}):
+        doc = tmp_path / "bad.yaml"
+        raw = yaml.safe_load(DATA.read_text())
+        raw["profiles"]["prime-50"]["kinds"] = bad
+        doc.write_text(yaml.safe_dump(raw))
+        with pytest.raises(ValueError, match="kinds"):
+            load(doc)
+    world = start_campaign("c", 1, shipped_config)
+    foes = runner.defended_foes(world)
+    assert foes and all(world.owner[n] == "ENEMY" and world.defense_hp[n] for n in foes)
+    v = personas.new_viewer(3, d.personas["newbie"], "prime-50", 1, "striker")
+    node = personas.pick_node(v, foes)
+    join = personas.join_command(v, 5, 1, node)
+    assert (join.role, join.hold, join.target.node_id) == ("STRIKE", False, node)
+    assert node == personas.pick_node(
+        personas.new_viewer(3, d.personas["newbie"], "prime-50", 1, "striker"), foes
+    )
+    for kind, role in (("hauler", "LOGI"), ("scout", "RECON")):
+        other = personas.new_viewer(4, d.personas["newbie"], "prime-50", 1, kind)
+        j = personas.join_command(other, 5, 1, personas.pick_node(other, foes))
+        assert (j.role, j.target) == (role, None)
+
+
+def test_a_run_has_strikers_with_valid_targets_and_reports_per_kind(
+    first: Any, shipped_config: CampaignConfig
+) -> None:
+    tmp, a = first
+    assert set(a["viewers"]["by_kind"]) <= set(KINDS) and a["viewers"]["by_kind"]["striker"] > 0
+    targets = [e["target"] for e in log_entries(tmp / "a") if e["kind"] == "JOIN" and e["target"]]
+    assert targets and all(t["node_id"] in shipped_config.rules.roads.pos for t in targets)
+    assert set(a["metrics"]["newbie"]["by_kind"]) <= set(KINDS)
