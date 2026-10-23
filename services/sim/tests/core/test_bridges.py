@@ -402,6 +402,92 @@ def test_a_coalition_patrol_replans_through_held_nodes_only() -> None:
     assert e.last_node == "fob-n-w"
 
 
+def _patrol_unit(x: float, last: str, path: list[str]) -> tuple[World, Entity]:
+    w = new_world(dataclasses.replace(CONFIG.rules, campaign=None, track_every_ticks=10**9))
+    for n in ("cross-n", "cross-s"):
+        w.owner[n] = "COALITION"
+    e = put(w, ARMOR, "COALITION", x, 60_000, cmd=1)
+    e.last_node, e.path = last, [*path]
+    job = Job(w.next_job_id(), "PATROL", "patrol:cross-n", 2, 1000, 0, node="cross-n")
+    job.claims[e.id] = Claim(0, active=True)
+    w.boards["COALITION"][job.id] = job
+    e.job_id = job.id
+    return w, e
+
+
+def test_a_patrol_lost_mid_edge_sends_the_unit_back_to_the_node_it_left_not_to_stand() -> None:
+    """Q-SIM-109: its node falls while a ground unit is on the road: it is never stranded there."""
+    w, e = _patrol_unit(150_000, "fob-n-w", ["cross-n"])
+    w.owner["cross-n"] = "ENEMY"
+    held = {n for n, o in w.owner.items() if o == "COALITION"}
+    back = False
+    for _ in range(2_000):
+        run(w)
+        assert {e.last_node, *map(str, e.path)} <= held  # never enters the lost node
+        back |= e.pos == Vec2(*POS["fob-n-w"])
+    assert back  # it reached a node, where the board can task it again
+
+
+def test_a_patrol_lost_mid_edge_with_no_held_end_stops_the_unit_rather_than_enter_one() -> None:
+    w, e = _patrol_unit(150_000, "fob-n-w", ["cross-n"])
+    w.owner["fob-n-w"] = w.owner["cross-n"] = "ENEMY"
+    run(w)
+    assert e.job_id is None and not e.path and e.pos == Vec2(150_000, 60_000)
+
+
+def _abandon(w: World, e: Entity) -> None:
+    """Fail the unit's patrol the way `_end` does, with the route ending at the job's node."""
+    tasking._abandon_patrol(w, RULES, e, w.boards["COALITION"][e.job_id or 0])
+
+
+def test_a_patrol_lost_mid_edge_with_the_node_behind_lost_goes_on_to_the_node_ahead() -> None:
+    w, e = _patrol_unit(150_000, "fob-n-w", ["cross-n"])
+    w.owner["fob-n-w"] = "ENEMY"
+    _abandon(w, e)
+    assert e.path == ["cross-n"]
+
+
+def test_a_patrol_lost_mid_edge_with_both_ends_held_goes_back_to_the_node_it_left() -> None:
+    w, e = _patrol_unit(150_000, "fob-n-w", ["cross-n"])
+    w.owner["fob-n-w"] = "COALITION"
+    _abandon(w, e)
+    assert e.path == ["fob-n-w"]
+
+
+def test_a_failed_patrol_aircraft_is_not_sent_to_the_node_it_left() -> None:
+    w, e = _patrol_unit(150_000, "fob-n-w", ["cross-n"])
+    jet = put(w, JET, "COALITION", 150_000, 60_000, cmd=2)
+    jet.last_node, jet.path, jet.state, jet.job_id = "fob-n-w", ["cross-n"], "EN_ROUTE", e.job_id
+    w.owner["fob-n-w"] = "COALITION"
+    for n in ("west-airbase", "haven"):
+        w.owner[n] = (
+            "ENEMY"  # no landing base: go_home leaves the route, which ends at the job node
+        )
+    _abandon(w, jet)
+    assert jet.path == []
+
+
+def test_a_patrol_lost_while_the_unit_stands_on_a_node_stops_it_there() -> None:
+    w, e = _patrol_unit(120_000, "cross-s", ["cross-n"])
+    e.pos = Vec2(*POS["cross-s"])
+    w.owner["cross-n"] = "ENEMY"
+    run(w)
+    assert e.job_id is None and not e.path and e.pos == Vec2(*POS["cross-s"])
+
+
+def test_a_mid_edge_patrol_failure_replays_identically() -> None:
+    def hashes() -> list[str]:
+        w, _ = _patrol_unit(150_000, "fob-n-w", ["cross-n"])
+        w.owner["cross-n"] = "ENEMY"
+        out = []
+        for _ in range(300):
+            run(w)
+            out.append(state_hash(w))
+        return out
+
+    assert hashes() == hashes() and len(set(hashes())) > 1
+
+
 def test_only_a_patrol_keeps_to_held_nodes() -> None:
     w = new_world()
     e = truck(w, 150_000, 60_000, "fob-n-w", ["cross-n", "fob-n-e"])

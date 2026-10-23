@@ -1933,7 +1933,10 @@ def test_a_node_lost_mid_route_is_never_entered() -> None:
     for _ in range(30):
         step(w, [])
         assert unit.pos != node and unit.last_node != "fob-n-w"
-    assert unit.job_id is None and not unit.path
+    assert unit.job_id is None and unit.path in (
+        [],
+        ["west-airbase"],
+    )  # back to the node it left (Q-SIM-109)
 
 
 def test_a_lost_route_node_fails_the_patrol_though_its_own_node_is_held() -> None:

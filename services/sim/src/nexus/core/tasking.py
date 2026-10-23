@@ -774,11 +774,22 @@ def _dwell(world: World, rules: Rules, tr: TaskingRules, job: Job, now: int) -> 
 def _abandon_patrol(world: World, rules: Rules, e: Entity, job: Job) -> None:
     """A failed patrol's unit drops its route: home to the nearest friendly base, or it stands
     when no route avoids the other side's nodes (it retires once idle, Q-SIM-84), so it never
-    drives on into a lost base (Q-SIM-86)."""
+    drives on into a lost base (Q-SIM-86). A ground unit mid-edge never stands there (Q-SIM-109):
+    it goes to the end of its edge the side still holds (the one it left first), so the board can
+    task it again."""
+    ahead = e.path[0] if e.path else None
     go_home(world, rules, e)
     held = {world.owner.get(n) for n in e.path if isinstance(n, str)} - {None, e.side}
     if e.path and (e.path[-1] == job.node or held):
         e.path = []
+        at = e.last_node
+        if (
+            rules.domain[e.kind] == "GROUND"
+            and at is not None
+            and e.pos != Vec2(*rules.roads.pos[at])
+        ):
+            ends = [n for n in (at, ahead) if isinstance(n, str) and world.owner.get(n) == e.side]
+            e.path = [*ends[:1]]
 
 
 def _board_may_give(rules: Rules, e: Entity, job: Job) -> bool:
