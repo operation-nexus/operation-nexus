@@ -76,7 +76,7 @@ An issue is eligible when it is open, carries the `harness-run` label and was op
 
 ### Setup on the PC
 
-1. Prerequisites: `git`, `uv`, and `gh auth login` as the owner (the account needs to comment and relabel on the repo).
+1. Prerequisites: `git`, `uv` and `gh`. Log `gh` in as **canthony224** (a trusted author that is not the owner's notification account, so results notify the owner) with a **fine-grained personal access token**: resource owner `operation-nexus`, only the `operation-nexus` repository, Repository permissions → Issues: Read and write (Metadata read comes with it); 90-day expiry. The queue only lists issues, relabels and comments, and `git fetch` needs no token on a public repo, so an Issues-only token keeps a leaked PC from pushing code or touching settings. WSL has no browser for `gh auth login`'s web flow, so use `gh auth login --with-token`, paste the token, press Ctrl-D, then check `gh auth status`. Renew the token before it expires (owner, 2026-10-22).
 2. A dedicated clone, never your working clone (the tick runs `git reset --hard origin/develop` in it):
    ```
    mkdir -p ~/nexus-harness && git clone https://github.com/operation-nexus/operation-nexus ~/nexus-harness/operation-nexus
@@ -96,6 +96,7 @@ An issue is eligible when it is open, carries the `harness-run` label and was op
 
    [Service]
    Type=oneshot
+   Environment=PATH=%h/.local/bin:/usr/local/bin:/usr/bin:/bin
    ExecStart=%h/nexus-harness/operation-nexus/tools/balance/queue-tick.sh %h/nexus-harness/operation-nexus
    ```
    `~/.config/systemd/user/nexus-harness.timer`:
@@ -110,7 +111,7 @@ An issue is eligible when it is open, carries the `harness-run` label and was op
    [Install]
    WantedBy=timers.target
    ```
-   Then `systemctl --user daemon-reload && systemctl --user enable --now nexus-harness.timer` and `loginctl enable-linger "$USER"` (user timers keep running without a login session). WSL needs systemd on: `[boot]` / `systemd=true` in `/etc/wsl.conf`, then `wsl --shutdown` from Windows. A timer fires only while the WSL distro is running; whether WSL stays up with no open terminal after `enable-linger` depends on the Windows and WSL versions and the `vmIdleTimeout` setting **[UNVERIFIED]**: check that a tick fires with every terminal closed, and keep a WSL session open if it does not. `uv` and `gh` must be on the `PATH` systemd gives the service; if not, add `Environment=PATH=...` to the unit **[UNVERIFIED]** for your install paths.
+   Then `systemctl --user daemon-reload && systemctl --user enable --now nexus-harness.timer` and `loginctl enable-linger "$USER"` (user timers keep running without a login session). WSL needs systemd on: `[boot]` / `systemd=true` in `/etc/wsl.conf`, then `wsl --shutdown` from Windows. A timer fires only while the WSL distro is running; whether WSL stays up with no open terminal after `enable-linger` depends on the Windows and WSL versions and the `vmIdleTimeout` setting **[UNVERIFIED]**: check that a tick fires with every terminal closed, and keep a WSL session open if it does not. The user manager's `PATH` (`systemctl --user show-environment`) does not include `~/.local/bin`, where the `uv` installer puts `uv`, hence the `Environment=PATH=` line in the unit (needed on the owner's PC, 2026-10-22); add any other directory `gh` lives in. Ways to keep WSL running for the timer (none verified here): leave a WSL terminal open, set `vmIdleTimeout` under `[wsl2]` in `%UserProfile%\.wslconfig` (then `wsl --shutdown`), or a Windows Task Scheduler task at logon running `wsl.exe -d <distro> -- sleep infinity`. The dry run creates an untracked `services/sim/.venv` in the clone; that is expected.
 5. Cron alternative (no systemd): `crontab -e`, add `0 * * * * $HOME/nexus-harness/operation-nexus/tools/balance/queue-tick.sh $HOME/nexus-harness/operation-nexus >> $HOME/.local/share/nexus-harness/tick.log 2>&1` (create that directory first; cron needs the WSL cron service running **[UNVERIFIED]**, and a minimal `PATH` that includes `uv` and `gh`).
 
 Where things are: the journal (`journalctl --user -u nexus-harness`) holds the queue's log (it logs to stdout); results are in `~/.local/share/nexus-harness/results/<issue>-<sha8>/` with the run's output in `<issue>-<sha8>.log` beside it; worktrees and the lock live in `~/.local/share/nexus-harness/work/`. Change the paths and limits in `queue.yaml`.
