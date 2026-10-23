@@ -86,7 +86,7 @@ from nexus.contracts.gen.events.job_done import JobDone, Participant
 from nexus.contracts.gen.events.job_expired import JobExpired
 from nexus.contracts.gen.events.job_failed import JobFailed
 from nexus.core.fog import SideView, side_view
-from nexus.core.logistics import Run, go_home, load, nearest_base, plan_run
+from nexus.core.logistics import Run, go_home, keeps, load, nearest_base, plan_run
 from nexus.core.rng import PcgStream, RngStream
 from nexus.core.roads import shortest_path
 from nexus.core.rules import Rules, TaskingRules
@@ -938,7 +938,7 @@ def _dispatch(world: World, rules: Rules, routes: Routes, e: Entity, job: Job) -
         if run is None:
             return
         if run.source == e.last_node:
-            _load(world, e, run.source)
+            _load(world, e, run.source, job.node)
         else:
             e.pickup = run.source
             e.path = [*(_road(rules, routes, str(e.last_node), run.source) or [])]
@@ -998,13 +998,22 @@ def ring_crossed(
     return False
 
 
-def _load(world: World, e: Entity, source: str) -> None:
-    """Load as a spawn does: `min(truck_cargo, surplus)` leaves the source's stock (the sanctuary
-    is infinite), so stock plus cargo is conserved."""
-    sup = world.rules.supply if world.rules else None
-    if sup is None:
+def _load(world: World, e: Entity, source: str, dest: str | None) -> None:
+    """Load as a spawn does: `min(truck_cargo, spare)` leaves the source's stock (the sanctuary
+    is infinite), so stock plus cargo is conserved. The source keeps its floor, or its stock target
+    on a stocking run to `dest` (`keeps`, Q-SIM-102). The stocking rule is derived again here from
+    `dest`'s state now, not when the job was taken, so a destination lost or starved mid-trip
+    loads under the floor rule (as `plan_run` would plan it now)."""
+    rules = world.rules
+    if rules is None:
         return
-    surplus = world.stock[source] - sup.starve_floor[source] if source in world.stock else None
+    sup = rules.supply
+    keep = (
+        keeps(world, rules, e.side, dest)
+        if dest is not None and sup.max_stock.get(dest, 0) > 0
+        else sup.starve_floor
+    )
+    surplus = world.stock[source] - keep[source] if source in world.stock else None
     cargo = sup.truck_cargo if surplus is None else max(0, min(sup.truck_cargo, surplus))
     load(world, Run(source, cargo, []))
     e.cargo = cargo
@@ -1016,7 +1025,7 @@ def _load_at_source(world: World, rules: Rules, routes: Routes, e: Entity, job: 
     source = e.pickup or ""
     e.pickup = None
     if world.owner.get(source) == e.side:
-        _load(world, e, source)
+        _load(world, e, source, job.node)
     route = _route(rules, routes, e, job) if e.cargo else None
     e.path = [] if route is None else [*route]
     return route is not None

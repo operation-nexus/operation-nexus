@@ -360,6 +360,14 @@ class Logistics(BaseModel):
             le=1.0,
         ),
     ]
+    stock_target_frac: Annotated[
+        float,
+        Field(
+            description="Forward stock target (Q-SIM-100, Q-SIM-102, NX-389), unit fraction of node_max_stock: a base the side owns below ceil(stock_target_frac x max) gets a resupply job even when it is not starved (a stocking job), and a run to such a base (not starved, no damaged facility) loads only stock a source holds above its own target, else at the side's rear source. At starve_threshold or below there are no stocking jobs.",
+            ge=0.0,
+            le=1.0,
+        ),
+    ]
     truck_cargo: Annotated[
         int,
         Field(
@@ -1250,7 +1258,7 @@ class Tasking(BaseModel):
     urgency_max: Annotated[
         float,
         Field(
-            description="The most the triggering condition can multiply a base priority by (Q-GP-20), unit multiplier; the least is 1.0.",
+            description="The most the triggering condition can multiply a base priority by (Q-GP-20), unit multiplier; a triggering condition's least is 1.0. Only a stocking resupply job (stock_urgency, stock_front_bonus) runs below 1.0.",
             ge=1.0,
             le=2.0,
         ),
@@ -1425,6 +1433,22 @@ class Tasking(BaseModel):
         Field(
             description="A coalition patrol job is done once a unit has been on station this long (Q-SIM-94, NX-382), unit s of game time.",
             gt=0.0,
+        ),
+    ]
+    stock_urgency: Annotated[
+        float,
+        Field(
+            description="Urgency of a stocking resupply job: a base below logistics.stock_target_frac that is not starved and has no damaged facility (Q-SIM-100, NX-389), unit multiplier. It must round to at least 0.001 and, with stock_front_bonus, stay below 1.0 in whole thousandths (checked at load), so a starving or damaged base always ranks first; the higher of the two urgencies wins when both apply.",
+            gt=0.0,
+            lt=1.0,
+        ),
+    ]
+    stock_front_bonus: Annotated[
+        float,
+        Field(
+            description="Urgency added to a stocking resupply job when its base is on the front line (held, capturable, with a road neighbour the side does not hold: the patrol rule, Q-SIM-94) (Q-SIM-100, NX-389), unit multiplier; stock_urgency + stock_front_bonus must stay below 1.0.",
+            ge=0.0,
+            lt=1.0,
         ),
     ]
 

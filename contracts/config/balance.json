@@ -697,6 +697,7 @@
       "required": [
         "node_max_stock",
         "starve_threshold",
+        "stock_target_frac",
         "truck_cargo",
         "unload_rate",
         "rearm_rate",
@@ -757,6 +758,14 @@
         },
         "starve_threshold": {
           "description": "A base is starved below this fraction of its node_max_stock, unit fraction; a truck never loads stock below it, so the floor is ceil(starve_threshold x max) whole units (GAMEPLAY \u00a75, Q-GP-24).",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "x-unit": "fraction of node_max_stock",
+          "x-hot-reload": false
+        },
+        "stock_target_frac": {
+          "description": "Forward stock target (Q-SIM-100, Q-SIM-102, NX-389), unit fraction of node_max_stock: a base the side owns below ceil(stock_target_frac x max) gets a resupply job even when it is not starved (a stocking job), and a run to such a base (not starved, no damaged facility) loads only stock a source holds above its own target, else at the side's rear source. At starve_threshold or below there are no stocking jobs.",
           "type": "number",
           "minimum": 0,
           "maximum": 1,
@@ -1003,7 +1012,7 @@
       }
     },
     "Tasking": {
-      "description": "Tasking Board (\u00a76.7, GAMEPLAY \u00a71b, Q-SIM-73; NX-374). Both sides' boards use these keys. Durations are game time, converted to ticks at load. Priority points are `priority.<job_kind>` x urgency (1.0 to urgency_max) + priority_aging_per_min x game minutes waited.",
+      "description": "Tasking Board (\u00a76.7, GAMEPLAY \u00a71b, Q-SIM-73; NX-374). Both sides' boards use these keys. Durations are game time, converted to ticks at load. Priority points are `priority.<job_kind>` x urgency (1.0 to urgency_max for a triggering condition; a stocking job's is below 1.0, stock_urgency) + priority_aging_per_min x game minutes waited.",
       "type": "object",
       "additionalProperties": false,
       "required": [
@@ -1038,7 +1047,9 @@
         "strike_idle_targets_min_tier",
         "patrol_max_nodes",
         "patrol_orbit_m",
-        "patrol_dwell_s"
+        "patrol_dwell_s",
+        "stock_urgency",
+        "stock_front_bonus"
       ],
       "properties": {
         "reeval_every_ticks": {"description": "A board re-evaluates (settles, generates, assigns) every this many running ticks (TB-6), unit ticks.", "type": "integer", "minimum": 1, "x-unit": "ticks", "x-hot-reload": true},
@@ -1063,7 +1074,7 @@
           }
         },
         "static_offense_min_tier": {"description": "The lowest Threat Director tier at which the Static's board posts the offensive jobs it generates itself (a strike on a discovered site); below it the board posts none. The Director's own operations are not affected (Q-SIM-85, THREAT-DIRECTOR 5a).", "$ref": "../common/enums.json#/$defs/ThreatTier", "x-unit": "tier", "x-hot-reload": true},
-        "urgency_max": {"description": "The most the triggering condition can multiply a base priority by (Q-GP-20), unit multiplier; the least is 1.0.", "type": "number", "minimum": 1, "maximum": 2, "x-unit": "multiplier", "x-hot-reload": true},
+        "urgency_max": {"description": "The most the triggering condition can multiply a base priority by (Q-GP-20), unit multiplier; a triggering condition's least is 1.0. Only a stocking resupply job (stock_urgency, stock_front_bonus) runs below 1.0.", "type": "number", "minimum": 1, "maximum": 2, "x-unit": "multiplier", "x-hot-reload": true},
         "priority_aging_per_min": {"description": "Priority points an open job gains per game minute it has waited (TB-3, Q-ALN-23), unit points/min of game time.", "type": "number", "minimum": 0, "x-unit": "points/min (game)", "x-hot-reload": true},
         "slots": {
           "description": "Units a job needs (TB-4), by lower-case JobKind; resupply is sized from the missing stock instead (resupply_stock_per_slot).",
@@ -1124,7 +1135,9 @@
         "strike_idle_targets_min_tier": {"description": "The lowest Threat Director tier at which the coalition board posts strike jobs on known defended foe nodes for idle armed viewer units; below it only the slot scaling applies, so a lone new viewer does not provoke the Director by itself (Q-SIM-92, Q-SIM-86).", "$ref": "../common/enums.json#/$defs/ThreatTier", "x-unit": "tier", "x-hot-reload": true},
         "patrol_max_nodes": {"description": "The most front-line nodes the coalition board posts a patrol job on at once, nearest a node the other side holds first; 0 turns player patrols off (Q-SIM-94, NX-382), unit jobs.", "type": "integer", "minimum": 0, "x-unit": "jobs", "x-hot-reload": true},
         "patrol_orbit_m": {"description": "An aircraft on a coalition patrol circles its node at this distance, which is also the clearance from a discovered air-defense ring it needs to take the job (Q-SIM-94, NX-382), unit m.", "type": "number", "exclusiveMinimum": 0, "x-unit": "m", "x-hot-reload": true},
-        "patrol_dwell_s": {"description": "A coalition patrol job is done once a unit has been on station this long (Q-SIM-94, NX-382), unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true}
+        "patrol_dwell_s": {"description": "A coalition patrol job is done once a unit has been on station this long (Q-SIM-94, NX-382), unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true},
+        "stock_urgency": {"description": "Urgency of a stocking resupply job: a base below logistics.stock_target_frac that is not starved and has no damaged facility (Q-SIM-100, NX-389), unit multiplier. It must round to at least 0.001 and, with stock_front_bonus, stay below 1.0 in whole thousandths (checked at load), so a starving or damaged base always ranks first; the higher of the two urgencies wins when both apply.", "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1, "x-unit": "multiplier", "x-hot-reload": true},
+        "stock_front_bonus": {"description": "Urgency added to a stocking resupply job when its base is on the front line (held, capturable, with a road neighbour the side does not hold: the patrol rule, Q-SIM-94) (Q-SIM-100, NX-389), unit multiplier; stock_urgency + stock_front_bonus must stay below 1.0.", "type": "number", "minimum": 0, "exclusiveMaximum": 1, "x-unit": "multiplier", "x-hot-reload": true}
       }
     },
     "Slots": {

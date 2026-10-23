@@ -113,29 +113,56 @@ def plan_run(world: World, rules: Rules, side: Side, dest: str) -> Run | None:
     """A cargo truck of `side` sent to `dest` (GAMEPLAY §5 Q-GP-24; None: no road route).
 
     A friendly `dest` that can hold stock gets cargo from the friendly node (never `dest`) with
-    stock above its starvation floor that is nearest `dest` by road (route metres, ties by node
-    id): `min(truck_cargo, surplus)`. With no such node the side's rear source loads a full
+    stock above what it keeps (`keeps`) that is nearest `dest` by road (route metres, ties by node
+    id): `min(truck_cargo, spare)`. With no such node the side's rear source loads a full
     `truck_cargo`. Any other `dest` (neutral, enemy, infinite or unable to hold stock) is a
     capture run: it loads nothing and spawns at the rear source.
     """
     sup = rules.supply
     rear = sup.rear[side]
     if friendly(world, side, dest) and sup.max_stock.get(dest, 0) > 0:
+        keep = keeps(world, rules, side, dest)
         sources = [
             n for n in sup.max_stock
-            if n != dest and friendly(world, side, n) and _surplus(world, rules, n) > 0
+            if n != dest and friendly(world, side, n) and world.stock.get(n, 0) > keep[n]
         ]  # fmt: skip
         best = nearest(rules, dest, sources)  # roads are two-way, so dest -> source measures it
         if best is not None:
             source = best[0]
             route = _route(rules, source, dest)
-            cargo = min(sup.truck_cargo, _surplus(world, rules, source))
+            cargo = min(sup.truck_cargo, world.stock.get(source, 0) - keep[source])
             return None if route is None else Run(source, cargo, route)
         cargo = sup.truck_cargo
     else:
         cargo = 0
     route = _route(rules, rear, dest)
     return None if route is None else Run(rear, cargo, route)
+
+
+def facility_damage(world: World, rules: Rules, side: Side) -> dict[str, tuple[int, int]]:
+    """Base -> (missing hp, max hp) over the side's facilities there (the side's own state)."""
+    cr = rules.combat
+    totals: dict[str, list[int]] = {}
+    for e in world.entities():
+        if cr is not None and e.side == side and e.base_id is not None:
+            top = cr.units[e.kind].hp
+            t = totals.setdefault(e.base_id, [0, 0])
+            t[0] += top - e.hp
+            t[1] += top
+    return {n: (t[0], t[1]) for n, t in totals.items()}
+
+
+def keeps(world: World, rules: Rules, side: Side, dest: str) -> Mapping[str, int]:
+    """What each source keeps on a run to the finite-stock `dest` (Q-GP-24, Q-SIM-102): on a
+    stocking run (`dest` at or above its starvation floor, below its stock target, with no damaged
+    facility of the side) its own stock target, so stock flows forward from the rear and never
+    back and forth between bases below target; on any other run its starvation floor."""
+    sup = rules.supply
+    stock = world.stock.get(dest, 0)
+    if not sup.starve_floor[dest] <= stock < sup.stock_target[dest]:
+        return sup.starve_floor
+    missing_hp = facility_damage(world, rules, side).get(dest, (0, 0))[0]
+    return sup.starve_floor if missing_hp else sup.stock_target
 
 
 def _surplus(world: World, rules: Rules, node: str) -> int:

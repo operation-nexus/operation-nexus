@@ -59,6 +59,7 @@ logistics:
     HQ: 2000
     PORT: 1000
   starve_threshold: 0.25
+  stock_target_frac: 0.8
   truck_cargo: 100
   unload_rate: 1.0
   rearm_rate: 0.5
@@ -205,6 +206,8 @@ tasking:
   patrol_max_nodes: 3
   patrol_orbit_m: 5000
   patrol_dwell_s: 300
+  stock_urgency: 0.5
+  stock_front_bonus: 0.25
 director:
   window_s: 60
   cp:
@@ -299,9 +302,9 @@ director:
 # for capture, NX-126 for campaign, NX-124 for combat and its assist window, and NX-124 part 2 for
 # repair, crew and the damage multipliers, NX-124 part 3 for defense hp and the defeat hold, and
 # NX-374 for the tasking keys and again for follow and escort, NX-155 for the director, and NX-157
-# for the Pattern of Life keys and the garrison operation); a
+# for the Pattern of Life keys and the garrison operation, NX-389 for the forward stock keys); a
 # change means every config_hash moved.
-GOLDEN_CONFIG_HASH = "88854861dd7dc77b8a4e37f9950fa3866f56407fad9e7dfaaf91c522346a2308"
+GOLDEN_CONFIG_HASH = "7157ac73d67c0b5459ff7108b341ecef8f0582a3f3ddb4db9364a624e6c29790"
 AIR = {
     "bingo_reserve_frac": 0.15,
     "orbit_period_s": 120.0,
@@ -329,6 +332,7 @@ FOW = {
 LOGISTICS = {
     "node_max_stock": {"AIRBASE": 2000, "BRIDGE": 0, "FOB": 1000, "HQ": 2000, "PORT": 1000},
     "starve_threshold": 0.25,
+    "stock_target_frac": 0.8,
     "truck_cargo": 100,
     "unload_rate": 1.0,
     "rearm_rate": 0.5,
@@ -458,6 +462,8 @@ TASKING = {
     "patrol_max_nodes": 3,
     "patrol_orbit_m": 5000,
     "patrol_dwell_s": 300,
+    "stock_urgency": 0.5,
+    "stock_front_bonus": 0.25,
 }
 DIRECTOR = {
     "window_s": 60,
@@ -630,6 +636,9 @@ def test_default_profile_loads_and_matches_golden_hash() -> None:
         ("  sigint_size_m_min: 3\n", "fow.sigint_size_m_min"),
         ("  sigint_size_l_min: 7\n", "fow.sigint_size_l_min"),
         ("  starve_threshold: 0.25\n", "logistics.starve_threshold"),
+        ("  stock_target_frac: 0.8\n", "logistics.stock_target_frac"),
+        ("  stock_urgency: 0.5\n", "tasking.stock_urgency"),
+        ("  stock_front_bonus: 0.25\n", "tasking.stock_front_bonus"),
         ("  truck_cargo: 100\n", "logistics.truck_cargo"),
         ("  unload_rate: 1.0\n", "logistics.unload_rate"),
         ("    HQ: 2000\n", "logistics.node_max_stock.HQ"),
@@ -719,6 +728,12 @@ def test_unknown_key_fails(tmp_path: Path, text: str) -> None:
         ("      LOGI_TRUCK: 2\n", "", "director.cp.unit_value.LOGI_TRUCK"),
         ("exit_ratio: 0.8", "exit_ratio: 1.5", "director.tier.exit_ratio"),
         ("window_s: 60", "window_s: 0", "director.window_s"),
+        # NX-389: the forward stock target is a fraction; stocking urgencies stay below 1.0
+        ("stock_target_frac: 0.8", "stock_target_frac: 1.2", "logistics.stock_target_frac"),
+        ("stock_urgency: 0.5", "stock_urgency: 0", "tasking.stock_urgency"),
+        ("stock_urgency: 0.5", "stock_urgency: 1.0", "tasking.stock_urgency"),
+        ("stock_front_bonus: 0.25", "stock_front_bonus: -0.1", "tasking.stock_front_bonus"),
+        ("stock_front_bonus: 0.25", "stock_front_bonus: 1.0", "tasking.stock_front_bonus"),
     ],
 )
 def test_wrong_type_or_value_fails_naming_key(tmp_path: Path, old: str, new: str, key: str) -> None:
@@ -852,6 +867,7 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "  sigint_cell_m: 10000, sigint_refresh_s: 54.0, sigint_range_mult: 1.5,\n"
         "  sigint_size_l_min: 7, sigint_size_m_min: 3}\n"
         "logistics: {unload_rate: 1.0, truck_cargo: 100, starve_threshold: 0.25,\n"
+        "  stock_target_frac: 0.8,\n"
         "  rearm_rate: 0.5, forward_deploy_min_surplus: 50, starved_loadout: {fuel_frac: 0.5},\n"
         "  loadout_cost: {STRIKE_FIGHTER: 20, RECON_UAV: 5, LOGI_TRUCK: 0, GARRISON_INFANTRY: 5,\n"
         "    ENEMY_FIGHTER: 20, ENEMY_STRIKE_FIGHTER: 20, ENEMY_RECON_UAV: 5, ENEMY_ARMOR: 15,\n"
@@ -899,7 +915,8 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "  scout_urgency: {small: 1.0, medium: 1.5, large: 2.0}, strike_urgency_per_threat: 0.01,\n"
         "  strike_max_scaled_slots: 3, strike_idle_targets_max: 2,\n"
         "  strike_idle_targets_min_tier: ALPHA,\n"
-        "  patrol_max_nodes: 3, patrol_orbit_m: 5000, patrol_dwell_s: 300}\n"
+        "  patrol_max_nodes: 3, patrol_orbit_m: 5000, patrol_dwell_s: 300,\n"
+        "  stock_urgency: 0.5, stock_front_bonus: 0.25}\n"
         "director: {window_s: 60, max_spawns_per_window: 6,\n"
         "  cp: {ema_window_s: 300, unit_value: {STRIKE_FIGHTER: 10, RECON_UAV: 3, LOGI_TRUCK: 2,\n"
         "    GARRISON_INFANTRY: 2}},\n"

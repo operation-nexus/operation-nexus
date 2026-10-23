@@ -64,6 +64,7 @@ from nexus.core.world import (
     to_canonical,
 )
 from nexus.runtime.campaign_config import load_campaign_config, start_campaign
+from nexus.runtime.golden import shipped_config
 
 CONFIG = load_campaign_config()
 _shipped = CONFIG.rules.tasking
@@ -71,8 +72,11 @@ if _shipped is None:
     raise AssertionError("the shipped config has tasking rules")
 PATROL_TR: TaskingRules = _shipped  # the shipped patrol keys: the player patrol tests use it
 TR: TaskingRules = dataclasses.replace(_shipped, patrol_max_nodes=0)  # patrols off: the older tests
+# Stocking off (target = floor, Q-SIM-100): the older tests count the jobs of starving bases only.
+_SUP = CONFIG.rules.supply
+NO_STOCKING = dataclasses.replace(_SUP, stock_target=_SUP.starve_floor)
 RULES = dataclasses.replace(  # no opening garrison
-    CONFIG.rules, campaign=None, garrison_quota={}, tasking=TR
+    CONFIG.rules, campaign=None, garrison_quota={}, tasking=TR, supply=NO_STOCKING
 )
 EVERY = TR.reeval_every_ticks
 LEASE = TR.claim_lease_ticks
@@ -199,6 +203,94 @@ def test_urgency_never_passes_the_cap_and_slots_follow_missing_stock() -> None:
     w.stock["west-airbase"] = 450  # floor 500: 1.1; 1,550 missing
     board_pass(w)
     assert jobs(w)[0].urgency == 1100
+
+
+# Forward stock (Q-SIM-100, NX-389), the shipped keys: target 0.8 of max (1600 on west-airbase,
+# 800 on a FOB), stocking urgency 0.5, +0.25 on the front line (fob-n-w and fob-s-w border the
+# neutral crossings; west-airbase's road neighbours are all held).
+STOCK_RULES = dataclasses.replace(RULES, supply=CONFIG.rules.supply)
+
+
+def stocked(**stock: int) -> World:
+    """Stocking on, every coalition base at its target unless given (`fob_n_w=700`)."""
+    w = new_world(rules=STOCK_RULES)
+    w.stock.update({"west-airbase": 1600, "fob-n-w": 800, "fob-s-w": 800})
+    w.stock.update({k.replace("_", "-"): v for k, v in stock.items()})
+    return w
+
+
+def resupplies(w: World) -> dict[str, tuple[int, int]]:
+    return {str(j.node): (j.urgency, j.slots) for j in jobs(w) if j.kind == "RESUPPLY"}
+
+
+def test_a_base_below_its_stock_target_gets_a_stocking_job_with_a_front_line_bonus() -> None:
+    w = stocked(west_airbase=1400, fob_n_w=700, fob_s_w=850)  # 70%, 70% (front), 85%
+    board_pass(w)
+    assert resupplies(w) == {"west-airbase": (500, 2), "fob-n-w": (750, 1)}  # 200, 100 to target
+    w.stock.update({"west-airbase": 1600, "fob-n-w": 799})  # at the target: none; one under: one
+    board_pass(w)
+    assert resupplies(w) == {"fob-n-w": (750, 1)}
+
+
+def test_a_stocking_job_is_sized_to_the_target_and_a_starving_one_to_the_maximum() -> None:
+    w = stocked(west_airbase=1450, fob_n_w=750)  # 150 and 50 below target (550 and 250 below max)
+    board_pass(w)
+    assert resupplies(w) == {"west-airbase": (500, 2), "fob-n-w": (750, 1)}
+    w = stocked(fob_n_w=240)  # starving: 760 below its maximum of 1000, 560 below its target
+    board_pass(w)
+    assert resupplies(w) == {"fob-n-w": (1040, 3)}  # 1.0 + 10 / 250; slots capped at 3
+
+
+def test_a_new_campaign_posts_stocking_jobs_on_its_bases_and_never_on_a_sanctuary() -> None:
+    w = new_world(rules=STOCK_RULES)  # every base starts at 50%
+    board_pass(w)
+    assert resupplies(w) == {"west-airbase": (500, 3), "fob-n-w": (750, 3), "fob-s-w": (750, 3)}
+    assert not [j for j in jobs(w, "ENEMY") if j.kind == "RESUPPLY"]  # no carrier to staff one
+
+
+def test_a_starving_or_damaged_base_keeps_its_urgency_and_outranks_stocking() -> None:
+    w = stocked(fob_n_w=100, fob_s_w=700)  # starving: 1.0 + 150 / 250, as with stocking off
+    board_pass(w)
+    assert resupplies(w) == {"fob-n-w": (1600, 3), "fob-s-w": (750, 1)}
+    w = stocked(fob_n_w=700, fob_s_w=700)
+    hurt_facility(w, "fob-n-w", 75)  # half its hp: 1.5 beats the 0.75 it also has as stocking
+    truck = put(w, "LOGI_TRUCK", "west-airbase", AI, cargo=100)
+    board_pass(w)
+    assert resupplies(w) == {"fob-n-w": (1500, 3), "fob-s-w": (750, 1)}  # damaged: sized to max
+    (claimed,) = [j for j in jobs(w) if truck.id in j.claims]
+    assert claimed.node == "fob-n-w"
+
+
+def test_a_truck_at_a_source_loads_only_what_is_above_its_target_for_a_stocking_job() -> None:
+    w = stocked(fob_n_w=700, fob_s_w=850)  # fob-s-w holds 50 over its target; west-airbase none
+    truck = put(w, "LOGI_TRUCK", "fob-s-w", AI, cargo=0)
+    board_pass(w)
+    assert (truck.cargo, w.stock["fob-s-w"]) == (50, 800)
+
+
+def test_a_stock_target_at_the_starvation_threshold_reproduces_the_old_board() -> None:
+    off = shipped_config({"logistics.stock_target_frac": 0.25}).rules.supply
+    assert off.stock_target == off.starve_floor
+    w = new_world(rules=dataclasses.replace(STOCK_RULES, supply=off))
+    board_pass(w)
+    assert resupplies(w) == {}
+
+
+@pytest.mark.parametrize(
+    "keys",
+    [
+        {"tasking.stock_urgency": 0.75},  # + 0.25 front bonus = 1.0
+        {"tasking.stock_urgency": 0.9996, "tasking.stock_front_bonus": 0},  # rounds to 1000
+        {"tasking.stock_urgency": 0.0004},  # rounds to 0 thousandths
+        {"tasking.stock_urgency": 0.7494, "tasking.stock_front_bonus": 0.2502},  # 749 + 250 = 999
+    ],
+)
+def test_stocking_urgencies_are_checked_in_thousandths_at_load(keys: dict[str, float]) -> None:
+    if sum(round(v * 1000) for v in keys.values()) == 999:  # the last case is the largest allowed
+        assert shipped_config(keys).rules.tasking is not None
+        return
+    with pytest.raises(ValueError, match=r"stock_front_bonus must stay below 1\.0"):
+        shipped_config(keys)
 
 
 def test_priority_is_base_times_urgency_plus_exact_aging() -> None:
@@ -980,6 +1072,8 @@ def _kind(raw: dict, kind: str) -> dict:  # type: ignore[type-arg]
         ),
         (lambda r: _kind(r, "SCOUT").update(key="scout:99"), "does not name"),
         (lambda r: _kind(r, "RESUPPLY").update(key="defend:fob-n-w"), "does not name"),
+        (lambda r: _kind(r, "SCOUT").update(urgency=5), "job urgency must be an int >= 1000"),
+        (lambda r: _kind(r, "RESUPPLY").update(urgency=0), "job urgency must be an int >= 1,"),
     ],
 )
 def test_a_corrupt_board_is_refused(mutate, message: str) -> None:  # type: ignore[no-untyped-def]
@@ -987,6 +1081,13 @@ def test_a_corrupt_board_is_refused(mutate, message: str) -> None:  # type: igno
     mutate(raw)
     with pytest.raises(ValueError, match=message):
         load(msgpack.packb(raw, use_bin_type=True))
+
+
+def test_a_resupply_job_below_urgency_one_loads() -> None:  # a stocking job (NX-389)
+    raw = msgpack.unpackb(save(scenario()), raw=False)
+    _kind(raw, "RESUPPLY").update(urgency=5)
+    again = load(msgpack.packb(raw, use_bin_type=True))
+    assert [j.urgency for j in again.boards["COALITION"].values() if j.kind == "RESUPPLY"] == [5]
 
 
 def test_same_seed_same_assignments_and_events() -> None:
@@ -1899,6 +2000,7 @@ def test_snapshot_patrol_jobs_follow_their_board() -> None:
         (lambda b: enemy(b).update(via=None), "Static's patrol"),
         (lambda b: enemy(b).update(arrived=5), "dwells"),
         (lambda b: enemy(b).update(key="patrol:east-airbase"), "coalition board's"),
+        (lambda b: coalition(b).update(urgency=5), "job urgency must be an int >= 1000"),
     ]
     for edit, why in bad:
         with pytest.raises(ValueError, match=why):

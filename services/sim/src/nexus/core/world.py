@@ -78,7 +78,8 @@ from nexus.core.rules import CAPTURE_FULL, Rules
 # Job.arrived, a Recon scout job's loiter start, and a scout job at a point (NX-379); a coalition
 # patrol job (key `patrol:<node>`, no `via`) reuses `arrived` as its dwell start (NX-382, no bump);
 # 23: intercept_seen, when the Static first tracked each coalition scout inside a node's radius, and
-# the Static's INTERCEPT job (`intercept:<entity>`: Job.entity, last-known pos, lost; NX-382)
+# the Static's INTERCEPT job (`intercept:<entity>`: Job.entity, last-known pos, lost; NX-382); a
+# RESUPPLY job's urgency may be below 1000 (a stocking job, NX-389, Q-SIM-100, no bump: same shape)
 FORMAT_VERSION = 23
 _MM = 1000.0  # metres -> millimetres; m/s -> mm/s
 _MICRO = 1e6  # ADR-0002's 1e-6 step for other floats (fuel)
@@ -386,9 +387,10 @@ class Claim:
 class Job:
     """A Tasking Board job (GAMEPLAY §1b, TB-1..TB-9). The target is a node, or
     a SIGINT blob with its cell centre `pos` (a scout job). `urgency` is thousandths, 1000 to the
-    configured maximum. `created` and `expires` are on the campaign clock (running ticks);
-    `expires` None for an objective's job (`objective` is that objective's id). `depends_on`: the
-    job that must be DONE before this one can be claimed (TB-8). Terminal jobs leave the board."""
+    configured maximum (a stocking resupply job's is below 1000, Q-SIM-100). `created` and
+    `expires` are on the campaign clock (running ticks); `expires` None for an objective's job
+    (`objective` is that objective's id). `depends_on`: the job that must be DONE before this one
+    can be claimed (TB-8). Terminal jobs leave the board."""
 
     id: int
     kind: JobKind
@@ -1433,11 +1435,14 @@ def _job(
     claims = d["claims"]
     if not isinstance(claims, list):
         raise ValueError(f"{_BOARDS}: claims must be a list")
-    # job urgency 1000: the floor, 1.0 in thousandths (a fixed-point scale)
+    kind = _str(d["kind"], "job kind", _JOB_KINDS)
+    # job urgency floor in thousandths: 1.0 (1000), or for RESUPPLY the least positive thousandth,
+    # since a stocking job runs below 1.0 (Q-SIM-100, NX-389)
     job = Job(
-        _int(d["id"], "job id", 1), _str(d["kind"], "job kind", _JOB_KINDS),
+        _int(d["id"], "job id", 1), kind,
         _str(d["key"], "job key"), _int(d["slots"], "job slots", 1),
-        _int(d["urgency"], "job urgency", 1000), _int(d["created"], "job created"),
+        _int(d["urgency"], "job urgency", 1 if kind == "RESUPPLY" else 1000),
+        _int(d["created"], "job created"),
         _str(d["node"], "job node", optional=True), _str(d["blob"], "job blob", optional=True),
         None if d["pos"] is None else _vec(d["pos"], "job pos"),
         None if d["expires"] is None else _int(d["expires"], "job expires", 1),

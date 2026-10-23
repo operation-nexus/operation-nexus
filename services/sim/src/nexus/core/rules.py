@@ -72,6 +72,8 @@ class Supply:
     start_owner: Mapping[str, NodeOwner] = field(default_factory=dict)
     max_stock: Mapping[str, int] = field(default_factory=dict)  # finite-stock nodes only
     starve_floor: Mapping[str, int] = field(default_factory=dict)  # ceil(starve_threshold x max)
+    # ceil(logistics.stock_target_frac x max): the forward stock target (Q-SIM-100, NX-389)
+    stock_target: Mapping[str, int] = field(default_factory=dict)
     carriers: frozenset[UnitKind] = frozenset()
     truck_cargo: int = 0  # logistics.truck_cargo
     unload_milli: int = 0  # logistics.unload_rate x world_dt, in thousandths per tick
@@ -152,7 +154,7 @@ class CampaignRules:
 class TaskingRules:
     """Tasking Board rules (NX-374, GAMEPLAY §1b, Q-SIM-73): durations in running ticks, the
     priorities and the aging rate exact (Fractions) so a ranking and a tie are exact, and the
-    urgency cap in thousandths. `slots` holds the fixed slot counts; a resupply job is sized from
+    urgencies in thousandths. `slots` holds the fixed slot counts; a resupply job is sized from
     its missing stock (`resupply_stock_per_slot`, at most `resupply_slots_max`)."""
 
     reeval_every_ticks: int
@@ -192,6 +194,8 @@ class TaskingRules:
     patrol_max_nodes: int  # coalition front-line nodes with a patrol job at once (Q-SIM-94)
     patrol_orbit_m: float  # an aircraft patrol circles its node this far out (Q-SIM-94)
     patrol_dwell_ticks: int  # a coalition patrol is done this long after it is on station
+    stock_urgency_milli: int  # a stocking resupply job's urgency (Q-SIM-100, NX-389)
+    stock_front_bonus_milli: int  # added to it on a front-line base
 
 
 @dataclass(frozen=True, slots=True)
@@ -478,7 +482,17 @@ def tasking_rules(
     threat_memory_ticks: int,
     patrol_dwell_ticks: int,
 ) -> TaskingRules:
-    """The tick counts are `cfg`'s game-time keys already converted by the config loader."""
+    """The tick counts are `cfg`'s game-time keys already converted by the config loader. Raises
+    ValueError when the stocking urgency rounds to 0 thousandths, or a front-line stocking job
+    could reach 1000 thousandths (1.0), the least a starving or damaged base's job has
+    (Q-SIM-100: those always rank first). Checked on the stored thousandths, after rounding."""
+    stock_urgency = round(Fraction(repr(cfg.stock_urgency)) * 1000)
+    front_bonus = round(Fraction(repr(cfg.stock_front_bonus)) * 1000)
+    if stock_urgency < 1 or front_bonus < 0 or stock_urgency + front_bonus >= 1000:
+        raise ValueError(
+            "tasking.stock_urgency must be at least 0.001 and tasking.stock_urgency + "
+            "tasking.stock_front_bonus must stay below 1.0, in whole thousandths"
+        )
     return TaskingRules(
         reeval_every_ticks=cfg.reeval_every_ticks,
         claim_lease_ticks=claim_lease_ticks,
@@ -515,6 +529,8 @@ def tasking_rules(
         patrol_max_nodes=cfg.patrol_max_nodes,
         patrol_orbit_m=cfg.patrol_orbit_m,
         patrol_dwell_ticks=patrol_dwell_ticks,
+        stock_urgency_milli=stock_urgency,
+        stock_front_bonus_milli=front_bonus,
     )
 
 
@@ -720,6 +736,7 @@ def _supply(theater: TheaterConfig, logistics: Logistics, dt: float) -> Supply:
         start_owner={n.id: n.start_owner for n in theater.nodes},
         max_stock=max_stock,
         starve_floor={k: math.ceil(logistics.starve_threshold * v) for k, v in max_stock.items()},
+        stock_target={k: math.ceil(logistics.stock_target_frac * v) for k, v in max_stock.items()},
         carriers=frozenset(_CARRIERS),
         truck_cargo=logistics.truck_cargo,
         unload_milli=unload_milli,

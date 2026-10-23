@@ -35,6 +35,7 @@ logistics:
     HQ: 2000
     PORT: 1000
   starve_threshold: 0.25  # PROPOSED – unvalidated (Q-SIM-49); fraction of node_max_stock (CONFIG-AND-CONTENT §6.3 logistics.starve_threshold)
+  stock_target_frac: 0.8  # PROPOSED – unvalidated (Q-SIM-100, Q-SIM-102, NX-389); fraction of node_max_stock, a base below it gets a stocking resupply job and a run to it loads only stock above a source's own target (CONFIG-AND-CONTENT §6.3)
   truck_cargo: 100  # PROPOSED – unvalidated (Q-SIM-49); stock units (CONFIG-AND-CONTENT §6.3 logistics.truck_cargo)
   unload_rate: 1.0  # PROPOSED – unvalidated (Q-SIM-49); stock per s (world) (CONFIG-AND-CONTENT §6.3 logistics.unload_rate)
   rearm_rate: 0.5  # PROPOSED – unvalidated (Q-SIM-49); stock per s (world) (CONFIG-AND-CONTENT §6.3 logistics.rearm_rate)
@@ -142,7 +143,7 @@ tasking:
     capture: 45  # PROPOSED – unvalidated (lead decision, NX-156): as assist_objective, the other ground job
     intercept: 45  # PROPOSED – unvalidated (Q-SIM-96, NX-382); below defend, above strike: the Static's hunt of a tracked coalition scout
     patrol: 15  # PROPOSED – unvalidated (Q-SIM-85, lead decision): below stage, so an idle unit never prefers a patrol; the Director's patrol is taken at posting
-  urgency_max: 2.0  # PROPOSED – unvalidated (Q-GP-20, Q-SIM-73); multiplier, the least is 1.0 (CONFIG-AND-CONTENT §6.6)
+  urgency_max: 2.0  # PROPOSED – unvalidated (Q-GP-20, Q-SIM-73); multiplier, a triggering condition's least is 1.0; a stocking job runs below (CONFIG-AND-CONTENT §6.6)
   priority_aging_per_min: 1  # PROPOSED – unvalidated (Q-SIM-73); points per min (game) (CONFIG-AND-CONTENT §6.6)
   slots:  # PROPOSED – unvalidated (Q-SIM-73); units per lower-case JobKind (CONFIG-AND-CONTENT §6.6 tasking.slots.<job_kind>)
     defend: 2
@@ -183,6 +184,8 @@ tasking:
   patrol_max_nodes: 3  # PROPOSED – unvalidated (Q-SIM-94, NX-382); jobs, front-line nodes the coalition board posts a patrol on at once; 0 = off
   patrol_orbit_m: 5000  # PROPOSED – unvalidated (Q-SIM-94, NX-382); m, an aircraft patrol circles its node at this distance and needs it clear of discovered rings
   patrol_dwell_s: 300  # PROPOSED – unvalidated (Q-SIM-94, NX-382, lead decision: short enough for an aircraft to finish one on a tank); s (game), a coalition patrol is done after this long on station
+  stock_urgency: 0.5  # PROPOSED – unvalidated (Q-SIM-100, NX-389); multiplier, a stocking resupply job's urgency, below 1.0 so a starving or damaged base ranks first (CONFIG-AND-CONTENT §6.6)
+  stock_front_bonus: 0.25  # PROPOSED – unvalidated (Q-SIM-100, NX-389); multiplier added to a stocking job on a front-line base (CONFIG-AND-CONTENT §6.6)
   escort_leash_m: 10000  # PROPOSED – unvalidated (Q-SIM-76); m, the farthest an escort leaves station to engage a group threat (CONFIG-AND-CONTENT §6.6)
 director:  # Threat Director (Q-SIM-78, Q-SIM-81, owner-approved starting numbers; NX-031 tunes) (CONFIG-AND-CONTENT §6.7)
   window_s: 60  # PROPOSED – unvalidated (Q-ALN-23); s (game), the decision window (CONFIG-AND-CONTENT §6.7 director.window_s)
