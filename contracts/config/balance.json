@@ -1038,7 +1038,7 @@
           "description": "Base priority per job kind (Q-GP-20), unit points; keys are the lower-case JobKind. Repair-bridge joins with its job.",
           "type": "object",
           "additionalProperties": false,
-          "required": ["defend", "resupply", "assist_objective", "strike", "scout", "escort_convoy", "stage", "capture", "patrol"],
+          "required": ["defend", "resupply", "assist_objective", "strike", "scout", "escort_convoy", "stage", "capture", "patrol", "intercept"],
           "properties": {
             "defend": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true},
             "resupply": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true},
@@ -1048,7 +1048,8 @@
             "escort_convoy": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true},
             "stage": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true},
             "capture": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true},
-            "patrol": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true}
+            "patrol": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true},
+            "intercept": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true}
           }
         },
         "static_offense_min_tier": {"description": "The lowest Threat Director tier at which the Static's board posts the offensive jobs it generates itself (a strike on a discovered site); below it the board posts none. The Director's own operations are not affected (Q-SIM-85, THREAT-DIRECTOR 5a).", "$ref": "../common/enums.json#/$defs/ThreatTier", "x-unit": "tier", "x-hot-reload": true},
@@ -1058,14 +1059,15 @@
           "description": "Units a job needs (TB-4), by lower-case JobKind; resupply is sized from the missing stock instead (resupply_stock_per_slot).",
           "type": "object",
           "additionalProperties": false,
-          "required": ["defend", "strike", "assist_objective", "scout", "escort_convoy", "patrol"],
+          "required": ["defend", "strike", "assist_objective", "scout", "escort_convoy", "patrol", "intercept"],
           "properties": {
             "defend": {"type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true},
             "strike": {"type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true},
             "assist_objective": {"type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true},
             "scout": {"type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true},
             "escort_convoy": {"type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true},
-            "patrol": {"type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true}
+            "patrol": {"type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true},
+            "intercept": {"type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true}
           }
         },
         "resupply_stock_per_slot": {"description": "A resupply job gets one slot per this much missing stock (max stock minus stock, rounded up, at least one), unit stock units.", "type": "integer", "minimum": 1, "x-unit": "stock units", "x-hot-reload": true},
@@ -1190,7 +1192,8 @@
         "frontline_hops",
         "garrison",
         "pol",
-        "recon"
+        "recon",
+        "intercept"
       ],
       "properties": {
         "window_s": {
@@ -1679,6 +1682,19 @@
             "loiter_radius_m": {"description": "The loiter pattern stays within this distance of the point, which also keeps clear of every known air-defense ring by this much, and a last-known track within it counts as the picture of the point, unit m.", "type": "number", "exclusiveMinimum": 0, "x-unit": "m", "x-hot-reload": true},
             "grid_m": {"description": "Spacing of the candidate grid over a sector from which Recon picks its point, unit m.", "type": "integer", "minimum": 1, "x-unit": "m", "x-hot-reload": true},
             "memory_s": {"description": "How long a grid cell that a Static sensor covered counts as freshly looked at: its staleness rises from 0 to 1 over this time, and the entry is dropped then, unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true}
+          }
+        },
+        "intercept": {
+          "description": "Static scout intercepts (Q-SIM-96, NX-382, THREAT-DIRECTOR 5a): the Static's board posts an INTERCEPT job for a coalition scout its view tracks near a node it holds.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["radius_m", "reaction_s", "pol_linger_s", "leash_m", "lost_s"],
+          "properties": {
+            "radius_m": {"description": "A tracked coalition scout this close to a Static-held node is watched, unit m.", "type": "number", "exclusiveMinimum": 0, "x-unit": "m", "x-hot-reload": true},
+            "reaction_s": {"description": "How long a scout must stay tracked inside the radius before the board posts the intercept, at ALPHA and above, unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true},
+            "pol_linger_s": {"description": "The same wait at Pattern of Life, unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true},
+            "leash_m": {"description": "A garrison fighter takes an intercept only when the scout is within this distance of its home, unit m.", "type": "number", "exclusiveMinimum": 0, "x-unit": "m", "x-hot-reload": true},
+            "lost_s": {"description": "An intercept ends when its scout has not been tracked for this long, unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true}
           }
         },
         "decoy_blink": {

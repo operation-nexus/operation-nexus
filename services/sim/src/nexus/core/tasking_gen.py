@@ -43,6 +43,13 @@ refers to an entity id, so a job names a node, or a SIGINT blob with its cell ce
   straight-line distance, as the idle strike targets are ordered by distance; ties by node id), and
   only while a viewer's armed or recon unit of the side is idle. Urgency 1.0.
 
+- **Intercept** (`intercept:<entity>`, the Static's only, Q-SIM-96, NX-382): a coalition painter
+  aircraft the side's view currently tracks (a last-known track does not count) inside
+  `director.intercept.radius_m` of a node the side holds, kept tracked there at every board pass for
+  `director.intercept.reaction_s` (`pol_linger_s` at Pattern of Life), counted from the first pass
+  that saw it (`World.intercept_seen`, set by `nexus.core.tasking`). It carries the track's
+  position. Urgency 1.0.
+
 A kind is generated only while the side can staff it: a live unit of the side fits it, or, for
 the coalition, a viewer can JOIN as a role that fits. A scout is posted for a cell only once a
 blob has been in it for 2 consecutive SIGINT refreshes (`World.blob_runs`), so a blob crossing
@@ -54,25 +61,35 @@ GM) is not.
 """
 
 import math
-from collections.abc import Iterator
+from collections.abc import Iterator, Mapping
 from fractions import Fraction
 from itertools import pairwise
 from typing import NamedTuple
 
-from nexus.contracts.gen.common.enums import JobKind, Side, UnitKind
+from nexus.contracts.gen.common.enums import JobKind, NodeOwner, Side, UnitKind
 from nexus.core.director import TIERS
 from nexus.core.fog import SideView
 from nexus.core.rules import CAPTURE_FULL, Rules, TaskingRules
-from nexus.core.world import Entity, Vec2, World
+from nexus.core.world import Contact, Entity, Vec2, World
 
 POST_GATE = (
     "post-gate"  # a `World.cooldown` key (cells are digits): no new scout job until its tick
 )
-GENERATED = ("resupply:", "defend:", "strike:", "assist:", "scout:", "escort:", "patrol:")
+GENERATED = (
+    "resupply:",
+    "defend:",
+    "strike:",
+    "assist:",
+    "scout:",
+    "escort:",
+    "patrol:",
+    "intercept:",
+)
 _GROUND, _AIR = "GROUND", "AIR"
 _UNDEFENDED = ("SANCTUARY", "BRIDGE")  # never captured (N-4, NX-373)
 _JOB_KINDS: tuple[JobKind, ...] = (
     "RESUPPLY", "SCOUT", "DEFEND", "STRIKE", "ASSIST_OBJECTIVE", "ESCORT_CONVOY", "PATROL",
+    "INTERCEPT",
 )  # fmt: skip
 _STATIC: Side = "ENEMY"
 _FOE: dict[Side, Side] = {"COALITION": "ENEMY", "ENEMY": "COALITION"}
@@ -91,7 +108,7 @@ class JobSpec(NamedTuple):
     pos: Vec2 | None = None
     objective: int | None = None
     depends_on: int | None = None
-    entity: int | None = None  # an escort job: the truck
+    entity: int | None = None  # an escort job: the truck; an intercept job: the scout
     via: str | None = None  # a patrol job: the node it drives out to before it goes home
 
 
@@ -125,7 +142,49 @@ def fits(rules: Rules, kind: UnitKind, job_kind: JobKind) -> bool:
             return domain in (_AIR, _GROUND) and (kind in rules.armed or kind in rules.painters)
         case "CAPTURE":
             return domain == _GROUND
+        case "INTERCEPT":
+            return domain == _AIR and kind in rules.armed  # `can_hit` asks the loaded weapons
     return False
+
+
+def can_hit(rules: Rules, e: Entity, target: UnitKind) -> bool:
+    """`e` holds a round of a weapon that reaches `target`'s domain and (an aircraft) its default
+    altitude band, as the escort's `_own_reach` reads the shooter's own state."""
+    cr = rules.combat
+    if cr is None:
+        return False
+    domain, band = rules.domain[target], cr.units[target].alt_band
+    return any(
+        rounds > 0 and domain in w.targets and (domain != _AIR or band in w.bands)
+        for w, rounds in zip(cr.loadout(e.kind, e.variant), e.ammo, strict=True)
+    )
+
+
+def held_within(
+    nodes: Mapping[str, tuple[float, float]], owners: Mapping[str, NodeOwner], side: Side,
+    x: float, y: float, reach: float,
+) -> bool:  # fmt: skip
+    """The point is within `reach` of a node `side` holds."""
+    return any(
+        owners.get(n) == side and math.hypot(px - x, py - y) <= reach
+        for n, (px, py) in nodes.items()
+    )
+
+
+def watched(world: World, rules: Rules, view: SideView) -> dict[int, Contact]:
+    """The coalition painter aircraft `view` tracks now inside `director.intercept.radius_m` of a
+    node its side holds, by id (Q-SIM-96). A wreck is not hunted: the unit must still exist and not
+    be Disabled, a liveness read of the truth (as the job's DONE reads it) because a destroyed or
+    Disabled scout's contact stays tracked until sensing drops it."""
+    dr = rules.director
+    if dr is None:
+        return {}
+    return {
+        i: c for i, c in sorted(view.tracks.items())
+        if (e := world.find(i)) is not None and e.damage_state != "DISABLED"
+        and c.kind in rules.painters and rules.domain[c.kind] == _AIR
+        and held_within(view.nodes, view.owners, view.side, c.pos.x, c.pos.y, dr.intercept_radius_m)
+    }  # fmt: skip
 
 
 def is_idle(rules: Rules, e: Entity, side: Side) -> bool:
@@ -185,6 +244,7 @@ def generate(
         *_scout(tr, view, world, side),
         *_escort(world, rules, tr, side, view),
         *_patrol(world, rules, tr, side, view),
+        *_intercept(world, rules, tr, side, view),
     ]
     return _cap_scouts([s for s in specs if s.kind in able], world, tr, side)
 
@@ -367,6 +427,22 @@ def _patrol(
     )  # fmt: skip
     for _, n in front[: tr.patrol_max_nodes]:
         yield JobSpec("PATROL", f"patrol:{n}", tr.slots["PATROL"], 1000, node=n)
+
+
+def _intercept(
+    world: World, rules: Rules, tr: TaskingRules, side: Side, view: SideView
+) -> Iterator[JobSpec]:
+    dr = rules.director
+    if side != _STATIC or dr is None:
+        return
+    pol = world.director[side].tier == "PATTERN_OF_LIFE"
+    wait = dr.intercept_pol_linger_ticks if pol else dr.intercept_reaction_ticks
+    now = world.campaign.running_ticks + 1
+    for i, c in watched(world, rules, view).items():
+        if i in world.intercept_seen and now - world.intercept_seen[i] >= wait:
+            yield JobSpec(
+                "INTERCEPT", f"intercept:{i}", tr.slots["INTERCEPT"], 1000, pos=c.pos, entity=i
+            )
 
 
 type _Segment = tuple[float, float, float, float, float]  # ax, ay, dx, dy, dx^2 + dy^2

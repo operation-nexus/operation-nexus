@@ -76,8 +76,10 @@ from nexus.core.rules import CAPTURE_FULL, Rules
 # memory, lost nodes and adaptations (NX-156), radar blinks (Q-SIM-82); 21: Entity.home, Job.via and
 # the Pattern of Life timers last_patrol, last_convoy, last_offensive and last_flip (NX-157); 22:
 # Job.arrived, a Recon scout job's loiter start, and a scout job at a point (NX-379); a coalition
-# patrol job (key `patrol:<node>`, no `via`) reuses `arrived` as its dwell start (NX-382, no bump)
-FORMAT_VERSION = 22
+# patrol job (key `patrol:<node>`, no `via`) reuses `arrived` as its dwell start (NX-382, no bump);
+# 23: intercept_seen, when the Static first tracked each coalition scout inside a node's radius, and
+# the Static's INTERCEPT job (`intercept:<entity>`: Job.entity, last-known pos, lost; NX-382)
+FORMAT_VERSION = 23
 _MM = 1000.0  # metres -> millimetres; m/s -> mm/s
 _MICRO = 1e6  # ADR-0002's 1e-6 step for other floats (fuel)
 _MILLI_UNIT = 1000  # thousandths of a stock unit per unit
@@ -85,6 +87,7 @@ _MAX_ABS = 1e9  # m or m/s; keeps mm quantization well inside int64
 _BLOBS = "blobs"
 _BLOB_RUNS = "blob_runs"
 _BOARDS = "boards"
+_INTERCEPT_SEEN = "intercept_seen"
 _COOLDOWN = "cooldown"
 _LOST = "lost"
 _CAPTURE = "capture"
@@ -118,7 +121,7 @@ _V = "v"
 JOB_KEY_PREFIX = {
     "RESUPPLY": "resupply:", "DEFEND": "defend:", "STRIKE": "strike:",
     "ASSIST_OBJECTIVE": "assist:", "SCOUT": "scout:", "ESCORT_CONVOY": "escort:",
-    "PATROL": "patrol:",
+    "PATROL": "patrol:", "INTERCEPT": "intercept:",
 }  # fmt: skip
 _WORLD_KEYS = (
     _BLOB_RUNS,
@@ -135,6 +138,7 @@ _WORLD_KEYS = (
     _DEFENSE_HP,
     _DIRECTOR,
     _ENTITIES,
+    _INTERCEPT_SEEN,
     _LOST,
     _MARKERS,
     _NEXT_ENTITY_ID,
@@ -398,6 +402,7 @@ class Job:
     via: str | None = None  # a PATROL job: the node the patrol drives out to before it goes home
     arrived: int | None = None  # a scout job at a point, or a coalition patrol: the tick its unit
     # began to loiter or dwell
+    lost: int | None = None  # an intercept job: the tick its scout was first found untracked
     claims: dict[int, Claim] = field(default_factory=dict)  # entity id -> claim, claim order
 
     @property
@@ -536,6 +541,7 @@ class World:
         "defense_hp",
         "director",
         "group_threat",
+        "intercept_seen",
         "lost",
         "markers",
         "objective",
@@ -590,6 +596,9 @@ class World:
         # sensing system rebuilds it with the blobs); the board posts a scout only from 2 (NX-374).
         self.blob_runs: dict[Side, dict[str, int]] = {side: {} for side in SIDES}
         self.sigint_age = 0  # running ticks since the last SIGINT refresh (FOW-9)
+        # Coalition scout id -> the board pass tick the Static first tracked it inside the radius
+        # of a node it holds, continuously since (the intercept's reaction clock, Q-SIM-96).
+        self.intercept_seen: dict[int, int] = {}
         # Node id -> whole stock units, for the nodes with finite stock (SANCTUARY nodes are
         # infinite by rule and absent). `start_campaign` fills it from the theater (NX-123).
         self.stock: dict[str, int] = {}
@@ -993,6 +1002,7 @@ def to_canonical(world: World, *, quantize: bool) -> dict[str, Any]:
         _DEFENSE_HP: dict(sorted(world.defense_hp.items())),
         _DIRECTOR: {s: _sorted(asdict(d)) for s, d in world.director.items()},
         _ENTITIES: [_entity_data(e, quantize) for e in world.entities()],
+        _INTERCEPT_SEEN: {str(i): t for i, t in sorted(world.intercept_seen.items())},
         _MARKERS: _markers_data(world, quantize),
         _OBJECTIVE: None if world.objective is None else asdict(world.objective),
         _OWNER: dict(sorted(world.owner.items())),
@@ -1432,6 +1442,7 @@ def _job(
         _int(d["restarts"], "job restarts"),
         _str(d["via"], "job via", optional=True),
         None if d["arrived"] is None else _int(d["arrived"], "job arrived"),
+        None if d["lost"] is None else _int(d["lost"], "job lost"),
     )  # fmt: skip
     for raw in claims:
         if not isinstance(raw, list) or len(raw) != 3:
@@ -1448,10 +1459,15 @@ def _job(
     ) not in nodes | {""}:
         raise ValueError(f"{_BOARDS}: only the Static's patrol job names a node to drive out to")
     escort = job.kind == "ESCORT_CONVOY"  # targets a truck, not a place
-    if escort != (job.entity is not None) or (job.entity or 0) >= next_entity_id:
-        raise ValueError(f"{_BOARDS}: only an escort job names an entity, below the counter")
+    hunt = job.kind == "INTERCEPT"  # the Static's: a scout, with its last-known position
+    if (escort or hunt) != (job.entity is not None) or (job.entity or 0) >= next_entity_id:
+        raise ValueError(
+            f"{_BOARDS}: only an escort or intercept job names an entity, below the counter"
+        )
+    if hunt and (side != "ENEMY" or job.pos is None or job.node is not None or job.blob):
+        raise ValueError(f"{_BOARDS}: an intercept job is the Static's, at a position only")
     point = job.kind == "SCOUT" and job.blob is None and job.key.startswith("op:")  # NX-379
-    if not _target_ok(job, escort=escort, point=point):
+    if not _target_ok(job, escort=escort, point=point or hunt):
         raise ValueError(
             f"{_BOARDS}: a job targets a node or a blob with its position (a scout job: a point)"
         )
@@ -1464,12 +1480,18 @@ def _job(
     dwell = job.kind == "PATROL" and side == "COALITION"
     if job.key.startswith("patrol:") and not dwell:
         raise ValueError(f"{_BOARDS}: a patrol:<node> job is the coalition board's")
+    if job.lost is not None and (not hunt or job.lost > running_ticks):
+        raise ValueError(f"{_BOARDS}: only an intercept job loses its scout, at a past tick")
     if job.arrived is not None and (not (point or dwell) or job.arrived > running_ticks):
         raise ValueError(
             f"{_BOARDS}: only a scout job at a point loiters and a patrol dwells, from a past tick"
         )
     target = (
-        str(job.entity) if escort else job.node if job.blob is None else job.blob.split("-")[-1]
+        str(job.entity)
+        if escort or hunt
+        else job.node
+        if job.blob is None
+        else job.blob.split("-")[-1]
     )
     prefix = JOB_KEY_PREFIX.get(job.kind, "-")
     others = [p for p in JOB_KEY_PREFIX.values() if p != prefix and job.key.startswith(p)]
@@ -1533,6 +1555,19 @@ def _runs(value: object, blobs: tuple[Blob, ...]) -> dict[str, int]:
     if set(out) != {b.id.split("-")[1] for b in blobs}:
         raise ValueError(f"{_BLOB_RUNS} must name the cells of the current blobs")
     return out
+
+
+def _intercept_seen(value: object, next_entity_id: int, running_ticks: int) -> dict[int, int]:
+    """Scout id (below the counter) -> a first-seen tick that is not after the snapshot's clock."""
+    if not isinstance(value, dict):
+        raise ValueError(f"{_INTERCEPT_SEEN} must be a map")
+    out = {
+        _int(int(_str(k, "scout id")), "scout id", 1): _int(v, _INTERCEPT_SEEN, 1)
+        for k, v in value.items()
+    }
+    if any(i >= next_entity_id for i in out) or any(t > running_ticks for t in out.values()):
+        raise ValueError(f"{_INTERCEPT_SEEN}: an id off the counter, or a tick after the snapshot")
+    return dict(sorted(out.items()))
 
 
 def _cells(value: object) -> dict[str, int]:
@@ -1668,6 +1703,9 @@ def load(data: bytes) -> World:
     runs = _fields(d[_BLOB_RUNS], SIDES, _BLOB_RUNS)
     world.blob_runs = {s: _runs(runs[s], world.blobs[s]) for s in SIDES}
     world.sigint_age = _int(d[_SIGINT_AGE], _SIGINT_AGE)
+    world.intercept_seen = _intercept_seen(
+        d[_INTERCEPT_SEEN], world._next_entity_id, world.campaign.running_ticks
+    )
     world.stock = _stock(d[_STOCK])
     world.owner = _owner(d[_OWNER])
     world.capture = _capture(d[_CAPTURE], world.owner)

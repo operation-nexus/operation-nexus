@@ -727,6 +727,7 @@ class Priority(BaseModel):
     stage: Annotated[float, Field(ge=0.0)]
     capture: Annotated[float, Field(ge=0.0)]
     patrol: Annotated[float, Field(ge=0.0)]
+    intercept: Annotated[float, Field(ge=0.0)]
 
 
 class Slots1(BaseModel):
@@ -739,6 +740,7 @@ class Slots1(BaseModel):
     scout: Annotated[int, Field(ge=1)]
     escort_convoy: Annotated[int, Field(ge=1)]
     patrol: Annotated[int, Field(ge=1)]
+    intercept: Annotated[int, Field(ge=1)]
 
 
 class FollowStationM(BaseModel):
@@ -1134,6 +1136,43 @@ class Recon(BaseModel):
         float,
         Field(
             description="How long a grid cell that a Static sensor covered counts as freshly looked at: its staleness rises from 0 to 1 over this time, and the entry is dropped then, unit s of game time.",
+            gt=0.0,
+        ),
+    ]
+
+
+class Intercept(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    radius_m: Annotated[
+        float,
+        Field(
+            description="A tracked coalition scout this close to a Static-held node is watched, unit m.",
+            gt=0.0,
+        ),
+    ]
+    reaction_s: Annotated[
+        float,
+        Field(
+            description="How long a scout must stay tracked inside the radius before the board posts the intercept, at ALPHA and above, unit s of game time.",
+            gt=0.0,
+        ),
+    ]
+    pol_linger_s: Annotated[
+        float, Field(description="The same wait at Pattern of Life, unit s of game time.", gt=0.0)
+    ]
+    leash_m: Annotated[
+        float,
+        Field(
+            description="A garrison fighter takes an intercept only when the scout is within this distance of its home, unit m.",
+            gt=0.0,
+        ),
+    ]
+    lost_s: Annotated[
+        float,
+        Field(
+            description="An intercept ends when its scout has not been tracked for this long, unit s of game time.",
             gt=0.0,
         ),
     ]
@@ -1580,6 +1619,12 @@ class Director(BaseModel):
         Recon,
         Field(
             description="Recon scouting (NX-379, Q-SIM-87, THREAT-DIRECTOR TD-5): a scout flies to a point of the sector, loiters there, then goes home."
+        ),
+    ]
+    intercept: Annotated[
+        Intercept,
+        Field(
+            description="Static scout intercepts (Q-SIM-96, NX-382, THREAT-DIRECTOR 5a): the Static's board posts an INTERCEPT job for a coalition scout its view tracks near a node it holds."
         ),
     ]
     decoy_blink: Annotated[
