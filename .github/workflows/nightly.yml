@@ -4,10 +4,12 @@
 # tracker issue within 24 h (ADR-0009).
 #   determinism  golden replays in four processes (tools/sim-determinism/check.py, NX-105)
 #   grid-bench   uniform-grid benchmark, reduced ticks (tools/sim-bench/grid_bench.py, NX-104)
+#   soak         evening-150 on the real kernel, 20 min run + replay of its command log, memory slope, worst
+#                ticks (tools/soak/soak.py, NX-033; the weekly 6 h+ run is the owner PC queue, Q-TEST-9)
 #   rescan       full osv-scanner rescan of the default branch (catches newly disclosed CVEs); main later
 #
 # Not built yet, so no job (add each with its tracker item, not before):
-#   6 h soak                          NX-033
+#   weekly 6 h+ soak                  owner PC queue (NX-033 part 2)
 #   balance harness (scenarios x 20 seeds)   NX-031
 #   base-image SCA rescan             first Dockerfile (NX-013)
 #   OpenSSF Scorecard                 needs an owner-approved pin of ossf/scorecard-action (AGENTS rule 8);
@@ -88,6 +90,44 @@ jobs:
         with:
           name: grid-bench
           path: ${{ runner.temp }}/grid-bench.json
+          retention-days: 14
+
+  # Q-TEST-9: a 30-60 min soak nightly. The run phase is capped at 20 min of wall time and the replay of its
+  # command log takes about as long again, so the job is ~45 min (timeout 60). evening-150 is the mid-size
+  # profile (150 viewers, 30 arrivals/h): it fills the board with units without the surge profiles' cost.
+  # Shared-runner timings and the RSS slope are indicative only; a failed gate (memory growth over the PROPOSED
+  # limit, a replay mismatch, a sim crash) turns the job red and needs a tracker issue (ADR-0009).
+  soak:
+    name: soak
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@1c37ad07a6a961277cf70c0d37d6f313000f5884 # v10.3.0
+        with:
+          version: "0.11.32"
+          python-version: "3.12"
+          cache-dependency-glob: services/sim/uv.lock
+      - run: uv sync --frozen --project services/sim
+      - name: Soak
+        run: |
+          set -euo pipefail
+          rc=0
+          uv run --frozen --project services/sim python tools/soak/soak.py \
+            --profile evening-150 --minutes 20 --out "$RUNNER_TEMP/soak" || rc=$?
+          if [ -f "$RUNNER_TEMP/soak/soak.md" ]; then cat "$RUNNER_TEMP/soak/soak.md" >> "$GITHUB_STEP_SUMMARY"; fi
+          exit "$rc"
+      - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        if: ${{ !cancelled() }} # keep the report of a failed run
+        with:
+          name: soak-report
+          path: |
+            ${{ runner.temp }}/soak/soak.json
+            ${{ runner.temp }}/soak/soak.md
           retention-days: 14
 
   # security.yml has no schedule and only scans the checked-out ref, so this is the full rescan of the default

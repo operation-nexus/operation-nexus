@@ -29,7 +29,7 @@ The raw plan's testing section ("80% coverage", "Playwright guarantees 60 FPS") 
 | Contract | schema drift, adapter fixtures, WS contract | every PR | < 1 min |
 | Integration | docker compose + scripted bots | every PR (path-filtered) | < 5 min |
 | E2E / visual | Playwright | every PR touching overlay | < 3 min |
-| Soak | full stack, 6 h | nightly | — |
+| Soak | headless real kernel with a crowd profile (`tools/soak`, NX-033): nightly ~45 min on CI, weekly 6 h+ on the owner PC queue (Q-TEST-9); memory slope, worst ticks, hash replay. Full stack with synthetic chat is a later phase | nightly + weekly | ~45 min nightly |
 | Balance | harness: 20 seeds × scenarios (balance-diff report); 50 seeds for the acceptance run (§3.5a, Q-TEST-4) | nightly + on balance PRs; a reduced acceptance run before P1 exit, the full run during P2 (Q-TEST-10) | < 20 min for the diff (not met yet: see `tools/balance/README.md` Cost); acceptance not time-boxed yet |
 
 ## 3. Details
