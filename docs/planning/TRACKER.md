@@ -10,7 +10,7 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | Phase | Items | Done | Status |
 |---|---|---|---|
 | P0 Foundations | 44 | 31 | 🟨 |
-| P1 Sim kernel | 60 | 45 | 🟨 |
+| P1 Sim kernel | 61 | 45 | 🟨 |
 | P2 Closed alpha | 40 | 0 | ⬜ |
 | P3 Public beta | 26 | 0 | ⬜ |
 | P4 Depth | 69 | 1 | ⬜ |
@@ -132,6 +132,7 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-408 | Direct orders to friendly or neutral sites defend, never fire (Q-SIM-124, owner): a GOTO to a bridge or an own node holds and engages threats; dropping a bridge needs an explicit strike. Amends Q-SIM-112 and the NX-398 hold rule | S | ⬜ | NX-398, NX-400 | A jet ordered to a bridge never fires on it |
 | NX-409 | Harness queue never loses a finished run (lesson from #301): check the token can write to the issue before a long run starts; if posting fails, keep the report and let the stale-label recovery post a finished report instead of marking the run failed. Security review (parses issue text) | S | ⬜ | NX-381 | A run whose comment fails is posted on the next tick |
 | NX-410 | Repair crews avoid enemy ground (Q-SIM-125) | S | ⬜ | NX-407 | No repair route enters an enemy-held node |
+| NX-411 | A1 rewritten as a no-steamroll test (Q-TEST-6 update, owner 2026-10-24): an entertainment review of harness #301 and #316-#318 proposes measurable steamroll signals (for example Static retakes, lead changes, the Static reaching BRAVO, coalition losses); the owner picks; the harness report scores them; the 24 h floor goes | M | ⬜ | NX-031 | The harness flags a steamroll; a hard-fought 4 h win passes |
 | NX-151 | Enemy-side view for director (FOW-4) | M | ✅ | NX-150 | Director API accepts only `EnemyView` |
 | NX-155 | Director: CP, tiers w/ hysteresis, budget | M | ✅ | NX-151, NX-374 | Hysteresis property |
 | NX-156 | Director: operations library + scoring + threat memory | L | ✅ | NX-155 | "Convoy raids → escorts" golden scenario |
