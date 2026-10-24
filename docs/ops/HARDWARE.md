@@ -8,7 +8,7 @@ Status: Draft · Q-OPS-1 · Facts verified 2026-10-17 (server row 2026-10-22) un
 | GPU | NVIDIA **GTX 1070** (Pascal), 8 GB. *Corrected 2026-10-17: first recorded as a GTX 1080.* | Owner |
 | RAM | 32 GB | Owner |
 | CPU | Intel Core i7-8700 (6 cores / 12 threads, non-K) | Owner, confirmed 2026-10-17 |
-| Upload | ~15–25 Mbps (owner estimate; **measure it**) | Owner |
+| Upload | **~34–38 Mbps measured** on the 1 Gbps Ethernet link, 2026-10-23 and 24 (Cloudflare test, 4 parallel streams: 33.7 to 37.7 Mbps over 6 runs, median 36.3; 3-minute sustained uploads: mean 29.3, 34.2 and 39.1 Mbps). Before the owner's upgrade: about 16 to 20 Mbps on a 100 Mbps link (2026-10-23, before 16:37). Details under "Measured network" below. Replaces the earlier ~15–25 Mbps owner estimate | Measured, i7-8700 PC (NX-007) |
 | OS | **Windows** (owner, 2026-10-17). Docker installed (needs update). Plan: Docker Desktop on WSL2 for the app stack; OBS native on Windows. **No dual boot**: it would break 24/7 operation, and Windows is needed for gaming. | Owner |
 | Can run 24/7 | Yes (owner, 2026-10-17). It's also the gaming PC. | Owner |
 
@@ -52,6 +52,29 @@ The GTX 1070 is the same Pascal generation as the GTX 1080 first recorded here, 
 
 Rule: keep total outbound ≤ 70% of the **measured** sustained upload. Measure at the times you'll stream, including evenings.
 
+## Measured network
+All numbers were measured from the i7-8700 PC on a 1 Gbps Ethernet link (2026-10-23 16:37 onward, after the owner's network upgrade), from WSL2, with the Cloudflare speed-test endpoint and `speedtest-cli`. Upload is the number that matters for streaming.
+
+| Test | Result |
+|---|---|
+| Upload, Cloudflare, 4 parallel streams, 20 MB each (6 runs: 10-23 16:40, 16:41, 20:30; 10-24 03:39, 08:30, 13:30) | 33.7, 37.2, 34.0, 37.7, 36.9, 35.7 Mbps (min 33.7, median 36.3, max 37.7) |
+| Download, Cloudflare, one 25 MB request (same runs, 5 of 6) | 356 to 401 Mbps |
+| Sustained upload, 3 minutes, 4 streams (10-23 16:52, 20:45; 10-24 09:00) | mean 29.3, 34.2 and 39.1 Mbps (660, 770 and 880 MB) |
+| `speedtest-cli` upload, two nearby servers per run | 13.1 to 50.5 Mbps (10 runs); the server list is geolocated from the IP and changed between runs (Illinois/Iowa, Ottawa, Tennessee/Kentucky, Guelph; once Brazil), so treat it as less stable than the Cloudflare figure |
+| Before the upgrade (100 Mbps Ethernet link, 2026-10-23 11:25 to 12:17) | upload 15.6 to 20.1 Mbps, plus one 32.5 Mbps Cloudflare single-stream reading; one 1.5 Mbps outlier with an unknown server |
+
+Latency to 1.1.1.1 while uploading (idle: about 26 to 28 ms, 0% loss):
+
+| Upload load | Average ping | Max ping | Packet loss |
+|---|---|---|---|
+| Paced 10 Mbps (3 runs) | 34.4 to 37.4 ms | 117 to 199 ms | 0% |
+| Paced 20 Mbps (1 run) | 81.0 ms | 259 ms | 0% |
+| Saturated, 3 minutes (3 runs) | 103, 191 and 284 ms | 237, 765 and 513 ms | 0%, 0.28% (20:45 run), 0% |
+
+Reading, not a rule: latency rises sharply as upload fills the line (consistent with queueing in the router or modem, which was not checked **[UNVERIFIED]**). At the proposed ~9 to 10 Mbps total the added latency was small in these runs. The 70% rule above, applied to a sustained 29 to 39 Mbps, allows about 20 to 27 Mbps, where the 20 Mbps run already showed about 55 ms of extra average latency.
+
+Not measured: tests over Wi-Fi, tests during an actual stream, and runs on other days of the week. Raw rows: `upload-tests.csv`, `sustained-uploads.csv`, `paced-uploads.csv`, `net-baseline.csv` on the PC under `~/nexus-bench/results/`.
+
 ## Fit for this project
 - **Sufficient for P2 alpha:** one Twitch output, a Canvas2D overlay (light GPU load), the sim (CPU), and a local TTS worker (CPU).
 - **Local LLM: experiment only** (Q-ARCH-4, decided 2026-10-17). 8 GB VRAM shared with OBS and Chromium only fits small (~7–8B) models, so nothing depends on it. A free narration-first experiment on the GTX 1070 is approved; it is gated by the quality benchmark (NX-292) and auto-disabled if stream quality suffers (ADR-0007, LOCAL-VS-API-COST R2).
@@ -77,5 +100,5 @@ Rule: keep total outbound ≤ 70% of the **measured** sustained upload. Measure 
 - [x] Linux server: disk (1 TB HDD), motherboard (ASUS M11BB), RAM layout (1 × 8 GB, 3 free slots), reported 2026-10-22
 
 Note: 8 GB is enough for the watchdog, monitoring and backups. Staging the full stack is likely to want 16 GB [ESTIMATE; confirm once the app exists].
-- [ ] Measured upload (e.g., three speed tests at different times)
+- [x] Measured upload: six speed-test runs at different times of day and three 3-minute sustained uploads, 2026-10-23 and 24 (see "Measured network")
 - [x] Monthly cost ceiling (Q-OPS-3: $75–100/month total, decided 2026-10-17)
