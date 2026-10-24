@@ -37,8 +37,7 @@ guard); `contracts/README.md`; AGENTS.md rules 0 and 6; `docs/quality/DATA-INTEG
    | `x-source` | the spec section or Q-row, as in the §6 Source column |
    | `x-status` | `PROPOSED`, `RULE_DEFAULT` (a decided rule shipped as an option), `VALIDATED` (harness-checked) or `FIXED` |
 
-   A block still listed in `PENDING_BLOCKS` needs only `x-unit` and `x-hot-reload` until it is
-   annotated, but add all eight anyway so the block's own PR has less to do.
+   Every key needs all eight; `make contracts` fails on a missing one.
 2. **Default** `balance/default.yaml`: the value, with the same marker comment as its neighbours
    (`# PROPOSED`, Q-row).
 3. **Loader** `services/sim/src/nexus/core/rules.py`: the field on the block's rules dataclass,

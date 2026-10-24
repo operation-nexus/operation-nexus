@@ -122,7 +122,7 @@ Every reload is audited (who, when, diff), and is visible in the admin console h
 ## 6. Balance schema: key reference
 Legend: **HR** = hot-reloadable (§5). "TBD" = TBD by harness. **Source** = the spec the key comes from. All values are PROPOSED (DI-7).
 
-To add, rename or retire a key, agents follow the `add-config-key` skill (`.claude/skills/`), which lists the seven places a key lives. The generated [CONFIG-REFERENCE](CONFIG-REFERENCE.md) lists every key of the schema by category with its unit, bounds, hot-reload flag, tune range, audience, edit role, status and source (Q-CFG-15). Blocks listed in `PENDING_BLOCKS` in `scripts/gen_config_reference.py` are not annotated yet (NX-390).
+To add, rename or retire a key, agents follow the `add-config-key` skill (`.claude/skills/`), which lists the seven places a key lives. The generated [CONFIG-REFERENCE](CONFIG-REFERENCE.md) lists every key of the schema by category with its unit, bounds, hot-reload flag, tune range, audience, edit role, status and source (Q-CFG-15).
 
 ### 6.1 Sim time & world
 | Key | Type | Unit | PROPOSED | Source | HR |
@@ -349,7 +349,7 @@ Left in code on purpose (NX-377, Q-DEV-21): `services/sim/tests/core/test_kernel
 | `director.max_live_units.<tier>` | int | units | `pattern_of_life` 40 (24 in Q-SIM-78; raised in NX-157, Q-SIM-85: strait-1's four garrison quotas already add up to 22), `alpha` 40, `bravo` 70 (PROPOSED, Q-SIM-78) | THREAT-DIRECTOR §4, Q-TD-12 | Yes |
 | `director.op_priority.<op>` | float | base priority | RETAKE 1.2, OFFENSIVE 1.0, ESCORT_CONVOYS 0.8, REINFORCE_IADS 0.7, PROBE 0.6, RECON 0.5, DECOY_BLINK 0.3 (PROPOSED, Q-SIM-78); exactly the catalog's ids | THREAT-DIRECTOR §4, Q-TD-6 | Yes |
 | `director.score.target_value.<node_kind>` | float | multiplier | AIRBASE 1.5, FOB 1.0, PORT 1.0, SANCTUARY 2.0 (PROPOSED, Q-SIM-78); a kind not listed is never a target |
-| `director.score.weakness_max` | float | multiplier | 2.0 (PROPOSED, Q-SIM-78): the weakness multiplier at no defenses, 1.0 at full, linear | THREAT-DIRECTOR §4 | Yes | THREAT-DIRECTOR §4, Q-TD-6 | Yes |
+| `director.score.weakness_max` | float | multiplier | 2.0 (PROPOSED, Q-SIM-78): the weakness multiplier at no defenses, 1.0 at full, linear | THREAT-DIRECTOR §4, Q-TD-6 | Yes |
 | `director.score.provocation_proximity` | float | multiplier | 1.5 (PROPOSED, Q-SIM-78) | THREAT-DIRECTOR §5, Q-TD-4 | Yes |
 | `director.score.proximity_tiers` | list of tiers | PATTERN_OF_LIFE, ALPHA, BRAVO; may be empty | [ALPHA] (decided rule as default, Q-DEV-21 option (NX-388)): the CP ceilings at which `provocation_proximity` applies | THREAT-DIRECTOR §5, Q-TD-4 | Yes |
 | `director.memory.half_life_s` | float | s (game, Q-ALN-23) | 1800 | THREAT-DIRECTOR §2 | Yes |
@@ -723,7 +723,7 @@ A PR without a harness run fails the `balance-report` check. A change that touch
 | CFG-2 | Loader test: each required key removed in turn fails with the key named; grep test: no defaults in the config models (Semgrep `getenv` default rule, DATA-INTEGRITY §6) |
 | CFG-3 | Hash stability: the same tree with reordered keys or different YAML formatting gives the same hash; a single-value change gives a different hash; the golden `config_hash` is stored in replay fixtures |
 | CFG-4 | Replay with a mid-campaign HR reload reproduces state hashes; a reload touching a non-HR key is rejected; a reload requested while paused is registered but applied at the first tick after resume, and that tick is its `effective_tick` (Q-ALN-24) |
-| CFG-5 | Lint: every schema numeric field has an `x-unit` annotation. Enforced (NX-390): `scripts/gen_config_reference.py` in `make contracts` and the `contracts` CI job requires `x-unit` and `x-hot-reload` on every key and the six registry fields outside `PENDING_BLOCKS`; `services/sim/tests/test_config_registry.py` checks each default sits inside its `x-tune` range and the committed reference is current |
+| CFG-5 | Lint: every schema numeric field has an `x-unit` annotation. Enforced (NX-390): `scripts/gen_config_reference.py` in `make contracts` and the `contracts` CI job requires `x-unit`, `x-hot-reload` and the six registry fields (`x-category`, `x-audience`, `x-edit-role`, `x-tune`, `x-source`, `x-status`) on every key; `services/sim/tests/test_config_registry.py` checks each default sits inside its `x-tune` range and the committed reference is current |
 | CFG-6 | `config_lint` positive/negative fixtures per cross-reference |
 | CFG-7 | Semgrep / secret scan over `balance/`, `content/`, `deploy/*/app.yaml`; schema forbids secret-shaped fields except `secret_ref` |
 | CFG-8 | The moderation corpus includes evasion cases; CI fails on a seeded bad node name |

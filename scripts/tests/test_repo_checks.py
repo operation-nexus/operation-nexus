@@ -177,7 +177,7 @@ def _registry_schema():
                                                                      **meta, "x-tune": None}},
             }},
             "Logistics": {"type": "object", "properties": {
-                "cargo": {"type": "integer", "x-unit": "units", "x-hot-reload": False},
+                "cargo": {"type": "integer", **{**meta, "x-unit": "units", "x-category": "LOGISTICS"}, "x-tune": None},
             }},
         },
     }
@@ -185,48 +185,47 @@ def _registry_schema():
 
 def test_config_registry():
     schema = _registry_schema()
-    assert registry_problems(schema, pending=["logistics"]) == []
-    # Each registry field is named when missing; x-unit and x-hot-reload are required even in a pending block.
+    assert registry_problems(schema) == []
+    # Each field is named when missing, in every block.
     for field in ("x-category", "x-audience", "x-edit-role", "x-tune", "x-source", "x-status", "x-unit",
                   "x-hot-reload"):
         bad = _registry_schema()
         del bad["$defs"]["Sim"]["properties"]["rate"][field]
-        assert registry_problems(bad, pending=["logistics"]) == [f"sim.rate: missing {field}"]
+        assert registry_problems(bad) == [f"sim.rate: missing {field}"]
     bad = _registry_schema()
     del bad["$defs"]["Logistics"]["properties"]["cargo"]["x-unit"]
-    assert registry_problems(bad, pending=["logistics"]) == ["logistics.cargo: missing x-unit"]
+    assert registry_problems(bad) == ["logistics.cargo: missing x-unit"]
     # A map carries its metadata on additionalProperties.
     bad = _registry_schema()
     del bad["$defs"]["Sim"]["properties"]["by_id"]["additionalProperties"]["x-source"]
-    assert registry_problems(bad, pending=["logistics"]) == ["sim.by_id.*: missing x-source"]
+    assert registry_problems(bad) == ["sim.by_id.*: missing x-source"]
     # Bad enum values and a category that does not match the block.
     for field, value in (("x-audience", "ROOT"), ("x-edit-role", "OWNER"), ("x-status", "GUESS")):
         bad = _registry_schema()
         bad["$defs"]["Sim"]["properties"]["rate"][field] = value
-        assert len(registry_problems(bad, pending=["logistics"])) == 1
+        assert len(registry_problems(bad)) == 1
     bad = _registry_schema()
     bad["$defs"]["Sim"]["properties"]["rate"]["x-category"] = "SLOTS"
-    assert len(registry_problems(bad, pending=["logistics"])) == 1
+    assert len(registry_problems(bad)) == 1
     # x-tune: min > max, step <= 0, outside the schema bounds, an object on a non-numeric key, bad scale.
     for tune in ({"min": 5, "max": 4, "step": 1, "scale": "LINEAR"}, {"min": 1, "max": 4, "step": 0, "scale": "LINEAR"},
                  {"min": 0, "max": 4, "step": 1, "scale": "LINEAR"}, {"min": 1, "max": 10, "step": 1, "scale": "LINEAR"},
                  {"min": 1, "max": 4, "step": 1, "scale": "EXP"}, {"min": 1.5, "max": 4, "step": 1, "scale": "LINEAR"}):
         bad = _registry_schema()
         bad["$defs"]["Sim"]["properties"]["rate"]["x-tune"] = tune
-        assert len(registry_problems(bad, pending=["logistics"])) == 1, tune
+        assert len(registry_problems(bad)) == 1, tune
     bad = _registry_schema()
     bad["$defs"]["Sim"]["properties"]["mode"]["x-tune"] = {"min": 1, "max": 2, "step": 1, "scale": "LINEAR"}
-    assert registry_problems(bad, pending=["logistics"]) == ["sim.mode: x-tune must be null on a non-numeric key"]
-    # PENDING_BLOCKS: a stale entry (fully annotated block) or an unknown name is a problem.
-    assert len(registry_problems(schema, pending=["logistics", "sim"])) == 1
-    assert len(registry_problems(schema, pending=["logistics", "nope"])) == 1
-    assert registry_problems(schema, pending=[])  # logistics has no registry fields
+    assert registry_problems(bad) == ["sim.mode: x-tune must be null on a non-numeric key"]
+    bad = _registry_schema()
+    del bad["$defs"]["Logistics"]["properties"]["cargo"]["x-source"]
+    assert registry_problems(bad) == ["logistics.cargo: missing x-source"]
     # Hand-written expected markdown, byte-identical across runs.
     text = registry_render(schema)
     assert text == registry_render(_registry_schema())
     assert "| `sim.rate` | integer | s (world) | ≥ 1, ≤ 9 | No | 1 to 4, step 1, LINEAR | TUNER | ADMIN | PROPOSED " \
            "| SIM-CORE SC-2 | A rate \\| with a bar. |" in text
-    assert "| `logistics.cargo` | integer | units | — | No | — | — | — | — | — | — |" in text
+    assert "| `logistics.cargo` | integer | units | — | No | — | TUNER | ADMIN | PROPOSED | SIM-CORE SC-2 | — |" in text
     assert text.index("## WORLD") < text.index("## LOGISTICS")
 
 
