@@ -2,7 +2,8 @@
 how a unit at a base refuels, rearms and repairs (NX-123, NX-124; GAMEPLAY §5, GP-7, Q-GP-24,
 Q-SIM-48..54). The rearm stop itself is `nexus.core.rearm`.
 
-Stock is whole units in `World.stock` (finite nodes only; a SANCTUARY is infinite by rule). A truck
+Stock is whole units in `World.stock` (finite nodes only); a SANCTUARY is infinite, or a whole-unit
+pool in `World.pool` when its side is not in unlimited mode (`nexus.core.economy`, NX-412). A truck
 loads at its source when it spawns and unloads at its destination in the `logistics` system. All
 counts are integers, so stock plus cargo is conserved exactly: a unit leaves a source's stock at
 the same moment it becomes a truck's cargo, and leaves the cargo as it joins a node's stock. The
@@ -29,6 +30,7 @@ from nexus.contracts.gen.common.enums import NodeOwner, Side, UnitKind
 from nexus.contracts.gen.events.event import Event
 from nexus.core.bridges import blocked, enemy_held, held_by_other
 from nexus.core.defense import rebuild
+from nexus.core.economy import pool_side, source_stock
 from nexus.core.rearm import restock
 from nexus.core.roads import shortest_path
 from nexus.core.rules import Rules
@@ -160,7 +162,8 @@ def plan_run(
     A friendly `dest` that can hold stock gets cargo from the friendly node (never `dest`) with
     stock above what it keeps (`keeps`) that is nearest `dest` by road (route metres, ties by node
     id): `min(truck_cargo, spare)`. With no such node the side's rear source loads a full
-    `truck_cargo`. Such a supply run's routes enter no node the other side holds
+    `truck_cargo` (at most its pool when the side is not in unlimited mode, NX-412: an empty pool
+    loads nothing). Such a supply run's routes enter no node the other side holds
     (`supply_route`, Q-SIM-122), unless `around_enemy` is False (a follower's source pick, which
     drives on its leader's road, GAMEPLAY §1b Q-GP-31). Any other `dest` (neutral, enemy,
     infinite or unable to hold stock) is a capture run: it loads nothing, spawns at the rear
@@ -183,7 +186,8 @@ def plan_run(
             route = _route(world, rules, source, dest, avoid)
             cargo = min(sup.truck_cargo, world.stock.get(source, 0) - keep[source])
             return None if route is None else Run(source, cargo, route)
-        cargo = sup.truck_cargo
+        pool = source_stock(world, rear)  # a limited source loads what its pool holds (NX-412)
+        cargo = sup.truck_cargo if pool is None else min(sup.truck_cargo, pool)
     else:
         cargo = 0
     route = _route(world, rules, rear, dest, avoid)
@@ -285,9 +289,12 @@ def pay_loadout(world: World, rules: Rules, kind: UnitKind, node: str, out: list
 
 
 def load(world: World, run: Run) -> None:
-    """Debit the source for the cargo; a SANCTUARY (not in `stock`) is infinite."""
+    """Debit the source for the cargo: a base's stock, or a limited side's source pool
+    (`nexus.core.economy`, NX-412); a SANCTUARY in unlimited mode is infinite."""
     if run.source in world.stock:
         world.stock[run.source] -= run.cargo
+    elif (side := pool_side(world, run.source)) is not None:
+        world.pool[side] -= run.cargo
 
 
 def logistics(world: World, out: list[Event]) -> None:

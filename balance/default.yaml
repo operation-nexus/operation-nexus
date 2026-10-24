@@ -331,3 +331,24 @@ director:  # Threat Director (Q-SIM-78, Q-SIM-81, owner-approved starting number
     convoy_kind: ENEMY_CONVOY  # PROPOSED – unvalidated (Q-SIM-85); the carrier of a Pattern of Life convoy
     convoy_slots: 1  # decided rule as default, Q-DEV-21 option; units one Pattern of Life convoy job takes (CONFIG-AND-CONTENT §6.7)
     capture_slot_tiers: [PATTERN_OF_LIFE]  # decided rule as default, Q-CFG-16 option (Q-SIM-85); tiers at which the periodic capture slot runs (CONFIG-AND-CONTENT §6.7)
+economy:  # Force economy (ECONOMY, NX-412 part 1; CONFIG-AND-CONTENT §6.3). Same keys for both sides (EC-3)
+  unlimited:  # decided rule as default, TEMPORARY (Q-TD-29, lead decision): true keeps today's infinite sources until the NX-412 sweep part sets the spec default false (EC-15, Q-TD-28); switch, owner/Admin at campaign setup only
+    COALITION: true
+    ENEMY: true
+  window_s: 60  # PROPOSED – unvalidated (ECONOMY §4); s (game), the director window, one cadence (EC-1, EC-10)
+  income:
+    floor: 30  # PROPOSED placeholder, NX-412 sweep; stock per window, = director.budget.alpha (30): a side holding nothing keeps an ALPHA window's spend (EC-1)
+    per_node:  # PROPOSED placeholder, NX-412 sweep; stock per window per held, uncontested node: 0.5 % of the kind's logistics.node_max_stock; BRIDGE 0 (ECONOMY §4)
+      AIRBASE: 10
+      BRIDGE: 0
+      FOB: 5
+      HQ: 10
+      PORT: 5
+  storage:
+    floor: 2000  # PROPOSED placeholder, NX-412 sweep; stock units, = logistics.node_max_stock.HQ: the source stores one HQ's worth with no node held (EC-2)
+    per_node:  # PROPOSED placeholder, NX-412 sweep; stock units per held node, = the kind's logistics.node_max_stock (EC-2)
+      AIRBASE: 2000
+      BRIDGE: 0
+      FOB: 1000
+      HQ: 2000
+      PORT: 1000

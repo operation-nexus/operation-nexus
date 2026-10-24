@@ -25,6 +25,8 @@ So are each node's `stock` and each carrier's `cargo` (integer stock units) with
 `stalled`): conservation stays exact. So are each node's live owner and its capture bar (side and
 integer millionths of a percent, NX-125): thresholds are exact. So are the campaign's running
 ticks, hold run, per-side held-node tick sums, objective counts and the active objective (NX-126).
+So are each limited side's source pool and last storage cap (NX-412); a side absent from both runs
+in unlimited mode (EC-15).
 `World.rules` (`nexus.core.rules`) is static config, not state: neither snapshots nor the hash
 include it.
 """
@@ -84,8 +86,10 @@ from nexus.core.rules import CAPTURE_FULL, Rules
 # 24: bridge hp and the down bridges (NX-373 part 1a); 25: Entity.order_node, the node a GOTO order
 # names, and held_since, when an armed unit began holding it (Q-SIM-110, NX-398); 26: bridge_repair,
 # each bridge's truck repair carry in thousandths of an hp (NX-373 part 2); 27:
-# DirectorState.bridge_ready, when each repaired bridge may be a STRIKE_BRIDGE target again (NX-401)
-FORMAT_VERSION = 27
+# DirectorState.bridge_ready, when each repaired bridge may be a STRIKE_BRIDGE target again
+# (NX-401); 28: pool and storage, each limited side's source pool and its last storage cap
+# (NX-412 part 1)
+FORMAT_VERSION = 28
 _MM = 1000.0  # metres -> millimetres; m/s -> mm/s
 _MICRO = 1e6  # ADR-0002's 1e-6 step for other floats (fuel)
 _MILLI_UNIT = 1000  # thousandths of a stock unit per unit
@@ -118,11 +122,13 @@ _NEXT_MARKER_ID = "next_marker_id"
 _NEXT_SHOT_ID = "next_shot_id"
 _RESERVE_QUEUE = "reserve_queue"
 _OWNER = "owner"
+_POOL = "pool"
 _NEXT_ENTITY_ID = "next_entity_id"
 _NEXT_EVENT_SEQ = "next_event_seq"
 _RNG = "rng"
 _SIGINT_AGE = "sigint_age"
 _STOCK = "stock"
+_STORAGE = "storage"
 _V = "v"
 # The dedupe-key prefix of each job kind the board generates (`nexus.core.tasking_gen`); a key with
 # one must name the job's own target (`load` checks it). The Director's STAGE and CAPTURE (and its
@@ -160,12 +166,14 @@ _WORLD_KEYS = (
     _NEXT_SHOT_ID,
     _OBJECTIVE,
     _OWNER,
+    _POOL,
     _RESERVE_QUEUE,
     _RESPAWN_LEFT,
     _RNG,
     _SHOTS,
     _SIGINT_AGE,
     _STOCK,
+    _STORAGE,
     _V,
 )
 _VEC_KEYS = frozenset({"pos", "vel", "orbit"})
@@ -578,6 +586,7 @@ class World:
         "markers",
         "objective",
         "owner",
+        "pool",
         "reserve_queue",
         "respawn_left",
         "rng",
@@ -586,6 +595,7 @@ class World:
         "sigint_age",
         "speed_cap",
         "stock",
+        "storage",
     )
 
     def __init__(self, campaign: Campaign, rng: SimRng, rules: Rules | None = None) -> None:
@@ -634,6 +644,10 @@ class World:
         # Node id -> whole stock units, for the nodes with finite stock (SANCTUARY nodes are
         # infinite by rule and absent). `start_campaign` fills it from the theater (NX-123).
         self.stock: dict[str, int] = {}
+        # Side -> its source pool and the storage cap of its last economy window, whole stock
+        # units, only for a side not in unlimited mode (`nexus.core.economy`, NX-412, EC-15).
+        self.pool: dict[Side, int] = {}
+        self.storage: dict[Side, int] = {}
         # Node id -> its live owner, in id order (NX-125): the theater's start owners, then only
         # the `capture` system changes it. A SANCTUARY never does (N-4).
         self.owner: dict[str, NodeOwner] = dict(rules.supply.start_owner) if rules else {}
@@ -882,7 +896,10 @@ def lose_unit(
 
 
 def consumed(
-    world: World, node: str, amount: int, cause: Literal["SPAWN", "REARM", "REPAIR"]
+    world: World,
+    node: str,
+    amount: int,
+    cause: Literal["SPAWN", "REARM", "REPAIR", "STORAGE_LOST"],
 ) -> SupplyConsumed:
     return SupplyConsumed.model_construct(
         kind="SupplyConsumed",
@@ -1083,6 +1100,7 @@ def to_canonical(world: World, *, quantize: bool) -> dict[str, Any]:
         _MARKERS: _markers_data(world, quantize),
         _OBJECTIVE: None if world.objective is None else asdict(world.objective),
         _OWNER: dict(sorted(world.owner.items())),
+        _POOL: dict(sorted(world.pool.items())),
         _RESPAWN_LEFT: dict(sorted(world.respawn_left.items())),
         _RESERVE_QUEUE: [_sorted(c.model_dump(mode="json")) for c in world.reserve_queue],
         _NEXT_ENTITY_ID: world._next_entity_id,
@@ -1094,6 +1112,7 @@ def to_canonical(world: World, *, quantize: bool) -> dict[str, Any]:
         _SHOTS: [asdict(s) for s in world.shots],
         _SIGINT_AGE: world.sigint_age,
         _STOCK: dict(sorted(world.stock.items())),
+        _STORAGE: dict(sorted(world.storage.items())),
         _V: FORMAT_VERSION,
     }
     return dict(sorted(data.items()))
@@ -1182,6 +1201,12 @@ def _stock(value: object) -> dict[str, int]:
     if not isinstance(value, dict):
         raise ValueError(f"{_STOCK} must be a map")
     return {_str(k, "node id"): _int(v, _STOCK) for k, v in value.items()}
+
+
+def _side_ints(value: object, what: str) -> dict[Side, int]:
+    if not isinstance(value, dict):
+        raise ValueError(f"{what} must be a map")
+    return {_str(k, f"{what} side", SIDES): _int(v, what) for k, v in sorted(value.items())}
 
 
 def _defense(value: object, what: str, owner: dict[str, NodeOwner]) -> dict[str, int]:
@@ -1791,6 +1816,9 @@ def load(data: bytes) -> World:
         d[_INTERCEPT_SEEN], world._next_entity_id, world.campaign.running_ticks
     )
     world.stock = _stock(d[_STOCK])
+    world.pool, world.storage = _side_ints(d[_POOL], _POOL), _side_ints(d[_STORAGE], _STORAGE)
+    if set(world.pool) != set(world.storage):
+        raise ValueError(f"{_POOL} and {_STORAGE} must name the same sides")
     world.owner = _owner(d[_OWNER])
     world.capture = _capture(d[_CAPTURE], world.owner)
     world.defense_hp = _defense(d[_DEFENSE_HP], _DEFENSE_HP, world.owner)

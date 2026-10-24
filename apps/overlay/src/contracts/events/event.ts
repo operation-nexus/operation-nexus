@@ -12,6 +12,7 @@ export type Event =
   | CallsignChanged
   | SupplyDelivered
   | SupplyConsumed
+  | SupplyProduced
   | RearmStalled
   | CaptureStarted
   | NodeCaptured
@@ -297,7 +298,7 @@ export interface SupplyDelivered {
   commander_id: string | null;
 }
 /**
- * Stock a node paid out for units (CONTRACTS §6; NX-123): SPAWN once per forward-deployed unit, REARM once per rearm stop when it ends (filled, stalled or taken off) for fuel and ammo, REPAIR once per stop for hp repaired. amount = whole stock units; none when 0. Public view: ENEMY nodes are dropped.
+ * Stock a node paid out for units (CONTRACTS §6; NX-123): SPAWN once per forward-deployed unit, REARM once per rearm stop when it ends (filled, stalled or taken off) for fuel and ammo, REPAIR once per stop for hp repaired, STORAGE_LOST once per economy window at a source whose pool was above its lowered storage cap (ECONOMY EC-2, NX-412). amount = whole stock units; none when 0. Public view: ENEMY nodes are dropped.
  */
 export interface SupplyConsumed {
   kind: "SupplyConsumed";
@@ -318,7 +319,27 @@ export interface SupplyConsumed {
    */
   node_id: string;
   amount: number;
-  cause: "SPAWN" | "REARM" | "REPAIR";
+  cause: "SPAWN" | "REARM" | "REPAIR" | "STORAGE_LOST";
+}
+/**
+ * A side's source pool gained income at an economy window (CONTRACTS §6; ECONOMY EC-1, EC-10; NX-412 part 1): one per side per window, amount = the whole stock units added (the floor plus each held, uncontested node, capped at storage); none when 0, and none for a side in unlimited mode (EC-15). Public view: ENEMY dropped (proposed).
+ */
+export interface SupplyProduced {
+  kind: "SupplyProduced";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  side: "COALITION" | "ENEMY";
+  amount: number;
 }
 /**
  * A landed aircraft needs fuel and its base has none (CONTRACTS §6; NX-123, STATE-MACHINES §4.1 Rearming): emitted once when the stall starts, not every tick; a resupply and a new stall emit again. ENEMY: dropped from public views.

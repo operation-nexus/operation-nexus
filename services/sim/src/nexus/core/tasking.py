@@ -102,6 +102,7 @@ from nexus.contracts.gen.events.job_done import JobDone, Participant
 from nexus.contracts.gen.events.job_expired import JobExpired
 from nexus.contracts.gen.events.job_failed import JobFailed
 from nexus.core.bridges import blocked, not_held
+from nexus.core.economy import source_stock
 from nexus.core.fog import SideView, side_view
 from nexus.core.logistics import (
     Run,
@@ -1119,10 +1120,11 @@ def ring_crossed(
 
 def _load(world: World, e: Entity, source: str, dest: str | None) -> None:
     """Load as a spawn does: `min(truck_cargo, spare)` leaves the source's stock (the sanctuary
-    is infinite), so stock plus cargo is conserved. The source keeps its floor, or its stock target
-    on a stocking run to `dest` (`keeps`, Q-SIM-102). The stocking rule is derived again here from
-    `dest`'s state now, not when the job was taken, so a destination lost or starved mid-trip
-    loads under the floor rule (as `plan_run` would plan it now)."""
+    is infinite, or loads at most its pool, NX-412), so stock plus cargo is conserved. The source
+    keeps its floor, or its stock target on a stocking run to `dest` (`keeps`, Q-SIM-102). The
+    stocking rule is derived again here from `dest`'s state now, not when the job was taken, so a
+    destination lost or starved mid-trip loads under the floor rule (as `plan_run` would plan it
+    now)."""
     rules = world.rules
     if rules is None:
         return
@@ -1132,7 +1134,10 @@ def _load(world: World, e: Entity, source: str, dest: str | None) -> None:
         if dest is not None and sup.max_stock.get(dest, 0) > 0
         else sup.starve_floor
     )
-    surplus = world.stock[source] - keep[source] if source in world.stock else None
+    # a source: infinite (None), or a limited side's pool (NX-412)
+    surplus = (
+        world.stock[source] - keep[source] if source in world.stock else source_stock(world, source)
+    )
     cargo = sup.truck_cargo if surplus is None else max(0, min(sup.truck_cargo, surplus))
     load(world, Run(source, cargo, []))
     e.cargo = cargo

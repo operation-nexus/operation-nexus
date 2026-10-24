@@ -34,6 +34,7 @@ from . import (
     reserve_queue_left,
     supply_consumed,
     supply_delivered,
+    supply_produced,
     threat_adaptation,
     threat_tier_changed,
     unit_damage_state_changed,
@@ -54,6 +55,7 @@ type Event = Annotated[
     | callsign_changed.CallsignChanged
     | supply_delivered.SupplyDelivered
     | supply_consumed.SupplyConsumed
+    | supply_produced.SupplyProduced
     | rearm_stalled.RearmStalled
     | capture_started.CaptureStarted
     | node_captured.NodeCaptured

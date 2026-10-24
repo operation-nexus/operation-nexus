@@ -118,7 +118,9 @@ Owner direction, details PROPOSED: NULL commands through lieutenants, each a **d
 - Balance harness: tier dwell distribution per scenario.
 
 ## 7a. In code now (Parts 1 to 5, NX-151, NX-155, NX-156, NX-157, NX-379, NX-401; Q-SIM-78, Q-SIM-81, Q-SIM-85, Q-SIM-87, Q-SIM-120, Q-SIM-121)
-ECONOMY ([ECONOMY](ECONOMY.md)) is approved but not in code yet (NX-412); what follows describes the code as it is, with the old tier budget and live-unit caps.
+ECONOMY ([ECONOMY](ECONOMY.md)) is approved and lands in parts (NX-412); what follows describes the code as it is, with the old tier budget and live-unit caps.
+
+**In code (NX-412 part 1): source pools (ECONOMY EC-1, EC-2, EC-15).** `nexus.core.economy` runs in the `director` slot before the decision window, on running ticks that divide by `economy.window_s` as ticks (600): each limited side's pool in `World.pool` gains income (`SupplyProduced`), then is clipped to storage (`SupplyConsumed{STORAGE_LOST}`). The Static's rear source pays truck loads from its pool; the budget (step 2) and spawns do not read it yet (EC-7, EC-13 are later parts). `economy.unlimited.<side>` ships true for both sides until the NX-412 sweep part (Q-TD-29), so today's sources stay infinite and nothing here changes.
 
 `nexus.core.director` (decisions), `nexus.core.provocation` (what the Static suffers) and `Rules.director`; state is `World.director[side]` (`DirectorState`, snapshot format 22, in the hash). No `STAFF_DIRECTOR_OVERRIDE`, advisor or GM exists. Part 2 is the next subsection, then Part 3 and Part 4 (NX-379).
 - **Own view only (TD-2).** `decide(state, view, rules, stock)` takes a side's `SideView` (`side_view(world, "ENEMY")` is the `EnemyView`), that side's `DirectorState` and the stock table, of which it reads only the bases the view says the side owns. The module never names `World` or an entity accessor (a test parses its source), and an untracked coalition unit changes nothing. It is side-agnostic; only the ENEMY runs (`provocation.DIRECTED`) until NX-375.

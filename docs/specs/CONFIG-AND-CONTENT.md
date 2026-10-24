@@ -191,15 +191,15 @@ In the schema now (NX-122): `slots.max_live_per_commander`, `slots.respawn_delay
 | `logistics.forward_deploy_min_surplus` | int | stock units above the starvation floor a spawn base needs to accept a forward deploy | 50 (Q-SIM-49, Q-SIM-54). In code (NX-123 part 2); the base also needs at least the loadout cost above its floor | GAMEPLAY §4, Q-GP-41 | No |
 | `logistics.repair_rate.<node_kind>` | float | hp/s (world) | AIRBASE 1.0, HQ 1.0, PORT 1.0, FOB 0.5, SANCTUARY 2.0 and free (PROPOSED, Q-SIM-68). In code (NX-124 part 2): all five required; counted in thousandths of an hp per tick | GAMEPLAY §5 | No |
 
-Economy (ECONOMY, approved 2026-10-24; keys added by NX-412 with `add-config-key`, not in the schema yet):
+Economy (ECONOMY, approved 2026-10-24; keys added by NX-412 with `add-config-key`; `unlimited`, `window_s`, `income.*` and `storage.*` in the schema and read by `nexus.core.economy` since NX-412 part 1, the rest not in the schema yet). The income and storage values are placeholders for the NX-412 sweep part, not measured:
 | Key | Type | Unit | PROPOSED | Source | HR |
 |---|---|---|---|---|---|
-| `economy.unlimited.<side>` | bool | switch | false (campaign or test option; owner/Admin at setup only, never a GM or mid-war) | ECONOMY EC-15, Q-TD-28 | No |
-| `economy.window_s` | float | s (game) | PROPOSED 60 (the director window, one cadence) | ECONOMY EC-1 | TBD (EC-14) |
-| `economy.income.floor` | int | stock / window | TBD (NX-412 harness sweep) | ECONOMY EC-1 | TBD (EC-14) |
-| `economy.income.per_node.<node_kind>` | int | stock / window | TBD (NX-412 harness sweep); BRIDGE 0 | ECONOMY EC-1 | TBD (EC-14) |
-| `economy.storage.floor` | int | stock | TBD (NX-412 harness sweep) | ECONOMY EC-2 | TBD (EC-14) |
-| `economy.storage.per_node.<node_kind>` | int | stock | TBD (NX-412 harness sweep) | ECONOMY EC-2 | TBD (EC-14) |
+| `economy.unlimited.<side>` | bool | switch | spec default false (campaign or test option; owner/Admin at setup only, never a GM or mid-war). **Shipped true for COALITION and ENEMY, temporarily** (Q-TD-29, lead decision): outcomes stay as before NX-412 until the sweep part sets false. In code (NX-412 part 1): a true side has no pool (absent from the snapshot's `pool`), so its source is infinite | ECONOMY EC-15, Q-TD-28, Q-TD-29 | No |
+| `economy.window_s` | float | s (game), > 0 | PROPOSED 60 (the director window, one cadence); 600 ticks. Income then the clip run in the `director` slot before the decision window | ECONOMY EC-1, EC-10 | No: the window phase must not move mid-campaign |
+| `economy.income.floor` | int | stock / window, ≥ 0 | 30, PROPOSED placeholder, NX-412 sweep: = `director.budget.alpha` (30), so a side holding nothing keeps one ALPHA window's spend | ECONOMY EC-1 | No (logistics physics, §5) |
+| `economy.income.per_node.<node_kind>` | int | stock / window, ≥ 0 | AIRBASE 10, HQ 10, FOB 5, PORT 5, BRIDGE 0, PROPOSED placeholder, NX-412 sweep: 0.5 % of the kind's `logistics.node_max_stock` per window (strait-1 start: Static 60, coalition 50). Paid for each node of the kind the side owns with no capture bar on it | ECONOMY EC-1 | No (logistics physics, §5) |
+| `economy.storage.floor` | int | stock, ≥ 0 | 2000, PROPOSED placeholder, NX-412 sweep: = `logistics.node_max_stock.HQ`, one HQ's worth with no node held | ECONOMY EC-2 | No (logistics physics, §5) |
+| `economy.storage.per_node.<node_kind>` | int | stock, ≥ 0 | AIRBASE 2000, HQ 2000, FOB 1000, PORT 1000, BRIDGE 0, PROPOSED placeholder, NX-412 sweep: = the kind's `logistics.node_max_stock` (strait-1 start: Static 8000, coalition 6000; a pool starts full) | ECONOMY EC-2 | No (logistics physics, §5) |
 | `economy.upkeep.<unit_kind>` | int | stock / window | TBD (NX-412 harness sweep); LOGI_TRUCK and ENEMY_CONVOY PROPOSED 0 | ECONOMY EC-4 | TBD (EC-14) |
 | `economy.floor_viewer_units` | int | units | TBD (NX-412 harness sweep) | ECONOMY EC-11 | TBD (EC-14) |
 | `economy.free_viewer_spawn` | bool | switch | true (Q-CFG-16 option; false in agent-vs-agent harness profiles) | ECONOMY EC-13, Q-TD-12 | TBD (EC-14) |

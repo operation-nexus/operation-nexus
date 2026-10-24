@@ -15,6 +15,7 @@ from typing import cast
 from nexus.contracts.gen.common.enums import Side
 from nexus.contracts.gen.config.balance import BalanceConfig
 from nexus.contracts.gen.config.theater import TheaterConfig
+from nexus.core.economy import start as start_economy
 from nexus.core.operations import misfits as fit_problems
 from nexus.core.provocation import DIRECTED
 from nexus.core.rules import (
@@ -22,6 +23,7 @@ from nexus.core.rules import (
     campaign_rules,
     combat_rules,
     director_rules,
+    economy_rules,
     make_rules,
     tasking_rules,
     world_dt,
@@ -158,6 +160,9 @@ def load_campaign_config(paths: ConfigPaths | None = None) -> CampaignConfig:
                 / Fraction(repr(cc.night_progress_cap_nodes_per_h))
             ),
         ),
+        economy=economy_rules(
+            balance.economy, window_ticks=game_ticks(balance.economy.window_s, balance)
+        ),
     )
     if misfits := fit_problems(rules):
         raise ConfigError(f"{paths.operations}: " + "; ".join(misfits))
@@ -174,6 +179,7 @@ def start_campaign(campaign_id: str, seed: int, config: CampaignConfig | None = 
     world.stock = {n.id: n.start_stock for n in config.theater.nodes if n.start_stock is not None}
     _place_facilities(world, config.theater)
     _place_garrison(world, config.rules)
+    start_economy(world)  # each limited source pool starts full (NX-412)
     if config.rules.director is not None:  # `director.tier.start` (Q-CFG-16), dwell 0
         for side in DIRECTED:
             world.director[side].tier = config.rules.director.start_tier
