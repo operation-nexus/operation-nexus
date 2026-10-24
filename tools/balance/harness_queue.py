@@ -289,6 +289,10 @@ def process(cfg: dict[str, Any], issue: dict[str, Any], dry: bool) -> None:
         req = parse_block(issue["body"], cfg, list(profiles.load().profiles))
         if not on_develop(req["sha"]):
             raise Refusal("the sha is not reachable from origin/develop")
+        if (cfg["results_dir"] / f"{n}-{req['sha'][:8]}").exists():
+            # balance.py never reuses a results dir, and recovery must not take an old
+            # attempt's finished report for this one: one run per issue and sha
+            raise Refusal("this issue already ran this sha; open a new issue to run it again")
     except Refusal as e:
         log(f"#{n}: refused: {e}")
         if not dry:

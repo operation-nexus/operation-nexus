@@ -160,6 +160,22 @@ def test_non_ancestor_sha_refused(cfg: dict[str, Any], monkeypatch: pytest.Monke
     assert not any(c[:3] == ["git", "worktree", "add"] for c in fake.calls)
 
 
+def test_same_sha_rerun_refused(cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch) -> None:
+    old = cfg["results_dir"] / f"8-{SHA[:8]}"  # an earlier, finished and posted attempt
+    old.mkdir(parents=True)
+    (old / "report.md").write_text("# OLD")
+    (old / hq.FINISHED).write_text("5")
+    (old / hq.POSTED).touch()
+    fake = Fake([issue(8)])
+    monkeypatch.setattr(hq, "run_cmd", fake)
+    ran: list[int] = []
+    monkeypatch.setattr(hq, "execute", lambda *a: ran.append(1))
+    hq.run_once(cfg, False)
+    assert not ran and not hq.running_file(cfg, 8).exists()
+    assert fake.edits() == [("8", "harness-failed", "harness-run")]
+    assert "already ran this sha" in fake.stdin[0]
+
+
 def test_dry_run_changes_nothing(cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch) -> None:
     fake = Fake([issue(6), issue(7, body="junk")])
     monkeypatch.setattr(hq, "run_cmd", fake)
