@@ -13,9 +13,9 @@ while frozen (SC-11), for each side in COALITION, ENEMY order:
    arrived at the order's node (`Entity.order_node`) holds it instead (Q-SIM-110, `_order_over`):
    an aircraft orbits it, a ground unit stands on it, and both engage by CB-1; the order ends at
    bingo or RTB (it has a path again), ammo out, landing, Disabled, or `tasking.order_dwell_s`
-   after the hold began (`Entity.held_since`), or when its node is a down bridge (the bridge fell,
-   so it never re-drops one under repair, Q-SIM-112). One that stopped short of the node hands
-   back as before. A new order (REBASE) replaces it.
+   after the hold began (`Entity.held_since`). A hold on a bridge outlasts its fall: the holder
+   never fires on a bridge (Q-SIM-124), so it keeps guarding the repair crews (Q-SIM-127). One
+   that stopped short of the node hands back as before. A new order (REBASE) replaces it.
 2. **Settle.** A claim is released (`JobReleased`) when its unit is lost, Disabled, sent home (RTB)
    or given an explicit order (a human order wins, TB-7). A unit with a path, or arrived, has made
    progress: its claim becomes ACTIVE and its lease clock restarts; with none for
@@ -414,8 +414,6 @@ def _order_over(world: World, rules: Rules, tr: TaskingRules, e: Entity, now: in
     """Whether `e`'s GOTO order ends at this pass (step 1); starts its hold on arrival."""
     if e.held_since is not None and e.path:
         return True  # it was holding and turned for home (bingo, RTB)
-    if e.order_node in world.bridge_down:
-        return True  # its bridge fell: done, even under way, so it never fires on it once repaired
     if e.path or order_working(world, e):
         return False  # under way (a truck: still unloading or capturing)
     if (

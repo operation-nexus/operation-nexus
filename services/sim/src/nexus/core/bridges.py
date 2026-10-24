@@ -1,17 +1,19 @@
 """Bridges: hp, STRUCTURE fire on a bridge, the cut road, `BridgeDestroyed`, truck field repair and
 `BridgeRepaired` (NX-373 parts 1a and 2; STATE-MACHINES §4.3 B-1 and B-2, GAMEPLAY §5, COMBAT CB-10,
-Q-GD-11, Q-SIM-101, Q-SIM-105..107; the collapse NX-400, Q-SIM-112).
+Q-GD-11, Q-SIM-101, Q-SIM-105..107; the collapse NX-400, Q-SIM-112; who fires NX-408, Q-SIM-124).
 
 `World.bridge_hp` holds every BRIDGE node's whole hp in id order, starting at `logistics.bridge_hp`;
 `World.bridge_down` the bridges that reached 0. A down bridge stays down until it is repaired to
 full, so the set, not the hp, is what cuts the road.
 
-- **Who fires (Q-SIM-105, Q-SIM-112):** only a unit holding a claim on a STRIKE job (its own
-  `job_id` on its side's board) whose node is the bridge, or a direct GOTO order to the bridge
-  (`Entity.order_node`), with a STRUCTURE weapon, the bridge in range, hp left and not down (a
-  bridge under repair is never struck again, the Q-SIM-112 constraint), after unit targets (CB-1
-  unchanged) and before the automatic node fallback, which never picks a bridge (it takes only
-  enemy-owned nodes with defense hp; a bridge is NEUTRAL and has none).
+- **Who fires (Q-SIM-105, Q-SIM-124):** only a unit holding a claim on a STRIKE job (its own
+  `job_id` on its side's board) whose node is the bridge, with a STRUCTURE weapon, the bridge in
+  range, hp left and not down (a bridge under repair is never struck again, the Q-SIM-112
+  constraint), after unit targets (CB-1 unchanged) and before the automatic node fallback, which
+  never picks a bridge (it takes only enemy-owned nodes with defense hp; a bridge is NEUTRAL and
+  has none). A direct GOTO order to a bridge (`Entity.order_node`) is a hold that defends it, never
+  a strike: the holder engages units by CB-1 and never fires on the span (Q-SIM-124 amends
+  Q-SIM-112).
 - **Hits:** `damage` takes the weapon's full `damage` (armor 0, Q-CBT-22), never below 0; a shot
   landing on a bridge already at 0 fizzles (`combat`). At 0 the bridge goes down and
   `BridgeDestroyed{node_id, by_id, lost_ids}` names the shooter, once per down cycle.
@@ -65,11 +67,11 @@ def blocked(world: World) -> frozenset[str]:
 
 
 def target(world: World, rules: Rules, w: WeaponRules, shooter: Entity) -> tuple[str, float] | None:
-    """The bridge `shooter` fires `w` at, with the squared distance: its STRIKE job's node, else its
-    GOTO order's node, when that is a bridge with hp left, not down, within `range_m` (Q-SIM-105,
-    Q-SIM-112); else None."""
+    """The bridge `shooter` fires `w` at, with the squared distance: its STRIKE job's node, when
+    that is a bridge with hp left, not down, within `range_m` (Q-SIM-105); else None. A GOTO order
+    to a bridge never fires on it (Q-SIM-124)."""
     job = None if shooter.job_id is None else world.boards[shooter.side].get(shooter.job_id)
-    node = job.node if job is not None and job.kind == "STRIKE" else shooter.order_node
+    node = job.node if job is not None and job.kind == "STRIKE" else None
     if node is None or not world.bridge_hp.get(node) or node in world.bridge_down:
         return None
     x, y = rules.roads.pos[node]

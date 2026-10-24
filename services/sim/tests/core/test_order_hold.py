@@ -223,3 +223,43 @@ def test_the_first_exit_ends_the_order_and_nothing_sticks(passes: int, exit_: st
     want = "HOLD" if exit_ == "rebase" else "GOTO" if exit_ == "none" and not over else None
     assert jet.order == want
     assert (jet.held_since is None) == (jet.order != "GOTO")
+
+
+# --- Q-SIM-124 (NX-408): an order to a bridge holds and defends it, never fires on it ----------
+
+NORTH = "bridge-n"  # NEUTRAL, on the fob-n-w (130 km) ~ cross-n (230 km) road at (200 km, 60 km)
+
+
+def _bridge_raid(enemy_banks: bool) -> tuple[World, Entity, list[WeaponFired]]:
+    """`!join strike bridge-n` from west-airbase; once the jet holds there, a Static convoy parks
+    on the span 500 m from the bridge. Steps to the jet's first shot (at most 3,000 ticks)."""
+    w = new_world()
+    for bank in RULES.roads.spans[NORTH] if enemy_banks else ():
+        w.owner[bank] = "ENEMY"  # an enemy-side bridge
+    step(w, [join(1, "STRIKE", NORTH)])
+    (jet,) = [e for e in w.entities() if e.commander_id == cid(1)]
+    shots: list[WeaponFired] = []
+    convoy = None
+    for _ in range(3_000):
+        shots += [e for e in step(w, []) if isinstance(e, WeaponFired) and e.shooter_id == jet.id]
+        if convoy is None and jet.held_since is not None:
+            convoy = w.spawn("ENEMY_CONVOY", "ENEMY", "AI_GARRISON", Vec2(200_500, 60_000))
+            convoy.last_node = "cross-n"
+        if shots:
+            break
+    return w, jet, shots
+
+
+@pytest.mark.parametrize("enemy_banks", [False, True])  # as shipped, or both banks the Static's
+def test_a_jet_ordered_to_a_bridge_holds_and_engages_but_never_fires_on_it(
+    enemy_banks: bool,
+) -> None:
+    w, jet, shots = _bridge_raid(enemy_banks)
+    assert (jet.order, jet.order_node) == ("GOTO", NORTH) and jet.held_since is not None
+    assert shots and all(s.target_node_id is None and s.target_id is not None for s in shots)
+    assert w.bridge_hp[NORTH] == RULES.supply.bridge_hp[NORTH] and w.bridge_down == set()
+
+
+def test_a_bridge_hold_is_deterministic() -> None:
+    (a, _, sa), (b, _, sb) = _bridge_raid(True), _bridge_raid(True)
+    assert state_hash(a) == state_hash(b) and sa == sb

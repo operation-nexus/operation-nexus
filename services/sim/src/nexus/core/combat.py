@@ -15,9 +15,9 @@ The `combat` slot, each running tick (not while frozen, SC-11), in this order:
    target in range (units always come first) fires at the defense HP of the nearest node, ties by
    id, that the enemy owns and whose HP is above 0, within `range_m` of the node's position (nodes
    are always known, FOW-10, so no track is needed). Before that fallback, a unit holding a STRIKE
-   claim on a bridge, or a direct GOTO order to one, fires at the bridge
-   (`nexus.core.bridges.target`, Q-SIM-105, Q-SIM-112); the hit that drops it destroys the ground
-   units on it (`bridges.collapsing`).
+   claim on a bridge fires at the bridge (`nexus.core.bridges.target`, Q-SIM-105); a direct GOTO
+   order to one never does (Q-SIM-124). The hit that drops it destroys the ground units on it
+   (`bridges.collapsing`, Q-SIM-112).
 3. **Impacts (CB-3, CB-4).** Shots due, in `(impact_tick, id)` order. A shot fizzles, with no RNG
    draw, when the shooter or target is gone, the shooter's side no longer tracks the target, or the
    target left the weapon's range or bands, or became a Disabled facility (Q-FOW-16). Otherwise
