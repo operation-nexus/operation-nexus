@@ -10,7 +10,7 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | Phase | Items | Done | Status |
 |---|---|---|---|
 | P0 Foundations | 44 | 31 | 🟨 |
-| P1 Sim kernel | 61 | 45 | 🟨 |
+| P1 Sim kernel | 62 | 45 | 🟨 |
 | P2 Closed alpha | 40 | 0 | ⬜ |
 | P3 Public beta | 26 | 0 | ⬜ |
 | P4 Depth | 69 | 1 | ⬜ |
@@ -133,6 +133,7 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-409 | Harness queue never loses a finished run (lesson from #301): check the token can write to the issue before a long run starts; if posting fails, keep the report and let the stale-label recovery post a finished report instead of marking the run failed. Security review (parses issue text) | S | ⬜ | NX-381 | A run whose comment fails is posted on the next tick |
 | NX-410 | Repair crews avoid enemy ground (Q-SIM-125) | S | ⬜ | NX-407 | No repair route enters an enemy-held node |
 | NX-411 | A1 rewritten as a no-steamroll test (Q-TEST-6 update, owner 2026-10-24): an entertainment review of harness #301 and #316-#318 proposes measurable steamroll signals (for example Static retakes, lead changes, the Static reaching BRAVO, coalition losses); the owner picks; the harness report scores them; the 24 h floor goes | M | ⬜ | NX-031 | The harness flags a steamroll; a hard-fought 4 h win passes |
+| NX-412 | Force scaling by economy (Q-TD-16, owner 2026-10-24): upkeep per live unit replaces the fixed `director.max_live_units` caps (a high cap stays as a performance guard), income and storage from held bases, tier sets aggression not size, same rules for both sides so either side can be agent-played. Spec change first (THREAT-DIRECTOR §4 step 2, GAMEPLAY §0), numbers from harness sweeps, entertainment review against NX-411 | L | ⬜ | NX-411, NX-031 | Crowd campaigns are won by taking the Static's economy, not by outnumbering a fixed cap; no steamroll flagged |
 | NX-151 | Enemy-side view for director (FOW-4) | M | ✅ | NX-150 | Director API accepts only `EnemyView` |
 | NX-155 | Director: CP, tiers w/ hysteresis, budget | M | ✅ | NX-151, NX-374 | Hysteresis property |
 | NX-156 | Director: operations library + scoring + threat memory | L | ✅ | NX-155 | "Convoy raids → escorts" golden scenario |
