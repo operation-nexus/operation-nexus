@@ -96,6 +96,7 @@ class Collector:
         self.pressure_ticks: list[int] = []
         self.holds_broken = 0
         self.hold_start: int | None = 0 if self._holding() else None
+        self._hold_tick: int | None = None  # a tick with captures whose hold is not judged yet
         self.static_units: list[int] = []  # live armed Static units, per `sample`
         self.static_stock: list[int] = []  # Static-held finite-stock bases' stock, per `sample`
         self.static_start_stock = self._static_stock(world)
@@ -153,9 +154,12 @@ class Collector:
 
     def feed(self, events: Iterable[Event]) -> None:
         for event in events:
+            if self._hold_tick is not None and event.tick != self._hold_tick:
+                self._judge_hold()
             handler = self._on.get(event.kind)
             if handler:
                 handler(event)
+        self._judge_hold()
 
     def observe(self, world: World) -> None:
         for eid in sorted(self.trucks):  # a truck leaving its source loaded (Q-SIM-97)
@@ -277,12 +281,19 @@ class Collector:
             if e.node_id in self._strategic:
                 self.nodes_lost.append((e.tick, e.node_id))
         self._owner[e.node_id] = e.to
+        self._hold_tick = e.tick
+
+    def _judge_hold(self) -> None:
+        """Judge the hold on the tick's final ownership, as core/campaign.py does once per tick."""
+        if self._hold_tick is None:
+            return
         holding = self._holding()
         if holding and self.hold_start is None:
-            self.hold_start = e.tick
+            self.hold_start = self._hold_tick
         elif not holding and self.hold_start is not None:
             self.holds_broken += 1
             self.hold_start = None
+        self._hold_tick = None
 
     def _capture_started(self, e: Any) -> None:
         if e.side == _ENEMY and self._owner.get(e.node_id) == _COALITION:

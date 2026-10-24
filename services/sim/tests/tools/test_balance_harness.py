@@ -1372,6 +1372,11 @@ def test_collector_derives_pressure_and_the_hold_from_events(collector: metrics.
         1,
         [12, 13, 150, 160],
     )
+    # a loss and a regain in one tick: the hold is judged on the tick's final ownership
+    collector.feed(
+        [cap(180, "fob-n-e", "COALITION", "ENEMY"), cap(180, "fob-n-e", "ENEMY", "COALITION")]
+    )
+    assert collector.hold_start == 170 and collector.holds_broken == 1
 
 
 def test_collector_samples_the_static_force_and_stock(

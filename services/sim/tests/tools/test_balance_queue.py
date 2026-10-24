@@ -396,6 +396,7 @@ def test_timed_out_post_keeps_report_for_recovery(
     hq.run_once(cfg, False)
     assert fake.edits() == [("22", "harness-running", "harness-run")]  # not failed
     assert hq.running_file(cfg, 22).exists()  # recovery can still find the report
+    fake.issues[0]["labels"] = [{"name": "harness-running"}]  # the Fake doesn't apply edits
     hq.recover_stale(cfg)  # a second timeout in recovery must not escape the tick
     assert hq.running_file(cfg, 22).exists()
 
