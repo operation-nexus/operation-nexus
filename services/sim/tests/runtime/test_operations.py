@@ -12,7 +12,7 @@ from nexus.runtime.operations import operations_hash
 
 SHIPPED = REPO / "content" / "operations.yaml"
 # The canonical hash of the shipped catalog: a content change moves it (and config_hash with it).
-GOLDEN_OPERATIONS_HASH = "cbc0c2774c20e047972b63fad975d7568e8cb4a7e99cd89a162a7458d119a9a3"
+GOLDEN_OPERATIONS_HASH = "7f7017706b9ec9291fe38b573a04fb9af32f8b79dfbb71795eca787d492d8d91"
 
 
 def tree() -> dict[str, object]:
@@ -48,6 +48,7 @@ def test_shipped_catalog_is_q_sim_81_in_id_order() -> None:
         "REINFORCE_IADS",
         "DECOY_BLINK",
         "GARRISON_UPKEEP",
+        "STRIKE_BRIDGE",
     }
     assert got["OFFENSIVE"][0] == 60 and str(got["OFFENSIVE"][1]) == "1"
     assert [j[0] for j in got["OFFENSIVE"][2]] == ["STAGE", "STRIKE", "CAPTURE"]
@@ -57,7 +58,8 @@ def test_shipped_catalog_is_q_sim_81_in_id_order() -> None:
         2,
         0,
     )  # Q-SIM-82, Q-SIM-87
-    assert "STRIKE_BRIDGE" not in got
+    assert got["STRIKE_BRIDGE"][0] == 30 and str(got["STRIKE_BRIDGE"][1]) == "3/5"  # Q-SIM-121
+    assert got["STRIKE_BRIDGE"][2] == [("STRIKE", "target", 2)]  # no STAGE
 
 
 def test_shipped_hash_is_pinned_and_ignores_file_order(tmp_path: Path) -> None:

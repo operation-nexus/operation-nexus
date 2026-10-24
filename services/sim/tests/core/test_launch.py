@@ -751,7 +751,7 @@ def test_a_restored_world_runs_the_same_events_as_the_live_one_and_format_20_is_
         lambda d: d.update(lost={"fob-n-e": 10**9}),
         lambda d: d.update(adapted={"CONVOY_ESCORT": "nowhere"}),
         lambda d: d.update(dark={"east-airbase": 10**9}, blink_ready={"east-airbase": 10**9}),
-        lambda d: d.update(blink_ready={"east-airbase": 10**9}),
+        lambda d: d.update(blink_ready={"nowhere": 5}),  # a cooldown at no node
         lambda d: d.update(dark={"east-airbase": 5}),  # dark without a cooldown
         lambda d: d.update(idle={"999999": 1}),
         lambda d: d.update(idle={"12": 10**9}),

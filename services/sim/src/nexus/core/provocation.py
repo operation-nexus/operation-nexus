@@ -159,6 +159,16 @@ def captured(world: World, node: str, before: NodeOwner, to: Side, commanders: i
             state.lost.pop(node, None)
 
 
+def bridge_repaired(world: World, node: str) -> None:
+    """A bridge was repaired (`BridgeRepaired`, this running tick): each directed side's
+    STRIKE_BRIDGE may aim at it again only after `director.strike_bridge.cooldown_s` (Q-SIM-121)."""
+    for side in DIRECTED:
+        found = _director(world, side)
+        if found:
+            ready = world.campaign.running_ticks + 1 + found[1].bridge_cooldown_ticks
+            world.director[side].bridge_ready[node] = ready
+
+
 def in_rear(view: SideView, rules: Rules, x: float, y: float) -> bool:
     """Q-SIM-79: the point is in `view.side`'s rear when it is strictly nearer (straight line) to a
     base the side owns than to any base the other side owns, by the live owners the view shows
@@ -265,11 +275,12 @@ def validate(world: World, rules: Rules) -> None:
             or max(d.lost.values(), default=0) > world.campaign.running_ticks
             else "a blinking radar at a node that does not exist"
             if not {*d.dark, *d.blink_ready} <= rules.roads.pos.keys()
-            else "a radar dark without a cooldown, or a blink tick past what the clock allows"
+            else "a radar dark without a cooldown, or a dark tick past what the clock allows"
             if not d.dark.keys() <= d.blink_ready.keys()
             or max(d.dark.values(), default=0) > world.campaign.running_ticks + dr.dark_ticks
-            or max(d.blink_ready.values(), default=0)
-            > world.campaign.running_ticks + dr.blink_cooldown_ticks
+            # no upper bound on a cooldown stamp: a hot reload may have shortened the key since
+            else "a bridge cooldown on a node that is no bridge"
+            if not d.bridge_ready.keys() <= rules.supply.bridge_hp.keys()
             else "an idle unit that does not exist or an idle tick after the clock"
             if any(int(k) >= world._next_entity_id for k in d.idle)
             else "a Pattern of Life timer that no decision window could have set"

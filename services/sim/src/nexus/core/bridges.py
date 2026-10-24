@@ -44,18 +44,20 @@ full, so the set, not the hp, is what cuts the road.
   thousandths carry in `World.bridge_repair`, which a truck leaving keeps. Capped at the maximum
   (B-2), no cargo cost, not while paused. At full the carry is 0, and a down bridge is up again (its
   edge returns) with `BridgeRepaired{node_id, by_id}` naming the lowest-id carrier parked there; a
-  damaged bridge that was never down emits nothing. No regeneration and no starvation drain (a
-  bridge has no stock). Deterministic: integer state, no RNG of its own.
+  damaged bridge that was never down emits nothing. The repair also starts that bridge's
+  STRIKE_BRIDGE cooldown (`provocation.bridge_repaired`, NX-401). No regeneration and no
+  starvation drain (a bridge has no stock). Deterministic: integer state, no RNG of its own.
 """
 
+from collections.abc import Mapping
 from itertools import pairwise
 
-from nexus.contracts.gen.common.enums import Side
+from nexus.contracts.gen.common.enums import NodeOwner, Side
 from nexus.contracts.gen.events.bridge_destroyed import BridgeDestroyed
 from nexus.contracts.gen.events.bridge_repaired import BridgeRepaired
 from nexus.contracts.gen.events.event import Event
 from nexus.core.defense import MILLI_HP
-from nexus.core.provocation import suffered_hit
+from nexus.core.provocation import bridge_repaired, suffered_hit
 from nexus.core.roads import shortest_path
 from nexus.core.rules import Rules, WeaponRules
 from nexus.core.world import Entity, Vec2, World, at_stop, lose_unit
@@ -135,8 +137,13 @@ def not_held(world: World, rules: Rules, side: Side) -> frozenset[str]:
 def enemy_held(world: World, rules: Rules, side: Side) -> frozenset[str]:
     """The nodes the other side holds: a supply run's road `avoid`, either side's
     (`logistics.supply_route`, Q-SIM-122); neutral ground stays passable."""
+    return held_by_other(rules, world.owner, side)
+
+
+def held_by_other(rules: Rules, owners: Mapping[str, NodeOwner], side: Side) -> frozenset[str]:
+    """`enemy_held` from an owner table (the world's, or a `SideView`'s, FOW-10)."""
     other = "ENEMY" if side == "COALITION" else "COALITION"
-    return frozenset(n for n in rules.roads.pos if world.owner.get(n) == other)
+    return frozenset(n for n in rules.roads.pos if owners.get(n) == other)
 
 
 def crosses(world: World, rules: Rules, frm: str, to: str, pos: Vec2) -> bool:
@@ -222,6 +229,7 @@ def repair(world: World, out: list[Event]) -> None:
                     by_id=ids[0],
                 )
             )
+            bridge_repaired(world, node)  # its STRIKE_BRIDGE cooldown starts (NX-401)
 
 
 def validate(world: World, rules: Rules) -> None:

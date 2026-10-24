@@ -144,7 +144,7 @@ def golden_run() -> str:
     return state_hash(w)
 
 
-GOLDEN = "b14625b1fdb896c693d07d586d078d5473341f34ecc169e4536ee16707a0c963"
+GOLDEN = "7a91c0d4ff74d8ebe6637d354df7173422d1056acccab637bfd638bad5b08898"
 
 
 def test_golden_ten_steps_seed_12345() -> None:
@@ -156,7 +156,8 @@ def test_golden_ten_steps_seed_12345() -> None:
     # rearm-stop carries and the downed-crew markers; NX-124 part 3: v16 adds defense hp, its drain
     # carry and down flags, the defeat run, node shots and marker ring and state; NX-156: v20 adds
     # the Director's threat memory, lost nodes and adaptations; NX-373: v24 adds bridge hp and the
-    # down bridges; NX-373 part 2: v26 adds the bridge repair carry).
+    # down bridges; NX-373 part 2: v26 adds the bridge repair carry; NX-401: v27 adds the Director's
+    # bridge cooldowns).
     # A change here breaks every recorded replay hash: needs a `golden-update` reason.
     assert golden_run() == GOLDEN
     assert golden_run() == golden_run()

@@ -289,6 +289,7 @@ director:
     factor: 1.0
     weights: {convoy_hit: 1, radar_hit: 1, scout_lost: 1, node_lost: 1}
   decoy_blink: {dark_s: 120, cooldown_s: 600, max_per_window: 1}
+  strike_bridge: {cooldown_s: 1800}
   recon: {loiter_s: 600, loiter_radius_m: 5000, grid_m: 10000, memory_s: 3600}
   intercept: {radius_m: 30000, reaction_s: 60, pol_linger_s: 600, leash_m: 80000, lost_s: 120}
   max_ops:
@@ -334,7 +335,7 @@ director:
 # rebase rule options, NX-373 for the bridge hp, NX-398 for `tasking.order_dwell_s`, NX-400 for
 # the collapse radius, NX-373 part 2 for bridge repair, the repair job and its escort); a change
 # means every config_hash moved.
-GOLDEN_CONFIG_HASH = "a5edd6ba6df66721c75a18e1f2465431ebc4de8853471d3be1b410d07244a817"
+GOLDEN_CONFIG_HASH = "60b378efe1e0511b538ad51ed738fe89e4d3af408701d5b4f26cae71d19d20ed"
 AIR = {
     "bingo_reserve_frac": 0.15,
     "orbit_period_s": 120.0,
@@ -562,6 +563,7 @@ DIRECTOR = {
         "ESCORT_CONVOYS": 0.8,
         "REINFORCE_IADS": 0.7,
         "PROBE": 0.6,
+        "STRIKE_BRIDGE": 0.6,
         "RECON": 0.5,
         "DECOY_BLINK": 0.3,
         "GARRISON_UPKEEP": 0.9,
@@ -581,6 +583,7 @@ DIRECTOR = {
         "weights": {"convoy_hit": 1, "radar_hit": 1, "scout_lost": 1, "node_lost": 1},
     },
     "decoy_blink": {"dark_s": 120, "cooldown_s": 600, "max_per_window": 1},
+    "strike_bridge": {"cooldown_s": 1800},
     "recon": {"loiter_s": 600, "loiter_radius_m": 5000, "grid_m": 10000, "memory_s": 3600},
     "intercept": {
         "radius_m": 30000,
@@ -1020,13 +1023,14 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "  budget: {pattern_of_life: 10, alpha: 30, bravo: 80},\n"
         "  max_live_units: {pattern_of_life: 40, alpha: 40, bravo: 70},\n"
         "  op_priority: {RETAKE: 1.2, OFFENSIVE: 1.0, ESCORT_CONVOYS: 0.8, REINFORCE_IADS: 0.7,\n"
-        "    PROBE: 0.6, RECON: 0.5, DECOY_BLINK: 0.3, GARRISON_UPKEEP: 0.9},\n"
+        "    PROBE: 0.6, RECON: 0.5, DECOY_BLINK: 0.3, GARRISON_UPKEEP: 0.9, STRIKE_BRIDGE: 0.6},\n"
         "  score: {target_value: {AIRBASE: 1.5, FOB: 1.0, PORT: 1.0, SANCTUARY: 2.0},\n"
         "    weakness_max: 2.0, own_node_value: 1.0, weakness_min: 1.0, stale_factor: 1.0,\n"
         "    provocation_proximity: 1.5, proximity_tiers: [ALPHA]},\n"
         "  memory: {half_life_s: 1800, factor: 1.0,\n"
         "    weights: {convoy_hit: 1, radar_hit: 1, scout_lost: 1, node_lost: 1}},\n"
         "  decoy_blink: {dark_s: 120, cooldown_s: 600, max_per_window: 1},\n"
+        "  strike_bridge: {cooldown_s: 1800},\n"
         "  recon: {loiter_s: 600, loiter_radius_m: 5000, grid_m: 10000, memory_s: 3600},\n"
         "  intercept: {radius_m: 30000, reaction_s: 60, pol_linger_s: 600, leash_m: 80000,\n"
         "    lost_s: 120},\n"

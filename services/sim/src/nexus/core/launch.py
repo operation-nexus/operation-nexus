@@ -96,9 +96,11 @@ def _own(world: World, rules: Rules, side: Side) -> ops.Own:
         for n, floor in rules.supply.starve_floor.items()
         if world.owner.get(n) == side and n in world.stock
     }
+    jobs = world.boards[side].values()  # the bridges its live STRIKE jobs name (NX-401)
+    struck = frozenset(j.node for j in jobs if j.kind == "STRIKE" and j.node in world.bridge_hp)
     return ops.Own(
         tuple(convoys), frozenset(damaged), frozenset(radars), live,
-        {n: tuple(k) for n, k in homed.items()}, free,
+        {n: tuple(k) for n, k in homed.items()}, free, struck,
     )  # fmt: skip
 
 

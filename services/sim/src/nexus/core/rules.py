@@ -300,6 +300,7 @@ class DirectorRules:
     retake_ticks: int
     dark_ticks: int  # how long a blinking radar is dark (Q-SIM-82)
     blink_cooldown_ticks: int  # before the same radar may blink again
+    bridge_cooldown_ticks: int  # after BridgeRepaired, before STRIKE_BRIDGE aims at it (Q-SIM-121)
     max_ops: Mapping[ThreatTier, int | None]  # ALPHA, BRAVO: non-routine ops at once
     proximity_tiers: frozenset[ThreatTier]  # CP ceilings at which `proximity` applies
     scout_in_rear_max: int  # scout-in-rear notes one window adds
@@ -611,6 +612,7 @@ def director_rules(
     retake_ticks: int,
     dark_ticks: int,
     blink_cooldown_ticks: int,
+    bridge_cooldown_ticks: int,
     idle_retire_ticks: int,
     operations: Iterable[OperationRules],
     patrol_ticks: int,
@@ -667,6 +669,7 @@ def director_rules(
         retake_ticks=retake_ticks,
         dark_ticks=dark_ticks,
         blink_cooldown_ticks=blink_cooldown_ticks,
+        bridge_cooldown_ticks=bridge_cooldown_ticks,
         max_ops={
             "ALPHA": cfg.max_ops.alpha,
             "BRAVO": cfg.max_ops.bravo,

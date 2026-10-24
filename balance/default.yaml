@@ -261,6 +261,7 @@ director:  # Threat Director (Q-SIM-78, Q-SIM-81, owner-approved starting number
     ESCORT_CONVOYS: 0.8
     REINFORCE_IADS: 0.7
     PROBE: 0.6
+    STRIKE_BRIDGE: 0.6  # PROPOSED – unvalidated (Q-SIM-121): PROBE's; beats an Offensive only once the cut-off base is bleeding
     RECON: 0.5
     DECOY_BLINK: 0.3
   score:
@@ -309,6 +310,8 @@ director:  # Threat Director (Q-SIM-78, Q-SIM-81, owner-approved starting number
     dark_s: 120  # PROPOSED – unvalidated (Q-SIM-82, owner); s (game) a blinking radar is dark
     max_per_window: 1  # PROPOSED – unvalidated (Q-SIM-82); radars that start a blink per window
     cooldown_s: 600  # PROPOSED – unvalidated (Q-SIM-82, owner); s (game) before the same radar can blink again
+  strike_bridge:
+    cooldown_s: 1800  # PROPOSED – unvalidated (Q-SIM-121); s (game) after a bridge's BridgeRepaired before STRIKE_BRIDGE may target it again
   retake_window_min: 30  # PROPOSED – unvalidated (Q-SIM-81); min (game)
   garrison:
     replace_per_window: 1  # PROPOSED – unvalidated (Q-SIM-85); units a Static base below its garrison_quota buys in one window
