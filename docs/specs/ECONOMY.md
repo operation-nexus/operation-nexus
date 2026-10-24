@@ -1,0 +1,92 @@
+# SPEC: Force economy (force scaling by economy)
+
+Status: Draft (needs owner approval before code) · Owner: SaltySeraphCodes · Tracker: NX-412 · Decisions: Q-TD-16..19 (owner), Q-TD-20..26 (lead, owner may veto) · Review: docs/review/ENTERTAINMENT-steamroll-2026-10-24.md, docs/review/ENTERTAINMENT-NX-412-economy-2026-10-24.md · Related: THREAT-DIRECTOR §4, GAMEPLAY §0 and §5, NX-411 (Q-TEST-11)
+
+On approval this spec amends THREAT-DIRECTOR §4 step 2 and §7a, GAMEPLAY §0 (parity), §5 (logistics) and §9 (victory hold), and CONFIG-AND-CONTENT §6. Section 9 lists the exact edits. Until then the approved specs stand as written.
+
+## 1. Purpose
+Today the Static is capped at a fixed number of live units, and its window budget is a fixed number per tier. Harness #301 and #316-#318 show what follows. Crowds win by outnumbering the cap. The Static spends half its stock on an hour-1 surge and never recovers. No victory hold is ever contested. In short, every crowd win is a steamroll (Q-TEST-11 review). This spec makes each side's force size follow what it owns and can supply, never viewer count (Q-TD-16), so a crowd wins by taking the Static's economy.
+
+## 2. Goals / Non-goals
+Goals:
+- Army size is set by income and upkeep, not by `director.max_live_units.<tier>` (Q-TD-16 (1)).
+- Income and storage follow held bases, so taking bases shrinks the other side (Q-TD-16 (2)).
+- Taking ground cannot zero the Static: it keeps a floor income that only convoy raids cut. Its supply lines also get shorter as it falls back (interior lines), and it spends its opening budget in waves (Q-TD-17).
+- Tier sets aggression and which operations run, not size (Q-TD-16 (3)).
+- Same rules for both sides, so either side can be agent-played (Q-TD-16 (4), GAMEPLAY §0). Coalition spawning stays free. Keeping a unit in the field costs stock, and a starved unit is grounded, never deleted (Q-TD-18).
+- The Static may target a node the coalition is holding for victory, with a sitrep (Q-TD-19).
+
+Non-goals:
+- No rubber band on viewer count (TS-1). A coordinated crowd is never punished for its size.
+- Factories stay parked (Q-GP-41). There is no node-local production: income lands at the side's source and moves only on trucks (Q-GP-16).
+- No new unit kinds or operations. CHARLIE stays parked (Q-TD-3).
+- No numbers are final here. Every value marked PROPOSED or TBD comes from harness sweeps (NX-031) and is recalibrated against NX-411.
+
+## 3. Requirements
+- **EC-1 Source income (Q-TD-17, Q-TD-20).** Each side's source (its SANCTUARY node) MUST stop being infinite. It holds a whole-unit pool. Every economy window (`economy.window_s`, game time) the pool gains `economy.income.floor` plus `economy.income.per_node.<node_kind>` for each strategic node the side holds and is not contesting, capped at the pool's storage (EC-2). Income lands only at the source. Trucks carry it forward under the existing forward-stock rules (GAMEPLAY §5, Q-SIM-100). The floor needs no held node, so only raiding convoys between the source and the front can cut what reaches the bases.
+- **EC-2 Storage.** Pool storage MUST be `economy.storage.floor` plus `economy.storage.per_node.<node_kind>` for each strategic node held. Losing nodes lowers the cap. Stock above the new cap is clipped at the next window and emitted as `SupplyConsumed{STORAGE_LOST}`, never silently.
+- **EC-3 Same rules both sides (Q-TD-16 (4), Q-TD-21).** EC-1, EC-2, EC-4 and EC-5 MUST apply to the coalition's sanctuary exactly as to the Static's rear source, with the same keys and no side-specific values. The kept asymmetries are listed in §5.4.
+- **EC-4 Upkeep (Q-TD-16 (1), Q-TD-18, Q-TD-22).** Every economy window, each live unit MUST pay `economy.upkeep.<unit_kind>` stock from its home base (EC-5). Units are processed in the payment order of EC-6. A base pays while it holds the full amount. A unit kind with upkeep 0 is free; the trucks are expected to be free so hauling stays free. A spawn still draws no stock at the coalition's sanctuary (Q-TD-12), and the Static still pays an operation's cost once (THREAT-DIRECTOR §4).
+- **EC-5 Home base (Q-TD-23).** A unit's home base MUST be the friendly node where it last spawned, landed or parked. If that node is lost, the home becomes the nearest friendly node that can host the unit's domain (an airbase or sanctuary for aircraft, any base for ground units), by straight-line distance, with ties broken by node id. The source pays for units based there from its pool.
+- **EC-6 Grounded (Q-TD-18, Q-TD-23).** Payment order MUST be (viewer units before AI units, then the most recent order or spawn tick descending, then unit id). So when a home runs short, AI garrison units ground first, then the viewer units idle longest, and a newcomer's fresh unit last. A unit whose home cannot pay MUST become `grounded`, never deleted. A grounded aircraft returns to its home and stays landed. A grounded ground unit drives to its home and stays parked. Either way it drops its job claims, takes no new job or order, and still returns fire and can be killed. It stops being grounded at the first window its home pays. Each change emits `UnitGrounded` / `UnitUngrounded` (with the home id), and the coalition sees a feed line for its own units (GAMEPLAY §1a). The overlay shows a grounded icon with its reason, and the spawn reply warns when the new unit's home cannot pay its next upkeep and names the fix ("haul to <base>").
+- **EC-7 Director budget (Q-TD-16 (3), Q-TD-17, Q-TD-24, Q-TD-26).** THREAT-DIRECTOR §4 step 2 MUST become: budget = max(cadence floor, floor(surplus × `director.spend_frac.<tier>`) + floor(rear pool × `director.source_spend_frac`) − `director.upkeep_reserve_windows` × the Static's upkeep per window), never more than base surplus plus rear pool. The surplus is stock above the starvation threshold at Static bases, as today. The rear pool now counts too, but only at a small share, and units it buys spawn at the source (THREAT-DIRECTOR §4 step 7), so they must travel. Raids still starve the bases, and a Static holding only its rear can still act (amends Q-TD-5). Cadence floor: while the Static holds its HQ and has not launched an operation for `director.cadence_windows` windows, the budget is at least the cheapest operation it can currently afford from the pool. `director.budget.<tier>` and `director.max_live_units.<tier>` are removed. A fraction of the surplus per window spends the opening stock in waves instead of one surge, and the reserve keeps an army the Static can still feed.
+- **EC-8 Performance guard (Q-TD-16 (5)).** One `sim.max_live_units_per_side` cap MUST stay as a tick-rate guard only, set well above any army the economy feeds in the harness profiles. A spawn refused by it emits the existing refusal (GAMEPLAY §1a) and is counted in the harness report. `director.max_spawns_per_window` stays as anti-spam (Q-TD-12).
+- **EC-9 Contested victory hold (Q-TD-19, Q-TD-25).** While a victory hold runs (GAMEPLAY §9), the sim MUST emit `VictoryHoldStarted{nodes, ends_at}`, then `VictoryHoldBroken{node}` or the victory. The hold is public (overlay and sitrep), so it enters `EnemyView` (TD-2). Offensive and Retake candidates on a node in the hold get the multiplier `director.score.victory_hold_mult`. When one is selected, a sitrep reads "NULL moves on <node>, the hold is at risk" (owner text, Q-TD-19).
+- **EC-10 Determinism.** Pools, storage, home bases and grounded flags MUST be whole numbers or ids in the snapshot and state hash (snapshot format bump). Window processing order is: income, then storage clip, then upkeep in unit id order, then the director window. It uses no RNG and no wall clock (SIM-CORE).
+- **EC-11 Coalition floor.** The coalition's floor income MUST cover its AI garrison's upkeep plus `economy.floor_viewer_units` viewer units at the dearest viewer upkeep. The loader checks this against the theater's garrison quotas and fails load with the shortfall. The idle floor itself (GAMEPLAY §9) is unchanged.
+- **EC-12 Target income (Q-TD-16 (2)).** Offensive and Retake candidates on a coalition-held node with `economy.income.per_node` above 0 MUST get the multiplier `director.score.income_node_mult` (≥ 1), so the Static presses the ground that feeds the crowd.
+
+## 4. Interfaces
+- **Config (balance, CONFIG-AND-CONTENT §6; added with `add-config-key`):** `economy.window_s` (game s, PROPOSED 60: the director window, so one cadence), `economy.income.floor` (stock/window, TBD), `economy.income.per_node.<node_kind>` (TBD; BRIDGE 0), `economy.storage.floor` and `economy.storage.per_node.<node_kind>` (TBD), `economy.upkeep.<unit_kind>` (stock/window, TBD; LOGI_TRUCK and ENEMY_CONVOY PROPOSED 0), `director.spend_frac.<tier>` (fraction 0-1, TBD, ordered pattern_of_life ≤ alpha ≤ bravo, enforced by the loader), `director.upkeep_reserve_windows` (TBD), `director.source_spend_frac` (fraction 0-1, TBD, small), `director.cadence_windows` (windows, TBD), `director.score.victory_hold_mult` and `director.score.income_node_mult` (TBD, ≥ 1), `economy.floor_viewer_units` (units, TBD), `sim.max_live_units_per_side` (TBD from the surge-500 tick-rate budget). Removed: `director.budget.<tier>`, `director.max_live_units.<tier>`. The operation cost-envelope check (CONFIG-AND-CONTENT §8a) moves from "≤ the largest `director.budget`" to "≤ `director.spend_frac.bravo` × the largest possible storage".
+- **Events (contracts):** `UnitGrounded{unit, home}`, `UnitUngrounded{unit, home}`, `VictoryHoldStarted{nodes, ends_at}`, `VictoryHoldBroken{node}`; `SupplyConsumed` gains reasons `UPKEEP` and `STORAGE_LOST`; `SupplyProduced{side, amount}` per window at the source.
+- **Snapshot:** per-side pool and storage, per-unit `home` and `grounded`, and the current hold, if any.
+- **Harness report (NX-411):** pool, income, upkeep and grounded counts per side per hour, plus refusals from EC-8. To choose the TBD values (review): Static operations per hour, the gap between Offensives and how many target coalition-held nodes; Static budget per window split into rear pool and base surplus; grounded unit-minutes per side (viewer vs AI) and by join-order quartile; grounded churn; peak coalition army against viewer count across prime-50, raid-300 and surge-500 (the TS-1 check); Static operations during each victory hold and holds broken; share of floor income cut by raids; signal 4 against start stock as well as peak. Grounded time is reported per side only, never per player.
+
+## 5. Behavior
+### 5.1 Window order (EC-10)
+Every `economy.window_s` of game time, inside the tick that crosses the boundary:
+1. Each side's pool gains income (EC-1).
+2. The pool is clipped to storage (EC-2).
+3. Upkeep runs in the EC-6 payment order. Each unit is charged to its home, or grounded or ungrounded (EC-4..6).
+4. The director window runs (THREAT-DIRECTOR §4), with its budget from EC-7.
+
+### 5.2 Why this fixes the steamroll (the intent, to be measured)
+- A beaten Static keeps its floor and its shortest lines. It rebuilds an Offensive every few windows instead of collapsing (review: "economy collapses in hours 1-2 and never recovers").
+- A crowd that sits idle pays upkeep, so supply work (haulers) gains real impact. That relieves the coalition's own "jobs full" bottleneck (review, A2).
+- The final hold becomes a fight (EC-9), feeding Q-TEST-11 signal 2.
+
+### 5.3 Worked example (shape only; numbers TBD)
+The Static holds its HQ and two airbases. Its income each window is the floor plus HQ + 2 × AIRBASE. The coalition takes one airbase. The Static's income and storage fall by one AIRBASE share. Its units based there re-home to the nearest friendly airbase, which now pays their upkeep. If that base runs dry, its AI units ground first, then the viewer units idle longest. The next windows' budgets shrink in proportion, but the floor keeps them above zero while convoys get through.
+
+### 5.4 Asymmetries kept (GAMEPLAY §0)
+Spawn cost (Q-TD-12: the coalition spawns free; the Static pays per operation), the idle floor (Q-GP-44), AI escorts (Q-GP-45), emission control (Q-FOW-13), capture jobs (Q-TD-14) and quiet capture (Q-SIM-26). Free refuel and repair at a sanctuary stay free for both sides. This spec adds no new asymmetry.
+
+## 6. Failure modes
+- **Death spiral either way:** the floor (EC-1), the source share and cadence floor (EC-7) and the coalition floor (EC-11) are the guards. The NX-411 watch items "Static stock under 10% or units under 25% of peak for 2 h" and "coalition units over 50% grounded for 30 min" (PROPOSED) are checked in every sweep.
+- **A big crowd benched (TS-1):** income does not grow with viewers, so the coalition army tops out near income ÷ upkeep. Not a rubber band (no rule reads viewer count), but the sweep reports peak army against viewer count, and the owner sees it before values are set.
+- **Coalition starved at low population:** EC-11 makes it a load error, not a stream incident.
+- **Upkeep oscillation** (units ground and unground each window): a unit pays from its home only. The TBD values are swept for grounded churn, which is reported per hour.
+- **Tick-rate:** upkeep costs O(units) once per window. The surge-500 budget is re-measured (EC-8).
+
+## 7. Test plan
+| Req | Tests |
+|---|---|
+| EC-1, EC-2 | unit: income and clip per window with nodes held, contested and lost; `SupplyProduced` and `STORAGE_LOST` amounts |
+| EC-3 | property: swapping sides in a mirrored theater gives mirrored pools |
+| EC-4..6 | unit: payment order (viewer before AI, recency, id); spawn warning; grounded aircraft lands and ground unit parks; drops claims; returns fire; ungrounds; re-homing on node loss |
+| EC-7 | unit: budget formula, rear share, reserve, cadence floor, tier ordering; no `max_live_units` reads remain |
+| EC-12 | unit: multiplier applied only to coalition-held income nodes |
+| EC-8 | unit: guard refusal is emitted and counted |
+| EC-9 | unit: hold events; multiplier applied only during a hold; sitrep text |
+| EC-10 | determinism: two runs with the same seed hash equal; golden replay regenerated; snapshot round-trip |
+| EC-11 | loader: a theater whose garrison upkeep exceeds the floor fails with the shortfall |
+| Acceptance (NX-412) | harness: STRIKE_BRIDGE fires in a prime-50 run (NX-401); no steamroll flagged by NX-411 on the sweep's chosen values; crowd wins come from captures of Static income nodes |
+
+## 8. Open questions
+Owner decisions: Q-TD-16, Q-TD-17, Q-TD-18, Q-TD-19. Lead decisions the owner may veto: Q-TD-20 (income lands at the source), Q-TD-21 (the coalition's sanctuary is finite too), Q-TD-22 (upkeep keyed by unit kind, per window), Q-TD-23 (home base and grounding), Q-TD-24 (spend fraction and reserve replace fixed budget and caps), Q-TD-25 (the hold is public and enters EnemyView), Q-TD-26 (the Static's budget counts a share of its rear pool, plus a cadence floor; amends owner decision Q-TD-5, so it needs an explicit owner yes). Numbers: harness sweeps after NX-411 lands.
+
+## 9. Edits on approval
+- THREAT-DIRECTOR §4 step 2: replace the budget and anti-spam text with EC-7 and EC-8, and link here. §3 BRAVO row: "concentrated offensives", with no unit count. §7a: add the in-code note when built.
+- GAMEPLAY §0: "Static economy" bullet → income, storage and upkeep for both sides (EC-1..4). The spawn-cost asymmetry stays. §5: the sources line → finite pools with income (EC-1), plus upkeep and grounding (EC-4..6). §9: hold events (EC-9).
+- CONFIG-AND-CONTENT §6: the keys in §4 (via `add-config-key`). §8a: the new cost envelope.
+- `docs/specs/README.md`: index row.

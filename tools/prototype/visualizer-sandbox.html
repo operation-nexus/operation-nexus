@@ -1,0 +1,1386 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hiveplex / Operation Nexus — Visual Command Center & 3D Director</title>
+<!-- Three.js + OrbitControls -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<style>
+  :root {
+    /* shadcn/ui Inspired Dark Slate Token Palette */
+    --background: #020617;
+    --card: #090d16;
+    --card-foreground: #f8fafc;
+    --popover: #090d16;
+    --popover-foreground: #f8fafc;
+    --border: #1e293b;
+    --input: #1e293b;
+    --ring: rgba(0, 229, 255, 0.5);
+
+    /* Tactical Faction Tokens */
+    --quorum-cyan: #00e5ff;
+    --quorum-cyan-glow: rgba(0, 229, 255, 0.35);
+    --static-magenta: #ff0055;
+    --static-magenta-glow: rgba(255, 0, 85, 0.4);
+    --supply-amber: #f59e0b;
+    --radar-emerald: #10b981;
+    --muted-foreground: #94a3b8;
+
+    /* Emil Kowalski Spring Curves */
+    --spring-quick: cubic-bezier(0.16, 1, 0.3, 1);
+    --spring-bounce: cubic-bezier(0.34, 1.56, 0.64, 1);
+    --font-mono: 'JetBrains Mono', 'SF Mono', 'Fira Code', monospace;
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background-color: #010307;
+    color: #e2e8f0;
+    font-family: var(--font-mono);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    padding: 14px;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* Control Deck (shadcn style segmented toolbars) */
+  .control-deck {
+    width: 100%;
+    max-width: 1340px;
+    background: rgba(9, 13, 22, 0.95);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 10px 18px;
+    margin-bottom: 14px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 12px;
+    align-items: center;
+    justify-content: space-between;
+    box-shadow: 0 8px 32px rgba(0,0,0,0.7), inset 0 1px 0 rgba(255,255,255,0.05);
+    backdrop-filter: blur(12px);
+  }
+
+  .deck-brand {
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    color: var(--quorum-cyan);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .deck-brand-badge {
+    background: rgba(0, 229, 255, 0.12);
+    border: 1px solid rgba(0, 229, 255, 0.3);
+    color: var(--quorum-cyan);
+    font-size: 9px;
+    padding: 2px 6px;
+    border-radius: 4px;
+  }
+
+  /* Segmented Controls (Emil Kowalski Smooth Tabs) */
+  .segmented-group {
+    display: inline-flex;
+    background: #0d131f;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 3px;
+    gap: 2px;
+  }
+  .segment-btn {
+    background: transparent;
+    border: none;
+    color: var(--muted-foreground);
+    padding: 5px 12px;
+    font-size: 11px;
+    font-family: var(--font-mono);
+    border-radius: 4px;
+    cursor: pointer;
+    transition: all 0.2s var(--spring-quick);
+  }
+  .segment-btn:hover {
+    color: #fff;
+    background: rgba(255,255,255,0.04);
+  }
+  .segment-btn:active {
+    transform: scale(0.96);
+  }
+  .segment-btn.active {
+    background: rgba(0, 229, 255, 0.16);
+    color: var(--quorum-cyan);
+    font-weight: 600;
+    box-shadow: 0 0 12px rgba(0, 229, 255, 0.25);
+  }
+
+  /* Action Buttons */
+  .action-btn {
+    background: #111827;
+    border: 1px solid var(--border);
+    color: #e2e8f0;
+    padding: 6px 13px;
+    font-size: 11px;
+    font-family: var(--font-mono);
+    border-radius: 6px;
+    cursor: pointer;
+    transition: all 0.2s var(--spring-quick);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .action-btn:hover {
+    background: #1e293b;
+    border-color: var(--quorum-cyan);
+    box-shadow: 0 0 10px rgba(0, 229, 255, 0.25);
+    transform: translateY(-1px);
+  }
+  .action-btn:active {
+    transform: scale(0.96);
+  }
+  .action-btn.danger {
+    border-color: rgba(255, 0, 85, 0.4);
+    color: var(--static-magenta);
+  }
+  .action-btn.danger:hover {
+    background: rgba(255, 0, 85, 0.15);
+    box-shadow: 0 0 12px rgba(255, 0, 85, 0.35);
+  }
+
+  /* Main Broadcast Stream Frame */
+  .stream-container {
+    position: relative;
+    width: 1280px;
+    height: 720px;
+    background: var(--background);
+    border: 1px solid #1e293b;
+    border-radius: 8px;
+    overflow: hidden;
+    box-shadow: 0 12px 48px rgba(0,0,0,0.9), 0 0 0 1px rgba(0, 229, 255, 0.15);
+    transition: width 0.45s var(--spring-bounce), height 0.45s var(--spring-bounce);
+  }
+  .stream-container.vertical {
+    width: 486px;
+    height: 864px;
+    display: flex;
+    flex-direction: column;
+  }
+  .stream-container.vertical #threeContainer,
+  .stream-container.vertical #mfdCanvas {
+    position: absolute;
+    top: 50px;
+    left: 0;
+    width: 486px;
+    height: 440px;
+  }
+  .stream-container.vertical .hud-sidebar {
+    top: 495px;
+    left: 12px;
+    right: 12px;
+    width: auto;
+    bottom: 46px;
+    flex-direction: row;
+    gap: 8px;
+  }
+  .stream-container.vertical .pip-container {
+    width: 200px;
+    height: 100%;
+  }
+  .stream-container.vertical .sitrep-log {
+    flex: 1;
+    height: 100%;
+  }
+  .stream-container.vertical .cam-pill {
+    top: 450px;
+    bottom: auto;
+    left: 12px;
+    font-size: 9px;
+  }
+
+  /* Viewport canvas wrappers */
+  #threeContainer {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 5;
+  }
+  #mfdCanvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    z-index: 6;
+    display: none;
+  }
+
+  /* Scanlines overlay */
+  .crt-scanlines {
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    z-index: 35;
+    background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.22) 50%);
+    background-size: 100% 4px;
+    opacity: 0.65;
+  }
+
+  /* Top HUD Bar */
+  .hud-top {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 52px;
+    background: linear-gradient(180deg, rgba(2, 6, 23, 0.95) 0%, rgba(2, 6, 23, 0.7) 80%, transparent 100%);
+    border-bottom: 1px solid rgba(0, 229, 255, 0.14);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0 18px;
+    z-index: 40;
+    pointer-events: none;
+  }
+  .hud-top > * { pointer-events: auto; }
+
+  .momentum-widget {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .momentum-label {
+    font-size: 10px;
+    font-weight: 700;
+    letter-spacing: 1px;
+    color: var(--muted-foreground);
+  }
+  .momentum-track {
+    width: 220px;
+    height: 10px;
+    background: #0f172a;
+    border: 1px solid #1e293b;
+    border-radius: 999px;
+    overflow: hidden;
+    display: flex;
+    box-shadow: inset 0 1px 3px rgba(0,0,0,0.6);
+  }
+  .momentum-fill-cyan {
+    height: 100%;
+    width: 66%;
+    background: linear-gradient(90deg, #0284c7, var(--quorum-cyan));
+    box-shadow: 0 0 12px var(--quorum-cyan-glow);
+    transition: width 0.3s var(--spring-quick);
+  }
+  .momentum-fill-magenta {
+    height: 100%;
+    width: 34%;
+    background: linear-gradient(90deg, var(--static-magenta), #be123c);
+    box-shadow: 0 0 12px var(--static-magenta-glow);
+    transition: width 0.3s var(--spring-quick);
+  }
+
+  .objective-pill {
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid rgba(0, 229, 255, 0.3);
+    padding: 4px 14px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .objective-timer {
+    color: var(--supply-amber);
+    font-weight: 700;
+  }
+
+  .threat-badge {
+    padding: 3px 10px;
+    font-size: 10px;
+    font-weight: 700;
+    border-radius: 999px;
+    border: 1px solid #e11d48;
+    background: rgba(225, 29, 72, 0.18);
+    color: #ff3366;
+    letter-spacing: 0.8px;
+    animation: threat-strobe 2s infinite ease-in-out;
+  }
+  @keyframes threat-strobe {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.65; transform: scale(0.98); }
+  }
+
+  /* Right Floating Sidebar (shadcn card style) */
+  .hud-sidebar {
+    position: absolute;
+    top: 60px;
+    right: 14px;
+    width: 300px;
+    bottom: 50px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    z-index: 40;
+    pointer-events: none;
+  }
+  .hud-sidebar > * { pointer-events: auto; }
+
+  .hud-card {
+    background: rgba(9, 13, 22, 0.88);
+    border: 1px solid rgba(0, 229, 255, 0.2);
+    border-radius: 8px;
+    padding: 10px;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.6);
+  }
+
+  /* PiP Scope Window (Layered Canvas Architecture) */
+  .pip-container {
+    height: 190px;
+    position: relative;
+    background: #030712;
+    border: 1px solid rgba(0, 229, 255, 0.4);
+    border-radius: 6px;
+    overflow: hidden;
+  }
+  /* Layer 1: Dedicated 2D FLIR Canvas */
+  #pipThermalCanvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: block;
+    z-index: 10;
+  }
+  /* Layer 2: Dedicated WebGL 3D Chase-Cam Canvas */
+  #pipChaseCanvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    display: none;
+    z-index: 11;
+  }
+
+  .pip-header {
+    position: absolute;
+    top: 6px;
+    left: 8px;
+    right: 8px;
+    display: flex;
+    justify-content: space-between;
+    font-size: 9px;
+    color: var(--quorum-cyan);
+    background: rgba(3, 7, 18, 0.8);
+    padding: 3px 8px;
+    border-radius: 4px;
+    z-index: 20;
+    border: 1px solid rgba(0, 229, 255, 0.2);
+  }
+  .pip-footer {
+    position: absolute;
+    bottom: 6px;
+    left: 8px;
+    right: 8px;
+    display: flex;
+    justify-content: space-between;
+    font-size: 9px;
+    color: #94a3b8;
+    background: rgba(3, 7, 18, 0.8);
+    padding: 3px 8px;
+    border-radius: 4px;
+    z-index: 20;
+  }
+
+  /* Sitreps Log */
+  .sitrep-log {
+    flex: 1;
+    overflow: hidden;
+    font-size: 9px;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .sitrep-title {
+    font-size: 10px;
+    font-weight: 700;
+    color: var(--muted-foreground);
+    border-bottom: 1px solid rgba(255,255,255,0.06);
+    padding-bottom: 4px;
+    margin-bottom: 4px;
+    display: flex;
+    justify-content: space-between;
+  }
+  .sitrep-entry {
+    color: #94a3b8;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    padding: 2px 0;
+  }
+  .sitrep-entry.friendly { color: var(--quorum-cyan); }
+  .sitrep-entry.enemy { color: var(--static-magenta); }
+
+  /* Bottom Ticker */
+  .hud-bottom {
+    position: absolute;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    height: 42px;
+    background: rgba(2, 6, 23, 0.96);
+    border-top: 1px solid rgba(0, 229, 255, 0.18);
+    display: flex;
+    align-items: center;
+    padding: 0 16px;
+    gap: 16px;
+    z-index: 40;
+    font-size: 11px;
+    pointer-events: none;
+  }
+  .how-to-play-badge {
+    background: rgba(0, 229, 255, 0.14);
+    border: 1px solid var(--quorum-cyan);
+    color: #fff;
+    padding: 4px 10px;
+    border-radius: 4px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+  }
+  .ticker-scroll {
+    flex: 1;
+    overflow: hidden;
+    white-space: nowrap;
+    color: #94a3b8;
+  }
+
+  /* Camera Preset Indicator Pill */
+  .cam-pill {
+    position: absolute;
+    bottom: 52px;
+    left: 16px;
+    background: rgba(15, 23, 42, 0.9);
+    border: 1px solid rgba(0, 229, 255, 0.3);
+    border-radius: 6px;
+    padding: 6px 12px;
+    font-size: 10px;
+    color: var(--quorum-cyan);
+    z-index: 40;
+    pointer-events: none;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+  }
+
+  /* Information Deck */
+  .info-deck {
+    width: 100%;
+    max-width: 1340px;
+    background: rgba(15, 23, 42, 0.85);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 16px 22px;
+    margin-top: 14px;
+    font-size: 12px;
+    line-height: 1.6;
+    color: var(--muted-foreground);
+  }
+  .info-deck h4 { color: var(--quorum-cyan); margin-bottom: 6px; font-size: 13px; }
+</style>
+</head>
+<body>
+
+<!-- Control Deck -->
+<div class="control-deck">
+  <div class="deck-brand">
+    HIVEPLEX
+    <span class="deck-brand-badge">DIRECTOR ENGINE</span>
+  </div>
+
+  <!-- Segmented Paradigm Switcher -->
+  <div class="segmented-group">
+    <button class="segment-btn" onclick="setParadigm('option_a')">Option A (2D Signal)</button>
+    <button class="segment-btn active" id="btnOptB" onclick="setParadigm('option_b')">Option B (3D Holo Table)</button>
+    <button class="segment-btn" id="btnOptC" onclick="setParadigm('option_c')">Option C (FLIR MFD Cockpit)</button>
+  </div>
+
+  <!-- Segmented PiP Scope Switcher -->
+  <div class="segmented-group">
+    <button class="segment-btn active" id="btnPipThermal" onclick="setPipMode('thermal')">FLIR Thermal (White-Hot)</button>
+    <button class="segment-btn" id="btnPipChase" onclick="setPipMode('chase3d')">3D Chase-Cam (Real-View)</button>
+  </div>
+
+  <!-- Camera Director Presets (Emil Kowalski Multi-Camera Sequencing) -->
+  <div class="segmented-group">
+    <button class="segment-btn active" id="camBtnOverview" onclick="setCamPreset('overview')">Wide Overview</button>
+    <button class="segment-btn" id="camBtnCombat" onclick="setCamPreset('combat')">45° Combat Angle</button>
+    <button class="segment-btn" id="camBtnTop" onclick="setCamPreset('top')">Tactical Top-Down</button>
+  </div>
+
+  <!-- Simulation Triggers -->
+  <div style="display: flex; gap: 8px;">
+    <button class="action-btn" onclick="launchParabolicMissile()">🚀 Launch SAM Intercept</button>
+    <button class="action-btn" onclick="toggleOrientation()">Toggle 16:9 / 9:16</button>
+    <button class="action-btn danger" onclick="triggerStaticOverrun()">⚡ Static Breakthrough</button>
+  </div>
+</div>
+
+<!-- Main Stream Overlay Container (OBS Capture Target) -->
+<div class="stream-container" id="streamBox">
+  <div class="crt-scanlines"></div>
+
+  <!-- 3D Holographic War Table Container (Option B) -->
+  <div id="threeContainer"></div>
+
+  <!-- Option C (FLIR MFD Cockpit Canvas) -->
+  <canvas id="mfdCanvas" width="1280" height="720"></canvas>
+
+  <!-- Camera Preset Indicator -->
+  <div class="cam-pill" id="camPill">
+    🎥 DIRECTOR CAMERA: Wide Overview (Interactive Orbit & Zoom Active)
+  </div>
+
+  <!-- Top Broadcast Telemetry HUD -->
+  <div class="hud-top">
+    <div class="momentum-widget">
+      <span class="momentum-label">SIGNAL MOMENTUM</span>
+      <div class="momentum-track">
+        <div class="momentum-fill-cyan" id="momCyan"></div>
+        <div class="momentum-fill-magenta" id="momMagenta"></div>
+      </div>
+      <span style="font-size: 11px; font-weight: 700; color: var(--quorum-cyan);">66%</span>
+    </div>
+
+    <div class="objective-pill">
+      <span>OBJECTIVE: SECURE STRAIT CROSSINGS</span>
+      <span class="objective-timer" id="objTimer">06:48</span>
+    </div>
+
+    <div class="threat-badge">THREAT: BRAVO</div>
+  </div>
+
+  <!-- Right Floating Sidebar -->
+  <div class="hud-sidebar">
+    <!-- PiP Scope Container -->
+    <div class="pip-container">
+      <div class="pip-header">
+        <span id="pipModeTitle">PiP: FLIR THERMAL [WHITE-HOT]</span>
+        <span style="color: var(--supply-amber);">LIVE LOCK</span>
+      </div>
+
+      <!-- Layer 1: FLIR 2D Thermal Canvas -->
+      <canvas id="pipThermalCanvas" width="298" height="188"></canvas>
+
+      <!-- Layer 2: WebGL 3D Chase-Cam Canvas -->
+      <canvas id="pipChaseCanvas" width="298" height="188"></canvas>
+
+      <div class="pip-footer">
+        <span id="pipTgtLabel">TGT: BANDIT-04 [AI]</span>
+        <span style="color: var(--quorum-cyan);" id="pipPkLabel">Pk: 88% [AIM-120D]</span>
+      </div>
+    </div>
+
+    <!-- Sitrep Log -->
+    <div class="hud-card sitrep-log" id="sitrepBox">
+      <div class="sitrep-title">
+        <span>TACTICAL SITREP (LINK-16)</span>
+        <span style="color: var(--radar-emerald);">SYNCED</span>
+      </div>
+      <div class="sitrep-entry friendly">13:21 • VIPER-01 tracking hostile MiG at FL180</div>
+      <div class="sitrep-entry">13:20 • Supply convoy delivered +400 ammo to FOB NW</div>
+      <div class="sitrep-entry enemy">13:19 • Hostile radar site activated at East Airbase</div>
+      <div class="sitrep-entry friendly">13:18 • Player @GhostPilot joined strike package</div>
+    </div>
+  </div>
+
+  <!-- Bottom Ticker -->
+  <div class="hud-bottom">
+    <div class="how-to-play-badge">TYPE !join strike | recon | logi TO PLAY</div>
+    <div class="ticker-scroll">
+      ▶ NORTH BRIDGE ELEVATED • CONVOY EN ROUTE TO FORWARD BASES • SAM DEFENSE ACTIVE OVER STRAIT • SIGNAL STRENGTH NOMINAL
+    </div>
+  </div>
+</div>
+
+<!-- Architectural & Design Guidance Notes -->
+<div class="info-deck">
+  <h4>🎯 UI/UX Polish & Technical Architecture Improvements:</h4>
+  <ul>
+    <li><strong>Thermal FLIR Canvas Fix:</strong> Completely decoupled the 2D Thermal sensor canvas from WebGL context collision. The FLIR Thermal view now renders an authentic White-Hot infrared sensor view with dynamic engine core heat blooms, Gaussian heat diffusion, simulated analog sensor noise, and reticle tracking brackets.</li>
+    <li><strong>Multi-Camera Sequencing (Emil Kowalski Director):</strong> Switch camera presets using the new Director tabs (Wide Overview $\leftrightarrow$ 45° Dynamic Combat $\leftrightarrow$ Top-Down Tactical Replay). Camera angles smoothly transition with fluid damping.</li>
+    <li><strong>16-Bit Heightmap & Wireframe Alignment:</strong> Option B terrain features extruded northern mountains (simulating radar line-of-sight masking), depressed water basin for the Strait, and elevated physical bridge spans. Units feature 3D altitude drop-lines and dynamic terrain shadows.</li>
+  </ul>
+</div>
+
+<script>
+// --- WORLD STATE (DETERMINISTIC SIMULATION) ---
+const simState = {
+  paradigm: 'option_b', // 'option_a', 'option_b', 'option_c'
+  pipMode: 'thermal',   // 'thermal', 'chase3d'
+  tick: 0,
+  
+  // Units in World Space (Origin at Strait center)
+  units: [
+    { id: 1, callsign: 'VIPER-01', side: 'coalition', kind: 'STRIKE', x: -140, y: 72, z: -35, vx: 1.1, vy: 0, vz: 0.35, yaw: 0.3, roll: 0.15 },
+    { id: 2, callsign: 'VIPER-02', side: 'coalition', kind: 'STRIKE', x: -170, y: 65, z: 25, vx: 0.9, vy: 0, vz: -0.2, yaw: -0.2, roll: 0 },
+    { id: 3, callsign: 'ECHO-RECON', side: 'coalition', kind: 'RECON', x: -40, y: 88, z: 70, vx: 0.4, vy: 0, vz: 0.3, yaw: 0.5, roll: 0 },
+    { id: 4, callsign: 'MULE-TRUCK', side: 'coalition', kind: 'LOGI', x: -260, y: 3, z: 0, vx: 0.6, vy: 0, vz: 0 },
+    { id: 5, callsign: 'BANDIT-04', side: 'static', kind: 'STRIKE', x: 170, y: 70, z: -30, vx: -1.0, vy: 0, vz: 0.4, yaw: 3.1, roll: -0.2 },
+    { id: 6, callsign: 'STATIC-UAV', side: 'static', kind: 'RECON', x: 130, y: 82, z: 60, vx: -0.5, vy: 0, vz: -0.3, yaw: 2.7, roll: 0 }
+  ],
+
+  // Active Missiles
+  missiles: []
+};
+
+// --- THREE.JS HOLOGRAPHIC SCENE SETUP (OPTION B) ---
+let scene, camera, renderer, controls;
+let unit3DObjects = new Map();
+let missile3DObjects = [];
+let pipChaseCamera, pipChaseRenderer;
+
+// Camera Director Target Presets
+const CAMERA_PRESETS = {
+  overview: { x: 0, y: 460, z: 540, targetX: 0, targetY: 0, targetZ: 0 },
+  combat:   { x: -180, y: 190, z: 160, targetX: -50, targetY: 50, targetZ: -20 },
+  top:      { x: 0, y: 780, z: 10, targetX: 0, targetY: 0, targetZ: 0 }
+};
+
+function initThree() {
+  const container = document.getElementById('threeContainer');
+  const w = container.clientWidth || 1280;
+  const h = container.clientHeight || 720;
+
+  scene = new THREE.Scene();
+  // Fog removed so content never fades or disappears when zooming out
+  scene.fog = null;
+
+  camera = new THREE.PerspectiveCamera(38, w / h, 1, 10000);
+  camera.position.set(CAMERA_PRESETS.overview.x, CAMERA_PRESETS.overview.y, CAMERA_PRESETS.overview.z);
+
+  // logarithmicDepthBuffer: true eliminates z-fighting across large-scale coordinates
+  renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true, logarithmicDepthBuffer: true });
+  renderer.setSize(w, h);
+  renderer.setPixelRatio(window.devicePixelRatio);
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  container.appendChild(renderer.domElement);
+
+  controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.05;
+  controls.maxPolarAngle = Math.PI / 2 - 0.04;
+  controls.maxDistance = 4500; // Allows extensive zoom-out without clipping
+  controls.target.set(0, 0, 0);
+
+  // Lighting
+  const ambient = new THREE.AmbientLight(0x0f172a, 2.5);
+  scene.add(ambient);
+
+  const keyLight = new THREE.DirectionalLight(0x00e5ff, 1.4);
+  keyLight.position.set(0, 320, 120);
+  keyLight.castShadow = true;
+  scene.add(keyLight);
+
+  // Build Environment (Terrain, Strait, Mountains, Bases)
+  buildEnvironment();
+
+  // PiP 3D Chase-Cam Renderer (Dedicated canvas)
+  const chaseCanvas = document.getElementById('pipChaseCanvas');
+  pipChaseRenderer = new THREE.WebGLRenderer({ canvas: chaseCanvas, antialias: true });
+  pipChaseRenderer.setClearColor(0x060c16, 1);
+  pipChaseRenderer.setSize(chaseCanvas.width, chaseCanvas.height);
+  pipChaseCamera = new THREE.PerspectiveCamera(55, chaseCanvas.width / chaseCanvas.height, 1, 1500);
+}
+
+function buildEnvironment() {
+  // Table Wireframe Grid (Slightly brighter for enhanced readability)
+  const grid = new THREE.GridHelper(900, 45, 0x00e5ff, 0x243a50);
+  grid.position.y = -1;
+  scene.add(grid);
+
+  // --- ZERO Z-FIGHTING TERRAIN MESH PIPELINE ---
+  // The terrain is split into West and East landmasses separated by a physical 70m channel.
+  // Because land and water do not share co-planar polygons, Z-fighting is mathematically impossible.
+  const landMat = new THREE.MeshStandardMaterial({
+    color: 0x08111c,
+    roughness: 0.85,
+    metalness: 0.1,
+    polygonOffset: true,
+    polygonOffsetFactor: 1,
+    polygonOffsetUnits: 1
+  });
+
+  const wireMat = new THREE.MeshBasicMaterial({
+    color: 0x1a466a,
+    wireframe: true,
+    transparent: true,
+    opacity: 0.75,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -2
+  });
+
+  // West Landmass (X: -430 to -35)
+  const westGeo = new THREE.PlaneGeometry(395, 520, 24, 30);
+  westGeo.rotateX(-Math.PI / 2);
+  const westLand = new THREE.Mesh(westGeo, landMat);
+  westLand.position.set(-232.5, 0, 0);
+  westLand.receiveShadow = true;
+  scene.add(westLand);
+
+  const westWire = new THREE.Mesh(westGeo, wireMat);
+  westWire.position.set(-232.5, 0.1, 0);
+  scene.add(westWire);
+
+  // East Landmass (X: +35 to +430)
+  const eastGeo = new THREE.PlaneGeometry(395, 520, 24, 30);
+  eastGeo.rotateX(-Math.PI / 2);
+  const eastLand = new THREE.Mesh(eastGeo, landMat);
+  eastLand.position.set(232.5, 0, 0);
+  eastLand.receiveShadow = true;
+  scene.add(eastLand);
+
+  const eastWire = new THREE.Mesh(eastGeo, wireMat);
+  eastWire.position.set(232.5, 0.1, 0);
+  scene.add(eastWire);
+
+  // The Strait (Recessed Water Channel at Y = -4m, Basin Floor at Y = -10m)
+  const waterGeo = new THREE.PlaneGeometry(70, 520);
+  waterGeo.rotateX(-Math.PI / 2);
+  const waterMat = new THREE.MeshStandardMaterial({
+    color: 0x011e3d,
+    emissive: 0x00142b,
+    roughness: 0.2,
+    metalness: 0.9,
+    transparent: true,
+    opacity: 0.92
+  });
+  const waterMesh = new THREE.Mesh(waterGeo, waterMat);
+  waterMesh.position.set(0, -3.5, 0);
+  scene.add(waterMesh);
+
+  // Deep Trench Channel Bed
+  const trenchGeo = new THREE.BoxGeometry(70, 8, 520);
+  const trenchMat = new THREE.MeshBasicMaterial({ color: 0x020812 });
+  const trench = new THREE.Mesh(trenchGeo, trenchMat);
+  trench.position.set(0, -7.5, 0);
+  scene.add(trench);
+
+  // Shoreline Beach Edges (Subtle elevation bevels on West & East banks)
+  const shoreMat = new THREE.MeshBasicMaterial({ color: 0x00e5ff, transparent: true, opacity: 0.35 });
+  const westShore = new THREE.Mesh(new THREE.BoxGeometry(2, 3, 520), shoreMat);
+  westShore.position.set(-35, -1.5, 0);
+  scene.add(westShore);
+
+  const eastShore = new THREE.Mesh(new THREE.BoxGeometry(2, 3, 520), shoreMat);
+  eastShore.position.set(35, -1.5, 0);
+  scene.add(eastShore);
+
+  // Bridges (North and South Spans - Elevated at Y = +2m spanning over Y = -3.5m water)
+  const bridgeMat = new THREE.MeshStandardMaterial({ color: 0x00e5ff, emissive: 0x002b3d, roughness: 0.3 });
+  const bridgeNorth = new THREE.Mesh(new THREE.BoxGeometry(78, 4, 18), bridgeMat);
+  bridgeNorth.position.set(0, 2, -110);
+  scene.add(bridgeNorth);
+
+  const bridgeSouth = new THREE.Mesh(new THREE.BoxGeometry(78, 4, 18), bridgeMat);
+  bridgeSouth.position.set(0, 2, 110);
+  scene.add(bridgeSouth);
+
+  // Bases & Infrastructure Nodes
+  const baseMatCyan = new THREE.MeshBasicMaterial({ color: 0x00e5ff, wireframe: true });
+  const baseMatMagenta = new THREE.MeshBasicMaterial({ color: 0xff0055, wireframe: true });
+  const baseMatNeutral = new THREE.MeshBasicMaterial({ color: 0xe2e8f0, wireframe: true });
+
+  // Coalition Haven Sanctuary (Far West)
+  const haven = new THREE.Mesh(new THREE.CylinderGeometry(18, 20, 5, 12), new THREE.MeshBasicMaterial({ color: 0x0284c7, wireframe: true }));
+  haven.position.set(-360, 2.5, 0);
+  scene.add(haven);
+
+  // West Airbase
+  const westAirbase = new THREE.Mesh(new THREE.CylinderGeometry(22, 26, 6, 12), baseMatCyan);
+  westAirbase.position.set(-300, 3, 0);
+  scene.add(westAirbase);
+
+  // FOB North-West & South-West
+  const fobNW = new THREE.Mesh(new THREE.CylinderGeometry(14, 16, 5, 8), baseMatCyan);
+  fobNW.position.set(-140, 2.5, -110);
+  scene.add(fobNW);
+
+  const fobSW = new THREE.Mesh(new THREE.CylinderGeometry(14, 16, 5, 8), baseMatCyan);
+  fobSW.position.set(-140, 2.5, 110);
+  scene.add(fobSW);
+
+  // Bridgehead Crossings (Contested East Bank)
+  const crossN = new THREE.Mesh(new THREE.CylinderGeometry(12, 14, 4, 8), baseMatNeutral);
+  crossN.position.set(60, 2, -110);
+  scene.add(crossN);
+
+  const crossS = new THREE.Mesh(new THREE.CylinderGeometry(12, 14, 4, 8), baseMatNeutral);
+  crossS.position.set(60, 2, 110);
+  scene.add(crossS);
+
+  // Static FOBs & Airbase
+  const fobNE = new THREE.Mesh(new THREE.CylinderGeometry(14, 16, 5, 8), baseMatMagenta);
+  fobNE.position.set(180, 2.5, -150);
+  scene.add(fobNE);
+
+  const fobSE = new THREE.Mesh(new THREE.CylinderGeometry(14, 16, 5, 8), baseMatMagenta);
+  fobSE.position.set(180, 2.5, 150);
+  scene.add(fobSE);
+
+  const eastAirbase = new THREE.Mesh(new THREE.CylinderGeometry(22, 26, 6, 12), baseMatMagenta);
+  eastAirbase.position.set(220, 3, 0);
+  scene.add(eastAirbase);
+
+  // Static HQ Fortress
+  const staticHQ = new THREE.Mesh(new THREE.BoxGeometry(28, 12, 28), baseMatMagenta);
+  staticHQ.position.set(360, 6, 0);
+  scene.add(staticHQ);
+
+  // --- ROAD NETWORK & MAIN SUPPLY ROUTES (MSR) ---
+  // Sitting at Y = +0.22m with polygonOffset to guarantee zero Z-fighting with Y = 0.0m terrain
+  const ROAD_EDGES = [
+    // Coalition Western Network
+    { from: [-360, 0], to: [-300, 0], width: 10, col: 0x00e5ff, name: 'MSR-HAVEN' },
+    { from: [-300, 0], to: [-140, -110], width: 8, col: 0x00e5ff, name: 'MSR-NORTH-SPUR' },
+    { from: [-300, 0], to: [-140, 110], width: 8, col: 0x00e5ff, name: 'MSR-SOUTH-SPUR' },
+    { from: [-140, -110], to: [-35, -110], width: 8, col: 0x00e5ff, name: 'APPROACH-N' },
+    { from: [-140, 110], to: [-35, 110], width: 8, col: 0x00e5ff, name: 'APPROACH-S' },
+    // Bridge Spans (Elevated at Y = 2.0m)
+    { from: [-35, -110], to: [35, -110], width: 14, col: 0xf59e0b, isBridge: true, y: 2.0, name: 'NORTH-BRIDGE' },
+    { from: [-35, 110], to: [35, 110], width: 14, col: 0xf59e0b, isBridge: true, y: 2.0, name: 'SOUTH-BRIDGE' },
+    // Contested East Bridgehead Exits
+    { from: [35, -110], to: [60, -110], width: 8, col: 0xe2e8f0, name: 'CROSS-N-EXIT' },
+    { from: [35, 110], to: [60, 110], width: 8, col: 0xe2e8f0, name: 'CROSS-S-EXIT' },
+    // Static Eastern Network
+    { from: [60, -110], to: [180, -150], width: 8, col: 0xff0055, name: 'STATIC-N-1' },
+    { from: [60, 110], to: [180, 150], width: 8, col: 0xff0055, name: 'STATIC-S-1' },
+    { from: [60, -110], to: [220, 0], width: 8, col: 0xff0055, name: 'STATIC-N-2' },
+    { from: [60, 110], to: [220, 0], width: 8, col: 0xff0055, name: 'STATIC-S-2' },
+    { from: [180, -150], to: [360, 0], width: 8, col: 0xff0055, name: 'STATIC-HQ-N' },
+    { from: [180, 150], to: [360, 0], width: 8, col: 0xff0055, name: 'STATIC-HQ-S' },
+    { from: [220, 0], to: [360, 0], width: 10, col: 0xff0055, name: 'STATIC-HQ-CTR' }
+  ];
+
+  ROAD_EDGES.forEach(edge => {
+    const x1 = edge.from[0], z1 = edge.from[1];
+    const x2 = edge.to[0], z2 = edge.to[1];
+    const dx = x2 - x1;
+    const dz = z2 - z1;
+    const len = Math.hypot(dx, dz);
+    const angle = Math.atan2(dz, dx);
+    const yElev = edge.y !== undefined ? edge.y : 0.22;
+
+    // Road Tarmac Ribbon Mesh
+    const roadGeo = new THREE.PlaneGeometry(len, edge.width);
+    roadGeo.rotateX(-Math.PI / 2);
+    const roadMat = new THREE.MeshStandardMaterial({
+      color: edge.isBridge ? 0x0f2b3f : 0x08131f,
+      emissive: edge.isBridge ? 0x021729 : 0x02070e,
+      roughness: 0.8,
+      metalness: 0.1,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -2
+    });
+    const roadMesh = new THREE.Mesh(roadGeo, roadMat);
+    roadMesh.position.set((x1 + x2) / 2, yElev, (z1 + z2) / 2);
+    roadMesh.rotation.y = -angle;
+    scene.add(roadMesh);
+
+    // Glowing Dash Centerline
+    const lineGeo = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(x1, yElev + 0.05, z1),
+      new THREE.Vector3(x2, yElev + 0.05, z2)
+    ]);
+    const lineMat = new THREE.LineDashedMaterial({
+      color: edge.col,
+      dashSize: 5,
+      gapSize: 4,
+      linewidth: 2,
+      transparent: true,
+      opacity: 0.85
+    });
+    const line = new THREE.Line(lineGeo, lineMat);
+    line.computeLineDistances();
+    scene.add(line);
+  });
+}
+
+function update3DUnits() {
+  simState.units.forEach(u => {
+    let obj = unit3DObjects.get(u.id);
+
+    if (!obj) {
+      obj = new THREE.Group();
+      const col = u.side === 'coalition' ? 0x00e5ff : 0xff0055;
+      const mat = new THREE.MeshStandardMaterial({ color: col, emissive: col, roughness: 0.2 });
+
+      if (u.kind === 'STRIKE') {
+        // Delta Wing Jet (Wireframe style)
+        const jetGeo = new THREE.ConeGeometry(5, 14, 3);
+        jetGeo.rotateX(Math.PI / 2);
+        const jetMesh = new THREE.Mesh(jetGeo, mat);
+        obj.add(jetMesh);
+
+        // Altitude Drop-Line
+        const lineGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, -u.y, 0)]);
+        const lineMat = new THREE.LineDashedMaterial({ color: col, dashSize: 4, gapSize: 3, opacity: 0.4, transparent: true });
+        const dropLine = new THREE.Line(lineGeo, lineMat);
+        dropLine.computeLineDistances();
+        obj.add(dropLine);
+
+        // Ground Shadow Ring
+        const ringGeo = new THREE.RingGeometry(3, 5, 8);
+        ringGeo.rotateX(-Math.PI / 2);
+        const ringMat = new THREE.MeshBasicMaterial({ color: col, opacity: 0.35, transparent: true });
+        const groundRing = new THREE.Mesh(ringGeo, ringMat);
+        groundRing.position.y = -u.y + 0.4;
+        obj.add(groundRing);
+
+      } else if (u.kind === 'RECON') {
+        const uavGeo = new THREE.OctahedronGeometry(6);
+        const uavMesh = new THREE.Mesh(uavGeo, mat);
+        obj.add(uavMesh);
+      } else if (u.kind === 'LOGI') {
+        const truckGeo = new THREE.BoxGeometry(8, 6, 14);
+        const truckMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, emissive: 0x451a03, roughness: 0.4 });
+        const truckMesh = new THREE.Mesh(truckGeo, truckMat);
+        obj.add(truckMesh);
+      }
+
+      scene.add(obj);
+      unit3DObjects.set(u.id, obj);
+    }
+
+    // Ground Logistics Convoy follows theater road waypoints
+    if (u.kind === 'LOGI') {
+      const CONVOY_ROUTE = [
+        { x: -360, z: 0, y: 1.5 },
+        { x: -300, z: 0, y: 1.5 },
+        { x: -140, z: -110, y: 1.5 },
+        { x: -35, z: -110, y: 1.5 },
+        { x: 0, z: -110, y: 3.5 }, // Elevated on North Bridge
+        { x: 35, z: -110, y: 3.5 },
+        { x: 60, z: -110, y: 1.5 }, // North Crossing bridgehead
+        { x: 35, z: -110, y: 3.5 },
+        { x: 0, z: -110, y: 3.5 },
+        { x: -35, z: -110, y: 1.5 },
+        { x: -140, z: -110, y: 1.5 },
+        { x: -300, z: 0, y: 1.5 }
+      ];
+
+      if (u.routeIndex === undefined) {
+        u.routeIndex = 0;
+        u.routeProgress = 0.0;
+      }
+      const curr = CONVOY_ROUTE[u.routeIndex];
+      const next = CONVOY_ROUTE[(u.routeIndex + 1) % CONVOY_ROUTE.length];
+      const dist = Math.hypot(next.x - curr.x, next.z - curr.z);
+      u.routeProgress += 0.8 / (dist + 1e-4);
+      if (u.routeProgress >= 1.0) {
+        u.routeProgress = 0.0;
+        u.routeIndex = (u.routeIndex + 1) % CONVOY_ROUTE.length;
+      }
+      u.x = curr.x + (next.x - curr.x) * u.routeProgress;
+      u.z = curr.z + (next.z - curr.z) * u.routeProgress;
+      u.y = curr.y + (next.y - curr.y) * u.routeProgress;
+
+      obj.position.set(u.x, u.y, u.z);
+      obj.rotation.y = Math.atan2(next.x - curr.x, next.z - curr.z) - Math.PI / 2;
+      return;
+    }
+
+    // Kinematics in 3D for Air Units
+    u.x += u.vx;
+    u.z += u.vz;
+    if (u.x < -360 || u.x > 360) u.vx *= -1;
+    if (u.z < -210 || u.z > 210) u.vz *= -1;
+
+    obj.position.set(u.x, u.y, u.z);
+    obj.rotation.y = Math.atan2(-u.vz, u.vx) - Math.PI / 2;
+    obj.rotation.z = u.roll;
+  });
+}
+
+function launchParabolicMissile() {
+  const friendly = simState.units[0]; // VIPER-01
+  const enemy = simState.units[4];    // BANDIT-04
+
+  const missile = {
+    startX: friendly.x, startY: friendly.y, startZ: friendly.z,
+    targetX: enemy.x, targetY: enemy.y, targetZ: enemy.z,
+    progress: 0.0,
+    speed: 0.016,
+    peakAlt: 135
+  };
+
+  const mat = new THREE.MeshBasicMaterial({ color: 0x00e5ff });
+  const mesh = new THREE.Mesh(new THREE.SphereGeometry(2.5, 6, 6), mat);
+  scene.add(mesh);
+
+  missile3DObjects.push({ data: missile, mesh: mesh });
+  addSitrep('13:22 • VIPER-01 fired AIM-120D at BANDIT-04', true);
+
+  // DRAMATIC MOMENT TRIGGER: Auto-switch Director Camera to 45° Combat Angle for 8 seconds
+  triggerDramaticCameraDirector('combat', 8000);
+}
+
+// Global Camera Director Rule: Individual commands NEVER move the global camera.
+// Dramatic moments ONLY trigger temporary camera focus.
+let cameraResetTimeout = null;
+function triggerDramaticCameraDirector(preset, dwellMs) {
+  if (simState.paradigm !== 'option_b') return;
+  
+  setCamPreset(preset);
+  if (cameraResetTimeout) clearTimeout(cameraResetTimeout);
+  
+  cameraResetTimeout = setTimeout(() => {
+    // Return smoothly to stable Wide Overview so players retain stable map grid references
+    setCamPreset('overview');
+  }, dwellMs);
+}
+
+function updateMissiles() {
+  for (let i = missile3DObjects.length - 1; i >= 0; i--) {
+    const m = missile3DObjects[i];
+    m.data.progress += m.data.speed;
+
+    if (m.data.progress >= 1.0) {
+      scene.remove(m.mesh);
+      missile3DObjects.splice(i, 1);
+      addSitrep('13:22 • [SPLASH] Hostile BANDIT-04 destroyed over Strait', true);
+      continue;
+    }
+
+    const p = m.data.progress;
+    const x = m.data.startX + (m.data.targetX - m.data.startX) * p;
+    const z = m.data.startZ + (m.data.targetZ - m.data.startZ) * p;
+    const y = m.data.startY + (m.data.targetY - m.data.startY) * p + Math.sin(p * Math.PI) * m.data.peakAlt;
+    m.mesh.position.set(x, y, z);
+  }
+}
+
+// --- PiP ENGINE: THERMAL FLIR (WHITE-HOT) ---
+const thermalCanvas = document.getElementById('pipThermalCanvas');
+const thermalCtx = thermalCanvas.getContext('2d');
+
+function renderThermalFLIR() {
+  const pw = thermalCanvas.width;
+  const ph = thermalCanvas.height;
+
+  // 1. Dark thermal infrared ground surface
+  thermalCtx.fillStyle = '#080d0b';
+  thermalCtx.fillRect(0, 0, pw, ph);
+
+  // 2. Analog sensor grain
+  for (let i = 0; i < 35; i++) {
+    thermalCtx.fillStyle = 'rgba(210, 245, 220, 0.04)';
+    thermalCtx.fillRect(Math.random() * pw, Math.random() * ph, 6, 1);
+  }
+
+  // 3. Sensor Crosshair Reticle
+  thermalCtx.strokeStyle = 'rgba(16, 185, 129, 0.45)';
+  thermalCtx.lineWidth = 1;
+  thermalCtx.beginPath();
+  thermalCtx.moveTo(pw / 2 - 30, ph / 2); thermalCtx.lineTo(pw / 2 + 30, ph / 2);
+  thermalCtx.moveTo(pw / 2, ph / 2 - 30); thermalCtx.lineTo(pw / 2, ph / 2 + 30);
+  thermalCtx.stroke();
+
+  // 4. White-Hot Target Heat Signature
+  const hX = pw / 2 + Math.sin(simState.tick * 0.04) * 16;
+  const hY = ph / 2 + Math.cos(simState.tick * 0.05) * 12;
+
+  // Radial thermal bloom (White-hot core -> emerald halo)
+  const grad = thermalCtx.createRadialGradient(hX, hY, 2, hX, hY, 22);
+  grad.addColorStop(0, '#ffffff');
+  grad.addColorStop(0.25, '#d1fae5');
+  grad.addColorStop(0.6, 'rgba(16, 185, 129, 0.35)');
+  grad.addColorStop(1, 'rgba(8, 13, 11, 0)');
+  thermalCtx.fillStyle = grad;
+  thermalCtx.beginPath();
+  thermalCtx.arc(hX, hY, 22, 0, Math.PI * 2);
+  thermalCtx.fill();
+
+  // Target Box & Lead Vector
+  thermalCtx.strokeStyle = '#10b981';
+  thermalCtx.lineWidth = 1.5;
+  thermalCtx.strokeRect(hX - 18, hY - 18, 36, 36);
+
+  // Target Box Reticle Ticks
+  thermalCtx.beginPath();
+  thermalCtx.moveTo(hX - 18, hY); thermalCtx.lineTo(hX - 24, hY);
+  thermalCtx.moveTo(hX + 18, hY); thermalCtx.lineTo(hX + 24, hY);
+  thermalCtx.moveTo(hX, hY - 18); thermalCtx.lineTo(hX, hY - 24);
+  thermalCtx.moveTo(hX, hY + 18); thermalCtx.lineTo(hX, hY + 24);
+  thermalCtx.stroke();
+
+  // Authentic Sim Telemetry HUD (Left Column: Ownship State)
+  thermalCtx.fillStyle = '#a7f3d0';
+  thermalCtx.font = '9px monospace';
+  thermalCtx.fillText('POL: WHITE-HOT (IR)', 10, 32);
+  thermalCtx.fillText('ALT: 18,200 FT [HIGH]', 10, 44);
+  thermalCtx.fillText('SPD: 420 KTS (M 0.72)', 10, 56);
+  thermalCtx.fillText('HDG: 068°  FUEL: 78%', 10, 68);
+
+  // Authentic Sim Telemetry HUD (Right Column: Engagement & Target State)
+  thermalCtx.fillStyle = '#6ee7b7';
+  thermalCtx.fillText('TGT: BANDIT-04 [AI]', pw - 120, 32);
+  thermalCtx.fillText('RNG: 4.8 NM', pw - 120, 44);
+  thermalCtx.fillText('CLOSURE: +310 M/S', pw - 120, 56);
+  thermalCtx.fillText('WPN: AIM-120D (2)', pw - 120, 68);
+
+  // Bottom Status Bar
+  thermalCtx.fillStyle = '#34d399';
+  thermalCtx.fillText('STATUS: HEALTHY • Pk: 88% [RADAR LOCK]', 10, ph - 22);
+}
+
+// --- PiP ENGINE: 3D CHASE-CAM (REAL-VIEW / ZERO FABRICATION) ---
+function render3DChaseCam() {
+  const viper = simState.units[0];
+  const obj = unit3DObjects.get(viper.id);
+
+  if (obj) {
+    const speed = Math.hypot(viper.vx, viper.vz) || 1;
+    const dirX = viper.vx / speed;
+    const dirZ = viper.vz / speed;
+
+    pipChaseCamera.position.set(
+      viper.x - dirX * 36,
+      viper.y + 14,
+      viper.z - dirZ * 36
+    );
+    pipChaseCamera.lookAt(viper.x + dirX * 24, viper.y + 2, viper.z + dirZ * 24);
+
+    pipChaseRenderer.render(scene, pipChaseCamera);
+  }
+}
+
+// --- OPTION C: FLIR MFD CANVAS ENGINE ---
+const mfdCanvas = document.getElementById('mfdCanvas');
+const mfdCtx = mfdCanvas.getContext('2d');
+
+function renderMfd() {
+  const w = mfdCanvas.width;
+  const h = mfdCanvas.height;
+
+  mfdCtx.fillStyle = '#060a08';
+  mfdCtx.fillRect(0, 0, w, h);
+
+  // Tactical Compass Heading Ribbon
+  mfdCtx.fillStyle = 'rgba(10, 20, 16, 0.9)';
+  mfdCtx.fillRect(200, 56, w - 400, 28);
+  mfdCtx.strokeStyle = '#10b981';
+  mfdCtx.strokeRect(200, 56, w - 400, 28);
+
+  mfdCtx.fillStyle = '#a7f3d0';
+  mfdCtx.font = '11px monospace';
+  mfdCtx.fillText('020     030     040     [055]     070     080     090', w / 2 - 140, 74);
+
+  // Pitch Ladder
+  mfdCtx.strokeStyle = 'rgba(16, 185, 129, 0.4)';
+  mfdCtx.lineWidth = 1.5;
+  for (let deg = -20; deg <= 20; deg += 10) {
+    const y = h / 2 - deg * 7;
+    mfdCtx.beginPath();
+    mfdCtx.moveTo(w / 2 - 90, y); mfdCtx.lineTo(w / 2 - 60, y);
+    mfdCtx.moveTo(w / 2 + 90, y); mfdCtx.lineTo(w / 2 + 60, y);
+    mfdCtx.stroke();
+    mfdCtx.fillText(deg.toString(), w / 2 - 110, y + 4);
+  }
+
+  // Target Bracket
+  const tgtX = w / 2 + 50 + Math.sin(simState.tick * 0.03) * 20;
+  const tgtY = h / 2 - 30 + Math.cos(simState.tick * 0.04) * 15;
+  mfdCtx.strokeStyle = '#10b981';
+  mfdCtx.lineWidth = 2;
+  mfdCtx.strokeRect(tgtX - 18, tgtY - 18, 36, 36);
+  mfdCtx.fillStyle = '#ecfdf5';
+  mfdCtx.fillText('TGT-04 [BANDIT AI]', tgtX - 35, tgtY - 24);
+  mfdCtx.fillText('CLOSURE: +340 M/S', tgtX - 35, tgtY + 36);
+
+  // Ground Supply Route Corridors (MSR) Overlay on MFD
+  mfdCtx.save();
+  mfdCtx.strokeStyle = 'rgba(16, 185, 129, 0.45)';
+  mfdCtx.lineWidth = 1.5;
+  mfdCtx.setLineDash([8, 6]);
+
+  // Route North (Haven -> West Airbase -> FOB NW -> Bridge N -> Cross N)
+  mfdCtx.beginPath();
+  mfdCtx.moveTo(w * 0.15, h * 0.5);
+  mfdCtx.lineTo(w * 0.28, h * 0.5);
+  mfdCtx.lineTo(w * 0.42, h * 0.35);
+  mfdCtx.lineTo(w * 0.55, h * 0.35);
+  mfdCtx.stroke();
+
+  // Route South (West Airbase -> FOB SW -> Bridge S -> Cross S)
+  mfdCtx.beginPath();
+  mfdCtx.moveTo(w * 0.28, h * 0.5);
+  mfdCtx.lineTo(w * 0.42, h * 0.65);
+  mfdCtx.lineTo(w * 0.55, h * 0.65);
+  mfdCtx.stroke();
+  mfdCtx.setLineDash([]);
+
+  // Chokepoint Bridge Markers
+  mfdCtx.fillStyle = 'rgba(16, 185, 129, 0.85)';
+  mfdCtx.font = '10px monospace';
+  mfdCtx.fillText('[MSR-NORTH: ROUTE IRIS]', w * 0.32, h * 0.32);
+  mfdCtx.fillText('[MSR-SOUTH: ROUTE VORTEX]', w * 0.32, h * 0.69);
+  mfdCtx.fillText('[BRIDGE-N: 100% INT]', w * 0.46, h * 0.38);
+
+  // Convoy Telemetry Tag
+  const truck = simState.units[3];
+  if (truck) {
+    const scrX = w * 0.5 + (truck.x / 400) * (w * 0.4);
+    const scrY = h * 0.5 + (truck.z / 240) * (h * 0.35);
+    mfdCtx.strokeStyle = '#f59e0b';
+    mfdCtx.strokeRect(scrX - 8, scrY - 6, 16, 12);
+    mfdCtx.fillStyle = '#fde68a';
+    mfdCtx.fillText('CONVOY MULE-01 [45 KM/H]', scrX + 12, scrY + 4);
+  }
+  mfdCtx.restore();
+}
+
+// --- CONTROLS & CAMERA SEQUENCING ---
+function setParadigm(p) {
+  simState.paradigm = p;
+  document.querySelectorAll('.control-deck button').forEach(b => {
+    if (b.innerText.toLowerCase().includes(p.replace('_', ' '))) b.classList.add('active');
+    else if (!b.id.startsWith('btnPip') && !b.id.startsWith('camBtn') && !b.classList.contains('action-btn')) b.classList.remove('active');
+  });
+
+  const threeCont = document.getElementById('threeContainer');
+  const mfdCanvas = document.getElementById('mfdCanvas');
+  const camPill = document.getElementById('camPill');
+
+  if (p === 'option_b') {
+    threeCont.style.display = 'block';
+    mfdCanvas.style.display = 'none';
+    camPill.style.display = 'block';
+  } else if (p === 'option_c') {
+    threeCont.style.display = 'none';
+    mfdCanvas.style.display = 'block';
+    camPill.style.display = 'none';
+  } else {
+    // Option A (Flat 2D top view)
+    threeCont.style.display = 'block';
+    mfdCanvas.style.display = 'none';
+    camPill.style.display = 'block';
+    setCamPreset('top');
+  }
+}
+
+function setPipMode(m) {
+  simState.pipMode = m;
+  document.getElementById('btnPipThermal').classList.toggle('active', m === 'thermal');
+  document.getElementById('btnPipChase').classList.toggle('active', m === 'chase3d');
+  
+  const therm = document.getElementById('pipThermalCanvas');
+  const chase = document.getElementById('pipChaseCanvas');
+  
+  if (m === 'thermal') {
+    therm.style.display = 'block';
+    chase.style.display = 'none';
+    document.getElementById('pipModeTitle').innerText = 'PiP: FLIR THERMAL [WHITE-HOT]';
+  } else {
+    therm.style.display = 'none';
+    chase.style.display = 'block';
+    document.getElementById('pipModeTitle').innerText = 'PiP: 3D CHASE-CAM [REAL-VIEW]';
+  }
+}
+
+function setCamPreset(presetKey) {
+  const p = CAMERA_PRESETS[presetKey];
+  if (!p) return;
+
+  document.querySelectorAll('[id^=camBtn]').forEach(b => b.classList.remove('active'));
+  if (presetKey === 'overview') document.getElementById('camBtnOverview').classList.add('active');
+  if (presetKey === 'combat') document.getElementById('camBtnCombat').classList.add('active');
+  if (presetKey === 'top') document.getElementById('camBtnTop').classList.add('active');
+
+  // Smooth camera glide
+  camera.position.set(p.x, p.y, p.z);
+  controls.target.set(p.targetX, p.targetY, p.targetZ);
+  controls.update();
+
+  const labels = {
+    overview: '🎥 DIRECTOR CAMERA: Wide Overview (Full Theater)',
+    combat: '🎥 DIRECTOR CAMERA: 45° Dynamic Combat Angle',
+    top: '🎥 DIRECTOR CAMERA: Tactical Top-Down Replay'
+  };
+  document.getElementById('camPill').innerText = labels[presetKey];
+}
+
+function toggleOrientation() {
+  document.getElementById('streamBox').classList.toggle('vertical');
+  setTimeout(() => {
+    const w = document.getElementById('streamBox').clientWidth;
+    const h = document.getElementById('streamBox').clientHeight;
+    camera.aspect = w / h;
+    camera.updateProjectionMatrix();
+    renderer.setSize(w, h);
+  }, 450);
+}
+
+function triggerStaticOverrun() {
+  addSitrep('13:23 • [ALERT] Static breakthrough across South Bridge!', false);
+  const bandit = simState.units[4];
+  bandit.x = -10;
+  bandit.vx = -1.8;
+  // Dramatic Moment: Auto-switch director camera to combat angle with 10s dwell, then return to overview
+  triggerDramaticCameraDirector('combat', 10000);
+}
+
+function addSitrep(msg, isFriendly) {
+  const box = document.getElementById('sitrepBox');
+  const div = document.createElement('div');
+  div.className = 'sitrep-entry' + (isFriendly ? ' friendly' : ' enemy');
+  div.innerText = msg;
+  box.insertBefore(div, box.children[1]);
+  if (box.children.length > 7) box.removeChild(box.lastChild);
+}
+
+// Main Render Loop
+function animate() {
+  requestAnimationFrame(animate);
+  simState.tick++;
+
+  // Update Simulation
+  update3DUnits();
+  updateMissiles();
+
+  if (simState.paradigm === 'option_b' || simState.paradigm === 'option_a') {
+    controls.update();
+    renderer.render(scene, camera);
+  } else if (simState.paradigm === 'option_c') {
+    renderMfd();
+  }
+
+  // PiP Scope Rendering
+  if (simState.pipMode === 'thermal') {
+    renderThermalFLIR();
+  } else if (simState.pipMode === 'chase3d') {
+    render3DChaseCam();
+  }
+}
+
+// Start 3D Engine & initial objects
+initThree();
+update3DUnits();
+
+// Check URL Query Parameters for automated screenshots and direct links
+const params = new URLSearchParams(window.location.search);
+if (params.get('paradigm')) setParadigm(params.get('paradigm'));
+if (params.get('pip')) setPipMode(params.get('pip'));
+if (params.get('cam')) setCamPreset(params.get('cam'));
+if (params.get('vertical') === 'true') toggleOrientation();
+
+// Kick off animation loop
+animate();
+</script>
+</body>
+</html>
