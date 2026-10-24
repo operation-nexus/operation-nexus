@@ -1,0 +1,61 @@
+---
+name: hiveplex-visualization
+description: >-
+  Engineering, procedural generation, visual styling, and headless review for
+  Hiveplex / Operation Nexus live simulation rendering across 2D, 3D holographic tabletop,
+  and FLIR MFD glass cockpit paradigms. Use whenever designing, testing, modifying,
+  or verifying visual frontends, 3D terrain meshes, road networks, camera sequencing,
+  or automated video clipping pipelines.
+---
+
+# Hiveplex Visualization & Simulation Rendering Skill
+
+This skill teaches agents how to design, generate, debug, and visually verify rendering engines, 3D terrain meshes, road supply networks, and live broadcast overlays for **Operation Nexus / Hiveplex**.
+
+---
+
+## 1. Core Engineering Workflow
+
+When tasked with creating, modifying, or auditing a visual component or renderer:
+
+1. **Enforce State Decoupling:**
+   - Keep rendering logic strictly downstream of simulation state (`RenderFrameState`).
+   - Consult [Decoupled Rendering Architecture](./references/decoupled-rendering.md).
+   - Ensure zero fabricated kinematics (DATA-INTEGRITY DI-1).
+
+2. **Check Elevation Budget & Avoid Z-Fighting:**
+   - Ground terrain at $Y = 0.00\text{m}$.
+   - Road ribbons at $Y = +0.22\text{m}$ with `polygonOffset: true`.
+   - Elevated bridges at $Y = +2.00\text{m}$.
+   - Recessed water channel at $Y = -3.50\text{m}$.
+   - Consult [Elevation Budgeting & Z-Fighting Immunity](./references/elevation-budget-and-zfighting.md).
+
+3. **Generate or Verify 3D Geometry:**
+   - To bake or update procedural 3D terrain meshes (`.obj`), execute:
+     `python3 ./scripts/generate_terrain_model.py --output content/theaters/strait-1-terrain.obj`
+   - To convert vector GeoJSON biomes and road networks into spatial grids, use:
+     `python3 tools/terrain/geojson_to_mask.py --input content/theaters/strait-1-biomes.geojson`
+
+4. **Multi-Paradigm Support:**
+   - Ensure the renderer supports swappable views:
+     - **Option A**: 2D Tactical Signal Map.
+     - **Option B**: 3D Holographic Tabletop with road ribbons and radar domes.
+     - **Option C**: FLIR MFD Glass Cockpit with thermal corridors and targeting reticles.
+
+5. **Headless Visual Review & Verification:**
+   - Never commit visual changes without capturing and inspecting screenshots.
+   - Run the automated review capture script:
+     `./scripts/capture_review_screenshot.sh tools/prototype/visualizer-sandbox.html review.png 1600,1050 2500`
+   - Consult [Headless Visual Review Runbook](./references/headless-visual-review.md).
+
+---
+
+## 2. Directory Layout & Available Helpers
+
+- **Scripts:**
+  - [`capture_review_screenshot.sh`](./scripts/capture_review_screenshot.sh): Automates headless Chrome captures with virtual time budgets.
+  - [`generate_terrain_model.py`](./scripts/generate_terrain_model.py): Procedural 3D OBJ terrain mesh generator.
+- **References:**
+  - [`decoupled-rendering.md`](./references/decoupled-rendering.md): Pure kernel boundary rules and `IRenderEngine`.
+  - [`elevation-budget-and-zfighting.md`](./references/elevation-budget-and-zfighting.md): Layer height budget and material offsets.
+  - [`headless-visual-review.md`](./references/headless-visual-review.md): Automated verification runbook.
