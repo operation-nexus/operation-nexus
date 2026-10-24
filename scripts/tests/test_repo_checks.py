@@ -252,6 +252,10 @@ def test_format_hook():
         other = os.path.join(proj, "docs", "b.py")
         for path in (py, other):
             open(path, "w").close()
+        outside_dir = tempfile.mkdtemp()
+        outside = os.path.join(outside_dir, "tools", "c.py")
+        os.makedirs(os.path.dirname(outside))
+        open(outside, "w").close()
 
         def run(stdin):
             env = dict(os.environ, CLAUDE_PROJECT_DIR=proj)
@@ -260,11 +264,15 @@ def test_format_hook():
         assert run(json.dumps({"tool_input": {"file_path": py}})) == 0
         assert run(json.dumps({"tool_input": {"file_path": other}})) == 0
         assert run(json.dumps({"tool_input": {"file_path": os.path.join(proj, "tools", "gone.py")}})) == 0
+        assert run(json.dumps({"tool_input": {"file_path": outside}})) == 0  # another clone
         assert run("not json") == 0
         with open(log) as f:
             assert f.read().splitlines() == ["format --quiet -- " + py]
         os.remove(stub)
         assert run(json.dumps({"tool_input": {"file_path": py}})) == 0
+        import shutil
+
+        shutil.rmtree(outside_dir)
 
 
 if __name__ == "__main__":

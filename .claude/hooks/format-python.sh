@@ -8,12 +8,18 @@ if command -v jq >/dev/null 2>&1; then
 else
   path=$(printf '%s' "$input" | python3 -c 'import json,sys; print(json.load(sys.stdin).get("tool_input",{}).get("file_path") or "")' 2>/dev/null)
 fi
+root="${CLAUDE_PROJECT_DIR:-}"
+[ -n "$root" ] || exit 0
+case "$path" in
+  "$root"/*) ;;  # this repo or a worktree inside it; never another clone in a multi-repo session
+  *) exit 0 ;;
+esac
 case "$path" in
   */services/sim/*.py|*/tools/*.py) ;;
   *) exit 0 ;;
 esac
 [ -f "$path" ] || exit 0
-ruff="${CLAUDE_PROJECT_DIR:-.}/services/sim/.venv/bin/ruff"
+ruff="$root/services/sim/.venv/bin/ruff"
 [ -x "$ruff" ] || exit 0
 "$ruff" format --quiet -- "$path" >/dev/null 2>&1 || true
 exit 0
