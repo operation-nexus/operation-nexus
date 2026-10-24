@@ -13,7 +13,7 @@ Mac all done (owner, 2026-10-22); Windows PC done in WSL2 (owner, 2026-10-22: se
 - [ ] Optional: `claude remote-control` on the desktop so you can drive it from your phone (docs/agentic/REMOTE-WORK.md)
 - [x] Ponytail: leave `webhookUrl` empty (docs/agentic/TOOLING.md §2)
 - [ ] **Git identity** on the Mac, on Windows, and inside WSL2 (it has its own `~/.gitconfig`), so every commit uses the SaltySeraphCodes noreply address (Q-LEGAL-8). WSL2 done 2026-10-22:
-  `git config --global user.name "SaltySeraphCodes"` and `git config --global user.email "76628858+SaltySeraphCodes@users.noreply.github.com"`. Check with `git config --global --get user.email`. Agent sessions set the same identity per repo.
+  `git config --global user.name "SaltySeraphCodes"` and `git config --global user.email "76628858+SaltySeraphCodes@users.noreply.github.com"`. Check with `git config --global --get user.email`. Agent sessions do not: they commit as the machine account `project-hiveplex` (`344438984+project-hiveplex@users.noreply.github.com`, Q-OPS-15, `docs/agentic/TOOLING.md`).
 
 ## 2. GitHub settings (issue #20, NX-022; NX-049)
 Applied and verified through the GitHub API on 2026-10-18 where checked.
@@ -82,7 +82,7 @@ Only you can do these; each report's last section has the detail. Reports: PLATF
 Accounts, handles and repos are listed in `docs/planning/BRAND-ACCOUNTS.md`.
 - [x] **Install the Claude GitHub App on the `operation-nexus` organization** (done 2026-10-18) (https://github.com/apps/claude/installations/select_target) and give it this repo plus `operation-nexus-ops` and `operation-nexus-vault`. Until then cloud sessions cannot see the organization's repos (checked 2026-10-18: access denied)
 - [x] **Transfer this repo** to the organization (done 2026-10-18). Rulesets, `ci-gate`, auto-merge and branch cleanup were re-checked; CODEOWNERS names `@saltyseraphcodes` until the org teams (`developers`, `maintainers`, `testers`) are used for ownership; tracker issue links point at the organization (NX-320)
-- [ ] **Git identity on your machine:** commits use the `SaltySeraphCodes` noreply address (Q-LEGAL-8). Agent and harness `gh` sessions use the machine account `project-hiveplex` (Q-OPS-15, NX-402; see `docs/agentic/TOOLING.md` and `ISSUE-WORKFLOW.md`); `canthony224` is being retired. Your own browser uses `SaltySeraphCodes`, not any personal account
+- [ ] **Git identity on your machine:** your own commits use the `SaltySeraphCodes` noreply address (Q-LEGAL-8). Agent and harness `gh` sessions, and agent commits, use the machine account `project-hiveplex` (noreply `344438984+project-hiveplex@users.noreply.github.com`; owner set up 2026-10-24) (Q-OPS-15, NX-402; see `docs/agentic/TOOLING.md` and `ISSUE-WORKFLOW.md`); `canthony224` is being retired. Your own browser uses `SaltySeraphCodes`, not any personal account
 - [x] **Install `age` and make the secrets key** (done 2026-10-18: public key sent, `.sops.yaml` added to the ops repo) (needed once, on your own computer, never in a cloud session):
   1. Install: macOS `brew install age`; Windows `winget install FiloSottile.age` (or `scoop install age`); Debian/Ubuntu `sudo apt install age`. The package includes `age-keygen`.
   2. Run `age-keygen -o key.txt`. It prints a line `Public key: age1...`.
