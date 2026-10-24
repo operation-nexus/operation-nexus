@@ -36,11 +36,13 @@ When tasked with creating, modifying, or auditing a visual component or renderer
    - To convert vector GeoJSON biomes and road networks into spatial grids, use:
      `python3 tools/terrain/geojson_to_mask.py --input content/theaters/strait-1-biomes.geojson`
 
-4. **Multi-Paradigm Support:**
-   - Ensure the renderer supports swappable views:
-     - **Option A**: 2D Tactical Signal Map.
-     - **Option B**: 3D Holographic Tabletop with road ribbons and radar domes.
-     - **Option C**: FLIR MFD Glass Cockpit with thermal corridors and targeting reticles.
+4. **Multi-Paradigm Support & Fictional Neutrality:**
+   - **Zero Real-World Geopolitics**: All theaters and factions are strictly fictional. Never stream or reference real-world borders or active conflict zones.
+   - Support swappable rendering paradigms:
+     - **Option A (2D Signal / Tactical GIS)**: Flat Euclidean military cartography (`L.CRS.Simple`) with synthetic hillshades and Mil-STD-2525D icons.
+     - **Option B (3D Holographic Tabletop)**: High-contrast wireframe and elevation contours.
+     - **Option C (FLIR MFD Glass Cockpit)**: Thermal infrared sensor targeting.
+     - **Option D (Textured Low-Poly RTS)**: PBR multi-texture terrain splatting (sand, rock, asphalt) and textured military units (camo strikers, haulers).
 
 5. **Headless Visual Review & Verification:**
    - Never commit visual changes without capturing and inspecting screenshots.
