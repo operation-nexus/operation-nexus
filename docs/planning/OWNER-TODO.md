@@ -82,7 +82,7 @@ Only you can do these; each report's last section has the detail. Reports: PLATF
 Accounts, handles and repos are listed in `docs/planning/BRAND-ACCOUNTS.md`.
 - [x] **Install the Claude GitHub App on the `operation-nexus` organization** (done 2026-10-18) (https://github.com/apps/claude/installations/select_target) and give it this repo plus `operation-nexus-ops` and `operation-nexus-vault`. Until then cloud sessions cannot see the organization's repos (checked 2026-10-18: access denied)
 - [x] **Transfer this repo** to the organization (done 2026-10-18). Rulesets, `ci-gate`, auto-merge and branch cleanup were re-checked; CODEOWNERS names `@saltyseraphcodes` until the org teams (`developers`, `maintainers`, `testers`) are used for ownership; tracker issue links point at the organization (NX-320)
-- [ ] **Git identity on your machine:** commits use the `SaltySeraphCodes` noreply address (Q-LEGAL-8). Agent and harness `gh` sessions use `canthony224` (Q-DEV-16; see `docs/agentic/TOOLING.md` and `ISSUE-WORKFLOW.md`). Your own browser uses `SaltySeraphCodes`, not any personal account
+- [ ] **Git identity on your machine:** commits use the `SaltySeraphCodes` noreply address (Q-LEGAL-8). Agent and harness `gh` sessions use the machine account `project-hiveplex` (Q-OPS-15, NX-402; see `docs/agentic/TOOLING.md` and `ISSUE-WORKFLOW.md`); `canthony224` is being retired. Your own browser uses `SaltySeraphCodes`, not any personal account
 - [x] **Install `age` and make the secrets key** (done 2026-10-18: public key sent, `.sops.yaml` added to the ops repo) (needed once, on your own computer, never in a cloud session):
   1. Install: macOS `brew install age`; Windows `winget install FiloSottile.age` (or `scoop install age`); Debian/Ubuntu `sudo apt install age`. The package includes `age-keygen`.
   2. Run `age-keygen -o key.txt`. It prints a line `Public key: age1...`.
@@ -94,7 +94,7 @@ Accounts, handles and repos are listed in `docs/planning/BRAND-ACCOUNTS.md`.
 - [ ] **Renew the harness token** before its 90-day expiry: the fine-grained PAT used by `gh` on the harness PC was created 2026-10-22, so it expires about 2027-01-20 (`tools/balance/README.md`, Setup on the PC). The organization must approve the new token.
 - [ ] **CodeRabbit:** decide whether to renew before the trial ends about 2026-11-03 (`docs/ops/COSTS.md`; $30 a month after the trial, not renewed by default, Q-CI-7).
 - [ ] **Harness timer in WSL:** confirm the timer fires with no terminal open (`tools/balance/README.md` marks this **[UNVERIFIED]**).
-- [ ] **Merge commits (Q-LEGAL-8):** GitHub's merge commits on `develop` are authored by the account that enabled auto-merge, `canthony224`, not `SaltySeraphCodes` (`docs/planning/ISSUE-WORKFLOW.md` rule 5). Say whether that meets Q-LEGAL-8.
+- [ ] **Merge commits (Q-LEGAL-8):** GitHub's merge commits on `develop` are authored by the account that enabled auto-merge, now `project-hiveplex` (earlier `canthony224`), not `SaltySeraphCodes` (`docs/planning/ISSUE-WORKFLOW.md` rule 5). Say whether that meets Q-LEGAL-8.
 
 ## 5. Decisions still open
 See docs/planning/OPEN-QUESTIONS.md. Rows ending in an empty Decision column still need your answer.

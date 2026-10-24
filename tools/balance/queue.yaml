@@ -4,8 +4,9 @@
 repo: operation-nexus/operation-nexus
 # Only issues opened by these logins are run; anyone else is ignored without a comment.
 trusted_authors:
-  - canthony224
+  - project-hiveplex  # the machine account agents and routines act as (Q-OPS-15)
   - SaltySeraphCodes
+  - canthony224  # the old automation identity; remove once it is retired (NX-402)
 # Label names. A requester adds `run`; the queue swaps it for `running`, then `done` or `failed`.
 labels:
   run: harness-run
