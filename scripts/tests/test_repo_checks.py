@@ -245,7 +245,7 @@ def test_format_hook():
         stub = os.path.join(bin_dir, "ruff")
         with open(stub, "w") as f:
             f.write('#!/bin/sh\necho "$@" >> "%s"\n' % log)
-        os.chmod(stub, 0o755)
+        os.chmod(stub, 0o700)
         for sub in ("tools", "docs"):
             os.makedirs(os.path.join(proj, sub))
         py = os.path.join(proj, "tools", "a.py")
