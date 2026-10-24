@@ -10,7 +10,7 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | Phase | Items | Done | Status |
 |---|---|---|---|
 | P0 Foundations | 44 | 31 | 🟨 |
-| P1 Sim kernel | 51 | 42 | 🟨 |
+| P1 Sim kernel | 52 | 42 | 🟨 |
 | P2 Closed alpha | 40 | 0 | ⬜ |
 | P3 Public beta | 26 | 0 | ⬜ |
 | P4 Depth | 69 | 1 | ⬜ |
@@ -123,6 +123,7 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-399 | Rear deep raid (Q-SIM-111): `!join strike static-rear` accepted as a raid with a clear reply; `!join logi static-rear` rejected with a reason. In review: the rejection and tests (`test_rear_raid.py`); the deep-raid reply waits for the chat/overlay layer (FB-UX-1, no parser yet). Merged in #305 | S | ✅ | NX-398 | A raider holds over the rear and engages passing Static units; the logi order is refused with its reason |
 | NX-400 | Bridge collapse (Q-SIM-112): a direct order can drop a bridge; ground units within `logistics.bridge_collapse_radius_m` of the cut are destroyed; collapse cause on losses and lost ids on `BridgeDestroyed`; clip-score term. In review: kernel, contracts 0.29 (`LossCause`, `lost_ids`), key, docs; goldens re-pinned (config_hash and `UnitDestroyed.cause: null` only, event counts unchanged) | M | 🟨 | NX-373, NX-398 | A timed strike destroys the units on the span and nothing outside the radius; deterministic |
 | NX-401 | Director STRIKE_BRIDGE operation (NX-373 part 3, THREAT-DIRECTOR §5a): the Static's bridge strike; never timed or targeted by bridge occupancy; ALPHA or above; only aircraft execute it (the NX-396 lesson) | M | ⬜ | NX-373, NX-400 | The Static drops a bridge in the harness; it never waits for units on the span |
+| NX-402 | GitHub identity migration (Q-OPS-15): make `project-hiveplex` the one machine account for agents, routines and the harness queue (write role, not a code owner, not a bypass actor); `SaltySeraphCodes` stays the owner. Update docs/agentic/TOOLING.md, Q-DEV-16, `tools/balance/queue.yaml` `trusted_authors` and the queue's `gh` token, the vault's rule 8a; retire `canthony224` from automation; consider a GitHub App for the queue instead of a personal token. Do it at a stopping point | S | ⬜ | NX-365 | Every agent PR, comment and queue action comes from `project-hiveplex`; no doc names `canthony224` as an automation identity |
 | NX-151 | Enemy-side view for director (FOW-4) | M | ✅ | NX-150 | Director API accepts only `EnemyView` |
 | NX-155 | Director: CP, tiers w/ hysteresis, budget | M | ✅ | NX-151, NX-374 | Hysteresis property |
 | NX-156 | Director: operations library + scoring + threat memory | L | ✅ | NX-155 | "Convoy raids → escorts" golden scenario |
