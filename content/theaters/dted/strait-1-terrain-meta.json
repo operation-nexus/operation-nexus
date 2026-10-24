@@ -1,0 +1,23 @@
+{
+  "theater": "strait-1",
+  "bounds_m": {
+    "width": 400000.0,
+    "height": 240000.0
+  },
+  "resolution": {
+    "cols": 400,
+    "rows": 240,
+    "dx_m": 1000.0,
+    "dy_m": 1000.0
+  },
+  "elevation_stats": {
+    "min_m": -91.9997231264645,
+    "max_m": 903.2711868732807,
+    "trench_depth_m": -91.9997231264645,
+    "peak_height_m": 903.2711868732807
+  },
+  "artifacts": {
+    "hillshade_png": "strait-1-hillshade.png",
+    "raw_dem16": "strait-1-dem16.bin"
+  }
+}
