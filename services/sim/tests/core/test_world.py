@@ -160,7 +160,7 @@ def test_golden_state_hash_seed_12345() -> None:
     # A change here breaks every recorded replay hash: needs a `golden-update` reason.
     assert (
         state_hash(golden_world())
-        == "195532761b1b719d9f86ebc75394e09a94719f1d6d00466212ff601c28c27b87"
+        == "e176fea8b65c0d0dfbe4029b141b545697c9c10d57c7b336a6f122905e69f754"
     )
     e = to_canonical(golden_world(), quantize=True)["entities"][0]
     assert e["pos"] == [1000250, 2000500]  # mm

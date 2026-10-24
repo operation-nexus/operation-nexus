@@ -1004,6 +1004,83 @@ class StrikeBridge(BaseModel):
     ]
 
 
+class Unlimited(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    COALITION: bool
+    ENEMY: bool
+
+
+class PerNode(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    AIRBASE: Annotated[int, Field(ge=0)]
+    BRIDGE: Annotated[int, Field(ge=0)]
+    FOB: Annotated[int, Field(ge=0)]
+    HQ: Annotated[int, Field(ge=0)]
+    PORT: Annotated[int, Field(ge=0)]
+
+
+class Income(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    floor: Annotated[
+        int,
+        Field(
+            description="What a side's pool gains every window with no node held, unit stock units per window (EC-1, Q-TD-17).",
+            ge=0,
+        ),
+    ]
+    per_node: Annotated[
+        PerNode,
+        Field(
+            description="What each strategic node a side holds and is not contesting (no capture bar on it) adds to its pool every window, by node kind, unit stock units per window (EC-1). SANCTUARY is the source itself and has no entry."
+        ),
+    ]
+
+
+class Storage(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    floor: Annotated[
+        int,
+        Field(
+            description="A side's pool storage with no node held, unit stock units (EC-2).", ge=0
+        ),
+    ]
+    per_node: Annotated[
+        PerNode,
+        Field(
+            description="What each node a side holds (contested or not) adds to its pool storage, by node kind, unit stock units (EC-2). Stock above a lowered cap is clipped at the next window as SupplyConsumed{STORAGE_LOST}."
+        ),
+    ]
+
+
+class Economy(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    unlimited: Annotated[
+        Unlimited,
+        Field(
+            description="Per side: true = unlimited mode (EC-15): the source pool never runs out, has no storage cap and earns no income (no SupplyProduced), exactly the infinite source of before NX-412. A campaign or test option set by the owner or an Admin at campaign setup, never a GM and never mid-war. The shipped default true for both sides is TEMPORARY (Q-TD-29, lead decision): the NX-412 sweep part sets the spec default false."
+        ),
+    ]
+    window_s: Annotated[
+        float,
+        Field(
+            description="The economy window, unit s of game time: income then the storage clip run once per window, before the director window in the same tick (EC-10).",
+            gt=0.0,
+        ),
+    ]
+    income: Annotated[Income, Field(description="Source income per window (EC-1).")]
+    storage: Annotated[Storage, Field(description="Source pool storage (EC-2).")]
+
+
 class Campaign(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1967,3 +2044,4 @@ class BalanceConfig(BaseModel):
     campaign: Campaign
     tasking: Tasking
     director: Director
+    economy: Economy

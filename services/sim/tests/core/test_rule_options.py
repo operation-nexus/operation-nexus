@@ -51,13 +51,14 @@ from nexus.contracts.gen.events.event import Event
 from nexus.contracts.gen.events.node_defenses_down import NodeDefensesDown
 from nexus.contracts.gen.events.unit_destroyed import UnitDestroyed
 from nexus.core import combat as combat_mod
+from nexus.core import economy
 from nexus.core.combat import _hit
 from nexus.core.defense import damage
 from nexus.core.director import decide, night_capped
 from nexus.core.fog import _marker, side_view
 from nexus.core.provocation import suffered_defense_hit
 from nexus.core.provocation import validate as director_validate
-from nexus.core.rules import Rules
+from nexus.core.rules import EconomyRules, Rules
 from nexus.core.step import step
 from nexus.core.tasking_gen import _strike
 from nexus.core.world import (
@@ -377,6 +378,19 @@ def test_a_run_with_every_option_flipped_is_deterministic() -> None:
             defense={"idle_floor": False},
             campaign={"hq_capture": False},
         )
+        assert w.rules is not None
+        w.rules = dataclasses.replace(  # economy.unlimited off for both sides (NX-412 part 1)
+            w.rules,
+            economy=EconomyRules(
+                window_ticks=10,
+                limited=("COALITION", "ENEMY"),
+                income_floor=5,
+                income_per_node={"FOB": 3},
+                storage_floor=50,
+                storage_per_node={"FOB": 20},
+            ),
+        )
+        economy.start(w)
         w.defense_hp[ENEMY_FOB] = 300
         put(w, INFANTRY, "COALITION", ENEMY_FOB)
         put(w, ARMOR, "ENEMY", NEUTRAL_FOB)

@@ -114,6 +114,9 @@ def build_report(
         by_profile.setdefault(r["profile"], []).append(r)
     aggregated = {n: report.aggregate(n, rs, data.targets) for n, rs in by_profile.items()}
     first = runs[0]  # every run has the same hours
+    # shortcut: the report does not label an unlimited economy yet (ECONOMY EC-15); `--set` takes
+    # numbers only, so every run uses the shipped `economy.unlimited`. Label it when the NX-412
+    # sweep part lets a profile set the mode.
     return {
         "config": {
             "config_hash": next((r["config_hash"] for r in runs if r["config_hash"]), None),

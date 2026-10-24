@@ -254,6 +254,9 @@ TIER_CHANGED = {**_BASE, "kind": "ThreatTierChanged", "side": "ENEMY", "from": "
 ADAPTATION = {**_BASE, "kind": "ThreatAdaptation", "side": "ENEMY", "category": "CONVOY_ESCORT",
               "sector_id": "north", "direction": "UP"}  # fmt: skip
 BRIDGE_UP = {**_BASE, "kind": "BridgeRepaired", "node_id": "bridge-n", "by_id": 4}
+PRODUCED = {**_BASE, "kind": "SupplyProduced", "side": "ENEMY", "amount": 60}  # NX-412
+STORAGE_LOST = {**_BASE, "kind": "SupplyConsumed", "node_id": "static-rear", "amount": 2000,
+                "cause": "STORAGE_LOST"}  # fmt: skip
 
 
 @pytest.mark.parametrize(
@@ -274,6 +277,8 @@ BRIDGE_UP = {**_BASE, "kind": "BridgeRepaired", "node_id": "bridge-n", "by_id": 
         BRIDGE_UP,  # NX-373 part 2
         {**BRIDGE_UP, "by_id": None},
         TIER_CHANGED,
+        PRODUCED,
+        STORAGE_LOST,
     ],
 )
 def test_combat_events_parse_through_the_event_union(good: dict[str, object]) -> None:
@@ -312,6 +317,10 @@ def test_combat_events_parse_through_the_event_union(good: dict[str, object]) ->
         (TIER_CHANGED, {"cp_smoothed": -0.1}),
         (TIER_CHANGED, {"side": "NEUTRAL"}),
         (TIER_CHANGED, {"ops": 1}),
+        (PRODUCED, {"amount": 0}),  # none for 0 (EC-1)
+        (PRODUCED, {"side": "NEUTRAL"}),
+        (PRODUCED, {"node_id": "static-rear"}),  # {side, amount} only (ECONOMY §4)
+        (STORAGE_LOST, {"cause": "UPKEEP"}),  # no producer until NX-412 part 2 (rule 6a)
     ],
 )
 def test_combat_events_reject_bad_fields(event: dict[str, object], bad: dict[str, object]) -> None:

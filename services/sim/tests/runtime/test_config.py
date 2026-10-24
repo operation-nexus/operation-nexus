@@ -322,6 +322,15 @@ director:
     convoy_slots: 1
     convoy_kind: ENEMY_CONVOY
     capture_slot_tiers: [PATTERN_OF_LIFE]
+economy:
+  unlimited: {COALITION: true, ENEMY: true}
+  window_s: 60
+  income:
+    floor: 30
+    per_node: {AIRBASE: 10, BRIDGE: 0, FOB: 5, HQ: 10, PORT: 5}
+  storage:
+    floor: 2000
+    per_node: {AIRBASE: 2000, BRIDGE: 0, FOB: 1000, HQ: 2000, PORT: 1000}
 """
 # Pinned from this implementation's first run (NX-367: balance, units, theater; re-pinned NX-121
 # for speed_mps, NX-122 for slots and again for the GP-3 cap and queue, NX-368 for air fuel and
@@ -333,9 +342,10 @@ director:
 # for the Pattern of Life keys and the garrison operation, NX-389 for the forward stock keys,
 # NX-388 part 2 for the Q-CFG-16 rule options, NX-388 part 2b for the Director, tasking and
 # rebase rule options, NX-373 for the bridge hp, NX-398 for `tasking.order_dwell_s`, NX-400 for
-# the collapse radius, NX-373 part 2 for bridge repair, the repair job and its escort); a change
+# the collapse radius, NX-373 part 2 for bridge repair, the repair job and its escort, NX-412 part 1
+# for the economy block); a change
 # means every config_hash moved.
-GOLDEN_CONFIG_HASH = "60b378efe1e0511b538ad51ed738fe89e4d3af408701d5b4f26cae71d19d20ed"
+GOLDEN_CONFIG_HASH = "2e571c97726ea6ff0833173f42510f6bafd4e770db5dc32167944af0e9887328"
 AIR = {
     "bingo_reserve_frac": 0.15,
     "orbit_period_s": 120.0,
@@ -624,6 +634,13 @@ DIRECTOR = {
         "capture_slot_tiers": ["PATTERN_OF_LIFE"],
     },
 }
+_PER_NODE = {"AIRBASE": 10, "BRIDGE": 0, "FOB": 5, "HQ": 10, "PORT": 5}
+ECONOMY = {
+    "unlimited": {"COALITION": True, "ENEMY": True},
+    "window_s": 60,
+    "income": {"floor": 30, "per_node": _PER_NODE},
+    "storage": {"floor": 2000, "per_node": {k: v * 200 for k, v in _PER_NODE.items()}},
+}
 CFG = BalanceConfig.model_validate(
     {
         "schema_version": 1,
@@ -637,6 +654,7 @@ CFG = BalanceConfig.model_validate(
         "campaign": CAMPAIGN,
         "tasking": TASKING,
         "director": DIRECTOR,
+        "economy": ECONOMY,
     }
 )
 
@@ -1045,6 +1063,10 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "    convoy_kind: ENEMY_CONVOY, patrol_slots: 1, patrols_per_base: 1,\n"
         "    convoys_per_period: 1, offensives_per_period: 1, convoy_cost: 0, convoy_slots: 1,\n"
         "    capture_slot_tiers: [PATTERN_OF_LIFE]}}\n"
+        "economy: {window_s: 60, unlimited: {ENEMY: true, COALITION: true},\n"
+        "  storage: {per_node: {PORT: 1000, HQ: 2000, FOB: 1000, BRIDGE: 0, AIRBASE: 2000},\n"
+        "    floor: 2000},\n"
+        "  income: {per_node: {PORT: 5, HQ: 10, FOB: 5, BRIDGE: 0, AIRBASE: 10}, floor: 30}}\n"
         "schema_version:   1\n"
     )
     assert balance_hash(write(tmp_path, reformatted)) == balance_hash(DEFAULT)
@@ -1126,6 +1148,7 @@ def test_world_ticks_is_the_least_whole_tick_count_not_shorter(
             "campaign": CAMPAIGN,
             "tasking": TASKING,
             "director": DIRECTOR,
+            "economy": ECONOMY,
         }
     )
     n = world_ticks(seconds, cfg)

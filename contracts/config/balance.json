@@ -16,7 +16,8 @@
     "combat",
     "campaign",
     "tasking",
-    "director"
+    "director",
+    "economy"
   ],
   "properties": {
     "schema_version": {
@@ -54,6 +55,9 @@
     },
     "director": {
       "$ref": "#/$defs/Director"
+    },
+    "economy": {
+      "$ref": "#/$defs/Economy"
     }
   },
   "$defs": {
@@ -2777,6 +2781,316 @@
           "x-tune": {"min": 15.0, "max": 60.0, "step": 5.0, "scale": "LINEAR"},
           "x-source": "THREAT-DIRECTOR \u00a74",
           "x-status": "PROPOSED"
+        }
+      }
+    },
+    "Economy": {
+      "description": "Force economy (CONFIG-AND-CONTENT \u00a76.3, ECONOMY; NX-412 part 1): each side's source (its SANCTUARY) holds a finite whole-unit pool that gains income and is clipped to its storage every window, unless that side runs in unlimited mode. The same keys apply to both sides (EC-3). Not hot-reloadable: income and storage are logistics physics (\u00a75), and the window phase must not move mid-campaign.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "unlimited",
+        "window_s",
+        "income",
+        "storage"
+      ],
+      "properties": {
+        "unlimited": {
+          "description": "Per side: true = unlimited mode (EC-15): the source pool never runs out, has no storage cap and earns no income (no SupplyProduced), exactly the infinite source of before NX-412. A campaign or test option set by the owner or an Admin at campaign setup, never a GM and never mid-war. The shipped default true for both sides is TEMPORARY (Q-TD-29, lead decision): the NX-412 sweep part sets the spec default false.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "COALITION",
+            "ENEMY"
+          ],
+          "properties": {
+            "COALITION": {
+              "type": "boolean",
+              "x-unit": "switch",
+              "x-hot-reload": false,
+              "x-category": "ECONOMY",
+              "x-audience": "OPERATOR",
+              "x-edit-role": "ADMIN",
+              "x-tune": null,
+              "x-source": "ECONOMY EC-15, Q-TD-28, Q-TD-29",
+              "x-status": "RULE_DEFAULT"
+            },
+            "ENEMY": {
+              "type": "boolean",
+              "x-unit": "switch",
+              "x-hot-reload": false,
+              "x-category": "ECONOMY",
+              "x-audience": "OPERATOR",
+              "x-edit-role": "ADMIN",
+              "x-tune": null,
+              "x-source": "ECONOMY EC-15, Q-TD-28, Q-TD-29",
+              "x-status": "RULE_DEFAULT"
+            }
+          }
+        },
+        "window_s": {
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "description": "The economy window, unit s of game time: income then the storage clip run once per window, before the director window in the same tick (EC-10).",
+          "x-unit": "s (game)",
+          "x-hot-reload": false,
+          "x-category": "ECONOMY",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {
+            "min": 30,
+            "max": 240,
+            "step": 30,
+            "scale": "LINEAR"
+          },
+          "x-source": "ECONOMY EC-1, EC-10",
+          "x-status": "PROPOSED"
+        },
+        "income": {
+          "description": "Source income per window (EC-1).",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "floor",
+            "per_node"
+          ],
+          "properties": {
+            "floor": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "What a side's pool gains every window with no node held, unit stock units per window (EC-1, Q-TD-17).",
+              "x-unit": "stock units per window",
+              "x-hot-reload": false,
+              "x-category": "ECONOMY",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {
+                "min": 0,
+                "max": 200,
+                "step": 5,
+                "scale": "LINEAR"
+              },
+              "x-source": "ECONOMY EC-1",
+              "x-status": "PROPOSED"
+            },
+            "per_node": {
+              "description": "What each strategic node a side holds and is not contesting (no capture bar on it) adds to its pool every window, by node kind, unit stock units per window (EC-1). SANCTUARY is the source itself and has no entry.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "AIRBASE",
+                "BRIDGE",
+                "FOB",
+                "HQ",
+                "PORT"
+              ],
+              "properties": {
+                "AIRBASE": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "x-unit": "stock units per window",
+                  "x-hot-reload": false,
+                  "x-category": "ECONOMY",
+                  "x-audience": "TUNER",
+                  "x-edit-role": "ADMIN",
+                  "x-tune": {
+                    "min": 0,
+                    "max": 50,
+                    "step": 1,
+                    "scale": "LINEAR"
+                  },
+                  "x-source": "ECONOMY EC-1",
+                  "x-status": "PROPOSED"
+                },
+                "BRIDGE": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "x-unit": "stock units per window",
+                  "x-hot-reload": false,
+                  "x-category": "ECONOMY",
+                  "x-audience": "TUNER",
+                  "x-edit-role": "ADMIN",
+                  "x-tune": null,
+                  "x-source": "ECONOMY EC-1",
+                  "x-status": "PROPOSED"
+                },
+                "FOB": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "x-unit": "stock units per window",
+                  "x-hot-reload": false,
+                  "x-category": "ECONOMY",
+                  "x-audience": "TUNER",
+                  "x-edit-role": "ADMIN",
+                  "x-tune": {
+                    "min": 0,
+                    "max": 50,
+                    "step": 1,
+                    "scale": "LINEAR"
+                  },
+                  "x-source": "ECONOMY EC-1",
+                  "x-status": "PROPOSED"
+                },
+                "HQ": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "x-unit": "stock units per window",
+                  "x-hot-reload": false,
+                  "x-category": "ECONOMY",
+                  "x-audience": "TUNER",
+                  "x-edit-role": "ADMIN",
+                  "x-tune": {
+                    "min": 0,
+                    "max": 50,
+                    "step": 1,
+                    "scale": "LINEAR"
+                  },
+                  "x-source": "ECONOMY EC-1",
+                  "x-status": "PROPOSED"
+                },
+                "PORT": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "x-unit": "stock units per window",
+                  "x-hot-reload": false,
+                  "x-category": "ECONOMY",
+                  "x-audience": "TUNER",
+                  "x-edit-role": "ADMIN",
+                  "x-tune": {
+                    "min": 0,
+                    "max": 50,
+                    "step": 1,
+                    "scale": "LINEAR"
+                  },
+                  "x-source": "ECONOMY EC-1",
+                  "x-status": "PROPOSED"
+                }
+              }
+            }
+          }
+        },
+        "storage": {
+          "description": "Source pool storage (EC-2).",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "floor",
+            "per_node"
+          ],
+          "properties": {
+            "floor": {
+              "type": "integer",
+              "minimum": 0,
+              "description": "A side's pool storage with no node held, unit stock units (EC-2).",
+              "x-unit": "stock units",
+              "x-hot-reload": false,
+              "x-category": "ECONOMY",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {
+                "min": 500,
+                "max": 8000,
+                "step": 100,
+                "scale": "LINEAR"
+              },
+              "x-source": "ECONOMY EC-2",
+              "x-status": "PROPOSED"
+            },
+            "per_node": {
+              "description": "What each node a side holds (contested or not) adds to its pool storage, by node kind, unit stock units (EC-2). Stock above a lowered cap is clipped at the next window as SupplyConsumed{STORAGE_LOST}.",
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "AIRBASE",
+                "BRIDGE",
+                "FOB",
+                "HQ",
+                "PORT"
+              ],
+              "properties": {
+                "AIRBASE": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "x-unit": "stock units",
+                  "x-hot-reload": false,
+                  "x-category": "ECONOMY",
+                  "x-audience": "TUNER",
+                  "x-edit-role": "ADMIN",
+                  "x-tune": {
+                    "min": 0,
+                    "max": 4000,
+                    "step": 100,
+                    "scale": "LINEAR"
+                  },
+                  "x-source": "ECONOMY EC-2",
+                  "x-status": "PROPOSED"
+                },
+                "BRIDGE": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "x-unit": "stock units",
+                  "x-hot-reload": false,
+                  "x-category": "ECONOMY",
+                  "x-audience": "TUNER",
+                  "x-edit-role": "ADMIN",
+                  "x-tune": null,
+                  "x-source": "ECONOMY EC-2",
+                  "x-status": "PROPOSED"
+                },
+                "FOB": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "x-unit": "stock units",
+                  "x-hot-reload": false,
+                  "x-category": "ECONOMY",
+                  "x-audience": "TUNER",
+                  "x-edit-role": "ADMIN",
+                  "x-tune": {
+                    "min": 0,
+                    "max": 2000,
+                    "step": 100,
+                    "scale": "LINEAR"
+                  },
+                  "x-source": "ECONOMY EC-2",
+                  "x-status": "PROPOSED"
+                },
+                "HQ": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "x-unit": "stock units",
+                  "x-hot-reload": false,
+                  "x-category": "ECONOMY",
+                  "x-audience": "TUNER",
+                  "x-edit-role": "ADMIN",
+                  "x-tune": {
+                    "min": 0,
+                    "max": 4000,
+                    "step": 100,
+                    "scale": "LINEAR"
+                  },
+                  "x-source": "ECONOMY EC-2",
+                  "x-status": "PROPOSED"
+                },
+                "PORT": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "x-unit": "stock units",
+                  "x-hot-reload": false,
+                  "x-category": "ECONOMY",
+                  "x-audience": "TUNER",
+                  "x-edit-role": "ADMIN",
+                  "x-tune": {
+                    "min": 0,
+                    "max": 2000,
+                    "step": 100,
+                    "scale": "LINEAR"
+                  },
+                  "x-source": "ECONOMY EC-2",
+                  "x-status": "PROPOSED"
+                }
+              }
+            }
+          }
         }
       }
     }

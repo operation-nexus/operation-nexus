@@ -16,6 +16,7 @@ from nexus.core.capture import capture
 from nexus.core.combat import resolve as resolve_combat
 from nexus.core.defense import drain
 from nexus.core.director import decide, due
+from nexus.core.economy import window as economy_window
 from nexus.core.fog import sense, side_view
 from nexus.core.follow import steer
 from nexus.core.handlers import HANDLERS as HANDLERS
@@ -60,10 +61,12 @@ def apply_commands(
 def director(
     world: World, c: Sequence[Command], h: Mapping[str, Handler], out: list[Event]
 ) -> None:
-    """The Threat Director's decision window (NX-155), then the Tasking Boards
+    """The economy window (income, then the storage clip; `nexus.core.economy`, NX-412, EC-10),
+    then the Threat Director's decision window (NX-155), then the Tasking Boards
     (`nexus.core.tasking`, NX-374) and every follower's station and the formation speed caps
     (`nexus.core.follow`, NX-374 part 2): the Director decides first and launches its operations
     (`nexus.core.launch`, NX-156), whose jobs the board then settles and assigns."""
+    economy_window(world, out)
     _decide(world, out)
     run_tasking(world, out)
     steer(world)

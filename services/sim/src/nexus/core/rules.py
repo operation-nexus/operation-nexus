@@ -27,6 +27,7 @@ from nexus.contracts.gen.config.balance import (
     Air,
     Capture,
     Director,
+    Economy,
     Fow,
     IdleFloor,
     Logistics,
@@ -423,6 +424,32 @@ class CombatRules:
 
 
 @dataclass(frozen=True, slots=True)
+class EconomyRules:
+    """Force economy, NX-412 part 1 (ECONOMY EC-1, EC-2, EC-3, EC-15): the same keys for both
+    sides; only a side in `limited` has a finite source pool."""
+
+    window_ticks: int  # economy.window_s as game ticks, rounded up (EC-10)
+    limited: tuple[Side, ...]  # the sides not in unlimited mode (`economy.unlimited`), Side order
+    income_floor: int  # economy.income.floor, stock per window
+    income_per_node: Mapping[NodeKind, int]  # economy.income.per_node: held, uncontested nodes
+    storage_floor: int  # economy.storage.floor, stock
+    storage_per_node: Mapping[NodeKind, int]  # economy.storage.per_node: held nodes
+
+
+def economy_rules(cfg: Economy, *, window_ticks: int) -> EconomyRules:
+    """`window_ticks` is `economy.window_s` already converted by the config loader (game time)."""
+    unlimited = cfg.unlimited.model_dump()
+    return EconomyRules(
+        window_ticks=window_ticks,
+        limited=tuple(side for side in _SIDES if not unlimited[side]),
+        income_floor=cfg.income.floor,
+        income_per_node=cast(Mapping[NodeKind, int], cfg.income.per_node.model_dump()),
+        storage_floor=cfg.storage.floor,
+        storage_per_node=cast(Mapping[NodeKind, int], cfg.storage.per_node.model_dump()),
+    )
+
+
+@dataclass(frozen=True, slots=True)
 class Rules:
     world_dt: float  # world seconds per tick: TICK_DT x sim.time_scale (SC-2)
     speed_mps: Mapping[UnitKind, float]  # m/s of world time; a top speed (Q-SIM-38)
@@ -472,6 +499,7 @@ class Rules:
     defense: DefenseRules | None = None  # NX-124 part 3; None: nodes have no defense HP
     tasking: TaskingRules | None = None  # NX-374; None leaves the Tasking Boards off
     director: DirectorRules | None = None  # NX-155; None leaves the Threat Director off
+    economy: EconomyRules | None = None  # NX-412; None: both sources infinite (hand-built rules)
     # Static base id -> `garrison_quota` of the theater (Q-SIM-85): the live Director units kept
     # homed there.
     garrison_quota: Mapping[str, int] = field(default_factory=dict)
@@ -954,6 +982,7 @@ def make_rules(
     combat: CombatRules | None = None,
     tasking: TaskingRules | None = None,
     director: DirectorRules | None = None,
+    economy: EconomyRules | None = None,
 ) -> Rules:
     """`respawn_delay_ticks`, `track_fade_ticks` and `sigint_refresh_ticks` are
     `slots.respawn_delay_s`, `fow.track_fade_s` and `fow.sigint_refresh_s` already converted by
@@ -1012,6 +1041,7 @@ def make_rules(
         defense=_defense(theater, capture, logistics, sim, idle_floor),
         tasking=tasking,
         director=director,
+        economy=economy,
         garrison_quota={n.id: n.garrison_quota for n in theater.nodes if n.garrison_quota},
         sectors=tuple(
             (s.id, tuple((x, y) for x, y in s.polygon))

@@ -17,8 +17,8 @@ OUT = ROOT / "docs" / "specs" / "CONFIG-REFERENCE.md"
 EXEMPT_BLOCKS = {"schema_version"}
 BLOCK_CATEGORY = {"sim": "WORLD", "air": "WORLD", "fow": "WORLD", "slots": "SLOTS", "logistics": "LOGISTICS",
                   "combat": "COMBAT", "capture": "CAPTURE", "campaign": "CAMPAIGN", "tasking": "TASKING",
-                  "director": "DIRECTOR"}
-CATEGORIES = ["WORLD", "SLOTS", "LOGISTICS", "COMBAT", "CAPTURE", "CAMPAIGN", "TASKING", "DIRECTOR"]
+                  "director": "DIRECTOR", "economy": "ECONOMY"}
+CATEGORIES = ["WORLD", "SLOTS", "LOGISTICS", "COMBAT", "CAPTURE", "CAMPAIGN", "TASKING", "DIRECTOR", "ECONOMY"]
 ENUMS = {
     "x-category": CATEGORIES,
     "x-audience": ["OPERATOR", "TUNER", "DEVELOPER"],
