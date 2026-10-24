@@ -13,7 +13,9 @@ from pydantic import TypeAdapter
 
 from nexus.contracts.gen.commands.command import Command
 from nexus.contracts.gen.events.campaign_ended import CampaignEnded
+from nexus.contracts.gen.events.capture_started import CaptureStarted
 from nexus.contracts.gen.events.node_captured import NodeCaptured
+from nexus.contracts.gen.events.node_defenses_down import NodeDefensesDown
 from nexus.contracts.gen.events.supply_delivered import SupplyDelivered
 from nexus.contracts.gen.events.threat_tier_changed import ThreatTierChanged
 from nexus.contracts.gen.events.unit_destroyed import UnitDestroyed
@@ -34,6 +36,7 @@ import orders  # type: ignore[import-not-found,unused-ignore]
 import personas  # type: ignore[import-not-found,unused-ignore]
 import report  # type: ignore[import-not-found,unused-ignore]
 import runner  # type: ignore[import-not-found,unused-ignore]
+import steamroll  # type: ignore[import-not-found,unused-ignore]
 from profiles import DATA, KINDS, ROLES, Data, load, schedule  # type: ignore[import-not-found,unused-ignore]
 
 HZ = 10
@@ -382,7 +385,7 @@ def test_target_rules() -> None:
     assert report._a1(runs, t)["status"] == report.FAIL  # 5/7
     assert report._a1([fake_run(hours=2)], t)["status"].startswith("not evaluable")
     early = fake_run(outcome={"ended": True, "result": "DEFEAT", "length_h": 3.0})
-    assert report._a1([early], t)["seeds_in_window"] == 0  # under 24 h is a miss
+    assert report._a1([early], t)["seeds_in_window"] == 1  # no 24 h floor (Q-TEST-6, 2026-10-24)
     slow = fake_run(newbie=newbie([100.0], [400.0, 500.0]))
     assert report._a2([slow], t)["status"] == report.FAIL  # two of three never saw an impact
     assert report._a2([fake_run()], t)["status"] == report.PASS
@@ -1173,3 +1176,219 @@ def test_the_report_fails_a_profile_with_a_stuck_order_or_a_stale_claim() -> Non
         (row,) = [r for r in rows if r["target"] == "orders"]
         assert row["status"] == report.FAIL and "stuck GOTO orders" in row["detail"]
     assert report._orders([{"orders": None}])["status"] == report.NO_DATA  # a failed run
+
+
+# --- steamroll signals S1 to S4 (NX-411, Q-TEST-11) ---------------------------------------------
+LATE = (
+    240  # one-minute samples of a 4 h campaign (sample_ticks 600 at 10 Hz); the last third is 160+
+)
+
+
+def sr_metrics(**over: Any) -> dict[str, Any]:
+    """A won, hard-fought 4 h campaign: no signal fires. `over` replaces keys of the steamroll
+    block (`static` keys merge), `result` / `momentum` replace those parts."""
+    raw: dict[str, Any] = {
+        "pressure_ticks": [1000, 20000, 60000, 90000, 130000],  # 5 in 4 h; the hold began at 100000
+        "hold_start": 100000,
+        "holds_broken": 1,
+        "sample_ticks": 600,
+        "static": {"units": [40] * 120 + [30] * 120, "stock": [900] * LATE, "start_stock": 1000},
+    }
+    raw["static"] |= over.pop("static", {})
+    result = over.pop("result", "VICTORY")
+    swing = over.pop("momentum", [30, 55, 70, 50, 65] + [60] * (LATE - 5))
+    raw |= over
+    return {
+        "outcome": {"result": result, "length_h": 4.0, "end_tick": 144000},
+        "momentum": {"sample_every_s": 60.0, "samples": swing},
+        "steamroll": raw,
+    }
+
+
+def judge(**over: Any) -> dict[str, Any]:
+    got: dict[str, Any] = steamroll.judge(sr_metrics(**over), load().targets)
+    return got
+
+
+def test_a_hard_fought_win_fires_nothing() -> None:
+    got = judge()
+    assert got["judged"] and got["fired"] == 0 and got["steamroll"] is False
+    assert got["signals"]["S1"]["value"] == 5.0  # 5 events * 4 / 4 h
+    assert got["signals"]["S2"]["value"] == {"pressure": 1, "broken": 1}  # the 130000 event
+    assert got["signals"]["S3"]["value"] == {"max_drop": 20, "lead_changes": 1}
+
+
+def test_s1_fires_under_two_pressure_events_per_4_hours() -> None:
+    assert judge(pressure_ticks=[5])["signals"]["S1"]["fired"]  # 1 per 4 h
+    assert not judge(pressure_ticks=[5, 6])["signals"]["S1"]["fired"]  # exactly 2: not under
+    # normalised by the campaign length: 2 events in a 2 h win are 4 per 4 h
+    m = sr_metrics(pressure_ticks=[5, 6])
+    m["outcome"] |= {"length_h": 2.0, "end_tick": 72000}
+    assert not steamroll.judge(m, load().targets)["signals"]["S1"]["fired"]
+
+
+def test_s2_fires_when_the_last_hold_was_uncontested_and_never_broken() -> None:
+    assert judge(pressure_ticks=[1000], holds_broken=0)["signals"]["S2"]["fired"]
+    assert not judge(pressure_ticks=[1000], holds_broken=1)["signals"]["S2"]["fired"]
+    assert not judge(pressure_ticks=[100000], holds_broken=0)["signals"]["S2"]["fired"]
+
+
+def test_s2_is_not_measurable_without_a_running_hold() -> None:
+    s2 = judge(hold_start=None)["signals"]["S2"]  # won by HQ capture below the hold fraction
+    assert s2["value"] is None and not s2["fired"] and "not measurable" in s2["note"]
+
+
+def test_s3_fires_on_a_small_swing_with_at_most_one_lead_change() -> None:
+    flat = [30, 55, 60, 52, 58] + [60] * (LATE - 5)
+    assert judge(momentum=flat)["signals"]["S3"]["fired"]  # drop 8, one change
+    big = [30, 55, 70, 58] + [60] * (LATE - 4)
+    assert not judge(momentum=big)["signals"]["S3"]["fired"]  # drop 12
+    wobble = [30, 55, 45, 55] + [60] * (LATE - 4)
+    got = judge(momentum=wobble)["signals"]["S3"]
+    assert got["value"]["lead_changes"] == 3 and not got["fired"]
+    never = judge(momentum=[30] * LATE)["signals"]["S3"]
+    assert never["value"] is None and not never["fired"]
+
+
+def test_s3_boundaries_fire_strictly_under_the_drop_and_at_most_the_changes() -> None:
+    tail = [60] * (LATE - 4)
+    at_ten = judge(momentum=[30, 55, 65, 55, *tail])["signals"]["S3"]  # drop 65 -> 55
+    assert at_ten["value"]["max_drop"] == 10 and not at_ten["fired"]  # 10 is not under 10
+    nine = judge(momentum=[30, 55, 65, 56, *tail])["signals"]["S3"]
+    assert nine["value"]["max_drop"] == 9 and nine["fired"]
+    one = judge(momentum=[30, 55, 58, 56, *tail])["signals"]["S3"]
+    assert one["value"]["lead_changes"] == 1 and one["fired"]  # at most 1: 1 fires
+    two = judge(momentum=[55, 49, 55, 56, *tail])["signals"]["S3"]  # C, then E, then C again
+    assert two["value"] == {"max_drop": 6, "lead_changes": 2} and not two["fired"]
+    # exactly 50 keeps the previous leader: no flip, and no lead while the Static leads
+    held = judge(momentum=[30, 55, 50, 56, *tail])["signals"]["S3"]
+    assert held["value"] == {"max_drop": 5, "lead_changes": 1} and held["fired"]
+    still = judge(momentum=[30, 50, 55, 56, *tail])["signals"]["S3"]
+    assert still["value"]["lead_changes"] == 1 and still["value"]["max_drop"] == 0
+
+
+def test_s4_boundaries_fire_strictly_under_the_fractions() -> None:
+    def s4(**static: Any) -> dict[str, Any]:
+        got: dict[str, Any] = judge(static=static)["signals"]["S4"]
+        return got
+
+    # peak 40, late mean 10 = exactly 25%: not under; 9 fires
+    assert not s4(units=[40] * 160 + [10] * 80)["fired"]
+    assert s4(units=[40] * 160 + [9] * 80)["fired"]
+    # start stock 1000, late mean 100 = exactly 10%: not under; 99 fires
+    assert not s4(stock=[900] * 160 + [100] * 80)["fired"]
+    assert s4(stock=[900] * 160 + [99] * 80)["fired"]
+
+
+def test_s4_fires_on_a_collapsed_late_static_force() -> None:
+    gone = {"units": [40] * 160 + [5] * 80}
+    assert judge(static=gone)["signals"]["S4"]["fired"]  # 5/40 = 12.5% < 25%
+    broke = {"stock": [900] * 160 + [50] * 80}
+    s4 = judge(static=broke)["signals"]["S4"]
+    assert s4["fired"] and s4["value"]["stock_of_start"] == 0.05
+    assert not judge(static={"units": [40] * 160 + [11] * 80})["signals"]["S4"]["fired"]
+    assert judge(static={"units": [0] * LATE})["signals"]["S4"]["value"] is None
+
+
+def test_the_rule_is_s1_and_s2_or_three_of_four() -> None:
+    both = judge(pressure_ticks=[1000], holds_broken=0)  # S1 + S2 only
+    assert both["fired"] == 2 and both["steamroll"] is True
+    s1_only = judge(pressure_ticks=[1000], holds_broken=1)
+    assert s1_only["fired"] == 1 and s1_only["steamroll"] is False
+    flat = [30, 55, 60, 52, 58] + [60] * (LATE - 5)
+    three = judge(pressure_ticks=[1000, 20000], holds_broken=0, momentum=flat,
+        static={"units": [40] * 160 + [5] * 80})  # fmt: skip
+    assert [k for k, v in three["signals"].items() if v["fired"]] == ["S2", "S3", "S4"]
+    assert three["steamroll"] is True
+    two = judge(momentum=flat, static={"units": [40] * 160 + [5] * 80})  # S3 + S4
+    assert two["fired"] == 2 and two["steamroll"] is False
+
+
+def test_only_won_campaigns_are_judged() -> None:
+    for result in ("DEFEAT", "TIME_LIMIT", None):
+        got = judge(result=result)
+        assert not got["judged"] and got["steamroll"] is None
+    lost = fake_run(outcome={"ended": True, "result": "TIME_LIMIT", "length_h": 72.0})
+    lost["metrics"]["steamroll"] = sr_metrics()["steamroll"]
+    won = fake_run()
+    won["metrics"] |= sr_metrics(pressure_ticks=[], holds_broken=0)
+    won["metrics"]["outcome"] = {
+        "ended": True,
+        "result": "VICTORY",
+        "length_h": 4.0,
+        "end_tick": 144000,
+    }
+    a1 = report._a1([lost, won], load().targets)
+    assert (a1["steamroll"]["judged"], a1["steamroll"]["flagged"], a1["steamroll"]["share"]) == (
+        1,
+        1,
+        1.0,
+    )
+    assert a1["seeds_in_window"] == 1 and "1/1 won seeds flagged" in a1["detail"]  # fmt: skip
+
+
+def test_collector_derives_pressure_and_the_hold_from_events(collector: metrics.Collector) -> None:
+    def cap(tick: int, node: str, frm: str, to: str) -> Any:
+        return NodeCaptured.model_construct(
+            kind="NodeCaptured", tick=tick, node_id=node, from_=frm, to=to,
+            participant_commander_ids=[],
+        )  # fmt: skip
+
+    def start(tick: int, node: str, side: str) -> Any:
+        return CaptureStarted.model_construct(
+            kind="CaptureStarted", tick=tick, node_id=node, side=side
+        )
+
+    def down(tick: int, node: str, owner: str) -> Any:
+        return NodeDefensesDown.model_construct(
+            kind="NodeDefensesDown", tick=tick, node_id=node, owner=owner
+        )
+
+    assert (
+        collector.hold_start is None
+    )  # the setup holds 3 of 8 strategic nodes; the hold needs 4/5
+    collector.feed([
+        start(10, "cross-n", "ENEMY"),  # neutral ground: not pressure
+        start(11, "fob-n-e", "COALITION"),  # the coalition's own capture: not pressure
+        start(12, "fob-n-w", "ENEMY"),  # on a coalition node: pressure
+        down(13, "fob-n-w", "COALITION"),  # pressure
+        down(14, "east-airbase", "ENEMY"),  # the Static's own: not pressure
+    ])  # fmt: skip
+    assert collector.pressure_ticks == [12, 13]
+    for tick, node, frm in (
+        (100, "cross-n", "NEUTRAL"), (110, "cross-s", "NEUTRAL"), (120, "fob-n-e", "ENEMY"),
+        (130, "fob-s-e", "ENEMY"),
+    ):  # fmt: skip
+        collector.feed([cap(tick, node, frm, "COALITION")])
+    assert collector.hold_start == 130 and collector.holds_broken == 0  # 7 of 8 >= 4/5
+    collector.feed([start(150, "fob-n-e", "ENEMY"), cap(160, "fob-n-e", "COALITION", "ENEMY")])
+    assert collector.pressure_ticks == [12, 13, 150, 160]  # a capture start, then the node lost
+    assert collector.hold_start is None and collector.holds_broken == 1  # 6 of 8 < 4/5: broken
+    collector.feed([cap(170, "fob-n-e", "ENEMY", "COALITION")])
+    assert collector.hold_start == 170
+    raw = collector.result(1000)["steamroll"]
+    assert (raw["hold_start"], raw["holds_broken"], raw["pressure_ticks"]) == (
+        170,
+        1,
+        [12, 13, 150, 160],
+    )
+    # a loss and a regain in one tick: the hold is judged on the tick's final ownership
+    collector.feed(
+        [cap(180, "fob-n-e", "COALITION", "ENEMY"), cap(180, "fob-n-e", "ENEMY", "COALITION")]
+    )
+    assert collector.hold_start == 170 and collector.holds_broken == 1
+
+
+def test_collector_samples_the_static_force_and_stock(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    world = start_campaign("c", 1, shipped_config)
+    collector.sample(world)
+    assert collector.static_start_stock > 0 and collector.static_stock == [
+        collector.static_start_stock
+    ]
+    assert world.rules is not None
+    armed = world.rules.armed
+    assert collector.static_units[0] == sum(
+        e.side == "ENEMY" and e.kind in armed for e in world.entities()
+    )

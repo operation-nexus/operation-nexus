@@ -13,6 +13,7 @@ the adversarial targets A5 and A6 (part 2, NX-321).
 import math
 from collections import Counter
 from collections.abc import Callable, Iterable, Mapping
+from fractions import Fraction
 from typing import Any, Final
 
 from nexus.contracts.gen.events.event import Event
@@ -86,12 +87,27 @@ class Collector:
         self.starved_any = 0
         self.starved_nodes = 0
         self.sanctuary_min = self.sanctuary_min_window = world.defense_hp[self._sanctuary]
+        # Q-TEST-11 inputs (steamroll.py). Ownership follows `NodeCaptured` from the setup's owners;
+        # a pressure event is a Static capture start on a coalition node, a coalition
+        # `NodeDefensesDown`, or a coalition node lost. The victory hold is derived (no event
+        # names it): a run of the coalition holding `victory_node_frac` of the strategic nodes.
+        self._owner = dict(world.owner)
+        self._hold_frac: Fraction = rules.campaign.victory_node_frac
+        self.pressure_ticks: list[int] = []
+        self.holds_broken = 0
+        self.hold_start: int | None = 0 if self._holding() else None
+        self._hold_tick: int | None = None  # a tick with captures whose hold is not judged yet
+        self.static_units: list[int] = []  # live armed Static units, per `sample`
+        self.static_stock: list[int] = []  # Static-held finite-stock bases' stock, per `sample`
+        self.static_start_stock = self._static_stock(world)
         self._on: dict[str, Callable[[Any], None]] = {
             "UnitSpawned": self._spawned,
             "WeaponImpact": self._impact,
             "UnitDestroyed": self._destroyed,
             "SupplyDelivered": self._delivered,
             "NodeCaptured": self._captured,
+            "CaptureStarted": self._capture_started,
+            "NodeDefensesDown": self._defenses_down,
             "ThreatTierChanged": self._tier,
             "CampaignEnded": self._end,
         }
@@ -138,9 +154,12 @@ class Collector:
 
     def feed(self, events: Iterable[Event]) -> None:
         for event in events:
+            if self._hold_tick is not None and event.tick != self._hold_tick:
+                self._judge_hold()
             handler = self._on.get(event.kind)
             if handler:
                 handler(event)
+        self._judge_hold()
 
     def observe(self, world: World) -> None:
         for eid in sorted(self.trucks):  # a truck leaving its source loaded (Q-SIM-97)
@@ -158,6 +177,14 @@ class Collector:
     def sample(self, world: World) -> None:
         """Momentum and supply starvation, once per `sample_ticks` (a game minute by default)."""
         self.momentum.append(momentum(world).momentum_pct)
+        rules = self._world_rules
+        self.static_units.append(
+            sum(
+                e.side == _ENEMY and e.kind in rules.armed and e.damage_state != "DISABLED"
+                for e in world.entities()
+            )
+        )
+        self.static_stock.append(self._static_stock(world))
         floor, stock = self._world_rules.supply.starve_floor, world.stock
         starved = sum(
             1
@@ -196,6 +223,18 @@ class Collector:
         )
         if units:
             self.slots_per_unit.append(sum(j.slots - len(j.claims) for j in open_jobs) / units)
+
+    def _static_stock(self, world: World) -> int:
+        return sum(
+            world.stock.get(n, 0)
+            for n in sorted(self._world_rules.supply.max_stock)
+            if world.owner.get(n) == _ENEMY
+        )
+
+    def _holding(self) -> bool:
+        strategic = self._strategic
+        held = sum(self._owner.get(n) == _COALITION for n in strategic)
+        return bool(strategic) and Fraction(held, len(strategic)) >= self._hold_frac
 
     # --- event handlers ---------------------------------------------------------------------
     def _spawned(self, e: Any) -> None:
@@ -237,8 +276,32 @@ class Collector:
     def _captured(self, e: Any) -> None:
         for commander in e.participant_commander_ids:
             self._credit(commander, e.tick, "capture")
-        if e.from_ == _COALITION and e.to != _COALITION and e.node_id in self._strategic:
-            self.nodes_lost.append((e.tick, e.node_id))
+        if e.from_ == _COALITION and e.to != _COALITION:
+            self.pressure_ticks.append(e.tick)
+            if e.node_id in self._strategic:
+                self.nodes_lost.append((e.tick, e.node_id))
+        self._owner[e.node_id] = e.to
+        self._hold_tick = e.tick
+
+    def _judge_hold(self) -> None:
+        """Judge the hold on the tick's final ownership, as core/campaign.py does once per tick."""
+        if self._hold_tick is None:
+            return
+        holding = self._holding()
+        if holding and self.hold_start is None:
+            self.hold_start = self._hold_tick
+        elif not holding and self.hold_start is not None:
+            self.holds_broken += 1
+            self.hold_start = None
+        self._hold_tick = None
+
+    def _capture_started(self, e: Any) -> None:
+        if e.side == _ENEMY and self._owner.get(e.node_id) == _COALITION:
+            self.pressure_ticks.append(e.tick)
+
+    def _defenses_down(self, e: Any) -> None:
+        if e.owner == _COALITION:
+            self.pressure_ticks.append(e.tick)
 
     def _tier(self, e: Any) -> None:
         if e.side != _ENEMY:
@@ -283,6 +346,17 @@ class Collector:
                 "player_by_kind": dict(sorted(self.player_kills.items())),
                 "total": total_kills,
                 "unattributed": self.kills_unattributed,
+            },
+            "steamroll": {
+                "pressure_ticks": self.pressure_ticks,
+                "hold_start": self.hold_start,
+                "holds_broken": self.holds_broken,
+                "sample_ticks": self.sample_ticks,
+                "static": {
+                    "units": self.static_units,
+                    "stock": self.static_stock,
+                    "start_stock": self.static_start_stock,
+                },
             },
             "nodes_lost": [{"tick": t, "node": n} for t, n in self.nodes_lost],
             "nodes_lost_in_a3_window": sum(t <= self.a3_ticks for t, _ in self.nodes_lost),

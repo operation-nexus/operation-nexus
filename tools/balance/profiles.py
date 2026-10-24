@@ -44,8 +44,15 @@ class Profile:
 
 @dataclass(frozen=True, slots=True)
 class Targets:
-    a1_min_h: float
     a1_pass_frac: float
+    # Q-TEST-11 steamroll signals (all PROPOSED, recalibrated once a hard-fought run exists)
+    steamroll_pressure_per_4h: float  # S1 fires under this many pressure events per 4 campaign h
+    steamroll_swing_pts: int  # S3 fires under this momentum drop (points) ...
+    steamroll_max_lead_changes: int  # ... and at most this many lead changes
+    steamroll_lead_line: int  # the coalition leads above this momentum, the Static below
+    steamroll_late_units_frac: float  # S4 fires under this share of the Static's peak units ...
+    steamroll_late_stock_frac: float  # ... or under this share of its start stock
+    steamroll_min_signals: int  # a steamroll also when this many of S1 to S4 fire
     a2_min_tier: str  # A2 counts newbies who arrive at this Static tier or above (Q-SIM-93)
     a2_max_s: float
     a2_tail_s: float  # A2 tail: first impact later than this (Q-SIM-97)

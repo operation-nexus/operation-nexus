@@ -32,6 +32,8 @@ LINE = re.compile(r"([a-z_]+): ([^\r\n]+)")
 OVERRIDE = re.compile(r"[a-z0-9_]+(\.[a-z0-9_]+)*=-?\d{1,9}(\.\d{1,9})?")
 KEYS = ("sha", "profiles", "seeds", "hours", "workers", "set")
 COMMENT_MAX = 60000  # GitHub's limit is 65536 characters; leave room for the framing
+FINISHED = "finished"  # written by the queue once balance.py exited 0 with report.md: its size
+POSTED = "posted"  # written once the report comment is on the issue (no double post on retry)
 FOOTER = "_Posted by the local harness queue (NX-381)_"
 
 
@@ -176,6 +178,50 @@ def comment(cfg: dict[str, Any], number: int, text: str) -> None:
     gh(cfg, "issue", "comment", str(number), "--body-file", "-", stdin=f"{text}\n\n{FOOTER}\n")
 
 
+def check_write(cfg: dict[str, Any], number: int) -> bool:
+    """Prove the token can write to the issue before a long run. The cheapest real write is a
+    label edit that adds the label the issue already has (`harness-run`): a mutation that needs
+    Issues write, changes no label and leaves no comment or event. A read-only or unapproved
+    token fails it. Logs a fixed line only: no token, no gh output, no issue text."""
+    try:
+        gh(cfg, "issue", "edit", str(number), "--add-label", cfg["labels"]["run"])
+    except QueueError:
+        log(f"#{number}: the gh token cannot write to the issue; not started, labels unchanged")
+        return False
+    return True
+
+
+def running_file(cfg: dict[str, Any], number: int) -> Path:
+    """Local record of the sha a run started with; recovery trusts it, not the editable issue."""
+    return Path(cfg["results_dir"]) / f"{number}.running"
+
+
+def finished(out: Path) -> bool:
+    """A run is finished only when its marker (written after the run, never a partial file)
+    names the size of the report on disk."""
+    try:
+        return int((out / FINISHED).read_text()) == (out / "report.md").stat().st_size
+    except (OSError, ValueError):
+        return False
+
+
+def publish(cfg: dict[str, Any], number: int, out: Path, head: str) -> None:
+    """Post the harness-written report, then swap running -> done (last, so a failure here
+    can't leave both labels). Safe to retry: the comment is posted once."""
+    report = out / "report.md"
+    if not (out / POSTED).exists():
+        comment(
+            cfg, number, f"{head} Results: `{shown(out)}`\n\n{truncate(report.read_text(), report)}"
+        )
+        try:
+            (out / POSTED).touch()
+        except OSError:  # posted but unrecorded: leave it running; a repost is the accepted risk
+            log(f"#{number}: posted but could not record it; left running")
+            return
+    relabel(cfg, number, cfg["labels"]["done"], cfg["labels"]["running"])
+    running_file(cfg, number).unlink(missing_ok=True)
+
+
 def on_develop(sha: str) -> bool:
     if run_cmd(["git", "fetch", "origin", "develop"], cwd=REPO_ROOT).returncode:
         raise QueueError("git fetch origin develop failed")
@@ -243,6 +289,10 @@ def process(cfg: dict[str, Any], issue: dict[str, Any], dry: bool) -> None:
         req = parse_block(issue["body"], cfg, list(profiles.load().profiles))
         if not on_develop(req["sha"]):
             raise Refusal("the sha is not reachable from origin/develop")
+        if (cfg["results_dir"] / f"{n}-{req['sha'][:8]}").exists():
+            # balance.py never reuses a results dir, and recovery must not take an old
+            # attempt's finished report for this one: one run per issue and sha
+            raise Refusal("this issue already ran this sha; open a new issue to run it again")
     except Refusal as e:
         log(f"#{n}: refused: {e}")
         if not dry:
@@ -252,6 +302,10 @@ def process(cfg: dict[str, Any], issue: dict[str, Any], dry: bool) -> None:
     if dry:
         log(f"#{n}: would run {req}")
         return
+    if not check_write(cfg, n):
+        return
+    cfg["results_dir"].mkdir(parents=True, exist_ok=True)
+    running_file(cfg, n).write_text(req["sha"])
     relabel(cfg, n, labels["running"], labels["run"])
     started = time.monotonic()
     log(f"#{n}: running {req}")
@@ -264,12 +318,16 @@ def process(cfg: dict[str, Any], issue: dict[str, Any], dry: bool) -> None:
         wall = f"{(time.monotonic() - started) / 60:.1f} min"
         report = out / "report.md"
         if rc == 0 and report.exists():
-            body = truncate(report.read_text(), report)
+            (out / FINISHED).write_text(str(report.stat().st_size))
             sets = f" Overrides: `{' '.join(req['set'])}`." if req["set"] else ""
-            comment(cfg, n, f"Run finished in {wall}.{sets} Results: `{shown(out)}`\n\n{body}")
-            relabel(
-                cfg, n, labels["done"], labels["running"]
-            )  # last, so a failure here can't leave both labels
+            try:
+                publish(cfg, n, out, f"Run finished in {wall}.{sets}")
+            except (
+                QueueError,
+                JobTimeout,
+                OSError,
+            ):  # the report is safe on disk; next tick's recovery posts it
+                log(f"#{n}: finished but not posted, kept at {shown(out)}")
         else:
             fail(
                 cfg,
@@ -290,13 +348,30 @@ def fail(cfg: dict[str, Any], number: int, text: str) -> None:
         comment(cfg, number, text)
     except QueueError as e:
         log(f"#{number}: could not report the failure: {e}")
+    running_file(cfg, number).unlink(missing_ok=True)
 
 
 def recover_stale(cfg: dict[str, Any]) -> None:
-    """We hold the lock, so no job of ours runs: an issue still `running` was cut off."""
+    """We hold the lock, so no job of ours runs: an issue still `running` was cut off, or its
+    finished report could not be posted. Post a finished report; fail the rest."""
     for issue in eligible(cfg, cfg["labels"]["running"]):
-        log(f"#{issue['number']}: stale running label")
-        fail(cfg, issue["number"], "Failed: the runner restarted mid-job.")
+        n = issue["number"]
+        log(f"#{n}: stale running label")
+        out = None
+        try:  # the path comes from the int issue number and the recorded, re-validated sha
+            sha = running_file(cfg, n).read_text().strip()
+            if re.fullmatch(r"[0-9a-f]{40}", sha):
+                out = cfg["results_dir"] / f"{n}-{sha[:8]}"
+        except OSError:
+            pass
+        if out is not None and finished(out):
+            try:
+                publish(cfg, n, out, "Run finished; the report was posted late.")
+                log(f"#{n}: recovered the finished report")
+            except (QueueError, JobTimeout, OSError):
+                log(f"#{n}: recovered report not posted, will retry")
+            continue
+        fail(cfg, n, "Failed: the runner restarted mid-job.")
 
 
 def run_once(cfg: dict[str, Any], dry: bool) -> int:

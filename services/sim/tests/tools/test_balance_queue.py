@@ -120,7 +120,7 @@ class Fake:
         return [
             (c[3], c[c.index("--add-label") + 1], c[c.index("--remove-label") + 1])
             for c in self.calls
-            if c[:3] == ["gh", "issue", "edit"]
+            if c[:3] == ["gh", "issue", "edit"] and "--remove-label" in c  # not the write check
         ]
 
 
@@ -158,6 +158,22 @@ def test_non_ancestor_sha_refused(cfg: dict[str, Any], monkeypatch: pytest.Monke
     assert "origin/develop" in fake.stdin[0]
     assert ["git", "fetch", "origin", "develop"] in fake.calls
     assert not any(c[:3] == ["git", "worktree", "add"] for c in fake.calls)
+
+
+def test_same_sha_rerun_refused(cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch) -> None:
+    old = cfg["results_dir"] / f"8-{SHA[:8]}"  # an earlier, finished and posted attempt
+    old.mkdir(parents=True)
+    (old / "report.md").write_text("# OLD")
+    (old / hq.FINISHED).write_text("5")
+    (old / hq.POSTED).touch()
+    fake = Fake([issue(8)])
+    monkeypatch.setattr(hq, "run_cmd", fake)
+    ran: list[int] = []
+    monkeypatch.setattr(hq, "execute", lambda *a: ran.append(1))
+    hq.run_once(cfg, False)
+    assert not ran and not hq.running_file(cfg, 8).exists()
+    assert fake.edits() == [("8", "harness-failed", "harness-run")]
+    assert "already ran this sha" in fake.stdin[0]
 
 
 def test_dry_run_changes_nothing(cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch) -> None:
@@ -351,3 +367,172 @@ def test_set_parsed_into_argv_pairs(cfg: dict[str, Any], monkeypatch: pytest.Mon
 def test_set_refusals(cfg: dict[str, Any], value: str) -> None:
     with pytest.raises(hq.Refusal, match="bad value for key: set"):
         hq.parse_block(block(set=value), cfg, NAMES)
+
+
+def failing(fake: Fake, *prefixes: list[str], rc: int = 1) -> Any:
+    """Wrap a Fake so a gh call starting with one of `prefixes` fails with a token-ish error."""
+
+    def run(cmd: list[str], **kw: Any) -> Any:
+        if any(cmd[: len(p)] == p for p in prefixes):
+            fake.calls.append(cmd)
+            return type("R", (), {"returncode": rc, "stdout": "", "stderr": "SECRET-TOKEN-TEXT"})()
+        return fake(cmd, **kw)
+
+    return run
+
+
+def test_timed_out_post_keeps_report_for_recovery(
+    cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake = Fake([issue(22)])
+
+    def run(cmd: list[str], **kw: Any) -> Any:
+        if cmd[:3] == ["gh", "issue", "comment"]:
+            raise hq.JobTimeout
+        return fake(cmd, **kw)
+
+    monkeypatch.setattr(hq, "run_cmd", run)
+    monkeypatch.setattr(hq, "execute", fake_exec(0, "# REPORT"))
+    hq.run_once(cfg, False)
+    assert fake.edits() == [("22", "harness-running", "harness-run")]  # not failed
+    assert hq.running_file(cfg, 22).exists()  # recovery can still find the report
+    fake.issues[0]["labels"] = [{"name": "harness-running"}]  # the Fake doesn't apply edits
+    hq.recover_stale(cfg)  # a second timeout in recovery must not escape the tick
+    assert hq.running_file(cfg, 22).exists()
+
+
+def test_failed_write_check_skips_run_and_keeps_labels(
+    cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    fake = Fake([issue(20)])
+    monkeypatch.setattr(hq, "run_cmd", failing(fake, ["gh", "issue", "edit"]))
+    ran: list[int] = []
+    monkeypatch.setattr(hq, "execute", lambda *a: ran.append(1))
+    hq.run_once(cfg, False)
+    assert not ran and not fake.stdin
+    (check,) = [c for c in fake.calls if c[:3] == ["gh", "issue", "edit"]]
+    assert check[3:] == ["20", "--add-label", "harness-run", "-R", cfg["repo"]]  # no removal
+    out = capsys.readouterr().out
+    assert "cannot write" in out and "SECRET-TOKEN-TEXT" not in out
+
+
+def test_failed_post_keeps_report_and_run_not_failed(
+    cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake = Fake([issue(21)])
+    monkeypatch.setattr(hq, "run_cmd", failing(fake, ["gh", "issue", "comment"]))
+    monkeypatch.setattr(hq, "execute", fake_exec(0, "# REPORT"))
+    hq.run_once(cfg, False)
+    assert fake.edits() == [("21", "harness-running", "harness-run")]  # not failed, not done
+    assert (cfg["results_dir"] / f"21-{SHA[:8]}" / "report.md").read_text() == "# REPORT"
+    assert not fake.stdin
+
+
+def stale_issue(n: int) -> Any:
+    stale = issue(n)
+    stale["labels"] = [{"name": "harness-running"}]
+    return stale
+
+
+def test_next_tick_posts_finished_report_and_marks_done(
+    cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    first = Fake([issue(22)])
+    monkeypatch.setattr(hq, "run_cmd", failing(first, ["gh", "issue", "comment"]))
+    monkeypatch.setattr(hq, "execute", fake_exec(0, "# REPORT"))
+    hq.run_once(cfg, False)
+    second = Fake([stale_issue(22)])
+    monkeypatch.setattr(hq, "run_cmd", second)
+    hq.run_once(cfg, False)
+    assert second.edits() == [("22", "harness-done", "harness-running")]
+    assert "# REPORT" in second.stdin[0] and second.stdin[0].rstrip().endswith(hq.FOOTER)
+
+
+def test_recovery_does_not_double_post(
+    cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    first = Fake([issue(23)])
+    monkeypatch.setattr(
+        hq, "run_cmd", failing(first, ["gh", "issue", "edit", "23", "--add-label", "harness-done"])
+    )
+    monkeypatch.setattr(hq, "execute", fake_exec(0, "# REPORT"))
+    hq.run_once(cfg, False)
+    assert len(first.stdin) == 1  # posted, relabel failed
+    second = Fake([stale_issue(23)])
+    monkeypatch.setattr(hq, "run_cmd", second)
+    hq.run_once(cfg, False)
+    assert not second.stdin and second.edits() == [("23", "harness-done", "harness-running")]
+
+
+def test_stale_without_finished_report_still_fails(
+    cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake = Fake([stale_issue(24)])
+    monkeypatch.setattr(hq, "run_cmd", fake)
+    hq.run_once(cfg, False)
+    assert fake.edits() == [("24", "harness-failed", "harness-running")]
+    assert "restarted mid-job" in fake.stdin[0]
+
+
+def test_partial_report_is_not_finished(
+    cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    out = cfg["results_dir"] / f"25-{SHA[:8]}"
+    out.mkdir(parents=True)
+    (cfg["results_dir"] / "25.running").write_text(SHA)
+    (out / "report.md").write_text("# half a rep")  # balance.py died mid-write: no marker
+    fake = Fake([stale_issue(25)])
+    monkeypatch.setattr(hq, "run_cmd", fake)
+    hq.run_once(cfg, False)
+    assert fake.edits() == [("25", "harness-failed", "harness-running")]
+    (out / hq.FINISHED).write_text("999")  # a marker that disagrees with the file is not finished
+    assert not hq.finished(out)
+
+
+def test_recovery_uses_recorded_sha_not_edited_body(
+    cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    first = Fake([issue(26)])
+    monkeypatch.setattr(hq, "run_cmd", failing(first, ["gh", "issue", "comment"]))
+    monkeypatch.setattr(hq, "execute", fake_exec(0, "# REPORT"))
+    hq.run_once(cfg, False)
+    older = cfg["results_dir"] / f"26-{'b' * 8}"
+    older.mkdir()
+    (older / "report.md").write_text("# OLDER")
+    (older / hq.FINISHED).write_text(str(len("# OLDER")))
+    edited = stale_issue(26)
+    edited["body"] = block(sha="b" * 40)
+    second = Fake([edited])
+    monkeypatch.setattr(hq, "run_cmd", second)
+    hq.run_once(cfg, False)
+    assert "# REPORT" in second.stdin[0] and "OLDER" not in second.stdin[0]
+    assert not (cfg["results_dir"] / "26.running").exists()
+
+
+def test_invalid_recorded_sha_fails(cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch) -> None:
+    cfg["results_dir"].mkdir(parents=True)
+    (cfg["results_dir"] / "27.running").write_text("../../etc")
+    fake = Fake([stale_issue(27)])
+    monkeypatch.setattr(hq, "run_cmd", fake)
+    hq.run_once(cfg, False)
+    assert fake.edits() == [("27", "harness-failed", "harness-running")]
+    assert not (cfg["results_dir"] / "27.running").exists()
+
+
+def test_posted_marker_oserror_leaves_running(
+    cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake = Fake([issue(28)])
+    monkeypatch.setattr(hq, "run_cmd", fake)
+    monkeypatch.setattr(hq, "execute", fake_exec(0, "# REPORT"))
+    real = Path.touch
+
+    def touch(self: Path, *a: Any, **k: Any) -> None:
+        if self.name == hq.POSTED:
+            raise OSError("disk full")
+        real(self, *a, **k)
+
+    monkeypatch.setattr(Path, "touch", touch)
+    hq.run_once(cfg, False)
+    assert fake.edits() == [("28", "harness-running", "harness-run")]  # not failed, not done
+    assert len(fake.stdin) == 1
