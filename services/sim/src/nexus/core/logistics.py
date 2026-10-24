@@ -12,10 +12,12 @@ rounds and hp in thousandths of stock and owes `Entity.rearm_milli`; a whole uni
 as the debt reaches 1000, so every unit debited equals thousandths bought.
 
 "Friendly" is the node's live owner (`World.owner`, which capture changes, NX-125). Every route
-passes `bridges.blocked`, so none crosses a down bridge (NX-373). A Disabled unit neither unloads
-nor restocks and keeps its cargo until it is removed as a wreck (COMBAT CB-7, GP-5); a Disabled
-facility is not a wreck and repairs. The `logistics` system is deterministic: entities in id
-order, candidate nodes in id order, ties on distance by node id.
+passes `bridges.blocked`, so none crosses a down bridge (NX-373); a supply run's also enters no
+node the other side holds (`supply_route`, Q-SIM-122; a supply truck's divert too, Q-SIM-126),
+while a unit going home, escaping or fleeing a node the other side took may drive through any
+node. A Disabled unit neither unloads nor restocks and keeps its cargo until it is removed as a
+wreck (COMBAT CB-7, GP-5); a Disabled facility is not a wreck and repairs. The `logistics` system
+is deterministic: entities in id order, candidate nodes in id order, ties on distance by node id.
 """
 
 import math
@@ -25,7 +27,7 @@ from typing import NamedTuple
 
 from nexus.contracts.gen.common.enums import Side, UnitKind
 from nexus.contracts.gen.events.event import Event
-from nexus.core.bridges import blocked
+from nexus.core.bridges import blocked, enemy_held
 from nexus.core.defense import rebuild
 from nexus.core.rearm import restock
 from nexus.core.roads import shortest_path
@@ -96,8 +98,16 @@ def road_start(rules: Rules, e: Entity) -> str | None:
     return start if isinstance(start, str) else None
 
 
-def _route(world: World, rules: Rules, a: str, b: str) -> list[str] | None:
-    return shortest_path(rules.roads, a, b, blocked=blocked(world))
+def _route(
+    world: World, rules: Rules, a: str, b: str, avoid: frozenset[str] = frozenset()
+) -> list[str] | None:
+    return shortest_path(rules.roads, a, b, blocked=blocked(world), avoid=avoid)
+
+
+def supply_route(world: World, rules: Rules, side: Side, a: str, b: str) -> list[str] | None:
+    """A supply run's road route from `a` to `b` (Q-SIM-122): it enters no node the other side
+    holds (`bridges.enemy_held`; neutral ground is passable); `a` and `b` themselves are allowed."""
+    return _route(world, rules, a, b, enemy_held(world, rules, side) - {b})
 
 
 def _length(rules: Rules, route: list[str]) -> float:
@@ -106,12 +116,17 @@ def _length(rules: Rules, route: list[str]) -> float:
 
 
 def nearest(
-    world: World, rules: Rules, start: str, candidates: list[str]
+    world: World,
+    rules: Rules,
+    start: str,
+    candidates: list[str],
+    avoid: frozenset[str] = frozenset(),
 ) -> tuple[str, list[str]] | None:
-    """The candidate with the shortest road route from `start` (ties by node id), and that route."""
+    """The candidate with the shortest road route from `start` (ties by node id), and that route;
+    no route enters a node of `avoid` (`start` exempt)."""
     best: tuple[float, str, list[str]] | None = None
     for node in sorted(candidates):
-        route = _route(world, rules, start, node)
+        route = _route(world, rules, start, node, avoid)
         if route is None:
             continue
         length = _length(rules, route)
@@ -128,33 +143,41 @@ def approach(world: World, rules: Rules, start: str, bridge: str) -> list[str] |
     return None if best is None else [*best[1], bridge]
 
 
-def plan_run(world: World, rules: Rules, side: Side, dest: str) -> Run | None:
+def plan_run(
+    world: World, rules: Rules, side: Side, dest: str, *, around_enemy: bool = True
+) -> Run | None:
     """A cargo truck of `side` sent to `dest` (GAMEPLAY §5 Q-GP-24; None: no road route).
 
     A friendly `dest` that can hold stock gets cargo from the friendly node (never `dest`) with
     stock above what it keeps (`keeps`) that is nearest `dest` by road (route metres, ties by node
     id): `min(truck_cargo, spare)`. With no such node the side's rear source loads a full
-    `truck_cargo`. Any other `dest` (neutral, enemy, infinite or unable to hold stock) is a
-    capture run: it loads nothing and spawns at the rear source.
+    `truck_cargo`. Such a supply run's routes enter no node the other side holds
+    (`supply_route`, Q-SIM-122), unless `around_enemy` is False (a follower's source pick, which
+    drives on its leader's road, GAMEPLAY §1b Q-GP-31). Any other `dest` (neutral, enemy,
+    infinite or unable to hold stock) is a capture run: it loads nothing, spawns at the rear
+    source and may cross any node.
     """
     sup = rules.supply
     rear = sup.rear[side]
+    avoid: frozenset[str] = frozenset()
     if friendly(world, side, dest) and sup.max_stock.get(dest, 0) > 0:
         keep = keeps(world, rules, side, dest)
         sources = [
             n for n in sup.max_stock
             if n != dest and friendly(world, side, n) and world.stock.get(n, 0) > keep[n]
         ]  # fmt: skip
-        best = nearest(world, rules, dest, sources)  # roads are two-way: dest -> source measures it
+        if around_enemy:  # every source and `dest` are held: none is avoided
+            avoid = enemy_held(world, rules, side)
+        best = nearest(world, rules, dest, sources, avoid)  # two-way roads: dest -> source
         if best is not None:
             source = best[0]
-            route = _route(world, rules, source, dest)
+            route = _route(world, rules, source, dest, avoid)
             cargo = min(sup.truck_cargo, world.stock.get(source, 0) - keep[source])
             return None if route is None else Run(source, cargo, route)
         cargo = sup.truck_cargo
     else:
         cargo = 0
-    route = _route(world, rules, rear, dest)
+    route = _route(world, rules, rear, dest, avoid)
     return None if route is None else Run(rear, cargo, route)
 
 
@@ -265,9 +288,11 @@ def logistics(world: World, out: list[Event]) -> None:
     Paused (SC-11): nothing unloads. At a friendly node it moves `unload_rate x world_dt` units
     into the node's stock per tick, up to the node's maximum; when the node is full it keeps the
     rest, parked. At a node no longer friendly it drives to the nearest friendly base (a node with
-    a stock maximum) with room, else to the nearest friendly base, else stays put. The truck is
-    never retired here (GP-5 retire is NX-324). A stop ends when the cargo is gone, the node is
-    full or the truck drives off; it emits one `SupplyDelivered` for the units unloaded, none for 0.
+    a stock maximum) with room, else to the nearest friendly base, else stays put and tries again
+    next tick; a supply truck's road there avoids enemy-held nodes (`_supply_avoid`, Q-SIM-126).
+    The truck is never retired here (GP-5 retire is NX-324). A stop ends when the cargo is gone,
+    the node is full or the truck drives off; it emits one `SupplyDelivered` for the units
+    unloaded, none for 0.
     """
     rules = world.rules
     if world.frozen or rules is None:
@@ -322,7 +347,19 @@ def _divert(world: World, rules: Rules, e: Entity, node: str, out: list[Event]) 
     sup = rules.supply
     bases = [n for n, top in sup.max_stock.items() if top > 0 and friendly(world, e.side, n)]
     with_room = [n for n in bases if world.stock.get(n, 0) < sup.max_stock[n]]
-    best = nearest(world, rules, node, with_room) or nearest(world, rules, node, bases)
-    if best is not None:
+    avoid = _supply_avoid(world, rules, e, node)
+    best = nearest(world, rules, node, with_room, avoid) or nearest(
+        world, rules, node, bases, avoid
+    )
+    if best is not None:  # none: it holds with its cargo and tries again next tick (Q-SIM-126)
         end_stop(world, e, node, out)  # a stop cut short by the node turning hostile
         e.path = list(best[1])
+
+
+def _supply_avoid(world: World, rules: Rules, e: Entity, node: str) -> frozenset[str]:
+    """What a loaded truck diverting from `node` must not enter (Q-SIM-126): the nodes the other
+    side holds, so it never drives its cargo through enemy ground, also once a held RESUPPLY
+    claimant's lease has lapsed and it has no job; a truck standing on a node the other side holds
+    flees it by any road."""
+    held = enemy_held(world, rules, e.side)
+    return held if node not in held else frozenset()

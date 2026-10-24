@@ -27,7 +27,10 @@ full, so the set, not the hp, is what cuts the road.
   `reroute`: every GROUND unit with a path, in id order, whose remaining road (its position, then
   its path) crosses a down bridge's cut point (the bridge node's position projected on the edge)
   replans from the last node before the crossing (a coalition patrol through held nodes only, as
-  `tasking._patrol_route`), or stops there with no route. A unit on the cut edge at or past the
+  `tasking._patrol_route`; a supply run, a RESUPPLY claimant or a loaded truck on a GOTO order to
+  its path's last node, of either side, around nodes the other side holds, as
+  `logistics.supply_route`, Q-SIM-122), or
+  stops there with no route. A unit on the cut edge at or past the
   cut point and beyond the collapse radius carries on; aircraft are not affected.
 
 - **Repair (NX-373 part 2, Q-GD-11):** a bridge is not a road endpoint: a truck repairs it at its
@@ -127,6 +130,13 @@ def not_held(world: World, rules: Rules, side: Side) -> frozenset[str]:
     return frozenset(n for n in rules.roads.pos if world.owner.get(n) != side)
 
 
+def enemy_held(world: World, rules: Rules, side: Side) -> frozenset[str]:
+    """The nodes the other side holds: a supply run's road `avoid`, either side's
+    (`logistics.supply_route`, Q-SIM-122); neutral ground stays passable."""
+    other = "ENEMY" if side == "COALITION" else "COALITION"
+    return frozenset(n for n in rules.roads.pos if world.owner.get(n) == other)
+
+
 def crosses(world: World, rules: Rules, frm: str, to: str, pos: Vec2) -> bool:
     """True when a unit at `pos` on the road `frm` -> `to`, driving toward `to`, has a down
     bridge's cut point still ahead of it: the edge's bridge is down and `pos` projects onto the
@@ -143,8 +153,12 @@ def reroute(world: World, rules: Rules) -> None:
     """Replan every GROUND unit, in id order, whose remaining road crosses a down bridge
     (Q-SIM-108): its current leg toward the cut point turns back to the node it came from; a later
     hop over a cut edge keeps the path up to the node before it. From that node it takes
-    `roads.shortest_path` (with `blocked`) to its last path node, or stops there with none. A path
-    to a bridge's repair stop is planned to the bank before it, the stop kept after a new route."""
+    `roads.shortest_path` (with `blocked`) to its last path node, or stops there with none. A
+    coalition patrol replans through held nodes only; a supply run (a RESUPPLY claimant, or a
+    loaded truck on a GOTO order to that last node) enters no node the other side holds, that
+    node exempt
+    (`enemy_held`, Q-SIM-122); an empty capture-run truck takes any road. A path to a bridge's
+    repair stop is planned to the bank before it, the stop kept after a new route."""
     cut = blocked(world)
     for e in world.entities():
         path = [n for n in e.path if isinstance(n, str)]
@@ -162,6 +176,10 @@ def reroute(world: World, rules: Rules) -> None:
         job = None if e.job_id is None else world.boards[e.side].get(e.job_id)
         held = job is not None and job.kind == "PATROL" and job.via is None  # coalition patrol
         avoid = not_held(world, rules, e.side) if held else frozenset()
+        goto_run = e.order == "GOTO" and bool(e.cargo) and seq[-1] == e.order_node
+        supply = job.kind == "RESUPPLY" if job is not None else goto_run
+        if supply:  # a supply run (Q-SIM-122): around enemy-held nodes, its destination exempt
+            avoid = enemy_held(world, rules, e.side) - {seq[-1]}
         for k, (a, b) in enumerate(pairwise(seq)):
             if rules.roads.edge(a, b).bridge in cut and (k or crosses(world, rules, a, b, e.pos)):
                 route = shortest_path(rules.roads, a, seq[-1], blocked=cut, avoid=avoid)

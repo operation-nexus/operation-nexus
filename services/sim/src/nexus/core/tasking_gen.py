@@ -21,7 +21,10 @@ refers to an entity id, so a job names a node, or a SIGINT blob with its cell ce
   `resupply_stock_per_slot` of missing stock (max stock - stock, rounded up; for a stocking-only
   job, target - stock), 1 to `resupply_slots_max`. TB-8 (coalition): a node no friendly source
   reaches by road now (`plan_run`, the truck's own rule) depends on the REPAIR_BRIDGE job of the
-  first down bridge on the intact road route from the side's rear (`JobSpec.after`).
+  first down bridge on the intact road route from the side's rear (`JobSpec.after`). Neither
+  route enters a node the other side holds (`bridges.enemy_held`, Q-SIM-122; neutral nodes are
+  passable): a node reached only through enemy ground depends on no repair, and its job expires
+  unclaimed.
 - **Defend** (`defend:<node>`): a node the side owns that can be captured and is threatened: the
   other side's capture bar is on it, or a tracked enemy GROUND unit is within
   `tasking.defend_radius_m` of it (Q-SIM-74). Urgency: 1.0 + the larger of the bar's share and
@@ -81,6 +84,7 @@ from itertools import pairwise
 from typing import NamedTuple
 
 from nexus.contracts.gen.common.enums import JobKind, NodeOwner, Side, UnitKind
+from nexus.core.bridges import enemy_held
 from nexus.core.director import TIERS
 from nexus.core.fog import SideView
 from nexus.core.logistics import approach, facility_damage, plan_run
@@ -339,14 +343,17 @@ def _resupply(
 
 def _cut_off(world: World, rules: Rules, side: Side, view: SideView, node: str) -> str | None:
     """TB-8: the first down bridge on the intact road route from the side's rear to `node` (ties
-    by node id, `shortest_path`), when no friendly source reaches `node` by road now."""
+    by node id, `shortest_path`), when no friendly source reaches `node` by road now. Neither route
+    enters a node the other side holds, as the run would (Q-SIM-122): a node reached only through
+    enemy ground waits on no repair (nobody can take its job, so it expires)."""
     if (
         side != "COALITION"
         or not view.bridge_down
         or plan_run(world, rules, side, node) is not None
     ):
         return None
-    route = shortest_path(rules.roads, rules.supply.rear[side], node, blocked=frozenset())
+    rear, avoid = rules.supply.rear[side], enemy_held(world, rules, side)
+    route = shortest_path(rules.roads, rear, node, blocked=frozenset(), avoid=avoid)
     cut = (rules.roads.edge(a, b).bridge for a, b in pairwise(route or []))
     return next((b for b in cut if b in view.bridge_down), None)
 

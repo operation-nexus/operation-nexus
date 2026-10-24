@@ -66,7 +66,8 @@ while frozen (SC-11), for each side in COALITION, ENEMY order:
    fitting job is full: any) and is feasible. Rank: `tasking.priority.<kind>` x urgency +
    `priority_aging_per_min` x game minutes waited, an exact Fraction, highest first; runs of equal
    priority are ordered by one `tasking` draw each, in job id order, then by id. Feasible: a
-   GROUND unit has a road route (an empty truck on a resupply job reloads at a source first);
+   GROUND unit has a road route (an empty truck on a resupply job reloads at a source first; neither
+   resupply leg enters a node the other side holds, `logistics.supply_route`, Q-SIM-122);
    an aircraft reaches the target and a landing base of its side with the bingo reserve left,
    its straight route crosses no discovered, not-Disabled enemy air-defense ring unless the
    target is that site's base (`crosses_ring`, also applied to a parameterless JOIN), and a strike
@@ -102,7 +103,16 @@ from nexus.contracts.gen.events.job_expired import JobExpired
 from nexus.contracts.gen.events.job_failed import JobFailed
 from nexus.core.bridges import blocked, not_held
 from nexus.core.fog import SideView, side_view
-from nexus.core.logistics import Run, approach, go_home, keeps, load, nearest_base, plan_run
+from nexus.core.logistics import (
+    Run,
+    approach,
+    go_home,
+    keeps,
+    load,
+    nearest_base,
+    plan_run,
+    supply_route,
+)
 from nexus.core.rng import PcgStream, RngStream
 from nexus.core.roads import shortest_path
 from nexus.core.rules import Rules, TaskingRules
@@ -962,9 +972,12 @@ def _road(world: World, rules: Rules, routes: Routes, a: str, b: str) -> list[st
 
 
 def _route(world: World, rules: Rules, routes: Routes, e: Entity, job: Job) -> list[str] | None:
-    """A ground unit's road route from the node it stands on, or None (not on a node, no road)."""
+    """A ground unit's road route from the node it stands on, or None (not on a node, no road); a
+    resupply run's enters no node the other side holds (`supply_route`, Q-SIM-122)."""
     if e.last_node is None or job.node is None or e.pos != Vec2(*rules.roads.pos[e.last_node]):
         return None
+    if job.kind == "RESUPPLY":
+        return supply_route(world, rules, e.side, e.last_node, job.node)
     return _road(world, rules, routes, e.last_node, job.node)
 
 
@@ -1008,7 +1021,7 @@ def _feasible(world: World, rules: Rules, routes: Routes, e: Entity, job: Job) -
     """TB-2. `refuel`: it fails now, but a full tank and load (a rearm step) would do."""
     if rules.domain[e.kind] == _GROUND:
         if job.kind == "RESUPPLY" and not e.cargo:
-            return "ok" if _reload_plan(world, rules, routes, e, job) is not None else "no"
+            return "ok" if _reload_plan(world, rules, e, job) is not None else "no"
         if job.kind == _PATROL:
             return "no" if _patrol_route(world, rules, routes, e, job) is None else "ok"
         if job.kind == _REPAIR:
@@ -1031,14 +1044,14 @@ def _dispatch(world: World, rules: Rules, routes: Routes, e: Entity, job: Job) -
         e.path = [_waypoint(world, job)]
         return
     if job.kind == "RESUPPLY" and not e.cargo:  # reload first (Q-SIM-74)
-        run = _reload_plan(world, rules, routes, e, job)
+        run = _reload_plan(world, rules, e, job)
         if run is None:
             return
         if run.source == e.last_node:
             _load(world, e, run.source, job.node)
         else:
             e.pickup = run.source
-            e.path = [*(_road(world, rules, routes, str(e.last_node), run.source) or [])]
+            e.path = [*(supply_route(world, rules, e.side, str(e.last_node), run.source) or [])]
             return
     route = (
         _patrol_route(world, rules, routes, e, job)
@@ -1058,16 +1071,17 @@ def _repair_route(world: World, rules: Rules, e: Entity, job: Job) -> list[str] 
     return approach(world, rules, e.last_node, job.node)
 
 
-def _reload_plan(world: World, rules: Rules, routes: Routes, e: Entity, job: Job) -> Run | None:
+def _reload_plan(world: World, rules: Rules, e: Entity, job: Job) -> Run | None:
     """Where an empty truck loads for a resupply job: the JOIN source rule (`plan_run`: the nearest
     friendly base with surplus to the destination, never the destination, the sanctuary last),
-    provided there is something to carry and the truck can drive there."""
+    provided there is something to carry and the truck can drive there around enemy-held nodes."""
     if e.last_node is None or job.node is None:
         return None
     run = plan_run(world, rules, e.side, job.node)
     if run is None or run.cargo <= 0:
         return None
-    return run if _road(world, rules, routes, e.last_node, run.source) is not None else None
+    pickup = supply_route(world, rules, e.side, e.last_node, run.source)
+    return run if pickup is not None else None
 
 
 def crosses_ring(world: World, rules: Rules, side: Side, start: Vec2, job: Job) -> bool:

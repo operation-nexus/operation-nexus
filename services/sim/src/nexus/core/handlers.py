@@ -412,7 +412,11 @@ def _follow_plan(
         return _Plan(kind, rules.sanctuary, None, [], follow=leader_id)
     leader = world.get(leader_id)
     dest = leader.path[-1] if leader.path else leader.last_node
-    run = plan_run(world, rules, _COALITION, dest) if isinstance(dest, str) else None
+    run = (  # a follower keeps the old source pick, any road (Q-SIM-126)
+        plan_run(world, rules, _COALITION, dest, around_enemy=False)
+        if isinstance(dest, str)
+        else None
+    )
     if run is None:
         return "NODE_INVALID_FOR_UNIT"
     return _Plan(kind, run.source, run.cargo, [], follow=leader_id)
