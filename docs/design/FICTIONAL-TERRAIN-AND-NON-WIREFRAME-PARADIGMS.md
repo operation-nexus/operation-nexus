@@ -63,3 +63,21 @@ To ensure future agents and developers build on this work without restarting fro
 | **`tactical-gis-rendering`** | `apps/overlay/src/gis/` | Renders flat Euclidean 2D tactical maps using Leaflet `L.CRS.Simple` or MapLibre, plotting MIL-STD-2525D symbology and kinematic vectors from `RenderFrameState`. |
 | **`lowpoly-pbr-pipeline`** | `tools/assets/` & `apps/overlay/src/3d/` | Ingests, optimizes, and textures low-poly military glTF assets (strikers, haulers, radar spires) with faction camouflage and PBR materials. |
 | **`headless-visual-review`** | `.agents/skills/hiveplex-visualization/` | Automated verification script (`capture_review_screenshot.sh`) using headless Chrome to inspect WebGL and 2D canvas renders across 16:9 and 9:16 vertical. |
+
+---
+
+## 4. The Three-Pillar Visual Strategy & Technical Roadmap
+
+Hiveplex formally establishes three core visual styles:
+1. **Pillar 1: Modern Tactical GIS / C2 Operations Map (ATAK / CMANO)**
+   - Used for: Strategic campaign monitoring, web replay, and **MGRS grid-based unit command tasking** (`!strike <grid>`, `!patrol <route>`).
+2. **Pillar 2: Textured Low-Poly Military RTS (Deserts of Kharak / Carrier Command 2)**
+   - Used for: Primary 24/7 live stream viewing, dynamic combat dogfights, convoy logistics, and short-form video releases (Shorts/TikTok).
+3. **Pillar 3: Holographic Tactical Wireframe (Tabletop / DEFCON)**
+   - Used for: Abstract strategic overview, sensor manager mode, and low-bandwidth/low-noise stream segments.
+
+### 4.1 Future Engineering Focus Areas
+- **Road Elevation Snapping & Spline Draping**: Conforming road ribbons to rolling DEM heights ($y = \text{SampleDEM}(x, z) + 0.22\text{m}$) without Z-fighting or clipping.
+- **PBR Texture Splatting & Biome Blending**: Multi-texture shader blending coastal sand, arid steppe, craggy granite (triplanar mapped), and asphalt.
+- **MGRS Tactical Coordinate Grid**: Bidirectional mapping between simulation coordinates and military grid callouts for chat/web command interaction.
+- **Faction Harmonization**: Consistent visual identification for Coalition (Quorum cyan/navy) and Static (Null scarlet/carbon black).
