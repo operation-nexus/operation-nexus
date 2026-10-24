@@ -82,30 +82,54 @@
           "type": "number",
           "exclusiveMinimum": 0,
           "x-unit": "h (game)",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "CAMPAIGN",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 36.0, "max": 144.0, "step": 6.0, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a79",
+          "x-status": "PROPOSED"
         },
-        "strategic_node_kinds": {"description": "Node kinds that count as strategic nodes: the denominator of victory_node_frac and of the score and Momentum node shares (GAMEPLAY \u00a79, Q-GP-21, Q-DEV-21), unit node kinds.", "type": "array", "minItems": 1, "items": {"$ref": "../common/enums.json#/$defs/NodeKind"}, "x-unit": "node kinds", "x-hot-reload": false},
+        "strategic_node_kinds": {"description": "Node kinds that count as strategic nodes: the denominator of victory_node_frac and of the score and Momentum node shares (GAMEPLAY \u00a79, Q-GP-21, Q-DEV-21), unit node kinds.", "type": "array", "minItems": 1, "items": {"$ref": "../common/enums.json#/$defs/NodeKind"}, "x-unit": "node kinds", "x-hot-reload": false, "x-category": "CAMPAIGN", "x-audience": "OPERATOR", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "GAMEPLAY \u00a79", "x-status": "RULE_DEFAULT"},
         "victory_node_frac": {
           "description": "Share of strategic nodes (AIRBASE, FOB, PORT) the coalition must hold to win, unit fraction (GAMEPLAY §9).",
           "type": "number",
           "exclusiveMinimum": 0,
           "maximum": 1,
           "x-unit": "fraction",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "CAMPAIGN",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 0.4, "max": 1.0, "step": 0.05, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a79",
+          "x-status": "PROPOSED"
         },
         "victory_hold_min": {
           "description": "Game minutes the coalition must hold victory_node_frac without a dip, unit min of game time (GAMEPLAY §9).",
           "type": "number",
           "exclusiveMinimum": 0,
           "x-unit": "min (game)",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "CAMPAIGN",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 15.0, "max": 60.0, "step": 5.0, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a79",
+          "x-status": "PROPOSED"
         },
         "objective_period_min": {
           "description": "Game minutes an objective lasts before it expires, unit min of game time (GAMEPLAY §9, STATE-MACHINES 4.5). Hot reload applies from the next objective (Q-CFG-16).",
           "type": "number",
           "exclusiveMinimum": 0,
           "x-unit": "min (game)",
-          "x-hot-reload": true
+          "x-hot-reload": true,
+          "x-category": "CAMPAIGN",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 7.5, "max": 30.0, "step": 2.5, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a79",
+          "x-status": "PROPOSED"
         },
         "objective_mode": {
           "description": "timed: one system objective at a time; off: none (Q-GD-19). Set per campaign by the owner or an admin (Q-ALN-10).",
@@ -114,7 +138,13 @@
             "off"
           ],
           "x-unit": "enum",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "CAMPAIGN",
+          "x-audience": "OPERATOR",
+          "x-edit-role": "ADMIN",
+          "x-tune": null,
+          "x-source": "GAMEPLAY \u00a79",
+          "x-status": "RULE_DEFAULT"
         },
         "score": {
           "description": "Time-limit score (Q-GD-29, Q-SIM-64).",
@@ -131,21 +161,39 @@
               "type": "number",
               "minimum": 0,
               "x-unit": "points",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "CAMPAIGN",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 25.0, "max": 100.0, "step": 5.0, "scale": "LINEAR"},
+              "x-source": "STATE-MACHINES \u00a74.4",
+              "x-status": "PROPOSED"
             },
             "final_weight": {
               "description": "Points for a side's share of strategic nodes at the final tick, unit points (STATE-MACHINES 4.4, Q-SIM-64).",
               "type": "number",
               "minimum": 0,
               "x-unit": "points",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "CAMPAIGN",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 25.0, "max": 100.0, "step": 5.0, "scale": "LINEAR"},
+              "x-source": "STATE-MACHINES \u00a74.4",
+              "x-status": "PROPOSED"
             },
             "objective_points": {
               "description": "Points to the coalition per completed objective, unit points (STATE-MACHINES 4.4).",
               "type": "number",
               "minimum": 0,
               "x-unit": "points per objective",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "CAMPAIGN",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 2.5, "max": 10.0, "step": 0.5, "scale": "LINEAR"},
+              "x-source": "STATE-MACHINES \u00a74.4",
+              "x-status": "PROPOSED"
             }
           }
         },
@@ -154,18 +202,24 @@
           "type": "number",
           "exclusiveMinimum": 0,
           "x-unit": "nodes/h (game)",
-          "x-hot-reload": true
+          "x-hot-reload": true,
+          "x-category": "CAMPAIGN",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 0.08, "max": 0.34, "step": 0.02, "scale": "LINEAR"},
+          "x-source": "THREAT-DIRECTOR \u00a75, Q-GD-4",
+          "x-status": "PROPOSED"
         },
         "victory": {"description": "Victory rules (GAMEPLAY \u00a79, Q-CFG-16).", "type": "object", "additionalProperties": false, "required": ["hq_capture"], "properties": {
-          "hq_capture": {"description": "Whether the coalition capturing the enemy HQ wins the campaign at once (GAMEPLAY \u00a79; decided rule as default, Q-CFG-16 option); false leaves the hold and time-limit endings, unit switch.", "type": "boolean", "x-unit": "switch", "x-hot-reload": false}
+          "hq_capture": {"description": "Whether the coalition capturing the enemy HQ wins the campaign at once (GAMEPLAY \u00a79; decided rule as default, Q-CFG-16 option); false leaves the hold and time-limit endings, unit switch.", "type": "boolean", "x-unit": "switch", "x-hot-reload": false, "x-category": "CAMPAIGN", "x-audience": "OPERATOR", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "GAMEPLAY \u00a79", "x-status": "RULE_DEFAULT"}
         }},
         "idle_floor": {"description": "The idle floor while no viewer unit is live (Q-GP-28, Q-GP-44, Q-CFG-16).", "type": "object", "additionalProperties": false, "required": ["enabled", "sanctuary_min_hp"], "properties": {
-          "enabled": {"description": "Whether the idle floor applies with no live viewer unit: the theater's forward airbase's capture bar is frozen while the coalition owns it, the coalition sanctuary's defense HP cannot drop below sanctuary_min_hp, and the defeat clock does not advance (GAMEPLAY \u00a70 and \u00a79; decided rule as default, Q-CFG-16 option), unit switch.", "type": "boolean", "x-unit": "switch", "x-hot-reload": false},
-          "sanctuary_min_hp": {"description": "The least defense HP the coalition sanctuary may be reduced to while the idle floor holds (Q-GP-44, Q-TH-7); at most capture.defense_hp.SANCTUARY, unit hp.", "type": "integer", "minimum": 1, "x-unit": "hp", "x-hot-reload": false}
+          "enabled": {"description": "Whether the idle floor applies with no live viewer unit: the theater's forward airbase's capture bar is frozen while the coalition owns it, the coalition sanctuary's defense HP cannot drop below sanctuary_min_hp, and the defeat clock does not advance (GAMEPLAY \u00a70 and \u00a79; decided rule as default, Q-CFG-16 option), unit switch.", "type": "boolean", "x-unit": "switch", "x-hot-reload": false, "x-category": "CAMPAIGN", "x-audience": "OPERATOR", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "GAMEPLAY \u00a70, \u00a79", "x-status": "RULE_DEFAULT"},
+          "sanctuary_min_hp": {"description": "The least defense HP the coalition sanctuary may be reduced to while the idle floor holds (Q-GP-44, Q-TH-7); at most capture.defense_hp.SANCTUARY, unit hp.", "type": "integer", "minimum": 1, "x-unit": "hp", "x-hot-reload": false, "x-category": "CAMPAIGN", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 1, "max": 2, "step": 1, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a79, Q-TH-7", "x-status": "RULE_DEFAULT"}
         }},
-        "objective_pick": {"description": "How a timed objective's node is picked among the frontline candidates: uniform, one draw on the objective stream (GAMEPLAY \u00a79, Q-CFG-16; the only value today, the key exists for later weightings). Objectives score for the coalition only either way, unit enum.", "enum": ["uniform"], "x-unit": "enum", "x-hot-reload": false},
+        "objective_pick": {"description": "How a timed objective's node is picked among the frontline candidates: uniform, one draw on the objective stream (GAMEPLAY \u00a79, Q-CFG-16; the only value today, the key exists for later weightings). Objectives score for the coalition only either way, unit enum.", "enum": ["uniform"], "x-unit": "enum", "x-hot-reload": false, "x-category": "CAMPAIGN", "x-audience": "OPERATOR", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "GAMEPLAY \u00a79", "x-status": "RULE_DEFAULT"},
         "momentum": {
-          "description": "Momentum weights (Q-SIM-60): momentum % = nodes_weight x the coalition's share of strategic nodes + supply_weight x its supply fill. They must add up to 100.",
+          "description": "Momentum weights (Q-SIM-60): momentum % = nodes_weight x the coalition's share of strategic nodes + supply_weight x its supply fill. They must add up to 100: a sweep must keep nodes_weight + supply_weight = 100 (the loader refuses otherwise).",
           "type": "object",
           "additionalProperties": false,
           "required": [
@@ -179,7 +233,13 @@
               "minimum": 0,
               "maximum": 100,
               "x-unit": "percentage points",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "CAMPAIGN",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 35.0, "max": 100.0, "step": 5.0, "scale": "LINEAR"},
+              "x-source": "GAMEPLAY \u00a79, Q-SIM-60",
+              "x-status": "PROPOSED"
             },
             "supply_weight": {
               "description": "Weight of the coalition's supply fill, unit percentage points.",
@@ -187,7 +247,13 @@
               "minimum": 0,
               "maximum": 100,
               "x-unit": "percentage points",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "CAMPAIGN",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 15.0, "max": 60.0, "step": 5.0, "scale": "LINEAR"},
+              "x-source": "GAMEPLAY \u00a79, Q-SIM-60",
+              "x-status": "PROPOSED"
             }
           }
         },
@@ -204,7 +270,13 @@
               "type": "number",
               "exclusiveMinimum": 0,
               "x-unit": "min (game)",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "CAMPAIGN",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 15.0, "max": 60.0, "step": 5.0, "scale": "LINEAR"},
+              "x-source": "GAMEPLAY \u00a79",
+              "x-status": "PROPOSED"
             }
           }
         }
@@ -280,21 +352,39 @@
           "type": "number",
           "exclusiveMinimum": 0,
           "x-unit": "m",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "CAPTURE",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 1000.0, "max": 4000.0, "step": 250.0, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a78",
+          "x-status": "PROPOSED"
         },
         "time_s": {
           "description": "World seconds one capturer takes to fill a node's capture bar before the quiet-stream and garrison modifiers, unit s of world time (GAMEPLAY \u00a78).",
           "type": "number",
           "exclusiveMinimum": 0,
           "x-unit": "s (world)",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "CAPTURE",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 60.0, "max": 240.0, "step": 10.0, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a78",
+          "x-status": "PROPOSED"
         },
         "multi_unit_exponent": {
           "description": "Diminishing returns: the capture time is divided by n to this power, n the weighted capturers in radius, unit exponent (Q-SIM-26).",
           "type": "number",
           "minimum": 0,
           "x-unit": "exponent",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "CAPTURE",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 0.25, "max": 1.0, "step": 0.05, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a78, Q-SIM-26",
+          "x-status": "PROPOSED"
         },
         "quiet_floor": {
           "description": "The quiet-stream multiplier on the capture time of the quiet_sides at 0 live viewer units, rising linearly to 1.0 at quiet_ref, unit multiplier (Q-SIM-26). Hot-reloadable (Q-CFG-16).",
@@ -302,56 +392,104 @@
           "exclusiveMinimum": 0,
           "maximum": 1,
           "x-unit": "multiplier",
-          "x-hot-reload": true
+          "x-hot-reload": true,
+          "x-category": "CAPTURE",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 0.3, "max": 1.0, "step": 0.05, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a78, Q-SIM-26",
+          "x-status": "PROPOSED"
         },
         "quiet_ref": {
           "description": "Live viewer units at which the quiet-stream multiplier reaches 1.0, unit viewer units (Q-SIM-26).",
           "type": "integer",
           "minimum": 1,
           "x-unit": "viewer units",
-          "x-hot-reload": true
+          "x-hot-reload": true,
+          "x-category": "CAPTURE",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 25, "max": 100, "step": 1, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a78, Q-SIM-26",
+          "x-status": "PROPOSED"
         },
         "min_time_s": {
           "description": "The shortest a capture may take, before the garrison modifier, unit s of world time (Q-GP-4).",
           "type": "number",
           "exclusiveMinimum": 0,
           "x-unit": "s (world)",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "CAPTURE",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 15.0, "max": 60.0, "step": 5.0, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a78, Q-SIM-26",
+          "x-status": "PROPOSED"
         },
         "logi_weight": {
           "description": "How much of a capturer a logistics unit counts for, unit capturer weight (Q-SM-7).",
           "type": "number",
           "exclusiveMinimum": 0,
           "x-unit": "capturer weight",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "CAPTURE",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 0.25, "max": 1.0, "step": 0.05, "scale": "LINEAR"},
+          "x-source": "STATE-MACHINES \u00a74.2",
+          "x-status": "PROPOSED"
         },
         "garrison_mult": {
           "description": "Capture-time multiplier while a defender that cannot contest (parked air, an unarmed ground unit) is at the base, unit multiplier (Q-GD-32, Q-SM-8).",
           "type": "number",
           "exclusiveMinimum": 0,
           "x-unit": "multiplier",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "CAPTURE",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 1.5, "max": 6.0, "step": 0.5, "scale": "LINEAR"},
+          "x-source": "STATE-MACHINES \u00a74.2",
+          "x-status": "PROPOSED"
         },
         "empty_base_mult": {
           "description": "Capture-time multiplier while the owning side has no unit at the base, unit multiplier (Q-GD-32, Q-SM-8).",
           "type": "number",
           "exclusiveMinimum": 0,
           "x-unit": "multiplier",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "CAPTURE",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 0.25, "max": 1.0, "step": 0.05, "scale": "LINEAR"},
+          "x-source": "STATE-MACHINES \u00a74.2",
+          "x-status": "PROPOSED"
         },
         "decay_per_s": {
           "description": "Share of the capture bar that drains per world second while the capturers are gone, unit fraction of the bar per s of world time (Q-SIM-23, Q-SIM-57). Counted in millionths of a percent per tick, rounded.",
           "type": "number",
           "exclusiveMinimum": 0,
           "x-unit": "bar fraction/s (world)",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "CAPTURE",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 0.004, "max": 0.017, "step": 0.001, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a78",
+          "x-status": "PROPOSED"
         },
         "min_progress_per_tick": {
           "description": "The least a capture bar gains per tick while a side captures, however slow the capture time, unit millionths of a percent of the bar per tick (NX-125, Q-DEV-21). 1 means a bar always moves.",
           "type": "integer",
           "minimum": 1,
           "x-unit": "millionths of a percent per tick",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "CAPTURE",
+          "x-audience": "DEVELOPER",
+          "x-edit-role": "ADMIN",
+          "x-tune": null,
+          "x-source": "GAMEPLAY \u00a78",
+          "x-status": "PROPOSED"
         },
         "defense_hp": {
           "description": "The most defense HP a node of each kind has (Q-SIM-71, GAMEPLAY §8): an owned node starts full, a NEUTRAL one at 0, and a node that changes hands starts at 0 for its new owner. A BRIDGE has none here: its hp is logistics.bridge_hp (NX-373).",
@@ -365,11 +503,11 @@
             "SANCTUARY"
           ],
           "properties": {
-            "AIRBASE": {"type": "integer", "minimum": 1, "x-unit": "hp", "x-hot-reload": false},
-            "FOB": {"type": "integer", "minimum": 1, "x-unit": "hp", "x-hot-reload": false},
-            "HQ": {"type": "integer", "minimum": 1, "x-unit": "hp", "x-hot-reload": false},
-            "PORT": {"type": "integer", "minimum": 1, "x-unit": "hp", "x-hot-reload": false},
-            "SANCTUARY": {"type": "integer", "minimum": 1, "x-unit": "hp", "x-hot-reload": false}
+            "AIRBASE": {"type": "integer", "minimum": 1, "x-unit": "hp", "x-hot-reload": false, "x-category": "CAPTURE", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 250, "max": 1000, "step": 1, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a78", "x-status": "PROPOSED"},
+            "FOB": {"type": "integer", "minimum": 1, "x-unit": "hp", "x-hot-reload": false, "x-category": "CAPTURE", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 150, "max": 600, "step": 1, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a78", "x-status": "PROPOSED"},
+            "HQ": {"type": "integer", "minimum": 1, "x-unit": "hp", "x-hot-reload": false, "x-category": "CAPTURE", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 400, "max": 1600, "step": 1, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a78", "x-status": "PROPOSED"},
+            "PORT": {"type": "integer", "minimum": 1, "x-unit": "hp", "x-hot-reload": false, "x-category": "CAPTURE", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 150, "max": 600, "step": 1, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a78", "x-status": "PROPOSED"},
+            "SANCTUARY": {"type": "integer", "minimum": 1, "x-unit": "hp", "x-hot-reload": false, "x-category": "CAPTURE", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 500, "max": 2000, "step": 1, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a78", "x-status": "PROPOSED"}
           }
         },
         "sanctuary_repair_hp_per_s": {
@@ -377,13 +515,19 @@
           "type": "number",
           "exclusiveMinimum": 0,
           "x-unit": "hp/s (world) per unit",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "CAPTURE",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 0.5, "max": 2.0, "step": 0.1, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a79",
+          "x-status": "PROPOSED"
         },
-        "uncapturable_node_kinds": {"description": "Node kinds that are never captured: no capture bar, not a base for the Director's targets, not a timed-objective candidate, no defenses to rebuild for the Static board (GAMEPLAY \u00a78, N-4, NX-373, Q-DEV-21); must include BRIDGE (a bridge has no owner or stock); SANCTUARY may be removed, which also makes a sanctuary a Director base and patrol point, unit node kinds.", "type": "array", "items": {"$ref": "../common/enums.json#/$defs/NodeKind"}, "x-unit": "node kinds", "x-hot-reload": false},
-        "requires_defenses_down": {"description": "Whether a capture bar can start only on a node whose defense HP is 0 (GAMEPLAY \u00a78, Q-GD-18; decided rule as default, Q-CFG-16 option); false lets a bar start whatever the defenses, unit switch.", "type": "boolean", "x-unit": "switch", "x-hot-reload": false},
-        "air_counts": {"description": "Whether airborne aircraft count as capturers, each weighing air_weight (GAMEPLAY \u00a78, N-3; decided rule as default: they never count, Q-CFG-16 option). They never contest either way; LANDED aircraft only garrison, unit switch.", "type": "boolean", "x-unit": "switch", "x-hot-reload": false},
-        "air_weight": {"description": "How much of a capturer an airborne aircraft counts for, read only when air_counts is true (Q-CFG-16), unit capturer weight.", "type": "number", "exclusiveMinimum": 0, "x-unit": "capturer weight", "x-hot-reload": false},
-        "quiet_sides": {"description": "The sides whose capture time gets the quiet-stream multiplier (Q-SIM-26: the coalition only, a documented asymmetry; Q-CFG-16 option); empty turns it off, unit sides.", "type": "array", "items": {"$ref": "../common/enums.json#/$defs/Side"}, "x-unit": "sides", "x-hot-reload": false}
+        "uncapturable_node_kinds": {"description": "Node kinds that are never captured: no capture bar, not a base for the Director's targets, not a timed-objective candidate, no defenses to rebuild for the Static board (GAMEPLAY \u00a78, N-4, NX-373, Q-DEV-21); must include BRIDGE (a bridge has no owner or stock); SANCTUARY may be removed, which also makes a sanctuary a Director base and patrol point, unit node kinds.", "type": "array", "items": {"$ref": "../common/enums.json#/$defs/NodeKind"}, "x-unit": "node kinds", "x-hot-reload": false, "x-category": "CAPTURE", "x-audience": "OPERATOR", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "GAMEPLAY \u00a78", "x-status": "RULE_DEFAULT"},
+        "requires_defenses_down": {"description": "Whether a capture bar can start only on a node whose defense HP is 0 (GAMEPLAY \u00a78, Q-GD-18; decided rule as default, Q-CFG-16 option); false lets a bar start whatever the defenses, unit switch.", "type": "boolean", "x-unit": "switch", "x-hot-reload": false, "x-category": "CAPTURE", "x-audience": "OPERATOR", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "GAMEPLAY \u00a78", "x-status": "RULE_DEFAULT"},
+        "air_counts": {"description": "Whether airborne aircraft count as capturers, each weighing air_weight (GAMEPLAY \u00a78, N-3; decided rule as default: they never count, Q-CFG-16 option). They never contest either way; LANDED aircraft only garrison, unit switch.", "type": "boolean", "x-unit": "switch", "x-hot-reload": false, "x-category": "CAPTURE", "x-audience": "OPERATOR", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "GAMEPLAY \u00a78, STATE-MACHINES \u00a74.2", "x-status": "RULE_DEFAULT"},
+        "air_weight": {"description": "How much of a capturer an airborne aircraft counts for, read only when air_counts is true (Q-CFG-16), unit capturer weight.", "type": "number", "exclusiveMinimum": 0, "x-unit": "capturer weight", "x-hot-reload": false, "x-category": "CAPTURE", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 0.5, "max": 2.0, "step": 0.1, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a78", "x-status": "RULE_DEFAULT"},
+        "quiet_sides": {"description": "The sides whose capture time gets the quiet-stream multiplier (Q-SIM-26: the coalition only, a documented asymmetry; Q-CFG-16 option); empty turns it off, unit sides.", "type": "array", "items": {"$ref": "../common/enums.json#/$defs/Side"}, "x-unit": "sides", "x-hot-reload": false, "x-category": "CAPTURE", "x-audience": "OPERATOR", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "GAMEPLAY \u00a78, Q-SIM-26", "x-status": "RULE_DEFAULT"}
       }
     },
     "Combat": {
@@ -410,7 +554,13 @@
           "exclusiveMinimum": 0,
           "maximum": 1,
           "x-unit": "probability",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "COMBAT",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 0.5, "max": 1.0, "step": 0.05, "scale": "LINEAR"},
+          "x-source": "COMBAT CB-4",
+          "x-status": "PROPOSED"
         },
         "track_quality": {
           "description": "Pk multiplier by how the shooter's side knows the target (COMBAT \u00a75.2).",
@@ -426,14 +576,26 @@
               "type": "number",
               "exclusiveMinimum": 0,
               "x-unit": "multiplier",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "COMBAT",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 0.5, "max": 2.0, "step": 0.05, "scale": "LINEAR"},
+              "x-source": "COMBAT",
+              "x-status": "PROPOSED"
             },
             "painted": {
               "description": "A target painted by a recon unit, unit multiplier.",
               "type": "number",
               "exclusiveMinimum": 0,
               "x-unit": "multiplier",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "COMBAT",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 0.6, "max": 2.5, "step": 0.05, "scale": "LINEAR"},
+              "x-source": "COMBAT",
+              "x-status": "PROPOSED"
             }
           }
         },
@@ -452,7 +614,13 @@
               "minimum": 0,
               "exclusiveMaximum": 1,
               "x-unit": "fraction of range_m",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "COMBAT",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 0.25, "max": 0.95, "step": 0.05, "scale": "LINEAR"},
+              "x-source": "COMBAT \u00a75.2",
+              "x-status": "PROPOSED"
             },
             "min_mult": {
               "description": "Range factor at range_m, unit multiplier; it falls linearly from 1.0 at full_pk_frac.",
@@ -460,7 +628,13 @@
               "exclusiveMinimum": 0,
               "maximum": 1,
               "x-unit": "multiplier",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "COMBAT",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 0.25, "max": 1.0, "step": 0.05, "scale": "LINEAR"},
+              "x-source": "COMBAT \u00a75.2",
+              "x-status": "PROPOSED"
             }
           }
         },
@@ -478,12 +652,18 @@
               "exclusiveMinimum": 0,
               "maximum": 1,
               "x-unit": "multiplier",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "COMBAT",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 0.25, "max": 1.0, "step": 0.05, "scale": "LINEAR"},
+              "x-source": "COMBAT \u00a75.2, Q-CBT-2",
+              "x-status": "PROPOSED"
             }
           }
         },
         "damage_state": {
-          "description": "Damage-state thresholds (CB-6, Q-GP-8): a unit is in the state when its hp is below the fraction of its kind's hp; they descend.",
+          "description": "Damage-state thresholds (CB-6, Q-GP-8): a unit is in the state when its hp is below the fraction of its kind's hp; they descend. A sweep must keep disabled_below < mission_kill_below < damaged_below (the loader refuses otherwise).",
           "type": "object",
           "additionalProperties": false,
           "required": [
@@ -500,7 +680,13 @@
               "exclusiveMinimum": 0,
               "maximum": 1,
               "x-unit": "fraction of hp",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "COMBAT",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 0.35, "max": 1.0, "step": 0.05, "scale": "LINEAR"},
+              "x-source": "COMBAT CB-6, Q-GP-8",
+              "x-status": "PROPOSED"
             },
             "mission_kill_below": {
               "description": "Below this hp fraction a unit is Mission-kill, unit fraction of hp.",
@@ -508,7 +694,13 @@
               "exclusiveMinimum": 0,
               "maximum": 1,
               "x-unit": "fraction of hp",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "COMBAT",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 0.175, "max": 0.7, "step": 0.025, "scale": "LINEAR"},
+              "x-source": "COMBAT CB-6, Q-GP-8",
+              "x-status": "PROPOSED"
             },
             "disabled_below": {
               "description": "Below this hp fraction a unit is Disabled, and a facility's hp floors there, unit fraction of hp.",
@@ -516,7 +708,13 @@
               "exclusiveMinimum": 0,
               "maximum": 1,
               "x-unit": "fraction of hp",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "COMBAT",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 0.05, "max": 0.2, "step": 0.01, "scale": "LINEAR"},
+              "x-source": "COMBAT CB-6, Q-GP-8",
+              "x-status": "PROPOSED"
             },
             "damaged_speed_mult": {
               "description": "Top-speed multiplier of a unit at Damaged or worse; an aircraft never flies below its min_speed_mps, unit multiplier (CB-6, Q-SIM-65).",
@@ -524,7 +722,13 @@
               "exclusiveMinimum": 0,
               "maximum": 1,
               "x-unit": "multiplier",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "COMBAT",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 0.375, "max": 1.0, "step": 0.025, "scale": "LINEAR"},
+              "x-source": "COMBAT CB-6, Q-CBT-1",
+              "x-status": "PROPOSED"
             },
             "damaged_sensor_mult": {
               "description": "Sensor-radius multiplier of a unit at Damaged or worse, unit multiplier (CB-6, Q-SIM-65).",
@@ -532,7 +736,13 @@
               "exclusiveMinimum": 0,
               "maximum": 1,
               "x-unit": "multiplier",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "COMBAT",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 0.4, "max": 1.0, "step": 0.05, "scale": "LINEAR"},
+              "x-source": "COMBAT CB-6, Q-CBT-1",
+              "x-status": "PROPOSED"
             }
           }
         },
@@ -541,21 +751,39 @@
           "type": "integer",
           "minimum": 1,
           "x-unit": "hp",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "COMBAT",
+          "x-audience": "DEVELOPER",
+          "x-edit-role": "ADMIN",
+          "x-tune": null,
+          "x-source": "COMBAT CB-3",
+          "x-status": "PROPOSED"
         },
         "assist_window_s": {
       "description": "A shooter that landed a hit on a unit within this long before the unit is destroyed is an assist on its UnitDestroyed, unit s of game time (COMBAT CB-5a, Q-SIM-66).",
       "type": "number",
       "exclusiveMinimum": 0,
       "x-unit": "s (game)",
-      "x-hot-reload": false
+      "x-hot-reload": false,
+      "x-category": "COMBAT",
+      "x-audience": "TUNER",
+      "x-edit-role": "ADMIN",
+      "x-tune": {"min": 60.0, "max": 240.0, "step": 10.0, "scale": "LINEAR"},
+      "x-source": "COMBAT CB-5a",
+      "x-status": "PROPOSED"
     },
     "disabled_timeout_s": {
           "description": "A Disabled unit that is not a facility is removed after this long, unit s of game time (CB-7, Q-CBT-14).",
           "type": "number",
           "exclusiveMinimum": 0,
           "x-unit": "s (game)",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "COMBAT",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 300.0, "max": 1200.0, "step": 50.0, "scale": "LINEAR"},
+          "x-source": "COMBAT CB-7",
+          "x-status": "PROPOSED"
         },
         "crew_survival": {
           "description": "Chance a crew survives the loss of its unit (DOWNED, else LOST), one entry per kind with crew above 0, unit probability; the unit's one roll on the combat stream (CB-8, Q-SIM-68).",
@@ -577,7 +805,13 @@
               "minimum": 0,
               "maximum": 1,
               "x-unit": "probability",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "COMBAT",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 0.3, "max": 1.0, "step": 0.05, "scale": "LINEAR"},
+              "x-source": "COMBAT CB-8",
+              "x-status": "PROPOSED"
             },
             "ENEMY_CONVOY": {
               "description": "Crew survival chance of this kind, unit probability.",
@@ -585,7 +819,13 @@
               "minimum": 0,
               "maximum": 1,
               "x-unit": "probability",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "COMBAT",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 0.35, "max": 1.0, "step": 0.05, "scale": "LINEAR"},
+              "x-source": "COMBAT CB-8",
+              "x-status": "PROPOSED"
             },
             "ENEMY_FIGHTER": {
               "description": "Crew survival chance of this kind, unit probability.",
@@ -593,7 +833,13 @@
               "minimum": 0,
               "maximum": 1,
               "x-unit": "probability",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "COMBAT",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 0.375, "max": 1.0, "step": 0.025, "scale": "LINEAR"},
+              "x-source": "COMBAT CB-8",
+              "x-status": "PROPOSED"
             },
             "ENEMY_STRIKE_FIGHTER": {
               "description": "Crew survival chance of this kind, unit probability.",
@@ -601,7 +847,13 @@
               "minimum": 0,
               "maximum": 1,
               "x-unit": "probability",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "COMBAT",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 0.375, "max": 1.0, "step": 0.025, "scale": "LINEAR"},
+              "x-source": "COMBAT CB-8",
+              "x-status": "PROPOSED"
             },
             "GARRISON_INFANTRY": {
               "description": "Crew survival chance of this kind, unit probability.",
@@ -609,7 +861,13 @@
               "minimum": 0,
               "maximum": 1,
               "x-unit": "probability",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "COMBAT",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 0.25, "max": 1.0, "step": 0.05, "scale": "LINEAR"},
+              "x-source": "COMBAT CB-8",
+              "x-status": "PROPOSED"
             },
             "LOGI_TRUCK": {
               "description": "Crew survival chance of this kind, unit probability.",
@@ -617,7 +875,13 @@
               "minimum": 0,
               "maximum": 1,
               "x-unit": "probability",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "COMBAT",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 0.35, "max": 1.0, "step": 0.05, "scale": "LINEAR"},
+              "x-source": "COMBAT CB-8",
+              "x-status": "PROPOSED"
             },
             "STRIKE_FIGHTER": {
               "description": "Crew survival chance of this kind, unit probability.",
@@ -625,7 +889,13 @@
               "minimum": 0,
               "maximum": 1,
               "x-unit": "probability",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "COMBAT",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 0.375, "max": 1.0, "step": 0.025, "scale": "LINEAR"},
+              "x-source": "COMBAT CB-8",
+              "x-status": "PROPOSED"
             }
           }
         },
@@ -634,9 +904,15 @@
           "type": "number",
           "exclusiveMinimum": 0,
           "x-unit": "min (game)",
-          "x-hot-reload": true
+          "x-hot-reload": true,
+          "x-category": "COMBAT",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 5.0, "max": 20.0, "step": 1.0, "scale": "LINEAR"},
+          "x-source": "COMBAT CB-8",
+          "x-status": "PROPOSED"
         },
-        "facility_indestructible": {"description": "Whether a facility's hp floors at its Disabled threshold so it is never Destroyed (COMBAT CB-9, Q-GP-37; decided rule as default, Q-CFG-16 option); false lets a hit that takes it to 0 hp destroy it like any unit, unit switch.", "type": "boolean", "x-unit": "switch", "x-hot-reload": false}
+        "facility_indestructible": {"description": "Whether a facility's hp floors at its Disabled threshold so it is never Destroyed (COMBAT CB-9, Q-GP-37; decided rule as default, Q-CFG-16 option); false lets a hit that takes it to 0 hp destroy it like any unit, unit switch.", "type": "boolean", "x-unit": "switch", "x-hot-reload": false, "x-category": "COMBAT", "x-audience": "OPERATOR", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "COMBAT CB-9", "x-status": "RULE_DEFAULT"}
       }
     },
     "Fow": {
@@ -819,77 +1095,143 @@
           "type": "integer",
           "minimum": 0,
           "x-unit": "stock units",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "LOGISTICS",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 1000, "max": 4000, "step": 1, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a75",
+          "x-status": "PROPOSED"
         },
         "BRIDGE": {
           "type": "integer",
           "minimum": 0,
           "x-unit": "stock units",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "LOGISTICS",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": null,
+          "x-source": "GAMEPLAY \u00a75",
+          "x-status": "PROPOSED"
         },
         "FOB": {
           "type": "integer",
           "minimum": 0,
           "x-unit": "stock units",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "LOGISTICS",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 500, "max": 2000, "step": 1, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a75",
+          "x-status": "PROPOSED"
         },
         "HQ": {
           "type": "integer",
           "minimum": 0,
           "x-unit": "stock units",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "LOGISTICS",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 1000, "max": 4000, "step": 1, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a75",
+          "x-status": "PROPOSED"
         },
         "PORT": {
           "type": "integer",
           "minimum": 0,
           "x-unit": "stock units",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "LOGISTICS",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 500, "max": 2000, "step": 1, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a75",
+          "x-status": "PROPOSED"
         }
           }
         },
         "starve_threshold": {
-          "description": "A base is starved below this fraction of its node_max_stock, unit fraction; a truck never loads stock below it, so the floor is ceil(starve_threshold x max) whole units (GAMEPLAY \u00a75, Q-GP-24).",
+          "description": "A base is starved below this fraction of its node_max_stock, unit fraction; a truck never loads stock below it, so the floor is ceil(starve_threshold x max) whole units (GAMEPLAY \u00a75, Q-GP-24). The loader does not check it: a sweep should keep it below stock_target_frac.",
           "type": "number",
           "minimum": 0,
           "maximum": 1,
           "x-unit": "fraction of node_max_stock",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "LOGISTICS",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 0.125, "max": 0.5, "step": 0.025, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a75",
+          "x-status": "PROPOSED"
         },
         "stock_target_frac": {
-          "description": "Forward stock target (Q-SIM-100, Q-SIM-102, NX-389), unit fraction of node_max_stock: a base the side owns below ceil(stock_target_frac x max) gets a resupply job even when it is not starved (a stocking job), and a run to such a base (not starved, no damaged facility) loads only stock a source holds above its own target, else at the side's rear source. At starve_threshold or below there are no stocking jobs.",
+          "description": "Forward stock target (Q-SIM-100, Q-SIM-102, NX-389), unit fraction of node_max_stock: a base the side owns below ceil(stock_target_frac x max) gets a resupply job even when it is not starved (a stocking job), and a run to such a base (not starved, no damaged facility) loads only stock a source holds above its own target, else at the side's rear source. At starve_threshold or below there are no stocking jobs. The loader does not check it: a sweep should keep it above starve_threshold.",
           "type": "number",
           "minimum": 0,
           "maximum": 1,
           "x-unit": "fraction of node_max_stock",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "LOGISTICS",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 0.4, "max": 1.0, "step": 0.05, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a75",
+          "x-status": "PROPOSED"
         },
         "truck_cargo": {
           "description": "The most cargo a truck loads, unit stock units; one global value for every cargo-carrying kind (GAMEPLAY \u00a75).",
           "type": "integer",
           "minimum": 1,
           "x-unit": "stock units",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "LOGISTICS",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 50, "max": 200, "step": 1, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a75",
+          "x-status": "PROPOSED"
         },
         "unload_rate": {
           "description": "Stock a parked truck moves into its destination per world second, unit stock per s of world time, frozen while paused (GAMEPLAY \u00a75, Q-SIM-50). Counted in whole milli-units per tick, so it is rounded to 0.001 per tick.",
           "type": "number",
           "exclusiveMinimum": 0,
           "x-unit": "stock/s (world)",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "LOGISTICS",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 0.5, "max": 2.0, "step": 0.1, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a75",
+          "x-status": "PROPOSED"
         },
         "rearm_rate": {
           "description": "Stock a landed aircraft buys at a base per world second, unit stock per s of world time, frozen while paused (Q-SIM-51). Counted in whole milli-units per tick, so it is rounded to 0.001 per tick.",
           "type": "number",
           "exclusiveMinimum": 0,
           "x-unit": "stock/s (world)",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "LOGISTICS",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 0.25, "max": 1.0, "step": 0.05, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a75",
+          "x-status": "PROPOSED"
         },
         "forward_deploy_min_surplus": {
           "description": "Stock a spawn base must hold above its starvation floor, unit stock units, before a JOIN may forward-deploy there (GAMEPLAY GP-7, Q-SIM-54).",
           "type": "integer",
           "minimum": 0,
           "x-unit": "stock units",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "LOGISTICS",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 25, "max": 100, "step": 1, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a74, Q-GP-41",
+          "x-status": "PROPOSED"
         },
         "starved_loadout": {
           "description": "What a base below its starvation floor fills a landed unit up to (Q-SIM-53).",
@@ -905,7 +1247,13 @@
               "minimum": 0,
               "maximum": 1,
               "x-unit": "fraction of fuel_s",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "LOGISTICS",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 0.25, "max": 1.0, "step": 0.05, "scale": "LINEAR"},
+              "x-source": "GAMEPLAY \u00a75",
+              "x-status": "PROPOSED"
             }
           }
         },
@@ -929,55 +1277,109 @@
               "type": "integer",
               "minimum": 0,
               "x-unit": "stock units",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "LOGISTICS",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 8, "max": 30, "step": 1, "scale": "LINEAR"},
+              "x-source": "GAMEPLAY \u00a75",
+              "x-status": "PROPOSED"
             },
             "ENEMY_CONVOY": {
               "type": "integer",
               "minimum": 0,
               "x-unit": "stock units",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "LOGISTICS",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": null,
+              "x-source": "GAMEPLAY \u00a75",
+              "x-status": "PROPOSED"
             },
             "ENEMY_FIGHTER": {
               "type": "integer",
               "minimum": 0,
               "x-unit": "stock units",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "LOGISTICS",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 10, "max": 40, "step": 1, "scale": "LINEAR"},
+              "x-source": "GAMEPLAY \u00a75",
+              "x-status": "PROPOSED"
             },
             "ENEMY_RECON_UAV": {
               "type": "integer",
               "minimum": 0,
               "x-unit": "stock units",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "LOGISTICS",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 3, "max": 10, "step": 1, "scale": "LINEAR"},
+              "x-source": "GAMEPLAY \u00a75",
+              "x-status": "PROPOSED"
             },
             "ENEMY_STRIKE_FIGHTER": {
               "type": "integer",
               "minimum": 0,
               "x-unit": "stock units",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "LOGISTICS",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 10, "max": 40, "step": 1, "scale": "LINEAR"},
+              "x-source": "GAMEPLAY \u00a75",
+              "x-status": "PROPOSED"
             },
             "GARRISON_INFANTRY": {
               "type": "integer",
               "minimum": 0,
               "x-unit": "stock units",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "LOGISTICS",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 3, "max": 10, "step": 1, "scale": "LINEAR"},
+              "x-source": "GAMEPLAY \u00a75",
+              "x-status": "PROPOSED"
             },
             "LOGI_TRUCK": {
               "type": "integer",
               "minimum": 0,
               "x-unit": "stock units",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "LOGISTICS",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": null,
+              "x-source": "GAMEPLAY \u00a75",
+              "x-status": "PROPOSED"
             },
             "RECON_UAV": {
               "type": "integer",
               "minimum": 0,
               "x-unit": "stock units",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "LOGISTICS",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 3, "max": 10, "step": 1, "scale": "LINEAR"},
+              "x-source": "GAMEPLAY \u00a75",
+              "x-status": "PROPOSED"
             },
             "STRIKE_FIGHTER": {
               "type": "integer",
               "minimum": 0,
               "x-unit": "stock units",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "LOGISTICS",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 10, "max": 40, "step": 1, "scale": "LINEAR"},
+              "x-source": "GAMEPLAY \u00a75",
+              "x-status": "PROPOSED"
             }
           }
         },
@@ -998,35 +1400,65 @@
               "type": "number",
               "minimum": 0,
               "x-unit": "hp/s (world)",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "LOGISTICS",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 0.5, "max": 2.0, "step": 0.1, "scale": "LINEAR"},
+              "x-source": "GAMEPLAY \u00a75",
+              "x-status": "PROPOSED"
             },
             "FOB": {
               "description": "Repair rate at a base of this kind, unit hp per s (world).",
               "type": "number",
               "minimum": 0,
               "x-unit": "hp/s (world)",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "LOGISTICS",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 0.25, "max": 1.0, "step": 0.05, "scale": "LINEAR"},
+              "x-source": "GAMEPLAY \u00a75",
+              "x-status": "PROPOSED"
             },
             "HQ": {
               "description": "Repair rate at a base of this kind, unit hp per s (world).",
               "type": "number",
               "minimum": 0,
               "x-unit": "hp/s (world)",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "LOGISTICS",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 0.5, "max": 2.0, "step": 0.1, "scale": "LINEAR"},
+              "x-source": "GAMEPLAY \u00a75",
+              "x-status": "PROPOSED"
             },
             "PORT": {
               "description": "Repair rate at a base of this kind, unit hp per s (world).",
               "type": "number",
               "minimum": 0,
               "x-unit": "hp/s (world)",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "LOGISTICS",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 0.5, "max": 2.0, "step": 0.1, "scale": "LINEAR"},
+              "x-source": "GAMEPLAY \u00a75",
+              "x-status": "PROPOSED"
             },
             "SANCTUARY": {
               "description": "Repair rate at a base of this kind, unit hp per s (world).",
               "type": "number",
               "minimum": 0,
               "x-unit": "hp/s (world)",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "LOGISTICS",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 1.0, "max": 4.0, "step": 0.25, "scale": "LINEAR"},
+              "x-source": "GAMEPLAY \u00a75",
+              "x-status": "PROPOSED"
             }
           }
         },
@@ -1035,14 +1467,26 @@
           "type": "integer",
           "minimum": 1,
           "x-unit": "hp per stock unit",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "LOGISTICS",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 5, "max": 20, "step": 1, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a75b",
+          "x-status": "PROPOSED"
         },
         "facility_rearm_cost": {
           "description": "Stock a facility's base pays for a full reload of all the facility's weapons, unit stock units, in proportion to the ammo share used (GAMEPLAY §5b, Q-SIM-69); free at a sanctuary.",
           "type": "integer",
           "minimum": 1,
           "x-unit": "stock units",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "LOGISTICS",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 5, "max": 20, "step": 1, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a75b",
+          "x-status": "PROPOSED"
         },
         "ammo_loadout_share": {
           "description": "Of a unit's loadout_cost, the share its ammo costs when the kind has both ammo and a fuel tank; fuel pays the rest (GAMEPLAY \u00a75, Q-SIM-69, Q-DEV-21). A kind with no fuel pays all of it for ammo. Unit fraction.",
@@ -1050,49 +1494,91 @@
           "minimum": 0,
           "maximum": 1,
           "x-unit": "fraction",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "LOGISTICS",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 0.25, "max": 1.0, "step": 0.05, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a75",
+          "x-status": "PROPOSED"
         },
         "starve_hp_drain_per_min": {
           "description": "Defense HP a base below its starvation floor loses per game minute, unit hp per min of game time (GAMEPLAY §8, Q-SIM-71); 0 turns the drain off. Whole hp, carried across ticks.",
           "type": "integer",
           "minimum": 0,
           "x-unit": "hp per min (game)",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "LOGISTICS",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 3, "max": 10, "step": 1, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a78",
+          "x-status": "PROPOSED"
         },
         "defense_repair_hp_per_stock": {
           "description": "Defense HP one stock unit unloaded into a node rebuilds, unit hp per stock unit (GAMEPLAY §8, Q-SIM-71), up to the node's defense_hp.",
           "type": "integer",
           "minimum": 1,
           "x-unit": "hp per stock unit",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "LOGISTICS",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 1, "max": 4, "step": 1, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a78",
+          "x-status": "PROPOSED"
         },
         "bridge_hp": {
           "description": "The most HP a BRIDGE node has, unit hp (STATE-MACHINES §4.3, Q-SIM-101, NX-373): every bridge starts full; STRUCTURE fire from a unit striking it lowers it, and at 0 the bridge is down and its road edge is cut for path planning until it is repaired to full. Not a capture defense (capture.defense_hp).",
           "type": "integer",
           "minimum": 1,
           "x-unit": "hp",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "LOGISTICS",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 150, "max": 600, "step": 1, "scale": "LINEAR"},
+          "x-source": "STATE-MACHINES \u00a74.3, GAMEPLAY \u00a75",
+          "x-status": "PROPOSED"
         },
         "bridge_collapse_radius_m": {
           "description": "How far from a bridge's cut point, measured along its road edge, a GROUND unit (either side) on that edge is destroyed when the bridge falls, unit m (STATE-MACHINES \u00a74.3, Q-SIM-112, NX-400): Destroyed with its cargo, the shooter of the dropping hit credited, before paths are rerouted. Aircraft are not affected.",
           "type": "number",
           "minimum": 0,
           "x-unit": "m",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "LOGISTICS",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 500.0, "max": 2000.0, "step": 100.0, "scale": "LINEAR"},
+          "x-source": "STATE-MACHINES \u00a74.3, GAMEPLAY \u00a75",
+          "x-status": "PROPOSED"
         },
         "bridge_repair_time_s": {
           "description": "How long an engineer takes to repair a bridge from 0 to full HP, unit s of world time (STATE-MACHINES \u00a74.3, Q-GD-11, Q-ALN-23, NX-373 part 2). Engineers are not in code yet; it is the baseline a truck's slower rate is derived from (truck_bridge_repair_mult).",
           "type": "number",
           "exclusiveMinimum": 0,
           "x-unit": "s (world)",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "LOGISTICS",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 300.0, "max": 1200.0, "step": 50.0, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a75, STATE-MACHINES \u00a74.3",
+          "x-status": "PROPOSED"
         },
         "truck_bridge_repair_mult": {
           "description": "How many times longer one logistics truck takes than an engineer to repair a bridge (Q-GD-11: slow field repair), unit multiplier on bridge_repair_time_s. Each carrier parked at the bridge's repair stop adds bridge_hp / (bridge_repair_time_s x this) hp per world second, so two trucks repair twice as fast; the loader refuses a rate below 0.001 hp per tick.",
           "type": "number",
           "minimum": 1,
           "x-unit": "multiplier",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "LOGISTICS",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 2.5, "max": 10.0, "step": 0.5, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a75, STATE-MACHINES \u00a74.3",
+          "x-status": "PROPOSED"
         }
       }
     },
@@ -1194,99 +1680,99 @@
         "escort_repair_crews"
       ],
       "properties": {
-        "reeval_every_ticks": {"description": "A board re-evaluates (settles, generates, assigns) every this many running ticks (TB-6), unit ticks.", "type": "integer", "minimum": 1, "x-unit": "ticks", "x-hot-reload": true},
-        "claim_lease_s": {"description": "A claim with no progress for this long is released and the job returns to OPEN (TB-1, Q-ALN-23), unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true},
-        "expire_min": {"description": "An unclaimed job expires this long after it was posted (Q-SIM-73), unit min of game time. Objective jobs expire with the objective instead.", "type": "number", "exclusiveMinimum": 0, "x-unit": "min (game)", "x-hot-reload": true},
+        "reeval_every_ticks": {"description": "A board re-evaluates (settles, generates, assigns) every this many running ticks (TB-6), unit ticks.", "type": "integer", "minimum": 1, "x-unit": "ticks", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "DEVELOPER", "x-edit-role": "ADMIN", "x-tune": {"min": 25, "max": 100, "step": 1, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b", "x-status": "PROPOSED"},
+        "claim_lease_s": {"description": "A claim with no progress for this long is released and the job returns to OPEN (TB-1, Q-ALN-23), unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 60.0, "max": 240.0, "step": 10.0, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b", "x-status": "PROPOSED"},
+        "expire_min": {"description": "An unclaimed job expires this long after it was posted (Q-SIM-73), unit min of game time. Objective jobs expire with the objective instead.", "type": "number", "exclusiveMinimum": 0, "x-unit": "min (game)", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 7.5, "max": 30.0, "step": 2.5, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b", "x-status": "PROPOSED"},
         "priority": {
-          "description": "Base priority per job kind (Q-GP-20), unit points; keys are the lower-case JobKind.",
+          "description": "Base priority per job kind (Q-GP-20), unit points; keys are the lower-case JobKind. Ordering intent, not enforced: stage below scout, patrol below stage, repair_bridge below resupply, intercept below defend and above strike; a sweep should keep it.",
           "type": "object",
           "additionalProperties": false,
           "required": ["defend", "resupply", "assist_objective", "strike", "scout", "escort_convoy", "stage", "capture", "patrol", "intercept", "repair_bridge"],
           "properties": {
-            "defend": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true},
-            "resupply": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true},
-            "assist_objective": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true},
-            "strike": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true},
-            "scout": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true},
-            "escort_convoy": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true},
-            "stage": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true},
-            "capture": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true},
-            "patrol": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true},
-            "intercept": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true},
-            "repair_bridge": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true}
+            "defend": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 30.0, "max": 120.0, "step": 5.0, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b, Q-GP-20", "x-status": "PROPOSED"},
+            "resupply": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 25.0, "max": 100.0, "step": 5.0, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b, Q-GP-20", "x-status": "PROPOSED"},
+            "assist_objective": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 22.5, "max": 90.0, "step": 2.5, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b, Q-GP-20", "x-status": "PROPOSED"},
+            "strike": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 20.0, "max": 80.0, "step": 5.0, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b, Q-GP-20", "x-status": "PROPOSED"},
+            "scout": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 15.0, "max": 60.0, "step": 5.0, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b, Q-GP-20", "x-status": "PROPOSED"},
+            "escort_convoy": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 20.0, "max": 80.0, "step": 5.0, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b, Q-GP-20", "x-status": "PROPOSED"},
+            "stage": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 10.0, "max": 40.0, "step": 5.0, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b, Q-GP-20", "x-status": "PROPOSED"},
+            "capture": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 22.5, "max": 90.0, "step": 2.5, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b, Q-GP-20", "x-status": "PROPOSED"},
+            "patrol": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 7.5, "max": 30.0, "step": 2.5, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b, Q-GP-20", "x-status": "PROPOSED"},
+            "intercept": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 22.5, "max": 90.0, "step": 2.5, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b, Q-GP-20", "x-status": "PROPOSED"},
+            "repair_bridge": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 22.5, "max": 90.0, "step": 2.5, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b, Q-GP-20", "x-status": "PROPOSED"}
           }
         },
-        "static_offense_min_tier": {"description": "The lowest Threat Director tier at which the Static's board posts the offensive jobs it generates itself (a strike on a discovered site); below it the board posts none. The Director's own operations are not affected (Q-SIM-85, THREAT-DIRECTOR 5a).", "$ref": "../common/enums.json#/$defs/ThreatTier", "x-unit": "tier", "x-hot-reload": true},
-        "urgency_max": {"description": "The most the triggering condition can multiply a base priority by (Q-GP-20), unit multiplier; a triggering condition's least is 1.0. Only a stocking resupply job (stock_urgency, stock_front_bonus) runs below 1.0.", "type": "number", "minimum": 1, "maximum": 2, "x-unit": "multiplier", "x-hot-reload": true},
-        "priority_aging_per_min": {"description": "Priority points an open job gains per game minute it has waited (TB-3, Q-ALN-23), unit points/min of game time.", "type": "number", "minimum": 0, "x-unit": "points/min (game)", "x-hot-reload": true},
+        "static_offense_min_tier": {"description": "The lowest Threat Director tier at which the Static's board posts the offensive jobs it generates itself (a strike on a discovered site); below it the board posts none. The Director's own operations are not affected (Q-SIM-85, THREAT-DIRECTOR 5a).", "$ref": "../common/enums.json#/$defs/ThreatTier", "x-unit": "tier", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "THREAT-DIRECTOR \u00a75a", "x-status": "PROPOSED"},
+        "urgency_max": {"description": "The most the triggering condition can multiply a base priority by (Q-GP-20), unit multiplier; a triggering condition's least is 1.0. Only a stocking resupply job (stock_urgency, stock_front_bonus) runs below 1.0.", "type": "number", "minimum": 1, "maximum": 2, "x-unit": "multiplier", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 1.0, "max": 2.0, "step": 0.1, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b, Q-GP-20", "x-status": "PROPOSED"},
+        "priority_aging_per_min": {"description": "Priority points an open job gains per game minute it has waited (TB-3, Q-ALN-23), unit points/min of game time.", "type": "number", "minimum": 0, "x-unit": "points/min (game)", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 0.5, "max": 2.0, "step": 0.1, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b", "x-status": "PROPOSED"},
         "slots": {
           "description": "Units a job needs (TB-4), by lower-case JobKind; resupply is sized from the missing stock instead (resupply_stock_per_slot).",
           "type": "object",
           "additionalProperties": false,
           "required": ["defend", "strike", "assist_objective", "scout", "escort_convoy", "patrol", "intercept", "repair_bridge"],
           "properties": {
-            "defend": {"type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true},
-            "strike": {"type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true},
-            "assist_objective": {"type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true},
-            "scout": {"type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true},
-            "escort_convoy": {"type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true},
-            "patrol": {"type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true},
-            "intercept": {"type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true},
-            "repair_bridge": {"type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true}
+            "defend": {"type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 1, "max": 4, "step": 1, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b, TB-4", "x-status": "PROPOSED"},
+            "strike": {"type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 1, "max": 4, "step": 1, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b, TB-4", "x-status": "PROPOSED"},
+            "assist_objective": {"type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 2, "max": 8, "step": 1, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b, TB-4", "x-status": "PROPOSED"},
+            "scout": {"type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 1, "max": 2, "step": 1, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b, TB-4", "x-status": "PROPOSED"},
+            "escort_convoy": {"type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 1, "max": 4, "step": 1, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b, TB-4", "x-status": "PROPOSED"},
+            "patrol": {"type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 1, "max": 4, "step": 1, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b, TB-4", "x-status": "PROPOSED"},
+            "intercept": {"type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 1, "max": 2, "step": 1, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b, TB-4", "x-status": "PROPOSED"},
+            "repair_bridge": {"type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 1, "max": 4, "step": 1, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b, TB-4", "x-status": "PROPOSED"}
           }
         },
-        "resupply_stock_per_slot": {"description": "A resupply job gets one slot per this much missing stock (max stock minus stock, rounded up, at least one), unit stock units.", "type": "integer", "minimum": 1, "x-unit": "stock units", "x-hot-reload": true},
-        "resupply_slots_max": {"description": "The most slots a resupply job gets, unit units.", "type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true},
-        "defend_radius_m": {"description": "A friendly base posts a defend job when its side tracks an enemy ground unit within this distance of it (Q-SIM-74), unit m. Urgency rises as the nearest tracked enemy closes: 1.0 at the radius, the cap at the base.", "type": "number", "exclusiveMinimum": 0, "x-unit": "m", "x-hot-reload": true},
-        "counterattack_window_min": {"description": "For this long after a side loses a node, its AI garrison may take strike and assist-objective jobs against it (Q-GD-31, Q-SIM-74), unit min of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "min (game)", "x-hot-reload": true},
-        "capture_max_restarts": {"description": "A CAPTURE job whose claimants are still driving when its expiry passes gets a fresh expiry at most this many times, then expires normally (NX-156, Q-SIM-84), unit restarts.", "type": "integer", "minimum": 0, "x-unit": "restarts", "x-hot-reload": true},
-        "scout_post_interval_min": {"description": "At most one new generated scout job per board per this long (the highest urgency, ties by key), unit min of game time (NX-156, Q-DEV-21).", "type": "number", "exclusiveMinimum": 0, "x-unit": "min (game)", "x-hot-reload": true},
-        "scout_open_max": {"description": "The most generated scout jobs a board holds at once (the highest urgency first, ties by key; claimed ones always stay), unit jobs (NX-156).", "type": "integer", "minimum": 1, "x-unit": "jobs", "x-hot-reload": true},
-        "scout_cooldown_min": {"description": "A scout job whose cell still holds a blob after it was DONE is not posted again for this long (Q-SIM-75), unit min of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "min (game)", "x-hot-reload": true},
+        "resupply_stock_per_slot": {"description": "A resupply job gets one slot per this much missing stock (max stock minus stock, rounded up, at least one), unit stock units.", "type": "integer", "minimum": 1, "x-unit": "stock units", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 50, "max": 200, "step": 1, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b", "x-status": "PROPOSED"},
+        "resupply_slots_max": {"description": "The most slots a resupply job gets, unit units.", "type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 2, "max": 6, "step": 1, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b", "x-status": "PROPOSED"},
+        "defend_radius_m": {"description": "A friendly base posts a defend job when its side tracks an enemy ground unit within this distance of it (Q-SIM-74), unit m. Urgency rises as the nearest tracked enemy closes: 1.0 at the radius, the cap at the base.", "type": "number", "exclusiveMinimum": 0, "x-unit": "m", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 5000.0, "max": 20000.0, "step": 500.0, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b", "x-status": "PROPOSED"},
+        "counterattack_window_min": {"description": "For this long after a side loses a node, its AI garrison may take strike and assist-objective jobs against it (Q-GD-31, Q-SIM-74), unit min of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "min (game)", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 7.5, "max": 30.0, "step": 2.5, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b", "x-status": "PROPOSED"},
+        "capture_max_restarts": {"description": "A CAPTURE job whose claimants are still driving when its expiry passes gets a fresh expiry at most this many times, then expires normally (NX-156, Q-SIM-84), unit restarts.", "type": "integer", "minimum": 0, "x-unit": "restarts", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 2, "max": 6, "step": 1, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b", "x-status": "PROPOSED"},
+        "scout_post_interval_min": {"description": "At most one new generated scout job per board per this long (the highest urgency, ties by key), unit min of game time (NX-156, Q-DEV-21).", "type": "number", "exclusiveMinimum": 0, "x-unit": "min (game)", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 1.0, "max": 4.0, "step": 0.5, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b", "x-status": "PROPOSED"},
+        "scout_open_max": {"description": "The most generated scout jobs a board holds at once (the highest urgency first, ties by key; claimed ones always stay), unit jobs (NX-156).", "type": "integer", "minimum": 1, "x-unit": "jobs", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 2, "max": 6, "step": 1, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b", "x-status": "PROPOSED"},
+        "scout_cooldown_min": {"description": "A scout job whose cell still holds a blob after it was DONE is not posted again for this long (Q-SIM-75), unit min of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "min (game)", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 2.5, "max": 10.0, "step": 0.5, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b", "x-status": "PROPOSED"},
         "follow_station_m": {
           "description": "Where a follower keeps station on its direct leader (Q-GP-32, Q-SIM-76), unit m: `escort` a ground combat unit ahead of a truck or convoy on the same road; `column` a ground unit behind a ground leader; `overwatch` the radius an aircraft orbits within over a ground unit; `wingman` an aircraft's distance off an aircraft lead.",
           "type": "object",
           "additionalProperties": false,
           "required": ["escort", "column", "overwatch", "wingman"],
           "properties": {
-            "escort": {"type": "number", "exclusiveMinimum": 0, "x-unit": "m", "x-hot-reload": true},
-            "column": {"type": "number", "exclusiveMinimum": 0, "x-unit": "m", "x-hot-reload": true},
-            "overwatch": {"type": "number", "exclusiveMinimum": 0, "x-unit": "m", "x-hot-reload": true},
-            "wingman": {"type": "number", "exclusiveMinimum": 0, "x-unit": "m", "x-hot-reload": true}
+            "escort": {"type": "number", "exclusiveMinimum": 0, "x-unit": "m", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 250.0, "max": 1000.0, "step": 50.0, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b, Q-GP-32", "x-status": "PROPOSED"},
+            "column": {"type": "number", "exclusiveMinimum": 0, "x-unit": "m", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 100.0, "max": 400.0, "step": 25.0, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b, Q-GP-32", "x-status": "PROPOSED"},
+            "overwatch": {"type": "number", "exclusiveMinimum": 0, "x-unit": "m", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 1500.0, "max": 6000.0, "step": 250.0, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b, Q-GP-32", "x-status": "PROPOSED"},
+            "wingman": {"type": "number", "exclusiveMinimum": 0, "x-unit": "m", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 500.0, "max": 2000.0, "step": 100.0, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b, Q-GP-32", "x-status": "PROPOSED"}
           }
         },
-        "escort_threat_memory_s": {"description": "An armed follower treats a tracked enemy that fired at any member of its convoy or column this recently as a threat to the group and engages it (Q-SIM-76), unit s of world time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (world)", "x-hot-reload": true},
-        "escort_leash_m": {"description": "The farthest an armed follower leaves its station from the nearest other member of its group to engage a group threat; beyond it, it returns to station and a threat that far is not chased (Q-SIM-76), unit m.", "type": "number", "exclusiveMinimum": 0, "x-unit": "m", "x-hot-reload": true},
-        "follow_hold_slack": {"description": "A stopped leader's ground followers hold where they are while within this many stations of it, instead of closing in (Q-SIM-76, Q-DEV-21), unit stations (multiples of follow_station_m).", "type": "number", "minimum": 1, "x-unit": "stations", "x-hot-reload": true},
-        "overfill_point_jobs": {"description": "Whether a Recon scout's point job overfills like any other (true), or never takes more than its slots (false) (NX-379, Q-DEV-21), unit flag.", "type": "boolean", "x-unit": "flag", "x-hot-reload": true},
-        "join_excluded_jobs": {"description": "Job kinds a parameterless JOIN never takes for a new coalition unit (the unit can still take them through the board); [] excludes none (Q-GP-23, Q-SIM-94, Q-DEV-21), unit job kinds.", "type": "array", "items": {"$ref": "../common/enums.json#/$defs/JobKind"}, "x-unit": "job kinds", "x-hot-reload": true},
-        "ai_jobs": {"description": "Job kinds a coalition AI garrison unit takes by itself; any other kind not in ai_excluded_jobs it joins only once a COMMANDER-owned unit holds a claim on the job, or as a counterattack (GAMEPLAY \u00a71b, Q-GD-26, Q-GD-31; decided rule as default, Q-CFG-16 option). Must not overlap ai_excluded_jobs; INTERCEPT has its own rule and may be in neither (the loader checks both), unit job kinds.", "type": "array", "items": {"$ref": "../common/enums.json#/$defs/JobKind"}, "x-unit": "job kinds", "x-hot-reload": true},
-        "ai_excluded_jobs": {"description": "Job kinds an AI garrison unit never takes, even beside a player (Q-GP-45: escorting, Q-SIM-94: patrolling are the players' call; decided rule as default, Q-CFG-16 option), unit job kinds.", "type": "array", "items": {"$ref": "../common/enums.json#/$defs/JobKind"}, "x-unit": "job kinds", "x-hot-reload": true},
-        "human_displaces_ai": {"description": "Whether a viewer's unit that finds a job's slots full takes the slot of its AI garrison claimant with the highest entity id (Q-TD-11; decided rule as default, Q-CFG-16 option); false counts AI claims like any other, unit switch.", "type": "boolean", "x-unit": "switch", "x-hot-reload": true},
-        "escort_repair_crews": {"description": "Whether the coalition board posts an escort job (ESCORT_CONVOY, key escort:<truck id>) for each of its carriers holding a REPAIR_BRIDGE claim, on the way or parked at the bridge's repair stop, with no threat test; it ends DONE when the bridge is repaired, FAILED when the truck is lost or Disabled while claimed, EXPIRED when the truck drops the repair job (Q-SIM-118, NX-373 part 2; lead decision as default, owner may veto); false posts escorts only for threatened routes, unit switch.", "type": "boolean", "x-unit": "switch", "x-hot-reload": true},
-        "overfill_factor": {"description": "When every job is full, a job takes units up to this many times its slots (TB-4, Q-DEV-21), unit multiplier; a Recon scout's point job overfills only with overfill_point_jobs.", "type": "integer", "minimum": 1, "x-unit": "multiplier", "x-hot-reload": true},
-        "scout_blob_runs": {"description": "A SIGINT blob must stay in its cell for this many consecutive SIGINT refreshes before a scout job is posted for it (Q-SIM-75, Q-DEV-21), unit refreshes.", "type": "integer", "minimum": 1, "x-unit": "refreshes", "x-hot-reload": true},
+        "escort_threat_memory_s": {"description": "An armed follower treats a tracked enemy that fired at any member of its convoy or column this recently as a threat to the group and engages it (Q-SIM-76), unit s of world time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (world)", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 30.0, "max": 120.0, "step": 5.0, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b", "x-status": "PROPOSED"},
+        "escort_leash_m": {"description": "The farthest an armed follower leaves its station from the nearest other member of its group to engage a group threat; beyond it, it returns to station and a threat that far is not chased (Q-SIM-76), unit m.", "type": "number", "exclusiveMinimum": 0, "x-unit": "m", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 5000.0, "max": 20000.0, "step": 500.0, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b, \u00a75", "x-status": "PROPOSED"},
+        "follow_hold_slack": {"description": "A stopped leader's ground followers hold where they are while within this many stations of it, instead of closing in (Q-SIM-76, Q-DEV-21), unit stations (multiples of follow_station_m).", "type": "number", "minimum": 1, "x-unit": "stations", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 1.0, "max": 4.0, "step": 0.5, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b", "x-status": "PROPOSED"},
+        "overfill_point_jobs": {"description": "Whether a Recon scout's point job overfills like any other (true), or never takes more than its slots (false) (NX-379, Q-DEV-21), unit flag.", "type": "boolean", "x-unit": "flag", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "OPERATOR", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "GAMEPLAY \u00a71b", "x-status": "RULE_DEFAULT"},
+        "join_excluded_jobs": {"description": "Job kinds a parameterless JOIN never takes for a new coalition unit (the unit can still take them through the board); [] excludes none (Q-GP-23, Q-SIM-94, Q-DEV-21), unit job kinds.", "type": "array", "items": {"$ref": "../common/enums.json#/$defs/JobKind"}, "x-unit": "job kinds", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "OPERATOR", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "GAMEPLAY \u00a71b, Q-GP-23", "x-status": "RULE_DEFAULT"},
+        "ai_jobs": {"description": "Job kinds a coalition AI garrison unit takes by itself; any other kind not in ai_excluded_jobs it joins only once a COMMANDER-owned unit holds a claim on the job, or as a counterattack (GAMEPLAY \u00a71b, Q-GD-26, Q-GD-31; decided rule as default, Q-CFG-16 option). Must not overlap ai_excluded_jobs; INTERCEPT has its own rule and may be in neither (the loader checks both). A sweep must keep it disjoint from ai_excluded_jobs, unit job kinds.", "type": "array", "items": {"$ref": "../common/enums.json#/$defs/JobKind"}, "x-unit": "job kinds", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "OPERATOR", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "GAMEPLAY \u00a71b", "x-status": "RULE_DEFAULT"},
+        "ai_excluded_jobs": {"description": "Job kinds an AI garrison unit never takes, even beside a player (Q-GP-45: escorting, Q-SIM-94: patrolling are the players' call; decided rule as default, Q-CFG-16 option). A sweep must keep it disjoint from ai_jobs (the loader refuses otherwise), unit job kinds.", "type": "array", "items": {"$ref": "../common/enums.json#/$defs/JobKind"}, "x-unit": "job kinds", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "OPERATOR", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "GAMEPLAY \u00a71b", "x-status": "RULE_DEFAULT"},
+        "human_displaces_ai": {"description": "Whether a viewer's unit that finds a job's slots full takes the slot of its AI garrison claimant with the highest entity id (Q-TD-11; decided rule as default, Q-CFG-16 option); false counts AI claims like any other, unit switch.", "type": "boolean", "x-unit": "switch", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "OPERATOR", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "GAMEPLAY \u00a71b", "x-status": "RULE_DEFAULT"},
+        "escort_repair_crews": {"description": "Whether the coalition board posts an escort job (ESCORT_CONVOY, key escort:<truck id>) for each of its carriers holding a REPAIR_BRIDGE claim, on the way or parked at the bridge's repair stop, with no threat test; it ends DONE when the bridge is repaired, FAILED when the truck is lost or Disabled while claimed, EXPIRED when the truck drops the repair job (Q-SIM-118, NX-373 part 2; lead decision as default, owner may veto); false posts escorts only for threatened routes, unit switch.", "type": "boolean", "x-unit": "switch", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "OPERATOR", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "GAMEPLAY \u00a71b, STATE-MACHINES \u00a74.3", "x-status": "RULE_DEFAULT"},
+        "overfill_factor": {"description": "When every job is full, a job takes units up to this many times its slots (TB-4, Q-DEV-21), unit multiplier; a Recon scout's point job overfills only with overfill_point_jobs.", "type": "integer", "minimum": 1, "x-unit": "multiplier", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 1, "max": 4, "step": 1, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b", "x-status": "PROPOSED"},
+        "scout_blob_runs": {"description": "A SIGINT blob must stay in its cell for this many consecutive SIGINT refreshes before a scout job is posted for it (Q-SIM-75, Q-DEV-21), unit refreshes.", "type": "integer", "minimum": 1, "x-unit": "refreshes", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 1, "max": 4, "step": 1, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b", "x-status": "PROPOSED"},
         "scout_urgency": {
-          "description": "Urgency of a generated scout job by the blob's size bucket (Q-SIM-75, Q-DEV-21), unit multiplier, from 1.0 up to urgency_max (a larger value is capped there).",
+          "description": "Urgency of a generated scout job by the blob's size bucket (Q-SIM-75, Q-DEV-21), unit multiplier, from 1.0 up to urgency_max (a larger value is capped there). A sweep should keep every value at or below urgency_max; the code caps it, the schema does not check it.",
           "type": "object",
           "additionalProperties": false,
           "required": ["small", "medium", "large"],
           "properties": {
-            "small": {"type": "number", "minimum": 1, "x-unit": "multiplier", "x-hot-reload": true},
-            "medium": {"type": "number", "minimum": 1, "x-unit": "multiplier", "x-hot-reload": true},
-            "large": {"type": "number", "minimum": 1, "x-unit": "multiplier", "x-hot-reload": true}
+            "small": {"type": "number", "minimum": 1, "x-unit": "multiplier", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 1.0, "max": 2.0, "step": 0.1, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b", "x-status": "PROPOSED"},
+            "medium": {"type": "number", "minimum": 1, "x-unit": "multiplier", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 1.0, "max": 3.0, "step": 0.1, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b", "x-status": "PROPOSED"},
+            "large": {"type": "number", "minimum": 1, "x-unit": "multiplier", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 1.0, "max": 4.0, "step": 0.1, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b", "x-status": "PROPOSED"}
           }
         },
-        "strike_urgency_per_threat": {"description": "A generated strike job on a discovered facility has urgency 1.0 plus this much per point of the facility kind's unit threat, capped at urgency_max (Q-SIM-85, Q-DEV-21), unit multiplier per threat point.", "type": "number", "minimum": 0, "x-unit": "multiplier per threat point", "x-hot-reload": true},
-        "strike_max_scaled_slots": {"description": "Each generated strike job gets one extra slot per idle armed coalition viewer unit, at most this many extra; 0 turns it off (Q-SIM-92, NX-380), unit slots.", "type": "integer", "minimum": 0, "x-unit": "slots", "x-hot-reload": true},
-        "strike_idle_targets_max": {"description": "While idle armed coalition viewer units remain and no marked strike target is open, the coalition board posts strike jobs on known defended foe nodes, at most this many at once; 0 turns it off (Q-SIM-92, NX-380), unit jobs.", "type": "integer", "minimum": 0, "x-unit": "jobs", "x-hot-reload": true},
-        "strike_idle_targets_min_tier": {"description": "The lowest Threat Director tier at which the coalition board posts strike jobs on known defended foe nodes for idle armed viewer units; below it only the slot scaling applies, so a lone new viewer does not provoke the Director by itself (Q-SIM-92, Q-SIM-86).", "$ref": "../common/enums.json#/$defs/ThreatTier", "x-unit": "tier", "x-hot-reload": true},
-        "patrol_max_nodes": {"description": "The most front-line nodes the coalition board posts a patrol job on at once, nearest a node the other side holds first; 0 turns player patrols off (Q-SIM-94, NX-382), unit jobs.", "type": "integer", "minimum": 0, "x-unit": "jobs", "x-hot-reload": true},
-        "patrol_orbit_m": {"description": "An aircraft on a coalition patrol circles its node at this distance, which is also the clearance from a discovered air-defense ring it needs to take the job (Q-SIM-94, NX-382), unit m.", "type": "number", "exclusiveMinimum": 0, "x-unit": "m", "x-hot-reload": true},
-        "patrol_dwell_s": {"description": "A coalition patrol job is done once a unit has been on station this long (Q-SIM-94, NX-382), unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true},
-        "order_dwell_s": {"description": "An armed unit whose direct node order (JOIN with a node) has arrived holds that node and engages; the order ends, and the board takes the unit, at bingo or RTB, ammo out, a new order, or this long after it began holding (Q-SIM-110, NX-398), unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true},
-        "stock_urgency": {"description": "Urgency of a stocking resupply job: a base below logistics.stock_target_frac that is not starved and has no damaged facility (Q-SIM-100, NX-389), unit multiplier. It must round to at least 0.001 and, with stock_front_bonus, stay below 1.0 in whole thousandths (checked at load), so a starving or damaged base always ranks first; the higher of the two urgencies wins when both apply.", "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1, "x-unit": "multiplier", "x-hot-reload": true},
-        "stock_front_bonus": {"description": "Urgency added to a stocking resupply job when its base is on the front line (held, capturable, with a road neighbour the side does not hold: the patrol rule, Q-SIM-94) (Q-SIM-100, NX-389), unit multiplier; stock_urgency + stock_front_bonus must stay below 1.0.", "type": "number", "minimum": 0, "exclusiveMaximum": 1, "x-unit": "multiplier", "x-hot-reload": true}
+        "strike_urgency_per_threat": {"description": "A generated strike job on a discovered facility has urgency 1.0 plus this much per point of the facility kind's unit threat, capped at urgency_max (Q-SIM-85, Q-DEV-21), unit multiplier per threat point.", "type": "number", "minimum": 0, "x-unit": "multiplier per threat point", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 0.005, "max": 0.02, "step": 0.005, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b", "x-status": "PROPOSED"},
+        "strike_max_scaled_slots": {"description": "Each generated strike job gets one extra slot per idle armed coalition viewer unit, at most this many extra; 0 turns it off (Q-SIM-92, NX-380), unit slots.", "type": "integer", "minimum": 0, "x-unit": "slots", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 2, "max": 6, "step": 1, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b", "x-status": "PROPOSED"},
+        "strike_idle_targets_max": {"description": "While idle armed coalition viewer units remain and no marked strike target is open, the coalition board posts strike jobs on known defended foe nodes, at most this many at once; 0 turns it off (Q-SIM-92, NX-380), unit jobs.", "type": "integer", "minimum": 0, "x-unit": "jobs", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 1, "max": 4, "step": 1, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b", "x-status": "PROPOSED"},
+        "strike_idle_targets_min_tier": {"description": "The lowest Threat Director tier at which the coalition board posts strike jobs on known defended foe nodes for idle armed viewer units; below it only the slot scaling applies, so a lone new viewer does not provoke the Director by itself (Q-SIM-92, Q-SIM-86).", "$ref": "../common/enums.json#/$defs/ThreatTier", "x-unit": "tier", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "GAMEPLAY \u00a71b", "x-status": "PROPOSED"},
+        "patrol_max_nodes": {"description": "The most front-line nodes the coalition board posts a patrol job on at once, nearest a node the other side holds first; 0 turns player patrols off (Q-SIM-94, NX-382), unit jobs.", "type": "integer", "minimum": 0, "x-unit": "jobs", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 2, "max": 6, "step": 1, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b", "x-status": "PROPOSED"},
+        "patrol_orbit_m": {"description": "An aircraft on a coalition patrol circles its node at this distance, which is also the clearance from a discovered air-defense ring it needs to take the job (Q-SIM-94, NX-382), unit m.", "type": "number", "exclusiveMinimum": 0, "x-unit": "m", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 2500.0, "max": 10000.0, "step": 250.0, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b", "x-status": "PROPOSED"},
+        "patrol_dwell_s": {"description": "A coalition patrol job is done once a unit has been on station this long (Q-SIM-94, NX-382), unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 150.0, "max": 600.0, "step": 50.0, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b", "x-status": "PROPOSED"},
+        "order_dwell_s": {"description": "An armed unit whose direct node order (JOIN with a node) has arrived holds that node and engages; the order ends, and the board takes the unit, at bingo or RTB, ammo out, a new order, or this long after it began holding (Q-SIM-110, NX-398), unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 300.0, "max": 1200.0, "step": 50.0, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b", "x-status": "PROPOSED"},
+        "stock_urgency": {"description": "Urgency of a stocking resupply job: a base below logistics.stock_target_frac that is not starved and has no damaged facility (Q-SIM-100, NX-389), unit multiplier. It must round to at least 0.001 and, with stock_front_bonus, stay below 1.0 in whole thousandths (checked at load), so a starving or damaged base always ranks first; the higher of the two urgencies wins when both apply.", "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1, "x-unit": "multiplier", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 0.25, "max": 0.95, "step": 0.05, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b", "x-status": "PROPOSED"},
+        "stock_front_bonus": {"description": "Urgency added to a stocking resupply job when its base is on the front line (held, capturable, with a road neighbour the side does not hold: the patrol rule, Q-SIM-94) (Q-SIM-100, NX-389), unit multiplier; stock_urgency + stock_front_bonus must stay below 1.0.", "type": "number", "minimum": 0, "exclusiveMaximum": 1, "x-unit": "multiplier", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 0.125, "max": 0.5, "step": 0.025, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b", "x-status": "PROPOSED"}
       }
     },
     "Slots": {
@@ -1376,7 +1862,13 @@
       "minItems": 1,
       "items": {"$ref": "../common/enums.json#/$defs/UnitKind"},
       "x-unit": "unit kinds",
-      "x-hot-reload": true
+      "x-hot-reload": true,
+      "x-category": "DIRECTOR",
+      "x-audience": "TUNER",
+      "x-edit-role": "ADMIN",
+      "x-tune": null,
+      "x-source": "THREAT-DIRECTOR \u00a75a",
+      "x-status": "PROPOSED"
     },
     "Director": {
       "description": "Threat Director (CONFIG-AND-CONTENT \u00a76.7, THREAT-DIRECTOR \u00a72-\u00a75a, Q-SIM-78, Q-SIM-81; NX-151, NX-155, NX-156). Durations are game time, converted to ticks at load.",
@@ -1415,6 +1907,12 @@
           "type": "number",
           "x-unit": "s (game)",
           "x-hot-reload": false,
+          "x-category": "DIRECTOR",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 30.0, "max": 120.0, "step": 5.0, "scale": "LINEAR"},
+          "x-source": "THREAT-DIRECTOR \u00a74",
+          "x-status": "PROPOSED",
           "exclusiveMinimum": 0
         },
         "cp": {
@@ -1442,6 +1940,12 @@
                   "type": "number",
                   "x-unit": "CP points",
                   "x-hot-reload": true,
+                  "x-category": "DIRECTOR",
+                  "x-audience": "TUNER",
+                  "x-edit-role": "ADMIN",
+                  "x-tune": {"min": 5.0, "max": 20.0, "step": 0.5, "scale": "LINEAR"},
+                  "x-source": "THREAT-DIRECTOR \u00a72",
+                  "x-status": "PROPOSED",
                   "minimum": 0
                 },
                 "RECON_UAV": {
@@ -1449,6 +1953,12 @@
                   "type": "number",
                   "x-unit": "CP points",
                   "x-hot-reload": true,
+                  "x-category": "DIRECTOR",
+                  "x-audience": "TUNER",
+                  "x-edit-role": "ADMIN",
+                  "x-tune": {"min": 1.5, "max": 6.0, "step": 0.5, "scale": "LINEAR"},
+                  "x-source": "THREAT-DIRECTOR \u00a72",
+                  "x-status": "PROPOSED",
                   "minimum": 0
                 },
                 "LOGI_TRUCK": {
@@ -1456,6 +1966,12 @@
                   "type": "number",
                   "x-unit": "CP points",
                   "x-hot-reload": true,
+                  "x-category": "DIRECTOR",
+                  "x-audience": "TUNER",
+                  "x-edit-role": "ADMIN",
+                  "x-tune": {"min": 1.0, "max": 4.0, "step": 0.5, "scale": "LINEAR"},
+                  "x-source": "THREAT-DIRECTOR \u00a72",
+                  "x-status": "PROPOSED",
                   "minimum": 0
                 },
                 "GARRISON_INFANTRY": {
@@ -1463,6 +1979,12 @@
                   "type": "number",
                   "x-unit": "CP points",
                   "x-hot-reload": true,
+                  "x-category": "DIRECTOR",
+                  "x-audience": "TUNER",
+                  "x-edit-role": "ADMIN",
+                  "x-tune": {"min": 1.0, "max": 4.0, "step": 0.5, "scale": "LINEAR"},
+                  "x-source": "THREAT-DIRECTOR \u00a72",
+                  "x-status": "PROPOSED",
                   "minimum": 0
                 }
               }
@@ -1472,6 +1994,12 @@
               "type": "number",
               "x-unit": "s (game)",
               "x-hot-reload": true,
+              "x-category": "DIRECTOR",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 150.0, "max": 600.0, "step": 30.0, "scale": "LINEAR"},
+              "x-source": "THREAT-DIRECTOR \u00a72",
+              "x-status": "PROPOSED",
               "exclusiveMinimum": 0
             }
           }
@@ -1494,6 +2022,12 @@
               "type": "number",
               "x-unit": "CP points",
               "x-hot-reload": true,
+              "x-category": "DIRECTOR",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": null,
+              "x-source": "THREAT-DIRECTOR \u00a73",
+              "x-status": "RULE_DEFAULT",
               "minimum": 0
             },
             "bravo_enter_cp": {
@@ -1501,6 +2035,12 @@
               "type": "number",
               "x-unit": "CP points",
               "x-hot-reload": true,
+              "x-category": "DIRECTOR",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 30.0, "max": 120.0, "step": 5.0, "scale": "LINEAR"},
+              "x-source": "THREAT-DIRECTOR \u00a73",
+              "x-status": "PROPOSED",
               "exclusiveMinimum": 0
             },
             "exit_ratio": {
@@ -1508,6 +2048,12 @@
               "type": "number",
               "x-unit": "fraction of enter",
               "x-hot-reload": true,
+              "x-category": "DIRECTOR",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 0.4, "max": 1.0, "step": 0.05, "scale": "LINEAR"},
+              "x-source": "THREAT-DIRECTOR \u00a73",
+              "x-status": "PROPOSED",
               "exclusiveMinimum": 0,
               "maximum": 1
             },
@@ -1516,10 +2062,16 @@
               "type": "number",
               "x-unit": "s (game)",
               "x-hot-reload": true,
+              "x-category": "DIRECTOR",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 300.0, "max": 1200.0, "step": 50.0, "scale": "LINEAR"},
+              "x-source": "THREAT-DIRECTOR \u00a73",
+              "x-status": "PROPOSED",
               "exclusiveMinimum": 0
             },
-            "start": {"description": "The tier the Director starts a campaign in, with dwell 0 and both levels at their usual start values, so after the first minimum dwell it moves toward min(provocation level, CP ceiling) like from any tier (THREAT-DIRECTOR \u00a73; decided rule as default, Q-CFG-16 option), unit tier.", "$ref": "../common/enums.json#/$defs/ThreatTier", "x-unit": "tier", "x-hot-reload": false},
-            "max_step": {"description": "The most tier steps one move takes toward min(provocation level, CP ceiling) (Q-TD-1: one; decided rule as default, Q-CFG-16 option); 2 lets PATTERN_OF_LIFE and BRAVO change in one move, unit tier steps.", "type": "integer", "minimum": 1, "maximum": 2, "x-unit": "tier steps", "x-hot-reload": true}
+            "start": {"description": "The tier the Director starts a campaign in, with dwell 0 and both levels at their usual start values, so after the first minimum dwell it moves toward min(provocation level, CP ceiling) like from any tier (THREAT-DIRECTOR \u00a73; decided rule as default, Q-CFG-16 option), unit tier.", "$ref": "../common/enums.json#/$defs/ThreatTier", "x-unit": "tier", "x-hot-reload": false, "x-category": "DIRECTOR", "x-audience": "OPERATOR", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "THREAT-DIRECTOR \u00a73", "x-status": "RULE_DEFAULT"},
+            "max_step": {"description": "The most tier steps one move takes toward min(provocation level, CP ceiling) (Q-TD-1: one; decided rule as default, Q-CFG-16 option); 2 lets PATTERN_OF_LIFE and BRAVO change in one move, unit tier steps.", "type": "integer", "minimum": 1, "maximum": 2, "x-unit": "tier steps", "x-hot-reload": true, "x-category": "DIRECTOR", "x-audience": "OPERATOR", "x-edit-role": "ADMIN", "x-tune": {"min": 1, "max": 2, "step": 1, "scale": "LINEAR"}, "x-source": "THREAT-DIRECTOR \u00a73, STATE-MACHINES D-1", "x-status": "RULE_DEFAULT"}
           }
         },
         "provocation": {
@@ -1540,6 +2092,12 @@
               "type": "number",
               "x-unit": "s (game)",
               "x-hot-reload": true,
+              "x-category": "DIRECTOR",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 450.0, "max": 1800.0, "step": 50.0, "scale": "LINEAR"},
+              "x-source": "THREAT-DIRECTOR \u00a75a",
+              "x-status": "PROPOSED",
               "exclusiveMinimum": 0
             },
             "escalate_threshold": {
@@ -1547,6 +2105,12 @@
               "type": "number",
               "x-unit": "points",
               "x-hot-reload": true,
+              "x-category": "DIRECTOR",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 5.0, "max": 20.0, "step": 1.0, "scale": "LINEAR"},
+              "x-source": "THREAT-DIRECTOR \u00a75a",
+              "x-status": "PROPOSED",
               "exclusiveMinimum": 0
             },
             "bravo_threshold": {
@@ -1554,14 +2118,26 @@
               "type": "number",
               "x-unit": "points",
               "x-hot-reload": true,
+              "x-category": "DIRECTOR",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 20.0, "max": 80.0, "step": 5.0, "scale": "LINEAR"},
+              "x-source": "THREAT-DIRECTOR \u00a73, Q-TD-1",
+              "x-status": "PROPOSED",
               "exclusiveMinimum": 0
             },
-            "ai_shooter_mult": {"description": "The share of a hit's weight that counts when the shooter is not a COMMANDER-owned unit (AI garrison, facility), on units, facilities and base defenses alike, rounded down to whole millionths; 0 means only people provoke (Q-TD-11; decided rule as default, Q-CFG-16 option). Captures and scouts in the rear stay the players' alone, unit multiplier.", "type": "number", "minimum": 0, "x-unit": "multiplier", "x-hot-reload": true},
+            "ai_shooter_mult": {"description": "The share of a hit's weight that counts when the shooter is not a COMMANDER-owned unit (AI garrison, facility), on units, facilities and base defenses alike, rounded down to whole millionths; 0 means only people provoke (Q-TD-11; decided rule as default, Q-CFG-16 option). Captures and scouts in the rear stay the players' alone, unit multiplier.", "type": "number", "minimum": 0, "x-unit": "multiplier", "x-hot-reload": true, "x-category": "DIRECTOR", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "THREAT-DIRECTOR \u00a75a", "x-status": "RULE_DEFAULT"},
             "scout_in_rear_max_per_window": {
               "description": "The most scout-in-rear notes (weights.scout_in_rear each) one decision window adds, lowest track id first (Q-SIM-79, Q-DEV-21), unit notes.",
               "type": "integer",
               "x-unit": "notes",
               "x-hot-reload": true,
+              "x-category": "DIRECTOR",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 1, "max": 2, "step": 1, "scale": "LINEAR"},
+              "x-source": "THREAT-DIRECTOR \u00a75a",
+              "x-status": "RULE_DEFAULT",
               "minimum": 1
             },
             "weights": {
@@ -1586,6 +2162,12 @@
                   "type": "number",
                   "x-unit": "points",
                   "x-hot-reload": true,
+                  "x-category": "DIRECTOR",
+                  "x-audience": "TUNER",
+                  "x-edit-role": "ADMIN",
+                  "x-tune": {"min": 2.5, "max": 10.0, "step": 0.5, "scale": "LINEAR"},
+                  "x-source": "THREAT-DIRECTOR \u00a75a",
+                  "x-status": "PROPOSED",
                   "minimum": 0
                 },
                 "unit_damaged": {
@@ -1593,6 +2175,12 @@
                   "type": "number",
                   "x-unit": "points",
                   "x-hot-reload": true,
+                  "x-category": "DIRECTOR",
+                  "x-audience": "TUNER",
+                  "x-edit-role": "ADMIN",
+                  "x-tune": {"min": 0.5, "max": 2.0, "step": 0.1, "scale": "LINEAR"},
+                  "x-source": "THREAT-DIRECTOR \u00a75a",
+                  "x-status": "PROPOSED",
                   "minimum": 0
                 },
                 "recon_destroyed": {
@@ -1600,6 +2188,12 @@
                   "type": "number",
                   "x-unit": "points",
                   "x-hot-reload": true,
+                  "x-category": "DIRECTOR",
+                  "x-audience": "TUNER",
+                  "x-edit-role": "ADMIN",
+                  "x-tune": {"min": 1.0, "max": 4.0, "step": 0.5, "scale": "LINEAR"},
+                  "x-source": "THREAT-DIRECTOR \u00a75a",
+                  "x-status": "PROPOSED",
                   "minimum": 0
                 },
                 "recon_damaged": {
@@ -1607,6 +2201,12 @@
                   "type": "number",
                   "x-unit": "points",
                   "x-hot-reload": true,
+                  "x-category": "DIRECTOR",
+                  "x-audience": "TUNER",
+                  "x-edit-role": "ADMIN",
+                  "x-tune": null,
+                  "x-source": "THREAT-DIRECTOR \u00a75a",
+                  "x-status": "PROPOSED",
                   "minimum": 0
                 },
                 "convoy_hit": {
@@ -1614,6 +2214,12 @@
                   "type": "number",
                   "x-unit": "points",
                   "x-hot-reload": true,
+                  "x-category": "DIRECTOR",
+                  "x-audience": "TUNER",
+                  "x-edit-role": "ADMIN",
+                  "x-tune": {"min": 1.5, "max": 6.0, "step": 0.5, "scale": "LINEAR"},
+                  "x-source": "THREAT-DIRECTOR \u00a75a",
+                  "x-status": "PROPOSED",
                   "minimum": 0
                 },
                 "facility_damaged": {
@@ -1621,6 +2227,12 @@
                   "type": "number",
                   "x-unit": "points",
                   "x-hot-reload": true,
+                  "x-category": "DIRECTOR",
+                  "x-audience": "TUNER",
+                  "x-edit-role": "ADMIN",
+                  "x-tune": {"min": 1.5, "max": 6.0, "step": 0.5, "scale": "LINEAR"},
+                  "x-source": "THREAT-DIRECTOR \u00a75a",
+                  "x-status": "PROPOSED",
                   "minimum": 0
                 },
                 "facility_disabled": {
@@ -1628,6 +2240,12 @@
                   "type": "number",
                   "x-unit": "points",
                   "x-hot-reload": true,
+                  "x-category": "DIRECTOR",
+                  "x-audience": "TUNER",
+                  "x-edit-role": "ADMIN",
+                  "x-tune": {"min": 4.0, "max": 16.0, "step": 1.0, "scale": "LINEAR"},
+                  "x-source": "THREAT-DIRECTOR \u00a75a",
+                  "x-status": "PROPOSED",
                   "minimum": 0
                 },
                 "base_captured": {
@@ -1635,6 +2253,12 @@
                   "type": "number",
                   "x-unit": "points",
                   "x-hot-reload": true,
+                  "x-category": "DIRECTOR",
+                  "x-audience": "TUNER",
+                  "x-edit-role": "ADMIN",
+                  "x-tune": {"min": 7.5, "max": 30.0, "step": 2.5, "scale": "LINEAR"},
+                  "x-source": "THREAT-DIRECTOR \u00a75a",
+                  "x-status": "PROPOSED",
                   "minimum": 0
                 },
                 "scout_in_rear": {
@@ -1642,6 +2266,12 @@
                   "type": "number",
                   "x-unit": "points",
                   "x-hot-reload": true,
+                  "x-category": "DIRECTOR",
+                  "x-audience": "TUNER",
+                  "x-edit-role": "ADMIN",
+                  "x-tune": {"min": 1.0, "max": 4.0, "step": 0.5, "scale": "LINEAR"},
+                  "x-source": "THREAT-DIRECTOR \u00a75a",
+                  "x-status": "PROPOSED",
                   "minimum": 0
                 },
                 "redemption": {
@@ -1658,6 +2288,12 @@
                       "type": "number",
                       "x-unit": "points",
                       "x-hot-reload": true,
+                      "x-category": "DIRECTOR",
+                      "x-audience": "TUNER",
+                      "x-edit-role": "ADMIN",
+                      "x-tune": {"min": 0.5, "max": 2.0, "step": 0.1, "scale": "LINEAR"},
+                      "x-source": "THREAT-DIRECTOR \u00a75a",
+                      "x-status": "PROPOSED",
                       "minimum": 0
                     },
                     "cosmetic": {
@@ -1665,6 +2301,12 @@
                       "type": "number",
                       "x-unit": "points",
                       "x-hot-reload": true,
+                      "x-category": "DIRECTOR",
+                      "x-audience": "TUNER",
+                      "x-edit-role": "ADMIN",
+                      "x-tune": null,
+                      "x-source": "THREAT-DIRECTOR \u00a75a",
+                      "x-status": "RULE_DEFAULT",
                       "minimum": 0
                     }
                   }
@@ -1688,6 +2330,12 @@
               "type": "integer",
               "x-unit": "budget points / window",
               "x-hot-reload": true,
+              "x-category": "DIRECTOR",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 5, "max": 20, "step": 1, "scale": "LINEAR"},
+              "x-source": "THREAT-DIRECTOR \u00a74",
+              "x-status": "PROPOSED",
               "minimum": 0
             },
             "alpha": {
@@ -1695,6 +2343,12 @@
               "type": "integer",
               "x-unit": "budget points / window",
               "x-hot-reload": true,
+              "x-category": "DIRECTOR",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 15, "max": 60, "step": 1, "scale": "LINEAR"},
+              "x-source": "THREAT-DIRECTOR \u00a74",
+              "x-status": "PROPOSED",
               "minimum": 0
             },
             "bravo": {
@@ -1702,6 +2356,12 @@
               "type": "integer",
               "x-unit": "budget points / window",
               "x-hot-reload": true,
+              "x-category": "DIRECTOR",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 40, "max": 160, "step": 1, "scale": "LINEAR"},
+              "x-source": "THREAT-DIRECTOR \u00a74",
+              "x-status": "PROPOSED",
               "minimum": 0
             }
           }
@@ -1711,6 +2371,12 @@
           "type": "integer",
           "x-unit": "units / window",
           "x-hot-reload": true,
+          "x-category": "DIRECTOR",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 3, "max": 12, "step": 1, "scale": "LINEAR"},
+          "x-source": "THREAT-DIRECTOR \u00a74, Q-TD-12",
+          "x-status": "PROPOSED",
           "minimum": 1
         },
         "max_live_units": {
@@ -1728,6 +2394,12 @@
               "type": "integer",
               "x-unit": "units",
               "x-hot-reload": true,
+              "x-category": "DIRECTOR",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 20, "max": 80, "step": 1, "scale": "LINEAR"},
+              "x-source": "THREAT-DIRECTOR \u00a74, Q-TD-12",
+              "x-status": "PROPOSED",
               "minimum": 1
             },
             "alpha": {
@@ -1735,6 +2407,12 @@
               "type": "integer",
               "x-unit": "units",
               "x-hot-reload": true,
+              "x-category": "DIRECTOR",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 20, "max": 80, "step": 1, "scale": "LINEAR"},
+              "x-source": "THREAT-DIRECTOR \u00a74, Q-TD-12",
+              "x-status": "PROPOSED",
               "minimum": 1
             },
             "bravo": {
@@ -1742,6 +2420,12 @@
               "type": "integer",
               "x-unit": "units",
               "x-hot-reload": true,
+              "x-category": "DIRECTOR",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 35, "max": 140, "step": 1, "scale": "LINEAR"},
+              "x-source": "THREAT-DIRECTOR \u00a74, Q-TD-12",
+              "x-status": "PROPOSED",
               "minimum": 1
             }
           }
@@ -1756,7 +2440,13 @@
             "type": "number",
             "minimum": 0,
             "x-unit": "priority",
-            "x-hot-reload": true
+            "x-hot-reload": true,
+            "x-category": "DIRECTOR",
+            "x-audience": "TUNER",
+            "x-edit-role": "ADMIN",
+            "x-tune": {"min": 0.15, "max": 2.4, "step": 0.05, "scale": "LINEAR"},
+            "x-source": "THREAT-DIRECTOR \u00a74, Q-TD-6",
+            "x-status": "PROPOSED"
           }
         },
         "score": {
@@ -1789,49 +2479,85 @@
                   "type": "number",
                   "exclusiveMinimum": 0,
                   "x-unit": "multiplier",
-                  "x-hot-reload": true
+                  "x-hot-reload": true,
+                  "x-category": "DIRECTOR",
+                  "x-audience": "TUNER",
+                  "x-edit-role": "ADMIN",
+                  "x-tune": {"min": 0.75, "max": 3.0, "step": 0.25, "scale": "LINEAR"},
+                  "x-source": "CONFIG-AND-CONTENT \u00a76.7",
+                  "x-status": "PROPOSED"
                 },
                 "FOB": {
                   "description": "Target-value multiplier of a FOB node (Q-SIM-78).",
                   "type": "number",
                   "exclusiveMinimum": 0,
                   "x-unit": "multiplier",
-                  "x-hot-reload": true
+                  "x-hot-reload": true,
+                  "x-category": "DIRECTOR",
+                  "x-audience": "TUNER",
+                  "x-edit-role": "ADMIN",
+                  "x-tune": {"min": 0.5, "max": 2.0, "step": 0.25, "scale": "LINEAR"},
+                  "x-source": "CONFIG-AND-CONTENT \u00a76.7",
+                  "x-status": "PROPOSED"
                 },
                 "PORT": {
                   "description": "Target-value multiplier of a PORT node (Q-SIM-78).",
                   "type": "number",
                   "exclusiveMinimum": 0,
                   "x-unit": "multiplier",
-                  "x-hot-reload": true
+                  "x-hot-reload": true,
+                  "x-category": "DIRECTOR",
+                  "x-audience": "TUNER",
+                  "x-edit-role": "ADMIN",
+                  "x-tune": {"min": 0.5, "max": 2.0, "step": 0.25, "scale": "LINEAR"},
+                  "x-source": "CONFIG-AND-CONTENT \u00a76.7",
+                  "x-status": "PROPOSED"
                 },
                 "SANCTUARY": {
                   "description": "Target-value multiplier of a SANCTUARY node (Q-SIM-78).",
                   "type": "number",
                   "exclusiveMinimum": 0,
                   "x-unit": "multiplier",
-                  "x-hot-reload": true
+                  "x-hot-reload": true,
+                  "x-category": "DIRECTOR",
+                  "x-audience": "TUNER",
+                  "x-edit-role": "ADMIN",
+                  "x-tune": {"min": 1.0, "max": 4.0, "step": 0.25, "scale": "LINEAR"},
+                  "x-source": "CONFIG-AND-CONTENT \u00a76.7",
+                  "x-status": "PROPOSED"
                 }
               }
             },
-            "own_node_value": {"description": "Target-value multiplier of a node the side already holds (REINFORCE_IADS aims at one), unit multiplier (Q-DEV-21).", "type": "number", "exclusiveMinimum": 0, "x-unit": "multiplier", "x-hot-reload": true},
-            "weakness_min": {"description": "The weakness multiplier of a node at full defenses (Q-SIM-78); the curve is linear from here to weakness_max.", "type": "number", "exclusiveMinimum": 0, "x-unit": "multiplier", "x-hot-reload": true},
-            "stale_factor": {"description": "Coefficient of the Recon staleness term, score x (1 + factor x s) (TD-5).", "type": "number", "minimum": 0, "x-unit": "multiplier", "x-hot-reload": true},
+            "own_node_value": {"description": "Target-value multiplier of a node the side already holds (REINFORCE_IADS aims at one), unit multiplier (Q-DEV-21).", "type": "number", "exclusiveMinimum": 0, "x-unit": "multiplier", "x-hot-reload": true, "x-category": "DIRECTOR", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 0.5, "max": 2.0, "step": 0.1, "scale": "LINEAR"}, "x-source": "THREAT-DIRECTOR \u00a74", "x-status": "PROPOSED"},
+            "weakness_min": {"description": "The weakness multiplier of a node at full defenses (Q-SIM-78); the curve is linear from here to weakness_max.", "type": "number", "exclusiveMinimum": 0, "x-unit": "multiplier", "x-hot-reload": true, "x-category": "DIRECTOR", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 0.5, "max": 2.0, "step": 0.1, "scale": "LINEAR"}, "x-source": "THREAT-DIRECTOR \u00a74", "x-status": "PROPOSED"},
+            "stale_factor": {"description": "Coefficient of the Recon staleness term, score x (1 + factor x s) (TD-5).", "type": "number", "minimum": 0, "x-unit": "multiplier", "x-hot-reload": true, "x-category": "DIRECTOR", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 0.5, "max": 2.0, "step": 0.1, "scale": "LINEAR"}, "x-source": "THREAT-DIRECTOR \u00a74, TD-5", "x-status": "PROPOSED"},
             "weakness_max": {
               "description": "The weakness multiplier of a node with no defenses left; it rises linearly from weakness_min at full defenses (Q-SIM-78).",
               "type": "number",
               "minimum": 1,
               "x-unit": "multiplier",
-              "x-hot-reload": true
+              "x-hot-reload": true,
+              "x-category": "DIRECTOR",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 1.0, "max": 4.0, "step": 0.25, "scale": "LINEAR"},
+              "x-source": "THREAT-DIRECTOR \u00a74, Q-TD-6",
+              "x-status": "PROPOSED"
             },
             "provocation_proximity": {
               "description": "Multiplier for a target in the last provocation sector while the CP ceiling is one of proximity_tiers (Q-TD-4, Q-SIM-78).",
               "type": "number",
               "minimum": 1,
               "x-unit": "multiplier",
-              "x-hot-reload": true
+              "x-hot-reload": true,
+              "x-category": "DIRECTOR",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 1.0, "max": 3.0, "step": 0.25, "scale": "LINEAR"},
+              "x-source": "THREAT-DIRECTOR \u00a75, Q-TD-4",
+              "x-status": "PROPOSED"
             },
-            "proximity_tiers": {"description": "CP ceilings at which provocation_proximity applies (Q-TD-4, Q-DEV-21), unit tiers.", "type": "array", "items": {"$ref": "../common/enums.json#/$defs/ThreatTier"}, "x-unit": "tiers", "x-hot-reload": true}
+            "proximity_tiers": {"description": "CP ceilings at which provocation_proximity applies (Q-TD-4, Q-DEV-21), unit tiers.", "type": "array", "items": {"$ref": "../common/enums.json#/$defs/ThreatTier"}, "x-unit": "tiers", "x-hot-reload": true, "x-category": "DIRECTOR", "x-audience": "OPERATOR", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "THREAT-DIRECTOR \u00a75, Q-TD-4", "x-status": "RULE_DEFAULT"}
           }
         },
         "memory": {
@@ -1849,9 +2575,15 @@
               "type": "number",
               "exclusiveMinimum": 0,
               "x-unit": "s (game)",
-              "x-hot-reload": true
+              "x-hot-reload": true,
+              "x-category": "DIRECTOR",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 900.0, "max": 3600.0, "step": 100.0, "scale": "LINEAR"},
+              "x-source": "THREAT-DIRECTOR \u00a72",
+              "x-status": "PROPOSED"
             },
-            "factor": {"description": "Coefficient k of the memory multiplier: RAISE 1 + k x c, LOWER 1 / (1 + k x c), c in events (THREAT-DIRECTOR step 4).", "type": "number", "minimum": 0, "x-unit": "multiplier", "x-hot-reload": true},
+            "factor": {"description": "Coefficient k of the memory multiplier: RAISE 1 + k x c, LOWER 1 / (1 + k x c), c in events (THREAT-DIRECTOR step 4).", "type": "number", "minimum": 0, "x-unit": "multiplier", "x-hot-reload": true, "x-category": "DIRECTOR", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 0.5, "max": 2.0, "step": 0.1, "scale": "LINEAR"}, "x-source": "THREAT-DIRECTOR \u00a72, \u00a74", "x-status": "PROPOSED"},
             "weights": {
               "description": "Events one occurrence adds to its counter (THREAT-DIRECTOR section 2, Q-SIM-81).",
               "type": "object",
@@ -1868,28 +2600,52 @@
                   "type": "number",
                   "minimum": 0,
                   "x-unit": "events",
-                  "x-hot-reload": true
+                  "x-hot-reload": true,
+                  "x-category": "DIRECTOR",
+                  "x-audience": "TUNER",
+                  "x-edit-role": "ADMIN",
+                  "x-tune": {"min": 0.5, "max": 2.0, "step": 0.1, "scale": "LINEAR"},
+                  "x-source": "THREAT-DIRECTOR \u00a72",
+                  "x-status": "PROPOSED"
                 },
                 "radar_hit": {
                   "description": "Events one radar hit adds.",
                   "type": "number",
                   "minimum": 0,
                   "x-unit": "events",
-                  "x-hot-reload": true
+                  "x-hot-reload": true,
+                  "x-category": "DIRECTOR",
+                  "x-audience": "TUNER",
+                  "x-edit-role": "ADMIN",
+                  "x-tune": {"min": 0.5, "max": 2.0, "step": 0.1, "scale": "LINEAR"},
+                  "x-source": "THREAT-DIRECTOR \u00a72",
+                  "x-status": "PROPOSED"
                 },
                 "scout_lost": {
                   "description": "Events one scout lost adds.",
                   "type": "number",
                   "minimum": 0,
                   "x-unit": "events",
-                  "x-hot-reload": true
+                  "x-hot-reload": true,
+                  "x-category": "DIRECTOR",
+                  "x-audience": "TUNER",
+                  "x-edit-role": "ADMIN",
+                  "x-tune": {"min": 0.5, "max": 2.0, "step": 0.1, "scale": "LINEAR"},
+                  "x-source": "THREAT-DIRECTOR \u00a72",
+                  "x-status": "PROPOSED"
                 },
                 "node_lost": {
                   "description": "Events one node lost adds.",
                   "type": "number",
                   "minimum": 0,
                   "x-unit": "events",
-                  "x-hot-reload": true
+                  "x-hot-reload": true,
+                  "x-category": "DIRECTOR",
+                  "x-audience": "TUNER",
+                  "x-edit-role": "ADMIN",
+                  "x-tune": {"min": 0.5, "max": 2.0, "step": 0.1, "scale": "LINEAR"},
+                  "x-source": "THREAT-DIRECTOR \u00a72",
+                  "x-status": "PROPOSED"
                 }
               }
             }
@@ -1900,35 +2656,41 @@
           "type": "number",
           "minimum": 0,
           "x-unit": "fraction",
-          "x-hot-reload": true
+          "x-hot-reload": true,
+          "x-category": "DIRECTOR",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 0.05, "max": 0.2, "step": 0.01, "scale": "LINEAR"},
+          "x-source": "THREAT-DIRECTOR \u00a74",
+          "x-status": "PROPOSED"
         },
-        "adaptation_up_above": {"description": "A ThreatAdaptation goes UP when its threat-memory counter is above this many events as the matching operation launches (THREAT-DIRECTOR step 5).", "type": "number", "minimum": 0, "x-unit": "events", "x-hot-reload": true},
-        "reinforce_damage_above": {"description": "Share of an air-defense site's HP missing above which ReinforceIADS counts it damaged; 0 is any damage (Q-SIM-81).", "type": "number", "minimum": 0, "maximum": 1, "x-unit": "fraction", "x-hot-reload": true},
-        "escort_min_convoys": {"description": "The fewest convoys an escort operation may be cut to when the spawn cap or live-unit room is short; below it the operation is skipped (THREAT-DIRECTOR step 6), unit convoys.", "type": "integer", "minimum": 1, "x-unit": "convoys", "x-hot-reload": true},
-        "frontline_hops": {"description": "A node is on the front when a node within this many road hops has another owner (PROBE's target_is_frontline); 1 is a direct road neighbour, unit hops.", "type": "integer", "minimum": 1, "x-unit": "hops", "x-hot-reload": true},
-        "idle_retire_s": {"description": "A Director unit with no job and no path for this long is retired: removed, no refund (Q-SIM-84), unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true},
+        "adaptation_up_above": {"description": "A ThreatAdaptation goes UP when its threat-memory counter is above this many events as the matching operation launches (THREAT-DIRECTOR step 5).", "type": "number", "minimum": 0, "x-unit": "events", "x-hot-reload": true, "x-category": "DIRECTOR", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "THREAT-DIRECTOR \u00a74 step 5", "x-status": "PROPOSED"},
+        "reinforce_damage_above": {"description": "Share of an air-defense site's HP missing above which ReinforceIADS counts it damaged; 0 is any damage (Q-SIM-81).", "type": "number", "minimum": 0, "maximum": 1, "x-unit": "fraction", "x-hot-reload": true, "x-category": "DIRECTOR", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "THREAT-DIRECTOR \u00a74", "x-status": "PROPOSED"},
+        "escort_min_convoys": {"description": "The fewest convoys an escort operation may be cut to when the spawn cap or live-unit room is short; below it the operation is skipped (THREAT-DIRECTOR step 6), unit convoys.", "type": "integer", "minimum": 1, "x-unit": "convoys", "x-hot-reload": true, "x-category": "DIRECTOR", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 1, "max": 2, "step": 1, "scale": "LINEAR"}, "x-source": "THREAT-DIRECTOR \u00a74 step 6", "x-status": "PROPOSED"},
+        "frontline_hops": {"description": "A node is on the front when a node within this many road hops has another owner (PROBE's target_is_frontline); 1 is a direct road neighbour, unit hops.", "type": "integer", "minimum": 1, "x-unit": "hops", "x-hot-reload": true, "x-category": "DIRECTOR", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 1, "max": 2, "step": 1, "scale": "LINEAR"}, "x-source": "THREAT-DIRECTOR \u00a74", "x-status": "PROPOSED"},
+        "idle_retire_s": {"description": "A Director unit with no job and no path for this long is retired: removed, no refund (Q-SIM-84), unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true, "x-category": "DIRECTOR", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 300.0, "max": 1200.0, "step": 50.0, "scale": "LINEAR"}, "x-source": "THREAT-DIRECTOR \u00a74", "x-status": "PROPOSED"},
         "max_ops": {
           "description": "The most non-routine operations with jobs a tier runs at once (THREAT-DIRECTOR section 3, Q-DEV-21); null means no cap (the budget bounds the tier). Routine operations (those enabled at Pattern of Life) are never counted, so Pattern of Life has no cap key.",
           "type": "object",
           "additionalProperties": false,
           "required": ["alpha", "bravo"],
           "properties": {
-            "alpha": {"description": "The cap at this tier, or null for none.", "type": ["integer", "null"], "minimum": 1, "x-unit": "operations", "x-hot-reload": true},
-            "bravo": {"description": "The cap at this tier, or null for none.", "type": ["integer", "null"], "minimum": 1, "x-unit": "operations", "x-hot-reload": true}
+            "alpha": {"description": "The cap at this tier, or null for none.", "type": ["integer", "null"], "minimum": 1, "x-unit": "operations", "x-hot-reload": true, "x-category": "DIRECTOR", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "THREAT-DIRECTOR \u00a73", "x-status": "PROPOSED"},
+            "bravo": {"description": "The cap at this tier, or null for none.", "type": ["integer", "null"], "minimum": 1, "x-unit": "operations", "x-hot-reload": true, "x-category": "DIRECTOR", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "THREAT-DIRECTOR \u00a73", "x-status": "PROPOSED"}
           }
         },
-        "job_urgency": {"description": "Urgency of the jobs an operation posts, a multiplier on the job kind's base priority (TB-3), from 1.0 up to tasking.urgency_max.", "type": "number", "minimum": 1, "x-unit": "multiplier", "x-hot-reload": true},
-        "adaptation_down_below": {"description": "A ThreatAdaptation goes DOWN when its threat-memory counter falls below this many events (THREAT-DIRECTOR step 5).", "type": "number", "exclusiveMinimum": 0, "x-unit": "events", "x-hot-reload": true},
+        "job_urgency": {"description": "Urgency of the jobs an operation posts, a multiplier on the job kind's base priority (TB-3), from 1.0 up to tasking.urgency_max.", "type": "number", "minimum": 1, "x-unit": "multiplier", "x-hot-reload": true, "x-category": "DIRECTOR", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 1.0, "max": 2.0, "step": 0.1, "scale": "LINEAR"}, "x-source": "THREAT-DIRECTOR \u00a74", "x-status": "PROPOSED"},
+        "adaptation_down_below": {"description": "A ThreatAdaptation goes DOWN when its threat-memory counter falls below this many events (THREAT-DIRECTOR step 5).", "type": "number", "exclusiveMinimum": 0, "x-unit": "events", "x-hot-reload": true, "x-category": "DIRECTOR", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 0.5, "max": 2.0, "step": 0.1, "scale": "LINEAR"}, "x-source": "THREAT-DIRECTOR \u00a74 step 5", "x-status": "PROPOSED"},
         "recon": {
           "description": "Recon scouting (NX-379, Q-SIM-87, THREAT-DIRECTOR TD-5): a scout flies to a point of the sector, loiters there, then goes home.",
           "type": "object",
           "additionalProperties": false,
           "required": ["loiter_s", "loiter_radius_m", "grid_m", "memory_s"],
           "properties": {
-            "loiter_s": {"description": "How long the scout loiters at its point once it arrives; the job is done then and the scout goes home, unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true},
-            "loiter_radius_m": {"description": "The loiter pattern stays within this distance of the point, which also keeps clear of every known air-defense ring by this much, and a last-known track within it counts as the picture of the point, unit m.", "type": "number", "exclusiveMinimum": 0, "x-unit": "m", "x-hot-reload": true},
-            "grid_m": {"description": "Spacing of the candidate grid over a sector from which Recon picks its point, unit m.", "type": "integer", "minimum": 1, "x-unit": "m", "x-hot-reload": true},
-            "memory_s": {"description": "How long a grid cell that a Static sensor covered counts as freshly looked at: its staleness rises from 0 to 1 over this time, and the entry is dropped then, unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true}
+            "loiter_s": {"description": "How long the scout loiters at its point once it arrives; the job is done then and the scout goes home, unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true, "x-category": "DIRECTOR", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 300.0, "max": 1200.0, "step": 50.0, "scale": "LINEAR"}, "x-source": "THREAT-DIRECTOR TD-5, \u00a77a", "x-status": "PROPOSED"},
+            "loiter_radius_m": {"description": "The loiter pattern stays within this distance of the point, which also keeps clear of every known air-defense ring by this much, and a last-known track within it counts as the picture of the point, unit m.", "type": "number", "exclusiveMinimum": 0, "x-unit": "m", "x-hot-reload": true, "x-category": "DIRECTOR", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 2500.0, "max": 10000.0, "step": 250.0, "scale": "LINEAR"}, "x-source": "THREAT-DIRECTOR TD-5, \u00a77a", "x-status": "PROPOSED"},
+            "grid_m": {"description": "Spacing of the candidate grid over a sector from which Recon picks its point, unit m.", "type": "integer", "minimum": 1, "x-unit": "m", "x-hot-reload": true, "x-category": "DIRECTOR", "x-audience": "DEVELOPER", "x-edit-role": "ADMIN", "x-tune": {"min": 5000, "max": 20000, "step": 500, "scale": "LINEAR"}, "x-source": "THREAT-DIRECTOR \u00a77a", "x-status": "PROPOSED"},
+            "memory_s": {"description": "How long a grid cell that a Static sensor covered counts as freshly looked at: its staleness rises from 0 to 1 over this time, and the entry is dropped then, unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true, "x-category": "DIRECTOR", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 1800.0, "max": 7200.0, "step": 300.0, "scale": "LINEAR"}, "x-source": "THREAT-DIRECTOR \u00a77a", "x-status": "PROPOSED"}
           }
         },
         "intercept": {
@@ -1937,11 +2699,11 @@
           "additionalProperties": false,
           "required": ["radius_m", "reaction_s", "pol_linger_s", "leash_m", "lost_s"],
           "properties": {
-            "radius_m": {"description": "A tracked coalition scout this close to a Static-held node is watched, unit m.", "type": "number", "exclusiveMinimum": 0, "x-unit": "m", "x-hot-reload": true},
-            "reaction_s": {"description": "How long a scout must stay tracked inside the radius before the board posts the intercept, at ALPHA and above, unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true},
-            "pol_linger_s": {"description": "The same wait at Pattern of Life, unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true},
-            "leash_m": {"description": "A garrison fighter takes an intercept only when the scout is within this distance of its home, unit m.", "type": "number", "exclusiveMinimum": 0, "x-unit": "m", "x-hot-reload": true},
-            "lost_s": {"description": "An intercept ends when its scout has not been tracked for this long, unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true}
+            "radius_m": {"description": "A tracked coalition scout this close to a Static-held node is watched, unit m.", "type": "number", "exclusiveMinimum": 0, "x-unit": "m", "x-hot-reload": true, "x-category": "DIRECTOR", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 15000.0, "max": 60000.0, "step": 1000.0, "scale": "LINEAR"}, "x-source": "THREAT-DIRECTOR \u00a75a", "x-status": "PROPOSED"},
+            "reaction_s": {"description": "How long a scout must stay tracked inside the radius before the board posts the intercept, at ALPHA and above, unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true, "x-category": "DIRECTOR", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 30.0, "max": 120.0, "step": 5.0, "scale": "LINEAR"}, "x-source": "THREAT-DIRECTOR \u00a75a", "x-status": "PROPOSED"},
+            "pol_linger_s": {"description": "The same wait at Pattern of Life, unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true, "x-category": "DIRECTOR", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 300.0, "max": 1200.0, "step": 50.0, "scale": "LINEAR"}, "x-source": "THREAT-DIRECTOR \u00a75a", "x-status": "PROPOSED"},
+            "leash_m": {"description": "A garrison fighter takes an intercept only when the scout is within this distance of its home, unit m.", "type": "number", "exclusiveMinimum": 0, "x-unit": "m", "x-hot-reload": true, "x-category": "DIRECTOR", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 40000.0, "max": 160000.0, "step": 5000.0, "scale": "LINEAR"}, "x-source": "THREAT-DIRECTOR \u00a75a", "x-status": "PROPOSED"},
+            "lost_s": {"description": "An intercept ends when its scout has not been tracked for this long, unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true, "x-category": "DIRECTOR", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 60.0, "max": 240.0, "step": 10.0, "scale": "LINEAR"}, "x-source": "THREAT-DIRECTOR \u00a75a", "x-status": "PROPOSED"}
           }
         },
         "decoy_blink": {
@@ -1950,9 +2712,9 @@
           "additionalProperties": false,
           "required": ["dark_s", "cooldown_s", "max_per_window"],
           "properties": {
-            "dark_s": {"description": "How long a blinking radar stays dark, unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true},
-            "max_per_window": {"description": "The most radars that start a blink in one decision window, unit radars.", "type": "integer", "minimum": 1, "x-unit": "radars", "x-hot-reload": true},
-            "cooldown_s": {"description": "How soon after it went dark the same radar may blink again, unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true}
+            "dark_s": {"description": "How long a blinking radar stays dark, unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true, "x-category": "DIRECTOR", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 60.0, "max": 240.0, "step": 10.0, "scale": "LINEAR"}, "x-source": "FOG-OF-WAR FOW-11", "x-status": "PROPOSED"},
+            "max_per_window": {"description": "The most radars that start a blink in one decision window, unit radars.", "type": "integer", "minimum": 1, "x-unit": "radars", "x-hot-reload": true, "x-category": "DIRECTOR", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 1, "max": 2, "step": 1, "scale": "LINEAR"}, "x-source": "FOG-OF-WAR FOW-11", "x-status": "PROPOSED"},
+            "cooldown_s": {"description": "How soon after it went dark the same radar may blink again, unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true, "x-category": "DIRECTOR", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 300.0, "max": 1200.0, "step": 50.0, "scale": "LINEAR"}, "x-source": "FOG-OF-WAR FOW-11", "x-status": "PROPOSED"}
           }
         },
         "garrison": {
@@ -1961,7 +2723,7 @@
           "additionalProperties": false,
           "required": ["kinds", "replace_per_window"],
           "properties": {
-            "replace_per_window": {"description": "Units a Static base below its garrison_quota buys in one decision window (at most its shortfall, at most max_spawns_per_window), unit units.", "type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true},
+            "replace_per_window": {"description": "Units a Static base below its garrison_quota buys in one decision window (at most its shortfall, at most max_spawns_per_window), unit units.", "type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true, "x-category": "DIRECTOR", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 1, "max": 2, "step": 1, "scale": "LINEAR"}, "x-source": "THREAT-DIRECTOR \u00a75a", "x-status": "PROPOSED"},
             "kinds": {
               "type": "object",
               "additionalProperties": false,
@@ -1980,17 +2742,17 @@
           "additionalProperties": false,
           "required": ["patrol_period_s", "convoy_period_s", "offensive_period_s", "convoy_kind", "patrols_per_base", "convoys_per_period", "offensives_per_period", "convoy_cost", "patrol_slots", "convoy_slots", "capture_slot_tiers"],
           "properties": {
-            "patrol_slots": {"description": "Units (idle ground garrison units of the base) one patrol job takes, unit units.", "type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true},
-            "convoy_slots": {"description": "Units (carriers) one Pattern of Life supply convoy job takes, unit units.", "type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true},
-            "patrols_per_base": {"description": "Patrols (one idle ground garrison unit each) a Static base has out at once per patrol period, unit patrols.", "type": "integer", "minimum": 1, "x-unit": "patrols", "x-hot-reload": true},
-            "convoys_per_period": {"description": "Supply convoys sent per convoy period, each to a different Static base, largest upkeep shortfall first, unit convoys.", "type": "integer", "minimum": 1, "x-unit": "convoys", "x-hot-reload": true},
-            "offensives_per_period": {"description": "Capture operations the Pattern of Life slot may launch per offensive period, unit operations.", "type": "integer", "minimum": 1, "x-unit": "operations", "x-hot-reload": true},
-            "convoy_cost": {"description": "Budget points one Pattern of Life convoy costs, debited from the Static's surplus like an operation (a reused convoy is free), unit budget points.", "type": "integer", "minimum": 0, "x-unit": "budget points", "x-hot-reload": true},
-            "convoy_kind": {"description": "The ENEMY carrier kind of a Pattern of Life supply convoy (it takes a RESUPPLY job), unit unit kind.", "$ref": "../common/enums.json#/$defs/UnitKind", "x-unit": "unit kind", "x-hot-reload": true},
-            "patrol_period_s": {"description": "Every this long each Static base with an idle garrison unit posts one patrol, unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true},
-            "convoy_period_s": {"description": "Every this long one supply convoy runs to the Static base with the largest upkeep shortfall, unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true},
-            "capture_slot_tiers": {"description": "The tiers at which the periodic capture slot (offensives_per_period per offensive_period_s, outside the window budget) runs (Q-SIM-85: Pattern of Life only; decided rule as default, Q-CFG-16 option); empty turns it off, unit tiers.", "type": "array", "items": {"$ref": "../common/enums.json#/$defs/ThreatTier"}, "x-unit": "tiers", "x-hot-reload": true},
-            "offensive_period_s": {"description": "At Pattern of Life, one capture operation may launch this often, outside the window budget but paid from real surplus, unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true}
+            "patrol_slots": {"description": "Units (idle ground garrison units of the base) one patrol job takes, unit units.", "type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true, "x-category": "DIRECTOR", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 1, "max": 2, "step": 1, "scale": "LINEAR"}, "x-source": "THREAT-DIRECTOR \u00a75a", "x-status": "PROPOSED"},
+            "convoy_slots": {"description": "Units (carriers) one Pattern of Life supply convoy job takes, unit units.", "type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true, "x-category": "DIRECTOR", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 1, "max": 2, "step": 1, "scale": "LINEAR"}, "x-source": "THREAT-DIRECTOR \u00a75a", "x-status": "RULE_DEFAULT"},
+            "patrols_per_base": {"description": "Patrols (one idle ground garrison unit each) a Static base has out at once per patrol period, unit patrols.", "type": "integer", "minimum": 1, "x-unit": "patrols", "x-hot-reload": true, "x-category": "DIRECTOR", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 1, "max": 2, "step": 1, "scale": "LINEAR"}, "x-source": "THREAT-DIRECTOR \u00a75a", "x-status": "PROPOSED"},
+            "convoys_per_period": {"description": "Supply convoys sent per convoy period, each to a different Static base, largest upkeep shortfall first, unit convoys.", "type": "integer", "minimum": 1, "x-unit": "convoys", "x-hot-reload": true, "x-category": "DIRECTOR", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 1, "max": 2, "step": 1, "scale": "LINEAR"}, "x-source": "THREAT-DIRECTOR \u00a75a", "x-status": "PROPOSED"},
+            "offensives_per_period": {"description": "Capture operations the Pattern of Life slot may launch per offensive period, unit operations.", "type": "integer", "minimum": 1, "x-unit": "operations", "x-hot-reload": true, "x-category": "DIRECTOR", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 1, "max": 2, "step": 1, "scale": "LINEAR"}, "x-source": "THREAT-DIRECTOR \u00a75a", "x-status": "PROPOSED"},
+            "convoy_cost": {"description": "Budget points one Pattern of Life convoy costs, debited from the Static's surplus like an operation (a reused convoy is free), unit budget points.", "type": "integer", "minimum": 0, "x-unit": "budget points", "x-hot-reload": true, "x-category": "DIRECTOR", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "THREAT-DIRECTOR \u00a75a", "x-status": "PROPOSED"},
+            "convoy_kind": {"description": "The ENEMY carrier kind of a Pattern of Life supply convoy (it takes a RESUPPLY job), unit unit kind.", "$ref": "../common/enums.json#/$defs/UnitKind", "x-unit": "unit kind", "x-hot-reload": true, "x-category": "DIRECTOR", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "THREAT-DIRECTOR \u00a75a", "x-status": "PROPOSED"},
+            "patrol_period_s": {"description": "Every this long each Static base with an idle garrison unit posts one patrol, unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true, "x-category": "DIRECTOR", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 900.0, "max": 3600.0, "step": 100.0, "scale": "LINEAR"}, "x-source": "THREAT-DIRECTOR \u00a75a", "x-status": "PROPOSED"},
+            "convoy_period_s": {"description": "Every this long one supply convoy runs to the Static base with the largest upkeep shortfall, unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true, "x-category": "DIRECTOR", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 1800.0, "max": 7200.0, "step": 300.0, "scale": "LINEAR"}, "x-source": "THREAT-DIRECTOR \u00a75a", "x-status": "PROPOSED"},
+            "capture_slot_tiers": {"description": "The tiers at which the periodic capture slot (offensives_per_period per offensive_period_s, outside the window budget) runs (Q-SIM-85: Pattern of Life only; decided rule as default, Q-CFG-16 option); empty turns it off, unit tiers.", "type": "array", "items": {"$ref": "../common/enums.json#/$defs/ThreatTier"}, "x-unit": "tiers", "x-hot-reload": true, "x-category": "DIRECTOR", "x-audience": "OPERATOR", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "THREAT-DIRECTOR \u00a75a", "x-status": "RULE_DEFAULT"},
+            "offensive_period_s": {"description": "At Pattern of Life, one capture operation may launch this often, outside the window budget but paid from real surplus, unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true, "x-category": "DIRECTOR", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 10800.0, "max": 43200.0, "step": 1800.0, "scale": "LINEAR"}, "x-source": "THREAT-DIRECTOR \u00a75, \u00a75a", "x-status": "PROPOSED"}
           }
         },
         "retake_window_min": {
@@ -1998,7 +2760,13 @@
           "type": "number",
           "exclusiveMinimum": 0,
           "x-unit": "min (game)",
-          "x-hot-reload": true
+          "x-hot-reload": true,
+          "x-category": "DIRECTOR",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 15.0, "max": 60.0, "step": 5.0, "scale": "LINEAR"},
+          "x-source": "THREAT-DIRECTOR \u00a74",
+          "x-status": "PROPOSED"
         }
       }
     }

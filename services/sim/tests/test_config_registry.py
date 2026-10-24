@@ -1,5 +1,6 @@
 """NX-390: the settings registry guard and generated reference (Q-CFG-15, CFG-5)."""
 
+import copy
 import importlib.util
 import json
 from pathlib import Path
@@ -40,6 +41,22 @@ def test_every_site_has_unit_and_hot_reload() -> None:
 
 def test_registry_guard_is_clean() -> None:
     assert GEN.problems(SCHEMA) == []
+    assert not hasattr(GEN, "PENDING_BLOCKS")
+
+
+def test_every_site_carries_all_eight_fields() -> None:
+    for site in GEN.sites(SCHEMA):
+        for field in GEN.ALWAYS_FIELDS + GEN.REGISTRY_FIELDS:
+            assert field in site["node"], (site["paths"], field)
+
+
+def test_missing_registry_field_fails_in_every_block() -> None:
+    for site in GEN.sites(SCHEMA):
+        broken = copy.deepcopy(SCHEMA)
+        node = next(s for s in GEN.sites(broken) if s["name"] == site["name"])["node"]
+        del node["x-source"]
+        found = GEN.problems(broken)
+        assert any("missing x-source" in line for line in found), site["paths"]
 
 
 def test_default_lies_inside_its_tune_range() -> None:

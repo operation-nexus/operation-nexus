@@ -268,7 +268,7 @@ class Combat(BaseModel):
     damage_state: Annotated[
         DamageState,
         Field(
-            description="Damage-state thresholds (CB-6, Q-GP-8): a unit is in the state when its hp is below the fraction of its kind's hp; they descend."
+            description="Damage-state thresholds (CB-6, Q-GP-8): a unit is in the state when its hp is below the fraction of its kind's hp; they descend. A sweep must keep disabled_below < mission_kill_below < damaged_below (the loader refuses otherwise)."
         ),
     ]
     min_damage: Annotated[
@@ -392,7 +392,7 @@ class Logistics(BaseModel):
     starve_threshold: Annotated[
         float,
         Field(
-            description="A base is starved below this fraction of its node_max_stock, unit fraction; a truck never loads stock below it, so the floor is ceil(starve_threshold x max) whole units (GAMEPLAY §5, Q-GP-24).",
+            description="A base is starved below this fraction of its node_max_stock, unit fraction; a truck never loads stock below it, so the floor is ceil(starve_threshold x max) whole units (GAMEPLAY §5, Q-GP-24). The loader does not check it: a sweep should keep it below stock_target_frac.",
             ge=0.0,
             le=1.0,
         ),
@@ -400,7 +400,7 @@ class Logistics(BaseModel):
     stock_target_frac: Annotated[
         float,
         Field(
-            description="Forward stock target (Q-SIM-100, Q-SIM-102, NX-389), unit fraction of node_max_stock: a base the side owns below ceil(stock_target_frac x max) gets a resupply job even when it is not starved (a stocking job), and a run to such a base (not starved, no damaged facility) loads only stock a source holds above its own target, else at the side's rear source. At starve_threshold or below there are no stocking jobs.",
+            description="Forward stock target (Q-SIM-100, Q-SIM-102, NX-389), unit fraction of node_max_stock: a base the side owns below ceil(stock_target_frac x max) gets a resupply job even when it is not starved (a stocking job), and a run to such a base (not starved, no damaged facility) loads only stock a source holds above its own target, else at the side's rear source. At starve_threshold or below there are no stocking jobs. The loader does not check it: a sweep should keep it above starve_threshold.",
             ge=0.0,
             le=1.0,
         ),
@@ -1061,7 +1061,7 @@ class Campaign(BaseModel):
     momentum: Annotated[
         Momentum,
         Field(
-            description="Momentum weights (Q-SIM-60): momentum % = nodes_weight x the coalition's share of strategic nodes + supply_weight x its supply fill. They must add up to 100."
+            description="Momentum weights (Q-SIM-60): momentum % = nodes_weight x the coalition's share of strategic nodes + supply_weight x its supply fill. They must add up to 100: a sweep must keep nodes_weight + supply_weight = 100 (the loader refuses otherwise)."
         ),
     ]
     defeat: Annotated[
@@ -1329,7 +1329,7 @@ class Tasking(BaseModel):
     priority: Annotated[
         Priority,
         Field(
-            description="Base priority per job kind (Q-GP-20), unit points; keys are the lower-case JobKind."
+            description="Base priority per job kind (Q-GP-20), unit points; keys are the lower-case JobKind. Ordering intent, not enforced: stage below scout, patrol below stage, repair_bridge below resupply, intercept below defend and above strike; a sweep should keep it."
         ),
     ]
     static_offense_min_tier: Annotated[
@@ -1453,13 +1453,13 @@ class Tasking(BaseModel):
     ai_jobs: Annotated[
         list[enums.JobKind],
         Field(
-            description="Job kinds a coalition AI garrison unit takes by itself; any other kind not in ai_excluded_jobs it joins only once a COMMANDER-owned unit holds a claim on the job, or as a counterattack (GAMEPLAY §1b, Q-GD-26, Q-GD-31; decided rule as default, Q-CFG-16 option). Must not overlap ai_excluded_jobs; INTERCEPT has its own rule and may be in neither (the loader checks both), unit job kinds."
+            description="Job kinds a coalition AI garrison unit takes by itself; any other kind not in ai_excluded_jobs it joins only once a COMMANDER-owned unit holds a claim on the job, or as a counterattack (GAMEPLAY §1b, Q-GD-26, Q-GD-31; decided rule as default, Q-CFG-16 option). Must not overlap ai_excluded_jobs; INTERCEPT has its own rule and may be in neither (the loader checks both). A sweep must keep it disjoint from ai_excluded_jobs, unit job kinds."
         ),
     ]
     ai_excluded_jobs: Annotated[
         list[enums.JobKind],
         Field(
-            description="Job kinds an AI garrison unit never takes, even beside a player (Q-GP-45: escorting, Q-SIM-94: patrolling are the players' call; decided rule as default, Q-CFG-16 option), unit job kinds."
+            description="Job kinds an AI garrison unit never takes, even beside a player (Q-GP-45: escorting, Q-SIM-94: patrolling are the players' call; decided rule as default, Q-CFG-16 option). A sweep must keep it disjoint from ai_jobs (the loader refuses otherwise), unit job kinds."
         ),
     ]
     human_displaces_ai: Annotated[
@@ -1491,7 +1491,7 @@ class Tasking(BaseModel):
     scout_urgency: Annotated[
         ScoutUrgency,
         Field(
-            description="Urgency of a generated scout job by the blob's size bucket (Q-SIM-75, Q-DEV-21), unit multiplier, from 1.0 up to urgency_max (a larger value is capped there)."
+            description="Urgency of a generated scout job by the blob's size bucket (Q-SIM-75, Q-DEV-21), unit multiplier, from 1.0 up to urgency_max (a larger value is capped there). A sweep should keep every value at or below urgency_max; the code caps it, the schema does not check it."
         ),
     ]
     strike_urgency_per_threat: Annotated[
