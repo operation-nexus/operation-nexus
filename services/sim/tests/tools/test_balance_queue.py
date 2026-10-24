@@ -381,6 +381,25 @@ def failing(fake: Fake, *prefixes: list[str], rc: int = 1) -> Any:
     return run
 
 
+def test_timed_out_post_keeps_report_for_recovery(
+    cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake = Fake([issue(22)])
+
+    def run(cmd: list[str], **kw: Any) -> Any:
+        if cmd[:3] == ["gh", "issue", "comment"]:
+            raise hq.JobTimeout
+        return fake(cmd, **kw)
+
+    monkeypatch.setattr(hq, "run_cmd", run)
+    monkeypatch.setattr(hq, "execute", fake_exec(0, "# REPORT"))
+    hq.run_once(cfg, False)
+    assert fake.edits() == [("22", "harness-running", "harness-run")]  # not failed
+    assert hq.running_file(cfg, 22).exists()  # recovery can still find the report
+    hq.recover_stale(cfg)  # a second timeout in recovery must not escape the tick
+    assert hq.running_file(cfg, 22).exists()
+
+
 def test_failed_write_check_skips_run_and_keeps_labels(
     cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:

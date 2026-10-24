@@ -324,6 +324,7 @@ def process(cfg: dict[str, Any], issue: dict[str, Any], dry: bool) -> None:
                 publish(cfg, n, out, f"Run finished in {wall}.{sets}")
             except (
                 QueueError,
+                JobTimeout,
                 OSError,
             ):  # the report is safe on disk; next tick's recovery posts it
                 log(f"#{n}: finished but not posted, kept at {shown(out)}")
@@ -367,7 +368,7 @@ def recover_stale(cfg: dict[str, Any]) -> None:
             try:
                 publish(cfg, n, out, "Run finished; the report was posted late.")
                 log(f"#{n}: recovered the finished report")
-            except (QueueError, OSError):
+            except (QueueError, JobTimeout, OSError):
                 log(f"#{n}: recovered report not posted, will retry")
             continue
         fail(cfg, n, "Failed: the runner restarted mid-job.")
