@@ -2,10 +2,10 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://nexus.local/contracts/events/unit_destroyed.json",
   "title": "UnitDestroyed",
-  "description": "A unit is lost (CONTRACTS §6; STATE-MACHINES §4.1 Destroyed). Produced by fuel exhaustion (NX-368) and a captured base (NX-125), both with killer null and no assists, and by combat (NX-124): killer is the shooter of the killing hit and the assists are the other shooters that hit the unit within combat.assist_window_s. Public view: a hidden killer becomes null (FOW-3); a hidden victim is dropped.",
+  "description": "A unit is lost (CONTRACTS §6; STATE-MACHINES §4.1 Destroyed). Produced by fuel exhaustion (NX-368) and a captured base (NX-125), both with killer null and no assists, by combat (NX-124) and by a bridge collapse (NX-400, cause BRIDGE_COLLAPSE): killer is the shooter of the killing hit and the assists are the other shooters that hit the unit within combat.assist_window_s. Public view: a hidden killer becomes null (FOW-3); a hidden victim is dropped.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["kind", "tick", "event_seq", "campaign_id", "entity_id", "killer_id", "assist_ids", "side"],
+  "required": ["kind", "tick", "event_seq", "campaign_id", "entity_id", "killer_id", "assist_ids", "side", "cause"],
   "properties": {
     "kind": {"const": "UnitDestroyed"},
     "tick": {"$ref": "../common/ids.json#/$defs/Tick"},
@@ -14,6 +14,7 @@
     "entity_id": {"$ref": "../common/ids.json#/$defs/EntityId"},
     "killer_id": {"anyOf": [{"$ref": "../common/ids.json#/$defs/EntityId"}, {"type": "null"}], "description": "null: no killer (fuel exhaustion or loss of a captured base), or a hidden killer in the public view."},
     "assist_ids": {"type": "array", "maxItems": 32, "description": "Combat: the other shooters that hit the unit within combat.assist_window_s, sorted, no duplicates (producer). Not uniqueItems: that generates a set, whose order is not deterministic (SC-14).", "items": {"$ref": "../common/ids.json#/$defs/EntityId"}},
-    "side": {"$ref": "../common/enums.json#/$defs/Side", "description": "The lost unit's side."}
+    "side": {"$ref": "../common/enums.json#/$defs/Side", "description": "The lost unit's side."},
+    "cause": {"anyOf": [{"$ref": "../common/enums.json#/$defs/LossCause"}, {"type": "null"}], "description": "BRIDGE_COLLAPSE: lost in a bridge's fall (Q-SIM-112), killer_id the shooter of the hit that dropped it. null: any other loss."}
   }
 }

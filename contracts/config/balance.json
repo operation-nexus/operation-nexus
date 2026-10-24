@@ -797,7 +797,8 @@
         "ammo_loadout_share",
         "starve_hp_drain_per_min",
         "defense_repair_hp_per_stock",
-        "bridge_hp"
+        "bridge_hp",
+        "bridge_collapse_radius_m"
       ],
       "properties": {
         "node_max_stock": {
@@ -1068,6 +1069,13 @@
           "type": "integer",
           "minimum": 1,
           "x-unit": "hp",
+          "x-hot-reload": false
+        },
+        "bridge_collapse_radius_m": {
+          "description": "How far from a bridge's cut point, measured along its road edge, a GROUND unit (either side) on that edge is destroyed when the bridge falls, unit m (STATE-MACHINES \u00a74.3, Q-SIM-112, NX-400): Destroyed with its cargo, the shooter of the dropping hit credited, before paths are rerouted. Aircraft are not affected.",
+          "type": "number",
+          "minimum": 0,
+          "x-unit": "m",
           "x-hot-reload": false
         }
       }

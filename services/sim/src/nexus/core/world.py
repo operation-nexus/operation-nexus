@@ -43,6 +43,7 @@ from nexus.contracts.gen.common.enums import (
     AltBand,
     DamageState,
     JobKind,
+    LossCause,
     NodeOwner,
     OwnerKind,
     PauseReasonCategory,
@@ -803,10 +804,12 @@ def lose_unit(
     out: list[Event],
     killer_id: int | None = None,
     assist_ids: list[int] | None = None,
+    cause: LossCause | None = None,
 ) -> None:
     """A unit lost: it is removed, its commander's respawn delay starts and `UnitDestroyed` is
     emitted. `killer_id` is the shooter of a killing hit; None for fuel exhaustion or a captured
-    base. `assist_ids`: the other shooters that hit it recently (sorted, at most 32). A unit that
+    base. `assist_ids`: the other shooters that hit it recently (sorted, at most 32). `cause`:
+    BRIDGE_COLLAPSE for a unit lost in a bridge's fall (Q-SIM-112), else None. A unit that
     was never Disabled rolls its crew now (CB-8); a wreck rolled when it became Disabled."""
     if e.delivered and e.last_node is not None:
         end_stop(world, e, e.last_node, out)  # an open unloading stop reports its units first
@@ -825,6 +828,7 @@ def lose_unit(
             killer_id=killer_id,
             assist_ids=assist_ids or [],
             side=e.side,
+            cause=cause,
         )
     )
     if e.damage_state != "DISABLED":

@@ -13,7 +13,7 @@ Each campaign is stored with: the seed, the config hash, the command log and the
 - Test (Q-ALN-29): a fixture replay with two deleted commanders renders two different `REDACTED-<tag>` names, each equal to `REDACTED-` plus the commander's stored tag.
 
 ## 2. Excitement score
-A rolling 15 s score combines missiles in flight, kills, captures, human involvement, and objective completion. The weights are configurable. When the score crosses a threshold, a clip job is created for `[t-25 s, t+5 s]`.
+A rolling 15 s score combines missiles in flight, kills, captures, human involvement, objective completion and bridge collapses (a `BridgeDestroyed` weighted by its `lost_ids` count; PROPOSED term, Q-SIM-112, NX-400). The weights are configurable. Spec only: no score is in code yet, so the term has no key or weight until the clip pipeline (NX-233…NX-239) builds the score. When the score crosses a threshold, a clip job is created for `[t-25 s, t+5 s]`.
 
 ## 3. Clip rendering (P3)
 A headless render worker plays the recorded frames for the window (Q-SIM-18) in a browser at 1080×1920 and records it with FFmpeg (argv list, SEC-CLIP-2), together with the cached TTS audio. It runs at low priority. If the GPU is busy, it runs when the broadcast host is idle, or on another machine. A clip rendered or published while its campaign is running uses the FoW-redacted view (RP-1); a full-reveal clip is possible only after the campaign has ended (RP-2).

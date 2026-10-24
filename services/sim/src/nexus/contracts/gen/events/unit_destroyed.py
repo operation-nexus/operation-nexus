@@ -35,3 +35,9 @@ class UnitDestroyed(BaseModel):
         ),
     ]
     side: Annotated[enums.Side, Field(description="The lost unit's side.")]
+    cause: Annotated[
+        enums.LossCause | None,
+        Field(
+            description="BRIDGE_COLLAPSE: lost in a bridge's fall (Q-SIM-112), killer_id the shooter of the hit that dropped it. null: any other loss."
+        ),
+    ]

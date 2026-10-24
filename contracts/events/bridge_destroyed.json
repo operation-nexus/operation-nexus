@@ -5,13 +5,14 @@
   "description": "A bridge's HP reached 0 (CONTRACTS 6; STATE-MACHINES 4.3, COMBAT CB-10; NX-373): its road edge is cut for path planning until it is repaired to full. Once per down cycle, never per hit; individual hits are WeaponImpact.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["kind", "tick", "event_seq", "campaign_id", "node_id", "by_id"],
+  "required": ["kind", "tick", "event_seq", "campaign_id", "node_id", "by_id", "lost_ids"],
   "properties": {
     "kind": {"const": "BridgeDestroyed"},
     "tick": {"$ref": "../common/ids.json#/$defs/Tick"},
     "event_seq": {"type": "integer", "minimum": 1, "description": "Campaign-wide, monotonic, deterministic (SC-14)."},
     "campaign_id": {"$ref": "../common/ids.json#/$defs/CampaignId"},
     "node_id": {"$ref": "../common/ids.json#/$defs/NodeId"},
-    "by_id": {"anyOf": [{"$ref": "../common/ids.json#/$defs/EntityId"}, {"type": "null"}], "description": "The unit whose hit took the bridge to 0; null for a hidden actor in a filtered view."}
+    "by_id": {"anyOf": [{"$ref": "../common/ids.json#/$defs/EntityId"}, {"type": "null"}], "description": "The unit whose hit took the bridge to 0; null for a hidden actor in a filtered view."},
+    "lost_ids": {"type": "array", "description": "The GROUND units the fall destroyed (Q-SIM-112: on the cut edge within logistics.bridge_collapse_radius_m of the cut point), sorted, no duplicates (producer); each also gets UnitDestroyed with cause BRIDGE_COLLAPSE. Not capped: every loss is named. A filtered view drops a hidden victim's id.", "items": {"$ref": "../common/ids.json#/$defs/EntityId"}}
   }
 }

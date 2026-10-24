@@ -89,6 +89,7 @@ logistics:
   starve_hp_drain_per_min: 5
   defense_repair_hp_per_stock: 2
   bridge_hp: 300
+  bridge_collapse_radius_m: 1000.0
 capture:
   radius_m: 2000.0
   time_s: 120.0
@@ -327,7 +328,7 @@ director:
 # NX-388 part 2 for the Q-CFG-16 rule options, NX-388 part 2b for the Director, tasking and
 # rebase rule options, NX-373 for the bridge hp, NX-398 for `tasking.order_dwell_s`); a
 # change means every config_hash moved.
-GOLDEN_CONFIG_HASH = "a5ab6650e1ed65f91b75b75283b257711dc15aca69b2661d690333f78678a05f"
+GOLDEN_CONFIG_HASH = "9ed33c836041681323a593d552678a4fcf640af680b9a5065b86cf96da95dc4d"
 AIR = {
     "bingo_reserve_frac": 0.15,
     "orbit_period_s": 120.0,
@@ -380,6 +381,7 @@ LOGISTICS = {
     "starve_hp_drain_per_min": 5,
     "defense_repair_hp_per_stock": 2,
     "bridge_hp": 300,
+    "bridge_collapse_radius_m": 1000.0,
 }
 CAPTURE = {
     "radius_m": 2000.0,
@@ -707,6 +709,7 @@ def test_default_profile_loads_and_matches_golden_hash() -> None:
         ("  starve_hp_drain_per_min: 5\n", "logistics.starve_hp_drain_per_min"),
         ("  defense_repair_hp_per_stock: 2\n", "logistics.defense_repair_hp_per_stock"),
         ("  bridge_hp: 300\n", "logistics.bridge_hp"),
+        ("  bridge_collapse_radius_m: 1000.0\n", "logistics.bridge_collapse_radius_m"),
         ("    SANCTUARY: 1000\n", "capture.defense_hp.SANCTUARY"),
         ("  sanctuary_repair_hp_per_s: 1.0\n", "capture.sanctuary_repair_hp_per_s"),
         ("  defeat:\n    hold_min: 30\n", "campaign.defeat"),
@@ -938,6 +941,7 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "  repair_rate: {SANCTUARY: 2.0, PORT: 1.0, HQ: 1.0, FOB: 0.5, AIRBASE: 1.0},\n"
         "  facility_repair_hp_per_stock: 10, facility_rearm_cost: 10, ammo_loadout_share: 0.5,\n"
         "  starve_hp_drain_per_min: 5, defense_repair_hp_per_stock: 2, bridge_hp: 300,\n"
+        "  bridge_collapse_radius_m: 1000.0,\n"
         "  node_max_stock: {PORT: 1000, HQ: 2000, FOB: 1000, BRIDGE: 0, AIRBASE: 2000}}\n"
         "capture: {radius_m: 2000.0, time_s: 120.0, multi_unit_exponent: 0.5, quiet_floor: 0.6,\n"
         "  quiet_ref: 50, min_time_s: 30.0, logi_weight: 0.5, garrison_mult: 3.0,\n"

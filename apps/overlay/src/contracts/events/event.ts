@@ -196,7 +196,7 @@ export interface ReserveQueueLeft {
   reason: "SLOT_FREED" | "REPLACED" | "REJECTED" | "TIMEOUT";
 }
 /**
- * A unit is lost (CONTRACTS §6; STATE-MACHINES §4.1 Destroyed). Produced by fuel exhaustion (NX-368) and a captured base (NX-125), both with killer null and no assists, and by combat (NX-124): killer is the shooter of the killing hit and the assists are the other shooters that hit the unit within combat.assist_window_s. Public view: a hidden killer becomes null (FOW-3); a hidden victim is dropped.
+ * A unit is lost (CONTRACTS §6; STATE-MACHINES §4.1 Destroyed). Produced by fuel exhaustion (NX-368) and a captured base (NX-125), both with killer null and no assists, by combat (NX-124) and by a bridge collapse (NX-400, cause BRIDGE_COLLAPSE): killer is the shooter of the killing hit and the assists are the other shooters that hit the unit within combat.assist_window_s. Public view: a hidden killer becomes null (FOW-3); a hidden victim is dropped.
  */
 export interface UnitDestroyed {
   kind: "UnitDestroyed";
@@ -232,6 +232,10 @@ export interface UnitDestroyed {
    * The lost unit's side.
    */
   side: "COALITION" | "ENEMY";
+  /**
+   * BRIDGE_COLLAPSE: lost in a bridge's fall (Q-SIM-112), killer_id the shooter of the hit that dropped it. null: any other loss.
+   */
+  cause: "BRIDGE_COLLAPSE" | null;
 }
 /**
  * A commander's callsign was set by SYS_SET_CALLSIGN (CONTRACTS §6). Broadcast-only, already approved. TOMBSTONE renders as REDACTED- plus the tag after X- (Q-DM-2, Q-ALN-29).
@@ -814,6 +818,12 @@ export interface BridgeDestroyed {
    * The unit whose hit took the bridge to 0; null for a hidden actor in a filtered view.
    */
   by_id: number | null;
+  /**
+   * The GROUND units the fall destroyed (Q-SIM-112: on the cut edge within logistics.bridge_collapse_radius_m of the cut point), sorted, no duplicates (producer); each also gets UnitDestroyed with cause BRIDGE_COLLAPSE. Not capped: every loss is named. A filtered view drops a hidden victim's id.
+   *
+   * Items: Sequential per campaign, never reused (SC-4).
+   */
+  lost_ids: number[];
 }
 /**
  * A job was posted to a side's Tasking Board, OPEN (CONTRACTS §6; GAMEPLAY §1b TB-1, TB-10; NX-374). Posted by the board generator (the director and GM injection post through the same call later). Exactly one of node_id and blob_id is set, except an escort job (ESCORT_CONVOY) and an intercept job (INTERCEPT), which set neither and name the escorted truck or the hunted scout in entity_id (sector_id joins with the sector scout). A job generated for a side references only what that side's view holds (TB-9). Public view: dropped for the ENEMY side's board.
