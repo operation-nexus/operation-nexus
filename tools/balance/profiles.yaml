@@ -68,8 +68,15 @@ impact_check_s: 1
 
 # Targets (TESTING-STRATEGY §3.5a). The numbers are the written ones; `source` names where.
 targets:
-  a1_min_h: 24            # Q-TEST-6: victory or defeat within 24-72 h (72 = campaign.time_limit_h)
-  a1_pass_frac: 0.85      # Q-TEST-4 / Q-TEST-6
+  a1_pass_frac: 0.85      # Q-TEST-4 / Q-TEST-6: victory or defeat by campaign.time_limit_h (no floor, owner 2026-10-24)
+  # Q-TEST-11 steamroll signals S1 to S4 (NX-411). Every value below is PROPOSED (Q-TEST-11).
+  steamroll_pressure_per_4h: 2   # S1: Static pressure on held ground under 2 events per 4 campaign h
+  steamroll_swing_pts: 10        # S3: largest momentum drop after the first coalition lead under 10 ...
+  steamroll_max_lead_changes: 1  # ... and at most 1 lead change
+  steamroll_lead_line: 50        # momentum above this is a coalition lead, below it a Static lead
+  steamroll_late_units_frac: 0.25  # S4: last-third Static armed units under 25% of its peak ...
+  steamroll_late_stock_frac: 0.10  # ... or last-third Static stock under 10% of its start stock
+  steamroll_min_signals: 3       # steamroll when S1 and S2 fire, or this many of S1 to S4 fire
   a2_min_tier: ALPHA      # Q-SIM-93: A2 counts only newbies who arrive at this Static tier or above
   a2_max_s: 480           # Q-SIM-97 (owner, 2026-10-23): the median time to first impact is at most 8 min (a sortie, SIM-CORE world scale)
   a2_tail_s: 900          # Q-SIM-97: a newbie still without an impact after 15 min is "in the tail"

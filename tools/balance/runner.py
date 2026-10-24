@@ -330,6 +330,7 @@ def failed_run(profile: str, seed: int, hours: float, error: str) -> dict[str, A
                 "by_kind": {},
             },
             "kills": {"by_kind": {}, "player_by_kind": {}, "total": 0, "unattributed": 0},
+            "steamroll": None,
             "nodes_lost": [],
             "nodes_lost_in_a3_window": 0,
             "sanctuary_hp": {"min": None, "min_in_a3_window": None},

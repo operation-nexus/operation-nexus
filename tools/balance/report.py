@@ -6,6 +6,7 @@ import statistics
 from collections import Counter
 from typing import Any
 
+import steamroll
 from profiles import Targets
 
 PASS, FAIL, NO_DATA = "pass", "fail", "no data"
@@ -49,9 +50,10 @@ def _a1(runs: list[dict[str, Any]], t: Targets) -> dict[str, Any]:
         for r in runs
         if (o := r["metrics"]["outcome"])["result"] in ("VICTORY", "DEFEAT")
         and limit is not None
-        and t.a1_min_h <= o["length_h"] <= limit
+        and o["length_h"] <= limit
     )
     frac = good / len(runs)
+    sr = _steamroll(runs, t)
     if limit is None:
         status = NO_DATA  # every run hit a harness error
     else:
@@ -62,9 +64,30 @@ def _a1(runs: list[dict[str, Any]], t: Targets) -> dict[str, Any]:
         "median_length_h": _med(lengths),
         "seeds_in_window": good,
         "frac": frac,
+        "steamroll": sr,
         "detail": f"{outcomes['CRASHED']} sim crashes, {outcomes['HARNESS_ERROR']} harness errors; "
-        f"{good}/{len(runs)} seeds ended by victory or defeat in "
-        f"{t.a1_min_h:g}-{limit or 0:g} h (need {t.a1_pass_frac:.0%})",
+        f"{good}/{len(runs)} seeds ended by victory or defeat by {limit or 0:g} h "
+        f"(need {t.a1_pass_frac:.0%}); steamroll (Q-TEST-11, information only): "
+        f"{sr['flagged']}/{sr['judged']} won seeds flagged",
+    }
+
+
+def _steamroll(runs: list[dict[str, Any]], t: Targets) -> dict[str, Any]:
+    """A1's no-steamroll check (Q-TEST-11): per seed, the signals S1 to S4 of each won campaign;
+    the share of judged (won) seeds flagged. A seed that was not won is not judged."""
+    seeds = [
+        {"seed": r["seed"], "outcome": r["metrics"]["outcome"].get("result"), **v}
+        for r in runs
+        if not r["harness_error"] and not r["crash"]
+        for v in [steamroll.judge(r["metrics"], t)]
+    ]
+    judged = [s for s in seeds if s["judged"]]
+    flagged = sum(bool(s["steamroll"]) for s in judged)
+    return {
+        "seeds": seeds,
+        "judged": len(judged),
+        "flagged": flagged,
+        "share": flagged / len(judged) if judged else None,
     }
 
 
@@ -329,6 +352,41 @@ def _profile_row(name: str, a: dict[str, Any]) -> list[str]:
     ]
 
 
+_STEAMROLL_HEADER = [
+    "Profile",
+    "Seed",
+    "S1 /4 h",
+    "S2 pressure, broken",
+    "S3 drop, changes",
+    "S4 units, stock",
+    "Fired",
+    "Steamroll",
+]
+
+
+def _sig(s: dict[str, Any], text: str) -> str:
+    return "n/m" if s["value"] is None else text + ("*" if s["fired"] else "")
+
+
+def _steamroll_row(profile: str, s: dict[str, Any]) -> list[str]:
+    head = [profile, str(s["seed"])]
+    if not s["judged"]:
+        return [*head, "-", "-", "-", "-", "-", f"not judged ({s['outcome'] or 'not ended'})"]
+    g = s["signals"]
+    v1, v2, v3, v4 = (g[k]["value"] for k in ("S1", "S2", "S3", "S4"))
+    return [
+        *head,
+        _sig(g["S1"], _fmt(v1, ".2f")),
+        _sig(g["S2"], f"{v2['pressure']}, {v2['broken']}" if v2 else ""),
+        _sig(g["S3"], f"{v3['max_drop']}, {v3['lead_changes']}" if v3 else ""),
+        _sig(
+            g["S4"], f"{v4['units_of_peak']:.0%}, {_fmt(v4['stock_of_start'], '.0%')}" if v4 else ""
+        ),
+        str(s["fired"]),
+        "YES" if s["steamroll"] else "no",
+    ]
+
+
 def markdown(report: dict[str, Any]) -> str:
     """The Markdown summary of a whole report (see `balance.py`)."""
     cfg, timing = report["config"], report["timing"]
@@ -386,6 +444,29 @@ def markdown(report: dict[str, Any]) -> str:
         "commander-owned unit (mean over samples with a unit). Jobs / node: open coalition jobs "
         "per theater node (mean). "
         "A job is open while it has an unfilled slot.",
+        "",
+    ]
+    lines += ["## Steamroll signals (Q-TEST-11, thresholds PROPOSED; won seeds only)", ""]
+    lines += _table(
+        _STEAMROLL_HEADER,
+        [
+            _steamroll_row(n, s)
+            for n, a in report["profiles"].items()
+            for s in a["A1"]["steamroll"]["seeds"]
+        ],
+    )
+    lines += [
+        "A signal is shown as value, then `*` when it fired; `n/m` is not measurable (the note "
+        "is in report.json). S1: Static pressure on held ground per 4 campaign hours. S2: "
+        "pressure during the last victory hold, holds broken. S3: largest momentum drop after the "
+        "coalition first led, lead changes. S4: late-third Static armed units / its peak, stock / "
+        "its start. Steamroll = S1 and S2, or at least `steamroll_min_signals` of S1 to S4. "
+        "Share of won seeds flagged: "
+        + "; ".join(
+            f"{n} {_fmt(a['A1']['steamroll']['share'], '.0%')} "
+            f"({a['A1']['steamroll']['flagged']}/{a['A1']['steamroll']['judged']})"
+            for n, a in report["profiles"].items()
+        ),
         "",
     ]
     lines += ["## A2 first impact (newbies arriving at the A2 tier or above)", ""]

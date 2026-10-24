@@ -47,7 +47,8 @@ A profile has `viewers` distinct viewers arriving at uniform seeded times in the
 
 | Metric | From | Target (TESTING-STRATEGY §3.5a) |
 |---|---|---|
-| Campaign outcome and length | `CampaignEnded` | A1: at least 85% of seeds end by victory or defeat in 24 to 72 h (the limit is `campaign.time_limit_h`). Needs a run at least as long as the limit |
+| Campaign outcome and length | `CampaignEnded` | A1: at least 85% of seeds end by victory or defeat by `campaign.time_limit_h` (72); a time-limit ending is a miss. No 24 h floor (Q-TEST-6, owner 2026-10-24): a fast win is fine. Needs a run at least as long as the limit |
+| Steamroll signals S1 to S4 | event log of each won run (`steamroll.py`; inputs from `Collector`), see "A1 steamroll check" below | A1's no-steamroll check (Q-TEST-11): the share of won seeds flagged as a steamroll, and a per-seed table. Information only: no pass threshold for the share is decided |
 | Momentum curve | `momentum(world)` once per game minute | none (reported: mean, final median) |
 | Newbie time to first impact | from a newbie's first JOIN to its first impact (see "A2 and impact" below) | A2 (Q-SIM-97, TESTING-STRATEGY §3.5a): for newbies who arrived at the Static's tier ALPHA or above, the median is at most 480 s (8 min, the top of a sortie) and at most 10% have a first impact later than 900 s (15 min). Tail rule below |
 | Coalition kill share by unit kind | `UnitDestroyed` of an enemy unit, by the killer's kind (assists are not counted) | A4: no kind over 40% of all the coalition's kills (AI garrison and facilities included), pooled over seeds (PROPOSED, Q-TEST-8). A4 is suspended (`a4_suspended` in profiles.yaml, Q-SIM-92) until a second armed viewer unit kind exists: the report shows `suspended (Q-SIM-92): needs a second armed viewer unit kind`, never a fail, and still prints the measured top kind and share. Fewer than `a4_min_kills` (30, PROPOSED) pooled kills is `no data`. The report also gives the player-only share (commander-owned killers), which the target does not use |
@@ -57,6 +58,25 @@ A profile has `viewers` distinct viewers arriving at uniform seeded times in the
 | Strategic nodes lost, sanctuary defense HP | `NodeCaptured` from COALITION; `defense_hp` every tick | A3, `overnight-0` only: at most one strategic node lost and the sanctuary's HP above 0 in the first 12 h, every seed (PROPOSED, Q-TEST-8). A sim crash inside the window is a fail; a seed that stopped short of 12 h (or hit a harness error) makes A3 `not evaluable`. With no viewer units the sim's idle floor keeps the sanctuary at 1 or more, so the HP half of A3 cannot fail at 0 viewers; the nodes half is the real test |
 | Director tier dwell | `ThreatTierChanged` (the Static's Director) | none |
 | Supply-starvation minutes | coalition-held finite-stock nodes below their starvation floor, sampled once per game minute: node-minutes and minutes with at least one | none |
+
+### A1 steamroll check (NX-411, Q-TEST-11)
+
+Only a campaign that ended in VICTORY is judged; a lost, time-limit or unfinished one shows "not judged". All thresholds are `targets.steamroll_*` in `profiles.yaml` and **PROPOSED** (Q-TEST-11), recalibrated once a hard-fought run exists. A signal that cannot be measured has no value, does not fire and says why (`note` in `report.json`; `n/m` in the table).
+
+| Signal | Value, from | Fires when |
+|---|---|---|
+| S1 Static pressure on held ground | pressure events per 4 campaign hours (events x 4 / `length_h`). A pressure event is a `CaptureStarted` by the Static on a node the coalition holds, a `NodeDefensesDown` with owner COALITION, or a `NodeCaptured` that takes a node from the coalition (any node kind, not only strategic). Ownership starts from the setup and follows `NodeCaptured` | under `steamroll_pressure_per_4h` (2) |
+| S2 contested final hold | pressure events at or after the start of the last victory-hold run, and the holds broken before it. No victory-hold event exists, so the run is derived: the coalition owning at least `campaign.victory_node_frac` of the strategic nodes, tracked through `NodeCaptured`; a dip closes a run (a broken hold) and the campaign ends in VICTORY when the run lasts `victory_hold_min`. A win by HQ capture while below the fraction has no hold: S2 is "not measurable" and does not fire | both are 0 |
+| S3 momentum swing | the existing momentum samples (one per game minute). The coalition leads above `steamroll_lead_line` (50), the Static below it. Largest drop from the running peak after the first coalition lead; lead changes count each flip of the leader after the first leader is set (a start below 50 then a first lead is 1 change). Never led: not measurable | drop under `steamroll_swing_pts` (10) and at most `steamroll_max_lead_changes` (1) changes |
+| S4 late Static force | per-minute samples (`Collector.sample`): the Static's live armed units that are not Disabled, and the stock of the finite-stock bases it owns. In the last third of the campaign (by `end_tick`): the mean of each against the run's own peak units and the stock at tick 0 | units under `steamroll_late_units_frac` (25%) of peak, or stock under `steamroll_late_stock_frac` (10%) of start |
+
+- An HQ-capture win while at or above the victory fraction judges S2 on the short, incomplete last hold.
+- S3 counts lead changes over the whole campaign but measures the drop only after the first coalition lead.
+- S4's late stock counts only the bases the Static owns at that time, so losing bases lowers it (intended: a beaten Static).
+- S4 uses the mean over the late third, not the last sample.
+- The A1 steamroll share is information only until a threshold is decided (Q-TEST-12).
+
+Steamroll = S1 and S2 both fire, or at least `steamroll_min_signals` (3) of S1 to S4 fire. The report has a per-seed table (each value, `*` when it fired) and the share of won seeds flagged per profile (also `A1.steamroll` in `report.json`).
 
 ### A2 and impact (NX-383, Q-SIM-93)
 
