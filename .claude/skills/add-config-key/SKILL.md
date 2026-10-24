@@ -67,6 +67,14 @@ A rename is retire-plus-add in the same PR: every place above, plus a grep of th
 golden cases. Removing a key a theater or preset still sets fails the load (CFG-1 rejects unknown
 keys), so search `content/` too.
 
+## Gotchas
+- An `x-tune` range follows Q-CFG-22 (inside the schema bounds, containing the default); a range in a brief that
+  disagrees with that row is the brief's mistake (L-14).
+- Before tuning a key against a failing harness target, check the harness personas can do every player action the
+  loop needs; NX-389's hauler sweeps measured a stalled war (code-quality §9).
+- Raising a cap does nothing when something else binds: doubling the Static's caps changed nothing at raid-300 because
+  it was stock-bound (docs/review/ENTERTAINMENT-steamroll-2026-10-24.md). Check which limit binds first.
+
 ## 4. Done when
 `make check` passes, `git status` after `make contracts` shows no new drift, the §6 row and the
 schema say the same thing, and the PR body lists the key, its value and where the value came from.
