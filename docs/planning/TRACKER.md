@@ -9,7 +9,7 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 
 | Phase | Items | Done | Status |
 |---|---|---|---|
-| P0 Foundations | 44 | 31 | 🟨 |
+| P0 Foundations | 44 | 32 | 🟨 |
 | P1 Sim kernel | 65 | 45 | 🟨 |
 | P2 Closed alpha | 40 | 0 | ⬜ |
 | P3 Public beta | 26 | 0 | ⬜ |
@@ -30,7 +30,7 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-004 [#3](https://github.com/operation-nexus/operation-nexus/issues/3) | Owner drops reference files into `.agents/context/` + updates INDEX. Closed by the owner on 2026-10-23: no reference files are planned, INDEX stays empty | S | ✅ | — | INDEX lists files |
 | NX-005 [#4](https://github.com/operation-nexus/operation-nexus/issues/4) | Move `Raw-*.md` to `docs/source/` with a "not a spec" banner | S | ❓ | NX-002 | Links updated |
 | NX-006 [#5](https://github.com/operation-nexus/operation-nexus/issues/5) | Specs SIM-CORE, GAMEPLAY, FOG-OF-WAR, THREAT-DIRECTOR → Review → Approved | M | ✅ | NX-002 | Owner sign-off. All four Approved: FOG-OF-WAR and THREAT-DIRECTOR 2026-10-19, SIM-CORE and GAMEPLAY 2026-10-20 after NX-345 |
-| NX-007 [#6](https://github.com/operation-nexus/operation-nexus/issues/6) | Reference hardware spec documented (Q-OPS-1) | S | ❓ | — | `docs/ops/HARDWARE.md` |
+| NX-007 [#6](https://github.com/operation-nexus/operation-nexus/issues/6) | Reference hardware spec documented (Q-OPS-1). Done 2026-10-24: CPU, OS, server, cost ceiling and measured upload in HARDWARE.md (#243, #330) | S | ✅ | — | `docs/ops/HARDWARE.md` |
 | NX-008 [#7](https://github.com/operation-nexus/operation-nexus/issues/7) | Hand-authored first theater map sketch (12 nodes, 8 strategic bases, roads, bridges; Q-TH-1..7) | M | ✅ | Q-GD-9 | YAML in `content/theaters/strait-1.yaml` + SVG sketch in `docs/design/theater-1.svg` (PR #127) |
 | NX-009 | Decide: mirror tracker to GitHub Issues + Project board? | S | ✅ | — | Decision recorded |
 
