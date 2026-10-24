@@ -6,6 +6,12 @@ facilities, the capture bars on its nodes, and the node defense hp, which is nod
 combat uses without a track (COMBAT CB-10, FOW-10). The objective is the coalition's. No spec
 refers to an entity id, so a job names a node, or a SIGINT blob with its cell centre.
 
+- **Repair bridge** (`repair_bridge:<node>`, coalition only, NX-373 part 2): each down bridge
+  (`SideView.bridge_down`, public node state) that some live, not Disabled coalition carrier can
+  reach by road from its `last_node` (`logistics.approach`, the executor's own route: to the
+  nearer bank, then the bridge's repair stop), so the job never waits for a truck that cannot
+  get there. The
+  Static's board never posts it, so it never undoes the Director's cuts. Urgency 1.0.
 - **Resupply** (`resupply:<node>`): a node the side owns, with stock, below its starvation floor or
   with damaged facilities (Q-GP-47). Urgency: the larger of the stock deficit share (floor - stock)
   / floor and the facilities' missing hp share, on top of 1.0. A node below its forward stock
@@ -13,7 +19,9 @@ refers to an entity id, so a job names a node, or a SIGINT blob with its cell ce
   `tasking.stock_urgency` plus `tasking.stock_front_bonus` on the front line (`_on_front`, the
   patrol rule), below 1.0; when both apply the higher urgency wins. Slots: one per
   `resupply_stock_per_slot` of missing stock (max stock - stock, rounded up; for a stocking-only
-  job, target - stock), 1 to `resupply_slots_max`.
+  job, target - stock), 1 to `resupply_slots_max`. TB-8 (coalition): a node no friendly source
+  reaches by road now (`plan_run`, the truck's own rule) depends on the REPAIR_BRIDGE job of the
+  first down bridge on the intact road route from the side's rear (`JobSpec.after`).
 - **Defend** (`defend:<node>`): a node the side owns that can be captured and is threatened: the
   other side's capture bar is on it, or a tracked enemy GROUND unit is within
   `tasking.defend_radius_m` of it (Q-SIM-74). Urgency: 1.0 + the larger of the bar's share and
@@ -34,12 +42,15 @@ refers to an entity id, so a job names a node, or a SIGINT blob with its cell ce
   (`tasking.scout_cooldown_min`), at most
   `tasking.scout_open_max` of them at once.
   Urgency by size bucket: S 1.0, M 1.5, L 2.0 (capped).
-- **Escort convoy** (`escort:<truck id>`, Q-GP-29, Q-GP-47): a carrier of the side that has a road
-  path and follows no one (a column is covered by its lead truck's job), whose route (its position
-  through the nodes of its path) passes within a detected threat: the ring of a discovered
-  air-defense site last seen not Disabled, or within `tasking.defend_radius_m` of a currently
-  tracked enemy (last-known tracks and unseen emitters do not count). Urgency 1.0. Taking it is a
-  follow order on the truck; it ends when the truck arrives.
+- **Escort convoy** (`escort:<truck id>`, Q-GP-29, Q-GP-47): a carrier of the side, not Disabled,
+  that follows no one (a column is covered by its lead truck's job), and either holds a
+  REPAIR_BRIDGE claim on a down bridge (a repair crew, on the way or parked at the stop, with no
+  threat test; the job names the bridge as its node; `tasking.escort_repair_crews`, Q-SIM-118), or
+  has a road path whose route (its position through the nodes of its path) passes within a
+  detected threat: the ring of a discovered air-defense site last seen not Disabled, or within
+  `tasking.defend_radius_m` of a currently tracked enemy (last-known tracks and unseen emitters
+  do not count). Urgency 1.0. Taking it is a follow order on the truck; it ends when the truck
+  arrives (a crew's: when the bridge is repaired).
 - **Patrol** (`patrol:<node>`, coalition only, Q-SIM-94, NX-382): a front-line node: held by the
   side, not a sanctuary or bridge, with a road neighbour the side does not hold. At most
   `tasking.patrol_max_nodes`, those nearest a node the other side holds first (exact squared
@@ -72,7 +83,8 @@ from typing import NamedTuple
 from nexus.contracts.gen.common.enums import JobKind, NodeOwner, Side, UnitKind
 from nexus.core.director import TIERS
 from nexus.core.fog import SideView
-from nexus.core.logistics import facility_damage
+from nexus.core.logistics import approach, facility_damage, plan_run
+from nexus.core.roads import shortest_path
 from nexus.core.rules import CAPTURE_FULL, Rules, TaskingRules
 from nexus.core.world import Contact, Entity, Vec2, World
 
@@ -88,11 +100,12 @@ GENERATED = (
     "escort:",
     "patrol:",
     "intercept:",
+    "repair_bridge:",
 )
 _GROUND, _AIR = "GROUND", "AIR"
 _JOB_KINDS: tuple[JobKind, ...] = (
     "RESUPPLY", "SCOUT", "DEFEND", "STRIKE", "ASSIST_OBJECTIVE", "ESCORT_CONVOY", "PATROL",
-    "INTERCEPT",
+    "INTERCEPT", "REPAIR_BRIDGE",
 )  # fmt: skip
 _STATIC: Side = "ENEMY"
 _FOE: dict[Side, Side] = {"COALITION": "ENEMY", "ENEMY": "COALITION"}
@@ -113,19 +126,20 @@ class JobSpec(NamedTuple):
     depends_on: int | None = None
     entity: int | None = None  # an escort job: the truck; an intercept job: the scout
     via: str | None = None  # a patrol job: the node it drives out to before it goes home
+    after: str | None = None  # TB-8: the key of the job it waits for (resolved by `post_job`)
 
 
 def fits(rules: Rules, kind: UnitKind, job_kind: JobKind) -> bool:
     """Whether a unit kind can do a job kind (the role(s) that fit, GAMEPLAY §1b), from what the
-    kind can do: carriers resupply, painters (recon) scout, armed aircraft strike, armed aircraft
-    and ground units defend, any ground unit (a capturer) assists an objective, armed or recon
-    aircraft escort (strike and recon units, GAMEPLAY §1b). The Director's jobs (NX-156): any
-    aircraft or ground unit that is not a carrier stages, a ground one captures (NX-157). A patrol
-    (the Director's, and the coalition board's, Q-SIM-94) takes an armed or recon unit of either
-    domain."""
+    kind can do: carriers resupply and repair bridges, painters (recon) scout, armed aircraft
+    strike, armed aircraft and ground units defend, any ground unit (a capturer) assists an
+    objective, armed or recon aircraft escort (strike and recon units, GAMEPLAY §1b). The
+    Director's jobs (NX-156): any aircraft or ground unit that is not a carrier stages, a ground one
+    captures (NX-157). A patrol (the Director's, and the coalition board's, Q-SIM-94) takes an armed
+    or recon unit of either domain."""
     domain = rules.domain[kind]
     match job_kind:
-        case "RESUPPLY":
+        case "RESUPPLY" | "REPAIR_BRIDGE":
             return kind in rules.supply.carriers
         case _ if kind in rules.supply.carriers:
             return False  # a carrier only hauls; capture runs are direct orders
@@ -239,7 +253,8 @@ def generate(
     world: World, rules: Rules, tr: TaskingRules, side: Side, view: SideView
 ) -> list[JobSpec]:
     able = _able(world, rules, side)
-    specs = [
+    specs = [  # a repair job first: a resupply job that waits for it names it (TB-8)
+        *_repair(world, rules, tr, side, view),
         *_resupply(world, rules, tr, side, view),
         *_defend(world, rules, tr, side, view),
         *(_strike(world, rules, tr, side, view) if _offense_open(world, tr, side) else ()),
@@ -314,10 +329,42 @@ def _resupply(
         if need or stocking:
             fill = top if need else sup.stock_target[node]  # stocking fills up to the target only
             slots = -(-(fill - stock) // tr.resupply_stock_per_slot)
+            cut = _cut_off(world, rules, side, view, node)
             yield JobSpec(
                 "RESUPPLY", f"resupply:{node}", min(tr.resupply_slots_max, max(1, slots)),
                 max(_urgency(tr, need) if need else 0, stocking), node=node,
+                after=None if cut is None else f"repair_bridge:{cut}",
             )  # fmt: skip
+
+
+def _cut_off(world: World, rules: Rules, side: Side, view: SideView, node: str) -> str | None:
+    """TB-8: the first down bridge on the intact road route from the side's rear to `node` (ties
+    by node id, `shortest_path`), when no friendly source reaches `node` by road now."""
+    if (
+        side != "COALITION"
+        or not view.bridge_down
+        or plan_run(world, rules, side, node) is not None
+    ):
+        return None
+    route = shortest_path(rules.roads, rules.supply.rear[side], node, blocked=frozenset())
+    cut = (rules.roads.edge(a, b).bridge for a, b in pairwise(route or []))
+    return next((b for b in cut if b in view.bridge_down), None)
+
+
+def _repair(
+    world: World, rules: Rules, tr: TaskingRules, side: Side, view: SideView
+) -> Iterator[JobSpec]:
+    if side != "COALITION" or not view.bridge_down:
+        return
+    carriers = rules.supply.carriers
+    starts = sorted({
+        e.last_node for e in world.entities()
+        if e.side == side and e.kind in carriers and e.damage_state != "DISABLED" and e.last_node
+    })  # fmt: skip
+    for node in sorted(view.bridge_down):
+        if any(approach(world, rules, s, node) is not None for s in starts):
+            slots = tr.slots["REPAIR_BRIDGE"]
+            yield JobSpec("REPAIR_BRIDGE", f"repair_bridge:{node}", slots, 1000, node=node)
 
 
 def _defend(
@@ -486,9 +533,16 @@ def _escort(
     seen: dict[tuple[float, float, tuple[str, ...]], bool] = {}
     for e in world.entities():
         if (
-            e.side != side or e.kind not in rules.supply.carriers or not e.path
+            e.side != side or e.kind not in rules.supply.carriers
             or e.follow_id is not None or e.damage_state == "DISABLED"
         ):  # fmt: skip
+            continue
+        bridge = crewing(world, e) if tr.escort_repair_crews else None
+        if bridge is not None:  # a repair crew: no threat test (Q-SIM-118)
+            slots = tr.slots["ESCORT_CONVOY"]
+            yield JobSpec("ESCORT_CONVOY", f"escort:{e.id}", slots, 1000, node=bridge, entity=e.id)
+            continue
+        if not e.path:
             continue
         key = (e.pos.x, e.pos.y, tuple(map(str, e.path)))  # a convoy's trucks share one answer
         if key not in seen:
@@ -505,6 +559,13 @@ def _escort(
             yield JobSpec(
                 "ESCORT_CONVOY", f"escort:{e.id}", tr.slots["ESCORT_CONVOY"], 1000, entity=e.id
             )
+
+
+def crewing(world: World, e: Entity) -> str | None:
+    """The bridge whose REPAIR_BRIDGE job `e` holds a claim on (a repair crew, Q-SIM-118); the job
+    exists only while the bridge is down."""
+    job = None if e.job_id is None else world.boards[e.side].get(e.job_id)
+    return job.node if job is not None and job.kind == "REPAIR_BRIDGE" else None
 
 
 def _in_box(box: tuple[float, float, float, float], x: float, y: float, reach: float) -> bool:

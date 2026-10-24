@@ -13,8 +13,9 @@ while frozen (SC-11), for each side in COALITION, ENEMY order:
    arrived at the order's node (`Entity.order_node`) holds it instead (Q-SIM-110, `_order_over`):
    an aircraft orbits it, a ground unit stands on it, and both engage by CB-1; the order ends at
    bingo or RTB (it has a path again), ammo out, landing, Disabled, or `tasking.order_dwell_s`
-   after the hold began (`Entity.held_since`). One that stopped short of the node hands back as
-   before. A new order (REBASE) replaces it.
+   after the hold began (`Entity.held_since`), or when its node is a down bridge (the bridge fell,
+   so it never re-drops one under repair, Q-SIM-112). One that stopped short of the node hands
+   back as before. A new order (REBASE) replaces it.
 2. **Settle.** A claim is released (`JobReleased`) when its unit is lost, Disabled, sent home (RTB)
    or given an explicit order (a human order wins, TB-7). A unit with a path, or arrived, has made
    progress: its claim becomes ACTIVE and its lease clock restarts; with none for
@@ -23,7 +24,11 @@ while frozen (SC-11), for each side in COALITION, ENEMY order:
      ended); FAILED when the side lost the node. DEFEND: FAILED likewise; DONE when a claimant
      stands at the node and the threat is gone (no bar of the other side, and the side tracks no
      enemy GROUND unit within `tasking.defend_radius_m`)). STRIKE: DONE when the node's
-     defense hp is 0 or the side owns it; on a bridge, when the bridge is down (NX-373). SCOUT:
+     defense hp is 0 or the side owns it; on a bridge, when the bridge is down (NX-373).
+     REPAIR_BRIDGE (the coalition's, NX-373 part 2): drive to the nearer bank and out to the
+     bridge's repair stop (`logistics.approach`), where `bridges.repair` works; arrived means
+     parked at the stop; DONE when the bridge is no longer down, then its trucks drive back to
+     their bank. SCOUT:
      DONE when a claimant has arrived at the blob's cell (or the node). ASSIST_OBJECTIVE and an
      objective's STRIKE also end with the objective (`on_objective`). STAGE (the Director's,
      NX-156): go to the base and hold; DONE when every current claimant is there and every slot
@@ -51,7 +56,9 @@ while frozen (SC-11), for each side in COALITION, ENEMY order:
      When it loses it, its expiry clock restarts and its claimants (units that took it at spawn,
      `take`, and waited with their lease held) set off.
 3. **Generate** (`nexus.core.tasking_gen`, from the side's `SideView`, TB-9) and post by dedupe key
-   (`post_job`, TB-4; later also the director's entry). An unclaimed generated job that is no
+   (`post_job`, TB-4; later also the director's entry). A spec naming the job it waits for
+   (`JobSpec.after`, TB-8) depends on that live job; an open unclaimed job that gains a dependency
+   is ended (EXPIRED) and posted again with it. An unclaimed generated job that is no
    longer generated expires.
 4. **Assign** (TB-2, TB-5, TB-7). Each idle unit of the side (aircraft or ground, not Disabled, no
    path, not RTB, no job, no explicit order), in id order, takes the first job in rank order that
@@ -63,7 +70,7 @@ while frozen (SC-11), for each side in COALITION, ENEMY order:
    an aircraft reaches the target and a landing base of its side with the bingo reserve left,
    its straight route crosses no discovered, not-Disabled enemy air-defense ring unless the
    target is that site's base (`crosses_ring`, also applied to a parameterless JOIN), and a strike
-   job needs a round. A carrier (truck, convoy) fits resupply jobs only. An
+   job needs a round. A carrier (truck, convoy) fits resupply and repair-bridge jobs only. An
    aircraft that fails only for fuel or rounds takes a refuel step instead: it flies to the
    nearest landing base with stock, where `logistics` restocks it, and tries again next pass. A
    claim sets the path: a GROUND unit by road, an aircraft straight.
@@ -95,7 +102,7 @@ from nexus.contracts.gen.events.job_expired import JobExpired
 from nexus.contracts.gen.events.job_failed import JobFailed
 from nexus.core.bridges import blocked, not_held
 from nexus.core.fog import SideView, side_view
-from nexus.core.logistics import Run, go_home, keeps, load, nearest_base, plan_run
+from nexus.core.logistics import Run, approach, go_home, keeps, load, nearest_base, plan_run
 from nexus.core.rng import PcgStream, RngStream
 from nexus.core.roads import shortest_path
 from nexus.core.rules import Rules, TaskingRules
@@ -104,6 +111,7 @@ from nexus.core.tasking_gen import (
     POST_GATE,
     JobSpec,
     can_hit,
+    crewing,
     fits,
     generate,
     held_within,
@@ -119,6 +127,9 @@ from nexus.core.world import (
     UnitState,
     Vec2,
     World,
+    at_stop,
+    leave_stop,
+    on_node,
     release_claim,
 )
 
@@ -128,6 +139,7 @@ type Routes = dict[tuple[str, str], list[str] | None]
 _AIR, _GROUND = "AIR", "GROUND"
 _INTERCEPT: JobKind = "INTERCEPT"  # the Static board's hunt of a scout (Q-SIM-96, NX-382)
 _PATROL: JobKind = "PATROL"  # the Director's (NX-157), and the coalition board's (NX-382)
+_REPAIR: JobKind = "REPAIR_BRIDGE"  # the coalition board's truck field repair (NX-373 part 2)
 _COALITION: Side = "COALITION"
 _STATIC: Side = "ENEMY"
 _AI, _HUMAN = "AI_GARRISON", "COMMANDER"
@@ -178,12 +190,23 @@ def rank(tr: TaskingRules, jobs: Sequence[Job], now: int, tie: PcgStream | None)
 def post_job(world: World, side: Side, spec: JobSpec, out: list[Event]) -> Job:
     """Post a job to `side`'s board, or update the live job with the same dedupe key instead of
     adding a second one (TB-4: slots and urgency follow the new spec, the posting time and expiry
-    stay). The one entry for the generator and, later, the director's operation templates."""
+    stay). The one entry for the generator and, later, the director's operation templates. A spec
+    naming the job it waits for (`after`, TB-8) depends on that live job; a live unclaimed job that
+    gains such a dependency is ended (EXPIRED) and posted again with it, so `JobCreated` says so."""
     tr = _rules(world)[1]
     board = world.boards[side]
+    depends = spec.depends_on
+    if spec.after is not None:
+        first = next((j for j in board.values() if j.key == spec.after), None)
+        depends = None if first is None else first.id
     job = next((j for j in board.values() if j.key == spec.key), None)
+    if job is not None and depends is not None and job.depends_on is None and not job.claims:
+        _end(world, side, job, "EXPIRED", out)
+        job = None
     if job is not None:
         job.slots, job.urgency = spec.slots, spec.urgency
+        if spec.kind == "ESCORT_CONVOY":
+            job.node = spec.node  # a threatened truck's escort that became a repair crew's
         if spec.blob is not None:
             job.blob, job.pos = spec.blob, spec.pos
         if spec.objective is not None:  # e.g. a marker strike that became the objective
@@ -193,7 +216,7 @@ def post_job(world: World, side: Side, spec: JobSpec, out: list[Event]) -> Job:
     job = Job(
         world.next_job_id(), spec.kind, spec.key, spec.slots, spec.urgency, now, spec.node,
         spec.blob, spec.pos, None if spec.objective is not None else now + tr.expire_ticks,
-        spec.depends_on, spec.objective, spec.entity, via=spec.via,
+        depends, spec.objective, spec.entity, via=spec.via,
     )  # fmt: skip
     board[job.id] = job
     out.append(
@@ -345,6 +368,8 @@ def run(world: World, out: list[Event]) -> None:
     for e in world.entities():
         if e.order == "GOTO" and _order_over(world, rules, tr, e, now):
             e.order = e.held_since = e.order_node = None
+        if e.follow_id is None and e.damage_state != "DISABLED" and crewing(world, e) is None:
+            leave_stop(rules, e)  # backstop: no unit idles at a bridge stop it does not repair
     routes: Routes = {}  # road routes found this pass, shared by every unit
     for side in SIDES:
         _settle(world, rules, tr, side, now, routes, out)
@@ -379,6 +404,8 @@ def _order_over(world: World, rules: Rules, tr: TaskingRules, e: Entity, now: in
     """Whether `e`'s GOTO order ends at this pass (step 1); starts its hold on arrival."""
     if e.held_since is not None and e.path:
         return True  # it was holding and turned for home (bingo, RTB)
+    if e.order_node in world.bridge_down:
+        return True  # its bridge fell: done, even under way, so it never fires on it once repaired
     if e.path or order_working(world, e):
         return False  # under way (a truck: still unloading or capturing)
     if (
@@ -418,11 +445,14 @@ def on_objective(world: World, objective_id: int, completed: bool, out: list[Eve
                 _end(world, side, job, "DONE" if done else "EXPIRED", out)
 
 
-def _arrived(e: Entity, job: Job) -> bool:
-    """At the job's target with nothing left to fly or drive: a node job when `last_node` is the
-    node; a blob job when the aircraft is orbiting at the end of its path."""
+def _arrived(world: World, e: Entity, job: Job) -> bool:
+    """At the job's target with nothing left to fly or drive: a bridge repair at the bridge's
+    repair stop; a node job when `last_node` is the node; a blob job when the aircraft is orbiting
+    at the end of its path."""
     if e.path:
         return False
+    if job.kind == _REPAIR:
+        return world.rules is not None and at_stop(world.rules, e) == job.node
     return e.last_node == job.node if job.node is not None else e.state == _ON_STATION
 
 
@@ -445,13 +475,14 @@ def _settle(
             if e is None or e.damage_state == "DISABLED" or e.state == "RTB" or e.order is not None:
                 release_claim(world, job, entity_id, out)  # lost, sent home, or a human order wins
             elif job.kind == "ESCORT_CONVOY":  # the progress is the follow order itself
-                if e.follow_id != job.entity:
+                truck = world.find(job.entity or 0)
+                if e.follow_id != job.entity and _alive(truck):  # a lost truck: the job FAILS
                     release_claim(
                         world, job, entity_id, out
                     )  # the truck is gone, or it re-attached
                 else:
                     c.at, c.active = now, True
-            elif e.path or _arrived(e, job):
+            elif e.path or _arrived(world, e, job):
                 c.at, c.active = now, True
             elif job.depends_on is not None:
                 c.at = now  # waiting for the job before it (a unit that took it at spawn)
@@ -474,6 +505,10 @@ def _settle(
         outcome = _outcome(world, rules, tr, side, job, now)
         if outcome is not None:
             _end(world, side, job, outcome, out)
+
+
+def _alive(e: Entity | None) -> bool:
+    return e is not None and e.damage_state != "DISABLED"
 
 
 def _in_leash(rules: Rules, e: Entity, pos: Vec2) -> bool:
@@ -524,7 +559,7 @@ def _escaped(world: World, rules: Rules, side: Side, job: Job) -> bool:
 def _present(world: World, job: Job, *, delivered: bool = False) -> bool:
     """A live claimant has arrived (with its cargo gone, for a delivery)."""
     return any(
-        (e := world.find(i)) is not None and _arrived(e, job) and not (delivered and e.cargo)
+        (e := world.find(i)) is not None and _arrived(world, e, job) and not (delivered and e.cargo)
         for i in job.claims
     )
 
@@ -534,7 +569,7 @@ def _staged(world: World, job: Job) -> bool:
     passed (a unit lost on the way must not hold the job for ever, Q-SIM-84)."""
     mine = [world.find(i) for i in job.claims]
     full = len(mine) >= job.slots or (job.expires is not None and _now(world) >= job.expires)
-    return full and all(e is not None and _arrived(e, job) for e in mine)
+    return full and all(e is not None and _arrived(world, e, job) for e in mine)
 
 
 def _menaced(world: World, rules: Rules, tr: TaskingRules, side: Side, node: str) -> bool:
@@ -566,6 +601,8 @@ def _verdict(world: World, rules: Rules, tr: TaskingRules, side: Side, job: Job)
             return "DONE" if held and not _menaced(world, rules, tr, side, str(node)) else None
         case "STRIKE" if node in world.bridge_hp:  # a bridge is nobody's: done once down
             return "DONE" if node in world.bridge_down else None
+        case "REPAIR_BRIDGE":  # done once it is up again (a participant needed, else EXPIRED)
+            return None if node in world.bridge_down else "DONE"
         case "STRIKE":
             fallen = node is not None and (not lost or not world.defense_hp.get(node, 0))
             return "DONE" if fallen else None
@@ -595,6 +632,10 @@ def _verdict(world: World, rules: Rules, tr: TaskingRules, side: Side, job: Job)
             truck = world.find(job.entity or 0)
             if truck is None or truck.damage_state == "DISABLED":
                 return "FAILED" if job.claims else "EXPIRED"
+            if node is not None:  # a repair crew's (Q-SIM-118): the job names its bridge
+                if node not in world.bridge_down:
+                    return "DONE"  # repaired (no participant: EXPIRED)
+                return None if crewing(world, truck) == node else "EXPIRED"  # it left the repair
             return None if truck.path else "DONE"  # it arrived (no participant: EXPIRED)
     return None  # ASSIST_OBJECTIVE ends with its objective
 
@@ -633,6 +674,8 @@ def _end(world: World, side: Side, job: Job, outcome: Outcome, out: list[Event])
                 go_home(world, world.rules, e)  # the loiter is over (NX-379)
             if job.kind == _INTERCEPT:
                 e.path = []  # it stops where it is, not at a dead scout's last position
+            if job.kind == _REPAIR and world.rules is not None:
+                leave_stop(world.rules, e)  # back to its bank, where the board can task it
             e.job_id = e.pickup = None
             if e.order != "FOLLOW":
                 e.follow_id = None  # an escort claim ends with its follow order
@@ -904,7 +947,7 @@ def _waypoint(world: World, job: Job) -> str | Vec2:
     """Where the job is: its node, the blob's cell centre, or the escorted truck now."""
     escorted = job.kind == "ESCORT_CONVOY" and job.entity is not None  # an intercept: its track
     truck = world.find(job.entity or 0) if escorted else None
-    target = job.node if job.node is not None else truck.pos if truck else job.pos
+    target = truck.pos if truck else job.node if job.node is not None else job.pos
     if target is None:
         raise ValueError(f"job {job.id} has no target")
     return target
@@ -968,6 +1011,8 @@ def _feasible(world: World, rules: Rules, routes: Routes, e: Entity, job: Job) -
             return "ok" if _reload_plan(world, rules, routes, e, job) is not None else "no"
         if job.kind == _PATROL:
             return "no" if _patrol_route(world, rules, routes, e, job) is None else "ok"
+        if job.kind == _REPAIR:
+            return "no" if _repair_route(world, rules, e, job) is None else "ok"
         return "no" if _route(world, rules, routes, e, job) is None else "ok"
     bases = world.landing_bases(e.side)
     if not bases or e.fuel is None or crosses_ring(world, rules, e.side, e.pos, job):
@@ -998,9 +1043,19 @@ def _dispatch(world: World, rules: Rules, routes: Routes, e: Entity, job: Job) -
     route = (
         _patrol_route(world, rules, routes, e, job)
         if job.kind == _PATROL
+        else _repair_route(world, rules, e, job)
+        if job.kind == _REPAIR
         else _route(world, rules, routes, e, job)
     )
     e.path = [] if route is None else [*route]
+
+
+def _repair_route(world: World, rules: Rules, e: Entity, job: Job) -> list[str] | None:
+    """A truck's path from the node it stands on to the bridge's repair stop (`approach`, the
+    generator's own rule), or None (not on a node, no road to either bank)."""
+    if e.last_node is None or job.node is None or not on_node(rules, e):
+        return None
+    return approach(world, rules, e.last_node, job.node)
 
 
 def _reload_plan(world: World, rules: Rules, routes: Routes, e: Entity, job: Job) -> Run | None:

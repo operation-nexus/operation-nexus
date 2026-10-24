@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://nexus.local/contracts/events/job_created.json",
   "title": "JobCreated",
-  "description": "A job was posted to a side's Tasking Board, OPEN (CONTRACTS \u00a76; GAMEPLAY \u00a71b TB-1, TB-10; NX-374). Posted by the board generator (the director and GM injection post through the same call later). Exactly one of node_id and blob_id is set, except an escort job (ESCORT_CONVOY) and an intercept job (INTERCEPT), which set neither and name the escorted truck or the hunted scout in entity_id (sector_id joins with the sector scout). A job generated for a side references only what that side's view holds (TB-9). Public view: dropped for the ENEMY side's board.",
+  "description": "A job was posted to a side's Tasking Board, OPEN (CONTRACTS \u00a76; GAMEPLAY \u00a71b TB-1, TB-10; NX-374). Posted by the board generator (the director and GM injection post through the same call later). Exactly one of node_id and blob_id is set, except an escort job (ESCORT_CONVOY) and an intercept job (INTERCEPT), which set no blob_id and name the escorted truck or the hunted scout in entity_id; node_id is null for them too, except a repair crew's escort, which names the bridge being repaired (Q-SIM-118). A live escort job that becomes a crew's (its truck took a bridge repair) gets that node_id with no new event (sector_id joins with the sector scout). A job generated for a side references only what that side's view holds (TB-9). Public view: dropped for the ENEMY side's board.",
   "type": "object",
   "additionalProperties": false,
   "required": ["kind", "tick", "event_seq", "campaign_id", "job_id", "side", "job_kind", "node_id", "blob_id", "entity_id", "slots", "depends_on_job_id"],

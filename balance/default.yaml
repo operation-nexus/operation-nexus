@@ -66,6 +66,8 @@ logistics:
   defense_repair_hp_per_stock: 2  # PROPOSED – unvalidated (Q-SIM-71, owner-approved; NX-031 tunes); defense hp one stock unit unloaded into a node rebuilds (CONFIG-AND-CONTENT §6.3)
   bridge_hp: 300  # PROPOSED – unvalidated (Q-SIM-101, next to FOB defense hp 300; NX-031 tunes); hp, max hp of every BRIDGE node, 0 cuts its road until repaired (CONFIG-AND-CONTENT §6.3)
   bridge_collapse_radius_m: 1000.0  # PROPOSED – unvalidated (Q-SIM-112, owner; NX-031 tunes); m along the cut edge from the cut point within which GROUND units on it are destroyed when a bridge falls (CONFIG-AND-CONTENT §6.3)
+  bridge_repair_time_s: 600.0  # PROPOSED – unvalidated (Q-SIM-101, Q-GD-11; NX-031 tunes); s (world), an engineer's repair of a bridge from 0 to full; engineers are not in code yet, a truck's rate derives from it (CONFIG-AND-CONTENT §6.3)
+  truck_bridge_repair_mult: 5.0  # PROPOSED – unvalidated (Q-GD-11 "e.g. 5x slower", Q-SIM-101); multiplier, one truck takes 600 x 5 = 3000 world s for a 300 hp bridge (CONFIG-AND-CONTENT §6.3)
 capture:
   radius_m: 2000.0  # PROPOSED – unvalidated (Q-SIM-57, owner-approved initial value; NX-031 tunes); m (CONFIG-AND-CONTENT §6.5 capture.radius_m)
   time_s: 120.0  # PROPOSED – unvalidated; s (world), one capturer, no modifiers (CONFIG-AND-CONTENT §6.5 capture.time_s)
@@ -157,6 +159,7 @@ tasking:
     capture: 45  # PROPOSED – unvalidated (lead decision, NX-156): as assist_objective, the other ground job
     intercept: 45  # PROPOSED – unvalidated (Q-SIM-96, NX-382); below defend, above strike: the Static's hunt of a tracked coalition scout
     patrol: 15  # PROPOSED – unvalidated (Q-SIM-85, lead decision): below stage, so an idle unit never prefers a patrol; the Director's patrol is taken at posting
+    repair_bridge: 45  # PROPOSED – unvalidated (Q-SIM-101, NX-373 part 2): below resupply, as assist_objective; trucks are the only fitting units
   urgency_max: 2.0  # PROPOSED – unvalidated (Q-GP-20, Q-SIM-73); multiplier, a triggering condition's least is 1.0; a stocking job runs below (CONFIG-AND-CONTENT §6.6)
   priority_aging_per_min: 1  # PROPOSED – unvalidated (Q-SIM-73); points per min (game) (CONFIG-AND-CONTENT §6.6)
   slots:  # PROPOSED – unvalidated (Q-SIM-73); units per lower-case JobKind (CONFIG-AND-CONTENT §6.6 tasking.slots.<job_kind>)
@@ -167,6 +170,7 @@ tasking:
     escort_convoy: 2  # PROPOSED – unvalidated (Q-SIM-73)
     patrol: 2  # PROPOSED – unvalidated (Q-SIM-94, NX-382); a coalition front-line patrol
     intercept: 1  # PROPOSED – unvalidated (Q-SIM-96, NX-382); one interceptor per scout
+    repair_bridge: 2  # PROPOSED – unvalidated (Q-SIM-101, NX-373 part 2); trucks per down bridge
   resupply_stock_per_slot: 100  # PROPOSED – unvalidated (Q-SIM-73); stock units, one resupply slot per this much missing stock (CONFIG-AND-CONTENT §6.6)
   resupply_slots_max: 3  # PROPOSED – unvalidated (Q-SIM-73); units (CONFIG-AND-CONTENT §6.6)
   defend_radius_m: 10000  # PROPOSED – unvalidated (Q-SIM-74); m, a tracked enemy ground unit this close to a base posts a defend job (CONFIG-AND-CONTENT §6.6)
@@ -186,9 +190,10 @@ tasking:
   overfill_factor: 2  # PROPOSED – unvalidated (Q-SIM-73, Q-DEV-21); with every job full a job takes units up to this times its slots (CONFIG-AND-CONTENT §6.6)
   overfill_point_jobs: false  # decided rule as default, Q-DEV-21 option; whether a Recon point job overfills like any other (CONFIG-AND-CONTENT §6.6)
   join_excluded_jobs: [PATROL]  # decided rule as default, Q-DEV-21 option; job kinds a bare JOIN never takes (CONFIG-AND-CONTENT §6.6)
-  ai_jobs: [DEFEND, RESUPPLY, SCOUT]  # decided rule as default, Q-CFG-16 option (Q-GD-26); job kinds the AI garrison takes by itself (CONFIG-AND-CONTENT §6.6)
+  ai_jobs: [DEFEND, RESUPPLY, SCOUT, REPAIR_BRIDGE]  # decided rule as default, Q-CFG-16 option (Q-GD-26); job kinds the AI garrison takes by itself (CONFIG-AND-CONTENT §6.6)
   ai_excluded_jobs: [ESCORT_CONVOY, PATROL]  # decided rule as default, Q-CFG-16 option (Q-GP-45, Q-SIM-94); job kinds the AI garrison never takes (CONFIG-AND-CONTENT §6.6)
   human_displaces_ai: true  # decided rule as default, Q-CFG-16 option (Q-TD-11); a viewer's unit takes a full job's slot from its highest-id AI claimant (CONFIG-AND-CONTENT §6.6)
+  escort_repair_crews: true  # lead decision as default, owner may veto (Q-SIM-118, NX-373 part 2); the coalition board posts an escort job for each truck holding a bridge repair claim, no threat test (CONFIG-AND-CONTENT §6.6)
   scout_blob_runs: 2  # PROPOSED – unvalidated (Q-SIM-75, Q-DEV-21); consecutive SIGINT refreshes a blob must stay in a cell before a scout is posted (CONFIG-AND-CONTENT §6.6)
   scout_urgency:  # PROPOSED – unvalidated (Q-SIM-75, Q-DEV-21); multiplier by blob size, capped at urgency_max (CONFIG-AND-CONTENT §6.6)
     small: 1.0

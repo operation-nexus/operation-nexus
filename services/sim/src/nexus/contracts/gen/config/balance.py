@@ -501,6 +501,20 @@ class Logistics(BaseModel):
             ge=0.0,
         ),
     ]
+    bridge_repair_time_s: Annotated[
+        float,
+        Field(
+            description="How long an engineer takes to repair a bridge from 0 to full HP, unit s of world time (STATE-MACHINES §4.3, Q-GD-11, Q-ALN-23, NX-373 part 2). Engineers are not in code yet; it is the baseline a truck's slower rate is derived from (truck_bridge_repair_mult).",
+            gt=0.0,
+        ),
+    ]
+    truck_bridge_repair_mult: Annotated[
+        float,
+        Field(
+            description="How many times longer one logistics truck takes than an engineer to repair a bridge (Q-GD-11: slow field repair), unit multiplier on bridge_repair_time_s. Each carrier parked at the bridge's repair stop adds bridge_hp / (bridge_repair_time_s x this) hp per world second, so two trucks repair twice as fast; the loader refuses a rate below 0.001 hp per tick.",
+            ge=1.0,
+        ),
+    ]
 
 
 class Sim(BaseModel):
@@ -541,6 +555,7 @@ class Priority(BaseModel):
     capture: Annotated[float, Field(ge=0.0)]
     patrol: Annotated[float, Field(ge=0.0)]
     intercept: Annotated[float, Field(ge=0.0)]
+    repair_bridge: Annotated[float, Field(ge=0.0)]
 
 
 class Slots1(BaseModel):
@@ -554,6 +569,7 @@ class Slots1(BaseModel):
     escort_convoy: Annotated[int, Field(ge=1)]
     patrol: Annotated[int, Field(ge=1)]
     intercept: Annotated[int, Field(ge=1)]
+    repair_bridge: Annotated[int, Field(ge=1)]
 
 
 class FollowStationM(BaseModel):
@@ -1313,7 +1329,7 @@ class Tasking(BaseModel):
     priority: Annotated[
         Priority,
         Field(
-            description="Base priority per job kind (Q-GP-20), unit points; keys are the lower-case JobKind. Repair-bridge joins with its job."
+            description="Base priority per job kind (Q-GP-20), unit points; keys are the lower-case JobKind."
         ),
     ]
     static_offense_min_tier: Annotated[
@@ -1450,6 +1466,12 @@ class Tasking(BaseModel):
         bool,
         Field(
             description="Whether a viewer's unit that finds a job's slots full takes the slot of its AI garrison claimant with the highest entity id (Q-TD-11; decided rule as default, Q-CFG-16 option); false counts AI claims like any other, unit switch."
+        ),
+    ]
+    escort_repair_crews: Annotated[
+        bool,
+        Field(
+            description="Whether the coalition board posts an escort job (ESCORT_CONVOY, key escort:<truck id>) for each of its carriers holding a REPAIR_BRIDGE claim, on the way or parked at the bridge's repair stop, with no threat test; it ends DONE when the bridge is repaired, FAILED when the truck is lost or Disabled while claimed, EXPIRED when the truck drops the repair job (Q-SIM-118, NX-373 part 2; lead decision as default, owner may veto); false posts escorts only for threatened routes, unit switch."
         ),
     ]
     overfill_factor: Annotated[

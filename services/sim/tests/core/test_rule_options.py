@@ -396,9 +396,10 @@ def test_the_part_2b_defaults_are_the_old_fixed_rules() -> None:
     assert (r.director.start_tier, r.director.max_step) == ("PATTERN_OF_LIFE", 1)
     assert r.director.ai_shooter_mult == 0
     assert r.director.capture_slot_tiers == {"PATTERN_OF_LIFE"}
-    assert r.tasking.ai_jobs == {"DEFEND", "RESUPPLY", "SCOUT"}
+    assert r.tasking.ai_jobs == {"DEFEND", "RESUPPLY", "SCOUT", "REPAIR_BRIDGE"}  # NX-373 part 2
     assert r.tasking.ai_excluded_jobs == {"ESCORT_CONVOY", "PATROL"}
     assert r.tasking.human_displaces_ai is True and r.rebase_order == "HOLD"
+    assert r.tasking.escort_repair_crews is True  # Q-SIM-118
 
 
 def test_non_default_part_2b_options_reach_the_rules() -> None:
@@ -410,6 +411,7 @@ def test_non_default_part_2b_options_reach_the_rules() -> None:
         tasking__ai_jobs=["DEFEND", "STRIKE"],
         tasking__ai_excluded_jobs=[],
         tasking__human_displaces_ai=False,
+        tasking__escort_repair_crews=False,
     )
     assert r.director and r.tasking
     assert (r.director.start_tier, r.director.max_step) == ("BRAVO", 2)
@@ -417,6 +419,7 @@ def test_non_default_part_2b_options_reach_the_rules() -> None:
     assert r.director.capture_slot_tiers == {"ALPHA", "BRAVO"}
     assert r.tasking.ai_jobs == {"DEFEND", "STRIKE"} and r.tasking.ai_excluded_jobs == set()
     assert r.tasking.human_displaces_ai is False
+    assert r.tasking.escort_repair_crews is False  # the yaml false reaches TaskingRules
 
 
 @pytest.mark.parametrize(
@@ -427,11 +430,12 @@ def test_non_default_part_2b_options_reach_the_rules() -> None:
         ("director.tier.max_step", 3),
         ("director.provocation.ai_shooter_mult", -0.5),
         ("director.pol.capture_slot_tiers", ["CHARLIE"]),
-        ("tasking.ai_jobs", ["REPAIR_BRIDGE"]),
+        ("tasking.ai_jobs", ["RESCUE"]),
         ("tasking.ai_jobs", ["DEFEND", "PATROL"]),  # also in ai_excluded_jobs
         ("tasking.ai_jobs", ["DEFEND", "INTERCEPT"]),  # INTERCEPT has its own rule
         ("tasking.ai_excluded_jobs", ["INTERCEPT"]),
         ("tasking.human_displaces_ai", "maybe"),
+        ("tasking.escort_repair_crews", "maybe"),
         ("slots.rebase_order", "GOTO"),  # GOTO never ends for a truck with cargo aboard
     ],
 )
@@ -652,6 +656,7 @@ def test_a_campaign_with_every_part_2b_option_flipped_is_deterministic() -> None
             "tasking.ai_jobs": ["DEFEND", "RESUPPLY", "SCOUT", "STRIKE"],
             "tasking.ai_excluded_jobs": [],
             "tasking.human_displaces_ai": False,
+            "tasking.escort_repair_crews": False,
         }
     )
 

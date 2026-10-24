@@ -798,7 +798,9 @@
         "starve_hp_drain_per_min",
         "defense_repair_hp_per_stock",
         "bridge_hp",
-        "bridge_collapse_radius_m"
+        "bridge_collapse_radius_m",
+        "bridge_repair_time_s",
+        "truck_bridge_repair_mult"
       ],
       "properties": {
         "node_max_stock": {
@@ -1077,6 +1079,20 @@
           "minimum": 0,
           "x-unit": "m",
           "x-hot-reload": false
+        },
+        "bridge_repair_time_s": {
+          "description": "How long an engineer takes to repair a bridge from 0 to full HP, unit s of world time (STATE-MACHINES \u00a74.3, Q-GD-11, Q-ALN-23, NX-373 part 2). Engineers are not in code yet; it is the baseline a truck's slower rate is derived from (truck_bridge_repair_mult).",
+          "type": "number",
+          "exclusiveMinimum": 0,
+          "x-unit": "s (world)",
+          "x-hot-reload": false
+        },
+        "truck_bridge_repair_mult": {
+          "description": "How many times longer one logistics truck takes than an engineer to repair a bridge (Q-GD-11: slow field repair), unit multiplier on bridge_repair_time_s. Each carrier parked at the bridge's repair stop adds bridge_hp / (bridge_repair_time_s x this) hp per world second, so two trucks repair twice as fast; the loader refuses a rate below 0.001 hp per tick.",
+          "type": "number",
+          "minimum": 1,
+          "x-unit": "multiplier",
+          "x-hot-reload": false
         }
       }
     },
@@ -1174,17 +1190,18 @@
         "stock_front_bonus",
         "ai_jobs",
         "ai_excluded_jobs",
-        "human_displaces_ai"
+        "human_displaces_ai",
+        "escort_repair_crews"
       ],
       "properties": {
         "reeval_every_ticks": {"description": "A board re-evaluates (settles, generates, assigns) every this many running ticks (TB-6), unit ticks.", "type": "integer", "minimum": 1, "x-unit": "ticks", "x-hot-reload": true},
         "claim_lease_s": {"description": "A claim with no progress for this long is released and the job returns to OPEN (TB-1, Q-ALN-23), unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true},
         "expire_min": {"description": "An unclaimed job expires this long after it was posted (Q-SIM-73), unit min of game time. Objective jobs expire with the objective instead.", "type": "number", "exclusiveMinimum": 0, "x-unit": "min (game)", "x-hot-reload": true},
         "priority": {
-          "description": "Base priority per job kind (Q-GP-20), unit points; keys are the lower-case JobKind. Repair-bridge joins with its job.",
+          "description": "Base priority per job kind (Q-GP-20), unit points; keys are the lower-case JobKind.",
           "type": "object",
           "additionalProperties": false,
-          "required": ["defend", "resupply", "assist_objective", "strike", "scout", "escort_convoy", "stage", "capture", "patrol", "intercept"],
+          "required": ["defend", "resupply", "assist_objective", "strike", "scout", "escort_convoy", "stage", "capture", "patrol", "intercept", "repair_bridge"],
           "properties": {
             "defend": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true},
             "resupply": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true},
@@ -1195,7 +1212,8 @@
             "stage": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true},
             "capture": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true},
             "patrol": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true},
-            "intercept": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true}
+            "intercept": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true},
+            "repair_bridge": {"type": "number", "minimum": 0, "x-unit": "points", "x-hot-reload": true}
           }
         },
         "static_offense_min_tier": {"description": "The lowest Threat Director tier at which the Static's board posts the offensive jobs it generates itself (a strike on a discovered site); below it the board posts none. The Director's own operations are not affected (Q-SIM-85, THREAT-DIRECTOR 5a).", "$ref": "../common/enums.json#/$defs/ThreatTier", "x-unit": "tier", "x-hot-reload": true},
@@ -1205,7 +1223,7 @@
           "description": "Units a job needs (TB-4), by lower-case JobKind; resupply is sized from the missing stock instead (resupply_stock_per_slot).",
           "type": "object",
           "additionalProperties": false,
-          "required": ["defend", "strike", "assist_objective", "scout", "escort_convoy", "patrol", "intercept"],
+          "required": ["defend", "strike", "assist_objective", "scout", "escort_convoy", "patrol", "intercept", "repair_bridge"],
           "properties": {
             "defend": {"type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true},
             "strike": {"type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true},
@@ -1213,7 +1231,8 @@
             "scout": {"type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true},
             "escort_convoy": {"type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true},
             "patrol": {"type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true},
-            "intercept": {"type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true}
+            "intercept": {"type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true},
+            "repair_bridge": {"type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true}
           }
         },
         "resupply_stock_per_slot": {"description": "A resupply job gets one slot per this much missing stock (max stock minus stock, rounded up, at least one), unit stock units.", "type": "integer", "minimum": 1, "x-unit": "stock units", "x-hot-reload": true},
@@ -1244,6 +1263,7 @@
         "ai_jobs": {"description": "Job kinds a coalition AI garrison unit takes by itself; any other kind not in ai_excluded_jobs it joins only once a COMMANDER-owned unit holds a claim on the job, or as a counterattack (GAMEPLAY \u00a71b, Q-GD-26, Q-GD-31; decided rule as default, Q-CFG-16 option). Must not overlap ai_excluded_jobs; INTERCEPT has its own rule and may be in neither (the loader checks both), unit job kinds.", "type": "array", "items": {"$ref": "../common/enums.json#/$defs/JobKind"}, "x-unit": "job kinds", "x-hot-reload": true},
         "ai_excluded_jobs": {"description": "Job kinds an AI garrison unit never takes, even beside a player (Q-GP-45: escorting, Q-SIM-94: patrolling are the players' call; decided rule as default, Q-CFG-16 option), unit job kinds.", "type": "array", "items": {"$ref": "../common/enums.json#/$defs/JobKind"}, "x-unit": "job kinds", "x-hot-reload": true},
         "human_displaces_ai": {"description": "Whether a viewer's unit that finds a job's slots full takes the slot of its AI garrison claimant with the highest entity id (Q-TD-11; decided rule as default, Q-CFG-16 option); false counts AI claims like any other, unit switch.", "type": "boolean", "x-unit": "switch", "x-hot-reload": true},
+        "escort_repair_crews": {"description": "Whether the coalition board posts an escort job (ESCORT_CONVOY, key escort:<truck id>) for each of its carriers holding a REPAIR_BRIDGE claim, on the way or parked at the bridge's repair stop, with no threat test; it ends DONE when the bridge is repaired, FAILED when the truck is lost or Disabled while claimed, EXPIRED when the truck drops the repair job (Q-SIM-118, NX-373 part 2; lead decision as default, owner may veto); false posts escorts only for threatened routes, unit switch.", "type": "boolean", "x-unit": "switch", "x-hot-reload": true},
         "overfill_factor": {"description": "When every job is full, a job takes units up to this many times its slots (TB-4, Q-DEV-21), unit multiplier; a Recon scout's point job overfills only with overfill_point_jobs.", "type": "integer", "minimum": 1, "x-unit": "multiplier", "x-hot-reload": true},
         "scout_blob_runs": {"description": "A SIGINT blob must stay in its cell for this many consecutive SIGINT refreshes before a scout job is posted for it (Q-SIM-75, Q-DEV-21), unit refreshes.", "type": "integer", "minimum": 1, "x-unit": "refreshes", "x-hot-reload": true},
         "scout_urgency": {

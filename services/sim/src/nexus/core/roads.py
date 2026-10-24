@@ -41,12 +41,13 @@ def edge_id(a: str, b: str, layer: str = ROAD) -> str:
 class RoadGraph:
     """Node positions (integer metres) and ROAD edges with adjacency sorted by neighbour id."""
 
-    __slots__ = ("_adj", "_max_speed_mult", "pos")
+    __slots__ = ("_adj", "_max_speed_mult", "pos", "spans", "stops")
 
     def __init__(self, pos: Mapping[str, tuple[int, int]], roads: Iterable[Road]) -> None:
         self.pos = dict(sorted(pos.items()))
         adj: dict[str, list[tuple[str, Edge]]] = {n: [] for n in self.pos}
         seen: set[str] = set()
+        self.spans: dict[str, tuple[str, str]] = {}  # bridge -> its road's ends, sorted
         fastest = 1.0  # only scales the heuristic; with no edges no path needs it
         for r in roads:
             if r.a not in self.pos or r.b not in self.pos:
@@ -59,8 +60,28 @@ class RoadGraph:
             fastest = r.speed_mult if len(seen) == 1 else max(fastest, r.speed_mult)
             adj[r.a].append((r.b, edge))
             adj[r.b].append((r.a, edge))
+            if r.bridge is not None:
+                if r.bridge in self.spans:
+                    raise ValueError(f"bridge {r.bridge!r} is on two roads")
+                lo, hi = sorted((r.a, r.b))
+                self.spans[r.bridge] = (lo, hi)
         self._adj = {n: tuple(sorted(out, key=lambda t: t[0])) for n, out in adj.items()}
         self._max_speed_mult = fastest
+        # bridge -> its stop: the bridge's position projected on its road (NX-373 part 2)
+        self.stops = {b: self._project(b, *ends) for b, ends in sorted(self.spans.items())
+                      if b in self.pos}  # fmt: skip
+
+    def _project(self, node: str, a: str, b: str) -> tuple[float, float]:
+        (ax, ay), (bx, by), (cx, cy) = self.pos[a], self.pos[b], self.pos[node]
+        dx, dy = bx - ax, by - ay
+        k = min(max(((cx - ax) * dx + (cy - ay) * dy) / (dx * dx + dy * dy), 0.0), 1.0)
+        return ax + k * dx, ay + k * dy
+
+    def toward(self, last: str, wp: str) -> str:
+        """The road end a ground unit that left `last` drives toward for waypoint `wp`: the far end
+        of a bridge's road for that bridge's repair stop (NX-373 part 2), else `wp`."""
+        span = self.spans.get(wp)
+        return wp if span is None else span[1] if last == span[0] else span[0]
 
     def neighbours(self, node: str) -> tuple[tuple[str, Edge], ...]:
         return self._adj[node]

@@ -1,16 +1,17 @@
-"""Bridges: hp, STRUCTURE fire on a bridge, the cut road and `BridgeDestroyed` (NX-373 part 1a;
-STATE-MACHINES §4.3 B-1 and B-2, GAMEPLAY §5, COMBAT CB-10, Q-GD-11, Q-SIM-101, Q-SIM-105..107;
-the collapse NX-400, Q-SIM-112).
+"""Bridges: hp, STRUCTURE fire on a bridge, the cut road, `BridgeDestroyed`, truck field repair and
+`BridgeRepaired` (NX-373 parts 1a and 2; STATE-MACHINES §4.3 B-1 and B-2, GAMEPLAY §5, COMBAT CB-10,
+Q-GD-11, Q-SIM-101, Q-SIM-105..107; the collapse NX-400, Q-SIM-112).
 
 `World.bridge_hp` holds every BRIDGE node's whole hp in id order, starting at `logistics.bridge_hp`;
 `World.bridge_down` the bridges that reached 0. A down bridge stays down until it is repaired to
-full (repair is part 2), so the set, not the hp, is what cuts the road.
+full, so the set, not the hp, is what cuts the road.
 
 - **Who fires (Q-SIM-105, Q-SIM-112):** only a unit holding a claim on a STRIKE job (its own
   `job_id` on its side's board) whose node is the bridge, or a direct GOTO order to the bridge
-  (`Entity.order_node`), with a STRUCTURE weapon, the bridge in range and hp left, after unit
-  targets (CB-1 unchanged) and before the automatic node fallback, which never picks a bridge (it
-  takes only enemy-owned nodes with defense hp; a bridge is NEUTRAL and has none).
+  (`Entity.order_node`), with a STRUCTURE weapon, the bridge in range, hp left and not down (a
+  bridge under repair is never struck again, the Q-SIM-112 constraint), after unit targets (CB-1
+  unchanged) and before the automatic node fallback, which never picks a bridge (it takes only
+  enemy-owned nodes with defense hp; a bridge is NEUTRAL and has none).
 - **Hits:** `damage` takes the weapon's full `damage` (armor 0, Q-CBT-22), never below 0; a shot
   landing on a bridge already at 0 fizzles (`combat`). At 0 the bridge goes down and
   `BridgeDestroyed{node_id, by_id, lost_ids}` names the shooter, once per down cycle.
@@ -29,19 +30,30 @@ full (repair is part 2), so the set, not the hp, is what cuts the road.
   `tasking._patrol_route`), or stops there with no route. A unit on the cut edge at or past the
   cut point and beyond the collapse radius carries on; aircraft are not affected.
 
-No regeneration and no starvation drain (a bridge has no stock). Deterministic: integer state, no
-RNG of its own.
+- **Repair (NX-373 part 2, Q-GD-11):** a bridge is not a road endpoint: a truck repairs it at its
+  *stop*, the bridge's position projected on its road (`RoadGraph.stops`, the cut point), reached
+  along the half of the edge from a bank (a path ending in the bridge's id, `step._waypoint`), its
+  `last_node` staying the bank. Each carrier of either side parked there (no path, not Disabled)
+  adds `Supply.bridge_repair_milli` thousandths of an hp per running tick, from
+  `logistics.bridge_hp / (bridge_repair_time_s x truck_bridge_repair_mult)` per world second; the
+  thousandths carry in `World.bridge_repair`, which a truck leaving keeps. Capped at the maximum
+  (B-2), no cargo cost, not while paused. At full the carry is 0, and a down bridge is up again (its
+  edge returns) with `BridgeRepaired{node_id, by_id}` naming the lowest-id carrier parked there; a
+  damaged bridge that was never down emits nothing. No regeneration and no starvation drain (a
+  bridge has no stock). Deterministic: integer state, no RNG of its own.
 """
 
 from itertools import pairwise
 
 from nexus.contracts.gen.common.enums import Side
 from nexus.contracts.gen.events.bridge_destroyed import BridgeDestroyed
+from nexus.contracts.gen.events.bridge_repaired import BridgeRepaired
 from nexus.contracts.gen.events.event import Event
+from nexus.core.defense import MILLI_HP
 from nexus.core.provocation import suffered_hit
 from nexus.core.roads import shortest_path
 from nexus.core.rules import Rules, WeaponRules
-from nexus.core.world import Entity, Vec2, World, lose_unit
+from nexus.core.world import Entity, Vec2, World, at_stop, lose_unit
 
 
 def blocked(world: World) -> frozenset[str]:
@@ -51,11 +63,11 @@ def blocked(world: World) -> frozenset[str]:
 
 def target(world: World, rules: Rules, w: WeaponRules, shooter: Entity) -> tuple[str, float] | None:
     """The bridge `shooter` fires `w` at, with the squared distance: its STRIKE job's node, else its
-    GOTO order's node, when that is a bridge with hp left within `range_m` (Q-SIM-105, Q-SIM-112);
-    else None."""
+    GOTO order's node, when that is a bridge with hp left, not down, within `range_m` (Q-SIM-105,
+    Q-SIM-112); else None."""
     job = None if shooter.job_id is None else world.boards[shooter.side].get(shooter.job_id)
     node = job.node if job is not None and job.kind == "STRIKE" else shooter.order_node
-    if node is None or not world.bridge_hp.get(node):
+    if node is None or not world.bridge_hp.get(node) or node in world.bridge_down:
         return None
     x, y = rules.roads.pos[node]
     d2 = (shooter.pos.x - x) ** 2 + (shooter.pos.y - y) ** 2
@@ -120,8 +132,8 @@ def crosses(world: World, rules: Rules, frm: str, to: str, pos: Vec2) -> bool:
     bridge's cut point still ahead of it: the edge's bridge is down and `pos` projects onto the
     edge short of the bridge node's position. At or past the cut point: False (it carries on)."""
     bridge = rules.roads.edge(frm, to).bridge
-    if bridge not in world.bridge_down:
-        return False
+    if bridge not in world.bridge_down or rules.roads.stops.get(bridge) == (pos.x, pos.y):
+        return False  # intact, or standing on the cut point (its repair stop)
     (ax, ay), (bx, by), (cx, cy) = (rules.roads.pos[n] for n in (frm, to, bridge))
     dx, dy = bx - ax, by - ay
     return (pos.x - ax) * dx + (pos.y - ay) * dy < (cx - ax) * dx + (cy - ay) * dy
@@ -131,10 +143,12 @@ def reroute(world: World, rules: Rules) -> None:
     """Replan every GROUND unit, in id order, whose remaining road crosses a down bridge
     (Q-SIM-108): its current leg toward the cut point turns back to the node it came from; a later
     hop over a cut edge keeps the path up to the node before it. From that node it takes
-    `roads.shortest_path` (with `blocked`) to its last path node, or stops there with none."""
+    `roads.shortest_path` (with `blocked`) to its last path node, or stops there with none. A path
+    to a bridge's repair stop is planned to the bank before it, the stop kept after a new route."""
     cut = blocked(world)
     for e in world.entities():
         path = [n for n in e.path if isinstance(n, str)]
+        stop = path.pop() if path and path[-1] in rules.roads.spans else None
         if rules.domain[e.kind] != "GROUND" or not path or e.last_node is None:
             continue
         origin = e.last_node  # where the current leg began
@@ -151,17 +165,55 @@ def reroute(world: World, rules: Rules) -> None:
         for k, (a, b) in enumerate(pairwise(seq)):
             if rules.roads.edge(a, b).bridge in cut and (k or crosses(world, rules, a, b, e.pos)):
                 route = shortest_path(rules.roads, a, seq[-1], blocked=cut, avoid=avoid)
-                e.path = [*seq[1:k], *(route or [a])]
+                e.path = [*seq[1:k], *(route or [a]), *([stop] if route and stop else [])]
                 break
+
+
+def repair(world: World, out: list[Event]) -> None:
+    """One running tick of truck field repair (module docstring)."""
+    rules = world.rules
+    if world.frozen or rules is None or not rules.supply.bridge_repair_milli:
+        return
+    parked: dict[str, list[int]] = {}
+    for e in world.entities():  # id order: each list starts with its lowest id
+        if e.kind in rules.supply.carriers and not e.path and e.damage_state != "DISABLED":
+            node = at_stop(rules, e)
+            if node in world.bridge_hp:
+                parked.setdefault(str(node), []).append(e.id)
+    for node, ids in sorted(parked.items()):
+        top = rules.supply.bridge_hp[node]
+        if world.bridge_hp[node] == top:
+            continue
+        carry = world.bridge_repair[node] + len(ids) * rules.supply.bridge_repair_milli
+        gain, world.bridge_repair[node] = divmod(carry, MILLI_HP)
+        world.bridge_hp[node] = min(top, world.bridge_hp[node] + gain)
+        if world.bridge_hp[node] < top:
+            continue
+        world.bridge_repair[node] = 0
+        if node in world.bridge_down:
+            world.bridge_down.discard(node)
+            out.append(
+                BridgeRepaired.model_construct(
+                    kind="BridgeRepaired",
+                    tick=world.campaign.tick + 1,
+                    event_seq=world.next_event_seq(),
+                    campaign_id=world.campaign.id,
+                    node_id=node,
+                    by_id=ids[0],
+                )
+            )
 
 
 def validate(world: World, rules: Rules) -> None:
     """Check a restored world's bridge state against the rules (a snapshot carries none): exactly
-    the theater's bridges, 0 <= hp <= max, 0 hp means down, and a down bridge is below full."""
+    the theater's bridges, 0 <= hp <= max, 0 hp means down, a down bridge is below full, and a
+    repair carry is below one hp and 0 at full."""
     top = rules.supply.bridge_hp
-    if list(world.bridge_hp) != list(top):
-        raise ValueError("bridge_hp does not name the theater's bridges")
+    if list(world.bridge_hp) != list(top) or list(world.bridge_repair) != list(top):
+        raise ValueError("bridge_hp or bridge_repair does not name the theater's bridges")
     for node, hp in world.bridge_hp.items():
-        down = node in world.bridge_down
+        down, carry = node in world.bridge_down, world.bridge_repair[node]
         if hp > top[node] or (hp == 0 and not down) or (down and hp == top[node]):
             raise ValueError(f"bridge {node}: hp above its maximum, or hp and down disagree")
+        if carry >= MILLI_HP or (carry and hp == top[node]):
+            raise ValueError(f"bridge {node}: repair carry of a whole hp, or one at full hp")

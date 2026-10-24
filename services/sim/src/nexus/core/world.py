@@ -82,8 +82,9 @@ from nexus.core.rules import CAPTURE_FULL, Rules
 # the Static's INTERCEPT job (`intercept:<entity>`: Job.entity, last-known pos, lost; NX-382); a
 # RESUPPLY job's urgency may be below 1000 (a stocking job, NX-389, Q-SIM-100, no bump: same shape);
 # 24: bridge hp and the down bridges (NX-373 part 1a); 25: Entity.order_node, the node a GOTO order
-# names, and held_since, when an armed unit began holding it (Q-SIM-110, NX-398)
-FORMAT_VERSION = 25
+# names, and held_since, when an armed unit began holding it (Q-SIM-110, NX-398); 26: bridge_repair,
+# each bridge's truck repair carry in thousandths of an hp (NX-373 part 2)
+FORMAT_VERSION = 26
 _MM = 1000.0  # metres -> millimetres; m/s -> mm/s
 _MICRO = 1e6  # ADR-0002's 1e-6 step for other floats (fuel)
 _MILLI_UNIT = 1000  # thousandths of a stock unit per unit
@@ -93,6 +94,7 @@ _BLOB_RUNS = "blob_runs"
 _BOARDS = "boards"
 _BRIDGE_DOWN = "bridge_down"
 _BRIDGE_HP = "bridge_hp"
+_BRIDGE_REPAIR = "bridge_repair"
 _INTERCEPT_SEEN = "intercept_seen"
 _COOLDOWN = "cooldown"
 _LOST = "lost"
@@ -127,7 +129,7 @@ _V = "v"
 JOB_KEY_PREFIX = {
     "RESUPPLY": "resupply:", "DEFEND": "defend:", "STRIKE": "strike:",
     "ASSIST_OBJECTIVE": "assist:", "SCOUT": "scout:", "ESCORT_CONVOY": "escort:",
-    "PATROL": "patrol:", "INTERCEPT": "intercept:",
+    "PATROL": "patrol:", "INTERCEPT": "intercept:", "REPAIR_BRIDGE": "repair_bridge:",
 }  # fmt: skip
 _WORLD_KEYS = (
     _BLOB_RUNS,
@@ -135,6 +137,7 @@ _WORLD_KEYS = (
     _BOARDS,
     _BRIDGE_DOWN,
     _BRIDGE_HP,
+    _BRIDGE_REPAIR,
     _CALLSIGNS,
     _CAMPAIGN,
     _CAPTURE,
@@ -551,6 +554,7 @@ class World:
         "boards",
         "bridge_down",
         "bridge_hp",
+        "bridge_repair",
         "callsigns",
         "campaign",
         "capture",
@@ -644,6 +648,9 @@ class World:
         # reached 0 hp: down (their road edge is cut) until repaired to full (`nexus.core.bridges`).
         self.bridge_hp: dict[str, int] = dict(rules.supply.bridge_hp) if rules else {}
         self.bridge_down: set[str] = set()
+        # BRIDGE node -> its truck repair carry, thousandths of an hp below the next whole one;
+        # 0 at full hp (`bridges.repair`, NX-373 part 2).
+        self.bridge_repair: dict[str, int] = dict.fromkeys(self.bridge_hp, 0)
         # Side -> its Threat Director (NX-155); only the ENEMY's runs until NX-375, the other stays
         # at its start values.
         self.director: dict[Side, DirectorState] = {side: DirectorState() for side in SIDES}
@@ -769,13 +776,45 @@ class World:
         return len(self._entities)
 
 
+def on_node(rules: Rules, e: Entity) -> bool:
+    """Standing on its `last_node` (not on the road off it, e.g. at a bridge's repair stop)."""
+    return e.last_node is not None and e.pos == Vec2(*rules.roads.pos[e.last_node])
+
+
+def at_stop(rules: Rules, e: Entity) -> str | None:
+    """The bridge whose repair stop `e` stands on (off its `last_node`, on the bridge's road), or
+    None (NX-373 part 2)."""
+    if e.last_node is None or on_node(rules, e):
+        return None
+    found = rules.roads.edge_at(e.last_node, e.pos.x, e.pos.y)
+    bridge = None if found is None else found[1].bridge
+    stop = None if bridge is None else rules.roads.stops.get(bridge)
+    return bridge if stop == (e.pos.x, e.pos.y) else None
+
+
+def leave_stop(rules: Rules, e: Entity) -> None:
+    """A unit no longer repairing a bridge never stays at its stop, where the board cannot route
+    it (NX-373 part 2): a path out to a stop loses the stop (on the bridge's own road, it turns
+    back to its bank), and one parked at a stop heads back to its bank, `last_node`. Ground units
+    only: an aircraft's path to a bridge is its strike or order."""
+    if rules.domain[e.kind] != "GROUND":
+        return
+    if e.path and isinstance(e.path[-1], str) and e.path[-1] in rules.roads.spans:
+        e.path = e.path[:-1] or [str(e.last_node)]
+    elif not e.path and e.last_node is not None and at_stop(rules, e):
+        e.path = [e.last_node]
+
+
 def release_claim(world: World, job: Job, entity_id: int, out: list[Event]) -> None:
     """Free `entity_id`'s slot of `job` with `JobReleased` (lease, preemption, eviction, or the
-    unit's removal): the unit, if it lives, holds no job and no pickup."""
+    unit's removal): the unit, if it lives, holds no job and no pickup; one leaving a bridge
+    repair leaves its stop (`leave_stop`)."""
     del job.claims[entity_id]
     e = world.find(entity_id)
     if e is not None:
         e.job_id = e.pickup = None
+        if job.kind == "REPAIR_BRIDGE" and world.rules is not None:
+            leave_stop(world.rules, e)
         if e.order != "FOLLOW":
             e.follow_id = None  # an escort claim ends with its follow order
     out.append(
@@ -1020,6 +1059,7 @@ def to_canonical(world: World, *, quantize: bool) -> dict[str, Any]:
         _BOARDS: _boards_data(world, quantize),
         _BRIDGE_DOWN: sorted(world.bridge_down),
         _BRIDGE_HP: dict(sorted(world.bridge_hp.items())),
+        _BRIDGE_REPAIR: dict(sorted(world.bridge_repair.items())),
         _CALLSIGNS: dict(sorted(world.callsigns.items())),
         _COOLDOWN: {s: dict(sorted(c.items())) for s, c in world.cooldown.items()},
         _LOST: dict(sorted(world.lost.items())),
@@ -1445,10 +1485,11 @@ def _load_objective(value: object, campaign: Campaign) -> Objective | None:
 
 
 def _target_ok(job: Job, *, escort: bool, point: bool) -> bool:
-    """A job targets what its kind says: an escort a truck (no place), a scout a point (a position
-    only), a blob job a blob and its position, any other a node."""
+    """A job targets what its kind says: an escort a truck (no place but, for a repair crew's, its
+    bridge, Q-SIM-118), a scout a point (a position only), a blob job a blob and its position, any
+    other a node."""
     if escort:
-        return job.node is None and job.blob is None and job.pos is None
+        return job.blob is None and job.pos is None
     if point:
         return job.node is None and job.pos is not None
     return (job.node is None) != (job.blob is None) and (job.blob is None) == (job.pos is None)
@@ -1761,6 +1802,7 @@ def load(data: bytes) -> World:
     world.bridge_down = {_str(n, "node id") for n in down}
     if not world.bridge_down <= set(world.bridge_hp):
         raise ValueError(f"{_BRIDGE_DOWN} must list bridges")
+    world.bridge_repair = _defense(d[_BRIDGE_REPAIR], _BRIDGE_REPAIR, world.owner)
     world.objective = _load_objective(d[_OBJECTIVE], world.campaign)
     c = world.campaign
     world.director = _director(d[_DIRECTOR], c.running_ticks)

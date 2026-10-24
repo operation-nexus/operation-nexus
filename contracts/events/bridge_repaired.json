@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nexus.local/contracts/events/bridge_repaired.json",
+  "title": "BridgeRepaired",
+  "description": "A down bridge was repaired to full HP (CONTRACTS 6; STATE-MACHINES 4.3; NX-373 part 2): its road edge is back for path planning. Once per down cycle; a damaged bridge that was never down emits nothing as it is repaired.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "tick", "event_seq", "campaign_id", "node_id", "by_id"],
+  "properties": {
+    "kind": {"const": "BridgeRepaired"},
+    "tick": {"$ref": "../common/ids.json#/$defs/Tick"},
+    "event_seq": {"type": "integer", "minimum": 1, "description": "Campaign-wide, monotonic, deterministic (SC-14)."},
+    "campaign_id": {"$ref": "../common/ids.json#/$defs/CampaignId"},
+    "node_id": {"$ref": "../common/ids.json#/$defs/NodeId"},
+    "by_id": {"anyOf": [{"$ref": "../common/ids.json#/$defs/EntityId"}, {"type": "null"}], "description": "The lowest-id unit parked at the bridge's repair stop on the tick it reached full HP; null for a hidden actor in a filtered view."}
+  }
+}

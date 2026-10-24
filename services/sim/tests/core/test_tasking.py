@@ -1045,7 +1045,7 @@ def _kind(raw: dict, kind: str) -> dict:  # type: ignore[type-arg]
             ),
             "duplicate dedupe key",
         ),
-        (lambda r: _first(r).update(kind="REPAIR_BRIDGE"), "job kind"),
+        (lambda r: _first(r).update(kind="RESCUE"), "job kind"),
         (lambda r: _first(r).update(node=None), "targets a node or a blob"),
         (lambda r: _first(r).update(depends_on=9999), "dependency off the board"),
         (lambda r: _first(r).update(depends_on=_first(r)["id"]), "dependency off the board"),

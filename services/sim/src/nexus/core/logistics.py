@@ -30,7 +30,7 @@ from nexus.core.defense import rebuild
 from nexus.core.rearm import restock
 from nexus.core.roads import shortest_path
 from nexus.core.rules import Rules
-from nexus.core.world import Entity, World, consumed, end_stop
+from nexus.core.world import Entity, World, at_stop, consumed, end_stop, on_node
 
 
 class Run(NamedTuple):
@@ -77,12 +77,23 @@ def go_home(world: World, rules: Rules, e: Entity) -> None:
             e.state, e.path, e.orbit = "RTB", [nearest_base(e, rules, bases)[1]], None
     elif domain == "GROUND":
         homes = friendly_bases(world, rules, e.side)
-        start = e.path[0] if e.path else e.last_node
-        if (e.path[-1] if e.path else e.last_node) in homes or not isinstance(start, str):
-            return
+        start = road_start(rules, e)  # a bridge stop's bank, else as before
+        end = e.path[-1] if e.path else e.last_node
+        if (end in homes and not at_stop(rules, e)) or start is None:
+            return  # home already; one parked at a bridge stop drives back to its bank
         best = nearest(world, rules, start, homes)
         if best is not None:
             e.path = list(best[1])
+
+
+def road_start(rules: Rules, e: Entity) -> str | None:
+    """The node a ground unit's new road route starts from: the node it heads for (it finishes its
+    leg), or the bank it left when it heads for or stands at a bridge's repair stop, so it drives
+    back along the road (NX-373 part 2); None off the road graph."""
+    start = e.path[0] if e.path else e.last_node
+    if start in rules.roads.spans:
+        start = e.last_node
+    return start if isinstance(start, str) else None
 
 
 def _route(world: World, rules: Rules, a: str, b: str) -> list[str] | None:
@@ -107,6 +118,14 @@ def nearest(
         if best is None or length < best[0]:  # sorted ids: the first of a tie is the lowest id
             best = (length, node, route)
     return None if best is None else (best[1], best[2])
+
+
+def approach(world: World, rules: Rules, start: str, bridge: str) -> list[str] | None:
+    """A ground unit's road path from the node `start` to `bridge`'s repair stop: the route to the
+    nearer of its banks by road metres (ties by node id, `nearest`), then the bridge's id
+    (`step._waypoint` drives it out to the stop); None with no route to either bank."""
+    best = nearest(world, rules, start, [*rules.roads.spans[bridge]])
+    return None if best is None else [*best[1], bridge]
 
 
 def plan_run(world: World, rules: Rules, side: Side, dest: str) -> Run | None:
@@ -257,7 +276,7 @@ def logistics(world: World, out: list[Event]) -> None:
         wreck = e.damage_state == "DISABLED" and rules.domain[e.kind] != "STATIC"
         if wreck and e.delivered and e.last_node is not None:  # a wreck keeps its cargo (CB-7)
             end_stop(world, e, e.last_node, out)  # report a cut stop
-        if not wreck and e.cargo and not e.path and e.last_node is not None:
+        if not wreck and e.cargo and not e.path and e.last_node is not None and on_node(rules, e):
             if friendly(world, e.side, e.last_node):
                 _unload(world, rules, e, e.last_node, out)
             else:

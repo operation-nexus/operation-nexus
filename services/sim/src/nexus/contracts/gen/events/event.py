@@ -9,6 +9,7 @@ from pydantic import Field
 
 from . import (
     bridge_destroyed,
+    bridge_repaired,
     callsign_changed,
     campaign_clock_paused,
     campaign_clock_resumed,
@@ -71,6 +72,7 @@ type Event = Annotated[
     | node_defenses_down.NodeDefensesDown
     | node_defenses_restored.NodeDefensesRestored
     | bridge_destroyed.BridgeDestroyed
+    | bridge_repaired.BridgeRepaired
     | job_created.JobCreated
     | job_claimed.JobClaimed
     | job_released.JobReleased

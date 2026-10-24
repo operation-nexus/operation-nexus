@@ -27,7 +27,8 @@ leader; the follow links form forests, a unit may be followed by many and may it
      the leader's plus the gap error closed in one tick, between 0 and its top speed, so it
      catches up at top speed, then matches the leader and never overshoots. A leader that stopped
      at a base (any node but a BRIDGE) draws its followers all the way in (they park, a truck
-     unloads); stopped elsewhere, followers within twice the station hold where they are.
+     unloads); stopped elsewhere (also at a bridge's repair stop, NX-373 part 2, where followers
+     drive out along the road to the stop), followers within twice the station hold where they are.
    - AIR after GROUND: an aircraft farther than `overwatch` m flies to the leader and orbits there
      (the orbit mechanics of `movement`). A leader parked at a landing base: it lands there.
    - AIR after AIR: a wingman `wingman` m off the leader's right, moving with it, while the
@@ -52,10 +53,11 @@ from collections.abc import Sequence
 
 from nexus.contracts.gen.common.enums import Side, UnitKind
 from nexus.core.bridges import blocked, crosses
+from nexus.core.logistics import approach
 from nexus.core.roads import shortest_path
 from nexus.core.rules import Rules, TaskingRules
 from nexus.core.spatial import UniformGrid
-from nexus.core.world import Entity, Vec2, World
+from nexus.core.world import Entity, Vec2, World, at_stop, on_node
 
 _GROUND, _AIR, _STATIC = "GROUND", "AIR", "STATIC"
 _LONG_M = 15_000.0  # a kind reaching farther than this is kept out of the track grid
@@ -101,7 +103,7 @@ def _length(start: Vec2, path: Sequence[str | Vec2], rules: Rules) -> float:
     """The length of the polyline from `start` through `path`."""
     total, x, y = 0.0, start.x, start.y
     for p in path:
-        nx, ny = rules.roads.pos[p] if isinstance(p, str) else (p.x, p.y)
+        nx, ny = rules.roads.stops.get(p, rules.roads.pos[p]) if isinstance(p, str) else (p.x, p.y)
         total += math.hypot(nx - x, ny - y)
         x, y = nx, ny
     return total
@@ -349,7 +351,7 @@ def _approach(world: World, rules: Rules, f: Entity, p: Vec2) -> bool:
     unchanged, when no leg gets closer to `p`."""
     if f.last_node is None:
         return False
-    if _at_node(rules, f):
+    if on_node(rules, f):
         cut = blocked(world)
         options = [n for n, edge in rules.roads.neighbours(f.last_node) if edge.bridge not in cut]
     else:
@@ -368,18 +370,16 @@ def _approach(world: World, rules: Rules, f: Entity, p: Vec2) -> bool:
 # --- station ------------------------------------------------------------------------------------
 
 
-def _at_node(rules: Rules, f: Entity) -> bool:
-    return f.last_node is not None and f.pos == Vec2(*rules.roads.pos[f.last_node])
-
-
 def _ends(world: World, rules: Rules, f: Entity) -> list[str | Vec2 | None]:
     """The nodes a ground unit may route from: the one it heads for, and mid-edge also the one it
     left (found by position when it already turned back), but never an end across a down bridge's
     cut point from it (the bank rule, Q-SIM-108)."""
-    if _at_node(rules, f) or f.last_node is None:
+    if on_node(rules, f) or f.last_node is None:
         return [f.path[0] if f.path else f.last_node]
+    if at_stop(rules, f):  # on the cut point: it leaves only by its own bank (Q-SIM-114)
+        return [f.last_node]
     ahead = f.path[0] if f.path and f.path[0] != f.last_node else None
-    if ahead is None:
+    if ahead is None or ahead in rules.roads.spans:  # turned back, or out to a bridge's stop
         found = rules.roads.edge_at(f.last_node, f.pos.x, f.pos.y)
         ahead = None if found is None else found[0]
     if not isinstance(ahead, str):
@@ -391,14 +391,25 @@ def _ends(world: World, rules: Rules, f: Entity) -> list[str | Vec2 | None]:
 def _drive(world: World, rules: Rules, f: Entity, goal: str) -> bool:
     """Set `f`'s road path to `goal`; True when its path ends there. Unchanged when it already
     does, or there is no road. Mid-edge it may go on to the node it heads for or turn back to the
-    one it left, whichever is the shorter way (`movement` drives a turn back)."""
-    at_node = _at_node(rules, f)
+    one it left, whichever is the shorter way (`movement` drives a turn back). A bridge `goal` is
+    its repair stop (NX-373 part 2): straight there from that bridge's road, else by
+    `logistics.approach`."""
+    at_node = on_node(rules, f)
     if (f.path[-1] if f.path else f.last_node) == goal and (f.path or at_node):
         return True
+    if goal in rules.roads.spans and not at_node and f.last_node is not None:
+        found = rules.roads.edge_at(f.last_node, f.pos.x, f.pos.y)
+        if found is not None and found[1].bridge == goal:  # already on that bridge's road
+            f.path = [goal]
+            return True
     starts = [n for n in _ends(world, rules, f) if isinstance(n, str)]
     best: tuple[float, list[str]] | None = None
     for start in starts:
-        route = shortest_path(rules.roads, start, goal, blocked=blocked(world))
+        route = (
+            approach(world, rules, start, goal)  # a leader at a bridge's repair stop
+            if goal in rules.roads.spans
+            else shortest_path(rules.roads, start, goal, blocked=blocked(world))
+        )
         if route is not None:
             x, y = rules.roads.pos[start]
             cost = math.hypot(x - f.pos.x, y - f.pos.y) + _length(Vec2(x, y), route[1:], rules)
@@ -410,10 +421,11 @@ def _drive(world: World, rules: Rules, f: Entity, goal: str) -> bool:
 
 def _mult(rules: Rules, f: Entity) -> float:
     """The `speed_mult` of the road `f` is driving, 1.0 when it has no path."""
-    path = f.path[1:] if f.path and f.path[0] == f.last_node and _at_node(rules, f) else f.path
+    path = f.path[1:] if f.path and f.path[0] == f.last_node and on_node(rules, f) else f.path
     if not path or f.last_node is None:
         return 1.0
-    return rules.roads.speed_mult_at(f.last_node, str(path[0]), f.pos.x, f.pos.y)
+    heading = rules.roads.toward(f.last_node, str(path[0]))
+    return rules.roads.speed_mult_at(f.last_node, heading, f.pos.x, f.pos.y)
 
 
 def _station_ground(
@@ -431,7 +443,8 @@ def _station_ground(
     stopped = not leader.path
     if stopped and leader.last_node is None:
         return False
-    dest = str(leader.path[-1] if leader.path else leader.last_node)
+    bridge = at_stop(rules, leader) if stopped else None  # parked at a bridge's repair stop
+    dest = str(leader.path[-1] if leader.path else bridge or leader.last_node)
     parked = stopped and rules.node_kind.get(dest) != "BRIDGE"
     near = _dist(f, leader) <= tr.leash_m
     if stopped and not parked and _dist(f, leader) <= tr.follow_hold_slack * station:

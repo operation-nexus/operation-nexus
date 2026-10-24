@@ -42,6 +42,7 @@ from nexus.core.logistics import (
     pay_loadout,
     plan_deploy,
     plan_run,
+    road_start,
 )
 from nexus.core.roads import shortest_path
 from nexus.core.rules import Rules
@@ -169,8 +170,8 @@ def _rebase_path(
         return [node] if reaches(rules, unit, node, bases, fuel) else "OUT_OF_REACH"
     if domain != "GROUND" or node not in friendly_bases(world, rules, _COALITION):
         return "NODE_INVALID_FOR_UNIT"
-    start = unit.path[0] if unit.path else unit.last_node  # a unit mid-road finishes its leg
-    if not isinstance(start, str):
+    start = road_start(rules, unit)  # a unit mid-road finishes its leg (not one to a bridge stop)
+    if start is None:
         return "NODE_INVALID_FOR_UNIT"
     if not unit.path and unit.pos == Vec2(*rules.roads.pos[node]):
         return []  # already there; a unit stopped on the road is routed to the node it left
@@ -358,7 +359,10 @@ def _plan(world: World, command: JoinCommand, rules: Rules) -> _Plan | RejectRea
 
 def _route_job(world: World, job: Job, kind: UnitKind, rules: Rules) -> _Plan | RejectReason:
     """The plan for a unit taking `job`: its node as an ordinary JOIN target, or, for a blob
-    (scout), straight from the sanctuary to the blob's cell. A rejection means no plan."""
+    (scout), straight from the sanctuary to the blob's cell. A rejection means no plan; an escort
+    (a follow order, even a repair crew's naming its bridge, Q-SIM-118) has none."""
+    if job.kind == "ESCORT_CONVOY":
+        return "NODE_INVALID_FOR_UNIT"
     if job.node is not None:
         return _route(world, target=NodeTarget(node_id=job.node), kind=kind, rules=rules)
     if job.pos is None or rules.domain[kind] != "AIR":

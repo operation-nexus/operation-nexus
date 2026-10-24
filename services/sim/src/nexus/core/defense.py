@@ -39,7 +39,7 @@ from nexus.contracts.gen.events.node_defenses_restored import NodeDefensesRestor
 from nexus.core.rules import DefenseRules, Rules
 from nexus.core.world import World
 
-_MILLI = 1000  # thousandths of an hp
+MILLI_HP = 1000  # thousandths of an hp
 
 
 def floor(world: World, rules: Rules, node: str) -> int:
@@ -134,7 +134,7 @@ def _repair_sanctuaries(world: World, rules: Rules, d: DefenseRules, out: list[E
     for node in sorted(parked):
         if world.defense_hp[node] < d.max_hp[node]:
             carry = world.defense_drain[node] + parked[node] * d.sanctuary_repair_milli
-            gain, world.defense_drain[node] = divmod(carry, _MILLI)
+            gain, world.defense_drain[node] = divmod(carry, MILLI_HP)
             heal(world, rules, node, gain, out)
             if world.defense_hp[node] == d.max_hp[node]:
                 world.defense_drain[node] = 0
@@ -152,7 +152,7 @@ def validate(world: World, rules: Rules) -> None:
     for node, hp in world.defense_hp.items():
         sanctuary = node in rules.supply.rear.values()  # its carry is in thousandths of an hp
         if hp > d.max_hp[node] or world.defense_drain[node] >= (
-            _MILLI if sanctuary else d.ticks_per_min
+            MILLI_HP if sanctuary else d.ticks_per_min
         ):
             raise ValueError(f"defense of {node}: hp above its maximum or drain carry too large")
         if hp == 0 and world.defense_drain[node] and not sanctuary:
