@@ -991,6 +991,19 @@ class DecoyBlink(BaseModel):
     ]
 
 
+class StrikeBridge(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    cooldown_s: Annotated[
+        float,
+        Field(
+            description="How long after its BridgeRepaired a bridge may not be the target of STRIKE_BRIDGE again, unit s of game time (counted from the repair's running tick, converted to running ticks at load).",
+            gt=0.0,
+        ),
+    ]
+
+
 class Campaign(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1903,6 +1916,12 @@ class Director(BaseModel):
         DecoyBlink,
         Field(
             description="DecoyBlink timing (FOG-OF-WAR FOW-11, Q-SIM-82): a selected radar is dark this long, then emits again; it cannot blink again for the cooldown, counted from the start of the blink; at most one radar blinks per window."
+        ),
+    ]
+    strike_bridge: Annotated[
+        StrikeBridge,
+        Field(
+            description="StrikeBridge (NX-401, Q-SIM-121): a bridge repaired by `BridgeRepaired` is no STRIKE_BRIDGE target for the cooldown."
         ),
     ]
     garrison: Annotated[

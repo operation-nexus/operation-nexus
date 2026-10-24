@@ -1888,6 +1888,7 @@
         "noise_scale",
         "retake_window_min",
         "decoy_blink",
+        "strike_bridge",
         "max_ops",
         "job_urgency",
         "adaptation_down_below",
@@ -2715,6 +2716,15 @@
             "dark_s": {"description": "How long a blinking radar stays dark, unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true, "x-category": "DIRECTOR", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 60.0, "max": 240.0, "step": 10.0, "scale": "LINEAR"}, "x-source": "FOG-OF-WAR FOW-11", "x-status": "PROPOSED"},
             "max_per_window": {"description": "The most radars that start a blink in one decision window, unit radars.", "type": "integer", "minimum": 1, "x-unit": "radars", "x-hot-reload": true, "x-category": "DIRECTOR", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 1, "max": 2, "step": 1, "scale": "LINEAR"}, "x-source": "FOG-OF-WAR FOW-11", "x-status": "PROPOSED"},
             "cooldown_s": {"description": "How soon after it went dark the same radar may blink again, unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true, "x-category": "DIRECTOR", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 300.0, "max": 1200.0, "step": 50.0, "scale": "LINEAR"}, "x-source": "FOG-OF-WAR FOW-11", "x-status": "PROPOSED"}
+          }
+        },
+        "strike_bridge": {
+          "description": "StrikeBridge (NX-401, Q-SIM-121): a bridge repaired by `BridgeRepaired` is no STRIKE_BRIDGE target for the cooldown.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["cooldown_s"],
+          "properties": {
+            "cooldown_s": {"description": "How long after its BridgeRepaired a bridge may not be the target of STRIKE_BRIDGE again, unit s of game time (counted from the repair's running tick, converted to running ticks at load).", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true, "x-category": "DIRECTOR", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 600.0, "max": 3600.0, "step": 60.0, "scale": "LINEAR"}, "x-source": "THREAT-DIRECTOR \u00a77a, Q-SIM-121", "x-status": "PROPOSED"}
           }
         },
         "garrison": {

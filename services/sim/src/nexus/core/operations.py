@@ -15,7 +15,8 @@ for the same target, except CONVOYS, whose candidate is only the convoys not yet
 
 **Score (step 4).** `priority x target value x weakness x memory x proximity`, exact Fractions:
 - target value: `score.target_value.<node kind>` for a node of the other side,
-  `score.own_node_value` for a node the side holds, else 1;
+  `score.own_node_value` for a node the side holds, else 1; a bridge takes the best target value x
+  weakness of the other side's nodes it feeds (`fed_nodes`, Q-SIM-120, NX-401);
 - weakness: `score.weakness_min` at full defense HP rising linearly to `score.weakness_max` at
   none, from the node's HP in the view over its maximum; 1 for anything but a node of the other
   side;
@@ -35,19 +36,21 @@ operation is taken if its cost is left and its units fit `max_spawns_per_window`
 `max_live_units.<tier>`; an escort operation shrinks to the convoys that fit (at least one); at
 most one effect operation (a radar blink) a window. A tier runs at most `director.max_ops.<tier>`
 operations with jobs at a time (§3), counting those still on the board; the routine ones, those
-enabled at Pattern of Life, do not count (Q-SIM-84).
+enabled at Pattern of Life, do not count (Q-SIM-84). At most one operation with the
+`no_bridge_contested` precondition (STRIKE_BRIDGE) is taken a window (Q-SIM-121, NX-401).
 """
 
 import math
 from collections.abc import Mapping
 from dataclasses import dataclass, field, replace
 from fractions import Fraction
+from itertools import pairwise
 from typing import NamedTuple
 
-from nexus.contracts.gen.common.enums import ThreatTier, UnitKind
+from nexus.contracts.gen.common.enums import Side, ThreatTier, UnitKind
 from nexus.core.director import TIERS
 from nexus.core.fog import SideView
-from nexus.core.logistics import deploy_pool, nearest_by_air
+from nexus.core.logistics import deploy_pool, nearest_by_air, supply_path
 from nexus.core.rng import PcgStream
 from nexus.core.rules import CP_SCALE, DirectorRules, JobTemplate, OperationRules, Rules, sector_at
 from nexus.core.tasking import ring_crossed
@@ -57,9 +60,10 @@ from nexus.core.world import DirectorState, Vec2
 # A draw is r in [-NOISE_STEPS, NOISE_STEPS], so the span is 2 * steps + 1. Fixed with the RNG
 # stream: it sets the draw resolution and a change reshuffles every seeded decision (not a tunable).
 NOISE_STEPS = 1000
-_FOE = {"COALITION": "ENEMY", "ENEMY": "COALITION"}
+_FOE: dict[Side, Side] = {"COALITION": "ENEMY", "ENEMY": "COALITION"}
 _EACH_CONVOY = "each_convoy"
 _GARRISON = "GARRISON"  # the target of the garrison upkeep operation (Q-SIM-85)
+_CONTESTED = "no_bridge_contested"
 LIVE_PREFIX = "op:"  # a Director job's dedupe key is `op:<operation>:<target>:<job index>[:<unit>]`
 
 
@@ -80,7 +84,8 @@ class Own:
     stands at or left last); `damaged_ad` the bases with an air-defense site below full HP;
     `radars` the bases with a radar site that is not Disabled; `live_units` its mobile units;
     `homed` the kinds of its live Director units homed at each base, in id order (Q-SIM-85), and
-    `margin` each of its finite-stock bases' stock less the starvation floor (negative below it)."""
+    `margin` each of its finite-stock bases' stock less the starvation floor (negative below it);
+    `struck` the bridges a live STRIKE job on its board names (NX-401)."""
 
     convoys: tuple[tuple[int, str], ...] = ()
     damaged_ad: frozenset[str] = frozenset()
@@ -88,6 +93,7 @@ class Own:
     live_units: int = 0
     homed: Mapping[str, tuple[UnitKind, ...]] = field(default_factory=dict)
     margin: Mapping[str, int] = field(default_factory=dict)
+    struck: frozenset[str] = frozenset()
 
 
 @dataclass(frozen=True, slots=True)
@@ -274,6 +280,16 @@ def _holds(
             return node in own.radars
         case "has_unescorted_convoy":
             return bool(own.convoys)
+        case "target_is_bridge":
+            return node in rules.supply.bridge_hp
+        case "target_bridge_intact":
+            return node in rules.supply.bridge_hp and node not in view.bridge_down
+        case "target_feeds_coalition_node":
+            return node in rules.supply.bridge_hp and bool(fed_nodes(view, rules, node))
+        case "target_bridge_off_cooldown":
+            return state.bridge_ready.get(node, 0) <= now
+        case "no_bridge_contested":  # none down, none under a live STRIKE (Q-SIM-121)
+            return not view.bridge_down and not own.struck
     raise ValueError(f"unknown precondition {pre!r}")
 
 
@@ -412,16 +428,42 @@ def _memory(
     return m if effect == "RAISE" else 1 / m
 
 
+def fed_nodes(view: SideView, rules: Rules, bridge: str) -> list[str]:
+    """Q-SIM-120, "cut the lifeline": the nodes of the other side with a `score.target_value`,
+    in id order, whose supply route from that side's sanctuary (`logistics.supply_path`, the rule
+    its trucks drive by: intact roads, no node this side holds, Q-SIM-122) crosses `bridge`.
+    Topology and owners only (roads, `view.owners`, `view.bridge_down`): never tracks, units or
+    occupancy."""
+    dr, foe = rules.director, _FOE[view.side]
+    out = []
+    for n in sorted(view.nodes):
+        if dr is None or view.owners.get(n) != foe or rules.node_kind.get(n) not in dr.target_value:
+            continue
+        path = supply_path(rules, view.owners, view.bridge_down, foe, rules.supply.rear[foe], n)
+        if path and any(rules.roads.edge(a, b).bridge == bridge for a, b in pairwise(path)):
+            out.append(n)
+    return out
+
+
 def _node_factors(c: Candidate, view: SideView, rules: Rules, dr: DirectorRules) -> Fraction:
-    """Target value x weakness for a node of the other side; `score.own_node_value` for a node the
-    side holds; 1 for any other target."""
+    """Target value x weakness for a node of the other side; for a bridge, the best of those over
+    the nodes it feeds (`fed_nodes`, Q-SIM-120); `score.own_node_value` for a node the side holds;
+    1 for any other target."""
     node = c.target
     if c.op.target != "NODE":
         return Fraction(1)
+    if node in rules.supply.bridge_hp:  # max: tied nodes share the value, so no order matters
+        fed = fed_nodes(view, rules, node)
+        return max((_foe_value(n, view, rules, dr) for n in fed), default=Fraction(1))
     if view.owners.get(node) == view.side:
         return dr.own_node_value
     if view.owners.get(node) != _FOE[view.side]:
         return Fraction(1)
+    return _foe_value(node, view, rules, dr)
+
+
+def _foe_value(node: str, view: SideView, rules: Rules, dr: DirectorRules) -> Fraction:
+    """`score.target_value` of the node's kind x its weakness from its defense HP in the view."""
     value = dr.target_value[rules.node_kind[node]]
     top = rules.defense.max_hp.get(node, 0) if rules.defense else 0
     if top <= 0:
@@ -474,9 +516,13 @@ def select(
     chosen: list[Candidate] = []
     running = set(live)
     blinks = 0
+    contested = False  # a bridge strike chosen this window (`no_bridge_contested`, Q-SIM-121)
     for c in ranked:
         if c.op.cost > budget or (c.op.effect and blinks >= dr.blink_max):
             continue  # at most `decoy_blink.max_per_window` radars blink per window (Q-SIM-82)
+        bridge_op = _CONTESTED in c.op.preconditions
+        if bridge_op and contested:
+            continue
         pair = (c.op.id, c.target)
         new = bool(c.op.jobs) and pair not in running
         counted = {p for p in running if p[0] not in routine}
@@ -487,6 +533,7 @@ def select(
             continue
         chosen.append(fitted)
         blinks += bool(c.op.effect)
+        contested |= bridge_op
         budget -= c.op.cost
         spawn_room -= fitted.units
         live_room -= fitted.units

@@ -83,8 +83,9 @@ from nexus.core.rules import CAPTURE_FULL, Rules
 # RESUPPLY job's urgency may be below 1000 (a stocking job, NX-389, Q-SIM-100, no bump: same shape);
 # 24: bridge hp and the down bridges (NX-373 part 1a); 25: Entity.order_node, the node a GOTO order
 # names, and held_since, when an armed unit began holding it (Q-SIM-110, NX-398); 26: bridge_repair,
-# each bridge's truck repair carry in thousandths of an hp (NX-373 part 2)
-FORMAT_VERSION = 26
+# each bridge's truck repair carry in thousandths of an hp (NX-373 part 2); 27:
+# DirectorState.bridge_ready, when each repaired bridge may be a STRIKE_BRIDGE target again (NX-401)
+FORMAT_VERSION = 27
 _MM = 1000.0  # metres -> millimetres; m/s -> mm/s
 _MICRO = 1e6  # ADR-0002's 1e-6 step for other floats (fuel)
 _MILLI_UNIT = 1000  # thousandths of a stock unit per unit
@@ -497,7 +498,12 @@ class DirectorState:
     Recon memory (NX-379, Q-SIM-87): `looked` maps a cell of the `director.recon.grid_m` grid
     (its centre as text, `x:y`, m) that a sensor of the side covered at a decision window to the
     running tick of the last such window; entries older than `director.recon.memory_s` are
-    dropped, so it holds only the cells seen within that time."""
+    dropped, so it holds only the cells seen within that time.
+
+    StrikeBridge (NX-401, Q-SIM-121): `bridge_ready` maps a bridge to the running tick from which it
+    may be the side's STRIKE_BRIDGE target again, stamped at its `BridgeRepaired` with
+    `director.strike_bridge.cooldown_s` (`provocation.bridge_repaired`); a bridge never repaired has
+    no entry."""
 
     cp: int = 0
     provocation: int = 0
@@ -525,6 +531,7 @@ class DirectorState:
     last_flip: int = 0
     held: dict[str, int] = field(default_factory=dict)
     looked: dict[str, int] = field(default_factory=dict)
+    bridge_ready: dict[str, int] = field(default_factory=dict)
 
 
 _DIRECTOR_KEYS = tuple(f.name for f in fields(DirectorState))
@@ -1720,6 +1727,7 @@ def _director(value: object, running_ticks: int) -> dict[Side, DirectorState]:
             last_flip=_int(d["last_flip"], "last_flip"),
             held=_counts(d["held"], "held"),
             looked=_looked(d["looked"], running_ticks),
+            bridge_ready=_counts(d["bridge_ready"], "bridge_ready"),
         )
         # 2: the highest tier index (BRAVO); the ladder is structure (provocation._TIER_INDEX)
         if max(state.prov_level, state.ceiling) > 2 or state.ceiling < 0:

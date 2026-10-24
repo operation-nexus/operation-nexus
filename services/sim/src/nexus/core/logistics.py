@@ -25,9 +25,9 @@ from collections.abc import Mapping, Sequence
 from itertools import pairwise
 from typing import NamedTuple
 
-from nexus.contracts.gen.common.enums import Side, UnitKind
+from nexus.contracts.gen.common.enums import NodeOwner, Side, UnitKind
 from nexus.contracts.gen.events.event import Event
-from nexus.core.bridges import blocked, enemy_held
+from nexus.core.bridges import blocked, enemy_held, held_by_other
 from nexus.core.defense import rebuild
 from nexus.core.rearm import restock
 from nexus.core.roads import shortest_path
@@ -107,7 +107,16 @@ def _route(
 def supply_route(world: World, rules: Rules, side: Side, a: str, b: str) -> list[str] | None:
     """A supply run's road route from `a` to `b` (Q-SIM-122): it enters no node the other side
     holds (`bridges.enemy_held`; neutral ground is passable); `a` and `b` themselves are allowed."""
-    return _route(world, rules, a, b, enemy_held(world, rules, side) - {b})
+    return supply_path(rules, world.owner, blocked(world), side, a, b)
+
+
+def supply_path(
+    rules: Rules, owners: Mapping[str, NodeOwner], down: frozenset[str], side: Side, a: str, b: str
+) -> list[str] | None:
+    """`supply_route` from public node state only (owners and down bridges, FOW-10), so the
+    Director's view (`operations.fed_nodes`, NX-401) plans the same route the trucks drive."""
+    avoid = held_by_other(rules, owners, side) - {b}
+    return shortest_path(rules.roads, a, b, blocked=down, avoid=avoid)
 
 
 def _length(rules: Rules, route: list[str]) -> float:

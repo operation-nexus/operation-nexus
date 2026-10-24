@@ -32,6 +32,11 @@ _PRECONDITION_TARGET = {
     "target_has_damaged_air_defense": "NODE",
     "target_radar_operational": "RADAR",
     "has_unescorted_convoy": "CONVOYS",
+    "target_is_bridge": "NODE",  # the bridge ones: NX-401, Q-SIM-120, Q-SIM-121
+    "target_bridge_intact": "NODE",
+    "target_feeds_coalition_node": "NODE",
+    "target_bridge_off_cooldown": "NODE",
+    "no_bridge_contested": "NODE",
 }
 _SELECTOR_TARGET = {
     "target": ("NODE", _GARRISON),

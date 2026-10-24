@@ -3,7 +3,7 @@
 # before it (TB-8). Costs are the owner-approved starting numbers (Q-SIM-78), PROPOSED, tuned by the balance harness (NX-031).
 # Priority is not here: it is `director.op_priority.<id>` in balance/default.yaml. One unit is bought per slot, spawned by
 # GP-7 parity (THREAT-DIRECTOR §4 step 7). `enabled_tiers` follow THREAT-DIRECTOR §3: Pattern of Life is routine only
-# (Recon, EscortConvoys, DecoyBlink, GarrisonUpkeep); the rest need ALPHA. STRIKE_BRIDGE waits for NX-373.
+# (Recon, EscortConvoys, DecoyBlink, GarrisonUpkeep); the rest need ALPHA.
 schema_version: 1
 operations:
   - id: OFFENSIVE            # stage 2 armor at the nearest own base, 2 strike jets on the target's defenses, 2 armor capture
@@ -31,6 +31,13 @@ operations:
     enabled_tiers: [ALPHA, BRAVO]
     jobs:
       - { kind: STRIKE, at: target_defenses, unit_kinds: [ENEMY_STRIKE_FIGHTER], slots: 1 }
+  - id: STRIKE_BRIDGE        # 2 strike jets drop a bridge on the coalition's lifeline to a node it holds (NX-401, Q-SIM-120, Q-SIM-121)
+    target: NODE
+    preconditions: [target_is_bridge, target_bridge_intact, target_bridge_off_cooldown, no_bridge_contested, target_feeds_coalition_node]
+    cost: 30                 # PROPOSED – unvalidated (Q-SIM-121): 2 jets at PROBE's rate; the ALPHA budget, so it still runs there
+    enabled_tiers: [ALPHA, BRAVO]   # never at Pattern of Life (Q-SIM-112)
+    jobs:                    # no STAGE: jets spawn at an airbase (Q-SIM-121)
+      - { kind: STRIKE, at: target, unit_kinds: [ENEMY_STRIKE_FIGHTER], slots: 2 }
   - id: RECON                # 1 recon UAV loiters at the stalest point of a sector outside the known air-defense rings (Q-SIM-87)
     target: SECTOR
     preconditions: []

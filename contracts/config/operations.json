@@ -52,7 +52,7 @@
           ]
         },
         "preconditions": {
-          "description": "Closed list; each must hold for a candidate. Which targets suit which is checked by the loader. No duplicates (loader).",
+          "description": "Closed list; each must hold for a candidate. Which targets suit which is checked by the loader. No duplicates (loader). The bridge ones (NX-401, Q-SIM-120, Q-SIM-121) aim at a NODE: target_is_bridge, target_bridge_intact (a bridge that is not down), target_feeds_coalition_node (a bridge on the shortest intact road from the other side's sanctuary to a node it holds that has a score.target_value), target_bridge_off_cooldown (`director.strike_bridge.cooldown_s` has passed since the bridge's last BridgeRepaired) and no_bridge_contested (no bridge is down or the target of a live STRIKE job on the side's board; selection also takes at most one operation with it per window).",
           "type": "array",
           "items": {
             "enum": [
@@ -63,7 +63,12 @@
               "target_recently_lost",
               "target_has_damaged_air_defense",
               "target_radar_operational",
-              "has_unescorted_convoy"
+              "has_unescorted_convoy",
+              "target_is_bridge",
+              "target_bridge_intact",
+              "target_feeds_coalition_node",
+              "target_bridge_off_cooldown",
+              "no_bridge_contested"
             ]
           }
         },
