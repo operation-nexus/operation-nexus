@@ -132,6 +132,7 @@ To add, rename or retire a key, agents follow the `add-config-key` skill (`.clau
 | `sim.snapshot_every_ticks` | int | ticks | 300 | SIM-CORE §5 | No |
 | `sim.state_hash_every_ticks` | int | ticks | 100 | SIM-CORE §5 | No |
 | `sim.max_entities` | int | count | 1000 | SIM-CORE SC-10 | No |
+| `sim.max_live_units_per_side` | int | units | TBD (NX-412 harness sweep) (from the surge-500 tick-rate budget); tick-rate guard only | ECONOMY EC-8 | TBD (EC-14) |
 | `fow.track_fade_s` | float | s (world), > 0 | 180 (PROPOSED by NX-150: 300 ticks, 30 real s at 6×). How long a last-known track lasts; converted to world ticks rounding up. In the schema now (NX-150) | FOG-OF-WAR FOW-6a, Q-FOW-1 | No |
 | `fow.track_every_ticks` | int | ticks, ≥ 1 | 5 (PROPOSED). In the schema now (NX-150) | FOG-OF-WAR FOW-5, Q-FOW-6 | No |
 | `fow.sigint_range_mult` | float | × a radar site's `sensor.radius_m`, > 0 | 1.5 (PROPOSED by NX-150: 180 km for a 120 km radar). A moving enemy unit outside the side's sensors forms a SIGINT blob within this multiple of a friendly non-dark radar site's radius. In the schema now (NX-150) | FOG-OF-WAR Tier 1, Q-FOW-7 | No |
@@ -189,6 +190,19 @@ In the schema now (NX-122): `slots.max_live_per_commander`, `slots.respawn_delay
 | `logistics.ammo_loadout_share` | float | fraction | 0.5 (PROPOSED, Q-SIM-69, Q-DEV-21): of a unit's `loadout_cost`, the share its ammo costs when the kind has both ammo and a fuel tank (fuel pays the rest; a kind with no fuel pays all of it for ammo) | GAMEPLAY §5 | No |
 | `logistics.forward_deploy_min_surplus` | int | stock units above the starvation floor a spawn base needs to accept a forward deploy | 50 (Q-SIM-49, Q-SIM-54). In code (NX-123 part 2); the base also needs at least the loadout cost above its floor | GAMEPLAY §4, Q-GP-41 | No |
 | `logistics.repair_rate.<node_kind>` | float | hp/s (world) | AIRBASE 1.0, HQ 1.0, PORT 1.0, FOB 0.5, SANCTUARY 2.0 and free (PROPOSED, Q-SIM-68). In code (NX-124 part 2): all five required; counted in thousandths of an hp per tick | GAMEPLAY §5 | No |
+
+Economy (ECONOMY, approved 2026-10-24; keys added by NX-412 with `add-config-key`, not in the schema yet):
+| Key | Type | Unit | PROPOSED | Source | HR |
+|---|---|---|---|---|---|
+| `economy.unlimited.<side>` | bool | switch | false (campaign or test option; owner/Admin at setup only, never a GM or mid-war) | ECONOMY EC-15, Q-TD-28 | No |
+| `economy.window_s` | float | s (game) | PROPOSED 60 (the director window, one cadence) | ECONOMY EC-1 | TBD (EC-14) |
+| `economy.income.floor` | int | stock / window | TBD (NX-412 harness sweep) | ECONOMY EC-1 | TBD (EC-14) |
+| `economy.income.per_node.<node_kind>` | int | stock / window | TBD (NX-412 harness sweep); BRIDGE 0 | ECONOMY EC-1 | TBD (EC-14) |
+| `economy.storage.floor` | int | stock | TBD (NX-412 harness sweep) | ECONOMY EC-2 | TBD (EC-14) |
+| `economy.storage.per_node.<node_kind>` | int | stock | TBD (NX-412 harness sweep) | ECONOMY EC-2 | TBD (EC-14) |
+| `economy.upkeep.<unit_kind>` | int | stock / window | TBD (NX-412 harness sweep); LOGI_TRUCK and ENEMY_CONVOY PROPOSED 0 | ECONOMY EC-4 | TBD (EC-14) |
+| `economy.floor_viewer_units` | int | units | TBD (NX-412 harness sweep) | ECONOMY EC-11 | TBD (EC-14) |
+| `economy.free_viewer_spawn` | bool | switch | true (Q-CFG-16 option; false in agent-vs-agent harness profiles) | ECONOMY EC-13, Q-TD-12 | TBD (EC-14) |
 
 ### 6.4 Combat
 | Key | Type | Unit | PROPOSED | Source | HR |
@@ -344,9 +358,15 @@ Left in code on purpose (NX-377, Q-DEV-21): `services/sim/tests/core/test_kernel
 | `director.tier.min_dwell_s` | float | s (game, Q-ALN-23) | 600 | THREAT-DIRECTOR §3 | Yes |
 | `director.tier.start` | tier | PATTERN_OF_LIFE, ALPHA, BRAVO | `PATTERN_OF_LIFE` (decided rule as default, Q-CFG-16 option (NX-388)): the Static's Director tier at campaign start (`start_campaign`), with dwell 0 and the usual starting levels, so after one `min_dwell_s` it moves toward min(provocation level, CP ceiling) like from any tier: a higher start without provocation settles back down. A restore measures the reachable tiers from it | THREAT-DIRECTOR §3 | No: it only matters at campaign start |
 | `director.tier.max_step` | int | tier steps, 1 to 2 | 1 (decided rule as default, Q-CFG-16 option (NX-388)): the most tier steps one move takes toward min(provocation level, CP ceiling) (Q-TD-1); 2 lets PATTERN_OF_LIFE and BRAVO change in one move | THREAT-DIRECTOR §3, STATE-MACHINES D-1 | Yes, at the next window |
-| `director.budget.<tier>` | int | budget points / window | `pattern_of_life` 10, `alpha` 30, `bravo` 80 (PROPOSED, Q-SIM-78); never above the Static's real surplus (Q-TD-5) | THREAT-DIRECTOR §4 | Yes |
+| `director.budget.<tier>` | int | budget points / window | `pattern_of_life` 10, `alpha` 30, `bravo` 80 (PROPOSED, Q-SIM-78); never above the Static's real surplus (Q-TD-5). To be removed by NX-412 (ECONOMY EC-7/EC-8) | THREAT-DIRECTOR §4 | Yes |
 | `director.max_spawns_per_window` | int | units / window | 6 (PROPOSED, Q-SIM-78) | THREAT-DIRECTOR §4, Q-TD-12 | Yes |
-| `director.max_live_units.<tier>` | int | units | `pattern_of_life` 40 (24 in Q-SIM-78; raised in NX-157, Q-SIM-85: strait-1's four garrison quotas already add up to 22), `alpha` 40, `bravo` 70 (PROPOSED, Q-SIM-78) | THREAT-DIRECTOR §4, Q-TD-12 | Yes |
+| `director.max_live_units.<tier>` | int | units | `pattern_of_life` 40 (24 in Q-SIM-78; raised in NX-157, Q-SIM-85: strait-1's four garrison quotas already add up to 22), `alpha` 40, `bravo` 70 (PROPOSED, Q-SIM-78). To be removed by NX-412 (ECONOMY EC-7/EC-8) | THREAT-DIRECTOR §4, Q-TD-12 | Yes |
+| `director.spend_frac.<tier>` | float | fraction 0-1 of base surplus / window | TBD (NX-412 harness sweep); ordered pattern_of_life ≤ alpha ≤ bravo (loader) | THREAT-DIRECTOR §4, ECONOMY EC-7 | TBD (EC-14) |
+| `director.source_spend_frac` | float | fraction 0-1 of rear pool / window | TBD (NX-412 harness sweep); small | THREAT-DIRECTOR §4, ECONOMY EC-7 | TBD (EC-14) |
+| `director.upkeep_reserve_windows` | float | windows | TBD (NX-412 harness sweep) | THREAT-DIRECTOR §4, ECONOMY EC-7 | TBD (EC-14) |
+| `director.cadence_windows` | int | windows | TBD (NX-412 harness sweep) | THREAT-DIRECTOR §4, ECONOMY EC-7 | TBD (EC-14) |
+| `director.score.victory_hold_mult` | float | multiplier ≥ 1 | TBD (NX-412 harness sweep) | ECONOMY EC-9 | TBD (EC-14) |
+| `director.score.income_node_mult` | float | multiplier ≥ 1 | TBD (NX-412 harness sweep) | ECONOMY EC-12 | TBD (EC-14) |
 | `director.op_priority.<op>` | float | base priority | RETAKE 1.2, OFFENSIVE 1.0, ESCORT_CONVOYS 0.8, REINFORCE_IADS 0.7, PROBE 0.6, RECON 0.5, DECOY_BLINK 0.3 (PROPOSED, Q-SIM-78), STRIKE_BRIDGE 0.6 (PROPOSED, Q-SIM-121, NX-401); exactly the catalog's ids | THREAT-DIRECTOR §4, Q-TD-6 | Yes |
 | `director.score.target_value.<node_kind>` | float | multiplier | AIRBASE 1.5, FOB 1.0, PORT 1.0, SANCTUARY 2.0 (PROPOSED, Q-SIM-78); a kind not listed is never a target |
 | `director.score.weakness_max` | float | multiplier | 2.0 (PROPOSED, Q-SIM-78): the weakness multiplier at no defenses, 1.0 at full, linear | THREAT-DIRECTOR §4, Q-TD-6 | Yes |
@@ -568,7 +588,7 @@ operations:
     # effect: EMISSION_BLINK          # instead of jobs (DecoyBlink)
 ```
 - **Closed lists.** Preconditions: `target_owner_is_coalition` (the other side's node), `target_in_enemy_view`, `target_capturable` (not a sanctuary or bridge), `target_is_frontline` (a road neighbour not of the node's owner), `target_recently_lost` (within `director.retake_window_min`), `target_has_damaged_air_defense`, `target_radar_operational`, `has_unescorted_convoy`, and for bridges (NX-401, Q-SIM-120, Q-SIM-121; THREAT-DIRECTOR §7a Part 5) `target_is_bridge`, `target_bridge_intact` (not down), `target_feeds_coalition_node` (on the supply route, `logistics.supply_path`, from the other side's sanctuary to a node it holds with a `score.target_value`), `target_bridge_off_cooldown` (`director.strike_bridge.cooldown_s` since its `BridgeRepaired`) and `no_bridge_contested` (no bridge down or under a live STRIKE job on the side's board; at most one such operation selected per window). Selectors: `target`, `target_defenses`, `nearest_own_base`, `sector_point` (NX-379, Q-SIM-87: a point of the sector, see THREAT-DIRECTOR §7a), `each_convoy`. Each suits one target kind (the loader checks; `target` suits NODE and GARRISON), and an `ESCORT_CONVOY` job is the one at `each_convoy`. A `GARRISON` target (NX-157, Q-SIM-85) is a Static base with fewer live Director units homed there than its theater `garrison_quota`; its jobs are `STAGE` at `target` and omit `unit_kinds`, the kind coming from `director.garrison.kinds`; at most one such operation, and its cost is the price of one replacement unit.
-- **Cost envelope (Q-TD-7).** A whole number of points from 0 to the largest `director.budget.<tier>`: an operation above it could never run. The loader also checks that a priority exists for every operation and none for another, that the units are ENEMY air or ground kinds that fit the job kind (`tasking_gen.fits`) and that the units bought fit `director.max_spawns_per_window`.
+- **Cost envelope (Q-TD-7).** A whole number of points from 0 to the largest `director.budget.<tier>`: an operation above it could never run. NX-412 moves the envelope (ECONOMY §4) to "≤ `director.spend_frac.bravo` × the largest possible storage", and the check then stops reading `director.budget.<tier>`. The loader also checks that a priority exists for every operation and none for another, that the units are ENEMY air or ground kinds that fit the job kind (`tasking_gen.fits`) and that the units bought fit `director.max_spawns_per_window`.
 - **Shipped (Q-SIM-81, costs and priorities Q-SIM-78):** OFFENSIVE 60 (stage 2 ENEMY_ARMOR, 2 ENEMY_STRIKE_FIGHTER strike, 2 ENEMY_ARMOR capture), RETAKE 50 (1 strike jet, 3 armor capture; the node lost within 30 game minutes), PROBE 15 (1 strike jet on a frontline base's defenses), RECON 2 (NX-379, Q-SIM-87; 5 in Q-SIM-78) (1 ENEMY_RECON_UAV loiters at the stalest point of a sector outside the known air-defense rings), ESCORT_CONVOYS 10 (Q-SIM-82; 20 in Q-SIM-78) (1 ENEMY_FIGHTER per unescorted convoy), REINFORCE_IADS 15 (1 ENEMY_CONVOY resupplies the base whose air-defense site is damaged), DECOY_BLINK 0 (a radar goes dark for `decoy_blink.dark_s`), GARRISON_UPKEEP 8 (NX-157, Q-SIM-85; one unit staged at a short Static base, raised at the base itself, PROPOSED), STRIKE_BRIDGE 30 (NX-401, Q-SIM-121, PROPOSED; 2 ENEMY_STRIKE_FIGHTER strike a bridge on the coalition's lifeline, no STAGE). Tiers: DECOY_BLINK, RECON, ESCORT_CONVOYS and GARRISON_UPKEEP at every tier (routine: outside `director.max_ops.<tier>`), the rest at ALPHA and BRAVO.
 
 ## 9. Theater file format (`content/theaters/<slug>.yaml`)
