@@ -10,7 +10,7 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | Phase | Items | Done | Status |
 |---|---|---|---|
 | P0 Foundations | 44 | 31 | 🟨 |
-| P1 Sim kernel | 57 | 45 | 🟨 |
+| P1 Sim kernel | 60 | 45 | 🟨 |
 | P2 Closed alpha | 40 | 0 | ⬜ |
 | P3 Public beta | 26 | 0 | ⬜ |
 | P4 Depth | 69 | 1 | ⬜ |
@@ -129,6 +129,9 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-405 | Failed protect objectives feed the campaign (owner direction, Q-SIM-119): an escort, defend or repair-crew job that ends FAILED counts as a failed objective toward mission outcome, morale, the Director's read and recaps. Design first in the P2 grill (which signals, weights, what the overlay shows); spec change before code | M | ⬜ | NX-373 | Spec section and Q-rows approved before code |
 | NX-406 | Settings sweep and tuning (Q-CFG-15 later half): harness `--sweep` over `x-tune` ranges and a queue `sweep:` request, a `tune` skill, later the Command Center settings view by `x-audience`/`x-edit-role`. Sweeps must respect cross-key rules the ranges don't encode: `combat.damage_state` thresholds descend, `campaign.momentum` weights sum to 100, `tasking.ai_jobs`/`ai_excluded_jobs` disjoint, `scout_urgency.*` ≤ `urgency_max`, `stock_target_frac` > `starve_threshold`, `provocation.bravo_threshold` > `escalate_threshold`, `tier.alpha_enter_cp` < `bravo_enter_cp`, `tasking.priority.*` ordering intent. Also: `director.score.target_value.*` has no source in CONFIG-AND-CONTENT §6.7 (owner to supply) | M | ⬜ | NX-390 | A sweep never builds a config the loader refuses |
 | NX-407 | Coalition supply runs avoid Static-held nodes (Q-SIM-122): truck road routes use the avoid set patrols use, so a cut bridge holds resupply behind its repair (TB-8) instead of sending trucks through enemy bases. Lands before NX-401 | S | ⬜ | NX-373 | After a cut no coalition truck route passes a Static-held node; TB-8 holds the resupply |
+| NX-408 | Direct orders to friendly or neutral sites defend, never fire (Q-SIM-124, owner): a GOTO to a bridge or an own node holds and engages threats; dropping a bridge needs an explicit strike. Amends Q-SIM-112 and the NX-398 hold rule | S | ⬜ | NX-398, NX-400 | A jet ordered to a bridge never fires on it |
+| NX-409 | Harness queue never loses a finished run (lesson from #301): check the token can write to the issue before a long run starts; if posting fails, keep the report and let the stale-label recovery post a finished report instead of marking the run failed. Security review (parses issue text) | S | ⬜ | NX-381 | A run whose comment fails is posted on the next tick |
+| NX-410 | Repair crews avoid enemy ground (Q-SIM-125) | S | ⬜ | NX-407 | No repair route enters an enemy-held node |
 | NX-151 | Enemy-side view for director (FOW-4) | M | ✅ | NX-150 | Director API accepts only `EnemyView` |
 | NX-155 | Director: CP, tiers w/ hysteresis, budget | M | ✅ | NX-151, NX-374 | Hysteresis property |
 | NX-156 | Director: operations library + scoring + threat memory | L | ✅ | NX-155 | "Convoy raids → escorts" golden scenario |
