@@ -39,7 +39,7 @@ def block(**kv: str) -> str:
     return "text\n```harness\n" + "\n".join(f"{k}: {v}" for k, v in base.items()) + "\n```\n"
 
 
-def issue(n: int, author: str = "canthony224", body: str | None = None, at: str = "t1") -> Any:
+def issue(n: int, author: str = "project-hiveplex", body: str | None = None, at: str = "t1") -> Any:
     return {
         "number": n,
         "title": "run",
