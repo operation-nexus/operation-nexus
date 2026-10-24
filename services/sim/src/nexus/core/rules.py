@@ -96,6 +96,9 @@ class Supply:
     # `logistics.bridge_collapse_radius_m` (Q-SIM-112): how far along the cut edge a bridge's fall
     # destroys GROUND units (0 in hand-built rules: only a unit exactly at the cut point).
     bridge_collapse_m: float = 0.0
+    # logistics.bridge_hp / (bridge_repair_time_s x truck_bridge_repair_mult) x world_dt, in
+    # thousandths of an hp per tick per carrier parked at a bridge's stop (NX-373 part 2).
+    bridge_repair_milli: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -213,6 +216,7 @@ class TaskingRules:
     ai_jobs: frozenset[JobKind]  # tasking.ai_jobs: an AI garrison unit takes these by itself
     ai_excluded_jobs: frozenset[JobKind]  # tasking.ai_excluded_jobs: and never these (Q-GP-45)
     human_displaces_ai: bool  # tasking.human_displaces_ai: a viewer's unit bumps an AI claimant
+    escort_repair_crews: bool  # tasking.escort_repair_crews: escort each repair truck (Q-SIM-118)
 
 
 @dataclass(frozen=True, slots=True)
@@ -561,6 +565,7 @@ def tasking_rules(
         ai_jobs=frozenset(cfg.ai_jobs),
         ai_excluded_jobs=frozenset(cfg.ai_excluded_jobs),
         human_displaces_ai=cfg.human_displaces_ai,
+        escort_repair_crews=cfg.escort_repair_crews,
     )
 
 
@@ -769,6 +774,10 @@ def _supply(theater: TheaterConfig, logistics: Logistics, dt: float) -> Supply:
     repair_milli = {k: round(rate * dt * _MILLI) for k, rate in rates.items()}
     if any(rate > 0 and repair_milli[k] < 1 for k, rate in rates.items()):
         raise ValueError("logistics.repair_rate x world_dt is below 0.001 hp per tick")
+    truck_s = logistics.bridge_repair_time_s * logistics.truck_bridge_repair_mult
+    bridge_milli = round(logistics.bridge_hp * dt * _MILLI / truck_s)
+    if bridge_milli < 1:
+        raise ValueError("a truck's bridge repair rate x world_dt is below 0.001 hp per tick")
     return Supply(
         rear={side: sanctuaries[side] for side in _SIDES},
         start_owner={n.id: n.start_owner for n in theater.nodes},
@@ -793,6 +802,7 @@ def _supply(theater: TheaterConfig, logistics: Logistics, dt: float) -> Supply:
             if n.kind == "BRIDGE"
         },
         bridge_collapse_m=logistics.bridge_collapse_radius_m,
+        bridge_repair_milli=bridge_milli,
     )
 
 

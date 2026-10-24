@@ -30,6 +30,7 @@ export type Event =
   | NodeDefensesDown
   | NodeDefensesRestored
   | BridgeDestroyed
+  | BridgeRepaired
   | JobCreated
   | JobClaimed
   | JobReleased
@@ -826,7 +827,33 @@ export interface BridgeDestroyed {
   lost_ids: number[];
 }
 /**
- * A job was posted to a side's Tasking Board, OPEN (CONTRACTS §6; GAMEPLAY §1b TB-1, TB-10; NX-374). Posted by the board generator (the director and GM injection post through the same call later). Exactly one of node_id and blob_id is set, except an escort job (ESCORT_CONVOY) and an intercept job (INTERCEPT), which set neither and name the escorted truck or the hunted scout in entity_id (sector_id joins with the sector scout). A job generated for a side references only what that side's view holds (TB-9). Public view: dropped for the ENEMY side's board.
+ * A down bridge was repaired to full HP (CONTRACTS 6; STATE-MACHINES 4.3; NX-373 part 2): its road edge is back for path planning. Once per down cycle; a damaged bridge that was never down emits nothing as it is repaired.
+ */
+export interface BridgeRepaired {
+  kind: "BridgeRepaired";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Stable slug from the theater file.
+   */
+  node_id: string;
+  /**
+   * The lowest-id unit parked at the bridge's repair stop on the tick it reached full HP; null for a hidden actor in a filtered view.
+   */
+  by_id: number | null;
+}
+/**
+ * A job was posted to a side's Tasking Board, OPEN (CONTRACTS §6; GAMEPLAY §1b TB-1, TB-10; NX-374). Posted by the board generator (the director and GM injection post through the same call later). Exactly one of node_id and blob_id is set, except an escort job (ESCORT_CONVOY) and an intercept job (INTERCEPT), which set no blob_id and name the escorted truck or the hunted scout in entity_id; node_id is null for them too, except a repair crew's escort, which names the bridge being repaired (Q-SIM-118). A live escort job that becomes a crew's (its truck took a bridge repair) gets that node_id with no new event (sector_id joins with the sector scout). A job generated for a side references only what that side's view holds (TB-9). Public view: dropped for the ENEMY side's board.
  */
 export interface JobCreated {
   kind: "JobCreated";
@@ -848,7 +875,7 @@ export interface JobCreated {
   job_id: number;
   side: "COALITION" | "ENEMY";
   /**
-   * Tasking Board job kinds the code handles (GAMEPLAY §1b, CONTRACTS §3.3). STAGE and CAPTURE are posted by the Threat Director on the Static board only (Q-SIM-81, Q-TD-14). PATROL is the Director's on the Static board (Q-SIM-85) and the coalition board's front-line patrol (Q-SIM-94). INTERCEPT is the Static board's hunt of a coalition scout it tracks (Q-SIM-96). REPAIR_BRIDGE and RESCUE join with their jobs (rule 6a).
+   * Tasking Board job kinds the code handles (GAMEPLAY §1b, CONTRACTS §3.3). STAGE and CAPTURE are posted by the Threat Director on the Static board only (Q-SIM-81, Q-TD-14). PATROL is the Director's on the Static board (Q-SIM-85) and the coalition board's front-line patrol (Q-SIM-94). INTERCEPT is the Static board's hunt of a coalition scout it tracks (Q-SIM-96). REPAIR_BRIDGE is the coalition board's truck field repair of a down bridge (NX-373 part 2). RESCUE joins with its job (rule 6a).
    */
   job_kind:
     | "RESUPPLY"
@@ -860,7 +887,8 @@ export interface JobCreated {
     | "STAGE"
     | "CAPTURE"
     | "PATROL"
-    | "INTERCEPT";
+    | "INTERCEPT"
+    | "REPAIR_BRIDGE";
   node_id: string | null;
   blob_id: string | null;
   /**

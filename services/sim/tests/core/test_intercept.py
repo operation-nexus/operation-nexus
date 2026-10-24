@@ -454,7 +454,7 @@ def test_the_loader_refuses_a_bad_clock_or_intercept_job() -> None:
     post_job(w, "ENEMY", JobSpec("STAGE", "op:x", 1, 1000, node="east-airbase"), [])
     w.campaign.running_ticks += 1
     good = raw_of(w)
-    assert good["v"] == 25
+    assert good["v"] == 26
 
     def job(r: dict[str, Any]) -> dict[str, Any]:
         return next(j for j in r["boards"]["ENEMY"] if j["kind"] == "INTERCEPT")

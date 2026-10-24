@@ -68,7 +68,7 @@ from nexus.contracts.gen.events.node_captured import NodeCaptured
 from nexus.core.defense import reset
 from nexus.core.director import night_capped
 from nexus.core.fog import hand_over
-from nexus.core.logistics import friendly_bases, nearest
+from nexus.core.logistics import friendly_bases, nearest, road_start
 from nexus.core.provocation import captured
 from nexus.core.rules import CAPTURE_FULL, CaptureRules, Rules
 from nexus.core.world import SIDES, CaptureBar, Entity, World, end_stop, lose_unit
@@ -331,10 +331,11 @@ def _resolve_units(
 
 def _escape_ground(world: World, rules: Rules, e: Entity, node: str, out: list[Event]) -> bool:
     """Re-path to the nearest friendly base by road, from the node the unit is heading for (or
-    standing at); False when there is none. A truck keeps its cargo and ends its unloading stop."""
-    start = e.path[0] if e.path else e.last_node
+    standing at; from its bank when bound for or parked at a bridge's repair stop, `road_start`);
+    False when there is none. A truck keeps its cargo and ends its unloading stop."""
+    start = road_start(rules, e)
     best = None
-    if isinstance(start, str):
+    if start is not None:
         best = nearest(world, rules, start, friendly_bases(world, rules, e.side))
     if best is None:
         return False

@@ -253,6 +253,7 @@ TIER_CHANGED = {**_BASE, "kind": "ThreatTierChanged", "side": "ENEMY", "from": "
                 "to": "ALPHA", "cp_smoothed": 12.5}  # fmt: skip
 ADAPTATION = {**_BASE, "kind": "ThreatAdaptation", "side": "ENEMY", "category": "CONVOY_ESCORT",
               "sector_id": "north", "direction": "UP"}  # fmt: skip
+BRIDGE_UP = {**_BASE, "kind": "BridgeRepaired", "node_id": "bridge-n", "by_id": 4}
 
 
 @pytest.mark.parametrize(
@@ -270,6 +271,8 @@ ADAPTATION = {**_BASE, "kind": "ThreatAdaptation", "side": "ENEMY", "category": 
         BRIDGE_DOWN,
         {**BRIDGE_DOWN, "by_id": None},  # a hidden actor in a filtered view
         {**BRIDGE_DOWN, "lost_ids": [3, 8]},  # the collapse's victims (Q-SIM-112)
+        BRIDGE_UP,  # NX-373 part 2
+        {**BRIDGE_UP, "by_id": None},
         TIER_CHANGED,
     ],
 )
@@ -301,6 +304,9 @@ def test_combat_events_parse_through_the_event_union(good: dict[str, object]) ->
         (BRIDGE_DOWN, {"node_id": "Bridge N"}),
         (BRIDGE_DOWN, {"lost_ids": [0]}),  # entity ids
         (BRIDGE_DOWN, {"lost_ids": None}),  # a list, empty when nobody was on it
+        (BRIDGE_UP, {"by_id": 0}),
+        (BRIDGE_UP, {"lost_ids": []}),  # no such field on a repair
+        (BRIDGE_UP, {"node_id": "Bridge N"}),
         (TIER_CHANGED, {"to": "CHARLIE"}),  # parked (Q-TD-3)
         (TIER_CHANGED, {"from": "BRAVO!"}),
         (TIER_CHANGED, {"cp_smoothed": -0.1}),
@@ -361,7 +367,7 @@ def test_a_patrol_job_parses_and_every_job_kind_a_handler_knows_is_in_the_enum()
 @pytest.mark.parametrize(
     ("event", "bad"),
     [
-        (JOB_CREATED, {"job_kind": "REPAIR_BRIDGE"}),  # no producer yet (rule 6a)
+        (JOB_CREATED, {"job_kind": "RESCUE"}),  # no producer yet (rule 6a)
         (JOB_CREATED, {"entity_id": 0}),
         (JOB_CREATED, {"blob_id": "7"}),  # <refresh_tick>-<cell_index>
         (JOB_CREATED, {"node_id": "West Airbase"}),

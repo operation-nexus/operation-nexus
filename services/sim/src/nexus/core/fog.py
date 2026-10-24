@@ -396,6 +396,7 @@ class SideView:
     markers: Mapping[int, FacilityMarker]  # discovered enemy facilities (FOW-13)
     blobs: tuple[Blob, ...]  # Tier 1 SIGINT blobs from the last refresh, by cell index
     defense_hp: Mapping[str, int]  # every defended node's hp: public node state (FOW-10, CB-10)
+    bridge_down: frozenset[str] = frozenset()  # the down bridges: public node state (FOW-10)
 
 
 def side_view(world: World, side: Side) -> SideView:
@@ -411,4 +412,5 @@ def side_view(world: World, side: Side) -> SideView:
         {i: replace(m) for i, m in world.markers[side].items()},
         world.blobs[side],  # immutable
         dict(world.defense_hp),
+        frozenset(world.bridge_down),
     )

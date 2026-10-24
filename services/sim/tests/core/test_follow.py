@@ -504,7 +504,7 @@ def test_the_escort_job_fails_when_the_truck_is_lost_and_frees_the_escort() -> N
     lose_unit(w, truck, [])
     assert player.follow_id is None
     events = board_pass(w)
-    assert [e.kind for e in events if e.kind in ("JobFailed", "JobExpired")]
+    assert [e.kind for e in events if e.kind in ("JobFailed", "JobExpired")] == ["JobFailed"]
     assert not [j for j in jobs(w) if j.kind == "ESCORT_CONVOY"] and player.job_id is None
 
 

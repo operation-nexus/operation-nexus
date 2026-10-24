@@ -90,6 +90,8 @@ logistics:
   defense_repair_hp_per_stock: 2
   bridge_hp: 300
   bridge_collapse_radius_m: 1000.0
+  bridge_repair_time_s: 600.0
+  truck_bridge_repair_mult: 5.0
 capture:
   radius_m: 2000.0
   time_s: 120.0
@@ -181,6 +183,7 @@ tasking:
     capture: 45
     patrol: 15
     intercept: 45
+    repair_bridge: 45
   static_offense_min_tier: ALPHA
   urgency_max: 2.0
   priority_aging_per_min: 1
@@ -192,6 +195,7 @@ tasking:
     escort_convoy: 2
     patrol: 2
     intercept: 1
+    repair_bridge: 2
   resupply_stock_per_slot: 100
   resupply_slots_max: 3
   defend_radius_m: 10000
@@ -211,9 +215,10 @@ tasking:
   overfill_factor: 2
   overfill_point_jobs: false
   join_excluded_jobs: [PATROL]
-  ai_jobs: [DEFEND, RESUPPLY, SCOUT]
+  ai_jobs: [DEFEND, RESUPPLY, SCOUT, REPAIR_BRIDGE]
   ai_excluded_jobs: [ESCORT_CONVOY, PATROL]
   human_displaces_ai: true
+  escort_repair_crews: true
   scout_blob_runs: 2
   scout_urgency: {small: 1.0, medium: 1.5, large: 2.0}
   strike_urgency_per_threat: 0.01
@@ -326,9 +331,10 @@ director:
 # NX-374 for the tasking keys and again for follow and escort, NX-155 for the director, and NX-157
 # for the Pattern of Life keys and the garrison operation, NX-389 for the forward stock keys,
 # NX-388 part 2 for the Q-CFG-16 rule options, NX-388 part 2b for the Director, tasking and
-# rebase rule options, NX-373 for the bridge hp, NX-398 for `tasking.order_dwell_s`); a
-# change means every config_hash moved.
-GOLDEN_CONFIG_HASH = "9ed33c836041681323a593d552678a4fcf640af680b9a5065b86cf96da95dc4d"
+# rebase rule options, NX-373 for the bridge hp, NX-398 for `tasking.order_dwell_s`, NX-400 for
+# the collapse radius, NX-373 part 2 for bridge repair, the repair job and its escort); a change
+# means every config_hash moved.
+GOLDEN_CONFIG_HASH = "a5edd6ba6df66721c75a18e1f2465431ebc4de8853471d3be1b410d07244a817"
 AIR = {
     "bingo_reserve_frac": 0.15,
     "orbit_period_s": 120.0,
@@ -382,6 +388,8 @@ LOGISTICS = {
     "defense_repair_hp_per_stock": 2,
     "bridge_hp": 300,
     "bridge_collapse_radius_m": 1000.0,
+    "bridge_repair_time_s": 600.0,
+    "truck_bridge_repair_mult": 5.0,
 }
 CAPTURE = {
     "radius_m": 2000.0,
@@ -460,6 +468,7 @@ TASKING = {
         "capture": 45,
         "patrol": 15,
         "intercept": 45,
+        "repair_bridge": 45,
     },
     "static_offense_min_tier": "ALPHA",
     "urgency_max": 2.0,
@@ -472,6 +481,7 @@ TASKING = {
         "escort_convoy": 2,
         "patrol": 2,
         "intercept": 1,
+        "repair_bridge": 2,
     },
     "resupply_stock_per_slot": 100,
     "resupply_slots_max": 3,
@@ -488,9 +498,10 @@ TASKING = {
     "overfill_factor": 2,
     "overfill_point_jobs": False,
     "join_excluded_jobs": ["PATROL"],
-    "ai_jobs": ["DEFEND", "RESUPPLY", "SCOUT"],
+    "ai_jobs": ["DEFEND", "RESUPPLY", "SCOUT", "REPAIR_BRIDGE"],
     "ai_excluded_jobs": ["ESCORT_CONVOY", "PATROL"],
     "human_displaces_ai": True,
+    "escort_repair_crews": True,
     "scout_blob_runs": 2,
     "scout_urgency": {"small": 1.0, "medium": 1.5, "large": 2.0},
     "strike_urgency_per_threat": 0.01,
@@ -710,6 +721,8 @@ def test_default_profile_loads_and_matches_golden_hash() -> None:
         ("  defense_repair_hp_per_stock: 2\n", "logistics.defense_repair_hp_per_stock"),
         ("  bridge_hp: 300\n", "logistics.bridge_hp"),
         ("  bridge_collapse_radius_m: 1000.0\n", "logistics.bridge_collapse_radius_m"),
+        ("  bridge_repair_time_s: 600.0\n", "logistics.bridge_repair_time_s"),
+        ("  truck_bridge_repair_mult: 5.0\n", "logistics.truck_bridge_repair_mult"),
         ("    SANCTUARY: 1000\n", "capture.defense_hp.SANCTUARY"),
         ("  sanctuary_repair_hp_per_s: 1.0\n", "capture.sanctuary_repair_hp_per_s"),
         ("  defeat:\n    hold_min: 30\n", "campaign.defeat"),
@@ -731,9 +744,10 @@ def test_default_profile_loads_and_matches_golden_hash() -> None:
         ("    max_step: 1\n", "director.tier.max_step"),
         ("    ai_shooter_mult: 0\n", "director.provocation.ai_shooter_mult"),
         ("    capture_slot_tiers: [PATTERN_OF_LIFE]\n", "director.pol.capture_slot_tiers"),
-        ("  ai_jobs: [DEFEND, RESUPPLY, SCOUT]\n", "tasking.ai_jobs"),
+        ("  ai_jobs: [DEFEND, RESUPPLY, SCOUT, REPAIR_BRIDGE]\n", "tasking.ai_jobs"),
         ("  ai_excluded_jobs: [ESCORT_CONVOY, PATROL]\n", "tasking.ai_excluded_jobs"),
         ("  human_displaces_ai: true\n", "tasking.human_displaces_ai"),
+        ("  escort_repair_crews: true\n", "tasking.escort_repair_crews"),
         ("  rebase_order: HOLD\n", "slots.rebase_order"),
         ("    objective_points: 5\n", "campaign.score.objective_points"),
         ("    final_weight: 50\n", "campaign.score.final_weight"),
@@ -941,7 +955,8 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "  repair_rate: {SANCTUARY: 2.0, PORT: 1.0, HQ: 1.0, FOB: 0.5, AIRBASE: 1.0},\n"
         "  facility_repair_hp_per_stock: 10, facility_rearm_cost: 10, ammo_loadout_share: 0.5,\n"
         "  starve_hp_drain_per_min: 5, defense_repair_hp_per_stock: 2, bridge_hp: 300,\n"
-        "  bridge_collapse_radius_m: 1000.0,\n"
+        "  bridge_collapse_radius_m: 1000.0, bridge_repair_time_s: 600.0,\n"
+        "  truck_bridge_repair_mult: 5.0,\n"
         "  node_max_stock: {PORT: 1000, HQ: 2000, FOB: 1000, BRIDGE: 0, AIRBASE: 2000}}\n"
         "capture: {radius_m: 2000.0, time_s: 120.0, multi_unit_exponent: 0.5, quiet_floor: 0.6,\n"
         "  quiet_ref: 50, min_time_s: 30.0, logi_weight: 0.5, garrison_mult: 3.0,\n"
@@ -971,11 +986,11 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "tasking: {reeval_every_ticks: 50, claim_lease_s: 120, expire_min: 15,\n"
         "  priority: {scout: 30, strike: 40, assist_objective: 45, resupply: 50, defend: 60,\n"
         "    escort_convoy: 40, stage: 20, capture: 45, patrol: 15,\n"
-        "    intercept: 45},\n"
+        "    intercept: 45, repair_bridge: 45},\n"
         "  static_offense_min_tier: ALPHA,\n"
         "  urgency_max: 2.0, priority_aging_per_min: 1,\n"
         "  slots: {scout: 1, assist_objective: 4, strike: 2, defend: 2, escort_convoy: 2,\n"
-        "    patrol: 2, intercept: 1},\n"
+        "    patrol: 2, intercept: 1, repair_bridge: 2},\n"
         "  resupply_stock_per_slot: 100, resupply_slots_max: 3, defend_radius_m: 10000,\n"
         "  counterattack_window_min: 15, scout_cooldown_min: 5, scout_open_max: 3,\n"
         "  scout_post_interval_min: 2, capture_max_restarts: 3,\n"
@@ -984,7 +999,8 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "  follow_hold_slack: 2, overfill_factor: 2, scout_blob_runs: 2,\n"
         "  overfill_point_jobs: false, join_excluded_jobs: [PATROL],\n"
         "  human_displaces_ai: true, ai_excluded_jobs: [ESCORT_CONVOY, PATROL],\n"
-        "  ai_jobs: [DEFEND, RESUPPLY, SCOUT],\n"
+        "  escort_repair_crews: true,\n"
+        "  ai_jobs: [DEFEND, RESUPPLY, SCOUT, REPAIR_BRIDGE],\n"
         "  scout_urgency: {small: 1.0, medium: 1.5, large: 2.0}, strike_urgency_per_threat: 0.01,\n"
         "  strike_max_scaled_slots: 3, strike_idle_targets_max: 2,\n"
         "  strike_idle_targets_min_tier: ALPHA,\n"

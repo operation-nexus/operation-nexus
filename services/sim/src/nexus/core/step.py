@@ -10,6 +10,7 @@ from collections.abc import Callable, Mapping, Sequence
 from nexus.contracts.gen.commands.command import Command
 from nexus.contracts.gen.events.event import Event
 from nexus.contracts.gen.events.threat_tier_changed import ThreatTierChanged
+from nexus.core.bridges import repair as repair_bridges
 from nexus.core.campaign import campaign
 from nexus.core.capture import capture
 from nexus.core.combat import resolve as resolve_combat
@@ -246,14 +247,19 @@ def _orbit(e: Entity, centre: Vec2, rules: Rules) -> None:
 
 def _waypoint(e: Entity, rules: Rules, cap: float | None = None) -> tuple[float, float, float]:
     """The next waypoint's x, y and the speed to it in m/s (world); `cap` (a follower's station or
-    its formation's slowest member, `nexus.core.follow`) lowers the speed before the road's mult."""
+    its formation's slowest member, `nexus.core.follow`) lowers the speed before the road's mult.
+    A bridge's id ends a path at its repair stop, on the road from the bank it left (NX-373 pt 2).
+    """
     wp, speed = e.path[0], rules.speed(e.kind, e.damage_state)
     if cap is not None:
         speed = min(speed, cap)
     if rules.domain[e.kind] == _GROUND:
         if not isinstance(wp, str) or e.last_node is None:
             raise ValueError(f"ground entity {e.id} must move node to node on the road graph")
-        speed *= rules.roads.speed_mult_at(e.last_node, wp, e.pos.x, e.pos.y)
+        road = rules.roads.toward(e.last_node, wp)  # a bridge's stop: out toward its far end
+        speed *= rules.roads.speed_mult_at(e.last_node, road, e.pos.x, e.pos.y)
+        if road != wp:
+            return *rules.roads.stops[wp], speed
     if isinstance(wp, str):
         x, y = rules.roads.pos[wp]
         return x, y, speed
@@ -286,7 +292,9 @@ def _move(e: Entity, rules: Rules, cap: float | None = None) -> tuple[float, flo
 
 def _arrive(e: Entity, rules: Rules) -> None:
     wp = e.path.pop(0)
-    if isinstance(wp, str):
+    if isinstance(wp, str) and wp in rules.roads.stops and rules.domain[e.kind] == _GROUND:
+        e.pos = Vec2(*rules.roads.stops[wp])  # a bridge's repair stop: `last_node` stays the bank
+    elif isinstance(wp, str):
         e.pos, e.last_node = Vec2(*rules.roads.pos[wp]), wp
     else:
         e.pos = wp
@@ -316,10 +324,12 @@ def logistics_capture(
     world: World, c: Sequence[Command], h: Mapping[str, Handler], out: list[Event]
 ) -> None:
     """Logistics (`nexus.core.logistics`, NX-123): trucks unload or drive on (a delivery rebuilds
-    defense hp), the starvation drain (`nexus.core.defense`, NX-124 part 3), then capture
-    (`nexus.core.capture`, NX-125), so a flip lands after this tick's deliveries (SC-13)."""
+    defense hp), the starvation drain (`nexus.core.defense`, NX-124 part 3), truck field repair of
+    bridges (`nexus.core.bridges`, NX-373 part 2), then capture (`nexus.core.capture`, NX-125), so a
+    flip lands after this tick's deliveries (SC-13)."""
     logistics(world, out)
     drain(world, out)
+    repair_bridges(world, out)
     capture(world, out)
 
 
