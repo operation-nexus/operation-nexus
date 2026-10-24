@@ -9,6 +9,7 @@ Goal: work runs **as autonomously as possible** and pings the owner rarely (Q-DE
 
 ## 1. Brief (lead)
 - Pick one tracker item (or one error ticket, ERROR-PIPELINE). Read its spec sections, the role card, and the open Q-rows it touches.
+- Before a brief states a rule or a number, grep OPEN-QUESTIONS for a decided row on it and cite the row; a brief that contradicts a decided row is wrong (L-14).
 - Write the coder brief: tracker ID, the role card, spec sections and Q-rows to read (the agent files list the standing reading: AGENTS.md, CLAUDE.md, code-quality, DATA-INTEGRITY, DoD), the exact acceptance criteria, files likely touched, what is out of scope, and the docs that must change with it.
 - Parallel coders only when no two touch the same file (AGENTS.md rule 11b), each with `isolation: "worktree"`; otherwise one at a time.
 - Models (Q-DEV-4; the goal is token cost, so each task runs on the cheapest tier that does it well):
@@ -42,6 +43,7 @@ Git mechanics that bit before (LESSONS):
 - After a PR merges, update with `git fetch origin develop && git merge --ff-only origin/develop`; the cloud classifier blocks `git checkout -B` (L-5).
 - A separate small PR while a coder's change is still uncommitted: commit only its own files (`git add <paths>`). When it must touch a file the uncommitted change also edits (TRACKER, OPEN-QUESTIONS), stage its hunk from `HEAD` (`git show HEAD:<p>`, edit, `git hash-object -w --stdin`, `git update-index --cacheinfo 100644,<blob>,<p>`) and apply the same edit to the working file; never `git add` that file whole (L-4).
 - Stop a process by its PID, never `pkill -f <pattern>`: the pattern also matches your own shell (L-6).
+- Push work that passed QA promptly; the cloud container can restart and take unpushed commits with it. If an open PR shares the branch, push into it and update its body rather than hold commits locally (L-13).
 
 ## 3. Decide or ask
 When a question has a recommended option, the lead **takes it, records it and keeps going** (Q-DEV-21): a reading of an ambiguous line, a small improvement QA or the coder suggested, a test or naming choice. Record it as a Q-row with status `Decided by lead, owner may veto` and list it in the PR description. At the end of the work stretch, present the list of these decisions to the owner to approve, veto or change; the daily routine also lists new lead decisions in its #119 digest (Q-DEV-1).
