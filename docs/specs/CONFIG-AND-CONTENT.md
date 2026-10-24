@@ -122,7 +122,7 @@ Every reload is audited (who, when, diff), and is visible in the admin console h
 ## 6. Balance schema: key reference
 Legend: **HR** = hot-reloadable (§5). "TBD" = TBD by harness. **Source** = the spec the key comes from. All values are PROPOSED (DI-7).
 
-The generated [CONFIG-REFERENCE](CONFIG-REFERENCE.md) lists every key of the schema by category with its unit, bounds, hot-reload flag, tune range, audience, edit role, status and source (Q-CFG-15). Blocks listed in `PENDING_BLOCKS` in `scripts/gen_config_reference.py` are not annotated yet (NX-390).
+To add, rename or retire a key, agents follow the `add-config-key` skill (`.claude/skills/`), which lists the seven places a key lives. The generated [CONFIG-REFERENCE](CONFIG-REFERENCE.md) lists every key of the schema by category with its unit, bounds, hot-reload flag, tune range, audience, edit role, status and source (Q-CFG-15). Blocks listed in `PENDING_BLOCKS` in `scripts/gen_config_reference.py` are not annotated yet (NX-390).
 
 ### 6.1 Sim time & world
 | Key | Type | Unit | PROPOSED | Source | HR |
