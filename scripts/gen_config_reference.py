@@ -16,7 +16,7 @@ OUT = ROOT / "docs" / "specs" / "CONFIG-REFERENCE.md"
 
 EXEMPT_BLOCKS = {"schema_version"}
 # Blocks not yet annotated (NX-390 follow-up PRs); each leaves this list when its block is done.
-PENDING_BLOCKS = ["logistics", "capture", "campaign", "combat", "tasking", "director"]
+PENDING_BLOCKS = ["combat", "tasking", "director"]
 BLOCK_CATEGORY = {"sim": "WORLD", "air": "WORLD", "fow": "WORLD", "slots": "SLOTS", "logistics": "LOGISTICS",
                   "combat": "COMBAT", "capture": "CAPTURE", "campaign": "CAMPAIGN", "tasking": "TASKING",
                   "director": "DIRECTOR"}

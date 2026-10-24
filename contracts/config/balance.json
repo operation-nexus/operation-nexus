@@ -82,30 +82,54 @@
           "type": "number",
           "exclusiveMinimum": 0,
           "x-unit": "h (game)",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "CAMPAIGN",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 36.0, "max": 144.0, "step": 6.0, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a79",
+          "x-status": "PROPOSED"
         },
-        "strategic_node_kinds": {"description": "Node kinds that count as strategic nodes: the denominator of victory_node_frac and of the score and Momentum node shares (GAMEPLAY \u00a79, Q-GP-21, Q-DEV-21), unit node kinds.", "type": "array", "minItems": 1, "items": {"$ref": "../common/enums.json#/$defs/NodeKind"}, "x-unit": "node kinds", "x-hot-reload": false},
+        "strategic_node_kinds": {"description": "Node kinds that count as strategic nodes: the denominator of victory_node_frac and of the score and Momentum node shares (GAMEPLAY \u00a79, Q-GP-21, Q-DEV-21), unit node kinds.", "type": "array", "minItems": 1, "items": {"$ref": "../common/enums.json#/$defs/NodeKind"}, "x-unit": "node kinds", "x-hot-reload": false, "x-category": "CAMPAIGN", "x-audience": "OPERATOR", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "GAMEPLAY \u00a79", "x-status": "RULE_DEFAULT"},
         "victory_node_frac": {
           "description": "Share of strategic nodes (AIRBASE, FOB, PORT) the coalition must hold to win, unit fraction (GAMEPLAY §9).",
           "type": "number",
           "exclusiveMinimum": 0,
           "maximum": 1,
           "x-unit": "fraction",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "CAMPAIGN",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 0.4, "max": 1.0, "step": 0.05, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a79",
+          "x-status": "PROPOSED"
         },
         "victory_hold_min": {
           "description": "Game minutes the coalition must hold victory_node_frac without a dip, unit min of game time (GAMEPLAY §9).",
           "type": "number",
           "exclusiveMinimum": 0,
           "x-unit": "min (game)",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "CAMPAIGN",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 15.0, "max": 60.0, "step": 5.0, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a79",
+          "x-status": "PROPOSED"
         },
         "objective_period_min": {
           "description": "Game minutes an objective lasts before it expires, unit min of game time (GAMEPLAY §9, STATE-MACHINES 4.5). Hot reload applies from the next objective (Q-CFG-16).",
           "type": "number",
           "exclusiveMinimum": 0,
           "x-unit": "min (game)",
-          "x-hot-reload": true
+          "x-hot-reload": true,
+          "x-category": "CAMPAIGN",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 7.5, "max": 30.0, "step": 2.5, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a79",
+          "x-status": "PROPOSED"
         },
         "objective_mode": {
           "description": "timed: one system objective at a time; off: none (Q-GD-19). Set per campaign by the owner or an admin (Q-ALN-10).",
@@ -114,7 +138,13 @@
             "off"
           ],
           "x-unit": "enum",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "CAMPAIGN",
+          "x-audience": "OPERATOR",
+          "x-edit-role": "ADMIN",
+          "x-tune": null,
+          "x-source": "GAMEPLAY \u00a79",
+          "x-status": "RULE_DEFAULT"
         },
         "score": {
           "description": "Time-limit score (Q-GD-29, Q-SIM-64).",
@@ -131,21 +161,39 @@
               "type": "number",
               "minimum": 0,
               "x-unit": "points",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "CAMPAIGN",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 25.0, "max": 100.0, "step": 5.0, "scale": "LINEAR"},
+              "x-source": "STATE-MACHINES \u00a74.4",
+              "x-status": "PROPOSED"
             },
             "final_weight": {
               "description": "Points for a side's share of strategic nodes at the final tick, unit points (STATE-MACHINES 4.4, Q-SIM-64).",
               "type": "number",
               "minimum": 0,
               "x-unit": "points",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "CAMPAIGN",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 25.0, "max": 100.0, "step": 5.0, "scale": "LINEAR"},
+              "x-source": "STATE-MACHINES \u00a74.4",
+              "x-status": "PROPOSED"
             },
             "objective_points": {
               "description": "Points to the coalition per completed objective, unit points (STATE-MACHINES 4.4).",
               "type": "number",
               "minimum": 0,
               "x-unit": "points per objective",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "CAMPAIGN",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 2.5, "max": 10.0, "step": 0.5, "scale": "LINEAR"},
+              "x-source": "STATE-MACHINES \u00a74.4",
+              "x-status": "PROPOSED"
             }
           }
         },
@@ -154,16 +202,22 @@
           "type": "number",
           "exclusiveMinimum": 0,
           "x-unit": "nodes/h (game)",
-          "x-hot-reload": true
+          "x-hot-reload": true,
+          "x-category": "CAMPAIGN",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 0.08, "max": 0.34, "step": 0.02, "scale": "LINEAR"},
+          "x-source": "THREAT-DIRECTOR \u00a75, Q-GD-4",
+          "x-status": "PROPOSED"
         },
         "victory": {"description": "Victory rules (GAMEPLAY \u00a79, Q-CFG-16).", "type": "object", "additionalProperties": false, "required": ["hq_capture"], "properties": {
-          "hq_capture": {"description": "Whether the coalition capturing the enemy HQ wins the campaign at once (GAMEPLAY \u00a79; decided rule as default, Q-CFG-16 option); false leaves the hold and time-limit endings, unit switch.", "type": "boolean", "x-unit": "switch", "x-hot-reload": false}
+          "hq_capture": {"description": "Whether the coalition capturing the enemy HQ wins the campaign at once (GAMEPLAY \u00a79; decided rule as default, Q-CFG-16 option); false leaves the hold and time-limit endings, unit switch.", "type": "boolean", "x-unit": "switch", "x-hot-reload": false, "x-category": "CAMPAIGN", "x-audience": "OPERATOR", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "GAMEPLAY \u00a79", "x-status": "RULE_DEFAULT"}
         }},
         "idle_floor": {"description": "The idle floor while no viewer unit is live (Q-GP-28, Q-GP-44, Q-CFG-16).", "type": "object", "additionalProperties": false, "required": ["enabled", "sanctuary_min_hp"], "properties": {
-          "enabled": {"description": "Whether the idle floor applies with no live viewer unit: the theater's forward airbase's capture bar is frozen while the coalition owns it, the coalition sanctuary's defense HP cannot drop below sanctuary_min_hp, and the defeat clock does not advance (GAMEPLAY \u00a70 and \u00a79; decided rule as default, Q-CFG-16 option), unit switch.", "type": "boolean", "x-unit": "switch", "x-hot-reload": false},
-          "sanctuary_min_hp": {"description": "The least defense HP the coalition sanctuary may be reduced to while the idle floor holds (Q-GP-44, Q-TH-7); at most capture.defense_hp.SANCTUARY, unit hp.", "type": "integer", "minimum": 1, "x-unit": "hp", "x-hot-reload": false}
+          "enabled": {"description": "Whether the idle floor applies with no live viewer unit: the theater's forward airbase's capture bar is frozen while the coalition owns it, the coalition sanctuary's defense HP cannot drop below sanctuary_min_hp, and the defeat clock does not advance (GAMEPLAY \u00a70 and \u00a79; decided rule as default, Q-CFG-16 option), unit switch.", "type": "boolean", "x-unit": "switch", "x-hot-reload": false, "x-category": "CAMPAIGN", "x-audience": "OPERATOR", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "GAMEPLAY \u00a70, \u00a79", "x-status": "RULE_DEFAULT"},
+          "sanctuary_min_hp": {"description": "The least defense HP the coalition sanctuary may be reduced to while the idle floor holds (Q-GP-44, Q-TH-7); at most capture.defense_hp.SANCTUARY, unit hp.", "type": "integer", "minimum": 1, "x-unit": "hp", "x-hot-reload": false, "x-category": "CAMPAIGN", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 1, "max": 2, "step": 1, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a79, Q-TH-7", "x-status": "RULE_DEFAULT"}
         }},
-        "objective_pick": {"description": "How a timed objective's node is picked among the frontline candidates: uniform, one draw on the objective stream (GAMEPLAY \u00a79, Q-CFG-16; the only value today, the key exists for later weightings). Objectives score for the coalition only either way, unit enum.", "enum": ["uniform"], "x-unit": "enum", "x-hot-reload": false},
+        "objective_pick": {"description": "How a timed objective's node is picked among the frontline candidates: uniform, one draw on the objective stream (GAMEPLAY \u00a79, Q-CFG-16; the only value today, the key exists for later weightings). Objectives score for the coalition only either way, unit enum.", "enum": ["uniform"], "x-unit": "enum", "x-hot-reload": false, "x-category": "CAMPAIGN", "x-audience": "OPERATOR", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "GAMEPLAY \u00a79", "x-status": "RULE_DEFAULT"},
         "momentum": {
           "description": "Momentum weights (Q-SIM-60): momentum % = nodes_weight x the coalition's share of strategic nodes + supply_weight x its supply fill. They must add up to 100.",
           "type": "object",
@@ -179,7 +233,13 @@
               "minimum": 0,
               "maximum": 100,
               "x-unit": "percentage points",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "CAMPAIGN",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 35.0, "max": 100.0, "step": 5.0, "scale": "LINEAR"},
+              "x-source": "GAMEPLAY \u00a79, Q-SIM-60",
+              "x-status": "PROPOSED"
             },
             "supply_weight": {
               "description": "Weight of the coalition's supply fill, unit percentage points.",
@@ -187,7 +247,13 @@
               "minimum": 0,
               "maximum": 100,
               "x-unit": "percentage points",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "CAMPAIGN",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 15.0, "max": 60.0, "step": 5.0, "scale": "LINEAR"},
+              "x-source": "GAMEPLAY \u00a79, Q-SIM-60",
+              "x-status": "PROPOSED"
             }
           }
         },
@@ -204,7 +270,13 @@
               "type": "number",
               "exclusiveMinimum": 0,
               "x-unit": "min (game)",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "CAMPAIGN",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 15.0, "max": 60.0, "step": 5.0, "scale": "LINEAR"},
+              "x-source": "GAMEPLAY \u00a79",
+              "x-status": "PROPOSED"
             }
           }
         }
@@ -280,21 +352,39 @@
           "type": "number",
           "exclusiveMinimum": 0,
           "x-unit": "m",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "CAPTURE",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 1000.0, "max": 4000.0, "step": 250.0, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a78",
+          "x-status": "PROPOSED"
         },
         "time_s": {
           "description": "World seconds one capturer takes to fill a node's capture bar before the quiet-stream and garrison modifiers, unit s of world time (GAMEPLAY \u00a78).",
           "type": "number",
           "exclusiveMinimum": 0,
           "x-unit": "s (world)",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "CAPTURE",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 60.0, "max": 240.0, "step": 10.0, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a78",
+          "x-status": "PROPOSED"
         },
         "multi_unit_exponent": {
           "description": "Diminishing returns: the capture time is divided by n to this power, n the weighted capturers in radius, unit exponent (Q-SIM-26).",
           "type": "number",
           "minimum": 0,
           "x-unit": "exponent",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "CAPTURE",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 0.25, "max": 1.0, "step": 0.05, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a78, Q-SIM-26",
+          "x-status": "PROPOSED"
         },
         "quiet_floor": {
           "description": "The quiet-stream multiplier on the capture time of the quiet_sides at 0 live viewer units, rising linearly to 1.0 at quiet_ref, unit multiplier (Q-SIM-26). Hot-reloadable (Q-CFG-16).",
@@ -302,56 +392,104 @@
           "exclusiveMinimum": 0,
           "maximum": 1,
           "x-unit": "multiplier",
-          "x-hot-reload": true
+          "x-hot-reload": true,
+          "x-category": "CAPTURE",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 0.3, "max": 1.0, "step": 0.05, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a78, Q-SIM-26",
+          "x-status": "PROPOSED"
         },
         "quiet_ref": {
           "description": "Live viewer units at which the quiet-stream multiplier reaches 1.0, unit viewer units (Q-SIM-26).",
           "type": "integer",
           "minimum": 1,
           "x-unit": "viewer units",
-          "x-hot-reload": true
+          "x-hot-reload": true,
+          "x-category": "CAPTURE",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 25, "max": 100, "step": 1, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a78, Q-SIM-26",
+          "x-status": "PROPOSED"
         },
         "min_time_s": {
           "description": "The shortest a capture may take, before the garrison modifier, unit s of world time (Q-GP-4).",
           "type": "number",
           "exclusiveMinimum": 0,
           "x-unit": "s (world)",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "CAPTURE",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 15.0, "max": 60.0, "step": 5.0, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a78, Q-SIM-26",
+          "x-status": "PROPOSED"
         },
         "logi_weight": {
           "description": "How much of a capturer a logistics unit counts for, unit capturer weight (Q-SM-7).",
           "type": "number",
           "exclusiveMinimum": 0,
           "x-unit": "capturer weight",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "CAPTURE",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 0.25, "max": 1.0, "step": 0.05, "scale": "LINEAR"},
+          "x-source": "STATE-MACHINES \u00a74.2",
+          "x-status": "PROPOSED"
         },
         "garrison_mult": {
           "description": "Capture-time multiplier while a defender that cannot contest (parked air, an unarmed ground unit) is at the base, unit multiplier (Q-GD-32, Q-SM-8).",
           "type": "number",
           "exclusiveMinimum": 0,
           "x-unit": "multiplier",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "CAPTURE",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 1.5, "max": 6.0, "step": 0.5, "scale": "LINEAR"},
+          "x-source": "STATE-MACHINES \u00a74.2",
+          "x-status": "PROPOSED"
         },
         "empty_base_mult": {
           "description": "Capture-time multiplier while the owning side has no unit at the base, unit multiplier (Q-GD-32, Q-SM-8).",
           "type": "number",
           "exclusiveMinimum": 0,
           "x-unit": "multiplier",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "CAPTURE",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 0.25, "max": 1.0, "step": 0.05, "scale": "LINEAR"},
+          "x-source": "STATE-MACHINES \u00a74.2",
+          "x-status": "PROPOSED"
         },
         "decay_per_s": {
           "description": "Share of the capture bar that drains per world second while the capturers are gone, unit fraction of the bar per s of world time (Q-SIM-23, Q-SIM-57). Counted in millionths of a percent per tick, rounded.",
           "type": "number",
           "exclusiveMinimum": 0,
           "x-unit": "bar fraction/s (world)",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "CAPTURE",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 0.004, "max": 0.017, "step": 0.001, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a78",
+          "x-status": "PROPOSED"
         },
         "min_progress_per_tick": {
           "description": "The least a capture bar gains per tick while a side captures, however slow the capture time, unit millionths of a percent of the bar per tick (NX-125, Q-DEV-21). 1 means a bar always moves.",
           "type": "integer",
           "minimum": 1,
           "x-unit": "millionths of a percent per tick",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "CAPTURE",
+          "x-audience": "DEVELOPER",
+          "x-edit-role": "ADMIN",
+          "x-tune": null,
+          "x-source": "GAMEPLAY \u00a78",
+          "x-status": "PROPOSED"
         },
         "defense_hp": {
           "description": "The most defense HP a node of each kind has (Q-SIM-71, GAMEPLAY §8): an owned node starts full, a NEUTRAL one at 0, and a node that changes hands starts at 0 for its new owner. A BRIDGE has none here: its hp is logistics.bridge_hp (NX-373).",
@@ -365,11 +503,11 @@
             "SANCTUARY"
           ],
           "properties": {
-            "AIRBASE": {"type": "integer", "minimum": 1, "x-unit": "hp", "x-hot-reload": false},
-            "FOB": {"type": "integer", "minimum": 1, "x-unit": "hp", "x-hot-reload": false},
-            "HQ": {"type": "integer", "minimum": 1, "x-unit": "hp", "x-hot-reload": false},
-            "PORT": {"type": "integer", "minimum": 1, "x-unit": "hp", "x-hot-reload": false},
-            "SANCTUARY": {"type": "integer", "minimum": 1, "x-unit": "hp", "x-hot-reload": false}
+            "AIRBASE": {"type": "integer", "minimum": 1, "x-unit": "hp", "x-hot-reload": false, "x-category": "CAPTURE", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 250, "max": 1000, "step": 1, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a78", "x-status": "PROPOSED"},
+            "FOB": {"type": "integer", "minimum": 1, "x-unit": "hp", "x-hot-reload": false, "x-category": "CAPTURE", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 150, "max": 600, "step": 1, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a78", "x-status": "PROPOSED"},
+            "HQ": {"type": "integer", "minimum": 1, "x-unit": "hp", "x-hot-reload": false, "x-category": "CAPTURE", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 400, "max": 1600, "step": 1, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a78", "x-status": "PROPOSED"},
+            "PORT": {"type": "integer", "minimum": 1, "x-unit": "hp", "x-hot-reload": false, "x-category": "CAPTURE", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 150, "max": 600, "step": 1, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a78", "x-status": "PROPOSED"},
+            "SANCTUARY": {"type": "integer", "minimum": 1, "x-unit": "hp", "x-hot-reload": false, "x-category": "CAPTURE", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 500, "max": 2000, "step": 1, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a78", "x-status": "PROPOSED"}
           }
         },
         "sanctuary_repair_hp_per_s": {
@@ -377,13 +515,19 @@
           "type": "number",
           "exclusiveMinimum": 0,
           "x-unit": "hp/s (world) per unit",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "CAPTURE",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 0.5, "max": 2.0, "step": 0.1, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a79",
+          "x-status": "PROPOSED"
         },
-        "uncapturable_node_kinds": {"description": "Node kinds that are never captured: no capture bar, not a base for the Director's targets, not a timed-objective candidate, no defenses to rebuild for the Static board (GAMEPLAY \u00a78, N-4, NX-373, Q-DEV-21); must include BRIDGE (a bridge has no owner or stock); SANCTUARY may be removed, which also makes a sanctuary a Director base and patrol point, unit node kinds.", "type": "array", "items": {"$ref": "../common/enums.json#/$defs/NodeKind"}, "x-unit": "node kinds", "x-hot-reload": false},
-        "requires_defenses_down": {"description": "Whether a capture bar can start only on a node whose defense HP is 0 (GAMEPLAY \u00a78, Q-GD-18; decided rule as default, Q-CFG-16 option); false lets a bar start whatever the defenses, unit switch.", "type": "boolean", "x-unit": "switch", "x-hot-reload": false},
-        "air_counts": {"description": "Whether airborne aircraft count as capturers, each weighing air_weight (GAMEPLAY \u00a78, N-3; decided rule as default: they never count, Q-CFG-16 option). They never contest either way; LANDED aircraft only garrison, unit switch.", "type": "boolean", "x-unit": "switch", "x-hot-reload": false},
-        "air_weight": {"description": "How much of a capturer an airborne aircraft counts for, read only when air_counts is true (Q-CFG-16), unit capturer weight.", "type": "number", "exclusiveMinimum": 0, "x-unit": "capturer weight", "x-hot-reload": false},
-        "quiet_sides": {"description": "The sides whose capture time gets the quiet-stream multiplier (Q-SIM-26: the coalition only, a documented asymmetry; Q-CFG-16 option); empty turns it off, unit sides.", "type": "array", "items": {"$ref": "../common/enums.json#/$defs/Side"}, "x-unit": "sides", "x-hot-reload": false}
+        "uncapturable_node_kinds": {"description": "Node kinds that are never captured: no capture bar, not a base for the Director's targets, not a timed-objective candidate, no defenses to rebuild for the Static board (GAMEPLAY \u00a78, N-4, NX-373, Q-DEV-21); must include BRIDGE (a bridge has no owner or stock); SANCTUARY may be removed, which also makes a sanctuary a Director base and patrol point, unit node kinds.", "type": "array", "items": {"$ref": "../common/enums.json#/$defs/NodeKind"}, "x-unit": "node kinds", "x-hot-reload": false, "x-category": "CAPTURE", "x-audience": "OPERATOR", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "GAMEPLAY \u00a78", "x-status": "RULE_DEFAULT"},
+        "requires_defenses_down": {"description": "Whether a capture bar can start only on a node whose defense HP is 0 (GAMEPLAY \u00a78, Q-GD-18; decided rule as default, Q-CFG-16 option); false lets a bar start whatever the defenses, unit switch.", "type": "boolean", "x-unit": "switch", "x-hot-reload": false, "x-category": "CAPTURE", "x-audience": "OPERATOR", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "GAMEPLAY \u00a78", "x-status": "RULE_DEFAULT"},
+        "air_counts": {"description": "Whether airborne aircraft count as capturers, each weighing air_weight (GAMEPLAY \u00a78, N-3; decided rule as default: they never count, Q-CFG-16 option). They never contest either way; LANDED aircraft only garrison, unit switch.", "type": "boolean", "x-unit": "switch", "x-hot-reload": false, "x-category": "CAPTURE", "x-audience": "OPERATOR", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "GAMEPLAY \u00a78, STATE-MACHINES \u00a74.2", "x-status": "RULE_DEFAULT"},
+        "air_weight": {"description": "How much of a capturer an airborne aircraft counts for, read only when air_counts is true (Q-CFG-16), unit capturer weight.", "type": "number", "exclusiveMinimum": 0, "x-unit": "capturer weight", "x-hot-reload": false, "x-category": "CAPTURE", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 0.5, "max": 2.0, "step": 0.1, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a78", "x-status": "RULE_DEFAULT"},
+        "quiet_sides": {"description": "The sides whose capture time gets the quiet-stream multiplier (Q-SIM-26: the coalition only, a documented asymmetry; Q-CFG-16 option); empty turns it off, unit sides.", "type": "array", "items": {"$ref": "../common/enums.json#/$defs/Side"}, "x-unit": "sides", "x-hot-reload": false, "x-category": "CAPTURE", "x-audience": "OPERATOR", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "GAMEPLAY \u00a78, Q-SIM-26", "x-status": "RULE_DEFAULT"}
       }
     },
     "Combat": {
@@ -819,31 +963,61 @@
           "type": "integer",
           "minimum": 0,
           "x-unit": "stock units",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "LOGISTICS",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 1000, "max": 4000, "step": 1, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a75",
+          "x-status": "PROPOSED"
         },
         "BRIDGE": {
           "type": "integer",
           "minimum": 0,
           "x-unit": "stock units",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "LOGISTICS",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": null,
+          "x-source": "GAMEPLAY \u00a75",
+          "x-status": "PROPOSED"
         },
         "FOB": {
           "type": "integer",
           "minimum": 0,
           "x-unit": "stock units",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "LOGISTICS",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 500, "max": 2000, "step": 1, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a75",
+          "x-status": "PROPOSED"
         },
         "HQ": {
           "type": "integer",
           "minimum": 0,
           "x-unit": "stock units",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "LOGISTICS",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 1000, "max": 4000, "step": 1, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a75",
+          "x-status": "PROPOSED"
         },
         "PORT": {
           "type": "integer",
           "minimum": 0,
           "x-unit": "stock units",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "LOGISTICS",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 500, "max": 2000, "step": 1, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a75",
+          "x-status": "PROPOSED"
         }
           }
         },
@@ -853,7 +1027,13 @@
           "minimum": 0,
           "maximum": 1,
           "x-unit": "fraction of node_max_stock",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "LOGISTICS",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 0.125, "max": 0.5, "step": 0.025, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a75",
+          "x-status": "PROPOSED"
         },
         "stock_target_frac": {
           "description": "Forward stock target (Q-SIM-100, Q-SIM-102, NX-389), unit fraction of node_max_stock: a base the side owns below ceil(stock_target_frac x max) gets a resupply job even when it is not starved (a stocking job), and a run to such a base (not starved, no damaged facility) loads only stock a source holds above its own target, else at the side's rear source. At starve_threshold or below there are no stocking jobs.",
@@ -861,35 +1041,65 @@
           "minimum": 0,
           "maximum": 1,
           "x-unit": "fraction of node_max_stock",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "LOGISTICS",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 0.4, "max": 1.0, "step": 0.05, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a75",
+          "x-status": "PROPOSED"
         },
         "truck_cargo": {
           "description": "The most cargo a truck loads, unit stock units; one global value for every cargo-carrying kind (GAMEPLAY \u00a75).",
           "type": "integer",
           "minimum": 1,
           "x-unit": "stock units",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "LOGISTICS",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 50, "max": 200, "step": 1, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a75",
+          "x-status": "PROPOSED"
         },
         "unload_rate": {
           "description": "Stock a parked truck moves into its destination per world second, unit stock per s of world time, frozen while paused (GAMEPLAY \u00a75, Q-SIM-50). Counted in whole milli-units per tick, so it is rounded to 0.001 per tick.",
           "type": "number",
           "exclusiveMinimum": 0,
           "x-unit": "stock/s (world)",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "LOGISTICS",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 0.5, "max": 2.0, "step": 0.1, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a75",
+          "x-status": "PROPOSED"
         },
         "rearm_rate": {
           "description": "Stock a landed aircraft buys at a base per world second, unit stock per s of world time, frozen while paused (Q-SIM-51). Counted in whole milli-units per tick, so it is rounded to 0.001 per tick.",
           "type": "number",
           "exclusiveMinimum": 0,
           "x-unit": "stock/s (world)",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "LOGISTICS",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 0.25, "max": 1.0, "step": 0.05, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a75",
+          "x-status": "PROPOSED"
         },
         "forward_deploy_min_surplus": {
           "description": "Stock a spawn base must hold above its starvation floor, unit stock units, before a JOIN may forward-deploy there (GAMEPLAY GP-7, Q-SIM-54).",
           "type": "integer",
           "minimum": 0,
           "x-unit": "stock units",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "LOGISTICS",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 25, "max": 100, "step": 1, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a74, Q-GP-41",
+          "x-status": "PROPOSED"
         },
         "starved_loadout": {
           "description": "What a base below its starvation floor fills a landed unit up to (Q-SIM-53).",
@@ -905,7 +1115,13 @@
               "minimum": 0,
               "maximum": 1,
               "x-unit": "fraction of fuel_s",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "LOGISTICS",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 0.25, "max": 1.0, "step": 0.05, "scale": "LINEAR"},
+              "x-source": "GAMEPLAY \u00a75",
+              "x-status": "PROPOSED"
             }
           }
         },
@@ -929,55 +1145,109 @@
               "type": "integer",
               "minimum": 0,
               "x-unit": "stock units",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "LOGISTICS",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 8, "max": 30, "step": 1, "scale": "LINEAR"},
+              "x-source": "GAMEPLAY \u00a75",
+              "x-status": "PROPOSED"
             },
             "ENEMY_CONVOY": {
               "type": "integer",
               "minimum": 0,
               "x-unit": "stock units",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "LOGISTICS",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": null,
+              "x-source": "GAMEPLAY \u00a75",
+              "x-status": "PROPOSED"
             },
             "ENEMY_FIGHTER": {
               "type": "integer",
               "minimum": 0,
               "x-unit": "stock units",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "LOGISTICS",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 10, "max": 40, "step": 1, "scale": "LINEAR"},
+              "x-source": "GAMEPLAY \u00a75",
+              "x-status": "PROPOSED"
             },
             "ENEMY_RECON_UAV": {
               "type": "integer",
               "minimum": 0,
               "x-unit": "stock units",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "LOGISTICS",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 3, "max": 10, "step": 1, "scale": "LINEAR"},
+              "x-source": "GAMEPLAY \u00a75",
+              "x-status": "PROPOSED"
             },
             "ENEMY_STRIKE_FIGHTER": {
               "type": "integer",
               "minimum": 0,
               "x-unit": "stock units",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "LOGISTICS",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 10, "max": 40, "step": 1, "scale": "LINEAR"},
+              "x-source": "GAMEPLAY \u00a75",
+              "x-status": "PROPOSED"
             },
             "GARRISON_INFANTRY": {
               "type": "integer",
               "minimum": 0,
               "x-unit": "stock units",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "LOGISTICS",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 3, "max": 10, "step": 1, "scale": "LINEAR"},
+              "x-source": "GAMEPLAY \u00a75",
+              "x-status": "PROPOSED"
             },
             "LOGI_TRUCK": {
               "type": "integer",
               "minimum": 0,
               "x-unit": "stock units",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "LOGISTICS",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": null,
+              "x-source": "GAMEPLAY \u00a75",
+              "x-status": "PROPOSED"
             },
             "RECON_UAV": {
               "type": "integer",
               "minimum": 0,
               "x-unit": "stock units",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "LOGISTICS",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 3, "max": 10, "step": 1, "scale": "LINEAR"},
+              "x-source": "GAMEPLAY \u00a75",
+              "x-status": "PROPOSED"
             },
             "STRIKE_FIGHTER": {
               "type": "integer",
               "minimum": 0,
               "x-unit": "stock units",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "LOGISTICS",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 10, "max": 40, "step": 1, "scale": "LINEAR"},
+              "x-source": "GAMEPLAY \u00a75",
+              "x-status": "PROPOSED"
             }
           }
         },
@@ -998,35 +1268,65 @@
               "type": "number",
               "minimum": 0,
               "x-unit": "hp/s (world)",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "LOGISTICS",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 0.5, "max": 2.0, "step": 0.1, "scale": "LINEAR"},
+              "x-source": "GAMEPLAY \u00a75",
+              "x-status": "PROPOSED"
             },
             "FOB": {
               "description": "Repair rate at a base of this kind, unit hp per s (world).",
               "type": "number",
               "minimum": 0,
               "x-unit": "hp/s (world)",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "LOGISTICS",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 0.25, "max": 1.0, "step": 0.05, "scale": "LINEAR"},
+              "x-source": "GAMEPLAY \u00a75",
+              "x-status": "PROPOSED"
             },
             "HQ": {
               "description": "Repair rate at a base of this kind, unit hp per s (world).",
               "type": "number",
               "minimum": 0,
               "x-unit": "hp/s (world)",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "LOGISTICS",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 0.5, "max": 2.0, "step": 0.1, "scale": "LINEAR"},
+              "x-source": "GAMEPLAY \u00a75",
+              "x-status": "PROPOSED"
             },
             "PORT": {
               "description": "Repair rate at a base of this kind, unit hp per s (world).",
               "type": "number",
               "minimum": 0,
               "x-unit": "hp/s (world)",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "LOGISTICS",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 0.5, "max": 2.0, "step": 0.1, "scale": "LINEAR"},
+              "x-source": "GAMEPLAY \u00a75",
+              "x-status": "PROPOSED"
             },
             "SANCTUARY": {
               "description": "Repair rate at a base of this kind, unit hp per s (world).",
               "type": "number",
               "minimum": 0,
               "x-unit": "hp/s (world)",
-              "x-hot-reload": false
+              "x-hot-reload": false,
+              "x-category": "LOGISTICS",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 1.0, "max": 4.0, "step": 0.25, "scale": "LINEAR"},
+              "x-source": "GAMEPLAY \u00a75",
+              "x-status": "PROPOSED"
             }
           }
         },
@@ -1035,14 +1335,26 @@
           "type": "integer",
           "minimum": 1,
           "x-unit": "hp per stock unit",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "LOGISTICS",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 5, "max": 20, "step": 1, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a75b",
+          "x-status": "PROPOSED"
         },
         "facility_rearm_cost": {
           "description": "Stock a facility's base pays for a full reload of all the facility's weapons, unit stock units, in proportion to the ammo share used (GAMEPLAY §5b, Q-SIM-69); free at a sanctuary.",
           "type": "integer",
           "minimum": 1,
           "x-unit": "stock units",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "LOGISTICS",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 5, "max": 20, "step": 1, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a75b",
+          "x-status": "PROPOSED"
         },
         "ammo_loadout_share": {
           "description": "Of a unit's loadout_cost, the share its ammo costs when the kind has both ammo and a fuel tank; fuel pays the rest (GAMEPLAY \u00a75, Q-SIM-69, Q-DEV-21). A kind with no fuel pays all of it for ammo. Unit fraction.",
@@ -1050,49 +1362,91 @@
           "minimum": 0,
           "maximum": 1,
           "x-unit": "fraction",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "LOGISTICS",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 0.25, "max": 1.0, "step": 0.05, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a75",
+          "x-status": "PROPOSED"
         },
         "starve_hp_drain_per_min": {
           "description": "Defense HP a base below its starvation floor loses per game minute, unit hp per min of game time (GAMEPLAY §8, Q-SIM-71); 0 turns the drain off. Whole hp, carried across ticks.",
           "type": "integer",
           "minimum": 0,
           "x-unit": "hp per min (game)",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "LOGISTICS",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 3, "max": 10, "step": 1, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a78",
+          "x-status": "PROPOSED"
         },
         "defense_repair_hp_per_stock": {
           "description": "Defense HP one stock unit unloaded into a node rebuilds, unit hp per stock unit (GAMEPLAY §8, Q-SIM-71), up to the node's defense_hp.",
           "type": "integer",
           "minimum": 1,
           "x-unit": "hp per stock unit",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "LOGISTICS",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 1, "max": 4, "step": 1, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a78",
+          "x-status": "PROPOSED"
         },
         "bridge_hp": {
           "description": "The most HP a BRIDGE node has, unit hp (STATE-MACHINES §4.3, Q-SIM-101, NX-373): every bridge starts full; STRUCTURE fire from a unit striking it lowers it, and at 0 the bridge is down and its road edge is cut for path planning until it is repaired to full. Not a capture defense (capture.defense_hp).",
           "type": "integer",
           "minimum": 1,
           "x-unit": "hp",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "LOGISTICS",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 150, "max": 600, "step": 1, "scale": "LINEAR"},
+          "x-source": "STATE-MACHINES \u00a74.3, GAMEPLAY \u00a75",
+          "x-status": "PROPOSED"
         },
         "bridge_collapse_radius_m": {
           "description": "How far from a bridge's cut point, measured along its road edge, a GROUND unit (either side) on that edge is destroyed when the bridge falls, unit m (STATE-MACHINES \u00a74.3, Q-SIM-112, NX-400): Destroyed with its cargo, the shooter of the dropping hit credited, before paths are rerouted. Aircraft are not affected.",
           "type": "number",
           "minimum": 0,
           "x-unit": "m",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "LOGISTICS",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 500.0, "max": 2000.0, "step": 100.0, "scale": "LINEAR"},
+          "x-source": "STATE-MACHINES \u00a74.3, GAMEPLAY \u00a75",
+          "x-status": "PROPOSED"
         },
         "bridge_repair_time_s": {
           "description": "How long an engineer takes to repair a bridge from 0 to full HP, unit s of world time (STATE-MACHINES \u00a74.3, Q-GD-11, Q-ALN-23, NX-373 part 2). Engineers are not in code yet; it is the baseline a truck's slower rate is derived from (truck_bridge_repair_mult).",
           "type": "number",
           "exclusiveMinimum": 0,
           "x-unit": "s (world)",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "LOGISTICS",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 300.0, "max": 1200.0, "step": 50.0, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a75, STATE-MACHINES \u00a74.3",
+          "x-status": "PROPOSED"
         },
         "truck_bridge_repair_mult": {
           "description": "How many times longer one logistics truck takes than an engineer to repair a bridge (Q-GD-11: slow field repair), unit multiplier on bridge_repair_time_s. Each carrier parked at the bridge's repair stop adds bridge_hp / (bridge_repair_time_s x this) hp per world second, so two trucks repair twice as fast; the loader refuses a rate below 0.001 hp per tick.",
           "type": "number",
           "minimum": 1,
           "x-unit": "multiplier",
-          "x-hot-reload": false
+          "x-hot-reload": false,
+          "x-category": "LOGISTICS",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 2.5, "max": 10.0, "step": 0.5, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a75, STATE-MACHINES \u00a74.3",
+          "x-status": "PROPOSED"
         }
       }
     },
