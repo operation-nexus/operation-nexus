@@ -8,6 +8,7 @@ description: The Operation Nexus development loop for the lead (Opus) session โ€
 Goal: work runs **as autonomously as possible** and pings the owner rarely (Q-DEV-1). The lead owns the outcome; subagents do the typing and the checking.
 
 ## 1. Brief (lead)
+- First check that project settings loaded: `echo $CLAUDE_CODE_SUBAGENT_MODEL` prints `sonnet`. Empty means `.claude/settings.json` was not read (a cloud session with more than one repository reads only its plugin keys), so the guard and format hooks and the read denies are off: pass `model:` on every Agent call, keep `.env` and keys out of reads by hand, and tell the owner once (OWNER-TODO ยง4f, L-19).
 - Pick one tracker item (or one error ticket, ERROR-PIPELINE). Read its spec sections, the role card, and the open Q-rows it touches.
 - Before a brief states a rule or a number, grep OPEN-QUESTIONS for a decided row on it and cite the row; a brief that contradicts a decided row is wrong (L-14).
 - Write the coder brief: tracker ID, the role card, spec sections and Q-rows to read (the agent files list the standing reading: AGENTS.md, CLAUDE.md, code-quality, DATA-INTEGRITY, DoD), the exact acceptance criteria, files likely touched, what is out of scope, and the docs that must change with it.
@@ -62,7 +63,7 @@ The lead **asks the owner** only for:
 
 Before a gameplay design question goes to the owner, or when an owner proposal changes what players or watchers see, run `entertainment-reviewer` in proposal mode and put its pick and risks next to the question (Q-DEV-22).
 
-How to ask: batch the questions. In an interactive session use `/grill-with-docs` when the answer changes a spec, ADR or glossary, else `/grilling`. In an unattended run (cloud, routine) post the questions on the PR or issue, `@SaltySeraphCodes`, assign it, and move on to other work; don't block.
+How to ask: batch the questions. In an interactive session ask the owner to type `/grill-with-docs` (it is user-only, `disable-model-invocation`) when the answer changes a spec, ADR or glossary; else run `grilling` yourself. In an unattended run (cloud, routine) post the questions on the PR or issue, `@SaltySeraphCodes`, assign it, and move on to other work; don't block.
 
 ## 4. Done means
 - Code, tests and every affected doc (spec, contracts, config tables, READMEs, tracker) agree; QA checked it.
