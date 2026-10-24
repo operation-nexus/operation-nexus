@@ -140,6 +140,20 @@ export interface VisualUnit {
   isAiControlled: boolean;
   trailHistory: Array<{ x: number; y: number; alpha: number }>;
 }
+
+export interface VisualEdge {
+  id: string;
+  sourceNodeId: string;
+  targetNodeId: string;
+  layer: 'ROAD' | 'SEA_LANE';
+  roadClass: 'MSR_PRIMARY' | 'CONNECTOR_SPUR' | 'BRIDGE_CAUSEWAY';
+  speedMult: number;
+  bridgeId?: string;
+  bridgeIntegrityPct?: number; // 0 to 100
+  activeConvoyCount: number;
+  isContested: boolean;
+  waypointsMeters: Array<[number, number]>;
+}
 ```
 
 ---

@@ -790,16 +790,125 @@ function buildEnvironment() {
   bridgeSouth.position.set(0, 2, 110);
   scene.add(bridgeSouth);
 
-  // Airbases
+  // Bases & Infrastructure Nodes
   const baseMatCyan = new THREE.MeshBasicMaterial({ color: 0x00e5ff, wireframe: true });
-  const westAirbase = new THREE.Mesh(new THREE.CylinderGeometry(20, 24, 6, 12), baseMatCyan);
+  const baseMatMagenta = new THREE.MeshBasicMaterial({ color: 0xff0055, wireframe: true });
+  const baseMatNeutral = new THREE.MeshBasicMaterial({ color: 0xe2e8f0, wireframe: true });
+
+  // Coalition Haven Sanctuary (Far West)
+  const haven = new THREE.Mesh(new THREE.CylinderGeometry(18, 20, 5, 12), new THREE.MeshBasicMaterial({ color: 0x0284c7, wireframe: true }));
+  haven.position.set(-360, 2.5, 0);
+  scene.add(haven);
+
+  // West Airbase
+  const westAirbase = new THREE.Mesh(new THREE.CylinderGeometry(22, 26, 6, 12), baseMatCyan);
   westAirbase.position.set(-300, 3, 0);
   scene.add(westAirbase);
 
-  const baseMatMagenta = new THREE.MeshBasicMaterial({ color: 0xff0055, wireframe: true });
-  const eastAirbase = new THREE.Mesh(new THREE.CylinderGeometry(20, 24, 6, 12), baseMatMagenta);
-  eastAirbase.position.set(300, 3, 0);
+  // FOB North-West & South-West
+  const fobNW = new THREE.Mesh(new THREE.CylinderGeometry(14, 16, 5, 8), baseMatCyan);
+  fobNW.position.set(-140, 2.5, -110);
+  scene.add(fobNW);
+
+  const fobSW = new THREE.Mesh(new THREE.CylinderGeometry(14, 16, 5, 8), baseMatCyan);
+  fobSW.position.set(-140, 2.5, 110);
+  scene.add(fobSW);
+
+  // Bridgehead Crossings (Contested East Bank)
+  const crossN = new THREE.Mesh(new THREE.CylinderGeometry(12, 14, 4, 8), baseMatNeutral);
+  crossN.position.set(60, 2, -110);
+  scene.add(crossN);
+
+  const crossS = new THREE.Mesh(new THREE.CylinderGeometry(12, 14, 4, 8), baseMatNeutral);
+  crossS.position.set(60, 2, 110);
+  scene.add(crossS);
+
+  // Static FOBs & Airbase
+  const fobNE = new THREE.Mesh(new THREE.CylinderGeometry(14, 16, 5, 8), baseMatMagenta);
+  fobNE.position.set(180, 2.5, -150);
+  scene.add(fobNE);
+
+  const fobSE = new THREE.Mesh(new THREE.CylinderGeometry(14, 16, 5, 8), baseMatMagenta);
+  fobSE.position.set(180, 2.5, 150);
+  scene.add(fobSE);
+
+  const eastAirbase = new THREE.Mesh(new THREE.CylinderGeometry(22, 26, 6, 12), baseMatMagenta);
+  eastAirbase.position.set(220, 3, 0);
   scene.add(eastAirbase);
+
+  // Static HQ Fortress
+  const staticHQ = new THREE.Mesh(new THREE.BoxGeometry(28, 12, 28), baseMatMagenta);
+  staticHQ.position.set(360, 6, 0);
+  scene.add(staticHQ);
+
+  // --- ROAD NETWORK & MAIN SUPPLY ROUTES (MSR) ---
+  // Sitting at Y = +0.22m with polygonOffset to guarantee zero Z-fighting with Y = 0.0m terrain
+  const ROAD_EDGES = [
+    // Coalition Western Network
+    { from: [-360, 0], to: [-300, 0], width: 10, col: 0x00e5ff, name: 'MSR-HAVEN' },
+    { from: [-300, 0], to: [-140, -110], width: 8, col: 0x00e5ff, name: 'MSR-NORTH-SPUR' },
+    { from: [-300, 0], to: [-140, 110], width: 8, col: 0x00e5ff, name: 'MSR-SOUTH-SPUR' },
+    { from: [-140, -110], to: [-35, -110], width: 8, col: 0x00e5ff, name: 'APPROACH-N' },
+    { from: [-140, 110], to: [-35, 110], width: 8, col: 0x00e5ff, name: 'APPROACH-S' },
+    // Bridge Spans (Elevated at Y = 2.0m)
+    { from: [-35, -110], to: [35, -110], width: 14, col: 0xf59e0b, isBridge: true, y: 2.0, name: 'NORTH-BRIDGE' },
+    { from: [-35, 110], to: [35, 110], width: 14, col: 0xf59e0b, isBridge: true, y: 2.0, name: 'SOUTH-BRIDGE' },
+    // Contested East Bridgehead Exits
+    { from: [35, -110], to: [60, -110], width: 8, col: 0xe2e8f0, name: 'CROSS-N-EXIT' },
+    { from: [35, 110], to: [60, 110], width: 8, col: 0xe2e8f0, name: 'CROSS-S-EXIT' },
+    // Static Eastern Network
+    { from: [60, -110], to: [180, -150], width: 8, col: 0xff0055, name: 'STATIC-N-1' },
+    { from: [60, 110], to: [180, 150], width: 8, col: 0xff0055, name: 'STATIC-S-1' },
+    { from: [60, -110], to: [220, 0], width: 8, col: 0xff0055, name: 'STATIC-N-2' },
+    { from: [60, 110], to: [220, 0], width: 8, col: 0xff0055, name: 'STATIC-S-2' },
+    { from: [180, -150], to: [360, 0], width: 8, col: 0xff0055, name: 'STATIC-HQ-N' },
+    { from: [180, 150], to: [360, 0], width: 8, col: 0xff0055, name: 'STATIC-HQ-S' },
+    { from: [220, 0], to: [360, 0], width: 10, col: 0xff0055, name: 'STATIC-HQ-CTR' }
+  ];
+
+  ROAD_EDGES.forEach(edge => {
+    const x1 = edge.from[0], z1 = edge.from[1];
+    const x2 = edge.to[0], z2 = edge.to[1];
+    const dx = x2 - x1;
+    const dz = z2 - z1;
+    const len = Math.hypot(dx, dz);
+    const angle = Math.atan2(dz, dx);
+    const yElev = edge.y !== undefined ? edge.y : 0.22;
+
+    // Road Tarmac Ribbon Mesh
+    const roadGeo = new THREE.PlaneGeometry(len, edge.width);
+    roadGeo.rotateX(-Math.PI / 2);
+    const roadMat = new THREE.MeshStandardMaterial({
+      color: edge.isBridge ? 0x0f2b3f : 0x08131f,
+      emissive: edge.isBridge ? 0x021729 : 0x02070e,
+      roughness: 0.8,
+      metalness: 0.1,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -2
+    });
+    const roadMesh = new THREE.Mesh(roadGeo, roadMat);
+    roadMesh.position.set((x1 + x2) / 2, yElev, (z1 + z2) / 2);
+    roadMesh.rotation.y = -angle;
+    scene.add(roadMesh);
+
+    // Glowing Dash Centerline
+    const lineGeo = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(x1, yElev + 0.05, z1),
+      new THREE.Vector3(x2, yElev + 0.05, z2)
+    ]);
+    const lineMat = new THREE.LineDashedMaterial({
+      color: edge.col,
+      dashSize: 5,
+      gapSize: 4,
+      linewidth: 2,
+      transparent: true,
+      opacity: 0.85
+    });
+    const line = new THREE.Line(lineGeo, lineMat);
+    line.computeLineDistances();
+    scene.add(line);
+  });
 }
 
 function update3DUnits() {
@@ -838,8 +947,8 @@ function update3DUnits() {
         const uavMesh = new THREE.Mesh(uavGeo, mat);
         obj.add(uavMesh);
       } else if (u.kind === 'LOGI') {
-        const truckGeo = new THREE.BoxGeometry(8, 6, 12);
-        const truckMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, emissive: 0x451a03 });
+        const truckGeo = new THREE.BoxGeometry(8, 6, 14);
+        const truckMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, emissive: 0x451a03, roughness: 0.4 });
         const truckMesh = new THREE.Mesh(truckGeo, truckMat);
         obj.add(truckMesh);
       }
@@ -848,7 +957,45 @@ function update3DUnits() {
       unit3DObjects.set(u.id, obj);
     }
 
-    // Kinematics in 3D
+    // Ground Logistics Convoy follows theater road waypoints
+    if (u.kind === 'LOGI') {
+      const CONVOY_ROUTE = [
+        { x: -360, z: 0, y: 1.5 },
+        { x: -300, z: 0, y: 1.5 },
+        { x: -140, z: -110, y: 1.5 },
+        { x: -35, z: -110, y: 1.5 },
+        { x: 0, z: -110, y: 3.5 }, // Elevated on North Bridge
+        { x: 35, z: -110, y: 3.5 },
+        { x: 60, z: -110, y: 1.5 }, // North Crossing bridgehead
+        { x: 35, z: -110, y: 3.5 },
+        { x: 0, z: -110, y: 3.5 },
+        { x: -35, z: -110, y: 1.5 },
+        { x: -140, z: -110, y: 1.5 },
+        { x: -300, z: 0, y: 1.5 }
+      ];
+
+      if (u.routeIndex === undefined) {
+        u.routeIndex = 0;
+        u.routeProgress = 0.0;
+      }
+      const curr = CONVOY_ROUTE[u.routeIndex];
+      const next = CONVOY_ROUTE[(u.routeIndex + 1) % CONVOY_ROUTE.length];
+      const dist = Math.hypot(next.x - curr.x, next.z - curr.z);
+      u.routeProgress += 0.8 / (dist + 1e-4);
+      if (u.routeProgress >= 1.0) {
+        u.routeProgress = 0.0;
+        u.routeIndex = (u.routeIndex + 1) % CONVOY_ROUTE.length;
+      }
+      u.x = curr.x + (next.x - curr.x) * u.routeProgress;
+      u.z = curr.z + (next.z - curr.z) * u.routeProgress;
+      u.y = curr.y + (next.y - curr.y) * u.routeProgress;
+
+      obj.position.set(u.x, u.y, u.z);
+      obj.rotation.y = Math.atan2(next.x - curr.x, next.z - curr.z) - Math.PI / 2;
+      return;
+    }
+
+    // Kinematics in 3D for Air Units
     u.x += u.vx;
     u.z += u.vz;
     if (u.x < -360 || u.x > 360) u.vx *= -1;
@@ -1055,6 +1202,47 @@ function renderMfd() {
   mfdCtx.fillStyle = '#ecfdf5';
   mfdCtx.fillText('TGT-04 [BANDIT AI]', tgtX - 35, tgtY - 24);
   mfdCtx.fillText('CLOSURE: +340 M/S', tgtX - 35, tgtY + 36);
+
+  // Ground Supply Route Corridors (MSR) Overlay on MFD
+  mfdCtx.save();
+  mfdCtx.strokeStyle = 'rgba(16, 185, 129, 0.45)';
+  mfdCtx.lineWidth = 1.5;
+  mfdCtx.setLineDash([8, 6]);
+
+  // Route North (Haven -> West Airbase -> FOB NW -> Bridge N -> Cross N)
+  mfdCtx.beginPath();
+  mfdCtx.moveTo(w * 0.15, h * 0.5);
+  mfdCtx.lineTo(w * 0.28, h * 0.5);
+  mfdCtx.lineTo(w * 0.42, h * 0.35);
+  mfdCtx.lineTo(w * 0.55, h * 0.35);
+  mfdCtx.stroke();
+
+  // Route South (West Airbase -> FOB SW -> Bridge S -> Cross S)
+  mfdCtx.beginPath();
+  mfdCtx.moveTo(w * 0.28, h * 0.5);
+  mfdCtx.lineTo(w * 0.42, h * 0.65);
+  mfdCtx.lineTo(w * 0.55, h * 0.65);
+  mfdCtx.stroke();
+  mfdCtx.setLineDash([]);
+
+  // Chokepoint Bridge Markers
+  mfdCtx.fillStyle = 'rgba(16, 185, 129, 0.85)';
+  mfdCtx.font = '10px monospace';
+  mfdCtx.fillText('[MSR-NORTH: ROUTE IRIS]', w * 0.32, h * 0.32);
+  mfdCtx.fillText('[MSR-SOUTH: ROUTE VORTEX]', w * 0.32, h * 0.69);
+  mfdCtx.fillText('[BRIDGE-N: 100% INT]', w * 0.46, h * 0.38);
+
+  // Convoy Telemetry Tag
+  const truck = simState.units[3];
+  if (truck) {
+    const scrX = w * 0.5 + (truck.x / 400) * (w * 0.4);
+    const scrY = h * 0.5 + (truck.z / 240) * (h * 0.35);
+    mfdCtx.strokeStyle = '#f59e0b';
+    mfdCtx.strokeRect(scrX - 8, scrY - 6, 16, 12);
+    mfdCtx.fillStyle = '#fde68a';
+    mfdCtx.fillText('CONVOY MULE-01 [45 KM/H]', scrX + 12, scrY + 4);
+  }
+  mfdCtx.restore();
 }
 
 // --- CONTROLS & CAMERA SEQUENCING ---

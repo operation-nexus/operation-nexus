@@ -128,12 +128,33 @@ bridges:
 
 ---
 
-## 5. Implementation Roadmap
+## 5. Road and Supply Route Visualization
+
+Logistics convoys (`TRUCK`, `SUPPLY_CONVOY`, `ENEMY_CONVOY`) traverse theater edges (`layer: ROAD` in `content/theaters/strait-1.yaml`). Roads are rendered across all display paradigms to communicate supply flow and chokepoints:
+
+### 5.1 Road Classification & Styling
+
+| Road Class | Simulation Layer | Width (m) | Elevation ($Y$) | Visual Styling (3D) | Visual Styling (2D Vector) |
+| :--- | :--- | :--- | :--- | :--- | :--- |
+| `MSR_PRIMARY` | `ROAD` | $14\text{ m}$ | $+0.20\text{ m}$ | Dark tarmac ribbon (`0x071526`), animated pulsing luminous centerline dashes | Double-stroked glowing corridor with directional chevrons |
+| `CONNECTOR_SPUR` | `ROAD` | $8\text{ m}$ | $+0.15\text{ m}$ | Compacted granular surface, subtle perimeter boundary | Dashed tactical vector trace |
+| `BRIDGE_CAUSEWAY` | `ROAD` (`bridge`) | $18\text{ m}$ | $+2.00\text{ m}$ | Elevated engineered causeway spanning recessed water channel, support pylons | Cross-hatched chokepoint box with structural integrity gauge |
+
+### 5.2 Z-Fighting Elimination for Roads
+Road meshes must sit slightly proud of the ground terrain mesh to eliminate coplanar polygon collision:
+- **Ground terrain**: $Y = 0.00\text{ m}$
+- **Road ribbons**: $Y = +0.20\text{ m}$ with `polygonOffset: true`, `factor: -1`, `units: -2`
+- **Elevated bridges**: $Y = +2.00\text{ m}$ spanning over the $-3.50\text{ m}$ water channel bed
+- **Convoy ground clearance**: $Y = +0.35\text{ m}$ (units stay snapped to road elevation)
+
+---
+
+## 6. Implementation Roadmap
 
 1. **Step 1 (Immediate - Verified in Prototype):**
-   - Implemented dual-landmass separation with recessed $-3.5\text{m}$ water channel and elevated $+2\text{m}$ bridge spans in `hiveplex-advanced-visualizer.html`.
-   - Enabled `logarithmicDepthBuffer: true` and `polygonOffset` on wireframe contours.
+   - Implemented dual-landmass separation with recessed $-3.5\text{m}$ water channel, elevated $+2\text{m}$ bridge spans, and $+0.2\text{m}$ road ribbons in `tools/prototype/visualizer-sandbox.html`.
+   - Enabled `logarithmicDepthBuffer: true` and `polygonOffset` on wireframe contours and road surfaces.
 2. **Step 2 (Tooling / Compiler):**
-   - Create `tools/terrain_compiler.py` in `operation-nexus` to bake 16-bit heightmaps and landcover index maps into precomputed spatial masking grids for `nexus.core`.
+   - Enhance `tools/terrain/geojson_to_mask.py` to buffer and rasterize road vector lines into spatial mobility masks for ground logistics.
 3. **Step 3 (Contracts & Schema):**
-   - Update `contracts/config/theater.json` to include the `elevation_budget_m` and `biomes` list definitions.
+   - Update `contracts/config/theater.json` to include the `elevation_budget_m`, `biomes`, and `roads` list definitions.
