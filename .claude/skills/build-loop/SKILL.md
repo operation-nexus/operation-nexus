@@ -11,7 +11,23 @@ Goal: work runs **as autonomously as possible** and pings the owner rarely (Q-DE
 - Pick one tracker item (or one error ticket, ERROR-PIPELINE). Read its spec sections, the role card, and the open Q-rows it touches.
 - Write the coder brief: tracker ID, the role card, spec sections and Q-rows to read (the agent files list the standing reading: AGENTS.md, CLAUDE.md, code-quality, DATA-INTEGRITY, DoD), the exact acceptance criteria, files likely touched, what is out of scope, and the docs that must change with it.
 - Parallel coders only when no two touch the same file (AGENTS.md rule 11b), each with `isolation: "worktree"`; otherwise one at a time.
-- Model: `coder` runs on Sonnet; for `services/sim/src/nexus/core/**` (determinism-critical) the lead may run it on Opus (Q-DEV-4).
+- Models (Q-DEV-4; the goal is token cost, so each task runs on the cheapest tier that does it well):
+
+  | Work | Model |
+  |---|---|
+  | Lead: planning, decisions, briefs, diff review | the session's (Opus) |
+  | `coder`, `qa` | Sonnet (frontmatter); pass `model: "opus"` for `services/sim/src/nexus/core/**` (determinism-critical) and for a round after a Sonnet coder reported a fix it hadn't made |
+  | `reviewer` | Opus (frontmatter): one pre-PR judgment pass |
+  | `fact-checker` | Sonnet (frontmatter) |
+  | `searcher`: find a symbol, key, Q-row or file | Haiku, low effort (frontmatter) |
+  | `general-purpose` and other agents with no model set | Sonnet (`CLAUDE_CODE_SUBAGENT_MODEL` in `.claude/settings.json`); pass `model: "opus"` for judgment work (security review, design or entertainment review) |
+  | Built-in `Explore`, `Plan` | the session's model, whatever the setting says; use `searcher` for lookups, and plan in the lead instead of `Plan` |
+- Token savings that cost nothing in quality:
+  - A fix round goes to the same coder through `SendMessage`, so it keeps the specs and code it already read; a fresh coder only when the first one went wrong.
+  - Briefs name the files and sections to read instead of pasting them, and list only what the agent files don't already cover.
+  - A one-line or doc-only change the lead makes inline; no coder for it.
+  - One QA per round; the optional deep passes (`finecomb`, `review-council`, `/ponytail-review`) only on sensitive paths (CLAUDE.md).
+  - Run `make check` once per agent, at the end; targeted `pytest` paths while iterating.
 
 ## 2. Code → QA → review
 1. Agent `coder` with the brief. It returns files, `make check` output, tests, docs updated, assumptions, questions. A subagent that re-sends an identical report is done; use the first copy.
