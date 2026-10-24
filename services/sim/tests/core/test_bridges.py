@@ -1,8 +1,10 @@
 """NX-373 parts 1a and 1b: bridge hp, STRUCTURE fire on a bridge, the cut road, `BridgeDestroyed`
 and the reroute of paths already set (STATE-MACHINES §4.3 B-1 and B-2, GAMEPLAY §5, COMBAT CB-10,
-Q-SIM-105..108); NX-400: a direct order fires at a bridge and its fall destroys the ground units
-near the cut point (Q-SIM-112; `logistics.bridge_collapse_radius_m` 1000, the edge
-fob-n-w (130 km) ~ cross-n (230 km) at y 60 km is 100 km long, so x 199..201 km is inside).
+Q-SIM-105..108); NX-400: a bridge's fall destroys the ground units near the cut point (Q-SIM-112;
+`logistics.bridge_collapse_radius_m` 1000, the edge fob-n-w (130 km) ~ cross-n (230 km) at y 60 km
+is 100 km long, so x 199..201 km is inside); NX-408: only a STRIKE claim fires on a bridge, a
+direct order to one holds and defends it, and nothing fires on its own side's structures
+(Q-SIM-124).
 
 Shipped strait-1 numbers: bridge-n (200 km, 60 km) carries fob-n-w~cross-n and bridge-s (200 km,
 180 km) fob-s-w~cross-s; `logistics.bridge_hp` 300; AG_LIGHT does 50 damage at 10 km, 300 m/s
@@ -19,9 +21,11 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 from pydantic import TypeAdapter
 from test_combat import (
+    _OTHER,
     ARMOR,
     CONFIG,
     CONVOY,
+    ENEMY_JET,
     INFANTRY,
     JET,
     RULES,
@@ -160,15 +164,64 @@ def ordered(e: Entity, node: str) -> None:
     e.order, e.order_node = "GOTO", node
 
 
-def test_a_unit_holding_a_direct_order_on_the_bridge_shoots_it_down() -> None:
+@pytest.mark.parametrize("node", BRIDGES)
+def test_a_unit_holding_a_direct_order_on_a_bridge_never_fires_on_it(node: str) -> None:
+    """Q-SIM-124: every bridge is NEUTRAL, so a GOTO there is a hold, never a strike. Who holds
+    the banks cannot matter here: both are beyond AG_LIGHT's 10 km of the bridge."""
+    w = new_world(SURE)
+    jet = jet_at(w, node)
+    ordered(jet, node)
+    w.bridge_hp[node] = 100  # two AG_LIGHT hits, as a strike claimant would drop it
+    events = run(w, 60)
+    assert of(events, WeaponFired) == [] and of(events, BridgeDestroyed) == []
+    assert w.bridge_hp == {**dict.fromkeys(BRIDGES, MAX_HP), node: 100} and w.bridge_down == set()
+
+
+def test_a_holder_on_a_bridge_engages_an_enemy_unit_that_comes_near() -> None:
     w = new_world(SURE)
     jet = jet_at(w)
     ordered(jet, NORTH)
+    armor = put(w, ARMOR, "ENEMY", POS[NORTH][0] + 2_000, POS[NORTH][1])
+    track(w, jet, armor)
+    fired = of(run(w, 60), WeaponFired)
+    assert fired and {(f.target_id, f.target_node_id) for f in fired} == {(armor.id, None)}
+    assert w.bridge_hp[NORTH] == MAX_HP
+
+
+@pytest.mark.parametrize("side", ["COALITION", "ENEMY"])  # the Static's too (NX-401 needs it)
+def test_a_strike_drops_the_bridge_and_its_fall_kills_the_units_on_the_span(side: Side) -> None:
+    w = new_world(SURE)
+    jet = put(w, JET if side == "COALITION" else ENEMY_JET, side, *POS[NORTH])
+    ordered(jet, NORTH)  # an order as well changes nothing: the claim is what fires
+    strike(w, jet, NORTH)
+    truck_ = put(w, TRUCK, "COALITION", 199_500, 60_000)  # parked on the span, 500 m from the cut
+    truck_.last_node = "fob-n-w"
     w.bridge_hp[NORTH] = 100  # two AG_LIGHT hits
     events = run(w, 60)
     assert [(s.shooter_id, s.target_node_id) for s in bridge_shots(events)] == [(jet.id, NORTH)] * 2
     (down,) = of(events, BridgeDestroyed)
-    assert (down.node_id, down.by_id) == (NORTH, jet.id) and w.bridge_down == {NORTH}
+    assert (down.node_id, down.by_id, down.lost_ids) == (NORTH, jet.id, [truck_.id])
+    assert w.bridge_down == {NORTH} and w.find(truck_.id) is None
+
+
+@pytest.mark.parametrize("side", ["COALITION", "ENEMY"])
+def test_a_unit_never_fires_on_its_own_sides_facilities(side: Side) -> None:
+    """Its own node's defenses (even with a STRIKE claim on it) and its own tracked facility unit;
+    the same scene with the facility on the other side is fired at (the test can fail)."""
+    node = "fob-n-w" if side == "COALITION" else "fob-n-e"
+    x, y = POS[node]
+    for site_side, shots in ((side, 0), (_OTHER[side], 1)):
+        w = new_world(SURE)
+        assert w.owner[node] == side
+        shooter = put(w, JET if side == "COALITION" else ENEMY_JET, side, x, y, cmd=1)
+        site = put(w, "AIR_DEFENSE_SITE", site_side, x + 1_000, y)
+        track(w, shooter, site)
+        strike(w, shooter, node)
+        defense, hp = dict(w.defense_hp), site.hp
+        fired = of(run(w, 60), WeaponFired)
+        assert len({f.target_id for f in fired}) == shots
+        assert all(f.target_id == site.id for f in fired) and w.defense_hp == defense
+        assert (site.hp < hp) == bool(shots)
 
 
 @pytest.mark.parametrize("node", ["fob-n-e", SOUTH])  # a GOTO elsewhere, the other bridge

@@ -1,6 +1,6 @@
 """NX-373 part 2: truck field repair of bridges, `BridgeRepaired`, the REPAIR_BRIDGE job and the
 TB-8 dependency of a cut-off resupply on it (STATE-MACHINES §4.3 B-2, GAMEPLAY §1b TB-8 and §5,
-Q-GD-11, Q-SIM-101, Q-SIM-112's constraint).
+Q-GD-11, Q-SIM-101, Q-SIM-112's constraint; a GOTO hold outlasts the fall, Q-SIM-127).
 
 Shipped strait-1 numbers: bridge-n (200 km, 60 km) carries fob-n-w (130 km) ~ cross-n (230 km) at
 y 60 km, so its repair stop is (200 km, 60 km); `logistics.bridge_hp` 300,
@@ -274,14 +274,10 @@ def test_a_reroute_keeps_a_path_to_a_stop_working() -> None:
 # --- Q-SIM-112: no re-strike of a bridge under repair -----------------------------------------
 
 
-@pytest.mark.parametrize("by", ["strike", "order"])
-def test_a_down_bridge_under_repair_is_never_struck_again(by: str) -> None:
+def test_a_down_bridge_under_repair_is_never_struck_again() -> None:
     w = new_world(SURE)
     jet = jet_at(w)
-    if by == "strike":
-        strike(w, jet, NORTH)
-    else:
-        ordered(jet, NORTH)
+    strike(w, jet, NORTH)  # a GOTO order never fires on a bridge at all (Q-SIM-124, test_bridges)
     down(w, hp=100)  # down, part repaired
     assert of(run(w, 30), WeaponFired) == [] and w.bridge_hp[NORTH] == 100
     w.bridge_down.clear()  # the same hp, not down: it is a target again
@@ -289,32 +285,83 @@ def test_a_down_bridge_under_repair_is_never_struck_again(by: str) -> None:
     assert shots and {s.target_node_id for s in shots} == {NORTH}
 
 
-def test_a_goto_hold_on_a_bridge_ends_when_it_falls_and_never_resumes() -> None:
-    w = tt.new_world()
+def holding_over(w: World) -> Entity:
+    """A viewer's jet orbiting bridge-n on a GOTO order it reached (Q-SIM-110)."""
     jet = tt.put(w, JET, "west-airbase")
     jet.pos, jet.last_node, jet.state = Vec2(*RULES.roads.pos[NORTH]), NORTH, "ON_STATION"
+    jet.orbit = jet.pos
     ordered(jet, NORTH)
+    return jet
+
+
+def test_a_goto_hold_on_a_bridge_outlasts_its_fall() -> None:
+    """Q-SIM-127: the fall no longer ends the order; the holder never fires on a bridge anyway."""
+    w = tt.new_world()
+    jet = holding_over(w)
     tt.board_pass(w)
-    assert jet.held_since in range(1, w.campaign.running_ticks + 1)  # armed, holding the bridge
+    start = jet.held_since
+    assert start in range(1, w.campaign.running_ticks + 1)  # armed, holding the bridge
     cut(w, NORTH)
     tt.board_pass(w)
-    assert (jet.order, jet.order_node, jet.held_since) == (None, None, None)
-    w.bridge_hp[NORTH] = MAX_HP - 1  # repaired back to just short of full
-    rules = w.rules
-    assert rules is not None and rules.combat is not None
-    assert bridges.target(w, rules, rules.combat.weapons["AG_LIGHT"], jet) is None
+    assert (jet.order, jet.order_node, jet.held_since) == ("GOTO", NORTH, start)
 
 
-def test_a_goto_under_way_to_a_down_bridge_ends_before_it_arrives() -> None:
-    """Q-SIM-115: the order ends at the next pass even under way, so a unit that arrives after
-    the repair never fires on the bridge it was sent to."""
+def test_a_goto_under_way_to_a_down_bridge_keeps_going() -> None:
     w = tt.new_world()
     jet = tt.put(w, JET, "west-airbase")
     ordered(jet, NORTH)
     jet.path = [NORTH]  # under way
     cut(w, NORTH)
     tt.board_pass(w)
-    assert (jet.order, jet.order_node) == (None, None)
+    assert (jet.order, jet.order_node, jet.path) == ("GOTO", NORTH, [NORTH])
+
+
+@pytest.mark.parametrize("exit_", ["dwell", "ammo", "bingo"])
+def test_a_hold_over_a_down_bridge_still_ends(exit_: str) -> None:
+    """Q-SIM-127 drops only the fall as an exit: the dwell, ammo out and bingo still end it."""
+    w = tt.new_world()
+    jet = holding_over(w)
+    cut(w, NORTH)
+    tt.board_pass(w)
+    assert jet.order == "GOTO" and jet.held_since is not None  # holding the down bridge
+    if exit_ == "dwell":
+        for _ in range(tt.TR.order_dwell_ticks // tt.EVERY - 1):  # up to the last pass before it
+            tt.board_pass(w)
+        assert jet.order == "GOTO"
+    elif exit_ == "ammo":
+        jet.ammo = [0] * len(jet.ammo)
+    else:
+        jet.fuel = 1.0  # below the bingo line: the movement slot turns it for home
+        step(w, [])
+        assert jet.state == "RTB" and jet.path
+    tt.board_pass(w)
+    assert order_fields(jet) == (None, None, None)
+
+
+def order_fields(e: Entity) -> tuple[object, ...]:
+    """Read fresh (an assert before does not narrow them for a later pass)."""
+    return e.order, e.order_node, e.held_since
+
+
+def test_a_hold_over_a_down_bridge_guards_the_repair_and_never_fires_on_the_bridge() -> None:
+    """Q-SIM-127 (the Q-SIM-118 escort case): a jet holding over a down bridge keeps its order
+    while a truck repairs it, and after; it fires on nothing, the bridge least of all."""
+    w = tt.new_world()
+    down(w, hp=MAX_HP - 30)  # 30 hp to go: 500 ticks for one truck
+    jet = holding_over(w)
+    truck = tt.put(w, TRUCK, "fob-n-w", cargo=0)
+    tt.board_pass(w)
+    (job,) = _jobs(w, "REPAIR_BRIDGE")
+    assert truck.id in job.claims
+    truck.pos, truck.path = Vec2(199_000, 60_000), [NORTH]  # the 70 km drive, done
+    start = jet.held_since
+    events: list[Event] = []
+    for _ in range(1_000):  # the repair, then as long again with the bridge back up
+        events += step(w, [])
+    assert [e.node_id for e in of(events, BridgeRepaired)] == [NORTH] and w.bridge_down == set()
+    assert w.bridge_hp[NORTH] == MAX_HP
+    assert [f for f in of(events, WeaponFired) if f.shooter_id == jet.id] == []
+    assert (jet.order, jet.order_node, jet.held_since) == ("GOTO", NORTH, start)
 
 
 def test_a_truck_on_the_road_out_to_a_stop_escapes_when_its_bank_is_captured() -> None:
