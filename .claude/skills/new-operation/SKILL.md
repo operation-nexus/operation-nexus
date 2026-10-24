@@ -134,6 +134,14 @@ windows (N TBD). Add the negative too when it matters: the operation is not post
 `EnemyView`, when the budget can't pay for it, or at a tier it isn't enabled for. Goldens become
 `tests/golden/*.jsonl` when tests exist (TESTING-STRATEGY).
 
+## Gotchas
+- Job targets must be ones the executor acts on: NX-396 posted STRIKE jobs on a rear source combat never fires at, and
+  strikers sat on it for the rest of the run (code-quality §9). Name the unit kinds that can execute each job.
+- An operation can pass every test and still never run: STRIKE_BRIDGE (NX-401) waits because the Static's window budget
+  is spent when its preconditions hold. Check in a harness probe that the tier budget can pay `cost` at the moment the
+  preconditions are true, and say in the PR whether it fired.
+- `cost` must fit the smallest tier budget the operation is enabled for (`director.budget.<tier>`), or it never runs there.
+
 ## 10. Done means
 
 The two list additions, the `content/operations.yaml` entry, the `director.op_priority.<id>` key in

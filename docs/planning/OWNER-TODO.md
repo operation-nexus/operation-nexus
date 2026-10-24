@@ -96,5 +96,11 @@ Accounts, handles and repos are listed in `docs/planning/BRAND-ACCOUNTS.md`.
 - [ ] **Harness timer in WSL:** confirm the timer fires with no terminal open (`tools/balance/README.md` marks this **[UNVERIFIED]**).
 - [ ] **Merge commits (Q-LEGAL-8):** GitHub's merge commits on `develop` are authored by the account that enabled auto-merge, now `project-hiveplex` (earlier `canthony224`), not `SaltySeraphCodes` (`docs/planning/ISSUE-WORKFLOW.md` rule 5). Say whether that meets Q-LEGAL-8.
 
+## 4f. Cloud sessions and project settings (2026-10-24, NX-414)
+A cloud session with more than one repository attached does not read `.claude/settings.json`: no guard or format hook, no `.env` read deny, no Sonnet subagent default, no bootstrap (seen in the 2026-10-24 session, which had all three repos). Either fixes it; both is safest.
+- [ ] Start code sessions with **only `operation-nexus`** attached; vault and ops work in their own sessions.
+- [ ] In the claude.ai cloud environment settings, add the environment variables `CLAUDE_CODE_SUBAGENT_MODEL=sonnet` and `CLAUDE_CODE_DISABLE_EXPLORE_PLAN_AGENTS=1` (no secrets involved).
+- [ ] Optional: move `make bootstrap` into the environment's setup script so sessions start bootstrapped; the SessionStart hook stays as the fallback.
+
 ## 5. Decisions still open
 See docs/planning/OPEN-QUESTIONS.md. Rows ending in an empty Decision column still need your answer.

@@ -8,6 +8,7 @@ description: The Operation Nexus development loop for the lead (Opus) session โ€
 Goal: work runs **as autonomously as possible** and pings the owner rarely (Q-DEV-1). The lead owns the outcome; subagents do the typing and the checking.
 
 ## 1. Brief (lead)
+- First check that project settings loaded: `echo $CLAUDE_CODE_SUBAGENT_MODEL` prints `sonnet`. Empty means `.claude/settings.json` was not read (a cloud session with more than one repository reads only its plugin keys), so the guard and format hooks and the read denies are off: pass `model:` on every Agent call, keep `.env` and keys out of reads by hand, and tell the owner once (OWNER-TODO ยง4f, L-19).
 - Pick one tracker item (or one error ticket, ERROR-PIPELINE). Read its spec sections, the role card, and the open Q-rows it touches.
 - Before a brief states a rule or a number, grep OPEN-QUESTIONS for a decided row on it and cite the row; a brief that contradicts a decided row is wrong (L-14).
 - Write the coder brief: tracker ID, the role card, spec sections and Q-rows to read (the agent files list the standing reading: AGENTS.md, CLAUDE.md, code-quality, DATA-INTEGRITY, DoD), the exact acceptance criteria, files likely touched, what is out of scope, and the docs that must change with it.
@@ -44,6 +45,12 @@ Git mechanics that bit before (LESSONS):
 - A separate small PR while a coder's change is still uncommitted: commit only its own files (`git add <paths>`). When it must touch a file the uncommitted change also edits (TRACKER, OPEN-QUESTIONS), stage its hunk from `HEAD` (`git show HEAD:<p>`, edit, `git hash-object -w --stdin`, `git update-index --cacheinfo 100644,<blob>,<p>`) and apply the same edit to the working file; never `git add` that file whole (L-4).
 - Stop a process by its PID, never `pkill -f <pattern>`: the pattern also matches your own shell (L-6).
 - Push work that passed QA promptly; the cloud container can restart and take unpushed commits with it. If an open PR shares the branch, push into it and update its body rather than hold commits locally (L-13).
+- Never type a commit SHA, issue number or run id from memory; paste it from `git rev-parse`, `git log` or the tool result (L-15).
+
+Gotchas (each cost a round or a run; LESSONS has the story):
+- A coder or QA claim is not evidence until you grep it (L-1); a brief's number is wrong if a decided row says otherwise (L-14).
+- At the 3-round cap, a one-line remaining fix the lead may apply inline with a mutation-checked test, and says so in the PR body; anything larger escalates (L-16).
+- Python edits under `services/sim` and `tools/` are formatted by the PostToolUse hook (`.claude/hooks/format-python.sh`); if an Edit's `old_string` stops matching right after an edit, re-read the file: the hook reformatted it.
 
 ## 3. Decide or ask
 When a question has a recommended option, the lead **takes it, records it and keeps going** (Q-DEV-21): a reading of an ambiguous line, a small improvement QA or the coder suggested, a test or naming choice. Record it as a Q-row with status `Decided by lead, owner may veto` and list it in the PR description. At the end of the work stretch, present the list of these decisions to the owner to approve, veto or change; the daily routine also lists new lead decisions in its #119 digest (Q-DEV-1).
@@ -56,13 +63,18 @@ The lead **asks the owner** only for:
 
 Before a gameplay design question goes to the owner, or when an owner proposal changes what players or watchers see, run `entertainment-reviewer` in proposal mode and put its pick and risks next to the question (Q-DEV-22).
 
-How to ask: batch the questions. In an interactive session use `/grill-with-docs` when the answer changes a spec, ADR or glossary, else `/grilling`. In an unattended run (cloud, routine) post the questions on the PR or issue, `@SaltySeraphCodes`, assign it, and move on to other work; don't block.
+How to ask: batch the questions. In an interactive session ask the owner to type `/grill-with-docs` (it is user-only, `disable-model-invocation`) when the answer changes a spec, ADR or glossary; else run `grilling` yourself. In an unattended run (cloud, routine) post the questions on the PR or issue, `@SaltySeraphCodes`, assign it, and move on to other work; don't block.
 
 ## 4. Done means
 - Code, tests and every affected doc (spec, contracts, config tables, READMEs, tracker) agree; QA checked it.
 - Recommendations outside the brief are in the PR description or an OPEN-QUESTIONS row, never silently built.
 - Deliberate shortcuts carry a `shortcut: <the limit>, <when to upgrade>` comment (older ones say `ponytail:`); the weekly `ponytail-debt` pass collects them.
 - The PR is open with the CI watch on; nothing merged by hand around `ci-gate`.
+
+## 4a. Sessions and handoffs
+- One coder (and its QA) per tracker item: a fresh agent for the next item, so no context from the last one rides along. The lead may run several items in one session, one after another.
+- Compact at a boundary, not mid-item: after a PR merges or a report goes out, `/compact` with a focus line naming the next item and the open PRs. Don't let auto-compact land in the middle of a fix round.
+- At the end of a work stretch (an owner pause, a usage limit, a session that will not continue), write the handoff as a GitHub issue assigned to the owner (as #324): each open branch and PR with its state, the next items in order, the lead decisions awaiting veto, the owner's to-do, and the prompt that resumes the work. Link docs, PRs and Q-rows instead of copying them. A new session starts from that issue and fresh `origin/develop`, not from memory.
 
 ## 5. Learn
 A failure or hard point is fixed where it would have been prevented, in the same work stretch, not only remembered (owner, 2026-10-24, Q-DEV-30). When something goes wrong (a wrong subagent claim, a red CI, a blocked command, a wasted run, a near miss, an owner correction) or takes far longer than it should:

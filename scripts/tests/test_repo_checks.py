@@ -229,6 +229,52 @@ def test_config_registry():
     assert text.index("## WORLD") < text.index("## LOGISTICS")
 
 
+def test_format_hook():
+    """The PostToolUse hook formats only services/sim and tools Python files and never fails an edit."""
+    import subprocess
+
+    root = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..")
+    hook = os.path.join(root, ".claude", "hooks", "format-python.sh")
+    with open(os.path.join(root, ".claude", "settings.json")) as f:
+        post = json.load(f)["hooks"]["PostToolUse"]
+    assert any(h["command"].endswith("/.claude/hooks/format-python.sh") for m in post for h in m["hooks"])
+    with tempfile.TemporaryDirectory() as proj:
+        bin_dir = os.path.join(proj, "services", "sim", ".venv", "bin")
+        os.makedirs(bin_dir)
+        log = os.path.join(proj, "calls")
+        stub = os.path.join(bin_dir, "ruff")
+        with open(stub, "w") as f:
+            f.write('#!/bin/sh\necho "$@" >> "%s"\n' % log)
+        os.chmod(stub, 0o700)
+        for sub in ("tools", "docs"):
+            os.makedirs(os.path.join(proj, sub))
+        py = os.path.join(proj, "tools", "a.py")
+        other = os.path.join(proj, "docs", "b.py")
+        for path in (py, other):
+            open(path, "w").close()
+        outside_dir = tempfile.mkdtemp()
+        outside = os.path.join(outside_dir, "tools", "c.py")
+        os.makedirs(os.path.dirname(outside))
+        open(outside, "w").close()
+
+        def run(stdin):
+            env = dict(os.environ, CLAUDE_PROJECT_DIR=proj)
+            return subprocess.run(["bash", hook], input=stdin, text=True, env=env).returncode
+
+        assert run(json.dumps({"tool_input": {"file_path": py}})) == 0
+        assert run(json.dumps({"tool_input": {"file_path": other}})) == 0
+        assert run(json.dumps({"tool_input": {"file_path": os.path.join(proj, "tools", "gone.py")}})) == 0
+        assert run(json.dumps({"tool_input": {"file_path": outside}})) == 0  # another clone
+        assert run("not json") == 0
+        with open(log) as f:
+            assert f.read().splitlines() == ["format --quiet -- " + py]
+        os.remove(stub)
+        assert run(json.dumps({"tool_input": {"file_path": py}})) == 0
+        import shutil
+
+        shutil.rmtree(outside_dir)
+
+
 if __name__ == "__main__":
     test_commit_msg()
     test_tracked_files()
@@ -236,4 +282,5 @@ if __name__ == "__main__":
     test_site()
     test_contracts_compat()
     test_config_registry()
+    test_format_hook()
     print("ok")
