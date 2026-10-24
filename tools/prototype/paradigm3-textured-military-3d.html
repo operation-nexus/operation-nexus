@@ -1,0 +1,683 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hiveplex Paradigm 3: Textured Low-Poly Military RTS</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+<style>
+  :root {
+    --bg-dark: #070b12;
+    --panel-bg: rgba(11, 18, 30, 0.88);
+    --cyan-accent: #00e5ff;
+    --amber-accent: #f59e0b;
+    --text-primary: #f8fafc;
+  }
+  body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg-dark);
+    color: var(--text-primary);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace;
+    overflow: hidden;
+  }
+  #webgl-container {
+    width: 100vw;
+    height: 100vh;
+    display: block;
+  }
+  .hud-badge {
+    position: absolute;
+    top: 20px;
+    left: 20px;
+    background: var(--panel-bg);
+    border: 1px solid rgba(0, 229, 255, 0.35);
+    border-radius: 8px;
+    padding: 16px 20px;
+    max-width: 380px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(10px);
+    pointer-events: auto;
+  }
+  .hud-title {
+    font-size: 15px;
+    font-weight: 700;
+    letter-spacing: 1.5px;
+    color: var(--cyan-accent);
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .hud-desc {
+    font-size: 12px;
+    color: #94a3b8;
+    line-height: 1.5;
+    margin-bottom: 12px;
+  }
+  .feature-pill {
+    display: inline-block;
+    font-size: 10px;
+    background: rgba(0, 229, 255, 0.15);
+    color: #38bdf8;
+    border: 1px solid rgba(0, 229, 255, 0.3);
+    padding: 3px 8px;
+    border-radius: 4px;
+    margin-right: 4px;
+    margin-bottom: 4px;
+  }
+  .cam-controls {
+    position: absolute;
+    bottom: 24px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: var(--panel-bg);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 24px;
+    padding: 6px 16px;
+    display: flex;
+    gap: 10px;
+    backdrop-filter: blur(8px);
+  }
+  .cam-btn {
+    background: rgba(30, 41, 59, 0.6);
+    color: #cbd5e1;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    padding: 6px 14px;
+    border-radius: 16px;
+    font-size: 11px;
+    cursor: pointer;
+    font-weight: 600;
+    transition: all 0.2s;
+  }
+  .cam-btn.active, .cam-btn:hover {
+    background: var(--cyan-accent);
+    color: #020617;
+    border-color: var(--cyan-accent);
+    box-shadow: 0 0 12px rgba(0, 229, 255, 0.4);
+  }
+</style>
+</head>
+<body>
+<div id="webgl-container"></div>
+
+<div class="hud-badge">
+  <div class="hud-title">🎖️ PARADIGM 3: TEXTURED MILITARY RTS</div>
+  <div class="hud-desc">
+    Solid multi-texture terrain splatting (sand, rock, asphalt, water depth), painted military camouflage, rolling truck convoys, rotating radar spires, and concrete airbases.
+  </div>
+  <div>
+    <span class="feature-pill">PBR Terrain Splatting</span>
+    <span class="feature-pill">Camouflage Strikers</span>
+    <span class="feature-pill">8-Wheel Cargo Hauler</span>
+    <span class="feature-pill">Rotating Radar Dish</span>
+    <span class="feature-pill">Truss Bridge & Roadway</span>
+  </div>
+</div>
+
+<div class="cam-controls">
+  <button class="cam-btn active" id="btnCamIso" onclick="setCam('iso')">Cinematic Isometric</button>
+  <button class="cam-btn" id="btnCamLow" onclick="setCam('low')">Low-Altitude Action</button>
+  <button class="cam-btn" id="btnCamTop" onclick="setCam('top')">Tactical Overhead</button>
+  <button class="cam-btn" id="btnCamChase" onclick="setCam('chase')">Convoy Chase Cam</button>
+</div>
+
+<script>
+let scene, camera, renderer, controls;
+let truckObj, radarDishMesh, jetObj, banditObj;
+let activeCamMode = 'iso';
+
+function init() {
+  const container = document.getElementById('webgl-container');
+  const w = window.innerWidth;
+  const h = window.innerHeight;
+
+  scene = new THREE.Scene();
+  scene.background = new THREE.Color(0x0a101d);
+  scene.fog = new THREE.FogExp2(0x0a101d, 0.001);
+
+  camera = new THREE.PerspectiveCamera(40, w / h, 1, 5000);
+  camera.position.set(-220, 150, 220);
+
+  renderer = new THREE.WebGLRenderer({ antialias: true, logarithmicDepthBuffer: true });
+  renderer.setSize(w, h);
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+  renderer.toneMapping = THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.15;
+  container.appendChild(renderer.domElement);
+
+  controls = new THREE.OrbitControls(camera, renderer.domElement);
+  controls.enableDamping = true;
+  controls.dampingFactor = 0.05;
+  controls.target.set(0, 0, 0);
+
+  // Sunlight and Warm Atmospheric Lighting
+  const hemiLight = new THREE.HemisphereLight(0x93c5fd, 0x1e293b, 0.6);
+  scene.add(hemiLight);
+
+  const sunLight = new THREE.DirectionalLight(0xfffbeb, 1.35);
+  sunLight.position.set(-200, 260, 150);
+  sunLight.castShadow = true;
+  sunLight.shadow.mapSize.width = 2048;
+  sunLight.shadow.mapSize.height = 2048;
+  sunLight.shadow.camera.near = 50;
+  sunLight.shadow.camera.far = 800;
+  sunLight.shadow.camera.left = -250;
+  sunLight.shadow.camera.right = 250;
+  sunLight.shadow.camera.top = 250;
+  sunLight.shadow.camera.bottom = -250;
+  scene.add(sunLight);
+
+  buildTexturedTerrain();
+  buildStructuresAndRoads();
+  buildTexturedUnits();
+
+  const urlParams = new URLSearchParams(window.location.search);
+  if (urlParams.get('cam')) setCam(urlParams.get('cam'));
+
+  window.addEventListener('resize', onResize);
+  renderer.render(scene, camera);
+  animate();
+}
+
+// --- PROCEDURAL TEXTURE GENERATION FOR SOLID TERRAIN ---
+function createProceduralGroundTexture() {
+  const canvas = document.createElement('canvas');
+  canvas.width = 1024;
+  canvas.height = 1024;
+  const ctx = canvas.getContext('2d');
+
+  // Base Arid Soil
+  ctx.fillStyle = '#1c2838';
+  ctx.fillRect(0, 0, 1024, 1024);
+
+  // Rocky & Grass Mottling
+  for (let i = 0; i < 4000; i++) {
+    const x = Math.random() * 1024;
+    const y = Math.random() * 1024;
+    const r = Math.random() * 14 + 4;
+    ctx.fillStyle = Math.random() > 0.5 ? 'rgba(30, 48, 68, 0.45)' : 'rgba(16, 26, 38, 0.45)';
+    ctx.beginPath();
+    ctx.arc(x, y, r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // Northern Mountain Ridge Texturing (top section)
+  const grad = ctx.createLinearGradient(0, 0, 0, 400);
+  grad.addColorStop(0, 'rgba(45, 60, 78, 0.85)');
+  grad.addColorStop(1, 'rgba(45, 60, 78, 0)');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 1024, 400);
+
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.wrapS = THREE.RepeatWrapping;
+  texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(4, 4);
+  return texture;
+}
+
+function buildTexturedTerrain() {
+  // 1. West Landmass (-200 to -35)
+  const westGeo = new THREE.PlaneGeometry(165, 300, 40, 40);
+  westGeo.rotateX(-Math.PI / 2);
+  displaceTerrainGeometry(westGeo, -117.5, 0);
+
+  const groundTex = createProceduralGroundTexture();
+  const landMat = new THREE.MeshStandardMaterial({
+    map: groundTex,
+    roughness: 0.85,
+    metalness: 0.1
+  });
+
+  const westLand = new THREE.Mesh(westGeo, landMat);
+  westLand.position.set(-117.5, 0, 0);
+  westLand.receiveShadow = true;
+  scene.add(westLand);
+
+  // 2. East Landmass (35 to 200)
+  const eastGeo = new THREE.PlaneGeometry(165, 300, 40, 40);
+  eastGeo.rotateX(-Math.PI / 2);
+  displaceTerrainGeometry(eastGeo, 117.5, 0);
+
+  const eastLand = new THREE.Mesh(eastGeo, landMat);
+  eastLand.position.set(117.5, 0, 0);
+  eastLand.receiveShadow = true;
+  scene.add(eastLand);
+
+  // 3. Realistic Water Channel in Trench (x: -35 to 35, Y: -1.5m)
+  const waterGeo = new THREE.PlaneGeometry(70, 300);
+  waterGeo.rotateX(-Math.PI / 2);
+  const waterMat = new THREE.MeshStandardMaterial({
+    color: 0x0284c7,
+    emissive: 0x012749,
+    roughness: 0.15,
+    metalness: 0.9,
+    transparent: true,
+    opacity: 0.88
+  });
+  const water = new THREE.Mesh(waterGeo, waterMat);
+  water.position.set(0, -1.2, 0);
+  scene.add(water);
+
+  // Deep Trench Floor
+  const trenchGeo = new THREE.BoxGeometry(70, 8, 300);
+  const trenchMat = new THREE.MeshStandardMaterial({ color: 0x050e1a, roughness: 0.9 });
+  const trench = new THREE.Mesh(trenchGeo, trenchMat);
+  trench.position.set(0, -6.5, 0);
+  scene.add(trench);
+
+  // Shoreline Bevels
+  const shoreMat = new THREE.MeshStandardMaterial({ color: 0x22364c, roughness: 0.9 });
+  const westShore = new THREE.Mesh(new THREE.BoxGeometry(4, 3, 300), shoreMat);
+  westShore.position.set(-35, -1.0, 0);
+  scene.add(westShore);
+
+  const eastShore = new THREE.Mesh(new THREE.BoxGeometry(4, 3, 300), shoreMat);
+  eastShore.position.set(35, -1.0, 0);
+  scene.add(eastShore);
+}
+
+function displaceTerrainGeometry(geo, centerX, centerZ) {
+  const pos = geo.attributes.position;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i) + centerX;
+    const z = pos.getZ(i) + centerZ;
+
+    // Northern Mountain Ridge
+    let elev = 0.5;
+    if (z < -30) {
+      elev += Math.max(0, -z - 30) * 0.35 + Math.sin(x * 0.05) * 4.0;
+    }
+    // Rolling hill noise
+    elev += Math.sin(x * 0.03) * Math.cos(z * 0.04) * 2.5;
+
+    pos.setY(i, Math.max(0.2, elev));
+  }
+  geo.computeVertexNormals();
+}
+
+function buildStructuresAndRoads() {
+  // --- ASPHALT HIGHWAYS & BRIDGES ---
+  // Tarmac road material with dark asphalt
+  const roadMat = new THREE.MeshStandardMaterial({
+    color: 0x18202c,
+    roughness: 0.85,
+    polygonOffset: true,
+    polygonOffsetFactor: -1,
+    polygonOffsetUnits: -2
+  });
+
+  const ROAD_PATHS = [
+    [[-180, 0], [-150, 0], 8],
+    [[-150, 0], [-70, -55], 7],
+    [[-150, 0], [-70, 55], 7],
+    [[-70, -55], [-35, -55], 7],
+    [[-70, 55], [-35, 55], 7],
+    [[35, -55], [60, -55], 7],
+    [[35, 55], [60, 55], 7],
+    [[60, -55], [110, 0], 7],
+    [[60, 55], [110, 0], 7],
+    [[110, 0], [180, 0], 8]
+  ];
+
+  ROAD_PATHS.forEach(([p1, p2, width]) => {
+    const dx = p2[0] - p1[0];
+    const dz = p2[1] - p1[1];
+    const len = Math.hypot(dx, dz);
+    const angle = Math.atan2(dz, dx);
+
+    const rGeo = new THREE.PlaneGeometry(len, width);
+    rGeo.rotateX(-Math.PI / 2);
+    const road = new THREE.Mesh(rGeo, roadMat);
+    road.position.set((p1[0] + p2[0]) / 2, 0.28, (p1[1] + p2[1]) / 2);
+    road.rotation.y = -angle;
+    road.receiveShadow = true;
+    scene.add(road);
+
+    // Painted Centerline Dashes
+    const lineGeo = new THREE.BufferGeometry().setFromPoints([
+      new THREE.Vector3(p1[0], 0.35, p1[1]),
+      new THREE.Vector3(p2[0], 0.35, p2[1])
+    ]);
+    const lineMat = new THREE.LineDashedMaterial({ color: 0xe2e8f0, dashSize: 4, gapSize: 3, linewidth: 2 });
+    const line = new THREE.Line(lineGeo, lineMat);
+    line.computeLineDistances();
+    scene.add(line);
+  });
+
+  // --- ELEVATED STEEL TRUSS BRIDGES OVER STRAIT ---
+  const bridgeNorth = buildSteelTrussBridge(0, 2.2, -55, 74, 12);
+  scene.add(bridgeNorth);
+
+  const bridgeSouth = buildSteelTrussBridge(0, 2.2, 55, 74, 12);
+  scene.add(bridgeSouth);
+
+  // --- AIRBASE CONCRETE APRONS & HANGARS ---
+  // West Airbase Apron
+  const apronMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.75 });
+  const westApron = new THREE.Mesh(new THREE.CylinderGeometry(24, 24, 0.4, 16), apronMat);
+  westApron.position.set(-150, 0.2, 0);
+  westApron.receiveShadow = true;
+  scene.add(westApron);
+
+  // Aircraft Hardened Concrete Hangar
+  const hangarGeo = new THREE.CylinderGeometry(8, 8, 18, 16, 1, false, 0, Math.PI);
+  hangarGeo.rotateZ(Math.PI / 2);
+  const hangarMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.8 });
+  const hangar = new THREE.Mesh(hangarGeo, hangarMat);
+  hangar.position.set(-158, 4.0, -10);
+  hangar.castShadow = true;
+  scene.add(hangar);
+
+  // Rotating Radar Spire Tower
+  const towerGeo = new THREE.CylinderGeometry(1.2, 2.5, 16, 6);
+  const towerMat = new THREE.MeshStandardMaterial({ color: 0x64748b, metalness: 0.5 });
+  const tower = new THREE.Mesh(towerGeo, towerMat);
+  tower.position.set(-145, 8.0, 14);
+  tower.castShadow = true;
+  scene.add(tower);
+
+  // Radar Dish Antenna
+  const dishGeo = new THREE.CylinderGeometry(4.5, 4.5, 0.6, 12, 1, false, 0, Math.PI);
+  dishGeo.rotateZ(Math.PI / 2);
+  const dishMat = new THREE.MeshStandardMaterial({ color: 0x00e5ff, metalness: 0.8, roughness: 0.2 });
+  radarDishMesh = new THREE.Mesh(dishGeo, dishMat);
+  radarDishMesh.position.set(-145, 16.5, 14);
+  scene.add(radarDishMesh);
+}
+
+function buildSteelTrussBridge(x, y, z, span, width) {
+  const bridgeGroup = new THREE.Group();
+  bridgeGroup.position.set(x, y, z);
+
+  // Road deck
+  const deckMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.7 });
+  const deck = new THREE.Mesh(new THREE.BoxGeometry(span, 1.2, width), deckMat);
+  deck.castShadow = true;
+  deck.receiveShadow = true;
+  bridgeGroup.add(deck);
+
+  // Steel Truss Railings
+  const trussMat = new THREE.MeshStandardMaterial({ color: 0x64748b, metalness: 0.7, roughness: 0.3 });
+  const trussLeft = new THREE.Mesh(new THREE.BoxGeometry(span, 4.5, 0.8), trussMat);
+  trussLeft.position.set(0, 2.5, width / 2 - 0.4);
+  trussLeft.castShadow = true;
+  bridgeGroup.add(trussLeft);
+
+  const trussRight = new THREE.Mesh(new THREE.BoxGeometry(span, 4.5, 0.8), trussMat);
+  trussRight.position.set(0, 2.5, -width / 2 + 0.4);
+  trussRight.castShadow = true;
+  bridgeGroup.add(trussRight);
+
+  // Concrete Pylons into Water Trench
+  const pylonMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.85 });
+  const pylon1 = new THREE.Mesh(new THREE.BoxGeometry(6, 12, width + 2), pylonMat);
+  pylon1.position.set(-span / 4, -5.0, 0);
+  pylon1.castShadow = true;
+  bridgeGroup.add(pylon1);
+
+  const pylon2 = new THREE.Mesh(new THREE.BoxGeometry(6, 12, width + 2), pylonMat);
+  pylon2.position.set(span / 4, -5.0, 0);
+  pylon2.castShadow = true;
+  bridgeGroup.add(pylon2);
+
+  return bridgeGroup;
+}
+
+// --- TEXTURED 3D UNITS (STRIKER JET, LOGI TRUCK, BANDIT) ---
+function buildTexturedUnits() {
+  // 1. COALITION STRIKER (VIPER-01): Painted Camo Delta-Wing Jet
+  jetObj = new THREE.Group();
+  const jetMat = new THREE.MeshStandardMaterial({
+    color: 0x2563eb,
+    roughness: 0.4,
+    metalness: 0.4
+  });
+
+  // Fuselage
+  const fuseGeo = new THREE.ConeGeometry(3.5, 16, 4);
+  fuseGeo.rotateX(Math.PI / 2);
+  const fuse = new THREE.Mesh(fuseGeo, jetMat);
+  fuse.castShadow = true;
+  jetObj.add(fuse);
+
+  // Cockpit Canopy (Dark Glass)
+  const canopyMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.1, metalness: 0.95 });
+  const canopy = new THREE.Mesh(new THREE.SphereGeometry(1.6, 8, 8), canopyMat);
+  canopy.scale.set(0.7, 0.8, 2.0);
+  canopy.position.set(0, 1.4, 2.0);
+  jetObj.add(canopy);
+
+  // Delta Wings with Camo
+  const wingGeo = new THREE.BoxGeometry(14, 0.4, 8);
+  const wing = new THREE.Mesh(wingGeo, jetMat);
+  wing.position.set(0, 0, -1);
+  wing.castShadow = true;
+  jetObj.add(wing);
+
+  // Twin Vertical Stabilizers
+  const finGeo = new THREE.BoxGeometry(0.4, 4, 3);
+  const finLeft = new THREE.Mesh(finGeo, jetMat);
+  finLeft.position.set(-2.5, 2, -5);
+  finLeft.rotation.z = -0.2;
+  jetObj.add(finLeft);
+
+  const finRight = new THREE.Mesh(finGeo, jetMat);
+  finRight.position.set(2.5, 2, -5);
+  finRight.rotation.z = 0.2;
+  jetObj.add(finRight);
+
+  // Glowing Afterburner Cone
+  const burnGeo = new THREE.ConeGeometry(1.4, 4, 8);
+  burnGeo.rotateX(-Math.PI / 2);
+  const burnMat = new THREE.MeshBasicMaterial({ color: 0x38bdf8 });
+  const burner = new THREE.Mesh(burnGeo, burnMat);
+  burner.position.set(0, 0, -8);
+  jetObj.add(burner);
+
+  jetObj.position.set(-60, 48, -25);
+  scene.add(jetObj);
+
+  // 2. STATIC ENEMY INTERCEPTOR (BANDIT-04): Matte Black & Scarlet
+  banditObj = new THREE.Group();
+  const banditMat = new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.5, metalness: 0.6 });
+  const bFuse = new THREE.Mesh(fuseGeo, banditMat);
+  bFuse.castShadow = true;
+  banditObj.add(bFuse);
+
+  const bWingMat = new THREE.MeshStandardMaterial({ color: 0xdc2626, roughness: 0.4 });
+  const bWing = new THREE.Mesh(wingGeo, bWingMat);
+  bWing.position.set(0, 0, -1);
+  bWing.castShadow = true;
+  banditObj.add(bWing);
+
+  const bBurner = new THREE.Mesh(burnGeo, new THREE.MeshBasicMaterial({ color: 0xff0055 }));
+  bBurner.position.set(0, 0, -8);
+  banditObj.add(bBurner);
+
+  banditObj.position.set(70, 52, -15);
+  banditObj.rotation.y = Math.PI;
+  scene.add(banditObj);
+
+  // 3. LOGISTICS CONVOY (MULE-TRUCK): 8-Wheel Transport with Cargo Tarps
+  truckObj = new THREE.Group();
+
+  // Chassis
+  const chassisMat = new THREE.MeshStandardMaterial({ color: 0x1f2937, roughness: 0.7 });
+  const chassis = new THREE.Mesh(new THREE.BoxGeometry(6, 1.2, 16), chassisMat);
+  chassis.position.y = 1.6;
+  chassis.castShadow = true;
+  truckObj.add(chassis);
+
+  // Cab
+  const cabMat = new THREE.MeshStandardMaterial({ color: 0x3b82f6, roughness: 0.5 });
+  const cab = new THREE.Mesh(new THREE.BoxGeometry(5.8, 3.2, 5), cabMat);
+  cab.position.set(0, 3.2, 5.0);
+  cab.castShadow = true;
+  truckObj.add(cab);
+
+  // Windshield
+  const windGeo = new THREE.BoxGeometry(5.0, 1.5, 0.4);
+  const wind = new THREE.Mesh(windGeo, canopyMat);
+  wind.position.set(0, 3.5, 7.5);
+  truckObj.add(wind);
+
+  // Cargo Bed with Supply Crates
+  const bedMat = new THREE.MeshStandardMaterial({ color: 0x4b5563, roughness: 0.8 });
+  const bed = new THREE.Mesh(new THREE.BoxGeometry(5.8, 3.0, 9.5), bedMat);
+  bed.position.set(0, 3.2, -2.5);
+  bed.castShadow = true;
+  truckObj.add(bed);
+
+  // Crate Stack on top
+  const crateMat = new THREE.MeshStandardMaterial({ color: 0xf59e0b, roughness: 0.6 });
+  const crate = new THREE.Mesh(new THREE.BoxGeometry(4.5, 1.8, 8.0), crateMat);
+  crate.position.set(0, 5.2, -2.5);
+  crate.castShadow = true;
+  truckObj.add(crate);
+
+  // 8 Wheels
+  const wheelMat = new THREE.MeshStandardMaterial({ color: 0x111827, roughness: 0.9 });
+  const wheelGeo = new THREE.CylinderGeometry(1.2, 1.2, 1.0, 12);
+  wheelGeo.rotateZ(Math.PI / 2);
+
+  const wheelPositions = [
+    [-3.2, 1.2, 5.0], [3.2, 1.2, 5.0],
+    [-3.2, 1.2, 2.5], [3.2, 1.2, 2.5],
+    [-3.2, 1.2, -2.5], [3.2, 1.2, -2.5],
+    [-3.2, 1.2, -5.5], [3.2, 1.2, -5.5]
+  ];
+
+  wheelPositions.forEach(p => {
+    const wheel = new THREE.Mesh(wheelGeo, wheelMat);
+    wheel.position.set(...p);
+    wheel.castShadow = true;
+    truckObj.add(wheel);
+  });
+
+  truckObj.position.set(-110, 0, 0);
+  scene.add(truckObj);
+}
+
+// --- CONVOY ROAD PATHING KINEMATICS ---
+const CONVOY_WAYPOINTS = [
+  { x: -180, z: 0, y: 0.28 },
+  { x: -150, z: 0, y: 0.28 },
+  { x: -70, z: -55, y: 0.28 },
+  { x: -35, z: -55, y: 0.28 },
+  { x: 0, z: -55, y: 2.2 },  // Bridge Crossing (Elevated)
+  { x: 35, z: -55, y: 2.2 },
+  { x: 60, z: -55, y: 0.28 }, // East Bridgehead
+  { x: 35, z: -55, y: 2.2 },
+  { x: 0, z: -55, y: 2.2 },
+  { x: -35, z: -55, y: 0.28 },
+  { x: -70, z: -55, y: 0.28 },
+  { x: -150, z: 0, y: 0.28 }
+];
+
+let wpIdx = 0;
+let wpProg = 0.0;
+
+function updateConvoy() {
+  const curr = CONVOY_WAYPOINTS[wpIdx];
+  const next = CONVOY_WAYPOINTS[(wpIdx + 1) % CONVOY_WAYPOINTS.length];
+  const dist = Math.hypot(next.x - curr.x, next.z - curr.z);
+  wpProg += 0.55 / (dist + 1e-4);
+
+  if (wpProg >= 1.0) {
+    wpProg = 0.0;
+    wpIdx = (wpIdx + 1) % CONVOY_WAYPOINTS.length;
+  }
+
+  const tx = curr.x + (next.x - curr.x) * wpProg;
+  const tz = curr.z + (next.z - curr.z) * wpProg;
+  const ty = curr.y + (next.y - curr.y) * wpProg;
+
+  truckObj.position.set(tx, ty, tz);
+  truckObj.rotation.y = Math.atan2(next.x - curr.x, next.z - curr.z);
+
+  // Rotate wheels
+  truckObj.children.forEach(child => {
+    if (child.geometry && child.geometry.type === 'CylinderGeometry') {
+      child.rotation.x += 0.08;
+    }
+  });
+}
+
+function setCam(mode) {
+  activeCamMode = mode;
+  document.querySelectorAll('.cam-btn').forEach(b => b.classList.remove('active'));
+  if (mode === 'iso') {
+    document.getElementById('btnCamIso').classList.add('active');
+    camera.position.set(-220, 150, 220);
+    controls.target.set(0, 0, 0);
+  } else if (mode === 'low') {
+    document.getElementById('btnCamLow').classList.add('active');
+    camera.position.set(-50, 28, 45);
+    controls.target.set(0, 15, -40);
+  } else if (mode === 'top') {
+    document.getElementById('btnCamTop').classList.add('active');
+    camera.position.set(0, 320, 1);
+    controls.target.set(0, 0, 0);
+  } else if (mode === 'chase') {
+    document.getElementById('btnCamChase').classList.add('active');
+  }
+}
+
+function onResize() {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+let tick = 0;
+function animate() {
+  requestAnimationFrame(animate);
+  tick++;
+
+  // Rotate Radar Dish
+  if (radarDishMesh) {
+    radarDishMesh.rotation.y += 0.025;
+  }
+
+  // Jet Combat Flight Paths
+  if (jetObj) {
+    jetObj.position.x = -60 + Math.sin(tick * 0.015) * 45;
+    jetObj.position.z = -25 + Math.cos(tick * 0.015) * 35;
+    jetObj.rotation.y = -tick * 0.015 + Math.PI / 2;
+    jetObj.rotation.z = Math.sin(tick * 0.03) * 0.25; // Bank angle
+  }
+
+  if (banditObj) {
+    banditObj.position.x = 60 + Math.sin(tick * 0.018 + 1.5) * 40;
+    banditObj.position.z = -20 + Math.cos(tick * 0.018 + 1.5) * 30;
+    banditObj.rotation.y = -tick * 0.018 - Math.PI / 2;
+    banditObj.rotation.z = -Math.sin(tick * 0.03) * 0.25;
+  }
+
+  // Update Truck Convoy along Road
+  updateConvoy();
+
+  // Chase Camera Mode
+  if (activeCamMode === 'chase' && truckObj) {
+    camera.position.set(
+      truckObj.position.x - Math.sin(truckObj.rotation.y) * 35,
+      truckObj.position.y + 16,
+      truckObj.position.z - Math.cos(truckObj.rotation.y) * 35
+    );
+    controls.target.set(truckObj.position.x, truckObj.position.y + 4, truckObj.position.z);
+  } else {
+    controls.update();
+  }
+
+  renderer.render(scene, camera);
+}
+
+window.onload = init;
+</script>
+</body>
+</html>
