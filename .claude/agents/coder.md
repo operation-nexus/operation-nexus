@@ -17,4 +17,6 @@ While working:
 - Don't commit, push or open PRs; the lead does.
 - Run every command in the foreground with a timeout long enough for it. Never end your turn waiting on a background job. Send your report exactly once, as the final message.
 
+For every fix, test or number you report, give its `file:line` (or the command and its output); the lead greps each one, and a claim the diff doesn't show is a defect (docs/agentic/LESSONS.md L-1).
+
 Report back, in this order: the worktree path and branch if you ran in one; files changed; `make check` result (the command and its last lines); tests added; docs updated; assumptions; open questions; anything you noticed outside the brief (as a recommendation, not a change).

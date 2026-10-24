@@ -10,4 +10,5 @@ Claude-specific notes (keep this file short; it loads every session):
 - Run the `security-review` skill on any change that touches chat ingestion, identity/linking, the LLM gateway, or CI workflows. On GitHub those PRs also get the Claude review action; the `ai-review` label requests it elsewhere (Q-CI-7).
 - Code changes go through the `build-loop` skill (agents `coder` and `qa` in `.claude/agents/`); keep specs, READMEs and tracker in step with the code.
 - Run `code-review` before declaring a PR ready. Optional deeper passes: `finecomb`, `review-council`, `/ponytail-review`.
+- A failure or hard point gets fixed where it would have been prevented (build-loop §5; log: `docs/agentic/LESSONS.md`).
 - Agent tooling (MCP servers, plugins, hooks): see `docs/agentic/TOOLING.md`.

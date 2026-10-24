@@ -2,6 +2,9 @@
 
 A structured check of how entertaining the game is, run at the end of every phase and at major checkpoints (Q-DEV-22). Tests prove the sim is correct; this review asks whether anyone would want to watch or play it. It produces notes and suggestions, never rule changes: a suggestion becomes a change only through the owner (AGENTS.md rule 2).
 
+## Who runs it
+The `entertainment-reviewer` agent (`.claude/agents/`, Opus) runs the review, and the lead writes the report file. It also has a proposal mode: before the lead puts a gameplay design question to the owner, the agent says how each option plays for each audience and which one it would pick (build-loop §3).
+
 ## When
 - At every phase exit, as one of the milestone gates (ROADMAP).
 - At a major checkpoint: a whole subsystem lands (for example the Threat Director's three parts), a tracker item labeled `devlog-moment` is done, or the owner asks.

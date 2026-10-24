@@ -3,6 +3,9 @@
 # to make `make check` runnable. Desktop runs `make bootstrap` once by hand. Never blocks the session.
 [ "$CLAUDE_CODE_REMOTE" = "true" ] || exit 0
 cd "$CLAUDE_PROJECT_DIR" || exit 0
+# A fresh clone has no origin/HEAD, which the security-review skill needs (docs/agentic/LESSONS.md L-8).
+git rev-parse --verify -q 'refs/remotes/origin/HEAD^{commit}' >/dev/null ||
+  git remote set-head origin develop >/dev/null 2>&1 || true
 command -v make >/dev/null || { echo "NX-025 bootstrap skipped: make is not installed in this environment."; exit 0; }
 log="${TMPDIR:-/tmp}/nexus-bootstrap.log"
 if make bootstrap >"$log" 2>&1; then

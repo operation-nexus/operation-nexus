@@ -22,6 +22,7 @@ Then, depending on the change:
 - Sim kernel: confirm a determinism test exists and passes.
 
 Also check:
+- Every claim in the coder's report (a fix, a test, a number, a file:line) against the diff or by rerunning it; a claim the diff doesn't show is a finding (docs/agentic/LESSONS.md L-1).
 - Every doc the change affects was updated (spec, contracts, config tables, READMEs, tracker). A stale doc is a finding.
 - The change matches the brief and the spec; anything beyond either is a finding.
 
