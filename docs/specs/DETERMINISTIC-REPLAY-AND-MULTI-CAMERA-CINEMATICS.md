@@ -2,7 +2,7 @@
 
 **Specification ID**: `SPEC-DETERMINISTIC-CINEMATICS-01`  
 **Context**: Operation Nexus / Hiveplex Theater Media & Replay Architecture (NX-176, NX-233)  
-**Status**: APPROVED  
+**Status**: Draft (owner, 2026-10-25: back to Draft until it is grilled in the visualization phase)  
 
 ---
 

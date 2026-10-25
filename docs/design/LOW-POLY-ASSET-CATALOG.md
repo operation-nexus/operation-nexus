@@ -1,7 +1,7 @@
 # Low-Poly Faction 3D Asset Geometry Catalog
 
 This document specifies the low-poly 3D geometry catalog for **Operation Nexus / Hiveplex** (NX-176).
-Assets are procedurally generated via `tools/assets/generate_lowpoly_assets.py` into `content/assets/3d/*.obj`.
+Assets are procedurally generated via `tools/assets/generate_lowpoly_assets.py` into `content/assets/3d/*.obj`. They are not tracked in git (owner, 2026-10-25): regenerate them with the command below; the output is byte-identical.
 
 ## 1. Design & Performance Constraints
 

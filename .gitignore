@@ -302,3 +302,8 @@ docker-compose.override.yaml
 Thumbs.db
 ehthumbs.db
 desktop.ini
+
+# Generated 3D assets: rebuild with `python3 tools/assets/generate_lowpoly_assets.py --output-dir content/assets/3d` (byte-identical; owner 2026-10-25)
+content/assets/3d/*.obj
+# Generated terrain bakes: rebuild with tools/terrain/bake_synthetic_dted.py then drape_roads.py (owner 2026-10-25; the visualization phase picks the reference bake)
+content/theaters/dted/
