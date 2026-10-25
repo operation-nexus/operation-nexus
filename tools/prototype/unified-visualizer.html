@@ -443,6 +443,7 @@
       </nav>
 
       <div style="display:flex; align-items:center; gap:8px;">
+        <button class="ctrl-btn" onclick="toggleFOW()" id="fow-btn">FOW: OFF</button>
         <button class="ctrl-btn" onclick="toggleAudio()" id="audio-btn">AUDIO FX: OFF</button>
         <button class="ctrl-btn" onclick="toggleCRT()" id="crt-btn">CRT FX: OFF</button>
         <div style="font-size: 11px; color: var(--accent-cyan); font-family: monospace;">
@@ -670,9 +671,11 @@
     const UNITS = [
       { id: 'VIPER-01', callsign: 'VIPER-01', type: 'STRIKER', side: 'coalition', x: 140000, y: 90000, alt: 'FL240', spd: 480, fuel: 78, ammo: '4x AAM-3', task: 'COMBAT PATROL', angle: 0 },
       { id: 'VIPER-02', callsign: 'VIPER-02', type: 'STRIKER', side: 'coalition', x: 132000, y: 95000, alt: 'FL240', spd: 480, fuel: 82, ammo: '4x AAM-3', task: 'TRAIL FORMATION', angle: 0 },
+      { id: 'RESCUE-01', callsign: 'RESCUE-01', type: 'CSAR_HELO', side: 'coalition', x: 115000, y: 135000, alt: '380 FT', spd: 135, fuel: 88, ammo: 'HOIST + 2x MED', task: 'CSAR EXTRACTION', angle: 0.35 },
       { id: 'MULE-01', callsign: 'MULE-01', type: 'LOGISTICS', side: 'coalition', x: 90000, y: 120000, alt: 'GND', spd: 55, fuel: 91, ammo: 'CARGO (AMMO)', task: 'RESUPPLY WEST AB', angle: 0 },
+      { id: 'MISSILE-99', callsign: 'MISSILE-99', type: 'KINETIC_MISSILE', side: 'coalition', x: 185000, y: 98000, alt: 'FL260', spd: 1850, fuel: 100, ammo: 'HE FRAG (22KG)', task: 'TERMINAL INTERCEPT', angle: 0 },
       { id: 'BANDIT-04', callsign: 'BANDIT-04', type: 'INTERCEPTOR', side: 'static', x: 275000, y: 105000, alt: 'FL280', spd: 520, fuel: 64, ammo: '2x SARH-6', task: 'CAP INTERCEPT', angle: Math.PI },
-      { id: 'STATIC-UAV', callsign: 'STATIC-UAV', type: 'RECON', side: 'static', x: 220000, y: 160000, alt: 'FL180', spd: 190, fuel: 45, ammo: 'EO/IR POD', task: 'ISR SURVEILLANCE', angle: Math.PI * 0.8 }
+      { id: 'STATIC-UAV', callsign: 'STATIC-UAV', type: 'RECON', side: 'static', x: 220000, y: 160000, alt: 'FL180', spd: 190, fuel: 45, ammo: 'EO/IR POD [LASER]', task: 'ISR SURVEILLANCE', angle: Math.PI * 0.8 }
     ];
 
     let selectedUnitId = 'VIPER-01';
@@ -680,8 +683,19 @@
     let simTime = 0;
     let simPaused = false;
     let simSpeed = 1.0;
-    let cameraMode = 'orbit'; // 'orbit', 'chase', 'god'
+    let cameraMode = 'orbit'; // 'orbit', 'chase', 'god', 'cockpit'
     let crtEnabled = false;
+    let fowEnabled = false;
+
+    function toggleFOW() {
+      fowEnabled = !fowEnabled;
+      const btn = document.getElementById('fow-btn');
+      if (btn) {
+        btn.innerText = `FOW: ${fowEnabled ? 'ON (COALITION)' : 'OFF (REPLAY)'}`;
+        btn.style.color = fowEnabled ? 'var(--accent-amber)' : '#f8fafc';
+      }
+      addEventLog(`FOG OF WAR: ${fowEnabled ? 'ENABLED (LIVE CHAT VIEW)' : 'DISABLED (OMNISCIENT REPLAY)'}`);
+    }
 
     /* =========================================================================
        3. PILLAR 1: TACTICAL GIS (C2 2D) ENGINE
@@ -900,6 +914,21 @@
       // 6. Dynamic Units with Kinematic 60-Sec Vectors
       UNITS.forEach(u => {
         const pt = worldToScreen(u.x, u.y);
+
+        if (fowEnabled && u.side !== 'coalition') {
+          // Fog of War: Unspotted / unconfirmed enemy renders as low-confidence SIGINT blob
+          gisCtx.fillStyle = "rgba(239, 68, 68, 0.28)";
+          gisCtx.beginPath();
+          gisCtx.arc(pt.sx, pt.sy, 20 + Math.sin(simTime * 4.0) * 4, 0, Math.PI * 2);
+          gisCtx.fill();
+          gisCtx.strokeStyle = "rgba(239, 68, 68, 0.6)";
+          gisCtx.stroke();
+          gisCtx.fillStyle = "#fca5a5";
+          gisCtx.font = "bold 9px monospace";
+          gisCtx.fillText("? SIGINT CONTACT [UNCONFIRMED]", pt.sx + 14, pt.sy + 3);
+          return;
+        }
+
         const col = u.side === 'coalition' ? "#00e5ff" : "#ef4444";
 
         // Projected 60-second velocity vector
@@ -931,6 +960,29 @@
         gisCtx.font = "bold 10px monospace";
         gisCtx.fillText(`${u.callsign} [${u.spd}kts]`, pt.sx + 10, pt.sy - 6);
       });
+
+      // Tactical Laser Designation Assist Link (Recon -> Target)
+      const uav = UNITS.find(u => u.id === 'STATIC-UAV');
+      const b4Unit = UNITS.find(u => u.id === 'BANDIT-04');
+      if (uav && b4Unit && !fowEnabled) {
+        const p1 = worldToScreen(uav.x, uav.y);
+        const p2 = worldToScreen(b4Unit.x, b4Unit.y);
+        gisCtx.save();
+        gisCtx.strokeStyle = 'rgba(34, 197, 94, 0.7)';
+        gisCtx.setLineDash([6, 4]);
+        gisCtx.lineWidth = 1.5;
+        gisCtx.beginPath();
+        gisCtx.moveTo(p1.sx, p1.sy);
+        gisCtx.lineTo(p2.sx, p2.sy);
+        gisCtx.stroke();
+
+        const midX = (p1.sx + p2.sx) / 2;
+        const midY = (p1.sy + p2.sy) / 2;
+        gisCtx.fillStyle = '#22c55e';
+        gisCtx.font = 'bold 8px monospace';
+        gisCtx.fillText('LASER DESIGNATION // PK BOOST +60%', midX - 35, midY - 6);
+        gisCtx.restore();
+      }
 
       // 7. Tactical Crosshair Reticle at Mouse Cursor
       const mPt = worldToScreen(mouseWorldX, mouseWorldY);
@@ -1335,6 +1387,60 @@
 
       scene.add(truckGroup);
       unit3DMap['MULE-01'] = truckGroup;
+
+      // CSAR Helicopter (RESCUE-01)
+      const heloGroup = new THREE.Group();
+      const heloMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.4 });
+      const hFuse = new THREE.Mesh(new THREE.BoxGeometry(2.4, 2.4, 6.0), heloMat);
+      hFuse.position.set(0, 1.4, 0);
+      heloGroup.add(hFuse);
+
+      const chinMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.7 });
+      const chin = new THREE.Mesh(new THREE.BoxGeometry(2.0, 1.2, 1.8), chinMat);
+      chin.position.set(0, 0.6, 2.2);
+      heloGroup.add(chin);
+
+      const tailBoom = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.5, 5.5), heloMat);
+      tailBoom.rotateX(Math.PI / 2);
+      tailBoom.position.set(0, 1.8, -5.2);
+      heloGroup.add(tailBoom);
+
+      const rotorDiskMat = new THREE.MeshBasicMaterial({ color: 0x94a3b8, transparent: true, opacity: 0.4, side: THREE.DoubleSide });
+      const rotorDisk = new THREE.Mesh(new THREE.CircleGeometry(6.5, 18), rotorDiskMat);
+      rotorDisk.rotateX(-Math.PI / 2);
+      rotorDisk.position.set(0, 3.2, 0.4);
+      heloGroup.add(rotorDisk);
+      attachDropLineAndShadow(heloGroup, 'RESCUE-01', 0x0284c7);
+      scene.add(heloGroup);
+      unit3DMap['RESCUE-01'] = heloGroup;
+
+      // Kinetic Interceptor Missile (MISSILE-99)
+      const misGroup = new THREE.Group();
+      const misMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.2 });
+      const misTube = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 3.8), misMat);
+      misTube.rotateX(Math.PI / 2);
+      misGroup.add(misTube);
+
+      const misNose = new THREE.Mesh(new THREE.ConeGeometry(0.3, 1.0, 10), new THREE.MeshStandardMaterial({ color: 0x0f172a }));
+      misNose.rotateX(Math.PI / 2);
+      misNose.position.z = 2.4;
+      misGroup.add(misNose);
+
+      const finMat = new THREE.MeshStandardMaterial({ color: 0x334155 });
+      const finH = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.05, 0.8), finMat);
+      finH.position.z = -1.4;
+      misGroup.add(finH);
+      const finV = new THREE.Mesh(new THREE.BoxGeometry(0.05, 1.6, 0.8), finMat);
+      finV.position.z = -1.4;
+      misGroup.add(finV);
+
+      const plumeMat = new THREE.MeshBasicMaterial({ color: 0xf97316 });
+      const plume = new THREE.Mesh(new THREE.ConeGeometry(0.25, 1.6, 8), plumeMat);
+      plume.rotateX(-Math.PI / 2);
+      plume.position.z = -2.7;
+      misGroup.add(plume);
+      scene.add(misGroup);
+      unit3DMap['MISSILE-99'] = misGroup;
 
       // Static Bandit Interceptor
       const banditGroup = new THREE.Group();
@@ -1915,29 +2021,55 @@
       }
 
       // Kinematic flight updates for air units
-      const v1 = UNITS[0];
-      const rad1 = simTime * 0.35;
-      v1.x = 140000 + Math.cos(rad1) * 45000;
-      v1.y = 90000 + Math.sin(rad1) * 35000;
-      v1.angle = rad1 + Math.PI / 2;
+      const v1 = UNITS.find(u => u.id === 'VIPER-01');
+      if (v1) {
+        const rad1 = simTime * 0.35;
+        v1.x = 140000 + Math.cos(rad1) * 45000;
+        v1.y = 90000 + Math.sin(rad1) * 35000;
+        v1.angle = rad1 + Math.PI / 2;
+      }
 
-      const v2 = UNITS[1];
-      v2.x = v1.x - Math.cos(v1.angle) * 7000;
-      v2.y = v1.y - Math.sin(v1.angle) * 7000;
-      v2.angle = v1.angle;
+      const v2 = UNITS.find(u => u.id === 'VIPER-02');
+      if (v2 && v1) {
+        v2.x = v1.x - Math.cos(v1.angle) * 7000;
+        v2.y = v1.y - Math.sin(v1.angle) * 7000;
+        v2.angle = v1.angle;
+      }
 
-      const b4 = UNITS[3];
-      const radB = simTime * 0.28;
-      b4.x = 280000 - Math.cos(radB) * 40000;
-      b4.y = 110000 - Math.sin(radB) * 30000;
-      b4.angle = -radB - Math.PI / 2;
+      const b4 = UNITS.find(u => u.id === 'BANDIT-04');
+      if (b4) {
+        const radB = simTime * 0.28;
+        b4.x = 280000 - Math.cos(radB) * 40000;
+        b4.y = 110000 - Math.sin(radB) * 30000;
+        b4.angle = -radB - Math.PI / 2;
+      }
 
       // Ground Hauler (MULE-01) conformed patrol along road network
-      const m1 = UNITS[2];
-      const tLogi = (Math.sin(simTime * 0.4) + 1.0) / 2.0; // 0 to 1 back and forth
-      m1.x = 90000 + tLogi * (130000 - 90000);
-      m1.y = 120000 + tLogi * (60000 - 120000);
-      m1.angle = Math.atan2(60000 - 120000, 130000 - 90000);
+      const m1 = UNITS.find(u => u.id === 'MULE-01');
+      if (m1) {
+        const tLogi = (Math.sin(simTime * 0.4) + 1.0) / 2.0;
+        m1.x = 90000 + tLogi * (130000 - 90000);
+        m1.y = 120000 + tLogi * (60000 - 120000);
+        m1.angle = Math.atan2(60000 - 120000, 130000 - 90000);
+      }
+
+      // CSAR Helicopter (RESCUE-01) low-altitude nap-of-the-earth patrol
+      const r1 = UNITS.find(u => u.id === 'RESCUE-01');
+      if (r1) {
+        const radR = simTime * 0.24;
+        r1.x = 115000 + Math.sin(radR) * 26000;
+        r1.y = 140000 + Math.cos(radR) * 16000;
+        r1.angle = radR + Math.PI / 2;
+      }
+
+      // Kinetic Missile (MISSILE-99) Mach 3 terminal intercept
+      const mis = UNITS.find(u => u.id === 'MISSILE-99');
+      if (mis && v1 && b4) {
+        const tMis = (simTime * 0.35) % 1.0;
+        mis.x = v1.x + tMis * (b4.x - v1.x);
+        mis.y = v1.y + tMis * (b4.y - v1.y);
+        mis.angle = Math.atan2(b4.y - v1.y, b4.x - v1.x);
+      }
 
       if (currentPillar === 1) {
         renderGisFrame();
@@ -1953,6 +2085,19 @@
           if (u.alt === 'GND') {
             // Ground unit: sits directly on conformed road (+0.12 units)
             obj.position.set(x3d, elev + 0.14, z3d);
+          } else if (u.type === 'CSAR_HELO') {
+            // Low-altitude nap-of-the-earth flight (+6.8 units above terrain)
+            const flightAlt = elev + 6.8;
+            obj.position.set(x3d, flightAlt, z3d);
+            if (dropLines[id] && groundRings[id]) {
+              const diff = flightAlt - elev;
+              dropLines[id].scale.y = diff / 20.0;
+              groundRings[id].position.y = -diff + 0.15;
+            }
+          } else if (u.type === 'KINETIC_MISSILE') {
+            // Mach 3 missile intercept altitude
+            const flightAlt = elev + 23.5;
+            obj.position.set(x3d, flightAlt, z3d);
           } else {
             // Air unit: flies at altitude (+22 units above terrain)
             const flightAlt = elev + 22;
@@ -2082,6 +2227,30 @@
                 camera.position.x + fwd.x * 80,
                 camera.position.y + 0.3,
                 camera.position.z + fwd.z * 80
+              );
+            } else if (u.type === 'CSAR_HELO') {
+              // CSAR Helicopter bubble canopy & chin window view
+              camera.position.set(
+                pos.x - right.x * 0.35 + fwd.x * 1.5,
+                pos.y + 1.3,
+                pos.z - right.z * 0.35 + fwd.z * 1.5
+              );
+              controls.target.set(
+                camera.position.x + fwd.x * 80,
+                camera.position.y - 0.35,
+                camera.position.z + fwd.z * 80
+              );
+            } else if (u.type === 'KINETIC_MISSILE') {
+              // Terminal Missile Seeker Head view (Extreme nose POV)
+              camera.position.set(
+                pos.x + fwd.x * 2.2,
+                pos.y + 0.15,
+                pos.z + fwd.z * 2.2
+              );
+              controls.target.set(
+                camera.position.x + fwd.x * 120,
+                camera.position.y,
+                camera.position.z + fwd.z * 120
               );
             } else {
               // Jet Fighter canopy eye view
@@ -2471,6 +2640,232 @@
         cockpitCtx.textAlign = 'center';
         cockpitCtx.fillText('DRIVER POV // MULE-01 CONVOY LEAD // SURFACE OBSERVATION', w / 2, 95);
 
+      } else if (u.type === 'CSAR_HELO') {
+        // =========================================================
+        // CSAR HELICOPTER BUBBLE COCKPIT & CHIN WINDOWS (RESCUE-01)
+        // =========================================================
+        // 1. Panoramic Bubble Canopy Arch
+        cockpitCtx.fillStyle = '#091322';
+        cockpitCtx.strokeStyle = '#1e293b';
+        cockpitCtx.lineWidth = 4;
+
+        cockpitCtx.beginPath();
+        cockpitCtx.moveTo(0, 0);
+        cockpitCtx.lineTo(w, 0);
+        cockpitCtx.lineTo(w, 55);
+        cockpitCtx.quadraticCurveTo(w / 2, 85, 0, 55);
+        cockpitCtx.closePath();
+        cockpitCtx.fill();
+        cockpitCtx.stroke();
+
+        cockpitCtx.beginPath();
+        cockpitCtx.moveTo(0, 0);
+        cockpitCtx.bezierCurveTo(w * 0.15, h * 0.25, w * 0.18, h * 0.65, w * 0.08, h);
+        cockpitCtx.lineTo(0, h);
+        cockpitCtx.closePath();
+        cockpitCtx.fill();
+        cockpitCtx.stroke();
+
+        cockpitCtx.beginPath();
+        cockpitCtx.moveTo(w, 0);
+        cockpitCtx.bezierCurveTo(w * 0.85, h * 0.25, w * 0.82, h * 0.65, w * 0.92, h);
+        cockpitCtx.lineTo(w, h);
+        cockpitCtx.closePath();
+        cockpitCtx.fill();
+        cockpitCtx.stroke();
+
+        cockpitCtx.beginPath();
+        cockpitCtx.moveTo(w / 2 - 8, 55);
+        cockpitCtx.lineTo(w / 2 + 8, 55);
+        cockpitCtx.lineTo(w / 2 + 8, h - 160);
+        cockpitCtx.lineTo(w / 2 - 8, h - 160);
+        cockpitCtx.closePath();
+        cockpitCtx.fill();
+        cockpitCtx.stroke();
+
+        // 2. Chin Bubble Footwell Glass (Bottom Left & Right Looking at Ground)
+        const chinW = 140, chinH = 100;
+        const chinLX = w * 0.14, chinLY = h - 120;
+        cockpitCtx.strokeStyle = '#0284c7';
+        cockpitCtx.lineWidth = 2;
+        cockpitCtx.strokeRect(chinLX, chinLY, chinW, chinH);
+        cockpitCtx.fillStyle = 'rgba(2, 132, 199, 0.08)';
+        cockpitCtx.fillRect(chinLX, chinLY, chinW, chinH);
+        cockpitCtx.fillStyle = '#38bdf8';
+        cockpitCtx.font = '7.5px monospace';
+        cockpitCtx.fillText('CHIN BUBBLE [LEFT LZ]', chinLX + 8, chinLY + 14);
+        cockpitCtx.fillText('TERRAIN: PASSABLE', chinLX + 8, chinLY + chinH - 8);
+
+        const chinRX = w * 0.86 - chinW, chinRY = h - 120;
+        cockpitCtx.strokeRect(chinRX, chinRY, chinW, chinH);
+        cockpitCtx.fillStyle = 'rgba(2, 132, 199, 0.08)';
+        cockpitCtx.fillRect(chinRX, chinRY, chinW, chinH);
+        cockpitCtx.fillStyle = '#38bdf8';
+        cockpitCtx.fillText('CHIN BUBBLE [RIGHT LZ]', chinRX + 8, chinRY + 14);
+        cockpitCtx.fillText('HOIST CLEARANCE: OK', chinRX + 8, chinRY + chinH - 8);
+
+        // 3. Center Instrument Pedestal (Bottom Center)
+        const pedW = 300, pedH = 140;
+        const pedX = w / 2 - pedW / 2, pedY = h - 140;
+        cockpitCtx.fillStyle = '#0f172a';
+        cockpitCtx.fillRect(pedX, pedY, pedW, pedH);
+        cockpitCtx.strokeStyle = '#334155';
+        cockpitCtx.lineWidth = 2;
+        cockpitCtx.strokeRect(pedX, pedY, pedW, pedH);
+
+        // 4. CSAR Homing Direction Finder (ADF / RDF Beacon Dial)
+        const adfX = pedX + 65, adfY = pedY + 68;
+        cockpitCtx.fillStyle = '#020617';
+        cockpitCtx.beginPath();
+        cockpitCtx.arc(adfX, adfY, 42, 0, Math.PI * 2);
+        cockpitCtx.fill();
+        cockpitCtx.strokeStyle = '#00ff66';
+        cockpitCtx.lineWidth = 1.5;
+        cockpitCtx.stroke();
+
+        for (let a = 0; a < 360; a += 45) {
+          const rad = (a * Math.PI) / 180;
+          cockpitCtx.beginPath();
+          cockpitCtx.moveTo(adfX + Math.sin(rad) * 36, adfY - Math.cos(rad) * 36);
+          cockpitCtx.lineTo(adfX + Math.sin(rad) * 42, adfY - Math.cos(rad) * 42);
+          cockpitCtx.stroke();
+        }
+
+        const beaconAngle = Math.sin(simTime * 0.5) * 0.25 - 0.4;
+        cockpitCtx.strokeStyle = '#00ff66';
+        cockpitCtx.lineWidth = 2.5;
+        cockpitCtx.beginPath();
+        cockpitCtx.moveTo(adfX, adfY);
+        cockpitCtx.lineTo(adfX + Math.sin(beaconAngle) * 32, adfY - Math.cos(beaconAngle) * 32);
+        cockpitCtx.stroke();
+        cockpitCtx.fillStyle = '#00ff66';
+        cockpitCtx.font = '7.5px monospace';
+        cockpitCtx.textAlign = 'center';
+        cockpitCtx.fillText('RDF 243.0', adfX, adfY + 18);
+        cockpitCtx.fillText('PRC-112', adfX, adfY + 28);
+
+        // 5. Dual Torque & Rotor Gauge Cluster
+        const trqX = pedX + 155, trqY = pedY + 30;
+        cockpitCtx.fillStyle = '#38bdf8';
+        cockpitCtx.font = 'bold 8.5px monospace';
+        cockpitCtx.textAlign = 'left';
+        cockpitCtx.fillText('ROTOR TORQUE:', trqX, trqY);
+
+        cockpitCtx.strokeStyle = '#0284c7';
+        cockpitCtx.strokeRect(trqX, trqY + 6, 120, 10);
+        cockpitCtx.fillStyle = '#00ff66';
+        cockpitCtx.fillRect(trqX + 2, trqY + 8, 92, 6);
+        cockpitCtx.fillText('ENG 1: 76%', trqX, trqY + 28);
+
+        cockpitCtx.strokeRect(trqX, trqY + 34, 120, 10);
+        cockpitCtx.fillRect(trqX + 2, trqY + 36, 90, 6);
+        cockpitCtx.fillText('ENG 2: 74%', trqX, trqY + 56);
+
+        // 6. CSAR Rescue Hoist Telemetry Box
+        const hstW = 240, hstH = 80;
+        const hstX = w - hstW - 24, hstY = 70;
+        cockpitCtx.fillStyle = 'rgba(6, 13, 26, 0.94)';
+        cockpitCtx.fillRect(hstX, hstY, hstW, hstH);
+        cockpitCtx.strokeStyle = '#f59e0b';
+        cockpitCtx.lineWidth = 1.5;
+        cockpitCtx.strokeRect(hstX, hstY, hstW, hstH);
+
+        cockpitCtx.fillStyle = '#f59e0b';
+        cockpitCtx.font = 'bold 8.5px monospace';
+        cockpitCtx.textAlign = 'left';
+        cockpitCtx.fillText('CSAR HOIST TELEMETRY', hstX + 8, hstY + 16);
+        cockpitCtx.fillStyle = '#f8fafc';
+        cockpitCtx.font = '8px monospace';
+        cockpitCtx.fillText('WINCH STATE: CABLE STOWED [RDY]', hstX + 8, hstY + 32);
+        cockpitCtx.fillText('CABLE LENGTH: 250 FT // LOAD: 0 LBS', hstX + 8, hstY + 46);
+        cockpitCtx.fillStyle = '#00ff66';
+        cockpitCtx.fillText('SURVIVOR: DOWNED PILOT [VIPER-32]', hstX + 8, hstY + 60);
+        cockpitCtx.fillText('DISTANCE: 3.8 KM // LZ: CLEAR', hstX + 8, hstY + 72);
+
+        cockpitCtx.fillStyle = '#38bdf8';
+        cockpitCtx.font = 'bold 11px monospace';
+        cockpitCtx.textAlign = 'center';
+        cockpitCtx.fillText('CSAR HELICOPTER POV // RESCUE-01 // EXTRACTION MISSION ACTIVE', w / 2, 90);
+
+      } else if (u.type === 'KINETIC_MISSILE') {
+        // =========================================================
+        // KINETIC MISSILE TERMINAL SEEKER HEAD POV (MISSILE-99)
+        // =========================================================
+        const tMis = (simTime * 0.35) % 1.0;
+        const tti = ((1.0 - tMis) * 6.5).toFixed(2);
+
+        cockpitCtx.save();
+        const rSeeker = Math.min(w, h) * 0.44;
+        const sX = w / 2, sY = h / 2;
+
+        cockpitCtx.fillStyle = 'rgba(3, 7, 18, 0.92)';
+        cockpitCtx.beginPath();
+        cockpitCtx.rect(0, 0, w, h);
+        cockpitCtx.arc(sX, sY, rSeeker, 0, Math.PI * 2, true);
+        cockpitCtx.fill();
+
+        cockpitCtx.strokeStyle = 'rgba(239, 68, 68, 0.85)';
+        cockpitCtx.lineWidth = 2;
+        cockpitCtx.beginPath();
+        cockpitCtx.arc(sX, sY, rSeeker, 0, Math.PI * 2);
+        cockpitCtx.stroke();
+
+        cockpitCtx.strokeStyle = 'rgba(239, 68, 68, 0.08)';
+        cockpitCtx.lineWidth = 1;
+        for (let y = sY - rSeeker; y < sY + rSeeker; y += 4) {
+          cockpitCtx.beginPath();
+          cockpitCtx.moveTo(sX - rSeeker, y);
+          cockpitCtx.lineTo(sX + rSeeker, y);
+          cockpitCtx.stroke();
+        }
+
+        cockpitCtx.strokeStyle = '#ef4444';
+        cockpitCtx.lineWidth = 1.5;
+        cockpitCtx.beginPath();
+        cockpitCtx.moveTo(sX - 25, sY); cockpitCtx.lineTo(sX + 25, sY);
+        cockpitCtx.moveTo(sX, sY - 25); cockpitCtx.lineTo(sX, sY + 25);
+        cockpitCtx.stroke();
+
+        const tgtBoxSize = 35 + Math.sin(simTime * 8.0) * 2;
+        cockpitCtx.strokeStyle = '#22c55e';
+        cockpitCtx.lineWidth = 2.0;
+        const bLen = 8;
+        cockpitCtx.beginPath();
+        cockpitCtx.moveTo(sX - tgtBoxSize, sY - tgtBoxSize + bLen);
+        cockpitCtx.lineTo(sX - tgtBoxSize, sY - tgtBoxSize);
+        cockpitCtx.lineTo(sX - tgtBoxSize + bLen, sY - tgtBoxSize);
+
+        cockpitCtx.moveTo(sX + tgtBoxSize - bLen, sY - tgtBoxSize);
+        cockpitCtx.lineTo(sX + tgtBoxSize, sY - tgtBoxSize);
+        cockpitCtx.lineTo(sX + tgtBoxSize, sY - tgtBoxSize + bLen);
+
+        cockpitCtx.moveTo(sX - tgtBoxSize, sY + tgtBoxSize - bLen);
+        cockpitCtx.lineTo(sX - tgtBoxSize, sY + tgtBoxSize);
+        cockpitCtx.lineTo(sX - tgtBoxSize + bLen, sY + tgtBoxSize);
+
+        cockpitCtx.moveTo(sX + tgtBoxSize - bLen, sY + tgtBoxSize);
+        cockpitCtx.lineTo(sX + tgtBoxSize, sY + tgtBoxSize);
+        cockpitCtx.lineTo(sX + tgtBoxSize, sY + tgtBoxSize - bLen);
+        cockpitCtx.stroke();
+
+        cockpitCtx.fillStyle = '#ef4444';
+        cockpitCtx.font = 'bold 12px monospace';
+        cockpitCtx.textAlign = 'left';
+        cockpitCtx.fillText(`TIME TO IMPACT: TTI ${tti}S`, sX - rSeeker + 25, sY - rSeeker + 45);
+        cockpitCtx.font = '10px monospace';
+        cockpitCtx.fillText('CLOSURE: 1,850 KTS (MACH 3.1)', sX - rSeeker + 25, sY - rSeeker + 65);
+        cockpitCtx.fillText('SEEKER: DUAL TV/IR CONTRAST LOCK', sX - rSeeker + 25, sY - rSeeker + 80);
+        cockpitCtx.fillStyle = '#22c55e';
+        cockpitCtx.fillText('TARGET: BANDIT-04 [LOCKED]', sX - rSeeker + 25, sY - rSeeker + 95);
+        cockpitCtx.fillText('DESIGNATION: RECON-ASSIST (STATIC-UAV)', sX - rSeeker + 25, sY - rSeeker + 110);
+        cockpitCtx.fillText('FUZE: OPTICAL PROXIMITY [ARMED]', sX - rSeeker + 25, sY - rSeeker + 125);
+
+        cockpitCtx.textAlign = 'center';
+        cockpitCtx.fillStyle = '#ef4444';
+        cockpitCtx.font = 'bold 13px monospace';
+        cockpitCtx.fillText('TERMINAL KINETIC MISSILE POV // MACH 3 INTERCEPT RUN', w / 2, 85);
+        cockpitCtx.restore();
+
       } else {
         // =========================================================
         // FIGHTER JET COCKPIT HUD & CANOPY (VIPER-01 / BANDIT-04)
@@ -2654,9 +3049,11 @@
           cockpitCtx.stroke();
           cockpitCtx.fillStyle = '#ef4444';
           cockpitCtx.font = '8px monospace';
-          cockpitCtx.fillText('TGT: BANDIT-04', tgtX + 14, tgtY - 2);
-          cockpitCtx.fillText('RNG: 34.2 KM', tgtX + 14, tgtY + 8);
-          cockpitCtx.fillText('VC: +890 KTS', tgtX + 14, tgtY + 18);
+          cockpitCtx.fillText('TGT: BANDIT-04', tgtX + 14, tgtY - 6);
+          cockpitCtx.fillText('RNG: 34.2 KM // VC: +890 KTS', tgtX + 14, tgtY + 6);
+          cockpitCtx.fillStyle = '#00ff66';
+          cockpitCtx.fillText('[PAINTED - LSR DESIGNATED BY STATIC-UAV]', tgtX + 14, tgtY + 18);
+          cockpitCtx.fillText('PK BOOST: +60% // GUIDANCE: PRECISION', tgtX + 14, tgtY + 28);
         }
 
         // Lower Status Telemetry
@@ -2707,6 +3104,10 @@
           setCameraMode('cockpit');
         } else if (viewParam === 'god') {
           setCameraMode('god');
+        } else if (viewParam === 'optic') {
+          camera.position.set(-86, 6.0, 12);
+          controls.target.set(-40, 35, -40);
+          controls.update();
         }
       }
 

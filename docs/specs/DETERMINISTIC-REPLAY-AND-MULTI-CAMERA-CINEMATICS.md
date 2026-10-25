@@ -60,10 +60,14 @@ The deterministic replay harness enables multi-pass video generation:
 | **Pass B: Tactical Chase** | **Pillar 2 (3D RTS)** | Dynamic 3/4 chase camera locked behind `VIPER-01` | Captures high-g turns, sonic canyon flybys, missile launches, and target locks. |
 | **Pass C: Fighter Cockpit POV** | **Pillar 2 (3D RTS)** | Pilot canopy POV with collimated HUD & BVR target diamond | Visceral first-person dogfight perspective with weapon status and radar locks. |
 | **Pass D: Truck Driver POV** | **Pillar 2 (3D RTS)** | Driver cabin windshield POV behind military steering wheel | Human-scale ground view observing road terrain and distant air/bridge strikes. |
-| **Pass E: Viaduct Choke-Point Cam** | **Pillar 2 (3D RTS)** | Static ground-level tripod camera mounted on the North Fjord Viaduct | Delivers cinematic perspective as supersonic strike packages scream overhead. |
-| **Pass F: War Room Briefing** | **Pillar 3 (Holographic)** | Isometric vector wireframe tabletop with SAM threat domes | Perfect for tactical voiceover, intel briefings, and order-of-battle breakdowns. |
-| **Pass G: Cognitive Neural Scope** | **Pillar 4 (AI Lattice)** | Causal trajectory trees, branch probabilities, and synaptic intent arcs | Explains *how* the agent decided on a high-risk strike or retreat maneuver. |
-| **Pass H: Target Reconnaissance** | **PiP MFD (`RECON` / `FLIR`)** | Downward optical/IR sensor hovering over enemy headquarters | Delivers bomb damage assessment (BDA) and kinetic impact confirmation. |
+| **Pass E: CSAR Helo Low-Level** | **Pillar 2 (3D RTS)** | Helicopter bubble canopy + chin footwell window POV | Low-level nap-of-the-earth insertion tracking PRC-112 survivor beacon for pilot rescue. |
+| **Pass F: Naval Wheelhouse POV** | **Pillar 2 (3D RTS)** | Ship bridge deck view over forward gun & VLS cells | Sea domain surface action, radar PPI sweep, and naval escort operations. |
+| **Pass G: Missile Seeker Terminal** | **Pillar 2 (3D RTS)** | Kinetic missile seeker head POV (Mach 3 proportional nav) | High-velocity terminal flight, contrast lock brackets, and millisecond time-to-impact (TTI). |
+| **Pass H: SAM Battery Optic** | **Pillar 2 (3D RTS)** | Skyward binocular optic mounted on missile launcher rail | Ground-based air defense perspective tracking supersonic targets against mountain ridges. |
+| **Pass I: Viaduct Choke-Point Cam** | **Pillar 2 (3D RTS)** | Static ground-level tripod camera mounted on the North Fjord Viaduct | Delivers cinematic perspective as supersonic strike packages scream overhead. |
+| **Pass J: War Room Briefing** | **Pillar 3 (Holographic)** | Isometric vector wireframe tabletop with SAM threat domes | Perfect for tactical voiceover, intel briefings, and order-of-battle breakdowns. |
+| **Pass K: Cognitive Neural Scope** | **Pillar 4 (AI Lattice)** | Causal trajectory trees, branch probabilities, and synaptic intent arcs | Explains *how* the agent decided on a high-risk strike or retreat maneuver. |
+| **Pass L: Target Reconnaissance** | **PiP MFD (`RECON` / `FLIR`)** | Downward optical/IR sensor hovering over enemy headquarters | Delivers bomb damage assessment (BDA) and kinetic impact confirmation. |
 
 ### 2.2 Unit POV & Cockpit Profiles (`pov_profile`)
 
@@ -76,8 +80,16 @@ In accordance with [RFC-UNIT-POV-002](../architecture/UNIT-POV-AND-COCKPIT-CONTR
    - Eye position: Inside armored cabin $+2.2\text{m}$ above road surface, offset $-0.45\text{m}$ to driver seat.
    - Ballistic split-windshield: Heavy matte A-pillars, top sun visor, and center reinforcing vertical divider.
    - Cab instruments: Military steering wheel, analog speedometer dial, tactical route navigation MFD tablet, and center interior rearview mirror showing the road receding into the distance.
-3. **Dismounted Infantry Optics & UAV Gimbal**:
-   - Supports upcoming ground squads (ACOG / Red Dot reticles with squad health) and ISR drones (gyro-stabilized 32x optical zoom and FLIR thermal color palettes).
+3. **CSAR Helicopter Bubble (`RESCUE-01`)**:
+   - Eye position: Inside rounded bubble canopy $+1.4\text{m}$ above cabin deck.
+   - Chin footwell glass: Direct downward view of terrain, tree canopies, and landing zones below the rudder pedals.
+   - Instruments: ADF survival beacon needle homing onto downed pilot `PRC-112`, rescue hoist status, and torque percentage gauges.
+4. **Naval Surface Vessel Bridge (Sea Domain P3)**:
+   - Eye position: Ship wheelhouse $+9.5\text{m}$ above waterline looking over foredeck.
+   - Instruments: Compass binnacle, engine telegraph, and circular radar Plan Position Indicator (PPI) screen with bridge clearance sonar.
+5. **Kinetic Weapon Seekers & SAM Optics**:
+   - Missile Seeker POV: Mach 3 proportional navigation reticle with real-time millisecond Time-to-Impact (`TTI: 01.8S`).
+   - SAM Site Optic: Skyward tracking periscope with radar acquisition lock ring (`INTERCEPT PROBABILITY: 84%`).
 
 ### 2.3 Cognitive Neural Decision Lattice Visibility Matrix
 
@@ -88,6 +100,25 @@ The **Cognitive Neural Decision Lattice** (Pillar 4) visualizes the AI agent's b
 | **Live: Chat vs Agent Campaign** | **STRICTLY HIDDEN** (Fog of War) | Preserves competitive integrity and Fog of War (RP-1). Live chat commanders must NOT be able to read enemy AI strike intentions, target selection, or risk calculations in real time. |
 | **Live: Agent vs Agent Match** | **TOGGLEABLE / LIVE SPECTATOR** | For AI research benchmarks and autonomous esports broadcasts, the omniscient view allows audiences to analyze dual AI decision logic in real time. |
 | **Replay / AAR / Video Creation** | **UNLOCKED FULL REVEAL** | In post-campaign replays, the full-truth causal tree is completely unlocked. Video editors can toggle the lattice on key narrative moments (e.g. showing the 92% risk calculation before an agent launches a daring canyon strike). |
+
+### 2.4 Kinetic Scale, Physical Speed Calibration & Fog of War Rules
+
+To prevent visual-simulation drift (DATA-INTEGRITY DI-1) while delivering cinematic realism:
+
+1. **Kinematic Velocity & Spatial Scaling**:
+   - Theater bounds: Strictly calibrated to $400\text{km} \times 240\text{km}$.
+   - Realistic physical velocities:
+     - Ground Convoys: $50 - 60\text{km/h}$ ($14 - 17\text{m/s}$).
+     - CSAR Helicopters: $120 - 150\text{kts}$ ($62 - 77\text{m/s}$).
+     - Strike Fighters: $480\text{kts}$ cruise ($247\text{m/s}$), Mach 1.4 burst ($476\text{m/s}$).
+     - Interceptor Missiles: Mach $2.8 - 3.5$ ($950 - 1,190\text{m/s}$).
+2. **Recon Spotting & Laser Designation Multiplier**:
+   - When a scout UAV tracks and paints an enemy unit (`TargetPainted`), laser-guided precision strikes receive a $P_k$ multiplier ($\times 1.6$).
+   - If the scout loses line-of-sight before the weapon's `impact_tick` (`Q-FOW-16`), the missile loses terminal guidance and misses.
+3. **Live Broadcast Fog-of-War Redaction**:
+   - In live Chat vs Agent broadcasts, the camera and overlay strictly conform to coalition sensor knowledge (`FOW-1`, `FOW-2`).
+   - Unspotted enemy entities are redacted from 2D/3D scenes, or rendered solely as low-confidence SIGINT latency blobs.
+   - In omniscient post-campaign replays, Fog of War is toggleable to allow full two-sided narrative breakdown.
 
 ---
 

@@ -32,7 +32,7 @@ Unit contracts defined in `content/units/*.yaml` or the simulation unit catalog 
 ```yaml
 pov_profile:
   # POV Category Archetype
-  pov_type: FIGHTER_CANOPY    # FIGHTER_CANOPY | VEHICLE_CABIN | INFANTRY_OPTIC | GIMBAL_TURRET | SENSOR_MAST
+  pov_type: FIGHTER_CANOPY    # FIGHTER_CANOPY | HELICOPTER_BUBBLE | VEHICLE_CABIN | NAVAL_BRIDGE | INFANTRY_OPTIC | GIMBAL_TURRET | WEAPON_SEEKER | AIR_DEFENSE_OPTIC
 
   # Eye position in unit local coordinates [lateral_x, vertical_y, forward_z] in meters
   eye_offset_m: [0.0, 1.25, 1.80]
@@ -40,7 +40,7 @@ pov_profile:
   # Default forward optical vector in unit local coordinates
   forward_vector: [0.0, 0.0, 1.0]
 
-  # Field of View in horizontal degrees (Standard tactical FOV: 70°-85°)
+  # Field of View in horizontal degrees (Standard tactical FOV: 70°-85°, Telephoto seeker: 15°-30°)
   fov_deg: 75.0
 
   # Head-look rotational clamping relative to unit heading [min_deg, max_deg]
@@ -49,8 +49,8 @@ pov_profile:
 
   # Cockpit Overlay and Symbology Configuration
   cockpit_overlay:
-    overlay_type: COLLIMATED_HUD   # COLLIMATED_HUD | ARMORED_WINDSHIELD | OPTICAL_RETICLE | GIMBAL_SENSOR
-    symbology_color: "#00ff66"     # Tactical neon HUD green (#ef4444 for adversary static units)
+    overlay_type: COLLIMATED_HUD   # COLLIMATED_HUD | HELO_GLASS | ARMORED_WINDSHIELD | NAVAL_WHEELHOUSE | OPTICAL_RETICLE | GIMBAL_SENSOR | WEAPON_TRACKER | SAM_OPTIC
+    symbology_color: "#00ff66"     # Tactical neon HUD green (#ef4444 for adversary static units, #38bdf8 for naval)
 
     # Heads-Up Display Telemetry Modules
     hud_modules:
@@ -69,17 +69,27 @@ pov_profile:
         unit: FT_MSL
       - type: RADAR_TARGET_DIAMOND # BVR and dogfight target lock diamond
         track_source: RADAR_TWS
+      - type: HOMING_BEACON_ARROW  # For CSAR: points to PRC-112 emergency beacon
+        transponder_freq: 243.0MHZ
+      - type: TIME_TO_IMPACT       # For missile seeker POV
+        countdown_unit: SECONDS
 
-    # Interior Cabin Modules (For Ground Vehicles)
+    # Interior Cabin Modules (For Ground, Helo & Naval Vehicles)
     cabin_elements:
-      windshield_frame: ARMORED_SPLIT_PILLAR
+      windshield_frame: ARMORED_SPLIT_PILLAR # ARMORED_SPLIT_PILLAR | HELO_BUBBLE_FRAME | NAVAL_BRIDGE_WINDOW
       steering_wheel:
         enabled: true
         position: BOTTOM_LEFT
         label: "NEXUS LOGI"
+      cyclic_collective: # For helicopters
+        enabled: true
+      chin_bubble_glass: # For CSAR helicopters
+        enabled: true
+        downward_view: TERRAIN_LZ
       instrument_cluster:
         analog_speedometer: true
         fuel_gauge: true
+        torque_meter: true
       tactical_mfd:
         enabled: true
         position: CENTER_CONSOLE
@@ -88,6 +98,10 @@ pov_profile:
         enabled: true
         position: TOP_CENTER
         reflection_feed: CAM_REAR_01
+      naval_helm: # For naval ships
+        compass_binnacle: true
+        telegraph_throttle: true
+        radar_ppi_scope: true
 ```
 
 ---
@@ -136,28 +150,106 @@ pov_profile:
   - Slant range laser rangefinder (`LRF: 14,820M`).
   - Crosshair target designation with latitude/longitude/MGRS telemetry.
 
+### 3.5 Helicopter & Combat Search and Rescue (CSAR) (`HELICOPTER_BUBBLE`)
+- **Applies to**: `RESCUE-01` (Utility / CSAR Transport Helicopter, `GAMEPLAY-LATER` §6a, `NX-290`).
+- **Physical Mounting**: Eye mounted inside glass bubble canopy $+1.4\text{m}$ above cabin deck, $-0.4\text{m}$ lateral (pilot seat).
+- **Visual Presentation**:
+  - Rounded panoramic Plexiglas bubble canopy with structural tubular framing and green overhead sun tint.
+  - **Chin Bubble Footwell Windows**: Clear lower glass panels showing the terrain, trees, water, and landing zone directly below the pilot's rudder pedals.
+  - **CSAR Direction Finder (ADF / RDF)**: Homing needle slaved to downed pilot emergency survival beacon (`PRC-112 @ 243.0 MHz`), indicating relative bearing to the extraction zone.
+  - **Rescue Hoist & Winch Telemetry**: Cable extension indicator (`HOIST: 35 FT // CABLE RETRACTING`), survivor weight locked status, and hoist operator voice readiness.
+  - Collective / cyclic flight controls, dual engine torque percentage dials, and barometric / radar low-altitude altimeter tape ($0 - 500\text{ft}$).
+
+### 3.6 Naval Surface Combatant Bridge (`NAVAL_BRIDGE`)
+- **Applies to**: Missile Corvettes, Fast Patrol Craft, and Sea Ferries (Sea Domain P3, `NX-128`, `Q-GD-8`).
+- **Physical Mounting**: Elevated inside ship wheelhouse $+9.5\text{m}$ above waterline, looking forward over the bow.
+- **Visual Presentation**:
+  - Heavy naval bridge windows with rotary clear-view rain screens and salt spray accumulation.
+  - Long panoramic perspective over the ship's foredeck, showcasing the forward gun turret (76mm), Vertical Launch System (VLS) cells, and Close-In Weapon System (CIWS) mounts.
+  - Center helm console: Brass compass binnacle, twin engine telegraph throttles, and rudder angle indicator.
+  - Tactical Navigational Radar: Circular green Plan Position Indicator (PPI) sweep displaying coastlines, strait islands, shipping lanes, and bridge abutment spans.
+  - Bathymetric sonar depth sounder reading water under keel ($+14.0\text{m}$ overhead bridge clearance check).
+
+### 3.7 Kinetic Weapon Seeker & PGM Terminal POV (`WEAPON_SEEKER`)
+- **Applies to**: Guided missiles (`AAM-3`, `SARH-6`, `AGM-88`), Cruise Missiles, and Laser-Guided Bombs (`PGM`).
+- **Physical Mounting**: Extreme nose of missile airframe ($0.0\text{m}$ offset), locked to seeker optical/thermal axis.
+- **Visual Presentation**:
+  - High-velocity terminal flight perspective (Mach $2.5 - 3.5$ for AAMs, $500\text{kts}$ for cruise missiles).
+  - Electro-optical / infrared guidance overlay: Proportional navigation crosshair, contrast gate tracking brackets, and seeker gimbal angle limit circle.
+  - **Time-to-Impact (TTI) Telemetry**: Real-time millisecond countdown (`TTI: 02.14S`, `CLOSURE: 1,180 M/S`).
+  - Terminal Detonation Capture: The final frame before kinetic impact freeze-frames into a high-contrast flash before switching back to spectator director cam.
+
+### 3.8 Surface-to-Air Missile (SAM) Battery & AAA Optic (`AIR_DEFENSE_OPTIC`)
+- **Applies to**: `AIR_DEFENSE_SITE` (SAM batteries, radar-guided flak sites).
+- **Physical Mounting**: Operator tracking periscope / pedestal mounted adjacent to missile launcher rails.
+- **Visual Presentation**:
+  - High-angle skyward binocular / optical periscope framing incoming aerial targets against clouds or mountain ridges.
+  - Fire control radar tracking reticle (`AN/MPQ-64 / PATRIOT FC`) with lock acquisition ring and azimuth/elevation degree ticks.
+  - Battery engagement status: `FIRE CONTROL: RADAR LOCK // MISSILE 1 READY // INTERCEPT PROBABILITY: 84%`.
+
 ---
 
-## 4. Replay & Automated Media Integration
+## 4. Reconnaissance Spotting & Laser Designation Link (`RECON_DESIGNATION_LINK`)
 
-### 4.1 Headless Cinematic Pass Recording
+To accurately represent the tactical synergy between scout units and kinetic strike assets (as defined in `COMBAT.md` and `FOG-OF-WAR.md`):
+
+```
+┌─────────────────────────────────┐                 ┌─────────────────────────────────┐
+│     SCOUT / UAV (STATIC-UAV)    │                 │   STRIKE FIGHTER (VIPER-01)     │
+│  - Active EO/IR sensor track    │                 │  - Distance: 45km standoff       │
+│  - Laser Painting Target        │                 │  - Fires Laser-Guided Ordnance   │
+└────────────────┬────────────────┘                 └────────────────┬────────────────┘
+                 │                                                   │
+                 │ 1. Emits TargetPainted{recon_id, target_id}       │
+                 │    Sets target.painted = true                     │
+                 ▼                                                   ▼
+┌─────────────────────────────────────────────────────────────────────────────────────┐
+│                             SIMULATION KERNEL (COMBAT CB-5)                         │
+│  - Precision Strike receives Pk Multiplier: Pk_eff = min(0.95, Pk_base * 1.6)       │
+│  - Terminal Track Check (Q-FOW-16): Target MUST maintain track at impact_tick       │
+│  - If scout loses LoS or target fades: Missile loses guidance (Fizzles / Misses)     │
+└─────────────────────────────────────────────────────────────────────────────────────┘
+```
+
+1. **Laser Designation Symbology**:
+   - In 2D/3D views, a pulsing green/IR laser beam connects the designating scout to the target entity.
+   - On the striker's HUD / Cockpit POV, the target acquisition diamond changes from generic amber to flashing tactical green: `◇ TARGET PAINTED // DESIGNATOR: STATIC-UAV // PK BOOST: +60%`.
+2. **Terminal Impact Condition (`Q-FOW-16`)**:
+   - If the scout is destroyed, jammed by EW, or loses line-of-sight during the missile's flight, `TargetPainted` expires.
+   - The missile guidance fails and the shot event is logged as `WeaponImpact{hit: false, cause: TRACK_LOST}`.
+3. **Scout Assist Recognition**:
+   - When a painted target is successfully destroyed, the scout unit receives an automated **Recon Assist** event (`UnitDestroyed.assist_ids`), contributing to role leaderboard ranking (`Q-PROG-8`).
+
+---
+
+## 5. Replay & Automated Media Integration
+
+### 5.1 Headless Cinematic Pass Recording
 The Python headless recording harness (`tools/replay/render_cinematic_pass.py`) integrates unit cockpit POV passes:
 ```bash
 # Capture full pilot cockpit dogfight pass
 python3 tools/replay/render_cinematic_pass.py --pass cockpit-viper --out viper_cockpit.mp4
 
+# Capture CSAR helicopter extraction pass
+python3 tools/replay/render_cinematic_pass.py --pass cockpit-helo --out helo_csar.mp4
+
+# Capture terminal missile seeker POV pass
+python3 tools/replay/render_cinematic_pass.py --pass seeker-missile --out missile_hit.mp4
+
 # Capture truck driver POV crossing the fjord viaduct (9:16 vertical short)
 python3 tools/replay/render_cinematic_pass.py --pass cockpit-mule --aspect 9:16 --out truck_viaduct_short.mp4
 ```
 
-### 4.2 Live Broadcast Director Logic
+### 5.2 Live Broadcast Director Logic
 During 24/7 live streams, the Live AI Director switches to cockpit POV during high-intensity moments:
 1. **Dogfight Ingress**: When `VIPER-01` closes within $35\text{km}$ of an adversary, cut from strategic C2 to Pilot Cockpit POV for a high-intensity $15\text{s}$ engagement lock.
-2. **Convoy Chokepoints**: When `MULE-01` approaches a strategic bridge or pass, cut to Driver Cockpit POV to show the massive scale of the surrounding mountain terrain.
+2. **Kinetic Missile Terminal Run**: When a precision weapon is within $3\text{s}$ of impact on a high-value facility or aircraft, cut to `WEAPON_SEEKER` POV for a dramatic terminal strike.
+3. **CSAR Extraction Race**: When a rescue helicopter approaches a downed pilot marker while enemy static armor approaches, cut to Helicopter Bubble POV showing the ground through the chin windows.
+4. **Convoy Chokepoints**: When `MULE-01` approaches a strategic bridge or pass, cut to Driver Cockpit POV to show the massive scale of the surrounding mountain terrain.
 
 ---
 
-## 5. Architectural Invariants & Decoupling
+## 6. Architectural Invariants & Decoupling
 
 1. **Kernel Purity (DATA-INTEGRITY DI-1)**:
    The simulation kernel in `services/sim` does not know or care about canvas rendering, windshield textures, or font sizes. It only manages position $(x, y, z)$, heading angle, velocity, and health.
