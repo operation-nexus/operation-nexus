@@ -1090,24 +1090,51 @@
           const midZ = (az + bz) / 2;
           const angle = Math.atan2(bz - az, bx - ax);
 
-          // Slim Truss Guardrails (exact road width + 0.25 curb)
-          const curbGeo = new THREE.BoxGeometry(totalDist, 1.2, 0.25);
-          const curbL = new THREE.Mesh(curbGeo, trussMat);
-          curbL.position.set(midX - perpX * (ROAD_W / 2 + 0.12), 3.6, midZ - perpZ * (ROAD_W / 2 + 0.12));
-          curbL.rotation.y = -angle;
-          bridgeGroup.add(curbL);
+          // 1. Shoreline Abutment Foundations (Heavy Concrete Bunkers at Bank Thresholds)
+          const abutGeo = new THREE.BoxGeometry(4.0, 5.0, ROAD_W + 1.2);
+          const abutWest = new THREE.Mesh(abutGeo, pylonMat);
+          abutWest.position.set(ax, 0.5, az);
+          abutWest.rotation.y = -angle;
+          bridgeGroup.add(abutWest);
 
-          const curbR = new THREE.Mesh(curbGeo, trussMat);
-          curbR.position.set(midX + perpX * (ROAD_W / 2 + 0.12), 3.6, midZ + perpZ * (ROAD_W / 2 + 0.12));
-          curbR.rotation.y = -angle;
-          bridgeGroup.add(curbR);
+          const abutEast = new THREE.Mesh(abutGeo, pylonMat);
+          abutEast.position.set(bx, 0.5, bz);
+          abutEast.rotation.y = -angle;
+          bridgeGroup.add(abutEast);
 
-          // Deep Pier Pylons into trench
+          // 2. Structural Steel Warren Truss Railings (Along Water Span Margins)
+          // Top chord at +4.2 (1.0m above deck), bottom chord flush with deck at +3.2
+          const trussHeight = 1.4;
+          const chordGeo = new THREE.BoxGeometry(totalDist, 0.35, 0.25);
+          const postGeo = new THREE.BoxGeometry(0.35, trussHeight, 0.25);
+
+          [-ROAD_W / 2 - 0.15, ROAD_W / 2 + 0.15].forEach(offset => {
+            // Upper chord
+            const chord = new THREE.Mesh(chordGeo, trussMat);
+            chord.position.set(midX - perpX * offset, 3.2 + trussHeight, midZ - perpZ * offset);
+            chord.rotation.y = -angle;
+            bridgeGroup.add(chord);
+
+            // Vertical truss posts every 6 meters
+            const postCount = Math.max(4, Math.floor(totalDist / 6.0));
+            for (let p = 0; p <= postCount; p++) {
+              const pFrac = p / postCount - 0.5;
+              const postX = midX + dirX * (totalDist * pFrac) - perpX * offset;
+              const postZ = midZ + dirZ * (totalDist * pFrac) - perpZ * offset;
+              const post = new THREE.Mesh(postGeo, trussMat);
+              post.position.set(postX, 3.2 + trussHeight / 2, postZ);
+              post.rotation.y = -angle;
+              bridgeGroup.add(post);
+            }
+          });
+
+          // 3. Heavy Concrete Channel Piers with Submerged Footings
           [-0.25, 0.25].forEach(frac => {
             const px = midX + dirX * (totalDist * frac);
             const pz = midZ + dirZ * (totalDist * frac);
-            const pylon = new THREE.Mesh(new THREE.BoxGeometry(2.0, 6.0, ROAD_W + 0.6), pylonMat);
-            pylon.position.set(px, 0.5, pz);
+            // Pylon extends from bridge deck (+3.2) down to trench bed (-2.8)
+            const pylon = new THREE.Mesh(new THREE.BoxGeometry(3.0, 6.2, ROAD_W + 1.4), pylonMat);
+            pylon.position.set(px, 0.2, pz);
             pylon.rotation.y = -angle;
             bridgeGroup.add(pylon);
           });
@@ -1498,6 +1525,22 @@
       const initialPillar = parseInt(params.get('pillar') || (hashMatch ? hashMatch[1] : '1'));
       if (initialPillar === 2 || initialPillar === 3) {
         switchPillar(initialPillar);
+
+        // Optional Camera Presets for Inspection & Testing
+        const viewParam = params.get('view');
+        if (viewParam === 'bridge') {
+          camera.position.set(-32, 12, -38);
+          controls.target.set(0, 3.2, -54);
+          controls.update();
+        } else if (viewParam === 'mountains') {
+          camera.position.set(0, 45, 90);
+          controls.target.set(0, 20, -70);
+          controls.update();
+        } else if (viewParam === 'chase') {
+          setCameraMode('chase');
+        } else if (viewParam === 'god') {
+          setCameraMode('god');
+        }
       }
 
       window.addEventListener('resize', () => {
