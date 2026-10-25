@@ -23,14 +23,28 @@ However, a physical bridge structure must **never** be rendered across dry land.
 
 ### 1.2 Boundary Standards
 1. **Bridge Crossing Span**:
-   - Strictly active where the terrain crosses open water ($|X - 200\text{km}| \le 18\text{km}$).
-   - Elevated deck clearance: $+14.0\text{m}$ above sea level (allowing naval passage below).
+   - Strictly active where the terrain crosses open water or deep canyon chasms.
+   - Lowland clearance: Minimum $+14.0\text{m}$ above sea level (allowing naval passage below).
    - Concrete pier pylons extending into the trench floor ($-8.0\text{m}$).
    - Heavy structural steel trusses along the road deck margins.
 2. **Land Approach / Departure Highways**:
-   - Draped directly over the continuous digital elevation model ($+0.22\text{m}$ tarmac offset).
+   - Draped directly over the continuous digital elevation model ($+0.12\text{m}$ to $+0.22\text{m}$ tarmac offset).
    - Conforms to natural ground undulations, hill slopes, and valley corridors.
-   - Smooth transition ramp ($200\text{m}$ grade) connecting the $+0.22\text{m}$ ground highway to the $+14.0\text{m}$ bridge deck at each abutment.
+   - Smooth transition ramp connecting ground highway to the bridge deck at each abutment.
+
+### 1.3 Structural Archetypes: High Fjord Viaduct vs Lowland Sea-Level Bridge
+To prevent unphysical cliff drop-offs (where a mountain highway plunges off a vertical ridge to meet a low-lying bridge deck), the engine enforces two distinct civil engineering archetypes:
+
+1. **High Fjord Viaduct (`isViaduct: true`, Abutment Elev $\ge 100\text{m}$)**:
+   - Spans between high canyon/fjord rims (e.g. North Crossing at $Y=60\text{km}$, elevation $\sim +450\text{m}$).
+   - The road deck remains at the mountain plateau rim elevation:
+     $$Z_{\text{deck}}(t) = (1 - t) \cdot Z_{\text{abutment\_west}} + t \cdot Z_{\text{abutment\_east}} + \text{camber}(t)$$
+   - Deep structural concrete pylons descend from the elevated deck down into the gorge floor and water trench.
+   - Eliminates vertical cliff plunges; ground approaches smoothly transition directly onto the viaduct deck.
+2. **Lowland Sea-Level Truss Bridge (`isViaduct: false`, Abutment Elev $< 100\text{m}$)**:
+   - Spans lowland maritime channels (e.g. South Crossing at $Y=180\text{km}$, elevation $\sim +25\text{m}$).
+   - Ramps up smoothly from shoreline abutments to ensure $+14.0\text{m}$ clearance over high tide for naval vessels.
+   - Reinforced maritime channel piers and Warren steel trusses.
 
 ---
 

@@ -53,39 +53,45 @@ def sample_strait1_elevation(x_m: float, y_m: float) -> float:
     """Evaluate synthetic continuous elevation for Strait-1 theater in meters.
 
     Theater span: 400,000m East (X) x 240,000m South (Y).
+    Uses C1-continuous smoothstep blending between inland landmass and strait water channel
+    to prevent artificial knife-edge cliffs and ensure physically plausible canyon walls.
     """
     strait_center_x = 200_000.0
     dist_to_strait = abs(x_m - strait_center_x)
 
-    # 1. Strait trench and shoreline bevel
-    if dist_to_strait < 18_000.0:
-        # Submarine trench: -60m to -90m
-        return -80.0 + math.sin(y_m * 0.00008) * 12.0
-    elif dist_to_strait < 24_000.0:
-        # Coastal shoreline bevel transitioning to surface
-        t = (dist_to_strait - 18_000.0) / 6_000.0
-        return -80.0 + t * 85.0  # Rises to +5m
-
-    # 2. Landmass harmonic undulation
+    # 1. Landmass harmonic undulation
     macro = math.sin(x_m * 0.00002) * math.cos(y_m * 0.00003) * 120.0
     micro = math.sin(x_m * 0.00007 + 1.2) * math.cos(y_m * 0.00008 + 0.8) * 45.0
     base_elev = 25.0 + macro + micro
 
-    # 3. Northern Mountain Ridge (Y ~ 40,000m)
+    # 2. Northern Mountain Ridge (Y ~ 40,000m)
     north_mountain = 0.0
     if y_m < 80_000.0:
         ridge_dist = abs(y_m - 40_000.0)
         peak_profile = max(0.0, 750.0 - ridge_dist * 0.015)
         north_mountain = peak_profile * (0.85 + 0.25 * math.sin(x_m * 0.00004))
 
-    # 4. Southern Valley Sneak Corridor (Y ~ 220,000m, X > 220,000m)
+    # 3. Southern Valley Sneak Corridor (Y ~ 220,000m, X > 220,000m)
     south_valley = 0.0
     if y_m > 190_000.0 and x_m > 220_000.0:
         valley_t = (y_m - 190_000.0) / 50_000.0
         south_valley = -60.0 * valley_t + math.sin(x_m * 0.00005) * 30.0
 
-    elev = base_elev + north_mountain + south_valley
-    return max(4.0, elev)
+    land_elev = max(4.0, base_elev + north_mountain + south_valley)
+
+    # 4. Strait submarine trench (-60m to -92m)
+    trench_elev = -80.0 + math.sin(y_m * 0.00008) * 12.0
+
+    # 5. Continuous canyon & shoreline transition
+    if dist_to_strait <= 17_000.0:
+        return trench_elev
+    elif dist_to_strait >= 26_000.0:
+        return land_elev
+    else:
+        # Smooth Hermite interpolation (smoothstep) across the canyon/shoreline band
+        t = (dist_to_strait - 17_000.0) / 9_000.0
+        s = t * t * (3.0 - 2.0 * t)
+        return (1.0 - s) * trench_elev + s * land_elev
 
 
 def compute_hillshade_and_dem(

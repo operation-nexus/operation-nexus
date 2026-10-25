@@ -248,28 +248,80 @@
     .cam-btn:hover { color: #fff; border-color: var(--accent-cyan); }
     .cam-btn.active { background: var(--border-color); color: var(--accent-cyan); }
 
-    /* FLIR PIP */
+    /* MULTI-SENSOR PIP MFD */
     .pip-camera {
       position: absolute;
       bottom: 12px; left: 12px;
-      width: 220px; height: 130px;
-      background: #000;
-      border: 2px solid var(--accent-cyan);
+      width: 250px; height: 160px;
+      background: #020713;
+      border: 1.5px solid var(--accent-cyan);
+      box-shadow: 0 4px 16px rgba(0, 229, 255, 0.2);
       border-radius: 6px;
       overflow: hidden;
       z-index: 60;
+      display: flex;
+      flex-direction: column;
+      cursor: pointer;
+    }
+    .pip-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 3px 6px;
+      background: rgba(10, 25, 47, 0.95);
+      border-bottom: 1px solid rgba(0, 229, 255, 0.3);
+      font-size: 8.5px;
+      font-weight: 700;
     }
     .pip-title {
-      position: absolute;
-      top: 4px; left: 6px;
-      font-size: 9px;
-      font-weight: 700;
       color: var(--accent-cyan);
-      background: rgba(0,0,0,0.6);
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 125px;
+    }
+    .pip-tabs {
+      display: flex;
+      gap: 3px;
+    }
+    .pip-tab {
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      font-size: 7.5px;
       padding: 1px 4px;
       border-radius: 2px;
+      cursor: pointer;
     }
-    #flir-canvas { width: 100%; height: 100%; }
+    .pip-tab:hover { color: #fff; border-color: var(--accent-cyan); }
+    .pip-tab.active { background: rgba(0, 229, 255, 0.2); color: var(--accent-cyan); border-color: var(--accent-cyan); font-weight: 700; }
+    #flir-canvas { flex: 1; width: 100%; height: 100%; display: block; }
+
+    /* DIRECTOR BANNER */
+    .director-banner {
+      position: absolute;
+      top: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(10, 25, 47, 0.92);
+      border: 1px solid var(--accent-cyan);
+      box-shadow: 0 0 16px rgba(0, 229, 255, 0.4);
+      color: var(--accent-cyan);
+      padding: 5px 16px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      z-index: 70;
+      pointer-events: none;
+      display: none;
+      animation: pulseBanner 2s infinite ease-in-out;
+    }
+    @keyframes pulseBanner {
+      0%, 100% { opacity: 0.95; }
+      50% { opacity: 0.65; }
+    }
 
     /* MAP LEGEND (PILLAR 1) */
     .map-legend {
@@ -416,17 +468,27 @@
               <button class="cam-btn active" id="cam-orbit" onclick="setCameraMode('orbit')">ORBIT</button>
               <button class="cam-btn" id="cam-chase" onclick="setCameraMode('chase')">CHASE</button>
               <button class="cam-btn" id="cam-god" onclick="setCameraMode('god')">GOD VIEW</button>
+              <button class="cam-btn" id="cam-director" onclick="toggleDirector()">AI DIRECTOR</button>
             </div>
           </div>
-          <div class="hud-row"><span class="hud-label">Terrain Meshing:</span><span class="hud-value">Multi-Octave DTED Splat</span></div>
-          <div class="hud-row"><span class="hud-label">Road Draping:</span><span class="hud-value">Conformed Spline (+0.12)</span></div>
-          <div class="hud-row"><span class="hud-label">Bridge Clearance:</span><span class="hud-value">+14.0m Water Span Only</span></div>
+          <div class="hud-row"><span class="hud-label">Terrain Meshing:</span><span class="hud-value">Continuous Hermite DTED</span></div>
+          <div class="hud-row"><span class="hud-label">Road & Viaduct:</span><span class="hud-value">Abutment-Conformed Ribbons</span></div>
+          <div class="hud-row"><span class="hud-label">Bridge Systems:</span><span class="hud-value">High Viaduct + Sea-Truss</span></div>
         </div>
 
-        <div class="pip-camera" id="flir-pip">
-          <div class="pip-title">FLIR THERMAL PIP [VIPER-01]</div>
+        <div class="pip-camera" id="flir-pip" title="Click to cycle sensor mode">
+          <div class="pip-header">
+            <span class="pip-title" id="pip-title-text">FLIR [VIPER-01]</span>
+            <div class="pip-tabs">
+              <button class="pip-tab active" id="piptab-flir" onclick="event.stopPropagation(); setPipMode('flir')">FLIR</button>
+              <button class="pip-tab" id="piptab-minimap" onclick="event.stopPropagation(); setPipMode('minimap')">MAP</button>
+              <button class="pip-tab" id="piptab-recon" onclick="event.stopPropagation(); setPipMode('recon')">RECON</button>
+              <button class="pip-tab" id="piptab-chase" onclick="event.stopPropagation(); setPipMode('chase')">HUD</button>
+            </div>
+          </div>
           <canvas id="flir-canvas"></canvas>
         </div>
+        <div id="director-banner" class="director-banner">DIRECTOR: LIVE COMBAT AUTO-DIRECTOR ACTIVE</div>
       </div>
 
       <!-- ORDER OF BATTLE (OOB) RIGHT SIDEBAR -->
@@ -488,24 +550,36 @@
       return `${DEFAULT_GZD} ${sq} ${fmt(eVal)} ${fmt(nVal)}`;
     }
 
-    /* Continuous Deterministic Elevation Formula (matching bake_synthetic_dted.py) */
+    /* Continuous Deterministic Elevation Formula (matching bake_synthetic_dted.py)
+       Uses C1-continuous Hermite smoothstep between inland landmass and strait channel
+       to prevent artificial knife-edge cliffs and ensure physically plausible canyon walls. */
     function sampleStraitElevation(x, y) {
       const distToStrait = Math.abs(x - 200000);
-      if (distToStrait < 18000) {
-        return -80.0 + Math.sin(y * 0.00008) * 12.0;
-      } else if (distToStrait < 24000) {
-        const t = (distToStrait - 18000) / 6000;
-        return -80.0 + t * 85.0;
-      }
       const macro = Math.sin(x * 0.00002) * Math.cos(y * 0.00003) * 120.0;
       const micro = Math.sin(x * 0.00007 + 1.2) * Math.cos(y * 0.00008 + 0.8) * 45.0;
-      let base = 25.0 + macro + micro;
+      let landElev = 25.0 + macro + micro;
       if (y < 80000) {
         const ridge = Math.abs(y - 40000);
         const peak = Math.max(0, 750.0 - ridge * 0.015);
-        base += peak * (0.85 + 0.25 * Math.sin(x * 0.00004));
+        landElev += peak * (0.85 + 0.25 * Math.sin(x * 0.00004));
       }
-      return Math.max(4.0, base);
+      if (y > 190000 && x > 220000) {
+        const valleyT = (y - 190000) / 50000;
+        landElev += -60.0 * valleyT + Math.sin(x * 0.00005) * 30.0;
+      }
+      landElev = Math.max(4.0, landElev);
+
+      const trenchElev = -80.0 + Math.sin(y * 0.00008) * 12.0;
+
+      if (distToStrait <= 17000) {
+        return trenchElev;
+      } else if (distToStrait >= 26000) {
+        return landElev;
+      } else {
+        const t = (distToStrait - 17000) / 9000;
+        const s = t * t * (3.0 - 2.0 * t);
+        return (1.0 - s) * trenchElev + s * landElev;
+      }
     }
 
     /* =========================================================================
@@ -521,12 +595,12 @@
       { id: 'fob-sw', name: 'FOB SOUTH-WEST', side: 'coalition', x: 130000, y: 180000, kind: 'FOB', samRange: 35000 },
       { id: 'jct-w-pass', name: 'JCT NORTH PASS', side: 'coalition', x: 110000, y: 75000, kind: 'JUNCTION' },
       { id: 'jct-w-plain', name: 'JCT SOUTH PLAIN', side: 'coalition', x: 110000, y: 165000, kind: 'JUNCTION' },
-      { id: 'abut-n-w', name: 'WEST ABUTMENT (NORTH)', side: 'neutral', x: 182000, y: 60000, kind: 'ABUTMENT' },
-      { id: 'bridge-n', name: 'NORTH STRAIT BRIDGE', side: 'neutral', x: 200000, y: 60000, kind: 'BRIDGE' },
-      { id: 'abut-n-e', name: 'EAST ABUTMENT (NORTH)', side: 'neutral', x: 218000, y: 60000, kind: 'ABUTMENT' },
-      { id: 'abut-s-w', name: 'WEST ABUTMENT (SOUTH)', side: 'neutral', x: 182000, y: 180000, kind: 'ABUTMENT' },
-      { id: 'bridge-s', name: 'SOUTH STRAIT BRIDGE', side: 'neutral', x: 200000, y: 180000, kind: 'BRIDGE' },
-      { id: 'abut-s-e', name: 'EAST ABUTMENT (SOUTH)', side: 'neutral', x: 218000, y: 180000, kind: 'ABUTMENT' },
+      { id: 'abut-n-w', name: 'WEST CANYON ABUTMENT', side: 'neutral', x: 175000, y: 60000, kind: 'ABUTMENT' },
+      { id: 'bridge-n', name: 'NORTH FJORD VIADUCT', side: 'neutral', x: 200000, y: 60000, kind: 'BRIDGE' },
+      { id: 'abut-n-e', name: 'EAST CANYON ABUTMENT', side: 'neutral', x: 225000, y: 60000, kind: 'ABUTMENT' },
+      { id: 'abut-s-w', name: 'WEST LOWLAND ABUTMENT', side: 'neutral', x: 182000, y: 180000, kind: 'ABUTMENT' },
+      { id: 'bridge-s', name: 'SOUTH STRAIT TRUSS', side: 'neutral', x: 200000, y: 180000, kind: 'BRIDGE' },
+      { id: 'abut-s-e', name: 'EAST LOWLAND ABUTMENT', side: 'neutral', x: 218000, y: 180000, kind: 'ABUTMENT' },
       { id: 'cross-n', name: 'NORTH CROSSING', side: 'neutral', x: 230000, y: 60000, kind: 'CROSSING' },
       { id: 'cross-s', name: 'SOUTH CROSSING', side: 'neutral', x: 230000, y: 180000, kind: 'CROSSING' },
       { id: 'jct-e-hub', name: 'JCT CENTRAL DISTRIBUTION', side: 'neutral', x: 270000, y: 120000, kind: 'JUNCTION' },
@@ -545,14 +619,14 @@
       [90000, 120000, 110000, 165000, false],
       [110000, 165000, 130000, 180000, false],
 
-      // North Bridge Corridor (Separated: Approach -> Bridge -> Departure)
-      [130000, 60000, 182000, 60000, false], // West Approach Road on Land
-      [182000, 60000, 218000, 60000, true],  // North Bridge Span STRICTLY OVER WATER
-      [218000, 60000, 230000, 60000, false], // East Departure Road on Land
+      // North Bridge Corridor (High Fjord Viaduct: Plateau Approach -> Viaduct Span -> Departure)
+      [130000, 60000, 175000, 60000, false], // West Approach Road on Mountain Plateau
+      [175000, 60000, 225000, 60000, true],  // North High Fjord Viaduct Span across Canyon
+      [225000, 60000, 230000, 60000, false], // East Departure Road on Mountain Plateau
 
-      // South Bridge Corridor (Separated: Approach -> Bridge -> Departure)
+      // South Bridge Corridor (Lowland Maritime Crossing)
       [130000, 180000, 182000, 180000, false], // West Approach Road on Land
-      [182000, 180000, 218000, 180000, true],  // South Bridge Span STRICTLY OVER WATER
+      [182000, 180000, 218000, 180000, true],  // South Sea-Level Truss Span over Water
       [218000, 180000, 230000, 180000, false], // East Departure Road on Land
 
       // East Bank Highway & Junction Graph
@@ -919,8 +993,9 @@
 
       flirCanvas = document.getElementById('flir-canvas');
       flirCtx = flirCanvas.getContext('2d');
-      flirCanvas.width = 220;
-      flirCanvas.height = 130;
+      flirCanvas.width = 250;
+      flirCanvas.height = 160;
+      flirCanvas.addEventListener('click', cyclePipMode);
 
       renderer.render(scene, camera);
     }
@@ -995,7 +1070,7 @@
       scene.add(waterMesh);
     }
 
-    /* Dense Conformed Road Spline Mesh (Zero Floating, Zero Excess Padding) */
+    /* Modular Conformed Road Spline & Physical Viaduct/Bridge Engine */
     function build3DRoadsAndBridges() {
       roadGroup = new THREE.Group();
       bridgeGroup = new THREE.Group();
@@ -1010,6 +1085,7 @@
 
       const trussMat = new THREE.MeshStandardMaterial({ color: 0x64748b, metalness: 0.8, roughness: 0.3 });
       const pylonMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.9 });
+      const pierMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.95 });
 
       const ROAD_W = 3.2; // Width in scene units
 
@@ -1030,6 +1106,10 @@
         const perpX = -dirZ;
         const perpZ = dirX;
 
+        const elevA = sampleStraitElevation(x1, y1) * 0.038;
+        const elevB = sampleStraitElevation(x2, y2) * 0.038;
+        const isViaduct = isBridge && Math.max(elevA, elevB) > 4.0;
+
         for (let s = 0; s <= steps; s++) {
           const t = s / steps;
           const px = ax + t * (bx - ax);
@@ -1041,18 +1121,17 @@
 
           let yElev;
           if (isBridge) {
-            // Elevated bridge deck at +3.2 units over water
-            const deckTarget = 3.2;
-            if (t < 0.15) {
-              const blend = t / 0.15;
-              const smoothT = (1 - Math.cos(blend * Math.PI)) / 2;
-              yElev = (1 - smoothT) * (groundElev + 0.12) + smoothT * deckTarget;
-            } else if (t > 0.85) {
-              const blend = (1.0 - t) / 0.15;
-              const smoothT = (1 - Math.cos(blend * Math.PI)) / 2;
-              yElev = (1 - smoothT) * (groundElev + 0.12) + smoothT * deckTarget;
+            if (isViaduct) {
+              // High Mountain Canyon Viaduct: deck spans between canyon rims at plateau elevation
+              const deckBase = (1 - t) * (elevA + 0.15) + t * (elevB + 0.15);
+              yElev = deckBase + Math.sin(t * Math.PI) * 0.35;
             } else {
-              yElev = deckTarget;
+              // Lowland Sea-Level Bridge: smooth ramp up from shoreline to +3.2 units for naval clearance
+              const rampT = t < 0.15 ? (1 - Math.cos((t / 0.15) * Math.PI)) / 2
+                          : t > 0.85 ? (1 - Math.cos(((1 - t) / 0.15) * Math.PI)) / 2
+                          : 1.0;
+              const abutmentBase = (1 - t) * (elevA + 0.15) + t * (elevB + 0.15);
+              yElev = (1 - rampT) * abutmentBase + rampT * (3.2 + Math.sin(t * Math.PI) * 0.25);
             }
           } else {
             yElev = groundElev + 0.12;
@@ -1090,54 +1169,84 @@
           const midZ = (az + bz) / 2;
           const angle = Math.atan2(bz - az, bx - ax);
 
-          // 1. Shoreline Abutment Foundations (Heavy Concrete Bunkers at Bank Thresholds)
-          const abutGeo = new THREE.BoxGeometry(4.0, 5.0, ROAD_W + 1.2);
-          const abutWest = new THREE.Mesh(abutGeo, pylonMat);
-          abutWest.position.set(ax, 0.5, az);
+          // 1. Shoreline / Canyon Rim Abutment Foundations
+          const abutH = isViaduct ? 6.0 : 4.0;
+          const abutGeo = new THREE.BoxGeometry(4.5, abutH, ROAD_W + 1.4);
+
+          const abutWest = new THREE.Mesh(abutGeo, pierMat);
+          abutWest.position.set(ax, elevA - abutH * 0.35, az);
           abutWest.rotation.y = -angle;
           bridgeGroup.add(abutWest);
 
-          const abutEast = new THREE.Mesh(abutGeo, pylonMat);
-          abutEast.position.set(bx, 0.5, bz);
+          const abutEast = new THREE.Mesh(abutGeo, pierMat);
+          abutEast.position.set(bx, elevB - abutH * 0.35, bz);
           abutEast.rotation.y = -angle;
           bridgeGroup.add(abutEast);
 
-          // 2. Structural Steel Warren Truss Railings (Along Water Span Margins)
-          // Top chord at +4.2 (1.0m above deck), bottom chord flush with deck at +3.2
-          const trussHeight = 1.4;
-          const chordGeo = new THREE.BoxGeometry(totalDist, 0.35, 0.25);
-          const postGeo = new THREE.BoxGeometry(0.35, trussHeight, 0.25);
+          if (isViaduct) {
+            // High Fjord Viaduct: Guardrails & Deep Concrete Canyon Pylons
+            [-ROAD_W / 2 - 0.12, ROAD_W / 2 + 0.12].forEach(offset => {
+              const railGeo = new THREE.BoxGeometry(totalDist, 0.4, 0.2);
+              const rail = new THREE.Mesh(railGeo, trussMat);
+              const midY = (elevA + elevB) / 2 + 0.15 + 0.35;
+              rail.position.set(midX - perpX * offset, midY + 0.6, midZ - perpZ * offset);
+              rail.rotation.y = -angle;
+              bridgeGroup.add(rail);
+            });
 
-          [-ROAD_W / 2 - 0.15, ROAD_W / 2 + 0.15].forEach(offset => {
-            // Upper chord
-            const chord = new THREE.Mesh(chordGeo, trussMat);
-            chord.position.set(midX - perpX * offset, 3.2 + trussHeight, midZ - perpZ * offset);
-            chord.rotation.y = -angle;
-            bridgeGroup.add(chord);
+            // 4 Massive Viaduct Canyon Towers stepping down into gorge floor
+            [0.2, 0.4, 0.6, 0.8].forEach(frac => {
+              const px = ax + frac * (bx - ax);
+              const pz = az + frac * (bz - az);
+              const wx = x1 + frac * (x2 - x1);
+              const wy = y1 + frac * (y2 - y1);
 
-            // Vertical truss posts every 6 meters
-            const postCount = Math.max(4, Math.floor(totalDist / 6.0));
-            for (let p = 0; p <= postCount; p++) {
-              const pFrac = p / postCount - 0.5;
-              const postX = midX + dirX * (totalDist * pFrac) - perpX * offset;
-              const postZ = midZ + dirZ * (totalDist * pFrac) - perpZ * offset;
-              const post = new THREE.Mesh(postGeo, trussMat);
-              post.position.set(postX, 3.2 + trussHeight / 2, postZ);
-              post.rotation.y = -angle;
-              bridgeGroup.add(post);
-            }
-          });
+              const deckY = (1 - frac) * (elevA + 0.15) + frac * (elevB + 0.15) + Math.sin(frac * Math.PI) * 0.35;
+              const groundY = sampleStraitElevation(wx, wy) * 0.038;
+              const bottomY = Math.min(-0.8, groundY);
+              const pylonHeight = Math.max(3.0, deckY - bottomY + 1.2);
 
-          // 3. Heavy Concrete Channel Piers with Submerged Footings
-          [-0.25, 0.25].forEach(frac => {
-            const px = midX + dirX * (totalDist * frac);
-            const pz = midZ + dirZ * (totalDist * frac);
-            // Pylon extends from bridge deck (+3.2) down to trench bed (-2.8)
-            const pylon = new THREE.Mesh(new THREE.BoxGeometry(3.0, 6.2, ROAD_W + 1.4), pylonMat);
-            pylon.position.set(px, 0.2, pz);
-            pylon.rotation.y = -angle;
-            bridgeGroup.add(pylon);
-          });
+              const tower = new THREE.Mesh(
+                new THREE.BoxGeometry(3.6, pylonHeight, ROAD_W + 1.6),
+                pylonMat
+              );
+              tower.position.set(px, bottomY - 0.6 + pylonHeight / 2, pz);
+              tower.rotation.y = -angle;
+              bridgeGroup.add(tower);
+            });
+          } else {
+            // Lowland Sea-Level Bridge: Warren Truss Margins & Water Channel Piers
+            const trussHeight = 1.4;
+            const chordGeo = new THREE.BoxGeometry(totalDist, 0.35, 0.25);
+            const postGeo = new THREE.BoxGeometry(0.35, trussHeight, 0.25);
+
+            [-ROAD_W / 2 - 0.15, ROAD_W / 2 + 0.15].forEach(offset => {
+              const chord = new THREE.Mesh(chordGeo, trussMat);
+              chord.position.set(midX - perpX * offset, 3.2 + trussHeight, midZ - perpZ * offset);
+              chord.rotation.y = -angle;
+              bridgeGroup.add(chord);
+
+              const postCount = Math.max(4, Math.floor(totalDist / 6.0));
+              for (let p = 0; p <= postCount; p++) {
+                const pFrac = p / postCount - 0.5;
+                const postX = midX + dirX * (totalDist * pFrac) - perpX * offset;
+                const postZ = midZ + dirZ * (totalDist * pFrac) - perpZ * offset;
+                const post = new THREE.Mesh(postGeo, trussMat);
+                post.position.set(postX, 3.2 + trussHeight / 2, postZ);
+                post.rotation.y = -angle;
+                bridgeGroup.add(post);
+              }
+            });
+
+            [-0.25, 0.25].forEach(frac => {
+              const px = midX + dirX * (totalDist * frac);
+              const pz = midZ + dirZ * (totalDist * frac);
+              const pylon = new THREE.Mesh(new THREE.BoxGeometry(3.0, 6.2, ROAD_W + 1.4), pylonMat);
+              pylon.position.set(px, 0.2, pz);
+              pylon.rotation.y = -angle;
+              bridgeGroup.add(pylon);
+            });
+          }
         }
       });
 
@@ -1319,10 +1428,68 @@
       }
     }
 
+    let pipMode = 'flir'; // 'flir', 'minimap', 'recon', 'chase'
+    let isDirectorActive = false;
+    let directorPhase = 0;
+    let directorTimer = 0;
+
+    function setPipMode(mode) {
+      pipMode = mode;
+      document.querySelectorAll('.pip-tab').forEach(b => b.classList.remove('active'));
+      const activeBtn = document.getElementById(`piptab-${mode}`);
+      if (activeBtn) activeBtn.classList.add('active');
+      const titleMap = {
+        flir: `FLIR [${selectedUnitId}]`,
+        minimap: 'TACTICAL RADAR MINIMAP',
+        recon: 'OPTICAL RECON [EAST AB]',
+        chase: `HUD FLIGHT DECK [${selectedUnitId}]`
+      };
+      const titleEl = document.getElementById('pip-title-text');
+      if (titleEl) titleEl.innerText = titleMap[mode] || mode.toUpperCase();
+    }
+
+    function cyclePipMode() {
+      const modes = ['flir', 'minimap', 'recon', 'chase'];
+      const nextIdx = (modes.indexOf(pipMode) + 1) % modes.length;
+      setPipMode(modes[nextIdx]);
+    }
+
+    function toggleDirector() {
+      isDirectorActive = !isDirectorActive;
+      const btn = document.getElementById('cam-director');
+      const banner = document.getElementById('director-banner');
+      if (isDirectorActive) {
+        document.querySelectorAll('.cam-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        btn.innerText = 'AI DIRECTOR: ON';
+        banner.style.display = 'block';
+        directorTimer = 0;
+        directorPhase = 1; // Start on air combat patrol
+      } else {
+        btn.classList.remove('active');
+        btn.innerText = 'AI DIRECTOR';
+        banner.style.display = 'none';
+        document.getElementById('cam-orbit').classList.add('active');
+        cameraMode = 'orbit';
+      }
+    }
+
     function setCameraMode(mode) {
+      if (isDirectorActive) {
+        isDirectorActive = false;
+        const dirBtn = document.getElementById('cam-director');
+        if (dirBtn) {
+          dirBtn.classList.remove('active');
+          dirBtn.innerText = 'AI DIRECTOR';
+        }
+        const banner = document.getElementById('director-banner');
+        if (banner) banner.style.display = 'none';
+      }
+
       cameraMode = mode;
       document.querySelectorAll('.cam-btn').forEach(b => b.classList.remove('active'));
-      document.getElementById(`cam-${mode}`).classList.add('active');
+      const btn = document.getElementById(`cam-${mode}`);
+      if (btn) btn.classList.add('active');
 
       if (mode === 'god') {
         camera.position.set(0, 280, 0);
@@ -1476,8 +1643,36 @@
         if (radarSpire3D) radarSpire3D.children[1].rotation.y = simTime * 1.8;
         if (radarSweepMesh) radarSweepMesh.rotation.z = -simTime * 1.2;
 
-        // Camera Chase Mode
-        if (cameraMode === 'chase' && unit3DMap[selectedUnitId]) {
+        // AI Broadcast Auto-Director State Sequencer
+        if (isDirectorActive) {
+          directorTimer += 0.016;
+          if (directorTimer > 8.0) {
+            directorTimer = 0;
+            directorPhase = (directorPhase + 1) % 4;
+          }
+          const banner = document.getElementById('director-banner');
+          if (directorPhase === 0) {
+            if (banner) banner.innerText = 'DIRECTOR: THEATER STRATEGIC OVERVIEW (400x240KM)';
+            camera.position.lerp(new THREE.Vector3(0, 240, 160), 0.04);
+            controls.target.lerp(new THREE.Vector3(0, 0, 0), 0.04);
+          } else if (directorPhase === 1) {
+            if (banner) banner.innerText = `DIRECTOR: AIR COMBAT PATROL [${selectedUnitId}]`;
+            if (unit3DMap[selectedUnitId]) {
+              const uPos = unit3DMap[selectedUnitId].position;
+              const chasePos = new THREE.Vector3(uPos.x - 32, uPos.y + 14, uPos.z + 32);
+              camera.position.lerp(chasePos, 0.05);
+              controls.target.lerp(uPos, 0.05);
+            }
+          } else if (directorPhase === 2) {
+            if (banner) banner.innerText = 'DIRECTOR: NORTH FJORD VIADUCT CHOKEPOINT (MGRS 38S LA 820 600)';
+            camera.position.lerp(new THREE.Vector3(-42, 28, -25), 0.03);
+            controls.target.lerp(new THREE.Vector3(0, 17.5, -54), 0.03);
+          } else if (directorPhase === 3) {
+            if (banner) banner.innerText = 'DIRECTOR: STATIC EAST AIRBASE ISR SURVEILLANCE';
+            camera.position.lerp(new THREE.Vector3(98, 48, 20), 0.03);
+            controls.target.lerp(new THREE.Vector3(99, 1.0, 0), 0.03);
+          }
+        } else if (cameraMode === 'chase' && unit3DMap[selectedUnitId]) {
           const target = unit3DMap[selectedUnitId].position;
           camera.position.set(target.x - 35, target.y + 15, target.z + 35);
           controls.target.copy(target);
@@ -1485,33 +1680,181 @@
 
         controls.update();
         renderer.render(scene, camera);
-        renderThermalFlir();
+        renderPiPSensor();
       }
     }
 
-    function renderThermalFlir() {
+    /* Multi-Mode Tactical PiP MFD Renderer */
+    function renderPiPSensor() {
       if (!flirCtx) return;
-      flirCtx.fillStyle = "#02070f";
-      flirCtx.fillRect(0, 0, 220, 130);
+      const w = 250;
+      const h = 160;
 
-      // FLIR Crosshairs
-      flirCtx.strokeStyle = "rgba(0, 229, 255, 0.4)";
-      flirCtx.lineWidth = 1;
-      flirCtx.beginPath();
-      flirCtx.moveTo(110, 15); flirCtx.lineTo(110, 115);
-      flirCtx.moveTo(40, 65); flirCtx.lineTo(180, 65);
-      flirCtx.stroke();
+      if (pipMode === 'flir') {
+        // 1. FLIR WHITE-HOT INFRARED SENSOR
+        flirCtx.fillStyle = "#030813";
+        flirCtx.fillRect(0, 0, w, h);
 
-      // Thermal Target Silhouette (Hot White Engine Core)
-      flirCtx.fillStyle = "#ffffff";
-      flirCtx.beginPath();
-      flirCtx.arc(110 + Math.sin(simTime * 2) * 6, 65 + Math.cos(simTime * 2) * 5, 7, 0, Math.PI * 2);
-      flirCtx.fill();
+        // Raster reticle
+        flirCtx.strokeStyle = "rgba(0, 229, 255, 0.35)";
+        flirCtx.lineWidth = 1;
+        flirCtx.beginPath();
+        flirCtx.moveTo(w / 2, 18); flirCtx.lineTo(w / 2, h - 18);
+        flirCtx.moveTo(35, h / 2); flirCtx.lineTo(w - 35, h / 2);
+        flirCtx.stroke();
 
-      flirCtx.font = "9px monospace";
-      flirCtx.fillStyle = "#00e5ff";
-      flirCtx.fillText(`TRK: [${selectedUnitId}] LOCKED`, 8, 122);
-      flirCtx.fillText("RNG: 14.8km", 145, 122);
+        // Target Box & Lock Diamond
+        const tx = w / 2 + Math.sin(simTime * 2.2) * 8;
+        const ty = h / 2 + Math.cos(simTime * 1.8) * 6;
+
+        flirCtx.strokeStyle = "#00e5ff";
+        flirCtx.lineWidth = 1.5;
+        flirCtx.strokeRect(tx - 12, ty - 12, 24, 24);
+
+        // White-Hot Engine Core Heat Bloom
+        const grad = flirCtx.createRadialGradient(tx, ty, 1, tx, ty, 12);
+        grad.addColorStop(0, "#ffffff");
+        grad.addColorStop(0.35, "rgba(255, 255, 255, 0.9)");
+        grad.addColorStop(0.7, "rgba(245, 158, 11, 0.6)");
+        grad.addColorStop(1, "rgba(245, 158, 11, 0)");
+        flirCtx.fillStyle = grad;
+        flirCtx.beginPath();
+        flirCtx.arc(tx, ty, 12, 0, Math.PI * 2);
+        flirCtx.fill();
+
+        // OSD Telemetry
+        flirCtx.font = "8.5px monospace";
+        flirCtx.fillStyle = "#00e5ff";
+        flirCtx.fillText("SENSOR: FLIR W-HOT // FOV 2.8°", 8, 14);
+        flirCtx.fillText(`TRK: [${selectedUnitId}] LOCKED`, 8, h - 8);
+        flirCtx.fillText("RNG: 14.8km | AZ: 042°", w - 120, h - 8);
+
+      } else if (pipMode === 'minimap') {
+        // 2. LIVE 2D TACTICAL GIS RADAR MINIMAP
+        flirCtx.fillStyle = "#040b17";
+        flirCtx.fillRect(0, 0, w, h);
+
+        // Strait water channel
+        const waterLeft = (182000 / THEATER_W) * w;
+        const waterRight = (218000 / THEATER_W) * w;
+        flirCtx.fillStyle = "rgba(2, 132, 199, 0.25)";
+        flirCtx.fillRect(waterLeft, 0, waterRight - waterLeft, h);
+
+        // Bridges
+        flirCtx.strokeStyle = "#64748b";
+        flirCtx.lineWidth = 2;
+        const bNy = (60000 / THEATER_H) * h;
+        const bSy = (180000 / THEATER_H) * h;
+        flirCtx.beginPath();
+        flirCtx.moveTo(waterLeft, bNy); flirCtx.lineTo(waterRight, bNy);
+        flirCtx.moveTo(waterLeft, bSy); flirCtx.lineTo(waterRight, bSy);
+        flirCtx.stroke();
+
+        // Radar Threat Rings
+        flirCtx.strokeStyle = "rgba(239, 68, 68, 0.4)";
+        flirCtx.lineWidth = 1;
+        flirCtx.beginPath();
+        flirCtx.arc((310000 / THEATER_W) * w, (120000 / THEATER_H) * h, 32, 0, Math.PI * 2);
+        flirCtx.stroke();
+
+        // Sweep cone
+        const cx = (90000 / THEATER_W) * w;
+        const cy = (120000 / THEATER_H) * h;
+        const swAngle = simTime * 2.0;
+        flirCtx.strokeStyle = "rgba(0, 229, 255, 0.6)";
+        flirCtx.beginPath();
+        flirCtx.moveTo(cx, cy);
+        flirCtx.lineTo(cx + Math.cos(swAngle) * 45, cy + Math.sin(swAngle) * 45);
+        flirCtx.stroke();
+
+        // Units
+        UNITS.forEach(u => {
+          const ux = (u.x / THEATER_W) * w;
+          const uy = (u.y / THEATER_H) * h;
+          flirCtx.fillStyle = u.side === 'coalition' ? '#00e5ff' : '#ef4444';
+          flirCtx.beginPath();
+          flirCtx.arc(ux, uy, u.id === selectedUnitId ? 3.5 : 2.5, 0, Math.PI * 2);
+          flirCtx.fill();
+        });
+
+        flirCtx.font = "8.5px monospace";
+        flirCtx.fillStyle = "#00e5ff";
+        flirCtx.fillText("2D TACTICAL GIS MINIMAP", 8, 14);
+        flirCtx.fillText("THEATER: 400x240KM", 8, h - 8);
+
+      } else if (pipMode === 'recon') {
+        // 3. OPTICAL RECONNAISSANCE SATELLITE/UAV FEED
+        flirCtx.fillStyle = "#031508";
+        flirCtx.fillRect(0, 0, w, h);
+
+        // Raster scanlines
+        flirCtx.strokeStyle = "rgba(34, 197, 94, 0.15)";
+        flirCtx.lineWidth = 1;
+        for (let y = 0; y < h; y += 4) {
+          flirCtx.beginPath();
+          flirCtx.moveTo(0, y); flirCtx.lineTo(w, y);
+          flirCtx.stroke();
+        }
+
+        // Target Runway & Facility Schematic
+        flirCtx.strokeStyle = "rgba(34, 197, 94, 0.75)";
+        flirCtx.lineWidth = 1.5;
+        flirCtx.strokeRect(w / 2 - 35, h / 2 - 8, 70, 16);
+        flirCtx.strokeRect(w / 2 - 20, h / 2 - 22, 14, 10);
+        flirCtx.strokeRect(w / 2 + 6, h / 2 - 22, 14, 10);
+
+        // Sweeping crosshair
+        flirCtx.strokeStyle = "#22c55e";
+        flirCtx.lineWidth = 1;
+        flirCtx.beginPath();
+        flirCtx.arc(w / 2, h / 2, 24, 0, Math.PI * 2);
+        flirCtx.moveTo(w / 2 - 32, h / 2); flirCtx.lineTo(w / 2 + 32, h / 2);
+        flirCtx.moveTo(w / 2, h / 2 - 32); flirCtx.lineTo(w / 2, h / 2 + 32);
+        flirCtx.stroke();
+
+        flirCtx.font = "8.5px monospace";
+        flirCtx.fillStyle = "#22c55e";
+        flirCtx.fillText("OPTICAL ISR // EAST AIRBASE", 8, 14);
+        flirCtx.fillText("GEO: 38S MD 100 200 // MAG: 32X", 8, h - 8);
+
+      } else if (pipMode === 'chase') {
+        // 4. TACTICAL HUD FLIGHT DECK
+        flirCtx.fillStyle = "#020712";
+        flirCtx.fillRect(0, 0, w, h);
+
+        flirCtx.strokeStyle = "rgba(0, 229, 255, 0.8)";
+        flirCtx.lineWidth = 1;
+
+        // Artificial Horizon & Pitch Ladder
+        flirCtx.beginPath();
+        flirCtx.moveTo(w / 2 - 40, h / 2); flirCtx.lineTo(w / 2 - 15, h / 2);
+        flirCtx.moveTo(w / 2 + 15, h / 2); flirCtx.lineTo(w / 2 + 40, h / 2);
+        // +5 deg ladder
+        flirCtx.moveTo(w / 2 - 20, h / 2 - 15); flirCtx.lineTo(w / 2 + 20, h / 2 - 15);
+        // -5 deg ladder
+        flirCtx.moveTo(w / 2 - 20, h / 2 + 15); flirCtx.lineTo(w / 2 + 20, h / 2 + 15);
+        flirCtx.stroke();
+
+        // Flight Path Marker (Boresight Circle)
+        flirCtx.beginPath();
+        flirCtx.arc(w / 2, h / 2, 4, 0, Math.PI * 2);
+        flirCtx.stroke();
+
+        // Airspeed Tape Left & Altitude Tape Right
+        flirCtx.strokeRect(8, 28, 38, h - 56);
+        flirCtx.strokeRect(w - 46, 28, 38, h - 56);
+
+        flirCtx.font = "8px monospace";
+        flirCtx.fillStyle = "#00e5ff";
+        flirCtx.fillText("480", 14, h / 2 + 3);
+        flirCtx.fillText("KTS", 14, h / 2 + 13);
+
+        flirCtx.fillText("24,000", w - 42, h / 2 + 3);
+        flirCtx.fillText("FT", w - 42, h / 2 + 13);
+
+        flirCtx.fillText("HDG: 042°", w / 2 - 22, 14);
+        flirCtx.fillText("WEAPON: 4x AAM-3 [ARMED]", 8, h - 8);
+      }
     }
 
     /* Startup handler */
@@ -1529,8 +1872,8 @@
         // Optional Camera Presets for Inspection & Testing
         const viewParam = params.get('view');
         if (viewParam === 'bridge') {
-          camera.position.set(-32, 12, -38);
-          controls.target.set(0, 3.2, -54);
+          camera.position.set(-42, 28, -25);
+          controls.target.set(0, 17.5, -54);
           controls.update();
         } else if (viewParam === 'mountains') {
           camera.position.set(0, 45, 90);
