@@ -271,6 +271,9 @@ HOLD_STARTED = {**_BASE, "kind": "VictoryHoldStarted", "node_ids": ["fob-1", "po
                 "ends_at_tick": 18_042}  # fmt: skip
 HOLD_BROKEN = {**_BASE, "kind": "VictoryHoldBroken", "node_id": "port-s"}
 HOLD_AT_RISK = {**ADAPTATION, "category": "HOLD_AT_RISK", "node_id": "port-s"}
+# NX-412 part 5a (ECONOMY EC-8): a Director operation the live cap stopped
+REFUSED = {**_BASE, "kind": "SpawnRefused", "side": "ENEMY", "reason": "GUARD", "operations": 2,
+           "units": 7}  # fmt: skip
 
 
 @pytest.mark.parametrize(
@@ -299,6 +302,8 @@ HOLD_AT_RISK = {**ADAPTATION, "category": "HOLD_AT_RISK", "node_id": "port-s"}
         HOLD_STARTED,
         HOLD_BROKEN,
         HOLD_AT_RISK,
+        REFUSED,
+        {**REFUSED, "reason": "TIER_CAP", "units": 0},  # only a radar blink, over the cap
     ],
 )
 def test_combat_events_parse_through_the_event_union(good: dict[str, object]) -> None:
@@ -350,6 +355,11 @@ def test_combat_events_parse_through_the_event_union(good: dict[str, object]) ->
         (HOLD_BROKEN, {"node_ids": ["fob-1"]}),  # one node
         (HOLD_BROKEN, {"node_id": None}),
         (HOLD_AT_RISK, {"node_id": "Not A Node"}),
+        (REFUSED, {"reason": "BUDGET"}),  # only the live caps are counted
+        (REFUSED, {"operations": 0}),  # none for no refusal
+        (REFUSED, {"units": -1}),
+        (REFUSED, {"side": "NEUTRAL"}),
+        (REFUSED, {"node_id": "fob-1"}),
     ],
 )
 def test_combat_events_reject_bad_fields(event: dict[str, object], bad: dict[str, object]) -> None:

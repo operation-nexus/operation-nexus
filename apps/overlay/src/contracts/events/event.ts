@@ -23,6 +23,7 @@ export type Event =
   | CampaignEnded
   | VictoryHoldStarted
   | VictoryHoldBroken
+  | SpawnRefused
   | ObjectiveAnnounced
   | ObjectiveResolved
   | WeaponFired
@@ -606,6 +607,37 @@ export interface VictoryHoldBroken {
    * Stable slug from the theater file.
    */
   node_id: string;
+}
+/**
+ * The live-unit cap stopped Director operations in one selection (CONTRACTS §6; ECONOMY EC-8, Q-TD-34 (5); NX-412 part 5a): operations the window's budget and max_spawns_per_window would have taken but whose units did not fit the side's live room. At most one per selection (the window's operations, the Pattern of Life capture slot, its convoys), none when nothing was refused. A JOIN at the cap is not counted here: it waits in the reserve queue (ReserveQueueJoined). A countable signal for the balance harness. Public view: dropped (proposed).
+ */
+export interface SpawnRefused {
+  kind: "SpawnRefused";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  side: "COALITION" | "ENEMY";
+  /**
+   * Which live-unit cap refused a Director operation (ECONOMY EC-8, NX-412 part 5a): GUARD = sim.max_live_units_per_side (economy.legacy_rules false); TIER_CAP = director.max_live_units.<tier> (economy.legacy_rules true, temporary).
+   */
+  reason: "GUARD" | "TIER_CAP";
+  /**
+   * Operations refused in this selection.
+   */
+  operations: number;
+  /**
+   * The units those operations would have spawned (0 when only unit-less operations, such as a radar blink, were refused because the side was already over the cap).
+   */
+  units: number;
 }
 /**
  * A timed objective was announced (CONTRACTS 6; STATE-MACHINES 4.5; NX-126). deadline_tick is on the campaign clock (running ticks, the Hud's campaign_clock.elapsed_ticks), not the tick counter: a pause delays the real tick, so the deadline is not a Tick.

@@ -257,6 +257,7 @@ def run(
         "profiles_digest": data.digest,
         "campaign_id": world.campaign.id,
         "ticks_run": ran,
+        "tick_hz": hz,
         "time_limit_h": rules.campaign.time_limit_ticks / (3600 * hz),
         "viewers": {
             "distinct": len(crowd.viewers),

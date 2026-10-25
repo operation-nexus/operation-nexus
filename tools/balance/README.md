@@ -15,7 +15,7 @@ cd services/sim && uv run --frozen python ../../tools/balance/balance.py \
 | `--seeds` | a count N (seeds 1..N) or a comma list; the sim seed is the seed itself |
 | `--hours` | game hours per run, default `campaign.time_limit_h` of the config in use (72 shipped, the acceptance length; follows `--set campaign.time_limit_h=...`). A run stops early when the campaign ends. Short runs work; targets that need a longer window say `not evaluable` |
 | `--workers` | parallel processes, one run each (default 1), started biggest crowd first to cut wall time. The report does not depend on it |
-| `--set` | `key=number`, repeatable: override one numeric key of the shipped balance config (dotted path, e.g. `tasking.strike_idle_targets_max=0`). An unknown or non-numeric key, a float for an integer key, a key given twice or a value the schema rejects exits 2 before any run. The overridden copy is saved as `<out>/balance.yaml`, every worker loads it, and the report header lists the overrides next to the (changed) config hash |
+| `--set` | `key=value`, repeatable: override one numeric or boolean key of the shipped balance config (dotted path, e.g. `tasking.strike_idle_targets_max=0`, `economy.legacy_rules=false`, `economy.unlimited.ENEMY=false`). A boolean key takes `true` or `false` only (lower case); a numeric key a number only, never a boolean (NX-412 part 5a). An unknown key, a section, a value of the wrong type, a float for an integer key, a key given twice or a value the schema rejects exits 2 before any run. The overridden copy is saved as `<out>/balance.yaml`, every worker loads it, and the report header lists the overrides next to the (changed) config hash, plus the economy mode (below) |
 | `--theater` | a theater file to run on instead of `content/theaters/strait-1.yaml`. Loaded with the sim's own loader (and cross-checked with the balance config) before any run: a missing, malformed or inconsistent file exits 2 with one stderr line, before `--out` exists. The loader wants the slug to equal the file name, so the copy is saved as `<out>/theater/<file name>` (not a fixed `theater.yaml`; a subdirectory so a file named `balance.yaml` cannot clobber the `--set` copy), every worker loads that copy, and the report header shows its slug, name, node count, landing-base count and the config hash (the theater is part of `config_hash`). The queue has no theater key on purpose: a hostile issue naming files on the owner's PC is a security surface, so adding one is a separate owner decision |
 | `--out` | report directory; must not exist |
 
@@ -59,6 +59,40 @@ A profile has `viewers` distinct viewers arriving at uniform seeded times in the
 | Director tier dwell | `ThreatTierChanged` (the Static's Director) | none |
 | Supply-starvation minutes | coalition-held finite-stock nodes below their starvation floor, sampled once per game minute: node-minutes and minutes with at least one | none |
 
+### Economy (NX-412 part 5a; ECONOMY §4 "Harness report", econ checkpoint review §4)
+
+Information only, no targets. The report header labels the economy mode of the config in use (ECONOMY EC-15): `legacy_rules ON` or `off` and which sides are unlimited; anything but legacy off with no unlimited side is marked "not a normal balance result". `report.json` has the raw series per run (`metrics.economy`) and the pooled values per profile (`profiles.<name>.economy`); `report.md` has a table and one line per profile.
+
+| Metric | From |
+|---|---|
+| Income, upkeep, groundings per side per hour | `SupplyProduced`, `SupplyConsumed{UPKEEP}` (the side of the paying node: its source or its owner), `UnitGrounded`; per game hour, the report gives the mean per run-hour |
+| Pool and grounded units per side | read at the end of each game hour (first sample of the next): the source pool (`-`/null for an unlimited side, which has none) and live grounded units |
+| Grounded share by previous state | at each idle sample, every armed viewer unit's state ("job", "busy" for an order, route or RTB, else its idle reason such as `full`); a unit grounded by the next sample counts for that state. Share = grounded / units seen again in that state. This is the review's "full-idle versus with a job" split |
+| Static budget per window, base and source spend | the Static's `DirectorState.budget` at each decision window (planned); its `SupplyConsumed{SPAWN}` split by node: the rear source (the rear account) or a base. The planned split into the two EC-7 accounts is not in any event and the pool is read after the window spends, so the report gives the actual debits per account instead. Under legacy rules everything is a base debit; an unlimited Static's source spawns are never debited |
+| Static operations per hour, by operation | the Static's `JobCreated` whose job key (read from its board the same tick) is the first job of an operation, `op:<operation>:<target>:0`, one per (operation, target) a tick. Per hour counts catalog operations; `POL_PATROL` and `POL_CONVOY` (routine Pattern of Life work) are only in the by-operation counts |
+| Offensives, gap, on coalition-held nodes | `OFFENSIVE` launches: the minutes between consecutive ones in a run (median, max), and how many targeted a node the coalition held then |
+| Live-cap refusals | `SpawnRefused` (ECONOMY EC-8): operations the budget and anti-spam allowed but the live cap stopped, by reason (`GUARD`, `TIER_CAP`). A JOIN at the cap is in `responses.queued` instead |
+| Victory holds | `VictoryHoldStarted` / `VictoryHoldBroken`: holds, holds broken, Static catalog operations launched during each |
+| Peak army against viewers | the most live armed coalition units in one sample (AI garrison included) against the run's peak concurrent viewers, per seed (the TS-1 check) |
+| S4 against start stock | already in the steamroll table (`stock_of_start`) |
+| Static travel time to the victory nodes | `metrics.travel_table`, from the config alone (no run): for each strategic node and each unit kind a Static CAPTURE job buys, the shortest road path from the Static's rear source with every bridge up, at the kind's Healthy top speed and each road's `speed_mult`, in game minutes, against `campaign.victory_hold_min`. Staging, spawning and combat are left out, so a real arrival is later (review §4.1: the Static must be able to reach a victory node within a hold) |
+
+Not built yet (ECONOMY §4 asks, beyond this part): grounded unit-minutes by viewer vs AI and join-order quartile, grounded churn, the share of floor income cut by raids.
+
+Sweep recipe, the economy on and legacy rules off (one issue per value, `set` takes up to `max_overrides`, 4):
+
+````
+```harness
+sha: <a develop commit with NX-412 part 5a>
+profiles: prime-50, raid-300, surge-500
+seeds: 5
+hours: 72
+set: economy.legacy_rules=false, economy.unlimited.ENEMY=false, economy.unlimited.COALITION=false, director.source_spend_frac=0.01
+```
+````
+
+Locally the same with `--set economy.legacy_rules=false --set economy.unlimited.ENEMY=false ...`.
+
 ### A1 steamroll check (NX-411, Q-TEST-11)
 
 Only a campaign that ended in VICTORY is judged; a lost, time-limit or unfinished one shows "not judged". All thresholds are `targets.steamroll_*` in `profiles.yaml` and **PROPOSED** (Q-TEST-11), recalibrated once a hard-fought run exists. A signal that cannot be measured has no value, does not fire and says why (`note` in `report.json`; `n/m` in the table).
@@ -66,7 +100,7 @@ Only a campaign that ended in VICTORY is judged; a lost, time-limit or unfinishe
 | Signal | Value, from | Fires when |
 |---|---|---|
 | S1 Static pressure on held ground | pressure events per 4 campaign hours (events x 4 / `length_h`). A pressure event is a `CaptureStarted` by the Static on a node the coalition holds, a `NodeDefensesDown` with owner COALITION, or a `NodeCaptured` that takes a node from the coalition (any node kind, not only strategic). Ownership starts from the setup and follows `NodeCaptured` | under `steamroll_pressure_per_4h` (2) |
-| S2 contested final hold | pressure events at or after the start of the last victory-hold run, and the holds broken before it. No victory-hold event exists, so the run is derived: the coalition owning at least `campaign.victory_node_frac` of the strategic nodes, tracked through `NodeCaptured`; a dip closes a run (a broken hold) and the campaign ends in VICTORY when the run lasts `victory_hold_min`. A win by HQ capture while below the fraction has no hold: S2 is "not measurable" and does not fire | both are 0 |
+| S2 contested final hold | pressure events at or after the start of the last victory-hold run, and the holds broken before it. The run comes from the sim's `VictoryHoldStarted` / `VictoryHoldBroken` (ECONOMY EC-9, NX-412 part 5a; before, the harness derived the same rule from `NodeCaptured`): the coalition owning at least `campaign.victory_node_frac` of the strategic nodes; a dip closes a run (a broken hold) and the campaign ends in VICTORY when the run lasts `victory_hold_min`. A win by HQ capture while below the fraction has no hold: S2 is "not measurable" and does not fire | both are 0 |
 | S3 momentum swing | the existing momentum samples (one per game minute). The coalition leads above `steamroll_lead_line` (50), the Static below it. Largest drop from the running peak after the first coalition lead; lead changes count each flip of the leader after the first leader is set (a start below 50 then a first lead is 1 change). Never led: not measurable | drop under `steamroll_swing_pts` (10) and at most `steamroll_max_lead_changes` (1) changes |
 | S4 late Static force | per-minute samples (`Collector.sample`): the Static's live armed units that are not Disabled, and the stock of the finite-stock bases it owns. In the last third of the campaign (by `end_tick`): the mean of each against the run's own peak units and the stock at tick 0 | units under `steamroll_late_units_frac` (25%) of peak, or stock under `steamroll_late_stock_frac` (10%) of start |
 
@@ -206,4 +240,4 @@ set: tasking.strike_idle_targets_max=0
 ```
 ````
 
-`sha` is 40 lowercase hex characters on `develop`; `profiles` are names from `profiles.yaml`; `seeds` is 1 to `max_seeds`; `hours` is above 0 and at most `max_hours`; `workers` is optional (1 to `max_workers`, default from `queue.yaml`; `max_workers` is 12 and the default `workers` stays 2: ask for 12 on overnight jobs, about 20% less wall time per job with each run about 25% slower (issue #278), and leave it out by day); `set` is optional: up to `max_overrides` comma-separated `key=number` balance overrides (see `--set`; the key must exist at that `sha`, which must also have `--set`), echoed in the result comment. For a sweep, open one issue per value (0, 1, 2, 4). Wait for the next hourly tick.
+`sha` is 40 lowercase hex characters on `develop`; `profiles` are names from `profiles.yaml`; `seeds` is 1 to `max_seeds`; `hours` is above 0 and at most `max_hours`; `workers` is optional (1 to `max_workers`, default from `queue.yaml`; `max_workers` is 12 and the default `workers` stays 2: ask for 12 on overnight jobs, about 20% less wall time per job with each run about 25% slower (issue #278), and leave it out by day); `set` is optional: up to `max_overrides` comma-separated `key=value` balance overrides (see `--set`; the key must exist at that `sha`, which must also have `--set`, and a `true`/`false` value needs NX-412 part 5a there), echoed in the result comment. The queue accepts only a dotted key (first segment lower case, later ones may be an upper-case side or unit kind, e.g. `economy.upkeep.STRIKE_FIGHTER`) and a bounded number or `true`/`false`; anything else refuses the whole request naming the key `set` only; balance.py then checks the value against the key's type. For a sweep, open one issue per value (0, 1, 2, 4). Wait for the next hourly tick.
