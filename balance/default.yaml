@@ -284,6 +284,8 @@ director:  # Threat Director (Q-SIM-78, Q-SIM-81, owner-approved starting number
     weakness_max: 2.0  # PROPOSED – unvalidated (Q-SIM-78); 1.0 at full defenses, rising linearly to this at none
     provocation_proximity: 1.5  # PROPOSED – unvalidated (Q-SIM-78, Q-TD-4)
     proximity_tiers: [ALPHA]  # decided rule as default, Q-DEV-21 option; CP ceilings at which provocation_proximity applies (CONFIG-AND-CONTENT §6.7)
+    victory_hold_mult: 1.0  # PROPOSED placeholder until the NX-412 sweep (ECONOMY EC-9, Q-TD-19); multiplier on Offensive/Retake on a node of the running victory hold; 1.0 changes nothing
+    income_node_mult: 1.0  # PROPOSED placeholder until the NX-412 sweep (ECONOMY EC-12, Q-TD-16); multiplier on Offensive/Retake on a coalition-held node with economy.income.per_node > 0; 1.0 changes nothing
   adaptation_up_above: 0  # PROPOSED – unvalidated (NX-156); events: a ThreatAdaptation goes UP above this
   reinforce_damage_above: 0  # PROPOSED – unvalidated (Q-SIM-81); share of HP missing, 0 = any damage
   escort_min_convoys: 1  # PROPOSED – unvalidated (NX-156); fewest convoys an escort operation is cut to

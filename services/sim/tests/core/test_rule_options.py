@@ -681,6 +681,9 @@ def test_a_campaign_with_every_part_2b_option_flipped_is_deterministic() -> None
             "tasking.ai_excluded_jobs": [],
             "tasking.human_displaces_ai": False,
             "tasking.escort_repair_crews": False,
+            # NX-412 part 4 (ECONOMY EC-9, EC-12): the capture-operation multipliers off 1.0
+            "director.score.victory_hold_mult": 2.0,
+            "director.score.income_node_mult": 1.5,
         }
     )
 
@@ -689,6 +692,11 @@ def test_a_campaign_with_every_part_2b_option_flipped_is_deterministic() -> None
         events = [e.model_dump() for _ in range(6_600) for e in step(w, [])]  # 11 windows
         return state_hash(w), events
 
+    dr = config.rules.director
+    assert dr is not None and (dr.victory_hold_mult, dr.income_node_mult) == (
+        Fraction(2),
+        Fraction(3, 2),
+    )
     first = scenario()
     assert any(e["kind"] == "ThreatTierChanged" for e in first[1])  # ALPHA settles in the span
     assert scenario() == first

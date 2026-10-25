@@ -107,6 +107,7 @@ def golden_world() -> World:
     c = w.campaign
     c.running_ticks, c.clock_paused, c.pause_reason, c.pause_sub_reason = 3, True, "STAFF", "RAID"
     c.hold_ticks, c.held_ticks_coalition, c.held_ticks_enemy = 2, 8, 4
+    c.hold_nodes = ("west-airbase",)  # a running hold always has nodes (NX-412 part 4)
     c.objectives_issued, c.objectives_done = 4, 3
     w.objective = Objective(4, "west-airbase", 900, True)
     # NX-374: the coalition board holds a defend job the fighter claimed (made progress at running
@@ -157,11 +158,12 @@ def test_golden_state_hash_seed_12345() -> None:
     # the intercept clock and Job.lost, v23; NX-373: bridge hp and the down bridges, v24; NX-398:
     # Entity.order_node and held_since, v25; NX-373 part 2: the bridge repair carry, v26; NX-401:
     # DirectorState.bridge_ready, v27; NX-412 part 1: pool and storage, v28; part 2:
-    # Entity.home_base, grounded and ordered, v29; part 3: DirectorState.last_operation, v30).
+    # Entity.home_base, grounded and ordered, v29; part 3: DirectorState.last_operation, v30;
+    # part 4: Campaign.hold_nodes, v31; the fixture's running hold now has a node).
     # A change here breaks every recorded replay hash: needs a `golden-update` reason.
     assert (
         state_hash(golden_world())
-        == "a4d01fd1e707b1e2934ebaa68dfe5220f66873224ff62c53172a3c422df9ff1c"
+        == "192cd34fb64525ab2a52aa7b86d56c796aa69926f16504f7dee0c89874a247f9"
     )
     e = to_canonical(golden_world(), quantize=True)["entities"][0]
     assert e["pos"] == [1000250, 2000500]  # mm
@@ -262,6 +264,10 @@ def worlds(draw: st.DrawFn) -> World:
             draw(st.integers(0, issued)),
         )
     )  # fmt: skip
+    if w.campaign.hold_ticks:  # NX-412 part 4: the running hold's nodes, ascending
+        w.campaign.hold_nodes = tuple(
+            sorted(draw(st.sets(st.sampled_from(["a", "b", "c"]), min_size=1)))
+        )
     w.owner = {"cross-n": "NEUTRAL", "fob-n-e": "ENEMY"}  # the held sums are bounded by nodes
     if (
         issued and not ended and draw(st.booleans())

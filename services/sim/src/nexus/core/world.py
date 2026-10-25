@@ -91,8 +91,9 @@ from nexus.core.rules import CAPTURE_FULL, Rules
 # (NX-401); 28: pool and storage, each limited side's source pool and its last storage cap
 # (NX-412 part 1); 29: Entity.home_base, grounded and ordered (upkeep, NX-412 part 2); 30:
 # DirectorState.last_operation, the decision window of the last operation launched (the EC-7
-# cadence floor, NX-412 part 3)
-FORMAT_VERSION = 30
+# cadence floor, NX-412 part 3); 31: Campaign.hold_nodes, the strategic nodes of the running victory
+# hold (ECONOMY EC-9, NX-412 part 4)
+FORMAT_VERSION = 31
 _MM = 1000.0  # metres -> millimetres; m/s -> mm/s
 _MICRO = 1e6  # ADR-0002's 1e-6 step for other floats (fuel)
 _MILLI_UNIT = 1000  # thousandths of a stock unit per unit
@@ -458,8 +459,10 @@ class Job:
 class Campaign:
     """`tick` counts every tick; `running_ticks` only the unpaused ones: the campaign clock
     (STATE-MACHINES C-1, NX-126). `hold_ticks` is the current run of running ticks the coalition
-    has held the victory share of strategic nodes; `held_ticks_*` sum each side's held strategic
-    node count over the running ticks (the time-limit score keeps them exact)."""
+    has held the victory share of strategic nodes, `hold_nodes` the strategic nodes it held on the
+    last of those ticks, ascending (empty with no hold; ECONOMY EC-9); `held_ticks_*` sum each
+    side's held strategic node count over the running ticks (the time-limit score keeps them
+    exact)."""
 
     id: str  # CampaignId
     seed: int
@@ -476,6 +479,7 @@ class Campaign:
     objectives_issued: int = 0
     objectives_done: int = 0
     defeat_ticks: int = 0  # the run of running ticks the coalition sanctuary's defense hp is 0
+    hold_nodes: tuple[str, ...] = ()  # the running victory hold's nodes (NX-412 part 4)
 
 
 @dataclass(slots=True)
@@ -1200,6 +1204,16 @@ def _int_list(value: object, what: str) -> list[int]:
     return [_int(n, what) for n in value]
 
 
+def _node_ids(value: object, what: str) -> tuple[str, ...]:
+    """Node ids, ascending, no duplicates."""
+    if not isinstance(value, list):
+        raise ValueError(f"{what} must be a list")
+    ids = tuple(_str(n, what) for n in value)
+    if list(ids) != sorted(set(ids)):
+        raise ValueError(f"{what} must be ascending with no duplicates")
+    return ids
+
+
 def _hits(value: object, what: str) -> list[list[int]]:
     if not isinstance(value, list):
         raise ValueError(f"{what} must be a list")
@@ -1326,6 +1340,7 @@ _CAMPAIGN_CHECKS: dict[str, Callable[[object, str], Any]] = {
     "objectives_issued": _int,
     "objectives_done": _int,
     "defeat_ticks": _int,
+    "hold_nodes": lambda v, k: _node_ids(v, k),
 }
 
 
@@ -1477,6 +1492,7 @@ def _load_campaign(value: object) -> Campaign:
         or (c.pause_sub_reason is not None and c.pause_reason != "STAFF")
         or c.running_ticks > c.tick
         or max(c.hold_ticks, c.defeat_ticks) > c.running_ticks
+        or bool(c.hold_nodes) != bool(c.hold_ticks)  # a running hold always has nodes
         or c.objectives_done > c.objectives_issued
     ):
         raise ValueError("campaign: inconsistent clock, pause reason or objective counts")

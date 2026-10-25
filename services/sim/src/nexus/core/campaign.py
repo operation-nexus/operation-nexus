@@ -9,7 +9,11 @@ SANCTUARY, HQ or a facility) to its running sum, resolves the active objective, 
 - **Victory** (coalition only: the Static has no mid-war win, Q-SIM-64): the coalition owns the
   enemy HQ (with `campaign.victory.hq_capture`, the default; a Q-CFG-16 option),
   or has held at least `victory_node_frac` of the strategic nodes for `victory_hold_ticks` running
-  ticks in a row (a dip below the fraction resets the run). The HQ is checked first.
+  ticks in a row (a dip below the fraction resets the run). The HQ is checked first. The run is
+  public (ECONOMY EC-9, NX-412 part 4): `VictoryHoldStarted{node_ids, ends_at_tick}` on its first
+  tick (the held strategic nodes; the running tick the victory comes on), `VictoryHoldBroken`
+  when it breaks, naming the lowest-id hold node lost; none when the campaign ends during it.
+  `Campaign.hold_nodes` keeps the held strategic nodes while it runs (the director's view).
 - **Defeat** (Q-TH-7): the coalition sanctuary's defense HP has been 0 for `defeat_hold_ticks`
   running ticks in a row (a repair above 0 resets the run; while nobody plays the run does not
   advance, so a war is never lost while chat is asleep, Q-GP-28; that is the idle floor,
@@ -56,6 +60,8 @@ from nexus.contracts.gen.events.event import Event
 from nexus.contracts.gen.events.node_captured import NodeCaptured
 from nexus.contracts.gen.events.objective_announced import ObjectiveAnnounced
 from nexus.contracts.gen.events.objective_resolved import ObjectiveResolved
+from nexus.contracts.gen.events.victory_hold_broken import VictoryHoldBroken
+from nexus.contracts.gen.events.victory_hold_started import VictoryHoldStarted
 from nexus.core.rng import RngStream
 from nexus.core.rules import CampaignRules, Rules
 from nexus.core.tasking import on_objective
@@ -168,7 +174,7 @@ def campaign(world: World, out: list[Event]) -> None:
     c.held_ticks_coalition += coalition
     c.held_ticks_enemy += _held(world, rc, _ENEMY)
     holding = bool(rc.strategic) and _share(coalition, rc) >= rc.victory_node_frac
-    c.hold_ticks = c.hold_ticks + 1 if holding else 0
+    _track_hold(world, rc, holding, out)
     c.defeat_ticks = _defeat_run(world)
     _resolve_objective(world, world.rules, rc, out)
     hq = rc.hq_capture and world.owner.get(rc.enemy_hq) == _COALITION
@@ -180,6 +186,33 @@ def campaign(world: World, out: list[Event]) -> None:
         end_campaign(world, "TIME_LIMIT", out)
     elif rc.objectives_on and world.objective is None:
         _announce(world, rc, out)
+
+
+def _track_hold(world: World, rc: CampaignRules, holding: bool, out: list[Event]) -> None:
+    """The victory hold run and its nodes (ECONOMY EC-9): `VictoryHoldStarted` on its first
+    running tick, `VictoryHoldBroken` naming the lowest-id hold node lost when it breaks (the
+    fraction is above 0 and not hot-reloadable, so a break always loses one)."""
+    c = world.campaign
+    was = c.hold_nodes
+    c.hold_ticks = c.hold_ticks + 1 if holding else 0
+    c.hold_nodes = (
+        tuple(n for n in rc.strategic if world.owner.get(n) == _COALITION) if holding else ()
+    )
+    if c.hold_ticks == 1:
+        out.append(
+            VictoryHoldStarted.model_construct(
+                kind="VictoryHoldStarted", tick=c.tick + 1, event_seq=world.next_event_seq(),
+                campaign_id=c.id, node_ids=list(c.hold_nodes),
+                ends_at_tick=c.running_ticks + rc.victory_hold_ticks - 1,
+            )
+        )  # fmt: skip
+    elif was and not holding:
+        out.append(
+            VictoryHoldBroken.model_construct(
+                kind="VictoryHoldBroken", tick=c.tick + 1, event_seq=world.next_event_seq(),
+                campaign_id=c.id, node_id=next(n for n in was if world.owner.get(n) != _COALITION),
+            )
+        )  # fmt: skip
 
 
 def _defeat_run(world: World) -> int:

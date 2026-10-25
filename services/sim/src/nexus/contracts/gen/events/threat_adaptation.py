@@ -25,10 +25,16 @@ class ThreatAdaptation(BaseModel):
         Field(description="The side whose Director adapted (only the ENEMY's runs until NX-375)."),
     ]
     category: Annotated[
-        Literal["CONVOY_ESCORT", "IADS_REINFORCED"],
+        Literal["CONVOY_ESCORT", "IADS_REINFORCED", "HOLD_AT_RISK"],
         Field(
-            description="CONVOY_ESCORT: escorts for convoys after `convoy_attacks`. IADS_REINFORCED: air defense reinforced after `radar_strikes`."
+            description='CONVOY_ESCORT: escorts for convoys after `convoy_attacks`. IADS_REINFORCED: air defense reinforced after `radar_strikes`. HOLD_AT_RISK: a capture operation (OFFENSIVE, RETAKE) launched on a node of the running victory hold, the sitrep "NULL moves on <node>, the hold is at risk" (Q-TD-19).'
         ),
     ]
     sector_id: ids.SectorId
     direction: Literal["UP", "DOWN"]
+    node_id: Annotated[
+        ids.NodeId | None,
+        Field(
+            description="HOLD_AT_RISK: the hold node the operation targets; null for every other category."
+        ),
+    ] = None
