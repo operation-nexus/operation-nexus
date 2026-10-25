@@ -3,14 +3,14 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Operation Nexus — Unified Three-Pillar Tactical Visualizer</title>
+  <title>Operation Nexus — Unified Three-Pillar Tactical Command Sandbox</title>
   <!-- Three.js CDN with OrbitControls for 3D Pillars -->
   <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
   <style>
     :root {
-      --bg-dark: #070d17;
-      --panel-bg: rgba(13, 23, 39, 0.92);
+      --bg-dark: #050b14;
+      --panel-bg: rgba(9, 18, 33, 0.94);
       --border-color: #1e3a5f;
       --accent-cyan: #00e5ff;
       --accent-blue: #38bdf8;
@@ -24,11 +24,12 @@
       width: 100%; height: 100%; overflow: hidden;
       background: var(--bg-dark); color: #f8fafc;
       font-family: 'SF Pro Text', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace;
+      user-select: none;
     }
 
     #app-container {
       display: grid;
-      grid-template-rows: 54px 1fr 32px;
+      grid-template-rows: 52px 1fr 34px;
       width: 100vw; height: 100vh;
     }
 
@@ -48,7 +49,7 @@
       gap: 12px;
       font-weight: 700;
       letter-spacing: 1px;
-      font-size: 14px;
+      font-size: 13px;
       color: var(--accent-cyan);
     }
     .brand-badge {
@@ -63,7 +64,7 @@
       display: flex;
       gap: 6px;
       background: rgba(15, 23, 42, 0.8);
-      padding: 4px;
+      padding: 3px;
       border-radius: 6px;
       border: 1px solid var(--border-color);
     }
@@ -72,7 +73,7 @@
       border: none;
       color: var(--text-muted);
       padding: 6px 14px;
-      font-size: 12px;
+      font-size: 11px;
       font-weight: 600;
       cursor: pointer;
       border-radius: 4px;
@@ -81,17 +82,14 @@
       align-items: center;
       gap: 6px;
     }
-    .pillar-btn:hover {
-      color: #fff;
-      background: rgba(255, 255, 255, 0.05);
-    }
+    .pillar-btn:hover { color: #fff; background: rgba(255, 255, 255, 0.05); }
     .pillar-btn.active {
       background: var(--accent-cyan);
       color: #04121e;
       box-shadow: 0 0 12px rgba(0, 229, 255, 0.4);
     }
 
-    /* WORKSPACE VIEWPORTS */
+    /* MAIN VIEWPORTS CONTAINER */
     main {
       position: relative;
       width: 100%; height: 100%;
@@ -103,46 +101,113 @@
       width: 100%; height: 100%;
       display: none;
     }
-    .viewport.active {
-      display: block;
-    }
+    .viewport.active { display: block; }
 
-    /* 2D CANVAS (PILLAR 1) */
     #canvas-gis-c2 {
       width: 100%; height: 100%;
       display: block;
       cursor: crosshair;
     }
-
-    /* 3D CANVAS CONTAINER (PILLAR 2 & 3) */
     #three-viewport {
       width: 100%; height: 100%;
       display: block;
     }
 
-    /* HUD OVERLAYS */
+    /* HUD PANELS & OVERLAYS */
     .hud-panel {
       position: absolute;
       background: var(--panel-bg);
       border: 1px solid var(--border-color);
       border-radius: 6px;
-      padding: 12px 14px;
+      padding: 10px 14px;
       backdrop-filter: blur(8px);
       z-index: 50;
       pointer-events: auto;
+      font-size: 11px;
     }
     .top-left-hud {
-      top: 14px; left: 14px;
+      top: 12px; left: 12px;
       min-width: 280px;
     }
-    .bottom-right-hud {
-      bottom: 14px; right: 14px;
-      min-width: 310px;
+    .hud-title {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.8px;
+      color: var(--accent-cyan);
+      text-transform: uppercase;
+      margin-bottom: 6px;
+      display: flex;
+      justify-content: space-between;
     }
+    .hud-row {
+      display: flex;
+      justify-content: space-between;
+      line-height: 1.6;
+    }
+    .hud-label { color: var(--text-muted); }
+    .hud-value { font-weight: 600; font-family: monospace; }
+
+    /* ORDER OF BATTLE (OOB) RIGHT PANEL */
+    .right-oob-panel {
+      top: 12px; right: 12px;
+      width: 290px;
+      max-height: calc(100% - 24px);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .unit-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      overflow-y: auto;
+      max-height: 220px;
+    }
+    .unit-card {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid rgba(30, 58, 95, 0.6);
+      border-radius: 4px;
+      padding: 6px 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      transition: all 0.15s ease;
+    }
+    .unit-card:hover {
+      border-color: var(--accent-cyan);
+      background: rgba(0, 229, 255, 0.08);
+    }
+    .unit-card.selected {
+      border-color: var(--accent-cyan);
+      background: rgba(0, 229, 255, 0.15);
+    }
+
+    /* CAMERA & VIEW CONTROLS */
+    .cam-controls {
+      display: flex;
+      gap: 4px;
+      margin-top: 6px;
+    }
+    .cam-btn {
+      flex: 1;
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      padding: 4px 6px;
+      font-size: 10px;
+      font-weight: 600;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+    .cam-btn:hover { color: #fff; border-color: var(--accent-cyan); }
+    .cam-btn.active { background: var(--border-color); color: var(--accent-cyan); }
+
+    /* FLIR PIP */
     .pip-camera {
       position: absolute;
-      bottom: 14px; left: 14px;
-      width: 220px; height: 140px;
+      bottom: 12px; left: 12px;
+      width: 220px; height: 130px;
       background: #000;
       border: 2px solid var(--accent-cyan);
       border-radius: 6px;
@@ -152,38 +217,45 @@
     .pip-title {
       position: absolute;
       top: 4px; left: 6px;
-      font-size: 10px;
+      font-size: 9px;
       font-weight: 700;
       color: var(--accent-cyan);
-      letter-spacing: 0.5px;
       background: rgba(0,0,0,0.6);
       padding: 1px 4px;
       border-radius: 2px;
     }
-    #flir-canvas {
-      width: 100%; height: 100%;
+    #flir-canvas { width: 100%; height: 100%; }
+
+    /* MAP LEGEND (PILLAR 1) */
+    .map-legend {
+      position: absolute;
+      bottom: 12px; left: 12px;
+      background: var(--panel-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 8px 12px;
+      font-size: 10px;
+      z-index: 50;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .legend-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .legend-sym {
+      width: 12px; height: 12px;
+      border-radius: 2px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 8px;
+      font-weight: bold;
     }
 
-    .hud-title {
-      font-size: 11px;
-      font-weight: 700;
-      letter-spacing: 0.8px;
-      color: var(--accent-cyan);
-      text-transform: uppercase;
-      margin-bottom: 8px;
-      display: flex;
-      justify-content: space-between;
-    }
-    .hud-row {
-      display: flex;
-      justify-content: space-between;
-      font-size: 12px;
-      line-height: 1.6;
-    }
-    .hud-label { color: var(--text-muted); }
-    .hud-value { font-weight: 600; font-family: monospace; }
-
-    /* FOOTER TELEMETRY STRIP */
+    /* TIMELINE CONTROLS FOOTER */
     footer {
       background: #091322;
       border-top: 1px solid var(--border-color);
@@ -195,20 +267,35 @@
       color: var(--text-muted);
       z-index: 100;
     }
-    .cmd-preview {
-      color: var(--accent-amber);
+    .playback-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .ctrl-btn {
+      background: transparent;
+      border: 1px solid var(--border-color);
+      color: #f8fafc;
+      padding: 2px 8px;
+      font-size: 10px;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+    .ctrl-btn:hover { border-color: var(--accent-cyan); color: var(--accent-cyan); }
+    .event-ticker {
+      color: var(--accent-green);
       font-family: monospace;
-      font-weight: 600;
+      font-size: 10px;
     }
   </style>
 </head>
 <body>
-  <div id-="app-container" id="app-container">
+  <div id="app-container">
     <header>
       <div class="brand">
         <span>PROJECT HIVEPLEX</span>
         <span class="brand-badge">THEATER: STRAIT-1</span>
-        <span style="font-size: 11px; color: var(--text-muted); font-weight: normal;">| NX-176 DECOUPLED VISUALIZER</span>
+        <span style="font-size: 11px; color: var(--text-muted); font-weight: normal;">| NX-176 TACTICAL COMMAND SUITE</span>
       </div>
 
       <nav class="pillar-nav">
@@ -224,38 +311,55 @@
       </nav>
 
       <div style="font-size: 11px; color: var(--accent-cyan); font-family: monospace;">
-        CLOCK: <span id="clock-display">00:00:00.00Z</span>
+        SIM-TIME: <span id="clock-display">00:00:00.00Z</span>
       </div>
     </header>
 
     <main>
-      <!-- PILLAR 1: 2D TACTICAL GIS C2 VIEWPORT -->
+      <!-- PILLAR 1: TACTICAL GIS C2 VIEWPORT -->
       <div class="viewport active" id="vp-pillar1">
         <canvas id="canvas-gis-c2"></canvas>
+
         <div class="hud-panel top-left-hud">
           <div class="hud-title">
             <span>C2 JOINT COMMON OPERATIONAL PICTURE</span>
             <span style="color: var(--accent-green);">LIVE 2D</span>
           </div>
-          <div class="hud-row"><span class="hud-label">MGRS Target:</span><span class="hud-value" id="mgrs-target" style="color:var(--accent-amber);">38S ND 000 600</span></div>
+          <div class="hud-row"><span class="hud-label">MGRS Cursor:</span><span class="hud-value" id="mgrs-target" style="color:var(--accent-amber);">38S ND 000 600</span></div>
           <div class="hud-row"><span class="hud-label">Easting / Northing:</span><span class="hud-value" id="coords-display">200.0km E, 60.0km S</span></div>
           <div class="hud-row"><span class="hud-label">Elevation DEM:</span><span class="hud-value" id="elev-display">+14.2m MSL</span></div>
-          <div class="hud-row"><span class="hud-label">Grid Resolution:</span><span class="hud-value">10km Sectors / 1km Keypads</span></div>
+          <div class="hud-row"><span class="hud-label">Projection:</span><span class="hud-value">Euclidean Flat (L.CRS.Simple)</span></div>
+        </div>
+
+        <div class="map-legend">
+          <div style="font-weight: bold; color: var(--accent-cyan); margin-bottom: 2px;">MIL-STD-2525D SYMBOLOGY</div>
+          <div class="legend-row"><div class="legend-sym" style="background:#0284c7; color:#fff;">F</div><span>COALITION UNIT / AIRBASE</span></div>
+          <div class="legend-row"><div class="legend-sym" style="background:#be123c; color:#fff;">H</div><span>STATIC ENEMY / HQ</span></div>
+          <div class="legend-row"><div class="legend-sym" style="background:#d97706; color:#fff;">B</div><span>NEUTRAL BRIDGE / CROSSING</span></div>
+          <div class="legend-row"><div style="width:12px; height:2px; background:#38bdf8;"></div><span>60-SEC VELOCITY VECTOR</span></div>
+          <div class="legend-row"><div style="width:12px; height:8px; border:1px dashed #ef4444;"></div><span>SAM ENGAGEMENT ENVELOPE (MEZ)</span></div>
         </div>
       </div>
 
       <!-- PILLAR 2 & 3: THREE.JS 3D VIEWPORT -->
       <div class="viewport" id="vp-pillar-three">
         <div id="three-viewport"></div>
+
         <div class="hud-panel top-left-hud">
           <div class="hud-title">
             <span id="three-hud-title">TEXTURED 3D RTS BATTLESPACE</span>
             <span style="color: var(--accent-cyan);" id="render-mode-badge">PBR GL</span>
           </div>
-          <div class="hud-row"><span class="hud-label">Active Camera:</span><span class="hud-value">3D Director Orbit / Chase</span></div>
-          <div class="hud-row"><span class="hud-label">Terrain Meshing:</span><span class="hud-value">Continuous Harmonic DEM</span></div>
-          <div class="hud-row"><span class="hud-label">Road Draping:</span><span class="hud-value">+0.22m Conformed Ribbon</span></div>
-          <div class="hud-row"><span class="hud-label">Bridge Elevation:</span><span class="hud-value">+14.0m Span Clearance</span></div>
+          <div class="hud-row"><span class="hud-label">Camera Mode:</span>
+            <div class="cam-controls">
+              <button class="cam-btn active" id="cam-orbit" onclick="setCameraMode('orbit')">ORBIT</button>
+              <button class="cam-btn" id="cam-chase" onclick="setCameraMode('chase')">CHASE</button>
+              <button class="cam-btn" id="cam-god" onclick="setCameraMode('god')">GOD VIEW</button>
+            </div>
+          </div>
+          <div class="hud-row"><span class="hud-label">Biomes & Splatting:</span><span class="hud-value">Heightfield Splat</span></div>
+          <div class="hud-row"><span class="hud-label">Road Ribbon:</span><span class="hud-value">+0.22m Draped Mesh</span></div>
+          <div class="hud-row"><span class="hud-label">Water Channel:</span><span class="hud-value">-3.5m Submarine Trench</span></div>
         </div>
 
         <div class="pip-camera" id="flir-pip">
@@ -264,28 +368,48 @@
         </div>
       </div>
 
-      <!-- TELEMETRY & COMMAND CARD -->
-      <div class="hud-panel bottom-right-hud">
+      <!-- ORDER OF BATTLE (OOB) RIGHT SIDEBAR -->
+      <div class="hud-panel right-oob-panel">
         <div class="hud-title">
-          <span>TASKING & TELEMETRY</span>
-          <span style="color: var(--accent-amber);">MIL-STD-2525D</span>
+          <span>ORDER OF BATTLE (OOB)</span>
+          <span style="color: var(--accent-cyan);" id="unit-count-badge">5 UNITS</span>
         </div>
-        <div class="hud-row"><span class="hud-label">Unit Selected:</span><span class="hud-value" style="color:var(--accent-blue);">VIPER-01 (Striker Jet)</span></div>
-        <div class="hud-row"><span class="hud-label">Task Status:</span><span class="hud-value">COMBAT PATROL (280 kts)</span></div>
-        <div class="hud-row"><span class="hud-label">Ordnance / Fuel:</span><span class="hud-value">4x AAM-3 / 78% FUEL</span></div>
-        <div class="hud-row"><span class="hud-label">Quick Order:</span><span class="hud-value cmd-preview" id="order-preview">!strike 38S ND 000 600</span></div>
+        <div class="unit-list" id="unit-list-container">
+          <!-- Populated dynamically -->
+        </div>
+
+        <div style="border-top: 1px solid var(--border-color); padding-top: 6px;">
+          <div class="hud-title"><span>ACTIVE TASKING</span></div>
+          <div class="hud-row"><span class="hud-label">Task:</span><span class="hud-value" id="selected-task">COMBAT PATROL</span></div>
+          <div class="hud-row"><span class="hud-label">Fuel / Ammo:</span><span class="hud-value" id="selected-supplies">78% | 4x AAM-3</span></div>
+          <div class="hud-row"><span class="hud-label">Command:</span><span class="hud-value" style="color:var(--accent-amber);" id="order-preview">!strike 38S ND 000 600</span></div>
+        </div>
       </div>
     </main>
 
     <footer>
-      <div>PROJECTION: EUCLIDEAN THEATER CARTESIAN (L.CRS.Simple) | FICTIONAL GEOGRAPHY PROTOCOL</div>
-      <div>Z-BUDGET: WATER -3.5m | SHORE -1.5m | ROAD +0.22m | BRIDGES +14.0m</div>
-      <div>FPS: <span id="fps-counter" style="color:var(--accent-green); font-family: monospace;">60</span> | SIM STATE: SYNCHRONIZED</div>
+      <div class="playback-controls">
+        <button class="ctrl-btn" onclick="togglePause()" id="pause-btn">PAUSE</button>
+        <button class="ctrl-btn" onclick="setSpeed(1)">1x</button>
+        <button class="ctrl-btn" onclick="setSpeed(2)">2x</button>
+        <button class="ctrl-btn" onclick="setSpeed(5)">5x</button>
+        <span>RATE: <b id="speed-label" style="color:var(--accent-cyan);">1x</b></span>
+      </div>
+
+      <div class="event-ticker" id="event-ticker">
+        [04:12:02Z] VIPER-01 (STRIKER) DEPARTED WEST AIRBASE ON VECTOR 085° (ALT: FL240)
+      </div>
+
+      <div style="font-family: monospace;">
+        FPS: <span id="fps-counter" style="color:var(--accent-green);">60</span> | SIM: SYNC
+      </div>
     </footer>
   </div>
 
   <script>
-    /* --- MGRS ENGINE (IDENTICAL TO tools/terrain/mgrs_grid.py) --- */
+    /* =========================================================================
+       1. COORDINATE ENGINE & MGRS LOOKUP (IDENTICAL TO tools/terrain/mgrs_grid.py)
+       ========================================================================= */
     const MGRS_COLS = "ABCDEFGHJKLMNPQRSTUVWXYZ";
     const MGRS_ROWS = "ABCDEFGHJKLMNPQRSTUV";
     const DEFAULT_GZD = "38S";
@@ -303,7 +427,7 @@
       return `${DEFAULT_GZD} ${sq} ${fmt(eVal)} ${fmt(nVal)}`;
     }
 
-    /* --- SYNTHETIC ELEVATION (IDENTICAL TO bake_synthetic_dted.py) --- */
+    /* Continuous Elevation Formula (matching bake_synthetic_dted.py) */
     function sampleStraitElevation(x, y) {
       const distToStrait = Math.abs(x - 200000);
       if (distToStrait < 18000) {
@@ -323,49 +447,64 @@
       return Math.max(4.0, base);
     }
 
-    /* --- THEATER CONSTANTS & ROAD TOPOLOGY --- */
-    const THEATER_W = 400000; // 400km
-    const THEATER_H = 240000; // 240km
+    /* =========================================================================
+       2. THEATER SIMULATION ENTITIES, BASES, & ROAD NETWORK
+       ========================================================================= */
+    const THEATER_W = 400000;
+    const THEATER_H = 240000;
 
-    const NODES = {
-      "haven": { name: "Haven Sanctuary", x: 20000, y: 120000, team: "coalition", kind: "HQ" },
-      "west-airbase": { name: "West Airbase", x: 90000, y: 120000, team: "coalition", kind: "AIRBASE" },
-      "fob-n-w": { name: "FOB North-West", x: 130000, y: 60000, team: "coalition", kind: "FOB" },
-      "fob-s-w": { name: "FOB South-West", x: 130000, y: 180000, team: "coalition", kind: "FOB" },
-      "bridge-n": { name: "North Bridge", x: 200000, y: 60000, team: "neutral", kind: "BRIDGE" },
-      "bridge-s": { name: "South Bridge", x: 200000, y: 180000, team: "neutral", kind: "BRIDGE" },
-      "cross-n": { name: "North Crossing", x: 230000, y: 60000, team: "neutral", kind: "FOB" },
-      "cross-s": { name: "South Crossing", x: 230000, y: 180000, team: "neutral", kind: "FOB" },
-      "fob-n-e": { name: "FOB North-East", x: 290000, y: 40000, team: "enemy", kind: "FOB" },
-      "fob-s-e": { name: "FOB South-East", x: 290000, y: 200000, team: "enemy", kind: "FOB" },
-      "east-airbase": { name: "East Airbase", x: 310000, y: 120000, team: "enemy", kind: "AIRBASE" },
-      "static-hq": { name: "Static HQ", x: 380000, y: 120000, team: "enemy", kind: "HQ" }
-    };
-
-    const EDGES = [
-      ["haven", "west-airbase"],
-      ["west-airbase", "fob-n-w"],
-      ["west-airbase", "fob-s-w"],
-      ["fob-n-w", "cross-n", true], // bridge
-      ["fob-s-w", "cross-s", true], // bridge
-      ["cross-n", "fob-n-e"],
-      ["cross-s", "fob-s-e"],
-      ["cross-n", "east-airbase"],
-      ["cross-s", "east-airbase"],
-      ["fob-n-e", "static-hq"],
-      ["fob-s-e", "static-hq"],
-      ["east-airbase", "static-hq"]
+    const BASES = [
+      { id: 'haven', name: 'HAVEN SANCTUARY', side: 'coalition', x: 20000, y: 120000, kind: 'SANCTUARY' },
+      { id: 'west-ab', name: 'WEST AIRBASE', side: 'coalition', x: 90000, y: 120000, kind: 'AIRBASE', samRange: 65000 },
+      { id: 'fob-nw', name: 'FOB NORTH-WEST', side: 'coalition', x: 130000, y: 60000, kind: 'FOB', samRange: 35000 },
+      { id: 'fob-sw', name: 'FOB SOUTH-WEST', side: 'coalition', x: 130000, y: 180000, kind: 'FOB', samRange: 35000 },
+      { id: 'bridge-n', name: 'NORTH BRIDGE', side: 'neutral', x: 200000, y: 60000, kind: 'BRIDGE' },
+      { id: 'bridge-s', name: 'SOUTH BRIDGE', side: 'neutral', x: 200000, y: 180000, kind: 'BRIDGE' },
+      { id: 'cross-n', name: 'NORTH CROSSING', side: 'neutral', x: 230000, y: 60000, kind: 'CROSSING' },
+      { id: 'cross-s', name: 'SOUTH CROSSING', side: 'neutral', x: 230000, y: 180000, kind: 'CROSSING' },
+      { id: 'fob-ne', name: 'FOB NORTH-EAST', side: 'static', x: 290000, y: 40000, kind: 'FOB', samRange: 35000 },
+      { id: 'fob-se', name: 'FOB SOUTH-EAST', side: 'static', x: 290000, y: 200000, kind: 'FOB', samRange: 35000 },
+      { id: 'east-ab', name: 'EAST AIRBASE', side: 'static', x: 310000, y: 120000, kind: 'AIRBASE', samRange: 65000 },
+      { id: 'static-hq', name: 'STATIC HQ', side: 'static', x: 380000, y: 120000, kind: 'HQ', samRange: 75000 }
     ];
 
+    const ROADS = [
+      [20000, 120000, 90000, 120000],
+      [90000, 120000, 130000, 60000],
+      [90000, 120000, 130000, 180000],
+      [130000, 60000, 230000, 60000, true],  // North bridge span
+      [130000, 180000, 230000, 180000, true], // South bridge span
+      [230000, 60000, 290000, 40000],
+      [230000, 180000, 290000, 200000],
+      [230000, 60000, 310000, 120000],
+      [230000, 180000, 310000, 120000],
+      [290000, 40000, 380000, 120000],
+      [290000, 200000, 380000, 120000],
+      [310000, 120000, 380000, 120000]
+    ];
+
+    const UNITS = [
+      { id: 'VIPER-01', callsign: 'VIPER-01', type: 'STRIKER', side: 'coalition', x: 140000, y: 90000, alt: 'FL240', spd: 480, fuel: 78, ammo: '4x AAM-3', task: 'COMBAT PATROL', angle: 0 },
+      { id: 'VIPER-02', callsign: 'VIPER-02', type: 'STRIKER', side: 'coalition', x: 132000, y: 95000, alt: 'FL240', spd: 480, fuel: 82, ammo: '4x AAM-3', task: 'TRAIL FORMATION', angle: 0 },
+      { id: 'MULE-01', callsign: 'MULE-01', type: 'LOGISTICS', side: 'coalition', x: 75000, y: 120000, alt: 'GND', spd: 55, fuel: 91, ammo: 'CARGO (AMMO)', task: 'RESUPPLY WEST AB', angle: 0 },
+      { id: 'BANDIT-04', callsign: 'BANDIT-04', type: 'INTERCEPTOR', side: 'static', x: 275000, y: 105000, alt: 'FL280', spd: 520, fuel: 64, ammo: '2x SARH-6', task: 'CAP INTERCEPT', angle: Math.PI },
+      { id: 'STATIC-UAV', callsign: 'STATIC-UAV', type: 'RECON', side: 'static', x: 220000, y: 160000, alt: 'FL180', spd: 190, fuel: 45, ammo: 'EO/IR POD', task: 'ISR SURVEILLANCE', angle: Math.PI * 0.8 }
+    ];
+
+    let selectedUnitId = 'VIPER-01';
     let currentPillar = 1;
     let simTime = 0;
+    let simPaused = false;
+    let simSpeed = 1.0;
+    let cameraMode = 'orbit'; // 'orbit', 'chase', 'god'
 
     /* =========================================================================
-       PILLAR 1: TACTICAL GIS C2 (2D CANVAS)
+       3. PILLAR 1: TACTICAL GIS (C2 2D) ENGINE
        ========================================================================= */
     const gisCanvas = document.getElementById('canvas-gis-c2');
     const gisCtx = gisCanvas.getContext('2d');
     let panX = 0, panY = 0, zoom = 1.0;
+    let mouseWorldX = 200000, mouseWorldY = 60000;
 
     function resizeGisCanvas() {
       gisCanvas.width = gisCanvas.clientWidth * window.devicePixelRatio;
@@ -390,29 +529,67 @@
       const h = gisCanvas.height;
       gisCtx.clearRect(0, 0, w, h);
 
-      // 1. Shaded relief background & landmass tint
-      gisCtx.fillStyle = "#0c1523";
-      gisCtx.fillRect(0, 0, w, h);
-
+      // 1. Shaded Relief Topography
       const p0 = worldToScreen(0, 0);
       const pMax = worldToScreen(THEATER_W, THEATER_H);
       const mapW = pMax.sx - p0.sx;
       const mapH = pMax.sy - p0.sy;
 
-      // Theater Land Area
-      gisCtx.fillStyle = "#15202e";
+      // Outer border / ocean
+      gisCtx.fillStyle = "#06101d";
+      gisCtx.fillRect(0, 0, w, h);
+
+      // Landmass tactical slate
+      gisCtx.fillStyle = "#0f172a";
       gisCtx.fillRect(p0.sx, p0.sy, mapW, mapH);
 
-      // Strait Trench (Water)
+      // Northern Mountain Relief Shading
+      const northGrad = gisCtx.createLinearGradient(0, p0.sy, 0, p0.sy + mapH * 0.35);
+      northGrad.addColorStop(0, '#1e293b');
+      northGrad.addColorStop(1, '#0f172a');
+      gisCtx.fillStyle = northGrad;
+      gisCtx.fillRect(p0.sx, p0.sy, mapW, mapH * 0.35);
+
+      // Submarine Trench Strait (x: 182km to 218km)
       const st0 = worldToScreen(182000, 0);
       const st1 = worldToScreen(218000, THEATER_H);
-      gisCtx.fillStyle = "#091a2e";
+      const waterGrad = gisCtx.createLinearGradient(st0.sx, 0, st1.sx, 0);
+      waterGrad.addColorStop(0, '#0284c7');
+      waterGrad.addColorStop(0.25, '#034574');
+      waterGrad.addColorStop(0.5, '#021e3d');
+      waterGrad.addColorStop(0.75, '#034574');
+      waterGrad.addColorStop(1, '#0284c7');
+      gisCtx.fillStyle = waterGrad;
       gisCtx.fillRect(st0.sx, p0.sy, st1.sx - st0.sx, mapH);
 
-      // 2. MGRS Tactical 10km Grid Lines
-      gisCtx.strokeStyle = "rgba(56, 189, 248, 0.12)";
+      // Shoreline Bevel Lines
+      gisCtx.strokeStyle = "#38bdf8";
+      gisCtx.lineWidth = 1.5;
+      gisCtx.beginPath();
+      gisCtx.moveTo(st0.sx, p0.sy); gisCtx.lineTo(st0.sx, pMax.sy);
+      gisCtx.moveTo(st1.sx, p0.sy); gisCtx.lineTo(st1.sx, pMax.sy);
+      gisCtx.stroke();
+
+      // Elevation Contours in Northern Ridge
+      gisCtx.strokeStyle = "rgba(148, 163, 184, 0.12)";
       gisCtx.lineWidth = 1;
-      gisCtx.font = "10px monospace";
+      gisCtx.setLineDash([4, 4]);
+      for (let elev = 1; elev <= 3; elev++) {
+        const cy = p0.sy + elev * 24;
+        gisCtx.beginPath();
+        gisCtx.moveTo(p0.sx, cy);
+        for (let x = p0.sx; x <= pMax.sx; x += 30) {
+          const yOff = Math.sin(x * 0.02 + elev) * 6;
+          gisCtx.lineTo(x, cy + yOff);
+        }
+        gisCtx.stroke();
+      }
+      gisCtx.setLineDash([]);
+
+      // 2. MGRS Military Coordinate Grid Lines
+      gisCtx.strokeStyle = "rgba(56, 189, 248, 0.14)";
+      gisCtx.lineWidth = 1;
+      gisCtx.font = "9px monospace";
       gisCtx.fillStyle = "rgba(56, 189, 248, 0.4)";
 
       for (let x = 0; x <= THEATER_W; x += 20000) {
@@ -421,7 +598,7 @@
         gisCtx.moveTo(p.sx, p0.sy);
         gisCtx.lineTo(p.sx, pMax.sy);
         gisCtx.stroke();
-        gisCtx.fillText(`${x / 1000}k`, p.sx + 4, p0.sy + 14);
+        gisCtx.fillText(`${x / 1000}k`, p.sx + 4, p0.sy + 12);
       }
       for (let y = 0; y <= THEATER_H; y += 20000) {
         const p = worldToScreen(0, y);
@@ -433,102 +610,177 @@
       }
 
       // 3. Road & Bridge Networks
-      EDGES.forEach(([fromId, toId, isBridge]) => {
-        const a = NODES[fromId];
-        const b = NODES[toId];
-        const pa = worldToScreen(a.x, a.y);
-        const pb = worldToScreen(b.x, b.y);
+      ROADS.forEach(([x1, y1, x2, y2, isBridge]) => {
+        const pa = worldToScreen(x1, y1);
+        const pb = worldToScreen(x2, y2);
 
         gisCtx.beginPath();
         gisCtx.moveTo(pa.sx, pa.sy);
         gisCtx.lineTo(pb.sx, pb.sy);
-        gisCtx.strokeStyle = isBridge ? "rgba(245, 158, 11, 0.85)" : "rgba(148, 163, 184, 0.45)";
-        gisCtx.lineWidth = isBridge ? 3.5 : 2.0;
+        gisCtx.strokeStyle = isBridge ? "rgba(245, 158, 11, 0.9)" : "rgba(100, 116, 139, 0.55)";
+        gisCtx.lineWidth = isBridge ? 4.0 : 2.5;
         gisCtx.stroke();
+
+        // Dashed Centerline
+        gisCtx.beginPath();
+        gisCtx.setLineDash([4, 4]);
+        gisCtx.moveTo(pa.sx, pa.sy);
+        gisCtx.lineTo(pb.sx, pb.sy);
+        gisCtx.strokeStyle = isBridge ? "#fff" : "rgba(255, 255, 255, 0.3)";
+        gisCtx.lineWidth = 1.0;
+        gisCtx.stroke();
+        gisCtx.setLineDash([]);
       });
 
-      // 4. Radar & SAM Envelopes (Range Rings)
-      const radPos = worldToScreen(NODES["west-airbase"].x, NODES["west-airbase"].y);
-      gisCtx.beginPath();
-      gisCtx.arc(radPos.sx, radPos.sy, 70000 * zoom, 0, Math.PI * 2);
-      gisCtx.strokeStyle = "rgba(0, 229, 255, 0.25)";
-      gisCtx.lineWidth = 1.5;
-      gisCtx.setLineDash([6, 4]);
-      gisCtx.stroke();
-      gisCtx.setLineDash([]);
-
-      // 5. Tactical C2 Nodes & MIL-STD-2525D Symbols
-      Object.entries(NODES).forEach(([id, node]) => {
-        const p = worldToScreen(node.x, node.y);
-        const col = node.team === "coalition" ? "#38bdf8" : node.team === "enemy" ? "#ef4444" : "#f59e0b";
-
-        // MIL-STD Diamond/Box
-        gisCtx.fillStyle = col;
-        gisCtx.strokeStyle = "#fff";
-        gisCtx.lineWidth = 1.5;
+      // 4. SAM Threat Envelopes (MEZ)
+      BASES.forEach(b => {
+        if (!b.samRange) return;
+        const pt = worldToScreen(b.x, b.y);
+        const rad = b.samRange * zoom;
 
         gisCtx.beginPath();
-        gisCtx.arc(p.sx, p.sy, 6, 0, Math.PI * 2);
+        gisCtx.arc(pt.sx, pt.sy, rad, 0, Math.PI * 2);
+        gisCtx.strokeStyle = b.side === 'coalition' ? "rgba(56, 189, 248, 0.35)" : "rgba(239, 68, 68, 0.4)";
+        gisCtx.fillStyle = b.side === 'coalition' ? "rgba(56, 189, 248, 0.04)" : "rgba(239, 68, 68, 0.05)";
+        gisCtx.lineWidth = 1.5;
+        gisCtx.setLineDash([8, 6]);
         gisCtx.fill();
         gisCtx.stroke();
+        gisCtx.setLineDash([]);
 
-        gisCtx.font = "bold 11px monospace";
-        gisCtx.fillStyle = "#fff";
-        gisCtx.fillText(node.name, p.sx + 10, p.sy + 4);
+        gisCtx.fillStyle = b.side === 'coalition' ? "#38bdf8" : "#ef4444";
+        gisCtx.font = "9px monospace";
+        gisCtx.fillText(`MEZ: ${b.samRange / 1000}KM`, pt.sx + rad * 0.7, pt.sy - rad * 0.7);
       });
 
-      // 6. Kinematic Patrol Unit: VIPER-01 (Striker Jet)
-      const jetX = 140000 + Math.cos(simTime * 0.8) * 45000;
-      const jetY = 90000 + Math.sin(simTime * 0.8) * 35000;
-      const jetP = worldToScreen(jetX, jetY);
+      // 5. Military Bases with MIL-STD-2525D Frames
+      BASES.forEach(b => {
+        const pt = worldToScreen(b.x, b.y);
+        gisCtx.save();
+        if (b.side === 'coalition') {
+          // Friendly Rectangle
+          gisCtx.fillStyle = "#0284c7";
+          gisCtx.strokeStyle = "#38bdf8";
+          gisCtx.lineWidth = 2;
+          gisCtx.fillRect(pt.sx - 8, pt.sy - 8, 16, 16);
+          gisCtx.strokeRect(pt.sx - 8, pt.sy - 8, 16, 16);
+          gisCtx.fillStyle = "#fff";
+          gisCtx.font = "bold 9px monospace";
+          gisCtx.fillText(b.kind === 'AIRBASE' ? 'A' : b.kind === 'SANCTUARY' ? 'S' : 'F', pt.sx - 3, pt.sy + 3);
+        } else if (b.side === 'static') {
+          // Hostile Diamond
+          gisCtx.fillStyle = "#be123c";
+          gisCtx.strokeStyle = "#f43f5e";
+          gisCtx.lineWidth = 2;
+          gisCtx.save();
+          gisCtx.translate(pt.sx, pt.sy);
+          gisCtx.rotate(Math.PI / 4);
+          gisCtx.fillRect(-7, -7, 14, 14);
+          gisCtx.strokeRect(-7, -7, 14, 14);
+          gisCtx.restore();
+          gisCtx.fillStyle = "#fff";
+          gisCtx.font = "bold 9px monospace";
+          gisCtx.fillText(b.kind === 'HQ' ? 'H' : 'F', pt.sx - 3, pt.sy + 3);
+        } else {
+          // Neutral Amber Square
+          gisCtx.fillStyle = "#d97706";
+          gisCtx.strokeStyle = "#fbbf24";
+          gisCtx.lineWidth = 2;
+          gisCtx.strokeRect(pt.sx - 6, pt.sy - 6, 12, 12);
+        }
+        gisCtx.fillStyle = "#f8fafc";
+        gisCtx.font = "bold 10px monospace";
+        gisCtx.fillText(b.name, pt.sx + 12, pt.sy + 3);
+        gisCtx.restore();
+      });
 
-      // Jet icon & heading velocity vector
-      const vx = -Math.sin(simTime * 0.8) * 30;
-      const vy = Math.cos(simTime * 0.8) * 30;
+      // 6. Dynamic Units with Kinematic 60-Sec Vectors
+      UNITS.forEach(u => {
+        const pt = worldToScreen(u.x, u.y);
+        const col = u.side === 'coalition' ? "#00e5ff" : "#ef4444";
 
-      gisCtx.strokeStyle = "#00e5ff";
-      gisCtx.lineWidth = 2.0;
+        // Projected 60-second velocity vector
+        const vx = Math.cos(u.angle) * 40;
+        const vy = Math.sin(u.angle) * 40;
+        gisCtx.strokeStyle = col;
+        gisCtx.lineWidth = 2.0;
+        gisCtx.beginPath();
+        gisCtx.moveTo(pt.sx, pt.sy);
+        gisCtx.lineTo(pt.sx + vx, pt.sy + vy);
+        gisCtx.stroke();
+
+        // Unit Icon (MIL-STD style)
+        gisCtx.fillStyle = col;
+        gisCtx.beginPath();
+        gisCtx.arc(pt.sx, pt.sy, 5, 0, Math.PI * 2);
+        gisCtx.fill();
+
+        // Selection Ring
+        if (u.id === selectedUnitId) {
+          gisCtx.strokeStyle = "#f59e0b";
+          gisCtx.lineWidth = 2;
+          gisCtx.beginPath();
+          gisCtx.arc(pt.sx, pt.sy, 10, 0, Math.PI * 2);
+          gisCtx.stroke();
+        }
+
+        gisCtx.fillStyle = "#fff";
+        gisCtx.font = "bold 10px monospace";
+        gisCtx.fillText(`${u.callsign} [${u.spd}kts]`, pt.sx + 10, pt.sy - 6);
+      });
+
+      // 7. Tactical Crosshair Reticle at Mouse Cursor
+      const mPt = worldToScreen(mouseWorldX, mouseWorldY);
+      gisCtx.strokeStyle = "rgba(245, 158, 11, 0.6)";
+      gisCtx.lineWidth = 1;
       gisCtx.beginPath();
-      gisCtx.moveTo(jetP.sx, jetP.sy);
-      gisCtx.lineTo(jetP.sx + vx, jetP.sy + vy);
+      gisCtx.moveTo(mPt.sx - 14, mPt.sy); gisCtx.lineTo(mPt.sx + 14, mPt.sy);
+      gisCtx.moveTo(mPt.sx, mPt.sy - 14); gisCtx.lineTo(mPt.sx, mPt.sy + 14);
       gisCtx.stroke();
-
-      gisCtx.fillStyle = "#00e5ff";
-      gisCtx.beginPath();
-      gisCtx.arc(jetP.sx, jetP.sy, 5, 0, Math.PI * 2);
-      gisCtx.fill();
-      gisCtx.fillText("VIPER-01 [280kts]", jetP.sx + 8, jetP.sy - 8);
     }
 
-    // Click on 2D map to sample MGRS grid and populate order
-    gisCanvas.addEventListener('click', (e) => {
+    // Mouse hover updates coordinate crosshairs
+    gisCanvas.addEventListener('mousemove', (e) => {
       const rect = gisCanvas.getBoundingClientRect();
       const sx = (e.clientX - rect.left) * window.devicePixelRatio;
       const sy = (e.clientY - rect.top) * window.devicePixelRatio;
       const { wx, wy } = screenToWorld(sx, sy);
-
       if (wx >= 0 && wx <= THEATER_W && wy >= 0 && wy <= THEATER_H) {
+        mouseWorldX = wx;
+        mouseWorldY = wy;
         const mgrs = coordsToMgrs(wx, wy, 3);
         const elev = sampleStraitElevation(wx, wy);
         document.getElementById('mgrs-target').innerText = mgrs;
         document.getElementById('coords-display').innerText = `${(wx / 1000).toFixed(1)}km E, ${(wy / 1000).toFixed(1)}km S`;
         document.getElementById('elev-display').innerText = `${elev > 0 ? '+' : ''}${elev.toFixed(1)}m MSL`;
+      }
+    });
+
+    gisCanvas.addEventListener('click', (e) => {
+      const rect = gisCanvas.getBoundingClientRect();
+      const sx = (e.clientX - rect.left) * window.devicePixelRatio;
+      const sy = (e.clientY - rect.top) * window.devicePixelRatio;
+      const { wx, wy } = screenToWorld(sx, sy);
+      if (wx >= 0 && wx <= THEATER_W && wy >= 0 && wy <= THEATER_H) {
+        const mgrs = coordsToMgrs(wx, wy, 3);
         document.getElementById('order-preview').innerText = `!strike ${mgrs}`;
+        addEventLog(`STRIKE TASKED: ${selectedUnitId} TARGETED GRID ${mgrs}`);
       }
     });
 
     /* =========================================================================
-       PILLAR 2 & 3: THREE.JS 3D SCENE (TEXTURED RTS & HOLOGRAPHIC)
+       4. PILLAR 2 & 3: THREE.JS 3D SCENE (TEXTURED RTS & HOLOGRAPHIC)
        ========================================================================= */
     let scene, camera, renderer, controls;
-    let terrainMesh, wireframeTerrainMesh, waterMesh, bridgeGroup, roadGroup;
-    let jet3D, bandit3D, radarSpire3D;
+    let terrainMesh, wireframeMesh, waterMesh, bridgeGroup, roadGroup;
+    let unit3DMap = {};
+    let radarSpire3D, radarSweepMesh, samThreatDomes;
     let flirCanvas, flirCtx;
 
     function initThreeScene() {
       const container = document.getElementById('three-viewport');
       scene = new THREE.Scene();
-      scene.background = new THREE.Color(0x070d17);
+      scene.background = new THREE.Color(0x050b14);
 
       camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 1, 10000);
       camera.position.set(0, 160, 240);
@@ -545,51 +797,69 @@
       controls.dampingFactor = 0.05;
       controls.maxDistance = 600;
 
-      // Lighting
-      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x1e293b, 0.6);
+      // Realistic Directional & Ambient Sun Lighting
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x1e293b, 0.65);
       scene.add(hemiLight);
 
-      const dirLight = new THREE.DirectionalLight(0xfff7ed, 1.2);
-      dirLight.position.set(120, 200, -80);
+      const dirLight = new THREE.DirectionalLight(0xfff7ed, 1.3);
+      dirLight.position.set(140, 220, -90);
       dirLight.castShadow = true;
       dirLight.shadow.mapSize.width = 2048;
       dirLight.shadow.mapSize.height = 2048;
+      dirLight.shadow.bias = -0.0005;
       scene.add(dirLight);
 
-      // Build 3D Terrain & Procedural Geometries
-      build3DTerrain();
+      build3DTerrainWithVertexColors();
       build3DRoadsAndBridges();
-      build3DUnits();
+      build3DCatalogUnits();
+      buildHolographicThreatDomes();
 
-      // Thermal FLIR PiP Canvas
+      // Thermal FLIR PiP
       flirCanvas = document.getElementById('flir-canvas');
       flirCtx = flirCanvas.getContext('2d');
       flirCanvas.width = 220;
-      flirCanvas.height = 140;
+      flirCanvas.height = 130;
 
-      // Force immediate synchronous render for headless snapshot reliability
       renderer.render(scene, camera);
     }
 
-    function build3DTerrain() {
-      // 1. Solid Textured Terrain (Pillar 2)
-      const geo = new THREE.PlaneGeometry(360, 216, 72, 48);
+    /* Terrain with Dynamic Vertex Splatting (Sand, Grass, Rock, Snow) */
+    function build3DTerrainWithVertexColors() {
+      const geo = new THREE.PlaneGeometry(360, 216, 96, 64);
       geo.rotateX(-Math.PI / 2);
 
       const pos = geo.attributes.position;
+      const colors = [];
+
       for (let i = 0; i < pos.count; i++) {
         const x3d = pos.getX(i);
         const z3d = pos.getZ(i);
-        // Map 3D scene [-180, 180] x [-108, 108] to simulation meters [0, 400000] x [0, 240000]
         const wx = (x3d + 180) * (THEATER_W / 360);
         const wy = (z3d + 108) * (THEATER_H / 216);
         const elev = sampleStraitElevation(wx, wy);
-        pos.setY(i, elev * 0.035); // Visual height scale
+
+        pos.setY(i, elev * 0.038);
+
+        // Biome Color Splatting by Elevation
+        const col = new THREE.Color();
+        if (elev < 0) {
+          col.setHex(0x0a192f); // Deep trench floor
+        } else if (elev < 16) {
+          col.setHex(0x6b725a); // Coastal sand / scrub
+        } else if (elev < 200) {
+          col.setHex(0x27432e); // Lowland tactical olive grass
+        } else if (elev < 480) {
+          col.setHex(0x4a4d46); // Rocky foothills
+        } else {
+          col.setHex(0x9ca3af); // Snowcapped mountain peaks
+        }
+        colors.push(col.r, col.g, col.b);
       }
+      geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
       geo.computeVertexNormals();
 
       const landMat = new THREE.MeshStandardMaterial({
-        color: 0x22362c,
+        vertexColors: true,
         roughness: 0.85,
         metalness: 0.1
       });
@@ -597,25 +867,25 @@
       terrainMesh.receiveShadow = true;
       scene.add(terrainMesh);
 
-      // 2. Wireframe Terrain Overlay (Pillar 3)
+      // Holographic Wireframe Clone (Pillar 3)
       const wireMat = new THREE.MeshBasicMaterial({
         color: 0x00e5ff,
         wireframe: true,
         transparent: true,
         opacity: 0.45
       });
-      wireframeTerrainMesh = new THREE.Mesh(geo, wireMat);
-      wireframeTerrainMesh.position.y = 0.08;
-      wireframeTerrainMesh.visible = false;
-      scene.add(wireframeTerrainMesh);
+      wireframeMesh = new THREE.Mesh(geo, wireMat);
+      wireframeMesh.position.y = 0.08;
+      wireframeMesh.visible = false;
+      scene.add(wireframeMesh);
 
-      // 3. Submarine Strait Water Mesh (-1.5m elevation)
+      // Reflective Strait Water Mesh
       const waterGeo = new THREE.PlaneGeometry(42, 216);
       waterGeo.rotateX(-Math.PI / 2);
       const waterMat = new THREE.MeshStandardMaterial({
         color: 0x0284c7,
         roughness: 0.1,
-        metalness: 0.85,
+        metalness: 0.9,
         transparent: true,
         opacity: 0.85
       });
@@ -629,21 +899,18 @@
       bridgeGroup = new THREE.Group();
 
       const roadMat = new THREE.MeshStandardMaterial({
-        color: 0x1e293b,
-        roughness: 0.8,
+        color: 0x18202c,
+        roughness: 0.85,
         polygonOffset: true,
         polygonOffsetFactor: -1,
         polygonOffsetUnits: -2
       });
 
-      // Sampled Road Ribbons conformed to terrain height
-      EDGES.forEach(([idA, idB, isBridge]) => {
-        const a = NODES[idA];
-        const b = NODES[idB];
-        const ax = (a.x / THEATER_W - 0.5) * 360;
-        const az = (a.y / THEATER_H - 0.5) * 216;
-        const bx = (b.x / THEATER_W - 0.5) * 360;
-        const bz = (b.y / THEATER_H - 0.5) * 216;
+      ROADS.forEach(([x1, y1, x2, y2, isBridge]) => {
+        const ax = (x1 / THEATER_W - 0.5) * 360;
+        const az = (y1 / THEATER_H - 0.5) * 216;
+        const bx = (x2 / THEATER_W - 0.5) * 360;
+        const bz = (y2 / THEATER_H - 0.5) * 216;
 
         const len = Math.hypot(bx - ax, bz - az);
         const rGeo = new THREE.PlaneGeometry(len, 3.2);
@@ -654,15 +921,15 @@
         const midZ = (az + bz) / 2;
         const angle = Math.atan2(bz - az, bx - ax);
 
-        rMesh.position.set(midX, isBridge ? 3.8 : 0.4, midZ);
+        rMesh.position.set(midX, isBridge ? 3.6 : 0.4, midZ);
         rMesh.rotation.y = -angle;
         roadGroup.add(rMesh);
 
         if (isBridge) {
-          // Elevated Steel Truss Bridge Deck
+          // Elevated Steel Truss Bridge Deck + Pylons
           const trussMat = new THREE.MeshStandardMaterial({ color: 0x64748b, metalness: 0.8 });
-          const truss = new THREE.Mesh(new THREE.BoxGeometry(len, 2.5, 4.0), trussMat);
-          truss.position.set(midX, 4.2, midZ);
+          const truss = new THREE.Mesh(new THREE.BoxGeometry(len, 2.5, 4.2), trussMat);
+          truss.position.set(midX, 4.0, midZ);
           truss.rotation.y = -angle;
           bridgeGroup.add(truss);
         }
@@ -672,26 +939,74 @@
       scene.add(bridgeGroup);
     }
 
-    function build3DUnits() {
-      // 1. Coalition Striker Jet (VIPER-01)
-      jet3D = new THREE.Group();
-      const fuse = new THREE.Mesh(new THREE.ConeGeometry(2.0, 10, 4), new THREE.MeshStandardMaterial({ color: 0x2563eb, roughness: 0.4 }));
-      fuse.rotateX(Math.PI / 2);
-      jet3D.add(fuse);
-      const wing = new THREE.Mesh(new THREE.BoxGeometry(10, 0.2, 4), new THREE.MeshStandardMaterial({ color: 0x38bdf8 }));
-      jet3D.add(wing);
-      scene.add(jet3D);
+    /* Build 3D Models matching tools/assets/ Catalog */
+    function build3DCatalogUnits() {
+      // 1. Striker Jets (Viper-01 & Viper-02)
+      const jetMat = new THREE.MeshStandardMaterial({ color: 0x2563eb, roughness: 0.4 });
+      const wingMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8 });
 
-      // 2. Enemy Interceptor (BANDIT-04)
-      bandit3D = new THREE.Group();
+      ['VIPER-01', 'VIPER-02'].forEach(id => {
+        const jetGroup = new THREE.Group();
+        const fuse = new THREE.Mesh(new THREE.ConeGeometry(2.0, 10, 4), jetMat);
+        fuse.rotateX(Math.PI / 2);
+        jetGroup.add(fuse);
+
+        const wings = new THREE.Mesh(new THREE.BoxGeometry(11, 0.2, 4.5), wingMat);
+        wings.position.z = -1;
+        jetGroup.add(wings);
+
+        const finL = new THREE.Mesh(new THREE.BoxGeometry(0.3, 2.4, 2), jetMat);
+        finL.position.set(-2, 1.4, -3.5);
+        finL.rotation.z = -0.2;
+        jetGroup.add(finL);
+
+        const finR = new THREE.Mesh(new THREE.BoxGeometry(0.3, 2.4, 2), jetMat);
+        finR.position.set(2, 1.4, -3.5);
+        finR.rotation.z = 0.2;
+        jetGroup.add(finR);
+
+        scene.add(jetGroup);
+        unit3DMap[id] = jetGroup;
+      });
+
+      // 2. Logistics Truck (MULE-01)
+      const truckGroup = new THREE.Group();
+      const cabMat = new THREE.MeshStandardMaterial({ color: 0x475569 });
+      const cab = new THREE.Mesh(new THREE.BoxGeometry(2.6, 2.2, 3.0), cabMat);
+      cab.position.set(0, 1.6, 2.5);
+      truckGroup.add(cab);
+
+      const cargoMat = new THREE.MeshStandardMaterial({ color: 0x334155 });
+      const cargo = new THREE.Mesh(new THREE.BoxGeometry(2.8, 2.6, 6.0), cargoMat);
+      cargo.position.set(0, 2.0, -1.8);
+      truckGroup.add(cargo);
+
+      scene.add(truckGroup);
+      unit3DMap['MULE-01'] = truckGroup;
+
+      // 3. Static Bandit Interceptor
+      const banditGroup = new THREE.Group();
       const bFuse = new THREE.Mesh(new THREE.ConeGeometry(2.0, 10, 4), new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.5 }));
       bFuse.rotateX(Math.PI / 2);
-      bandit3D.add(bFuse);
-      const bWing = new THREE.Mesh(new THREE.BoxGeometry(10, 0.2, 4), new THREE.MeshStandardMaterial({ color: 0xef4444 }));
-      bandit3D.add(bWing);
-      scene.add(bandit3D);
+      banditGroup.add(bFuse);
+      const bWing = new THREE.Mesh(new THREE.BoxGeometry(11, 0.2, 4.5), new THREE.MeshStandardMaterial({ color: 0xef4444 }));
+      bWing.position.z = -1;
+      banditGroup.add(bWing);
+      scene.add(banditGroup);
+      unit3DMap['BANDIT-04'] = banditGroup;
 
-      // 3. Radar Spire
+      // 4. Static Recon UAV
+      const uavGroup = new THREE.Group();
+      const uavMat = new THREE.MeshStandardMaterial({ color: 0x27272a });
+      const uFuse = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.8, 6), uavMat);
+      uFuse.rotateX(Math.PI / 2);
+      uavGroup.add(uFuse);
+      const uWing = new THREE.Mesh(new THREE.BoxGeometry(14, 0.15, 1.8), uavMat);
+      uavGroup.add(uWing);
+      scene.add(uavGroup);
+      unit3DMap['STATIC-UAV'] = uavGroup;
+
+      // 5. Rotating Radar Spire
       radarSpire3D = new THREE.Group();
       const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 1.4, 12, 6), new THREE.MeshStandardMaterial({ color: 0x64748b }));
       mast.position.y = 6;
@@ -704,8 +1019,34 @@
       scene.add(radarSpire3D);
     }
 
+    function buildHolographicThreatDomes() {
+      samThreatDomes = new THREE.Group();
+      // Threat domes at West AB and Static HQ
+      const domeGeo = new THREE.SphereGeometry(35, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2);
+      const domeMatW = new THREE.MeshBasicMaterial({ color: 0x00e5ff, wireframe: true, transparent: true, opacity: 0.25 });
+      const domeW = new THREE.Mesh(domeGeo, domeMatW);
+      domeW.position.set(-90, 0, 0);
+      samThreatDomes.add(domeW);
+
+      const domeMatE = new THREE.MeshBasicMaterial({ color: 0xef4444, wireframe: true, transparent: true, opacity: 0.25 });
+      const domeE = new THREE.Mesh(domeGeo, domeMatE);
+      domeE.position.set(120, 0, 0);
+      samThreatDomes.add(domeE);
+
+      // Rotating Radar Sweeping Plane
+      const sweepGeo = new THREE.ConeGeometry(60, 4, 16, 1, true, 0, Math.PI / 4);
+      sweepGeo.rotateX(Math.PI / 2);
+      const sweepMat = new THREE.MeshBasicMaterial({ color: 0x00e5ff, transparent: true, opacity: 0.2, side: THREE.DoubleSide });
+      radarSweepMesh = new THREE.Mesh(sweepGeo, sweepMat);
+      radarSweepMesh.position.set(-90, 8, 0);
+      samThreatDomes.add(radarSweepMesh);
+
+      samThreatDomes.visible = false;
+      scene.add(samThreatDomes);
+    }
+
     /* =========================================================================
-       PILLAR SWITCHING LOGIC
+       5. PILLAR SWITCHING & CONTROLS
        ========================================================================= */
     function switchPillar(num) {
       currentPillar = num;
@@ -726,27 +1067,23 @@
         vpThree.classList.add('active');
 
         if (num === 2) {
-          // Pillar 2: Textured RTS 3D
           hudTitle.innerText = "TEXTURED 3D RTS BATTLESPACE";
           badge.innerText = "PBR GL";
           badge.style.color = "var(--accent-cyan)";
-          terrainMesh.material.color.setHex(0x22362c);
-          terrainMesh.material.wireframe = false;
-          wireframeTerrainMesh.visible = false;
+          terrainMesh.visible = true;
+          wireframeMesh.visible = false;
           roadGroup.visible = true;
           bridgeGroup.visible = true;
-          waterMesh.visible = true;
+          samThreatDomes.visible = false;
         } else if (num === 3) {
-          // Pillar 3: Holographic Tabletop Wireframe
           hudTitle.innerText = "HOLOGRAPHIC TACTICAL TABLETOP";
           badge.innerText = "VECTOR 3D";
           badge.style.color = "var(--accent-green)";
-          terrainMesh.material.color.setHex(0x05131f);
-          terrainMesh.material.wireframe = false;
-          wireframeTerrainMesh.visible = true;
+          terrainMesh.visible = false;
+          wireframeMesh.visible = true;
           roadGroup.visible = false;
-          bridgeGroup.visible = false;
-          waterMesh.visible = true;
+          bridgeGroup.visible = true;
+          samThreatDomes.visible = true;
         }
 
         camera.aspect = vpThree.clientWidth / vpThree.clientHeight;
@@ -756,7 +1093,76 @@
       }
     }
 
-    /* --- ANIMATION LOOP --- */
+    function setCameraMode(mode) {
+      cameraMode = mode;
+      document.querySelectorAll('.cam-btn').forEach(b => b.classList.remove('active'));
+      document.getElementById(`cam-${mode}`).classList.add('active');
+
+      if (mode === 'god') {
+        camera.position.set(0, 280, 0);
+        controls.target.set(0, 0, 0);
+      } else if (mode === 'orbit') {
+        camera.position.set(0, 160, 240);
+        controls.target.set(0, 0, 0);
+      }
+    }
+
+    function selectUnit(id) {
+      selectedUnitId = id;
+      populateOOB();
+      const u = UNITS.find(un => un.id === id);
+      if (u) {
+        document.getElementById('selected-task').innerText = u.task;
+        document.getElementById('selected-supplies').innerText = `${u.fuel}% | ${u.ammo}`;
+        const mgrs = coordsToMgrs(u.x, u.y, 3);
+        document.getElementById('order-preview').innerText = `!strike ${mgrs}`;
+        addEventLog(`SELECTED UNIT: ${u.callsign} (${u.type}) - ${u.task}`);
+      }
+    }
+
+    function populateOOB() {
+      const container = document.getElementById('unit-list-container');
+      container.innerHTML = '';
+      UNITS.forEach(u => {
+        const div = document.createElement('div');
+        div.className = `unit-card ${u.id === selectedUnitId ? 'selected' : ''}`;
+        div.onclick = () => selectUnit(u.id);
+
+        const col = u.side === 'coalition' ? 'var(--accent-cyan)' : 'var(--accent-red)';
+        div.innerHTML = `
+          <div>
+            <div style="font-weight:700; color:${col};">${u.callsign}</div>
+            <div style="font-size:9px; color:var(--text-muted);">${u.type} • ${u.alt}</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-family:monospace; font-size:10px;">${u.spd} kts</div>
+            <div style="font-size:9px; color:var(--accent-amber);">${u.fuel}% FUEL</div>
+          </div>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    function togglePause() {
+      simPaused = !simPaused;
+      document.getElementById('pause-btn').innerText = simPaused ? "RESUME" : "PAUSE";
+      document.getElementById('pause-btn').style.color = simPaused ? "var(--accent-amber)" : "#f8fafc";
+    }
+
+    function setSpeed(spd) {
+      simSpeed = spd;
+      document.getElementById('speed-label').innerText = `${spd}x`;
+    }
+
+    function addEventLog(msg) {
+      const d = new Date();
+      const timeStr = `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}:${String(d.getUTCSeconds()).padStart(2, '0')}Z`;
+      document.getElementById('event-ticker').innerText = `[${timeStr}] ${msg}`;
+    }
+
+    /* =========================================================================
+       6. MAIN ANIMATION & SIMULATION LOOP
+       ========================================================================= */
     let lastTime = performance.now();
     let frameCount = 0;
 
@@ -764,43 +1170,68 @@
       requestAnimationFrame(animate);
       const dt = (now - lastTime) / 1000.0;
       lastTime = now;
-      simTime += dt;
 
-      // Update Clock
-      const date = new Date();
+      if (!simPaused) {
+        simTime += dt * simSpeed;
+      }
+
+      // Update UTC Timestamp
+      const d = new Date();
       document.getElementById('clock-display').innerText =
-        `${String(date.getUTCHours()).padStart(2, '0')}:${String(date.getUTCMinutes()).padStart(2, '0')}:${String(date.getUTCSeconds()).padStart(2, '0')}.${String(Math.floor(date.getUTCMilliseconds() / 10)).padStart(2, '0')}Z`;
+        `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}:${String(d.getUTCSeconds()).padStart(2, '0')}.${String(Math.floor(d.getUTCMilliseconds() / 10)).padStart(2, '0')}Z`;
 
-      // Update FPS counter
       frameCount++;
       if (frameCount % 30 === 0) {
         document.getElementById('fps-counter').innerText = Math.round(1.0 / dt);
       }
 
+      // Kinematic flight updates for all units
+      const v1 = UNITS[0];
+      const rad1 = simTime * 0.35;
+      v1.x = 140000 + Math.cos(rad1) * 45000;
+      v1.y = 90000 + Math.sin(rad1) * 35000;
+      v1.angle = rad1 + Math.PI / 2;
+
+      const v2 = UNITS[1];
+      v2.x = v1.x - Math.cos(v1.angle) * 7000;
+      v2.y = v1.y - Math.sin(v1.angle) * 7000;
+      v2.angle = v1.angle;
+
+      const b4 = UNITS[3];
+      const radB = simTime * 0.28;
+      b4.x = 280000 - Math.cos(radB) * 40000;
+      b4.y = 110000 - Math.sin(radB) * 30000;
+      b4.angle = -radB - Math.PI / 2;
+
       if (currentPillar === 1) {
         renderGisFrame();
       } else if (scene && renderer) {
-        // Orbit patrol for Striker Jet
-        const rad = simTime * 0.45;
-        const jx = Math.cos(rad) * 80;
-        const jz = Math.sin(rad) * 60;
-        jet3D.position.set(jx, 24 + Math.sin(simTime * 1.5) * 2, jz);
-        jet3D.rotation.y = -rad + Math.PI / 2;
-        jet3D.rotation.z = Math.sin(simTime * 2.0) * 0.15;
+        // Map simulation coordinates to 3D Three.js scene
+        Object.entries(unit3DMap).forEach(([id, obj]) => {
+          const u = UNITS.find(un => un.id === id);
+          if (!u) return;
+          const x3d = (u.x / THEATER_W - 0.5) * 360;
+          const z3d = (u.y / THEATER_H - 0.5) * 216;
+          const elev = sampleStraitElevation(u.x, u.y);
+          const y3d = u.alt === 'GND' ? elev * 0.038 + 0.5 : elev * 0.038 + 22;
 
-        // Enemy bandit on intercept vector
-        const bx = -Math.cos(rad * 0.7) * 70;
-        const bz = -Math.sin(rad * 0.7) * 50;
-        bandit3D.position.set(bx, 28, bz);
-        bandit3D.rotation.y = -(rad * 0.7) - Math.PI / 2;
+          obj.position.set(x3d, y3d, z3d);
+          obj.rotation.y = -u.angle + Math.PI / 2;
+        });
 
-        // Rotate radar dish
-        radarSpire3D.children[1].rotation.y = simTime * 1.8;
+        // Rotate radar dish & sweep cone
+        if (radarSpire3D) radarSpire3D.children[1].rotation.y = simTime * 1.8;
+        if (radarSweepMesh) radarSweepMesh.rotation.z = -simTime * 1.2;
+
+        // Camera Chase Mode
+        if (cameraMode === 'chase' && unit3DMap[selectedUnitId]) {
+          const target = unit3DMap[selectedUnitId].position;
+          camera.position.set(target.x - 35, target.y + 15, target.z + 35);
+          controls.target.copy(target);
+        }
 
         controls.update();
         renderer.render(scene, camera);
-
-        // Render Thermal FLIR PiP
         renderThermalFlir();
       }
     }
@@ -808,34 +1239,34 @@
     function renderThermalFlir() {
       if (!flirCtx) return;
       flirCtx.fillStyle = "#02070f";
-      flirCtx.fillRect(0, 0, 220, 140);
+      flirCtx.fillRect(0, 0, 220, 130);
 
       // FLIR Crosshairs
       flirCtx.strokeStyle = "rgba(0, 229, 255, 0.4)";
       flirCtx.lineWidth = 1;
       flirCtx.beginPath();
-      flirCtx.moveTo(110, 20); flirCtx.lineTo(110, 120);
-      flirCtx.moveTo(50, 70); flirCtx.lineTo(170, 70);
+      flirCtx.moveTo(110, 15); flirCtx.lineTo(110, 115);
+      flirCtx.moveTo(40, 65); flirCtx.lineTo(180, 65);
       flirCtx.stroke();
 
-      // Thermal Target Silhouette (Viper jet target)
+      // Thermal Target Silhouette (Hot White Engine Core)
       flirCtx.fillStyle = "#ffffff";
       flirCtx.beginPath();
-      flirCtx.arc(110 + Math.sin(simTime * 2) * 8, 70 + Math.cos(simTime * 2) * 6, 8, 0, Math.PI * 2);
+      flirCtx.arc(110 + Math.sin(simTime * 2) * 6, 65 + Math.cos(simTime * 2) * 5, 7, 0, Math.PI * 2);
       flirCtx.fill();
 
       flirCtx.font = "9px monospace";
       flirCtx.fillStyle = "#00e5ff";
-      flirCtx.fillText("TRK: LOCKED [VIPER-01]", 10, 130);
-      flirCtx.fillText("RNG: 14.8km", 140, 130);
+      flirCtx.fillText(`TRK: [${selectedUnitId}] LOCKED`, 8, 122);
+      flirCtx.fillText("RNG: 14.8km", 145, 122);
     }
 
-    // Startup initialization
+    /* Startup handler */
     window.addEventListener('load', () => {
       initThreeScene();
       resizeGisCanvas();
+      populateOOB();
 
-      // Check URL search params or hash for initial pillar (e.g. ?pillar=2 or #pillar=3)
       const params = new URLSearchParams(window.location.search);
       const hashMatch = window.location.hash.match(/pillar=(\d)/);
       const initialPillar = parseInt(params.get('pillar') || (hashMatch ? hashMatch[1] : '1'));
@@ -852,6 +1283,7 @@
           renderer.setSize(vp.clientWidth, vp.clientHeight);
         }
       });
+
       requestAnimationFrame(animate);
     });
   </script>

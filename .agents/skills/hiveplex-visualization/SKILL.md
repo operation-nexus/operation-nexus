@@ -54,10 +54,16 @@ When tasked with creating, modifying, or auditing a visual component or renderer
 
 ## 2. Directory Layout & Available Helpers
 
-- **Scripts:**
+- **Scripts & Tools:**
   - [`capture_review_screenshot.sh`](./scripts/capture_review_screenshot.sh): Automates headless Chrome captures with virtual time budgets.
+  - [`mgrs_grid.py`](../../tools/terrain/mgrs_grid.py): MGRS tactical grid and coordinate conversion engine.
+  - [`bake_synthetic_dted.py`](../../tools/terrain/bake_synthetic_dted.py): Synthetic DEM and Horn analytical hillshade baker.
+  - [`drape_roads.py`](../../tools/terrain/drape_roads.py): Dynamic road spline draping and bridge conforming engine.
+  - [`generate_lowpoly_assets.py`](../../tools/assets/generate_lowpoly_assets.py): Low-poly 3D OBJ unit mesh generator (<500 triangles).
   - [`generate_terrain_model.py`](./scripts/generate_terrain_model.py): Procedural 3D OBJ terrain mesh generator.
 - **References:**
+  - [`unified-three-pillar-patterns.md`](./references/unified-three-pillar-patterns.md): Complete specifications for Three-Pillar sandbox, OOB fleet sidebar, and crosshairs.
+  - [`mgrs-and-coordinate-systems.md`](./references/mgrs-and-coordinate-systems.md): NATO MGRS mapping, precision formulas, and CLI usage.
   - [`decoupled-rendering.md`](./references/decoupled-rendering.md): Pure kernel boundary rules and `IRenderEngine`.
   - [`elevation-budget-and-zfighting.md`](./references/elevation-budget-and-zfighting.md): Layer height budget and material offsets.
   - [`headless-visual-review.md`](./references/headless-visual-review.md): Automated verification runbook.
