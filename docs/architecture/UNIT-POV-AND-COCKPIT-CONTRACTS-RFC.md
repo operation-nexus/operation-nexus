@@ -247,6 +247,25 @@ During 24/7 live streams, the Live AI Director switches to cockpit POV during hi
 3. **CSAR Extraction Race**: When a rescue helicopter approaches a downed pilot marker while enemy static armor approaches, cut to Helicopter Bubble POV showing the ground through the chin windows.
 4. **Convoy Chokepoints**: When `MULE-01` approaches a strategic bridge or pass, cut to Driver Cockpit POV to show the massive scale of the surrounding mountain terrain.
 
+### 5.3 Combat Casualty & Loss-of-Signal (LOS) Failover Contract
+When a unit is disabled or neutralized while viewed from its cockpit or weapon seeker optic, camera controllers MUST follow a strictly deterministic transition sequence to maintain continuous broadcast engagement:
+
+```
+[UNIT KILLED]
+      │
+      ├─► Frame 0–10 (0–160ms): Heavy screen shake + CRT chromatic aberration + audio glitch / warning klaxon cutoff
+      │
+      ├─► Case A: Ejection Capable (Fighter Jet / CSAR Crew)
+      │     └─► Frame 11+: Switch to Ejection Canister Parachute POV (`EJECTION_CHUTE`)
+      │           - Drifts downward toward crash crater / wreckage smoke plume
+      │           - Initializes 10-minute PRC-112 beacon ping (`NX-290`) for CSAR rescue pickup
+      │
+      └─► Case B: Catastrophic / Kinetic Seeker Detonation / Armored Mule Penetration
+            └─► Frame 11–25: 250ms Whiteout flash / military analog TV static dissolve
+            └─► Frame 26+: Instant cut to nearest engaging friendly combatant, killer unit, or Theater Strategic Orbit Cam
+```
+Under no circumstances may a casualty leave the renderer on an orphaned camera, pitch-black screen, or null pointer exception.
+
 ---
 
 ## 6. Architectural Invariants & Decoupling

@@ -187,6 +187,17 @@ High-fidelity tactical audio is vital for audience immersion. The audio architec
 - **Dynamic Comms Layering**:
   - Automated radio priority ducking: AWACS priority breaks over routine logistics check-ins.
 
+### 6.4 Broadcast Audio Mixing & Ducking Priority Matrix
+To maintain broadcast clarity and prevent cacophony during multi-unit engagements, the audio subsystem enforces a strict priority ducking hierarchy:
+
+| Priority | Channel / Source | Ducking Trigger | Target Attenuation | Attack / Release |
+| :--- | :--- | :--- | :--- | :--- |
+| **P1 (Highest)** | Threat RWR / Master Caution Alarms | Active missile launch or lock | Ducks all other channels by $-12\text{dB}$ | $10\text{ms}$ / $350\text{ms}$ |
+| **P2** | Tactical Voice Comms (AWACS / Brevity) | Active radio transmission | Ducks vehicle engine & ambient by $-8\text{dB}$ | $30\text{ms}$ / $500\text{ms}$ |
+| **P3** | Explosions, Munition Impacts, Sonic Booms | Kinetic hit event | Transient master limiter ducking | $2\text{ms}$ / $200\text{ms}$ |
+| **P4** | Cockpit Jet / Turbine & Vehicle Engine | Baseline internal POV | Constant reference level ($0\text{dB}$) | — |
+| **P5 (Lowest)** | Environmental Ambience & UI Clicks | Baseline | Master background bed ($-18\text{dB}$) | — |
+
 ---
 
 ## 7. Architectural Implementation References

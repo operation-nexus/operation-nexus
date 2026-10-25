@@ -550,8 +550,9 @@
         [04:12:02Z] VIPER-01 (STRIKER) DEPARTED WEST AIRBASE ON VECTOR 085° (ALT: FL240)
       </div>
 
-      <div style="font-family: monospace;">
-        FPS: <span id="fps-counter" style="color:var(--accent-green);">60</span> | SIM: SYNC
+      <div style="display:flex; align-items:center; gap:12px; font-family: monospace; font-size:10px;">
+        <span style="color: var(--text-muted);"><b style="color:var(--accent-cyan);">HOTKEYS:</b> [1-4] Pillars &bull; [C] Camera &bull; [Tab] Unit &bull; [D] Director &bull; [F] FOW &bull; [A] Audio &bull; [Space] Pause</span>
+        <span>FPS: <span id="fps-counter" style="color:var(--accent-green);">60</span> | SIM: SYNC</span>
       </div>
     </footer>
   </div>
@@ -3118,6 +3119,40 @@
           camera.aspect = vp.clientWidth / vp.clientHeight;
           camera.updateProjectionMatrix();
           renderer.setSize(vp.clientWidth, vp.clientHeight);
+        }
+      });
+
+      // Keyboard Shortcuts Navigation
+      window.addEventListener('keydown', (e) => {
+        if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) return;
+
+        if (e.key === '1') switchPillar(1);
+        else if (e.key === '2') switchPillar(2);
+        else if (e.key === '3') switchPillar(3);
+        else if (e.key === '4') switchPillar(4);
+        else if (e.key === 'd' || e.key === 'D') toggleLiveDirector();
+        else if (e.key === 'f' || e.key === 'F') toggleFOW();
+        else if (e.key === 'a' || e.key === 'A' || e.key === 'm' || e.key === 'M') toggleAudio();
+        else if (e.key === ' ') {
+          e.preventDefault();
+          togglePause();
+        } else if (e.key === 'c' || e.key === 'C') {
+          const modes = ['god', 'chase', 'cockpit'];
+          const nextIdx = (modes.indexOf(cameraMode) + 1) % modes.length;
+          setCameraMode(modes[nextIdx]);
+        } else if (e.key === 'Tab') {
+          e.preventDefault();
+          const currIdx = UNITS.findIndex(u => u.id === selectedUnitId);
+          const nextIdx = (currIdx + 1) % UNITS.length;
+          selectUnit(UNITS[nextIdx].id);
+        } else if (e.key === '[' || e.key === '-') {
+          const speeds = [0.5, 1, 2, 5];
+          const currIdx = speeds.indexOf(simSpeed);
+          if (currIdx > 0) setSpeed(speeds[currIdx - 1]);
+        } else if (e.key === ']' || e.key === '=' || e.key === '+') {
+          const speeds = [0.5, 1, 2, 5];
+          const currIdx = speeds.indexOf(simSpeed);
+          if (currIdx < speeds.length - 1) setSpeed(speeds[currIdx + 1]);
         }
       });
 
