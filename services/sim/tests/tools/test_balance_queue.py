@@ -374,7 +374,8 @@ def test_set_takes_bool_literals_and_enum_segments(cfg: dict[str, Any]) -> None:
 @pytest.mark.parametrize(
     "value",
     [
-        "a=1,b=2,c=3,d=4,e=5", "A.b=1", "a..b=1", "a=1;rm", "a=1e9", "a=$(x)", "a=", "a=1234567890",
+        "a=1,b=2,c=3,d=4,e=5,f=6,g=7,h=8,i=9",  # over max_overrides (8)
+        "A.b=1", "a..b=1", "a=1;rm", "a=1e9", "a=$(x)", "a=", "a=1234567890",
         # bools: lower-case literals only, nothing around them
         "a=True", "a=FALSE", "a=yes", "a=on", "a=true1", "a=truefalse", "a=-true", "a=tru",
         "a.ENEMY=fals", "a.ENEMY-1=true", "a.b=true;rm", "a.b=`true`", "a.b= true x",
