@@ -187,6 +187,11 @@ def load_balance(path: Path) -> BalanceConfig:
     tier = cfg.director.tier
     if not tier.alpha_enter_cp < tier.bravo_enter_cp:
         raise ConfigError(f"{path}: director.tier.alpha_enter_cp: must be below bravo_enter_cp")
+    sf = cfg.director.spend_frac
+    if not sf.pattern_of_life <= sf.alpha <= sf.bravo:
+        raise ConfigError(
+            f"{path}: director.spend_frac: need pattern_of_life <= alpha <= bravo (ECONOMY §4)"
+        )
     if "BRIDGE" not in cfg.capture.uncapturable_node_kinds:
         raise ConfigError(
             f"{path}: capture.uncapturable_node_kinds: must include BRIDGE (a bridge has no owner)"

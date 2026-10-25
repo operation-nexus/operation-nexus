@@ -28,6 +28,7 @@ Deterministic: entities in the sorted payment order, homes in id order, integers
 while paused (`economy.due`).
 """
 
+from nexus.contracts.gen.common.enums import Side
 from nexus.contracts.gen.events.event import Event
 from nexus.contracts.gen.events.unit_grounded import UnitGrounded
 from nexus.contracts.gen.events.unit_ungrounded import UnitUngrounded
@@ -82,6 +83,19 @@ def upkeep(world: World, out: list[Event]) -> None:
             _ground(world, rules, e, out)
     for home in sorted(paid):
         out.append(consumed(world, home, paid[home], "UPKEEP"))
+
+
+def owed(world: World, side: Side) -> int:
+    """What `side`'s live units owe in upkeep per window, as `upkeep` charges it; 0 for a side in
+    unlimited mode (EC-15). The EC-7 reserve reads it."""
+    er = world.rules.economy if world.rules else None
+    if er is None or side not in er.limited:
+        return 0
+    return sum(
+        er.upkeep.get(e.kind, 0)
+        for e in world.entities()
+        if e.side == side and e.home_base is not None
+    )
 
 
 def _purse(world: World, rules: Rules, e: Entity, home: str) -> int | None:

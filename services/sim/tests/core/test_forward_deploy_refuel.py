@@ -22,7 +22,7 @@ from nexus.contracts.gen.events.event import Event
 from nexus.contracts.gen.events.rearm_stalled import RearmStalled
 from nexus.contracts.gen.events.supply_consumed import SupplyConsumed
 from nexus.contracts.gen.events.unit_spawned import UnitSpawned
-from nexus.core.logistics import pay_loadout, plan_deploy
+from nexus.core.logistics import pay_spawn, plan_deploy
 from nexus.core.roads import Road, RoadGraph
 from nexus.core.rules import Rules, Supply
 from nexus.core.step import step
@@ -209,9 +209,9 @@ def test_the_static_deploys_by_the_same_function() -> None:
         ["fob-n-w"],
     )
     out: list[Event] = []
-    pay_loadout(w, RULES, "ENEMY_FIGHTER", "east-airbase", out)
+    pay_spawn(w, "east-airbase", RULES.supply.loadout_cost["ENEMY_FIGHTER"], out)
     assert consumed(out) == [("east-airbase", 20, "SPAWN")] and w.stock["east-airbase"] == 980
-    pay_loadout(w, RULES, "ENEMY_FIGHTER", "static-rear", out)  # the rear source is infinite
+    pay_spawn(w, "static-rear", 20, out)  # the rear source is infinite (no pool)
     assert len(out) == 1
     w.stock["east-airbase"] = 549
     assert plan_deploy(w, RULES, "ENEMY", "ENEMY_FIGHTER", "fob-n-w") is None  # sanctuary instead

@@ -25,21 +25,30 @@ it, in order:
    and only once it has been in the current tier for `min_dwell_s` (`dwell` is running ticks, added
    a window at a time and held at `min_dwell_ticks`; a new campaign starts in `tier.start`,
    PATTERN_OF_LIFE by default, with dwell 0: `nexus.runtime.campaign_config.start_campaign`).
-5. The window's budget (§4 step 2, Q-TD-5, Q-TD-12): min(`director.budget.<tier>`, the summed
-   surplus of the side's bases above their starvation floors). A node without finite stock, i.e. the
-   rear source, has no entry in `starve_floor` and so adds nothing.
+5. The window's budget (§4 step 2, `budget`). Under `economy.legacy_rules` (Q-TD-5, Q-TD-12):
+   min(`director.budget.<tier>`, the summed surplus of the side's bases above their starvation
+   floors); a node without finite stock, i.e. the rear source, has no entry in `starve_floor` and
+   so adds nothing. Otherwise ECONOMY EC-7 (NX-412 part 3): floor(surplus x `spend_frac.<tier>`)
+   + floor(rear pool x `source_spend_frac`) - floor(`upkeep_reserve_windows` x the upkeep the
+   side's units owe per window), at least the cadence floor (0 when it does not apply), at most
+   surplus + rear pool.
+   The rear pool is 0 for a side in unlimited mode (no pool). Cadence floor: while the side holds
+   an HQ and has launched no operation for `cadence_windows` windows (`last_operation`), the
+   cheapest operation of its tier that surplus + pool can pay. The pool share is spent only on
+   operations that spawn at the source (`rear_share`, `nexus.core.launch`).
 
 All state is integer (millionths of a point, ticks), the arithmetic is floor division, nothing is
 random and nothing reads a clock. NX-375 will run one Director per side with this same code.
 """
 
+import math
 from collections.abc import Mapping
 from dataclasses import dataclass
 from fractions import Fraction
 
 from nexus.contracts.gen.common.enums import ThreatTier
 from nexus.core.fog import SideView
-from nexus.core.rules import DirectorRules, Rules
+from nexus.core.rules import DirectorRules, Rules, legacy_rules
 from nexus.core.world import DirectorState
 
 TIERS: tuple[ThreatTier, ...] = ("PATTERN_OF_LIFE", "ALPHA", "BRAVO")
@@ -79,6 +88,43 @@ def surplus(view: SideView, rules: Rules, stock: Mapping[str, int]) -> int:
     )
 
 
+def rear_share(dr: DirectorRules, pool: int) -> int:
+    """EC-7: what the rear pool adds to a window's budget, floor(pool x `source_spend_frac`)."""
+    return math.floor(pool * dr.source_spend_frac)
+
+
+def cadence_floor(state: DirectorState, view: SideView, rules: Rules, cap: int) -> int:
+    """EC-7: the cheapest operation of the tier that `cap` pays, once the side, holding an HQ,
+    has launched none for `cadence_windows` windows; else 0."""
+    dr = rules.director
+    if dr is None or state.windows - state.last_operation < dr.cadence_windows:
+        return 0
+    if not any(view.owners.get(n) == view.side for n, k in rules.node_kind.items() if k == "HQ"):
+        return 0
+    costs = [o.cost for o in dr.operations if o.jobs and state.tier in o.tiers]
+    return min((c for c in costs if c <= cap), default=0)
+
+
+def budget(
+    state: DirectorState, view: SideView, rules: Rules, stock: Mapping[str, int], pool: int,
+    upkeep: int,
+) -> int:  # fmt: skip
+    """Step 5 (module docstring): `pool` is the side's rear pool (0 when unlimited), `upkeep`
+    what its live units owe per window."""
+    dr = rules.director
+    if dr is None:
+        raise ValueError("budget needs the Director rules")
+    base = surplus(view, rules, stock)
+    if legacy_rules(rules):
+        return min(dr.budget[state.tier], base)
+    planned = (
+        math.floor(base * dr.spend_frac[state.tier]) + rear_share(dr, pool)
+        - math.floor(dr.reserve_windows * upkeep)
+    )  # fmt: skip
+    # never above surplus + pool: the fractions are at most 1 (schema) and the floor is capped
+    return max(cadence_floor(state, view, rules, base + pool), planned)
+
+
 def level(value: int, held: int, enters: tuple[int, ...], exit_ratio: Fraction) -> int:
     """The level for `value` given the `held` one: `enters[i]` raises it to i + 1, and a level is
     kept until `value` is below its enter value x `exit_ratio` (Q-TD-1)."""
@@ -90,9 +136,11 @@ def level(value: int, held: int, enters: tuple[int, ...], exit_ratio: Fraction) 
 
 
 def decide(
-    state: DirectorState, view: SideView, rules: Rules, stock: Mapping[str, int]
-) -> TierChange | None:
-    """One decision window (module docstring); changes `state`, returns the tier move if any."""
+    state: DirectorState, view: SideView, rules: Rules, stock: Mapping[str, int], *,
+    pool: int = 0, upkeep: int = 0,
+) -> TierChange | None:  # fmt: skip
+    """One decision window (module docstring); changes `state`, returns the tier move if any.
+    `pool` and `upkeep` feed the EC-7 budget (`budget`)."""
     dr = rules.director
     if dr is None:
         raise ValueError("decide needs the Director rules")
@@ -126,5 +174,5 @@ def decide(
         state.tier = TIERS[at + (step if target > at else -step)]
         state.dwell = 0
         change = TierChange(before, state.tier, state.cp)
-    state.budget = min(dr.budget[state.tier], surplus(view, rules, stock))
+    state.budget = budget(state, view, rules, stock, pool, upkeep)
     return change

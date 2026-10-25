@@ -157,11 +157,11 @@ def test_golden_state_hash_seed_12345() -> None:
     # the intercept clock and Job.lost, v23; NX-373: bridge hp and the down bridges, v24; NX-398:
     # Entity.order_node and held_since, v25; NX-373 part 2: the bridge repair carry, v26; NX-401:
     # DirectorState.bridge_ready, v27; NX-412 part 1: pool and storage, v28; part 2:
-    # Entity.home_base, grounded and ordered, v29).
+    # Entity.home_base, grounded and ordered, v29; part 3: DirectorState.last_operation, v30).
     # A change here breaks every recorded replay hash: needs a `golden-update` reason.
     assert (
         state_hash(golden_world())
-        == "d7d7a4bdec45c74a3ceb0d69333938590ea43e2e20313312b0b47ddcbce9e9f6"
+        == "a4d01fd1e707b1e2934ebaa68dfe5220f66873224ff62c53172a3c422df9ff1c"
     )
     e = to_canonical(golden_world(), quantize=True)["entities"][0]
     assert e["pos"] == [1000250, 2000500]  # mm

@@ -1593,7 +1593,8 @@
       "required": [
         "tick_hz",
         "time_scale",
-        "snapshot_every_ticks"
+        "snapshot_every_ticks",
+        "max_live_units_per_side"
       ],
       "properties": {
         "tick_hz": {
@@ -1634,6 +1635,19 @@
           "x-edit-role": "ADMIN",
           "x-tune": {"min": 150, "max": 600, "step": 1, "scale": "LINEAR"},
           "x-source": "SIM-CORE §5",
+          "x-status": "PROPOSED"
+        },
+        "max_live_units_per_side": {
+          "description": "Performance guard, unit live movers (AIR and GROUND units) per side (ECONOMY EC-8): a tick-rate guard only, set well above any army the economy feeds. Read only with economy.legacy_rules false: a Director operation must fit the room below it, and a JOIN at it waits in the reserve queue as at slots.max_viewer_units (GP-3).",
+          "type": "integer",
+          "minimum": 1,
+          "x-unit": "units",
+          "x-hot-reload": true,
+          "x-category": "WORLD",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 500, "max": 2000, "step": 50, "scale": "LINEAR"},
+          "x-source": "ECONOMY EC-8, Q-TD-16, Q-TD-33",
           "x-status": "PROPOSED"
         }
       }
@@ -1886,6 +1900,10 @@
         "budget",
         "max_spawns_per_window",
         "max_live_units",
+        "spend_frac",
+        "source_spend_frac",
+        "upkeep_reserve_windows",
+        "cadence_windows",
         "op_priority",
         "score",
         "memory",
@@ -2321,7 +2339,7 @@
           }
         },
         "budget": {
-          "description": "The most budget points one decision window can spend, by tier (Q-TD-5); also capped by the real surplus of the Static's bases.",
+          "description": "The most budget points one decision window can spend, by tier (Q-TD-5); also capped by the real surplus of the Static's bases. Read only with economy.legacy_rules true: temporary, removed in NX-412 part 5 (Q-TD-33; ECONOMY EC-7 replaces it).",
           "type": "object",
           "additionalProperties": false,
           "required": [
@@ -2385,7 +2403,7 @@
           "minimum": 1
         },
         "max_live_units": {
-          "description": "The most live Static units by tier (Q-TD-12).",
+          "description": "The most live Static units by tier (Q-TD-12). Read only with economy.legacy_rules true: temporary, removed in NX-412 part 5 (Q-TD-33; ECONOMY EC-8 replaces it).",
           "type": "object",
           "additionalProperties": false,
           "required": [
@@ -2434,6 +2452,100 @@
               "minimum": 1
             }
           }
+        },
+        "spend_frac": {
+          "description": "ECONOMY EC-7 (economy.legacy_rules false): the share of the surplus of the Static's bases above their starvation floors one decision window may spend, by tier; the loader requires pattern_of_life <= alpha <= bravo.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "pattern_of_life",
+            "alpha",
+            "bravo"
+          ],
+          "properties": {
+            "pattern_of_life": {
+              "description": "Share of the Static bases' surplus this tier spends per window.",
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "x-unit": "fraction of base surplus / window",
+              "x-hot-reload": true,
+              "x-category": "DIRECTOR",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 0.0035, "max": 0.014, "step": 0.0005, "scale": "LINEAR"},
+              "x-source": "THREAT-DIRECTOR \u00a74, ECONOMY EC-7, Q-TD-24",
+              "x-status": "PROPOSED"
+            },
+            "alpha": {
+              "description": "Share of the Static bases' surplus this tier spends per window.",
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "x-unit": "fraction of base surplus / window",
+              "x-hot-reload": true,
+              "x-category": "DIRECTOR",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 0.01, "max": 0.04, "step": 0.001, "scale": "LINEAR"},
+              "x-source": "THREAT-DIRECTOR \u00a74, ECONOMY EC-7, Q-TD-24",
+              "x-status": "PROPOSED"
+            },
+            "bravo": {
+              "description": "Share of the Static bases' surplus this tier spends per window.",
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "x-unit": "fraction of base surplus / window",
+              "x-hot-reload": true,
+              "x-category": "DIRECTOR",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 0.0267, "max": 0.1068, "step": 0.0001, "scale": "LINEAR"},
+              "x-source": "THREAT-DIRECTOR \u00a74, ECONOMY EC-7, Q-TD-24",
+              "x-status": "PROPOSED"
+            }
+          }
+        },
+        "source_spend_frac": {
+          "description": "ECONOMY EC-7 (economy.legacy_rules false): the share of the rear source pool one decision window may add to the budget; only operations whose units spawn at the source may spend it (EC-13). 0 with the Static in unlimited mode (no pool).",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "x-unit": "fraction of rear pool / window",
+          "x-hot-reload": true,
+          "x-category": "DIRECTOR",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 0.0025, "max": 0.01, "step": 0.0005, "scale": "LINEAR"},
+          "x-source": "THREAT-DIRECTOR \u00a74, ECONOMY EC-7, Q-TD-26",
+          "x-status": "PROPOSED"
+        },
+        "upkeep_reserve_windows": {
+          "description": "ECONOMY EC-7 (economy.legacy_rules false): windows of the Static's upkeep the budget keeps back, unit decision windows; the reserve is this times the upkeep its live units owe per window.",
+          "type": "number",
+          "minimum": 0,
+          "x-unit": "windows",
+          "x-hot-reload": true,
+          "x-category": "DIRECTOR",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 1, "max": 4, "step": 0.5, "scale": "LINEAR"},
+          "x-source": "THREAT-DIRECTOR \u00a74, ECONOMY EC-7, Q-TD-24",
+          "x-status": "PROPOSED"
+        },
+        "cadence_windows": {
+          "description": "ECONOMY EC-7 (economy.legacy_rules false): decision windows with no operation launched after which, while the Static holds an HQ, the budget is at least the cheapest operation of its tier it can afford.",
+          "type": "integer",
+          "minimum": 1,
+          "x-unit": "windows",
+          "x-hot-reload": true,
+          "x-category": "DIRECTOR",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 5, "max": 20, "step": 1, "scale": "LINEAR"},
+          "x-source": "THREAT-DIRECTOR \u00a74, ECONOMY EC-7, Q-TD-26",
+          "x-status": "PROPOSED"
         },
         "op_priority": {
           "description": "Base priority of each operation of the catalog, by operation id (Q-TD-6, Q-SIM-78); exactly the catalog's ids (the loader checks).",
@@ -2793,7 +2905,9 @@
         "window_s",
         "income",
         "storage",
-        "upkeep"
+        "upkeep",
+        "legacy_rules",
+        "free_viewer_spawn"
       ],
       "properties": {
         "unlimited": {
@@ -3263,6 +3377,30 @@
               "x-status": "PROPOSED"
             }
           }
+        },
+        "legacy_rules": {
+          "description": "TEMPORARY, removed in NX-412 part 5 (Q-TD-33, lead decision): true keeps the budget, live-unit caps and spawn costs of before NX-412 part 3 (director.budget.<tier>, director.max_live_units.<tier>, the Director paying from base surplus, sanctuary spawns free); false applies ECONOMY EC-7 (director.spend_frac and the rest), EC-8 (sim.max_live_units_per_side) and EC-13 (every spawn draws its cost at its spawn node). Set at campaign setup, never mid-war.",
+          "type": "boolean",
+          "x-unit": "switch",
+          "x-hot-reload": false,
+          "x-category": "ECONOMY",
+          "x-audience": "OPERATOR",
+          "x-edit-role": "ADMIN",
+          "x-tune": null,
+          "x-source": "ECONOMY EC-7, EC-8, EC-13, Q-TD-33",
+          "x-status": "RULE_DEFAULT"
+        },
+        "free_viewer_spawn": {
+          "description": "ECONOMY EC-13 (economy.legacy_rules false): true = a viewer's own JOIN that spawns at the coalition's sanctuary draws no stock, so joining never costs a person anything; false = it draws logistics.loadout_cost from the coalition's pool like every other spawn (agent-vs-agent harness profiles). The AI garrison and the Director always pay.",
+          "type": "boolean",
+          "x-unit": "switch",
+          "x-hot-reload": false,
+          "x-category": "ECONOMY",
+          "x-audience": "OPERATOR",
+          "x-edit-role": "ADMIN",
+          "x-tune": null,
+          "x-source": "ECONOMY EC-13, Q-TD-12, Q-TD-26",
+          "x-status": "RULE_DEFAULT"
         }
       }
     }

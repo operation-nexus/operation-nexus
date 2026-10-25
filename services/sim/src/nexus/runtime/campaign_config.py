@@ -71,7 +71,7 @@ def load_campaign_config(paths: ConfigPaths | None = None) -> CampaignConfig:
     balance = load_balance(paths.balance)
     catalog = load_catalog(paths.units, paths.weapons, paths.roles)
     theater = load_theater(paths.theater)
-    operations = load_operations(paths.operations, balance, catalog.units)
+    operations = load_operations(paths.operations, balance, catalog.units, theater)
     digest = config_hash(
         canonical_hash(balance.model_dump()),
         catalog_hash(catalog),
@@ -161,7 +161,9 @@ def load_campaign_config(paths: ConfigPaths | None = None) -> CampaignConfig:
             ),
         ),
         economy=economy_rules(
-            balance.economy, window_ticks=game_ticks(balance.economy.window_s, balance)
+            balance.economy,
+            window_ticks=game_ticks(balance.economy.window_s, balance),
+            max_live_per_side=balance.sim.max_live_units_per_side,
         ),
     )
     if misfits := fit_problems(rules):
