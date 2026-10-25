@@ -12,10 +12,10 @@ dependencies = [
 
 [dependency-groups]
 dev = [
-  "ruff==0.17.1",
+  "ruff==0.17.2",
   "mypy==2.4.0",
   "pytest==9.1.1",
-  "hypothesis==6.170.1",
+  "hypothesis==6.170.5",
   "import-linter==2.15",
   "datamodel-code-generator==0.86.0",
   "types-pyyaml==6.0.12.20260906",
