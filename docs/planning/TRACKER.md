@@ -156,7 +156,7 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-170 | WS server: Hello/Welcome/Snapshot/Delta/Hud, bounded queues; bench `step` plus frame build on the reference host at 1,000 entities (SC-10, Q-SIM-8; NX-376 measured `step` only) | L | ⬜ | NX-150 |
 | NX-171 | Delta encoder + size budget test | M | ⬜ | NX-170 |
 | NX-175 | Overlay scaffold, layered canvases, reconnect, banners | M | ⬜ | NX-170 |
-| NX-176 | Terrain contour pre-render + nodes/roads/bridges | M | ⬜ | NX-175 |
+| NX-176 | Terrain contour pre-render + nodes/roads/bridges. 2026-10-25: exploration and prototypes landed in #328 and #341 (three-pillar visualizer, terrain and road tools, low-poly assets, specs and RFCs, mostly Draft or Proposed); to be grilled and turned into approved specs in the visualization phase | M | 🟨 | NX-175 |
 | NX-177 | Units (shape-coded), rings, blobs, tracers, interpolation | L | ⬜ | NX-176 |
 | NX-178 | HUD: momentum, objective, threat, ticker, rotating panels | M | ⬜ | NX-175 |
 | NX-182 | Map annotation layer (OVERLAY §2a): sectors, optional grid reference, direction cues, ephemeral pins, circles and arrows with TTL and collision handling | M | ⬜ | NX-177 |
