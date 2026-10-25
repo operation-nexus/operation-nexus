@@ -430,11 +430,12 @@
           <span>⚡</span> PILLAR 3: HOLOGRAPHIC (WIREFRAME)
         </button>
         <button class="pillar-btn" id="btn-p4" onclick="switchPillar(4)">
-          <span>📡</span> PILLAR 4: EW & ORBITAL SAR
+          <span>🧠</span> PILLAR 4: COGNITIVE NEURAL BATTLESPACE
         </button>
       </nav>
 
-      <div style="display:flex; align-items:center; gap:10px;">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <button class="ctrl-btn" onclick="toggleAudio()" id="audio-btn">AUDIO FX: OFF</button>
         <button class="ctrl-btn" onclick="toggleCRT()" id="crt-btn">CRT FX: OFF</button>
         <div style="font-size: 11px; color: var(--accent-cyan); font-family: monospace;">
           SIM-TIME: <span id="clock-display">00:00:00.00Z</span>
@@ -1006,7 +1007,7 @@
       build3DRoadsAndBridges();
       build3DCatalogUnits();
       buildHolographicThreatDomes();
-      buildVolumetricEWAndSAR();
+      buildCognitiveNeuralBattlespace();
 
       flirCanvas = document.getElementById('flir-canvas');
       flirCtx = flirCanvas.getContext('2d');
@@ -1397,15 +1398,91 @@
       scene.add(samThreatDomes);
     }
 
-    /* Pillar 4: Volumetric Electronic Warfare (EW / RF) & Orbital SAR Reconnaissance */
-    function buildVolumetricEWAndSAR() {
+    /* Pillar 4: Cognitive Neural Battlespace (Agent Causal Lattice & Mind-Map) */
+    function buildCognitiveNeuralBattlespace() {
       ewGroup = new THREE.Group();
 
-      // 1. Volumetric Airborne EW Jamming Cone (ALQ-99 Electronic Attack Pod on VIPER-01)
+      // 1. Branching Causal Trajectory Trees for VIPER-01 (Agent Internal Monologue)
+      causalTreeGroup = new THREE.Group();
+
+      // Branch A: Viaduct Defensive Patrol (Cyan, P(Defend)=92%)
+      const branchAGeo = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(-40, 22, -27),
+        new THREE.Vector3(-15, 20, -42),
+        new THREE.Vector3(0, 18, -54),
+        new THREE.Vector3(25, 20, -54)
+      ]);
+      const branchAMat = new THREE.LineDashedMaterial({ color: 0x00e5ff, dashSize: 2.0, gapSize: 1.0, linewidth: 2 });
+      const branchALine = new THREE.Line(branchAGeo, branchAMat);
+      branchALine.computeLineDistances();
+      causalTreeGroup.add(branchALine);
+
+      // Branch B: FOB-NE Deep Penetration Strike (Amber, P(Survival)=48%, High Threat)
+      const branchBGeo = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(-40, 22, -27),
+        new THREE.Vector3(10, 25, -30),
+        new THREE.Vector3(55, 28, -55),
+        new THREE.Vector3(81, 26, -72)
+      ]);
+      const branchBMat = new THREE.LineDashedMaterial({ color: 0xf59e0b, dashSize: 2.0, gapSize: 1.0, linewidth: 2 });
+      const branchBLine = new THREE.Line(branchBGeo, branchBMat);
+      branchBLine.computeLineDistances();
+      causalTreeGroup.add(branchBLine);
+
+      // Branch C: Southern Sneak Flank (Magenta, P(Flank)=74%)
+      const branchCGeo = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(-40, 22, -27),
+        new THREE.Vector3(-30, 15, 20),
+        new THREE.Vector3(15, 12, 60),
+        new THREE.Vector3(65, 14, 75)
+      ]);
+      const branchCMat = new THREE.LineDashedMaterial({ color: 0xd946ef, dashSize: 2.0, gapSize: 1.0, linewidth: 2 });
+      const branchCLine = new THREE.Line(branchCGeo, branchCMat);
+      branchCLine.computeLineDistances();
+      causalTreeGroup.add(branchCLine);
+
+      // Glowing Decision Nodes at branch targets
+      [
+        { pos: new THREE.Vector3(0, 18, -54), col: 0x00e5ff },
+        { pos: new THREE.Vector3(81, 26, -72), col: 0xf59e0b },
+        { pos: new THREE.Vector3(65, 14, 75), col: 0xd946ef }
+      ].forEach(node => {
+        const nMesh = new THREE.Mesh(
+          new THREE.OctahedronGeometry(1.8, 0),
+          new THREE.MeshBasicMaterial({ color: node.col, wireframe: true })
+        );
+        nMesh.position.copy(node.pos);
+        causalTreeGroup.add(nMesh);
+      });
+      ewGroup.add(causalTreeGroup);
+
+      // 2. Mastermind Synaptic Intent Arcs (The Static AI Brain Connectivity)
+      synapticArcGroup = new THREE.Group();
+      const curve1 = new THREE.QuadraticBezierCurve3(
+        new THREE.Vector3(162, 10, 0),
+        new THREE.Vector3(80, 85, -27),
+        new THREE.Vector3(0, 18, -54)
+      );
+      const arc1Geo = new THREE.BufferGeometry().setFromPoints(curve1.getPoints(24));
+      const arc1Mat = new THREE.LineBasicMaterial({ color: 0xef4444, transparent: true, opacity: 0.6 });
+      synapticArcGroup.add(new THREE.Line(arc1Geo, arc1Mat));
+
+      const curve2 = new THREE.QuadraticBezierCurve3(
+        new THREE.Vector3(162, 10, 0),
+        new THREE.Vector3(120, 55, 36),
+        new THREE.Vector3(81, 10, 72)
+      );
+      const arc2Geo = new THREE.BufferGeometry().setFromPoints(curve2.getPoints(24));
+      const arc2Mat = new THREE.LineBasicMaterial({ color: 0xec4899, transparent: true, opacity: 0.5 });
+      synapticArcGroup.add(new THREE.Line(arc2Geo, arc2Mat));
+
+      ewGroup.add(synapticArcGroup);
+
+      // 3. Volumetric Airborne EW Jamming Cone & Directed Strobe
       const coneGeo = new THREE.ConeGeometry(24, 75, 16, 1, true);
       coneGeo.rotateX(Math.PI / 2);
       const coneMat = new THREE.MeshBasicMaterial({
-        color: 0xd946ef, // Shimmering magenta EW interference
+        color: 0xd946ef,
         wireframe: true,
         transparent: true,
         opacity: 0.35,
@@ -1414,7 +1491,6 @@
       jammerCone = new THREE.Mesh(coneGeo, coneMat);
       ewGroup.add(jammerCone);
 
-      // 2. High-Power Directed RF Noise Strobe (Piercing Amber Interference Beam toward East SAM Spire)
       const strobeGeo = new THREE.CylinderGeometry(0.8, 14, 110, 8, 1, true);
       strobeGeo.rotateX(Math.PI / 2);
       const strobeMat = new THREE.MeshBasicMaterial({
@@ -1427,34 +1503,166 @@
       noiseStrobeMesh.position.set(0, 22, -20);
       ewGroup.add(noiseStrobeMesh);
 
-      // 3. Orbital Synthetic Aperture Radar (SAR) Reconnaissance Swath
-      const sarGeo = new THREE.PlaneGeometry(32, 216);
-      sarGeo.rotateX(-Math.PI / 2);
-      const sarMat = new THREE.MeshBasicMaterial({
-        color: 0x22c55e, // Monochromatic radar green
-        transparent: true,
-        opacity: 0.22,
-        side: THREE.DoubleSide
-      });
-      sarSatelliteSwath = new THREE.Mesh(sarGeo, sarMat);
-      sarSatelliteSwath.position.set(-160, 0.4, 0);
-      ewGroup.add(sarSatelliteSwath);
-
-      // Orbital Satellite Icon / Marker in upper atmosphere
-      const satGeo = new THREE.BoxGeometry(4.0, 1.2, 2.5);
-      const satMat = new THREE.MeshBasicMaterial({ color: 0x4ade80 });
-      sarSatelliteMarker = new THREE.Mesh(satGeo, satMat);
-      sarSatelliteMarker.position.set(-160, 95, 0);
-      ewGroup.add(sarSatelliteMarker);
-
-      // Solar Panels on Satellite
-      const panelGeo = new THREE.BoxGeometry(16.0, 0.1, 3.5);
-      const panelMat = new THREE.MeshBasicMaterial({ color: 0x0284c7 });
-      const solarPanel = new THREE.Mesh(panelGeo, panelMat);
-      sarSatelliteMarker.add(solarPanel);
-
       ewGroup.visible = false;
       scene.add(ewGroup);
+    }
+
+    /* =========================================================================
+       AUDIO FX ENGINE (PURE ZERO-DEPENDENCY WEB AUDIO API)
+       ========================================================================= */
+    let audioCtx = null;
+    let audioEnabled = false;
+    let ambientHumGain = null;
+    let lastRwrBeep = 0;
+
+    function initAudio() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+    }
+
+    function toggleAudio() {
+      initAudio();
+      audioEnabled = !audioEnabled;
+      const btn = document.getElementById('audio-btn');
+      if (audioEnabled) {
+        btn.innerText = 'AUDIO FX: ON';
+        btn.style.color = 'var(--accent-cyan)';
+        btn.style.borderColor = 'var(--accent-cyan)';
+        playRadioSquelch();
+        startAmbientHum();
+      } else {
+        btn.innerText = 'AUDIO FX: OFF';
+        btn.style.color = '';
+        btn.style.borderColor = '';
+        stopAmbientHum();
+      }
+    }
+
+    // 1. Military Tactical Radio Squelch & Comms Chirp
+    function playRadioSquelch() {
+      if (!audioEnabled || !audioCtx) return;
+      const t = audioCtx.currentTime;
+
+      const bufferSize = Math.floor(audioCtx.sampleRate * 0.05); // 50ms
+      const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        data[i] = Math.random() * 2 - 1;
+      }
+      const noise = audioCtx.createBufferSource();
+      noise.buffer = buffer;
+
+      const bandpass = audioCtx.createBiquadFilter();
+      bandpass.type = 'bandpass';
+      bandpass.frequency.setValueAtTime(1400, t);
+      bandpass.Q.setValueAtTime(2.5, t);
+
+      const noiseGain = audioCtx.createGain();
+      noiseGain.gain.setValueAtTime(0.16, t);
+      noiseGain.gain.exponentialRampToValueAtTime(0.01, t + 0.048);
+
+      noise.connect(bandpass);
+      bandpass.connect(noiseGain);
+      noiseGain.connect(audioCtx.destination);
+      noise.start(t);
+
+      // Roger Chirp (1200Hz)
+      const osc = audioCtx.createOscillator();
+      const oscGain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(1200, t + 0.05);
+      oscGain.gain.setValueAtTime(0.07, t + 0.05);
+      oscGain.gain.exponentialRampToValueAtTime(0.001, t + 0.11);
+
+      osc.connect(oscGain);
+      oscGain.connect(audioCtx.destination);
+      osc.start(t + 0.05);
+      osc.stop(t + 0.12);
+    }
+
+    // 2. RWR Radar Threat & Lock Warning Alarm
+    function playRwrWarning() {
+      if (!audioEnabled || !audioCtx) return;
+      const t = audioCtx.currentTime;
+      if (t - lastRwrBeep < 0.45) return;
+      lastRwrBeep = t;
+
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(920, t);
+      osc.frequency.setValueAtTime(1380, t + 0.06);
+
+      gain.gain.setValueAtTime(0.08, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
+
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(t);
+      osc.stop(t + 0.15);
+    }
+
+    // 3. Supersonic Jet Flyby Doppler Whoosh
+    function playFlybyDoppler() {
+      if (!audioEnabled || !audioCtx) return;
+      const t = audioCtx.currentTime;
+
+      const bufferSize = Math.floor(audioCtx.sampleRate * 0.8);
+      const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        data[i] = Math.random() * 2 - 1;
+      }
+      const noise = audioCtx.createBufferSource();
+      noise.buffer = buffer;
+
+      const filter = audioCtx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(2600, t);
+      filter.frequency.exponentialRampToValueAtTime(180, t + 0.75);
+
+      const gain = audioCtx.createGain();
+      gain.gain.setValueAtTime(0.02, t);
+      gain.gain.linearRampToValueAtTime(0.22, t + 0.28);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.78);
+
+      noise.connect(filter);
+      filter.connect(gain);
+      gain.connect(audioCtx.destination);
+      noise.start(t);
+    }
+
+    // 4. Command Center Ambient Hum (60Hz + 120Hz Sub-Bass)
+    function startAmbientHum() {
+      if (!audioCtx || ambientHumGain) return;
+      const t = audioCtx.currentTime;
+      const osc1 = audioCtx.createOscillator();
+      const osc2 = audioCtx.createOscillator();
+      ambientHumGain = audioCtx.createGain();
+
+      osc1.type = 'sine';
+      osc1.frequency.setValueAtTime(58, t);
+      osc2.type = 'sine';
+      osc2.frequency.setValueAtTime(116, t);
+
+      ambientHumGain.gain.setValueAtTime(0.035, t);
+
+      osc1.connect(ambientHumGain);
+      osc2.connect(ambientHumGain);
+      ambientHumGain.connect(audioCtx.destination);
+      osc1.start(t);
+      osc2.start(t);
+    }
+
+    function stopAmbientHum() {
+      if (ambientHumGain && audioCtx) {
+        ambientHumGain.gain.linearRampToValueAtTime(0.0001, audioCtx.currentTime + 0.3);
+        ambientHumGain = null;
+      }
     }
 
     /* =========================================================================
@@ -1500,10 +1708,10 @@
           samThreatDomes.visible = true;
           if (ewGroup) ewGroup.visible = false;
         } else if (num === 4) {
-          hudTitle.innerText = "VOLUMETRIC EW & ORBITAL SAR";
-          badge.innerText = "RF SPECTRUM";
+          hudTitle.innerText = "COGNITIVE NEURAL BATTLESPACE";
+          badge.innerText = "AI DECISION LATTICE";
           badge.style.color = "#d946ef";
-          terrainMesh.visible = true;
+          terrainMesh.visible = false;
           wireframeMesh.visible = true;
           roadGroup.visible = true;
           bridgeGroup.visible = true;
@@ -1587,6 +1795,8 @@
       } else if (mode === 'orbit') {
         camera.position.set(0, 160, 240);
         controls.target.set(0, 0, 0);
+      } else if (mode === 'chase') {
+        playFlybyDoppler();
       }
     }
 
@@ -1600,6 +1810,7 @@
     function selectUnit(id) {
       selectedUnitId = id;
       populateOOB();
+      playRadioSquelch();
       const u = UNITS.find(un => un.id === id);
       if (u) {
         document.getElementById('selected-task').innerText = u.task;
@@ -1742,15 +1953,19 @@
             const pulse = 1.0 + Math.sin(simTime * 4.0) * 0.08;
             jammerCone.scale.set(pulse, pulse, 1.0);
 
-            noiseStrobeMesh.position.set(vPos.x + 55, vPos.y, vPos.z);
-            noiseStrobeMesh.rotation.y = -Math.PI / 2;
+            if (noiseStrobeMesh) {
+              noiseStrobeMesh.position.set(vPos.x + 55, vPos.y, vPos.z);
+              noiseStrobeMesh.rotation.y = -Math.PI / 2;
+            }
           }
 
-          // Sweep Orbital SAR satellite across the theater
-          const sarSpeed = 16.0;
-          const sarX = ((simTime * sarSpeed) % 380) - 190;
-          sarSatelliteSwath.position.x = sarX;
-          sarSatelliteMarker.position.x = sarX;
+          // Pulse Causal Decision nodes and Synaptic Arcs
+          if (causalTreeGroup) {
+            const pulse = 1.0 + Math.sin(simTime * 3.5) * 0.15;
+            causalTreeGroup.children.forEach(child => {
+              if (child.isMesh) child.scale.set(pulse, pulse, pulse);
+            });
+          }
         }
 
         // Broadcast AI Auto-Director with Smart Combat Priority & Anti-Spam Pacing
@@ -1773,6 +1988,7 @@
           if (inCombatClosure) {
             // Priority 1: Hold the shot during active air intercept (Zero spam cuts)
             directorTimer = 0;
+            playRwrWarning();
             if (directorText) {
               directorText.innerText = `AIR INTERCEPT // VIPER-01 vs BANDIT-04 // RANGE: ${combatDistKm.toFixed(1)}KM // CLOSURE: 980 KTS`;
             }
