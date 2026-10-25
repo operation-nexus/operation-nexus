@@ -199,7 +199,7 @@ def _place_garrison(world: World, rules: Rules) -> None:
             unit = world.spawn(
                 kinds[i % len(kinds)], "ENEMY", "ENEMY_DIRECTOR", Vec2(*rules.roads.pos[node])
             )
-            unit.last_node, unit.home = node, node
+            unit.last_node = unit.home = unit.home_base = node
             if rules.domain[unit.kind] == "AIR":
                 unit.state, unit.fuel = "LANDED", rules.fuel_s[unit.kind]
 

@@ -189,6 +189,7 @@ type RejectReason = Annotated[
         "NO_ACTIVE_UNIT",
         "NODE_NOT_FRIENDLY",
         "OUT_OF_REACH",
+        "UNIT_GROUNDED",
     ],
     Field(
         description="CONTRACTS §5.3. Grows one value at a time, with the code that emits it (rule 6a)."
@@ -216,6 +217,8 @@ type EventKind = Annotated[
         "BridgeDestroyed",
         "BridgeRepaired",
         "SupplyProduced",
+        "UnitGrounded",
+        "UnitUngrounded",
     ],
     Field(description="Grows one kind at a time, with each producer (rule 6a)."),
 ]

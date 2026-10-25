@@ -352,3 +352,13 @@ economy:  # Force economy (ECONOMY, NX-412 part 1; CONFIG-AND-CONTENT §6.3). Sa
       FOB: 1000
       HQ: 2000
       PORT: 1000
+  upkeep:  # rollout placeholder 0 for every kind (Q-TD-29, lead decision): no unit pays until the NX-412 sweep part sets PROPOSED values; LOGI_TRUCK and ENEMY_CONVOY PROPOSED 0 by the spec (EC-4); stock per window per live unit, paid by its home base (EC-4..6)
+    ENEMY_ARMOR: 0
+    ENEMY_CONVOY: 0
+    ENEMY_FIGHTER: 0
+    ENEMY_RECON_UAV: 0
+    ENEMY_STRIKE_FIGHTER: 0
+    GARRISON_INFANTRY: 0
+    LOGI_TRUCK: 0
+    RECON_UAV: 0
+    STRIKE_FIGHTER: 0

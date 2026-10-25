@@ -1060,6 +1060,21 @@ class Storage(BaseModel):
     ]
 
 
+class Upkeep(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    ENEMY_ARMOR: Annotated[int, Field(ge=0)]
+    ENEMY_CONVOY: Annotated[int, Field(ge=0)]
+    ENEMY_FIGHTER: Annotated[int, Field(ge=0)]
+    ENEMY_RECON_UAV: Annotated[int, Field(ge=0)]
+    ENEMY_STRIKE_FIGHTER: Annotated[int, Field(ge=0)]
+    GARRISON_INFANTRY: Annotated[int, Field(ge=0)]
+    LOGI_TRUCK: Annotated[int, Field(ge=0)]
+    RECON_UAV: Annotated[int, Field(ge=0)]
+    STRIKE_FIGHTER: Annotated[int, Field(ge=0)]
+
+
 class Economy(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1079,6 +1094,12 @@ class Economy(BaseModel):
     ]
     income: Annotated[Income, Field(description="Source income per window (EC-1).")]
     storage: Annotated[Storage, Field(description="Source pool storage (EC-2).")]
+    upkeep: Annotated[
+        Upkeep,
+        Field(
+            description="What each live unit of a side not in unlimited mode pays its home base every economy window, by unit kind, unit whole stock units per window (EC-4, EC-5, EC-6; NX-412 part 2). Charged after income and the storage clip, in the EC-6 payment order; a home pays only when it holds the full amount, else the unit is grounded. 0 = free. One entry per kind that can spawn by JOIN or director (as logistics.loadout_cost); facilities are placed by the theater and pay none. The shipped 0 for every kind is a rollout placeholder (Q-TD-29) until the NX-412 sweep part; the trucks stay PROPOSED 0 by the spec (EC-4), so hauling stays free."
+        ),
+    ]
 
 
 class Campaign(BaseModel):

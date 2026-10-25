@@ -378,12 +378,13 @@ def _new_units(c: ops.Candidate, spare: dict[str, list[Entity]]) -> int:
 
 def _spare(world: World, side: Side) -> dict[str, list[Entity]]:
     """The side's idle Director units by kind, lowest id first: no job, order or path, not
-    Disabled and not homebound, so the board would let them take a job."""
+    Disabled, not homebound and not grounded (ECONOMY EC-6), so the board would let them take a
+    job."""
     out: dict[str, list[Entity]] = {}
     for e in world.entities():
         if (
             e.side == side and e.owner_kind == _DIRECTOR and e.job_id is None and e.order is None
-            and not e.path and e.damage_state != "DISABLED" and e.state != "RTB"
+            and not e.path and e.damage_state != "DISABLED" and e.state != "RTB" and not e.grounded
         ):  # fmt: skip
             out.setdefault(e.kind, []).append(e)
     return out
@@ -487,7 +488,7 @@ def _spawn(
     deploy = None if at else plan_deploy(world, rules, side, kind, near)  # type: ignore[arg-type]
     node = at or (deploy[0] if deploy else rules.supply.rear[side])
     unit = world.spawn(kind, side, _DIRECTOR, Vec2(*rules.roads.pos[node]))  # type: ignore[arg-type]
-    unit.last_node = node
+    unit.last_node = unit.home_base = node  # its spawn node pays its upkeep (ECONOMY EC-5)
     if kind in rules.supply.carriers:
         unit.cargo = 0
     if rules.domain[unit.kind] == "AIR":

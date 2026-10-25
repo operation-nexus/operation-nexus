@@ -425,8 +425,8 @@ class CombatRules:
 
 @dataclass(frozen=True, slots=True)
 class EconomyRules:
-    """Force economy, NX-412 part 1 (ECONOMY EC-1, EC-2, EC-3, EC-15): the same keys for both
-    sides; only a side in `limited` has a finite source pool."""
+    """Force economy, NX-412 parts 1-2 (ECONOMY EC-1..EC-6, EC-15): the same keys for both
+    sides; only a side in `limited` has a finite source pool and pays upkeep."""
 
     window_ticks: int  # economy.window_s as game ticks, rounded up (EC-10)
     limited: tuple[Side, ...]  # the sides not in unlimited mode (`economy.unlimited`), Side order
@@ -434,6 +434,9 @@ class EconomyRules:
     income_per_node: Mapping[NodeKind, int]  # economy.income.per_node: held, uncontested nodes
     storage_floor: int  # economy.storage.floor, stock
     storage_per_node: Mapping[NodeKind, int]  # economy.storage.per_node: held nodes
+    # economy.upkeep (NX-412 part 2, EC-4): stock per window per live unit, from its home base;
+    # only the kinds that spawn (no facility); 0 = free
+    upkeep: Mapping[UnitKind, int] = field(default_factory=dict)
 
 
 def economy_rules(cfg: Economy, *, window_ticks: int) -> EconomyRules:
@@ -446,6 +449,7 @@ def economy_rules(cfg: Economy, *, window_ticks: int) -> EconomyRules:
         income_per_node=cast(Mapping[NodeKind, int], cfg.income.per_node.model_dump()),
         storage_floor=cfg.storage.floor,
         storage_per_node=cast(Mapping[NodeKind, int], cfg.storage.per_node.model_dump()),
+        upkeep=cast(Mapping[UnitKind, int], cfg.upkeep.model_dump()),
     )
 
 

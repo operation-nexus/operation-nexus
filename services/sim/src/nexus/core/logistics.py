@@ -31,7 +31,7 @@ from nexus.contracts.gen.events.event import Event
 from nexus.core.bridges import blocked, enemy_held, held_by_other
 from nexus.core.defense import rebuild
 from nexus.core.economy import pool_side, source_stock
-from nexus.core.rearm import restock
+from nexus.core.rearm import restock, station
 from nexus.core.roads import shortest_path
 from nexus.core.rules import Rules
 from nexus.core.world import Entity, World, at_stop, consumed, end_stop, on_node
@@ -299,7 +299,8 @@ def load(world: World, run: Run) -> None:
 
 def logistics(world: World, out: list[Event]) -> None:
     """A truck standing at the end of its path unloads, or drives on (GAMEPLAY §5, Q-SIM-50); any
-    other unit stopped at a base restocks (`rearm.restock`).
+    other unit stopped at a base restocks (`rearm.restock`). Any unit stopped at a friendly base
+    (`rearm.station`: landed or parked) makes it its home base (`Entity.home_base`, NX-412 part 2).
 
     Paused (SC-11): nothing unloads. At a friendly node it moves `unload_rate x world_dt` units
     into the node's stock per tick, up to the node's maximum; when the node is full it keeps the
@@ -314,6 +315,8 @@ def logistics(world: World, out: list[Event]) -> None:
     if world.frozen or rules is None:
         return
     for e in world.entities():
+        if (home := station(world, rules, e)) is not None:
+            e.home_base = home  # landed or parked at a friendly base: its home (ECONOMY EC-5)
         wreck = e.damage_state == "DISABLED" and rules.domain[e.kind] != "STATIC"
         if wreck and e.delivered and e.last_node is not None:  # a wreck keeps its cargo (CB-7)
             end_stop(world, e, e.last_node, out)  # report a cut stop

@@ -16,7 +16,7 @@ from hypothesis import given
 from hypothesis import strategies as st
 from test_join import CAMPAIGN_ID, join
 
-from nexus.contracts.gen.common.enums import NodeKind, Side
+from nexus.contracts.gen.common.enums import NodeKind, Side, UnitKind
 from nexus.contracts.gen.events.event import Event
 from nexus.core import economy
 from nexus.core.logistics import plan_run
@@ -27,6 +27,10 @@ from nexus.core.world import Campaign, CaptureBar, Vec2, World, load, save, stat
 from nexus.runtime.campaign_config import start_campaign
 from nexus.runtime.golden import shipped_config
 
+_UPKEEP_KINDS: tuple[UnitKind, ...] = (
+    "ENEMY_ARMOR", "ENEMY_CONVOY", "ENEMY_FIGHTER", "ENEMY_RECON_UAV", "ENEMY_STRIKE_FIGHTER",
+    "GARRISON_INFANTRY", "LOGI_TRUCK", "RECON_UAV", "STRIKE_FIGHTER",
+)  # fmt: skip
 LIMITED = shipped_config({"economy.unlimited.COALITION": False, "economy.unlimited.ENEMY": False})
 WINDOW = 600  # 60 game s at 10 Hz
 
@@ -74,6 +78,7 @@ def test_the_loader_reads_every_economy_key() -> None:
         income_per_node={"AIRBASE": 10, "BRIDGE": 0, "FOB": 5, "HQ": 10, "PORT": 5},
         storage_floor=2000,
         storage_per_node={"AIRBASE": 2000, "BRIDGE": 0, "FOB": 1000, "HQ": 2000, "PORT": 1000},
+        upkeep=dict.fromkeys(_UPKEEP_KINDS, 0),  # NX-412 part 2: the shipped rollout 0
     )
     only_enemy = shipped_config({"economy.unlimited.ENEMY": False, "economy.window_s": 90})
     assert only_enemy.rules.economy is not None

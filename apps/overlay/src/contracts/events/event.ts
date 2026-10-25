@@ -13,6 +13,8 @@ export type Event =
   | SupplyDelivered
   | SupplyConsumed
   | SupplyProduced
+  | UnitGrounded
+  | UnitUngrounded
   | RearmStalled
   | CaptureStarted
   | NodeCaptured
@@ -142,7 +144,8 @@ export interface CommandRejected {
     | "REASON_REQUIRED"
     | "NO_ACTIVE_UNIT"
     | "NODE_NOT_FRIENDLY"
-    | "OUT_OF_REACH";
+    | "OUT_OF_REACH"
+    | "UNIT_GROUNDED";
   commander_id: string | null;
 }
 /**
@@ -298,7 +301,7 @@ export interface SupplyDelivered {
   commander_id: string | null;
 }
 /**
- * Stock a node paid out for units (CONTRACTS §6; NX-123): SPAWN once per forward-deployed unit, REARM once per rearm stop when it ends (filled, stalled or taken off) for fuel and ammo, REPAIR once per stop for hp repaired, STORAGE_LOST once per economy window at a source whose pool was above its lowered storage cap (ECONOMY EC-2, NX-412). amount = whole stock units; none when 0. Public view: ENEMY nodes are dropped.
+ * Stock a node paid out for units (CONTRACTS §6; NX-123): SPAWN once per forward-deployed unit, REARM once per rearm stop when it ends (filled, stalled or taken off) for fuel and ammo, REPAIR once per stop for hp repaired, STORAGE_LOST once per economy window at a source whose pool was above its lowered storage cap (ECONOMY EC-2, NX-412), UPKEEP once per home base per economy window for the upkeep it paid for the units based there (ECONOMY EC-4, NX-412 part 2). amount = whole stock units; none when 0. Public view: ENEMY nodes are dropped.
  */
 export interface SupplyConsumed {
   kind: "SupplyConsumed";
@@ -319,7 +322,7 @@ export interface SupplyConsumed {
    */
   node_id: string;
   amount: number;
-  cause: "SPAWN" | "REARM" | "REPAIR" | "STORAGE_LOST";
+  cause: "SPAWN" | "REARM" | "REPAIR" | "STORAGE_LOST" | "UPKEEP";
 }
 /**
  * A side's source pool gained income at an economy window (CONTRACTS §6; ECONOMY EC-1, EC-10; NX-412 part 1): one per side per window, amount = the whole stock units added (the floor plus each held, uncontested node, capped at storage); none when 0, and none for a side in unlimited mode (EC-15). Public view: ENEMY dropped (proposed).
@@ -340,6 +343,58 @@ export interface SupplyProduced {
   campaign_id: string;
   side: "COALITION" | "ENEMY";
   amount: number;
+}
+/**
+ * A unit's home base could not pay its upkeep at an economy window (CONTRACTS §6; ECONOMY EC-4, EC-6; NX-412 part 2): the unit is grounded, never deleted. It drops its job claim and order, returns to its home and stays there (an aircraft landed, a ground unit parked), takes no new job or order, and still returns fire. Once per change, not per window. Only for a side not in unlimited mode (EC-15). Public view: the coalition sees its own units (a feed line, GAMEPLAY §1a); ENEMY dropped (proposed).
+ */
+export interface UnitGrounded {
+  kind: "UnitGrounded";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Sequential per campaign, never reused (SC-4).
+   */
+  entity_id: number;
+  /**
+   * Stable slug from the theater file.
+   */
+  node_id: string;
+}
+/**
+ * A grounded unit's home base paid its upkeep at an economy window (CONTRACTS §6; ECONOMY EC-6; NX-412 part 2): it may take jobs and orders again. Once per change. Public view: the coalition sees its own units (a feed line, GAMEPLAY §1a); ENEMY dropped (proposed).
+ */
+export interface UnitUngrounded {
+  kind: "UnitUngrounded";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Sequential per campaign, never reused (SC-4).
+   */
+  entity_id: number;
+  /**
+   * Stable slug from the theater file.
+   */
+  node_id: string;
 }
 /**
  * A landed aircraft needs fuel and its base has none (CONTRACTS §6; NX-123, STATE-MACHINES §4.1 Rearming): emitted once when the stall starts, not every tick; a resupply and a new stall emit again. ENEMY: dropped from public views.

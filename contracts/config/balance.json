@@ -2792,7 +2792,8 @@
         "unlimited",
         "window_s",
         "income",
-        "storage"
+        "storage",
+        "upkeep"
       ],
       "properties": {
         "unlimited": {
@@ -3089,6 +3090,177 @@
                   "x-status": "PROPOSED"
                 }
               }
+            }
+          }
+        },
+        "upkeep": {
+          "description": "What each live unit of a side not in unlimited mode pays its home base every economy window, by unit kind, unit whole stock units per window (EC-4, EC-5, EC-6; NX-412 part 2). Charged after income and the storage clip, in the EC-6 payment order; a home pays only when it holds the full amount, else the unit is grounded. 0 = free. One entry per kind that can spawn by JOIN or director (as logistics.loadout_cost); facilities are placed by the theater and pay none. The shipped 0 for every kind is a rollout placeholder (Q-TD-29) until the NX-412 sweep part; the trucks stay PROPOSED 0 by the spec (EC-4), so hauling stays free.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "ENEMY_ARMOR",
+            "ENEMY_CONVOY",
+            "ENEMY_FIGHTER",
+            "ENEMY_RECON_UAV",
+            "ENEMY_STRIKE_FIGHTER",
+            "GARRISON_INFANTRY",
+            "LOGI_TRUCK",
+            "RECON_UAV",
+            "STRIKE_FIGHTER"
+          ],
+          "properties": {
+            "ENEMY_ARMOR": {
+              "type": "integer",
+              "minimum": 0,
+              "x-unit": "stock units per window",
+              "x-hot-reload": false,
+              "x-category": "ECONOMY",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {
+                "min": 0,
+                "max": 10,
+                "step": 1,
+                "scale": "LINEAR"
+              },
+              "x-source": "ECONOMY EC-4, Q-TD-22",
+              "x-status": "PROPOSED"
+            },
+            "ENEMY_CONVOY": {
+              "type": "integer",
+              "minimum": 0,
+              "x-unit": "stock units per window",
+              "x-hot-reload": false,
+              "x-category": "ECONOMY",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {
+                "min": 0,
+                "max": 10,
+                "step": 1,
+                "scale": "LINEAR"
+              },
+              "x-source": "ECONOMY EC-4, Q-TD-22",
+              "x-status": "PROPOSED"
+            },
+            "ENEMY_FIGHTER": {
+              "type": "integer",
+              "minimum": 0,
+              "x-unit": "stock units per window",
+              "x-hot-reload": false,
+              "x-category": "ECONOMY",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {
+                "min": 0,
+                "max": 10,
+                "step": 1,
+                "scale": "LINEAR"
+              },
+              "x-source": "ECONOMY EC-4, Q-TD-22",
+              "x-status": "PROPOSED"
+            },
+            "ENEMY_RECON_UAV": {
+              "type": "integer",
+              "minimum": 0,
+              "x-unit": "stock units per window",
+              "x-hot-reload": false,
+              "x-category": "ECONOMY",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {
+                "min": 0,
+                "max": 10,
+                "step": 1,
+                "scale": "LINEAR"
+              },
+              "x-source": "ECONOMY EC-4, Q-TD-22",
+              "x-status": "PROPOSED"
+            },
+            "ENEMY_STRIKE_FIGHTER": {
+              "type": "integer",
+              "minimum": 0,
+              "x-unit": "stock units per window",
+              "x-hot-reload": false,
+              "x-category": "ECONOMY",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {
+                "min": 0,
+                "max": 10,
+                "step": 1,
+                "scale": "LINEAR"
+              },
+              "x-source": "ECONOMY EC-4, Q-TD-22",
+              "x-status": "PROPOSED"
+            },
+            "GARRISON_INFANTRY": {
+              "type": "integer",
+              "minimum": 0,
+              "x-unit": "stock units per window",
+              "x-hot-reload": false,
+              "x-category": "ECONOMY",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {
+                "min": 0,
+                "max": 10,
+                "step": 1,
+                "scale": "LINEAR"
+              },
+              "x-source": "ECONOMY EC-4, Q-TD-22",
+              "x-status": "PROPOSED"
+            },
+            "LOGI_TRUCK": {
+              "type": "integer",
+              "minimum": 0,
+              "x-unit": "stock units per window",
+              "x-hot-reload": false,
+              "x-category": "ECONOMY",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {
+                "min": 0,
+                "max": 10,
+                "step": 1,
+                "scale": "LINEAR"
+              },
+              "x-source": "ECONOMY EC-4, Q-TD-22",
+              "x-status": "PROPOSED"
+            },
+            "RECON_UAV": {
+              "type": "integer",
+              "minimum": 0,
+              "x-unit": "stock units per window",
+              "x-hot-reload": false,
+              "x-category": "ECONOMY",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {
+                "min": 0,
+                "max": 10,
+                "step": 1,
+                "scale": "LINEAR"
+              },
+              "x-source": "ECONOMY EC-4, Q-TD-22",
+              "x-status": "PROPOSED"
+            },
+            "STRIKE_FIGHTER": {
+              "type": "integer",
+              "minimum": 0,
+              "x-unit": "stock units per window",
+              "x-hot-reload": false,
+              "x-category": "ECONOMY",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {
+                "min": 0,
+                "max": 10,
+                "step": 1,
+                "scale": "LINEAR"
+              },
+              "x-source": "ECONOMY EC-4, Q-TD-22",
+              "x-status": "PROPOSED"
             }
           }
         }

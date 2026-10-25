@@ -26,7 +26,8 @@ So are each node's `stock` and each carrier's `cargo` (integer stock units) with
 integer millionths of a percent, NX-125): thresholds are exact. So are the campaign's running
 ticks, hold run, per-side held-node tick sums, objective counts and the active objective (NX-126).
 So are each limited side's source pool and last storage cap (NX-412); a side absent from both runs
-in unlimited mode (EC-15).
+in unlimited mode (EC-15). So are each entity's upkeep home, grounded flag and order tick (NX-412
+part 2).
 `World.rules` (`nexus.core.rules`) is static config, not state: neither snapshots nor the hash
 include it.
 """
@@ -88,8 +89,8 @@ from nexus.core.rules import CAPTURE_FULL, Rules
 # each bridge's truck repair carry in thousandths of an hp (NX-373 part 2); 27:
 # DirectorState.bridge_ready, when each repaired bridge may be a STRIKE_BRIDGE target again
 # (NX-401); 28: pool and storage, each limited side's source pool and its last storage cap
-# (NX-412 part 1)
-FORMAT_VERSION = 28
+# (NX-412 part 1); 29: Entity.home_base, grounded and ordered (upkeep, NX-412 part 2)
+FORMAT_VERSION = 29
 _MM = 1000.0  # metres -> millimetres; m/s -> mm/s
 _MICRO = 1e6  # ADR-0002's 1e-6 step for other floats (fuel)
 _MILLI_UNIT = 1000  # thousandths of a stock unit per unit
@@ -321,6 +322,14 @@ class Entity:
     # A Director unit's home base (Q-SIM-85, NX-157): the Static base whose garrison quota it counts
     # toward; None for a unit that is not part of a garrison.
     home: str | None = None
+    # Force economy (NX-412 part 2, ECONOMY EC-4..EC-6): `home_base` the friendly node the unit
+    # last spawned, landed or parked at, which pays its upkeep (re-homed when lost; not the
+    # garrison `home` above). `grounded`: its home could not pay; it stays there with no job or
+    # order until a window it pays. `ordered`: the running tick of its spawn or latest order (EC-6
+    # payment order, most recent first).
+    home_base: str | None = None
+    grounded: bool = False
+    ordered: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -710,7 +719,7 @@ class World:
             raise ValueError("spawn needs hp when the world has no combat rules")
         entity = Entity(
             self._next_entity_id, kind, side, owner_kind, commander_id, callsign, pos, vel,
-            hp if hp is not None else 0, variant=variant,
+            hp if hp is not None else 0, variant=variant, ordered=self.campaign.running_ticks,
         )  # fmt: skip
         if combat is not None:
             stats = combat.units[kind]
@@ -899,7 +908,7 @@ def consumed(
     world: World,
     node: str,
     amount: int,
-    cause: Literal["SPAWN", "REARM", "REPAIR", "STORAGE_LOST"],
+    cause: Literal["SPAWN", "REARM", "REPAIR", "STORAGE_LOST", "UPKEEP"],
 ) -> SupplyConsumed:
     return SupplyConsumed.model_construct(
         kind="SupplyConsumed",
@@ -1290,6 +1299,9 @@ _ENTITY_CHECKS: dict[str, Callable[[object, str], Any]] = {
     "hits": lambda v, k: _hits(v, k),
     "fired_by": lambda v, k: _hits(v, k),
     "home": lambda v, k: _str(v, k, optional=True),
+    "home_base": lambda v, k: _str(v, k, optional=True),
+    "grounded": _bool,
+    "ordered": lambda v, k: _int(v, k),
 }
 _CAMPAIGN_CHECKS: dict[str, Callable[[object, str], Any]] = {
     "id": _str,
@@ -1783,6 +1795,16 @@ def _check_claims(world: World) -> None:
             raise ValueError(f"entity {e.id}: job_id does not match a claim on its side's board")
 
 
+def _check_upkeep(e: Entity, world: World) -> None:
+    """NX-412 part 2: a home is a node; a grounded unit has a home and no job, order or leader."""
+    if e.home_base is not None and e.home_base not in world.owner:
+        raise ValueError(f"entity {e.id}: a home_base that is not a node")
+    if e.grounded and (e.home_base is None or e.job_id or e.order or e.follow_id):
+        raise ValueError(f"entity {e.id}: grounded needs a home_base and no job, order or leader")
+    if e.ordered > world.campaign.running_ticks:
+        raise ValueError(f"entity {e.id}: ordered after the snapshot's running ticks")
+
+
 def load(data: bytes) -> World:
     """Rebuild a world from `save` output; the run continues exactly as before."""
     raw = msgpack.unpackb(data, raw=False)
@@ -1867,6 +1889,7 @@ def load(data: bytes) -> World:
             raise ValueError(f"entity {entity.id}: order_node or held_since needs order GOTO")
         if held is not None and (node is None or held > world.campaign.running_ticks):
             raise ValueError(f"entity {entity.id}: held_since needs order_node and a past tick")
+        _check_upkeep(entity, world)
         world._entities[entity.id] = entity
     _check_views(world)
     world.boards = _boards(d[_BOARDS], world)
