@@ -35,7 +35,10 @@ launched in selection order:
   (`blink_ready`); at most one radar blinks per window (Q-SIM-82).
 - **INTEL (step 5).** An operation whose RAISE counter is a defensive one (`convoy_attacks`,
   `radar_strikes`) and above zero announces `ThreatAdaptation UP` for that category, once, at the
-  sector level; when the counter has decayed below one event it announces `DOWN`.
+  sector level; when the counter has decayed below one event it announces `DOWN`. A capture
+  operation (Offensive, Retake) launched on a node of the running victory hold announces
+  `ThreatAdaptation{HOLD_AT_RISK, node_id}`, once per launch, the sitrep "NULL moves on <node>,
+  the hold is at risk" (ECONOMY EC-9, Q-TD-19; NX-412 part 4).
 """
 
 import itertools
@@ -359,6 +362,8 @@ def _launch(
         return
     state.last_operation = state.windows
     _announce_up(world, side, view, state, dr, c, out)
+    if c.target in view.hold and c.sector is not None and ops.has_capture(c.op):
+        _adaptation(world, side, "HOLD_AT_RISK", c.sector, "UP", out, node=c.target)
 
 
 def _resume(world: World, side: Side, state: DirectorState, now: int) -> None:
@@ -654,13 +659,14 @@ def _pay(
 
 
 def _adaptation(
-    world: World, side: Side, category: str, sector: str, direction: str, out: list[Event]
-) -> None:
+    world: World, side: Side, category: str, sector: str, direction: str, out: list[Event],
+    node: str | None = None,
+) -> None:  # fmt: skip
     out.append(
         ThreatAdaptation.model_construct(
             kind="ThreatAdaptation", tick=world.campaign.tick + 1,
             event_seq=world.next_event_seq(), campaign_id=world.campaign.id, side=side,
-            category=category, sector_id=sector, direction=direction,
+            category=category, sector_id=sector, direction=direction, node_id=node,
         )
     )  # fmt: skip
 

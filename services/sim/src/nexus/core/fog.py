@@ -397,6 +397,7 @@ class SideView:
     blobs: tuple[Blob, ...]  # Tier 1 SIGINT blobs from the last refresh, by cell index
     defense_hp: Mapping[str, int]  # every defended node's hp: public node state (FOW-10, CB-10)
     bridge_down: frozenset[str] = frozenset()  # the down bridges: public node state (FOW-10)
+    hold: frozenset[str] = frozenset()  # the running victory hold's nodes: public (EC-9, Q-TD-25)
 
 
 def side_view(world: World, side: Side) -> SideView:
@@ -413,4 +414,5 @@ def side_view(world: World, side: Side) -> SideView:
         world.blobs[side],  # immutable
         dict(world.defense_hp),
         frozenset(world.bridge_down),
+        frozenset(world.campaign.hold_nodes),
     )

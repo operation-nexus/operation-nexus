@@ -1836,6 +1836,20 @@ class Score1(BaseModel):
             description="CP ceilings at which provocation_proximity applies (Q-TD-4, Q-DEV-21), unit tiers."
         ),
     ]
+    victory_hold_mult: Annotated[
+        float,
+        Field(
+            description="ECONOMY EC-9 (Q-TD-19): multiplier on the score of an Offensive or Retake candidate (an operation with a CAPTURE job) whose target is a node of the coalition's running victory hold, unit multiplier (THREAT-DIRECTOR §4 step 4).",
+            ge=1.0,
+        ),
+    ]
+    income_node_mult: Annotated[
+        float,
+        Field(
+            description="ECONOMY EC-12 (Q-TD-16): multiplier on the score of an Offensive or Retake candidate (an operation with a CAPTURE job) whose target is a node the other side holds and whose kind has economy.income.per_node above 0, unit multiplier (THREAT-DIRECTOR §4 step 4).",
+            ge=1.0,
+        ),
+    ]
 
 
 class Kinds(BaseModel):

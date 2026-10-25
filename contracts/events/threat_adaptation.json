@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://nexus.local/contracts/events/threat_adaptation.json",
   "title": "ThreatAdaptation",
-  "description": "The Static's Threat Director adapted its defense to what it suffered (CONTRACTS §6; THREAT-DIRECTOR §4 step 5, C37; NX-156). `UP` when the matching operation launched (escorts appear, air defense is reinforced), `DOWN` when its threat-memory counter has decayed away again. Sector level only: it names no site and updates no facility marker (Q-FOW-17, FOG-OF-WAR FOW-13). Public view: this INTEL line.",
+  "description": "The Static's Threat Director adapted its defense to what it suffered (CONTRACTS §6; THREAT-DIRECTOR §4 step 5, C37; NX-156). `UP` when the matching operation launched (escorts appear, air defense is reinforced), `DOWN` when its threat-memory counter has decayed away again. Sector level only: it names no site and updates no facility marker (Q-FOW-17, FOG-OF-WAR FOW-13). HOLD_AT_RISK (NX-412 part 4, ECONOMY EC-9, Q-TD-19) is the one category that names a node (nodes are public, FOW-10): a capture operation was launched on a node of the coalition's running victory hold, always UP, no DOWN. Public view: this INTEL line.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -37,9 +37,10 @@
     "category": {
       "enum": [
         "CONVOY_ESCORT",
-        "IADS_REINFORCED"
+        "IADS_REINFORCED",
+        "HOLD_AT_RISK"
       ],
-      "description": "CONVOY_ESCORT: escorts for convoys after `convoy_attacks`. IADS_REINFORCED: air defense reinforced after `radar_strikes`."
+      "description": "CONVOY_ESCORT: escorts for convoys after `convoy_attacks`. IADS_REINFORCED: air defense reinforced after `radar_strikes`. HOLD_AT_RISK: a capture operation (OFFENSIVE, RETAKE) launched on a node of the running victory hold, the sitrep \"NULL moves on <node>, the hold is at risk\" (Q-TD-19)."
     },
     "sector_id": {
       "$ref": "../common/ids.json#/$defs/SectorId"
@@ -49,6 +50,18 @@
         "UP",
         "DOWN"
       ]
+    },
+    "node_id": {
+      "anyOf": [
+        {
+          "$ref": "../common/ids.json#/$defs/NodeId"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "description": "HOLD_AT_RISK: the hold node the operation targets; null for every other category."
     }
   }
 }

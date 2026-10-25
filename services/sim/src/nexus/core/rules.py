@@ -359,6 +359,10 @@ class DirectorRules:
     source_spend_frac: Fraction
     reserve_windows: Fraction
     cadence_windows: int
+    # ECONOMY EC-9, EC-12 (NX-412 part 4): x an Offensive or Retake candidate (a CAPTURE job) on a
+    # node of the running victory hold, and on a node of the other side that yields income
+    victory_hold_mult: Fraction
+    income_node_mult: Fraction
 
 
 @dataclass(frozen=True, slots=True)
@@ -740,6 +744,8 @@ def director_rules(
         own_node_value=Fraction(repr(cfg.score.own_node_value)),
         weakness_min=Fraction(repr(cfg.score.weakness_min)),
         stale_factor=Fraction(repr(cfg.score.stale_factor)),
+        victory_hold_mult=Fraction(repr(cfg.score.victory_hold_mult)),
+        income_node_mult=Fraction(repr(cfg.score.income_node_mult)),
         spend_frac={"PATTERN_OF_LIFE": Fraction(repr(cfg.spend_frac.pattern_of_life)),
                     "ALPHA": Fraction(repr(cfg.spend_frac.alpha)),
                     "BRAVO": Fraction(repr(cfg.spend_frac.bravo))},

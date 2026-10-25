@@ -289,6 +289,8 @@ director:
     stale_factor: 1.0
     provocation_proximity: 1.5
     proximity_tiers: [ALPHA]
+    victory_hold_mult: 1.0
+    income_node_mult: 1.0
   memory:
     half_life_s: 1800
     factor: 1.0
@@ -355,7 +357,7 @@ economy:
 # for the economy block, NX-412 part 2 for `economy.upkeep`, NX-412 part 3 for the EC-7 budget
 # keys, the EC-8 guard, `economy.legacy_rules` and `free_viewer_spawn`); a change means every
 # config_hash moved.
-GOLDEN_CONFIG_HASH = "e5a6779305cc1d86c6c21b0db59db586f7186f4406864fdf20e000d76ae7c149"
+GOLDEN_CONFIG_HASH = "aa9be0533ee031f24a495bb79b6178fe6202c47f84fca03d99bfae4ba9b4ad14"
 AIR = {
     "bingo_reserve_frac": 0.15,
     "orbit_period_s": 120.0,
@@ -600,6 +602,8 @@ DIRECTOR = {
         "stale_factor": 1.0,
         "provocation_proximity": 1.5,
         "proximity_tiers": ["ALPHA"],
+        "victory_hold_mult": 1.0,
+        "income_node_mult": 1.0,
     },
     "memory": {
         "half_life_s": 1800,
@@ -1073,7 +1077,8 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "    PROBE: 0.6, RECON: 0.5, DECOY_BLINK: 0.3, GARRISON_UPKEEP: 0.9, STRIKE_BRIDGE: 0.6},\n"
         "  score: {target_value: {AIRBASE: 1.5, FOB: 1.0, PORT: 1.0, SANCTUARY: 2.0},\n"
         "    weakness_max: 2.0, own_node_value: 1.0, weakness_min: 1.0, stale_factor: 1.0,\n"
-        "    provocation_proximity: 1.5, proximity_tiers: [ALPHA]},\n"
+        "    provocation_proximity: 1.5, proximity_tiers: [ALPHA],\n"
+        "    victory_hold_mult: 1.0, income_node_mult: 1.0},\n"
         "  memory: {half_life_s: 1800, factor: 1.0,\n"
         "    weights: {convoy_hit: 1, radar_hit: 1, scout_lost: 1, node_lost: 1}},\n"
         "  decoy_blink: {dark_s: 120, cooldown_s: 600, max_per_window: 1},\n"

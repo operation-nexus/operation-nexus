@@ -258,7 +258,7 @@ BRIDGE_DOWN = {**_BASE, "kind": "BridgeDestroyed", "node_id": "bridge-n", "by_id
 TIER_CHANGED = {**_BASE, "kind": "ThreatTierChanged", "side": "ENEMY", "from": "PATTERN_OF_LIFE",
                 "to": "ALPHA", "cp_smoothed": 12.5}  # fmt: skip
 ADAPTATION = {**_BASE, "kind": "ThreatAdaptation", "side": "ENEMY", "category": "CONVOY_ESCORT",
-              "sector_id": "north", "direction": "UP"}  # fmt: skip
+              "sector_id": "north", "direction": "UP", "node_id": None}  # fmt: skip
 BRIDGE_UP = {**_BASE, "kind": "BridgeRepaired", "node_id": "bridge-n", "by_id": 4}
 PRODUCED = {**_BASE, "kind": "SupplyProduced", "side": "ENEMY", "amount": 60}  # NX-412
 STORAGE_LOST = {**_BASE, "kind": "SupplyConsumed", "node_id": "static-rear", "amount": 2000,
@@ -266,6 +266,11 @@ STORAGE_LOST = {**_BASE, "kind": "SupplyConsumed", "node_id": "static-rear", "am
 UPKEEP = {**STORAGE_LOST, "node_id": "fob-1", "amount": 12, "cause": "UPKEEP"}  # NX-412 part 2
 GROUNDED = {**_BASE, "kind": "UnitGrounded", "entity_id": 7, "node_id": "fob-1"}
 UNGROUNDED = {**GROUNDED, "kind": "UnitUngrounded"}
+# NX-412 part 4 (ECONOMY EC-9): the victory hold and its sitrep
+HOLD_STARTED = {**_BASE, "kind": "VictoryHoldStarted", "node_ids": ["fob-1", "port-s"],
+                "ends_at_tick": 18_042}  # fmt: skip
+HOLD_BROKEN = {**_BASE, "kind": "VictoryHoldBroken", "node_id": "port-s"}
+HOLD_AT_RISK = {**ADAPTATION, "category": "HOLD_AT_RISK", "node_id": "port-s"}
 
 
 @pytest.mark.parametrize(
@@ -291,6 +296,9 @@ UNGROUNDED = {**GROUNDED, "kind": "UnitUngrounded"}
         UPKEEP,
         GROUNDED,
         UNGROUNDED,
+        HOLD_STARTED,
+        HOLD_BROKEN,
+        HOLD_AT_RISK,
     ],
 )
 def test_combat_events_parse_through_the_event_union(good: dict[str, object]) -> None:
@@ -336,6 +344,12 @@ def test_combat_events_parse_through_the_event_union(good: dict[str, object]) ->
         (GROUNDED, {"entity_id": 0}),
         (GROUNDED, {"side": "COALITION"}),  # {unit, home} only (ECONOMY §4)
         (UNGROUNDED, {"node_id": "Not A Node"}),
+        (HOLD_STARTED, {"ends_at_tick": 0}),  # a campaign-clock tick, at least 1
+        (HOLD_STARTED, {"node_ids": ["Not A Node"]}),
+        (HOLD_STARTED, {"node_id": "fob-1"}),  # {nodes, ends_at} only (ECONOMY §4)
+        (HOLD_BROKEN, {"node_ids": ["fob-1"]}),  # one node
+        (HOLD_BROKEN, {"node_id": None}),
+        (HOLD_AT_RISK, {"node_id": "Not A Node"}),
     ],
 )
 def test_combat_events_reject_bad_fields(event: dict[str, object], bad: dict[str, object]) -> None:

@@ -21,6 +21,8 @@ export type Event =
   | CampaignClockPaused
   | CampaignClockResumed
   | CampaignEnded
+  | VictoryHoldStarted
+  | VictoryHoldBroken
   | ObjectiveAnnounced
   | ObjectiveResolved
   | WeaponFired
@@ -554,6 +556,56 @@ export interface CampaignEnded {
   };
   winner: ("COALITION" | "ENEMY") | null;
   nodes_held_pct: number;
+}
+/**
+ * The coalition's victory hold began (CONTRACTS §6; GAMEPLAY §9; ECONOMY EC-9, Q-TD-19, Q-TD-25; NX-412 part 4): on the first running tick it holds at least campaign.victory_node_frac of the strategic nodes. Followed by VictoryHoldBroken, or by CampaignEnded. Public: every side sees it (the hold enters the EnemyView, TD-2).
+ */
+export interface VictoryHoldStarted {
+  kind: "VictoryHoldStarted";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * The strategic nodes the coalition holds as the hold begins, ascending, no duplicates (producer).
+   *
+   * Items: Stable slug from the theater file.
+   */
+  node_ids: string[];
+  /**
+   * The running tick on which the victory comes if the hold is not broken (campaign clock, like ObjectiveAnnounced.deadline_tick, not a Tick).
+   */
+  ends_at_tick: number;
+}
+/**
+ * The coalition's victory hold broke (CONTRACTS §6; GAMEPLAY §9; ECONOMY EC-9; NX-412 part 4): its share of strategic nodes fell below campaign.victory_node_frac. Not emitted when the campaign ends during the hold. Public, like VictoryHoldStarted.
+ */
+export interface VictoryHoldBroken {
+  kind: "VictoryHoldBroken";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Stable slug from the theater file.
+   */
+  node_id: string;
 }
 /**
  * A timed objective was announced (CONTRACTS 6; STATE-MACHINES 4.5; NX-126). deadline_tick is on the campaign clock (running ticks, the Hud's campaign_clock.elapsed_ticks), not the tick counter: a pause delays the real tick, so the deadline is not a Tick.
@@ -1139,7 +1191,7 @@ export interface ThreatTierChanged {
   cp_smoothed: number;
 }
 /**
- * The Static's Threat Director adapted its defense to what it suffered (CONTRACTS §6; THREAT-DIRECTOR §4 step 5, C37; NX-156). `UP` when the matching operation launched (escorts appear, air defense is reinforced), `DOWN` when its threat-memory counter has decayed away again. Sector level only: it names no site and updates no facility marker (Q-FOW-17, FOG-OF-WAR FOW-13). Public view: this INTEL line.
+ * The Static's Threat Director adapted its defense to what it suffered (CONTRACTS §6; THREAT-DIRECTOR §4 step 5, C37; NX-156). `UP` when the matching operation launched (escorts appear, air defense is reinforced), `DOWN` when its threat-memory counter has decayed away again. Sector level only: it names no site and updates no facility marker (Q-FOW-17, FOG-OF-WAR FOW-13). HOLD_AT_RISK (NX-412 part 4, ECONOMY EC-9, Q-TD-19) is the one category that names a node (nodes are public, FOW-10): a capture operation was launched on a node of the coalition's running victory hold, always UP, no DOWN. Public view: this INTEL line.
  */
 export interface ThreatAdaptation {
   kind: "ThreatAdaptation";
@@ -1160,12 +1212,16 @@ export interface ThreatAdaptation {
    */
   side: "COALITION" | "ENEMY";
   /**
-   * CONVOY_ESCORT: escorts for convoys after `convoy_attacks`. IADS_REINFORCED: air defense reinforced after `radar_strikes`.
+   * CONVOY_ESCORT: escorts for convoys after `convoy_attacks`. IADS_REINFORCED: air defense reinforced after `radar_strikes`. HOLD_AT_RISK: a capture operation (OFFENSIVE, RETAKE) launched on a node of the running victory hold, the sitrep "NULL moves on <node>, the hold is at risk" (Q-TD-19).
    */
-  category: "CONVOY_ESCORT" | "IADS_REINFORCED";
+  category: "CONVOY_ESCORT" | "IADS_REINFORCED" | "HOLD_AT_RISK";
   /**
    * Named map region from the theater file (OVERLAY AN-1).
    */
   sector_id: string;
   direction: "UP" | "DOWN";
+  /**
+   * HOLD_AT_RISK: the hold node the operation targets; null for every other category.
+   */
+  node_id?: string | null;
 }

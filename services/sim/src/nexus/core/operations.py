@@ -13,7 +13,8 @@ order, is a candidate when every precondition holds, every job's selector resolv
 its kind has a `score.target_value`. A live operation (jobs on the board) is not posted again
 for the same target, except CONVOYS, whose candidate is only the convoys not yet escorted.
 
-**Score (step 4).** `priority x target value x weakness x memory x proximity`, exact Fractions:
+**Score (step 4).** `priority x target value x weakness x memory x proximity x press`, exact
+Fractions:
 - target value: `score.target_value.<node kind>` for a node of the other side,
   `score.own_node_value` for a node the side holds, else 1; a bridge takes the best target value x
   weakness of the other side's nodes it feeds (`fed_nodes`, Q-SIM-120, NX-401);
@@ -26,7 +27,11 @@ for the same target, except CONVOYS, whose candidate is only the convoys not yet
   current track there, `age / fade` of the oldest last-known track (at most 1), and 1 with no
   track of any kind;
 - proximity: `score.provocation_proximity` for a target in `last_provocation_sector` while the CP
-  ceiling is one of `score.proximity_tiers` (Q-TD-4).
+  ceiling is one of `score.proximity_tiers` (Q-TD-4);
+- press (ECONOMY EC-9, EC-12; NX-412 part 4), for an operation with a CAPTURE job (Offensive,
+  Retake) only: `score.victory_hold_mult` on a node of the running victory hold (`SideView.hold`),
+  x `score.income_node_mult` on a node of the other side whose kind has `economy.income.per_node`
+  above 0.
 Then noise: one `director` draw per candidate in enumeration order, `r` in [-1000, 1000], moves the
 score by `noise_scale x r / 1000` of itself. Order for selection: score descending, operation id,
 target id.
@@ -472,6 +477,20 @@ def _foe_value(node: str, view: SideView, rules: Rules, dr: DirectorRules) -> Fr
     return value * (dr.weakness_min + (dr.weakness_max - dr.weakness_min) * (1 - Fraction(hp, top)))
 
 
+def _press(c: Candidate, view: SideView, rules: Rules, dr: DirectorRules) -> Fraction:
+    """ECONOMY EC-9, EC-12 for an Offensive or Retake (an operation with a CAPTURE job):
+    `victory_hold_mult` on a node of the running hold, `income_node_mult` on a node of the other
+    side whose kind has `economy.income.per_node` above 0; 1 otherwise."""
+    if c.op.target != "NODE" or not has_capture(c.op):
+        return Fraction(1)
+    m = dr.victory_hold_mult if c.target in view.hold else Fraction(1)
+    income = rules.economy.income_per_node if rules.economy else {}
+    kind = rules.node_kind.get(c.target)
+    if view.owners.get(c.target) == _FOE[view.side] and kind and income.get(kind, 0) > 0:
+        m *= dr.income_node_mult
+    return m
+
+
 def rank(
     cands: list[Candidate], state: DirectorState, view: SideView, rules: Rules, rng: PcgStream
 ) -> list[Candidate]:
@@ -489,6 +508,7 @@ def rank(
             s *= 1 + dr.stale_factor * stale.get(c.target, Fraction(1))
         if near and c.sector == state.last_provocation_sector:
             s *= dr.proximity
+        s *= _press(c, view, rules, dr)
         draw = rng.randbelow(2 * NOISE_STEPS + 1) - NOISE_STEPS
         scored.append(replace(c, score=s * (1 + dr.noise * Fraction(draw, NOISE_STEPS))))
     return sorted(scored, key=lambda c: (-c.score, c.op.id, c.target))
