@@ -1,0 +1,508 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Hiveplex Paradigm 1: Tactical GIS / Military C2 Map (ATAK / CMANO)</title>
+<style>
+  :root {
+    --bg-dark: #0a0f18;
+    --panel-bg: rgba(13, 21, 32, 0.92);
+    --border-color: rgba(56, 189, 248, 0.25);
+    --friendly-blue: #38bdf8;
+    --hostile-red: #f43f5e;
+    --neutral-amber: #fbbf24;
+    --grid-line: rgba(148, 163, 184, 0.12);
+  }
+  body {
+    margin: 0;
+    padding: 0;
+    background: var(--bg-dark);
+    color: #e2e8f0;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'JetBrains Mono', monospace;
+    overflow: hidden;
+  }
+  #gis-canvas {
+    width: 100vw;
+    height: 100vh;
+    display: block;
+  }
+  .c2-header {
+    position: absolute;
+    top: 16px;
+    left: 20px;
+    right: 20px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    pointer-events: none;
+  }
+  .c2-panel {
+    background: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 10px 16px;
+    backdrop-filter: blur(8px);
+    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.6);
+    pointer-events: auto;
+  }
+  .system-title {
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 2px;
+    color: var(--friendly-blue);
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .zulu-clock {
+    font-family: monospace;
+    font-size: 12px;
+    color: #94a3b8;
+    margin-top: 2px;
+  }
+  .telemetry-row {
+    display: flex;
+    gap: 20px;
+    font-size: 11px;
+    font-family: monospace;
+  }
+  .telemetry-item span:first-child {
+    color: #64748b;
+    margin-right: 4px;
+  }
+  .telemetry-item span:last-child {
+    color: #f8fafc;
+    font-weight: bold;
+  }
+  .legend-panel {
+    position: absolute;
+    bottom: 20px;
+    left: 20px;
+    background: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 12px 16px;
+    font-size: 11px;
+    max-width: 320px;
+    backdrop-filter: blur(8px);
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+  }
+  .symbol-box {
+    width: 14px;
+    height: 14px;
+    border-radius: 2px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 9px;
+    font-weight: bold;
+  }
+  .sym-blue { background: rgba(56, 189, 248, 0.2); border: 1.5px solid var(--friendly-blue); color: var(--friendly-blue); }
+  .sym-red { background: rgba(244, 63, 94, 0.2); border: 1.5px solid var(--hostile-red); color: var(--hostile-red); }
+  .sym-amber { background: rgba(251, 191, 36, 0.2); border: 1.5px solid var(--neutral-amber); color: var(--neutral-amber); }
+
+  .range-scale {
+    position: absolute;
+    bottom: 20px;
+    right: 20px;
+    background: var(--panel-bg);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 8px 14px;
+    font-family: monospace;
+    font-size: 11px;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-end;
+  }
+  .scale-bar {
+    width: 120px;
+    height: 4px;
+    background: #64748b;
+    margin-top: 4px;
+    position: relative;
+    border-left: 2px solid #f8fafc;
+    border-right: 2px solid #f8fafc;
+  }
+</style>
+</head>
+<body>
+<canvas id="gis-canvas"></canvas>
+
+<!-- Top Tactical C2 Ribbon -->
+<div class="c2-header">
+  <div class="c2-panel">
+    <div class="system-title">🌐 HIVEPLEX JOINT C2 // TACTICAL GIS (PARADIGM 1)</div>
+    <div class="zulu-clock">THEATER: STRAIT-ONE • 400x240 KM • PROJECTION: FLAT EUCLIDEAN [L.CRS.SIMPLE] • ZULU: 19:05:42Z</div>
+  </div>
+  <div class="c2-panel telemetry-row">
+    <div class="telemetry-item"><span>DEFCON:</span><span style="color:#f43f5e">2 [INTERCEPT ACTIVE]</span></div>
+    <div class="telemetry-item"><span>AIR TRACKS:</span><span>4 DETECTED</span></div>
+    <div class="telemetry-item"><span>MSR STATUS:</span><span style="color:#10b981">NORTH BRIDGE OPEN</span></div>
+    <div class="telemetry-item"><span>RADAR INTEGRITY:</span><span>100% NOMINAL</span></div>
+  </div>
+</div>
+
+<!-- Map Legend -->
+<div class="legend-panel">
+  <div style="font-weight: bold; color: #38bdf8; margin-bottom: 8px; font-size: 11px; letter-spacing: 1px;">MIL-STD-2525D SYMBOLOGY</div>
+  <div class="legend-item"><div class="symbol-box sym-blue">F</div><span>COALITION STRIKER / AIRBASE</span></div>
+  <div class="legend-item"><div class="symbol-box sym-red">H</div><span>STATIC HOSTILE BANDIT / HQ</span></div>
+  <div class="legend-item"><div class="symbol-box sym-amber">B</div><span>CONTESTED BRIDGE / CROSSING</span></div>
+  <div class="legend-item"><div style="width: 14px; height: 2px; background: #38bdf8;"></div><span>PROJECTED 60-SEC VELOCITY VECTOR</span></div>
+  <div class="legend-item"><div style="width: 14px; height: 10px; border: 1px dashed rgba(244,63,94,0.6); background: rgba(244,63,94,0.1);"></div><span>SAM ENGAGEMENT ENVELOPE (MEZ)</span></div>
+</div>
+
+<!-- Range Scale -->
+<div class="range-scale">
+  <div>SCALE: 50 KM</div>
+  <div class="scale-bar"></div>
+</div>
+
+<script>
+const canvas = document.getElementById('gis-canvas');
+const ctx = canvas.getContext('2d');
+
+let width, height;
+function resize() {
+  width = window.innerWidth;
+  height = window.innerHeight;
+  canvas.width = width * window.devicePixelRatio;
+  canvas.height = height * window.devicePixelRatio;
+  ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+}
+window.addEventListener('resize', resize);
+resize();
+
+// Coordinate transformation: Theater [-200km, +200km] to screen pixels
+function toScreen(kmX, kmY) {
+  const scale = Math.min((width - 80) / 400, (height - 120) / 240);
+  const cx = width / 2;
+  const cy = height / 2 + 10;
+  return {
+    x: cx + kmX * scale,
+    y: cy + kmY * scale,
+    scale: scale
+  };
+}
+
+// --- SIMULATION ENTITIES & BASES ---
+const BASES = [
+  { id: 'haven', name: 'HAVEN SANCTUARY', side: 'coalition', x: -180, y: 0, kind: 'SANCTUARY' },
+  { id: 'west-ab', name: 'WEST AIRBASE', side: 'coalition', x: -150, y: 0, kind: 'AIRBASE', samRange: 65 },
+  { id: 'fob-nw', name: 'FOB NORTH-WEST', side: 'coalition', x: -70, y: -55, kind: 'FOB', samRange: 35 },
+  { id: 'fob-sw', name: 'FOB SOUTH-WEST', side: 'coalition', x: -70, y: 55, kind: 'FOB', samRange: 35 },
+  { id: 'bridge-n', name: 'NORTH BRIDGE', side: 'neutral', x: 0, y: -55, kind: 'BRIDGE' },
+  { id: 'bridge-s', name: 'SOUTH BRIDGE', side: 'neutral', x: 0, y: 55, kind: 'BRIDGE' },
+  { id: 'cross-n', name: 'NORTH CROSSING', side: 'neutral', x: 30, y: -55, kind: 'CROSSING' },
+  { id: 'cross-s', name: 'SOUTH CROSSING', side: 'neutral', x: 30, y: 55, kind: 'CROSSING' },
+  { id: 'fob-ne', name: 'FOB NORTH-EAST', side: 'static', x: 90, y: -75, kind: 'FOB', samRange: 35 },
+  { id: 'fob-se', name: 'FOB SOUTH-EAST', side: 'static', x: 90, y: 75, kind: 'FOB', samRange: 35 },
+  { id: 'east-ab', name: 'EAST AIRBASE', side: 'static', x: 110, y: 0, kind: 'AIRBASE', samRange: 65 },
+  { id: 'static-hq', name: 'STATIC HQ', side: 'static', x: 180, y: 0, kind: 'HQ', samRange: 75 }
+];
+
+const ROADS = [
+  [-180, 0, -150, 0],
+  [-150, 0, -70, -55],
+  [-150, 0, -70, 55],
+  [-70, -55, 0, -55],
+  [-70, 55, 0, 55],
+  [0, -55, 30, -55],
+  [0, 55, 30, 55],
+  [30, -55, 90, -75],
+  [30, 55, 90, 75],
+  [30, -55, 110, 0],
+  [30, 55, 110, 0],
+  [90, -75, 180, 0],
+  [90, 75, 180, 0],
+  [110, 0, 180, 0]
+];
+
+const UNITS = [
+  { id: 1, callsign: 'VIPER-01', side: 'coalition', x: -60, y: -25, vx: 0.85, vy: -0.25, alt: 'FL260', spd: 480 },
+  { id: 2, callsign: 'VIPER-02', side: 'coalition', x: -75, y: 15, vx: 0.70, vy: 0.15, alt: 'FL240', spd: 450 },
+  { id: 3, callsign: 'ECHO-RECON', side: 'coalition', x: -20, y: 40, vx: 0.25, vy: 0.35, alt: 'FL180', spd: 220 },
+  { id: 4, callsign: 'MULE-TRUCK', side: 'coalition', x: -110, y: -27.5, vx: 0.30, vy: -0.23, alt: 'GND', spd: 55 },
+  { id: 5, callsign: 'BANDIT-04', side: 'static', x: 65, y: -20, vx: -0.90, vy: 0.20, alt: 'FL280', spd: 520 },
+  { id: 6, callsign: 'STATIC-UAV', side: 'static', x: 50, y: 35, vx: -0.30, vy: -0.25, alt: 'FL200', spd: 210 }
+];
+
+let tick = 0;
+
+function draw() {
+  tick++;
+  ctx.clearRect(0, 0, width, height);
+
+  // 1. Shaded Relief / Topo Terrain Base
+  drawTacticalTerrain();
+
+  // 2. MGRS Military Coordinate Grid
+  drawMGRSGrid();
+
+  // 3. Road Network Corridors
+  drawRoadCorridors();
+
+  // 4. SAM & Radar Threat Envelopes
+  drawThreatEnvelopes();
+
+  // 5. Military Bases & Facilities
+  drawBases();
+
+  // 6. Dynamic Units & Kinematic Velocity Vectors
+  drawUnits();
+
+  requestAnimationFrame(draw);
+}
+
+function drawTacticalTerrain() {
+  const p1 = toScreen(-200, -120);
+  const p2 = toScreen(200, 120);
+
+  // Background Landmass (Dark Tactical Slate)
+  ctx.fillStyle = '#0f172a';
+  ctx.fillRect(p1.x, p1.y, p2.x - p1.x, p2.y - p1.y);
+
+  // Northern Mountain Shaded Relief
+  const gradNorth = ctx.createLinearGradient(0, p1.y, 0, p1.y + (p2.y - p1.y) * 0.35);
+  gradNorth.addColorStop(0, '#1e293b');
+  gradNorth.addColorStop(1, '#0f172a');
+  ctx.fillStyle = gradNorth;
+  ctx.fillRect(p1.x, p1.y, p2.x - p1.x, (p2.y - p1.y) * 0.35);
+
+  // The Strait Water Trench (x: -35km to +35km)
+  const sw1 = toScreen(-35, -120);
+  const sw2 = toScreen(35, 120);
+  const waterGrad = ctx.createLinearGradient(sw1.x, 0, sw2.x, 0);
+  waterGrad.addColorStop(0, '#0284c7');
+  waterGrad.addColorStop(0.2, '#034574');
+  waterGrad.addColorStop(0.5, '#021e3d');
+  waterGrad.addColorStop(0.8, '#034574');
+  waterGrad.addColorStop(1, '#0284c7');
+  ctx.fillStyle = waterGrad;
+  ctx.fillRect(sw1.x, sw1.y, sw2.x - sw1.x, sw2.y - sw1.y);
+
+  // Coastline Bevel Outlines
+  ctx.strokeStyle = '#38bdf8';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(sw1.x, sw1.y); ctx.lineTo(sw1.x, sw2.y);
+  ctx.moveTo(sw2.x, sw1.y); ctx.lineTo(sw2.x, sw2.y);
+  ctx.stroke();
+
+  // Topographic Contour Lines (Northern Mountains)
+  ctx.strokeStyle = 'rgba(148, 163, 184, 0.15)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 4]);
+  for (let elev = 1; elev <= 4; elev++) {
+    const cy = p1.y + elev * 22;
+    ctx.beginPath();
+    ctx.moveTo(p1.x, cy);
+    for (let x = p1.x; x <= p2.x; x += 40) {
+      const yOffset = Math.sin(x * 0.02 + elev) * 8;
+      ctx.lineTo(x, cy + yOffset);
+    }
+    ctx.stroke();
+  }
+  ctx.setLineDash([]);
+}
+
+function drawMGRSGrid() {
+  ctx.strokeStyle = 'rgba(148, 163, 184, 0.14)';
+  ctx.lineWidth = 1;
+  ctx.font = '9px monospace';
+  ctx.fillStyle = '#64748b';
+
+  // Vertical lines every 50 km
+  for (let km = -200; km <= 200; km += 50) {
+    const pt = toScreen(km, 0);
+    const top = toScreen(km, -120);
+    const bot = toScreen(km, 120);
+    ctx.beginPath();
+    ctx.moveTo(top.x, top.y);
+    ctx.lineTo(bot.x, bot.y);
+    ctx.stroke();
+    ctx.fillText(`${km >= 0 ? '+' : ''}${km}K`, top.x + 4, top.y + 14);
+  }
+
+  // Horizontal lines every 40 km
+  for (let km = -120; km <= 120; km += 40) {
+    const pt = toScreen(0, km);
+    const left = toScreen(-200, km);
+    const right = toScreen(200, km);
+    ctx.beginPath();
+    ctx.moveTo(left.x, left.y);
+    ctx.lineTo(right.x, right.y);
+    ctx.stroke();
+    ctx.fillText(`${km >= 0 ? '+' : ''}${km}K`, left.x + 4, left.y - 4);
+  }
+}
+
+function drawRoadCorridors() {
+  ctx.save();
+  ctx.strokeStyle = 'rgba(100, 116, 139, 0.5)';
+  ctx.lineWidth = 3;
+  ROADS.forEach(([x1, y1, x2, y2]) => {
+    const p1 = toScreen(x1, y1);
+    const p2 = toScreen(x2, y2);
+    ctx.beginPath();
+    ctx.moveTo(p1.x, p1.y);
+    ctx.lineTo(p2.x, p2.y);
+    ctx.stroke();
+  });
+
+  // Road Centerline
+  ctx.strokeStyle = '#e2e8f0';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([6, 4]);
+  ROADS.forEach(([x1, y1, x2, y2]) => {
+    const p1 = toScreen(x1, y1);
+    const p2 = toScreen(x2, y2);
+    ctx.beginPath();
+    ctx.moveTo(p1.x, p1.y);
+    ctx.lineTo(p2.x, p2.y);
+    ctx.stroke();
+  });
+  ctx.restore();
+}
+
+function drawThreatEnvelopes() {
+  BASES.forEach(base => {
+    if (!base.samRange) return;
+    const pt = toScreen(base.x, base.y);
+    const rad = base.samRange * pt.scale;
+
+    ctx.save();
+    if (base.side === 'coalition') {
+      ctx.strokeStyle = 'rgba(56, 189, 248, 0.45)';
+      ctx.fillStyle = 'rgba(56, 189, 248, 0.05)';
+    } else {
+      ctx.strokeStyle = 'rgba(244, 63, 94, 0.5)';
+      ctx.fillStyle = 'rgba(244, 63, 94, 0.06)';
+    }
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([8, 6]);
+
+    ctx.beginPath();
+    ctx.arc(pt.x, pt.y, rad, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.stroke();
+
+    // Range Label
+    ctx.fillStyle = base.side === 'coalition' ? '#38bdf8' : '#f43f5e';
+    ctx.font = '9px monospace';
+    ctx.fillText(`SAM MEZ: ${base.samRange}KM`, pt.x + rad * 0.7, pt.y - rad * 0.7);
+    ctx.restore();
+  });
+}
+
+function drawBases() {
+  BASES.forEach(b => {
+    const pt = toScreen(b.x, b.y);
+
+    ctx.save();
+    if (b.side === 'coalition') {
+      ctx.fillStyle = '#0284c7';
+      ctx.strokeStyle = '#38bdf8';
+      ctx.lineWidth = 2;
+      ctx.fillRect(pt.x - 7, pt.y - 7, 14, 14);
+      ctx.strokeRect(pt.x - 7, pt.y - 7, 14, 14);
+      ctx.fillStyle = '#f8fafc';
+      ctx.font = 'bold 10px monospace';
+      ctx.fillText(b.name, pt.x + 12, pt.y + 4);
+    } else if (b.side === 'static') {
+      ctx.fillStyle = '#be123c';
+      ctx.strokeStyle = '#f43f5e';
+      ctx.lineWidth = 2;
+      ctx.save();
+      ctx.translate(pt.x, pt.y);
+      ctx.rotate(Math.PI / 4);
+      ctx.fillRect(-7, -7, 14, 14);
+      ctx.strokeRect(-7, -7, 14, 14);
+      ctx.restore();
+      ctx.fillStyle = '#f8fafc';
+      ctx.font = 'bold 10px monospace';
+      ctx.fillText(b.name, pt.x + 14, pt.y + 4);
+    } else {
+      // Neutral / Bridge
+      ctx.fillStyle = '#d97706';
+      ctx.strokeStyle = '#fbbf24';
+      ctx.lineWidth = 2;
+      ctx.strokeRect(pt.x - 6, pt.y - 6, 12, 12);
+      ctx.fillStyle = '#fbbf24';
+      ctx.font = '9px monospace';
+      ctx.fillText(b.name, pt.x + 10, pt.y + 3);
+    }
+    ctx.restore();
+  });
+}
+
+function drawUnits() {
+  UNITS.forEach(u => {
+    // Kinematic translation
+    u.x += u.vx * 0.2;
+    u.y += u.vy * 0.2;
+    if (u.x < -190 || u.x > 190) u.vx *= -1;
+    if (u.y < -110 || u.y > 110) u.vy *= -1;
+
+    const pt = toScreen(u.x, u.y);
+    const col = u.side === 'coalition' ? '#38bdf8' : '#f43f5e';
+
+    ctx.save();
+
+    // 1. PROJECTED 60-SEC VELOCITY LEADER VECTOR
+    const leadLen = 50;
+    const vLen = Math.hypot(u.vx, u.vy);
+    const nx = (u.vx / vLen) * leadLen;
+    const ny = (u.vy / vLen) * leadLen;
+
+    ctx.strokeStyle = col;
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(pt.x, pt.y);
+    ctx.lineTo(pt.x + nx, pt.y + ny);
+    ctx.stroke();
+
+    // Projected Dead-Reckoning Dot
+    ctx.fillStyle = col;
+    ctx.beginPath();
+    ctx.arc(pt.x + nx, pt.y + ny, 2.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 2. NATO SYMBOL (Chevron / Diamond)
+    ctx.fillStyle = col;
+    if (u.side === 'coalition') {
+      ctx.beginPath();
+      ctx.arc(pt.x, pt.y, 5, 0, Math.PI * 2);
+      ctx.fill();
+    } else {
+      ctx.save();
+      ctx.translate(pt.x, pt.y);
+      ctx.rotate(Math.PI / 4);
+      ctx.fillRect(-4, -4, 8, 8);
+      ctx.restore();
+    }
+
+    // 3. TACTICAL DATA BLOCK (Callsign, Altitude, Speed)
+    ctx.font = '10px monospace';
+    ctx.fillStyle = '#f8fafc';
+    ctx.fillText(u.callsign, pt.x + 10, pt.y - 8);
+    ctx.fillStyle = '#94a3b8';
+    ctx.font = '9px monospace';
+    ctx.fillText(`${u.alt} • ${u.spd}KTS`, pt.x + 10, pt.y + 4);
+
+    ctx.restore();
+  });
+}
+
+draw();
+</script>
+</body>
+</html>

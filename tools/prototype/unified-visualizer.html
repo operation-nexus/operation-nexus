@@ -1,0 +1,3163 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Operation Nexus — Unified Three-Pillar Tactical Command Sandbox</title>
+  <!-- Three.js CDN with OrbitControls for 3D Pillars -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+  <style>
+    :root {
+      --bg-dark: #050b14;
+      --panel-bg: rgba(9, 18, 33, 0.94);
+      --border-color: #1e3a5f;
+      --accent-cyan: #00e5ff;
+      --accent-blue: #38bdf8;
+      --accent-red: #ef4444;
+      --accent-green: #22c55e;
+      --accent-amber: #f59e0b;
+      --text-muted: #94a3b8;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body, html {
+      width: 100%; height: 100%; overflow: hidden;
+      background: var(--bg-dark); color: #f8fafc;
+      font-family: 'SF Pro Text', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, monospace;
+      user-select: none;
+    }
+
+    #app-container {
+      display: grid;
+      grid-template-rows: 52px 1fr 34px;
+      width: 100vw; height: 100vh;
+    }
+
+    /* TOP HEADER & PILLAR SWITCHER */
+    header {
+      background: #091322;
+      border-bottom: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      z-index: 100;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      font-weight: 700;
+      letter-spacing: 1px;
+      font-size: 13px;
+      color: var(--accent-cyan);
+    }
+    .brand-badge {
+      background: rgba(0, 229, 255, 0.15);
+      border: 1px solid var(--accent-cyan);
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 11px;
+    }
+
+    /* Campaign Momentum Widget (Tug of War) */
+    .momentum-widget {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 10px;
+      font-family: monospace;
+      background: rgba(15, 23, 42, 0.7);
+      padding: 4px 10px;
+      border-radius: 6px;
+      border: 1px solid var(--border-color);
+    }
+    .momentum-track {
+      width: 130px;
+      height: 8px;
+      background: #0f172a;
+      border: 1px solid var(--border-color);
+      border-radius: 999px;
+      overflow: hidden;
+      display: flex;
+    }
+    .momentum-fill-cyan {
+      height: 100%;
+      background: linear-gradient(90deg, #0284c7, var(--accent-cyan));
+      box-shadow: 0 0 8px rgba(0, 229, 255, 0.4);
+      transition: width 0.3s ease;
+    }
+    .momentum-fill-magenta {
+      height: 100%;
+      background: linear-gradient(90deg, #ff0055, #be123c);
+      box-shadow: 0 0 8px rgba(255, 0, 85, 0.4);
+      transition: width 0.3s ease;
+    }
+
+    .pillar-nav {
+      display: flex;
+      gap: 6px;
+      background: rgba(15, 23, 42, 0.8);
+      padding: 3px;
+      border-radius: 6px;
+      border: 1px solid var(--border-color);
+    }
+    .pillar-btn {
+      background: transparent;
+      border: none;
+      color: var(--text-muted);
+      padding: 6px 14px;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      border-radius: 4px;
+      transition: all 0.15s ease;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+    .pillar-btn:hover { color: #fff; background: rgba(255, 255, 255, 0.05); }
+    .pillar-btn.active {
+      background: var(--accent-cyan);
+      color: #04121e;
+      box-shadow: 0 0 12px rgba(0, 229, 255, 0.4);
+    }
+
+    /* MAIN VIEWPORTS CONTAINER */
+    main {
+      position: relative;
+      width: 100%; height: 100%;
+      overflow: hidden;
+    }
+    .viewport {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      display: none;
+    }
+    .viewport.active { display: block; }
+
+    #canvas-gis-c2 {
+      width: 100%; height: 100%;
+      display: block;
+      cursor: crosshair;
+    }
+    #three-viewport {
+      width: 100%; height: 100%;
+      display: block;
+    }
+    #cockpit-canvas {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      z-index: 35;
+      display: none;
+    }
+
+    /* CRT Scanlines Overlay */
+    .crt-scanlines {
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      z-index: 45;
+      background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.22) 50%);
+      background-size: 100% 4px;
+      opacity: 0.65;
+    }
+
+    /* HUD PANELS & OVERLAYS */
+    .hud-panel {
+      position: absolute;
+      background: var(--panel-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 10px 14px;
+      backdrop-filter: blur(8px);
+      z-index: 50;
+      pointer-events: auto;
+      font-size: 11px;
+    }
+    .top-left-hud {
+      top: 12px; left: 12px;
+      min-width: 280px;
+    }
+    .hud-title {
+      font-size: 11px;
+      font-weight: 700;
+      letter-spacing: 0.8px;
+      color: var(--accent-cyan);
+      text-transform: uppercase;
+      margin-bottom: 6px;
+      display: flex;
+      justify-content: space-between;
+    }
+    .hud-row {
+      display: flex;
+      justify-content: space-between;
+      line-height: 1.6;
+    }
+    .hud-label { color: var(--text-muted); }
+    .hud-value { font-weight: 600; font-family: monospace; }
+
+    /* ORDER OF BATTLE (OOB) RIGHT PANEL */
+    .right-oob-panel {
+      top: 12px; right: 12px;
+      width: 290px;
+      max-height: calc(100% - 24px);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .unit-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      overflow-y: auto;
+      max-height: 220px;
+    }
+    .unit-card {
+      background: rgba(15, 23, 42, 0.6);
+      border: 1px solid rgba(30, 58, 95, 0.6);
+      border-radius: 4px;
+      padding: 6px 8px;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      transition: all 0.15s ease;
+    }
+    .unit-card:hover {
+      border-color: var(--accent-cyan);
+      background: rgba(0, 229, 255, 0.08);
+    }
+    .unit-card.selected {
+      border-color: var(--accent-cyan);
+      background: rgba(0, 229, 255, 0.15);
+    }
+
+    /* CAMERA & VIEW CONTROLS */
+    .cam-controls {
+      display: flex;
+      gap: 4px;
+      margin-top: 6px;
+    }
+    .cam-btn {
+      flex: 1;
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      padding: 4px 6px;
+      font-size: 10px;
+      font-weight: 600;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+    .cam-btn:hover { color: #fff; border-color: var(--accent-cyan); }
+    .cam-btn.active { background: var(--border-color); color: var(--accent-cyan); }
+
+    /* MULTI-SENSOR PIP MFD */
+    .pip-camera {
+      position: absolute;
+      bottom: 12px; left: 12px;
+      width: 250px; height: 160px;
+      background: #020713;
+      border: 1.5px solid var(--accent-cyan);
+      box-shadow: 0 4px 16px rgba(0, 229, 255, 0.2);
+      border-radius: 6px;
+      overflow: hidden;
+      z-index: 60;
+      display: flex;
+      flex-direction: column;
+      cursor: pointer;
+    }
+    .pip-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 3px 6px;
+      background: rgba(10, 25, 47, 0.95);
+      border-bottom: 1px solid rgba(0, 229, 255, 0.3);
+      font-size: 8.5px;
+      font-weight: 700;
+    }
+    .pip-title {
+      color: var(--accent-cyan);
+      letter-spacing: 0.5px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 125px;
+    }
+    .pip-tabs {
+      display: flex;
+      gap: 3px;
+    }
+    .pip-tab {
+      background: rgba(15, 23, 42, 0.8);
+      border: 1px solid var(--border-color);
+      color: var(--text-muted);
+      font-size: 7.5px;
+      padding: 1px 4px;
+      border-radius: 2px;
+      cursor: pointer;
+    }
+    .pip-tab:hover { color: #fff; border-color: var(--accent-cyan); }
+    .pip-tab.active { background: rgba(0, 229, 255, 0.2); color: var(--accent-cyan); border-color: var(--accent-cyan); font-weight: 700; }
+    #flir-canvas { flex: 1; width: 100%; height: 100%; display: block; }
+
+    /* BROADCAST LIVE CHYRON (CALM & PROFESSIONAL) */
+    .director-banner {
+      position: absolute;
+      top: 14px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: rgba(6, 13, 26, 0.94);
+      border: 1px solid rgba(0, 229, 255, 0.5);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.8), 0 0 12px rgba(0, 229, 255, 0.2);
+      color: #f8fafc;
+      padding: 5px 16px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.8px;
+      z-index: 70;
+      pointer-events: none;
+      display: none;
+      align-items: center;
+      gap: 10px;
+      white-space: nowrap;
+    }
+    .director-live-dot {
+      width: 7px;
+      height: 7px;
+      background: #ef4444;
+      border-radius: 50%;
+      box-shadow: 0 0 6px #ef4444;
+      display: inline-block;
+      flex-shrink: 0;
+      animation: liveDotBreathe 2.5s infinite ease-in-out;
+    }
+    @keyframes liveDotBreathe {
+      0%, 100% { opacity: 1.0; }
+      50% { opacity: 0.35; }
+    }
+
+    /* MAP LEGEND (PILLAR 1) */
+    .map-legend {
+      position: absolute;
+      bottom: 12px; left: 12px;
+      background: var(--panel-bg);
+      border: 1px solid var(--border-color);
+      border-radius: 6px;
+      padding: 8px 12px;
+      font-size: 10px;
+      z-index: 50;
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+    .legend-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .legend-sym {
+      width: 12px; height: 12px;
+      border-radius: 2px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 8px;
+      font-weight: bold;
+    }
+
+    /* TIMELINE CONTROLS FOOTER */
+    footer {
+      background: #091322;
+      border-top: 1px solid var(--border-color);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 16px;
+      font-size: 11px;
+      color: var(--text-muted);
+      z-index: 100;
+    }
+    .playback-controls {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .ctrl-btn {
+      background: transparent;
+      border: 1px solid var(--border-color);
+      color: #f8fafc;
+      padding: 2px 8px;
+      font-size: 10px;
+      border-radius: 3px;
+      cursor: pointer;
+    }
+    .ctrl-btn:hover { border-color: var(--accent-cyan); color: var(--accent-cyan); }
+    .event-ticker {
+      color: var(--accent-green);
+      font-family: monospace;
+      font-size: 10px;
+    }
+  </style>
+</head>
+<body>
+  <div id="app-container">
+    <div class="crt-scanlines" id="crt-overlay" style="display: none;"></div>
+
+    <header>
+      <div class="brand">
+        <span>PROJECT HIVEPLEX</span>
+        <span class="brand-badge">THEATER: STRAIT-1</span>
+        <span style="font-size: 11px; color: var(--text-muted); font-weight: normal;">| NX-176 COMMAND SANDBOX</span>
+      </div>
+
+      <!-- Campaign Momentum Widget -->
+      <div class="momentum-widget">
+        <span style="color: var(--text-muted);">MOMENTUM</span>
+        <div class="momentum-track">
+          <div class="momentum-fill-cyan" style="width: 62%;"></div>
+          <div class="momentum-fill-magenta" style="width: 38%;"></div>
+        </div>
+        <span style="color: var(--accent-cyan); font-weight: bold;">62% COALITION</span>
+      </div>
+
+      <nav class="pillar-nav">
+        <button class="pillar-btn active" id="btn-p1" onclick="switchPillar(1)">
+          <span>🌐</span> PILLAR 1: TACTICAL GIS (C2)
+        </button>
+        <button class="pillar-btn" id="btn-p2" onclick="switchPillar(2)">
+          <span>🎮</span> PILLAR 2: TEXTURED RTS (3D)
+        </button>
+        <button class="pillar-btn" id="btn-p3" onclick="switchPillar(3)">
+          <span>⚡</span> PILLAR 3: HOLOGRAPHIC (WIREFRAME)
+        </button>
+        <button class="pillar-btn" id="btn-p4" onclick="switchPillar(4)">
+          <span>🧠</span> PILLAR 4: COGNITIVE NEURAL BATTLESPACE
+        </button>
+      </nav>
+
+      <div style="display:flex; align-items:center; gap:8px;">
+        <button class="ctrl-btn" onclick="toggleFOW()" id="fow-btn">FOW: OFF</button>
+        <button class="ctrl-btn" onclick="toggleAudio()" id="audio-btn">AUDIO FX: OFF</button>
+        <button class="ctrl-btn" onclick="toggleCRT()" id="crt-btn">CRT FX: OFF</button>
+        <div style="font-size: 11px; color: var(--accent-cyan); font-family: monospace;">
+          SIM-TIME: <span id="clock-display">00:00:00.00Z</span>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <!-- PILLAR 1: TACTICAL GIS C2 VIEWPORT -->
+      <div class="viewport active" id="vp-pillar1">
+        <canvas id="canvas-gis-c2"></canvas>
+
+        <div class="hud-panel top-left-hud">
+          <div class="hud-title">
+            <span>C2 JOINT COMMON OPERATIONAL PICTURE</span>
+            <span style="color: var(--accent-green);">LIVE 2D</span>
+          </div>
+          <div class="hud-row"><span class="hud-label">MGRS Cursor:</span><span class="hud-value" id="mgrs-target" style="color:var(--accent-amber);">38S ND 000 600</span></div>
+          <div class="hud-row"><span class="hud-label">Easting / Northing:</span><span class="hud-value" id="coords-display">200.0km E, 60.0km S</span></div>
+          <div class="hud-row"><span class="hud-label">Elevation DEM:</span><span class="hud-value" id="elev-display">+14.2m MSL</span></div>
+          <div class="hud-row"><span class="hud-label">Projection:</span><span class="hud-value">Euclidean Flat (L.CRS.Simple)</span></div>
+        </div>
+
+        <div class="map-legend">
+          <div style="font-weight: bold; color: var(--accent-cyan); margin-bottom: 2px;">MIL-STD-2525D SYMBOLOGY</div>
+          <div class="legend-row"><div class="legend-sym" style="background:#0284c7; color:#fff;">F</div><span>COALITION UNIT / AIRBASE</span></div>
+          <div class="legend-row"><div class="legend-sym" style="background:#be123c; color:#fff;">H</div><span>STATIC ENEMY / HQ</span></div>
+          <div class="legend-row"><div class="legend-sym" style="background:#d97706; color:#fff;">B</div><span>NEUTRAL BRIDGE / CROSSING</span></div>
+          <div class="legend-row"><div class="legend-sym" style="background:#475569; color:#94a3b8; border-radius:50%;">•</div><span>HIGHWAY JUNCTION / WAYPOINT</span></div>
+          <div class="legend-row"><div style="width:12px; height:2px; background:#38bdf8;"></div><span>60-SEC VELOCITY VECTOR</span></div>
+          <div class="legend-row"><div style="width:12px; height:8px; border:1px dashed #ef4444;"></div><span>SAM ENGAGEMENT ENVELOPE (MEZ)</span></div>
+        </div>
+      </div>
+
+      <!-- PILLAR 2 & 3: THREE.JS 3D VIEWPORT -->
+      <div class="viewport" id="vp-pillar-three">
+        <div id="three-viewport"></div>
+        <canvas id="cockpit-canvas"></canvas>
+
+        <div class="hud-panel top-left-hud">
+          <div class="hud-title">
+            <span id="three-hud-title">TEXTURED 3D RTS BATTLESPACE</span>
+            <span style="color: var(--accent-cyan);" id="render-mode-badge">PBR GL</span>
+          </div>
+          <div class="hud-row"><span class="hud-label">Camera Mode:</span>
+            <div class="cam-controls">
+              <button class="cam-btn active" id="cam-orbit" onclick="setCameraMode('orbit')">ORBIT</button>
+              <button class="cam-btn" id="cam-chase" onclick="setCameraMode('chase')">CHASE</button>
+              <button class="cam-btn" id="cam-cockpit" onclick="setCameraMode('cockpit')">COCKPIT POV</button>
+              <button class="cam-btn" id="cam-god" onclick="setCameraMode('god')">GOD VIEW</button>
+              <button class="cam-btn" id="cam-director" onclick="toggleDirector()">AI DIRECTOR</button>
+            </div>
+          </div>
+          <div class="hud-row"><span class="hud-label">Terrain Meshing:</span><span class="hud-value">Continuous Hermite DTED</span></div>
+          <div class="hud-row"><span class="hud-label">Road & Viaduct:</span><span class="hud-value">Abutment-Conformed Ribbons</span></div>
+          <div class="hud-row"><span class="hud-label">Bridge Systems:</span><span class="hud-value">High Viaduct + Sea-Truss</span></div>
+        </div>
+
+        <div class="pip-camera" id="flir-pip" title="Click to cycle sensor mode">
+          <div class="pip-header">
+            <span class="pip-title" id="pip-title-text">FLIR [VIPER-01]</span>
+            <div class="pip-tabs">
+              <button class="pip-tab active" id="piptab-flir" onclick="event.stopPropagation(); setPipMode('flir')">FLIR</button>
+              <button class="pip-tab" id="piptab-minimap" onclick="event.stopPropagation(); setPipMode('minimap')">MAP</button>
+              <button class="pip-tab" id="piptab-recon" onclick="event.stopPropagation(); setPipMode('recon')">RECON</button>
+              <button class="pip-tab" id="piptab-chase" onclick="event.stopPropagation(); setPipMode('chase')">HUD</button>
+            </div>
+          </div>
+          <canvas id="flir-canvas"></canvas>
+        </div>
+        <div id="director-banner" class="director-banner"><span class="director-live-dot"></span><span id="director-text">LIVE BROADCAST DIRECTOR ACTIVE</span></div>
+      </div>
+
+      <!-- ORDER OF BATTLE (OOB) RIGHT SIDEBAR -->
+      <div class="hud-panel right-oob-panel">
+        <div class="hud-title">
+          <span>ORDER OF BATTLE (OOB)</span>
+          <span style="color: var(--accent-cyan);" id="unit-count-badge">5 UNITS</span>
+        </div>
+        <div class="unit-list" id="unit-list-container">
+          <!-- Populated dynamically -->
+        </div>
+
+        <div style="border-top: 1px solid var(--border-color); padding-top: 6px;">
+          <div class="hud-title"><span>ACTIVE TASKING</span></div>
+          <div class="hud-row"><span class="hud-label">Task:</span><span class="hud-value" id="selected-task">COMBAT PATROL</span></div>
+          <div class="hud-row"><span class="hud-label">Fuel / Ammo:</span><span class="hud-value" id="selected-supplies">78% | 4x AAM-3</span></div>
+          <div class="hud-row"><span class="hud-label">Command:</span><span class="hud-value" style="color:var(--accent-amber);" id="order-preview">!strike 38S ND 000 600</span></div>
+        </div>
+      </div>
+    </main>
+
+    <footer>
+      <div class="playback-controls">
+        <button class="ctrl-btn" onclick="togglePause()" id="pause-btn">PAUSE</button>
+        <button class="ctrl-btn" onclick="setSpeed(1)">1x</button>
+        <button class="ctrl-btn" onclick="setSpeed(2)">2x</button>
+        <button class="ctrl-btn" onclick="setSpeed(5)">5x</button>
+        <span>RATE: <b id="speed-label" style="color:var(--accent-cyan);">1x</b></span>
+      </div>
+
+      <div class="event-ticker" id="event-ticker">
+        [04:12:02Z] VIPER-01 (STRIKER) DEPARTED WEST AIRBASE ON VECTOR 085° (ALT: FL240)
+      </div>
+
+      <div style="display:flex; align-items:center; gap:12px; font-family: monospace; font-size:10px;">
+        <span style="color: var(--text-muted);"><b style="color:var(--accent-cyan);">HOTKEYS:</b> [1-4] Pillars &bull; [C] Camera &bull; [Tab] Unit &bull; [D] Director &bull; [F] FOW &bull; [A] Audio &bull; [Space] Pause</span>
+        <span>FPS: <span id="fps-counter" style="color:var(--accent-green);">60</span> | SIM: SYNC</span>
+      </div>
+    </footer>
+  </div>
+
+  <script>
+    /* =========================================================================
+       1. COORDINATE ENGINE & MGRS LOOKUP (IDENTICAL TO tools/terrain/mgrs_grid.py)
+       ========================================================================= */
+    const MGRS_COLS = "ABCDEFGHJKLMNPQRSTUVWXYZ";
+    const MGRS_ROWS = "ABCDEFGHJKLMNPQRSTUV";
+    const DEFAULT_GZD = "38S";
+    const COL_OFFSET = 10; // 'L'
+    const ROW_OFFSET = 3;  // 'D'
+
+    function coordsToMgrs(x, y, prec = 3) {
+      const colIdx = (Math.floor(x / 100000) + COL_OFFSET) % MGRS_COLS.length;
+      const rowIdx = (Math.floor(y / 100000) + ROW_OFFSET) % MGRS_ROWS.length;
+      const sq = MGRS_COLS[colIdx] + MGRS_ROWS[rowIdx];
+      const step = Math.pow(10, 5 - prec);
+      const eVal = Math.floor((x % 100000) / step);
+      const nVal = Math.floor((y % 100000) / step);
+      const fmt = (v) => String(v).padStart(prec, '0');
+      return `${DEFAULT_GZD} ${sq} ${fmt(eVal)} ${fmt(nVal)}`;
+    }
+
+    /* Continuous Deterministic Elevation Formula (matching bake_synthetic_dted.py)
+       Uses C1-continuous Hermite smoothstep between inland landmass and strait channel
+       to prevent artificial knife-edge cliffs and ensure physically plausible canyon walls. */
+    function sampleStraitElevation(x, y) {
+      const distToStrait = Math.abs(x - 200000);
+      const macro = Math.sin(x * 0.00002) * Math.cos(y * 0.00003) * 120.0;
+      const micro = Math.sin(x * 0.00007 + 1.2) * Math.cos(y * 0.00008 + 0.8) * 45.0;
+      let landElev = 25.0 + macro + micro;
+      if (y < 80000) {
+        const ridge = Math.abs(y - 40000);
+        const peak = Math.max(0, 750.0 - ridge * 0.015);
+        landElev += peak * (0.85 + 0.25 * Math.sin(x * 0.00004));
+      }
+      if (y > 190000 && x > 220000) {
+        const valleyT = (y - 190000) / 50000;
+        landElev += -60.0 * valleyT + Math.sin(x * 0.00005) * 30.0;
+      }
+      landElev = Math.max(4.0, landElev);
+
+      const trenchElev = -80.0 + Math.sin(y * 0.00008) * 12.0;
+
+      if (distToStrait <= 17000) {
+        return trenchElev;
+      } else if (distToStrait >= 26000) {
+        return landElev;
+      } else {
+        const t = (distToStrait - 17000) / 9000;
+        const s = t * t * (3.0 - 2.0 * t);
+        return (1.0 - s) * trenchElev + s * landElev;
+      }
+    }
+
+    /* =========================================================================
+       2. THEATER SIMULATION ENTITIES, BASES, & ROAD GRAPH
+       ========================================================================= */
+    const THEATER_W = 400000;
+    const THEATER_H = 240000;
+
+    const BASES = [
+      { id: 'haven', name: 'HAVEN SANCTUARY', side: 'coalition', x: 20000, y: 120000, kind: 'SANCTUARY' },
+      { id: 'west-ab', name: 'WEST AIRBASE', side: 'coalition', x: 90000, y: 120000, kind: 'AIRBASE', samRange: 65000 },
+      { id: 'fob-nw', name: 'FOB NORTH-WEST', side: 'coalition', x: 130000, y: 60000, kind: 'FOB', samRange: 35000 },
+      { id: 'fob-sw', name: 'FOB SOUTH-WEST', side: 'coalition', x: 130000, y: 180000, kind: 'FOB', samRange: 35000 },
+      { id: 'jct-w-pass', name: 'JCT NORTH PASS', side: 'coalition', x: 110000, y: 75000, kind: 'JUNCTION' },
+      { id: 'jct-w-plain', name: 'JCT SOUTH PLAIN', side: 'coalition', x: 110000, y: 165000, kind: 'JUNCTION' },
+      { id: 'abut-n-w', name: 'WEST CANYON ABUTMENT', side: 'neutral', x: 175000, y: 60000, kind: 'ABUTMENT' },
+      { id: 'bridge-n', name: 'NORTH FJORD VIADUCT', side: 'neutral', x: 200000, y: 60000, kind: 'BRIDGE' },
+      { id: 'abut-n-e', name: 'EAST CANYON ABUTMENT', side: 'neutral', x: 225000, y: 60000, kind: 'ABUTMENT' },
+      { id: 'abut-s-w', name: 'WEST LOWLAND ABUTMENT', side: 'neutral', x: 182000, y: 180000, kind: 'ABUTMENT' },
+      { id: 'bridge-s', name: 'SOUTH STRAIT TRUSS', side: 'neutral', x: 200000, y: 180000, kind: 'BRIDGE' },
+      { id: 'abut-s-e', name: 'EAST LOWLAND ABUTMENT', side: 'neutral', x: 218000, y: 180000, kind: 'ABUTMENT' },
+      { id: 'cross-n', name: 'NORTH CROSSING', side: 'neutral', x: 230000, y: 60000, kind: 'CROSSING' },
+      { id: 'cross-s', name: 'SOUTH CROSSING', side: 'neutral', x: 230000, y: 180000, kind: 'CROSSING' },
+      { id: 'jct-e-hub', name: 'JCT CENTRAL DISTRIBUTION', side: 'neutral', x: 270000, y: 120000, kind: 'JUNCTION' },
+      { id: 'jct-sneak', name: 'JCT SNEAK VALLEY', side: 'neutral', x: 260000, y: 220000, kind: 'JUNCTION' },
+      { id: 'fob-ne', name: 'FOB NORTH-EAST', side: 'static', x: 290000, y: 40000, kind: 'FOB', samRange: 35000 },
+      { id: 'fob-se', name: 'FOB SOUTH-EAST', side: 'static', x: 290000, y: 200000, kind: 'FOB', samRange: 35000 },
+      { id: 'east-ab', name: 'EAST AIRBASE', side: 'static', x: 310000, y: 120000, kind: 'AIRBASE', samRange: 65000 },
+      { id: 'static-hq', name: 'STATIC HQ', side: 'static', x: 380000, y: 120000, kind: 'HQ', samRange: 75000 }
+    ];
+
+    const ROADS = [
+      // Coalition West Network
+      [20000, 120000, 90000, 120000, false],
+      [90000, 120000, 110000, 75000, false],
+      [110000, 75000, 130000, 60000, false],
+      [90000, 120000, 110000, 165000, false],
+      [110000, 165000, 130000, 180000, false],
+
+      // North Bridge Corridor (High Fjord Viaduct: Plateau Approach -> Viaduct Span -> Departure)
+      [130000, 60000, 175000, 60000, false], // West Approach Road on Mountain Plateau
+      [175000, 60000, 225000, 60000, true],  // North High Fjord Viaduct Span across Canyon
+      [225000, 60000, 230000, 60000, false], // East Departure Road on Mountain Plateau
+
+      // South Bridge Corridor (Lowland Maritime Crossing)
+      [130000, 180000, 182000, 180000, false], // West Approach Road on Land
+      [182000, 180000, 218000, 180000, true],  // South Sea-Level Truss Span over Water
+      [218000, 180000, 230000, 180000, false], // East Departure Road on Land
+
+      // East Bank Highway & Junction Graph
+      [230000, 60000, 270000, 120000, false],
+      [230000, 180000, 270000, 120000, false],
+      [230000, 60000, 290000, 40000, false],
+      [230000, 180000, 260000, 220000, false],
+      [260000, 220000, 290000, 200000, false], // Sneak valley loop
+      [270000, 120000, 310000, 120000, false],
+      [290000, 40000, 380000, 120000, false],
+      [290000, 200000, 380000, 120000, false],
+      [310000, 120000, 380000, 120000, false]
+    ];
+
+    const UNITS = [
+      { id: 'VIPER-01', callsign: 'VIPER-01', type: 'STRIKER', side: 'coalition', x: 140000, y: 90000, alt: 'FL240', spd: 480, fuel: 78, ammo: '4x AAM-3', task: 'COMBAT PATROL', angle: 0 },
+      { id: 'VIPER-02', callsign: 'VIPER-02', type: 'STRIKER', side: 'coalition', x: 132000, y: 95000, alt: 'FL240', spd: 480, fuel: 82, ammo: '4x AAM-3', task: 'TRAIL FORMATION', angle: 0 },
+      { id: 'RESCUE-01', callsign: 'RESCUE-01', type: 'CSAR_HELO', side: 'coalition', x: 115000, y: 135000, alt: '380 FT', spd: 135, fuel: 88, ammo: 'HOIST + 2x MED', task: 'CSAR EXTRACTION', angle: 0.35 },
+      { id: 'MULE-01', callsign: 'MULE-01', type: 'LOGISTICS', side: 'coalition', x: 90000, y: 120000, alt: 'GND', spd: 55, fuel: 91, ammo: 'CARGO (AMMO)', task: 'RESUPPLY WEST AB', angle: 0 },
+      { id: 'MISSILE-99', callsign: 'MISSILE-99', type: 'KINETIC_MISSILE', side: 'coalition', x: 185000, y: 98000, alt: 'FL260', spd: 1850, fuel: 100, ammo: 'HE FRAG (22KG)', task: 'TERMINAL INTERCEPT', angle: 0 },
+      { id: 'BANDIT-04', callsign: 'BANDIT-04', type: 'INTERCEPTOR', side: 'static', x: 275000, y: 105000, alt: 'FL280', spd: 520, fuel: 64, ammo: '2x SARH-6', task: 'CAP INTERCEPT', angle: Math.PI },
+      { id: 'STATIC-UAV', callsign: 'STATIC-UAV', type: 'RECON', side: 'static', x: 220000, y: 160000, alt: 'FL180', spd: 190, fuel: 45, ammo: 'EO/IR POD [LASER]', task: 'ISR SURVEILLANCE', angle: Math.PI * 0.8 }
+    ];
+
+    let selectedUnitId = 'VIPER-01';
+    let currentPillar = 1;
+    let simTime = 0;
+    let simPaused = false;
+    let simSpeed = 1.0;
+    let cameraMode = 'orbit'; // 'orbit', 'chase', 'god', 'cockpit'
+    let crtEnabled = false;
+    let fowEnabled = false;
+
+    function toggleFOW() {
+      fowEnabled = !fowEnabled;
+      const btn = document.getElementById('fow-btn');
+      if (btn) {
+        btn.innerText = `FOW: ${fowEnabled ? 'ON (COALITION)' : 'OFF (REPLAY)'}`;
+        btn.style.color = fowEnabled ? 'var(--accent-amber)' : '#f8fafc';
+      }
+      addEventLog(`FOG OF WAR: ${fowEnabled ? 'ENABLED (LIVE CHAT VIEW)' : 'DISABLED (OMNISCIENT REPLAY)'}`);
+    }
+
+    /* =========================================================================
+       3. PILLAR 1: TACTICAL GIS (C2 2D) ENGINE
+       ========================================================================= */
+    const gisCanvas = document.getElementById('canvas-gis-c2');
+    const gisCtx = gisCanvas.getContext('2d');
+    let panX = 0, panY = 0, zoom = 1.0;
+    let mouseWorldX = 200000, mouseWorldY = 60000;
+
+    function resizeGisCanvas() {
+      gisCanvas.width = gisCanvas.clientWidth * window.devicePixelRatio;
+      gisCanvas.height = gisCanvas.clientHeight * window.devicePixelRatio;
+      zoom = gisCanvas.width / (THEATER_W * 1.15);
+      panX = (gisCanvas.width - THEATER_W * zoom) / 2;
+      panY = (gisCanvas.height - THEATER_H * zoom) / 2;
+      renderGisFrame();
+    }
+
+    function worldToScreen(x, y) {
+      return { sx: panX + x * zoom, sy: panY + y * zoom };
+    }
+
+    function screenToWorld(sx, sy) {
+      return { wx: (sx - panX) / zoom, wy: (sy - panY) / zoom };
+    }
+
+    function renderGisFrame() {
+      if (currentPillar !== 1) return;
+      const w = gisCanvas.width;
+      const h = gisCanvas.height;
+      gisCtx.clearRect(0, 0, w, h);
+
+      // 1. Shaded Relief Topography
+      const p0 = worldToScreen(0, 0);
+      const pMax = worldToScreen(THEATER_W, THEATER_H);
+      const mapW = pMax.sx - p0.sx;
+      const mapH = pMax.sy - p0.sy;
+
+      // Outer border / ocean
+      gisCtx.fillStyle = "#06101d";
+      gisCtx.fillRect(0, 0, w, h);
+
+      // Landmass tactical slate
+      gisCtx.fillStyle = "#0f172a";
+      gisCtx.fillRect(p0.sx, p0.sy, mapW, mapH);
+
+      // Northern Mountain Relief Shading
+      const northGrad = gisCtx.createLinearGradient(0, p0.sy, 0, p0.sy + mapH * 0.35);
+      northGrad.addColorStop(0, '#1e293b');
+      northGrad.addColorStop(1, '#0f172a');
+      gisCtx.fillStyle = northGrad;
+      gisCtx.fillRect(p0.sx, p0.sy, mapW, mapH * 0.35);
+
+      // Submarine Trench Strait (x: 182km to 218km)
+      const st0 = worldToScreen(182000, 0);
+      const st1 = worldToScreen(218000, THEATER_H);
+      const waterGrad = gisCtx.createLinearGradient(st0.sx, 0, st1.sx, 0);
+      waterGrad.addColorStop(0, '#0284c7');
+      waterGrad.addColorStop(0.25, '#034574');
+      waterGrad.addColorStop(0.5, '#021e3d');
+      waterGrad.addColorStop(0.75, '#034574');
+      waterGrad.addColorStop(1, '#0284c7');
+      gisCtx.fillStyle = waterGrad;
+      gisCtx.fillRect(st0.sx, p0.sy, st1.sx - st0.sx, mapH);
+
+      // Shoreline Bevel Lines
+      gisCtx.strokeStyle = "#38bdf8";
+      gisCtx.lineWidth = 1.5;
+      gisCtx.beginPath();
+      gisCtx.moveTo(st0.sx, p0.sy); gisCtx.lineTo(st0.sx, pMax.sy);
+      gisCtx.moveTo(st1.sx, p0.sy); gisCtx.lineTo(st1.sx, pMax.sy);
+      gisCtx.stroke();
+
+      // Elevation Contours in Northern Ridge
+      gisCtx.strokeStyle = "rgba(148, 163, 184, 0.12)";
+      gisCtx.lineWidth = 1;
+      gisCtx.setLineDash([4, 4]);
+      for (let elev = 1; elev <= 3; elev++) {
+        const cy = p0.sy + elev * 24;
+        gisCtx.beginPath();
+        gisCtx.moveTo(p0.sx, cy);
+        for (let x = p0.sx; x <= pMax.sx; x += 30) {
+          const yOff = Math.sin(x * 0.02 + elev) * 6;
+          gisCtx.lineTo(x, cy + yOff);
+        }
+        gisCtx.stroke();
+      }
+      gisCtx.setLineDash([]);
+
+      // 2. MGRS Military Coordinate Grid Lines
+      gisCtx.strokeStyle = "rgba(56, 189, 248, 0.14)";
+      gisCtx.lineWidth = 1;
+      gisCtx.font = "9px monospace";
+      gisCtx.fillStyle = "rgba(56, 189, 248, 0.4)";
+
+      for (let x = 0; x <= THEATER_W; x += 20000) {
+        const p = worldToScreen(x, 0);
+        gisCtx.beginPath();
+        gisCtx.moveTo(p.sx, p0.sy);
+        gisCtx.lineTo(p.sx, pMax.sy);
+        gisCtx.stroke();
+        gisCtx.fillText(`${x / 1000}k`, p.sx + 4, p0.sy + 12);
+      }
+      for (let y = 0; y <= THEATER_H; y += 20000) {
+        const p = worldToScreen(0, y);
+        gisCtx.beginPath();
+        gisCtx.moveTo(p0.sx, p.sy);
+        gisCtx.lineTo(pMax.sx, p.sy);
+        gisCtx.stroke();
+        gisCtx.fillText(`${y / 1000}k`, p0.sx + 4, p.sy - 4);
+      }
+
+      // 3. Road & Bridge Networks
+      ROADS.forEach(([x1, y1, x2, y2, isBridge]) => {
+        const pa = worldToScreen(x1, y1);
+        const pb = worldToScreen(x2, y2);
+
+        gisCtx.beginPath();
+        gisCtx.moveTo(pa.sx, pa.sy);
+        gisCtx.lineTo(pb.sx, pb.sy);
+        gisCtx.strokeStyle = isBridge ? "rgba(245, 158, 11, 0.95)" : "rgba(100, 116, 139, 0.55)";
+        gisCtx.lineWidth = isBridge ? 4.5 : 2.5;
+        gisCtx.stroke();
+
+        // Dashed Centerline
+        gisCtx.beginPath();
+        gisCtx.setLineDash([4, 4]);
+        gisCtx.moveTo(pa.sx, pa.sy);
+        gisCtx.lineTo(pb.sx, pb.sy);
+        gisCtx.strokeStyle = isBridge ? "#fff" : "rgba(255, 255, 255, 0.3)";
+        gisCtx.lineWidth = 1.0;
+        gisCtx.stroke();
+        gisCtx.setLineDash([]);
+      });
+
+      // 4. SAM Threat Envelopes (MEZ)
+      BASES.forEach(b => {
+        if (!b.samRange) return;
+        const pt = worldToScreen(b.x, b.y);
+        const rad = b.samRange * zoom;
+
+        gisCtx.beginPath();
+        gisCtx.arc(pt.sx, pt.sy, rad, 0, Math.PI * 2);
+        gisCtx.strokeStyle = b.side === 'coalition' ? "rgba(56, 189, 248, 0.35)" : "rgba(239, 68, 68, 0.4)";
+        gisCtx.fillStyle = b.side === 'coalition' ? "rgba(56, 189, 248, 0.04)" : "rgba(239, 68, 68, 0.05)";
+        gisCtx.lineWidth = 1.5;
+        gisCtx.setLineDash([8, 6]);
+        gisCtx.fill();
+        gisCtx.stroke();
+        gisCtx.setLineDash([]);
+
+        gisCtx.fillStyle = b.side === 'coalition' ? "#38bdf8" : "#ef4444";
+        gisCtx.font = "9px monospace";
+        gisCtx.fillText(`MEZ: ${b.samRange / 1000}KM`, pt.sx + rad * 0.7, pt.sy - rad * 0.7);
+      });
+
+      // 5. Military Bases with MIL-STD-2525D Frames & Road Waypoints
+      BASES.forEach(b => {
+        const pt = worldToScreen(b.x, b.y);
+        gisCtx.save();
+
+        if (b.kind === 'JUNCTION' || b.kind === 'ABUTMENT') {
+          // Subtle Road Waypoint / Abutment Marker
+          gisCtx.fillStyle = '#475569';
+          gisCtx.strokeStyle = '#94a3b8';
+          gisCtx.lineWidth = 1.5;
+          gisCtx.beginPath();
+          gisCtx.arc(pt.sx, pt.sy, 3.5, 0, Math.PI * 2);
+          gisCtx.fill();
+          gisCtx.stroke();
+
+          gisCtx.fillStyle = '#94a3b8';
+          gisCtx.font = '8px monospace';
+          gisCtx.fillText(b.name, pt.sx + 7, pt.sy + 3);
+          gisCtx.restore();
+          return;
+        }
+
+        if (b.side === 'coalition') {
+          // Friendly Rectangle
+          gisCtx.fillStyle = "#0284c7";
+          gisCtx.strokeStyle = "#38bdf8";
+          gisCtx.lineWidth = 2;
+          gisCtx.fillRect(pt.sx - 8, pt.sy - 8, 16, 16);
+          gisCtx.strokeRect(pt.sx - 8, pt.sy - 8, 16, 16);
+          gisCtx.fillStyle = "#fff";
+          gisCtx.font = "bold 9px monospace";
+          gisCtx.fillText(b.kind === 'AIRBASE' ? 'A' : b.kind === 'SANCTUARY' ? 'S' : 'F', pt.sx - 3, pt.sy + 3);
+        } else if (b.side === 'static') {
+          // Hostile Diamond
+          gisCtx.fillStyle = "#be123c";
+          gisCtx.strokeStyle = "#f43f5e";
+          gisCtx.lineWidth = 2;
+          gisCtx.save();
+          gisCtx.translate(pt.sx, pt.sy);
+          gisCtx.rotate(Math.PI / 4);
+          gisCtx.fillRect(-7, -7, 14, 14);
+          gisCtx.strokeRect(-7, -7, 14, 14);
+          gisCtx.restore();
+          gisCtx.fillStyle = "#fff";
+          gisCtx.font = "bold 9px monospace";
+          gisCtx.fillText(b.kind === 'HQ' ? 'H' : 'F', pt.sx - 3, pt.sy + 3);
+        } else {
+          // Neutral Amber Square
+          gisCtx.fillStyle = "#d97706";
+          gisCtx.strokeStyle = "#fbbf24";
+          gisCtx.lineWidth = 2;
+          gisCtx.strokeRect(pt.sx - 6, pt.sy - 6, 12, 12);
+        }
+        gisCtx.fillStyle = "#f8fafc";
+        gisCtx.font = "bold 10px monospace";
+        gisCtx.fillText(b.name, pt.sx + 12, pt.sy + 3);
+        gisCtx.restore();
+      });
+
+      // 6. Dynamic Units with Kinematic 60-Sec Vectors
+      UNITS.forEach(u => {
+        const pt = worldToScreen(u.x, u.y);
+
+        if (fowEnabled && u.side !== 'coalition') {
+          // Fog of War: Unspotted / unconfirmed enemy renders as low-confidence SIGINT blob
+          gisCtx.fillStyle = "rgba(239, 68, 68, 0.28)";
+          gisCtx.beginPath();
+          gisCtx.arc(pt.sx, pt.sy, 20 + Math.sin(simTime * 4.0) * 4, 0, Math.PI * 2);
+          gisCtx.fill();
+          gisCtx.strokeStyle = "rgba(239, 68, 68, 0.6)";
+          gisCtx.stroke();
+          gisCtx.fillStyle = "#fca5a5";
+          gisCtx.font = "bold 9px monospace";
+          gisCtx.fillText("? SIGINT CONTACT [UNCONFIRMED]", pt.sx + 14, pt.sy + 3);
+          return;
+        }
+
+        const col = u.side === 'coalition' ? "#00e5ff" : "#ef4444";
+
+        // Projected 60-second velocity vector
+        const vx = Math.cos(u.angle) * 40;
+        const vy = Math.sin(u.angle) * 40;
+        gisCtx.strokeStyle = col;
+        gisCtx.lineWidth = 2.0;
+        gisCtx.beginPath();
+        gisCtx.moveTo(pt.sx, pt.sy);
+        gisCtx.lineTo(pt.sx + vx, pt.sy + vy);
+        gisCtx.stroke();
+
+        // Unit Icon (MIL-STD style)
+        gisCtx.fillStyle = col;
+        gisCtx.beginPath();
+        gisCtx.arc(pt.sx, pt.sy, 5, 0, Math.PI * 2);
+        gisCtx.fill();
+
+        // Selection Ring
+        if (u.id === selectedUnitId) {
+          gisCtx.strokeStyle = "#f59e0b";
+          gisCtx.lineWidth = 2;
+          gisCtx.beginPath();
+          gisCtx.arc(pt.sx, pt.sy, 10, 0, Math.PI * 2);
+          gisCtx.stroke();
+        }
+
+        gisCtx.fillStyle = "#fff";
+        gisCtx.font = "bold 10px monospace";
+        gisCtx.fillText(`${u.callsign} [${u.spd}kts]`, pt.sx + 10, pt.sy - 6);
+      });
+
+      // Tactical Laser Designation Assist Link (Recon -> Target)
+      const uav = UNITS.find(u => u.id === 'STATIC-UAV');
+      const b4Unit = UNITS.find(u => u.id === 'BANDIT-04');
+      if (uav && b4Unit && !fowEnabled) {
+        const p1 = worldToScreen(uav.x, uav.y);
+        const p2 = worldToScreen(b4Unit.x, b4Unit.y);
+        gisCtx.save();
+        gisCtx.strokeStyle = 'rgba(34, 197, 94, 0.7)';
+        gisCtx.setLineDash([6, 4]);
+        gisCtx.lineWidth = 1.5;
+        gisCtx.beginPath();
+        gisCtx.moveTo(p1.sx, p1.sy);
+        gisCtx.lineTo(p2.sx, p2.sy);
+        gisCtx.stroke();
+
+        const midX = (p1.sx + p2.sx) / 2;
+        const midY = (p1.sy + p2.sy) / 2;
+        gisCtx.fillStyle = '#22c55e';
+        gisCtx.font = 'bold 8px monospace';
+        gisCtx.fillText('LASER DESIGNATION // PK BOOST +60%', midX - 35, midY - 6);
+        gisCtx.restore();
+      }
+
+      // 7. Tactical Crosshair Reticle at Mouse Cursor
+      const mPt = worldToScreen(mouseWorldX, mouseWorldY);
+      gisCtx.strokeStyle = "rgba(245, 158, 11, 0.6)";
+      gisCtx.lineWidth = 1;
+      gisCtx.beginPath();
+      gisCtx.moveTo(mPt.sx - 14, mPt.sy); gisCtx.lineTo(mPt.sx + 14, mPt.sy);
+      gisCtx.moveTo(mPt.sx, mPt.sy - 14); gisCtx.lineTo(mPt.sx, mPt.sy + 14);
+      gisCtx.stroke();
+    }
+
+    gisCanvas.addEventListener('mousemove', (e) => {
+      const rect = gisCanvas.getBoundingClientRect();
+      const sx = (e.clientX - rect.left) * window.devicePixelRatio;
+      const sy = (e.clientY - rect.top) * window.devicePixelRatio;
+      const { wx, wy } = screenToWorld(sx, sy);
+      if (wx >= 0 && wx <= THEATER_W && wy >= 0 && wy <= THEATER_H) {
+        mouseWorldX = wx;
+        mouseWorldY = wy;
+        const mgrs = coordsToMgrs(wx, wy, 3);
+        const elev = sampleStraitElevation(wx, wy);
+        document.getElementById('mgrs-target').innerText = mgrs;
+        document.getElementById('coords-display').innerText = `${(wx / 1000).toFixed(1)}km E, ${(wy / 1000).toFixed(1)}km S`;
+        document.getElementById('elev-display').innerText = `${elev > 0 ? '+' : ''}${elev.toFixed(1)}m MSL`;
+      }
+    });
+
+    gisCanvas.addEventListener('click', (e) => {
+      const rect = gisCanvas.getBoundingClientRect();
+      const sx = (e.clientX - rect.left) * window.devicePixelRatio;
+      const sy = (e.clientY - rect.top) * window.devicePixelRatio;
+      const { wx, wy } = screenToWorld(sx, sy);
+      if (wx >= 0 && wx <= THEATER_W && wy >= 0 && wy <= THEATER_H) {
+        const mgrs = coordsToMgrs(wx, wy, 3);
+        document.getElementById('order-preview').innerText = `!strike ${mgrs}`;
+        addEventLog(`STRIKE TASKED: ${selectedUnitId} TARGETED GRID ${mgrs}`);
+      }
+    });
+
+    /* =========================================================================
+       4. PILLAR 2 & 3: THREE.JS 3D SCENE (TEXTURED RTS & HOLOGRAPHIC)
+       ========================================================================= */
+    let scene, camera, renderer, controls;
+    let terrainMesh, wireframeMesh, waterMesh, bridgeGroup, roadGroup;
+    let unit3DMap = {};
+    let dropLines = {};
+    let groundRings = {};
+    let radarSpire3D, radarSweepMesh, samThreatDomes;
+    let ewGroup, jammerCone, noiseStrobeMesh, sarSatelliteSwath, sarSatelliteMarker;
+    let flirCanvas, flirCtx;
+    let cockpitCanvas, cockpitCtx;
+
+    function initThreeScene() {
+      const container = document.getElementById('three-viewport');
+      scene = new THREE.Scene();
+      scene.background = new THREE.Color(0x050b14);
+
+      camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 1, 10000);
+      camera.position.set(0, 160, 240);
+
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, logarithmicDepthBuffer: true });
+      renderer.setSize(container.clientWidth, container.clientHeight);
+      renderer.setPixelRatio(window.devicePixelRatio);
+      renderer.shadowMap.enabled = true;
+      renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+      container.appendChild(renderer.domElement);
+
+      controls = new THREE.OrbitControls(camera, renderer.domElement);
+      controls.enableDamping = true;
+      controls.dampingFactor = 0.05;
+      controls.maxDistance = 600;
+
+      const hemiLight = new THREE.HemisphereLight(0xffffff, 0x1e293b, 0.65);
+      scene.add(hemiLight);
+
+      const dirLight = new THREE.DirectionalLight(0xfff7ed, 1.3);
+      dirLight.position.set(140, 220, -90);
+      dirLight.castShadow = true;
+      dirLight.shadow.mapSize.width = 2048;
+      dirLight.shadow.mapSize.height = 2048;
+      dirLight.shadow.bias = -0.0005;
+      scene.add(dirLight);
+
+      build3DTerrainWithVertexColors();
+      build3DRoadsAndBridges();
+      build3DCatalogUnits();
+      buildHolographicThreatDomes();
+      buildCognitiveNeuralBattlespace();
+
+      flirCanvas = document.getElementById('flir-canvas');
+      flirCtx = flirCanvas.getContext('2d');
+      flirCanvas.width = 250;
+      flirCanvas.height = 160;
+      flirCanvas.addEventListener('click', cyclePipMode);
+
+      cockpitCanvas = document.getElementById('cockpit-canvas');
+      if (cockpitCanvas) {
+        cockpitCtx = cockpitCanvas.getContext('2d');
+      }
+
+      renderer.render(scene, camera);
+    }
+
+    /* Terrain with Dynamic Vertex Splatting (Sand, Grass, Rock, Snow) */
+    function build3DTerrainWithVertexColors() {
+      const geo = new THREE.PlaneGeometry(360, 216, 96, 64);
+      geo.rotateX(-Math.PI / 2);
+
+      const pos = geo.attributes.position;
+      const colors = [];
+
+      for (let i = 0; i < pos.count; i++) {
+        const x3d = pos.getX(i);
+        const z3d = pos.getZ(i);
+        const wx = (x3d + 180) * (THEATER_W / 360);
+        const wy = (z3d + 108) * (THEATER_H / 216);
+        const elev = sampleStraitElevation(wx, wy);
+
+        pos.setY(i, elev * 0.038);
+
+        const col = new THREE.Color();
+        if (elev < 0) {
+          col.setHex(0x0a192f); // Deep trench floor
+        } else if (elev < 16) {
+          col.setHex(0x6b725a); // Coastal sand / scrub
+        } else if (elev < 200) {
+          col.setHex(0x27432e); // Lowland tactical olive grass
+        } else if (elev < 480) {
+          col.setHex(0x4a4d46); // Rocky foothills
+        } else {
+          col.setHex(0x9ca3af); // Snowcapped mountain peaks
+        }
+        colors.push(col.r, col.g, col.b);
+      }
+      geo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+      geo.computeVertexNormals();
+
+      const landMat = new THREE.MeshStandardMaterial({
+        vertexColors: true,
+        roughness: 0.85,
+        metalness: 0.1
+      });
+      terrainMesh = new THREE.Mesh(geo, landMat);
+      terrainMesh.receiveShadow = true;
+      scene.add(terrainMesh);
+
+      // Holographic Wireframe Overlay (Pillar 3)
+      const wireMat = new THREE.MeshBasicMaterial({
+        color: 0x00e5ff,
+        wireframe: true,
+        transparent: true,
+        opacity: 0.45
+      });
+      wireframeMesh = new THREE.Mesh(geo, wireMat);
+      wireframeMesh.position.y = 0.08;
+      wireframeMesh.visible = false;
+      scene.add(wireframeMesh);
+
+      // Reflective Strait Water Mesh
+      const waterGeo = new THREE.PlaneGeometry(42, 216);
+      waterGeo.rotateX(-Math.PI / 2);
+      const waterMat = new THREE.MeshStandardMaterial({
+        color: 0x0284c7,
+        roughness: 0.1,
+        metalness: 0.9,
+        transparent: true,
+        opacity: 0.85
+      });
+      waterMesh = new THREE.Mesh(waterGeo, waterMat);
+      waterMesh.position.set(0, -0.8, 0);
+      scene.add(waterMesh);
+    }
+
+    /* Modular Conformed Road Spline & Physical Viaduct/Bridge Engine */
+    function build3DRoadsAndBridges() {
+      roadGroup = new THREE.Group();
+      bridgeGroup = new THREE.Group();
+
+      const roadMat = new THREE.MeshStandardMaterial({
+        color: 0x18202c,
+        roughness: 0.85,
+        polygonOffset: true,
+        polygonOffsetFactor: -1,
+        polygonOffsetUnits: -2
+      });
+
+      const trussMat = new THREE.MeshStandardMaterial({ color: 0x64748b, metalness: 0.8, roughness: 0.3 });
+      const pylonMat = new THREE.MeshStandardMaterial({ color: 0x334155, roughness: 0.9 });
+      const pierMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.95 });
+
+      const ROAD_W = 3.2; // Width in scene units
+
+      ROADS.forEach(([x1, y1, x2, y2, isBridge]) => {
+        const ax = (x1 / THEATER_W - 0.5) * 360;
+        const az = (y1 / THEATER_H - 0.5) * 216;
+        const bx = (x2 / THEATER_W - 0.5) * 360;
+        const bz = (y2 / THEATER_H - 0.5) * 216;
+
+        const totalDist = Math.hypot(bx - ax, bz - az);
+        const steps = Math.max(4, Math.ceil(totalDist / 1.5));
+
+        const vertices = [];
+        const indices = [];
+
+        const dirX = (bx - ax) / totalDist;
+        const dirZ = (bz - az) / totalDist;
+        const perpX = -dirZ;
+        const perpZ = dirX;
+
+        const elevA = sampleStraitElevation(x1, y1) * 0.038;
+        const elevB = sampleStraitElevation(x2, y2) * 0.038;
+        const isViaduct = isBridge && Math.max(elevA, elevB) > 4.0;
+
+        for (let s = 0; s <= steps; s++) {
+          const t = s / steps;
+          const px = ax + t * (bx - ax);
+          const pz = az + t * (bz - az);
+
+          const wx = x1 + t * (x2 - x1);
+          const wy = y1 + t * (y2 - y1);
+          const groundElev = sampleStraitElevation(wx, wy) * 0.038;
+
+          let yElev;
+          if (isBridge) {
+            if (isViaduct) {
+              // High Mountain Canyon Viaduct: deck spans between canyon rims at plateau elevation
+              const deckBase = (1 - t) * (elevA + 0.15) + t * (elevB + 0.15);
+              yElev = deckBase + Math.sin(t * Math.PI) * 0.35;
+            } else {
+              // Lowland Sea-Level Bridge: smooth ramp up from shoreline to +3.2 units for naval clearance
+              const rampT = t < 0.15 ? (1 - Math.cos((t / 0.15) * Math.PI)) / 2
+                          : t > 0.85 ? (1 - Math.cos(((1 - t) / 0.15) * Math.PI)) / 2
+                          : 1.0;
+              const abutmentBase = (1 - t) * (elevA + 0.15) + t * (elevB + 0.15);
+              yElev = (1 - rampT) * abutmentBase + rampT * (3.2 + Math.sin(t * Math.PI) * 0.25);
+            }
+          } else {
+            yElev = groundElev + 0.12;
+          }
+
+          const lx = px - perpX * (ROAD_W / 2);
+          const lz = pz - perpZ * (ROAD_W / 2);
+          const rx = px + perpX * (ROAD_W / 2);
+          const rz = pz + perpZ * (ROAD_W / 2);
+
+          vertices.push(lx, yElev, lz);
+          vertices.push(rx, yElev, rz);
+
+          if (s < steps) {
+            const v0 = s * 2;
+            const v1 = v0 + 1;
+            const v2 = v0 + 2;
+            const v3 = v0 + 3;
+            indices.push(v0, v1, v2);
+            indices.push(v1, v3, v2);
+          }
+        }
+
+        const ribbonGeo = new THREE.BufferGeometry();
+        ribbonGeo.setAttribute('position', new THREE.Float32BufferAttribute(vertices, 3));
+        ribbonGeo.setIndex(indices);
+        ribbonGeo.computeVertexNormals();
+
+        const roadMesh = new THREE.Mesh(ribbonGeo, roadMat);
+        roadMesh.receiveShadow = true;
+        roadGroup.add(roadMesh);
+
+        if (isBridge) {
+          const midX = (ax + bx) / 2;
+          const midZ = (az + bz) / 2;
+          const angle = Math.atan2(bz - az, bx - ax);
+
+          // 1. Shoreline / Canyon Rim Abutment Foundations
+          const abutH = isViaduct ? 6.0 : 4.0;
+          const abutGeo = new THREE.BoxGeometry(4.5, abutH, ROAD_W + 1.4);
+
+          const abutWest = new THREE.Mesh(abutGeo, pierMat);
+          abutWest.position.set(ax, elevA - abutH * 0.35, az);
+          abutWest.rotation.y = -angle;
+          bridgeGroup.add(abutWest);
+
+          const abutEast = new THREE.Mesh(abutGeo, pierMat);
+          abutEast.position.set(bx, elevB - abutH * 0.35, bz);
+          abutEast.rotation.y = -angle;
+          bridgeGroup.add(abutEast);
+
+          if (isViaduct) {
+            // High Fjord Viaduct: Guardrails & Deep Concrete Canyon Pylons
+            [-ROAD_W / 2 - 0.12, ROAD_W / 2 + 0.12].forEach(offset => {
+              const railGeo = new THREE.BoxGeometry(totalDist, 0.4, 0.2);
+              const rail = new THREE.Mesh(railGeo, trussMat);
+              const midY = (elevA + elevB) / 2 + 0.15 + 0.35;
+              rail.position.set(midX - perpX * offset, midY + 0.6, midZ - perpZ * offset);
+              rail.rotation.y = -angle;
+              bridgeGroup.add(rail);
+            });
+
+            // 4 Massive Viaduct Canyon Towers stepping down into gorge floor
+            [0.2, 0.4, 0.6, 0.8].forEach(frac => {
+              const px = ax + frac * (bx - ax);
+              const pz = az + frac * (bz - az);
+              const wx = x1 + frac * (x2 - x1);
+              const wy = y1 + frac * (y2 - y1);
+
+              const deckY = (1 - frac) * (elevA + 0.15) + frac * (elevB + 0.15) + Math.sin(frac * Math.PI) * 0.35;
+              const groundY = sampleStraitElevation(wx, wy) * 0.038;
+              const bottomY = Math.min(-0.8, groundY);
+              const pylonHeight = Math.max(3.0, deckY - bottomY + 1.2);
+
+              const tower = new THREE.Mesh(
+                new THREE.BoxGeometry(3.6, pylonHeight, ROAD_W + 1.6),
+                pylonMat
+              );
+              tower.position.set(px, bottomY - 0.6 + pylonHeight / 2, pz);
+              tower.rotation.y = -angle;
+              bridgeGroup.add(tower);
+            });
+          } else {
+            // Lowland Sea-Level Bridge: Warren Truss Margins & Water Channel Piers
+            const trussHeight = 1.4;
+            const chordGeo = new THREE.BoxGeometry(totalDist, 0.35, 0.25);
+            const postGeo = new THREE.BoxGeometry(0.35, trussHeight, 0.25);
+
+            [-ROAD_W / 2 - 0.15, ROAD_W / 2 + 0.15].forEach(offset => {
+              const chord = new THREE.Mesh(chordGeo, trussMat);
+              chord.position.set(midX - perpX * offset, 3.2 + trussHeight, midZ - perpZ * offset);
+              chord.rotation.y = -angle;
+              bridgeGroup.add(chord);
+
+              const postCount = Math.max(4, Math.floor(totalDist / 6.0));
+              for (let p = 0; p <= postCount; p++) {
+                const pFrac = p / postCount - 0.5;
+                const postX = midX + dirX * (totalDist * pFrac) - perpX * offset;
+                const postZ = midZ + dirZ * (totalDist * pFrac) - perpZ * offset;
+                const post = new THREE.Mesh(postGeo, trussMat);
+                post.position.set(postX, 3.2 + trussHeight / 2, postZ);
+                post.rotation.y = -angle;
+                bridgeGroup.add(post);
+              }
+            });
+
+            [-0.25, 0.25].forEach(frac => {
+              const px = midX + dirX * (totalDist * frac);
+              const pz = midZ + dirZ * (totalDist * frac);
+              const pylon = new THREE.Mesh(new THREE.BoxGeometry(3.0, 6.2, ROAD_W + 1.4), pylonMat);
+              pylon.position.set(px, 0.2, pz);
+              pylon.rotation.y = -angle;
+              bridgeGroup.add(pylon);
+            });
+          }
+        }
+      });
+
+      scene.add(roadGroup);
+      scene.add(bridgeGroup);
+    }
+
+    /* Build 3D Unit Meshes with Altitude Drop-Lines and Ground Shadows */
+    function build3DCatalogUnits() {
+      const jetMat = new THREE.MeshStandardMaterial({ color: 0x2563eb, roughness: 0.4 });
+      const wingMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8 });
+
+      // Strikers
+      ['VIPER-01', 'VIPER-02'].forEach(id => {
+        const jetGroup = new THREE.Group();
+        const fuse = new THREE.Mesh(new THREE.ConeGeometry(2.0, 10, 4), jetMat);
+        fuse.rotateX(Math.PI / 2);
+        jetGroup.add(fuse);
+
+        const wings = new THREE.Mesh(new THREE.BoxGeometry(11, 0.2, 4.5), wingMat);
+        wings.position.z = -1;
+        jetGroup.add(wings);
+
+        const finL = new THREE.Mesh(new THREE.BoxGeometry(0.3, 2.4, 2), jetMat);
+        finL.position.set(-2, 1.4, -3.5);
+        finL.rotation.z = -0.2;
+        jetGroup.add(finL);
+
+        const finR = new THREE.Mesh(new THREE.BoxGeometry(0.3, 2.4, 2), jetMat);
+        finR.position.set(2, 1.4, -3.5);
+        finR.rotation.z = 0.2;
+        jetGroup.add(finR);
+
+        // Altitude Drop-Line & Ground Shadow Ring
+        attachDropLineAndShadow(jetGroup, id, 0x00e5ff);
+
+        scene.add(jetGroup);
+        unit3DMap[id] = jetGroup;
+      });
+
+      // Logistics Truck (MULE-01)
+      const truckGroup = new THREE.Group();
+      const cabMat = new THREE.MeshStandardMaterial({ color: 0x475569 });
+      const cab = new THREE.Mesh(new THREE.BoxGeometry(2.6, 2.2, 3.0), cabMat);
+      cab.position.set(0, 1.6, 2.5);
+      truckGroup.add(cab);
+
+      const cargoMat = new THREE.MeshStandardMaterial({ color: 0x334155 });
+      const cargo = new THREE.Mesh(new THREE.BoxGeometry(2.8, 2.6, 6.0), cargoMat);
+      cargo.position.set(0, 2.0, -1.8);
+      truckGroup.add(cargo);
+
+      scene.add(truckGroup);
+      unit3DMap['MULE-01'] = truckGroup;
+
+      // CSAR Helicopter (RESCUE-01)
+      const heloGroup = new THREE.Group();
+      const heloMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.4 });
+      const hFuse = new THREE.Mesh(new THREE.BoxGeometry(2.4, 2.4, 6.0), heloMat);
+      hFuse.position.set(0, 1.4, 0);
+      heloGroup.add(hFuse);
+
+      const chinMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.7 });
+      const chin = new THREE.Mesh(new THREE.BoxGeometry(2.0, 1.2, 1.8), chinMat);
+      chin.position.set(0, 0.6, 2.2);
+      heloGroup.add(chin);
+
+      const tailBoom = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.5, 5.5), heloMat);
+      tailBoom.rotateX(Math.PI / 2);
+      tailBoom.position.set(0, 1.8, -5.2);
+      heloGroup.add(tailBoom);
+
+      const rotorDiskMat = new THREE.MeshBasicMaterial({ color: 0x94a3b8, transparent: true, opacity: 0.4, side: THREE.DoubleSide });
+      const rotorDisk = new THREE.Mesh(new THREE.CircleGeometry(6.5, 18), rotorDiskMat);
+      rotorDisk.rotateX(-Math.PI / 2);
+      rotorDisk.position.set(0, 3.2, 0.4);
+      heloGroup.add(rotorDisk);
+      attachDropLineAndShadow(heloGroup, 'RESCUE-01', 0x0284c7);
+      scene.add(heloGroup);
+      unit3DMap['RESCUE-01'] = heloGroup;
+
+      // Kinetic Interceptor Missile (MISSILE-99)
+      const misGroup = new THREE.Group();
+      const misMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.2 });
+      const misTube = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 3.8), misMat);
+      misTube.rotateX(Math.PI / 2);
+      misGroup.add(misTube);
+
+      const misNose = new THREE.Mesh(new THREE.ConeGeometry(0.3, 1.0, 10), new THREE.MeshStandardMaterial({ color: 0x0f172a }));
+      misNose.rotateX(Math.PI / 2);
+      misNose.position.z = 2.4;
+      misGroup.add(misNose);
+
+      const finMat = new THREE.MeshStandardMaterial({ color: 0x334155 });
+      const finH = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.05, 0.8), finMat);
+      finH.position.z = -1.4;
+      misGroup.add(finH);
+      const finV = new THREE.Mesh(new THREE.BoxGeometry(0.05, 1.6, 0.8), finMat);
+      finV.position.z = -1.4;
+      misGroup.add(finV);
+
+      const plumeMat = new THREE.MeshBasicMaterial({ color: 0xf97316 });
+      const plume = new THREE.Mesh(new THREE.ConeGeometry(0.25, 1.6, 8), plumeMat);
+      plume.rotateX(-Math.PI / 2);
+      plume.position.z = -2.7;
+      misGroup.add(plume);
+      scene.add(misGroup);
+      unit3DMap['MISSILE-99'] = misGroup;
+
+      // Static Bandit Interceptor
+      const banditGroup = new THREE.Group();
+      const bFuse = new THREE.Mesh(new THREE.ConeGeometry(2.0, 10, 4), new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.5 }));
+      bFuse.rotateX(Math.PI / 2);
+      banditGroup.add(bFuse);
+      const bWing = new THREE.Mesh(new THREE.BoxGeometry(11, 0.2, 4.5), new THREE.MeshStandardMaterial({ color: 0xef4444 }));
+      bWing.position.z = -1;
+      banditGroup.add(bWing);
+      attachDropLineAndShadow(banditGroup, 'BANDIT-04', 0xef4444);
+      scene.add(banditGroup);
+      unit3DMap['BANDIT-04'] = banditGroup;
+
+      // Static Recon UAV
+      const uavGroup = new THREE.Group();
+      const uavMat = new THREE.MeshStandardMaterial({ color: 0x27272a });
+      const uFuse = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.8, 6), uavMat);
+      uFuse.rotateX(Math.PI / 2);
+      uavGroup.add(uFuse);
+      const uWing = new THREE.Mesh(new THREE.BoxGeometry(14, 0.15, 1.8), uavMat);
+      uavGroup.add(uWing);
+      attachDropLineAndShadow(uavGroup, 'STATIC-UAV', 0xef4444);
+      scene.add(uavGroup);
+      unit3DMap['STATIC-UAV'] = uavGroup;
+
+      // Rotating Radar Spire
+      radarSpire3D = new THREE.Group();
+      const mast = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 1.4, 12, 6), new THREE.MeshStandardMaterial({ color: 0x64748b }));
+      mast.position.y = 6;
+      radarSpire3D.add(mast);
+      const dish = new THREE.Mesh(new THREE.CylinderGeometry(3.2, 3.2, 0.4, 12, 1, false, 0, Math.PI), new THREE.MeshStandardMaterial({ color: 0x00e5ff, metalness: 0.8 }));
+      dish.rotateZ(Math.PI / 2);
+      dish.position.y = 12.5;
+      radarSpire3D.add(dish);
+      radarSpire3D.position.set(-90, 1.5, 0);
+      scene.add(radarSpire3D);
+    }
+
+    function attachDropLineAndShadow(group, id, hexCol) {
+      const lineGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, -20, 0)]);
+      const lineMat = new THREE.LineDashedMaterial({ color: hexCol, dashSize: 3, gapSize: 2, transparent: true, opacity: 0.4 });
+      const dropLine = new THREE.Line(lineGeo, lineMat);
+      dropLine.computeLineDistances();
+      group.add(dropLine);
+      dropLines[id] = dropLine;
+
+      const ringGeo = new THREE.RingGeometry(2.5, 4.0, 12);
+      ringGeo.rotateX(-Math.PI / 2);
+      const ringMat = new THREE.MeshBasicMaterial({ color: hexCol, transparent: true, opacity: 0.35, side: THREE.DoubleSide });
+      const shadowRing = new THREE.Mesh(ringGeo, ringMat);
+      shadowRing.position.y = -20;
+      group.add(shadowRing);
+      groundRings[id] = shadowRing;
+    }
+
+    function buildHolographicThreatDomes() {
+      samThreatDomes = new THREE.Group();
+      const domeGeo = new THREE.SphereGeometry(35, 16, 12, 0, Math.PI * 2, 0, Math.PI / 2);
+      const domeMatW = new THREE.MeshBasicMaterial({ color: 0x00e5ff, wireframe: true, transparent: true, opacity: 0.25 });
+      const domeW = new THREE.Mesh(domeGeo, domeMatW);
+      domeW.position.set(-90, 0, 0);
+      samThreatDomes.add(domeW);
+
+      const domeMatE = new THREE.MeshBasicMaterial({ color: 0xef4444, wireframe: true, transparent: true, opacity: 0.25 });
+      const domeE = new THREE.Mesh(domeGeo, domeMatE);
+      domeE.position.set(120, 0, 0);
+      samThreatDomes.add(domeE);
+
+      const sweepGeo = new THREE.ConeGeometry(60, 4, 16, 1, true, 0, Math.PI / 4);
+      sweepGeo.rotateX(Math.PI / 2);
+      const sweepMat = new THREE.MeshBasicMaterial({ color: 0x00e5ff, transparent: true, opacity: 0.2, side: THREE.DoubleSide });
+      radarSweepMesh = new THREE.Mesh(sweepGeo, sweepMat);
+      radarSweepMesh.position.set(-90, 8, 0);
+      samThreatDomes.add(radarSweepMesh);
+
+      samThreatDomes.visible = false;
+      scene.add(samThreatDomes);
+    }
+
+    /* Pillar 4: Cognitive Neural Battlespace (Agent Causal Lattice & Mind-Map) */
+    function buildCognitiveNeuralBattlespace() {
+      ewGroup = new THREE.Group();
+
+      // 1. Branching Causal Trajectory Trees for VIPER-01 (Agent Internal Monologue)
+      causalTreeGroup = new THREE.Group();
+
+      // Branch A: Viaduct Defensive Patrol (Cyan, P(Defend)=92%)
+      const branchAGeo = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(-40, 22, -27),
+        new THREE.Vector3(-15, 20, -42),
+        new THREE.Vector3(0, 18, -54),
+        new THREE.Vector3(25, 20, -54)
+      ]);
+      const branchAMat = new THREE.LineDashedMaterial({ color: 0x00e5ff, dashSize: 2.0, gapSize: 1.0, linewidth: 2 });
+      const branchALine = new THREE.Line(branchAGeo, branchAMat);
+      branchALine.computeLineDistances();
+      causalTreeGroup.add(branchALine);
+
+      // Branch B: FOB-NE Deep Penetration Strike (Amber, P(Survival)=48%, High Threat)
+      const branchBGeo = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(-40, 22, -27),
+        new THREE.Vector3(10, 25, -30),
+        new THREE.Vector3(55, 28, -55),
+        new THREE.Vector3(81, 26, -72)
+      ]);
+      const branchBMat = new THREE.LineDashedMaterial({ color: 0xf59e0b, dashSize: 2.0, gapSize: 1.0, linewidth: 2 });
+      const branchBLine = new THREE.Line(branchBGeo, branchBMat);
+      branchBLine.computeLineDistances();
+      causalTreeGroup.add(branchBLine);
+
+      // Branch C: Southern Sneak Flank (Magenta, P(Flank)=74%)
+      const branchCGeo = new THREE.BufferGeometry().setFromPoints([
+        new THREE.Vector3(-40, 22, -27),
+        new THREE.Vector3(-30, 15, 20),
+        new THREE.Vector3(15, 12, 60),
+        new THREE.Vector3(65, 14, 75)
+      ]);
+      const branchCMat = new THREE.LineDashedMaterial({ color: 0xd946ef, dashSize: 2.0, gapSize: 1.0, linewidth: 2 });
+      const branchCLine = new THREE.Line(branchCGeo, branchCMat);
+      branchCLine.computeLineDistances();
+      causalTreeGroup.add(branchCLine);
+
+      // Glowing Decision Nodes at branch targets
+      [
+        { pos: new THREE.Vector3(0, 18, -54), col: 0x00e5ff },
+        { pos: new THREE.Vector3(81, 26, -72), col: 0xf59e0b },
+        { pos: new THREE.Vector3(65, 14, 75), col: 0xd946ef }
+      ].forEach(node => {
+        const nMesh = new THREE.Mesh(
+          new THREE.OctahedronGeometry(1.8, 0),
+          new THREE.MeshBasicMaterial({ color: node.col, wireframe: true })
+        );
+        nMesh.position.copy(node.pos);
+        causalTreeGroup.add(nMesh);
+      });
+      ewGroup.add(causalTreeGroup);
+
+      // 2. Mastermind Synaptic Intent Arcs (The Static AI Brain Connectivity)
+      synapticArcGroup = new THREE.Group();
+      const curve1 = new THREE.QuadraticBezierCurve3(
+        new THREE.Vector3(162, 10, 0),
+        new THREE.Vector3(80, 85, -27),
+        new THREE.Vector3(0, 18, -54)
+      );
+      const arc1Geo = new THREE.BufferGeometry().setFromPoints(curve1.getPoints(24));
+      const arc1Mat = new THREE.LineBasicMaterial({ color: 0xef4444, transparent: true, opacity: 0.6 });
+      synapticArcGroup.add(new THREE.Line(arc1Geo, arc1Mat));
+
+      const curve2 = new THREE.QuadraticBezierCurve3(
+        new THREE.Vector3(162, 10, 0),
+        new THREE.Vector3(120, 55, 36),
+        new THREE.Vector3(81, 10, 72)
+      );
+      const arc2Geo = new THREE.BufferGeometry().setFromPoints(curve2.getPoints(24));
+      const arc2Mat = new THREE.LineBasicMaterial({ color: 0xec4899, transparent: true, opacity: 0.5 });
+      synapticArcGroup.add(new THREE.Line(arc2Geo, arc2Mat));
+
+      ewGroup.add(synapticArcGroup);
+
+      // 3. Volumetric Airborne EW Jamming Cone & Directed Strobe
+      const coneGeo = new THREE.ConeGeometry(24, 75, 16, 1, true);
+      coneGeo.rotateX(Math.PI / 2);
+      const coneMat = new THREE.MeshBasicMaterial({
+        color: 0xd946ef,
+        wireframe: true,
+        transparent: true,
+        opacity: 0.35,
+        side: THREE.DoubleSide
+      });
+      jammerCone = new THREE.Mesh(coneGeo, coneMat);
+      ewGroup.add(jammerCone);
+
+      const strobeGeo = new THREE.CylinderGeometry(0.8, 14, 110, 8, 1, true);
+      strobeGeo.rotateX(Math.PI / 2);
+      const strobeMat = new THREE.MeshBasicMaterial({
+        color: 0xf59e0b,
+        transparent: true,
+        opacity: 0.25,
+        side: THREE.DoubleSide
+      });
+      noiseStrobeMesh = new THREE.Mesh(strobeGeo, strobeMat);
+      noiseStrobeMesh.position.set(0, 22, -20);
+      ewGroup.add(noiseStrobeMesh);
+
+      ewGroup.visible = false;
+      scene.add(ewGroup);
+    }
+
+    /* =========================================================================
+       AUDIO FX ENGINE (PURE ZERO-DEPENDENCY WEB AUDIO API)
+       ========================================================================= */
+    let audioCtx = null;
+    let audioEnabled = false;
+    let ambientHumGain = null;
+    let lastRwrBeep = 0;
+
+    function initAudio() {
+      if (!audioCtx) {
+        audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+      }
+      if (audioCtx.state === 'suspended') {
+        audioCtx.resume();
+      }
+    }
+
+    function toggleAudio() {
+      initAudio();
+      audioEnabled = !audioEnabled;
+      const btn = document.getElementById('audio-btn');
+      if (audioEnabled) {
+        btn.innerText = 'AUDIO FX: ON';
+        btn.style.color = 'var(--accent-cyan)';
+        btn.style.borderColor = 'var(--accent-cyan)';
+        playRadioSquelch();
+        startAmbientHum();
+      } else {
+        btn.innerText = 'AUDIO FX: OFF';
+        btn.style.color = '';
+        btn.style.borderColor = '';
+        stopAmbientHum();
+      }
+    }
+
+    // 1. Military Tactical Radio Squelch & Comms Chirp
+    function playRadioSquelch() {
+      if (!audioEnabled || !audioCtx) return;
+      const t = audioCtx.currentTime;
+
+      const bufferSize = Math.floor(audioCtx.sampleRate * 0.05); // 50ms
+      const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        data[i] = Math.random() * 2 - 1;
+      }
+      const noise = audioCtx.createBufferSource();
+      noise.buffer = buffer;
+
+      const bandpass = audioCtx.createBiquadFilter();
+      bandpass.type = 'bandpass';
+      bandpass.frequency.setValueAtTime(1400, t);
+      bandpass.Q.setValueAtTime(2.5, t);
+
+      const noiseGain = audioCtx.createGain();
+      noiseGain.gain.setValueAtTime(0.16, t);
+      noiseGain.gain.exponentialRampToValueAtTime(0.01, t + 0.048);
+
+      noise.connect(bandpass);
+      bandpass.connect(noiseGain);
+      noiseGain.connect(audioCtx.destination);
+      noise.start(t);
+
+      // Roger Chirp (1200Hz)
+      const osc = audioCtx.createOscillator();
+      const oscGain = audioCtx.createGain();
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(1200, t + 0.05);
+      oscGain.gain.setValueAtTime(0.07, t + 0.05);
+      oscGain.gain.exponentialRampToValueAtTime(0.001, t + 0.11);
+
+      osc.connect(oscGain);
+      oscGain.connect(audioCtx.destination);
+      osc.start(t + 0.05);
+      osc.stop(t + 0.12);
+    }
+
+    // 2. RWR Radar Threat & Lock Warning Alarm
+    function playRwrWarning() {
+      if (!audioEnabled || !audioCtx) return;
+      const t = audioCtx.currentTime;
+      if (t - lastRwrBeep < 0.45) return;
+      lastRwrBeep = t;
+
+      const osc = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      osc.type = 'sawtooth';
+      osc.frequency.setValueAtTime(920, t);
+      osc.frequency.setValueAtTime(1380, t + 0.06);
+
+      gain.gain.setValueAtTime(0.08, t);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.14);
+
+      osc.connect(gain);
+      gain.connect(audioCtx.destination);
+      osc.start(t);
+      osc.stop(t + 0.15);
+    }
+
+    // 3. Supersonic Jet Flyby Doppler Whoosh
+    function playFlybyDoppler() {
+      if (!audioEnabled || !audioCtx) return;
+      const t = audioCtx.currentTime;
+
+      const bufferSize = Math.floor(audioCtx.sampleRate * 0.8);
+      const buffer = audioCtx.createBuffer(1, bufferSize, audioCtx.sampleRate);
+      const data = buffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        data[i] = Math.random() * 2 - 1;
+      }
+      const noise = audioCtx.createBufferSource();
+      noise.buffer = buffer;
+
+      const filter = audioCtx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(2600, t);
+      filter.frequency.exponentialRampToValueAtTime(180, t + 0.75);
+
+      const gain = audioCtx.createGain();
+      gain.gain.setValueAtTime(0.02, t);
+      gain.gain.linearRampToValueAtTime(0.22, t + 0.28);
+      gain.gain.exponentialRampToValueAtTime(0.001, t + 0.78);
+
+      noise.connect(filter);
+      filter.connect(gain);
+      gain.connect(audioCtx.destination);
+      noise.start(t);
+    }
+
+    // 4. Command Center Ambient Hum (60Hz + 120Hz Sub-Bass)
+    function startAmbientHum() {
+      if (!audioCtx || ambientHumGain) return;
+      const t = audioCtx.currentTime;
+      const osc1 = audioCtx.createOscillator();
+      const osc2 = audioCtx.createOscillator();
+      ambientHumGain = audioCtx.createGain();
+
+      osc1.type = 'sine';
+      osc1.frequency.setValueAtTime(58, t);
+      osc2.type = 'sine';
+      osc2.frequency.setValueAtTime(116, t);
+
+      ambientHumGain.gain.setValueAtTime(0.035, t);
+
+      osc1.connect(ambientHumGain);
+      osc2.connect(ambientHumGain);
+      ambientHumGain.connect(audioCtx.destination);
+      osc1.start(t);
+      osc2.start(t);
+    }
+
+    function stopAmbientHum() {
+      if (ambientHumGain && audioCtx) {
+        ambientHumGain.gain.linearRampToValueAtTime(0.0001, audioCtx.currentTime + 0.3);
+        ambientHumGain = null;
+      }
+    }
+
+    /* =========================================================================
+       5. PILLAR SWITCHING & CONTROLS
+       ========================================================================= */
+    function switchPillar(num) {
+      currentPillar = num;
+      document.querySelectorAll('.pillar-btn').forEach(btn => btn.classList.remove('active'));
+      const activeBtn = document.getElementById(`btn-p${num}`);
+      if (activeBtn) activeBtn.classList.add('active');
+
+      const vp1 = document.getElementById('vp-pillar1');
+      const vpThree = document.getElementById('vp-pillar-three');
+      const badge = document.getElementById('render-mode-badge');
+      const hudTitle = document.getElementById('three-hud-title');
+
+      if (num === 1) {
+        vp1.classList.add('active');
+        vpThree.classList.remove('active');
+        resizeGisCanvas();
+      } else {
+        vp1.classList.remove('active');
+        vpThree.classList.add('active');
+
+        if (num === 2) {
+          hudTitle.innerText = "TEXTURED 3D RTS BATTLESPACE";
+          badge.innerText = "PBR GL";
+          badge.style.color = "var(--accent-cyan)";
+          terrainMesh.visible = true;
+          wireframeMesh.visible = false;
+          roadGroup.visible = true;
+          bridgeGroup.visible = true;
+          samThreatDomes.visible = false;
+          if (ewGroup) ewGroup.visible = false;
+        } else if (num === 3) {
+          hudTitle.innerText = "HOLOGRAPHIC TACTICAL TABLETOP";
+          badge.innerText = "VECTOR 3D";
+          badge.style.color = "var(--accent-green)";
+          terrainMesh.visible = false;
+          wireframeMesh.visible = true;
+          roadGroup.visible = false;
+          bridgeGroup.visible = true;
+          samThreatDomes.visible = true;
+          if (ewGroup) ewGroup.visible = false;
+        } else if (num === 4) {
+          hudTitle.innerText = "COGNITIVE NEURAL BATTLESPACE";
+          badge.innerText = "AI DECISION LATTICE";
+          badge.style.color = "#d946ef";
+          terrainMesh.visible = false;
+          wireframeMesh.visible = true;
+          roadGroup.visible = true;
+          bridgeGroup.visible = true;
+          samThreatDomes.visible = true;
+          if (ewGroup) ewGroup.visible = true;
+        }
+
+        camera.aspect = vpThree.clientWidth / vpThree.clientHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(vpThree.clientWidth, vpThree.clientHeight);
+        renderer.render(scene, camera);
+      }
+    }
+
+    let pipMode = 'flir'; // 'flir', 'minimap', 'recon', 'chase'
+    let isDirectorActive = false;
+    let directorPhase = 0;
+    let directorTimer = 0;
+
+    function setPipMode(mode) {
+      pipMode = mode;
+      document.querySelectorAll('.pip-tab').forEach(b => b.classList.remove('active'));
+      const activeBtn = document.getElementById(`piptab-${mode}`);
+      if (activeBtn) activeBtn.classList.add('active');
+      const titleMap = {
+        flir: `FLIR [${selectedUnitId}]`,
+        minimap: 'TACTICAL RADAR MINIMAP',
+        recon: 'OPTICAL RECON [EAST AB]',
+        chase: `HUD FLIGHT DECK [${selectedUnitId}]`
+      };
+      const titleEl = document.getElementById('pip-title-text');
+      if (titleEl) titleEl.innerText = titleMap[mode] || mode.toUpperCase();
+    }
+
+    function cyclePipMode() {
+      const modes = ['flir', 'minimap', 'recon', 'chase'];
+      const nextIdx = (modes.indexOf(pipMode) + 1) % modes.length;
+      setPipMode(modes[nextIdx]);
+    }
+
+    function toggleDirector() {
+      isDirectorActive = !isDirectorActive;
+      const btn = document.getElementById('cam-director');
+      const banner = document.getElementById('director-banner');
+      if (isDirectorActive) {
+        document.querySelectorAll('.cam-btn').forEach(b => b.classList.remove('active'));
+        btn.classList.add('active');
+        btn.innerText = 'AI DIRECTOR: ON';
+        banner.style.display = 'block';
+        directorTimer = 0;
+        directorPhase = 1; // Start on air combat patrol
+      } else {
+        btn.classList.remove('active');
+        btn.innerText = 'AI DIRECTOR';
+        banner.style.display = 'none';
+        document.getElementById('cam-orbit').classList.add('active');
+        cameraMode = 'orbit';
+      }
+    }
+
+    function setCameraMode(mode) {
+      if (isDirectorActive) {
+        isDirectorActive = false;
+        const dirBtn = document.getElementById('cam-director');
+        if (dirBtn) {
+          dirBtn.classList.remove('active');
+          dirBtn.innerText = 'AI DIRECTOR';
+        }
+        const banner = document.getElementById('director-banner');
+        if (banner) banner.style.display = 'none';
+      }
+
+      cameraMode = mode;
+      document.querySelectorAll('.cam-btn').forEach(b => b.classList.remove('active'));
+      const btn = document.getElementById(`cam-${mode}`);
+      if (btn) btn.classList.add('active');
+
+      if (cockpitCanvas) {
+        if (mode === 'cockpit') {
+          cockpitCanvas.style.display = 'block';
+        } else {
+          cockpitCanvas.style.display = 'none';
+          // Restore all 3D unit meshes visibility
+          Object.values(unit3DMap).forEach(obj => { obj.visible = true; });
+        }
+      }
+
+      if (mode === 'god') {
+        camera.position.set(0, 280, 0);
+        controls.target.set(0, 0, 0);
+      } else if (mode === 'orbit') {
+        camera.position.set(0, 160, 240);
+        controls.target.set(0, 0, 0);
+      } else if (mode === 'chase') {
+        playFlybyDoppler();
+      } else if (mode === 'cockpit') {
+        playRadioSquelch();
+      }
+    }
+
+    function toggleCRT() {
+      crtEnabled = !crtEnabled;
+      document.getElementById('crt-overlay').style.display = crtEnabled ? 'block' : 'none';
+      document.getElementById('crt-btn').innerText = `CRT FX: ${crtEnabled ? 'ON' : 'OFF'}`;
+      document.getElementById('crt-btn').style.color = crtEnabled ? 'var(--accent-cyan)' : '#f8fafc';
+    }
+
+    function selectUnit(id) {
+      selectedUnitId = id;
+      populateOOB();
+      playRadioSquelch();
+      const u = UNITS.find(un => un.id === id);
+      if (u) {
+        document.getElementById('selected-task').innerText = u.task;
+        document.getElementById('selected-supplies').innerText = `${u.fuel}% | ${u.ammo}`;
+        const mgrs = coordsToMgrs(u.x, u.y, 3);
+        document.getElementById('order-preview').innerText = `!strike ${mgrs}`;
+        addEventLog(`SELECTED UNIT: ${u.callsign} (${u.type}) - ${u.task}`);
+      }
+    }
+
+    function populateOOB() {
+      const container = document.getElementById('unit-list-container');
+      container.innerHTML = '';
+      UNITS.forEach(u => {
+        const div = document.createElement('div');
+        div.className = `unit-card ${u.id === selectedUnitId ? 'selected' : ''}`;
+        div.onclick = () => selectUnit(u.id);
+
+        const col = u.side === 'coalition' ? 'var(--accent-cyan)' : 'var(--accent-red)';
+        div.innerHTML = `
+          <div>
+            <div style="font-weight:700; color:${col};">${u.callsign}</div>
+            <div style="font-size:9px; color:var(--text-muted);">${u.type} • ${u.alt}</div>
+          </div>
+          <div style="text-align:right;">
+            <div style="font-family:monospace; font-size:10px;">${u.spd} kts</div>
+            <div style="font-size:9px; color:var(--accent-amber);">${u.fuel}% FUEL</div>
+          </div>
+        `;
+        container.appendChild(div);
+      });
+    }
+
+    function togglePause() {
+      simPaused = !simPaused;
+      document.getElementById('pause-btn').innerText = simPaused ? "RESUME" : "PAUSE";
+      document.getElementById('pause-btn').style.color = simPaused ? "var(--accent-amber)" : "#f8fafc";
+    }
+
+    function setSpeed(spd) {
+      simSpeed = spd;
+      document.getElementById('speed-label').innerText = `${spd}x`;
+    }
+
+    function addEventLog(msg) {
+      const d = new Date();
+      const timeStr = `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}:${String(d.getUTCSeconds()).padStart(2, '0')}Z`;
+      document.getElementById('event-ticker').innerText = `[${timeStr}] ${msg}`;
+    }
+
+    /* =========================================================================
+       6. MAIN ANIMATION & SIMULATION LOOP
+       ========================================================================= */
+    let lastTime = performance.now();
+    let frameCount = 0;
+
+    function animate(now) {
+      requestAnimationFrame(animate);
+      const dt = (now - lastTime) / 1000.0;
+      lastTime = now;
+
+      if (!simPaused) {
+        simTime += dt * simSpeed;
+      }
+
+      // Update UTC Timestamp
+      const d = new Date();
+      document.getElementById('clock-display').innerText =
+        `${String(d.getUTCHours()).padStart(2, '0')}:${String(d.getUTCMinutes()).padStart(2, '0')}:${String(d.getUTCSeconds()).padStart(2, '0')}.${String(Math.floor(d.getUTCMilliseconds() / 10)).padStart(2, '0')}Z`;
+
+      frameCount++;
+      if (frameCount % 30 === 0) {
+        document.getElementById('fps-counter').innerText = Math.round(1.0 / dt);
+      }
+
+      // Kinematic flight updates for air units
+      const v1 = UNITS.find(u => u.id === 'VIPER-01');
+      if (v1) {
+        const rad1 = simTime * 0.35;
+        v1.x = 140000 + Math.cos(rad1) * 45000;
+        v1.y = 90000 + Math.sin(rad1) * 35000;
+        v1.angle = rad1 + Math.PI / 2;
+      }
+
+      const v2 = UNITS.find(u => u.id === 'VIPER-02');
+      if (v2 && v1) {
+        v2.x = v1.x - Math.cos(v1.angle) * 7000;
+        v2.y = v1.y - Math.sin(v1.angle) * 7000;
+        v2.angle = v1.angle;
+      }
+
+      const b4 = UNITS.find(u => u.id === 'BANDIT-04');
+      if (b4) {
+        const radB = simTime * 0.28;
+        b4.x = 280000 - Math.cos(radB) * 40000;
+        b4.y = 110000 - Math.sin(radB) * 30000;
+        b4.angle = -radB - Math.PI / 2;
+      }
+
+      // Ground Hauler (MULE-01) conformed patrol along road network
+      const m1 = UNITS.find(u => u.id === 'MULE-01');
+      if (m1) {
+        const tLogi = (Math.sin(simTime * 0.4) + 1.0) / 2.0;
+        m1.x = 90000 + tLogi * (130000 - 90000);
+        m1.y = 120000 + tLogi * (60000 - 120000);
+        m1.angle = Math.atan2(60000 - 120000, 130000 - 90000);
+      }
+
+      // CSAR Helicopter (RESCUE-01) low-altitude nap-of-the-earth patrol
+      const r1 = UNITS.find(u => u.id === 'RESCUE-01');
+      if (r1) {
+        const radR = simTime * 0.24;
+        r1.x = 115000 + Math.sin(radR) * 26000;
+        r1.y = 140000 + Math.cos(radR) * 16000;
+        r1.angle = radR + Math.PI / 2;
+      }
+
+      // Kinetic Missile (MISSILE-99) Mach 3 terminal intercept
+      const mis = UNITS.find(u => u.id === 'MISSILE-99');
+      if (mis && v1 && b4) {
+        const tMis = (simTime * 0.35) % 1.0;
+        mis.x = v1.x + tMis * (b4.x - v1.x);
+        mis.y = v1.y + tMis * (b4.y - v1.y);
+        mis.angle = Math.atan2(b4.y - v1.y, b4.x - v1.x);
+      }
+
+      if (currentPillar === 1) {
+        renderGisFrame();
+      } else if (scene && renderer) {
+        // Map simulation coordinates to 3D Three.js scene
+        Object.entries(unit3DMap).forEach(([id, obj]) => {
+          const u = UNITS.find(un => un.id === id);
+          if (!u) return;
+          const x3d = (u.x / THEATER_W - 0.5) * 360;
+          const z3d = (u.y / THEATER_H - 0.5) * 216;
+          const elev = sampleStraitElevation(u.x, u.y) * 0.038;
+
+          if (u.alt === 'GND') {
+            // Ground unit: sits directly on conformed road (+0.12 units)
+            obj.position.set(x3d, elev + 0.14, z3d);
+          } else if (u.type === 'CSAR_HELO') {
+            // Low-altitude nap-of-the-earth flight (+6.8 units above terrain)
+            const flightAlt = elev + 6.8;
+            obj.position.set(x3d, flightAlt, z3d);
+            if (dropLines[id] && groundRings[id]) {
+              const diff = flightAlt - elev;
+              dropLines[id].scale.y = diff / 20.0;
+              groundRings[id].position.y = -diff + 0.15;
+            }
+          } else if (u.type === 'KINETIC_MISSILE') {
+            // Mach 3 missile intercept altitude
+            const flightAlt = elev + 23.5;
+            obj.position.set(x3d, flightAlt, z3d);
+          } else {
+            // Air unit: flies at altitude (+22 units above terrain)
+            const flightAlt = elev + 22;
+            obj.position.set(x3d, flightAlt, z3d);
+
+            // Update altitude drop-line and ground shadow ring
+            if (dropLines[id] && groundRings[id]) {
+              const diff = flightAlt - elev;
+              dropLines[id].scale.y = diff / 20.0;
+              groundRings[id].position.y = -diff + 0.15;
+            }
+          }
+          obj.rotation.y = -u.angle + Math.PI / 2;
+        });
+
+        // Rotate radar dish & sweep cone
+        if (radarSpire3D) radarSpire3D.children[1].rotation.y = simTime * 1.8;
+        if (radarSweepMesh) radarSweepMesh.rotation.z = -simTime * 1.2;
+
+        // Animate Volumetric EW & Orbital SAR (Pillar 4)
+        if (ewGroup && ewGroup.visible) {
+          if (unit3DMap['VIPER-01']) {
+            const vPos = unit3DMap['VIPER-01'].position;
+            jammerCone.position.set(vPos.x + 30, vPos.y, vPos.z);
+            jammerCone.rotation.y = -Math.PI / 2;
+            const pulse = 1.0 + Math.sin(simTime * 4.0) * 0.08;
+            jammerCone.scale.set(pulse, pulse, 1.0);
+
+            if (noiseStrobeMesh) {
+              noiseStrobeMesh.position.set(vPos.x + 55, vPos.y, vPos.z);
+              noiseStrobeMesh.rotation.y = -Math.PI / 2;
+            }
+          }
+
+          // Pulse Causal Decision nodes and Synaptic Arcs
+          if (causalTreeGroup) {
+            const pulse = 1.0 + Math.sin(simTime * 3.5) * 0.15;
+            causalTreeGroup.children.forEach(child => {
+              if (child.isMesh) child.scale.set(pulse, pulse, pulse);
+            });
+          }
+        }
+
+        // Broadcast AI Auto-Director with Smart Combat Priority & Anti-Spam Pacing
+        if (isDirectorActive) {
+          const banner = document.getElementById('director-banner');
+          const directorText = document.getElementById('director-text');
+
+          const vPos = unit3DMap['VIPER-01'] ? unit3DMap['VIPER-01'].position : null;
+          const bPos = unit3DMap['BANDIT-04'] ? unit3DMap['BANDIT-04'].position : null;
+          let inCombatClosure = false;
+          let combatDistKm = 999;
+          if (vPos && bPos) {
+            const dist3D = vPos.distanceTo(bPos);
+            combatDistKm = dist3D * (THEATER_W / 360) / 1000;
+            if (combatDistKm < 65) {
+              inCombatClosure = true;
+            }
+          }
+
+          if (inCombatClosure) {
+            // Priority 1: Hold the shot during active air intercept (Zero spam cuts)
+            directorTimer = 0;
+            playRwrWarning();
+            if (directorText) {
+              directorText.innerText = `AIR INTERCEPT // VIPER-01 vs BANDIT-04 // RANGE: ${combatDistKm.toFixed(1)}KM // CLOSURE: 980 KTS`;
+            }
+            const mid = new THREE.Vector3().addVectors(vPos, bPos).multiplyScalar(0.5);
+            camera.position.lerp(new THREE.Vector3(mid.x - 28, mid.y + 16, mid.z + 32), 0.02);
+            controls.target.lerp(mid, 0.02);
+          } else {
+            // Calm, professional broadcast pacing (22 seconds per sequence)
+            directorTimer += 0.016;
+            if (directorTimer > 22.0) {
+              directorTimer = 0;
+              directorPhase = (directorPhase + 1) % 4;
+            }
+
+            if (directorPhase === 0) {
+              if (directorText) directorText.innerText = 'THEATER STRATEGIC OVERVIEW // 400x240KM THEATER // COALITION MOMENTUM: 62%';
+              camera.position.lerp(new THREE.Vector3(0, 240, 160), 0.018);
+              controls.target.lerp(new THREE.Vector3(0, 0, 0), 0.018);
+            } else if (directorPhase === 1) {
+              if (directorText) directorText.innerText = `COMBAT AIR PATROL // ${selectedUnitId} // VECTOR 085° // FL240`;
+              if (vPos) {
+                const chasePos = new THREE.Vector3(vPos.x - 30, vPos.y + 12, vPos.z + 30);
+                camera.position.lerp(chasePos, 0.025);
+                controls.target.lerp(vPos, 0.025);
+              }
+            } else if (directorPhase === 2) {
+              if (directorText) directorText.innerText = 'STRATEGIC CHOKEPOINT // NORTH FJORD VIADUCT // CONVOY SECURITY PATROL';
+              camera.position.lerp(new THREE.Vector3(-42, 28, -25), 0.018);
+              controls.target.lerp(new THREE.Vector3(0, 17.5, -54), 0.018);
+            } else if (directorPhase === 3) {
+              if (directorText) directorText.innerText = 'ISR RECONNAISSANCE PASS // STATIC EAST AIRBASE // RADAR ACTIVE';
+              camera.position.lerp(new THREE.Vector3(98, 48, 20), 0.018);
+              controls.target.lerp(new THREE.Vector3(99, 1.0, 0), 0.018);
+            }
+          }
+        } else if (cameraMode === 'chase' && unit3DMap[selectedUnitId]) {
+          const target = unit3DMap[selectedUnitId].position;
+          camera.position.set(target.x - 35, target.y + 15, target.z + 35);
+          controls.target.copy(target);
+        } else if (cameraMode === 'cockpit' && unit3DMap[selectedUnitId]) {
+          const u = UNITS.find(un => un.id === selectedUnitId);
+          const obj = unit3DMap[selectedUnitId];
+          if (u && obj) {
+            // Hide own unit mesh so interior doesn't clip into camera
+            Object.entries(unit3DMap).forEach(([id, o]) => {
+              o.visible = (id !== selectedUnitId);
+            });
+
+            const fwdX = Math.cos(u.angle);
+            const fwdZ = Math.sin(u.angle);
+            const fwd = new THREE.Vector3(fwdX, 0, fwdZ).normalize();
+            const right = new THREE.Vector3(-fwdZ, 0, fwdX);
+            const pos = obj.position;
+
+            if (u.alt === 'GND') {
+              // Logistics Truck driver view inside cab
+              camera.position.set(
+                pos.x - right.x * 0.45 + fwd.x * 1.6,
+                pos.y + 2.2,
+                pos.z - right.z * 0.45 + fwd.z * 1.6
+              );
+              controls.target.set(
+                camera.position.x + fwd.x * 80,
+                camera.position.y + 0.3,
+                camera.position.z + fwd.z * 80
+              );
+            } else if (u.type === 'CSAR_HELO') {
+              // CSAR Helicopter bubble canopy & chin window view
+              camera.position.set(
+                pos.x - right.x * 0.35 + fwd.x * 1.5,
+                pos.y + 1.3,
+                pos.z - right.z * 0.35 + fwd.z * 1.5
+              );
+              controls.target.set(
+                camera.position.x + fwd.x * 80,
+                camera.position.y - 0.35,
+                camera.position.z + fwd.z * 80
+              );
+            } else if (u.type === 'KINETIC_MISSILE') {
+              // Terminal Missile Seeker Head view (Extreme nose POV)
+              camera.position.set(
+                pos.x + fwd.x * 2.2,
+                pos.y + 0.15,
+                pos.z + fwd.z * 2.2
+              );
+              controls.target.set(
+                camera.position.x + fwd.x * 120,
+                camera.position.y,
+                camera.position.z + fwd.z * 120
+              );
+            } else {
+              // Jet Fighter canopy eye view
+              camera.position.set(
+                pos.x + fwd.x * 1.8,
+                pos.y + 1.25,
+                pos.z + fwd.z * 1.8
+              );
+              controls.target.set(
+                camera.position.x + fwd.x * 120,
+                camera.position.y - 0.2,
+                camera.position.z + fwd.z * 120
+              );
+            }
+            renderCockpitOverlay(u);
+          }
+        }
+
+        controls.update();
+        renderer.render(scene, camera);
+        renderPiPSensor();
+      }
+    }
+
+    /* Multi-Mode Tactical PiP MFD Renderer */
+    function renderPiPSensor() {
+      if (!flirCtx) return;
+      const w = 250;
+      const h = 160;
+
+      if (pipMode === 'flir') {
+        // 1. FLIR WHITE-HOT INFRARED SENSOR
+        flirCtx.fillStyle = "#030813";
+        flirCtx.fillRect(0, 0, w, h);
+
+        // Raster reticle
+        flirCtx.strokeStyle = "rgba(0, 229, 255, 0.35)";
+        flirCtx.lineWidth = 1;
+        flirCtx.beginPath();
+        flirCtx.moveTo(w / 2, 18); flirCtx.lineTo(w / 2, h - 18);
+        flirCtx.moveTo(35, h / 2); flirCtx.lineTo(w - 35, h / 2);
+        flirCtx.stroke();
+
+        // Target Box & Lock Diamond
+        const tx = w / 2 + Math.sin(simTime * 2.2) * 8;
+        const ty = h / 2 + Math.cos(simTime * 1.8) * 6;
+
+        flirCtx.strokeStyle = "#00e5ff";
+        flirCtx.lineWidth = 1.5;
+        flirCtx.strokeRect(tx - 12, ty - 12, 24, 24);
+
+        // White-Hot Engine Core Heat Bloom
+        const grad = flirCtx.createRadialGradient(tx, ty, 1, tx, ty, 12);
+        grad.addColorStop(0, "#ffffff");
+        grad.addColorStop(0.35, "rgba(255, 255, 255, 0.9)");
+        grad.addColorStop(0.7, "rgba(245, 158, 11, 0.6)");
+        grad.addColorStop(1, "rgba(245, 158, 11, 0)");
+        flirCtx.fillStyle = grad;
+        flirCtx.beginPath();
+        flirCtx.arc(tx, ty, 12, 0, Math.PI * 2);
+        flirCtx.fill();
+
+        // OSD Telemetry
+        flirCtx.font = "8.5px monospace";
+        flirCtx.fillStyle = "#00e5ff";
+        flirCtx.fillText("SENSOR: FLIR W-HOT // FOV 2.8°", 8, 14);
+        flirCtx.fillText(`TRK: [${selectedUnitId}] LOCKED`, 8, h - 8);
+        flirCtx.fillText("RNG: 14.8km | AZ: 042°", w - 120, h - 8);
+
+      } else if (pipMode === 'minimap') {
+        // 2. LIVE 2D TACTICAL GIS RADAR MINIMAP
+        flirCtx.fillStyle = "#040b17";
+        flirCtx.fillRect(0, 0, w, h);
+
+        // Strait water channel
+        const waterLeft = (182000 / THEATER_W) * w;
+        const waterRight = (218000 / THEATER_W) * w;
+        flirCtx.fillStyle = "rgba(2, 132, 199, 0.25)";
+        flirCtx.fillRect(waterLeft, 0, waterRight - waterLeft, h);
+
+        // Bridges
+        flirCtx.strokeStyle = "#64748b";
+        flirCtx.lineWidth = 2;
+        const bNy = (60000 / THEATER_H) * h;
+        const bSy = (180000 / THEATER_H) * h;
+        flirCtx.beginPath();
+        flirCtx.moveTo(waterLeft, bNy); flirCtx.lineTo(waterRight, bNy);
+        flirCtx.moveTo(waterLeft, bSy); flirCtx.lineTo(waterRight, bSy);
+        flirCtx.stroke();
+
+        // Radar Threat Rings
+        flirCtx.strokeStyle = "rgba(239, 68, 68, 0.4)";
+        flirCtx.lineWidth = 1;
+        flirCtx.beginPath();
+        flirCtx.arc((310000 / THEATER_W) * w, (120000 / THEATER_H) * h, 32, 0, Math.PI * 2);
+        flirCtx.stroke();
+
+        // Sweep cone
+        const cx = (90000 / THEATER_W) * w;
+        const cy = (120000 / THEATER_H) * h;
+        const swAngle = simTime * 2.0;
+        flirCtx.strokeStyle = "rgba(0, 229, 255, 0.6)";
+        flirCtx.beginPath();
+        flirCtx.moveTo(cx, cy);
+        flirCtx.lineTo(cx + Math.cos(swAngle) * 45, cy + Math.sin(swAngle) * 45);
+        flirCtx.stroke();
+
+        // Units
+        UNITS.forEach(u => {
+          const ux = (u.x / THEATER_W) * w;
+          const uy = (u.y / THEATER_H) * h;
+          flirCtx.fillStyle = u.side === 'coalition' ? '#00e5ff' : '#ef4444';
+          flirCtx.beginPath();
+          flirCtx.arc(ux, uy, u.id === selectedUnitId ? 3.5 : 2.5, 0, Math.PI * 2);
+          flirCtx.fill();
+        });
+
+        flirCtx.font = "8.5px monospace";
+        flirCtx.fillStyle = "#00e5ff";
+        flirCtx.fillText("2D TACTICAL GIS MINIMAP", 8, 14);
+        flirCtx.fillText("THEATER: 400x240KM", 8, h - 8);
+
+      } else if (pipMode === 'recon') {
+        // 3. OPTICAL RECONNAISSANCE SATELLITE/UAV FEED
+        flirCtx.fillStyle = "#031508";
+        flirCtx.fillRect(0, 0, w, h);
+
+        // Raster scanlines
+        flirCtx.strokeStyle = "rgba(34, 197, 94, 0.15)";
+        flirCtx.lineWidth = 1;
+        for (let y = 0; y < h; y += 4) {
+          flirCtx.beginPath();
+          flirCtx.moveTo(0, y); flirCtx.lineTo(w, y);
+          flirCtx.stroke();
+        }
+
+        // Target Runway & Facility Schematic
+        flirCtx.strokeStyle = "rgba(34, 197, 94, 0.75)";
+        flirCtx.lineWidth = 1.5;
+        flirCtx.strokeRect(w / 2 - 35, h / 2 - 8, 70, 16);
+        flirCtx.strokeRect(w / 2 - 20, h / 2 - 22, 14, 10);
+        flirCtx.strokeRect(w / 2 + 6, h / 2 - 22, 14, 10);
+
+        // Sweeping crosshair
+        flirCtx.strokeStyle = "#22c55e";
+        flirCtx.lineWidth = 1;
+        flirCtx.beginPath();
+        flirCtx.arc(w / 2, h / 2, 24, 0, Math.PI * 2);
+        flirCtx.moveTo(w / 2 - 32, h / 2); flirCtx.lineTo(w / 2 + 32, h / 2);
+        flirCtx.moveTo(w / 2, h / 2 - 32); flirCtx.lineTo(w / 2, h / 2 + 32);
+        flirCtx.stroke();
+
+        flirCtx.font = "8.5px monospace";
+        flirCtx.fillStyle = "#22c55e";
+        flirCtx.fillText("OPTICAL ISR // EAST AIRBASE", 8, 14);
+        flirCtx.fillText("GEO: 38S MD 100 200 // MAG: 32X", 8, h - 8);
+
+      } else if (pipMode === 'chase') {
+        // 4. TACTICAL HUD FLIGHT DECK
+        flirCtx.fillStyle = "#020712";
+        flirCtx.fillRect(0, 0, w, h);
+
+        flirCtx.strokeStyle = "rgba(0, 229, 255, 0.8)";
+        flirCtx.lineWidth = 1;
+
+        // Artificial Horizon & Pitch Ladder
+        flirCtx.beginPath();
+        flirCtx.moveTo(w / 2 - 40, h / 2); flirCtx.lineTo(w / 2 - 15, h / 2);
+        flirCtx.moveTo(w / 2 + 15, h / 2); flirCtx.lineTo(w / 2 + 40, h / 2);
+        // +5 deg ladder
+        flirCtx.moveTo(w / 2 - 20, h / 2 - 15); flirCtx.lineTo(w / 2 + 20, h / 2 - 15);
+        // -5 deg ladder
+        flirCtx.moveTo(w / 2 - 20, h / 2 + 15); flirCtx.lineTo(w / 2 + 20, h / 2 + 15);
+        flirCtx.stroke();
+
+        // Flight Path Marker (Boresight Circle)
+        flirCtx.beginPath();
+        flirCtx.arc(w / 2, h / 2, 4, 0, Math.PI * 2);
+        flirCtx.stroke();
+
+        // Airspeed Tape Left & Altitude Tape Right
+        flirCtx.strokeRect(8, 28, 38, h - 56);
+        flirCtx.strokeRect(w - 46, 28, 38, h - 56);
+
+        flirCtx.font = "8px monospace";
+        flirCtx.fillStyle = "#00e5ff";
+        flirCtx.fillText("480", 14, h / 2 + 3);
+        flirCtx.fillText("KTS", 14, h / 2 + 13);
+
+        flirCtx.fillText("24,000", w - 42, h / 2 + 3);
+        flirCtx.fillText("FT", w - 42, h / 2 + 13);
+
+        flirCtx.fillText("HDG: 042°", w / 2 - 22, 14);
+        flirCtx.fillText("WEAPON: 4x AAM-3 [ARMED]", 8, h - 8);
+      }
+    }
+
+    /* Universal Unit Cockpit / Cabin / HUD & Observer Overlay Renderer */
+    function renderCockpitOverlay(u) {
+      if (!cockpitCtx || !cockpitCanvas) return;
+      const vp = document.getElementById('vp-pillar-three');
+      const dpr = window.devicePixelRatio || 1;
+      const w = vp.clientWidth;
+      const h = vp.clientHeight;
+      if (cockpitCanvas.width !== w * dpr || cockpitCanvas.height !== h * dpr) {
+        cockpitCanvas.width = w * dpr;
+        cockpitCanvas.height = h * dpr;
+      }
+      cockpitCtx.save();
+      cockpitCtx.scale(dpr, dpr);
+      cockpitCtx.clearRect(0, 0, w, h);
+
+      if (u.alt === 'GND') {
+        // =========================================================
+        // TRUCK DRIVER CABIN (MULE-01 LOGISTICS VEHICLE)
+        // =========================================================
+        cockpitCtx.fillStyle = '#0f172a';
+        cockpitCtx.strokeStyle = '#334155';
+        cockpitCtx.lineWidth = 3;
+
+        // Top Cab Visor & Roof Arch
+        cockpitCtx.beginPath();
+        cockpitCtx.moveTo(0, 0);
+        cockpitCtx.lineTo(w, 0);
+        cockpitCtx.lineTo(w, 64);
+        cockpitCtx.lineTo(0, 64);
+        cockpitCtx.closePath();
+        cockpitCtx.fill();
+        cockpitCtx.stroke();
+
+        // Left A-Pillar (Angled ballistic frame)
+        cockpitCtx.beginPath();
+        cockpitCtx.moveTo(0, 0);
+        cockpitCtx.lineTo(85, 64);
+        cockpitCtx.lineTo(115, h - 160);
+        cockpitCtx.lineTo(0, h);
+        cockpitCtx.closePath();
+        cockpitCtx.fill();
+        cockpitCtx.stroke();
+
+        // Right A-Pillar
+        cockpitCtx.beginPath();
+        cockpitCtx.moveTo(w, 0);
+        cockpitCtx.lineTo(w - 85, 64);
+        cockpitCtx.lineTo(w - 115, h - 160);
+        cockpitCtx.lineTo(w, h);
+        cockpitCtx.closePath();
+        cockpitCtx.fill();
+        cockpitCtx.stroke();
+
+        // Center Ballistic Glass Reinforcing Divider
+        cockpitCtx.beginPath();
+        cockpitCtx.rect(w / 2 - 12, 64, 24, h - 224);
+        cockpitCtx.fill();
+        cockpitCtx.stroke();
+
+        // Dashboard Base Shelf
+        cockpitCtx.fillStyle = '#1e293b';
+        cockpitCtx.beginPath();
+        cockpitCtx.moveTo(0, h - 160);
+        cockpitCtx.lineTo(w, h - 160);
+        cockpitCtx.lineTo(w, h);
+        cockpitCtx.lineTo(0, h);
+        cockpitCtx.closePath();
+        cockpitCtx.fill();
+        cockpitCtx.stroke();
+
+        // Armored Bolts on Frame
+        cockpitCtx.fillStyle = '#64748b';
+        [80, 150, 230, 310, 390].forEach(by => {
+          cockpitCtx.beginPath();
+          cockpitCtx.arc(42, by, 3.5, 0, Math.PI * 2);
+          cockpitCtx.fill();
+          cockpitCtx.beginPath();
+          cockpitCtx.arc(w - 42, by, 3.5, 0, Math.PI * 2);
+          cockpitCtx.fill();
+        });
+
+        // Interior Rearview Mirror (Center Top)
+        const rmW = 150, rmH = 46;
+        const rmX = w / 2 - rmW / 2, rmY = 64;
+        cockpitCtx.fillStyle = '#0a101d';
+        cockpitCtx.fillRect(rmX, rmY, rmW, rmH);
+        cockpitCtx.strokeStyle = '#00e5ff';
+        cockpitCtx.lineWidth = 1.5;
+        cockpitCtx.strokeRect(rmX, rmY, rmW, rmH);
+        cockpitCtx.fillStyle = '#00e5ff';
+        cockpitCtx.font = '7.5px monospace';
+        cockpitCtx.fillText('REARVIEW // CAM-REAR-01', rmX + 6, rmY + 12);
+        // Horizon in mirror
+        cockpitCtx.strokeStyle = 'rgba(0, 229, 255, 0.4)';
+        cockpitCtx.beginPath();
+        cockpitCtx.moveTo(rmX, rmY + 26);
+        cockpitCtx.lineTo(rmX + rmW, rmY + 26);
+        cockpitCtx.stroke();
+        // Receding road lines
+        cockpitCtx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+        cockpitCtx.beginPath();
+        cockpitCtx.moveTo(rmX + rmW / 2 - 25, rmY + rmH);
+        cockpitCtx.lineTo(rmX + rmW / 2 - 4, rmY + 26);
+        cockpitCtx.moveTo(rmX + rmW / 2 + 25, rmY + rmH);
+        cockpitCtx.lineTo(rmX + rmW / 2 + 4, rmY + 26);
+        cockpitCtx.stroke();
+
+        // Driver Steering Wheel (Bottom Left)
+        const swX = w * 0.32, swY = h - 60, swR = 98;
+        cockpitCtx.save();
+        cockpitCtx.strokeStyle = '#090e17';
+        cockpitCtx.lineWidth = 18;
+        cockpitCtx.beginPath();
+        cockpitCtx.arc(swX, swY, swR, Math.PI * 0.95, Math.PI * 2.05);
+        cockpitCtx.stroke();
+
+        cockpitCtx.strokeStyle = '#334155';
+        cockpitCtx.lineWidth = 3;
+        cockpitCtx.stroke();
+
+        cockpitCtx.strokeStyle = '#1e293b';
+        cockpitCtx.lineWidth = 12;
+        cockpitCtx.beginPath();
+        cockpitCtx.moveTo(swX, swY);
+        cockpitCtx.lineTo(swX - swR * 0.85, swY - swR * 0.4);
+        cockpitCtx.moveTo(swX, swY);
+        cockpitCtx.lineTo(swX + swR * 0.85, swY - swR * 0.4);
+        cockpitCtx.moveTo(swX, swY);
+        cockpitCtx.lineTo(swX, swY + 36);
+        cockpitCtx.stroke();
+
+        cockpitCtx.fillStyle = '#0f172a';
+        cockpitCtx.beginPath();
+        cockpitCtx.arc(swX, swY - 18, 26, 0, Math.PI * 2);
+        cockpitCtx.fill();
+        cockpitCtx.strokeStyle = '#475569';
+        cockpitCtx.lineWidth = 2;
+        cockpitCtx.stroke();
+        cockpitCtx.fillStyle = '#94a3b8';
+        cockpitCtx.font = '8px monospace';
+        cockpitCtx.textAlign = 'center';
+        cockpitCtx.fillText('NEXUS LOGI', swX, swY - 16);
+        cockpitCtx.restore();
+
+        // Speedometer Arc Gauge (Left of center console)
+        const spdGaugeX = w * 0.44, spdGaugeY = h - 75;
+        cockpitCtx.fillStyle = '#0a101d';
+        cockpitCtx.beginPath();
+        cockpitCtx.arc(spdGaugeX, spdGaugeY, 34, 0, Math.PI * 2);
+        cockpitCtx.fill();
+        cockpitCtx.strokeStyle = '#38bdf8';
+        cockpitCtx.lineWidth = 1.5;
+        cockpitCtx.stroke();
+        cockpitCtx.fillStyle = '#38bdf8';
+        cockpitCtx.font = 'bold 11px monospace';
+        cockpitCtx.textAlign = 'center';
+        cockpitCtx.fillText(`${u.spd}`, spdGaugeX, spdGaugeY - 2);
+        cockpitCtx.font = '7.5px monospace';
+        cockpitCtx.fillText('KM/H', spdGaugeX, spdGaugeY + 10);
+
+        // Center Console Tactical MFD / GPS Screen
+        const gpsW = 210, gpsH = 130;
+        const gpsX = w * 0.52, gpsY = h - 148;
+        cockpitCtx.fillStyle = 'rgba(6, 13, 26, 0.95)';
+        cockpitCtx.fillRect(gpsX, gpsY, gpsW, gpsH);
+        cockpitCtx.strokeStyle = '#00e5ff';
+        cockpitCtx.lineWidth = 1.5;
+        cockpitCtx.strokeRect(gpsX, gpsY, gpsW, gpsH);
+
+        cockpitCtx.fillStyle = 'rgba(0, 229, 255, 0.15)';
+        cockpitCtx.fillRect(gpsX, gpsY, gpsW, 20);
+        cockpitCtx.fillStyle = '#00e5ff';
+        cockpitCtx.font = 'bold 9px monospace';
+        cockpitCtx.textAlign = 'left';
+        cockpitCtx.fillText('TACTICAL ROUTE MFD // MULE-01', gpsX + 8, gpsY + 14);
+
+        cockpitCtx.fillStyle = '#f8fafc';
+        cockpitCtx.font = '8.5px monospace';
+        cockpitCtx.fillText(`SPEED: ${u.spd} KM/H (GOVERNOR: 60)`, gpsX + 8, gpsY + 36);
+        cockpitCtx.fillText(`FUEL: ${u.fuel}% DIESEL [NOMINAL]`, gpsX + 8, gpsY + 50);
+        cockpitCtx.fillText('ROUTE: FJORD HIGHWAY -> WEST AB', gpsX + 8, gpsY + 64);
+        cockpitCtx.fillText('SURFACE: REINFORCED VIADUCT', gpsX + 8, gpsY + 78);
+        cockpitCtx.fillText('BRIDGE INTEGRITY: 100% SECURE', gpsX + 8, gpsY + 92);
+        cockpitCtx.fillStyle = '#10b981';
+        cockpitCtx.fillText('TERRAIN CLEARANCE: +0.14M (CONFORMED)', gpsX + 8, gpsY + 108);
+        cockpitCtx.fillText('CARGO: CLASS V AMMUNITION CRATES', gpsX + 8, gpsY + 120);
+
+        cockpitCtx.fillStyle = 'rgba(0, 229, 255, 0.85)';
+        cockpitCtx.font = 'bold 11px monospace';
+        cockpitCtx.textAlign = 'center';
+        cockpitCtx.fillText('DRIVER POV // MULE-01 CONVOY LEAD // SURFACE OBSERVATION', w / 2, 95);
+
+      } else if (u.type === 'CSAR_HELO') {
+        // =========================================================
+        // CSAR HELICOPTER BUBBLE COCKPIT & CHIN WINDOWS (RESCUE-01)
+        // =========================================================
+        // 1. Panoramic Bubble Canopy Arch
+        cockpitCtx.fillStyle = '#091322';
+        cockpitCtx.strokeStyle = '#1e293b';
+        cockpitCtx.lineWidth = 4;
+
+        cockpitCtx.beginPath();
+        cockpitCtx.moveTo(0, 0);
+        cockpitCtx.lineTo(w, 0);
+        cockpitCtx.lineTo(w, 55);
+        cockpitCtx.quadraticCurveTo(w / 2, 85, 0, 55);
+        cockpitCtx.closePath();
+        cockpitCtx.fill();
+        cockpitCtx.stroke();
+
+        cockpitCtx.beginPath();
+        cockpitCtx.moveTo(0, 0);
+        cockpitCtx.bezierCurveTo(w * 0.15, h * 0.25, w * 0.18, h * 0.65, w * 0.08, h);
+        cockpitCtx.lineTo(0, h);
+        cockpitCtx.closePath();
+        cockpitCtx.fill();
+        cockpitCtx.stroke();
+
+        cockpitCtx.beginPath();
+        cockpitCtx.moveTo(w, 0);
+        cockpitCtx.bezierCurveTo(w * 0.85, h * 0.25, w * 0.82, h * 0.65, w * 0.92, h);
+        cockpitCtx.lineTo(w, h);
+        cockpitCtx.closePath();
+        cockpitCtx.fill();
+        cockpitCtx.stroke();
+
+        cockpitCtx.beginPath();
+        cockpitCtx.moveTo(w / 2 - 8, 55);
+        cockpitCtx.lineTo(w / 2 + 8, 55);
+        cockpitCtx.lineTo(w / 2 + 8, h - 160);
+        cockpitCtx.lineTo(w / 2 - 8, h - 160);
+        cockpitCtx.closePath();
+        cockpitCtx.fill();
+        cockpitCtx.stroke();
+
+        // 2. Chin Bubble Footwell Glass (Bottom Left & Right Looking at Ground)
+        const chinW = 140, chinH = 100;
+        const chinLX = w * 0.14, chinLY = h - 120;
+        cockpitCtx.strokeStyle = '#0284c7';
+        cockpitCtx.lineWidth = 2;
+        cockpitCtx.strokeRect(chinLX, chinLY, chinW, chinH);
+        cockpitCtx.fillStyle = 'rgba(2, 132, 199, 0.08)';
+        cockpitCtx.fillRect(chinLX, chinLY, chinW, chinH);
+        cockpitCtx.fillStyle = '#38bdf8';
+        cockpitCtx.font = '7.5px monospace';
+        cockpitCtx.fillText('CHIN BUBBLE [LEFT LZ]', chinLX + 8, chinLY + 14);
+        cockpitCtx.fillText('TERRAIN: PASSABLE', chinLX + 8, chinLY + chinH - 8);
+
+        const chinRX = w * 0.86 - chinW, chinRY = h - 120;
+        cockpitCtx.strokeRect(chinRX, chinRY, chinW, chinH);
+        cockpitCtx.fillStyle = 'rgba(2, 132, 199, 0.08)';
+        cockpitCtx.fillRect(chinRX, chinRY, chinW, chinH);
+        cockpitCtx.fillStyle = '#38bdf8';
+        cockpitCtx.fillText('CHIN BUBBLE [RIGHT LZ]', chinRX + 8, chinRY + 14);
+        cockpitCtx.fillText('HOIST CLEARANCE: OK', chinRX + 8, chinRY + chinH - 8);
+
+        // 3. Center Instrument Pedestal (Bottom Center)
+        const pedW = 300, pedH = 140;
+        const pedX = w / 2 - pedW / 2, pedY = h - 140;
+        cockpitCtx.fillStyle = '#0f172a';
+        cockpitCtx.fillRect(pedX, pedY, pedW, pedH);
+        cockpitCtx.strokeStyle = '#334155';
+        cockpitCtx.lineWidth = 2;
+        cockpitCtx.strokeRect(pedX, pedY, pedW, pedH);
+
+        // 4. CSAR Homing Direction Finder (ADF / RDF Beacon Dial)
+        const adfX = pedX + 65, adfY = pedY + 68;
+        cockpitCtx.fillStyle = '#020617';
+        cockpitCtx.beginPath();
+        cockpitCtx.arc(adfX, adfY, 42, 0, Math.PI * 2);
+        cockpitCtx.fill();
+        cockpitCtx.strokeStyle = '#00ff66';
+        cockpitCtx.lineWidth = 1.5;
+        cockpitCtx.stroke();
+
+        for (let a = 0; a < 360; a += 45) {
+          const rad = (a * Math.PI) / 180;
+          cockpitCtx.beginPath();
+          cockpitCtx.moveTo(adfX + Math.sin(rad) * 36, adfY - Math.cos(rad) * 36);
+          cockpitCtx.lineTo(adfX + Math.sin(rad) * 42, adfY - Math.cos(rad) * 42);
+          cockpitCtx.stroke();
+        }
+
+        const beaconAngle = Math.sin(simTime * 0.5) * 0.25 - 0.4;
+        cockpitCtx.strokeStyle = '#00ff66';
+        cockpitCtx.lineWidth = 2.5;
+        cockpitCtx.beginPath();
+        cockpitCtx.moveTo(adfX, adfY);
+        cockpitCtx.lineTo(adfX + Math.sin(beaconAngle) * 32, adfY - Math.cos(beaconAngle) * 32);
+        cockpitCtx.stroke();
+        cockpitCtx.fillStyle = '#00ff66';
+        cockpitCtx.font = '7.5px monospace';
+        cockpitCtx.textAlign = 'center';
+        cockpitCtx.fillText('RDF 243.0', adfX, adfY + 18);
+        cockpitCtx.fillText('PRC-112', adfX, adfY + 28);
+
+        // 5. Dual Torque & Rotor Gauge Cluster
+        const trqX = pedX + 155, trqY = pedY + 30;
+        cockpitCtx.fillStyle = '#38bdf8';
+        cockpitCtx.font = 'bold 8.5px monospace';
+        cockpitCtx.textAlign = 'left';
+        cockpitCtx.fillText('ROTOR TORQUE:', trqX, trqY);
+
+        cockpitCtx.strokeStyle = '#0284c7';
+        cockpitCtx.strokeRect(trqX, trqY + 6, 120, 10);
+        cockpitCtx.fillStyle = '#00ff66';
+        cockpitCtx.fillRect(trqX + 2, trqY + 8, 92, 6);
+        cockpitCtx.fillText('ENG 1: 76%', trqX, trqY + 28);
+
+        cockpitCtx.strokeRect(trqX, trqY + 34, 120, 10);
+        cockpitCtx.fillRect(trqX + 2, trqY + 36, 90, 6);
+        cockpitCtx.fillText('ENG 2: 74%', trqX, trqY + 56);
+
+        // 6. CSAR Rescue Hoist Telemetry Box
+        const hstW = 240, hstH = 80;
+        const hstX = w - hstW - 24, hstY = 70;
+        cockpitCtx.fillStyle = 'rgba(6, 13, 26, 0.94)';
+        cockpitCtx.fillRect(hstX, hstY, hstW, hstH);
+        cockpitCtx.strokeStyle = '#f59e0b';
+        cockpitCtx.lineWidth = 1.5;
+        cockpitCtx.strokeRect(hstX, hstY, hstW, hstH);
+
+        cockpitCtx.fillStyle = '#f59e0b';
+        cockpitCtx.font = 'bold 8.5px monospace';
+        cockpitCtx.textAlign = 'left';
+        cockpitCtx.fillText('CSAR HOIST TELEMETRY', hstX + 8, hstY + 16);
+        cockpitCtx.fillStyle = '#f8fafc';
+        cockpitCtx.font = '8px monospace';
+        cockpitCtx.fillText('WINCH STATE: CABLE STOWED [RDY]', hstX + 8, hstY + 32);
+        cockpitCtx.fillText('CABLE LENGTH: 250 FT // LOAD: 0 LBS', hstX + 8, hstY + 46);
+        cockpitCtx.fillStyle = '#00ff66';
+        cockpitCtx.fillText('SURVIVOR: DOWNED PILOT [VIPER-32]', hstX + 8, hstY + 60);
+        cockpitCtx.fillText('DISTANCE: 3.8 KM // LZ: CLEAR', hstX + 8, hstY + 72);
+
+        cockpitCtx.fillStyle = '#38bdf8';
+        cockpitCtx.font = 'bold 11px monospace';
+        cockpitCtx.textAlign = 'center';
+        cockpitCtx.fillText('CSAR HELICOPTER POV // RESCUE-01 // EXTRACTION MISSION ACTIVE', w / 2, 90);
+
+      } else if (u.type === 'KINETIC_MISSILE') {
+        // =========================================================
+        // KINETIC MISSILE TERMINAL SEEKER HEAD POV (MISSILE-99)
+        // =========================================================
+        const tMis = (simTime * 0.35) % 1.0;
+        const tti = ((1.0 - tMis) * 6.5).toFixed(2);
+
+        cockpitCtx.save();
+        const rSeeker = Math.min(w, h) * 0.44;
+        const sX = w / 2, sY = h / 2;
+
+        cockpitCtx.fillStyle = 'rgba(3, 7, 18, 0.92)';
+        cockpitCtx.beginPath();
+        cockpitCtx.rect(0, 0, w, h);
+        cockpitCtx.arc(sX, sY, rSeeker, 0, Math.PI * 2, true);
+        cockpitCtx.fill();
+
+        cockpitCtx.strokeStyle = 'rgba(239, 68, 68, 0.85)';
+        cockpitCtx.lineWidth = 2;
+        cockpitCtx.beginPath();
+        cockpitCtx.arc(sX, sY, rSeeker, 0, Math.PI * 2);
+        cockpitCtx.stroke();
+
+        cockpitCtx.strokeStyle = 'rgba(239, 68, 68, 0.08)';
+        cockpitCtx.lineWidth = 1;
+        for (let y = sY - rSeeker; y < sY + rSeeker; y += 4) {
+          cockpitCtx.beginPath();
+          cockpitCtx.moveTo(sX - rSeeker, y);
+          cockpitCtx.lineTo(sX + rSeeker, y);
+          cockpitCtx.stroke();
+        }
+
+        cockpitCtx.strokeStyle = '#ef4444';
+        cockpitCtx.lineWidth = 1.5;
+        cockpitCtx.beginPath();
+        cockpitCtx.moveTo(sX - 25, sY); cockpitCtx.lineTo(sX + 25, sY);
+        cockpitCtx.moveTo(sX, sY - 25); cockpitCtx.lineTo(sX, sY + 25);
+        cockpitCtx.stroke();
+
+        const tgtBoxSize = 35 + Math.sin(simTime * 8.0) * 2;
+        cockpitCtx.strokeStyle = '#22c55e';
+        cockpitCtx.lineWidth = 2.0;
+        const bLen = 8;
+        cockpitCtx.beginPath();
+        cockpitCtx.moveTo(sX - tgtBoxSize, sY - tgtBoxSize + bLen);
+        cockpitCtx.lineTo(sX - tgtBoxSize, sY - tgtBoxSize);
+        cockpitCtx.lineTo(sX - tgtBoxSize + bLen, sY - tgtBoxSize);
+
+        cockpitCtx.moveTo(sX + tgtBoxSize - bLen, sY - tgtBoxSize);
+        cockpitCtx.lineTo(sX + tgtBoxSize, sY - tgtBoxSize);
+        cockpitCtx.lineTo(sX + tgtBoxSize, sY - tgtBoxSize + bLen);
+
+        cockpitCtx.moveTo(sX - tgtBoxSize, sY + tgtBoxSize - bLen);
+        cockpitCtx.lineTo(sX - tgtBoxSize, sY + tgtBoxSize);
+        cockpitCtx.lineTo(sX - tgtBoxSize + bLen, sY + tgtBoxSize);
+
+        cockpitCtx.moveTo(sX + tgtBoxSize - bLen, sY + tgtBoxSize);
+        cockpitCtx.lineTo(sX + tgtBoxSize, sY + tgtBoxSize);
+        cockpitCtx.lineTo(sX + tgtBoxSize, sY + tgtBoxSize - bLen);
+        cockpitCtx.stroke();
+
+        cockpitCtx.fillStyle = '#ef4444';
+        cockpitCtx.font = 'bold 12px monospace';
+        cockpitCtx.textAlign = 'left';
+        cockpitCtx.fillText(`TIME TO IMPACT: TTI ${tti}S`, sX - rSeeker + 25, sY - rSeeker + 45);
+        cockpitCtx.font = '10px monospace';
+        cockpitCtx.fillText('CLOSURE: 1,850 KTS (MACH 3.1)', sX - rSeeker + 25, sY - rSeeker + 65);
+        cockpitCtx.fillText('SEEKER: DUAL TV/IR CONTRAST LOCK', sX - rSeeker + 25, sY - rSeeker + 80);
+        cockpitCtx.fillStyle = '#22c55e';
+        cockpitCtx.fillText('TARGET: BANDIT-04 [LOCKED]', sX - rSeeker + 25, sY - rSeeker + 95);
+        cockpitCtx.fillText('DESIGNATION: RECON-ASSIST (STATIC-UAV)', sX - rSeeker + 25, sY - rSeeker + 110);
+        cockpitCtx.fillText('FUZE: OPTICAL PROXIMITY [ARMED]', sX - rSeeker + 25, sY - rSeeker + 125);
+
+        cockpitCtx.textAlign = 'center';
+        cockpitCtx.fillStyle = '#ef4444';
+        cockpitCtx.font = 'bold 13px monospace';
+        cockpitCtx.fillText('TERMINAL KINETIC MISSILE POV // MACH 3 INTERCEPT RUN', w / 2, 85);
+        cockpitCtx.restore();
+
+      } else {
+        // =========================================================
+        // FIGHTER JET COCKPIT HUD & CANOPY (VIPER-01 / BANDIT-04)
+        // =========================================================
+        const isBandit = u.side === 'static';
+        const hudCol = isBandit ? '#ef4444' : '#00ff66';
+
+        // 1. Sleek Canopy Arch Structure
+        cockpitCtx.fillStyle = '#090e17';
+        cockpitCtx.strokeStyle = '#1e293b';
+        cockpitCtx.lineWidth = 4;
+
+        cockpitCtx.beginPath();
+        cockpitCtx.moveTo(0, 0);
+        cockpitCtx.bezierCurveTo(w * 0.12, h * 0.2, w * 0.16, h * 0.7, 0, h);
+        cockpitCtx.lineTo(0, 0);
+        cockpitCtx.closePath();
+        cockpitCtx.fill();
+        cockpitCtx.stroke();
+
+        cockpitCtx.beginPath();
+        cockpitCtx.moveTo(w, 0);
+        cockpitCtx.bezierCurveTo(w * 0.88, h * 0.2, w * 0.84, h * 0.7, w, h);
+        cockpitCtx.lineTo(w, 0);
+        cockpitCtx.closePath();
+        cockpitCtx.fill();
+        cockpitCtx.stroke();
+
+        cockpitCtx.beginPath();
+        cockpitCtx.moveTo(0, 0);
+        cockpitCtx.quadraticCurveTo(w / 2, 45, w, 0);
+        cockpitCtx.lineTo(w, 35);
+        cockpitCtx.quadraticCurveTo(w / 2, 75, 0, 35);
+        cockpitCtx.closePath();
+        cockpitCtx.fill();
+        cockpitCtx.stroke();
+
+        // Canopy HUD Projector Glass
+        const hudBoxW = 460, hudBoxH = 340;
+        const hudBoxX = w / 2 - hudBoxW / 2;
+        const hudBoxY = h / 2 - hudBoxH / 2 - 10;
+        cockpitCtx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+        cockpitCtx.lineWidth = 1;
+        cockpitCtx.strokeRect(hudBoxX, hudBoxY, hudBoxW, hudBoxH);
+
+        const grad = cockpitCtx.createLinearGradient(hudBoxX, hudBoxY, hudBoxX + hudBoxW, hudBoxY + hudBoxH);
+        grad.addColorStop(0, 'rgba(0, 229, 255, 0.03)');
+        grad.addColorStop(0.5, 'rgba(255, 255, 255, 0.0)');
+        grad.addColorStop(1, 'rgba(0, 229, 255, 0.02)');
+        cockpitCtx.fillStyle = grad;
+        cockpitCtx.fillRect(hudBoxX, hudBoxY, hudBoxW, hudBoxH);
+
+        // 2. Collimated HUD Symbology
+        cockpitCtx.fillStyle = hudCol;
+        cockpitCtx.strokeStyle = hudCol;
+        cockpitCtx.lineWidth = 1.5;
+        cockpitCtx.font = '10px monospace';
+
+        const cx = w / 2;
+        const cy = h / 2;
+
+        // Boresight Crosshair
+        cockpitCtx.beginPath();
+        cockpitCtx.moveTo(cx - 10, cy);
+        cockpitCtx.lineTo(cx + 10, cy);
+        cockpitCtx.moveTo(cx, cy - 10);
+        cockpitCtx.lineTo(cx, cy + 10);
+        cockpitCtx.stroke();
+
+        // Waterline symbol -v-
+        cockpitCtx.beginPath();
+        cockpitCtx.moveTo(cx - 30, cy + 14);
+        cockpitCtx.lineTo(cx - 15, cy + 14);
+        cockpitCtx.lineTo(cx, cy + 22);
+        cockpitCtx.lineTo(cx + 15, cy + 14);
+        cockpitCtx.lineTo(cx + 30, cy + 14);
+        cockpitCtx.stroke();
+
+        // Velocity Vector (Flight path marker)
+        const vvx = cx + Math.sin(simTime * 0.8) * 6;
+        const vvy = cy + Math.cos(simTime * 0.6) * 4;
+        cockpitCtx.beginPath();
+        cockpitCtx.arc(vvx, vvy, 6, 0, Math.PI * 2);
+        cockpitCtx.moveTo(vvx - 14, vvy);
+        cockpitCtx.lineTo(vvx - 6, vvy);
+        cockpitCtx.moveTo(vvx + 6, vvy);
+        cockpitCtx.lineTo(vvx + 14, vvy);
+        cockpitCtx.moveTo(vvx, vvy - 6);
+        cockpitCtx.lineTo(vvx, vvy - 12);
+        cockpitCtx.stroke();
+
+        // Pitch Ladder (+10, 0, -10)
+        [-40, 0, 40].forEach((dy, idx) => {
+          const py = cy + dy;
+          const deg = (1 - idx) * 10;
+          if (deg === 0) {
+            cockpitCtx.beginPath();
+            cockpitCtx.moveTo(cx - 90, py);
+            cockpitCtx.lineTo(cx - 30, py);
+            cockpitCtx.moveTo(cx + 30, py);
+            cockpitCtx.lineTo(cx + 90, py);
+            cockpitCtx.stroke();
+          } else if (deg > 0) {
+            cockpitCtx.beginPath();
+            cockpitCtx.moveTo(cx - 75, py);
+            cockpitCtx.lineTo(cx - 35, py);
+            cockpitCtx.lineTo(cx - 35, py + 8);
+            cockpitCtx.moveTo(cx + 75, py);
+            cockpitCtx.lineTo(cx + 35, py);
+            cockpitCtx.lineTo(cx + 35, py + 8);
+            cockpitCtx.stroke();
+          } else {
+            cockpitCtx.save();
+            cockpitCtx.setLineDash([4, 4]);
+            cockpitCtx.beginPath();
+            cockpitCtx.moveTo(cx - 75, py);
+            cockpitCtx.lineTo(cx - 35, py);
+            cockpitCtx.moveTo(cx + 35, py);
+            cockpitCtx.lineTo(cx + 75, py);
+            cockpitCtx.stroke();
+            cockpitCtx.restore();
+          }
+          cockpitCtx.fillText(deg > 0 ? `+${deg}` : `${deg}`, cx - 100, py + 3);
+          cockpitCtx.fillText(deg > 0 ? `+${deg}` : `${deg}`, cx + 82, py + 3);
+        });
+
+        // Top Heading Tape
+        const hdgDeg = Math.round(((u.angle * 180 / Math.PI) % 360 + 360) % 360);
+        const tapeY = hudBoxY + 30;
+        cockpitCtx.strokeRect(cx - 100, tapeY - 14, 200, 20);
+        cockpitCtx.beginPath();
+        cockpitCtx.moveTo(cx, tapeY + 6);
+        cockpitCtx.lineTo(cx - 5, tapeY + 12);
+        cockpitCtx.lineTo(cx + 5, tapeY + 12);
+        cockpitCtx.closePath();
+        cockpitCtx.fill();
+
+        for (let o = -30; o <= 30; o += 10) {
+          const val = (hdgDeg + o + 360) % 360;
+          const tx = cx + (o * 3);
+          cockpitCtx.beginPath();
+          cockpitCtx.moveTo(tx, tapeY - 8);
+          cockpitCtx.lineTo(tx, tapeY - 14);
+          cockpitCtx.stroke();
+          cockpitCtx.font = '8px monospace';
+          cockpitCtx.textAlign = 'center';
+          cockpitCtx.fillText(String(val).padStart(3, '0'), tx, tapeY + 2);
+        }
+
+        // Left Tape: Airspeed (KTS)
+        const spdX = hudBoxX + 24;
+        cockpitCtx.strokeRect(spdX - 8, cy - 40, 52, 80);
+        cockpitCtx.textAlign = 'left';
+        cockpitCtx.font = 'bold 12px monospace';
+        cockpitCtx.fillText(`${u.spd}`, spdX - 4, cy + 4);
+        cockpitCtx.font = '8px monospace';
+        cockpitCtx.fillText('KTS', spdX + 24, cy + 4);
+        cockpitCtx.fillText(`M ${(u.spd / 661.47).toFixed(2)}`, spdX - 4, cy + 22);
+        cockpitCtx.fillText('G 1.2', spdX - 4, cy + 32);
+
+        // Right Tape: Altitude (FT)
+        const altX = hudBoxX + hudBoxW - 68;
+        cockpitCtx.strokeRect(altX, cy - 40, 60, 80);
+        cockpitCtx.fillText(u.alt === 'FL240' ? '24,000' : '28,000', altX + 4, cy + 4);
+        cockpitCtx.font = '8px monospace';
+        cockpitCtx.fillText('MSL', altX + 4, cy + 18);
+        cockpitCtx.fillText('R 1,840', altX + 4, cy + 30);
+
+        // Target Lock Diamond (If bandit in forward arc)
+        if (u.id === 'VIPER-01') {
+          const tgtX = cx + 80 + Math.sin(simTime * 0.4) * 20;
+          const tgtY = cy - 35 + Math.cos(simTime * 0.3) * 15;
+          cockpitCtx.strokeStyle = '#ef4444';
+          cockpitCtx.lineWidth = 1.5;
+          cockpitCtx.beginPath();
+          cockpitCtx.moveTo(tgtX, tgtY - 10);
+          cockpitCtx.lineTo(tgtX + 10, tgtY);
+          cockpitCtx.lineTo(tgtX, tgtY + 10);
+          cockpitCtx.lineTo(tgtX - 10, tgtY);
+          cockpitCtx.closePath();
+          cockpitCtx.stroke();
+          cockpitCtx.fillStyle = '#ef4444';
+          cockpitCtx.font = '8px monospace';
+          cockpitCtx.fillText('TGT: BANDIT-04', tgtX + 14, tgtY - 6);
+          cockpitCtx.fillText('RNG: 34.2 KM // VC: +890 KTS', tgtX + 14, tgtY + 6);
+          cockpitCtx.fillStyle = '#00ff66';
+          cockpitCtx.fillText('[PAINTED - LSR DESIGNATED BY STATIC-UAV]', tgtX + 14, tgtY + 18);
+          cockpitCtx.fillText('PK BOOST: +60% // GUIDANCE: PRECISION', tgtX + 14, tgtY + 28);
+        }
+
+        // Lower Status Telemetry
+        cockpitCtx.fillStyle = hudCol;
+        cockpitCtx.textAlign = 'left';
+        cockpitCtx.font = '9px monospace';
+        cockpitCtx.fillText(`MASTER ARM: SIM // ${u.ammo} [ARMED]`, hudBoxX + 24, hudBoxY + hudBoxH - 18);
+        cockpitCtx.fillText(`IFF: MODE 5 // CALLSIGN: ${u.callsign}`, hudBoxX + 24, hudBoxY + hudBoxH - 6);
+
+        cockpitCtx.textAlign = 'right';
+        cockpitCtx.fillText('RADAR: BVR TWS TRACK', hudBoxX + hudBoxW - 24, hudBoxY + hudBoxH - 18);
+        cockpitCtx.fillText(`FUEL: ${u.fuel}% // TASK: ${u.task}`, hudBoxX + hudBoxW - 24, hudBoxY + hudBoxH - 6);
+      }
+
+      cockpitCtx.restore();
+    }
+
+    /* Startup handler */
+    window.addEventListener('load', () => {
+      initThreeScene();
+      resizeGisCanvas();
+      populateOOB();
+
+      const params = new URLSearchParams(window.location.search);
+      const hashMatch = window.location.hash.match(/pillar=(\d)/);
+      const initialPillar = parseInt(params.get('pillar') || (hashMatch ? hashMatch[1] : '1'));
+      if (initialPillar === 2 || initialPillar === 3 || initialPillar === 4) {
+        switchPillar(initialPillar);
+
+        const unitParam = params.get('unit');
+        if (unitParam && UNITS.some(u => u.id === unitParam)) {
+          selectUnit(unitParam);
+        }
+
+        // Optional Camera Presets for Inspection & Testing
+        const viewParam = params.get('view') || params.get('camera');
+        if (viewParam === 'bridge') {
+          camera.position.set(-42, 28, -25);
+          controls.target.set(0, 17.5, -54);
+          controls.update();
+        } else if (viewParam === 'mountains') {
+          camera.position.set(0, 45, 90);
+          controls.target.set(0, 20, -70);
+          controls.update();
+        } else if (viewParam === 'chase') {
+          setCameraMode('chase');
+        } else if (viewParam === 'cockpit') {
+          setCameraMode('cockpit');
+        } else if (viewParam === 'god') {
+          setCameraMode('god');
+        } else if (viewParam === 'optic') {
+          camera.position.set(-86, 6.0, 12);
+          controls.target.set(-40, 35, -40);
+          controls.update();
+        }
+      }
+
+      window.addEventListener('resize', () => {
+        resizeGisCanvas();
+        if (renderer && document.getElementById('vp-pillar-three').clientWidth > 0) {
+          const vp = document.getElementById('vp-pillar-three');
+          camera.aspect = vp.clientWidth / vp.clientHeight;
+          camera.updateProjectionMatrix();
+          renderer.setSize(vp.clientWidth, vp.clientHeight);
+        }
+      });
+
+      // Keyboard Shortcuts Navigation
+      window.addEventListener('keydown', (e) => {
+        if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement?.tagName)) return;
+
+        if (e.key === '1') switchPillar(1);
+        else if (e.key === '2') switchPillar(2);
+        else if (e.key === '3') switchPillar(3);
+        else if (e.key === '4') switchPillar(4);
+        else if (e.key === 'd' || e.key === 'D') toggleLiveDirector();
+        else if (e.key === 'f' || e.key === 'F') toggleFOW();
+        else if (e.key === 'a' || e.key === 'A' || e.key === 'm' || e.key === 'M') toggleAudio();
+        else if (e.key === ' ') {
+          e.preventDefault();
+          togglePause();
+        } else if (e.key === 'c' || e.key === 'C') {
+          const modes = ['god', 'chase', 'cockpit'];
+          const nextIdx = (modes.indexOf(cameraMode) + 1) % modes.length;
+          setCameraMode(modes[nextIdx]);
+        } else if (e.key === 'Tab') {
+          e.preventDefault();
+          const currIdx = UNITS.findIndex(u => u.id === selectedUnitId);
+          const nextIdx = (currIdx + 1) % UNITS.length;
+          selectUnit(UNITS[nextIdx].id);
+        } else if (e.key === '[' || e.key === '-') {
+          const speeds = [0.5, 1, 2, 5];
+          const currIdx = speeds.indexOf(simSpeed);
+          if (currIdx > 0) setSpeed(speeds[currIdx - 1]);
+        } else if (e.key === ']' || e.key === '=' || e.key === '+') {
+          const speeds = [0.5, 1, 2, 5];
+          const currIdx = speeds.indexOf(simSpeed);
+          if (currIdx < speeds.length - 1) setSpeed(speeds[currIdx + 1]);
+        }
+      });
+
+      requestAnimationFrame(animate);
+    });
+  </script>
+</body>
+</html>

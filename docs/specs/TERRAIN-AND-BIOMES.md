@@ -149,12 +149,25 @@ Road meshes must sit slightly proud of the ground terrain mesh to eliminate copl
 
 ---
 
-## 6. Implementation Roadmap
+## 6. Three-Pillar Visual Strategy & Future Engineering Roadmap
 
-1. **Step 1 (Immediate - Verified in Prototype):**
-   - Implemented dual-landmass separation with recessed $-3.5\text{m}$ water channel, elevated $+2\text{m}$ bridge spans, and $+0.2\text{m}$ road ribbons in `tools/prototype/visualizer-sandbox.html`.
-   - Enabled `logarithmicDepthBuffer: true` and `polygonOffset` on wireframe contours and road surfaces.
-2. **Step 2 (Tooling / Compiler):**
-   - Enhance `tools/terrain/geojson_to_mask.py` to buffer and rasterize road vector lines into spatial mobility masks for ground logistics.
-3. **Step 3 (Contracts & Schema):**
-   - Update `contracts/config/theater.json` to include the `elevation_budget_m`, `biomes`, and `roads` list definitions.
+Hiveplex adopts a **Three-Pillar Visual Architecture**, standardizing three visual styles that consume `RenderFrameState`:
+
+1. **Pillar 1: Modern Tactical GIS / C2 Operations Map** (Flat 2D Euclidean `L.CRS.Simple`):
+   - Optimized for strategic campaign monitoring, web companion site, post-war replay, and **MGRS grid-based unit command tasking**.
+2. **Pillar 2: Textured Low-Poly Military RTS** (3D PBR WebGL):
+   - Optimized for primary 24/7 live stream viewing, dynamic air/ground combat, and viral vertical video clipping (Shorts/TikTok).
+3. **Pillar 3: Holographic Tactical Wireframe** (2.5D / 3D Vector Holotable):
+   - Optimized for high-contrast sensor overview, DEFCON/cyberpunk aesthetic, and low-bandwidth/low-noise stream segments.
+
+### 6.1 Future Technical Focus Areas
+
+1. **Dynamic Road Conforming to Terrain Elevation (Spline Draping)**:
+   - Sample the 16-bit DEM heightfield at $10\text{m}$ intervals along road splines ($y = \text{SampleDEM}(x, z) + 0.22\text{m}$).
+   - Construct continuous 3D triangle ribbons following terrain curvature, with terrain flattening cutaways along MSR corridors.
+2. **Multi-Texture Splatting & Biome Blending**:
+   - PBR shader blending coastal sand, arid plains, craggy granite (triplanar mapped on vertical cliffs), and asphalt.
+3. **MGRS Tactical Grid & Player Command Integration**:
+   - Hierarchical $50\text{km}$ macro / $10\text{km}$ tactical / $1\text{km}$ target grid coordinates mapping bidirectionally to simulation coordinates for chat/web commands (`!strike <grid>`, `!route`).
+4. **Color & Faction Palette Harmonization**:
+   - Unifying Coalition (Quorum cyan/navy) and Static (Null scarlet/carbon black) across 2D, 3D, and MFD displays.

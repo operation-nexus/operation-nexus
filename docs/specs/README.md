@@ -18,6 +18,7 @@
 | [PROGRESSION](PROGRESSION.md) | XP, ranks, merit, doctrines, cosmetics, anti-farming | P3 / P4 |
 | [AUDIO-TTS](AUDIO-TTS.md) | Audio buses, sitreps, TTS, night mode | P2 / P3 |
 | [CLIPS-REPLAY](CLIPS-REPLAY.md) | Replays, excitement scoring, clip review queue | P3 |
+| [DETERMINISTIC-REPLAY-AND-MULTI-CAMERA-CINEMATICS](DETERMINISTIC-REPLAY-AND-MULTI-CAMERA-CINEMATICS.md) | 100% deterministic reproduction, multi-POV virtual film studio, broadcast director | P3 / Marketing |
 | [LLM-ADVISORS](LLM-ADVISORS.md) | Advisor, narrator, `!order` parser, budgets | P4 |
 | [CONTRACTS](CONTRACTS.md) | Enums, commands, events, wire messages, internal and admin API | P0–P2 |
 | [DATA-MODEL](DATA-MODEL.md) | SQLite schema, ledgers, snapshot and log formats, retention, backups | P1–P3 |
