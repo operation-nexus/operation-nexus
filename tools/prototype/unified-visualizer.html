@@ -458,10 +458,18 @@
       { id: 'west-ab', name: 'WEST AIRBASE', side: 'coalition', x: 90000, y: 120000, kind: 'AIRBASE', samRange: 65000 },
       { id: 'fob-nw', name: 'FOB NORTH-WEST', side: 'coalition', x: 130000, y: 60000, kind: 'FOB', samRange: 35000 },
       { id: 'fob-sw', name: 'FOB SOUTH-WEST', side: 'coalition', x: 130000, y: 180000, kind: 'FOB', samRange: 35000 },
-      { id: 'bridge-n', name: 'NORTH BRIDGE', side: 'neutral', x: 200000, y: 60000, kind: 'BRIDGE' },
-      { id: 'bridge-s', name: 'SOUTH BRIDGE', side: 'neutral', x: 200000, y: 180000, kind: 'BRIDGE' },
+      { id: 'jct-w-pass', name: 'JCT NORTH PASS', side: 'coalition', x: 110000, y: 75000, kind: 'JUNCTION' },
+      { id: 'jct-w-plain', name: 'JCT SOUTH PLAIN', side: 'coalition', x: 110000, y: 165000, kind: 'JUNCTION' },
+      { id: 'abut-n-w', name: 'WEST ABUTMENT (NORTH)', side: 'neutral', x: 182000, y: 60000, kind: 'ABUTMENT' },
+      { id: 'bridge-n', name: 'NORTH STRAIT BRIDGE', side: 'neutral', x: 200000, y: 60000, kind: 'BRIDGE' },
+      { id: 'abut-n-e', name: 'EAST ABUTMENT (NORTH)', side: 'neutral', x: 218000, y: 60000, kind: 'ABUTMENT' },
+      { id: 'abut-s-w', name: 'WEST ABUTMENT (SOUTH)', side: 'neutral', x: 182000, y: 180000, kind: 'ABUTMENT' },
+      { id: 'bridge-s', name: 'SOUTH STRAIT BRIDGE', side: 'neutral', x: 200000, y: 180000, kind: 'BRIDGE' },
+      { id: 'abut-s-e', name: 'EAST ABUTMENT (SOUTH)', side: 'neutral', x: 218000, y: 180000, kind: 'ABUTMENT' },
       { id: 'cross-n', name: 'NORTH CROSSING', side: 'neutral', x: 230000, y: 60000, kind: 'CROSSING' },
       { id: 'cross-s', name: 'SOUTH CROSSING', side: 'neutral', x: 230000, y: 180000, kind: 'CROSSING' },
+      { id: 'jct-e-hub', name: 'JCT CENTRAL DISTRIBUTION', side: 'neutral', x: 270000, y: 120000, kind: 'JUNCTION' },
+      { id: 'jct-sneak', name: 'JCT SNEAK VALLEY', side: 'neutral', x: 260000, y: 220000, kind: 'JUNCTION' },
       { id: 'fob-ne', name: 'FOB NORTH-EAST', side: 'static', x: 290000, y: 40000, kind: 'FOB', samRange: 35000 },
       { id: 'fob-se', name: 'FOB SOUTH-EAST', side: 'static', x: 290000, y: 200000, kind: 'FOB', samRange: 35000 },
       { id: 'east-ab', name: 'EAST AIRBASE', side: 'static', x: 310000, y: 120000, kind: 'AIRBASE', samRange: 65000 },
@@ -469,18 +477,33 @@
     ];
 
     const ROADS = [
-      [20000, 120000, 90000, 120000],
-      [90000, 120000, 130000, 60000],
-      [90000, 120000, 130000, 180000],
-      [130000, 60000, 230000, 60000, true],  // North bridge span
-      [130000, 180000, 230000, 180000, true], // South bridge span
-      [230000, 60000, 290000, 40000],
-      [230000, 180000, 290000, 200000],
-      [230000, 60000, 310000, 120000],
-      [230000, 180000, 310000, 120000],
-      [290000, 40000, 380000, 120000],
-      [290000, 200000, 380000, 120000],
-      [310000, 120000, 380000, 120000]
+      // Coalition West Network
+      [20000, 120000, 90000, 120000, false],
+      [90000, 120000, 110000, 75000, false],
+      [110000, 75000, 130000, 60000, false],
+      [90000, 120000, 110000, 165000, false],
+      [110000, 165000, 130000, 180000, false],
+
+      // North Bridge Corridor (Separated: Approach -> Bridge -> Departure)
+      [130000, 60000, 182000, 60000, false], // West Approach Road on Land
+      [182000, 60000, 218000, 60000, true],  // North Bridge Span STRICTLY OVER WATER
+      [218000, 60000, 230000, 60000, false], // East Departure Road on Land
+
+      // South Bridge Corridor (Separated: Approach -> Bridge -> Departure)
+      [130000, 180000, 182000, 180000, false], // West Approach Road on Land
+      [182000, 180000, 218000, 180000, true],  // South Bridge Span STRICTLY OVER WATER
+      [218000, 180000, 230000, 180000, false], // East Departure Road on Land
+
+      // East Bank Highway & Junction Graph
+      [230000, 60000, 270000, 120000, false],
+      [230000, 180000, 270000, 120000, false],
+      [230000, 60000, 290000, 40000, false],
+      [230000, 180000, 260000, 220000, false],
+      [260000, 220000, 290000, 200000, false], // Sneak valley loop
+      [270000, 120000, 310000, 120000, false],
+      [290000, 40000, 380000, 120000, false],
+      [290000, 200000, 380000, 120000, false],
+      [310000, 120000, 380000, 120000, false]
     ];
 
     const UNITS = [
@@ -653,10 +676,27 @@
         gisCtx.fillText(`MEZ: ${b.samRange / 1000}KM`, pt.sx + rad * 0.7, pt.sy - rad * 0.7);
       });
 
-      // 5. Military Bases with MIL-STD-2525D Frames
+      // 5. Military Bases with MIL-STD-2525D Frames & Road Waypoints
       BASES.forEach(b => {
         const pt = worldToScreen(b.x, b.y);
         gisCtx.save();
+
+        if (b.kind === 'JUNCTION' || b.kind === 'ABUTMENT') {
+          // Subtle Road Waypoint / Abutment Marker
+          gisCtx.fillStyle = '#475569';
+          gisCtx.strokeStyle = '#94a3b8';
+          gisCtx.lineWidth = 1.5;
+          gisCtx.beginPath();
+          gisCtx.arc(pt.sx, pt.sy, 3.5, 0, Math.PI * 2);
+          gisCtx.fill();
+          gisCtx.stroke();
+
+          gisCtx.fillStyle = '#94a3b8';
+          gisCtx.font = '8px monospace';
+          gisCtx.fillText(b.name, pt.sx + 7, pt.sy + 3);
+          gisCtx.restore();
+          return;
+        }
         if (b.side === 'coalition') {
           // Friendly Rectangle
           gisCtx.fillStyle = "#0284c7";
