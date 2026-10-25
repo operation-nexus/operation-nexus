@@ -35,7 +35,8 @@ from nexus.runtime.campaign_config import CampaignConfig, start_campaign
 from nexus.runtime.config import ConfigError
 from nexus.runtime.golden import shipped_config
 
-NEW: dict[str, object] = {"economy.legacy_rules": False}
+# forward staging (NX-416) out of reach, so these tests see EC-13 alone; test_staging.py covers it
+NEW: dict[str, object] = {"economy.legacy_rules": False, "director.staging.direct_s": 1e6}
 LIMITED: dict[str, object] = {
     "economy.unlimited.COALITION": False,
     "economy.unlimited.ENEMY": False,

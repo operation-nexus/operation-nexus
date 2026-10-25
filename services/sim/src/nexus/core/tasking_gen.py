@@ -15,7 +15,8 @@ refers to an entity id, so a job names a node, or a SIGINT blob with its cell ce
 - **Resupply** (`resupply:<node>`): a node the side owns, with stock, below its starvation floor or
   with damaged facilities (Q-GP-47). Urgency: the larger of the stock deficit share (floor - stock)
   / floor and the facilities' missing hp share, on top of 1.0. A node below its forward stock
-  target (`Supply.stock_target`, Q-SIM-100, NX-389) gets one too (stocking), urgency
+  target (`logistics.stock_targets`: `Supply.stock_target`, raised at a Director staging base,
+  THREAT-DIRECTOR FS-3; Q-SIM-100, NX-389) gets one too (stocking), urgency
   `tasking.stock_urgency` plus `tasking.stock_front_bonus` on the front line (`_on_front`, the
   patrol rule), below 1.0; when both apply the higher urgency wins. Slots: one per
   `resupply_stock_per_slot` of missing stock (max stock - stock, rounded up; for a stocking-only
@@ -87,7 +88,7 @@ from nexus.contracts.gen.common.enums import JobKind, NodeOwner, Side, UnitKind
 from nexus.core.bridges import enemy_held
 from nexus.core.director import TIERS
 from nexus.core.fog import SideView
-from nexus.core.logistics import approach, facility_damage, plan_run
+from nexus.core.logistics import approach, facility_damage, plan_run, stock_targets
 from nexus.core.roads import shortest_path
 from nexus.core.rules import CAPTURE_FULL, Rules, TaskingRules
 from nexus.core.world import Contact, Entity, Vec2, World
@@ -319,6 +320,7 @@ def _resupply(
     world: World, rules: Rules, tr: TaskingRules, side: Side, view: SideView
 ) -> Iterator[JobSpec]:
     sup, damage = rules.supply, facility_damage(world, rules, side)
+    target = stock_targets(world, rules)  # raised at a staging base (THREAT-DIRECTOR FS-3)
     for node in sorted(sup.max_stock):
         top, stock, floor = sup.max_stock[node], world.stock.get(node, 0), sup.starve_floor[node]
         if top <= 0 or view.owners.get(node) != side:
@@ -327,11 +329,11 @@ def _resupply(
         missing_hp, max_hp = damage.get(node, (0, 1))
         need = max(starved, Fraction(missing_hp, max_hp))
         stocking = 0  # below the forward stock target (Q-SIM-100): the stocking urgency
-        if stock < sup.stock_target[node]:
+        if stock < target[node]:
             front = tr.stock_front_bonus_milli if _on_front(rules, view, side, node) else 0
             stocking = tr.stock_urgency_milli + front
         if need or stocking:
-            fill = top if need else sup.stock_target[node]  # stocking fills up to the target only
+            fill = top if need else target[node]  # stocking fills up to the target only
             slots = -(-(fill - stock) // tr.resupply_stock_per_slot)
             cut = _cut_off(world, rules, side, view, node)
             yield JobSpec(

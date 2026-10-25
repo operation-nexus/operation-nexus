@@ -363,6 +363,12 @@ class DirectorRules:
     # node of the running victory hold, and on a node of the other side that yields income
     victory_hold_mult: Fraction
     income_node_mult: Fraction
+    # Forward staging (THREAT-DIRECTOR §4a, NX-416; read with `economy.legacy_rules` false): a
+    # capture operation farther than `staging_direct_ticks` by road from the rear waits at a
+    # forward base at most `staging_max_wait_windows` windows; at most `staging_max_staged` at once
+    staging_direct_ticks: int
+    staging_max_wait_windows: int
+    staging_max_staged: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -671,6 +677,7 @@ def director_rules(
     dark_ticks: int,
     blink_cooldown_ticks: int,
     bridge_cooldown_ticks: int,
+    staging_direct_ticks: int,
     idle_retire_ticks: int,
     operations: Iterable[OperationRules],
     patrol_ticks: int,
@@ -780,6 +787,9 @@ def director_rules(
         intercept_reaction_ticks=intercept_reaction_ticks,
         intercept_pol_linger_ticks=intercept_pol_linger_ticks,
         intercept_lost_ticks=intercept_lost_ticks,
+        staging_direct_ticks=staging_direct_ticks,
+        staging_max_wait_windows=cfg.staging.max_wait_windows,
+        staging_max_staged=cfg.staging.max_staged,
     )  # fmt: skip
 
 

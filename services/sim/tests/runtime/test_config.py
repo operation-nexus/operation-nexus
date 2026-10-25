@@ -297,6 +297,7 @@ director:
     weights: {convoy_hit: 1, radar_hit: 1, scout_lost: 1, node_lost: 1}
   decoy_blink: {dark_s: 120, cooldown_s: 600, max_per_window: 1}
   strike_bridge: {cooldown_s: 1800}
+  staging: {direct_s: 1500, max_wait_windows: 90, max_staged: 2}
   recon: {loiter_s: 600, loiter_radius_m: 5000, grid_m: 10000, memory_s: 3600}
   intercept: {radius_m: 30000, reaction_s: 60, pol_linger_s: 600, leash_m: 80000, lost_s: 120}
   max_ops:
@@ -357,7 +358,7 @@ economy:
 # for the economy block, NX-412 part 2 for `economy.upkeep`, NX-412 part 3 for the EC-7 budget
 # keys, the EC-8 guard, `economy.legacy_rules` and `free_viewer_spawn`); a change means every
 # config_hash moved.
-GOLDEN_CONFIG_HASH = "aa9be0533ee031f24a495bb79b6178fe6202c47f84fca03d99bfae4ba9b4ad14"
+GOLDEN_CONFIG_HASH = "857c21e7d1e27b04bb8150f7b3b6f45754a69a5a61b1bad2b279a88b261b93b4"
 AIR = {
     "bingo_reserve_frac": 0.15,
     "orbit_period_s": 120.0,
@@ -612,6 +613,7 @@ DIRECTOR = {
     },
     "decoy_blink": {"dark_s": 120, "cooldown_s": 600, "max_per_window": 1},
     "strike_bridge": {"cooldown_s": 1800},
+    "staging": {"direct_s": 1500, "max_wait_windows": 90, "max_staged": 2},
     "recon": {"loiter_s": 600, "loiter_radius_m": 5000, "grid_m": 10000, "memory_s": 3600},
     "intercept": {
         "radius_m": 30000,
@@ -1083,6 +1085,7 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "    weights: {convoy_hit: 1, radar_hit: 1, scout_lost: 1, node_lost: 1}},\n"
         "  decoy_blink: {dark_s: 120, cooldown_s: 600, max_per_window: 1},\n"
         "  strike_bridge: {cooldown_s: 1800},\n"
+        "  staging: {direct_s: 1500, max_wait_windows: 90, max_staged: 2},\n"
         "  recon: {loiter_s: 600, loiter_radius_m: 5000, grid_m: 10000, memory_s: 3600},\n"
         "  intercept: {radius_m: 30000, reaction_s: 60, pol_linger_s: 600, leash_m: 80000,\n"
         "    lost_s: 120},\n"

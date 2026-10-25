@@ -1244,9 +1244,9 @@ export interface ThreatAdaptation {
    */
   side: "COALITION" | "ENEMY";
   /**
-   * CONVOY_ESCORT: escorts for convoys after `convoy_attacks`. IADS_REINFORCED: air defense reinforced after `radar_strikes`. HOLD_AT_RISK: a capture operation (OFFENSIVE, RETAKE) launched on a node of the running victory hold, the sitrep "NULL moves on <node>, the hold is at risk" (Q-TD-19).
+   * CONVOY_ESCORT: escorts for convoys after `convoy_attacks`. IADS_REINFORCED: air defense reinforced after `radar_strikes`. HOLD_AT_RISK: a capture operation (OFFENSIVE, RETAKE) launched on a node of the running victory hold, the sitrep "NULL moves on <node>, the hold is at risk" (Q-TD-19). STAGING: a capture operation started forward staging at a base in the sector (THREAT-DIRECTOR §4a FS-5, NX-416), the sitrep "NULL forces are massing in <sector>", always UP, sector level only (no node_id, FOW-13).
    */
-  category: "CONVOY_ESCORT" | "IADS_REINFORCED" | "HOLD_AT_RISK";
+  category: "CONVOY_ESCORT" | "IADS_REINFORCED" | "HOLD_AT_RISK" | "STAGING";
   /**
    * Named map region from the theater file (OVERLAY AN-1).
    */

@@ -323,6 +323,10 @@ director:  # Threat Director (Q-SIM-78, Q-SIM-81, owner-approved starting number
   strike_bridge:
     cooldown_s: 1800  # PROPOSED – unvalidated (Q-SIM-121); s (game) after a bridge's BridgeRepaired before STRIKE_BRIDGE may target it again
   retake_window_min: 30  # PROPOSED – unvalidated (Q-SIM-81); min (game)
+  staging:  # forward staging (THREAT-DIRECTOR §4a, Q-TD-37, NX-416); read only with economy.legacy_rules false
+    direct_s: 1500  # PROPOSED – unvalidated (Q-TD-37); s (game), = campaign.victory_hold_min (30 min) less a 5 min margin for the strike, the STAGE gather and the capture bar: a capture run that takes longer from the rear cannot contest a hold, so it stages
+    max_wait_windows: 90  # PROPOSED – unvalidated (Q-TD-37); windows (60 game s each), one director.pol.convoy_period_s (60 min) plus an ENEMY_CONVOY's ~21 min drive from the rear to a bridgehead and unloading
+    max_staged: 2  # PROPOSED – unvalidated (Q-TD-37); operations staged at once, one per bridgehead lane (north, south) of strait-1
   garrison:
     replace_per_window: 1  # PROPOSED – unvalidated (Q-SIM-85); units a Static base below its garrison_quota buys in one window
     kinds:  # PROPOSED – unvalidated (Q-SIM-85, NX-157); ENEMY kinds that fill a Static base's garrison_quota, by node kind, round-robin (CONFIG-AND-CONTENT §6.7)

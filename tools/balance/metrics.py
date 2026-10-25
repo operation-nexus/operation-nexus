@@ -20,7 +20,7 @@ from nexus.contracts.gen.common.enums import Side
 from nexus.contracts.gen.events.event import Event
 from nexus.core.campaign import momentum
 from nexus.core.director import TIERS
-from nexus.core.roads import shortest_path
+from nexus.core.roads import shortest_path, travel_ticks
 from nexus.core.rules import Rules
 from nexus.core.tasking import idle_reason
 from nexus.core.tasking_gen import is_idle
@@ -583,16 +583,10 @@ def travel_table(rules: Rules, tick_hz: int) -> list[dict[str, Any]]:
     rows = []
     for node in rc.strategic:
         path = shortest_path(rules.roads, rear, node, blocked=frozenset())
-        cost = None  # metres / speed_mult along the path: metres at speed_mult 1
-        if path is not None:
-            cost = sum(
-                (edge := rules.roads.edge(a, b)).length_m / edge.speed_mult
-                for a, b in itertools.pairwise(path)
-            )
         for kind in kinds:
-            ticks = (
-                None if cost is None else math.ceil(cost / rules.speed_mps[kind] / rules.world_dt)
-            )
+            ticks = travel_ticks(
+                rules.roads, rear, node, rules.speed_mps[kind], rules.world_dt, blocked=frozenset()
+            )  # the kernel's own rule (THREAT-DIRECTOR FS-1)
             minutes = None if ticks is None else ticks / tick_hz / 60
             rows.append(
                 {

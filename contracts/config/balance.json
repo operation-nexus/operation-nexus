@@ -1911,6 +1911,7 @@
         "retake_window_min",
         "decoy_blink",
         "strike_bridge",
+        "staging",
         "max_ops",
         "job_urgency",
         "adaptation_down_below",
@@ -2845,6 +2846,17 @@
           "required": ["cooldown_s"],
           "properties": {
             "cooldown_s": {"description": "How long after its BridgeRepaired a bridge may not be the target of STRIKE_BRIDGE again, unit s of game time (counted from the repair's running tick, converted to running ticks at load).", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true, "x-category": "DIRECTOR", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 600.0, "max": 3600.0, "step": 60.0, "scale": "LINEAR"}, "x-source": "THREAT-DIRECTOR \u00a77a, Q-SIM-121", "x-status": "PROPOSED"}
+          }
+        },
+        "staging": {
+          "description": "Forward staging (THREAT-DIRECTOR \u00a74a FS-1..FS-8, Q-TD-36, Q-TD-37; NX-416): with economy.legacy_rules false, a capture operation whose capture kind's road travel time from the rear source exceeds direct_s waits at the nearest Static-held base by road until that base can pay, its forward-stock target raised so trucks fill it.",
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["direct_s", "max_wait_windows", "max_staged"],
+          "properties": {
+            "direct_s": {"description": "An operation with a CAPTURE job is staged when its capture kind's road travel time from the side's rear source to the target exceeds this (FS-1), unit s of game time (the kind's top speed and each road's speed_mult, bridges down in the side's view excluded; converted to ticks at load).", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true, "x-category": "DIRECTOR", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 600.0, "max": 3600.0, "step": 60.0, "scale": "LINEAR"}, "x-source": "THREAT-DIRECTOR \u00a74a FS-1, Q-TD-37", "x-status": "PROPOSED"},
+            "max_wait_windows": {"description": "Decision windows a staged operation waits for its staging base to pay; then it launches by EC-13 at its paying node (the jets' deploy base or the rear source) if that can pay, or is dropped (FS-4), unit windows.", "type": "integer", "minimum": 1, "x-unit": "windows", "x-hot-reload": true, "x-category": "DIRECTOR", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 15, "max": 180, "step": 15, "scale": "LINEAR"}, "x-source": "THREAT-DIRECTOR \u00a74a FS-4, Q-TD-37", "x-status": "PROPOSED"},
+            "max_staged": {"description": "Operations a side holds staged at once; one past it is not staged and spawns as EC-13 says (FS-4), unit operations.", "type": "integer", "minimum": 1, "x-unit": "operations", "x-hot-reload": true, "x-category": "DIRECTOR", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 1, "max": 4, "step": 1, "scale": "LINEAR"}, "x-source": "THREAT-DIRECTOR \u00a74a FS-4, Q-TD-37", "x-status": "PROPOSED"}
           }
         },
         "garrison": {

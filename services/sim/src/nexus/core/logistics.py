@@ -212,12 +212,32 @@ def keeps(world: World, rules: Rules, side: Side, dest: str) -> Mapping[str, int
     stocking run (`dest` at or above its starvation floor, below its stock target, with no damaged
     facility of the side) its own stock target, so stock flows forward from the rear and never
     back and forth between bases below target; on any other run its starvation floor."""
-    sup = rules.supply
+    sup, target = rules.supply, stock_targets(world, rules)
     stock = world.stock.get(dest, 0)
-    if not sup.starve_floor[dest] <= stock < sup.stock_target[dest]:
+    if not sup.starve_floor[dest] <= stock < target[dest]:
         return sup.starve_floor
     missing_hp = facility_damage(world, rules, side).get(dest, (0, 0))[0]
-    return sup.starve_floor if missing_hp else sup.stock_target
+    return sup.starve_floor if missing_hp else target
+
+
+def stock_targets(world: World, rules: Rules) -> Mapping[str, int]:
+    """Each finite-stock node's forward stock target (Q-SIM-100): `Supply.stock_target`, raised at
+    a staging base to its starvation floor plus the cost of every operation staged there
+    (THREAT-DIRECTOR FS-3, NX-416), at most the node's maximum. The rules' own map when nothing
+    is staged, so the economy's legacy rules see no change."""
+    sup, dr = rules.supply, rules.director
+    staged = [s for side in sorted(world.director) for s in world.director[side].staged]
+    if not staged or dr is None:
+        return sup.stock_target
+    cost = {o.id: o.cost for o in dr.operations}
+    need: dict[str, int] = {}
+    for s in staged:
+        need[s.base] = need.get(s.base, sup.starve_floor.get(s.base, 0)) + cost.get(s.op, 0)
+    out = dict(sup.stock_target)
+    for node, lift in need.items():
+        if node in out:
+            out[node] = max(out[node], min(sup.max_stock[node], lift))
+    return out
 
 
 def _surplus(world: World, rules: Rules, node: str) -> int:

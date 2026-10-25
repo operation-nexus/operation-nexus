@@ -271,6 +271,7 @@ HOLD_STARTED = {**_BASE, "kind": "VictoryHoldStarted", "node_ids": ["fob-1", "po
                 "ends_at_tick": 18_042}  # fmt: skip
 HOLD_BROKEN = {**_BASE, "kind": "VictoryHoldBroken", "node_id": "port-s"}
 HOLD_AT_RISK = {**ADAPTATION, "category": "HOLD_AT_RISK", "node_id": "port-s"}
+STAGING = {**ADAPTATION, "category": "STAGING"}  # NX-416 (THREAT-DIRECTOR FS-5): sector only
 # NX-412 part 5a (ECONOMY EC-8): a Director operation the live cap stopped
 REFUSED = {**_BASE, "kind": "SpawnRefused", "side": "ENEMY", "reason": "GUARD", "operations": 2,
            "units": 7}  # fmt: skip
@@ -302,6 +303,7 @@ REFUSED = {**_BASE, "kind": "SpawnRefused", "side": "ENEMY", "reason": "GUARD", 
         HOLD_STARTED,
         HOLD_BROKEN,
         HOLD_AT_RISK,
+        STAGING,
         REFUSED,
         {**REFUSED, "reason": "TIER_CAP", "units": 0},  # only a radar blink, over the cap
     ],
