@@ -20,6 +20,7 @@ from nexus.contracts.gen.events.spawn_refused import SpawnRefused
 from nexus.contracts.gen.events.supply_consumed import SupplyConsumed
 from nexus.contracts.gen.events.supply_delivered import SupplyDelivered
 from nexus.contracts.gen.events.supply_produced import SupplyProduced
+from nexus.contracts.gen.events.threat_adaptation import ThreatAdaptation
 from nexus.contracts.gen.events.threat_tier_changed import ThreatTierChanged
 from nexus.contracts.gen.events.unit_destroyed import UnitDestroyed
 from nexus.contracts.gen.events.unit_grounded import UnitGrounded
@@ -1463,6 +1464,20 @@ def test_collector_counts_the_economy_per_side_per_hour(collector: metrics.Colle
         "operations_per_hour": {"GUARD": [2], "TIER_CAP": [0, 1]},
         "units": {"GUARD": 7, "TIER_CAP": 0},
     }
+
+
+def test_collector_counts_the_statics_adaptations_by_category(collector: metrics.Collector) -> None:
+    def adapted(tick: int, side: str, category: str) -> Any:
+        return ThreatAdaptation.model_construct(kind="ThreatAdaptation", tick=tick, side=side,
+                                                category=category)  # fmt: skip
+
+    collector.feed([
+        adapted(5, "ENEMY", "STAGING"), adapted(HOUR + 1, "ENEMY", "STAGING"),
+        adapted(HOUR + 2, "ENEMY", "HOLD_AT_RISK"), adapted(9, "COALITION", "STAGING"),
+    ])  # fmt: skip
+    assert collector.result(2 * HOUR)["economy"]["adapted"] == {
+        "HOLD_AT_RISK": [0, 1], "STAGING": [1, 1],
+    }  # fmt: skip
 
 
 def test_collector_counts_static_operations_holds_and_budgets(
