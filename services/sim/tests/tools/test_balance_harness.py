@@ -16,13 +16,20 @@ from nexus.contracts.gen.events.campaign_ended import CampaignEnded
 from nexus.contracts.gen.events.capture_started import CaptureStarted
 from nexus.contracts.gen.events.node_captured import NodeCaptured
 from nexus.contracts.gen.events.node_defenses_down import NodeDefensesDown
+from nexus.contracts.gen.events.spawn_refused import SpawnRefused
+from nexus.contracts.gen.events.supply_consumed import SupplyConsumed
 from nexus.contracts.gen.events.supply_delivered import SupplyDelivered
+from nexus.contracts.gen.events.supply_produced import SupplyProduced
 from nexus.contracts.gen.events.threat_tier_changed import ThreatTierChanged
 from nexus.contracts.gen.events.unit_destroyed import UnitDestroyed
+from nexus.contracts.gen.events.unit_grounded import UnitGrounded
 from nexus.contracts.gen.events.unit_spawned import UnitSpawned
+from nexus.contracts.gen.events.victory_hold_started import VictoryHoldStarted
 from nexus.contracts.gen.events.weapon_impact import WeaponImpact
-from nexus.core.campaign import momentum
+from nexus.core.campaign import campaign, momentum
 from nexus.core.step import HANDLERS, step
+from nexus.core.tasking import post_job
+from nexus.core.tasking_gen import JobSpec
 from nexus.core.world import CaptureBar, Claim, Contact, Job, Vec2
 from nexus.runtime.campaign_config import CampaignConfig, start_campaign
 from nexus.runtime.command_log import CommandLogReader, Tombstone
@@ -764,14 +771,33 @@ def test_set_rejections_exit_2_before_any_run(
     assert capsys.readouterr().err.startswith("error:") and not out.exists()
 
 
-def test_set_rejects_a_bool_leaf(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    # The shipped config has no bool leaf today, so feed one: True must not be coerced to 1.
-    tree = yaml.safe_load(balance.ConfigPaths().balance.read_text())
-    tree["debug_flag"] = True
-    (shipped := tmp_path / "balance.yaml").write_text(yaml.safe_dump(tree))
-    monkeypatch.setattr(balance, "ConfigPaths", lambda: SimpleNamespace(balance=shipped))
-    with pytest.raises(ValueError, match="numeric"):
-        balance.override_balance(["debug_flag=1"])
+def test_set_takes_true_and_false_on_a_bool_key(tmp_path: Path) -> None:
+    # NX-412 part 5a: the shipped switches go off through --set, and the loader takes the result
+    text = balance.override_balance(["economy.legacy_rules=false", "economy.unlimited.ENEMY=false"])
+    tree = yaml.safe_load(text)
+    assert tree["economy"]["legacy_rules"] is False
+    assert tree["economy"]["unlimited"] == {"COALITION": True, "ENEMY": False}
+    (path := tmp_path / "balance.yaml").write_text(text)
+    assert balance.load_campaign_config(balance.ConfigPaths(balance=path)).rules.economy is not None
+    on = yaml.safe_load(balance.override_balance(["economy.unlimited.COALITION=true"]))
+    assert on["economy"]["unlimited"]["COALITION"] is True
+
+
+@pytest.mark.parametrize(
+    ("pair", "match"),
+    [
+        ("economy.legacy_rules=1", "not true or false"),  # a number on a bool key: never coerced
+        ("economy.legacy_rules=0", "not true or false"),
+        ("economy.legacy_rules=True", "not true or false"),
+        ("economy.legacy_rules=yes", "not true or false"),
+        (f"{KEY}=true", "not a valid int"),  # a bool on a numeric key
+        ("economy.window_s=false", "not a valid"),
+        ("economy.unlimited=false", "numeric or boolean"),  # a section, not a leaf
+    ],
+)
+def test_set_checks_the_value_against_the_key_type(pair: str, match: str) -> None:
+    with pytest.raises(ValueError, match=match):
+        balance.override_balance([pair])
 
 
 def test_set_rejects_a_repeated_key() -> None:
@@ -1327,12 +1353,27 @@ def test_only_won_campaigns_are_judged() -> None:
     assert a1["seeds_in_window"] == 1 and "1/1 won seeds flagged" in a1["detail"]  # fmt: skip
 
 
-def test_collector_derives_pressure_and_the_hold_from_events(collector: metrics.Collector) -> None:
+def test_collector_derives_pressure_and_the_hold_from_events(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    # The hold now comes from the sim's VictoryHoldStarted / Broken (NX-412 part 5a): each tick's
+    # captures go through a real world and `nexus.core.campaign.campaign`, and the hold events it
+    # emits are fed with them, so the S2 inputs must match the old capture-derived expectations.
+    world = start_campaign("c", 1, shipped_config)
+
     def cap(tick: int, node: str, frm: str, to: str) -> Any:
         return NodeCaptured.model_construct(
             kind="NodeCaptured", tick=tick, node_id=node, from_=frm, to=to,
             participant_commander_ids=[],
         )  # fmt: skip
+
+    def feed_tick(*caps: Any) -> None:
+        out: list[Any] = []
+        for c in caps:
+            world.owner[c.node_id] = c.to
+        world.campaign.tick = caps[0].tick - 1
+        campaign(world, out)
+        collector.feed([*caps, *(e for e in out if e.kind.startswith("VictoryHold"))])
 
     def start(tick: int, node: str, side: str) -> Any:
         return CaptureStarted.model_construct(
@@ -1359,12 +1400,13 @@ def test_collector_derives_pressure_and_the_hold_from_events(collector: metrics.
         (100, "cross-n", "NEUTRAL"), (110, "cross-s", "NEUTRAL"), (120, "fob-n-e", "ENEMY"),
         (130, "fob-s-e", "ENEMY"),
     ):  # fmt: skip
-        collector.feed([cap(tick, node, frm, "COALITION")])
+        feed_tick(cap(tick, node, frm, "COALITION"))
     assert collector.hold_start == 130 and collector.holds_broken == 0  # 7 of 8 >= 4/5
-    collector.feed([start(150, "fob-n-e", "ENEMY"), cap(160, "fob-n-e", "COALITION", "ENEMY")])
+    collector.feed([start(150, "fob-n-e", "ENEMY")])
+    feed_tick(cap(160, "fob-n-e", "COALITION", "ENEMY"))
     assert collector.pressure_ticks == [12, 13, 150, 160]  # a capture start, then the node lost
     assert collector.hold_start is None and collector.holds_broken == 1  # 6 of 8 < 4/5: broken
-    collector.feed([cap(170, "fob-n-e", "ENEMY", "COALITION")])
+    feed_tick(cap(170, "fob-n-e", "ENEMY", "COALITION"))
     assert collector.hold_start == 170
     raw = collector.result(1000)["steamroll"]
     assert (raw["hold_start"], raw["holds_broken"], raw["pressure_ticks"]) == (
@@ -1373,10 +1415,154 @@ def test_collector_derives_pressure_and_the_hold_from_events(collector: metrics.
         [12, 13, 150, 160],
     )
     # a loss and a regain in one tick: the hold is judged on the tick's final ownership
-    collector.feed(
-        [cap(180, "fob-n-e", "COALITION", "ENEMY"), cap(180, "fob-n-e", "ENEMY", "COALITION")]
-    )
+    feed_tick(cap(180, "fob-n-e", "COALITION", "ENEMY"), cap(180, "fob-n-e", "ENEMY", "COALITION"))
     assert collector.hold_start == 170 and collector.holds_broken == 1
+    holds = collector.result(1000)["economy"]["holds"]
+    assert holds == [
+        {"start": 130, "end": 160, "broken": True, "ops": 0},
+        {"start": 170, "end": None, "broken": False, "ops": 0},
+    ]
+
+
+# --- economy metrics (NX-412 part 5a, ECONOMY §4 "Harness report") ------------------------------
+HOUR = 3600 * HZ
+
+
+def test_collector_counts_the_economy_per_side_per_hour(collector: metrics.Collector) -> None:
+    def produced(tick: int, side: str, amount: int) -> Any:
+        return SupplyProduced.model_construct(kind="SupplyProduced", tick=tick, side=side,
+                                              amount=amount)  # fmt: skip
+
+    def consumed(tick: int, node: str, amount: int, cause: str) -> Any:
+        return SupplyConsumed.model_construct(kind="SupplyConsumed", tick=tick, node_id=node,
+                                              amount=amount, cause=cause)  # fmt: skip
+
+    def refused(tick: int, reason: str, ops: int, units: int) -> Any:
+        return SpawnRefused.model_construct(kind="SpawnRefused", tick=tick, side="ENEMY",
+                                            reason=reason, operations=ops, units=units)  # fmt: skip
+
+    collector.feed([
+        produced(5, "COALITION", 20), produced(10, "ENEMY", 40), produced(HOUR + 1, "ENEMY", 30),
+        consumed(20, "fob-n-w", 3, "UPKEEP"),  # a coalition base pays upkeep
+        consumed(21, "static-rear", 2, "UPKEEP"),  # the Static's source (no owner entry needed)
+        consumed(30, "static-rear", 60, "SPAWN"),  # the Static's source account
+        consumed(30, "east-airbase", 15, "SPAWN"),  # a Static base account
+        consumed(31, "haven", 20, "SPAWN"),  # a coalition spawn: not the Director's spend
+        consumed(32, "east-airbase", 9, "REARM"),  # neither upkeep nor a spawn
+        spawned(35, 901, "STRIKE_FIGHTER", "COALITION", commander(1)),
+        UnitGrounded.model_construct(kind="UnitGrounded", tick=40, entity_id=901, node_id="haven"),
+        refused(50, "GUARD", 2, 7), refused(HOUR + 5, "TIER_CAP", 1, 0),
+    ])  # fmt: skip
+    eco = collector.result(2 * HOUR)["economy"]
+    assert eco["sides"] == {
+        "COALITION": {"income": [20], "upkeep": [3], "groundings": [1]},
+        "ENEMY": {"income": [40, 30], "upkeep": [2], "groundings": []},
+    }
+    assert eco["budget"]["spent"] == {"base": [15], "source": [60]}
+    assert eco["refused"] == {
+        "operations_per_hour": {"GUARD": [2], "TIER_CAP": [0, 1]},
+        "units": {"GUARD": 7, "TIER_CAP": 0},
+    }
+
+
+def test_collector_counts_static_operations_holds_and_budgets(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    world = start_campaign("c", 1, shipped_config)
+
+    def tick_with(tick: int, *jobs: tuple[str, str, str]) -> None:
+        out: list[Any] = []
+        world.campaign.tick = tick - 1
+        for kind, key, node in jobs:
+            post_job(world, "ENEMY", JobSpec(kind, key, 1, 500, node=node), out)  # type: ignore[arg-type]
+        world.campaign.tick = tick
+        collector.feed(out)
+        collector.observe(world)
+
+    # an OFFENSIVE posts its STAGE (job 0) and CAPTURE (job 1) on one tick: one launch
+    tick_with(100, ("STAGE", "op:OFFENSIVE:fob-n-w:0", "fob-n-w"),
+              ("CAPTURE", "op:OFFENSIVE:fob-n-w:1", "fob-n-w"))  # fmt: skip
+    tick_with(200, ("PATROL", "op:POL_PATROL:east-airbase:0", "east-airbase"))  # routine
+    hold = VictoryHoldStarted.model_construct(
+        kind="VictoryHoldStarted", tick=300, node_ids=[], ends_at_tick=18300
+    )
+    collector.feed([hold])
+    tick_with(400, ("CAPTURE", "op:OFFENSIVE:cross-n:0", "cross-n"))  # neutral, in the hold
+    tick_with(500, ("STRIKE", "op:PROBE:fob-s-w:1", "fob-s-w"))  # not a first job: no launch
+    state = world.director["ENEMY"]
+    state.windows, state.budget = state.windows + 1, 70  # a decision window ran
+    collector.observe(world)
+    collector.observe(world)  # the same window: counted once
+    eco = collector.result(2 * HOUR)["economy"]
+    assert eco["ops"] == [
+        [100, "OFFENSIVE", "fob-n-w", True],
+        [200, "POL_PATROL", "east-airbase", False],
+        [400, "OFFENSIVE", "cross-n", False],
+    ]
+    assert eco["holds"] == [{"start": 300, "end": None, "broken": False, "ops": 1}]
+    assert eco["budget"]["sum"] == [70] and eco["budget"]["windows"] == [1]
+    run = {"metrics": {"economy": eco}, "ticks_run": 2 * HOUR, "tick_hz": HZ,
+           "viewers": {"peak_concurrent": 5}}  # fmt: skip
+    agg = report._economy([run])
+    assert agg["ops_per_hour"] == 1.0  # 2 catalog launches over 2 game hours; patrols left out
+    assert agg["ops_by_id"] == {"OFFENSIVE": 2, "POL_PATROL": 1}
+    assert (agg["offensives"], agg["offensives_on_coalition"]) == (2, 1)
+    assert agg["offensive_gap_min"] == {"median": 0.5, "max": 0.5}  # 300 ticks at 10 Hz
+    assert agg["budget_per_window"] == 70 and agg["ops_per_hold"] == [1]
+    assert agg["army_vs_viewers"] == [[0, 5]]
+
+
+def test_collector_samples_pools_grounded_units_and_grounding_by_state(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    world = start_campaign("c", 1, shipped_config)
+    busy = world.spawn("STRIKE_FIGHTER", "COALITION", "COMMANDER", Vec2(0, 0))
+    idle = world.spawn("STRIKE_FIGHTER", "COALITION", "COMMANDER", Vec2(0, 0))
+    busy.job_id = 77  # holds a job at the first sample
+    collector.sample_idle(world)
+    busy.grounded, busy.job_id = True, None  # upkeep grounded it before the next sample
+    collector.sample_idle(world)
+    eco = collector.result(HOUR)["economy"]
+    seen_idle = metrics.idle_reason(world, idle)
+    assert eco["grounded_from"] == {"job": 1}
+    assert eco["exposure"] == {"job": 1, seen_idle: 1}  # the idle one stayed ungrounded
+    world.campaign.tick = HOUR - 1
+    collector.sample(world)  # not yet a full hour
+    world.campaign.tick = HOUR
+    collector.sample(world)
+    collector.sample(world)  # the same hour: one snapshot
+    assert collector.result(HOUR)["economy"]["hourly"] == [
+        {"COALITION": {"pool": None, "grounded": 1}, "ENEMY": {"pool": None, "grounded": 0}}
+    ]  # shipped: both sides unlimited, so no pool
+    assert collector.result(HOUR)["economy"]["army_peak"] >= 2
+
+
+def test_the_report_header_labels_the_economy_mode() -> None:
+    # EC-15: a legacy or unlimited run is labelled, never passed off as a normal balance result
+    on, off = {"COALITION": True, "ENEMY": True}, {"COALITION": False, "ENEMY": False}
+    shipped = report._economy_mode({"legacy_rules": True, "unlimited": on})
+    assert shipped == [
+        "- **economy: legacy_rules ON; unlimited COALITION, ENEMY** (ECONOMY EC-15: not a normal "
+        "balance result)"
+    ]
+    sweep = report._economy_mode({"legacy_rules": False, "unlimited": off})
+    assert sweep == ["- **economy: legacy_rules off; unlimited none**"]
+    one = report._economy_mode({"legacy_rules": False, "unlimited": {**off, "COALITION": True}})
+    assert "unlimited COALITION**" in one[0] and "EC-15" in one[0]
+    assert report._economy_mode(None) == []  # an old report.json without the field
+
+
+def test_travel_table_on_strait_1(shipped_config: CampaignConfig) -> None:
+    rows = {r["node"]: r for r in metrics.travel_table(shipped_config.rules, HZ)}
+    assert set(rows) == set(shipped_config.rules.campaign.strategic)  # type: ignore[union-attr]
+    east = rows["east-airbase"]
+    # by hand: static-rear (395 km, 120 km) -> static-hq (380, 120) -> east-airbase (310, 120),
+    # 85 km at speed_mult 1; ENEMY_ARMOR 20 m/s world = 4,250 world s, 7,084 ticks of 0.6 s
+    # (time_scale 6 at 10 Hz) = 708.4 game s
+    assert east["kind"] == "ENEMY_ARMOR" and east["road_km"] == 85.0
+    assert east["minutes"] == pytest.approx(708.4 / 60) and east["hold_min"] == 30.0
+    assert east["within_hold"] is True
+    assert rows["west-airbase"]["within_hold"] is False  # the far bank is out of reach
 
 
 def test_collector_samples_the_static_force_and_stock(

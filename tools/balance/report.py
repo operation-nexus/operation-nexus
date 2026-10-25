@@ -2,11 +2,14 @@
 §3.5a), and render the Markdown summary. A target that cannot be judged says so, never a default:
 `not evaluable` (the run was too short for its window), `no data`, or `not measurable yet`."""
 
+import itertools
+import math
 import statistics
 from collections import Counter
 from typing import Any
 
 import steamroll
+from metrics import OFFENSIVE, ROUTINE_JOBS
 from profiles import Targets
 
 PASS, FAIL, NO_DATA = "pass", "fail", "no data"
@@ -270,6 +273,74 @@ def _mean(values: list[float]) -> float | None:
     return statistics.fmean(values) if values else None
 
 
+def _per_hour(series: list[list[int]], hours: int) -> float | None:
+    """Mean per run-hour of per-hour counts (a run's list may stop before its last hour)."""
+    return sum(map(sum, series)) / hours if hours else None
+
+
+def _economy(runs: list[dict[str, Any]]) -> dict[str, Any]:
+    """ECONOMY §4 "Harness report" (NX-412 part 5a), pooled over the seeds with the data; per-hour
+    values are means per run-hour (game hours actually run)."""
+    rs = [r for r in runs if r["metrics"].get("economy")]
+    es = [r["metrics"]["economy"] for r in rs]
+    hours = sum(math.ceil(r["ticks_run"] / (3600 * r["tick_hz"])) for r in rs if r.get("tick_hz"))
+    sides: dict[str, Any] = {}
+    for side in sorted({s for e in es for s in e["sides"]}):
+        snaps = [h[side] for e in es for h in e["hourly"] if side in h]
+        last = [e["hourly"][-1][side]["pool"] for e in es if e["hourly"]]
+        sides[side] = {
+            **{
+                f"{k}_per_hour": _per_hour([e["sides"][side][k] for e in es], hours)
+                for k in ("income", "upkeep", "groundings")
+            },
+            "grounded_mean": _mean([h["grounded"] for h in snaps]),
+            "grounded_max": max((h["grounded"] for h in snaps), default=None),
+            "pool_last_mean": None if None in last else _mean(last),  # None: unlimited or no data
+        }
+    exposure: Counter[str] = Counter()
+    grounded: Counter[str] = Counter()
+    refused: Counter[str] = Counter()
+    for e in es:
+        exposure.update(e["exposure"])
+        grounded.update(e["grounded_from"])
+        refused.update({k: sum(v) for k, v in e["refused"]["operations_per_hour"].items()})
+    ops = [o for e in es for o in e["ops"]]
+    catalog = [o for o in ops if o[1] not in ROUTINE_JOBS]
+    by_id = Counter(o[1] for o in ops)
+    gaps = [
+        (b[0] - a[0]) / hz / 60
+        for r, e in zip(rs, es, strict=True)
+        for hz in [r["tick_hz"]]
+        for a, b in itertools.pairwise([o for o in e["ops"] if o[1] == OFFENSIVE])
+    ]
+    offensives = [o for o in catalog if o[1] == OFFENSIVE]
+    windows = sum(sum(e["budget"]["windows"]) for e in es)
+    holds = [h for e in es for h in e["holds"]]
+    return {
+        "sides": sides,
+        "grounded_share_by_state": {
+            k: {"grounded": grounded[k], "seen": n, "share": grounded[k] / n}
+            for k, n in sorted(exposure.items())
+        },
+        "refused_operations": dict(sorted(refused.items())),
+        "budget_per_window": sum(sum(e["budget"]["sum"]) for e in es) / windows
+        if windows
+        else None,
+        "spent": {k: sum(sum(e["budget"]["spent"][k]) for e in es) for k in ("base", "source")},
+        "ops_per_hour": len(catalog) / hours if hours else None,
+        "ops_by_id": dict(sorted(by_id.items())),
+        "offensives": len(offensives),
+        "offensives_on_coalition": sum(o[3] for o in offensives),
+        "offensive_gap_min": {"median": _med(gaps), "max": max(gaps, default=None)},
+        "holds": len(holds),
+        "holds_broken": sum(h["broken"] for h in holds),
+        "ops_per_hold": [h["ops"] for h in holds],
+        "army_vs_viewers": [
+            [e["army_peak"], r["viewers"]["peak_concurrent"]] for r, e in zip(rs, es, strict=True)
+        ],
+    }
+
+
 def aggregate(profile: str, runs: list[dict[str, Any]], t: Targets) -> dict[str, Any]:
     """One profile's results across its seeds."""
     dwell: Counter[str] = Counter()
@@ -286,6 +357,7 @@ def aggregate(profile: str, runs: list[dict[str, Any]], t: Targets) -> dict[str,
         "idle": _idle(runs),
         "density": _density(runs),
         "orders": _orders(runs),
+        "economy": _economy(runs),
         "momentum": {
             "mean_pct": _mean(momentum),
             "final_median_pct": _med(
@@ -387,6 +459,85 @@ def _steamroll_row(profile: str, s: dict[str, Any]) -> list[str]:
     ]
 
 
+def _economy_mode(mode: dict[str, Any] | None) -> list[str]:
+    """EC-15: an unlimited or legacy run is labelled in the header, apart from balance runs."""
+    if not mode:
+        return []
+    unlimited = [s for s, on in sorted(mode["unlimited"].items()) if on]
+    return [
+        f"- **economy: legacy_rules {'ON' if mode['legacy_rules'] else 'off'}; unlimited "
+        f"{', '.join(unlimited) or 'none'}**"
+        + (
+            " (ECONOMY EC-15: not a normal balance result)"
+            if unlimited or mode["legacy_rules"]
+            else ""
+        )
+    ]
+
+
+def _economy_lines(report: dict[str, Any]) -> list[str]:
+    lines = ["## Economy (ECONOMY §4, NX-412; per run-hour means, pooled over seeds)", ""]
+    rows = [
+        [
+            n,
+            side,
+            _fmt(v["income_per_hour"]),
+            _fmt(v["upkeep_per_hour"]),
+            _fmt(v["groundings_per_hour"]),
+            f"{_fmt(v['grounded_mean'])} / {_fmt(v['grounded_max'], 'd')}",
+            _fmt(v["pool_last_mean"], ".0f"),
+        ]
+        for n, a in report["profiles"].items()
+        for side, v in a["economy"]["sides"].items()
+    ]
+    lines += _table(
+        ["Profile", "Side", "Income / h", "Upkeep / h", "Groundings / h", "Grounded mean / max",
+         "Last pool"],
+        rows,
+    )  # fmt: skip
+    lines += [
+        "Grounded: live grounded units at the end of each game hour. Last pool: the source pool at "
+        "the last hour end, `-` for unlimited (no pool).",
+        "",
+    ]
+    for n, a in report["profiles"].items():
+        e = a["economy"]
+        share = {
+            k: f"{v['share']:.1%} of {v['seen']}" for k, v in e["grounded_share_by_state"].items()
+        }
+        gap = e["offensive_gap_min"]
+        lines += [
+            f"- {n}: Static operations / h {_fmt(e['ops_per_hour'], '.2f')} {e['ops_by_id']}; "
+            f"Offensives {e['offensives']} ({e['offensives_on_coalition']} on coalition-held "
+            f"nodes), gap median {_fmt(gap['median'])} min, max {_fmt(gap['max'])} min; budget / "
+            f"window {_fmt(e['budget_per_window'])}, spawn debits base {e['spent']['base']}, "
+            f"source {e['spent']['source']}; live-cap refusals "
+            f"{e['refused_operations'] or 'none'}; "
+            f"victory holds {e['holds']} (broken {e['holds_broken']}), Static operations per hold "
+            f"{e['ops_per_hold']}; peak coalition armed units vs peak viewers per seed "
+            f"{e['army_vs_viewers']}; grounded by previous state {share or 'none'}",
+        ]
+    lines += [""]
+    travel = report.get("travel") or []
+    if travel:
+        lines += ["## Static travel time to the victory nodes (rear source, road, top speed)", ""]
+        lines += _table(
+            ["Node", "Kind", "Road km", "Game min", "Hold min", "Within hold"],
+            [
+                [t["node"], t["kind"], _fmt(t["road_km"]), _fmt(t["minutes"]), _fmt(t["hold_min"]),
+                 "-" if t["within_hold"] is None else "yes" if t["within_hold"] else "NO"]
+                for t in travel
+            ],
+        )  # fmt: skip
+        lines += [
+            "Shortest road path from the Static's rear source with every bridge up, the capture "
+            "kind's Healthy top speed; staging, spawning and combat are left out, so a real "
+            "arrival is later (econ checkpoint §4.1).",
+            "",
+        ]
+    return lines
+
+
 def markdown(report: dict[str, Any]) -> str:
     """The Markdown summary of a whole report (see `balance.py`)."""
     cfg, timing = report["config"], report["timing"]
@@ -407,6 +558,7 @@ def markdown(report: dict[str, Any]) -> str:
             if cfg.get("overrides")
             else []
         ),
+        *_economy_mode(cfg.get("economy")),
         f"- profiles.yaml digest: `{cfg['profiles_digest']}` (every value in it is PROPOSED)",
         f"- seeds: {report['seeds']}; game hours per run: {report['hours']:g}",
         f"- workers: {report['workers']}; wall time {timing['elapsed_s']:.1f} s elapsed, "
@@ -469,6 +621,7 @@ def markdown(report: dict[str, Any]) -> str:
         ),
         "",
     ]
+    lines += _economy_lines(report)
     lines += ["## A2 first impact (newbies arriving at the A2 tier or above)", ""]
     for n, a in report["profiles"].items():
         a2 = a["A2"]

@@ -531,8 +531,11 @@ def _fit(c: Candidate, room: int, least: int) -> Candidate | None:
 def select(
     ranked: list[Candidate], dr: DirectorRules, budget: int, spawn_room: int, live_room: int,
     live: frozenset[tuple[str, str]], max_ops: int | None, routine: frozenset[str] = frozenset(),
+    refused: list[int] | None = None,
 ) -> list[Candidate]:  # fmt: skip
-    """Step 6 (module docstring). `live_room` is `max_live_units.<tier>` less the live units."""
+    """Step 6 (module docstring). `live_room` is the live-unit cap's room (`launch._live_room`).
+    `refused` gets the units of each candidate that fit the spawn room but not the live room
+    (ECONOMY EC-8: the cap, not the budget or anti-spam, stopped it; NX-412 part 5a)."""
     chosen: list[Candidate] = []
     running = set(live)
     blinks = 0
@@ -550,6 +553,8 @@ def select(
             continue
         fitted = _fit(c, min(spawn_room, live_room), dr.escort_min_convoys)
         if fitted is None:
+            if refused is not None and (spare := _fit(c, spawn_room, dr.escort_min_convoys)):
+                refused.append(spare.units)
             continue
         chosen.append(fitted)
         blinks += bool(c.op.effect)

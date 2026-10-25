@@ -29,7 +29,9 @@ launched in selection order:
 - **Room.** The units must fit `max_spawns_per_window` and the live room: below
   `director.max_live_units.<tier>` under `economy.legacy_rules`, else below the EC-8 guard
   `sim.max_live_units_per_side` (`economy.guard_room`). An operation that posts jobs stamps
-  `DirectorState.last_operation` (the EC-7 cadence floor).
+  `DirectorState.last_operation` (the EC-7 cadence floor). Operations the budget and
+  `max_spawns_per_window` allow but the live room does not are counted in one `SpawnRefused` per
+  selection (EC-8, `GUARD` or `TIER_CAP`; NX-412 part 5a).
 - **Effect.** EMISSION_BLINK turns the radar at the target base dark for `decoy_blink.dark_s`
   (`DirectorState.dark` holds when it resumes), then it may not blink again for `cooldown_s`
   (`blink_ready`); at most one radar blinks per window (Q-SIM-82).
@@ -49,6 +51,7 @@ from fractions import Fraction
 
 from nexus.contracts.gen.common.enums import Side, UnitKind
 from nexus.contracts.gen.events.event import Event
+from nexus.contracts.gen.events.spawn_refused import SpawnRefused
 from nexus.contracts.gen.events.threat_adaptation import ThreatAdaptation
 from nexus.contracts.gen.events.unit_despawned import UnitDespawned
 from nexus.contracts.gen.events.unit_spawned import UnitSpawned
@@ -115,6 +118,21 @@ def _live_room(world: World, rules: Rules, side: Side, state: DirectorState, own
     if guard is not None:
         return guard
     return 0 if dr is None else dr.max_live_units[state.tier] - own.live_units
+
+
+def _note_refused(world: World, side: Side, refused: list[int], out: list[Event]) -> None:
+    """EC-8 (NX-412 part 5a): one `SpawnRefused` for the operations the live cap stopped in one
+    selection; `GUARD` when the guard applies, else the legacy tier cap. None for no refusal."""
+    if not refused:
+        return
+    out.append(
+        SpawnRefused.model_construct(
+            kind="SpawnRefused", tick=world.campaign.tick + 1, event_seq=world.next_event_seq(),
+            campaign_id=world.campaign.id, side=side,
+            reason="TIER_CAP" if guard_room(world, side) is None else "GUARD",
+            operations=len(refused), units=sum(refused),
+        )
+    )  # fmt: skip
 
 
 def _routine(dr: DirectorRules) -> frozenset[str]:
@@ -211,10 +229,13 @@ def run(world: World, side: Side, view: SideView, rules: Rules, out: list[Event]
     capped = world.viewer_units() == 0 and night_capped(state, dr, now)  # no capture operations
     cands = ops.candidates(state, view, rules, own, now, live, capture=False if capped else None)
     ranked = ops.rank(cands, state, view, rules, world.rng.stream(RngStream.DIRECTOR))
+    refused: list[int] = []
     chosen = ops.select(
         ranked, dr, state.budget, dr.max_spawns_per_window,
         _live_room(world, rules, side, state, own), live, ops.max_ops(state.tier, dr), _routine(dr),
+        refused,
     )  # fmt: skip
+    _note_refused(world, side, refused, out)
     pool = world.pool.get(side)  # unchanged since `decide` set the budget; None: unlimited
     purse = None if legacy_rules(rules) else _Purse.of(state.budget, pool, dr)
     for c in chosen:
@@ -260,10 +281,12 @@ def _capture_slot(
     if not cands:
         return
     ranked = ops.rank(cands, state, view, rules, world.rng.stream(RngStream.DIRECTOR))
+    refused: list[int] = []
     chosen = ops.select(
         ranked, dr, surplus(view, rules, world.stock), dr.max_spawns_per_window,
-        _live_room(world, rules, side, state, own), live, None, _routine(dr),
+        _live_room(world, rules, side, state, own), live, None, _routine(dr), refused,
     )  # fmt: skip
+    _note_refused(world, side, refused, out)
     if chosen:
         state.last_offensive = now
     spend = _surplus_purse(view, rules, world, purse)
@@ -315,19 +338,25 @@ def _convoys(
     (Q-SIM-85)."""
     own = _own(world, rules, side)
     live = ops.live_pairs([j.key for j in world.boards[side].values()])
-    room = min(dr.max_spawns_per_window, _live_room(world, rules, side, state, own))
+    spawns, live_room = dr.max_spawns_per_window, _live_room(world, rules, side, state, own)
+    refused: list[int] = []
     op = OperationRules(
         _CONVOY_OP, "NODE", (), dr.convoy_cost, frozenset(),
         (JobTemplate("RESUPPLY", "target", (dr.convoy_kind,), dr.convoy_slots),), None, Fraction(0),
     )  # fmt: skip
     for base in ops.convoy_bases(view, rules, own)[: dr.convoys_per_period]:
-        short = room < dr.convoy_slots  # the job spawns up to `convoy_slots` units
-        if (_CONVOY_OP, base) in live or short or surplus(view, rules, world.stock) < op.cost:
+        if (_CONVOY_OP, base) in live or surplus(view, rules, world.stock) < op.cost:
+            continue
+        if min(spawns, live_room) < dr.convoy_slots:  # the job spawns up to `convoy_slots` units
+            if spawns >= dr.convoy_slots:  # the live cap, not anti-spam, stopped it (EC-8)
+                refused.append(dr.convoy_slots)
             continue
         cand = ops.Candidate(op, base, None, ((ops.Where(base),),))
         spend = _surplus_purse(view, rules, world, purse)
-        room -= _post_and_spawn(world, rules, side, cand, out, lambda n: op.cost * n, spend) or 0
+        made = _post_and_spawn(world, rules, side, cand, out, lambda n: op.cost * n, spend) or 0
+        spawns, live_room = spawns - made, live_room - made
         _keep_rear(purse, spend)
+    _note_refused(world, side, refused, out)
 
 
 def _surplus_purse(

@@ -10,15 +10,18 @@ Not measurable yet, and not produced: the kill-share Gini by rank (no ranks unti
 the adversarial targets A5 and A6 (part 2, NX-321).
 """
 
+import itertools
 import math
 from collections import Counter
 from collections.abc import Callable, Iterable, Mapping
-from fractions import Fraction
 from typing import Any, Final
 
+from nexus.contracts.gen.common.enums import Side
 from nexus.contracts.gen.events.event import Event
 from nexus.core.campaign import momentum
 from nexus.core.director import TIERS
+from nexus.core.roads import shortest_path
+from nexus.core.rules import Rules
 from nexus.core.tasking import idle_reason
 from nexus.core.tasking_gen import is_idle
 from nexus.core.world import World
@@ -33,6 +36,21 @@ _COALITION: Final = "COALITION"
 # (Q-SIM-97) is the first tick a newbie's truck holds cargo and a path: it loaded at its source and
 # set off for a delivery (no event says so; `observe` reads the truck every tick, so it is exact).
 IMPACT_KINDS = ("kill", "capture", "delivery", "departure", "scout", "hit")
+SIDES: Final[tuple[Side, ...]] = ("COALITION", "ENEMY")
+# ECONOMY §4 "Harness report" (NX-412 part 5a): per side, per game hour (index = (tick - 1) // an
+# hour's ticks): income (`SupplyProduced`), upkeep paid (`SupplyConsumed{UPKEEP}`) and groundings
+# (`UnitGrounded`); `pool` and `grounded` (live grounded units) are read at the first sample of
+# each new hour, `pool` None for a side in unlimited mode (no pool, EC-15).
+ECON_SERIES = ("income", "upkeep", "groundings")
+# The Pattern of Life job ids of `nexus.core.launch` (`_PATROL_OP`, `_CONVOY_OP`): routine work,
+# not Director operations, so the operation counts leave them out (they stay in `by_id`).
+ROUTINE_JOBS = frozenset({"POL_PATROL", "POL_CONVOY"})
+OFFENSIVE = "OFFENSIVE"
+
+
+def _add(series: list[int], index: int, n: int) -> None:
+    series.extend([0] * (index + 1 - len(series)))
+    series[index] += n
 
 
 class Collector:
@@ -92,11 +110,32 @@ class Collector:
         # `NodeDefensesDown`, or a coalition node lost. The victory hold is derived (no event
         # names it): a run of the coalition holding `victory_node_frac` of the strategic nodes.
         self._owner = dict(world.owner)
-        self._hold_frac: Fraction = rules.campaign.victory_node_frac
         self.pressure_ticks: list[int] = []
+        # The hold follows the sim's own `VictoryHoldStarted` / `VictoryHoldBroken` (ECONOMY EC-9;
+        # one at setup arrives on tick 1). `holds`: per hold its start, end, whether it broke and
+        # the Static operations launched during it.
         self.holds_broken = 0
-        self.hold_start: int | None = 0 if self._holding() else None
-        self._hold_tick: int | None = None  # a tick with captures whose hold is not judged yet
+        self.hold_start: int | None = None
+        self.holds: list[dict[str, Any]] = []
+        self.hour_ticks = 3600 * tick_hz
+        self._source_side = {node: side for side, node in sorted(rules.supply.rear.items())}
+        self.econ: dict[str, dict[str, list[int]]] = {
+            s: {k: [] for k in ECON_SERIES} for s in SIDES
+        }
+        self.hourly: list[dict[str, dict[str, int | None]]] = []  # pool, grounded per side
+        self.refused: dict[str, list[int]] = {}  # SpawnRefused operations per hour, by reason
+        self.refused_units: Counter[str] = Counter()
+        self._prev_state: dict[int, str] = {}  # armed viewer unit -> "job", "busy" or idle reason
+        self.grounded_from: Counter[str] = Counter()  # newly grounded, by the previous state
+        self.exposure: Counter[str] = Counter()  # units seen again after a sample in that state
+        self._windows = world.director[_ENEMY].windows
+        self.budget: list[int] = []  # the Static's planned window budgets, summed per hour
+        self.budget_windows: list[int] = []  # its decision windows per hour
+        self.spent: dict[str, list[int]] = {"base": [], "source": []}  # its SPAWN debits per hour
+        self._new_jobs: list[int] = []  # Static jobs created this tick (JobCreated)
+        self.ops: list[tuple[int, str, str, bool]] = []  # (tick, operation, target, on coalition)
+        self.ops_unseen = 0  # a created job already gone from the board when `observe` read it
+        self.army_peak = 0  # the most live armed coalition units in one sample
         self.static_units: list[int] = []  # live armed Static units, per `sample`
         self.static_stock: list[int] = []  # Static-held finite-stock bases' stock, per `sample`
         self.static_start_stock = self._static_stock(world)
@@ -110,6 +149,13 @@ class Collector:
             "NodeDefensesDown": self._defenses_down,
             "ThreatTierChanged": self._tier,
             "CampaignEnded": self._end,
+            "VictoryHoldStarted": self._hold_started,
+            "VictoryHoldBroken": self._hold_broken,
+            "SupplyProduced": self._produced,
+            "SupplyConsumed": self._consumed,
+            "UnitGrounded": self._grounded,
+            "SpawnRefused": self._refused,
+            "JobCreated": self._job_created,
         }
 
     def note_join(self, commander: str, tick: int, tier: str) -> None:
@@ -154,12 +200,9 @@ class Collector:
 
     def feed(self, events: Iterable[Event]) -> None:
         for event in events:
-            if self._hold_tick is not None and event.tick != self._hold_tick:
-                self._judge_hold()
             handler = self._on.get(event.kind)
             if handler:
                 handler(event)
-        self._judge_hold()
 
     def observe(self, world: World) -> None:
         for eid in sorted(self.trucks):  # a truck leaving its source loaded (Q-SIM-97)
@@ -169,6 +212,13 @@ class Collector:
             elif e.cargo and e.path:
                 self.trucks.discard(eid)
                 self._credit(e.commander_id, world.campaign.tick, "departure")
+        self._launches(world)
+        state = world.director[_ENEMY]
+        if state.windows != self._windows:  # a Static decision window ran this tick
+            self._windows = state.windows
+            hour = self._hour(world.campaign.tick)
+            _add(self.budget, hour, state.budget)
+            _add(self.budget_windows, hour, 1)
         hp = world.defense_hp[self._sanctuary]
         self.sanctuary_min = min(self.sanctuary_min, hp)
         if world.campaign.tick <= self.a3_ticks:
@@ -185,6 +235,23 @@ class Collector:
             )
         )
         self.static_stock.append(self._static_stock(world))
+        self.army_peak = max(
+            self.army_peak,
+            sum(
+                e.side == _COALITION and e.kind in rules.armed and e.damage_state != "DISABLED"
+                for e in world.entities()
+            ),
+        )
+        if world.campaign.tick // self.hour_ticks > len(self.hourly):  # first sample of an hour
+            self.hourly.append(
+                {
+                    s: {
+                        "pool": world.pool.get(s),
+                        "grounded": sum(e.side == s and e.grounded for e in world.entities()),
+                    }
+                    for s in SIDES
+                }
+            )
         floor, stock = self._world_rules.supply.starve_floor, world.stock
         starved = sum(
             1
@@ -208,9 +275,25 @@ class Collector:
         ]
         if not armed:
             return
-        idle = [e for e in armed if is_idle(rules, e, _COALITION)]
-        self.idle_shares.append(len(idle) / len(armed))
-        self.idle_reasons.update(idle_reason(world, e) for e in idle)
+        reasons = {e.id: idle_reason(world, e) for e in armed if is_idle(rules, e, _COALITION)}
+        self.idle_shares.append(len(reasons) / len(armed))
+        self.idle_reasons.update(reasons.values())
+        self._grounding_by_state(armed, reasons)
+
+    def _grounding_by_state(self, armed: list[Any], reasons: Mapping[int, str]) -> None:
+        """Review ask (econ checkpoint §4.2): who upkeep grounds. Each armed viewer unit's state
+        at the last sample ("job", "busy": an order, route or RTB, else its idle reason, so "full"
+        is idle with only full jobs); a unit grounded now and not then counts for that state."""
+        for e in armed:
+            if e.id in self._prev_state:
+                self.exposure[self._prev_state[e.id]] += 1
+                if e.grounded:
+                    self.grounded_from[self._prev_state[e.id]] += 1
+        self._prev_state = {
+            e.id: "job" if e.job_id is not None else reasons.get(e.id, "busy")
+            for e in armed
+            if not e.grounded
+        }
 
     def sample_density(self, world: World) -> None:
         """Job density on the coalition board. An open job has an unfilled slot; its unfilled slots
@@ -231,10 +314,31 @@ class Collector:
             if world.owner.get(n) == _ENEMY
         )
 
-    def _holding(self) -> bool:
-        strategic = self._strategic
-        held = sum(self._owner.get(n) == _COALITION for n in strategic)
-        return bool(strategic) and Fraction(held, len(strategic)) >= self._hold_frac
+    def _hour(self, tick: int) -> int:
+        return max(0, tick - 1) // self.hour_ticks
+
+    def _launches(self, world: World) -> None:
+        """The Static's operation launches this tick: its new jobs whose key is
+        `op:<operation>:<target>:0...` (the first job of an operation), one per (operation,
+        target). A catalog operation (not `ROUTINE_JOBS`) in a running hold counts for it."""
+        board, tick = world.boards[_ENEMY], world.campaign.tick
+        launched: set[tuple[str, str]] = set()
+        for jid in self._new_jobs:
+            job = board.get(jid)
+            if job is None:
+                self.ops_unseen += 1
+                continue
+            parts = job.key.split(":")
+            if parts[0] == "op" and len(parts) >= 4 and parts[3] == "0":
+                launched.add((parts[1], parts[2]))
+        self._new_jobs = []
+        for op, target in sorted(launched):
+            self.ops.append((tick, op, target, self._owner.get(target) == _COALITION))
+            if op not in ROUTINE_JOBS and self.hold_start is not None and self.holds:
+                self.holds[-1]["ops"] += 1
+
+    def _side_of(self, node: str) -> str | None:
+        return self._source_side.get(node) or self._owner.get(node)
 
     # --- event handlers ---------------------------------------------------------------------
     def _spawned(self, e: Any) -> None:
@@ -281,19 +385,40 @@ class Collector:
             if e.node_id in self._strategic:
                 self.nodes_lost.append((e.tick, e.node_id))
         self._owner[e.node_id] = e.to
-        self._hold_tick = e.tick
 
-    def _judge_hold(self) -> None:
-        """Judge the hold on the tick's final ownership, as core/campaign.py does once per tick."""
-        if self._hold_tick is None:
-            return
-        holding = self._holding()
-        if holding and self.hold_start is None:
-            self.hold_start = self._hold_tick
-        elif not holding and self.hold_start is not None:
-            self.holds_broken += 1
-            self.hold_start = None
-        self._hold_tick = None
+    def _hold_started(self, e: Any) -> None:
+        self.hold_start = e.tick
+        self.holds.append({"start": e.tick, "end": None, "broken": False, "ops": 0})
+
+    def _hold_broken(self, e: Any) -> None:
+        self.holds_broken += 1
+        self.hold_start = None
+        if self.holds:
+            self.holds[-1].update(end=e.tick, broken=True)
+
+    def _produced(self, e: Any) -> None:
+        _add(self.econ[e.side]["income"], self._hour(e.tick), e.amount)
+
+    def _consumed(self, e: Any) -> None:
+        side = self._side_of(e.node_id)
+        if e.cause == "UPKEEP" and side in self.econ:
+            _add(self.econ[side]["upkeep"], self._hour(e.tick), e.amount)
+        elif e.cause == "SPAWN" and side == _ENEMY:
+            account = "source" if e.node_id in self._source_side else "base"
+            _add(self.spent[account], self._hour(e.tick), e.amount)
+
+    def _grounded(self, e: Any) -> None:
+        side = self.entity.get(e.entity_id, (None, None))[1]
+        if side in self.econ:
+            _add(self.econ[side]["groundings"], self._hour(e.tick), 1)
+
+    def _refused(self, e: Any) -> None:
+        _add(self.refused.setdefault(e.reason, []), self._hour(e.tick), e.operations)
+        self.refused_units[e.reason] += e.units
+
+    def _job_created(self, e: Any) -> None:
+        if e.side == _ENEMY:
+            self._new_jobs.append(e.job_id)
 
     def _capture_started(self, e: Any) -> None:
         if e.side == _ENEMY and self._owner.get(e.node_id) == _COALITION:
@@ -385,6 +510,23 @@ class Collector:
                 "any_node_minutes": self.starved_any * self.sample_ticks / s / 60,
                 "node_minutes": self.starved_nodes * self.sample_ticks / s / 60,
             },
+            "economy": self._economy(),
+        }
+
+    def _economy(self) -> dict[str, Any]:
+        """ECONOMY §4 "Harness report" inputs (NX-412 part 5a); per-hour lists are indexed by game
+        hour and may be shorter than the run where nothing happened late."""
+        return {
+            "sides": self.econ,
+            "hourly": self.hourly,
+            "refused": {"operations_per_hour": self.refused, "units": dict(self.refused_units)},
+            "grounded_from": dict(sorted(self.grounded_from.items())),
+            "exposure": dict(sorted(self.exposure.items())),
+            "budget": {"sum": self.budget, "windows": self.budget_windows, "spent": self.spent},
+            "ops": [list(o) for o in self.ops],
+            "ops_unseen": self.ops_unseen,
+            "holds": self.holds,
+            "army_peak": self.army_peak,
         }
 
     def _ttfi(self, commanders: list[str]) -> list[float]:
@@ -421,3 +563,49 @@ class Collector:
             "nodes_held_pct": e.nodes_held_pct if e else None,
             "ticks_run": end_tick,
         }
+
+
+def travel_table(rules: Rules, tick_hz: int) -> list[dict[str, Any]]:
+    """Review ask (econ checkpoint §4.1, S1 and S2): for each victory-relevant (strategic) node and
+    each unit kind a Static capture job buys, the shortest road travel time from the Static's rear
+    source, against `campaign.victory_hold_min`. Pure: the theater's road graph with every bridge
+    up and no node avoided, the kind's top (Healthy) speed and each road's `speed_mult`; staging,
+    spawning, fuel and combat are left out, so a real arrival is later. Times are game minutes
+    (campaign clock: world time / `sim.time_scale`). A node no road reaches has `minutes` None."""
+    rc, dr = rules.campaign, rules.director
+    rear = rules.supply.rear.get(_ENEMY)
+    if rc is None or dr is None or rear is None:
+        return []
+    kinds = sorted(
+        {k for op in dr.operations for j in op.jobs if j.kind == "CAPTURE" for k in j.unit_kinds}
+    )
+    hold_min = rc.victory_hold_ticks / tick_hz / 60
+    rows = []
+    for node in rc.strategic:
+        path = shortest_path(rules.roads, rear, node, blocked=frozenset())
+        cost = None  # metres / speed_mult along the path: metres at speed_mult 1
+        if path is not None:
+            cost = sum(
+                (edge := rules.roads.edge(a, b)).length_m / edge.speed_mult
+                for a, b in itertools.pairwise(path)
+            )
+        for kind in kinds:
+            ticks = (
+                None if cost is None else math.ceil(cost / rules.speed_mps[kind] / rules.world_dt)
+            )
+            minutes = None if ticks is None else ticks / tick_hz / 60
+            rows.append(
+                {
+                    "node": node,
+                    "kind": kind,
+                    "road_km": None if path is None else _path_km(rules, path),
+                    "minutes": minutes,
+                    "hold_min": hold_min,
+                    "within_hold": None if ticks is None else ticks <= rc.victory_hold_ticks,
+                }
+            )
+    return rows
+
+
+def _path_km(rules: Rules, path: list[str]) -> float:
+    return sum(rules.roads.edge(a, b).length_m for a, b in itertools.pairwise(path)) / 1000

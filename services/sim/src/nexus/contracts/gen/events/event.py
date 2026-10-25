@@ -32,6 +32,7 @@ from . import (
     rearm_stalled,
     reserve_queue_joined,
     reserve_queue_left,
+    spawn_refused,
     supply_consumed,
     supply_delivered,
     supply_produced,
@@ -70,6 +71,7 @@ type Event = Annotated[
     | campaign_ended.CampaignEnded
     | victory_hold_started.VictoryHoldStarted
     | victory_hold_broken.VictoryHoldBroken
+    | spawn_refused.SpawnRefused
     | objective_announced.ObjectiveAnnounced
     | objective_resolved.ObjectiveResolved
     | weapon_fired.WeaponFired

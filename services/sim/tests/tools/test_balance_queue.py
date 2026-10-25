@@ -360,10 +360,26 @@ def test_set_parsed_into_argv_pairs(cfg: dict[str, Any], monkeypatch: pytest.Mon
     ]  # fmt: skip
 
 
+def test_set_takes_bool_literals_and_enum_segments(cfg: dict[str, Any]) -> None:
+    # NX-412 part 5a: a switch and a per-side key; balance.py checks the value against the key
+    value = (
+        "economy.legacy_rules=false, economy.unlimited.ENEMY=true, economy.upkeep.STRIKE_FIGHTER=3"
+    )
+    assert hq.parse_block(block(set=value), cfg, NAMES)["set"] == [
+        "economy.legacy_rules=false", "economy.unlimited.ENEMY=true",
+        "economy.upkeep.STRIKE_FIGHTER=3",
+    ]  # fmt: skip
+
+
 @pytest.mark.parametrize(
     "value",
-    ["a=1,b=2,c=3,d=4,e=5", "A.b=1", "a..b=1", "a=1;rm", "a=1e9", "a=$(x)", "a=", "a=1234567890"],
-)
+    [
+        "a=1,b=2,c=3,d=4,e=5", "A.b=1", "a..b=1", "a=1;rm", "a=1e9", "a=$(x)", "a=", "a=1234567890",
+        # bools: lower-case literals only, nothing around them
+        "a=True", "a=FALSE", "a=yes", "a=on", "a=true1", "a=truefalse", "a=-true", "a=tru",
+        "a.ENEMY=fals", "a.ENEMY-1=true", "a.b=true;rm", "a.b=`true`", "a.b= true x",
+    ],
+)  # fmt: skip
 def test_set_refusals(cfg: dict[str, Any], value: str) -> None:
     with pytest.raises(hq.Refusal, match="bad value for key: set"):
         hq.parse_block(block(set=value), cfg, NAMES)

@@ -10,10 +10,13 @@ the crowd profiles of Q-TEST-5, and writes a report per run and per profile (JSO
 `--hours` the game hours per run (default `campaign.time_limit_h`, 72 shipped;
 a run stops early when the campaign ends);
 `--workers` the number of parallel processes (seeds are independent, so the report does not depend
-on it). `--set key=number` (repeatable) overrides one numeric balance key of the shipped config
-(e.g. `--set tasking.strike_idle_targets_max=0`); the config is then validated as usual, the
-overridden copy is saved as `<out>/balance.yaml` (every worker loads that file), and the report
-lists the overrides beside the resulting config hash; a key given twice is an error. `--out` must
+on it). `--set key=value` (repeatable) overrides one numeric or boolean balance key of the shipped
+config (e.g. `--set tasking.strike_idle_targets_max=0`, `--set economy.legacy_rules=false`; a
+boolean key takes `true` or `false` only, a numeric key a number only); the config is then
+validated as usual, the overridden copy is saved as `<out>/balance.yaml` (every worker loads that
+file), and the report lists the overrides beside the resulting config hash and the economy mode
+(`economy.legacy_rules`, `economy.unlimited.<side>`: ECONOMY EC-15); a key given twice is an
+error. `--out` must
 not exist: it gets `report.json`, `report.md`, `runs/<profile>-s<seed>.json` and
 `logs/<profile>-s<seed>/` (the command logs).
 
@@ -31,6 +34,7 @@ from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 from typing import Any
 
+import metrics
 import profiles
 import report
 import runner
@@ -39,10 +43,13 @@ import yaml
 from nexus.runtime.campaign_config import ConfigPaths, load_campaign_config
 from nexus.runtime.config import ConfigError, load_balance
 
+BOOLS = {"true": True, "false": False}
+
 
 def override_balance(pairs: list[str]) -> str:
-    """The shipped balance config as YAML text with `key=number` overrides applied and validated
-    by the sim's own loader. Raises ValueError (bad pair) or ConfigError (schema)."""
+    """The shipped balance config as YAML text with `key=value` overrides applied and validated
+    by the sim's own loader: a number for a numeric key, `true` or `false` for a boolean one.
+    Raises ValueError (bad pair) or ConfigError (schema)."""
     tree = yaml.safe_load(ConfigPaths().balance.read_text())
     keys = [p.partition("=")[0] for p in pairs]
     if len(set(keys)) != len(keys):
@@ -54,8 +61,13 @@ def override_balance(pairs: list[str]) -> str:
         for part in path:
             node = node.get(part) if isinstance(node, dict) else None
         old = node.get(leaf) if isinstance(node, dict) else None
-        if isinstance(old, bool) or not isinstance(old, int | float):
-            raise ValueError(f"--set {key}: not an existing numeric balance key")
+        if isinstance(old, bool):  # a switch takes `true` or `false` only (NX-412 part 5a)
+            if text not in BOOLS:
+                raise ValueError(f"--set {key}: {text!r} is not true or false")
+            node[leaf] = BOOLS[text]
+            continue
+        if not isinstance(old, int | float):
+            raise ValueError(f"--set {key}: not an existing numeric or boolean balance key")
         try:
             value = int(text) if isinstance(old, int) else float(text)
         except ValueError:
@@ -108,21 +120,21 @@ def build_report(
     elapsed: float,
     overrides: list[str] | None = None,
     theater: dict[str, Any] | None = None,
+    economy: dict[str, Any] | None = None,
+    travel: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     by_profile: dict[str, list[dict[str, Any]]] = {}
     for r in runs:
         by_profile.setdefault(r["profile"], []).append(r)
     aggregated = {n: report.aggregate(n, rs, data.targets) for n, rs in by_profile.items()}
     first = runs[0]  # every run has the same hours
-    # shortcut: the report does not label an unlimited economy yet (ECONOMY EC-15); `--set` takes
-    # numbers only, so every run uses the shipped `economy.unlimited`. Label it when the NX-412
-    # sweep part lets a profile set the mode.
     return {
         "config": {
             "config_hash": next((r["config_hash"] for r in runs if r["config_hash"]), None),
             "profiles_digest": data.digest,
             "overrides": overrides or [],
             "theater": theater,  # None: the shipped one
+            "economy": economy,  # legacy_rules and unlimited per side (EC-15 label)
         },
         "seeds": sorted({r["seed"] for r in runs}),
         "hours": first["hours"],
@@ -133,6 +145,7 @@ def build_report(
         },
         "profiles": aggregated,
         "targets": report.target_table(aggregated),
+        "travel": travel or [],
         "runs": [_headline(r) for r in runs],
     }
 
@@ -157,8 +170,9 @@ def parser() -> argparse.ArgumentParser:
     )
     p.add_argument("--workers", type=int, default=1, help="parallel processes (default 1)")
     p.add_argument(
-        "--set", dest="overrides", action="append", default=[], metavar="KEY=NUMBER",
-        help="override a numeric balance key, e.g. tasking.strike_idle_targets_max=0 (repeatable)",
+        "--set", dest="overrides", action="append", default=[], metavar="KEY=VALUE",
+        help="override a numeric or boolean balance key, e.g. economy.legacy_rules=false "
+        "(repeatable)",
     )  # fmt: skip
     p.add_argument(
         "--theater", type=Path, help="a theater file to run on instead of the shipped one"
@@ -218,6 +232,10 @@ def main() -> int:
                 kw["theater"] = args.out / "theater" / args.theater.name
                 kw["theater"].write_text(theater_text)
             paths = ConfigPaths(**kw)
+        cfg = load_campaign_config(paths)
+        eco = cfg.balance.economy
+        economy = {"legacy_rules": eco.legacy_rules, "unlimited": eco.unlimited.model_dump()}
+        travel = metrics.travel_table(cfg.rules, cfg.balance.sim.tick_hz)
         jobs = [(n, s, args.hours, args.out, paths) for n in names for s in args.seeds]
         started = time.perf_counter()
         if args.workers == 1:
@@ -232,7 +250,9 @@ def main() -> int:
                 )
             runs = [done[(j[0], j[1])] for j in jobs]
         elapsed = time.perf_counter() - started
-        result = build_report(runs, data, args.workers, elapsed, args.overrides, theater)
+        result = build_report(
+            runs, data, args.workers, elapsed, args.overrides, theater, economy, travel
+        )
     except (ValueError, OSError, ConfigError) as e:
         print(f"error: {e}", file=sys.stderr)
         return 2

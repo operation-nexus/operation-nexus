@@ -198,6 +198,14 @@ type RejectReason = Annotated[
 ]
 
 
+type SpawnRefusedReason = Annotated[
+    Literal["GUARD", "TIER_CAP"],
+    Field(
+        description="Which live-unit cap refused a Director operation (ECONOMY EC-8, NX-412 part 5a): GUARD = sim.max_live_units_per_side (economy.legacy_rules false); TIER_CAP = director.max_live_units.<tier> (economy.legacy_rules true, temporary)."
+    ),
+]
+
+
 type EventKind = Annotated[
     Literal[
         "UnitSpawned",
@@ -222,6 +230,7 @@ type EventKind = Annotated[
         "UnitUngrounded",
         "VictoryHoldStarted",
         "VictoryHoldBroken",
+        "SpawnRefused",
     ],
     Field(description="Grows one kind at a time, with each producer (rule 6a)."),
 ]

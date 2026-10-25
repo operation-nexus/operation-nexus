@@ -479,6 +479,80 @@ def test_the_guard_bounds_the_directors_new_units() -> None:
     assert len(spawns(operations(w, 80, "BRAVO"))) > 3
 
 
+def refusals(out: list[Event]) -> list[tuple[str, str, int, int]]:
+    return [(e.side, e.reason, e.operations, e.units) for e in out if e.kind == "SpawnRefused"]
+
+
+def test_a_director_operation_stopped_by_the_guard_is_counted() -> None:
+    # NX-412 part 5a (EC-8, Q-TD-34 (5)): no room at all, so every operation the budget allows is
+    # refused by the guard, in one event for the window
+    w = world(config({**NEW, "sim.max_live_units_per_side": 3}))
+    for _ in range(3):
+        w.spawn("ENEMY_ARMOR", "ENEMY", "ENEMY_DIRECTOR", Vec2(0, 0))
+    [(side, reason, n, units)] = refusals(operations(w, 80, "BRAVO"))
+    assert (side, reason) == ("ENEMY", "GUARD") and n >= 1 and units >= 1
+
+
+def test_no_refusal_while_the_guard_has_room() -> None:
+    out = operations(world(NEW_UNLIMITED), 80, "BRAVO")  # the shipped guard, 1000
+    assert spawns(out) and refusals(out) == []
+    out = operations(world(config({**NEW, "sim.max_live_units_per_side": 3})), 0, "BRAVO")
+    assert refusals(out) == []  # no budget: the budget, not the guard, stops everything
+    c = config({**NEW, "sim.max_live_units_per_side": 3})
+    assert c.rules.director is not None  # the loader refuses 0: set it on the rules
+    dr = dataclasses.replace(c.rules.director, max_spawns_per_window=0)
+    w = world(dataclasses.replace(c, rules=dataclasses.replace(c.rules, director=dr)))
+    for _ in range(3):
+        w.spawn("ENEMY_ARMOR", "ENEMY", "ENEMY_DIRECTOR", Vec2(0, 0))
+    out = operations(w, 80, "BRAVO")
+    assert refusals(out) == [] and spawns(out) == []  # anti-spam stops them first: not counted
+
+
+def test_the_legacy_tier_cap_refusal_is_counted_as_tier_cap() -> None:
+    w = world(config({}))  # legacy rules: director.max_live_units.bravo binds, not the guard
+    assert w.rules is not None and w.rules.director is not None
+    for _ in range(w.rules.director.max_live_units["BRAVO"]):
+        w.spawn("ENEMY_ARMOR", "ENEMY", "ENEMY_DIRECTOR", Vec2(0, 0))
+    [(side, reason, n, _)] = refusals(operations(w, 80, "BRAVO"))
+    assert (side, reason) == ("ENEMY", "TIER_CAP") and n >= 1
+    assert refusals(operations(world(config({})), 80, "BRAVO")) == []  # room left: none
+
+
+def test_a_pol_convoy_stopped_by_the_guard_is_counted() -> None:
+    for cap, want in ((1, [("ENEMY", "GUARD", 1, 1)]), (1000, [])):
+        w, rules = thin({"director.pol.convoy_cost": 30, "sim.max_live_units_per_side": cap})
+        assert rules.director is not None and rules.director.convoy_slots == 1
+        w.spawn("ENEMY_ARMOR", "ENEMY", "ENEMY_DIRECTOR", Vec2(0, 0))  # the guard's one mover
+        out: list[Event] = []
+        _convoys(w, rules, "ENEMY", side_view(w, "ENEMY"), w.director["ENEMY"], rules.director,
+                 out, _Purse(0, 40))  # fmt: skip
+        assert refusals(out) == want
+        assert bool(debits(out)) == (cap == 1000)  # refused: nothing spawned or paid
+    w, rules = thin({"director.pol.convoy_cost": 30, "sim.max_live_units_per_side": 1})
+    assert rules.director is not None
+    w.spawn("ENEMY_ARMOR", "ENEMY", "ENEMY_DIRECTOR", Vec2(0, 0))
+    out = list[Event]()
+    no_spawns = dataclasses.replace(rules.director, max_spawns_per_window=0)
+    _convoys(w, rules, "ENEMY", side_view(w, "ENEMY"), w.director["ENEMY"], no_spawns,
+             out, _Purse(0, 40))  # fmt: skip
+    assert refusals(out) == [] and debits(out) == []  # anti-spam stopped it first: not counted
+
+
+def test_a_capture_slot_stopped_by_the_guard_is_counted() -> None:
+    for cap in (1, 1000):
+        w, rules = thin({"sim.max_live_units_per_side": cap})
+        assert rules.director is not None
+        w.spawn("ENEMY_ARMOR", "ENEMY", "ENEMY_DIRECTOR", Vec2(0, 0))  # the guard's one mover
+        w.campaign.running_ticks = rules.director.offensive_ticks  # the slot is due
+        out = list[Event]()
+        _capture_slot(w, rules, "ENEMY", side_view(w, "ENEMY"), w.director["ENEMY"],
+                      rules.director, w.campaign.running_ticks + 1, out, _Purse(0, 60))  # fmt: skip
+        if cap == 1:  # the rear account could pay, the guard says no: counted, nothing paid
+            assert [r[:2] for r in refusals(out)] == [("ENEMY", "GUARD")] and debits(out) == []
+        else:
+            assert refusals(out) == [] and [n for n, _ in debits(out)] == ["static-rear"]
+
+
 # --- determinism, save and load, the mirror -------------------------------------------------------
 
 
@@ -496,8 +570,12 @@ JOINS = {1: [join(1, "STRIKE", "fob-n-w"), join(2, "RECON", hold=True)], 700: [j
 
 @pytest.mark.parametrize(
     "overrides",
-    [NEW, {**NEW, **LIMITED, "economy.free_viewer_spawn": False}],
-    ids=["unlimited", "limited-switch-off"],
+    [
+        NEW,
+        {**NEW, **LIMITED, "economy.free_viewer_spawn": False},
+        {**NEW, "sim.max_live_units_per_side": 24},  # 22 Static movers open: SpawnRefused
+    ],
+    ids=["unlimited", "limited-switch-off", "guard-binding"],
 )
 def test_legacy_off_runs_deterministically(overrides: dict[str, object]) -> None:
     def once() -> tuple[str, list[dict[str, Any]]]:
@@ -507,6 +585,8 @@ def test_legacy_off_runs_deterministically(overrides: dict[str, object]) -> None
 
     first = once()
     assert any(e["kind"] == "UnitSpawned" and e["owner_kind"] == "ENEMY_DIRECTOR" for e in first[1])
+    refused = any(e["kind"] == "SpawnRefused" for e in first[1])
+    assert refused == ("sim.max_live_units_per_side" in overrides)
     assert once() == first
 
 

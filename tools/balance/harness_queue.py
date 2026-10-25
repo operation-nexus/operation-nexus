@@ -29,7 +29,9 @@ import yaml
 REPO_ROOT = Path(__file__).resolve().parents[2]
 BLOCK = re.compile(r"^```harness[ \t]*\r?\n(.*?)^```[ \t]*\r?$", re.DOTALL | re.MULTILINE)
 LINE = re.compile(r"([a-z_]+): ([^\r\n]+)")
-OVERRIDE = re.compile(r"[a-z0-9_]+(\.[a-z0-9_]+)*=-?\d{1,9}(\.\d{1,9})?")
+# key=value: a lower-case first segment, later ones may be an upper-case enum value (a side, a unit
+# kind); the value a bounded number or a bool literal, never free text (NX-412 part 5a)
+OVERRIDE = re.compile(r"[a-z0-9_]+(\.[A-Za-z0-9_]+)*=(-?\d{1,9}(\.\d{1,9})?|true|false)")
 KEYS = ("sha", "profiles", "seeds", "hours", "workers", "set")
 COMMENT_MAX = 60000  # GitHub's limit is 65536 characters; leave room for the framing
 FINISHED = "finished"  # written by the queue once balance.py exited 0 with report.md: its size

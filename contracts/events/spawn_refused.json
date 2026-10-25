@@ -1,0 +1,19 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nexus.local/contracts/events/spawn_refused.json",
+  "title": "SpawnRefused",
+  "description": "The live-unit cap stopped Director operations in one selection (CONTRACTS §6; ECONOMY EC-8, Q-TD-34 (5); NX-412 part 5a): operations the window's budget and max_spawns_per_window would have taken but whose units did not fit the side's live room. At most one per selection (the window's operations, the Pattern of Life capture slot, its convoys), none when nothing was refused. A JOIN at the cap is not counted here: it waits in the reserve queue (ReserveQueueJoined). A countable signal for the balance harness. Public view: dropped (proposed).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "tick", "event_seq", "campaign_id", "side", "reason", "operations", "units"],
+  "properties": {
+    "kind": {"const": "SpawnRefused"},
+    "tick": {"$ref": "../common/ids.json#/$defs/Tick"},
+    "event_seq": {"type": "integer", "minimum": 1, "description": "Campaign-wide, monotonic, deterministic (SC-14)."},
+    "campaign_id": {"$ref": "../common/ids.json#/$defs/CampaignId"},
+    "side": {"$ref": "../common/enums.json#/$defs/Side"},
+    "reason": {"$ref": "../common/enums.json#/$defs/SpawnRefusedReason"},
+    "operations": {"type": "integer", "minimum": 1, "description": "Operations refused in this selection."},
+    "units": {"type": "integer", "minimum": 0, "x-unit": "units", "description": "The units those operations would have spawned (0 when only unit-less operations, such as a radar blink, were refused because the side was already over the cap)."}
+  }
+}
