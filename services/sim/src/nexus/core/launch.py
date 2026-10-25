@@ -41,6 +41,11 @@ launched in selection order:
   operation (Offensive, Retake) launched on a node of the running victory hold announces
   `ThreatAdaptation{HOLD_AT_RISK, node_id}`, once per launch, the sitrep "NULL moves on <node>,
   the hold is at risk" (ECONOMY EC-9, Q-TD-19; NX-412 part 4).
+- **Forward staging (THREAT-DIRECTOR §4a, NX-416; legacy rules off).** A capture operation
+  farther than `director.staging.direct_s` by road from the rear waits at its staging base
+  (`nexus.core.staging`) until that base can pay (`_stage`, `_review`), announced as
+  `ThreatAdaptation{STAGING}` in the base's sector; it holds its budget share and a `max_ops`
+  slot while it waits, and falls back by EC-13 after `max_wait_windows` or is dropped.
 """
 
 import itertools
@@ -56,11 +61,12 @@ from nexus.contracts.gen.events.threat_adaptation import ThreatAdaptation
 from nexus.contracts.gen.events.unit_despawned import UnitDespawned
 from nexus.contracts.gen.events.unit_spawned import UnitSpawned
 from nexus.core import operations as ops
+from nexus.core import staging as stg
 from nexus.core.bridges import blocked
 from nexus.core.director import night_capped, rear_share, surplus
 from nexus.core.economy import MOVERS, guard_room
 from nexus.core.fog import SideView, is_off_facility
-from nexus.core.logistics import pay_spawn, plan_deploy
+from nexus.core.logistics import pay_spawn, plan_deploy, stock_targets
 from nexus.core.rng import RngStream
 from nexus.core.roads import shortest_path
 from nexus.core.rules import (
@@ -73,7 +79,7 @@ from nexus.core.rules import (
 )
 from nexus.core.tasking import post_job, take
 from nexus.core.tasking_gen import JobSpec, fits
-from nexus.core.world import DirectorState, Entity, Job, Vec2, World, consumed
+from nexus.core.world import DirectorState, Entity, Job, Staged, Vec2, World, consumed
 
 _DIRECTOR = "ENEMY_DIRECTOR"
 # Defensive counter -> the adaptation it announces (ThreatAdaptation.category).
@@ -224,20 +230,21 @@ def run(world: World, side: Side, view: SideView, rules: Rules, out: list[Event]
     _resume(world, side, state, now)
     _retire_idle(world, rules, side, state, dr, now, out)
     _recall(world, rules, side)
+    pool = world.pool.get(side)  # unchanged since `decide` set the budget; None: unlimited
+    purse = None if legacy_rules(rules) else _Purse.of(state.budget, pool, dr)
+    held = _review(world, rules, side, view, state, out, purse)
     own = _own(world, rules, side)
-    live = ops.live_pairs([j.key for j in world.boards[side].values()])
+    live = ops.live_pairs([j.key for j in world.boards[side].values()]) | stg.pairs(state)
     capped = world.viewer_units() == 0 and night_capped(state, dr, now)  # no capture operations
     cands = ops.candidates(state, view, rules, own, now, live, capture=False if capped else None)
     ranked = ops.rank(cands, state, view, rules, world.rng.stream(RngStream.DIRECTOR))
     refused: list[int] = []
     chosen = ops.select(
-        ranked, dr, state.budget, dr.max_spawns_per_window,
+        ranked, dr, state.budget - held, dr.max_spawns_per_window,
         _live_room(world, rules, side, state, own), live, ops.max_ops(state.tier, dr), _routine(dr),
         refused,
     )  # fmt: skip
     _note_refused(world, side, refused, out)
-    pool = world.pool.get(side)  # unchanged since `decide` set the budget; None: unlimited
-    purse = None if legacy_rules(rules) else _Purse.of(state.budget, pool, dr)
     for c in chosen:
         _launch(world, rules, side, view, state, c, out, purse)
     _pattern_of_life(world, rules, side, view, state, capped, now, out, purse)
@@ -276,7 +283,7 @@ def _capture_slot(
     """Up to `director.pol.offensives_per_period` capture operations, whatever their tier, ranked
     and selected as usual against the real surplus and the Pattern of Life unit room."""
     own = _own(world, rules, side)
-    live = ops.live_pairs([j.key for j in world.boards[side].values()])
+    live = ops.live_pairs([j.key for j in world.boards[side].values()]) | stg.pairs(state)
     cands = ops.candidates(state, view, rules, own, now, live, capture=True)
     if not cands:
         return
@@ -335,7 +342,7 @@ def _convoys(
     """Up to `director.pol.convoys_per_period` RESUPPLY jobs, to the bases with the largest upkeep
     shortfall (one each), taken by an idle carrier of `director.pol.convoy_kind` or a new one,
     within the unit caps; a new carrier costs `director.pol.convoy_cost` from the surplus
-    (Q-SIM-85)."""
+    (Q-SIM-85). A staging base below its raised stock target goes first (THREAT-DIRECTOR FS-3)."""
     own = _own(world, rules, side)
     live = ops.live_pairs([j.key for j in world.boards[side].values()])
     spawns, live_room = dr.max_spawns_per_window, _live_room(world, rules, side, state, own)
@@ -344,7 +351,11 @@ def _convoys(
         _CONVOY_OP, "NODE", (), dr.convoy_cost, frozenset(),
         (JobTemplate("RESUPPLY", "target", (dr.convoy_kind,), dr.convoy_slots),), None, Fraction(0),
     )  # fmt: skip
-    for base in ops.convoy_bases(view, rules, own)[: dr.convoys_per_period]:
+    targets = stock_targets(world, rules)  # a staging base below its raised target first (FS-3)
+    first = [s.base for s in state.staged if world.stock.get(s.base, 0) < targets.get(s.base, 0)]
+    for base in [*dict.fromkeys([*first, *ops.convoy_bases(view, rules, own)])][
+        : dr.convoys_per_period
+    ]:
         if (_CONVOY_OP, base) in live or surplus(view, rules, world.stock) < op.cost:
             continue
         if min(spawns, live_room) < dr.convoy_slots:  # the job spawns up to `convoy_slots` units
@@ -376,23 +387,94 @@ def _keep_rear(purse: _Purse | None, spend: _Purse | None) -> None:
 
 def _launch(
     world: World, rules: Rules, side: Side, view: SideView, state: DirectorState,
-    c: ops.Candidate, out: list[Event], purse: _Purse | None = None,
-) -> None:  # fmt: skip
+    c: ops.Candidate, out: list[Event], purse: _Purse | None = None, at: str | None = None,
+    stage: bool = True,
+) -> bool:  # fmt: skip
+    """Launch `c`; True when it posted its jobs or was staged. `at` is a staged operation's base,
+    the one node that may pay (FS-4); `stage` False never stages it (a staged one falling back)."""
     dr = rules.director
     if dr is None:
-        return
+        return False
     if c.op.effect is not None:
         _blink(world, side, state, c.target, now=world.campaign.running_ticks + 1, dr=dr)
-        return
+        return True
+    if at is None and stage and _stage(world, rules, side, view, state, c, out, purse):
+        return True
     paid = _post_and_spawn(
-        world, rules, side, c, out, lambda n: c.op.cost * n // max(1, c.units), purse
+        world, rules, side, c, out, lambda n: c.op.cost * n // max(1, c.units), purse, at
     )
     if paid is None:  # it could not pay: nothing was posted, so nothing to announce
-        return
+        return False
     state.last_operation = state.windows
     _announce_up(world, side, view, state, dr, c, out)
     if c.target in view.hold and c.sector is not None and ops.has_capture(c.op):
         _adaptation(world, side, "HOLD_AT_RISK", c.sector, "UP", out, node=c.target)
+    return True
+
+
+def _stage(
+    world: World, rules: Rules, side: Side, view: SideView, state: DirectorState,
+    c: ops.Candidate, out: list[Event], purse: _Purse | None,
+) -> bool:  # fmt: skip
+    """FS-1, FS-2, FS-4, FS-5 (legacy rules off, `purse` set): a far capture operation is staged
+    at its base: `STAGING` is announced in the base's sector, and it launches there at once when
+    the base can pay, else waits in `DirectorState.staged`. False when it is not staged (near,
+    no nearer base, or `director.staging.max_staged` waiting): it spawns as EC-13 says."""
+    dr = rules.director
+    if purse is None or dr is None or len(state.staged) >= dr.staging_max_staged:
+        return False
+    base = stg.base_for(world, rules, side, view, c.op, c.target)
+    if base is None or not stg.far(rules, view, c.op, c.target):
+        return False
+    _announce_staging(world, rules, side, base, out)
+    if not _launch(world, rules, side, view, state, c, out, purse, at=base):
+        state.staged.append(Staged(c.op.id, c.target, base, state.windows))
+        state.staged.sort(key=lambda s: (s.op, s.target))
+    return True
+
+
+def _review(
+    world: World, rules: Rules, side: Side, view: SideView, state: DirectorState,
+    out: list[Event], purse: _Purse | None,
+) -> int:  # fmt: skip
+    """FS-4, FS-6, each window before the selection, in (op, target) order: a staged operation no
+    longer a candidate (`ops.candidate`) is dropped; one whose base the side lost or that has a
+    capture bar re-stages at the next base by FS-2 (its wait kept), or falls back; it launches at
+    its base when the base can pay; after `director.staging.max_wait_windows` it launches by EC-13
+    from wherever `_paying_node` finds the stock, else is dropped. Returns the budget the staged
+    operations spent or still hold this window."""
+    dr = rules.director
+    if purse is None or dr is None or not state.staged:
+        return 0
+    now, held, keep = world.campaign.running_ticks + 1, 0, []
+    for s in list(state.staged):
+        c = ops.candidate(s.op, s.target, state, view, rules, _own(world, rules, side), now)
+        if c is None:
+            continue
+        base: str | None = s.base
+        if not stg.hosts(world, rules, side, s.base, c.op):
+            base = stg.base_for(world, rules, side, view, c.op, s.target)
+            if base is not None:
+                _announce_staging(world, rules, side, base, out)
+                s.base = base
+        late = state.windows - s.since >= dr.staging_max_wait_windows
+        go = (world, rules, side, view, state, c, out, purse)
+        if (base is not None and _launch(*go, at=base)) or (
+            (base is None or late) and _launch(*go, stage=False)
+        ):
+            held += c.op.cost
+        elif base is not None and not late:
+            keep.append(s)
+            held += c.op.cost
+    state.staged = keep
+    return held
+
+
+def _announce_staging(world: World, rules: Rules, side: Side, base: str, out: list[Event]) -> None:
+    """FS-5: "NULL forces are massing in <sector>", the base's sector only, never the base."""
+    sector = sector_at(rules, *rules.roads.pos[base])
+    if sector is not None:
+        _adaptation(world, side, "STAGING", sector, "UP", out)
 
 
 def _resume(world: World, side: Side, state: DirectorState, now: int) -> None:
@@ -426,7 +508,7 @@ def _blink(
 
 def _post_and_spawn(
     world: World, rules: Rules, side: Side, c: ops.Candidate, out: list[Event],
-    cost: Callable[[int], int], purse: _Purse | None = None,
+    cost: Callable[[int], int], purse: _Purse | None = None, at: str | None = None,
 ) -> int | None:  # fmt: skip
     """Post the jobs in order, pay `cost(spawned)` and give each job its units; returns how many
     were spawned, or None when the real surplus now cannot pay for them and nothing was posted:
@@ -435,14 +517,16 @@ def _post_and_spawn(
     first (the lowest id), which is neither spawned nor paid for (Q-SIM-84). Units take their
     jobs only after the payment, because a carrier at its source loads on taking a job, and
     loading first could leave too little surplus to pay. With `economy.legacy_rules` off the
-    cost is drawn once at `_paying_node`, where every new unit spawns (EC-13)."""
+    cost is drawn once at `_paying_node`, where every new unit spawns (EC-13); at `at`, a staged
+    operation's base (FS-4), whose domains may not host its aircraft: those spawn by `_spawn`'s
+    own rule, the whole cost still drawn at `at`."""
     dr = rules.director
     if dr is None:
         return 0
     garrison = c.op.target == "GARRISON"
     spare = {} if garrison else _reusable(world, side)  # a garrison replacement is always new
     legacy, need = legacy_rules(rules), cost(_new_units(c, spare))
-    node = None if legacy else _paying_node(world, rules, side, c, need, purse)
+    node = None if legacy else _paying_node(world, rules, side, c, need, purse, at)
     if (_payable(world, rules, side) < need) if legacy else node is None:
         return None
     spawned = 0
@@ -466,10 +550,12 @@ def _post_and_spawn(
                     spare[kind].remove(idle[0])
                     given.append((idle[0], posted))
                     continue
+                spot = node or (c.target if garrison else w.origin)
+                if at is not None and at not in rules.supply.spawns.get(rules.domain[kind], ()):
+                    spot = None  # an aircraft of an operation staged at a ground base
                 unit, base = _spawn(
-                    world, rules, side, kind, _near(world, rules, side, job, w), out,
-                    at=node or (c.target if garrison else w.origin),
-                )  # fmt: skip
+                    world, rules, side, kind, _near(world, rules, side, job, w), out, at=spot
+                )
                 first, spawned = first or base, spawned + 1
                 if garrison:
                     unit.home = c.target
@@ -487,16 +573,17 @@ def _post_and_spawn(
 
 
 def _paying_node(
-    world: World, rules: Rules, side: Side, c: ops.Candidate, cost: int, purse: _Purse | None
-) -> str | None:
+    world: World, rules: Rules, side: Side, c: ops.Candidate, cost: int, purse: _Purse | None,
+    at: str | None = None,
+) -> str | None:  # fmt: skip
     """EC-13: the node that pays `cost` and where every new unit of `c` spawns (module
     docstring), or None to drop it this window. A fixed origin (a garrison replacement's base, a
-    scout's checked base) has no fallback to the source. Otherwise the base is `plan_deploy`'s for
-    the operation's first aircraft kind (a landing base), else its first kind, and must be a
-    `spawns` node for every kind's domain."""
+    scout's checked base, `at`: a staged operation's base) has no fallback to the source.
+    Otherwise the base is `plan_deploy`'s for the operation's first aircraft kind (a landing base),
+    else its first kind, and must be a `spawns` node for every kind's domain."""
     rear, sup = rules.supply.rear[side], rules.supply
     job, w = c.op.jobs[0], c.wheres[0][0]
-    fixed = c.target if c.op.target == "GARRISON" else w.origin
+    fixed = at or (c.target if c.op.target == "GARRISON" else w.origin)
     node = fixed or rear
     if not fixed:
         kinds = [k for j in c.op.jobs for k in j.unit_kinds]

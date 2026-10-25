@@ -145,6 +145,7 @@ def load_campaign_config(paths: ConfigPaths | None = None) -> CampaignConfig:
             dark_ticks=game_ticks(balance.director.decoy_blink.dark_s, balance),
             blink_cooldown_ticks=game_ticks(balance.director.decoy_blink.cooldown_s, balance),
             bridge_cooldown_ticks=game_ticks(balance.director.strike_bridge.cooldown_s, balance),
+            staging_direct_ticks=game_ticks(balance.director.staging.direct_s, balance),
             idle_retire_ticks=game_ticks(balance.director.idle_retire_s, balance),
             operations=operations,
             patrol_ticks=game_ticks(balance.director.pol.patrol_period_s, balance),

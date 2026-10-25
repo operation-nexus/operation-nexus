@@ -1041,6 +1041,33 @@ class StrikeBridge(BaseModel):
     ]
 
 
+class Staging(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    direct_s: Annotated[
+        float,
+        Field(
+            description="An operation with a CAPTURE job is staged when its capture kind's road travel time from the side's rear source to the target exceeds this (FS-1), unit s of game time (the kind's top speed and each road's speed_mult, bridges down in the side's view excluded; converted to ticks at load).",
+            gt=0.0,
+        ),
+    ]
+    max_wait_windows: Annotated[
+        int,
+        Field(
+            description="Decision windows a staged operation waits for its staging base to pay; then it launches by EC-13 at its paying node (the jets' deploy base or the rear source) if that can pay, or is dropped (FS-4), unit windows.",
+            ge=1,
+        ),
+    ]
+    max_staged: Annotated[
+        int,
+        Field(
+            description="Operations a side holds staged at once; one past it is not staged and spawns as EC-13 says (FS-4), unit operations.",
+            ge=1,
+        ),
+    ]
+
+
 class Unlimited(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -2114,6 +2141,12 @@ class Director(BaseModel):
         StrikeBridge,
         Field(
             description="StrikeBridge (NX-401, Q-SIM-121): a bridge repaired by `BridgeRepaired` is no STRIKE_BRIDGE target for the cooldown."
+        ),
+    ]
+    staging: Annotated[
+        Staging,
+        Field(
+            description="Forward staging (THREAT-DIRECTOR §4a FS-1..FS-8, Q-TD-36, Q-TD-37; NX-416): with economy.legacy_rules false, a capture operation whose capture kind's road travel time from the rear source exceeds direct_s waits at the nearest Static-held base by road until that base can pay, its forward-stock target raised so trucks fill it."
         ),
     ]
     garrison: Annotated[

@@ -363,6 +363,25 @@ def candidates(
     return out
 
 
+def candidate(
+    op_id: str, target: str, state: DirectorState, view: SideView, rules: Rules, own: Own,
+    now: int,
+) -> Candidate | None:  # fmt: skip
+    """A staged operation as a candidate again (THREAT-DIRECTOR FS-4, NX-416): the catalog's
+    `op_id` on the node `target` while it is in the catalog, its preconditions hold and every
+    selector resolves, whatever the tier; else None (it is dropped)."""
+    dr = rules.director
+    op = None if dr is None else next((o for o in dr.operations if o.id == op_id), None)
+    if op is None or target not in view.nodes:
+        return None
+    if not _eligible(op, target, state, view, rules, own, now):
+        return None
+    wheres = tuple(_resolve(j, target, state, view, rules, own, now) for j in op.jobs)
+    return (
+        Candidate(op, target, _sector_of(op, target, view, rules), wheres) if all(wheres) else None
+    )
+
+
 def _garrison(
     op: OperationRules, base: str, rules: Rules, dr: DirectorRules, own: Own
 ) -> OperationRules:

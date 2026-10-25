@@ -11,6 +11,7 @@ import heapq
 import math
 from collections.abc import Iterable, Mapping
 from dataclasses import dataclass
+from itertools import pairwise
 
 ROAD = "ROAD"
 
@@ -159,3 +160,18 @@ def shortest_path(
                 came_from[nxt] = node
                 heapq.heappush(heap, (cost + graph.heuristic(nxt, goal), cost, nxt))
     return None
+
+
+def travel_ticks(
+    graph: RoadGraph, start: str, goal: str, speed_mps: float, world_dt: float, *,
+    blocked: frozenset[str],
+) -> int | None:  # fmt: skip
+    """Whole ticks (rounded up) a ground unit at top speed `speed_mps` (world m/s, `world_dt` world
+    seconds a tick) takes along `shortest_path` from `start` to `goal`, each road at its
+    `speed_mult`; None with no route. Movement only: no staging, fuel or combat (THREAT-DIRECTOR
+    FS-1, the balance travel table)."""
+    path = shortest_path(graph, start, goal, blocked=blocked)
+    if path is None:
+        return None
+    cost = sum((e := graph.edge(a, b)).length_m / e.speed_mult for a, b in pairwise(path))
+    return math.ceil(cost / speed_mps / world_dt)

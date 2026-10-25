@@ -251,11 +251,13 @@ def validate(world: World, rules: Rules) -> None:
     whole windows within the minimum, a tier no higher than the windows run could have reached
     (each step needs a full dwell), a budget not below 0 and, under `economy.legacy_rules`, within
     the tier's, a theater sector, a Pattern of Life timer a window could have set, a garrison home
-    that is a node of a Director unit."""
+    that is a node of a Director unit, a staged operation of the catalog's capture operations at
+    existing nodes (NX-416; no bound on their count: a hot reload may lower `max_staged`)."""
     dr = rules.director
     if dr is None:
         return
     sectors = {s for s, _ in rules.sectors}
+    capture_ops = {o.id for o in dr.operations if any(j.kind == "CAPTURE" for j in o.jobs)}
     for side, d in world.director.items():
         windows = d.windows * dr.window_ticks
         problem = (
@@ -294,6 +296,11 @@ def validate(world: World, rules: Rules) -> None:
             if not set(d.adapted.values()) <= sectors
             else "a provocation sector that is not in the theater"
             if d.last_provocation_sector not in (sectors | {None})
+            else "a staged operation that is no capture operation of the catalog, or at no node"
+            if any(
+                st.op not in capture_ops or not {st.target, st.base} <= rules.roads.pos.keys()
+                for st in d.staged
+            )
             else None
         )
         if problem:

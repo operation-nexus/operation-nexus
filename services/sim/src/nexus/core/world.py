@@ -92,8 +92,9 @@ from nexus.core.rules import CAPTURE_FULL, Rules
 # (NX-412 part 1); 29: Entity.home_base, grounded and ordered (upkeep, NX-412 part 2); 30:
 # DirectorState.last_operation, the decision window of the last operation launched (the EC-7
 # cadence floor, NX-412 part 3); 31: Campaign.hold_nodes, the strategic nodes of the running victory
-# hold (ECONOMY EC-9, NX-412 part 4)
-FORMAT_VERSION = 31
+# hold (ECONOMY EC-9, NX-412 part 4); 32: DirectorState.staged, the forward-staged operations
+# (THREAT-DIRECTOR FS-7, NX-416)
+FORMAT_VERSION = 32
 _MM = 1000.0  # metres -> millimetres; m/s -> mm/s
 _MICRO = 1e6  # ADR-0002's 1e-6 step for other floats (fuel)
 _MILLI_UNIT = 1000  # thousandths of a stock unit per unit
@@ -495,6 +496,18 @@ class Objective:
 
 
 @dataclass(slots=True)
+class Staged:
+    """A forward-staged operation (THREAT-DIRECTOR §4a FS-7, NX-416): catalog operation `op` on
+    node `target`, waiting at its staging base `base` since decision window `since`
+    (`DirectorState.windows`, kept through a re-staging)."""
+
+    op: str
+    target: str
+    base: str
+    since: int
+
+
+@dataclass(slots=True)
 class DirectorState:
     """One side's Threat Director (THREAT-DIRECTOR §2-§5a, NX-155; `nexus.core.director`). Coalition
     power `cp` (an EMA) and `provocation` are whole millionths of a point, `pending` the provocation
@@ -530,7 +543,10 @@ class DirectorState:
 
     Cadence (NX-412 part 3, ECONOMY EC-7): `last_operation` is the decision window (`windows`)
     in which the side last launched an operation that posted jobs, 0 = never; the cadence floor
-    counts from it."""
+    counts from it.
+
+    Forward staging (NX-416, THREAT-DIRECTOR §4a): `staged` lists the operations waiting at a
+    staging base, ascending by (op, target), each pair once."""
 
     cp: int = 0
     provocation: int = 0
@@ -560,9 +576,11 @@ class DirectorState:
     looked: dict[str, int] = field(default_factory=dict)
     bridge_ready: dict[str, int] = field(default_factory=dict)
     last_operation: int = 0
+    staged: list[Staged] = field(default_factory=list)
 
 
 _DIRECTOR_KEYS = tuple(f.name for f in fields(DirectorState))
+_STAGED_KEYS = tuple(f.name for f in fields(Staged))
 
 
 _ENTITY_KEYS = tuple(f.name for f in fields(Entity))
@@ -1754,6 +1772,25 @@ def _labels(value: object) -> dict[str, str]:
     return {_str(k, "adapted"): _str(v, "adapted") for k, v in value.items()}
 
 
+def _staged(value: object) -> list[Staged]:
+    """FS-7: the staged operations, ascending by (op, target), each pair once."""
+    if not isinstance(value, list):
+        raise ValueError(f"{_DIRECTOR}.staged must be a list")
+    out = []
+    for raw in value:
+        d = _fields(raw, _STAGED_KEYS, f"{_DIRECTOR}.staged")
+        out.append(
+            Staged(
+                _str(d["op"], "staged op"), _str(d["target"], "staged target"),
+                _str(d["base"], "staged base"), _int(d["since"], "staged since"),
+            )
+        )  # fmt: skip
+    pairs = [(s.op, s.target) for s in out]
+    if pairs != sorted(set(pairs)):
+        raise ValueError(f"{_DIRECTOR}.staged: not ascending by (op, target), or a pair twice")
+    return out
+
+
 def _director(value: object, running_ticks: int) -> dict[Side, DirectorState]:
     sides = _fields(value, SIDES, _DIRECTOR)
     out: dict[Side, DirectorState] = {}
@@ -1789,6 +1826,7 @@ def _director(value: object, running_ticks: int) -> dict[Side, DirectorState]:
             looked=_looked(d["looked"], running_ticks),
             bridge_ready=_counts(d["bridge_ready"], "bridge_ready"),
             last_operation=_int(d["last_operation"], "last_operation"),
+            staged=_staged(d["staged"]),
         )
         # 2: the highest tier index (BRAVO); the ladder is structure (provocation._TIER_INDEX)
         if max(state.prov_level, state.ceiling) > 2 or state.ceiling < 0:
@@ -1796,7 +1834,9 @@ def _director(value: object, running_ticks: int) -> dict[Side, DirectorState]:
         stamps = (state.last_patrol, state.last_convoy, state.last_offensive, state.last_flip)
         if max((*stamps, *state.held.values())) > running_ticks:
             raise ValueError(f"{_DIRECTOR}.{side}: a timer from after the snapshot's running ticks")
-        if state.last_operation > state.windows:
+        if state.last_operation > state.windows or any(
+            st.since > state.windows for st in state.staged
+        ):
             raise ValueError(f"{_DIRECTOR}.{side}: an operation launched after the windows run")
         if state.windows > running_ticks or state.last_provocation_tick > running_ticks:
             raise ValueError(f"{_DIRECTOR}.{side}: a count after the snapshot's running ticks")

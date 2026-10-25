@@ -684,6 +684,12 @@ def test_a_campaign_with_every_part_2b_option_flipped_is_deterministic() -> None
             # NX-412 part 4 (ECONOMY EC-9, EC-12): the capture-operation multipliers off 1.0
             "director.score.victory_hold_mult": 2.0,
             "director.score.income_node_mult": 1.5,
+            # NX-416 (THREAT-DIRECTOR §4a): forward staging, read with the economy's new rules
+            "economy.legacy_rules": False,
+            "director.staging.direct_s": 600.0,
+            "director.staging.max_wait_windows": 3,
+            "director.staging.max_staged": 1,
+            "director.pol.offensive_period_s": 600,  # the capture slot fires inside the run
         }
     )
 
@@ -699,4 +705,5 @@ def test_a_campaign_with_every_part_2b_option_flipped_is_deterministic() -> None
     )
     first = scenario()
     assert any(e["kind"] == "ThreatTierChanged" for e in first[1])  # ALPHA settles in the span
+    assert any(e.get("category") == "STAGING" for e in first[1])  # a capture operation staged
     assert scenario() == first
