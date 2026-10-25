@@ -28,6 +28,7 @@ class CameraPassConfig:
     view_preset: str
     description: str
     pip_mode: str = "flir"
+    unit: str | None = None
 
 
 PASS_CATALOG: dict[str, CameraPassConfig] = {
@@ -45,6 +46,24 @@ PASS_CATALOG: dict[str, CameraPassConfig] = {
         view_preset="chase",
         description="Dynamic 3/4 chase camera locked behind VIPER-01 in combat patrol.",
         pip_mode="flir",
+    ),
+    "cockpit-viper": CameraPassConfig(
+        camera_shot_id="cockpit-viper",
+        name="VIPER-01 Fighter Jet Canopy & Collimated HUD POV",
+        pillar=2,
+        view_preset="cockpit",
+        description="First-person pilot HUD perspective with pitch ladder and BVR lock diamond.",
+        pip_mode="flir",
+        unit="VIPER-01",
+    ),
+    "cockpit-mule": CameraPassConfig(
+        camera_shot_id="cockpit-mule",
+        name="MULE-01 Logistics Truck Driver & Windshield POV",
+        pillar=2,
+        view_preset="cockpit",
+        description="First-person truck driver windshield POV with steering wheel and GPS tablet.",
+        pip_mode="minimap",
+        unit="MULE-01",
     ),
     "viaduct-tripod": CameraPassConfig(
         camera_shot_id="viaduct-tripod",
@@ -92,6 +111,8 @@ def build_harness_url(
         "pip": pass_cfg.pip_mode,
         "director": "0",  # Manual director override for deterministic camera pass
     }
+    if pass_cfg.unit:
+        params["unit"] = pass_cfg.unit
     if extra_params:
         params.update(extra_params)
 

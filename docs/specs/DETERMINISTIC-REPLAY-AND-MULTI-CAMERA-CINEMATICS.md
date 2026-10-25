@@ -57,11 +57,37 @@ The deterministic replay harness enables multi-pass video generation:
 | Pass Type | Visual Pillar | Camera Perspective | Editorial Purpose |
 | :--- | :--- | :--- | :--- |
 | **Pass A: Strategic Establishing** | **Pillar 1 (2D GIS)** | Top-down orthographic theater view ($400 \times 240\text{km}$) | Establishes the operational context, frontline momentum, supply lines, and grand strategy. |
-| **Pass B: Tactical Cockpit / Chase** | **Pillar 2 (3D RTS)** | Dynamic 3/4 chase camera or cockpit canopy POV behind `VIPER-01` | Captures high-g turns, sonic canyon flybys, missile launches, and target locks. |
-| **Pass C: Viaduct Choke-Point Cam** | **Pillar 2 (3D RTS)** | Static ground-level tripod camera mounted on the North Fjord Viaduct | Delivers cinematic perspective as supersonic strike packages scream overhead across the mountain chasm. |
-| **Pass D: War Room Briefing** | **Pillar 3 (Holographic)** | Isometric vector wireframe tabletop with SAM threat domes | Perfect for tactical voiceover, intel briefings, and order-of-battle breakdowns. |
-| **Pass E: Electronic Warfare Scope** | **Pillar 4 (EW / SAR)** | Volumetric RF spectrum view showing jamming cones and orbital SAR swaths | Explains *why* the strike succeeded (e.g. radar jamming blinded enemy SAM batteries). |
-| **Pass F: Target Reconnaissance** | **PiP MFD (`RECON` / `FLIR`)** | Downward optical/IR sensor hovering over enemy headquarters | Delivers bomb damage assessment (BDA) and kinetic impact confirmation. |
+| **Pass B: Tactical Chase** | **Pillar 2 (3D RTS)** | Dynamic 3/4 chase camera locked behind `VIPER-01` | Captures high-g turns, sonic canyon flybys, missile launches, and target locks. |
+| **Pass C: Fighter Cockpit POV** | **Pillar 2 (3D RTS)** | Pilot canopy POV with collimated HUD & BVR target diamond | Visceral first-person dogfight perspective with weapon status and radar locks. |
+| **Pass D: Truck Driver POV** | **Pillar 2 (3D RTS)** | Driver cabin windshield POV behind military steering wheel | Human-scale ground view observing road terrain and distant air/bridge strikes. |
+| **Pass E: Viaduct Choke-Point Cam** | **Pillar 2 (3D RTS)** | Static ground-level tripod camera mounted on the North Fjord Viaduct | Delivers cinematic perspective as supersonic strike packages scream overhead. |
+| **Pass F: War Room Briefing** | **Pillar 3 (Holographic)** | Isometric vector wireframe tabletop with SAM threat domes | Perfect for tactical voiceover, intel briefings, and order-of-battle breakdowns. |
+| **Pass G: Cognitive Neural Scope** | **Pillar 4 (AI Lattice)** | Causal trajectory trees, branch probabilities, and synaptic intent arcs | Explains *how* the agent decided on a high-risk strike or retreat maneuver. |
+| **Pass H: Target Reconnaissance** | **PiP MFD (`RECON` / `FLIR`)** | Downward optical/IR sensor hovering over enemy headquarters | Delivers bomb damage assessment (BDA) and kinetic impact confirmation. |
+
+### 2.2 Unit POV & Cockpit Profiles (`pov_profile`)
+
+In accordance with [RFC-UNIT-POV-002](../architecture/UNIT-POV-AND-COCKPIT-CONTRACTS-RFC.md), every unit contract in Operation Nexus supports dedicated first-person driver/pilot/operator perspectives linked via the `pov_profile` schema:
+1. **Fighter Jet Canopy (`VIPER-01`, `BANDIT-04`)**:
+   - Eye position: Fuselage centerline $+1.25\text{m}$ vertical, $+1.80\text{m}$ forward.
+   - Collimated heads-up display (HUD): Infinity-focused pitch ladder, velocity vector, heading compass tape, airspeed tape (KTS / Mach / G-meter), barometric altitude, and active BVR target lock diamond.
+   - Canopy framing: Arching carbon-composite canopy frame with subtle glass reflection sheen.
+2. **Logistics Hauler Cabin (`MULE-01`)**:
+   - Eye position: Inside armored cabin $+2.2\text{m}$ above road surface, offset $-0.45\text{m}$ to driver seat.
+   - Ballistic split-windshield: Heavy matte A-pillars, top sun visor, and center reinforcing vertical divider.
+   - Cab instruments: Military steering wheel, analog speedometer dial, tactical route navigation MFD tablet, and center interior rearview mirror showing the road receding into the distance.
+3. **Dismounted Infantry Optics & UAV Gimbal**:
+   - Supports upcoming ground squads (ACOG / Red Dot reticles with squad health) and ISR drones (gyro-stabilized 32x optical zoom and FLIR thermal color palettes).
+
+### 2.3 Cognitive Neural Decision Lattice Visibility Matrix
+
+The **Cognitive Neural Decision Lattice** (Pillar 4) visualizes the AI agent's branching causal trajectory predictions, counterfactual futures, and synaptic intent arcs. To ensure both competitive integrity and maximum storytelling impact, the following visibility rules are enforced:
+
+| Mode / Context | Lattice Visibility | Rationale / Enforcement |
+| :--- | :--- | :--- |
+| **Live: Chat vs Agent Campaign** | **STRICTLY HIDDEN** (Fog of War) | Preserves competitive integrity and Fog of War (RP-1). Live chat commanders must NOT be able to read enemy AI strike intentions, target selection, or risk calculations in real time. |
+| **Live: Agent vs Agent Match** | **TOGGLEABLE / LIVE SPECTATOR** | For AI research benchmarks and autonomous esports broadcasts, the omniscient view allows audiences to analyze dual AI decision logic in real time. |
+| **Replay / AAR / Video Creation** | **UNLOCKED FULL REVEAL** | In post-campaign replays, the full-truth causal tree is completely unlocked. Video editors can toggle the lattice on key narrative moments (e.g. showing the 92% risk calculation before an agent launches a daring canyon strike). |
 
 ---
 
@@ -105,9 +131,38 @@ To maintain viewer retention and avoid spectator fatigue, the Live Director oper
 
 ---
 
-## 5. Architectural Implementation References
+## 6. Audio Architecture Evolution Roadmap
 
+High-fidelity tactical audio is vital for audience immersion. The audio architecture evolves across three distinct phases:
+
+### 6.1 Phase 1: Procedural Synth Prototype (Current)
+- Implemented via pure Web Audio API oscillators and gain nodes (zero external asset dependencies):
+  - Dynamic radio squelch burst on unit selection and camera cut.
+  - Proximity radar warning receiver (RWR) beeps triggered on hostile closure $<45\text{km}$.
+  - Supersonic flyby Doppler white noise sweep on chase cam.
+  - Low-frequency 58Hz command center ambient hum.
+- **Role**: Functional verification and low-latency interaction feedback.
+
+### 6.2 Phase 2: Authentic DSP & Military Radio Convolutions
+- Replaces raw synth oscillators with convolution reverb and impulse responses (IR) recorded from genuine military headsets (e.g. David Clark H10, Gentex SPH-5):
+  - **Bandpass Filtering**: 300Hz–3.4kHz military VHF/UHF tactical radio frequency response.
+  - **Dynamic Range Compression & Squelch Tail**: Authentic hard-knee limiter with realistic background cockpit turbine whine and wind noise.
+  - **Spatial 3D Propagation**: Acoustic travel delays ($343\text{m/s}$ speed of sound) and distance attenuation for explosions and sonic booms.
+
+### 6.3 Phase 3: Neural Voice Synthesis & Real-Time Comms
+- **On-Device Kokoro-82M TTS**:
+  - Ultra-lightweight ($82\text{M}$ parameter) neural text-to-speech running locally on the streaming host.
+  - Generates authentic, emotion-conditioned military radio transmissions for pilots, ground commanders, and AWACS controllers (`"MAGIC-1, VIPER-01, Fox 3 in the basket!"`).
+- **Dynamic Comms Layering**:
+  - Automated radio priority ducking: AWACS priority breaks over routine logistics check-ins.
+
+---
+
+## 7. Architectural Implementation References
+
+- **Unit POV & Cockpit Contracts**: `docs/architecture/UNIT-POV-AND-COCKPIT-CONTRACTS-RFC.md` (RFC-UNIT-POV-002).
 - **Replay Measurement & Benchmarks**: `tools/replay/measure.py` (NX-032), `docs/specs/CLIPS-REPLAY.md`.
 - **Road & Bridge Elevation Spec**: `docs/specs/ROAD-AND-BRIDGE-TAXONOMY.md` (SPEC-ROAD-BRIDGE-01).
 - **Simulation Terrain Integration RFC**: `docs/architecture/SIMULATION-TERRAIN-AND-ROAD-INTEGRATION-RFC.md`.
 - **Interactive Multi-Pillar Sandbox**: `tools/prototype/unified-visualizer.html`.
+- **Headless Replay Recording Harness**: `tools/replay/render_cinematic_pass.py`.

@@ -146,6 +146,14 @@
       width: 100%; height: 100%;
       display: block;
     }
+    #cockpit-canvas {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      pointer-events: none;
+      z-index: 35;
+      display: none;
+    }
 
     /* CRT Scanlines Overlay */
     .crt-scanlines {
@@ -473,6 +481,7 @@
       <!-- PILLAR 2 & 3: THREE.JS 3D VIEWPORT -->
       <div class="viewport" id="vp-pillar-three">
         <div id="three-viewport"></div>
+        <canvas id="cockpit-canvas"></canvas>
 
         <div class="hud-panel top-left-hud">
           <div class="hud-title">
@@ -483,6 +492,7 @@
             <div class="cam-controls">
               <button class="cam-btn active" id="cam-orbit" onclick="setCameraMode('orbit')">ORBIT</button>
               <button class="cam-btn" id="cam-chase" onclick="setCameraMode('chase')">CHASE</button>
+              <button class="cam-btn" id="cam-cockpit" onclick="setCameraMode('cockpit')">COCKPIT POV</button>
               <button class="cam-btn" id="cam-god" onclick="setCameraMode('god')">GOD VIEW</button>
               <button class="cam-btn" id="cam-director" onclick="toggleDirector()">AI DIRECTOR</button>
             </div>
@@ -971,6 +981,7 @@
     let radarSpire3D, radarSweepMesh, samThreatDomes;
     let ewGroup, jammerCone, noiseStrobeMesh, sarSatelliteSwath, sarSatelliteMarker;
     let flirCanvas, flirCtx;
+    let cockpitCanvas, cockpitCtx;
 
     function initThreeScene() {
       const container = document.getElementById('three-viewport');
@@ -1014,6 +1025,11 @@
       flirCanvas.width = 250;
       flirCanvas.height = 160;
       flirCanvas.addEventListener('click', cyclePipMode);
+
+      cockpitCanvas = document.getElementById('cockpit-canvas');
+      if (cockpitCanvas) {
+        cockpitCtx = cockpitCanvas.getContext('2d');
+      }
 
       renderer.render(scene, camera);
     }
@@ -1789,6 +1805,16 @@
       const btn = document.getElementById(`cam-${mode}`);
       if (btn) btn.classList.add('active');
 
+      if (cockpitCanvas) {
+        if (mode === 'cockpit') {
+          cockpitCanvas.style.display = 'block';
+        } else {
+          cockpitCanvas.style.display = 'none';
+          // Restore all 3D unit meshes visibility
+          Object.values(unit3DMap).forEach(obj => { obj.visible = true; });
+        }
+      }
+
       if (mode === 'god') {
         camera.position.set(0, 280, 0);
         controls.target.set(0, 0, 0);
@@ -1797,6 +1823,8 @@
         controls.target.set(0, 0, 0);
       } else if (mode === 'chase') {
         playFlybyDoppler();
+      } else if (mode === 'cockpit') {
+        playRadioSquelch();
       }
     }
 
@@ -2028,6 +2056,48 @@
           const target = unit3DMap[selectedUnitId].position;
           camera.position.set(target.x - 35, target.y + 15, target.z + 35);
           controls.target.copy(target);
+        } else if (cameraMode === 'cockpit' && unit3DMap[selectedUnitId]) {
+          const u = UNITS.find(un => un.id === selectedUnitId);
+          const obj = unit3DMap[selectedUnitId];
+          if (u && obj) {
+            // Hide own unit mesh so interior doesn't clip into camera
+            Object.entries(unit3DMap).forEach(([id, o]) => {
+              o.visible = (id !== selectedUnitId);
+            });
+
+            const fwdX = Math.cos(u.angle);
+            const fwdZ = Math.sin(u.angle);
+            const fwd = new THREE.Vector3(fwdX, 0, fwdZ).normalize();
+            const right = new THREE.Vector3(-fwdZ, 0, fwdX);
+            const pos = obj.position;
+
+            if (u.alt === 'GND') {
+              // Logistics Truck driver view inside cab
+              camera.position.set(
+                pos.x - right.x * 0.45 + fwd.x * 1.6,
+                pos.y + 2.2,
+                pos.z - right.z * 0.45 + fwd.z * 1.6
+              );
+              controls.target.set(
+                camera.position.x + fwd.x * 80,
+                camera.position.y + 0.3,
+                camera.position.z + fwd.z * 80
+              );
+            } else {
+              // Jet Fighter canopy eye view
+              camera.position.set(
+                pos.x + fwd.x * 1.8,
+                pos.y + 1.25,
+                pos.z + fwd.z * 1.8
+              );
+              controls.target.set(
+                camera.position.x + fwd.x * 120,
+                camera.position.y - 0.2,
+                camera.position.z + fwd.z * 120
+              );
+            }
+            renderCockpitOverlay(u);
+          }
         }
 
         controls.update();
@@ -2209,6 +2279,401 @@
       }
     }
 
+    /* Universal Unit Cockpit / Cabin / HUD & Observer Overlay Renderer */
+    function renderCockpitOverlay(u) {
+      if (!cockpitCtx || !cockpitCanvas) return;
+      const vp = document.getElementById('vp-pillar-three');
+      const dpr = window.devicePixelRatio || 1;
+      const w = vp.clientWidth;
+      const h = vp.clientHeight;
+      if (cockpitCanvas.width !== w * dpr || cockpitCanvas.height !== h * dpr) {
+        cockpitCanvas.width = w * dpr;
+        cockpitCanvas.height = h * dpr;
+      }
+      cockpitCtx.save();
+      cockpitCtx.scale(dpr, dpr);
+      cockpitCtx.clearRect(0, 0, w, h);
+
+      if (u.alt === 'GND') {
+        // =========================================================
+        // TRUCK DRIVER CABIN (MULE-01 LOGISTICS VEHICLE)
+        // =========================================================
+        cockpitCtx.fillStyle = '#0f172a';
+        cockpitCtx.strokeStyle = '#334155';
+        cockpitCtx.lineWidth = 3;
+
+        // Top Cab Visor & Roof Arch
+        cockpitCtx.beginPath();
+        cockpitCtx.moveTo(0, 0);
+        cockpitCtx.lineTo(w, 0);
+        cockpitCtx.lineTo(w, 64);
+        cockpitCtx.lineTo(0, 64);
+        cockpitCtx.closePath();
+        cockpitCtx.fill();
+        cockpitCtx.stroke();
+
+        // Left A-Pillar (Angled ballistic frame)
+        cockpitCtx.beginPath();
+        cockpitCtx.moveTo(0, 0);
+        cockpitCtx.lineTo(85, 64);
+        cockpitCtx.lineTo(115, h - 160);
+        cockpitCtx.lineTo(0, h);
+        cockpitCtx.closePath();
+        cockpitCtx.fill();
+        cockpitCtx.stroke();
+
+        // Right A-Pillar
+        cockpitCtx.beginPath();
+        cockpitCtx.moveTo(w, 0);
+        cockpitCtx.lineTo(w - 85, 64);
+        cockpitCtx.lineTo(w - 115, h - 160);
+        cockpitCtx.lineTo(w, h);
+        cockpitCtx.closePath();
+        cockpitCtx.fill();
+        cockpitCtx.stroke();
+
+        // Center Ballistic Glass Reinforcing Divider
+        cockpitCtx.beginPath();
+        cockpitCtx.rect(w / 2 - 12, 64, 24, h - 224);
+        cockpitCtx.fill();
+        cockpitCtx.stroke();
+
+        // Dashboard Base Shelf
+        cockpitCtx.fillStyle = '#1e293b';
+        cockpitCtx.beginPath();
+        cockpitCtx.moveTo(0, h - 160);
+        cockpitCtx.lineTo(w, h - 160);
+        cockpitCtx.lineTo(w, h);
+        cockpitCtx.lineTo(0, h);
+        cockpitCtx.closePath();
+        cockpitCtx.fill();
+        cockpitCtx.stroke();
+
+        // Armored Bolts on Frame
+        cockpitCtx.fillStyle = '#64748b';
+        [80, 150, 230, 310, 390].forEach(by => {
+          cockpitCtx.beginPath();
+          cockpitCtx.arc(42, by, 3.5, 0, Math.PI * 2);
+          cockpitCtx.fill();
+          cockpitCtx.beginPath();
+          cockpitCtx.arc(w - 42, by, 3.5, 0, Math.PI * 2);
+          cockpitCtx.fill();
+        });
+
+        // Interior Rearview Mirror (Center Top)
+        const rmW = 150, rmH = 46;
+        const rmX = w / 2 - rmW / 2, rmY = 64;
+        cockpitCtx.fillStyle = '#0a101d';
+        cockpitCtx.fillRect(rmX, rmY, rmW, rmH);
+        cockpitCtx.strokeStyle = '#00e5ff';
+        cockpitCtx.lineWidth = 1.5;
+        cockpitCtx.strokeRect(rmX, rmY, rmW, rmH);
+        cockpitCtx.fillStyle = '#00e5ff';
+        cockpitCtx.font = '7.5px monospace';
+        cockpitCtx.fillText('REARVIEW // CAM-REAR-01', rmX + 6, rmY + 12);
+        // Horizon in mirror
+        cockpitCtx.strokeStyle = 'rgba(0, 229, 255, 0.4)';
+        cockpitCtx.beginPath();
+        cockpitCtx.moveTo(rmX, rmY + 26);
+        cockpitCtx.lineTo(rmX + rmW, rmY + 26);
+        cockpitCtx.stroke();
+        // Receding road lines
+        cockpitCtx.strokeStyle = 'rgba(255, 255, 255, 0.5)';
+        cockpitCtx.beginPath();
+        cockpitCtx.moveTo(rmX + rmW / 2 - 25, rmY + rmH);
+        cockpitCtx.lineTo(rmX + rmW / 2 - 4, rmY + 26);
+        cockpitCtx.moveTo(rmX + rmW / 2 + 25, rmY + rmH);
+        cockpitCtx.lineTo(rmX + rmW / 2 + 4, rmY + 26);
+        cockpitCtx.stroke();
+
+        // Driver Steering Wheel (Bottom Left)
+        const swX = w * 0.32, swY = h - 60, swR = 98;
+        cockpitCtx.save();
+        cockpitCtx.strokeStyle = '#090e17';
+        cockpitCtx.lineWidth = 18;
+        cockpitCtx.beginPath();
+        cockpitCtx.arc(swX, swY, swR, Math.PI * 0.95, Math.PI * 2.05);
+        cockpitCtx.stroke();
+
+        cockpitCtx.strokeStyle = '#334155';
+        cockpitCtx.lineWidth = 3;
+        cockpitCtx.stroke();
+
+        cockpitCtx.strokeStyle = '#1e293b';
+        cockpitCtx.lineWidth = 12;
+        cockpitCtx.beginPath();
+        cockpitCtx.moveTo(swX, swY);
+        cockpitCtx.lineTo(swX - swR * 0.85, swY - swR * 0.4);
+        cockpitCtx.moveTo(swX, swY);
+        cockpitCtx.lineTo(swX + swR * 0.85, swY - swR * 0.4);
+        cockpitCtx.moveTo(swX, swY);
+        cockpitCtx.lineTo(swX, swY + 36);
+        cockpitCtx.stroke();
+
+        cockpitCtx.fillStyle = '#0f172a';
+        cockpitCtx.beginPath();
+        cockpitCtx.arc(swX, swY - 18, 26, 0, Math.PI * 2);
+        cockpitCtx.fill();
+        cockpitCtx.strokeStyle = '#475569';
+        cockpitCtx.lineWidth = 2;
+        cockpitCtx.stroke();
+        cockpitCtx.fillStyle = '#94a3b8';
+        cockpitCtx.font = '8px monospace';
+        cockpitCtx.textAlign = 'center';
+        cockpitCtx.fillText('NEXUS LOGI', swX, swY - 16);
+        cockpitCtx.restore();
+
+        // Speedometer Arc Gauge (Left of center console)
+        const spdGaugeX = w * 0.44, spdGaugeY = h - 75;
+        cockpitCtx.fillStyle = '#0a101d';
+        cockpitCtx.beginPath();
+        cockpitCtx.arc(spdGaugeX, spdGaugeY, 34, 0, Math.PI * 2);
+        cockpitCtx.fill();
+        cockpitCtx.strokeStyle = '#38bdf8';
+        cockpitCtx.lineWidth = 1.5;
+        cockpitCtx.stroke();
+        cockpitCtx.fillStyle = '#38bdf8';
+        cockpitCtx.font = 'bold 11px monospace';
+        cockpitCtx.textAlign = 'center';
+        cockpitCtx.fillText(`${u.spd}`, spdGaugeX, spdGaugeY - 2);
+        cockpitCtx.font = '7.5px monospace';
+        cockpitCtx.fillText('KM/H', spdGaugeX, spdGaugeY + 10);
+
+        // Center Console Tactical MFD / GPS Screen
+        const gpsW = 210, gpsH = 130;
+        const gpsX = w * 0.52, gpsY = h - 148;
+        cockpitCtx.fillStyle = 'rgba(6, 13, 26, 0.95)';
+        cockpitCtx.fillRect(gpsX, gpsY, gpsW, gpsH);
+        cockpitCtx.strokeStyle = '#00e5ff';
+        cockpitCtx.lineWidth = 1.5;
+        cockpitCtx.strokeRect(gpsX, gpsY, gpsW, gpsH);
+
+        cockpitCtx.fillStyle = 'rgba(0, 229, 255, 0.15)';
+        cockpitCtx.fillRect(gpsX, gpsY, gpsW, 20);
+        cockpitCtx.fillStyle = '#00e5ff';
+        cockpitCtx.font = 'bold 9px monospace';
+        cockpitCtx.textAlign = 'left';
+        cockpitCtx.fillText('TACTICAL ROUTE MFD // MULE-01', gpsX + 8, gpsY + 14);
+
+        cockpitCtx.fillStyle = '#f8fafc';
+        cockpitCtx.font = '8.5px monospace';
+        cockpitCtx.fillText(`SPEED: ${u.spd} KM/H (GOVERNOR: 60)`, gpsX + 8, gpsY + 36);
+        cockpitCtx.fillText(`FUEL: ${u.fuel}% DIESEL [NOMINAL]`, gpsX + 8, gpsY + 50);
+        cockpitCtx.fillText('ROUTE: FJORD HIGHWAY -> WEST AB', gpsX + 8, gpsY + 64);
+        cockpitCtx.fillText('SURFACE: REINFORCED VIADUCT', gpsX + 8, gpsY + 78);
+        cockpitCtx.fillText('BRIDGE INTEGRITY: 100% SECURE', gpsX + 8, gpsY + 92);
+        cockpitCtx.fillStyle = '#10b981';
+        cockpitCtx.fillText('TERRAIN CLEARANCE: +0.14M (CONFORMED)', gpsX + 8, gpsY + 108);
+        cockpitCtx.fillText('CARGO: CLASS V AMMUNITION CRATES', gpsX + 8, gpsY + 120);
+
+        cockpitCtx.fillStyle = 'rgba(0, 229, 255, 0.85)';
+        cockpitCtx.font = 'bold 11px monospace';
+        cockpitCtx.textAlign = 'center';
+        cockpitCtx.fillText('DRIVER POV // MULE-01 CONVOY LEAD // SURFACE OBSERVATION', w / 2, 95);
+
+      } else {
+        // =========================================================
+        // FIGHTER JET COCKPIT HUD & CANOPY (VIPER-01 / BANDIT-04)
+        // =========================================================
+        const isBandit = u.side === 'static';
+        const hudCol = isBandit ? '#ef4444' : '#00ff66';
+
+        // 1. Sleek Canopy Arch Structure
+        cockpitCtx.fillStyle = '#090e17';
+        cockpitCtx.strokeStyle = '#1e293b';
+        cockpitCtx.lineWidth = 4;
+
+        cockpitCtx.beginPath();
+        cockpitCtx.moveTo(0, 0);
+        cockpitCtx.bezierCurveTo(w * 0.12, h * 0.2, w * 0.16, h * 0.7, 0, h);
+        cockpitCtx.lineTo(0, 0);
+        cockpitCtx.closePath();
+        cockpitCtx.fill();
+        cockpitCtx.stroke();
+
+        cockpitCtx.beginPath();
+        cockpitCtx.moveTo(w, 0);
+        cockpitCtx.bezierCurveTo(w * 0.88, h * 0.2, w * 0.84, h * 0.7, w, h);
+        cockpitCtx.lineTo(w, 0);
+        cockpitCtx.closePath();
+        cockpitCtx.fill();
+        cockpitCtx.stroke();
+
+        cockpitCtx.beginPath();
+        cockpitCtx.moveTo(0, 0);
+        cockpitCtx.quadraticCurveTo(w / 2, 45, w, 0);
+        cockpitCtx.lineTo(w, 35);
+        cockpitCtx.quadraticCurveTo(w / 2, 75, 0, 35);
+        cockpitCtx.closePath();
+        cockpitCtx.fill();
+        cockpitCtx.stroke();
+
+        // Canopy HUD Projector Glass
+        const hudBoxW = 460, hudBoxH = 340;
+        const hudBoxX = w / 2 - hudBoxW / 2;
+        const hudBoxY = h / 2 - hudBoxH / 2 - 10;
+        cockpitCtx.strokeStyle = 'rgba(255, 255, 255, 0.12)';
+        cockpitCtx.lineWidth = 1;
+        cockpitCtx.strokeRect(hudBoxX, hudBoxY, hudBoxW, hudBoxH);
+
+        const grad = cockpitCtx.createLinearGradient(hudBoxX, hudBoxY, hudBoxX + hudBoxW, hudBoxY + hudBoxH);
+        grad.addColorStop(0, 'rgba(0, 229, 255, 0.03)');
+        grad.addColorStop(0.5, 'rgba(255, 255, 255, 0.0)');
+        grad.addColorStop(1, 'rgba(0, 229, 255, 0.02)');
+        cockpitCtx.fillStyle = grad;
+        cockpitCtx.fillRect(hudBoxX, hudBoxY, hudBoxW, hudBoxH);
+
+        // 2. Collimated HUD Symbology
+        cockpitCtx.fillStyle = hudCol;
+        cockpitCtx.strokeStyle = hudCol;
+        cockpitCtx.lineWidth = 1.5;
+        cockpitCtx.font = '10px monospace';
+
+        const cx = w / 2;
+        const cy = h / 2;
+
+        // Boresight Crosshair
+        cockpitCtx.beginPath();
+        cockpitCtx.moveTo(cx - 10, cy);
+        cockpitCtx.lineTo(cx + 10, cy);
+        cockpitCtx.moveTo(cx, cy - 10);
+        cockpitCtx.lineTo(cx, cy + 10);
+        cockpitCtx.stroke();
+
+        // Waterline symbol -v-
+        cockpitCtx.beginPath();
+        cockpitCtx.moveTo(cx - 30, cy + 14);
+        cockpitCtx.lineTo(cx - 15, cy + 14);
+        cockpitCtx.lineTo(cx, cy + 22);
+        cockpitCtx.lineTo(cx + 15, cy + 14);
+        cockpitCtx.lineTo(cx + 30, cy + 14);
+        cockpitCtx.stroke();
+
+        // Velocity Vector (Flight path marker)
+        const vvx = cx + Math.sin(simTime * 0.8) * 6;
+        const vvy = cy + Math.cos(simTime * 0.6) * 4;
+        cockpitCtx.beginPath();
+        cockpitCtx.arc(vvx, vvy, 6, 0, Math.PI * 2);
+        cockpitCtx.moveTo(vvx - 14, vvy);
+        cockpitCtx.lineTo(vvx - 6, vvy);
+        cockpitCtx.moveTo(vvx + 6, vvy);
+        cockpitCtx.lineTo(vvx + 14, vvy);
+        cockpitCtx.moveTo(vvx, vvy - 6);
+        cockpitCtx.lineTo(vvx, vvy - 12);
+        cockpitCtx.stroke();
+
+        // Pitch Ladder (+10, 0, -10)
+        [-40, 0, 40].forEach((dy, idx) => {
+          const py = cy + dy;
+          const deg = (1 - idx) * 10;
+          if (deg === 0) {
+            cockpitCtx.beginPath();
+            cockpitCtx.moveTo(cx - 90, py);
+            cockpitCtx.lineTo(cx - 30, py);
+            cockpitCtx.moveTo(cx + 30, py);
+            cockpitCtx.lineTo(cx + 90, py);
+            cockpitCtx.stroke();
+          } else if (deg > 0) {
+            cockpitCtx.beginPath();
+            cockpitCtx.moveTo(cx - 75, py);
+            cockpitCtx.lineTo(cx - 35, py);
+            cockpitCtx.lineTo(cx - 35, py + 8);
+            cockpitCtx.moveTo(cx + 75, py);
+            cockpitCtx.lineTo(cx + 35, py);
+            cockpitCtx.lineTo(cx + 35, py + 8);
+            cockpitCtx.stroke();
+          } else {
+            cockpitCtx.save();
+            cockpitCtx.setLineDash([4, 4]);
+            cockpitCtx.beginPath();
+            cockpitCtx.moveTo(cx - 75, py);
+            cockpitCtx.lineTo(cx - 35, py);
+            cockpitCtx.moveTo(cx + 35, py);
+            cockpitCtx.lineTo(cx + 75, py);
+            cockpitCtx.stroke();
+            cockpitCtx.restore();
+          }
+          cockpitCtx.fillText(deg > 0 ? `+${deg}` : `${deg}`, cx - 100, py + 3);
+          cockpitCtx.fillText(deg > 0 ? `+${deg}` : `${deg}`, cx + 82, py + 3);
+        });
+
+        // Top Heading Tape
+        const hdgDeg = Math.round(((u.angle * 180 / Math.PI) % 360 + 360) % 360);
+        const tapeY = hudBoxY + 30;
+        cockpitCtx.strokeRect(cx - 100, tapeY - 14, 200, 20);
+        cockpitCtx.beginPath();
+        cockpitCtx.moveTo(cx, tapeY + 6);
+        cockpitCtx.lineTo(cx - 5, tapeY + 12);
+        cockpitCtx.lineTo(cx + 5, tapeY + 12);
+        cockpitCtx.closePath();
+        cockpitCtx.fill();
+
+        for (let o = -30; o <= 30; o += 10) {
+          const val = (hdgDeg + o + 360) % 360;
+          const tx = cx + (o * 3);
+          cockpitCtx.beginPath();
+          cockpitCtx.moveTo(tx, tapeY - 8);
+          cockpitCtx.lineTo(tx, tapeY - 14);
+          cockpitCtx.stroke();
+          cockpitCtx.font = '8px monospace';
+          cockpitCtx.textAlign = 'center';
+          cockpitCtx.fillText(String(val).padStart(3, '0'), tx, tapeY + 2);
+        }
+
+        // Left Tape: Airspeed (KTS)
+        const spdX = hudBoxX + 24;
+        cockpitCtx.strokeRect(spdX - 8, cy - 40, 52, 80);
+        cockpitCtx.textAlign = 'left';
+        cockpitCtx.font = 'bold 12px monospace';
+        cockpitCtx.fillText(`${u.spd}`, spdX - 4, cy + 4);
+        cockpitCtx.font = '8px monospace';
+        cockpitCtx.fillText('KTS', spdX + 24, cy + 4);
+        cockpitCtx.fillText(`M ${(u.spd / 661.47).toFixed(2)}`, spdX - 4, cy + 22);
+        cockpitCtx.fillText('G 1.2', spdX - 4, cy + 32);
+
+        // Right Tape: Altitude (FT)
+        const altX = hudBoxX + hudBoxW - 68;
+        cockpitCtx.strokeRect(altX, cy - 40, 60, 80);
+        cockpitCtx.fillText(u.alt === 'FL240' ? '24,000' : '28,000', altX + 4, cy + 4);
+        cockpitCtx.font = '8px monospace';
+        cockpitCtx.fillText('MSL', altX + 4, cy + 18);
+        cockpitCtx.fillText('R 1,840', altX + 4, cy + 30);
+
+        // Target Lock Diamond (If bandit in forward arc)
+        if (u.id === 'VIPER-01') {
+          const tgtX = cx + 80 + Math.sin(simTime * 0.4) * 20;
+          const tgtY = cy - 35 + Math.cos(simTime * 0.3) * 15;
+          cockpitCtx.strokeStyle = '#ef4444';
+          cockpitCtx.lineWidth = 1.5;
+          cockpitCtx.beginPath();
+          cockpitCtx.moveTo(tgtX, tgtY - 10);
+          cockpitCtx.lineTo(tgtX + 10, tgtY);
+          cockpitCtx.lineTo(tgtX, tgtY + 10);
+          cockpitCtx.lineTo(tgtX - 10, tgtY);
+          cockpitCtx.closePath();
+          cockpitCtx.stroke();
+          cockpitCtx.fillStyle = '#ef4444';
+          cockpitCtx.font = '8px monospace';
+          cockpitCtx.fillText('TGT: BANDIT-04', tgtX + 14, tgtY - 2);
+          cockpitCtx.fillText('RNG: 34.2 KM', tgtX + 14, tgtY + 8);
+          cockpitCtx.fillText('VC: +890 KTS', tgtX + 14, tgtY + 18);
+        }
+
+        // Lower Status Telemetry
+        cockpitCtx.fillStyle = hudCol;
+        cockpitCtx.textAlign = 'left';
+        cockpitCtx.font = '9px monospace';
+        cockpitCtx.fillText(`MASTER ARM: SIM // ${u.ammo} [ARMED]`, hudBoxX + 24, hudBoxY + hudBoxH - 18);
+        cockpitCtx.fillText(`IFF: MODE 5 // CALLSIGN: ${u.callsign}`, hudBoxX + 24, hudBoxY + hudBoxH - 6);
+
+        cockpitCtx.textAlign = 'right';
+        cockpitCtx.fillText('RADAR: BVR TWS TRACK', hudBoxX + hudBoxW - 24, hudBoxY + hudBoxH - 18);
+        cockpitCtx.fillText(`FUEL: ${u.fuel}% // TASK: ${u.task}`, hudBoxX + hudBoxW - 24, hudBoxY + hudBoxH - 6);
+      }
+
+      cockpitCtx.restore();
+    }
+
     /* Startup handler */
     window.addEventListener('load', () => {
       initThreeScene();
@@ -2221,8 +2686,13 @@
       if (initialPillar === 2 || initialPillar === 3 || initialPillar === 4) {
         switchPillar(initialPillar);
 
+        const unitParam = params.get('unit');
+        if (unitParam && UNITS.some(u => u.id === unitParam)) {
+          selectUnit(unitParam);
+        }
+
         // Optional Camera Presets for Inspection & Testing
-        const viewParam = params.get('view');
+        const viewParam = params.get('view') || params.get('camera');
         if (viewParam === 'bridge') {
           camera.position.set(-42, 28, -25);
           controls.target.set(0, 17.5, -54);
@@ -2233,6 +2703,8 @@
           controls.update();
         } else if (viewParam === 'chase') {
           setCameraMode('chase');
+        } else if (viewParam === 'cockpit') {
+          setCameraMode('cockpit');
         } else if (viewParam === 'god') {
           setCameraMode('god');
         }
