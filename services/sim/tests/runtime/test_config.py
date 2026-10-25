@@ -331,6 +331,8 @@ economy:
   storage:
     floor: 2000
     per_node: {AIRBASE: 2000, BRIDGE: 0, FOB: 1000, HQ: 2000, PORT: 1000}
+  upkeep: {ENEMY_ARMOR: 0, ENEMY_CONVOY: 0, ENEMY_FIGHTER: 0, ENEMY_RECON_UAV: 0,
+    ENEMY_STRIKE_FIGHTER: 0, GARRISON_INFANTRY: 0, LOGI_TRUCK: 0, RECON_UAV: 0, STRIKE_FIGHTER: 0}
 """
 # Pinned from this implementation's first run (NX-367: balance, units, theater; re-pinned NX-121
 # for speed_mps, NX-122 for slots and again for the GP-3 cap and queue, NX-368 for air fuel and
@@ -343,9 +345,9 @@ economy:
 # NX-388 part 2 for the Q-CFG-16 rule options, NX-388 part 2b for the Director, tasking and
 # rebase rule options, NX-373 for the bridge hp, NX-398 for `tasking.order_dwell_s`, NX-400 for
 # the collapse radius, NX-373 part 2 for bridge repair, the repair job and its escort, NX-412 part 1
-# for the economy block); a change
+# for the economy block, NX-412 part 2 for `economy.upkeep`); a change
 # means every config_hash moved.
-GOLDEN_CONFIG_HASH = "2e571c97726ea6ff0833173f42510f6bafd4e770db5dc32167944af0e9887328"
+GOLDEN_CONFIG_HASH = "7f5e8a55c7892f6ff5f83c98ee4de6cb86d2800799fedef866592291e83b2f3a"
 AIR = {
     "bingo_reserve_frac": 0.15,
     "orbit_period_s": 120.0,
@@ -634,12 +636,17 @@ DIRECTOR = {
         "capture_slot_tiers": ["PATTERN_OF_LIFE"],
     },
 }
+_UPKEEP_KINDS = (
+    "ENEMY_ARMOR", "ENEMY_CONVOY", "ENEMY_FIGHTER", "ENEMY_RECON_UAV", "ENEMY_STRIKE_FIGHTER",
+    "GARRISON_INFANTRY", "LOGI_TRUCK", "RECON_UAV", "STRIKE_FIGHTER",
+)  # fmt: skip
 _PER_NODE = {"AIRBASE": 10, "BRIDGE": 0, "FOB": 5, "HQ": 10, "PORT": 5}
 ECONOMY = {
     "unlimited": {"COALITION": True, "ENEMY": True},
     "window_s": 60,
     "income": {"floor": 30, "per_node": _PER_NODE},
     "storage": {"floor": 2000, "per_node": {k: v * 200 for k, v in _PER_NODE.items()}},
+    "upkeep": dict.fromkeys(_UPKEEP_KINDS, 0),
 }
 CFG = BalanceConfig.model_validate(
     {
@@ -1066,7 +1073,10 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "economy: {window_s: 60, unlimited: {ENEMY: true, COALITION: true},\n"
         "  storage: {per_node: {PORT: 1000, HQ: 2000, FOB: 1000, BRIDGE: 0, AIRBASE: 2000},\n"
         "    floor: 2000},\n"
-        "  income: {per_node: {PORT: 5, HQ: 10, FOB: 5, BRIDGE: 0, AIRBASE: 10}, floor: 30}}\n"
+        "  income: {per_node: {PORT: 5, HQ: 10, FOB: 5, BRIDGE: 0, AIRBASE: 10}, floor: 30},\n"
+        "  upkeep: {STRIKE_FIGHTER: 0, RECON_UAV: 0, LOGI_TRUCK: 0, GARRISON_INFANTRY: 0,\n"
+        "    ENEMY_STRIKE_FIGHTER: 0, ENEMY_RECON_UAV: 0, ENEMY_FIGHTER: 0, ENEMY_CONVOY: 0,\n"
+        "    ENEMY_ARMOR: 0}}\n"
         "schema_version:   1\n"
     )
     assert balance_hash(write(tmp_path, reformatted)) == balance_hash(DEFAULT)

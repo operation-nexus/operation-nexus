@@ -40,8 +40,10 @@ from . import (
     unit_damage_state_changed,
     unit_despawned,
     unit_destroyed,
+    unit_grounded,
     unit_repaired,
     unit_spawned,
+    unit_ungrounded,
     weapon_fired,
     weapon_impact,
 )
@@ -56,6 +58,8 @@ type Event = Annotated[
     | supply_delivered.SupplyDelivered
     | supply_consumed.SupplyConsumed
     | supply_produced.SupplyProduced
+    | unit_grounded.UnitGrounded
+    | unit_ungrounded.UnitUngrounded
     | rearm_stalled.RearmStalled
     | capture_started.CaptureStarted
     | node_captured.NodeCaptured

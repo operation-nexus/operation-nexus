@@ -2,7 +2,7 @@
 Q-SIM-51, Q-SIM-53, Q-SIM-68, STATE-MACHINES §4.1 Landed / Rearming).
 
 `restock`, called by the `logistics` system for every entity that is not unloading cargo, runs one
-tick of a unit's stop. Where it stops (`_station`): an aircraft LANDED with no path at a landing
+tick of a unit's stop. Where it stops (`station`): an aircraft LANDED with no path at a landing
 base of its side; a GROUND unit with no path standing on a friendly base node (any node but a
 BRIDGE); a facility at its own base while the base is friendly and has no capture bar (not
 contested). A Disabled non-facility is a wreck and never restocks (CB-7). A kind with no
@@ -79,7 +79,7 @@ class _Buy:
             self.room -= n
 
 
-def _station(world: World, rules: Rules, e: Entity) -> str | None:
+def station(world: World, rules: Rules, e: Entity) -> str | None:
     """The base node where `e` is stopped to restock, or None."""
     if e.path:  # moving (a facility never has a path)
         return None
@@ -114,7 +114,7 @@ def ammo_price(rules: Rules, e: Entity) -> int:
 def restock(world: World, rules: Rules, e: Entity, out: list[Event]) -> None:
     """One running tick of `e`'s stop at a base (module docstring); ends it if `e` is not at one."""
     sup, cr = rules.supply, rules.combat
-    node = _station(world, rules, e)
+    node = station(world, rules, e)
     facility = rules.domain[e.kind] == _STATIC
     cost = sup.loadout_cost.get(e.kind, 0)
     if node is None or (e.damage_state == _DISABLED and not facility):

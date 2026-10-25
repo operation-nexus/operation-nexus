@@ -27,6 +27,7 @@ from nexus.core.logistics import logistics, nearest_base
 from nexus.core.provocation import DIRECTED, scan_rear
 from nexus.core.rules import CP_SCALE, Rules
 from nexus.core.tasking import run as run_tasking
+from nexus.core.upkeep import upkeep
 from nexus.core.world import SIDES, Entity, UnitState, Vec2, World, lose_unit
 
 TICK_DT = 0.1  # game seconds per tick (SC-2)
@@ -61,12 +62,14 @@ def apply_commands(
 def director(
     world: World, c: Sequence[Command], h: Mapping[str, Handler], out: list[Event]
 ) -> None:
-    """The economy window (income, then the storage clip; `nexus.core.economy`, NX-412, EC-10),
-    then the Threat Director's decision window (NX-155), then the Tasking Boards
-    (`nexus.core.tasking`, NX-374) and every follower's station and the formation speed caps
-    (`nexus.core.follow`, NX-374 part 2): the Director decides first and launches its operations
-    (`nexus.core.launch`, NX-156), whose jobs the board then settles and assigns."""
+    """The economy window (income, then the storage clip; `nexus.core.economy`, NX-412, EC-10;
+    then upkeep and grounding, `nexus.core.upkeep`, NX-412 part 2), then the Threat Director's
+    decision window (NX-155), then the Tasking Boards (`nexus.core.tasking`, NX-374) and every
+    follower's station and the formation speed caps (`nexus.core.follow`, NX-374 part 2): the
+    Director decides first and launches its operations (`nexus.core.launch`, NX-156), whose jobs
+    the board then settles and assigns."""
     economy_window(world, out)
+    upkeep(world, out)
     _decide(world, out)
     run_tasking(world, out)
     steer(world)

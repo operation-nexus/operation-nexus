@@ -117,7 +117,8 @@ def rebase(world: World, command: Command, out: list[Event]) -> None:
     """REBASE (GAMEPLAY §3, Q-SIM-90): move the commander's live unit to a friendly base.
 
     Rejected, in this order: `CAMPAIGN_PAUSED` (Q-ALN-2), `NO_ACTIVE_UNIT` (no live, non-Disabled
-    unit), `NODE_UNKNOWN`, `NODE_NOT_FRIENDLY`, `NODE_INVALID_FOR_UNIT` (an aircraft needs a landing
+    unit), `UNIT_GROUNDED` (its home cannot pay its upkeep, ECONOMY EC-6), `NODE_UNKNOWN`,
+    `NODE_NOT_FRIENDLY`, `NODE_INVALID_FOR_UNIT` (an aircraft needs a landing
     base, a ground unit a base it has a road route to), `OUT_OF_REACH` (an aircraft that cannot fly
     there with its bingo reserve, `tasking.reaches`). An accepted rebase is an explicit order
     (TB-7): it releases the unit's board job, ends a follow, cuts a truck's unloading stop, and sets
@@ -141,6 +142,9 @@ def rebase(world: World, command: Command, out: list[Event]) -> None:
     if unit is None:
         out.append(reject(world, command, "NO_ACTIVE_UNIT"))
         return
+    if unit.grounded:
+        out.append(reject(world, command, "UNIT_GROUNDED"))
+        return
     path = _rebase_path(world, rules, unit, command.node_id)
     if isinstance(path, str):
         out.append(reject(world, command, path))
@@ -151,6 +155,7 @@ def rebase(world: World, command: Command, out: list[Event]) -> None:
         end_stop(world, unit, unit.last_node, out)  # leaving cuts the unloading stop
     unit.path, unit.order, unit.follow_id = path, rules.rebase_order, None
     unit.held_since = unit.order_node = None  # a new order ends a GOTO and its hold (Q-SIM-110)
+    unit.ordered = world.campaign.running_ticks  # its latest order (ECONOMY EC-6 payment order)
 
 
 def _rebase_path(
@@ -288,6 +293,7 @@ def _spawn(world: World, command: JoinCommand, plan: _Plan, rules: Rules, out: l
         hp=None,
     )
     unit.last_node, unit.path, unit.cargo = node, list(path), cargo
+    unit.home_base = node  # its spawn node pays its upkeep (ECONOMY EC-5)
     unit.order, unit.follow_id = _order(command), follow
     if unit.order == "GOTO" and isinstance(command.target, NodeTarget):
         unit.order_node = command.target.node_id  # where an armed unit holds (Q-SIM-110)

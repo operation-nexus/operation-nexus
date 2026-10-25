@@ -210,10 +210,10 @@ def watched(world: World, rules: Rules, view: SideView) -> dict[int, Contact]:
 
 def is_idle(rules: Rules, e: Entity, side: Side) -> bool:
     """Whether the board may give `e` a job: no job, no explicit order (a HOLD keeps it off), no
-    route, not Disabled, not returning to base (TB-2)."""
+    route, not Disabled, not returning to base (TB-2), not grounded (ECONOMY EC-6)."""
     return (
         e.side == side and e.job_id is None and e.order is None and not e.path
-        and e.damage_state != "DISABLED" and e.state != "RTB"
+        and e.damage_state != "DISABLED" and e.state != "RTB" and not e.grounded
         and rules.domain[e.kind] in (_AIR, _GROUND)
     )  # fmt: skip
 

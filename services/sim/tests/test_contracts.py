@@ -104,6 +104,9 @@ def test_event_union_parses_command_rejected() -> None:
     event = EVENTS.validate_python(COMMAND_REJECTED)
     assert event.kind == "CommandRejected"
     assert event.reason == "INTERNAL_ERROR"
+    grounded = EVENTS.validate_python({**COMMAND_REJECTED, "command_kind": "REBASE",
+                                       "reason": "UNIT_GROUNDED"})  # fmt: skip
+    assert grounded.model_dump()["reason"] == "UNIT_GROUNDED"  # NX-412 part 2, ECONOMY EC-6
 
 
 @pytest.mark.parametrize(
@@ -257,6 +260,9 @@ BRIDGE_UP = {**_BASE, "kind": "BridgeRepaired", "node_id": "bridge-n", "by_id": 
 PRODUCED = {**_BASE, "kind": "SupplyProduced", "side": "ENEMY", "amount": 60}  # NX-412
 STORAGE_LOST = {**_BASE, "kind": "SupplyConsumed", "node_id": "static-rear", "amount": 2000,
                 "cause": "STORAGE_LOST"}  # fmt: skip
+UPKEEP = {**STORAGE_LOST, "node_id": "fob-1", "amount": 12, "cause": "UPKEEP"}  # NX-412 part 2
+GROUNDED = {**_BASE, "kind": "UnitGrounded", "entity_id": 7, "node_id": "fob-1"}
+UNGROUNDED = {**GROUNDED, "kind": "UnitUngrounded"}
 
 
 @pytest.mark.parametrize(
@@ -279,6 +285,9 @@ STORAGE_LOST = {**_BASE, "kind": "SupplyConsumed", "node_id": "static-rear", "am
         TIER_CHANGED,
         PRODUCED,
         STORAGE_LOST,
+        UPKEEP,
+        GROUNDED,
+        UNGROUNDED,
     ],
 )
 def test_combat_events_parse_through_the_event_union(good: dict[str, object]) -> None:
@@ -320,7 +329,10 @@ def test_combat_events_parse_through_the_event_union(good: dict[str, object]) ->
         (PRODUCED, {"amount": 0}),  # none for 0 (EC-1)
         (PRODUCED, {"side": "NEUTRAL"}),
         (PRODUCED, {"node_id": "static-rear"}),  # {side, amount} only (ECONOMY §4)
-        (STORAGE_LOST, {"cause": "UPKEEP"}),  # no producer until NX-412 part 2 (rule 6a)
+        (STORAGE_LOST, {"cause": "INCOME"}),  # not a SupplyConsumed cause
+        (GROUNDED, {"entity_id": 0}),
+        (GROUNDED, {"side": "COALITION"}),  # {unit, home} only (ECONOMY §4)
+        (UNGROUNDED, {"node_id": "Not A Node"}),
     ],
 )
 def test_combat_events_reject_bad_fields(event: dict[str, object], bad: dict[str, object]) -> None:

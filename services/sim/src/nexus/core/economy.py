@@ -57,14 +57,21 @@ def start(world: World) -> None:
         world.storage[side] = world.pool[side] = storage_cap(world, rules, er, side)
 
 
-def window(world: World, out: list[Event]) -> None:
-    """EC-10 steps 1-2 on every `window_ticks`-th running tick; nothing while paused (SC-11)."""
+def due(world: World) -> tuple[Rules, EconomyRules] | None:
+    """The rules when this tick is an economy window (every `window_ticks`-th running tick); None
+    otherwise, without economy rules, or while frozen (SC-11)."""
     rules = world.rules
     er = rules.economy if rules else None
     if world.frozen or rules is None or er is None:
+        return None
+    return None if (world.campaign.running_ticks + 1) % er.window_ticks else (rules, er)
+
+
+def window(world: World, out: list[Event]) -> None:
+    """EC-10 steps 1-2 at an economy window (`due`); upkeep (step 3) is `nexus.core.upkeep`."""
+    if (ready := due(world)) is None:
         return
-    if (world.campaign.running_ticks + 1) % er.window_ticks:
-        return
+    rules, er = ready
     for side in sorted(world.pool):
         cap = storage_cap(world, rules, er, side)
         gain = max(0, min(income(world, rules, er, side), cap - world.pool[side]))

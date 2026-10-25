@@ -71,6 +71,7 @@ from nexus.core.fog import hand_over
 from nexus.core.logistics import friendly_bases, nearest, road_start
 from nexus.core.provocation import captured
 from nexus.core.rules import CAPTURE_FULL, CaptureRules, Rules
+from nexus.core.upkeep import rehome
 from nexus.core.world import SIDES, CaptureBar, Entity, World, end_stop, lose_unit
 
 _OTHER: dict[Side, Side] = {"COALITION": "ENEMY", "ENEMY": "COALITION"}
@@ -294,6 +295,7 @@ def _flip(
     _switch_facilities(world, node, to)
     if before != "NEUTRAL":
         _resolve_units(world, rules, cap, node, before, out)
+        rehome(world, node)  # the loser's units homed here re-home (ECONOMY EC-5)
 
 
 def _switch_facilities(world: World, node: str, to: Side) -> None:

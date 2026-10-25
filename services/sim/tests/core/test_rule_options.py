@@ -388,17 +388,21 @@ def test_a_run_with_every_option_flipped_is_deterministic() -> None:
                 income_per_node={"FOB": 3},
                 storage_floor=50,
                 storage_per_node={"FOB": 20},
+                upkeep={INFANTRY: 3, ARMOR: 40},  # non-zero upkeep (NX-412 part 2)
             ),
         )
         economy.start(w)
         w.defense_hp[ENEMY_FOB] = 300
-        put(w, INFANTRY, "COALITION", ENEMY_FOB)
-        put(w, ARMOR, "ENEMY", NEUTRAL_FOB)
+        put(w, INFANTRY, "COALITION", ENEMY_FOB).home_base = SANCTUARY  # paid from the pool
+        put(w, ARMOR, "ENEMY", NEUTRAL_FOB).home_base = "static-rear"  # drains its pool, grounds
         flying(w)
         events = run(w, 300)
         return state_hash(w), [e.model_dump() for e in events]
 
-    assert scenario() == scenario()
+    first = scenario()
+    assert {"UnitGrounded", "SupplyConsumed"} <= {e["kind"] for e in first[1]}
+    assert any(e.get("cause") == "UPKEEP" for e in first[1])
+    assert scenario() == first
 
 
 # --- part 2b: defaults, the loader ---------------------------------------------------------------
