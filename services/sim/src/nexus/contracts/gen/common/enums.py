@@ -190,6 +190,7 @@ type RejectReason = Annotated[
         "NODE_NOT_FRIENDLY",
         "OUT_OF_REACH",
         "UNIT_GROUNDED",
+        "NO_STOCK",
     ],
     Field(
         description="CONTRACTS §5.3. Grows one value at a time, with the code that emits it (rule 6a)."

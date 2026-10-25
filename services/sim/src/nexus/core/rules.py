@@ -352,6 +352,13 @@ class DirectorRules:
     intercept_reaction_ticks: int
     intercept_pol_linger_ticks: int
     intercept_lost_ticks: int
+    # ECONOMY EC-7 (NX-412 part 3, read with `economy.legacy_rules` false): the budget's shares
+    # of the bases' surplus by tier and of the rear pool, the upkeep reserve in windows and the
+    # cadence floor's windows; exact Fractions, floored once
+    spend_frac: Mapping[ThreatTier, Fraction]
+    source_spend_frac: Fraction
+    reserve_windows: Fraction
+    cadence_windows: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -437,9 +444,15 @@ class EconomyRules:
     # economy.upkeep (NX-412 part 2, EC-4): stock per window per live unit, from its home base;
     # only the kinds that spawn (no facility); 0 = free
     upkeep: Mapping[UnitKind, int] = field(default_factory=dict)
+    # NX-412 part 3: `economy.legacy_rules` (temporary, Q-TD-33: true keeps the tier budget,
+    # live-unit caps and spawn costs of before), `economy.free_viewer_spawn` (EC-13) and
+    # `sim.max_live_units_per_side` (EC-8), the last two read only with `legacy` false
+    legacy: bool = True
+    free_viewer_spawn: bool = True
+    max_live_per_side: int = 0
 
 
-def economy_rules(cfg: Economy, *, window_ticks: int) -> EconomyRules:
+def economy_rules(cfg: Economy, *, window_ticks: int, max_live_per_side: int) -> EconomyRules:
     """`window_ticks` is `economy.window_s` already converted by the config loader (game time)."""
     unlimited = cfg.unlimited.model_dump()
     return EconomyRules(
@@ -450,6 +463,9 @@ def economy_rules(cfg: Economy, *, window_ticks: int) -> EconomyRules:
         storage_floor=cfg.storage.floor,
         storage_per_node=cast(Mapping[NodeKind, int], cfg.storage.per_node.model_dump()),
         upkeep=cast(Mapping[UnitKind, int], cfg.upkeep.model_dump()),
+        legacy=cfg.legacy_rules,
+        free_viewer_spawn=cfg.free_viewer_spawn,
+        max_live_per_side=max_live_per_side,
     )
 
 
@@ -530,6 +546,12 @@ class Rules:
             if self.combat is None or state == "HEALTHY"
             else radius * self.combat.damaged_sensor_mult
         )
+
+
+def legacy_rules(rules: Rules) -> bool:
+    """`economy.legacy_rules` (temporary, Q-TD-33): the budget, caps and spawn costs of before
+    NX-412 part 3. Rules without an economy block (hand-built tests) run them too."""
+    return rules.economy is None or rules.economy.legacy
 
 
 def tasking_rules(
@@ -718,6 +740,12 @@ def director_rules(
         own_node_value=Fraction(repr(cfg.score.own_node_value)),
         weakness_min=Fraction(repr(cfg.score.weakness_min)),
         stale_factor=Fraction(repr(cfg.score.stale_factor)),
+        spend_frac={"PATTERN_OF_LIFE": Fraction(repr(cfg.spend_frac.pattern_of_life)),
+                    "ALPHA": Fraction(repr(cfg.spend_frac.alpha)),
+                    "BRAVO": Fraction(repr(cfg.spend_frac.bravo))},
+        source_spend_frac=Fraction(repr(cfg.source_spend_frac)),
+        reserve_windows=Fraction(repr(cfg.upkeep_reserve_windows)),
+        cadence_windows=cfg.cadence_windows,
         job_urgency_milli=round(Fraction(repr(cfg.job_urgency)) * 1000),
         down_below=_micro(cfg.adaptation_down_below),
         memory_weights={k: _micro(v) for k, v in cfg.memory.weights},

@@ -24,6 +24,8 @@ from nexus.contracts.gen.events.supply_produced import SupplyProduced
 from nexus.core.rules import EconomyRules, Rules
 from nexus.core.world import World, consumed
 
+MOVERS = ("AIR", "GROUND")  # the domains the EC-8 guard and the Director's live units count
+
 
 def _held(world: World, rules: Rules, er: EconomyRules, side: Side) -> list[str]:
     """The nodes `side` owns that earn or store (a kind with an `income.per_node` entry)."""
@@ -105,3 +107,14 @@ def source_stock(world: World, node: str) -> int | None:
         return world.stock[node]
     side = pool_side(world, node)
     return None if side is None else world.pool[side]
+
+
+def guard_room(world: World, side: Side) -> int | None:
+    """EC-8 (NX-412 part 3): how many more movers (AIR and GROUND units) `side` may have live
+    under `sim.max_live_units_per_side`; None under `economy.legacy_rules`, which has no guard."""
+    rules = world.rules
+    er = rules.economy if rules else None
+    if rules is None or er is None or er.legacy:
+        return None
+    live = sum(e.side == side and rules.domain[e.kind] in MOVERS for e in world.entities())
+    return er.max_live_per_side - live

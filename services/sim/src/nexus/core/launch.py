@@ -5,17 +5,31 @@ module touches the world, in the `director` slot right after `nexus.core.directo
 Each window: the Retake clocks are pruned; `Own` is read; candidates are ranked with the `director`
 stream and selected within `DirectorState.budget` and the unit caps; each selected operation is
 launched in selection order:
-- **Pay.** "The budget is the stock" (Q-TD-12): the operation's cost is debited from the surplus of
-  the side's finite-stock bases (above their starvation floors), the base its first unit spawned at
-  first, then the rest in id order, one `SupplyConsumed{SPAWN}` per base. Units cost nothing more
-  (no loadout charge). The window's budget is a plan: an operation whose cost the real surplus
-  cannot pay at launch (earlier ones loaded carriers from it) is skipped whole, never part-paid.
+- **Pay.** "The budget is the stock" (Q-TD-12): under `economy.legacy_rules` the operation's cost
+  is debited from the surplus of the side's finite-stock bases (above their starvation floors), the
+  base its first unit spawned at first, then the rest in id order, one `SupplyConsumed{SPAWN}` per
+  base. Otherwise (ECONOMY EC-13, NX-412 part 3) it is drawn once, at the one node where all its
+  new units spawn (`_paying_node`), from one of the window's two accounts (`_Purse`): the base
+  `plan_deploy` picks for its first unit (a garrison replacement's own base, a scout's checked
+  origin) when that base's surplus pays it and it fits the base account; else the source when
+  the rear account (`director.rear_share`) and the pool cover it; else it is dropped this window.
+  A side in unlimited mode has no pool (EC-15) and one account, the whole budget, for base and
+  source spawns alike; its source is never debited. The capture slot
+  and the Pattern of Life convoys use the real surplus as their base account and share the
+  window's rear account, so the pool pays at most `rear_share` a window. Units
+  cost nothing more (no loadout charge). The window's budget is a plan: an operation whose cost
+  cannot be paid at launch (earlier ones loaded carriers from the same stock) is skipped whole,
+  never part-paid.
 - **Spawn (Q-TD-8).** One unit per slot, kinds in turn, owned by the ENEMY_DIRECTOR, full of fuel
   and rounds, at `plan_deploy`'s base for the unit's job (GP-7: the nearest base with surplus,
   else the rear source), planned on the stock before the debit.
 - **Jobs.** Each template job is posted by `post_job` on the side's board, in order, the key
   `op:<operation>:<target>:<job index>[:<convoy>]`, each depending on the job posted just before
   it (the last of the previous step); its units claim it at once (`tasking.take`).
+- **Room.** The units must fit `max_spawns_per_window` and the live room: below
+  `director.max_live_units.<tier>` under `economy.legacy_rules`, else below the EC-8 guard
+  `sim.max_live_units_per_side` (`economy.guard_room`). An operation that posts jobs stamps
+  `DirectorState.last_operation` (the EC-7 cadence floor).
 - **Effect.** EMISSION_BLINK turns the radar at the target base dark for `decoy_blink.dark_s`
   (`DirectorState.dark` holds when it resumes), then it may not blink again for `cooldown_s`
   (`blink_ready`); at most one radar blinks per window (Q-SIM-82).
@@ -27,6 +41,7 @@ launched in selection order:
 import itertools
 import math
 from collections.abc import Callable
+from dataclasses import dataclass
 from fractions import Fraction
 
 from nexus.contracts.gen.common.enums import Side, UnitKind
@@ -36,12 +51,20 @@ from nexus.contracts.gen.events.unit_despawned import UnitDespawned
 from nexus.contracts.gen.events.unit_spawned import UnitSpawned
 from nexus.core import operations as ops
 from nexus.core.bridges import blocked
-from nexus.core.director import night_capped, surplus
+from nexus.core.director import night_capped, rear_share, surplus
+from nexus.core.economy import MOVERS, guard_room
 from nexus.core.fog import SideView, is_off_facility
-from nexus.core.logistics import plan_deploy
+from nexus.core.logistics import pay_spawn, plan_deploy
 from nexus.core.rng import RngStream
 from nexus.core.roads import shortest_path
-from nexus.core.rules import DirectorRules, JobTemplate, OperationRules, Rules, sector_at
+from nexus.core.rules import (
+    DirectorRules,
+    JobTemplate,
+    OperationRules,
+    Rules,
+    legacy_rules,
+    sector_at,
+)
 from nexus.core.tasking import post_job, take
 from nexus.core.tasking_gen import JobSpec, fits
 from nexus.core.world import DirectorState, Entity, Job, Vec2, World, consumed
@@ -49,8 +72,46 @@ from nexus.core.world import DirectorState, Entity, Job, Vec2, World, consumed
 _DIRECTOR = "ENEMY_DIRECTOR"
 # Defensive counter -> the adaptation it announces (ThreatAdaptation.category).
 _ADAPTATION = {"convoy_attacks": "CONVOY_ESCORT", "radar_strikes": "IADS_REINFORCED"}
-_MOVERS = ("AIR", "GROUND")
 _PATROL_OP, _CONVOY_OP = "POL_PATROL", "POL_CONVOY"  # the `op:` ids of the Pattern of Life jobs
+
+
+@dataclass(slots=True)
+class _Purse:
+    """EC-7 (legacy rules off): the window's two accounts. `base` pays for units that spawn at a
+    base (the budget less the rear share: the bases' spend share less the reserve, lifted by the
+    cadence floor), `rear` (`director.rear_share`, at most the budget) for units that spawn at
+    the source, so the pool pays at most its small share a window. A side in unlimited mode
+    (EC-15: no pool, which never runs out) has `one` account, `base`, the whole budget, for
+    spawns at bases and at the source alike."""
+
+    base: int
+    rear: int
+    one: bool = False
+
+    @classmethod
+    def of(cls, budget: int, pool: int | None, dr: DirectorRules) -> "_Purse":
+        if pool is None:
+            return cls(budget, 0, one=True)
+        rear = min(budget, rear_share(dr, pool))
+        return cls(budget - rear, rear)
+
+    def room(self, at_source: bool) -> int:
+        return self.rear if at_source and not self.one else self.base
+
+    def spend(self, at_source: bool, cost: int) -> None:
+        if at_source and not self.one:
+            self.rear -= cost
+        else:
+            self.base -= cost
+
+
+def _live_room(world: World, rules: Rules, side: Side, state: DirectorState, own: ops.Own) -> int:
+    """Live units the side may still add: the EC-8 guard, or under `economy.legacy_rules` the
+    room below `director.max_live_units.<tier>`."""
+    guard, dr = guard_room(world, side), rules.director
+    if guard is not None:
+        return guard
+    return 0 if dr is None else dr.max_live_units[state.tier] - own.live_units
 
 
 def _routine(dr: DirectorRules) -> frozenset[str]:
@@ -73,7 +134,7 @@ def _own(world: World, rules: Rules, side: Side) -> ops.Own:
     for e in world.entities():
         if e.side != side:
             continue
-        live += rules.domain[e.kind] in _MOVERS
+        live += rules.domain[e.kind] in MOVERS
         if e.home is not None and e.owner_kind == _DIRECTOR:
             homed.setdefault(e.home, []).append(e.kind)
         if (
@@ -149,22 +210,24 @@ def run(world: World, side: Side, view: SideView, rules: Rules, out: list[Event]
     ranked = ops.rank(cands, state, view, rules, world.rng.stream(RngStream.DIRECTOR))
     chosen = ops.select(
         ranked, dr, state.budget, dr.max_spawns_per_window,
-        dr.max_live_units[state.tier] - own.live_units, live,
-        ops.max_ops(state.tier, dr), _routine(dr),
+        _live_room(world, rules, side, state, own), live, ops.max_ops(state.tier, dr), _routine(dr),
     )  # fmt: skip
+    pool = world.pool.get(side)  # unchanged since `decide` set the budget; None: unlimited
+    purse = None if legacy_rules(rules) else _Purse.of(state.budget, pool, dr)
     for c in chosen:
-        _launch(world, rules, side, view, state, c, out)
-    _pattern_of_life(world, rules, side, view, state, capped, now, out)
+        _launch(world, rules, side, view, state, c, out, purse)
+    _pattern_of_life(world, rules, side, view, state, capped, now, out, purse)
 
 
 def _pattern_of_life(
     world: World, rules: Rules, side: Side, view: SideView, state: DirectorState, capped: bool,
-    now: int, out: list[Event],
+    now: int, out: list[Event], purse: _Purse | None = None,
 ) -> None:  # fmt: skip
     """The periodic Pattern of Life work (Q-SIM-85), each on its own timer in `DirectorState`: the
     patrols, the supply convoys, and at the `director.pol.capture_slot_tiers` (Pattern of Life by
     default) the capture operations, which wait for the night-progress cap and are paid from the
-    real surplus, not the window's budget."""
+    real surplus, not the window's budget. With legacy rules off a convoy or capture operation
+    that spawns at the source still spends the window's rear account (`purse`)."""
     dr = rules.director
     if dr is None:
         return
@@ -173,18 +236,18 @@ def _pattern_of_life(
         _patrols(world, rules, side, view, dr, out)
     if now - state.last_convoy >= dr.convoy_ticks:
         state.last_convoy = now
-        _convoys(world, rules, side, view, state, dr, out)
+        _convoys(world, rules, side, view, state, dr, out, purse)
     if (
         state.tier in dr.capture_slot_tiers
         and not capped
         and now - state.last_offensive >= dr.offensive_ticks
     ):
-        _capture_slot(world, rules, side, view, state, dr, now, out)
+        _capture_slot(world, rules, side, view, state, dr, now, out, purse)
 
 
 def _capture_slot(
     world: World, rules: Rules, side: Side, view: SideView, state: DirectorState,
-    dr: DirectorRules, now: int, out: list[Event],
+    dr: DirectorRules, now: int, out: list[Event], purse: _Purse | None,
 ) -> None:  # fmt: skip
     """Up to `director.pol.offensives_per_period` capture operations, whatever their tier, ranked
     and selected as usual against the real surplus and the Pattern of Life unit room."""
@@ -196,12 +259,14 @@ def _capture_slot(
     ranked = ops.rank(cands, state, view, rules, world.rng.stream(RngStream.DIRECTOR))
     chosen = ops.select(
         ranked, dr, surplus(view, rules, world.stock), dr.max_spawns_per_window,
-        dr.max_live_units[state.tier] - own.live_units, live, None, _routine(dr),
+        _live_room(world, rules, side, state, own), live, None, _routine(dr),
     )  # fmt: skip
     if chosen:
         state.last_offensive = now
+    spend = _surplus_purse(view, rules, world, purse)
     for c in chosen[: dr.offensives_per_period]:
-        _launch(world, rules, side, view, state, c, out)
+        _launch(world, rules, side, view, state, c, out, spend)
+    _keep_rear(purse, spend)
 
 
 def _patrols(
@@ -239,7 +304,7 @@ def _patrols(
 
 def _convoys(
     world: World, rules: Rules, side: Side, view: SideView, state: DirectorState,
-    dr: DirectorRules, out: list[Event],
+    dr: DirectorRules, out: list[Event], purse: _Purse | None,
 ) -> None:  # fmt: skip
     """Up to `director.pol.convoys_per_period` RESUPPLY jobs, to the bases with the largest upkeep
     shortfall (one each), taken by an idle carrier of `director.pol.convoy_kind` or a new one,
@@ -247,7 +312,7 @@ def _convoys(
     (Q-SIM-85)."""
     own = _own(world, rules, side)
     live = ops.live_pairs([j.key for j in world.boards[side].values()])
-    room = min(dr.max_spawns_per_window, dr.max_live_units[state.tier] - own.live_units)
+    room = min(dr.max_spawns_per_window, _live_room(world, rules, side, state, own))
     op = OperationRules(
         _CONVOY_OP, "NODE", (), dr.convoy_cost, frozenset(),
         (JobTemplate("RESUPPLY", "target", (dr.convoy_kind,), dr.convoy_slots),), None, Fraction(0),
@@ -257,12 +322,29 @@ def _convoys(
         if (_CONVOY_OP, base) in live or short or surplus(view, rules, world.stock) < op.cost:
             continue
         cand = ops.Candidate(op, base, None, ((ops.Where(base),),))
-        room -= _post_and_spawn(world, rules, side, cand, out, lambda n: op.cost * n) or 0
+        spend = _surplus_purse(view, rules, world, purse)
+        room -= _post_and_spawn(world, rules, side, cand, out, lambda n: op.cost * n, spend) or 0
+        _keep_rear(purse, spend)
+
+
+def _surplus_purse(
+    view: SideView, rules: Rules, world: World, purse: _Purse | None
+) -> _Purse | None:
+    """The accounts of a spend from the real base surplus (a convoy, the capture slot): the
+    surplus for base spawns, what is left of the window's rear account for source spawns."""
+    if purse is None:
+        return None
+    return _Purse(surplus(view, rules, world.stock), purse.rear, purse.one)
+
+
+def _keep_rear(purse: _Purse | None, spend: _Purse | None) -> None:
+    if purse is not None and spend is not None:
+        purse.rear = spend.rear
 
 
 def _launch(
     world: World, rules: Rules, side: Side, view: SideView, state: DirectorState,
-    c: ops.Candidate, out: list[Event],
+    c: ops.Candidate, out: list[Event], purse: _Purse | None = None,
 ) -> None:  # fmt: skip
     dr = rules.director
     if dr is None:
@@ -270,9 +352,12 @@ def _launch(
     if c.op.effect is not None:
         _blink(world, side, state, c.target, now=world.campaign.running_ticks + 1, dr=dr)
         return
-    paid = _post_and_spawn(world, rules, side, c, out, lambda n: c.op.cost * n // max(1, c.units))
+    paid = _post_and_spawn(
+        world, rules, side, c, out, lambda n: c.op.cost * n // max(1, c.units), purse
+    )
     if paid is None:  # it could not pay: nothing was posted, so nothing to announce
         return
+    state.last_operation = state.windows
     _announce_up(world, side, view, state, dr, c, out)
 
 
@@ -307,7 +392,7 @@ def _blink(
 
 def _post_and_spawn(
     world: World, rules: Rules, side: Side, c: ops.Candidate, out: list[Event],
-    cost: Callable[[int], int],
+    cost: Callable[[int], int], purse: _Purse | None = None,
 ) -> int | None:  # fmt: skip
     """Post the jobs in order, pay `cost(spawned)` and give each job its units; returns how many
     were spawned, or None when the real surplus now cannot pay for them and nothing was posted:
@@ -315,13 +400,16 @@ def _post_and_spawn(
     carriers from the same surplus (`_payable`). A slot goes to an idle live unit of its kind
     first (the lowest id), which is neither spawned nor paid for (Q-SIM-84). Units take their
     jobs only after the payment, because a carrier at its source loads on taking a job, and
-    loading first could leave too little surplus to pay."""
+    loading first could leave too little surplus to pay. With `economy.legacy_rules` off the
+    cost is drawn once at `_paying_node`, where every new unit spawns (EC-13)."""
     dr = rules.director
     if dr is None:
         return 0
     garrison = c.op.target == "GARRISON"
     spare = {} if garrison else _reusable(world, side)  # a garrison replacement is always new
-    if _payable(world, rules, side) < cost(_new_units(c, spare)):
+    legacy, need = legacy_rules(rules), cost(_new_units(c, spare))
+    node = None if legacy else _paying_node(world, rules, side, c, need, purse)
+    if (_payable(world, rules, side) < need) if legacy else node is None:
         return None
     spawned = 0
     first: str | None = None
@@ -346,17 +434,51 @@ def _post_and_spawn(
                     continue
                 unit, base = _spawn(
                     world, rules, side, kind, _near(world, rules, side, job, w), out,
-                    at=c.target if garrison else w.origin,
+                    at=node or (c.target if garrison else w.origin),
                 )  # fmt: skip
                 first, spawned = first or base, spawned + 1
                 if garrison:
                     unit.home = c.target
                 given.append((unit, posted))
         prev = last
-    _pay(world, rules, side, cost(spawned), first, out)
+    if node is None:
+        _pay(world, rules, side, cost(spawned), first, out)
+    else:
+        pay_spawn(world, node, cost(spawned), out)
+        if purse is not None:
+            purse.spend(node == rules.supply.rear[side], cost(spawned))
     for unit, posted in given:
         take(world, unit, posted, out)
     return spawned
+
+
+def _paying_node(
+    world: World, rules: Rules, side: Side, c: ops.Candidate, cost: int, purse: _Purse | None
+) -> str | None:
+    """EC-13: the node that pays `cost` and where every new unit of `c` spawns (module
+    docstring), or None to drop it this window. A fixed origin (a garrison replacement's base, a
+    scout's checked base) has no fallback to the source. Otherwise the base is `plan_deploy`'s for
+    the operation's first aircraft kind (a landing base), else its first kind, and must be a
+    `spawns` node for every kind's domain."""
+    rear, sup = rules.supply.rear[side], rules.supply
+    job, w = c.op.jobs[0], c.wheres[0][0]
+    fixed = c.target if c.op.target == "GARRISON" else w.origin
+    node = fixed or rear
+    if not fixed:
+        kinds = [k for j in c.op.jobs for k in j.unit_kinds]
+        probe = next((k for k in kinds if rules.domain[k] == "AIR"), kinds[0])
+        deploy = plan_deploy(world, rules, side, probe, _near(world, rules, side, job, w))
+        if deploy and all(deploy[0] in sup.spawns.get(rules.domain[k], ()) for k in kinds):
+            node = deploy[0]
+    if node != rear:
+        surplus_ = world.stock.get(node, 0) - sup.starve_floor.get(node, 0)
+        if cost <= 0 or (surplus_ >= cost and (purse is None or cost <= purse.room(False))):
+            return node
+        if fixed:
+            return None
+    pool = world.pool.get(side)  # None: an infinite source (unlimited mode)
+    paid = (purse is None or cost <= purse.room(True)) and (pool is None or pool >= cost)
+    return rear if cost <= 0 or paid else None
 
 
 def _new_units(c: ops.Candidate, spare: dict[str, list[Entity]]) -> int:

@@ -35,6 +35,7 @@ from test_combat import put as combat_put
 from test_combat import run as fight_run
 from test_director import DR, MICRO, valid_after, view
 from test_director import RULES as DIRECTOR_RULES
+from test_join import join
 from test_launch import skip
 from test_pol import live_ops, with_director
 from test_pol import new_world as pol_world
@@ -389,6 +390,9 @@ def test_a_run_with_every_option_flipped_is_deterministic() -> None:
                 storage_floor=50,
                 storage_per_node={"FOB": 20},
                 upkeep={INFANTRY: 3, ARMOR: 40},  # non-zero upkeep (NX-412 part 2)
+                legacy=False,  # EC-7, EC-8, EC-13 (NX-412 part 3, Q-TD-33)
+                free_viewer_spawn=False,  # a viewer's sanctuary spawn pays too
+                max_live_per_side=40,
             ),
         )
         economy.start(w)
@@ -396,11 +400,13 @@ def test_a_run_with_every_option_flipped_is_deterministic() -> None:
         put(w, INFANTRY, "COALITION", ENEMY_FOB).home_base = SANCTUARY  # paid from the pool
         put(w, ARMOR, "ENEMY", NEUTRAL_FOB).home_base = "static-rear"  # drains its pool, grounds
         flying(w)
-        events = run(w, 300)
+        events = step(w, [join(90, "STRIKE", hold=True)]) + run(w, 299)
         return state_hash(w), [e.model_dump() for e in events]
 
     first = scenario()
     assert {"UnitGrounded", "SupplyConsumed"} <= {e["kind"] for e in first[1]}
+    spawn = [e for e in first[1] if e["kind"] == "SupplyConsumed" and e["cause"] == "SPAWN"]
+    assert [(e["node_id"], e["amount"]) for e in spawn][:1] == [(SANCTUARY, 20)]  # switch off
     assert any(e.get("cause") == "UPKEEP" for e in first[1])
     assert scenario() == first
 

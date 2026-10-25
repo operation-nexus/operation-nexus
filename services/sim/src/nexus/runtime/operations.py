@@ -4,19 +4,23 @@
 `contracts/config/operations.json` (an unknown job kind, selector or precondition, a negative or
 fractional cost, a missing field are the schema's), then here against the balance profile and the
 unit catalog: ids unique; a `director.op_priority` for every operation and none for another; exactly
-one of `jobs` and `effect`; a cost within the envelope (at most the largest tier budget, as an
-operation above it could never run); units that are ENEMY movers, bought within
+one of `jobs` and `effect`; a cost within the envelope, as an operation above it could never run
+(at most the largest tier budget; with `economy.legacy_rules` false, ECONOMY §4: at most
+`director.spend_frac.bravo` x the largest storage the side could hold, `economy.storage.floor` plus
+`storage.per_node` of every theater node); units that are ENEMY movers, bought within
 `director.max_spawns_per_window`; a selector and a precondition that suit the target and the job
 kind. That a unit kind fits its job kind is checked once the kernel rules exist
 (`nexus.core.operations.misfits`). The result is in id order, so file order changes nothing.
 """
 
+import math
 from fractions import Fraction
 from pathlib import Path
 
 from nexus.contracts.gen.config.balance import BalanceConfig
 from nexus.contracts.gen.config.operations import JobTemplate as JobConfig
 from nexus.contracts.gen.config.operations import Operation, OperationsConfig
+from nexus.contracts.gen.config.theater import TheaterConfig
 from nexus.contracts.gen.config.unit import UnitConfig
 from nexus.core.rules import JobTemplate, OperationRules
 from nexus.runtime.config import ConfigError, canonical_hash, load_model
@@ -49,10 +53,11 @@ _MOVER_DOMAINS = ("AIR", "GROUND")
 
 
 def load_operations(
-    path: Path, balance: BalanceConfig, units: tuple[UnitConfig, ...]
+    path: Path, balance: BalanceConfig, units: tuple[UnitConfig, ...], theater: TheaterConfig
 ) -> tuple[OperationRules, ...]:
     """Load and validate the catalog; every problem names the file."""
     cfg = load_model(path, OperationsConfig)
+    ceiling = _envelope(balance, theater)
     priority = balance.director.op_priority
     enemy: set[str] = {u.kind for u in units if u.side == "ENEMY" and u.domain in _MOVER_DOMAINS}
     ids = [o.id for o in cfg.operations]
@@ -62,7 +67,7 @@ def load_operations(
         f"director.op_priority.{i}: no such operation" for i in sorted(set(priority) - set(ids))
     ]
     for op in cfg.operations:
-        problems += [f"{op.id}: {p}" for p in _problems(op, balance, enemy)]
+        problems += [f"{op.id}: {p}" for p in _problems(op, balance, enemy, ceiling)]
     if sum(o.target == _GARRISON for o in cfg.operations) > 1:
         problems.append("at most one GARRISON operation")
     if balance.director.garrison.replace_per_window > balance.director.max_spawns_per_window:
@@ -106,7 +111,21 @@ def _job_problems(op: Operation, where: str, job: JobConfig, enemy: set[str]) ->
     return out
 
 
-def _problems(op: Operation, balance: BalanceConfig, enemy: set[str]) -> list[str]:
+def _envelope(balance: BalanceConfig, theater: TheaterConfig) -> tuple[int, str]:
+    """The highest cost an operation may have, and what it is (module docstring)."""
+    d, eco = balance.director, balance.economy
+    if eco.legacy_rules:
+        budget = max(d.budget.pattern_of_life, d.budget.alpha, d.budget.bravo)
+        return budget, f"the largest tier budget {budget}"
+    per_node = eco.storage.per_node.model_dump()
+    storage = eco.storage.floor + sum(per_node.get(n.kind, 0) for n in theater.nodes)
+    envelope = math.floor(Fraction(repr(d.spend_frac.bravo)) * storage)
+    return envelope, f"director.spend_frac.bravo x the largest storage {storage} ({envelope})"
+
+
+def _problems(
+    op: Operation, balance: BalanceConfig, enemy: set[str], ceiling: tuple[int, str]
+) -> list[str]:
     d = balance.director
     out = []
     if (op.jobs is None) == (op.effect is None):
@@ -132,9 +151,8 @@ def _problems(op: Operation, balance: BalanceConfig, enemy: set[str]) -> list[st
         out.append("an effect operation has no units, so no cost")
     if op.jobs is not None and op.cost == 0:
         out.append("an operation with jobs buys units, so it costs at least 1")
-    ceiling = max(d.budget.pattern_of_life, d.budget.alpha, d.budget.bravo)
-    if op.cost > ceiling:
-        out.append(f"cost {op.cost} is above the largest tier budget {ceiling}")
+    if op.cost > ceiling[0]:
+        out.append(f"cost {op.cost} is above {ceiling[1]}")
     out += [
         f"precondition {p} does not suit target {op.target}"
         for p in sorted(op.preconditions)

@@ -6,6 +6,7 @@ sim:
   tick_hz: 10  # Hz; fixed by ADR-0002, validated, not tunable (CONFIG-AND-CONTENT §6.1 sim.tick_hz)
   time_scale: 6.0  # PROPOSED – unvalidated; x real time (CONFIG-AND-CONTENT §6.1 sim.time_scale)
   snapshot_every_ticks: 300  # PROPOSED – unvalidated; ticks (CONFIG-AND-CONTENT §6.1 sim.snapshot_every_ticks)
+  max_live_units_per_side: 1000  # PROPOSED placeholder, NX-412 sweep (surge-500 tick-rate budget, EC-8); live movers per side, read only with economy.legacy_rules false: 2 x slots.max_viewer_units (500), so it binds only as a guard
 slots:
   max_live_per_commander: 1  # PROPOSED – unvalidated; units (CONFIG-AND-CONTENT §6.2 slots.max_live_per_commander)
   respawn_delay_s: 20  # PROPOSED – unvalidated; s (game) (CONFIG-AND-CONTENT §6.2 slots.respawn_delay_s)
@@ -245,15 +246,22 @@ director:  # Threat Director (Q-SIM-78, Q-SIM-81, owner-approved starting number
       redemption:
         support: 1  # PROPOSED – unvalidated (Q-SIM-78, Q-AI-9)
         cosmetic: 0  # Q-AI-9, Q-ALN-13: cosmetic redemptions never provoke
-  budget:  # PROPOSED – unvalidated (Q-SIM-78); budget points per window by tier, never above the real surplus (CONFIG-AND-CONTENT §6.7)
+  budget:  # PROPOSED – unvalidated (Q-SIM-78); budget points per window by tier, never above the real surplus; read only with economy.legacy_rules true, temporary, removed in NX-412 part 5 (Q-TD-33) (CONFIG-AND-CONTENT §6.7)
     pattern_of_life: 10
     alpha: 30
     bravo: 80
   max_spawns_per_window: 6  # PROPOSED – unvalidated (Q-SIM-78, Q-TD-12); units (CONFIG-AND-CONTENT §6.7)
-  max_live_units:  # PROPOSED – unvalidated (Q-SIM-78, Q-TD-12); live Static units by tier; Pattern of Life 40 = the 22 garrison units of strait-1 + routine units + one capture operation (Q-SIM-85) (CONFIG-AND-CONTENT §6.7)
+  max_live_units:  # PROPOSED – unvalidated (Q-SIM-78, Q-TD-12); read only with economy.legacy_rules true, temporary, removed in NX-412 part 5 (Q-TD-33); live Static units by tier; Pattern of Life 40 = the 22 garrison units of strait-1 + routine units + one capture operation (Q-SIM-85) (CONFIG-AND-CONTENT §6.7)
     pattern_of_life: 40
     alpha: 40
     bravo: 70
+  spend_frac:  # PROPOSED placeholder, NX-412 sweep (ECONOMY EC-7, Q-TD-24); share of the Static bases' surplus per window, read only with economy.legacy_rules false: x the strait-1 start surplus (1500) gives the old tier budgets 10 / 30 / 80
+    pattern_of_life: 0.007
+    alpha: 0.02
+    bravo: 0.0534
+  source_spend_frac: 0.005  # PROPOSED placeholder, NX-412 sweep (ECONOMY EC-7, Q-TD-26); share of the rear pool per window: a Static holding only its rear at economy.storage.floor (2000) gets 10, the old Pattern of Life budget
+  upkeep_reserve_windows: 2  # PROPOSED placeholder, NX-412 sweep (ECONOMY EC-7); windows of the Static's upkeep the budget keeps back: this window's and the next
+  cadence_windows: 10  # PROPOSED placeholder, NX-412 sweep (ECONOMY EC-7); windows with no operation before the cadence floor: one director.tier.min_dwell_s (600 s = 10 windows)
   op_priority:  # PROPOSED – unvalidated (Q-SIM-78); exactly the operations of content/operations.yaml (CONFIG-AND-CONTENT §6.7, §8a)
     GARRISON_UPKEEP: 0.9  # PROPOSED – unvalidated (Q-SIM-85)
     RETAKE: 1.2
@@ -362,3 +370,5 @@ economy:  # Force economy (ECONOMY, NX-412 part 1; CONFIG-AND-CONTENT §6.3). Sa
     LOGI_TRUCK: 0
     RECON_UAV: 0
     STRIKE_FIGHTER: 0
+  legacy_rules: true  # decided rule as default, TEMPORARY (Q-TD-33, lead decision): true keeps the old budget, live-unit caps and spawn costs; false applies ECONOMY EC-7, EC-8, EC-13; removed in NX-412 part 5; switch, campaign setup only
+  free_viewer_spawn: true  # decided rule as default, Q-CFG-16 option (ECONOMY EC-13, Q-TD-26): a viewer's sanctuary spawn is free; false in agent-vs-agent harness profiles; read only with legacy_rules false

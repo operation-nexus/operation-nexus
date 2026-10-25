@@ -27,7 +27,7 @@ from nexus.core.logistics import logistics, nearest_base
 from nexus.core.provocation import DIRECTED, scan_rear
 from nexus.core.rules import CP_SCALE, Rules
 from nexus.core.tasking import run as run_tasking
-from nexus.core.upkeep import upkeep
+from nexus.core.upkeep import owed, upkeep
 from nexus.core.world import SIDES, Entity, UnitState, Vec2, World, lose_unit
 
 TICK_DT = 0.1  # game seconds per tick (SC-2)
@@ -87,7 +87,10 @@ def _decide(world: World, out: list[Event]) -> None:
     for side in DIRECTED:
         view = side_view(world, side)
         scan_rear(world, side, view)
-        change = decide(world.director[side], view, rules, world.stock)
+        change = decide(
+            world.director[side], view, rules, world.stock,
+            pool=world.pool.get(side, 0), upkeep=owed(world, side),
+        )  # fmt: skip
         if change is not None:
             out.append(
                 ThreatTierChanged.model_construct(

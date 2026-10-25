@@ -145,7 +145,8 @@ export interface CommandRejected {
     | "NO_ACTIVE_UNIT"
     | "NODE_NOT_FRIENDLY"
     | "OUT_OF_REACH"
-    | "UNIT_GROUNDED";
+    | "UNIT_GROUNDED"
+    | "NO_STOCK";
   commander_id: string | null;
 }
 /**

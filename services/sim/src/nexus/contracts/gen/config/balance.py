@@ -539,6 +539,13 @@ class Sim(BaseModel):
     snapshot_every_ticks: Annotated[
         int, Field(description="Snapshot cadence, unit ticks (SIM-CORE §5).", ge=1)
     ]
+    max_live_units_per_side: Annotated[
+        int,
+        Field(
+            description="Performance guard, unit live movers (AIR and GROUND units) per side (ECONOMY EC-8): a tick-rate guard only, set well above any army the economy feeds. Read only with economy.legacy_rules false: a Director operation must fit the room below it, and a JOIN at it waits in the reserve queue as at slots.max_viewer_units (GP-3).",
+            ge=1,
+        ),
+    ]
 
 
 class Priority(BaseModel):
@@ -831,6 +838,36 @@ class MaxLiveUnits(BaseModel):
     bravo: Annotated[int, Field(description="Live Static units allowed in this tier.", ge=1)]
 
 
+class SpendFrac(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    pattern_of_life: Annotated[
+        float,
+        Field(
+            description="Share of the Static bases' surplus this tier spends per window.",
+            ge=0.0,
+            le=1.0,
+        ),
+    ]
+    alpha: Annotated[
+        float,
+        Field(
+            description="Share of the Static bases' surplus this tier spends per window.",
+            ge=0.0,
+            le=1.0,
+        ),
+    ]
+    bravo: Annotated[
+        float,
+        Field(
+            description="Share of the Static bases' surplus this tier spends per window.",
+            ge=0.0,
+            le=1.0,
+        ),
+    ]
+
+
 type OpPriorityAdditionalProperty = Annotated[float, Field(ge=0.0)]
 
 
@@ -1098,6 +1135,18 @@ class Economy(BaseModel):
         Upkeep,
         Field(
             description="What each live unit of a side not in unlimited mode pays its home base every economy window, by unit kind, unit whole stock units per window (EC-4, EC-5, EC-6; NX-412 part 2). Charged after income and the storage clip, in the EC-6 payment order; a home pays only when it holds the full amount, else the unit is grounded. 0 = free. One entry per kind that can spawn by JOIN or director (as logistics.loadout_cost); facilities are placed by the theater and pay none. The shipped 0 for every kind is a rollout placeholder (Q-TD-29) until the NX-412 sweep part; the trucks stay PROPOSED 0 by the spec (EC-4), so hauling stays free."
+        ),
+    ]
+    legacy_rules: Annotated[
+        bool,
+        Field(
+            description="TEMPORARY, removed in NX-412 part 5 (Q-TD-33, lead decision): true keeps the budget, live-unit caps and spawn costs of before NX-412 part 3 (director.budget.<tier>, director.max_live_units.<tier>, the Director paying from base surplus, sanctuary spawns free); false applies ECONOMY EC-7 (director.spend_frac and the rest), EC-8 (sim.max_live_units_per_side) and EC-13 (every spawn draws its cost at its spawn node). Set at campaign setup, never mid-war."
+        ),
+    ]
+    free_viewer_spawn: Annotated[
+        bool,
+        Field(
+            description="ECONOMY EC-13 (economy.legacy_rules false): true = a viewer's own JOIN that spawns at the coalition's sanctuary draws no stock, so joining never costs a person anything; false = it draws logistics.loadout_cost from the coalition's pool like every other spawn (agent-vs-agent harness profiles). The AI garrison and the Director always pay."
         ),
     ]
 
@@ -1913,14 +1962,45 @@ class Director(BaseModel):
     budget: Annotated[
         Budget,
         Field(
-            description="The most budget points one decision window can spend, by tier (Q-TD-5); also capped by the real surplus of the Static's bases."
+            description="The most budget points one decision window can spend, by tier (Q-TD-5); also capped by the real surplus of the Static's bases. Read only with economy.legacy_rules true: temporary, removed in NX-412 part 5 (Q-TD-33; ECONOMY EC-7 replaces it)."
         ),
     ]
     max_spawns_per_window: Annotated[
         int, Field(description="The most new Static units per window (Q-TD-12).", ge=1)
     ]
     max_live_units: Annotated[
-        MaxLiveUnits, Field(description="The most live Static units by tier (Q-TD-12).")
+        MaxLiveUnits,
+        Field(
+            description="The most live Static units by tier (Q-TD-12). Read only with economy.legacy_rules true: temporary, removed in NX-412 part 5 (Q-TD-33; ECONOMY EC-8 replaces it)."
+        ),
+    ]
+    spend_frac: Annotated[
+        SpendFrac,
+        Field(
+            description="ECONOMY EC-7 (economy.legacy_rules false): the share of the surplus of the Static's bases above their starvation floors one decision window may spend, by tier; the loader requires pattern_of_life <= alpha <= bravo."
+        ),
+    ]
+    source_spend_frac: Annotated[
+        float,
+        Field(
+            description="ECONOMY EC-7 (economy.legacy_rules false): the share of the rear source pool one decision window may add to the budget; only operations whose units spawn at the source may spend it (EC-13). 0 with the Static in unlimited mode (no pool).",
+            ge=0.0,
+            le=1.0,
+        ),
+    ]
+    upkeep_reserve_windows: Annotated[
+        float,
+        Field(
+            description="ECONOMY EC-7 (economy.legacy_rules false): windows of the Static's upkeep the budget keeps back, unit decision windows; the reserve is this times the upkeep its live units owe per window.",
+            ge=0.0,
+        ),
+    ]
+    cadence_windows: Annotated[
+        int,
+        Field(
+            description="ECONOMY EC-7 (economy.legacy_rules false): decision windows with no operation launched after which, while the Static holds an HQ, the budget is at least the cheapest operation of its tier it can afford.",
+            ge=1,
+        ),
     ]
     op_priority: Annotated[
         dict[

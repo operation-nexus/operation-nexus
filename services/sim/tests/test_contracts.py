@@ -107,6 +107,9 @@ def test_event_union_parses_command_rejected() -> None:
     grounded = EVENTS.validate_python({**COMMAND_REJECTED, "command_kind": "REBASE",
                                        "reason": "UNIT_GROUNDED"})  # fmt: skip
     assert grounded.model_dump()["reason"] == "UNIT_GROUNDED"  # NX-412 part 2, ECONOMY EC-6
+    no_stock = EVENTS.validate_python({**COMMAND_REJECTED, "command_kind": "JOIN",
+                                       "reason": "NO_STOCK"})  # fmt: skip
+    assert no_stock.model_dump()["reason"] == "NO_STOCK"  # NX-412 part 3, ECONOMY EC-13
 
 
 @pytest.mark.parametrize(

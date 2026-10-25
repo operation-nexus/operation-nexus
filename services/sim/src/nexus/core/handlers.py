@@ -33,19 +33,20 @@ from nexus.contracts.gen.events.reserve_queue_left import ReserveQueueLeft
 from nexus.contracts.gen.events.unit_spawned import UnitSpawned
 from nexus.core.bridges import blocked
 from nexus.core.campaign import end_campaign
+from nexus.core.economy import guard_room, source_stock
 from nexus.core.follow import can_follow
 from nexus.core.logistics import (
     Run,
     friendly_bases,
     load,
     nearest,
-    pay_loadout,
+    pay_spawn,
     plan_deploy,
     plan_run,
     road_start,
 )
 from nexus.core.roads import shortest_path
-from nexus.core.rules import Rules
+from nexus.core.rules import Rules, legacy_rules
 from nexus.core.tasking import claim, crosses_ring, joinable_jobs, reaches
 from nexus.core.world import Entity, Job, Order, Vec2, World, end_stop, release_claim
 
@@ -89,12 +90,13 @@ def reject(world: World, command: Command, reason: RejectReason) -> CommandRejec
 def join(world: World, command: Command, out: list[Event]) -> None:
     """JOIN (STATE-MACHINES §4.1, §4.4): spawn the commander's unit, or queue it (GP-3, Q-ALN-26).
 
-    A valid JOIN queues while paused, at the cap, or behind a non-empty queue (strict FIFO, U-4);
-    otherwise it spawns at once. A cargo truck spawns at its source and loads there (NX-123,
-    `nexus.core.logistics.plan_run`, GP-7). Any other unit with a node target forward-deploys
-    (`plan_deploy`) and pays its loadout from that base; else it spawns at the coalition's
-    SANCTUARY, free. Always with a FULL loadout (Q-SIM-53). The unit takes the commander's callsign
-    when identity has set one, else None (`set_callsign`, NX-370). An aircraft spawns LANDED with
+    A valid JOIN queues while paused, at the cap (or the EC-8 guard, `_room`), or behind a
+    non-empty queue (strict FIFO, U-4); otherwise it spawns at once. A cargo truck spawns at its
+    source and loads there (NX-123, `nexus.core.logistics.plan_run`, GP-7). Any other unit with a
+    node target forward-deploys (`plan_deploy`) and pays its loadout from that base; else it
+    spawns at the coalition's SANCTUARY, free unless EC-13 charges it (`_spawn_cost`). Always
+    with a FULL loadout (Q-SIM-53). The unit takes the commander's callsign when identity has set
+    one, else None (`set_callsign`, NX-370). An aircraft spawns LANDED with
     full fuel and takes off in `movement` when it has a path (NX-368).
     """
     if not isinstance(command, JoinCommand):
@@ -103,11 +105,7 @@ def join(world: World, command: Command, out: list[Event]) -> None:
     plan = _plan(world, command, rules)
     if isinstance(plan, str):
         out.append(reject(world, command, plan))
-    elif (
-        world.campaign.clock_paused
-        or world.reserve_queue
-        or world.viewer_units() >= rules.max_viewer_units
-    ):
+    elif world.campaign.clock_paused or world.reserve_queue or _room(world, rules) <= 0:
         _enqueue(world, command, rules, out)
     else:
         _spawn(world, command, plan, rules, out)
@@ -198,7 +196,7 @@ def serve_reserve_queue(world: World, out: list[Event], *, drop: bool = False) -
     counts toward the SC-8 limit). Fine while invalid-at-serve entries are rare (lost routes).
     """
     rules = _rules(world)
-    free = rules.max_viewer_units - world.viewer_units()
+    free = _room(world, rules)
     if drop:
         free = max(free, 1)
     while world.reserve_queue and free > 0:
@@ -299,7 +297,7 @@ def _spawn(world: World, command: JoinCommand, plan: _Plan, rules: Rules, out: l
         unit.order_node = command.target.node_id  # where an armed unit holds (Q-SIM-110)
     if cargo:  # the plan and the spawn are one step of one tick: the stock is as planned
         load(world, Run(node, cargo, []))
-    pay_loadout(world, rules, kind, node, out)
+    pay_spawn(world, node, _spawn_cost(rules, kind, node), out)
     if rules.domain[kind] == "AIR":  # on the ground, full; with a path it takes off (NX-368)
         unit.state, unit.fuel = "LANDED", rules.fuel_s[kind]
     out.append(
@@ -330,7 +328,38 @@ def _order(command: JoinCommand) -> Order | None:
     return "HOLD" if command.hold else "GOTO" if command.target is not None else None
 
 
+def _room(world: World, rules: Rules) -> int:
+    """JOIN slots free now: below `slots.max_viewer_units` (GP-3) and, with
+    `economy.legacy_rules` off, below the coalition's EC-8 guard; at 0 a JOIN queues."""
+    room = rules.max_viewer_units - world.viewer_units()
+    guard = guard_room(world, _COALITION)
+    return room if guard is None else min(room, guard)
+
+
+def _spawn_cost(rules: Rules, kind: UnitKind, node: str) -> int:
+    """EC-13: a spawn at a base draws its `loadout_cost` there (GP-7). At the sanctuary it is
+    free under `economy.legacy_rules` or with `economy.free_viewer_spawn` on, else it draws the
+    same cost from the coalition's pool."""
+    cost = rules.supply.loadout_cost.get(kind, 0)
+    er = rules.economy
+    if node != rules.sanctuary or not (er is None or er.legacy or er.free_viewer_spawn):
+        return cost
+    return 0
+
+
 def _plan(world: World, command: JoinCommand, rules: Rules) -> _Plan | RejectReason:
+    """`_choose`'s plan, or `NO_STOCK` when it spawns at the sanctuary and the coalition's pool
+    cannot pay its spawn cost and cargo (ECONOMY EC-13: no stock, no spawn). A base spawn was
+    already chosen only where the stock pays (`plan_deploy`)."""
+    plan = _choose(world, command, rules)
+    if isinstance(plan, str) or legacy_rules(rules) or plan.source != rules.sanctuary:
+        return plan
+    have = source_stock(world, plan.source)  # None: an infinite source (unlimited mode)
+    need = _spawn_cost(rules, plan.kind, plan.source) + (plan.cargo or 0)
+    return "NO_STOCK" if have is not None and have < need else plan
+
+
+def _choose(world: World, command: JoinCommand, rules: Rules) -> _Plan | RejectReason:
     """The plan for a JOIN, or why it is rejected (checked in this order). Pure: no stock moves."""
     commander = command.issuer.commander_id
     # shortcut: a scan of every entity per JOIN; index live units per commander if the SC-10

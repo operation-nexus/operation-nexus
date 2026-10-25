@@ -255,7 +255,7 @@ def plan_deploy(
     world: World, rules: Rules, side: Side, kind: UnitKind, target: str
 ) -> tuple[str, list[str]] | None:
     """Where a `kind` of `side` joining to node `target` forward-deploys, and its path (GP-7,
-    Q-SIM-54; None: the sanctuary instead). Pure: nothing is debited (`pay_loadout`).
+    Q-SIM-54; None: the sanctuary instead). Pure: nothing is debited (`pay_spawn`).
 
     Candidates are the theater's `spawns` nodes for the kind's domain that the side owns (an AIR
     one must also be a landing base of the side: AIRBASE or SANCTUARY, Q-SIM-42) and that hold
@@ -279,13 +279,19 @@ def plan_deploy(
     return None if best is None or route is None else (best[0], list(route))
 
 
-def pay_loadout(world: World, rules: Rules, kind: UnitKind, node: str, out: list[Event]) -> None:
-    """Debit a spawned unit's `loadout_cost` from `node` (a SANCTUARY is infinite: no debit) and
-    emit `SupplyConsumed{SPAWN}`; nothing for a cost of 0."""
-    cost = rules.supply.loadout_cost.get(kind, 0)
-    if node in world.stock and cost:
+def pay_spawn(world: World, node: str, cost: int, out: list[Event]) -> None:
+    """Debit a spawn's `cost` at `node` (ECONOMY EC-13): a base's stock, or a limited side's
+    source pool; an infinite source (unlimited mode) pays nothing. `SupplyConsumed{SPAWN}` at the
+    node, none for 0. The caller has checked the node can pay."""
+    if cost <= 0:
+        return
+    if node in world.stock:
         world.stock[node] -= cost
-        out.append(consumed(world, node, cost, "SPAWN"))
+    elif (side := pool_side(world, node)) is not None:
+        world.pool[side] -= cost
+    else:
+        return
+    out.append(consumed(world, node, cost, "SPAWN"))
 
 
 def load(world: World, run: Run) -> None:

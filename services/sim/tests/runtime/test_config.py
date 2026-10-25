@@ -30,6 +30,7 @@ sim:
   tick_hz: 10
   time_scale: 6.0
   snapshot_every_ticks: 300
+  max_live_units_per_side: 1000
 air:
   bingo_reserve_frac: 0.15
   orbit_period_s: 120.0
@@ -275,6 +276,10 @@ director:
     pattern_of_life: 24
     alpha: 40
     bravo: 70
+  spend_frac: {pattern_of_life: 0.007, alpha: 0.02, bravo: 0.0534}
+  source_spend_frac: 0.005
+  upkeep_reserve_windows: 2
+  cadence_windows: 10
   op_priority: {RETAKE: 1.2, OFFENSIVE: 1.0, RECON: 0.5}
   score:
     target_value: {AIRBASE: 1.5, FOB: 1.0, PORT: 1.0, SANCTUARY: 2.0}
@@ -333,6 +338,8 @@ economy:
     per_node: {AIRBASE: 2000, BRIDGE: 0, FOB: 1000, HQ: 2000, PORT: 1000}
   upkeep: {ENEMY_ARMOR: 0, ENEMY_CONVOY: 0, ENEMY_FIGHTER: 0, ENEMY_RECON_UAV: 0,
     ENEMY_STRIKE_FIGHTER: 0, GARRISON_INFANTRY: 0, LOGI_TRUCK: 0, RECON_UAV: 0, STRIKE_FIGHTER: 0}
+  legacy_rules: true
+  free_viewer_spawn: true
 """
 # Pinned from this implementation's first run (NX-367: balance, units, theater; re-pinned NX-121
 # for speed_mps, NX-122 for slots and again for the GP-3 cap and queue, NX-368 for air fuel and
@@ -345,9 +352,10 @@ economy:
 # NX-388 part 2 for the Q-CFG-16 rule options, NX-388 part 2b for the Director, tasking and
 # rebase rule options, NX-373 for the bridge hp, NX-398 for `tasking.order_dwell_s`, NX-400 for
 # the collapse radius, NX-373 part 2 for bridge repair, the repair job and its escort, NX-412 part 1
-# for the economy block, NX-412 part 2 for `economy.upkeep`); a change
-# means every config_hash moved.
-GOLDEN_CONFIG_HASH = "7f5e8a55c7892f6ff5f83c98ee4de6cb86d2800799fedef866592291e83b2f3a"
+# for the economy block, NX-412 part 2 for `economy.upkeep`, NX-412 part 3 for the EC-7 budget
+# keys, the EC-8 guard, `economy.legacy_rules` and `free_viewer_spawn`); a change means every
+# config_hash moved.
+GOLDEN_CONFIG_HASH = "e5a6779305cc1d86c6c21b0db59db586f7186f4406864fdf20e000d76ae7c149"
 AIR = {
     "bingo_reserve_frac": 0.15,
     "orbit_period_s": 120.0,
@@ -569,6 +577,10 @@ DIRECTOR = {
     "budget": {"pattern_of_life": 10, "alpha": 30, "bravo": 80},
     "max_spawns_per_window": 6,
     "max_live_units": {"pattern_of_life": 40, "alpha": 40, "bravo": 70},
+    "spend_frac": {"pattern_of_life": 0.007, "alpha": 0.02, "bravo": 0.0534},
+    "source_spend_frac": 0.005,
+    "upkeep_reserve_windows": 2,
+    "cadence_windows": 10,
     "op_priority": {
         "RETAKE": 1.2,
         "OFFENSIVE": 1.0,
@@ -647,11 +659,18 @@ ECONOMY = {
     "income": {"floor": 30, "per_node": _PER_NODE},
     "storage": {"floor": 2000, "per_node": {k: v * 200 for k, v in _PER_NODE.items()}},
     "upkeep": dict.fromkeys(_UPKEEP_KINDS, 0),
+    "legacy_rules": True,
+    "free_viewer_spawn": True,
 }
 CFG = BalanceConfig.model_validate(
     {
         "schema_version": 1,
-        "sim": {"tick_hz": 10, "time_scale": 6.0, "snapshot_every_ticks": 300},
+        "sim": {
+            "tick_hz": 10,
+            "time_scale": 6.0,
+            "snapshot_every_ticks": 300,
+            "max_live_units_per_side": 1000,
+        },
         "slots": SLOTS,
         "air": AIR,
         "fow": FOW,
@@ -965,7 +984,8 @@ def test_yaml12_numbers_still_parse() -> None:
 def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
     reformatted = (
         "# same profile, other layout\n"
-        "sim: {snapshot_every_ticks: 300, time_scale: 6.0, tick_hz: 10}\n"
+        "sim: {max_live_units_per_side: 1000, snapshot_every_ticks: 300, time_scale: 6.0,\n"
+        "  tick_hz: 10}\n"
         "slots: {respawn_delay_s: 20, max_live_per_commander: 1, reserve_queue_max: 1000,\n"
         "  max_viewer_units: 500, queue_idle_min: 15, rebase_order: HOLD}\n"
         "air: {orbit_period_s: 120.0, bingo_reserve_frac: 0.15,\n"
@@ -1047,6 +1067,8 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "      redemption: {support: 1, cosmetic: 0}}},\n"
         "  budget: {pattern_of_life: 10, alpha: 30, bravo: 80},\n"
         "  max_live_units: {pattern_of_life: 40, alpha: 40, bravo: 70},\n"
+        "  cadence_windows: 10, upkeep_reserve_windows: 2, source_spend_frac: 0.005,\n"
+        "  spend_frac: {bravo: 0.0534, alpha: 0.02, pattern_of_life: 0.007},\n"
         "  op_priority: {RETAKE: 1.2, OFFENSIVE: 1.0, ESCORT_CONVOYS: 0.8, REINFORCE_IADS: 0.7,\n"
         "    PROBE: 0.6, RECON: 0.5, DECOY_BLINK: 0.3, GARRISON_UPKEEP: 0.9, STRIKE_BRIDGE: 0.6},\n"
         "  score: {target_value: {AIRBASE: 1.5, FOB: 1.0, PORT: 1.0, SANCTUARY: 2.0},\n"
@@ -1071,6 +1093,7 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "    convoys_per_period: 1, offensives_per_period: 1, convoy_cost: 0, convoy_slots: 1,\n"
         "    capture_slot_tiers: [PATTERN_OF_LIFE]}}\n"
         "economy: {window_s: 60, unlimited: {ENEMY: true, COALITION: true},\n"
+        "  free_viewer_spawn: true, legacy_rules: true,\n"
         "  storage: {per_node: {PORT: 1000, HQ: 2000, FOB: 1000, BRIDGE: 0, AIRBASE: 2000},\n"
         "    floor: 2000},\n"
         "  income: {per_node: {PORT: 5, HQ: 10, FOB: 5, BRIDGE: 0, AIRBASE: 10}, floor: 30},\n"
@@ -1148,7 +1171,12 @@ def test_world_ticks_is_the_least_whole_tick_count_not_shorter(
     cfg = BalanceConfig.model_validate(
         {
             "schema_version": 1,
-            "sim": {"tick_hz": 10, "time_scale": time_scale, "snapshot_every_ticks": 1},
+            "sim": {
+                "tick_hz": 10,
+                "time_scale": time_scale,
+                "snapshot_every_ticks": 1,
+                "max_live_units_per_side": 1000,
+            },
             "slots": SLOTS,
             "air": AIR,
             "fow": FOW,
