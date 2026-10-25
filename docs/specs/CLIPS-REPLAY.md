@@ -18,6 +18,8 @@ A rolling 15 s score combines missiles in flight, kills, captures, human involve
 ## 3. Clip rendering (P3)
 A headless render worker plays the recorded frames for the window (Q-SIM-18) in a browser at 1080×1920 and records it with FFmpeg (argv list, SEC-CLIP-2), together with the cached TTS audio. It runs at low priority. If the GPU is busy, it runs when the broadcast host is idle, or on another machine. A clip rendered or published while its campaign is running uses the FoW-redacted view (RP-1); a full-reveal clip is possible only after the campaign has ended (RP-2).
 
+For full details on omniscient multi-camera post-production, multi-pillar cinematic passes, and future-proof resolution rendering from deterministic tick streams, see [DETERMINISTIC-REPLAY-AND-MULTI-CAMERA-CINEMATICS](DETERMINISTIC-REPLAY-AND-MULTI-CAMERA-CINEMATICS.md).
+
 ## 4. Publishing
 Finished clips go to a **review queue** in the admin console. The owner approves each one and uploads it manually or via the API (P5+, after the platform audits). No templated auto-narrated Shorts at volume, because of the YouTube "inauthentic content" policy risk.
 

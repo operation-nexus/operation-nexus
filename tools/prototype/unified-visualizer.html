@@ -298,29 +298,41 @@
     .pip-tab.active { background: rgba(0, 229, 255, 0.2); color: var(--accent-cyan); border-color: var(--accent-cyan); font-weight: 700; }
     #flir-canvas { flex: 1; width: 100%; height: 100%; display: block; }
 
-    /* DIRECTOR BANNER */
+    /* BROADCAST LIVE CHYRON (CALM & PROFESSIONAL) */
     .director-banner {
       position: absolute;
       top: 14px;
       left: 50%;
       transform: translateX(-50%);
-      background: rgba(10, 25, 47, 0.92);
-      border: 1px solid var(--accent-cyan);
-      box-shadow: 0 0 16px rgba(0, 229, 255, 0.4);
-      color: var(--accent-cyan);
+      background: rgba(6, 13, 26, 0.94);
+      border: 1px solid rgba(0, 229, 255, 0.5);
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.8), 0 0 12px rgba(0, 229, 255, 0.2);
+      color: #f8fafc;
       padding: 5px 16px;
       border-radius: 4px;
       font-size: 10px;
-      font-weight: 700;
-      letter-spacing: 1px;
+      font-weight: 600;
+      letter-spacing: 0.8px;
       z-index: 70;
       pointer-events: none;
       display: none;
-      animation: pulseBanner 2s infinite ease-in-out;
+      align-items: center;
+      gap: 10px;
+      white-space: nowrap;
     }
-    @keyframes pulseBanner {
-      0%, 100% { opacity: 0.95; }
-      50% { opacity: 0.65; }
+    .director-live-dot {
+      width: 7px;
+      height: 7px;
+      background: #ef4444;
+      border-radius: 50%;
+      box-shadow: 0 0 6px #ef4444;
+      display: inline-block;
+      flex-shrink: 0;
+      animation: liveDotBreathe 2.5s infinite ease-in-out;
+    }
+    @keyframes liveDotBreathe {
+      0%, 100% { opacity: 1.0; }
+      50% { opacity: 0.35; }
     }
 
     /* MAP LEGEND (PILLAR 1) */
@@ -417,6 +429,9 @@
         <button class="pillar-btn" id="btn-p3" onclick="switchPillar(3)">
           <span>⚡</span> PILLAR 3: HOLOGRAPHIC (WIREFRAME)
         </button>
+        <button class="pillar-btn" id="btn-p4" onclick="switchPillar(4)">
+          <span>📡</span> PILLAR 4: EW & ORBITAL SAR
+        </button>
       </nav>
 
       <div style="display:flex; align-items:center; gap:10px;">
@@ -488,7 +503,7 @@
           </div>
           <canvas id="flir-canvas"></canvas>
         </div>
-        <div id="director-banner" class="director-banner">DIRECTOR: LIVE COMBAT AUTO-DIRECTOR ACTIVE</div>
+        <div id="director-banner" class="director-banner"><span class="director-live-dot"></span><span id="director-text">LIVE BROADCAST DIRECTOR ACTIVE</span></div>
       </div>
 
       <!-- ORDER OF BATTLE (OOB) RIGHT SIDEBAR -->
@@ -953,6 +968,7 @@
     let dropLines = {};
     let groundRings = {};
     let radarSpire3D, radarSweepMesh, samThreatDomes;
+    let ewGroup, jammerCone, noiseStrobeMesh, sarSatelliteSwath, sarSatelliteMarker;
     let flirCanvas, flirCtx;
 
     function initThreeScene() {
@@ -990,6 +1006,7 @@
       build3DRoadsAndBridges();
       build3DCatalogUnits();
       buildHolographicThreatDomes();
+      buildVolumetricEWAndSAR();
 
       flirCanvas = document.getElementById('flir-canvas');
       flirCtx = flirCanvas.getContext('2d');
@@ -1380,13 +1397,74 @@
       scene.add(samThreatDomes);
     }
 
+    /* Pillar 4: Volumetric Electronic Warfare (EW / RF) & Orbital SAR Reconnaissance */
+    function buildVolumetricEWAndSAR() {
+      ewGroup = new THREE.Group();
+
+      // 1. Volumetric Airborne EW Jamming Cone (ALQ-99 Electronic Attack Pod on VIPER-01)
+      const coneGeo = new THREE.ConeGeometry(24, 75, 16, 1, true);
+      coneGeo.rotateX(Math.PI / 2);
+      const coneMat = new THREE.MeshBasicMaterial({
+        color: 0xd946ef, // Shimmering magenta EW interference
+        wireframe: true,
+        transparent: true,
+        opacity: 0.35,
+        side: THREE.DoubleSide
+      });
+      jammerCone = new THREE.Mesh(coneGeo, coneMat);
+      ewGroup.add(jammerCone);
+
+      // 2. High-Power Directed RF Noise Strobe (Piercing Amber Interference Beam toward East SAM Spire)
+      const strobeGeo = new THREE.CylinderGeometry(0.8, 14, 110, 8, 1, true);
+      strobeGeo.rotateX(Math.PI / 2);
+      const strobeMat = new THREE.MeshBasicMaterial({
+        color: 0xf59e0b,
+        transparent: true,
+        opacity: 0.25,
+        side: THREE.DoubleSide
+      });
+      noiseStrobeMesh = new THREE.Mesh(strobeGeo, strobeMat);
+      noiseStrobeMesh.position.set(0, 22, -20);
+      ewGroup.add(noiseStrobeMesh);
+
+      // 3. Orbital Synthetic Aperture Radar (SAR) Reconnaissance Swath
+      const sarGeo = new THREE.PlaneGeometry(32, 216);
+      sarGeo.rotateX(-Math.PI / 2);
+      const sarMat = new THREE.MeshBasicMaterial({
+        color: 0x22c55e, // Monochromatic radar green
+        transparent: true,
+        opacity: 0.22,
+        side: THREE.DoubleSide
+      });
+      sarSatelliteSwath = new THREE.Mesh(sarGeo, sarMat);
+      sarSatelliteSwath.position.set(-160, 0.4, 0);
+      ewGroup.add(sarSatelliteSwath);
+
+      // Orbital Satellite Icon / Marker in upper atmosphere
+      const satGeo = new THREE.BoxGeometry(4.0, 1.2, 2.5);
+      const satMat = new THREE.MeshBasicMaterial({ color: 0x4ade80 });
+      sarSatelliteMarker = new THREE.Mesh(satGeo, satMat);
+      sarSatelliteMarker.position.set(-160, 95, 0);
+      ewGroup.add(sarSatelliteMarker);
+
+      // Solar Panels on Satellite
+      const panelGeo = new THREE.BoxGeometry(16.0, 0.1, 3.5);
+      const panelMat = new THREE.MeshBasicMaterial({ color: 0x0284c7 });
+      const solarPanel = new THREE.Mesh(panelGeo, panelMat);
+      sarSatelliteMarker.add(solarPanel);
+
+      ewGroup.visible = false;
+      scene.add(ewGroup);
+    }
+
     /* =========================================================================
        5. PILLAR SWITCHING & CONTROLS
        ========================================================================= */
     function switchPillar(num) {
       currentPillar = num;
       document.querySelectorAll('.pillar-btn').forEach(btn => btn.classList.remove('active'));
-      document.getElementById(`btn-p${num}`).classList.add('active');
+      const activeBtn = document.getElementById(`btn-p${num}`);
+      if (activeBtn) activeBtn.classList.add('active');
 
       const vp1 = document.getElementById('vp-pillar1');
       const vpThree = document.getElementById('vp-pillar-three');
@@ -1410,6 +1488,7 @@
           roadGroup.visible = true;
           bridgeGroup.visible = true;
           samThreatDomes.visible = false;
+          if (ewGroup) ewGroup.visible = false;
         } else if (num === 3) {
           hudTitle.innerText = "HOLOGRAPHIC TACTICAL TABLETOP";
           badge.innerText = "VECTOR 3D";
@@ -1419,6 +1498,17 @@
           roadGroup.visible = false;
           bridgeGroup.visible = true;
           samThreatDomes.visible = true;
+          if (ewGroup) ewGroup.visible = false;
+        } else if (num === 4) {
+          hudTitle.innerText = "VOLUMETRIC EW & ORBITAL SAR";
+          badge.innerText = "RF SPECTRUM";
+          badge.style.color = "#d946ef";
+          terrainMesh.visible = true;
+          wireframeMesh.visible = true;
+          roadGroup.visible = true;
+          bridgeGroup.visible = true;
+          samThreatDomes.visible = true;
+          if (ewGroup) ewGroup.visible = true;
         }
 
         camera.aspect = vpThree.clientWidth / vpThree.clientHeight;
@@ -1643,34 +1733,80 @@
         if (radarSpire3D) radarSpire3D.children[1].rotation.y = simTime * 1.8;
         if (radarSweepMesh) radarSweepMesh.rotation.z = -simTime * 1.2;
 
-        // AI Broadcast Auto-Director State Sequencer
-        if (isDirectorActive) {
-          directorTimer += 0.016;
-          if (directorTimer > 8.0) {
-            directorTimer = 0;
-            directorPhase = (directorPhase + 1) % 4;
+        // Animate Volumetric EW & Orbital SAR (Pillar 4)
+        if (ewGroup && ewGroup.visible) {
+          if (unit3DMap['VIPER-01']) {
+            const vPos = unit3DMap['VIPER-01'].position;
+            jammerCone.position.set(vPos.x + 30, vPos.y, vPos.z);
+            jammerCone.rotation.y = -Math.PI / 2;
+            const pulse = 1.0 + Math.sin(simTime * 4.0) * 0.08;
+            jammerCone.scale.set(pulse, pulse, 1.0);
+
+            noiseStrobeMesh.position.set(vPos.x + 55, vPos.y, vPos.z);
+            noiseStrobeMesh.rotation.y = -Math.PI / 2;
           }
+
+          // Sweep Orbital SAR satellite across the theater
+          const sarSpeed = 16.0;
+          const sarX = ((simTime * sarSpeed) % 380) - 190;
+          sarSatelliteSwath.position.x = sarX;
+          sarSatelliteMarker.position.x = sarX;
+        }
+
+        // Broadcast AI Auto-Director with Smart Combat Priority & Anti-Spam Pacing
+        if (isDirectorActive) {
           const banner = document.getElementById('director-banner');
-          if (directorPhase === 0) {
-            if (banner) banner.innerText = 'DIRECTOR: THEATER STRATEGIC OVERVIEW (400x240KM)';
-            camera.position.lerp(new THREE.Vector3(0, 240, 160), 0.04);
-            controls.target.lerp(new THREE.Vector3(0, 0, 0), 0.04);
-          } else if (directorPhase === 1) {
-            if (banner) banner.innerText = `DIRECTOR: AIR COMBAT PATROL [${selectedUnitId}]`;
-            if (unit3DMap[selectedUnitId]) {
-              const uPos = unit3DMap[selectedUnitId].position;
-              const chasePos = new THREE.Vector3(uPos.x - 32, uPos.y + 14, uPos.z + 32);
-              camera.position.lerp(chasePos, 0.05);
-              controls.target.lerp(uPos, 0.05);
+          const directorText = document.getElementById('director-text');
+
+          const vPos = unit3DMap['VIPER-01'] ? unit3DMap['VIPER-01'].position : null;
+          const bPos = unit3DMap['BANDIT-04'] ? unit3DMap['BANDIT-04'].position : null;
+          let inCombatClosure = false;
+          let combatDistKm = 999;
+          if (vPos && bPos) {
+            const dist3D = vPos.distanceTo(bPos);
+            combatDistKm = dist3D * (THEATER_W / 360) / 1000;
+            if (combatDistKm < 65) {
+              inCombatClosure = true;
             }
-          } else if (directorPhase === 2) {
-            if (banner) banner.innerText = 'DIRECTOR: NORTH FJORD VIADUCT CHOKEPOINT (MGRS 38S LA 820 600)';
-            camera.position.lerp(new THREE.Vector3(-42, 28, -25), 0.03);
-            controls.target.lerp(new THREE.Vector3(0, 17.5, -54), 0.03);
-          } else if (directorPhase === 3) {
-            if (banner) banner.innerText = 'DIRECTOR: STATIC EAST AIRBASE ISR SURVEILLANCE';
-            camera.position.lerp(new THREE.Vector3(98, 48, 20), 0.03);
-            controls.target.lerp(new THREE.Vector3(99, 1.0, 0), 0.03);
+          }
+
+          if (inCombatClosure) {
+            // Priority 1: Hold the shot during active air intercept (Zero spam cuts)
+            directorTimer = 0;
+            if (directorText) {
+              directorText.innerText = `AIR INTERCEPT // VIPER-01 vs BANDIT-04 // RANGE: ${combatDistKm.toFixed(1)}KM // CLOSURE: 980 KTS`;
+            }
+            const mid = new THREE.Vector3().addVectors(vPos, bPos).multiplyScalar(0.5);
+            camera.position.lerp(new THREE.Vector3(mid.x - 28, mid.y + 16, mid.z + 32), 0.02);
+            controls.target.lerp(mid, 0.02);
+          } else {
+            // Calm, professional broadcast pacing (22 seconds per sequence)
+            directorTimer += 0.016;
+            if (directorTimer > 22.0) {
+              directorTimer = 0;
+              directorPhase = (directorPhase + 1) % 4;
+            }
+
+            if (directorPhase === 0) {
+              if (directorText) directorText.innerText = 'THEATER STRATEGIC OVERVIEW // 400x240KM THEATER // COALITION MOMENTUM: 62%';
+              camera.position.lerp(new THREE.Vector3(0, 240, 160), 0.018);
+              controls.target.lerp(new THREE.Vector3(0, 0, 0), 0.018);
+            } else if (directorPhase === 1) {
+              if (directorText) directorText.innerText = `COMBAT AIR PATROL // ${selectedUnitId} // VECTOR 085° // FL240`;
+              if (vPos) {
+                const chasePos = new THREE.Vector3(vPos.x - 30, vPos.y + 12, vPos.z + 30);
+                camera.position.lerp(chasePos, 0.025);
+                controls.target.lerp(vPos, 0.025);
+              }
+            } else if (directorPhase === 2) {
+              if (directorText) directorText.innerText = 'STRATEGIC CHOKEPOINT // NORTH FJORD VIADUCT // CONVOY SECURITY PATROL';
+              camera.position.lerp(new THREE.Vector3(-42, 28, -25), 0.018);
+              controls.target.lerp(new THREE.Vector3(0, 17.5, -54), 0.018);
+            } else if (directorPhase === 3) {
+              if (directorText) directorText.innerText = 'ISR RECONNAISSANCE PASS // STATIC EAST AIRBASE // RADAR ACTIVE';
+              camera.position.lerp(new THREE.Vector3(98, 48, 20), 0.018);
+              controls.target.lerp(new THREE.Vector3(99, 1.0, 0), 0.018);
+            }
           }
         } else if (cameraMode === 'chase' && unit3DMap[selectedUnitId]) {
           const target = unit3DMap[selectedUnitId].position;
@@ -1866,7 +2002,7 @@
       const params = new URLSearchParams(window.location.search);
       const hashMatch = window.location.hash.match(/pillar=(\d)/);
       const initialPillar = parseInt(params.get('pillar') || (hashMatch ? hashMatch[1] : '1'));
-      if (initialPillar === 2 || initialPillar === 3) {
+      if (initialPillar === 2 || initialPillar === 3 || initialPillar === 4) {
         switchPillar(initialPillar);
 
         // Optional Camera Presets for Inspection & Testing
