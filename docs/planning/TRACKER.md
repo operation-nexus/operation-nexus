@@ -10,7 +10,7 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | Phase | Items | Done | Status |
 |---|---|---|---|
 | P0 Foundations | 44 | 32 | 🟨 |
-| P1 Sim kernel | 72 | 45 | 🟨 |
+| P1 Sim kernel | 73 | 45 | 🟨 |
 | P2 Closed alpha | 40 | 0 | ⬜ |
 | P3 Public beta | 26 | 0 | ⬜ |
 | P4 Depth | 69 | 1 | ⬜ |
@@ -144,6 +144,7 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-420 | CodeRabbit reviews against our rules (owner 2026-10-26): `path_instructions` per area, guideline files in `knowledge_base`, repo-local learnings, CI-duplicate linters and reviewer commits off; kept current from LESSONS and awesome-coderabbit (docs/agentic/TOOLING.md) | S | 🟨 | — | The first PR after the change gets rule-specific CodeRabbit comments, not generic ones |
 | NX-421 | Wall-clock test budgets off `make check` (issue #358, Q-DEV-31): `perf` marker, `make perf`, CI still runs them | S | 🟨 | — | `make check` passes on the slow Linux server; CI still runs the budgets |
 | NX-422 | Aircraft capacity per airfield (owner 2026-10-26, Q-TD-39): each base that hosts aircraft holds at most a tunable number (hangar size, high but limited), so jets flown in to a staging base cannot mass without bound; both sides, same keys (EC-3). Spec first | M | ⬜ | NX-417, NX-418 | A base at capacity takes no more landings; the harness can sweep the capacity |
+| NX-423 | Overlay types from the generated contracts (AGENTS.md rule 6; visualizer audit 2026-10-26): `apps/overlay/src/types/unit.ts` and `telemetry.ts` are hand-copied and drift (`ENEMY_STRIKE`, `CRITICAL`, `CONDITION_ALPHA` are not contract values); use `apps/overlay/src/contracts` instead and fix the renderers and tests | M | ⬜ | NX-176 | The overlay compiles against generated types only; no enum value that is not in `contracts/` |
 | NX-151 | Enemy-side view for director (FOW-4) | M | ✅ | NX-150 | Director API accepts only `EnemyView` |
 | NX-155 | Director: CP, tiers w/ hysteresis, budget | M | ✅ | NX-151, NX-374 | Hysteresis property |
 | NX-156 | Director: operations library + scoring + threat memory | L | ✅ | NX-155 | "Convoy raids → escorts" golden scenario |
