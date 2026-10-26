@@ -69,10 +69,22 @@ pov_profile:
         unit: FT_MSL
       - type: RADAR_TARGET_DIAMOND # BVR and dogfight target lock diamond
         track_source: RADAR_TWS
+      - type: ARTIFICIAL_HORIZON_6DOF # Dynamic horizon line rotating by -phi and translating by theta
+      - type: G_METER                 # Live G-force indicator (1.0G to 9.0G)
+        range: [1.0, 9.0]
+      - type: BANK_ANGLE_SCALE        # Graduated bank arc with pointer
+      - type: RADAR_OCCLUSION_STATUS  # [NOE CANYON MASKED] badge when DEM ridges block LoS
       - type: HOMING_BEACON_ARROW  # For CSAR: points to PRC-112 emergency beacon
         transponder_freq: 243.0MHZ
       - type: TIME_TO_IMPACT       # For missile seeker POV
         countdown_unit: SECONDS
+
+    # Dynamic Exterior Visual Elements (Chase / Wingman Cameras)
+    exterior_effects:
+      vapor_ribbon_contrails:
+        enabled: true
+        g_threshold: 4.5
+        emitter_offsets_m: [[-5.2, 0.1, -1.8], [5.2, 0.1, -1.8]] # Port/starboard wingtips
 
     # Interior Cabin Modules (For Ground, Helo & Naval Vehicles)
     cabin_elements:
@@ -117,6 +129,21 @@ pov_profile:
   - Active weapon status: Master Arm, selected missile bay (`4x AAM-3 [ARMED]`), and gun round count.
   - Wingman awareness: In trail or echelon formations, the pilot can look sideways through the canopy to see `VIPER-02` flying off the wing.
   - Target lock diamond: Displays enemy target callsign, slant range ($\text{km}$), and closure rate ($\text{kts}$).
+
+#### 3.1.1 6-DOF Dynamic Attitude Coupling in Cockpit HUDs
+To deliver authentic tactical cockpit immersion without coupling rigid-body flight physics to the simulation kernel:
+1. **Dynamic Pitch Ladder & Horizon Coupling**:
+   - The artificial horizon line and pitch ladder rotate dynamically about the boresight marker by $-\phi$ (bank/roll angle) and translate vertically proportional to $\theta$ (flight pitch angle).
+   - Solid positive climb rungs and dashed negative dive rungs tilt in real time with continuous roll damping.
+2. **Dynamic G-Meter & Bank Angle Arc**:
+   - Live digital and tape G-meter indicating instantaneous normal acceleration from `1.0G` (level flight) up to `9.0G` (maximum coordinated turn pull).
+   - Bank angle pointer and graduated scale arc along the lower HUD perimeter displaying bank angle from $-75^\circ$ to $+75^\circ$.
+3. **Radar Occlusion & Terrain Masking Indicator**:
+   - `[NOE CANYON MASKED]` status indicator flashes in high-contrast HUD green whenever the aircraft operates in `LOW_NOE` and local DEM canyon ridges intercept line-of-sight to hostile `RADAR_SITE` and `AIR_DEFENSE_SITE` nodes.
+   - When the aircraft climbs above canyon rims into radar visibility, the indicator transitions to `[RADAR EXPOSED / ILLUMINATED]`.
+4. **3D Wingtip Vapor Ribbon Contrails**:
+   - When instantaneous $G$-load exceeds aerodynamic cavitation thresholds ($G > 4.5G$), dual vapor ribbons emit from port and starboard wingtip coordinates (`[-5.2m, 0.1m, -1.8m]` and `[+5.2m, 0.1m, -1.8m]`).
+   - The ribbons spiral dynamically into trailing air vortices, visible in external chase views, wingman cameras, and flyby perspectives during aggressive canyon maneuvers.
 
 ### 3.2 Logistics & Armored Ground Vehicles (`VEHICLE_CABIN`)
 - **Applies to**: `MULE-01` (Heavy Logistics Hauler), upcoming MBTs, and Armored Personnel Carriers.

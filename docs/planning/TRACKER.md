@@ -157,11 +157,11 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-170 | WS server: Hello/Welcome/Snapshot/Delta/Hud, bounded queues; bench `step` plus frame build on the reference host at 1,000 entities (SC-10, Q-SIM-8; NX-376 measured `step` only) | L | ⬜ | NX-150 |
 | NX-171 | Delta encoder + size budget test | M | ⬜ | NX-170 |
 | NX-175 | Overlay scaffold, layered canvases, reconnect, banners | M | ⬜ | NX-170 |
-| NX-176 | Terrain contour pre-render + nodes/roads/bridges. 2026-10-25: exploration and prototypes landed in #328 and #341 (three-pillar visualizer, terrain and road tools, low-poly assets, specs and RFCs, mostly Draft or Proposed); to be grilled and turned into approved specs in the visualization phase | M | 🟨 | NX-175 |
-| NX-177 | Units (shape-coded), rings, blobs, tracers, interpolation | L | ⬜ | NX-176 |
+| NX-176 | Terrain contour pre-render + nodes/roads/bridges. 2026-10-25: prototypes landed in #328/#341 (unified-visualizer, DTED tools, low-poly assets); canyon-run NOE terrain masking RFC (SIMULATION-TERRAIN-AND-ROAD-INTEGRATION-RFC §5-§6), Class B JUNCTION/ABUTMENT waypoints; to be grilled in visualization phase | M | 🟨 | NX-175 |
+| NX-177 | Units (shape-coded), rings, blobs, tracers, interpolation. 2026-10-25: Layer 2 60 Hz 6-DOF kinematic interpolator (DECOUPLED-RENDERER §2.3) with coordinated turn bank phi, AoA pitch, helo cyclic attitude, axle alignment, and GPU instancing (THREE.InstancedMesh / BatchedMesh OV-10 <12ms p95) | L | ⬜ | NX-176 |
 | NX-178 | HUD: momentum, objective, threat, ticker, rotating panels | M | ⬜ | NX-175 |
 | NX-182 | Map annotation layer (OVERLAY §2a): sectors, optional grid reference, direction cues, ephemeral pins, circles and arrows with TTL and collision handling | M | ⬜ | NX-177 |
-| NX-179 | PiP 2D intercept scope + PiP director scoring | M | ⬜ | NX-177 |
+| NX-179 | PiP 2D/3D intercept scope + PiP director scoring. 2026-10-25: expanded with FLIR/RECON MFD (Pillar 3) and universal unit POV/cockpit camera contracts (RFC-UNIT-POV-002, Passes A-N) | M | ⬜ | NX-177 |
 | NX-391 | Overlay callout "BANDITS SCRAMBLED" when the Static posts an INTERCEPT job (`JobCreated`), from the 2026-10-23 entertainment checkpoint (Q-DEV-27) | S | ⬜ | NX-177 |
 | NX-392 | Error pipeline part 2 (Q-DEV-28, ERROR-PIPELINE EP-8, EP-9): local fingerprint store (SQLite) fed by the log adapter, host-side issue sync to `operation-nexus-ops` with a fine-grained token, flood cap and hourly update throttle; daily routine reads ops-repo `error` issues Built: `nexus.errors` fingerprint, store, `StoreReporter`, `python -m nexus.errors.sync` (stdlib only, typed tag allowlist Q-DEV-29). Open: a host timer to run the sync, a sim entry point that calls `make_reporter` (NX-255), the daily routine reading ops-repo issues, the ops repo README | M | 🟨 | NX-364 | EP-5, EP-8 and EP-9 tests pass; a seeded error becomes one ops-repo issue |
 | NX-393 | Self-hosted GlitchTip on the owner's hardware (compose) + Sentry-SDK adapter (allowlist `before_send`, own queue thread for EP-3, the EP-8 fingerprint as the event fingerprint) + its MCP server for agents (Q-DEV-28, EP-7; the Sentry research note) | M | ⬜ | NX-392, NX-255 | EP-2 scrub test against a recording transport; an event appears in GlitchTip under the local fingerprint |
@@ -176,7 +176,7 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-200 | Commanders + identities + generated callsigns (SQLite, migrations) | M | ⬜ | NX-010 |
 | NX-201 | Persistence writer task + backups | M | ⬜ | NX-200 |
 | NX-041 | Moderation pipeline + denylist + tests (SEC-MOD-1) | M | ⬜ | NX-190 |
-| NX-225 | Audio buses + foley + licensed music stems | M | ⬜ | Q-LEGAL-2 |
+| NX-225 | Audio buses + foley + licensed music stems. 2026-10-25: added AudioWorklet military radio DSP pipeline (VHF/UHF bandpass, squelch tail, AGC), AU-2 Night Mode dynamic range shaping, and AU-6 The Static Hum 58Hz analog motif (DETERMINISTIC-CINEMATICS §6) | M | ⬜ | Q-LEGAL-2 |
 | NX-226 | TTS worker + sitrep templates + queue + night mode | L | ⬜ | Q-AI-4 |
 | NX-250 | Metrics + structured logs + dashboard | M | ⬜ | NX-026 |
 | NX-251 | Watchdog: frame-freeze probe, live probe, fallback scene | L | ⬜ | NX-175 |
@@ -211,8 +211,8 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-205 | Postgres migration if portal needs DB writes (ADR-0003) | ❓ |
 | NX-195 | YouTube streamList adapter + quota dashboard + quota increase application | ⬜ |
 | NX-196 | Kick adapter (optional) | ❓ |
-| NX-233 | Excitement scoring + clip jobs | ⬜ |
-| NX-234 | Clip render worker + review queue in admin | ⬜ |
+| NX-233 | Excitement scoring + clip jobs. 2026-10-25: dynamic event-driven clip duration windows ([t_start - pre_roll, t_end + post_roll], 12s-90s) replacing fixed 30s clips, JSON Camera Edit Decision Lists (EDL) cutting across Passes A-N (DETERMINISTIC-CINEMATICS §5.2) | ⬜ |
+| NX-234 | Clip render worker + review queue in admin. 2026-10-25: deterministic virtual-clock frame stepping (window.renderDeterministicTick, dt=1/60s, 1080p/4K zero-drop capture), multi-pass headless compositor (Passes A-N) | ⬜ |
 | NX-180b | 9:16 vertical overlay route | ⬜ |
 | NX-043 | ZAP baseline on portal in staging | ⬜ |
 | NX-036 | Analytics: sessions, command rate, D7 (privacy-preserving) | ⬜ |

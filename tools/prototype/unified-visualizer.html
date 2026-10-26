@@ -429,22 +429,24 @@
 
       <nav class="pillar-nav">
         <button class="pillar-btn active" id="btn-p1" onclick="switchPillar(1)">
-          <span>🌐</span> PILLAR 1: TACTICAL GIS (C2)
+          PILLAR 1: TACTICAL GIS (C2)
         </button>
         <button class="pillar-btn" id="btn-p2" onclick="switchPillar(2)">
-          <span>🎮</span> PILLAR 2: TEXTURED RTS (3D)
+          PILLAR 2: TEXTURED RTS (3D)
         </button>
         <button class="pillar-btn" id="btn-p3" onclick="switchPillar(3)">
-          <span>⚡</span> PILLAR 3: HOLOGRAPHIC (WIREFRAME)
+          PILLAR 3: HOLOGRAPHIC (WIREFRAME)
         </button>
         <button class="pillar-btn" id="btn-p4" onclick="switchPillar(4)">
-          <span>🧠</span> PILLAR 4: COGNITIVE NEURAL BATTLESPACE
+          PILLAR 4: COGNITIVE NEURAL BATTLESPACE
         </button>
       </nav>
 
       <div style="display:flex; align-items:center; gap:8px;">
+        <button class="ctrl-btn" onclick="toggleBridgeState()" id="bridge-btn">BRIDGE: INTACT</button>
         <button class="ctrl-btn" onclick="toggleFOW()" id="fow-btn">FOW: OFF</button>
         <button class="ctrl-btn" onclick="toggleAudio()" id="audio-btn">AUDIO FX: OFF</button>
+        <button class="ctrl-btn" onclick="toggleNightMode()" id="night-btn">NIGHT: OFF</button>
         <button class="ctrl-btn" onclick="toggleCRT()" id="crt-btn">CRT FX: OFF</button>
         <div style="font-size: 11px; color: var(--accent-cyan); font-family: monospace;">
           SIM-TIME: <span id="clock-display">00:00:00.00Z</span>
@@ -493,6 +495,7 @@
             <div class="cam-controls">
               <button class="cam-btn active" id="cam-orbit" onclick="setCameraMode('orbit')">ORBIT</button>
               <button class="cam-btn" id="cam-chase" onclick="setCameraMode('chase')">CHASE</button>
+              <button class="cam-btn" id="cam-canyon" onclick="setCameraMode('canyon')">CANYON RUN</button>
               <button class="cam-btn" id="cam-cockpit" onclick="setCameraMode('cockpit')">COCKPIT POV</button>
               <button class="cam-btn" id="cam-god" onclick="setCameraMode('god')">GOD VIEW</button>
               <button class="cam-btn" id="cam-director" onclick="toggleDirector()">AI DIRECTOR</button>
@@ -501,6 +504,12 @@
           <div class="hud-row"><span class="hud-label">Terrain Meshing:</span><span class="hud-value">Continuous Hermite DTED</span></div>
           <div class="hud-row"><span class="hud-label">Road & Viaduct:</span><span class="hud-value">Abutment-Conformed Ribbons</span></div>
           <div class="hud-row"><span class="hud-label">Bridge Systems:</span><span class="hud-value">High Viaduct + Sea-Truss</span></div>
+          <div id="pillar4-economy-hud" style="display:none; margin-top:6px; padding-top:6px; border-top:1px dashed #d946ef;">
+            <div style="font-weight:bold; color:#ec4899; font-size:10px; margin-bottom:4px;">NX-412 &bull; NX-416 FORCE ECONOMY RESERVES</div>
+            <div class="hud-row"><span class="hud-label" style="color:#38bdf8;">COALITION SUPPLY POOL:</span><span class="hud-value" style="color:#38bdf8;">24,500 TONS (-420 T/HR)</span></div>
+            <div class="hud-row"><span class="hud-label" style="color:#ef4444;">STATIC ENEMY POOL:</span><span class="hud-value" style="color:#ef4444;">31,200 TONS (-580 T/HR)</span></div>
+            <div class="hud-row"><span class="hud-label" style="color:#ec4899;">STAGING VECTOR:</span><span class="hud-value" id="staging-vector-badge" style="color:#ff0055; font-weight:bold;">[NX-416 FORWARD STAGING CONVOY] ACTIVE</span></div>
+          </div>
         </div>
 
         <div class="pip-camera" id="flir-pip" title="Click to cycle sensor mode">
@@ -551,7 +560,7 @@
       </div>
 
       <div style="display:flex; align-items:center; gap:12px; font-family: monospace; font-size:10px;">
-        <span style="color: var(--text-muted);"><b style="color:var(--accent-cyan);">HOTKEYS:</b> [1-4] Pillars &bull; [C] Camera &bull; [Tab] Unit &bull; [D] Director &bull; [F] FOW &bull; [A] Audio &bull; [Space] Pause</span>
+        <span style="color: var(--text-muted);"><b style="color:var(--accent-cyan);">HOTKEYS:</b> [1-4] Pillars &bull; [C] Camera &bull; [R] Canyon &bull; [B] Bridge &bull; [N] Night &bull; [Tab] Unit &bull; [D] Director &bull; [F] FOW &bull; [A] Audio &bull; [Space] Pause</span>
         <span>FPS: <span id="fps-counter" style="color:var(--accent-green);">60</span> | SIM: SYNC</span>
       </div>
     </footer>
@@ -670,13 +679,13 @@
     ];
 
     const UNITS = [
-      { id: 'VIPER-01', callsign: 'VIPER-01', type: 'STRIKER', side: 'coalition', x: 140000, y: 90000, alt: 'FL240', spd: 480, fuel: 78, ammo: '4x AAM-3', task: 'COMBAT PATROL', angle: 0 },
-      { id: 'VIPER-02', callsign: 'VIPER-02', type: 'STRIKER', side: 'coalition', x: 132000, y: 95000, alt: 'FL240', spd: 480, fuel: 82, ammo: '4x AAM-3', task: 'TRAIL FORMATION', angle: 0 },
-      { id: 'RESCUE-01', callsign: 'RESCUE-01', type: 'CSAR_HELO', side: 'coalition', x: 115000, y: 135000, alt: '380 FT', spd: 135, fuel: 88, ammo: 'HOIST + 2x MED', task: 'CSAR EXTRACTION', angle: 0.35 },
-      { id: 'MULE-01', callsign: 'MULE-01', type: 'LOGISTICS', side: 'coalition', x: 90000, y: 120000, alt: 'GND', spd: 55, fuel: 91, ammo: 'CARGO (AMMO)', task: 'RESUPPLY WEST AB', angle: 0 },
-      { id: 'MISSILE-99', callsign: 'MISSILE-99', type: 'KINETIC_MISSILE', side: 'coalition', x: 185000, y: 98000, alt: 'FL260', spd: 1850, fuel: 100, ammo: 'HE FRAG (22KG)', task: 'TERMINAL INTERCEPT', angle: 0 },
-      { id: 'BANDIT-04', callsign: 'BANDIT-04', type: 'INTERCEPTOR', side: 'static', x: 275000, y: 105000, alt: 'FL280', spd: 520, fuel: 64, ammo: '2x SARH-6', task: 'CAP INTERCEPT', angle: Math.PI },
-      { id: 'STATIC-UAV', callsign: 'STATIC-UAV', type: 'RECON', side: 'static', x: 220000, y: 160000, alt: 'FL180', spd: 190, fuel: 45, ammo: 'EO/IR POD [LASER]', task: 'ISR SURVEILLANCE', angle: Math.PI * 0.8 }
+      { id: 'VIPER-01', callsign: 'VIPER-01', type: 'STRIKER', side: 'coalition', x: 140000, y: 90000, alt: 'FL240', spd: 480, fuel: 78, ammo: '4x AAM-3', task: 'COMBAT PATROL', angle: 0, roll: 0, pitch: 0, yawRate: 0, vz: 0, gLoad: 1.0, noeMasked: false, trail3D: [] },
+      { id: 'VIPER-02', callsign: 'VIPER-02', type: 'STRIKER', side: 'coalition', x: 132000, y: 95000, alt: 'FL240', spd: 480, fuel: 82, ammo: '4x AAM-3', task: 'TRAIL FORMATION', angle: 0, roll: 0, pitch: 0, yawRate: 0, vz: 0, gLoad: 1.0, noeMasked: false, trail3D: [] },
+      { id: 'RESCUE-01', callsign: 'RESCUE-01', type: 'CSAR_HELO', side: 'coalition', x: 115000, y: 135000, alt: '380 FT', spd: 135, fuel: 88, ammo: 'HOIST + 2x MED', task: 'CSAR EXTRACTION', angle: 0.35, roll: 0, pitch: -0.18, yawRate: 0, vz: 0, gLoad: 1.0, noeMasked: true, trail3D: [] },
+      { id: 'MULE-01', callsign: 'MULE-01', type: 'LOGISTICS', side: 'coalition', x: 90000, y: 120000, alt: 'GND', spd: 55, fuel: 91, ammo: 'CARGO (AMMO)', task: 'RESUPPLY WEST AB', angle: 0, roll: 0, pitch: 0, yawRate: 0, vz: 0, gLoad: 1.0, noeMasked: true, trail3D: [] },
+      { id: 'MISSILE-99', callsign: 'MISSILE-99', type: 'KINETIC_MISSILE', side: 'coalition', x: 185000, y: 98000, alt: 'FL260', spd: 1850, fuel: 100, ammo: 'HE FRAG (22KG)', task: 'TERMINAL INTERCEPT', angle: 0, roll: 0, pitch: 0, yawRate: 0, vz: 0, gLoad: 1.0, noeMasked: false, trail3D: [] },
+      { id: 'BANDIT-04', callsign: 'BANDIT-04', type: 'INTERCEPTOR', side: 'static', x: 275000, y: 105000, alt: 'FL280', spd: 520, fuel: 64, ammo: '2x SARH-6', task: 'CAP INTERCEPT', angle: Math.PI, roll: 0, pitch: 0, yawRate: 0, vz: 0, gLoad: 1.0, noeMasked: false, trail3D: [] },
+      { id: 'STATIC-UAV', callsign: 'STATIC-UAV', type: 'RECON', side: 'static', x: 220000, y: 160000, alt: 'FL180', spd: 190, fuel: 45, ammo: 'EO/IR POD [LASER]', task: 'ISR SURVEILLANCE', angle: Math.PI * 0.8, roll: 0, pitch: 0, yawRate: 0, vz: 0, gLoad: 1.0, noeMasked: false, trail3D: [] }
     ];
 
     let selectedUnitId = 'VIPER-01';
@@ -684,9 +693,50 @@
     let simTime = 0;
     let simPaused = false;
     let simSpeed = 1.0;
-    let cameraMode = 'orbit'; // 'orbit', 'chase', 'god', 'cockpit'
+    let cameraMode = 'orbit'; // 'orbit', 'chase', 'canyon', 'god', 'cockpit'
     let crtEnabled = false;
     let fowEnabled = false;
+    let canyonRunActive = false;
+    let bridgeSevered = false;
+    let nightMode = false;
+    let flirPolarity = 'white-hot';
+
+    function toggleBridgeState() {
+      bridgeSevered = !bridgeSevered;
+      const btn = document.getElementById('bridge-btn');
+      if (btn) {
+        btn.innerText = `BRIDGE: ${bridgeSevered ? 'SEVERED (NX-401)' : 'INTACT (NX-400)'}`;
+        btn.style.color = bridgeSevered ? 'var(--accent-red)' : 'var(--accent-green)';
+        btn.style.borderColor = bridgeSevered ? 'var(--accent-red)' : 'var(--border-color)';
+      }
+      if (viaductCenterSpan && viaductCenterSpan.userData && viaductCenterSpan.userData.intactPos) {
+        const uData = viaductCenterSpan.userData;
+        if (bridgeSevered) {
+          viaductCenterSpan.position.set(uData.intactPos.x, uData.intactPos.y - 18.0, uData.intactPos.z);
+          viaductCenterSpan.rotation.set(0.15, uData.intactRotY, 0.35);
+        } else {
+          viaductCenterSpan.position.copy(uData.intactPos);
+          viaductCenterSpan.rotation.set(0, uData.intactRotY, 0);
+        }
+      }
+      if (smokePlumeGroup) {
+        smokePlumeGroup.visible = bridgeSevered;
+      }
+      addEventLog(bridgeSevered
+        ? 'COMBAT ACTION: NORTH FJORD VIADUCT SEVERED (NX-401) // CENTER SPAN DROPPED'
+        : 'ENGINEERING: NORTH FJORD VIADUCT REPAIRED (NX-400) // SPAN INTACT');
+      playRadioSquelch();
+    }
+
+    function toggleNightMode() {
+      nightMode = !nightMode;
+      const btn = document.getElementById('night-btn');
+      if (btn) {
+        btn.innerText = `NIGHT: ${nightMode ? 'ON (AU-2)' : 'OFF'}`;
+        btn.style.color = nightMode ? 'var(--accent-cyan)' : '#f8fafc';
+      }
+      addEventLog(`AUDIO/VISUAL: NIGHT MODE ATTENUATION ${nightMode ? 'ACTIVE (AU-2 DYNAMIC RANGE)' : 'DISABLED'}`);
+    }
 
     function toggleFOW() {
       fowEnabled = !fowEnabled;
@@ -706,12 +756,17 @@
     let panX = 0, panY = 0, zoom = 1.0;
     let mouseWorldX = 200000, mouseWorldY = 60000;
 
+    let offscreenTopoCanvas = null;
+    let offscreenTopoCtx = null;
+    let topoCacheValid = false;
+
     function resizeGisCanvas() {
       gisCanvas.width = gisCanvas.clientWidth * window.devicePixelRatio;
       gisCanvas.height = gisCanvas.clientHeight * window.devicePixelRatio;
       zoom = gisCanvas.width / (THEATER_W * 1.15);
       panX = (gisCanvas.width - THEATER_W * zoom) / 2;
       panY = (gisCanvas.height - THEATER_H * zoom) / 2;
+      topoCacheValid = false;
       renderGisFrame();
     }
 
@@ -723,96 +778,145 @@
       return { wx: (sx - panX) / zoom, wy: (sy - panY) / zoom };
     }
 
-    function renderGisFrame() {
-      if (currentPillar !== 1) return;
-      const w = gisCanvas.width;
-      const h = gisCanvas.height;
-      gisCtx.clearRect(0, 0, w, h);
+    function renderStaticTopo(w, h) {
+      if (!offscreenTopoCanvas) {
+        offscreenTopoCanvas = document.createElement('canvas');
+      }
+      offscreenTopoCanvas.width = w;
+      offscreenTopoCanvas.height = h;
+      offscreenTopoCtx = offscreenTopoCanvas.getContext('2d');
+      const ctx = offscreenTopoCtx;
 
-      // 1. Shaded Relief Topography
       const p0 = worldToScreen(0, 0);
       const pMax = worldToScreen(THEATER_W, THEATER_H);
       const mapW = pMax.sx - p0.sx;
       const mapH = pMax.sy - p0.sy;
 
       // Outer border / ocean
-      gisCtx.fillStyle = "#06101d";
-      gisCtx.fillRect(0, 0, w, h);
+      ctx.fillStyle = "#06101d";
+      ctx.fillRect(0, 0, w, h);
 
       // Landmass tactical slate
-      gisCtx.fillStyle = "#0f172a";
-      gisCtx.fillRect(p0.sx, p0.sy, mapW, mapH);
+      ctx.fillStyle = "#0f172a";
+      ctx.fillRect(p0.sx, p0.sy, mapW, mapH);
 
       // Northern Mountain Relief Shading
-      const northGrad = gisCtx.createLinearGradient(0, p0.sy, 0, p0.sy + mapH * 0.35);
+      const northGrad = ctx.createLinearGradient(0, p0.sy, 0, p0.sy + mapH * 0.35);
       northGrad.addColorStop(0, '#1e293b');
       northGrad.addColorStop(1, '#0f172a');
-      gisCtx.fillStyle = northGrad;
-      gisCtx.fillRect(p0.sx, p0.sy, mapW, mapH * 0.35);
+      ctx.fillStyle = northGrad;
+      ctx.fillRect(p0.sx, p0.sy, mapW, mapH * 0.35);
 
       // Submarine Trench Strait (x: 182km to 218km)
       const st0 = worldToScreen(182000, 0);
       const st1 = worldToScreen(218000, THEATER_H);
-      const waterGrad = gisCtx.createLinearGradient(st0.sx, 0, st1.sx, 0);
+      const waterGrad = ctx.createLinearGradient(st0.sx, 0, st1.sx, 0);
       waterGrad.addColorStop(0, '#0284c7');
       waterGrad.addColorStop(0.25, '#034574');
       waterGrad.addColorStop(0.5, '#021e3d');
       waterGrad.addColorStop(0.75, '#034574');
       waterGrad.addColorStop(1, '#0284c7');
-      gisCtx.fillStyle = waterGrad;
-      gisCtx.fillRect(st0.sx, p0.sy, st1.sx - st0.sx, mapH);
+      ctx.fillStyle = waterGrad;
+      ctx.fillRect(st0.sx, p0.sy, st1.sx - st0.sx, mapH);
 
       // Shoreline Bevel Lines
-      gisCtx.strokeStyle = "#38bdf8";
-      gisCtx.lineWidth = 1.5;
-      gisCtx.beginPath();
-      gisCtx.moveTo(st0.sx, p0.sy); gisCtx.lineTo(st0.sx, pMax.sy);
-      gisCtx.moveTo(st1.sx, p0.sy); gisCtx.lineTo(st1.sx, pMax.sy);
-      gisCtx.stroke();
+      ctx.strokeStyle = "#38bdf8";
+      ctx.lineWidth = 1.5;
+      ctx.beginPath();
+      ctx.moveTo(st0.sx, p0.sy); ctx.lineTo(st0.sx, pMax.sy);
+      ctx.moveTo(st1.sx, p0.sy); ctx.lineTo(st1.sx, pMax.sy);
+      ctx.stroke();
 
       // Elevation Contours in Northern Ridge
-      gisCtx.strokeStyle = "rgba(148, 163, 184, 0.12)";
-      gisCtx.lineWidth = 1;
-      gisCtx.setLineDash([4, 4]);
+      ctx.strokeStyle = "rgba(148, 163, 184, 0.12)";
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 4]);
       for (let elev = 1; elev <= 3; elev++) {
         const cy = p0.sy + elev * 24;
-        gisCtx.beginPath();
-        gisCtx.moveTo(p0.sx, cy);
+        ctx.beginPath();
+        ctx.moveTo(p0.sx, cy);
         for (let x = p0.sx; x <= pMax.sx; x += 30) {
           const yOff = Math.sin(x * 0.02 + elev) * 6;
-          gisCtx.lineTo(x, cy + yOff);
+          ctx.lineTo(x, cy + yOff);
         }
-        gisCtx.stroke();
+        ctx.stroke();
       }
-      gisCtx.setLineDash([]);
+      ctx.setLineDash([]);
 
       // 2. MGRS Military Coordinate Grid Lines
-      gisCtx.strokeStyle = "rgba(56, 189, 248, 0.14)";
-      gisCtx.lineWidth = 1;
-      gisCtx.font = "9px monospace";
-      gisCtx.fillStyle = "rgba(56, 189, 248, 0.4)";
+      ctx.strokeStyle = "rgba(56, 189, 248, 0.14)";
+      ctx.lineWidth = 1;
+      ctx.font = "9px monospace";
+      ctx.fillStyle = "rgba(56, 189, 248, 0.4)";
 
       for (let x = 0; x <= THEATER_W; x += 20000) {
         const p = worldToScreen(x, 0);
-        gisCtx.beginPath();
-        gisCtx.moveTo(p.sx, p0.sy);
-        gisCtx.lineTo(p.sx, pMax.sy);
-        gisCtx.stroke();
-        gisCtx.fillText(`${x / 1000}k`, p.sx + 4, p0.sy + 12);
+        ctx.beginPath();
+        ctx.moveTo(p.sx, p0.sy);
+        ctx.lineTo(p.sx, pMax.sy);
+        ctx.stroke();
+        ctx.fillText(`${x / 1000}k`, p.sx + 4, p0.sy + 12);
       }
       for (let y = 0; y <= THEATER_H; y += 20000) {
         const p = worldToScreen(0, y);
-        gisCtx.beginPath();
-        gisCtx.moveTo(p0.sx, p.sy);
-        gisCtx.lineTo(pMax.sx, p.sy);
-        gisCtx.stroke();
-        gisCtx.fillText(`${y / 1000}k`, p0.sx + 4, p.sy - 4);
+        ctx.beginPath();
+        ctx.moveTo(p0.sx, p.sy);
+        ctx.lineTo(pMax.sx, p.sy);
+        ctx.stroke();
+        ctx.fillText(`${y / 1000}k`, p0.sx + 4, p.sy - 4);
       }
+      topoCacheValid = true;
+    }
+
+    function renderGisFrame() {
+      if (currentPillar !== 1) return;
+      const w = gisCanvas.width;
+      const h = gisCanvas.height;
+      gisCtx.clearRect(0, 0, w, h);
+
+      // Fast Cached Topographic Contours & MGRS Grid (OV-10)
+      if (!topoCacheValid || !offscreenTopoCanvas || offscreenTopoCanvas.width !== w || offscreenTopoCanvas.height !== h) {
+        renderStaticTopo(w, h);
+      }
+      gisCtx.drawImage(offscreenTopoCanvas, 0, 0);
 
       // 3. Road & Bridge Networks
       ROADS.forEach(([x1, y1, x2, y2, isBridge]) => {
         const pa = worldToScreen(x1, y1);
         const pb = worldToScreen(x2, y2);
+
+        // Check if this is the North Fjord Viaduct
+        const isNorthViaduct = isBridge && (y1 === 60000 && y2 === 60000);
+        if (isNorthViaduct && bridgeSevered) {
+          // Severed Viaduct: draw broken gap with red warning
+          const midX = (pa.sx + pb.sx) / 2;
+          const midY = (pa.sy + pb.sy) / 2;
+          const gapW = 18;
+
+          gisCtx.strokeStyle = "rgba(245, 158, 11, 0.75)";
+          gisCtx.lineWidth = 4.5;
+          gisCtx.beginPath();
+          gisCtx.moveTo(pa.sx, pa.sy); gisCtx.lineTo(midX - gapW, midY);
+          gisCtx.moveTo(midX + gapW, midY); gisCtx.lineTo(pb.sx, pb.sy);
+          gisCtx.stroke();
+
+          // Ruptured gap marker
+          gisCtx.strokeStyle = "#ef4444";
+          gisCtx.lineWidth = 2.5;
+          gisCtx.setLineDash([3, 3]);
+          gisCtx.beginPath();
+          gisCtx.moveTo(midX - gapW, midY - 6); gisCtx.lineTo(midX - gapW, midY + 6);
+          gisCtx.moveTo(midX + gapW, midY - 6); gisCtx.lineTo(midX + gapW, midY + 6);
+          gisCtx.stroke();
+          gisCtx.setLineDash([]);
+
+          gisCtx.fillStyle = "#ef4444";
+          gisCtx.font = "bold 8.5px monospace";
+          gisCtx.textAlign = "center";
+          gisCtx.fillText("[NX-401 SEVERED]", midX, midY - 10);
+          gisCtx.textAlign = "left";
+          return;
+        }
 
         gisCtx.beginPath();
         gisCtx.moveTo(pa.sx, pa.sy);
@@ -948,6 +1052,27 @@
         gisCtx.arc(pt.sx, pt.sy, 5, 0, Math.PI * 2);
         gisCtx.fill();
 
+        // The Static Enemy Glitch Crackle Ring (OV-2)
+        if (u.side === 'static') {
+          gisCtx.save();
+          gisCtx.strokeStyle = (Math.sin(simTime * 20.0 + u.x * 0.001) > 0) ? '#ff0055' : '#ef4444';
+          gisCtx.lineWidth = 1.5;
+          gisCtx.beginPath();
+          const numSpikes = 12;
+          for (let s = 0; s <= numSpikes; s++) {
+            const sAngle = (s / numSpikes) * Math.PI * 2;
+            const jitter = Math.sin(simTime * 25.0 + s * 3.7) * 4.5 + ((s % 2 === 0) ? 2.5 : -2.5);
+            const r = 12 + jitter;
+            const sx = pt.sx + Math.cos(sAngle) * r;
+            const sy = pt.sy + Math.sin(sAngle) * r;
+            if (s === 0) gisCtx.moveTo(sx, sy);
+            else gisCtx.lineTo(sx, sy);
+          }
+          gisCtx.closePath();
+          gisCtx.stroke();
+          gisCtx.restore();
+        }
+
         // Selection Ring
         if (u.id === selectedUnitId) {
           gisCtx.strokeStyle = "#f59e0b";
@@ -960,7 +1085,40 @@
         gisCtx.fillStyle = "#fff";
         gisCtx.font = "bold 10px monospace";
         gisCtx.fillText(`${u.callsign} [${u.spd}kts]`, pt.sx + 10, pt.sy - 6);
+
+        // Terrain-Masked Status Badge (AN-3)
+        if (u.noeMasked) {
+          gisCtx.fillStyle = "#00ffcc";
+          gisCtx.font = "bold 8.5px monospace";
+          gisCtx.fillText("[NOE MASKED]", pt.sx + 10, pt.sy + 8);
+        }
       });
+
+      // Tactical Annotations (AN-1..5): Canyon Ingress Spline Corridor
+      gisCtx.save();
+      gisCtx.strokeStyle = "rgba(0, 229, 255, 0.55)";
+      gisCtx.lineWidth = 1.5;
+      gisCtx.setLineDash([6, 4]);
+      gisCtx.beginPath();
+      const ingressWp = [
+        worldToScreen(110000, 75000),
+        worldToScreen(150000, 62000),
+        worldToScreen(185000, 48000),
+        worldToScreen(200000, 60000),
+        worldToScreen(225000, 52000),
+        worldToScreen(260000, 42000)
+      ];
+      ingressWp.forEach((wp, idx) => {
+        if (idx === 0) gisCtx.moveTo(wp.sx, wp.sy);
+        else gisCtx.lineTo(wp.sx, wp.sy);
+      });
+      gisCtx.stroke();
+      gisCtx.setLineDash([]);
+      const midWp = ingressWp[2];
+      gisCtx.fillStyle = "#00e5ff";
+      gisCtx.font = "bold 8.5px monospace";
+      gisCtx.fillText("AN-1 LOW-NOE CANYON INGRESS VECTOR [SAM MASKED]", midWp.sx - 50, midWp.sy - 8);
+      gisCtx.restore();
 
       // Tactical Laser Designation Assist Link (Recon -> Target)
       const uav = UNITS.find(u => u.id === 'STATIC-UAV');
@@ -1028,11 +1186,17 @@
        ========================================================================= */
     let scene, camera, renderer, controls;
     let terrainMesh, wireframeMesh, waterMesh, bridgeGroup, roadGroup;
+    let viaductCenterSpan = null;
+    let smokePlumeGroup = null;
+    let wingtipTrails = {};
+    let stagingConvoyPackets = [];
+    let stagingConvoyGroup = null;
     let unit3DMap = {};
     let dropLines = {};
     let groundRings = {};
     let radarSpire3D, radarSweepMesh, samThreatDomes;
     let ewGroup, jammerCone, noiseStrobeMesh, sarSatelliteSwath, sarSatelliteMarker;
+    let causalTreeGroup, synapticArcGroup;
     let flirCanvas, flirCtx;
     let cockpitCanvas, cockpitCtx;
 
@@ -1069,7 +1233,9 @@
 
       build3DTerrainWithVertexColors();
       build3DRoadsAndBridges();
+      buildSmokePlumeGroup();
       build3DCatalogUnits();
+      build3DWingtipTrails();
       buildHolographicThreatDomes();
       buildCognitiveNeuralBattlespace();
 
@@ -1087,7 +1253,7 @@
       renderer.render(scene, camera);
     }
 
-    /* Terrain with Dynamic Vertex Splatting (Sand, Grass, Rock, Snow) */
+    /* Terrain with Dynamic Vertex Splatting and Steep Cliff Rock Strata (Pillar 2) */
     function build3DTerrainWithVertexColors() {
       const geo = new THREE.PlaneGeometry(360, 216, 96, 64);
       geo.rotateX(-Math.PI / 2);
@@ -1104,9 +1270,22 @@
 
         pos.setY(i, elev * 0.038);
 
+        // Slope gradient computation for steep cliff rock striation
+        const dSamp = 1200;
+        const ex1 = sampleStraitElevation(wx + dSamp, wy);
+        const ex0 = sampleStraitElevation(wx - dSamp, wy);
+        const ey1 = sampleStraitElevation(wx, wy + dSamp);
+        const ey0 = sampleStraitElevation(wx, wy - dSamp);
+        const slope = Math.hypot((ex1 - ex0) / (2 * dSamp), (ey1 - ey0) / (2 * dSamp));
+
         const col = new THREE.Color();
         if (elev < 0) {
           col.setHex(0x0a192f); // Deep trench floor
+        } else if (slope > 0.022 && elev > 12) {
+          // Steep cliff rock striation shading: layered horizontal strata for dramatic rugged canyon walls
+          const strata = (Math.sin(elev * 0.22) + 1.0) * 0.5;
+          const rockLum = 0.16 + strata * 0.10;
+          col.setRGB(rockLum * 1.1, rockLum * 1.05, rockLum * 0.95);
         } else if (elev < 16) {
           col.setHex(0x6b725a); // Coastal sand / scrub
         } else if (elev < 200) {
@@ -1271,14 +1450,46 @@
           bridgeGroup.add(abutEast);
 
           if (isViaduct) {
-            // High Fjord Viaduct: Guardrails & Deep Concrete Canyon Pylons
+            // High Fjord Viaduct: Detachable / Collapsible Center Span (NX-400 / NX-401)
+            viaductCenterSpan = new THREE.Group();
+            const spanLen = totalDist * 0.42;
+            const midY = (elevA + elevB) / 2 + 0.15 + 0.35;
+
+            // Center road deck segment
+            const centerDeckGeo = new THREE.BoxGeometry(spanLen, 0.45, ROAD_W + 0.3);
+            const centerDeckMesh = new THREE.Mesh(centerDeckGeo, roadMat);
+            centerDeckMesh.position.set(0, 0, 0);
+            viaductCenterSpan.add(centerDeckMesh);
+
+            // Center guardrails attached to center span
             [-ROAD_W / 2 - 0.12, ROAD_W / 2 + 0.12].forEach(offset => {
-              const railGeo = new THREE.BoxGeometry(totalDist, 0.4, 0.2);
+              const railGeo = new THREE.BoxGeometry(spanLen, 0.4, 0.2);
               const rail = new THREE.Mesh(railGeo, trussMat);
-              const midY = (elevA + elevB) / 2 + 0.15 + 0.35;
-              rail.position.set(midX - perpX * offset, midY + 0.6, midZ - perpZ * offset);
-              rail.rotation.y = -angle;
-              bridgeGroup.add(rail);
+              rail.position.set(0, 0.45, offset);
+              viaductCenterSpan.add(rail);
+            });
+
+            viaductCenterSpan.position.set(midX, midY, midZ);
+            viaductCenterSpan.rotation.y = -angle;
+            viaductCenterSpan.userData = {
+              intactPos: new THREE.Vector3(midX, midY, midZ),
+              intactRotY: -angle
+            };
+            bridgeGroup.add(viaductCenterSpan);
+
+            // Stationary approach guardrails on canyon rims
+            const approachLen = (totalDist - spanLen) / 2;
+            [-ROAD_W / 2 - 0.12, ROAD_W / 2 + 0.12].forEach(offset => {
+              [-1, 1].forEach(side => {
+                const railGeo = new THREE.BoxGeometry(approachLen, 0.4, 0.2);
+                const rail = new THREE.Mesh(railGeo, trussMat);
+                const rOffset = side * (spanLen / 2 + approachLen / 2);
+                const rx = midX + dirX * rOffset - perpX * offset;
+                const rz = midZ + dirZ * rOffset - perpZ * offset;
+                rail.position.set(rx, midY + 0.45, rz);
+                rail.rotation.y = -angle;
+                bridgeGroup.add(rail);
+              });
             });
 
             // 4 Massive Viaduct Canyon Towers stepping down into gorge floor
@@ -1339,6 +1550,63 @@
 
       scene.add(roadGroup);
       scene.add(bridgeGroup);
+    }
+
+    /* Smoke and Fire Particle Plume for Severed Viaduct (NX-401) */
+    function buildSmokePlumeGroup() {
+      smokePlumeGroup = new THREE.Group();
+      smokePlumeGroup.position.set(0, 16.5, -54); // Canyon gorge center over viaduct gap
+      const partMatFire = new THREE.MeshBasicMaterial({ color: 0xf97316, transparent: true, opacity: 0.8 });
+      const partMatSmoke = new THREE.MeshBasicMaterial({ color: 0x475569, transparent: true, opacity: 0.5 });
+      for (let i = 0; i < 24; i++) {
+        const isFire = (i < 8);
+        const geo = new THREE.DodecahedronGeometry(0.7 + Math.random() * 0.7);
+        const p = new THREE.Mesh(geo, isFire ? partMatFire : partMatSmoke);
+        p.userData = {
+          baseX: (Math.random() - 0.5) * 8.0,
+          baseZ: (Math.random() - 0.5) * 4.0,
+          speedY: 2.2 + Math.random() * 3.5,
+          offsetTime: i * 0.22,
+          maxLife: 2.2 + Math.random() * 1.4,
+          isFire: isFire
+        };
+        p.position.set(p.userData.baseX, 0, p.userData.baseZ);
+        smokePlumeGroup.add(p);
+      }
+      smokePlumeGroup.visible = false;
+      scene.add(smokePlumeGroup);
+    }
+
+    /* 3D Wingtip Vapor Contrail Ribbons (VIPER-01, VIPER-02, BANDIT-04) */
+    function build3DWingtipTrails() {
+      ['VIPER-01', 'VIPER-02', 'BANDIT-04'].forEach(id => {
+        const isBandit = (id === 'BANDIT-04');
+        const col = isBandit ? 0xff4455 : 0x7dd3fc;
+        const trailMat = new THREE.MeshBasicMaterial({
+          color: col,
+          transparent: true,
+          opacity: 0.72,
+          side: THREE.DoubleSide,
+          depthWrite: false
+        });
+
+        const leftGeo = new THREE.BufferGeometry();
+        const rightGeo = new THREE.BufferGeometry();
+        const leftLine = new THREE.Mesh(leftGeo, trailMat);
+        const rightLine = new THREE.Mesh(rightGeo, trailMat);
+        leftLine.frustumCulled = false;
+        rightLine.frustumCulled = false;
+        scene.add(leftLine);
+        scene.add(rightLine);
+
+        wingtipTrails[id] = {
+          leftLine: leftLine,
+          rightLine: rightLine,
+          leftPoints: [],
+          rightPoints: [],
+          maxPoints: 50
+        };
+      });
     }
 
     /* Build 3D Unit Meshes with Altitude Drop-Lines and Ground Shadows */
@@ -1626,6 +1894,37 @@
       noiseStrobeMesh.position.set(0, 22, -20);
       ewGroup.add(noiseStrobeMesh);
 
+      // 4. Force Economy & Staging Telemetry (NX-412 / NX-416)
+      // Pulsing vector between The Static HQ [380k, 120k] and forward FOB-NE [290k, 40k]
+      stagingConvoyGroup = new THREE.Group();
+      const stPts = [
+        new THREE.Vector3(162, 10, 0),     // Static HQ (x:380km, y:120km)
+        new THREE.Vector3(120, 16, -35),   // Intermediate supply route
+        new THREE.Vector3(81, 14, -72)     // FOB North-East (x:290km, y:40km)
+      ];
+      const stCurve = new THREE.CatmullRomCurve3(stPts);
+      const stGeo = new THREE.BufferGeometry().setFromPoints(stCurve.getPoints(36));
+      const stMat = new THREE.LineDashedMaterial({
+        color: 0xff0055,
+        dashSize: 3.5,
+        gapSize: 2.0,
+        linewidth: 2
+      });
+      const stLine = new THREE.Line(stGeo, stMat);
+      stLine.computeLineDistances();
+      stagingConvoyGroup.add(stLine);
+
+      // 4 Moving Staging Supply Packets along vector
+      stagingConvoyPackets = [];
+      const packMat = new THREE.MeshBasicMaterial({ color: 0xff0055 });
+      for (let p = 0; p < 4; p++) {
+        const pMesh = new THREE.Mesh(new THREE.BoxGeometry(1.6, 1.6, 2.4), packMat);
+        pMesh.userData = { curve: stCurve, offset: p * 0.25 };
+        stagingConvoyGroup.add(pMesh);
+        stagingConvoyPackets.push(pMesh);
+      }
+      ewGroup.add(stagingConvoyGroup);
+
       ewGroup.visible = false;
       scene.add(ewGroup);
     }
@@ -1788,6 +2087,60 @@
       }
     }
 
+    // 5. The Static Enemy Hum Motif (AU-6: Dark Detuned Sub-Bass + Metallic Shimmer)
+    function playStaticHumMotif() {
+      if (!audioEnabled || !audioCtx) return;
+      const t = audioCtx.currentTime;
+      const osc1 = audioCtx.createOscillator();
+      const osc2 = audioCtx.createOscillator();
+      const gain = audioCtx.createGain();
+      const shimmerOsc = audioCtx.createOscillator();
+      const shimmerGain = audioCtx.createGain();
+
+      // Dark detuned sub-bass drone
+      osc1.type = 'sawtooth';
+      osc1.frequency.setValueAtTime(46, t);
+      osc1.frequency.linearRampToValueAtTime(42, t + 2.5);
+
+      osc2.type = 'sawtooth';
+      osc2.frequency.setValueAtTime(48.5, t); // 2.5Hz beat frequency
+      osc2.frequency.linearRampToValueAtTime(44.5, t + 2.5);
+
+      // Metallic shimmer
+      shimmerOsc.type = 'sine';
+      shimmerOsc.frequency.setValueAtTime(2450, t);
+      shimmerOsc.frequency.linearRampToValueAtTime(2850, t + 1.2);
+      shimmerOsc.frequency.linearRampToValueAtTime(2100, t + 2.5);
+
+      const filter = audioCtx.createBiquadFilter();
+      filter.type = 'lowpass';
+      filter.frequency.setValueAtTime(nightMode ? 140 : 280, t);
+
+      const mainGain = nightMode ? 0.08 : 0.16;
+      gain.gain.setValueAtTime(0.001, t);
+      gain.gain.linearRampToValueAtTime(mainGain, t + 0.6);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 2.5);
+
+      shimmerGain.gain.setValueAtTime(0.001, t);
+      shimmerGain.gain.linearRampToValueAtTime(nightMode ? 0.015 : 0.035, t + 0.8);
+      shimmerGain.gain.exponentialRampToValueAtTime(0.0001, t + 2.2);
+
+      osc1.connect(filter);
+      osc2.connect(filter);
+      filter.connect(gain);
+      gain.connect(audioCtx.destination);
+
+      shimmerOsc.connect(shimmerGain);
+      shimmerGain.connect(audioCtx.destination);
+
+      osc1.start(t);
+      osc2.start(t);
+      shimmerOsc.start(t);
+      osc1.stop(t + 2.6);
+      osc2.stop(t + 2.6);
+      shimmerOsc.stop(t + 2.6);
+    }
+
     /* =========================================================================
        5. PILLAR SWITCHING & CONTROLS
        ========================================================================= */
@@ -1806,9 +2159,13 @@
         vp1.classList.add('active');
         vpThree.classList.remove('active');
         resizeGisCanvas();
+        const p4Hud = document.getElementById('pillar4-economy-hud');
+        if (p4Hud) p4Hud.style.display = 'none';
       } else {
         vp1.classList.remove('active');
         vpThree.classList.add('active');
+        const p4Hud = document.getElementById('pillar4-economy-hud');
+        if (p4Hud) p4Hud.style.display = (num === 4 ? 'block' : 'none');
 
         if (num === 2) {
           hudTitle.innerText = "TEXTURED 3D RTS BATTLESPACE";
@@ -1831,7 +2188,7 @@
           samThreatDomes.visible = true;
           if (ewGroup) ewGroup.visible = false;
         } else if (num === 4) {
-          hudTitle.innerText = "COGNITIVE NEURAL BATTLESPACE";
+          hudTitle.innerText = "COGNITIVE NEURAL BATTLESPACE // NX-412 & NX-416 FORCE ECONOMY";
           badge.innerText = "AI DECISION LATTICE";
           badge.style.color = "#d946ef";
           terrainMesh.visible = false;
@@ -1840,6 +2197,7 @@
           bridgeGroup.visible = true;
           samThreatDomes.visible = true;
           if (ewGroup) ewGroup.visible = true;
+          playStaticHumMotif();
         }
 
         camera.aspect = vpThree.clientWidth / vpThree.clientHeight;
@@ -1922,13 +2280,58 @@
         }
       }
 
+      if (mode === 'canyon') {
+        canyonRunActive = true;
+        selectUnit('VIPER-01');
+        camera.fov = 62;
+        camera.updateProjectionMatrix();
+        // Pre-warm 30 steps so wingtip vapor ribbons and 6-DOF roll/pitch are immediately active
+        for (let i = 0; i < 30; i++) {
+          simTime += 0.05;
+          updateKinematics(0.05);
+          if (scene) update3DVisuals(0.05);
+        }
+        if (unit3DMap['VIPER-01']) {
+          const v1 = UNITS.find(un => un.id === 'VIPER-01');
+          const pos = unit3DMap['VIPER-01'].position;
+          const fwdX = Math.cos(v1.angle);
+          const fwdZ = Math.sin(v1.angle);
+          const rightX = -fwdZ;
+          const rightZ = fwdX;
+          camera.position.set(
+            pos.x - fwdX * 26 + rightX * 5.0,
+            pos.y + 4.8,
+            pos.z - fwdZ * 26 + rightZ * 5.0
+          );
+          controls.target.set(
+            pos.x + fwdX * 35,
+            pos.y - 1.2,
+            pos.z + fwdZ * 35
+          );
+        }
+        playFlybyDoppler();
+        addEventLog("CAMERA: CANYON RUN POV // VIPER-01 LOW NOE CANYON INGRESS");
+      } else {
+        if (camera.fov !== 45) {
+          camera.fov = 45;
+          camera.updateProjectionMatrix();
+        }
+      }
+
+      if (mode !== 'cockpit' && mode !== 'canyon') {
+        camera.up.set(0, 1, 0);
+      }
+
       if (mode === 'god') {
+        camera.up.set(0, 1, 0);
         camera.position.set(0, 280, 0);
         controls.target.set(0, 0, 0);
       } else if (mode === 'orbit') {
+        camera.up.set(0, 1, 0);
         camera.position.set(0, 160, 240);
         controls.target.set(0, 0, 0);
       } else if (mode === 'chase') {
+        camera.up.set(0, 1, 0);
         playFlybyDoppler();
       } else if (mode === 'cockpit') {
         playRadioSquelch();
@@ -1997,8 +2400,337 @@
     }
 
     /* =========================================================================
-       6. MAIN ANIMATION & SIMULATION LOOP
+       6. 6-DOF KINEMATICS, SIMULATION & MAIN ANIMATION LOOP
        ========================================================================= */
+    function updateKinematics(dt) {
+      const v1 = UNITS.find(u => u.id === 'VIPER-01');
+      const v2 = UNITS.find(u => u.id === 'VIPER-02');
+      const b4 = UNITS.find(u => u.id === 'BANDIT-04');
+      const m1 = UNITS.find(u => u.id === 'MULE-01');
+      const r1 = UNITS.find(u => u.id === 'RESCUE-01');
+      const mis = UNITS.find(u => u.id === 'MISSILE-99');
+
+      if (canyonRunActive) {
+        // Low-Altitude Canyon Run Spline Corridor weaving through Northern Mountain Canyon & Viaduct Gorge
+        const t1 = simTime * 0.55 + 1.15;
+        const cx = 195000;
+        const cy = 54000;
+
+        if (v1) {
+          v1.x = cx + Math.cos(t1) * 58000 + Math.sin(t1 * 2.0) * 24000;
+          v1.y = cy + Math.sin(t1) * 16000 + Math.cos(t1 * 2.8) * 15000 + Math.sin(t1 * 4.2) * 7500;
+          const groundElev = sampleStraitElevation(v1.x, v1.y);
+          // Dive deep into canyon gorge below mountain ridges (NOE terrain-hugging altitude)
+          v1.customAltScene = Math.max(groundElev * 0.038 + 2.6, 5.2 + Math.sin(t1 * 2.5) * 2.4 + Math.cos(t1 * 1.8) * 1.6);
+        }
+
+        if (v2) {
+          const t2 = t1 - 0.65;
+          v2.x = cx + Math.cos(t2) * 58000 + Math.sin(t2 * 2.0) * 24000 - 12000;
+          v2.y = cy + Math.sin(t2) * 16000 + Math.cos(t2 * 2.8) * 15000 + Math.sin(t2 * 4.2) * 7500 + 8000;
+          const groundElev2 = sampleStraitElevation(v2.x, v2.y);
+          v2.customAltScene = Math.max(groundElev2 * 0.038 + 3.4, 6.2 + Math.sin(t2 * 2.5) * 2.4 + Math.cos(t2 * 1.8) * 1.6);
+        }
+
+        if (b4) {
+          const tb = t1 + 0.38;
+          b4.x = cx + Math.cos(tb) * 56000 + Math.sin(tb * 2.0) * 22000;
+          b4.y = cy + Math.sin(tb) * 15000 + Math.cos(tb * 2.8) * 14000;
+          const groundElevB = sampleStraitElevation(b4.x, b4.y);
+          b4.customAltScene = Math.max(groundElevB * 0.038 + 3.1, 5.8 + Math.sin(tb * 2.2) * 2.2);
+        }
+      } else {
+        // Standard combat air patrol circuits
+        if (v1) {
+          const rad1 = simTime * 0.35;
+          v1.x = 135000 + Math.cos(rad1) * 42000;
+          v1.y = 112000 + Math.sin(rad1) * 28000;
+          v1.customAltScene = null;
+        }
+
+        if (v2 && v1) {
+          v2.x = v1.x - Math.cos(v1.angle) * 7000;
+          v2.y = v1.y - Math.sin(v1.angle) * 7000;
+          v2.customAltScene = null;
+        }
+
+        if (b4) {
+          const radB = simTime * 0.28;
+          b4.x = 280000 - Math.cos(radB) * 40000;
+          b4.y = 110000 - Math.sin(radB) * 30000;
+          b4.customAltScene = null;
+        }
+      }
+
+      // Ground Hauler (MULE-01) conformed patrol along road network
+      if (m1) {
+        const tLogi = (Math.sin(simTime * 0.4) + 1.0) / 2.0;
+        m1.x = 90000 + tLogi * (130000 - 90000);
+        m1.y = 120000 + tLogi * (60000 - 120000);
+        m1.angle = Math.atan2(60000 - 120000, 130000 - 90000);
+
+        // Sample sampleStraitElevation ahead and behind along heading for road grade pitch
+        const fwdX = Math.cos(m1.angle);
+        const fwdY = Math.sin(m1.angle);
+        const perpX = -fwdY;
+        const perpY = fwdX;
+        const sampleDist = 1400;
+        const elevAhead = sampleStraitElevation(m1.x + fwdX * sampleDist, m1.y + fwdY * sampleDist);
+        const elevBehind = sampleStraitElevation(m1.x - fwdX * sampleDist, m1.y - fwdY * sampleDist);
+        const distScene = (2 * sampleDist / THEATER_W) * 360;
+        m1.pitch = Math.atan2((elevAhead - elevBehind) * 0.038, distScene);
+
+        // Lateral slope roll
+        const elevLeft = sampleStraitElevation(m1.x + perpX * 800, m1.y + perpY * 800);
+        const elevRight = sampleStraitElevation(m1.x - perpX * 800, m1.y - perpY * 800);
+        m1.roll = Math.atan2((elevLeft - elevRight) * 0.038, (1600 / THEATER_H) * 216) * 0.35;
+        m1.gLoad = 1.0;
+        m1.noeMasked = true;
+      }
+
+      // CSAR Helicopter (RESCUE-01) low-altitude nap-of-the-earth patrol
+      if (r1) {
+        const radR = simTime * 0.24;
+        r1.x = 115000 + Math.sin(radR) * 26000;
+        r1.y = 140000 + Math.cos(radR) * 16000;
+        const lastX = r1.lastX !== undefined ? r1.lastX : r1.x;
+        const lastY = r1.lastY !== undefined ? r1.lastY : r1.y;
+        const dx = r1.x - lastX;
+        const dy = r1.y - lastY;
+        if (Math.hypot(dx, dy) > 0.05) {
+          const newAngle = Math.atan2(dy, dx);
+          let dAngle = newAngle - (r1.angle || 0);
+          while (dAngle > Math.PI) dAngle -= 2 * Math.PI;
+          while (dAngle < -Math.PI) dAngle += 2 * Math.PI;
+          r1.yawRate = dAngle / Math.max(0.001, dt);
+          r1.angle = newAngle;
+        }
+        // Cyclic nose-down pitch during forward ingress (-0.18 rad)
+        r1.pitch = -0.18;
+        // Coordinated lateral roll in turns
+        const targetRoll = Math.max(-0.45, Math.min(0.45, -Math.atan(r1.yawRate * 8.0)));
+        r1.roll = (r1.roll || 0) + (targetRoll - (r1.roll || 0)) * (1.0 - Math.exp(-dt * 5.0));
+        r1.gLoad = 1.1 + Math.abs(r1.yawRate) * 0.8;
+        r1.noeMasked = true;
+        r1.lastX = r1.x;
+        r1.lastY = r1.y;
+      }
+
+      // Kinetic Missile (MISSILE-99) Mach 3 terminal intercept
+      if (mis && v1 && b4) {
+        const tMis = (simTime * 0.35) % 1.0;
+        mis.x = v1.x + tMis * (b4.x - v1.x);
+        mis.y = v1.y + tMis * (b4.y - v1.y);
+        mis.angle = Math.atan2(b4.y - v1.y, b4.x - v1.x);
+
+        const horizDist = Math.hypot(b4.x - mis.x, b4.y - mis.y) * (360 / THEATER_W);
+        const b4Alt = b4.customAltScene !== undefined && b4.customAltScene !== null
+          ? b4.customAltScene
+          : (sampleStraitElevation(b4.x, b4.y) * 0.038 + 22.0);
+        const misAlt = sampleStraitElevation(mis.x, mis.y) * 0.038 + 23.5;
+        // Pitch toward target altitude
+        mis.pitch = Math.atan2(b4Alt - misAlt, Math.max(1.0, horizDist));
+        // Rapid ballistic roll
+        mis.roll = simTime * 14.0;
+        mis.gLoad = 18.5;
+        mis.noeMasked = false;
+      }
+
+      // Derive 6-DOF Kinematics for Jets (VIPER-01, VIPER-02, BANDIT-04)
+      [v1, v2, b4].forEach(u => {
+        if (!u) return;
+        const lastX = u.lastX !== undefined ? u.lastX : u.x;
+        const lastY = u.lastY !== undefined ? u.lastY : u.y;
+        const dx = u.x - lastX;
+        const dy = u.y - lastY;
+        const horizDist = Math.hypot(dx, dy);
+
+        if (horizDist > 0.05) {
+          const newAngle = Math.atan2(dy, dx);
+          let dAngle = newAngle - (u.angle || 0);
+          while (dAngle > Math.PI) dAngle -= 2 * Math.PI;
+          while (dAngle < -Math.PI) dAngle += 2 * Math.PI;
+          u.yawRate = dAngle / Math.max(0.001, dt);
+          u.angle = newAngle;
+        }
+
+        // Target Roll from turn rate clamped to +/-1.25 rad (~72 deg)
+        const bankSens = canyonRunActive ? 3.2 : 1.8;
+        const rawRoll = -Math.atan(u.yawRate * bankSens) + (canyonRunActive ? Math.sin(simTime * 1.9 + (u.id === 'BANDIT-04' ? 1.2 : 0.4)) * 0.55 : 0);
+        const targetRoll = Math.max(-1.25, Math.min(1.25, rawRoll));
+        // Exponential damping
+        u.roll = (u.roll || 0) + (targetRoll - (u.roll || 0)) * (1.0 - Math.exp(-dt * 8.0));
+
+        // Altitude & Climb Rate (vz)
+        const currentAltScene = u.customAltScene !== undefined && u.customAltScene !== null
+          ? u.customAltScene
+          : (sampleStraitElevation(u.x, u.y) * 0.038 + 22.0);
+        const lastAlt = u.lastAltScene !== undefined ? u.lastAltScene : currentAltScene;
+        u.vz = (currentAltScene - lastAlt) / Math.max(0.001, dt);
+        u.lastAltScene = currentAltScene;
+
+        // Target Pitch from climb rate vz + high-G AoA pull
+        const climbAngle = Math.atan2(u.vz * 2.5, Math.max(1.0, horizDist * (360 / THEATER_W) / Math.max(0.001, dt)));
+        const aoaPull = Math.abs(u.roll) * 0.14;
+        const targetPitch = Math.max(-0.65, Math.min(0.65, climbAngle + aoaPull));
+        u.pitch = (u.pitch || 0) + (targetPitch - (u.pitch || 0)) * (1.0 - Math.exp(-dt * 8.0));
+
+        // G-Load from sqrt(1 + (v * omega / g)^2) reaching 4.5G-7.8G in tight canyon turns
+        const turnAcc = Math.abs(u.yawRate) * (canyonRunActive ? 3.4 : 2.2);
+        const bankG = 1.0 / Math.max(0.28, Math.cos(u.roll));
+        const dynamicG = Math.sqrt(1.0 + turnAcc * turnAcc) * (0.55 + 0.45 * bankG) + Math.max(0, u.vz * 0.25);
+        u.gLoad = Math.max(1.0, Math.min(8.5, dynamicG));
+
+        // Terrain-Masked NOE Check: AGL altitude vs canyon ridge threshold
+        const groundElevMeters = sampleStraitElevation(u.x, u.y);
+        const aglMeters = (currentAltScene / 0.038) - groundElevMeters;
+        u.noeMasked = canyonRunActive || (u.y < 110000 && aglMeters < 260.0);
+
+        u.lastX = u.x;
+        u.lastY = u.y;
+      });
+    }
+
+    function update3DVisuals(dt) {
+      // Map simulation coordinates to 3D Three.js scene with full 6-DOF
+      Object.entries(unit3DMap).forEach(([id, obj]) => {
+        const u = UNITS.find(un => un.id === id);
+        if (!u) return;
+        const x3d = (u.x / THEATER_W - 0.5) * 360;
+        const z3d = (u.y / THEATER_H - 0.5) * 216;
+        const elev = sampleStraitElevation(u.x, u.y) * 0.038;
+
+        let flightAlt;
+        if (u.alt === 'GND') {
+          // Ground unit: sits directly on conformed road (+0.14 units)
+          flightAlt = elev + 0.14;
+        } else if (u.type === 'CSAR_HELO') {
+          flightAlt = elev + 6.8;
+        } else if (u.type === 'KINETIC_MISSILE') {
+          flightAlt = elev + 23.5;
+        } else if (u.customAltScene !== undefined && u.customAltScene !== null) {
+          flightAlt = u.customAltScene;
+        } else {
+          flightAlt = elev + 22.0;
+        }
+
+        obj.position.set(x3d, flightAlt, z3d);
+
+        // Update altitude drop-line and ground shadow ring (hide in close-up canyon/cockpit views)
+        if (dropLines[id] && groundRings[id]) {
+          const showTacticalDrop = (cameraMode !== 'canyon' && cameraMode !== 'cockpit');
+          dropLines[id].visible = showTacticalDrop;
+          groundRings[id].visible = showTacticalDrop;
+          const diff = Math.max(0.1, flightAlt - elev);
+          dropLines[id].scale.y = diff / 20.0;
+          groundRings[id].position.y = -diff + 0.15;
+        }
+
+        // Apply full 6-DOF rotation (order = 'YXZ')
+        obj.rotation.order = 'YXZ';
+        obj.rotation.y = -u.angle + Math.PI / 2;
+        obj.rotation.x = u.pitch || 0;
+        obj.rotation.z = u.roll || 0;
+      });
+
+      // Rotate radar dish & sweep cone
+      if (radarSpire3D) radarSpire3D.children[1].rotation.y = simTime * 1.8;
+      if (radarSweepMesh) radarSweepMesh.rotation.z = -simTime * 1.2;
+
+      // Animate Volumetric EW, Causal Decision Nodes, and Staging Convoy (Pillar 4)
+      if (ewGroup && ewGroup.visible) {
+        if (unit3DMap['VIPER-01']) {
+          const vPos = unit3DMap['VIPER-01'].position;
+          jammerCone.position.set(vPos.x + 30, vPos.y, vPos.z);
+          jammerCone.rotation.y = -Math.PI / 2;
+          const pulse = 1.0 + Math.sin(simTime * 4.0) * 0.08;
+          jammerCone.scale.set(pulse, pulse, 1.0);
+
+          if (noiseStrobeMesh) {
+            noiseStrobeMesh.position.set(vPos.x + 55, vPos.y, vPos.z);
+            noiseStrobeMesh.rotation.y = -Math.PI / 2;
+          }
+        }
+
+        if (causalTreeGroup) {
+          const pulse = 1.0 + Math.sin(simTime * 3.5) * 0.15;
+          causalTreeGroup.children.forEach(child => {
+            if (child.isMesh) child.scale.set(pulse, pulse, pulse);
+          });
+        }
+
+        if (stagingConvoyPackets && stagingConvoyPackets.length > 0) {
+          stagingConvoyPackets.forEach(p => {
+            const tSt = (simTime * 0.06 + p.userData.offset) % 1.0;
+            const pos = p.userData.curve.getPointAt(tSt);
+            p.position.copy(pos);
+            const tang = p.userData.curve.getTangentAt(tSt);
+            p.lookAt(pos.clone().add(tang));
+          });
+          const stBadge = document.getElementById('staging-vector-badge');
+          if (stBadge) {
+            const pOp = 0.5 + 0.5 * Math.sin(simTime * 5.0);
+            stBadge.style.opacity = pOp.toFixed(2);
+          }
+        }
+      }
+
+      // Animate Severed Viaduct Smoke/Fire Plume
+      if (smokePlumeGroup && smokePlumeGroup.visible) {
+        smokePlumeGroup.children.forEach(p => {
+          const tPlume = (simTime * 1.2 + p.userData.offsetTime) % p.userData.maxLife;
+          const prog = tPlume / p.userData.maxLife;
+          p.position.y = prog * 18.0;
+          p.position.x = p.userData.baseX + Math.sin(simTime * 2.5 + p.userData.offsetTime) * (prog * 4.5);
+          p.position.z = p.userData.baseZ + Math.cos(simTime * 2.0 + p.userData.offsetTime) * (prog * 3.0);
+          const scale = 1.0 + prog * 2.8;
+          p.scale.set(scale, scale, scale);
+          p.material.opacity = (1.0 - prog) * (p.userData.isFire ? 0.85 : 0.45);
+        });
+      }
+
+      // Update 3D Wingtip Vapor Contrail Ribbons
+      function updateRibbonGeo(geo, pts, halfW) {
+        if (pts.length < 2) return;
+        const verts = [];
+        for (let i = 0; i < pts.length - 1; i++) {
+          const p0 = pts[i];
+          const p1 = pts[i + 1];
+          const w0 = halfW * (1.0 - i / pts.length);
+          const w1 = halfW * (1.0 - (i + 1) / pts.length);
+          verts.push(
+            p0.x - w0, p0.y, p0.z - w0,
+            p0.x + w0, p0.y + w0 * 0.5, p0.z + w0,
+            p1.x - w1, p1.y, p1.z - w1,
+            p0.x + w0, p0.y + w0 * 0.5, p0.z + w0,
+            p1.x + w1, p1.y + w1 * 0.5, p1.z + w1,
+            p1.x - w1, p1.y, p1.z - w1
+          );
+        }
+        geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
+      }
+
+      ['VIPER-01', 'VIPER-02', 'BANDIT-04'].forEach(id => {
+        const obj = unit3DMap[id];
+        const tr = wingtipTrails[id];
+        if (!obj || !tr) return;
+        obj.updateMatrixWorld(true);
+
+        const leftTipLocal = new THREE.Vector3(-4.2, 0, -1.0);
+        const rightTipLocal = new THREE.Vector3(4.2, 0, -1.0);
+        const leftTipWorld = leftTipLocal.applyMatrix4(obj.matrixWorld);
+        const rightTipWorld = rightTipLocal.applyMatrix4(obj.matrixWorld);
+
+        tr.leftPoints.unshift(leftTipWorld);
+        if (tr.leftPoints.length > tr.maxPoints) tr.leftPoints.pop();
+        updateRibbonGeo(tr.leftLine.geometry, tr.leftPoints, 0.35);
+
+        tr.rightPoints.unshift(rightTipWorld);
+        if (tr.rightPoints.length > tr.maxPoints) tr.rightPoints.pop();
+        updateRibbonGeo(tr.rightLine.geometry, tr.rightPoints, 0.35);
+      });
+    }
+
     let lastTime = performance.now();
     let frameCount = 0;
 
@@ -2021,126 +2753,13 @@
         document.getElementById('fps-counter').innerText = Math.round(1.0 / dt);
       }
 
-      // Kinematic flight updates for air units
-      const v1 = UNITS.find(u => u.id === 'VIPER-01');
-      if (v1) {
-        const rad1 = simTime * 0.35;
-        v1.x = 140000 + Math.cos(rad1) * 45000;
-        v1.y = 90000 + Math.sin(rad1) * 35000;
-        v1.angle = rad1 + Math.PI / 2;
-      }
-
-      const v2 = UNITS.find(u => u.id === 'VIPER-02');
-      if (v2 && v1) {
-        v2.x = v1.x - Math.cos(v1.angle) * 7000;
-        v2.y = v1.y - Math.sin(v1.angle) * 7000;
-        v2.angle = v1.angle;
-      }
-
-      const b4 = UNITS.find(u => u.id === 'BANDIT-04');
-      if (b4) {
-        const radB = simTime * 0.28;
-        b4.x = 280000 - Math.cos(radB) * 40000;
-        b4.y = 110000 - Math.sin(radB) * 30000;
-        b4.angle = -radB - Math.PI / 2;
-      }
-
-      // Ground Hauler (MULE-01) conformed patrol along road network
-      const m1 = UNITS.find(u => u.id === 'MULE-01');
-      if (m1) {
-        const tLogi = (Math.sin(simTime * 0.4) + 1.0) / 2.0;
-        m1.x = 90000 + tLogi * (130000 - 90000);
-        m1.y = 120000 + tLogi * (60000 - 120000);
-        m1.angle = Math.atan2(60000 - 120000, 130000 - 90000);
-      }
-
-      // CSAR Helicopter (RESCUE-01) low-altitude nap-of-the-earth patrol
-      const r1 = UNITS.find(u => u.id === 'RESCUE-01');
-      if (r1) {
-        const radR = simTime * 0.24;
-        r1.x = 115000 + Math.sin(radR) * 26000;
-        r1.y = 140000 + Math.cos(radR) * 16000;
-        r1.angle = radR + Math.PI / 2;
-      }
-
-      // Kinetic Missile (MISSILE-99) Mach 3 terminal intercept
-      const mis = UNITS.find(u => u.id === 'MISSILE-99');
-      if (mis && v1 && b4) {
-        const tMis = (simTime * 0.35) % 1.0;
-        mis.x = v1.x + tMis * (b4.x - v1.x);
-        mis.y = v1.y + tMis * (b4.y - v1.y);
-        mis.angle = Math.atan2(b4.y - v1.y, b4.x - v1.x);
-      }
+      // 6-DOF Kinematic simulation update
+      updateKinematics(dt);
 
       if (currentPillar === 1) {
         renderGisFrame();
       } else if (scene && renderer) {
-        // Map simulation coordinates to 3D Three.js scene
-        Object.entries(unit3DMap).forEach(([id, obj]) => {
-          const u = UNITS.find(un => un.id === id);
-          if (!u) return;
-          const x3d = (u.x / THEATER_W - 0.5) * 360;
-          const z3d = (u.y / THEATER_H - 0.5) * 216;
-          const elev = sampleStraitElevation(u.x, u.y) * 0.038;
-
-          if (u.alt === 'GND') {
-            // Ground unit: sits directly on conformed road (+0.12 units)
-            obj.position.set(x3d, elev + 0.14, z3d);
-          } else if (u.type === 'CSAR_HELO') {
-            // Low-altitude nap-of-the-earth flight (+6.8 units above terrain)
-            const flightAlt = elev + 6.8;
-            obj.position.set(x3d, flightAlt, z3d);
-            if (dropLines[id] && groundRings[id]) {
-              const diff = flightAlt - elev;
-              dropLines[id].scale.y = diff / 20.0;
-              groundRings[id].position.y = -diff + 0.15;
-            }
-          } else if (u.type === 'KINETIC_MISSILE') {
-            // Mach 3 missile intercept altitude
-            const flightAlt = elev + 23.5;
-            obj.position.set(x3d, flightAlt, z3d);
-          } else {
-            // Air unit: flies at altitude (+22 units above terrain)
-            const flightAlt = elev + 22;
-            obj.position.set(x3d, flightAlt, z3d);
-
-            // Update altitude drop-line and ground shadow ring
-            if (dropLines[id] && groundRings[id]) {
-              const diff = flightAlt - elev;
-              dropLines[id].scale.y = diff / 20.0;
-              groundRings[id].position.y = -diff + 0.15;
-            }
-          }
-          obj.rotation.y = -u.angle + Math.PI / 2;
-        });
-
-        // Rotate radar dish & sweep cone
-        if (radarSpire3D) radarSpire3D.children[1].rotation.y = simTime * 1.8;
-        if (radarSweepMesh) radarSweepMesh.rotation.z = -simTime * 1.2;
-
-        // Animate Volumetric EW & Orbital SAR (Pillar 4)
-        if (ewGroup && ewGroup.visible) {
-          if (unit3DMap['VIPER-01']) {
-            const vPos = unit3DMap['VIPER-01'].position;
-            jammerCone.position.set(vPos.x + 30, vPos.y, vPos.z);
-            jammerCone.rotation.y = -Math.PI / 2;
-            const pulse = 1.0 + Math.sin(simTime * 4.0) * 0.08;
-            jammerCone.scale.set(pulse, pulse, 1.0);
-
-            if (noiseStrobeMesh) {
-              noiseStrobeMesh.position.set(vPos.x + 55, vPos.y, vPos.z);
-              noiseStrobeMesh.rotation.y = -Math.PI / 2;
-            }
-          }
-
-          // Pulse Causal Decision nodes and Synaptic Arcs
-          if (causalTreeGroup) {
-            const pulse = 1.0 + Math.sin(simTime * 3.5) * 0.15;
-            causalTreeGroup.children.forEach(child => {
-              if (child.isMesh) child.scale.set(pulse, pulse, pulse);
-            });
-          }
-        }
+        update3DVisuals(dt);
 
         // Broadcast AI Auto-Director with Smart Combat Priority & Anti-Spam Pacing
         if (isDirectorActive) {
@@ -2198,7 +2817,34 @@
               controls.target.lerp(new THREE.Vector3(99, 1.0, 0), 0.018);
             }
           }
+        } else if (cameraMode === 'canyon' && unit3DMap['VIPER-01']) {
+          const v1 = UNITS.find(un => un.id === 'VIPER-01');
+          const obj = unit3DMap['VIPER-01'];
+          const pos = obj.position;
+          const fwdX = Math.cos(v1.angle);
+          const fwdZ = Math.sin(v1.angle);
+          const rightX = -fwdZ;
+          const rightZ = fwdX;
+
+          // Tight, low-altitude dynamic chase camera slightly offset behind and above VIPER-01 (fov = 62)
+          const targetCamPos = new THREE.Vector3(
+            pos.x - fwdX * 26 + rightX * 5.0,
+            pos.y + 4.8,
+            pos.z - fwdZ * 26 + rightZ * 5.0
+          );
+          camera.position.lerp(targetCamPos, 0.18);
+
+          const lookTarget = new THREE.Vector3(
+            pos.x + fwdX * 35,
+            pos.y - 1.2,
+            pos.z + fwdZ * 35
+          );
+          controls.target.lerp(lookTarget, 0.18);
+
+          // Bank subtly with jet roll
+          camera.up.set(Math.sin((v1.roll || 0) * 0.35), Math.cos((v1.roll || 0) * 0.35), 0);
         } else if (cameraMode === 'chase' && unit3DMap[selectedUnitId]) {
+          camera.up.set(0, 1, 0);
           const target = unit3DMap[selectedUnitId].position;
           camera.position.set(target.x - 35, target.y + 15, target.z + 35);
           controls.target.copy(target);
@@ -2210,6 +2856,9 @@
             Object.entries(unit3DMap).forEach(([id, o]) => {
               o.visible = (id !== selectedUnitId);
             });
+
+            // Tilt the 3D cockpit camera roll so external mountains/canyon visibly roll outside canopy glass
+            camera.up.set(Math.sin((u.roll || 0) * 0.65), Math.cos((u.roll || 0) * 0.65), 0);
 
             const fwdX = Math.cos(u.angle);
             const fwdZ = Math.sin(u.angle);
@@ -2283,12 +2932,13 @@
       const h = 160;
 
       if (pipMode === 'flir') {
-        // 1. FLIR WHITE-HOT INFRARED SENSOR
-        flirCtx.fillStyle = "#030813";
+        // 1. FLIR THERMAL SENSOR WITH POLARITY TOGGLE, BLOOM & FLARE COUNTERMEASURES
+        const isWhiteHot = (flirPolarity === 'white-hot');
+        flirCtx.fillStyle = isWhiteHot ? "#030813" : "#1a2530";
         flirCtx.fillRect(0, 0, w, h);
 
         // Raster reticle
-        flirCtx.strokeStyle = "rgba(0, 229, 255, 0.35)";
+        flirCtx.strokeStyle = isWhiteHot ? "rgba(0, 229, 255, 0.35)" : "rgba(255, 255, 255, 0.4)";
         flirCtx.lineWidth = 1;
         flirCtx.beginPath();
         flirCtx.moveTo(w / 2, 18); flirCtx.lineTo(w / 2, h - 18);
@@ -2299,25 +2949,51 @@
         const tx = w / 2 + Math.sin(simTime * 2.2) * 8;
         const ty = h / 2 + Math.cos(simTime * 1.8) * 6;
 
-        flirCtx.strokeStyle = "#00e5ff";
+        flirCtx.strokeStyle = isWhiteHot ? "#00e5ff" : "#38bdf8";
         flirCtx.lineWidth = 1.5;
         flirCtx.strokeRect(tx - 12, ty - 12, 24, 24);
 
-        // White-Hot Engine Core Heat Bloom
-        const grad = flirCtx.createRadialGradient(tx, ty, 1, tx, ty, 12);
-        grad.addColorStop(0, "#ffffff");
-        grad.addColorStop(0.35, "rgba(255, 255, 255, 0.9)");
-        grad.addColorStop(0.7, "rgba(245, 158, 11, 0.6)");
-        grad.addColorStop(1, "rgba(245, 158, 11, 0)");
+        // White-Hot / Black-Hot Engine Core Heat Bloom
+        const grad = flirCtx.createRadialGradient(tx, ty, 1, tx, ty, 14);
+        if (isWhiteHot) {
+          grad.addColorStop(0, "#ffffff");
+          grad.addColorStop(0.35, "rgba(255, 255, 255, 0.95)");
+          grad.addColorStop(0.7, "rgba(245, 158, 11, 0.6)");
+          grad.addColorStop(1, "rgba(245, 158, 11, 0)");
+        } else {
+          grad.addColorStop(0, "#050a14");
+          grad.addColorStop(0.4, "rgba(10, 20, 35, 0.9)");
+          grad.addColorStop(1, "rgba(10, 20, 35, 0)");
+        }
         flirCtx.fillStyle = grad;
         flirCtx.beginPath();
-        flirCtx.arc(tx, ty, 12, 0, Math.PI * 2);
+        flirCtx.arc(tx, ty, 14, 0, Math.PI * 2);
         flirCtx.fill();
+
+        // Simulated IR Flare Countermeasures when jet banks hard or pulls Gs
+        const activeU = UNITS.find(un => un.id === selectedUnitId);
+        if (activeU && (Math.abs(activeU.roll || 0) > 0.70 || (activeU.gLoad || 1.0) > 4.2)) {
+          for (let f = 1; f <= 3; f++) {
+            const fx = tx - f * 24 + Math.sin(simTime * 9.0 + f) * 5;
+            const fy = ty + f * 10 + Math.cos(simTime * 7.0 + f) * 4;
+            const fGrad = flirCtx.createRadialGradient(fx, fy, 1, fx, fy, 8);
+            fGrad.addColorStop(0, "#ffffff");
+            fGrad.addColorStop(0.4, "rgba(255, 220, 100, 0.95)");
+            fGrad.addColorStop(1, "rgba(255, 100, 0, 0)");
+            flirCtx.fillStyle = fGrad;
+            flirCtx.beginPath();
+            flirCtx.arc(fx, fy, 8, 0, Math.PI * 2);
+            flirCtx.fill();
+          }
+          flirCtx.fillStyle = '#f59e0b';
+          flirCtx.font = 'bold 8px monospace';
+          flirCtx.fillText('CM: IR FLARE DISPENSE ACTIVE', 8, 28);
+        }
 
         // OSD Telemetry
         flirCtx.font = "8.5px monospace";
-        flirCtx.fillStyle = "#00e5ff";
-        flirCtx.fillText("SENSOR: FLIR W-HOT // FOV 2.8°", 8, 14);
+        flirCtx.fillStyle = isWhiteHot ? "#00e5ff" : "#38bdf8";
+        flirCtx.fillText(`SENSOR: FLIR [${isWhiteHot ? 'W-HOT' : 'B-HOT'}] // FOV 2.8°`, 8, 14);
         flirCtx.fillText(`TRK: [${selectedUnitId}] LOCKED`, 8, h - 8);
         flirCtx.fillText("RNG: 14.8km | AZ: 042°", w - 120, h - 8);
 
@@ -2631,7 +3307,13 @@
         cockpitCtx.fillText(`FUEL: ${u.fuel}% DIESEL [NOMINAL]`, gpsX + 8, gpsY + 50);
         cockpitCtx.fillText('ROUTE: FJORD HIGHWAY -> WEST AB', gpsX + 8, gpsY + 64);
         cockpitCtx.fillText('SURFACE: REINFORCED VIADUCT', gpsX + 8, gpsY + 78);
-        cockpitCtx.fillText('BRIDGE INTEGRITY: 100% SECURE', gpsX + 8, gpsY + 92);
+        if (bridgeSevered) {
+          cockpitCtx.fillStyle = '#ef4444';
+          cockpitCtx.fillText('BRIDGE INTEGRITY: SEVERED (NX-401)', gpsX + 8, gpsY + 92);
+        } else {
+          cockpitCtx.fillStyle = '#10b981';
+          cockpitCtx.fillText('BRIDGE INTEGRITY: 100% SECURE', gpsX + 8, gpsY + 92);
+        }
         cockpitCtx.fillStyle = '#10b981';
         cockpitCtx.fillText('TERRAIN CLEARANCE: +0.14M (CONFORMED)', gpsX + 8, gpsY + 108);
         cockpitCtx.fillText('CARGO: CLASS V AMMUNITION CRATES', gpsX + 8, gpsY + 120);
@@ -2782,6 +3464,29 @@
         cockpitCtx.fillStyle = '#00ff66';
         cockpitCtx.fillText('SURVIVOR: DOWNED PILOT [VIPER-32]', hstX + 8, hstY + 60);
         cockpitCtx.fillText('DISTANCE: 3.8 KM // LZ: CLEAR', hstX + 8, hstY + 72);
+
+        // CSAR 6-DOF Attitude Telemetry
+        cockpitCtx.fillStyle = '#38bdf8';
+        cockpitCtx.font = '8px monospace';
+        cockpitCtx.textAlign = 'left';
+        cockpitCtx.fillText(`BANK: ${Math.round((u.roll || 0) * 57.3)}°`, pedX + 155, pedY + 80);
+        cockpitCtx.fillText(`PITCH: ${Math.round((u.pitch || 0) * 57.3)}°`, pedX + 215, pedY + 80);
+        cockpitCtx.fillText(`G-LOAD: ${(u.gLoad || 1.0).toFixed(1)}G`, pedX + 155, pedY + 94);
+        cockpitCtx.fillText(`ALT: ${Math.round(u.z || 80)}M MSL`, pedX + 215, pedY + 94);
+
+        if (u.noeMasked) {
+          const badgeW = 280, badgeH = 20;
+          const badgeX = w / 2 - badgeW / 2, badgeY = 104;
+          cockpitCtx.fillStyle = 'rgba(16, 185, 129, 0.25)';
+          cockpitCtx.fillRect(badgeX, badgeY, badgeW, badgeH);
+          cockpitCtx.strokeStyle = '#10b981';
+          cockpitCtx.lineWidth = 1.5;
+          cockpitCtx.strokeRect(badgeX, badgeY, badgeW, badgeH);
+          cockpitCtx.fillStyle = '#10b981';
+          cockpitCtx.font = 'bold 9px monospace';
+          cockpitCtx.textAlign = 'center';
+          cockpitCtx.fillText('[NOE CANYON MASKED // SAM LOS OCCLUDED]', w / 2, badgeY + 14);
+        }
 
         cockpitCtx.fillStyle = '#38bdf8';
         cockpitCtx.font = 'bold 11px monospace';
@@ -2958,40 +3663,79 @@
         cockpitCtx.lineTo(vvx, vvy - 12);
         cockpitCtx.stroke();
 
-        // Pitch Ladder (+10, 0, -10)
-        [-40, 0, 40].forEach((dy, idx) => {
-          const py = cy + dy;
-          const deg = (1 - idx) * 10;
+        // 6-DOF Rolling Horizon Line & Pitch Ladder
+        cockpitCtx.save();
+        cockpitCtx.beginPath();
+        cockpitCtx.rect(hudBoxX + 10, hudBoxY + 10, hudBoxW - 20, hudBoxH - 20);
+        cockpitCtx.clip();
+
+        cockpitCtx.translate(cx, cy);
+        cockpitCtx.rotate(-(u.roll || 0));
+        const pitchShift = (u.pitch || 0) * 420;
+
+        [-30, -20, -10, 0, 10, 20, 30].forEach(deg => {
+          const py = -deg * 6.5 + pitchShift;
+          if (Math.abs(py) > 130) return;
           if (deg === 0) {
             cockpitCtx.beginPath();
-            cockpitCtx.moveTo(cx - 90, py);
-            cockpitCtx.lineTo(cx - 30, py);
-            cockpitCtx.moveTo(cx + 30, py);
-            cockpitCtx.lineTo(cx + 90, py);
+            cockpitCtx.moveTo(-110, py);
+            cockpitCtx.lineTo(-30, py);
+            cockpitCtx.moveTo(30, py);
+            cockpitCtx.lineTo(110, py);
             cockpitCtx.stroke();
           } else if (deg > 0) {
             cockpitCtx.beginPath();
-            cockpitCtx.moveTo(cx - 75, py);
-            cockpitCtx.lineTo(cx - 35, py);
-            cockpitCtx.lineTo(cx - 35, py + 8);
-            cockpitCtx.moveTo(cx + 75, py);
-            cockpitCtx.lineTo(cx + 35, py);
-            cockpitCtx.lineTo(cx + 35, py + 8);
+            cockpitCtx.moveTo(-80, py);
+            cockpitCtx.lineTo(-32, py);
+            cockpitCtx.lineTo(-32, py + 8);
+            cockpitCtx.moveTo(80, py);
+            cockpitCtx.lineTo(32, py);
+            cockpitCtx.lineTo(32, py + 8);
             cockpitCtx.stroke();
           } else {
             cockpitCtx.save();
             cockpitCtx.setLineDash([4, 4]);
             cockpitCtx.beginPath();
-            cockpitCtx.moveTo(cx - 75, py);
-            cockpitCtx.lineTo(cx - 35, py);
-            cockpitCtx.moveTo(cx + 35, py);
-            cockpitCtx.lineTo(cx + 75, py);
+            cockpitCtx.moveTo(-80, py);
+            cockpitCtx.lineTo(-32, py);
+            cockpitCtx.lineTo(-32, py - 8);
+            cockpitCtx.moveTo(80, py);
+            cockpitCtx.lineTo(32, py);
+            cockpitCtx.lineTo(32, py - 8);
             cockpitCtx.stroke();
             cockpitCtx.restore();
           }
-          cockpitCtx.fillText(deg > 0 ? `+${deg}` : `${deg}`, cx - 100, py + 3);
-          cockpitCtx.fillText(deg > 0 ? `+${deg}` : `${deg}`, cx + 82, py + 3);
+          cockpitCtx.font = '8px monospace';
+          cockpitCtx.textAlign = 'right';
+          cockpitCtx.fillText(deg > 0 ? `+${deg}` : `${deg}`, -86, py + 3);
+          cockpitCtx.textAlign = 'left';
+          cockpitCtx.fillText(deg > 0 ? `+${deg}` : `${deg}`, 86, py + 3);
         });
+        cockpitCtx.restore();
+
+        // 6-DOF Live Kinematics Telemetry
+        cockpitCtx.fillStyle = hudCol;
+        cockpitCtx.font = 'bold 9px monospace';
+        cockpitCtx.textAlign = 'left';
+        const bankAngle = Math.round((u.roll || 0) * 57.3);
+        const pitchAngle = Math.round((u.pitch || 0) * 57.3);
+        cockpitCtx.fillText(`BANK: ${bankAngle >= 0 ? '+' : ''}${bankAngle}°`, hudBoxX + 24, hudBoxY + 22);
+        cockpitCtx.fillText(`PITCH: ${pitchAngle >= 0 ? '+' : ''}${pitchAngle}°`, hudBoxX + 24, hudBoxY + 34);
+        cockpitCtx.fillText(`LOAD: ${(u.gLoad || 1.0).toFixed(1)}G`, hudBoxX + 24, hudBoxY + 46);
+
+        if (u.noeMasked) {
+          const badgeW = 300, badgeH = 22;
+          const badgeX = cx - badgeW / 2, badgeY = hudBoxY + hudBoxH - 52;
+          cockpitCtx.fillStyle = 'rgba(16, 185, 129, 0.25)';
+          cockpitCtx.fillRect(badgeX, badgeY, badgeW, badgeH);
+          cockpitCtx.strokeStyle = '#10b981';
+          cockpitCtx.lineWidth = 1.5;
+          cockpitCtx.strokeRect(badgeX, badgeY, badgeW, badgeH);
+          cockpitCtx.fillStyle = '#10b981';
+          cockpitCtx.font = 'bold 9.5px monospace';
+          cockpitCtx.textAlign = 'center';
+          cockpitCtx.fillText('[NOE CANYON MASKED // SAM LOS OCCLUDED]', cx, badgeY + 15);
+        }
 
         // Top Heading Tape
         const hdgDeg = Math.round(((u.angle * 180 / Math.PI) % 360 + 360) % 360);
@@ -3025,7 +3769,7 @@
         cockpitCtx.font = '8px monospace';
         cockpitCtx.fillText('KTS', spdX + 24, cy + 4);
         cockpitCtx.fillText(`M ${(u.spd / 661.47).toFixed(2)}`, spdX - 4, cy + 22);
-        cockpitCtx.fillText('G 1.2', spdX - 4, cy + 32);
+        cockpitCtx.fillText(`G ${(u.gLoad || 1.0).toFixed(1)}`, spdX - 4, cy + 32);
 
         // Right Tape: Altitude (FT)
         const altX = hudBoxX + hudBoxW - 68;
@@ -3072,6 +3816,39 @@
       cockpitCtx.restore();
     }
 
+    /* =========================================================================
+       DETERMINISTIC SIMULATION REPLAY HOOK
+       ========================================================================= */
+    window.renderDeterministicTick = function(simTimeSec) {
+      simPaused = true;
+      simTime = simTimeSec;
+      updateKinematics(0.016);
+      if (currentPillar === 1) {
+        renderGisFrame();
+      } else if (scene && renderer) {
+        update3DVisuals(0.016);
+        controls.update();
+        renderer.render(scene, camera);
+        renderPiPSensor();
+        const activeUnit = UNITS.find(u => u.id === selectedUnitId);
+        if (cameraMode === 'cockpit' && activeUnit) renderCockpitOverlay(activeUnit);
+      }
+      return {
+        simTime: simTime,
+        units: UNITS.map(u => ({
+          id: u.id,
+          x: u.x,
+          y: u.y,
+          roll: u.roll,
+          pitch: u.pitch,
+          gLoad: u.gLoad,
+          noeMasked: u.noeMasked
+        }))
+      };
+    };
+
+    const toggleLiveDirector = toggleDirector;
+
     /* Startup handler */
     window.addEventListener('load', () => {
       initThreeScene();
@@ -3101,6 +3878,8 @@
           controls.update();
         } else if (viewParam === 'chase') {
           setCameraMode('chase');
+        } else if (viewParam === 'canyon') {
+          setCameraMode('canyon');
         } else if (viewParam === 'cockpit') {
           setCameraMode('cockpit');
         } else if (viewParam === 'god') {
@@ -3110,6 +3889,28 @@
           controls.target.set(-40, 35, -40);
           controls.update();
         }
+      }
+
+      // Standalone URL parameter handlers
+      const viewParam = params.get('view') || params.get('camera');
+      if (params.get('canyon') === '1') {
+        canyonRunActive = true;
+      }
+      if (viewParam === 'canyon') {
+        if (currentPillar === 1) switchPillar(2);
+        setCameraMode('canyon');
+      } else if (canyonRunActive) {
+        for (let i = 0; i < 30; i++) {
+          simTime += 0.05;
+          updateKinematics(0.05);
+          if (scene) update3DVisuals(0.05);
+        }
+      }
+      if (params.get('bridge') === 'severed' || params.get('severed') === '1') {
+        toggleBridgeState();
+      }
+      if (params.get('night') === '1' || params.get('night') === 'true') {
+        toggleNightMode();
       }
 
       window.addEventListener('resize', () => {
@@ -3130,14 +3931,19 @@
         else if (e.key === '2') switchPillar(2);
         else if (e.key === '3') switchPillar(3);
         else if (e.key === '4') switchPillar(4);
-        else if (e.key === 'd' || e.key === 'D') toggleLiveDirector();
+        else if (e.key === 'd' || e.key === 'D') toggleDirector();
         else if (e.key === 'f' || e.key === 'F') toggleFOW();
         else if (e.key === 'a' || e.key === 'A' || e.key === 'm' || e.key === 'M') toggleAudio();
+        else if (e.key === 'r' || e.key === 'R') {
+          if (currentPillar === 1) switchPillar(2);
+          setCameraMode('canyon');
+        } else if (e.key === 'b' || e.key === 'B') toggleBridgeState();
+        else if (e.key === 'n' || e.key === 'N') toggleNightMode();
         else if (e.key === ' ') {
           e.preventDefault();
           togglePause();
         } else if (e.key === 'c' || e.key === 'C') {
-          const modes = ['god', 'chase', 'cockpit'];
+          const modes = ['god', 'chase', 'canyon', 'cockpit'];
           const nextIdx = (modes.indexOf(cameraMode) + 1) % modes.length;
           setCameraMode(modes[nextIdx]);
         } else if (e.key === 'Tab') {

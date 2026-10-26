@@ -78,6 +78,43 @@ flowchart TD
 2. **Normalized Coordinates ($0.0 \dots 1.0$ or Real-World Meters):** The sim transmits positions in meters relative to theater origin `(0, 0)`. The rendering engine maps these meters to screen pixels, WebGL projection matrices, or isometric tiles based on its own camera/viewport configuration.
 3. **Decoupled HUD vs. Main Stage:** HUD overlays (momentum bar, sitrep ticker, rotating stats panel) live as DOM elements above the canvas/viewports. Whether the canvas is rendered in 2D or 3D, the broadcast telemetry HUD remains uniform and crisp at native 1080p / 9:16 resolutions.
 
+### 2.3 Deterministic 60 Hz 6-DOF Kinematic Interpolator (`KinematicInterpolator`)
+
+Layer 2 ingests discrete 10 Hz simulation ticks ($t_k, t_{k+1}$) and evaluates continuous 6-DOF attitude and kinematics at 60 Hz (or monitor v-sync). This ensures fluid flight dynamics and realistic camera tracking without burdening the simulation kernel with rigid-body aerodynamics.
+
+#### 2.3.1 Mathematical Derivation of 6-DOF Attitude
+For an interpolated unit position $\mathbf{p}(t) = [x(t), y(t), z(t)]^T$ with ground velocity vector $\mathbf{v}_{xy} = [\dot{x}, \dot{y}]^T$, speed $v = \|\mathbf{v}_{xy}\|$, heading $\psi = \operatorname{atan2}(\dot{y}, \dot{x})$, and yaw angular velocity $\omega = \dot{\psi}$:
+
+1. **Coordinated Turn Bank Angle ($\phi$)**:
+   Fixed-wing aircraft bank smoothly into lateral turns balancing centrifugal and gravitational forces:
+   $$\phi = -\arctan\left(\frac{v \cdot \omega}{g \cdot k_{\text{scale}}}\right)$$
+   where $g = 9.81\text{m/s}^2$ and $k_{\text{scale}} \approx 1.0 - 1.2$ controls banking aggressiveness. The bank angle is smoothly clamped to safe operational limits:
+   $$\phi_{\text{clamped}} = \operatorname{clamp}(\phi, -75^\circ, +75^\circ)$$
+
+2. **Flight Path Pitch Angle ($\theta$)**:
+   Aircraft pitch reflects vertical climb/dive angle plus dynamic angle of attack ($AoA$) induced during high-$G$ maneuvers:
+   $$\theta = \arctan2(\dot{z}, v_{xy}) + k_{\text{AoA}} \cdot |\omega|$$
+   where $\dot{z}$ is vertical climb rate and $k_{\text{AoA}} \approx 0.08\text{deg}/(\text{deg/s})$ adds dynamic nose-up pitch during aggressive lateral turns.
+
+3. **Helicopter Cyclic & Collective Attitude**:
+   Rotorcraft orientation couples forward acceleration and lateral cyclic roll:
+   - **Forward Pitch**: Pitch is proportional to forward longitudinal acceleration ($\dot{v}$):
+     $$\theta_{\text{helo}} \propto -k_{\text{accel}} \cdot \dot{v}$$
+     yielding realistic nose-down tilt during acceleration and a nose-up flare when decelerating into hover.
+   - **Cyclic Bank**: Lateral tilt into translational turns:
+     $$\phi_{\text{helo}} = -\arctan\left(\frac{v \cdot \omega}{g}\right) \cdot 0.6$$
+
+4. **Ground Vehicle Axle Terrain Alignment**:
+   For ground transports and armor (`LOGI_TRUCK`, `ENEMY_ARMOR`):
+   - Sample DTED terrain elevation at front axle $\mathbf{p}_f$ and rear axle $\mathbf{p}_r$ separated by wheelbase $L_w$:
+     $$\theta_{\text{ground}} = \arcsin\left(\frac{\text{DEM}(\mathbf{p}_f) - \text{DEM}(\mathbf{p}_r)}{L_w}\right)$$
+   - Sample left and right track/wheel elevations to compute lateral camber roll $\phi_{\text{ground}}$.
+
+5. **Canyon Wall Potential-Field Weaving**:
+   Strike fighters flying at low altitude (`LOW_NOE`) through winding canyons evaluate local terrain height gradients $\nabla \text{DEM}(x, y) = [\frac{\partial z}{\partial x}, \frac{\partial z}{\partial y}]^T$:
+   - A repulsive potential force $\mathbf{F}_{\text{rep}} = -\nabla \text{DEM}(x, y)$ pushes the visual flight path toward the canyon thalweg (valley center).
+   - This smoothly banks the aircraft along canyon contours, avoiding visual clipping into vertical rock walls while strictly preserving the simulation kernel's macroscopic waypoint corridor.
+
 ---
 
 ## 3. The `IRenderEngine` Contract
@@ -134,7 +171,13 @@ export interface VisualUnit {
   kind: 'STRIKE_FIGHTER' | 'RECON_UAV' | 'LOGI_TRUCK' | 'ENEMY_ARMOR' | etc;
   x: number; // meters from theater origin
   y: number; // meters from theater origin
+  altitudeMeters: number; // altitude above sea level in meters
   headingDeg: number;
+  rollDeg: number; // banking attitude [-75..+75]
+  pitchDeg: number; // climb/dive attitude [-85..+85]
+  yawRateDegPerSec: number; // instantaneous turn rate
+  gLoad: number; // instantaneous G-force (1.0 = level flight)
+  isTerrainMasked: boolean; // occluded from radar LoS by DEM ridges
   damageState: 'HEALTHY' | 'DAMAGED' | 'DISABLED';
   isSelected: boolean;
   isAiControlled: boolean;
@@ -203,3 +246,22 @@ Sound cues (tactical chimes, radio squelch, mastermind glitch static) and visual
 
 ### 5.3 Live-Stream Streamer Controls
 In the admin Command Center (or via secret query params like `?theme=crt` or `?theme=holo3d`), the broadcaster or devlog creator can switch visual renderers on the fly without refreshing OBS or disconnecting viewers.
+
+### 5.4 Production Module Breakdown & GPU Instancing (`OV-10`)
+
+To replace monolithic prototypes with a modular, maintainable production architecture that strictly satisfies the sub-12ms p95 frame time budget (`OVERLAY.md` OV-10) on the reference hardware (Nvidia GTX 1070 / Apple Silicon M-series):
+
+#### 5.4.1 Production Module Breakdown
+The presentation frontend is partitioned into dedicated single-responsibility TypeScript modules:
+- `core/kinematic-interpolator.ts`: Ingests 10 Hz state snapshots and evaluates deterministic 60 Hz 6-DOF attitude ($\phi, \theta, \psi$), $G$-forces, and canyon-wall repulsive potential fields.
+- `renderers/pillar1-c2-canvas.ts`: High-density 2D Tactical C2 GIS canvas engine with offscreen pre-rendered topographic contours and tactical vector symbology.
+- `renderers/pillar2-three-surface.ts`: Full 3D low-angle and surface visualizer using Three.js with continuous DTED terrain elevation mesh and road network ribbons.
+- `renderers/pillar3-flir-mfd.ts`: Sensor operator thermal infrared (White-Hot / Black-Hot) and optical tracking MFD with GLSL post-processing shaders.
+- `renderers/pillar4-cognitive-lattice.ts`: AI causal decision trees, branch probabilities, counterfactual outcomes, and synaptic intent arcs.
+- `renderers/cockpit-hud-overlay.ts`: High-resolution 2D/3D collimated fighter HUD, armored vehicle cabin split-windshield, helicopter chin bubble instruments, and dynamic 6-DOF artificial horizon.
+
+#### 5.4.2 GPU Instancing & Batched Meshing (`THREE.InstancedMesh` / `BatchedMesh`)
+To support large-scale engagements (up to 1,000 active units, 5,000 ballistic tracers, and complex road infrastructure) without exceeding draw call budgets:
+1. **Dynamic Units**: Instanced via `THREE.InstancedMesh` grouped by archetype (aircraft, ground armor, convoys). Unit position, 6-DOF quaternion orientation, faction color, and damage state are updated in a single instance matrix buffer per frame.
+2. **Infrastructure & Viaduct Pylons**: Bridge piers, abutments, and road markers are merged via `THREE.BatchedMesh` or static indexed buffer geometry, reducing complex bridges to a single draw call.
+3. **Ballistic Munitions & Tracers**: High-rate autocannon tracers and missile contrails use instanced billboard quads with GPU particle expansion, maintaining solid 60 fps (<12ms frame time) even during saturation air defense engagements.
