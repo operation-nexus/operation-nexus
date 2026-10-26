@@ -32,6 +32,11 @@ terms still waiting for an owner ruling.
 | Base | A node that can be captured (except the sanctuary) and where units spawn, rearm and repair; airbase, FOB and port bases count toward victory |
 | Facility | A fixed installation attached to a base (radar site, air-defense site; factories later). It can be struck, disabled and repaired, belongs to whoever holds the base, and is never captured on its own |
 | Stock | The supply held at a node |
+| Home base | The node a unit spawned at, then the friendly base it last landed or parked at; it pays the unit's upkeep (ECONOMY EC-5) |
+| Upkeep | Stock a live unit costs its home base, paid every few economy windows (ECONOMY EC-4, NX-426). A light tax, not the army cap: a base running short is meant to be rare and mostly caused by the enemy cutting its supply (Q-TD-50, Q-TD-51) |
+| Grounded | A unit whose home could not pay its upkeep: it returns home and stays landed or parked, takes no job or order, and still fights; it ungrounds when its home pays again (ECONOMY EC-6). It may REBASE to a base that can pay it (NX-435) |
+| Busy / idle (upkeep) | For the upkeep payment order, a unit is busy when it holds a claimed job or follows an order still under way (a HOLD only while travelling); otherwise it is idle. When a home runs short, idle units ground before busy ones of the same class, and AI units before viewer units (ECONOMY EC-6, Q-TD-49) |
+| Shortfall episode | The run of consecutive economy windows in which a base grounds units for lack of upkeep; announced once per episode (NX-436) and counted by the harness (NX-437) |
 | Theater | One campaign's map. Theaters rotate between archetypes (strait, archipelago, mountain pass, urban…); theater #1 is a land-leaning map with a bridged strait (GAMEPLAY §9a, Q-GD-33) |
 | Sortie | One unit's life from spawn to RTB or death |
 | Package | A formation of up to 4 units with a lead |
