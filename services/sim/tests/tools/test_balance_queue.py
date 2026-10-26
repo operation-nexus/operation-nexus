@@ -372,6 +372,12 @@ def test_set_takes_bool_literals_and_enum_segments(cfg: dict[str, Any]) -> None:
     ]  # fmt: skip
 
 
+def test_set_takes_max_overrides(cfg: dict[str, Any]) -> None:
+    # 16 (queue.yaml): the 3 economy switches plus all 9 economy.upkeep kinds fit (Q-TD-41, J5)
+    value = ",".join(f"k{i}=1" for i in range(16))
+    assert len(hq.parse_block(block(set=value), cfg, NAMES)["set"]) == 16
+
+
 @pytest.mark.parametrize(
     "value",
     [
