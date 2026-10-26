@@ -91,16 +91,22 @@ def test_a_crew_rerouted_by_a_cut_never_drives_through_enemy_ground() -> None:
               Road("t", "u", 1.0, "x")],
     )  # fmt: skip
     rules = dataclasses.replace(RULES, roads=roads)
-    for owner, path in (("ENEMY", ["s"]), ("NEUTRAL", ["s", "e", "t", "x"])):
+    cases = (
+        ("ENEMY", "NEUTRAL", ["s"]),
+        ("NEUTRAL", "NEUTRAL", ["s", "e", "t", "x"]),
+        ("NEUTRAL", "ENEMY", ["s"]),
+    )  # the last: the bank itself is enemy-held, not exempt
+    for owner, bank, path in cases:  # fmt: skip
         w = tt.new_world()
-        w.owner["e"] = owner  # type: ignore[assignment]
+        w.owner["e"] = owner  # type: ignore[assignment]  # a str literal; the dict holds NodeOwner
+        w.owner["t"] = bank  # type: ignore[assignment]  # as above
         crew = tt.put(w, TRUCK, "haven")
         job = tt.post(w, "COALITION", "REPAIR_BRIDGE", NORTH, "repair")
         tasking.claim(w, crew, job, [])
         crew.pos, crew.last_node, crew.path = Vec2(200.0, 0.0), "s", ["t", "x"]
         w.bridge_down = {"x", "y"}
         bridges.reroute(w, rules)
-        assert crew.path == path, owner
+        assert crew.path == path, (owner, bank)
 
 
 @settings(max_examples=60, deadline=None)
@@ -114,7 +120,7 @@ def test_a_repair_approach_never_enters_an_enemy_held_node(
     w = tt.new_world()
     nodes = ["cross-n", "cross-s", FOE, "fob-n-w", "fob-s-w"]
     for node, owner in zip(nodes, owners, strict=True):
-        w.owner[node] = owner  # type: ignore[assignment]
+        w.owner[node] = owner  # type: ignore[assignment]  # sampled str; the dict holds NodeOwner
     cut(w, *sorted(down))
     for start in sorted(n for n in RULES.roads.pos if n not in RULES.roads.spans):
         for bridge in sorted(down):
