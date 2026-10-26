@@ -33,7 +33,9 @@ full, so the set, not the hp, is what cuts the road.
   its path's last node, of either side, around nodes the other side holds, as
   `logistics.supply_route`, Q-SIM-122), or
   stops there with no route. A unit on the cut edge at or past the
-  cut point and beyond the collapse radius carries on; aircraft are not affected.
+  cut point and beyond the collapse radius carries on; aircraft are not affected. A capture flip
+  calls it with `taken` (NX-413): a supply run or a repair crew whose road enters that node, now
+  enemy for it, replans the same way (a run's destination exempt, a crew's bank not).
 
 - **Repair (NX-373 part 2, Q-GD-11):** a bridge is not a road endpoint: a truck repairs it at its
   *stop*, the bridge's position projected on its road (`RoadGraph.stops`, the cut point), reached
@@ -60,7 +62,7 @@ from nexus.core.defense import MILLI_HP
 from nexus.core.provocation import bridge_repaired, suffered_hit
 from nexus.core.roads import shortest_path
 from nexus.core.rules import Rules, WeaponRules
-from nexus.core.world import Entity, Vec2, World, at_stop, lose_unit
+from nexus.core.world import SIDES, Entity, Vec2, World, at_stop, lose_unit
 
 
 def blocked(world: World) -> frozenset[str]:
@@ -158,7 +160,7 @@ def crosses(world: World, rules: Rules, frm: str, to: str, pos: Vec2) -> bool:
     return (pos.x - ax) * dx + (pos.y - ay) * dy < (cx - ax) * dx + (cy - ay) * dy
 
 
-def reroute(world: World, rules: Rules) -> None:
+def reroute(world: World, rules: Rules, taken: str | None = None) -> None:
     """Replan every GROUND unit, in id order, whose remaining road crosses a down bridge
     (Q-SIM-108): its current leg toward the cut point turns back to the node it came from; a later
     hop over a cut edge keeps the path up to the node before it. From that node it takes
@@ -168,8 +170,12 @@ def reroute(world: World, rules: Rules) -> None:
     node exempt
     (`enemy_held`, Q-SIM-122), and a repair crew (a REPAIR_BRIDGE claimant) none, its bank
     included (Q-SIM-125); an empty capture-run truck takes any road. A path to a bridge's
-    repair stop is planned to the bank before it, the stop kept after a new route."""
+    repair stop is planned to the bank before it, the stop kept after a new route.
+    With `taken`, a node that just changed owner (`capture`, NX-413), the trigger is instead a
+    supply run's or a crew's hop into `taken` when it is now in that unit's avoid set: the same
+    turn-back and replan, so neither drives into a node that turned enemy on its way."""
     cut = blocked(world)
+    foes = {side: enemy_held(world, rules, side) for side in SIDES}  # once per pass (NX-413)
     for e in world.entities():
         path = [n for n in e.path if isinstance(n, str)]
         stop = path.pop() if path and path[-1] in rules.roads.spans else None
@@ -188,12 +194,21 @@ def reroute(world: World, rules: Rules) -> None:
         avoid = not_held(world, rules, e.side) if held else frozenset()
         goto_run = e.order == "GOTO" and bool(e.cargo) and seq[-1] == e.order_node
         supply = job.kind == "RESUPPLY" if job is not None else goto_run
+        crew = job is not None and job.kind == "REPAIR_BRIDGE"
         if supply:  # a supply run (Q-SIM-122): around enemy-held nodes, its destination exempt
-            avoid = enemy_held(world, rules, e.side) - {seq[-1]}
-        elif job is not None and job.kind == "REPAIR_BRIDGE":  # a crew (Q-SIM-125): no exemption
-            avoid = enemy_held(world, rules, e.side)
+            avoid = foes[e.side] - {seq[-1]}
+        elif crew:  # a crew (Q-SIM-125): no exemption
+            avoid = foes[e.side]
+        if taken is not None and not (supply or crew):
+            continue
         for k, (a, b) in enumerate(pairwise(seq)):
-            if rules.roads.edge(a, b).bridge in cut and (k or crosses(world, rules, a, b, e.pos)):
+            if taken is not None:
+                hit = b == taken and b in avoid
+            else:
+                hit = rules.roads.edge(a, b).bridge in cut and (
+                    k > 0 or crosses(world, rules, a, b, e.pos)
+                )
+            if hit:
                 route = shortest_path(rules.roads, a, seq[-1], blocked=cut, avoid=avoid)
                 e.path = [*seq[1:k], *(route or [a]), *([stop] if route and stop else [])]
                 break

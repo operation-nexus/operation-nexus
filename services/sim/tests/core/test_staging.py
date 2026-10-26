@@ -24,6 +24,7 @@ from nexus.contracts.gen.events.event import Event
 from nexus.core import launch as launch_mod
 from nexus.core import operations as ops
 from nexus.core import staging as stg
+from nexus.core.bridges import enemy_held
 from nexus.core.fog import side_view
 from nexus.core.launch import _convoys, _launch, _own, _Purse, _staged_shares
 from nexus.core.launch import run as launch
@@ -213,13 +214,23 @@ def test_the_base_target_is_raised_so_a_resupply_job_and_the_convoy_go_there() -
     at_floor(w)
     w.stock["fob-n-e"] = 280  # at its own target, 30 over the floor: it cannot pay its 40
     view = side_view(w, "ENEMY")
-    before = [j.key for j in _resupply(w, w.rules, w.rules.tasking, "ENEMY", view)]
+    before = [
+        j.key
+        for j in _resupply(
+            w, w.rules, w.rules.tasking, "ENEMY", view, enemy_held(w, w.rules, "ENEMY")
+        )
+    ]
     assert "resupply:fob-n-e" not in before
     fire(w, offensive(w, "fob-n-w"))
     # FS-3 (Q-TD-38): only the 4 armor that spawn at the FOB, 4 x 10 of the 60, not the jets' 20
     assert stock_targets(w, w.rules)["fob-n-e"] == 250 + 40
     assert stock_targets(w, w.rules)["fob-s-e"] == 280  # elsewhere unchanged
-    jobs = {j.key: j for j in _resupply(w, w.rules, w.rules.tasking, "ENEMY", view)}
+    jobs = {
+        j.key: j
+        for j in _resupply(
+            w, w.rules, w.rules.tasking, "ENEMY", view, enemy_held(w, w.rules, "ENEMY")
+        )
+    }
     assert jobs["resupply:fob-n-e"].slots == 1  # fills 10 to the raised target
     out: list[Event] = []
     assert w.rules.director is not None

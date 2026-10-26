@@ -18,6 +18,7 @@ from test_bridges import NORTH, SOUTH, cut
 from nexus.contracts.gen.common.enums import UnitKind
 from nexus.contracts.gen.events.event import Event
 from nexus.core import bridges, tasking
+from nexus.core.bridges import enemy_held
 from nexus.core.logistics import approach
 from nexus.core.roads import Road, RoadGraph
 from nexus.core.step import step
@@ -52,7 +53,7 @@ def test_a_neutral_node_on_the_road_stays_passable() -> None:
     _crew_at_cross_s(w)
     tt.board_pass(w)
     assert [j.node for j in _jobs(w, "REPAIR_BRIDGE")] == [NORTH, SOUTH]
-    assert approach(w, RULES, "cross-s", NORTH, side="COALITION") == [
+    assert approach(w, RULES, "cross-s", NORTH, avoid=enemy_held(w, RULES, "COALITION")) == [
         "cross-s", FOE, "cross-n", NORTH,
     ]  # fmt: skip
 
@@ -62,12 +63,17 @@ def test_a_claimed_crew_routes_round_enemy_ground_when_an_alternative_exists() -
     crew drives round by the west to fob-n-w."""
     w = tt.new_world()
     cut(w, NORTH)
-    assert approach(w, RULES, "cross-s", NORTH, side=None) == ["cross-s", FOE, "cross-n", NORTH]
+    assert approach(w, RULES, "cross-s", NORTH, avoid=frozenset()) == [
+        "cross-s",
+        FOE,
+        "cross-n",
+        NORTH,
+    ]
     crew = tt.put(w, TRUCK, "cross-s")
     job = tt.post(w, "COALITION", "REPAIR_BRIDGE", NORTH, "repair")
-    assert tasking._feasible(w, RULES, {}, crew, job) == "ok"
+    assert tasking._feasible(w, RULES, tasking.Routes(), crew, job) == "ok"
     tasking.claim(w, crew, job, [])
-    tasking._dispatch(w, RULES, {}, crew, job)
+    tasking._dispatch(w, RULES, tasking.Routes(), crew, job)
     assert crew.path == WEST
 
 
@@ -76,7 +82,7 @@ def test_a_crew_is_not_sent_when_its_only_road_crosses_enemy_ground() -> None:
     cut(w, NORTH, SOUTH)
     crew = tt.put(w, TRUCK, "cross-s")
     job = tt.post(w, "COALITION", "REPAIR_BRIDGE", NORTH, "repair")
-    assert tasking._feasible(w, RULES, {}, crew, job) == "no"
+    assert tasking._feasible(w, RULES, tasking.Routes(), crew, job) == "no"
 
 
 def test_a_crew_rerouted_by_a_cut_never_drives_through_enemy_ground() -> None:
@@ -124,7 +130,7 @@ def test_a_repair_approach_never_enters_an_enemy_held_node(
     cut(w, *sorted(down))
     for start in sorted(n for n in RULES.roads.pos if n not in RULES.roads.spans):
         for bridge in sorted(down):
-            route = approach(w, RULES, start, bridge, side="COALITION")
+            route = approach(w, RULES, start, bridge, avoid=enemy_held(w, RULES, "COALITION"))
             if route is None:
                 continue
             assert all(w.owner.get(n) != "ENEMY" for n in route[1:-1]), (start, bridge)

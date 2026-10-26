@@ -439,7 +439,7 @@ def test_the_generator_posts_only_what_the_executor_can_route() -> None:
     truck.order = None
     rules = w.rules
     assert rules is not None
-    assert tasking._feasible(w, rules, {}, truck, job) == "ok"
+    assert tasking._feasible(w, rules, tasking.Routes(), truck, job) == "ok"
 
 
 def _cut_off(w: World) -> Entity:

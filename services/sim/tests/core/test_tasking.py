@@ -35,6 +35,7 @@ from nexus.core.rng import RngStream, SimRng
 from nexus.core.rules import Rules, TaskingRules
 from nexus.core.step import SYSTEMS, step
 from nexus.core.tasking import (
+    Routes,
     _end,
     _load_at_source,
     claim,
@@ -1299,7 +1300,7 @@ def test_a_source_that_ran_dry_releases_the_truck() -> None:
     job = jobs(w)[0]
     spare = dataclasses.replace(truck, id=999)  # the dry arrival itself, apart from the re-plan
     spare.pickup, spare.path = source, []
-    assert not _load_at_source(w, RULES, {}, spare, job)
+    assert not _load_at_source(w, RULES, Routes(), spare, job)
     assert spare.path == [] and spare.cargo == 0 and spare.pickup is None  # no road to deliver on
     events = board_pass(w)
     assert "JobReleased" in kinds(events) and truck.cargo == 0 and truck.pickup != source

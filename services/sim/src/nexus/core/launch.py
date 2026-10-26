@@ -69,7 +69,7 @@ from nexus.core.bridges import blocked
 from nexus.core.director import night_capped, rear_share, surplus
 from nexus.core.economy import MOVERS, guard_room
 from nexus.core.fog import SideView, is_off_facility, spotted
-from nexus.core.logistics import pay_spawn, plan_deploy, stock_targets
+from nexus.core.logistics import pay_spawn, plan_deploy, plan_run, stock_targets
 from nexus.core.rng import RngStream
 from nexus.core.roads import shortest_path
 from nexus.core.rules import (
@@ -345,7 +345,8 @@ def _convoys(
     """Up to `director.pol.convoys_per_period` RESUPPLY jobs, to the bases with the largest upkeep
     shortfall (one each), taken by an idle carrier of `director.pol.convoy_kind` or a new one,
     within the unit caps; a new carrier costs `director.pol.convoy_cost` from the surplus
-    (Q-SIM-85). A staging base below its raised stock target goes first (THREAT-DIRECTOR FS-3)."""
+    (Q-SIM-85), and only when a truck has a route there (`plan_run`, around enemy-held nodes;
+    NX-413). A staging base below its raised stock target goes first (THREAT-DIRECTOR FS-3)."""
     own = _own(world, rules, side)
     live = ops.live_pairs([j.key for j in world.boards[side].values()])
     spawns, live_room = dr.max_spawns_per_window, _live_room(world, rules, side, state, own)
@@ -360,6 +361,8 @@ def _convoys(
         : dr.convoys_per_period
     ]:
         if (_CONVOY_OP, base) in live or surplus(view, rules, world.stock) < op.cost:
+            continue
+        if plan_run(world, rules, side, base) is None:  # no truck could reach it (NX-413)
             continue
         if min(spawns, live_room) < dr.convoy_slots:  # the job spawns up to `convoy_slots` units
             if spawns >= dr.convoy_slots:  # the live cap, not anti-spam, stopped it (EC-8)

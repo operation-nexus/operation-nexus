@@ -258,9 +258,10 @@ def generate(
     world: World, rules: Rules, tr: TaskingRules, side: Side, view: SideView
 ) -> list[JobSpec]:
     able = _able(world, rules, side)
+    held = enemy_held(world, rules, side)  # once per pass: nothing here changes an owner (NX-413)
     specs = [  # a repair job first: a resupply job that waits for it names it (TB-8)
-        *_repair(world, rules, tr, side, view),
-        *_resupply(world, rules, tr, side, view),
+        *_repair(world, rules, tr, side, view, held),
+        *_resupply(world, rules, tr, side, view, held),
         *_defend(world, rules, tr, side, view),
         *(_strike(world, rules, tr, side, view) if _offense_open(world, tr, side) else ()),
         *_assist(world, tr, side),
@@ -317,7 +318,7 @@ def _cap_scouts(specs: list[JobSpec], world: World, tr: TaskingRules, side: Side
 
 
 def _resupply(
-    world: World, rules: Rules, tr: TaskingRules, side: Side, view: SideView
+    world: World, rules: Rules, tr: TaskingRules, side: Side, view: SideView, held: frozenset[str]
 ) -> Iterator[JobSpec]:
     sup, damage = rules.supply, facility_damage(world, rules, side)
     target = stock_targets(world, rules)  # raised at a staging base (THREAT-DIRECTOR FS-3)
@@ -335,7 +336,7 @@ def _resupply(
         if need or stocking:
             fill = top if need else target[node]  # stocking fills up to the target only
             slots = -(-(fill - stock) // tr.resupply_stock_per_slot)
-            cut = _cut_off(world, rules, side, view, node)
+            cut = _cut_off(world, rules, side, view, node, held)
             yield JobSpec(
                 "RESUPPLY", f"resupply:{node}", min(tr.resupply_slots_max, max(1, slots)),
                 max(_urgency(tr, need) if need else 0, stocking), node=node,
@@ -343,7 +344,9 @@ def _resupply(
             )  # fmt: skip
 
 
-def _cut_off(world: World, rules: Rules, side: Side, view: SideView, node: str) -> str | None:
+def _cut_off(
+    world: World, rules: Rules, side: Side, view: SideView, node: str, held: frozenset[str]
+) -> str | None:
     """TB-8: the first down bridge on the intact road route from the side's rear to `node` (ties
     by node id, `shortest_path`), when no friendly source reaches `node` by road now. Neither route
     enters a node the other side holds, as the run would (Q-SIM-122): a node reached only through
@@ -351,17 +354,17 @@ def _cut_off(world: World, rules: Rules, side: Side, view: SideView, node: str) 
     if (
         side != "COALITION"
         or not view.bridge_down
-        or plan_run(world, rules, side, node) is not None
+        or plan_run(world, rules, side, node, held=held) is not None
     ):
         return None
-    rear, avoid = rules.supply.rear[side], enemy_held(world, rules, side)
-    route = shortest_path(rules.roads, rear, node, blocked=frozenset(), avoid=avoid)
+    rear = rules.supply.rear[side]
+    route = shortest_path(rules.roads, rear, node, blocked=frozenset(), avoid=held)
     cut = (rules.roads.edge(a, b).bridge for a, b in pairwise(route or []))
     return next((b for b in cut if b in view.bridge_down), None)
 
 
 def _repair(
-    world: World, rules: Rules, tr: TaskingRules, side: Side, view: SideView
+    world: World, rules: Rules, tr: TaskingRules, side: Side, view: SideView, held: frozenset[str]
 ) -> Iterator[JobSpec]:
     if side != "COALITION" or not view.bridge_down:
         return
@@ -371,7 +374,7 @@ def _repair(
         if e.side == side and e.kind in carriers and e.damage_state != "DISABLED" and e.last_node
     })  # fmt: skip
     for node in sorted(view.bridge_down):
-        if any(approach(world, rules, s, node, side=side) is not None for s in starts):
+        if any(approach(world, rules, s, node, avoid=held) is not None for s in starts):
             slots = tr.slots["REPAIR_BRIDGE"]
             yield JobSpec("REPAIR_BRIDGE", f"repair_bridge:{node}", slots, 1000, node=node)
 
