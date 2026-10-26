@@ -211,8 +211,9 @@ def sha_note(body: str | None, ran: str) -> str:
     """Empty when the issue body still names the sha that ran; else a plain line saying it was
     edited after queueing (L-30). Only a 40-hex value from the body is ever echoed."""
     m = BLOCK.search(body or "")
-    kv = next((x for x in LINE.finditer(m.group(1)) if x.group(1) == "sha"), None) if m else None
-    now = kv.group(2).strip() if kv else ""
+    lines = [LINE.fullmatch(x.strip()) for x in m.group(1).splitlines()] if m else []
+    shas = [kv.group(2).strip() for kv in lines if kv and kv.group(1) == "sha"]
+    now = shas[0] if len(shas) == 1 else ""  # missing or duplicated: as parse_block, no value
     if now == ran:
         return ""
     shown_now = f"`{now}`" if re.fullmatch(r"[0-9a-f]{40}", now) else "(none valid or unreadable)"
@@ -393,8 +394,8 @@ def recover_stale(cfg: dict[str, Any]) -> None:
             pass
         if out is not None and finished(out):
             try:
-                publish(cfg, n, out, "Run finished; the report was posted late.", sha,
-                        issue["body"])  # fmt: skip
+                late = "Run finished; the report was posted late."
+                publish(cfg, n, out, late, sha, current_body(cfg, n))
                 log(f"#{n}: recovered the finished report")
             except (QueueError, JobTimeout, OSError):
                 log(f"#{n}: recovered report not posted, will retry")

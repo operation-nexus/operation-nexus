@@ -265,6 +265,22 @@ def test_hostile_body_sha_is_not_echoed(
     assert "@someone" not in fake.stdin[0] and "http://e" not in fake.stdin[0]
 
 
+def test_duplicated_body_sha_is_flagged(
+    cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake = Fake([issue(10)])
+    monkeypatch.setattr(hq, "run_cmd", fake)
+
+    def edit_then_run(c: dict[str, Any], n: int, req: dict[str, Any]) -> Any:
+        # the run sha stays, a second sha line is added: ambiguous, as parse_block would refuse it
+        fake.issues[0]["body"] = block().replace("\n```\n", "\nsha: " + "b" * 40 + "\n```\n")
+        return fake_exec(0, "# REPORT")(c, n, req)
+
+    monkeypatch.setattr(hq, "execute", edit_then_run)
+    hq.run_once(cfg, False)
+    assert "Body sha (none valid or unreadable) was edited" in fake.stdin[0]
+
+
 def test_unreadable_body_still_posts_with_a_note(
     cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch
 ) -> None:
