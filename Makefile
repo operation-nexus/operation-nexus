@@ -1,7 +1,7 @@
 SIM := services/sim
 OVERLAY := apps/overlay
 
-.PHONY: bootstrap check check-python check-overlay node-version contracts
+.PHONY: bootstrap check check-python check-overlay node-version contracts perf
 
 # Node major comes from .node-version (CI reads the same file). A wrong major
 # fails here with a clear message instead of breaking vitest later.
@@ -34,7 +34,7 @@ check-python:
 	cd $(SIM) && uv run --frozen mypy src tests
 	cd $(SIM) && MYPYPATH=src:tests:../../tools/balance uv run --frozen mypy $(TOOLS_TYPED)
 	cd $(SIM) && uv run --frozen lint-imports
-	cd $(SIM) && uv run --frozen pytest
+	cd $(SIM) && uv run --frozen pytest -m "not perf"  # wall-clock budgets run in `make perf` and CI (#358)
 	python3 scripts/tests/test_repo_checks.py
 	python3 tools/discord-setup/tests/test_setup.py
 
@@ -50,6 +50,10 @@ check-overlay: node-version
 # by datamodel-code-generator: bump that dependency only together with a
 # `make contracts` run and the regenerated output in the same PR.
 CONTRACT_GROUPS := common commands events wire config
+# Tests that assert wall-clock budgets (pytest marker `perf`); CI's plain `pytest` runs them too.
+perf:
+	cd $(SIM) && uv run --frozen pytest -m perf
+
 contracts:
 	python3 scripts/gen_config_reference.py
 	rm -rf $(SIM)/src/nexus/contracts/gen $(OVERLAY)/src/contracts

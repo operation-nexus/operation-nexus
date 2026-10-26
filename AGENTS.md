@@ -91,6 +91,8 @@ make check          # Python: ruff + ruff format --check (services/sim and tools
                     #   maintained tools: TOOLS_TYPED in the Makefile), import-linter, pytest,
                     #   repo-check script tests (scripts/tests)
                     # Overlay: tsc --noEmit, eslint + prettier --check, vitest
+make perf           # the tests that assert wall-clock budgets (pytest marker `perf`): `make check`
+                    #   skips them so a slow host can gate on it; CI's pytest still runs them (#358)
 # make sim          # (NX-031/NX-193) not yet implemented
 # make dev          # (NX-255) not yet implemented
 ```

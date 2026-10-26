@@ -988,6 +988,7 @@ def test_a_follower_of_the_other_side_is_refused() -> None:
         load(msgpack.packb(raw, use_bin_type=True))
 
 
+@pytest.mark.perf  # wall-clock budget: `make perf` and CI, not `make check` (#358)
 def test_follow_steering_stays_within_budget_at_1000_entities() -> None:
     """SC-10: 100 convoys (a leader, three escorts, three column trucks) on the Static's road with
     300 coalition infantry among them, which the escorts really track: a full `step` at 1,000

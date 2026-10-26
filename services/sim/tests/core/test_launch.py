@@ -770,6 +770,7 @@ def test_a_corrupt_threat_memory_is_refused(mutate: Callable[[dict[str, object]]
         validate(restored, RULES)
 
 
+@pytest.mark.perf  # wall-clock budget: `make perf` and CI, not `make check` (#358)
 def test_a_window_with_many_candidates_at_a_thousand_entities_is_fast() -> None:
     w = new_world()
     clear_coalition_defenses(w)

@@ -52,6 +52,9 @@ ignore_missing_imports = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "-q"
+markers = [
+    "perf: asserts a wall-clock budget; skipped by `make check` (slow hosts), run by `make perf` and CI (#358)",
+]
 
 [tool.importlinter]
 root_package = "nexus"

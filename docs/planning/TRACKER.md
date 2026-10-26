@@ -10,7 +10,7 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | Phase | Items | Done | Status |
 |---|---|---|---|
 | P0 Foundations | 44 | 32 | 🟨 |
-| P1 Sim kernel | 70 | 45 | 🟨 |
+| P1 Sim kernel | 71 | 45 | 🟨 |
 | P2 Closed alpha | 40 | 0 | ⬜ |
 | P3 Public beta | 26 | 0 | ⬜ |
 | P4 Depth | 69 | 1 | ⬜ |
@@ -142,6 +142,7 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-418 | Joint bases (owner 2026-10-26, Q-TD-38): a base kind that hosts both ground units and aircraft (an FOB with an airfield). Spec and theater content first | M | ⬜ | NX-416 | A staged Offensive at a joint base spawns and pays for its jets there |
 | NX-419 | Off-road ground movement (owner 2026-10-26, Q-TD-38): ground troops and wheeled vehicles may leave the road net at a slower, tunable pace, so a target with no road route is reachable by ground; paratroopers and naval come later (GAMEPLAY-LATER). Spec first | L | ⬜ | NX-416 | A ground unit reaches a node with no road route, slower than by road |
 | NX-420 | CodeRabbit reviews against our rules (owner 2026-10-26): `path_instructions` per area, guideline files in `knowledge_base`, repo-local learnings, CI-duplicate linters and reviewer commits off; kept current from LESSONS and awesome-coderabbit (docs/agentic/TOOLING.md) | S | 🟨 | — | The first PR after the change gets rule-specific CodeRabbit comments, not generic ones |
+| NX-421 | Wall-clock test budgets off `make check` (issue #358, Q-DEV-31): `perf` marker, `make perf`, CI still runs them | S | 🟨 | — | `make check` passes on the slow Linux server; CI still runs the budgets |
 | NX-151 | Enemy-side view for director (FOW-4) | M | ✅ | NX-150 | Director API accepts only `EnemyView` |
 | NX-155 | Director: CP, tiers w/ hysteresis, budget | M | ✅ | NX-151, NX-374 | Hysteresis property |
 | NX-156 | Director: operations library + scoring + threat memory | L | ✅ | NX-155 | "Convoy raids → escorts" golden scenario |
