@@ -213,13 +213,13 @@ def load_edl_file(edl_path: Path) -> list[dict[str, Any]]:
     """Load and validate an external Edit Decision List JSON file."""
     with open(edl_path, encoding="utf-8") as fh:
         data = json.load(fh)
-    if isinstance(data, dict) and "segments" in data:
-        segments = data["segments"]
+    if isinstance(data, dict) and isinstance(data.get("segments"), list):
+        raw_segments = data["segments"]
     elif isinstance(data, list):
-        segments = data
+        raw_segments = data
     else:
         raise ValueError(f"Unrecognized EDL structure in {edl_path}")
-    return segments
+    return [dict(seg) for seg in raw_segments if isinstance(seg, dict)]
 
 
 def calculate_edl_duration(edl_segments: list[dict[str, Any]]) -> float:
