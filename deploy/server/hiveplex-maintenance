@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Pause the PC watchdog alerts for planned maintenance. Usage: hiveplex-maintenance MINUTES | off   (run as root)
+F=/var/lib/hiveplex-health/pc-maintenance-until
+case "${1:-}" in
+  off) rm -f "$F"; echo "PC alerts resumed";;
+  ''|*[!0-9]*) echo "usage: hiveplex-maintenance MINUTES | off" >&2; exit 2;;
+  *) echo $(( $(date +%s) + $1 * 60 )) > "$F"; echo "PC alerts paused until $(date -d "@$(cat "$F")" '+%H:%M %Z')";;
+esac

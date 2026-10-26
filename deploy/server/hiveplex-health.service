@@ -1,0 +1,7 @@
+[Unit]
+Description=hiveplex-linux health check (Discord alerts on state change)
+After=network-online.target
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/bin/hiveplex-health-check

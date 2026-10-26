@@ -15,18 +15,20 @@ Status: Draft · Q-OPS-1 · Facts verified 2026-10-17 (server row 2026-10-22) un
 ## Other owner hardware
 | Machine | Specs | Role today | Source |
 |---|---|---|---|
-| Linux home server ("abberhub") | **AMD A10-6700 APU** (4 threads, 1.8–3.7 GHz; AVX but no AVX2). Corrected 2026-10-22: first recorded as an Intel i5. **8 GB DDR3-1600, one module in slot A1 of 4** (7.0 GiB usable) + 2 GiB swap. Motherboard ASUS M11BB; firmware reports an 8 GB maximum (SMBIOS figures are often wrong; check the board's spec page before buying RAM). Disk: **1 TB Toshiba DT01ACA1 hard drive** (spinning), 803 GB free. **Ubuntu 18.04.6 LTS, 32-bit (i686) install** on a 64-bit-capable CPU (`lm` flag). Owner plans a fresh 64-bit install (2026-10-22). Runs 24/7 on the LAN | Existing home server | Owner's `free -h`, `lscpu`, `lsb_release -a`, `lsblk`, `df -h`, `dmidecode` output, 2026-10-22 |
+| Linux home server (`hiveplex-linux`; was "abberhub") | **AMD A10-6700 APU** (4 threads, 1.8–3.7 GHz; AVX but no AVX2). Corrected 2026-10-22: first recorded as an Intel i5. **8 GB DDR3-1600, one module in slot A1 of 4** (6.5 GiB visible to the 64-bit OS, `MemTotal` 6,773,488 kB, 2026-10-25; it was 7.0 GiB usable on the old 32-bit install). Motherboard ASUS M11BB; firmware reports an 8 GB maximum (SMBIOS figures are often wrong; check the board's spec page before buying RAM). Disk: **1 TB Toshiba DT01ACA100 hard drive** (spinning, `ROTA=1`; the only disk), 12 GB used of 916 GB (2026-10-25). **Ubuntu 26.04.1 LTS, 64-bit (x86_64), kernel 7.0.0, a fresh install by the owner (2026-10-25)**, replacing the 32-bit Ubuntu 18.04.6 (i686). LAN address 192.168.1.247 (DHCP reservation on the router), Tailscale address 100.113.223.88. Docker Engine 29.9.2 installed (see below). Runs 24/7 on the LAN | Existing home server | Owner's `free -h`, `lscpu`, `lsb_release -a`, `lsblk`, `df -h`, `dmidecode` output, 2026-10-22; OS, disk and RAM re-read over SSH 2026-10-25 |
 | Steam Deck | Owned; specs not recorded | None yet | Owner, 2026-10-22 |
 | Raspberry Pi 3 Model B+ | Owned. USB, Ethernet, HDMI and camera ports. RAM and network speed not measured (1 GB RAM per the published spec [UNVERIFIED here]) | None yet | Owner, 2026-10-22 |
 | OneXPlayer handheld | Owned, unused; model and specs not recorded | None yet | Owner, 2026-10-22 |
 | Apple MacBook (M1) | Owned; RAM and storage not recorded. Owner offers it as a server or "portal" | None yet | Owner, 2026-10-22 |
 
-### Linux server: the 32-bit install blocks the plan
-`lscpu` reports `Architecture: i686`, so the running OS is 32-bit even though the CPU is 64-bit. This matters:
-- Docker Engine publishes packages for 64-bit architectures only, so the staging stack, watchdog and backups (all planned as containers, ADR-0012) can't run on this install as it stands [UNVERIFIED: re-check Docker's install page before acting].
-- Ubuntu shipped no 32-bit desktop or server installer after 18.04, so `do-release-upgrade` can't lead to a 64-bit system. The move to a current LTS (Q-ARCH-8) has to be a **fresh 64-bit (amd64) install**; back up anything on the server first.
-- The disk is a spinning hard drive: fine for backups and logs, slower for a busy SQLite database.
-- About 7 GiB of RAM covers the watchdog, monitoring and backups. A full staging stack may want more (see the note below).
+### Linux server: 64-bit rebuild (resolved 2026-10-25)
+The old install was 32-bit (`Architecture: i686`) on a 64-bit-capable CPU. That blocked the plan: Docker Engine publishes packages for 64-bit architectures only, and Ubuntu has no in-place path from a 32-bit install to a 64-bit one. The owner did a fresh 64-bit install on 2026-10-25. Measured since [MEASURED, over SSH, 2026-10-25]:
+- **OS:** Ubuntu 26.04.1 LTS, `x86_64`, kernel 7.0.0-38. ADR-0012 and Q-ARCH-8 name Ubuntu 24.04 as the target; the server runs 26.04.1, which Docker's install page lists as supported. The owner should confirm 26.04 is acceptable.
+- **Docker:** Docker Engine 29.9.2, Compose v5.6.1 and Buildx v0.38.1 from Docker's official apt repository; `hello-world` ran. Containers that publish a port with `-p` bypass `ufw` (general Docker behaviour [UNVERIFIED here]): bind them to `127.0.0.1` unless the port is meant for the network.
+- **Disk:** still one spinning disk. A backup on it is not a "separate disk from the primary" (see the role split); the plan is an external drive, the planned NAS and an encrypted off-site copy (Google Drive).
+- **RAM:** 6.5 GiB visible. Whether it carries Prometheus + Grafana + Loki and the staging stack together is **not measured**.
+- **Repo checks:** `make bootstrap check` on the server: 1 failed, 2499 passed, 1 skipped, about 13.5 minutes of pytest (the reference PC: about 5 minutes). The one failure is a wall-clock bound in `test_follow_steering_stays_within_budget_at_1000_entities`, not a logic failure (issue #358).
+- **Setup, access, firewall, alerts and a restore checklist:** [SERVER-SETUP.md](SERVER-SETUP.md).
 
 ## What the GTX 1070 can and can't do
 The GTX 1070 is the same Pascal generation as the GTX 1080 first recorded here, so the Pascal NVENC facts below are unchanged by the correction. Only the board-power row is card-specific.
@@ -92,12 +94,16 @@ Not measured: tests over Wi-Fi, tests during an actual stream, and runs on other
 | Watchdog / monitoring / alerting | Linux server | Must live on a *different* box to detect that the stream box died |
 | Backups target | Linux server (+ offsite) | Separate disk from the primary |
 | Staging stack | Linux server | Keeps staging off the broadcast box |
+| Replay archive | Linux server | 858 GB free. The NX-345 spike measured about 250 MB of frame stream per game hour at the worst case (Q-SIM-29), so a 72-hour campaign is about 18 GB and the disk holds roughly 47 such campaigns [arithmetic from that figure]. Retention policy is open (Q-SIM-29). |
+| Internet and power monitoring, dashboards | Linux server | Internet probes, Kasa EP25 plug readings and CPU/power/cost dashboards (planned; see SERVER-SETUP.md) |
+| Alerts | Linux server | Discord webhook from the server (running since 2026-10-25); self-hosted ntfy later |
 
 ## Still needed from the owner
 - [x] CPU: i7-8700
 - [x] Gaming PC OS: Windows
 - [x] Linux server: CPU (AMD A10-6700), RAM (7.0 GiB usable), distro (Ubuntu 18.04.6, 32-bit), reported 2026-10-22
 - [x] Linux server: disk (1 TB HDD), motherboard (ASUS M11BB), RAM layout (1 × 8 GB, 3 free slots), reported 2026-10-22
+- [x] Linux server rebuilt as 64-bit Ubuntu 26.04.1 LTS with Docker, 2026-10-25
 
 Note: 8 GB is enough for the watchdog, monitoring and backups. Staging the full stack is likely to want 16 GB [ESTIMATE; confirm once the app exists].
 - [x] Measured upload: six speed-test runs at different times of day and three 3-minute sustained uploads, 2026-10-23 and 24 (see "Measured network")
