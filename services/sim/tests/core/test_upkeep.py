@@ -127,6 +127,146 @@ def test_viewer_units_pay_first_then_the_most_recent_order_then_id() -> None:
     assert w.stock["fob-n-w"] == 0
 
 
+def busy(w: World, e: Entity, key: str) -> Entity:
+    """`e` holding a claim on its own DEFEND job at its home (NX-428)."""
+    claim(w, e, post(w, "COALITION", "DEFEND", str(e.home_base), key), [])
+    return e
+
+
+def test_viewer_before_ai_stays_outermost_over_a_job() -> None:
+    # Q-TD-23 kept (Q-TD-49): an AI job holder still grounds before an idle viewer unit
+    w = new_world()
+    w.stock["fob-n-w"] = 5
+    holder = busy(w, put(w, INF, "fob-n-w", owner="AI_GARRISON", ordered=9), "h")
+    idle = put(w, INF, "fob-n-w", ordered=0)
+    assert rows(window(w)) == [
+        ("UnitGrounded", holder.id, "fob-n-w"),
+        ("SupplyConsumed", "fob-n-w", 5),
+    ]
+    assert (holder.grounded, idle.grounded) == (True, False)
+
+
+@pytest.mark.parametrize("owner", ["COMMANDER", "AI_GARRISON"])
+def test_an_idle_unit_grounds_before_a_job_holder_of_its_class_at_the_same_home(
+    owner: OwnerKind,
+) -> None:  # fmt: skip
+    # Q-TD-43: the idle unit's more recent order does not save it from a job holder's claim
+    w = new_world()
+    w.stock["fob-n-w"] = 5
+    holder = busy(w, put(w, INF, "fob-n-w", owner=owner, ordered=0), "h")
+    idle = put(w, INF, "fob-n-w", owner=owner, ordered=9)
+    assert rows(window(w)) == [
+        ("UnitGrounded", idle.id, "fob-n-w"),
+        ("SupplyConsumed", "fob-n-w", 5),
+    ]
+    assert (holder.grounded, holder.job_id is not None, idle.grounded) == (False, True, True)
+
+
+def test_job_holders_ground_only_when_the_holders_ahead_take_the_stock() -> None:
+    # every viewer unit at the home holds a job: recency, then id, decides among them
+    w = new_world()
+    w.stock["fob-n-w"] = 10  # two payments of 5
+    old = busy(w, put(w, INF, "fob-n-w", ordered=3), "old")
+    new_a = busy(w, put(w, INF, "fob-n-w", ordered=7), "a")
+    new_b = busy(w, put(w, INF, "fob-n-w", ordered=7), "b")  # same tick: the lower id pays first
+    already = put(w, INF, "fob-n-w", ordered=10)
+    already.grounded = True  # grounded last window: idle, so it pays after every viewer holder
+    assert rows(window(w)) == [
+        ("UnitGrounded", old.id, "fob-n-w"),
+        ("SupplyConsumed", "fob-n-w", 10),
+    ]
+    assert (new_a.grounded, new_b.grounded, old.grounded, already.grounded) == (
+        False, False, True, True)  # fmt: skip
+
+
+def test_a_viewer_following_an_order_pays_before_an_idle_viewer_at_the_same_home() -> None:
+    # Q-TD-49c: an explicit order under way (here a HOLD still travelling to its node) is busy
+    w = new_world()
+    w.stock["fob-n-w"] = 5
+    ordered = put(w, INF, "fob-n-w", ordered=0)
+    ordered.order, ordered.order_node, ordered.held_since = "HOLD", "fob-s-w", 0
+    ordered.path = ["fob-s-w"]
+    idle = put(w, INF, "fob-n-w", ordered=9)
+    assert rows(window(w)) == [
+        ("UnitGrounded", idle.id, "fob-n-w"),
+        ("SupplyConsumed", "fob-n-w", 5),
+    ]
+    assert (ordered.grounded, ordered.order, idle.grounded) == (False, "HOLD", True)
+
+
+def test_a_unit_parked_on_hold_at_home_is_idle() -> None:
+    # Q-TD-49c: a HOLD has no end of its own, so once parked the unit is idle at home and the
+    # most recent order decides, not the HOLD
+    w = new_world()
+    w.stock["fob-n-w"] = 5
+    parked = put(w, INF, "fob-n-w", ordered=0)
+    parked.order, parked.order_node, parked.held_since = "HOLD", "fob-n-w", 0
+    idle = put(w, INF, "fob-n-w", ordered=9)
+    assert rows(window(w)) == [
+        ("UnitGrounded", parked.id, "fob-n-w"),
+        ("SupplyConsumed", "fob-n-w", 5),
+    ]
+    assert (parked.grounded, idle.grounded) == (True, False)
+
+
+def test_an_idle_unit_at_another_home_does_not_spare_a_job_holder() -> None:
+    w = new_world()
+    w.stock["fob-n-w"] = 0
+    holder = busy(w, put(w, INF, "fob-n-w"), "h")
+    idle = put(w, INF, "fob-s-w")  # fob-s-w holds 500 of its own
+    assert rows(window(w)) == [
+        ("UnitGrounded", holder.id, "fob-n-w"),
+        ("SupplyConsumed", "fob-s-w", 5),
+    ]
+    assert not idle.grounded
+
+
+_BASES = ("fob-n-w", "fob-s-w", "west-airbase")
+HELD = st.tuples(
+    st.sampled_from(("job", "order", "idle")), st.booleans(), st.integers(0, 5),
+    st.sampled_from(_BASES),
+)  # fmt: skip
+
+
+def _held_window(units: list[Any], stock: dict[str, int]) -> tuple[World, set[int], str]:
+    """The world after one window, the ids that were busy (a job or an order) going in, and its
+    state hash."""
+    w = new_world()
+    w.stock.update(stock)
+    for i, (work, viewer, ordered, home) in enumerate(units):
+        e = put(w, INF, home, owner="COMMANDER" if viewer else "AI_GARRISON", ordered=ordered)
+        if work == "job":
+            busy(w, e, str(i))
+        elif work == "order":  # a HOLD still on its way (a parked HOLD is idle, Q-TD-49c)
+            e.order, e.order_node, e.held_since, e.path = "HOLD", home, 0, [home]
+    held = {e.id for e in w.entities() if e.job_id is not None or (e.order and e.path)}
+    window(w)
+    return w, held, state_hash(w)
+
+
+@given(units=st.lists(HELD, max_size=8), stock=st.fixed_dictionaries(
+    {b: st.integers(0, 25) for b in _BASES}))  # fmt: skip
+def test_a_busy_unit_grounds_only_when_its_home_grounds_every_idle_unit_of_its_class(
+    units: list[Any], stock: dict[str, int],
+) -> None:  # fmt: skip
+    """Every charged unit here is INF at the same 5 (the start world homes nothing at these bases).
+    The property needs equal costs: with mixed costs a costly busy unit may ground while a cheaper
+    idle one pays from what is left (Q-TD-49 (b))."""
+    w, held, digest = _held_window(units, stock)
+    er = RULES.economy
+    assert er is not None
+    charged = [e for e in w.entities() if er.upkeep.get(e.kind, 0) and e.home_base in _BASES]
+    assert {er.upkeep[e.kind] for e in charged} <= {5}
+    idle_paid = {
+        (e.home_base, e.owner_kind) for e in charged if e.id not in held and not e.grounded
+    }
+    assert not [
+        e.id for e in charged
+        if e.id in held and e.grounded and (e.home_base, e.owner_kind) in idle_paid
+    ]  # fmt: skip
+    assert _held_window(units, stock)[2] == digest  # same world, same hash
+
+
 def test_a_base_pays_from_its_stock_and_the_source_from_the_pool() -> None:
     w = new_world()
     pool = w.pool["COALITION"]

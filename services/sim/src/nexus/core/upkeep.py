@@ -1,5 +1,5 @@
-"""Force economy, part 2: home bases, upkeep and grounding (NX-412; ECONOMY EC-4, EC-5, EC-6,
-EC-10 step 3, EC-15).
+"""Force economy, part 2: home bases, upkeep and grounding (NX-412, NX-428; ECONOMY EC-4, EC-5,
+EC-6, EC-10 step 3, EC-15).
 
 Home base (EC-5, `Entity.home_base`): the node a unit spawned at (set by each spawn), then the
 friendly node it last landed or parked at (the `logistics` system, by the rearm-stop rule
@@ -9,12 +9,17 @@ a BRIDGE for a ground unit), by straight line from the unit, ties by node id.
 
 Upkeep (EC-4, `upkeep`, at an economy window after income and the clip, before the Threat
 Director): each live unit of a side not in unlimited mode pays `economy.upkeep.<kind>` whole stock
-units from its home, in the EC-6 payment order: viewer (COMMANDER) units before AI units, then the
-most recent order or spawn (`Entity.ordered`) first, then entity id. A home pays from
-`World.stock`, or from the side's pool when it is the side's source, and only when it holds the
-full amount and its side still owns it. The total each home paid is one `SupplyConsumed{UPKEEP}`
-per window, in node id order. A kind with upkeep 0 always pays; a kind with no key (a facility)
-and a unit with no home (only hand-built worlds; every spawn sets one) are not charged.
+units from its home, in the EC-6 payment order: viewer (COMMANDER) units before AI units (Q-TD-23);
+within each class busy units before the rest (Q-TD-43, Q-TD-49, Q-TD-49c), busy meaning it holds
+a claimed job (`Entity.job_id`) or follows an explicit order (`Entity.order`) that is under way: a
+HOLD counts only while the unit travels, so a unit parked on HOLD is idle (`_busy`); then the most
+recent order or spawn (`Entity.ordered`) first; then entity id. Each home pays from its own
+purse, so a busy unit is grounded only when the units ahead of it at its home have used what the
+home holds. A home pays from `World.stock`, or from the
+side's pool when it is the side's source, and only when it holds the full amount and its side
+still owns it. The total each home paid is one `SupplyConsumed{UPKEEP}` per window, in node id
+order. A kind with upkeep 0 always pays; a kind with no key (a facility) and a unit with no home
+(only hand-built worlds; every spawn sets one) are not charged.
 
 Grounded (EC-6): a unit whose home cannot pay is grounded, never deleted (`UnitGrounded`): it drops
 its job claim, order and leader, an aircraft flies home and lands, a ground unit drives home and
@@ -58,6 +63,13 @@ def rehome(world: World, node: str) -> None:
                 _send_home(world, rules, e)
 
 
+def _busy(e: Entity) -> bool:
+    """EC-6 (Q-TD-43, Q-TD-49c): a claimed job, or an explicit order under way. A HOLD counts only
+    while the unit still travels to its node: a unit parked on HOLD is idle at home (a HOLD has no
+    end of its own)."""
+    return e.job_id is not None or (e.order is not None and (e.order != "HOLD" or bool(e.path)))
+
+
 def upkeep(world: World, out: list[Event]) -> None:
     """EC-10 step 3 at an economy window (module docstring)."""
     if (ready := due(world)) is None:
@@ -66,7 +78,7 @@ def upkeep(world: World, out: list[Event]) -> None:
     units = sorted(
         (e for e in world.entities()
          if e.side in er.limited and e.home_base is not None and e.kind in er.upkeep),
-        key=lambda e: (e.owner_kind != "COMMANDER", -e.ordered, e.id),
+        key=lambda e: (e.owner_kind != "COMMANDER", not _busy(e), -e.ordered, e.id),
     )  # fmt: skip
     paid: dict[str, int] = {}
     for e in units:

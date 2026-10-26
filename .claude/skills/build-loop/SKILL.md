@@ -31,6 +31,7 @@ Goal: work runs **as autonomously as possible** and pings the owner rarely (Q-DE
   - A one-line or doc-only change the lead makes inline; no coder for it.
   - One QA per round; the optional deep passes (`finecomb`, `review-council`, `/ponytail-review`) only on sensitive paths (CLAUDE.md).
   - Run `make check` once per agent, at the end; targeted `pytest` paths while iterating.
+- Before saying what a harness run tests (or has tested), read the values at that sha: `balance/default.yaml` plus the run's `set` overrides (L-28).
 - Harness results: read each `harness-done` issue within a day or two, file the analysis (an entertainment review in `docs/review/`, a PR or a tracker row), then close the issue with a comment linking it (owner rule 2026-10-26; tools/balance/README "Closing a result").
 
 ## 2. Code → QA → review
@@ -50,6 +51,7 @@ Git mechanics that bit before (LESSONS):
 
 Gotchas (each cost a round or a run; LESSONS has the story):
 - A coder or QA claim is not evidence until you grep it (L-1); a brief's number is wrong if a decided row says otherwise (L-14).
+- A mutation check counts only one branch per mutant: removing two branches at once proves neither is tested, and a fallback test needs a baseline that is not empty (L-27).
 - At the 3-round cap, a one-line remaining fix the lead may apply inline with a mutation-checked test, and says so in the PR body; anything larger escalates (L-16).
 - Python edits under `services/sim` and `tools/` are formatted by the PostToolUse hook (`.claude/hooks/format-python.sh`); if an Edit's `old_string` stops matching right after an edit, re-read the file: the hook reformatted it.
 

@@ -23,6 +23,7 @@ Then, depending on the change:
 
 Also check:
 - Every claim in the coder's report (a fix, a test, a number, a file:line) against the diff or by rerunning it; a claim the diff doesn't show is a finding (docs/agentic/LESSONS.md L-1).
+- Each key branch the change adds with its own mutant (one branch per mutant, restored after): a branch no test catches is a finding, and so is a claimed mutation check that removed several branches at once (L-27).
 - Every doc the change affects was updated (spec, contracts, config tables, READMEs, tracker). A stale doc is a finding.
 - The change matches the brief and the spec; anything beyond either is a finding.
 
