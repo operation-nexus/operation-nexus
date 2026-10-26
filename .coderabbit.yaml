@@ -1,6 +1,10 @@
 # yaml-language-server: $schema=https://coderabbit.ai/integrations/schema.v2.json
-# CodeRabbit: code review only, quiet (Q-DEV-3). Docs, generated code and lockfiles are covered by
-# the reviewer agent and CI, so CodeRabbit skips them. Keys: https://docs.coderabbit.ai/reference/configuration
+# CodeRabbit: the always-on code reviewer, quiet (Q-DEV-3, Q-CI-7). It reviews against our own rules
+# (path_instructions below and the guideline files under knowledge_base) instead of generic advice.
+# Docs, generated code and lockfiles are covered by the reviewer agent and CI, so it skips them; the
+# linters CI already runs are off here. Keep this file in step with docs/agentic/LESSONS.md and
+# .agents/rules/ (build-loop §5; maintenance: docs/agentic/TOOLING.md "CodeRabbit").
+# Keys: https://docs.coderabbit.ai/reference/configuration (schema above is authoritative).
 language: en-US
 reviews:
   profile: chill
@@ -8,11 +12,20 @@ reviews:
   high_level_summary: false
   changed_files_summary: false
   sequence_diagrams: false
+  estimate_code_review_effort: false
   review_status: false
   review_details: false
   collapse_walkthrough: true
   poem: false
   in_progress_fortune: false
+  enable_prompt_for_ai_agents: true # agents open most PRs: each comment carries a fix prompt
+  assess_linked_issues: false
+  related_issues: false
+  related_prs: false
+  suggested_labels: false     # label-sync.yml owns labels
+  suggested_reviewers: false
+  slop_detection:
+    enabled: false            # agents open most PRs here by design
   auto_review:
     enabled: true
     drafts: false
@@ -22,11 +35,39 @@ reviews:
       - "dependabot[bot]"
     ignore_title_keywords:
       - "[skip review]"
+  finishing_touches:          # no commits from the reviewer: the build-loop owns every edit (AGENTS.md 11b)
+    docstrings:
+      enabled: false
+    unit_tests:
+      enabled: false
+    autofix:
+      enabled: false
+    simplify:
+      enabled: false
+    fix_ci:
+      enabled: false
+    resolve_merge_conflict:
+      enabled: false
   pre_merge_checks:
     description:
       mode: "warning" # keeps PRs on .github/pull_request_template.md
     docstrings:
       mode: "off"     # not a rule here (.agents/rules/code-quality.md)
+  tools:              # CI already runs these (.github/workflows/ci.yml, security.yml)
+    ruff:
+      enabled: false
+    eslint:
+      enabled: false
+    biome:
+      enabled: false  # we use eslint + prettier
+    gitleaks:
+      enabled: false
+    osvScanner:
+      enabled: false
+    trivy:
+      enabled: false
+    hadolint:
+      enabled: false
   path_filters:
     - "!docs/**"
     - "!**/*.md"
@@ -35,6 +76,59 @@ reviews:
     - "!**/uv.lock"
     - "!**/pnpm-lock.yaml"
     - "!tools/sim-bench/bench.py.lock"
+  path_instructions:
+    - path: "services/sim/src/nexus/core/**"
+      instructions: |
+        Deterministic sim core (AGENTS.md rule 3, docs/specs/SIM-CORE.md). Flag: wall-clock time,
+        unseeded or module-level randomness, uuid4, iteration over a set or an unordered mapping
+        whose order can change a result, floating-point reductions in nondeterministic order,
+        threads or async, network or file I/O, imports from nexus.runtime or vendor SDKs.
+        New world state must be in the snapshot and state_hash (bump FORMAT_VERSION). A sim change
+        needs a test, and a determinism or save/load test when it adds state.
+    - path: "services/sim/src/nexus/{gateway,commands,moderation}/**"
+      instructions: |
+        Chat input is hostile (AGENTS.md rule 4, docs/security/THREAT-MODEL.md). Every string
+        from a platform, URL or LLM is validated, length-capped, normalized and moderated before
+        it reaches the sim, the screen, TTS, logs or a prompt. Vendor SDKs only inside adapter
+        packages (rule 10a). A chat command is its contracts/commands schema, its parser entry and
+        its sim handler, changed together (rule 6a).
+    - path: "services/sim/src/nexus/advisors/**"
+      instructions: |
+        LLMs advise, code decides (AGENTS.md rule 5): output is parsed into a typed schema,
+        range-checked and rejectable; never on the tick's hot path. A prompt lists only commands
+        and enum values the code handles (rule 6a).
+    - path: "contracts/**"
+      instructions: |
+        Source of truth for wire types and balance keys (AGENTS.md rule 6). Generated Python and
+        TypeScript come from `make contracts`, never hand edits. A new balance key needs all eight
+        x- annotations, balance/default.yaml, the loader and CONFIG-AND-CONTENT §6 in the same PR
+        (.claude/skills/add-config-key). A breaking wire change bumps contracts/VERSION.
+    - path: ".github/workflows/**"
+      instructions: |
+        Actions pinned to a full commit SHA; least-privilege `permissions:`; no untrusted
+        `${{ }}` (PR titles, bodies, branch names, issue text) interpolated into `run:`; beware
+        pull_request_target and workflow_run. Never weaken, skip or bypass `ci-gate` or another
+        required check (AGENTS.md rule 10).
+    - path: "tools/balance/harness_queue.py"
+      instructions: |
+        Parses hostile GitHub issue text. Strict parsing only; nothing from an issue reaches a
+        shell, a path or a git ref unvalidated; refusals name keys, never values.
+    - path: "**/tests/**"
+      instructions: |
+        Tests must fail when the rule they cover is broken; flag assertions that cannot fail and
+        wall-clock budgets that a slow host would trip. Never skip, xfail or delete a test to get
+        green.
 chat:
   auto_reply: true
   art: false
+knowledge_base:
+  code_guidelines:
+    enabled: true
+    filePatterns:
+      - "AGENTS.md"
+      - "**/CLAUDE.md"
+      - "**/.claude/rules/**/*.md"
+      - ".agents/rules/*.md"
+      - "docs/quality/REVIEW-CHECKLIST.md"
+  learnings:
+    scope: local

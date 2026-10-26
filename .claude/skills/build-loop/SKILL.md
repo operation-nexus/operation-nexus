@@ -87,6 +87,7 @@ A failure or hard point is fixed where it would have been prevented, in the same
    | The loop, git, PRs, CI handling | this skill |
    | A tool or script (harness, replay, repo checks) | its README, or a check in the script itself |
    | Session setup, hooks, models, MCP | `.claude/hooks/`, `.claude/settings.json`, `docs/agentic/TOOLING.md` |
+   | What PR review should catch (a recurring review finding, a rule reviewers miss) | `.coderabbit.yaml` `path_instructions` (and the agent or rule file above) |
    | Something the owner must do | `docs/planning/OWNER-TODO.md` |
 2. Add a row to `docs/agentic/LESSONS.md` (what happened, the rule, where it now lives). A lesson about code goes only in code-quality §9.
 3. Prefer a check that fails over a sentence that must be remembered: a test, a script guard or a hook beats a doc line.
