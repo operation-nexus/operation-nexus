@@ -50,6 +50,7 @@ Git mechanics that bit before (LESSONS):
 
 Gotchas (each cost a round or a run; LESSONS has the story):
 - A coder or QA claim is not evidence until you grep it (L-1); a brief's number is wrong if a decided row says otherwise (L-14).
+- A mutation check counts only one branch per mutant: removing two branches at once proves neither is tested, and a fallback test needs a baseline that is not empty (L-27).
 - At the 3-round cap, a one-line remaining fix the lead may apply inline with a mutation-checked test, and says so in the PR body; anything larger escalates (L-16).
 - Python edits under `services/sim` and `tools/` are formatted by the PostToolUse hook (`.claude/hooks/format-python.sh`); if an Edit's `old_string` stops matching right after an edit, re-read the file: the hook reformatted it.
 
