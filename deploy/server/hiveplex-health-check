@@ -1,0 +1,50 @@
+#!/usr/bin/env bash
+# Health check for the hiveplex-linux server. Run by hiveplex-health.timer every 5 minutes as root.
+# Sends a Discord message only when a check changes state (OK -> FAIL, FAIL -> OK) and once after boot.
+set -u
+STATE=/var/lib/hiveplex-health; mkdir -p "$STATE"
+host=$(hostname)
+note() { /usr/local/bin/hiveplex-notify "$1" || echo "notify failed: $1" >&2; }
+
+# check NAME STATUS(ok|fail) DETAIL  -> alert on transitions only
+check() {
+  local name=$1 status=$2 detail=$3 prev
+  prev=$(cat "$STATE/$name" 2>/dev/null || echo ok)
+  if [ "$status" = fail ] && [ "$prev" != fail ]; then
+    date +%s > "$STATE/$name.since"; echo fail > "$STATE/$name"
+    note "🔴 **$host**: $name FAILED: $detail"
+  elif [ "$status" = ok ] && [ "$prev" = fail ]; then
+    local since down=""; since=$(cat "$STATE/$name.since" 2>/dev/null || echo "")
+    [ -n "$since" ] && down=" (down $(( ($(date +%s) - since) / 60 )) min)"
+    echo ok > "$STATE/$name"
+    note "🟢 **$host**: $name recovered$down"
+  else
+    echo "$status" > "$STATE/$name"
+  fi
+}
+
+# Boot notice once per boot
+bid=$(cat /proc/sys/kernel/random/boot_id)
+[ "$(cat "$STATE/boot_id" 2>/dev/null)" = "$bid" ] || { echo "$bid" > "$STATE/boot_id"; note "ℹ️ **$host** booted: kernel $(uname -r), uptime $(uptime -p)"; }
+
+# disk: root filesystem >= 85% used
+use=$(df --output=pcent / | tail -1 | tr -dc 0-9)
+[ "$use" -ge 85 ] && check disk fail "root filesystem ${use}% used" || check disk ok "${use}%"
+
+# memory: available < 10%
+avail=$(awk '/MemAvailable/{a=$2}/MemTotal/{t=$2}END{printf "%d", a*100/t}' /proc/meminfo)
+[ "$avail" -lt 10 ] && check memory fail "only ${avail}% of RAM available" || check memory ok "${avail}%"
+
+# internet: both targets unreachable
+if ping -c2 -W2 1.1.1.1 >/dev/null 2>&1 || ping -c2 -W2 8.8.8.8 >/dev/null 2>&1; then check internet ok up; else check internet fail "1.1.1.1 and 8.8.8.8 unreachable (alerts can only be delivered once it is back)"; fi
+
+# tailscale
+ts=$(tailscale status --json 2>/dev/null | jq -r .BackendState 2>/dev/null)
+[ "$ts" = Running ] && check tailscale ok "$ts" || check tailscale fail "state: ${ts:-unknown}"
+
+# docker
+systemctl is-active --quiet docker && check docker ok active || check docker fail "docker service not active"
+
+# pending reboot (one notice per boot)
+if [ -e /var/run/reboot-required ] && [ "$(cat "$STATE/reboot_notice" 2>/dev/null)" != "$bid" ]; then echo "$bid" > "$STATE/reboot_notice"; note "ℹ️ **$host**: a reboot is required (package updates)"; fi
+exit 0
