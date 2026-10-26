@@ -1690,6 +1690,23 @@ def test_offensive_gaps_per_seed_with_lead_in_tail_and_tier() -> None:
                             "BRAVO": {"n": 1, "median": 30.0, "max": 30.0}}  # fmt: skip
 
 
+def test_the_markdown_keeps_fractional_offensive_gaps() -> None:
+    e = {
+        "funnel": {},
+        "staging": {"sitreps": 0, "capture_launches": 0},
+        "gaps": {
+            "per_seed": [{"seed": 1, "lead_in_min": 0.4, "gaps_min": [0.6, 12.25],
+                          "tail_min": None}],
+            "by_tier": {},
+        },
+        "pressure_per_hold": [],
+        "spawn_by_op": {"ops": {}, "shared": 0, "unattributed": 0},
+        "adaptations_per_hour": {},
+    }  # fmt: skip
+    seeds = next(line for line in report._d5_lines("p", e) if "per seed" in line)
+    assert "s1: lead-in 0.4, gaps [0.6, 12.2], tail -" in seeds
+
+
 def test_collector_logs_the_tier_timeline(collector: metrics.Collector) -> None:
     start = collector.tier
     collector.feed([_ev(ThreatTierChanged, "ThreatTierChanged", 500, side="ENEMY", to="BRAVO")])

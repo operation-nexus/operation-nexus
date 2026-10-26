@@ -554,7 +554,7 @@ def _d5_lines(name: str, e: dict[str, Any]) -> list[str]:
     }
     seeds = [
         f"s{g['seed']}: lead-in {_fmt(g['lead_in_min'])}, "
-        f"gaps {[round(x) for x in g['gaps_min']]}, tail {_fmt(g['tail_min'])}"
+        f"gaps [{', '.join(_fmt(x) for x in g['gaps_min'])}], tail {_fmt(g['tail_min'])}"
         for g in e["gaps"]["per_seed"]
     ]
     tiers = {
