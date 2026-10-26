@@ -19,8 +19,9 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 from test_join import CAMPAIGN_ID
 
-from nexus.contracts.gen.common.enums import Side
+from nexus.contracts.gen.common.enums import Side, UnitKind
 from nexus.contracts.gen.events.event import Event
+from nexus.core import launch as launch_mod
 from nexus.core import operations as ops
 from nexus.core import staging as stg
 from nexus.core.fog import side_view
@@ -28,6 +29,7 @@ from nexus.core.launch import _convoys, _launch, _own, _Purse, _staged_shares
 from nexus.core.launch import run as launch
 from nexus.core.logistics import _base_share, stock_targets
 from nexus.core.provocation import validate
+from nexus.core.rules import Rules
 from nexus.core.step import step
 from nexus.core.tasking_gen import _resupply
 from nexus.core.world import CaptureBar, Contact, Staged, Vec2, World, load, save, state_hash
@@ -251,9 +253,9 @@ def test_a_staged_operation_launches_once_it_can_pay_and_each_spawn_node_pays_it
     assert {j.key for j in w.boards["ENEMY"].values()} >= {"op:OFFENSIVE:fob-n-w:2"}
 
 
-def test_a_staged_operation_waits_while_its_base_can_pay_but_the_jets_node_cannot() -> None:
+def test_a_staged_operation_waits_while_its_base_can_pay_but_the_rear_cannot_pay_the_jets() -> None:
     w = world(LIMITED)
-    at_floor(w)
+    at_floor(w)  # east-airbase at its floor: plan_deploy sends the jets to the rear
     w.pool["ENEMY"] = POOL - 1000  # a rear account of 15: short of the jets' 20
     w.stock["fob-n-e"] = 250 + 40  # the base can pay its armor's share
     out = fire(w, offensive(w, "fob-n-w"))
@@ -266,7 +268,85 @@ def test_a_staged_operation_waits_while_its_base_can_pay_but_the_jets_node_canno
     assert w.director["ENEMY"].staged == []
 
 
-def test_both_bases_draw_the_window_base_account_so_it_waits_until_it_covers_both_shares() -> None:
+def jets_at_east_airbase(pool: int) -> World:
+    """LIMITED, staged at fob-n-e, which can pay its armor's 40; plan_deploy puts the jets at
+    east-airbase (past forward_deploy_min_surplus), whose stock could pay their 20."""
+    w = world(LIMITED)
+    at_floor(w)
+    w.pool["ENEMY"] = pool
+    w.stock["east-airbase"] += 60
+    w.stock["fob-n-e"] += 40
+    fire(w, offensive(w, "fob-n-w"), budget=0)
+    assert len(w.director["ENEMY"].staged) == 1
+    return w
+
+
+def test_jets_whose_deploy_base_cannot_pay_spawn_and_pay_at_the_rear() -> None:
+    w = jets_at_east_airbase(POOL)
+    # budget 60: base account 40, all the armor's; the rear account 20 and the pool pay the jets
+    out = window(w)
+    assert debits(out) == [("fob-n-e", 40), ("static-rear", 20)]  # Q-TD-39
+    assert {n for k, n in spawns(out) if k != "ENEMY_ARMOR"} == {"static-rear"}
+    assert [n for k, n in spawns(out) if k == "ENEMY_ARMOR"] == ["fob-n-e"] * 4
+    assert w.pool["ENEMY"] == POOL - 20 and w.director["ENEMY"].staged == []
+
+
+def test_jets_wait_when_neither_their_deploy_base_nor_the_rear_can_pay() -> None:
+    w = jets_at_east_airbase(POOL - 1000)  # a rear account of 15: short of the jets' 20
+    out = window(w)
+    assert debits(out) == [] and spawns(out) == [] and len(w.director["ENEMY"].staged) == 1
+
+
+def test_jets_spawn_and_pay_at_their_deploy_base_when_it_can_pay() -> None:
+    w = jets_at_east_airbase(POOL)
+    assert w.rules is not None
+    c, purse = offensive(w, "fob-n-w"), _Purse(60, 20)  # base account 60: the armor's 40 + jets' 20
+    staged = _staged_shares(w, w.rules, "ENEMY", c, {}, lambda n: 10 * n, purse, "fob-n-e")
+    assert staged is not None
+    shares, spots = staged
+    assert shares == {"fob-n-e": 40, "east-airbase": 20}
+    assert sorted(spots) == ["east-airbase"] * 2 + ["fob-n-e"] * 4
+
+
+def test_a_reused_idle_unit_is_neither_spawned_nor_paid_and_the_jets_still_fall_back() -> None:
+    w = jets_at_east_airbase(POOL)
+    assert w.rules is not None
+    idle = w.spawn("ENEMY_ARMOR", "ENEMY", "ENEMY_DIRECTOR", Vec2(*w.rules.roads.pos["fob-n-e"]))
+    idle.last_node = "fob-n-e"
+    out = window(w)
+    # 5 new units of the 6 at 60 x n // 6: 3 armor 30 at the FOB (base account 40 leaves 10), the
+    # jets' 20 from the rear account (Q-TD-39); the idle armor takes the first STAGE slot
+    assert debits(out) == [("fob-n-e", 30), ("static-rear", 20)]
+    assert [n for k, n in spawns(out) if k == "ENEMY_ARMOR"] == ["fob-n-e"] * 3
+    assert {n for k, n in spawns(out) if k != "ENEMY_ARMOR"} == {"static-rear"}
+    assert idle.job_id is not None and w.director["ENEMY"].staged == []
+
+
+def test_moved_units_join_the_rear_share_counted_last(monkeypatch: pytest.MonkeyPatch) -> None:
+    w = world()
+    assert w.rules is not None
+    at_floor(w)
+    w.stock["fob-n-e"] += 100
+    real = launch_mod._staged_spot
+
+    def spot(world: World, rules: Rules, side: Side, kind: UnitKind, near: str, at: str) -> str:
+        # the jets' deploy node: an id after "static-rear", with no stock, so it cannot pay
+        air = rules.domain[kind] == "AIR"
+        return "zz-base" if air else real(world, rules, side, kind, near, at)
+
+    monkeypatch.setattr(launch_mod, "_staged_spot", spot)
+    c = offensive(w, "fob-n-w")
+    staged = _staged_shares(
+        w, w.rules, "ENEMY", c, {}, lambda n: 65 * n // 6, _Purse(1000, 0, one=True), "fob-n-e"
+    )
+    assert staged is not None
+    shares, spots = staged
+    # floor(65 x 4 / 6) = 43 at the base, the moved jets' 65 - 43 = 22 at the rear, after it
+    assert shares == {"fob-n-e": 43, "static-rear": 22} and sum(shares.values()) == 65
+    assert sorted(spots) == ["fob-n-e"] * 4 + ["static-rear"] * 2
+
+
+def test_one_account_short_of_both_shares_waits_as_the_rear_draws_it_too() -> None:
     w = world()
     assert w.rules is not None
     at_floor(w)
@@ -274,6 +354,7 @@ def test_both_bases_draw_the_window_base_account_so_it_waits_until_it_covers_bot
     w.stock["fob-n-e"] += 40  # each base can pay its own share
     out = fire(w, offensive(w, "fob-n-w"), budget=50)  # one account of 50: short of 40 + 20
     assert debits(out) == [] and len(w.director["ENEMY"].staged) == 1
+    # unlimited (EC-15): the rear fallback draws the same one account, so it is short there too
     out = window(w, budget=50)
     assert debits(out) == [] and spawns(out) == [] and len(w.director["ENEMY"].staged) == 1
     out = window(w, budget=60)
@@ -288,9 +369,11 @@ def test_the_base_share_comes_first_and_matches_the_stock_target_with_an_uneven_
     w.stock["east-airbase"] += 100
     w.stock["fob-n-e"] += 100
     c = offensive(w, "fob-n-w")
-    shares = _staged_shares(
+    staged = _staged_shares(
         w, w.rules, "ENEMY", c, {}, lambda n: 65 * n // 6, _Purse(1000, 0, one=True), "fob-n-e"
     )
+    assert staged is not None
+    shares = staged[0]
     # base first: floor(65 x 4 / 6) = 43, the rest 65 - 43 = 22 (by id first it would be 44 + 21)
     assert shares == {"fob-n-e": 43, "east-airbase": 22}
     assert _base_share(w.rules, dataclasses.replace(c.op, cost=65), "fob-n-e") == 43

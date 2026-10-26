@@ -93,7 +93,7 @@ It needs the desktop session (GNOME on Wayland) to be logged in. **GDM auto-logi
 5. Copy `deploy/server/*` into place, recreate `/etc/hiveplex-alerts.env` with a webhook, enable `hiveplex-health.timer`.
 
 ## Known issues
-- `make check` fails on this machine on one wall-clock test (issue #358). The code is fine; the machine is slower than the reference PC.
+- The one wall-clock test that failed here (issue #358) no longer gates `make check`: NX-421 (PR #366) moved the five wall-clock budget tests behind the `perf` marker. Run them with `make perf`; expect them to be slower than on the reference PC, since this machine is slower.
 - One 1 TB disk only: no separate-disk backup yet.
 - 6.5 GiB RAM: not yet measured against Prometheus + Grafana + Loki plus staging.
 

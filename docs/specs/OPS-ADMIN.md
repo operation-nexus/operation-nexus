@@ -6,7 +6,7 @@ Status: Draft · Tracker: NX-250…NX-269
 
 The three-layer design (on-box, LAN watchdog, off-site heartbeat) is in [`docs/ops/MONITORING-WATCHDOG.md`](../ops/MONITORING-WATCHDOG.md).
 
-- **Topology (ADR-0012):** the broadcast host is the owner's **Windows** gaming PC. The app stack runs in Docker Desktop on **WSL2**, OBS runs natively on Windows (controlled via obs-websocket), and the deploy script runs inside WSL2 (Q-ARCH-15). The **Linux server** (Ubuntu 24.04 LTS after the rebuild, Q-ARCH-8) runs the watchdog, observability (Prometheus + Grafana + Loki, Q-ARCH-11), backups and staging (Q-OPS-2).
+- **Topology (ADR-0012):** the broadcast host is the owner's **Windows** gaming PC. The app stack runs in Docker Desktop on **WSL2**, OBS runs natively on Windows (controlled via obs-websocket), and the deploy script runs inside WSL2 (Q-ARCH-15). The **Linux server** (Ubuntu 26.04.1 LTS, rebuilt 2026-10-25, target 24.04 per Q-ARCH-8 pending the owner's confirmation; docs/ops/HARDWARE.md, Q-ARCH-8) runs the watchdog, observability (Prometheus + Grafana + Loki, Q-ARCH-11), backups and staging (Q-OPS-2).
 - **Supervision:** Compose restart policies supervise the containers on both machines. On the Linux server, systemd supervises `docker compose` and `nexus-watchdog`. systemd does not apply on the Windows host; its supervision is OA-1…OA-4.
 - **OA-1 Windows host session (Q-OPS-7):** the broadcast PC runs the stack under a dedicated **standard (non-admin)** Windows user with auto-login. Docker Desktop starts at login, and every production container uses `restart: unless-stopped`.
 - **OA-2 Windows watchdog (Q-OPS-7):** a PowerShell watchdog, started by Task Scheduler at that user's logon, launches OBS and checks OBS, Docker and the overlay about every 30 s. On a failed check it restarts the failed piece and alerts (§2).
@@ -37,7 +37,7 @@ The three-layer design (on-box, LAN watchdog, off-site heartbeat) is in [`docs/o
   - TTS queue length, LLM latency/cost/errors
   - DB write latency, disk usage
 - **Logs:** structured JSON with a correlation id per command, and a redaction filter for secrets and tokens.
-- **Dashboards:** one "stream health" board, on self-hosted Prometheus + Grafana + Loki on the Linux server (Q-ARCH-11). The external dead-man's switch stays (MONITORING-WATCHDOG L3).
+- **Dashboards:** one "stream health" board, on self-hosted Prometheus + Grafana + Loki on the Linux server (Q-ARCH-11; Prometheus and Grafana run there since 2026-10-25, NX-250, docs/ops/SERVER-SETUP.md; Loki is not set up yet). The external dead-man's switch stays (MONITORING-WATCHDOG L3).
 - **Alerts** (Q-OPS-4: ntfy push + a private Discord channel, text-based first):
   - stream offline, and the offline auto-pause and auto-resume (OA-5, OA-6)
   - Windows watchdog restart of OBS, Docker or the overlay (OA-2)

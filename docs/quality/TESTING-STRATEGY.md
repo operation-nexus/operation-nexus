@@ -80,6 +80,7 @@ A value drops its PROPOSED label (DI-7) only when an acceptance run passes: **50
 - Fan-out: WS delta frame < 16 KB p95 at 1,000 entities.
 - Command-to-screen: from ingest to the overlay showing an ack < 500 ms p95, excluding platform latency.
 - Overlay: frame time p95 < 12 ms at 1080p on the reference host (Q-TEST-1; measured on the real machine in a perf run, not in CI).
+- Sim tests that assert a wall-clock budget carry the pytest marker `perf`. `make check` skips them (`-m "not perf"`) so a slow host can still gate; `make perf` runs only them, and CI's plain `pytest` runs them too (NX-421, issue #358).
 
 ### 3.7 Overlay visual tests
 Fixture states (empty map, heavy combat, fog-heavy, raid with 500 units, long callsigns, RTL names) render to screenshots, which are compared against baselines with a tolerance. Accessibility checks: a palette contrast script and simulated colorblind renders.

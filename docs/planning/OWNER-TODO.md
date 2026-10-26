@@ -33,10 +33,10 @@ Applied and verified through the GitHub API on 2026-10-18 where checked.
 - [x] **GitHub organization (Q-LEGAL-8, NX-320):** done 2026-10-18, see §4d. Original item: create an organization owned by the saltyseraphcodes account (name: your choice after the handle checks in §4a), then transfer this repo into it (repo Settings → General → Danger Zone → Transfer). Issues, PRs and links move and old URLs redirect. Afterwards re-check rulesets, environments, the Actions allowlist and security settings in the new home, since which settings carry over is [UNVERIFIED]; then update CODEOWNERS, tracker issue links and badges (NX-320)
 
 ## 3. Hardware (issue #6, NX-007)
-- [ ] Linux server: `free -h`, `sudo dmidecode -t memory`, `lscpu`, `lsb_release -a` (record the results in docs/ops/HARDWARE.md)
-- [ ] Back up the server, then move it to Ubuntu 24.04 LTS (Q-ARCH-8; a fresh install needs USB or console access)
-- [ ] Measure upload speed (3 tests, different times of day)
-- [ ] Optional: plug-in power meter for real wattage numbers
+- [x] Linux server: `free -h`, `sudo dmidecode -t memory`, `lscpu`, `lsb_release -a` (record the results in docs/ops/HARDWARE.md) Recorded in HARDWARE.md (CPU, RAM layout, disk, OS); the server was then rebuilt 64-bit, 2026-10-25.
+- [ ] Back up the server, then move it to Ubuntu 24.04 LTS (Q-ARCH-8; a fresh install needs USB or console access). The server was rebuilt 2026-10-25 on Ubuntu 26.04.1 LTS instead (HARDWARE.md): confirm 26.04 is acceptable, then close this.
+- [x] Measure upload speed (3 tests, different times of day) Measured 2026-10-23 and 24; see HARDWARE.md "Measured network".
+- [x] Optional: plug-in power meter for real wattage numbers. Kasa plugs on the server (about 46 W on 2026-10-25) and the harness PC (installed 2026-10-25, #373); readings in COSTS.md and SERVER-SETUP.md "Monitoring".
 
 ## 4. Accounts and brand (NX-297)
 - [ ] Reserve the **Hiveplex** handle on YouTube, TikTok, Bluesky and Discord the same day (all looked free on 2026-10-18), and after a manual look on X, Instagram, Reddit and a GitHub organization. **Twitch `hiveplex` is already taken** by a dormant 2015 account: register `hiveplextv` and ask Twitch support about releasing the original (docs/review/HANDLE-AND-DOMAIN-CHECK-2026-10-18.md, Q-MKT-10) (Q-BRAND-6, accepted risk), and the studio byline handle as a defensive hold; follow the setup runbook when it exists (NX-336). Accounts are created by hand: platforms bar automated creation

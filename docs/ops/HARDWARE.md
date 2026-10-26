@@ -27,7 +27,7 @@ The old install was 32-bit (`Architecture: i686`) on a 64-bit-capable CPU. That 
 - **Docker:** Docker Engine 29.9.2, Compose v5.6.1 and Buildx v0.38.1 from Docker's official apt repository; `hello-world` ran. Containers that publish a port with `-p` bypass `ufw` (general Docker behaviour [UNVERIFIED here]): bind them to `127.0.0.1` unless the port is meant for the network.
 - **Disk:** still one spinning disk. A backup on it is not a "separate disk from the primary" (see the role split); the plan is an external drive, the planned NAS and an encrypted off-site copy (Google Drive).
 - **RAM:** 6.5 GiB visible. Whether it carries Prometheus + Grafana + Loki and the staging stack together is **not measured**.
-- **Repo checks:** `make bootstrap check` on the server: 1 failed, 2499 passed, 1 skipped, about 13.5 minutes of pytest (the reference PC: about 5 minutes). The one failure is a wall-clock bound in `test_follow_steering_stays_within_budget_at_1000_entities`, not a logic failure (issue #358).
+- **Repo checks:** `make bootstrap check` on the server: 1 failed, 2499 passed, 1 skipped, about 13.5 minutes of pytest (the reference PC: about 5 minutes). The one failure is a wall-clock bound in `test_follow_steering_stays_within_budget_at_1000_entities`, not a logic failure (issue #358). Fixed in NX-421 (PR #366): the five wall-clock tests carry the `perf` marker, `make check` skips them, and `make perf` (and CI) still runs them. The 13.5-minute and 1-failed figures predate that change and were not re-measured afterward.
 - **Setup, access, firewall, alerts and a restore checklist:** [SERVER-SETUP.md](SERVER-SETUP.md).
 
 ## What the GTX 1070 can and can't do
@@ -95,7 +95,7 @@ Not measured: tests over Wi-Fi, tests during an actual stream, and runs on other
 | Backups target | Linux server (+ offsite) | Separate disk from the primary |
 | Staging stack | Linux server | Keeps staging off the broadcast box |
 | Replay archive | Linux server | 858 GB free. The NX-345 spike measured about 250 MB of frame stream per game hour at the worst case (Q-SIM-29), so a 72-hour campaign is about 18 GB and the disk holds roughly 47 such campaigns [arithmetic from that figure]. Retention policy is open (Q-SIM-29). |
-| Internet and power monitoring, dashboards | Linux server | Internet probes, Kasa EP25 plug readings and CPU/power/cost dashboards (planned; see SERVER-SETUP.md) |
+| Internet and power monitoring, dashboards | Linux server | Prometheus + Grafana: internet and PC probes, Kasa plug readings, and CPU/power/cost dashboards (running since 2026-10-25; see SERVER-SETUP.md "Monitoring"). Loki logs are not set up |
 | Alerts | Linux server | Discord webhook from the server (running since 2026-10-25); self-hosted ntfy later |
 
 ## Still needed from the owner

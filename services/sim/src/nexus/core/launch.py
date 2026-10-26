@@ -43,8 +43,9 @@ launched in selection order:
   the hold is at risk" (ECONOMY EC-9, Q-TD-19; NX-412 part 4).
 - **Forward staging (THREAT-DIRECTOR §4a, NX-416; legacy rules off).** A capture operation
   farther than `director.staging.direct_s` by road from the rear waits at its staging base
-  (`nexus.core.staging`) until every node it spawns at can pay its own units (`_stage`,
-  `_review`, `_staged_shares`; Q-TD-38), announced as `ThreatAdaptation{STAGING}` in the base's
+  (`nexus.core.staging`) until every node it spawns at can pay its own units, units whose
+  deploy base cannot pay spawning at the source instead (`_stage`, `_review`, `_staged_shares`;
+  Q-TD-38, Q-TD-39), announced as `ThreatAdaptation{STAGING}` in the base's
   sector (a re-stage only when the coalition tracks a unit at the new base, `_seen_at`); it holds
   its budget share and a `max_ops` slot while it waits, and falls back by EC-13 after
   `max_wait_windows` or is dropped.
@@ -52,7 +53,7 @@ launched in selection order:
 
 import itertools
 import math
-from collections.abc import Callable
+from collections.abc import Callable, Iterator
 from dataclasses import dataclass
 from fractions import Fraction
 
@@ -536,8 +537,8 @@ def _post_and_spawn(
     jobs only after the payment, because a carrier at its source loads on taking a job, and
     loading first could leave too little surplus to pay. With `economy.legacy_rules` off the
     cost is drawn once at `_paying_node`, where every new unit spawns (EC-13); with `at`, a staged
-    operation's base (FS-4, Q-TD-38), each unit spawns at `_staged_spot` and each spawn node pays
-    its own units' share (`_staged_shares`)."""
+    operation's base (FS-4, Q-TD-38), each unit spawns where `_staged_shares` planned it and each
+    spawn node pays its own units' share."""
     dr = rules.director
     if dr is None:
         return 0
@@ -545,12 +546,14 @@ def _post_and_spawn(
     spare = {} if garrison else _reusable(world, side)  # a garrison replacement is always new
     legacy, need = legacy_rules(rules), cost(len(_new_slots(c, spare)))
     node, shares = None, None
+    spots: Iterator[str] = iter(())  # where a staged operation's new units spawn, in slot order
     if legacy:
         if _payable(world, rules, side) < need:
             return None
     elif at is not None:
-        if (shares := _staged_shares(world, rules, side, c, spare, cost, purse, at)) is None:
+        if (staged := _staged_shares(world, rules, side, c, spare, cost, purse, at)) is None:
             return None
+        shares, spots = staged[0], iter(staged[1])
     elif (node := _paying_node(world, rules, side, c, need, purse)) is None:
         return None
     spawned = 0
@@ -577,13 +580,15 @@ def _post_and_spawn(
                 near = _near(world, rules, side, job, w)
                 spot = node or (c.target if garrison else w.origin)
                 if at is not None:
-                    spot = _staged_spot(world, rules, side, kind, near, at)
+                    spot = next(spots)  # as `_staged_shares` planned and priced it
                 unit, base = _spawn(world, rules, side, kind, near, out, at=spot)
                 first, spawned = first or base, spawned + 1
                 if garrison:
                     unit.home = c.target
                 given.append((unit, posted))
         prev = last
+    if next(spots, None) is not None:
+        raise ValueError("a staged spawn left planned spots: the plan and the spawn drifted")
     if legacy:
         _pay(world, rules, side, cost(spawned), first, out)
     else:
@@ -610,35 +615,48 @@ def _staged_spot(world: World, rules: Rules, side: Side, kind: UnitKind, near: s
 def _staged_shares(
     world: World, rules: Rules, side: Side, c: ops.Candidate, spare: dict[str, list[Entity]],
     cost: Callable[[int], int], purse: _Purse | None, at: str,
-) -> dict[str, int] | None:  # fmt: skip
-    """FS-4 (Q-TD-38): what each spawn node of `c`, staged at `at`, pays for its own new units, or
-    None while any of them cannot. A node's share is the cost of the units counted up to and
-    including it less the cost of those before it, the base first, then the other nodes by id, so
-    the shares add up to `cost(new units)` and the base's is `cost(its units)` (FS-3). A base
-    pays from its surplus and the base account, the source from the pool and the rear account,
-    as `_paying_node` checks one node."""
+) -> tuple[dict[str, int], list[str]] | None:  # fmt: skip
+    """FS-4 (Q-TD-38, Q-TD-39): what each spawn node of `c`, staged at `at`, pays for its own new
+    units and where each new unit spawns (in `_new_slots` order), or None while the base or the
+    source cannot pay. A node's share is the cost of the units counted up to and including it
+    less the cost of those before it, the base first, then the other bases by id, the source
+    last, so the shares add up to `cost(new units)` and the base's is `cost(its units)` (FS-3). A
+    base pays from its surplus and the base account, the source from the pool and the rear
+    account, as `_paying_node` checks one node; a deploy base that cannot pay sends its units to
+    the source, as `_paying_node` does."""
+    slots = [
+        _staged_spot(world, rules, side, kind, _near(world, rules, side, job, w), at)
+        for kind, job, w in _new_slots(c, spare)
+    ]
     count: dict[str, int] = {}
-    for kind, job, w in _new_slots(c, spare):
-        spot = _staged_spot(world, rules, side, kind, _near(world, rules, side, job, w), at)
+    for spot in slots:
         count[spot] = count.get(spot, 0) + 1
     rear, sup, pool = rules.supply.rear[side], rules.supply, world.pool.get(side)
     room = None if purse is None else _Purse(purse.base, purse.rear, purse.one)
     shares: dict[str, int] = {}
+    moved: set[str] = set()
     units = 0
-    for node in sorted(count, key=lambda n: (n != at, n)):
-        share = cost(units + count[node]) - cost(units)
-        units += count[node]
+    for node in [*sorted(set(count) - {rear}, key=lambda n: (n != at, n)), rear]:
+        n = count.get(node, 0) + (sum(count[m] for m in sorted(moved)) if node == rear else 0)
+        if n == 0:
+            continue
+        share = cost(units + n) - cost(units)
         if node == rear:
             ok = pool is None or pool >= share
         else:
             ok = world.stock.get(node, 0) - sup.starve_floor.get(node, 0) >= share
         if room is not None:
             ok = ok and share <= room.room(node == rear)
-            room.spend(node == rear, share)
         if share > 0 and not ok:
-            return None
+            if node in (at, rear):
+                return None
+            moved.add(node)  # Q-TD-39: its units spawn at the source and pay their share there
+            continue
+        if room is not None:
+            room.spend(node == rear, share)
+        units += n
         shares[node] = share
-    return shares
+    return shares, [rear if s in moved else s for s in slots]
 
 
 def _paying_node(
