@@ -31,6 +31,7 @@ Goal: work runs **as autonomously as possible** and pings the owner rarely (Q-DE
   - A one-line or doc-only change the lead makes inline; no coder for it.
   - One QA per round; the optional deep passes (`finecomb`, `review-council`, `/ponytail-review`) only on sensitive paths (CLAUDE.md).
   - Run `make check` once per agent, at the end; targeted `pytest` paths while iterating.
+- Before saying what a harness run tests (or has tested), read the values at that sha: `balance/default.yaml` plus the run's `set` overrides (L-28).
 - Harness results: read each `harness-done` issue within a day or two, file the analysis (an entertainment review in `docs/review/`, a PR or a tracker row), then close the issue with a comment linking it (owner rule 2026-10-26; tools/balance/README "Closing a result").
 
 ## 2. Code → QA → review
