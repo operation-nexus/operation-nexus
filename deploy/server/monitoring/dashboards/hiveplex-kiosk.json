@@ -691,7 +691,7 @@
    },
    "targets": [
     {
-     "expr": "sum(kasa_energy_month_kwh) * $rate",
+     "expr": "sum(sum_over_time(kasa_power_watts[$__range:1m])) / 60 / 1000 * $rate",
      "legendFormat": "",
      "refId": "A"
     }
@@ -729,7 +729,8 @@
      "titleSize": 22,
      "valueSize": 52
     }
-   }
+   },
+   "timeFrom": "now/M"
   },
   {
    "id": 12,

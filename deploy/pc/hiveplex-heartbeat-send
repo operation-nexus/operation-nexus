@@ -5,4 +5,14 @@ set -u
 up=$(cut -d. -f1 /proc/uptime)
 timer=$(systemctl --user is-active nexus-harness.timer 2>/dev/null || echo unknown)
 job=$(pgrep -f balance.py >/dev/null && echo 1 || echo 0)
-echo "pc=up wsl_uptime_s=$up harness_timer=$timer job_running=$job" | ssh hiveserver-hb true
+# Harness job info for the server's job-done alert: the issue number now running (0 = none), and the newest
+# finished job (its issue number and how many minutes it took, from the results dir's birth to its "finished" marker).
+R=$HOME/.local/share/nexus-harness/results
+job_n=$(ls "$R"/*.running 2>/dev/null | head -1 | sed 's|.*/||; s|\.running$||'); job_n=${job_n:-0}
+last_ok=0; last_ok_min=0
+newest=$(for f in "$R"/[0-9]*-*/finished; do case "$f" in *killed*) continue;; esac; [ -e "$f" ] && echo "$(stat -c %Y "$f") $f"; done 2>/dev/null | sort -n | tail -1 | cut -d' ' -f2-)
+if [ -n "$newest" ]; then
+  d=$(dirname "$newest"); last_ok=$(basename "$d" | cut -d- -f1)
+  last_ok_min=$(( ($(stat -c %Y "$newest") - $(stat -c %W "$d")) / 60 ))
+fi
+echo "pc=up wsl_uptime_s=$up harness_timer=$timer job_running=$job job_n=$job_n last_ok=$last_ok last_ok_min=$last_ok_min" | ssh hiveserver-hb true
