@@ -34,7 +34,7 @@ Applied and verified through the GitHub API on 2026-10-18 where checked.
 
 ## 3. Hardware (issue #6, NX-007)
 - [x] Linux server: `free -h`, `sudo dmidecode -t memory`, `lscpu`, `lsb_release -a` (record the results in docs/ops/HARDWARE.md) Recorded in HARDWARE.md (CPU, RAM layout, disk, OS); the server was then rebuilt 64-bit, 2026-10-25.
-- [ ] Back up the server, then move it to Ubuntu 24.04 LTS (Q-ARCH-8; a fresh install needs USB or console access). The server was rebuilt 2026-10-25 on Ubuntu 26.04.1 LTS instead (HARDWARE.md): confirm 26.04 is acceptable, then close this.
+- [x] Rebuild the server on a supported Ubuntu LTS (Q-ARCH-8): done 2026-10-25 on Ubuntu 26.04.1 LTS, accepted and preferred by the owner 2026-10-26 (HARDWARE.md).
 - [x] Measure upload speed (3 tests, different times of day) Measured 2026-10-23 and 24; see HARDWARE.md "Measured network".
 - [x] Optional: plug-in power meter for real wattage numbers. Kasa plugs on the server (about 46 W on 2026-10-25) and the harness PC (installed 2026-10-25, #373); readings in COSTS.md and SERVER-SETUP.md "Monitoring".
 

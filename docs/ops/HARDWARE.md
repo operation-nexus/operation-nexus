@@ -23,7 +23,7 @@ Status: Draft · Q-OPS-1 · Facts verified 2026-10-17 (server row 2026-10-22) un
 
 ### Linux server: 64-bit rebuild (resolved 2026-10-25)
 The old install was 32-bit (`Architecture: i686`) on a 64-bit-capable CPU. That blocked the plan: Docker Engine publishes packages for 64-bit architectures only, and Ubuntu has no in-place path from a 32-bit install to a 64-bit one. The owner did a fresh 64-bit install on 2026-10-25. Measured since [MEASURED, over SSH, 2026-10-25]:
-- **OS:** Ubuntu 26.04.1 LTS, `x86_64`, kernel 7.0.0-38. ADR-0012 and Q-ARCH-8 name Ubuntu 24.04 as the target; the server runs 26.04.1, which Docker's install page lists as supported. The owner should confirm 26.04 is acceptable.
+- **OS:** Ubuntu 26.04.1 LTS, `x86_64`, kernel 7.0.0-38. The owner accepted and prefers 26.04 (Q-ARCH-8 amended 2026-10-26); Docker's install page lists it as supported.
 - **Docker:** Docker Engine 29.9.2, Compose v5.6.1 and Buildx v0.38.1 from Docker's official apt repository; `hello-world` ran. Containers that publish a port with `-p` bypass `ufw` (general Docker behaviour [UNVERIFIED here]): bind them to `127.0.0.1` unless the port is meant for the network.
 - **Disk:** still one spinning disk. A backup on it is not a "separate disk from the primary" (see the role split); the plan is an external drive, the planned NAS and an encrypted off-site copy (Google Drive).
 - **RAM:** 6.5 GiB visible. Whether it carries Prometheus + Grafana + Loki and the staging stack together is **not measured**.

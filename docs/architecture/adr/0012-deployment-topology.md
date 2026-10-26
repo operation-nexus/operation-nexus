@@ -15,7 +15,7 @@ The owner then decided:
 - **Q-ARCH-15:** signed images; staging auto-deploys to the Linux server; production on owner tap-approve with auto-rollback; Tailscale, no open ports. On the Windows host the deploy script runs inside WSL2 (Docker Desktop), and OBS stays native on Windows, controlled via obs-websocket.
 - **Q-OPS-2:** staging runs on the Linux server, streaming to an unlisted test channel. If the server is too old or weak (checked in NX-007), a cheap cloud server is the fallback.
 - **Q-ARCH-11:** self-hosted Prometheus + Grafana + Loki on the Linux server; the external dead-man's switch stays (MONITORING-WATCHDOG L3).
-- **Q-ARCH-8:** the Linux server moves to Ubuntu 24.04 LTS before it hosts the watchdog, staging or backups.
+- **Q-ARCH-8:** the Linux server moves to a supported Ubuntu LTS before it hosts the watchdog, staging or backups (24.04 at first; amended 2026-10-26: 26.04.1 LTS, see below).
 - **Q-ARCH-10:** secrets are encrypted with sops + age to each machine's key, in the private `operation-nexus-ops` repo.
 
 ## Options considered
@@ -29,7 +29,7 @@ Option 2.
 | Machine | Runs | Supervision |
 |---|---|---|
 | **Windows gaming PC** (production broadcast host) | Docker Desktop on WSL2: `nexus-app`, `nexus-tts`, `nexus-llm` (isolated LLM container, Q-AI-3), `nginx` overlay. OBS **native on Windows**, controlled via obs-websocket. The deploy script runs inside WSL2. | Compose restart policies for containers. How OBS, WSL2 and Docker Desktop are auto-started and supervised on Windows (and how Windows Update is kept from rebooting mid-stream) is **open: Q-OPS-7**. systemd does not apply on this host. |
-| **Linux server** (Ubuntu 24.04 LTS after rebuild) | Watchdog L2 (LAN probes of the PC), Prometheus + Grafana + Loki, local backup copy + encrypted off-site upload (`BackupTarget`, Q-OPS-6), the **staging** stack streaming to an unlisted test channel | systemd + Compose |
+| **Linux server** (Ubuntu 26.04.1 LTS, rebuilt 2026-10-25) | Watchdog L2 (LAN probes of the PC), Prometheus + Grafana + Loki, local backup copy + encrypted off-site upload (`BackupTarget`, Q-OPS-6), the **staging** stack streaming to an unlisted test channel | systemd + Compose |
 | **External** | Dead-man's switch / heartbeat (L3) | Provider-managed |
 
 Unchanged from ADR-0006: images are built and signed in CI (cosign keyless) and pulled from GHCR; deploys go over Tailscale from a protected GitHub Environment; no inbound ports on either machine; no self-hosted runner executes PR code; health-gated restart with automatic rollback.
@@ -43,7 +43,7 @@ Unchanged from ADR-0006: images are built and signed in CI (cosign keyless) and 
 - **Revisit when:** a dedicated broadcast box replaces the gaming PC, the Linux server can't carry staging plus observability, or multiple theaters run at once (SYSTEM-DESIGN §7).
 
 ## Update 2026-10-25 (facts only; the decision and its Proposed status are unchanged)
-- The Linux server was rebuilt as a 64-bit install (Ubuntu **26.04.1 LTS**, not the 24.04 named in Q-ARCH-8 above) with Docker Engine 29.9.2. The 32-bit blocker in Context no longer applies. The owner should confirm 26.04 is acceptable for Q-ARCH-8.
+- The Linux server was rebuilt as a 64-bit install (Ubuntu **26.04.1 LTS**, not the 24.04 named in Q-ARCH-8 above) with Docker Engine 29.9.2. The 32-bit blocker in Context no longer applies. The owner accepted 26.04 and prefers it (Q-ARCH-8 amended 2026-10-26).
 - Measured: 6.5 GiB of RAM visible, one spinning 1 TB disk, and a Tailscale address on the owner's tailnet. The disk is the only one, so a backup on it is not a separate-disk backup; an external drive, a NAS and an encrypted off-site copy are planned.
 - The server now runs the first piece of the watchdog layer: a health check that posts to a Discord webhook on state changes (MONITORING-WATCHDOG, "Implemented so far"). Since then (2026-10-25) it also watches the harness PC with a ping check and a heartbeat, and runs Prometheus + Grafana with a Kasa plug exporter for the server's and the harness PC's power (#373; SERVER-SETUP, "PC heartbeat" and "Monitoring"). Not done: the L3 external heartbeat, the PC's CPU/GPU metrics, and Loki.
 - Details and the restore checklist: [SERVER-SETUP.md](../../ops/SERVER-SETUP.md).
