@@ -94,7 +94,8 @@ from nexus.core.rules import CAPTURE_FULL, Rules
 # cadence floor, NX-412 part 3); 31: Campaign.hold_nodes, the strategic nodes of the running victory
 # hold (ECONOMY EC-9, NX-412 part 4); 32: DirectorState.staged, the forward-staged operations
 # (THREAT-DIRECTOR FS-7, NX-416); DirectorState.last_operation is also the last window a staged
-# operation was kept, launched or dropped (Q-TD-42, NX-427, no bump: same shape)
+# operation was kept, launched or dropped (Q-TD-42, NX-427, no bump: same shape); only capture
+# operations stamp it (Q-TD-54, NX-439, no bump: same shape)
 FORMAT_VERSION = 32
 _MM = 1000.0  # metres -> millimetres; m/s -> mm/s
 _MICRO = 1e6  # ADR-0002's 1e-6 step for other floats (fuel)
@@ -543,8 +544,9 @@ class DirectorState:
     no entry.
 
     Cadence (NX-412 part 3, ECONOMY EC-7): `last_operation` is the decision window (`windows`)
-    in which the side last launched an operation that posted jobs or had a staged one kept,
-    launched or dropped (Q-TD-42), 0 = never; the cadence floor counts from it.
+    in which the side last launched a capture operation (`operations.has_capture`: OFFENSIVE,
+    RETAKE) that posted jobs or had a staged one kept, launched or dropped (Q-TD-42, Q-TD-54),
+    0 = never; the cadence floor counts from it. Other operations do not stamp it.
 
     Forward staging (NX-416, THREAT-DIRECTOR §4a): `staged` lists the operations waiting at a
     staging base, ascending by (op, target), each pair once."""

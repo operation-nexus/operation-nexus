@@ -33,8 +33,8 @@ it, in order:
    side's units owe per window), at least the cadence floor (0 when it does not apply), at most
    surplus + rear pool.
    The rear pool is 0 for a side in unlimited mode (no pool). Cadence floor: while the side holds
-   an HQ, has no operation staged and has launched none for `cadence_windows` windows
-   (`last_operation`, also stamped when a staged one is dropped), the
+   an HQ, has no operation staged and has launched no capture operation for `cadence_windows`
+   windows (`last_operation`, also stamped when a staged one is dropped; Q-TD-54), the
    cheapest operation of its tier that surplus + pool can pay; `nexus.core.launch` lifts it to
    the cheapest capture operation with a target that window (Q-TD-42). The pool share is spent
    only on operations that spawn at the source (`rear_share`, `nexus.core.launch`).
@@ -96,8 +96,9 @@ def rear_share(dr: DirectorRules, pool: int) -> int:
 
 
 def cadence_due(state: DirectorState, view: SideView, rules: Rules) -> bool:
-    """EC-7: the side holds an HQ, has no operation staged and has launched none for
-    `cadence_windows` windows (a staged one dropped stamps `last_operation`, Q-TD-42)."""
+    """EC-7: the side holds an HQ, has no operation staged and has launched no capture operation
+    for `cadence_windows` windows (a staged one dropped stamps `last_operation`, Q-TD-42); other
+    operations do not reset it (Q-TD-54), for the capture floor and the cheapest-operation one."""
     dr = rules.director
     if dr is None or state.staged or state.windows - state.last_operation < dr.cadence_windows:
         return False

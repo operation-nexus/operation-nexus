@@ -170,6 +170,51 @@ def test_the_cadence_floor_buys_a_capture_operation_over_cheaper_ones() -> None:
     assert world(NEW_UNLIMITED).director["ENEMY"].budget == 0
 
 
+CAPTURE_OPS = ("OFFENSIVE", "RETAKE")
+
+
+def cheap_windows(w: World, first: int, last: int) -> None:
+    """Windows `first`..`last`, each buying cheap operations (30 points, ALPHA) and none that
+    captures; the board is cleared before each, as if the last window's operations had ended."""
+    for k in range(first, last + 1):
+        w.boards["ENEMY"].clear()
+        pairs = floor_window(w, k)
+        assert pairs and not [p for p in pairs if p[0] in CAPTURE_OPS], (k, pairs)
+        assert w.director["ENEMY"].budget == 30, k  # no lift
+
+
+def test_cheap_operations_every_window_do_not_hold_off_the_capture_floor() -> None:
+    # Q-TD-54 (J0-J4 review §2): the Static launched cheap operations every window and the floor,
+    # counted from any operation, never came due. It counts from the last capture operation:
+    # nine windows of PROBE and RECON leave it at window 0, so window 10 forces OFFENSIVE
+    w = world(NEW_UNLIMITED)
+    cheap_windows(w, 1, 9)
+    assert w.director["ENEMY"].last_operation == 0  # cheap launches do not stamp
+    w.boards["ENEMY"].clear()
+    assert floor_window(w, 10) == [("OFFENSIVE", "west-airbase")]
+    assert w.director["ENEMY"].last_operation == 10  # a capture launch does
+    cheap_windows(w, 11, 19)  # counted from window 10: not due before window 20
+    assert w.director["ENEMY"].last_operation == 10
+    w.boards["ENEMY"].clear()
+    assert floor_window(w, 20) == [("OFFENSIVE", "west-airbase")]
+
+
+def test_with_no_capture_target_the_cheapest_operation_floor_also_counts_from_capture() -> None:
+    # Q-TD-54, one clock (NX-439): with the night cap spent no capture operation is a candidate,
+    # so window 10 buys cheap operations; they do not reset the floor, which stays due and keeps
+    # the next window's budget at the cheapest operation (RECON, 2) the 200 pool pays
+    w = world(NEW_LIMITED)
+    s = w.director["ENEMY"]
+    s.last_flip = 1  # the night cap is spent: no capture operation
+    pairs = floor_window(w, 10)
+    assert pairs and not [p for p in pairs if p[0] in CAPTURE_OPS]
+    assert s.last_operation == 0
+    at_floor(w)  # surplus 0
+    w.pool["ENEMY"] = 200  # rear share floor(200 x 0.005) = 1
+    s.windows = 11
+    assert the_budget(w) == 2
+
+
 def test_without_a_capture_target_the_floor_keeps_the_cheapest_operation_rule() -> None:
     def capped(windows: int) -> tuple[list[tuple[str, str]], int]:
         w = world(NEW_UNLIMITED)
@@ -297,6 +342,8 @@ def test_the_floor_never_lifts_the_budget_past_surplus_plus_pool(
     out = operations(w, spend, tier)
     assert s.budget <= sum(free) + pool
     assert sum(a for _, a in debits(out)) <= s.budget
+    # Q-TD-54: the floor's clock moves only when a capture operation posts (staging is off here)
+    assert (s.last_operation == windows) == any(p[0] in CAPTURE_OPS for p in posted(w))
 
 
 def test_legacy_rules_keep_the_tier_budget_and_ignore_the_pool() -> None:
@@ -509,17 +556,19 @@ def test_no_stock_means_no_spawn_and_nothing_posted() -> None:
     assert spawns(out) == ["static-rear"] * 6 and debits(out) == []
 
 
-def test_a_launch_stamps_the_window_of_the_last_operation() -> None:
+def test_a_capture_launch_stamps_the_window_of_the_last_operation() -> None:
     w = world(NEW_UNLIMITED)
     w.director["ENEMY"].windows = 7
     operations(w, 60)
+    assert ("OFFENSIVE", "west-airbase") in posted(w)
     assert w.director["ENEMY"].last_operation == 7
     w = world(NEW_LIMITED)
     w.director["ENEMY"].windows = 8
     at_floor(w)
-    out = operations(w, 40)  # all on the rear account (40): still a launch
+    out = operations(w, 40)  # all on the rear account (40): launched, but none captures
     assert {n for n, _ in debits(out)} == {"static-rear"}
-    assert w.director["ENEMY"].last_operation == 8
+    assert not [p for p in posted(w) if p[0] in CAPTURE_OPS]
+    assert w.director["ENEMY"].last_operation == 0  # Q-TD-54: no stamp
 
 
 @pytest.mark.parametrize("pool", [8000, 2000])
@@ -758,6 +807,20 @@ def test_legacy_off_runs_deterministically(overrides: dict[str, object]) -> None
     assert any(e["kind"] == "UnitSpawned" and e["owner_kind"] == "ENEMY_DIRECTOR" for e in first[1])
     refused = any(e["kind"] == "SpawnRefused" for e in first[1])
     assert refused == ("sim.max_live_units_per_side" in overrides)
+    assert once() == first
+
+
+def test_the_capture_clock_runs_deterministically() -> None:
+    # Q-TD-54: nine windows of cheap operations, then the floor's OFFENSIVE, twice from seed 1
+    def once() -> tuple[str, list[tuple[str, str]]]:
+        w = world(NEW_UNLIMITED)
+        cheap_windows(w, 1, 9)
+        w.boards["ENEMY"].clear()
+        floor_window(w, 10)
+        return state_hash(w), posted(w)
+
+    first = once()
+    assert first[1] == [("OFFENSIVE", "west-airbase")]
     assert once() == first
 
 

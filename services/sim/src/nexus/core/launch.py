@@ -28,15 +28,15 @@ launched in selection order:
   it (the last of the previous step); its units claim it at once (`tasking.take`).
 - **Room.** The units must fit `max_spawns_per_window` and the live room: below
   `director.max_live_units.<tier>` under `economy.legacy_rules`, else below the EC-8 guard
-  `sim.max_live_units_per_side` (`economy.guard_room`). An operation that posts jobs stamps
-  `DirectorState.last_operation` (the EC-7 cadence floor). When the floor is due, the cheapest
-  capture operation with a target that base surplus plus the window's rear account pays lifts
-  the budget and the base account to at least its cost and is selected and launched first
-  (`_floor_capture`, Q-TD-42, Q-TD-48); if it cannot pay, the lift is undone and the window
-  selects as without it; one the window's caps would
-  skip lifts nothing. The floor is not due while an operation is staged
-  (`director.cadence_due`), and each window `_review` keeps, launches or drops one stamps
-  `last_operation`, so it counts from the drop. Operations the budget and
+  `sim.max_live_units_per_side` (`economy.guard_room`). A capture operation that posts jobs
+  stamps `DirectorState.last_operation` (the EC-7 cadence floor, Q-TD-54); others do not. When
+  the floor is due, the cheapest capture operation with a target that base surplus plus the
+  window's rear account pays lifts the budget and the base account to at least its cost and is
+  selected and launched first (`_floor_capture`, Q-TD-42, Q-TD-48); if it cannot pay, the lift
+  is undone and the window selects as without it; one the window's caps would skip lifts
+  nothing. The floor is not due while an operation is staged (`director.cadence_due`), and each
+  window `_review` keeps, launches or drops one stamps `last_operation` (a staged operation is
+  always a capture one), so it counts from the drop. Operations the budget and
   `max_spawns_per_window` allow but the live room does not are counted in one `SpawnRefused` per
   selection (EC-8, `GUARD` or `TIER_CAP`; NX-412 part 5a).
 - **Effect.** EMISSION_BLINK turns the radar at the target base dark for `decoy_blink.dark_s`
@@ -463,7 +463,8 @@ def _launch(
     )
     if paid is None:  # it could not pay: nothing was posted, so nothing to announce
         return False
-    state.last_operation = state.windows
+    if ops.has_capture(c.op):  # the EC-7 floor counts from capture operations only (Q-TD-54)
+        state.last_operation = state.windows
     _announce_up(world, side, view, state, dr, c, out)
     if c.target in view.hold and c.sector is not None and ops.has_capture(c.op):
         _adaptation(world, side, "HOLD_AT_RISK", c.sector, "UP", out, node=c.target)
