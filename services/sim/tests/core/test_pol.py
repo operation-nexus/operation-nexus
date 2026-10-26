@@ -650,6 +650,7 @@ def test_pol_needs_the_director_rules_and_the_kernel_stays_generic() -> None:
     assert homed(w) == {}  # no quota: no upkeep
 
 
+@pytest.mark.perf  # wall-clock budget: `make perf` and CI, not `make check` (#358)
 def test_a_window_with_every_pol_timer_due_at_a_thousand_entities_is_fast() -> None:
     import time
 

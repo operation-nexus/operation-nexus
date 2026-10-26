@@ -322,6 +322,7 @@ def test_a_snapshot_of_the_old_format_is_refused_and_a_malformed_point_job_too()
 # --- speed ----------------------------------------------------------------------------------------
 
 
+@pytest.mark.perf  # wall-clock budget: `make perf` and CI, not `make check` (#358)
 def test_recon_points_for_every_sector_at_a_thousand_tracks_are_fast() -> None:
     w = new_world()
     for n in range(10):
@@ -448,6 +449,7 @@ def test_live_and_restored_worlds_agree_with_a_recon_memory_and_a_bad_cell_is_re
             validate(restored_bad, RECON_ONLY)
 
 
+@pytest.mark.perf  # wall-clock budget: `make perf` and CI, not `make check` (#358)
 def test_recording_a_thousand_entities_looks_is_fast_and_repeatable() -> None:
     w = new_world()
     for i in range(1000):
