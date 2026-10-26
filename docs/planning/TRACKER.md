@@ -184,7 +184,7 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-041 | Moderation pipeline + denylist + tests (SEC-MOD-1) | M | ⬜ | NX-190 |
 | NX-225 | Audio buses + foley + licensed music stems | M | ⬜ | Q-LEGAL-2 |
 | NX-226 | TTS worker + sitrep templates + queue + night mode | L | ⬜ | Q-AI-4 |
-| NX-250 | Metrics + structured logs + dashboard. Partly done (#365, 2026-10-25): Prometheus + Grafana on the Linux server with internet and PC probes and Kasa power readings; structured logs (Loki) and the PC's own power and CPU/GPU metrics not done | M | 🟨 | NX-026 |
+| NX-250 | Metrics + structured logs + dashboard. Partly done (#365, 2026-10-25): Prometheus + Grafana on the Linux server with internet and PC probes and Kasa power readings; the harness PC's plug joined in #373; structured logs (Loki) and the PC's CPU/GPU metrics not done | M | 🟨 | NX-026 |
 | NX-251 | Watchdog: frame-freeze probe, live probe, fallback scene. Started (#361, 2026-10-25): the server pings the harness PC and watches its heartbeat; the frame-freeze and live probes and the fallback scene are not done | L | 🟨 | NX-175 |
 | NX-252 | Alerting (ntfy/Discord) + off-site dead-man's-switch heartbeat (MONITORING-WATCHDOG L3) | S | ⬜ | NX-250 |
 | NX-257 | Optional: smart-plug power-cycle for a hung stream PC | S | ❓ | NX-251 |
