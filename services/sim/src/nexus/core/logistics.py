@@ -106,18 +106,27 @@ def _route(
     return shortest_path(rules.roads, a, b, blocked=blocked(world), avoid=avoid)
 
 
-def supply_route(world: World, rules: Rules, side: Side, a: str, b: str) -> list[str] | None:
+def supply_route(
+    world: World, rules: Rules, side: Side, a: str, b: str, held: frozenset[str] | None = None
+) -> list[str] | None:
     """A supply run's road route from `a` to `b` (Q-SIM-122): it enters no node the other side
-    holds (`bridges.enemy_held`; neutral ground is passable); `a` and `b` themselves are allowed."""
-    return supply_path(rules, world.owner, blocked(world), side, a, b)
+    holds (`bridges.enemy_held`; neutral ground is passable); `a` and `b` themselves are allowed.
+    `held`: the caller's pass-wide `enemy_held` (NX-413), computed here when None."""
+    return supply_path(rules, world.owner, blocked(world), side, a, b, held)
 
 
 def supply_path(
-    rules: Rules, owners: Mapping[str, NodeOwner], down: frozenset[str], side: Side, a: str, b: str
+    rules: Rules,
+    owners: Mapping[str, NodeOwner],
+    down: frozenset[str],
+    side: Side,
+    a: str,
+    b: str,
+    held: frozenset[str] | None = None,
 ) -> list[str] | None:
     """`supply_route` from public node state only (owners and down bridges, FOW-10), so the
     Director's view (`operations.fed_nodes`, NX-401) plans the same route the trucks drive."""
-    avoid = held_by_other(rules, owners, side) - {b}
+    avoid = (held_by_other(rules, owners, side) if held is None else held) - {b}
     return shortest_path(rules.roads, a, b, blocked=down, avoid=avoid)
 
 
@@ -147,20 +156,26 @@ def nearest(
 
 
 def approach(
-    world: World, rules: Rules, start: str, bridge: str, *, side: Side | None
+    world: World, rules: Rules, start: str, bridge: str, *, avoid: frozenset[str]
 ) -> list[str] | None:
     """A ground unit's road path from the node `start` to `bridge`'s repair stop: the route to the
     nearer of its banks by road metres (ties by node id, `nearest`), then the bridge's id
-    (`step._waypoint` drives it out to the stop); None with no route to either bank. With a
-    `side` (a repair crew's, Q-SIM-125) the route enters no node the other side holds, a bank
-    included (`bridges.enemy_held`; neutral ground is passable; `start` is exempt)."""
-    avoid = frozenset() if side is None else enemy_held(world, rules, side)
+    (`step._waypoint` drives it out to the stop); None with no route to either bank. The route
+    enters no node of `avoid`, a bank included (`start` is exempt): a repair crew's is the
+    pass-wide `bridges.enemy_held` of its side (Q-SIM-125, NX-413; neutral ground is passable),
+    anyone else's empty."""
     best = nearest(world, rules, start, [*rules.roads.spans[bridge]], avoid)
     return None if best is None else [*best[1], bridge]
 
 
 def plan_run(
-    world: World, rules: Rules, side: Side, dest: str, *, around_enemy: bool = True
+    world: World,
+    rules: Rules,
+    side: Side,
+    dest: str,
+    *,
+    around_enemy: bool = True,
+    held: frozenset[str] | None = None,
 ) -> Run | None:
     """A cargo truck of `side` sent to `dest` (GAMEPLAY §5 Q-GP-24; None: no road route).
 
@@ -172,7 +187,8 @@ def plan_run(
     (`supply_route`, Q-SIM-122), unless `around_enemy` is False (a follower's source pick, which
     drives on its leader's road, GAMEPLAY §1b Q-GP-31). Any other `dest` (neutral, enemy,
     infinite or unable to hold stock) is a capture run: it loads nothing, spawns at the rear
-    source and may cross any node.
+    source and may cross any node. `held`: the caller's pass-wide `enemy_held` (NX-413),
+    computed here when None.
     """
     sup = rules.supply
     rear = sup.rear[side]
@@ -184,7 +200,7 @@ def plan_run(
             if n != dest and friendly(world, side, n) and world.stock.get(n, 0) > keep[n]
         ]  # fmt: skip
         if around_enemy:  # every source and `dest` are held: none is avoided
-            avoid = enemy_held(world, rules, side)
+            avoid = enemy_held(world, rules, side) if held is None else held
         best = nearest(world, rules, dest, sources, avoid)  # two-way roads: dest -> source
         if best is not None:
             source = best[0]

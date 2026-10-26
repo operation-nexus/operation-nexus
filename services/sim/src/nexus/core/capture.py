@@ -31,7 +31,9 @@ mobile units within the radius escape or are lost (Q-SM-10): a ground unit takes
 the nearest friendly base, an aircraft LANDED there takes off RTB to the nearest base it owns if its
 fuel reaches it; any other is removed with `UnitDestroyed` and, for a commander's unit, its respawn
 delay and, once per unit, its crew roll (COMBAT CB-8: a wreck rolled when it became Disabled); a
-Disabled wreck cannot escape.
+Disabled wreck cannot escape. Then every supply run and repair crew of the side the node now
+counts as enemy for, whose remaining road enters it (a supply run's destination exempt, a crew's
+bank not), turns back and replans around it (`bridges.reroute` with `taken`, NX-413).
 Stock stays with the node. A SANCTUARY or BRIDGE node is never captured (N-4).
 
 Defense HP (NX-124 part 3, `nexus.core.defense`, Q-GD-18): a bar cannot start on a node whose
@@ -65,6 +67,7 @@ from nexus.contracts.gen.common.enums import NodeOwner, Side
 from nexus.contracts.gen.events.capture_started import CaptureStarted
 from nexus.contracts.gen.events.event import Event
 from nexus.contracts.gen.events.node_captured import NodeCaptured
+from nexus.core.bridges import reroute
 from nexus.core.defense import reset
 from nexus.core.director import night_capped
 from nexus.core.fog import hand_over
@@ -296,6 +299,7 @@ def _flip(
     if before != "NEUTRAL":
         _resolve_units(world, rules, cap, node, before, out)
         rehome(world, node)  # the loser's units homed here re-home (ECONOMY EC-5)
+    reroute(world, rules, taken=node)  # runs and crews on their way replan around it (NX-413)
 
 
 def _switch_facilities(world: World, node: str, to: Side) -> None:

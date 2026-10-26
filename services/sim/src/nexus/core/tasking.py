@@ -91,6 +91,7 @@ Deterministic: integers and Fractions, jobs and units in id order, one RNG strea
 
 import math
 from collections.abc import Iterable, Sequence
+from dataclasses import dataclass, field
 from fractions import Fraction
 from typing import Any, Literal
 
@@ -101,7 +102,7 @@ from nexus.contracts.gen.events.job_created import JobCreated
 from nexus.contracts.gen.events.job_done import JobDone, Participant
 from nexus.contracts.gen.events.job_expired import JobExpired
 from nexus.contracts.gen.events.job_failed import JobFailed
-from nexus.core.bridges import blocked, not_held
+from nexus.core.bridges import blocked, enemy_held, not_held
 from nexus.core.economy import source_stock
 from nexus.core.fog import SideView, side_view
 from nexus.core.logistics import (
@@ -146,7 +147,6 @@ from nexus.core.world import (
 
 type Outcome = Literal["DONE", "FAILED", "EXPIRED"]
 type Verdict = Literal["ok", "refuel", "no"]
-type Routes = dict[tuple[str, str], list[str] | None]
 _AIR, _GROUND = "AIR", "GROUND"
 _INTERCEPT: JobKind = "INTERCEPT"  # the Static board's hunt of a scout (Q-SIM-96, NX-382)
 _PATROL: JobKind = "PATROL"  # the Director's (NX-157), and the coalition board's (NX-382)
@@ -157,6 +157,22 @@ _AI, _HUMAN = "AI_GARRISON", "COMMANDER"
 _ON_STATION: UnitState = "ON_STATION"
 _MAX_PARTICIPANTS = 64  # JobDone.participants maxItems
 _TIE_DRAW = 1 << 32  # width of the tie-break draw; it only orders equals, not a tunable
+
+
+@dataclass(slots=True)
+class Routes:
+    """What one pass finds once and shares by every unit (roads, down bridges and owners do not
+    change inside one): road routes, and each side's enemy-held nodes (`_held`, NX-413)."""
+
+    roads: dict[tuple[str, str], list[str] | None] = field(default_factory=dict)
+    held: dict[Side, frozenset[str]] = field(default_factory=dict)
+
+
+def _held(world: World, rules: Rules, routes: Routes, side: Side) -> frozenset[str]:
+    """`bridges.enemy_held` for `side`, found once per pass."""
+    if side not in routes.held:
+        routes.held[side] = enemy_held(world, rules, side)
+    return routes.held[side]
 
 
 def _now(world: World) -> int:
@@ -319,7 +335,7 @@ def take(world: World, e: Entity, job: Job, out: list[Event]) -> None:
 
 def _launch(world: World, e: Entity, job: Job) -> None:
     rules = _rules(world)[0]
-    routes: Routes = {}
+    routes = Routes()
     if _feasible(world, rules, routes, e, job) == "ok":
         _dispatch(world, rules, routes, e, job)
 
@@ -381,7 +397,7 @@ def run(world: World, out: list[Event]) -> None:
             e.order = e.held_since = e.order_node = None
         if e.follow_id is None and e.damage_state != "DISABLED" and crewing(world, e) is None:
             leave_stop(rules, e)  # backstop: no unit idles at a bridge stop it does not repair
-    routes: Routes = {}  # road routes found this pass, shared by every unit
+    routes = Routes()  # found this pass, shared by every unit
     for side in SIDES:
         _settle(world, rules, tr, side, now, routes, out)
         view = side_view(world, side)
@@ -939,7 +955,7 @@ def idle_reason(world: World, e: Entity) -> str:
     jobs = _open(tr, world, pool, ai=e.owner_kind == _AI)
     if not jobs:
         return "full"
-    verdicts = [(j, _feasible(world, rules, {}, e, j)) for j in jobs]
+    verdicts = [(j, _feasible(world, rules, Routes(), e, j)) for j in jobs]
     if any(v == "ok" for _, v in verdicts):
         return "other"  # it takes one at the next pass
     job, verdict = verdicts[0]
@@ -965,9 +981,9 @@ def _waypoint(world: World, job: Job) -> str | Vec2:
 def _road(world: World, rules: Rules, routes: Routes, a: str, b: str) -> list[str] | None:
     """The road route `a` to `b`, found once per pass (roads and down bridges do not change
     inside one)."""
-    if (a, b) not in routes:
-        routes[a, b] = shortest_path(rules.roads, a, b, blocked=blocked(world))
-    return routes[a, b]
+    if (a, b) not in routes.roads:
+        routes.roads[a, b] = shortest_path(rules.roads, a, b, blocked=blocked(world))
+    return routes.roads[a, b]
 
 
 def _route(world: World, rules: Rules, routes: Routes, e: Entity, job: Job) -> list[str] | None:
@@ -976,7 +992,9 @@ def _route(world: World, rules: Rules, routes: Routes, e: Entity, job: Job) -> l
     if e.last_node is None or job.node is None or e.pos != Vec2(*rules.roads.pos[e.last_node]):
         return None
     if job.kind == "RESUPPLY":
-        return supply_route(world, rules, e.side, e.last_node, job.node)
+        return supply_route(
+            world, rules, e.side, e.last_node, job.node, _held(world, rules, routes, e.side)
+        )
     return _road(world, rules, routes, e.last_node, job.node)
 
 
@@ -1020,11 +1038,11 @@ def _feasible(world: World, rules: Rules, routes: Routes, e: Entity, job: Job) -
     """TB-2. `refuel`: it fails now, but a full tank and load (a rearm step) would do."""
     if rules.domain[e.kind] == _GROUND:
         if job.kind == "RESUPPLY" and not e.cargo:
-            return "ok" if _reload_plan(world, rules, e, job) is not None else "no"
+            return "ok" if _reload_plan(world, rules, routes, e, job) is not None else "no"
         if job.kind == _PATROL:
             return "no" if _patrol_route(world, rules, routes, e, job) is None else "ok"
         if job.kind == _REPAIR:
-            return "no" if _repair_route(world, rules, e, job) is None else "ok"
+            return "no" if _repair_route(world, rules, routes, e, job) is None else "ok"
         return "no" if _route(world, rules, routes, e, job) is None else "ok"
     bases = world.landing_bases(e.side)
     if not bases or e.fuel is None or crosses_ring(world, rules, e.side, e.pos, job):
@@ -1043,43 +1061,52 @@ def _dispatch(world: World, rules: Rules, routes: Routes, e: Entity, job: Job) -
         e.path = [_waypoint(world, job)]
         return
     if job.kind == "RESUPPLY" and not e.cargo:  # reload first (Q-SIM-74)
-        run = _reload_plan(world, rules, e, job)
+        run = _reload_plan(world, rules, routes, e, job)
         if run is None:
             return
         if run.source == e.last_node:
             _load(world, e, run.source, job.node)
         else:
             e.pickup = run.source
-            e.path = [*(supply_route(world, rules, e.side, str(e.last_node), run.source) or [])]
+            held = _held(world, rules, routes, e.side)
+            e.path = [
+                *(supply_route(world, rules, e.side, str(e.last_node), run.source, held) or [])
+            ]
             return
     route = (
         _patrol_route(world, rules, routes, e, job)
         if job.kind == _PATROL
-        else _repair_route(world, rules, e, job)
+        else _repair_route(world, rules, routes, e, job)
         if job.kind == _REPAIR
         else _route(world, rules, routes, e, job)
     )
     e.path = [] if route is None else [*route]
 
 
-def _repair_route(world: World, rules: Rules, e: Entity, job: Job) -> list[str] | None:
+def _repair_route(
+    world: World, rules: Rules, routes: Routes, e: Entity, job: Job
+) -> list[str] | None:
     """A truck's path from the node it stands on to the bridge's repair stop (`approach`, the
     generator's own rule, around enemy-held nodes), or None (not on a node, no such road)."""
     if e.last_node is None or job.node is None or not on_node(rules, e):
         return None
-    return approach(world, rules, e.last_node, job.node, side=e.side)
+    return approach(world, rules, e.last_node, job.node, avoid=_held(world, rules, routes, e.side))
 
 
-def _reload_plan(world: World, rules: Rules, e: Entity, job: Job) -> Run | None:
+def _reload_plan(world: World, rules: Rules, routes: Routes, e: Entity, job: Job) -> Run | None:
     """Where an empty truck loads for a resupply job: the JOIN source rule (`plan_run`: the nearest
     friendly base with surplus to the destination, never the destination, the sanctuary last),
-    provided there is something to carry and the truck can drive there around enemy-held nodes."""
+    provided there is something to carry and the truck can drive there around enemy-held nodes.
+    Only `plan_run`'s source is tried (NX-413): roads are two-way and only a route's ends are
+    exempt, so a truck that reaches any source that reaches the destination reaches this one
+    through the friendly destination too; another source could never be picked instead."""
     if e.last_node is None or job.node is None:
         return None
-    run = plan_run(world, rules, e.side, job.node)
+    held = _held(world, rules, routes, e.side)
+    run = plan_run(world, rules, e.side, job.node, held=held)
     if run is None or run.cargo <= 0:
         return None
-    pickup = supply_route(world, rules, e.side, e.last_node, run.source)
+    pickup = supply_route(world, rules, e.side, e.last_node, run.source, held)
     return run if pickup is not None else None
 
 

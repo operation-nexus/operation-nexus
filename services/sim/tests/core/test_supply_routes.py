@@ -183,11 +183,11 @@ def test_neither_resupply_leg_of_a_board_truck_crosses_enemy_ground() -> None:
     job = tt.post(w, "COALITION", "RESUPPLY", "fob-n-w", "supply")
     loaded, empty = tt.put(w, TRUCK, "cross-s", cargo=10), tt.put(w, TRUCK, "cross-s")
     assert shortest_path(RULES.roads, "cross-s", "fob-n-w", blocked=blocked(w)) is not None
-    assert tasking._feasible(w, RULES, {}, loaded, job) == "no"
-    assert tasking._feasible(w, RULES, {}, empty, job) == "no"
+    assert tasking._feasible(w, RULES, tasking.Routes(), loaded, job) == "no"
+    assert tasking._feasible(w, RULES, tasking.Routes(), empty, job) == "no"
     w.owner[FOE] = "COALITION"  # the airbase taken: both legs open over the neutral crossings
-    assert tasking._feasible(w, RULES, {}, loaded, job) == "ok"
-    assert tasking._feasible(w, RULES, {}, empty, job) == "ok"
+    assert tasking._feasible(w, RULES, tasking.Routes(), loaded, job) == "ok"
+    assert tasking._feasible(w, RULES, tasking.Routes(), empty, job) == "ok"
 
 
 def test_a_resupply_reached_only_through_enemy_ground_waits_on_no_repair() -> None:
@@ -301,7 +301,7 @@ def test_dispatch_sends_an_empty_truck_to_its_source_around_enemy_ground() -> No
     assert shortest_path(RULES.roads, "cross-n", "cross-s", blocked=frozenset()) == [
         "cross-n", FOE, "cross-s",
     ]  # fmt: skip
-    tasking._dispatch(w, RULES, {}, truck, job)
+    tasking._dispatch(w, RULES, tasking.Routes(), truck, job)
     assert truck.pickup == "cross-s"
     assert truck.path == ["cross-n", "fob-n-w", "west-airbase", "fob-s-w", "cross-s"]
 

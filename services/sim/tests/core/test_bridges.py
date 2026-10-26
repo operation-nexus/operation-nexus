@@ -322,14 +322,16 @@ def _planner_paths(w: World, rules: Rules, a: str, b: str) -> list[list[str] | N
     out: list[list[str] | None] = []
     found = nearest(w, rules, a, [b])  # logistics, capture escape, rebase
     out.append(None if found is None else found[1])
-    out.append(tasking._road(w, rules, {}, a, b))  # the board
+    out.append(tasking._road(w, rules, tasking.Routes(), a, b))  # the board
     unit = w.spawn("ENEMY_ARMOR", "ENEMY", "ENEMY_DIRECTOR", Vec2(*POS[a]))
     unit.last_node = unit.home = a
     if follow._approach(w, rules, unit, Vec2(*POS[b])):  # an escort's greedy leg toward a threat
         out.append([a, *(str(p) for p in unit.path)])
     unit.path = []
     patrol = Job(w.next_job_id(), "PATROL", f"patrol:{b}", 1, 1000, 0, node=b)
-    out.append(tasking._patrol_route(w, rules, {}, unit, patrol))  # a patrol through held nodes
+    out.append(
+        tasking._patrol_route(w, rules, tasking.Routes(), unit, patrol)
+    )  # a patrol through held nodes
     follow._drive(w, rules, unit, b)  # a follower
     out.append([str(p) for p in unit.path] or None)
     unit.path, unit.home = [], b
