@@ -4,7 +4,24 @@
 set -u
 STATE=/var/lib/hiveplex-health; mkdir -p "$STATE"
 host=$(hostname)
-note() { /usr/local/bin/hiveplex-notify "$1" || echo "notify failed: $1" >&2; }
+OUTBOX=$STATE/outbox   # alerts that could not be delivered (network down); one "epoch<TAB>message" per line
+note() {
+  /usr/local/bin/hiveplex-notify "$1" && return 0
+  echo "notify failed, queued: $1" >&2
+  printf '%s\t%s\n' "$(date +%s)" "$(printf '%s' "$1" | tr '\n\t' '  ')" >> "$OUTBOX"
+  tail -n 50 "$OUTBOX" > "$OUTBOX.tmp" && mv "$OUTBOX.tmp" "$OUTBOX"   # keep the newest 50
+}
+flush_outbox() {
+  [ -s "$OUTBOX" ] || return 0
+  local tmp ts msg; tmp=$(mktemp); cp "$OUTBOX" "$tmp"; : > "$OUTBOX"
+  while IFS=$'\t' read -r ts msg; do
+    if ! /usr/local/bin/hiveplex-notify "⏱ (sent $(( ($(date +%s) - ts) / 60 )) min late, the network was down) $msg"; then
+      printf '%s\t%s\n' "$ts" "$msg" >> "$OUTBOX"
+    fi
+  done < "$tmp"
+  rm -f "$tmp"
+}
+flush_outbox   # oldest first, before this run's own alerts
 
 # check NAME STATUS(ok|fail) DETAIL  -> alert on transitions only
 check() {
