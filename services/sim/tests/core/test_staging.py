@@ -1,9 +1,10 @@
-"""NX-416: forward staging for the Static (THREAT-DIRECTOR §4a FS-1..FS-8; Q-TD-36, Q-TD-37).
+"""NX-416: forward staging for the Static (THREAT-DIRECTOR §4a FS-1..FS-8; Q-TD-36..Q-TD-38).
 
 Runs on the shipped strait-1 config with `economy.legacy_rules` false (flipped through the shipped
 profile), the campaign layer off and no opening garrison (as test_economy_rules). Shipped numbers:
 `director.staging.direct_s` 1500 game s (15,000 ticks), `max_wait_windows` 90, `max_staged` 2;
-OFFENSIVE costs 60 (STAGE 2 armor, STRIKE 2 jets, CAPTURE 2 armor), PROBE 15; an FOB holds at
+OFFENSIVE costs 60 (STAGE 2 armor, STRIKE 2 jets, CAPTURE 2 armor: 10 a unit, so 40 for the
+armor at an FOB and 20 for the jets at their own spawn node), PROBE 15; an FOB holds at
 most 1,000 stock with a starvation floor of 250; ENEMY_ARMOR drives 20 m/s (world), 12 m a tick.
 Road travel for ENEMY_ARMOR (`roads.travel_ticks`, every bridge up): static-rear to fob-n-w
 285 km, 23,750 ticks (39.6 game min, past direct_s); to fob-n-w from fob-n-e about 163 km, from
@@ -18,17 +19,18 @@ from hypothesis import given, settings
 from hypothesis import strategies as st
 from test_join import CAMPAIGN_ID
 
+from nexus.contracts.gen.common.enums import Side
 from nexus.contracts.gen.events.event import Event
 from nexus.core import operations as ops
 from nexus.core import staging as stg
 from nexus.core.fog import side_view
-from nexus.core.launch import _convoys, _launch, _own, _Purse
+from nexus.core.launch import _convoys, _launch, _own, _Purse, _staged_shares
 from nexus.core.launch import run as launch
-from nexus.core.logistics import stock_targets
+from nexus.core.logistics import _base_share, stock_targets
 from nexus.core.provocation import validate
 from nexus.core.step import step
 from nexus.core.tasking_gen import _resupply
-from nexus.core.world import CaptureBar, Staged, World, load, save, state_hash
+from nexus.core.world import CaptureBar, Contact, Staged, Vec2, World, load, save, state_hash
 from nexus.runtime.campaign_config import CampaignConfig, start_campaign
 from nexus.runtime.golden import shipped_config
 
@@ -203,17 +205,18 @@ def test_staging_announces_the_sector_only_and_waits_when_the_base_cannot_pay() 
 
 
 def test_the_base_target_is_raised_so_a_resupply_job_and_the_convoy_go_there() -> None:
-    c = config({"logistics.stock_target_frac": 0.3})  # target 300, floor 250 on an FOB
+    c = config({"logistics.stock_target_frac": 0.28})  # target 280, floor 250 on an FOB
     w = world(c)
     assert w.rules is not None and w.rules.tasking is not None
     at_floor(w)
-    w.stock["fob-n-e"] = 300  # at its own target, 50 over the floor: it cannot pay 60
+    w.stock["fob-n-e"] = 280  # at its own target, 30 over the floor: it cannot pay its 40
     view = side_view(w, "ENEMY")
     before = [j.key for j in _resupply(w, w.rules, w.rules.tasking, "ENEMY", view)]
     assert "resupply:fob-n-e" not in before
     fire(w, offensive(w, "fob-n-w"))
-    assert stock_targets(w, w.rules)["fob-n-e"] == 250 + 60
-    assert stock_targets(w, w.rules)["fob-s-e"] == 300  # elsewhere unchanged
+    # FS-3 (Q-TD-38): only the 4 armor that spawn at the FOB, 4 x 10 of the 60, not the jets' 20
+    assert stock_targets(w, w.rules)["fob-n-e"] == 250 + 40
+    assert stock_targets(w, w.rules)["fob-s-e"] == 280  # elsewhere unchanged
     jobs = {j.key: j for j in _resupply(w, w.rules, w.rules.tasking, "ENEMY", view)}
     assert jobs["resupply:fob-n-e"].slots == 1  # fills 10 to the raised target
     out: list[Event] = []
@@ -222,21 +225,75 @@ def test_the_base_target_is_raised_so_a_resupply_job_and_the_convoy_go_there() -
     assert [j.node for j in w.boards["ENEMY"].values() if j.kind == "RESUPPLY"] == ["fob-n-e"]
 
 
-def test_a_staged_operation_launches_at_its_base_once_it_can_pay_and_pays_there() -> None:
-    w = world()
+LIMITED = config({"economy.unlimited.ENEMY": False})
+# A pool of 4,000 gives a window's rear account floor(4000 x 0.005) = 20, the jets' share; with a
+# budget of 60 the base account is the other 40, the armor's share.
+POOL = 4000
+
+
+def test_a_staged_operation_launches_once_it_can_pay_and_each_spawn_node_pays_its_units() -> None:
+    w = world(LIMITED)
     at_floor(w)
+    w.pool["ENEMY"] = POOL
     fire(w, offensive(w, "fob-n-w"))
     out = window(w)
     assert debits(out) == [] and len(w.director["ENEMY"].staged) == 1  # still short
-    w.stock["fob-n-e"] = 250 + 60  # a convoy delivered the cost
+    w.stock["fob-n-e"] = 250 + 40  # a convoy delivered the armor's share
     out = window(w)
-    assert debits(out) == [("fob-n-e", 60)] and w.stock["fob-n-e"] == 250
+    # FS-4 (Q-TD-38): 4 armor x 10 at the FOB, 2 jets x 10 from the pool at their spawn node
+    assert debits(out) == [("fob-n-e", 40), ("static-rear", 20)]
+    assert w.stock["fob-n-e"] == 250 and w.pool["ENEMY"] == POOL - 20
     assert [n for k, n in spawns(out) if k == "ENEMY_ARMOR"] == ["fob-n-e"] * 4
     jets = {n for k, n in spawns(out) if k != "ENEMY_ARMOR"}
     # an FOB hosts no aircraft: they spawn by plan_deploy, here the rear (east-airbase is at floor)
     assert jets == {"static-rear"}
     assert w.director["ENEMY"].staged == []
     assert {j.key for j in w.boards["ENEMY"].values()} >= {"op:OFFENSIVE:fob-n-w:2"}
+
+
+def test_a_staged_operation_waits_while_its_base_can_pay_but_the_jets_node_cannot() -> None:
+    w = world(LIMITED)
+    at_floor(w)
+    w.pool["ENEMY"] = POOL - 1000  # a rear account of 15: short of the jets' 20
+    w.stock["fob-n-e"] = 250 + 40  # the base can pay its armor's share
+    out = fire(w, offensive(w, "fob-n-w"))
+    assert staging_events(out) == [("north", "UP", None)] and debits(out) == []
+    out = window(w)
+    assert debits(out) == [] and spawns(out) == [] and len(w.director["ENEMY"].staged) == 1
+    w.pool["ENEMY"] = POOL
+    out = window(w)
+    assert debits(out) == [("fob-n-e", 40), ("static-rear", 20)]
+    assert w.director["ENEMY"].staged == []
+
+
+def test_both_bases_draw_the_window_base_account_so_it_waits_until_it_covers_both_shares() -> None:
+    w = world()
+    assert w.rules is not None
+    at_floor(w)
+    w.stock["east-airbase"] += 60  # past forward_deploy_min_surplus: plan_deploy puts the jets here
+    w.stock["fob-n-e"] += 40  # each base can pay its own share
+    out = fire(w, offensive(w, "fob-n-w"), budget=50)  # one account of 50: short of 40 + 20
+    assert debits(out) == [] and len(w.director["ENEMY"].staged) == 1
+    out = window(w, budget=50)
+    assert debits(out) == [] and spawns(out) == [] and len(w.director["ENEMY"].staged) == 1
+    out = window(w, budget=60)
+    assert debits(out) == [("fob-n-e", 40), ("east-airbase", 20)]
+    assert {n for k, n in spawns(out) if k != "ENEMY_ARMOR"} == {"east-airbase"}
+
+
+def test_the_base_share_comes_first_and_matches_the_stock_target_with_an_uneven_cost() -> None:
+    w = world()
+    assert w.rules is not None
+    at_floor(w)
+    w.stock["east-airbase"] += 100
+    w.stock["fob-n-e"] += 100
+    c = offensive(w, "fob-n-w")
+    shares = _staged_shares(
+        w, w.rules, "ENEMY", c, {}, lambda n: 65 * n // 6, _Purse(1000, 0, one=True), "fob-n-e"
+    )
+    # base first: floor(65 x 4 / 6) = 43, the rest 65 - 43 = 22 (by id first it would be 44 + 21)
+    assert shares == {"fob-n-e": 43, "east-airbase": 22}
+    assert _base_share(w.rules, dataclasses.replace(c.op, cost=65), "fob-n-e") == 43
 
 
 def test_a_staged_operation_holds_its_budget_share_and_a_max_ops_slot() -> None:
@@ -319,8 +376,39 @@ def test_losing_the_base_restages_at_the_next_one_and_keeps_the_wait(how: str) -
         w.capture["fob-n-e"] = CaptureBar("COALITION", 1)
     out = window(w)
     assert w.director["ENEMY"].staged == [Staged("OFFENSIVE", "fob-n-w", "east-airbase", 0)]
-    assert staging_events(out) == [("centre", "UP", None)]
+    assert staging_events(out) == []  # FS-5 (Q-TD-38): the coalition tracks nothing there
     assert debits(out) == []
+
+
+@pytest.mark.parametrize("what", ["facility", "unit", "disabled", "coalition"])
+@pytest.mark.parametrize("tracked", [True, False])
+def test_a_restage_is_announced_only_when_the_coalition_tracks_a_static_unit_at_the_new_base(
+    what: str, tracked: bool
+) -> None:
+    w = world()
+    assert w.rules is not None
+    at_floor(w)
+    fire(w, offensive(w, "fob-n-w"))
+    w.owner["fob-n-e"] = "COALITION"  # it re-stages at east-airbase
+    spot = Vec2(*w.rules.roads.pos["east-airbase"])
+    watcher: Side = "COALITION"
+    if what in ("facility", "disabled"):  # a site of east-airbase, off the node: by its base_id
+        seen = next(e for e in w.entities() if e.base_id == "east-airbase")
+        seen.pos = Vec2(spot.x + 500, spot.y)
+        if what == "disabled":  # not live: a Disabled site does not count
+            seen.damage_state = "DISABLED"
+    elif what == "unit":  # a Director unit standing on the node
+        seen = w.spawn("ENEMY_ARMOR", "ENEMY", "ENEMY_DIRECTOR", spot)
+    else:  # a coalition unit on the node, tracked by the Static: not a Static unit
+        seen, watcher = w.spawn("STRIKE_FIGHTER", "COALITION", "COMMANDER", spot), "ENEMY"
+    hq = next(e for e in w.entities() if e.base_id == "static-hq")
+    w.contacts["COALITION"][hq.id] = Contact(hq.kind, hq.pos, Vec2(0, 0))  # tracked, elsewhere
+    # tracked now, or only a last-known track (FOW-6a), which does not count
+    w.contacts[watcher][seen.id] = Contact(seen.kind, seen.pos, Vec2(0, 0), None if tracked else 5)
+    out = window(w)
+    assert w.director["ENEMY"].staged == [Staged("OFFENSIVE", "fob-n-w", "east-airbase", 0)]
+    announced = tracked and what in ("facility", "unit")
+    assert staging_events(out) == ([("centre", "UP", None)] if announced else [])
 
 
 def test_with_no_base_left_it_falls_back_at_once() -> None:

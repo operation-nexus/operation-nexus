@@ -43,9 +43,11 @@ launched in selection order:
   the hold is at risk" (ECONOMY EC-9, Q-TD-19; NX-412 part 4).
 - **Forward staging (THREAT-DIRECTOR §4a, NX-416; legacy rules off).** A capture operation
   farther than `director.staging.direct_s` by road from the rear waits at its staging base
-  (`nexus.core.staging`) until that base can pay (`_stage`, `_review`), announced as
-  `ThreatAdaptation{STAGING}` in the base's sector; it holds its budget share and a `max_ops`
-  slot while it waits, and falls back by EC-13 after `max_wait_windows` or is dropped.
+  (`nexus.core.staging`) until every node it spawns at can pay its own units (`_stage`,
+  `_review`, `_staged_shares`; Q-TD-38), announced as `ThreatAdaptation{STAGING}` in the base's
+  sector (a re-stage only when the coalition tracks a unit at the new base, `_seen_at`); it holds
+  its budget share and a `max_ops` slot while it waits, and falls back by EC-13 after
+  `max_wait_windows` or is dropped.
 """
 
 import itertools
@@ -65,7 +67,7 @@ from nexus.core import staging as stg
 from nexus.core.bridges import blocked
 from nexus.core.director import night_capped, rear_share, surplus
 from nexus.core.economy import MOVERS, guard_room
-from nexus.core.fog import SideView, is_off_facility
+from nexus.core.fog import SideView, is_off_facility, spotted
 from nexus.core.logistics import pay_spawn, plan_deploy, stock_targets
 from nexus.core.rng import RngStream
 from nexus.core.roads import shortest_path
@@ -391,7 +393,8 @@ def _launch(
     stage: bool = True,
 ) -> bool:  # fmt: skip
     """Launch `c`; True when it posted its jobs or was staged. `at` is a staged operation's base,
-    the one node that may pay (FS-4); `stage` False never stages it (a staged one falling back)."""
+    where the units it hosts spawn and pay (FS-4); `stage` False never stages it (a staged one
+    falling back)."""
     dr = rules.director
     if dr is None:
         return False
@@ -417,9 +420,10 @@ def _stage(
     c: ops.Candidate, out: list[Event], purse: _Purse | None,
 ) -> bool:  # fmt: skip
     """FS-1, FS-2, FS-4, FS-5 (legacy rules off, `purse` set): a far capture operation is staged
-    at its base: `STAGING` is announced in the base's sector, and it launches there at once when
-    the base can pay, else waits in `DirectorState.staged`. False when it is not staged (near,
-    no nearer base, or `director.staging.max_staged` waiting): it spawns as EC-13 says."""
+    at its base: `STAGING` is announced in the base's sector, and it launches at once when every
+    node it spawns at can pay its own units, else waits in `DirectorState.staged`. False when it
+    is not staged (near, no nearer base, or `director.staging.max_staged` waiting): it spawns as
+    EC-13 says."""
     dr = rules.director
     if purse is None or dr is None or len(state.staged) >= dr.staging_max_staged:
         return False
@@ -439,10 +443,11 @@ def _review(
 ) -> int:  # fmt: skip
     """FS-4, FS-6, each window before the selection, in (op, target) order: a staged operation no
     longer a candidate (`ops.candidate`) is dropped; one whose base the side lost or that has a
-    capture bar re-stages at the next base by FS-2 (its wait kept), or falls back; it launches at
-    its base when the base can pay; after `director.staging.max_wait_windows` it launches by EC-13
-    from wherever `_paying_node` finds the stock, else is dropped. Returns the budget the staged
-    operations spent or still hold this window."""
+    capture bar re-stages at the next base by FS-2 (its wait kept; announced only when `_seen_at`),
+    or falls back; it launches when every spawn node can pay its share; after
+    `director.staging.max_wait_windows` it launches by EC-13 from wherever `_paying_node` finds
+    the stock, else is dropped. Returns the budget the staged operations spent or still hold this
+    window."""
     dr = rules.director
     if purse is None or dr is None or not state.staged:
         return 0
@@ -455,7 +460,8 @@ def _review(
         if not stg.hosts(world, rules, side, s.base, c.op):
             base = stg.base_for(world, rules, side, view, c.op, s.target)
             if base is not None:
-                _announce_staging(world, rules, side, base, out)
+                if _seen_at(world, rules, side, base):
+                    _announce_staging(world, rules, side, base, out)
                 s.base = base
         late = state.windows - s.since >= dr.staging_max_wait_windows
         go = (world, rules, side, view, state, c, out, purse)
@@ -475,6 +481,18 @@ def _announce_staging(world: World, rules: Rules, side: Side, base: str, out: li
     sector = sector_at(rules, *rules.roads.pos[base])
     if sector is not None:
         _adaptation(world, side, "STAGING", sector, "UP", out)
+
+
+def _seen_at(world: World, rules: Rules, side: Side, base: str) -> bool:
+    """FS-5 on a re-stage (Q-TD-38): the other side currently tracks (`fog.spotted`) a live entity
+    of `side` at `base`: one standing on the node's position, or a facility of the base. Live: in
+    the world (a destroyed one is removed) and not Disabled."""
+    spot = Vec2(*rules.roads.pos[base])
+    return any(
+        e.side == side and (e.pos == spot or e.base_id == base) and e.damage_state != "DISABLED"
+        and spotted(world, e)
+        for e in world.entities()
+    )  # fmt: skip
 
 
 def _resume(world: World, side: Side, state: DirectorState, now: int) -> None:
@@ -517,17 +535,23 @@ def _post_and_spawn(
     first (the lowest id), which is neither spawned nor paid for (Q-SIM-84). Units take their
     jobs only after the payment, because a carrier at its source loads on taking a job, and
     loading first could leave too little surplus to pay. With `economy.legacy_rules` off the
-    cost is drawn once at `_paying_node`, where every new unit spawns (EC-13); at `at`, a staged
-    operation's base (FS-4), whose domains may not host its aircraft: those spawn by `_spawn`'s
-    own rule, the whole cost still drawn at `at`."""
+    cost is drawn once at `_paying_node`, where every new unit spawns (EC-13); with `at`, a staged
+    operation's base (FS-4, Q-TD-38), each unit spawns at `_staged_spot` and each spawn node pays
+    its own units' share (`_staged_shares`)."""
     dr = rules.director
     if dr is None:
         return 0
     garrison = c.op.target == "GARRISON"
     spare = {} if garrison else _reusable(world, side)  # a garrison replacement is always new
-    legacy, need = legacy_rules(rules), cost(_new_units(c, spare))
-    node = None if legacy else _paying_node(world, rules, side, c, need, purse, at)
-    if (_payable(world, rules, side) < need) if legacy else node is None:
+    legacy, need = legacy_rules(rules), cost(len(_new_slots(c, spare)))
+    node, shares = None, None
+    if legacy:
+        if _payable(world, rules, side) < need:
+            return None
+    elif at is not None:
+        if (shares := _staged_shares(world, rules, side, c, spare, cost, purse, at)) is None:
+            return None
+    elif (node := _paying_node(world, rules, side, c, need, purse)) is None:
         return None
     spawned = 0
     first: str | None = None
@@ -550,40 +574,84 @@ def _post_and_spawn(
                     spare[kind].remove(idle[0])
                     given.append((idle[0], posted))
                     continue
+                near = _near(world, rules, side, job, w)
                 spot = node or (c.target if garrison else w.origin)
-                if at is not None and at not in rules.supply.spawns.get(rules.domain[kind], ()):
-                    spot = None  # an aircraft of an operation staged at a ground base
-                unit, base = _spawn(
-                    world, rules, side, kind, _near(world, rules, side, job, w), out, at=spot
-                )
+                if at is not None:
+                    spot = _staged_spot(world, rules, side, kind, near, at)
+                unit, base = _spawn(world, rules, side, kind, near, out, at=spot)
                 first, spawned = first or base, spawned + 1
                 if garrison:
                     unit.home = c.target
                 given.append((unit, posted))
         prev = last
-    if node is None:
+    if legacy:
         _pay(world, rules, side, cost(spawned), first, out)
     else:
-        pay_spawn(world, node, cost(spawned), out)
-        if purse is not None:
-            purse.spend(node == rules.supply.rear[side], cost(spawned))
+        if node is not None:
+            shares = {node: cost(spawned)}
+        for paying, share in (shares or {}).items():
+            pay_spawn(world, paying, share, out)
+            if purse is not None:
+                purse.spend(paying == rules.supply.rear[side], share)
     for unit, posted in given:
         take(world, unit, posted, out)
     return spawned
 
 
+def _staged_spot(world: World, rules: Rules, side: Side, kind: UnitKind, near: str, at: str) -> str:
+    """FS-4: where a new unit of an operation staged at `at` spawns: `at` when it hosts the kind's
+    domain, else as EC-13 says (`plan_deploy`'s base for its job, else the rear source)."""
+    if at in rules.supply.spawns.get(rules.domain[kind], ()):
+        return at
+    deploy = plan_deploy(world, rules, side, kind, near)
+    return deploy[0] if deploy else rules.supply.rear[side]
+
+
+def _staged_shares(
+    world: World, rules: Rules, side: Side, c: ops.Candidate, spare: dict[str, list[Entity]],
+    cost: Callable[[int], int], purse: _Purse | None, at: str,
+) -> dict[str, int] | None:  # fmt: skip
+    """FS-4 (Q-TD-38): what each spawn node of `c`, staged at `at`, pays for its own new units, or
+    None while any of them cannot. A node's share is the cost of the units counted up to and
+    including it less the cost of those before it, the base first, then the other nodes by id, so
+    the shares add up to `cost(new units)` and the base's is `cost(its units)` (FS-3). A base
+    pays from its surplus and the base account, the source from the pool and the rear account,
+    as `_paying_node` checks one node."""
+    count: dict[str, int] = {}
+    for kind, job, w in _new_slots(c, spare):
+        spot = _staged_spot(world, rules, side, kind, _near(world, rules, side, job, w), at)
+        count[spot] = count.get(spot, 0) + 1
+    rear, sup, pool = rules.supply.rear[side], rules.supply, world.pool.get(side)
+    room = None if purse is None else _Purse(purse.base, purse.rear, purse.one)
+    shares: dict[str, int] = {}
+    units = 0
+    for node in sorted(count, key=lambda n: (n != at, n)):
+        share = cost(units + count[node]) - cost(units)
+        units += count[node]
+        if node == rear:
+            ok = pool is None or pool >= share
+        else:
+            ok = world.stock.get(node, 0) - sup.starve_floor.get(node, 0) >= share
+        if room is not None:
+            ok = ok and share <= room.room(node == rear)
+            room.spend(node == rear, share)
+        if share > 0 and not ok:
+            return None
+        shares[node] = share
+    return shares
+
+
 def _paying_node(
-    world: World, rules: Rules, side: Side, c: ops.Candidate, cost: int, purse: _Purse | None,
-    at: str | None = None,
-) -> str | None:  # fmt: skip
+    world: World, rules: Rules, side: Side, c: ops.Candidate, cost: int, purse: _Purse | None
+) -> str | None:
     """EC-13: the node that pays `cost` and where every new unit of `c` spawns (module
     docstring), or None to drop it this window. A fixed origin (a garrison replacement's base, a
-    scout's checked base, `at`: a staged operation's base) has no fallback to the source.
-    Otherwise the base is `plan_deploy`'s for the operation's first aircraft kind (a landing base),
-    else its first kind, and must be a `spawns` node for every kind's domain."""
+    scout's checked base) has no fallback to the source. Otherwise the base is `plan_deploy`'s
+    for the operation's first aircraft kind (a landing base), else its first kind, and must be a
+    `spawns` node for every kind's domain."""
     rear, sup = rules.supply.rear[side], rules.supply
     job, w = c.op.jobs[0], c.wheres[0][0]
-    fixed = at or (c.target if c.op.target == "GARRISON" else w.origin)
+    fixed = c.target if c.op.target == "GARRISON" else w.origin
     node = fixed or rear
     if not fixed:
         kinds = [k for j in c.op.jobs for k in j.unit_kinds]
@@ -602,11 +670,13 @@ def _paying_node(
     return rear if cost <= 0 or paid else None
 
 
-def _new_units(c: ops.Candidate, spare: dict[str, list[Entity]]) -> int:
-    """How many units `_post_and_spawn` will spawn for `c`: its slots less those an idle unit fills
-    (the same matching, on a copy of `spare`)."""
+def _new_slots(
+    c: ops.Candidate, spare: dict[str, list[Entity]]
+) -> list[tuple[UnitKind, JobTemplate, ops.Where]]:
+    """The slots `_post_and_spawn` will spawn a new unit for, in its order: `c`'s slots less those
+    an idle unit fills (the same matching, on a copy of `spare`)."""
     left = {k: list(v) for k, v in spare.items()}
-    new = 0
+    new: list[tuple[UnitKind, JobTemplate, ops.Where]] = []
     for job, wheres in zip(c.op.jobs, c.wheres, strict=True):
         for w in wheres:
             for n in range(job.slots):
@@ -615,7 +685,7 @@ def _new_units(c: ops.Candidate, spare: dict[str, list[Entity]]) -> int:
                 if idle:
                     left[kind].remove(idle[0])
                 else:
-                    new += 1
+                    new.append((kind, job, w))
     return new
 
 
