@@ -136,7 +136,7 @@ The director runs inside `core`, so it is deterministic. It sees only the **enem
   - `nexus-llm` (isolated LLM container, Q-AI-3; P4, or earlier for the local narration experiment, Q-ARCH-4)
   - `nginx` (overlay static files)
 - **OBS** runs natively on Windows, controlled via obs-websocket. The deploy script runs inside WSL2 (Q-ARCH-15). How OBS, WSL2 and Docker are supervised and auto-started on Windows is open (Q-OPS-7).
-- **Linux server** (Ubuntu 24.04 LTS after rebuild, Q-ARCH-8): watchdog (L2), Prometheus + Grafana + Loki (Q-ARCH-11; Prometheus and Grafana are running, see [SERVER-SETUP](../ops/SERVER-SETUP.md); Loki is not), backups (local copy + encrypted off-site via the `BackupTarget` port, Q-OPS-6), and the **staging** stack streaming to an unlisted test channel (Q-OPS-2; cheap cloud server as fallback if the server is too weak, NX-007).
+- **Linux server** (Ubuntu 26.04.1 LTS, rebuilt 2026-10-25, Q-ARCH-8): watchdog (L2), Prometheus + Grafana + Loki (Q-ARCH-11; Prometheus and Grafana are running, see [SERVER-SETUP](../ops/SERVER-SETUP.md); Loki is not), backups (local copy + encrypted off-site via the `BackupTarget` port, Q-OPS-6), and the **staging** stack streaming to an unlisted test channel (Q-OPS-2; cheap cloud server as fallback if the server is too weak, NX-007).
 - **Command Center and public site** are separate deployments (Q-ARCH-7). The Command Center is tailnet-only; the public site is exposed through a tunnel. Where the public site is hosted is open (Q-ARCH-16).
 - **Images** are pulled from GHCR and must be signed.
 - **Overlay WS** binds to `127.0.0.1`.
