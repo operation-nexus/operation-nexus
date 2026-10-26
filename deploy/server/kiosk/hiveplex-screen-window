@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Quiet window for the server's screen: off from 01:00 to 06:00 (server time zone), on at 06:00.
+#   hiveplex-screen-window off | on | check
+# "check" (run at login and by the timers' boot trigger) turns the screen off if the time is inside the window.
+# HIVEPLEX_FAKE_HOUR=3 pretends it is 03:xx (for tests).
+K="$HOME/.local/bin/hiveplex-kiosk"
+hour=${HIVEPLEX_FAKE_HOUR:-$(date +%-H)}
+case "${1:-check}" in
+  off) "$K" screen off;;
+  on) "$K" screen on;;
+  check) if [ "$hour" -ge 1 ] && [ "$hour" -lt 6 ]; then "$K" screen off; else echo "outside the quiet window (hour $hour): no change"; fi;;
+  *) echo "usage: hiveplex-screen-window off|on|check" >&2; exit 2;;
+esac

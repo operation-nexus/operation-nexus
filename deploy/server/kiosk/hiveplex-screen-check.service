@@ -1,0 +1,6 @@
+[Unit]
+Description=Quiet window: apply it if the desktop started inside it
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/hiveplex-screen-window check
