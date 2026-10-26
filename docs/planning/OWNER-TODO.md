@@ -93,6 +93,7 @@ Accounts, handles and repos are listed in `docs/planning/BRAND-ACCOUNTS.md`.
 ## 4e. Open items from the harness and review setup (2026-10-23)
 - [ ] **Renew the harness token** before its 90-day expiry: the fine-grained PAT used by `gh` on the harness PC was created 2026-10-22, so it expires about 2027-01-20 (`tools/balance/README.md`, Setup on the PC). The organization must approve the new token.
 - [ ] **CodeRabbit:** decide whether to renew before the trial ends about 2026-11-03 (`docs/ops/COSTS.md`; $30 a month after the trial, not renewed by default, Q-CI-7).
+- [ ] **CodeRabbit as a required check (#383 H1, Q-CI-7 amended 2026-10-26):** in the `develop` branch protection (or ruleset), add CodeRabbit's status check beside `ci-gate`, so auto-merge waits for its review. Agents keep turning auto-merge on only after the review (lesson L-25) until then. If the trial is not renewed, remove it again, or PRs will wait forever.
 - [ ] **Harness timer in WSL:** confirm the timer fires with no terminal open (`tools/balance/README.md` marks this **[UNVERIFIED]**).
 - [ ] **Merge commits (Q-LEGAL-8):** GitHub's merge commits on `develop` are authored by the account that enabled auto-merge, now `project-hiveplex` (earlier `canthony224`, retired 2026-10-24), not `SaltySeraphCodes` (`docs/planning/ISSUE-WORKFLOW.md` rule 5). Say whether that meets Q-LEGAL-8.
 

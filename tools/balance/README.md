@@ -85,7 +85,7 @@ Information only, no targets. The report header labels the economy mode of the c
 
 Not built yet (ECONOMY §4 asks, beyond this part): grounded unit-minutes by viewer vs AI and join-order quartile, grounded churn, the share of floor income cut by raids.
 
-Sweep recipe, the economy on and legacy rules off (one issue per value, `set` takes up to `max_overrides`, 8: the 3 economy switches leave 5 for tuning):
+Sweep recipe, the economy on and legacy rules off (one issue per value, `set` takes up to `max_overrides`, 16 (raised from 8 on 2026-10-26 so a run can zero all 9 `economy.upkeep` kinds with the 3 economy switches, Q-TD-41): the 3 economy switches leave 13 for tuning):
 
 ````
 ```harness
