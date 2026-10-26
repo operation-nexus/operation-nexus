@@ -44,6 +44,13 @@ SIDES: Final[tuple[Side, ...]] = ("COALITION", "ENEMY")
 ECON_SERIES = ("income", "upkeep", "groundings")
 # The Pattern of Life job ids of `nexus.core.launch` (`_PATROL_OP`, `_CONVOY_OP`): routine work,
 # not Director operations, so the operation counts leave them out (they stay in `by_id`).
+# R11 (ENTERTAINMENT-upkeep Q2): a shortfall episode "follows enemy action" on its home's supply
+# when the action came this many game minutes or fewer before the episode's first window.
+ACTION_MINUTES: Final = 30
+# R10: a coalition pool under 1/POOL_LOW_DIV of its storage cap (integer test) for more than
+# POOL_LOW_MINUTES game minutes in a row.
+POOL_LOW_DIV: Final = 10
+POOL_LOW_MINUTES: Final = 30
 ROUTINE_JOBS = frozenset({"POL_PATROL", "POL_CONVOY"})
 OFFENSIVE = "OFFENSIVE"
 RETAKE = "RETAKE"
@@ -153,6 +160,30 @@ class Collector:
         self.static_units: list[int] = []  # live armed Static units, per `sample`
         self.static_stock: list[int] = []  # Static-held finite-stock bases' stock, per `sample`
         self.static_start_stock = self._static_stock(world)
+        # Rare-shortfall metrics (NX-437; ENTERTAINMENT-upkeep Q2 R1-R4, R8, R10, R11). Read from
+        # the world at each economy window (a tick where `running_ticks` crosses a multiple of
+        # `economy.window_ticks`); counts only, never a commander id (ECONOMY §4, privacy).
+        er = rules.economy
+        self._wticks = er.window_ticks if er else 0
+        self._widx = world.campaign.running_ticks // self._wticks if self._wticks else 0
+        self.windows = 0
+        self.unit_windows = {s: [0, 0] for s in SIDES}  # armed units, grounded ones, summed
+        self.windows_viewer_grounded = 0  # R2
+        self._open: dict[str, int] = {}  # home -> index in `episodes` of its running episode
+        self.episodes: list[dict[str, Any]] = []  # R3: home, start tick, windows, R11 flag
+        self._grounded_cmdrs: set[str] = set()  # R4, kept inside; only the counts leave
+        self._cmdrs: set[str] = set(self.commander_of.values())
+        self._pool_low = 0  # R10: running low windows
+        self.pool_low_stretches: list[int] = []  # closed qualifying stretches, in windows
+        self._carriers: set[int] = {
+            i
+            for i, (k, sd) in self.entity.items()
+            if k in rules.supply.carriers and sd == _COALITION
+        }
+        self._dest: dict[int, str] = {}  # a loaded coalition carrier -> the node it drives to
+        self._action: dict[str, int] = {}  # node -> tick of the last enemy action on its supply
+        self._bridge_cut: dict[str, int] = {}  # bridge node -> tick of its last BridgeDestroyed
+        self._road_bridges: dict[str, frozenset[str]] = {}
         self._on: dict[str, Callable[[Any], None]] = {
             "UnitSpawned": self._spawned,
             "WeaponFired": self._fired,
@@ -172,6 +203,7 @@ class Collector:
             "SpawnRefused": self._refused,
             "ThreatAdaptation": self._adapted,
             "JobCreated": self._job_created,
+            "BridgeDestroyed": self._bridge_destroyed,
         }
 
     def note_join(self, commander: str, tick: int, tier: str) -> None:
@@ -228,6 +260,17 @@ class Collector:
             elif e.cargo and e.path:
                 self.trucks.discard(eid)
                 self._credit(e.commander_id, world.campaign.tick, "departure")
+        for eid in sorted(self._carriers):  # where a loaded convoy is bound (R11 needs it at death)
+            c = world.find(eid)
+            if c is None:
+                self._carriers.discard(eid)
+            elif c.cargo and c.path and isinstance(c.path[-1], str):
+                self._dest[eid] = c.path[-1]
+            else:
+                self._dest.pop(eid, None)  # unloaded or parked: no longer a convoy under way
+        if self._wticks and world.campaign.running_ticks // self._wticks > self._widx:
+            self._widx = world.campaign.running_ticks // self._wticks
+            self._economy_window(world)
         self._launches(world)
         state = world.director[_ENEMY]
         if state.windows != self._windows:  # a Static decision window ran this tick
@@ -239,6 +282,72 @@ class Collector:
         self.sanctuary_min = min(self.sanctuary_min, hp)
         if world.campaign.tick <= self.a3_ticks:
             self.sanctuary_min_window = min(self.sanctuary_min_window, hp)
+
+    def _economy_window(self, world: World) -> None:
+        """One economy window has run (upkeep included): R1/R8 unit shares, R2, R3/R11 episodes
+        and R10 pool stretches. Counted in windows (ints); a window stands for `window_ticks`."""
+        rules, tick = self._world_rules, world.campaign.tick
+        self.windows += 1
+        viewer_grounded = False
+        homes: set[str] = set()
+        for e in world.entities():
+            if e.side == _COALITION and e.grounded and e.home_base:
+                homes.add(e.home_base)  # R3 counts every grounded coalition unit, AI included
+            if e.kind not in rules.armed or e.damage_state == "DISABLED":
+                continue
+            if e.side == _COALITION and e.owner_kind == "COMMANDER":
+                self.unit_windows[_COALITION][0] += 1
+                self.unit_windows[_COALITION][1] += e.grounded
+                viewer_grounded |= e.grounded
+            elif e.side == _ENEMY and e.owner_kind != "COMMANDER":
+                self.unit_windows[_ENEMY][0] += 1
+                self.unit_windows[_ENEMY][1] += e.grounded
+        self.windows_viewer_grounded += viewer_grounded
+        for home in sorted(homes):
+            if home in self._open:
+                self.episodes[self._open[home]]["windows"] += 1
+            else:
+                self._open[home] = len(self.episodes)
+                after = self._after_action(home, tick)
+                self.episodes.append(
+                    {"home": home, "start": tick, "windows": 1, "after_action": after}
+                )
+        for home in sorted(set(self._open) - homes):
+            del self._open[home]  # the episode ended: a window with nothing grounded at the home
+        pool, cap = world.pool.get(_COALITION), world.storage.get(_COALITION)
+        if pool is not None and cap is not None and pool * POOL_LOW_DIV < cap:
+            self._pool_low += 1
+        else:
+            self._close_pool_stretch()
+
+    def _long_stretch(self, windows: int) -> bool:
+        return windows * self._wticks > POOL_LOW_MINUTES * 60 * self.tick_hz
+
+    def _close_pool_stretch(self) -> None:
+        if self._long_stretch(self._pool_low):
+            self.pool_low_stretches.append(self._pool_low)
+        self._pool_low = 0
+
+    def _after_action(self, home: str, tick: int) -> bool:
+        """R11: enemy action on `home`'s supply at most `ACTION_MINUTES` before `tick`: a loaded
+        convoy bound for it killed by a Static unit, a bridge on its road from the coalition's
+        source cut, or a Static capture started at it."""
+        if home not in self._road_bridges:
+            rules = self._world_rules
+            path = shortest_path(
+                rules.roads, rules.supply.rear[_COALITION], home, blocked=frozenset()
+            )
+            self._road_bridges[home] = frozenset(
+                b
+                for a, c in itertools.pairwise(path or [])
+                if (b := rules.roads.edge(a, c).bridge) is not None
+            )
+        seen = [
+            self._action.get(home),
+            *(self._bridge_cut.get(b) for b in self._road_bridges[home]),
+        ]
+        limit = ACTION_MINUTES * 60 * self.tick_hz
+        return any(t is not None and tick - t <= limit for t in seen)
 
     def sample(self, world: World) -> None:
         """Momentum and supply starvation, once per `sample_ticks` (a game minute by default)."""
@@ -371,8 +480,11 @@ class Collector:
     # --- event handlers ---------------------------------------------------------------------
     def _spawned(self, e: Any) -> None:
         self.entity[e.entity_id] = (e.unit_kind, e.side)
+        if e.side == _COALITION and e.unit_kind in self._world_rules.supply.carriers:
+            self._carriers.add(e.entity_id)
         if e.commander_id:
             self.commander_of[e.entity_id] = e.commander_id
+            self._cmdrs.add(e.commander_id)
             if e.commander_id in self.newbies and e.unit_kind in self._world_rules.supply.carriers:
                 self.trucks.add(e.entity_id)
 
@@ -390,6 +502,10 @@ class Collector:
             self._credit(self.commander_of.get(e.shooter_id), e.tick, "hit")
 
     def _destroyed(self, e: Any) -> None:
+        dest = self._dest.pop(e.entity_id, None)
+        killer_side = self.entity.get(e.killer_id, (None, None))[1]
+        if dest and e.side == _COALITION and killer_side == _ENEMY:
+            self._action[dest] = e.tick  # R11: a loaded convoy lost on its way to `dest`
         if e.side != _ENEMY:
             return
         if e.killer_id is None or e.killer_id not in self.entity:
@@ -444,7 +560,12 @@ class Collector:
             self._debits += e.amount
             _add(self.spent[account], self._hour(e.tick), e.amount)
 
+    def _bridge_destroyed(self, e: Any) -> None:
+        self._bridge_cut[e.node_id] = e.tick
+
     def _grounded(self, e: Any) -> None:
+        if cmdr := self.commander_of.get(e.entity_id):
+            self._grounded_cmdrs.add(cmdr)
         side = self.entity.get(e.entity_id, (None, None))[1]
         if side in self.econ:
             _add(self.econ[side]["groundings"], self._hour(e.tick), 1)
@@ -462,6 +583,8 @@ class Collector:
             self._new_jobs.append(e.job_id)
 
     def _capture_started(self, e: Any) -> None:
+        if e.side == _ENEMY:
+            self._action[e.node_id] = e.tick  # R11: the home contested
         if e.side == _ENEMY and self._owner.get(e.node_id) == _COALITION:
             self.pressure_ticks.append(e.tick)
             if step := self._latest.get(e.node_id):
@@ -581,6 +704,28 @@ class Collector:
                 "unattributed": self.spawn_unattributed,
             },
             "army_peak": self.army_peak,
+            "shortfall": self._shortfall(),
+        }
+
+    def _shortfall(self) -> dict[str, Any]:
+        """Raw counts for R1-R4, R8, R10, R11 (the report forms the shares). An episode or a pool
+        stretch still running at the end counts, with the windows so far."""
+        low = [self._pool_low] if self._long_stretch(self._pool_low) else []
+        stretches = [*self.pool_low_stretches, *low]
+        return {
+            "window_ticks": self._wticks,
+            "windows": self.windows,
+            "unit_windows": {
+                s: {"units": u, "grounded": g} for s, (u, g) in self.unit_windows.items()
+            },
+            "windows_viewer_grounded": self.windows_viewer_grounded,
+            "episodes": [dict(x) for x in self.episodes],
+            "viewers": len(self._cmdrs),
+            "viewers_grounded": len(self._grounded_cmdrs),
+            "pool_low": {
+                "stretches": len(stretches),
+                "minutes": sum(stretches) * self._wticks / self.tick_hz / 60,
+            },
         }
 
     def _pressure_in(self, hold: dict[str, Any]) -> int:
