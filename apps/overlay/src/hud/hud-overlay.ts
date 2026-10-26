@@ -314,13 +314,13 @@ export class HudOverlay {
   private applyThreatBadgeStyle(tier: ThreatTier): void {
     if (!this.threatBadgeEl) return;
 
-    if (tier === "CONDITION_BRAVO") {
+    if (tier === "BRAVO") {
       this.threatBadgeEl.textContent = "THREAT: CONDITION BRAVO (ALERT)";
       this.threatBadgeEl.style.borderColor = "#ff0055";
       this.threatBadgeEl.style.color = "#ff0055";
       this.threatBadgeEl.style.backgroundColor = "rgba(255, 0, 85, 0.2)";
       this.threatBadgeEl.style.boxShadow = "0 0 10px rgba(255, 0, 85, 0.6)";
-    } else if (tier === "CONDITION_ALPHA") {
+    } else if (tier === "ALPHA") {
       this.threatBadgeEl.textContent = "THREAT: CONDITION ALPHA (CAUTION)";
       this.threatBadgeEl.style.borderColor = "#f59e0b";
       this.threatBadgeEl.style.color = "#f59e0b";

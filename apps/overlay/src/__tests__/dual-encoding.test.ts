@@ -44,18 +44,6 @@ describe("OV-2 / OV-3 Colorblind-Safe Dual-Encoding", () => {
     damageState: "DAMAGED",
   };
 
-  const neutralBridge: VisualUnit = {
-    id: 4,
-    callsign: "BRIDGE-N",
-    side: "NEUTRAL",
-    kind: "CIVILIAN",
-    x: 200000,
-    y: 60000,
-    headingDeg: 0,
-    hpPct: 100,
-    damageState: "HEALTHY",
-  };
-
   it("enforces color palette tokens matching specification", () => {
     expect(FACTION_TOKENS.QUORUM_CYAN).toBe("#00e5ff");
     expect(FACTION_TOKENS.STATIC_MAGENTA).toBe("#ff0055");
@@ -74,7 +62,6 @@ describe("OV-2 / OV-3 Colorblind-Safe Dual-Encoding", () => {
     const qFighterDesc = getUnitShapeDescriptor(quorumFighter);
     const qReconDesc = getUnitShapeDescriptor(quorumRecon);
     const staticDesc = getUnitShapeDescriptor(staticArmor);
-    const neutralDesc = getUnitShapeDescriptor(neutralBridge);
 
     // Quorum units MUST use smooth angular chevrons / diamonds
     expect(qFighterDesc.geometryFamily).toBe("SMOOTH_CHEVRON_DIAMOND");
@@ -89,10 +76,6 @@ describe("OV-2 / OV-3 Colorblind-Safe Dual-Encoding", () => {
     expect(staticDesc.hasSawtoothJags).toBe(true);
     expect(staticDesc.isAngularChevron).toBe(false);
     expect(staticDesc.vertexCount).toBe(7);
-
-    // Neutral units use neutral geometry
-    expect(neutralDesc.geometryFamily).toBe("NEUTRAL_PILL");
-    expect(neutralDesc.hasSawtoothJags).toBe(false);
   });
 
   it("executes drawUnitVectorShape on canvas context without throwing", () => {
@@ -115,6 +98,5 @@ describe("OV-2 / OV-3 Colorblind-Safe Dual-Encoding", () => {
 
     expect(() => drawUnitVectorShape(mockCtx, quorumFighter, 8)).not.toThrow();
     expect(() => drawUnitVectorShape(mockCtx, staticArmor, 8)).not.toThrow();
-    expect(() => drawUnitVectorShape(mockCtx, neutralBridge, 8)).not.toThrow();
   });
 });

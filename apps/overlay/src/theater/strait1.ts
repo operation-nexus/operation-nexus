@@ -126,7 +126,7 @@ export const STRAIT_1_THEATER: TheaterDefinition = {
     {
       id: "cross-n",
       name: "North Crossing",
-      kind: "CROSSING",
+      kind: "FOB",
       pos: [230000, 60000],
       startOwner: "NEUTRAL",
       startStock: 0,
@@ -135,7 +135,7 @@ export const STRAIT_1_THEATER: TheaterDefinition = {
     {
       id: "cross-s",
       name: "South Crossing",
-      kind: "CROSSING",
+      kind: "FOB",
       pos: [230000, 180000],
       startOwner: "NEUTRAL",
       startStock: 0,

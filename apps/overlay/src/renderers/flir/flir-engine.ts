@@ -337,7 +337,7 @@ export class FlirMfdEngine implements IRenderEngine {
       topY + 64,
     );
     ctx.fillText(`POLARITY: ${this.polarity}`, leftX, topY + 78);
-    ctx.fillText(`THREAT: ${state.telemetry.threatLevel}`, leftX, topY + 92);
+    ctx.fillText(`THREAT: ${state.telemetry.threatTier}`, leftX, topY + 92);
     ctx.fillText(
       `Q-MOMENTUM: ${Math.round(state.telemetry.momentum.quorum)}%`,
       leftX,

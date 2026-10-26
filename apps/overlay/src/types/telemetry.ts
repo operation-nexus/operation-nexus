@@ -1,7 +1,7 @@
-export type ThreatLevel = "NOMINAL" | "ELEVATED" | "CRITICAL";
+import type { Side } from "./theater";
+import type { ThreatTierChanged } from "../contracts/events/event";
 
-export type ThreatTier =
-  "PATTERN_OF_LIFE" | "CONDITION_ALPHA" | "CONDITION_BRAVO";
+export type ThreatTier = ThreatTierChanged["to"];
 
 export interface MomentumData {
   quorum: number; // 0 to 100
@@ -13,7 +13,7 @@ export interface SitrepItem {
   timestamp: number;
   text: string;
   severity: "info" | "warn" | "alert";
-  side?: "COALITION" | "ENEMY" | "NEUTRAL" | undefined;
+  side?: Side | undefined;
 }
 
 export interface TickerItem {
@@ -26,7 +26,6 @@ export interface TelemetryState {
   momentum: MomentumData;
   countdownSeconds: number;
   objectiveName: string;
-  threatLevel: ThreatLevel;
   threatTier: ThreatTier;
   sitrep: SitrepItem[];
   ticker: TickerItem[];

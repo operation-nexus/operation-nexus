@@ -10,7 +10,7 @@ Goal: work runs **as autonomously as possible** and pings the owner rarely (Q-DE
 ## 1. Brief (lead)
 - First check that project settings loaded: `echo $CLAUDE_CODE_SUBAGENT_MODEL` prints `sonnet`. Empty means `.claude/settings.json` was not read (a cloud session with more than one repository reads only its plugin keys), so the guard and format hooks and the read denies are off: pass `model:` on every Agent call, keep `.env` and keys out of reads by hand, and tell the owner once (OWNER-TODO §4f, L-19).
 - Pick one tracker item (or one error ticket, ERROR-PIPELINE). Read its spec sections, the role card, and the open Q-rows it touches.
-- Before a brief states a rule or a number, grep OPEN-QUESTIONS for a decided row on it and cite the row; a brief that contradicts a decided row is wrong (L-14).
+- Before a brief states a rule or a number, grep OPEN-QUESTIONS for a decided row on it and cite the row; a brief that contradicts a decided row is wrong (L-14). Likewise, before a brief maps one value to another (a rename, a replacement enum value), look the item up in its source of truth (`content/`, `contracts/`) and cite the line (L-26).
 - Write the coder brief: tracker ID, the role card, spec sections and Q-rows to read (the agent files list the standing reading: AGENTS.md, CLAUDE.md, code-quality, DATA-INTEGRITY, DoD), the exact acceptance criteria, files likely touched, what is out of scope, and the docs that must change with it.
 - Parallel coders only when no two touch the same file (AGENTS.md rule 11b), each with `isolation: "worktree"`; otherwise one at a time.
 - Models (Q-DEV-4; the goal is token cost, so each task runs on the cheapest tier that does it well):

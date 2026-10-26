@@ -1,7 +1,20 @@
-export type Side = "COALITION" | "ENEMY" | "NEUTRAL";
+import type { NodeCaptured } from "../contracts/events/event";
 
-export type NodeKind =
-  "SANCTUARY" | "AIRBASE" | "FOB" | "BRIDGE" | "HQ" | "CROSSING";
+// Node owner: the contract NodeCaptured.to (COALITION | ENEMY | NEUTRAL).
+export type Side = NodeCaptured["to"];
+
+export const NODE_KINDS = [
+  "AIRBASE",
+  "FOB",
+  "PORT",
+  "BRIDGE",
+  "HQ",
+  "SANCTUARY",
+] as const;
+export type NodeKind = (typeof NODE_KINDS)[number];
+
+export const EDGE_LAYERS = ["ROAD", "SEA_LANE"] as const;
+export type EdgeLayer = (typeof EDGE_LAYERS)[number];
 
 export interface TheaterBounds {
   w: number; // width in meters (e.g. 400000)
@@ -33,7 +46,7 @@ export interface TheaterNode {
 export interface TheaterEdge {
   a: string;
   b: string;
-  layer: "ROAD" | "SEA_LANE";
+  layer: EdgeLayer;
   speedMult: number;
   bridge?: string | undefined;
 }

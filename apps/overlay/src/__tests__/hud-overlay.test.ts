@@ -35,8 +35,7 @@ describe("Real-Time Telemetry HUD Overlay", () => {
       momentum: { quorum: 65, static: 35 },
       countdownSeconds: 842, // 14:02
       objectiveName: "CAPTURE NORTH BRIDGEHEAD",
-      threatLevel: "CRITICAL",
-      threatTier: "CONDITION_BRAVO",
+      threatTier: "BRAVO",
       sitrep: [
         {
           id: "S1",
@@ -82,7 +81,7 @@ describe("Real-Time Telemetry HUD Overlay", () => {
     const sitrep = container.querySelector("#hud-sitrep-log");
     expect(sitrep?.textContent).toContain("VIPER-01 DESTROYED STATIC CONVOY");
 
-    // Test transition to PATTERN_OF_LIFE and CONDITION_ALPHA
+    // Test transition to PATTERN_OF_LIFE and ALPHA
     hud.update({
       ...state,
       threatTier: "PATTERN_OF_LIFE",
@@ -91,7 +90,7 @@ describe("Real-Time Telemetry HUD Overlay", () => {
 
     hud.update({
       ...state,
-      threatTier: "CONDITION_ALPHA",
+      threatTier: "ALPHA",
     });
     expect(threatBadge?.textContent).toContain("CONDITION ALPHA");
 

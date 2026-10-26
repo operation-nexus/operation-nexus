@@ -127,7 +127,6 @@ describe("Option A: 2D CRT Vector Phosphor Engine", () => {
         momentum: { quorum: 55, static: 45 },
         countdownSeconds: 840,
         objectiveName: "SECURE STRAIT CROSSINGS",
-        threatLevel: "NOMINAL",
         threatTier: "PATTERN_OF_LIFE",
         sitrep: [],
         ticker: [],
