@@ -9,7 +9,7 @@ from collections import Counter
 from typing import Any
 
 import steamroll
-from metrics import OFFENSIVE, ROUTINE_JOBS
+from metrics import CAPTURE_OPS, FUNNEL_STEPS, OFFENSIVE, ROUTINE_JOBS
 from profiles import Targets
 
 PASS, FAIL, NO_DATA = "pass", "fail", "no data"
@@ -278,6 +278,55 @@ def _per_hour(series: list[list[int]], hours: int) -> float | None:
     return sum(map(sum, series)) / hours if hours else None
 
 
+def _funnel(es: list[dict[str, Any]]) -> dict[str, dict[str, int]]:
+    """D5: per capture operation (OFFENSIVE, RETAKE), launches and how many saw each later step."""
+    out = {op: {"launched": 0, **dict.fromkeys(FUNNEL_STEPS, 0)} for op in CAPTURE_OPS}
+    for e in es:
+        for f in e["funnel"]:
+            out[f["op"]]["launched"] += 1
+            for k in FUNNEL_STEPS:
+                out[f["op"]][k] += f[k]
+    return out
+
+
+def _tier_at(tiers: dict[str, Any], tick: int) -> str:
+    tier = tiers["start"]
+    for t, to in tiers["changes"]:
+        if t <= tick:
+            tier = to
+    return str(tier)
+
+
+def _gaps(rs: list[dict[str, Any]], es: list[dict[str, Any]]) -> dict[str, Any]:
+    """D5: Offensive gaps per seed, with the lead-in (tick 0 to the first one, or the whole run
+    when there is none) and the tail (the last one to the last tick run), and the gaps between
+    Offensives by the Static's tier at the earlier one."""
+    per_seed: list[dict[str, Any]] = []
+    by_tier: dict[str, list[float]] = {}
+    for r, e in zip(rs, es, strict=True):
+        hz = r["tick_hz"]
+        ticks = [o[0] for o in e["ops"] if o[1] == OFFENSIVE]
+        end = r["ticks_run"]
+        gaps = [(b - a) / hz / 60 for a, b in itertools.pairwise(ticks)]
+        per_seed.append(
+            {
+                "seed": r["seed"],
+                "offensives": len(ticks),
+                "lead_in_min": (ticks[0] if ticks else end) / hz / 60,
+                "gaps_min": gaps,
+                "tail_min": (end - ticks[-1]) / hz / 60 if ticks else None,
+            }
+        )
+        for a, b in itertools.pairwise(ticks):
+            by_tier.setdefault(_tier_at(e["tiers"], a), []).append((b - a) / hz / 60)
+    return {
+        "per_seed": per_seed,
+        "by_tier": {
+            t: {"n": len(g), "median": _med(g), "max": max(g)} for t, g in sorted(by_tier.items())
+        },
+    }
+
+
 def _economy(runs: list[dict[str, Any]]) -> dict[str, Any]:
     """ECONOMY §4 "Harness report" (NX-412 part 5a), pooled over the seeds with the data; per-hour
     values are means per run-hour (game hours actually run)."""
@@ -316,6 +365,10 @@ def _economy(runs: list[dict[str, Any]]) -> dict[str, Any]:
         for a, b in itertools.pairwise([o for o in e["ops"] if o[1] == OFFENSIVE])
     ]
     offensives = [o for o in catalog if o[1] == OFFENSIVE]
+    funnel = _funnel(es)
+    spawn_by_op: Counter[str] = Counter()
+    for e in es:
+        spawn_by_op.update(e["spawn_by_op"]["ops"])
     windows = sum(sum(e["budget"]["windows"]) for e in es)
     holds = [h for e in es for h in e["holds"]]
     return {
@@ -335,6 +388,21 @@ def _economy(runs: list[dict[str, Any]]) -> dict[str, Any]:
         "offensives": len(offensives),
         "offensives_on_coalition": sum(o[3] for o in offensives),
         "offensive_gap_min": {"median": _med(gaps), "max": max(gaps, default=None)},
+        "adaptations_per_hour": {
+            k: v / hours if hours else None for k, v in sorted(adapted.items())
+        },
+        "funnel": funnel,
+        "staging": {
+            "sitreps": adapted["STAGING"],
+            "capture_launches": sum(f["launched"] for f in funnel.values()),
+        },  # staged-launch / timeout / drop counts: no event says which (docs: README)
+        "gaps": _gaps(rs, es),
+        "spawn_by_op": {
+            "ops": dict(sorted(spawn_by_op.items())),
+            "shared": sum(e["spawn_by_op"]["shared"] for e in es),
+            "unattributed": sum(e["spawn_by_op"]["unattributed"] for e in es),
+        },
+        "pressure_per_hold": [h["pressure"] for h in holds],
         "holds": len(holds),
         "holds_broken": sum(h["broken"] for h in holds),
         "ops_per_hold": [h["ops"] for h in holds],
@@ -478,6 +546,37 @@ def _economy_mode(mode: dict[str, Any] | None) -> list[str]:
     ]
 
 
+def _d5_lines(name: str, e: dict[str, Any]) -> list[str]:
+    """The D5 additions (review ENTERTAINMENT-runs-F-G-H §8) of one profile, sub-bullets."""
+    funnel = {
+        op: " > ".join(f"{k} {f[k]}" for k in ("launched", *FUNNEL_STEPS))
+        for op, f in e["funnel"].items()
+    }
+    seeds = [
+        f"s{g['seed']}: lead-in {_fmt(g['lead_in_min'])}, "
+        f"gaps [{', '.join(_fmt(x) for x in g['gaps_min'])}], tail {_fmt(g['tail_min'])}"
+        for g in e["gaps"]["per_seed"]
+    ]
+    tiers = {
+        t: f"n {v['n']}, median {_fmt(v['median'])}, max {_fmt(v['max'])}"
+        for t, v in e["gaps"]["by_tier"].items()
+    }
+    sp = e["spawn_by_op"]
+    per_h = {k: _fmt(v, ".2f") for k, v in e["adaptations_per_hour"].items()}
+    return [
+        f"  - {name} capture funnel (launch, then the target saw): {funnel}",
+        f"  - {name} STAGING sitreps {e['staging']['sitreps']} for "
+        f"{e['staging']['capture_launches']} capture launches (staged vs timeout vs dropped: "
+        "no event says)",
+        f"  - {name} Offensive minutes per seed: {'; '.join(seeds) or 'none'}; gaps by tier at "
+        f"the earlier one: {tiers or 'none'}",
+        f"  - {name} pressure events per victory hold {e['pressure_per_hold']}",
+        f"  - {name} spawn debits by operation {sp['ops'] or 'none'}, shared {sp['shared']}, "
+        f"unattributed {sp['unattributed']}",
+        f"  - {name} sitreps per run-hour {per_h or 'none'}",
+    ]
+
+
 def _economy_lines(report: dict[str, Any]) -> list[str]:
     lines = ["## Economy (ECONOMY §4, NX-412; per run-hour means, pooled over seeds)", ""]
     rows = [
@@ -520,6 +619,7 @@ def _economy_lines(report: dict[str, Any]) -> list[str]:
             f"{e['ops_per_hold']}; peak coalition armed units vs peak viewers per seed "
             f"{e['army_vs_viewers']}; grounded by previous state {share or 'none'}",
         ]
+        lines += _d5_lines(n, e)
     lines += [""]
     travel = report.get("travel") or []
     if travel:

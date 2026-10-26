@@ -46,6 +46,9 @@ ECON_SERIES = ("income", "upkeep", "groundings")
 # not Director operations, so the operation counts leave them out (they stay in `by_id`).
 ROUTINE_JOBS = frozenset({"POL_PATROL", "POL_CONVOY"})
 OFFENSIVE = "OFFENSIVE"
+RETAKE = "RETAKE"
+FUNNEL_STEPS = ("strike_fired", "defenses_down", "capture_started", "captured")
+CAPTURE_OPS = (OFFENSIVE, RETAKE)  # the operations with a STRIKE then a CAPTURE step (funnel)
 
 
 def _add(series: list[int], index: int, n: int) -> None:
@@ -136,12 +139,23 @@ class Collector:
         self._new_jobs: list[int] = []  # Static jobs created this tick (JobCreated)
         self.ops: list[tuple[int, str, str, bool]] = []  # (tick, operation, target, on coalition)
         self.ops_unseen = 0  # a created job already gone from the board when `observe` read it
+        # D5 inputs (review ENTERTAINMENT-runs-F-G-H §8). `funnel`: per OFFENSIVE / RETAKE launch,
+        # which steps its target saw afterwards; `_latest` maps a target to its newest launch.
+        self.funnel: list[dict[str, Any]] = []
+        self._latest: dict[str, dict[str, Any]] = {}
+        self.tier0 = self.tier
+        self.tier_log: list[tuple[int, str]] = []  # (tick, new tier) of the Static, in order
+        self._debits = 0  # Static SPAWN debits since the last `observe`
+        self.spawn_by_op: Counter[str] = Counter()
+        self.spawn_shared = 0  # debits of a tick with several launches (not attributable)
+        self.spawn_unattributed = 0  # debits of a tick with no launch seen
         self.army_peak = 0  # the most live armed coalition units in one sample
         self.static_units: list[int] = []  # live armed Static units, per `sample`
         self.static_stock: list[int] = []  # Static-held finite-stock bases' stock, per `sample`
         self.static_start_stock = self._static_stock(world)
         self._on: dict[str, Callable[[Any], None]] = {
             "UnitSpawned": self._spawned,
+            "WeaponFired": self._fired,
             "WeaponImpact": self._impact,
             "UnitDestroyed": self._destroyed,
             "SupplyDelivered": self._delivered,
@@ -334,8 +348,20 @@ class Collector:
             if parts[0] == "op" and len(parts) >= 4 and parts[3] == "0":
                 launched.add((parts[1], parts[2]))
         self._new_jobs = []
+        debits, self._debits = self._debits, 0
+        if debits and len(launched) == 1:
+            self.spawn_by_op[next(iter(launched))[0]] += debits
+        elif launched:
+            self.spawn_shared += debits
+        else:
+            self.spawn_unattributed += debits
         for op, target in sorted(launched):
             self.ops.append((tick, op, target, self._owner.get(target) == _COALITION))
+            if op in CAPTURE_OPS:
+                step: dict[str, Any] = {"tick": tick, "op": op, "target": target}
+                step.update(dict.fromkeys(FUNNEL_STEPS, False))
+                self.funnel.append(step)
+                self._latest[target] = step
             if op not in ROUTINE_JOBS and self.hold_start is not None and self.holds:
                 self.holds[-1]["ops"] += 1
 
@@ -379,7 +405,15 @@ class Collector:
     def _delivered(self, e: Any) -> None:
         self._credit(e.commander_id, e.tick, "delivery")
 
+    def _fired(self, e: Any) -> None:
+        """A Static shot at a node's defenses: the newest capture operation on it got its strike."""
+        step = self._latest.get(e.target_node_id) if e.target_node_id else None
+        if step and self.entity.get(e.shooter_id, (None, None))[1] == _ENEMY:
+            step["strike_fired"] = True
+
     def _captured(self, e: Any) -> None:
+        if (step := self._latest.pop(e.node_id, None)) and e.to == _ENEMY:
+            step["captured"] = True
         for commander in e.participant_commander_ids:
             self._credit(commander, e.tick, "capture")
         if e.from_ == _COALITION and e.to != _COALITION:
@@ -407,6 +441,7 @@ class Collector:
             _add(self.econ[side]["upkeep"], self._hour(e.tick), e.amount)
         elif e.cause == "SPAWN" and side == _ENEMY:
             account = "source" if e.node_id in self._source_side else "base"
+            self._debits += e.amount
             _add(self.spent[account], self._hour(e.tick), e.amount)
 
     def _grounded(self, e: Any) -> None:
@@ -429,16 +464,21 @@ class Collector:
     def _capture_started(self, e: Any) -> None:
         if e.side == _ENEMY and self._owner.get(e.node_id) == _COALITION:
             self.pressure_ticks.append(e.tick)
+            if step := self._latest.get(e.node_id):
+                step["capture_started"] = True
 
     def _defenses_down(self, e: Any) -> None:
         if e.owner == _COALITION:
             self.pressure_ticks.append(e.tick)
+            if step := self._latest.get(e.node_id):
+                step["defenses_down"] = True
 
     def _tier(self, e: Any) -> None:
         if e.side != _ENEMY:
             return
         self.dwell[self.tier] += e.tick - self.tier_since
         self.tier, self.tier_since = e.to, e.tick
+        self.tier_log.append((e.tick, e.to))
         self.tier_changes += 1
 
     def _end(self, e: Any) -> None:
@@ -532,9 +572,21 @@ class Collector:
             "budget": {"sum": self.budget, "windows": self.budget_windows, "spent": self.spent},
             "ops": [list(o) for o in self.ops],
             "ops_unseen": self.ops_unseen,
-            "holds": self.holds,
+            "holds": [{**h, "pressure": self._pressure_in(h)} for h in self.holds],
+            "funnel": self.funnel,
+            "tiers": {"start": self.tier0, "changes": [list(c) for c in self.tier_log]},
+            "spawn_by_op": {
+                "ops": dict(sorted(self.spawn_by_op.items())),
+                "shared": self.spawn_shared,
+                "unattributed": self.spawn_unattributed,
+            },
             "army_peak": self.army_peak,
         }
+
+    def _pressure_in(self, hold: dict[str, Any]) -> int:
+        """Pressure events from a hold's start to its end, both ticks counted."""
+        end = hold["end"]
+        return sum(hold["start"] <= t and (end is None or t <= end) for t in self.pressure_ticks)
 
     def _ttfi(self, commanders: list[str]) -> list[float]:
         return sorted(
