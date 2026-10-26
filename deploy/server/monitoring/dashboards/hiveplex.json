@@ -438,7 +438,7 @@
   {
    "id": 11,
    "type": "stat",
-   "title": "Cost this month so far",
+   "title": "Cost this month so far (from recorded watts)",
    "datasource": {
     "type": "prometheus",
     "uid": "prometheus"
@@ -451,7 +451,7 @@
    },
    "targets": [
     {
-     "expr": "sum(kasa_energy_month_kwh) * $rate",
+     "expr": "sum(sum_over_time(kasa_power_watts[$__range:1m])) / 60 / 1000 * $rate",
      "legendFormat": "",
      "refId": "A"
     }
@@ -472,7 +472,8 @@
     "colorMode": "value",
     "graphMode": "area"
    },
-   "description": "Plug energy this month times the rate chosen at the top. Only counts since the plugs were installed."
+   "description": "Recorded watts added up since the 1st of this month (the plugs were installed 25 Oct, so October is partial) times the rate chosen at the top. Short gaps in the recording count as zero.",
+   "timeFrom": "now/M"
   },
   {
    "id": 12,
