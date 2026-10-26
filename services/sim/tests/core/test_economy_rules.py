@@ -219,6 +219,24 @@ def test_pool_money_the_window_cannot_spend_promotes_no_capture_operation() -> N
     assert w.director["ENEMY"].budget == 10
 
 
+def test_a_promoted_capture_operation_that_cannot_pay_crowds_out_nothing() -> None:
+    # Q-TD-48 (6), from CodeRabbit on #411: base surplus 50 at east-airbase plus a rear account of
+    # 10 (pool 2000) passes the floor's 60, but OFFENSIVE pays at one node, and neither the base
+    # (50) nor the rear account (10) can pay 60, so the window is the one without the floor
+    def limited(free: int) -> World:
+        w = world(NEW_LIMITED)
+        at_floor(w)
+        w.stock["east-airbase"] += free
+        w.pool["ENEMY"] = 2000
+        return w
+
+    w = limited(50)
+    assert floor_window(w, 10, spend=10) == floor_window(limited(50), 9, spend=10)
+    assert w.director["ENEMY"].budget == 10
+    w = limited(60)  # the base can pay all 60: the base account is lifted to it, not 60 - 10
+    assert floor_window(w, 10, spend=10) == [("OFFENSIVE", "west-airbase")]
+
+
 def test_legacy_rules_have_no_capture_floor() -> None:
     assert floor_window(world(LEGACY_LIMITED), 10) == floor_window(world(LEGACY_LIMITED), 0)
 

@@ -31,8 +31,9 @@ launched in selection order:
   `sim.max_live_units_per_side` (`economy.guard_room`). An operation that posts jobs stamps
   `DirectorState.last_operation` (the EC-7 cadence floor). When the floor is due, the cheapest
   capture operation with a target that base surplus plus the window's rear account pays lifts
-  the budget and the base account to its cost and is selected first (`_floor_capture`,
-  Q-TD-42, Q-TD-48); one the window's caps would
+  the budget and the base account to at least its cost and is selected and launched first
+  (`_floor_capture`, Q-TD-42, Q-TD-48); if it cannot pay, the lift is undone and the window
+  selects as without it; one the window's caps would
   skip lifts nothing. The floor is not due while an operation is staged
   (`director.cadence_due`), and each window `_review` keeps, launches or drops one stamps
   `last_operation`, so it counts from the drop. Operations the budget and
@@ -255,15 +256,28 @@ def run(world: World, side: Side, view: SideView, rules: Rules, out: list[Event]
         )
 
     lead = None if purse is None else _floor_capture(world, rules, view, state, ranked, purse, fits)
+    unlifted = (purse.base, state.budget) if purse is not None else (0, state.budget)
     if purse is not None and lead is not None:  # no staged operation, so `held` is 0
-        purse.base += max(0, lead.op.cost - state.budget)
+        purse.base = max(purse.base, lead.op.cost)  # the base account alone can pay it
         state.budget = max(state.budget, lead.op.cost)
         ranked = [lead, *(c for c in ranked if c is not lead)]
+
+    def pick(cands: list[ops.Candidate], refused: list[int]) -> list[ops.Candidate]:
+        return ops.select(
+            cands, dr, state.budget - held, dr.max_spawns_per_window, room, live, most,
+            _routine(dr), refused,
+        )  # fmt: skip
+
     refused: list[int] = []
-    chosen = ops.select(
-        ranked, dr, state.budget - held, dr.max_spawns_per_window, room, live, most, _routine(dr),
-        refused,
-    )  # fmt: skip
+    chosen = pick(ranked, refused)
+    if purse is not None and lead is not None and chosen[:1] == [lead]:
+        chosen = chosen[1:]
+        if not _launch(world, rules, side, view, state, lead, out, purse):
+            # it could not pay after all (Q-TD-48 (6)): the floor lifts nothing, so the window
+            # buys what it would have without the lead
+            purse.base, state.budget = unlifted
+            refused = []
+            chosen = pick([c for c in ranked if c is not lead], refused)
     _note_refused(world, side, refused, out)
     for c in chosen:
         _launch(world, rules, side, view, state, c, out, purse)
