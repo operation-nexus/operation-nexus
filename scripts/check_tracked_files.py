@@ -8,6 +8,7 @@ tracked file (run from anywhere; operates on the repo this script lives in):
   (c) larger than MAX_BYTES, unless allowlisted
 Allowlist entries are path prefixes; add one only for a genuine asset, with a reason.
 """
+import argparse
 import os
 import re
 import subprocess
@@ -52,7 +53,16 @@ def _size(path):
     return os.path.getsize(full) if os.path.isfile(full) and not os.path.islink(full) else None
 
 
-def main():
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description=__doc__.strip(),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    try:
+        _ = parser.parse_args(argv if argv is not None else sys.argv[1:])
+    except SystemExit as e:
+        return e.code
+
     bad = violations(_git("ls-files", "-z"), _git("ls-files", "-ci", "--exclude-standard", "-z"), _size)
     for path, why in bad:
         print(f"{path}: {why}")

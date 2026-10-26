@@ -15,6 +15,7 @@ and catches any run that differs from it.
 The parent is stdlib only; the children use this interpreter (the services/sim venv).
 """
 
+import argparse
 import json
 import os
 import subprocess
@@ -70,7 +71,17 @@ def diff(case: str, runs: dict[str, dict[str, Any] | None]) -> list[str]:
     return lines
 
 
-def main() -> int:
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description=__doc__.strip(),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    raw_args = argv[1:] if argv is not None else sys.argv[1:]
+    try:
+        _ = parser.parse_args(raw_args)
+    except SystemExit as e:
+        return e.code if isinstance(e.code, int) else 2
+
     expected = {
         p.name: json.loads((p / "expected.json").read_text())
         for p in sorted(GOLDEN.iterdir())
