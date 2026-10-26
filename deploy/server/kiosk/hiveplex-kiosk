@@ -1,0 +1,21 @@
+#!/usr/bin/env bash
+# Control the Grafana kiosk screen on this server. Works over SSH.
+#   hiveplex-kiosk start | stop | restart | status | on-boot | no-boot | url [URL|default] | reload
+# "url" with no argument shows the current address; with an address, switches the screen to it.
+export XDG_RUNTIME_DIR=/run/user/$(id -u)
+export DBUS_SESSION_BUS_ADDRESS=unix:path=$XDG_RUNTIME_DIR/bus
+UNIT=hiveplex-kiosk.service
+ENVF=$HOME/.config/hiveplex-kiosk.env
+DEFAULT='http://localhost:3000/d/hiveplex-overview/hiveplex?kiosk&refresh=10s&from=now-6h&to=now'
+case "${1:-status}" in
+  start|stop|restart) systemctl --user "$1" "$UNIT" && echo "kiosk: $1 ok";;
+  reload) systemctl --user restart "$UNIT" && echo "kiosk reloaded";;
+  on-boot) systemctl --user enable "$UNIT" 2>&1 | tail -1;;
+  no-boot) systemctl --user disable "$UNIT" 2>&1 | tail -1;;
+  url)
+    if [ -z "${2:-}" ]; then grep -h '^KIOSK_URL=' "$ENVF" 2>/dev/null || echo "KIOSK_URL=$DEFAULT"
+    elif [ "$2" = default ]; then rm -f "$ENVF"; systemctl --user restart "$UNIT"; echo "kiosk url reset to default"
+    else printf 'KIOSK_URL=%s\n' "$2" > "$ENVF"; systemctl --user restart "$UNIT"; echo "kiosk now shows: $2"; fi;;
+  status) systemctl --user is-active "$UNIT"; systemctl --user is-enabled "$UNIT" 2>/dev/null | sed 's/^/start at login: /'; if ps -eo args | grep -q '[s]nap/firefox/.*--kiosk'; then echo "firefox kiosk process: running"; else echo "firefox kiosk process: not running"; fi;;
+  *) echo "usage: hiveplex-kiosk start|stop|restart|status|on-boot|no-boot|url [URL|default]|reload" >&2; exit 2;;
+esac
