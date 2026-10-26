@@ -6,6 +6,7 @@ additionalProperties of a map) must carry x-unit, x-hot-reload, x-category, x-au
 x-source and x-status. Exits non-zero on a missing or invalid field, otherwise writes
 docs/specs/CONFIG-REFERENCE.md. `make contracts` runs it. Stdlib only.
 """
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -208,15 +209,45 @@ def render(schema):
     return "\n".join(lines)
 
 
-def main():
-    schema = json.loads(SCHEMA.read_text(encoding="utf-8"))
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description=__doc__.strip(),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument("--check", action="store_true", help="Validate schema and verify reference doc is up to date without writing")
+    parser.add_argument("--schema", type=Path, default=SCHEMA, help=f"Path to balance schema (default: {SCHEMA.relative_to(ROOT)})")
+    parser.add_argument("--out", type=Path, default=OUT, help=f"Path to output reference doc (default: {OUT.relative_to(ROOT)})")
+    raw_args = argv[1:] if argv is not None else sys.argv[1:]
+    try:
+        args = parser.parse_args(raw_args)
+    except SystemExit as e:
+        return e.code
+
+    if not args.schema.is_file():
+        print(f"config registry: schema file not found: {args.schema}", file=sys.stderr)
+        return 2
+
+    try:
+        schema = json.loads(args.schema.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as e:
+        print(f"config registry: invalid JSON in {args.schema}: {e}", file=sys.stderr)
+        return 2
+
     found = problems(schema)
     for line in found:
         print(f"config registry: {line}", file=sys.stderr)
     if found:
         print(f"config registry: {len(found)} problem(s); fix contracts/config/balance.json", file=sys.stderr)
         return 1
-    OUT.write_text(render(schema), encoding="utf-8", newline="\n")
+
+    content = render(schema)
+    if args.check:
+        if not args.out.is_file() or args.out.read_text(encoding="utf-8") != content:
+            print(f"config registry: {args.out} is out of date; run scripts/gen_config_reference.py", file=sys.stderr)
+            return 1
+        return 0
+
+    args.out.write_text(content, encoding="utf-8", newline="\n")
     return 0
 
 

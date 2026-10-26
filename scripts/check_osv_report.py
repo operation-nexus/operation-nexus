@@ -6,6 +6,7 @@ Every finding is listed; only blocking ones set the exit code. A group with no C
 
 Usage: python3 scripts/check_osv_report.py <osv-scanner --format json output> [min CVSS, default 7.0]
 """
+import argparse
 import json
 import re
 import sys
@@ -59,13 +60,31 @@ def findings(report: dict, min_score: float = HIGH) -> list[tuple[bool, str]]:
     return out
 
 
-def main(argv: list[str]) -> int:
-    if len(argv) not in (2, 3):
-        print(__doc__.strip().splitlines()[-1])
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description=__doc__.strip(),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument("report_file", help="Path to osv-scanner json output")
+    parser.add_argument("min_score", nargs="?", type=float, default=HIGH, help="Minimum CVSS score threshold (default 7.0)")
+    raw_args = argv[1:] if argv is not None else sys.argv[1:]
+    try:
+        args = parser.parse_args(raw_args)
+    except SystemExit as e:
+        return e.code
+
+    try:
+        with open(args.report_file, encoding="utf-8") as f:
+            data = json.load(f)
+    except OSError as e:
+        print(f"check_osv_report: {e}", file=sys.stderr)
         return 2
-    with open(argv[1], encoding="utf-8") as f:
-        min_score = float(argv[2]) if len(argv) == 3 else HIGH
-        found = findings(json.load(f), min_score)
+    except json.JSONDecodeError as e:
+        print(f"check_osv_report: invalid JSON in {args.report_file}: {e}", file=sys.stderr)
+        return 2
+
+    min_score = args.min_score
+    found = findings(data, min_score)
     # Package names come from PR-controlled lockfiles: indent and strip control characters so no line starts a
     # workflow command ("::").
     for blocks, desc in found:
@@ -76,4 +95,4 @@ def main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv))
+    sys.exit(main())

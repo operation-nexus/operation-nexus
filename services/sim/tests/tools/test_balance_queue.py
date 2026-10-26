@@ -248,6 +248,7 @@ def test_missing_gh_is_one_line_error(
     cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch, tmp_path: Path, capsys: Any
 ) -> None:
     monkeypatch.setenv("PATH", str(tmp_path))
+    monkeypatch.setattr(hq, "load_config", lambda _: cfg)
     assert hq.main(["run-once", "--dry-run"]) == 2
     assert "gh not found" in capsys.readouterr().err
 

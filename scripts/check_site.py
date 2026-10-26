@@ -7,6 +7,7 @@ or a registered handle with no link (PS-4); an email other than one on hiveplex.
 viewport, title, alt text or link-preview tags (PS-6, PS-7); missing AI-placeholder credit or privacy note
 (PS-8, PS-9). Stdlib only. Usage: python3 scripts/check_site.py
 """
+import argparse
 import os
 import re
 import sys
@@ -155,8 +156,27 @@ def site_problems(site=SITE, registry_path=REGISTRY):
     return out
 
 
-def main():
-    problems = site_problems()
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description=__doc__.strip(),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument("--site", default=SITE, help="Path to site directory")
+    parser.add_argument("--registry", default=REGISTRY, help="Path to BRAND-ACCOUNTS.md")
+    raw_args = argv[1:] if argv is not None else sys.argv[1:]
+    try:
+        args = parser.parse_args(raw_args)
+    except SystemExit as e:
+        return e.code
+
+    if not os.path.isdir(args.site):
+        print(f"site check: site directory does not exist: {args.site}", file=sys.stderr)
+        return 2
+    if not os.path.isfile(args.registry):
+        print(f"site check: registry file does not exist: {args.registry}", file=sys.stderr)
+        return 2
+
+    problems = site_problems(site=args.site, registry_path=args.registry)
     for m in problems:
         print(f"site check: {m}")
     if not problems:

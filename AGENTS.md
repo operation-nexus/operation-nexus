@@ -1,8 +1,8 @@
 # AGENTS.md — Operation Nexus
 
-This is the entry point for every AI coding agent (Claude Code, Codex, Gemini, Antigravity, Cursor, etc.) working in this repository. Humans should read it too.
+This is the authoritative entry point for every AI coding agent (Antigravity, Gemini, Codex, Cursor, Claude Code, Windsurf, etc.) and human developer working in this repository.
 
-> **Status: P1 (headless sim kernel).** P0 is closed; `services/sim`, `content/`, `balance/` and `tools/` exist. Code changes go through the `build-loop` skill against specs marked `Status: Approved`. A spec still in Draft needs owner sign-off before code. Open questions are in [`docs/planning/OPEN-QUESTIONS.md`](docs/planning/OPEN-QUESTIONS.md).
+> **Status: P1 (headless sim kernel).** P0 is closed; `services/sim`, `content/`, `balance/` and `tools/` exist. Code changes proceed via a structured workflow (Coder → QA → Reviewer) against specs marked `Status: Approved`. A spec still in Draft needs owner sign-off before code. Open questions are in [`docs/planning/OPEN-QUESTIONS.md`](docs/planning/OPEN-QUESTIONS.md).
 
 ## 1. What this project is
 
@@ -21,10 +21,10 @@ The raw files are brainstorms from an AI chat. **They are not specs.** Where the
 
 ## 2. Ground rules for agents
 
-0. **NO FABRICATED OR HALLUCINATED DATA. EVER.** This is mandatory and has no exceptions. Don't invent values, names, ids, stats, API fields, file paths, library versions, flags, or facts. When data doesn't exist, say so or leave it empty. Defaults and fallbacks are allowed only when they're required, honest, visible, and listed in the registry. Unverified external facts must be marked **[UNVERIFIED]**. Report only what you actually ran and observed. Full policy: [`docs/quality/DATA-INTEGRITY.md`](docs/quality/DATA-INTEGRITY.md).
+0. **NO FABRICATED OR HALLUCINATED DATA. EVER.** This is mandatory and has no exceptions. Don't invent values, names, ids, stats, API fields, file paths, library versions, flags, or facts. When data doesn't exist, say so or leave it empty. Defaults and fallbacks are allowed only when they're required, honest, visible, and listed in the registry. Unverified external facts must be marked **[UNVERIFIED]**. Report only what you actually ran and observed with precise `file:line` citations. Full policy: [`docs/quality/DATA-INTEGRITY.md`](docs/quality/DATA-INTEGRITY.md).
 1. **Spec first.** Every change traces to a tracker ID (`NX-###`) and a spec section. If no spec covers it, stop and propose a spec change. Don't invent behavior.
-2. **Never guess on design decisions.** If a spec is ambiguous, add a question to `OPEN-QUESTIONS.md` and ask the owner. Exception for autonomy (Q-DEV-1): when a question has a recommended option, the lead takes it, records it as a Q-row with status `Decided by lead, owner may veto`, keeps going, and presents the list at the end of the work stretch (Q-DEV-21); real alternatives without a recommendation, and costs, legal or security questions, still go to the owner (`.claude/skills/build-loop` §3).
-3. **The simulation is deterministic.** Inside `sim-core`, don't use wall-clock time, unseeded randomness, `uuid4`, set/dict iteration over unordered data, floating-point reductions in nondeterministic order, threads, or network I/O. See [`docs/specs/SIM-CORE.md`](docs/specs/SIM-CORE.md).
+2. **Never guess on design decisions.** If a spec is ambiguous, add a question to `OPEN-QUESTIONS.md` and ask the owner. Exception for autonomy (Q-DEV-1): when a question has a recommended option, the lead takes it, records it as a Q-row with status `Decided by lead, owner may veto`, keeps going, and presents the list at the end of the work stretch (Q-DEV-21); real alternatives without a recommendation, and costs, legal or security questions, still go to the owner.
+3. **The simulation is deterministic.** Inside `sim-core` (`services/sim/src/nexus/core/`), don't use wall-clock time, unseeded randomness, `uuid4`, set/dict iteration over unordered data, floating-point reductions in nondeterministic order, threads, or network/file I/O. See [`docs/specs/SIM-CORE.md`](docs/specs/SIM-CORE.md).
 4. **Chat input is hostile.** Every string from a platform, a URL, or an LLM is untrusted. It is validated, length-capped, normalized, and moderated before it reaches the sim, the screen, TTS, logs or a prompt. See [`docs/security/THREAT-MODEL.md`](docs/security/THREAT-MODEL.md).
 5. **LLMs advise; code decides.** LLM output is always parsed into a typed schema, range-checked, and treated as a *suggestion* that deterministic code can reject. An LLM is never on the hot path of a tick.
 6. **Contracts are generated, not hand-copied.** Wire types (WebSocket frames, commands, events) come from a single schema source. CI fails if generated types drift.
@@ -32,6 +32,7 @@ The raw files are brainstorms from an AI chat. **They are not specs.** Where the
 7. **Small PRs.** One tracker item per PR where possible, under ~400 changed lines of non-test, non-generated source. Tests, regenerated goldens and `make contracts` output don't count; state the split in the PR body. Each PR includes tests and updates the docs it affects.
 8. **No new dependencies without justification.** Each one goes in the PR description (why, license, maintenance status, alternatives). Licenses must be compatible with the project license (see OPEN-QUESTIONS Q-LEGAL-1).
 9. **No secrets in the repo.** Ever. Use `.env` (gitignored) locally and GitHub Environments / a secret manager in CI/CD.
+9a. **Protected files & non-hook environments.** Agents must NEVER edit or create `.env*`, `*.pem`, or `*.key` files, nor edit the read-only raw brainstorm files (`Raw-plans.md`, `Raw-conversation.md`). Claude-specific configurations (`.claude/`, `CLAUDE.md`) are strictly preserved and must not be altered by model-agnostic agents. For runtimes without automated hooks (Antigravity, Cursor, Gemini, Codex), agents must manually format code with `uv run ruff format` and verify changes with `make check-python` or `make check`.
 10. **Push, open PRs and merge only inside the owner-granted workflow** (Q-PROC-1, Q-PROC-2, ADR-0009). When the owner has asked you in the current session to work on something, you may push a fresh feature branch and open a PR into `develop` after bringing in the latest `develop`. That PR merges through GitHub auto-merge once `ci-gate` is green: no approval is needed, and direct pushes to `develop` are blocked. If the owner limits the ask (for example "push, but no PRs"), the limit wins. Without such an ask, don't push or open PRs. Never push to or merge into `main`, never deploy, and never bypass, disable or weaken a required check to get a PR merged. Promotion, hotfix and release merges to `main` are owner-only. Because PRs auto-merge, open anything that must not land (experiments, seeded-failure tests) as a **draft** PR.
 10a. **No vendor lock-in.** Vendor SDKs (chat platforms, LLM, TTS, Discord) are imported only inside adapter packages, behind our own interfaces. Adapters must pass the shared conformance suite. See ADR-0010.
 11. **Branches:** branch from and target `develop`. Target `main` only with a promotion or hotfix PR the owner asked for; only the owner merges it (rule 10). See ADR-0009. Delete the feature branch (local and remote) once its PR is merged into `develop`; don't reuse a merged branch.
@@ -83,16 +84,19 @@ The layout below is the target. Directories are created when their first tracker
 
 ## 5. Commands
 
-```
-make bootstrap      # (fresh clone: `make bootstrap check`; cloud sessions bootstrap via SessionStart hook)
-                    # uv sync + pnpm install (frozen lockfiles) + pre-commit hooks if installed
+```bash
+make bootstrap      # uv sync + pnpm install (frozen lockfiles) + pre-commit hooks if installed
 make contracts      # regenerate Python + TS types from contracts/ (CI fails on drift; NX-021)
-make check          # Python: ruff + ruff format --check (services/sim and tools/), mypy --strict (src, tests,
-                    #   maintained tools: TOOLS_TYPED in the Makefile), import-linter, pytest,
-                    #   repo-check script tests (scripts/tests)
-                    # Overlay: tsc --noEmit, eslint + prettier --check, vitest
+make check          # runs check-python and check-overlay
+make check-python   # Python: ruff check & format check, mypy --strict, import-linter, pytest, repo tests
+make check-overlay  # Overlay: tsc typecheck, eslint, vitest
 make perf           # the tests that assert wall-clock budgets (pytest marker `perf`): `make check`
                     #   skips them so a slow host can gate on it; CI's pytest still runs them (#358)
+make test           # run all sim pytest tests
+make test-unit      # run fast sim unit tests (excluding golden replays)
+make determinism    # verify sim core golden hash replay determinism
+make terrain        # test terrain generation tooling
+make balance        # run balance study harness (tools/balance)
 # make sim          # (NX-031/NX-193) not yet implemented
 # make dev          # (NX-255) not yet implemented
 ```
@@ -105,8 +109,29 @@ CI (`.github/workflows/ci.yml`) runs the same commands, plus `pnpm run build`. `
 
 See [`docs/quality/DEFINITION-OF-DONE.md`](docs/quality/DEFINITION-OF-DONE.md). In short: spec referenced, tests written (including a determinism test for sim changes), CI green, docs updated, no new high or critical security findings, tracker updated.
 
-## 7. Agent roles
+## 7. Functional Capability Tiers
 
-Role cards live in [`.agents/roles/`](.agents/roles/). Pick the one that matches your task and follow it. Owner-provided context files go in [`.agents/context/`](.agents/context/).
+To maximize execution efficiency, ensure deterministic reliability, and align with model strengths across providers, tasks are mapped into four functional capability tiers:
 
-Every agent also follows [`.agents/rules/code-quality.md`](.agents/rules/code-quality.md) in new or touched files and adds to its "Lessons learned here" section when this repo teaches something new. Skills live in [`.claude/skills/`](.claude/skills/) ([index](.claude/skills/VENDORED.md)); agents other than Claude read them by path. `build-loop` for any code change (coder → QA → lead review → PR or owner), `coding-safeguards` before multi-file edits, `frontend-design` before any new visual surface, `grill-with-docs` to stress-test a plan or spec with the owner before implementation (it records answers in OPEN-QUESTIONS, the glossary, specs and ADRs).
+| Tier | Capability Focus | Representative Models | Appropriate Tasks & Policies |
+|---|---|---|---|
+| **Tier 1: Lightweight / Lookup** | High speed, large context, deterministic fact retrieval | Claude 3.5 Haiku, GPT-4o-mini, Gemini 1.5/2.0 Flash | Symbol lookup, file search, test log triage, sanity checks. **Policy:** Zero speculation; report exact matches with `file:line` only (Rule 0). |
+| **Tier 2: Standard Workhorse** | Structured code generation, strict typing, tests | Claude 3.5 Sonnet, GPT-4o, Codex, Gemini 1.5/2.0 Pro | Feature implementation (Coder), unit/property tests, doc synchronization, standard QA verification. Max ~400 lines non-test diff. |
+| **Tier 3: Frontier / High-Reasoning** | Complex reasoning, sim kernel determinism, security governance | Claude 3.5/3.7 Sonnet / Opus, OpenAI o1 / o3-mini-high, Gemini Ultra | System design, ADRs, sim kernel (`nexus.core`), security review, visual C2 architecture, refereeing stalled loops. Must verify subordinate claims with diffs. |
+| **Tier 4: Specialized Tooling** | Deterministic non-LLM ground truth | Serena LSP, Ruff, Mypy, Vitest, Playwright, Semgrep | Linting, formatting, typechecking, headless screenshots. Non-negotiable baseline. |
+
+## 8. Agent resources & roles
+
+Role cards live in [`.agents/roles/`](.agents/roles/). Pick the one that matches your task and follow it:
+- `architect.md` — Specs, ADRs, system boundaries, non-goals
+- `devops-engineer.md` — CI/CD, Docker, release automation, environments
+- `frontend-engineer.md` — Overlay, site, Command Center, Canvas2D/WebGL
+- `game-designer.md` — Balance, rules, pacing, combat math
+- `gateway-engineer.md` — Chat adapters, platform ingestion, normalization
+- `reviewer.md` — Correctness, hygiene, performance, regression checklist
+- `sim-engineer.md` — Deterministic simulation core, tick loop, SimRng
+- `visual-engineer.md` — Multi-paradigm C2 rendering, elevation budget, headless review
+
+Owner-provided context files go in [`.agents/context/`](.agents/context/). Reusable prompt templates live in [`.agents/prompts/`](.agents/prompts/).
+
+Every agent also follows [`.agents/rules/code-quality.md`](.agents/rules/code-quality.md) in new or touched files and adds to its "Lessons learned here" section when this repo teaches something new. Universal skills live in [`.agents/skills/`](.agents/skills/) (such as `hiveplex-visualization`). Claude-specific project skills remain indexed in [`.claude/skills/`](.claude/skills/) ([index](.claude/skills/VENDORED.md)); other agents read them by path when relevant.

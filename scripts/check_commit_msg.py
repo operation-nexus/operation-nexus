@@ -3,6 +3,7 @@
 
 Usage: python3 scripts/check_commit_msg.py <commit-msg-file>   (pre-commit `commit-msg` stage passes the file)
 """
+import argparse
 import re
 import sys
 
@@ -20,12 +21,25 @@ def problems(lines: list[str]) -> list[str]:
     return bad
 
 
-def main(argv: list[str]) -> int:
-    if len(argv) != 2:
-        print(__doc__.strip().splitlines()[-1])
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description=__doc__.strip(),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument("commit_msg_file", help="Path to commit message file")
+    raw_args = argv[1:] if argv is not None else sys.argv[1:]
+    try:
+        args = parser.parse_args(raw_args)
+    except SystemExit as e:
+        return e.code
+
+    try:
+        with open(args.commit_msg_file, encoding="utf-8") as f:
+            bad = problems(f.read().splitlines())
+    except OSError as e:
+        print(f"check_commit_msg: {e}", file=sys.stderr)
         return 2
-    with open(argv[1], encoding="utf-8") as f:
-        bad = problems(f.read().splitlines())
+
     for b in bad:
         print(f"check_commit_msg: {b}", file=sys.stderr)
     if bad:
@@ -34,4 +48,4 @@ def main(argv: list[str]) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv))
+    sys.exit(main())

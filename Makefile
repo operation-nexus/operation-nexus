@@ -1,7 +1,10 @@
 SIM := services/sim
 OVERLAY := apps/overlay
 
-.PHONY: bootstrap check check-python check-overlay node-version contracts perf
+# Prepend local user binary locations (uv in ~/.local/bin) and fallback fnm default alias
+export PATH := $(HOME)/.local/bin:$(PATH):$(HOME)/.local/share/fnm/aliases/default/bin
+
+.PHONY: bootstrap check check-python check-overlay node-version contracts perf test test-unit determinism terrain balance test-tools
 
 # Node major comes from .node-version (CI reads the same file). A wrong major
 # fails here with a clear message instead of breaking vitest later.
@@ -36,7 +39,9 @@ check-python:
 	cd $(SIM) && uv run --frozen lint-imports
 	cd $(SIM) && uv run --frozen pytest -m "not perf"  # wall-clock budgets run in `make perf` and CI (#358)
 	python3 scripts/tests/test_repo_checks.py
+	python3 scripts/tests/test_cli_ergonomics.py
 	python3 tools/discord-setup/tests/test_setup.py
+	$(MAKE) test-tools
 
 check-overlay: node-version
 	pnpm --dir $(OVERLAY) run typecheck
@@ -69,3 +74,34 @@ contracts:
 	    --cwd "../../$$(dirname "$$f")" --additionalProperties false \
 	    --bannerComment "/* Generated from contracts/ by make contracts (NX-021). Do not edit. */" || exit 1; \
 	done
+
+test:
+	cd $(SIM) && uv run --frozen pytest
+	$(MAKE) test-tools
+
+test-unit:
+	cd $(SIM) && uv run --frozen pytest -k "not golden"
+
+determinism:
+	cd $(SIM) && uv run --frozen python ../../tools/sim-determinism/check.py
+
+terrain:
+	python3 tools/terrain/bake_synthetic_dted.py --test
+	python3 tools/terrain/drape_roads.py --test
+
+balance:
+	@if [ -z "$(ARGS)" ]; then \
+	  echo "Running balance smoke test (overnight-0, 1 seed, 1 hour)..."; \
+	  tmp="$$(mktemp -d)"; \
+	  cd $(SIM) && uv run --frozen python ../../tools/balance/balance.py --profile overnight-0 --seeds 1 --hours 1 --workers 1 --out "$$tmp/report"; \
+	  status=$$?; rm -rf "$$tmp"; exit $$status; \
+	else \
+	  cd $(SIM) && uv run --frozen python ../../tools/balance/balance.py $(ARGS); \
+	fi
+
+test-tools:
+	python3 tools/terrain/bake_synthetic_dted.py --test
+	python3 tools/terrain/drape_roads.py --test
+	python3 tools/terrain/mgrs_grid.py --test
+	python3 tools/assets/generate_lowpoly_assets.py --test
+	python3 tools/replay/render_cinematic_pass.py --test

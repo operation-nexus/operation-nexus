@@ -168,8 +168,8 @@ def parser() -> argparse.ArgumentParser:
     return p
 
 
-def main() -> int:
-    args = parser().parse_args()
+def main(argv: list[str] | None = None) -> int:
+    args = parser().parse_args(argv if argv is not None else sys.argv[1:])
     try:
         for path in (args.snapshots, args.logs):
             if not path.is_dir():

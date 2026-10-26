@@ -6,6 +6,7 @@ Breaking: a removed schema file, a removed property, a newly required property, 
 or a removed enum value. Before PROTOCOL_VERSION 1.0 this only reports (exit 0). From 1.0, breaking changes
 fail unless the head MAJOR is above the base MAJOR.
 """
+import argparse
 import json
 import os
 import sys
@@ -75,8 +76,27 @@ def _major(root):
         return int(f.read().strip().split(".")[0])
 
 
-def main(argv):
-    base_dir, head_dir = argv[1], argv[2]
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(
+        description=__doc__.strip(),
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument("base_dir", help="Base contracts directory")
+    parser.add_argument("head_dir", help="Head contracts directory")
+    raw_args = argv[1:] if argv is not None else sys.argv[1:]
+    try:
+        args = parser.parse_args(raw_args)
+    except SystemExit as e:
+        return e.code
+
+    if not os.path.isdir(args.base_dir):
+        print(f"error: base directory does not exist: {args.base_dir}", file=sys.stderr)
+        return 2
+    if not os.path.isdir(args.head_dir):
+        print(f"error: head directory does not exist: {args.head_dir}", file=sys.stderr)
+        return 2
+
+    base_dir, head_dir = args.base_dir, args.head_dir
     changes = breaking_changes(_load(base_dir), _load(head_dir))
     for line in changes:
         print(f"breaking: {line}")
@@ -90,4 +110,4 @@ def main(argv):
 
 
 if __name__ == "__main__":
-    sys.exit(main(sys.argv))
+    sys.exit(main())

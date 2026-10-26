@@ -1,12 +1,13 @@
 # .agents/
 
-Shared material for AI coding agents. `AGENTS.md` at the repo root is the entry point; this folder holds the detail.
+Shared material for AI coding agents across all models (Antigravity, Gemini, Codex, Cursor, Claude Code). `AGENTS.md` at the repo root is the entry point; this folder holds the detail.
 
 | Folder | Contents |
 |---|---|
 | `roles/` | Role cards: scope, must-read docs, checklists, and hard "never" rules for each kind of agent task. |
 | `rules/` | Rules for every new or touched file (`code-quality.md`), plus the "Lessons learned here" log. |
-| `prompts/` | Reusable task prompts (implement a tracker item, review a PR, write a spec, run a balance study). |
+| `prompts/` | Reusable task prompts (implement a tracker item, review a PR, write a spec, run a balance study, visual review). |
+| `skills/` | Universal skills, scripts, and domain runbooks (e.g. `hiveplex-visualization`). |
 | `context/` | **Owner drop zone.** Reference files, screenshots, sketches, exports. Agents read these but never edit them. |
 
 Conventions:
