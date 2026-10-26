@@ -2922,6 +2922,7 @@
         "income",
         "storage",
         "upkeep",
+        "upkeep_period",
         "legacy_rules",
         "free_viewer_spawn",
         "floor_viewer_units"
@@ -3391,6 +3392,177 @@
                 "scale": "LINEAR"
               },
               "x-source": "ECONOMY EC-4, Q-TD-22",
+              "x-status": "PROPOSED"
+            }
+          }
+        },
+        "upkeep_period": {
+          "description": "Per-kind upkeep period (Q-TD-41, Q-TD-52 D1): a unit pays its economy.upkeep every this many economy windows, so a unit can cost less than 1 stock per window, unit economy windows. A unit is charged in the window whose index (running ticks / the window, counted from 1) plus its entity id is a multiple of the period, so payments of one kind spread across windows by id; a grounded unit is charged every window until its home pays, then returns to that stagger (EC-4, EC-6). The per-window rate, upkeep / period, is what the EC-7 reserve and the EC-11 coalition floor check read. 1 = every window. One entry per kind that has economy.upkeep; mirrored kinds equal (EC-3). Shipped values PROPOSED (Q-TD-52 T1): 20 for armed kinds, 30 for the recon UAVs, 1 for the trucks and convoys (upkeep 0).",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "ENEMY_ARMOR",
+            "ENEMY_CONVOY",
+            "ENEMY_FIGHTER",
+            "ENEMY_RECON_UAV",
+            "ENEMY_STRIKE_FIGHTER",
+            "GARRISON_INFANTRY",
+            "LOGI_TRUCK",
+            "RECON_UAV",
+            "STRIKE_FIGHTER"
+          ],
+          "properties": {
+            "ENEMY_ARMOR": {
+              "type": "integer",
+              "minimum": 1,
+              "x-unit": "economy windows",
+              "x-hot-reload": false,
+              "x-category": "ECONOMY",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {
+                "min": 1,
+                "max": 60,
+                "step": 1,
+                "scale": "LINEAR"
+              },
+              "x-source": "ECONOMY EC-4, Q-TD-41, Q-TD-52",
+              "x-status": "PROPOSED"
+            },
+            "ENEMY_CONVOY": {
+              "type": "integer",
+              "minimum": 1,
+              "x-unit": "economy windows",
+              "x-hot-reload": false,
+              "x-category": "ECONOMY",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {
+                "min": 1,
+                "max": 60,
+                "step": 1,
+                "scale": "LINEAR"
+              },
+              "x-source": "ECONOMY EC-4, Q-TD-41, Q-TD-52",
+              "x-status": "PROPOSED"
+            },
+            "ENEMY_FIGHTER": {
+              "type": "integer",
+              "minimum": 1,
+              "x-unit": "economy windows",
+              "x-hot-reload": false,
+              "x-category": "ECONOMY",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {
+                "min": 1,
+                "max": 60,
+                "step": 1,
+                "scale": "LINEAR"
+              },
+              "x-source": "ECONOMY EC-4, Q-TD-41, Q-TD-52",
+              "x-status": "PROPOSED"
+            },
+            "ENEMY_RECON_UAV": {
+              "type": "integer",
+              "minimum": 1,
+              "x-unit": "economy windows",
+              "x-hot-reload": false,
+              "x-category": "ECONOMY",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {
+                "min": 1,
+                "max": 60,
+                "step": 1,
+                "scale": "LINEAR"
+              },
+              "x-source": "ECONOMY EC-4, Q-TD-41, Q-TD-52",
+              "x-status": "PROPOSED"
+            },
+            "ENEMY_STRIKE_FIGHTER": {
+              "type": "integer",
+              "minimum": 1,
+              "x-unit": "economy windows",
+              "x-hot-reload": false,
+              "x-category": "ECONOMY",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {
+                "min": 1,
+                "max": 60,
+                "step": 1,
+                "scale": "LINEAR"
+              },
+              "x-source": "ECONOMY EC-4, Q-TD-41, Q-TD-52",
+              "x-status": "PROPOSED"
+            },
+            "GARRISON_INFANTRY": {
+              "type": "integer",
+              "minimum": 1,
+              "x-unit": "economy windows",
+              "x-hot-reload": false,
+              "x-category": "ECONOMY",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {
+                "min": 1,
+                "max": 60,
+                "step": 1,
+                "scale": "LINEAR"
+              },
+              "x-source": "ECONOMY EC-4, Q-TD-41, Q-TD-52",
+              "x-status": "PROPOSED"
+            },
+            "LOGI_TRUCK": {
+              "type": "integer",
+              "minimum": 1,
+              "x-unit": "economy windows",
+              "x-hot-reload": false,
+              "x-category": "ECONOMY",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {
+                "min": 1,
+                "max": 60,
+                "step": 1,
+                "scale": "LINEAR"
+              },
+              "x-source": "ECONOMY EC-4, Q-TD-41, Q-TD-52",
+              "x-status": "PROPOSED"
+            },
+            "RECON_UAV": {
+              "type": "integer",
+              "minimum": 1,
+              "x-unit": "economy windows",
+              "x-hot-reload": false,
+              "x-category": "ECONOMY",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {
+                "min": 1,
+                "max": 60,
+                "step": 1,
+                "scale": "LINEAR"
+              },
+              "x-source": "ECONOMY EC-4, Q-TD-41, Q-TD-52",
+              "x-status": "PROPOSED"
+            },
+            "STRIKE_FIGHTER": {
+              "type": "integer",
+              "minimum": 1,
+              "x-unit": "economy windows",
+              "x-hot-reload": false,
+              "x-category": "ECONOMY",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {
+                "min": 1,
+                "max": 60,
+                "step": 1,
+                "scale": "LINEAR"
+              },
+              "x-source": "ECONOMY EC-4, Q-TD-41, Q-TD-52",
               "x-status": "PROPOSED"
             }
           }

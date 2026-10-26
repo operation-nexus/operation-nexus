@@ -390,6 +390,7 @@ def test_a_run_with_every_option_flipped_is_deterministic() -> None:
                 storage_floor=50,
                 storage_per_node={"FOB": 20},
                 upkeep={INFANTRY: 3, ARMOR: 40},  # non-zero upkeep (NX-412 part 2)
+                upkeep_period={INFANTRY: 2, ARMOR: 3},  # staggered payments (NX-426)
                 legacy=False,  # EC-7, EC-8, EC-13 (NX-412 part 3, Q-TD-33)
                 free_viewer_spawn=False,  # a viewer's sanctuary spawn pays too
                 max_live_per_side=40,

@@ -203,6 +203,9 @@ def test_the_loader_rejects_an_unknown_kind_or_a_bad_count(key: str, value: obje
 
 # ECONOMY EC-11 (NX-412 part 5b): the coalition floor check at load
 _EC11_ON = {"economy.legacy_rules": False, "economy.unlimited.COALITION": False}
+# every window (NX-426): these tests count whole upkeep per window
+_EVERY = {f"economy.upkeep_period.{k}": 1 for k in (
+    "STRIKE_FIGHTER", "RECON_UAV", "LOGI_TRUCK", "ENEMY_ARMOR", "ENEMY_FIGHTER")}  # fmt: skip
 
 
 def test_the_coalition_floor_passes_with_the_shipped_values() -> None:
@@ -214,10 +217,37 @@ def test_the_coalition_floor_passes_with_the_shipped_values() -> None:
 def test_a_short_coalition_floor_fails_the_load_naming_the_shortfall() -> None:
     # 5 viewer units x STRIKE_FIGHTER 7 = 35 > economy.income.floor 30; LOGI_TRUCK and RECON_UAV
     # are cheaper, so the dearest viewer kind sets it
-    short = {**_EC11_ON, "economy.upkeep.STRIKE_FIGHTER": 7, "economy.upkeep.RECON_UAV": 6}
+    short = {**_EC11_ON, **_EVERY, "economy.upkeep.STRIKE_FIGHTER": 7,
+             "economy.upkeep.RECON_UAV": 6}  # fmt: skip
     with pytest.raises(ConfigError, match=r"economy.income.floor 30 is 5 short .* = 35 per window"):
         shipped_config_with(short)
     shipped_config_with({**short, "economy.income.floor": 35})  # exactly enough passes
+
+
+def test_the_coalition_floor_counts_upkeep_per_window_over_its_period() -> None:
+    # NX-426 (Q-TD-52 D1): 5 x STRIKE_FIGHTER 13 every 2 windows = 65/2 > 30, exact, not rounded
+    over = {**_EC11_ON, **_EVERY, "economy.upkeep.STRIKE_FIGHTER": 13}
+    with pytest.raises(ConfigError, match=r"is 5/2 short .* upkeep 13/2 = 65/2 per window"):
+        shipped_config_with({**over, "economy.upkeep_period.STRIKE_FIGHTER": 2})
+    shipped_config_with({**over, "economy.upkeep_period.STRIKE_FIGHTER": 3})  # 65/3 passes
+    # the garrison too: ENEMY_ARMOR 10 every 5 windows, AIRBASE fills [FIGHTER 1, ARMOR 10] in turn
+    cfg = shipped_config_with({
+        **_EC11_ON, **_EVERY, "economy.upkeep.ENEMY_ARMOR": 10, "economy.upkeep.ENEMY_FIGHTER": 1,
+        "economy.upkeep_period.ENEMY_ARMOR": 5, "economy.floor_viewer_units": 0,
+    })  # fmt: skip
+    problem = coalition_floor_problem(cfg.rules, {"west-airbase": 31})  # 16 x 1 + 15 x 10/5 = 46
+    assert problem is not None and "is 16 short" in problem and "garrison upkeep 46 " in problem
+
+
+def test_the_dearest_viewer_kind_is_chosen_by_rate_not_by_upkeep() -> None:
+    # STRIKE_FIGHTER costs more (2) but pays every 20 windows (1/10); RECON_UAV 1 every window
+    mixed = {
+        **_EC11_ON, **_EVERY, "economy.upkeep.STRIKE_FIGHTER": 2,
+        "economy.upkeep_period.STRIKE_FIGHTER": 20, "economy.upkeep.RECON_UAV": 1,
+    }  # fmt: skip
+    with pytest.raises(ConfigError, match=r"floor 4 is 1 short .* x RECON_UAV upkeep 1 = 5 per"):
+        shipped_config_with({**mixed, "economy.income.floor": 4})
+    shipped_config_with({**mixed, "economy.income.floor": 5})  # 5 x 1 = 5: exactly enough
 
 
 @pytest.mark.parametrize(
@@ -232,7 +262,7 @@ def test_the_coalition_floor_is_not_checked_under_legacy_rules_or_unlimited(
 def test_the_coalition_garrison_counts_only_coalition_quotas_filled_in_turn() -> None:
     # strait-1's 22 quota units are all on Static nodes; counted here, they would fail this load
     upkeep = {"economy.upkeep.ENEMY_ARMOR": 10, "economy.upkeep.ENEMY_FIGHTER": 1}
-    cfg = shipped_config_with({**_EC11_ON, **upkeep, "economy.floor_viewer_units": 0})
+    cfg = shipped_config_with({**_EC11_ON, **_EVERY, **upkeep, "economy.floor_viewer_units": 0})
     # AIRBASE kinds [ENEMY_FIGHTER, ENEMY_ARMOR] in turn: 1 + 10 + 1 = 12; FOB [ENEMY_ARMOR] x 2
     assert coalition_floor_problem(cfg.rules, {"west-airbase": 3}) is None
     problem = coalition_floor_problem(cfg.rules, {"west-airbase": 3, "fob-n-w": 2})

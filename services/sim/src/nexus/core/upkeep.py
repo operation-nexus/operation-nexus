@@ -1,5 +1,5 @@
-"""Force economy, part 2: home bases, upkeep and grounding (NX-412, NX-428; ECONOMY EC-4, EC-5,
-EC-6, EC-10 step 3, EC-15).
+"""Force economy, part 2: home bases, upkeep and grounding (NX-412, NX-426, NX-428; ECONOMY EC-4,
+EC-5, EC-6, EC-10 step 3, EC-15).
 
 Home base (EC-5, `Entity.home_base`): the node a unit spawned at (set by each spawn), then the
 friendly node it last landed or parked at (the `logistics` system, by the rearm-stop rule
@@ -9,7 +9,11 @@ a BRIDGE for a ground unit), by straight line from the unit, ties by node id.
 
 Upkeep (EC-4, `upkeep`, at an economy window after income and the clip, before the Threat
 Director): each live unit of a side not in unlimited mode pays `economy.upkeep.<kind>` whole stock
-units from its home, in the EC-6 payment order: viewer (COMMANDER) units before AI units (Q-TD-23);
+units from its home once every `economy.upkeep_period.<kind>` windows (NX-426, Q-TD-41, Q-TD-52
+D1): in the window whose index (running ticks over the window length, the first window 1) plus its
+entity id is a multiple of the period, so a kind's payments spread across windows by id, and every
+window while it is grounded (a retry, back to its stagger once paid). The units charged this
+window pay in the EC-6 payment order: viewer (COMMANDER) units before AI units (Q-TD-23);
 within each class busy units before the rest (Q-TD-43, Q-TD-49, Q-TD-49c), busy meaning it holds
 a claimed job (`Entity.job_id`) or follows an explicit order (`Entity.order`) that is under way: a
 HOLD counts only while the unit travels, so a unit parked on HOLD is idle (`_busy`); then the most
@@ -32,6 +36,8 @@ what it needs.
 Deterministic: entities in the sorted payment order, homes in id order, integers, no RNG; nothing
 while paused (`economy.due`).
 """
+
+import math
 
 from nexus.contracts.gen.common.enums import Side
 from nexus.contracts.gen.events.event import Event
@@ -75,9 +81,11 @@ def upkeep(world: World, out: list[Event]) -> None:
     if (ready := due(world)) is None:
         return
     rules, er = ready
+    index = (world.campaign.running_ticks + 1) // er.window_ticks  # this window's, from 1
     units = sorted(
         (e for e in world.entities()
-         if e.side in er.limited and e.home_base is not None and e.kind in er.upkeep),
+         if e.side in er.limited and e.home_base is not None and e.kind in er.upkeep
+         and (e.grounded or (index + e.id) % er.upkeep_period[e.kind] == 0)),
         key=lambda e: (e.owner_kind != "COMMANDER", not _busy(e), -e.ordered, e.id),
     )  # fmt: skip
     paid: dict[str, int] = {}
@@ -98,16 +106,19 @@ def upkeep(world: World, out: list[Event]) -> None:
 
 
 def owed(world: World, side: Side) -> int:
-    """What `side`'s live units owe in upkeep per window, as `upkeep` charges it; 0 for a side in
-    unlimited mode (EC-15). The EC-7 reserve reads it."""
+    """What `side`'s live units owe in upkeep per window on average (Q-TD-52 D1): the exact sum
+    of each charged unit's `upkeep / upkeep_period` (`EconomyRules.rate`), rounded up once, so it
+    never under-reserves and over-reserves by less than 1; 0 for a side in unlimited mode
+    (EC-15). The EC-7 reserve reads it."""
     er = world.rules.economy if world.rules else None
     if er is None or side not in er.limited:
         return 0
-    return sum(
-        er.upkeep.get(e.kind, 0)
-        for e in world.entities()
-        if e.side == side and e.home_base is not None
-    )
+    return math.ceil(
+        sum(
+            er.rate(e.kind) for e in world.entities()
+            if e.side == side and e.home_base is not None and e.kind in er.upkeep
+        )
+    )  # fmt: skip
 
 
 def _purse(world: World, rules: Rules, e: Entity, home: str) -> int | None:

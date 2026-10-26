@@ -454,6 +454,9 @@ class EconomyRules:
     # economy.upkeep (NX-412 part 2, EC-4): stock per window per live unit, from its home base;
     # only the kinds that spawn (no facility); 0 = free
     upkeep: Mapping[UnitKind, int] = field(default_factory=dict)
+    # economy.upkeep_period (NX-426, Q-TD-41): windows between a unit's payments, >= 1, one per
+    # `upkeep` kind (`rate`, `nexus.core.upkeep`)
+    upkeep_period: Mapping[UnitKind, int] = field(default_factory=dict)
     # NX-412 part 3: `economy.legacy_rules` (temporary, Q-TD-33: true keeps the tier budget,
     # live-unit caps and spawn costs of before), `economy.free_viewer_spawn` (EC-13) and
     # `sim.max_live_units_per_side` (EC-8), the last two read only with `legacy` false
@@ -462,6 +465,10 @@ class EconomyRules:
     max_live_per_side: int = 0
     # economy.floor_viewer_units (EC-11): read only by the loader's coalition floor check
     floor_viewer_units: int = 0
+
+    def rate(self, kind: UnitKind) -> Fraction:
+        """A `kind` unit's upkeep per window, averaged over its period (Q-TD-52 D1): exact."""
+        return Fraction(self.upkeep[kind], self.upkeep_period[kind])
 
 
 def economy_rules(cfg: Economy, *, window_ticks: int, max_live_per_side: int) -> EconomyRules:
@@ -475,6 +482,7 @@ def economy_rules(cfg: Economy, *, window_ticks: int, max_live_per_side: int) ->
         storage_floor=cfg.storage.floor,
         storage_per_node=cast(Mapping[NodeKind, int], cfg.storage.per_node.model_dump()),
         upkeep=cast(Mapping[UnitKind, int], cfg.upkeep.model_dump()),
+        upkeep_period=cast(Mapping[UnitKind, int], cfg.upkeep_period.model_dump()),
         legacy=cfg.legacy_rules,
         free_viewer_spawn=cfg.free_viewer_spawn,
         max_live_per_side=max_live_per_side,

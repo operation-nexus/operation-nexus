@@ -341,6 +341,9 @@ economy:
     per_node: {AIRBASE: 2000, BRIDGE: 0, FOB: 1000, HQ: 2000, PORT: 1000}
   upkeep: {ENEMY_ARMOR: 0, ENEMY_CONVOY: 0, ENEMY_FIGHTER: 0, ENEMY_RECON_UAV: 0,
     ENEMY_STRIKE_FIGHTER: 0, GARRISON_INFANTRY: 0, LOGI_TRUCK: 0, RECON_UAV: 0, STRIKE_FIGHTER: 0}
+  upkeep_period: {ENEMY_ARMOR: 20, ENEMY_CONVOY: 1, ENEMY_FIGHTER: 20, ENEMY_RECON_UAV: 30,
+    ENEMY_STRIKE_FIGHTER: 20, GARRISON_INFANTRY: 20, LOGI_TRUCK: 1, RECON_UAV: 30,
+    STRIKE_FIGHTER: 20}
   legacy_rules: true
   free_viewer_spawn: true
   floor_viewer_units: 5
@@ -358,9 +361,9 @@ economy:
 # the collapse radius, NX-373 part 2 for bridge repair, the repair job and its escort, NX-412 part 1
 # for the economy block, NX-412 part 2 for `economy.upkeep`, NX-412 part 3 for the EC-7 budget
 # keys, the EC-8 guard, `economy.legacy_rules` and `free_viewer_spawn`, NX-412 part 5b for
-# `economy.floor_viewer_units`); a change means every
+# `economy.floor_viewer_units`, NX-426 for `economy.upkeep_period`); a change means every
 # config_hash moved.
-GOLDEN_CONFIG_HASH = "da575cd588bb16094d25194d994cf1fb1d19aa485c5f6af00a01d7aaa7073c5c"
+GOLDEN_CONFIG_HASH = "d0f50039c6925668582931ba80388c019da25a4626d1ad26c6bf749eb3c63a2e"
 AIR = {
     "bingo_reserve_frac": 0.15,
     "orbit_period_s": 120.0,
@@ -667,6 +670,13 @@ ECONOMY = {
     "income": {"floor": 30, "per_node": _PER_NODE},
     "storage": {"floor": 2000, "per_node": {k: v * 200 for k, v in _PER_NODE.items()}},
     "upkeep": dict.fromkeys(_UPKEEP_KINDS, 0),
+    "upkeep_period": {
+        **dict.fromkeys(_UPKEEP_KINDS, 20),
+        "ENEMY_RECON_UAV": 30,
+        "RECON_UAV": 30,
+        "ENEMY_CONVOY": 1,
+        "LOGI_TRUCK": 1,
+    },
     "legacy_rules": True,
     "free_viewer_spawn": True,
     "floor_viewer_units": 5,
@@ -1110,7 +1120,10 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "  income: {per_node: {PORT: 5, HQ: 10, FOB: 5, BRIDGE: 0, AIRBASE: 10}, floor: 30},\n"
         "  upkeep: {STRIKE_FIGHTER: 0, RECON_UAV: 0, LOGI_TRUCK: 0, GARRISON_INFANTRY: 0,\n"
         "    ENEMY_STRIKE_FIGHTER: 0, ENEMY_RECON_UAV: 0, ENEMY_FIGHTER: 0, ENEMY_CONVOY: 0,\n"
-        "    ENEMY_ARMOR: 0}}\n"
+        "    ENEMY_ARMOR: 0},\n"
+        "  upkeep_period: {STRIKE_FIGHTER: 20, RECON_UAV: 30, LOGI_TRUCK: 1,\n"
+        "    GARRISON_INFANTRY: 20, ENEMY_STRIKE_FIGHTER: 20, ENEMY_RECON_UAV: 30,\n"
+        "    ENEMY_FIGHTER: 20, ENEMY_CONVOY: 1, ENEMY_ARMOR: 20}}\n"
         "schema_version:   1\n"
     )
     assert balance_hash(write(tmp_path, reformatted)) == balance_hash(DEFAULT)

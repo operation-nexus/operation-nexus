@@ -79,6 +79,13 @@ def test_the_loader_reads_every_economy_key() -> None:
         storage_floor=2000,
         storage_per_node={"AIRBASE": 2000, "BRIDGE": 0, "FOB": 1000, "HQ": 2000, "PORT": 1000},
         upkeep=dict.fromkeys(_UPKEEP_KINDS, 0),  # NX-412 part 2: the shipped rollout 0
+        upkeep_period={  # NX-426 (Q-TD-52 T1): 20 for armed kinds, 30 recon, 1 the trucks
+            **dict.fromkeys(_UPKEEP_KINDS, 20),
+            "ENEMY_RECON_UAV": 30,
+            "RECON_UAV": 30,
+            "ENEMY_CONVOY": 1,
+            "LOGI_TRUCK": 1,
+        },
         legacy=True,  # NX-412 part 3 (Q-TD-33): the shipped rollout switch
         free_viewer_spawn=True,
         max_live_per_side=1000,  # sim.max_live_units_per_side
