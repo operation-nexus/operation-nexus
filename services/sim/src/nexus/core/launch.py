@@ -32,13 +32,14 @@ launched in selection order:
   stamps `DirectorState.last_operation` (the EC-7 cadence floor, Q-TD-54); others do not. When
   the floor is due, the cheapest capture operation with a target that base surplus plus the
   window's rear account pays lifts the budget and the base account to at least its cost and is
-  selected and launched first (`_floor_capture`, Q-TD-42, Q-TD-48); if it cannot pay, the lift
-  is undone and the window selects as without it; one the window's caps would skip lifts
-  nothing. The floor is not due while an operation is staged (`director.cadence_due`), and each
-  window `_review` keeps, launches or drops one stamps `last_operation` (a staged operation is
-  always a capture one), so it counts from the drop. Operations the budget and
-  `max_spawns_per_window` allow but the live room does not are counted in one `SpawnRefused` per
-  selection (EC-8, `GUARD` or `TIER_CAP`; NX-412 part 5a).
+  selected and launched first (`_floor_capture`, Q-TD-42, Q-TD-48), even with `max_ops` full:
+  it may run while `max_ops` are running, not `max_ops + 1` (Q-TD-57); if it cannot pay, the
+  lift is undone and the window selects as without it; one the window's other caps would
+  skip lifts nothing. The floor is not due while an operation is staged
+  (`director.cadence_due`), and each window `_review` keeps, launches or drops one stamps
+  `last_operation` (a staged operation is always a capture one), so it counts from the drop.
+  Operations the budget and `max_spawns_per_window` allow but the live room does not are counted
+  in one `SpawnRefused` per selection (EC-8, `GUARD` or `TIER_CAP`; NX-412 part 5a).
 - **Effect.** EMISSION_BLINK turns the radar at the target base dark for `decoy_blink.dark_s`
   (`DirectorState.dark` holds when it resumes), then it may not blink again for `cooldown_s`
   (`blink_ready`); at most one radar blinks per window (Q-SIM-82).
@@ -250,9 +251,11 @@ def run(world: World, side: Side, view: SideView, rules: Rules, out: list[Event]
     ranked = ops.rank(cands, state, view, rules, world.rng.stream(RngStream.DIRECTOR))
     room, most = _live_room(world, rules, side, state, own), ops.max_ops(state.tier, dr)
 
-    def fits(c: ops.Candidate) -> bool:  # `select`'s caps on `c` alone, its cost given
+    def fits(c: ops.Candidate) -> bool:  # `select`'s caps on `c` as the floor's lead, cost given
         return bool(
-            ops.select([c], dr, c.op.cost, dr.max_spawns_per_window, room, live, most, _routine(dr))
+            ops.select(
+                [c], dr, c.op.cost, dr.max_spawns_per_window, room, live, most, _routine(dr), over=c
+            )
         )
 
     lead = None if purse is None else _floor_capture(world, rules, view, state, ranked, purse, fits)
@@ -265,7 +268,7 @@ def run(world: World, side: Side, view: SideView, rules: Rules, out: list[Event]
     def pick(cands: list[ops.Candidate], refused: list[int]) -> list[ops.Candidate]:
         return ops.select(
             cands, dr, state.budget - held, dr.max_spawns_per_window, room, live, most,
-            _routine(dr), refused,
+            _routine(dr), refused, over=lead,
         )  # fmt: skip
 
     refused: list[int] = []
@@ -291,11 +294,11 @@ def _floor_capture(
     """ECONOMY EC-7, Q-TD-42 (legacy rules off): when the cadence floor is due, the best-ranked
     target of the cheapest capture operation (`ops.has_capture`) among the window's candidates
     (its tier, the night cap) that the window can actually pay and the window's caps allow
-    (`fits`: max_ops, the spawn and live rooms); None leaves the floor at the cheapest
-    operation (`director.cadence_floor`). Payable is base surplus plus this window's rear
-    account, not surplus + pool (Q-TD-48 (5)): the lift goes to the base account, so pool money
-    beyond the rear share would promote an operation that cannot pay and crowd out cheaper
-    ones the rear account could."""
+    (`fits`: the spawn and live rooms, `max_ops` with one slot over, Q-TD-57); None leaves the
+    floor at the cheapest operation (`director.cadence_floor`). Payable is base surplus plus
+    this window's rear account, not surplus + pool (Q-TD-48 (5)): the lift goes to the base
+    account, so pool money beyond the rear share would promote an operation that cannot pay and
+    crowd out cheaper ones the rear account could."""
     if not cadence_due(state, view, rules):
         return None
     cap = surplus(view, rules, world.stock) + (0 if purse.one else purse.rear)

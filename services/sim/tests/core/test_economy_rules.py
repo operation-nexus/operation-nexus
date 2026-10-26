@@ -26,7 +26,7 @@ from nexus.contracts.gen.events.event import Event
 from nexus.core import operations as ops
 from nexus.core.director import budget
 from nexus.core.fog import side_view
-from nexus.core.launch import _capture_slot, _convoys, _post_and_spawn, _Purse
+from nexus.core.launch import _capture_slot, _convoys, _post_and_spawn, _Purse, _routine
 from nexus.core.launch import run as launch
 from nexus.core.rules import JobTemplate, OperationRules, Rules
 from nexus.core.step import step
@@ -309,16 +309,80 @@ def test_the_floors_capture_operation_goes_before_better_ranked_cheaper_ones() -
     assert floor_window(w, 10) == [("OFFENSIVE", "west-airbase")]
 
 
-def test_a_capture_operation_the_caps_would_skip_lifts_nothing() -> None:
-    # ALPHA runs one non-routine operation at a time (`max_ops.alpha` 1): with the window-10
-    # OFFENSIVE still on the board, the floor due at window 20 cannot run a second one
+COUNTED = ("OFFENSIVE", "RETAKE", "PROBE")  # the ALPHA operations `max_ops` counts here
+
+
+def test_the_floors_capture_operation_takes_one_slot_past_max_ops_never_two() -> None:
+    # Q-TD-57 (NX-441): ALPHA runs one non-routine operation at a time (`max_ops.alpha` 1). With
+    # the window-10 OFFENSIVE still on the board the floor due at window 20 runs a second one
+    # (cap + 1); with both still on the board the floor due at window 30 lifts nothing
     w = world(NEW_UNLIMITED)
     assert floor_window(w, 10) == [("OFFENSIVE", "west-airbase")]
     pairs = floor_window(w, 20)
+    assert w.director["ENEMY"].budget == 60
+    two = [("OFFENSIVE", "fob-n-w"), ("OFFENSIVE", "west-airbase")]
+    assert [p for p in pairs if p[0] in COUNTED] == two
+    pairs = floor_window(w, 30)
     assert w.director["ENEMY"].budget == 30  # not lifted to 60
-    assert [p for p in pairs if p[0] in ("OFFENSIVE", "RETAKE", "PROBE")] == [
-        ("OFFENSIVE", "west-airbase")
-    ]
+    assert [p for p in pairs if p[0] in COUNTED] == two
+    assert w.director["ENEMY"].last_operation == 20
+
+
+def test_a_probe_holding_alphas_one_slot_does_not_block_the_floor() -> None:
+    # Q-TD-57 (NX-441): window 9 (floor not due) buys PROBE, which holds `max_ops.alpha` 1; the
+    # floor due at window 10 still launches OFFENSIVE. Window 20, PROBE and OFFENSIVE still on the
+    # board (cap + 1), it does not stack a third
+    w = world(NEW_UNLIMITED)
+    assert floor_window(w, 9) == CHEAP
+    pairs = floor_window(w, 10)
+    assert w.director["ENEMY"].budget == 60 and w.director["ENEMY"].last_operation == 10
+    held = [("OFFENSIVE", "west-airbase"), ("PROBE", "fob-n-w")]
+    assert [p for p in pairs if p[0] in COUNTED] == held
+    pairs = floor_window(w, 20)
+    assert w.director["ENEMY"].budget == 30 and w.director["ENEMY"].last_operation == 10
+    assert [p for p in pairs if p[0] in COUNTED] == held
+
+
+def test_with_the_floor_not_due_max_ops_holds_as_before() -> None:
+    # PROBE holds ALPHA's one slot; window 9, the floor not due, with 100 points: OFFENSIVE (60)
+    # is paid for but `max_ops.alpha` keeps it out
+    w = world(NEW_UNLIMITED)
+    assert floor_window(w, 9) == CHEAP
+    pairs = floor_window(w, 9, spend=100)
+    assert [p for p in pairs if p[0] in COUNTED] == [("PROBE", "fob-n-w")]
+    assert w.director["ENEMY"].last_operation == 0
+
+
+def test_only_the_floors_capture_operation_gets_the_extra_slot() -> None:
+    # Q-TD-57: ALPHA's slot empty, the floor due, 100 points and spawn room for more than
+    # OFFENSIVE's 6 units: OFFENSIVE takes the slot and PROBE (15) is not given the floor's one
+    w = world(config({**NEW, "director.max_spawns_per_window": 20}))
+    pairs = floor_window(w, 10, spend=100)
+    assert [p for p in pairs if p[0] in COUNTED] == [("OFFENSIVE", "west-airbase")]
+
+
+@given(
+    gaps=st.lists(st.integers(1, 12), min_size=1, max_size=6),
+    spends=st.lists(st.integers(0, 120), min_size=6, max_size=6),
+    seed=st.integers(1, 50),
+)
+@settings(max_examples=25, deadline=None)
+def test_the_floor_runs_at_most_one_operation_past_max_ops(
+    gaps: list[int], spends: list[int], seed: int
+) -> None:
+    # Q-TD-57: ALPHA windows that never end an operation; the operations `max_ops` counts never
+    # exceed cap + 1, and past the cap only when a capture operation is among them
+    w = world(NEW_UNLIMITED, seed)
+    assert w.rules is not None and w.rules.director is not None
+    cap = w.rules.director.max_ops["ALPHA"]
+    assert cap is not None
+    routine = _routine(w.rules.director)
+    windows = 0
+    for gap, spend in zip(gaps, spends, strict=False):
+        windows += gap
+        counted = [p for p in floor_window(w, windows, spend) if p[0] not in routine]
+        assert len(counted) <= cap + 1
+        assert len(counted) <= cap or any(p[0] in CAPTURE_OPS for p in counted)
 
 
 @given(
@@ -821,6 +885,19 @@ def test_the_capture_clock_runs_deterministically() -> None:
 
     first = once()
     assert first[1] == [("OFFENSIVE", "west-airbase")]
+    assert once() == first
+
+
+def test_the_floor_past_max_ops_runs_deterministically() -> None:
+    # Q-TD-57: PROBE holds ALPHA's one slot, then the floor's OFFENSIVE launches past it, twice
+    def once() -> tuple[str, list[tuple[str, str]]]:
+        w = world(NEW_UNLIMITED)
+        floor_window(w, 9)
+        floor_window(w, 10)
+        return state_hash(w), posted(w)
+
+    first = once()
+    assert ("OFFENSIVE", "west-airbase") in first[1] and ("PROBE", "fob-n-w") in first[1]
     assert once() == first
 
 
