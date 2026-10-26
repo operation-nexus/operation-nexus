@@ -1064,10 +1064,10 @@ def _dispatch(world: World, rules: Rules, routes: Routes, e: Entity, job: Job) -
 
 def _repair_route(world: World, rules: Rules, e: Entity, job: Job) -> list[str] | None:
     """A truck's path from the node it stands on to the bridge's repair stop (`approach`, the
-    generator's own rule), or None (not on a node, no road to either bank)."""
+    generator's own rule, around enemy-held nodes), or None (not on a node, no such road)."""
     if e.last_node is None or job.node is None or not on_node(rules, e):
         return None
-    return approach(world, rules, e.last_node, job.node)
+    return approach(world, rules, e.last_node, job.node, side=e.side)
 
 
 def _reload_plan(world: World, rules: Rules, e: Entity, job: Job) -> Run | None:

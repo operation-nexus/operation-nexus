@@ -406,7 +406,7 @@ def _drive(world: World, rules: Rules, f: Entity, goal: str) -> bool:
     best: tuple[float, list[str]] | None = None
     for start in starts:
         route = (
-            approach(world, rules, start, goal)  # a leader at a bridge's repair stop
+            approach(world, rules, start, goal, side=None)  # a leader at a repair stop: any road
             if goal in rules.roads.spans
             else shortest_path(rules.roads, start, goal, blocked=blocked(world))
         )

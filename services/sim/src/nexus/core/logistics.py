@@ -146,11 +146,16 @@ def nearest(
     return None if best is None else (best[1], best[2])
 
 
-def approach(world: World, rules: Rules, start: str, bridge: str) -> list[str] | None:
+def approach(
+    world: World, rules: Rules, start: str, bridge: str, *, side: Side | None
+) -> list[str] | None:
     """A ground unit's road path from the node `start` to `bridge`'s repair stop: the route to the
     nearer of its banks by road metres (ties by node id, `nearest`), then the bridge's id
-    (`step._waypoint` drives it out to the stop); None with no route to either bank."""
-    best = nearest(world, rules, start, [*rules.roads.spans[bridge]])
+    (`step._waypoint` drives it out to the stop); None with no route to either bank. With a
+    `side` (a repair crew's, Q-SIM-125) the route enters no node the other side holds, a bank
+    included (`bridges.enemy_held`; neutral ground is passable; `start` is exempt)."""
+    avoid = frozenset() if side is None else enemy_held(world, rules, side)
+    best = nearest(world, rules, start, [*rules.roads.spans[bridge]], avoid)
     return None if best is None else [*best[1], bridge]
 
 

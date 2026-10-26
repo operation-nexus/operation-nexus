@@ -166,7 +166,8 @@ def reroute(world: World, rules: Rules) -> None:
     coalition patrol replans through held nodes only; a supply run (a RESUPPLY claimant, or a
     loaded truck on a GOTO order to that last node) enters no node the other side holds, that
     node exempt
-    (`enemy_held`, Q-SIM-122); an empty capture-run truck takes any road. A path to a bridge's
+    (`enemy_held`, Q-SIM-122), and a repair crew (a REPAIR_BRIDGE claimant) none, its bank
+    included (Q-SIM-125); an empty capture-run truck takes any road. A path to a bridge's
     repair stop is planned to the bank before it, the stop kept after a new route."""
     cut = blocked(world)
     for e in world.entities():
@@ -189,6 +190,8 @@ def reroute(world: World, rules: Rules) -> None:
         supply = job.kind == "RESUPPLY" if job is not None else goto_run
         if supply:  # a supply run (Q-SIM-122): around enemy-held nodes, its destination exempt
             avoid = enemy_held(world, rules, e.side) - {seq[-1]}
+        elif job is not None and job.kind == "REPAIR_BRIDGE":  # a crew (Q-SIM-125): no exemption
+            avoid = enemy_held(world, rules, e.side)
         for k, (a, b) in enumerate(pairwise(seq)):
             if rules.roads.edge(a, b).bridge in cut and (k or crosses(world, rules, a, b, e.pos)):
                 route = shortest_path(rules.roads, a, seq[-1], blocked=cut, avoid=avoid)
