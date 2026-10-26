@@ -41,3 +41,9 @@ Unchanged from ADR-0006: images are built and signed in CI (cosign keyless) and 
 - Gaming, updates and reboots on the broadcast PC remain the main availability risk (HARDWARE "Fit for this project"); the maintenance window and what the stream shows while the owner games are open (Q-OPS-9).
 - Runbooks (OPS-ADMIN §4) need Windows-specific steps for OBS and WSL2 restarts.
 - **Revisit when:** a dedicated broadcast box replaces the gaming PC, the Linux server can't carry staging plus observability, or multiple theaters run at once (SYSTEM-DESIGN §7).
+
+## Update 2026-10-25 (facts only; the decision and its Proposed status are unchanged)
+- The Linux server was rebuilt as a 64-bit install (Ubuntu **26.04.1 LTS**, not the 24.04 named in Q-ARCH-8 above) with Docker Engine 29.9.2. The 32-bit blocker in Context no longer applies. The owner should confirm 26.04 is acceptable for Q-ARCH-8.
+- Measured: 6.5 GiB of RAM visible, one spinning 1 TB disk, and a Tailscale address on the owner's tailnet. The disk is the only one, so a backup on it is not a separate-disk backup; an external drive, a NAS and an encrypted off-site copy are planned.
+- The server now runs the first piece of the watchdog layer: a health check that posts to a Discord webhook on state changes (MONITORING-WATCHDOG, "Implemented so far"). The PC probe, the L3 heartbeat and power monitoring are not done.
+- Details and the restore checklist: [SERVER-SETUP.md](../../ops/SERVER-SETUP.md).

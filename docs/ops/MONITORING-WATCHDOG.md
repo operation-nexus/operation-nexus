@@ -44,6 +44,14 @@ Topology per [ADR-0012](../architecture/adr/0012-deployment-topology.md): the st
 - **Raspberry Pi:** could replace the Linux server for layer 2 if that server ever goes away. It isn't needed now.
 - **What viewers see during an outage:** nothing. If the internet is down, the stream is down. When it comes back, the app resumes from its snapshot (SYSTEM-DESIGN §8), and OBS auto-reconnects (verify that OBS's reconnect setting is enabled).
 
+## Implemented so far (2026-10-25)
+On the Linux server (`hiveplex-linux`), `deploy/server/` holds the scripts that run there:
+- `hiveplex-notify` posts a message to a Discord webhook. The URL lives only in `/etc/hiveplex-alerts.env` (mode 600, root); it is never in the repo.
+- `hiveplex-health-check`, run every 5 minutes by `hiveplex-health.timer`, posts only when a check changes state (OK to FAIL, and FAIL to OK with the downtime), plus one notice after each boot. Checks: root disk at 85% or more, less than 10% of RAM available, both `1.1.1.1` and `8.8.8.8` unreachable (the alert can only be delivered once the internet is back), Tailscale not `Running`, the Docker service not active, and a pending reboot.
+- Tested on 2026-10-25: a test message, the boot notice and a simulated recovery all arrived in Discord. The FAIL-side message uses the same code but was not triggered.
+
+**Not done yet:** the L2 probe of the Windows PC (the PC has the LAN address 192.168.1.102 and a Tailscale address), the harness-timer and WSL checks on the PC, the L3 external heartbeat (NX-252), internet-quality history, and power and cost readings from the Kasa plugs.
+
 ## Implementation items
 - NX-251: L1 + L2 probes and actions (Windows-side supervision on the stream PC per Q-OPS-7, a systemd watchdog service on the Linux server, SSH key with restricted commands)
 - NX-252: alert routing (ntfy, Discord webhook) + L3 heartbeat service selection
