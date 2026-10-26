@@ -20,15 +20,15 @@
     "label": "Rate $/kWh",
     "type": "custom",
     "hide": 2,
-    "query": "0.2094",
+    "query": "0.2124",
     "current": {
-     "text": "0.2094",
-     "value": "0.2094"
+     "text": "0.2124",
+     "value": "0.2124"
     },
     "options": [
      {
-      "text": "0.2094",
-      "value": "0.2094",
+      "text": "0.2124",
+      "value": "0.2124",
       "selected": true
      }
     ]
