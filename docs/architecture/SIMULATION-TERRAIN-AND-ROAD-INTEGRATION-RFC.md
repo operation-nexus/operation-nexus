@@ -83,3 +83,77 @@ edges:
    - Ingest `strait-1-dem16.bin` into `services/sim` radar engine.
    - Expand `content/theaters/strait-1.yaml` with Class B waypoint nodes.
    - Add unit tests verifying zero drift between simulation LoS and 3D visual geometry.
+
+---
+
+## 5. Two-Tier Kinematic & Physics Boundary (10 Hz Sim vs. 60 Hz Renderer)
+
+### 5.1 Architectural Decision: Decoupled Physics Boundary
+A critical architectural boundary is maintained between simulation authority and presentation: **Do NOT implement a 60 Hz rigid-body or aerodynamic physics engine inside `services/sim`**.
+
+Preserving `services/sim` as a pure 10 Hz discrete tactical solver provides decisive advantages:
+1. **Ultra-Fast Headless Balance Sweeps**: Monte Carlo balance runs and crowd simulation sweeps (`tools/balance/`) execute at $50\times - 200\times$ real-time speed.
+2. **Strict Tick Budget Adherence**: Preserves the `SC-10` sub-25ms tick budget constraint on standard server hardware without CPU thread contention.
+3. **Compact Replay Snapshots**: Campaign command and event logs remain lean ($\sim 1.3\text{MB}$ per hour per `CLIPS-REPLAY.md`), enabling scalable multi-camera post-production.
+
+```
++------------------------------------------------------------------------+
+|                   TIER 1: SIMULATION KERNEL (10 Hz)                    |
+|  - Altitude Bands: LOW_NOE (<150m AGL) vs HIGH_ALT                     |
+|  - Discrete DEM Raycast Line-of-Sight (LoS) Radar/SAM Masking          |
+|  - Road Grade Velocity Multipliers & Network Graph Routing             |
+|  - Class B Intermediate Valley / Road Nodes (JUNCTION, ABUTMENT)       |
++-----------------------------------T------------------------------------+
+                                    | 10 Hz State Stream (msgpack / JSON)
+                                    v
++------------------------------------------------------------------------+
+|              TIER 2: PRESENTATION LAYER KINEMATICS (60 Hz)             |
+|  - Deterministic 60 Hz 6-DOF Attitude Derivation                       |
+|  - Coordinated Turn Bank (phi), Angle of Attack Pitch (theta), Yaw     |
+|  - Rotorcraft Cyclic/Collective Pitch & Ground Axle Terrain Alignment  |
+|  - Canyon Wall Potential-Field Weaving (grad DEM Repulsive Vector)     |
+|  - Aerodynamic Vapor Ribbon Contrails & Dynamic Cockpit HUD Reticles   |
++------------------------------------------------------------------------+
+```
+
+### 5.2 Tier 1: Sim Kernel - 2.5D Tactical Truth
+`services/sim` models theater geometry in 2.5D space:
+- **Altitude Bands**: Units operate in discrete altitude envelopes:
+  - `LOW_NOE` (Nap-of-the-Earth, $<150\text{m}$ AGL): Aircraft utilize terrain masking inside canyon corridors, valleys, and fjord trenches.
+  - `MED_PATROL` ($150\text{m} - 3,000\text{m}$ AGL): Standard transit and loiter envelope.
+  - `HIGH_ALT` ($>3,000\text{m}$ AGL): High-altitude transit subject to long-range early warning radar detection.
+- **DEM Line-of-Sight Raycast Masking**:
+  - Radar and SAM envelopes evaluate LoS raycasts against the baked DTED elevation matrix (`strait-1-dem16.bin`).
+  - Aircraft flying at `LOW_NOE` inside mountain corridors break radar line-of-sight against opposing `RADAR_SITE` and `AIR_DEFENSE_SITE` nodes when ridge terrain intercepts the ray vector.
+  - Occluded targets transition from active radar tracks to stale track memory or drop entirely from the tactical picture (`FOW-6`).
+- **Road Grade Speed Penalties & Corridor Routing**:
+  - Road network edges compute instantaneous slope between adjacent nodes, applying grade speed multipliers ($0.6\times - 1.0\times$) for uphill mountain passes.
+  - Convoys and strike packages route through Class B waypoint nodes (`JUNCTION`, `ABUTMENT`) to navigate winding canyons without cutting straight lines across impassable peaks.
+
+### 5.3 Tier 2: Presentation Layer - Deterministic 60 Hz 6-DOF Kinematics
+The decoupled frontend (WebGL/Three.js/Canvas2D) consumes 10 Hz discrete snapshots and evaluates continuous 6-DOF attitude at 60 Hz (or higher display refresh):
+- **Continuous 6-DOF Orientation**: Computes roll ($\phi$), pitch ($\theta$), yaw ($\psi$), and instantaneous $G$-load deterministically from velocity vectors $\mathbf{v}$, yaw rates $\omega$, and vertical rates $\dot{z}$.
+- **Canyon Wall Potential-Field Weaving**: Evaluates local elevation gradients $\nabla \text{DEM}(x, y)$ to apply subtle, deterministic repulsive lateral offsets, visually banking low-flying strike fighters along canyon thalwegs without violating tactical waypoint corridors.
+- **Dynamic Aerodynamic Visuals**: Triggers wingtip vapor ribbons and vortex sheets when calculated $G$-load exceeds thresholds ($>4.5G$), rendering high-speed canyon runs with broadcast-grade fidelity.
+
+---
+
+## 6. Main Simulation Agent Implementation Checklist (Actionable Tasks)
+
+The following implementation tasks are assigned to the simulation kernel engineering pipeline (`NX-176`, `NX-177`, `NX-180`):
+
+- [ ] **Task 1: DTED Binary Ingestion into Sim Kernel (`NX-176`)**
+  - Ingest `strait-1-dem16.bin` (generated via `tools/terrain/bake_synthetic_dted.py`) into `services/sim`.
+  - Maintain a memory-mapped or fast 1D array (`array('h', ...)`), providing an $O(1)$ lookup `get_elevation_m(x, y)`.
+  - Provide fallback to pure mathematical formula `sample_strait1_elevation(x, y)` if the binary asset is not present.
+
+- [ ] **Task 2: Low-NOE Radar & SAM Occlusion in Combat/FoW (`NX-177`)**
+  - Add altitude band classification (`LOW_NOE`, `MED_PATROL`, `HIGH_ALT`) to unit state models.
+  - Integrate Bresenham 3D raycast into `nexus.core.fow` and `nexus.core.combat`.
+  - When an aircraft flies at `LOW_NOE` and the raycast intersects terrain elevation before reaching the sensor, mark target as terrain-masked (`is_masked = true`).
+  - SAM sites and early-warning radars must reject or drop track on masked units.
+
+- [ ] **Task 3: Class B Waypoint Nodes in Theater Schema (`NX-176` / `NX-180`)**
+  - Extend theater YAML schema validator in `content/theaters/` to accept `kind: JUNCTION` and `kind: ABUTMENT`.
+  - Update `content/theaters/strait-1.yaml` with valley corridor waypoints and fjord bridge abutments.
+  - Verify ground convoy pathfinding and low-altitude flight packages navigate via Class B nodes without straight-line clipping through mountain terrain.

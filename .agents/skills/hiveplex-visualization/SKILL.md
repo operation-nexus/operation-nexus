@@ -44,10 +44,16 @@ When tasked with creating, modifying, or auditing a visual component or renderer
      - **Option C (FLIR MFD Glass Cockpit)**: Thermal infrared sensor targeting.
      - **Option D (Textured Low-Poly RTS)**: PBR multi-texture terrain splatting (sand, rock, asphalt) and textured military units (camo strikers, haulers).
 
-5. **Headless Visual Review & Verification:**
+5. **6-DOF Kinematics & Dynamic Camera Sequencing:**
+   - Model realistic aerodynamic bank angles $\phi = \arctan(v \cdot \dot{\psi} / g)$, pitch attitudes, and canyon-wall repulsive potential fields.
+   - Orchestrate dynamic multi-camera Edit Decision Lists (EDLs) across 2D C2, 3D chase, cockpit HUD, and seeker cameras.
+   - Consult [6-DOF Kinematics & Canyon Runs](./references/six-dof-kinematics-and-canyon-runs.md).
+
+6. **Headless Visual Review & Deterministic Capture:**
    - Never commit visual changes without capturing and inspecting screenshots.
    - Run the automated review capture script:
      `./scripts/capture_review_screenshot.sh tools/prototype/visualizer-sandbox.html review.png 1600,1050 2500`
+   - Use deterministic virtual-clock stepping (`window.renderDeterministicTick`) for zero-dropped-frame 60 FPS video recording.
    - Consult [Headless Visual Review Runbook](./references/headless-visual-review.md).
 
 ---
@@ -56,12 +62,14 @@ When tasked with creating, modifying, or auditing a visual component or renderer
 
 - **Scripts & Tools:**
   - [`capture_review_screenshot.sh`](./scripts/capture_review_screenshot.sh): Automates headless Chrome captures with virtual time budgets.
+  - [`render_cinematic_pass.py`](../../tools/replay/render_cinematic_pass.py): Headless multi-camera cinematic pass recording harness and dynamic camera EDL executor.
   - [`mgrs_grid.py`](../../tools/terrain/mgrs_grid.py): MGRS tactical grid and coordinate conversion engine.
   - [`bake_synthetic_dted.py`](../../tools/terrain/bake_synthetic_dted.py): Synthetic DEM and Horn analytical hillshade baker.
   - [`drape_roads.py`](../../tools/terrain/drape_roads.py): Dynamic road spline draping and bridge conforming engine.
   - [`generate_lowpoly_assets.py`](../../tools/assets/generate_lowpoly_assets.py): Low-poly 3D OBJ unit mesh generator (<500 triangles).
   - [`generate_terrain_model.py`](./scripts/generate_terrain_model.py): Procedural 3D OBJ terrain mesh generator.
 - **References:**
+  - [`six-dof-kinematics-and-canyon-runs.md`](./references/six-dof-kinematics-and-canyon-runs.md): 6-DOF attitude formulas, coordinated turn roll, canyon potential-field weaving, and deterministic clock stepping.
   - [`unified-three-pillar-patterns.md`](./references/unified-three-pillar-patterns.md): Complete specifications for Three-Pillar sandbox, OOB fleet sidebar, and crosshairs.
   - [`mgrs-and-coordinate-systems.md`](./references/mgrs-and-coordinate-systems.md): NATO MGRS mapping, precision formulas, and CLI usage.
   - [`decoupled-rendering.md`](./references/decoupled-rendering.md): Pure kernel boundary rules and `IRenderEngine`.

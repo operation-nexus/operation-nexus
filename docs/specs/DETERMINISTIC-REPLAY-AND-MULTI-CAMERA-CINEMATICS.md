@@ -68,6 +68,8 @@ The deterministic replay harness enables multi-pass video generation:
 | **Pass J: War Room Briefing** | **Pillar 3 (Holographic)** | Isometric vector wireframe tabletop with SAM threat domes | Perfect for tactical voiceover, intel briefings, and order-of-battle breakdowns. |
 | **Pass K: Cognitive Neural Scope** | **Pillar 4 (AI Lattice)** | Causal trajectory trees, branch probabilities, and synaptic intent arcs | Explains *how* the agent decided on a high-risk strike or retreat maneuver. |
 | **Pass L: Target Reconnaissance** | **PiP MFD (`RECON` / `FLIR`)** | Downward optical/IR sensor hovering over enemy headquarters | Delivers bomb damage assessment (BDA) and kinetic impact confirmation. |
+| **Pass M: Canyon Run Chase** | **Pillar 2 (3D RTS)** | Dynamic 6-DOF low-altitude chase cam behind strike fighter banking through canyon | Visualizes high-G coordinated turns, wingtip vapor ribbons, and terrain-hugging NOE ingress. |
+| **Pass N: Cockpit Canyon Run** | **Pillar 2 (3D RTS)** | Rolling fighter pilot HUD with dynamic pitch ladder & canyon wall occlusion | Visceral first-person view of high-speed canyon penetration with [NOE CANYON MASKED] indicator. |
 
 ### 2.2 Unit POV & Cockpit Profiles (`pov_profile`)
 
@@ -162,6 +164,91 @@ To maintain viewer retention and avoid spectator fatigue, the Live Director oper
 
 ---
 
+## 5. Deterministic Headless Capture & Dynamic EDL Pipeline
+
+### 5.1 Deterministic Virtual-Clock Stepping (`window.renderDeterministicTick(simTimeSec)`)
+To generate broadcast-grade 1080p and 4K footage without frame pacing jitter or hardware-dependent lag, the headless rendering harness (`tools/replay/render_cinematic_pass.py`) bypasses non-deterministic browser wall clocks (`requestAnimationFrame`, `performance.now()`).
+
+1. **Virtual Time Stepping**:
+   - The harness drives the browser runtime explicitly via Playwright/Puppeteer CDI:
+     $$t_{n+1} = t_n + \Delta t, \quad \Delta t = \frac{1}{60}\text{s} \approx 0.016667\text{s}$$
+   - On each discrete step, the headless harness calls:
+     ```javascript
+     window.renderDeterministicTick(simTimeSec);
+     ```
+2. **Guaranteed Frame-Accuracy**:
+   - The renderer locks all internal shader uniforms, particle emitters, trail histories, and camera splines to `simTimeSec`.
+   - The harness reads the canvas buffer or calls `page.screenshot()` only after the current frame completes its full render pipeline.
+   - This eliminates dropped frames, micro-stutter, and WebGL context race conditions, ensuring identical bit-for-bit video frames whether running on a laptop or a GPU rendering farm.
+
+### 5.2 Dynamic Event-Driven Clip Windows & JSON Camera Edit Decision Lists (EDL)
+Short-form viral clips, devlog reels, and highlight packages are **NOT locked to an arbitrary fixed 30 seconds**. Instead, clip durations expand or contract dynamically based on excitement score thresholds and event horizons.
+
+1. **Dynamic Duration Window Formulation**:
+   Clip start and end timestamps are determined by excitement hysteresis:
+   $$T_{\text{clip}} = [t_{\text{start}} - \Delta t_{\text{pre\_roll}}, \; t_{\text{end}} + \Delta t_{\text{post\_roll}}]$$
+   - **Quick Kinetic Splash** (e.g. SAM intercept, high-altitude missile splash): $12\text{s} - 18\text{s}$.
+   - **Tactical Chokepoint Defense** (e.g. logistics ambush, armor firefight): $25\text{s} - 45\text{s}$.
+   - **Full Canyon Run & Bridge Strike** (e.g. NOE canyon ingress, SAM evasion, kinetic bridge drop, egress): $60\text{s} - 90\text{s}$.
+2. **Camera Edit Decision List (EDL)**:
+   The director pipeline generates a multi-pass cut list in JSON format, defining exact timecodes, source passes (Passes A through N), camera targets, and optical transitions:
+
+```json
+{
+  "clip_id": "clip_20261025_canyon_strike_01",
+  "theater": "strait-1",
+  "total_duration_sec": 42.5,
+  "cuts": [
+    {
+      "pass": "Pass A: Strategic Establishing",
+      "start_sec": 0.0,
+      "end_sec": 6.5,
+      "focus_target": "VIPER-01",
+      "description": "Macro 2D GIS showing strike package crossing radar perimeter"
+    },
+    {
+      "pass": "Pass M: Canyon Run Chase",
+      "start_sec": 6.5,
+      "end_sec": 21.0,
+      "focus_target": "VIPER-01",
+      "description": "6-DOF low-altitude chase through fjord canyon with wingtip vapor ribbons"
+    },
+    {
+      "pass": "Pass N: Cockpit Canyon Run",
+      "start_sec": 21.0,
+      "end_sec": 31.5,
+      "focus_target": "VIPER-01",
+      "description": "Fighter cockpit HUD rolling with NOE CANYON MASKED indicator"
+    },
+    {
+      "pass": "Pass G: Missile Seeker Terminal",
+      "start_sec": 31.5,
+      "end_sec": 37.0,
+      "focus_target": "MISSILE-402",
+      "description": "Mach 3 terminal seeker run on North Fjord Viaduct pier"
+    },
+    {
+      "pass": "Pass I: Viaduct Choke-Point Cam",
+      "start_sec": 37.0,
+      "end_sec": 42.5,
+      "focus_target": "bridge-n",
+      "description": "Ground camera captures kinetic bridge explosion and secondary debris"
+    }
+  ]
+}
+```
+
+### 5.3 Four-Pillar Next-Gen Visual Upgrade Matrix
+
+| Visual Pillar | Core Architecture | Next-Gen Visual Enhancements | Hardware Budget (`OV-10`) |
+| :--- | :--- | :--- | :--- |
+| **Pillar 1: 2D Strategic C2** | Canvas2D with offscreen contour cache | Pre-rendered multi-resolution DTED contour maps, smooth Bezier convoy splines, dynamic radar LoS shadow polygons. | $<4\text{ms}$ frame time |
+| **Pillar 2: 3D RTS & Unit POV** | Three.js WebGL/WebGPU | Continuous 16-bit DTED elevation mesh, `THREE.InstancedMesh` for units/tracers, 6-DOF dynamic banking/AoA pitch, wingtip contrails. | $<12\text{ms}$ frame time |
+| **Pillar 3: Holographic Tabletop** | Three.js isometric wireframe | Emissive neon vector topologies, volumetric SAM threat domes, rotating scanline grid, floating tactical telemetry glyphs. | $<8\text{ms}$ frame time |
+| **Pillar 4: Cognitive Decision Lattice** | Three.js DAG graph visualization | Dynamic branch probability curves, counterfactual decision path glow, synaptic intent arcs showing AI rationale in real time. | $<6\text{ms}$ frame time |
+
+---
+
 ## 6. Audio Architecture Evolution Roadmap
 
 High-fidelity tactical audio is vital for audience immersion. The audio architecture evolves across three distinct phases:
@@ -174,11 +261,18 @@ High-fidelity tactical audio is vital for audience immersion. The audio architec
   - Low-frequency 58Hz command center ambient hum.
 - **Role**: Functional verification and low-latency interaction feedback.
 
-### 6.2 Phase 2: Authentic DSP & Military Radio Convolutions
-- Replaces raw synth oscillators with convolution reverb and impulse responses (IR) recorded from genuine military headsets (e.g. David Clark H10, Gentex SPH-5):
-  - **Bandpass Filtering**: 300Hz–3.4kHz military VHF/UHF tactical radio frequency response.
-  - **Dynamic Range Compression & Squelch Tail**: Authentic hard-knee limiter with realistic background cockpit turbine whine and wind noise.
-  - **Spatial 3D Propagation**: Acoustic travel delays ($343\text{m/s}$ speed of sound) and distance attenuation for explosions and sonic booms.
+### 6.2 Phase 2: Authentic DSP, AudioWorklet & Military Radio Convolutions
+- **High-Performance AudioWorklet Radio DSP**:
+  - Moves tactical audio processing off the main browser thread to an isolated `AudioWorkletNode`.
+  - Implements real-time 300Hz–3.4kHz military VHF/UHF bandpass filtering, soft-clipping harmonic distortion, and authentic microphone capsule squelch bursts.
+  - Automatic Gain Control (AGC) and hard-knee peak limiting matching military PRC-117 and cockpit intercom specifications.
+- **AU-2 Night Mode Dynamic Range Shaping**:
+  - Automatic evening/night mode attenuation: dampens low-frequency engine rumbles and explosion transients by $-6\text{dB}$, elevating high-mid radio speech frequencies for fatigue-free late-night listening.
+- **AU-6 The Static Hum Motif**:
+  - The signature audio motif: a deep 58Hz analog mains drone layered with 116Hz and 174Hz sub-harmonics, evoking cold war radar shelters and vacuum-tube command electronics.
+  - Swells organically 1.5 seconds prior to Mastermind / Static threat communications, conditioning the audience to anticipate imminent hostile strikes or electronic warfare blitzes.
+- **Spatial 3D Sound Propagation**:
+  - Acoustic speed-of-sound delays ($343\text{m/s}$) between kinetic events and camera microphone positions, producing authentic visual-flash-to-thunder-clap delays for distant viaduct detonations.
 
 ### 6.3 Phase 3: Neural Voice Synthesis & Real-Time Comms
 - **On-Device Kokoro-82M TTS**:
