@@ -412,7 +412,7 @@ class Collector:
             step["strike_fired"] = True
 
     def _captured(self, e: Any) -> None:
-        if e.to == _ENEMY and (step := self._latest.pop(e.node_id, None)):
+        if (step := self._latest.pop(e.node_id, None)) and e.to == _ENEMY:
             step["captured"] = True
         for commander in e.participant_commander_ids:
             self._credit(commander, e.tick, "capture")

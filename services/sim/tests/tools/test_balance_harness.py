@@ -1648,9 +1648,12 @@ def test_collector_follows_a_capture_operation_down_its_funnel(
                         to="ENEMY", participant_commander_ids=[])])  # fmt: skip
     collector.feed([_ev(NodeCaptured, "NodeCaptured", 165, node_id="cross-n", from_="ENEMY",
                         to="COALITION", participant_commander_ids=[])])  # fmt: skip
-    # a later Static strike on the captured node belongs to no launch any more
+    # a later Static strike on the captured node belongs to no launch any more, and neither
+    # does a Static capture start on the node the coalition took back
     collector.feed([_ev(WeaponFired, "WeaponFired", 170, shooter_id=900, target_id=None,
-                        target_node_id="fob-n-w")])  # fmt: skip
+                        target_node_id="fob-n-w"),
+                    _ev(CaptureStarted, "CaptureStarted", 175, node_id="cross-n",
+                        side="ENEMY")])  # fmt: skip
     funnel = collector.result(1000)["economy"]["funnel"]
     keys = ("strike_fired", "defenses_down", "capture_started", "captured")
     assert [(x["op"], x["target"], *(x[k] for k in keys)) for x in funnel] == [
