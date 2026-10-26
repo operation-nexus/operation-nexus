@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# Forced command for the PC's heartbeat key (authorized_keys: restrict,command=...). The client sends one
+# line on stdin; whatever command it asks for is ignored. Writes the line plus our receive time.
+set -u
+DIR=/var/lib/hiveplex-heartbeat
+line=$(head -c 512 | head -n 1 | tr -cd 'A-Za-z0-9 _=.:,+/@-')
+[ -n "$line" ] || exit 1
+printf 'received=%s %s\n' "$(date +%s)" "$line" > "$DIR/pc.tmp" && mv "$DIR/pc.tmp" "$DIR/pc"

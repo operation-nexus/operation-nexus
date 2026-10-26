@@ -43,6 +43,15 @@ Node 22, npm, `pnpm` 10.28.0, `uv` 0.13.4, `make`, `jq`, `gh` and `restic` are i
 
 What it checks and when it speaks: see MONITORING-WATCHDOG, "Implemented so far". To test the channel: `sudo hiveplex-notify "test"`. To test a failure path without breaking anything: write `fail` into `/var/lib/hiveplex-health/<check>` and run `sudo systemctl start hiveplex-health.service`; a recovery message follows.
 
+## PC heartbeat (restricted key)
+`~/.ssh/authorized_keys` also holds a third key, the PC's heartbeat key, written as `restrict,from="192.168.1.102,100.101.222.98",command="/usr/local/bin/hiveplex-heartbeat-recv" ssh-ed25519 ...`. It can only deliver one line of status to `/var/lib/hiveplex-heartbeat/pc` (letters, digits and a few punctuation characters, 512 bytes at most); any command it asks for is ignored. The PC side lives in `deploy/pc/` and uses the SSH host alias `hiveserver-hb`. Recreate by generating a new key on the PC, adding its public half with those options, and enabling `hiveplex-heartbeat.timer` as a user timer.
+
+| Piece | Where |
+|---|---|
+| Receiver | `/usr/local/bin/hiveplex-heartbeat-recv`; source `deploy/server/` |
+| Maintenance pause | `sudo hiveplex-maintenance MINUTES` or `off`; source `deploy/server/` |
+| Sender and timer (on the PC) | `~/.local/bin/hiveplex-heartbeat-send`, `~/.config/systemd/user/hiveplex-heartbeat.{service,timer}`; source `deploy/pc/` |
+
 ## Updates
 `unattended-upgrades` is active. Ubuntu holds some updates back ("phased"); those arrive on their own, and `apt list --upgradable` may keep showing them for days. A fixed reboot window is **not set up yet**.
 
@@ -59,4 +68,4 @@ What it checks and when it speaks: see MONITORING-WATCHDOG, "Implemented so far"
 - 6.5 GiB RAM: not yet measured against Prometheus + Grafana + Loki plus staging.
 
 ## Not done yet
-The PC watchdog probe, internet-quality history, Kasa plug power readings and cost dashboards, Prometheus/Grafana, restic backups (local, NAS, Google Drive), self-hosted ntfy, the L3 heartbeat, a reboot window, and UPS monitoring (no UPS yet).
+Internet-quality history, Kasa plug power readings and cost dashboards, Prometheus/Grafana, restic backups (local, NAS, Google Drive), self-hosted ntfy, the L3 heartbeat, a reboot window, and UPS monitoring (no UPS yet).
