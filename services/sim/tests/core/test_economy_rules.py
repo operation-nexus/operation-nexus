@@ -144,6 +144,161 @@ def test_the_cadence_floor_buys_the_cheapest_operation_after_cadence_windows_wit
     assert the_budget(w) == 0  # nothing is affordable from 0 surplus + 1
 
 
+def posted(w: World) -> list[tuple[str, str]]:
+    """(operation, target) of the Director's operations on the Static's board."""
+    return sorted(ops.live_pairs([j.key for j in w.boards["ENEMY"].values()]))
+
+
+def floor_window(w: World, windows: int, spend: int = 30) -> list[tuple[str, str]]:
+    """One ALPHA window `windows` windows after the last launch (window 0) with `spend` points."""
+    w.director["ENEMY"].windows = windows
+    operations(w, spend)
+    return posted(w)
+
+
+# with 30 points and no floor the ALPHA window buys PROBE (15) and three RECON (2) (seed 1)
+CHEAP = [("PROBE", "fob-n-w"), ("RECON", "centre"), ("RECON", "north"), ("RECON", "south")]
+
+
+def test_the_cadence_floor_buys_a_capture_operation_over_cheaper_ones() -> None:
+    # Q-TD-42: the floor lifts the budget to OFFENSIVE (60, the one capture operation with a
+    # target: RETAKE has no recently lost base) and launches it first, not PROBE or RECON
+    w = world(NEW_UNLIMITED)
+    assert floor_window(w, 10) == [("OFFENSIVE", "west-airbase")]
+    assert w.director["ENEMY"].budget == 60 and w.director["ENEMY"].last_operation == 10
+    assert floor_window(world(NEW_UNLIMITED), 9) == CHEAP  # not due: unchanged
+    assert world(NEW_UNLIMITED).director["ENEMY"].budget == 0
+
+
+def test_without_a_capture_target_the_floor_keeps_the_cheapest_operation_rule() -> None:
+    def capped(windows: int) -> tuple[list[tuple[str, str]], int]:
+        w = world(NEW_UNLIMITED)
+        w.director["ENEMY"].last_flip = 1  # the night cap is spent: no capture operation
+        return floor_window(w, windows), w.director["ENEMY"].budget
+
+    assert capped(10) == capped(9)
+    assert capped(10)[1] == 30 and capped(10)[0][0][0] == "PROBE"
+    w = world(NEW_UNLIMITED)
+    w.owner["static-hq"] = "COALITION"  # no HQ held: the floor does not apply
+    assert ("OFFENSIVE", "west-airbase") not in floor_window(w, 10)
+    assert w.director["ENEMY"].budget == 30
+
+
+def surplus_world(free: int) -> World:
+    """An unlimited Static (no pool) whose only surplus is `free` at east-airbase."""
+    w = world(NEW_UNLIMITED)
+    at_floor(w)
+    w.stock["east-airbase"] += free
+    return w
+
+
+def test_a_capture_operation_surplus_and_pool_cannot_pay_is_not_forced() -> None:
+    # Q-TD-34 (1): affordable means surplus + pool, and this Static has no pool. 59 is below
+    # OFFENSIVE (60) and RETAKE has no target, so the window is the one without the floor
+    w = surplus_world(59)
+    assert floor_window(w, 10, spend=10) == floor_window(surplus_world(59), 9, spend=10)
+    assert w.director["ENEMY"].budget == 10
+    w = surplus_world(60)  # exactly OFFENSIVE: forced and paid there
+    assert floor_window(w, 10, spend=10) == [("OFFENSIVE", "west-airbase")]
+    assert w.rules is not None
+    assert w.stock["east-airbase"] == w.rules.supply.starve_floor["east-airbase"]
+
+
+def test_pool_money_the_window_cannot_spend_promotes_no_capture_operation() -> None:
+    # Q-TD-48 (5): no base surplus and a 2000 pool (rear account floor(2000 x 0.005) = 10).
+    # OFFENSIVE (60) is within surplus + pool but not payable this window, so the floor must
+    # not promote it over what the rear account can buy: the window is the one without it
+    def limited() -> World:
+        w = world(NEW_LIMITED)
+        at_floor(w)
+        w.pool["ENEMY"] = 2000
+        return w
+
+    w = limited()
+    assert floor_window(w, 10, spend=10) == floor_window(limited(), 9, spend=10)
+    assert w.director["ENEMY"].budget == 10
+    # with staging on, a wrongly promoted OFFENSIVE would be staged (it holds its cost and waits)
+    # instead of failing to pay, so only the cap keeps it out
+    w = world(config({"economy.legacy_rules": False, **LIMITED}))
+    at_floor(w)
+    w.pool["ENEMY"] = 2000
+    floor_window(w, 10, spend=10)
+    assert w.director["ENEMY"].staged == []
+    assert w.director["ENEMY"].budget == 10
+
+
+def test_a_promoted_capture_operation_that_cannot_pay_crowds_out_nothing() -> None:
+    # Q-TD-48 (6), from CodeRabbit on #411: base surplus 50 at east-airbase plus a rear account of
+    # 10 (pool 2000) passes the floor's 60, but OFFENSIVE pays at one node, and neither the base
+    # (50) nor the rear account (10) can pay 60, so the window is the one without the floor
+    def limited(free: int) -> World:
+        w = world(NEW_LIMITED)
+        at_floor(w)
+        w.stock["east-airbase"] += free
+        w.pool["ENEMY"] = 2000
+        return w
+
+    w = limited(50)  # 30 points: without the floor the window buys three RECON at the source
+    assert floor_window(w, 10, spend=30) == floor_window(limited(50), 9, spend=30) != []
+    assert w.director["ENEMY"].budget == 30
+    w = limited(60)  # the base can pay all 60: the base account is lifted to it, not 60 - 10
+    assert floor_window(w, 10, spend=10) == [("OFFENSIVE", "west-airbase")]
+
+
+def test_legacy_rules_have_no_capture_floor() -> None:
+    assert floor_window(world(LEGACY_LIMITED), 10) == floor_window(world(LEGACY_LIMITED), 0)
+
+
+def test_the_floor_buys_the_cheapest_capture_operation_retake_over_offensive() -> None:
+    # west-airbase lost at tick 1 gives RETAKE (50) a target next to OFFENSIVE (60)
+    w = world(NEW_UNLIMITED)
+    w.director["ENEMY"].lost["west-airbase"] = 1
+    assert floor_window(w, 10) == [("RETAKE", "west-airbase")]
+    assert w.director["ENEMY"].budget == 50
+
+
+def test_the_floors_capture_operation_goes_before_better_ranked_cheaper_ones() -> None:
+    # OFFENSIVE's priority at 0.01 ranks it below PROBE and RECON, which would spend 15 + 2s of
+    # the lifted 60 first and leave OFFENSIVE unpaid; the floor selects it first
+    w = world(config({**NEW, "director.op_priority.OFFENSIVE": 0.01}))
+    assert floor_window(w, 10) == [("OFFENSIVE", "west-airbase")]
+
+
+def test_a_capture_operation_the_caps_would_skip_lifts_nothing() -> None:
+    # ALPHA runs one non-routine operation at a time (`max_ops.alpha` 1): with the window-10
+    # OFFENSIVE still on the board, the floor due at window 20 cannot run a second one
+    w = world(NEW_UNLIMITED)
+    assert floor_window(w, 10) == [("OFFENSIVE", "west-airbase")]
+    pairs = floor_window(w, 20)
+    assert w.director["ENEMY"].budget == 30  # not lifted to 60
+    assert [p for p in pairs if p[0] in ("OFFENSIVE", "RETAKE", "PROBE")] == [
+        ("OFFENSIVE", "west-airbase")
+    ]
+
+
+@given(
+    windows=st.integers(8, 12),
+    free=st.lists(st.integers(0, 300), min_size=4, max_size=4),
+    pool=st.integers(0, 3000),
+    tier=st.sampled_from(["ALPHA", "BRAVO"]),
+)
+@settings(max_examples=25, deadline=None)
+def test_the_floor_never_lifts_the_budget_past_surplus_plus_pool(
+    windows: int, free: list[int], pool: int, tier: ThreatTier
+) -> None:
+    w = world(NEW_LIMITED)
+    at_floor(w)
+    for n, f in zip(STATIC_BASES, free, strict=True):
+        w.stock[n] += f
+    w.pool["ENEMY"] = pool
+    s = w.director["ENEMY"]
+    s.windows = windows
+    spend = the_budget(w, tier)
+    out = operations(w, spend, tier)
+    assert s.budget <= sum(free) + pool
+    assert sum(a for _, a in debits(out)) <= s.budget
+
+
 def test_legacy_rules_keep_the_tier_budget_and_ignore_the_pool() -> None:
     w = world(LEGACY_LIMITED)
     assert the_budget(w, "BRAVO", upkeep=100) == 80  # min(director.budget.bravo, 1500)
@@ -589,6 +744,21 @@ def test_legacy_off_runs_deterministically(overrides: dict[str, object]) -> None
     refused = any(e["kind"] == "SpawnRefused" for e in first[1])
     assert refused == ("sim.max_live_units_per_side" in overrides)
     assert once() == first
+
+
+def test_the_capture_floor_runs_deterministically() -> None:
+    # ALPHA's budget is 30 (1,500 x 0.02), below every capture operation, and the capture slot
+    # runs only at Pattern of Life: a CAPTURE job here comes from the cadence floor (Q-TD-42)
+    c = shipped_config({**NEW, "director.cadence_windows": 1, "director.tier.start": "ALPHA"})
+
+    def run_once() -> tuple[str, list[dict[str, Any]]]:
+        w = start_campaign(CAMPAIGN_ID, 99, c)
+        events = run(w, 1300)
+        return state_hash(w), [e.model_dump() for e in events]
+
+    first = run_once()
+    assert any(e["kind"] == "JobCreated" and e["job_kind"] == "CAPTURE" for e in first[1])
+    assert run_once() == first
 
 
 def test_save_and_load_mid_window_resume_identically() -> None:
