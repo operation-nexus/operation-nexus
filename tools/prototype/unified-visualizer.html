@@ -1560,14 +1560,15 @@
       const partMatSmoke = new THREE.MeshBasicMaterial({ color: 0x475569, transparent: true, opacity: 0.5 });
       for (let i = 0; i < 24; i++) {
         const isFire = (i < 8);
-        const geo = new THREE.DodecahedronGeometry(0.7 + Math.random() * 0.7);
-        const p = new THREE.Mesh(geo, isFire ? partMatFire : partMatSmoke);
+        const seed = (k) => ((Math.sin(i * 12.9898 + k * 78.233) * 43758.5453) % 1 + 1) % 1;
+        const geo = new THREE.DodecahedronGeometry(0.7 + seed(1) * 0.7);
+        const p = new THREE.Mesh(geo, (isFire ? partMatFire : partMatSmoke).clone());
         p.userData = {
-          baseX: (Math.random() - 0.5) * 8.0,
-          baseZ: (Math.random() - 0.5) * 4.0,
-          speedY: 2.2 + Math.random() * 3.5,
+          baseX: (seed(2) - 0.5) * 8.0,
+          baseZ: (seed(3) - 0.5) * 4.0,
+          speedY: 2.2 + seed(4) * 3.5,
           offsetTime: i * 0.22,
-          maxLife: 2.2 + Math.random() * 1.4,
+          maxLife: 2.2 + seed(5) * 1.4,
           isFire: isFire
         };
         p.position.set(p.userData.baseX, 0, p.userData.baseZ);
@@ -2285,11 +2286,13 @@
         selectUnit('VIPER-01');
         camera.fov = 62;
         camera.updateProjectionMatrix();
-        // Pre-warm 30 steps so wingtip vapor ribbons and 6-DOF roll/pitch are immediately active
-        for (let i = 0; i < 30; i++) {
-          simTime += 0.05;
-          updateKinematics(0.05);
-          if (scene) update3DVisuals(0.05);
+        // Pre-warm 30 steps in interactive mode so wingtip vapor ribbons and 6-DOF roll/pitch are immediately active
+        if (!deterministicMode) {
+          for (let i = 0; i < 30; i++) {
+            simTime += 0.05;
+            updateKinematics(0.05);
+            if (scene) update3DVisuals(0.05);
+          }
         }
         if (unit3DMap['VIPER-01']) {
           const v1 = UNITS.find(un => un.id === 'VIPER-01');
@@ -2698,13 +2701,16 @@
           const p1 = pts[i + 1];
           const w0 = halfW * (1.0 - i / pts.length);
           const w1 = halfW * (1.0 - (i + 1) / pts.length);
+          const dx = p1.x - p0.x, dz = p1.z - p0.z;
+          const len = Math.hypot(dx, dz) || 1;
+          const nx = -dz / len, nz = dx / len;
           verts.push(
-            p0.x - w0, p0.y, p0.z - w0,
-            p0.x + w0, p0.y + w0 * 0.5, p0.z + w0,
-            p1.x - w1, p1.y, p1.z - w1,
-            p0.x + w0, p0.y + w0 * 0.5, p0.z + w0,
-            p1.x + w1, p1.y + w1 * 0.5, p1.z + w1,
-            p1.x - w1, p1.y, p1.z - w1
+            p0.x - nx * w0, p0.y, p0.z - nz * w0,
+            p0.x + nx * w0, p0.y, p0.z + nz * w0,
+            p1.x - nx * w1, p1.y, p1.z - nz * w1,
+            p0.x + nx * w0, p0.y, p0.z + nz * w0,
+            p1.x + nx * w1, p1.y, p1.z + nz * w1,
+            p1.x - nx * w1, p1.y, p1.z - nz * w1
           );
         }
         geo.setAttribute('position', new THREE.Float32BufferAttribute(verts, 3));
@@ -2731,11 +2737,173 @@
       });
     }
 
+    function updateCameraRig(dt = 0.016) {
+      const k = (f) => 1 - Math.pow(1 - f, Math.max(0.001, dt) / 0.016);
+      // Broadcast AI Auto-Director with Smart Combat Priority & Anti-Spam Pacing
+      if (isDirectorActive) {
+        const directorText = document.getElementById('director-text');
+
+        const vPos = unit3DMap['VIPER-01'] ? unit3DMap['VIPER-01'].position : null;
+        const bPos = unit3DMap['BANDIT-04'] ? unit3DMap['BANDIT-04'].position : null;
+        let inCombatClosure = false;
+        let combatDistKm = 999;
+        if (vPos && bPos) {
+          const dist3D = vPos.distanceTo(bPos);
+          combatDistKm = dist3D * (THEATER_W / 360) / 1000;
+          if (combatDistKm < 65) {
+            inCombatClosure = true;
+          }
+        }
+
+        if (inCombatClosure) {
+          // Priority 1: Hold the shot during active air intercept (Zero spam cuts)
+          directorTimer = 0;
+          playRwrWarning();
+          if (directorText) {
+            directorText.innerText = `AIR INTERCEPT // VIPER-01 vs BANDIT-04 // RANGE: ${combatDistKm.toFixed(1)}KM // CLOSURE: 980 KTS`;
+          }
+          const mid = new THREE.Vector3().addVectors(vPos, bPos).multiplyScalar(0.5);
+          camera.position.lerp(new THREE.Vector3(mid.x - 28, mid.y + 16, mid.z + 32), k(0.02));
+          controls.target.lerp(mid, k(0.02));
+        } else {
+          // Calm, professional broadcast pacing (22 seconds per sequence)
+          directorTimer += dt;
+          if (directorTimer > 22.0) {
+            directorTimer = 0;
+            directorPhase = (directorPhase + 1) % 4;
+          }
+
+          if (directorPhase === 0) {
+            if (directorText) directorText.innerText = 'THEATER STRATEGIC OVERVIEW // 400x240KM THEATER // COALITION MOMENTUM: 62%';
+            camera.position.lerp(new THREE.Vector3(0, 240, 160), k(0.018));
+            controls.target.lerp(new THREE.Vector3(0, 0, 0), k(0.018));
+          } else if (directorPhase === 1) {
+            if (directorText) directorText.innerText = `COMBAT AIR PATROL // ${selectedUnitId} // VECTOR 085° // FL240`;
+            if (vPos) {
+              const chasePos = new THREE.Vector3(vPos.x - 30, vPos.y + 12, vPos.z + 30);
+              camera.position.lerp(chasePos, k(0.025));
+              controls.target.lerp(vPos, k(0.025));
+            }
+          } else if (directorPhase === 2) {
+            if (directorText) directorText.innerText = 'STRATEGIC CHOKEPOINT // NORTH FJORD VIADUCT // CONVOY SECURITY PATROL';
+            camera.position.lerp(new THREE.Vector3(-42, 28, -25), k(0.018));
+            controls.target.lerp(new THREE.Vector3(0, 17.5, -54), k(0.018));
+          } else if (directorPhase === 3) {
+            if (directorText) directorText.innerText = 'ISR RECONNAISSANCE PASS // STATIC EAST AIRBASE // RADAR ACTIVE';
+            camera.position.lerp(new THREE.Vector3(98, 48, 20), k(0.018));
+            controls.target.lerp(new THREE.Vector3(99, 1.0, 0), k(0.018));
+          }
+        }
+      } else if (cameraMode === 'canyon' && unit3DMap['VIPER-01']) {
+        const v1 = UNITS.find(un => un.id === 'VIPER-01');
+        const obj = unit3DMap['VIPER-01'];
+        const pos = obj.position;
+        const fwdX = Math.cos(v1.angle);
+        const fwdZ = Math.sin(v1.angle);
+        const rightX = -fwdZ;
+        const rightZ = fwdX;
+
+        // Tight, low-altitude dynamic chase camera slightly offset behind and above VIPER-01 (fov = 62)
+        const targetCamPos = new THREE.Vector3(
+          pos.x - fwdX * 26 + rightX * 5.0,
+          pos.y + 4.8,
+          pos.z - fwdZ * 26 + rightZ * 5.0
+        );
+        camera.position.lerp(targetCamPos, k(0.18));
+
+        const lookTarget = new THREE.Vector3(
+          pos.x + fwdX * 35,
+          pos.y - 1.2,
+          pos.z + fwdZ * 35
+        );
+        controls.target.lerp(lookTarget, k(0.18));
+
+        // Bank subtly with jet roll
+        camera.up.set(Math.sin((v1.roll || 0) * 0.35), Math.cos((v1.roll || 0) * 0.35), 0);
+      } else if (cameraMode === 'chase' && unit3DMap[selectedUnitId]) {
+        camera.up.set(0, 1, 0);
+        const target = unit3DMap[selectedUnitId].position;
+        camera.position.set(target.x - 35, target.y + 15, target.z + 35);
+        controls.target.copy(target);
+      } else if (cameraMode === 'cockpit' && unit3DMap[selectedUnitId]) {
+        const u = UNITS.find(un => un.id === selectedUnitId);
+        const obj = unit3DMap[selectedUnitId];
+        if (u && obj) {
+          // Hide own unit mesh so interior doesn't clip into camera
+          Object.entries(unit3DMap).forEach(([id, o]) => {
+            o.visible = (id !== selectedUnitId);
+          });
+
+          // Tilt the 3D cockpit camera roll so external mountains/canyon visibly roll outside canopy glass
+          camera.up.set(Math.sin((u.roll || 0) * 0.65), Math.cos((u.roll || 0) * 0.65), 0);
+
+          const fwdX = Math.cos(u.angle);
+          const fwdZ = Math.sin(u.angle);
+          const fwd = new THREE.Vector3(fwdX, 0, fwdZ).normalize();
+          const right = new THREE.Vector3(-fwdZ, 0, fwdX);
+          const pos = obj.position;
+
+          if (u.alt === 'GND') {
+            // Logistics Truck driver view inside cab
+            camera.position.set(
+              pos.x - right.x * 0.45 + fwd.x * 1.6,
+              pos.y + 2.2,
+              pos.z - right.z * 0.45 + fwd.z * 1.6
+            );
+            controls.target.set(
+              camera.position.x + fwd.x * 80,
+              camera.position.y + 0.3,
+              camera.position.z + fwd.z * 80
+            );
+          } else if (u.type === 'CSAR_HELO') {
+            // CSAR Helicopter bubble canopy & chin window view
+            camera.position.set(
+              pos.x - right.x * 0.35 + fwd.x * 1.5,
+              pos.y + 1.3,
+              pos.z - right.z * 0.35 + fwd.z * 1.5
+            );
+            controls.target.set(
+              camera.position.x + fwd.x * 80,
+              camera.position.y - 0.35,
+              camera.position.z + fwd.z * 80
+            );
+          } else if (u.type === 'KINETIC_MISSILE') {
+            // Terminal Missile Seeker Head view (Extreme nose POV)
+            camera.position.set(
+              pos.x + fwd.x * 2.2,
+              pos.y + 0.15,
+              pos.z + fwd.z * 2.2
+            );
+            controls.target.set(
+              camera.position.x + fwd.x * 120,
+              camera.position.y,
+              camera.position.z + fwd.z * 120
+            );
+          } else {
+            // Jet Fighter canopy eye view
+            camera.position.set(
+              pos.x + fwd.x * 1.8,
+              pos.y + 1.25,
+              pos.z + fwd.z * 1.8
+            );
+            controls.target.set(
+              camera.position.x + fwd.x * 120,
+              camera.position.y - 0.2,
+              camera.position.z + fwd.z * 120
+            );
+          }
+          renderCockpitOverlay(u);
+        }
+      }
+    }
+
     let lastTime = performance.now();
     let frameCount = 0;
+    let deterministicMode = false;
 
     function animate(now) {
       requestAnimationFrame(animate);
+      if (deterministicMode) return;
       const dt = (now - lastTime) / 1000.0;
       lastTime = now;
 
@@ -2760,165 +2928,7 @@
         renderGisFrame();
       } else if (scene && renderer) {
         update3DVisuals(dt);
-
-        // Broadcast AI Auto-Director with Smart Combat Priority & Anti-Spam Pacing
-        if (isDirectorActive) {
-          const banner = document.getElementById('director-banner');
-          const directorText = document.getElementById('director-text');
-
-          const vPos = unit3DMap['VIPER-01'] ? unit3DMap['VIPER-01'].position : null;
-          const bPos = unit3DMap['BANDIT-04'] ? unit3DMap['BANDIT-04'].position : null;
-          let inCombatClosure = false;
-          let combatDistKm = 999;
-          if (vPos && bPos) {
-            const dist3D = vPos.distanceTo(bPos);
-            combatDistKm = dist3D * (THEATER_W / 360) / 1000;
-            if (combatDistKm < 65) {
-              inCombatClosure = true;
-            }
-          }
-
-          if (inCombatClosure) {
-            // Priority 1: Hold the shot during active air intercept (Zero spam cuts)
-            directorTimer = 0;
-            playRwrWarning();
-            if (directorText) {
-              directorText.innerText = `AIR INTERCEPT // VIPER-01 vs BANDIT-04 // RANGE: ${combatDistKm.toFixed(1)}KM // CLOSURE: 980 KTS`;
-            }
-            const mid = new THREE.Vector3().addVectors(vPos, bPos).multiplyScalar(0.5);
-            camera.position.lerp(new THREE.Vector3(mid.x - 28, mid.y + 16, mid.z + 32), 0.02);
-            controls.target.lerp(mid, 0.02);
-          } else {
-            // Calm, professional broadcast pacing (22 seconds per sequence)
-            directorTimer += 0.016;
-            if (directorTimer > 22.0) {
-              directorTimer = 0;
-              directorPhase = (directorPhase + 1) % 4;
-            }
-
-            if (directorPhase === 0) {
-              if (directorText) directorText.innerText = 'THEATER STRATEGIC OVERVIEW // 400x240KM THEATER // COALITION MOMENTUM: 62%';
-              camera.position.lerp(new THREE.Vector3(0, 240, 160), 0.018);
-              controls.target.lerp(new THREE.Vector3(0, 0, 0), 0.018);
-            } else if (directorPhase === 1) {
-              if (directorText) directorText.innerText = `COMBAT AIR PATROL // ${selectedUnitId} // VECTOR 085° // FL240`;
-              if (vPos) {
-                const chasePos = new THREE.Vector3(vPos.x - 30, vPos.y + 12, vPos.z + 30);
-                camera.position.lerp(chasePos, 0.025);
-                controls.target.lerp(vPos, 0.025);
-              }
-            } else if (directorPhase === 2) {
-              if (directorText) directorText.innerText = 'STRATEGIC CHOKEPOINT // NORTH FJORD VIADUCT // CONVOY SECURITY PATROL';
-              camera.position.lerp(new THREE.Vector3(-42, 28, -25), 0.018);
-              controls.target.lerp(new THREE.Vector3(0, 17.5, -54), 0.018);
-            } else if (directorPhase === 3) {
-              if (directorText) directorText.innerText = 'ISR RECONNAISSANCE PASS // STATIC EAST AIRBASE // RADAR ACTIVE';
-              camera.position.lerp(new THREE.Vector3(98, 48, 20), 0.018);
-              controls.target.lerp(new THREE.Vector3(99, 1.0, 0), 0.018);
-            }
-          }
-        } else if (cameraMode === 'canyon' && unit3DMap['VIPER-01']) {
-          const v1 = UNITS.find(un => un.id === 'VIPER-01');
-          const obj = unit3DMap['VIPER-01'];
-          const pos = obj.position;
-          const fwdX = Math.cos(v1.angle);
-          const fwdZ = Math.sin(v1.angle);
-          const rightX = -fwdZ;
-          const rightZ = fwdX;
-
-          // Tight, low-altitude dynamic chase camera slightly offset behind and above VIPER-01 (fov = 62)
-          const targetCamPos = new THREE.Vector3(
-            pos.x - fwdX * 26 + rightX * 5.0,
-            pos.y + 4.8,
-            pos.z - fwdZ * 26 + rightZ * 5.0
-          );
-          camera.position.lerp(targetCamPos, 0.18);
-
-          const lookTarget = new THREE.Vector3(
-            pos.x + fwdX * 35,
-            pos.y - 1.2,
-            pos.z + fwdZ * 35
-          );
-          controls.target.lerp(lookTarget, 0.18);
-
-          // Bank subtly with jet roll
-          camera.up.set(Math.sin((v1.roll || 0) * 0.35), Math.cos((v1.roll || 0) * 0.35), 0);
-        } else if (cameraMode === 'chase' && unit3DMap[selectedUnitId]) {
-          camera.up.set(0, 1, 0);
-          const target = unit3DMap[selectedUnitId].position;
-          camera.position.set(target.x - 35, target.y + 15, target.z + 35);
-          controls.target.copy(target);
-        } else if (cameraMode === 'cockpit' && unit3DMap[selectedUnitId]) {
-          const u = UNITS.find(un => un.id === selectedUnitId);
-          const obj = unit3DMap[selectedUnitId];
-          if (u && obj) {
-            // Hide own unit mesh so interior doesn't clip into camera
-            Object.entries(unit3DMap).forEach(([id, o]) => {
-              o.visible = (id !== selectedUnitId);
-            });
-
-            // Tilt the 3D cockpit camera roll so external mountains/canyon visibly roll outside canopy glass
-            camera.up.set(Math.sin((u.roll || 0) * 0.65), Math.cos((u.roll || 0) * 0.65), 0);
-
-            const fwdX = Math.cos(u.angle);
-            const fwdZ = Math.sin(u.angle);
-            const fwd = new THREE.Vector3(fwdX, 0, fwdZ).normalize();
-            const right = new THREE.Vector3(-fwdZ, 0, fwdX);
-            const pos = obj.position;
-
-            if (u.alt === 'GND') {
-              // Logistics Truck driver view inside cab
-              camera.position.set(
-                pos.x - right.x * 0.45 + fwd.x * 1.6,
-                pos.y + 2.2,
-                pos.z - right.z * 0.45 + fwd.z * 1.6
-              );
-              controls.target.set(
-                camera.position.x + fwd.x * 80,
-                camera.position.y + 0.3,
-                camera.position.z + fwd.z * 80
-              );
-            } else if (u.type === 'CSAR_HELO') {
-              // CSAR Helicopter bubble canopy & chin window view
-              camera.position.set(
-                pos.x - right.x * 0.35 + fwd.x * 1.5,
-                pos.y + 1.3,
-                pos.z - right.z * 0.35 + fwd.z * 1.5
-              );
-              controls.target.set(
-                camera.position.x + fwd.x * 80,
-                camera.position.y - 0.35,
-                camera.position.z + fwd.z * 80
-              );
-            } else if (u.type === 'KINETIC_MISSILE') {
-              // Terminal Missile Seeker Head view (Extreme nose POV)
-              camera.position.set(
-                pos.x + fwd.x * 2.2,
-                pos.y + 0.15,
-                pos.z + fwd.z * 2.2
-              );
-              controls.target.set(
-                camera.position.x + fwd.x * 120,
-                camera.position.y,
-                camera.position.z + fwd.z * 120
-              );
-            } else {
-              // Jet Fighter canopy eye view
-              camera.position.set(
-                pos.x + fwd.x * 1.8,
-                pos.y + 1.25,
-                pos.z + fwd.z * 1.8
-              );
-              controls.target.set(
-                camera.position.x + fwd.x * 120,
-                camera.position.y - 0.2,
-                camera.position.z + fwd.z * 120
-              );
-            }
-            renderCockpitOverlay(u);
-          }
-        }
-
+        updateCameraRig(dt);
         controls.update();
         renderer.render(scene, camera);
         renderPiPSensor();
@@ -3472,7 +3482,8 @@
         cockpitCtx.fillText(`BANK: ${Math.round((u.roll || 0) * 57.3)}°`, pedX + 155, pedY + 80);
         cockpitCtx.fillText(`PITCH: ${Math.round((u.pitch || 0) * 57.3)}°`, pedX + 215, pedY + 80);
         cockpitCtx.fillText(`G-LOAD: ${(u.gLoad || 1.0).toFixed(1)}G`, pedX + 155, pedY + 94);
-        cockpitCtx.fillText(`ALT: ${Math.round(u.z || 80)}M MSL`, pedX + 215, pedY + 94);
+        const csarAltM = sampleStraitElevation(u.x, u.y) + 6.8 / 0.038;
+        cockpitCtx.fillText(`ALT: ${Math.round(csarAltM)}M MSL`, pedX + 215, pedY + 94);
 
         if (u.noeMasked) {
           const badgeW = 280, badgeH = 20;
@@ -3671,10 +3682,11 @@
 
         cockpitCtx.translate(cx, cy);
         cockpitCtx.rotate(-(u.roll || 0));
-        const pitchShift = (u.pitch || 0) * 420;
+        const PX_PER_DEG = 6.5;
+        const pitchShift = (u.pitch || 0) * (180 / Math.PI) * PX_PER_DEG;
 
         [-30, -20, -10, 0, 10, 20, 30].forEach(deg => {
-          const py = -deg * 6.5 + pitchShift;
+          const py = -deg * PX_PER_DEG + pitchShift;
           if (Math.abs(py) > 130) return;
           if (deg === 0) {
             cockpitCtx.beginPath();
@@ -3820,13 +3832,33 @@
        DETERMINISTIC SIMULATION REPLAY HOOK
        ========================================================================= */
     window.renderDeterministicTick = function(simTimeSec) {
+      deterministicMode = true;
       simPaused = true;
-      simTime = simTimeSec;
-      updateKinematics(0.016);
+      const targetSimTime = Math.max(0, simTimeSec);
+      if (targetSimTime < simTime) {
+        simTime = 0;
+      }
+      if (targetSimTime === 0) {
+        updateKinematics(0.001);
+        if (scene && renderer && currentPillar !== 1) {
+          update3DVisuals(0.001);
+          updateCameraRig(0.001);
+        }
+      } else {
+        while (simTime < targetSimTime) {
+          const nextSimTime = Math.min(targetSimTime, simTime + 0.05);
+          const stepDt = Math.max(0.001, nextSimTime - simTime);
+          simTime = nextSimTime;
+          updateKinematics(stepDt);
+          if (scene && renderer && currentPillar !== 1) {
+            update3DVisuals(stepDt);
+            updateCameraRig(stepDt);
+          }
+        }
+      }
       if (currentPillar === 1) {
         renderGisFrame();
       } else if (scene && renderer) {
-        update3DVisuals(0.016);
         controls.update();
         renderer.render(scene, camera);
         renderPiPSensor();
@@ -3856,6 +3888,9 @@
       populateOOB();
 
       const params = new URLSearchParams(window.location.search);
+      if (params.get('det') === '1') {
+        deterministicMode = true;
+      }
       const hashMatch = window.location.hash.match(/pillar=(\d)/);
       const initialPillar = parseInt(params.get('pillar') || (hashMatch ? hashMatch[1] : '1'));
       if (initialPillar === 2 || initialPillar === 3 || initialPillar === 4) {
@@ -3878,8 +3913,6 @@
           controls.update();
         } else if (viewParam === 'chase') {
           setCameraMode('chase');
-        } else if (viewParam === 'canyon') {
-          setCameraMode('canyon');
         } else if (viewParam === 'cockpit') {
           setCameraMode('cockpit');
         } else if (viewParam === 'god') {
@@ -3899,7 +3932,7 @@
       if (viewParam === 'canyon') {
         if (currentPillar === 1) switchPillar(2);
         setCameraMode('canyon');
-      } else if (canyonRunActive) {
+      } else if (canyonRunActive && params.get('det') !== '1') {
         for (let i = 0; i < 30; i++) {
           simTime += 0.05;
           updateKinematics(0.05);
@@ -3911,6 +3944,10 @@
       }
       if (params.get('night') === '1' || params.get('night') === 'true') {
         toggleNightMode();
+      }
+      if (params.get('det') === '1') {
+        const initialT = parseFloat(params.get('t') || '0');
+        window.renderDeterministicTick(Number.isFinite(initialT) ? initialT : 0);
       }
 
       window.addEventListener('resize', () => {

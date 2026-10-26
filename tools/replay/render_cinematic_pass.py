@@ -6,9 +6,8 @@ Operation Nexus campaigns. Renders discrete camera passes from the deterministic
 replay engine via headless Chrome and pipes frame sequences into FFmpeg.
 
 Supports dynamic event-driven clip durations and multi-camera Edit Decision Lists (EDLs).
-When deterministic-clock is enabled (&det=1), headless Chromium steps the simulation
-and rendering pipeline explicitly via `window.renderDeterministicTick(simTimeSec)`,
-guaranteeing zero dropped frames regardless of WebGL/shader compute load.
+The `--deterministic-clock` flag appends `det=1` to the harness URL so the visualizer
+halts wall-clock animation and steps to the query timestamp via `window.renderDeterministicTick`.
 
 Usage:
   python3 tools/replay/render_cinematic_pass.py --pass chase-viper --out viper_dogfight.mp4
@@ -22,8 +21,10 @@ from __future__ import annotations
 import argparse
 import json
 import shutil
+import subprocess
 import sys
-from dataclasses import dataclass
+import tempfile
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
 
@@ -219,7 +220,10 @@ def load_edl_file(edl_path: Path) -> list[dict[str, Any]]:
         raw_segments = data
     else:
         raise ValueError(f"Unrecognized EDL structure in {edl_path}")
-    return [dict(seg) for seg in raw_segments if isinstance(seg, dict)]
+    for index, seg in enumerate(raw_segments):
+        if not isinstance(seg, dict):
+            raise ValueError(f"Invalid EDL segment at index {index} in {edl_path}")
+    return [dict(seg) for seg in raw_segments]
 
 
 def calculate_edl_duration(edl_segments: list[dict[str, Any]]) -> float:
@@ -227,6 +231,38 @@ def calculate_edl_duration(edl_segments: list[dict[str, Any]]) -> float:
     if not edl_segments:
         return 0.0
     return max(float(seg.get("end_s", 0.0)) for seg in edl_segments)
+
+
+def resolve_edl_segment_pass(
+    seg: dict[str, Any],
+    default_pass_cfg: CameraPassConfig,
+) -> CameraPassConfig:
+    """Resolve a CameraPassConfig for a single EDL segment dictionary."""
+    pass_key = str(seg.get("camera_pass", default_pass_cfg.camera_shot_id))
+    base_cfg = CINEMATIC_PASSES.get(pass_key, default_pass_cfg)
+    view_preset = str(seg.get("view_preset", base_cfg.view_preset))
+    pip_mode = str(seg.get("pip_mode", base_cfg.pip_mode))
+    unit_raw = seg.get("unit", base_cfg.unit)
+    unit = str(unit_raw) if unit_raw is not None else None
+    return replace(base_cfg, view_preset=view_preset, pip_mode=pip_mode, unit=unit)
+
+
+def select_edl_pass_at_time(
+    edl_segments: list[dict[str, Any]],
+    sim_t: float,
+    default_pass_cfg: CameraPassConfig,
+) -> CameraPassConfig:
+    """Return the active CameraPassConfig at simulation timestamp sim_t."""
+    for seg in edl_segments:
+        start_s = float(seg.get("start_s", 0.0))
+        end_s = float(seg.get("end_s", 0.0))
+        if start_s <= sim_t < end_s:
+            return resolve_edl_segment_pass(seg, default_pass_cfg)
+    if edl_segments:
+        last_end_s = max(float(seg.get("end_s", 0.0)) for seg in edl_segments)
+        if sim_t >= last_end_s:
+            return resolve_edl_segment_pass(edl_segments[-1], default_pass_cfg)
+    return default_pass_cfg
 
 
 def build_harness_url(
@@ -237,9 +273,7 @@ def build_harness_url(
 ) -> str:
     """Generate local file URL with query parameters for headless browser.
 
-    When deterministic_clock is True, appends `det=1` to notify the visualizer harness
-    to pause wall-clock progression and expose `window.renderDeterministicTick(simTimeSec)`
-    for zero-dropped-frame frame stepping.
+    When deterministic_clock is True, appends `det=1` to the harness URL.
     """
     params = {
         "pillar": str(pass_cfg.pillar),
@@ -314,6 +348,18 @@ def build_chrome_capture_command(
     ]
 
 
+def find_chrome_binary() -> str | None:
+    """Locate an installed Chrome/Chromium executable for headless frame capture."""
+    mac_chrome = Path("/Applications/Google Chrome.app/Contents/MacOS/Google Chrome")
+    if mac_chrome.exists():
+        return str(mac_chrome)
+    for candidate in ("google-chrome", "chromium", "chromium-browser", "chrome"):
+        found = shutil.which(candidate)
+        if found:
+            return found
+    return None
+
+
 def run_tests() -> bool:
     """Validate harness URL generation, EDL parsing, and command syntax."""
     print("Testing Cinematic Pass Catalog completeness...")
@@ -348,6 +394,9 @@ def run_tests() -> bool:
         raise RuntimeError(f"Expected 42.0s duration for canyon-strike-dynamic, got {duration}")
     if len(edl) != 5:
         raise RuntimeError(f"Expected 5 segments in canyon-strike-dynamic, got {len(edl)}")
+    cut_cfg = select_edl_pass_at_time(edl, 20.0, CINEMATIC_PASSES["viaduct-tripod"])
+    if cut_cfg.camera_shot_id != "cockpit-canyon":
+        raise RuntimeError(f"Expected cockpit-canyon at 20.0s, got {cut_cfg.camera_shot_id}")
 
     print("Testing FFmpeg command builder for 9:16 vertical shorts...")
     cmd = build_ffmpeg_render_command(Path("test.mp4"), 1080, 1920, fps=60)
@@ -398,10 +447,7 @@ def main() -> None:
         "--deterministic-clock",
         action=argparse.BooleanOptionalAction,
         default=True,
-        help=(
-            "Enable deterministic virtual clock (&det=1) stepping via "
-            "window.renderDeterministicTick"
-        ),
+        help="Append det=1 to harness URLs so the visualizer runs in deterministic tick mode",
     )
     parser.add_argument(
         "--aspect",
@@ -451,20 +497,24 @@ def main() -> None:
     else:
         clip_duration = args.duration if args.duration is not None else 30.0
 
+    total_frames = max(1, round(clip_duration * args.fps))
     width, height = ASPECT_RATIOS[args.aspect]
     html_path = Path("tools/prototype/unified-visualizer.html")
     pass_cfg = CINEMATIC_PASSES[args.pass_id]
+    initial_pass_cfg = (
+        select_edl_pass_at_time(active_edl, 0.0, pass_cfg) if active_edl else pass_cfg
+    )
     url = build_harness_url(
         html_path,
-        pass_cfg,
+        initial_pass_cfg,
         deterministic_clock=args.deterministic_clock,
     )
     ffmpeg_cmd = build_ffmpeg_render_command(args.out, width, height, fps=args.fps)
 
-    print(f"=== Operation Nexus Cinematic Pass: [{pass_cfg.name}] ===")
-    print(f"  Pillar:             Pillar {pass_cfg.pillar}")
-    print(f"  Perspective:        {pass_cfg.view_preset} ({pass_cfg.description})")
-    print(f"  Duration:           {clip_duration:.1f}s")
+    print(f"=== Operation Nexus Cinematic Pass: [{initial_pass_cfg.name}] ===")
+    print(f"  Pillar:             Pillar {initial_pass_cfg.pillar}")
+    print(f"  Perspective:        {initial_pass_cfg.view_preset} ({initial_pass_cfg.description})")
+    print(f"  Duration:           {clip_duration:.1f}s ({total_frames} frames)")
     print(f"  Resolution:         {width}x{height} ({args.aspect}) @ {args.fps} FPS")
     det_flag = "1" if args.deterministic_clock else "0"
     print(f"  Deterministic Clock: {args.deterministic_clock} (det={det_flag})")
@@ -473,11 +523,19 @@ def main() -> None:
     if active_edl:
         print(f"  Camera EDL Segments ({len(active_edl)} cuts):")
         for idx, seg in enumerate(active_edl, 1):
-            s_from = seg.get("start_s", 0.0)
-            s_to = seg.get("end_s", 0.0)
+            s_from = float(seg.get("start_s", 0.0))
+            s_to = float(seg.get("end_s", 0.0))
             c_pass = seg.get("camera_pass", "custom")
             desc = seg.get("description", "")
+            seg_cfg = resolve_edl_segment_pass(seg, pass_cfg)
+            seg_url = build_harness_url(
+                html_path,
+                seg_cfg,
+                extra_params={"t": f"{s_from:.3f}"},
+                deterministic_clock=args.deterministic_clock,
+            )
             print(f"    [{idx}] {s_from:4.1f}s - {s_to:4.1f}s -> {c_pass} ({desc})")
+            print(f"          URL: {seg_url}")
 
     print("  Encoder Pipeline:")
     print(f"    {' '.join(ffmpeg_cmd)}")
@@ -486,10 +544,49 @@ def main() -> None:
         print("\n[Dry Run] Execution pipeline validated successfully.")
         sys.exit(0)
 
-    # Check for ffmpeg binary
+    if not args.deterministic_clock:
+        print("Error: Timestamped frame capture requires --deterministic-clock (det=1).")
+        sys.exit(1)
+
     if not shutil.which("ffmpeg"):
         print("Note: 'ffmpeg' not found in PATH. Install ffmpeg for live video encoding.")
-        sys.exit(0)
+        sys.exit(1)
+
+    chrome_bin = find_chrome_binary()
+    if not chrome_bin:
+        print("Note: Headless Chrome not found. Install Chrome/Chromium for frame capture.")
+        sys.exit(1)
+
+    with tempfile.TemporaryDirectory(prefix="nexus_cinematic_") as tmp_dir:
+        tmp_png = Path(tmp_dir) / "frame.png"
+        with subprocess.Popen(ffmpeg_cmd, stdin=subprocess.PIPE) as proc:  # noqa: S603
+            if proc.stdin is None:
+                raise RuntimeError("Failed to open FFmpeg stdin pipe")
+            for frame_idx in range(total_frames):
+                sim_t = frame_idx / float(args.fps)
+                frame_pass_cfg = (
+                    select_edl_pass_at_time(active_edl, sim_t, pass_cfg) if active_edl else pass_cfg
+                )
+                frame_url = build_harness_url(
+                    html_path,
+                    frame_pass_cfg,
+                    extra_params={"t": f"{sim_t:.3f}"},
+                    deterministic_clock=True,
+                )
+                capture_cmd = build_chrome_capture_command(
+                    frame_url,
+                    tmp_png,
+                    width,
+                    height,
+                    chrome_bin=chrome_bin,
+                )
+                subprocess.run(capture_cmd, check=True, capture_output=True)  # noqa: S603
+                if tmp_png.exists():
+                    proc.stdin.write(tmp_png.read_bytes())
+            proc.stdin.close()
+            ret = proc.wait()
+            if ret != 0:
+                raise RuntimeError(f"FFmpeg encoder exited with status {ret}")
 
 
 if __name__ == "__main__":
