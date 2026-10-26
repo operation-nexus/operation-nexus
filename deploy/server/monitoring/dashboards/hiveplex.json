@@ -798,13 +798,13 @@
    "title": "Rates and what is not here yet",
    "gridPos": {
     "x": 0,
-    "y": 44,
+    "y": 48,
     "w": 24,
     "h": 7
    },
    "options": {
     "mode": "markdown",
-    "content": "**Rates (from the owner's AES Ohio bill, usage 2026-08-22 to 2026-09-22, 213.08 kWh; derived by Claude, not billed per-kWh figures [UNVERIFIED]):**\n- Marginal rate used above: **$0.2094/kWh** = supply $23.13 / 213.08 kWh ($0.1086) + \"other delivery charges\" $21.48 / 213.08 kWh ($0.1008). It assumes \"other delivery charges\" scale with kWh. The $9.75 customer charge does not change with usage and is left out.\n- All-in average: $54.36 / 213.08 kWh = **$0.2551/kWh**. Choose it in the `rate` list at the top for a bill-share view.\n- Supply and delivery rates change; update the `rate` options when a new bill arrives. Taxes or riders not on the pasted lines are not included.\n\n**Not here yet:** the harness PC's own power (its plug is not installed) and a combined PC + server cost, the PC's GPU load, replay-archive size, and Loki logs. The PC's CPU, memory, disk and network come from windows_exporter."
+    "content": "**Rates (from the owner's AES Ohio bill, usage 2026-08-22 to 2026-09-22, 213.08 kWh; derived by Claude, not billed per-kWh figures [UNVERIFIED]):**\n- Marginal rate used above: **$0.2094/kWh** = supply $23.13 / 213.08 kWh ($0.1086) + \"other delivery charges\" $21.48 / 213.08 kWh ($0.1008). It assumes \"other delivery charges\" scale with kWh. The $9.75 customer charge does not change with usage and is left out.\n- All-in average: $54.36 / 213.08 kWh = **$0.2551/kWh**. Choose it in the `rate` list at the top for a bill-share view.\n- Supply and delivery rates change; update the `rate` options when a new bill arrives. Taxes or riders not on the pasted lines are not included.\n\n**Plugs:** the server's plug and the harness PC's plug both report (watts, volts, amps, energy). The last row adds them and applies the rate. A projection from a short window is rough: the PC's draw changes a lot with harness load and gaming, and the first PC reading was taken at idle.\n\n**Not here yet:** the PC's GPU load, replay-archive size, and Loki logs. The PC's CPU, memory, disk and network come from windows_exporter."
    }
   },
   {
@@ -1081,6 +1081,234 @@
      "displayMode": "list",
      "placement": "bottom"
     }
+   }
+  },
+  {
+   "id": 27,
+   "type": "stat",
+   "title": "Harness PC power now",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 44,
+    "w": 4,
+    "h": 4
+   },
+   "targets": [
+    {
+     "expr": "kasa_power_watts{plug=\"pc\"}",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "watt",
+     "decimals": 1
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "colorMode": "value",
+    "graphMode": "area"
+   }
+  },
+  {
+   "id": 28,
+   "type": "stat",
+   "title": "Harness PC energy today",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 4,
+    "y": 44,
+    "w": 4,
+    "h": 4
+   },
+   "targets": [
+    {
+     "expr": "kasa_energy_today_kwh{plug=\"pc\"}",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "kwatth",
+     "decimals": 3
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "colorMode": "value",
+    "graphMode": "area"
+   }
+  },
+  {
+   "id": 29,
+   "type": "stat",
+   "title": "Harness PC cost this month (marginal rate)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 8,
+    "y": 44,
+    "w": 4,
+    "h": 4
+   },
+   "targets": [
+    {
+     "expr": "kasa_energy_month_kwh{plug=\"pc\"} * $rate",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "currencyUSD",
+     "decimals": 2
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "colorMode": "value",
+    "graphMode": "area"
+   }
+  },
+  {
+   "id": 30,
+   "type": "stat",
+   "title": "Both machines power now",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 44,
+    "w": 4,
+    "h": 4
+   },
+   "targets": [
+    {
+     "expr": "sum(kasa_power_watts)",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "watt",
+     "decimals": 1
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "colorMode": "value",
+    "graphMode": "area"
+   }
+  },
+  {
+   "id": 31,
+   "type": "stat",
+   "title": "Both: cost this month so far",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 16,
+    "y": 44,
+    "w": 4,
+    "h": 4
+   },
+   "targets": [
+    {
+     "expr": "sum(kasa_energy_month_kwh) * $rate",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "currencyUSD",
+     "decimals": 2
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "colorMode": "value",
+    "graphMode": "area"
+   }
+  },
+  {
+   "id": 32,
+   "type": "stat",
+   "title": "Both: projected / month (24 h average)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 20,
+    "y": 44,
+    "w": 4,
+    "h": 4
+   },
+   "targets": [
+    {
+     "expr": "sum(avg_over_time(kasa_power_watts[24h])) * 24 * 30 / 1000 * $rate",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "currencyUSD",
+     "decimals": 2
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "colorMode": "value",
+    "graphMode": "area"
    }
   }
  ]
