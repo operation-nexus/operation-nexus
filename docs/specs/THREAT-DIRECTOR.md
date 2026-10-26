@@ -76,6 +76,165 @@ When nobody is playing, **and when viewers first arrive**, the Static mounts no 
 
 Config keys (CONFIG §6.7, all PROPOSED / TBD by harness): `director.pol.patrol_period_s`, `director.pol.convoy_period_s`, `director.pol.offensive_period_s`, `director.pol.convoy_kind`, `director.pol.patrols_per_base`, `director.pol.convoys_per_period`, `director.pol.offensives_per_period`, `director.pol.convoy_cost`, `director.garrison.kinds.<node kind>`, `director.garrison.replace_per_window`, `tasking.static_offense_min_tier`, `campaign.night_progress_cap_nodes_per_h`, `director.intercept.radius_m`, `director.intercept.reaction_s`, `director.intercept.pol_linger_s`, `director.intercept.leash_m`, `director.intercept.lost_s`, `tasking.priority.intercept`, `tasking.slots.intercept`, `director.provocation.weights.*` (including `.redemption.<type>`), `director.provocation.half_life_s`, `director.provocation.escalate_threshold`, `director.provocation.bravo_threshold`, `director.op_priority.<op>`, `director.score.*`. Routine Recon at Pattern of Life is scored like any operation; there is no separate cadence key.
 
+## 5b. Active defense (owner, 2026-10-26, NX-424; Q-TD-44)
+Status: Draft (needs owner sign-off before code) · Tracker: NX-424 · Inputs: Q-TD-44 (G1 to G4 and the owner's "real threats only" rule), Q-SIM-96, Q-TD-46, ECONOMY EC-3, FOG-OF-WAR FOW-4 and FOW-8
+
+**Purpose.** A side's AI answers a real attack on one of its nodes with units it already has. Fighters go after attacking aircraft; armor reinforces the node against attacking ground units. Nothing is spawned and nothing is bought. Viewers see a base fight back, so a strike on a Static base meets its idle fighters, and a careless strike package pays for it. The Static and the coalition's AI garrison use the same rule and the same keys (G4, EC-3).
+
+This section composes existing mechanics: the Static's Tasking Board, the scout-intercept job and leash (§5a, Q-SIM-96), DEFEND jobs (GAMEPLAY §1b) and the garrison recall (Q-SIM-86). It adds no unit power (GAMEPLAY §0). Values in this section are PROPOSED. Readings marked "lead reading" are open below.
+
+**Seams in code today (for the builder; read-only facts).**
+- The scout intercept is the model. `tasking_gen.watched` picks the tracked contacts near held nodes and reads the truth only for liveness (`services/sim/src/nexus/core/tasking_gen.py:196-209`). `tasking._watch` keeps its clock in `World.intercept_seen` before each Static pass (`tasking.py:404-405`, `tasking.py:423-427`). `tasking_gen._intercept` posts `intercept:<entity>` once the wait has passed (`tasking_gen.py:499-512`).
+- A chase follows the side's track, never the true position, and releases a garrison claimant past its leash (`tasking.py:539-569`, `_in_leash` and `_chase`). The job ends DONE on a kill, else EXPIRED when lost or out of range (`tasking.py:572-581`, `tasking.py:651-655`). At its end an aircraft stops where it is (`tasking.py:700-701`).
+- DEFEND is generated for a held, capturable node with a tracked enemy GROUND unit inside `tasking.defend_radius_m` (10,000 m, `balance/default.yaml:177`), with no armed or closing test (`tasking_gen.py:382-404`). It ends DONE when a claimant stands at the node and the node is no longer menaced, FAILED when the node is lost (`tasking.py:600-626`).
+- A garrison unit (`Entity.home`, `world.py:328-330`) is given only a DEFEND of its home or an intercept within its leash (`tasking.py:897-908`). An idle garrison unit away from its home is sent back at the next decision window (`launch.py:803-814`). An operation never reuses a garrison unit (`launch.py:817-822`).
+- "Idle" for the board means no job, no order, no path, not Disabled, not RTB, not grounded (`tasking_gen.py:212-219`). Assignment takes idle units in id order, best job first (`tasking.py:911-937`).
+- The coalition's AI garrison in code today is its facilities only: setup spawns them as `AI_GARRISON`, STATIC domain (`services/sim/src/nexus/runtime/campaign_config.py:243-254`). The Static's garrison is mobile and homed (`campaign_config.py:225-240`). The coalition has no mobile AI unit yet.
+
+**AD-1 Threat (G1, owner rule).** A *threat* to a side is an enemy unit that meets all of these at a board pass:
+1. It is in the side's `SideView` as a current track (`Contact.age` is None, `world.py:368-378`). A last-known track, a SIGINT blob or a discovered marker never counts (TD-2, FOW-4).
+2. Its kind is armed: it is in `rules.armed`, the kinds whose catalog lists weapons (`rules.py:1094`). It is the catalog, not the unit's live ammo, which is hidden state (as escorts read it, GAMEPLAY §1b, Q-SIM-76).
+3. Its domain is AIR or GROUND. STATIC facilities never move, so they are never threats.
+4. It is not a scout the intercept rule watches: a painter aircraft (`rules.painters`) stays under §5a only. Today both painter kinds are unarmed (`content/units/recon-uav.yaml:20`, `content/units/enemy-recon-uav.yaml:20`), so rule 2 already excludes them. Rule 4 keeps an armed painter added later from drawing two jobs.
+5. It is still alive and not Disabled: a liveness read of the truth, the same exception `watched` makes, so a wreck that stays tracked is not answered.
+6. It is **closing** on a node the side holds (AD-2).
+
+Unarmed units (scouts, trucks, convoys) never count. A unit passing by, loitering or leaving is not a threat.
+
+**AD-2 Closing (owner pick, 2026-10-26).** Closing is measured per pair (enemy unit, node the side holds), only at board passes (every `tasking.reeval_every_ticks`, 50 ticks, `balance/default.yaml:149`):
+- At each pass, for each pair where the unit meets AD-1 rules 1 to 5 and its track lies within `director.defense.radius_m` of the node, the side records a sample (pass tick, range). Range is the straight-line distance from the track's position to the node's position, in metres (`math.hypot`, as `held_within` and `_defend` compute it).
+- A pair whose unit is not tracked at a pass, is tracked only as last-known, or is outside the radius at a pass, loses all its samples. The clock starts over (as the intercept clock does).
+- Samples older than the window are dropped. The **window start** is the newest sample whose tick is at or before `now − reaction`, where `reaction` is `director.defense.reaction_s` in ticks, rounded up. Every sample after it is kept.
+- The pair is **closing** at this pass when it has a window-start sample, so it was continuously in the radius for at least `reaction`, and `range_now ≤ range_start − director.defense.closing_min_m`.
+- `closing_min_m` exists so a unit circling the node at a steady range, or drifting by a few metres, does not count. It is a proposed key (open question 1). With it at 0 any shrink counts.
+- This is a sliding window (lead reading, open question 2): it compares the range now with the range `reaction` ago, so a unit that loitered for ten minutes and then edges in counts only once it has closed by the margin over the last `reaction`.
+
+A unit closing on several nodes is one threat. Its **target node** is the one with the smallest `range_now`, ties by node id.
+
+Known limit, accepted by the owner's rule: a unit flying a straight line past a node closes during the first half of its pass. It can become a threat before it turns away. When it then leaves, an unclaimed job is dropped at once (AD-4), and a claimed one ends by the AD-5 rules.
+
+**AD-3 Responders (G2).** A responder is a unit of the side that is all of these:
+- **Owned by the side's AI.** For the Static: `ENEMY_DIRECTOR`. For the coalition: `AI_GARRISON` (open question 9). A viewer's unit is never a responder.
+- **Idle by the board's test** (`tasking_gen.is_idle`), so it is not Disabled, not RTB, not grounded (ECONOMY EC-6) and holds no job. Units on an operation's job (STRIKE, CAPTURE, ESCORT_CONVOY, RESUPPLY, SCOUT, PATROL, INTERCEPT) are never pulled off it. A unit holding an arrived STAGE claim is the open case (open question 4).
+- **Within its leash, if it has a home.** A garrison unit responds only when the anchor point lies within `director.defense.leash_m` of its home. For an air threat the anchor is the threat's track (checked when it takes the job and at every pass after, as `_chase` does for intercepts). For a ground threat the anchor is the target node (fixed, checked when it takes the job). A unit with no home has no leash, as `_in_leash` reads it today (open question 5). Its own feasibility rules still bound it (fuel and bingo, road route, ring crossing).
+- **The right tool for the threat.** For an **air threat**: an AIR unit with a round that can hit the threat's domain and altitude band (`tasking_gen.can_hit`, `tasking_gen.py:172-182`), so fighters intercept. For a **ground threat**: a GROUND unit that can hit it, so armor reinforces. Aircraft do not answer ground threats (G2 as written; open question 12).
+- **Not already the node's own defender.** For a ground threat, a unit homed at the target node is not a responder: it already takes that node's `defend:<node>` job. For an air threat there is no such job, so the target node's own garrison fighters do respond. This is the acceptance case (NX-424): "a tracked strike group near a Static base draws its idle fighters".
+
+**AD-4 The response job.** The side's board generates one job per threat, in the generate step (`tasking_gen.generate`, `tasking_gen.py:257-273`), from the side's view only (TB-9, TD-2):
+- Key `respond:<entity>` (name PROPOSED), added to the board's `GENERATED` prefixes (`tasking_gen.py:99-109`). `Job.entity` is the threat. `JobCreated.entity_id` names it, which FOW-8 allows because the side tracks it.
+- **Air threat:** kind `INTERCEPT`. `Job.pos` is the side's track of the threat, re-aimed at every pass, never its true position. Claimants fly to the track (the `_chase` rule). Priority `tasking.priority.intercept` (45: below DEFEND, above STRIKE).
+- **Ground threat:** kind `DEFEND`. `Job.node` is the target node. Claimants drive there by road and hold it, engaging by COMBAT's ordinary rules. Priority `tasking.priority.defend` (60).
+- Urgency 1.0. Slots `director.defense.max_responders`. **Overfill never applies** (as for a Recon point job, `tasking.py:290-298`), so the cap is hard: at most `max_responders` claimants per threat at any time.
+- The board posts it only while the side has a live unit that could be a responder for it (AD-3). For the coalition this is narrower than the usual staffing rule, which also counts roles a viewer could JOIN (`tasking_gen.py:242-248`).
+- **Generation stops when the threat is no longer closing.** By the board's existing rule an unclaimed generated job that is not generated again expires at once (`tasking.py:414-417`). A claimed job stays until its outcome (AD-5). So a strike package that arrives and orbits over the base keeps its responders (lead reading, open question 3) but draws no new job.
+- With `max_responders` at 0, nothing is generated (the off switch, open question 14).
+
+**AD-5 Release and return (leash).**
+- **DONE** when the threat is destroyed or Disabled and the job has a participant, else EXPIRED (the intercept rule).
+- **EXPIRED** when the side has not tracked the threat for `director.defense.lost_s` (`Job.lost`, as intercepts count it), or when its last track is no longer within `director.defense.radius_m` of any node the side holds.
+- **FAILED** (ground job only) when the side loses the target node (the DEFEND rule).
+- **Leash.** A garrison claimant of an air job whose threat's track passes its leash is released (`JobReleased`) and stops, as in `_chase`.
+- **Afterwards.** An aircraft stops where it is when the job ends, and a ground unit stays at the node. Each is then an ordinary idle unit. A garrison unit away from its home is recalled at the next decision window (`launch._recall`). A unit with no home may be reused by a later operation or retired after `director.idle_retire_s` (Q-SIM-84). A responder is not idle while it holds the job, so it is not retired during a response.
+- A responder that loses its claim (lost, Disabled, sent home at bingo) frees its slot. Another responder may take the slot, still within the cap.
+
+**AD-6 Operations, staging and the hold response.**
+- **Not an operation.** Active defense is board work, not a Director operation. It has no catalog entry, does not count against `director.max_ops.<tier>` or `director.max_spawns_per_window`, does not stamp `DirectorState.last_operation`, and is never staged (§4a).
+- **Operations keep their units.** Responders are idle, so no operation loses a unit on a job. An operation's reuse of idle units (`launch._reusable`) cannot take a unit while it responds. Garrison units are never reused, as today.
+- **Staging (§4a).** A staged operation in `DirectorState.staged` has no units yet, so it is unaffected. The staging base's stock target is unaffected. Units holding a STAGE claim: open question 4.
+- **Hold response (Q-TD-46, NX-430).** Independent. The hold response's capture operations put the Static's units on CAPTURE and STRIKE jobs, so they are never responders. When the coalition has mobile AI garrison units, the Static's hold-response jets closing on a hold node are threats to the coalition under AD-1, by the same rule (G4).
+- **Scout intercept (§5a).** Unchanged. A scout never draws a `respond:` job (AD-1 rule 4). A unit on an intercept is not idle, so it is never pulled.
+- **Escorts.** Units following a convoy hold a job or a follow order, so they are not responders.
+
+**AD-7 Cost and budget.** A response spawns nothing and buys nothing:
+- No `UnitSpawned`, no `SupplyConsumed{SPAWN}`, no draw on the window budget (step 2), the rear account or the pool.
+- Responders spend fuel and rounds, which the ordinary refuel and rearm rules restock at a landing base from its stock (GAMEPLAY §5b). That is the only cost, and it already applies to any sortie.
+- **Upkeep (EC-4 to EC-6) is unchanged.** One side effect: a responder holds a claimed job, so it is *busy* for the payment order (EC-6) and is paid before idle units at its home.
+- **No provocation and no threat memory from responding.** A Static responder's hits land on coalition units, which is not a provocation (the victim is not the Static's, §7a). A coalition AI garrison's hits on Static units add `director.provocation.ai_shooter_mult` × the weight, 0 by default (`services/sim/src/nexus/core/provocation.py:8-10`, `provocation.py:102-103`). Posting, claiming and ending a `respond:` job note nothing.
+
+**AD-8 The coalition's AI garrison (G4, EC-3).** The same rule, the same keys and the same job, generated on the coalition's board from the coalition's view.
+- Only `AI_GARRISON` units respond (AD-3). This is defense of its own nodes, so it does not break "the AI garrison never initiates offense" (GAMEPLAY §1b). A DEFEND is already in `tasking.ai_jobs`, and `_may_take` already lets an AI unit take an INTERCEPT by itself (`tasking.py:308-314`).
+- **Inert in code until the coalition has mobile AI units.** Its AI garrison is facilities today, which cannot move. The leash needs a home, and `Entity.home` is refused on a unit that is not the Director's (§7a Part 3 load checks). Open question 10.
+- Viewer units neither take nor see `respond:` jobs as their own work (open question 9). They keep the ordinary DEFEND and NEEDED list.
+
+**AD-9 Fog of war (FOW-4, FOW-8, TD-2).** Detection, closing, the target node and the job's position read only the side's view: current tracks and node positions and owners. The one read of the truth is liveness (AD-1 rule 5), the same exception the scout intercept makes. Responders chase the track, never the true position. A threat the side does not track draws nothing. Two worlds that differ only in an untracked enemy unit give the same board. No sitrep is added (G3). The job's lifecycle events (`JobCreated`, `JobClaimed`, `JobDone`, ...) are what the overlay may call out; the callout is OVERLAY work.
+
+**AD-10 Determinism and state.**
+- Order: the boards run COALITION then ENEMY, as today (`tasking.py:383-420`). For each side the samples are updated after settling and before generation, in the slot where `_watch` runs for the Static. Pairs are taken in (entity id, node id) order, threats in entity id order. The target node is the smallest range, ties by node id. Responders are assigned by the board's existing rule: idle units in id order, jobs in rank order, equal-priority runs ordered by one `tasking` draw each (SC-5).
+- No new RNG stream and no draw in detection or generation. With responders on, the board holds more jobs, so the `tasking` draws in equal-priority runs change and goldens change. With `max_responders` 0 nothing is posted and no draw changes, so goldens are unchanged.
+- Ranges are floats from `math.hypot` on track positions, compared directly, as `_defend` and `held_within` already do. The same inputs give the same result on one thread (SIM-CORE).
+- **State:** the closing samples, for example `World.defense_seen` (side → (entity id, node id) → ascending list of (pass tick, range)), are world state, in the snapshot and the hash, with a snapshot format bump. Restore refuses: a tick past the clock, a sample list not ascending by tick, a node that is not a theater node, and an entity id that does not exist. There is no upper bound tied to `reaction_s`, because a hot reload may change it (as with `blink_ready`, §7a Part 2). On a hot reload the window simply uses the new value at the next pass.
+- **Time (TD-1).** Board passes never run while frozen (SC-11), so a pause freezes the samples. `reaction_s` and `lost_s` are game time, counted in running ticks, so `sim.time_scale` changes no count.
+- **Size.** At most one sample list per (tracked enemy unit, held node in radius), each at most `reaction / reeval + 1` samples long at the shipped values (13 at 60 s and 50 ticks). The pass cost must stay inside SC-10; a perf test checks it (below).
+
+**AD-11 Proposed balance keys (PROPOSED, all; added through the add-config-key skill at build time).**
+
+| Key | Type | Unit | PROPOSED default | x-tune (min to max, step, scale) | Hot reload | Notes |
+|---|---|---|---|---|---|---|
+| `director.defense.radius_m` | number > 0 | m | 30000 (PROPOSED: the intercept radius, `balance/default.yaml:314`) | 10000 to 60000, step 1000, LINEAR | Yes | An armed enemy tracked this close to a held node is sampled (AD-2). |
+| `director.defense.reaction_s` | number > 0 | s (game) | 60 (PROPOSED: the intercept reaction, `balance/default.yaml:315`) | 20 to 180, step 5, LINEAR | Yes | The closing window (AD-2). |
+| `director.defense.closing_min_m` | number ≥ 0 | m | 250 (PROPOSED; open question 1) | 0 to 2000, step 50, LINEAR | Yes | How much the range must shrink over the window. At the shipped catalog speeds, infantry at 5 m/s closes 300 m in 60 s (`content/units/garrison-infantry.yaml:8`); a jet at 250 m/s closes 15,000 m (`content/units/strike-fighter.yaml:8`). |
+| `director.defense.max_responders` | integer ≥ 0 | units | 2 (PROPOSED: `tasking.slots.defend`, `balance/default.yaml:167`) | 0 to 4, step 1, LINEAR | Yes | Hard cap of claimants per threat; 0 turns active defense off. |
+| `director.defense.leash_m` | number > 0 | m | 80000 (PROPOSED: the intercept leash, `balance/default.yaml:317`) | 20000 to 160000, step 5000, LINEAR | Yes | A garrison unit responds only within this distance of its home (AD-3; open question 6). |
+| `director.defense.lost_s` | number > 0 | s (game) | 120 (PROPOSED: the intercept's, `balance/default.yaml:318`) | 60 to 240, step 10, LINEAR | Yes | A response ends once its threat was untracked this long (AD-5; open question 7). |
+
+All are category DIRECTOR, audience TUNER, edit role ADMIN, status PROPOSED, source THREAT-DIRECTOR §5b, as the `director.intercept.*` keys are (`contracts/config/balance.json:2818-2828`). No priority or slot key is new: the jobs use `tasking.priority.intercept` and `tasking.priority.defend` (open question 15).
+
+**AD-12 Tests (acceptance).**
+- **NX-424 acceptance.** A seeded world: two coalition STRIKE_FIGHTERs that the Static tracks fly straight at a Static AIRBASE whose garrison fighters are idle. After `reaction_s` the Static's board posts one `respond:<id>` INTERCEPT per jet. The garrison fighters claim them, at most `max_responders` per jet. The run emits no `UnitSpawned` and no `SupplyConsumed{SPAWN}` from it, and the window budget and every stock are the same as in a run with `max_responders` 0, before the first shot.
+- **Real threats only.** No job is posted for: a jet flying a constant-range circle round the base; a jet flying away; a jet that closes by less than `closing_min_m` over the window; a RECON_UAV or a LOGI_TRUCK closing (the scout still gets its intercept, §5a); a unit tracked only as last-known.
+- **Continuity.** One pass with the unit untracked, or outside the radius, resets the clock: the job comes `reaction` after it is tracked again, not before.
+- **Sliding window.** A jet that loiters at 25 km for 10 minutes and then holds still draws nothing. When it then closes by the margin over one window, it draws a job at that pass.
+- **Fog (TD-2).** Two worlds that differ only in a closing coalition jet the Static does not track give the same board and the same events. Every `respond:` job references a tracked entity.
+- **Cap.** Five idle fighters and one threat with `max_responders` 2: never more than 2 claimants, also when every other job is full (no overfill).
+- **Leash.** A garrison fighter whose home is farther than `leash_m` from the track does not take the job. One that took it is released when the track passes the leash, stops, and is recalled home at the next window.
+- **Ground.** A coalition GARRISON_INFANTRY closing on a Static FOB draws a `respond:<id>` DEFEND taken by idle armor homed at a neighbouring base within the leash. Armor homed at the FOB takes `defend:<fob>`, not the response. The job FAILS when the FOB falls.
+- **Never pulled.** Units on STRIKE, CAPTURE, ESCORT_CONVOY, PATROL, SCOUT, RESUPPLY or INTERCEPT jobs, grounded units and RTB units never take a `respond:` job.
+- **Outcomes.** DONE when the threat is destroyed or Disabled with a participant. EXPIRED after `lost_s` untracked, or when the track leaves every held node's radius. An unclaimed job is dropped at the first pass at which the threat is no longer closing.
+- **No side effects.** Responding adds no provocation and no threat memory, launches no operation and leaves `last_operation`, `max_ops` and staging unchanged.
+- **Parity (EC-3).** A mirrored hand-built world where the coalition has an `AI_GARRISON` fighter with a home gives the mirrored jobs and claims. A viewer's unit never takes a `respond:` job.
+- **Determinism.** Same seed, same events. A snapshot taken mid-window and restored gives the same events. A pause freezes the samples. With `sim.time_scale` ≠ 1 the job comes after the same number of ticks. With `max_responders` 0 the goldens are byte-identical to the build before.
+- **Load checks.** A restore refuses each AD-10 case.
+- **Perf.** A pass with 500 enemy units tracked near held nodes stays inside SC-10 (marker `perf`).
+
+**AD-13 Harness metrics to sweep (NX-031).** Sweep `radius_m`, `reaction_s`, `closing_min_m`, `max_responders` and `leash_m` (and `lost_s` once) over the x-tune ranges, at the crowd profiles (§1), and report:
+- responses posted per game hour, and the share that got a claimant;
+- time from the threat's first sample to the first claim;
+- threats destroyed or Disabled while a response ran, and responders lost per response;
+- coalition strike success on Static bases (the STRIKE jobs that reach DONE), with active defense on and off;
+- false alarms: responses that ended EXPIRED with no shot fired by either side;
+- base exposure: game minutes a Static base had none of its garrison at home while a response ran;
+- the stock spent on responders' refuel and rearm;
+- STAGE jobs that failed because a staged unit responded (only if open question 4 lets staged units respond);
+- tick time p99 with active defense on and off.
+
+**AD-14 Non-goals.**
+- No spawning, no purchase, no new unit and no new unit power.
+- No new sitrep (G3).
+- Not an operation: no catalog entry and no LLM or GM involvement. A GM may still inject jobs as §6a allows.
+- No reaction to unarmed units. Scouts stay under §5a.
+- No prediction from ground truth: no reaction to an untracked unit, no lead on a hidden heading.
+- No change to facilities: air-defense sites already fire by COMBAT's rules.
+- No automation of viewer units.
+- No pursuit beyond the leash, and no counterattack on the attacker's base. Retake stays an operation.
+- No tier change from responding: active defense is not provocation.
+
+**AD-15 Open questions (each with a recommendation; none decided here).**
+1. **Closing margin.** Is `director.defense.closing_min_m` needed? **Rec:** yes, one key in metres, PROPOSED 250 m, so a steady orbit or jitter never counts. Alt: 0 (any shrink counts), or a margin scaled by speed.
+2. **Window form.** Compare the range now with the range `reaction` ago (sliding), or with the range when the unit first entered the radius? **Rec:** sliding (AD-2). It matches "shrank over that time" and ignores an old loiter. Lead reading, owner may veto.
+3. **Latching.** Once a response is claimed, does it run until its threat ends even if the threat stops closing (a package orbiting over the base)? **Rec:** yes. The board already keeps claimed jobs, and an orbiting striker is still attacking. An unclaimed response is dropped.
+4. **"Staged units" (G2).** Units holding a STAGE claim have a job. **Rec:** an arrived STAGE claimant may answer a threat to its own staging base only. Taking the response releases its STAGE claim, and the STAGE job follows its existing rules (it FAILS with no claimant left). Units freed after a STAGE ends are idle and respond normally. Alt: STAGE claimants never respond.
+5. **Leash for units with no home.** **Rec:** none, as `_in_leash` reads it today. Fuel, road and ring rules still bound them. Alt: `leash_m` measured from the unit's position when it takes the job.
+6. **Leash key and measure.** Reuse `director.intercept.leash_m`, or a new `director.defense.leash_m`? One leash for air and ground? **Rec:** a new key (the two rules tune apart), one value for both domains, straight line from home to the track (air) or to the target node (ground). Alt: a per-domain leash, or road distance for ground.
+7. **`lost_s`.** Reuse `director.intercept.lost_s`? **Rec:** a new key with the same default, so the two rules can be swept apart.
+8. **Tiers.** Does active defense run at Pattern of Life, and with the same reaction? **Rec:** every tier, the same reaction. Only an armed unit closing on a node counts, and defending is not escalation. Alt: a longer wait at Pattern of Life, like `director.intercept.pol_linger_s`.
+9. **Coalition responders.** AI garrison only, or also viewer units on the board? **Rec:** AI garrison only, never a parameterless JOIN, so "nothing spawned" holds literally and viewers keep their own DEFEND and NEEDED list.
+10. **Coalition leash anchor.** `Entity.home` is Director-only. **Rec:** when the coalition gets mobile AI garrison units (with NX-375 or a garrison item), they get a `home` by the same rule, and AD-8 starts working then. Until then it is inert, and a test uses a hand-built unit. Alt: anchor on `home_base`, the upkeep home (EC-4), which moves when the unit lands elsewhere.
+11. **Which nodes.** **Rec:** air threats: every node the side holds, as the scout intercept does (`held_within`). Ground threats: held capturable nodes only, as DEFEND (`tasking_gen.py:387`), since a DEFEND of a sanctuary or a bridge has nothing to hold.
+12. **Aircraft against ground threats.** Armed aircraft fit DEFEND today (`tasking_gen.py:155-156`). **Rec:** no; G2 pairs fighters with aircraft and armor with DEFEND. Revisit if the harness shows ground raids going unanswered at airbases.
+13. **Job kinds.** Reuse `INTERCEPT` and `DEFEND` with the new key prefix, or add a JobKind? **Rec:** reuse. No contract change (AGENTS rule 6). The outcome rules branch on the key prefix.
+14. **Ship on or off.** **Rec:** ship on with the PROPOSED values, goldens regenerated in the same PR, `max_responders` 0 as the off switch. Alt: ship 0 until the sweep.
+15. **Priorities.** **Rec:** reuse `tasking.priority.intercept` (air) and `tasking.priority.defend` (ground). A separate key only if the sweep shows responses starving intercepts or the reverse.
+
 ## 6. LLM advisor (P4, optional)
 - **Input:** a structured summary built from ids, sectors, counts and threat memory, plus the top-K candidate operations. It includes **no user strings** (SEC-LLM-4).
 - **Output:** `{choice_index:int, op_name:str ≤ 40 chars, rationale:str ≤ 140 chars}`. The schema is validated, and the text is moderated.
@@ -207,4 +366,4 @@ ECONOMY ([ECONOMY](ECONOMY.md)) is approved and lands in parts (NX-412); what fo
 - **Cooldown.** `DirectorState.bridge_ready` maps a bridge to the running tick from which it may be a target again: at `BridgeRepaired` (`bridges.repair` calls `provocation.bridge_repaired`), each directed side stamps the repair's running tick + `director.strike_bridge.cooldown_s` (1800 game s, PROPOSED) as ticks. A never-repaired bridge has no entry; entries are not pruned (at most one per bridge). In the snapshot (format 27) and the hash; a restore refuses a key that is not a bridge (no upper bound on the tick: a hot reload may have shortened the cooldown since the stamp).
 
 ## 8. Open questions
-Decided and folded in: Q-GD-4 (amended), Q-GD-22, Q-GD-30, Q-GD-34, Q-GD-37, Q-AI-7, Q-AI-8, Q-AI-9, Q-RB-6, Q-RB-7, Q-OPS-8, Q-OPS-9, Q-CFG-8, Q-BRAND-4, Q-ALN-2, Q-ALN-3, Q-ALN-4, Q-ALN-10, Q-ALN-11, Q-ALN-12, Q-ALN-13, Q-ALN-17. Forward reference: Q-GD-38 (lieutenants, NX-317). Decided and folded in (2026-10-18, second batch): Q-ALN-23 (game time for the director's timers, TD-1), Q-ALN-24 (director overrides rejected while paused, TD-1). Decided and folded in (2026-10-18, third batch): Q-ALN-35 (CHARLIE warning lead time on game time, §3, TD-1), Q-ALN-36 (advisor choices and GM commands rejected while paused, TD-1), Q-ALN-42 (crowd profiles, §1). Nothing is open here. Decided in the 2026-10-19 grilling: Q-TD-1 to Q-TD-10 (OPEN-QUESTIONS, "THREAT-DIRECTOR grilling").
+Decided and folded in: Q-GD-4 (amended), Q-GD-22, Q-GD-30, Q-GD-34, Q-GD-37, Q-AI-7, Q-AI-8, Q-AI-9, Q-RB-6, Q-RB-7, Q-OPS-8, Q-OPS-9, Q-CFG-8, Q-BRAND-4, Q-ALN-2, Q-ALN-3, Q-ALN-4, Q-ALN-10, Q-ALN-11, Q-ALN-12, Q-ALN-13, Q-ALN-17. Forward reference: Q-GD-38 (lieutenants, NX-317). Decided and folded in (2026-10-18, second batch): Q-ALN-23 (game time for the director's timers, TD-1), Q-ALN-24 (director overrides rejected while paused, TD-1). Decided and folded in (2026-10-18, third batch): Q-ALN-35 (CHARLIE warning lead time on game time, §3, TD-1), Q-ALN-36 (advisor choices and GM commands rejected while paused, TD-1), Q-ALN-42 (crowd profiles, §1). Open: §5b active defense (Draft), AD-15, rows Q-TD-58 to Q-TD-61. Decided in the 2026-10-19 grilling: Q-TD-1 to Q-TD-10 (OPEN-QUESTIONS, "THREAT-DIRECTOR grilling").
