@@ -14,7 +14,9 @@ The `combat` slot, each running tick (not while frozen, SC-11), in this order:
    **Structures (CB-10, Q-SIM-71):** a weapon whose `targets` include STRUCTURE with no valid unit
    target in range (units always come first) fires at the defense HP of the nearest node, ties by
    id, that the enemy owns and whose HP is above 0, within `range_m` of the node's position (nodes
-   are always known, FOW-10, so no track is needed). Before that fallback, a unit holding a STRIKE
+   are always known, FOW-10, so no track is needed). With `combat.strike_structure_first` (Q-TD-55,
+   default off) a unit holding a STRIKE claim on such a node fires at it before any unit target,
+   either side alike. Before that fallback, a unit holding a STRIKE
    claim on a bridge fires at the bridge (`nexus.core.bridges.target`, Q-SIM-105); a direct GOTO
    order to one never does (Q-SIM-124). The hit that drops it destroys the ground units on it
    (`bridges.collapsing`, Q-SIM-112).
@@ -130,7 +132,9 @@ def _fire(world: World, rules: Rules, cr: CombatRules, now: int, out: list[Event
         for i in ready:
             w = loadout[i]
             pick: tuple[Entity | str, float] | None = None
-            if e.id in world.group_threat:  # an escort shoots its group's threats first (Q-SIM-76)
+            if cr.strike_structure_first and _STRUCTURE in w.targets:  # before units (Q-TD-55)
+                pick = _strike_node(world, rules, w, e, pinned)
+            if pick is None and e.id in world.group_threat:  # an escort's threats first (Q-SIM-76)
                 own = group_levels.setdefault(
                     world.group_threat[e.id],
                     _levels(rules, cr, _group_targets(world, rules, e.id)),
@@ -220,23 +224,46 @@ def _pick(
 def _pick_node(
     world: World, rules: Rules, w: WeaponRules, shooter: Entity, pinned: frozenset[str]
 ) -> tuple[str, float] | None:
-    """The nearest enemy-owned node with defense HP in range, ties by node id (CB-10). Never the
-    Static's rear source (it cannot be captured and the Static has no defeat) nor a node held at
-    its idle floor (the coalition sanctuary at 1 hp while nobody plays)."""
+    """The nearest enemy-owned node with defense HP in range, ties by node id (CB-10)."""
     best: tuple[float, str] | None = None
-    rear = rules.supply.rear["ENEMY"]  # the Static's rear source: no win effect (Q-SIM-64)
-    for node, hp in world.defense_hp.items():  # id order
-        if (
-            hp
-            and node not in pinned
-            and node != rear
-            and world.owner[node] not in (shooter.side, "NEUTRAL")
-        ):
-            x, y = rules.roads.pos[node]
-            d2 = (shooter.pos.x - x) ** 2 + (shooter.pos.y - y) ** 2
-            if d2 <= w.range_m**2 and (best is None or d2 < best[0]):
-                best = (d2, node)
+    for node in world.defense_hp:  # id order
+        d2 = _node_d2(world, rules, w, shooter, pinned, node)
+        if d2 is not None and (best is None or d2 < best[0]):
+            best = (d2, node)
     return None if best is None else (best[1], best[0])
+
+
+def _strike_node(
+    world: World, rules: Rules, w: WeaponRules, shooter: Entity, pinned: frozenset[str]
+) -> tuple[str, float] | None:
+    """The node of `shooter`'s STRIKE job, when `_pick_node` could take it (CB-10 with
+    `combat.strike_structure_first`, Q-TD-55; a bridge has no defense HP, so it keeps its own
+    order, `bridges.target`); else None."""
+    job = None if shooter.job_id is None else world.boards[shooter.side].get(shooter.job_id)
+    node = job.node if job is not None and job.kind == "STRIKE" else None
+    if node is None or node not in world.defense_hp:
+        return None
+    d2 = _node_d2(world, rules, w, shooter, pinned, node)
+    return None if d2 is None else (node, d2)
+
+
+def _node_d2(
+    world: World, rules: Rules, w: WeaponRules, shooter: Entity, pinned: frozenset[str], node: str
+) -> float | None:
+    """The squared distance to `node` when `w` may fire at its defenses (CB-10): the enemy owns
+    it, its HP is above 0 and it is in range. Never the Static's rear source (it cannot be
+    captured and the Static has no defeat) nor a node held at its idle floor (the coalition
+    sanctuary at 1 hp while nobody plays)."""
+    if (
+        not world.defense_hp[node]
+        or node in pinned
+        or node == rules.supply.rear["ENEMY"]  # the Static's rear source: no win effect (Q-SIM-64)
+        or world.owner[node] in (shooter.side, "NEUTRAL")
+    ):
+        return None
+    x, y = rules.roads.pos[node]
+    d2 = (shooter.pos.x - x) ** 2 + (shooter.pos.y - y) ** 2
+    return d2 if d2 <= w.range_m**2 else None
 
 
 def _shoot(
