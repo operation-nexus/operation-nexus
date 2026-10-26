@@ -7,10 +7,10 @@
  ],
  "timezone": "browser",
  "schemaVersion": 39,
- "version": 1,
+ "version": 2,
  "refresh": "10s",
  "time": {
-  "from": "now-6h",
+  "from": "now-1h",
   "to": "now"
  },
  "templating": {
@@ -48,7 +48,7 @@
     "x": 0,
     "y": 0,
     "w": 6,
-    "h": 4
+    "h": 2
    },
    "targets": [
     {
@@ -107,7 +107,7 @@
     "justifyMode": "center",
     "text": {
      "titleSize": 22,
-     "valueSize": 56
+     "valueSize": 36
     }
    }
   },
@@ -123,7 +123,7 @@
     "x": 6,
     "y": 0,
     "w": 6,
-    "h": 4
+    "h": 2
    },
    "targets": [
     {
@@ -182,7 +182,7 @@
     "justifyMode": "center",
     "text": {
      "titleSize": 22,
-     "valueSize": 56
+     "valueSize": 36
     }
    }
   },
@@ -198,7 +198,7 @@
     "x": 12,
     "y": 0,
     "w": 6,
-    "h": 4
+    "h": 2
    },
    "targets": [
     {
@@ -257,7 +257,7 @@
     "justifyMode": "center",
     "text": {
      "titleSize": 22,
-     "valueSize": 56
+     "valueSize": 36
     }
    }
   },
@@ -273,7 +273,7 @@
     "x": 18,
     "y": 0,
     "w": 6,
-    "h": 4
+    "h": 2
    },
    "targets": [
     {
@@ -313,7 +313,7 @@
     "justifyMode": "center",
     "text": {
      "titleSize": 22,
-     "valueSize": 48
+     "valueSize": 36
     }
    }
   },
@@ -327,9 +327,9 @@
    },
    "gridPos": {
     "x": 0,
-    "y": 4,
+    "y": 2,
     "w": 6,
-    "h": 6
+    "h": 3
    },
    "targets": [
     {
@@ -379,7 +379,7 @@
     "justifyMode": "center",
     "text": {
      "titleSize": 22,
-     "valueSize": 88
+     "valueSize": 64
     }
    }
   },
@@ -393,9 +393,9 @@
    },
    "gridPos": {
     "x": 6,
-    "y": 4,
+    "y": 2,
     "w": 6,
-    "h": 6
+    "h": 3
    },
    "targets": [
     {
@@ -445,7 +445,7 @@
     "justifyMode": "center",
     "text": {
      "titleSize": 22,
-     "valueSize": 88
+     "valueSize": 64
     }
    }
   },
@@ -459,9 +459,9 @@
    },
    "gridPos": {
     "x": 12,
-    "y": 4,
+    "y": 2,
     "w": 6,
-    "h": 6
+    "h": 3
    },
    "targets": [
     {
@@ -501,7 +501,7 @@
     "justifyMode": "center",
     "text": {
      "titleSize": 22,
-     "valueSize": 88
+     "valueSize": 64
     }
    }
   },
@@ -515,9 +515,9 @@
    },
    "gridPos": {
     "x": 18,
-    "y": 4,
+    "y": 2,
     "w": 6,
-    "h": 6
+    "h": 3
    },
    "targets": [
     {
@@ -557,7 +557,7 @@
     "justifyMode": "center",
     "text": {
      "titleSize": 22,
-     "valueSize": 88
+     "valueSize": 64
     }
    }
   },
@@ -571,9 +571,9 @@
    },
    "gridPos": {
     "x": 0,
-    "y": 10,
+    "y": 5,
     "w": 6,
-    "h": 6
+    "h": 3
    },
    "targets": [
     {
@@ -613,7 +613,7 @@
     "justifyMode": "center",
     "text": {
      "titleSize": 22,
-     "valueSize": 88
+     "valueSize": 52
     }
    }
   },
@@ -627,9 +627,9 @@
    },
    "gridPos": {
     "x": 6,
-    "y": 10,
+    "y": 5,
     "w": 6,
-    "h": 6
+    "h": 3
    },
    "targets": [
     {
@@ -669,7 +669,7 @@
     "justifyMode": "center",
     "text": {
      "titleSize": 22,
-     "valueSize": 72
+     "valueSize": 52
     }
    }
   },
@@ -683,9 +683,9 @@
    },
    "gridPos": {
     "x": 12,
-    "y": 10,
+    "y": 5,
     "w": 6,
-    "h": 6
+    "h": 3
    },
    "targets": [
     {
@@ -725,7 +725,7 @@
     "justifyMode": "center",
     "text": {
      "titleSize": 22,
-     "valueSize": 72
+     "valueSize": 52
     }
    }
   },
@@ -739,9 +739,9 @@
    },
    "gridPos": {
     "x": 18,
-    "y": 10,
+    "y": 5,
     "w": 6,
-    "h": 6
+    "h": 3
    },
    "targets": [
     {
@@ -781,23 +781,24 @@
     "justifyMode": "center",
     "text": {
      "titleSize": 22,
-     "valueSize": 88
+     "valueSize": 52
     }
    }
   },
   {
    "id": 13,
    "type": "timeseries",
-   "title": "CPU % (last 6 h)",
+   "title": "CPU %: last 1 hour",
    "datasource": {
     "type": "prometheus",
     "uid": "prometheus"
    },
+   "timeFrom": "1h",
    "gridPos": {
     "x": 0,
-    "y": 16,
+    "y": 8,
     "w": 12,
-    "h": 8
+    "h": 6
    },
    "targets": [
     {
@@ -819,12 +820,34 @@
       "lineWidth": 4,
       "fillOpacity": 12,
       "showPoints": "never",
-      "axisBorderShow": false
+      "lineInterpolation": "smooth",
+      "axisBorderShow": false,
+      "spanNulls": true,
+      "thresholdsStyle": {
+       "mode": "dashed"
+      }
      },
      "color": {
       "mode": "palette-classic"
      },
-     "max": 100
+     "max": 100,
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "transparent",
+        "value": null
+       },
+       {
+        "color": "orange",
+        "value": 60
+       },
+       {
+        "color": "red",
+        "value": 85
+       }
+      ]
+     }
     },
     "overrides": []
    },
@@ -843,16 +866,17 @@
   {
    "id": 14,
    "type": "timeseries",
-   "title": "POWER (W, last 6 h)",
+   "title": "POWER W: last 1 hour (stacked = total)",
    "datasource": {
     "type": "prometheus",
     "uid": "prometheus"
    },
+   "timeFrom": "1h",
    "gridPos": {
     "x": 12,
-    "y": 16,
+    "y": 8,
     "w": 12,
-    "h": 8
+    "h": 6
    },
    "targets": [
     {
@@ -872,9 +896,154 @@
      "min": 0,
      "custom": {
       "lineWidth": 4,
+      "fillOpacity": 25,
+      "showPoints": "never",
+      "lineInterpolation": "smooth",
+      "axisBorderShow": false,
+      "spanNulls": true,
+      "stacking": {
+       "mode": "normal",
+       "group": "A"
+      }
+     },
+     "color": {
+      "mode": "palette-classic"
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom",
+     "showLegend": true,
+     "calcs": []
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   }
+  },
+  {
+   "id": 15,
+   "type": "timeseries",
+   "title": "CPU %: last 24 hours",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "timeFrom": "24h",
+   "gridPos": {
+    "x": 0,
+    "y": 14,
+    "w": 12,
+    "h": 6
+   },
+   "targets": [
+    {
+     "expr": "100 - avg(rate(windows_cpu_time_total{mode=\"idle\",host=\"harness-pc\"}[2m])) * 100",
+     "legendFormat": "PC",
+     "refId": "A"
+    },
+    {
+     "expr": "100 - avg(rate(node_cpu_seconds_total{mode=\"idle\"}[2m])) * 100",
+     "legendFormat": "Server",
+     "refId": "B"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percent",
+     "min": 0,
+     "custom": {
+      "lineWidth": 4,
       "fillOpacity": 12,
       "showPoints": "never",
-      "axisBorderShow": false
+      "lineInterpolation": "smooth",
+      "axisBorderShow": false,
+      "spanNulls": true,
+      "thresholdsStyle": {
+       "mode": "dashed"
+      }
+     },
+     "color": {
+      "mode": "palette-classic"
+     },
+     "max": 100,
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "transparent",
+        "value": null
+       },
+       {
+        "color": "orange",
+        "value": 60
+       },
+       {
+        "color": "red",
+        "value": 85
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom",
+     "showLegend": true,
+     "calcs": []
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   }
+  },
+  {
+   "id": 16,
+   "type": "timeseries",
+   "title": "POWER W: last 24 hours (stacked = total)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "timeFrom": "24h",
+   "gridPos": {
+    "x": 12,
+    "y": 14,
+    "w": 12,
+    "h": 6
+   },
+   "targets": [
+    {
+     "expr": "kasa_power_watts{plug=\"pc\"}",
+     "legendFormat": "PC",
+     "refId": "A"
+    },
+    {
+     "expr": "kasa_power_watts{plug=\"server\"}",
+     "legendFormat": "Server",
+     "refId": "B"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "watt",
+     "min": 0,
+     "custom": {
+      "lineWidth": 4,
+      "fillOpacity": 25,
+      "showPoints": "never",
+      "lineInterpolation": "smooth",
+      "axisBorderShow": false,
+      "spanNulls": true,
+      "stacking": {
+       "mode": "normal",
+       "group": "A"
+      }
      },
      "color": {
       "mode": "palette-classic"
