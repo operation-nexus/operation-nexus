@@ -125,6 +125,7 @@ class Collector:
         self.hourly: list[dict[str, dict[str, int | None]]] = []  # pool, grounded per side
         self.refused: dict[str, list[int]] = {}  # SpawnRefused operations per hour, by reason
         self.refused_units: Counter[str] = Counter()
+        self.adapted: dict[str, list[int]] = {}  # ThreatAdaptation sitreps per hour, by category
         self._prev_state: dict[int, str] = {}  # armed viewer unit -> "job", "busy" or idle reason
         self.grounded_from: Counter[str] = Counter()  # newly grounded, by the previous state
         self.exposure: Counter[str] = Counter()  # units seen again after a sample in that state
@@ -155,6 +156,7 @@ class Collector:
             "SupplyConsumed": self._consumed,
             "UnitGrounded": self._grounded,
             "SpawnRefused": self._refused,
+            "ThreatAdaptation": self._adapted,
             "JobCreated": self._job_created,
         }
 
@@ -416,6 +418,10 @@ class Collector:
         _add(self.refused.setdefault(e.reason, []), self._hour(e.tick), e.operations)
         self.refused_units[e.reason] += e.units
 
+    def _adapted(self, e: Any) -> None:
+        if e.side == _ENEMY:
+            _add(self.adapted.setdefault(e.category, []), self._hour(e.tick), 1)
+
     def _job_created(self, e: Any) -> None:
         if e.side == _ENEMY:
             self._new_jobs.append(e.job_id)
@@ -520,6 +526,7 @@ class Collector:
             "sides": self.econ,
             "hourly": self.hourly,
             "refused": {"operations_per_hour": self.refused, "units": dict(self.refused_units)},
+            "adapted": dict(sorted(self.adapted.items())),  # STAGING: forward staging (NX-416)
             "grounded_from": dict(sorted(self.grounded_from.items())),
             "exposure": dict(sorted(self.exposure.items())),
             "budget": {"sum": self.budget, "windows": self.budget_windows, "spent": self.spent},

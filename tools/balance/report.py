@@ -300,10 +300,12 @@ def _economy(runs: list[dict[str, Any]]) -> dict[str, Any]:
     exposure: Counter[str] = Counter()
     grounded: Counter[str] = Counter()
     refused: Counter[str] = Counter()
+    adapted: Counter[str] = Counter()
     for e in es:
         exposure.update(e["exposure"])
         grounded.update(e["grounded_from"])
         refused.update({k: sum(v) for k, v in e["refused"]["operations_per_hour"].items()})
+        adapted.update({k: sum(v) for k, v in e["adapted"].items()})
     ops = [o for e in es for o in e["ops"]]
     catalog = [o for o in ops if o[1] not in ROUTINE_JOBS]
     by_id = Counter(o[1] for o in ops)
@@ -323,6 +325,7 @@ def _economy(runs: list[dict[str, Any]]) -> dict[str, Any]:
             for k, n in sorted(exposure.items())
         },
         "refused_operations": dict(sorted(refused.items())),
+        "adaptations": dict(sorted(adapted.items())),  # STAGING counts forward staging (NX-416)
         "budget_per_window": sum(sum(e["budget"]["sum"]) for e in es) / windows
         if windows
         else None,
@@ -512,7 +515,7 @@ def _economy_lines(report: dict[str, Any]) -> list[str]:
             f"nodes), gap median {_fmt(gap['median'])} min, max {_fmt(gap['max'])} min; budget / "
             f"window {_fmt(e['budget_per_window'])}, spawn debits base {e['spent']['base']}, "
             f"source {e['spent']['source']}; live-cap refusals "
-            f"{e['refused_operations'] or 'none'}; "
+            f"{e['refused_operations'] or 'none'}; Static sitreps {e['adaptations'] or 'none'}; "
             f"victory holds {e['holds']} (broken {e['holds_broken']}), Static operations per hold "
             f"{e['ops_per_hold']}; peak coalition armed units vs peak viewers per seed "
             f"{e['army_vs_viewers']}; grounded by previous state {share or 'none'}",
