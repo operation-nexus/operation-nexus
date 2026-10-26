@@ -146,6 +146,7 @@ combat:
     STRIKE_FIGHTER: 0.75
   crew_marker_min: 10
   facility_indestructible: true
+  strike_structure_first: false
 campaign:
   time_limit_h: 72
   victory_node_frac: 0.80
@@ -363,7 +364,7 @@ economy:
 # keys, the EC-8 guard, `economy.legacy_rules` and `free_viewer_spawn`, NX-412 part 5b for
 # `economy.floor_viewer_units`, NX-426 for `economy.upkeep_period`); a change means every
 # config_hash moved.
-GOLDEN_CONFIG_HASH = "d0f50039c6925668582931ba80388c019da25a4626d1ad26c6bf749eb3c63a2e"
+GOLDEN_CONFIG_HASH = "f3134deac321618f419632561b0965f6e5e8c814c87702fa4d94fa8fa510594f"
 AIR = {
     "bingo_reserve_frac": 0.15,
     "orbit_period_s": 120.0,
@@ -466,6 +467,7 @@ COMBAT = {
     },
     "crew_marker_min": 10,
     "facility_indestructible": True,
+    "strike_structure_first": False,
 }
 CAMPAIGN = {
     "time_limit_h": 72,
@@ -806,6 +808,7 @@ def test_default_profile_loads_and_matches_golden_hash() -> None:
         ("  air_weight: 1.0\n", "capture.air_weight"),
         ("  quiet_sides: [COALITION]\n", "capture.quiet_sides"),
         ("  facility_indestructible: true\n", "combat.facility_indestructible"),
+        ("  strike_structure_first: false\n", "combat.strike_structure_first"),
         ("    start: PATTERN_OF_LIFE\n", "director.tier.start"),
         ("    max_step: 1\n", "director.tier.max_step"),
         ("    ai_shooter_mult: 0\n", "director.provocation.ai_shooter_mult"),
@@ -1041,7 +1044,7 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "    ENEMY_STRIKE_FIGHTER: 0.75, ENEMY_FIGHTER: 0.75, ENEMY_CONVOY: 0.70,\n"
         "    ENEMY_ARMOR: 0.60},\n"
         "  crew_marker_min: 10, disabled_timeout_s: 600, assist_window_s: 120,\n"
-        "  min_damage: 1, facility_indestructible: true}\n"
+        "  min_damage: 1, facility_indestructible: true, strike_structure_first: false}\n"
         "campaign: {momentum: {supply_weight: 30, nodes_weight: 70}, objective_mode: timed,\n"
         "  score: {objective_points: 5, final_weight: 50, average_weight: 50},\n"
         "  objective_period_min: 15,\n"

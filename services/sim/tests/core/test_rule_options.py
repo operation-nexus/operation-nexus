@@ -104,6 +104,7 @@ def test_the_defaults_are_the_old_fixed_rules() -> None:
     assert (r.defense.idle_floor, r.defense.sanctuary_min_hp) == (True, 1)
     assert (r.campaign.hq_capture, r.campaign.objective_pick) == (True, "uniform")
     assert r.combat.facility_indestructible is True
+    assert r.combat.strike_structure_first is False  # Q-TD-55: units first (CB-10)
 
 
 def test_non_default_options_reach_the_rules() -> None:
@@ -116,12 +117,14 @@ def test_non_default_options_reach_the_rules() -> None:
         campaign__idle_floor__sanctuary_min_hp=40,
         campaign__victory__hq_capture=False,
         combat__facility_indestructible=False,
+        combat__strike_structure_first=True,
     )
     assert r.capture and r.defense and r.campaign and r.combat
     assert r.capture.requires_defenses_down is False and r.capture.air_weight == 0.25
     assert r.capture.quiet_sides == {"ENEMY"}
     assert (r.defense.idle_floor, r.defense.sanctuary_min_hp) == (False, 40)
     assert r.campaign.hq_capture is False and r.combat.facility_indestructible is False
+    assert r.combat.strike_structure_first is True
 
 
 def test_air_weight_is_read_only_when_air_counts() -> None:
@@ -142,6 +145,7 @@ def test_air_weight_is_read_only_when_air_counts() -> None:
         ("capture.air_weight", 0),
         ("capture.quiet_sides", ["NEUTRAL"]),
         ("combat.facility_indestructible", "maybe"),
+        ("combat.strike_structure_first", "maybe"),
     ],
 )
 def test_the_loader_rejects_a_bad_option(key: str, value: object) -> None:
@@ -691,6 +695,7 @@ def test_a_campaign_with_every_part_2b_option_flipped_is_deterministic() -> None
             "director.staging.max_wait_windows": 3,
             "director.staging.max_staged": 1,
             "director.pol.offensive_period_s": 600,  # the capture slot fires inside the run
+            "combat.strike_structure_first": True,  # NX-440 (Q-TD-55)
         }
     )
 

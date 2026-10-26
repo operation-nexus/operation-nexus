@@ -122,6 +122,7 @@ combat:
     STRIKE_FIGHTER: 0.75
   crew_marker_min: 10  # PROPOSED – unvalidated (Q-SIM-68, owner-approved); min (game), a downed crew is a map marker this long (CONFIG-AND-CONTENT §6.4)
   facility_indestructible: true  # decided rule as default, Q-CFG-16 option (CB-9, Q-GP-37); a facility's hp floors at Disabled, never Destroyed (CONFIG-AND-CONTENT §6.4)
+  strike_structure_first: false  # decided rule as default, Q-TD-55 option (CB-10); true: a STRIKE claimant fires at its node's defenses before units (CONFIG-AND-CONTENT §6.4)
 campaign:
   time_limit_h: 72  # PROPOSED – unvalidated (Q-TEST-6); h (game) (CONFIG-AND-CONTENT §6.6 campaign.time_limit_h)
   victory_node_frac: 0.80  # PROPOSED – unvalidated; fraction of strategic nodes (CONFIG-AND-CONTENT §6.6)

@@ -311,6 +311,12 @@ class Combat(BaseModel):
             description="Whether a facility's hp floors at its Disabled threshold so it is never Destroyed (COMBAT CB-9, Q-GP-37; decided rule as default, Q-CFG-16 option); false lets a hit that takes it to 0 hp destroy it like any unit, unit switch."
         ),
     ]
+    strike_structure_first: Annotated[
+        bool,
+        Field(
+            description="Whether a unit holding a STRIKE claim on a node's defenses fires its STRUCTURE weapon at that node's defense HP before any unit target (COMBAT CB-10, Q-TD-55; extends the bridge exception, Q-SIM-105). Same candidate rules as the automatic fallback (enemy-owned, HP left, not the Static's rear source, not at its idle floor, in range); both sides alike (ECONOMY EC-3). False is the decided rule as it was: units always come first, unit switch."
+        ),
+    ]
 
 
 class NodeMaxStock(BaseModel):

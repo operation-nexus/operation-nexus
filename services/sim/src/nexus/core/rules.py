@@ -435,6 +435,7 @@ class CombatRules:
     damaged_sensor_mult: float  # x sensor radius at Damaged or worse
     min_damage: int  # combat.min_damage: the least hp a hit takes, however heavy the armor
     facility_indestructible: bool  # combat.facility_indestructible: the CB-9 hp floor
+    strike_structure_first: bool  # combat.strike_structure_first: CB-10 order (Q-TD-55)
 
     def loadout(self, kind: UnitKind, variant: str | None) -> tuple[WeaponRules, ...]:
         return self.loadouts.get((kind, variant), self.loadouts[(kind, None)])
@@ -989,6 +990,7 @@ def combat_rules(
         damaged_sensor_mult=ds.damaged_sensor_mult,
         min_damage=cfg.min_damage,
         facility_indestructible=cfg.facility_indestructible,
+        strike_structure_first=cfg.strike_structure_first,
     )
 
 
