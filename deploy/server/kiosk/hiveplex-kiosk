@@ -7,7 +7,7 @@ export XDG_RUNTIME_DIR=/run/user/$(id -u)
 export DBUS_SESSION_BUS_ADDRESS=unix:path=$XDG_RUNTIME_DIR/bus
 UNIT=hiveplex-kiosk.service
 ENVF=$HOME/.config/hiveplex-kiosk.env
-DEFAULT='http://localhost:3000/d/hiveplex-overview/hiveplex?kiosk&refresh=10s&from=now-6h&to=now'
+DEFAULT='http://localhost:3000/d/hiveplex-kiosk/hiveplex-at-a-glance?kiosk&refresh=10s'
 case "${1:-status}" in
   start|stop|restart) systemctl --user "$1" "$UNIT" && echo "kiosk: $1 ok";;
   reload) systemctl --user restart "$UNIT" && echo "kiosk reloaded";;
