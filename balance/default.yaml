@@ -261,7 +261,7 @@ director:  # Threat Director (Q-SIM-78, Q-SIM-81, owner-approved starting number
     bravo: 0.0534
   source_spend_frac: 0.005  # PROPOSED placeholder, NX-412 sweep (ECONOMY EC-7, Q-TD-26); share of the rear pool per window: a Static holding only its rear at economy.storage.floor (2000) gets 10, the old Pattern of Life budget
   upkeep_reserve_windows: 2  # PROPOSED placeholder, NX-412 sweep (ECONOMY EC-7); windows of the Static's upkeep the budget keeps back: this window's and the next
-  cadence_windows: 10  # PROPOSED placeholder, NX-412 sweep (ECONOMY EC-7); windows with no operation before the cadence floor: one director.tier.min_dwell_s (600 s = 10 windows)
+  cadence_windows: 10  # PROPOSED placeholder, NX-412 sweep (ECONOMY EC-7); windows with no capture operation before the cadence floor (Q-TD-54): one director.tier.min_dwell_s (600 s = 10 windows)
   op_priority:  # PROPOSED – unvalidated (Q-SIM-78); exactly the operations of content/operations.yaml (CONFIG-AND-CONTENT §6.7, §8a)
     GARRISON_UPKEEP: 0.9  # PROPOSED – unvalidated (Q-SIM-85)
     RETAKE: 1.2
