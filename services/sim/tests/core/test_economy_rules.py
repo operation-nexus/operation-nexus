@@ -204,6 +204,21 @@ def test_a_capture_operation_surplus_and_pool_cannot_pay_is_not_forced() -> None
     assert w.stock["east-airbase"] == w.rules.supply.starve_floor["east-airbase"]
 
 
+def test_pool_money_the_window_cannot_spend_promotes_no_capture_operation() -> None:
+    # Q-TD-48 (5): no base surplus and a 2000 pool (rear account floor(2000 x 0.005) = 10).
+    # OFFENSIVE (60) is within surplus + pool but not payable this window, so the floor must
+    # not promote it over what the rear account can buy: the window is the one without it
+    def limited() -> World:
+        w = world(NEW_LIMITED)
+        at_floor(w)
+        w.pool["ENEMY"] = 2000
+        return w
+
+    w = limited()
+    assert floor_window(w, 10, spend=10) == floor_window(limited(), 9, spend=10)
+    assert w.director["ENEMY"].budget == 10
+
+
 def test_legacy_rules_have_no_capture_floor() -> None:
     assert floor_window(world(LEGACY_LIMITED), 10) == floor_window(world(LEGACY_LIMITED), 0)
 

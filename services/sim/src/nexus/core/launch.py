@@ -30,8 +30,9 @@ launched in selection order:
   `director.max_live_units.<tier>` under `economy.legacy_rules`, else below the EC-8 guard
   `sim.max_live_units_per_side` (`economy.guard_room`). An operation that posts jobs stamps
   `DirectorState.last_operation` (the EC-7 cadence floor). When the floor is due, the cheapest
-  capture operation with a target that surplus + pool pays lifts the budget and the base account
-  to its cost and is selected first (`_floor_capture`, Q-TD-42); one the window's caps would
+  capture operation with a target that base surplus plus the window's rear account pays lifts
+  the budget and the base account to its cost and is selected first (`_floor_capture`,
+  Q-TD-42, Q-TD-48); one the window's caps would
   skip lifts nothing. The floor is not due while an operation is staged
   (`director.cadence_due`), and each window `_review` keeps, launches or drops one stamps
   `last_operation`, so it counts from the drop. Operations the budget and
@@ -253,7 +254,7 @@ def run(world: World, side: Side, view: SideView, rules: Rules, out: list[Event]
             ops.select([c], dr, c.op.cost, dr.max_spawns_per_window, room, live, most, _routine(dr))
         )
 
-    lead = None if purse is None else _floor_capture(world, rules, view, state, ranked, pool, fits)
+    lead = None if purse is None else _floor_capture(world, rules, view, state, ranked, purse, fits)
     if purse is not None and lead is not None:  # no staged operation, so `held` is 0
         purse.base += max(0, lead.op.cost - state.budget)
         state.budget = max(state.budget, lead.op.cost)
@@ -271,16 +272,19 @@ def run(world: World, side: Side, view: SideView, rules: Rules, out: list[Event]
 
 def _floor_capture(
     world: World, rules: Rules, view: SideView, state: DirectorState, ranked: list[ops.Candidate],
-    pool: int | None, fits: Callable[[ops.Candidate], bool],
+    purse: _Purse, fits: Callable[[ops.Candidate], bool],
 ) -> ops.Candidate | None:  # fmt: skip
     """ECONOMY EC-7, Q-TD-42 (legacy rules off): when the cadence floor is due, the best-ranked
     target of the cheapest capture operation (`ops.has_capture`) among the window's candidates
-    (its tier, the night cap) that surplus + pool pays (Q-TD-34 (1)) and the window's caps
-    allow (`fits`: max_ops, the spawn and live rooms); None leaves the floor at the cheapest
-    operation (`director.cadence_floor`)."""
+    (its tier, the night cap) that the window can actually pay and the window's caps allow
+    (`fits`: max_ops, the spawn and live rooms); None leaves the floor at the cheapest
+    operation (`director.cadence_floor`). Payable is base surplus plus this window's rear
+    account, not surplus + pool (Q-TD-48 (5)): the lift goes to the base account, so pool money
+    beyond the rear share would promote an operation that cannot pay and crowd out cheaper
+    ones the rear account could."""
     if not cadence_due(state, view, rules):
         return None
-    cap = surplus(view, rules, world.stock) + (pool or 0)
+    cap = surplus(view, rules, world.stock) + (0 if purse.one else purse.rear)
     caps = [c for c in ranked if ops.has_capture(c.op) and c.op.cost <= cap and fits(c)]
     least = min((c.op.cost for c in caps), default=None)
     return next((c for c in caps if c.op.cost == least), None)
