@@ -580,9 +580,16 @@ def main() -> None:
                     height,
                     chrome_bin=chrome_bin,
                 )
-                subprocess.run(capture_cmd, check=True, capture_output=True)  # noqa: S603
-                if tmp_png.exists():
-                    proc.stdin.write(tmp_png.read_bytes())
+                tmp_png.unlink(missing_ok=True)
+                result = subprocess.run(  # noqa: S603
+                    capture_cmd, check=False, capture_output=True, text=True
+                )
+                if result.returncode != 0 or not tmp_png.exists():
+                    raise RuntimeError(
+                        f"Chrome capture failed at t={sim_t:.3f}s "
+                        f"(exit {result.returncode}): {result.stderr.strip()}"
+                    )
+                proc.stdin.write(tmp_png.read_bytes())
             proc.stdin.close()
             ret = proc.wait()
             if ret != 0:

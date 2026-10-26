@@ -3831,12 +3831,35 @@
     /* =========================================================================
        DETERMINISTIC SIMULATION REPLAY HOOK
        ========================================================================= */
+    const initialUnitState = new Map();
+    function snapshotInitialUnitState() {
+      UNITS.forEach(u => initialUnitState.set(u.id, { x: u.x, y: u.y, angle: u.angle }));
+    }
+    function resetDerivedKinematics() {
+      UNITS.forEach(u => {
+        const s = initialUnitState.get(u.id);
+        if (s) Object.assign(u, s);
+        delete u.lastX;
+        delete u.lastY;
+        delete u.lastAltScene;
+        u.yawRate = 0;
+        u.roll = 0;
+        u.pitch = 0;
+        u.vz = 0;
+      });
+      Object.values(wingtipTrails).forEach(tr => {
+        tr.leftPoints.length = 0;
+        tr.rightPoints.length = 0;
+      });
+    }
+
     window.renderDeterministicTick = function(simTimeSec) {
       deterministicMode = true;
       simPaused = true;
       const targetSimTime = Math.max(0, simTimeSec);
-      if (targetSimTime < simTime) {
+      if (targetSimTime < simTime || (targetSimTime === 0 && simTime === 0)) {
         simTime = 0;
+        resetDerivedKinematics();
       }
       if (targetSimTime === 0) {
         updateKinematics(0.001);
@@ -3886,6 +3909,7 @@
       initThreeScene();
       resizeGisCanvas();
       populateOOB();
+      snapshotInitialUnitState();
 
       const params = new URLSearchParams(window.location.search);
       if (params.get('det') === '1') {
