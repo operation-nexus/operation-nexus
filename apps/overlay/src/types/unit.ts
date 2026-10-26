@@ -1,18 +1,14 @@
-import type { Side } from "./theater";
+import type {
+  UnitDamageStateChanged,
+  UnitSpawned,
+} from "../contracts/events/event";
+import type { EdgeLayer } from "./theater";
 
-export type UnitSide = Side;
+export type UnitSide = UnitSpawned["side"];
 
-export type UnitKind =
-  | "STRIKE_FIGHTER"
-  | "RECON_UAV"
-  | "LOGI_TRUCK"
-  | "ENEMY_ARMOR"
-  | "ENEMY_STRIKE"
-  | "AIR_DEFENSE_SAM"
-  | "RADAR_SITE"
-  | "CIVILIAN";
+export type UnitKind = UnitSpawned["unit_kind"];
 
-export type DamageState = "HEALTHY" | "DAMAGED" | "CRITICAL" | "DISABLED";
+export type DamageState = UnitDamageStateChanged["to"];
 
 export interface TrailPoint {
   x: number;
@@ -46,7 +42,7 @@ export interface VisualEdge {
   id: string;
   sourceNodeId: string;
   targetNodeId: string;
-  layer: "ROAD" | "SEA_LANE";
+  layer: EdgeLayer;
   roadClass: "MSR_PRIMARY" | "CONNECTOR_SPUR" | "BRIDGE_CAUSEWAY";
   speedMult: number;
   bridgeId?: string | undefined;

@@ -1,4 +1,5 @@
-import type { VisualUnit, UnitSide } from "../types/unit";
+import type { Side } from "../types/theater";
+import type { UnitKind, UnitSide, VisualUnit } from "../types/unit";
 
 /**
  * Tactical color tokens per VISUAL-STYLE-CATALOG.md and OVERLAY.md.
@@ -28,7 +29,7 @@ export interface SideColorTheme {
   label: string;
 }
 
-export function getSideColors(side: UnitSide): SideColorTheme {
+export function getSideColors(side: Side): SideColorTheme {
   switch (side) {
     case "COALITION":
       return {
@@ -56,11 +57,37 @@ export function getSideColors(side: UnitSide): SideColorTheme {
 }
 
 /**
+ * Aircraft (drawn at altitude). Exhaustive: a new contract UnitKind fails tsc
+ * here until it is classified.
+ */
+export function isAirUnit(kind: UnitKind): boolean {
+  switch (kind) {
+    case "STRIKE_FIGHTER":
+    case "RECON_UAV":
+    case "ENEMY_FIGHTER":
+    case "ENEMY_STRIKE_FIGHTER":
+    case "ENEMY_RECON_UAV":
+      return true;
+    case "LOGI_TRUCK":
+    case "GARRISON_INFANTRY":
+    case "ENEMY_ARMOR":
+    case "ENEMY_CONVOY":
+    case "RADAR_SITE":
+    case "AIR_DEFENSE_SITE":
+      return false;
+    default: {
+      const unreachable: never = kind;
+      return unreachable;
+    }
+  }
+}
+
+/**
  * Shape descriptor describing geometry for colorblind differentiation (OV-2/3).
  */
 export interface ShapeDescriptor {
   side: UnitSide;
-  geometryFamily: "SMOOTH_CHEVRON_DIAMOND" | "JAGGED_SAWTOOTH" | "NEUTRAL_PILL";
+  geometryFamily: "SMOOTH_CHEVRON_DIAMOND" | "JAGGED_SAWTOOTH";
   vertexCount: number;
   hasSawtoothJags: boolean;
   isAngularChevron: boolean;
@@ -77,20 +104,11 @@ export function getUnitShapeDescriptor(unit: VisualUnit): ShapeDescriptor {
       isAngularChevron: true,
     };
   }
-  if (unit.side === "ENEMY") {
-    return {
-      side: "ENEMY",
-      geometryFamily: "JAGGED_SAWTOOTH",
-      vertexCount: 7, // 7-point jagged sawtooth polygon
-      hasSawtoothJags: true,
-      isAngularChevron: false,
-    };
-  }
   return {
-    side: "NEUTRAL",
-    geometryFamily: "NEUTRAL_PILL",
-    vertexCount: 4,
-    hasSawtoothJags: false,
+    side: "ENEMY",
+    geometryFamily: "JAGGED_SAWTOOTH",
+    vertexCount: 7, // 7-point jagged sawtooth polygon
+    hasSawtoothJags: true,
     isAngularChevron: false,
   };
 }
@@ -137,7 +155,7 @@ export function drawUnitVectorShape(
       ctx.lineTo(-radius * 0.6, radius * 0.8);
       ctx.closePath();
     }
-  } else if (unit.side === "ENEMY") {
+  } else {
     // Static: Jagged Sawtooth Shard Silhouette (OV-2 / OV-3)
     ctx.moveTo(0, -radius * 1.1);
     ctx.lineTo(radius * 0.45, -radius * 0.3);
@@ -150,16 +168,13 @@ export function drawUnitVectorShape(
     ctx.lineTo(-radius * 0.9, -radius * 0.1);
     ctx.lineTo(-radius * 0.45, -radius * 0.3);
     ctx.closePath();
-  } else {
-    // Neutral: Smooth rounded circle / square
-    ctx.arc(0, 0, radius * 0.75, 0, Math.PI * 2);
   }
 
   ctx.fill();
   ctx.stroke();
 
   // If unit is damaged, draw warning slash
-  if (unit.damageState === "DAMAGED" || unit.damageState === "CRITICAL") {
+  if (unit.damageState === "DAMAGED" || unit.damageState === "MISSION_KILL") {
     ctx.strokeStyle = "#ff3366";
     ctx.lineWidth = 1.5;
     ctx.beginPath();

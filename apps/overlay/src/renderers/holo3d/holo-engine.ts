@@ -8,6 +8,7 @@ import type {
 } from "../../types/render";
 import type { TheaterDefinition } from "../../types/theater";
 import type { VisualUnit } from "../../types/unit";
+import { isAirUnit } from "../../symbology/dual-encoding";
 import { STRAIT_1_THEATER } from "../../theater/strait1";
 import {
   ELEVATION_CHANNEL_WATER,
@@ -420,10 +421,7 @@ export class HoloTableEngine implements IRenderEngine {
 
       const wx = (unit.x / this.theater.boundsM.w) * 400 - 200;
       const wz = (unit.y / this.theater.boundsM.h) * 240 - 120;
-      const isAir =
-        unit.kind === "STRIKE_FIGHTER" ||
-        unit.kind === "RECON_UAV" ||
-        unit.kind === "ENEMY_STRIKE";
+      const isAir = isAirUnit(unit.kind);
       const wy = isAir ? 40 : ELEVATION_TERRAIN_BASE + 1.2;
 
       if (!mesh) {
@@ -477,10 +475,7 @@ export class HoloTableEngine implements IRenderEngine {
     }
 
     // Altitude drop-line for aircraft
-    const isAir =
-      unit.kind === "STRIKE_FIGHTER" ||
-      unit.kind === "RECON_UAV" ||
-      unit.kind === "ENEMY_STRIKE";
+    const isAir = isAirUnit(unit.kind);
     if (isAir) {
       const lineGeo = new THREE.BufferGeometry().setFromPoints([
         new THREE.Vector3(0, 0, 0),

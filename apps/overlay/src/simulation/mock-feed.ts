@@ -27,8 +27,8 @@ export class SimulationFeedGenerator {
       this.tick % 300 < 100
         ? "PATTERN_OF_LIFE"
         : this.tick % 300 < 200
-          ? "CONDITION_ALPHA"
-          : "CONDITION_BRAVO";
+          ? "ALPHA"
+          : "BRAVO";
 
     const telemetry: TelemetryState = {
       momentum: {
@@ -37,12 +37,6 @@ export class SimulationFeedGenerator {
       },
       countdownSeconds: this.countdown,
       objectiveName: "SECURE STRAIT CROSSINGS",
-      threatLevel:
-        threatTier === "CONDITION_BRAVO"
-          ? "CRITICAL"
-          : threatTier === "CONDITION_ALPHA"
-            ? "ELEVATED"
-            : "NOMINAL",
       threatTier,
       sitrep: [
         {
@@ -221,7 +215,7 @@ export class SimulationFeedGenerator {
         id: 201,
         callsign: "NULL-SWARM-A",
         side: "ENEMY",
-        kind: "ENEMY_STRIKE",
+        kind: "ENEMY_STRIKE_FIGHTER",
         x: staticJetX,
         y: staticJetY,
         z: 50,

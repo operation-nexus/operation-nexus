@@ -53,7 +53,7 @@ Each visualizer doc below now carries a "Kernel facts check" note pointing here.
   - it claims bit-for-bit replay;
   - it quotes the wrong speeds;
   - it says ×1.6.
-- **`apps/overlay/src/types/unit.ts` and `telemetry.ts`:** these are hand-copied types that drift from the contracts (AGENTS.md rule 6). Examples: `ENEMY_STRIKE`, `AIR_DEFENSE_SAM` and `CIVILIAN` are not `UnitKind`s; `CRITICAL` stands where `MISSION_KILL` should be; `ThreatLevel` NOMINAL/ELEVATED/CRITICAL is not a contract enum (the contract has `ThreatTier`); `CONDITION_ALPHA` and `CONDITION_BRAVO` stand where `ALPHA` and `BRAVO` should be. Tracked as NX-423.
+- **`apps/overlay/src/types/unit.ts` and `telemetry.ts`:** these are hand-copied types that drift from the contracts (AGENTS.md rule 6). Examples: `ENEMY_STRIKE`, `AIR_DEFENSE_SAM` and `CIVILIAN` are not `UnitKind`s; `CRITICAL` stands where `MISSION_KILL` should be; `ThreatLevel` NOMINAL/ELEVATED/CRITICAL is not a contract enum (the contract has `ThreatTier`); `CONDITION_ALPHA` and `CONDITION_BRAVO` stand where `ALPHA` and `BRAVO` should be. Fixed by NX-423 (2026-10-26): the types alias the generated `event.ts` fields.
 - **`tools/prototype/unified-visualizer.html`:**
   - its "Real Deterministic Simulation Replay Dataset" is partly invented (the CrewDowned at tick 1540, `JCT-W-PASS` and `RESCUE-01`);
   - movement is scripted, not taken from keyframes;

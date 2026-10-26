@@ -86,8 +86,7 @@ function makeDummyTelemetry(unitCount: number): TelemetryState {
     momentum: { quorum: 55, static: 45 },
     countdownSeconds: 840,
     objectiveName: "STRAIT-1 HIGH DENSITY STRESS",
-    threatLevel: "ELEVATED",
-    threatTier: "CONDITION_ALPHA",
+    threatTier: "ALPHA",
     sitrep: [
       {
         id: "SR-01",
@@ -310,7 +309,7 @@ describe("Adversarial Stress Test: High Entity Count & Option D (OV-4)", () => {
         headingDeg: 9999,
         speedMps: Infinity,
         hpPct: -50,
-        damageState: "CRITICAL",
+        damageState: "MISSION_KILL",
       },
       {
         id: 9902,
@@ -322,7 +321,7 @@ describe("Adversarial Stress Test: High Entity Count & Option D (OV-4)", () => {
         headingDeg: -720,
         speedMps: 0,
         hpPct: 0,
-        damageState: "CRITICAL",
+        damageState: "MISSION_KILL",
       },
       {
         id: 9903,
@@ -390,7 +389,7 @@ describe("Adversarial Stress Test: Colorblind Dual-Encoding Geometry Separation 
       id: 2,
       callsign: "S-SHARD",
       side: "ENEMY",
-      kind: "ENEMY_STRIKE",
+      kind: "ENEMY_STRIKE_FIGHTER",
       x: 350000,
       y: 50000,
       headingDeg: 180,
