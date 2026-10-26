@@ -26,6 +26,7 @@ from nexus.contracts.gen.events.unit_destroyed import UnitDestroyed
 from nexus.contracts.gen.events.unit_grounded import UnitGrounded
 from nexus.contracts.gen.events.unit_spawned import UnitSpawned
 from nexus.contracts.gen.events.victory_hold_started import VictoryHoldStarted
+from nexus.contracts.gen.events.weapon_fired import WeaponFired
 from nexus.contracts.gen.events.weapon_impact import WeaponImpact
 from nexus.core.campaign import campaign, momentum
 from nexus.core.step import HANDLERS, step
@@ -45,7 +46,14 @@ import personas  # type: ignore[import-not-found,unused-ignore]
 import report  # type: ignore[import-not-found,unused-ignore]
 import runner  # type: ignore[import-not-found,unused-ignore]
 import steamroll  # type: ignore[import-not-found,unused-ignore]
-from profiles import DATA, KINDS, ROLES, Data, load, schedule  # type: ignore[import-not-found,unused-ignore]
+from profiles import (  # type: ignore[import-not-found,unused-ignore]
+    DATA,
+    KINDS,
+    ROLES,
+    Data,
+    load,
+    schedule,
+)
 
 HZ = 10
 TICKS = 3600  # 6 game minutes
@@ -1420,8 +1428,8 @@ def test_collector_derives_pressure_and_the_hold_from_events(
     assert collector.hold_start == 170 and collector.holds_broken == 1
     holds = collector.result(1000)["economy"]["holds"]
     assert holds == [
-        {"start": 130, "end": 160, "broken": True, "ops": 0},
-        {"start": 170, "end": None, "broken": False, "ops": 0},
+        {"start": 130, "end": 160, "broken": True, "ops": 0, "pressure": 2},  # 150, 160
+        {"start": 170, "end": None, "broken": False, "ops": 0, "pressure": 1},  # the loss at 180
     ]
 
 
@@ -1514,9 +1522,9 @@ def test_collector_counts_static_operations_holds_and_budgets(
         [200, "POL_PATROL", "east-airbase", False],
         [400, "OFFENSIVE", "cross-n", False],
     ]
-    assert eco["holds"] == [{"start": 300, "end": None, "broken": False, "ops": 1}]
+    assert eco["holds"] == [{"start": 300, "end": None, "broken": False, "ops": 1, "pressure": 0}]
     assert eco["budget"]["sum"] == [70] and eco["budget"]["windows"] == [1]
-    run = {"metrics": {"economy": eco}, "ticks_run": 2 * HOUR, "tick_hz": HZ,
+    run = {"metrics": {"economy": eco}, "ticks_run": 2 * HOUR, "tick_hz": HZ, "seed": 1,
            "viewers": {"peak_concurrent": 5}}  # fmt: skip
     agg = report._economy([run])
     assert agg["ops_per_hour"] == 1.0  # 2 catalog launches over 2 game hours; patrols left out
@@ -1593,3 +1601,146 @@ def test_collector_samples_the_static_force_and_stock(
     assert collector.static_units[0] == sum(
         e.side == "ENEMY" and e.kind in armed for e in world.entities()
     )
+
+
+def _ev(model: Any, kind: str, tick: int, **fields: Any) -> Any:
+    return model.model_construct(kind=kind, tick=tick, **fields)
+
+
+def _launch_tick(world: Any, collector: metrics.Collector, tick: int, *keys: tuple[str, str],
+                 debit: int = 0) -> None:  # fmt: skip
+    """Post `(kind, key)` Static jobs on `tick` (the node is in the key), feed their JobCreated and
+    an optional Static SPAWN debit, then observe."""
+    out: list[Any] = []
+    world.campaign.tick = tick - 1
+    for kind, key in keys:
+        post_job(world, "ENEMY", JobSpec(kind, key, 1, 500, node=key.split(":")[2]), out)  # type: ignore[arg-type]
+    world.campaign.tick = tick
+    if debit:
+        out.append(_ev(SupplyConsumed, "SupplyConsumed", tick, node_id="east-airbase",
+                       amount=debit, cause="SPAWN"))  # fmt: skip
+    collector.feed(out)
+    collector.observe(world)
+
+
+def test_collector_follows_a_capture_operation_down_its_funnel(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    world = start_campaign("c", 1, shipped_config)
+    collector.feed([spawned(1, 900, "ENEMY_STRIKE_FIGHTER", "ENEMY", None)])
+    for node in ("fob-n-w", "cross-n", "fob-s-w"):
+        world.owner[node] = "COALITION"
+        collector._owner[node] = "COALITION"
+    _launch_tick(world, collector, 100, ("STRIKE", "op:OFFENSIVE:fob-n-w:0"))
+    _launch_tick(world, collector, 110, ("STRIKE", "op:RETAKE:cross-n:0"))
+    _launch_tick(world, collector, 120, ("STRIKE", "op:PROBE:fob-s-w:0"))  # not a capture op
+    f = _ev(WeaponFired, "WeaponFired", 130, shooter_id=900, target_id=None,
+            target_node_id="fob-n-w")  # fmt: skip
+    friendly = _ev(WeaponFired, "WeaponFired", 131, shooter_id=901, target_id=None,
+                   target_node_id="cross-n")  # fmt: skip
+    collector.feed([spawned(1, 901, "STRIKE_FIGHTER", "COALITION", None), f, friendly])
+    down = NodeDefensesDown
+    collector.feed([_ev(down, "NodeDefensesDown", 140, node_id="fob-n-w", owner="COALITION"),
+                    _ev(down, "NodeDefensesDown", 141, node_id="cross-n", owner="ENEMY"),
+                    _ev(CaptureStarted, "CaptureStarted", 150, node_id="fob-n-w", side="ENEMY"),
+                    _ev(CaptureStarted, "CaptureStarted", 151, node_id="cross-n", side="COALITION"),
+                    _ev(NodeCaptured, "NodeCaptured", 160, node_id="fob-n-w", from_="COALITION",
+                        to="ENEMY", participant_commander_ids=[])])  # fmt: skip
+    collector.feed([_ev(NodeCaptured, "NodeCaptured", 165, node_id="cross-n", from_="ENEMY",
+                        to="COALITION", participant_commander_ids=[])])  # fmt: skip
+    # a later Static strike on the captured node belongs to no launch any more
+    collector.feed([_ev(WeaponFired, "WeaponFired", 170, shooter_id=900, target_id=None,
+                        target_node_id="fob-n-w")])  # fmt: skip
+    funnel = collector.result(1000)["economy"]["funnel"]
+    keys = ("strike_fired", "defenses_down", "capture_started", "captured")
+    assert [(x["op"], x["target"], *(x[k] for k in keys)) for x in funnel] == [
+        ("OFFENSIVE", "fob-n-w", True, True, True, True),
+        ("RETAKE", "cross-n", False, False, False, False),  # wrong shooter / owner / side
+    ]
+    agg = report._funnel([collector.result(1000)["economy"]])
+    assert agg["OFFENSIVE"] == {"launched": 1, "strike_fired": 1, "defenses_down": 1,
+                                "capture_started": 1, "captured": 1}  # fmt: skip
+    assert agg["RETAKE"]["launched"] == 1 and agg["RETAKE"]["captured"] == 0
+
+
+def test_offensive_gaps_per_seed_with_lead_in_tail_and_tier() -> None:
+    hz = HZ
+    minute = 60 * hz
+    eco = {
+        "ops": [[10 * minute, "OFFENSIVE", "a", True], [15 * minute, "PROBE", "a", True],
+                [30 * minute, "OFFENSIVE", "b", True], [60 * minute, "OFFENSIVE", "c", True]],
+        "tiers": {"start": "PATROL", "changes": [[5 * minute, "ALPHA"], [30 * minute, "BRAVO"]]},
+    }  # fmt: skip
+    quiet = {"ops": [], "tiers": {"start": "PATROL", "changes": []}}
+    runs = [{"seed": 1, "tick_hz": hz, "ticks_run": 100 * minute},
+            {"seed": 2, "tick_hz": hz, "ticks_run": 50 * minute}]  # fmt: skip
+    g = report._gaps(runs, [eco, quiet])
+    assert g["per_seed"] == [
+        {
+            "seed": 1,
+            "offensives": 3,
+            "lead_in_min": 10.0,
+            "gaps_min": [20.0, 30.0],
+            "tail_min": 40.0,
+        },
+        {"seed": 2, "offensives": 0, "lead_in_min": 50.0, "gaps_min": [], "tail_min": None},
+    ]
+    # gap 1 starts at 10 min (ALPHA since 5), gap 2 at 30 min, the tick BRAVO began (it counts)
+    assert g["by_tier"] == {"ALPHA": {"n": 1, "median": 20.0, "max": 20.0},
+                            "BRAVO": {"n": 1, "median": 30.0, "max": 30.0}}  # fmt: skip
+
+
+def test_collector_logs_the_tier_timeline(collector: metrics.Collector) -> None:
+    start = collector.tier
+    collector.feed([_ev(ThreatTierChanged, "ThreatTierChanged", 500, side="ENEMY", to="BRAVO")])
+    assert collector.result(1000)["economy"]["tiers"] == {
+        "start": start,
+        "changes": [[500, "BRAVO"]],
+    }
+
+
+def test_pressure_is_counted_per_victory_hold(collector: metrics.Collector) -> None:
+    collector.pressure_ticks = [50, 100, 120, 200, 250, 260, 400]
+    collector.holds = [
+        {"start": 100, "end": 250, "broken": True, "ops": 0},
+        {"start": 300, "end": None, "broken": False, "ops": 0},
+    ]
+    holds = collector.result(500)["economy"]["holds"]
+    # the start (100) and break (250) ticks count; 50 is before, 260 is between
+    assert [h["pressure"] for h in holds] == [4, 1]
+    eco = collector.result(500)["economy"]
+    run = {"metrics": {"economy": eco}, "ticks_run": 500, "tick_hz": HZ,
+           "seed": 1, "viewers": {"peak_concurrent": 1}}  # fmt: skip
+    assert report._economy([run])["pressure_per_hold"] == [4, 1]
+
+
+def test_spawn_debits_go_to_the_single_operation_launched_that_tick(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    world = start_campaign("c", 1, shipped_config)
+    _launch_tick(world, collector, 100, ("STRIKE", "op:PROBE:fob-s-w:0"), debit=15)
+    _launch_tick(world, collector, 200, ("STRIKE", "op:PROBE:cross-n:0"), debit=15)
+    _launch_tick(world, collector, 300, ("STRIKE", "op:PROBE:east-airbase:0"),
+                 ("STRIKE", "op:OFFENSIVE:fob-n-w:0"), debit=60)  # fmt: skip
+    collector.feed([_ev(SupplyConsumed, "SupplyConsumed", 400, node_id="east-airbase",
+                        amount=7, cause="SPAWN")])  # fmt: skip
+    _launch_tick(world, collector, 410)  # no launch: the 7 is unattributed
+    assert collector.result(500)["economy"]["spawn_by_op"] == {
+        "ops": {"PROBE": 30}, "shared": 60, "unattributed": 7}  # fmt: skip
+
+
+def test_sitreps_per_run_hour_by_category_and_staging_count() -> None:
+    eco = {
+        "adapted": {"STAGING": [2, 1], "CONVOY_ESCORT": [4]},
+        "funnel": [], "ops": [], "tiers": {"start": "PATROL", "changes": []},
+        "spawn_by_op": {"ops": {}, "shared": 0, "unattributed": 0},
+        "sides": {}, "hourly": [], "refused": {"operations_per_hour": {}, "units": {}},
+        "grounded_from": {}, "exposure": {}, "budget": {"sum": [], "windows": [],
+                                                       "spent": {"base": [], "source": []}},
+        "ops_unseen": 0, "holds": [], "army_peak": 0,
+    }  # fmt: skip
+    run = {"metrics": {"economy": eco}, "ticks_run": 2 * HOUR, "tick_hz": HZ, "seed": 1,
+           "viewers": {"peak_concurrent": 0}}  # fmt: skip
+    agg = report._economy([run])
+    assert agg["adaptations_per_hour"] == {"CONVOY_ESCORT": 2.0, "STAGING": 1.5}
+    assert agg["staging"] == {"sitreps": 3, "capture_launches": 0}
