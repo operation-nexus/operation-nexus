@@ -41,8 +41,10 @@ operation is taken if its cost is left and its units fit `max_spawns_per_window`
 `max_live_units.<tier>`; an escort operation shrinks to the convoys that fit (at least one); at
 most one effect operation (a radar blink) a window. A tier runs at most `director.max_ops.<tier>`
 operations with jobs at a time (§3), counting those still on the board; the routine ones, those
-enabled at Pattern of Life, do not count (Q-SIM-84). At most one operation with the
-`no_bridge_contested` precondition (STRIKE_BRIDGE) is taken a window (Q-SIM-121, NX-401).
+enabled at Pattern of Life, do not count (Q-SIM-84); the one `over` candidate (the due cadence
+floor's capture operation, ECONOMY EC-7, Q-TD-57) may take one slot past the cap. At most one
+operation with the `no_bridge_contested` precondition (STRIKE_BRIDGE) is taken a window
+(Q-SIM-121, NX-401).
 """
 
 import math
@@ -550,11 +552,12 @@ def _fit(c: Candidate, room: int, least: int) -> Candidate | None:
 def select(
     ranked: list[Candidate], dr: DirectorRules, budget: int, spawn_room: int, live_room: int,
     live: frozenset[tuple[str, str]], max_ops: int | None, routine: frozenset[str] = frozenset(),
-    refused: list[int] | None = None,
+    refused: list[int] | None = None, over: Candidate | None = None,
 ) -> list[Candidate]:  # fmt: skip
     """Step 6 (module docstring). `live_room` is the live-unit cap's room (`launch._live_room`).
     `refused` gets the units of each candidate that fit the spawn room but not the live room
-    (ECONOMY EC-8: the cap, not the budget or anti-spam, stopped it; NX-412 part 5a)."""
+    (ECONOMY EC-8: the cap, not the budget or anti-spam, stopped it; NX-412 part 5a). `over`
+    may run while `max_ops` are running but not `max_ops + 1` (Q-TD-57)."""
     chosen: list[Candidate] = []
     running = set(live)
     blinks = 0
@@ -568,7 +571,8 @@ def select(
         pair = (c.op.id, c.target)
         new = bool(c.op.jobs) and pair not in running
         counted = {p for p in running if p[0] not in routine}
-        if new and c.op.id not in routine and max_ops is not None and len(counted) >= max_ops:
+        cap = None if max_ops is None else max_ops + (c is over)
+        if new and c.op.id not in routine and cap is not None and len(counted) >= cap:
             continue
         fitted = _fit(c, min(spawn_room, live_room), dr.escort_min_convoys)
         if fitted is None:
