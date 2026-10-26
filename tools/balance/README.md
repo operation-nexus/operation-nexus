@@ -235,7 +235,7 @@ Where things are: the journal (`journalctl --user -u nexus-harness`) holds the q
 
 ### Requesting a run
 
-Before writing why a run is needed, check the values it would change at that `sha` (`balance/default.yaml` plus your `set`): a request that sets a key to its shipped value repeats an earlier run (L-28).
+Never edit the `sha` of a queued request: the run may still go at the sha first read (L-30); close it and open a new issue. Before writing why a run is needed, check the values it would change at that `sha` (`balance/default.yaml` plus your `set`): a request that sets a key to its shipped value repeats an earlier run (L-28).
 
 Open an issue with the `harness-run` label (you need triage rights, and be a trusted author). Body:
 
