@@ -33,7 +33,7 @@ from nexus.core.defense import rebuild
 from nexus.core.economy import pool_side, source_stock
 from nexus.core.rearm import restock, station
 from nexus.core.roads import shortest_path
-from nexus.core.rules import Rules
+from nexus.core.rules import OperationRules, Rules
 from nexus.core.world import Entity, World, at_stop, consumed, end_stop, on_node
 
 
@@ -222,22 +222,36 @@ def keeps(world: World, rules: Rules, side: Side, dest: str) -> Mapping[str, int
 
 def stock_targets(world: World, rules: Rules) -> Mapping[str, int]:
     """Each finite-stock node's forward stock target (Q-SIM-100): `Supply.stock_target`, raised at
-    a staging base to its starvation floor plus the cost of every operation staged there
-    (THREAT-DIRECTOR FS-3, NX-416), at most the node's maximum. The rules' own map when nothing
-    is staged, so the economy's legacy rules see no change."""
+    a staging base to its starvation floor plus, for every operation staged there, the cost of
+    its units that spawn there (THREAT-DIRECTOR FS-3, Q-TD-38, NX-416): the template slots whose
+    kind's domain the base hosts, at the operation's cost per unit (`launch._staged_shares`), at
+    most the node's maximum. The rules' own map when nothing is staged, so the economy's legacy
+    rules see no change."""
     sup, dr = rules.supply, rules.director
     staged = [s for side in sorted(world.director) for s in world.director[side].staged]
     if not staged or dr is None:
         return sup.stock_target
-    cost = {o.id: o.cost for o in dr.operations}
+    by_id = {o.id: o for o in dr.operations}
     need: dict[str, int] = {}
     for s in staged:
-        need[s.base] = need.get(s.base, sup.starve_floor.get(s.base, 0)) + cost.get(s.op, 0)
+        need.setdefault(s.base, sup.starve_floor.get(s.base, 0))
+        if (op := by_id.get(s.op)) is not None:
+            need[s.base] += _base_share(rules, op, s.base)
     out = dict(sup.stock_target)
     for node, lift in need.items():
         if node in out:
             out[node] = max(out[node], min(sup.max_stock[node], lift))
     return out
+
+
+def _base_share(rules: Rules, op: OperationRules, base: str) -> int:
+    """The cost of `op`'s template slots whose kind spawns at `base` (a `spawns` node for its
+    domain), at `op.cost` per unit over all its slots, floored as `launch` scales a cost."""
+    # An upper bound of the launch-time base share: reused idle units lower the actual draw, and a
+    # CAPTURE operation with an each-convoy job (more wheres than one per job) would differ.
+    kinds = [j.unit_kinds[n % len(j.unit_kinds)] for j in op.jobs for n in range(j.slots)]
+    there = sum(base in rules.supply.spawns.get(rules.domain[k], ()) for k in kinds)
+    return op.cost * there // max(1, len(kinds))
 
 
 def _surplus(world: World, rules: Rules, node: str) -> int:

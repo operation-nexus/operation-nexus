@@ -10,7 +10,7 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | Phase | Items | Done | Status |
 |---|---|---|---|
 | P0 Foundations | 44 | 32 | 🟨 |
-| P1 Sim kernel | 66 | 45 | 🟨 |
+| P1 Sim kernel | 69 | 45 | 🟨 |
 | P2 Closed alpha | 40 | 0 | ⬜ |
 | P3 Public beta | 26 | 0 | ⬜ |
 | P4 Depth | 69 | 1 | ⬜ |
@@ -137,7 +137,10 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-413 | Supply follow-ups from NX-407 QA: a truck whose next node turns enemy mid-route replans (today only units at the captured node do); `_reload_plan` tries every surplus source, not only `plan_run`'s; the Static's convoy launch checks a route exists before paying `convoy_cost`; cache `enemy_held` per pass | S | ⬜ | NX-407 | A truck never drives into a node that turned enemy on its way |
 | NX-414 | Agent workflow pass from a review of shanraisshan/claude-code-best-practice (owner 2026-10-24): PostToolUse `ruff format` hook with a repo-check test, build-loop §4a sessions and handoffs (one coder per item, compact at a boundary, handoff issue at stretch end), Gotchas in build-loop, add-config-key and new-operation, LESSONS L-15..L-19, the commit-address list in TOOLING, a settings-loaded check (multi-repo cloud sessions skip project settings; OWNER-TODO §4f), Explore and Plan agents off; audit note docs/agentic/BEST-PRACTICE-AUDIT-2026-10-24.md | S | 🟨 | NX-404 | Python a coder writes is formatted before `make check`; a stretch ends with a handoff issue; a lead notices when project settings did not load |
 | NX-415 | Agent workflow follow-ups from the NX-414 audit (docs/agentic/BEST-PRACTICE-AUDIT-2026-10-24.md, items 1-7): `make pre-pr` with CI's extra checks, narrow allow rules and force-push denies, `qa` without `Agent`, a SubagentStop report check, a compact/resume re-orient hook, agent frontmatter, a headless overlay check | M | ⬜ | NX-414 | Fewer CI rounds fail on checks `make check` skips; each item ships as its own PR |
-| NX-416 | Forward staging for the Static (owner 2026-10-25, Q-TD-36, Q-TD-37; THREAT-DIRECTOR §4a): stage ground capture operations at the nearest held base, stock it by convoy, launch from there, sector-level projection sitrep | M | 🟨 | NX-412 | A west-bank Offensive spawns at a forward base in harness runs with the economy on; holds get contested |
+| NX-416 | Forward staging for the Static (owner 2026-10-25, Q-TD-36, Q-TD-37, Q-TD-38; THREAT-DIRECTOR §4a): stage ground capture operations at the nearest held base, stock it by convoy, launch from there, sector-level projection sitrep; each unit pays only at its spawn node, a re-stage is announced only when recon tracks the new base (Q-TD-38) | M | 🟨 | NX-412 | A west-bank Offensive spawns at a forward base in harness runs with the economy on; holds get contested |
+| NX-417 | Unit transfers between bases (owner 2026-10-26, Q-TD-38): the Director (and viewers) move units from one base to another; includes the deferred half-load option (spawn at a rear base at a tunable load, top up at the staging base, each base paying its part). Spec first | M | ⬜ | NX-416 | A transferred unit re-homes at its new base; upkeep and costs are drawn only where the unit is |
+| NX-418 | Joint bases (owner 2026-10-26, Q-TD-38): a base kind that hosts both ground units and aircraft (an FOB with an airfield). Spec and theater content first | M | ⬜ | NX-416 | A staged Offensive at a joint base spawns and pays for its jets there |
+| NX-419 | Off-road ground movement (owner 2026-10-26, Q-TD-38): ground troops and wheeled vehicles may leave the road net at a slower, tunable pace, so a target with no road route is reachable by ground; paratroopers and naval come later (GAMEPLAY-LATER). Spec first | L | ⬜ | NX-416 | A ground unit reaches a node with no road route, slower than by road |
 | NX-151 | Enemy-side view for director (FOW-4) | M | ✅ | NX-150 | Director API accepts only `EnemyView` |
 | NX-155 | Director: CP, tiers w/ hysteresis, budget | M | ✅ | NX-151, NX-374 | Hysteresis property |
 | NX-156 | Director: operations library + scoring + threat memory | L | ✅ | NX-155 | "Convoy raids → escorts" golden scenario |

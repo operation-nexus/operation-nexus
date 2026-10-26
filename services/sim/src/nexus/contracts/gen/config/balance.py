@@ -1055,7 +1055,7 @@ class Staging(BaseModel):
     max_wait_windows: Annotated[
         int,
         Field(
-            description="Decision windows a staged operation waits for its staging base to pay; then it launches by EC-13 at its paying node (the jets' deploy base or the rear source) if that can pay, or is dropped (FS-4), unit windows.",
+            description="Decision windows a staged operation waits for every node it spawns at to pay its own units; then it launches by EC-13 at its paying node (the jets' deploy base or the rear source) if that can pay, or is dropped (FS-4), unit windows.",
             ge=1,
         ),
     ]
@@ -2146,7 +2146,7 @@ class Director(BaseModel):
     staging: Annotated[
         Staging,
         Field(
-            description="Forward staging (THREAT-DIRECTOR §4a FS-1..FS-8, Q-TD-36, Q-TD-37; NX-416): with economy.legacy_rules false, a capture operation whose capture kind's road travel time from the rear source exceeds direct_s waits at the nearest Static-held base by road until that base can pay, its forward-stock target raised so trucks fill it."
+            description="Forward staging (THREAT-DIRECTOR §4a FS-1..FS-8, Q-TD-36, Q-TD-37; NX-416): with economy.legacy_rules false, a capture operation whose capture kind's road travel time from the rear source exceeds direct_s waits at the nearest Static-held base by road until every node it spawns at can pay its own units (Q-TD-38), the base's forward-stock target raised by the cost of the units that spawn there so trucks fill it."
         ),
     ]
     garrison: Annotated[
