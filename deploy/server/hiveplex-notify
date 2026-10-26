@@ -2,6 +2,8 @@
 # Post a message to the Discord alerts webhook. Usage: hiveplex-notify "message"   (run as root)
 # The URL lives only in /etc/hiveplex-alerts.env (mode 600). Mentions are disabled.
 set -u
+# Test switch: while this file exists, pretend Discord is unreachable (used to test the alert retry queue).
+[ -e /var/lib/hiveplex-health/simulate-notify-failure ] && { echo 'hiveplex-notify: simulated failure' >&2; exit 1; }
 ENV=/etc/hiveplex-alerts.env
 [ -r "$ENV" ] || { echo "hiveplex-notify: cannot read $ENV (run as root)" >&2; exit 2; }
 # shellcheck disable=SC1090

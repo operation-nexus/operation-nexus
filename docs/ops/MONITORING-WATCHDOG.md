@@ -48,7 +48,7 @@ Topology per [ADR-0012](../architecture/adr/0012-deployment-topology.md): the st
 On the Linux server (`hiveplex-linux`), `deploy/server/` holds the scripts that run there:
 - `hiveplex-notify` posts a message to a Discord webhook. The URL lives only in `/etc/hiveplex-alerts.env` (mode 600, root); it is never in the repo.
 - `hiveplex-health-check`, run every 5 minutes by `hiveplex-health.timer`, posts only when a check changes state (OK to FAIL, and FAIL to OK with the downtime), plus one notice after each boot. Checks: root disk at 85% or more, less than 10% of RAM available, both `1.1.1.1` and `8.8.8.8` unreachable (the alert can only be delivered once the internet is back), Tailscale not `Running`, the Docker service not active, and a pending reboot.
-- Tested on 2026-10-25: a test message, the boot notice and a simulated recovery all arrived in Discord. The FAIL-side message uses the same code but was not triggered.
+- Tested on 2026-10-25: a test message, the boot notice and a simulated recovery all arrived in Discord. During a real outage that evening (the server's network and the PC were both down for about 5 minutes) the "FAILED" messages could not be sent and were lost; only the two "recovered" messages arrived. **Fix (same day):** an alert that cannot be delivered is kept in `/var/lib/hiveplex-health/outbox` (newest 50) and sent at the next run once Discord is reachable, marked "(sent N min late, the network was down)", before that run's own alerts. Tested by creating `/var/lib/hiveplex-health/simulate-notify-failure`, which makes `hiveplex-notify` fail until the file is removed.
 
 **PC watchdog (layer 2, 2026-10-25):** the server also watches the harness PC (`192.168.1.102`):
 - `pc_lan`: a ping reply from the PC. Alerts when it stops answering (off, asleep or off the network).
@@ -56,7 +56,7 @@ On the Linux server (`hiveplex-linux`), `deploy/server/` holds the scripts that 
 - `pc_harness`: alerts when the heartbeat says the `nexus-harness.timer` on the PC is not active.
 - If the PC is down, only `pc_lan` speaks, so one outage is one message.
 - Planned maintenance (a reboot, a hardware install): `sudo hiveplex-maintenance 60` on the server pauses the PC alerts for 60 minutes; `sudo hiveplex-maintenance off` resumes them.
-- Tested 2026-10-25: a stale heartbeat produced the failure state and a fresh one cleared it. A real PC outage has not happened yet.
+- Tested 2026-10-25: a stale heartbeat produced the failure state and a fresh one cleared it. A real PC outage then happened (a planned shutdown with maintenance mode left off): the ping check failed at 22:40:07 and Discord reported "pc_lan recovered (down 5 min)" at 22:45; the "failed" message was lost because the network was down too (fixed by the outbox above).
 
 **Dashboard (2026-10-25):** Prometheus, a blackbox exporter, a node exporter and a Kasa plug exporter feed a Grafana dashboard on the server, reachable on the tailnet only (SERVER-SETUP.md, "Monitoring"). It shows internet and PC reachability, ping latency, server load, and the server plug's power, energy and cost.
 
