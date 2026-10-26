@@ -109,6 +109,29 @@ def test_a_crew_rerouted_by_a_cut_never_drives_through_enemy_ground() -> None:
         assert crew.path == path, (owner, bank)
 
 
+def test_a_rerouted_crew_whose_bank_turned_enemy_takes_the_other_bank() -> None:
+    """As above, plus a road s - w - u to bridge x's far bank u: with bank t enemy-held the crew
+    reroutes to u (the stop kept); with t neutral it keeps the nearer bank t."""
+    pos = {"s": (0, 0), "y": (500, 0), "t": (1000, 0), "e": (500, 1000), "x": (1500, 0),
+           "u": (2000, 0), "w": (1000, -3000)}  # fmt: skip
+    roads = RoadGraph(
+        pos, [Road("s", "t", 1.0, "y"), Road("s", "e", 1.0), Road("e", "t", 1.0),
+              Road("t", "u", 1.0, "x"), Road("s", "w", 1.0), Road("w", "u", 1.0)],
+    )  # fmt: skip
+    rules = dataclasses.replace(RULES, roads=roads)
+    for bank, path in (("ENEMY", ["s", "w", "u", "x"]), ("NEUTRAL", ["s", "e", "t", "x"])):
+        w = tt.new_world()
+        w.owner["e"] = "NEUTRAL"
+        w.owner["t"] = bank  # type: ignore[assignment]  # a str literal; the dict holds NodeOwner
+        crew = tt.put(w, TRUCK, "haven")
+        job = tt.post(w, "COALITION", "REPAIR_BRIDGE", NORTH, "repair")
+        tasking.claim(w, crew, job, [])
+        crew.pos, crew.last_node, crew.path = Vec2(200.0, 0.0), "s", ["t", "x"]
+        w.bridge_down = {"x", "y"}
+        bridges.reroute(w, rules)
+        assert crew.path == path, bank
+
+
 @settings(max_examples=60, deadline=None)
 @given(
     owners=st.lists(st.sampled_from(["COALITION", "ENEMY", "NEUTRAL"]), min_size=5, max_size=5),

@@ -167,8 +167,9 @@ def reroute(world: World, rules: Rules) -> None:
     loaded truck on a GOTO order to that last node) enters no node the other side holds, that
     node exempt
     (`enemy_held`, Q-SIM-122), and a repair crew (a REPAIR_BRIDGE claimant) none, its bank
-    included (Q-SIM-125); an empty capture-run truck takes any road. A path to a bridge's
-    repair stop is planned to the bank before it, the stop kept after a new route."""
+    included (Q-SIM-125), to whichever bank of its bridge is nearer by road; an empty capture-run
+    truck takes any road. A path to a bridge's repair stop is planned to a bank before it, the
+    stop kept after a new route."""
     cut = blocked(world)
     for e in world.entities():
         path = [n for n in e.path if isinstance(n, str)]
@@ -190,13 +191,30 @@ def reroute(world: World, rules: Rules) -> None:
         supply = job.kind == "RESUPPLY" if job is not None else goto_run
         if supply:  # a supply run (Q-SIM-122): around enemy-held nodes, its destination exempt
             avoid = enemy_held(world, rules, e.side) - {seq[-1]}
-        elif job is not None and job.kind == "REPAIR_BRIDGE":  # a crew (Q-SIM-125): no exemption
+        crew = job is not None and job.kind == "REPAIR_BRIDGE"
+        if crew:  # a crew (Q-SIM-125): no exemption
             avoid = enemy_held(world, rules, e.side)
+        # a crew bound for a stop may take either bank of its bridge, the nearer by road metres
+        ends = sorted(rules.roads.spans[stop]) if crew and stop else [seq[-1]]
         for k, (a, b) in enumerate(pairwise(seq)):
             if rules.roads.edge(a, b).bridge in cut and (k or crosses(world, rules, a, b, e.pos)):
-                route = shortest_path(rules.roads, a, seq[-1], blocked=cut, avoid=avoid)
+                route = _shortest(rules, a, ends, cut, avoid)
                 e.path = [*seq[1:k], *(route or [a]), *([stop] if route and stop else [])]
                 break
+
+
+def _shortest(
+    rules: Rules, a: str, ends: list[str], cut: frozenset[str], avoid: frozenset[str]
+) -> list[str] | None:
+    """The shortest road route from `a` to any of `ends` (sorted; ties by node id), or None."""
+    best: tuple[float, list[str]] | None = None
+    for end in ends:
+        route = shortest_path(rules.roads, a, end, blocked=cut, avoid=avoid)
+        if route is not None:
+            length = sum(rules.roads.edge(x, y).length_m for x, y in pairwise(route))
+            if best is None or length < best[0]:
+                best = (length, route)
+    return None if best is None else best[1]
 
 
 def repair(world: World, out: list[Event]) -> None:
