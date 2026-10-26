@@ -217,6 +217,14 @@ def test_pool_money_the_window_cannot_spend_promotes_no_capture_operation() -> N
     w = limited()
     assert floor_window(w, 10, spend=10) == floor_window(limited(), 9, spend=10)
     assert w.director["ENEMY"].budget == 10
+    # with staging on, a wrongly promoted OFFENSIVE would be staged (it holds its cost and waits)
+    # instead of failing to pay, so only the cap keeps it out
+    w = world(config({"economy.legacy_rules": False, **LIMITED}))
+    at_floor(w)
+    w.pool["ENEMY"] = 2000
+    floor_window(w, 10, spend=10)
+    assert w.director["ENEMY"].staged == []
+    assert w.director["ENEMY"].budget == 10
 
 
 def test_a_promoted_capture_operation_that_cannot_pay_crowds_out_nothing() -> None:
@@ -230,9 +238,9 @@ def test_a_promoted_capture_operation_that_cannot_pay_crowds_out_nothing() -> No
         w.pool["ENEMY"] = 2000
         return w
 
-    w = limited(50)
-    assert floor_window(w, 10, spend=10) == floor_window(limited(50), 9, spend=10)
-    assert w.director["ENEMY"].budget == 10
+    w = limited(50)  # 30 points: without the floor the window buys three RECON at the source
+    assert floor_window(w, 10, spend=30) == floor_window(limited(50), 9, spend=30) != []
+    assert w.director["ENEMY"].budget == 30
     w = limited(60)  # the base can pay all 60: the base account is lifted to it, not 60 - 10
     assert floor_window(w, 10, spend=10) == [("OFFENSIVE", "west-airbase")]
 
