@@ -83,6 +83,18 @@ else
   fi
 fi
 
+# smart plugs (Kasa exporter): short Wi-Fi gaps are normal, so alert only after a plug has been unreadable for PLUG_DOWN_MIN minutes.
+# While the exporter itself cannot be reached nothing is judged (its own service is the thing to look at then).
+PLUG_DOWN_MIN=60
+if plugs=$(curl -fsS -m 5 http://127.0.0.1:9112/metrics 2>/dev/null | sed -n 's/^kasa_up{plug="\([a-z_]*\)".*} \([01]\)$/\1 \2/p') && [ -n "$plugs" ]; then
+  while read -r plug up; do
+    if [ "$up" = 1 ]; then rm -f "$STATE/plug_$plug.down"; check "plug_$plug" ok up; continue; fi
+    [ -e "$STATE/plug_$plug.down" ] || date +%s > "$STATE/plug_$plug.down"
+    mins=$(( ($(date +%s) - $(cat "$STATE/plug_$plug.down")) / 60 ))
+    [ "$mins" -ge "$PLUG_DOWN_MIN" ] && check "plug_$plug" fail "the $plug smart plug has not answered for $mins min (Wi-Fi, power or the plug itself; the PC or server may still be fine)" || true
+  done <<< "$plugs"
+fi
+
 # pending reboot (one notice per boot)
 if [ -e /var/run/reboot-required ] && [ "$(cat "$STATE/reboot_notice" 2>/dev/null)" != "$bid" ]; then echo "$bid" > "$STATE/reboot_notice"; note "ℹ️ **$host**: a reboot is required (package updates)"; fi
 exit 0
