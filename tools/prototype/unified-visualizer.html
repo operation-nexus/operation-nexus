@@ -443,6 +443,7 @@
       </nav>
 
       <div style="display:flex; align-items:center; gap:8px;">
+        <button class="ctrl-btn" onclick="toggleGoldenReplay()" id="golden-btn" style="border-color: var(--accent-amber); color: var(--accent-amber);">DATA: GOLDEN SIM</button>
         <button class="ctrl-btn" onclick="toggleBridgeState()" id="bridge-btn">BRIDGE: INTACT</button>
         <button class="ctrl-btn" onclick="toggleFOW()" id="fow-btn">FOW: OFF</button>
         <button class="ctrl-btn" onclick="toggleAudio()" id="audio-btn">AUDIO FX: OFF</button>
@@ -549,9 +550,11 @@
     <footer>
       <div class="playback-controls">
         <button class="ctrl-btn" onclick="togglePause()" id="pause-btn">PAUSE</button>
+        <button class="ctrl-btn" onclick="setSpeed(0.5)">0.5x</button>
         <button class="ctrl-btn" onclick="setSpeed(1)">1x</button>
         <button class="ctrl-btn" onclick="setSpeed(2)">2x</button>
         <button class="ctrl-btn" onclick="setSpeed(5)">5x</button>
+        <button class="ctrl-btn" onclick="setSpeed(20)">20x</button>
         <span>RATE: <b id="speed-label" style="color:var(--accent-cyan);">1x</b></span>
       </div>
 
@@ -697,9 +700,57 @@
     let crtEnabled = false;
     let fowEnabled = false;
     let canyonRunActive = false;
+    let goldenReplayActive = true;
+    let lastGoldenEventIdx = -1;
     let bridgeSevered = false;
     let nightMode = false;
     let flirPolarity = 'white-hot';
+
+    /* Real Deterministic Simulation Replay Dataset coupled from services/sim/tests/golden/joins-strait-1 */
+    const GOLDEN_REPLAY_DATA = {
+      caseName: 'joins-strait-1',
+      campaignId: '0192f3a4-5b6c-7d8e-9f01-23456789abcd',
+      seed: 12345,
+      tickHz: 10,
+      events: [
+        { t: 0.1, msg: 'GOLDEN SIM [TICK 1]: VIPER-01 (STRIKE_FIGHTER-32) FORWARD-DEPLOYED AT WEST-AIRBASE -> EAST-AIRBASE (250 M/S)' },
+        { t: 1.0, msg: 'GOLDEN SIM [TICK 10]: MULE-01 (LOGI_TRUCK-35) & VIPER-02 (STRIKE_FIGHTER-37) DEPLOYED ON NORTHERN CORRIDOR' },
+        { t: 60.0, msg: 'GOLDEN SIM [TICK 600]: ENEMY DIRECTOR LAUNCHED 3x RECON UAV SORTIES FROM EAST-AIRBASE' },
+        { t: 123.4, msg: 'GOLDEN SIM [TICK 1234]: WEAPON FIRED // EAST-AIRBASE SAM (ID=6) ENGAGED VIPER-01 WITH SAM INTERCEPTOR' },
+        { t: 126.1, msg: 'GOLDEN SIM [TICK 1261]: WEAPON FIRED // VIPER-01 FIRED AA_LIGHT AT ENEMY_RECON_UAV-40' },
+        { t: 126.7, msg: 'GOLDEN SIM [TICK 1267]: WEAPON FIRED // ENEMY_FIGHTER-10 & 12 FIRED AA_MISSILE SALVO AT VIPER-01' },
+        { t: 154.0, msg: 'GOLDEN SIM [TICK 1540]: CREW DOWNED // VIPER-01 EJECTED AT [284.5KM, 120.0KM] -> CSAR RESCUE-01 VECTORING' },
+        { t: 180.0, msg: 'GOLDEN SIM [TICK 1800]: VIPER-02 (STRIKE_FIGHTER-37) ESTABLISHED ON_STATION ESCORT ORBIT OVER MULE CONVOY' },
+        { t: 540.0, msg: 'GOLDEN SIM [TICK 5400]: MULE-01 CLIMBING NORTHERN MOUNTAIN GRADE (WEST-AIRBASE -> JCT-W-PASS -> FOB-N-W)' },
+        { t: 655.2, msg: 'GOLDEN SIM [TICK 6552]: WEAPON IMPACT // EAST-AIRBASE SAM SALVO INTERCEPTED STRIKE PACKAGE' },
+        { t: 719.8, msg: 'GOLDEN SIM [TICK 7198]: WEAPON FIRED // BANDIT-04 (ENEMY_STRIKE-41) FIRED AG_LIGHT AT FOB-SOUTH-WEST' }
+      ],
+      /* Road route waypoints for LOGI_TRUCK-33/35 from services/sim road graph (West Airbase -> North Pass -> FOB-NW -> North Viaduct -> East Hub) */
+      truckRoute: [
+        { x: 90000, y: 120000 },
+        { x: 110000, y: 75000 },
+        { x: 130000, y: 60000 },
+        { x: 175000, y: 60000 },
+        { x: 225000, y: 60000 },
+        { x: 230000, y: 60000 },
+        { x: 270000, y: 120000 }
+      ]
+    };
+
+    function toggleGoldenReplay() {
+      goldenReplayActive = !goldenReplayActive;
+      const btn = document.getElementById('golden-btn');
+      if (btn) {
+        btn.innerText = `DATA: ${goldenReplayActive ? 'GOLDEN SIM' : 'SANDBOX CAP'}`;
+        btn.style.color = goldenReplayActive ? 'var(--accent-amber)' : 'var(--accent-cyan)';
+        btn.style.borderColor = goldenReplayActive ? 'var(--accent-amber)' : 'var(--border-color)';
+      }
+      resetDerivedKinematics();
+      addEventLog(goldenReplayActive
+        ? `REPLAY COUPLED: services/sim/tests/golden/joins-strait-1 (SEED ${GOLDEN_REPLAY_DATA.seed})`
+        : 'SANDBOX MODE: STANDARD COMBAT AIR PATROL & CANYON DEMO');
+      playRadioSquelch();
+    }
 
     function toggleBridgeState() {
       bridgeSevered = !bridgeSevered;
@@ -1208,7 +1259,7 @@
       camera = new THREE.PerspectiveCamera(45, container.clientWidth / container.clientHeight, 1, 10000);
       camera.position.set(0, 160, 240);
 
-      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, logarithmicDepthBuffer: true });
+      renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false, logarithmicDepthBuffer: true, preserveDrawingBuffer: true });
       renderer.setSize(container.clientWidth, container.clientHeight);
       renderer.setPixelRatio(window.devicePixelRatio);
       renderer.shadowMap.enabled = true;
@@ -1615,126 +1666,155 @@
       const jetMat = new THREE.MeshStandardMaterial({ color: 0x2563eb, roughness: 0.4 });
       const wingMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8 });
 
-      // Strikers
+      // Strikers (Outer rootGroup stays world-aligned for vertical drop-lines; inner bodyGroup receives 6-DOF attitude & scale)
       ['VIPER-01', 'VIPER-02'].forEach(id => {
-        const jetGroup = new THREE.Group();
+        const rootGroup = new THREE.Group();
+        const bodyGroup = new THREE.Group();
+        rootGroup.userData.bodyGroup = bodyGroup;
+        rootGroup.add(bodyGroup);
+
         const fuse = new THREE.Mesh(new THREE.ConeGeometry(2.0, 10, 4), jetMat);
         fuse.rotateX(Math.PI / 2);
-        jetGroup.add(fuse);
+        bodyGroup.add(fuse);
 
         const wings = new THREE.Mesh(new THREE.BoxGeometry(11, 0.2, 4.5), wingMat);
         wings.position.z = -1;
-        jetGroup.add(wings);
+        bodyGroup.add(wings);
 
         const finL = new THREE.Mesh(new THREE.BoxGeometry(0.3, 2.4, 2), jetMat);
         finL.position.set(-2, 1.4, -3.5);
         finL.rotation.z = -0.2;
-        jetGroup.add(finL);
+        bodyGroup.add(finL);
 
         const finR = new THREE.Mesh(new THREE.BoxGeometry(0.3, 2.4, 2), jetMat);
         finR.position.set(2, 1.4, -3.5);
         finR.rotation.z = 0.2;
-        jetGroup.add(finR);
+        bodyGroup.add(finR);
 
-        // Altitude Drop-Line & Ground Shadow Ring
-        attachDropLineAndShadow(jetGroup, id, 0x00e5ff);
+        // Altitude Drop-Line & Ground Shadow Ring attached to unrotated rootGroup
+        attachDropLineAndShadow(rootGroup, id, 0x00e5ff);
 
-        scene.add(jetGroup);
-        unit3DMap[id] = jetGroup;
+        scene.add(rootGroup);
+        unit3DMap[id] = rootGroup;
       });
 
       // Logistics Truck (MULE-01)
-      const truckGroup = new THREE.Group();
-      const cabMat = new THREE.MeshStandardMaterial({ color: 0x475569 });
-      const cab = new THREE.Mesh(new THREE.BoxGeometry(2.6, 2.2, 3.0), cabMat);
-      cab.position.set(0, 1.6, 2.5);
-      truckGroup.add(cab);
+      const truckRoot = new THREE.Group();
+      const truckBody = new THREE.Group();
+      truckRoot.userData.bodyGroup = truckBody;
+      truckRoot.add(truckBody);
 
-      const cargoMat = new THREE.MeshStandardMaterial({ color: 0x334155 });
-      const cargo = new THREE.Mesh(new THREE.BoxGeometry(2.8, 2.6, 6.0), cargoMat);
-      cargo.position.set(0, 2.0, -1.8);
-      truckGroup.add(cargo);
+      const chassisMat = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.8 });
+      const chassis = new THREE.Mesh(new THREE.BoxGeometry(2.6, 0.6, 9.2), chassisMat);
+      chassis.position.set(0, 0.5, -0.2);
+      truckBody.add(chassis);
 
-      scene.add(truckGroup);
-      unit3DMap['MULE-01'] = truckGroup;
+      const cabMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.4 });
+      const cab = new THREE.Mesh(new THREE.BoxGeometry(2.5, 2.0, 2.8), cabMat);
+      cab.position.set(0, 1.8, 2.8);
+      truckBody.add(cab);
+
+      const cargoMat = new THREE.MeshStandardMaterial({ color: 0x475569, roughness: 0.6 });
+      const cargo = new THREE.Mesh(new THREE.BoxGeometry(2.7, 2.3, 5.8), cargoMat);
+      cargo.position.set(0, 1.95, -1.8);
+      truckBody.add(cargo);
+
+      scene.add(truckRoot);
+      unit3DMap['MULE-01'] = truckRoot;
 
       // CSAR Helicopter (RESCUE-01)
-      const heloGroup = new THREE.Group();
+      const heloRoot = new THREE.Group();
+      const heloBody = new THREE.Group();
+      heloRoot.userData.bodyGroup = heloBody;
+      heloRoot.add(heloBody);
+
       const heloMat = new THREE.MeshStandardMaterial({ color: 0x0284c7, roughness: 0.4 });
       const hFuse = new THREE.Mesh(new THREE.BoxGeometry(2.4, 2.4, 6.0), heloMat);
       hFuse.position.set(0, 1.4, 0);
-      heloGroup.add(hFuse);
+      heloBody.add(hFuse);
 
       const chinMat = new THREE.MeshStandardMaterial({ color: 0x38bdf8, transparent: true, opacity: 0.7 });
       const chin = new THREE.Mesh(new THREE.BoxGeometry(2.0, 1.2, 1.8), chinMat);
       chin.position.set(0, 0.6, 2.2);
-      heloGroup.add(chin);
+      heloBody.add(chin);
 
       const tailBoom = new THREE.Mesh(new THREE.CylinderGeometry(0.35, 0.5, 5.5), heloMat);
       tailBoom.rotateX(Math.PI / 2);
       tailBoom.position.set(0, 1.8, -5.2);
-      heloGroup.add(tailBoom);
+      heloBody.add(tailBoom);
 
       const rotorDiskMat = new THREE.MeshBasicMaterial({ color: 0x94a3b8, transparent: true, opacity: 0.4, side: THREE.DoubleSide });
       const rotorDisk = new THREE.Mesh(new THREE.CircleGeometry(6.5, 18), rotorDiskMat);
       rotorDisk.rotateX(-Math.PI / 2);
       rotorDisk.position.set(0, 3.2, 0.4);
-      heloGroup.add(rotorDisk);
-      attachDropLineAndShadow(heloGroup, 'RESCUE-01', 0x0284c7);
-      scene.add(heloGroup);
-      unit3DMap['RESCUE-01'] = heloGroup;
+      heloBody.add(rotorDisk);
+      attachDropLineAndShadow(heloRoot, 'RESCUE-01', 0x0284c7);
+      scene.add(heloRoot);
+      unit3DMap['RESCUE-01'] = heloRoot;
 
       // Kinetic Interceptor Missile (MISSILE-99)
-      const misGroup = new THREE.Group();
+      const misRoot = new THREE.Group();
+      const misBody = new THREE.Group();
+      misRoot.userData.bodyGroup = misBody;
+      misRoot.add(misBody);
+
       const misMat = new THREE.MeshStandardMaterial({ color: 0xf8fafc, roughness: 0.2 });
       const misTube = new THREE.Mesh(new THREE.CylinderGeometry(0.3, 0.3, 3.8), misMat);
       misTube.rotateX(Math.PI / 2);
-      misGroup.add(misTube);
+      misBody.add(misTube);
 
       const misNose = new THREE.Mesh(new THREE.ConeGeometry(0.3, 1.0, 10), new THREE.MeshStandardMaterial({ color: 0x0f172a }));
       misNose.rotateX(Math.PI / 2);
       misNose.position.z = 2.4;
-      misGroup.add(misNose);
+      misBody.add(misNose);
 
       const finMat = new THREE.MeshStandardMaterial({ color: 0x334155 });
       const finH = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.05, 0.8), finMat);
       finH.position.z = -1.4;
-      misGroup.add(finH);
+      misBody.add(finH);
       const finV = new THREE.Mesh(new THREE.BoxGeometry(0.05, 1.6, 0.8), finMat);
       finV.position.z = -1.4;
-      misGroup.add(finV);
+      misBody.add(finV);
 
       const plumeMat = new THREE.MeshBasicMaterial({ color: 0xf97316 });
       const plume = new THREE.Mesh(new THREE.ConeGeometry(0.25, 1.6, 8), plumeMat);
       plume.rotateX(-Math.PI / 2);
       plume.position.z = -2.7;
-      misGroup.add(plume);
-      scene.add(misGroup);
-      unit3DMap['MISSILE-99'] = misGroup;
+      misBody.add(plume);
+      scene.add(misRoot);
+      unit3DMap['MISSILE-99'] = misRoot;
 
       // Static Bandit Interceptor
-      const banditGroup = new THREE.Group();
+      const banditRoot = new THREE.Group();
+      const banditBody = new THREE.Group();
+      banditRoot.userData.bodyGroup = banditBody;
+      banditRoot.add(banditBody);
+
       const bFuse = new THREE.Mesh(new THREE.ConeGeometry(2.0, 10, 4), new THREE.MeshStandardMaterial({ color: 0x18181b, roughness: 0.5 }));
       bFuse.rotateX(Math.PI / 2);
-      banditGroup.add(bFuse);
+      banditBody.add(bFuse);
       const bWing = new THREE.Mesh(new THREE.BoxGeometry(11, 0.2, 4.5), new THREE.MeshStandardMaterial({ color: 0xef4444 }));
       bWing.position.z = -1;
-      banditGroup.add(bWing);
-      attachDropLineAndShadow(banditGroup, 'BANDIT-04', 0xef4444);
-      scene.add(banditGroup);
-      unit3DMap['BANDIT-04'] = banditGroup;
+      banditBody.add(bWing);
+      attachDropLineAndShadow(banditRoot, 'BANDIT-04', 0xef4444);
+      scene.add(banditRoot);
+      unit3DMap['BANDIT-04'] = banditRoot;
 
       // Static Recon UAV
-      const uavGroup = new THREE.Group();
+      const uavRoot = new THREE.Group();
+      const uavBody = new THREE.Group();
+      uavRoot.userData.bodyGroup = uavBody;
+      uavRoot.add(uavBody);
+
       const uavMat = new THREE.MeshStandardMaterial({ color: 0x27272a });
       const uFuse = new THREE.Mesh(new THREE.CylinderGeometry(0.8, 0.8, 6), uavMat);
       uFuse.rotateX(Math.PI / 2);
-      uavGroup.add(uFuse);
+      uavBody.add(uFuse);
       const uWing = new THREE.Mesh(new THREE.BoxGeometry(14, 0.15, 1.8), uavMat);
-      uavGroup.add(uWing);
-      attachDropLineAndShadow(uavGroup, 'STATIC-UAV', 0xef4444);
-      scene.add(uavGroup);
-      unit3DMap['STATIC-UAV'] = uavGroup;
+      uavBody.add(uWing);
+      attachDropLineAndShadow(uavRoot, 'STATIC-UAV', 0xef4444);
+      scene.add(uavRoot);
+      unit3DMap['STATIC-UAV'] = uavRoot;
 
       // Rotating Radar Spire
       radarSpire3D = new THREE.Group();
@@ -1746,20 +1826,21 @@
       dish.position.y = 12.5;
       radarSpire3D.add(dish);
       radarSpire3D.position.set(-90, 1.5, 0);
+      radarSpire3D.scale.setScalar(0.55);
       scene.add(radarSpire3D);
     }
 
     function attachDropLineAndShadow(group, id, hexCol) {
       const lineGeo = new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(0, 0, 0), new THREE.Vector3(0, -20, 0)]);
-      const lineMat = new THREE.LineDashedMaterial({ color: hexCol, dashSize: 3, gapSize: 2, transparent: true, opacity: 0.4 });
+      const lineMat = new THREE.LineDashedMaterial({ color: hexCol, dashSize: 2.0, gapSize: 1.5, transparent: true, opacity: 0.45 });
       const dropLine = new THREE.Line(lineGeo, lineMat);
       dropLine.computeLineDistances();
       group.add(dropLine);
       dropLines[id] = dropLine;
 
-      const ringGeo = new THREE.RingGeometry(2.5, 4.0, 12);
+      const ringGeo = new THREE.RingGeometry(1.1, 1.8, 16);
       ringGeo.rotateX(-Math.PI / 2);
-      const ringMat = new THREE.MeshBasicMaterial({ color: hexCol, transparent: true, opacity: 0.35, side: THREE.DoubleSide });
+      const ringMat = new THREE.MeshBasicMaterial({ color: hexCol, transparent: true, opacity: 0.4, side: THREE.DoubleSide });
       const shadowRing = new THREE.Mesh(ringGeo, ringMat);
       shadowRing.position.y = -20;
       group.add(shadowRing);
@@ -2302,14 +2383,14 @@
           const rightX = -fwdZ;
           const rightZ = fwdX;
           camera.position.set(
-            pos.x - fwdX * 26 + rightX * 5.0,
-            pos.y + 4.8,
-            pos.z - fwdZ * 26 + rightZ * 5.0
+            pos.x - fwdX * 12.5 + rightX * 2.2,
+            pos.y + 2.3,
+            pos.z - fwdZ * 12.5 + rightZ * 2.2
           );
           controls.target.set(
-            pos.x + fwdX * 35,
-            pos.y - 1.2,
-            pos.z + fwdZ * 35
+            pos.x + fwdX * 28,
+            pos.y - 0.6,
+            pos.z + fwdZ * 28
           );
         }
         playFlybyDoppler();
@@ -2405,6 +2486,50 @@
     /* =========================================================================
        6. 6-DOF KINEMATICS, SIMULATION & MAIN ANIMATION LOOP
        ========================================================================= */
+    function samplePolylineRoute(pts, distMeters) {
+      let totalLen = 0;
+      const segs = [];
+      for (let i = 0; i < pts.length - 1; i++) {
+        const dx = pts[i + 1].x - pts[i].x;
+        const dy = pts[i + 1].y - pts[i].y;
+        const len = Math.hypot(dx, dy);
+        segs.push({ a: pts[i], b: pts[i + 1], len, angle: Math.atan2(dy, dx) });
+        totalLen += len;
+      }
+      const d = ((distMeters % totalLen) + totalLen) % totalLen;
+      let acc = 0;
+      for (let i = 0; i < segs.length; i++) {
+        const s = segs[i];
+        if (d <= acc + s.len || i === segs.length - 1) {
+          const frac = Math.max(0, Math.min(1, (d - acc) / Math.max(1, s.len)));
+          return {
+            x: s.a.x + frac * (s.b.x - s.a.x),
+            y: s.a.y + frac * (s.b.y - s.a.y),
+            angle: s.angle
+          };
+        }
+        acc += s.len;
+      }
+      return { x: pts[0].x, y: pts[0].y, angle: 0 };
+    }
+
+    function shortestAngleDiff(target, current) {
+      let d = target - current;
+      while (d > Math.PI) d -= 2 * Math.PI;
+      while (d < -Math.PI) d += 2 * Math.PI;
+      return d;
+    }
+
+    function stepSecondOrderAttitude(u, propVal, propVel, target, wn, dt) {
+      const val = u[propVal] || 0;
+      const vel = u[propVel] || 0;
+      const clampedDt = Math.min(0.05, Math.max(0.001, dt));
+      const accel = wn * wn * (target - val) - 2.0 * wn * vel;
+      const nextVel = vel + accel * clampedDt;
+      u[propVel] = nextVel;
+      u[propVal] = val + nextVel * clampedDt;
+    }
+
     function updateKinematics(dt) {
       const v1 = UNITS.find(u => u.id === 'VIPER-01');
       const v2 = UNITS.find(u => u.id === 'VIPER-02');
@@ -2412,108 +2537,201 @@
       const m1 = UNITS.find(u => u.id === 'MULE-01');
       const r1 = UNITS.find(u => u.id === 'RESCUE-01');
       const mis = UNITS.find(u => u.id === 'MISSILE-99');
+      const uav = UNITS.find(u => u.id === 'STATIC-UAV');
+
+      // Stream real Golden Replay combat events into the ticker
+      if (goldenReplayActive && !canyonRunActive) {
+        const cycleTime = simTime % 760.0;
+        let idx = -1;
+        for (let i = 0; i < GOLDEN_REPLAY_DATA.events.length; i++) {
+          if (cycleTime >= GOLDEN_REPLAY_DATA.events[i].t) idx = i;
+        }
+        if (idx !== -1 && idx !== lastGoldenEventIdx) {
+          lastGoldenEventIdx = idx;
+          addEventLog(GOLDEN_REPLAY_DATA.events[idx].msg);
+        }
+      }
 
       if (canyonRunActive) {
-        // Low-Altitude Canyon Run Spline Corridor weaving through Northern Mountain Canyon & Viaduct Gorge
-        const t1 = simTime * 0.55 + 1.15;
-        const cx = 195000;
-        const cy = 54000;
+        // Low-Altitude Canyon Run Spline Corridor weaving West-to-East through Northern Mountain Canyon & Viaduct Gorge
+        // At t=0..3s (sPhase in 0..pi/2), trajectory curves smoothly to the RIGHT (yawRate > 0 -> right wing down),
+        // then weaves LEFT through the gorge after passing the North Fjord Viaduct.
+        const renderViperCanyonPt = (timeVal, latOffset, altOffset) => {
+          const prog = ((timeVal * 0.045) % 1.0 + 1.0) % 1.0;
+          const sPhase = prog * Math.PI * 2.0 + 0.15;
+          const x = 148000 + prog * 96000;
+          const y = 55000 - Math.cos(sPhase) * 11000 + latOffset;
+          const groundElev = sampleStraitElevation(x, y);
+          const altScene = Math.max(groundElev * 0.038 + 2.8 + altOffset, 7.2 + Math.sin(sPhase) * 1.4 + altOffset);
+          return { x, y, altScene };
+        };
 
         if (v1) {
-          v1.x = cx + Math.cos(t1) * 58000 + Math.sin(t1 * 2.0) * 24000;
-          v1.y = cy + Math.sin(t1) * 16000 + Math.cos(t1 * 2.8) * 15000 + Math.sin(t1 * 4.2) * 7500;
-          const groundElev = sampleStraitElevation(v1.x, v1.y);
-          // Dive deep into canyon gorge below mountain ridges (NOE terrain-hugging altitude)
-          v1.customAltScene = Math.max(groundElev * 0.038 + 2.6, 5.2 + Math.sin(t1 * 2.5) * 2.4 + Math.cos(t1 * 1.8) * 1.6);
+          const p1 = renderViperCanyonPt(simTime, 0, 0);
+          v1.x = p1.x;
+          v1.y = p1.y;
+          v1.customAltScene = p1.altScene;
+          v1.spd = 486;
+          v1.task = 'NOE CANYON INGRESS';
         }
 
         if (v2) {
-          const t2 = t1 - 0.65;
-          v2.x = cx + Math.cos(t2) * 58000 + Math.sin(t2 * 2.0) * 24000 - 12000;
-          v2.y = cy + Math.sin(t2) * 16000 + Math.cos(t2 * 2.8) * 15000 + Math.sin(t2 * 4.2) * 7500 + 8000;
-          const groundElev2 = sampleStraitElevation(v2.x, v2.y);
-          v2.customAltScene = Math.max(groundElev2 * 0.038 + 3.4, 6.2 + Math.sin(t2 * 2.5) * 2.4 + Math.cos(t2 * 1.8) * 1.6);
+          const p2 = renderViperCanyonPt(simTime - 0.65, -2400, 0.5);
+          v2.x = p2.x;
+          v2.y = p2.y;
+          v2.customAltScene = p2.altScene;
+          v2.spd = 486;
         }
 
         if (b4) {
-          const tb = t1 + 0.38;
-          b4.x = cx + Math.cos(tb) * 56000 + Math.sin(tb * 2.0) * 22000;
-          b4.y = cy + Math.sin(tb) * 15000 + Math.cos(tb * 2.8) * 14000;
-          const groundElevB = sampleStraitElevation(b4.x, b4.y);
-          b4.customAltScene = Math.max(groundElevB * 0.038 + 3.1, 5.8 + Math.sin(tb * 2.2) * 2.2);
+          const pb = renderViperCanyonPt(simTime + 0.85, 1800, 0.3);
+          b4.x = pb.x;
+          b4.y = pb.y;
+          b4.customAltScene = pb.altScene;
+          b4.spd = 510;
+        }
+      } else if (goldenReplayActive) {
+        // Coupled to real services/sim/tests/golden/joins-strait-1 trajectories & speeds
+        // STRIKE_FIGHTER = 250 m/s (486 kts), RECON_UAV = 60 m/s (117 kts), LOGI_TRUCK = 25 m/s (90 km/h)
+        // Using 4x tactical display compression at 1x UI rate so 250 m/s covers 1 km/s on the 400x240km board
+        const simSec = simTime * 4.0;
+
+        if (v1) {
+          // STRIKE_FIGHTER-32/37: Depart West Airbase [90k, 120k], ingress across Strait toward East Airbase [285k, 120k], bank & egress loop
+          const phase = (simSec * 0.012) % (Math.PI * 2);
+          v1.x = 185000 + Math.sin(phase) * 95000;
+          v1.y = 112000 - Math.cos(phase) * 28000 + Math.sin(phase * 2.0) * 12000;
+          v1.customAltScene = null;
+          v1.spd = 486;
+          v1.task = 'GOLDEN SIM: STRIKE EAST-AB';
+        }
+
+        if (v2 && m1) {
+          // STRIKE_FIGHTER-37 ON_STATION escort orbit over logistics convoy (radius 10,000m, clockwise right bank)
+          const escortRad = simSec * 0.032;
+          v2.x = m1.x + Math.cos(escortRad) * 10500;
+          v2.y = m1.y + Math.sin(escortRad) * 10500;
+          v2.customAltScene = null;
+          v2.spd = 486;
+          v2.task = 'GOLDEN SIM: ESCORT ON_STATION';
+        }
+
+        if (b4) {
+          // ENEMY_STRIKE_FIGHTER-41 / ENEMY_FIGHTER-10: CAP & Counter-Strike sortie from East Airbase [310k, 120k] toward FOB-SW [130k, 180k]
+          const bPhase = (simSec * 0.014) % (Math.PI * 2);
+          b4.x = 245000 + Math.cos(bPhase) * 65000;
+          b4.y = 135000 + Math.sin(bPhase) * 34000;
+          b4.customAltScene = null;
+          b4.spd = 486;
+          b4.task = 'GOLDEN SIM: RAID FOB-SW';
+        }
+
+        if (uav) {
+          // RECON_UAV-36: 60 m/s ISR patrol between West Airbase [90k, 120k] and FOB-SE [290k, 200k]
+          const uPhase = (simSec * 0.006) % (Math.PI * 2);
+          uav.x = 215000 + Math.cos(uPhase) * 55000;
+          uav.y = 160000 + Math.sin(uPhase) * 25000;
+          uav.spd = 117;
         }
       } else {
-        // Standard combat air patrol circuits
+        // Standard combat air patrol circuits (realistic tactical turn radii and speeds)
         if (v1) {
-          const rad1 = simTime * 0.35;
-          v1.x = 135000 + Math.cos(rad1) * 42000;
-          v1.y = 112000 + Math.sin(rad1) * 28000;
+          const rad1 = simTime * 0.09;
+          v1.x = 135000 + Math.cos(rad1) * 36000;
+          v1.y = 112000 + Math.sin(rad1) * 26000;
           v1.customAltScene = null;
         }
 
         if (v2 && v1) {
-          v2.x = v1.x - Math.cos(v1.angle) * 7000;
-          v2.y = v1.y - Math.sin(v1.angle) * 7000;
+          const rad2 = simTime * 0.09 - 0.22;
+          v2.x = 135000 + Math.cos(rad2) * 32000;
+          v2.y = 112000 + Math.sin(rad2) * 23000;
           v2.customAltScene = null;
         }
 
         if (b4) {
-          const radB = simTime * 0.28;
-          b4.x = 280000 - Math.cos(radB) * 40000;
-          b4.y = 110000 - Math.sin(radB) * 30000;
+          const radB = simTime * 0.085;
+          b4.x = 280000 - Math.cos(radB) * 36000;
+          b4.y = 110000 - Math.sin(radB) * 26000;
           b4.customAltScene = null;
         }
       }
 
-      // Ground Hauler (MULE-01) conformed patrol along road network
+      // Ground Hauler (MULE-01 / LOGI_TRUCK-33) unidirectional forward march along road network
+      // Starts on the steep northern mountain pass (Jct North Pass [110k, 75k] -> FOB-NW [130k, 60k] -> North Viaduct [200k, 60k])
       if (m1) {
-        const tLogi = (Math.sin(simTime * 0.4) + 1.0) / 2.0;
-        m1.x = 90000 + tLogi * (130000 - 90000);
-        m1.y = 120000 + tLogi * (60000 - 120000);
-        m1.angle = Math.atan2(60000 - 120000, 130000 - 90000);
+        // Advance forward along GOLDEN_REPLAY_DATA.truckRoute (never drives in reverse!)
+        const logiDist = 51500 + simTime * 1150;
+        const pt = samplePolylineRoute(GOLDEN_REPLAY_DATA.truckRoute, logiDist);
+        m1.x = pt.x;
+        m1.y = pt.y;
 
-        // Sample sampleStraitElevation ahead and behind along heading for road grade pitch
+        // Smooth heading transitions at road junctions
+        if (m1.angle === undefined || m1.lastX === undefined) {
+          m1.angle = pt.angle;
+        } else {
+          const dHdg = shortestAngleDiff(pt.angle, m1.angle);
+          m1.angle += dHdg * (1.0 - Math.exp(-Math.max(0.001, dt) * 6.0));
+        }
+
+        // Sample sampleStraitElevation ahead and behind along forward heading for road grade pitch
         const fwdX = Math.cos(m1.angle);
         const fwdY = Math.sin(m1.angle);
         const perpX = -fwdY;
         const perpY = fwdX;
-        const sampleDist = 1400;
-        const elevAhead = sampleStraitElevation(m1.x + fwdX * sampleDist, m1.y + fwdY * sampleDist);
-        const elevBehind = sampleStraitElevation(m1.x - fwdX * sampleDist, m1.y - fwdY * sampleDist);
-        const distScene = (2 * sampleDist / THEATER_W) * 360;
-        m1.pitch = Math.atan2((elevAhead - elevBehind) * 0.038, distScene);
+        const sampleDist = 1500;
 
-        // Lateral slope roll
-        const elevLeft = sampleStraitElevation(m1.x + perpX * 800, m1.y + perpY * 800);
-        const elevRight = sampleStraitElevation(m1.x - perpX * 800, m1.y - perpY * 800);
-        m1.roll = Math.atan2((elevLeft - elevRight) * 0.038, (1600 / THEATER_H) * 216) * 0.35;
+        // Check if on North Fjord Viaduct deck (x: 175km..225km, y: 60km) where deck is level
+        const onNorthViaduct = (Math.abs(m1.y - 60000) < 1500 && m1.x >= 175000 && m1.x <= 225000);
+        let targetPitch = 0;
+        let targetRoll = 0;
+        if (!onNorthViaduct) {
+          const elevAhead = sampleStraitElevation(m1.x + fwdX * sampleDist, m1.y + fwdY * sampleDist);
+          const elevBehind = sampleStraitElevation(m1.x - fwdX * sampleDist, m1.y - fwdY * sampleDist);
+          const distScene = (2 * sampleDist / THEATER_W) * 360;
+          // Positive pitch when climbing uphill (elevAhead > elevBehind)
+          // Exaggerated slightly (* 2.2) so the uphill cab tilt is unmistakably clear on 3D mountain grades
+          targetPitch = Math.max(-0.42, Math.min(0.42, Math.atan2((elevAhead - elevBehind) * 0.038 * 2.2, distScene)));
+
+          // Lateral camber roll (right bank positive when left side is higher than right side)
+          const elevLeft = sampleStraitElevation(m1.x - perpX * 800, m1.y - perpY * 800);
+          const elevRight = sampleStraitElevation(m1.x + perpX * 800, m1.y + perpY * 800);
+          targetRoll = Math.max(-0.22, Math.min(0.22, Math.atan2((elevLeft - elevRight) * 0.038, (1600 / THEATER_H) * 216) * 0.35));
+        }
+
+        stepSecondOrderAttitude(m1, 'pitch', 'pitchVel', targetPitch, 6.0, dt);
+        stepSecondOrderAttitude(m1, 'roll', 'rollVel', targetRoll, 6.0, dt);
         m1.gLoad = 1.0;
         m1.noeMasked = true;
+        m1.spd = 49; // 25 m/s = 49 kts (90 km/h) per services/sim LOGI_TRUCK spec
+        m1.task = 'GOLDEN SIM: CONVOY -> FOB-NW';
+        m1.lastX = m1.x;
+        m1.lastY = m1.y;
       }
 
-      // CSAR Helicopter (RESCUE-01) low-altitude nap-of-the-earth patrol
+      // CSAR Helicopter (RESCUE-01) low-altitude nap-of-the-earth extraction orbit
       if (r1) {
-        const radR = simTime * 0.24;
-        r1.x = 115000 + Math.sin(radR) * 26000;
-        r1.y = 140000 + Math.cos(radR) * 16000;
+        const radR = simTime * 0.085;
+        r1.x = 115000 + Math.cos(radR) * 18000;
+        r1.y = 140000 + Math.sin(radR) * 14000;
         const lastX = r1.lastX !== undefined ? r1.lastX : r1.x;
         const lastY = r1.lastY !== undefined ? r1.lastY : r1.y;
         const dx = r1.x - lastX;
         const dy = r1.y - lastY;
-        if (Math.hypot(dx, dy) > 0.05) {
+        const clampedDt = Math.max(0.001, dt);
+        if (Math.hypot(dx, dy) > 0.01) {
           const newAngle = Math.atan2(dy, dx);
-          let dAngle = newAngle - (r1.angle || 0);
-          while (dAngle > Math.PI) dAngle -= 2 * Math.PI;
-          while (dAngle < -Math.PI) dAngle += 2 * Math.PI;
-          r1.yawRate = dAngle / Math.max(0.001, dt);
+          const dAngle = shortestAngleDiff(newAngle, r1.angle !== undefined ? r1.angle : newAngle);
+          const rawYawRate = dAngle / clampedDt;
+          r1.yawRate = (r1.yawRate || 0) + (rawYawRate - (r1.yawRate || 0)) * (1.0 - Math.exp(-clampedDt * 5.0));
           r1.angle = newAngle;
         }
-        // Cyclic nose-down pitch during forward ingress (-0.18 rad)
-        r1.pitch = -0.18;
-        // Coordinated lateral roll in turns
-        const targetRoll = Math.max(-0.45, Math.min(0.45, -Math.atan(r1.yawRate * 8.0)));
-        r1.roll = (r1.roll || 0) + (targetRoll - (r1.roll || 0)) * (1.0 - Math.exp(-dt * 5.0));
-        r1.gLoad = 1.1 + Math.abs(r1.yawRate) * 0.8;
+        // Cyclic nose-down pitch during forward ingress (-0.14 rad)
+        stepSecondOrderAttitude(r1, 'pitch', 'pitchVel', -0.14, 5.0, clampedDt);
+        // Coordinated lateral roll in turns (Positive yawRate = right turn = positive roll = right bank)
+        const targetRoll = Math.max(-0.42, Math.min(0.42, Math.atan((r1.yawRate || 0) * 6.5)));
+        stepSecondOrderAttitude(r1, 'roll', 'rollVel', targetRoll, 5.0, clampedDt);
+        r1.gLoad = 1.05 + Math.abs(r1.yawRate || 0) * 0.6;
         r1.noeMasked = true;
         r1.lastX = r1.x;
         r1.lastY = r1.y;
@@ -2521,7 +2739,7 @@
 
       // Kinetic Missile (MISSILE-99) Mach 3 terminal intercept
       if (mis && v1 && b4) {
-        const tMis = (simTime * 0.35) % 1.0;
+        const tMis = (simTime * 0.18) % 1.0;
         mis.x = v1.x + tMis * (b4.x - v1.x);
         mis.y = v1.y + tMis * (b4.y - v1.y);
         mis.angle = Math.atan2(b4.y - v1.y, b4.x - v1.x);
@@ -2533,55 +2751,73 @@
         const misAlt = sampleStraitElevation(mis.x, mis.y) * 0.038 + 23.5;
         // Pitch toward target altitude
         mis.pitch = Math.atan2(b4Alt - misAlt, Math.max(1.0, horizDist));
-        // Rapid ballistic roll
-        mis.roll = simTime * 14.0;
+        // Smooth stabilized fin roll
+        mis.roll = simTime * 4.5;
         mis.gLoad = 18.5;
         mis.noeMasked = false;
       }
 
-      // Derive 6-DOF Kinematics for Jets (VIPER-01, VIPER-02, BANDIT-04)
-      [v1, v2, b4].forEach(u => {
+      // Derive Smooth 6-DOF Critically-Damped Kinematics for Fixed-Wing Aircraft (VIPER-01, VIPER-02, BANDIT-04, STATIC-UAV)
+      [v1, v2, b4, uav].forEach(u => {
         if (!u) return;
+        const clampedDt = Math.min(0.05, Math.max(0.001, dt));
         const lastX = u.lastX !== undefined ? u.lastX : u.x;
         const lastY = u.lastY !== undefined ? u.lastY : u.y;
         const dx = u.x - lastX;
         const dy = u.y - lastY;
         const horizDist = Math.hypot(dx, dy);
 
-        if (horizDist > 0.05) {
+        if (horizDist > 0.01) {
           const newAngle = Math.atan2(dy, dx);
-          let dAngle = newAngle - (u.angle || 0);
-          while (dAngle > Math.PI) dAngle -= 2 * Math.PI;
-          while (dAngle < -Math.PI) dAngle += 2 * Math.PI;
-          u.yawRate = dAngle / Math.max(0.001, dt);
-          u.angle = newAngle;
+          if (!u.kinematicsInitialized) {
+            u.angle = newAngle;
+            u.yawRate = 0;
+            u.yawRateSmoothed = 0;
+            u.kinematicsInitialized = true;
+          } else {
+            const dAngle = shortestAngleDiff(newAngle, u.angle || 0);
+            const instYawRate = Math.max(-1.8, Math.min(1.8, dAngle / clampedDt));
+            // Low-pass filter angular velocity to eliminate finite-difference jitter
+            const alphaYaw = 1.0 - Math.exp(-clampedDt * 6.5);
+            u.yawRateSmoothed = (u.yawRateSmoothed || 0) + (instYawRate - (u.yawRateSmoothed || 0)) * alphaYaw;
+            u.yawRate = u.yawRateSmoothed;
+            // Dead-reckoned smooth heading interpolation
+            u.angle = (u.angle || 0) + shortestAngleDiff(newAngle, u.angle || 0) * (1.0 - Math.exp(-clampedDt * 14.0));
+          }
+        } else {
+          u.yawRateSmoothed = (u.yawRateSmoothed || 0) * Math.exp(-clampedDt * 5.0);
+          u.yawRate = u.yawRateSmoothed;
         }
 
-        // Target Roll from turn rate clamped to +/-1.25 rad (~72 deg)
-        const bankSens = canyonRunActive ? 3.2 : 1.8;
-        const rawRoll = -Math.atan(u.yawRate * bankSens) + (canyonRunActive ? Math.sin(simTime * 1.9 + (u.id === 'BANDIT-04' ? 1.2 : 0.4)) * 0.55 : 0);
-        const targetRoll = Math.max(-1.25, Math.min(1.25, rawRoll));
-        // Exponential damping
-        u.roll = (u.roll || 0) + (targetRoll - (u.roll || 0)) * (1.0 - Math.exp(-dt * 8.0));
+        // Target Roll from smoothed turn rate:
+        // Positive yawRate (turning right / clockwise in +X East, +Y South) -> Positive roll (Right wing down, Left wing up)
+        const bankSens = canyonRunActive ? 7.5 : 5.5;
+        const rawRoll = Math.atan((u.yawRateSmoothed || 0) * bankSens);
+        const targetRoll = Math.max(-1.18, Math.min(1.18, rawRoll));
+        // Critically-damped 2nd-order spring-damper for zero-jitter aerodynamic roll inertia
+        stepSecondOrderAttitude(u, 'roll', 'rollVel', targetRoll, 5.2, clampedDt);
 
-        // Altitude & Climb Rate (vz)
+        // Altitude & Smoothed Climb Rate (vz)
         const currentAltScene = u.customAltScene !== undefined && u.customAltScene !== null
           ? u.customAltScene
           : (sampleStraitElevation(u.x, u.y) * 0.038 + 22.0);
         const lastAlt = u.lastAltScene !== undefined ? u.lastAltScene : currentAltScene;
-        u.vz = (currentAltScene - lastAlt) / Math.max(0.001, dt);
+        const rawVz = (currentAltScene - lastAlt) / clampedDt;
+        u.vzSmoothed = (u.vzSmoothed || 0) + (rawVz - (u.vzSmoothed || 0)) * (1.0 - Math.exp(-clampedDt * 6.0));
+        u.vz = u.vzSmoothed;
         u.lastAltScene = currentAltScene;
 
-        // Target Pitch from climb rate vz + high-G AoA pull
-        const climbAngle = Math.atan2(u.vz * 2.5, Math.max(1.0, horizDist * (360 / THEATER_W) / Math.max(0.001, dt)));
-        const aoaPull = Math.abs(u.roll) * 0.14;
-        const targetPitch = Math.max(-0.65, Math.min(0.65, climbAngle + aoaPull));
-        u.pitch = (u.pitch || 0) + (targetPitch - (u.pitch || 0)) * (1.0 - Math.exp(-dt * 8.0));
+        // Target Pitch from smoothed climb rate vz + coordinated turn AoA pull (positive = nose up)
+        const sceneSpeed = Math.max(0.8, horizDist * (360 / THEATER_W) / clampedDt);
+        const climbAngle = Math.atan2((u.vzSmoothed || 0) * 1.6, sceneSpeed);
+        const aoaPull = Math.abs(u.roll || 0) * 0.11;
+        const targetPitch = Math.max(-0.55, Math.min(0.55, climbAngle + aoaPull));
+        stepSecondOrderAttitude(u, 'pitch', 'pitchVel', targetPitch, 5.2, clampedDt);
 
-        // G-Load from sqrt(1 + (v * omega / g)^2) reaching 4.5G-7.8G in tight canyon turns
-        const turnAcc = Math.abs(u.yawRate) * (canyonRunActive ? 3.4 : 2.2);
-        const bankG = 1.0 / Math.max(0.28, Math.cos(u.roll));
-        const dynamicG = Math.sqrt(1.0 + turnAcc * turnAcc) * (0.55 + 0.45 * bankG) + Math.max(0, u.vz * 0.25);
+        // G-Load from coordinated bank angle 1/cos(roll) and turn rate
+        const bankG = 1.0 / Math.max(0.32, Math.cos(u.roll || 0));
+        const turnAcc = Math.abs(u.yawRateSmoothed || 0) * (canyonRunActive ? 3.8 : 2.6);
+        const dynamicG = Math.sqrt(1.0 + turnAcc * turnAcc) * (0.45 + 0.55 * bankG) + Math.max(0, (u.vzSmoothed || 0) * 0.18);
         u.gLoad = Math.max(1.0, Math.min(8.5, dynamicG));
 
         // Terrain-Masked NOE Check: AGL altitude vs canyon ridge threshold
@@ -2605,8 +2841,16 @@
 
         let flightAlt;
         if (u.alt === 'GND') {
-          // Ground unit: sits directly on conformed road (+0.14 units)
-          flightAlt = elev + 0.14;
+          // Ground unit: sits directly on conformed road or viaduct deck
+          const onNorthViaduct = (Math.abs(u.y - 60000) < 1500 && u.x >= 175000 && u.x <= 225000);
+          if (onNorthViaduct && !bridgeSevered) {
+            const elevW = sampleStraitElevation(175000, 60000) * 0.038;
+            const elevE = sampleStraitElevation(225000, 60000) * 0.038;
+            const frac = (u.x - 175000) / 50000;
+            flightAlt = (1 - frac) * (elevW + 0.15) + frac * (elevE + 0.15) + Math.sin(frac * Math.PI) * 0.35 + 0.12;
+          } else {
+            flightAlt = elev + 0.14;
+          }
         } else if (u.type === 'CSAR_HELO') {
           flightAlt = elev + 6.8;
         } else if (u.type === 'KINETIC_MISSILE') {
@@ -2617,9 +2861,11 @@
           flightAlt = elev + 22.0;
         }
 
+        // Root group holds world position ONLY (rotation stays 0,0,0 so dropLine is always 100% vertical to the floor!)
         obj.position.set(x3d, flightAlt, z3d);
+        obj.rotation.set(0, 0, 0);
 
-        // Update altitude drop-line and ground shadow ring (hide in close-up canyon/cockpit views)
+        // Update altitude drop-line and ground shadow ring on unrotated root group
         if (dropLines[id] && groundRings[id]) {
           const showTacticalDrop = (cameraMode !== 'canyon' && cameraMode !== 'cockpit');
           dropLines[id].visible = showTacticalDrop;
@@ -2629,11 +2875,20 @@
           groundRings[id].position.y = -diff + 0.15;
         }
 
-        // Apply full 6-DOF rotation (order = 'YXZ')
-        obj.rotation.order = 'YXZ';
-        obj.rotation.y = -u.angle + Math.PI / 2;
-        obj.rotation.x = u.pitch || 0;
-        obj.rotation.z = u.roll || 0;
+        // Apply camera-distance adaptive miniature scale & 6-DOF attitude ONLY to inner bodyGroup
+        const body = obj.userData.bodyGroup || obj;
+        const camDist = camera ? camera.position.distanceTo(obj.position) : 180;
+        const baseScale = (u.alt === 'GND') ? 0.25 : (u.type === 'KINETIC_MISSILE' ? 0.28 : 0.22);
+        const meshScale = THREE.MathUtils.clamp(baseScale + camDist * 0.0010, 0.20, 0.45);
+        body.scale.setScalar(meshScale);
+
+        // Local mesh axes: +Z = Nose, +Y = Up, +X = Port (Left Wing), -X = Starboard (Right Wing)
+        // Pitch: negative rotation.x rotates +Z (Nose) toward +Y (Up) -> nose-up climb when u.pitch > 0
+        // Roll: positive rotation.z rotates +X (Left Wing) toward +Y (Up) & -X (Right Wing) toward -Y (Down) -> right bank when u.roll > 0
+        body.rotation.order = 'YXZ';
+        body.rotation.y = -u.angle + Math.PI / 2;
+        body.rotation.x = -(u.pitch || 0);
+        body.rotation.z = (u.roll || 0);
       });
 
       // Rotate radar dish & sweep cone
@@ -2720,20 +2975,21 @@
         const obj = unit3DMap[id];
         const tr = wingtipTrails[id];
         if (!obj || !tr) return;
-        obj.updateMatrixWorld(true);
+        const body = obj.userData.bodyGroup || obj;
+        body.updateMatrixWorld(true);
 
-        const leftTipLocal = new THREE.Vector3(-4.2, 0, -1.0);
-        const rightTipLocal = new THREE.Vector3(4.2, 0, -1.0);
-        const leftTipWorld = leftTipLocal.applyMatrix4(obj.matrixWorld);
-        const rightTipWorld = rightTipLocal.applyMatrix4(obj.matrixWorld);
+        const leftTipLocal = new THREE.Vector3(5.2, 0, -1.0);
+        const rightTipLocal = new THREE.Vector3(-5.2, 0, -1.0);
+        const leftTipWorld = leftTipLocal.applyMatrix4(body.matrixWorld);
+        const rightTipWorld = rightTipLocal.applyMatrix4(body.matrixWorld);
 
         tr.leftPoints.unshift(leftTipWorld);
         if (tr.leftPoints.length > tr.maxPoints) tr.leftPoints.pop();
-        updateRibbonGeo(tr.leftLine.geometry, tr.leftPoints, 0.35);
+        updateRibbonGeo(tr.leftLine.geometry, tr.leftPoints, 0.16);
 
         tr.rightPoints.unshift(rightTipWorld);
         if (tr.rightPoints.length > tr.maxPoints) tr.rightPoints.pop();
-        updateRibbonGeo(tr.rightLine.geometry, tr.rightPoints, 0.35);
+        updateRibbonGeo(tr.rightLine.geometry, tr.rightPoints, 0.16);
       });
     }
 
@@ -2763,7 +3019,7 @@
             directorText.innerText = `AIR INTERCEPT // VIPER-01 vs BANDIT-04 // RANGE: ${combatDistKm.toFixed(1)}KM // CLOSURE: 980 KTS`;
           }
           const mid = new THREE.Vector3().addVectors(vPos, bPos).multiplyScalar(0.5);
-          camera.position.lerp(new THREE.Vector3(mid.x - 28, mid.y + 16, mid.z + 32), k(0.02));
+          camera.position.lerp(new THREE.Vector3(mid.x - 22, mid.y + 12, mid.z + 24), k(0.02));
           controls.target.lerp(mid, k(0.02));
         } else {
           // Calm, professional broadcast pacing (22 seconds per sequence)
@@ -2780,7 +3036,7 @@
           } else if (directorPhase === 1) {
             if (directorText) directorText.innerText = `COMBAT AIR PATROL // ${selectedUnitId} // VECTOR 085° // FL240`;
             if (vPos) {
-              const chasePos = new THREE.Vector3(vPos.x - 30, vPos.y + 12, vPos.z + 30);
+              const chasePos = new THREE.Vector3(vPos.x - 18, vPos.y + 8, vPos.z + 18);
               camera.position.lerp(chasePos, k(0.025));
               controls.target.lerp(vPos, k(0.025));
             }
@@ -2803,28 +3059,44 @@
         const rightX = -fwdZ;
         const rightZ = fwdX;
 
-        // Tight, low-altitude dynamic chase camera slightly offset behind and above VIPER-01 (fov = 62)
+        // Tight, low-altitude dynamic chase camera slightly offset behind and above miniature VIPER-01 (fov = 62)
         const targetCamPos = new THREE.Vector3(
-          pos.x - fwdX * 26 + rightX * 5.0,
-          pos.y + 4.8,
-          pos.z - fwdZ * 26 + rightZ * 5.0
+          pos.x - fwdX * 12.5 + rightX * 2.2,
+          pos.y + 2.3,
+          pos.z - fwdZ * 12.5 + rightZ * 2.2
         );
         camera.position.lerp(targetCamPos, k(0.18));
 
         const lookTarget = new THREE.Vector3(
-          pos.x + fwdX * 35,
-          pos.y - 1.2,
-          pos.z + fwdZ * 35
+          pos.x + fwdX * 28,
+          pos.y - 0.6,
+          pos.z + fwdZ * 28
         );
         controls.target.lerp(lookTarget, k(0.18));
 
-        // Bank subtly with jet roll
-        camera.up.set(Math.sin((v1.roll || 0) * 0.35), Math.cos((v1.roll || 0) * 0.35), 0);
+        // Bank subtly along the aircraft's true 3D lateral axis
+        const bankCam = (v1.roll || 0) * 0.35;
+        camera.up.set(rightX * Math.sin(bankCam), Math.cos(bankCam), rightZ * Math.sin(bankCam)).normalize();
       } else if (cameraMode === 'chase' && unit3DMap[selectedUnitId]) {
         camera.up.set(0, 1, 0);
+        const u = UNITS.find(un => un.id === selectedUnitId);
         const target = unit3DMap[selectedUnitId].position;
-        camera.position.set(target.x - 35, target.y + 15, target.z + 35);
-        controls.target.copy(target);
+        if (u && u.alt === 'GND') {
+          // Close side-profile chase camera for ground vehicles to showcase road-grade pitch & incline
+          const fwdX = Math.cos(u.angle || 0);
+          const fwdZ = Math.sin(u.angle || 0);
+          const rightX = -fwdZ;
+          const rightZ = fwdX;
+          camera.position.set(
+            target.x - fwdX * 4.5 + rightX * 5.2,
+            target.y + 1.8,
+            target.z - fwdZ * 4.5 + rightZ * 5.2
+          );
+          controls.target.set(target.x + fwdX * 1.2, target.y + 0.6, target.z + fwdZ * 1.2);
+        } else {
+          camera.position.set(target.x - 16, target.y + 7.5, target.z + 16);
+          controls.target.copy(target);
+        }
       } else if (cameraMode === 'cockpit' && unit3DMap[selectedUnitId]) {
         const u = UNITS.find(un => un.id === selectedUnitId);
         const obj = unit3DMap[selectedUnitId];
@@ -2834,61 +3106,62 @@
             o.visible = (id !== selectedUnitId);
           });
 
-          // Tilt the 3D cockpit camera roll so external mountains/canyon visibly roll outside canopy glass
-          camera.up.set(Math.sin((u.roll || 0) * 0.65), Math.cos((u.roll || 0) * 0.65), 0);
-
           const fwdX = Math.cos(u.angle);
           const fwdZ = Math.sin(u.angle);
           const fwd = new THREE.Vector3(fwdX, 0, fwdZ).normalize();
           const right = new THREE.Vector3(-fwdZ, 0, fwdX);
           const pos = obj.position;
 
+          // Tilt the 3D cockpit camera roll along aircraft's true 3D lateral axis
+          const bankCam = (u.roll || 0) * 0.65;
+          camera.up.set(right.x * Math.sin(bankCam), Math.cos(bankCam), right.z * Math.sin(bankCam)).normalize();
+
           if (u.alt === 'GND') {
-            // Logistics Truck driver view inside cab
+            // Logistics Truck driver view inside cab (pitched along road grade)
             camera.position.set(
-              pos.x - right.x * 0.45 + fwd.x * 1.6,
-              pos.y + 2.2,
-              pos.z - right.z * 0.45 + fwd.z * 1.6
+              pos.x - right.x * 0.25 + fwd.x * 0.8,
+              pos.y + 1.0,
+              pos.z - right.z * 0.25 + fwd.z * 0.8
             );
             controls.target.set(
-              camera.position.x + fwd.x * 80,
-              camera.position.y + 0.3,
-              camera.position.z + fwd.z * 80
+              camera.position.x + fwd.x * 60,
+              camera.position.y + 0.2 + Math.tan(u.pitch || 0) * 55,
+              camera.position.z + fwd.z * 60
             );
           } else if (u.type === 'CSAR_HELO') {
             // CSAR Helicopter bubble canopy & chin window view
             camera.position.set(
-              pos.x - right.x * 0.35 + fwd.x * 1.5,
-              pos.y + 1.3,
-              pos.z - right.z * 0.35 + fwd.z * 1.5
+              pos.x - right.x * 0.2 + fwd.x * 0.8,
+              pos.y + 0.7,
+              pos.z - right.z * 0.2 + fwd.z * 0.8
             );
             controls.target.set(
               camera.position.x + fwd.x * 80,
-              camera.position.y - 0.35,
+              camera.position.y - 0.35 + Math.tan(u.pitch || 0) * 60,
               camera.position.z + fwd.z * 80
             );
           } else if (u.type === 'KINETIC_MISSILE') {
             // Terminal Missile Seeker Head view (Extreme nose POV)
             camera.position.set(
-              pos.x + fwd.x * 2.2,
-              pos.y + 0.15,
-              pos.z + fwd.z * 2.2
+              pos.x + fwd.x * 1.1,
+              pos.y + 0.1,
+              pos.z + fwd.z * 1.1
             );
             controls.target.set(
               camera.position.x + fwd.x * 120,
-              camera.position.y,
+              camera.position.y + Math.tan(u.pitch || 0) * 100,
               camera.position.z + fwd.z * 120
             );
           } else {
             // Jet Fighter canopy eye view
             camera.position.set(
-              pos.x + fwd.x * 1.8,
-              pos.y + 1.25,
-              pos.z + fwd.z * 1.8
+              pos.x + fwd.x * 0.9,
+              pos.y + 0.6,
+              pos.z + fwd.z * 0.9
             );
             controls.target.set(
               camera.position.x + fwd.x * 120,
-              camera.position.y - 0.2,
+              camera.position.y - 0.2 + Math.tan(u.pitch || 0) * 90,
               camera.position.z + fwd.z * 120
             );
           }
@@ -2903,7 +3176,12 @@
 
     function animate(now) {
       requestAnimationFrame(animate);
-      if (deterministicMode) return;
+      if (deterministicMode) {
+        if (currentPillar !== 1 && scene && renderer) {
+          renderer.render(scene, camera);
+        }
+        return;
+      }
       const dt = (now - lastTime) / 1000.0;
       lastTime = now;
 
@@ -3842,11 +4120,17 @@
         delete u.lastX;
         delete u.lastY;
         delete u.lastAltScene;
+        delete u.kinematicsInitialized;
         u.yawRate = 0;
+        u.yawRateSmoothed = 0;
         u.roll = 0;
+        u.rollVel = 0;
         u.pitch = 0;
+        u.pitchVel = 0;
         u.vz = 0;
+        u.vzSmoothed = 0;
       });
+      lastGoldenEventIdx = -1;
       Object.values(wingtipTrails).forEach(tr => {
         tr.leftPoints.length = 0;
         tr.rightPoints.length = 0;
@@ -3950,6 +4234,9 @@
 
       // Standalone URL parameter handlers
       const viewParam = params.get('view') || params.get('camera');
+      if (params.get('golden') === '0' || params.get('golden') === 'false') {
+        toggleGoldenReplay();
+      }
       if (params.get('canyon') === '1') {
         canyonRunActive = true;
       }
@@ -3994,6 +4281,7 @@
         else if (e.key === '4') switchPillar(4);
         else if (e.key === 'd' || e.key === 'D') toggleDirector();
         else if (e.key === 'f' || e.key === 'F') toggleFOW();
+        else if (e.key === 'g' || e.key === 'G') toggleGoldenReplay();
         else if (e.key === 'a' || e.key === 'A' || e.key === 'm' || e.key === 'M') toggleAudio();
         else if (e.key === 'r' || e.key === 'R') {
           if (currentPillar === 1) switchPillar(2);
@@ -4013,11 +4301,11 @@
           const nextIdx = (currIdx + 1) % UNITS.length;
           selectUnit(UNITS[nextIdx].id);
         } else if (e.key === '[' || e.key === '-') {
-          const speeds = [0.5, 1, 2, 5];
+          const speeds = [0.5, 1, 2, 5, 20];
           const currIdx = speeds.indexOf(simSpeed);
           if (currIdx > 0) setSpeed(speeds[currIdx - 1]);
         } else if (e.key === ']' || e.key === '=' || e.key === '+') {
-          const speeds = [0.5, 1, 2, 5];
+          const speeds = [0.5, 1, 2, 5, 20];
           const currIdx = speeds.indexOf(simSpeed);
           if (currIdx < speeds.length - 1) setSpeed(speeds[currIdx + 1]);
         }
