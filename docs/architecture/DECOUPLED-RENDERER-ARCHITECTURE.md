@@ -1,5 +1,7 @@
 # Architecture Blueprint: Decoupled Simulation & Visual Rendering Pipeline
 
+> **Kernel facts check (lead, 2026-10-26):** this document states kernel facts that are wrong (2D kernel, per-area masking, fixed bands, 0.6 s game time per tick). Corrections and verdicts: [VISUALIZER-KERNEL-AUDIT-2026-10-26](../review/VISUALIZER-KERNEL-AUDIT-2026-10-26.md); owner questions Q-VIZ-1 to Q-VIZ-6. Not authoritative for kernel behaviour.
+
 > **Operation Nexus / Hiveplex Visual Architecture**
 > *Status: Draft Brainstorm & Technical Proposal*
 > *Storage: External Brain Artifact (Decoupled from Git Repository)*

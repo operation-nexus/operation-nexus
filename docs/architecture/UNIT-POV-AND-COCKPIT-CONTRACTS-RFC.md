@@ -1,5 +1,7 @@
 # RFC: Universal Unit POV, Cockpit, and Operator Camera Contracts
 
+> **Kernel facts check (lead, 2026-10-26):** this document states kernel facts that are wrong (2D kernel, per-area masking, fixed bands, 0.6 s game time per tick). Corrections and verdicts: [VISUALIZER-KERNEL-AUDIT-2026-10-26](../review/VISUALIZER-KERNEL-AUDIT-2026-10-26.md); owner questions Q-VIZ-1 to Q-VIZ-6. Not authoritative for kernel behaviour.
+
 **Document ID**: `RFC-UNIT-POV-002`  
 **Target Milestone**: NX-176 / NX-233 Replay & Visual Architecture  
 **Authors**: Hiveplex Core Visualization & Simulation Architecture  

@@ -1,5 +1,7 @@
 # 6-DOF Kinematics, Canyon Penetration & Camera Choreography
 
+> **Kernel facts check (lead, 2026-10-26):** this document states kernel facts that are wrong (2D kernel, per-area masking, fixed bands, 0.6 s game time per tick). Corrections and verdicts: [VISUALIZER-KERNEL-AUDIT-2026-10-26](../../../../docs/review/VISUALIZER-KERNEL-AUDIT-2026-10-26.md); owner questions Q-VIZ-1 to Q-VIZ-6. Not authoritative for kernel behaviour.
+
 Status: Production Reference · Architecture: Two-Tier Split · Systems: Three.js, Chromium Headless, FFmpeg
 
 This document specifies the mathematics and runtime architecture for rendering physically grounded 6-DOF vehicle attitude, terrain-masking canyon runs, collimated cockpit HUDs, and deterministic headless recording within Operation Nexus / Hiveplex.
