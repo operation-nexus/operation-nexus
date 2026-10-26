@@ -7,7 +7,7 @@ case "${SSH_ORIGINAL_COMMAND:-}" in
   "screen on"|"screen off"|"screen status") exec "$K" screen "${SSH_ORIGINAL_COMMAND#screen }";;
   "page glance") exec "$K" url default;;
   "page detail") exec "$K" url 'http://localhost:3000/d/hiveplex-overview/hiveplex?kiosk&refresh=30s';;
-  "page targets") exec "$K" url 'http://localhost:9090/targets';;
+  "page targets") exec "$K" url 'http://localhost:9090/classic/targets';;  # the Debian package has no modern UI, only /classic/*
   "page site") exec "$K" url 'https://hiveplex.live';;
   *) echo "not allowed. Use: kiosk start|stop|restart|status, screen on|off|status, page glance|detail|targets|site" >&2; exit 2;;
 esac
