@@ -58,7 +58,9 @@ On the Linux server (`hiveplex-linux`), `deploy/server/` holds the scripts that 
 - Planned maintenance (a reboot, a hardware install): `sudo hiveplex-maintenance 60` on the server pauses the PC alerts for 60 minutes; `sudo hiveplex-maintenance off` resumes them.
 - Tested 2026-10-25: a stale heartbeat produced the failure state and a fresh one cleared it. A real PC outage has not happened yet.
 
-**Not done yet:** the L3 external heartbeat (NX-252), internet-quality history, and power and cost readings from the Kasa plugs.
+**Dashboard (2026-10-25):** Prometheus, a blackbox exporter, a node exporter and a Kasa plug exporter feed a Grafana dashboard on the server, reachable on the tailnet only (SERVER-SETUP.md, "Monitoring"). It shows internet and PC reachability, ping latency, server load, and the server plug's power, energy and cost.
+
+**Not done yet:** the L3 external heartbeat (NX-252), the PC's own power (plug not installed) and CPU/GPU load (Windows exporter), and Loki logs.
 
 ## Implementation items
 - NX-251: L1 + L2 probes and actions (Windows-side supervision on the stream PC per Q-OPS-7, a systemd watchdog service on the Linux server, SSH key with restricted commands)

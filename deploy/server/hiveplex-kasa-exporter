@@ -1,0 +1,81 @@
+#!/usr/bin/env python3
+"""Prometheus exporter for Kasa energy-monitoring plugs (EP25) on the LAN.
+
+Reads /etc/hiveplex-kasa.env (KASA_USERNAME, KASA_PASSWORD; root-only, never in git) and the plug list in
+KASA_PLUGS ("name=ip,name=ip"). Listens on 127.0.0.1:9112. Each scrape updates every plug; a plug that
+cannot be reached is reported with kasa_up 0 and the other plugs still report.
+"""
+import asyncio
+import os
+import sys
+import time
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from threading import Thread
+
+from kasa import Credentials, Discover
+
+PLUGS = dict(p.split("=", 1) for p in os.environ.get("KASA_PLUGS", "").split(",") if "=" in p)
+CREDS = Credentials(os.environ["KASA_USERNAME"], os.environ["KASA_PASSWORD"])
+PORT = int(os.environ.get("KASA_EXPORTER_PORT", "9112"))
+LOOP = asyncio.new_event_loop()
+DEVICES: dict[str, object] = {}
+
+
+async def read_plug(name: str, ip: str) -> list[str]:
+    lab = f'plug="{name}",ip="{ip}"'
+    try:
+        dev = DEVICES.get(name)
+        if dev is None:
+            dev = await Discover.discover_single(ip, credentials=CREDS, timeout=10)
+            DEVICES[name] = dev
+        await dev.update()
+        e = dev.modules.get("Energy")
+        out = [f"kasa_up{{{lab}}} 1", f"kasa_relay_on{{{lab}}} {1 if dev.is_on else 0}"]
+        if e is not None:
+            for metric, val in (
+                ("kasa_power_watts", e.current_consumption),
+                ("kasa_voltage_volts", getattr(e, "voltage", None)),
+                ("kasa_current_amps", getattr(e, "current", None)),
+                ("kasa_energy_today_kwh", getattr(e, "consumption_today", None)),
+                ("kasa_energy_month_kwh", getattr(e, "consumption_this_month", None)),
+            ):
+                if val is not None:
+                    out.append(f"{metric}{{{lab}}} {float(val)}")
+        rssi = dev.features.get("rssi")
+        if rssi is not None and rssi.value is not None:
+            out.append(f"kasa_wifi_rssi_dbm{{{lab}}} {float(rssi.value)}")
+        return out
+    except Exception as exc:  # report and rebuild the session on the next scrape
+        DEVICES.pop(name, None)
+        print(f"{name}: {type(exc).__name__}: {exc}", file=sys.stderr, flush=True)
+        return [f"kasa_up{{{lab}}} 0"]
+
+
+async def scrape() -> str:
+    lines = ["# TYPE kasa_up gauge", "# TYPE kasa_power_watts gauge"]
+    for name, ip in PLUGS.items():
+        lines += await read_plug(name, ip)
+    lines.append(f"kasa_exporter_scrape_unixtime {int(time.time())}")
+    return "\n".join(lines) + "\n"
+
+
+class Handler(BaseHTTPRequestHandler):
+    def do_GET(self):  # noqa: N802
+        if self.path != "/metrics":
+            self.send_response(404)
+            self.end_headers()
+            return
+        body = asyncio.run_coroutine_threadsafe(scrape(), LOOP).result(timeout=60).encode()
+        self.send_response(200)
+        self.send_header("Content-Type", "text/plain; version=0.0.4")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
+
+    def log_message(self, *args):
+        pass
+
+
+if __name__ == "__main__":
+    Thread(target=LOOP.run_forever, daemon=True).start()
+    ThreadingHTTPServer(("127.0.0.1", PORT), Handler).serve_forever()
