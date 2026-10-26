@@ -60,6 +60,16 @@ On the Linux server (`hiveplex-linux`), `deploy/server/` holds the scripts that 
 
 **Dashboard (2026-10-25):** Prometheus, a blackbox exporter, a node exporter and a Kasa plug exporter feed a Grafana dashboard on the server, reachable on the tailnet only (SERVER-SETUP.md, "Monitoring"). It shows internet and PC reachability, ping latency, server load, and the server plug's power, energy and cost.
 
+**How to add an alert (a new check):** all checks live in `deploy/server/hiveplex-health-check`, run every 5 minutes by `hiveplex-health.timer`. A check posts to Discord only when it changes state.
+1. Add one line or block that ends in `check NAME ok "detail"` or `check NAME fail "detail"`. `check` keeps the state in `/var/lib/hiveplex-health/NAME`, posts `FAILED` on ok-to-fail and `recovered (down N min)` on fail-to-ok, and queues the message in the outbox if Discord is unreachable. If a gap is normal, add your own wait first, as the plug check does (it keeps a `NAME.down` start time and calls `check ... fail` only after `PLUG_DOWN_MIN`).
+2. Test it without touching the server: copy the `check` function and your block into a scratch script with `note(){ echo "NOTE: $1"; }`, a temporary `STATE=$(mktemp -d)`, and a stub for whatever you read (for example a fake metrics file). Check three cases: fine, failing for too short a time, failing long enough, then recovered.
+3. Install it: `ssh hiveserver 'sudo tee /usr/local/bin/hiveplex-health-check >/dev/null' < deploy/server/hiveplex-health-check`, then `ssh hiveserver 'sudo bash -n /usr/local/bin/hiveplex-health-check && sudo systemctl start hiveplex-health.service'`. The repo file and the server copy must stay identical (`diff` them).
+4. Add one line to the check list above in this file, and put the new check name in the PR body.
+5. To prove delivery end to end, send a test message: `ssh hiveserver 'sudo /usr/local/bin/hiveplex-notify "test"'`. To test the outage queue, create `/var/lib/hiveplex-health/simulate-notify-failure` and remove it afterwards.
+The webhook URL is only in `/etc/hiveplex-alerts.env` (root, mode 600); never print it or put it in the repo.
+
+**Pausing the harness timer on purpose** (a benchmark that needs the PC quiet): run `ssh hiveserver sudo hiveplex-maintenance 30` first and `... off` afterwards, or `pc_harness` will page you (it did at 00:41 on 2026-10-26 during the NX-376 Balanced run).
+
 **Not done yet:** the L3 external heartbeat (NX-252), the PC's CPU/GPU load (Windows exporter; its power is read by its Kasa plug since #373), and Loki logs.
 
 ## Implementation items
