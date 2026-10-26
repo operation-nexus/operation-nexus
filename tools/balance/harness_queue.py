@@ -207,13 +207,28 @@ def finished(out: Path) -> bool:
         return False
 
 
-def publish(cfg: dict[str, Any], number: int, out: Path, head: str) -> None:
+def sha_note(body: str | None, ran: str) -> str:
+    """Empty when the issue body still names the sha that ran; else a plain line saying it was
+    edited after queueing (L-30). Only a 40-hex value from the body is ever echoed."""
+    m = BLOCK.search(body or "")
+    lines = [LINE.fullmatch(x.strip()) for x in m.group(1).splitlines()] if m else []
+    shas = [kv.group(2).strip() for kv in lines if kv and kv.group(1) == "sha"]
+    now = shas[0] if len(shas) == 1 else ""  # missing or duplicated: as parse_block, no value
+    if now == ran:
+        return ""
+    shown_now = f"`{now}`" if re.fullmatch(r"[0-9a-f]{40}", now) else "(none valid or unreadable)"
+    return f"**Body sha {shown_now} was edited after queueing; this run used `{ran}`.**\n\n"
+
+
+def publish(cfg: dict[str, Any], number: int, out: Path, head: str, ran: str, body: str) -> None:
     """Post the harness-written report, then swap running -> done (last, so a failure here
-    can't leave both labels). Safe to retry: the comment is posted once."""
+    can't leave both labels). Safe to retry: the comment is posted once. `ran` is the sha the
+    queue recorded at start; `body` the issue body as read now."""
     report = out / "report.md"
     if not (out / POSTED).exists():
+        text = f"{head} Sha that ran (recorded at start): `{ran}`. Results: `{shown(out)}`"
         comment(
-            cfg, number, f"{head} Results: `{shown(out)}`\n\n{truncate(report.read_text(), report)}"
+            cfg, number, f"{text}\n\n{sha_note(body, ran)}{truncate(report.read_text(), report)}"
         )
         try:
             (out / POSTED).touch()
@@ -320,10 +335,13 @@ def process(cfg: dict[str, Any], issue: dict[str, Any], dry: bool) -> None:
         wall = f"{(time.monotonic() - started) / 60:.1f} min"
         report = out / "report.md"
         if rc == 0 and report.exists():
+            report.write_text(f"Sha that ran (recorded by the queue at start): `{req['sha']}`\n\n"
+                              + report.read_text())  # fmt: skip
             (out / FINISHED).write_text(str(report.stat().st_size))
             sets = f" Overrides: `{' '.join(req['set'])}`." if req["set"] else ""
             try:
-                publish(cfg, n, out, f"Run finished in {wall}.{sets}")
+                head = f"Run finished in {wall}.{sets}"
+                publish(cfg, n, out, head, req["sha"], current_body(cfg, n))
             except (
                 QueueError,
                 JobTimeout,
@@ -341,6 +359,14 @@ def process(cfg: dict[str, Any], issue: dict[str, Any], dry: bool) -> None:
     except Exception as e:  # noqa: BLE001  # never leave the issue in `running`
         log(f"#{n}: error {type(e).__name__}: {e}")  # local log only; the comment stays type-only
         fail(cfg, n, f"Run failed: internal error ({type(e).__name__}).")
+
+
+def current_body(cfg: dict[str, Any], number: int) -> str:
+    """The issue body as it is now (the copy `process` holds is from before the run)."""
+    try:
+        return str(json.loads(gh(cfg, "issue", "view", str(number), "--json", "body"))["body"])
+    except (QueueError, ValueError, KeyError, TypeError):
+        return ""  # unreadable: sha_note then reports it as edited, which is the safe flag
 
 
 def fail(cfg: dict[str, Any], number: int, text: str) -> None:
@@ -368,7 +394,8 @@ def recover_stale(cfg: dict[str, Any]) -> None:
             pass
         if out is not None and finished(out):
             try:
-                publish(cfg, n, out, "Run finished; the report was posted late.")
+                late = "Run finished; the report was posted late."
+                publish(cfg, n, out, late, sha, current_body(cfg, n))
                 log(f"#{n}: recovered the finished report")
             except (QueueError, JobTimeout, OSError):
                 log(f"#{n}: recovered report not posted, will retry")

@@ -111,6 +111,9 @@ class Fake:
         out = ""
         if cmd[:3] == ["gh", "issue", "list"]:
             out = json.dumps(self.issues)
+        if cmd[:3] == ["gh", "issue", "view"]:
+            body = next(i["body"] for i in self.issues if str(i["number"]) == cmd[3])
+            out = json.dumps({"body": body})
         if cmd[:2] == ["gh", "issue"] and stdin:
             self.stdin.append(stdin)
         rc = 1 if cmd[:3] == ["git", "merge-base", "--is-ancestor"] and not self.ancestor else 0
@@ -208,6 +211,86 @@ def test_success_labels_and_comment(cfg: dict[str, Any], monkeypatch: pytest.Mon
     ]
     assert "# REPORT" in fake.stdin[0] and " min" in fake.stdin[0]
     assert fake.stdin[0].rstrip().endswith(hq.FOOTER)
+    assert f"Sha that ran (recorded at start): `{SHA}`" in fake.stdin[0]
+    assert "edited after queueing" not in fake.stdin[0]  # body unchanged: no flag
+    report = cfg["results_dir"] / f"8-{SHA[:8]}" / "report.md"
+    assert report.read_text().startswith(f"Sha that ran (recorded by the queue at start): `{SHA}`")
+
+
+def test_edited_body_sha_is_flagged(cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch) -> None:
+    fake = Fake([issue(9)])
+    monkeypatch.setattr(hq, "run_cmd", fake)
+
+    def edit_then_run(c: dict[str, Any], n: int, req: dict[str, Any]) -> Any:
+        fake.issues[0]["body"] = block(sha="b" * 40)  # the lead edits the issue mid-run
+        return fake_exec(0, "# REPORT")(c, n, req)
+
+    monkeypatch.setattr(hq, "execute", edit_then_run)
+    hq.run_once(cfg, False)
+    assert (
+        f"Body sha `{'b' * 40}` was edited after queueing; this run used `{SHA}`" in fake.stdin[0]
+    )
+
+
+def test_edited_body_sha_is_flagged_on_recovery(
+    cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    first = Fake([issue(27)])
+    monkeypatch.setattr(hq, "run_cmd", failing(first, ["gh", "issue", "comment"]))
+    monkeypatch.setattr(hq, "execute", fake_exec(0, "# REPORT"))
+    hq.run_once(cfg, False)
+    edited = stale_issue(27)
+    edited["body"] = block(sha="c" * 40)
+    second = Fake([edited])
+    monkeypatch.setattr(hq, "run_cmd", second)
+    hq.run_once(cfg, False)
+    assert (
+        f"Body sha `{'c' * 40}` was edited after queueing; this run used `{SHA}`" in second.stdin[0]
+    )
+
+
+def test_hostile_body_sha_is_not_echoed(
+    cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake = Fake([issue(10)])
+    monkeypatch.setattr(hq, "run_cmd", fake)
+
+    def edit_then_run(c: dict[str, Any], n: int, req: dict[str, Any]) -> Any:
+        fake.issues[0]["body"] = block(sha="@someone [x](http://e)")
+        return fake_exec(0, "# REPORT")(c, n, req)
+
+    monkeypatch.setattr(hq, "execute", edit_then_run)
+    hq.run_once(cfg, False)
+    assert "Body sha (none valid or unreadable) was edited" in fake.stdin[0]
+    assert "@someone" not in fake.stdin[0] and "http://e" not in fake.stdin[0]
+
+
+def test_duplicated_body_sha_is_flagged(
+    cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake = Fake([issue(10)])
+    monkeypatch.setattr(hq, "run_cmd", fake)
+
+    def edit_then_run(c: dict[str, Any], n: int, req: dict[str, Any]) -> Any:
+        # the run sha stays, a second sha line is added: ambiguous, as parse_block would refuse it
+        fake.issues[0]["body"] = block().replace("\n```\n", "\nsha: " + "b" * 40 + "\n```\n")
+        return fake_exec(0, "# REPORT")(c, n, req)
+
+    monkeypatch.setattr(hq, "execute", edit_then_run)
+    hq.run_once(cfg, False)
+    assert "Body sha (none valid or unreadable) was edited" in fake.stdin[0]
+
+
+def test_unreadable_body_still_posts_with_a_note(
+    cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake = Fake([issue(11)])
+    monkeypatch.setattr(hq, "run_cmd", failing(fake, ["gh", "issue", "view"]))
+    monkeypatch.setattr(hq, "execute", fake_exec(0, "# REPORT"))
+    hq.run_once(cfg, False)
+    assert "Body sha (none valid or unreadable) was edited" in fake.stdin[0]
+    assert "# REPORT" in fake.stdin[0]
+    assert fake.edits()[-1] == ("11", "harness-done", "harness-running")  # posted, not failed
 
 
 def test_failure_comment_has_exit_code_and_last_40_lines(
@@ -448,7 +531,8 @@ def test_failed_post_keeps_report_and_run_not_failed(
     monkeypatch.setattr(hq, "execute", fake_exec(0, "# REPORT"))
     hq.run_once(cfg, False)
     assert fake.edits() == [("21", "harness-running", "harness-run")]  # not failed, not done
-    assert (cfg["results_dir"] / f"21-{SHA[:8]}" / "report.md").read_text() == "# REPORT"
+    kept = (cfg["results_dir"] / f"21-{SHA[:8]}" / "report.md").read_text()
+    assert kept.endswith("\n\n# REPORT")
     assert not fake.stdin
 
 
