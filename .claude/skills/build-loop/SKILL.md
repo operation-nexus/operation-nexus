@@ -31,6 +31,7 @@ Goal: work runs **as autonomously as possible** and pings the owner rarely (Q-DE
   - A one-line or doc-only change the lead makes inline; no coder for it.
   - One QA per round; the optional deep passes (`finecomb`, `review-council`, `/ponytail-review`) only on sensitive paths (CLAUDE.md).
   - Run `make check` once per agent, at the end; targeted `pytest` paths while iterating.
+- Harness results: read each `harness-done` issue within a day or two, file the analysis (an entertainment review in `docs/review/`, a PR or a tracker row), then close the issue with a comment linking it (owner rule 2026-10-26; tools/balance/README "Closing a result").
 
 ## 2. Code → QA → review
 1. Agent `coder` with the brief. It returns files, `make check` output, tests, docs updated, assumptions, questions. A subagent that re-sends an identical report is done; use the first copy.

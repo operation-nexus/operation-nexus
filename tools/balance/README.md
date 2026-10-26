@@ -176,6 +176,8 @@ An issue is eligible when it is open, carries the `harness-run` label and was op
 
 **Trust.** The `harness-run` label gate is only as strong as the list of people with triage rights. A collaborator could edit a trusted author's issue; the damage is still bounded to SHAs on `develop`, profiles that exist in `profiles.yaml` and capped numbers (`max_*`, `job_timeout_hours` in `queue.yaml`). GitHub login reuse (a deleted account's name re-registered) is a residual risk, so keep `trusted_authors` current. A job past `job_timeout_hours` is killed with its child processes and marked `harness-failed`; an issue left `harness-running` by a crash or reboot is marked failed at the start of the next tick.
 
+**Closing a result (owner rule, 2026-10-26).** The queue never closes an issue: it can't know a result was read. The lead session closes a `harness-done` issue once its result is analysed, within a day or two, with a comment linking where the analysis went (an entertainment review in `docs/review/`, a PR, or a tracker row). An issue still open after that means the result has not been read yet.
+
 ### Expected wall time
 
 The Cost section above was measured on a 4-core cloud box. The owner's PC runs about 200 to 380 ticks per second per run. A game hour is 36,000 ticks (10 Hz), so one run takes about:
