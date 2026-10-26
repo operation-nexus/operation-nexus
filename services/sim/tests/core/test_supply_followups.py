@@ -11,6 +11,8 @@ cross-n - fob-n-e - static-hq; a truck at (150 000, 60 000) is on fob-n-w -> cro
 bridge-n.
 """
 
+import dataclasses
+
 import test_tasking as tt
 from test_bridges import NORTH, SOUTH, cut
 from test_economy_rules import thin
@@ -21,6 +23,7 @@ from nexus.contracts.gen.events.event import Event
 from nexus.core import bridges, tasking
 from nexus.core.fog import side_view
 from nexus.core.launch import _convoys, _Purse
+from nexus.core.roads import Road, RoadGraph
 from nexus.core.rules import CAPTURE_FULL
 from nexus.core.step import step
 from nexus.core.world import CaptureBar, Entity, Vec2, World, state_hash
@@ -135,6 +138,24 @@ def test_an_empty_truck_never_drives_into_a_pickup_source_that_turned_enemy() ->
     truck.pickup, truck.pos, truck.path = "cross-n", SHORT_OF_CROSS_N, ["cross-n"]
     _turn(w, "cross-n", "ENEMY")
     assert truck.path == ["fob-n-w"] and truck.pickup is None
+
+
+def test_a_cut_on_the_pickup_leg_keeps_the_pickup_when_the_source_is_friendly() -> (
+    None
+):
+    """A cut (not a capture) on the last hop to a friendly source: the truck detours and keeps
+    `pickup`, so it still loads when it gets there (CodeRabbit on #391)."""
+    pos = {"s": (0, 0), "y": (500, 0), "t": (1000, 0), "e": (500, 1000)}
+    roads = RoadGraph(pos, [Road("s", "t", 1.0, "y"), Road("s", "e", 1.0), Road("e", "t", 1.0)])
+    rules = dataclasses.replace(RULES, roads=roads)
+    w = tt.new_world()
+    w.owner["e"] = w.owner["t"] = "COALITION"
+    truck = tt.put(w, TRUCK, "haven")
+    tasking.claim(w, truck, tt.post(w, "COALITION", "RESUPPLY", "fob-n-e", "supply"), [])
+    truck.pickup, truck.pos, truck.last_node, truck.path = "t", Vec2(200.0, 0.0), "s", ["t"]
+    w.bridge_down = {"y"}
+    bridges.reroute(w, rules)
+    assert truck.path == ["s", "e", "t"] and truck.pickup == "t"
 
 
 def test_a_patrol_keeps_its_road_when_a_node_on_it_turns_enemy() -> None:
