@@ -25,6 +25,7 @@ from nexus.core import launch as launch_mod
 from nexus.core import operations as ops
 from nexus.core import staging as stg
 from nexus.core.bridges import enemy_held
+from nexus.core.director import cadence_due, cadence_floor
 from nexus.core.fog import side_view
 from nexus.core.launch import _convoys, _launch, _own, _Purse, _staged_shares
 from nexus.core.launch import run as launch
@@ -632,3 +633,40 @@ def test_staged_count_and_bases_hold_after_every_window(
             assert w.owner[x.base] == "ENEMY" and x.base not in w.capture
         held = [n for n in STATIC_BASES if w.owner[n] == "ENEMY"]
         assert all(w.stock[n] >= w.rules.supply.starve_floor[n] for n in held)
+
+
+@pytest.mark.parametrize("cadence", [10, 1])
+def test_a_capture_operation_the_cadence_floor_staged_stops_the_floor_while_it_waits(
+    cadence: int,
+) -> None:
+    # Q-TD-42: the floor forces OFFENSIVE (60, the only capture operation east-airbase's 60
+    # surplus pays); its staging base cannot pay the armor, so it waits. While it waits the floor
+    # is not due, in `decide` (before `_review`) as in the window: no lift, no second one. After
+    # the drop it counts from the drop window.
+    w = world(config({"economy.unlimited.ENEMY": False, "director.cadence_windows": cadence}))
+    assert w.rules is not None
+    at_floor(w)
+    w.pool["ENEMY"] = 0
+    w.stock["east-airbase"] += 60
+    s = w.director["ENEMY"]
+    s.windows = 9
+    window(w, budget=10, tier="BRAVO")  # window 10: the floor is due
+    assert [(x.op, x.since) for x in s.staged] == [("OFFENSIVE", 10)]
+    assert s.budget == 60 and s.last_operation == 0
+    s.windows += 1  # window 11 as `decide` sees it
+    assert cadence_floor(s, side_view(w, "ENEMY"), w.rules, 60) == 0
+    s.windows -= 1
+    window(w, budget=10, tier="BRAVO")  # window 11
+    assert s.budget == 10 and len(s.staged) == 1  # no lift, nothing staged on top
+    assert s.last_operation == 11  # `_review` kept it
+    s.windows = 30
+    window(w, budget=10, tier="BRAVO")  # window 31, still waiting
+    assert s.budget == 10 and s.last_operation == 31 and len(s.staged) == 1
+    at_floor(w)
+    s.windows = 99
+    window(w, budget=0, tier="BRAVO")  # window 100: max_wait_windows since 10, nothing pays
+    assert s.staged == [] and s.last_operation == 100
+    s.windows = 100 + cadence - 1
+    assert not cadence_due(s, side_view(w, "ENEMY"), w.rules)
+    s.windows += 1
+    assert cadence_due(s, side_view(w, "ENEMY"), w.rules)

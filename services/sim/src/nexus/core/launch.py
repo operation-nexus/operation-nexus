@@ -29,7 +29,12 @@ launched in selection order:
 - **Room.** The units must fit `max_spawns_per_window` and the live room: below
   `director.max_live_units.<tier>` under `economy.legacy_rules`, else below the EC-8 guard
   `sim.max_live_units_per_side` (`economy.guard_room`). An operation that posts jobs stamps
-  `DirectorState.last_operation` (the EC-7 cadence floor). Operations the budget and
+  `DirectorState.last_operation` (the EC-7 cadence floor). When the floor is due, the cheapest
+  capture operation with a target that surplus + pool pays lifts the budget and the base account
+  to its cost and is selected first (`_floor_capture`, Q-TD-42); one the window's caps would
+  skip lifts nothing. The floor is not due while an operation is staged
+  (`director.cadence_due`), and each window `_review` keeps, launches or drops one stamps
+  `last_operation`, so it counts from the drop. Operations the budget and
   `max_spawns_per_window` allow but the live room does not are counted in one `SpawnRefused` per
   selection (EC-8, `GUARD` or `TIER_CAP`; NX-412 part 5a).
 - **Effect.** EMISSION_BLINK turns the radar at the target base dark for `decoy_blink.dark_s`
@@ -66,7 +71,7 @@ from nexus.contracts.gen.events.unit_spawned import UnitSpawned
 from nexus.core import operations as ops
 from nexus.core import staging as stg
 from nexus.core.bridges import blocked
-from nexus.core.director import night_capped, rear_share, surplus
+from nexus.core.director import cadence_due, night_capped, rear_share, surplus
 from nexus.core.economy import MOVERS, guard_room
 from nexus.core.fog import SideView, is_off_facility, spotted
 from nexus.core.logistics import pay_spawn, plan_deploy, plan_run, stock_targets
@@ -241,16 +246,44 @@ def run(world: World, side: Side, view: SideView, rules: Rules, out: list[Event]
     capped = world.viewer_units() == 0 and night_capped(state, dr, now)  # no capture operations
     cands = ops.candidates(state, view, rules, own, now, live, capture=False if capped else None)
     ranked = ops.rank(cands, state, view, rules, world.rng.stream(RngStream.DIRECTOR))
+    room, most = _live_room(world, rules, side, state, own), ops.max_ops(state.tier, dr)
+
+    def fits(c: ops.Candidate) -> bool:  # `select`'s caps on `c` alone, its cost given
+        return bool(
+            ops.select([c], dr, c.op.cost, dr.max_spawns_per_window, room, live, most, _routine(dr))
+        )
+
+    lead = None if purse is None else _floor_capture(world, rules, view, state, ranked, pool, fits)
+    if purse is not None and lead is not None:  # no staged operation, so `held` is 0
+        purse.base += max(0, lead.op.cost - state.budget)
+        state.budget = max(state.budget, lead.op.cost)
+        ranked = [lead, *(c for c in ranked if c is not lead)]
     refused: list[int] = []
     chosen = ops.select(
-        ranked, dr, state.budget - held, dr.max_spawns_per_window,
-        _live_room(world, rules, side, state, own), live, ops.max_ops(state.tier, dr), _routine(dr),
+        ranked, dr, state.budget - held, dr.max_spawns_per_window, room, live, most, _routine(dr),
         refused,
     )  # fmt: skip
     _note_refused(world, side, refused, out)
     for c in chosen:
         _launch(world, rules, side, view, state, c, out, purse)
     _pattern_of_life(world, rules, side, view, state, capped, now, out, purse)
+
+
+def _floor_capture(
+    world: World, rules: Rules, view: SideView, state: DirectorState, ranked: list[ops.Candidate],
+    pool: int | None, fits: Callable[[ops.Candidate], bool],
+) -> ops.Candidate | None:  # fmt: skip
+    """ECONOMY EC-7, Q-TD-42 (legacy rules off): when the cadence floor is due, the best-ranked
+    target of the cheapest capture operation (`ops.has_capture`) among the window's candidates
+    (its tier, the night cap) that surplus + pool pays (Q-TD-34 (1)) and the window's caps
+    allow (`fits`: max_ops, the spawn and live rooms); None leaves the floor at the cheapest
+    operation (`director.cadence_floor`)."""
+    if not cadence_due(state, view, rules):
+        return None
+    cap = surplus(view, rules, world.stock) + (pool or 0)
+    caps = [c for c in ranked if ops.has_capture(c.op) and c.op.cost <= cap and fits(c)]
+    least = min((c.op.cost for c in caps), default=None)
+    return next((c for c in caps if c.op.cost == least), None)
 
 
 def _pattern_of_life(
@@ -477,6 +510,7 @@ def _review(
             keep.append(s)
             held += c.op.cost
     state.staged = keep
+    state.last_operation = state.windows  # kept, launched or dropped this window (Q-TD-42)
     return held
 
 

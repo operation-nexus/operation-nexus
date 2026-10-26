@@ -33,9 +33,11 @@ it, in order:
    side's units owe per window), at least the cadence floor (0 when it does not apply), at most
    surplus + rear pool.
    The rear pool is 0 for a side in unlimited mode (no pool). Cadence floor: while the side holds
-   an HQ and has launched no operation for `cadence_windows` windows (`last_operation`), the
-   cheapest operation of its tier that surplus + pool can pay. The pool share is spent only on
-   operations that spawn at the source (`rear_share`, `nexus.core.launch`).
+   an HQ, has no operation staged and has launched none for `cadence_windows` windows
+   (`last_operation`, also stamped when a staged one is dropped), the
+   cheapest operation of its tier that surplus + pool can pay; `nexus.core.launch` lifts it to
+   the cheapest capture operation with a target that window (Q-TD-42). The pool share is spent
+   only on operations that spawn at the source (`rear_share`, `nexus.core.launch`).
 
 All state is integer (millionths of a point, ticks), the arithmetic is floor division, nothing is
 random and nothing reads a clock. NX-375 will run one Director per side with this same code.
@@ -93,13 +95,20 @@ def rear_share(dr: DirectorRules, pool: int) -> int:
     return math.floor(pool * dr.source_spend_frac)
 
 
-def cadence_floor(state: DirectorState, view: SideView, rules: Rules, cap: int) -> int:
-    """EC-7: the cheapest operation of the tier that `cap` pays, once the side, holding an HQ,
-    has launched none for `cadence_windows` windows; else 0."""
+def cadence_due(state: DirectorState, view: SideView, rules: Rules) -> bool:
+    """EC-7: the side holds an HQ, has no operation staged and has launched none for
+    `cadence_windows` windows (a staged one dropped stamps `last_operation`, Q-TD-42)."""
     dr = rules.director
-    if dr is None or state.windows - state.last_operation < dr.cadence_windows:
-        return 0
-    if not any(view.owners.get(n) == view.side for n, k in rules.node_kind.items() if k == "HQ"):
+    if dr is None or state.staged or state.windows - state.last_operation < dr.cadence_windows:
+        return False
+    return any(view.owners.get(n) == view.side for n, k in rules.node_kind.items() if k == "HQ")
+
+
+def cadence_floor(state: DirectorState, view: SideView, rules: Rules, cap: int) -> int:
+    """EC-7: the cheapest operation of the tier that `cap` pays, once `cadence_due`; else 0.
+    `nexus.core.launch` lifts it to a capture operation when one has a target (Q-TD-42)."""
+    dr = rules.director
+    if dr is None or not cadence_due(state, view, rules):
         return 0
     costs = [o.cost for o in dr.operations if o.jobs and state.tier in o.tiers]
     return min((c for c in costs if c <= cap), default=0)

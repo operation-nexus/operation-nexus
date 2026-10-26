@@ -2046,7 +2046,7 @@ class Director(BaseModel):
     cadence_windows: Annotated[
         int,
         Field(
-            description="ECONOMY EC-7 (economy.legacy_rules false): decision windows with no operation launched after which, while the Static holds an HQ, the budget is at least the cheapest operation of its tier it can afford.",
+            description="ECONOMY EC-7 (economy.legacy_rules false): decision windows with no operation launched or staged after which, while the Static holds an HQ, the window buys the cheapest affordable capture operation with a target, else the budget is at least the cheapest affordable operation of its tier (Q-TD-42).",
             ge=1,
         ),
     ]
