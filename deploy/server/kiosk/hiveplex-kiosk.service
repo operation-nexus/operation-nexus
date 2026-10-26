@@ -1,0 +1,15 @@
+[Unit]
+Description=Hiveplex Grafana kiosk (Firefox, full screen)
+After=graphical-session.target
+PartOf=graphical-session.target
+
+[Service]
+Type=simple
+EnvironmentFile=-%h/.config/hiveplex-kiosk.env
+Environment=KIOSK_URL=http://localhost:3000/d/hiveplex-overview/hiveplex?kiosk&refresh=10s&from=now-6h&to=now
+ExecStart=/usr/bin/firefox --kiosk --no-remote --profile %h/snap/firefox/common/hiveplex-kiosk ${KIOSK_URL}
+Restart=on-failure
+RestartSec=15
+
+[Install]
+WantedBy=graphical-session.target

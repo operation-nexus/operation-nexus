@@ -12,6 +12,10 @@ scrape_configs:
     scrape_interval: 30s
     scrape_timeout: 20s
     static_configs: [{targets: ["127.0.0.1:9112"]}]
+  - job_name: windows
+    # Harness PC (Windows host) via windows_exporter 0.31.9; Windows Firewall allows only this server's addresses.
+    scrape_interval: 30s
+    static_configs: [{targets: ["192.168.1.102:9182"], labels: {host: harness-pc}}]
   - job_name: ping
     metrics_path: /probe
     params: {module: [icmp]}

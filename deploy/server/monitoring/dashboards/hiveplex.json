@@ -798,13 +798,289 @@
    "title": "Rates and what is not here yet",
    "gridPos": {
     "x": 0,
-    "y": 32,
+    "y": 44,
     "w": 24,
     "h": 7
    },
    "options": {
     "mode": "markdown",
-    "content": "**Rates (from the owner's AES Ohio bill, usage 2026-08-22 to 2026-09-22, 213.08 kWh; derived by Claude, not billed per-kWh figures [UNVERIFIED]):**\n- Marginal rate used above: **$0.2094/kWh** = supply $23.13 / 213.08 kWh ($0.1086) + \"other delivery charges\" $21.48 / 213.08 kWh ($0.1008). It assumes \"other delivery charges\" scale with kWh. The $9.75 customer charge does not change with usage and is left out.\n- All-in average: $54.36 / 213.08 kWh = **$0.2551/kWh**. Choose it in the `rate` list at the top for a bill-share view.\n- Supply and delivery rates change; update the `rate` options when a new bill arrives. Taxes or riders not on the pasted lines are not included.\n\n**Not here yet:** the harness PC's own power (its plug is not installed), the PC's CPU / GPU load (needs the Windows exporter), a combined PC + server cost, replay-archive size, and Loki logs."
+    "content": "**Rates (from the owner's AES Ohio bill, usage 2026-08-22 to 2026-09-22, 213.08 kWh; derived by Claude, not billed per-kWh figures [UNVERIFIED]):**\n- Marginal rate used above: **$0.2094/kWh** = supply $23.13 / 213.08 kWh ($0.1086) + \"other delivery charges\" $21.48 / 213.08 kWh ($0.1008). It assumes \"other delivery charges\" scale with kWh. The $9.75 customer charge does not change with usage and is left out.\n- All-in average: $54.36 / 213.08 kWh = **$0.2551/kWh**. Choose it in the `rate` list at the top for a bill-share view.\n- Supply and delivery rates change; update the `rate` options when a new bill arrives. Taxes or riders not on the pasted lines are not included.\n\n**Not here yet:** the harness PC's own power (its plug is not installed) and a combined PC + server cost, the PC's GPU load, replay-archive size, and Loki logs. The PC's CPU, memory, disk and network come from windows_exporter."
+   }
+  },
+  {
+   "id": 20,
+   "type": "stat",
+   "title": "Harness PC CPU %",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 32,
+    "w": 4,
+    "h": 4
+   },
+   "targets": [
+    {
+     "expr": "100 - avg(rate(windows_cpu_time_total{mode=\"idle\",host=\"harness-pc\"}[2m])) * 100",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percent",
+     "min": 0,
+     "max": 100,
+     "decimals": 1
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "colorMode": "value",
+    "graphMode": "area"
+   }
+  },
+  {
+   "id": 21,
+   "type": "stat",
+   "title": "Harness PC memory used %",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 4,
+    "y": 32,
+    "w": 4,
+    "h": 4
+   },
+   "targets": [
+    {
+     "expr": "100 * (1 - windows_memory_available_bytes{host=\"harness-pc\"} / windows_memory_physical_total_bytes{host=\"harness-pc\"})",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percent",
+     "min": 0,
+     "max": 100,
+     "decimals": 1
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "colorMode": "value",
+    "graphMode": "area"
+   }
+  },
+  {
+   "id": 22,
+   "type": "stat",
+   "title": "Harness PC C: used %",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 8,
+    "y": 32,
+    "w": 4,
+    "h": 4
+   },
+   "targets": [
+    {
+     "expr": "100 * (1 - windows_logical_disk_free_bytes{volume=\"C:\",host=\"harness-pc\"} / windows_logical_disk_size_bytes{volume=\"C:\",host=\"harness-pc\"})",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percent",
+     "min": 0,
+     "max": 100,
+     "decimals": 1
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "colorMode": "value",
+    "graphMode": "area"
+   }
+  },
+  {
+   "id": 23,
+   "type": "stat",
+   "title": "Harness PC uptime",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 32,
+    "w": 4,
+    "h": 4
+   },
+   "targets": [
+    {
+     "expr": "time() - windows_system_boot_time_timestamp{host=\"harness-pc\"}",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "s"
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "colorMode": "value",
+    "graphMode": "area"
+   }
+  },
+  {
+   "id": 24,
+   "type": "stat",
+   "title": "PC scrape up",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 16,
+    "y": 32,
+    "w": 4,
+    "h": 4
+   },
+   "targets": [
+    {
+     "expr": "up{job=\"windows\"}",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "decimals": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "colorMode": "value",
+    "graphMode": "area"
+   }
+  },
+  {
+   "id": 25,
+   "type": "timeseries",
+   "title": "Harness PC CPU % and memory used %",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 36,
+    "w": 12,
+    "h": 8
+   },
+   "targets": [
+    {
+     "expr": "100 - avg(rate(windows_cpu_time_total{mode=\"idle\",host=\"harness-pc\"}[2m])) * 100",
+     "legendFormat": "cpu %",
+     "refId": "A"
+    },
+    {
+     "expr": "100 * (1 - windows_memory_available_bytes{host=\"harness-pc\"} / windows_memory_physical_total_bytes{host=\"harness-pc\"})",
+     "legendFormat": "memory used %",
+     "refId": "B"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percent",
+     "min": 0,
+     "max": 100
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    }
+   }
+  },
+  {
+   "id": 26,
+   "type": "timeseries",
+   "title": "Harness PC network (Mbps)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 36,
+    "w": 12,
+    "h": 8
+   },
+   "targets": [
+    {
+     "expr": "sum(rate(windows_net_bytes_received_total{host=\"harness-pc\"}[2m])) * 8 / 1e6",
+     "legendFormat": "rx",
+     "refId": "A"
+    },
+    {
+     "expr": "sum(rate(windows_net_bytes_sent_total{host=\"harness-pc\"}[2m])) * 8 / 1e6",
+     "legendFormat": "tx",
+     "refId": "B"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "min": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    }
    }
   }
  ]
