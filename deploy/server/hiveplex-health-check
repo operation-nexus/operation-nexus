@@ -95,6 +95,26 @@ if plugs=$(curl -fsS -m 5 http://127.0.0.1:9112/metrics 2>/dev/null | sed -n 's/
   done <<< "$plugs"
 fi
 
+# harness job alert: the PC heartbeat carries the issue number now running (job_n), the newest finished job (last_ok) and its minutes.
+# When job_n changes away from a job, say "finished" once last_ok shows it, or "ended without a finished report" if it does not in 10 min
+# (failed, killed by a restart, or still being written). Judged only while the heartbeat is fresh.
+hbn=$(sed -n 's/.*\bjob_n=\([0-9]*\).*/\1/p' "$HB" 2>/dev/null); hbn=${hbn:-}
+hbrec=$(sed -n 's/^received=\([0-9]*\) .*/\1/p' "$HB" 2>/dev/null)
+if [ -n "$hbn" ] && [ $(( $(date +%s) - ${hbrec:-0} )) -le 600 ]; then
+  lok=$(sed -n 's/.*\blast_ok=\([0-9]*\).*/\1/p' "$HB"); lmin=$(sed -n 's/.*\blast_ok_min=\([0-9]*\).*/\1/p' "$HB")
+  seen=$(cat "$STATE/job_seen" 2>/dev/null || echo 0)
+  if [ "$hbn" != "$seen" ]; then
+    [ "$seen" != 0 ] && echo "$seen $(date +%s)" > "$STATE/job_pending"
+    echo "$hbn" > "$STATE/job_seen"
+  fi
+  if [ -e "$STATE/job_pending" ]; then
+    read -r pn pt < "$STATE/job_pending"
+    if [ "$lok" = "$pn" ]; then note "✅ **harness job #$pn finished** in ${lmin} min (report is on the issue)"; rm -f "$STATE/job_pending"
+    elif [ $(( $(date +%s) - pt )) -ge 600 ]; then note "❌ **harness job #$pn ended without a finished report** (failed, or killed by a restart; look at the issue)"; rm -f "$STATE/job_pending"
+    fi
+  fi
+fi
+
 # pending reboot (one notice per boot)
 if [ -e /var/run/reboot-required ] && [ "$(cat "$STATE/reboot_notice" 2>/dev/null)" != "$bid" ]; then echo "$bid" > "$STATE/reboot_notice"; note "ℹ️ **$host**: a reboot is required (package updates)"; fi
 exit 0
