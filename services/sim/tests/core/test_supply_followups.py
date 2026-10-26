@@ -156,6 +156,23 @@ def test_a_cut_on_the_pickup_leg_keeps_the_pickup_when_the_source_is_friendly() 
     assert truck.path == ["s", "e", "t"] and truck.pickup == "t"
 
 
+def test_a_capture_midway_on_the_pickup_leg_keeps_the_pickup() -> None:
+    """A node between the truck and its friendly source is captured: the truck detours and keeps
+    `pickup`, which only a capture of the source itself clears (CodeRabbit on #391)."""
+    pos = {"s": (0, 0), "m": (500, 0), "t": (1000, 0), "e": (500, 1000)}
+    roads = RoadGraph(pos, [Road("s", "m", 1.0), Road("m", "t", 1.0), Road("s", "e", 1.0),
+                            Road("e", "t", 1.0)])  # fmt: skip
+    rules = dataclasses.replace(RULES, roads=roads)
+    w = tt.new_world()
+    w.owner["e"] = w.owner["t"] = "COALITION"
+    w.owner["m"] = "ENEMY"
+    truck = tt.put(w, TRUCK, "haven")
+    tasking.claim(w, truck, tt.post(w, "COALITION", "RESUPPLY", "fob-n-e", "supply"), [])
+    truck.pickup, truck.pos, truck.last_node, truck.path = "t", Vec2(0.0, 0.0), "s", ["m", "t"]
+    bridges.reroute(w, rules, taken="m")
+    assert truck.path == ["s", "e", "t"] and truck.pickup == "t"
+
+
 def test_a_patrol_keeps_its_road_when_a_node_on_it_turns_enemy() -> None:
     """Only supply runs and crews replan on a flip; a coalition patrol's path is unchanged."""
     w = tt.new_world()

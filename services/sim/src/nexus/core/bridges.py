@@ -215,7 +215,9 @@ def reroute(world: World, rules: Rules, taken: str | None = None) -> None:
                     k > 0 or crosses(world, rules, a, b, e.pos)
                 )
             if hit:
-                if taken is not None and pickup_leg and b == taken:  # its source lost to a capture
+                if (
+                    taken is not None and pickup_leg and b == taken == seq[-1]
+                ):  # its source captured
                     e.pickup = None
                 route = _shortest(rules, a, ends, cut, avoid)
                 e.path = [*seq[1:k], *(route or [a]), *([stop] if route and stop else [])]
