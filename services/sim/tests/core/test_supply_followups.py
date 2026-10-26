@@ -140,9 +140,7 @@ def test_an_empty_truck_never_drives_into_a_pickup_source_that_turned_enemy() ->
     assert truck.path == ["fob-n-w"] and truck.pickup is None
 
 
-def test_a_cut_on_the_pickup_leg_keeps_the_pickup_when_the_source_is_friendly() -> (
-    None
-):
+def test_a_cut_on_the_pickup_leg_keeps_the_pickup_when_the_source_is_friendly() -> None:
     """A cut (not a capture) on the last hop to a friendly source: the truck detours and keeps
     `pickup`, so it still loads when it gets there (CodeRabbit on #391)."""
     pos = {"s": (0, 0), "y": (500, 0), "t": (1000, 0), "e": (500, 1000)}
