@@ -44,7 +44,11 @@ from nexus.runtime.campaign_config import CampaignConfig, start_campaign
 from nexus.runtime.golden import shipped_config
 
 LIMITED = {"economy.unlimited.COALITION": False, "economy.unlimited.ENEMY": False}
-PAID = {"economy.upkeep.GARRISON_INFANTRY": 5, "economy.upkeep.STRIKE_FIGHTER": 5}
+PAID = {
+    "economy.upkeep.GARRISON_INFANTRY": 5, "economy.upkeep.STRIKE_FIGHTER": 5,
+    # every window (NX-426): the payment-order tests below charge every unit each window
+    "economy.upkeep_period.GARRISON_INFANTRY": 1, "economy.upkeep_period.STRIKE_FIGHTER": 1,
+}  # fmt: skip
 CONFIG = shipped_config({**LIMITED, **PAID})
 RULES = CONFIG.rules
 WINDOW = 600  # economy.window_s 60 game s at 10 Hz
@@ -381,7 +385,9 @@ def test_upkeep_runs_before_the_director_window_in_the_same_tick() -> None:
     """EC-10: a Director unit idle past `director.idle_retire_s` (600 game s) is retired at the
     window, unless upkeep grounded it first in that tick: a grounded unit is not the Director's
     to retire, reuse or recall (`launch._spare`)."""
-    config = shipped_config({**LIMITED, "economy.upkeep.ENEMY_ARMOR": 5})
+    config = shipped_config(
+        {**LIMITED, "economy.upkeep.ENEMY_ARMOR": 5, "economy.upkeep_period.ENEMY_ARMOR": 1}
+    )
     w = new_world(config=config)
     w.stock["fob-n-e"] = 0  # its home cannot pay
     armor = put(w, "ENEMY_ARMOR", "fob-n-e", owner="ENEMY_DIRECTOR")  # no garrison `home`
@@ -536,8 +542,9 @@ def test_home_and_grounded_survive_a_snapshot_and_bad_ones_are_refused() -> None
 def test_same_seed_and_commands_give_the_same_hash_through_windows_with_a_mid_window_save() -> None:
     # a jet costs more than the coalition's income (50 a window); the Static garrison pays 2 each
     config = shipped_config(
-        {**LIMITED, "economy.upkeep.STRIKE_FIGHTER": 60, "economy.upkeep.ENEMY_ARMOR": 2}
-    )
+        {**LIMITED, "economy.upkeep.STRIKE_FIGHTER": 60, "economy.upkeep.ENEMY_ARMOR": 2,
+         "economy.upkeep_period.STRIKE_FIGHTER": 1, "economy.upkeep_period.ENEMY_ARMOR": 1}
+    )  # fmt: skip
 
     def scenario(snapshot_at: int | None = None) -> tuple[str, list[dict[str, Any]]]:
         w = new_world(7, config)
@@ -572,7 +579,9 @@ def _mirror_world(stock: dict[str, int]) -> World:
     rules = dataclasses.replace(
         RULES,
         supply=dataclasses.replace(RULES.supply, rear={"COALITION": "c-rear", "ENEMY": "e-rear"}),
-        economy=dataclasses.replace(er, upkeep={INF: 3, "ENEMY_ARMOR": 3}),
+        economy=dataclasses.replace(
+            er, upkeep={INF: 3, "ENEMY_ARMOR": 3}, upkeep_period={INF: 1, "ENEMY_ARMOR": 1}
+        ),
     )
     w = World.new(Campaign(CAMPAIGN_ID, 1, "cfg-test"), rules)
     sides: tuple[tuple[str, Side], ...] = (("c", "COALITION"), ("e", "ENEMY"))
@@ -605,3 +614,139 @@ def test_mirrored_sides_pay_and_ground_the_same(units: list[Any], stock: dict[st
     paid = sum(ev.amount for ev in out if ev.kind == "SupplyConsumed")
     assert total - sum(w.stock.values()) == paid  # every unit debited is reported, exactly
     assert paid == 3 * sum(not c.grounded for pair in pairs for c in pair)
+
+
+# --- NX-426: the upkeep period (Q-TD-41, Q-TD-52 D1) ---------------------------------------------
+# GARRISON_INFANTRY pays its 5 every 4 windows: in the window whose index (running ticks / the
+# window length, from 1) plus its id is a multiple of 4, and every window while grounded.
+EVERY_4 = shipped_config({**LIMITED, **PAID, "economy.upkeep_period.GARRISON_INFANTRY": 4})
+
+
+def window_at(w: World, index: int) -> list[Event]:
+    """Economy window number `index` (from 1): `window` at that window's boundary."""
+    w.campaign.running_ticks = index * WINDOW - 1
+    w.campaign.tick = max(w.campaign.tick, index * WINDOW - 1)
+    out: list[Event] = []
+    economy.window(w, out)
+    upkeep.upkeep(w, out)
+    return out
+
+
+def test_a_unit_with_period_4_pays_once_every_4_windows_on_its_staggered_window() -> None:
+    w = new_world(config=EVERY_4)
+    w.stock["fob-n-w"] = 100
+    e = put(w, INF, "fob-n-w")
+    due = [i for i in range(1, 13) if rows(window_at(w, i))]
+    assert due == [i for i in range(1, 13) if (i + e.id) % 4 == 0] and len(due) == 3
+    assert w.stock["fob-n-w"] == 100 - 3 * 5
+
+
+def test_units_with_consecutive_ids_spread_their_payments_across_windows() -> None:
+    w = new_world(config=EVERY_4)
+    w.stock["fob-n-w"] = 100
+    units = [put(w, INF, "fob-n-w") for _ in range(4)]
+    for i in range(1, 5):
+        assert rows(window_at(w, i)) == [("SupplyConsumed", "fob-n-w", 5)]  # one of four a window
+    assert w.stock["fob-n-w"] == 100 - 4 * 5 and not any(u.grounded for u in units)
+
+
+def test_a_grounded_unit_retries_every_window_then_returns_to_its_stagger() -> None:
+    w = new_world(config=EVERY_4)
+    w.stock["fob-n-w"] = 0
+    e = put(w, INF, "fob-n-w")
+    first = next(i for i in range(1, 5) if (i + e.id) % 4 == 0)
+    assert rows(window_at(w, first)) == [("UnitGrounded", e.id, "fob-n-w")]
+    w.stock["fob-n-w"] = 7
+    assert rows(window_at(w, first + 1)) == [  # not its due window: the retry pays
+        ("UnitUngrounded", e.id, "fob-n-w"),
+        ("SupplyConsumed", "fob-n-w", 5),
+    ]
+    for i in range(first + 2, first + 4):  # back to its stagger: not charged again until due
+        assert rows(window_at(w, i)) == []
+    assert rows(window_at(w, first + 4)) == [("UnitGrounded", e.id, "fob-n-w")]  # 2 left < 5
+
+
+def test_the_stagger_follows_running_ticks_so_a_pause_does_not_shift_it() -> None:
+    # paused for 1.5 windows: campaign.tick runs 900 ahead of running_ticks, the stagger does not
+    w = new_world(config=EVERY_4)
+    w.stock["fob-n-w"] = 100
+    e = put(w, INF, "fob-n-w")
+    due = []
+    for i in range(1, 9):
+        w.campaign.running_ticks = i * WINDOW - 1
+        w.campaign.tick = w.campaign.running_ticks + 900
+        out: list[Event] = []
+        upkeep.upkeep(w, out)
+        if rows(out):
+            due.append(i)
+    assert due == [i for i in range(1, 9) if (i + e.id) % 4 == 0] and len(due) == 2
+
+
+def test_a_grounded_unit_still_short_is_charged_again_without_a_second_event() -> None:
+    w = new_world(config=EVERY_4)
+    w.stock["fob-n-w"] = 0
+    e = put(w, INF, "fob-n-w")
+    first = next(i for i in range(1, 5) if (i + e.id) % 4 == 0)
+    window_at(w, first)
+    w.stock["fob-n-w"] = 4  # short of 5 every window: it stays grounded, nothing is debited
+    for i in range(first + 1, first + 5):
+        assert rows(window_at(w, i)) == [] and e.grounded
+    assert w.stock["fob-n-w"] == 4
+
+
+def test_owed_is_the_per_window_average_rounded_up_once_per_side() -> None:
+    w = new_world(config=EVERY_4)
+    assert upkeep.owed(w, "COALITION") == 0
+    put(w, INF, "fob-n-w")
+    assert upkeep.owed(w, "COALITION") == 2  # ceil(5/4)
+    put(w, INF, "fob-n-w")
+    put(w, INF, "fob-s-w")
+    assert upkeep.owed(w, "COALITION") == 4  # ceil(15/4): one rounding, not 3 x ceil(5/4)
+    put(w, JET, "west-airbase")  # period 1: 5 a window
+    assert upkeep.owed(w, "COALITION") == 9  # ceil(15/4 + 5)
+    put(w, "ENEMY_ARMOR", "fob-n-e", owner="ENEMY_DIRECTOR")  # upkeep 0
+    assert upkeep.owed(w, "ENEMY") == 0
+
+
+@given(count=st.integers(1, 12), period=st.integers(1, 6), start=st.integers(1, 30))
+def test_with_enough_stock_each_unit_pays_exactly_once_per_period(
+    count: int, period: int, start: int
+) -> None:
+    config = shipped_config({**LIMITED, **PAID, "economy.upkeep_period.GARRISON_INFANTRY": period})
+    w = new_world(config=config)
+    w.stock["fob-n-w"] = 5 * count
+    units = [put(w, INF, "fob-n-w") for _ in range(count)]
+    paid = 0
+    for i in range(start, start + period):
+        amount = sum(ev.amount for ev in window_at(w, i) if ev.kind == "SupplyConsumed")
+        assert amount == 5 * sum((i + u.id) % period == 0 for u in units)
+        paid += amount
+    assert paid == 5 * count and w.stock["fob-n-w"] == 0
+    assert not any(u.grounded for u in units)
+
+
+def test_staggered_upkeep_is_deterministic_through_a_mid_window_save() -> None:
+    # the jet (60, every 3 windows) costs more than the empty sanctuary holds: it grounds at its
+    # due window and retries every window after; the Static garrison pays 2 every 3 windows
+    config = shipped_config({
+        **LIMITED, "economy.upkeep.STRIKE_FIGHTER": 60, "economy.upkeep.ENEMY_ARMOR": 2,
+        "economy.upkeep_period.STRIKE_FIGHTER": 3, "economy.upkeep_period.ENEMY_ARMOR": 3,
+    })  # fmt: skip
+
+    def scenario(snapshot_at: int | None = None) -> tuple[str, list[dict[str, Any]]]:
+        w = new_world(7, config)
+        w.pool["COALITION"] = 0
+        events: list[dict[str, Any]] = []
+        for tick in range(1, 3 * WINDOW + 1):
+            commands = [join(1, "STRIKE", target_tick=tick, hold=True)] if tick == 100 else []
+            events += [e.model_dump() for e in step(w, commands)]
+            if tick == snapshot_at:
+                rules, w = w.rules, load(save(w))
+                w.rules = rules
+        return state_hash(w), events
+
+    first = scenario()
+    assert [e["kind"] for e in first[1]].count("UnitGrounded") == 1
+    assert any(e["kind"] == "SupplyConsumed" and e["cause"] == "UPKEEP" for e in first[1])
+    assert scenario() == first
+    assert scenario(snapshot_at=1250) == first

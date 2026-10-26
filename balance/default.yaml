@@ -376,6 +376,16 @@ economy:  # Force economy (ECONOMY, NX-412 part 1; CONFIG-AND-CONTENT §6.3). Sa
     LOGI_TRUCK: 0
     RECON_UAV: 0
     STRIKE_FIGHTER: 0
+  upkeep_period:  # PROPOSED – unvalidated (Q-TD-52 T1, from docs/review/ENTERTAINMENT-upkeep-2026-10-26.md §Q3; Q-TD-41); economy windows between a unit's upkeep payments, staggered by entity id; a grounded unit retries every window (EC-4, EC-6); mirrored kinds equal (EC-3)
+    ENEMY_ARMOR: 20
+    ENEMY_CONVOY: 1  # upkeep 0 (EC-4): hauling stays free
+    ENEMY_FIGHTER: 20
+    ENEMY_RECON_UAV: 30
+    ENEMY_STRIKE_FIGHTER: 20
+    GARRISON_INFANTRY: 20
+    LOGI_TRUCK: 1  # upkeep 0 (EC-4): hauling stays free
+    RECON_UAV: 30
+    STRIKE_FIGHTER: 20
   legacy_rules: true  # decided rule as default, TEMPORARY (Q-TD-33, lead decision): true keeps the old budget, live-unit caps and spawn costs; false applies ECONOMY EC-7, EC-8, EC-13; removed in NX-412 part 5; switch, campaign setup only
   free_viewer_spawn: true  # decided rule as default, Q-CFG-16 option (ECONOMY EC-13, Q-TD-26): a viewer's sanctuary spawn is free; false in agent-vs-agent harness profiles; read only with legacy_rules false
   floor_viewer_units: 5  # PROPOSED – unvalidated (ECONOMY EC-11, NX-412 harness sweep); units, = quiet-5's viewers x slots.max_live_per_commander (1), the smallest crowd the harness plays: the coalition floor income must keep them paid at the dearest viewer upkeep beside the coalition garrison; checked at load only with legacy_rules false and the coalition limited

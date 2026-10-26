@@ -306,18 +306,33 @@ def test_legacy_rules_keep_the_tier_budget_and_ignore_the_pool() -> None:
     assert the_budget(w, "BRAVO") == 0  # the rear pool adds nothing (Q-TD-5)
 
 
-def test_the_window_sets_the_budget_from_the_pool_and_the_owed_upkeep() -> None:
-    w = world(config({**NEW, **LIMITED, "economy.upkeep.ENEMY_ARMOR": 3}))
+@pytest.mark.parametrize(
+    ("period", "armors", "budget"),
+    [
+        (1, 1, 9),  # owed 3 a window: 15 - 2 x 3
+        (20, 1, 13),  # NX-426: owed ceil(3/20) = 1: 15 - 2 x 1
+        (4, 2, 11),  # owed ceil(3/4 + 3/4) = 2, one rounding for the side: 15 - 2 x 2
+    ],
+)
+def test_the_window_sets_the_budget_from_the_pool_and_the_owed_upkeep(
+    period: int, armors: int, budget: int
+) -> None:
+    w = world(config({
+        **NEW, **LIMITED, "economy.upkeep.ENEMY_ARMOR": 3,
+        "economy.upkeep_period.ENEMY_ARMOR": period,
+    }))  # fmt: skip
     at_floor(w)  # surplus 0
     w.pool["ENEMY"] = 2940
     assert w.rules is not None
-    armor = w.spawn("ENEMY_ARMOR", "ENEMY", "ENEMY_DIRECTOR", Vec2(*w.rules.roads.pos["fob-n-e"]))
-    armor.last_node = armor.home_base = "fob-n-e"
+    for _ in range(armors):
+        pos = Vec2(*w.rules.roads.pos["fob-n-e"])
+        armor = w.spawn("ENEMY_ARMOR", "ENEMY", "ENEMY_DIRECTOR", pos)
+        armor.last_node = armor.home_base = "fob-n-e"
     w.campaign.tick = w.campaign.running_ticks = 599
     step(w, [])  # the economy window, then the decision window, in one tick (EC-10)
-    # income 30 + FOB 5 + FOB 5 + AIRBASE 10 + HQ 10 = 60: pool 3000; the armor pays 3 at fob-n-e;
-    # PATTERN_OF_LIFE: 0 + floor(3000 x 0.005) - 2 x 3 = 9
-    assert w.director["ENEMY"].budget == 9
+    # income 30 + FOB 5 + FOB 5 + AIRBASE 10 + HQ 10 = 60: pool 3000 (upkeep is paid at fob-n-e);
+    # PATTERN_OF_LIFE: 0 + floor(3000 x 0.005) - 2 x owed (upkeep.owed, the per-window average)
+    assert w.director["ENEMY"].budget == budget
 
 
 @pytest.mark.parametrize(

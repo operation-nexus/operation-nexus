@@ -1139,6 +1139,21 @@ class Upkeep(BaseModel):
     STRIKE_FIGHTER: Annotated[int, Field(ge=0)]
 
 
+class UpkeepPeriod(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    ENEMY_ARMOR: Annotated[int, Field(ge=1)]
+    ENEMY_CONVOY: Annotated[int, Field(ge=1)]
+    ENEMY_FIGHTER: Annotated[int, Field(ge=1)]
+    ENEMY_RECON_UAV: Annotated[int, Field(ge=1)]
+    ENEMY_STRIKE_FIGHTER: Annotated[int, Field(ge=1)]
+    GARRISON_INFANTRY: Annotated[int, Field(ge=1)]
+    LOGI_TRUCK: Annotated[int, Field(ge=1)]
+    RECON_UAV: Annotated[int, Field(ge=1)]
+    STRIKE_FIGHTER: Annotated[int, Field(ge=1)]
+
+
 class Economy(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1162,6 +1177,12 @@ class Economy(BaseModel):
         Upkeep,
         Field(
             description="What each live unit of a side not in unlimited mode pays its home base every economy window, by unit kind, unit whole stock units per window (EC-4, EC-5, EC-6; NX-412 part 2). Charged after income and the storage clip, in the EC-6 payment order; a home pays only when it holds the full amount, else the unit is grounded. 0 = free. One entry per kind that can spawn by JOIN or director (as logistics.loadout_cost); facilities are placed by the theater and pay none. The shipped 0 for every kind is a rollout placeholder (Q-TD-29) until the NX-412 sweep part; the trucks stay PROPOSED 0 by the spec (EC-4), so hauling stays free."
+        ),
+    ]
+    upkeep_period: Annotated[
+        UpkeepPeriod,
+        Field(
+            description="Per-kind upkeep period (Q-TD-41, Q-TD-52 D1): a unit pays its economy.upkeep every this many economy windows, so a unit can cost less than 1 stock per window, unit economy windows. A unit is charged in the window whose index (running ticks / the window, counted from 1) plus its entity id is a multiple of the period, so payments of one kind spread across windows by id; a grounded unit is charged every window until its home pays, then returns to that stagger (EC-4, EC-6). The per-window rate, upkeep / period, is what the EC-7 reserve and the EC-11 coalition floor check read. 1 = every window. One entry per kind that has economy.upkeep; mirrored kinds equal (EC-3). Shipped values PROPOSED (Q-TD-52 T1): 20 for armed kinds, 30 for the recon UAVs, 1 for the trucks and convoys (upkeep 0)."
         ),
     ]
     legacy_rules: Annotated[

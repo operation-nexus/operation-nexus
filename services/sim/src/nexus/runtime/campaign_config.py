@@ -180,26 +180,28 @@ def coalition_floor_problem(rules: Rules, garrison_quota: Mapping[str, int]) -> 
     """ECONOMY EC-11: the coalition's floor income (`economy.income.floor`, no held node) must pay
     the upkeep of its AI garrison (`garrison_quota`, its theater nodes' quotas, each filled from
     `director.garrison.kinds` for the node kind in turn, as `_place_garrison` fills them) plus
-    `economy.floor_viewer_units` units at the dearest upkeep of a viewer-playable kind (the roles').
+    `economy.floor_viewer_units` units at the dearest upkeep of a viewer-playable kind (the roles'),
+    each at its per-window rate `economy.upkeep` / `economy.upkeep_period` (NX-426, Q-TD-52 D1),
+    summed exactly.
     Checked only with `economy.legacy_rules` false and the coalition not unlimited (EC-15). None
     when it pays; otherwise the shortfall."""
     eco, dr = rules.economy, rules.director
     if eco is None or eco.legacy or "COALITION" not in eco.limited:
         return None
     by_node_kind = dr.garrison_kinds if dr is not None else {}  # no director: hand-built rules
-    garrison = 0
+    garrison = Fraction(0)
     for node in sorted(garrison_quota):
         kinds = by_node_kind[rules.node_kind[node]]
-        garrison += sum(eco.upkeep[kinds[i % len(kinds)]] for i in range(garrison_quota[node]))
-    viewer = max(sorted(rules.role_kind.values()), key=lambda k: eco.upkeep[k])
-    need = garrison + eco.floor_viewer_units * eco.upkeep[viewer]
+        garrison += sum(eco.rate(kinds[i % len(kinds)]) for i in range(garrison_quota[node]))
+    viewer = max(sorted(rules.role_kind.values()), key=eco.rate)
+    need = garrison + eco.floor_viewer_units * eco.rate(viewer)
     if need <= eco.income_floor:
         return None
     return (
         f"economy.income.floor {eco.income_floor} is {need - eco.income_floor} short of the "
         f"coalition floor (ECONOMY EC-11): AI garrison upkeep {garrison} + "
         f"economy.floor_viewer_units {eco.floor_viewer_units} x {viewer} upkeep "
-        f"{eco.upkeep[viewer]} = {need} per window"
+        f"{eco.rate(viewer)} = {need} per window (upkeep / economy.upkeep_period, exact)"
     )
 
 
