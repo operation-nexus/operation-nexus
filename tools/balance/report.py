@@ -327,6 +327,44 @@ def _gaps(rs: list[dict[str, Any]], es: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _share(part: int, whole: int) -> float | None:
+    return part / whole if whole else None
+
+
+def _shortfall(es: list[dict[str, Any]], hours: int) -> dict[str, Any]:
+    """Rare-shortfall metrics (NX-437; ENTERTAINMENT-upkeep Q2 R1-R4, R8, R10, R11) pooled over the
+    seeds that carry them. Shares are sums over sums; no number here names a player."""
+    ss = [e["shortfall"] for e in es if e.get("shortfall")]
+    eps = [x for s in ss for x in s["episodes"]]
+    uw = {
+        side: [sum(s["unit_windows"][side][k] for s in ss) for k in ("grounded", "units")]
+        for side in ("COALITION", "ENEMY")
+    }
+    windows = sum(s["windows"] for s in ss)
+    by_home = Counter(x["home"] for x in eps)
+    return {
+        "windows": windows,
+        "r1_viewer_grounded_share": _share(*uw["COALITION"]),
+        "r8_static_grounded_share": _share(*uw["ENEMY"]),
+        "r2_windows_with_viewer_grounded_share": _share(
+            sum(s["windows_viewer_grounded"] for s in ss), windows
+        ),
+        "r3_episodes": len(eps),
+        "r3_episodes_per_hour": len(eps) / hours if hours else None,
+        "r3_episodes_by_home": dict(sorted(by_home.items())),
+        "r3_median_episode_windows": _med([x["windows"] for x in eps]),
+        "r4_viewers_grounded": sum(s["viewers_grounded"] for s in ss),
+        "r4_viewers": sum(s["viewers"] for s in ss),
+        "r4_viewers_grounded_share": _share(
+            sum(s["viewers_grounded"] for s in ss), sum(s["viewers"] for s in ss)
+        ),
+        "r10_pool_low_stretches": sum(s["pool_low"]["stretches"] for s in ss),
+        "r10_pool_low_minutes": sum(s["pool_low"]["minutes"] for s in ss),
+        "r11_episodes_after_enemy_action": sum(x["after_action"] for x in eps),
+        "r11_share": _share(sum(x["after_action"] for x in eps), len(eps)),
+    }
+
+
 def _economy(runs: list[dict[str, Any]]) -> dict[str, Any]:
     """ECONOMY §4 "Harness report" (NX-412 part 5a), pooled over the seeds with the data; per-hour
     values are means per run-hour (game hours actually run)."""
@@ -373,6 +411,7 @@ def _economy(runs: list[dict[str, Any]]) -> dict[str, Any]:
     holds = [h for e in es for h in e["holds"]]
     return {
         "sides": sides,
+        "shortfall": _shortfall(es, hours),
         "grounded_share_by_state": {
             k: {"grounded": grounded[k], "seen": n, "share": grounded[k] / n}
             for k, n in sorted(exposure.items())
@@ -577,6 +616,29 @@ def _d5_lines(name: str, e: dict[str, Any]) -> list[str]:
     ]
 
 
+def _pct(value: float | None) -> str:
+    return "-" if value is None else f"{value:.1%}"
+
+
+def _shortfall_lines(name: str, f: dict[str, Any]) -> list[str]:
+    """The rare-shortfall metrics of one profile (ENTERTAINMENT-upkeep Q2), sub-bullets."""
+    return [
+        f"  - {name} shortfall (rare is the goal): R1 viewer unit-time grounded "
+        f"{_pct(f['r1_viewer_grounded_share'])}; R8 Static AI "
+        f"{_pct(f['r8_static_grounded_share'])} (info); R2 windows with a viewer grounded "
+        f"{_pct(f['r2_windows_with_viewer_grounded_share'])} of {f['windows']}; R4 viewers ever "
+        f"grounded {_pct(f['r4_viewers_grounded_share'])} ({f['r4_viewers_grounded']} of "
+        f"{f['r4_viewers']})",
+        f"  - {name} shortfall episodes: R3 {f['r3_episodes']} "
+        f"({_fmt(f['r3_episodes_per_hour'], '.2f')} per run-hour, median "
+        f"{_fmt(f['r3_median_episode_windows'])} windows, by home "
+        f"{f['r3_episodes_by_home'] or 'none'}); R11 after enemy action within 30 min "
+        f"{_pct(f['r11_share'])} ({f['r11_episodes_after_enemy_action']} of {f['r3_episodes']}); "
+        f"R10 coalition pool under 10% of cap for over 30 min: {f['r10_pool_low_stretches']} "
+        f"stretches, {_fmt(f['r10_pool_low_minutes'])} min",
+    ]
+
+
 def _economy_lines(report: dict[str, Any]) -> list[str]:
     lines = ["## Economy (ECONOMY §4, NX-412; per run-hour means, pooled over seeds)", ""]
     rows = [
@@ -620,6 +682,7 @@ def _economy_lines(report: dict[str, Any]) -> list[str]:
             f"{e['army_vs_viewers']}; grounded by previous state {share or 'none'}",
         ]
         lines += _d5_lines(n, e)
+        lines += _shortfall_lines(n, e["shortfall"])
     lines += [""]
     travel = report.get("travel") or []
     if travel:

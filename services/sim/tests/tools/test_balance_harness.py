@@ -12,6 +12,7 @@ import yaml
 from pydantic import TypeAdapter
 
 from nexus.contracts.gen.commands.command import Command
+from nexus.contracts.gen.events.bridge_destroyed import BridgeDestroyed
 from nexus.contracts.gen.events.campaign_ended import CampaignEnded
 from nexus.contracts.gen.events.capture_started import CaptureStarted
 from nexus.contracts.gen.events.node_captured import NodeCaptured
@@ -97,6 +98,8 @@ def test_same_seed_same_report_and_log(
     assert strip_timing(a) == strip_timing(b)
     assert log_entries(tmp / "a") == log_entries(tmp_path / "b")
     assert a["commands"]["JOIN"] > 10  # the crowd did something
+    sf = a["metrics"]["economy"]["shortfall"]  # a real run carries the NX-437 counts
+    assert sf["window_ticks"] == 600 and sf["windows"] == a["ticks_run"] // 600
     other = run_once(tmp_path, "c", data, shipped_config, seed=2)
     assert other["final_state_hash"] != a["final_state_hash"]
 
@@ -1764,3 +1767,248 @@ def test_sitreps_per_run_hour_by_category_and_staging_count() -> None:
     agg = report._economy([run])
     assert agg["adaptations_per_hour"] == {"CONVOY_ESCORT": 2.0, "STAGING": 1.5}
     assert agg["staging"] == {"sitreps": 3, "capture_launches": 0}
+
+
+# --- rare-shortfall metrics (NX-437; ENTERTAINMENT-upkeep Q2 R1-R4, R8, R10, R11) ----------------
+WINDOW = 600  # economy.window_ticks of the shipped config at 10 Hz (60 game s)
+HALF_HOUR = 30 * 60 * HZ  # 30 game minutes in ticks
+
+
+def rig(shipped_config: CampaignConfig) -> tuple[metrics.Collector, Any]:
+    world = start_campaign("c", 1, shipped_config)
+    assert world.rules is not None and world.rules.economy is not None
+    assert world.rules.economy.window_ticks == WINDOW
+    col = metrics.Collector(
+        world, frozenset(), tick_hz=HZ, sample_ticks=600, a3_ticks=1000, idle_sample_ticks=600,
+        impact_check_ticks=10, kinds={}, a2_min_tier="ALPHA",
+    )  # fmt: skip
+    return col, world
+
+
+def run_windows(col: metrics.Collector, world: Any, upto: int, each: Any = None) -> None:
+    """Step the economy window counter from the current one to window `upto`, calling
+    `each(window_number)` to set the world's state first."""
+    for k in range(world.campaign.running_ticks // WINDOW + 1, upto + 1):
+        if each:
+            each(k)
+        world.campaign.running_ticks = world.campaign.tick = k * WINDOW
+        col.observe(world)
+
+
+def shortfall(col: metrics.Collector) -> dict[str, Any]:
+    out: dict[str, Any] = col.result(0)["economy"]["shortfall"]
+    return out
+
+
+def test_r1_r2_r8_unit_time_and_windows_with_a_grounded_viewer(
+    shipped_config: CampaignConfig,
+) -> None:
+    col, world = rig(shipped_config)
+    a = world.spawn("STRIKE_FIGHTER", "COALITION", "COMMANDER", Vec2(0, 0))
+    world.spawn("STRIKE_FIGHTER", "COALITION", "COMMANDER", Vec2(0, 0))
+    off = world.spawn("STRIKE_FIGHTER", "COALITION", "COMMANDER", Vec2(0, 0))
+    off.damage_state = "DISABLED"  # not counted
+    ai = world.spawn("STRIKE_FIGHTER", "COALITION", "AI_GARRISON", Vec2(0, 0))
+    ai.grounded = True  # a coalition AI unit is neither R1 nor R2
+    foe = world.spawn("ENEMY_ARMOR", "ENEMY", "ENEMY_DIRECTOR", Vec2(0, 0))
+    base = sum(
+        e.side == "ENEMY" and e.kind in world.rules.armed and e.owner_kind != "COMMANDER"
+        for e in world.entities()
+    )
+    foe.grounded = True
+    run_windows(col, world, 1, lambda k: setattr(a, "grounded", True))
+    run_windows(col, world, 2, lambda k: setattr(a, "grounded", False))
+    s = shortfall(col)
+    assert s["windows"] == 2 and s["windows_viewer_grounded"] == 1  # R2: 1 of 2 windows
+    assert s["unit_windows"]["COALITION"] == {"units": 4, "grounded": 1}  # R1: a and b, twice
+    assert s["unit_windows"]["ENEMY"] == {"units": 2 * base, "grounded": 2}  # R8
+    pooled = report._shortfall([col.result(0)["economy"]], 1)
+    assert pooled["r1_viewer_grounded_share"] == 0.25
+    assert pooled["r2_windows_with_viewer_grounded_share"] == 0.5
+    assert pooled["r8_static_grounded_share"] == 2 / (2 * base)
+
+
+def test_r3_episodes_are_runs_of_windows_with_a_grounded_unit_at_a_home(
+    shipped_config: CampaignConfig,
+) -> None:
+    col, world = rig(shipped_config)
+    u = world.spawn("STRIKE_FIGHTER", "COALITION", "COMMANDER", Vec2(0, 0))
+    v = world.spawn("STRIKE_FIGHTER", "COALITION", "AI_GARRISON", Vec2(0, 0))
+    u.home_base, v.home_base = "fob-n-w", "west-airbase"
+    plan = {1: (1, 0), 2: (1, 1), 3: (0, 1), 4: (0, 0), 5: (1, 0)}  # window -> (u, v) grounded
+
+    def ground(k: int) -> None:
+        u.grounded, v.grounded = (bool(x) for x in plan[k])
+
+    run_windows(col, world, 5, ground)
+    eps = [(x["home"], x["start"] // WINDOW, x["windows"]) for x in shortfall(col)["episodes"]]
+    # u: windows 1-2 (2 long), then clear at 3-4, then 5 (still open, 1); v: windows 2-3 (2)
+    assert eps == [("fob-n-w", 1, 2), ("west-airbase", 2, 2), ("fob-n-w", 5, 1)]
+    pooled = report._shortfall([col.result(0)["economy"]], 2)
+    assert pooled["r3_episodes"] == 3 and pooled["r3_episodes_per_hour"] == 1.5
+    assert pooled["r3_median_episode_windows"] == 2
+    assert pooled["r3_episodes_by_home"] == {"fob-n-w": 2, "west-airbase": 1}
+
+
+def test_r3_a_second_unit_grounding_inside_a_running_episode_is_not_a_new_one(
+    shipped_config: CampaignConfig,
+) -> None:
+    col, world = rig(shipped_config)
+    us = [world.spawn("STRIKE_FIGHTER", "COALITION", "COMMANDER", Vec2(0, 0)) for _ in range(2)]
+    for u in us:
+        u.home_base = "fob-n-w"
+    run_windows(col, world, 3, lambda k: setattr(us[0 if k < 3 else 1], "grounded", True))
+    us[0].grounded = False
+    assert [(x["windows"]) for x in shortfall(col)["episodes"]] == [3]
+
+
+def test_r4_counts_distinct_viewers_ever_grounded_and_keeps_no_ids(
+    shipped_config: CampaignConfig,
+) -> None:
+    col, _ = rig(shipped_config)
+    col.feed([spawned(1, 901 + n, "STRIKE_FIGHTER", "COALITION", commander(n)) for n in (1, 2, 3)])
+    col.feed([spawned(1, 950, "STRIKE_FIGHTER", "COALITION", commander(1))])  # one viewer, 2 units
+    col.feed([spawned(1, 960, "STRIKE_FIGHTER", "COALITION", None)])  # AI: not a viewer
+    for tick, entity in ((5, 902), (6, 902), (7, 903), (8, 950), (9, 960)):
+        col.feed([UnitGrounded.model_construct(kind="UnitGrounded", tick=tick, entity_id=entity,
+                                               node_id="haven")])  # fmt: skip
+    s = shortfall(col)
+    assert (s["viewers"], s["viewers_grounded"]) == (3, 2)  # viewers 1 (3 groundings) and 2
+    assert commander(1) not in json.dumps(col.result(10))  # counts only (ECONOMY §4 privacy)
+
+
+@pytest.mark.parametrize(
+    ("low_windows", "stretches", "minutes"),
+    [(30, 0, 0.0), (31, 1, 31.0)],  # exactly 30 min is not "more than 30"
+)
+def test_r10_pool_low_stretch_boundary_at_30_minutes(
+    shipped_config: CampaignConfig, low_windows: int, stretches: int, minutes: float
+) -> None:
+    col, world = rig(shipped_config)
+    world.storage["COALITION"] = 100
+
+    def pool(k: int) -> None:
+        world.pool["COALITION"] = 9 if k <= low_windows else 10  # 10 is not below 10% of 100
+
+    run_windows(col, world, low_windows + 1, pool)
+    assert shortfall(col)["pool_low"] == {"stretches": stretches, "minutes": minutes}
+
+
+def test_r10_an_open_stretch_counts_and_a_gap_splits_two(shipped_config: CampaignConfig) -> None:
+    col, world = rig(shipped_config)
+    world.storage["COALITION"] = 100
+    low = {k for k in range(1, 61) if k <= 20 or k >= 22}  # 20 low, 1 ok, 39 low (still open)
+    run_windows(
+        col, world, 60, lambda k: world.pool.__setitem__("COALITION", 1 if k in low else 50)
+    )
+    assert shortfall(col)["pool_low"] == {"stretches": 1, "minutes": 39.0}  # the 20 is too short
+
+
+def episode_after(shipped_config: CampaignConfig, home: str, events: list[Any]) -> bool:
+    """Feed `events`, ground a unit at `home` in window 61 only; return the episode's R11 flag."""
+    col, world = rig(shipped_config)
+    u = world.spawn("STRIKE_FIGHTER", "COALITION", "COMMANDER", Vec2(0, 0))
+    u.home_base = home
+    col.feed(events)
+    run_windows(col, world, 61, lambda k: setattr(u, "grounded", k == 61))
+    (ep,) = shortfall(col)["episodes"]
+    assert ep["start"] == START
+    return bool(ep["after_action"])
+
+
+START = 61 * WINDOW
+
+
+def capture(tick: int, node: str, side: str = "ENEMY") -> Any:
+    return CaptureStarted.model_construct(kind="CaptureStarted", tick=tick, node_id=node, side=side)
+
+
+def bridge(tick: int, node: str) -> Any:
+    return BridgeDestroyed.model_construct(kind="BridgeDestroyed", tick=tick, node_id=node)
+
+
+def test_r11_attribution_window_edge_is_30_minutes_inclusive(
+    shipped_config: CampaignConfig,
+) -> None:
+    cfg = shipped_config
+    assert episode_after(cfg, "fob-n-w", [capture(START - HALF_HOUR, "fob-n-w")])
+    assert not episode_after(cfg, "fob-n-w", [capture(START - HALF_HOUR - 1, "fob-n-w")])
+    assert not episode_after(cfg, "fob-n-w", [capture(START - 5, "west-airbase")])  # elsewhere
+    assert not episode_after(cfg, "fob-n-w", [capture(START - 5, "fob-n-w", "COALITION")])
+
+
+def test_r11_counts_a_cut_bridge_on_the_homes_road_only(shipped_config: CampaignConfig) -> None:
+    cfg = shipped_config  # fob-n-e is reached from haven over bridge-n; fob-n-w has no bridge
+    assert episode_after(cfg, "fob-n-e", [bridge(START - 100, "bridge-n")])
+    assert not episode_after(cfg, "fob-n-e", [bridge(START - 100, "bridge-s")])
+    assert not episode_after(cfg, "fob-n-w", [bridge(START - 100, "bridge-n")])
+    assert not episode_after(cfg, "fob-n-e", [bridge(START - HALF_HOUR - 1, "bridge-n")])
+
+
+def test_r11_a_truck_that_unloaded_is_no_longer_a_convoy(shipped_config: CampaignConfig) -> None:
+    col, world = rig(shipped_config)
+    truck = world.spawn("LOGI_TRUCK", "COALITION", "COMMANDER", Vec2(0, 0))
+    truck.cargo, truck.path = 5, ["fob-n-w"]
+    u = world.spawn("STRIKE_FIGHTER", "COALITION", "COMMANDER", Vec2(0, 0))
+    u.home_base = "fob-n-w"
+    col.feed([
+        spawned(1, 700, "ENEMY_ARMOR", "ENEMY", None),
+        spawned(1, truck.id, "LOGI_TRUCK", "COALITION", None),
+    ])  # fmt: skip
+    run_windows(col, world, 1)  # seen loaded and bound for fob-n-w
+    truck.cargo, truck.path = 0, []  # delivered; the truck stays in the world
+    run_windows(col, world, 2)
+    col.feed([killed(START - 100, truck.id, 700, side="COALITION")])
+    run_windows(col, world, 61, lambda k: setattr(u, "grounded", k == 61))
+    (ep,) = shortfall(col)["episodes"]
+    assert ep["after_action"] is False
+
+
+@pytest.mark.parametrize(
+    ("cargo", "killer", "after"),
+    [(5, 700, True), (5, None, False), (5, 701, False), (None, 700, False)],
+)
+def test_r11_counts_a_loaded_convoy_killed_by_the_static_on_its_way_home(
+    shipped_config: CampaignConfig, cargo: int | None, killer: int | None, after: bool
+) -> None:
+    col, world = rig(shipped_config)
+    truck = world.spawn("LOGI_TRUCK", "COALITION", "COMMANDER", Vec2(0, 0))
+    truck.cargo, truck.path = cargo, ["fob-n-w"]
+    u = world.spawn("STRIKE_FIGHTER", "COALITION", "COMMANDER", Vec2(0, 0))
+    u.home_base = "fob-n-w"
+    col.feed([
+        spawned(1, 700, "ENEMY_ARMOR", "ENEMY", None),  # the Static's unit
+        spawned(1, 701, "STRIKE_FIGHTER", "COALITION", None),  # a friendly one
+        spawned(1, truck.id, "LOGI_TRUCK", "COALITION", None),
+    ])  # fmt: skip
+    run_windows(col, world, 1)  # observe records where the loaded truck is bound
+    world.remove(truck.id)
+    col.feed([killed(START - 100, truck.id, killer, side="COALITION")])
+    run_windows(col, world, 61, lambda k: setattr(u, "grounded", k == 61))
+    (ep,) = shortfall(col)["episodes"]
+    assert ep["after_action"] is after
+
+
+def test_shortfall_keys_reach_report_json_and_markdown(shipped_config: CampaignConfig) -> None:
+    col, world = rig(shipped_config)
+    u = world.spawn("STRIKE_FIGHTER", "COALITION", "COMMANDER", Vec2(0, 0))
+    u.home_base = "fob-n-w"
+    col.feed([capture(START - 10, "fob-n-w")])
+    run_windows(col, world, 61, lambda k: setattr(u, "grounded", k >= 60))
+    f = report._shortfall([col.result(START)["economy"]], 1)
+    assert set(f) == {
+        "windows", "r1_viewer_grounded_share", "r8_static_grounded_share",
+        "r2_windows_with_viewer_grounded_share", "r3_episodes", "r3_episodes_per_hour",
+        "r3_episodes_by_home", "r3_median_episode_windows", "r4_viewers_grounded", "r4_viewers",
+        "r4_viewers_grounded_share", "r10_pool_low_stretches", "r10_pool_low_minutes",
+        "r11_episodes_after_enemy_action", "r11_share",
+    }  # fmt: skip
+    assert (f["r3_episodes"], f["r11_share"], f["r1_viewer_grounded_share"]) == (1, 1.0, 2 / 61)
+    lines = "\n".join(report._shortfall_lines("p", f))
+    assert "R1 viewer unit-time grounded 3.3%" in lines
+    assert "R3 1 (1.00 per run-hour, median 2.0 windows, by home {'fob-n-w': 1})" in lines
+    assert "R11 after enemy action within 30 min 100.0% (1 of 1)" in lines
+    assert "R10 coalition pool under 10% of cap for over 30 min: 0 stretches, 0.0 min" in lines
+    empty = report._shortfall([{"shortfall": None}], 0)  # an old report.json without the data
+    assert empty["r3_episodes"] == 0 and empty["r11_share"] is None
+    assert "R1 viewer unit-time grounded -" in report._shortfall_lines("p", empty)[0]
