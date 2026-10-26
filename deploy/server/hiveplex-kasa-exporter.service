@@ -5,7 +5,7 @@ After=network-online.target
 [Service]
 User=hiveplex
 EnvironmentFile=/etc/hiveplex-kasa.env
-Environment=KASA_PLUGS=server=192.168.1.66
+Environment=KASA_PLUGS=server=192.168.1.66,pc=192.168.1.6
 ExecStart=/home/hiveplex/.local/share/uv/tools/python-kasa/bin/python /usr/local/bin/hiveplex-kasa-exporter
 Restart=on-failure
 RestartSec=10

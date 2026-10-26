@@ -53,18 +53,33 @@ What it checks and when it speaks: see MONITORING-WATCHDOG, "Implemented so far"
 | Sender and timer (on the PC) | `~/.local/bin/hiveplex-heartbeat-send`, `~/.config/systemd/user/hiveplex-heartbeat.{service,timer}`; source `deploy/pc/` |
 
 ## Monitoring (Prometheus, Grafana, Kasa plug)
-Everything listens on `127.0.0.1` except Grafana, which is bound to the Tailscale address, so it is reachable on the tailnet only (not the LAN, not the internet).
+Everything listens on `127.0.0.1` except Grafana, which listens on all addresses; `ufw` allows port 3000 only on `tailscale0` and loopback, so it is reachable from the server itself and over the tailnet, not from the LAN or the internet.
 
 | Piece | Where |
 |---|---|
-| Prometheus 2.53.5 (Ubuntu package) | `127.0.0.1:9090`; config `/etc/prometheus/prometheus.yml` (source `deploy/server/prometheus.yml`); 30 s scrape; keeps 180 days or 8 GB |
+| Prometheus 2.53.5 (Ubuntu package) | `127.0.0.1:9090`; config `/etc/prometheus/prometheus.yml` (source `deploy/server/prometheus.yml`); 30 s scrape; keeps 180 days or 8 GB. The remote-control endpoints (`--web.enable-lifecycle`) are off because anonymous Grafana Viewers can send queries through Grafana; reload the config with `sudo systemctl reload prometheus`. |
+| windows_exporter 0.31.9 on the harness PC | Installed with `winget install --id Prometheus.WindowsExporter` (service, port 9182). Windows Firewall rule "Hiveplex windows_exporter (server only)" allows inbound TCP 9182 only from `192.168.1.247` and `100.113.223.88`. Scraped as job `windows` (`192.168.1.102:9182`). To remove: `winget uninstall Prometheus.WindowsExporter` and delete the rule. |
 | node exporter, blackbox exporter (Ubuntu packages) | `127.0.0.1:9100`, `127.0.0.1:9115`; arguments in `/etc/default/prometheus-*` |
-| Kasa plug exporter | `hiveplex-kasa-exporter.service`, `127.0.0.1:9112`; reads `/etc/hiveplex-kasa.env` (Kasa login, root-only, mode 600, never in git); plug list in the unit (`KASA_PLUGS=server=192.168.1.66`); uses the python-kasa tool installed for user `hiveplex` |
-| Grafana 13.0.2 (Docker, pinned by digest) | `http://100.113.223.88:3000` (tailnet); compose and dashboard in `/opt/hiveplex/monitoring` (source `deploy/server/monitoring/`); admin password in `/etc/hiveplex-grafana.env` (root-only); data in `/var/lib/hiveplex-grafana` |
+| Kasa plug exporter | `hiveplex-kasa-exporter.service`, `127.0.0.1:9112`; reads `/etc/hiveplex-kasa.env` (Kasa login, root-only, mode 600, never in git); plug list in the unit (`KASA_PLUGS=server=192.168.1.66,pc=192.168.1.6`); uses the python-kasa tool installed for user `hiveplex` |
+| Grafana 13.0.2 (Docker, pinned by digest) | `http://100.113.223.88:3000` (tailnet); compose and dashboard in `/opt/hiveplex/monitoring` (source `deploy/server/monitoring/`); admin password in `/etc/hiveplex-grafana.env` (root-only); data in `/var/lib/hiveplex-grafana`. **Anonymous access is on as read-only Viewer** (for the kiosk screen): it can read dashboards and query the datasource, but not edit or use admin pages (tested: write 403, user list 403). Editing needs the admin login. |
 
 Probes: ping to `1.1.1.1`, `8.8.8.8`, the router (`192.168.1.1`) and the harness PC (`192.168.1.102`), and HTTPS to github.com and discord.com. The dashboard ("Hiveplex: server, network, power and cost") shows plug power, energy today and this month, a cost at the chosen rate, server CPU, memory, disk and network, internet and PC reachability, and ping latency. The cost rate is a dashboard list set from the owner's bills (see COSTS.md); update it when a new bill arrives. To read the Grafana password: `sudo grep GF_SECURITY_ADMIN_PASSWORD /etc/hiveplex-grafana.env`. Measured after setup (2026-10-25): all 9 Prometheus targets up, all 22 dashboard queries return data, Grafana about 140 MiB, Prometheus about 85 MB.
 
-Adding the PC's plug: add `pc=<plug ip>` to `KASA_PLUGS` in the unit, `systemctl daemon-reload`, restart the exporter. The PC's own CPU, GPU and power need the Windows exporter, which is not installed.
+Both plugs report (the server's at `192.168.1.66`, the harness PC's at `192.168.1.6`, both on the owner's Kasa account; the PC's was installed 2026-10-25). To add another plug: add `name=<plug ip>` to `KASA_PLUGS` in the unit, `systemctl daemon-reload`, restart the exporter. The PC's CPU, memory, disk and network come from windows_exporter; its GPU load is not collected yet.
+
+## Kiosk screen
+The server's HDMI screen can show the dashboard full screen. It is a Firefox (snap) kiosk run as a user service, `hiveplex-kiosk.service`, with its own profile in `~/snap/firefox/common/hiveplex-kiosk`, controlled over SSH with `hiveplex-kiosk` (source `deploy/server/kiosk/`):
+
+```
+ssh hiveserver hiveplex-kiosk start     # show the dashboard on the screen
+ssh hiveserver hiveplex-kiosk stop      # close it
+ssh hiveserver hiveplex-kiosk status
+ssh hiveserver hiveplex-kiosk url       # show the address; `url ADDRESS` switches the screen; `url default` resets
+ssh hiveserver hiveplex-kiosk on-boot   # start at every login (no-boot undoes it)
+ssh hiveserver hiveplex-kiosk screen off   # put the HDMI output to sleep (the monitor sleeps for no signal); `screen on` wakes it
+```
+
+It needs the desktop session (GNOME on Wayland) to be logged in. **GDM auto-login is on for `hiveplex`** (`AutomaticLoginEnable = true` and `AutomaticLogin = hiveplex` in `/etc/gdm3/custom.conf`, backup `custom.conf.bak-hiveplex`), set 2026-10-25 so the desktop comes back by itself after a power cut; it takes effect at the next boot and has not been tested by rebooting. The cost is a console that is logged in and unlocked; the lock screen is also off. GNOME's blanking, dimming, auto-suspend and screen lock were turned off for this user so the screen stays on (`org.gnome.desktop.session idle-delay 0`, `org.gnome.desktop.screensaver lock-enabled false` and `idle-activation-enabled false`, `org.gnome.settings-daemon.plugins.power sleep-inactive-ac-type 'nothing'` and `idle-dim false`). Measured 2026-10-25: the kiosk loads the dashboard (about 100 Grafana requests in 35 s) and `stop` leaves no Firefox process. `screen off` sets GNOME Mutter's `PowerSaveMode` to 3; the kernel then reports the HDMI output's `dpms` as `Off`, and `screen on` returns it to `On`. Whether the monitor itself went dark was not observed.
 
 `unattended-upgrades` is active. Ubuntu holds some updates back ("phased"); those arrive on their own, and `apt list --upgradable` may keep showing them for days. A fixed reboot window is **not set up yet**.
 

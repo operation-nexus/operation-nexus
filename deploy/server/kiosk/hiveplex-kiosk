@@ -1,0 +1,30 @@
+#!/usr/bin/env bash
+# Control the Grafana kiosk screen on this server. Works over SSH.
+#   hiveplex-kiosk start | stop | restart | status | on-boot | no-boot | url [URL|default] | reload | screen off|on|status
+# "screen off" puts the HDMI output to sleep (the monitor sees no signal and sleeps); "screen on" wakes it.
+# "url" with no argument shows the current address; with an address, switches the screen to it.
+export XDG_RUNTIME_DIR=/run/user/$(id -u)
+export DBUS_SESSION_BUS_ADDRESS=unix:path=$XDG_RUNTIME_DIR/bus
+UNIT=hiveplex-kiosk.service
+ENVF=$HOME/.config/hiveplex-kiosk.env
+DEFAULT='http://localhost:3000/d/hiveplex-overview/hiveplex?kiosk&refresh=10s&from=now-6h&to=now'
+case "${1:-status}" in
+  start|stop|restart) systemctl --user "$1" "$UNIT" && echo "kiosk: $1 ok";;
+  reload) systemctl --user restart "$UNIT" && echo "kiosk reloaded";;
+  on-boot) systemctl --user enable "$UNIT" 2>&1 | tail -1;;
+  no-boot) systemctl --user disable "$UNIT" 2>&1 | tail -1;;
+  url)
+    if [ -z "${2:-}" ]; then grep -h '^KIOSK_URL=' "$ENVF" 2>/dev/null || echo "KIOSK_URL=$DEFAULT"
+    elif [ "$2" = default ]; then rm -f "$ENVF"; systemctl --user restart "$UNIT"; echo "kiosk url reset to default"
+    else printf 'KIOSK_URL=%s\n' "$2" > "$ENVF"; systemctl --user restart "$UNIT"; echo "kiosk now shows: $2"; fi;;
+  status) systemctl --user is-active "$UNIT"; systemctl --user is-enabled "$UNIT" 2>/dev/null | sed 's/^/start at login: /'; if ps -eo args | grep -q '[s]nap/firefox/.*--kiosk'; then echo "firefox kiosk process: running"; else echo "firefox kiosk process: not running"; fi;;
+  screen)
+    M=org.gnome.Mutter.DisplayConfig; O=/org/gnome/Mutter/DisplayConfig
+    case "${2:-status}" in
+      off) busctl --user set-property $M $O $M PowerSaveMode i 3 && echo "screen: off (moving the mouse or a key may wake it)";;
+      on) busctl --user set-property $M $O $M PowerSaveMode i 0 && echo "screen: on";;
+      status) echo "screen: $(busctl --user get-property $M $O $M PowerSaveMode | sed 's/^i 0$/on/;s/^i [123]$/off/')";;
+      *) echo "usage: hiveplex-kiosk screen off|on|status" >&2; exit 2;;
+    esac;;
+  *) echo "usage: hiveplex-kiosk start|stop|restart|status|on-boot|no-boot|url [URL|default]|reload|screen off|on|status" >&2; exit 2;;
+esac
