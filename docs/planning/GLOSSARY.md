@@ -84,8 +84,8 @@ terms still waiting for an owner ruling.
 | SIGINT blob | A fuzzy Tier 1 marker of moving enemy units that a side's radar can sense but no sensor tracks: drawn at a 10 km cell, sized S/M/L, never naming units or exact counts (FOW-2, Q-FOW-7) |
 | Painted | A flag on a tracked target while a friendly recon unit tracks it within paint range; a marker and a combat bonus, not a tier (Q-FOW-6) |
 | Spotted | A flag on a side's own unit while any enemy sensor tracks it; says that something sees it, never what or where (FOW-12) |
-| Active defense | A side's AI sends units it already has (idle, staged, or garrison within its leash) against a threat to one of its nodes: fighters intercept aircraft, armor reinforces a DEFEND; nothing is spawned. The Static and the coalition's AI garrison follow the same rule (Q-TD-44, NX-424; spec pending) |
-| Threat (active defense) | An armed enemy unit a side tracks inside `director.defense.radius_m` of one of its nodes for `director.defense.reaction_s`, whose tracked range to that node shrank over that time. A unit passing by, loitering or leaving is not a threat; scouts fall under the scout intercept rule (Q-TD-44) |
+| Active defense | A side's AI sends units it already has (idle, staged, or garrison within its leash) against a threat to one of its nodes: fighters intercept aircraft, armor reinforces a DEFEND; nothing is spawned. The Static and the coalition's AI garrison follow the same rule (Q-TD-44, NX-424; spec THREAT-DIRECTOR §5b, Draft) |
+| Threat (active defense) | An armed enemy unit a side tracks inside `director.defense.radius_m` of one of its nodes for `director.defense.reaction_s`, whose tracked range to that node shrank over that time by at least `director.defense.closing_min_m` (Q-TD-58). Only a current track counts. A unit passing by, loitering or leaving is not a threat; scouts fall under the scout intercept rule (Q-TD-44) |
 
 ## Time, pauses and operations
 
