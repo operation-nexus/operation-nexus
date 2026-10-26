@@ -1,0 +1,9 @@
+[Unit]
+Description=Screen off at 01:00
+
+[Timer]
+OnCalendar=*-*-* 01:00:00
+AccuracySec=10s
+
+[Install]
+WantedBy=timers.target

@@ -1,0 +1,6 @@
+[Unit]
+Description=Quiet window: screen off
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/hiveplex-screen-window off

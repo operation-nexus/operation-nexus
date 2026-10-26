@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# Forced command for a phone's SSH key (authorized_keys: restrict,from="100.64.0.0/10",command="/usr/local/bin/hiveplex-kiosk-remote" ssh-ed25519 ...).
+# Only the words below are accepted from SSH_ORIGINAL_COMMAND; anything else is refused.
+K="$HOME/.local/bin/hiveplex-kiosk"
+case "${SSH_ORIGINAL_COMMAND:-}" in
+  "kiosk start"|"kiosk stop"|"kiosk restart"|"kiosk status") exec "$K" "${SSH_ORIGINAL_COMMAND#kiosk }";;
+  "screen on"|"screen off"|"screen status") exec "$K" screen "${SSH_ORIGINAL_COMMAND#screen }";;
+  "page glance") exec "$K" url default;;
+  "page detail") exec "$K" url 'http://localhost:3000/d/hiveplex-overview/hiveplex?kiosk&refresh=30s';;
+  "page targets") exec "$K" url 'http://localhost:9090/targets';;
+  "page site") exec "$K" url 'https://hiveplex.live';;
+  *) echo "not allowed. Use: kiosk start|stop|restart|status, screen on|off|status, page glance|detail|targets|site" >&2; exit 2;;
+esac

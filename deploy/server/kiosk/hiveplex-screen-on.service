@@ -1,0 +1,6 @@
+[Unit]
+Description=Quiet window ends: screen on
+
+[Service]
+Type=oneshot
+ExecStart=%h/.local/bin/hiveplex-screen-window on
