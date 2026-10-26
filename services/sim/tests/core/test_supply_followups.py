@@ -111,6 +111,42 @@ def test_a_crew_whose_bank_turns_enemy_turns_back_where_a_supply_run_drives_on()
     assert run.path == ["cross-n"]
 
 
+def test_a_crew_whose_bank_turns_enemy_takes_the_other_bank_when_it_can() -> None:
+    """Only bridge-n down: cross-n taken, the crew replans to fob-n-w, the west bank, by the south
+    road (PR #388's nearer-bank rule, for the flip trigger too)."""
+    w = tt.new_world()
+    cut(w, NORTH)
+    w.owner[FOE] = "NEUTRAL"
+    crew = tt.put(w, TRUCK, FOE)
+    tasking.claim(w, crew, tt.post(w, "COALITION", "REPAIR_BRIDGE", NORTH, "repair"), [])
+    crew.pos, crew.path = Vec2(270_000.0, 90_000.0), ["cross-n", NORTH]  # airbase -> cross-n
+    _turn(w, "cross-n", "ENEMY")
+    assert crew.path == [FOE, "cross-s", "fob-s-w", "west-airbase", "fob-n-w", NORTH]
+
+
+def test_an_empty_truck_never_drives_into_a_pickup_source_that_turned_enemy() -> None:
+    """On its pickup leg the source is not exempt: the leg stops and `pickup` is cleared, so the
+    claim's lease frees it for a new reload plan."""
+    w = tt.new_world()
+    w.owner["cross-n"], w.stock["cross-n"] = "COALITION", 500
+    _held_fob_n_e(w)
+    truck = tt.put(w, TRUCK, "fob-n-w")
+    tasking.claim(w, truck, tt.post(w, "COALITION", "RESUPPLY", "fob-n-e", "supply"), [])
+    truck.pickup, truck.pos, truck.path = "cross-n", SHORT_OF_CROSS_N, ["cross-n"]
+    _turn(w, "cross-n", "ENEMY")
+    assert truck.path == ["fob-n-w"] and truck.pickup is None
+
+
+def test_a_patrol_keeps_its_road_when_a_node_on_it_turns_enemy() -> None:
+    """Only supply runs and crews replan on a flip; a coalition patrol's path is unchanged."""
+    w = tt.new_world()
+    patrol = tt.put(w, TRUCK, "fob-n-w")
+    tasking.claim(w, patrol, tt.post(w, "COALITION", "PATROL", "fob-n-e", "patrol"), [])
+    patrol.pos, patrol.path = SHORT_OF_CROSS_N, ["cross-n", "fob-n-e"]
+    _turn(w, "cross-n", "ENEMY")
+    assert patrol.path == ["cross-n", "fob-n-e"]
+
+
 def _flip_cross_n_world(seed: int = 1) -> tuple[World, Entity]:
     """The Static's armor at cross-n one step short of the flip; a run to fob-n-e 5 km short of
     cross-n (past bridge-n, outside the capture radius), a few hundred ticks out."""

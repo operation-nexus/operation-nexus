@@ -1096,7 +1096,10 @@ def _repair_route(
 def _reload_plan(world: World, rules: Rules, routes: Routes, e: Entity, job: Job) -> Run | None:
     """Where an empty truck loads for a resupply job: the JOIN source rule (`plan_run`: the nearest
     friendly base with surplus to the destination, never the destination, the sanctuary last),
-    provided there is something to carry and the truck can drive there around enemy-held nodes."""
+    provided there is something to carry and the truck can drive there around enemy-held nodes.
+    Only `plan_run`'s source is tried (NX-413): roads are two-way and only a route's ends are
+    exempt, so a truck that reaches any source that reaches the destination reaches this one
+    through the friendly destination too; another source could never be picked instead."""
     if e.last_node is None or job.node is None:
         return None
     held = _held(world, rules, routes, e.side)

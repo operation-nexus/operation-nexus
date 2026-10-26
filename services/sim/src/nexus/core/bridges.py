@@ -174,7 +174,9 @@ def reroute(world: World, rules: Rules, taken: str | None = None) -> None:
     stop kept after a new route.
     With `taken`, a node that just changed owner (`capture`, NX-413), the trigger is instead a
     supply run's or a crew's hop into `taken` when it is now in that unit's avoid set: the same
-    turn-back and replan, so neither drives into a node that turned enemy on its way."""
+    turn-back and replan, so neither drives into a node that turned enemy on its way. An empty
+    truck's pickup leg (`Entity.pickup`) does not exempt its source: one that turned enemy stops
+    the leg and clears `pickup`, and the claim's lease releases it for a new reload plan."""
     cut = blocked(world)
     foes = {side: enemy_held(world, rules, side) for side in SIDES}  # once per pass (NX-413)
     for e in world.entities():
@@ -196,8 +198,9 @@ def reroute(world: World, rules: Rules, taken: str | None = None) -> None:
         goto_run = e.order == "GOTO" and bool(e.cargo) and seq[-1] == e.order_node
         supply = job.kind == "RESUPPLY" if job is not None else goto_run
         crew = job is not None and job.kind == "REPAIR_BRIDGE"
+        pickup_leg = e.pickup is not None and seq[-1] == e.pickup  # an empty run to its source
         if supply:  # a supply run (Q-SIM-122): around enemy-held nodes, its destination exempt
-            avoid = foes[e.side] - {seq[-1]}
+            avoid = foes[e.side] - (set() if pickup_leg else {seq[-1]})
         elif crew:  # a crew (Q-SIM-125): no exemption
             avoid = foes[e.side]
         if taken is not None and not (supply or crew):
@@ -212,6 +215,8 @@ def reroute(world: World, rules: Rules, taken: str | None = None) -> None:
                     k > 0 or crosses(world, rules, a, b, e.pos)
                 )
             if hit:
+                if pickup_leg and b == seq[-1]:  # its source lost: the lease releases the claim
+                    e.pickup = None
                 route = _shortest(rules, a, ends, cut, avoid)
                 e.path = [*seq[1:k], *(route or [a]), *([stop] if route and stop else [])]
                 break
