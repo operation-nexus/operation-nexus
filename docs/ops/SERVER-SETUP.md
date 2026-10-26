@@ -52,7 +52,20 @@ What it checks and when it speaks: see MONITORING-WATCHDOG, "Implemented so far"
 | Maintenance pause | `sudo hiveplex-maintenance MINUTES` or `off`; source `deploy/server/` |
 | Sender and timer (on the PC) | `~/.local/bin/hiveplex-heartbeat-send`, `~/.config/systemd/user/hiveplex-heartbeat.{service,timer}`; source `deploy/pc/` |
 
-## Updates
+## Monitoring (Prometheus, Grafana, Kasa plug)
+Everything listens on `127.0.0.1` except Grafana, which is bound to the Tailscale address, so it is reachable on the tailnet only (not the LAN, not the internet).
+
+| Piece | Where |
+|---|---|
+| Prometheus 2.53.5 (Ubuntu package) | `127.0.0.1:9090`; config `/etc/prometheus/prometheus.yml` (source `deploy/server/prometheus.yml`); 30 s scrape; keeps 180 days or 8 GB |
+| node exporter, blackbox exporter (Ubuntu packages) | `127.0.0.1:9100`, `127.0.0.1:9115`; arguments in `/etc/default/prometheus-*` |
+| Kasa plug exporter | `hiveplex-kasa-exporter.service`, `127.0.0.1:9112`; reads `/etc/hiveplex-kasa.env` (Kasa login, root-only, mode 600, never in git); plug list in the unit (`KASA_PLUGS=server=192.168.1.66`); uses the python-kasa tool installed for user `hiveplex` |
+| Grafana 13.0.2 (Docker, pinned by digest) | `http://100.113.223.88:3000` (tailnet); compose and dashboard in `/opt/hiveplex/monitoring` (source `deploy/server/monitoring/`); admin password in `/etc/hiveplex-grafana.env` (root-only); data in `/var/lib/hiveplex-grafana` |
+
+Probes: ping to `1.1.1.1`, `8.8.8.8`, the router (`192.168.1.1`) and the harness PC (`192.168.1.102`), and HTTPS to github.com and discord.com. The dashboard ("Hiveplex: server, network, power and cost") shows plug power, energy today and this month, a cost at the chosen rate, server CPU, memory, disk and network, internet and PC reachability, and ping latency. The cost rate is a dashboard list set from the owner's bills (see COSTS.md); update it when a new bill arrives. To read the Grafana password: `sudo grep GF_SECURITY_ADMIN_PASSWORD /etc/hiveplex-grafana.env`. Measured after setup (2026-10-25): all 9 Prometheus targets up, all 22 dashboard queries return data, Grafana about 140 MiB, Prometheus about 85 MB.
+
+Adding the PC's plug: add `pc=<plug ip>` to `KASA_PLUGS` in the unit, `systemctl daemon-reload`, restart the exporter. The PC's own CPU, GPU and power need the Windows exporter, which is not installed.
+
 `unattended-upgrades` is active. Ubuntu holds some updates back ("phased"); those arrive on their own, and `apt list --upgradable` may keep showing them for days. A fixed reboot window is **not set up yet**.
 
 ## Rebuilding from scratch (checklist)
@@ -68,4 +81,4 @@ What it checks and when it speaks: see MONITORING-WATCHDOG, "Implemented so far"
 - 6.5 GiB RAM: not yet measured against Prometheus + Grafana + Loki plus staging.
 
 ## Not done yet
-Internet-quality history, Kasa plug power readings and cost dashboards, Prometheus/Grafana, restic backups (local, NAS, Google Drive), self-hosted ntfy, the L3 heartbeat, a reboot window, and UPS monitoring (no UPS yet).
+The PC's plug and Windows exporter, Loki logs, restic backups (local, NAS, Google Drive), self-hosted ntfy, the L3 heartbeat, a reboot window, and UPS monitoring (no UPS yet).
