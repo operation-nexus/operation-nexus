@@ -76,9 +76,10 @@ ssh hiveserver hiveplex-kiosk stop      # close it
 ssh hiveserver hiveplex-kiosk status
 ssh hiveserver hiveplex-kiosk url       # show the address; `url ADDRESS` switches the screen; `url default` resets
 ssh hiveserver hiveplex-kiosk on-boot   # start at every login (no-boot undoes it)
+ssh hiveserver hiveplex-kiosk screen off   # put the HDMI output to sleep (the monitor sleeps for no signal); `screen on` wakes it
 ```
 
-It needs the desktop session (GNOME on Wayland) to be logged in; auto-login at boot is **not** configured. GNOME's blanking, dimming, auto-suspend and screen lock were turned off for this user so the screen stays on (`org.gnome.desktop.session idle-delay 0`, `org.gnome.desktop.screensaver lock-enabled false` and `idle-activation-enabled false`, `org.gnome.settings-daemon.plugins.power sleep-inactive-ac-type 'nothing'` and `idle-dim false`). Measured 2026-10-25: the kiosk loads the dashboard (about 100 Grafana requests in 35 s) and `stop` leaves no Firefox process.
+It needs the desktop session (GNOME on Wayland) to be logged in. **GDM auto-login is on for `hiveplex`** (`AutomaticLoginEnable = true` and `AutomaticLogin = hiveplex` in `/etc/gdm3/custom.conf`, backup `custom.conf.bak-hiveplex`), set 2026-10-25 so the desktop comes back by itself after a power cut; it takes effect at the next boot and has not been tested by rebooting. The cost is a console that is logged in and unlocked; the lock screen is also off. GNOME's blanking, dimming, auto-suspend and screen lock were turned off for this user so the screen stays on (`org.gnome.desktop.session idle-delay 0`, `org.gnome.desktop.screensaver lock-enabled false` and `idle-activation-enabled false`, `org.gnome.settings-daemon.plugins.power sleep-inactive-ac-type 'nothing'` and `idle-dim false`). Measured 2026-10-25: the kiosk loads the dashboard (about 100 Grafana requests in 35 s) and `stop` leaves no Firefox process. `screen off` sets GNOME Mutter's `PowerSaveMode` to 3; the kernel then reports the HDMI output's `dpms` as `Off`, and `screen on` returns it to `On`. Whether the monitor itself went dark was not observed.
 
 `unattended-upgrades` is active. Ubuntu holds some updates back ("phased"); those arrive on their own, and `apt list --upgradable` may keep showing them for days. A fixed reboot window is **not set up yet**.
 
