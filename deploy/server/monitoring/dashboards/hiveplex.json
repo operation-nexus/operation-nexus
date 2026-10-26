@@ -6,7 +6,7 @@
  ],
  "timezone": "browser",
  "schemaVersion": 39,
- "version": 2,
+ "version": 4,
  "refresh": "30s",
  "time": {
   "from": "now-24h",
@@ -592,7 +592,7 @@
   {
    "id": 15,
    "type": "timeseries",
-   "title": "Power by machine (W, stacked = total)",
+   "title": "Power by machine (W)  (PC blue, Server orange, Total white)",
    "datasource": {
     "type": "prometheus",
     "uid": "prometheus"
@@ -613,6 +613,11 @@
      "expr": "kasa_power_watts{plug=\"server\"}",
      "legendFormat": "Server",
      "refId": "B"
+    },
+    {
+     "expr": "sum(kasa_power_watts)",
+     "legendFormat": "Total",
+     "refId": "C"
     }
    ],
    "fieldConfig": {
@@ -620,17 +625,73 @@
      "unit": "watt",
      "custom": {
       "lineWidth": 2,
-      "fillOpacity": 20,
+      "fillOpacity": 10,
       "showPoints": "never",
-      "spanNulls": true,
-      "stacking": {
-       "mode": "normal",
-       "group": "A"
-      }
+      "spanNulls": true
      },
      "min": 0
     },
-    "overrides": []
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "PC"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "blue"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "Server"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "orange"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "Total"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "white"
+        }
+       },
+       {
+        "id": "custom.lineStyle",
+        "value": {
+         "fill": "dash",
+         "dash": [
+          10,
+          10
+         ]
+        }
+       },
+       {
+        "id": "custom.lineWidth",
+        "value": 2
+       }
+      ]
+     }
+    ]
    },
    "options": {
     "legend": {
@@ -645,7 +706,7 @@
   {
    "id": 16,
    "type": "timeseries",
-   "title": "Running cost ($ per hour, stacked = total)",
+   "title": "Running cost ($ per hour)  (PC blue, Server orange, Total white)",
    "datasource": {
     "type": "prometheus",
     "uid": "prometheus"
@@ -666,6 +727,11 @@
      "expr": "kasa_power_watts{plug=\"server\"} / 1000 * $rate",
      "legendFormat": "Server",
      "refId": "B"
+    },
+    {
+     "expr": "sum(kasa_power_watts) / 1000 * $rate",
+     "legendFormat": "Total",
+     "refId": "C"
     }
    ],
    "fieldConfig": {
@@ -673,17 +739,73 @@
      "unit": "currencyUSD",
      "custom": {
       "lineWidth": 2,
-      "fillOpacity": 20,
+      "fillOpacity": 10,
       "showPoints": "never",
-      "spanNulls": true,
-      "stacking": {
-       "mode": "normal",
-       "group": "A"
-      }
+      "spanNulls": true
      },
      "min": 0
     },
-    "overrides": []
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "PC"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "blue"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "Server"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "orange"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "Total"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "white"
+        }
+       },
+       {
+        "id": "custom.lineStyle",
+        "value": {
+         "fill": "dash",
+         "dash": [
+          10,
+          10
+         ]
+        }
+       },
+       {
+        "id": "custom.lineWidth",
+        "value": 2
+       }
+      ]
+     }
+    ]
    },
    "options": {
     "legend": {
@@ -699,7 +821,7 @@
   {
    "id": 17,
    "type": "timeseries",
-   "title": "Projected cost per month ($, 24 h average)",
+   "title": "Projected cost per month ($, 24 h average)  (PC blue, Server orange)",
    "datasource": {
     "type": "prometheus",
     "uid": "prometheus"
@@ -738,7 +860,38 @@
      },
      "min": 0
     },
-    "overrides": []
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "PC"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "blue"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "Server"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "orange"
+        }
+       }
+      ]
+     }
+    ]
    },
    "options": {
     "legend": {
@@ -754,7 +907,7 @@
   {
    "id": 18,
    "type": "timeseries",
-   "title": "Cost this month so far ($)",
+   "title": "Cost this month so far ($)  (PC blue, Server orange)",
    "datasource": {
     "type": "prometheus",
     "uid": "prometheus"
@@ -793,7 +946,38 @@
      },
      "min": 0
     },
-    "overrides": []
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "PC"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "blue"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "Server"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "orange"
+        }
+       }
+      ]
+     }
+    ]
    },
    "options": {
     "legend": {
