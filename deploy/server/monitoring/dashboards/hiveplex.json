@@ -36,6 +36,42 @@
      }
     ],
     "hide": 0
+   },
+   {
+    "name": "bill_start",
+    "label": "Billing period start (epoch s, 23 Oct 2026 00:00 Eastern)",
+    "type": "constant",
+    "query": "1792728000",
+    "hide": 2,
+    "current": {
+     "text": "1792728000",
+     "value": "1792728000"
+    },
+    "options": [
+     {
+      "selected": true,
+      "text": "1792728000",
+      "value": "1792728000"
+     }
+    ]
+   },
+   {
+    "name": "bill_end",
+    "label": "Billing period end (epoch s, end of reading day 18 Nov 2026)",
+    "type": "constant",
+    "query": "1795064400",
+    "hide": 2,
+    "current": {
+     "text": "1795064400",
+     "value": "1795064400"
+    },
+    "options": [
+     {
+      "selected": true,
+      "text": "1795064400",
+      "value": "1795064400"
+     }
+    ]
    }
   ]
  },
@@ -591,6 +627,132 @@
    }
   },
   {
+   "id": 42,
+   "type": "stat",
+   "title": "This bill period so far: energy (from 23 Oct)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 10,
+    "w": 8,
+    "h": 3
+   },
+   "targets": [
+    {
+     "expr": "sum_over_time((sum(kasa_power_watts) * (time() >= bool $bill_start))[60d:1m]) / 60 / 1000",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "kwatth",
+     "decimals": 2
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "none",
+    "graphMode": "none",
+    "textMode": "value"
+   },
+   "description": "Recorded watts of both plugs added up since the billing period began on 23 Oct 2026. The plugs were installed 25 Oct, so the first two days are not counted. This is the project's share, not the whole home."
+  },
+  {
+   "id": 43,
+   "type": "stat",
+   "title": "This bill period so far: cost",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 8,
+    "y": 10,
+    "w": 8,
+    "h": 3
+   },
+   "targets": [
+    {
+     "expr": "sum_over_time((sum(kasa_power_watts) * (time() >= bool $bill_start))[60d:1m]) / 60 / 1000 * $rate",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "currencyUSD",
+     "decimals": 2
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "none",
+    "graphMode": "none",
+    "textMode": "value"
+   },
+   "description": "Same energy times the rate chosen at the top."
+  },
+  {
+   "id": 44,
+   "type": "stat",
+   "title": "Projected to the next reading (18 Nov): cost",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 16,
+    "y": 10,
+    "w": 8,
+    "h": 3
+   },
+   "targets": [
+    {
+     "expr": "((sum_over_time((sum(kasa_power_watts) * (time() >= bool $bill_start))[60d:1m]) / 60 / 1000) + sum(avg_over_time(kasa_power_watts[24h])) / 1000 * clamp_min(vector($bill_end - time()), 0) / 3600) * $rate",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "currencyUSD",
+     "decimals": 2
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "none",
+    "graphMode": "none",
+    "textMode": "value"
+   },
+   "description": "Energy so far plus the last 24 hours' average power carried to the end of 18 Nov, times the rate. A rough projection, not a bill."
+  },
+  {
    "id": 15,
    "type": "timeseries",
    "title": "Power by machine (W)  (PC blue, Server orange, Total white)",
@@ -600,7 +762,7 @@
    },
    "gridPos": {
     "x": 0,
-    "y": 10,
+    "y": 13,
     "w": 12,
     "h": 8
    },
@@ -714,7 +876,7 @@
    },
    "gridPos": {
     "x": 12,
-    "y": 10,
+    "y": 13,
     "w": 12,
     "h": 8
    },
@@ -829,7 +991,7 @@
    },
    "gridPos": {
     "x": 0,
-    "y": 18,
+    "y": 21,
     "w": 12,
     "h": 8
    },
@@ -915,7 +1077,7 @@
    },
    "gridPos": {
     "x": 12,
-    "y": 18,
+    "y": 21,
     "w": 12,
     "h": 8
    },
@@ -998,7 +1160,7 @@
    "collapsed": false,
    "gridPos": {
     "x": 0,
-    "y": 26,
+    "y": 29,
     "w": 24,
     "h": 1
    },
@@ -1014,7 +1176,7 @@
    },
    "gridPos": {
     "x": 0,
-    "y": 27,
+    "y": 30,
     "w": 4,
     "h": 4
    },
@@ -1054,7 +1216,7 @@
    },
    "gridPos": {
     "x": 4,
-    "y": 27,
+    "y": 30,
     "w": 4,
     "h": 4
    },
@@ -1094,7 +1256,7 @@
    },
    "gridPos": {
     "x": 8,
-    "y": 27,
+    "y": 30,
     "w": 4,
     "h": 4
    },
@@ -1134,7 +1296,7 @@
    },
    "gridPos": {
     "x": 12,
-    "y": 27,
+    "y": 30,
     "w": 4,
     "h": 4
    },
@@ -1171,7 +1333,7 @@
    },
    "gridPos": {
     "x": 16,
-    "y": 27,
+    "y": 30,
     "w": 4,
     "h": 4
    },
@@ -1209,7 +1371,7 @@
    },
    "gridPos": {
     "x": 20,
-    "y": 27,
+    "y": 30,
     "w": 4,
     "h": 4
    },
@@ -1247,7 +1409,7 @@
    },
    "gridPos": {
     "x": 0,
-    "y": 31,
+    "y": 34,
     "w": 12,
     "h": 8
    },
@@ -1297,7 +1459,7 @@
    },
    "gridPos": {
     "x": 12,
-    "y": 31,
+    "y": 34,
     "w": 12,
     "h": 8
    },
@@ -1343,7 +1505,7 @@
    "collapsed": false,
    "gridPos": {
     "x": 0,
-    "y": 39,
+    "y": 42,
     "w": 24,
     "h": 1
    },
@@ -1359,7 +1521,7 @@
    },
    "gridPos": {
     "x": 0,
-    "y": 40,
+    "y": 43,
     "w": 4,
     "h": 4
    },
@@ -1399,7 +1561,7 @@
    },
    "gridPos": {
     "x": 4,
-    "y": 40,
+    "y": 43,
     "w": 4,
     "h": 4
    },
@@ -1439,7 +1601,7 @@
    },
    "gridPos": {
     "x": 8,
-    "y": 40,
+    "y": 43,
     "w": 4,
     "h": 4
    },
@@ -1479,7 +1641,7 @@
    },
    "gridPos": {
     "x": 12,
-    "y": 40,
+    "y": 43,
     "w": 4,
     "h": 4
    },
@@ -1516,7 +1678,7 @@
    },
    "gridPos": {
     "x": 16,
-    "y": 40,
+    "y": 43,
     "w": 4,
     "h": 4
    },
@@ -1554,7 +1716,7 @@
    },
    "gridPos": {
     "x": 20,
-    "y": 40,
+    "y": 43,
     "w": 4,
     "h": 4
    },
@@ -1592,7 +1754,7 @@
    },
    "gridPos": {
     "x": 0,
-    "y": 44,
+    "y": 47,
     "w": 12,
     "h": 8
    },
@@ -1641,7 +1803,7 @@
    },
    "gridPos": {
     "x": 12,
-    "y": 44,
+    "y": 47,
     "w": 12,
     "h": 8
    },
@@ -1697,7 +1859,7 @@
    "collapsed": false,
    "gridPos": {
     "x": 0,
-    "y": 52,
+    "y": 55,
     "w": 24,
     "h": 1
    },
@@ -1713,7 +1875,7 @@
    },
    "gridPos": {
     "x": 0,
-    "y": 53,
+    "y": 56,
     "w": 12,
     "h": 8
    },
@@ -1757,7 +1919,7 @@
    },
    "gridPos": {
     "x": 12,
-    "y": 53,
+    "y": 56,
     "w": 12,
     "h": 8
    },
@@ -1804,7 +1966,7 @@
    "collapsed": false,
    "gridPos": {
     "x": 0,
-    "y": 61,
+    "y": 64,
     "w": 24,
     "h": 1
    },
@@ -1816,7 +1978,7 @@
    "title": "Rates and what is not here yet",
    "gridPos": {
     "x": 0,
-    "y": 62,
+    "y": 65,
     "w": 24,
     "h": 7
    },
