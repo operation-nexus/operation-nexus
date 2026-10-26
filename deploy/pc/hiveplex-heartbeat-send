@@ -1,0 +1,8 @@
+#!/usr/bin/env bash
+# PC side of the watchdog: send one status line to the Linux server over a restricted SSH key.
+# Runs in WSL from a systemd user timer. If WSL is not running, nothing is sent and the server notices.
+set -u
+up=$(cut -d. -f1 /proc/uptime)
+timer=$(systemctl --user is-active nexus-harness.timer 2>/dev/null || echo unknown)
+job=$(pgrep -f balance.py >/dev/null && echo 1 || echo 0)
+echo "pc=up wsl_uptime_s=$up harness_timer=$timer job_running=$job" | ssh hiveserver-hb true

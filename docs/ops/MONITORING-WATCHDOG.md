@@ -50,7 +50,15 @@ On the Linux server (`hiveplex-linux`), `deploy/server/` holds the scripts that 
 - `hiveplex-health-check`, run every 5 minutes by `hiveplex-health.timer`, posts only when a check changes state (OK to FAIL, and FAIL to OK with the downtime), plus one notice after each boot. Checks: root disk at 85% or more, less than 10% of RAM available, both `1.1.1.1` and `8.8.8.8` unreachable (the alert can only be delivered once the internet is back), Tailscale not `Running`, the Docker service not active, and a pending reboot.
 - Tested on 2026-10-25: a test message, the boot notice and a simulated recovery all arrived in Discord. The FAIL-side message uses the same code but was not triggered.
 
-**Not done yet:** the L2 probe of the Windows PC (the PC has the LAN address 192.168.1.102 and a Tailscale address), the harness-timer and WSL checks on the PC, the L3 external heartbeat (NX-252), internet-quality history, and power and cost readings from the Kasa plugs.
+**PC watchdog (layer 2, 2026-10-25):** the server also watches the harness PC (`192.168.1.102`):
+- `pc_lan`: a ping reply from the PC. Alerts when it stops answering (off, asleep or off the network).
+- `pc_heartbeat`: the PC sends a status line every 2 minutes (`deploy/pc/hiveplex-heartbeat-send`, a WSL systemd user timer) over a dedicated SSH key that can run only one forced command on the server (`restrict`, `from=` the PC's two addresses, `command=` the receiver `hiveplex-heartbeat-recv`). Alerts when the PC answers ping but the heartbeat is older than 10 minutes: Windows is up and WSL, or its timer, is not. This is the failure that a plain ping cannot see.
+- `pc_harness`: alerts when the heartbeat says the `nexus-harness.timer` on the PC is not active.
+- If the PC is down, only `pc_lan` speaks, so one outage is one message.
+- Planned maintenance (a reboot, a hardware install): `sudo hiveplex-maintenance 60` on the server pauses the PC alerts for 60 minutes; `sudo hiveplex-maintenance off` resumes them.
+- Tested 2026-10-25: a stale heartbeat produced the failure state and a fresh one cleared it. A real PC outage has not happened yet.
+
+**Not done yet:** the L3 external heartbeat (NX-252), internet-quality history, and power and cost readings from the Kasa plugs.
 
 ## Implementation items
 - NX-251: L1 + L2 probes and actions (Windows-side supervision on the stream PC per Q-OPS-7, a systemd watchdog service on the Linux server, SSH key with restricted commands)

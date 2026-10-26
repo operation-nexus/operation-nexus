@@ -45,6 +45,27 @@ ts=$(tailscale status --json 2>/dev/null | jq -r .BackendState 2>/dev/null)
 # docker
 systemctl is-active --quiet docker && check docker ok active || check docker fail "docker service not active"
 
+# PC watchdog (layer 2): the harness PC at PC_LAN. The PC sends a heartbeat every 2 minutes (WSL timer, restricted key).
+# Planned maintenance: `hiveplex-maintenance 60` pauses the PC alerts for 60 minutes.
+PC_LAN=192.168.1.102
+HB=/var/lib/hiveplex-heartbeat/pc
+if [ "$(date +%s)" -lt "$(cat "$STATE/pc-maintenance-until" 2>/dev/null || echo 0)" ]; then
+  :  # maintenance window: stay quiet
+else
+  if ping -c3 -W2 "$PC_LAN" >/dev/null 2>&1; then
+    check pc_lan ok up
+    rec=$(sed -n 's/^received=\([0-9]*\) .*/\1/p' "$HB" 2>/dev/null); age=$(( $(date +%s) - ${rec:-0} ))
+    if [ "$age" -gt 600 ]; then
+      check pc_heartbeat fail "the PC answers ping but sent no heartbeat for $((age / 60)) min (WSL stopped, or its heartbeat timer is down)"
+    else
+      check pc_heartbeat ok "$age s"
+      grep -q 'harness_timer=active' "$HB" && check pc_harness ok active || check pc_harness fail "the harness timer on the PC is not active ($(sed 's/^received=[0-9]* //' "$HB"))"
+    fi
+  else
+    check pc_lan fail "no ping reply from $PC_LAN (PC off, asleep or off the network)"
+  fi
+fi
+
 # pending reboot (one notice per boot)
 if [ -e /var/run/reboot-required ] && [ "$(cat "$STATE/reboot_notice" 2>/dev/null)" != "$bid" ]; then echo "$bid" > "$STATE/reboot_notice"; note "ℹ️ **$host**: a reboot is required (package updates)"; fi
 exit 0
