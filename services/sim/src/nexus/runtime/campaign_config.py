@@ -7,6 +7,7 @@ theater's facilities placed (Q-GP-25).
 Paths default to the shipped files, found from this file, not the working directory.
 """
 
+from collections.abc import Mapping
 from dataclasses import dataclass, field
 from fractions import Fraction
 from pathlib import Path
@@ -169,7 +170,37 @@ def load_campaign_config(paths: ConfigPaths | None = None) -> CampaignConfig:
     )
     if misfits := fit_problems(rules):
         raise ConfigError(f"{paths.operations}: " + "; ".join(misfits))
+    quota = {n.id: n.garrison_quota for n in theater.nodes if n.start_owner == "COALITION"}
+    if short := coalition_floor_problem(rules, {n: q for n, q in quota.items() if q}):
+        raise ConfigError(f"{paths.balance}: {short}")
     return CampaignConfig(balance, catalog, theater, digest, rules)
+
+
+def coalition_floor_problem(rules: Rules, garrison_quota: Mapping[str, int]) -> str | None:
+    """ECONOMY EC-11: the coalition's floor income (`economy.income.floor`, no held node) must pay
+    the upkeep of its AI garrison (`garrison_quota`, its theater nodes' quotas, each filled from
+    `director.garrison.kinds` for the node kind in turn, as `_place_garrison` fills them) plus
+    `economy.floor_viewer_units` units at the dearest upkeep of a viewer-playable kind (the roles').
+    Checked only with `economy.legacy_rules` false and the coalition not unlimited (EC-15). None
+    when it pays; otherwise the shortfall."""
+    eco, dr = rules.economy, rules.director
+    if eco is None or eco.legacy or "COALITION" not in eco.limited:
+        return None
+    by_node_kind = dr.garrison_kinds if dr is not None else {}  # no director: hand-built rules
+    garrison = 0
+    for node in sorted(garrison_quota):
+        kinds = by_node_kind[rules.node_kind[node]]
+        garrison += sum(eco.upkeep[kinds[i % len(kinds)]] for i in range(garrison_quota[node]))
+    viewer = max(sorted(rules.role_kind.values()), key=lambda k: eco.upkeep[k])
+    need = garrison + eco.floor_viewer_units * eco.upkeep[viewer]
+    if need <= eco.income_floor:
+        return None
+    return (
+        f"economy.income.floor {eco.income_floor} is {need - eco.income_floor} short of the "
+        f"coalition floor (ECONOMY EC-11): AI garrison upkeep {garrison} + "
+        f"economy.floor_viewer_units {eco.floor_viewer_units} x {viewer} upkeep "
+        f"{eco.upkeep[viewer]} = {need} per window"
+    )
 
 
 def start_campaign(campaign_id: str, seed: int, config: CampaignConfig | None = None) -> World:

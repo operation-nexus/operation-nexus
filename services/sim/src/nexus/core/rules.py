@@ -460,6 +460,8 @@ class EconomyRules:
     legacy: bool = True
     free_viewer_spawn: bool = True
     max_live_per_side: int = 0
+    # economy.floor_viewer_units (EC-11): read only by the loader's coalition floor check
+    floor_viewer_units: int = 0
 
 
 def economy_rules(cfg: Economy, *, window_ticks: int, max_live_per_side: int) -> EconomyRules:
@@ -476,6 +478,7 @@ def economy_rules(cfg: Economy, *, window_ticks: int, max_live_per_side: int) ->
         legacy=cfg.legacy_rules,
         free_viewer_spawn=cfg.free_viewer_spawn,
         max_live_per_side=max_live_per_side,
+        floor_viewer_units=cfg.floor_viewer_units,
     )
 
 

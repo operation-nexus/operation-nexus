@@ -12,6 +12,7 @@ from nexus.core.world import Vec2, state_hash
 from nexus.runtime.campaign_config import (
     CampaignConfig,
     ConfigPaths,
+    coalition_floor_problem,
     load_campaign_config,
     start_campaign,
 )
@@ -198,3 +199,41 @@ def test_landing_and_uncapturable_kinds_change_what_the_world_and_the_director_s
 def test_the_loader_rejects_an_unknown_kind_or_a_bad_count(key: str, value: object) -> None:
     with pytest.raises(ConfigError):
         shipped_config_with({key: value})
+
+
+# ECONOMY EC-11 (NX-412 part 5b): the coalition floor check at load
+_EC11_ON = {"economy.legacy_rules": False, "economy.unlimited.COALITION": False}
+
+
+def test_the_coalition_floor_passes_with_the_shipped_values() -> None:
+    cfg = shipped_config_with(_EC11_ON)  # loads: every upkeep is 0
+    assert cfg.rules.economy is not None and cfg.rules.economy.floor_viewer_units == 5
+    assert coalition_floor_problem(cfg.rules, {}) is None
+
+
+def test_a_short_coalition_floor_fails_the_load_naming_the_shortfall() -> None:
+    # 5 viewer units x STRIKE_FIGHTER 7 = 35 > economy.income.floor 30; LOGI_TRUCK and RECON_UAV
+    # are cheaper, so the dearest viewer kind sets it
+    short = {**_EC11_ON, "economy.upkeep.STRIKE_FIGHTER": 7, "economy.upkeep.RECON_UAV": 6}
+    with pytest.raises(ConfigError, match=r"economy.income.floor 30 is 5 short .* = 35 per window"):
+        shipped_config_with(short)
+    shipped_config_with({**short, "economy.income.floor": 35})  # exactly enough passes
+
+
+@pytest.mark.parametrize(
+    "off", [{"economy.legacy_rules": True}, {"economy.unlimited.COALITION": True}]
+)
+def test_the_coalition_floor_is_not_checked_under_legacy_rules_or_unlimited(
+    off: dict[str, object],
+) -> None:
+    shipped_config_with({**_EC11_ON, "economy.upkeep.STRIKE_FIGHTER": 100, **off})  # loads
+
+
+def test_the_coalition_garrison_counts_only_coalition_quotas_filled_in_turn() -> None:
+    # strait-1's 22 quota units are all on Static nodes; counted here, they would fail this load
+    upkeep = {"economy.upkeep.ENEMY_ARMOR": 10, "economy.upkeep.ENEMY_FIGHTER": 1}
+    cfg = shipped_config_with({**_EC11_ON, **upkeep, "economy.floor_viewer_units": 0})
+    # AIRBASE kinds [ENEMY_FIGHTER, ENEMY_ARMOR] in turn: 1 + 10 + 1 = 12; FOB [ENEMY_ARMOR] x 2
+    assert coalition_floor_problem(cfg.rules, {"west-airbase": 3}) is None
+    problem = coalition_floor_problem(cfg.rules, {"west-airbase": 3, "fob-n-w": 2})
+    assert problem is not None and "is 2 short" in problem and "garrison upkeep 32 " in problem

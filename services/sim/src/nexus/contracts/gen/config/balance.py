@@ -1176,6 +1176,13 @@ class Economy(BaseModel):
             description="ECONOMY EC-13 (economy.legacy_rules false): true = a viewer's own JOIN that spawns at the coalition's sanctuary draws no stock, so joining never costs a person anything; false = it draws logistics.loadout_cost from the coalition's pool like every other spawn (agent-vs-agent harness profiles). The AI garrison and the Director always pay."
         ),
     ]
+    floor_viewer_units: Annotated[
+        int,
+        Field(
+            description="ECONOMY EC-11: viewer units the coalition's floor income must keep paid. With economy.legacy_rules false and the coalition not in unlimited mode, the loader refuses a config whose economy.income.floor is below the upkeep of the theater's coalition garrison quotas plus this many units at the dearest upkeep of a viewer-playable kind, naming the shortfall. Read at load only, unit units.",
+            ge=0,
+        ),
+    ]
 
 
 class Campaign(BaseModel):

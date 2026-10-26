@@ -343,6 +343,7 @@ economy:
     ENEMY_STRIKE_FIGHTER: 0, GARRISON_INFANTRY: 0, LOGI_TRUCK: 0, RECON_UAV: 0, STRIKE_FIGHTER: 0}
   legacy_rules: true
   free_viewer_spawn: true
+  floor_viewer_units: 5
 """
 # Pinned from this implementation's first run (NX-367: balance, units, theater; re-pinned NX-121
 # for speed_mps, NX-122 for slots and again for the GP-3 cap and queue, NX-368 for air fuel and
@@ -356,9 +357,10 @@ economy:
 # rebase rule options, NX-373 for the bridge hp, NX-398 for `tasking.order_dwell_s`, NX-400 for
 # the collapse radius, NX-373 part 2 for bridge repair, the repair job and its escort, NX-412 part 1
 # for the economy block, NX-412 part 2 for `economy.upkeep`, NX-412 part 3 for the EC-7 budget
-# keys, the EC-8 guard, `economy.legacy_rules` and `free_viewer_spawn`); a change means every
+# keys, the EC-8 guard, `economy.legacy_rules` and `free_viewer_spawn`, NX-412 part 5b for
+# `economy.floor_viewer_units`); a change means every
 # config_hash moved.
-GOLDEN_CONFIG_HASH = "857c21e7d1e27b04bb8150f7b3b6f45754a69a5a61b1bad2b279a88b261b93b4"
+GOLDEN_CONFIG_HASH = "da575cd588bb16094d25194d994cf1fb1d19aa485c5f6af00a01d7aaa7073c5c"
 AIR = {
     "bingo_reserve_frac": 0.15,
     "orbit_period_s": 120.0,
@@ -667,6 +669,7 @@ ECONOMY = {
     "upkeep": dict.fromkeys(_UPKEEP_KINDS, 0),
     "legacy_rules": True,
     "free_viewer_spawn": True,
+    "floor_viewer_units": 5,
 }
 CFG = BalanceConfig.model_validate(
     {
@@ -1101,7 +1104,7 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "    convoys_per_period: 1, offensives_per_period: 1, convoy_cost: 0, convoy_slots: 1,\n"
         "    capture_slot_tiers: [PATTERN_OF_LIFE]}}\n"
         "economy: {window_s: 60, unlimited: {ENEMY: true, COALITION: true},\n"
-        "  free_viewer_spawn: true, legacy_rules: true,\n"
+        "  free_viewer_spawn: true, legacy_rules: true, floor_viewer_units: 5,\n"
         "  storage: {per_node: {PORT: 1000, HQ: 2000, FOB: 1000, BRIDGE: 0, AIRBASE: 2000},\n"
         "    floor: 2000},\n"
         "  income: {per_node: {PORT: 5, HQ: 10, FOB: 5, BRIDGE: 0, AIRBASE: 10}, floor: 30},\n"

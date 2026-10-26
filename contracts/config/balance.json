@@ -2923,7 +2923,8 @@
         "storage",
         "upkeep",
         "legacy_rules",
-        "free_viewer_spawn"
+        "free_viewer_spawn",
+        "floor_viewer_units"
       ],
       "properties": {
         "unlimited": {
@@ -3417,6 +3418,24 @@
           "x-tune": null,
           "x-source": "ECONOMY EC-13, Q-TD-12, Q-TD-26",
           "x-status": "RULE_DEFAULT"
+        },
+        "floor_viewer_units": {
+          "description": "ECONOMY EC-11: viewer units the coalition's floor income must keep paid. With economy.legacy_rules false and the coalition not in unlimited mode, the loader refuses a config whose economy.income.floor is below the upkeep of the theater's coalition garrison quotas plus this many units at the dearest upkeep of a viewer-playable kind, naming the shortfall. Read at load only, unit units.",
+          "type": "integer",
+          "minimum": 0,
+          "x-unit": "units",
+          "x-hot-reload": false,
+          "x-category": "ECONOMY",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {
+            "min": 0,
+            "max": 50,
+            "step": 1,
+            "scale": "LINEAR"
+          },
+          "x-source": "ECONOMY EC-11",
+          "x-status": "PROPOSED"
         }
       }
     }

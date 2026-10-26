@@ -82,6 +82,7 @@ def test_the_loader_reads_every_economy_key() -> None:
         legacy=True,  # NX-412 part 3 (Q-TD-33): the shipped rollout switch
         free_viewer_spawn=True,
         max_live_per_side=1000,  # sim.max_live_units_per_side
+        floor_viewer_units=5,  # NX-412 part 5b (EC-11)
     )
     only_enemy = shipped_config({"economy.unlimited.ENEMY": False, "economy.window_s": 90})
     assert only_enemy.rules.economy is not None
