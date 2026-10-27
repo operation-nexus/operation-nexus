@@ -128,7 +128,7 @@ Drop the planned N4 (upkeep). The K review keeps upkeep at 0 and has its own K4.
 
 - **Where the error comes from:** `ValueError: job 6257 has no target` is raised in `tasking._waypoint` (`tasking.py:972-978`).
 - **Why the whole run is gone:** the runner records an exception outside `step` as a harness error and keeps none of that run's ticks (`runner.py:217-230`, `failed_run` at 294-320). So the seed is missing entirely, not cut short.
-- **Likely path [UNVERIFIED]:** the harness's `idle_reason` diagnostic (`metrics.py:423`) calls `_feasible` → `_reaches` → `_waypoint` between tasking passes. It could hit an ESCORT_CONVOY intercept job whose truck died this tick and that has no node or position. If so, the sim itself may be fine.
+- **Path (confirmed and fixed in NX-459):** the harness's `idle_reason` diagnostic (`metrics.py:423`) calls `_feasible` → `_reaches` → `_waypoint` between tasking passes. It could hit an ESCORT_CONVOY job whose truck died this tick and that has no node or position. The sim itself never reaches it: the next board pass ends such an escort first.
 - **Bias:**
   - S1 prime totals (186 Offensives, 41 captures, 11,071 ring samples) cover 5 seeds against S0's 6. Per seed, S1 is even further ahead (37.2 against 22.5 Offensives).
   - The medians and tails lose one seed, direction unknown.

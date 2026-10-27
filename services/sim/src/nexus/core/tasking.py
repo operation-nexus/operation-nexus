@@ -656,7 +656,7 @@ def _verdict(world: World, rules: Rules, tr: TaskingRules, side: Side, job: Job)
             return "EXPIRED" if landed or _escaped(world, rules, side, job) else None
         case "ESCORT_CONVOY":
             truck = world.find(job.entity or 0)
-            if truck is None or truck.damage_state == "DISABLED":
+            if truck is None or _truck_lost(world, job):  # `is None` again only narrows `truck`
                 return "FAILED" if job.claims else "EXPIRED"
             if node is not None:  # a repair crew's (Q-SIM-118): the job names its bridge
                 if node not in world.bridge_down:
@@ -664,6 +664,14 @@ def _verdict(world: World, rules: Rules, tr: TaskingRules, side: Side, job: Job)
                 return None if crewing(world, truck) == node else "EXPIRED"  # it left the repair
             return None if truck.path else "DONE"  # it arrived (no participant: EXPIRED)
     return None  # ASSIST_OBJECTIVE ends with its objective
+
+
+def _truck_lost(world: World, job: Job) -> bool:
+    """An escort whose truck is gone or Disabled: the next pass ends it (`_verdict`)."""
+    if job.kind != "ESCORT_CONVOY":
+        return False
+    truck = world.find(job.entity or 0)
+    return truck is None or truck.damage_state == "DISABLED"
 
 
 def _outcome(
@@ -949,7 +957,8 @@ def idle_reason(world: World, e: Entity) -> str:
     base), `ring`, `ammo` or `reach_fuel` (a full tank would not reach either). `other` is left
     for a unit with no fuel there, which no aircraft is (World validation). A read-only
     diagnostic for the balance harness (Q-SIM-92): it applies `_assign`'s own rank, pool, `_open`
-    and `_feasible`, but ranks without the tie draw (that draws from the tasking stream), so jobs
+    and `_feasible`, skipping a job the next pass will end (an escort whose truck is lost since,
+    `_truck_lost`), but ranks without the tie draw (that draws from the tasking stream), so jobs
     of equal priority, drawn in `_assign`, are approximated here by job id order."""
     rules, tr = _rules(world)
     ranked = rank(tr, list(world.boards[e.side].values()), _now(world), None)
@@ -957,6 +966,7 @@ def idle_reason(world: World, e: Entity) -> str:
         j for j in ranked
         if j.depends_on is None and _board_may_give(rules, e, j)
         and fits(rules, e.kind, j.kind) and _may_take(world, tr, e, j)
+        and not _truck_lost(world, j)  # combat may take a truck after the pass (NX-459)
     ]  # fmt: skip
     if not pool:
         return "no_job"
