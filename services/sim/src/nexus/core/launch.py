@@ -57,7 +57,7 @@ launched in selection order:
   (`nexus.core.staging`) until every node it spawns at can pay its own units, units whose
   deploy base cannot pay spawning at the source instead (`_stage`, `_review`, `_staged_shares`;
   Q-TD-38, Q-TD-39), announced as `ThreatAdaptation{STAGING}` in the base's
-  sector (a re-stage only when the coalition tracks a unit at the new base, `_seen_at`); it holds
+  sector (a re-stage only when the coalition tracks a unit at the new base, `seen_at`); it holds
   its budget share and a `max_ops` slot while it waits, and falls back by EC-13 after
   `max_wait_windows` or is dropped. Each massing sitrep is closed once in its sector (FS-9,
   Q-TD-47, NX-431; `Staged.sector`, `_close`): `STAGING_LAUNCHED` on a launch from the base,
@@ -89,7 +89,7 @@ from nexus.core import staging as stg
 from nexus.core.bridges import blocked
 from nexus.core.director import cadence_due, cadence_floor, night_capped, rear_share, surplus
 from nexus.core.economy import MOVERS, guard_room
-from nexus.core.fog import SideView, is_off_facility, spotted
+from nexus.core.fog import SideView, is_off_facility, seen_at
 from nexus.core.logistics import pay_spawn, plan_deploy, plan_run, stock_targets
 from nexus.core.rng import RngStream
 from nexus.core.roads import shortest_path
@@ -601,27 +601,15 @@ def _restage(
 ) -> None:
     """FS-5, FS-6 on a re-stage at `base` (Q-TD-38, Q-TD-47): "NULL forces are massing in
     <sector>", the new base's sector only, when the coalition tracks a Static unit there
-    (`_seen_at`) and no massing sitrep is open for that sector; an open one for another sector,
+    (`fog.seen_at`) and no massing sitrep is open for that sector; an open one for another sector,
     or one the coalition can no longer see, is closed as dispersed first."""
-    sector = _sector(rules, base) if _seen_at(world, rules, side, base) else None
+    sector = _sector(rules, base) if seen_at(world, rules, side, base) else None
     if sector != s.sector:
         _close(world, side, s, _DISPERSED, out)
         if sector is not None:
             _adaptation(world, side, "STAGING", sector, "UP", out)
             s.sector = sector
     s.base = base
-
-
-def _seen_at(world: World, rules: Rules, side: Side, base: str) -> bool:
-    """FS-5 on a re-stage (Q-TD-38): the other side currently tracks (`fog.spotted`) a live entity
-    of `side` at `base`: one standing on the node's position, or a facility of the base. Live: in
-    the world (a destroyed one is removed) and not Disabled."""
-    spot = Vec2(*rules.roads.pos[base])
-    return any(
-        e.side == side and (e.pos == spot or e.base_id == base) and e.damage_state != "DISABLED"
-        and spotted(world, e)
-        for e in world.entities()
-    )  # fmt: skip
 
 
 def _resume(world: World, side: Side, state: DirectorState, now: int) -> None:

@@ -36,6 +36,22 @@ the first window its home pays. shortcut: the spawn reply's "haul to <base>" war
 built: the sim has no spawn-reply path yet (the gateway's chat replies, NX-190); the events carry
 what it needs.
 
+Shortfall sitreps (EC-6a, NX-436, Q-TD-51 U5, Q-TD-64; `_sitreps`, after the payments): a
+shortfall episode of a side at a base is the run of consecutive windows in which at least one unit
+of that side homed there is grounded (the NX-437 harness's episode, GLOSSARY). It is announced
+once, never per unit, as `SupplyShortfall{STARTED, grounded}` ("<BASE> OUT OF SUPPLY: n flights
+grounded. Haul to <BASE>"); for an ENEMY base n counts only the grounded units the coalition
+spots (`fog.spotted`), 0 when it sees the base but none of them. When it closes because the
+base paid a grounded unit again this window (a `UnitUngrounded` there), an announced episode
+gets one `SupplyShortfall{ENDED}` crediting the carriers that unloaded into the base's stock
+during it (`Shortfall.haulers`, set by `logistics`; the 32 lowest ids, COALITION only);
+one that closes otherwise (its units destroyed or rehomed) ends silently.
+An ENEMY base's episode is announced at the first window the coalition sees the
+base (`fog.seen_at`) and closed with a payoff only if it sees it then too (FOW-13). Rate limit: an
+episode starting `economy.shortfall_quiet_windows` windows or fewer after the base's last heard
+one (announced or muted) ended (`World.shortfall_end`) is never announced (MUTED), so a chronic
+shortfall stays quiet; an episode never announced because the base was unseen starts no gap.
+
 Deterministic: entities in the sorted payment order, homes in id order, integers, no RNG; nothing
 while paused (`economy.due`).
 """
@@ -44,14 +60,27 @@ import math
 
 from nexus.contracts.gen.common.enums import Side
 from nexus.contracts.gen.events.event import Event
+from nexus.contracts.gen.events.supply_shortfall import SupplyShortfall
 from nexus.contracts.gen.events.unit_grounded import UnitGrounded
 from nexus.contracts.gen.events.unit_ungrounded import UnitUngrounded
 from nexus.core.bridges import blocked
 from nexus.core.economy import due
+from nexus.core.fog import seen_at, spotted
 from nexus.core.logistics import friendly_bases, nearest_base, road_start
 from nexus.core.roads import shortest_path
-from nexus.core.rules import Rules
-from nexus.core.world import Entity, World, consumed, drop_claim, on_node
+from nexus.core.rules import EconomyRules, Rules
+from nexus.core.world import (
+    SIDES,
+    Entity,
+    Shortfall,
+    World,
+    consumed,
+    drop_claim,
+    on_node,
+)
+
+_MAX_CREDITS = 32  # SupplyShortfall.credit_ids maxItems
+_VIEWERS: Side = "COALITION"  # the side whose sensors gate a shortfall sitrep (FOW-13)
 
 
 def rehome(world: World, node: str) -> None:
@@ -93,6 +122,7 @@ def upkeep(world: World, out: list[Event]) -> None:
         key=lambda e: (e.owner_kind != "COMMANDER", not _busy(e), -e.ordered, e.id),
     )  # fmt: skip
     paid: dict[str, int] = {}
+    freed: set[tuple[Side, str]] = set()  # (side, home) that paid a grounded unit this window
     for e in units:
         home, cost = str(e.home_base), er.upkeep[e.kind]
         pays = _covers(world, rules, e, home, cost)
@@ -101,11 +131,60 @@ def upkeep(world: World, out: list[Event]) -> None:
             paid[home] = paid.get(home, 0) + cost
         if pays and e.grounded:
             e.grounded = False
+            freed.add((e.side, home))
             out.append(_event(world, UnitUngrounded, "UnitUngrounded", e, home))
         elif not pays and not e.grounded:
             _ground(world, rules, e, out)
     for home in sorted(paid):
         out.append(consumed(world, home, paid[home], "UPKEEP"))
+    _sitreps(world, rules, er, freed, out)
+
+
+def _sitreps(
+    world: World, rules: Rules, er: EconomyRules, freed: set[tuple[Side, str]], out: list[Event]
+) -> None:
+    """EC-6a (module docstring): close the episodes whose base grounds nobody now, then open and
+    announce, sides in Side order, bases in id order."""
+    now = world.campaign.running_ticks + 1
+    grounded: dict[tuple[Side, str], int] = {}  # what the coalition may hear of: (side, base) -> n
+    for e in world.entities():
+        if e.grounded and e.home_base is not None:
+            key = (e.side, e.home_base)  # an ENEMY unit counts only while spotted (FOW-13)
+            grounded[key] = grounded.get(key, 0) + (e.side == _VIEWERS or spotted(world, e))
+    for side in SIDES:
+        episodes = world.shortfall[side]
+        for node in sorted(n for n in episodes if (side, n) not in grounded):
+            closed = episodes.pop(node)
+            if closed.status != "PENDING":  # an unheard episode starts no quiet gap
+                world.shortfall_end[side][node] = now
+            if (closed.status == "ANNOUNCED" and (side, node) in freed
+                    and _shown(world, rules, side, node)):  # fmt: skip
+                credit = closed.haulers[:_MAX_CREDITS] if side == _VIEWERS else []
+                out.append(_shortfall(world, side, node, "ENDED", 0, credit))
+    for (side, node), n in sorted(grounded.items()):
+        episode = world.shortfall[side].get(node)
+        if episode is None:
+            last = world.shortfall_end[side].get(node)
+            quiet = last is not None and now - last <= er.shortfall_quiet_windows * er.window_ticks
+            episode = world.shortfall[side][node] = Shortfall("MUTED" if quiet else "PENDING")
+        if episode.status == "PENDING" and _shown(world, rules, side, node):
+            episode.status = "ANNOUNCED"
+            out.append(_shortfall(world, side, node, "STARTED", n, []))
+
+
+def _shown(world: World, rules: Rules, side: Side, node: str) -> bool:
+    """FOW-13: the coalition hears of its own bases, and of a Static base only while it sees it."""
+    return side == _VIEWERS or seen_at(world, rules, side, node)
+
+
+def _shortfall(
+    world: World, side: Side, node: str, status: str, grounded: int, credit: list[int]
+) -> Event:
+    return SupplyShortfall.model_construct(
+        kind="SupplyShortfall", tick=world.campaign.tick + 1, event_seq=world.next_event_seq(),
+        campaign_id=world.campaign.id, side=side, node_id=node, status=status, grounded=grounded,
+        credit_ids=credit,
+    )  # fmt: skip
 
 
 def owed(world: World, side: Side) -> int:

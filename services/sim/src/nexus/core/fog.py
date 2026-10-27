@@ -375,6 +375,19 @@ def spotted(world: World, entity: Entity) -> bool:
     return tracked_by(world, _ENEMY_OF[entity.side], entity.id)
 
 
+def seen_at(world: World, rules: Rules, side: Side, base: str) -> bool:
+    """The other side currently tracks (`spotted`) a live entity of `side` at `base`: one standing
+    on the node's position, or a facility of the base. Live: in the world (a destroyed one is
+    removed) and not Disabled. A Static re-stage's massing sitrep (THREAT-DIRECTOR FS-5, Q-TD-38)
+    and a Static base's shortfall sitrep (ECONOMY EC-6a, NX-436) read it."""
+    spot = Vec2(*rules.roads.pos[base])
+    return any(
+        e.side == side and (e.pos == spot or e.base_id == base) and e.damage_state != "DISABLED"
+        and spotted(world, e)
+        for e in world.entities()
+    )  # fmt: skip
+
+
 def visible(world: World, side: Side, entity: Entity) -> bool:
     """FOW-1 predicate: `side`'s own entities and the enemy ones it currently tracks. A
     last-known track is not a visible entity; it appears only in `SideView.last_known`.

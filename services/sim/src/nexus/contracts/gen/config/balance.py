@@ -1210,6 +1210,13 @@ class Economy(BaseModel):
             ge=0,
         ),
     ]
+    shortfall_quiet_windows: Annotated[
+        int,
+        Field(
+            description="ECONOMY EC-6a (NX-436, Q-TD-51 U5, Q-TD-64): the rate limit on shortfall sitreps when a base's shortfall turns chronic. A shortfall episode that starts at a base this many economy windows or fewer after the last episode there ended is never announced: no SupplyShortfall STARTED and no ENDED payoff for it. 0 = every episode is announced. Economy windows (game time, economy.window_s each).",
+            ge=0,
+        ),
+    ]
 
 
 class Campaign(BaseModel):

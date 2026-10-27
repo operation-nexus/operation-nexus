@@ -21,6 +21,7 @@ from nexus.contracts.gen.events.spawn_refused import SpawnRefused
 from nexus.contracts.gen.events.supply_consumed import SupplyConsumed
 from nexus.contracts.gen.events.supply_delivered import SupplyDelivered
 from nexus.contracts.gen.events.supply_produced import SupplyProduced
+from nexus.contracts.gen.events.supply_shortfall import SupplyShortfall
 from nexus.contracts.gen.events.threat_adaptation import ThreatAdaptation
 from nexus.contracts.gen.events.threat_tier_changed import ThreatTierChanged
 from nexus.contracts.gen.events.unit_destroyed import UnitDestroyed
@@ -2170,7 +2171,7 @@ def test_shortfall_keys_reach_report_json_and_markdown(shipped_config: CampaignC
         "r2_windows_with_viewer_grounded_share", "r3_episodes", "r3_episodes_per_hour",
         "r3_episodes_by_home", "r3_median_episode_windows", "r4_viewers_grounded", "r4_viewers",
         "r4_viewers_grounded_share", "r10_pool_low_stretches", "r10_pool_low_minutes",
-        "r11_episodes_after_enemy_action", "r11_share",
+        "r11_episodes_after_enemy_action", "r11_share", "sitreps",
     }  # fmt: skip
     assert (f["r3_episodes"], f["r11_share"], f["r1_viewer_grounded_share"]) == (1, 1.0, 2 / 61)
     lines = "\n".join(report._shortfall_lines("p", f))
@@ -2181,3 +2182,23 @@ def test_shortfall_keys_reach_report_json_and_markdown(shipped_config: CampaignC
     empty = report._shortfall([{"shortfall": None}], 0)  # an old report.json without the data
     assert empty["r3_episodes"] == 0 and empty["r11_share"] is None
     assert "R1 viewer unit-time grounded -" in report._shortfall_lines("p", empty)[0]
+
+
+def test_shortfall_sitreps_are_counted_by_side_and_status(shipped_config: CampaignConfig) -> None:
+    """NX-436: the SupplyShortfall lines per side and status, pooled into the report."""
+    col, _ = rig(shipped_config)
+
+    def sitrep(side: str, status: str) -> Any:
+        return SupplyShortfall.model_construct(kind="SupplyShortfall", tick=10, side=side,
+                                               status=status, node_id="fob-n-w")  # fmt: skip
+
+    col.feed([sitrep("COALITION", "STARTED"), sitrep("COALITION", "ENDED"),
+              sitrep("COALITION", "STARTED"), sitrep("ENEMY", "STARTED")])  # fmt: skip
+    f = report._shortfall([col.result(0)["economy"]] * 2, 1)  # two seeds pool
+    assert f["sitreps"] == {"COALITION ENDED": 2, "COALITION STARTED": 4, "ENEMY STARTED": 2}
+    line = report._shortfall_lines("p", f)[1]
+    assert line.endswith("sitreps (NX-436) COALITION ENDED 2, COALITION STARTED 4, ENEMY STARTED 2")
+    assert report._shortfall_lines("p", report._shortfall([{"shortfall": None}], 0))[1].endswith(
+        "sitreps (NX-436) none"
+    )
+    assert report._shortfall([{"shortfall": None}], 0)["sitreps"] == {}

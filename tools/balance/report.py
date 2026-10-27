@@ -342,6 +342,9 @@ def _shortfall(es: list[dict[str, Any]], hours: int) -> dict[str, Any]:
     }
     windows = sum(s["windows"] for s in ss)
     by_home = Counter(x["home"] for x in eps)
+    sitreps: Counter[str] = Counter()
+    for s in ss:
+        sitreps.update(s.get("sitreps", {}))
     return {
         "windows": windows,
         "r1_viewer_grounded_share": _share(*uw["COALITION"]),
@@ -362,6 +365,7 @@ def _shortfall(es: list[dict[str, Any]], hours: int) -> dict[str, Any]:
         "r10_pool_low_minutes": sum(s["pool_low"]["minutes"] for s in ss),
         "r11_episodes_after_enemy_action": sum(x["after_action"] for x in eps),
         "r11_share": _share(sum(x["after_action"] for x in eps), len(eps)),
+        "sitreps": dict(sorted(sitreps.items())),  # SupplyShortfall by side and status (NX-436)
     }
 
 
@@ -642,7 +646,8 @@ def _shortfall_lines(name: str, f: dict[str, Any]) -> list[str]:
         f"{f['r3_episodes_by_home'] or 'none'}); R11 after enemy action within 30 min "
         f"{_pct(f['r11_share'])} ({f['r11_episodes_after_enemy_action']} of {f['r3_episodes']}); "
         f"R10 coalition pool under 10% of cap for over 30 min: {f['r10_pool_low_stretches']} "
-        f"stretches, {_fmt(f['r10_pool_low_minutes'])} min",
+        f"stretches, {_fmt(f['r10_pool_low_minutes'])} min; sitreps (NX-436) "
+        f"{', '.join(f'{k} {n}' for k, n in sorted(f.get('sitreps', {}).items())) or 'none'}",
     ]
 
 

@@ -2927,7 +2927,8 @@
         "upkeep_period",
         "legacy_rules",
         "free_viewer_spawn",
-        "floor_viewer_units"
+        "floor_viewer_units",
+        "shortfall_quiet_windows"
       ],
       "properties": {
         "unlimited": {
@@ -3609,6 +3610,24 @@
             "scale": "LINEAR"
           },
           "x-source": "ECONOMY EC-11",
+          "x-status": "PROPOSED"
+        },
+        "shortfall_quiet_windows": {
+          "description": "ECONOMY EC-6a (NX-436, Q-TD-51 U5, Q-TD-64): the rate limit on shortfall sitreps when a base's shortfall turns chronic. A shortfall episode that starts at a base this many economy windows or fewer after the last episode there ended is never announced: no SupplyShortfall STARTED and no ENDED payoff for it. 0 = every episode is announced. Economy windows (game time, economy.window_s each).",
+          "type": "integer",
+          "minimum": 0,
+          "x-unit": "economy windows",
+          "x-hot-reload": false,
+          "x-category": "ECONOMY",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {
+            "min": 0,
+            "max": 120,
+            "step": 1,
+            "scale": "LINEAR"
+          },
+          "x-source": "ECONOMY EC-6a, Q-TD-51, Q-TD-64",
           "x-status": "PROPOSED"
         }
       }

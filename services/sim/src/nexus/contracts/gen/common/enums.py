@@ -226,6 +226,7 @@ type EventKind = Annotated[
         "BridgeDestroyed",
         "BridgeRepaired",
         "SupplyProduced",
+        "SupplyShortfall",
         "UnitGrounded",
         "UnitUngrounded",
         "VictoryHoldStarted",

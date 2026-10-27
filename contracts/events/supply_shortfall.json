@@ -1,0 +1,25 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nexus.local/contracts/events/supply_shortfall.json",
+  "title": "SupplyShortfall",
+  "description": "A base-level upkeep shortfall sitrep (CONTRACTS §6; ECONOMY EC-6a; NX-436, Q-TD-51 U5, Q-TD-64). A shortfall episode at a base is the run of consecutive economy windows in which at least one unit of `side` homed there is grounded (the NX-437 harness definition, GLOSSARY). STARTED once per episode, never per unit: the sitrep \"<BASE> OUT OF SUPPLY: n flights grounded. Haul to <BASE>\". ENDED once, only for an announced episode that closed because its home paid a grounded unit again: the payoff line crediting credit_ids. An ENEMY base's episode is announced, and closed, only in a window in which the coalition tracks a live Static unit or facility at that base (FOW-13). An episode starting within economy.shortfall_quiet_windows of the end of the base's last announced or muted one is never announced. Public view: this INTEL line.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "tick", "event_seq", "campaign_id", "side", "node_id", "status", "grounded", "credit_ids"],
+  "properties": {
+    "kind": {"const": "SupplyShortfall"},
+    "tick": {"$ref": "../common/ids.json#/$defs/Tick"},
+    "event_seq": {"type": "integer", "minimum": 1, "description": "Campaign-wide, monotonic, deterministic (SC-14)."},
+    "campaign_id": {"$ref": "../common/ids.json#/$defs/CampaignId"},
+    "side": {"$ref": "../common/enums.json#/$defs/Side", "description": "The side whose units the base grounds."},
+    "node_id": {"$ref": "../common/ids.json#/$defs/NodeId", "description": "The base: the grounded units' home (ECONOMY EC-5). Nodes are public (FOW-10)."},
+    "status": {"enum": ["STARTED", "ENDED"], "description": "STARTED: the episode is announced; ENDED: its payoff."},
+    "grounded": {"type": "integer", "minimum": 0, "x-unit": "units", "description": "STARTED: the units of `side` homed at the base grounded at that window; for an ENEMY base only those the coalition currently tracks, so possibly 0 (FOW-13). ENDED: 0."},
+    "credit_ids": {
+      "type": "array",
+      "maxItems": 32,
+      "description": "ENDED, COALITION only: the carriers of `side` that unloaded stock into the base's stock during the episode, ascending, no duplicates (producer; not uniqueItems, SC-14), the 32 lowest ids; consumers resolve callsigns. Empty for STARTED and for an ENEMY base (always sent).",
+      "items": {"$ref": "../common/ids.json#/$defs/EntityId"}
+    }
+  }
+}

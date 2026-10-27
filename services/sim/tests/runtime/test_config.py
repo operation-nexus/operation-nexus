@@ -348,6 +348,7 @@ economy:
   legacy_rules: true
   free_viewer_spawn: true
   floor_viewer_units: 5
+  shortfall_quiet_windows: 30
 """
 # Pinned from this implementation's first run (NX-367: balance, units, theater; re-pinned NX-121
 # for speed_mps, NX-122 for slots and again for the GP-3 cap and queue, NX-368 for air fuel and
@@ -362,9 +363,10 @@ economy:
 # the collapse radius, NX-373 part 2 for bridge repair, the repair job and its escort, NX-412 part 1
 # for the economy block, NX-412 part 2 for `economy.upkeep`, NX-412 part 3 for the EC-7 budget
 # keys, the EC-8 guard, `economy.legacy_rules` and `free_viewer_spawn`, NX-412 part 5b for
-# `economy.floor_viewer_units`, NX-426 for `economy.upkeep_period`); a change means every
+# `economy.floor_viewer_units`, NX-426 for `economy.upkeep_period`, NX-436 for
+# `economy.shortfall_quiet_windows`); a change means every
 # config_hash moved.
-GOLDEN_CONFIG_HASH = "f3134deac321618f419632561b0965f6e5e8c814c87702fa4d94fa8fa510594f"
+GOLDEN_CONFIG_HASH = "8664fdd10987be84b638123ec4a4244b7745da45a197312dfa0eee32683a6ea8"
 AIR = {
     "bingo_reserve_frac": 0.15,
     "orbit_period_s": 120.0,
@@ -682,6 +684,7 @@ ECONOMY = {
     "legacy_rules": True,
     "free_viewer_spawn": True,
     "floor_viewer_units": 5,
+    "shortfall_quiet_windows": 30,
 }
 CFG = BalanceConfig.model_validate(
     {
@@ -1118,6 +1121,7 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "    capture_slot_tiers: [PATTERN_OF_LIFE]}}\n"
         "economy: {window_s: 60, unlimited: {ENEMY: true, COALITION: true},\n"
         "  free_viewer_spawn: true, legacy_rules: true, floor_viewer_units: 5,\n"
+        "  shortfall_quiet_windows: 30,\n"
         "  storage: {per_node: {PORT: 1000, HQ: 2000, FOB: 1000, BRIDGE: 0, AIRBASE: 2000},\n"
         "    floor: 2000},\n"
         "  income: {per_node: {PORT: 5, HQ: 10, FOB: 5, BRIDGE: 0, AIRBASE: 10}, floor: 30},\n"

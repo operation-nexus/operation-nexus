@@ -25,7 +25,7 @@ from nexus.core import economy, upkeep
 from nexus.core.bridges import blocked
 from nexus.core.capture import _flip, _Presence
 from nexus.core.launch import _spare, _spawn
-from nexus.core.roads import shortest_path
+from nexus.core.roads import RoadGraph, shortest_path
 from nexus.core.step import step
 from nexus.core.tasking import claim
 from nexus.core.tasking_gen import is_idle
@@ -722,6 +722,8 @@ def _mirror_world(stock: dict[str, int]) -> World:
     rules = dataclasses.replace(
         RULES,
         supply=dataclasses.replace(RULES.supply, rear={"COALITION": "c-rear", "ENEMY": "e-rear"}),
+        # positions: a Static base's shortfall sitrep asks whether it is seen (NX-436)
+        roads=RoadGraph({f"{p}-{h}": (0, 0) for p in ("c", "e") for h in _HOMES}, ()),
         economy=dataclasses.replace(
             er, upkeep={INF: 3, "ENEMY_ARMOR": 3}, upkeep_period={INF: 1, "ENEMY_ARMOR": 1}
         ),
