@@ -9,8 +9,8 @@ refers to an entity id, so a job names a node, or a SIGINT blob with its cell ce
 - **Repair bridge** (`repair_bridge:<node>`, coalition only, NX-373 part 2): each down bridge
   (`SideView.bridge_down`, public node state) that some live, not Disabled coalition carrier can
   reach by road from its `last_node` (`logistics.approach`, the executor's own route: to the
-  nearer bank, then the bridge's repair stop, entering no node the other side holds, Q-SIM-125),
-  so the job never waits for a truck that cannot get there. The
+  quicker bank by route time, Q-SIM-129, then the bridge's repair stop, entering no node the
+  other side holds, Q-SIM-125), so the job never waits for a truck that cannot get there. The
   Static's board never posts it, so it never undoes the Director's cuts. Urgency 1.0.
 - **Resupply** (`resupply:<node>`): a node the side owns, with stock, below its starvation floor or
   with damaged facilities (Q-GP-47). Urgency: the larger of the stock deficit share (floor - stock)

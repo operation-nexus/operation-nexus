@@ -173,5 +173,16 @@ def travel_ticks(
     path = shortest_path(graph, start, goal, blocked=blocked)
     if path is None:
         return None
-    cost = sum((e := graph.edge(a, b)).length_m / e.speed_mult for a, b in pairwise(path))
-    return math.ceil(cost / speed_mps / world_dt)
+    return math.ceil(route_time(graph, path) / speed_mps / world_dt)
+
+
+def route_time(graph: RoadGraph, path: list[str]) -> float:
+    """The travel cost `shortest_path` minimises along a node path: each road's
+    `length_m / speed_mult`, added left to right as the search's `g + cost` does, so a route's time
+    equals its search total bit for bit (`sum()` rounds differently). Metres at `speed_mult` 1;
+    divided by a unit's top speed, its travel time."""
+    t = 0.0
+    for a, b in pairwise(path):
+        e = graph.edge(a, b)
+        t = t + e.length_m / e.speed_mult
+    return t

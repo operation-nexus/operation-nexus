@@ -25,7 +25,7 @@ while frozen (SC-11), for each side in COALITION, ENEMY order:
      stands at the node and the threat is gone (no bar of the other side, and the side tracks no
      enemy GROUND unit within `tasking.defend_radius_m`)). STRIKE: DONE when the node's
      defense hp is 0 or the side owns it; on a bridge, when the bridge is down (NX-373).
-     REPAIR_BRIDGE (the coalition's, NX-373 part 2): drive to the nearer bank and out to the
+     REPAIR_BRIDGE (the coalition's, NX-373 part 2): drive to the quicker bank and out to the
      bridge's repair stop (`logistics.approach`), where `bridges.repair` works; arrived means
      parked at the stop; DONE when the bridge is no longer down, then its trucks drive back to
      their bank. SCOUT:

@@ -28,7 +28,7 @@ from typing import NamedTuple
 
 from nexus.contracts.gen.common.enums import NodeOwner, Side, UnitKind
 from nexus.contracts.gen.events.event import Event
-from nexus.core.bridges import blocked, enemy_held, held_by_other
+from nexus.core.bridges import blocked, enemy_held, held_by_other, quickest
 from nexus.core.defense import rebuild
 from nexus.core.economy import pool_side, source_stock
 from nexus.core.rearm import restock, station
@@ -159,13 +159,13 @@ def approach(
     world: World, rules: Rules, start: str, bridge: str, *, avoid: frozenset[str]
 ) -> list[str] | None:
     """A ground unit's road path from the node `start` to `bridge`'s repair stop: the route to the
-    nearer of its banks by road metres (ties by node id, `nearest`), then the bridge's id
-    (`step._waypoint` drives it out to the stop); None with no route to either bank. The route
-    enters no node of `avoid`, a bank included (`start` is exempt): a repair crew's is the
-    pass-wide `bridges.enemy_held` of its side (Q-SIM-125, NX-413; neutral ground is passable),
-    anyone else's empty."""
-    best = nearest(world, rules, start, [*rules.roads.spans[bridge]], avoid)
-    return None if best is None else [*best[1], bridge]
+    quicker of its banks (`bridges.quickest`: route time, then metres, then node id; Q-SIM-129),
+    then the bridge's id (`step._waypoint` drives it out to the stop); None with no route to
+    either bank. The route enters no node of `avoid`, a bank included (`start` is exempt): a repair
+    crew's is the pass-wide `bridges.enemy_held` of its side (Q-SIM-125, NX-413; neutral ground is
+    passable), anyone else's empty."""
+    route = quickest(rules, start, [*rules.roads.spans[bridge]], blocked(world), avoid)
+    return None if route is None else [*route, bridge]
 
 
 def plan_run(
