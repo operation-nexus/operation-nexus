@@ -2136,7 +2136,7 @@ class Director(BaseModel):
     max_ops: Annotated[
         MaxOps,
         Field(
-            description="The most non-routine operations with jobs a tier runs at once (THREAT-DIRECTOR section 3, Q-DEV-21); null means no cap (the budget bounds the tier). Routine operations (those enabled at Pattern of Life) are never counted, so Pattern of Life has no cap key. The due cadence floor's capture operation may run one past the cap (ECONOMY EC-7, Q-TD-57)."
+            description="The most non-routine operations with jobs a tier runs at once (THREAT-DIRECTOR section 3, Q-DEV-21); null means no cap (the budget bounds the tier). Routine operations (those enabled at Pattern of Life) are never counted, so Pattern of Life has no cap key. The due cadence floor's capture operation may run one past the cap (ECONOMY EC-7, Q-TD-57); during a coalition victory hold a capture operation on a hold node is outside the cap, neither capped nor counted (ECONOMY EC-9, Q-TD-46)."
         ),
     ]
     job_urgency: Annotated[
