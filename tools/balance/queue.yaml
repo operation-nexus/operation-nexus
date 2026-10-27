@@ -12,10 +12,15 @@ labels:
   running: harness-running
   done: harness-done
   failed: harness-failed
-# Upper bounds for a request's `seeds`, `hours` (game hours per run) and `workers`.
+# Upper bounds for a request's `seeds`, `hours` (game hours per run) and `workers`. `max_workers` is
+# also the one worker budget all jobs running at once share (NX-442).
 max_seeds: 50
 max_hours: 72
 max_workers: 12
+# While a job runs, the next one starts only once this many budget workers are free (at least 1).
+# It keeps that count for its whole run (balance.py never resizes its pool), so a small value
+# starts the next job sooner but on fewer workers. 6: half the budget, a 12-run job in two waves.
+min_overlap_workers: 6
 # Most `set:` balance overrides (key=value pairs; the 3 NX-412 economy switches use 3) in one request.
 max_overrides: 16
 # Most distinct profiles in one request (the number in profiles.yaml).

@@ -9,10 +9,12 @@ import fcntl
 import importlib.util
 import json
 import sys
+import threading
 from pathlib import Path
 from typing import Any
 
 import pytest
+import yaml
 
 TOOL = Path(__file__).resolve().parents[4] / "tools" / "balance"
 sys.path.insert(0, str(TOOL))
@@ -414,7 +416,8 @@ def test_unexpected_error_marks_failed_with_type_only(
 
     monkeypatch.setattr(hq, "execute", boom)
     hq.run_once(cfg, False)
-    assert [e[1] for e in fake.edits()] == ["harness-running", "harness-failed"] * 2
+    for n in ("13", "14"):  # the two jobs overlap (NX-442): order within each issue only
+        assert [e[1] for e in fake.edits() if e[0] == n] == ["harness-running", "harness-failed"]
     assert "ValueError" in fake.stdin[0] and "secret detail" not in fake.stdin[0]
     assert "ValueError: secret detail" in capsys.readouterr().out  # the local log keeps the text
 
@@ -519,7 +522,7 @@ def test_timed_out_post_keeps_report_for_recovery(
     assert fake.edits() == [("22", "harness-running", "harness-run")]  # not failed
     assert hq.running_file(cfg, 22).exists()  # recovery can still find the report
     fake.issues[0]["labels"] = [{"name": "harness-running"}]  # the Fake doesn't apply edits
-    hq.recover_stale(cfg)  # a second timeout in recovery must not escape the tick
+    hq.recover_stale(cfg, hq.Jobs(cfg))  # a second timeout in recovery must not escape the tick
     assert hq.running_file(cfg, 22).exists()
 
 
@@ -774,7 +777,7 @@ def test_recorded_request_naming_another_sha_is_failed_not_resumed(
     hq.request_file(cfg, 47).write_text(json.dumps(other))
     fake = Fake([stale_issue(47)])
     monkeypatch.setattr(hq, "run_cmd", fake)
-    hq.recover_stale(cfg)
+    hq.recover_stale(cfg, hq.Jobs(cfg))
     assert not ran
     assert fake.names(fake.issues[0]) == ["harness-failed"]
 
@@ -813,7 +816,7 @@ def test_stale_job_without_results_dir_or_request_fails_not_resumes(
     hq.request_file(cfg, 44).write_text(json.dumps(hq.parse_block(block(), cfg, NAMES)))
     fake = Fake([stale_issue(43), stale_issue(44)])  # 44: a request but no results dir
     monkeypatch.setattr(hq, "run_cmd", fake)
-    hq.recover_stale(cfg)
+    hq.recover_stale(cfg, hq.Jobs(cfg))
     assert not ran
     assert [e[1] for e in fake.edits()] == ["harness-failed", "harness-failed"]
 
@@ -828,3 +831,536 @@ def test_new_request_for_an_attempted_sha_is_still_refused(
     monkeypatch.setattr(hq, "execute", lambda *a: ran.append(a))
     hq.run_once(cfg, False)
     assert not ran and "already ran this sha" in fake.stdin[0]
+
+
+# --- overlapping jobs on one worker budget (NX-442, Q-DEV-33) ----------------------------------
+TWO = "quiet-5, prime-50"  # x 6 seeds = 12 runs
+
+
+def out_of(cfg: dict[str, Any], n: int) -> Path:
+    return Path(cfg["results_dir"]) / f"{n}-{SHA[:8]}"
+
+
+def write_runs(out: Path, k: int) -> None:
+    """Result files for the first k runs, named as balance.py names them (<profile>-s<seed>)."""
+    (out / "runs").mkdir(parents=True, exist_ok=True)
+    for seed in range(1, k + 1):
+        (out / "runs" / f"p-s{seed}.json").write_text("{}")
+    (out / "runs" / "p-s99.json.tmp").write_text("")  # a half-written run is not a result
+
+
+def finish(c: dict[str, Any], n: int, out: Path) -> tuple[int, Path, Path]:
+    out.mkdir(parents=True, exist_ok=True)
+    (out / "report.md").write_text(f"# REPORT {n}")
+    log = Path(c["results_dir"]) / f"{n}.log"
+    log.write_text("")
+    return 0, out, log
+
+
+def own_reports(fake: Fake, numbers: list[int]) -> None:
+    """Each issue ends `harness-done` with exactly one comment, carrying its own report only."""
+    for n in numbers:
+        i = next(i for i in fake.issues if i["number"] == n)
+        assert fake.names(i) == ["harness-done"], n
+        mine = [s for s in fake.stdin if f"# REPORT {n}" in s]
+        assert len(mine) == 1 and all(f"# REPORT {m}" not in mine[0] for m in numbers if m != n)
+    assert len(fake.stdin) == len(numbers)
+
+
+class Polls:
+    """Counts the tick's waits (`Jobs.wait`), so a test can let the tick look N more times
+    instead of sleeping. The 10 s is only a hang guard; no assertion depends on time."""
+
+    def __init__(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        self.n, self.cv, real = 0, threading.Condition(), hq.Jobs.wait
+
+        def wait(jobs: Any) -> bool:
+            timed_out = bool(real(jobs))
+            with self.cv:
+                self.n += 1
+                self.cv.notify_all()
+            return timed_out
+
+        monkeypatch.setattr(hq, "POLL_S", 0.01)
+        monkeypatch.setattr(hq.Jobs, "wait", wait)
+
+    def after(self, k: int) -> None:
+        """Block until the tick has waited k more times (so it re-checked at least k - 1)."""
+        with self.cv:
+            target = self.n + k
+            assert self.cv.wait_for(lambda: self.n >= target, timeout=10)
+
+
+def lock_is_held(c: dict[str, Any]) -> bool:
+    with (Path(c["work_dir"]) / "queue.lock").open("w") as f:
+        try:
+            fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return True
+        fcntl.flock(f, fcntl.LOCK_UN)
+        return False
+
+
+@pytest.mark.parametrize("value", [None, 0, -1, "six", 13, True])
+def test_min_overlap_workers_is_validated(tmp_path: Path, value: Any) -> None:
+    raw = yaml.safe_load((TOOL / "queue.yaml").read_text())
+    if value is None:
+        del raw["min_overlap_workers"]
+    else:
+        raw["min_overlap_workers"] = value
+    (path := tmp_path / "queue.yaml").write_text(yaml.safe_dump(raw))
+    with pytest.raises(hq.QueueError, match="min_overlap_workers"):
+        hq.load_config(path)
+    raw["min_overlap_workers"] = 12  # = max_workers: accepted
+    path.write_text(yaml.safe_dump(raw))
+    assert hq.load_config(path)["min_overlap_workers"] == 12
+
+
+def test_next_job_starts_on_freed_workers_within_the_budget(
+    cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Budget 12, min_overlap_workers 6 (queue.yaml). A (12 runs, 12 workers) holds min(12, runs
+    left); B starts once A has 6 left, on 6 workers; C waits until A ends and B still holds 6."""
+    assert (cfg["max_workers"], cfg["min_overlap_workers"]) == (12, 6)
+    polls = Polls(monkeypatch)
+    body = block(profiles=TWO, seeds="6", workers="12")
+    fake = Fake([issue(50, body=body, at="t1"), issue(51, body=body, at="t2"),
+                 issue(52, body=body, at="t3")])  # fmt: skip
+    monkeypatch.setattr(hq, "run_cmd", fake)
+    starts: list[tuple[int, int, int, int]] = []  # issue, workers, A's and B's runs left
+    b_started, c_started = threading.Event(), threading.Event()
+    early: list[bool] = []
+    second_tick: list[int] = []
+
+    def _exec(
+        c: dict[str, Any], n: int, req: dict[str, Any], resume: bool = False
+    ) -> tuple[int, Path, Path]:
+        left = [hq.runs_left(out_of(c, m), 12) for m in (50, 51)]
+        starts.append((n, req["workers"], *left))
+        out = out_of(c, n)
+        if n == 50:
+            write_runs(out, 5)  # 7 left: 5 free, under 6
+            polls.after(5)  # the tick looked at least 4 more times
+            early.append(b_started.is_set())  # B must not have started,
+            early.append(fake.names(fake.issues[1]) != ["harness-run"])  # nor been relabelled
+            second_tick.append(hq.run_once(c, False))  # a second tick while this one runs
+            write_runs(out, 6)  # 6 left: 6 free
+            b_started.wait(10)
+            write_runs(out, 12)
+        elif n == 51:
+            b_started.set()
+            c_started.wait(10)  # B holds its 6 workers until C has started
+            write_runs(out, 12)
+        else:
+            c_started.set()
+            write_runs(out, 12)
+        return finish(c, n, out)
+
+    monkeypatch.setattr(hq, "execute", _exec)
+    hq.run_once(cfg, False)
+    assert early == [False, False] and second_tick == [0]  # the lock: the second tick did nothing
+    assert starts == [
+        (50, 12, 12, 12),  # nothing running: A gets all it asked for
+        (51, 6, 6, 12),  # A at 6 runs left holds 6; B gets the 6 freed, not the 12 it asked
+        (52, 6, 0, 12),  # A done; B holds min(6, 12) = 6; C gets the other 6
+    ]
+    for n in ("50", "51", "52"):
+        assert [e[1] for e in fake.edits() if e[0] == n] == ["harness-running", "harness-done"]
+    own_reports(fake, [50, 51, 52])
+
+
+def test_crash_with_two_jobs_running_resumes_each(
+    cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(hq, "POLL_S", 0.01)
+    body = block(profiles=TWO, seeds="6", workers="12")
+    monkeypatch.setattr(hq, "run_cmd", Fake([issue(60, body=body, at="t1"),
+                                             issue(61, body=body, at="t2")]))  # fmt: skip
+    both = threading.Barrier(2, timeout=5)
+
+    def crash(
+        c: dict[str, Any], n: int, req: dict[str, Any], resume: bool = False
+    ) -> tuple[int, Path, Path]:
+        write_runs(out_of(c, n), 6 if n == 60 else 2)  # 60 at 6 left lets 61 start
+        both.wait()  # both jobs are running
+        raise Killed
+
+    monkeypatch.setattr(hq, "execute", crash)
+    with pytest.raises(Killed):
+        hq.run_once(cfg, False)
+    resumed: list[tuple[int, bool, int]] = []
+
+    def resume_exec(
+        c: dict[str, Any], n: int, req: dict[str, Any], resume: bool = False
+    ) -> tuple[int, Path, Path]:
+        total = len(req["profiles"]) * req["seeds"]
+        resumed.append((n, resume, hq.runs_left(out_of(c, n), total)))
+        write_runs(out_of(c, n), 12)
+        return finish(c, n, out_of(c, n))
+
+    second = Fake([stale_issue(60), stale_issue(61)])  # bodies say quiet-5 x 2: never read
+    monkeypatch.setattr(hq, "run_cmd", second)
+    monkeypatch.setattr(hq, "execute", resume_exec)
+    hq.run_once(cfg, False)
+    assert sorted(resumed) == [(60, True, 6), (61, True, 10)]  # each from its own result files
+    own_reports(second, [60, 61])
+    assert all("(resumed)" in s for s in second.stdin)
+    for n in (60, 61):
+        assert not hq.running_file(cfg, n).exists() and not hq.request_file(cfg, n).exists()
+
+
+def test_failed_relist_keeps_the_running_job(
+    cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(hq, "POLL_S", 0.01)
+    fake = Fake([issue(70)])  # 2 workers: 10 free, so the tick relists while it runs
+    lists: list[int] = []
+    failed = threading.Event()
+
+    def run(cmd: list[str], **kw: Any) -> Any:
+        if cmd[:3] == ["gh", "issue", "list"] and "harness-run" in cmd:
+            lists.append(1)
+            if len(lists) > 1:
+                failed.set()
+                return type("R", (), {"returncode": 1, "stdout": "", "stderr": "down"})()
+        return fake(cmd, **kw)
+
+    def _exec(
+        c: dict[str, Any], n: int, req: dict[str, Any], resume: bool = False
+    ) -> tuple[int, Path, Path]:
+        failed.wait(5)
+        return finish(c, n, out_of(c, n))
+
+    monkeypatch.setattr(hq, "run_cmd", run)
+    monkeypatch.setattr(hq, "execute", _exec)
+    assert hq.run_once(cfg, False) == 0
+    assert failed.is_set()
+    own_reports(fake, [70])
+
+
+def test_job_killed_beside_another_keeps_the_lock_until_both_end(
+    cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    polls = Polls(monkeypatch)
+    fake = Fake([issue(90, body=block(profiles=TWO, seeds="6", workers="12"), at="t1"),
+                 issue(91, body=block(seeds="6", workers="6"), at="t2"),
+                 issue(99, body=block(workers="2"), at="t3")])  # fmt: skip
+    monkeypatch.setattr(hq, "run_cmd", fake)
+    b_started, a_dying = threading.Event(), threading.Event()
+    held: list[bool] = []
+
+    def _exec(
+        c: dict[str, Any], n: int, req: dict[str, Any], resume: bool = False
+    ) -> tuple[int, Path, Path]:
+        if n == 90:
+            write_runs(out_of(c, n), 6)  # 6 free: B fits
+            b_started.wait(10)
+            a_dying.set()
+            raise Killed
+        if n == 91:
+            b_started.set()
+            a_dying.wait(10)
+            polls.after(3)  # the tick has reaped A's error and gone on
+            held.append(lock_is_held(c))
+        return finish(c, n, out_of(c, n))
+
+    monkeypatch.setattr(hq, "execute", _exec)
+    with pytest.raises(Killed):  # re-raised only after B ended
+        hq.run_once(cfg, False)
+    assert held == [True]
+    assert fake.names(fake.issues[0]) == ["harness-running"]  # A is left for recovery
+    assert hq.running_file(cfg, 90).exists()
+    own_reports(fake, [91, 99])  # B, and #99 on A's freed workers, run to the end
+    assert not lock_is_held(cfg)
+
+
+def test_an_error_leaving_the_tick_waits_for_its_jobs(
+    cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """recover_stale resumes #95, then the list of new issues fails: the tick still holds the
+    lock until the resume has ended, and only then raises."""
+    out = out_of(cfg, 95)
+    out.mkdir(parents=True)
+    hq.running_file(cfg, 95).write_text(SHA)
+    hq.request_file(cfg, 95).write_text(json.dumps(hq.parse_block(block(), cfg, NAMES)))
+    fake = Fake([stale_issue(95)])
+    monkeypatch.setattr(hq, "run_cmd", failing(fake, ["gh", "issue", "list", "--state", "open",
+                                                      "--label", "harness-run"]))  # fmt: skip
+    joining = threading.Event()
+    real_join = hq.Jobs.join
+
+    def join(jobs: Any) -> None:
+        joining.set()
+        real_join(jobs)
+
+    monkeypatch.setattr(hq.Jobs, "join", join)
+    held: list[bool] = []
+
+    def _exec(
+        c: dict[str, Any], n: int, req: dict[str, Any], resume: bool = False
+    ) -> tuple[int, Path, Path]:
+        joining.wait(10)  # the tick is on its way out
+        held.append(lock_is_held(c))
+        return finish(c, n, out_of(c, n))
+
+    monkeypatch.setattr(hq, "execute", _exec)
+    with pytest.raises(hq.QueueError):
+        hq.run_once(cfg, False)
+    assert held == [True]
+    own_reports(fake, [95])
+
+
+def test_requests_start_oldest_first(cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch) -> None:
+    """A at 10 runs left frees 2: B (12 workers) needs 6 and waits, and C (2 workers), younger,
+    does not overtake it."""
+    polls = Polls(monkeypatch)
+    big = block(profiles=TWO, seeds="6", workers="12")
+    fake = Fake([issue(86, body=big, at="t1"), issue(87, body=big, at="t2"),
+                 issue(88, body=block(workers="2"), at="t3")])  # fmt: skip
+    monkeypatch.setattr(hq, "run_cmd", fake)
+    starts: list[int] = []
+    overtaken: list[bool] = []
+
+    def _exec(
+        c: dict[str, Any], n: int, req: dict[str, Any], resume: bool = False
+    ) -> tuple[int, Path, Path]:
+        starts.append(n)
+        if n == 86:
+            write_runs(out_of(c, n), 2)
+            polls.after(5)
+            overtaken.append(len(starts) > 1)
+            write_runs(out_of(c, n), 12)
+        return finish(c, n, out_of(c, n))
+
+    monkeypatch.setattr(hq, "execute", _exec)
+    hq.run_once(cfg, False)
+    assert overtaken == [False] and starts == [86, 87, 88]
+    own_reports(fake, [86, 87, 88])
+
+
+def test_a_timed_out_failure_comment_still_drops_the_records(
+    cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake = Fake([issue(89)])
+
+    def run(cmd: list[str], **kw: Any) -> Any:
+        if cmd[:3] == ["gh", "issue", "comment"]:
+            raise hq.JobTimeout
+        return fake(cmd, **kw)
+
+    monkeypatch.setattr(hq, "run_cmd", run)
+    monkeypatch.setattr(hq, "execute", fake_exec(3, None))
+    assert hq.run_once(cfg, False) == 0
+    assert fake.names(fake.issues[0]) == ["harness-failed"]
+    assert not hq.running_file(cfg, 89).exists()
+
+
+def test_a_slip_in_launch_still_fails_the_issue_once(
+    cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake = Fake([issue(92)])
+    monkeypatch.setattr(hq, "run_cmd", fake)
+
+    def boom(*a: Any) -> None:
+        raise ValueError("detail")
+
+    monkeypatch.setattr(hq, "launch", boom)
+    assert hq.run_once(cfg, False) == 0
+    assert fake.edits() == [("92", "harness-running", "harness-run"),
+                            ("92", "harness-failed", "harness-running")]  # fmt: skip
+    assert len(fake.stdin) == 1 and "internal error (ValueError)" in fake.stdin[0]
+    assert "detail" not in fake.stdin[0]
+
+
+def test_fail_survives_a_disk_error_dropping_records(
+    cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake = Fake([issue(93)])
+    monkeypatch.setattr(hq, "run_cmd", fake)
+    monkeypatch.setattr(hq, "execute", fake_exec(3, None))
+
+    def broken(*a: Any) -> None:
+        raise OSError("disk")
+
+    monkeypatch.setattr(hq, "forget", broken)
+    assert hq.run_once(cfg, False) == 0
+    assert fake.names(fake.issues[0]) == ["harness-failed"]
+    assert len(fake.stdin) == 1  # one failure comment, not a second from a last-resort handler
+
+
+def test_an_issue_is_tried_once_while_a_job_runs(
+    cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """No POLL_S passes (the job's end wakes the tick), so a failed write check is not retried."""
+    fake = Fake([issue(80, at="t1"), issue(81, at="t2")])
+    checked = threading.Event()
+    checks: list[int] = []
+    wrapped = failing(fake, ["gh", "issue", "edit", "81", "--add-label", "harness-run"])
+
+    def run(cmd: list[str], **kw: Any) -> Any:
+        if cmd[:4] == ["gh", "issue", "edit", "81"]:
+            checks.append(1)
+            checked.set()
+        return wrapped(cmd, **kw)
+
+    started: list[int] = []
+
+    def _exec(
+        c: dict[str, Any], n: int, req: dict[str, Any], resume: bool = False
+    ) -> tuple[int, Path, Path]:
+        started.append(n)
+        checked.wait(10)
+        return finish(c, n, out_of(c, n))
+
+    monkeypatch.setattr(hq, "run_cmd", run)
+    monkeypatch.setattr(hq, "execute", _exec)
+    hq.run_once(cfg, False)
+    assert started == [80] and len(checks) == 1
+    assert fake.names(fake.issues[1]) == ["harness-run"]  # untouched for the next tick
+
+
+def test_a_skipped_issue_is_retried_after_poll_s(
+    cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    Polls(monkeypatch)
+    fake = Fake([issue(82, at="t1"), issue(83, at="t2")])
+    checks: list[int] = []
+    second = threading.Event()
+
+    def run(cmd: list[str], **kw: Any) -> Any:
+        if cmd == ["gh", "issue", "edit", "83", "--add-label", "harness-run", "-R", cfg["repo"]]:
+            checks.append(1)
+            if len(checks) == 1:  # a transient failure
+                return type("R", (), {"returncode": 1, "stdout": "", "stderr": "x"})()
+        return fake(cmd, **kw)
+
+    started: list[int] = []
+
+    def _exec(
+        c: dict[str, Any], n: int, req: dict[str, Any], resume: bool = False
+    ) -> tuple[int, Path, Path]:
+        started.append(n)
+        if n == 82:
+            second.wait(10)  # 82 runs until 83 has started
+        else:
+            second.set()
+        return finish(c, n, out_of(c, n))
+
+    monkeypatch.setattr(hq, "run_cmd", run)
+    monkeypatch.setattr(hq, "execute", _exec)
+    hq.run_once(cfg, False)
+    assert started == [82, 83] and len(checks) == 2
+    own_reports(fake, [82, 83])
+
+
+def test_a_small_request_starts_as_soon_as_it_fits(
+    cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A (12 runs, 12 workers) at 10 runs left frees 2: a 2-worker request needs only 2."""
+    Polls(monkeypatch)
+    fake = Fake([issue(84, body=block(profiles=TWO, seeds="6", workers="12"), at="t1"),
+                 issue(85, body=block(workers="2"), at="t2")])  # fmt: skip
+    monkeypatch.setattr(hq, "run_cmd", fake)
+    b_started = threading.Event()
+    starts: list[tuple[int, int, int]] = []
+
+    def _exec(
+        c: dict[str, Any], n: int, req: dict[str, Any], resume: bool = False
+    ) -> tuple[int, Path, Path]:
+        starts.append((n, req["workers"], hq.runs_left(out_of(c, 84), 12)))
+        if n == 84:
+            write_runs(out_of(c, n), 2)
+            b_started.wait(10)
+            write_runs(out_of(c, n), 12)
+        else:
+            b_started.set()
+        return finish(c, n, out_of(c, n))
+
+    monkeypatch.setattr(hq, "execute", _exec)
+    hq.run_once(cfg, False)
+    assert starts == [(84, 12, 12), (85, 2, 10)]
+    own_reports(fake, [84, 85])
+
+
+def stale_job(cfg: dict[str, Any], n: int, req: dict[str, Any] | None, at: str) -> Any:
+    """A `harness-running` issue cut off by a crash: its records, results dir and no runs yet."""
+    out_of(cfg, n).mkdir(parents=True)
+    hq.running_file(cfg, n).write_text(SHA)
+    if req is not None:
+        hq.request_file(cfg, n).write_text(json.dumps(req))
+    s = stale_issue(n)
+    s["createdAt"] = at
+    return s
+
+
+def test_recovery_posts_and_fails_first_then_resumes_within_the_budget(
+    cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Two 12-worker resumes with 0 runs: the second waits in Jobs.start until the first has 6
+    runs left, gets 6 workers, and both then run at once. A late report (#102) and a failure
+    (#103), listed after them, are done before any resume starts (two passes)."""
+    polls = Polls(monkeypatch)
+    big = hq.parse_block(block(profiles=TWO, seeds="6", workers="12"), cfg, NAMES)
+    late = out_of(cfg, 102)
+    issues = [stale_job(cfg, 100, big, "t1"), stale_job(cfg, 101, big, "t2"),
+              stale_job(cfg, 102, None, "t3"), stale_job(cfg, 103, None, "t4")]  # fmt: skip
+    (late / "report.md").write_text("# LATE 102")
+    (late / hq.FINISHED).write_text(str(len("# LATE 102")))
+    fake = Fake(issues)
+    monkeypatch.setattr(hq, "run_cmd", fake)
+    b_started = threading.Event()
+    seen: list[Any] = []
+
+    def _exec(
+        c: dict[str, Any], n: int, req: dict[str, Any], resume: bool = False
+    ) -> tuple[int, Path, Path]:
+        out = out_of(c, n)
+        if n == 100:
+            seen.append(("pass 1 done", any("# LATE 102" in s for s in fake.stdin),
+                         fake.names(fake.issues[3])))  # fmt: skip
+            write_runs(out, 5)  # 7 left: 5 free, under 6
+            polls.after(5)
+            seen.append(("early", b_started.is_set()))
+            write_runs(out, 6)  # 6 left: 6 free
+            seen.append(("both running", b_started.wait(10)))
+            write_runs(out, 12)
+        else:
+            seen.append((n, resume, req["workers"], hq.runs_left(out_of(c, 100), 12)))
+            b_started.set()  # after the record, so the order of `seen` is fixed
+            write_runs(out, 12)
+        return finish(c, n, out)
+
+    monkeypatch.setattr(hq, "execute", _exec)
+    hq.run_once(cfg, False)
+    assert seen == [
+        ("pass 1 done", True, ["harness-failed"]),
+        ("early", False),
+        (101, True, 6, 6),  # waited for 6 free, got 6 of the 12 it asked for
+        ("both running", True),
+    ]
+    for n in (100, 101, 102):
+        i = next(i for i in fake.issues if i["number"] == n)
+        assert fake.names(i) == ["harness-done"]
+    assert sum("# REPORT 100" in s for s in fake.stdin) == 1
+    assert sum("# REPORT 101" in s for s in fake.stdin) == 1
+
+
+def test_a_resumed_issue_relabelled_harness_run_is_not_picked_again(
+    cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    polls = Polls(monkeypatch)
+    fake = Fake([stale_job(cfg, 104, hq.parse_block(block(), cfg, NAMES), "t1")])
+    monkeypatch.setattr(hq, "run_cmd", fake)
+
+    def _exec(
+        c: dict[str, Any], n: int, req: dict[str, Any], resume: bool = False
+    ) -> tuple[int, Path, Path]:
+        fake.issues[0]["labels"].append({"name": "harness-run"})  # someone adds it mid-run
+        polls.after(3)  # the tick relists meanwhile
+        return finish(c, n, out_of(c, n))
+
+    monkeypatch.setattr(hq, "execute", _exec)
+    hq.run_once(cfg, False)
+    assert not any("Refused" in s for s in fake.stdin)
+    assert fake.edits() == [("104", "harness-done", "harness-running")]
+    assert sum("# REPORT 104" in s for s in fake.stdin) == 1
