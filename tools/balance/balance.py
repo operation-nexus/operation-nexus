@@ -177,36 +177,37 @@ def _progress(path: Path, total: int) -> Callable[[int, float, Any], bool]:
 
 def _one(job: Job, slots: Slots | None = None) -> dict[str, Any]:
     """A worker: one (profile, seed) run, its JSON written next to the others. With `slots` it
-    first takes a slot (see the module doc) and holds it until the run ends."""
+    first takes a slot (see the module doc) and holds it until the result file is in place."""
     profile, seed, hours, out, paths = job
     name = f"{profile}-s{seed}"
     shutil.rmtree(out / "logs" / name, ignore_errors=True)  # the leftover of a killed attempt
     progress = out / "runs" / f"{name}.progress"
     held, waited = None, 0.0
     try:
-        if slots:
-            asked = time.monotonic()
-            held = acquire_slot(*slots)
-            waited = time.monotonic() - asked  # runner's wall_s starts after this
-        config = load_campaign_config(paths)
-        total = round(hours * 3600 * config.balance.sim.tick_hz)
-        run = runner.run(
-            profile, seed, hours, out / "logs" / name, config=config,
-            on_tick=_progress(progress, total),
-        )  # fmt: skip
-    except Exception as e:  # noqa: BLE001  # one run's failure must not kill the batch
-        run = runner.failed_run(profile, seed, hours, f"{type(e).__name__}: {e}")
+        try:
+            if slots:
+                asked = time.monotonic()
+                held = acquire_slot(*slots)
+                waited = time.monotonic() - asked  # runner's wall_s starts after this
+            config = load_campaign_config(paths)
+            total = round(hours * 3600 * config.balance.sim.tick_hz)
+            run = runner.run(
+                profile, seed, hours, out / "logs" / name, config=config,
+                on_tick=_progress(progress, total),
+            )  # fmt: skip
+        except Exception as e:  # noqa: BLE001  # one run's failure must not kill the batch
+            run = runner.failed_run(profile, seed, hours, f"{type(e).__name__}: {e}")
+        run["timing"]["slot_wait_s"] = waited
+        final = out / "runs" / f"{name}.json"
+        tmp = final.with_suffix(
+            ".json.tmp"
+        )  # written whole, then renamed: a kill leaves no partial file
+        tmp.write_text(json.dumps(run, indent=1, sort_keys=True) + "\n")
+        os.replace(tmp, final)
+        progress.unlink(missing_ok=True)
     finally:
         if held:
-            held.close()
-    run["timing"]["slot_wait_s"] = waited
-    final = out / "runs" / f"{name}.json"
-    tmp = final.with_suffix(
-        ".json.tmp"
-    )  # written whole, then renamed: a kill leaves no partial file
-    tmp.write_text(json.dumps(run, indent=1, sort_keys=True) + "\n")
-    os.replace(tmp, final)
-    progress.unlink(missing_ok=True)
+            held.close()  # only once the result is in place, so no other run of it overlaps
     return run
 
 

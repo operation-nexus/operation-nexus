@@ -2820,7 +2820,12 @@ def test_cli_with_slots_sums_the_wait_and_resumes_an_old_run_without_the_key(
     old = json.loads((out / "runs" / "quiet-5-s1.json").read_text())
     del old["timing"]["slot_wait_s"]  # a result from before NX-460
     (out / "runs" / "quiet-5-s1.json").write_text(json.dumps(old))
+    kept = (out / "runs" / "quiet-5-s1.json").read_bytes()
+    ran: list[int] = []
+    monkeypatch.setattr(runner, "run", lambda p, seed, *a, **kw: ran.append(seed))
     assert _cli(monkeypatch, out, "--resume") == 0
+    assert ran == []  # every run was kept, the one without the key included
+    assert (out / "runs" / "quiet-5-s1.json").read_bytes() == kept
     doc = json.loads((out / "report.json").read_text())
     assert doc["timing"]["slot_wait_s"] == sum(
         json.loads(p.read_text())["timing"].get("slot_wait_s", 0.0)
