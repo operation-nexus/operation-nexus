@@ -308,13 +308,17 @@ def _gaps(rs: list[dict[str, Any]], es: list[dict[str, Any]]) -> dict[str, Any]:
         ticks = [o[0] for o in e["ops"] if o[1] == OFFENSIVE]
         end = r["ticks_run"]
         gaps = [(b - a) / hz / 60 for a, b in itertools.pairwise(ticks)]
+        lead_in = (ticks[0] if ticks else end) / hz / 60
+        tail = (end - ticks[-1]) / hz / 60 if ticks else None
         per_seed.append(
             {
                 "seed": r["seed"],
                 "offensives": len(ticks),
-                "lead_in_min": (ticks[0] if ticks else end) / hz / 60,
+                "lead_in_min": lead_in,
                 "gaps_min": gaps,
-                "tail_min": (end - ticks[-1]) / hz / 60 if ticks else None,
+                "tail_min": tail,
+                # NX-451: the longest stretch without an Offensive, lead-in and tail included
+                "longest_dry_min": max([lead_in, *gaps, *([] if tail is None else [tail])]),
             }
         )
         for a, b in itertools.pairwise(ticks):
@@ -610,6 +614,8 @@ def _d5_lines(name: str, e: dict[str, Any]) -> list[str]:
         t: f"n {v['n']}, median {_fmt(v['median'])}, max {_fmt(v['max'])}"
         for t, v in e["gaps"]["by_tier"].items()
     }
+    dry = {g["seed"]: g.get("longest_dry_min") for g in e["gaps"]["per_seed"]}  # old report: none
+    dry_vals = [v for v in dry.values() if v is not None]
     sp = e["spawn_by_op"]
     per_h = {k: _fmt(v, ".2f") for k, v in e["adaptations_per_hour"].items()}
     return [
@@ -620,6 +626,9 @@ def _d5_lines(name: str, e: dict[str, Any]) -> list[str]:
         f"{e['staging']['open']}; strike packages downed {e['staging']['strike_downed']}",
         f"  - {name} Offensive minutes per seed: {'; '.join(seeds) or 'none'}; gaps by tier at "
         f"the earlier one: {tiers or 'none'}",
+        f"  - {name} longest stretch without an Offensive (min, lead-in and tail included) per "
+        f"seed: {', '.join(f's{k} {_fmt(v)}' for k, v in dry.items()) or 'none'}; max "
+        f"{_fmt(max(dry_vals, default=None))}, median {_fmt(_med(dry_vals))}",
         f"  - {name} pressure events per victory hold {e['pressure_per_hold']}",
         f"  - {name} spawn debits by operation {sp['ops'] or 'none'}, shared {sp['shared']}, "
         f"unattributed {sp['unattributed']}",
