@@ -1505,7 +1505,7 @@
    "collapsed": false,
    "gridPos": {
     "x": 0,
-    "y": 42,
+    "y": 50,
     "w": 24,
     "h": 1
    },
@@ -1521,7 +1521,7 @@
    },
    "gridPos": {
     "x": 0,
-    "y": 43,
+    "y": 51,
     "w": 4,
     "h": 4
    },
@@ -1561,7 +1561,7 @@
    },
    "gridPos": {
     "x": 4,
-    "y": 43,
+    "y": 51,
     "w": 4,
     "h": 4
    },
@@ -1601,7 +1601,7 @@
    },
    "gridPos": {
     "x": 8,
-    "y": 43,
+    "y": 51,
     "w": 4,
     "h": 4
    },
@@ -1641,7 +1641,7 @@
    },
    "gridPos": {
     "x": 12,
-    "y": 43,
+    "y": 51,
     "w": 4,
     "h": 4
    },
@@ -1678,7 +1678,7 @@
    },
    "gridPos": {
     "x": 16,
-    "y": 43,
+    "y": 51,
     "w": 4,
     "h": 4
    },
@@ -1716,7 +1716,7 @@
    },
    "gridPos": {
     "x": 20,
-    "y": 43,
+    "y": 51,
     "w": 4,
     "h": 4
    },
@@ -1754,7 +1754,7 @@
    },
    "gridPos": {
     "x": 0,
-    "y": 47,
+    "y": 55,
     "w": 12,
     "h": 8
    },
@@ -1803,7 +1803,7 @@
    },
    "gridPos": {
     "x": 12,
-    "y": 47,
+    "y": 55,
     "w": 12,
     "h": 8
    },
@@ -1859,7 +1859,7 @@
    "collapsed": false,
    "gridPos": {
     "x": 0,
-    "y": 55,
+    "y": 63,
     "w": 24,
     "h": 1
    },
@@ -1875,7 +1875,7 @@
    },
    "gridPos": {
     "x": 0,
-    "y": 56,
+    "y": 64,
     "w": 12,
     "h": 8
    },
@@ -1919,7 +1919,7 @@
    },
    "gridPos": {
     "x": 12,
-    "y": 56,
+    "y": 64,
     "w": 12,
     "h": 8
    },
@@ -1966,7 +1966,7 @@
    "collapsed": false,
    "gridPos": {
     "x": 0,
-    "y": 64,
+    "y": 72,
     "w": 24,
     "h": 1
    },
@@ -1978,13 +1978,204 @@
    "title": "Rates and what is not here yet",
    "gridPos": {
     "x": 0,
-    "y": 65,
+    "y": 73,
     "w": 24,
     "h": 7
    },
    "options": {
     "mode": "markdown",
     "content": "**Rates (from the owner's AES Ohio bills, 2026-04-28 to 2026-10-22; derived by Claude, not billed per-kWh figures [UNVERIFIED]):**\n- The default rate is the **marginal** $0.2124/kWh: supply $23.22 + other delivery charges $22.22 over 213.93 kWh on the latest bill, leaving out the fixed $9.75 customer charge (assumes other delivery charges scale with kWh). The **all-in average** ($55.19 / 213.93 kWh) is $0.2580/kWh. Pick either in the `rate` list at the top. A straight-line fit over six bills gives about $9.52 + $0.2024/kWh. The billing-period boxes use the dates in the hidden `bill_start`/`bill_end` values; update them and this list when a new bill arrives.\n\n**Plugs:** both plugs report watts, volts, amps and energy (server `192.168.1.66`, PC `192.168.1.6`). The cost charts accumulate only from when each plug was installed, and a projection from a short history is rough: the PC's draw changes a lot with harness load and gaming.\n\n**Not here yet:** the PC's GPU load, replay-archive size and Loki logs. Big-number view for the screen: dashboard \"Hiveplex at a glance (kiosk)\"."
+   }
+  },
+  {
+   "id": 45,
+   "type": "timeseries",
+   "title": "PC CPU speed (MHz) and busy %  (a busy CPU holding about 4,300 is not throttling; a dip while busy is)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 42,
+    "w": 18,
+    "h": 8
+   },
+   "targets": [
+    {
+     "expr": "avg(rate(windows_cpu_processor_performance_total[2m]) / rate(windows_cpu_processor_mperf_total[2m])) * 31.92",
+     "legendFormat": "Speed (MHz)",
+     "refId": "A"
+    },
+    {
+     "expr": "vector(4300)",
+     "legendFormat": "All-core turbo (4300)",
+     "refId": "B"
+    },
+    {
+     "expr": "(100 - avg(rate(windows_cpu_time_total{mode=\"idle\"}[2m])) * 100)",
+     "legendFormat": "CPU busy %",
+     "refId": "C"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 0,
+      "showPoints": "never",
+      "spanNulls": true
+     },
+     "min": 0
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "Speed (MHz)"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "blue"
+        }
+       },
+       {
+        "id": "unit",
+        "value": "none"
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "All-core turbo (4300)"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "white"
+        }
+       },
+       {
+        "id": "custom.lineStyle",
+        "value": {
+         "fill": "dash",
+         "dash": [
+          10,
+          10
+         ]
+        }
+       },
+       {
+        "id": "custom.lineWidth",
+        "value": 1
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "CPU busy %"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "orange"
+        }
+       },
+       {
+        "id": "unit",
+        "value": "percent"
+       },
+       {
+        "id": "custom.axisPlacement",
+        "value": "right"
+       },
+       {
+        "id": "max",
+        "value": 100
+       },
+       {
+        "id": "custom.fillOpacity",
+        "value": 10
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   }
+  },
+  {
+   "id": 46,
+   "type": "stat",
+   "title": "Slowest speed while busy, last 24 h (MHz)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 18,
+    "y": 42,
+    "w": 6,
+    "h": 8
+   },
+   "targets": [
+    {
+     "expr": "min_over_time((avg(rate(windows_cpu_processor_performance_total[2m]) / rate(windows_cpu_processor_mperf_total[2m])) * 31.92 and on() ((100 - avg(rate(windows_cpu_time_total{mode=\"idle\"}[2m])) * 100) > 60))[24h:30s])",
+     "refId": "A",
+     "instant": true
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "none",
+     "decimals": 0,
+     "noValue": "not busy",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "red",
+        "value": null
+       },
+       {
+        "color": "orange",
+        "value": 3800
+       },
+       {
+        "color": "green",
+        "value": 4150
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "colorMode": "background",
+    "graphMode": "none",
+    "textMode": "value",
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    }
    }
   }
  ]
