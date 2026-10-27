@@ -30,7 +30,8 @@ import math
 import sys
 import tempfile
 import time
-from concurrent.futures import ProcessPoolExecutor
+from collections.abc import Callable
+from concurrent.futures import Executor, ProcessPoolExecutor
 from pathlib import Path
 from typing import Any
 
@@ -82,7 +83,10 @@ def override_balance(pairs: list[str]) -> str:
     return dumped
 
 
-def _one(job: tuple[str, int, float, Path, ConfigPaths | None]) -> dict[str, Any]:
+Job = tuple[str, int, float, Path, ConfigPaths | None]
+
+
+def _one(job: Job) -> dict[str, Any]:
     """A worker: one (profile, seed) run, its JSON written next to the others."""
     profile, seed, hours, out, paths = job
     name = f"{profile}-s{seed}"
@@ -93,6 +97,26 @@ def _one(job: tuple[str, int, float, Path, ConfigPaths | None]) -> dict[str, Any
         run = runner.failed_run(profile, seed, hours, f"{type(e).__name__}: {e}")
     (out / "runs" / f"{name}.json").write_text(json.dumps(run, indent=1, sort_keys=True) + "\n")
     return run
+
+
+def run_jobs(
+    jobs: list[Job],
+    cost: Callable[[Job], float],
+    workers: int,
+    make_pool: Callable[..., Executor] = ProcessPoolExecutor,
+    fn: Callable[[Job], dict[str, Any]] = _one,
+) -> list[dict[str, Any]]:
+    """Run every job and return the results in `jobs` order, whatever finishes first (NX-432).
+
+    Items are submitted most expensive first (`cost`, ties keep job order), one per submit: a
+    worker that finishes takes the next waiting item at once (backfill, no fixed chunks), so the
+    last item to start is a cheap one and no worker idles while work waits."""
+    if workers == 1:
+        return [fn(j) for j in jobs]
+    order = sorted(range(len(jobs)), key=lambda i: -cost(jobs[i]))  # stable
+    with make_pool(max_workers=workers) as pool:
+        futures = {i: pool.submit(fn, jobs[i]) for i in order}
+    return [futures[i].result() for i in range(len(jobs))]
 
 
 def _headline(run: dict[str, Any]) -> dict[str, Any]:
@@ -238,17 +262,7 @@ def main() -> int:
         travel = metrics.travel_table(cfg.rules, cfg.balance.sim.tick_hz)
         jobs = [(n, s, args.hours, args.out, paths) for n in names for s in args.seeds]
         started = time.perf_counter()
-        if args.workers == 1:
-            runs = [_one(j) for j in jobs]
-        else:
-            # Longest first (the biggest crowd costs the most) so the last run to start is a short
-            # one; the results go back to job order, so the report does not depend on it.
-            by_cost = sorted(jobs, key=lambda j: -data.profiles[j[0]].viewers)
-            with ProcessPoolExecutor(max_workers=args.workers) as pool:
-                done = dict(
-                    zip(((j[0], j[1]) for j in by_cost), pool.map(_one, by_cost), strict=True)
-                )
-            runs = [done[(j[0], j[1])] for j in jobs]
+        runs = run_jobs(jobs, lambda j: data.profiles[j[0]].viewers, args.workers)
         elapsed = time.perf_counter() - started
         result = build_report(
             runs, data, args.workers, elapsed, args.overrides, theater, economy, travel
