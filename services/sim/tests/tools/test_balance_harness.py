@@ -517,26 +517,26 @@ def test_jobs_start_longest_first_and_ties_keep_job_order() -> None:
 
 
 def test_a_freed_worker_takes_the_next_waiting_item() -> None:
-    """2 workers, 6 items, item 1 blocks until the other five are done: that only finishes if the
-    worker that is not on item 1 takes every waiting item in turn (no fixed chunks)."""
-    import threading
-    from concurrent.futures import ThreadPoolExecutor
+    """Backfill rests on submitting every run on its own before waiting on any (no fixed chunks):
+    the executor then hands the next waiting run to whichever worker frees up. Checked with a pool
+    that logs each submit and each result wait, so no thread timing or wall-clock limit is used."""
+    events: list[str] = []
 
-    others_done, lock, count = threading.Event(), threading.Lock(), [0]
+    class Pool(_FakePool):
+        def submit(self, fn: Any, job: Any) -> Any:
+            events.append(f"submit {job[1]}")
 
-    def fn(job: Any) -> dict[str, Any]:
-        if job[1] == 1:
-            assert others_done.wait(10), "the other worker did not backfill"
-        else:
-            with lock:
-                count[0] += 1
-                if count[0] == 5:
-                    others_done.set()
-        return {"seed": job[1]}
+            def result() -> Any:
+                events.append(f"wait {job[1]}")
+                return fn(job)
+
+            return SimpleNamespace(result=result)
 
     jobs = [("p", s, 1.0, Path("."), None) for s in range(1, 7)]
-    runs = balance.run_jobs(jobs, lambda j: 1, 2, ThreadPoolExecutor, fn)
+    runs = balance.run_jobs(jobs, lambda j: 1, 2, Pool, lambda j: {"seed": j[1]})
     assert [r["seed"] for r in runs] == [1, 2, 3, 4, 5, 6]
+    assert events[:6] == [f"submit {s}" for s in range(1, 7)]  # each run alone, all before a wait
+    assert events[6:] == [f"wait {s}" for s in range(1, 7)]
 
 
 def test_results_come_back_in_job_order_whatever_finishes_first() -> None:
