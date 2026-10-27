@@ -333,8 +333,8 @@ class Entity:
     # Force economy (NX-412 part 2, ECONOMY EC-4..EC-6): `home_base` the friendly node the unit
     # last spawned, landed or parked at, which pays its upkeep (re-homed when lost; not the
     # garrison `home` above). `grounded`: its home could not pay; it stays there with no job or
-    # order until a window it pays. `ordered`: the running tick of its spawn or latest order (EC-6
-    # payment order, most recent first).
+    # order but a REBASE hold (NX-435) until a window it pays. `ordered`: the running tick of its
+    # spawn or latest order (EC-6 payment order, most recent first).
     home_base: str | None = None
     grounded: bool = False
     ordered: int = 0
@@ -1890,11 +1890,15 @@ def _check_claims(world: World) -> None:
 
 
 def _check_upkeep(e: Entity, world: World) -> None:
-    """NX-412 part 2: a home is a node; a grounded unit has a home and no job, order or leader."""
+    """NX-412 part 2: a home is a node; a grounded unit has a home and no job or leader, and no
+    order but the REBASE hold (NX-435)."""
     if e.home_base is not None and e.home_base not in world.owner:
         raise ValueError(f"entity {e.id}: a home_base that is not a node")
-    if e.grounded and (e.home_base is None or e.job_id or e.order or e.follow_id):
-        raise ValueError(f"entity {e.id}: grounded needs a home_base and no job, order or leader")
+    held = e.order in (None, "HOLD")
+    if e.grounded and (e.home_base is None or e.job_id or not held or e.follow_id):
+        raise ValueError(
+            f"entity {e.id}: grounded needs a home_base, no job or leader, at most a HOLD"
+        )
     if e.ordered > world.campaign.running_ticks:
         raise ValueError(f"entity {e.id}: ordered after the snapshot's running ticks")
 

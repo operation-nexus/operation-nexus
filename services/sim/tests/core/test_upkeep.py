@@ -399,15 +399,157 @@ def test_upkeep_runs_before_the_director_window_in_the_same_tick() -> None:
     assert w.find(armor.id) is armor and armor.grounded
 
 
-def test_rebase_refuses_a_grounded_unit() -> None:
-    w = new_world()
-    w.stock["fob-n-w"] = 0
-    e = put(w, INF, "fob-n-w")
+def grounded_jet(w: World) -> Entity:
+    """A viewer jet grounded at a dry west-airbase (stock 0)."""
+    w.stock["west-airbase"] = 0
+    jet = put(w, JET, "west-airbase")
     window(w)
-    cmd = rebase(e, "west-airbase").model_copy(update={"target_tick": w.campaign.tick + 1})
-    (rejected,) = [ev for ev in step(w, [cmd]) if isinstance(ev, CommandRejected)]
-    assert rejected.reason == "UNIT_GROUNDED"
-    assert (e.path, e.order) == ([], None)
+    assert jet.grounded
+    return jet
+
+
+def send(w: World, e: Entity, node: str) -> list[Event]:
+    return step(w, [rebase(e, node).model_copy(update={"target_tick": w.campaign.tick + 1})])
+
+
+def rejected(out: list[Event]) -> list[str]:
+    return [ev.reason for ev in out if isinstance(ev, CommandRejected)]
+
+
+def test_a_grounded_jet_rebases_to_a_base_that_pays_it_and_ungrounds_at_the_next_window() -> None:
+    """NX-435 (Q-TD-51 U3): the jet flies west-airbase -> haven still grounded, holding; landing
+    makes haven its home (EC-5), and the next window charges it there (the pool) and ungrounds."""
+    w = new_world()
+    jet = grounded_jet(w)
+    assert rejected(send(w, jet, "haven")) == []
+    assert (jet.path, jet.order, jet.grounded) == (["haven"], "HOLD", True)
+    assert state_hash(load(save(w))) == state_hash(w)  # a grounded unit on a HOLD saves and loads
+    out: list[Event] = []
+    for _ in range(10**5):  # bounded: a jet that never lands fails, never hangs
+        if not jet.path and jet.state == "LANDED":
+            break
+        out += step(w, [])
+    else:
+        raise AssertionError("the jet never landed at haven")
+    out += step(w, [])  # `logistics` homes it on the tick it stands landed
+    assert (jet.last_node, jet.home_base, jet.grounded) == ("haven", "haven", True)
+    assert [r for r in rows(out) if r[0] != "SupplyConsumed"] == []  # no window ungrounded it yet
+    pool = w.pool["COALITION"]
+    for _ in range(10**5):  # bounded: a jet that never ungrounds fails, never hangs
+        if not jet.grounded:
+            break
+        out = step(w, [])
+    else:
+        raise AssertionError("no window ungrounded the jet")
+    assert rows(out) == [("UnitUngrounded", jet.id, "haven"), ("SupplyConsumed", "haven", 5)]
+    assert w.campaign.running_ticks % WINDOW == 0  # at a window
+    income = [ev.amount for ev in out if ev.kind == "SupplyProduced"]
+    assert w.pool["COALITION"] == pool + sum(income) - 5  # the jet's upkeep, from haven's pool
+
+
+def test_a_grounded_unit_may_not_rebase_to_a_base_that_cannot_pay_it() -> None:
+    w = new_world()
+    jet = grounded_jet(w)
+    w.pool["COALITION"] = 4  # one short of the jet's upkeep of 5
+    assert rejected(send(w, jet, "haven")) == ["UNIT_GROUNDED"]
+    w.stock["fob-n-w"] = 0
+    inf = put(w, INF, "fob-n-w")
+    window(w)
+    assert inf.grounded
+    assert rejected(send(w, inf, "west-airbase")) == ["UNIT_GROUNDED"]  # dry (stock 0)
+    assert rejected(send(w, inf, "fob-n-w")) == ["UNIT_GROUNDED"]  # its own dry home
+    assert (jet.path, jet.order, inf.path, inf.order) == ([], None, [], None)
+    w.pool["COALITION"] = 5  # exactly its upkeep
+    assert rejected(send(w, jet, "haven")) == []
+    assert jet.path == ["haven"]
+
+
+@given(stock=st.integers(0, 12))
+def test_a_grounded_unit_rebases_exactly_when_the_target_holds_its_upkeep(stock: int) -> None:
+    w = new_world()
+    w.stock["fob-n-w"], w.stock["west-airbase"] = 0, stock
+    inf = put(w, INF, "fob-n-w")
+    window(w)
+    accepted = rejected(send(w, inf, "west-airbase")) == []
+    assert accepted == (stock >= 5)  # the infantry's upkeep
+    assert (inf.order, inf.grounded, w.stock["west-airbase"]) == (
+        "HOLD" if accepted else None, True, stock,  # the check moves no stock
+    )  # fmt: skip
+
+
+def test_a_grounded_unit_rebase_checks_the_node_before_the_pay() -> None:
+    """The node checks come first, so a bad node keeps its own reason."""
+    w = new_world()
+    jet = grounded_jet(w)
+    assert rejected(send(w, jet, "nowhere")) == ["NODE_UNKNOWN"]
+    assert rejected(send(w, jet, "east-airbase")) == ["NODE_NOT_FRIENDLY"]
+    assert rejected(send(w, jet, "fob-n-w")) == ["NODE_INVALID_FOR_UNIT"]
+
+
+def test_a_paying_unit_still_rebases_to_a_dry_base() -> None:
+    w = new_world()
+    w.stock["west-airbase"] = 0
+    jet = put(w, JET, "haven")
+    assert rejected(send(w, jet, "west-airbase")) == []
+    assert (jet.path, jet.order, jet.grounded) == (["west-airbase"], "HOLD", False)
+
+
+def test_a_grounded_unit_takes_no_other_order() -> None:
+    w = new_world()
+    jet = grounded_jet(w)
+    cmd = join(1, "STRIKE", "fob-n-w", issuer={"commander_id": jet.commander_id})
+    out = step(w, [cmd.model_copy(update={"target_tick": w.campaign.tick + 1})])
+    assert rejected(out) == ["UNIT_IN_SORTIE"]
+    assert (jet.path, jet.order, jet.grounded) == ([], None, True)
+
+
+def test_a_grounded_unit_under_rebase_ungrounds_on_the_way_when_its_old_home_pays() -> None:
+    """Still charged at its old home while it travels (EC-6): a restock there ungrounds it at the
+    next window, and it drives on to the REBASE target with its HOLD (infantry at shipped speed:
+    the 72 km drive outlasts a window)."""
+    w = new_world()
+    w.stock["fob-n-w"], w.stock["west-airbase"] = 0, 5
+    inf = put(w, INF, "fob-n-w")
+    window(w)
+    assert rejected(send(w, inf, "west-airbase")) == []
+    w.stock["fob-n-w"] = 10
+    out: list[Event] = []
+    while inf.grounded:
+        out = step(w, [])
+        assert w.campaign.running_ticks < 10**5
+    assert rows(out) == [("UnitUngrounded", inf.id, "fob-n-w"), ("SupplyConsumed", "fob-n-w", 5)]
+    assert (inf.path[-1], inf.order, inf.home_base) == ("west-airbase", "HOLD", "fob-n-w")
+
+
+def test_a_grounded_rebase_keeps_its_target_when_the_old_home_falls() -> None:
+    """`rehome` sends a grounded unit to its new home, but not one travelling under a REBASE; one
+    parked on its HOLD (no path left) is sent as before."""
+    w = new_world(config=FAST)
+    w.stock["fob-s-w"] = 0
+    inf = put(w, INF, "fob-s-w")
+    parked_ = put(w, INF, "fob-s-w")
+    window(w)
+    assert rejected(send(w, inf, "haven")) == []
+    parked_.order = "HOLD"  # arrived on a grounded REBASE, still grounded
+    w.owner["fob-s-w"] = "ENEMY"
+    upkeep.rehome(w, "fob-s-w")
+    # from fob-s-w (130, 180): west-airbase 72.1 km, fob-n-w 120 km, haven 124 km
+    assert (inf.home_base, inf.path[-1], inf.grounded) == ("west-airbase", "haven", True)
+    assert (parked_.home_base, parked_.path[-1], parked_.grounded) == (
+        "west-airbase", "west-airbase", True,
+    )  # fmt: skip
+
+
+def test_a_grounded_rebase_is_deterministic() -> None:
+    def play() -> tuple[str, list[str]]:
+        w = new_world()
+        jet = grounded_jet(w)
+        kinds = [str(ev.kind) for ev in send(w, jet, "haven") + run(w, 2 * WINDOW)]
+        return state_hash(w), kinds
+
+    first = play()
+    assert "UnitUngrounded" in first[1]
+    assert play() == first
 
 
 def test_a_grounded_unit_still_returns_fire() -> None:
@@ -528,6 +670,7 @@ def test_home_and_grounded_survive_a_snapshot_and_bad_ones_are_refused() -> None
     for field_, value, match in (
         ("home_base", "nowhere", "home_base"),
         ("home_base", None, "grounded"),
+        ("order", "GOTO", "grounded"),  # no order but a REBASE hold (NX-435)
         ("ordered", 10**6, "ordered"),
         ("ordered", -1, "ordered"),  # a running tick: never negative
         ("grounded", 1, "grounded"),  # a bool, not a truthy int

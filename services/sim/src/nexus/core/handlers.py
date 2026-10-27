@@ -48,6 +48,7 @@ from nexus.core.logistics import (
 from nexus.core.roads import shortest_path
 from nexus.core.rules import Rules, legacy_rules
 from nexus.core.tasking import claim, crosses_ring, joinable_jobs, reaches
+from nexus.core.upkeep import pays_at
 from nexus.core.world import Entity, Job, Order, Vec2, World, end_stop, release_claim
 
 type Handler = Callable[[World, Command, list[Event]], None]
@@ -115,10 +116,11 @@ def rebase(world: World, command: Command, out: list[Event]) -> None:
     """REBASE (GAMEPLAY §3, Q-SIM-90): move the commander's live unit to a friendly base.
 
     Rejected, in this order: `CAMPAIGN_PAUSED` (Q-ALN-2), `NO_ACTIVE_UNIT` (no live, non-Disabled
-    unit), `UNIT_GROUNDED` (its home cannot pay its upkeep, ECONOMY EC-6), `NODE_UNKNOWN`,
-    `NODE_NOT_FRIENDLY`, `NODE_INVALID_FOR_UNIT` (an aircraft needs a landing
+    unit), `NODE_UNKNOWN`, `NODE_NOT_FRIENDLY`, `NODE_INVALID_FOR_UNIT` (an aircraft needs a landing
     base, a ground unit a base it has a road route to), `OUT_OF_REACH` (an aircraft that cannot fly
-    there with its bingo reserve, `tasking.reaches`). An accepted rebase is an explicit order
+    there with its bingo reserve, `tasking.reaches`), `UNIT_GROUNDED` (a grounded unit, ECONOMY
+    EC-6, whose target would not pay its upkeep now, `upkeep.pays_at`; NX-435, Q-TD-51 U3: a
+    grounded unit may rebase only to a base that pays it). An accepted rebase is an explicit order
     (TB-7): it releases the unit's board job, ends a follow, cuts a truck's unloading stop, and sets
     the order `slots.rebase_order` (HOLD, its only value, Q-CFG-16), so the unit takes no board job
     on the way or at the base until its commander's next order. Arrival, landing, refuelling and
@@ -140,10 +142,13 @@ def rebase(world: World, command: Command, out: list[Event]) -> None:
     if unit is None:
         out.append(reject(world, command, "NO_ACTIVE_UNIT"))
         return
-    if unit.grounded:
-        out.append(reject(world, command, "UNIT_GROUNDED"))
-        return
     path = _rebase_path(world, rules, unit, command.node_id)
+    if (
+        unit.grounded
+        and not isinstance(path, str)
+        and not pays_at(world, rules, unit, command.node_id)
+    ):
+        path = "UNIT_GROUNDED"
     if isinstance(path, str):
         out.append(reject(world, command, path))
         return

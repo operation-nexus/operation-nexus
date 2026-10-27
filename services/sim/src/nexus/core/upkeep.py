@@ -27,9 +27,12 @@ order. A kind with upkeep 0 always pays; a kind with no key (a facility) and a u
 
 Grounded (EC-6): a unit whose home cannot pay is grounded, never deleted (`UnitGrounded`): it drops
 its job claim, order and leader, an aircraft flies home and lands, a ground unit drives home and
-parks; the board and the Director give it no job (`tasking_gen.is_idle`, `launch._spare`) and
-REBASE refuses it (`UNIT_GROUNDED`). It still returns fire. It ungrounds (`UnitUngrounded`) at the
-first window its home pays. shortcut: the spawn reply's "haul to <base>" warning (EC-6) is not
+parks; the board and the Director give it no job (`tasking_gen.is_idle`, `launch._spare`). Its
+one way out is REBASE (NX-435, Q-TD-51 U3) to a base that would pay it now (`pays_at`); REBASE to
+any other base refuses it (`UNIT_GROUNDED`). The rebased unit stays grounded and takes the REBASE
+hold; landing at the new base makes it its home (EC-5), so the next window charges it there (a
+grounded unit is charged every window). It still returns fire. It ungrounds (`UnitUngrounded`) at
+the first window its home pays. shortcut: the spawn reply's "haul to <base>" warning (EC-6) is not
 built: the sim has no spawn-reply path yet (the gateway's chat replies, NX-190); the events carry
 what it needs.
 
@@ -53,7 +56,8 @@ from nexus.core.world import Entity, World, consumed, drop_claim, on_node
 
 def rehome(world: World, node: str) -> None:
     """EC-5: each unit homed at `node`, which its side just lost, re-homes to the nearest friendly
-    node that can host it; a grounded one heads there. With none (a side's sanctuary is never
+    node that can host it; a grounded one heads there, unless it travels under a REBASE (an order
+    with a path, NX-435), which keeps its target. With none (a side's sanctuary is never
     lost, so not in practice) it keeps the lost home, which cannot pay."""
     rules = world.rules
     if rules is None:
@@ -65,7 +69,7 @@ def rehome(world: World, node: str) -> None:
         hosts = world.landing_bases(e.side) if air else tuple(friendly_bases(world, rules, e.side))
         if hosts:
             e.home_base = nearest_base(e, rules, hosts)[1]
-            if e.grounded:
+            if e.grounded and not (e.order is not None and e.path):
                 _send_home(world, rules, e)
 
 
@@ -91,8 +95,7 @@ def upkeep(world: World, out: list[Event]) -> None:
     paid: dict[str, int] = {}
     for e in units:
         home, cost = str(e.home_base), er.upkeep[e.kind]
-        purse = _purse(world, rules, e, home)
-        pays = cost == 0 or (purse is not None and purse >= cost)
+        pays = _covers(world, rules, e, home, cost)
         if pays and cost:
             _debit(world, rules, e, home, cost)
             paid[home] = paid.get(home, 0) + cost
@@ -119,6 +122,20 @@ def owed(world: World, side: Side) -> int:
             if e.side == side and e.home_base is not None and e.kind in er.upkeep
         )
     )  # fmt: skip
+
+
+def pays_at(world: World, rules: Rules, e: Entity, node: str) -> bool:
+    """NX-435 (Q-TD-51 U3): would `node` pay grounded `e`'s upkeep now, read as one payment:
+    upkeep 0, or `node` is the side's and holds the full `economy.upkeep.<kind>` (`_purse`).
+    Nothing is reserved: units due there before it are not deducted. REBASE reads it for a
+    grounded unit's target; only a charged kind of a limited side grounds (`upkeep`), so `e`'s
+    kind has a key. Pure."""
+    return rules.economy is None or _covers(world, rules, e, node, rules.economy.upkeep[e.kind])
+
+
+def _covers(world: World, rules: Rules, e: Entity, node: str, cost: int) -> bool:
+    purse = _purse(world, rules, e, node)
+    return cost == 0 or (purse is not None and purse >= cost)
 
 
 def _purse(world: World, rules: Rules, e: Entity, home: str) -> int | None:
