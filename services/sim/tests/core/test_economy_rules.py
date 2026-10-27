@@ -24,7 +24,7 @@ from nexus.contracts.gen.common.enums import ThreatTier, UnitKind
 from nexus.contracts.gen.events.command_rejected import CommandRejected
 from nexus.contracts.gen.events.event import Event
 from nexus.core import operations as ops
-from nexus.core.director import budget
+from nexus.core.director import budget, rear_share
 from nexus.core.fog import side_view
 from nexus.core.launch import _capture_slot, _convoys, _post_and_spawn, _Purse, _routine
 from nexus.core.launch import run as launch
@@ -126,22 +126,23 @@ def test_with_every_fraction_at_1_the_budget_is_surplus_plus_pool() -> None:
 
 
 def test_the_cadence_floor_buys_the_cheapest_operation_after_cadence_windows_with_the_hq() -> None:
+    # 1 upkeep a window: a reserve of 2 takes the rear share back to 0 without the floor
     w = world(NEW_LIMITED)
     at_floor(w)  # surplus 0
-    w.pool["ENEMY"] = 200  # rear share floor(200 x 0.005) = 1
+    w.pool["ENEMY"] = 400  # rear share floor(400 x 0.005) = 2
     s = w.director["ENEMY"]
     s.windows, s.last_operation = 9, 0
-    assert the_budget(w) == 1  # 9 windows since: no floor yet
+    assert the_budget(w, upkeep=1) == 0  # 9 windows since: no floor yet
     s.windows = 10
-    assert the_budget(w) == 2  # RECON (2) is the cheapest ALPHA operation the 200 pay for
+    assert the_budget(w, upkeep=1) == 2  # RECON (2), the cheapest ALPHA operation, rear share 2
     s.last_operation = 1
-    assert the_budget(w) == 1  # an operation 9 windows ago
+    assert the_budget(w, upkeep=1) == 0  # an operation 9 windows ago
     s.last_operation = 0
     w.owner["static-hq"] = "COALITION"
-    assert the_budget(w) == 1  # no HQ held: no floor
+    assert the_budget(w, upkeep=1) == 0  # no HQ held: no floor
     w.owner["static-hq"] = "ENEMY"
-    w.pool["ENEMY"] = 1
-    assert the_budget(w) == 0  # nothing is affordable from 0 surplus + 1
+    w.pool["ENEMY"] = 200  # rear share 1: the pool covers RECON, this window cannot (NX-434)
+    assert the_budget(w, upkeep=1) == 0
 
 
 def posted(w: World) -> list[tuple[str, str]]:
@@ -202,7 +203,7 @@ def test_cheap_operations_every_window_do_not_hold_off_the_capture_floor() -> No
 def test_with_no_capture_target_the_cheapest_operation_floor_also_counts_from_capture() -> None:
     # Q-TD-54, one clock (NX-439): with the night cap spent no capture operation is a candidate,
     # so window 10 buys cheap operations; they do not reset the floor, which stays due and keeps
-    # the next window's budget at the cheapest operation (RECON, 2) the 200 pool pays
+    # the next window's budget at the cheapest operation (RECON, 2) the rear share (2) pays
     w = world(NEW_LIMITED)
     s = w.director["ENEMY"]
     s.last_flip = 1  # the night cap is spent: no capture operation
@@ -210,9 +211,9 @@ def test_with_no_capture_target_the_cheapest_operation_floor_also_counts_from_ca
     assert pairs and not [p for p in pairs if p[0] in CAPTURE_OPS]
     assert s.last_operation == 0
     at_floor(w)  # surplus 0
-    w.pool["ENEMY"] = 200  # rear share floor(200 x 0.005) = 1
+    w.pool["ENEMY"] = 400  # rear share floor(400 x 0.005) = 2, all of it the reserve's
     s.windows = 11
-    assert the_budget(w) == 2
+    assert the_budget(w, upkeep=1) == 2
 
 
 def test_without_a_capture_target_the_floor_keeps_the_cheapest_operation_rule() -> None:
@@ -227,6 +228,100 @@ def test_without_a_capture_target_the_floor_keeps_the_cheapest_operation_rule() 
     w.owner["static-hq"] = "COALITION"  # no HQ held: the floor does not apply
     assert ("OFFENSIVE", "west-airbase") not in floor_window(w, 10)
     assert w.director["ENEMY"].budget == 30
+
+
+def cheapest_window(free: int, pool: int, windows: int = 10) -> tuple[int, list[Event], World]:
+    """NX-434: an ALPHA window of a limited Static with no capture candidate (the night cap
+    spent), `free` surplus at east-airbase only, `pool` in its rear pool and 1 upkeep a window
+    (a reserve of 2): the budget `decide` sets (`the_budget`), then that window's operations."""
+    w = world(NEW_LIMITED)
+    at_floor(w)
+    w.stock["east-airbase"] += free
+    w.pool["ENEMY"] = pool
+    s = w.director["ENEMY"]
+    s.last_flip, s.windows = 1, windows
+    spend = the_budget(w, upkeep=1)
+    return spend, operations(w, spend), w
+
+
+def test_the_cheapest_operation_floor_the_rear_account_pays_is_paid_at_the_source() -> None:
+    # NX-434: no base surplus, pool 400 (rear share 2, all of it the reserve's): the floor lifts
+    # the budget to RECON (2), the rear account is 2, and RECON spawns and pays at the source
+    spend, out, w = cheapest_window(0, 400)
+    assert spend == 2 and debits(out) == [("static-rear", 2)] and spawns(out) == ["static-rear"]
+    assert w.pool["ENEMY"] == 398
+    assert cheapest_window(0, 400, windows=9)[:2] == (0, [])  # not due: nothing
+
+
+def test_the_cheapest_operation_floor_counts_no_pool_money_the_window_cannot_spend() -> None:
+    # NX-434: no base surplus, pool 200 (rear share 1): the pool covers RECON (2) but the window's
+    # rear account cannot, so the floor lifts nothing and the window is the one without it
+    # (before NX-434 it counted surplus + pool, lifted the budget to 2 and RECON could not pay)
+    due, not_due = cheapest_window(0, 200), cheapest_window(0, 200, windows=9)
+    assert due[0] == not_due[0] == 0
+    assert debits(due[1]) == debits(not_due[1]) == [] and spawns(due[1]) == []
+    assert due[2].pool["ENEMY"] == 200
+    assert due[2].director["ENEMY"].budget == 0  # `launch.run`'s floor agrees: no lift there
+
+
+def test_a_failed_capture_lead_is_undone_to_the_cheapest_operation_lift() -> None:
+    # NX-434, Q-TD-48 (6): surplus 59 (east-airbase 50, fob-n-e 9) plus a rear account of 1 (pool
+    # 200) passes OFFENSIVE's 60, but no node can pay it, so the lead's lift is undone. The undo
+    # goes back to the cheapest-operation lift (budget and base account 2), not to the split's
+    # base account of 1, so RECON (2) is still paid at east-airbase
+    w = world(NEW_LIMITED)
+    at_floor(w)
+    w.stock["east-airbase"] += 50
+    w.stock["fob-n-e"] += 9
+    w.pool["ENEMY"] = 200
+    w.director["ENEMY"].windows = 10
+    spend = the_budget(w, upkeep=1)  # floor(59 x 0.02) + 1 - 2 = 0, the floor's RECON: 2
+    assert spend == 2
+    out = operations(w, spend)
+    assert debits(out) == [("east-airbase", 2)]
+    assert [p[0] for p in posted(w)] == ["RECON"]
+    assert w.director["ENEMY"].budget == 2
+
+
+def test_with_base_surplus_the_cheapest_operation_floor_lifts_the_base_account() -> None:
+    # NX-434: surplus 50 at east-airbase (enough to deploy at), pool 200 (rear share 1). The
+    # budget is 2 (RECON) as before NX-434; the base account is lifted to 2 like the capture
+    # floor's, not left at 2 - 1, so RECON pays at the base instead of nowhere
+    spend, out, _ = cheapest_window(50, 200)
+    assert spend == 2 and debits(out) == [("east-airbase", 2)]
+    assert cheapest_window(50, 200, windows=9)[0] == 0  # 1 + 1 - 2: not due, no floor
+    w = world(NEW_LIMITED)  # 1,500 surplus, pool 8,000: the formula's 70 is above the floor
+    w.director["ENEMY"].windows = 10
+    assert the_budget(w) == 70
+
+
+@given(
+    free=st.one_of(st.just([0, 0, 0, 0]), st.lists(st.integers(0, 120), min_size=4, max_size=4)),
+    pool=st.integers(0, 3000),
+    upkeep=st.integers(0, 40),
+    tier=st.sampled_from(["ALPHA", "BRAVO"]),
+)
+@settings(max_examples=40, deadline=None)
+def test_the_cheapest_operation_floor_counts_only_what_the_window_can_pay(
+    free: list[int], pool: int, upkeep: int, tier: ThreatTier
+) -> None:
+    # NX-434: a lift never exceeds base surplus + the rear share; with no base surplus, a lift
+    # is paid at the source (no capture candidate: the night cap is spent)
+    w = world(NEW_LIMITED)
+    assert w.rules is not None and w.rules.director is not None
+    at_floor(w)
+    for n, f in zip(STATIC_BASES, free, strict=True):
+        w.stock[n] += f
+    w.pool["ENEMY"] = pool
+    s = w.director["ENEMY"]
+    s.last_flip, s.windows = 1, 9
+    unlifted = the_budget(w, tier, upkeep=upkeep)
+    s.windows = 10
+    lifted = the_budget(w, tier, upkeep=upkeep)
+    assert unlifted <= lifted <= max(unlifted, sum(free) + rear_share(w.rules.director, pool))
+    if lifted > unlifted and sum(free) == 0:
+        out = operations(w, lifted, tier)
+        assert [n for n, _ in debits(out)] == ["static-rear"], (lifted, debits(out))
 
 
 def surplus_world(free: int) -> World:
@@ -270,6 +365,24 @@ def test_pool_money_the_window_cannot_spend_promotes_no_capture_operation() -> N
     floor_window(w, 10, spend=10)
     assert w.director["ENEMY"].staged == []
     assert w.director["ENEMY"].budget == 10
+
+
+def test_the_rear_account_counts_toward_the_capture_floor() -> None:
+    # Q-TD-48 (5), NX-434 (`_floor_cap`, shared by both floors): no base surplus, pool 6000 at
+    # `source_spend_frac` 0.01, a rear account of 60 with a 60 budget: OFFENSIVE (ranked last at
+    # priority 0.01) is forced and paid at the source; without the floor the window buys the
+    # better-ranked cheap operations
+    def rear_only() -> World:
+        frac = {"director.source_spend_frac": 0.01, "director.op_priority.OFFENSIVE": 0.01}
+        w = world(config({**NEW, **LIMITED, **frac}))
+        at_floor(w)
+        w.pool["ENEMY"] = 6000
+        return w
+
+    w = rear_only()
+    assert floor_window(w, 10, spend=60) == [("OFFENSIVE", "west-airbase")]
+    assert w.pool["ENEMY"] == 6000 - 60
+    assert ("OFFENSIVE", "west-airbase") not in floor_window(rear_only(), 9, spend=60)
 
 
 def test_a_promoted_capture_operation_that_cannot_pay_crowds_out_nothing() -> None:
@@ -871,6 +984,17 @@ def test_legacy_off_runs_deterministically(overrides: dict[str, object]) -> None
     assert any(e["kind"] == "UnitSpawned" and e["owner_kind"] == "ENEMY_DIRECTOR" for e in first[1])
     refused = any(e["kind"] == "SpawnRefused" for e in first[1])
     assert refused == ("sim.max_live_units_per_side" in overrides)
+    assert once() == first
+
+
+def test_the_cheapest_operation_floor_runs_deterministically() -> None:
+    # NX-434: the floor's RECON paid at the source, twice from seed 1
+    def once() -> tuple[str, list[dict[str, Any]]]:
+        _, out, w = cheapest_window(0, 400)
+        return state_hash(w), [e.model_dump() for e in out]
+
+    first = once()
+    assert any(e["kind"] == "UnitSpawned" for e in first[1])
     assert once() == first
 
 

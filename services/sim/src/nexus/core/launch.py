@@ -31,13 +31,16 @@ launched in selection order:
   `sim.max_live_units_per_side` (`economy.guard_room`). A capture operation that posts jobs
   stamps `DirectorState.last_operation` (the EC-7 cadence floor, Q-TD-54); others do not. When
   the floor is due, the cheapest capture operation with a target that base surplus plus the
-  window's rear account pays lifts the budget and the base account to at least its cost and is
-  selected and launched first (`_floor_capture`, Q-TD-42, Q-TD-48), even with `max_ops` full:
-  it may run while `max_ops` are running, not `max_ops + 1` (Q-TD-57); if it cannot pay, the
-  lift is undone and the window selects as without it; one the window's other caps would
-  skip lifts nothing. The floor is not due while an operation is staged
-  (`director.cadence_due`), and each window `_review` keeps, launches or drops one stamps
-  `last_operation` (a staged operation is always a capture one), so it counts from the drop.
+  window's rear account pays (`_floor_cap`) lifts the budget and the base account to at least
+  its cost (`_lift`) and is selected and launched first (`_floor_capture`, Q-TD-42, Q-TD-48),
+  even with `max_ops` full: it may run while `max_ops` are running, not `max_ops + 1`
+  (Q-TD-57); if it cannot pay, the lift is undone and the window selects as without it; one
+  the window's other caps would skip lifts nothing. The cheapest-operation floor
+  (`director.cadence_floor`, no capture target needed) counts the same payable money and lifts
+  the base account to its cost the same way, before the capture floor (NX-434). The floor is
+  not due while an operation is staged (`director.cadence_due`), and each window `_review`
+  keeps, launches or drops one stamps `last_operation` (a staged operation is always a capture
+  one), so it counts from the drop.
   Operations the budget and `max_spawns_per_window` allow but the live room does not are counted
   in one `SpawnRefused` per selection (EC-8, `GUARD` or `TIER_CAP`; NX-412 part 5a).
 - **Effect.** EMISSION_BLINK turns the radar at the target base dark for `decoy_blink.dark_s`
@@ -84,7 +87,7 @@ from nexus.contracts.gen.events.unit_spawned import UnitSpawned
 from nexus.core import operations as ops
 from nexus.core import staging as stg
 from nexus.core.bridges import blocked
-from nexus.core.director import cadence_due, night_capped, rear_share, surplus
+from nexus.core.director import cadence_due, cadence_floor, night_capped, rear_share, surplus
 from nexus.core.economy import MOVERS, guard_room
 from nexus.core.fog import SideView, is_off_facility, spotted
 from nexus.core.logistics import pay_spawn, plan_deploy, plan_run, stock_targets
@@ -254,6 +257,9 @@ def run(world: World, side: Side, view: SideView, rules: Rules, out: list[Event]
     _recall(world, rules, side)
     pool = world.pool.get(side)  # unchanged since `decide` set the budget; None: unlimited
     purse = None if legacy_rules(rules) else _Purse.of(state.budget, pool, dr)
+    if purse is not None:  # the cheapest-operation floor lifts the base account too (NX-434)
+        cheapest = cadence_floor(state, view, rules, _floor_cap(world, rules, view, purse))
+        _lift(purse, state, cheapest)
     held = _review(world, rules, side, view, state, out, purse)
     own = _own(world, rules, side)
     live = ops.live_pairs([j.key for j in world.boards[side].values()]) | stg.pairs(state)
@@ -272,8 +278,7 @@ def run(world: World, side: Side, view: SideView, rules: Rules, out: list[Event]
     lead = None if purse is None else _floor_capture(world, rules, view, state, ranked, purse, fits)
     unlifted = (purse.base, state.budget) if purse is not None else (0, state.budget)
     if purse is not None and lead is not None:  # no staged operation, so `held` is 0
-        purse.base = max(purse.base, lead.op.cost)  # the base account alone can pay it
-        state.budget = max(state.budget, lead.op.cost)
+        _lift(purse, state, lead.op.cost)
         ranked = [lead, *(c for c in ranked if c is not lead)]
 
     def pick(cands: list[ops.Candidate], refused: list[int]) -> list[ops.Candidate]:
@@ -306,16 +311,30 @@ def _floor_capture(
     target of the cheapest capture operation (`ops.has_capture`) among the window's candidates
     (its tier, the night cap) that the window can actually pay and the window's caps allow
     (`fits`: the spawn and live rooms, `max_ops` with one slot over, Q-TD-57); None leaves the
-    floor at the cheapest operation (`director.cadence_floor`). Payable is base surplus plus
-    this window's rear account, not surplus + pool (Q-TD-48 (5)): the lift goes to the base
-    account, so pool money beyond the rear share would promote an operation that cannot pay and
-    crowd out cheaper ones the rear account could."""
+    floor at the cheapest operation (`director.cadence_floor`). Payable is `_floor_cap`, base
+    surplus plus this window's rear account, not surplus + pool (Q-TD-48 (5)): the lift goes to
+    the base account, so pool money beyond the rear share would promote an operation that cannot
+    pay and crowd out cheaper ones the rear account could."""
     if not cadence_due(state, view, rules):
         return None
-    cap = surplus(view, rules, world.stock) + (0 if purse.one else purse.rear)
+    cap = _floor_cap(world, rules, view, purse)
     caps = [c for c in ranked if ops.has_capture(c.op) and c.op.cost <= cap and fits(c)]
     least = min((c.op.cost for c in caps), default=None)
     return next((c for c in caps if c.op.cost == least), None)
+
+
+def _floor_cap(world: World, rules: Rules, view: SideView, purse: _Purse) -> int:
+    """EC-7, Q-TD-48 (5): what a cadence floor counts as affordable this window, base surplus
+    plus the window's rear account (an unlimited side's one account adds nothing), never the
+    whole pool; both floors use it (NX-434)."""
+    return surplus(view, rules, world.stock) + (0 if purse.one else purse.rear)
+
+
+def _lift(purse: _Purse, state: DirectorState, cost: int) -> None:
+    """A cadence floor's lift: the budget and the base account to at least `cost`, so the base
+    account alone can pay it at a base; the rear account is unchanged (Q-TD-48, NX-434)."""
+    purse.base = max(purse.base, cost)
+    state.budget = max(state.budget, cost)
 
 
 def _pattern_of_life(
