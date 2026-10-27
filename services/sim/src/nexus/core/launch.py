@@ -70,6 +70,8 @@ launched in selection order:
   counted (`select`'s `hold`). The budget, the spawn and live rooms and the one-per-target rule
   still apply; its launch announces `HOLD_AT_RISK` as above and nothing new. When the hold
   ends, a running one counts against the cap again (accepted for now; the sweep measures it).
+- **Diagnostic (NX-452).** `no_capture_reason` says, for the balance harness, why a window
+  launched no capture operation, from `run`'s own predicates; the sim never calls it.
 """
 
 import itertools
@@ -335,6 +337,77 @@ def _lift(purse: _Purse, state: DirectorState, cost: int) -> None:
     account alone can pay it at a base; the rear account is unchanged (Q-TD-48, NX-434)."""
     purse.base = max(purse.base, cost)
     state.budget = max(state.budget, cost)
+
+
+# NX-452: why a window launched no capture operation, in priority order (`no_capture_reason`)
+NO_CAPTURE = (
+    "staged", "night_cap", "tier", "no_target", "targets_busy", "budget", "floor_not_due",
+    "max_ops", "other",
+)  # fmt: skip
+
+
+def no_capture_reason(world: World, side: Side, view: SideView, rules: Rules, now: int) -> str:
+    """NX-452, a harness diagnostic, never called by the sim: why the decision window that ran at
+    running tick `now` launched no capture operation (Offensive, Retake), for a caller that knows
+    it launched none. It reads the world after the window and changes nothing: no state, no
+    event, no RNG draw (no `rank`). The first that holds, in `run`'s own check order, with its
+    predicates: `staged` (an operation waits at a staging base: `_review` runs first, it holds
+    budget and a `max_ops` slot and the floor is not due); `night_cap` (`night_capped` with no
+    viewer unit: no capture candidates); `tier` (no capture operation is enabled at the tier,
+    e.g. Pattern of Life); `no_target` (no capture candidate, `ops.candidates`, even with no
+    operation live); `targets_busy` (there are some, but a running or staged capture operation
+    already covers each: the same call with the live pairs); then the
+    cheapest candidate against the money, the window's budget or, with the floor due
+    (`cadence_due`, legacy rules off), what the floor counts (`_floor_cap`): `budget` (more than
+    either), `floor_not_due` (more than the budget but the floor would count it, were it due);
+    `max_ops` (`ops.select` takes an affordable one only with no `max_ops` cap, one over for the
+    floor's lead as `_floor_capture` allows it: the floor due and its cost within `_floor_cap`);
+    `other` (the spawn or live room, money the window's better-ranked operations
+    spent first, or a payment that failed at launch). Read after the window, money that window
+    already spent counts as spent."""
+    dr = rules.director
+    if dr is None:
+        raise ValueError("no_capture_reason needs the Director rules")
+    state = world.director[side]
+    if state.staged:
+        return "staged"
+    if world.viewer_units() == 0 and night_capped(state, dr, now):
+        return "night_cap"
+    if not any(ops.has_capture(o) and state.tier in o.tiers for o in dr.operations):
+        return "tier"
+    own = _own(world, rules, side)
+    live = ops.live_pairs([j.key for j in world.boards[side].values()]) | stg.pairs(state)
+
+    def capture(pairs: frozenset[tuple[str, str]]) -> list[ops.Candidate]:
+        return [
+            c for c in ops.candidates(state, view, rules, own, now, pairs) if ops.has_capture(c.op)
+        ]
+
+    if not capture(frozenset()):
+        return "no_target"
+    if not (caps := capture(live)):
+        return "targets_busy"
+    purse = None if legacy_rules(rules) else _Purse.of(state.budget, world.pool.get(side), dr)
+    cap = None if purse is None else _floor_cap(world, rules, view, purse)
+    floor = cap is not None and cadence_due(state, view, rules)
+    money = max(state.budget, cap) if floor and cap is not None else state.budget
+    cheapest = min(c.op.cost for c in caps)
+    if cheapest > money:
+        return "floor_not_due" if cap is not None and cheapest <= cap else "budget"
+    room, hold = (
+        _live_room(world, rules, side, state, own),
+        view.hold if purse is not None else frozenset(),
+    )
+
+    def taken(c: ops.Candidate, most: int | None) -> bool:
+        return bool(ops.select(
+            [c], dr, c.op.cost, dr.max_spawns_per_window, room, live, most, _routine(dr),
+            over=c if floor and cap is not None and c.op.cost <= cap else None, hold=hold,
+        ))  # fmt: skip
+
+    paid = [c for c in caps if c.op.cost <= money]
+    capped = not any(taken(c, ops.max_ops(state.tier, dr)) for c in paid)
+    return "max_ops" if capped and any(taken(c, None) for c in paid) else "other"
 
 
 def _pattern_of_life(

@@ -373,6 +373,18 @@ def _shortfall(es: list[dict[str, Any]], hours: int) -> dict[str, Any]:
     }
 
 
+def _no_capture(es: list[dict[str, Any]]) -> dict[str, int] | None:
+    """NX-452: decision windows summed over the seeds that carry them, `launched` or by why no
+    capture operation launched; None when no seed does (an older run)."""
+    have = [e["no_capture"] for e in es if "no_capture" in e]
+    if not have:
+        return None
+    total: Counter[str] = Counter()
+    for n in have:
+        total.update(n)
+    return {k: total[k] for k in have[0]}
+
+
 def _economy(runs: list[dict[str, Any]]) -> dict[str, Any]:
     """ECONOMY §4 "Harness report" (NX-412 part 5a), pooled over the seeds with the data; per-hour
     values are means per run-hour (game hours actually run)."""
@@ -450,6 +462,7 @@ def _economy(runs: list[dict[str, Any]]) -> dict[str, Any]:
             "strike_downed": adapted["STRIKE_DOWNED"],  # Q-TD-56
         },
         "gaps": _gaps(rs, es),
+        "no_capture": _no_capture(es),
         "spawn_by_op": {
             "ops": dict(sorted(spawn_by_op.items())),
             "shared": sum(e["spawn_by_op"]["shared"] for e in es),
@@ -617,6 +630,8 @@ def _d5_lines(name: str, e: dict[str, Any]) -> list[str]:
     dry = {g["seed"]: g.get("longest_dry_min") for g in e["gaps"]["per_seed"]}  # old report: none
     dry_vals = [v for v in dry.values() if v is not None]
     sp = e["spawn_by_op"]
+    nc = e.get("no_capture")  # an older report.json has none
+    why = "-" if nc is None else ", ".join(f"{k} {v}" for k, v in nc.items())
     per_h = {k: _fmt(v, ".2f") for k, v in e["adaptations_per_hour"].items()}
     return [
         f"  - {name} capture funnel (launch, then the target saw): {funnel}",
@@ -629,6 +644,7 @@ def _d5_lines(name: str, e: dict[str, Any]) -> list[str]:
         f"  - {name} longest stretch without an Offensive (min, lead-in and tail included) per "
         f"seed: {', '.join(f's{k} {_fmt(v)}' for k, v in dry.items()) or 'none'}; max "
         f"{_fmt(max(dry_vals, default=None))}, median {_fmt(_med(dry_vals))}",
+        f"  - {name} decision windows by why no capture operation launched (first reason): {why}",
         f"  - {name} pressure events per victory hold {e['pressure_per_hold']}",
         f"  - {name} spawn debits by operation {sp['ops'] or 'none'}, shared {sp['shared']}, "
         f"unattributed {sp['unattributed']}",

@@ -20,6 +20,8 @@ from nexus.contracts.gen.common.enums import Side
 from nexus.contracts.gen.events.event import Event
 from nexus.core.campaign import momentum
 from nexus.core.director import TIERS
+from nexus.core.fog import side_view
+from nexus.core.launch import NO_CAPTURE, no_capture_reason
 from nexus.core.roads import shortest_path, travel_ticks
 from nexus.core.rules import Rules
 from nexus.core.tasking import idle_reason
@@ -143,6 +145,9 @@ class Collector:
         self.budget: list[int] = []  # the Static's planned window budgets, summed per hour
         self.budget_windows: list[int] = []  # its decision windows per hour
         self.spent: dict[str, list[int]] = {"base": [], "source": []}  # its SPAWN debits per hour
+        # NX-452: per Static decision window, "launched" (a capture operation posted its jobs)
+        # or the first reason none did (`nexus.core.launch.no_capture_reason`, NO_CAPTURE order)
+        self.no_capture: Counter[str] = Counter()
         self._new_jobs: list[int] = []  # Static jobs created this tick (JobCreated)
         self.ops: list[tuple[int, str, str, bool]] = []  # (tick, operation, target, on coalition)
         self.ops_unseen = 0  # a created job already gone from the board when `observe` read it
@@ -273,10 +278,11 @@ class Collector:
         if self._wticks and world.campaign.running_ticks // self._wticks > self._widx:
             self._widx = world.campaign.running_ticks // self._wticks
             self._economy_window(world)
-        self._launches(world)
+        captured = self._launches(world)
         state = world.director[_ENEMY]
         if state.windows != self._windows:  # a Static decision window ran this tick
             self._windows = state.windows
+            self._window_capture(world, captured)
             hour = self._hour(world.campaign.tick)
             _add(self.budget, hour, state.budget)
             _add(self.budget_windows, hour, 1)
@@ -444,10 +450,22 @@ class Collector:
     def _hour(self, tick: int) -> int:
         return max(0, tick - 1) // self.hour_ticks
 
-    def _launches(self, world: World) -> None:
+    def _window_capture(self, world: World, captured: bool) -> None:
+        """NX-452: count the decision window that just ran as launched, or by why it launched
+        no capture operation; the kernel helper only reads the world."""
+        rules = self._world_rules
+        if captured:
+            self.no_capture["launched"] += 1
+        elif rules.director is not None:
+            view = side_view(world, _ENEMY)
+            now = world.campaign.running_ticks  # the window's running tick, after its step
+            self.no_capture[no_capture_reason(world, _ENEMY, view, rules, now)] += 1
+
+    def _launches(self, world: World) -> bool:
         """The Static's operation launches this tick: its new jobs whose key is
         `op:<operation>:<target>:0...` (the first job of an operation), one per (operation,
-        target). A catalog operation (not `ROUTINE_JOBS`) in a running hold counts for it."""
+        target). A catalog operation (not `ROUTINE_JOBS`) in a running hold counts for it. True
+        when a capture operation (`CAPTURE_OPS`) launched."""
         board, tick = world.boards[_ENEMY], world.campaign.tick
         launched: set[tuple[str, str]] = set()
         for jid in self._new_jobs:
@@ -475,6 +493,7 @@ class Collector:
                 self._latest[target] = step
             if op not in ROUTINE_JOBS and self.hold_start is not None and self.holds:
                 self.holds[-1]["ops"] += 1
+        return any(op in CAPTURE_OPS for op, _ in launched)
 
     def _side_of(self, node: str) -> str | None:
         return self._source_side.get(node) or self._owner.get(node)
@@ -702,6 +721,7 @@ class Collector:
             "ops_unseen": self.ops_unseen,
             "holds": [{**h, "pressure": self._pressure_in(h)} for h in self.holds],
             "funnel": self.funnel,
+            "no_capture": {k: self.no_capture[k] for k in ("launched", *NO_CAPTURE)},
             "tiers": {"start": self.tier0, "changes": [list(c) for c in self.tier_log]},
             "spawn_by_op": {
                 "ops": dict(sorted(self.spawn_by_op.items())),
