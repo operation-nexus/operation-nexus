@@ -818,6 +818,7 @@ def markdown(report: dict[str, Any]) -> str:
         f"- seeds: {report['seeds']}; game hours per run: {report['hours']:g}",
         f"- workers: {report['workers']}; wall time {timing['elapsed_s']:.1f} s elapsed, "
         f"{timing['run_wall_s']:.1f} s summed over the runs",
+        f"- slot wait: {timing.get('slot_wait_s', 0.0):.1f} s summed over the runs",
         "",
         "## Targets",
         "",

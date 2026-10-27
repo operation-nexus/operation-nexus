@@ -4,8 +4,8 @@
 
 Open issues labelled `harness-run` by a trusted author carry a ```harness block (sha, profiles,
 seeds, hours, optional workers). Each is run with balance.py at that commit in a throwaway
-worktree, and the report goes back as an issue comment. Jobs overlap on one worker budget (NX-442):
-see `Jobs`. Issue text is hostile input: it is parsed
+worktree, and the report goes back as an issue comment. Jobs overlap on one worker budget of slot
+files (NX-442, NX-460): see `Jobs`. Issue text is hostile input: it is parsed
 with strict rules, never reaches a shell, and refusals quote key names only. This file is not
 called queue.py because tools/balance is sys.path[0] for balance.py, and a sibling queue.py would
 shadow the standard library's `queue` (which concurrent.futures imports).
@@ -24,7 +24,7 @@ import threading
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any
+from typing import IO, Any
 
 import profiles
 import yaml
@@ -41,6 +41,8 @@ FINISHED = "finished"  # written by the queue once balance.py exited 0 with repo
 POSTED = "posted"  # written once the report comment is on the issue (no double post on retry)
 MAX_RESUMES = 2  # a stale job is continued this many times; a job that crashes again is failed
 FOOTER = "_Posted by the local harness queue (NX-381)_"
+MAX_BALANCE_PY = 1 << 20  # a larger balance.py at a sha is not read: that sha is legacy
+SLOTS = "slots"  # work_dir/slots/: slot-00 .. slot-<max_workers-1> and the jobs' wait-* files
 POLL_S = 300  # how often a tick with running jobs recounts their result files and relists issues
 GIT_LOCK = threading.Lock()  # worktree add, remove, prune and merge-base: one at a time
 
@@ -76,12 +78,13 @@ def run_cmd(
     stdin: str | None = None,
     timeout: float | None = SHORT_TIMEOUT_S,
     logfile: Path | None = None,
-) -> subprocess.CompletedProcess[str]:
+    text: bool = True,
+) -> subprocess.CompletedProcess[Any]:
     """The one subprocess boundary: argument lists only, never a shell.
 
     The child gets its own session; on a timeout the whole process group is killed (so the
     balance workers die too and the lock frees) and JobTimeout is raised. With `logfile`, stdout
-    and stderr are appended to it instead of captured."""
+    and stderr are appended to it instead of captured. `text=False` returns stdout as bytes."""
     try:
         with logfile.open("a") if logfile else open(os.devnull) as f:
             proc = subprocess.Popen(  # noqa: S603
@@ -90,7 +93,7 @@ def run_cmd(
                 stdin=subprocess.PIPE if stdin is not None else None,
                 stdout=f if logfile else subprocess.PIPE,
                 stderr=subprocess.STDOUT if logfile else subprocess.PIPE,
-                text=True,
+                text=text,
                 start_new_session=True,
             )
             try:
@@ -102,7 +105,8 @@ def run_cmd(
                 raise JobTimeout from None
     except FileNotFoundError:
         raise QueueError(f"{cmd[0]} not found on PATH") from None
-    return subprocess.CompletedProcess(cmd, proc.returncode, out or "", err or "")
+    empty = "" if text else b""
+    return subprocess.CompletedProcess(cmd, proc.returncode, out or empty, err or empty)
 
 
 def load_config(path: Path) -> dict[str, Any]:
@@ -166,7 +170,7 @@ def gh(cfg: dict[str, Any], *args: str, stdin: str | None = None) -> str:
     r = run_cmd(["gh", *args, "-R", cfg["repo"]], stdin=stdin)
     if r.returncode:
         raise QueueError(f"gh {args[0]} {args[1]} failed: {r.stderr.strip()[:300]}")
-    return r.stdout
+    return str(r.stdout)
 
 
 def eligible(cfg: dict[str, Any], label: str | None = None) -> list[dict[str, Any]]:
@@ -307,11 +311,13 @@ def execute(
     out, logfile = cfg["results_dir"] / tag, cfg["results_dir"] / f"{tag}.log"
     wt = cfg["work_dir"] / f"wt-{tag}"
     cfg["results_dir"].mkdir(parents=True, exist_ok=True)
+    slots = cfg["work_dir"] / SLOTS  # an elastic job's workers take slots there themselves
     balance = [
         "uv", "run", "--frozen", "python", "../../tools/balance/balance.py",
         "--profile", ",".join(req["profiles"]), "--seeds", str(req["seeds"]),
         "--hours", str(req["hours"]), "--workers", str(req["workers"]), "--out", str(out),
         *[x for o in req["set"] for x in ("--set", o)],
+        *(["--slot-dir", str(slots), "--slot-key", str(number)] if req.get("elastic") else []),
         *(["--resume"] if resume else []),
     ]  # fmt: skip
     limit = cfg["job_timeout_hours"] * 3600
@@ -342,9 +348,35 @@ def execute(
 
 def runs_left(out: Path, total: int) -> int:
     """Runs of a job with no result file yet (NX-442): balance.py writes `runs/<name>.json` whole
-    (a `.tmp` renamed into place), so counting them needs no IPC. On a resume, a file balance.py
-    will run again (another config, a harness-error stand-in) counts as done until replaced."""
+    (a `.tmp` renamed into place), so counting them needs no IPC. On a resume, balance.py deletes
+    a file it will run again (another config, a harness-error stand-in) before any run starts
+    (NX-460); a legacy sha's balance.py does not, so there such a file counts as done until
+    replaced."""
     return max(total - sum(1 for _ in (out / "runs").glob("*.json")), 0)
+
+
+def lockable(path: Path) -> bool:
+    """Can `path` be flocked exclusively right now? (Closing the probe releases it.)"""
+    with path.open("a") as f:
+        try:
+            fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except BlockingIOError:
+            return False
+    return True
+
+
+def sync_slots(cfg: dict[str, Any]) -> None:
+    """Called holding the queue lock: work_dir/slots holds exactly slot-00 .. slot-<max_workers-1>
+    and no wait-* file nobody waits on (balance.py never unlinks them: that races with flock)."""
+    d = cfg["work_dir"] / SLOTS
+    d.mkdir(parents=True, exist_ok=True)
+    want = {f"slot-{i:02d}" for i in range(cfg["max_workers"])}
+    for name in want:
+        (d / name).touch()
+    for extra in [p for p in d.glob("slot-*") if p.name not in want]:
+        extra.unlink()
+    for stale in [p for p in d.glob("wait-*") if lockable(p)]:
+        stale.unlink()
 
 
 @dataclass
@@ -353,33 +385,79 @@ class Job:
     workers: int
     total: int  # profiles x seeds
     out: Path
+    elastic: bool = False  # balance.py takes slots itself; else the queue holds them for it
+    held: list[IO[str]] = field(default_factory=list)  # a legacy job's slots, held by the queue
     done: bool = False  # set by the job's thread when `launch` returns or raises
     error: BaseException | None = None  # a kill stand-in (not an Exception) that ended the thread
     thread: threading.Thread = field(init=False)
 
 
 class Jobs:
-    """The jobs one tick runs at once (NX-442, Q-DEV-33). Each is one thread running `launch`
-    (its own worktree, results dir, report and labels; the work is its balance.py subprocess).
-    They share `max_workers` as one budget: a job holds min(its workers, its runs left), so a job
-    in its tail frees workers. A request for w workers starts once min(w, `min_overlap_workers`)
-    are free (any count when nothing runs) with min(w, free) workers, kept for its whole run:
-    balance.py's pool is never resized, so a job started on few workers stays slow."""
+    """The jobs one tick runs at once (NX-442, Q-DEV-33, NX-460). Each is one thread running
+    `launch` (its own worktree, results dir, report and labels; the work is its balance.py
+    subprocess). They share `max_workers` slot files as one budget.
 
-    def __init__(self, cfg: dict[str, Any]) -> None:
+    The start rule counts demand, not locks: a running job demands min(its workers, its runs
+    left) of the budget, and `free` is `max_workers` minus the sum. An elastic job (its sha's
+    balance.py knows `--slot-dir`) starts when `free` >= 1, with the workers it asked for; its
+    workers take slots themselves, run by run, oldest job first, so it widens as older jobs' tails
+    free slots. A legacy job (an older sha) starts once min(w, `min_overlap_workers`) are free
+    while another job runs (any count when none runs), with min(w, free) workers kept to the end;
+    the queue holds slot locks for it, non-blocking: as many as it gets at the start (elastic
+    workers may still hold some), topped up on each recount to min(workers, runs left), released
+    down as runs finish."""
+
+    def __init__(self, cfg: dict[str, Any], sync: bool = True) -> None:
         self.cfg = cfg
         self.running: list[Job] = []
         self.started: set[int] = set()  # issue numbers started this tick
         self.crash: BaseException | None = None  # the first job error; run_once re-raises it
         self.changed = threading.Event()
+        self.kinds: dict[str, bool] = {}  # sha -> elastic
+        if sync:  # a Jobs is made holding the queue lock, at the start of a tick; not for
+            sync_slots(cfg)  # --dry-run, which creates nothing
+
+    def elastic(self, sha: str) -> bool:
+        """Does `sha`'s balance.py know `--slot-dir`? Read from git, no checkout; `sha` is the
+        validated 40-hex value and the bytes are only searched, never run or echoed. Any failure
+        (git, a missing file, a size over MAX_BALANCE_PY, anything raised) answers legacy for this
+        call only: it is not cached, so a later call retries."""
+        if sha in self.kinds:
+            return self.kinds[sha]
+        spec = f"{sha}:tools/balance/balance.py"
+        try:
+            size = run_cmd(["git", "cat-file", "-s", spec], cwd=REPO_ROOT)
+            if size.returncode or not size.stdout.strip().isdigit():
+                return False
+            if int(size.stdout) > MAX_BALANCE_PY:
+                return False
+            blob = run_cmd(["git", "cat-file", "blob", spec], cwd=REPO_ROOT, text=False)
+            if blob.returncode:
+                return False
+        except Exception as e:  # noqa: BLE001  # never crash a tick over detection
+            log(f"elastic check failed ({type(e).__name__}); treating {sha[:8]} as legacy")
+            return False
+        self.kinds[sha] = b"--slot-dir" in blob.stdout
+        return self.kinds[sha]
 
     def free(self) -> int:
+        """Budget not demanded by running jobs (see the class doc). Also settles the slot locks
+        the queue holds for legacy jobs: topped up, or released down, to their demand."""
         self.reap()
-        held = sum(min(j.workers, runs_left(j.out, j.total)) for j in self.running)
-        return int(self.cfg["max_workers"]) - held
+        for j in self.running:
+            want = min(j.workers, runs_left(j.out, j.total))
+            if not j.elastic:
+                while len(j.held) > want:
+                    j.held.pop().close()
+                if len(j.held) < want:
+                    j.held += self.take(want - len(j.held))
+        demand = sum(min(j.workers, runs_left(j.out, j.total)) for j in self.running)
+        return int(self.cfg["max_workers"]) - demand
 
-    def fits(self, workers: int) -> bool:
-        need = min(workers, int(self.cfg["min_overlap_workers"])) if self.running else 1
+    def fits(self, req: dict[str, Any]) -> bool:
+        need = 1
+        if self.running and not self.elastic(req["sha"]):
+            need = min(req["workers"], int(self.cfg["min_overlap_workers"]))
         return self.free() >= need
 
     def wait(self) -> bool:
@@ -390,16 +468,34 @@ class Jobs:
         self.reap()
         return timed_out
 
+    def take(self, workers: int) -> list[IO[str]]:
+        """Up to `workers` free slots, locked by the queue itself."""
+        held: list[IO[str]] = []
+        for path in sorted((self.cfg["work_dir"] / SLOTS).glob("slot-*")):
+            if len(held) == workers:
+                break
+            f = path.open("a")
+            try:
+                fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+                held.append(f)
+            except BlockingIOError:
+                f.close()
+        return held
+
     def start(self, n: int, req: dict[str, Any], resume: bool) -> None:
-        while not self.fits(req["workers"]):
+        elastic = self.elastic(req["sha"])
+        while not self.fits(req):
             self.wait()
-        req = {**req, "workers": min(req["workers"], self.free())}
+        workers = req["workers"] if elastic else min(req["workers"], self.free())
+        req = {**req, "workers": workers, "elastic": elastic}
+        held = [] if elastic else self.take(workers)
         out = self.cfg["results_dir"] / f"{n}-{req['sha'][:8]}"
-        job = Job(n, req["workers"], len(req["profiles"]) * req["seeds"], out)
+        job = Job(n, workers, len(req["profiles"]) * req["seeds"], out, elastic, held)
         job.thread = threading.Thread(target=self._run, args=(job, req, resume), daemon=True)
         self.running.append(job)
         self.started.add(n)
-        log(f"#{n}: started on {job.workers} of {self.cfg['max_workers']} workers")
+        kind = "elastic" if elastic else "legacy"
+        log(f"#{n}: started on {job.workers} of {self.cfg['max_workers']} workers ({kind})")
         job.thread.start()
 
     def _run(self, job: Job, req: dict[str, Any], resume: bool) -> None:
@@ -420,6 +516,8 @@ class Jobs:
         for job in [j for j in self.running if j.done]:
             job.thread.join()
             self.running.remove(job)
+            for f in job.held:
+                f.close()
             if job.error is not None:
                 log(f"#{job.n}: ended by {type(job.error).__name__}; left running for recovery")
                 self.crash = self.crash or job.error
@@ -437,10 +535,10 @@ def process(cfg: dict[str, Any], jobs: Jobs, issue: dict[str, Any], dry: bool) -
     n, labels = issue["number"], cfg["labels"]
     try:
         req = parse_block(issue["body"], cfg, list(profiles.load().profiles))
-        if not jobs.fits(req["workers"]):
-            return False
-        if not on_develop(req["sha"]):
+        if not on_develop(req["sha"]):  # before fits: that reads the sha's files from git
             raise Refusal("the sha is not reachable from origin/develop")
+        if not jobs.fits(req):
+            return False
         if (cfg["results_dir"] / f"{n}-{req['sha'][:8]}").exists():
             # balance.py never reuses a results dir, and recovery must not take an old
             # attempt's finished report for this one: one run per issue and sha
@@ -604,7 +702,7 @@ def run_once(cfg: dict[str, Any], dry: bool) -> int:
         except BlockingIOError:
             log("another queue run holds the lock; exiting")
             return 0
-        jobs = Jobs(cfg)
+        jobs = Jobs(cfg, sync=not dry)
         try:
             if not dry:
                 recover_stale(cfg, jobs)

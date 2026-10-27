@@ -1,8 +1,12 @@
 """Balance harness tests (NX-031 part 1, Q-SIM-91; tools/balance). Short runs only."""
 
 import dataclasses
+import fcntl
 import json
+import subprocess
 import sys
+import threading
+import time
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, ClassVar
@@ -621,16 +625,21 @@ def test_resume_reruns_only_missing_or_bad_runs_and_matches_a_clean_job(
     (cut / "report.json").unlink()
     (cut / "report.md").unlink()
     ran: list[int] = []
+    left: list[list[str]] = []  # result files present when each rerun starts
     real = runner.run
 
     def spy(profile: str, seed: int, *a: Any, **kw: Any) -> Any:
         ran.append(seed)
+        left.append(sorted(p.name for p in (cut / "runs").glob("*.json")))
         return real(profile, seed, *a, **kw)
 
     monkeypatch.setattr(runner, "run", spy)
     assert _cli(monkeypatch, cut) == 2  # without --resume an existing --out is still refused
     assert _cli(monkeypatch, cut, "--resume") == 0
     assert sorted(ran) == [2, 3]  # seed 1 was kept
+    # a rerun's stale file is gone before any run starts, so the queue's runs/*.json count
+    # (runs_left, NX-460) never takes it for a finished run
+    assert "quiet-5-s3.json" not in left[0]
     assert (cut / "runs" / "quiet-5-s1.json").read_bytes() == kept
     assert _comparable(cut) == _comparable(clean)
     assert not list((cut / "runs").glob("*.tmp"))
@@ -2564,3 +2573,261 @@ def test_shortfall_sitreps_are_counted_by_side_and_status(shipped_config: Campai
         "sitreps (NX-436) none"
     )
     assert report._shortfall([{"shortfall": None}], 0)["sitreps"] == {}
+
+
+# --- NX-460: the shared slot pool and the progress file ---------------------------------------
+
+
+def _slot_dir(tmp_path: Path, n: int = 1) -> Path:
+    d = tmp_path / "slots"
+    d.mkdir()
+    for i in range(n):
+        (d / f"slot-{i:02d}").touch()
+    return d
+
+
+def test_a_slot_is_exclusive_and_a_released_one_is_retaken(tmp_path: Path) -> None:
+    d = _slot_dir(tmp_path, 2)
+    a = balance.acquire_slot(d, 1, 0.01)
+    b = balance.acquire_slot(d, 1, 0.01)
+    assert {
+        balance._lock(d / "slot-00", fcntl.LOCK_EX),
+        balance._lock(d / "slot-01", fcntl.LOCK_EX),
+    } == {None}  # both held
+    a.close()
+    c = balance.acquire_slot(d, 1, 0.01)  # the one `a` held, the lowest free
+    assert c.name == str(d / "slot-00")
+    assert b.name == str(d / "slot-01")
+    b.close(), c.close()
+
+
+def test_a_killed_holder_frees_its_slot(tmp_path: Path) -> None:
+    d = _slot_dir(tmp_path)
+    code = (
+        "import fcntl, sys, time\n"
+        "f = open(sys.argv[1], 'a'); fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)\n"
+        "print('held', flush=True); time.sleep(60)\n"
+    )
+    proc = subprocess.Popen(  # noqa: S603
+        [sys.executable, "-I", "-c", code, str(d / "slot-00")], stdout=subprocess.PIPE, text=True
+    )
+    try:
+        assert proc.stdout and proc.stdout.readline().strip() == "held"
+        assert balance._lock(d / "slot-00", fcntl.LOCK_EX) is None
+    finally:
+        proc.kill()
+        proc.wait()
+    got = balance._lock(d / "slot-00", fcntl.LOCK_EX)
+    assert got is not None
+    got.close()
+
+
+def _waiter(d: Path, key: int, order: list[int], hold_s: float = 0.0) -> threading.Thread:
+    def go() -> None:
+        slot = balance.acquire_slot(d, key, 0.01)
+        order.append(key)
+        time.sleep(hold_s)
+        slot.close()
+
+    t = threading.Thread(target=go, daemon=True)
+    t.start()
+    return t
+
+
+def _wait_lock(d: Path, key: int) -> Any:
+    """Stand in for a worker of job `key` that is waiting: a shared lock on its wait file."""
+    f = (d / f"wait-{key:09d}").open("a")
+    fcntl.flock(f, fcntl.LOCK_SH)
+    return f
+
+
+def test_older_waiting_is_true_only_while_a_smaller_key_holds_its_wait_lock(
+    tmp_path: Path,
+) -> None:
+    d = _slot_dir(tmp_path)
+    (d / "wait-junk").touch()  # not a wait file of any job
+    assert not balance._older_waiting(d, 9)
+    held = _wait_lock(d, 5)
+    assert balance._older_waiting(d, 9) and balance._older_waiting(d, 6)  # younger: must yield
+    assert not balance._older_waiting(d, 5)  # the same key does not hold itself back
+    assert not balance._older_waiting(d, 2)  # an older key does not wait for a younger one
+    other = _wait_lock(d, 5)  # a second worker of the same job
+    held.close()
+    assert balance._older_waiting(d, 9)  # still one waiter alive
+    other.close()
+    assert not balance._older_waiting(d, 9)  # all gone: the file alone blocks no one
+
+
+def test_a_younger_job_leaves_a_free_slot_to_an_older_waiting_job(tmp_path: Path) -> None:
+    """The older job's worker is stood in for by its wait lock, so nothing depends on thread
+    timing: with the fairness check the younger worker cannot take the free slot at all."""
+    d = _slot_dir(tmp_path)
+    older = _wait_lock(d, 2)
+    order: list[int] = []
+    young = _waiter(d, 9, order)
+    young.join(0.3)  # ~30 polls of a free slot
+    assert young.is_alive() and order == []
+    older.close()  # the older job's worker took its slot elsewhere / died
+    young.join(10)
+    assert order == [9]
+
+
+def test_two_workers_of_one_job_do_not_block_each_other(tmp_path: Path) -> None:
+    d = _slot_dir(tmp_path)
+    order: list[int] = []
+    workers = [_waiter(d, 5, order, hold_s=0.05) for _ in range(2)]
+    for w in workers:
+        w.join(10)  # a regression (a worker waiting on its own key) shows as a live thread
+    assert not any(w.is_alive() for w in workers) and order == [5, 5]
+
+
+def test_a_dead_waiter_does_not_block_a_younger_job(tmp_path: Path) -> None:
+    d = _slot_dir(tmp_path)
+    (d / "wait-000000001").touch()  # an older job's file; nobody holds its lock
+    slot = balance.acquire_slot(d, 5, 0.01)
+    assert slot.name == str(d / "slot-00")
+    slot.close()
+
+
+def _fake_runner(monkeypatch: pytest.MonkeyPatch, seen: list[Any]) -> None:
+    def fake(
+        profile: str,
+        seed: int,
+        hours: float,
+        log_dir: Path,
+        config: Any = None,
+        on_tick: Any = None,
+    ) -> Any:
+        stop = [on_tick(t, 0.0, None) for t in (1, 600, 601, 1200)]  # 1200: under the 60 s cadence
+        out = log_dir.parents[1]
+        seen.append((stop, (out / "runs" / f"{profile}-s{seed}.progress").read_text()))
+        return runner.failed_run(profile, seed, hours, "fake")
+
+    monkeypatch.setattr(runner, "run", fake)
+
+
+def test_one_records_slot_wait_and_holds_the_slot_only_while_the_run_goes(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, shipped_config: CampaignConfig
+) -> None:
+    d = _slot_dir(tmp_path)
+    (out := tmp_path / "out").mkdir()
+    (out / "runs").mkdir()
+    inside: list[bool] = []
+
+    def fake(profile: str, seed: int, hours: float, *a: Any, **kw: Any) -> Any:
+        inside.append(balance._lock(d / "slot-00", fcntl.LOCK_EX) is None)
+        return runner.failed_run(profile, seed, hours, "fake")
+
+    monkeypatch.setattr(runner, "run", fake)
+    real = balance.acquire_slot
+
+    def slow(slot_dir: Path, key: int) -> Any:
+        time.sleep(0.05)  # the wait, as if the pool were full
+        return real(slot_dir, key, 0.01)
+
+    monkeypatch.setattr(balance, "acquire_slot", slow)
+    run = balance._one(("quiet-5", 1, 0.02, out, None), (d, 3))
+    waited = run["timing"]["slot_wait_s"]
+    assert inside == [True] and 0.05 <= waited < 5
+    saved = json.loads((out / "runs" / "quiet-5-s1.json").read_text())
+    assert saved["timing"]["slot_wait_s"] == waited
+    got = balance._lock(d / "slot-00", fcntl.LOCK_EX)
+    assert got is not None  # released after the run
+    got.close()
+
+
+def test_without_slots_no_slot_code_runs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, shipped_config: CampaignConfig
+) -> None:
+    def no(*a: Any, **kw: Any) -> Any:
+        raise AssertionError("slot code ran")
+
+    monkeypatch.setattr(balance, "acquire_slot", no)
+    (out := tmp_path / "out").mkdir()
+    (out / "runs").mkdir()
+    seen: list[Any] = []
+    _fake_runner(monkeypatch, seen)
+    run = balance._one(("quiet-5", 1, 0.02, out, None))
+    assert run["timing"]["slot_wait_s"] == 0.0
+    fns: list[Any] = []
+
+    def spy_jobs(jobs: Any, cost: Any, w: Any, fn: Any = None) -> list[Any]:
+        fns.append(fn)
+        return [{} for _ in jobs]
+
+    monkeypatch.setattr(balance, "run_jobs", spy_jobs)
+    monkeypatch.setattr(balance, "build_report", lambda *a, **k: {})
+    monkeypatch.setattr(balance.report, "markdown", lambda r: "")
+    assert _cli(monkeypatch, tmp_path / "cli") == 0
+    assert fns == [balance._one]  # the plain function: no partial, no slots
+
+
+def test_the_progress_file_is_written_about_once_a_minute_and_removed(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, shipped_config: CampaignConfig
+) -> None:
+    (out := tmp_path / "out").mkdir()
+    (out / "runs").mkdir()
+    seen: list[Any] = []
+    _fake_runner(monkeypatch, seen)
+    balance._one(("quiet-5", 1, 0.02, out, None))
+    stops, text = seen[0]
+    hz = shipped_config.balance.sim.tick_hz
+    tick, total, when = text.split()
+    assert stops == [False] * 4  # never stops the run
+    assert (tick, total) == ("600", str(round(0.02 * 3600 * hz)))  # the first check after 600 ticks
+    assert abs(int(when) - time.time()) < 60
+    assert not list((out / "runs").glob("*.progress*"))  # removed once the result is written
+    assert (out / "runs" / "quiet-5-s1.json").exists()
+
+
+def test_the_progress_cadence_reads_the_clock_every_600_ticks(tmp_path: Path) -> None:
+    f = balance._progress(tmp_path / "p.progress", 10)
+    for t in (1, 599, 601):
+        assert f(t, 0.0, None) is False
+    assert not (tmp_path / "p.progress").exists()  # off the 600 boundary: nothing, no clock read
+    f(600, 0.0, None)
+    first = (tmp_path / "p.progress").read_text()
+    f(1200, 0.0, None)  # inside the minute
+    assert (tmp_path / "p.progress").read_text() == first
+    assert not (tmp_path / "p.progress.tmp").exists()
+
+
+def test_slot_options_go_together(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    d = _slot_dir(tmp_path)
+    empty = tmp_path / "empty"
+    empty.mkdir()
+    for extra in (
+        ["--slot-dir", str(d)],
+        ["--slot-key", "3"],
+        ["--slot-dir", str(d), "--slot-key", "-1"],
+        ["--slot-dir", str(empty), "--slot-key", "1"],
+    ):
+        assert _cli(monkeypatch, tmp_path / "o", *extra) == 2
+        assert not (tmp_path / "o").exists()
+
+
+def test_cli_with_slots_sums_the_wait_and_resumes_an_old_run_without_the_key(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, shipped_config: CampaignConfig
+) -> None:
+    d, out = _slot_dir(tmp_path, 2), tmp_path / "out"
+    assert _cli(monkeypatch, out, "--slot-dir", str(d), "--slot-key", "7", "--workers", "2") == 0
+    runs = [json.loads(p.read_text()) for p in sorted((out / "runs").glob("*.json"))]
+    assert len(runs) == 3 and all(isinstance(r["timing"]["slot_wait_s"], float) for r in runs)
+    doc = json.loads((out / "report.json").read_text())
+    assert doc["timing"]["slot_wait_s"] == sum(r["timing"]["slot_wait_s"] for r in runs)
+    assert "- slot wait: " in (out / "report.md").read_text()
+    assert not list((out / "runs").glob("*.progress*"))
+    old = json.loads((out / "runs" / "quiet-5-s1.json").read_text())
+    del old["timing"]["slot_wait_s"]  # a result from before NX-460
+    (out / "runs" / "quiet-5-s1.json").write_text(json.dumps(old))
+    kept = (out / "runs" / "quiet-5-s1.json").read_bytes()
+    ran: list[int] = []
+    monkeypatch.setattr(runner, "run", lambda p, seed, *a, **kw: ran.append(seed))
+    assert _cli(monkeypatch, out, "--resume") == 0
+    assert ran == []  # every run was kept, the one without the key included
+    assert (out / "runs" / "quiet-5-s1.json").read_bytes() == kept
+    doc = json.loads((out / "report.json").read_text())
+    assert doc["timing"]["slot_wait_s"] == sum(
+        json.loads(p.read_text())["timing"].get("slot_wait_s", 0.0)
+        for p in (out / "runs").glob("*.json")
+    )
