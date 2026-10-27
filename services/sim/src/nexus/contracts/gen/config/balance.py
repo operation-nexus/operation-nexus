@@ -2073,7 +2073,7 @@ class Director(BaseModel):
     cadence_windows: Annotated[
         int,
         Field(
-            description="ECONOMY EC-7 (economy.legacy_rules false): decision windows with no capture operation (OFFENSIVE, RETAKE) launched, staged or dropped from staging after which, while the Static holds an HQ, the window buys the cheapest affordable capture operation with a target, else the budget is at least the cheapest affordable operation of its tier (Q-TD-42); other operations do not reset the count (Q-TD-54).",
+            description="ECONOMY EC-7 (economy.legacy_rules false): decision windows with no capture operation (OFFENSIVE, RETAKE) launched, staged or dropped from staging after which, while the Static holds an HQ, the window buys the cheapest capture operation with a target, else the budget is at least the cheapest operation of its tier, that the window can pay: base surplus plus the window's rear account, never the whole pool (Q-TD-42, Q-TD-48, NX-434); other operations do not reset the count (Q-TD-54).",
             ge=1,
         ),
     ]

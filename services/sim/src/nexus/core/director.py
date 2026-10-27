@@ -35,9 +35,11 @@ it, in order:
    The rear pool is 0 for a side in unlimited mode (no pool). Cadence floor: while the side holds
    an HQ, has no operation staged and has launched no capture operation for `cadence_windows`
    windows (`last_operation`, also stamped when a staged one is dropped; Q-TD-54), the
-   cheapest operation of its tier that surplus + pool can pay; `nexus.core.launch` lifts it to
-   the cheapest capture operation with a target that window (Q-TD-42). The pool share is spent
-   only on operations that spawn at the source (`rear_share`, `nexus.core.launch`).
+   cheapest operation of its tier that the window can actually pay: surplus plus the rear share,
+   not the whole pool (NX-434, as the capture floor, Q-TD-48 (5)); `nexus.core.launch` lifts the
+   base account to it and to the cheapest capture operation with a target that window
+   (Q-TD-42). The pool share is spent only on operations that spawn at the source
+   (`rear_share`, `nexus.core.launch`).
 
 All state is integer (millionths of a point, ticks), the arithmetic is floor division, nothing is
 random and nothing reads a clock. NX-375 will run one Director per side with this same code.
@@ -107,7 +109,8 @@ def cadence_due(state: DirectorState, view: SideView, rules: Rules) -> bool:
 
 def cadence_floor(state: DirectorState, view: SideView, rules: Rules, cap: int) -> int:
     """EC-7: the cheapest operation of the tier that `cap` pays, once `cadence_due`; else 0.
-    `nexus.core.launch` lifts it to a capture operation when one has a target (Q-TD-42)."""
+    `cap` is what the window can pay, base surplus plus its rear account (NX-434). `nexus.core
+    .launch` lifts it to a capture operation when one has a target (Q-TD-42)."""
     dr = rules.director
     if dr is None or not cadence_due(state, view, rules):
         return 0
@@ -132,7 +135,8 @@ def budget(
         - math.floor(dr.reserve_windows * upkeep)
     )  # fmt: skip
     # never above surplus + pool: the fractions are at most 1 (schema) and the floor is capped
-    return max(cadence_floor(state, view, rules, base + pool), planned)
+    # at what the window can pay, base surplus plus the rear share (NX-434)
+    return max(cadence_floor(state, view, rules, base + rear_share(dr, pool)), planned)
 
 
 def level(value: int, held: int, enters: tuple[int, ...], exit_ratio: Fraction) -> int:
