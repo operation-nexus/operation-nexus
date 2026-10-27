@@ -289,6 +289,33 @@ def _funnel(es: list[dict[str, Any]]) -> dict[str, dict[str, int]]:
     return out
 
 
+def _funnel_own(es: list[dict[str, Any]]) -> dict[str, dict[str, int]] | None:
+    """NX-453: the funnel through each launch's own units, per capture operation; `units` and
+    `capturers` are the units that claimed any of its jobs and its CAPTURE job, summed. None when
+    any launch row lacks it (an older run): never a zero standing for no data."""
+    rows = [f for e in es for f in e["funnel"]]
+    if any("own" not in f for f in rows):
+        return None
+    keys = ("units", "capturers")
+    out = {op: {"launched": 0, **dict.fromkeys((*keys, *FUNNEL_STEPS), 0)} for op in CAPTURE_OPS}
+    for f in rows:
+        o = out[f["op"]]
+        o["launched"] += 1
+        o["units"] += f["own_units"]
+        o["capturers"] += f["own_capturers"]
+        for k in FUNNEL_STEPS:
+            o[k] += f["own"][k]
+    return out
+
+
+def _dispersed_split(es: list[dict[str, Any]]) -> dict[str, int] | None:
+    """NX-453: `STAGING_DISPERSED` sitreps by whether a capture operation launched on the same
+    tick; None when any seed lacks the split (an older run)."""
+    if any("dispersed_split" not in e for e in es):
+        return None
+    return {k: sum(e["dispersed_split"][k] for e in es) for k in ("with_launch", "no_launch")}
+
+
 def _tier_at(tiers: dict[str, Any], tick: int) -> str:
     tier = tiers["start"]
     for t, to in tiers["changes"]:
@@ -451,6 +478,7 @@ def _economy(runs: list[dict[str, Any]]) -> dict[str, Any]:
             k: v / hours if hours else None for k, v in sorted(adapted.items())
         },
         "funnel": funnel,
+        "funnel_own": _funnel_own(es),
         "staging": {
             "sitreps": adapted["STAGING"],
             "capture_launches": sum(f["launched"] for f in funnel.values()),
@@ -460,6 +488,8 @@ def _economy(runs: list[dict[str, Any]]) -> dict[str, Any]:
             "dispersed": adapted["STAGING_DISPERSED"],
             "open": adapted["STAGING"] - adapted["STAGING_LAUNCHED"] - adapted["STAGING_DISPERSED"],
             "strike_downed": adapted["STRIKE_DOWNED"],  # Q-TD-56
+            # NX-453: the sitreps cannot name a cause; a launch on the same tick is the one clue
+            "dispersed_split": _dispersed_split(es),
         },
         "gaps": _gaps(rs, es),
         "no_capture": _no_capture(es),
@@ -618,6 +648,22 @@ def _d5_lines(name: str, e: dict[str, Any]) -> list[str]:
         op: " > ".join(f"{k} {f[k]}" for k in ("launched", *FUNNEL_STEPS))
         for op, f in e["funnel"].items()
     }
+    own = e.get("funnel_own")  # an older report.json has none
+    funnel_own = (
+        "-"
+        if own is None
+        else {
+            op: " > ".join(f"{k} {f[k]}" for k in ("launched", "units", "capturers", *FUNNEL_STEPS))
+            for op, f in own.items()
+        }
+    )
+    split = e["staging"].get("dispersed_split")
+    cause = (
+        "-"
+        if split is None
+        else f"{split['with_launch']} with a capture launch the same tick, "
+        f"{split['no_launch']} without"
+    )
     seeds = [
         f"s{g['seed']}: lead-in {_fmt(g['lead_in_min'])}, "
         f"gaps [{', '.join(_fmt(x) for x in g['gaps_min'])}], tail {_fmt(g['tail_min'])}"
@@ -635,10 +681,16 @@ def _d5_lines(name: str, e: dict[str, Any]) -> list[str]:
     per_h = {k: _fmt(v, ".2f") for k, v in e["adaptations_per_hour"].items()}
     return [
         f"  - {name} capture funnel (launch, then the target saw): {funnel}",
+        f"  - {name} capture funnel through the launch's own units (claimed its jobs; the capture "
+        f"steps need one that claimed its CAPTURE job, no event names the capturer): "
+        f"{funnel_own}",
         f"  - {name} STAGING sitreps {e['staging']['sitreps']} for "
         f"{e['staging']['capture_launches']} capture launches; closed by a launch "
         f"{e['staging']['launched']}, dispersed {e['staging']['dispersed']}, open at the end "
-        f"{e['staging']['open']}; strike packages downed {e['staging']['strike_downed']}",
+        f"{e['staging']['open']}; strike packages downed {e['staging']['strike_downed']}; "
+        f"dispersed, by whether a capture launched the same tick (not the cause: a "
+        f"fallback launch or an unrelated one; drop, timeout and re-stage are not told "
+        f"apart): {cause}",
         f"  - {name} Offensive minutes per seed: {'; '.join(seeds) or 'none'}; gaps by tier at "
         f"the earlier one: {tiers or 'none'}",
         f"  - {name} longest stretch without an Offensive (min, lead-in and tail included) per "

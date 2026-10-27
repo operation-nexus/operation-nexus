@@ -155,6 +155,17 @@ class Collector:
         # which steps its target saw afterwards; `_latest` maps a target to its newest launch.
         self.funnel: list[dict[str, Any]] = []
         self._latest: dict[str, dict[str, Any]] = {}
+        # NX-453, the launch's own units: a unit is the launch's when it claimed one of the jobs the
+        # launch posted (`JobClaimed` names job and unit). `_job_step`: job id -> (index in
+        # `funnel`, job kind); `_unit_step`: unit -> the newest launch it claimed for; `_claimants`:
+        # per launch, the units that claimed any job and those that claimed its CAPTURE job;
+        # `_early`: claims seen before `_launches` read the job's key (same tick as the launch).
+        self._job_step: dict[int, tuple[int, str]] = {}
+        self._unit_step: dict[int, int] = {}
+        self._claimants: dict[int, tuple[set[int], set[int]]] = {}
+        self._early: dict[int, list[int]] = {}
+        self._dispersed_now = 0  # STAGING_DISPERSED sitreps this tick, split by `_launches`
+        self.dispersed_split = {"with_launch": 0, "no_launch": 0}
         self.tier0 = self.tier
         self.tier_log: list[tuple[int, str]] = []  # (tick, new tier) of the Static, in order
         self._debits = 0  # Static SPAWN debits since the last `observe`
@@ -210,6 +221,7 @@ class Collector:
             "ThreatAdaptation": self._adapted,
             "SupplyShortfall": self._shortfall_sitrep,
             "JobCreated": self._job_created,
+            "JobClaimed": self._claimed,
             "BridgeDestroyed": self._bridge_destroyed,
         }
 
@@ -468,6 +480,7 @@ class Collector:
         when a capture operation (`CAPTURE_OPS`) launched."""
         board, tick = world.boards[_ENEMY], world.campaign.tick
         launched: set[tuple[str, str]] = set()
+        posted: dict[tuple[str, str], list[Any]] = {}
         for jid in self._new_jobs:
             job = board.get(jid)
             if job is None:
@@ -476,6 +489,8 @@ class Collector:
             parts = job.key.split(":")
             if parts[0] == "op" and len(parts) >= 4 and parts[3] == "0":
                 launched.add((parts[1], parts[2]))
+            if parts[0] == "op" and len(parts) >= 4:
+                posted.setdefault((parts[1], parts[2]), []).append(job)
         self._new_jobs = []
         debits, self._debits = self._debits, 0
         if debits and len(launched) == 1:
@@ -484,16 +499,29 @@ class Collector:
             self.spawn_shared += debits
         else:
             self.spawn_unattributed += debits
+        captured = any(op in CAPTURE_OPS for op, _ in launched)
         for op, target in sorted(launched):
             self.ops.append((tick, op, target, self._owner.get(target) == _COALITION))
             if op in CAPTURE_OPS:
                 step: dict[str, Any] = {"tick": tick, "op": op, "target": target}
                 step.update(dict.fromkeys(FUNNEL_STEPS, False))
+                # NX-453: the same steps, credited only through the launch's own units
+                step["own"] = dict.fromkeys(FUNNEL_STEPS, False)
+                step["own_units"] = step["own_capturers"] = 0
+                idx = len(self.funnel)
                 self.funnel.append(step)
                 self._latest[target] = step
+                self._claimants[idx] = (set(), set())
+                for job in posted.get((op, target), []):
+                    self._job_step[job.id] = (idx, job.kind)
+                    for eid in self._early.get(job.id, []):
+                        self._own_claim(job.id, eid)
             if op not in ROUTINE_JOBS and self.hold_start is not None and self.holds:
                 self.holds[-1]["ops"] += 1
-        return any(op in CAPTURE_OPS for op, _ in launched)
+        self._early = {}
+        self.dispersed_split["with_launch" if captured else "no_launch"] += self._dispersed_now
+        self._dispersed_now = 0
+        return captured
 
     def _side_of(self, node: str) -> str | None:
         return self._source_side.get(node) or self._owner.get(node)
@@ -547,10 +575,31 @@ class Collector:
         step = self._latest.get(e.target_node_id) if e.target_node_id else None
         if step and self.entity.get(e.shooter_id, (None, None))[1] == _ENEMY:
             step["strike_fired"] = True
+        idx = self._unit_step.get(e.shooter_id)  # NX-453: a shot by the launch's own unit
+        if idx is not None and e.target_node_id == self.funnel[idx]["target"]:
+            self.funnel[idx]["own"]["strike_fired"] = True
+
+    def _claimed(self, e: Any) -> None:
+        if e.job_id in self._job_step:
+            self._own_claim(e.job_id, e.entity_id)
+        elif e.job_id in self._new_jobs:
+            self._early.setdefault(e.job_id, []).append(e.entity_id)
+
+    def _own_claim(self, job_id: int, eid: int) -> None:
+        idx, kind = self._job_step[job_id]
+        self._unit_step[eid] = idx
+        units, capturers = self._claimants[idx]
+        units.add(eid)
+        step = self.funnel[idx]
+        step["own_units"] = len(units)
+        if kind == "CAPTURE":
+            capturers.add(eid)
+            step["own_capturers"] = len(capturers)
 
     def _captured(self, e: Any) -> None:
         if (step := self._latest.pop(e.node_id, None)) and e.to == _ENEMY:
             step["captured"] = True
+            step["own"]["captured"] = step["own_capturers"] > 0  # NodeCaptured names no Static unit
         for commander in e.participant_commander_ids:
             self._credit(commander, e.tick, "capture")
         if e.from_ == _COALITION and e.to != _COALITION:
@@ -598,6 +647,7 @@ class Collector:
     def _adapted(self, e: Any) -> None:
         if e.side == _ENEMY:
             _add(self.adapted.setdefault(e.category, []), self._hour(e.tick), 1)
+            self._dispersed_now += e.category == "STAGING_DISPERSED"
 
     def _shortfall_sitrep(self, e: Any) -> None:
         self.sitreps[f"{e.side} {e.status}"] += 1
@@ -613,12 +663,14 @@ class Collector:
             self.pressure_ticks.append(e.tick)
             if step := self._latest.get(e.node_id):
                 step["capture_started"] = True
+                step["own"]["capture_started"] = step["own_capturers"] > 0  # names no unit either
 
     def _defenses_down(self, e: Any) -> None:
         if e.owner == _COALITION:
             self.pressure_ticks.append(e.tick)
             if step := self._latest.get(e.node_id):
                 step["defenses_down"] = True
+                step["own"]["defenses_down"] = step["own"]["strike_fired"]  # names no unit
 
     def _tier(self, e: Any) -> None:
         if e.side != _ENEMY:
@@ -721,6 +773,7 @@ class Collector:
             "ops_unseen": self.ops_unseen,
             "holds": [{**h, "pressure": self._pressure_in(h)} for h in self.holds],
             "funnel": self.funnel,
+            "dispersed_split": dict(self.dispersed_split),
             "no_capture": {k: self.no_capture[k] for k in ("launched", *NO_CAPTURE)},
             "tiers": {"start": self.tier0, "changes": [list(c) for c in self.tier_log]},
             "spawn_by_op": {

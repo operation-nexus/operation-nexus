@@ -15,6 +15,7 @@ from nexus.contracts.gen.commands.command import Command
 from nexus.contracts.gen.events.bridge_destroyed import BridgeDestroyed
 from nexus.contracts.gen.events.campaign_ended import CampaignEnded
 from nexus.contracts.gen.events.capture_started import CaptureStarted
+from nexus.contracts.gen.events.job_claimed import JobClaimed
 from nexus.contracts.gen.events.node_captured import NodeCaptured
 from nexus.contracts.gen.events.node_defenses_down import NodeDefensesDown
 from nexus.contracts.gen.events.spawn_refused import SpawnRefused
@@ -1807,6 +1808,214 @@ def test_collector_follows_a_capture_operation_down_its_funnel(
     assert agg["RETAKE"]["launched"] == 1 and agg["RETAKE"]["captured"] == 0
 
 
+# --- NX-453: the funnel through the launch's own units, and how a massing closed ----------------
+def _own_rig(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> tuple[Any, dict[str, int]]:
+    """A world with the nodes the coalition holds, an OFFENSIVE on fob-n-w (job 0 a STRIKE, job 1
+    a CAPTURE) and a PROBE strike on the same node, all posted on tick 100; the units 900 to 903
+    are the Static's. Returns the world and the job ids by key."""
+    world = start_campaign("c", 1, shipped_config)
+    collector.feed([spawned(1, e, "ENEMY_STRIKE_FIGHTER", "ENEMY", None) for e in range(900, 904)])
+    world.owner["fob-n-w"] = "COALITION"
+    collector._owner["fob-n-w"] = "COALITION"
+    _launch_tick(world, collector, 100, ("STRIKE", "op:OFFENSIVE:fob-n-w:0"),
+                 ("CAPTURE", "op:OFFENSIVE:fob-n-w:1"),
+                 ("STRIKE", "op:PROBE:fob-n-w:0"))  # fmt: skip
+    return world, {j.key: j.id for j in world.boards["ENEMY"].values()}
+
+
+def _claim(collector: metrics.Collector, tick: int, job: int, unit: int) -> None:
+    collector.feed([_ev(JobClaimed, "JobClaimed", tick, job_id=job, entity_id=unit)])
+
+
+def _fire(collector: metrics.Collector, tick: int, unit: int, node: str) -> None:
+    collector.feed([_ev(WeaponFired, "WeaponFired", tick, shooter_id=unit, target_id=None,
+                        target_node_id=node)])  # fmt: skip
+
+
+def _row(collector: metrics.Collector) -> dict[str, Any]:
+    rows = collector.result(1000)["economy"]["funnel"]
+    assert len(rows) == 1 and rows[0]["op"] == "OFFENSIVE"
+    return dict(rows[0])
+
+
+def test_own_funnel_counts_a_shot_by_the_launchs_own_unit_only(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    _, jobs = _own_rig(collector, shipped_config)
+    _claim(collector, 101, jobs["op:OFFENSIVE:fob-n-w:0"], 900)
+    _claim(collector, 101, jobs["op:PROBE:fob-n-w:0"], 903)
+    _fire(collector, 130, 903, "fob-n-w")  # another operation's unit, same node
+    row = _row(collector)
+    assert row["strike_fired"] is True and row["own"]["strike_fired"] is False  # old: overcount
+    assert row["own_units"] == 1
+    _fire(collector, 131, 900, "cross-n")  # its own unit, but at another node
+    assert _row(collector)["own"]["strike_fired"] is False
+    _fire(collector, 132, 900, "fob-n-w")
+    assert _row(collector)["own"]["strike_fired"] is True
+
+
+def test_own_funnel_sees_a_claim_made_on_the_launch_tick(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    """The claim arrives with JobCreated, before `observe` reads the job's key."""
+    world = start_campaign("c", 1, shipped_config)
+    collector.feed([spawned(1, 900, "ENEMY_STRIKE_FIGHTER", "ENEMY", None)])
+    out: list[Any] = []
+    world.campaign.tick = 99
+    job = post_job(world, "ENEMY", JobSpec("STRIKE", "op:OFFENSIVE:fob-n-w:0", 1, 500,
+                                           node="fob-n-w"), out)  # fmt: skip
+    world.campaign.tick = 100
+    collector.feed([*out, _ev(JobClaimed, "JobClaimed", 100, job_id=job.id, entity_id=900)])
+    collector.observe(world)
+    _fire(collector, 130, 900, "fob-n-w")
+    row = _row(collector)
+    assert row["own_units"] == 1 and row["own"]["strike_fired"] is True
+
+
+def test_own_funnel_capture_steps_need_a_unit_that_claimed_the_capture_job(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    """No capture event names a Static unit: the steps count when a unit of the launch claimed its
+    CAPTURE job. Without one the old funnel still counts the event and the own one does not."""
+    _, jobs = _own_rig(collector, shipped_config)
+    _claim(collector, 101, jobs["op:OFFENSIVE:fob-n-w:0"], 900)  # a striker, not a capturer
+    _claim(collector, 101, jobs["op:PROBE:fob-n-w:0"], 903)  # another operation's unit
+    _fire(collector, 130, 900, "fob-n-w")
+    collector.feed([_ev(NodeDefensesDown, "NodeDefensesDown", 140, node_id="fob-n-w",
+                        owner="COALITION"),
+                    _ev(CaptureStarted, "CaptureStarted", 150, node_id="fob-n-w", side="ENEMY"),
+                    ])  # fmt: skip
+    row = _row(collector)
+    assert row["defenses_down"] and row["capture_started"]
+    assert row["own"] == {"strike_fired": True, "defenses_down": True, "capture_started": False,
+                          "captured": False}  # fmt: skip
+    assert row["own_capturers"] == 0
+    _claim(collector, 151, jobs["op:OFFENSIVE:fob-n-w:1"], 902)  # the launch's own capturer
+    collector.feed([_ev(CaptureStarted, "CaptureStarted", 152, node_id="fob-n-w", side="ENEMY"),
+                    _ev(NodeCaptured, "NodeCaptured", 160, node_id="fob-n-w", from_="COALITION",
+                        to="ENEMY", participant_commander_ids=[])])  # fmt: skip
+    row = _row(collector)
+    assert row["own_capturers"] == 1 and row["own_units"] == 2
+    assert all(row["own"].values())
+
+
+def test_own_funnel_a_capture_by_another_operations_unit_does_not_count(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    _, jobs = _own_rig(collector, shipped_config)
+    _claim(collector, 101, jobs["op:PROBE:fob-n-w:0"], 903)  # no unit claimed the launch's jobs
+    collector.feed([_ev(NodeCaptured, "NodeCaptured", 160, node_id="fob-n-w", from_="COALITION",
+                        to="ENEMY", participant_commander_ids=[])])  # fmt: skip
+    row = _row(collector)
+    assert row["captured"] is True and row["own"]["captured"] is False
+
+
+def test_own_funnel_defenses_down_needs_an_own_strike(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    _, jobs = _own_rig(collector, shipped_config)
+    _claim(collector, 101, jobs["op:PROBE:fob-n-w:0"], 903)
+    _fire(collector, 130, 903, "fob-n-w")  # only the PROBE's unit shot
+    collector.feed([_ev(NodeDefensesDown, "NodeDefensesDown", 140, node_id="fob-n-w",
+                        owner="COALITION")])  # fmt: skip
+    row = _row(collector)
+    assert row["defenses_down"] is True and row["own"]["defenses_down"] is False
+
+
+def test_dispersed_massings_split_by_a_capture_launch_on_the_same_tick(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    """The sitreps name no cause: a dispersal on a tick a capture operation launched may be a
+    fallback launch; one on a tick with none is a drop, a timeout without a launch or a re-stage."""
+
+    def sitrep(tick: int, category: str) -> Any:
+        return _ev(ThreatAdaptation, "ThreatAdaptation", tick, side="ENEMY", category=category)
+
+    world = start_campaign("c", 1, shipped_config)
+    collector.feed([sitrep(100, "STAGING_DISPERSED"), sitrep(100, "STAGING_LAUNCHED")])
+    _launch_tick(world, collector, 100, ("STRIKE", "op:OFFENSIVE:fob-n-w:0"))
+    collector.feed([sitrep(200, "STAGING_DISPERSED"), sitrep(200, "STAGING_DISPERSED")])
+    world.campaign.tick = 200
+    collector.observe(world)
+    collector.feed([sitrep(300, "STAGING")])  # opened, not closed: counts in neither
+    world.campaign.tick = 300
+    collector.observe(world)
+    eco = collector.result(1000)["economy"]
+    assert eco["dispersed_split"] == {"with_launch": 1, "no_launch": 2}
+    assert eco["adapted"]["STAGING_LAUNCHED"] == [1]
+
+
+def _eco(funnel: list[dict[str, Any]], adapted: dict[str, list[int]],
+         split: dict[str, int] | None) -> dict[str, Any]:  # fmt: skip
+    eco: dict[str, Any] = {
+        "adapted": adapted, "funnel": funnel, "ops": [],
+        "tiers": {"start": "PATROL", "changes": []},
+        "spawn_by_op": {"ops": {}, "shared": 0, "unattributed": 0},
+        "sides": {}, "hourly": [], "refused": {"operations_per_hour": {}, "units": {}},
+        "grounded_from": {}, "exposure": {}, "budget": {"sum": [], "windows": [],
+                                                       "spent": {"base": [], "source": []}},
+        "ops_unseen": 0, "holds": [], "army_peak": 0,
+    }  # fmt: skip
+    if split is not None:
+        eco["dispersed_split"] = split
+    return {"metrics": {"economy": eco}, "ticks_run": HOUR, "tick_hz": HZ, "seed": 1,
+            "viewers": {"peak_concurrent": 0}}  # fmt: skip
+
+
+def _row_dict(
+    op: str, own: dict[str, bool] | None, units: int = 0, caps: int = 0
+) -> dict[str, Any]:
+    row: dict[str, Any] = {"op": op, "target": "n", "tick": 1} | dict.fromkeys(
+        metrics.FUNNEL_STEPS, True
+    )
+    if own is not None:
+        row |= {"own": own, "own_units": units, "own_capturers": caps}
+    return row
+
+
+def test_the_report_sums_the_own_funnel_and_the_staging_outcomes() -> None:
+    none = dict.fromkeys(metrics.FUNNEL_STEPS, False)
+    some = none | {"strike_fired": True}
+    rows = [_row_dict("OFFENSIVE", some, 3, 1), _row_dict("OFFENSIVE", none, 2, 0),
+            _row_dict("RETAKE", dict.fromkeys(metrics.FUNNEL_STEPS, True), 4, 2)]  # fmt: skip
+    agg = report._economy([
+        _eco(rows, {"STAGING": [3], "STAGING_LAUNCHED": [1], "STAGING_DISPERSED": [1]},
+             {"with_launch": 1, "no_launch": 0}),
+        _eco([], {"STAGING": [1], "STAGING_DISPERSED": [1]}, {"with_launch": 0, "no_launch": 1}),
+    ])  # fmt: skip
+    assert agg["funnel"]["OFFENSIVE"]["strike_fired"] == 2  # the old funnel is as before
+    assert agg["funnel_own"] == {
+        "OFFENSIVE": {"launched": 2, "units": 5, "capturers": 1, "strike_fired": 1,
+                      "defenses_down": 0, "capture_started": 0, "captured": 0},
+        "RETAKE": {"launched": 1, "units": 4, "capturers": 2, "strike_fired": 1,
+                   "defenses_down": 1, "capture_started": 1, "captured": 1},
+    }  # fmt: skip
+    assert agg["staging"]["dispersed_split"] == {"with_launch": 1, "no_launch": 1}
+    assert agg["staging"]["launched"] == 1 and agg["staging"]["open"] == 1
+    lines = report._d5_lines("p", agg | {"pressure_per_hold": []})
+    own = next(x for x in lines if "launch's own units" in x)
+    assert "'OFFENSIVE': 'launched 2 > units 5 > capturers 1 > strike_fired 1 >" in own
+    stage = next(x for x in lines if "STAGING" in x)
+    assert "apart): 1 with a capture launch the same tick, 1 without" in stage
+
+
+def test_an_old_report_renders_the_own_funnel_and_the_dispersal_causes_as_a_dash() -> None:
+    old_rows = [_row_dict("OFFENSIVE", None)]  # a run before NX-453: no `own`, no split
+    agg = report._economy([_eco(old_rows, {"STAGING": [1], "STAGING_DISPERSED": [1]}, None)])
+    assert agg["funnel_own"] is None and agg["staging"]["dispersed_split"] is None
+    lines = report._d5_lines("p", agg | {"pressure_per_hold": []})
+    assert next(x for x in lines if "launch's own units" in x).endswith(": -")
+    assert "apart): -" in next(x for x in lines if "STAGING" in x)
+    # an older report.json read back: the aggregate has neither key at all
+    gone = {k: v for k, v in agg.items() if k != "funnel_own"}
+    gone["staging"] = {k: v for k, v in agg["staging"].items() if k != "dispersed_split"}
+    lines = report._d5_lines("p", gone | {"pressure_per_hold": []})
+    assert next(x for x in lines if "launch's own units" in x).endswith(": -")
+    assert "apart): -" in next(x for x in lines if "STAGING" in x)
+
+
 def test_offensive_gaps_per_seed_with_lead_in_tail_and_tier() -> None:
     hz = HZ
     minute = 60 * hz
@@ -2024,7 +2233,8 @@ def test_sitreps_per_run_hour_by_category_and_staging_count() -> None:
     agg = report._economy([run])
     assert agg["adaptations_per_hour"] == {"CONVOY_ESCORT": 2.0, "STAGING": 1.5}
     assert agg["staging"] == {"sitreps": 3, "capture_launches": 0, "launched": 0, "dispersed": 0,
-                              "open": 3, "strike_downed": 0}  # fmt: skip
+                              "open": 3, "strike_downed": 0,
+                              "dispersed_split": None}  # fmt: skip
 
 
 def test_the_report_counts_how_each_massing_closed_and_the_downed_packages() -> None:
@@ -2051,7 +2261,8 @@ def test_the_report_counts_how_each_massing_closed_and_the_downed_packages() -> 
              "STRIKE_DOWNED": [1]}),
     ])  # fmt: skip
     assert agg["staging"] == {"sitreps": 5, "capture_launches": 0, "launched": 1, "dispersed": 2,
-                              "open": 2, "strike_downed": 3}  # fmt: skip
+                              "open": 2, "strike_downed": 3,
+                              "dispersed_split": None}  # fmt: skip
     line = next(x for x in report._d5_lines("p", agg | {"pressure_per_hold": []}) if "STAGING" in x)
     assert "closed by a launch 1, dispersed 2, open at the end 2" in line
     assert "strike packages downed 3" in line
