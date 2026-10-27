@@ -4,7 +4,8 @@
 
 Open issues labelled `harness-run` by a trusted author carry a ```harness block (sha, profiles,
 seeds, hours, optional workers). Each is run with balance.py at that commit in a throwaway
-worktree, and the report goes back as an issue comment. Issue text is hostile input: it is parsed
+worktree, and the report goes back as an issue comment. Jobs overlap on one worker budget (NX-442):
+see `Jobs`. Issue text is hostile input: it is parsed
 with strict rules, never reaches a shell, and refusals quote key names only. This file is not
 called queue.py because tools/balance is sys.path[0] for balance.py, and a sibling queue.py would
 shadow the standard library's `queue` (which concurrent.futures imports).
@@ -19,7 +20,9 @@ import re
 import signal
 import subprocess
 import sys
+import threading
 import time
+from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
@@ -38,6 +41,8 @@ FINISHED = "finished"  # written by the queue once balance.py exited 0 with repo
 POSTED = "posted"  # written once the report comment is on the issue (no double post on retry)
 MAX_RESUMES = 2  # a stale job is continued this many times; a job that crashes again is failed
 FOOTER = "_Posted by the local harness queue (NX-381)_"
+POLL_S = 300  # how often a tick with running jobs recounts their result files and relists issues
+GIT_LOCK = threading.Lock()  # worktree add, remove, prune and merge-base: one at a time
 
 
 class QueueError(Exception):
@@ -52,8 +57,12 @@ class Refusal(Exception):
     """A request that must not run; the text is fixed wording plus key names only."""
 
 
+LOG_LOCK = threading.Lock()  # job threads log too (NX-442): one whole line at a time
+
+
 def log(msg: str) -> None:
-    print(f"{time.strftime('%Y-%m-%dT%H:%M:%S')} {msg}", flush=True)
+    with LOG_LOCK:
+        print(f"{time.strftime('%Y-%m-%dT%H:%M:%S')} {msg}", flush=True)
 
 
 # gh and git calls get this long; a hung one must not hold the lock for good. Long steps pass
@@ -100,6 +109,9 @@ def load_config(path: Path) -> dict[str, Any]:
     cfg = yaml.safe_load(path.read_text())
     for key in ("work_dir", "results_dir"):
         cfg[key] = Path(cfg[key]).expanduser()
+    v = cfg.get("min_overlap_workers")
+    if type(v) is not int or not 1 <= v <= cfg["max_workers"]:  # not a bool, not a string
+        raise QueueError("queue.yaml: min_overlap_workers must be an integer from 1 to max_workers")
     return dict(cfg)
 
 
@@ -259,7 +271,8 @@ def publish(cfg: dict[str, Any], number: int, out: Path, head: str, ran: str, bo
 def on_develop(sha: str) -> bool:
     if run_cmd(["git", "fetch", "origin", "develop"], cwd=REPO_ROOT).returncode:
         raise QueueError("git fetch origin develop failed")
-    r = run_cmd(["git", "merge-base", "--is-ancestor", sha, "origin/develop"], cwd=REPO_ROOT)
+    with GIT_LOCK:
+        r = run_cmd(["git", "merge-base", "--is-ancestor", sha, "origin/develop"], cwd=REPO_ROOT)
     return r.returncode == 0
 
 
@@ -303,16 +316,17 @@ def execute(
     ]  # fmt: skip
     limit = cfg["job_timeout_hours"] * 3600
     try:
-        if resume:  # the killed attempt's worktree may still be registered
-            run_cmd(["git", "worktree", "remove", "--force", str(wt)], cwd=REPO_ROOT)
-            run_cmd(["git", "worktree", "prune"], cwd=REPO_ROOT)
-        else:
-            logfile.write_text("")
-        rc = run_cmd(
-            ["git", "worktree", "add", "--detach", str(wt), req["sha"]],
-            cwd=REPO_ROOT,
-            logfile=logfile,
-        ).returncode
+        with GIT_LOCK:
+            if resume:  # the killed attempt's worktree may still be registered
+                run_cmd(["git", "worktree", "remove", "--force", str(wt)], cwd=REPO_ROOT)
+                run_cmd(["git", "worktree", "prune"], cwd=REPO_ROOT)
+            else:
+                logfile.write_text("")
+            rc = run_cmd(
+                ["git", "worktree", "add", "--detach", str(wt), req["sha"]],
+                cwd=REPO_ROOT,
+                logfile=logfile,
+            ).returncode
         for cmd in [["uv", "sync", "--frozen"], balance] if rc == 0 else []:
             rc = run_cmd(
                 cmd, cwd=wt / "services" / "sim", timeout=limit, logfile=logfile
@@ -321,14 +335,110 @@ def execute(
                 break
         return rc, out, logfile
     finally:
-        run_cmd(["git", "worktree", "remove", "--force", str(wt)], cwd=REPO_ROOT)
-        run_cmd(["git", "worktree", "prune"], cwd=REPO_ROOT)
+        with GIT_LOCK:
+            run_cmd(["git", "worktree", "remove", "--force", str(wt)], cwd=REPO_ROOT)
+            run_cmd(["git", "worktree", "prune"], cwd=REPO_ROOT)
 
 
-def process(cfg: dict[str, Any], issue: dict[str, Any], dry: bool) -> None:
+def runs_left(out: Path, total: int) -> int:
+    """Runs of a job with no result file yet (NX-442): balance.py writes `runs/<name>.json` whole
+    (a `.tmp` renamed into place), so counting them needs no IPC. On a resume, a file balance.py
+    will run again (another config, a harness-error stand-in) counts as done until replaced."""
+    return max(total - sum(1 for _ in (out / "runs").glob("*.json")), 0)
+
+
+@dataclass
+class Job:
+    n: int
+    workers: int
+    total: int  # profiles x seeds
+    out: Path
+    done: bool = False  # set by the job's thread when `launch` returns or raises
+    error: BaseException | None = None  # a kill stand-in (not an Exception) that ended the thread
+    thread: threading.Thread = field(init=False)
+
+
+class Jobs:
+    """The jobs one tick runs at once (NX-442, Q-DEV-33). Each is one thread running `launch`
+    (its own worktree, results dir, report and labels; the work is its balance.py subprocess).
+    They share `max_workers` as one budget: a job holds min(its workers, its runs left), so a job
+    in its tail frees workers. A request for w workers starts once min(w, `min_overlap_workers`)
+    are free (any count when nothing runs) with min(w, free) workers, kept for its whole run:
+    balance.py's pool is never resized, so a job started on few workers stays slow."""
+
+    def __init__(self, cfg: dict[str, Any]) -> None:
+        self.cfg = cfg
+        self.running: list[Job] = []
+        self.started: set[int] = set()  # issue numbers started this tick
+        self.crash: BaseException | None = None  # the first job error; run_once re-raises it
+        self.changed = threading.Event()
+
+    def free(self) -> int:
+        self.reap()
+        held = sum(min(j.workers, runs_left(j.out, j.total)) for j in self.running)
+        return int(self.cfg["max_workers"]) - held
+
+    def fits(self, workers: int) -> bool:
+        need = min(workers, int(self.cfg["min_overlap_workers"])) if self.running else 1
+        return self.free() >= need
+
+    def wait(self) -> bool:
+        """Until a job ends or POLL_S passes; True when POLL_S passed. A job sets `done` before
+        `changed`, and `reap` reads `done` after the clear, so an end is never missed."""
+        timed_out = not self.changed.wait(POLL_S)
+        self.changed.clear()
+        self.reap()
+        return timed_out
+
+    def start(self, n: int, req: dict[str, Any], resume: bool) -> None:
+        while not self.fits(req["workers"]):
+            self.wait()
+        req = {**req, "workers": min(req["workers"], self.free())}
+        out = self.cfg["results_dir"] / f"{n}-{req['sha'][:8]}"
+        job = Job(n, req["workers"], len(req["profiles"]) * req["seeds"], out)
+        job.thread = threading.Thread(target=self._run, args=(job, req, resume), daemon=True)
+        self.running.append(job)
+        self.started.add(n)
+        log(f"#{n}: started on {job.workers} of {self.cfg['max_workers']} workers")
+        job.thread.start()
+
+    def _run(self, job: Job, req: dict[str, Any], resume: bool) -> None:
+        try:
+            launch(self.cfg, job.n, req, resume)
+        except Exception as e:  # noqa: BLE001  # a slip in launch's own handling: never leave `running`
+            log(f"#{job.n}: error {type(e).__name__}: {e}")  # local log only
+            if running_file(self.cfg, job.n).exists():  # not posted or failed yet
+                fail(self.cfg, job.n, f"Run failed: internal error ({type(e).__name__}).")
+        except BaseException as e:  # noqa: BLE001  # a kill stand-in: left `running` for recovery
+            job.error = e
+        finally:
+            job.done = True
+            self.changed.set()
+
+    def reap(self) -> None:
+        """Drop ended jobs. A job's error is logged and kept for run_once; the others go on."""
+        for job in [j for j in self.running if j.done]:
+            job.thread.join()
+            self.running.remove(job)
+            if job.error is not None:
+                log(f"#{job.n}: ended by {type(job.error).__name__}; left running for recovery")
+                self.crash = self.crash or job.error
+
+    def join(self) -> None:
+        """Wait for every running job: the lock is never freed while one of them runs."""
+        for job in list(self.running):
+            job.thread.join()
+        self.reap()
+
+
+def process(cfg: dict[str, Any], jobs: Jobs, issue: dict[str, Any], dry: bool) -> bool:
+    """Refuse, skip or start one `harness-run` issue. False (nothing done, no label changed)
+    when its request does not fit the free workers yet."""
     n, labels = issue["number"], cfg["labels"]
     try:
         req = parse_block(issue["body"], cfg, list(profiles.load().profiles))
+        if not jobs.fits(req["workers"]):
+            return False
         if not on_develop(req["sha"]):
             raise Refusal("the sha is not reachable from origin/develop")
         if (cfg["results_dir"] / f"{n}-{req['sha'][:8]}").exists():
@@ -340,18 +450,19 @@ def process(cfg: dict[str, Any], issue: dict[str, Any], dry: bool) -> None:
         if not dry:
             relabel(cfg, n, labels["failed"], labels["run"])
             comment(cfg, n, f"Refused: {e}.")
-        return
+        return True
     if dry:
         log(f"#{n}: would run {req}")
-        return
+        return True
     if not check_write(cfg, n, labels["run"]):
-        return
+        return True
     cfg["results_dir"].mkdir(parents=True, exist_ok=True)
     running_file(cfg, n).write_text(req["sha"])
     request_file(cfg, n).write_text(json.dumps(req))
     relabel(cfg, n, labels["running"], labels["run"])
     log(f"#{n}: running {req}")
-    launch(cfg, n, req, False)
+    jobs.start(n, req, False)
+    return True
 
 
 def launch(cfg: dict[str, Any], n: int, req: dict[str, Any], resume: bool) -> None:
@@ -401,13 +512,17 @@ def current_body(cfg: dict[str, Any], number: int) -> str:
 
 
 def fail(cfg: dict[str, Any], number: int, text: str) -> None:
-    """Relabel running -> failed and comment; if gh fails here, log it and let the tick go on."""
+    """Relabel running -> failed and comment; if gh or the disk fails here, log it and let the
+    tick go on (it runs inside launch's last-resort handler, so it must not raise)."""
     try:
         relabel(cfg, number, cfg["labels"]["failed"], cfg["labels"]["running"])
         comment(cfg, number, text)
-    except QueueError as e:
-        log(f"#{number}: could not report the failure: {e}")
-    forget(cfg, number)
+    except (QueueError, JobTimeout) as e:
+        log(f"#{number}: could not report the failure: {type(e).__name__} {e}")
+    try:
+        forget(cfg, number)
+    except OSError as e:
+        log(f"#{number}: could not drop the local records: {e}")
 
 
 def render_block(req: dict[str, Any]) -> str:
@@ -423,10 +538,12 @@ def render_block(req: dict[str, Any]) -> str:
     return "```harness\n" + "\n".join(lines) + "\n```\n"
 
 
-def resume_stale(cfg: dict[str, Any], n: int, sha: str, out: Path) -> bool:
-    """Continue a cut-off job (NX-433): True when it was resumed (and published or failed), False
-    when the caller should fail it. Needs the results dir, the request the queue recorded (parsed
-    again by parse_block; the issue body is never read) naming the recorded sha, and fewer than
+def resumable(
+    cfg: dict[str, Any], n: int, sha: str, out: Path
+) -> tuple[dict[str, Any], int] | None:
+    """Can a cut-off job be continued (NX-433)? (the request, earlier resumes), or None when the
+    caller should fail it. Needs the results dir, the request the queue recorded (parsed again by
+    parse_block; the issue body is never read) naming the recorded sha, and fewer than
     MAX_RESUMES earlier resumes. A resume is the same run, so the one-run-per-sha refusal in
     `process` does not apply; it only guards new requests."""
     try:
@@ -437,20 +554,18 @@ def resume_stale(cfg: dict[str, Any], n: int, sha: str, out: Path) -> bool:
             list(profiles.load().profiles),
         )
     except (OSError, ValueError, KeyError, TypeError, Refusal):
-        return False
+        return None
     if not out.is_dir() or req["sha"] != sha or tries >= MAX_RESUMES:
-        return False
-    if not check_write(cfg, n, cfg["labels"]["running"]):
-        return True  # leave it running; the next tick tries again, no attempt used
-    resumes_file(cfg, n).write_text(str(tries + 1))
-    log(f"#{n}: resuming (attempt {tries + 1} of {MAX_RESUMES})")
-    launch(cfg, n, req, True)
-    return True
+        return None
+    return req, tries
 
 
-def recover_stale(cfg: dict[str, Any]) -> None:
-    """We hold the lock, so no job of ours runs: an issue still `running` was cut off, or its
-    finished report could not be posted. Post a finished report; fail the rest."""
+def recover_stale(cfg: dict[str, Any], jobs: Jobs) -> None:
+    """Called first in a tick, holding the lock, so no job of ours runs: an issue still `running`
+    was cut off, or its finished report could not be posted. Pass 1 posts finished reports and
+    fails what cannot resume; pass 2 starts the resumes (each its own job on `jobs`, NX-442), so
+    a resume waiting for workers holds up no post or failure."""
+    resumes: list[tuple[int, dict[str, Any], int]] = []
     for issue in eligible(cfg, cfg["labels"]["running"]):
         n = issue["number"]
         log(f"#{n}: stale running label")
@@ -469,9 +584,16 @@ def recover_stale(cfg: dict[str, Any]) -> None:
             except (QueueError, JobTimeout, OSError):
                 log(f"#{n}: recovered report not posted, will retry")
             continue
-        if out is not None and resume_stale(cfg, n, sha, out):
+        if out is not None and (found := resumable(cfg, n, sha, out)) is not None:
+            resumes.append((n, *found))
             continue
         fail(cfg, n, "Failed: the runner restarted mid-job.")
+    for n, req, tries in resumes:
+        if not check_write(cfg, n, cfg["labels"]["running"]):
+            continue  # leave it running; the next tick tries again, no attempt used
+        resumes_file(cfg, n).write_text(str(tries + 1))
+        log(f"#{n}: resuming (attempt {tries + 1} of {MAX_RESUMES})")
+        jobs.start(n, req, True)
 
 
 def run_once(cfg: dict[str, Any], dry: bool) -> int:
@@ -482,16 +604,51 @@ def run_once(cfg: dict[str, Any], dry: bool) -> int:
         except BlockingIOError:
             log("another queue run holds the lock; exiting")
             return 0
-        if not dry:
-            recover_stale(cfg)
-        issues = eligible(cfg)
-        log(f"{len(issues)} eligible issue(s)")
-        for issue in issues:
-            try:
-                process(cfg, issue, dry)
-            except Exception as e:  # noqa: BLE001  # one issue's failure must not stop the tick
-                log(f"#{issue['number']}: skipped after {type(e).__name__}: {e}")  # local log only
+        jobs = Jobs(cfg)
+        try:
+            if not dry:
+                recover_stale(cfg, jobs)
+            supervise(cfg, jobs, dry)
+        finally:
+            jobs.join()  # whatever happened, every job of this tick ends before the lock frees
+        if jobs.crash is not None:
+            raise jobs.crash
     return 0
+
+
+def supervise(cfg: dict[str, Any], jobs: Jobs, dry: bool) -> None:
+    """Start eligible issues, oldest first, whenever the budget allows, until none is left and no
+    job runs (NX-442). Issues are relisted while jobs run, so one queued later still overlaps.
+    An issue is tried once until POLL_S passes; then one that did not start (a failed fetch or
+    write check) is tried again. A job error does not stop the others (run_once re-raises it)."""
+    seen: set[int] = set()
+    first = True
+    while True:
+        if jobs.free() >= 1:
+            try:
+                busy = seen | jobs.started  # a resume started by recovery is not in `seen`
+                issues = [i for i in eligible(cfg) if i["number"] not in busy]
+            except QueueError as e:
+                if first:  # as before NX-442: no list, no tick
+                    raise
+                log(f"listing issues failed, the running jobs go on: {e}")
+                issues = []
+            if issues or first:
+                log(f"{len(issues)} eligible issue(s)")
+            first = False
+            for issue in issues:
+                try:
+                    handled = process(cfg, jobs, issue, dry)
+                except Exception as e:  # noqa: BLE001  # one issue's failure must not stop the tick
+                    log(f"#{issue['number']}: skipped after {type(e).__name__}: {e}")  # local only
+                    handled = True
+                if not handled:
+                    break  # the oldest waiting request does not fit yet: keep the order
+                seen.add(issue["number"])
+        if not jobs.running:
+            return
+        if jobs.wait():
+            seen &= jobs.started
 
 
 def main(argv: list[str] | None = None) -> int:
