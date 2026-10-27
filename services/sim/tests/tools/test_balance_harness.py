@@ -591,6 +591,71 @@ def test_cli_report_is_the_same_with_any_worker_count(
     assert rows[("orders", "quiet-5")] == report.PASS  # no stuck order, no stale claim
 
 
+def _cli(monkeypatch: pytest.MonkeyPatch, out: Path, *extra: str) -> int:
+    argv = ["balance.py", "--profile", "quiet-5", "--seeds", "1,2,3", "--hours", "0.02"]
+    monkeypatch.setattr(sys, "argv", [*argv, "--out", str(out), *extra])
+    return int(balance.main())
+
+
+def _comparable(out: Path) -> dict[str, Any]:
+    doc = json.loads((out / "report.json").read_text())
+    doc.pop("timing"), doc.pop("workers")
+    for r in doc["runs"]:
+        r.pop("wall_s"), r.pop("ticks_per_s")
+    return dict(doc)
+
+
+def test_resume_reruns_only_missing_or_bad_runs_and_matches_a_clean_job(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, shipped_config: CampaignConfig
+) -> None:
+    """NX-433: a kill leaves run files missing or half-written. The resumed report equals an
+    uninterrupted job's apart from wall-clock fields (`timing`, `workers`, each run's wall_s and
+    ticks_per_s)."""
+    clean, cut = tmp_path / "clean", tmp_path / "cut"
+    assert _cli(monkeypatch, clean) == 0 and _cli(monkeypatch, cut) == 0
+    kept = (cut / "runs" / "quiet-5-s1.json").read_bytes()
+    (cut / "runs" / "quiet-5-s2.json").unlink()  # killed before it was written
+    (cut / "runs" / "quiet-5-s3.json").write_text('{"profile": "quiet-5", "se')  # half a file
+    (cut / "report.json").unlink()
+    (cut / "report.md").unlink()
+    ran: list[int] = []
+    real = runner.run
+
+    def spy(profile: str, seed: int, *a: Any, **kw: Any) -> Any:
+        ran.append(seed)
+        return real(profile, seed, *a, **kw)
+
+    monkeypatch.setattr(runner, "run", spy)
+    assert _cli(monkeypatch, cut) == 2  # without --resume an existing --out is still refused
+    assert _cli(monkeypatch, cut, "--resume") == 0
+    assert sorted(ran) == [2, 3]  # seed 1 was kept
+    assert (cut / "runs" / "quiet-5-s1.json").read_bytes() == kept
+    assert _comparable(cut) == _comparable(clean)
+    assert not list((cut / "runs").glob("*.tmp"))
+
+
+def test_load_done_trusts_only_a_matching_complete_file(tmp_path: Path) -> None:
+    (tmp_path / "runs").mkdir()
+    job = ("quiet-5", 1, 1.0, tmp_path, None)
+    path = tmp_path / "runs" / "quiet-5-s1.json"
+    good = {
+        "profile": "quiet-5", "seed": 1, "hours": 1.0, "config_hash": "h", "ticks_run": 5,
+        "metrics": {}, "timing": {}, "crash": None, "harness_error": None,
+        "final_state_hash": "x",
+    }  # fmt: skip
+    assert balance.load_done(job, "h") is None  # missing
+    path.write_text(json.dumps(good))
+    assert balance.load_done(job, "h") == good
+    assert balance.load_done(job, "other") is None  # another config
+    for bad in ({"seed": 2}, {"hours": 2.0}, {"profile": "x"}, {"config_hash": None}):
+        path.write_text(json.dumps(good | bad))
+        assert balance.load_done(job, "h") is None
+    path.write_text(json.dumps({k: v for k, v in good.items() if k != "timing"}))
+    assert balance.load_done(job, "h") is None  # a key the report reads is missing
+    path.write_text("[1]")
+    assert balance.load_done(job, "h") is None
+
+
 def test_a_sim_crash_is_recorded_not_raised(
     tmp_path: Path,
     monkeypatch: pytest.MonkeyPatch,

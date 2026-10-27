@@ -17,8 +17,16 @@ validated as usual, the overridden copy is saved as `<out>/balance.yaml` (every 
 file), and the report lists the overrides beside the resulting config hash and the economy mode
 (`economy.legacy_rules`, `economy.unlimited.<side>`: ECONOMY EC-15); a key given twice is an
 error. `--out` must
-not exist: it gets `report.json`, `report.md`, `runs/<profile>-s<seed>.json` and
+not exist (unless `--resume`, below): it gets `report.json`, `report.md`,
+`runs/<profile>-s<seed>.json` and
 `logs/<profile>-s<seed>/` (the command logs).
+
+`--resume` (NX-433) continues a killed job in an existing `--out`: a run whose
+`runs/<profile>-s<seed>.json` exists, parses, names the same profile, seed and hours, carries the
+current config hash and the keys the report reads is kept, every other run (missing, partial,
+corrupt, from another config, or a harness-error stand-in) is run again, and the report is built
+from all of them. Apart from wall-clock fields (`timing`, each run's `wall_s` and `ticks_per_s`,
+`workers`) it equals the report of an uninterrupted job.
 
 Exit 0 on success, 2 on a usage or config error (one line on stderr). Targets that fail do not
 change the exit code: the report says it.
@@ -27,6 +35,8 @@ change the exit code: the report says it.
 import argparse
 import json
 import math
+import os
+import shutil
 import sys
 import tempfile
 import time
@@ -90,13 +100,40 @@ def _one(job: Job) -> dict[str, Any]:
     """A worker: one (profile, seed) run, its JSON written next to the others."""
     profile, seed, hours, out, paths = job
     name = f"{profile}-s{seed}"
+    shutil.rmtree(out / "logs" / name, ignore_errors=True)  # the leftover of a killed attempt
     try:
         config = load_campaign_config(paths) if paths else None
         run = runner.run(profile, seed, hours, out / "logs" / name, config=config)
     except Exception as e:  # noqa: BLE001  # one run's failure must not kill the batch
         run = runner.failed_run(profile, seed, hours, f"{type(e).__name__}: {e}")
-    (out / "runs" / f"{name}.json").write_text(json.dumps(run, indent=1, sort_keys=True) + "\n")
+    final = out / "runs" / f"{name}.json"
+    tmp = final.with_suffix(
+        ".json.tmp"
+    )  # written whole, then renamed: a kill leaves no partial file
+    tmp.write_text(json.dumps(run, indent=1, sort_keys=True) + "\n")
+    os.replace(tmp, final)
     return run
+
+
+RUN_KEYS = ("ticks_run", "metrics", "timing", "crash", "harness_error", "final_state_hash")
+
+
+def load_done(job: Job, config_hash: str) -> dict[str, Any] | None:
+    """The saved result of `job` when it can be trusted for a resume (NX-433), else None: the file
+    must parse, name this profile, seed and hours, carry this config's hash (a harness-error
+    stand-in has none, so it is rerun) and have the keys the report reads."""
+    profile, seed, hours, out, _ = job
+    try:
+        run = json.loads((out / "runs" / f"{profile}-s{seed}.json").read_text())
+    except (OSError, ValueError):
+        return None
+    ok = (
+        isinstance(run, dict)
+        and (run.get("profile"), run.get("seed"), run.get("hours")) == (profile, seed, hours)
+        and run.get("config_hash") == config_hash
+        and all(k in run for k in RUN_KEYS)
+    )
+    return run if ok else None
 
 
 def run_jobs(
@@ -201,7 +238,10 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--theater", type=Path, help="a theater file to run on instead of the shipped one"
     )
-    p.add_argument("--out", type=Path, required=True, help="report directory (must not exist)")
+    p.add_argument("--resume", action="store_true", help="keep the valid runs already in --out")
+    p.add_argument(
+        "--out", type=Path, required=True, help="report directory (must not exist without --resume)"
+    )
     return p
 
 
@@ -241,8 +281,8 @@ def main() -> int:
                 "nodes": len(cfg.theater.nodes),
                 "landing_bases": len(cfg.rules.landing_nodes),
             }
-        args.out.mkdir(parents=True)
-        (args.out / "runs").mkdir()
+        args.out.mkdir(parents=True, exist_ok=args.resume)
+        (args.out / "runs").mkdir(exist_ok=args.resume)
         paths = None
         if balance_text or theater_text is not None:
             kw: dict[str, Path] = {}
@@ -252,7 +292,7 @@ def main() -> int:
             if theater_text is not None:
                 # the loader wants the slug to be the file name, so keep the original file name;
                 # a subdirectory keeps it clear of balance.yaml, report.*, runs/ and logs/
-                (args.out / "theater").mkdir()
+                (args.out / "theater").mkdir(exist_ok=args.resume)
                 kw["theater"] = args.out / "theater" / args.theater.name
                 kw["theater"].write_text(theater_text)
             paths = ConfigPaths(**kw)
@@ -262,7 +302,15 @@ def main() -> int:
         travel = metrics.travel_table(cfg.rules, cfg.balance.sim.tick_hz)
         jobs = [(n, s, args.hours, args.out, paths) for n in names for s in args.seeds]
         started = time.perf_counter()
-        runs = run_jobs(jobs, lambda j: data.profiles[j[0]].viewers, args.workers)
+        kept = {}  # job index -> the saved run a resume keeps
+        for i, j in enumerate(jobs if args.resume else []):
+            if (done := load_done(j, cfg.config_hash)) is not None:
+                kept[i] = done
+        todo = [j for i, j in enumerate(jobs) if i not in kept]
+        fresh = iter(run_jobs(todo, lambda j: data.profiles[j[0]].viewers, args.workers))
+        runs = [kept[i] if i in kept else next(fresh) for i in range(len(jobs))]
+        if kept:
+            print(f"resume: kept {len(kept)} of {len(jobs)} runs", file=sys.stderr)
         elapsed = time.perf_counter() - started
         result = build_report(
             runs, data, args.workers, elapsed, args.overrides, theater, economy, travel
