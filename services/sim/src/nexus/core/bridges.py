@@ -60,7 +60,7 @@ from nexus.contracts.gen.events.bridge_repaired import BridgeRepaired
 from nexus.contracts.gen.events.event import Event
 from nexus.core.defense import MILLI_HP
 from nexus.core.provocation import bridge_repaired, suffered_hit
-from nexus.core.roads import shortest_path
+from nexus.core.roads import route_time, shortest_path
 from nexus.core.rules import Rules, WeaponRules
 from nexus.core.world import SIDES, Entity, Vec2, World, at_stop, lose_unit
 
@@ -169,9 +169,9 @@ def reroute(world: World, rules: Rules, taken: str | None = None) -> None:
     loaded truck on a GOTO order to that last node) enters no node the other side holds, that
     node exempt
     (`enemy_held`, Q-SIM-122), and a repair crew (a REPAIR_BRIDGE claimant) none, its bank
-    included (Q-SIM-125), to whichever bank of its bridge is nearer by road; an empty capture-run
-    truck takes any road. A path to a bridge's repair stop is planned to a bank before it, the
-    stop kept after a new route.
+    included (Q-SIM-125), to whichever bank of its bridge is quicker by road (`quickest`,
+    Q-SIM-129); an empty capture-run truck takes any road. A path to a bridge's repair stop is
+    planned to a bank before it, the stop kept after a new route.
     With `taken`, a node that just changed owner (`capture`, NX-413), the trigger is instead a
     supply run's or a crew's hop into `taken` when it is now in that unit's avoid set: the same
     turn-back and replan, so neither drives into a node that turned enemy on its way. An empty
@@ -205,8 +205,8 @@ def reroute(world: World, rules: Rules, taken: str | None = None) -> None:
             avoid = foes[e.side]
         if taken is not None and not (supply or crew):
             continue
-        # a crew bound for a stop may take either bank of its bridge, the nearer by road metres
-        ends = sorted(rules.roads.spans[stop]) if crew and stop else [seq[-1]]
+        # a crew bound for a stop may take either bank of its bridge, the quicker (Q-SIM-129)
+        ends = [*rules.roads.spans[stop]] if crew and stop else [seq[-1]]
         for k, (a, b) in enumerate(pairwise(seq)):
             if taken is not None:
                 hit = b == taken and b in avoid
@@ -219,23 +219,28 @@ def reroute(world: World, rules: Rules, taken: str | None = None) -> None:
                     taken is not None and pickup_leg and b == taken == seq[-1]
                 ):  # its source captured
                     e.pickup = None
-                route = _shortest(rules, a, ends, cut, avoid)
+                route = quickest(rules, a, ends, cut, avoid)
                 e.path = [*seq[1:k], *(route or [a]), *([stop] if route and stop else [])]
                 break
 
 
-def _shortest(
+def quickest(
     rules: Rules, a: str, ends: list[str], cut: frozenset[str], avoid: frozenset[str]
 ) -> list[str] | None:
-    """The shortest road route from `a` to any of `ends` (sorted; ties by node id), or None."""
-    best: tuple[float, list[str]] | None = None
-    for end in ends:
+    """The quickest road route from `a` to any of `ends`, or None: by route time
+    (`roads.route_time`, Q-SIM-129), then metres, then node id; an unreachable end is skipped. A
+    repair crew's bank choice, at dispatch (`logistics.approach`) and on a reroute alike."""
+    best: tuple[float, float, list[str]] | None = None
+    for end in sorted(ends):
         route = shortest_path(rules.roads, a, end, blocked=cut, avoid=avoid)
         if route is not None:
-            length = sum(rules.roads.edge(x, y).length_m for x, y in pairwise(route))
-            if best is None or length < best[0]:
-                best = (length, route)
-    return None if best is None else best[1]
+            key = (
+                route_time(rules.roads, route),
+                sum(rules.roads.edge(x, y).length_m for x, y in pairwise(route)),
+            )
+            if best is None or key < best[:2]:  # ends in id order: a tie keeps the lowest id
+                best = (*key, route)
+    return None if best is None else best[2]
 
 
 def repair(world: World, out: list[Event]) -> None:
