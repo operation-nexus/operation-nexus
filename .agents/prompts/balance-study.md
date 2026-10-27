@@ -15,6 +15,8 @@ cd services/sim && uv run --frozen python ../../tools/balance/balance.py \
 
 - Iterate with short runs (6 h, 3-5 seeds). The full 50-seed acceptance run is for the gate only.
 - Runs over about an hour go through the queue: open a `harness-run` issue (README, "Local run queue"). Estimate the wall time before you schedule a check-in.
+- Queue requests at the `develop` tip with `workers: 12` (or the job's run count if fewer), and open a whole sweep at once: jobs share the 12 slots and widen as earlier jobs finish (NX-460; README, "Workers and overlapping jobs"). After any sim change, add a same-sha control instead of comparing against an older report (L-37).
+- Before naming a cause in the report, confirm it with a short probe; a plausible mechanism read from code was wrong once (sweep N, L-37).
 - Adversarial profiles don't exist yet (NX-321).
 
 Report from `report.md`, before and after:
