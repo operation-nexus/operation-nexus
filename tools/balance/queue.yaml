@@ -17,9 +17,12 @@ labels:
 max_seeds: 50
 max_hours: 72
 max_workers: 12
-# While a job runs, the next one starts only once this many budget workers are free (at least 1).
-# It keeps that count for its whole run (balance.py never resizes its pool), so a small value
-# starts the next job sooner but on fewer workers. 6: half the budget, a 12-run job in two waves.
+# The budget is max_workers slot files in <work_dir>/slots (NX-460). A running job demands
+# min(its workers, its runs left) of it. A job whose sha's balance.py has --slot-dir ("elastic")
+# starts once 1 of the budget is undemanded, with the workers it asked for, and its workers take
+# slots run by run, so it widens as older jobs' tails free slots. This key applies to older shas
+# only: while a job runs, the next such job starts once this many budget workers are free (at
+# least 1) and keeps that count for its whole run. 6: half the budget, a 12-run job in two waves.
 min_overlap_workers: 6
 # Most `set:` balance overrides (key=value pairs; the 3 NX-412 economy switches use 3) in one request.
 max_overrides: 16

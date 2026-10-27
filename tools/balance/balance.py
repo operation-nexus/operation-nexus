@@ -28,11 +28,22 @@ corrupt, from another config, or a harness-error stand-in) is run again, and the
 from all of them. Apart from wall-clock fields (`timing`, each run's `wall_s` and `ticks_per_s`,
 `workers`) it equals the report of an uninterrupted job.
 
+`--slot-dir DIR --slot-key N` (NX-460, both or neither) make the workers of this job share a pool
+of slot files with the other jobs on the host: before a run a worker takes a `DIR/slot-*` (an
+exclusive `flock`, freed by the kernel when the process dies) and holds it until the run ends, so
+a job widens as another job's slots free up. While a worker waits it holds a shared lock on
+`DIR/wait-<N>`; a worker takes no slot while a job with a smaller key has a waiting worker (the
+oldest job first). The seconds a run waited are `timing.slot_wait_s` in its JSON (`wall_s` excludes
+them). While a run is going, `runs/<profile>-s<seed>.progress` holds `<tick> <total_ticks> <unix
+time>`, rewritten about once a minute and removed once the result is written.
+
 Exit 0 on success, 2 on a usage or config error (one line on stderr). Targets that fail do not
 change the exit code: the report says it.
 """
 
 import argparse
+import fcntl
+import functools
 import json
 import math
 import os
@@ -43,7 +54,7 @@ import time
 from collections.abc import Callable
 from concurrent.futures import Executor, ProcessPoolExecutor
 from pathlib import Path
-from typing import Any
+from typing import IO, Any
 
 import metrics
 import profiles
@@ -96,22 +107,105 @@ def override_balance(pairs: list[str]) -> str:
 Job = tuple[str, int, float, Path, ConfigPaths | None]
 
 
-def _one(job: Job) -> dict[str, Any]:
-    """A worker: one (profile, seed) run, its JSON written next to the others."""
+SLOT_POLL_S = 2.0  # how often a waiting worker looks for a free slot
+PROGRESS_EVERY_S = 60.0  # at most one progress write per run per this many wall seconds
+PROGRESS_CHECK_TICKS = 600  # the clock is read only every this many ticks, to stay cheap
+Slots = tuple[Path, int]  # (--slot-dir, --slot-key)
+
+
+def _lock(path: Path, mode: int) -> IO[str] | None:
+    """The open `path` holding an flock of `mode` (LOCK_NB added), or None when it is held."""
+    f = path.open("a")
+    try:
+        fcntl.flock(f, mode | fcntl.LOCK_NB)
+    except BlockingIOError:
+        f.close()
+        return None
+    except BaseException:
+        f.close()
+        raise
+    return f
+
+
+def _older_waiting(slot_dir: Path, key: int) -> bool:
+    """Does a job with a smaller key have a worker waiting? Its waiters hold a shared lock on its
+    wait file, so the exclusive probe fails only while one lives: a killed job frees its lock."""
+    for path in sorted(slot_dir.glob("wait-*")):
+        if path.name[5:].isdigit() and int(path.name[5:]) < key:
+            if (probe := _lock(path, fcntl.LOCK_EX)) is None:
+                return True
+            probe.close()
+    return False
+
+
+def acquire_slot(slot_dir: Path, key: int, poll_s: float = SLOT_POLL_S) -> IO[str]:
+    """Wait for a free slot, oldest job first, and return its open file; closing it releases it.
+    Wait files are never deleted here (an unlink races with flock); the queue clears stale ones."""
+    waiting = (slot_dir / f"wait-{key:09d}").open("a")
+    try:
+        fcntl.flock(waiting, fcntl.LOCK_SH)
+        while True:
+            if not _older_waiting(slot_dir, key):
+                for path in sorted(slot_dir.glob("slot-*")):
+                    if (slot := _lock(path, fcntl.LOCK_EX)) is not None:
+                        return slot
+            time.sleep(poll_s)
+    finally:
+        waiting.close()
+
+
+def _progress(path: Path, total: int) -> Callable[[int, float, Any], bool]:
+    """An `on_tick` writing `<tick> <total> <unix time>` to `path` (`.tmp`, then renamed) at most
+    once per PROGRESS_EVERY_S. It never stops the run, and a write error never fails it."""
+    due = [0.0]
+
+    def on_tick(tick: int, _step_s: float, _world: Any) -> bool:
+        if tick % PROGRESS_CHECK_TICKS or (now := time.monotonic()) < due[0]:
+            return False
+        due[0] = now + PROGRESS_EVERY_S
+        tmp = path.with_suffix(".progress.tmp")
+        try:
+            tmp.write_text(f"{tick} {total} {int(time.time())}\n")
+            os.replace(tmp, path)
+        except OSError:
+            pass
+        return False
+
+    return on_tick
+
+
+def _one(job: Job, slots: Slots | None = None) -> dict[str, Any]:
+    """A worker: one (profile, seed) run, its JSON written next to the others. With `slots` it
+    first takes a slot (see the module doc) and holds it until the run ends."""
     profile, seed, hours, out, paths = job
     name = f"{profile}-s{seed}"
     shutil.rmtree(out / "logs" / name, ignore_errors=True)  # the leftover of a killed attempt
+    progress = out / "runs" / f"{name}.progress"
+    held, waited = None, 0.0
     try:
-        config = load_campaign_config(paths) if paths else None
-        run = runner.run(profile, seed, hours, out / "logs" / name, config=config)
+        if slots:
+            asked = time.monotonic()
+            held = acquire_slot(*slots)
+            waited = time.monotonic() - asked  # runner's wall_s starts after this
+        config = load_campaign_config(paths)
+        total = round(hours * 3600 * config.balance.sim.tick_hz)
+        run = runner.run(
+            profile, seed, hours, out / "logs" / name, config=config,
+            on_tick=_progress(progress, total),
+        )  # fmt: skip
     except Exception as e:  # noqa: BLE001  # one run's failure must not kill the batch
         run = runner.failed_run(profile, seed, hours, f"{type(e).__name__}: {e}")
+    finally:
+        if held:
+            held.close()
+    run["timing"]["slot_wait_s"] = waited
     final = out / "runs" / f"{name}.json"
     tmp = final.with_suffix(
         ".json.tmp"
     )  # written whole, then renamed: a kill leaves no partial file
     tmp.write_text(json.dumps(run, indent=1, sort_keys=True) + "\n")
     os.replace(tmp, final)
+    progress.unlink(missing_ok=True)
     return run
 
 
@@ -203,6 +297,7 @@ def build_report(
         "timing": {
             "elapsed_s": elapsed,
             "run_wall_s": sum(r["timing"]["wall_s"] for r in runs),
+            "slot_wait_s": sum(r["timing"].get("slot_wait_s", 0.0) for r in runs),  # old runs: 0
         },
         "profiles": aggregated,
         "targets": report.target_table(aggregated),
@@ -238,6 +333,8 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument(
         "--theater", type=Path, help="a theater file to run on instead of the shipped one"
     )
+    p.add_argument("--slot-dir", type=Path, help="share the host's slot pool in DIR (--slot-key)")
+    p.add_argument("--slot-key", type=int, help="this job's age rank in the pool: lower goes first")
     p.add_argument("--resume", action="store_true", help="keep the valid runs already in --out")
     p.add_argument(
         "--out", type=Path, required=True, help="report directory (must not exist without --resume)"
@@ -267,6 +364,13 @@ def main() -> int:
             args.hours = float(tree["campaign"]["time_limit_h"])
         if args.hours <= 0 or args.workers < 1:
             raise ValueError("--hours must be > 0 and --workers >= 1")
+        if (args.slot_dir is None) != (args.slot_key is None):
+            raise ValueError("--slot-dir and --slot-key go together")
+        slots = None
+        if args.slot_dir is not None:
+            if args.slot_key < 0 or not any(args.slot_dir.glob("slot-*")):
+                raise ValueError("--slot-key must be >= 0 and --slot-dir must hold slot-* files")
+            slots = (args.slot_dir, args.slot_key)
         theater = None
         theater_text = args.theater.read_text() if args.theater else None
         if theater_text is not None:  # validate (and cross-check with the balance) before `out`
@@ -307,7 +411,8 @@ def main() -> int:
             if (done := load_done(j, cfg.config_hash)) is not None:
                 kept[i] = done
         todo = [j for i, j in enumerate(jobs) if i not in kept]
-        fresh = iter(run_jobs(todo, lambda j: data.profiles[j[0]].viewers, args.workers))
+        fn = functools.partial(_one, slots=slots) if slots else _one
+        fresh = iter(run_jobs(todo, lambda j: data.profiles[j[0]].viewers, args.workers, fn=fn))
         runs = [kept[i] if i in kept else next(fresh) for i in range(len(jobs))]
         if kept:
             print(f"resume: kept {len(kept)} of {len(jobs)} runs", file=sys.stderr)

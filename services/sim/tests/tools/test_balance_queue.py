@@ -1364,3 +1364,297 @@ def test_a_resumed_issue_relabelled_harness_run_is_not_picked_again(
     assert not any("Refused" in s for s in fake.stdin)
     assert fake.edits() == [("104", "harness-done", "harness-running")]
     assert sum("# REPORT 104" in s for s in fake.stdin) == 1
+
+
+# --- NX-460: the shared slot pool -------------------------------------------------------------
+
+
+def slots_of(c: dict[str, Any]) -> Path:
+    return Path(c["work_dir"]) / "slots"
+
+
+def hold(path: Path) -> Any:
+    """Take a slot file as a busy worker would; the test keeps the returned file open."""
+    f = path.open("a")
+    fcntl.flock(f, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    return f
+
+
+class ElasticFake(Fake):
+    """`git cat-file` answers for tools/balance/balance.py with `data` (bytes or str), or fails
+    when it is None. `size` overrides the reported size; `boom` is raised by cat-file instead."""
+
+    def __init__(
+        self,
+        issues: list[Any],
+        data: bytes | str | None,
+        size: int | str | None = None,
+        boom: Exception | None = None,
+    ) -> None:
+        super().__init__(issues)
+        self.data = data.encode() if isinstance(data, str) else data
+        self.size, self.boom = size, boom
+
+    def __call__(self, cmd: list[str], cwd: Any = None, stdin: str | None = None, **kw: Any) -> Any:
+        r = super().__call__(cmd, cwd, stdin, **kw)
+        if cmd[:2] == ["git", "cat-file"]:
+            if self.boom:
+                raise self.boom
+            if self.data is None:
+                r.returncode, r.stdout = 128, b"" if cmd[2] == "blob" else ""
+            elif cmd[2] == "-s":
+                r.stdout = f"{self.data.__len__() if self.size is None else self.size}\n"
+            else:
+                assert cmd[2] == "blob" and kw["text"] is False  # bytes: never decoded
+                r.stdout = self.data
+        return r
+
+
+def test_slots_dir_is_reconciled_to_max_workers(cfg: dict[str, Any]) -> None:
+    d = slots_of(cfg)
+    d.mkdir(parents=True)
+    for name in ("slot-03", "slot-12", "slot-40", "wait-000000005", "wait-000000006"):
+        (d / name).write_text("")
+    live = hold(d / "wait-000000006")  # a waiter that is still alive
+    hq.sync_slots(cfg)
+    assert sorted(p.name for p in d.glob("slot-*")) == [f"slot-{i:02d}" for i in range(12)]
+    assert [p.name for p in d.glob("wait-*")] == ["wait-000000006"]  # only the free one is gone
+    live.close()
+    hq.sync_slots(cfg)  # idempotent, and now the dead waiter goes too
+    assert not list(d.glob("wait-*")) and len(list(d.glob("slot-*"))) == 12
+    cfg["max_workers"] = 4
+    hq.sync_slots(cfg)
+    assert sorted(p.name for p in d.glob("slot-*")) == [f"slot-{i:02d}" for i in range(4)]
+
+
+def test_an_elastic_sha_is_detected_from_git_without_a_checkout(
+    cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    cases = [
+        (b'p.add_argument("--slot-dir")', True),
+        (b"no pool here", False),
+        (b"\xff\xfe not utf-8 \x80 --slot-dir \xc3", True),  # bytes are searched, not decoded
+        (b"\xff\xfe garbage \x80", False),
+        (None, False),
+    ]
+    for data, want in cases:
+        fake = ElasticFake([], data)
+        monkeypatch.setattr(hq, "run_cmd", fake)
+        jobs = hq.Jobs(cfg)
+        assert jobs.elastic(SHA) is want
+        spec = f"{SHA}:tools/balance/balance.py"
+        assert fake.calls[0] == ["git", "cat-file", "-s", spec]  # argv lists, no checkout
+        if data is not None:
+            assert fake.calls[1] == ["git", "cat-file", "blob", spec]
+            assert jobs.elastic(SHA) is want and len(fake.calls) == 2  # cached once read
+
+
+def test_a_failed_detection_is_not_cached_and_is_retried(
+    cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake = ElasticFake([], None)
+    monkeypatch.setattr(hq, "run_cmd", fake)
+    jobs = hq.Jobs(cfg)
+    assert jobs.elastic(SHA) is False and SHA not in jobs.kinds
+    fake.data = b"--slot-dir"  # the fetch has brought the commit in
+    assert jobs.elastic(SHA) is True and jobs.kinds[SHA] is True
+
+
+def test_an_oversize_balance_py_is_legacy_and_never_read(
+    cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake = ElasticFake([], b"--slot-dir", size=(1 << 20) + 1)
+    monkeypatch.setattr(hq, "run_cmd", fake)
+    jobs = hq.Jobs(cfg)
+    assert jobs.elastic(SHA) is False and SHA not in jobs.kinds
+    assert all(c[2] != "blob" for c in fake.calls)
+    fake.size = 1 << 20  # at the limit: read
+    assert jobs.elastic(SHA) is True
+    for bad in ("", "abc", "-5"):  # a size that is not a number
+        fake.size = bad
+        assert hq.Jobs(cfg).elastic(SHA) is False
+
+
+def test_an_error_in_detection_is_legacy_and_does_not_crash_start(
+    cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    fake = ElasticFake([], b"--slot-dir", boom=UnicodeDecodeError("utf-8", b"\xff", 0, 1, "bad"))
+    monkeypatch.setattr(hq, "run_cmd", fake)
+    seen: list[dict[str, Any]] = []
+    release = blocked_launch(monkeypatch, seen)
+    jobs = hq.Jobs(cfg)
+    assert jobs.elastic(SHA) is False and SHA not in jobs.kinds
+    assert "UnicodeDecodeError" in capsys.readouterr().out  # the type only
+    jobs.start(90, hq.parse_block(block(workers="3"), cfg, NAMES), False)
+    release.set()
+    jobs.join()
+    assert seen[0]["elastic"] is False and seen[0]["workers"] == 3  # started as legacy
+
+
+def test_the_develop_check_comes_before_any_read_of_the_shas_files(
+    cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    for ancestor in (False, True):
+        fake = ElasticFake([], b"--slot-dir")
+        fake.ancestor = ancestor
+        monkeypatch.setattr(hq, "run_cmd", fake)
+        jobs = hq.Jobs(cfg)
+        jobs.running.append(hq.Job(1, 1, 1, out_of(cfg, 1)))  # fits then asks `elastic`
+        monkeypatch.setattr(jobs, "start", lambda *a: None)
+        i = issue(95, body=block(workers="2"))
+        fake.issues = [i]
+        assert hq.process(cfg, jobs, i, False) is True
+        kinds = [c[1] for c in fake.calls if c[0] == "git"]
+        if ancestor:
+            assert kinds.index("merge-base") < kinds.index("cat-file")
+        else:
+            assert "cat-file" not in kinds  # refused first: nothing of the sha was read
+        jobs.running.clear()
+        hq.running_file(cfg, 95).unlink(missing_ok=True)
+        hq.request_file(cfg, 95).unlink(missing_ok=True)
+
+
+def test_dry_run_creates_no_slot_files(
+    cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(hq, "run_cmd", Fake([]))
+    assert hq.run_once(cfg, True) == 0
+    assert not slots_of(cfg).exists()
+    assert hq.run_once(cfg, False) == 0 and len(list(slots_of(cfg).glob("slot-*"))) == 12
+
+
+def test_execute_passes_the_pool_only_to_an_elastic_job(
+    cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    fake = Fake([])
+    monkeypatch.setattr(hq, "run_cmd", fake)
+    req = hq.parse_block(block(workers="3"), cfg, NAMES)
+    hq.execute(cfg, 11, req)
+    assert "--slot-dir" not in fake.calls[2]
+    fake.calls.clear()
+    hq.execute(cfg, 11, {**req, "elastic": True})
+    cmd = fake.calls[2]
+    pool = ["--slot-dir", str(slots_of(cfg)), "--slot-key", "11"]
+    assert cmd[cmd.index("--slot-dir") :][:4] == pool
+    assert cmd[cmd.index("--workers") + 1] == "3"
+
+
+def blocked_launch(monkeypatch: pytest.MonkeyPatch, seen: list[dict[str, Any]]) -> threading.Event:
+    """Jobs started in a test stay running until the returned event is set."""
+    release = threading.Event()
+
+    def _launch(c: dict[str, Any], n: int, req: dict[str, Any], resume: bool) -> None:
+        seen.append(req)
+        release.wait(10)
+
+    monkeypatch.setattr(hq, "launch", _launch)
+    return release
+
+
+def test_a_legacy_job_holds_slots_then_gives_them_back_as_runs_finish(
+    cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(hq, "run_cmd", ElasticFake([], None))
+    release = blocked_launch(monkeypatch, [])
+    jobs = hq.Jobs(cfg)
+    outside = hold(slots_of(cfg) / "slot-00")  # another job's worker has one slot
+    req = hq.parse_block(block(profiles=TWO, seeds="3", workers="8"), cfg, NAMES)  # 6 runs
+    jobs.start(70, req, False)
+    job = jobs.running[0]
+    assert job.workers == 8 and len(job.held) == 8 and not job.elastic
+    assert jobs.free() == 12 - 6 and len(job.held) == 6  # demand: min(8, 6 runs left)
+    write_runs(out_of(cfg, 70), 4)  # 2 runs left: it keeps 2 slots
+    assert jobs.free() == 12 - 2 and len(job.held) == 2
+    outside.close()
+    release.set()
+    jobs.join()
+    assert jobs.free() == 12 and all(lockable_slot(cfg, i) for i in range(12))  # all given back
+
+
+def lockable_slot(c: dict[str, Any], i: int) -> bool:
+    return bool(hq.lockable(slots_of(c) / f"slot-{i:02d}"))
+
+
+def test_a_legacy_job_that_got_fewer_slots_tops_up_later(
+    cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(hq, "run_cmd", ElasticFake([], None))
+    release = blocked_launch(monkeypatch, [])
+    jobs = hq.Jobs(cfg)
+    busy = [hold(slots_of(cfg) / f"slot-{i:02d}") for i in range(11)]  # elastic workers
+    req = hq.parse_block(block(profiles=TWO, seeds="3", workers="4"), cfg, NAMES)
+    jobs.start(72, req, False)
+    job = jobs.running[0]
+    assert job.workers == 4 and len(job.held) == 1  # 4 workers by demand, 1 lock to be had
+    for f in busy[:3]:
+        f.close()
+    assert jobs.free() == 12 - 4 and len(job.held) == 4  # topped up
+    write_runs(out_of(cfg, 72), 5)  # 1 run left
+    assert jobs.free() == 12 - 1 and len(job.held) == 1
+    release.set()
+    jobs.join()
+    for f in busy[3:]:
+        f.close()
+
+
+def test_an_elastic_job_holds_nothing_in_the_queue(
+    cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(hq, "run_cmd", ElasticFake([], "--slot-dir"))
+    seen: list[dict[str, Any]] = []
+    release = blocked_launch(monkeypatch, seen)
+    jobs = hq.Jobs(cfg)
+    req = hq.parse_block(block(profiles=TWO, seeds="6", workers="12"), cfg, NAMES)
+    jobs.start(71, req, False)
+    assert not jobs.running[0].held and jobs.free() == 0  # its demand counts, its workers lock
+    release.set()
+    jobs.join()
+    assert seen[0]["elastic"] is True and seen[0]["workers"] == 12  # the requested count
+    assert all(lockable_slot(cfg, i) for i in range(12))
+
+
+def test_a_second_elastic_job_waits_until_the_first_has_fewer_runs_than_workers(
+    cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(hq, "run_cmd", ElasticFake([], "--slot-dir"))
+    seen: list[dict[str, Any]] = []
+    release = blocked_launch(monkeypatch, seen)
+    jobs = hq.Jobs(cfg)
+    req = hq.parse_block(block(profiles=TWO, seeds="6", workers="12"), cfg, NAMES)  # 12 runs
+    jobs.start(80, req, False)
+    assert not jobs.fits(req)  # no slot is locked yet, but the first demands all 12
+    write_runs(out_of(cfg, 80), 0)
+    assert not jobs.fits(req)
+    write_runs(out_of(cfg, 80), 1)  # 11 runs left: demand 11
+    assert jobs.fits(req)
+    jobs.start(81, req, False)
+    assert [(r["elastic"], r["workers"]) for r in seen] == [(True, 12), (True, 12)]
+    assert not jobs.fits(req)  # 11 + 12 demanded: over the budget
+    release.set()
+    jobs.join()
+
+
+def test_a_legacy_job_needs_its_overlap_share_of_the_undemanded_budget(
+    cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    jobs = hq.Jobs(cfg)
+    jobs.running.append(hq.Job(1, 12, 12, out_of(cfg, 1), elastic=True))  # something else runs
+    req = hq.parse_block(block(workers="12"), cfg, NAMES)
+    jobs.kinds[SHA] = False
+    write_runs(out_of(cfg, 1), 5)  # 7 runs left: 5 undemanded
+    assert not jobs.fits(req)  # min(12, min_overlap_workers) = 6
+    write_runs(out_of(cfg, 1), 6)  # 6 left: 6 undemanded
+    assert jobs.fits(req)
+    jobs.kinds[SHA] = True
+    write_runs(out_of(cfg, 1), 0)
+    for f in (out_of(cfg, 1) / "runs").glob("*.json"):
+        f.unlink()
+    assert not jobs.fits(req)  # an elastic one needs 1, none undemanded
+    jobs.running.clear()
+
+
+def test_runs_left_does_not_count_progress_files(tmp_path: Path) -> None:
+    write_runs(tmp_path, 2)
+    (tmp_path / "runs" / "p-s3.progress").write_text("1 36000 1\n")
+    (tmp_path / "runs" / "p-s3.progress.tmp").write_text("")
+    assert hq.runs_left(tmp_path, 5) == 3
