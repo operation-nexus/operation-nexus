@@ -97,8 +97,9 @@ from nexus.core.rules import CAPTURE_FULL, Rules
 # operation was kept, launched or dropped (Q-TD-42, NX-427, no bump: same shape); only capture
 # operations stamp it (Q-TD-54, NX-439, no bump: same shape); 33: Staged.sector, the sector its
 # open massing sitrep named, and Job.downed_by and downed, the viewer units that downed a STRIKE
-# job's claimants and whether its sitrep was emitted (NX-431, Q-TD-47, Q-TD-56)
-FORMAT_VERSION = 33
+# job's claimants and whether its sitrep was emitted (NX-431, Q-TD-47, Q-TD-56); 34: shortfall and
+# shortfall_end, each side's open shortfall episodes and when each base's last one ended (NX-436)
+FORMAT_VERSION = 34
 _MM = 1000.0  # metres -> millimetres; m/s -> mm/s
 _MICRO = 1e6  # ADR-0002's 1e-6 step for other floats (fuel)
 _MILLI_UNIT = 1000  # thousandths of a stock unit per unit
@@ -135,6 +136,8 @@ _POOL = "pool"
 _NEXT_ENTITY_ID = "next_entity_id"
 _NEXT_EVENT_SEQ = "next_event_seq"
 _RNG = "rng"
+_SHORTFALL = "shortfall"
+_SHORTFALL_END = "shortfall_end"
 _SIGINT_AGE = "sigint_age"
 _STOCK = "stock"
 _STORAGE = "storage"
@@ -179,6 +182,8 @@ _WORLD_KEYS = (
     _RESERVE_QUEUE,
     _RESPAWN_LEFT,
     _RNG,
+    _SHORTFALL,
+    _SHORTFALL_END,
     _SHOTS,
     _SIGINT_AGE,
     _STOCK,
@@ -516,6 +521,22 @@ class Staged:
     sector: str | None = None
 
 
+ShortfallStatus = Literal["PENDING", "ANNOUNCED", "MUTED"]
+_SHORTFALL_STATUSES: tuple[ShortfallStatus, ...] = ("PENDING", "ANNOUNCED", "MUTED")
+
+
+@dataclass(slots=True)
+class Shortfall:
+    """One side's open shortfall episode at a base (ECONOMY EC-6a, NX-436; `nexus.core.upkeep`):
+    `status` PENDING (not announced yet: an ENEMY base the coalition does not see), ANNOUNCED
+    (its `SupplyShortfall{STARTED}` went out) or MUTED (it started inside
+    `economy.shortfall_quiet_windows`, never announced); `haulers` the carriers that unloaded
+    into the base's stock during it, ascending (`logistics`)."""
+
+    status: ShortfallStatus
+    haulers: list[int] = field(default_factory=list)
+
+
 @dataclass(slots=True)
 class DirectorState:
     """One side's Threat Director (THREAT-DIRECTOR §2-§5a, NX-155; `nexus.core.director`). Coalition
@@ -639,6 +660,8 @@ class World:
         "respawn_left",
         "rng",
         "rules",
+        "shortfall",
+        "shortfall_end",
         "shots",
         "sigint_age",
         "speed_cap",
@@ -696,6 +719,11 @@ class World:
         # units, only for a side not in unlimited mode (`nexus.core.economy`, NX-412, EC-15).
         self.pool: dict[Side, int] = {}
         self.storage: dict[Side, int] = {}
+        # Side -> base -> its open shortfall episode, and base -> the running tick its last
+        # episode ended (ECONOMY EC-6a, NX-436): only `nexus.core.upkeep` opens and closes them;
+        # `logistics` adds the haulers.
+        self.shortfall: dict[Side, dict[str, Shortfall]] = {side: {} for side in SIDES}
+        self.shortfall_end: dict[Side, dict[str, int]] = {side: {} for side in SIDES}
         # Node id -> its live owner, in id order (NX-125): the theater's start owners, then only
         # the `capture` system changes it. A SANCTUARY never does (N-4).
         self.owner: dict[str, NodeOwner] = dict(rules.supply.start_owner) if rules else {}
@@ -1157,6 +1185,10 @@ def to_canonical(world: World, *, quantize: bool) -> dict[str, Any]:
         _NEXT_MARKER_ID: world._next_marker_id,
         _NEXT_SHOT_ID: world._next_shot_id,
         _RNG: {name: dict(sorted(s.items())) for name, s in world.rng.to_state().items()},
+        _SHORTFALL: {
+            s: {n: asdict(f) for n, f in sorted(world.shortfall[s].items())} for s in SIDES
+        },
+        _SHORTFALL_END: {s: dict(sorted(world.shortfall_end[s].items())) for s in SIDES},
         _SHOTS: [asdict(s) for s in world.shots],
         _SIGINT_AGE: world.sigint_age,
         _STOCK: dict(sorted(world.stock.items())),
@@ -1735,6 +1767,29 @@ def _tick_map(value: object, nodes: dict[str, NodeOwner], limit: int, what: str)
     return out
 
 
+def _shortfall(value: object, world: World) -> dict[Side, dict[str, Shortfall]]:
+    """EC-6a: per side, base (a node) -> a known status and its haulers, ascending entity ids
+    below the counter."""
+    sides = _fields(value, SIDES, _SHORTFALL)
+    out: dict[Side, dict[str, Shortfall]] = {}
+    for side in SIDES:
+        if not isinstance(sides[side], dict):
+            raise ValueError(f"{_SHORTFALL}.{side} must be a map")
+        out[side] = {}
+        for node, raw in sorted(sides[side].items()):
+            d = _fields(raw, ("haulers", "status"), _SHORTFALL)
+            ids = d["haulers"]
+            if not isinstance(ids, list):
+                raise ValueError(f"{_SHORTFALL}.haulers must be a list")
+            haulers = [_int(i, "hauler id", 1) for i in ids]
+            if haulers != sorted(set(haulers)) or any(i >= world._next_entity_id for i in haulers):
+                raise ValueError(f"{_SHORTFALL}: haulers must ascend, once, below next_entity_id")
+            if _str(node, "node id") not in world.owner:
+                raise ValueError(f"{_SHORTFALL}: {node!r} is not a node")
+            out[side][node] = Shortfall(_str(d["status"], "status", _SHORTFALL_STATUSES), haulers)
+    return out
+
+
 def _runs(value: object, blobs: tuple[Blob, ...]) -> dict[str, int]:
     """Runs of at least 1, exactly for the cells the side's current blobs are in."""
     if not isinstance(value, dict):
@@ -1994,6 +2049,12 @@ def load(data: bytes) -> World:
     world.lost = _tick_map(d[_LOST], world.owner, world.campaign.running_ticks, _LOST)
     cooldown = _fields(d[_COOLDOWN], SIDES, _COOLDOWN)
     world.cooldown = {s: _cells(cooldown[s]) for s in SIDES}
+    world.shortfall = _shortfall(d[_SHORTFALL], world)
+    ended = _fields(d[_SHORTFALL_END], SIDES, _SHORTFALL_END)
+    world.shortfall_end = {
+        s: _tick_map(ended[s], world.owner, world.campaign.running_ticks, _SHORTFALL_END)
+        for s in SIDES
+    }
     _check_claims(world)
     _check_follow(world)
     return world

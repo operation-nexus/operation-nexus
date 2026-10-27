@@ -267,6 +267,10 @@ STORAGE_LOST = {**_BASE, "kind": "SupplyConsumed", "node_id": "static-rear", "am
 UPKEEP = {**STORAGE_LOST, "node_id": "fob-1", "amount": 12, "cause": "UPKEEP"}  # NX-412 part 2
 GROUNDED = {**_BASE, "kind": "UnitGrounded", "entity_id": 7, "node_id": "fob-1"}
 UNGROUNDED = {**GROUNDED, "kind": "UnitUngrounded"}
+# NX-436 (ECONOMY EC-6a): one sitrep per shortfall episode and its payoff
+SHORTFALL = {**_BASE, "kind": "SupplyShortfall", "side": "COALITION", "node_id": "fob-1",
+             "status": "STARTED", "grounded": 3, "credit_ids": []}  # fmt: skip
+PAYOFF = {**SHORTFALL, "status": "ENDED", "grounded": 0, "credit_ids": [4, 9]}
 # NX-412 part 4 (ECONOMY EC-9): the victory hold and its sitrep
 HOLD_STARTED = {**_BASE, "kind": "VictoryHoldStarted", "node_ids": ["fob-1", "port-s"],
                 "ends_at_tick": 18_042}  # fmt: skip
@@ -305,6 +309,9 @@ REFUSED = {**_BASE, "kind": "SpawnRefused", "side": "ENEMY", "reason": "GUARD", 
         UPKEEP,
         GROUNDED,
         UNGROUNDED,
+        SHORTFALL,
+        PAYOFF,
+        {**SHORTFALL, "side": "ENEMY"},
         HOLD_STARTED,
         HOLD_BROKEN,
         HOLD_AT_RISK,
@@ -359,6 +366,14 @@ def test_combat_events_parse_through_the_event_union(good: dict[str, object]) ->
         (GROUNDED, {"entity_id": 0}),
         (GROUNDED, {"side": "COALITION"}),  # {unit, home} only (ECONOMY §4)
         (UNGROUNDED, {"node_id": "Not A Node"}),
+        (SHORTFALL, {"status": "CHRONIC"}),
+        (SHORTFALL, {"grounded": -1}),
+        (SHORTFALL, {"node_id": "Not A Node"}),
+        (SHORTFALL, {"side": "NEUTRAL"}),
+        (SHORTFALL, {"credit_ids": None}),  # required, always a list
+        (SHORTFALL, {"entity_ids": [3]}),  # a count, never per unit
+        (PAYOFF, {"credit_ids": list(range(1, 34))}),  # at most 32
+        (PAYOFF, {"credit_ids": ["viper"]}),  # ids; consumers resolve callsigns
         (HOLD_STARTED, {"ends_at_tick": 0}),  # a campaign-clock tick, at least 1
         (HOLD_STARTED, {"node_ids": ["Not A Node"]}),
         (HOLD_STARTED, {"node_id": "fob-1"}),  # {nodes, ends_at} only (ECONOMY §4)

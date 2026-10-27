@@ -11,6 +11,8 @@ unload rate is counted in thousandths of a unit per tick (`Supply.unload_milli`)
 truck as `Entity.unload_milli` so no fraction is ever lost to rounding. A unit at a base buys fuel,
 rounds and hp in thousandths of stock and owes `Entity.rearm_milli`; a whole unit leaves the stock
 as the debt reaches 1000, so every unit debited equals thousandths bought.
+A truck that unloads stock into a base with an open shortfall episode of its side is
+recorded as one of the episode's haulers (`Shortfall.haulers`; ECONOMY EC-6a, NX-436).
 
 "Friendly" is the node's live owner (`World.owner`, which capture changes, NX-125). Every route
 passes `bridges.blocked`, so none crosses a down bridge (NX-373); a supply run's also enters no
@@ -22,6 +24,7 @@ is deterministic: entities in id order, candidate nodes in id order, ties on dis
 """
 
 import math
+from bisect import insort
 from collections.abc import Mapping, Sequence
 from itertools import pairwise
 from typing import NamedTuple
@@ -401,6 +404,9 @@ def _unload(world: World, rules: Rules, e: Entity, node: str, out: list[Event]) 
     moved = min(whole, e.cargo, room if room > 0 else to_build)
     if room > 0:
         world.stock[node] = world.stock.get(node, 0) + moved
+        episode = world.shortfall[e.side].get(node)  # a hauler of its payoff (EC-6a, NX-436)
+        if moved and episode is not None and e.id not in episode.haulers:
+            insort(episode.haulers, e.id)
     else:  # full stock: each unit goes straight into the defenses (Q-SIM-71)
         e.defended += moved
     e.cargo -= moved

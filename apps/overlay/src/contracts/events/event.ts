@@ -13,6 +13,7 @@ export type Event =
   | SupplyDelivered
   | SupplyConsumed
   | SupplyProduced
+  | SupplyShortfall
   | UnitGrounded
   | UnitUngrounded
   | RearmStalled
@@ -347,6 +348,48 @@ export interface SupplyProduced {
   campaign_id: string;
   side: "COALITION" | "ENEMY";
   amount: number;
+}
+/**
+ * A base-level upkeep shortfall sitrep (CONTRACTS §6; ECONOMY EC-6a; NX-436, Q-TD-51 U5, Q-TD-64). A shortfall episode at a base is the run of consecutive economy windows in which at least one unit of `side` homed there is grounded (the NX-437 harness definition, GLOSSARY). STARTED once per episode, never per unit: the sitrep "<BASE> OUT OF SUPPLY: n flights grounded. Haul to <BASE>". ENDED once, only for an announced episode that closed because its home paid a grounded unit again: the payoff line crediting credit_ids. An ENEMY base's episode is announced, and closed, only in a window in which the coalition tracks a live Static unit or facility at that base (FOW-13). An episode starting within economy.shortfall_quiet_windows of the end of the base's last announced or muted one is never announced. Public view: this INTEL line.
+ */
+export interface SupplyShortfall {
+  kind: "SupplyShortfall";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * The side whose units the base grounds.
+   */
+  side: "COALITION" | "ENEMY";
+  /**
+   * Stable slug from the theater file.
+   */
+  node_id: string;
+  /**
+   * STARTED: the episode is announced; ENDED: its payoff.
+   */
+  status: "STARTED" | "ENDED";
+  /**
+   * STARTED: the units of `side` homed at the base grounded at that window; for an ENEMY base only those the coalition currently tracks, so possibly 0 (FOW-13). ENDED: 0.
+   */
+  grounded: number;
+  /**
+   * ENDED, COALITION only: the carriers of `side` that unloaded stock into the base's stock during the episode, ascending, no duplicates (producer; not uniqueItems, SC-14), the 32 lowest ids; consumers resolve callsigns. Empty for STARTED and for an ENEMY base (always sent).
+   *
+   * @maxItems 32
+   *
+   * Items: Sequential per campaign, never reused (SC-4).
+   */
+  credit_ids: number[];
 }
 /**
  * A unit's home base could not pay its upkeep at an economy window (CONTRACTS §6; ECONOMY EC-4, EC-6; NX-412 part 2): the unit is grounded, never deleted. It drops its job claim and order, returns to its home and stays there (an aircraft landed, a ground unit parked), takes no new job or order, and still returns fire. Once per change, not per window. Only for a side not in unlimited mode (EC-15). Public view: the coalition sees its own units (a feed line, GAMEPLAY §1a); ENEMY dropped (proposed).

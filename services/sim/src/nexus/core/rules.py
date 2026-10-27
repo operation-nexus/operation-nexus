@@ -466,6 +466,9 @@ class EconomyRules:
     max_live_per_side: int = 0
     # economy.floor_viewer_units (EC-11): read only by the loader's coalition floor check
     floor_viewer_units: int = 0
+    # economy.shortfall_quiet_windows (NX-436, EC-6a): an episode starting this many windows or
+    # fewer after the base's last one ended is not announced (`nexus.core.upkeep`)
+    shortfall_quiet_windows: int = 0
 
     def rate(self, kind: UnitKind) -> Fraction:
         """A `kind` unit's upkeep per window, averaged over its period (Q-TD-52 D1): exact."""
@@ -488,6 +491,7 @@ def economy_rules(cfg: Economy, *, window_ticks: int, max_live_per_side: int) ->
         free_viewer_spawn=cfg.free_viewer_spawn,
         max_live_per_side=max_live_per_side,
         floor_viewer_units=cfg.floor_viewer_units,
+        shortfall_quiet_windows=cfg.shortfall_quiet_windows,
     )
 
 

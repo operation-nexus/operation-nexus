@@ -171,6 +171,7 @@ class Collector:
         self.windows_viewer_grounded = 0  # R2
         self._open: dict[str, int] = {}  # home -> index in `episodes` of its running episode
         self.episodes: list[dict[str, Any]] = []  # R3: home, start tick, windows, R11 flag
+        self.sitreps: Counter[str] = Counter()  # SupplyShortfall by "<side> <status>" (NX-436)
         self._grounded_cmdrs: set[str] = set()  # R4, kept inside; only the counts leave
         self._cmdrs: set[str] = set(self.commander_of.values())
         self._pool_low = 0  # R10: running low windows
@@ -202,6 +203,7 @@ class Collector:
             "UnitGrounded": self._grounded,
             "SpawnRefused": self._refused,
             "ThreatAdaptation": self._adapted,
+            "SupplyShortfall": self._shortfall_sitrep,
             "JobCreated": self._job_created,
             "BridgeDestroyed": self._bridge_destroyed,
         }
@@ -578,6 +580,9 @@ class Collector:
         if e.side == _ENEMY:
             _add(self.adapted.setdefault(e.category, []), self._hour(e.tick), 1)
 
+    def _shortfall_sitrep(self, e: Any) -> None:
+        self.sitreps[f"{e.side} {e.status}"] += 1
+
     def _job_created(self, e: Any) -> None:
         if e.side == _ENEMY:
             self._new_jobs.append(e.job_id)
@@ -720,6 +725,7 @@ class Collector:
             },
             "windows_viewer_grounded": self.windows_viewer_grounded,
             "episodes": [dict(x) for x in self.episodes],
+            "sitreps": dict(sorted(self.sitreps.items())),
             "viewers": len(self._cmdrs),
             "viewers_grounded": len(self._grounded_cmdrs),
             "pool_low": {

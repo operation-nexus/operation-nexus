@@ -36,6 +36,7 @@ from . import (
     supply_consumed,
     supply_delivered,
     supply_produced,
+    supply_shortfall,
     threat_adaptation,
     threat_tier_changed,
     unit_damage_state_changed,
@@ -61,6 +62,7 @@ type Event = Annotated[
     | supply_delivered.SupplyDelivered
     | supply_consumed.SupplyConsumed
     | supply_produced.SupplyProduced
+    | supply_shortfall.SupplyShortfall
     | unit_grounded.UnitGrounded
     | unit_ungrounded.UnitUngrounded
     | rearm_stalled.RearmStalled
