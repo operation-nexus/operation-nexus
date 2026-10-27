@@ -80,6 +80,13 @@ def put(
     return e
 
 
+def airborne(e: Entity) -> Entity:
+    """`e` in the air where it stands (ON_STATION: it orbits from the next movement tick); a
+    LANDED aircraft is a GROUND target with no band (Q-MV-14)."""
+    e.state = "ON_STATION"
+    return e
+
+
 def track(w: World, watcher: Entity, target: Entity, *, painted: bool = False) -> None:
     """`watcher`'s side tracks `target` as of now."""
     known = w.contacts[watcher.side]
@@ -155,10 +162,10 @@ def test_only_a_tracked_target_is_ever_shot() -> None:
 
 def test_a_weapon_needs_range_domain_and_band() -> None:
     w = new_world()
-    jet = put(w, JET, "COALITION", 0)
-    out_of_range = put(w, ARMOR, "ENEMY", 10_001)  # AG_LIGHT reaches 10 km
+    jet = airborne(put(w, JET, "COALITION", 0))  # a LANDED one fires no AIR weapon (Q-MV-19)
+    out_of_range = put(w, ARMOR, "ENEMY", -10_001)  # AG_LIGHT reaches 10 km; the jet orbits east
     wrong_domain = put(w, RADAR, "ENEMY", 500)  # STATIC: AG_LIGHT can, AA_LIGHT cannot
-    high = put(w, ENEMY_JET, "ENEMY", 500)
+    high = airborne(put(w, ENEMY_JET, "ENEMY", 500))
     high.alt_band = "HIGH"  # AA_LIGHT reaches LOW and MED only
     for t in (out_of_range, wrong_domain, high):
         track(w, jet, t)
@@ -173,9 +180,9 @@ def test_a_weapon_needs_range_domain_and_band() -> None:
 
 def test_a_unit_fires_each_ready_weapon_once_in_catalog_order() -> None:
     w = new_world()
-    jet = put(w, JET, "COALITION", 0)
+    jet = airborne(put(w, JET, "COALITION", 0))
     ground = put(w, ARMOR, "ENEMY", 2_000)
-    air = put(w, ENEMY_JET, "ENEMY", 2_000)
+    air = airborne(put(w, ENEMY_JET, "ENEMY", 2_000))
     track(w, jet, ground)
     track(w, jet, air)
     fired = of(run(w), WeaponFired)
@@ -208,45 +215,61 @@ def test_a_unit_fires_each_ready_weapon_once_in_catalog_order() -> None:
             st.integers(-12_000, 12_000),
             st.sampled_from(["tracked", "last_known", "unseen"]),
             st.sampled_from(["NOE", "LOW", "MED", "HIGH"]),
+            st.booleans(),
         ),
         max_size=8,
-    )
+    ),
+    st.booleans(),
 )
 def test_cb1_chosen_target_is_valid_and_best(
-    scene: list[tuple[UnitKind, int, int, str, AltBand]],
+    scene: list[tuple[UnitKind, int, int, str, AltBand, bool]], shooter_flying: bool
 ) -> None:
-    """The brute force reads the content files, not `Rules`: threat, domain, range, bands."""
+    """The brute force reads the content files, not `Rules`: threat, domain, range, bands. An
+    aircraft on the ground is a GROUND target with no band (Q-MV-14), and a shooter on the ground
+    takes no AIR target (Q-MV-19)."""
     paths = ConfigPaths()
     catalog = load_catalog(paths.units, paths.weapons, paths.roles)
     unit = {u.kind: u for u in catalog.units}
     weapon = {wp.id: wp for wp in catalog.weapons}
     w = new_world()
     jet = put(w, JET, "COALITION", 0)
+    if shooter_flying:
+        airborne(jet)
     enemies = []
-    for kind, x, y, how, band in scene:
+    for kind, x, y, how, band, flying in scene:
         e = put(w, kind, "ENEMY", x, y)
         if unit[kind].domain == "AIR":
             e.alt_band = band
+            if flying:
+                airborne(e)
         if how == "tracked":
             track(w, jet, e)
         elif how == "last_known":
             w.contacts["COALITION"][e.id] = Contact(kind, e.pos, e.vel, 2)
         enemies.append((e, how))
+    fired = of(run(w), WeaponFired)  # positions below are those at the fire (after movement)
     expected = []
     for wid in unit[JET].weapons:
         wp = weapon[wid]
         valid = [
-            (-unit[e.kind].threat, e.pos.x**2 + e.pos.y**2, e.id)
+            (-unit[e.kind].threat, d2, e.id)
             for e, how in enemies
             if how == "tracked"
-            and unit[e.kind].domain in wp.targets
-            and (unit[e.kind].domain != "AIR" or e.alt_band in wp.bands)
-            and e.pos.x**2 + e.pos.y**2 <= wp.range_m**2
+            and _class(unit[e.kind].domain, e) in wp.targets
+            and (
+                _class(unit[e.kind].domain, e) != "AIR"
+                or (e.alt_band in wp.bands and jet.state != "LANDED")
+            )
+            and (d2 := (jet.pos.x - e.pos.x) ** 2 + (jet.pos.y - e.pos.y) ** 2) <= wp.range_m**2
         ]
         if valid:
             expected.append((wid, min(valid)[2]))
-    fired = of(run(w), WeaponFired)
     assert [(f.weapon, f.target_id) for f in fired if f.shooter_id == jet.id] == expected
+
+
+def _class(domain: str, e: Entity) -> str:
+    """The domain a weapon checks: GROUND for a LANDED aircraft (Q-MV-14)."""
+    return "GROUND" if domain == "AIR" and e.state == "LANDED" else domain
 
 
 def brute_fire(world: World, rules: Rules, cr: CombatRules, now: int, out: list[Event]) -> None:
@@ -272,10 +295,12 @@ def brute_fire(world: World, rules: Rules, cr: CombatRules, now: int, out: list[
             for _, d2, tid in known:
                 t = world.get(tid)
                 domain = rules.domain[t.kind]
+                if domain == "AIR" and t.state == "LANDED":
+                    domain = "GROUND"  # on the ground: no band (Q-MV-14)
                 if (
                     d2 <= w.range_m**2
                     and domain in w.targets
-                    and (domain != "AIR" or t.alt_band in w.bands)
+                    and (domain != "AIR" or (t.alt_band in w.bands and e.state != "LANDED"))
                 ):
                     combat._shoot(world, rules, e, i, w, (t, d2), now, out)
                     break
@@ -318,6 +343,8 @@ def test_the_grid_search_equals_the_brute_force_scan(
             e = put(w, kind, side, 10_000.0 + x, 10_000.0 + y)
             if e.state is not None:
                 e.alt_band = band
+                if off:  # an aircraft: airborne, else LANDED (a GROUND target, Q-MV-14)
+                    airborne(e)
             if off and w.rules is not None and w.rules.domain[kind] == "STATIC":
                 e.hp, e.damage_state = 14, "DISABLED"
         for s in w.entities():
@@ -453,7 +480,7 @@ def test_the_worked_example_is_042() -> None:
     # COMBAT §5.2: base_pk 0.8, range 20 km, a tracked unpainted fighter (evasion 0.7) at 15 km.
     w = new_world()
     shooter = put(w, ENEMY_JET, "ENEMY", 0)
-    target = put(w, JET, "COALITION", 15_000)
+    target = airborne(put(w, JET, "COALITION", 15_000))
     track(w, shooter, target)
     weapon = dataclasses.replace(COMBAT.weapons["AA_MISSILE"], base_pk=0.8, range_m=20_000.0)
     assert pk_of(w, shooter, target, weapon) == pytest.approx(0.8 * 1.0 * 0.75 * 0.7 * 1.0)
@@ -468,7 +495,7 @@ def test_masked_alt_bands_decide_which_aircraft_the_masked_multiplier_hits() -> 
     """NX-388, Q-DEV-21: with no masked band a LOW target takes no masked_mult."""
     w = new_world()
     shooter = put(w, ENEMY_JET, "ENEMY", 0)
-    target = put(w, JET, "COALITION", 15_000)
+    target = airborne(put(w, JET, "COALITION", 15_000))
     track(w, shooter, target)
     weapon = dataclasses.replace(COMBAT.weapons["AA_MISSILE"], base_pk=0.8, range_m=20_000.0)
     target.alt_band = "LOW"
@@ -527,7 +554,7 @@ def test_pk_stays_between_zero_and_the_cap(
 ) -> None:
     w = new_world()
     shooter = put(w, ENEMY_JET, "ENEMY", 0)
-    target = put(w, JET, "COALITION", dist)
+    target = airborne(put(w, JET, "COALITION", dist))
     target.alt_band = band
     track(w, shooter, target, painted=painted)
     weapon = dataclasses.replace(

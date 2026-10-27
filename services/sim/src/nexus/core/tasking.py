@@ -45,9 +45,9 @@ while frozen (SC-11), for each side in COALITION, ENEMY order:
      node on a claimant's route is no longer the side's.
      INTERCEPT (the Static's, Q-SIM-96, NX-382): each pass its claimants fly to the scout's
      last-known track position; DONE when the scout is destroyed or Disabled (a participant
-     needed, else EXPIRED), EXPIRED when the side has not tracked it for
-     `director.intercept.lost_s` (`Job.lost`: when it was first found untracked) or its last track
-     is no longer within `director.intercept.radius_m` of a node the side holds.
+     needed, else EXPIRED), EXPIRED when the scout is LANDED (Q-MV-14), the side has not tracked
+     it for `director.intercept.lost_s` (`Job.lost`: when it was first found untracked) or its last
+     track is no longer within `director.intercept.radius_m` of a node the side holds.
    - DONE needs a participant (a live ACTIVE claimant), else EXPIRED, unless another job waits for
      it (the Director's chains, NX-156): its goal was met, so the next step must not fail with it.
      A job with no claim expires `tasking.expire_min` after posting (an objective's job: with the
@@ -652,7 +652,8 @@ def _verdict(world: World, rules: Rules, tr: TaskingRules, side: Side, job: Job)
             scout = world.find(job.entity or 0)  # a kill is seen by those who made it
             if scout is None or scout.damage_state == "DISABLED":
                 return "DONE"
-            return "EXPIRED" if _escaped(world, rules, side, job) else None
+            landed = scout.state == "LANDED"  # no AIR target: it got away, like an escape (Q-MV-14)
+            return "EXPIRED" if landed or _escaped(world, rules, side, job) else None
         case "ESCORT_CONVOY":
             truck = world.find(job.entity or 0)
             if truck is None or truck.damage_state == "DISABLED":

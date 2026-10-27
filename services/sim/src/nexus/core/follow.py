@@ -15,7 +15,9 @@ leader; the follow links form forests, a unit may be followed by many and may it
    hidden state, so never read). `World.group_threat` gives
    `combat` each such follower's threat ids, which it shoots before anything else (units first,
    CB-1 order among them). The follower breaks station toward the nearest threat that is within
-   `tasking.escort_leash_m` of the convoy and it can hit, until in weapon range, along the road
+   `tasking.escort_leash_m` of the convoy and it can hit, until in weapon range (a LANDED
+   aircraft never counts as in range of an AIR threat, which it cannot fire at, Q-MV-19: it
+   takes off toward it), along the road
    that passes nearest it (one leg at a time, so only nodes with a road are chosen; none leads
    closer: it keeps station). The leash is measured from the members that cannot be engaging (the
    leader and unarmed followers), so escorts cannot leapfrog one another; an escort already
@@ -53,6 +55,7 @@ from collections.abc import Sequence
 
 from nexus.contracts.gen.common.enums import Side, UnitKind
 from nexus.core.bridges import blocked, crosses
+from nexus.core.fog import target_class
 from nexus.core.logistics import approach
 from nexus.core.roads import shortest_path
 from nexus.core.rules import Rules, TaskingRules
@@ -235,11 +238,6 @@ class _Ctx:
         return self.known[side]
 
 
-def _key(rules: Rules, e: Entity) -> tuple[str, str | None]:
-    domain = rules.domain[e.kind]
-    return domain, e.alt_band if domain == _AIR else None
-
-
 def _armed(rules: Rules, e: Entity) -> bool:
     return rules.combat is not None and any(e.ammo)
 
@@ -276,7 +274,7 @@ def _find_threats(ctx: _Ctx, side: Side, members: list[Entity]) -> list[Entity]:
         t = found[i]
         table = ctx.reach_of(t)
         if i in recent or any(
-            (r := table.get(_key(rules, m))) is not None
+            (r := table.get(target_class(rules, m))) is not None
             and (t.pos.x - m.pos.x) ** 2 + (t.pos.y - m.pos.y) ** 2 <= r * r
             for m in members
         ):
@@ -289,14 +287,14 @@ def _own_reach(rules: Rules, shooter: Entity, target: Entity) -> float:
     cr = rules.combat
     if cr is None:
         return 0.0
-    domain = rules.domain[target.kind]
+    domain, band = target_class(rules, target)  # a LANDED aircraft is GROUND (Q-MV-14)
     return max(
         (
             w.range_m
             for w, rounds in zip(
                 cr.loadout(shooter.kind, shooter.variant), shooter.ammo, strict=True
             )
-            if rounds > 0 and domain in w.targets and (domain != _AIR or target.alt_band in w.bands)
+            if rounds > 0 and domain in w.targets and (domain != _AIR or band in w.bands)
         ),
         default=0.0,
     )
@@ -328,7 +326,9 @@ def _engage(
         return False
     d, _, t, reach = min(options, key=lambda o: (o[0], o[1]))
     if rules.domain[f.kind] == _AIR:
-        f.path = [] if d <= reach else [t.pos]
+        # LANDED, it fires at no AIR target (Q-MV-19): it takes off toward one even in range.
+        grounded = f.state == "LANDED" and target_class(rules, t)[0] == _AIR
+        f.path = [] if d <= reach and not grounded else [t.pos]
     elif d <= reach:
         capped[f.id] = 0.0  # in range: it stops where it is, on its road, and fires
     else:

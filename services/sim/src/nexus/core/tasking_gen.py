@@ -197,13 +197,15 @@ def watched(world: World, rules: Rules, view: SideView) -> dict[int, Contact]:
     """The coalition painter aircraft `view` tracks now inside `director.intercept.radius_m` of a
     node its side holds, by id (Q-SIM-96). A wreck is not hunted: the unit must still exist and not
     be Disabled, a liveness read of the truth (as the job's DONE reads it) because a destroyed or
-    Disabled scout's contact stays tracked until sensing drops it."""
+    Disabled scout's contact stays tracked until sensing drops it. A LANDED scout is not hunted
+    either (the same read): on the ground it is no AIR target (COMBAT CB-7, Q-MV-14)."""
     dr = rules.director
     if dr is None:
         return {}
     return {
         i: c for i, c in sorted(view.tracks.items())
         if (e := world.find(i)) is not None and e.damage_state != "DISABLED"
+        and e.state != "LANDED"  # a parked scout is no air target to intercept (Q-MV-14)
         and c.kind in rules.painters and rules.domain[c.kind] == _AIR
         and held_within(view.nodes, view.owners, view.side, c.pos.x, c.pos.y, dr.intercept_radius_m)
     }  # fmt: skip

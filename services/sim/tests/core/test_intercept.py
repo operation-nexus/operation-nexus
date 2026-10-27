@@ -19,11 +19,12 @@ from nexus.contracts.gen.events.job_created import JobCreated
 from nexus.contracts.gen.events.job_done import JobDone
 from nexus.contracts.gen.events.job_expired import JobExpired
 from nexus.contracts.gen.events.job_released import JobReleased
+from nexus.core.fog import side_view
 from nexus.core.launch import _recall
 from nexus.core.provocation import suffered_hit
 from nexus.core.rules import DirectorRules
 from nexus.core.tasking import post_job
-from nexus.core.tasking_gen import JobSpec, can_hit, fits
+from nexus.core.tasking_gen import JobSpec, can_hit, fits, watched
 from nexus.core.world import Contact, Entity, Vec2, World, load, save, state_hash
 
 DIRECTOR: OwnerKind = "ENEMY_DIRECTOR"  # the Static's units are the Director's (garrison included)
@@ -329,6 +330,32 @@ def test_a_wreck_or_a_removed_scout_with_a_lingering_track_is_not_hunted_again()
         events = [e for _ in range(5) for e in board_pass(w)]
         assert len(of(events, JobDone)) == 1 and of(events, JobCreated) == []
         assert posted(w) == [] and w.intercept_seen == {}, how
+
+
+def test_a_landed_scout_is_not_watched_and_an_airborne_one_is() -> None:
+    """Q-MV-14 (NX-450): a parked scout is a GROUND target, so no intercept clock runs for it."""
+    for state, expected in (("LANDED", False), ("ON_STATION", True)):
+        w, scout = scene()
+        scout.state = "LANDED" if state == "LANDED" else "ON_STATION"
+        assert w.rules is not None
+        assert (scout.id in watched(w, w.rules, side_view(w, "ENEMY"))) is expected, state
+        ripe(w, scout)
+        board_pass(w)
+        assert (len(posted(w)) == 1) is expected, state
+
+
+def test_the_job_expires_when_its_scout_lands_and_is_not_posted_again() -> None:
+    """Q-MV-14 (NX-450): a LANDED scout is no AIR target, so the hunt ends like an escape
+    (EXPIRED, no kill) and its claimant is released; airborne again it is watched afresh."""
+    w, scout, fighter = hunted()
+    board_pass(w)
+    assert fighter.job_id is not None and len(posted(w)) == 1
+    scout.state = "LANDED"  # airborne to landed while hunted
+    out = board_pass(w)
+    assert of(out, JobDone) == [] and len(of(out, JobExpired)) == 1
+    assert posted(w) == [] and fighter.job_id is None and w.intercept_seen == {}
+    passes(w, 3)
+    assert posted(w) == []
 
 
 def test_a_kill_with_nobody_active_on_the_job_expires_it() -> None:

@@ -19,7 +19,7 @@ from hypothesis import given
 from hypothesis import strategies as st
 
 from nexus.contracts.gen.common.enums import AltBand, DamageState, Side, UnitKind
-from nexus.core.fog import side_view, spotted, tracked_by, visible
+from nexus.core.fog import _track, side_view, spotted, tracked_by, visible
 from nexus.core.rules import Rules
 from nexus.core.step import step
 from nexus.core.world import (
@@ -214,7 +214,8 @@ def _cell_regions(rules: Rules, e: Entity) -> frozenset[str]:
 
 def brute(w: World, side: Side, rules: Rules = RULES) -> list[int]:
     """O(n^2) oracle: every enemy within some live sensor's radius x the target's stealth, unless
-    it is a GROUND unit or a NOE/LOW aircraft in a masking region the sensor is not in."""
+    it is a GROUND unit (a LANDED aircraft included) or an airborne NOE/LOW aircraft in a masking
+    region the sensor is not in."""
     sensors = [
         s
         for s in w.entities()
@@ -224,8 +225,10 @@ def brute(w: World, side: Side, rules: Rules = RULES) -> list[int]:
     def sees(s: Entity, t: Entity) -> bool:
         radius = rules.sensor_radius_m[s.kind] * (0.8 if s.damage_state != "HEALTHY" else 1.0)
         reach = radius * rules.stealth[t.kind]  # damaged_sensor_mult 0.8 at Damaged or worse
-        low_air = rules.domain[t.kind] == "AIR" and t.alt_band in ("NOE", "LOW")
-        hidden = (rules.domain[t.kind] == "GROUND" or low_air) and bool(_cell_regions(rules, t))
+        air = rules.domain[t.kind] == "AIR"
+        low_air = air and t.state != "LANDED" and t.alt_band in ("NOE", "LOW")
+        ground = rules.domain[t.kind] == "GROUND" or (air and t.state == "LANDED")  # Q-MV-14
+        hidden = (ground or low_air) and bool(_cell_regions(rules, t))
         hidden = hidden and not (_cell_regions(rules, t) & _cell_regions(rules, s))
         return (t.pos.x - s.pos.x) ** 2 + (t.pos.y - s.pos.y) ** 2 <= reach**2 and not hidden
 
@@ -400,6 +403,14 @@ def test_ground_unit_in_masking_region_hidden_from_sensors_outside_it(
     assert tracked_by(w, "COALITION", site.id) and tracked_by(w, "COALITION", outside.id)
 
 
+def sense_airborne(w: World, jet: Entity) -> None:
+    """One tracking pass with `jet` airborne where it stands (no movement tick: an orbit would
+    carry it out of the region); a LANDED aircraft is masked by the ground rule (Q-MV-14)."""
+    assert w.rules is not None
+    jet.state, jet.fuel = "ON_STATION", 3600.0
+    _track(w, w.rules)
+
+
 @pytest.mark.parametrize(
     ("band", "radar_x", "tracked"),
     [
@@ -419,8 +430,7 @@ def test_noe_and_low_aircraft_in_a_masking_region_hidden_from_sensors_outside_it
     put(w, RADAR, "COALITION", radar_x, 500.0)
     jet = put(w, "ENEMY_FIGHTER", "ENEMY", 500.0, 500.0)  # in "hills", 3 km from the nearest radar
     jet.alt_band = band
-    jet.state, jet.fuel = "LANDED", 3600.0
-    run_to(w, 5)
+    sense_airborne(w, jet)
     assert tracked_by(w, "COALITION", jet.id) is tracked
 
 
@@ -440,8 +450,23 @@ def test_masked_alt_bands_is_the_set_of_bands_terrain_hides(
     put(w, RADAR, "COALITION", 5500.0, 500.0)  # another region than the jet's
     jet = put(w, "ENEMY_FIGHTER", "ENEMY", 500.0, 500.0)
     jet.alt_band = band
-    jet.state, jet.fuel = "LANDED", 3600.0
-    run_to(w, 5)
+    sense_airborne(w, jet)
+    assert tracked_by(w, "COALITION", jet.id) is tracked
+
+
+@pytest.mark.parametrize(("state", "tracked"), [("LANDED", False), ("ON_STATION", True)])
+def test_a_landed_aircraft_is_masked_by_the_ground_rule_whatever_its_band(
+    state: str, tracked: bool
+) -> None:
+    """Q-MV-14 (NX-450): on the ground a MED-band jet is a GROUND target, hidden in a masking
+    region from a sensor outside it, as combat's Pk masking reads it; airborne at MED it is not."""
+    w = world(MASKED)
+    put(w, RADAR, "COALITION", 5500.0, 500.0)  # another region than the jet's
+    jet = put(w, "ENEMY_FIGHTER", "ENEMY", 500.0, 500.0)
+    assert jet.alt_band == "MED"
+    jet.state, jet.fuel = "LANDED" if state == "LANDED" else "ON_STATION", 3600.0
+    assert w.rules is not None
+    _track(w, w.rules)
     assert tracked_by(w, "COALITION", jet.id) is tracked
 
 

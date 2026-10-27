@@ -8,7 +8,9 @@ The `combat` slot, each running tick (not while frozen, SC-11), in this order:
    weapon with a round left and no reload, in the unit's loadout (catalog) order, the target is the
    highest priority valid one: a contact its side tracks now (never a last-known track or a blob,
    Q-FOW-4; never a Disabled facility) whose domain the weapon targets, for an AIR target in one
-   of the weapon's `bands`, within `range_m` (real positions); priority `threat` descending, then
+   of the weapon's `bands`, within `range_m` (real positions); a LANDED aircraft is a GROUND target
+   with no band (`fog.target_class`, Q-MV-14), so a SAM or AAA never picks it and a GROUND weapon
+   may, and a LANDED shooter takes no AIR target (Q-MV-19); priority `threat` descending, then
    distance, then id. Firing spends a round, starts the reload and stores a `Shot` landing
    `ceil(distance / (speed x world_dt))` ticks later, a gun on the fire tick.
    **Structures (CB-10, Q-SIM-71):** a weapon whose `targets` include STRUCTURE with no valid unit
@@ -22,8 +24,11 @@ The `combat` slot, each running tick (not while frozen, SC-11), in this order:
    (`bridges.collapsing`, Q-SIM-112).
 3. **Impacts (CB-3, CB-4).** Shots due, in `(impact_tick, id)` order. A shot fizzles, with no RNG
    draw, when the shooter or target is gone, the shooter's side no longer tracks the target, or the
-   target left the weapon's range or bands, or became a Disabled facility (Q-FOW-16). Otherwise
-   `Pk = min(pk_cap, base_pk x track x range x evasion x masking)` and one draw on the `combat`
+   target left the weapon's range or bands, or became a Disabled facility (Q-FOW-16); so a shot
+   from an air-only weapon at an aircraft that lands, or from a GROUND weapon at one that takes
+   off, fizzles too (Q-MV-14: the target class is read again at impact). Otherwise
+   `Pk = min(pk_cap, base_pk x track x range x evasion x masking)` (evasion 1.0 for a LANDED
+   aircraft, Q-MV-18) and one draw on the `combat`
    stream decides the hit. A shot at a node's defenses fizzles when its shooter is gone, the node
    changed hands or is already at 0 hp, or it is out of range; else its Pk has track `track`,
    evasion
@@ -67,7 +72,7 @@ from nexus.contracts.gen.events.weapon_impact import WeaponImpact
 from nexus.core import bridges
 from nexus.core.defense import damage as damage_defense
 from nexus.core.defense import floor as defense_floor
-from nexus.core.fog import forget, in_masking_region, is_off_facility
+from nexus.core.fog import forget, in_masking_region, is_off_facility, target_class
 from nexus.core.logistics import go_home
 from nexus.core.provocation import suffered_defense_hit, suffered_hit
 from nexus.core.rearm import stop_problem
@@ -89,6 +94,7 @@ from nexus.core.world import (
 
 _DISABLED, _MISSION_KILL = "DISABLED", "MISSION_KILL"
 _AIR, _GROUND, _STATIC = "AIR", "GROUND", "STATIC"
+_LANDED = "LANDED"
 # Targeting grids: the cell size and the query padding change speed only, never a result.
 _CELL_M = 4000.0
 _SLACK_M = 1.0
@@ -187,7 +193,7 @@ def _levels(rules: Rules, cr: CombatRules, targets: Iterable[Entity]) -> list[_L
     """Group valid targets into threat levels, highest first (see `_target_levels`)."""
     groups: dict[tuple[int, str, AltBand | None], list[Entity]] = {}
     for t in targets:
-        key = (cr.units[t.kind].threat, rules.domain[t.kind], t.alt_band)
+        key = (cr.units[t.kind].threat, *target_class(rules, t))
         groups.setdefault(key, []).append(t)
     levels: dict[int, _Level] = {}
     for (threat, domain, band), members in groups.items():
@@ -201,15 +207,17 @@ def _pick(
     rules: Rules, w: WeaponRules, shooter: Entity, levels: list[_Level]
 ) -> tuple[Entity, float] | None:
     """The best valid target for `w` (CB-1): the highest threat level with any valid target in
-    range, and there the nearest by squared distance, ties by id. Each level is searched in
+    range, and there the nearest by squared distance, ties by id; a LANDED shooter takes no AIR
+    target (Q-MV-19). Each level is searched in
     growing radii, so a crowd far away is never looked at when a target is near. The grids only
     narrow the search: every candidate is checked with the exact `_d2` and range tests."""
     range2 = w.range_m**2
+    landed = shooter.state == _LANDED
     for level in levels:
         grids = [
             g
             for domain, band, g in level
-            if domain in w.targets and (domain != _AIR or band in w.bands)
+            if domain in w.targets and (domain != _AIR or (band in w.bands and not landed))
         ]
         radius = _CELL_M
         while grids:
@@ -403,7 +411,7 @@ def _pk(
 ) -> float | None:
     """The hit probability (CB-4), or None for a fizzle (CB-3): no draw is made for it."""
     track = world.contacts[shooter.side].get(target.id)
-    domain = rules.domain[target.kind]
+    domain, band = target_class(rules, target)  # a LANDED aircraft is GROUND (Q-MV-14)
     d2 = _d2(shooter, target)
     if (
         track is None
@@ -411,10 +419,10 @@ def _pk(
         or is_off_facility(rules, target)
         or d2 > w.range_m**2
         or domain not in w.targets
-        or (domain == _AIR and target.alt_band not in w.bands)
+        or (domain == _AIR and band not in w.bands)
     ):
         return None
-    masked = (domain == _AIR and target.alt_band in rules.masked_bands) or (
+    masked = (domain == _AIR and band in rules.masked_bands) or (
         domain == _GROUND and in_masking_region(rules, target.pos)
     )
     return min(
@@ -422,7 +430,7 @@ def _pk(
         w.base_pk
         * (cr.painted_mult if track.painted else cr.track_mult)
         * _range_factor(cr, math.sqrt(d2), w.range_m)
-        * cr.units[target.kind].evasion
+        * (1.0 if target.state == _LANDED else cr.units[target.kind].evasion)  # parked (Q-MV-18)
         * (cr.masked_mult if masked else 1.0),
     )
 
