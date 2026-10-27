@@ -625,16 +625,21 @@ def test_resume_reruns_only_missing_or_bad_runs_and_matches_a_clean_job(
     (cut / "report.json").unlink()
     (cut / "report.md").unlink()
     ran: list[int] = []
+    left: list[list[str]] = []  # result files present when each rerun starts
     real = runner.run
 
     def spy(profile: str, seed: int, *a: Any, **kw: Any) -> Any:
         ran.append(seed)
+        left.append(sorted(p.name for p in (cut / "runs").glob("*.json")))
         return real(profile, seed, *a, **kw)
 
     monkeypatch.setattr(runner, "run", spy)
     assert _cli(monkeypatch, cut) == 2  # without --resume an existing --out is still refused
     assert _cli(monkeypatch, cut, "--resume") == 0
     assert sorted(ran) == [2, 3]  # seed 1 was kept
+    # a rerun's stale file is gone before any run starts, so the queue's runs/*.json count
+    # (runs_left, NX-460) never takes it for a finished run
+    assert "quiet-5-s3.json" not in left[0]
     assert (cut / "runs" / "quiet-5-s1.json").read_bytes() == kept
     assert _comparable(cut) == _comparable(clean)
     assert not list((cut / "runs").glob("*.tmp"))

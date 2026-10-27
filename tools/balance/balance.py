@@ -24,9 +24,10 @@ not exist (unless `--resume`, below): it gets `report.json`, `report.md`,
 `--resume` (NX-433) continues a killed job in an existing `--out`: a run whose
 `runs/<profile>-s<seed>.json` exists, parses, names the same profile, seed and hours, carries the
 current config hash and the keys the report reads is kept, every other run (missing, partial,
-corrupt, from another config, or a harness-error stand-in) is run again, and the report is built
-from all of them. Apart from wall-clock fields (`timing`, each run's `wall_s` and `ticks_per_s`,
-`workers`) it equals the report of an uninterrupted job.
+corrupt, from another config, or a harness-error stand-in) is run again (its old file is deleted
+before any run starts, so the queue's `runs/*.json` count stays right, NX-460), and the report is
+built from all of them. Apart from wall-clock fields (`timing`, each run's `wall_s` and
+`ticks_per_s`, `workers`) it equals the report of an uninterrupted job.
 
 `--slot-dir DIR --slot-key N` (NX-460, both or neither) make the workers of this job share a pool
 of slot files with the other jobs on the host: before a run a worker takes a `DIR/slot-*` (an
@@ -411,6 +412,8 @@ def main() -> int:
             if (done := load_done(j, cfg.config_hash)) is not None:
                 kept[i] = done
         todo = [j for i, j in enumerate(jobs) if i not in kept]
+        for j in todo if args.resume else []:  # the queue counts runs/*.json as done (NX-460)
+            (args.out / "runs" / f"{j[0]}-s{j[1]}.json").unlink(missing_ok=True)
         fn = functools.partial(_one, slots=slots) if slots else _one
         fresh = iter(run_jobs(todo, lambda j: data.profiles[j[0]].viewers, args.workers, fn=fn))
         runs = [kept[i] if i in kept else next(fresh) for i in range(len(jobs))]

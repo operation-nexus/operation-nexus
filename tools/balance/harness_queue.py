@@ -348,8 +348,10 @@ def execute(
 
 def runs_left(out: Path, total: int) -> int:
     """Runs of a job with no result file yet (NX-442): balance.py writes `runs/<name>.json` whole
-    (a `.tmp` renamed into place), so counting them needs no IPC. On a resume, a file balance.py
-    will run again (another config, a harness-error stand-in) counts as done until replaced."""
+    (a `.tmp` renamed into place), so counting them needs no IPC. On a resume, balance.py deletes
+    a file it will run again (another config, a harness-error stand-in) before any run starts
+    (NX-460); a legacy sha's balance.py does not, so there such a file counts as done until
+    replaced."""
     return max(total - sum(1 for _ in (out / "runs").glob("*.json")), 0)
 
 
