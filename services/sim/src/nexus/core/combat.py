@@ -41,6 +41,10 @@ The `combat` slot, each running tick (not while frozen, SC-11), in this order:
    §5.5), or at once on a destruction. Every hit on a non-facility is kept in `Entity.hits` for
    `combat.assist_window_s`; the shooters still inside the window, minus the killer, are the
    `assist_ids` (CB-5a). A shot already in flight still lands after its shooter becomes Disabled.
+   A viewer shooter whose hit destroys, disables or mission-kills a unit holding a Static STRIKE
+   job is credited on the job (`_credit`, `Job.downed_by`); when that hit takes out the job's last
+   claimant still in the fight, `ThreatAdaptation{STRIKE_DOWNED}` is emitted at once (Q-TD-56,
+   NX-431).
 5. Wrecks whose countdown reached 0 are removed, in id order.
 
 Pending shots and every timer are on the campaign clock (running ticks), so a pause freezes them.
@@ -56,6 +60,7 @@ from collections.abc import Iterable
 from nexus.contracts.gen.common.enums import AltBand, Side
 from nexus.contracts.gen.events.event import Event
 from nexus.contracts.gen.events.munitions_depleted import MunitionsDepleted
+from nexus.contracts.gen.events.threat_adaptation import ThreatAdaptation
 from nexus.contracts.gen.events.unit_despawned import UnitDespawned
 from nexus.contracts.gen.events.weapon_fired import WeaponFired
 from nexus.contracts.gen.events.weapon_impact import WeaponImpact
@@ -67,11 +72,12 @@ from nexus.core.logistics import go_home
 from nexus.core.provocation import suffered_defense_hit, suffered_hit
 from nexus.core.rearm import stop_problem
 from nexus.core.rng import RngStream
-from nexus.core.rules import CombatRules, Rules, WeaponRules
+from nexus.core.rules import CombatRules, Rules, WeaponRules, sector_at
 from nexus.core.spatial import UniformGrid
 from nexus.core.world import (
     _ZERO,
     Entity,
+    Job,
     Shot,
     World,
     drop_claim,
@@ -81,12 +87,14 @@ from nexus.core.world import (
     set_damage_state,
 )
 
-_DISABLED = "DISABLED"
+_DISABLED, _MISSION_KILL = "DISABLED", "MISSION_KILL"
 _AIR, _GROUND, _STATIC = "AIR", "GROUND", "STATIC"
 # Targeting grids: the cell size and the query padding change speed only, never a result.
 _CELL_M = 4000.0
 _SLACK_M = 1.0
 _MAX_ASSISTS = 32  # UnitDestroyed.assist_ids maxItems
+_MAX_CREDITS = 32  # ThreatAdaptation.credit_ids maxItems
+_DIRECTED: Side = "ENEMY"  # the Static: its STRIKE packages can be downed (Q-TD-56)
 _STRUCTURE = "STRUCTURE"
 
 
@@ -459,7 +467,9 @@ def _hit(
         _destroy(world, target, shooter, target.hits, out)  # airborne: it cannot stay up
         return
     set_damage_state(world, target, state, out)
-    if state == "MISSION_KILL":
+    if state in (_MISSION_KILL, _DISABLED):
+        _credit(world, target, shooter, out)
+    if state == _MISSION_KILL:
         go_home(world, rules, target)  # auto-RTB, once, as it reaches Mission-kill (COMBAT §5.6)
     if state == _DISABLED and not facility:
         target.wreck_left, target.path, target.vel = cr.disabled_timeout_ticks, [], _ZERO
@@ -472,7 +482,50 @@ def _destroy(
     """Remove a destroyed unit: the killer is the shooter of the last hit, the assists every other
     distinct shooter in `hits` (still inside the assist window), sorted, at most 32 (CB-5a)."""
     assists = sorted({h[0] for h in hits} - {killer.id})[:_MAX_ASSISTS]
+    _credit(world, target, killer, out)
     lose_unit(world, target, out, killer_id=killer.id, assist_ids=assists)
+
+
+def _credit(world: World, target: Entity, shooter: Entity, out: list[Event]) -> None:
+    """Q-TD-56 (NX-431): a viewer (COMMANDER-owned) unit whose hit destroys, disables or
+    mission-kills a unit holding a STRIKE job of the Static is credited on the job,
+    `Job.downed_by` (ascending, once each). When that hit leaves no other claimant of the job
+    still in the fight (alive, neither Disabled nor Mission-killed), the package is downed: one
+    `ThreatAdaptation{STRIKE_DOWNED}` now, at most once per job (`Job.downed`)."""
+    job = None if target.job_id is None else world.boards[target.side].get(target.job_id)
+    if (
+        shooter.owner_kind != "COMMANDER" or job is None or job.kind != "STRIKE"
+        or target.side != _DIRECTED
+    ):  # fmt: skip
+        return
+    if shooter.id not in job.downed_by:
+        insort(job.downed_by, shooter.id)
+    if not job.downed and not any(_in_fight(world, i) for i in job.claims if i != target.id):
+        job.downed = True
+        _downed(world, job, out)
+
+
+def _in_fight(world: World, entity_id: int) -> bool:
+    e = world.find(entity_id)
+    return e is not None and e.damage_state not in (_DISABLED, _MISSION_KILL)
+
+
+def _downed(world: World, job: Job, out: list[Event]) -> None:
+    """ "NULL strike package downed near <node>": the job's node and its sector (nodes are
+    public, FOW-10), crediting `Job.downed_by` (the 32 lowest ids)."""
+    rules = world.rules
+    pos = None if rules is None or job.node is None else rules.roads.pos.get(job.node)
+    sector = None if rules is None or pos is None else sector_at(rules, *pos)
+    if sector is None:
+        return
+    out.append(
+        ThreatAdaptation.model_construct(
+            kind="ThreatAdaptation", tick=world.campaign.tick + 1,
+            event_seq=world.next_event_seq(), campaign_id=world.campaign.id, side=_DIRECTED,
+            category="STRIKE_DOWNED", sector_id=sector, direction="UP", node_id=job.node,
+            credit_ids=job.downed_by[:_MAX_CREDITS],
+        )
+    )  # fmt: skip
 
 
 def _remove_wrecks(world: World, out: list[Event]) -> None:

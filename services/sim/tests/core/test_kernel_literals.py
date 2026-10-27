@@ -46,6 +46,7 @@ NAMED: dict[Name, str] = {
     ("campaign.py", "_HALF"): "STRUCT: Fraction(1, 2), the round-half-up rule",
     ("combat.py", "_CELL_M"): "PERF: targeting grid cell, changes speed never a result",
     ("combat.py", "_MAX_ASSISTS"): "STRUCT: UnitDestroyed.assist_ids maxItems",
+    ("combat.py", "_MAX_CREDITS"): "STRUCT: ThreatAdaptation.credit_ids maxItems",
     ("defense.py", "MILLI_HP"): "SCALE: thousandths of an hp (bridges.py reuses it)",
     ("fog.py", "_CLASS_SPAN"): "PERF: sensor range class span, measured in NX-372",
     ("follow.py", "_LONG_M"): "PERF: reach beyond which a kind stays out of the track grid",

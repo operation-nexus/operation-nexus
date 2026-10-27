@@ -434,7 +434,13 @@ def _economy(runs: list[dict[str, Any]]) -> dict[str, Any]:
         "staging": {
             "sitreps": adapted["STAGING"],
             "capture_launches": sum(f["launched"] for f in funnel.values()),
-        },  # staged-launch / timeout / drop counts: no event says which (docs: README)
+            # NX-431 (Q-TD-47): each massing closes once, by a launch from its staging base or
+            # a disperse; `open` is the massings no payoff closed before the run ended
+            "launched": adapted["STAGING_LAUNCHED"],
+            "dispersed": adapted["STAGING_DISPERSED"],
+            "open": adapted["STAGING"] - adapted["STAGING_LAUNCHED"] - adapted["STAGING_DISPERSED"],
+            "strike_downed": adapted["STRIKE_DOWNED"],  # Q-TD-56
+        },
         "gaps": _gaps(rs, es),
         "spawn_by_op": {
             "ops": dict(sorted(spawn_by_op.items())),
@@ -605,8 +611,9 @@ def _d5_lines(name: str, e: dict[str, Any]) -> list[str]:
     return [
         f"  - {name} capture funnel (launch, then the target saw): {funnel}",
         f"  - {name} STAGING sitreps {e['staging']['sitreps']} for "
-        f"{e['staging']['capture_launches']} capture launches (staged vs timeout vs dropped: "
-        "no event says)",
+        f"{e['staging']['capture_launches']} capture launches; closed by a launch "
+        f"{e['staging']['launched']}, dispersed {e['staging']['dispersed']}, open at the end "
+        f"{e['staging']['open']}; strike packages downed {e['staging']['strike_downed']}",
         f"  - {name} Offensive minutes per seed: {'; '.join(seeds) or 'none'}; gaps by tier at "
         f"the earlier one: {tiers or 'none'}",
         f"  - {name} pressure events per victory hold {e['pressure_per_hold']}",

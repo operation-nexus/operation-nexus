@@ -95,8 +95,10 @@ from nexus.core.rules import CAPTURE_FULL, Rules
 # hold (ECONOMY EC-9, NX-412 part 4); 32: DirectorState.staged, the forward-staged operations
 # (THREAT-DIRECTOR FS-7, NX-416); DirectorState.last_operation is also the last window a staged
 # operation was kept, launched or dropped (Q-TD-42, NX-427, no bump: same shape); only capture
-# operations stamp it (Q-TD-54, NX-439, no bump: same shape)
-FORMAT_VERSION = 32
+# operations stamp it (Q-TD-54, NX-439, no bump: same shape); 33: Staged.sector, the sector its
+# open massing sitrep named, and Job.downed_by and downed, the viewer units that downed a STRIKE
+# job's claimants and whether its sitrep was emitted (NX-431, Q-TD-47, Q-TD-56)
+FORMAT_VERSION = 33
 _MM = 1000.0  # metres -> millimetres; m/s -> mm/s
 _MICRO = 1e6  # ADR-0002's 1e-6 step for other floats (fuel)
 _MILLI_UNIT = 1000  # thousandths of a stock unit per unit
@@ -449,6 +451,9 @@ class Job:
     arrived: int | None = None  # a scout job at a point, or a coalition patrol: the tick its unit
     # began to loiter or dwell
     lost: int | None = None  # an intercept job: the tick its scout was first found untracked
+    downed_by: list[int] = field(default_factory=list)  # a Static STRIKE job: the viewer units
+    # that destroyed, disabled or mission-killed a unit holding it, ascending (NX-431, Q-TD-56)
+    downed: bool = False  # its STRIKE_DOWNED sitrep was emitted (once per job)
     claims: dict[int, Claim] = field(default_factory=dict)  # entity id -> claim, claim order
 
     @property
@@ -501,12 +506,14 @@ class Objective:
 class Staged:
     """A forward-staged operation (THREAT-DIRECTOR §4a FS-7, NX-416): catalog operation `op` on
     node `target`, waiting at its staging base `base` since decision window `since`
-    (`DirectorState.windows`, kept through a re-staging)."""
+    (`DirectorState.windows`, kept through a re-staging); `sector` the sector its open
+    "massing" sitrep named, None when none is open (NX-431, Q-TD-47)."""
 
     op: str
     target: str
     base: str
     since: int
+    sector: str | None = None
 
 
 @dataclass(slots=True)
@@ -1583,6 +1590,20 @@ def _target_ok(job: Job, *, escort: bool, point: bool) -> bool:
     return (job.node is None) != (job.blob is None) and (job.blob is None) == (job.pos is None)
 
 
+def _check_downed(job: Job, next_entity_id: int, side: Side) -> None:
+    """Q-TD-56: credit only on a STRIKE job of the Static's board, entity ids (1 up to below the
+    counter), ascending, once each; `downed` only with credit."""
+    credited = job.downed_by or job.downed
+    if credited and (job.kind != "STRIKE" or side != "ENEMY" or not job.downed_by):
+        raise ValueError(f"{_BOARDS}: downed_by and downed only on a credited Static STRIKE job")
+    if (
+        job.downed_by != sorted(set(job.downed_by))
+        or min(job.downed_by, default=1) < 1
+        or max(job.downed_by, default=0) >= next_entity_id
+    ):
+        raise ValueError(f"{_BOARDS}: downed_by must be entity ids, ascending, once each")
+
+
 def _job(
     d: dict[str, Any], next_entity_id: int, running_ticks: int, nodes: set[str], side: Side
 ) -> Job:
@@ -1607,7 +1628,10 @@ def _job(
         _str(d["via"], "job via", optional=True),
         None if d["arrived"] is None else _int(d["arrived"], "job arrived"),
         None if d["lost"] is None else _int(d["lost"], "job lost"),
+        _int_list(d["downed_by"], "job downed_by"),
+        _bool(d["downed"], "job downed"),
     )  # fmt: skip
+    _check_downed(job, next_entity_id, side)
     for raw in claims:
         if not isinstance(raw, list) or len(raw) != 3:
             raise ValueError(f"{_BOARDS}: a claim is [entity id, tick, active]")
@@ -1786,6 +1810,7 @@ def _staged(value: object) -> list[Staged]:
             Staged(
                 _str(d["op"], "staged op"), _str(d["target"], "staged target"),
                 _str(d["base"], "staged base"), _int(d["since"], "staged since"),
+                _str(d["sector"], "staged sector", optional=True),
             )
         )  # fmt: skip
     pairs = [(s.op, s.target) for s in out]

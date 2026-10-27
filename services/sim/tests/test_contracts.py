@@ -258,7 +258,8 @@ BRIDGE_DOWN = {**_BASE, "kind": "BridgeDestroyed", "node_id": "bridge-n", "by_id
 TIER_CHANGED = {**_BASE, "kind": "ThreatTierChanged", "side": "ENEMY", "from": "PATTERN_OF_LIFE",
                 "to": "ALPHA", "cp_smoothed": 12.5}  # fmt: skip
 ADAPTATION = {**_BASE, "kind": "ThreatAdaptation", "side": "ENEMY", "category": "CONVOY_ESCORT",
-              "sector_id": "north", "direction": "UP", "node_id": None}  # fmt: skip
+              "sector_id": "north", "direction": "UP", "node_id": None,
+              "credit_ids": []}  # fmt: skip
 BRIDGE_UP = {**_BASE, "kind": "BridgeRepaired", "node_id": "bridge-n", "by_id": 4}
 PRODUCED = {**_BASE, "kind": "SupplyProduced", "side": "ENEMY", "amount": 60}  # NX-412
 STORAGE_LOST = {**_BASE, "kind": "SupplyConsumed", "node_id": "static-rear", "amount": 2000,
@@ -272,6 +273,10 @@ HOLD_STARTED = {**_BASE, "kind": "VictoryHoldStarted", "node_ids": ["fob-1", "po
 HOLD_BROKEN = {**_BASE, "kind": "VictoryHoldBroken", "node_id": "port-s"}
 HOLD_AT_RISK = {**ADAPTATION, "category": "HOLD_AT_RISK", "node_id": "port-s"}
 STAGING = {**ADAPTATION, "category": "STAGING"}  # NX-416 (THREAT-DIRECTOR FS-5): sector only
+# NX-431 (Q-TD-47, Q-TD-56): the massing's payoff, sector only; a downed package names its node
+LAUNCHED = {**ADAPTATION, "category": "STAGING_LAUNCHED"}
+DISPERSED = {**ADAPTATION, "category": "STAGING_DISPERSED"}
+DOWNED = {**ADAPTATION, "category": "STRIKE_DOWNED", "node_id": "port-s", "credit_ids": [4, 9]}
 # NX-412 part 5a (ECONOMY EC-8): a Director operation the live cap stopped
 REFUSED = {**_BASE, "kind": "SpawnRefused", "side": "ENEMY", "reason": "GUARD", "operations": 2,
            "units": 7}  # fmt: skip
@@ -304,6 +309,9 @@ REFUSED = {**_BASE, "kind": "SpawnRefused", "side": "ENEMY", "reason": "GUARD", 
         HOLD_BROKEN,
         HOLD_AT_RISK,
         STAGING,
+        LAUNCHED,
+        DISPERSED,
+        DOWNED,
         REFUSED,
         {**REFUSED, "reason": "TIER_CAP", "units": 0},  # only a radar blink, over the cap
     ],
@@ -357,6 +365,11 @@ def test_combat_events_parse_through_the_event_union(good: dict[str, object]) ->
         (HOLD_BROKEN, {"node_ids": ["fob-1"]}),  # one node
         (HOLD_BROKEN, {"node_id": None}),
         (HOLD_AT_RISK, {"node_id": "Not A Node"}),
+        (DOWNED, {"credit_ids": list(range(1, 34))}),  # at most 32
+        (DOWNED, {"credit_ids": [0]}),  # entity ids start at 1
+        (DOWNED, {"credit_ids": ["viper"]}),
+        (DOWNED, {"credit_ids": None}),  # required, always a list (empty when none)
+        (STAGING, {"credit_ids": None}),
         (REFUSED, {"reason": "BUDGET"}),  # only the live caps are counted
         (REFUSED, {"operations": 0}),  # none for no refusal
         (REFUSED, {"units": -1}),
@@ -367,6 +380,12 @@ def test_combat_events_parse_through_the_event_union(good: dict[str, object]) ->
 def test_combat_events_reject_bad_fields(event: dict[str, object], bad: dict[str, object]) -> None:
     with pytest.raises(ValidationError):
         EVENTS.validate_python({**event, **bad})
+
+
+def test_a_threat_adaptation_without_credit_ids_is_refused() -> None:
+    # NX-431: credit_ids is required, so no reader sees null or a missing list
+    with pytest.raises(ValidationError):
+        EVENTS.validate_python({k: v for k, v in STAGING.items() if k != "credit_ids"})
 
 
 @pytest.mark.parametrize(

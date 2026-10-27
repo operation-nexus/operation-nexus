@@ -1699,7 +1699,8 @@ def test_offensive_gaps_per_seed_with_lead_in_tail_and_tier() -> None:
 def test_the_markdown_keeps_fractional_offensive_gaps() -> None:
     e = {
         "funnel": {},
-        "staging": {"sitreps": 0, "capture_launches": 0},
+        "staging": {"sitreps": 0, "capture_launches": 0, "launched": 0, "dispersed": 0,
+                    "open": 0, "strike_downed": 0},
         "gaps": {
             "per_seed": [{"seed": 1, "lead_in_min": 0.4, "gaps_min": [0.6, 12.25],
                           "tail_min": None}],
@@ -1766,7 +1767,38 @@ def test_sitreps_per_run_hour_by_category_and_staging_count() -> None:
            "viewers": {"peak_concurrent": 0}}  # fmt: skip
     agg = report._economy([run])
     assert agg["adaptations_per_hour"] == {"CONVOY_ESCORT": 2.0, "STAGING": 1.5}
-    assert agg["staging"] == {"sitreps": 3, "capture_launches": 0}
+    assert agg["staging"] == {"sitreps": 3, "capture_launches": 0, "launched": 0, "dispersed": 0,
+                              "open": 3, "strike_downed": 0}  # fmt: skip
+
+
+def test_the_report_counts_how_each_massing_closed_and_the_downed_packages() -> None:
+    """NX-431 (Q-TD-47, Q-TD-56): 5 massings, 1 launched from staging and 2 dispersed, so 2 still
+    open at the end; 3 strike packages downed, over two runs."""
+
+    def run(adapted: dict[str, list[int]]) -> dict[str, Any]:
+        eco = {
+            "adapted": adapted, "funnel": [], "ops": [],
+            "tiers": {"start": "PATROL", "changes": []},
+            "spawn_by_op": {"ops": {}, "shared": 0, "unattributed": 0},
+            "sides": {}, "hourly": [], "refused": {"operations_per_hour": {}, "units": {}},
+            "grounded_from": {}, "exposure": {}, "budget": {"sum": [], "windows": [],
+                                                           "spent": {"base": [], "source": []}},
+            "ops_unseen": 0, "holds": [], "army_peak": 0,
+        }  # fmt: skip
+        return {"metrics": {"economy": eco}, "ticks_run": HOUR, "tick_hz": HZ, "seed": 1,
+                "viewers": {"peak_concurrent": 0}}  # fmt: skip
+
+    agg = report._economy([
+        run({"STAGING": [3], "STAGING_LAUNCHED": [1], "STAGING_DISPERSED": [1],
+             "STRIKE_DOWNED": [2]}),
+        run({"STAGING": [2], "STAGING_DISPERSED": [1],
+             "STRIKE_DOWNED": [1]}),
+    ])  # fmt: skip
+    assert agg["staging"] == {"sitreps": 5, "capture_launches": 0, "launched": 1, "dispersed": 2,
+                              "open": 2, "strike_downed": 3}  # fmt: skip
+    line = next(x for x in report._d5_lines("p", agg | {"pressure_per_hold": []}) if "STAGING" in x)
+    assert "closed by a launch 1, dispersed 2, open at the end 2" in line
+    assert "strike packages downed 3" in line
 
 
 # --- rare-shortfall metrics (NX-437; ENTERTAINMENT-upkeep Q2 R1-R4, R8, R10, R11) ----------------
