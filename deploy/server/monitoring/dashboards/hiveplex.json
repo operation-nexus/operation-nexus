@@ -2137,7 +2137,7 @@
    },
    "targets": [
     {
-     "expr": "min_over_time((avg(rate(windows_cpu_processor_performance_total[2m]) / rate(windows_cpu_processor_mperf_total[2m])) * 31.92 and on() ((100 - avg(rate(windows_cpu_time_total{mode=\"idle\"}[2m])) * 100) > 60))[24h:2m])",
+     "expr": "min_over_time((avg(rate(windows_cpu_processor_performance_total[2m]) / rate(windows_cpu_processor_mperf_total[2m])) * 31.92 and on() ((100 - avg(rate(windows_cpu_time_total{mode=\"idle\"}[2m])) * 100) > 60))[24h:30s])",
      "refId": "A",
      "instant": true
     }
