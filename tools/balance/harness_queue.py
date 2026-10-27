@@ -36,6 +36,7 @@ KEYS = ("sha", "profiles", "seeds", "hours", "workers", "set")
 COMMENT_MAX = 60000  # GitHub's limit is 65536 characters; leave room for the framing
 FINISHED = "finished"  # written by the queue once balance.py exited 0 with report.md: its size
 POSTED = "posted"  # written once the report comment is on the issue (no double post on retry)
+MAX_RESUMES = 2  # a stale job is continued this many times; a job that crashes again is failed
 FOOTER = "_Posted by the local harness queue (NX-381)_"
 
 
@@ -180,13 +181,14 @@ def comment(cfg: dict[str, Any], number: int, text: str) -> None:
     gh(cfg, "issue", "comment", str(number), "--body-file", "-", stdin=f"{text}\n\n{FOOTER}\n")
 
 
-def check_write(cfg: dict[str, Any], number: int) -> bool:
+def check_write(cfg: dict[str, Any], number: int, label: str) -> bool:
     """Prove the token can write to the issue before a long run. The cheapest real write is a
-    label edit that adds the label the issue already has (`harness-run`): a mutation that needs
+    label edit that adds a label the issue already has (`label`: the run label at pickup, the
+    running label on a resume, so a resume never re-adds `harness-run`): a mutation that needs
     Issues write, changes no label and leaves no comment or event. A read-only or unapproved
     token fails it. Logs a fixed line only: no token, no gh output, no issue text."""
     try:
-        gh(cfg, "issue", "edit", str(number), "--add-label", cfg["labels"]["run"])
+        gh(cfg, "issue", "edit", str(number), "--add-label", label)
     except QueueError:
         log(f"#{number}: the gh token cannot write to the issue; not started, labels unchanged")
         return False
@@ -196,6 +198,21 @@ def check_write(cfg: dict[str, Any], number: int) -> bool:
 def running_file(cfg: dict[str, Any], number: int) -> Path:
     """Local record of the sha a run started with; recovery trusts it, not the editable issue."""
     return Path(cfg["results_dir"]) / f"{number}.running"
+
+
+def request_file(cfg: dict[str, Any], number: int) -> Path:
+    """The validated request a run started with, so a resume never reads the editable issue."""
+    return Path(cfg["results_dir"]) / f"{number}.request"
+
+
+def resumes_file(cfg: dict[str, Any], number: int) -> Path:
+    return Path(cfg["results_dir"]) / f"{number}.resumes"
+
+
+def forget(cfg: dict[str, Any], number: int) -> None:
+    """The issue is posted or failed: drop its local records."""
+    for f in (running_file(cfg, number), request_file(cfg, number), resumes_file(cfg, number)):
+        f.unlink(missing_ok=True)
 
 
 def finished(out: Path) -> bool:
@@ -236,7 +253,7 @@ def publish(cfg: dict[str, Any], number: int, out: Path, head: str, ran: str, bo
             log(f"#{number}: posted but could not record it; left running")
             return
     relabel(cfg, number, cfg["labels"]["done"], cfg["labels"]["running"])
-    running_file(cfg, number).unlink(missing_ok=True)
+    forget(cfg, number)
 
 
 def on_develop(sha: str) -> bool:
@@ -267,9 +284,12 @@ def tail(path: Path, n: int = 40) -> str:
     return truncate(text.replace("`" * 3, "'" * 3), path)
 
 
-def execute(cfg: dict[str, Any], number: int, req: dict[str, Any]) -> tuple[int, Path, Path]:
+def execute(
+    cfg: dict[str, Any], number: int, req: dict[str, Any], resume: bool = False
+) -> tuple[int, Path, Path]:
     """Run the request in a throwaway worktree. Returns (exit code, results dir, log file).
-    Raises JobTimeout when a step runs past job_timeout_hours."""
+    With `resume`, balance.py keeps the runs already in the results dir (NX-433) and the log is
+    appended to. Raises JobTimeout when a step runs past job_timeout_hours."""
     tag = f"{number}-{req['sha'][:8]}"
     out, logfile = cfg["results_dir"] / tag, cfg["results_dir"] / f"{tag}.log"
     wt = cfg["work_dir"] / f"wt-{tag}"
@@ -279,10 +299,15 @@ def execute(cfg: dict[str, Any], number: int, req: dict[str, Any]) -> tuple[int,
         "--profile", ",".join(req["profiles"]), "--seeds", str(req["seeds"]),
         "--hours", str(req["hours"]), "--workers", str(req["workers"]), "--out", str(out),
         *[x for o in req["set"] for x in ("--set", o)],
+        *(["--resume"] if resume else []),
     ]  # fmt: skip
     limit = cfg["job_timeout_hours"] * 3600
     try:
-        logfile.write_text("")
+        if resume:  # the killed attempt's worktree may still be registered
+            run_cmd(["git", "worktree", "remove", "--force", str(wt)], cwd=REPO_ROOT)
+            run_cmd(["git", "worktree", "prune"], cwd=REPO_ROOT)
+        else:
+            logfile.write_text("")
         rc = run_cmd(
             ["git", "worktree", "add", "--detach", str(wt), req["sha"]],
             cwd=REPO_ROOT,
@@ -319,16 +344,22 @@ def process(cfg: dict[str, Any], issue: dict[str, Any], dry: bool) -> None:
     if dry:
         log(f"#{n}: would run {req}")
         return
-    if not check_write(cfg, n):
+    if not check_write(cfg, n, labels["run"]):
         return
     cfg["results_dir"].mkdir(parents=True, exist_ok=True)
     running_file(cfg, n).write_text(req["sha"])
+    request_file(cfg, n).write_text(json.dumps(req))
     relabel(cfg, n, labels["running"], labels["run"])
-    started = time.monotonic()
     log(f"#{n}: running {req}")
+    launch(cfg, n, req, False)
+
+
+def launch(cfg: dict[str, Any], n: int, req: dict[str, Any], resume: bool) -> None:
+    """Run a request that is already `harness-running` and publish or fail it."""
+    started = time.monotonic()
     try:
         try:
-            rc, out, logfile = execute(cfg, n, req)
+            rc, out, logfile = execute(cfg, n, req, resume)
         except JobTimeout:
             fail(cfg, n, f"Run timed out after {cfg['job_timeout_hours']} h.")
             return
@@ -340,7 +371,7 @@ def process(cfg: dict[str, Any], issue: dict[str, Any], dry: bool) -> None:
             (out / FINISHED).write_text(str(report.stat().st_size))
             sets = f" Overrides: `{' '.join(req['set'])}`." if req["set"] else ""
             try:
-                head = f"Run finished in {wall}.{sets}"
+                head = f"Run finished in {wall}{' (resumed)' if resume else ''}.{sets}"
                 publish(cfg, n, out, head, req["sha"], current_body(cfg, n))
             except (
                 QueueError,
@@ -376,7 +407,45 @@ def fail(cfg: dict[str, Any], number: int, text: str) -> None:
         comment(cfg, number, text)
     except QueueError as e:
         log(f"#{number}: could not report the failure: {e}")
-    running_file(cfg, number).unlink(missing_ok=True)
+    forget(cfg, number)
+
+
+def render_block(req: dict[str, Any]) -> str:
+    lines = [
+        f"sha: {req['sha']}",
+        f"profiles: {','.join(req['profiles'])}",
+        f"seeds: {req['seeds']}",
+        f"hours: {req['hours']}",
+        f"workers: {req['workers']}",
+    ]
+    if req["set"]:
+        lines.append(f"set: {','.join(req['set'])}")
+    return "```harness\n" + "\n".join(lines) + "\n```\n"
+
+
+def resume_stale(cfg: dict[str, Any], n: int, sha: str, out: Path) -> bool:
+    """Continue a cut-off job (NX-433): True when it was resumed (and published or failed), False
+    when the caller should fail it. Needs the results dir, the request the queue recorded (parsed
+    again by parse_block; the issue body is never read) naming the recorded sha, and fewer than
+    MAX_RESUMES earlier resumes. A resume is the same run, so the one-run-per-sha refusal in
+    `process` does not apply; it only guards new requests."""
+    try:
+        tries = int(resumes_file(cfg, n).read_text()) if resumes_file(cfg, n).exists() else 0
+        req = parse_block(
+            render_block(json.loads(request_file(cfg, n).read_text())),
+            cfg,
+            list(profiles.load().profiles),
+        )
+    except (OSError, ValueError, KeyError, TypeError, Refusal):
+        return False
+    if not out.is_dir() or req["sha"] != sha or tries >= MAX_RESUMES:
+        return False
+    if not check_write(cfg, n, cfg["labels"]["running"]):
+        return True  # leave it running; the next tick tries again, no attempt used
+    resumes_file(cfg, n).write_text(str(tries + 1))
+    log(f"#{n}: resuming (attempt {tries + 1} of {MAX_RESUMES})")
+    launch(cfg, n, req, True)
+    return True
 
 
 def recover_stale(cfg: dict[str, Any]) -> None:
@@ -399,6 +468,8 @@ def recover_stale(cfg: dict[str, Any]) -> None:
                 log(f"#{n}: recovered the finished report")
             except (QueueError, JobTimeout, OSError):
                 log(f"#{n}: recovered report not posted, will retry")
+            continue
+        if out is not None and resume_stale(cfg, n, sha, out):
             continue
         fail(cfg, n, "Failed: the runner restarted mid-job.")
 

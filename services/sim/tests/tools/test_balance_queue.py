@@ -110,7 +110,16 @@ class Fake:
         self.kw.append(kw)
         out = ""
         if cmd[:3] == ["gh", "issue", "list"]:
-            out = json.dumps(self.issues)
+            want = cmd[cmd.index("--label") + 1]  # as gh does: only issues carrying the label
+            out = json.dumps([i for i in self.issues if want in self.names(i)])
+        if cmd[:3] == ["gh", "issue", "edit"]:  # apply label edits, as GitHub does
+            i = next(i for i in self.issues if str(i["number"]) == cmd[3])
+            names = self.names(i)
+            if "--add-label" in cmd and cmd[cmd.index("--add-label") + 1] not in names:
+                names.append(cmd[cmd.index("--add-label") + 1])
+            if "--remove-label" in cmd:
+                names = [n for n in names if n != cmd[cmd.index("--remove-label") + 1]]
+            i["labels"] = [{"name": n} for n in names]
         if cmd[:3] == ["gh", "issue", "view"]:
             body = next(i["body"] for i in self.issues if str(i["number"]) == cmd[3])
             out = json.dumps({"body": body})
@@ -118,6 +127,10 @@ class Fake:
             self.stdin.append(stdin)
         rc = 1 if cmd[:3] == ["git", "merge-base", "--is-ancestor"] and not self.ancestor else 0
         return type("R", (), {"returncode": rc, "stdout": out, "stderr": ""})()
+
+    @staticmethod
+    def names(i: Any) -> list[str]:
+        return [x["name"] for x in i["labels"]]
 
     def edits(self) -> list[tuple[str, str, str]]:
         return [
@@ -188,7 +201,9 @@ def test_dry_run_changes_nothing(cfg: dict[str, Any], monkeypatch: pytest.Monkey
 
 
 def fake_exec(rc: int, report: str | None, logtext: str = "") -> Any:
-    def _exec(c: dict[str, Any], n: int, req: dict[str, Any]) -> tuple[int, Path, Path]:
+    def _exec(
+        c: dict[str, Any], n: int, req: dict[str, Any], resume: bool = False
+    ) -> tuple[int, Path, Path]:
         out = c["results_dir"] / f"{n}-{req['sha'][:8]}"
         out.mkdir(parents=True)
         log = c["results_dir"] / f"{n}.log"
@@ -221,9 +236,9 @@ def test_edited_body_sha_is_flagged(cfg: dict[str, Any], monkeypatch: pytest.Mon
     fake = Fake([issue(9)])
     monkeypatch.setattr(hq, "run_cmd", fake)
 
-    def edit_then_run(c: dict[str, Any], n: int, req: dict[str, Any]) -> Any:
+    def edit_then_run(c: dict[str, Any], n: int, req: dict[str, Any], resume: bool = False) -> Any:
         fake.issues[0]["body"] = block(sha="b" * 40)  # the lead edits the issue mid-run
-        return fake_exec(0, "# REPORT")(c, n, req)
+        return fake_exec(0, "# REPORT")(c, n, req, resume)
 
     monkeypatch.setattr(hq, "execute", edit_then_run)
     hq.run_once(cfg, False)
@@ -255,9 +270,9 @@ def test_hostile_body_sha_is_not_echoed(
     fake = Fake([issue(10)])
     monkeypatch.setattr(hq, "run_cmd", fake)
 
-    def edit_then_run(c: dict[str, Any], n: int, req: dict[str, Any]) -> Any:
+    def edit_then_run(c: dict[str, Any], n: int, req: dict[str, Any], resume: bool = False) -> Any:
         fake.issues[0]["body"] = block(sha="@someone [x](http://e)")
-        return fake_exec(0, "# REPORT")(c, n, req)
+        return fake_exec(0, "# REPORT")(c, n, req, resume)
 
     monkeypatch.setattr(hq, "execute", edit_then_run)
     hq.run_once(cfg, False)
@@ -271,10 +286,10 @@ def test_duplicated_body_sha_is_flagged(
     fake = Fake([issue(10)])
     monkeypatch.setattr(hq, "run_cmd", fake)
 
-    def edit_then_run(c: dict[str, Any], n: int, req: dict[str, Any]) -> Any:
+    def edit_then_run(c: dict[str, Any], n: int, req: dict[str, Any], resume: bool = False) -> Any:
         # the run sha stays, a second sha line is added: ambiguous, as parse_block would refuse it
         fake.issues[0]["body"] = block().replace("\n```\n", "\nsha: " + "b" * 40 + "\n```\n")
-        return fake_exec(0, "# REPORT")(c, n, req)
+        return fake_exec(0, "# REPORT")(c, n, req, resume)
 
     monkeypatch.setattr(hq, "execute", edit_then_run)
     hq.run_once(cfg, False)
@@ -644,3 +659,172 @@ def test_posted_marker_oserror_leaves_running(
     hq.run_once(cfg, False)
     assert fake.edits() == [("28", "harness-running", "harness-run")]  # not failed, not done
     assert len(fake.stdin) == 1
+
+
+# --- resume after a kill (NX-433) ------------------------------------------------------------
+class Killed(BaseException):
+    """Stands in for the process being killed: nothing in the queue catches it."""
+
+
+def killable_exec(kill_after: int | None, ran: list[str], seen: list[bool]) -> Any:
+    """A fake balance job over seeds 1..N: writes one run file per seed unless the file is
+    already there and `resume` is set (what `--resume` does), and `report.md` last."""
+
+    def _exec(
+        c: dict[str, Any], n: int, req: dict[str, Any], resume: bool = False
+    ) -> tuple[int, Path, Path]:
+        seen.append(resume)
+        out = c["results_dir"] / f"{n}-{req['sha'][:8]}"
+        (out / "runs").mkdir(parents=True, exist_ok=True)
+        log = c["results_dir"] / f"{n}.log"
+        log.write_text("")
+        for seed in range(1, req["seeds"] + 1):
+            f = out / "runs" / f"s{seed}.json"
+            if resume and f.exists():
+                continue
+            if kill_after is not None and len(ran) >= kill_after:
+                raise Killed
+            f.write_text("{}")
+            ran.append(f"s{seed}")
+        (out / "report.md").write_text("# ONE REPORT")
+        return 0, out, log
+
+    return _exec
+
+
+def test_kill_mid_job_then_next_tick_reruns_only_the_missing_runs(
+    cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ran: list[str] = []
+    seen: list[bool] = []
+    first = Fake([issue(40, body=block(seeds="3"))])
+    monkeypatch.setattr(hq, "run_cmd", first)
+    monkeypatch.setattr(hq, "execute", killable_exec(1, ran, seen))
+    with pytest.raises(Killed):
+        hq.run_once(cfg, False)
+    assert ran == ["s1"] and hq.running_file(cfg, 40).exists()
+    second = Fake([stale_issue(40)])
+    second.issues[0]["body"] = block(seeds="9", sha="b" * 40, profiles="prime-50")  # edited
+    monkeypatch.setattr(hq, "run_cmd", second)
+    monkeypatch.setattr(hq, "execute", killable_exec(None, ran, seen))
+    hq.run_once(cfg, False)
+    assert ran == ["s1", "s2", "s3"] and seen == [False, True]  # s1 not run again, 3 seeds not 9
+    assert second.edits() == [("40", "harness-done", "harness-running")]
+    assert len(second.stdin) == 1 and "# ONE REPORT" in second.stdin[0]  # one report
+    assert f"Sha that ran (recorded at start): `{SHA}`" in second.stdin[0]  # not the edited body's
+    assert "(resumed)" in second.stdin[0]
+    assert second.names(second.issues[0]) == ["harness-done"]  # no `harness-run` left behind
+    assert len(second.stdin) == 1  # and no Refused comment
+    for f in (hq.running_file, hq.resumes_file, hq.request_file):
+        assert not f(cfg, 40).exists()
+
+
+def test_resume_argument_reaches_balance(
+    cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    req = hq.parse_block(block(), cfg, NAMES)
+    wt = str(cfg["work_dir"] / f"wt-41-{SHA[:8]}")
+    remove = ["git", "worktree", "remove", "--force", wt]
+    seen = []
+    for resume in (False, True):
+        fake = Fake([])
+        monkeypatch.setattr(hq, "run_cmd", fake)
+        hq.execute(cfg, 41, req, resume)
+        balances = [c for c in fake.calls if "../../tools/balance/balance.py" in c]
+        assert ("--resume" in balances[0]) is resume
+        # a killed attempt's worktree is removed (and pruned) before the new one is added
+        add = next(i for i, c in enumerate(fake.calls) if c[:3] == ["git", "worktree", "add"])
+        seen.append((remove in fake.calls[:add], ["git", "worktree", "prune"] in fake.calls[:add]))
+    assert seen == [(False, False), (True, True)]
+
+
+def test_failed_resume_leaves_only_harness_failed_and_one_comment(
+    cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(hq, "run_cmd", Fake([issue(46, body=block(seeds="2"))]))
+    monkeypatch.setattr(hq, "execute", killable_exec(1, [], []))
+    with pytest.raises(Killed):
+        hq.run_once(cfg, False)
+
+    def exec_fails(
+        c: dict[str, Any], n: int, req: dict[str, Any], resume: bool = False
+    ) -> tuple[int, Path, Path]:
+        log = c["results_dir"] / f"{n}.log"
+        log.write_text("boom")
+        return 3, c["results_dir"] / f"{n}-{req['sha'][:8]}", log
+
+    second = Fake([stale_issue(46)])
+    monkeypatch.setattr(hq, "run_cmd", second)
+    monkeypatch.setattr(hq, "execute", exec_fails)
+    hq.run_once(cfg, False)
+    assert second.names(second.issues[0]) == ["harness-failed"]
+    assert len(second.stdin) == 1 and "Run failed" in second.stdin[0]
+    assert "Refused" not in second.stdin[0]
+
+
+def test_recorded_request_naming_another_sha_is_failed_not_resumed(
+    cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ran: list[Any] = []
+    monkeypatch.setattr(hq, "execute", lambda *a: ran.append(a))
+    cfg["results_dir"].mkdir(parents=True)
+    (cfg["results_dir"] / "47.running").write_text(SHA)
+    (cfg["results_dir"] / f"47-{SHA[:8]}").mkdir()
+    other = hq.parse_block(block(sha="b" * 40), cfg, NAMES)
+    hq.request_file(cfg, 47).write_text(json.dumps(other))
+    fake = Fake([stale_issue(47)])
+    monkeypatch.setattr(hq, "run_cmd", fake)
+    hq.recover_stale(cfg)
+    assert not ran
+    assert fake.names(fake.issues[0]) == ["harness-failed"]
+
+
+def test_resumes_are_bounded(cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch) -> None:
+    """A job that keeps getting killed is resumed MAX_RESUMES times, then failed."""
+    ran: list[str] = []
+    seen: list[bool] = []
+    monkeypatch.setattr(hq, "run_cmd", Fake([issue(42, body=block(seeds="2"))]))
+    monkeypatch.setattr(hq, "execute", killable_exec(0, ran, seen))
+    with pytest.raises(Killed):
+        hq.run_once(cfg, False)
+    for attempt in range(hq.MAX_RESUMES):
+        monkeypatch.setattr(hq, "run_cmd", Fake([stale_issue(42)]))
+        with pytest.raises(Killed):
+            hq.run_once(cfg, False)
+        assert hq.resumes_file(cfg, 42).read_text() == str(attempt + 1)
+    last = Fake([stale_issue(42)])
+    monkeypatch.setattr(hq, "run_cmd", last)
+    hq.run_once(cfg, False)
+    assert seen == [False] + [True] * hq.MAX_RESUMES  # no further execute
+    assert last.edits() == [("42", "harness-failed", "harness-running")]
+    assert "restarted mid-job" in last.stdin[0]
+    assert not hq.resumes_file(cfg, 42).exists() and not hq.request_file(cfg, 42).exists()
+
+
+def test_stale_job_without_results_dir_or_request_fails_not_resumes(
+    cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    ran: list[Any] = []
+    monkeypatch.setattr(hq, "execute", lambda *a: ran.append(a))
+    cfg["results_dir"].mkdir(parents=True)
+    (cfg["results_dir"] / "43.running").write_text(SHA)
+    (cfg["results_dir"] / f"43-{SHA[:8]}").mkdir()  # dir but no recorded request
+    (cfg["results_dir"] / "44.running").write_text(SHA)
+    hq.request_file(cfg, 44).write_text(json.dumps(hq.parse_block(block(), cfg, NAMES)))
+    fake = Fake([stale_issue(43), stale_issue(44)])  # 44: a request but no results dir
+    monkeypatch.setattr(hq, "run_cmd", fake)
+    hq.recover_stale(cfg)
+    assert not ran
+    assert [e[1] for e in fake.edits()] == ["harness-failed", "harness-failed"]
+
+
+def test_new_request_for_an_attempted_sha_is_still_refused(
+    cfg: dict[str, Any], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    (cfg["results_dir"] / f"45-{SHA[:8]}").mkdir(parents=True)  # `harness-run` again, not stale
+    fake = Fake([issue(45)])
+    monkeypatch.setattr(hq, "run_cmd", fake)
+    ran: list[Any] = []
+    monkeypatch.setattr(hq, "execute", lambda *a: ran.append(a))
+    hq.run_once(cfg, False)
+    assert not ran and "already ran this sha" in fake.stdin[0]
