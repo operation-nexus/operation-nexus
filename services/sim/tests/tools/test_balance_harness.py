@@ -34,7 +34,7 @@ from nexus.core.campaign import campaign, momentum
 from nexus.core.step import HANDLERS, step
 from nexus.core.tasking import post_job
 from nexus.core.tasking_gen import JobSpec
-from nexus.core.world import CaptureBar, Claim, Contact, Job, Vec2
+from nexus.core.world import CaptureBar, Claim, Contact, Job, Staged, Vec2
 from nexus.runtime.campaign_config import CampaignConfig, start_campaign
 from nexus.runtime.command_log import CommandLogReader, Tombstone
 
@@ -1940,6 +1940,73 @@ def test_spawn_debits_go_to_the_single_operation_launched_that_tick(
     _launch_tick(world, collector, 410)  # no launch: the 7 is unattributed
     assert collector.result(500)["economy"]["spawn_by_op"] == {
         "ops": {"PROBE": 30}, "shared": 60, "unattributed": 7}  # fmt: skip
+
+
+def test_each_decision_window_counts_as_launched_or_by_why_no_capture_launched(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    # NX-452: the setup's Static is at Pattern of Life, which enables no capture operation
+    world = start_campaign("c", 1, shipped_config)
+    state = world.director["ENEMY"]
+    assert state.tier == "PATTERN_OF_LIFE"
+
+    def window(tick: int, *keys: tuple[str, str]) -> None:
+        state.windows += 1  # a decision window ran on this tick
+        _launch_tick(world, collector, tick, *keys)
+
+    window(600)  # nothing launched
+    window(1200, ("STRIKE", "op:OFFENSIVE:fob-n-w:0"))  # a capture launch (the capture slot)
+    window(1800, ("STRIKE", "op:RETAKE:cross-n:0"))
+    window(2400, ("STRIKE", "op:PROBE:fob-s-w:0"))  # not a capture operation
+    _launch_tick(world, collector, 2500, ("STRIKE", "op:OFFENSIVE:fob-s-w:0"))  # no window
+    state.tier = "ALPHA"
+    state.staged = [Staged("OFFENSIVE", "fob-n-w", "fob-n-e", state.windows)]
+    window(3000)
+    got = collector.result(3000)["economy"]["no_capture"]
+    assert got == {"launched": 2, "staged": 1, "night_cap": 0, "tier": 2, "no_target": 0,
+                   "targets_busy": 0, "budget": 0, "floor_not_due": 0, "max_ops": 0,
+                   "other": 0}  # fmt: skip
+    # the hook reads the window's own running tick: a flip `night_cap_ticks - 1` ticks before it
+    # still caps, one exactly `night_cap_ticks` before does not (`director.night_capped`)
+    dr = shipped_config.rules.director
+    assert dr is not None and world.viewer_units() == 0
+    state.staged = []
+    for back, capped in ((dr.night_cap_ticks - 1, 1), (dr.night_cap_ticks, 0)):
+        world.campaign.running_ticks = 2 * dr.night_cap_ticks
+        state.last_flip = world.campaign.running_ticks - back
+        before = collector.no_capture["night_cap"]
+        window(3600)
+        assert collector.no_capture["night_cap"] - before == capped, back
+
+
+def _nc_run(no_capture: dict[str, int] | None) -> dict[str, Any]:
+    eco = {
+        "adapted": {}, "funnel": [], "ops": [], "tiers": {"start": "ALPHA", "changes": []},
+        "spawn_by_op": {"ops": {}, "shared": 0, "unattributed": 0},
+        "sides": {}, "hourly": [], "refused": {"operations_per_hour": {}, "units": {}},
+        "grounded_from": {}, "exposure": {}, "budget": {"sum": [], "windows": [],
+                                                       "spent": {"base": [], "source": []}},
+        "ops_unseen": 0, "holds": [], "army_peak": 0,
+    }  # fmt: skip
+    if no_capture is not None:
+        eco["no_capture"] = no_capture
+    return {"metrics": {"economy": eco}, "ticks_run": HOUR, "tick_hz": HZ, "seed": 1,
+            "viewers": {"peak_concurrent": 0}}  # fmt: skip
+
+
+def test_the_report_sums_the_no_capture_reasons_over_seeds_and_renders_them() -> None:
+    a = {"launched": 1, "staged": 2, "tier": 30, "budget": 0}
+    b = {"launched": 3, "staged": 0, "tier": 10, "budget": 4}
+    agg = report._economy([_nc_run(a), _nc_run(b), _nc_run(None)])  # the third is an old run
+    assert agg["no_capture"] == {"launched": 4, "staged": 2, "tier": 40, "budget": 4}
+    line = next(x for x in report._d5_lines("p", {**_d5_eco([]), **agg}) if "why no" in x)
+    assert line.endswith("(first reason): launched 4, staged 2, tier 40, budget 4")
+
+
+def test_an_old_report_json_without_the_no_capture_reasons_renders_a_dash() -> None:
+    assert report._economy([_nc_run(None)])["no_capture"] is None
+    line = next(x for x in report._d5_lines("p", _d5_eco([])) if "why no" in x)
+    assert line.endswith("(first reason): -")
 
 
 def test_sitreps_per_run_hour_by_category_and_staging_count() -> None:
