@@ -5,7 +5,7 @@ import json
 import sys
 from pathlib import Path
 from types import SimpleNamespace
-from typing import Any
+from typing import Any, ClassVar
 
 import pytest
 import yaml
@@ -476,6 +476,78 @@ def test_a_harness_error_is_recorded_and_the_batch_goes_on(
     assert doc["profiles"]["quiet-5"]["A1"]["outcomes"] == {"HARNESS_ERROR": 1}
     assert doc["profiles"]["quiet-5"]["A1"]["status"] == report.NO_DATA
     assert (out / "report.md").is_file()
+
+
+class _FakePool:
+    """An executor that only records the order items were submitted in."""
+
+    log: ClassVar[list[Any]] = []
+
+    def __init__(self, max_workers: int) -> None:
+        pass
+
+    def submit(self, fn: Any, job: Any) -> Any:
+        _FakePool.log.append(job[:2])
+        return SimpleNamespace(result=lambda: fn(job))
+
+    def __enter__(self) -> "_FakePool":
+        return self
+
+    def __exit__(self, *a: Any) -> None:
+        pass
+
+
+def _jobs() -> list[Any]:
+    return [
+        (n, s, 1.0, Path("."), None) for n in ("quiet-5", "raid-300", "prime-50") for s in (1, 2)
+    ]
+
+
+def test_jobs_start_longest_first_and_ties_keep_job_order() -> None:
+    data = load()
+    _FakePool.log = []
+    jobs = _jobs()
+    balance.run_jobs(
+        jobs, lambda j: data.profiles[j[0]].viewers, 2, _FakePool, lambda j: {"id": (j[0], j[1])}
+    )
+    assert _FakePool.log == [
+        ("raid-300", 1), ("raid-300", 2), ("prime-50", 1), ("prime-50", 2),
+        ("quiet-5", 1), ("quiet-5", 2),
+    ]  # fmt: skip
+
+
+def test_a_freed_worker_takes_the_next_waiting_item() -> None:
+    """2 workers, 6 items, item 1 blocks until the other five are done: that only finishes if the
+    worker that is not on item 1 takes every waiting item in turn (no fixed chunks)."""
+    import threading
+    from concurrent.futures import ThreadPoolExecutor
+
+    others_done, lock, count = threading.Event(), threading.Lock(), [0]
+
+    def fn(job: Any) -> dict[str, Any]:
+        if job[1] == 1:
+            assert others_done.wait(10), "the other worker did not backfill"
+        else:
+            with lock:
+                count[0] += 1
+                if count[0] == 5:
+                    others_done.set()
+        return {"seed": job[1]}
+
+    jobs = [("p", s, 1.0, Path("."), None) for s in range(1, 7)]
+    runs = balance.run_jobs(jobs, lambda j: 1, 2, ThreadPoolExecutor, fn)
+    assert [r["seed"] for r in runs] == [1, 2, 3, 4, 5, 6]
+
+
+def test_results_come_back_in_job_order_whatever_finishes_first() -> None:
+    from concurrent.futures import ThreadPoolExecutor
+
+    jobs = _jobs()
+    cost = {"quiet-5": 5, "raid-300": 300, "prime-50": 50}
+    runs = balance.run_jobs(
+        jobs, lambda j: cost[j[0]], 3, ThreadPoolExecutor, lambda j: {"id": (j[0], j[1])}
+    )
+    assert [r["id"] for r in runs] == [j[:2] for j in jobs]
 
 
 def test_cli_report_is_the_same_with_any_worker_count(
