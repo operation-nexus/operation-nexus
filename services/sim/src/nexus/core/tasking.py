@@ -652,7 +652,8 @@ def _verdict(world: World, rules: Rules, tr: TaskingRules, side: Side, job: Job)
             scout = world.find(job.entity or 0)  # a kill is seen by those who made it
             if scout is None or scout.damage_state == "DISABLED":
                 return "DONE"
-            return "EXPIRED" if _escaped(world, rules, side, job) else None
+            landed = scout.state == "LANDED"  # no AIR target: it got away, like an escape (Q-MV-14)
+            return "EXPIRED" if landed or _escaped(world, rules, side, job) else None
         case "ESCORT_CONVOY":
             truck = world.find(job.entity or 0)
             if truck is None or truck.damage_state == "DISABLED":

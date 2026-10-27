@@ -233,3 +233,45 @@ def test_a_parked_strike_jet_bombs_a_ground_unit_but_its_air_gun_stays_silent() 
     assert [(f.target_id, f.weapon) for f in fired if f.shooter_id == striker.id] == [
         (armor.id, "AG_LIGHT")
     ]
+
+
+# --- PR #448 review: a landed escort takes off for an air threat ----------------------------------
+
+
+def escort_scene(foe_kind: UnitKind) -> tuple[World, Entity, Entity]:
+    """A coalition truck parked at west-airbase with a LANDED strike-jet escort (AG_LIGHT 10 km,
+    AA_LIGHT 8 km at LOW and MED), and an enemy 4 km off that just fired at the truck."""
+    w = campaign_world()
+    lead = put_at(w, "LOGI_TRUCK", "west-airbase")
+    escort = put_at(w, JET, "west-airbase")
+    escort.follow_id, escort.order = lead.id, "FOLLOW"
+    foe = w.spawn(foe_kind, "ENEMY", "ENEMY_DIRECTOR", Vec2(lead.pos.x + 4_000, lead.pos.y))
+    if foe_kind == "ENEMY_FIGHTER":
+        foe.state, foe.fuel = "ON_STATION", 3_600.0
+    lead.fired_by = [[foe.id, w.campaign.running_ticks + 1]]
+    return w, escort, foe
+
+
+def escort_fire(w: World, escort: Entity, foe: Entity, ticks: int) -> list[WeaponFired]:
+    """Step `ticks`, the coalition tracking `foe` each tick; the escort's shots."""
+    fired: list[WeaponFired] = []
+    for _ in range(ticks):
+        w.contacts["COALITION"][foe.id] = Contact(foe.kind, foe.pos, Vec2(0, 0))
+        fired += [f for f in of(run(w), WeaponFired) if f.shooter_id == escort.id]
+    return fired
+
+
+def test_a_landed_escort_takes_off_to_engage_an_airborne_threat_in_range() -> None:
+    """Q-MV-19: on the ground it cannot fire at an AIR threat, so being in range must not hold
+    it there; it takes off and fires once airborne."""
+    w, escort, foe = escort_scene("ENEMY_FIGHTER")
+    fired = escort_fire(w, escort, foe, 10)
+    assert escort.state != "LANDED"
+    assert [(f.target_id, f.weapon) for f in fired][:1] == [(foe.id, "AA_LIGHT")]
+
+
+def test_a_landed_escort_engages_a_ground_threat_in_range_from_the_ground() -> None:
+    w, escort, foe = escort_scene("ENEMY_ARMOR")
+    fired = escort_fire(w, escort, foe, 3)
+    assert escort.state == "LANDED"
+    assert [(f.target_id, f.weapon) for f in fired] == [(foe.id, "AG_LIGHT")]

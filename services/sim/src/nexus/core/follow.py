@@ -15,7 +15,9 @@ leader; the follow links form forests, a unit may be followed by many and may it
    hidden state, so never read). `World.group_threat` gives
    `combat` each such follower's threat ids, which it shoots before anything else (units first,
    CB-1 order among them). The follower breaks station toward the nearest threat that is within
-   `tasking.escort_leash_m` of the convoy and it can hit, until in weapon range, along the road
+   `tasking.escort_leash_m` of the convoy and it can hit, until in weapon range (a LANDED
+   aircraft never counts as in range of an AIR threat, which it cannot fire at, Q-MV-19: it
+   takes off toward it), along the road
    that passes nearest it (one leg at a time, so only nodes with a road are chosen; none leads
    closer: it keeps station). The leash is measured from the members that cannot be engaging (the
    leader and unarmed followers), so escorts cannot leapfrog one another; an escort already
@@ -324,7 +326,9 @@ def _engage(
         return False
     d, _, t, reach = min(options, key=lambda o: (o[0], o[1]))
     if rules.domain[f.kind] == _AIR:
-        f.path = [] if d <= reach else [t.pos]
+        # LANDED, it fires at no AIR target (Q-MV-19): it takes off toward one even in range.
+        grounded = f.state == "LANDED" and target_class(rules, t)[0] == _AIR
+        f.path = [] if d <= reach and not grounded else [t.pos]
     elif d <= reach:
         capped[f.id] = 0.0  # in range: it stops where it is, on its road, and fires
     else:

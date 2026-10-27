@@ -344,6 +344,20 @@ def test_a_landed_scout_is_not_watched_and_an_airborne_one_is() -> None:
         assert (len(posted(w)) == 1) is expected, state
 
 
+def test_the_job_expires_when_its_scout_lands_and_is_not_posted_again() -> None:
+    """Q-MV-14 (NX-450): a LANDED scout is no AIR target, so the hunt ends like an escape
+    (EXPIRED, no kill) and its claimant is released; airborne again it is watched afresh."""
+    w, scout, fighter = hunted()
+    board_pass(w)
+    assert fighter.job_id is not None and len(posted(w)) == 1
+    scout.state = "LANDED"  # airborne to landed while hunted
+    out = board_pass(w)
+    assert of(out, JobDone) == [] and len(of(out, JobExpired)) == 1
+    assert posted(w) == [] and fighter.job_id is None and w.intercept_seen == {}
+    passes(w, 3)
+    assert posted(w) == []
+
+
 def test_a_kill_with_nobody_active_on_the_job_expires_it() -> None:
     w, scout, fighter = hunted()
     fighter.path = []  # it never got going: no progress, so it is no participant
