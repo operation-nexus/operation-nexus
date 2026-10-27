@@ -425,16 +425,22 @@ def test_a_grounded_jet_rebases_to_a_base_that_pays_it_and_ungrounds_at_the_next
     assert (jet.path, jet.order, jet.grounded) == (["haven"], "HOLD", True)
     assert state_hash(load(save(w))) == state_hash(w)  # a grounded unit on a HOLD saves and loads
     out: list[Event] = []
-    while jet.path or jet.state != "LANDED":
+    for _ in range(10**5):  # bounded: a jet that never lands fails, never hangs
+        if not jet.path and jet.state == "LANDED":
+            break
         out += step(w, [])
-        assert len(out) < 10**6
+    else:
+        raise AssertionError("the jet never landed at haven")
     out += step(w, [])  # `logistics` homes it on the tick it stands landed
     assert (jet.last_node, jet.home_base, jet.grounded) == ("haven", "haven", True)
     assert [r for r in rows(out) if r[0] != "SupplyConsumed"] == []  # no window ungrounded it yet
     pool = w.pool["COALITION"]
-    while jet.grounded:
+    for _ in range(10**5):  # bounded: a jet that never ungrounds fails, never hangs
+        if not jet.grounded:
+            break
         out = step(w, [])
-        assert w.campaign.running_ticks < 10**5
+    else:
+        raise AssertionError("no window ungrounded the jet")
     assert rows(out) == [("UnitUngrounded", jet.id, "haven"), ("SupplyConsumed", "haven", 5)]
     assert w.campaign.running_ticks % WINDOW == 0  # at a window
     income = [ev.amount for ev in out if ev.kind == "SupplyProduced"]
