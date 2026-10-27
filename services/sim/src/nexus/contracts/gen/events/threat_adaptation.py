@@ -25,9 +25,17 @@ class ThreatAdaptation(BaseModel):
         Field(description="The side whose Director adapted (only the ENEMY's runs until NX-375)."),
     ]
     category: Annotated[
-        Literal["CONVOY_ESCORT", "IADS_REINFORCED", "HOLD_AT_RISK", "STAGING"],
+        Literal[
+            "CONVOY_ESCORT",
+            "IADS_REINFORCED",
+            "HOLD_AT_RISK",
+            "STAGING",
+            "STAGING_LAUNCHED",
+            "STAGING_DISPERSED",
+            "STRIKE_DOWNED",
+        ],
         Field(
-            description='CONVOY_ESCORT: escorts for convoys after `convoy_attacks`. IADS_REINFORCED: air defense reinforced after `radar_strikes`. HOLD_AT_RISK: a capture operation (OFFENSIVE, RETAKE) launched on a node of the running victory hold, the sitrep "NULL moves on <node>, the hold is at risk" (Q-TD-19). STAGING: a capture operation started forward staging at a base in the sector (THREAT-DIRECTOR §4a FS-5, NX-416), the sitrep "NULL forces are massing in <sector>", always UP, sector level only (no node_id, FOW-13).'
+            description='CONVOY_ESCORT: escorts for convoys after `convoy_attacks`. IADS_REINFORCED: air defense reinforced after `radar_strikes`. HOLD_AT_RISK: a capture operation (OFFENSIVE, RETAKE) launched on a node of the running victory hold, the sitrep "NULL moves on <node>, the hold is at risk" (Q-TD-19). STAGING: a capture operation started forward staging at a base in the sector (THREAT-DIRECTOR §4a FS-5, NX-416), the sitrep "NULL forces are massing in <sector>", always UP, sector level only (no node_id, FOW-13). STAGING_LAUNCHED and STAGING_DISPERSED (NX-431, Q-TD-47) close a STAGING sitrep, once, in the sector it named: the staged operation launched from its staging base, the sitrep "NULL assault launching from <sector>"; or the massing ended otherwise (dropped, timed out or fell back to the rear, or re-staged where the coalition sees nothing or in another sector), the sitrep "massing disperses" (Q-TD-47 wording) for sector_id; always UP, no node_id. STRIKE_DOWNED (NX-431, Q-TD-56): a viewer unit\'s hit destroyed, disabled or mission-killed the last unit of a Static STRIKE job still in the fight, the sitrep "NULL strike package downed near <node>" crediting credit_ids, once per job, on that tick; always UP, node_id the job\'s target node and sector_id its sector.'
         ),
     ]
     sector_id: ids.SectorId
@@ -35,6 +43,13 @@ class ThreatAdaptation(BaseModel):
     node_id: Annotated[
         ids.NodeId | None,
         Field(
-            description="HOLD_AT_RISK: the hold node the operation targets; null for every other category."
+            description="HOLD_AT_RISK: the hold node the operation targets; STRIKE_DOWNED: the struck node; null for every other category."
         ),
     ] = None
+    credit_ids: Annotated[
+        list[ids.EntityId],
+        Field(
+            description="STRIKE_DOWNED: the viewer (COMMANDER-owned) units whose hit destroyed, disabled or mission-killed a unit holding the STRIKE job, ascending, no duplicates (producer; not uniqueItems, SC-14), the 32 lowest ids; empty for every other category (always sent).",
+            max_length=32,
+        ),
+    ]

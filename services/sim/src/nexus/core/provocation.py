@@ -252,7 +252,8 @@ def validate(world: World, rules: Rules) -> None:
     (each step needs a full dwell), a budget not below 0 and, under `economy.legacy_rules`, within
     the tier's, a theater sector, a Pattern of Life timer a window could have set, a garrison home
     that is a node of a Director unit, a staged operation of the catalog's capture operations at
-    existing nodes (NX-416; no bound on their count: a hot reload may lower `max_staged`)."""
+    existing nodes (NX-416; no bound on their count: a hot reload may lower `max_staged`), whose
+    open massing sitrep, if any, named a theater sector (NX-431)."""
     dr = rules.director
     if dr is None:
         return
@@ -301,6 +302,8 @@ def validate(world: World, rules: Rules) -> None:
                 st.op not in capture_ops or not {st.target, st.base} <= rules.roads.pos.keys()
                 for st in d.staged
             )
+            else "a staged operation's massing sitrep outside the theater's sectors"
+            if any(st.sector not in (sectors | {None}) for st in d.staged)
             else None
         )
         if problem:

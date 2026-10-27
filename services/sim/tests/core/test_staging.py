@@ -100,6 +100,16 @@ def staging_events(out: list[Event]) -> list[tuple[str, str, str | None]]:
     ]
 
 
+def payoffs(out: list[Event]) -> list[tuple[str, str]]:
+    """Q-TD-47: the massing payoff sitreps, (category, sector), every one UP with no node."""
+    found = [e for e in out if e.kind == "ThreatAdaptation" and e.category in PAYOFFS]
+    assert all(e.direction == "UP" and e.node_id is None and e.credit_ids == [] for e in found)
+    return [(e.category, e.sector_id) for e in found]
+
+
+PAYOFFS = ("STAGING_LAUNCHED", "STAGING_DISPERSED")
+
+
 def debits(out: list[Event]) -> list[tuple[str, int]]:
     return [(e.node_id, e.amount) for e in out if e.kind == "SupplyConsumed" and e.cause == "SPAWN"]
 
@@ -205,7 +215,7 @@ def test_staging_announces_the_sector_only_and_waits_when_the_base_cannot_pay() 
     out = fire(w, offensive(w, "fob-n-w"))
     assert staging_events(out) == [("north", "UP", None)]  # FOW-13: never the base
     assert debits(out) == [] and spawns(out) == []
-    assert w.director["ENEMY"].staged == [Staged("OFFENSIVE", "fob-n-w", "fob-n-e", 0)]
+    assert w.director["ENEMY"].staged == [Staged("OFFENSIVE", "fob-n-w", "fob-n-e", 0, "north")]
 
 
 def test_the_base_target_is_raised_so_a_resupply_job_and_the_convoy_go_there() -> None:
@@ -254,6 +264,7 @@ def test_a_staged_operation_launches_once_it_can_pay_and_each_spawn_node_pays_it
     assert debits(out) == [] and len(w.director["ENEMY"].staged) == 1  # still short
     w.stock["fob-n-e"] = 250 + 40  # a convoy delivered the armor's share
     out = window(w)
+    assert payoffs(out) == [("STAGING_LAUNCHED", "north")]  # Q-TD-47: the massing pays off
     # FS-4 (Q-TD-38): 4 armor x 10 at the FOB, 2 jets x 10 from the pool at their spawn node
     assert debits(out) == [("fob-n-e", 40), ("static-rear", 20)]
     assert w.stock["fob-n-e"] == 250 and w.pool["ENEMY"] == POOL - 20
@@ -425,6 +436,8 @@ def test_the_wait_runs_out_then_ec_13_launches_it_where_it_can_pay() -> None:
     out = window(w)
     assert debits(out) == [("east-airbase", 60)] and s.staged == []
     assert staging_events(out) == []
+    # Q-TD-47: it went in from east-airbase, not the staging base: north's massing dispersed
+    assert payoffs(out) == [("STAGING_DISPERSED", "north")]
 
 
 def test_the_wait_runs_out_and_with_nothing_to_pay_it_is_dropped() -> None:
@@ -436,9 +449,11 @@ def test_the_wait_runs_out_and_with_nothing_to_pay_it_is_dropped() -> None:
     s = w.director["ENEMY"]
     out = window(w, budget=0)  # no budget either, so nothing new is selected
     assert len(s.staged) == 1  # waiting, not yet late
+    assert payoffs(out) == []
     s.windows = 89
     out = window(w, budget=0)
     assert s.staged == [] and debits(out) == [] and spawns(out) == []
+    assert payoffs(out) == [("STAGING_DISPERSED", "north")]
     assert not [j for j in w.boards["ENEMY"].values() if j.key.startswith("op:OFFENSIVE")]
 
 
@@ -472,6 +487,7 @@ def test_losing_the_base_restages_at_the_next_one_and_keeps_the_wait(how: str) -
     out = window(w)
     assert w.director["ENEMY"].staged == [Staged("OFFENSIVE", "fob-n-w", "east-airbase", 0)]
     assert staging_events(out) == []  # FS-5 (Q-TD-38): the coalition tracks nothing there
+    assert payoffs(out) == [("STAGING_DISPERSED", "north")]  # Q-TD-47: north's massing closes
     assert debits(out) == []
 
 
@@ -501,9 +517,11 @@ def test_a_restage_is_announced_only_when_the_coalition_tracks_a_static_unit_at_
     # tracked now, or only a last-known track (FOW-6a), which does not count
     w.contacts[watcher][seen.id] = Contact(seen.kind, seen.pos, Vec2(0, 0), None if tracked else 5)
     out = window(w)
-    assert w.director["ENEMY"].staged == [Staged("OFFENSIVE", "fob-n-w", "east-airbase", 0)]
     announced = tracked and what in ("facility", "unit")
+    sector = "centre" if announced else None
+    assert w.director["ENEMY"].staged == [Staged("OFFENSIVE", "fob-n-w", "east-airbase", 0, sector)]
     assert staging_events(out) == ([("centre", "UP", None)] if announced else [])
+    assert payoffs(out) == [("STAGING_DISPERSED", "north")]  # north's massing closes either way
 
 
 def test_with_no_base_left_it_falls_back_at_once() -> None:
@@ -514,6 +532,7 @@ def test_with_no_base_left_it_falls_back_at_once() -> None:
         w.capture[n] = CaptureBar("COALITION", 1)
     out = window(w)
     assert w.director["ENEMY"].staged == [] and {n for _, n in spawns(out)} == {"static-rear"}
+    assert payoffs(out) == [("STAGING_DISPERSED", "north")]  # it fell back to the rear
     assert "op:OFFENSIVE:fob-n-w:2" in {j.key for j in w.boards["ENEMY"].values()}
 
 
@@ -522,9 +541,148 @@ def test_a_target_no_longer_held_by_the_coalition_is_dropped() -> None:
     at_floor(w)
     fire(w, offensive(w, "fob-n-w"))
     w.owner["fob-n-w"] = "ENEMY"
-    window(w)
+    out = window(w)
+    # dropped (no longer a candidate) and closed first; the window then stages an OFFENSIVE on
+    # west-airbase at fob-n-w, now the Static's and stocked, which launches at once
+    assert [(e.category, e.sector_id) for e in out if e.kind == "ThreatAdaptation"] == [
+        ("STAGING_DISPERSED", "north"), ("STAGING", "north"), ("STAGING_LAUNCHED", "north"),
+    ]  # fmt: skip
     assert w.director["ENEMY"].staged == []
     assert not [j for j in w.boards["ENEMY"].values() if j.key.startswith("op:OFFENSIVE:fob-n-w")]
+
+
+# --- Q-TD-47 (NX-431): every massing sitrep is closed by a launch or a disperse ------------------
+
+
+def test_a_base_that_can_pay_at_once_announces_the_massing_then_the_launch() -> None:
+    w = world()
+    at_floor(w)
+    w.stock["fob-n-e"] += 40  # the FOB pays its armor; unlimited, the rear pays the jets
+    out = fire(w, offensive(w, "fob-n-w"))
+    massing = [(e.category, e.sector_id) for e in out if e.kind == "ThreatAdaptation"]
+    assert massing == [("STAGING", "north"), ("STAGING_LAUNCHED", "north")]
+    assert w.director["ENEMY"].staged == [] and spawns(out)
+
+
+def test_a_restage_seen_in_the_sector_already_announced_says_nothing_new() -> None:
+    w = world()
+    assert w.rules is not None
+    at_floor(w)
+    fire(w, offensive(w, "fob-n-w"))
+    w.director["ENEMY"].staged[0].sector = "centre"  # as if the open massing named centre
+    w.owner["fob-n-e"] = "COALITION"  # it re-stages at east-airbase, in centre
+    spot = Vec2(*w.rules.roads.pos["east-airbase"])
+    seen = w.spawn("ENEMY_ARMOR", "ENEMY", "ENEMY_DIRECTOR", spot)
+    w.contacts["COALITION"][seen.id] = Contact(seen.kind, seen.pos, Vec2(0, 0))
+    out = window(w)
+    assert staging_events(out) == [] and payoffs(out) == []
+    assert w.director["ENEMY"].staged == [
+        Staged("OFFENSIVE", "fob-n-w", "east-airbase", 0, "centre")
+    ]
+
+
+def test_a_launch_after_an_unseen_restage_names_no_sector() -> None:
+    # FOW-13: the coalition never saw the massing at east-airbase, so its launch is not announced
+    w = world()
+    at_floor(w)
+    fire(w, offensive(w, "fob-n-w"))
+    w.owner["fob-n-e"] = "COALITION"
+    assert payoffs(window(w)) == [("STAGING_DISPERSED", "north")]
+    w.stock["east-airbase"] += 60  # now it can pay at its new base
+    out = window(w)
+    assert w.director["ENEMY"].staged == [] and spawns(out)
+    assert payoffs(out) == [] and staging_events(out) == []
+
+
+def open_massings(events: list[Event]) -> dict[str, int]:
+    """Q-TD-47 read off an event stream: each STAGING opens a massing in its sector, each payoff
+    closes one there, and a payoff never comes before its massing. The open count per sector."""
+    open_: dict[str, int] = {}
+    for e in events:
+        if e.kind != "ThreatAdaptation" or e.category not in ("STAGING", *PAYOFFS):
+            continue
+        assert e.direction == "UP" and e.node_id is None  # FOW-13: sector level only
+        assert e.credit_ids == []  # required on the wire, empty for a massing
+        n = open_.get(e.sector_id, 0) + (1 if e.category == "STAGING" else -1)
+        assert n >= 0, f"a {e.category} in {e.sector_id} with no open massing there"
+        open_[e.sector_id] = n
+    return {k: v for k, v in sorted(open_.items()) if v}
+
+
+def still_open(w: World) -> dict[str, int]:
+    """The massings the staged operations hold open, per sector."""
+    count: dict[str, int] = {}
+    for x in w.director["ENEMY"].staged:
+        if x.sector is not None:
+            count[x.sector] = count.get(x.sector, 0) + 1
+    return dict(sorted(count.items()))
+
+
+@settings(max_examples=30, deadline=None)
+@given(
+    steps=st.lists(
+        st.tuples(
+            st.sampled_from(["lose", "contest", "stock", "target", "seen", "late", "none"]),
+            st.sampled_from((*STATIC_BASES, "fob-n-w", "fob-s-w", "west-airbase")),
+            st.integers(0, 120),
+        ),
+        max_size=6,
+    ),
+)
+def test_every_massing_is_followed_by_a_launch_or_a_disperse_in_its_sector(
+    steps: list[tuple[str, str, int]],
+) -> None:
+    """Invariant (Q-TD-47): after any windows of base losses, contests, stock, targets taken,
+    coalition sightings and timeouts, every payoff closes a massing opened in its sector, the
+    massings left open are exactly those of the operations still staged, and once the waits run
+    out (nothing can pay) none is left open."""
+    w = world(LIMITED)
+    assert w.rules is not None
+    at_floor(w)
+    w.pool["ENEMY"] = 0
+    events: list[Event] = []
+    for target in ("fob-n-w", "fob-s-w", "west-airbase"):
+        events += fire(w, offensive(w, target))
+    s = w.director["ENEMY"]
+    for what, node, n in steps:
+        base = node in STATIC_BASES
+        if what == "lose" and base:
+            w.owner[node] = "COALITION"
+        elif what == "contest" and base:
+            w.capture[node] = CaptureBar("COALITION", 1)
+        elif what == "stock" and base:
+            w.stock[node] = w.rules.supply.starve_floor[node] + n
+        elif what == "target":
+            w.owner[node] = "ENEMY"
+        elif what == "seen" and base:
+            e = w.spawn("ENEMY_ARMOR", "ENEMY", "ENEMY_DIRECTOR", Vec2(*w.rules.roads.pos[node]))
+            w.contacts["COALITION"][e.id] = Contact(e.kind, e.pos, Vec2(0, 0))
+        elif what == "late":
+            s.windows += 89
+        events += window(w, budget=n)
+        assert open_massings(events) == still_open(w)
+    at_floor(w)
+    s.windows += 90
+    events += window(w, budget=0)
+    assert s.staged == [] and open_massings(events) == {}
+
+
+def test_in_a_campaign_every_massing_closes_in_its_sector() -> None:
+    """The kernel's own windows (`step`), staged at ALPHA with a 3-window wait: the massing opened
+    before the run is closed, by a launch or a disperse, in its sector, and the massings left
+    open are those of the operations still staged."""
+    c = shipped_config(
+        {**NEW, "director.tier.start": "ALPHA", "director.staging.max_wait_windows": 3}
+    )
+    w = start_campaign(CAMPAIGN_ID, 4, c)
+    at_floor(w)
+    events = fire(w, offensive(w, "fob-n-w"))
+    assert open_massings(events) == {"north": 1}
+    for _ in range(3000):
+        events += step(w, [])
+    closes = [e for e in events if e.kind == "ThreatAdaptation" and e.category in PAYOFFS]
+    assert closes, "the 3-window wait ran out, so the first massing must have closed"
+    assert open_massings(events) == still_open(w)
 
 
 # --- FS-7: state, snapshot, determinism -----------------------------------------------------------
@@ -570,11 +728,18 @@ def raw_of(w: World) -> dict[str, object]:
     ("entry", "match"),
     [
         (
-            {"op": "OFFENSIVE", "target": "fob-n-w", "base": "fob-n-e", "since": 5},
+            {"op": "OFFENSIVE", "target": "fob-n-w", "base": "fob-n-e", "since": 5, "sector": None},
             "after the windows",
         ),
         ({"op": "OFFENSIVE", "target": "fob-n-w", "base": "fob-n-e"}, "exactly the keys"),
-        ({"op": "OFFENSIVE", "target": 3, "base": "fob-n-e", "since": 0}, "staged target"),
+        (
+            {"op": "OFFENSIVE", "target": 3, "base": "fob-n-e", "since": 0, "sector": None},
+            "staged target",
+        ),
+        (
+            {"op": "OFFENSIVE", "target": "fob-n-w", "base": "fob-n-e", "since": 0, "sector": 1},
+            "staged sector",
+        ),
     ],
 )
 def test_a_corrupt_staged_entry_is_refused(entry: dict[str, object], match: str) -> None:
@@ -588,8 +753,8 @@ def test_staged_entries_out_of_order_or_twice_are_refused() -> None:
     w = world()
     w.director["ENEMY"].windows = 1
     raw = raw_of(w)
-    a = {"op": "RETAKE", "target": "fob-n-w", "base": "fob-n-e", "since": 0}
-    b = {"op": "OFFENSIVE", "target": "fob-n-w", "base": "fob-n-e", "since": 0}
+    a = {"op": "RETAKE", "target": "fob-n-w", "base": "fob-n-e", "since": 0, "sector": None}
+    b = {"op": "OFFENSIVE", "target": "fob-n-w", "base": "fob-n-e", "since": 0, "sector": None}
     for entries in ([a, b], [b, b]):
         raw["director"]["ENEMY"]["staged"] = entries  # type: ignore[index]
         with pytest.raises(ValueError, match="ascending"):
@@ -603,6 +768,16 @@ def test_validate_refuses_a_staged_operation_that_is_no_catalog_capture_or_at_no
         w.director["ENEMY"].staged = [bad]
         with pytest.raises(ValueError, match="staged operation"):
             validate(w, SHIPPED.rules)
+
+
+def test_validate_refuses_an_open_massing_outside_the_theater_sectors() -> None:
+    assert SHIPPED.rules is not None
+    w = world()
+    w.director["ENEMY"].staged = [Staged("OFFENSIVE", "fob-n-w", "fob-n-e", 0, "north")]
+    validate(w, SHIPPED.rules)  # a theater sector, or None, is fine
+    w.director["ENEMY"].staged[0].sector = "atlantis"
+    with pytest.raises(ValueError, match="massing sitrep outside"):
+        validate(w, SHIPPED.rules)
 
 
 @settings(max_examples=25, deadline=None)

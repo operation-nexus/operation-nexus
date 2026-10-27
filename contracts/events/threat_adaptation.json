@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://nexus.local/contracts/events/threat_adaptation.json",
   "title": "ThreatAdaptation",
-  "description": "The Static's Threat Director adapted its defense to what it suffered (CONTRACTS §6; THREAT-DIRECTOR §4 step 5, C37; NX-156). `UP` when the matching operation launched (escorts appear, air defense is reinforced), `DOWN` when its threat-memory counter has decayed away again. Sector level only: it names no site and updates no facility marker (Q-FOW-17, FOG-OF-WAR FOW-13). HOLD_AT_RISK (NX-412 part 4, ECONOMY EC-9, Q-TD-19) is the one category that names a node (nodes are public, FOW-10): a capture operation was launched on a node of the coalition's running victory hold, always UP, no DOWN. Public view: this INTEL line.",
+  "description": "The Static's Threat Director adapted its defense to what it suffered, or announces what its operations are doing (CONTRACTS §6; THREAT-DIRECTOR §4 step 5, C37; NX-156). `UP` when the matching operation launched (escorts appear, air defense is reinforced), `DOWN` when its threat-memory counter has decayed away again. Sector level only: it names no site and updates no facility marker (Q-FOW-17, FOG-OF-WAR FOW-13). Two categories also name a node (nodes are public, FOW-10). HOLD_AT_RISK (NX-412 part 4, ECONOMY EC-9, Q-TD-19): a capture operation was launched on a node of the coalition's running victory hold, always UP, no DOWN. STRIKE_DOWNED (NX-431, Q-TD-56): viewer units took out the last jet of a Static strike package; node_id is the struck node, always UP. Public view: this INTEL line.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -13,7 +13,8 @@
     "side",
     "category",
     "sector_id",
-    "direction"
+    "direction",
+    "credit_ids"
   ],
   "properties": {
     "kind": {
@@ -39,9 +40,12 @@
         "CONVOY_ESCORT",
         "IADS_REINFORCED",
         "HOLD_AT_RISK",
-        "STAGING"
+        "STAGING",
+        "STAGING_LAUNCHED",
+        "STAGING_DISPERSED",
+        "STRIKE_DOWNED"
       ],
-      "description": "CONVOY_ESCORT: escorts for convoys after `convoy_attacks`. IADS_REINFORCED: air defense reinforced after `radar_strikes`. HOLD_AT_RISK: a capture operation (OFFENSIVE, RETAKE) launched on a node of the running victory hold, the sitrep \"NULL moves on <node>, the hold is at risk\" (Q-TD-19). STAGING: a capture operation started forward staging at a base in the sector (THREAT-DIRECTOR \u00a74a FS-5, NX-416), the sitrep \"NULL forces are massing in <sector>\", always UP, sector level only (no node_id, FOW-13)."
+      "description": "CONVOY_ESCORT: escorts for convoys after `convoy_attacks`. IADS_REINFORCED: air defense reinforced after `radar_strikes`. HOLD_AT_RISK: a capture operation (OFFENSIVE, RETAKE) launched on a node of the running victory hold, the sitrep \"NULL moves on <node>, the hold is at risk\" (Q-TD-19). STAGING: a capture operation started forward staging at a base in the sector (THREAT-DIRECTOR §4a FS-5, NX-416), the sitrep \"NULL forces are massing in <sector>\", always UP, sector level only (no node_id, FOW-13). STAGING_LAUNCHED and STAGING_DISPERSED (NX-431, Q-TD-47) close a STAGING sitrep, once, in the sector it named: the staged operation launched from its staging base, the sitrep \"NULL assault launching from <sector>\"; or the massing ended otherwise (dropped, timed out or fell back to the rear, or re-staged where the coalition sees nothing or in another sector), the sitrep \"massing disperses\" (Q-TD-47 wording) for sector_id; always UP, no node_id. STRIKE_DOWNED (NX-431, Q-TD-56): a viewer unit's hit destroyed, disabled or mission-killed the last unit of a Static STRIKE job still in the fight, the sitrep \"NULL strike package downed near <node>\" crediting credit_ids, once per job, on that tick; always UP, node_id the job's target node and sector_id its sector."
     },
     "sector_id": {
       "$ref": "../common/ids.json#/$defs/SectorId"
@@ -62,7 +66,15 @@
         }
       ],
       "default": null,
-      "description": "HOLD_AT_RISK: the hold node the operation targets; null for every other category."
+      "description": "HOLD_AT_RISK: the hold node the operation targets; STRIKE_DOWNED: the struck node; null for every other category."
+    },
+    "credit_ids": {
+      "type": "array",
+      "maxItems": 32,
+      "description": "STRIKE_DOWNED: the viewer (COMMANDER-owned) units whose hit destroyed, disabled or mission-killed a unit holding the STRIKE job, ascending, no duplicates (producer; not uniqueItems, SC-14), the 32 lowest ids; empty for every other category (always sent).",
+      "items": {
+        "$ref": "../common/ids.json#/$defs/EntityId"
+      }
     }
   }
 }

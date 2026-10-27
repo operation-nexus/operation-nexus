@@ -56,7 +56,9 @@ launched in selection order:
   Q-TD-38, Q-TD-39), announced as `ThreatAdaptation{STAGING}` in the base's
   sector (a re-stage only when the coalition tracks a unit at the new base, `_seen_at`); it holds
   its budget share and a `max_ops` slot while it waits, and falls back by EC-13 after
-  `max_wait_windows` or is dropped.
+  `max_wait_windows` or is dropped. Each massing sitrep is closed once in its sector (FS-9,
+  Q-TD-47, NX-431; `Staged.sector`, `_close`): `STAGING_LAUNCHED` on a launch from the base,
+  `STAGING_DISPERSED` on any other end or a re-stage it no longer names (`_restage`).
 """
 
 import itertools
@@ -96,6 +98,7 @@ _DIRECTOR = "ENEMY_DIRECTOR"
 # Defensive counter -> the adaptation it announces (ThreatAdaptation.category).
 _ADAPTATION = {"convoy_attacks": "CONVOY_ESCORT", "radar_strikes": "IADS_REINFORCED"}
 _PATROL_OP, _CONVOY_OP = "POL_PATROL", "POL_CONVOY"  # the `op:` ids of the Pattern of Life jobs
+_LAUNCHED, _DISPERSED = "STAGING_LAUNCHED", "STAGING_DISPERSED"  # a massing's payoff (Q-TD-47)
 
 
 @dataclass(slots=True)
@@ -480,7 +483,8 @@ def _stage(
 ) -> bool:  # fmt: skip
     """FS-1, FS-2, FS-4, FS-5 (legacy rules off, `purse` set): a far capture operation is staged
     at its base: `STAGING` is announced in the base's sector, and it launches at once when every
-    node it spawns at can pay its own units, else waits in `DirectorState.staged`. False when it
+    node it spawns at can pay its own units (then `STAGING_LAUNCHED` there, FS-9), else waits in
+    `DirectorState.staged` with that sector open. False when it
     is not staged (near, no nearer base, or `director.staging.max_staged` waiting): it spawns as
     EC-13 says."""
     dr = rules.director
@@ -489,9 +493,13 @@ def _stage(
     base = stg.base_for(world, rules, side, view, c.op, c.target)
     if base is None or not stg.far(rules, view, c.op, c.target):
         return False
-    _announce_staging(world, rules, side, base, out)
-    if not _launch(world, rules, side, view, state, c, out, purse, at=base):
-        state.staged.append(Staged(c.op.id, c.target, base, state.windows))
+    staged = Staged(c.op.id, c.target, base, state.windows, _sector(rules, base))
+    if staged.sector is not None:
+        _adaptation(world, side, "STAGING", staged.sector, "UP", out)
+    if _launch(world, rules, side, view, state, c, out, purse, at=base):
+        _close(world, side, staged, _LAUNCHED, out)
+    else:
+        state.staged.append(staged)
         state.staged.sort(key=lambda s: (s.op, s.target))
     return True
 
@@ -502,11 +510,12 @@ def _review(
 ) -> int:  # fmt: skip
     """FS-4, FS-6, each window before the selection, in (op, target) order: a staged operation no
     longer a candidate (`ops.candidate`) is dropped; one whose base the side lost or that has a
-    capture bar re-stages at the next base by FS-2 (its wait kept; announced only when `_seen_at`),
+    capture bar re-stages at the next base by FS-2 (its wait kept; `_restage`),
     or falls back; it launches when every spawn node can pay its share; after
     `director.staging.max_wait_windows` it launches by EC-13 from wherever `_paying_node` finds
-    the stock, else is dropped. Returns the budget the staged operations spent or still hold this
-    window."""
+    the stock, else is dropped. FS-9 (Q-TD-47): a launch at the base closes its massing as
+    `STAGING_LAUNCHED`, a drop or a fallback launch as `STAGING_DISPERSED`. Returns the budget the
+    staged operations spent or still hold this window."""
     dr = rules.director
     if purse is None or dr is None or not state.staged:
         return 0
@@ -514,33 +523,57 @@ def _review(
     for s in list(state.staged):
         c = ops.candidate(s.op, s.target, state, view, rules, _own(world, rules, side), now)
         if c is None:
+            _close(world, side, s, _DISPERSED, out)
             continue
         base: str | None = s.base
         if not stg.hosts(world, rules, side, s.base, c.op):
             base = stg.base_for(world, rules, side, view, c.op, s.target)
             if base is not None:
-                if _seen_at(world, rules, side, base):
-                    _announce_staging(world, rules, side, base, out)
-                s.base = base
+                _restage(world, rules, side, s, base, out)
         late = state.windows - s.since >= dr.staging_max_wait_windows
         go = (world, rules, side, view, state, c, out, purse)
-        if (base is not None and _launch(*go, at=base)) or (
-            (base is None or late) and _launch(*go, stage=False)
-        ):
+        if base is not None and _launch(*go, at=base):
+            _close(world, side, s, _LAUNCHED, out)
+            held += c.op.cost
+        elif (base is None or late) and _launch(*go, stage=False):
+            _close(world, side, s, _DISPERSED, out)  # it went in from elsewhere, not the base
             held += c.op.cost
         elif base is not None and not late:
             keep.append(s)
             held += c.op.cost
+        else:
+            _close(world, side, s, _DISPERSED, out)
     state.staged = keep
     state.last_operation = state.windows  # kept, launched or dropped this window (Q-TD-42)
     return held
 
 
-def _announce_staging(world: World, rules: Rules, side: Side, base: str, out: list[Event]) -> None:
-    """FS-5: "NULL forces are massing in <sector>", the base's sector only, never the base."""
-    sector = sector_at(rules, *rules.roads.pos[base])
-    if sector is not None:
-        _adaptation(world, side, "STAGING", sector, "UP", out)
+def _sector(rules: Rules, node: str) -> str | None:
+    return sector_at(rules, *rules.roads.pos[node])
+
+
+def _close(world: World, side: Side, s: Staged, category: str, out: list[Event]) -> None:
+    """Q-TD-47: the open "massing" sitrep of `s`, if any, is closed once, in the sector it named:
+    `_LAUNCHED` ("NULL assault launching from <sector>") or `_DISPERSED` ("massing disperses")."""
+    if s.sector is not None:
+        _adaptation(world, side, category, s.sector, "UP", out)
+        s.sector = None
+
+
+def _restage(
+    world: World, rules: Rules, side: Side, s: Staged, base: str, out: list[Event]
+) -> None:
+    """FS-5, FS-6 on a re-stage at `base` (Q-TD-38, Q-TD-47): "NULL forces are massing in
+    <sector>", the new base's sector only, when the coalition tracks a Static unit there
+    (`_seen_at`) and no massing sitrep is open for that sector; an open one for another sector,
+    or one the coalition can no longer see, is closed as dispersed first."""
+    sector = _sector(rules, base) if _seen_at(world, rules, side, base) else None
+    if sector != s.sector:
+        _close(world, side, s, _DISPERSED, out)
+        if sector is not None:
+            _adaptation(world, side, "STAGING", sector, "UP", out)
+            s.sector = sector
+    s.base = base
 
 
 def _seen_at(world: World, rules: Rules, side: Side, base: str) -> bool:
@@ -929,7 +962,7 @@ def _adaptation(
         ThreatAdaptation.model_construct(
             kind="ThreatAdaptation", tick=world.campaign.tick + 1,
             event_seq=world.next_event_seq(), campaign_id=world.campaign.id, side=side,
-            category=category, sector_id=sector, direction=direction, node_id=node,
+            category=category, sector_id=sector, direction=direction, node_id=node, credit_ids=[],
         )
     )  # fmt: skip
 
