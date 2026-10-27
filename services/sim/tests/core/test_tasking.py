@@ -38,6 +38,7 @@ from nexus.core.tasking import (
     Routes,
     _end,
     _load_at_source,
+    _verdict,
     claim,
     idle_reason,
     joinable_jobs,
@@ -611,6 +612,49 @@ def test_idle_reason_names_a_side_with_no_landing_base_and_leaves_other_for_no_f
     assert idle_reason(w, jet) == "no_base"
     jet.fuel = RULES.fuel_s["STRIKE_FIGHTER"]
     assert idle_reason(w, jet) == "no_base"  # a full tank does not help
+
+
+def _escorted_truck(w: World) -> tuple[Entity, Job]:
+    truck = put(w, "LOGI_TRUCK", "west-airbase", cargo=100)
+    truck.path = ["fob-n-w"]  # under way: the job is live
+    spec = JobSpec("ESCORT_CONVOY", f"escort:{truck.id}", 1, 1000, entity=truck.id)
+    return truck, post_job(w, "COALITION", spec, [])
+
+
+@pytest.mark.parametrize("lost", ["removed", "disabled"])
+def test_idle_reason_skips_an_escort_whose_truck_was_lost_since_the_pass(lost: str) -> None:
+    # NX-459: combat removes or disables a truck after the board pass; the harness asks between
+    # ticks, before the next pass ends the job, and `_waypoint` had no target left to name.
+    w = new_world()
+    jet = put(w, "STRIKE_FIGHTER", "west-airbase")
+    truck, _ = _escorted_truck(w)
+    before = state_hash(w)  # rng streams included: the diagnostic changes nothing
+    assert idle_reason(w, jet) == "next_pass"
+    assert state_hash(w) == before
+    if lost == "removed":
+        w.remove(truck.id)
+    else:
+        truck.damage_state = "DISABLED"
+    before = state_hash(w)
+    assert idle_reason(w, jet) == "no_job"
+    assert state_hash(w) == before
+
+
+@pytest.mark.parametrize("lost", ["removed", "disabled"])
+@pytest.mark.parametrize("claimed", [True, False])
+def test_an_escort_whose_truck_is_lost_ends_failed_if_claimed_else_expired(
+    lost: str, claimed: bool
+) -> None:
+    w = new_world()
+    truck, job = _escorted_truck(w)
+    if claimed:
+        claim(w, put(w, "STRIKE_FIGHTER", "west-airbase"), job, [])
+    assert _verdict(w, RULES, TR, "COALITION", job) is None  # under way
+    if lost == "removed":
+        w.remove(truck.id)
+    else:
+        truck.damage_state = "DISABLED"
+    assert _verdict(w, RULES, TR, "COALITION", job) == ("FAILED" if claimed else "EXPIRED")
 
 
 def test_idle_strike_jobs_are_deterministic() -> None:
