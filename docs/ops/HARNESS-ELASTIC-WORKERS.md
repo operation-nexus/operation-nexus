@@ -38,6 +38,16 @@ The budget becomes a set of `max_workers` slot files in `work_dir/slots/` (`slot
 
 On 2026-10-27 #457 ran its last six runs on six workers, with six threads idle. With elastic slots those six runs would have started when #452 freed its slots, about 17:10, and the whole job would have ended roughly one wave (a run lasts 30 to 60 min) earlier. The real figure has to be measured. The test below compares wall time and the CPU load on the host.
 
+## Companion: a tick count per run
+
+The progress comments on the issues cannot say how far a run is: the run's log size varies too much between seeds to turn into a percentage (raid-300 24-hour logs ran from 15 to 237 KB on 2026-10-27), and a result file appears only at the end. So the estimate for the last runs of a job is a guess from past wall times.
+
+- **`balance.py` writes `runs/<name>.progress`** about once a minute from the process running that run: one line, `<tick> <total_ticks> <unix_time>`, written to a `.tmp` name and renamed, as result files are. `total_ticks` is hours × 36,000 (10 Hz).
+- **Nothing else changes.** The queue counts `runs/*.json` only, so a `.progress` file is never taken for a result, and `--resume` ignores and overwrites it. The report is unchanged.
+- **What it gives.** The progress comment can show each running run's real percentage and remaining time from its own current speed (ticks per second over the last minutes), which also reflects load from other jobs. With slot waits (above) it also tells a waiting run from a running one.
+- **Cost.** One small file write per run per minute.
+- **Test.** A short run writes at least one `.progress` file and no `.progress` file counts as a result in the queue's free-worker count.
+
 ## Risks and open points
 
 - **Memory.** More runs in flight than today is not possible (the budget is still 12), but several worktrees and `uv sync` environments exist at once. This was true under NX-442 too. Measure peak memory on the 32 GB host with two 12-run jobs.
@@ -50,6 +60,7 @@ On 2026-10-27 #457 ran its last six runs on six workers, with six threads idle. 
 
 1. Unit tests for the slot code with a fake runner: a slot is exclusive, a killed process frees its slot, an older waiting job gets the next free slot, no `--slot-dir` means no change.
 2. Queue test: the second job starts when one slot is free, and the first job's report is posted before the second's.
+   Progress file: see the companion section.
 3. Live: queue two 12-run jobs with 12 workers each on the reference host. Pass if the host's busy-thread count stays near 12 until the last runs, and the second job ends earlier than under NX-442.
 
 ## What this needs from the lead session
