@@ -528,7 +528,7 @@ def test_idle_reason_names_why_an_idle_jet_holds_no_job() -> None:
     jet = put(w, "STRIKE_FIGHTER", "west-airbase")
     assert idle_reason(w, jet) == "no_job"
     job = post(w, "COALITION", "STRIKE", "east-airbase", "s", slots=1)
-    assert idle_reason(w, jet) == "other"  # it takes the job at the next pass
+    assert idle_reason(w, jet) == "next_pass"  # a feasible job: it takes it at the next pass
     jet.ammo = [0, 0]
     assert idle_reason(w, jet) == "ammo"
     jet.ammo, jet.fuel = [4, 400], 1.0
@@ -542,6 +542,75 @@ def test_idle_reason_names_why_an_idle_jet_holds_no_job() -> None:
     for _ in range(2 * job.slots):  # the overfill limit
         claim(w, put(w, "STRIKE_FIGHTER", "west-airbase"), job, [])
     assert idle_reason(w, jet) == "full"
+
+
+@pytest.mark.parametrize(
+    ("kind", "job_kind", "reason"),
+    [
+        ("GARRISON_INFANTRY", "DEFEND", "no_route"),
+        ("GARRISON_INFANTRY", "PATROL", "no_patrol_route"),
+        ("LOGI_TRUCK", "RESUPPLY", "no_reload"),
+        ("LOGI_TRUCK", "REPAIR_BRIDGE", "no_repair_route"),
+    ],
+)
+def test_idle_reason_names_the_ground_refusal(
+    kind: UnitKind, job_kind: JobKind, reason: str
+) -> None:
+    # NX-454: the old `other`. Feasible from the node it stands on, refused once it is off it.
+    w = new_world()
+    unit = put(w, kind, "fob-n-w", cargo=0 if kind == "LOGI_TRUCK" else None)
+    post(
+        w, "COALITION", job_kind, "bridge-n" if job_kind == "REPAIR_BRIDGE" else "west-airbase", "j"
+    )
+    before = state_hash(w)  # rng streams included: the diagnostic draws and changes nothing
+    assert idle_reason(w, unit) == "next_pass"
+    assert state_hash(w) == before
+    unit.pos = Vec2(unit.pos.x + 500, unit.pos.y)
+    if job_kind == "RESUPPLY":  # an empty truck's refusal is the load plan, not the road
+        unit.pos, unit.last_node = Vec2(*RULES.roads.pos["fob-n-w"]), None
+    before = state_hash(w)
+    assert idle_reason(w, unit) == idle_reason(w, unit) == reason
+    assert state_hash(w) == before
+
+
+def test_idle_reason_follows_assign_a_refuel_job_ranked_above_a_feasible_one() -> None:
+    # `_assign` acts on the first verdict that is not `no`: the better-ranked strike needs a rearm
+    # step, and a jet landed at a stocked base has none to make, so it never takes the defend job.
+    w = new_world()
+    jet = put(w, "STRIKE_FIGHTER", "west-airbase")
+    jet.fuel = 0.3 * RULES.fuel_s["STRIKE_FIGHTER"]
+    post(w, "COALITION", "STRIKE", "east-airbase", "s", urgency=5000)
+    post(w, "COALITION", "DEFEND", "west-airbase", "d", urgency=1)
+    before = state_hash(w)
+    assert idle_reason(w, jet) == "refuel"
+    assert state_hash(w) == before
+
+
+def test_idle_reason_names_the_refusal_of_the_best_ranked_job() -> None:
+    w = new_world()
+    unit = put(w, "GARRISON_INFANTRY", "fob-n-w")
+    post(w, "COALITION", "PATROL", "west-airbase", "p", urgency=1)  # posted first, ranked last
+    post(w, "COALITION", "DEFEND", "west-airbase", "d", urgency=5000)
+    post(w, "COALITION", "DEFEND", "fob-n-w", "d2", urgency=5000)  # a tie: `_assign` would draw
+    unit.pos = Vec2(unit.pos.x + 500, unit.pos.y)
+    before = state_hash(w)  # rng streams included: the tie is broken by id, never drawn
+    assert idle_reason(w, unit) == "no_route"  # the defend job's refusal, not the patrol's
+    assert state_hash(w) == before
+
+
+def test_idle_reason_names_a_side_with_no_landing_base_and_leaves_other_for_no_fuel() -> None:
+    w = new_world()
+    jet = put(w, "STRIKE_FIGHTER", "west-airbase")
+    post(w, "COALITION", "STRIKE", "east-airbase", "s", slots=1)
+    jet.fuel = None  # no aircraft is like this (World validation): nothing names it
+    before = state_hash(w)
+    assert idle_reason(w, jet) == "other"
+    assert state_hash(w) == before
+    for node in RULES.landing_nodes:
+        w.owner[node] = "ENEMY"
+    assert idle_reason(w, jet) == "no_base"
+    jet.fuel = RULES.fuel_s["STRIKE_FIGHTER"]
+    assert idle_reason(w, jet) == "no_base"  # a full tank does not help
 
 
 def test_idle_strike_jobs_are_deterministic() -> None:
