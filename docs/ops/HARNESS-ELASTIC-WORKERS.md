@@ -1,6 +1,17 @@
 # Harness: Elastic Workers Across Overlapping Jobs
 
-Status: Proposal · Builds on: NX-442 (Q-DEV-33, Q-DEV-34), NX-433 · Author: the local ops session on the reference host · Decision: the lead session (owner may veto)
+Status: Accepted, built as NX-460 (Q-DEV-35, owner 2026-10-27) · Builds on: NX-442 (Q-DEV-33, Q-DEV-34), NX-433 · Author: the local ops session on the reference host; corrections by the lead session
+
+## Decision and corrections (NX-460)
+
+The owner asked the lead to correct and build this proposal (Q-DEV-35). What was built differs from the proposal below in four places. The code and `tools/balance/README.md` are authoritative.
+
+1. **Older shas.** The queue runs `balance.py` from the requested sha's own worktree, so a job at a sha from before NX-460 has no `--slot-dir`. The queue reads `git show <sha>:tools/balance/balance.py` before the job starts. A sha with the option runs elastic. A sha without it runs as under NX-442 (a fixed pool, `min_overlap_workers`), and the queue process holds that job's slot locks for it, releasing them as its runs finish, so old and new jobs share one budget.
+2. **Fairness by lock, not by file.** A waiting worker holds a shared flock on `wait-<issue>`. A younger job's worker probes older wait files with a non-blocking exclusive lock: if the probe fails, an older worker is waiting and the younger one does not take a slot. A killed job's lock is dropped by the kernel, so a stale wait file never blocks anyone. `balance.py` never deletes wait files; the queue removes unlocked ones at tick start.
+3. **Start rule.** Starting a job whenever one slot is free would start every queued issue at once (each spends minutes in `uv sync` before its workers take a slot). Instead the queue counts demand as under NX-442: free = `max_workers` minus, over running jobs, min(workers, runs left). An elastic job starts when free is at least 1, with its requested workers, and widens as older jobs' runs end. `min_overlap_workers` now applies to legacy shas only.
+4. **Progress file.** Written from `runner.run`'s existing `on_tick` callback (no runner change), at most once per 60 s, with `total_ticks` taken from the config's tick rate. It is deleted once the run's result file is written.
+
+The per-run slot wait is recorded as `timing.slot_wait_s` and summed in the report (`slot wait` line).
 
 ## The problem
 
