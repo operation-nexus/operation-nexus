@@ -576,7 +576,11 @@ class Collector:
         if step and self.entity.get(e.shooter_id, (None, None))[1] == _ENEMY:
             step["strike_fired"] = True
         idx = self._unit_step.get(e.shooter_id)  # NX-453: a shot by the launch's own unit
-        if idx is not None and e.target_node_id == self.funnel[idx]["target"]:
+        if (
+            idx is not None
+            and e.target_node_id == self.funnel[idx]["target"]
+            and self._latest.get(e.target_node_id) is self.funnel[idx]  # still its live launch
+        ):
             self.funnel[idx]["own"]["strike_fired"] = True
 
     def _claimed(self, e: Any) -> None:

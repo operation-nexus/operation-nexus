@@ -1856,6 +1856,18 @@ def test_own_funnel_counts_a_shot_by_the_launchs_own_unit_only(
     assert _row(collector)["own"]["strike_fired"] is True
 
 
+def test_own_funnel_credits_no_shot_once_its_launch_has_closed(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    """A capture closes the launch (`_latest` drops it): its unit's later shot is not credited."""
+    _, jobs = _own_rig(collector, shipped_config)
+    _claim(collector, 101, jobs["op:OFFENSIVE:fob-n-w:0"], 900)
+    collector.feed([_ev(NodeCaptured, "NodeCaptured", 120, node_id="fob-n-w", from_="COALITION",
+                        to="ENEMY", participant_commander_ids=[])])  # fmt: skip
+    _fire(collector, 130, 900, "fob-n-w")
+    assert _row(collector)["own"]["strike_fired"] is False
+
+
 def test_own_funnel_sees_a_claim_made_on_the_launch_tick(
     collector: metrics.Collector, shipped_config: CampaignConfig
 ) -> None:
