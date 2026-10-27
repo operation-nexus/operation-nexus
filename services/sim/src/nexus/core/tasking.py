@@ -940,14 +940,21 @@ def _assign(
 
 def idle_reason(world: World, e: Entity) -> str:
     """Why an idle unit holds no job: `no_job` (nothing it may take is on the board), `full` (only
-    full ones), or the reason the first job it may take is refused: `ring`, `ammo`, `refuel` (a
-    rearm step would fix it, so it is refuelling now) or `reach_fuel` (a full tank would not
-    reach either); else `other`. A read-only diagnostic for the balance harness (Q-SIM-92): it
-    applies `_assign`'s own pool, `_open` and `_feasible`, but never ranks (that draws from the
-    tasking stream)."""
+    full ones), else what `_assign` meets walking the open jobs in rank order (NX-454): `next_pass`
+    when the first job not refused is feasible (it takes it at the next pass), `ammo` or `refuel`
+    when that job needs a rearm step first (it is refuelling now), or, every job refused, why the
+    best-ranked one is. A ground unit names `_feasible`'s refusal: `no_reload` (an empty truck's
+    resupply run has no load plan), `no_patrol_route`, `no_repair_route` or `no_route` (no road
+    route from the node it stands on). Any other unit: `no_base` (its side holds no landing
+    base), `ring`, `ammo` or `reach_fuel` (a full tank would not reach either). `other` is left
+    for a unit with no fuel there, which no aircraft is (World validation). A read-only
+    diagnostic for the balance harness (Q-SIM-92): it applies `_assign`'s own rank, pool, `_open`
+    and `_feasible`, but ranks without the tie draw (that draws from the tasking stream), so jobs
+    of equal priority, drawn in `_assign`, are approximated here by job id order."""
     rules, tr = _rules(world)
+    ranked = rank(tr, list(world.boards[e.side].values()), _now(world), None)
     pool = [
-        j for j in world.boards[e.side].values()
+        j for j in ranked
         if j.depends_on is None and _board_may_give(rules, e, j)
         and fits(rules, e.kind, j.kind) and _may_take(world, tr, e, j)
     ]  # fmt: skip
@@ -956,17 +963,35 @@ def idle_reason(world: World, e: Entity) -> str:
     jobs = _open(tr, world, pool, ai=e.owner_kind == _AI)
     if not jobs:
         return "full"
-    verdicts = [(j, _feasible(world, rules, Routes(), e, j)) for j in jobs]
-    if any(v == "ok" for _, v in verdicts):
-        return "other"  # it takes one at the next pass
-    job, verdict = verdicts[0]
-    if rules.domain[e.kind] != _AIR or not world.landing_bases(e.side) or e.fuel is None:
+    routes = Routes()
+    job, verdict = jobs[0], "no"
+    for j in jobs:  # `_assign`'s walk: it acts on the first verdict that is not `no`
+        v = _feasible(world, rules, routes, e, j)
+        if v != "no":
+            job, verdict = j, v
+            break
+    if verdict == "ok":
+        return "next_pass"
+    if rules.domain[e.kind] == _GROUND:
+        return _ground_refusal(e, job)
+    if not world.landing_bases(e.side):
+        return "no_base"
+    if e.fuel is None:
         return "other"
     if crosses_ring(world, rules, e.side, e.pos, job):
         return "ring"
     if job.kind == "STRIKE" and not any(e.ammo):
         return "ammo"
     return "refuel" if verdict == "refuel" else "reach_fuel"
+
+
+def _ground_refusal(e: Entity, job: Job) -> str:
+    """Which of `_feasible`'s ground branches refused `job` (each returns only `ok` or `no`)."""
+    if job.kind == "RESUPPLY" and not e.cargo:
+        return "no_reload"
+    if job.kind == _PATROL:
+        return "no_patrol_route"
+    return "no_repair_route" if job.kind == _REPAIR else "no_route"
 
 
 def _waypoint(world: World, job: Job) -> str | Vec2:
@@ -1037,7 +1062,7 @@ def reaches(rules: Rules, e: Entity, goal: str | Vec2, bases: tuple[str, ...], f
 
 def _feasible(world: World, rules: Rules, routes: Routes, e: Entity, job: Job) -> Verdict:
     """TB-2. `refuel`: it fails now, but a full tank and load (a rearm step) would do."""
-    if rules.domain[e.kind] == _GROUND:
+    if rules.domain[e.kind] == _GROUND:  # keep `_ground_refusal` (idle_reason) in step
         if job.kind == "RESUPPLY" and not e.cargo:
             return "ok" if _reload_plan(world, rules, routes, e, job) is not None else "no"
         if job.kind == _PATROL:

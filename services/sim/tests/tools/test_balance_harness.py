@@ -698,6 +698,27 @@ def test_idle_sampling_counts_idle_armed_viewer_units_and_why(
     assert (agg["samples"], agg["share_mean"], agg["reasons"]) == (2, 0.5, {"no_job": 2})
 
 
+def test_idle_reasons_name_the_old_other_in_report_json(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    """NX-454: a unit that takes a feasible job at the next pass, and a ground unit with no road
+    route to it, reach report.json's `profiles.<p>.idle.reasons` (`aggregate` puts `_idle` there)
+    by name, not as `other`."""
+    world = start_campaign("c", 1, shipped_config)
+    node = shipped_config.rules.roads.pos["fob-n-w"]
+    on, off = (
+        world.spawn("GARRISON_INFANTRY", "COALITION", "COMMANDER", Vec2(x, node[1]),
+                    commander_id=commander(i))
+        for i, x in ((1, node[0]), (2, node[0] + 500))
+    )  # fmt: skip
+    on.last_node = off.last_node = "fob-n-w"
+    post_job(world, "COALITION", JobSpec("DEFEND", "op:d", 4, 1000, node="west-airbase"), [])
+    collector.sample_idle(world)
+    run = {"metrics": {"idle": collector.result(100)["idle"]}}
+    doc = json.loads(json.dumps({"idle": report._idle([run])}))
+    assert doc["idle"]["reasons"] == {"next_pass": 1, "no_route": 1}
+
+
 # --- A2 at ALPHA or above, impact kinds, persona kinds (NX-383, Q-SIM-93, Q-SIM-95) ---------
 def test_a2_counts_only_arrivals_at_alpha_or_above(collector: metrics.Collector) -> None:
     collector.note_join(commander(1), 100, "PATTERN_OF_LIFE")
