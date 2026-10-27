@@ -2,6 +2,9 @@
 
 Asked by the owner on 2026-10-27: "I just want the movement, roll pitch yaw, xyz, and movement of all vehicles to be realistic without having to implement a physics engine, though I may want to? … no need to change altitude via command (yet) but I saw you say that the kernel is 2D only. But then that conflicts with our ability to navigate terrain height differences."
 
+
+**Owner answers (2026-10-27, issue #412):** recorded as Q-MV-1 to Q-MV-17 in `docs/planning/OPEN-QUESTIONS.md` ("Movement and terrain"). The owner took the recommendations, chose option (b) for Q-MV-14 with a refinement (a landed aircraft is a ground target; SAMs cannot hit it), and added notes on leading attitude and telemetry altitude (Q-MV-16, Q-MV-17, the lead's readings). The §5 rows became NX-443 to NX-449, and NX-450 covers Q-MV-14. The body below is unchanged.
+
 Written by the lead (architect role) at `develop` `b443f5a`. Docs only: no code, tracker, spec or question row was changed. Every repo claim cites `file:line`. External facts are marked **[UNVERIFIED]**. Numbers I computed say "computed" and show the formula.
 
 ## Short answer
