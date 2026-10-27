@@ -329,7 +329,8 @@ def brute_painted(w: World, side: Side) -> list[int]:
         reach = radius * CLASSES.stealth[t.kind]
         dx, dy = t.pos.x - p.pos.x, t.pos.y - p.pos.y
         d2 = dx**2 + dy**2
-        hidden = CLASSES.domain[t.kind] == "GROUND" and bool(_cell_regions(CLASSES, t))
+        ground = CLASSES.domain[t.kind] == "GROUND" or t.state == "LANDED"  # Q-MV-14
+        hidden = ground and bool(_cell_regions(CLASSES, t))
         hidden = hidden and not (_cell_regions(CLASSES, t) & _cell_regions(CLASSES, p))
         # Same float arithmetic as the kernel: the grid's `*` filter, then `**` distances.
         in_grid = dx * dx + dy * dy <= radius * radius

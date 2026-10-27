@@ -53,6 +53,7 @@ from collections.abc import Sequence
 
 from nexus.contracts.gen.common.enums import Side, UnitKind
 from nexus.core.bridges import blocked, crosses
+from nexus.core.fog import target_class
 from nexus.core.logistics import approach
 from nexus.core.roads import shortest_path
 from nexus.core.rules import Rules, TaskingRules
@@ -235,11 +236,6 @@ class _Ctx:
         return self.known[side]
 
 
-def _key(rules: Rules, e: Entity) -> tuple[str, str | None]:
-    domain = rules.domain[e.kind]
-    return domain, e.alt_band if domain == _AIR else None
-
-
 def _armed(rules: Rules, e: Entity) -> bool:
     return rules.combat is not None and any(e.ammo)
 
@@ -276,7 +272,7 @@ def _find_threats(ctx: _Ctx, side: Side, members: list[Entity]) -> list[Entity]:
         t = found[i]
         table = ctx.reach_of(t)
         if i in recent or any(
-            (r := table.get(_key(rules, m))) is not None
+            (r := table.get(target_class(rules, m))) is not None
             and (t.pos.x - m.pos.x) ** 2 + (t.pos.y - m.pos.y) ** 2 <= r * r
             for m in members
         ):
@@ -289,14 +285,14 @@ def _own_reach(rules: Rules, shooter: Entity, target: Entity) -> float:
     cr = rules.combat
     if cr is None:
         return 0.0
-    domain = rules.domain[target.kind]
+    domain, band = target_class(rules, target)  # a LANDED aircraft is GROUND (Q-MV-14)
     return max(
         (
             w.range_m
             for w, rounds in zip(
                 cr.loadout(shooter.kind, shooter.variant), shooter.ammo, strict=True
             )
-            if rounds > 0 and domain in w.targets and (domain != _AIR or target.alt_band in w.bands)
+            if rounds > 0 and domain in w.targets and (domain != _AIR or band in w.bands)
         ),
         default=0.0,
     )

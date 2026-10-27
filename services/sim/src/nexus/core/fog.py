@@ -51,7 +51,7 @@ import math
 from collections.abc import Mapping
 from dataclasses import dataclass, replace
 
-from nexus.contracts.gen.common.enums import DamageState, NodeOwner, Side, UnitKind
+from nexus.contracts.gen.common.enums import AltBand, DamageState, NodeOwner, Side, UnitKind
 from nexus.core.rules import Rules
 from nexus.core.spatial import UniformGrid
 from nexus.core.world import (
@@ -207,11 +207,21 @@ def is_off_facility(rules: Rules, e: Entity) -> bool:
     return e.damage_state == "DISABLED" and rules.domain[e.kind] == _STATIC
 
 
+def target_class(rules: Rules, e: Entity) -> tuple[str, AltBand | None]:
+    """The (domain, altitude band) a weapon's `targets` and `bands` are checked against (COMBAT
+    CB-1): an aircraft on the ground (LANDED) is a GROUND target with no band, so GROUND weapons
+    hit it and air-only ones (SAM, AAA) cannot (Q-MV-14); a band only for an airborne aircraft."""
+    domain = rules.domain[e.kind]
+    if domain != _AIR:
+        return domain, None
+    return (_GROUND, None) if e.state == "LANDED" else (_AIR, e.alt_band)
+
+
 def _masked(rules: Rules, target: Entity, sensor_regions: frozenset[str]) -> bool:
-    """A GROUND target, or an aircraft at a low band, in a masking region, seen by a sensor in none
-    of its regions."""
-    domain = rules.domain[target.kind]
-    if domain != _GROUND and not (domain == _AIR and target.alt_band in rules.masked_bands):
+    """A GROUND target (a LANDED aircraft included), or an aircraft at a low band, in a masking
+    region, seen by a sensor in none of its regions."""
+    domain, band = target_class(rules, target)  # a LANDED aircraft: the GROUND rule (Q-MV-14)
+    if domain != _GROUND and not (domain == _AIR and band in rules.masked_bands):
         return False
     regions = _regions(rules, target.pos)
     return bool(regions) and regions.isdisjoint(sensor_regions)
