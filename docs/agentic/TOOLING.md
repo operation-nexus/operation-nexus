@@ -100,7 +100,7 @@ The spike measures tokens per task and answer accuracy on 10 real questions abou
 1. CLAUDE.md and AGENTS.md stay short and link to specs instead of inlining them. (Imports still load at launch, so link instead of `@`-importing big docs.)
 2. Role cards and specs are read on demand, per task.
 3. Path-scoped rules (`.claude/rules/` with `paths:` frontmatter, NX-025) load only when an agent touches matching files, so kernel rules stay out of overlay work.
-4. Use subagents (Explore, reviewer, fact-checker) for broad searches so their file dumps stay out of the main context.
+4. Use subagents for broad work so their file dumps stay out of the main context: `searcher` (Haiku) for lookups, never the built-in `Explore` (it runs on the session's model, L-9); `reviewer` and `fact-checker` for checks. Pick each agent's model from the build-loop §1 table by path (L-31).
 5. One tracker item per session or PR, then a fresh context.
 6. Serena symbol lookups beat reading whole files.
 
