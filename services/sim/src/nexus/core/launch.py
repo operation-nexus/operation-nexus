@@ -59,6 +59,14 @@ launched in selection order:
   `max_wait_windows` or is dropped. Each massing sitrep is closed once in its sector (FS-9,
   Q-TD-47, NX-431; `Staged.sector`, `_close`): `STAGING_LAUNCHED` on a launch from the base,
   `STAGING_DISPERSED` on any other end or a re-stage it no longer names (`_restage`).
+- **Victory-hold response (Q-TD-46, NX-430; legacy rules off).** While a coalition victory hold
+  runs, a capture operation on one of its nodes never waits at a staging base (`_stage`
+  launches it from the base when that pays now, with no massing sitrep, else by EC-13, the
+  rear if needed), one already staged waits no longer (`_review`: it launches at its base or
+  by EC-13, or is dropped), and it is outside `director.max_ops.<tier>`: neither capped nor
+  counted (`select`'s `hold`). The budget, the spawn and live rooms and the one-per-target rule
+  still apply; its launch announces `HOLD_AT_RISK` as above and nothing new. When the hold
+  ends, a running one counts against the cap again (accepted for now; the sweep measures it).
 """
 
 import itertools
@@ -253,13 +261,13 @@ def run(world: World, side: Side, view: SideView, rules: Rules, out: list[Event]
     cands = ops.candidates(state, view, rules, own, now, live, capture=False if capped else None)
     ranked = ops.rank(cands, state, view, rules, world.rng.stream(RngStream.DIRECTOR))
     room, most = _live_room(world, rules, side, state, own), ops.max_ops(state.tier, dr)
+    hold = frozenset() if purse is None else view.hold  # outside `max_ops` (Q-TD-46)
 
     def fits(c: ops.Candidate) -> bool:  # `select`'s caps on `c` as the floor's lead, cost given
-        return bool(
-            ops.select(
-                [c], dr, c.op.cost, dr.max_spawns_per_window, room, live, most, _routine(dr), over=c
-            )
-        )
+        return bool(ops.select(
+            [c], dr, c.op.cost, dr.max_spawns_per_window, room, live, most, _routine(dr),
+            over=c, hold=hold,
+        ))  # fmt: skip
 
     lead = None if purse is None else _floor_capture(world, rules, view, state, ranked, purse, fits)
     unlifted = (purse.base, state.budget) if purse is not None else (0, state.budget)
@@ -271,7 +279,7 @@ def run(world: World, side: Side, view: SideView, rules: Rules, out: list[Event]
     def pick(cands: list[ops.Candidate], refused: list[int]) -> list[ops.Candidate]:
         return ops.select(
             cands, dr, state.budget - held, dr.max_spawns_per_window, room, live, most,
-            _routine(dr), refused, over=lead,
+            _routine(dr), refused, over=lead, hold=hold,
         )  # fmt: skip
 
     refused: list[int] = []
@@ -486,13 +494,20 @@ def _stage(
     node it spawns at can pay its own units (then `STAGING_LAUNCHED` there, FS-9), else waits in
     `DirectorState.staged` with that sector open. False when it
     is not staged (near, no nearer base, or `director.staging.max_staged` waiting): it spawns as
-    EC-13 says."""
+    EC-13 says. Aimed at a node of the running victory hold (Q-TD-46, FS-10) it never waits and
+    says nothing: True when it launched at once from the base, else False (EC-13, the rear if
+    needed)."""
     dr = rules.director
-    if purse is None or dr is None or len(state.staged) >= dr.staging_max_staged:
+    if purse is None or dr is None:
+        return False
+    hold = c.target in view.hold
+    if not hold and len(state.staged) >= dr.staging_max_staged:
         return False
     base = stg.base_for(world, rules, side, view, c.op, c.target)
     if base is None or not stg.far(rules, view, c.op, c.target):
         return False
+    if hold:  # the hold response: from the base if it pays now, no massing sitrep (Q-TD-64)
+        return _launch(world, rules, side, view, state, c, out, purse, at=base)
     staged = Staged(c.op.id, c.target, base, state.windows, _sector(rules, base))
     if staged.sector is not None:
         _adaptation(world, side, "STAGING", staged.sector, "UP", out)
@@ -512,8 +527,9 @@ def _review(
     longer a candidate (`ops.candidate`) is dropped; one whose base the side lost or that has a
     capture bar re-stages at the next base by FS-2 (its wait kept; `_restage`),
     or falls back; it launches when every spawn node can pay its share; after
-    `director.staging.max_wait_windows` it launches by EC-13 from wherever `_paying_node` finds
-    the stock, else is dropped. FS-9 (Q-TD-47): a launch at the base closes its massing as
+    `director.staging.max_wait_windows`, or at once when its target is in the running victory hold
+    (Q-TD-46), it launches by EC-13 from wherever `_paying_node` finds the stock, else is
+    dropped. FS-9 (Q-TD-47): a launch at the base closes its massing as
     `STAGING_LAUNCHED`, a drop or a fallback launch as `STAGING_DISPERSED`. Returns the budget the
     staged operations spent or still hold this window."""
     dr = rules.director
@@ -530,7 +546,8 @@ def _review(
             base = stg.base_for(world, rules, side, view, c.op, s.target)
             if base is not None:
                 _restage(world, rules, side, s, base, out)
-        late = state.windows - s.since >= dr.staging_max_wait_windows
+        # one aimed into the running victory hold waits no longer (Q-TD-46, NX-430)
+        late = state.windows - s.since >= dr.staging_max_wait_windows or s.target in view.hold
         go = (world, rules, side, view, state, c, out, purse)
         if base is not None and _launch(*go, at=base):
             _close(world, side, s, _LAUNCHED, out)
