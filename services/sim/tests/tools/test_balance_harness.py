@@ -1826,12 +1826,63 @@ def test_offensive_gaps_per_seed_with_lead_in_tail_and_tier() -> None:
             "lead_in_min": 10.0,
             "gaps_min": [20.0, 30.0],
             "tail_min": 40.0,
+            "longest_dry_min": 40.0,
         },
-        {"seed": 2, "offensives": 0, "lead_in_min": 50.0, "gaps_min": [], "tail_min": None},
+        {
+            "seed": 2,
+            "offensives": 0,
+            "lead_in_min": 50.0,
+            "gaps_min": [],
+            "tail_min": None,
+            "longest_dry_min": 50.0,
+        },
     ]
     # gap 1 starts at 10 min (ALPHA since 5), gap 2 at 30 min, the tick BRAVO began (it counts)
     assert g["by_tier"] == {"ALPHA": {"n": 1, "median": 20.0, "max": 20.0},
                             "BRAVO": {"n": 1, "median": 30.0, "max": 30.0}}  # fmt: skip
+
+
+def _dry(offensive_min: list[int], run_min: int) -> float:
+    minute = 60 * HZ
+    eco = {"ops": [[m * minute, "OFFENSIVE", "a", True] for m in offensive_min],
+           "tiers": {"start": "PATROL", "changes": []}}  # fmt: skip
+    run = {"seed": 1, "tick_hz": HZ, "ticks_run": run_min * minute}
+    return float(report._gaps([run], [eco])["per_seed"][0]["longest_dry_min"])
+
+
+def test_longest_dry_stretch_counts_lead_in_gaps_and_tail() -> None:
+    assert _dry([], 90) == 90.0  # no Offensive: the whole run
+    assert _dry([50, 60, 70], 80) == 50.0  # lead-in longest
+    assert _dry([10, 60, 70], 80) == 50.0  # middle gap longest
+    assert _dry([10, 20, 30], 80) == 50.0  # tail longest
+    assert _dry([30], 100) == 70.0  # one Offensive: lead-in 30, tail 70
+    assert _dry([60], 100) == 60.0  # one Offensive: lead-in longest
+
+
+def _d5_eco(per_seed: list[dict[str, Any]]) -> dict[str, Any]:
+    return {
+        "funnel": {},
+        "staging": {"sitreps": 0, "capture_launches": 0, "launched": 0, "dispersed": 0,
+                    "open": 0, "strike_downed": 0},
+        "gaps": {"per_seed": per_seed, "by_tier": {}},
+        "pressure_per_hold": [],
+        "spawn_by_op": {"ops": {}, "shared": 0, "unattributed": 0},
+        "adaptations_per_hour": {},
+    }  # fmt: skip
+
+
+def test_the_markdown_gives_the_longest_dry_stretch_per_seed_with_max_and_median() -> None:
+    seeds: list[dict[str, Any]] = [{"seed": s, "lead_in_min": 1.0, "gaps_min": [], "tail_min": None,
+              "longest_dry_min": v} for s, v in ((1, 10.0), (2, 30.0), (3, 20.0))]  # fmt: skip
+    line = next(x for x in report._d5_lines("p", _d5_eco(seeds)) if "without an Offensive" in x)
+    assert "lead-in and tail included" in line
+    assert "s1 10.0, s2 30.0, s3 20.0; max 30.0, median 20.0" in line
+
+
+def test_an_old_report_json_without_the_dry_stretch_renders() -> None:
+    old = [{"seed": 1, "lead_in_min": 1.0, "gaps_min": [], "tail_min": None}]
+    line = next(x for x in report._d5_lines("p", _d5_eco(old)) if "without an Offensive" in x)
+    assert "s1 -; max -, median -" in line
 
 
 def test_the_markdown_keeps_fractional_offensive_gaps() -> None:
