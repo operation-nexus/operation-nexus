@@ -247,6 +247,8 @@ Where things are: the journal (`journalctl --user -u nexus-harness`) holds the q
 
 Never edit the `sha` of a queued request: the run may still go at the sha first read (L-30); close it and open a new issue. Before writing why a run is needed, check the values it would change at that `sha` (`balance/default.yaml` plus your `set`): a request that sets a key to its shipped value repeats an earlier run (L-28).
 
+Anything stock-driven (upkeep, starvation, hauling) needs at least 24 game hours per run before it sets a value: a forward airbase's opening stock lasts the first hours, so a 2-hour upkeep probe measured 0.15% raid grounding where the 24-hour run (K3, #424) measured 15.9% (L-34).
+
 Open an issue with the `harness-run` label (you need triage rights, and be a trusted author). Body:
 
 ````
