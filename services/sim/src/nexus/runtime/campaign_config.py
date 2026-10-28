@@ -82,6 +82,10 @@ def load_campaign_config(paths: ConfigPaths | None = None) -> CampaignConfig:
     mask_cell_m, masking = masking_cells(theater, balance.fow.mask_cell_m)
     roads = road_graph(theater)
     cc = balance.campaign
+    window = game_ticks(balance.economy.window_s, balance)
+    # LC-1 (NX-473): the AI truck period, rounded up to whole economy windows
+    ai_truck_ticks = -(-game_ticks(balance.logistics.ai_trucks.period_s, balance) // window)
+    ai_truck_ticks *= window
     rules = make_rules(
         balance.sim,
         catalog.units,
@@ -151,6 +155,7 @@ def load_campaign_config(paths: ConfigPaths | None = None) -> CampaignConfig:
             operations=operations,
             patrol_ticks=game_ticks(balance.director.pol.patrol_period_s, balance),
             convoy_ticks=game_ticks(balance.director.pol.convoy_period_s, balance),
+            convoy_demand_ticks=game_ticks(balance.director.pol.convoy_demand_s, balance),
             offensive_ticks=game_ticks(balance.director.pol.offensive_period_s, balance),
             recon_loiter_ticks=game_ticks(balance.director.recon.loiter_s, balance),
             recon_memory_ticks=game_ticks(balance.director.recon.memory_s, balance),
@@ -164,9 +169,10 @@ def load_campaign_config(paths: ConfigPaths | None = None) -> CampaignConfig:
         ),
         economy=economy_rules(
             balance.economy,
-            window_ticks=game_ticks(balance.economy.window_s, balance),
+            window_ticks=window,
             max_live_per_side=balance.sim.max_live_units_per_side,
         ),
+        ai_truck_period_ticks=ai_truck_ticks,
     )
     if misfits := fit_problems(rules):
         raise ConfigError(f"{paths.operations}: " + "; ".join(misfits))

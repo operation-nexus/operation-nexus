@@ -20,12 +20,13 @@ refers to an entity id, so a job names a node, or a SIGINT blob with its cell ce
   `tasking.stock_urgency` plus `tasking.stock_front_bonus` on the front line (`_on_front`, the
   patrol rule), below 1.0; when both apply the higher urgency wins. Slots: one per
   `resupply_stock_per_slot` of missing stock (max stock - stock, rounded up; for a stocking-only
-  job, target - stock), 1 to `resupply_slots_max`. TB-8 (coalition): a node no friendly source
-  reaches by road now (`plan_run`, the truck's own rule) depends on the REPAIR_BRIDGE job of the
-  first down bridge on the intact road route from the side's rear (`JobSpec.after`). Neither
-  route enters a node the other side holds (`bridges.enemy_held`, Q-SIM-122; neutral nodes are
-  passable): a node reached only through enemy ground depends on no repair, and its job expires
-  unclaimed.
+  job, target - stock), 1 to `slot_cap` (LC-3, NX-473: `resupply_slots_max`, raised for a
+  starving or damaged base by its `need` toward `resupply_slots_max_starving`). TB-8 (coalition):
+  a node no friendly source reaches by road now (`plan_run`, the truck's own rule) depends on the
+  REPAIR_BRIDGE job of the first down bridge on the intact road route from the side's rear
+  (`JobSpec.after`). Neither route enters a node the other side holds (`bridges.enemy_held`,
+  Q-SIM-122; neutral nodes are passable): a node reached only through enemy ground depends on no
+  repair, and its job expires unclaimed.
 - **Defend** (`defend:<node>`): a node the side owns that can be captured and is threatened: the
   other side's capture bar is on it, or a tracked enemy GROUND unit is within
   `tasking.defend_radius_m` of it (Q-SIM-74). Urgency: 1.0 + the larger of the bar's share and
@@ -357,9 +358,7 @@ def _resupply(
         top, stock, floor = sup.max_stock[node], world.stock.get(node, 0), sup.starve_floor[node]
         if top <= 0 or view.owners.get(node) != side:
             continue
-        starved = Fraction(floor - stock, floor) if stock < floor else Fraction(0)
-        missing_hp, max_hp = damage.get(node, (0, 1))
-        need = max(starved, Fraction(missing_hp, max_hp))
+        need = starving_need(stock, floor, damage.get(node, (0, 1)))
         stocking = 0  # below the forward stock target (Q-SIM-100): the stocking urgency
         if stock < target[node]:
             front = tr.stock_front_bonus_milli if _on_front(rules, view, side, node) else 0
@@ -369,10 +368,24 @@ def _resupply(
             slots = -(-(fill - stock) // tr.resupply_stock_per_slot)
             cut = _cut_off(world, rules, side, view, node, held)
             yield JobSpec(
-                "RESUPPLY", f"resupply:{node}", min(tr.resupply_slots_max, max(1, slots)),
+                "RESUPPLY", f"resupply:{node}",
+                min(slot_cap(tr, tr.resupply_slots_max, need), max(1, slots)),
                 max(_urgency(tr, need) if need else 0, stocking), node=node,
                 after=None if cut is None else f"repair_bridge:{cut}",
             )  # fmt: skip
+
+
+def starving_need(stock: int, floor: int, damage: tuple[int, int]) -> Fraction:
+    """The share §1b's urgency uses (GAMEPLAY §5 LC-3): the larger of (floor - stock) / floor and
+    the facilities' missing-hp share (`damage`: missing, max), from 0 to 1."""
+    starved = Fraction(floor - stock, floor) if stock < floor else Fraction(0)
+    return max(starved, Fraction(*damage))
+
+
+def slot_cap(tr: TaskingRules, base: int, need: Fraction) -> int:
+    """LC-3 (NX-473): `base` + floor(`need` x (`resupply_slots_max_starving` -
+    `resupply_slots_max`)), exact; `base` itself for a job with no need (stocking only)."""
+    return base + math.floor(need * (tr.resupply_slots_max_starving - tr.resupply_slots_max))
 
 
 def _cut_off(

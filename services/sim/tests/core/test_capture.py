@@ -153,7 +153,9 @@ def test_the_flip_lands_on_the_first_tick_the_bar_reaches_full_and_never_twice()
     ("units", "time_s"),
     [
         ([INFANTRY] * 4, 72.0 / 2),  # diminishing returns: n ** 0.5
-        ([INFANTRY, TRUCK], 72.0 / 1.5**0.5),  # a logistics unit counts as half (Q-SM-7)
+        # a logistics unit counts as half (Q-SM-7); the truck is a viewer's (an AI truck never
+        # captures, NX-473), so v = 1 and the quiet multiplier is 0.6 + 0.4 / 50 = 0.608
+        ([INFANTRY, TRUCK], 120.0 * 0.608 / 1.5**0.5),
         ([INFANTRY] * 16, 30.0),  # 72 / 4 = 18 s, floored at min_time_s
     ],
 )
@@ -162,7 +164,7 @@ def test_rate_scales_with_weighted_units_and_is_floored(
 ) -> None:
     w = new_world()
     for kind in units:
-        put(w, kind, "COALITION", NEUTRAL_FOB)
+        put(w, kind, "COALITION", NEUTRAL_FOB, n=1 if kind == TRUCK else None)
     run(w)
     assert progress(w) == per_tick(time_s)
 
@@ -297,7 +299,7 @@ def test_two_sides_at_a_neutral_node_follow_the_table() -> None:
     run(w, 5)
     assert NEUTRAL_FOB not in w.capture  # both blocked: neither starts
     w2 = new_world()
-    put(w2, TRUCK, "COALITION", NEUTRAL_FOB)
+    put(w2, TRUCK, "COALITION", NEUTRAL_FOB, n=1)  # a viewer's: an AI truck never captures
     put(w2, CONVOY, "ENEMY", NEUTRAL_FOB)
     run(w2, 5)
     assert NEUTRAL_FOB not in w2.capture  # two free sides, equal weight: neither starts
@@ -309,14 +311,14 @@ def test_two_sides_at_a_neutral_node_follow_the_table() -> None:
 
 
 def test_unarmed_sides_at_a_neutral_node_the_heavier_starts_the_bar() -> None:
-    w = new_world()  # two trucks (1.0) against one truck (0.5)
-    put(w, TRUCK, "COALITION", NEUTRAL_FOB)
-    put(w, TRUCK, "COALITION", NEUTRAL_FOB)
+    w = new_world()  # two viewers' trucks (1.0) against one truck (0.5)
+    put(w, TRUCK, "COALITION", NEUTRAL_FOB, n=1)
+    put(w, TRUCK, "COALITION", NEUTRAL_FOB, n=2)
     put(w, CONVOY, "ENEMY", NEUTRAL_FOB)
     assert len(of(run(w), CaptureStarted)) == 1 and w.capture[NEUTRAL_FOB].side == "COALITION"
     w2 = new_world()  # two trucks (1.0) against three convoys (1.5): the other side wins
-    put(w2, TRUCK, "COALITION", NEUTRAL_FOB)
-    put(w2, TRUCK, "COALITION", NEUTRAL_FOB)
+    put(w2, TRUCK, "COALITION", NEUTRAL_FOB, n=1)
+    put(w2, TRUCK, "COALITION", NEUTRAL_FOB, n=2)
     put(w2, CONVOY, "ENEMY", NEUTRAL_FOB)
     put(w2, CONVOY, "ENEMY", NEUTRAL_FOB)
     put(w2, CONVOY, "ENEMY", NEUTRAL_FOB)
@@ -326,8 +328,8 @@ def test_unarmed_sides_at_a_neutral_node_the_heavier_starts_the_bar() -> None:
 
 def test_a_started_unarmed_bar_fills_while_the_other_side_stays() -> None:
     w = new_world()
-    put(w, TRUCK, "COALITION", NEUTRAL_FOB)
-    put(w, TRUCK, "COALITION", NEUTRAL_FOB)
+    put(w, TRUCK, "COALITION", NEUTRAL_FOB, n=1)  # viewers' trucks: an AI truck never captures
+    put(w, TRUCK, "COALITION", NEUTRAL_FOB, n=2)
     put(w, CONVOY, "ENEMY", NEUTRAL_FOB)
     run(w)
     first = progress(w)

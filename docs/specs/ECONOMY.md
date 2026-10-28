@@ -52,6 +52,7 @@ Every `economy.window_s` of game time, inside the tick that crosses the boundary
 1. Each side's pool gains income (EC-1).
 2. The pool is clipped to storage (EC-2).
 3. Upkeep runs in the EC-6 payment order. Each unit due this window (its stagger, or grounded) is charged to its home, or grounded or ungrounded (EC-4..6).
+   - Then the coalition's AI trucks retire and, at their period, spawn (GAMEPLAY §5 LC-1, `nexus.core.ai_trucks`, NX-473).
 4. The director window runs (THREAT-DIRECTOR §4), with its budget from EC-7.
 
 ### 5.2 Why this fixes the steamroll (the intent, to be measured)
