@@ -50,8 +50,10 @@ while frozen (SC-11), for each side in COALITION, ENEMY order:
      needed, else EXPIRED), EXPIRED when the scout is LANDED (Q-MV-14), the side has not tracked
      it for `director.intercept.lost_s` (`Job.lost`: when it was first found untracked) or its last
      track is no longer within `director.intercept.radius_m` of a node the side holds.
-   - DONE needs a participant (a live ACTIVE claimant), else EXPIRED, unless another job waits for
-     it (the Director's chains, NX-156): its goal was met, so the next step must not fail with it.
+   - DONE needs a participant (a live ACTIVE claimant, or for a STRIKE job a unit still on the map
+     that fired at its target while holding the claim, `Job.struck_by`, even if RTB released it
+     since: Q-TD-87, NX-463), else EXPIRED, unless another job waits for it (the Director's chains,
+     NX-156): its goal was met, so the next step must not fail with it. `JobDone` lists them all.
      A job with no claim expires `tasking.expire_min` after posting (an objective's job: with the
      objective); one waiting for another does not expire.
    - A job that depends on an ended one (TB-8) loses the dependency when it was DONE, else FAILS.
@@ -468,7 +470,7 @@ def order_working(world: World, e: Entity) -> bool:
 
 def on_objective(world: World, objective_id: int, completed: bool, out: list[Event]) -> None:
     """The objective resolved (`nexus.core.campaign`): its jobs end, DONE if it was completed and
-    a claimant made progress, else EXPIRED."""
+    a job has a participant (`_participants`), else EXPIRED."""
     for side in SIDES:
         for job in list(world.boards[side].values()):
             if job.objective == objective_id and job.id in world.boards[side]:
@@ -706,9 +708,9 @@ def _outcome(
 
 
 def _participants(world: World, job: Job) -> list[Entity]:
-    return [
-        e for i, c in sorted(job.claims.items()) if c.active and (e := world.find(i)) is not None
-    ]
+    """The ACTIVE claimants and a STRIKE job's `struck_by` (Q-TD-87), still on the map, by id."""
+    ids = sorted({i for i, c in job.claims.items() if c.active}.union(job.struck_by))
+    return [e for i in ids if (e := world.find(i)) is not None]
 
 
 def _end(world: World, side: Side, job: Job, outcome: Outcome, out: list[Event]) -> None:

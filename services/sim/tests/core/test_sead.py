@@ -183,8 +183,7 @@ def test_a_sead_package_puts_the_site_out_until_it_is_repaired_to_the_mission_ki
     w.markers["COALITION"][site.id] = FacilityMarker(
         site.kind, site.variant, site.pos, site.emitting, 1, 4_000, "HEALTHY"
     )
-    for _ in range(4):
-        put(w, "STRIKE_FIGHTER", "west-airbase", HUMAN)
+    jets = [put(w, "STRIKE_FIGHTER", "west-airbase", HUMAN).id for _ in range(4)]
     events: list[Event] = []
     while site.damage_state != "DISABLED":
         assert w.campaign.running_ticks < 5_000
@@ -193,7 +192,14 @@ def test_a_sead_package_puts_the_site_out_until_it_is_repaired_to_the_mission_ki
     while job_id in w.boards["COALITION"]:  # the next pass sees the site Disabled
         events += step(w, [])
     ended = [e for e in events if e.kind in ("JobDone", "JobExpired") and e.job_id == job_id]
-    assert len(ended) == 1 and w.markers["COALITION"][site.id].state == "DISABLED"
+    # Q-TD-87 (NX-463): the jets spent their bombs on the site and went RTB before the pass, yet
+    # they fired at it holding the claim, so the job is DONE crediting every one of them
+    shooters = sorted({f.shooter_id for f in of(events, WeaponFired) if f.target_id == site.id})
+    done = [
+        [p.entity_id for p in e.participants] for e in of(events, JobDone) if e.job_id == job_id
+    ]
+    assert len(ended) == 1 and done == [jets] and shooters == jets
+    assert w.markers["COALITION"][site.id].state == "DISABLED"
     disabled_hp = []
     while site.hp < 53:
         disabled_hp.append(site.hp)

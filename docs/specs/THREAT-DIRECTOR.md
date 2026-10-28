@@ -202,7 +202,7 @@ All are category DIRECTOR, audience TUNER, edit role ADMIN, status PROPOSED, sou
 - responses posted per game hour, and the share that got a claimant;
 - time from the threat's first sample to the first claim;
 - threats destroyed or Disabled while a response ran, and responders lost per response;
-- coalition strike success on Static bases (the STRIKE jobs that reach DONE), with active defense on and off;
+- coalition strike success on Static bases (the STRIKE jobs that reach DONE; a strike whose jets fired at the target and went home with their bombs spent counts, Q-TD-87), with active defense on and off;
 - false alarms: responses that ended EXPIRED with no shot fired by either side;
 - base exposure: game minutes a Static base had none of its garrison at home while a response ran;
 - the stock spent on responders' refuel and rearm;

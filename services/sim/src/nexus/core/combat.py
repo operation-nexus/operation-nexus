@@ -22,6 +22,9 @@ The `combat` slot, each running tick (not while frozen, SC-11), in this order:
    claim on a bridge fires at the bridge (`nexus.core.bridges.target`, Q-SIM-105); a direct GOTO
    order to one never does (Q-SIM-124). The hit that drops it destroys the ground units on it
    (`bridges.collapsing`, Q-SIM-112).
+   A unit holding a STRIKE claim that fires at the job's target (its node's defenses or bridge,
+   or a facility whose `base_id` is that node) joins `Job.struck_by` (ascending, once each), which
+   keeps it a participant after its claim is released (Q-TD-87, NX-463; `_record_strike`).
 3. **Impacts (CB-3, CB-4).** Shots due, in `(impact_tick, id)` order. A shot fizzles, with no RNG
    draw, when the shooter or target is gone, the shooter's side no longer tracks the target, or the
    target left the weapon's range or bands, or became a Disabled facility (Q-FOW-16); so a shot
@@ -97,6 +100,7 @@ from nexus.core.world import (
 _DISABLED, _MISSION_KILL = "DISABLED", "MISSION_KILL"
 _AIR, _GROUND, _STATIC = "AIR", "GROUND", "STATIC"
 _LANDED = "LANDED"
+_STRIKE = "STRIKE"
 # Targeting grids: the cell size and the query padding change speed only, never a result.
 _CELL_M = 4000.0
 _SLACK_M = 1.0
@@ -258,7 +262,7 @@ def _strike_node(
     `combat.strike_structure_first`, Q-TD-55; a bridge has no defense HP, so it keeps its own
     order, `bridges.target`); else None."""
     job = None if shooter.job_id is None else world.boards[shooter.side].get(shooter.job_id)
-    node = job.node if job is not None and job.kind == "STRIKE" else None
+    node = job.node if job is not None and job.kind == _STRIKE else None
     if node is None or node not in world.defense_hp:
         return None
     d2 = _node_d2(world, rules, w, shooter, pinned, node)
@@ -305,6 +309,7 @@ def _shoot(
         target.fired_by = [
             h for h in target.fired_by if h[0] != shooter.id and now - h[1] <= memory
         ] + [[shooter.id, now]]
+    _record_strike(world, shooter, target)
     shot = Shot(world.next_shot_id(), shooter.id, target_id, w.id, now + delay, node)
     insort(world.shots, shot, key=lambda s: (s.impact_tick, s.id))
     out.append(
@@ -322,6 +327,18 @@ def _shoot(
     )
     if w.speed_mps is not None:
         _depleted(world, rules, shooter, out)
+
+
+def _record_strike(world: World, shooter: Entity, target: Entity | str) -> None:
+    """Q-TD-87: a STRIKE claimant firing at its job's target (the node itself, defenses or
+    bridge, or a facility belonging to it) is recorded in `Job.struck_by`, so the job credits it
+    even after RTB releases its claim (`tasking._participants`)."""
+    job = None if shooter.job_id is None else world.boards[shooter.side].get(shooter.job_id)
+    if job is None or job.kind != _STRIKE or job.node is None or shooter.id not in job.claims:
+        return
+    at = target if isinstance(target, str) else target.base_id
+    if at == job.node and shooter.id not in job.struck_by:
+        insort(job.struck_by, shooter.id)
 
 
 def _depleted(world: World, rules: Rules, e: Entity, out: list[Event]) -> None:
@@ -504,7 +521,7 @@ def _credit(world: World, target: Entity, shooter: Entity, out: list[Event]) -> 
     `ThreatAdaptation{STRIKE_DOWNED}` now, at most once per job (`Job.downed`)."""
     job = None if target.job_id is None else world.boards[target.side].get(target.job_id)
     if (
-        shooter.owner_kind != "COMMANDER" or job is None or job.kind != "STRIKE"
+        shooter.owner_kind != "COMMANDER" or job is None or job.kind != _STRIKE
         or target.side != _DIRECTED
     ):  # fmt: skip
         return
