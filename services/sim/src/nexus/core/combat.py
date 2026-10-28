@@ -13,6 +13,10 @@ The `combat` slot, each running tick (not while frozen, SC-11), in this order:
    may, and a LANDED shooter takes no AIR target (Q-MV-19); priority `threat` descending, then
    distance, then id. Firing spends a round, starts the reload and stores a `Shot` landing
    `ceil(distance / (speed x world_dt))` ticks later, a gun on the fire tick.
+   **Overkill check (Q-TD-73, `combat.overkill_check`, default on):** a target, unit or structure,
+   whose shots in flight (this tick's included) cover what it has left in expected damage is
+   skipped and the next one taken (`_cover`); cover is rebuilt each tick from `World.shots` in
+   `(impact_tick, id)` order, so a shot that lands or would fizzle releases it.
    **Structures (CB-10, Q-SIM-71):** a weapon whose `targets` include STRUCTURE with no valid unit
    target in range (units always come first) fires at the defense HP of the nearest node, ties by
    id, that the enemy owns and whose HP is above 0, within `range_m` of the node's position (nodes
@@ -65,7 +69,7 @@ Targeting uses one `UniformGrid` per side and threat level (SC-10), searched in 
 
 import math
 from bisect import insort
-from collections.abc import Iterable
+from collections.abc import Container, Iterable
 
 from nexus.contracts.gen.common.enums import AltBand, Side
 from nexus.contracts.gen.events.event import Event
@@ -138,6 +142,8 @@ def _fire(world: World, rules: Rules, cr: CombatRules, now: int, out: list[Event
     pinned = frozenset(
         n for n, hp in world.defense_hp.items() if hp <= defense_floor(world, rules, n)
     )
+    skip: set[int | str] | None = None  # pinned nodes and covered targets, on the first shooter
+    cover: dict[int | str, float] = {}  # expected damage in flight, per target (Q-TD-73)
     for e in world.entities():
         if e.damage_state == _DISABLED or not e.ammo:
             continue
@@ -148,23 +154,78 @@ def _fire(world: World, rules: Rules, cr: CombatRules, now: int, out: list[Event
             continue
         if e.side not in levels:
             levels[e.side] = _target_levels(world, rules, cr, e.side)
+        if skip is None:
+            skip = set(pinned)
+            for s in world.shots if cr.overkill_check else ():  # (impact_tick, id) order
+                _cover(world, rules, cr, s, cover, skip)
         loadout = cr.loadout(e.kind, e.variant)
         for i in ready:
             w = loadout[i]
             pick: tuple[Entity | str, float] | None = None
             if cr.strike_structure_first and _STRUCTURE in w.targets:  # before units (Q-TD-55)
-                pick = _strike_node(world, rules, w, e, pinned)
+                pick = _strike_node(world, rules, w, e, skip)
             if pick is None and e.id in world.group_threat:  # an escort's threats first (Q-SIM-76)
                 own = group_levels.setdefault(
                     world.group_threat[e.id],
                     _levels(rules, cr, _group_targets(world, rules, e.id)),
                 )
-                pick = _pick(rules, w, e, own)
-            pick = pick or _pick(rules, w, e, levels[e.side])
+                pick = _pick(rules, w, e, own, skip)
+            pick = pick or _pick(rules, w, e, levels[e.side], skip)
             if pick is None and _STRUCTURE in w.targets:
-                pick = bridges.target(world, rules, w, e) or _pick_node(world, rules, w, e, pinned)
+                span = bridges.target(world, rules, w, e)
+                span = None if span is None or span[0] in skip else span
+                pick = span or _pick_node(world, rules, w, e, skip)
             if pick is not None:
-                _shoot(world, rules, e, i, w, pick, now, out)
+                shot = _shoot(world, rules, e, i, w, pick, now, out)
+                if cr.overkill_check:
+                    _cover(world, rules, cr, shot, cover, skip)
+
+
+def _cover(
+    world: World,
+    rules: Rules,
+    cr: CombatRules,
+    shot: Shot,
+    cover: dict[int | str, float],
+    skip: set[int | str],
+) -> None:
+    """The overkill check (CB-1, Q-TD-73): add `shot`'s expected damage to its target's `cover`
+    and put the target in `skip` once the cover reaches what still takes it out of the fight.
+    Expected damage is the CB-5 damage times the CB-4 Pk as if the shot landed now (0 for a shot
+    that would fizzle now, CB-3). What takes a target out: a node's defense HP down to its idle
+    floor, a bridge's hp to 0, a facility's or an airborne aircraft's hp down to its Disabled
+    floor (a Disabled facility is no target, an airborne aircraft dies there, CB-7, CB-9), any
+    other unit's hp to 0 (a wreck stays a target, CB-7)."""
+    shooter = world.find(shot.shooter)
+    if shooter is None:
+        return
+    w = cr.weapons[shot.weapon_id]
+    key: int | str
+    if shot.node is not None:
+        pk = _pk_node(world, rules, cr, shooter, shot.node, w)
+        key, damage = shot.node, w.damage  # armor 0 (Q-CBT-22)
+        left = world.bridge_hp.get(shot.node)
+        if left is None:
+            left = world.defense_hp[shot.node] - defense_floor(world, rules, shot.node)
+    else:
+        target = None if shot.target is None else world.find(shot.target)
+        if target is None:
+            return
+        pk = _pk(world, rules, cr, shooter, target, w)
+        stats = cr.units[target.kind]
+        key = target.id
+        damage = max(cr.min_damage, math.floor(w.damage * (1 - stats.armor)))
+        out_at = (
+            stats.floor
+            if rules.domain[target.kind] == _STATIC or target.state not in (None, _LANDED)
+            else 0
+        )
+        left = target.hp - out_at
+    if pk is None:
+        return
+    cover[key] = cover.get(key, 0.0) + damage * pk
+    if cover[key] >= left:
+        skip.add(key)
 
 
 type _Level = list[tuple[str, AltBand | None, UniformGrid]]  # one threat level, by class
@@ -210,11 +271,11 @@ def _levels(rules: Rules, cr: CombatRules, targets: Iterable[Entity]) -> list[_L
 
 
 def _pick(
-    rules: Rules, w: WeaponRules, shooter: Entity, levels: list[_Level]
+    rules: Rules, w: WeaponRules, shooter: Entity, levels: list[_Level], skip: Container[int | str]
 ) -> tuple[Entity, float] | None:
     """The best valid target for `w` (CB-1): the highest threat level with any valid target in
-    range, and there the nearest by squared distance, ties by id; a LANDED shooter takes no AIR
-    target (Q-MV-19). Each level is searched in
+    range and not in `skip` (covered by shots in flight, Q-TD-73), and there the nearest by squared
+    distance, ties by id; a LANDED shooter takes no AIR target (Q-MV-19). Each level is searched in
     growing radii, so a crowd far away is never looked at when a target is near. The grids only
     narrow the search: every candidate is checked with the exact `_d2` and range tests."""
     range2 = w.range_m**2
@@ -233,7 +294,11 @@ def _pick(
             for grid in grids:
                 for t in grid.within(shooter.pos, min(radius, w.range_m) + _SLACK_M):
                     d2 = _d2(shooter, t)
-                    if d2 <= limit2 and (best is None or (d2, t.id) < best[:2]):
+                    if (
+                        d2 <= limit2
+                        and (best is None or (d2, t.id) < best[:2])
+                        and t.id not in skip
+                    ):
                         best = (d2, t.id, t)
             if best is not None:
                 return best[2], best[0]
@@ -244,19 +309,19 @@ def _pick(
 
 
 def _pick_node(
-    world: World, rules: Rules, w: WeaponRules, shooter: Entity, pinned: frozenset[str]
+    world: World, rules: Rules, w: WeaponRules, shooter: Entity, skip: Container[int | str]
 ) -> tuple[str, float] | None:
     """The nearest enemy-owned node with defense HP in range, ties by node id (CB-10)."""
     best: tuple[float, str] | None = None
     for node in world.defense_hp:  # id order
-        d2 = _node_d2(world, rules, w, shooter, pinned, node)
+        d2 = _node_d2(world, rules, w, shooter, skip, node)
         if d2 is not None and (best is None or d2 < best[0]):
             best = (d2, node)
     return None if best is None else (best[1], best[0])
 
 
 def _strike_node(
-    world: World, rules: Rules, w: WeaponRules, shooter: Entity, pinned: frozenset[str]
+    world: World, rules: Rules, w: WeaponRules, shooter: Entity, skip: Container[int | str]
 ) -> tuple[str, float] | None:
     """The node of `shooter`'s STRIKE job, when `_pick_node` could take it (CB-10 with
     `combat.strike_structure_first`, Q-TD-55; a bridge has no defense HP, so it keeps its own
@@ -265,20 +330,25 @@ def _strike_node(
     node = job.node if job is not None and job.kind == _STRIKE else None
     if node is None or node not in world.defense_hp:
         return None
-    d2 = _node_d2(world, rules, w, shooter, pinned, node)
+    d2 = _node_d2(world, rules, w, shooter, skip, node)
     return None if d2 is None else (node, d2)
 
 
 def _node_d2(
-    world: World, rules: Rules, w: WeaponRules, shooter: Entity, pinned: frozenset[str], node: str
+    world: World,
+    rules: Rules,
+    w: WeaponRules,
+    shooter: Entity,
+    skip: Container[int | str],
+    node: str,
 ) -> float | None:
     """The squared distance to `node` when `w` may fire at its defenses (CB-10): the enemy owns
     it, its HP is above 0 and it is in range. Never the Static's rear source (it cannot be
-    captured and the Static has no defeat) nor a node held at its idle floor (the coalition
-    sanctuary at 1 hp while nobody plays)."""
+    captured and the Static has no defeat), a node held at its idle floor (the coalition
+    sanctuary at 1 hp while nobody plays) or one covered by shots in flight (`skip`, Q-TD-73)."""
     if (
         not world.defense_hp[node]
-        or node in pinned
+        or node in skip
         or node == rules.supply.rear["ENEMY"]  # the Static's rear source: no win effect (Q-SIM-64)
         or world.owner[node] in (shooter.side, "NEUTRAL")
     ):
@@ -297,7 +367,7 @@ def _shoot(
     pick: tuple[Entity | str, float],
     now: int,
     out: list[Event],
-) -> None:
+) -> Shot:
     target, d2 = pick
     node = target if isinstance(target, str) else None
     target_id = None if isinstance(target, str) else target.id
@@ -327,6 +397,7 @@ def _shoot(
     )
     if w.speed_mps is not None:
         _depleted(world, rules, shooter, out)
+    return shot
 
 
 def _record_strike(world: World, shooter: Entity, target: Entity | str) -> None:

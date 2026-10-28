@@ -448,6 +448,7 @@ class CombatRules:
     min_damage: int  # combat.min_damage: the least hp a hit takes, however heavy the armor
     facility_indestructible: bool  # combat.facility_indestructible: the CB-9 hp floor
     strike_structure_first: bool  # combat.strike_structure_first: CB-10 order (Q-TD-55)
+    overkill_check: bool  # combat.overkill_check: skip a target shots in flight cover (Q-TD-73)
 
     def loadout(self, kind: UnitKind, variant: str | None) -> tuple[WeaponRules, ...]:
         return self.loadouts.get((kind, variant), self.loadouts[(kind, None)])
@@ -1008,6 +1009,7 @@ def combat_rules(
         min_damage=cfg.min_damage,
         facility_indestructible=cfg.facility_indestructible,
         strike_structure_first=cfg.strike_structure_first,
+        overkill_check=cfg.overkill_check,
     )
 
 

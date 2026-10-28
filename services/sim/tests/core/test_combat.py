@@ -274,7 +274,12 @@ def _class(domain: str, e: Entity) -> str:
 
 def brute_fire(world: World, rules: Rules, cr: CombatRules, now: int, out: list[Event]) -> None:
     """The first, grid-free targeting (a scan and sort of every tracked contact per ready
-    shooter): the oracle the grid search must equal, target for target and draw for draw."""
+    shooter): the oracle the grid search must equal, target for target and draw for draw. The
+    overkill check (Q-TD-73) is `combat._cover`'s, so both skip the same covered targets."""
+    cover: dict[int | str, float] = {}
+    skip: set[int | str] = set()
+    for s in world.shots if cr.overkill_check else ():
+        combat._cover(world, rules, cr, s, cover, skip)
     for e in world.entities():
         if e.damage_state == "DISABLED" or not e.ammo:
             continue
@@ -299,10 +304,13 @@ def brute_fire(world: World, rules: Rules, cr: CombatRules, now: int, out: list[
                     domain = "GROUND"  # on the ground: no band (Q-MV-14)
                 if (
                     d2 <= w.range_m**2
+                    and tid not in skip
                     and domain in w.targets
                     and (domain != "AIR" or (t.alt_band in w.bands and e.state != "LANDED"))
                 ):
-                    combat._shoot(world, rules, e, i, w, (t, d2), now, out)
+                    shot = combat._shoot(world, rules, e, i, w, (t, d2), now, out)
+                    if cr.overkill_check:
+                        combat._cover(world, rules, cr, shot, cover, skip)
                     break
 
 
