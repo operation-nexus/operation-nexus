@@ -80,8 +80,11 @@ while frozen (SC-11), for each side in COALITION, ENEMY order:
    job needs a round. A carrier (truck, convoy) fits resupply and repair-bridge jobs only. An
    aircraft that fails only for fuel or rounds takes a refuel step instead: it flies to the
    nearest landing base with stock, where `logistics` restocks it, and tries again next pass;
-   landed at a starved base whose capped tank cannot serve the job, it flies instead to the
-   nearest unstarved landing base in reach (`_capped_short`, Q-TD-88). A claim sets the path: a
+   when that base (or the one it is landed at) is starved and its capped tank cannot serve the
+   job, it flies instead to the nearest unstarved landing base in reach from which a full tank
+   flies the job; landed at a base with no stock, to the nearest base with stock in reach whose
+   tank there serves the job (`_refuel_goal`, Q-TD-88, NX-464, NX-467); landed, with none, it
+   stays. A claim sets the path: a
    GROUND unit by road, an aircraft straight.
 
 Before each Static pass `World.intercept_seen` is brought up to date (`_watch`: the first pass a
@@ -989,7 +992,9 @@ def idle_diagnosis(world: World, e: Entity) -> tuple[str, Job | None]:
     (nothing it may take is on the board), `full` (only jobs at their overfill cap), else what
     `_assign` meets walking the open jobs in `_open`'s order (NX-454): `next_pass` when the first
     job not refused is feasible (it takes it at the next pass), `ammo` or `refuel` when that job
-    needs a rearm step first (it is refuelling now), or, every job refused, why the first one
+    needs a rearm step first (it is refuelling now; `refuel_stuck` instead when it stays because
+    no base is in reach that `_refuel_goal` would hop to, NX-467), or, every
+    job refused, why the first one
     tried is (the best-ranked free job, if any). A ground
     unit names `_feasible`'s refusal: `no_reload` (an empty truck's resupply run has no load
     plan), `no_patrol_route`, `no_repair_route` or `no_route` (no road route from the node it
@@ -1045,7 +1050,9 @@ def _air_or_ground_reason(world: World, rules: Rules, e: Entity, job: Job, verdi
         return "ring"
     if job.kind == "STRIKE" and not any(e.ammo):
         return "ammo"
-    return "refuel" if verdict == "refuel" else "reach_fuel"
+    if verdict != "refuel":
+        return "reach_fuel"
+    return "refuel_stuck" if _refuel_goal(world, rules, e, job)[1] else "refuel"
 
 
 def _ground_refusal(e: Entity, job: Job) -> str:
@@ -1107,18 +1114,25 @@ def _patrol_route(
 
 
 def _reaches(
-    world: World, rules: Rules, e: Entity, job: Job, bases: tuple[str, ...], fuel: float
-) -> bool:
-    """Out to the target and on to the nearest landing base with the bingo reserve left (NX-368)."""
-    return reaches(rules, e, _waypoint(world, job), bases, fuel)
+    world: World, rules: Rules, e: Entity, job: Job, bases: tuple[str, ...], fuel: float,
+    start: str | None = None,
+) -> bool:  # fmt: skip
+    """Out to the target and on to the nearest landing base with the bingo reserve left (NX-368),
+    from where `e` is or from the node `start`."""
+    return reaches(rules, e, _waypoint(world, job), bases, fuel, start)
 
 
-def reaches(rules: Rules, e: Entity, goal: str | Vec2, bases: tuple[str, ...], fuel: float) -> bool:
-    """`e` can fly to `goal` and on to the nearest of `bases` with the bingo reserve left; a goal
-    that is itself a base (a rebase, Q-SIM-90) leaves nothing to fly on."""
+def reaches(
+    rules: Rules, e: Entity, goal: str | Vec2, bases: tuple[str, ...], fuel: float,
+    start: str | None = None,
+) -> bool:  # fmt: skip
+    """`e` can fly to `goal` (from where it is, or from the node `start`) and on to the nearest of
+    `bases` with the bingo reserve left; a goal that is itself a base (a rebase, Q-SIM-90) leaves
+    nothing to fly on."""
     x, y = rules.roads.pos[goal] if isinstance(goal, str) else (goal.x, goal.y)
     back = min(math.hypot(bx - x, by - y) for b in bases for bx, by in [rules.roads.pos[b]])
-    out = math.hypot(x - e.pos.x, y - e.pos.y)
+    sx, sy = (e.pos.x, e.pos.y) if start is None else rules.roads.pos[start]
+    out = math.hypot(x - sx, y - sy)
     reserve = rules.bingo_reserve_frac * rules.fuel_s[e.kind]
     return fuel > (out + back) / rules.speed(e.kind, e.damage_state) + reserve
 
@@ -1292,30 +1306,66 @@ def _load_at_source(world: World, rules: Rules, routes: Routes, e: Entity, job: 
 
 
 def _refuel(world: World, rules: Rules, e: Entity, job: Job) -> None:
-    """The rearm/refuel step (GAMEPLAY §1b, Q-GD-17): head for the nearest landing base of the
-    side that has stock, unless already landed at one (`logistics` restocks it there). Landed at
-    a starved base whose capped tank cannot serve `job` (`_capped_short`), it heads instead for
-    the nearest unstarved landing base it can reach now, ties by node id, and stays when there is
-    none in reach (Q-TD-88)."""
-    bases = tuple(b for b in world.landing_bases(e.side) if b not in world.stock or world.stock[b])
-    if e.state == "LANDED" and e.last_node in bases:
-        if not _capped_short(world, rules, e, job):
-            return
-        fuel = e.fuel or 0.0
-        bases = tuple(
-            b for b in bases if not is_starved(world, rules, b) and reaches(rules, e, b, (b,), fuel)
+    """The rearm/refuel step (GAMEPLAY §1b, Q-GD-17): head for `_refuel_goal`, or stay."""
+    goal = _refuel_goal(world, rules, e, job)[0]
+    if goal is not None:
+        e.path, e.orbit = [goal], None
+
+
+def _refuel_goal(world: World, rules: Rules, e: Entity, job: Job) -> tuple[str | None, bool]:
+    """Where the refuel step heads (None: it stays) and whether staying is stuck. Landed at a
+    landing base of its side with stock, it stays and `logistics` restocks it there, unless the
+    base is starved and its capped tank cannot serve `job` (`_capped_short`); then it heads for
+    the nearest hop (`_hops`) (Q-TD-88, NX-464). Landed at a base with no stock (it sells
+    nothing), it heads for the nearest base with stock in reach that serves `job`, a starved one
+    whose cap does included (`_hops` with `starved`, NX-467). With none it stays stuck. Airborne,
+    it heads for the nearest landing base with stock, or the nearest hop instead when that base is
+    starved and its cap cannot serve `job` (NX-467). Ties by node id."""
+    landing = world.landing_bases(e.side)
+    stocked = tuple(b for b in landing if b not in world.stock or world.stock[b])
+    if e.state == "LANDED" and e.last_node in landing:
+        here = e.last_node
+        if here in stocked and not _capped_short(world, rules, e, job, here):
+            return None, False
+        hops = _hops(world, rules, e, job, stocked, starved=here not in stocked)
+        return (nearest_base(e, rules, hops)[1], False) if hops else (None, True)
+    if not stocked:
+        return None, False
+    goal = nearest_base(e, rules, stocked)[1]
+    if _capped_short(world, rules, e, job, goal):
+        hops = _hops(world, rules, e, job, stocked)
+        goal = nearest_base(e, rules, hops)[1] if hops else goal
+    return goal, False
+
+
+def _hops(
+    world: World, rules: Rules, e: Entity, job: Job, stocked: tuple[str, ...],
+    *, starved: bool = False,
+) -> tuple[str, ...]:  # fmt: skip
+    """The bases of `stocked` a refuel step may hop to: in reach on the fuel `e` has now (it never
+    sets off for a base it cannot reach) and not starved, where a full tank flies `job` (NX-467);
+    with `starved`, also a starved one whose capped tank does (not `_capped_short`)."""
+    fuel, full = e.fuel or 0.0, rules.fuel_s[e.kind]
+    landing = world.landing_bases(e.side)
+    return tuple(
+        b for b in stocked
+        if (starved or not is_starved(world, rules, b)) and reaches(rules, e, b, (b,), fuel)
+        and (
+            not _capped_short(world, rules, e, job, b) if is_starved(world, rules, b)
+            else _reaches(world, rules, e, job, landing, full, start=b)
         )
-    if bases:
-        e.path, e.orbit = [nearest_base(e, rules, bases)[1]], None
+    )  # fmt: skip
 
 
-def _capped_short(world: World, rules: Rules, e: Entity, job: Job) -> bool:
-    """`e` stands at a starved base (`rearm.is_starved`) and the most it can hold there, the
-    starved cap (`logistics.starved_loadout.fuel_frac` of its tank) or more if it already has
-    more, would still not fly `job` (Q-TD-88). False for a rounds-only shortfall: the tank it
-    has or can buy there serves the job, so it waits for the rounds."""
-    node, fuel = e.last_node, e.fuel
-    if node is None or fuel is None or not is_starved(world, rules, node):
+def _capped_short(world: World, rules: Rules, e: Entity, job: Job, node: str) -> bool:
+    """`node` is starved (`rearm.is_starved`) and the most `e` can hold there, the starved cap
+    (`logistics.starved_loadout.fuel_frac` of its tank) or more if it lands with more, would still
+    not fly `job` from it (Q-TD-88). False for a rounds-only shortfall: the tank it has or can buy
+    there serves the job, so it waits for the rounds."""
+    fuel = e.fuel
+    if fuel is None or not is_starved(world, rules, node):
         return False
-    cap = max(fuel, rules.supply.starved_fuel_frac * rules.fuel_s[e.kind])
-    return not _reaches(world, rules, e, job, world.landing_bases(e.side), cap)
+    x, y = rules.roads.pos[node]
+    left = fuel - math.hypot(x - e.pos.x, y - e.pos.y) / rules.speed(e.kind, e.damage_state)
+    cap = max(left, rules.supply.starved_fuel_frac * rules.fuel_s[e.kind])
+    return not _reaches(world, rules, e, job, world.landing_bases(e.side), cap, start=node)
