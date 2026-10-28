@@ -802,6 +802,27 @@ def test_ring_idle_with_the_other_jobs_full_is_ring_full_not_a_lockout(
     assert dict(collector.idle_reasons) == {"ring_full": 1, "next_pass": 1}
 
 
+def test_a_jet_stuck_at_a_starved_base_is_refuel_stuck_in_report_json(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    """NX-467: a jet landed at starved west-airbase (300 under its floor) whose capped tank cannot
+    fly its strike on east-airbase: with 1,800 s haven is in reach (`refuel`, it will hop), with
+    100 s nothing is (`refuel_stuck`). Both reach report.json by name."""
+    pos = shipped_config.rules.roads.pos
+    world = start_campaign("c", 1, shipped_config)
+    jet = world.spawn("STRIKE_FIGHTER", "COALITION", "COMMANDER", Vec2(*pos["west-airbase"]),
+                      commander_id=commander(1))  # fmt: skip
+    jet.state, jet.fuel, jet.last_node = "LANDED", 1800.0, "west-airbase"
+    world.stock["west-airbase"] = 300
+    post_job(world, "COALITION", JobSpec("STRIKE", "op:s", 2, 1000, node="east-airbase"), [])
+    collector.sample_idle(world)
+    jet.fuel = 100.0
+    collector.sample_idle(world)
+    run = {"metrics": {"idle": collector.result(100)["idle"]}}
+    doc = json.loads(json.dumps({"idle": report._idle([run])}))
+    assert doc["idle"]["reasons"] == {"refuel": 1, "refuel_stuck": 1}
+
+
 def test_ring_site_names_a_position_target_and_a_drift_without_raising(
     monkeypatch: pytest.MonkeyPatch, shipped_config: CampaignConfig
 ) -> None:
