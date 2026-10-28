@@ -148,6 +148,7 @@ combat:
   facility_indestructible: true
   strike_structure_first: false
   facility_restore_frac: 0.35
+  overkill_check: true
 campaign:
   time_limit_h: 72
   victory_node_frac: 0.80
@@ -365,9 +366,10 @@ economy:
 # for the economy block, NX-412 part 2 for `economy.upkeep`, NX-412 part 3 for the EC-7 budget
 # keys, the EC-8 guard, `economy.legacy_rules` and `free_viewer_spawn`, NX-412 part 5b for
 # `economy.floor_viewer_units`, NX-426 for `economy.upkeep_period`, NX-436 for
-# `economy.shortfall_quiet_windows`, NX-472 for `combat.facility_restore_frac`); a change means
+# `economy.shortfall_quiet_windows`, NX-472 for `combat.facility_restore_frac`, NX-468 for
+# `combat.overkill_check`); a change means
 # every config_hash moved.
-GOLDEN_CONFIG_HASH = "5da0be7e7c65972c50a33dd1a13c9f5d949199ce69e3dbdbba675f5225ff58d0"
+GOLDEN_CONFIG_HASH = "cd008d081afab303424a9016758e3f737521521b46c60fd7c0d31b220a0d632f"
 AIR = {
     "bingo_reserve_frac": 0.15,
     "orbit_period_s": 120.0,
@@ -472,6 +474,7 @@ COMBAT = {
     "facility_indestructible": True,
     "strike_structure_first": False,
     "facility_restore_frac": 0.35,
+    "overkill_check": True,
 }
 CAMPAIGN = {
     "time_limit_h": 72,
@@ -815,6 +818,7 @@ def test_default_profile_loads_and_matches_golden_hash() -> None:
         ("  facility_indestructible: true\n", "combat.facility_indestructible"),
         ("  strike_structure_first: false\n", "combat.strike_structure_first"),
         ("  facility_restore_frac: 0.35\n", "combat.facility_restore_frac"),
+        ("  overkill_check: true\n", "combat.overkill_check"),
         ("    start: PATTERN_OF_LIFE\n", "director.tier.start"),
         ("    max_step: 1\n", "director.tier.max_step"),
         ("    ai_shooter_mult: 0\n", "director.provocation.ai_shooter_mult"),
@@ -1051,7 +1055,7 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "    ENEMY_ARMOR: 0.60},\n"
         "  crew_marker_min: 10, disabled_timeout_s: 600, assist_window_s: 120,\n"
         "  min_damage: 1, facility_indestructible: true, strike_structure_first: false,\n"
-        "  facility_restore_frac: 0.35}\n"
+        "  facility_restore_frac: 0.35, overkill_check: true}\n"
         "campaign: {momentum: {supply_weight: 30, nodes_weight: 70}, objective_mode: timed,\n"
         "  score: {objective_points: 5, final_weight: 50, average_weight: 50},\n"
         "  objective_period_min: 15,\n"

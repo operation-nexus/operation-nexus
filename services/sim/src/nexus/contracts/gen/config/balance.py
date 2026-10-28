@@ -325,6 +325,12 @@ class Combat(BaseModel):
             le=1.0,
         ),
     ]
+    overkill_check: Annotated[
+        bool,
+        Field(
+            description="The overkill check (COMBAT CB-1, Q-TD-73, NX-468): whether a weapon skips a target whose shots already in flight cover what it has left, so the shooter takes the next target (for a strike jet, the node's defenses once the air-defense site is covered). Cover is the sum, in (impact_tick, id) order, of each in-flight shot's expected damage: its CB-5 damage times its CB-4 Pk as if it landed now, 0 for a shot that would fizzle now. What a target has left: a node's defense HP above its idle floor, a bridge's hp, a facility's or an airborne aircraft's hp above its Disabled floor, any other unit's hp. Units, facilities, node defenses and bridges, both sides alike (ECONOMY EC-3). True is the decided rule; false is the old rule (no overkill check), kept so the harness can compare, unit switch."
+        ),
+    ]
 
 
 class NodeMaxStock(BaseModel):

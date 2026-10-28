@@ -247,7 +247,11 @@ def test_the_hit_that_takes_it_to_zero_destroys_it_once_and_names_the_shooter() 
 
 
 def test_a_hit_landing_at_zero_hp_fizzles() -> None:
-    w = new_world(SURE)
+    """With the overkill check off: on, the first bomb (50, Pk 1) covers the 50 hp and the second
+    jet holds its fire (`test_overkill.py`)."""
+    assert SURE.combat is not None
+    off = dataclasses.replace(SURE.combat, overkill_check=False)
+    w = new_world(dataclasses.replace(SURE, combat=off))
     first, second = jet_at(w), jet_at(w)
     strike(w, first, NORTH)
     strike(w, second, NORTH)
