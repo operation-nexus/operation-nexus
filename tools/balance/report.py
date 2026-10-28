@@ -225,20 +225,35 @@ def _a4(runs: list[dict[str, Any]], t: Targets) -> dict[str, Any]:
 
 
 def _idle(runs: list[dict[str, Any]]) -> dict[str, Any]:
-    """The idle armed viewer-unit share (Q-SIM-92), pooled over the samples of every seed, and why
-    those units held no job (summed over samples)."""
+    """The idle armed viewer-unit share (Q-SIM-92), pooled over the samples of every seed, why
+    those units held no job (summed over samples), and the `ring` ones by blocking marker and job
+    (NX-462; a run from before it has no `ring_by_site` and adds none)."""
     ms = [r["metrics"]["idle"] for r in runs if "idle" in r["metrics"]]
     n = sum(m["samples"] for m in ms)
     reasons: Counter[str] = Counter()
+    ring: Counter[str] = Counter()
     for m in ms:
         reasons.update(m["reasons"])
+        ring.update(m.get("ring_by_site", {}))
     maxes = [m["share_max"] for m in ms if m["share_max"] is not None]
     return {
         "samples": n,
         "share_mean": sum(m["share_sum"] for m in ms) / n if n else None,
         "share_max": max(maxes, default=None),
         "reasons": dict(sorted(reasons.items())),
+        "ring_by_site": dict(sorted(ring.items())),
     }
+
+
+def _ring_lines(ring: dict[str, int], top: int = 5) -> list[str]:
+    """The `ring` idle samples by blocking marker and job (NX-462), most first, ties by key."""
+    if not ring:
+        return []
+    ranked = sorted(ring.items(), key=lambda kv: (-kv[1], kv[0]))
+    more = len(ranked) - top
+    rest = f"; {more} more in report.json" if more > 0 else ""
+    shown = ", ".join(f"{k}: {v}" for k, v in ranked[:top])
+    return [f"  - ring by blocking site -> job: {shown}{rest}"]
 
 
 def _density(runs: list[dict[str, Any]]) -> dict[str, Any]:
@@ -894,7 +909,8 @@ def markdown(report: dict[str, Any]) -> str:
         ]
     lines += [""]
     lines += ["## Why idle armed units hold no job (summed over samples)", ""]
-    lines += [f"- {n}: {a['idle']['reasons']}" for n, a in report["profiles"].items()]
+    for n, a in report["profiles"].items():
+        lines += [f"- {n}: {a['idle']['reasons']}", *_ring_lines(a["idle"]["ring_by_site"])]
     lines += [""]
     lines += ["## Director tier dwell (mean hours per run)", ""]
     lines += [f"- {n}: {a['tier_dwell_h_mean']}" for n, a in report["profiles"].items()]
