@@ -40,12 +40,15 @@ from nexus.core.tasking import (
     _load_at_source,
     _verdict,
     claim,
+    crosses_ring,
+    idle_diagnosis,
     idle_reason,
     joinable_jobs,
     on_objective,
     post_job,
     priority,
     rank,
+    ring_blocker,
     run,
 )
 from nexus.core.tasking_gen import JobSpec, fits, generate
@@ -546,6 +549,107 @@ def test_idle_reason_names_why_an_idle_jet_holds_no_job() -> None:
     for _ in range(2 * job.slots):  # the overfill limit
         claim(w, put(w, "STRIKE_FIGHTER", "west-airbase"), job, [])
     assert idle_reason(w, jet) == "full"
+
+
+def test_idle_diagnosis_names_the_job_the_walk_settled_on() -> None:
+    # NX-462: the harness names the ring behind a `ring` reason from this job. Same reason as
+    # `idle_reason` in every scene of the test above; no job for `no_job` and `full`.
+    w = new_world()
+    jet = put(w, "STRIKE_FIGHTER", "west-airbase")
+    before = state_hash(w)  # rng streams included: the diagnostic draws and changes nothing
+    assert idle_diagnosis(w, jet) == ("no_job", None)
+    assert state_hash(w) == before
+    job = post(w, "COALITION", "STRIKE", "east-airbase", "s", slots=1)
+    seen = [idle_diagnosis(w, jet)]
+    jet.ammo = [0, 0]
+    seen.append(idle_diagnosis(w, jet))
+    jet.ammo, jet.fuel = [4, 400], 1.0
+    seen.append(idle_diagnosis(w, jet))
+    jet.fuel = RULES.fuel_s["STRIKE_FIGHTER"]
+    w.markers["COALITION"][50] = FacilityMarker(
+        "AIR_DEFENSE_SITE", "SAM", Vec2(200_000, 120_000), True, 1, 30_000, "HEALTHY"
+    )
+    before = state_hash(w)
+    seen.append(idle_diagnosis(w, jet))
+    assert state_hash(w) == before
+    assert seen == [("next_pass", job), ("ammo", job), ("refuel", job), ("ring", job)]
+    assert idle_reason(w, jet) == "ring"
+    del w.markers["COALITION"][50]
+    for _ in range(2 * job.slots):  # the overfill limit
+        claim(w, put(w, "STRIKE_FIGHTER", "west-airbase"), job, [])
+    assert idle_diagnosis(w, jet) == ("full", None)
+
+
+def test_idle_diagnosis_job_is_the_first_not_refused_else_the_best_ranked() -> None:
+    w = new_world()
+    jet = put(w, "STRIKE_FIGHTER", "west-airbase")
+    jet.fuel = 0.3 * RULES.fuel_s["STRIKE_FIGHTER"]
+    strike = post(w, "COALITION", "STRIKE", "east-airbase", "s", urgency=5000)
+    post(w, "COALITION", "DEFEND", "west-airbase", "d", urgency=1)
+    assert idle_diagnosis(w, jet) == ("refuel", strike)  # the strike, never the feasible defend
+    w = new_world()
+    unit = put(w, "GARRISON_INFANTRY", "fob-n-w")
+    post(w, "COALITION", "PATROL", "west-airbase", "p", urgency=1)
+    best = post(w, "COALITION", "DEFEND", "west-airbase", "d", urgency=5000)
+    post(w, "COALITION", "DEFEND", "fob-n-w", "d2", urgency=5000)  # a tie: by job id here
+    unit.pos = Vec2(unit.pos.x + 500, unit.pos.y)
+    before = state_hash(w)
+    assert idle_diagnosis(w, unit) == ("no_route", best)  # every job refused: the best-ranked
+    assert state_hash(w) == before
+    w = new_world()
+    jet = put(w, "STRIKE_FIGHTER", "west-airbase")
+    post(w, "COALITION", "STRIKE", "static-hq", "s", urgency=5000)
+    w.markers["COALITION"][7] = _sam(RULES.roads.pos["east-airbase"])  # on the line to static-hq
+    defend = post(w, "COALITION", "DEFEND", "west-airbase", "d", urgency=1)
+    assert idle_diagnosis(w, jet) == ("next_pass", defend)  # the best-ranked is refused (ring)
+
+
+def _sam(pos: tuple[float, float], state: Any = "HEALTHY", ring: int = 35_000) -> FacilityMarker:
+    return FacilityMarker("AIR_DEFENSE_SITE", "SAM", Vec2(*pos), True, 1, ring, state)
+
+
+def test_ring_blocker_names_the_lowest_id_crossing_marker_but_never_the_target_site() -> None:
+    # NX-462: the board's ring rule names its marker; `crosses_ring` is whether it names one.
+    w = new_world()
+    jet = put(w, "STRIKE_FIGHTER", "west-airbase")
+    job = post(w, "COALITION", "STRIKE", "static-hq", "s")
+    markers = w.markers["COALITION"]
+    pos = RULES.roads.pos
+    markers.update({30: _sam(pos["east-airbase"]), 20: _sam((250_000, 120_000)),
+                    10: _sam(pos["static-hq"]), 5: _sam(pos["fob-s-e"])})  # fmt: skip
+    before = state_hash(w)
+    assert ring_blocker(w, RULES, "COALITION", jet.pos, job) == 20  # inserted after 30
+    assert crosses_ring(w, RULES, "COALITION", jet.pos, job)
+    assert state_hash(w) == before
+    markers[20] = _sam((250_000, 120_000), "DISABLED")
+    assert ring_blocker(w, RULES, "COALITION", jet.pos, job) == 30
+    markers[30] = _sam(pos["east-airbase"], "DISABLED")
+    # only the target's own site (10) lies on the line now: the board allows that route
+    assert ring_blocker(w, RULES, "COALITION", jet.pos, job) is None
+    assert not crosses_ring(w, RULES, "COALITION", jet.pos, job)
+    markers[30] = _sam(pos["east-airbase"])
+    truck = put(w, "LOGI_TRUCK", "west-airbase", cargo=100)
+    escort = post_job(
+        w, "COALITION", JobSpec("ESCORT_CONVOY", "op:e", 1, 1000, entity=truck.id), []
+    )
+    rear = Vec2(*pos["static-rear"])  # the line to the truck crosses the rings of 30 and 10
+    assert ring_blocker(w, RULES, "COALITION", rear, escort) is None  # an escort is exempt
+    assert not crosses_ring(w, RULES, "COALITION", rear, escort)
+
+
+def test_ring_blocker_counts_a_patrols_orbit() -> None:
+    # A ring just clear of the line to fob-n-w, but inside a patrol's orbit margin of it.
+    w = new_world()
+    jet = put(w, "STRIKE_FIGHTER", "west-airbase")
+    (ax, ay), (bx, by) = RULES.roads.pos["west-airbase"], RULES.roads.pos["fob-n-w"]
+    length = ((bx - ax) ** 2 + (by - ay) ** 2) ** 0.5
+    nx, ny = (by - ay) / length, (ax - bx) / length  # a unit normal to the line
+    d = 10_000 + TR.patrol_orbit_m / 2  # 2.5 km outside a 10 km ring, inside it plus 5 km
+    w.markers["COALITION"][3] = _sam(((ax + bx) / 2 + d * nx, (ay + by) / 2 + d * ny), ring=10_000)
+    strike = post(w, "COALITION", "STRIKE", "fob-n-w", "s")
+    patrol = post(w, "COALITION", "PATROL", "fob-n-w", "p")
+    assert ring_blocker(w, RULES, "COALITION", jet.pos, strike) is None
+    assert ring_blocker(w, RULES, "COALITION", jet.pos, patrol) == 3
 
 
 @pytest.mark.parametrize(

@@ -963,19 +963,26 @@ def _assign(
 
 
 def idle_reason(world: World, e: Entity) -> str:
-    """Why an idle unit holds no job: `no_job` (nothing it may take is on the board), `full` (only
-    full ones), else what `_assign` meets walking the open jobs in rank order (NX-454): `next_pass`
-    when the first job not refused is feasible (it takes it at the next pass), `ammo` or `refuel`
-    when that job needs a rearm step first (it is refuelling now), or, every job refused, why the
-    best-ranked one is. A ground unit names `_feasible`'s refusal: `no_reload` (an empty truck's
-    resupply run has no load plan), `no_patrol_route`, `no_repair_route` or `no_route` (no road
-    route from the node it stands on). Any other unit: `no_base` (its side holds no landing
-    base), `ring`, `ammo` or `reach_fuel` (a full tank would not reach either). `other` is left
-    for a unit with no fuel there, which no aircraft is (World validation). A read-only
-    diagnostic for the balance harness (Q-SIM-92): it applies `_assign`'s own rank, pool, `_open`
-    and `_feasible`, skipping a job the next pass will end (an escort whose truck is lost since,
-    `_truck_lost`), but ranks without the tie draw (that draws from the tasking stream), so jobs
-    of equal priority, drawn in `_assign`, are approximated here by job id order."""
+    """Why an idle unit holds no job (`idle_diagnosis`'s reason)."""
+    return idle_diagnosis(world, e)[0]
+
+
+def idle_diagnosis(world: World, e: Entity) -> tuple[str, Job | None]:
+    """Why an idle unit holds no job, and the job the walk settled on (None for `no_job` and
+    `full`), so the harness can name what a `ring` refusal is about (NX-462). The reason: `no_job`
+    (nothing it may take is on the board), `full` (only full ones), else what `_assign` meets
+    walking the open jobs in rank order (NX-454): `next_pass` when the first job not refused is
+    feasible (it takes it at the next pass), `ammo` or `refuel` when that job needs a rearm step
+    first (it is refuelling now), or, every job refused, why the best-ranked one is. A ground
+    unit names `_feasible`'s refusal: `no_reload` (an empty truck's resupply run has no load
+    plan), `no_patrol_route`, `no_repair_route` or `no_route` (no road route from the node it
+    stands on). Any other unit: `no_base` (its side holds no landing base), `ring`, `ammo` or
+    `reach_fuel` (a full tank would not reach either). `other` is left for a unit with no fuel
+    there, which no aircraft is (World validation). A read-only diagnostic for the balance
+    harness (Q-SIM-92): it applies `_assign`'s own rank, pool, `_open` and `_feasible`, skipping
+    a job the next pass will end (an escort whose truck is lost since, `_truck_lost`), but ranks
+    without the tie draw (that draws from the tasking stream), so jobs of equal priority, drawn
+    in `_assign`, are approximated here by job id order."""
     rules, tr = _rules(world)
     ranked = rank(tr, list(world.boards[e.side].values()), _now(world), None)
     pool = [
@@ -985,10 +992,10 @@ def idle_reason(world: World, e: Entity) -> str:
         and not _truck_lost(world, j)  # combat may take a truck after the pass (NX-459)
     ]  # fmt: skip
     if not pool:
-        return "no_job"
+        return "no_job", None
     jobs = _open(tr, world, pool, ai=e.owner_kind == _AI)
     if not jobs:
-        return "full"
+        return "full", None
     routes = Routes()
     job, verdict = jobs[0], "no"
     for j in jobs:  # `_assign`'s walk: it acts on the first verdict that is not `no`
@@ -996,6 +1003,11 @@ def idle_reason(world: World, e: Entity) -> str:
         if v != "no":
             job, verdict = j, v
             break
+    return _air_or_ground_reason(world, rules, e, job, verdict), job
+
+
+def _air_or_ground_reason(world: World, rules: Rules, e: Entity, job: Job, verdict: str) -> str:
+    """`idle_diagnosis`'s reason for the job its walk settled on, with that job's verdict."""
     if verdict == "ok":
         return "next_pass"
     if rules.domain[e.kind] == _GROUND:
@@ -1166,13 +1178,33 @@ def crosses_ring(world: World, rules: Rules, side: Side, start: Vec2, job: Job) 
     """TB-2 route danger: the straight line from `start` to the target passes within the
     engagement ring of an enemy site the side has discovered and last saw not Disabled, unless
     the target is that site's own base."""
+    q = _ring_query(world, rules, side, job)
+    return q is not None and ring_crossed((m for _, m in q[2]), start, q[0], q[1])
+
+
+def ring_blocker(world: World, rules: Rules, side: Side, start: Vec2, job: Job) -> int | None:
+    """The id of the lowest-id marker whose ring makes `crosses_ring` refuse `job` from `start`,
+    or None. Pure: the harness's name for a `ring` refusal (NX-462); a line crosses some marker's
+    ring exactly when it crosses one marker's. Sorted here only: the board needs no order."""
+    q = _ring_query(world, rules, side, job)
+    if q is None:
+        return None
+    goal, orbit, candidates = q
+    return next((i for i, m in sorted(candidates) if ring_crossed((m,), start, goal, orbit)), None)
+
+
+def _ring_query(
+    world: World, rules: Rules, side: Side, job: Job
+) -> tuple[tuple[float, float], float, Iterable[tuple[int, FacilityMarker]]] | None:
+    """`crosses_ring`'s rule: the goal, the clearance margin and the (id, marker) pairs that may
+    refuse `job`, unordered; None for an escort, which no ring refuses."""
     if job.kind == "ESCORT_CONVOY":
-        return False  # the convoy is where the threat is: a direct order, as a follow is
+        return None  # the convoy is where the threat is: a direct order, as a follow is
     goal = _waypoint(world, job)
     gx, gy = rules.roads.pos[goal] if isinstance(goal, str) else (goal.x, goal.y)
-    others = (m for m in world.markers[side].values() if (m.pos.x, m.pos.y) != (gx, gy))
     orbit = rules.tasking.patrol_orbit_m if job.kind == _PATROL and rules.tasking else 0.0
-    return ring_crossed(others, start, (gx, gy), orbit)  # a patrol's orbit needs clearance too
+    others = ((i, m) for i, m in world.markers[side].items() if (m.pos.x, m.pos.y) != (gx, gy))
+    return (gx, gy), orbit, others  # a patrol's orbit needs clearance too; own site allowed
 
 
 def ring_crossed(

@@ -37,9 +37,9 @@ from nexus.contracts.gen.events.weapon_fired import WeaponFired
 from nexus.contracts.gen.events.weapon_impact import WeaponImpact
 from nexus.core.campaign import campaign, momentum
 from nexus.core.step import HANDLERS, step
-from nexus.core.tasking import post_job
+from nexus.core.tasking import idle_reason, post_job
 from nexus.core.tasking_gen import JobSpec
-from nexus.core.world import CaptureBar, Claim, Contact, Job, Staged, Vec2
+from nexus.core.world import CaptureBar, Claim, Contact, FacilityMarker, Job, Staged, Vec2
 from nexus.runtime.campaign_config import CampaignConfig, start_campaign
 from nexus.runtime.command_log import CommandLogReader, Tombstone
 
@@ -482,6 +482,13 @@ def test_a_harness_error_is_recorded_and_the_batch_goes_on(
     assert doc["profiles"]["quiet-5"]["A1"]["outcomes"] == {"HARNESS_ERROR": 1}
     assert doc["profiles"]["quiet-5"]["A1"]["status"] == report.NO_DATA
     assert (out / "report.md").is_file()
+    assert doc["profiles"]["overnight-0"]["idle"]["ring_by_site"] == {}  # NX-462: always there
+    doc["profiles"]["overnight-0"]["idle"]["ring_by_site"] = {"AIR_DEFENSE_SITE @ x -> STRIKE y": 3}
+    md = report.markdown(doc)
+    ring_line = "  - ring by blocking site -> job: AIR_DEFENSE_SITE @ x -> STRIKE y: 3"
+    assert (
+        f"- overnight-0: {doc['profiles']['overnight-0']['idle']['reasons']}\n{ring_line}\n" in md
+    )
 
 
 class _FakePool:
@@ -726,6 +733,91 @@ def test_idle_reasons_name_the_old_other_in_report_json(
     run = {"metrics": {"idle": collector.result(100)["idle"]}}
     doc = json.loads(json.dumps({"idle": report._idle([run])}))
     assert doc["idle"]["reasons"] == {"next_pass": 1, "no_route": 1}
+
+
+def _sam(pos: tuple[float, float], state: Any = "HEALTHY") -> FacilityMarker:
+    return FacilityMarker("AIR_DEFENSE_SITE", "SAM", Vec2(*pos), True, 1, 35_000, state)
+
+
+def test_ring_idle_is_split_by_the_blocking_marker_and_the_job_target(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    """NX-462 (sweep N rec 2): the raid lockout's shape. A jet at west-airbase, its only job a
+    strike on static-hq; the Static's SAM at east-airbase lies on the line. The SAM at static-hq
+    itself (a lower marker id) is the target's own site, which the board lets a route enter, and
+    one at fob-s-e is off the line: neither is named."""
+    pos = shipped_config.rules.roads.pos
+    world = start_campaign("c", 1, shipped_config)
+    jet = world.spawn("STRIKE_FIGHTER", "COALITION", "COMMANDER", Vec2(*pos["west-airbase"]),
+                      commander_id=commander(1))  # fmt: skip
+    jet.state, jet.fuel = "LANDED", shipped_config.rules.fuel_s["STRIKE_FIGHTER"]
+    markers = world.markers["COALITION"]
+    markers.clear()
+    markers.update({5: _sam(pos["fob-s-e"]), 10: _sam(pos["static-hq"]),
+                    20: _sam(pos["east-airbase"])})  # fmt: skip
+    job = post_job(world, "COALITION", JobSpec("STRIKE", "op:s", 2, 1000, node="static-hq"), [])
+    collector.sample_idle(world)
+    want = "AIR_DEFENSE_SITE @ east-airbase -> STRIKE static-hq"
+    assert dict(collector.idle_reasons) == {"ring": 1}
+    assert dict(collector.idle_ring_by_site) == {want: 1}
+    markers[20] = _sam(pos["east-airbase"], "DISABLED")  # now idle for another reason only
+    collector.sample_idle(world)
+    assert collector.idle_reasons["ring"] == 1 and sum(collector.idle_reasons.values()) == 2
+    idle = collector.result(100)["idle"]
+    assert idle["ring_by_site"] == {want: 1}
+    markers[20] = _sam((250_000, 120_000))  # on no node: named by its marker id
+    assert metrics.ring_site(world, shipped_config.rules, jet, job) == (
+        "AIR_DEFENSE_SITE @ #20 -> STRIKE static-hq"
+    )
+
+
+def test_ring_site_names_a_position_target_and_a_drift_without_raising(
+    monkeypatch: pytest.MonkeyPatch, shipped_config: CampaignConfig
+) -> None:
+    rules = shipped_config.rules
+    world = start_campaign("c", 1, shipped_config)
+    jet = world.spawn("STRIKE_FIGHTER", "COALITION", "COMMANDER", Vec2(*rules.roads.pos["haven"]))
+    world.markers["COALITION"].clear()
+    world.markers["COALITION"][4] = _sam(rules.roads.pos["west-airbase"])
+    spec = JobSpec("SCOUT", "op:sc", 1, 1000, pos=Vec2(250_400, 119_600))  # on no node
+    job = post_job(world, "COALITION", spec, [])
+    assert metrics.ring_site(world, rules, jet, job) == (
+        "AIR_DEFENSE_SITE @ west-airbase -> SCOUT (250 km, 120 km)"
+    )
+    # the kernel naming no marker for a `ring` unit (a drift; impossible today) is shown, not raised
+    monkeypatch.setattr(metrics, "ring_blocker", lambda *_: None)
+    assert metrics.ring_site(world, rules, jet, job) == "unknown -> SCOUT (250 km, 120 km)"
+
+
+def test_ring_by_site_aggregates_renders_and_resumes_an_old_run(tmp_path: Path) -> None:
+    """report.json's `profiles.<p>.idle.ring_by_site` sums the runs; a run JSON from before NX-462
+    (no `ring_by_site`) is still trusted for a resume and adds nothing; report.md shows the top 5
+    under the idle reasons and says how many more there are."""
+    ring = {f"AIR_DEFENSE_SITE @ s{i} -> STRIKE static-hq": i for i in range(1, 8)}
+    new = {"samples": 1, "share_sum": 1.0, "share_max": 1.0, "reasons": {"ring": 28},
+           "ring_by_site": ring}  # fmt: skip
+    old = {k: v for k, v in new.items() if k != "ring_by_site"}
+    (tmp_path / "runs").mkdir()
+    saved = {"profile": "raid-300", "seed": 1, "hours": 1.0, "config_hash": "h", "ticks_run": 5,
+             "metrics": {"idle": old}, "timing": {}, "crash": None, "harness_error": None,
+             "final_state_hash": "x"}  # fmt: skip
+    (tmp_path / "runs" / "raid-300-s1.json").write_text(json.dumps(saved))
+    resumed = balance.load_done(("raid-300", 1, 1.0, tmp_path, None), "h")
+    assert resumed == saved
+    agg = report._idle([resumed, {"metrics": {"idle": new}}, {"metrics": {"idle": new}}])
+    assert agg["ring_by_site"] == {k: 2 * v for k, v in sorted(ring.items())}
+    assert report._idle([resumed])["ring_by_site"] == {}
+    assert report._ring_lines({}) == []
+    assert report._ring_lines(agg["ring_by_site"]) == [
+        "  - ring by blocking site -> job: AIR_DEFENSE_SITE @ s7 -> STRIKE static-hq: 14, "
+        "AIR_DEFENSE_SITE @ s6 -> STRIKE static-hq: 12, AIR_DEFENSE_SITE @ s5 -> STRIKE "
+        "static-hq: 10, AIR_DEFENSE_SITE @ s4 -> STRIKE static-hq: 8, AIR_DEFENSE_SITE @ s3 -> "
+        "STRIKE static-hq: 6; 2 more in report.json"
+    ]
+    six = dict(list(ring.items())[:6])
+    assert report._ring_lines(six)[0].endswith("STRIKE static-hq: 2; 1 more in report.json")
+    five = dict(list(ring.items())[:5])
+    assert report._ring_lines(five)[0].endswith("AIR_DEFENSE_SITE @ s1 -> STRIKE static-hq: 1")
 
 
 # --- A2 at ALPHA or above, impact kinds, persona kinds (NX-383, Q-SIM-93, Q-SIM-95) ---------
@@ -1718,7 +1810,7 @@ def test_collector_samples_pools_grounded_units_and_grounding_by_state(
     busy.grounded, busy.job_id = True, None  # upkeep grounded it before the next sample
     collector.sample_idle(world)
     eco = collector.result(HOUR)["economy"]
-    seen_idle = metrics.idle_reason(world, idle)
+    seen_idle = idle_reason(world, idle)
     assert eco["grounded_from"] == {"job": 1}
     assert eco["exposure"] == {"job": 1, seen_idle: 1}  # the idle one stayed ungrounded
     world.campaign.tick = HOUR - 1

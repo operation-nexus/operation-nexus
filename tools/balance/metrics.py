@@ -24,9 +24,9 @@ from nexus.core.fog import side_view
 from nexus.core.launch import NO_CAPTURE, no_capture_reason
 from nexus.core.roads import shortest_path, travel_ticks
 from nexus.core.rules import Rules
-from nexus.core.tasking import idle_reason
+from nexus.core.tasking import idle_diagnosis, ring_blocker
 from nexus.core.tasking_gen import is_idle
-from nexus.core.world import World
+from nexus.core.world import Entity, Job, Vec2, World
 
 _ENEMY: Final = "ENEMY"  # Side values
 _COALITION: Final = "COALITION"
@@ -92,6 +92,7 @@ class Collector:
         self.known_tracks = set(world.contacts[_COALITION])  # ids the coalition has ever tracked
         self.idle_shares: list[float] = []  # idle armed viewer units / all, per sample
         self.idle_reasons: Counter[str] = Counter()  # why the idle ones hold no job, summed
+        self.idle_ring_by_site: Counter[str] = Counter()  # "ring" idle by blocking marker and job
         self.slots_per_unit: list[float] = []  # open job slots / live viewer units, per sample
         self.jobs_per_node: list[float] = []  # open coalition jobs / theater nodes, per sample
         self.newbies = newbies
@@ -408,8 +409,9 @@ class Collector:
 
     def sample_idle(self, world: World) -> None:
         """The idle armed viewer-unit share (Q-SIM-92): commander-owned units of an armed kind, not
-        Disabled, with no job, order or route; and `idle_reason` for each idle one. A sample with
-        no such unit is skipped."""
+        Disabled, with no job, order or route; and `idle_diagnosis`'s reason for each idle one, and
+        for a `ring` one the marker that blocks it and the job (`ring_site`, NX-462). A sample
+        with no such unit is skipped."""
         rules = self._world_rules
         armed = [
             e
@@ -420,9 +422,16 @@ class Collector:
         ]
         if not armed:
             return
-        reasons = {e.id: idle_reason(world, e) for e in armed if is_idle(rules, e, _COALITION)}
+        idle = [e for e in armed if is_idle(rules, e, _COALITION)]
+        diagnoses = {e.id: (e, *idle_diagnosis(world, e)) for e in idle}
+        reasons = {i: reason for i, (_, reason, _) in diagnoses.items()}
         self.idle_shares.append(len(reasons) / len(armed))
         self.idle_reasons.update(reasons.values())
+        self.idle_ring_by_site.update(
+            ring_site(world, rules, e, job)
+            for e, reason, job in diagnoses.values()
+            if reason == "ring" and job is not None
+        )
         self._grounding_by_state(armed, reasons)
 
     def _grounding_by_state(self, armed: list[Any], reasons: Mapping[int, str]) -> None:
@@ -748,6 +757,7 @@ class Collector:
                 "share_sum": sum(self.idle_shares),
                 "share_max": max(self.idle_shares, default=None),
                 "reasons": dict(sorted(self.idle_reasons.items())),
+                "ring_by_site": dict(sorted(self.idle_ring_by_site.items())),
             },
             "density": {
                 "slots_per_unit_samples": len(self.slots_per_unit),
@@ -850,6 +860,25 @@ class Collector:
             "nodes_held_pct": e.nodes_held_pct if e else None,
             "ticks_run": end_tick,
         }
+
+
+def ring_site(world: World, rules: Rules, e: Entity, job: Job) -> str:
+    """Which discovered marker refuses `job` to `e` for `ring` (NX-462), as `"<marker kind> @
+    <node or #marker id> -> <job kind> <target node or (x km, y km)>"`: the board's own
+    `tasking.ring_blocker` names it. Should it name none, the key is `"unknown -> ..."`, so a
+    drift between the two shows in the report instead of ending the run."""
+    pos = job.pos
+    target = job.node or (f"({pos.x / 1000:.0f} km, {pos.y / 1000:.0f} km)" if pos else "?")
+    marker_id = ring_blocker(world, rules, e.side, e.pos, job)
+    if marker_id is None:
+        return f"unknown -> {job.kind} {target}"
+    m = world.markers[e.side][marker_id]
+    return f"{m.kind} @ {_place(rules, m.pos) or f'#{marker_id}'} -> {job.kind} {target}"
+
+
+def _place(rules: Rules, pos: Vec2) -> str | None:
+    """The theater node at exactly `pos`, or None."""
+    return next((n for n, p in sorted(rules.roads.pos.items()) if Vec2(*p) == pos), None)
 
 
 def travel_table(rules: Rules, tick_hz: int) -> list[dict[str, Any]]:
