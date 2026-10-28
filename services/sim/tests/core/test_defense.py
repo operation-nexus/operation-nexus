@@ -454,6 +454,16 @@ def test_a_node_left_last_by_a_flip_earlier_in_the_tick_is_frozen_in_that_tick()
     assert of(ev, CaptureStarted) == [] and FORWARD not in w.capture
 
 
+def test_an_earlier_capture_lifts_the_later_nodes_freeze_in_the_same_tick() -> None:
+    w = last_base_world(last=FORWARD)  # MY_FOB is before FORWARD in id order
+    w.defense_hp[MY_FOB] = 0
+    put(w, INFANTRY, "COALITION", *at(MY_FOB))
+    w.capture[MY_FOB] = CaptureBar("COALITION", CAPTURE_FULL - 1)
+    ev = run(w)
+    assert [(e.node_id, e.to) for e in of(ev, NodeCaptured)] == [(MY_FOB, "COALITION")]
+    assert [e.node_id for e in of(ev, CaptureStarted)] == [FORWARD]  # no longer the last
+
+
 def test_a_held_node_that_is_not_strategic_is_never_the_last_base() -> None:
     """The Static HQ is not a strategic node (`campaign.strategic_node_kinds`): held alone, with
     `campaign.victory.hq_capture` off so its capture does not end the war, it is not frozen."""
