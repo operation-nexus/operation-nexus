@@ -194,6 +194,8 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-475 | Coalition retake path (Q-TD-94): a coalition CAPTURE/RETAKE board job on a recently lost node, so a growing crowd can win ground back; the DEFEAT siege rule after a long hold with real viewers specced with it | M | ⬜ | | Spec (GAMEPLAY §1b job kinds, campaign end) with owner sign-off if it changes the end rules; tests; determinism test |
 | NX-476 | Defeat run restarts after an empty stretch (Q-TD-95): nobody loses the war by joining | S | ✅ | | Spec (campaign defeat text); tests; determinism test |
 | NX-477 | Harness counters (L0/L1 review): minutes the coalition holds 0 strategic nodes, coalition captures per profile, Static ESCORT_CONVOYS job count over time | S | ⬜ | | metrics and report rows; tests; README |
+| NX-478 | Harness reporting (R0–R2 review): Static income lost to the storage clip (income due minus `SupplyProduced`), A2 median and tail for below-ALPHA newbies (information only), idle `full` next to the board's open strike slots | S | ⬜ | | metrics and report rows; tests; README |
+| NX-479 | Coalition board capacity grows with the live crowd (Q-TD-98): a raid's late joiners get a job | M | ⬜ | | Spec (GAMEPLAY §1b) after Q-TD-97's runs; both sides; tests; A2 for late joiners in a raid sweep |
 
 ## P2 — Closed alpha (Twitch, unlisted)
 
