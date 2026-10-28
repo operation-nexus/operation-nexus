@@ -189,6 +189,7 @@ Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community a
 | NX-470 | Strike-package formation spread and staggered departure (option 4, owner 2026-10-28): slot k gets a lateral offset and leaves k x a few seconds later | S-M | ⬜ | | GAMEPLAY TB-2 / THREAT-DIRECTOR §4 text; no RNG; tests |
 | NX-471 | Captured facilities change hands Disabled and repair slowly under the new owner (Q-TD-78, owner 2026-10-28) | S | ⬜ | | Amends Q-GP-25 text in the specs; both sides; tests; repair time stated |
 | NX-472 | Facility restore line as a key (Q-TD-86, owner 2026-10-28): the hp fraction a Disabled facility must be repaired to before it is back on line, default the Mission-kill line (today's rule); configurable and tunable | S | ⬜ | | add-config-key (registry, default, loader, spec row, reference, goldens unchanged at the default); tests at two values |
+| NX-473 | Logistics cadence (Q-TD-92): the coalition AI convoy cadence GAMEPLAY §5 already promises (AI trucks claim resupply jobs, cadence scaled by base shortfall), Static convoys driven by base demand, per-job truck cap scaled by shortfall; harness-tuned | M | ⬜ | | Spec (GAMEPLAY §5, THREAT-DIRECTOR POL convoys) with PROPOSED keys via add-config-key; both sides; tests; a harness sweep with west-airbase stock above its floor at raid |
 
 ## P2 — Closed alpha (Twitch, unlisted)
 
