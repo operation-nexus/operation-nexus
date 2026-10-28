@@ -348,16 +348,8 @@
       "mode": "absolute",
       "steps": [
        {
-        "color": "green",
+        "color": "blue",
         "value": null
-       },
-       {
-        "color": "orange",
-        "value": 60
-       },
-       {
-        "color": "red",
-        "value": 85
        }
       ]
      },
@@ -373,7 +365,7 @@
       "lastNotNull"
      ]
     },
-    "colorMode": "background",
+    "colorMode": "value",
     "graphMode": "none",
     "textMode": "value",
     "justifyMode": "center",
