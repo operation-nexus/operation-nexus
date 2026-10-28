@@ -35,7 +35,8 @@ it reaches 1000 and is counted in `rearm_spent`, so units debited = thousandths 
 ends (everything wanted is bought, the unit leaves, or the base stalls); repair has its own carries
 `repair_owed` and `repair_spent`. A base never sells beyond its stock. When something is still
 wanted and nothing could be bought, `RearmStalled` is emitted once. The damage state follows hp
-(a Disabled facility stays Disabled until it is back up to the Mission-kill line, Q-TD-86): each
+(a Disabled facility stays Disabled until it is back up to the restore line,
+`combat.facility_restore_frac`, Q-TD-86): each
 repair step that changes it emits `UnitDamageStateChanged`, and the step that reaches max hp
 `UnitRepaired{by_id: None, node_id}`.
 Deterministic: integers except fuel, entities in id order (the caller), no RNG.

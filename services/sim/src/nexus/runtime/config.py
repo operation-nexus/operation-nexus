@@ -179,6 +179,10 @@ def load_balance(path: Path) -> BalanceConfig:
         raise ConfigError(
             f"{path}: combat.damage_state: need disabled_below < mission_kill_below < damaged_below"
         )
+    if cfg.combat.facility_restore_frac < ds.disabled_below:
+        raise ConfigError(
+            f"{path}: combat.facility_restore_frac: must be at least damage_state.disabled_below"
+        )
     pv = cfg.director.provocation
     if not pv.bravo_threshold > pv.escalate_threshold:
         raise ConfigError(
