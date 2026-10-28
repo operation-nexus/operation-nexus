@@ -557,7 +557,8 @@ def _convoys(
     within the unit caps; a new carrier costs `director.pol.convoy_cost` from the surplus
     (Q-SIM-85), and only when a truck has a route there (`plan_run`, around enemy-held nodes;
     NX-413). A staging base below its raised stock target goes first (THREAT-DIRECTOR FS-3). A
-    job takes `_convoy_slots` carriers (LC-3, NX-473)."""
+    job takes `_convoy_slots` carriers, shrunk to the spawn and live room but never below
+    `convoy_slots` (LC-3, NX-473)."""
     own = _own(world, rules, side)
     live = ops.live_pairs([j.key for j in world.boards[side].values()])
     spawns, live_room = dr.max_spawns_per_window, _live_room(world, rules, side, state, own)
