@@ -89,7 +89,14 @@ from nexus.contracts.gen.events.unit_spawned import UnitSpawned
 from nexus.core import operations as ops
 from nexus.core import staging as stg
 from nexus.core.bridges import blocked
-from nexus.core.director import cadence_due, cadence_floor, night_capped, rear_share, surplus
+from nexus.core.director import (
+    cadence_due,
+    cadence_floor,
+    night_capped,
+    night_spacing,
+    rear_share,
+    surplus,
+)
 from nexus.core.economy import MOVERS, guard_room
 from nexus.core.fog import SideView, is_off_facility, seen_at
 from nexus.core.logistics import pay_spawn, plan_deploy, plan_run, stock_targets
@@ -172,6 +179,17 @@ def _routine(dr: DirectorRules) -> frozenset[str]:
     """Operations the `director.max_ops.<tier>` caps skip: the catalog's routine ones and the
     Pattern of Life patrols and convoys, which are no catalog entries."""
     return ops.routine_ops(dr) | {_PATROL_OP, _CONVOY_OP}
+
+
+def _night_capped(
+    world: World, rules: Rules, state: DirectorState, dr: DirectorRules, now: int
+) -> bool:
+    """The night cap bars capture operations at the faded spacing for the live viewer units
+    (Q-TD-93); without capture rules there is no fade: it holds at no live viewer unit only."""
+    viewers = world.viewer_units()
+    if rules.capture is None:
+        return viewers == 0 and night_capped(state, dr, now, dr.night_cap_ticks)
+    return night_capped(state, dr, now, night_spacing(dr, viewers, rules.capture.quiet_ref))
 
 
 def _own(world: World, rules: Rules, side: Side) -> ops.Own:
@@ -265,7 +283,7 @@ def run(world: World, side: Side, view: SideView, rules: Rules, out: list[Event]
     held = _review(world, rules, side, view, state, out, purse)
     own = _own(world, rules, side)
     live = ops.live_pairs([j.key for j in world.boards[side].values()]) | stg.pairs(state)
-    capped = world.viewer_units() == 0 and night_capped(state, dr, now)  # no capture operations
+    capped = _night_capped(world, rules, state, dr, now)  # no capture operations
     cands = ops.candidates(state, view, rules, own, now, live, capture=False if capped else None)
     ranked = ops.rank(cands, state, view, rules, world.rng.stream(RngStream.DIRECTOR))
     room, most = _live_room(world, rules, side, state, own), ops.max_ops(state.tier, dr)
@@ -352,9 +370,10 @@ def no_capture_reason(world: World, side: Side, view: SideView, rules: Rules, no
     it launched none. It reads the world after the window and changes nothing: no state, no
     event, no RNG draw (no `rank`). The first that holds, in `run`'s own check order, with its
     predicates: `staged` (an operation waits at a staging base: `_review` runs first, it holds
-    budget and a `max_ops` slot and the floor is not due); `night_cap` (`night_capped` with no
-    viewer unit: no capture candidates); `tier` (no capture operation is enabled at the tier,
-    e.g. Pattern of Life); `no_target` (no capture candidate, `ops.candidates`, even with no
+    budget and a `max_ops` slot and the floor is not due); `night_cap` (`night_capped` at the
+    faded spacing for the live viewer units, none from `quiet_ref` on: no capture candidates);
+    `tier` (no capture operation is enabled at the tier, e.g. Pattern of Life);
+    `no_target` (no capture candidate, `ops.candidates`, even with no
     operation live); `targets_busy` (there are some, but a running or staged capture operation
     already covers each: the same call with the live pairs); then the
     cheapest candidate against the money, the window's budget or, with the floor due
@@ -371,7 +390,7 @@ def no_capture_reason(world: World, side: Side, view: SideView, rules: Rules, no
     state = world.director[side]
     if state.staged:
         return "staged"
-    if world.viewer_units() == 0 and night_capped(state, dr, now):
+    if _night_capped(world, rules, state, dr, now):
         return "night_cap"
     if not any(ops.has_capture(o) and state.tier in o.tiers for o in dr.operations):
         return "tier"

@@ -353,8 +353,9 @@ def test_the_night_cap_is_read_at_each_check() -> None:
     static = w.director["ENEMY"]
     static.last_flip = 100
     dr = w.rules.director
-    assert night_capped(static, dr, 200)
-    assert not night_capped(static, dataclasses.replace(dr, night_cap_ticks=100), 200)
+    assert night_capped(static, dr, 200, dr.night_cap_ticks)
+    short = dataclasses.replace(dr, night_cap_ticks=100)
+    assert not night_capped(static, short, 200, short.night_cap_ticks)
 
 
 def test_crew_marker_min_applies_to_markers_placed_after_it() -> None:

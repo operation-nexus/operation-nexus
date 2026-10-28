@@ -202,7 +202,7 @@
           }
         },
         "night_progress_cap_nodes_per_h": {
-          "description": "While no viewer unit is live, the Static may flip at most one node per 1 / this many game hours; its capture bar holds just short of a flip until then and the Director launches no capture operation (Q-SIM-85, THREAT-DIRECTOR \u00a75), unit nodes per game hour.",
+          "description": "With no viewer unit live, the Static may flip at most one node per 1 / this many game hours, a spacing that fades linearly to none at capture.quiet_ref viewer units (Q-TD-93); its capture bar holds just short of a flip until then and the Director launches no capture operation (Q-SIM-85, THREAT-DIRECTOR \u00a75), unit nodes per game hour.",
           "type": "number",
           "exclusiveMinimum": 0,
           "x-unit": "nodes/h (game)",
@@ -217,8 +217,8 @@
         "victory": {"description": "Victory rules (GAMEPLAY \u00a79, Q-CFG-16).", "type": "object", "additionalProperties": false, "required": ["hq_capture"], "properties": {
           "hq_capture": {"description": "Whether the coalition capturing the enemy HQ wins the campaign at once (GAMEPLAY \u00a79; decided rule as default, Q-CFG-16 option); false leaves the hold and time-limit endings, unit switch.", "type": "boolean", "x-unit": "switch", "x-hot-reload": false, "x-category": "CAMPAIGN", "x-audience": "OPERATOR", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "GAMEPLAY \u00a79", "x-status": "RULE_DEFAULT"}
         }},
-        "idle_floor": {"description": "The idle floor while no viewer unit is live (Q-GP-28, Q-GP-44, Q-CFG-16).", "type": "object", "additionalProperties": false, "required": ["enabled", "sanctuary_min_hp"], "properties": {
-          "enabled": {"description": "Whether the idle floor applies with no live viewer unit: the theater's forward airbase's capture bar is frozen while the coalition owns it, the coalition sanctuary's defense HP cannot drop below sanctuary_min_hp, and the defeat clock is held, and restarts from 0 once nobody has played for campaign.defeat.hold_min (Q-TD-95) (GAMEPLAY \u00a70 and \u00a79; decided rule as default, Q-CFG-16 option), unit switch.", "type": "boolean", "x-unit": "switch", "x-hot-reload": false, "x-category": "CAMPAIGN", "x-audience": "OPERATOR", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "GAMEPLAY \u00a70, \u00a79", "x-status": "RULE_DEFAULT"},
+        "idle_floor": {"description": "The idle floor while no viewer unit is live, and the forward airbase's last-base freeze (Q-GP-28, Q-GP-44, Q-TD-93, Q-CFG-16).", "type": "object", "additionalProperties": false, "required": ["enabled", "sanctuary_min_hp"], "properties": {
+          "enabled": {"description": "Whether the idle floor applies with no live viewer unit: the theater's forward airbase's capture bar is frozen while the coalition owns it (at any viewer count while it is the coalition's only strategic node: no bar starts or fills there, a running one decays; Q-TD-93), the coalition sanctuary's defense HP cannot drop below sanctuary_min_hp, and the defeat clock is held, and restarts from 0 once nobody has played for campaign.defeat.hold_min (Q-TD-95) (GAMEPLAY \u00a70 and \u00a79; decided rule as default, Q-CFG-16 option), unit switch.", "type": "boolean", "x-unit": "switch", "x-hot-reload": false, "x-category": "CAMPAIGN", "x-audience": "OPERATOR", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "GAMEPLAY \u00a70, \u00a79", "x-status": "RULE_DEFAULT"},
           "sanctuary_min_hp": {"description": "The least defense HP the coalition sanctuary may be reduced to while the idle floor holds (Q-GP-44, Q-TH-7); at most capture.defense_hp.SANCTUARY, unit hp.", "type": "integer", "minimum": 1, "x-unit": "hp", "x-hot-reload": false, "x-category": "CAMPAIGN", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 1, "max": 2, "step": 1, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a79, Q-TH-7", "x-status": "RULE_DEFAULT"}
         }},
         "objective_pick": {"description": "How a timed objective's node is picked among the frontline candidates: uniform, one draw on the objective stream (GAMEPLAY \u00a79, Q-CFG-16; the only value today, the key exists for later weightings). Objectives score for the coalition only either way, unit enum.", "enum": ["uniform"], "x-unit": "enum", "x-hot-reload": false, "x-category": "CAMPAIGN", "x-audience": "OPERATOR", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "GAMEPLAY \u00a79", "x-status": "RULE_DEFAULT"},
@@ -405,7 +405,7 @@
           "x-status": "PROPOSED"
         },
         "quiet_ref": {
-          "description": "Live viewer units at which the quiet-stream multiplier reaches 1.0, unit viewer units (Q-SIM-26).",
+          "description": "Live viewer units at which the quiet-stream multiplier reaches 1.0 and the Static's night-cap spacing (campaign.night_progress_cap_nodes_per_h) has faded to none, unit viewer units (Q-SIM-26, Q-TD-93).",
           "type": "integer",
           "minimum": 1,
           "x-unit": "viewer units",

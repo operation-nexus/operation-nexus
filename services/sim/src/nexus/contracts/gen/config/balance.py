@@ -56,7 +56,7 @@ class IdleFloor(BaseModel):
     enabled: Annotated[
         bool,
         Field(
-            description="Whether the idle floor applies with no live viewer unit: the theater's forward airbase's capture bar is frozen while the coalition owns it, the coalition sanctuary's defense HP cannot drop below sanctuary_min_hp, and the defeat clock is held, and restarts from 0 once nobody has played for campaign.defeat.hold_min (Q-TD-95) (GAMEPLAY §0 and §9; decided rule as default, Q-CFG-16 option), unit switch."
+            description="Whether the idle floor applies with no live viewer unit: the theater's forward airbase's capture bar is frozen while the coalition owns it (at any viewer count while it is the coalition's only strategic node: no bar starts or fills there, a running one decays; Q-TD-93), the coalition sanctuary's defense HP cannot drop below sanctuary_min_hp, and the defeat clock is held, and restarts from 0 once nobody has played for campaign.defeat.hold_min (Q-TD-95) (GAMEPLAY §0 and §9; decided rule as default, Q-CFG-16 option), unit switch."
         ),
     ]
     sanctuary_min_hp: Annotated[
@@ -1277,7 +1277,7 @@ class Campaign(BaseModel):
     night_progress_cap_nodes_per_h: Annotated[
         float,
         Field(
-            description="While no viewer unit is live, the Static may flip at most one node per 1 / this many game hours; its capture bar holds just short of a flip until then and the Director launches no capture operation (Q-SIM-85, THREAT-DIRECTOR §5), unit nodes per game hour.",
+            description="With no viewer unit live, the Static may flip at most one node per 1 / this many game hours, a spacing that fades linearly to none at capture.quiet_ref viewer units (Q-TD-93); its capture bar holds just short of a flip until then and the Director launches no capture operation (Q-SIM-85, THREAT-DIRECTOR §5), unit nodes per game hour.",
             gt=0.0,
         ),
     ]
@@ -1285,7 +1285,7 @@ class Campaign(BaseModel):
     idle_floor: Annotated[
         IdleFloor,
         Field(
-            description="The idle floor while no viewer unit is live (Q-GP-28, Q-GP-44, Q-CFG-16)."
+            description="The idle floor while no viewer unit is live, and the forward airbase's last-base freeze (Q-GP-28, Q-GP-44, Q-TD-93, Q-CFG-16)."
         ),
     ]
     objective_pick: Annotated[
@@ -1369,7 +1369,7 @@ class Capture(BaseModel):
     quiet_ref: Annotated[
         int,
         Field(
-            description="Live viewer units at which the quiet-stream multiplier reaches 1.0, unit viewer units (Q-SIM-26).",
+            description="Live viewer units at which the quiet-stream multiplier reaches 1.0 and the Static's night-cap spacing (campaign.night_progress_cap_nodes_per_h) has faded to none, unit viewer units (Q-SIM-26, Q-TD-93).",
             ge=1,
         ),
     ]
