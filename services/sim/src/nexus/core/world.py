@@ -98,8 +98,9 @@ from nexus.core.rules import CAPTURE_FULL, Rules
 # operations stamp it (Q-TD-54, NX-439, no bump: same shape); 33: Staged.sector, the sector its
 # open massing sitrep named, and Job.downed_by and downed, the viewer units that downed a STRIKE
 # job's claimants and whether its sitrep was emitted (NX-431, Q-TD-47, Q-TD-56); 34: shortfall and
-# shortfall_end, each side's open shortfall episodes and when each base's last one ended (NX-436)
-FORMAT_VERSION = 34
+# shortfall_end, each side's open shortfall episodes and when each base's last one ended (NX-436);
+# 35: Job.struck_by, the claimants that fired at a STRIKE job's target (Q-TD-87, NX-463)
+FORMAT_VERSION = 35
 _MM = 1000.0  # metres -> millimetres; m/s -> mm/s
 _MICRO = 1e6  # ADR-0002's 1e-6 step for other floats (fuel)
 _MILLI_UNIT = 1000  # thousandths of a stock unit per unit
@@ -459,6 +460,8 @@ class Job:
     downed_by: list[int] = field(default_factory=list)  # a Static STRIKE job: the viewer units
     # that destroyed, disabled or mission-killed a unit holding it, ascending (NX-431, Q-TD-56)
     downed: bool = False  # its STRIKE_DOWNED sitrep was emitted (once per job)
+    struck_by: list[int] = field(default_factory=list)  # a STRIKE job: the units that fired at its
+    # target while holding its claim, ascending; participants even once released (Q-TD-87, NX-463)
     claims: dict[int, Claim] = field(default_factory=dict)  # entity id -> claim, claim order
 
     @property
@@ -1622,9 +1625,10 @@ def _target_ok(job: Job, *, escort: bool, point: bool) -> bool:
     return (job.node is None) != (job.blob is None) and (job.blob is None) == (job.pos is None)
 
 
-def _check_downed(job: Job, next_entity_id: int, side: Side) -> None:
+def _check_credit(job: Job, next_entity_id: int, side: Side) -> None:
     """Q-TD-56: credit only on a STRIKE job of the Static's board, entity ids (1 up to below the
-    counter), ascending, once each; `downed` only with credit."""
+    counter), ascending, once each; `downed` only with credit. Q-TD-87: `struck_by` only on a STRIKE
+    job (either board), entity ids the same way."""
     credited = job.downed_by or job.downed
     if credited and (job.kind != "STRIKE" or side != "ENEMY" or not job.downed_by):
         raise ValueError(f"{_BOARDS}: downed_by and downed only on a credited Static STRIKE job")
@@ -1634,6 +1638,14 @@ def _check_downed(job: Job, next_entity_id: int, side: Side) -> None:
         or max(job.downed_by, default=0) >= next_entity_id
     ):
         raise ValueError(f"{_BOARDS}: downed_by must be entity ids, ascending, once each")
+    if job.struck_by and job.kind != "STRIKE":
+        raise ValueError(f"{_BOARDS}: struck_by only on a STRIKE job")
+    if (
+        job.struck_by != sorted(set(job.struck_by))
+        or min(job.struck_by, default=1) < 1
+        or max(job.struck_by, default=0) >= next_entity_id
+    ):
+        raise ValueError(f"{_BOARDS}: struck_by must be entity ids, ascending, once each")
 
 
 def _job(
@@ -1662,8 +1674,9 @@ def _job(
         None if d["lost"] is None else _int(d["lost"], "job lost"),
         _int_list(d["downed_by"], "job downed_by"),
         _bool(d["downed"], "job downed"),
+        _int_list(d["struck_by"], "job struck_by"),
     )  # fmt: skip
-    _check_downed(job, next_entity_id, side)
+    _check_credit(job, next_entity_id, side)
     for raw in claims:
         if not isinstance(raw, list) or len(raw) != 3:
             raise ValueError(f"{_BOARDS}: a claim is [entity id, tick, active]")
