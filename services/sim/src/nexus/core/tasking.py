@@ -39,7 +39,9 @@ while frozen (SC-11), for each side in COALITION, ENEMY order:
      CAPTURE (the Director's, and the coalition's retake, NX-475): go to the node and stay, the
      capture run itself being `nexus.core.capture`; DONE when the node is the side's, EXPIRED at
      its expiry even with claimants (a claimant still driving gets a fresh clock, at most
-     `tasking.capture_max_restarts` times).
+     `tasking.capture_max_restarts` times), but not while a claimant is within `capture.radius_m`
+     of the node and the side's bar there is live and not `capture.stalled` (the idle floor or a
+     night-held bar; `_capturing`, NX-483): the hold ends when the bar flips or drains away.
      PATROL (the Director's, NX-157): drive out to `Job.via` and then home to the base; DONE when a
      claimant is back at the base, FAILED with no claimant left or when the side lost the base.
      PATROL (the coalition's, Q-SIM-94): hold the node (an aircraft circles it); DONE
@@ -116,6 +118,7 @@ from nexus.contracts.gen.events.job_done import JobDone, Participant
 from nexus.contracts.gen.events.job_expired import JobExpired
 from nexus.contracts.gen.events.job_failed import JobFailed
 from nexus.core.bridges import blocked, enemy_held, not_held
+from nexus.core.capture import stalled
 from nexus.core.economy import source_stock
 from nexus.core.fog import SideView, side_view
 from nexus.core.logistics import (
@@ -721,11 +724,30 @@ def _outcome(
     if verdict == "DONE" and not _participants(world, job) and not waited_on:
         verdict = "EXPIRED"  # nobody to credit (a job another waits for is DONE: its goal is met)
     # A job waiting for another does not expire (the one before it ends or fails it, TB-8); a
-    # capture run ends at its expiry even with claimants (NX-156).
+    # capture run ends at its expiry even with claimants (NX-156), unless one is capturing (NX-483).
     held = job.depends_on is not None or (job.claims and job.kind != "CAPTURE")
     if verdict is None and not held and job.expires is not None and now >= job.expires:
-        verdict = "EXPIRED"
+        verdict = None if _capturing(world, rules, side, job) else "EXPIRED"
     return verdict
+
+
+def _capturing(world: World, rules: Rules, side: Side, job: Job) -> bool:
+    """NX-483: a CAPTURE claimant (any, even one of no capture weight) is within
+    `capture.radius_m` of the node and the side's bar there is live (not `capture.stalled`: the
+    idle floor or a night-held bar). The hold ends with the bar: it flips (DONE) or drains to 0.
+    It spends no restart and keeps no state."""
+    node, cap = job.node, rules.capture
+    if job.kind != "CAPTURE" or node is None or cap is None:
+        return False
+    bar = world.capture.get(node)
+    if bar is None or bar.side != side or stalled(world, rules, node):
+        return False
+    x, y = rules.roads.pos[node]
+    return any(
+        (e := world.find(i)) is not None
+        and (e.pos.x - x) ** 2 + (e.pos.y - y) ** 2 <= cap.radius_m**2
+        for i in job.claims
+    )
 
 
 def _participants(world: World, job: Job) -> list[Entity]:

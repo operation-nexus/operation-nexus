@@ -67,6 +67,7 @@ in the tick budget.
 
 import math
 from dataclasses import dataclass, field
+from typing import Literal
 
 from nexus.contracts.gen.common.enums import NodeOwner, Side
 from nexus.contracts.gen.events.capture_started import CaptureStarted
@@ -110,15 +111,26 @@ def capture(world: World, out: list[Event]) -> None:
     near = _presence(world, rules, cap, nodes)
     viewers = world.viewer_units()
     quiet = _quiet(cap, viewers)
-    d = rules.defense
-    idle_node = d.forward_airbase if d and d.idle_floor else None
-    floor = idle_node is not None
     for node in nodes:  # id order; ownership read per node, so a flip earlier in the tick counts
-        mine = world.owner[node] == "COALITION"
-        if mine and node == idle_node and viewers == 0:
+        floor = _floor(world, rules, node, viewers)
+        if floor == "SKIP":
             continue  # the idle floor
-        last = floor and mine and _last_base(world, rules, node)  # no start, no fill (Q-TD-103)
-        _tick_node(world, rules, cap, node, near[node], quiet, viewers, out, no_fill=last)
+        no_fill = floor == "NO_FILL"  # the last base: no start, no fill (Q-TD-103)
+        _tick_node(world, rules, cap, node, near[node], quiet, viewers, out, no_fill=no_fill)
+
+
+def _floor(
+    world: World, rules: Rules, node: str, viewers: int
+) -> Literal["SKIP", "NO_FILL"] | None:
+    """The idle floor on a coalition-held node (`campaign.idle_floor.enabled`): the forward airbase
+    at no live viewer unit is skipped (no start, fill or decay, Q-GP-28, Q-GP-44); the last base
+    gets no start and no fill (Q-TD-93, Q-TD-103)."""
+    d = rules.defense
+    if d is None or not d.idle_floor or world.owner[node] != "COALITION":
+        return None
+    if node == d.forward_airbase and viewers == 0:
+        return "SKIP"
+    return "NO_FILL" if _last_base(world, rules, node) else None
 
 
 def _last_base(world: World, rules: Rules, node: str) -> bool:
@@ -130,6 +142,14 @@ def _last_base(world: World, rules: Rules, node: str) -> bool:
         and node in rc.strategic
         and not any(world.owner.get(n) == "COALITION" for n in rc.strategic if n != node)
     )
+
+
+def stalled(world: World, rules: Rules, node: str) -> bool:
+    """A bar on `node` may stand still with no end in sight: under the idle floor (`_floor`), or
+    night-held (`DirectorState.held`: each Static flip elsewhere moves its release). NX-483: such a
+    bar holds no job."""
+    held = node in world.director["ENEMY"].held
+    return held or _floor(world, rules, node, world.viewer_units()) is not None
 
 
 def _prune_held(world: World) -> None:
