@@ -297,6 +297,11 @@ def _is_ai(world: World, entity_id: int) -> bool:
     return e is not None and e.owner_kind == _AI
 
 
+def _cargo(world: World, entity_id: int) -> bool:
+    e = world.find(entity_id)
+    return e is not None and bool(e.cargo)
+
+
 def _full(world: World, job: Job, *, ai: bool) -> bool:
     """No free slot for a unit (`ai`: an AI garrison unit). Any other unit does not count the
     garrison's claims while `tasking.human_displaces_ai`: it displaces one (`claim`)."""
@@ -373,15 +378,19 @@ def _launch(world: World, e: Entity, job: Job) -> None:
 
 def claim(world: World, e: Entity, job: Job, out: list[Event]) -> None:
     """`e` takes a slot of `job` (JobClaimed; the lease starts). A job whose slots are full gives
-    one to a non-garrison unit (while `tasking.human_displaces_ai`) by releasing its AI garrison
-    claimant with the highest entity id (Q-TD-11), which stops where it is (an aircraft orbits; a
-    ground unit finishes its road leg); a job full of humans is overfilled, which only happens when
+    one to a non-garrison unit (while `tasking.human_displaces_ai`) by releasing an AI garrison
+    claimant (Q-TD-11): the highest-id one with no cargo, else the highest id, so a loaded run
+    finishes (Q-TD-110, NX-473); it stops where it is (an aircraft orbits; a
+    ground unit finishes its road leg), but a displaced truck with cargo keeps its route and
+    unloads at its target; a job full of humans is overfilled, which only happens when
     no job with a free slot is feasible for `e` (`_open`). Claims are kept in
     entity-id order, as a snapshot restores them, so a restored world emits the same events."""
     if e.owner_kind != _AI and len(job.claims) >= job.slots and not _full(world, job, ai=False):
-        evicted = max(i for i in job.claims if _is_ai(world, i))
+        evicted = max(
+            (i for i in job.claims if _is_ai(world, i)), key=lambda i: (not _cargo(world, i), i)
+        )
         release_claim(world, job, evicted, out)
-        if (v := world.find(evicted)) is not None:
+        if (v := world.find(evicted)) is not None and not v.cargo:  # a loaded run drives on
             v.path = (
                 v.path[:1]
                 if v.path and world.rules and world.rules.domain[v.kind] == _GROUND

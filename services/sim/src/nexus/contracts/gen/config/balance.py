@@ -399,6 +399,26 @@ class RepairRate(BaseModel):
     ]
 
 
+class AiTrucks(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    period_s: Annotated[
+        float,
+        Field(
+            description="How often the coalition spawns AI_GARRISON trucks for its open resupply jobs, unit s of game time, rounded up by the loader to whole economy.window_s windows; a job must also be this old (Job.created) before an AI truck is spawned for it, so viewers get the first pick (GAMEPLAY §5 LC-1).",
+            gt=0.0,
+        ),
+    ]
+    max_live: Annotated[
+        int,
+        Field(
+            description="The most coalition AI trucks live at once, unit trucks; 0 spawns none (the no-op default, Q-TD-113). Also bounded by sim.max_live_units_per_side (EC-8).",
+            ge=0,
+        ),
+    ]
+
+
 class Logistics(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -533,6 +553,12 @@ class Logistics(BaseModel):
         Field(
             description="How many times longer one logistics truck takes than an engineer to repair a bridge (Q-GD-11: slow field repair), unit multiplier on bridge_repair_time_s. Each carrier parked at the bridge's repair stop adds bridge_hp / (bridge_repair_time_s x this) hp per world second, so two trucks repair twice as fast; the loader refuses a rate below 0.001 hp per tick.",
             ge=1.0,
+        ),
+    ]
+    ai_trucks: Annotated[
+        AiTrucks,
+        Field(
+            description="Coalition AI trucks, the logistics cadence (GAMEPLAY §5 LC-1, NX-473, Q-TD-92)."
         ),
     ]
 
@@ -1611,6 +1637,13 @@ class Tasking(BaseModel):
     resupply_slots_max: Annotated[
         int, Field(description="The most slots a resupply job gets, unit units.", ge=1)
     ]
+    resupply_slots_max_starving: Annotated[
+        int,
+        Field(
+            description="The most slots a starving or damaged base's resupply job can reach, unit units (GAMEPLAY §5 LC-3): its cap is resupply_slots_max + floor(need x (this - resupply_slots_max)), need the base's floor deficit or facility damage share, and a Static convoy's is director.pol.convoy_slots + the same raise. Equal to resupply_slots_max it changes nothing (the no-op default, Q-TD-113); the loader refuses a value below resupply_slots_max.",
+            ge=1,
+        ),
+    ]
     defend_radius_m: Annotated[
         float,
         Field(
@@ -2020,6 +2053,13 @@ class Pol(BaseModel):
         float,
         Field(
             description="Every this long one supply convoy runs to the Static base with the largest upkeep shortfall, unit s of game time.",
+            gt=0.0,
+        ),
+    ]
+    convoy_demand_s: Annotated[
+        float,
+        Field(
+            description="While a Static base is below its starvation floor, a convoy is also due this long after the last one, unit s of game time (THREAT-DIRECTOR §5a demand convoys, GAMEPLAY §5 LC-2). Equal to convoy_period_s it changes nothing (the no-op default, Q-TD-113); the loader refuses a value above convoy_period_s.",
             gt=0.0,
         ),
     ]

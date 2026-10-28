@@ -93,6 +93,9 @@ logistics:
   bridge_collapse_radius_m: 1000.0
   bridge_repair_time_s: 600.0
   truck_bridge_repair_mult: 5.0
+  ai_trucks:
+    period_s: 900
+    max_live: 0
 capture:
   radius_m: 2000.0
   time_s: 120.0
@@ -202,6 +205,7 @@ tasking:
     repair_bridge: 2
   resupply_stock_per_slot: 100
   resupply_slots_max: 3
+  resupply_slots_max_starving: 3
   defend_radius_m: 10000
   counterattack_window_min: 15
   scout_cooldown_min: 5
@@ -324,6 +328,7 @@ director:
   pol:
     patrol_period_s: 1800
     convoy_period_s: 3600
+    convoy_demand_s: 3600
     offensive_period_s: 21600
     patrol_slots: 1
     patrols_per_base: 1
@@ -369,7 +374,7 @@ economy:
 # `economy.shortfall_quiet_windows`, NX-472 for `combat.facility_restore_frac`, NX-468 for
 # `combat.overkill_check`); a change means
 # every config_hash moved.
-GOLDEN_CONFIG_HASH = "cd008d081afab303424a9016758e3f737521521b46c60fd7c0d31b220a0d632f"
+GOLDEN_CONFIG_HASH = "90e834a94eb2d4adf04705465f8ac82607945b72ce65302fecc4396cb9acea46"
 AIR = {
     "bingo_reserve_frac": 0.15,
     "orbit_period_s": 120.0,
@@ -425,6 +430,7 @@ LOGISTICS = {
     "bridge_collapse_radius_m": 1000.0,
     "bridge_repair_time_s": 600.0,
     "truck_bridge_repair_mult": 5.0,
+    "ai_trucks": {"period_s": 900, "max_live": 0},
 }
 CAPTURE = {
     "radius_m": 2000.0,
@@ -523,6 +529,7 @@ TASKING = {
     },
     "resupply_stock_per_slot": 100,
     "resupply_slots_max": 3,
+    "resupply_slots_max_starving": 3,
     "defend_radius_m": 10000,
     "counterattack_window_min": 15,
     "scout_cooldown_min": 5,
@@ -657,6 +664,7 @@ DIRECTOR = {
     "pol": {
         "patrol_period_s": 1800,
         "convoy_period_s": 3600,
+        "convoy_demand_s": 3600,
         "offensive_period_s": 21600,
         "convoy_kind": "ENEMY_CONVOY",
         "patrol_slots": 1,
@@ -799,6 +807,9 @@ def test_default_profile_loads_and_matches_golden_hash() -> None:
         ("  bridge_collapse_radius_m: 1000.0\n", "logistics.bridge_collapse_radius_m"),
         ("  bridge_repair_time_s: 600.0\n", "logistics.bridge_repair_time_s"),
         ("  truck_bridge_repair_mult: 5.0\n", "logistics.truck_bridge_repair_mult"),
+        ("  ai_trucks:\n    period_s: 900\n    max_live: 0\n", "logistics.ai_trucks"),
+        ("  resupply_slots_max_starving: 3\n", "tasking.resupply_slots_max_starving"),
+        ("    convoy_demand_s: 3600\n", "director.pol.convoy_demand_s"),
         ("    SANCTUARY: 1000\n", "capture.defense_hp.SANCTUARY"),
         ("  sanctuary_repair_hp_per_s: 1.0\n", "capture.sanctuary_repair_hp_per_s"),
         ("  defeat:\n    hold_min: 30\n", "campaign.defeat"),
@@ -893,6 +904,16 @@ def test_unknown_key_fails(tmp_path: Path, text: str) -> None:
         ("stock_urgency: 0.5", "stock_urgency: 1.0", "tasking.stock_urgency"),
         ("stock_front_bonus: 0.25", "stock_front_bonus: -0.1", "tasking.stock_front_bonus"),
         ("stock_front_bonus: 0.25", "stock_front_bonus: 1.0", "tasking.stock_front_bonus"),
+        # NX-473: the LC-3 cap never drops below resupply_slots_max; LC-2 demand <= the period
+        (
+            "resupply_slots_max_starving: 3",
+            "resupply_slots_max_starving: 2",
+            "tasking.resupply_slots_max_starving",
+        ),
+        ("convoy_demand_s: 3600", "convoy_demand_s: 3601", "director.pol.convoy_demand_s"),
+        ("convoy_demand_s: 3600", "convoy_demand_s: 0", "director.pol.convoy_demand_s"),
+        ("    period_s: 900\n", "    period_s: 0\n", "logistics.ai_trucks.period_s"),
+        ("    max_live: 0\n", "    max_live: -1\n", "logistics.ai_trucks.max_live"),
     ],
 )
 def test_wrong_type_or_value_fails_naming_key(tmp_path: Path, old: str, new: str, key: str) -> None:
@@ -1036,7 +1057,7 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "  facility_repair_hp_per_stock: 10, facility_rearm_cost: 10, ammo_loadout_share: 0.5,\n"
         "  starve_hp_drain_per_min: 5, defense_repair_hp_per_stock: 2, bridge_hp: 300,\n"
         "  bridge_collapse_radius_m: 1000.0, bridge_repair_time_s: 600.0,\n"
-        "  truck_bridge_repair_mult: 5.0,\n"
+        "  truck_bridge_repair_mult: 5.0, ai_trucks: {period_s: 900, max_live: 0},\n"
         "  node_max_stock: {PORT: 1000, HQ: 2000, FOB: 1000, BRIDGE: 0, AIRBASE: 2000}}\n"
         "capture: {radius_m: 2000.0, time_s: 120.0, multi_unit_exponent: 0.5, quiet_floor: 0.6,\n"
         "  quiet_ref: 50, min_time_s: 30.0, logi_weight: 0.5, garrison_mult: 3.0,\n"
@@ -1073,6 +1094,7 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "  slots: {scout: 1, assist_objective: 4, strike: 2, defend: 2, escort_convoy: 2,\n"
         "    patrol: 2, intercept: 1, repair_bridge: 2},\n"
         "  resupply_stock_per_slot: 100, resupply_slots_max: 3, defend_radius_m: 10000,\n"
+        "  resupply_slots_max_starving: 3,\n"
         "  counterattack_window_min: 15, scout_cooldown_min: 5, scout_open_max: 3,\n"
         "  scout_post_interval_min: 2, capture_max_restarts: 3,\n"
         "  follow_station_m: {escort: 500, column: 200, overwatch: 3000, wingman: 1000},\n"
@@ -1124,6 +1146,7 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "    AIRBASE: [ENEMY_FIGHTER, ENEMY_ARMOR],\n"
         "    HQ: [ENEMY_ARMOR]}},\n"
         "  pol: {patrol_period_s: 1800, convoy_period_s: 3600, offensive_period_s: 21600,\n"
+        "    convoy_demand_s: 3600,\n"
         "    convoy_kind: ENEMY_CONVOY, patrol_slots: 1, patrols_per_base: 1,\n"
         "    convoys_per_period: 1, offensives_per_period: 1, convoy_cost: 0, convoy_slots: 1,\n"
         "    capture_slot_tiers: [PATTERN_OF_LIFE]}}\n"

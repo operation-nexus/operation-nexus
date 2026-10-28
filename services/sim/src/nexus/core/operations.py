@@ -645,17 +645,24 @@ def garrison_cost(dr: DirectorRules) -> int:
     return next((o.cost for o in dr.operations if o.target == _GARRISON), 0)
 
 
-def convoy_bases(view: SideView, rules: Rules, own: Own) -> list[str]:
-    """The Static bases with an upkeep shortfall (Q-SIM-85), largest first, ties by node id: the
-    cost of a base's missing garrison units less its margin over the floor (so a base below its
-    floor counts the floor less its stock too, Q-SIM-86), above zero."""
+def convoy_shortfall(view: SideView, rules: Rules, own: Own) -> dict[str, int]:
+    """Each Static base's upkeep shortfall (Q-SIM-85): the cost of its missing garrison units less
+    its margin over the floor (so a base below its floor counts the floor less its stock too,
+    Q-SIM-86); a base with none has 0 or less."""
     dr = rules.director
     if dr is None:
-        return []
+        return {}
     unit, short = garrison_cost(dr), dict[str, int]()
     for n in bases(view, rules):
         missing = rules.garrison_quota.get(n, 0) - len(own.homed.get(n, ()))
         short[n] = missing * unit - own.margin.get(n, 0)
+    return short
+
+
+def convoy_bases(view: SideView, rules: Rules, own: Own) -> list[str]:
+    """The Static bases with an upkeep shortfall above zero (`convoy_shortfall`), largest first,
+    ties by node id."""
+    short = convoy_shortfall(view, rules, own)
     return sorted((n for n, s in short.items() if s > 0), key=lambda n: (-short[n], n))
 
 

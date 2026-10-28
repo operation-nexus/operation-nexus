@@ -55,9 +55,10 @@ bar holds one step short of the flip (the node is in `DirectorState.held`), and 
 launches no capture operation (`nexus.core.launch`). A held bar stays held until the cap frees,
 even when a viewer arrives (the full 0-viewer cap, Q-SIM-86); coalition units
 contest it as any bar, and it leaves `held` when it is gone or drained. A garrison unit (one
-with a home base) and a unit on a PATROL job never count as capturers (they still contest and
-garrison): a garrison only defends (Q-SIM-86), so a patrol turns at a neutral node, or a failed
-one stands there, without flipping it.
+with a home base), a unit on a PATROL job and a coalition AI_GARRISON carrier (an AI truck,
+GAMEPLAY §5 LC-1, NX-473) never count as capturers (they still contest and garrison): a garrison
+only defends (Q-SIM-86), so a patrol turns at a neutral node, or a failed one stands there, and
+an AI truck drives past one, without flipping it (the AI never initiates offense, Q-TD-14).
 
 Runs after `logistics` in the `logistics_capture` slot (SC-13) and not while paused (SC-11).
 Deterministic: nodes in id order, entities in id order, no RNG.
@@ -81,7 +82,7 @@ from nexus.core.logistics import friendly_bases, nearest, road_start
 from nexus.core.provocation import captured
 from nexus.core.rules import CAPTURE_FULL, CaptureRules, Rules
 from nexus.core.upkeep import rehome
-from nexus.core.world import SIDES, CaptureBar, Entity, World, end_stop, lose_unit
+from nexus.core.world import SIDES, CaptureBar, Entity, World, end_stop, is_ai_truck, lose_unit
 
 _OTHER: dict[Side, Side] = {"COALITION": "ENEMY", "ENEMY": "COALITION"}
 _AIR, _GROUND = "AIR", "GROUND"
@@ -162,8 +163,9 @@ def _prune_held(world: World) -> None:
 
 
 def _patrolling(world: World, e: Entity) -> bool:
-    """A garrison unit or a patrol: no capture weight."""
-    if e.home is not None:
+    """A garrison unit, a patrol or a coalition AI truck (LC-1): no capture
+    weight. Other AI garrison units still capture (a counterattack, Q-GD-31)."""
+    if e.home is not None or (world.rules is not None and is_ai_truck(world.rules, e)):
         return True
     job = world.boards[e.side].get(e.job_id) if e.job_id is not None else None
     return job is not None and job.kind == "PATROL"

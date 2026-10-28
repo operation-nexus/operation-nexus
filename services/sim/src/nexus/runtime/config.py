@@ -208,6 +208,16 @@ def load_balance(path: Path) -> BalanceConfig:
         raise ConfigError(
             f"{path}: tasking.ai_jobs, ai_excluded_jobs: must not overlap or list INTERCEPT"
         )
+    if tk.resupply_slots_max_starving < tk.resupply_slots_max:
+        raise ConfigError(
+            f"{path}: tasking.resupply_slots_max_starving: must be at least resupply_slots_max "
+            "(GAMEPLAY §5 LC-3)"
+        )
+    if cfg.director.pol.convoy_demand_s > cfg.director.pol.convoy_period_s:
+        raise ConfigError(
+            f"{path}: director.pol.convoy_demand_s: must not exceed convoy_period_s "
+            "(THREAT-DIRECTOR §5a)"
+        )
     if cfg.campaign.idle_floor.sanctuary_min_hp > cfg.capture.defense_hp.SANCTUARY:
         raise ConfigError(
             f"{path}: campaign.idle_floor.sanctuary_min_hp: must not exceed "

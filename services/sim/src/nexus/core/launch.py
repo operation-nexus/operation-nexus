@@ -100,7 +100,13 @@ from nexus.core.director import (
 )
 from nexus.core.economy import MOVERS, guard_room
 from nexus.core.fog import SideView, is_off_facility, seen_at
-from nexus.core.logistics import pay_spawn, plan_deploy, plan_run, stock_targets
+from nexus.core.logistics import (
+    facility_damage,
+    pay_spawn,
+    plan_deploy,
+    plan_run,
+    stock_targets,
+)
 from nexus.core.rng import RngStream
 from nexus.core.roads import shortest_path
 from nexus.core.rules import (
@@ -112,7 +118,7 @@ from nexus.core.rules import (
     sector_at,
 )
 from nexus.core.tasking import post_job, take
-from nexus.core.tasking_gen import JobSpec, fits
+from nexus.core.tasking_gen import JobSpec, fits, slot_cap, starving_need
 from nexus.core.world import DirectorState, Entity, Job, Staged, Vec2, World, consumed
 
 _DIRECTOR = "ENEMY_DIRECTOR"
@@ -445,7 +451,8 @@ def _pattern_of_life(
     if now - state.last_patrol >= dr.patrol_ticks:
         state.last_patrol = now
         _patrols(world, rules, side, view, dr, out)
-    if now - state.last_convoy >= dr.convoy_ticks:
+    since = now - state.last_convoy
+    if since >= dr.convoy_ticks or (since >= dr.convoy_demand_ticks and _starving(world, side)):
         state.last_convoy = now
         _convoys(world, rules, side, view, state, dr, out, purse)
     if (
@@ -454,6 +461,32 @@ def _pattern_of_life(
         and now - state.last_offensive >= dr.offensive_ticks
     ):
         _capture_slot(world, rules, side, view, state, dr, now, out, purse)
+
+
+def _starving(world: World, side: Side) -> bool:
+    """LC-2 (NX-473): a base the side owns is below its starvation floor, so a convoy is also due
+    `director.pol.convoy_demand_s` after the last one (THREAT-DIRECTOR §5a demand convoys)."""
+    rules = world.rules
+    floors = rules.supply.starve_floor if rules is not None else {}
+    return any(
+        world.owner.get(n) == side and world.stock.get(n, floor) < floor
+        for n, floor in sorted(floors.items())
+    )
+
+
+def _convoy_slots(
+    world: World, rules: Rules, side: Side, dr: DirectorRules, base: str, shortfall: int
+) -> int:
+    """LC-3 (NX-473): min(cap, max(`convoy_slots`, ceil(shortfall / `truck_cargo`))), the cap
+    `convoy_slots` raised by the base's `need` (`tasking_gen.slot_cap`); `convoy_slots` at the
+    default `tasking.resupply_slots_max_starving` = `resupply_slots_max`."""
+    tr, sup = rules.tasking, rules.supply
+    if tr is None or base not in sup.starve_floor:
+        return dr.convoy_slots
+    damage = facility_damage(world, rules, side).get(base, (0, 1))
+    need = starving_need(world.stock.get(base, 0), sup.starve_floor[base], damage)
+    trucks = -(-shortfall // sup.truck_cargo)
+    return min(slot_cap(tr, dr.convoy_slots, need), max(dr.convoy_slots, trucks))
 
 
 def _capture_slot(
@@ -523,31 +556,38 @@ def _convoys(
     shortfall (one each), taken by an idle carrier of `director.pol.convoy_kind` or a new one,
     within the unit caps; a new carrier costs `director.pol.convoy_cost` from the surplus
     (Q-SIM-85), and only when a truck has a route there (`plan_run`, around enemy-held nodes;
-    NX-413). A staging base below its raised stock target goes first (THREAT-DIRECTOR FS-3)."""
+    NX-413). A staging base below its raised stock target goes first (THREAT-DIRECTOR FS-3). A
+    job takes `_convoy_slots` carriers, shrunk to the spawn and live room but never below
+    `convoy_slots` (LC-3, NX-473)."""
     own = _own(world, rules, side)
     live = ops.live_pairs([j.key for j in world.boards[side].values()])
     spawns, live_room = dr.max_spawns_per_window, _live_room(world, rules, side, state, own)
     refused: list[int] = []
-    op = OperationRules(
-        _CONVOY_OP, "NODE", (), dr.convoy_cost, frozenset(),
-        (JobTemplate("RESUPPLY", "target", (dr.convoy_kind,), dr.convoy_slots),), None, Fraction(0),
-    )  # fmt: skip
+    short = ops.convoy_shortfall(view, rules, own)
     targets = stock_targets(world, rules)  # a staging base below its raised target first (FS-3)
     first = [s.base for s in state.staged if world.stock.get(s.base, 0) < targets.get(s.base, 0)]
     for base in [*dict.fromkeys([*first, *ops.convoy_bases(view, rules, own)])][
         : dr.convoys_per_period
     ]:
+        slots = _convoy_slots(world, rules, side, dr, base, max(0, short.get(base, 0)))
+        slots = max(dr.convoy_slots, min(slots, spawns, live_room))  # a raised cap fits the room
+        op = OperationRules(
+            _CONVOY_OP, "NODE", (), dr.convoy_cost, frozenset(),
+            (JobTemplate("RESUPPLY", "target", (dr.convoy_kind,), slots),), None, Fraction(0),
+        )  # fmt: skip
         if (_CONVOY_OP, base) in live or surplus(view, rules, world.stock) < op.cost:
             continue
         if plan_run(world, rules, side, base) is None:  # no truck could reach it (NX-413)
             continue
-        if min(spawns, live_room) < dr.convoy_slots:  # the job spawns up to `convoy_slots` units
-            if spawns >= dr.convoy_slots:  # the live cap, not anti-spam, stopped it (EC-8)
-                refused.append(dr.convoy_slots)
+        if min(spawns, live_room) < slots:  # the job spawns up to `slots` units
+            if spawns >= slots:  # the live cap, not anti-spam, stopped it (EC-8)
+                refused.append(slots)
             continue
         cand = ops.Candidate(op, base, None, ((ops.Where(base),),))
         spend = _surplus_purse(view, rules, world, purse)
-        made = _post_and_spawn(world, rules, side, cand, out, lambda n: op.cost * n, spend) or 0
+        made = (
+            _post_and_spawn(world, rules, side, cand, out, lambda n: dr.convoy_cost * n, spend) or 0
+        )
         spawns, live_room = spawns - made, live_room - made
         _keep_rear(purse, spend)
     _note_refused(world, side, refused, out)

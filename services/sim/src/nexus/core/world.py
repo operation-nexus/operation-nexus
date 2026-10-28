@@ -880,6 +880,15 @@ class World:
         return len(self._entities)
 
 
+def is_ai_truck(rules: Rules, e: Entity) -> bool:
+    """A coalition AI truck (GAMEPLAY §5 LC-1, NX-473): an AI_GARRISON carrier of the coalition.
+    The one rule for `nexus.core.ai_trucks` (its `max_live` and retire counts) and the capture
+    exemption (`nexus.core.capture`)."""
+    return (
+        e.side == "COALITION" and e.owner_kind == "AI_GARRISON" and e.kind in rules.supply.carriers
+    )
+
+
 def on_node(rules: Rules, e: Entity) -> bool:
     """Standing on its `last_node` (not on the road off it, e.g. at a bridge's repair stop)."""
     return e.last_node is not None and e.pos == Vec2(*rules.roads.pos[e.last_node])

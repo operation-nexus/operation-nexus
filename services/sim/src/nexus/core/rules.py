@@ -100,6 +100,11 @@ class Supply:
     # logistics.bridge_hp / (bridge_repair_time_s x truck_bridge_repair_mult) x world_dt, in
     # thousandths of an hp per tick per carrier parked at a bridge's stop (NX-373 part 2).
     bridge_repair_milli: int = 0
+    # Coalition AI trucks (GAMEPLAY §5 LC-1, NX-473): `logistics.ai_trucks.period_s` as game ticks,
+    # rounded up by the config loader to whole economy windows (0 in hand-built rules: off), and
+    # `logistics.ai_trucks.max_live` (0: none)
+    ai_truck_period_ticks: int = 0
+    ai_truck_max_live: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -184,6 +189,8 @@ class TaskingRules:
     slots: Mapping[JobKind, int]
     resupply_stock_per_slot: int
     resupply_slots_max: int
+    # tasking.resupply_slots_max_starving (LC-3, NX-473): >= resupply_slots_max (load_balance)
+    resupply_slots_max_starving: int
     defend_radius_m: float
     counterattack_window_ticks: int  # how long after a loss the garrison may counterattack
     scout_cooldown_ticks: int  # how long a scouted cell is not posted again
@@ -326,6 +333,7 @@ class DirectorRules:
     garrison_kinds: Mapping[NodeKind, tuple[UnitKind, ...]]
     patrol_ticks: int
     convoy_ticks: int
+    convoy_demand_ticks: int  # director.pol.convoy_demand_s (LC-2, NX-473); <= convoy_ticks
     offensive_ticks: int
     night_cap_ticks: int
     convoy_kind: UnitKind  # the carrier of a Pattern of Life convoy
@@ -628,6 +636,7 @@ def tasking_rules(
         slots={cast(JobKind, k.upper()): v for k, v in cfg.slots},
         resupply_stock_per_slot=cfg.resupply_stock_per_slot,
         resupply_slots_max=cfg.resupply_slots_max,
+        resupply_slots_max_starving=cfg.resupply_slots_max_starving,
         defend_radius_m=cfg.defend_radius_m,
         counterattack_window_ticks=counterattack_window_ticks,
         scout_cooldown_ticks=scout_cooldown_ticks,
@@ -711,6 +720,7 @@ def director_rules(
     operations: Iterable[OperationRules],
     patrol_ticks: int,
     convoy_ticks: int,
+    convoy_demand_ticks: int,
     offensive_ticks: int,
     night_cap_ticks: int,
     recon_loiter_ticks: int,
@@ -796,6 +806,7 @@ def director_rules(
         },
         patrol_ticks=patrol_ticks,
         convoy_ticks=convoy_ticks,
+        convoy_demand_ticks=convoy_demand_ticks,
         offensive_ticks=offensive_ticks,
         night_cap_ticks=night_cap_ticks,
         convoy_kind=cfg.pol.convoy_kind,
@@ -865,7 +876,9 @@ def _defense(
     )  # fmt: skip
 
 
-def _supply(theater: TheaterConfig, logistics: Logistics, dt: float) -> Supply:
+def _supply(
+    theater: TheaterConfig, logistics: Logistics, dt: float, ai_truck_period_ticks: int
+) -> Supply:
     """Raises ValueError when a start_stock exceeds its kind's maximum (Q-SIM-49)."""
     max_by_kind = logistics.node_max_stock.model_dump()
     stocked = [n for n in theater.nodes if n.kind != "SANCTUARY"]
@@ -911,6 +924,8 @@ def _supply(theater: TheaterConfig, logistics: Logistics, dt: float) -> Supply:
         },
         bridge_collapse_m=logistics.bridge_collapse_radius_m,
         bridge_repair_milli=bridge_milli,
+        ai_truck_period_ticks=ai_truck_period_ticks,
+        ai_truck_max_live=logistics.ai_trucks.max_live,
     )
 
 
@@ -1063,18 +1078,20 @@ def make_rules(
     tasking: TaskingRules | None = None,
     director: DirectorRules | None = None,
     economy: EconomyRules | None = None,
+    ai_truck_period_ticks: int = 0,
 ) -> Rules:
     """`respawn_delay_ticks`, `track_fade_ticks` and `sigint_refresh_ticks` are
     `slots.respawn_delay_s`, `fow.track_fade_s` and `fow.sigint_refresh_s` already converted by
     the config loader; `masking` is the theater's
-    rasterized masking regions (`nexus.runtime.theater.masking_cells`)."""
+    rasterized masking regions (`nexus.runtime.theater.masking_cells`); `ai_truck_period_ticks`
+    is `logistics.ai_trucks.period_s` in game ticks, rounded up to whole economy windows."""
     units = tuple(units)
     if not mask_cell_m > 0:
         raise ValueError(f"mask_cell_m must be > 0, got {mask_cell_m!r}")
     if theater.bounds_m.w % fow.sigint_cell_m or theater.bounds_m.h % fow.sigint_cell_m:
         # every SIGINT cell, so every blob centre, lies on the map (FOW-2)
         raise ValueError(f"fow.sigint_cell_m {fow.sigint_cell_m} must divide the theater bounds")
-    supply = _supply(theater, logistics, world_dt(sim))
+    supply = _supply(theater, logistics, world_dt(sim), ai_truck_period_ticks)
     if combat is not None:
         _check_ammo_bound(combat, supply)
     return Rules(
