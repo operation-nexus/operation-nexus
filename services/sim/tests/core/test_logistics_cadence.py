@@ -29,7 +29,7 @@ from nexus.core.logistics import plan_run
 from nexus.core.rules import DirectorRules, EconomyRules, Rules
 from nexus.core.step import step
 from nexus.core.tasking import claim, joinable_jobs
-from nexus.core.world import Entity, Job, World, load, save, state_hash
+from nexus.core.world import Entity, Job, Vec2, World, load, save, state_hash
 from nexus.runtime.golden import shipped_config
 
 _eco = CONFIG.rules.economy
@@ -263,6 +263,18 @@ def test_a_viewer_displaces_the_highest_id_ai_claimant_with_no_cargo_first() -> 
     w, job, (a, b) = full_of_ai(30, 60)  # all loaded: the highest id
     claim(w, put(w, "LOGI_TRUCK", "haven", HUMAN), job, [])
     assert a.id in job.claims and b.id not in job.claims
+
+
+def test_a_displaced_loaded_ai_truck_keeps_its_route_and_an_empty_one_stops() -> None:
+    route: list[str | Vec2] = ["fob-n-w", "west-airbase"]
+    w, job, (a, b) = full_of_ai(30, 60)  # all loaded: b goes, and drives on to unload (Q-TD-110)
+    a.path, b.path = list(route), list(route)
+    claim(w, put(w, "LOGI_TRUCK", "haven", HUMAN), job, [])
+    assert b.id not in job.claims and b.path == route  # CodeRabbit, PR #514
+    w, job, (empty, _loaded) = full_of_ai(0, 60)
+    empty.path = list(route)
+    claim(w, put(w, "LOGI_TRUCK", "haven", HUMAN), job, [])
+    assert empty.id not in job.claims and empty.path == route[:1]  # it finishes its road leg
 
 
 def test_a_bare_join_logi_ignores_ai_claims() -> None:
