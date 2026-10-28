@@ -401,6 +401,8 @@ class UnitRules:
     alt_band: AltBand | None  # AIR: the default band
     crew: int  # crew count, 0 for facilities and unmanned kinds (CB-8)
     crew_survival: float  # chance the crew is DOWNED, not LOST; 0.0 when `crew` is 0 (Q-SIM-68)
+    # ceil(combat.facility_restore_frac x hp): a Disabled facility is back on line here (Q-TD-86)
+    restore: int
 
     def state(self, hp: int) -> DamageState:
         disabled, mission_kill, damaged = self.cuts
@@ -410,10 +412,11 @@ class UnitRules:
 
     def state_after(self, hp: int, was: DamageState, facility: bool) -> DamageState:
         """`state(hp)`, except that a Disabled facility stays Disabled until its hp is back up to
-        the Mission-kill line (Q-TD-86): repaired above the Disabled line it is still off (no
-        sensing, emitting or firing, not a target), so a suppressed site stays suppressed a while.
-        A Disabled non-facility is a wreck and is never repaired (CB-7)."""
-        if facility and was == "DISABLED" and hp < self.cuts[1]:
+        the restore line `restore` (Q-TD-86, `combat.facility_restore_frac`; shipped: the
+        Mission-kill line): repaired above the Disabled line it is still off (no sensing, emitting
+        or firing, not a target), so a suppressed site stays suppressed a while. A Disabled
+        non-facility is a wreck and is never repaired (CB-7)."""
+        if facility and was == "DISABLED" and hp < self.restore:
             return "DISABLED"
         return self.state(hp)
 
@@ -969,6 +972,7 @@ def combat_rules(
         Fraction(repr(f)) for f in (ds.disabled_below, ds.mission_kill_below, ds.damaged_below)
     )
 
+    restore = Fraction(repr(cfg.facility_restore_frac))  # >= disabled_below (the loader)
     survival = cfg.crew_survival.model_dump()
 
     def stats(u: UnitConfig) -> UnitRules:
@@ -977,7 +981,7 @@ def combat_rules(
             raise ValueError(f"combat.crew_survival has no chance for {u.kind} (crew {u.crew})")
         return UnitRules(
             u.hp, Fraction(repr(u.armor)), u.evasion, u.threat, c, u.default_alt_band, u.crew,
-            survival.get(u.kind, 0.0) if u.crew else 0.0,
+            survival.get(u.kind, 0.0) if u.crew else 0.0, math.ceil(restore * u.hp),
         )  # fmt: skip
 
     loadouts: dict[tuple[UnitKind, str | None], tuple[WeaponRules, ...]] = {}

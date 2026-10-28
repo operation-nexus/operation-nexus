@@ -317,6 +317,14 @@ class Combat(BaseModel):
             description="Whether a unit holding a STRIKE claim on a node's defenses fires its STRUCTURE weapon at that node's defense HP before any unit target (COMBAT CB-10, Q-TD-55; extends the bridge exception, Q-SIM-105). Same candidate rules as the automatic fallback (enemy-owned, HP left, not the Static's rear source, not at its idle floor, in range); both sides alike (ECONOMY EC-3). False is the decided rule as it was: units always come first, unit switch."
         ),
     ]
+    facility_restore_frac: Annotated[
+        float,
+        Field(
+            description="The hp fraction a Disabled facility must be repaired back up to before it is on line again (COMBAT CB-9, Q-TD-86, NX-472): below ceil(fraction x its kind's hp) it stays Disabled however far it has climbed above the Disabled line; at or above it its state follows hp again. A hit never brings it out early. Both sides alike (ECONOMY EC-3). The loader refuses a value below combat.damage_state.disabled_below; at disabled_below a facility is back as soon as it leaves Disabled (the rule before Q-TD-86). 0.35, the shipped mission_kill_below, is the decided rule (Q-TD-86: back at the Mission-kill line); the key does not follow mission_kill_below when that is tuned. Unit fraction of hp.",
+            gt=0.0,
+            le=1.0,
+        ),
+    ]
 
 
 class NodeMaxStock(BaseModel):

@@ -39,9 +39,9 @@ The `combat` slot, each running tick (not while frozen, SC-11), in this order:
 4. **Damage (CB-5, CB-6, CB-9).** A hit removes `floor(damage x (1 - armor))` hp, at least 1, with
    `armor` an exact decimal (0 for a structure: `damage` hp off the node's defenses, floored at the
    idle floor, `nexus.core.defense`). The damage state follows hp against the kind's thresholds
-   (`UnitRules.cuts`); a Disabled facility stays Disabled until it is back up to the Mission-kill
-   line (`UnitRules.state_after`, Q-TD-86). A facility (STATIC) floors at the Disabled threshold,
-   never Destroyed
+   (`UnitRules.cuts`); a Disabled facility stays Disabled until it is back up to the restore line
+   (`combat.facility_restore_frac`, `UnitRules.state_after`, Q-TD-86). A facility (STATIC)
+   floors at the Disabled threshold, never Destroyed
    (`combat.facility_indestructible`, a Q-CFG-16 option: false lets 0 hp destroy it); any
    other unit at 0 hp is removed with `UnitDestroyed{killer_id = the shooter, assist_ids}`, and so
    is an aircraft that is not LANDED the moment it becomes Disabled (Q-SIM-66; that hit emits
