@@ -265,8 +265,31 @@ def test_a_disabled_wreck_is_never_repaired_but_a_disabled_facility_is() -> None
     site.hp, site.damage_state = 14, "DISABLED"  # the facility floor: 14 of 150
     events = run(w, 3)
     assert wreck.hp == 5 and state(wreck) == "DISABLED"
-    assert site.hp > 14 and state(site) == "MISSION_KILL"  # back above the floor
-    assert changes(events) == [("DISABLED", "MISSION_KILL")]
+    # Q-TD-86: above the floor but below the Mission-kill line (ceil(0.35 x 150) = 53) it stays off
+    assert 15 <= site.hp < 53 and state(site) == "DISABLED" and changes(events) == []
+    while site.hp < 52:
+        events += run(w, 1)
+    assert site.hp == 52 and state(site) == "DISABLED" and changes(events) == []
+    while site.hp < 53:
+        events += run(w, 1)
+    assert state(site) == "DAMAGED" and changes(events) == [("DISABLED", "DAMAGED")]  # at the line
+
+
+@pytest.mark.parametrize("facility", [True, False])
+def test_a_disabled_facility_waits_for_the_mission_kill_line_and_nothing_else_does(
+    facility: bool,
+) -> None:
+    """Q-TD-86 at the line (AIR_DEFENSE_SITE 150 hp: Disabled below 15, Mission-kill below 53,
+    Damaged below 105); a non-facility follows hp as before (CB-6)."""
+    stats = COMBAT.units["AIR_DEFENSE_SITE"]
+    assert stats.cuts == (15, 53, 105)
+    assert stats.state_after(52, "DISABLED", facility) == (
+        "DISABLED" if facility else "MISSION_KILL"
+    )
+    assert stats.state_after(53, "DISABLED", facility) == "DAMAGED"  # at the line: `state(hp)`
+    assert stats.state_after(105, "DISABLED", facility) == "HEALTHY"
+    assert stats.state_after(52, "MISSION_KILL", facility) == "MISSION_KILL"  # not Disabled before
+    assert stats.state_after(14, "MISSION_KILL", facility) == "DISABLED"
 
 
 def test_a_facility_repairs_from_its_base_stock_at_a_tenth_of_an_hp_per_stock() -> None:
@@ -275,9 +298,8 @@ def test_a_facility_repairs_from_its_base_stock_at_a_tenth_of_an_hp_per_stock() 
     site.hp, site.damage_state = 14, "DISABLED"
     events = run(w, 227)  # 136 hp x 1 000 / 600 = 226.7 ticks
     assert (site.hp, site.damage_state) == (150, "HEALTHY")
-    assert changes(events) == [
-        ("DISABLED", "MISSION_KILL"), ("MISSION_KILL", "DAMAGED"), ("DAMAGED", "HEALTHY"),
-    ]  # fmt: skip
+    # off until the Mission-kill line (53 hp), where `state(hp)` is Damaged (Q-TD-86)
+    assert changes(events) == [("DISABLED", "DAMAGED"), ("DAMAGED", "HEALTHY")]
     assert w.stock[WEST] == 1000 - 13 and site.repair_owed == 600  # 13.6 units
     assert consumed(events) == [(WEST, 13, "REPAIR")] and len(of(events, UnitRepaired)) == 1
 
@@ -351,11 +373,13 @@ def test_a_repaired_radar_tracks_again() -> None:
     uav.state, uav.fuel = (
         "LANDED",
         RULES.fuel_s["ENEMY_RECON_UAV"],
-    )  # 80 km: inside a Mission-kill radar's 96 km (120 x 0.8)
+    )  # 80 km: inside a Damaged radar's 96 km (120 x 0.8)
     run(w, 1)
     assert not tracked_by(w, "COALITION", uav.id)  # a Disabled radar senses nothing
-    run(w, 10)
-    assert state(radar) == "MISSION_KILL" and tracked_by(w, "COALITION", uav.id)
+    run(w, 10)  # 20 hp: above the floor, still off until the Mission-kill line (Q-TD-86)
+    assert state(radar) == "DISABLED" and not tracked_by(w, "COALITION", uav.id)
+    run(w, 60)  # 14 + 71 x 0.6 = 56 hp, past 53
+    assert state(radar) == "DAMAGED" and tracked_by(w, "COALITION", uav.id)
 
 
 def test_a_paused_world_repairs_nothing() -> None:

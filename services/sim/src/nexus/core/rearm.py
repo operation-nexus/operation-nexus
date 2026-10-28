@@ -34,8 +34,9 @@ it reaches 1000 and is counted in `rearm_spent`, so units debited = thousandths 
 `SupplyConsumed{REARM}` (fuel and ammo) and `SupplyConsumed{REPAIR}` (hp), one each per stop when it
 ends (everything wanted is bought, the unit leaves, or the base stalls); repair has its own carries
 `repair_owed` and `repair_spent`. A base never sells beyond its stock. When something is still
-wanted and nothing could be bought, `RearmStalled` is emitted once. The damage state follows hp:
-each repair step that changes it emits `UnitDamageStateChanged`, and the step that reaches max hp
+wanted and nothing could be bought, `RearmStalled` is emitted once. The damage state follows hp
+(a Disabled facility stays Disabled until it is back up to the Mission-kill line, Q-TD-86): each
+repair step that changes it emits `UnitDamageStateChanged`, and the step that reaches max hp
 `UnitRepaired{by_id: None, node_id}`.
 Deterministic: integers except fuel, entities in id order (the caller), no RNG.
 """
@@ -221,13 +222,15 @@ def _repair(
         b.moved = True
         if gained:
             e.hp += gained
-            _repaired(world, cr, e, node, out)
+            _repaired(world, cr, e, node, rules.domain[e.kind] == _STATIC, out)
     b.unmet |= e.hp < stats.hp
 
 
-def _repaired(world: World, cr: CombatRules, e: Entity, node: str, out: list[Event]) -> None:
+def _repaired(
+    world: World, cr: CombatRules, e: Entity, node: str, facility: bool, out: list[Event]
+) -> None:
     stats = cr.units[e.kind]
-    state = stats.state(e.hp)
+    state = stats.state_after(e.hp, e.damage_state, facility)  # a Disabled site waits (Q-TD-86)
     if state != e.damage_state:
         set_damage_state(world, e, state, out)
     if e.hp == stats.hp:

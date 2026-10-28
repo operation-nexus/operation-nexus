@@ -32,8 +32,11 @@ refers to an entity id, so a job names a node, or a SIGINT blob with its cell ce
   `1 - d / radius` for the nearest tracked enemy at distance `d` (0 at the radius, 1 at the base),
   capped at `urgency_max`.
 - **Strike** (`strike:<node>`): an enemy-held node whose defense hp is above 0 that is the active
-  objective (coalition only, urgency at the cap), or holds a discovered facility marker whose
-  last-known state is not Disabled (urgency 1.0 + its kind's `threat` / 100, capped).
+  objective (coalition only, urgency at the cap), or an enemy-held node, at any defense hp, that
+  holds a discovered facility marker whose last-known state is not Disabled (`live_site`; urgency
+  1.0 + its kind's `threat` / 100, capped). The marker job outlives the node's defenses (SEAD,
+  Q-TD-81): the site is still there to strike, and `nexus.core.tasking` ends the job only once
+  the side owns the node or its defense hp is 0 and no live site marker is left there.
   Q-SIM-92: each strike job gets one extra slot per idle armed viewer unit (up to
   `tasking.strike_max_scaled_slots`); with idle ones left and none of the above open, the
   `tasking.strike_idle_targets_max` foe-held nodes with defense hp nearest a node of the side's
@@ -79,7 +82,7 @@ GM) is not.
 """
 
 import math
-from collections.abc import Iterator, Mapping
+from collections.abc import Iterable, Iterator, Mapping
 from fractions import Fraction
 from itertools import pairwise
 from typing import NamedTuple
@@ -91,7 +94,7 @@ from nexus.core.fog import SideView
 from nexus.core.logistics import approach, facility_damage, plan_run, stock_targets
 from nexus.core.roads import shortest_path
 from nexus.core.rules import CAPTURE_FULL, Rules, TaskingRules
-from nexus.core.world import Contact, Entity, Vec2, World
+from nexus.core.world import Contact, Entity, FacilityMarker, Vec2, World
 
 POST_GATE = (
     "post-gate"  # a `World.cooldown` key (cells are digits): no new scout job until its tick
@@ -180,6 +183,12 @@ def can_hit(rules: Rules, e: Entity, target: UnitKind) -> bool:
         rounds > 0 and domain in w.targets and (domain != _AIR or band in w.bands)
         for w, rounds in zip(cr.loadout(e.kind, e.variant), e.ammo, strict=True)
     )
+
+
+def live_site(markers: Iterable[FacilityMarker], pos: tuple[float, float]) -> bool:
+    """A discovered facility marker at `pos` whose last-known state is not Disabled (the SEAD
+    strike rule, Q-TD-81): the generator posts on it and the verdict keeps the job on it."""
+    return any((m.pos.x, m.pos.y) == pos and m.state != "DISABLED" for m in markers)
 
 
 def held_within(
@@ -427,9 +436,8 @@ def _strike(
     for _, m in sorted(view.markers.items()):
         node = at.get((m.pos.x, m.pos.y))
         if (
-            node is None or node == rear or view.owners.get(node) != foe
-            or m.state == "DISABLED" or not view.defense_hp.get(node, 0)
-        ):  # fmt: skip
+            node is None or node == rear or view.owners.get(node) != foe or m.state == "DISABLED"
+        ):  # any defense hp: a live site is a SEAD target (Q-TD-81)
             continue
         threat = rules.combat.units[m.kind].threat if rules.combat else 0
         threats[node] = max(threats.get(node, 0), threat)

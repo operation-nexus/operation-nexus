@@ -408,6 +408,15 @@ class UnitRules:
             return "DISABLED"
         return "MISSION_KILL" if hp < mission_kill else "DAMAGED" if hp < damaged else "HEALTHY"
 
+    def state_after(self, hp: int, was: DamageState, facility: bool) -> DamageState:
+        """`state(hp)`, except that a Disabled facility stays Disabled until its hp is back up to
+        the Mission-kill line (Q-TD-86): repaired above the Disabled line it is still off (no
+        sensing, emitting or firing, not a target), so a suppressed site stays suppressed a while.
+        A Disabled non-facility is a wreck and is never repaired (CB-7)."""
+        if facility and was == "DISABLED" and hp < self.cuts[1]:
+            return "DISABLED"
+        return self.state(hp)
+
     @property
     def floor(self) -> int:
         """The hp a facility never drops below: the highest hp still DISABLED, at least 1 (CB-9)."""
