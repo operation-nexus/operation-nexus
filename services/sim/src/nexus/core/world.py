@@ -99,8 +99,9 @@ from nexus.core.rules import CAPTURE_FULL, Rules
 # open massing sitrep named, and Job.downed_by and downed, the viewer units that downed a STRIKE
 # job's claimants and whether its sitrep was emitted (NX-431, Q-TD-47, Q-TD-56); 34: shortfall and
 # shortfall_end, each side's open shortfall episodes and when each base's last one ended (NX-436);
-# 35: Job.struck_by, the claimants that fired at a STRIKE job's target (Q-TD-87, NX-463)
-FORMAT_VERSION = 35
+# 35: Job.struck_by, the claimants that fired at a STRIKE job's target (Q-TD-87, NX-463); 36:
+# Campaign.defeat_idle_ticks, the defeat run's empty stretch (Q-TD-95, NX-476)
+FORMAT_VERSION = 36
 _MM = 1000.0  # metres -> millimetres; m/s -> mm/s
 _MICRO = 1e6  # ADR-0002's 1e-6 step for other floats (fuel)
 _MILLI_UNIT = 1000  # thousandths of a stock unit per unit
@@ -495,6 +496,7 @@ class Campaign:
     objectives_issued: int = 0
     objectives_done: int = 0
     defeat_ticks: int = 0  # the run of running ticks the coalition sanctuary's defense hp is 0
+    defeat_idle_ticks: int = 0  # the run's empty stretch: no viewer unit (Q-TD-95, NX-476)
     hold_nodes: tuple[str, ...] = ()  # the running victory hold's nodes (NX-412 part 4)
 
 
@@ -1403,6 +1405,7 @@ _CAMPAIGN_CHECKS: dict[str, Callable[[object, str], Any]] = {
     "objectives_issued": _int,
     "objectives_done": _int,
     "defeat_ticks": _int,
+    "defeat_idle_ticks": _int,
     "hold_nodes": lambda v, k: _node_ids(v, k),
 }
 
@@ -1554,7 +1557,7 @@ def _load_campaign(value: object) -> Campaign:
         (c.pause_reason is None) == c.clock_paused
         or (c.pause_sub_reason is not None and c.pause_reason != "STAFF")
         or c.running_ticks > c.tick
-        or max(c.hold_ticks, c.defeat_ticks) > c.running_ticks
+        or max(c.hold_ticks, c.defeat_ticks + c.defeat_idle_ticks) > c.running_ticks
         or bool(c.hold_nodes) != bool(c.hold_ticks)  # a running hold always has nodes
         or c.objectives_done > c.objectives_issued
     ):
