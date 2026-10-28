@@ -29,7 +29,7 @@ from test_launch import window as bare_window
 from nexus.contracts.gen.common.enums import Side, ThreatTier, UnitKind
 from nexus.contracts.gen.events.event import Event
 from nexus.core import operations as ops
-from nexus.core.director import night_capped
+from nexus.core.director import night_capped, night_spacing
 from nexus.core.fog import side_view
 from nexus.core.launch import _own
 from nexus.core.provocation import validate
@@ -396,11 +396,83 @@ def test_the_convoy_runs_to_the_base_with_the_largest_upkeep_shortfall_and_only_
 
 def test_the_cap_is_spent_for_one_over_cap_hours_counted_from_the_last_flip() -> None:
     s = new_world().director["ENEMY"]
-    assert not night_capped(s, DR, 5)
+    cap = DR.night_cap_ticks
+    assert not night_capped(s, DR, 5, cap)
     s.last_flip = 100
-    assert night_capped(s, DR, 100 + DR.night_cap_ticks - 1)
-    assert not night_capped(s, DR, 100 + DR.night_cap_ticks)
+    assert night_capped(s, DR, 100 + cap - 1, cap)
+    assert not night_capped(s, DR, 100 + cap, cap)
     assert DR.night_cap_ticks == 216_000  # 1 / (1/6) game hours at 10 ticks a game second
+
+
+QUIET_REF = 50  # capture.quiet_ref as shipped: the viewer units at which the cap has faded to none
+
+
+def test_the_spacing_fades_linearly_from_the_full_cap_to_none_at_quiet_ref() -> None:
+    cap = DR.night_cap_ticks
+    assert [night_spacing(DR, v, QUIET_REF) for v in (0, 1, 5, 25, 49, 50, 80)] == [
+        cap, cap * 49 // 50, cap * 9 // 10, cap // 2, cap // 50, 0, 0
+    ]  # fmt: skip
+    assert RULES.capture is not None and RULES.capture.quiet_ref == QUIET_REF
+
+
+def second_flip_after(gap: int, viewers: int) -> World:
+    """A flip, `gap` ticks pass, then a second bar reaches the flip (the first stamps the clock)."""
+    w = new_world()
+    for _ in range(viewers):
+        viewer(w)
+    flip_ready(w, "cross-n")
+    step(w, [])
+    assert w.owner["cross-n"] == "ENEMY"
+    skip(w, gap)
+    flip_ready(w, "cross-s")
+    step(w, [])
+    return w
+
+
+def test_at_five_viewer_units_a_flip_inside_the_faded_spacing_is_refused_and_after_it_goes() -> (
+    None
+):
+    spacing = night_spacing(DR, 5, QUIET_REF)
+    assert 0 < spacing < DR.night_cap_ticks
+    w = second_flip_after(spacing - 10, 5)
+    assert w.owner["cross-s"] == "NEUTRAL"  # inside the faded spacing: refused and held
+    assert (
+        w.capture["cross-s"].progress == CAPTURE_FULL - 1 and "cross-s" in w.director["ENEMY"].held
+    )
+    assert second_flip_after(spacing, 5).owner["cross-s"] == "ENEMY"  # at the spacing: allowed
+
+
+def test_the_faded_cap_state_round_trips_and_replays_to_the_same_hash() -> None:
+    def build() -> World:
+        w = new_world()
+        for _ in range(5):
+            viewer(w)
+        flip_ready(w, "cross-n", "cross-s")
+        step(w, [])
+        return w
+
+    a, b = build(), build()
+    c = load(save(a))
+    c.rules = RULES
+    assert state_hash(c) == state_hash(a)
+    for w in (a, b, c):
+        skip(w, DR.night_cap_ticks)  # a held bar waits the full cap
+        step(w, [])
+    assert state_hash(a) == state_hash(b) == state_hash(c)
+    assert dict(a.owner)["cross-s"] == "ENEMY"
+
+
+def test_without_capture_rules_the_director_cap_holds_at_no_viewer_only() -> None:
+    from nexus.core.launch import _night_capped
+
+    w = new_world()
+    w.director["ENEMY"].last_flip = 1
+    rules = dataclasses.replace(RULES, capture=None)
+    dr = DR
+    assert _night_capped(w, rules, w.director["ENEMY"], dr, 2)
+    viewer(w)  # one viewer unit ends it without the fade (the pre-NX-474 test)
+    assert not _night_capped(w, rules, w.director["ENEMY"], dr, 2)
+    assert _night_capped(w, RULES, w.director["ENEMY"], dr, 2)  # with capture rules it fades
 
 
 def flip_ready(w: World, *nodes: str) -> None:
@@ -424,14 +496,15 @@ def test_with_no_viewer_the_second_flip_waits_a_night_cap_and_the_bar_holds_just
     assert w.director["ENEMY"].last_flip == w.campaign.running_ticks
 
 
-def test_with_a_viewer_unit_there_is_no_hold_but_the_flip_still_starts_the_cap_clock() -> None:
+def test_with_a_crowd_there_is_no_hold_but_the_flip_still_starts_the_cap_clock() -> None:
     w = new_world()
-    v = viewer(w)
+    crowd = [viewer(w) for _ in range(QUIET_REF)]  # at `quiet_ref` the cap has faded to nothing
     flip_ready(w, "cross-n", "cross-s")
     step(w, [])
     assert (w.owner["cross-n"], w.owner["cross-s"]) == ("ENEMY", "ENEMY")  # nothing held
     assert w.director["ENEMY"].last_flip == 1 and w.director["ENEMY"].held == {}
-    w.remove(v.id)  # the viewer leaves: the clock the flip started now holds the next one
+    for v in crowd:
+        w.remove(v.id)  # the viewers leave: the clock the flip started now holds the next one
     w.owner["cross-n"] = w.owner["cross-s"] = "NEUTRAL"
     flip_ready(w, "cross-n")
     step(w, [])
@@ -445,12 +518,16 @@ def test_a_bar_held_by_the_cap_stays_held_when_a_viewer_arrives_and_frees_one_at
     step(w, [])
     held = dict(w.director["ENEMY"].held)
     assert sorted(held) == ["cross-n", "cross-s"] and w.owner["cross-n"] == "NEUTRAL"
-    viewer(w)  # a viewer joins: nobody sees the held bases fall at once
+    for _ in range(QUIET_REF):  # a crowd joins (the faded cap would be 0): nobody sees them fall
+        viewer(w)
     for _ in range(30):
         step(w, [])
     assert (w.owner["cross-n"], w.owner["cross-s"]) == ("NEUTRAL", "NEUTRAL")
     assert w.capture["cross-n"].progress == CAPTURE_FULL - 1 and w.director["ENEMY"].held == held
-    skip(w, DR.night_cap_ticks)  # the cap frees: one flips, the other waits a full cap again
+    skip(w, DR.night_cap_ticks - 100)  # still short of the full 0-viewer cap (Q-SIM-86)
+    step(w, [])
+    assert (w.owner["cross-n"], w.owner["cross-s"]) == ("NEUTRAL", "NEUTRAL")
+    skip(w, 100)  # the full cap frees: one flips, the other waits a full cap again
     step(w, [])
     assert (w.owner["cross-n"], w.owner["cross-s"]) == ("ENEMY", "NEUTRAL")
     assert sorted(w.director["ENEMY"].held) == ["cross-s"]
@@ -482,8 +559,10 @@ def test_the_director_launches_no_capture_operation_while_the_cap_is_spent() -> 
         noise=DR.noise * 0,
     )  # fmt: skip
 
-    def launched(capped: bool) -> set[str]:
+    def launched(capped: bool, viewers: int = 0) -> set[str]:
         w = new_world(1, rules)
+        for _ in range(viewers):
+            viewer(w)
         if capped:
             w.director["ENEMY"].last_flip = 1
         window(w, "BRAVO", 300, rules)
@@ -492,6 +571,8 @@ def test_the_director_launches_no_capture_operation_while_the_cap_is_spent() -> 
     assert "OFFENSIVE" in launched(False)
     assert launched(True) & {"OFFENSIVE", "RETAKE"} == set()
     assert launched(True)  # everything else still runs
+    assert launched(True, 5) & {"OFFENSIVE", "RETAKE"} == set()  # the faded cap still bars them
+    assert "OFFENSIVE" in launched(True, QUIET_REF)  # and at `quiet_ref` it no longer does
 
 
 def test_the_pol_capture_slot_launches_one_on_its_period_from_real_surplus() -> None:

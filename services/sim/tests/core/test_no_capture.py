@@ -75,12 +75,16 @@ def test_night_cap_no_viewer_unit_and_the_cap_spent() -> None:
     assert reason(w) == "night_cap"
 
 
-def test_a_live_viewer_unit_lifts_the_night_cap() -> None:
-    # the same scene, then one live COMMANDER unit: the cap needs nobody playing
+def test_a_crowd_of_quiet_ref_viewer_units_lifts_the_night_cap_and_one_unit_only_fades_it() -> None:
+    # the same scene: the cap fades with the viewers (Q-TD-93) and is gone at `capture.quiet_ref`
     w = world(NEW_UNLIMITED)
     w.director["ENEMY"].last_flip = 1
     floor_window(w, 10)
+    assert w.rules is not None and w.rules.capture is not None
     w.spawn("STRIKE_FIGHTER", "COALITION", "COMMANDER", Vec2(0, 0))
+    assert reason(w) == "night_cap"
+    for _ in range(w.rules.capture.quiet_ref - 1):
+        w.spawn("STRIKE_FIGHTER", "COALITION", "COMMANDER", Vec2(0, 0))
     assert reason(w) != "night_cap"
 
 

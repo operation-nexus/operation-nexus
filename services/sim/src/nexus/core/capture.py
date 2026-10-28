@@ -41,14 +41,18 @@ defense HP is above 0 (`capture.requires_defenses_down`, a Q-CFG-16 option). A b
 running is not stopped by a later repair: it fills or decays by the rules above (the gate says
 "can't begin", GAMEPLAY §8), and the flip sets the HP to 0 for the new owner. Idle floor (Q-GP-28,
 Q-GP-44; `campaign.idle_floor.enabled`): with no live viewer unit, the theater's `forward_airbase`
-while the coalition owns it is skipped, so its bar neither starts, fills nor decays.
+while the coalition owns it is skipped, so its bar neither starts, fills nor decays. With a
+viewer live and the airbase the only strategic node the coalition holds (the last base, Q-TD-93),
+no bar starts or fills there, but a running Static bar decays or is drained as usual.
 
 Night progress (Q-SIM-85, Q-SIM-86, NX-157): every Static flip stamps `DirectorState.last_flip`.
-With no live viewer unit, the Static may flip a node only if none flipped in the last
-`1 / campaign.night_progress_cap_nodes_per_h` game hours (`director.night_capped`); until then its
+The Static may flip a node only if none flipped in the last `spacing` ticks
+(`director.night_capped`): `1 / campaign.night_progress_cap_nodes_per_h` game hours at no live
+viewer unit, fading linearly to 0 at `capture.quiet_ref` viewer units (`director.night_spacing`,
+Q-TD-93); until then its
 bar holds one step short of the flip (the node is in `DirectorState.held`), and the Director
 launches no capture operation (`nexus.core.launch`). A held bar stays held until the cap frees,
-even when a viewer arrives, so a new viewer does not see held bases fall at once; coalition units
+even when a viewer arrives (the full 0-viewer cap, Q-SIM-86); coalition units
 contest it as any bar, and it leaves `held` when it is gone or drained. A garrison unit (one
 with a home base) and a unit on a PATROL job never count as capturers (they still contest and
 garrison): a garrison only defends (Q-SIM-86), so a patrol turns at a neutral node, or a failed
@@ -69,7 +73,7 @@ from nexus.contracts.gen.events.event import Event
 from nexus.contracts.gen.events.node_captured import NodeCaptured
 from nexus.core.bridges import reroute
 from nexus.core.defense import reset
-from nexus.core.director import night_capped
+from nexus.core.director import night_capped, night_spacing
 from nexus.core.fog import hand_over
 from nexus.core.logistics import friendly_bases, nearest, road_start
 from nexus.core.provocation import captured
@@ -106,11 +110,21 @@ def capture(world: World, out: list[Event]) -> None:
     viewers = world.viewer_units()
     quiet = _quiet(cap, viewers)
     d = rules.defense
-    idle_node = d.forward_airbase if viewers == 0 and d and d.idle_floor else None
+    idle_node = d.forward_airbase if d and d.idle_floor else None
     for node in nodes:  # id order
-        if node == idle_node and world.owner[node] == "COALITION":
+        mine = node == idle_node and world.owner[node] == "COALITION"
+        if mine and viewers == 0:
             continue  # the idle floor
-        _tick_node(world, rules, cap, node, near[node], quiet, viewers == 0, out)
+        last = mine and _last_base(world, rules, node)  # with viewers: no start, no fill (Q-TD-93)
+        _tick_node(world, rules, cap, node, near[node], quiet, viewers, out, no_fill=last)
+
+
+def _last_base(world: World, rules: Rules, node: str) -> bool:
+    """The coalition holds no strategic node but `node`: it keeps one base to fight from."""
+    rc = rules.campaign
+    return rc is not None and not any(
+        world.owner.get(n) == "COALITION" for n in rc.strategic if n != node
+    )
 
 
 def _prune_held(world: World) -> None:
@@ -184,14 +198,22 @@ def _tick_node(
     node: str,
     near: dict[Side, _Presence],
     quiet: float,
-    humanless: bool,
+    viewers: int,
     out: list[Event],
+    *,
+    no_fill: bool = False,
 ) -> None:
+    """`no_fill`: the last base (Q-TD-93): no bar starts and none fills, but a running bar still
+    decays or is drained once no capturer stands on it, so a bar left behind does not flip the base
+    the moment it stops being the last (a capturer still standing there keeps it frozen near
+    full)."""
     owner = world.owner[node]
     capturers = [s for s in SIDES if s != owner and near[s].weight > 0]
     free = [s for s in capturers if not near[_OTHER[s]].armed]
     bar = world.capture.get(node)
     if bar is None:
+        if no_fill:
+            return
         if cap.requires_defenses_down and world.defense_hp.get(node):
             return  # the defenses are up: no bar (Q-GD-18)
         starter = _starter(near, free)
@@ -202,24 +224,32 @@ def _tick_node(
     elif bar.side not in free:  # abandoned, or contested: it drains alike (Q-SIM-23)
         _decay(world, cap, node, bar)
         return
+    elif no_fill:
+        return
     base = _base_time(cap, near[bar.side].weight, quiet if bar.side in cap.quiet_sides else 1.0)
     time = max(cap.min_time_s, base * _modifier(cap, owner, near))
     bar.progress += max(cap.min_progress, round(CAPTURE_FULL * rules.world_dt / time))
     if bar.progress >= CAPTURE_FULL:
-        if _night_hold(world, rules, node, bar, humanless):
+        if _night_hold(world, rules, cap, node, bar, viewers):
             bar.progress = CAPTURE_FULL - 1  # the night cap holds the flip back
             return
         _flip(world, rules, cap, node, bar.side, near, out)
 
 
-def _night_hold(world: World, rules: Rules, node: str, bar: CaptureBar, humanless: bool) -> bool:
-    """Whether the night cap holds back this Static flip (a held node stays held, Q-SIM-86); a flip
-    that goes ahead stamps the cap clock, with or without viewers."""
+def _night_hold(
+    world: World, rules: Rules, cap: CaptureRules, node: str, bar: CaptureBar, viewers: int
+) -> bool:
+    """Whether the night cap holds back this Static flip (a held node stays held until the full
+    0-viewer cap frees, even when viewers arrive, Q-SIM-86); a flip that goes ahead stamps the cap
+    clock, with or without viewers. The spacing fades to 0 at `quiet_ref` viewer units (Q-TD-93)."""
     dr, static = rules.director, world.director["ENEMY"]
     if dr is None or bar.side != "ENEMY":
         return False
     now = world.campaign.running_ticks + 1
-    if night_capped(static, dr, now) and (humanless or node in static.held):
+    spacing = (
+        dr.night_cap_ticks if node in static.held else night_spacing(dr, viewers, cap.quiet_ref)
+    )
+    if night_capped(static, dr, now, spacing):
         static.held.setdefault(node, now)
         return True
     static.last_flip = now

@@ -346,6 +346,63 @@ def test_other_nodes_are_not_frozen_and_a_lost_forward_airbase_is_not_protected(
     assert [e.node_id for e in of(run(w), CaptureStarted)] == [ENEMY_FOB]
 
 
+def last_base_world(*, floor: bool = True, keep: tuple[str, ...] = ()) -> World:
+    """Five viewer units; the coalition holds the forward airbase and `keep`, no other strategic
+    node; the Static stands on the airbase with its defenses down (Q-TD-93)."""
+    from nexus.runtime.campaign_config import load_campaign_config
+
+    rc = load_campaign_config().rules.campaign
+    assert rc is not None and RULES.defense is not None
+    d = dataclasses.replace(RULES.defense, idle_floor=floor)
+    w = new_world(dataclasses.replace(RULES, campaign=rc, defense=d))
+    for n in rc.strategic:
+        if n != FORWARD and n not in keep:
+            w.owner[n] = "ENEMY"
+    for _ in range(5):
+        human(w)
+    w.defense_hp[FORWARD] = 0
+    put(w, ARMOR, "ENEMY", *at(FORWARD))
+    return w
+
+
+def test_the_last_strategic_base_is_frozen_at_any_viewer_count_and_only_then() -> None:
+    w = last_base_world()
+    assert w.viewer_units() == 5 and of(run(w, 5), CaptureStarted) == []
+    assert FORWARD not in w.capture
+    w2 = last_base_world(keep=(MY_FOB,))  # a second strategic node: no longer the last base
+    assert [e.node_id for e in of(run(w2), CaptureStarted)] == [FORWARD]
+
+
+def test_a_running_bar_on_the_last_base_decays_and_does_not_flip_when_it_stops_being_the_last() -> (
+    None
+):
+    w = last_base_world()
+    w.capture[FORWARD] = CaptureBar("ENEMY", CAPTURE_FULL * 99 // 100)
+    armor = next(e for e in w.entities() if e.kind == ARMOR)
+    run(w, 5)
+    assert w.capture[FORWARD].progress == CAPTURE_FULL * 99 // 100  # the enemy is there: frozen
+    w.remove(armor.id)  # it leaves: the bar drains as any abandoned bar
+    run(w, 100)
+    drained = w.capture[FORWARD].progress
+    assert drained < CAPTURE_FULL * 99 // 100
+    w.owner[MY_FOB] = "COALITION"  # the coalition retakes a FOB: the airbase is no longer the last
+    put(w, ARMOR, "ENEMY", *at(FORWARD))
+    run(w, 30)
+    assert w.owner[FORWARD] == "COALITION" and w.capture[FORWARD].progress < CAPTURE_FULL
+
+
+def test_the_last_base_freeze_follows_the_idle_floor_switch_and_is_deterministic() -> None:
+    w = last_base_world(floor=False)
+    assert [e.node_id for e in of(run(w), CaptureStarted)] == [FORWARD]
+    a, b = last_base_world(), last_base_world()
+    run(a, 20), run(b, 20)
+    assert state_hash(a) == state_hash(b)
+    c = load(save(a))
+    c.rules = a.rules
+    run(a, 10), run(c, 10)
+    assert state_hash(a) == state_hash(c)
+
+
 # --- defeat (Q-TH-7) --------------------------------------------------------------------------
 
 

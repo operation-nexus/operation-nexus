@@ -74,7 +74,7 @@ capture:
   time_s: 120.0  # PROPOSED – unvalidated; s (world), one capturer, no modifiers (CONFIG-AND-CONTENT §6.5 capture.time_s)
   multi_unit_exponent: 0.5  # PROPOSED – unvalidated (Q-SIM-26); exponent: time ÷ n^0.5 (CONFIG-AND-CONTENT §6.5)
   quiet_floor: 0.6  # PROPOSED – unvalidated (Q-SIM-26); multiplier at 0 viewer units, for the quiet_sides (CONFIG-AND-CONTENT §6.5)
-  quiet_ref: 50  # PROPOSED – unvalidated (Q-SIM-26); viewer units at which the multiplier reaches 1.0 (CONFIG-AND-CONTENT §6.5)
+  quiet_ref: 50  # PROPOSED – unvalidated (Q-SIM-26); viewer units at which the multiplier reaches 1.0 and the Static's night-cap spacing has faded to none (Q-TD-93, CONFIG-AND-CONTENT §6.5)
   min_time_s: 30.0  # PROPOSED – unvalidated (Q-SIM-26, Q-GP-4); s (world) (CONFIG-AND-CONTENT §6.5)
   logi_weight: 0.5  # PROPOSED – unvalidated (Q-SM-7); a logistics unit counts as half a capturer (CONFIG-AND-CONTENT §6.5)
   garrison_mult: 3.0  # PROPOSED – unvalidated (Q-SM-8); capture-time multiplier, a defender that cannot contest is at the base (CONFIG-AND-CONTENT §6.5)
@@ -136,14 +136,14 @@ campaign:
   objective_pick: uniform  # decided rule as default, Q-CFG-16 option; the only value today (CONFIG-AND-CONTENT §6.6)
   victory:
     hq_capture: true  # decided rule as default, Q-CFG-16 option; capturing the enemy HQ wins at once (CONFIG-AND-CONTENT §6.6)
-  idle_floor:  # decided rule as default, Q-CFG-16 option (Q-GP-28, Q-GP-44); with no live viewer unit (CONFIG-AND-CONTENT §6.6)
+  idle_floor:  # decided rule as default, Q-CFG-16 option (Q-GP-28, Q-GP-44); with no live viewer unit, and the forward airbase also while it is the coalition's last strategic node (Q-TD-93) (CONFIG-AND-CONTENT §6.6)
     enabled: true
     sanctuary_min_hp: 1  # hp, the coalition sanctuary's floor while the idle floor holds
   score:
     average_weight: 50  # PROPOSED – unvalidated (Q-SIM-64); points x a side's average share of strategic nodes over the campaign (CONFIG-AND-CONTENT §6.6)
     final_weight: 50  # PROPOSED – unvalidated (Q-SIM-64); points x a side's share of strategic nodes at the final tick (CONFIG-AND-CONTENT §6.6)
     objective_points: 5  # PROPOSED – unvalidated (Q-SM-9); points per completed objective, coalition (CONFIG-AND-CONTENT §6.6)
-  night_progress_cap_nodes_per_h: 0.16666666666666666  # PROPOSED – unvalidated (Q-ALN-23, Q-SIM-85); nodes/h (game), 1/6: with no viewer unit the Static flips at most one node per 6 game hours (CONFIG-AND-CONTENT §6.6)
+  night_progress_cap_nodes_per_h: 0.16666666666666666  # PROPOSED – unvalidated (Q-ALN-23, Q-SIM-85); nodes/h (game), 1/6: with no viewer unit the Static flips at most one node per 6 game hours, the spacing fading to none at capture.quiet_ref viewer units (Q-TD-93) (CONFIG-AND-CONTENT §6.6)
   momentum:
     nodes_weight: 70  # PROPOSED – unvalidated (Q-SIM-60); percentage points x the coalition's share of strategic nodes (CONFIG-AND-CONTENT §6.6)
     supply_weight: 30  # PROPOSED – unvalidated (Q-SIM-60); percentage points x the coalition's supply fill (CONFIG-AND-CONTENT §6.6)

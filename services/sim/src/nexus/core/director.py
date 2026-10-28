@@ -72,10 +72,17 @@ def due(dr: DirectorRules, running_tick: int) -> bool:
     return running_tick % dr.window_ticks == 0
 
 
-def night_capped(state: DirectorState, dr: DirectorRules, running_tick: int) -> bool:
-    """The night-progress cap is spent (Q-SIM-85): the Static flipped a node while no viewer unit
-    was live less than `night_cap_ticks` ago. The caller adds the "no viewer unit" test."""
-    return state.last_flip != 0 and running_tick - state.last_flip < dr.night_cap_ticks
+def night_spacing(dr: DirectorRules, viewers: int, quiet_ref: int) -> int:
+    """The minimum ticks between Static flips at `viewers` live viewer units (Q-TD-93): the
+    0-viewer `night_cap_ticks`, fading linearly to 0 at `quiet_ref`. Integer arithmetic, floored."""
+    return dr.night_cap_ticks * (quiet_ref - min(viewers, quiet_ref)) // quiet_ref
+
+
+def night_capped(state: DirectorState, dr: DirectorRules, running_tick: int, spacing: int) -> bool:
+    """The night-progress cap is spent (Q-SIM-85): the Static flipped a node less than `spacing`
+    ticks ago (`night_spacing` for the live viewers: `night_cap_ticks` at none, 0 from `quiet_ref`
+    viewer units on)."""
+    return state.last_flip != 0 and running_tick - state.last_flip < spacing
 
 
 def raw_cp(view: SideView, dr: DirectorRules) -> int:
