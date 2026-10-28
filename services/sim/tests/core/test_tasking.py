@@ -836,6 +836,113 @@ def test_a_low_orbiting_aircraft_flies_to_the_nearest_base_with_stock() -> None:
     assert jet.path == ["haven"]
 
 
+# Q-TD-88 (NX-464): a jet landed at a starved base whose capped tank cannot serve its job. West- and
+# east-airbase each hold at most 2,000 (floor 500, 0.25 x 2,000); a strike jet's tank is 3,600 s
+# and the starved cap half of it, 1,800 s. Striking the other side's airbase (220 km out, 220 km
+# back at 250 m/s) takes 1,760 s plus the 540 s bingo reserve: over the cap, inside a full tank.
+# Each side's sanctuary (haven, static-rear) is 70 or 85 km behind its airbase, inside the cap.
+_STARVED_SIDES: dict[Side, tuple[UnitKind, str, str, str, str]] = {
+    "COALITION": ("STRIKE_FIGHTER", "west-airbase", "east-airbase", "haven", "fob-n-w"),
+    "ENEMY": ("ENEMY_STRIKE_FIGHTER", "east-airbase", "west-airbase", "static-rear", "fob-n-e"),
+}
+
+
+def _starved_strike(side: Side, stock: int = 300) -> tuple[World, Entity, Job]:
+    """A jet landed at its side's airbase (stock `stock`, under the floor by default) with half a
+    tank, the starved cap, and a strike on the other side's airbase."""
+    kind, base, target, _, _ = _STARVED_SIDES[side]
+    w = new_world()
+    jet = put(w, kind, base)  # player-owned on both sides: an AI unit initiates no strike
+    jet.fuel = 1800.0
+    w.stock[base] = stock
+    return w, jet, post(w, side, "STRIKE", target, "far")
+
+
+@pytest.mark.parametrize("side", ["COALITION", "ENEMY"])
+def test_a_jet_at_a_starved_base_its_capped_tank_cannot_serve_flies_to_its_sanctuary(
+    side: Side,
+) -> None:
+    w, jet, _ = _starved_strike(side)
+    board_pass(w)
+    assert jet.job_id is None and jet.path == [_STARVED_SIDES[side][3]]
+
+
+@pytest.mark.parametrize("side", ["COALITION", "ENEMY"])
+def test_a_jet_at_an_unstarved_base_stays_and_refuels_there(side: Side) -> None:
+    w, jet, _ = _starved_strike(side, stock=500)  # at its floor: not starved
+    board_pass(w)
+    assert jet.job_id is None and jet.path == []
+
+
+@pytest.mark.parametrize("side", ["COALITION", "ENEMY"])
+@pytest.mark.parametrize("near", [True, False])
+def test_a_rounds_only_shortfall_at_a_starved_base_waits_there_for_its_gun_rounds(
+    side: Side, near: bool
+) -> None:
+    # With no rounds the verdict is `refuel`, and the starved base sells gun rounds. Near: a strike
+    # on the near FOB (72 km out and back: 576 s plus the reserve) with 1,000 s left, which the
+    # capped tank it can buy there serves. Far: the airbase strike with a full tank, over the cap.
+    _, base, _, _, fob = _STARVED_SIDES[side]
+    w, jet, far = _starved_strike(side)
+    if near:
+        w.boards[side].pop(far.id)
+        w.owner[fob] = "ENEMY" if side == "COALITION" else "COALITION"
+        post(w, side, "STRIKE", fob, "near")
+        jet.fuel = 1000.0
+    else:
+        jet.fuel = 3600.0
+    jet.ammo = [0] * len(jet.ammo)
+    board_pass(w)
+    assert jet.job_id is None and jet.path == [] and jet.last_node == base
+
+
+@pytest.mark.parametrize("side", ["COALITION", "ENEMY"])
+def test_a_jet_with_no_unstarved_base_in_reach_stays_at_the_starved_one(side: Side) -> None:
+    w, jet, _ = _starved_strike(side)
+    jet.fuel = 100.0  # the sanctuary is 280 s or more away, plus the 540 s reserve
+    board_pass(w)
+    assert jet.job_id is None and jet.path == []
+
+
+_RUN_TICKS = 4000  # the flight to the sanctuary, the refill and the take-off fit well inside
+
+
+def _starved_run(side: Side, *, snapshot_at: int | None = None) -> tuple[World, int | None]:
+    """Run `_starved_strike` with real steps until the jet sets off on the strike, or for
+    `_RUN_TICKS`. Returns the world and the tick it set off on the strike after landing at its
+    sanctuary (None if it never did). With `snapshot_at`, the run carries on from a save/load
+    round trip taken at that tick."""
+    w, jet, job = _starved_strike(side)
+    _, _, target, haven, _ = _STARVED_SIDES[side]
+    landed = False
+    for t in range(_RUN_TICKS):
+        if t == snapshot_at:
+            w = load(save(w))
+            w.rules = RULES
+            found = w.find(jet.id)
+            assert found is not None
+            jet = found
+        step(w, [])
+        landed |= jet.state == "LANDED" and jet.last_node == haven
+        if jet.job_id == job.id and jet.path == [target]:
+            return w, t if landed else None
+    return w, None
+
+
+@pytest.mark.parametrize("side", ["COALITION", "ENEMY"])
+def test_the_starved_jet_refuels_at_its_sanctuary_then_flies_the_strike(side: Side) -> None:
+    _, set_off = _starved_run(side)
+    assert set_off is not None
+
+
+def test_the_starved_jet_run_is_deterministic_and_survives_a_snapshot() -> None:
+    plain, tick = _starved_run("COALITION")
+    again, _ = _starved_run("COALITION")
+    assert tick is not None
+    restored, _ = _starved_run("COALITION", snapshot_at=tick // 2)  # on its way to haven
+    assert state_hash(plain) == state_hash(again) == state_hash(restored)
+
+
 def test_a_ground_unit_without_a_road_route_takes_no_job() -> None:
     w = new_world()
     post(

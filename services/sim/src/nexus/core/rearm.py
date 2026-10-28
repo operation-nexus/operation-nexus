@@ -99,6 +99,12 @@ def station(world: World, rules: Rules, e: Entity) -> str | None:
     return node if on_it and rules.node_kind.get(node) != "BRIDGE" else None
 
 
+def is_starved(world: World, rules: Rules, node: str) -> bool:
+    """`node` holds finite stock below its starvation floor (GAMEPLAY §5, Q-SIM-53); a sanctuary
+    with no stock limit never is."""
+    return node in world.stock and world.stock[node] < rules.supply.starve_floor[node]
+
+
 def ammo_price(rules: Rules, e: Entity) -> int:
     """A full load of rounds in stock-thousandths: a facility pays `facility_rearm_cost`; a unit
     `logistics.ammo_loadout_share` of its `loadout_cost` if it also has a tank (fuel pays the rest),
@@ -121,7 +127,7 @@ def restock(world: World, rules: Rules, e: Entity, out: list[Event]) -> None:
     if node is None or (e.damage_state == _DISABLED and not facility):
         return end_rearm(world, e, out)
     finite = node in world.stock
-    starved = finite and world.stock[node] < sup.starve_floor[node]
+    starved = is_starved(world, rules, node)
     room = max(0, world.stock[node] * _MILLI - e.rearm_milli - e.repair_owed) if finite else None
     b = _Buy(room, sup.rearm_milli)
     price = ammo_price(rules, e)
