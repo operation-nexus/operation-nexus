@@ -1079,7 +1079,7 @@ export interface JobCreated {
   job_id: number;
   side: "COALITION" | "ENEMY";
   /**
-   * Tasking Board job kinds the code handles (GAMEPLAY §1b, CONTRACTS §3.3). STAGE and CAPTURE are posted by the Threat Director on the Static board only (Q-SIM-81, Q-TD-14). PATROL is the Director's on the Static board (Q-SIM-85) and the coalition board's front-line patrol (Q-SIM-94). INTERCEPT is the Static board's hunt of a coalition scout it tracks (Q-SIM-96). REPAIR_BRIDGE is the coalition board's truck field repair of a down bridge (NX-373 part 2). RESCUE joins with its job (rule 6a).
+   * Tasking Board job kinds the code handles (GAMEPLAY §1b, CONTRACTS §3.3). STAGE and CAPTURE are posted by the Threat Director on the Static board (Q-SIM-81, Q-TD-14); CAPTURE is also the coalition board's one retake job (Q-TD-99, NX-475). PATROL is the Director's on the Static board (Q-SIM-85) and the coalition board's front-line patrol (Q-SIM-94). INTERCEPT is the Static board's hunt of a coalition scout it tracks (Q-SIM-96). REPAIR_BRIDGE is the coalition board's truck field repair of a down bridge (NX-373 part 2). RESCUE joins with its job (rule 6a).
    */
   job_kind:
     | "RESUPPLY"

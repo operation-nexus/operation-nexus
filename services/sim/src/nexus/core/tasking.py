@@ -36,9 +36,9 @@ while frozen (SC-11), for each side in COALITION, ENEMY order:
      NX-156): go to the base and hold; DONE when every current claimant is there and every slot
      is claimed or the expiry has passed (the job that depends on it opens then), FAILED with no
      claimant left or when the side lost the base.
-     CAPTURE (the Director's): go to the node and stay, the capture run itself being
-     `nexus.core.capture`; DONE when the node is the side's, EXPIRED at its expiry even with
-     claimants (a claimant still driving gets a fresh clock, at most
+     CAPTURE (the Director's, and the coalition's retake, NX-475): go to the node and stay, the
+     capture run itself being `nexus.core.capture`; DONE when the node is the side's, EXPIRED at
+     its expiry even with claimants (a claimant still driving gets a fresh clock, at most
      `tasking.capture_max_restarts` times).
      PATROL (the Director's, NX-157): drive out to `Job.via` and then home to the base; DONE when a
      claimant is back at the base, FAILED with no claimant left or when the side lost the base.
@@ -77,7 +77,8 @@ while frozen (SC-11), for each side in COALITION, ENEMY order:
    an aircraft reaches the target and a landing base of its side with the bingo reserve left,
    its straight route crosses no discovered, not-Disabled enemy air-defense ring unless the
    target is that site's base (`crosses_ring`, also applied to a parameterless JOIN), and a strike
-   job needs a round. A carrier (truck, convoy) fits resupply and repair-bridge jobs only. An
+   job needs a round. A carrier (truck, convoy) fits resupply and repair-bridge jobs, and the
+   coalition's retake (`fits_job`, Q-TD-100), only. An
    aircraft that fails only for fuel or rounds takes a refuel step instead: it flies to the
    nearest landing base with stock, where `logistics` restocks it, and tries again next pass;
    when that base (or the one it is landed at) is starved and its capped tank cannot serve the
@@ -92,7 +93,8 @@ coalition scout was tracked inside a held node's radius, dropped when it is not)
 
 A non-garrison unit may displace an AI garrison claimant (Q-TD-11; `tasking.human_displaces_ai`).
 An AI garrison unit takes the `tasking.ai_jobs` (DEFEND, RESUPPLY, SCOUT) freely, never the
-`tasking.ai_excluded_jobs` (ESCORT_CONVOY, PATROL), and any other job only once a COMMANDER-owned
+`tasking.ai_excluded_jobs` (ESCORT_CONVOY, PATROL) or a retake (a viewer's truck's, Q-TD-100),
+and any other job only once a COMMANDER-owned
 unit holds a claim on it (it never initiates offense). A parameterless JOIN takes the best job at
 once (`joinable_jobs`, ties by id). For `tasking.counterattack_window_min` after its side loses a
 node (`World.lost`) the garrison may also take strike and assist-objective jobs against it
@@ -133,10 +135,11 @@ from nexus.core.rules import Rules, TaskingRules
 from nexus.core.tasking_gen import (
     GENERATED,
     POST_GATE,
+    RETAKE,
     JobSpec,
     can_hit,
     crewing,
-    fits,
+    fits_job,
     generate,
     held_within,
     is_idle,
@@ -205,8 +208,9 @@ def _base(world: World) -> dict[str, Any]:
 
 
 def priority(tr: TaskingRules, job: Job, now: int) -> Fraction:
-    """`tasking.priority.<kind>` x urgency, plus linear aging per game minute waited (TB-3)."""
-    waited = Fraction(now - job.created, tr.ticks_per_min)
+    """`tasking.priority.<kind>` x urgency, plus linear aging per game minute waited (TB-3). A
+    retake does not age, so a starving base's resupply always ranks above it (Q-TD-100 (a))."""
+    waited = Fraction(0 if job.key.startswith(RETAKE) else now - job.created, tr.ticks_per_min)
     # 1000: `Job.urgency` is in thousandths of a multiplier (a fixed-point scale)
     return tr.priority[job.kind] * Fraction(job.urgency, 1000) + tr.aging_per_min * waited
 
@@ -336,8 +340,8 @@ def _may_take(world: World, tr: TaskingRules, e: Entity, job: Job) -> bool:
     if job.kind == _INTERCEPT:  # the garrison's own call: a round that can hit the scout
         track = world.contacts[e.side].get(job.entity or 0)
         return track is not None and world.rules is not None and can_hit(world.rules, e, track.kind)
-    if job.kind in tr.ai_excluded_jobs:
-        return e.owner_kind != _AI  # escorting, patrolling: the players' call (Q-GP-45, Q-SIM-94)
+    if job.kind in tr.ai_excluded_jobs or job.key.startswith(RETAKE):
+        return e.owner_kind != _AI  # escort, patrol, retake: the players' call (Q-GP-45, Q-TD-100)
     if e.owner_kind != _AI or job.kind in tr.ai_jobs:
         return True
     lost = world.lost.get(job.node or "")
@@ -400,7 +404,7 @@ def joinable_jobs(world: World, kind: UnitKind) -> list[Job]:
     jobs = [
         j for j in world.boards["COALITION"].values()
         if j.depends_on is None and j.kind not in tr.join_excluded_jobs
-        and fits(rules, kind, j.kind)
+        and fits_job(rules, kind, j.kind, j.key)
     ]  # fmt: skip
     return _open(tr, world, rank(tr, jobs, _now(world), None), ai=False)
 
@@ -890,7 +894,7 @@ def _preempt_patrols(
         if any(
             j.kind != _PATROL and j.depends_on is None and priority(tr, j, now) > mine
             and not _full(world, j, ai=False)
-            and fits(rules, e.kind, j.kind) and _may_take(world, tr, e, j)
+            and fits_job(rules, e.kind, j.kind, j.key) and _may_take(world, tr, e, j)
             and _feasible(world, rules, routes, e, j) == "ok"
             for j in board.values()
         ):  # fmt: skip
@@ -967,7 +971,7 @@ def _assign(
         pool = [
             j for j in ranked
             if j.depends_on is None and _board_may_give(rules, e, j)
-            and fits(rules, e.kind, j.kind) and _may_take(world, tr, e, j)
+            and fits_job(rules, e.kind, j.kind, j.key) and _may_take(world, tr, e, j)
         ]  # fmt: skip
         for job in _open(tr, world, pool, ai=e.owner_kind == _AI):
             verdict = _feasible(world, rules, routes, e, job)
@@ -1012,7 +1016,7 @@ def idle_diagnosis(world: World, e: Entity) -> tuple[str, Job | None]:
     pool = [
         j for j in ranked
         if j.depends_on is None and _board_may_give(rules, e, j)
-        and fits(rules, e.kind, j.kind) and _may_take(world, tr, e, j)
+        and fits_job(rules, e.kind, j.kind, j.key) and _may_take(world, tr, e, j)
         and not _truck_lost(world, j)  # combat may take a truck after the pass (NX-459)
     ]  # fmt: skip
     if not pool:
