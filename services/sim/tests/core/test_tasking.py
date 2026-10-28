@@ -1670,6 +1670,96 @@ def test_a_recon_point_job_overfills_only_with_the_overfill_point_jobs_key() -> 
         assert len(job.claims) == claims
 
 
+# Q-TD-89 (NX-465): a free job the unit cannot fly no longer turns overfill off. Each side's jet
+# stands at its airbase (`_STARVED_SIDES`); the free job strikes the other side's airbase, which a
+# full tank flies, and a discovered SAM mid-strait (on no node, so the board posts no strike on it)
+# rings the straight line; a DEFEND of the side's own FOB, 1 slot, is full.
+def _ring_scene(side: Side, *, ring: bool = True) -> tuple[World, Entity, Job, Job]:
+    kind, base, target, _, fob = _STARVED_SIDES[side]
+    w = new_world()
+    strike = post(w, side, "STRIKE", target, "far", urgency=5000)  # ranked first
+    defend = post(w, side, "DEFEND", fob, "d", slots=1)
+    claim(w, put(w, kind, base), defend, [])
+    jet = put(w, kind, base)
+    if ring:  # keyed by one of the other side's real AIR_DEFENSE_SITE ids, as a snapshot requires
+        w.markers[side][7 if side == "COALITION" else 3] = _sam((200_000, 120_000))
+    return w, jet, strike, defend
+
+
+@pytest.mark.parametrize("side", ["COALITION", "ENEMY"])
+def test_a_ring_blocked_free_job_leaves_the_unit_to_overfill_a_reachable_full_one(
+    side: Side,
+) -> None:
+    w, jet, strike, defend = _ring_scene(side)
+    assert crosses_ring(w, RULES, side, jet.pos, strike)
+    board_pass(w)
+    assert jet.job_id == defend.id and len(defend.claims) == 2 and not strike.claims
+    assert jet.path == [defend.node]
+
+
+@pytest.mark.parametrize("side", ["COALITION", "ENEMY"])
+def test_a_feasible_free_job_still_comes_before_overfill(side: Side) -> None:
+    w, jet, strike, defend = _ring_scene(side, ring=False)
+    board_pass(w)
+    assert jet.job_id == strike.id and len(defend.claims) == 1
+
+
+@pytest.mark.parametrize("side", ["COALITION", "ENEMY"])
+def test_a_free_job_needing_a_refuel_step_still_counts_as_free(side: Side) -> None:
+    # Verdict `refuel` (a full tank would fly it) keeps today's walk: the rearm step, no overfill.
+    w, jet, strike, defend = _ring_scene(side, ring=False)
+    # The strike needs 1,760 s plus the 540 s reserve; the full FOB defend 660 s at most plus it.
+    jet.fuel = 1500.0
+    board_pass(w)
+    assert jet.job_id is None and len(defend.claims) == 1 and not strike.claims
+
+
+def test_idle_diagnosis_tells_a_ring_with_the_rest_full_from_a_lockout() -> None:
+    w, jet, strike, defend = _ring_scene("COALITION")
+    assert idle_diagnosis(w, jet) == ("next_pass", defend)  # it overfills the defend next pass
+    claim(w, put(w, "STRIKE_FIGHTER", "west-airbase"), defend, [])  # at its cap of 2 x 1
+    before = state_hash(w)
+    assert idle_diagnosis(w, jet) == ("ring_full", strike)
+    assert state_hash(w) == before
+    jet.fuel = 1000.0  # the capped defend (577 s out and back plus the 540 s reserve) is `refuel`
+    assert idle_diagnosis(w, jet) == ("ring_full", strike)  # flyable after a rearm step: no lockout
+    jet.fuel = RULES.fuel_s["STRIKE_FIGHTER"]
+    defend.node = "east-airbase"  # past the same ring now: no job it can fly at all
+    assert idle_diagnosis(w, jet) == ("ring", strike)
+    w.boards["COALITION"].pop(defend.id)
+    assert idle_diagnosis(w, jet) == ("ring", strike)
+
+
+def test_a_bare_join_takes_a_full_job_when_the_free_one_crosses_a_ring() -> None:
+    w, _, strike, defend = _ring_scene("COALITION")
+    defend.urgency = 9000  # ranked above the strike, yet a free job is offered first
+    assert [j.id for j in joinable_jobs(w, "STRIKE_FIGHTER")] == [strike.id, defend.id]
+    events = step(w, [join(1, "STRIKE")])
+    (new,) = [e for e in w.entities() if e.commander_id == cid(1)]
+    assert "JobClaimed" in kinds(events) and new.job_id == defend.id
+
+
+def _ring_run(side: Side, *, snapshot_at: int | None = None) -> World:
+    """`_ring_scene` with real steps for 500 ticks (the overfill at the first pass, before the
+    Director's first window), optionally through a save/load at a tick."""
+    w, jet, _, defend = _ring_scene(side)
+    for t in range(500):
+        if t == snapshot_at:
+            w = load(save(w))
+            w.rules = RULES
+        step(w, [])
+    found = w.find(jet.id)
+    assert found is not None and found.job_id == defend.id
+    return w
+
+
+@pytest.mark.parametrize("side", ["COALITION", "ENEMY"])
+def test_the_ring_overfill_run_is_deterministic_and_survives_a_snapshot(side: Side) -> None:
+    hashes = {state_hash(_ring_run(side)), state_hash(_ring_run(side))}
+    hashes.add(state_hash(_ring_run(side, snapshot_at=230)))
+    assert len(hashes) == 1
+
+
 def test_a_bare_join_skips_the_kinds_in_join_excluded_jobs_and_none_when_empty() -> None:
     """NX-388, Q-DEV-21: the shipped [PATROL] is the old rule; [] lets a JOIN take a patrol."""
     cases: list[tuple[frozenset[JobKind], list[str]]] = [

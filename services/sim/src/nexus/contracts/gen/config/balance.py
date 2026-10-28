@@ -1705,7 +1705,7 @@ class Tasking(BaseModel):
     overfill_factor: Annotated[
         int,
         Field(
-            description="When every job is full, a job takes units up to this many times its slots (TB-4, Q-DEV-21), unit multiplier; a Recon scout's point job overfills only with overfill_point_jobs.",
+            description="When no job with a free slot is feasible for a unit (Q-TD-89), a job takes units up to this many times its slots (TB-4, Q-DEV-21), unit multiplier; a Recon scout's point job overfills only with overfill_point_jobs.",
             ge=1,
         ),
     ]

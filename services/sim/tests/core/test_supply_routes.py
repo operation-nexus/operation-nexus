@@ -351,8 +351,8 @@ def test_a_held_claimant_whose_lease_lapses_still_never_crosses_enemy_ground() -
     bridges.damage(w, rules, SOUTH, 300, 1, [])
     tt.board_pass(w)
     repair = _jobs(w, "REPAIR_BRIDGE")
-    for r in repair:  # fill the repair slots so the board has no other job for the truck
-        for _ in range(r.slots - len(r.claims)):
+    for r in repair:  # fill the repair job to its overfill cap so the board has no other job for
+        for _ in range(tt.TR.overfill_factor * r.slots - len(r.claims)):  # the truck (Q-TD-89)
             blocker = tt.put(w, "LOGI_TRUCK", "haven")
             tasking.claim(w, blocker, r, [])
             blocker.path = []
