@@ -36,6 +36,7 @@ Deterministic: nodes in id order, integer state, no RNG.
 from nexus.contracts.gen.events.event import Event
 from nexus.contracts.gen.events.node_defenses_down import NodeDefensesDown
 from nexus.contracts.gen.events.node_defenses_restored import NodeDefensesRestored
+from nexus.core.rearm import is_starved
 from nexus.core.rules import DefenseRules, Rules
 from nexus.core.world import World
 
@@ -111,7 +112,7 @@ def drain(world: World, out: list[Event]) -> None:
     if not d.drain_per_min:
         return
     for node, hp in world.defense_hp.items():  # id order
-        if hp and node in world.stock and world.stock[node] < rules.supply.starve_floor[node]:
+        if hp and is_starved(world, rules, node):
             carry = world.defense_drain[node] + d.drain_per_min
             lost, world.defense_drain[node] = divmod(carry, d.ticks_per_min)
             if lost:

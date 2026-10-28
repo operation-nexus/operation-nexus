@@ -77,8 +77,10 @@ while frozen (SC-11), for each side in COALITION, ENEMY order:
    target is that site's base (`crosses_ring`, also applied to a parameterless JOIN), and a strike
    job needs a round. A carrier (truck, convoy) fits resupply and repair-bridge jobs only. An
    aircraft that fails only for fuel or rounds takes a refuel step instead: it flies to the
-   nearest landing base with stock, where `logistics` restocks it, and tries again next pass. A
-   claim sets the path: a GROUND unit by road, an aircraft straight.
+   nearest landing base with stock, where `logistics` restocks it, and tries again next pass;
+   landed at a starved base whose capped tank cannot serve the job, it flies instead to the
+   nearest unstarved landing base in reach (`_capped_short`, Q-TD-88). A claim sets the path: a
+   GROUND unit by road, an aircraft straight.
 
 Before each Static pass `World.intercept_seen` is brought up to date (`_watch`: the first pass a
 coalition scout was tracked inside a held node's radius, dropped when it is not).
@@ -119,6 +121,7 @@ from nexus.core.logistics import (
     plan_run,
     supply_route,
 )
+from nexus.core.rearm import is_starved
 from nexus.core.rng import PcgStream, RngStream
 from nexus.core.roads import shortest_path
 from nexus.core.rules import Rules, TaskingRules
@@ -960,7 +963,7 @@ def _assign(
                 claim(world, e, job, out)
                 _dispatch(world, rules, routes, e, job)
             else:
-                _refuel(world, rules, e)
+                _refuel(world, rules, e, job)
             break
 
 
@@ -1268,9 +1271,31 @@ def _load_at_source(world: World, rules: Rules, routes: Routes, e: Entity, job: 
     return route is not None
 
 
-def _refuel(world: World, rules: Rules, e: Entity) -> None:
+def _refuel(world: World, rules: Rules, e: Entity, job: Job) -> None:
     """The rearm/refuel step (GAMEPLAY §1b, Q-GD-17): head for the nearest landing base of the
-    side that has stock, unless already landed at one (`logistics` restocks it there)."""
+    side that has stock, unless already landed at one (`logistics` restocks it there). Landed at
+    a starved base whose capped tank cannot serve `job` (`_capped_short`), it heads instead for
+    the nearest unstarved landing base it can reach now, ties by node id, and stays when there is
+    none in reach (Q-TD-88)."""
     bases = tuple(b for b in world.landing_bases(e.side) if b not in world.stock or world.stock[b])
-    if bases and not (e.state == "LANDED" and e.last_node in bases):
+    if e.state == "LANDED" and e.last_node in bases:
+        if not _capped_short(world, rules, e, job):
+            return
+        fuel = e.fuel or 0.0
+        bases = tuple(
+            b for b in bases if not is_starved(world, rules, b) and reaches(rules, e, b, (b,), fuel)
+        )
+    if bases:
         e.path, e.orbit = [nearest_base(e, rules, bases)[1]], None
+
+
+def _capped_short(world: World, rules: Rules, e: Entity, job: Job) -> bool:
+    """`e` stands at a starved base (`rearm.is_starved`) and the most it can hold there, the
+    starved cap (`logistics.starved_loadout.fuel_frac` of its tank) or more if it already has
+    more, would still not fly `job` (Q-TD-88). False for a rounds-only shortfall: the tank it
+    has or can buy there serves the job, so it waits for the rounds."""
+    node, fuel = e.last_node, e.fuel
+    if node is None or fuel is None or not is_starved(world, rules, node):
+        return False
+    cap = max(fuel, rules.supply.starved_fuel_frac * rules.fuel_s[e.kind])
+    return not _reaches(world, rules, e, job, world.landing_bases(e.side), cap)
