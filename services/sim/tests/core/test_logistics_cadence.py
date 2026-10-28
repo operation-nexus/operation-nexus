@@ -486,6 +486,24 @@ def test_the_convoy_takes_trucks_by_its_shortfall_up_to_the_raised_cap() -> None
     assert slots(400, 3) == 1  # need 0.2: cap 1 + 0
 
 
+def test_a_raised_convoy_cap_shrinks_to_the_spawn_room_instead_of_skipping_the_base() -> None:
+    def slots(spawns: int) -> int | None:
+        base = raised(3, CONVOYS)
+        assert base.director is not None
+        rules = dataclasses.replace(
+            base, director=dataclasses.replace(base.director, max_spawns_per_window=spawns)
+        )
+        w = pol_world(1, rules, opening=True)
+        w.stock["east-airbase"] = 0  # need 1: the raised cap is 4
+        at_window(w, DEMAND, rules)
+        found = convoy_jobs(w)
+        return found[0].slots if found else None
+
+    assert slots(30) == 4  # room enough: the raised cap
+    assert slots(2) == 2  # less room than the cap: a smaller convoy, not none (CodeRabbit, #514)
+    assert slots(0) is None  # no room for even `convoy_slots`: skipped, as before
+
+
 def test_damaged_facilities_raise_the_convoys_cap() -> None:
     sup = dataclasses.replace(RULES.supply, truck_cargo=1)  # the shortfall wants many trucks
     rules = dataclasses.replace(raised(3, CONVOYS), supply=sup)

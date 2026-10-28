@@ -569,6 +569,7 @@ def _convoys(
         : dr.convoys_per_period
     ]:
         slots = _convoy_slots(world, rules, side, dr, base, max(0, short.get(base, 0)))
+        slots = max(dr.convoy_slots, min(slots, spawns, live_room))  # a raised cap fits the room
         op = OperationRules(
             _CONVOY_OP, "NODE", (), dr.convoy_cost, frozenset(),
             (JobTemplate("RESUPPLY", "target", (dr.convoy_kind,), slots),), None, Fraction(0),
