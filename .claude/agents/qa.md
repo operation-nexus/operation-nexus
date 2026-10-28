@@ -11,7 +11,7 @@ Before checking, read AGENTS.md, CLAUDE.md, `.agents/rules/code-quality.md` (wit
 Run every command in the foreground with a timeout long enough for it. Never end your turn waiting on a background job. Send your report exactly once, as the final message.
 
 Always run, in this order, and record what each returned:
-1. `make check` (paste the command and its last lines).
+1. `make check` (paste the command and its last lines). Exception (token budget, owner 2026-10-28): when the brief says the coder's full `make check` on this same tree came back clean, run instead the targeted `pytest` paths for the changed files, the golden tests when kernel code changed, and your mutants; say in the report that you relied on the coder's run. Run the full `make check` anyway if you change your mind about any part of the diff or the coder's output looks incomplete.
 2. The reviewer pass yourself, not through a nested agent (another agent would read the whole diff again and may run on the session's model): follow `.agents/roles/reviewer.md` and `docs/quality/REVIEW-CHECKLIST.md` on the working-tree diff.
 3. The `code-review` skill on the diff (correctness).
 4. The `ponytail-review` skill on the diff (vendored in `.claude/skills/`, so it exists in every session).

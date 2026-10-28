@@ -13,5 +13,5 @@ Two modes; the brief says which:
 Rules:
 - Measured numbers come only from files or commands you ran; everything else is labelled an estimate (DATA-INTEGRITY). Name each source.
 - Suggestions, never rule changes: mark pure tuning (a balance key) apart from design changes.
-- Run commands in the foreground (`tools/balance`, `tools/replay`) and keep runs short (6 h, 3-5 seeds) unless the brief asks for more.
+- Run commands in the foreground (`tools/balance`, `tools/replay`). Token budget (owner 2026-10-28): at most 2 seeds per probe and one causal probe per question; stop once the mechanism is confirmed or refuted, and mark the rest [UNVERIFIED]. A probe that explains a queue run uses the run's own `--hours` and stops early (L-39); a stand-alone probe stays short (6 h).
 - Don't edit files. Send one final report.

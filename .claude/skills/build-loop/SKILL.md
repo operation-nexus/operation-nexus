@@ -31,7 +31,9 @@ Goal: work runs **as autonomously as possible** and pings the owner rarely (Q-DE
   - Briefs name the files and sections to read instead of pasting them, and list only what the agent files don't already cover.
   - A one-line or doc-only change the lead makes inline; no coder for it.
   - One QA per round; the optional deep passes (`finecomb`, `review-council`, `/ponytail-review`) only on sensitive paths (CLAUDE.md).
-  - Run `make check` once per agent, at the end; targeted `pytest` paths while iterating.
+  - Run `make check` once per agent, at the end; targeted `pytest` paths while iterating. QA does not repeat the coder's full `make check` on the same tree: the brief says it came back clean and QA runs the targeted tests, goldens (kernel) and mutants (`.claude/agents/qa.md` step 1, owner 2026-10-28).
+  - Entertainment-review briefs cap probes: at most 2 seeds and one causal probe per question (`.claude/agents/entertainment-reviewer.md`).
+  - A docs-only PR gets no PR-activity subscription: turn auto-merge on when it opens (L-35) and check it on the next loop tick. The daytime loop tick does nothing, and says one line, when nothing changed.
 - Before saying what a harness run tests (or has tested), read the values at that sha: `balance/default.yaml` plus the run's `set` overrides (L-28).
 - Harness results: read each `harness-done` issue within a day or two, file the analysis (an entertainment review in `docs/review/`, a PR or a tracker row), then close the issue with a comment linking it (owner rule 2026-10-26; tools/balance/README "Closing a result").
 
