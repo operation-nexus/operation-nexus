@@ -404,6 +404,61 @@ def test_no_defeat_accrues_while_nobody_plays() -> None:
     assert len(of(run(w), CampaignEnded)) == 1
 
 
+def leave(w: World) -> None:
+    """The last viewer unit goes: nobody plays."""
+    w.remove(next(e.id for e in w.entities() if e.owner_kind == "COMMANDER"))
+
+
+def test_a_gap_shorter_than_the_hold_resumes_the_defeat_run() -> None:
+    """Q-TD-95 (NX-476): a death and respawn does not save the siege: 20 of 30 ticks at 0 hp,
+    nobody plays for 29 ticks (one short of the hold), one viewer joins: the run resumes at 20."""
+    w = campaign_world(30)
+    w.defense_hp[SANCTUARY] = 0
+    run(w, 20)
+    leave(w)
+    assert of(run(w, 29), CampaignEnded) == []
+    assert (w.campaign.defeat_ticks, w.campaign.defeat_idle_ticks) == (20, 29)
+    human(w)
+    assert of(run(w, 9), CampaignEnded) == []
+    assert (w.campaign.defeat_ticks, w.campaign.defeat_idle_ticks) == (29, 0)
+    (ended,) = of(run(w), CampaignEnded)
+    assert (ended.result, w.campaign.running_ticks) == ("DEFEAT", 20 + 29 + 10)
+
+
+def test_a_gap_as_long_as_the_hold_restarts_the_run_so_a_joining_viewer_gets_a_full_hold() -> None:
+    """Q-TD-95 (NX-476): nobody plays for 30 ticks (the hold) after 20 of 30 at 0 hp: the run
+    restarts from 0 and a viewer who joins loses the war only after 30 more ticks; a save/load
+    in the middle of the empty stretch changes nothing."""
+    w = campaign_world(30)
+    w.defense_hp[SANCTUARY] = 0
+    run(w, 20)
+    leave(w)
+    run(w, 29)
+    w2 = load(save(w))
+    w2.rules = w.rules  # rules are config, not snapshot state
+    assert state_hash(w2) == state_hash(w) and w2.campaign == w.campaign
+    for world in (w, w2):
+        run(world)
+        assert (world.campaign.defeat_ticks, world.campaign.defeat_idle_ticks) == (0, 30)
+        run(world, 5)
+        assert world.campaign.defeat_ticks == 0 and world.defense_hp[SANCTUARY] == 0
+        human(world)
+        assert of(run(world, 29), CampaignEnded) == []
+        (ended,) = of(run(world), CampaignEnded)
+        assert (ended.result, world.campaign.running_ticks) == ("DEFEAT", 20 + 35 + 30)
+    assert state_hash(w2) == state_hash(w)
+
+
+def test_a_snapshot_with_an_impossible_defeat_run_is_refused() -> None:
+    """The run and its empty stretch are disjoint running ticks, so together at most the clock."""
+    w = campaign_world(30)
+    w.defense_hp[SANCTUARY] = 0
+    run(w, 10)
+    w.campaign.defeat_idle_ticks = 1
+    with pytest.raises(ValueError, match="campaign"):
+        load(save(w))
+
+
 def test_victory_beats_defeat_on_the_same_tick() -> None:
     w = campaign_world(1)
     w.defense_hp[SANCTUARY] = 0
@@ -509,6 +564,18 @@ def test_a_repair_that_lifts_the_sanctuary_above_zero_resets_the_defeat_hold() -
     parked_truck(w)
     assert of(run(w, 2), CampaignEnded) == []  # 0.6 then 1.2 hp: above 0 on the second tick
     assert w.defense_hp[SANCTUARY] == 1 and w.campaign.defeat_ticks == 0
+
+
+def test_a_repair_during_an_empty_stretch_clears_the_run_and_the_stretch() -> None:
+    w = campaign_world(30)
+    w.defense_hp[SANCTUARY] = 0
+    run(w, 3)
+    leave(w)
+    run(w, 5)
+    assert (w.campaign.defeat_ticks, w.campaign.defeat_idle_ticks) == (3, 5)
+    parked_truck(w)  # AI-run: nobody plays, but it repairs
+    run(w, 2)  # 0.6 then 1.2 hp: above 0 on the second tick
+    assert (w.campaign.defeat_ticks, w.campaign.defeat_idle_ticks) == (0, 0)
 
 
 def test_the_static_rear_is_never_a_structure_target_but_the_coalition_sanctuary_is() -> None:

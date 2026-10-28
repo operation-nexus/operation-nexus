@@ -56,7 +56,7 @@ class IdleFloor(BaseModel):
     enabled: Annotated[
         bool,
         Field(
-            description="Whether the idle floor applies with no live viewer unit: the theater's forward airbase's capture bar is frozen while the coalition owns it, the coalition sanctuary's defense HP cannot drop below sanctuary_min_hp, and the defeat clock does not advance (GAMEPLAY §0 and §9; decided rule as default, Q-CFG-16 option), unit switch."
+            description="Whether the idle floor applies with no live viewer unit: the theater's forward airbase's capture bar is frozen while the coalition owns it, the coalition sanctuary's defense HP cannot drop below sanctuary_min_hp, and the defeat clock is held, and restarts from 0 once nobody has played for campaign.defeat.hold_min (Q-TD-95) (GAMEPLAY §0 and §9; decided rule as default, Q-CFG-16 option), unit switch."
         ),
     ]
     sanctuary_min_hp: Annotated[

@@ -15,8 +15,9 @@ SANCTUARY, HQ or a facility) to its running sum, resolves the active objective, 
   when it breaks, naming the lowest-id hold node lost; none when the campaign ends during it.
   `Campaign.hold_nodes` keeps the held strategic nodes while it runs (the director's view).
 - **Defeat** (Q-TH-7): the coalition sanctuary's defense HP has been 0 for `defeat_hold_ticks`
-  running ticks in a row (a repair above 0 resets the run; while nobody plays the run does not
-  advance, so a war is never lost while chat is asleep, Q-GP-28; that is the idle floor,
+  running ticks in a row (a repair above 0 resets the run; while nobody plays it is held, so a
+  war is never lost while chat is asleep, Q-GP-28, and once nobody has played for the hold it
+  resets, so a viewer who joins then starts a full hold, Q-TD-95; that is the idle floor,
   `campaign.idle_floor.enabled`). `CampaignEnded{DEFEAT}` with
   winner ENEMY. Checked after victory and before the time limit, so a victory beats it on the same
   tick and it beats the limit.
@@ -175,7 +176,7 @@ def campaign(world: World, out: list[Event]) -> None:
     c.held_ticks_enemy += _held(world, rc, _ENEMY)
     holding = bool(rc.strategic) and _share(coalition, rc) >= rc.victory_node_frac
     _track_hold(world, rc, holding, out)
-    c.defeat_ticks = _defeat_run(world)
+    c.defeat_ticks, c.defeat_idle_ticks = _defeat_run(world, rc)
     _resolve_objective(world, world.rules, rc, out)
     hq = rc.hq_capture and world.owner.get(rc.enemy_hq) == _COALITION
     if hq or c.hold_ticks >= rc.victory_hold_ticks:
@@ -215,15 +216,21 @@ def _track_hold(world: World, rc: CampaignRules, holding: bool, out: list[Event]
         )  # fmt: skip
 
 
-def _defeat_run(world: World) -> int:
-    """The run of running ticks the coalition sanctuary's defense HP has been 0 (Q-TH-7): reset by
-    a repair, held (not advanced) while no viewer unit plays and the idle floor is on."""
+def _defeat_run(world: World, rc: CampaignRules) -> tuple[int, int]:
+    """The defeat run and the empty stretch within it (Q-TH-7, Q-TD-95): the running ticks the
+    coalition sanctuary's defense HP has been 0, reset by a repair; while no viewer unit plays and
+    the idle floor is on, the run is held and the empty stretch counts, and once that stretch
+    reaches the hold the run resets, so a short gap (a death, a respawn) resumes it and a viewer
+    who joins after a long one starts a full hold."""
     rules = world.rules
     d = rules.defense if rules else None
     if rules is None or d is None or world.defense_hp.get(rules.sanctuary, 1) != 0:
-        return 0
-    run = world.campaign.defeat_ticks
-    return run if d.idle_floor and world.viewer_units() == 0 else run + 1
+        return 0, 0
+    c = world.campaign
+    if not d.idle_floor or world.viewer_units():
+        return c.defeat_ticks + 1, 0
+    idle = c.defeat_idle_ticks + 1
+    return (0 if idle >= rc.defeat_hold_ticks else c.defeat_ticks), idle
 
 
 def _announce(world: World, rc: CampaignRules, out: list[Event]) -> None:

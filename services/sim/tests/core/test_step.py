@@ -144,7 +144,7 @@ def golden_run() -> str:
     return state_hash(w)
 
 
-GOLDEN = "04e064f98e9c02b34b06941b5da6caaeadc146a09836440e10f9b85d4ccc3b18"
+GOLDEN = "a01a2af8656e6b65b3c32803d6c43d5e2378cb44683e184225cfc51f74a5d04d"
 
 
 def test_golden_ten_steps_seed_12345() -> None:
@@ -160,7 +160,7 @@ def test_golden_ten_steps_seed_12345() -> None:
     # bridge cooldowns; NX-412 part 1: v28 adds the source pools and storage caps; part 2: v29 adds
     # Entity.home_base, grounded and ordered; part 3: v30 adds DirectorState.last_operation; NX-431:
     # v33 adds Staged.sector, Job.downed_by and Job.downed; NX-436: v34 adds shortfall episodes;
-    # NX-463: v35 adds Job.struck_by).
+    # NX-463: v35 adds Job.struck_by; NX-476: v36 adds Campaign.defeat_idle_ticks).
     # A change here breaks every recorded replay hash: needs a `golden-update` reason.
     assert golden_run() == GOLDEN
     assert golden_run() == golden_run()
