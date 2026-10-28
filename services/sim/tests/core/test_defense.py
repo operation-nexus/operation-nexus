@@ -343,12 +343,17 @@ def test_other_nodes_are_not_frozen_and_a_lost_forward_airbase_is_not_protected(
     w = new_world()
     w.defense_hp[ENEMY_FOB] = 0
     put(w, INFANTRY, "COALITION", *at(ENEMY_FOB))  # AI-run, no human anywhere
-    assert [e.node_id for e in of(run(w), CaptureStarted)] == [ENEMY_FOB]
+    w.owner[FORWARD], w.defense_hp[FORWARD] = "ENEMY", 0  # the airbase is lost: no idle floor
+    put(w, INFANTRY, "COALITION", *at(FORWARD))
+    started = [e.node_id for e in of(run(w), CaptureStarted)]
+    assert started == sorted([ENEMY_FOB, FORWARD])
 
 
-def last_base_world(*, floor: bool = True, keep: tuple[str, ...] = ()) -> World:
-    """Five viewer units; the coalition holds the forward airbase and `keep`, no other strategic
-    node; the Static stands on the airbase with its defenses down (Q-TD-93)."""
+def last_base_world(
+    *, floor: bool = True, keep: tuple[str, ...] = (), last: str = FORWARD, viewers: int = 5
+) -> World:
+    """`viewers` viewer units at the haven; the coalition holds `last` and `keep`, no other
+    strategic node; the Static stands on `last` with its defenses down (Q-TD-93, Q-TD-103)."""
     from nexus.runtime.campaign_config import load_campaign_config
 
     rc = load_campaign_config().rules.campaign
@@ -356,12 +361,11 @@ def last_base_world(*, floor: bool = True, keep: tuple[str, ...] = ()) -> World:
     d = dataclasses.replace(RULES.defense, idle_floor=floor)
     w = new_world(dataclasses.replace(RULES, campaign=rc, defense=d))
     for n in rc.strategic:
-        if n != FORWARD and n not in keep:
-            w.owner[n] = "ENEMY"
-    for _ in range(5):
-        human(w)
-    w.defense_hp[FORWARD] = 0
-    put(w, ARMOR, "ENEMY", *at(FORWARD))
+        w.owner[n] = "COALITION" if n == last or n in keep else "ENEMY"
+    for _ in range(viewers):
+        put(w, INFANTRY, "COALITION", *at(SANCTUARY), cmd=1)
+    w.defense_hp[last] = 0
+    put(w, ARMOR, "ENEMY", *at(last))
     return w
 
 
@@ -401,6 +405,86 @@ def test_the_last_base_freeze_follows_the_idle_floor_switch_and_is_deterministic
     c.rules = a.rules
     run(a, 10), run(c, 10)
     assert state_hash(a) == state_hash(c)
+
+
+# --- NX-481: the last base is whichever strategic node the coalition holds last (Q-TD-103) -------
+
+
+@pytest.mark.parametrize("viewers", [0, 5])
+def test_a_fob_as_the_last_base_is_frozen_at_any_viewer_count(viewers: int) -> None:
+    w = last_base_world(last=MY_FOB, viewers=viewers)
+    assert w.viewer_units() == viewers and of(run(w, 5), CaptureStarted) == []
+    assert MY_FOB not in w.capture
+    w2 = last_base_world(last=MY_FOB, keep=(FORWARD,), viewers=viewers)  # two held: no freeze
+    assert [e.node_id for e in of(run(w2), CaptureStarted)] == [MY_FOB]
+
+
+def test_a_running_bar_on_a_last_fob_holds_and_decays_without_viewers_unlike_the_idle_floor() -> (
+    None
+):
+    w = last_base_world(last=MY_FOB, viewers=0)
+    w.capture[MY_FOB] = CaptureBar("ENEMY", CAPTURE_FULL * 99 // 100)
+    armor = next(e for e in w.entities() if e.kind == ARMOR)
+    run(w, 5)
+    assert w.capture[MY_FOB].progress == CAPTURE_FULL * 99 // 100  # the Static is there: no fill
+    w.remove(armor.id)
+    run(w, 100)
+    assert w.capture[MY_FOB].progress < CAPTURE_FULL * 99 // 100  # abandoned: it drains
+
+
+def test_the_freeze_lifts_when_the_coalition_retakes_a_second_node_by_capture() -> None:
+    other = "fob-s-w"  # after MY_FOB in id order: the flip lands after MY_FOB's turn this tick
+    w = last_base_world(last=MY_FOB)
+    w.defense_hp[other] = 0
+    put(w, INFANTRY, "COALITION", *at(other))
+    w.capture[other] = CaptureBar("COALITION", CAPTURE_FULL - 1)
+    ev = run(w)
+    assert [(e.node_id, e.to) for e in of(ev, NodeCaptured)] == [(other, "COALITION")]
+    assert of(ev, CaptureStarted) == [] and MY_FOB not in w.capture  # still the last at its turn
+    assert [e.node_id for e in of(run(w), CaptureStarted)] == [MY_FOB]  # no longer the last
+
+
+def test_a_node_left_last_by_a_flip_earlier_in_the_tick_is_frozen_in_that_tick() -> None:
+    w = last_base_world(last=FORWARD, keep=(MY_FOB,))  # MY_FOB is before FORWARD in id order
+    w.defense_hp[MY_FOB] = 0
+    put(w, ARMOR, "ENEMY", *at(MY_FOB))
+    w.capture[MY_FOB] = CaptureBar("ENEMY", CAPTURE_FULL - 1)
+    ev = run(w)
+    assert [(e.node_id, e.to) for e in of(ev, NodeCaptured)] == [(MY_FOB, "ENEMY")]
+    assert of(ev, CaptureStarted) == [] and FORWARD not in w.capture
+
+
+def test_a_held_node_that_is_not_strategic_is_never_the_last_base() -> None:
+    """The Static HQ is not a strategic node (`campaign.strategic_node_kinds`): held alone, with
+    `campaign.victory.hq_capture` off so its capture does not end the war, it is not frozen."""
+    w = last_base_world(last=MY_FOB)
+    assert w.rules is not None and w.rules.campaign is not None
+    hq = w.rules.campaign.enemy_hq
+    no_win = dataclasses.replace(w.rules.campaign, hq_capture=False)
+    w.rules = dataclasses.replace(w.rules, campaign=no_win)
+    w.owner[MY_FOB], w.owner[hq], w.defense_hp[hq] = "ENEMY", "COALITION", 0
+    put(w, ARMOR, "ENEMY", *at(hq))
+    assert [e.node_id for e in of(run(w), CaptureStarted)] == [hq]
+
+
+def test_with_no_strategic_node_held_the_coalition_can_still_start_a_retake() -> None:
+    w = last_base_world(last=MY_FOB)
+    w.owner[MY_FOB] = "ENEMY"  # the last base fell: only the never-captured haven is left
+    w.defense_hp[ENEMY_FOB] = 0
+    put(w, INFANTRY, "COALITION", *at(ENEMY_FOB))
+    assert [(e.node_id, e.side) for e in of(run(w), CaptureStarted)] == [(ENEMY_FOB, "COALITION")]
+
+
+def test_a_last_fob_freeze_survives_save_and_load() -> None:
+    a, b = last_base_world(last=MY_FOB), last_base_world(last=MY_FOB)
+    a.capture[MY_FOB] = CaptureBar("ENEMY", CAPTURE_FULL // 2)
+    b.capture[MY_FOB] = CaptureBar("ENEMY", CAPTURE_FULL // 2)
+    run(a, 20), run(b, 20)
+    assert state_hash(a) == state_hash(b) and a.capture[MY_FOB].progress == CAPTURE_FULL // 2
+    c = load(save(a))
+    c.rules = a.rules
+    run(a, 10), run(c, 10)
+    assert state_hash(a) == state_hash(c) and c.capture[MY_FOB].progress == CAPTURE_FULL // 2
 
 
 # --- defeat (Q-TH-7) --------------------------------------------------------------------------

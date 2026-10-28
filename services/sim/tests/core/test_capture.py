@@ -489,6 +489,11 @@ def test_an_unloading_truck_ends_its_stop_when_it_leaves_the_flipped_node() -> N
 
 
 def lose_all_other_bases(w: World, side: Side, keep: str) -> None:
+    """`keep` is `side`'s last base. These scenes need it to fall, so the coalition's last-base
+    freeze (Q-TD-103) is switched off with `campaign.idle_floor.enabled`."""
+    assert w.rules is not None and w.rules.defense is not None
+    no_floor = dataclasses.replace(w.rules.defense, idle_floor=False)
+    w.rules = dataclasses.replace(w.rules, defense=no_floor)
     for node, owner in list(w.owner.items()):
         if owner == side and node != keep:
             w.owner[node] = "NEUTRAL"
