@@ -66,10 +66,12 @@ while frozen (SC-11), for each side in COALITION, ENEMY order:
    longer generated expires.
 4. **Assign** (TB-2, TB-5, TB-7). Each idle unit of the side (aircraft or ground, not Disabled, no
    path, not RTB, no job, no explicit order), in id order, takes the first job in rank order that
-   fits it (`fits`), has no open dependency, may be taken by it, has a free slot (when every
-   fitting job is full: any) and is feasible. Rank: `tasking.priority.<kind>` x urgency +
-   `priority_aging_per_min` x game minutes waited, an exact Fraction, highest first; runs of equal
-   priority are ordered by one `tasking` draw each, in job id order, then by id. Feasible: a
+   fits it (`fits`), has no open dependency, may be taken by it, has a free slot and is feasible;
+   when no such job with a free slot is feasible for it (none free, or every free one refused),
+   the first full one below its overfill cap that is (Q-TD-89, NX-465). Rank:
+   `tasking.priority.<kind>` x urgency + `priority_aging_per_min` x game minutes waited, an exact
+   Fraction, highest first; runs of equal priority are ordered by one `tasking` draw each, in job
+   id order, then by id. Feasible: a
    GROUND unit has a road route (an empty truck on a resupply job reloads at a source first; neither
    resupply leg enters a node the other side holds, `logistics.supply_route`, Q-SIM-122);
    an aircraft reaches the target and a landing base of its side with the bingo reserve left,
@@ -299,9 +301,9 @@ def _full(world: World, job: Job, *, ai: bool) -> bool:
 
 
 def _overfill(tr: TaskingRules, job: Job) -> int:
-    """The claims a job takes when every job is full: `tasking.overfill_factor` times its slots,
-    but a Recon scout's point job never doubles unless `tasking.overfill_point_jobs` (a second scout
-    would only burn fuel and rearm, NX-379)."""
+    """The claims a job takes when no free job is feasible (`_open`): `tasking.overfill_factor`
+    times its slots, but a Recon scout's point job never doubles unless
+    `tasking.overfill_point_jobs` (a second scout would only burn fuel and rearm, NX-379)."""
     return (
         job.slots
         if _is_point(job) and not tr.overfill_point_jobs
@@ -310,10 +312,18 @@ def _overfill(tr: TaskingRules, job: Job) -> int:
 
 
 def _open(tr: TaskingRules, world: World, pool: list[Job], *, ai: bool) -> list[Job]:
-    """The jobs a unit may take, in rank order: those with a free slot, else (every one full) those
-    not yet at `overfill_factor` times their slots; beyond that the unit waits for the next pass."""
-    free = [j for j in pool if not _full(world, j, ai=ai)]
-    return free or [j for j in pool if len(j.claims) < _overfill(tr, j)]
+    """The jobs a unit may try, in the order it tries them: those with a free slot, then the full
+    ones not yet at `overfill_factor` times their slots, each part in `pool`'s order. The caller
+    takes the first it can fly, so it overfills a job only when no free job is feasible for it
+    (Q-TD-89, NX-465); a job at its overfill cap waits for the next pass."""
+    free: list[Job] = []
+    spill: list[Job] = []
+    for j in pool:
+        if not _full(world, j, ai=ai):
+            free.append(j)
+        elif len(j.claims) < _overfill(tr, j):
+            spill.append(j)
+    return free + spill
 
 
 def _may_take(world: World, tr: TaskingRules, e: Entity, job: Job) -> bool:
@@ -356,7 +366,7 @@ def claim(world: World, e: Entity, job: Job, out: list[Event]) -> None:
     one to a non-garrison unit (while `tasking.human_displaces_ai`) by releasing its AI garrison
     claimant with the highest entity id (Q-TD-11), which stops where it is (an aircraft orbits; a
     ground unit finishes its road leg); a job full of humans is overfilled, which only happens when
-    every job is full. Claims are kept in
+    no job with a free slot is feasible for `e` (`_open`). Claims are kept in
     entity-id order, as a snapshot restores them, so a restored world emits the same events."""
     if e.owner_kind != _AI and len(job.claims) >= job.slots and not _full(world, job, ai=False):
         evicted = max(i for i in job.claims if _is_ai(world, i))
@@ -377,9 +387,10 @@ def claim(world: World, e: Entity, job: Job, out: list[Event]) -> None:
 
 def joinable_jobs(world: World, kind: UnitKind) -> list[Job]:
     """The coalition jobs a new `kind` unit may take on a parameterless JOIN (Q-GP-23), best first:
-    it fits the kind, has no open dependency and a free slot (every one full: up to the overfill
-    cap), by priority then job id. The caller plans the first it can route and that an aircraft's
-    route danger allows (`crosses_ring`); a new unit is full of fuel and rounds."""
+    it fits the kind and has no open dependency; those with a free slot by priority then job id,
+    then the full ones below the overfill cap likewise (`_open`). The caller plans the first it can
+    route and that an aircraft's route danger allows (`crosses_ring`), so a free job it cannot fly
+    leaves it the full ones (Q-TD-89); a new unit is full of fuel and rounds."""
     if world.rules is None or world.rules.tasking is None:
         return []  # the boards are off
     rules, tr = world.rules, world.rules.tasking
@@ -388,7 +399,7 @@ def joinable_jobs(world: World, kind: UnitKind) -> list[Job]:
         if j.depends_on is None and j.kind not in tr.join_excluded_jobs
         and fits(rules, kind, j.kind)
     ]  # fmt: skip
-    return rank(tr, _open(tr, world, jobs, ai=False), _now(world), None)
+    return _open(tr, world, rank(tr, jobs, _now(world), None), ai=False)
 
 
 def run(world: World, out: list[Event]) -> None:
@@ -975,14 +986,17 @@ def idle_reason(world: World, e: Entity) -> str:
 def idle_diagnosis(world: World, e: Entity) -> tuple[str, Job | None]:
     """Why an idle unit holds no job, and the job the walk settled on (None for `no_job` and
     `full`), so the harness can name what a `ring` refusal is about (NX-462). The reason: `no_job`
-    (nothing it may take is on the board), `full` (only full ones), else what `_assign` meets
-    walking the open jobs in rank order (NX-454): `next_pass` when the first job not refused is
-    feasible (it takes it at the next pass), `ammo` or `refuel` when that job needs a rearm step
-    first (it is refuelling now), or, every job refused, why the best-ranked one is. A ground
+    (nothing it may take is on the board), `full` (only jobs at their overfill cap), else what
+    `_assign` meets walking the open jobs in `_open`'s order (NX-454): `next_pass` when the first
+    job not refused is feasible (it takes it at the next pass), `ammo` or `refuel` when that job
+    needs a rearm step first (it is refuelling now), or, every job refused, why the first one
+    tried is (the best-ranked free job, if any). A ground
     unit names `_feasible`'s refusal: `no_reload` (an empty truck's resupply run has no load
     plan), `no_patrol_route`, `no_repair_route` or `no_route` (no road route from the node it
     stands on). Any other unit: `no_base` (its side holds no landing base), `ring`, `ammo` or
-    `reach_fuel` (a full tank would not reach either). `other` is left for a unit with no fuel
+    `reach_fuel` (a full tank would not reach either). A `ring` unit that `_feasible` would let fly
+    some job now at its overfill cap is `ring_full` instead: the ring is not a lockout, the others
+    are full (Q-TD-89, NX-465). `other` is left for a unit with no fuel
     there, which no aircraft is (World validation). A read-only diagnostic for the balance
     harness (Q-SIM-92): it applies `_assign`'s own rank, pool, `_open` and `_feasible`, skipping
     a job the next pass will end (an escort whose truck is lost since, `_truck_lost`), but ranks
@@ -1008,7 +1022,13 @@ def idle_diagnosis(world: World, e: Entity) -> tuple[str, Job | None]:
         if v != "no":
             job, verdict = j, v
             break
-    return _air_or_ground_reason(world, rules, e, job, verdict), job
+    reason = _air_or_ground_reason(world, rules, e, job, verdict)
+    tried = {j.id for j in jobs}
+    if reason == "ring" and any(
+        j.id not in tried and _feasible(world, rules, routes, e, j) != "no" for j in pool
+    ):
+        reason = "ring_full"  # it could fly a job at its overfill cap: not a lockout (NX-465)
+    return reason, job
 
 
 def _air_or_ground_reason(world: World, rules: Rules, e: Entity, job: Job, verdict: str) -> str:

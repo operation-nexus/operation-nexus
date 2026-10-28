@@ -410,8 +410,8 @@ class Collector:
     def sample_idle(self, world: World) -> None:
         """The idle armed viewer-unit share (Q-SIM-92): commander-owned units of an armed kind, not
         Disabled, with no job, order or route; and `idle_diagnosis`'s reason for each idle one, and
-        for a `ring` one the marker that blocks it and the job (`ring_site`, NX-462). A sample
-        with no such unit is skipped."""
+        for a `ring` one (a lockout; not `ring_full`, NX-465) the marker that blocks it and the job
+        (`ring_site`, NX-462). A sample with no such unit is skipped."""
         rules = self._world_rules
         armed = [
             e

@@ -189,7 +189,7 @@ tasking:
   escort_threat_memory_s: 60  # PROPOSED – unvalidated (Q-SIM-76); s (world), a tracked enemy that fired at a group member this recently is a group threat (CONFIG-AND-CONTENT §6.6)
   static_offense_min_tier: ALPHA  # PROPOSED – unvalidated (Q-SIM-85); the lowest Director tier at which the Static's board posts the strike jobs it generates itself; at Pattern of Life it posts none (CONFIG-AND-CONTENT §6.6)
   follow_hold_slack: 2  # PROPOSED – unvalidated (Q-SIM-76, Q-DEV-21); stations, a stopped leader's ground followers hold where they are within this many stations of it (CONFIG-AND-CONTENT §6.6)
-  overfill_factor: 2  # PROPOSED – unvalidated (Q-SIM-73, Q-DEV-21); with every job full a job takes units up to this times its slots (CONFIG-AND-CONTENT §6.6)
+  overfill_factor: 2  # PROPOSED – unvalidated (Q-SIM-73, Q-DEV-21); when no free job is feasible for a unit (Q-TD-89), a job takes units up to this times its slots (CONFIG-AND-CONTENT §6.6)
   overfill_point_jobs: false  # decided rule as default, Q-DEV-21 option; whether a Recon point job overfills like any other (CONFIG-AND-CONTENT §6.6)
   join_excluded_jobs: [PATROL]  # decided rule as default, Q-DEV-21 option; job kinds a bare JOIN never takes (CONFIG-AND-CONTENT §6.6)
   ai_jobs: [DEFEND, RESUPPLY, SCOUT, REPAIR_BRIDGE]  # decided rule as default, Q-CFG-16 option (Q-GD-26); job kinds the AI garrison takes by itself (CONFIG-AND-CONTENT §6.6)

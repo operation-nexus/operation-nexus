@@ -197,7 +197,7 @@ class TaskingRules:
     leash_m: float  # the farthest an escort leaves station to engage
     static_offense_min_tier: ThreatTier  # the lowest tier at which the Static's board posts strikes
     follow_hold_slack: float  # a stopped leader's followers hold within this many stations of it
-    overfill_factor: int  # with every job full, a job takes units up to this times its slots
+    overfill_factor: int  # no free job feasible for a unit: a job takes up to this x its slots
     overfill_point_jobs: bool  # tasking.overfill_point_jobs: a Recon point job overfills too
     join_excluded_jobs: frozenset[JobKind]  # tasking.join_excluded_jobs: a bare JOIN never takes
     scout_blob_runs: int  # SIGINT refreshes a blob must stay in a cell before a scout is posted

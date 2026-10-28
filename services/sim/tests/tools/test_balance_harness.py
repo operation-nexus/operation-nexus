@@ -37,7 +37,7 @@ from nexus.contracts.gen.events.weapon_fired import WeaponFired
 from nexus.contracts.gen.events.weapon_impact import WeaponImpact
 from nexus.core.campaign import campaign, momentum
 from nexus.core.step import HANDLERS, step
-from nexus.core.tasking import idle_reason, post_job
+from nexus.core.tasking import claim, idle_reason, post_job
 from nexus.core.tasking_gen import JobSpec
 from nexus.core.world import CaptureBar, Claim, Contact, FacilityMarker, Job, Staged, Vec2
 from nexus.runtime.campaign_config import CampaignConfig, start_campaign
@@ -769,6 +769,37 @@ def test_ring_idle_is_split_by_the_blocking_marker_and_the_job_target(
     assert metrics.ring_site(world, shipped_config.rules, jet, job) == (
         "AIR_DEFENSE_SITE @ #20 -> STRIKE static-hq"
     )
+
+
+def test_ring_idle_with_the_other_jobs_full_is_ring_full_not_a_lockout(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    """NX-465 (Q-TD-89): the jet's free strike on static-hq crosses the SAM at east-airbase, and a
+    DEFEND of west-airbase it could fly is at its overfill cap (2 x 1 slot): `ring_full`, kept
+    out of `ring_by_site` (lockouts only). Lift the cap and the jet is no longer idle-locked."""
+    pos = shipped_config.rules.roads.pos
+    world = start_campaign("c", 1, shipped_config)
+    base = Vec2(*pos["west-airbase"])
+    jet, *rest = (
+        world.spawn("STRIKE_FIGHTER", "COALITION", "COMMANDER", base, commander_id=commander(i))
+        for i in (1, 2, 3)
+    )
+    for e in (jet, *rest):
+        e.state, e.fuel = "LANDED", shipped_config.rules.fuel_s["STRIKE_FIGHTER"]
+    world.markers["COALITION"].clear()
+    world.markers["COALITION"][7] = _sam(pos["east-airbase"])
+    post_job(world, "COALITION", JobSpec("STRIKE", "op:s", 2, 1000, node="static-hq"), [])
+    defend = post_job(
+        world, "COALITION", JobSpec("DEFEND", "op:d", 1, 1000, node="west-airbase"), []
+    )
+    for e in rest:
+        claim(world, e, defend, [])
+    collector.sample_idle(world)
+    assert dict(collector.idle_reasons) == {"ring_full": 1}
+    assert dict(collector.idle_ring_by_site) == {}
+    defend.slots = 2  # room under the cap again: it overfills the defend at the next pass
+    collector.sample_idle(world)
+    assert dict(collector.idle_reasons) == {"ring_full": 1, "next_pass": 1}
 
 
 def test_ring_site_names_a_position_target_and_a_drift_without_raising(
