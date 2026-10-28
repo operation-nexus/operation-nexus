@@ -146,11 +146,13 @@ _STORAGE = "storage"
 _V = "v"
 # The dedupe-key prefix of each job kind the board generates (`nexus.core.tasking_gen`); a key with
 # one must name the job's own target (`load` checks it). The Director's STAGE and CAPTURE (and its
-# other jobs) use `op:` keys, which name nothing the check could verify.
+# other jobs) use `op:` keys, which name nothing the check could verify; a `retake:` CAPTURE is
+# the coalition board's (NX-475).
 JOB_KEY_PREFIX = {
     "RESUPPLY": "resupply:", "DEFEND": "defend:", "STRIKE": "strike:",
     "ASSIST_OBJECTIVE": "assist:", "SCOUT": "scout:", "ESCORT_CONVOY": "escort:",
     "PATROL": "patrol:", "INTERCEPT": "intercept:", "REPAIR_BRIDGE": "repair_bridge:",
+    "CAPTURE": "retake:",
 }  # fmt: skip
 _WORLD_KEYS = (
     _BLOB_RUNS,
@@ -1716,6 +1718,8 @@ def _job(
     dwell = job.kind == "PATROL" and side == "COALITION"
     if job.key.startswith("patrol:") and not dwell:
         raise ValueError(f"{_BOARDS}: a patrol:<node> job is the coalition board's")
+    if job.key.startswith("retake:") != (job.kind == "CAPTURE" and side == "COALITION"):
+        raise ValueError(f"{_BOARDS}: a retake:<node> job is the coalition board's only CAPTURE")
     if job.lost is not None and (not hunt or job.lost > running_ticks):
         raise ValueError(f"{_BOARDS}: only an intercept job loses its scout, at a past tick")
     if job.arrived is not None and (not (point or dwell) or job.arrived > running_ticks):

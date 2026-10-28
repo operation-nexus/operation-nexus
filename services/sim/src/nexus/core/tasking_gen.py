@@ -63,6 +63,17 @@ refers to an entity id, so a job names a node, or a SIGINT blob with its cell ce
   `tasking.patrol_max_nodes`, those nearest a node the other side holds first (exact squared
   straight-line distance, as the idle strike targets are ordered by distance; ties by node id), and
   only while a viewer's armed or recon unit of the side is idle. Urgency 1.0.
+- **Retake** (`retake:<node>`, a CAPTURE job, coalition only, Q-TD-94 (b), Q-TD-99..101, NX-475):
+  a strategic node the side held at campaign start (`Supply.start_owner`) and does not hold now,
+  whose defense hp is 0 (after the strike on it), that a capture run from the side's rear reaches
+  by road (`plan_run`, the bare JOIN's own plan). One at a time: the live retake job is kept while
+  its node still qualifies, and while one is claimed no other is posted; else the one nearest a
+  node the side holds (exact squared straight-line distance, ties by node id). One slot (one
+  truck's capture run, Q-GP-24; more join by overfill), urgency 1.0 x `tasking.priority.capture`,
+  with no TB-3 aging (`tasking.priority`), so a starving or damaged base's resupply (1.0 and up
+  x `priority.resupply`) always outranks it and a fresh stocking one does not. Posted while a
+  viewer can JOIN as a carrier; a viewer's truck takes it (`fits_job`; the AI garrison never
+  does, `tasking._may_take`).
 
 - **Intercept** (`intercept:<entity>`, the Static's only, Q-SIM-96, NX-382): a coalition painter
   aircraft the side's view currently tracks (a last-known track does not count) inside
@@ -109,7 +120,9 @@ GENERATED = (
     "patrol:",
     "intercept:",
     "repair_bridge:",
+    "retake:",
 )
+RETAKE = "retake:"  # the coalition's CAPTURE job on a lost start node (Q-TD-99, NX-475)
 _GROUND, _AIR = "GROUND", "AIR"
 _JOB_KINDS: tuple[JobKind, ...] = (
     "RESUPPLY", "SCOUT", "DEFEND", "STRIKE", "ASSIST_OBJECTIVE", "ESCORT_CONVOY", "PATROL",
@@ -150,7 +163,7 @@ def fits(rules: Rules, kind: UnitKind, job_kind: JobKind) -> bool:
         case "RESUPPLY" | "REPAIR_BRIDGE":
             return kind in rules.supply.carriers
         case _ if kind in rules.supply.carriers:
-            return False  # a carrier only hauls; capture runs are direct orders
+            return False  # a carrier only hauls; it captures by order or a retake (`fits_job`)
         case "SCOUT":
             return kind in rules.painters
         case "STRIKE":
@@ -170,6 +183,12 @@ def fits(rules: Rules, kind: UnitKind, job_kind: JobKind) -> bool:
         case "INTERCEPT":
             return domain == _AIR and kind in rules.armed  # `can_hit` asks the loaded weapons
     return False
+
+
+def fits_job(rules: Rules, kind: UnitKind, job_kind: JobKind, key: str) -> bool:
+    """`fits`, and a carrier also fits the coalition's retake job (Q-TD-100: any viewer truck
+    takes it, as the capture run `!join logi <node>` is), never the Director's CAPTURE."""
+    return fits(rules, kind, job_kind) or (key.startswith(RETAKE) and kind in rules.supply.carriers)
 
 
 def can_hit(rules: Rules, e: Entity, target: UnitKind) -> bool:
@@ -281,7 +300,8 @@ def generate(
         *_patrol(world, rules, tr, side, view),
         *_intercept(world, rules, tr, side, view),
     ]
-    return _cap_scouts([s for s in specs if s.kind in able], world, tr, side)
+    kept = _cap_scouts([s for s in specs if s.kind in able], world, tr, side)
+    return [*kept, *_retake(world, rules, side, view, held)]  # staffed by trucks (`_retake`)
 
 
 def _offense_open(world: World, tr: TaskingRules, side: Side) -> bool:
@@ -494,6 +514,36 @@ def _patrol(
     )
     for _, n in front[: tr.patrol_max_nodes]:
         yield JobSpec("PATROL", f"patrol:{n}", tr.slots["PATROL"], 1000, node=n)
+
+
+def _retake(
+    world: World, rules: Rules, side: Side, view: SideView, held: frozenset[str]
+) -> Iterator[JobSpec]:
+    """The one retake job (module docstring), while a viewer can JOIN as a carrier."""
+    rc = rules.campaign
+    trucks = any(k in rules.supply.carriers for k in rules.role_kind.values())
+    if side != "COALITION" or rc is None or not trucks:
+        return
+    lost = [
+        n for n in rc.strategic
+        if rules.supply.start_owner.get(n) == side and view.owners.get(n) != side
+        and not view.defense_hp.get(n, 0)
+        and plan_run(world, rules, side, n, held=held) is not None
+    ]  # fmt: skip
+    live = sorted((j.id, j) for j in world.boards[side].values() if j.key.startswith(RETAKE))
+    node = next((j.node for _, j in live if j.node in lost), None)
+    if node is None and any(j.claims for _, j in live):
+        return  # one at a time: a claimed one that no longer qualifies runs out first
+    if node is None and lost:
+        mine = [p for n, p in sorted(view.nodes.items()) if view.owners.get(n) == side]
+        node = min(lost, key=lambda n: (_nearest2(view.nodes[n], mine), n))
+    if node is not None:
+        yield JobSpec("CAPTURE", f"{RETAKE}{node}", 1, 1000, node=node)
+
+
+def _nearest2(at: tuple[int, int], points: list[tuple[int, int]]) -> float:
+    """The exact squared straight-line distance from `at` to the nearest of `points`."""
+    return min(((at[0] - x) ** 2 + (at[1] - y) ** 2 for x, y in points), default=math.inf)
 
 
 def _on_front(rules: Rules, view: SideView, side: Side, n: str) -> bool:
