@@ -457,6 +457,73 @@ def test_the_wait_runs_out_and_with_nothing_to_pay_it_is_dropped() -> None:
     assert not [j for j in w.boards["ENEMY"].values() if j.key.startswith("op:OFFENSIVE")]
 
 
+# --- NX-480: the night cap (§5, Q-TD-93) bars a staged capture operation's launch too -------------
+# Shipped cap: 1 node per 6 game h, 216,000 ticks at no viewer unit, fading to none at
+# `capture.quiet_ref` 50: 216,000 x 45 / 50 = 194,400 ticks at 5 viewer units.
+
+
+def flipped_now(w: World, viewers: int = 0) -> None:
+    """A Static flip this tick, with `viewers` live viewer units on the map."""
+    w.director["ENEMY"].last_flip = w.campaign.running_ticks + 1
+    for _ in range(viewers):
+        w.spawn("STRIKE_FIGHTER", "COALITION", "COMMANDER", Vec2(0, 0))
+
+
+def offensive_keys(w: World) -> list[str]:
+    return [j.key for j in w.boards["ENEMY"].values() if j.key.startswith("op:OFFENSIVE")]
+
+
+@pytest.mark.parametrize(("viewers", "spacing"), [(0, 216_000), (5, 194_400)])
+def test_a_funded_staged_operation_waits_out_the_night_cap_then_launches_from_its_base(
+    viewers: int, spacing: int
+) -> None:
+    w = world(LIMITED)
+    at_floor(w)
+    w.pool["ENEMY"] = POOL
+    fire(w, offensive(w, "fob-n-w"))
+    w.stock["fob-n-e"] = 250 + 40  # funded: uncapped, the next window launches it from the FOB
+    flipped_now(w, viewers)
+    w.campaign.running_ticks += spacing - 1  # the window runs on the last capped tick
+    out = window(w)
+    s = w.director["ENEMY"]
+    assert debits(out) == [] and payoffs(out) == []
+    assert [k for k, _ in spawns(out) if k != "ENEMY_CONVOY"] == []  # a PoL convoy may run
+    assert s.staged == [Staged("OFFENSIVE", "fob-n-w", "fob-n-e", 0, "north")]
+    assert offensive_keys(w) == []
+    w.campaign.running_ticks += 1  # the spacing has passed: the cap is free
+    w.pool["ENEMY"] = POOL  # refilled after the PoL convoy's load, so the rear pays the jets
+    out = window(w)
+    assert payoffs(out) == [("STAGING_LAUNCHED", "north")]
+    assert debits(out) == [("fob-n-e", 40), ("static-rear", 20)] and s.staged == []
+
+
+@pytest.mark.parametrize("viewers", [0, 5])
+def test_a_wait_that_runs_out_under_the_night_cap_drops_it_and_nothing_falls_back(
+    viewers: int,
+) -> None:
+    w = world()
+    at_floor(w, "fob-n-e", "fob-s-e", "static-hq")  # east-airbase could pay the fallback's 60
+    fire(w, offensive(w, "fob-n-w"))
+    s = w.director["ENEMY"]
+    s.windows = 89  # the 90th window since staging: late (FS-4)
+    flipped_now(w, viewers)
+    out = window(w)
+    assert s.staged == [] and offensive_keys(w) == []
+    assert ("east-airbase", 60) not in debits(out)
+    assert payoffs(out) == [("STAGING_DISPERSED", "north")]  # FS-9: timed out, dropped
+
+
+def test_fifty_viewer_units_lift_the_night_cap_for_a_staged_operation() -> None:
+    w = world(LIMITED)
+    at_floor(w)
+    w.pool["ENEMY"] = POOL
+    fire(w, offensive(w, "fob-n-w"))
+    w.stock["fob-n-e"] = 250 + 40
+    flipped_now(w, 50)  # `capture.quiet_ref`: no spacing left (Q-TD-93)
+    out = window(w)
+    assert payoffs(out) == [("STAGING_LAUNCHED", "north")] and w.director["ENEMY"].staged == []
+
+
 def test_at_most_max_staged_operations_wait_and_the_next_spawns_as_ec_13_says() -> None:
     w = world()
     at_floor(w)
@@ -718,6 +785,24 @@ def test_a_staged_run_is_deterministic() -> None:
         return state_hash(w), run(w, 1300)
 
     assert once() == once()
+
+
+def test_save_and_load_while_staged_under_the_night_cap_resume_identically() -> None:
+    # NX-480: funded but capped, it stays staged through the two windows both copies run (with
+    # no flip on record the same scene launches it from fob-n-e in those windows)
+    w = staged_world()
+    assert w.rules is not None
+    w.stock["fob-n-e"] = 250 + 40
+    for n in ("east-airbase", "fob-s-e", "static-hq"):  # stocked, so `decide` gives a budget
+        w.stock[n] = w.rules.supply.max_stock[n]
+    step(w, [])
+    w.director["ENEMY"].last_flip = w.campaign.running_ticks  # a Static flip on that tick
+    copy = load(save(w))
+    copy.rules = w.rules
+    assert state_hash(copy) == state_hash(w)
+    assert run(copy, 1300) == run(w, 1300)
+    assert state_hash(copy) == state_hash(w)
+    assert copy.director["ENEMY"].staged == w.director["ENEMY"].staged != []
 
 
 def raw_of(w: World) -> dict[str, object]:
