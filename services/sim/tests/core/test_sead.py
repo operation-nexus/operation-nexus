@@ -114,6 +114,17 @@ def test_the_verdict_keeps_a_sead_job_only_on_a_foe_node_with_a_live_marker() ->
     ]
 
 
+def test_an_objective_strike_is_still_met_at_zero_hp_with_a_live_site() -> None:
+    """An objective strike has no expiry, so SEAD does not hold it (Q-TD-81, CodeRabbit on #469):
+    at 0 hp it is DONE as before, and only a plain board `strike:` job is kept for the site."""
+    w, _ = scene()
+    board_pass(w)
+    job = jobs(w)[0]
+    assert _verdict(w, RULES, TR, "COALITION", job) is None  # a plain SEAD job: kept
+    job.objective = 1  # the same key, posted for an objective
+    assert _verdict(w, RULES, TR, "COALITION", job) == "DONE"
+
+
 def _strike_first(on: bool) -> Rules:
     assert RULES.combat is not None
     return dataclasses.replace(

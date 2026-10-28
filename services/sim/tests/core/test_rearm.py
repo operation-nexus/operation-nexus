@@ -267,11 +267,16 @@ def test_a_disabled_wreck_is_never_repaired_but_a_disabled_facility_is() -> None
     assert wreck.hp == 5 and state(wreck) == "DISABLED"
     # Q-TD-86: above the floor but below the Mission-kill line (ceil(0.35 x 150) = 53) it stays off
     assert 15 <= site.hp < 53 and state(site) == "DISABLED" and changes(events) == []
-    while site.hp < 52:
+    for _ in range(200):  # bounded: a stalled repair fails here instead of hanging
+        if site.hp >= 52:
+            break
         events += run(w, 1)
     assert site.hp == 52 and state(site) == "DISABLED" and changes(events) == []
-    while site.hp < 53:
+    for _ in range(10):
+        if site.hp >= 53:
+            break
         events += run(w, 1)
+    assert site.hp == 53
     assert state(site) == "DAMAGED" and changes(events) == [("DISABLED", "DAMAGED")]  # at the line
 
 

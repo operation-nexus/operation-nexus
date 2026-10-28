@@ -639,9 +639,11 @@ def _verdict(world: World, rules: Rules, tr: TaskingRules, side: Side, job: Job)
                 return None
             # SEAD (Q-TD-81): a board `strike:` job on a foe node at 0 hp is kept while the side
             # knows a live site there, the generator's rule, so it is not ended and posted again
-            # each pass; a Director operation's strike is met at 0 hp (THREAT-DIRECTOR §7a)
+            # each pass; a Director operation's strike and an objective strike (no expiry) are
+            # met at 0 hp (THREAT-DIRECTOR §7a), then a plain SEAD job is posted
             sead = (
-                job.key.startswith(_SEAD_KEY) and world.owner.get(node) != "NEUTRAL"
+                job.key.startswith(_SEAD_KEY) and job.objective is None
+                and world.owner.get(node) != "NEUTRAL"
                 and live_site(world.markers[side].values(), rules.roads.pos[node])
             )  # fmt: skip
             return None if lost and (world.defense_hp.get(node, 0) or sead) else "DONE"
