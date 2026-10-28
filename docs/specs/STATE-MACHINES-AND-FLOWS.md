@@ -179,7 +179,7 @@ stateDiagram-v2
 
 **In code now (NX-413, `nexus.core.capture` and `bridges.reroute`):** after a flip, every supply run and repair crew of the side the node now counts as enemy for, whose remaining road enters the node, turns back and replans around it (a supply run's destination exempt, a crew's bank not; GAMEPLAY §1b, Q-SIM-122, Q-SIM-125), so a truck never drives into a node that turned enemy on its way. Other units' paths are unchanged.
 
-**In code now (NX-124 part 3, `nexus.core.defense`; SIM-CORE §4 Defense):** a node with defense HP above 0 starts no bar (default; Q-CFG-16 option `capture.requires_defenses_down`); a bar already running is not stopped by a later repair, and a flip sets the HP to 0 for the new owner (no event; `NodeCaptured` says it). With no live viewer unit the `forward_airbase` (while the coalition owns it) is skipped: its bar neither starts, fills nor decays (idle floor, Q-GP-28).
+**In code now (NX-124 part 3, `nexus.core.defense`; SIM-CORE §4 Defense):** a node with defense HP above 0 starts no bar (default; Q-CFG-16 option `capture.requires_defenses_down`); a bar already running is not stopped by a later repair, and a flip sets the HP to 0 for the new owner (no event; `NodeCaptured` says it). With no live viewer unit the `forward_airbase` (while the coalition owns it) is skipped: its bar neither starts, fills nor decays (idle floor, Q-GP-28). At any viewer count, the only strategic node the coalition holds, whichever it is, starts and fills no bar, but a running bar still decays or drains (last-base freeze under the same `campaign.idle_floor.enabled` switch; Q-TD-93, NX-474; Q-TD-103, NX-481).
 
 ### 4.3 Bridge
 

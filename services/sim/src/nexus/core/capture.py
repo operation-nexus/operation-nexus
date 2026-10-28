@@ -41,9 +41,10 @@ defense HP is above 0 (`capture.requires_defenses_down`, a Q-CFG-16 option). A b
 running is not stopped by a later repair: it fills or decays by the rules above (the gate says
 "can't begin", GAMEPLAY §8), and the flip sets the HP to 0 for the new owner. Idle floor (Q-GP-28,
 Q-GP-44; `campaign.idle_floor.enabled`): with no live viewer unit, the theater's `forward_airbase`
-while the coalition owns it is skipped, so its bar neither starts, fills nor decays. With a
-viewer live and the airbase the only strategic node the coalition holds (the last base, Q-TD-93),
-no bar starts or fills there, but a running Static bar decays or is drained as usual.
+while the coalition owns it is skipped, so its bar neither starts, fills nor decays. Last base
+(Q-TD-93, Q-TD-103; under the same switch): on the only strategic node the coalition holds,
+whichever it is, no bar starts or fills at any viewer count, but a running Static bar decays or is
+drained as usual (the idle floor wins on the forward airbase at no live viewer unit).
 
 Night progress (Q-SIM-85, Q-SIM-86, NX-157): every Static flip stamps `DirectorState.last_flip`.
 The Static may flip a node only if none flipped in the last `spacing` ticks
@@ -111,19 +112,23 @@ def capture(world: World, out: list[Event]) -> None:
     quiet = _quiet(cap, viewers)
     d = rules.defense
     idle_node = d.forward_airbase if d and d.idle_floor else None
-    for node in nodes:  # id order
-        mine = node == idle_node and world.owner[node] == "COALITION"
-        if mine and viewers == 0:
+    floor = idle_node is not None
+    for node in nodes:  # id order; ownership read per node, so a flip earlier in the tick counts
+        mine = world.owner[node] == "COALITION"
+        if mine and node == idle_node and viewers == 0:
             continue  # the idle floor
-        last = mine and _last_base(world, rules, node)  # with viewers: no start, no fill (Q-TD-93)
+        last = floor and mine and _last_base(world, rules, node)  # no start, no fill (Q-TD-103)
         _tick_node(world, rules, cap, node, near[node], quiet, viewers, out, no_fill=last)
 
 
 def _last_base(world: World, rules: Rules, node: str) -> bool:
-    """The coalition holds no strategic node but `node`: it keeps one base to fight from."""
+    """`node` is the only strategic node the coalition holds, whichever it is (Q-TD-103): it keeps
+    one base to fight from."""
     rc = rules.campaign
-    return rc is not None and not any(
-        world.owner.get(n) == "COALITION" for n in rc.strategic if n != node
+    return (
+        rc is not None
+        and node in rc.strategic
+        and not any(world.owner.get(n) == "COALITION" for n in rc.strategic if n != node)
     )
 
 
@@ -203,10 +208,10 @@ def _tick_node(
     *,
     no_fill: bool = False,
 ) -> None:
-    """`no_fill`: the last base (Q-TD-93): no bar starts and none fills, but a running bar still
-    decays or is drained once no capturer stands on it, so a bar left behind does not flip the base
-    the moment it stops being the last (a capturer still standing there keeps it frozen near
-    full)."""
+    """`no_fill`: the last base (Q-TD-93, Q-TD-103): no bar starts and none fills, but a running
+    bar still decays or is drained once no capturer stands on it, so a bar left behind does not
+    flip the base the moment it stops being the last (a capturer still standing there keeps it
+    frozen near full)."""
     owner = world.owner[node]
     capturers = [s for s in SIDES if s != owner and near[s].weight > 0]
     free = [s for s in capturers if not near[_OTHER[s]].armed]

@@ -56,7 +56,7 @@ class IdleFloor(BaseModel):
     enabled: Annotated[
         bool,
         Field(
-            description="Whether the idle floor applies with no live viewer unit: the theater's forward airbase's capture bar is frozen while the coalition owns it (at any viewer count while it is the coalition's only strategic node: no bar starts or fills there, a running one decays; Q-TD-93), the coalition sanctuary's defense HP cannot drop below sanctuary_min_hp, and the defeat clock is held, and restarts from 0 once nobody has played for campaign.defeat.hold_min (Q-TD-95) (GAMEPLAY §0 and §9; decided rule as default, Q-CFG-16 option), unit switch."
+            description="Whether the idle floor applies with no live viewer unit: the theater's forward airbase's capture bar is frozen while the coalition owns it (at any viewer count, the only strategic node the coalition holds, whichever it is, starts and fills no bar, and a running one holds while its capturer stands there unopposed and decays once it is abandoned or contested; Q-TD-93, Q-TD-103), the coalition sanctuary's defense HP cannot drop below sanctuary_min_hp, and the defeat clock is held, and restarts from 0 once nobody has played for campaign.defeat.hold_min (Q-TD-95) (GAMEPLAY §0 and §9; decided rule as default, Q-CFG-16 option), unit switch."
         ),
     ]
     sanctuary_min_hp: Annotated[
@@ -1291,7 +1291,7 @@ class Campaign(BaseModel):
     idle_floor: Annotated[
         IdleFloor,
         Field(
-            description="The idle floor while no viewer unit is live, and the forward airbase's last-base freeze (Q-GP-28, Q-GP-44, Q-TD-93, Q-CFG-16)."
+            description="The idle floor while no viewer unit is live, and the last-base freeze on the coalition's only held strategic node (Q-GP-28, Q-GP-44, Q-TD-93, Q-TD-103, Q-CFG-16)."
         ),
     ]
     objective_pick: Annotated[
