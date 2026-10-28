@@ -36,7 +36,9 @@ The `combat` slot, each running tick (not while frozen, SC-11), in this order:
 4. **Damage (CB-5, CB-6, CB-9).** A hit removes `floor(damage x (1 - armor))` hp, at least 1, with
    `armor` an exact decimal (0 for a structure: `damage` hp off the node's defenses, floored at the
    idle floor, `nexus.core.defense`). The damage state follows hp against the kind's thresholds
-   (`UnitRules.cuts`). A facility (STATIC) floors at the Disabled threshold, never Destroyed
+   (`UnitRules.cuts`); a Disabled facility stays Disabled until it is back up to the Mission-kill
+   line (`UnitRules.state_after`, Q-TD-86). A facility (STATIC) floors at the Disabled threshold,
+   never Destroyed
    (`combat.facility_indestructible`, a Q-CFG-16 option: false lets 0 hp destroy it); any
    other unit at 0 hp is removed with `UnitDestroyed{killer_id = the shooter, assist_ids}`, and so
    is an aircraft that is not LANDED the moment it becomes Disabled (Q-SIM-66; that hit emits
@@ -468,7 +470,7 @@ def _hit(
         if not facility:  # a facility keeps no hits (CB-5a)
             target.hits = [*recent, [shooter.id, now]]
     target.hp = hp
-    state = stats.state(hp)
+    state = stats.state_after(hp, target.damage_state, facility)  # Q-TD-86
     if state == target.damage_state:
         return
     if state == _DISABLED and not facility and target.state not in (None, "LANDED"):
@@ -587,7 +589,8 @@ def _validate_entity(world: World, rules: Rules, cr: CombatRules, e: Entity) -> 
     facility = rules.domain[e.kind] == _STATIC
     problem = (
         "hp above the kind's maximum" if e.hp > stats.hp
-        else "damage_state does not match hp" if e.damage_state != stats.state(e.hp)
+        else "damage_state does not match hp"
+        if e.damage_state != stats.state_after(e.hp, e.damage_state, facility)  # Q-TD-86
         else "altitude band does not match the kind" if e.alt_band != stats.alt_band
         else "ammo or reload does not match the loadout"
         if len(e.ammo) != len(loadout) or len(e.reload) != len(loadout)

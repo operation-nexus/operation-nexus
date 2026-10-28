@@ -23,8 +23,10 @@ while frozen (SC-11), for each side in COALITION, ENEMY order:
    - RESUPPLY: DONE when a claimant stands at the node with its cargo gone (the delivery stop
      ended); FAILED when the side lost the node. DEFEND: FAILED likewise; DONE when a claimant
      stands at the node and the threat is gone (no bar of the other side, and the side tracks no
-     enemy GROUND unit within `tasking.defend_radius_m`)). STRIKE: DONE when the node's
-     defense hp is 0 or the side owns it; on a bridge, when the bridge is down (NX-373).
+     enemy GROUND unit within `tasking.defend_radius_m`)). STRIKE: DONE when the side owns
+     the node, or its defense hp is 0 and, for a board `strike:` job, the side knows no live site
+     there (a facility marker at the node last seen not Disabled: SEAD, Q-TD-81; a Director
+     operation's strike is done at 0 hp); on a bridge, when the bridge is down (NX-373).
      REPAIR_BRIDGE (the coalition's, NX-373 part 2): drive to the quicker bank and out to the
      bridge's repair stop (`logistics.approach`), where `bridges.repair` works; arrived means
      parked at the stop; DONE when the bridge is no longer down, then its trucks drive back to
@@ -128,6 +130,7 @@ from nexus.core.tasking_gen import (
     generate,
     held_within,
     is_idle,
+    live_site,
     watched,
 )
 from nexus.core.world import (
@@ -151,6 +154,9 @@ _AIR, _GROUND = "AIR", "GROUND"
 _INTERCEPT: JobKind = "INTERCEPT"  # the Static board's hunt of a scout (Q-SIM-96, NX-382)
 _PATROL: JobKind = "PATROL"  # the Director's (NX-157), and the coalition board's (NX-382)
 _REPAIR: JobKind = "REPAIR_BRIDGE"  # the coalition board's truck field repair (NX-373 part 2)
+_SEAD_KEY = (
+    "strike:"  # the board's own strike jobs: only they outlive 0 hp on a live site (Q-TD-81)
+)
 _COALITION: Side = "COALITION"
 _STATIC: Side = "ENEMY"
 _AI, _HUMAN = "AI_GARRISON", "COMMANDER"
@@ -629,8 +635,18 @@ def _verdict(world: World, rules: Rules, tr: TaskingRules, side: Side, job: Job)
         case "REPAIR_BRIDGE":  # done once it is up again (a participant needed, else EXPIRED)
             return None if node in world.bridge_down else "DONE"
         case "STRIKE":
-            fallen = node is not None and (not lost or not world.defense_hp.get(node, 0))
-            return "DONE" if fallen else None
+            if node is None:
+                return None
+            # SEAD (Q-TD-81): a board `strike:` job on a foe node at 0 hp is kept while the side
+            # knows a live site there, the generator's rule, so it is not ended and posted again
+            # each pass; a Director operation's strike and an objective strike (no expiry) are
+            # met at 0 hp (THREAT-DIRECTOR §7a), then a plain SEAD job is posted
+            sead = (
+                job.key.startswith(_SEAD_KEY) and job.objective is None
+                and world.owner.get(node) != "NEUTRAL"
+                and live_site(world.markers[side].values(), rules.roads.pos[node])
+            )  # fmt: skip
+            return None if lost and (world.defense_hp.get(node, 0) or sead) else "DONE"
         case "SCOUT":
             if _is_point(job):  # done when the loiter ends or a ring covers it (NX-379)
                 over = _loiter_over(rules, job, _now(world)) or _ring_over(world, rules, side, job)

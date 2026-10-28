@@ -378,7 +378,10 @@ def test_strike_targets_the_enemy_held_objective_then_discovered_sites() -> None
     (job,) = jobs(w)
     assert (job.kind, job.node, job.urgency, job.objective) == ("STRIKE", "fob-n-e", 1900, None)
     assert job.expires is not None
-    w.defense_hp["fob-n-e"] = 0  # nothing left to strike
+    w.defense_hp["fob-n-e"] = 0  # the sites are still live: the job stays (SEAD, Q-TD-81)
+    assert kinds(board_pass(w)) == [] and [j.id for j in jobs(w)] == [job.id]
+    for i in (98, 99):  # nothing left to strike
+        w.markers["COALITION"][i] = dataclasses.replace(w.markers["COALITION"][i], state="DISABLED")
     assert kinds(board_pass(w)) == ["JobExpired"]
 
 
