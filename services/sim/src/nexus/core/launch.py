@@ -59,7 +59,8 @@ launched in selection order:
   Q-TD-38, Q-TD-39), announced as `ThreatAdaptation{STAGING}` in the base's
   sector (a re-stage only when the coalition tracks a unit at the new base, `seen_at`); it holds
   its budget share and a `max_ops` slot while it waits, and falls back by EC-13 after
-  `max_wait_windows` or is dropped. Each massing sitrep is closed once in its sector (FS-9,
+  `max_wait_windows` or is dropped; while the night cap is spent it does not launch and is
+  dropped where it would fall back (NX-480). Each massing sitrep is closed once in its sector (FS-9,
   Q-TD-47, NX-431; `Staged.sector`, `_close`): `STAGING_LAUNCHED` on a launch from the base,
   `STAGING_DISPERSED` on any other end or a re-stage it no longer names (`_restage`).
 - **Victory-hold response (Q-TD-46, NX-430; legacy rules off).** While a coalition victory hold
@@ -280,10 +281,10 @@ def run(world: World, side: Side, view: SideView, rules: Rules, out: list[Event]
     if purse is not None:  # the cheapest-operation floor lifts the base account too (NX-434)
         cheapest = cadence_floor(state, view, rules, _floor_cap(world, rules, view, purse))
         _lift(purse, state, cheapest)
-    held = _review(world, rules, side, view, state, out, purse)
+    capped = _night_capped(world, rules, state, dr, now)  # no capture operations, staged too
+    held = _review(world, rules, side, view, state, out, purse, capped)
     own = _own(world, rules, side)
     live = ops.live_pairs([j.key for j in world.boards[side].values()]) | stg.pairs(state)
-    capped = _night_capped(world, rules, state, dr, now)  # no capture operations
     cands = ops.candidates(state, view, rules, own, now, live, capture=False if capped else None)
     ranked = ops.rank(cands, state, view, rules, world.rng.stream(RngStream.DIRECTOR))
     room, most = _live_room(world, rules, side, state, own), ops.max_ops(state.tier, dr)
@@ -632,7 +633,7 @@ def _stage(
 
 def _review(
     world: World, rules: Rules, side: Side, view: SideView, state: DirectorState,
-    out: list[Event], purse: _Purse | None,
+    out: list[Event], purse: _Purse | None, capped: bool,
 ) -> int:  # fmt: skip
     """FS-4, FS-6, each window before the selection, in (op, target) order: a staged operation no
     longer a candidate (`ops.candidate`) is dropped; one whose base the side lost or that has a
@@ -640,7 +641,9 @@ def _review(
     or falls back; it launches when every spawn node can pay its share; after
     `director.staging.max_wait_windows`, or at once when its target is in the running victory hold
     (Q-TD-46), it launches by EC-13 from wherever `_paying_node` finds the stock, else is
-    dropped. FS-9 (Q-TD-47): a launch at the base closes its massing as
+    dropped. While the night cap is spent (`capped`, §5, NX-480) a staged operation does not
+    launch: it keeps waiting, its wait still running, and is dropped where it would fall back.
+    FS-9 (Q-TD-47): a launch at the base closes its massing as
     `STAGING_LAUNCHED`, a drop or a fallback launch as `STAGING_DISPERSED`. Returns the budget the
     staged operations spent or still hold this window."""
     dr = rules.director
@@ -660,10 +663,11 @@ def _review(
         # one aimed into the running victory hold waits no longer (Q-TD-46, NX-430)
         late = state.windows - s.since >= dr.staging_max_wait_windows or s.target in view.hold
         go = (world, rules, side, view, state, c, out, purse)
-        if base is not None and _launch(*go, at=base):
+        # the night cap bars it (§5, NX-480): a staged operation is always a capture one (FS-1)
+        if not capped and base is not None and _launch(*go, at=base):
             _close(world, side, s, _LAUNCHED, out)
             held += c.op.cost
-        elif (base is None or late) and _launch(*go, stage=False):
+        elif not capped and (base is None or late) and _launch(*go, stage=False):
             _close(world, side, s, _DISPERSED, out)  # it went in from elsewhere, not the base
             held += c.op.cost
         elif base is not None and not late:
