@@ -688,14 +688,14 @@ def _menaced(world: World, rules: Rules, tr: TaskingRules, side: Side, node: str
     """The other side's bar is on the node, or the side tracks an enemy ground unit within
     `tasking.defend_radius_m` of it (what the side knows, as when the job was posted), or it is the
     side's sanctuary below full defense hp with a tracked enemy aircraft or ground unit within the
-    radius (Q-TD-122, NX-493: the generator's `besieged`)."""
+    radius (Q-TD-122, NX-493: the generator's `besieged`, alone, so a full sanctuary ends its job
+    even with a ground contact in range)."""
     bar = world.capture.get(node)
     if bar is not None and bar.side != side:
         return True
-    if node == rules.supply.rear[side]:  # only a sanctuary reads the air tracks (Q-TD-122)
+    if node == rules.supply.rear[side]:  # a sanctuary follows `besieged` alone (Q-TD-122)
         tracks = [c for c in world.contacts[side].values() if c.age is None]
-        if besieged(rules, tr, world.defense_hp, side, node, tracks):
-            return True
+        return besieged(rules, tr, world.defense_hp, side, node, tracks)
     x, y = rules.roads.pos[node]
     return any(
         c.age is None and rules.domain[c.kind] == _GROUND
