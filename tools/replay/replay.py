@@ -186,7 +186,8 @@ def main(argv: list[str] | None = None) -> int:
                 )
             )
         return int(args.fn(args))
-    except (ConfigError, SnapshotError, CommandLogError, ReplayCrash, OSError) as e:
+    # ValueError: a restore validator found snapshot state that does not fit the rules
+    except (ConfigError, SnapshotError, CommandLogError, ReplayCrash, OSError, ValueError) as e:
         print(f"error: {e}", file=sys.stderr)
         return 2
 

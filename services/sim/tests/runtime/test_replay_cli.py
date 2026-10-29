@@ -162,3 +162,20 @@ def test_a_snapshot_of_another_config_is_refused(tmp_path: Path, rig: Rig) -> No
     out = cli("verify", rig.snaps, rig.logs, "--expect", "0" * 64, "--balance", other)
     assert out.returncode == 2
     assert "differs from the loaded config" in out.stderr
+
+
+def test_a_snapshot_whose_pools_do_not_fit_the_rules_exits_2(
+    tmp_path: Path, log_writer: Callable[..., CommandLogWriter], shipped_config: CampaignConfig
+) -> None:
+    # A save made with the Static unlimited, replayed under the shipped rules (NX-412 part 5b):
+    # the restore validator refuses it, and the CLI reports it as an input error, not a mismatch.
+    world = World.new(
+        Campaign(CAMPAIGN_ID, 12345, shipped_config.config_hash), shipped_config.rules
+    )
+    start_economy(world)
+    del world.pool["ENEMY"], world.storage["ENEMY"]
+    rig = Rig(log_writer, tmp_path, world=world)
+    rig.run_to(310)
+    out = cli("verify", rig.snaps, rig.logs, "--expect", "0" * 64)
+    assert out.returncode == 2
+    assert out.stderr.startswith("error: economy: ") and "Traceback" not in out.stderr
