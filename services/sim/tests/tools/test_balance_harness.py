@@ -1097,15 +1097,18 @@ def test_set_rejections_exit_2_before_any_run(
 
 
 def test_set_takes_true_and_false_on_a_bool_key(tmp_path: Path) -> None:
-    # NX-412 part 5a: the shipped switches go off through --set, and the loader takes the result
-    text = balance.override_balance(["economy.legacy_rules=false", "economy.unlimited.ENEMY=false"])
+    # NX-412 part 5a: the shipped switches flip through --set (shipped false since part 5b), one
+    # side of a nested map alone, and the loader takes the result
+    text = balance.override_balance(["economy.legacy_rules=true", "economy.unlimited.ENEMY=true"])
     tree = yaml.safe_load(text)
-    assert tree["economy"]["legacy_rules"] is False
-    assert tree["economy"]["unlimited"] == {"COALITION": True, "ENEMY": False}
+    assert tree["economy"]["legacy_rules"] is True
+    assert tree["economy"]["unlimited"] == {"COALITION": False, "ENEMY": True}
     (path := tmp_path / "balance.yaml").write_text(text)
     assert balance.load_campaign_config(balance.ConfigPaths(balance=path)).rules.economy is not None
     on = yaml.safe_load(balance.override_balance(["economy.unlimited.COALITION=true"]))
     assert on["economy"]["unlimited"]["COALITION"] is True
+    off = yaml.safe_load(balance.override_balance(["combat.strike_structure_first=false"]))
+    assert off["combat"]["strike_structure_first"] is False  # shipped true since part 5b
 
 
 @pytest.mark.parametrize(
@@ -1871,16 +1874,16 @@ def test_collector_samples_pools_grounded_units_and_grounding_by_state(
     collector.sample(world)
     collector.sample(world)  # the same hour: one snapshot
     assert collector.result(HOUR)["economy"]["hourly"] == [
-        {"COALITION": {"pool": None, "grounded": 1}, "ENEMY": {"pool": None, "grounded": 0}}
-    ]  # shipped: both sides unlimited, so no pool
+        {"COALITION": {"pool": 6000, "grounded": 1}, "ENEMY": {"pool": 8000, "grounded": 0}}
+    ]  # shipped since NX-412 part 5b: both sides limited, pools full at their start storage
     assert collector.result(HOUR)["economy"]["army_peak"] >= 2
 
 
 def test_the_report_header_labels_the_economy_mode() -> None:
     # EC-15: a legacy or unlimited run is labelled, never passed off as a normal balance result
     on, off = {"COALITION": True, "ENEMY": True}, {"COALITION": False, "ENEMY": False}
-    shipped = report._economy_mode({"legacy_rules": True, "unlimited": on})
-    assert shipped == [
+    legacy = report._economy_mode({"legacy_rules": True, "unlimited": on})
+    assert legacy == [
         "- **economy: legacy_rules ON; unlimited COALITION, ENEMY** (ECONOMY EC-15: not a normal "
         "balance result)"
     ]

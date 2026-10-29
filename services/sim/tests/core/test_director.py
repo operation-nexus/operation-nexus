@@ -21,6 +21,7 @@ from pathlib import Path
 
 import msgpack
 import pytest
+from fixture_pre_5b import pre_5b_config
 from hypothesis import given
 from hypothesis import strategies as st
 from pydantic import TypeAdapter
@@ -60,7 +61,7 @@ from nexus.core.world import (
 from nexus.runtime.campaign_config import ConfigPaths, load_campaign_config, start_campaign
 from nexus.runtime.config import ConfigError, load_balance
 
-CONFIG = load_campaign_config()
+CONFIG = pre_5b_config()  # written against the rules before NX-412 part 5b
 RULES = dataclasses.replace(CONFIG.rules, campaign=None, tasking=None, track_every_ticks=10**9)
 _dr = RULES.director
 if _dr is None:
@@ -588,7 +589,8 @@ def test_the_window_and_the_dwell_take_the_same_ticks_at_another_time_scale(
         dataclasses.replace(ConfigPaths(), balance=tmp_path / "balance.yaml")
     )
     assert slow.rules.world_dt != CONFIG.rules.world_dt
-    assert slow.rules.director == DR  # game time: the same ticks whatever the world speed
+    shipped = load_campaign_config().rules.director  # the same file at time_scale 6.0
+    assert slow.rules.director == shipped  # game time: the same ticks whatever the world speed
     w = start_campaign(
         CAMPAIGN_ID,
         5,

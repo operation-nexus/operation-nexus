@@ -314,7 +314,7 @@ class Combat(BaseModel):
     strike_structure_first: Annotated[
         bool,
         Field(
-            description="Whether a unit holding a STRIKE claim on a node's defenses fires its STRUCTURE weapon at that node's defense HP before any unit target (COMBAT CB-10, Q-TD-55; extends the bridge exception, Q-SIM-105). Same candidate rules as the automatic fallback (enemy-owned, HP left, not the Static's rear source, not at its idle floor, in range); both sides alike (ECONOMY EC-3). False is the decided rule as it was: units always come first, unit switch."
+            description="Whether a unit holding a STRIKE claim on a node's defenses fires its STRUCTURE weapon at that node's defense HP before any unit target (COMBAT CB-10, Q-TD-55; extends the bridge exception, Q-SIM-105). Same candidate rules as the automatic fallback (enemy-owned, HP left, not the Static's rear source, not at its idle floor, in range); both sides alike (ECONOMY EC-3). False is the CB-10 decided rule: units always come first. True is the shipped default since NX-412 part 5b, harness-tuned (Q-TD-79; U0 #510), not validated at the 50-seed gate. Unit switch."
         ),
     ]
     facility_restore_frac: Annotated[
@@ -1207,7 +1207,7 @@ class Economy(BaseModel):
     unlimited: Annotated[
         Unlimited,
         Field(
-            description="Per side: true = unlimited mode (EC-15): the source pool never runs out, has no storage cap and earns no income (no SupplyProduced), exactly the infinite source of before NX-412. A campaign or test option set by the owner or an Admin at campaign setup, never a GM and never mid-war. The shipped default true for both sides is TEMPORARY (Q-TD-29, lead decision): the NX-412 sweep part sets the spec default false."
+            description="Per side: true = unlimited mode (EC-15): the source pool never runs out, has no storage cap and earns no income (no SupplyProduced), exactly the infinite source of before NX-412. A campaign or test option set by the owner or an Admin at campaign setup, never a GM and never mid-war. Shipped false for both sides, the spec default, since NX-412 part 5b (Q-TD-29 ended the temporary true default there)."
         ),
     ]
     window_s: Annotated[

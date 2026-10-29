@@ -16,6 +16,7 @@ from typing import Any
 
 import msgpack
 import pytest
+from fixture_pre_5b import pre_5b_config
 from hypothesis import given, settings
 from hypothesis import strategies as st
 from test_join import CAMPAIGN_ID, join
@@ -33,7 +34,6 @@ from nexus.core.step import step
 from nexus.core.world import Vec2, World, load, save, state_hash
 from nexus.runtime.campaign_config import CampaignConfig, start_campaign
 from nexus.runtime.config import ConfigError
-from nexus.runtime.golden import shipped_config
 
 # forward staging (NX-416) out of reach, so these tests see EC-13 alone; test_staging.py covers it
 NEW: dict[str, object] = {"economy.legacy_rules": False, "director.staging.direct_s": 1e6}
@@ -47,7 +47,7 @@ STATIC_BASES = ("east-airbase", "fob-n-e", "fob-s-e", "static-hq")
 def config(overrides: dict[str, object]) -> CampaignConfig:
     """The shipped config with `overrides`, the campaign layer off and no opening Static garrison
     (as test_launch), so a window launches only what the test sets up."""
-    c = shipped_config(overrides)
+    c = pre_5b_config(overrides)
     return dataclasses.replace(c, rules=dataclasses.replace(c.rules, campaign=None))
 
 
@@ -570,7 +570,7 @@ def test_the_loader_requires_ordered_tier_fractions(
     overrides: dict[str, object], message: str
 ) -> None:
     with pytest.raises(ConfigError, match=message):
-        shipped_config(overrides)
+        pre_5b_config(overrides)
 
 
 def test_the_cost_envelope_follows_the_rules_in_force() -> None:
@@ -579,12 +579,12 @@ def test_the_cost_envelope_follows_the_rules_in_force() -> None:
         "director.spend_frac.alpha": 0.002,
         "director.spend_frac.bravo": 0.004,
     }
-    shipped_config(small)  # legacy rules: the envelope is still the largest tier budget (80)
+    pre_5b_config(small)  # legacy rules: the envelope is still the largest tier budget (80)
     # storage with every node held: 2000 + 2 AIRBASE 2000 + HQ 2000 + 6 FOB 1000 = 14000;
     # floor(0.004 x 14000) = 56 < OFFENSIVE's 60
     with pytest.raises(ConfigError, match=r"OFFENSIVE: cost 60 is above .*14000 \(56\)"):
-        shipped_config({**NEW, **small})
-    shipped_config(NEW)  # floor(0.0534 x 14000) = 747: the shipped catalog fits
+        pre_5b_config({**NEW, **small})
+    pre_5b_config(NEW)  # floor(0.0534 x 14000) = 747: the shipped catalog fits
 
 
 # --- EC-13: one spawn rule, Director --------------------------------------------------------------
@@ -752,7 +752,7 @@ def test_a_capture_launch_stamps_the_window_of_the_last_operation() -> None:
 def test_thin_bases_push_operations_to_the_source_and_the_pool_pays_its_share_a_window(
     pool: int,
 ) -> None:
-    c = shipped_config({**NEW, **LIMITED, "director.tier.start": "BRAVO"})
+    c = pre_5b_config({**NEW, **LIMITED, "director.tier.start": "BRAVO"})
     w = start_campaign(CAMPAIGN_ID, 3, c)
     assert w.rules is not None
     windows = rear_spawns = 0
@@ -808,7 +808,7 @@ def test_a_garrison_replacement_pays_at_its_own_base_never_the_source() -> None:
 
 
 def coalition(overrides: dict[str, object]) -> World:
-    c = shipped_config(overrides)
+    c = pre_5b_config(overrides)
     rules = dataclasses.replace(c.rules, campaign=None, tasking=None)
     return start_campaign(CAMPAIGN_ID, 1, dataclasses.replace(c, rules=rules))
 
@@ -976,7 +976,7 @@ JOINS = {1: [join(1, "STRIKE", "fob-n-w"), join(2, "RECON", hold=True)], 700: [j
 )
 def test_legacy_off_runs_deterministically(overrides: dict[str, object]) -> None:
     def once() -> tuple[str, list[dict[str, Any]]]:
-        w = start_campaign(CAMPAIGN_ID, 99, shipped_config(overrides))
+        w = start_campaign(CAMPAIGN_ID, 99, pre_5b_config(overrides))
         events = run(w, 1300, JOINS)
         return state_hash(w), [e.model_dump() for e in events]
 
@@ -1028,7 +1028,7 @@ def test_the_floor_past_max_ops_runs_deterministically() -> None:
 def test_the_capture_floor_runs_deterministically() -> None:
     # ALPHA's budget is 30 (1,500 x 0.02), below every capture operation, and the capture slot
     # runs only at Pattern of Life: a CAPTURE job here comes from the cadence floor (Q-TD-42)
-    c = shipped_config({**NEW, "director.cadence_windows": 1, "director.tier.start": "ALPHA"})
+    c = pre_5b_config({**NEW, "director.cadence_windows": 1, "director.tier.start": "ALPHA"})
 
     def run_once() -> tuple[str, list[dict[str, Any]]]:
         w = start_campaign(CAMPAIGN_ID, 99, c)
@@ -1041,7 +1041,7 @@ def test_the_capture_floor_runs_deterministically() -> None:
 
 
 def test_save_and_load_mid_window_resume_identically() -> None:
-    c = shipped_config({**NEW, **LIMITED, "economy.free_viewer_spawn": False})
+    c = pre_5b_config({**NEW, **LIMITED, "economy.free_viewer_spawn": False})
     w = start_campaign(CAMPAIGN_ID, 5, c)
     run(w, 900, JOINS)  # one director window run, the next half way
     assert w.director["ENEMY"].windows == 1

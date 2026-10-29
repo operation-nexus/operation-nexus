@@ -21,6 +21,7 @@ from typing import Any
 
 import pytest
 import yaml
+from fixture_pre_5b import pre_5b_config
 from hypothesis import given, settings
 from hypothesis import strategies as st
 from pydantic import TypeAdapter
@@ -44,7 +45,7 @@ from nexus.core.step import step
 from nexus.core.world import Entity, Vec2, World, load, save, state_hash
 from nexus.runtime.campaign_config import REPO, ConfigPaths, load_campaign_config, start_campaign
 
-CONFIG = load_campaign_config()
+CONFIG = pre_5b_config()  # written against the rules before NX-412 part 5b
 # the campaign layer off and no opening garrison (Q-SIM-86): NX-156's tests start from an empty
 # Static, test_pol.py puts the quotas back
 RULES = dataclasses.replace(CONFIG.rules, campaign=None, garrison_quota={})

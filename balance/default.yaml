@@ -125,7 +125,7 @@ combat:
     STRIKE_FIGHTER: 0.75
   crew_marker_min: 10  # PROPOSED – unvalidated (Q-SIM-68, owner-approved); min (game), a downed crew is a map marker this long (CONFIG-AND-CONTENT §6.4)
   facility_indestructible: true  # decided rule as default, Q-CFG-16 option (CB-9, Q-GP-37); a facility's hp floors at Disabled, never Destroyed (CONFIG-AND-CONTENT §6.4)
-  strike_structure_first: false  # decided rule as default, Q-TD-55 option (CB-10); true: a STRIKE claimant fires at its node's defenses before units (CONFIG-AND-CONTENT §6.4)
+  strike_structure_first: true  # PROPOSED – harness-tuned (U0 #510, lead note in #517), not validated at the 50-seed gate; Q-TD-55 option (CB-10), on from NX-412 part 5b with the NX-474 low-population brake (Q-TD-79, Q-TD-93); true: a STRIKE claimant fires at its node's defenses before units (CONFIG-AND-CONTENT §6.4)
   facility_restore_frac: 0.35  # decided rule as default, Q-TD-86 (owner 2026-10-28, NX-472); hp fraction a Disabled facility is repaired back to before it is on line, the shipped Mission-kill line (CONFIG-AND-CONTENT §6.4)
   overkill_check: true  # decided rule as default, Q-TD-73 (owner 2026-10-28, NX-468); a weapon skips a target whose shots in flight already cover, in expected damage, what it has left (CONFIG-AND-CONTENT §6.4)
 campaign:
@@ -266,7 +266,7 @@ director:  # Threat Director (Q-SIM-78, Q-SIM-81, owner-approved starting number
     pattern_of_life: 0.007
     alpha: 0.02
     bravo: 0.0534
-  source_spend_frac: 0.005  # PROPOSED placeholder, NX-412 sweep (ECONOMY EC-7, Q-TD-26); share of the rear pool per window: a Static holding only its rear at economy.storage.floor (2000) gets 10, the old Pattern of Life budget
+  source_spend_frac: 0.01  # PROPOSED – harness-tuned (U0 #510, lead note in #517; Q-TD-97), not validated at the 50-seed gate (ECONOMY EC-7, Q-TD-26); share of the rear pool per window: a Static holding only its rear at economy.storage.floor (2000) gets 20
   upkeep_reserve_windows: 2  # PROPOSED placeholder, NX-412 sweep (ECONOMY EC-7); windows of the Static's upkeep the budget keeps back: this window's and the next
   cadence_windows: 10  # PROPOSED placeholder, NX-412 sweep (ECONOMY EC-7); windows with no capture operation before the cadence floor (Q-TD-54): one director.tier.min_dwell_s (600 s = 10 windows)
   op_priority:  # PROPOSED – unvalidated (Q-SIM-78); exactly the operations of content/operations.yaml (CONFIG-AND-CONTENT §6.7, §8a)
@@ -293,7 +293,7 @@ director:  # Threat Director (Q-SIM-78, Q-SIM-81, owner-approved starting number
     proximity_tiers: [ALPHA]  # decided rule as default, Q-DEV-21 option; CP ceilings at which provocation_proximity applies (CONFIG-AND-CONTENT §6.7)
     victory_hold_mult: 1.0  # PROPOSED placeholder until the NX-412 sweep (ECONOMY EC-9, Q-TD-19); multiplier on Offensive/Retake on a node of the running victory hold; 1.0 changes nothing
     income_node_mult: 1.0  # PROPOSED placeholder until the NX-412 sweep (ECONOMY EC-12, Q-TD-16); multiplier on Offensive/Retake on a coalition-held node with economy.income.per_node > 0; 1.0 changes nothing
-  adaptation_up_above: 0  # PROPOSED – unvalidated (NX-156); events: a ThreatAdaptation goes UP above this
+  adaptation_up_above: 2  # PROPOSED – harness-tuned (U0 #510, lead note in #517; Q-TD-85), not validated at the 50-seed gate (NX-156); events: a ThreatAdaptation goes UP above this
   reinforce_damage_above: 0  # PROPOSED – unvalidated (Q-SIM-81); share of HP missing, 0 = any damage
   escort_min_convoys: 1  # PROPOSED – unvalidated (NX-156); fewest convoys an escort operation is cut to
   frontline_hops: 1  # PROPOSED – unvalidated (NX-156); road hops that define the front
@@ -332,7 +332,7 @@ director:  # Threat Director (Q-SIM-78, Q-SIM-81, owner-approved starting number
   retake_window_min: 30  # PROPOSED – unvalidated (Q-SIM-81); min (game)
   staging:  # forward staging (THREAT-DIRECTOR §4a, Q-TD-37, NX-416); read only with economy.legacy_rules false
     direct_s: 1500  # PROPOSED – unvalidated (Q-TD-37); s (game), = campaign.victory_hold_min (30 min) less a 5 min margin for the strike, the STAGE gather and the capture bar: a capture run that takes longer from the rear cannot contest a hold, so it stages
-    max_wait_windows: 90  # PROPOSED – unvalidated (Q-TD-37); windows (60 game s each), one director.pol.convoy_period_s (60 min) plus an ENEMY_CONVOY's ~21 min drive from the rear to a bridgehead and unloading
+    max_wait_windows: 30  # PROPOSED – harness-tuned (R2 #482, U0 #510, lead note in #517; Q-TD-90), not validated at the 50-seed gate (Q-TD-37); windows (60 game s each)
     max_staged: 2  # PROPOSED – unvalidated (Q-TD-37); operations staged at once, one per bridgehead lane (north, south) of strait-1
   garrison:
     replace_per_window: 1  # PROPOSED – unvalidated (Q-SIM-85); units a Static base below its garrison_quota buys in one window
@@ -354,9 +354,9 @@ director:  # Threat Director (Q-SIM-78, Q-SIM-81, owner-approved starting number
     convoy_slots: 1  # decided rule as default, Q-DEV-21 option; units one Pattern of Life convoy job takes (CONFIG-AND-CONTENT §6.7)
     capture_slot_tiers: [PATTERN_OF_LIFE]  # decided rule as default, Q-CFG-16 option (Q-SIM-85); tiers at which the periodic capture slot runs (CONFIG-AND-CONTENT §6.7)
 economy:  # Force economy (ECONOMY, NX-412 part 1; CONFIG-AND-CONTENT §6.3). Same keys for both sides (EC-3)
-  unlimited:  # decided rule as default, TEMPORARY (Q-TD-29, lead decision): true keeps today's infinite sources until the NX-412 sweep part sets the spec default false (EC-15, Q-TD-28); switch, owner/Admin at campaign setup only
-    COALITION: true
-    ENEMY: true
+  unlimited:  # PROPOSED – harness-tuned (U0 #510, lead note in #517), not validated at the 50-seed gate; the spec default false (EC-15, Q-TD-28), shipped from NX-412 part 5b, where the temporary true default ended (Q-TD-29); true is the infinite source of before NX-412; switch, owner/Admin at campaign setup only
+    COALITION: false
+    ENEMY: false
   window_s: 60  # PROPOSED – unvalidated (ECONOMY §4); s (game), the director window, one cadence (EC-1, EC-10)
   income:
     floor: 30  # PROPOSED placeholder, NX-412 sweep; stock per window, = director.budget.alpha (30): a side holding nothing keeps an ALPHA window's spend (EC-1)
@@ -394,7 +394,7 @@ economy:  # Force economy (ECONOMY, NX-412 part 1; CONFIG-AND-CONTENT §6.3). Sa
     LOGI_TRUCK: 1  # upkeep 0 (EC-4): hauling stays free
     RECON_UAV: 30
     STRIKE_FIGHTER: 20
-  legacy_rules: true  # decided rule as default, TEMPORARY (Q-TD-33, lead decision): true keeps the old budget, live-unit caps and spawn costs; false applies ECONOMY EC-7, EC-8, EC-13; removed in NX-412 part 5; switch, campaign setup only
+  legacy_rules: false  # PROPOSED – harness-tuned (U0 #510, lead note in #517), not validated at the 50-seed gate; TEMPORARY switch (Q-TD-33, lead decision), off from NX-412 part 5b; true keeps the old budget, live-unit caps and spawn costs; false applies ECONOMY EC-7, EC-8, EC-13; removed in NX-412 part 5; switch, campaign setup only
   free_viewer_spawn: true  # decided rule as default, Q-CFG-16 option (ECONOMY EC-13, Q-TD-26): a viewer's sanctuary spawn is free; false in agent-vs-agent harness profiles; read only with legacy_rules false
   floor_viewer_units: 5  # PROPOSED – unvalidated (ECONOMY EC-11, NX-412 harness sweep); units, = quiet-5's viewers x slots.max_live_per_commander (1), the smallest crowd the harness plays: the coalition floor income must keep them paid at the dearest viewer upkeep beside the coalition garrison; checked at load only with legacy_rules false and the coalition limited
   shortfall_quiet_windows: 30  # PROPOSED – unvalidated (NX-436, Q-TD-51 U5, Q-TD-64); economy windows (30 game min at window_s 60, the R10/R11 horizon of NX-437): a shortfall episode starting at a base this soon after its last one ended is not announced (ECONOMY EC-6a)

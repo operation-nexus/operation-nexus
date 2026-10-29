@@ -21,8 +21,8 @@ The `combat` slot, each running tick (not while frozen, SC-11), in this order:
    target in range (units always come first) fires at the defense HP of the nearest node, ties by
    id, that the enemy owns and whose HP is above 0, within `range_m` of the node's position (nodes
    are always known, FOW-10, so no track is needed). With `combat.strike_structure_first` (Q-TD-55,
-   default off) a unit holding a STRIKE claim on such a node fires at it before any unit target,
-   either side alike. Before that fallback, a unit holding a STRIKE
+   shipped on since NX-412 part 5b, Q-TD-79) a unit holding a STRIKE claim on such a node fires
+   at it before any unit target, either side alike. Before that fallback, a unit holding a STRIKE
    claim on a bridge fires at the bridge (`nexus.core.bridges.target`, Q-SIM-105); a direct GOTO
    order to one never does (Q-SIM-124). The hit that drops it destroys the ground units on it
    (`bridges.collapsing`, Q-SIM-112).

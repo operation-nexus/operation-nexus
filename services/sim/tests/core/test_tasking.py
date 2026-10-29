@@ -20,6 +20,7 @@ from typing import Any
 
 import msgpack
 import pytest
+from fixture_pre_5b import pre_5b_config
 from hypothesis import given, settings
 from hypothesis import strategies as st
 from pydantic import BaseModel, TypeAdapter
@@ -68,10 +69,10 @@ from nexus.core.world import (
     state_hash,
     to_canonical,
 )
-from nexus.runtime.campaign_config import load_campaign_config, start_campaign
+from nexus.runtime.campaign_config import start_campaign
 from nexus.runtime.golden import shipped_config
 
-CONFIG = load_campaign_config()
+CONFIG = pre_5b_config()  # written against the rules before NX-412 part 5b
 _shipped = CONFIG.rules.tasking
 if _shipped is None:
     raise AssertionError("the shipped config has tasking rules")

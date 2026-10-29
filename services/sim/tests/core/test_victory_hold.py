@@ -14,6 +14,7 @@ from typing import Any
 
 import msgpack
 import pytest
+from fixture_pre_5b import pre_5b_config
 from test_campaign import CONFIG as CAMPAIGN_CONFIG
 from test_campaign import hold_seven, new_world, of, own, run
 from test_launch import candidates, scores, window
@@ -31,7 +32,6 @@ from nexus.core.step import step
 from nexus.core.world import World, load, save, state_hash
 from nexus.runtime.campaign_config import start_campaign
 from nexus.runtime.config import ConfigError
-from nexus.runtime.golden import shipped_config
 
 CAMPAIGN_ID = "0192f3a4-5b6c-7d8e-9f01-23456789abcd"
 SEVEN = ("cross-n", "cross-s", "fob-n-e", "fob-n-w", "fob-s-e", "fob-s-w", "west-airbase")
@@ -148,7 +148,7 @@ def test_the_enemy_view_holds_the_running_holds_nodes() -> None:
 
 def director_rules(**overrides: object) -> Rules:
     """The shipped config with `overrides`, set up as test_launch's RULES, with no noise."""
-    rules = shipped_config({"director.noise_scale": 0, **overrides}).rules
+    rules = pre_5b_config({"director.noise_scale": 0, **overrides}).rules
     return dataclasses.replace(rules, campaign=None, garrison_quota={})
 
 
@@ -173,7 +173,7 @@ def test_the_multipliers_ship_at_one_and_change_no_score() -> None:
 @pytest.mark.parametrize("key", ["victory_hold_mult", "income_node_mult"])
 def test_the_loader_refuses_a_multiplier_below_one(key: str) -> None:
     with pytest.raises(ConfigError):
-        shipped_config({f"director.score.{key}": 0.9})  # EC-12: >= 1
+        pre_5b_config({f"director.score.{key}": 0.9})  # EC-12: >= 1
 
 
 def test_the_hold_multiplier_applies_to_capture_operations_on_hold_nodes_only() -> None:
