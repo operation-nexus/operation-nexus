@@ -34,6 +34,12 @@ refers to an entity id, so a job names a node, or a SIGINT blob with its cell ce
   `tasking.defend_radius_m` of it (Q-SIM-74). Urgency: 1.0 + the larger of the bar's share and
   `1 - d / radius` for the nearest tracked enemy at distance `d` (0 at the radius, 1 at the base),
   capped at `urgency_max`.
+  The side's own sanctuary (`Supply.rear`, never captured) is defended too while its defense hp
+  is below full and the side tracks an enemy aircraft or ground unit within the radius
+  (`besieged`, Q-TD-122, NX-493): urgency at the cap, `tasking.slots.defend` slots; the job is
+  done when a claimant is there and the hp is full or no tracked enemy is in range. The Static's
+  rear is never struck (Q-SIM-64), so only the coalition's board posts it in play (EC-3: the
+  rule is the same).
 - **Strike** (`strike:<node>`): an enemy-held node whose defense hp is above 0 that is the active
   objective (coalition only, urgency at the cap), or an enemy-held node, at any defense hp, that
   holds a discovered facility marker whose last-known state is not Disabled (`live_site`; urgency
@@ -434,6 +440,13 @@ def _defend(
 ) -> Iterator[JobSpec]:
     reach = tr.defend_radius_m
     for node, (x, y) in sorted(view.nodes.items()):
+        if view.owners.get(node) == side and besieged(
+            rules, tr, view.defense_hp, side, node, view.tracks.values()
+        ):
+            yield JobSpec(  # Q-TD-122: the last stand, at the top urgency
+                "DEFEND", f"defend:{node}", tr.slots["DEFEND"], tr.urgency_max_milli, node=node
+            )
+            continue
         if view.owners.get(node) != side or rules.node_kind[node] in rules.uncapturable:
             continue
         bar = world.capture.get(node)  # a bar on an owned node is always the other side's
@@ -452,6 +465,29 @@ def _defend(
             yield JobSpec(
                 "DEFEND", f"defend:{node}", tr.slots["DEFEND"], _urgency(tr, share), node=node
             )
+
+
+def besieged(
+    rules: Rules, tr: TaskingRules, defense_hp: Mapping[str, int], side: Side, node: str,
+    tracks: Iterable[Contact],
+) -> bool:  # fmt: skip
+    """`node` is the side's sanctuary, its defense hp is below full, and the side tracks an enemy
+    aircraft or ground unit within `tasking.defend_radius_m` of it (`tracks`: current tracks
+    only; Q-TD-122, NX-493). At the default (10 km) the radius covers every STRUCTURE weapon's
+    reach (AG_LIGHT, 10 km), so a unit firing on it is in range. The generator posts its defend
+    job and the verdict keeps it while this holds: the job ends when the hp is full or no tracked
+    enemy is in range."""
+    d = rules.defense
+    if d is None or node != rules.supply.rear[side] or node not in defense_hp:
+        return False
+    if defense_hp[node] >= d.max_hp[node]:
+        return False
+    x, y = rules.roads.pos[node]
+    return any(
+        rules.domain[c.kind] in (_AIR, _GROUND)
+        and math.hypot(c.pos.x - x, c.pos.y - y) <= tr.defend_radius_m
+        for c in tracks
+    )
 
 
 def _strike(

@@ -318,7 +318,9 @@ def test_the_sanctuary_cannot_drop_below_one_while_nobody_plays() -> None:
     w = new_world()
     out: list[Event] = []
     damage(w, RULES, SANCTUARY, 10_000, out)
-    assert w.defense_hp[SANCTUARY] == 1 and out == [] and not w.defense_down
+    assert w.defense_hp[SANCTUARY] == 1 and not w.defense_down
+    assert [e.kind for e in out] == ["ThreatAdaptation"]  # SANCTUARY_AT_RISK (NX-493), not Down
+    out.clear()
     human(w)
     damage(w, RULES, SANCTUARY, 10_000, out)
     assert w.defense_hp[SANCTUARY] == 0 and lines(out) == [("NodeDefensesDown", SANCTUARY)]

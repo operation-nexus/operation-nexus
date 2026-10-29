@@ -23,10 +23,11 @@ while frozen (SC-11), for each side in COALITION, ENEMY order:
    - RESUPPLY: DONE when a claimant stands at the node with its cargo gone (the delivery stop
      ended); FAILED when the side lost the node. DEFEND: FAILED likewise; DONE when a claimant
      stands at the node and the threat is gone (no bar of the other side, and the side tracks no
-     enemy GROUND unit within `tasking.defend_radius_m`)). STRIKE: DONE when the side owns
-     the node, or its defense hp is 0 and, for a board `strike:` job, the side knows no live site
-     there (a facility marker at the node last seen not Disabled: SEAD, Q-TD-81; a Director
-     operation's strike is done at 0 hp); on a bridge, when the bridge is down (NX-373).
+     enemy GROUND unit within `tasking.defend_radius_m`; for a sanctuary, also its defense hp is
+     full or no tracked enemy aircraft is within the radius, Q-TD-122)). STRIKE: DONE when the
+     side owns the node, or its defense hp is 0 and, for a board `strike:` job, the side knows
+     no live site there (a facility marker at the node last seen not Disabled: SEAD, Q-TD-81; a
+     Director operation's strike is done at 0 hp); on a bridge, when the bridge is down (NX-373).
      REPAIR_BRIDGE (the coalition's, NX-373 part 2): drive to the quicker bank and out to the
      bridge's repair stop (`logistics.approach`), where `bridges.repair` works; arrived means
      parked at the stop; DONE when the bridge is no longer down, then its trucks drive back to
@@ -145,6 +146,7 @@ from nexus.core.tasking_gen import (
     POST_GATE,
     RETAKE,
     JobSpec,
+    besieged,
     can_hit,
     crewing,
     fits_job,
@@ -684,10 +686,19 @@ def _staged(world: World, job: Job) -> bool:
 
 def _menaced(world: World, rules: Rules, tr: TaskingRules, side: Side, node: str) -> bool:
     """The other side's bar is on the node, or the side tracks an enemy ground unit within
-    `tasking.defend_radius_m` of it (what the side knows, as when the job was posted)."""
+    `tasking.defend_radius_m` of it (what the side knows, as when the job was posted), or it is the
+    side's sanctuary below full defense hp with a tracked enemy aircraft or ground unit within the
+    radius (Q-TD-122, NX-493: the generator's `besieged`, alone, so a full sanctuary ends its job
+    even with a ground contact in range)."""
     bar = world.capture.get(node)
     if bar is not None and bar.side != side:
         return True
+    if node == rules.supply.rear[side]:  # the sanctuary's own rule (Q-TD-122), as the generator
+        tracks = [c for c in world.contacts[side].values() if c.age is None]
+        if besieged(rules, tr, world.defense_hp, side, node, tracks):
+            return True
+        if rules.node_kind[node] in rules.uncapturable:
+            return False  # an uncapturable sanctuary gets no ordinary defend job (`_defend`)
     x, y = rules.roads.pos[node]
     return any(
         c.age is None and rules.domain[c.kind] == _GROUND

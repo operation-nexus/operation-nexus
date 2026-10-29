@@ -281,6 +281,8 @@ STAGING = {**ADAPTATION, "category": "STAGING"}  # NX-416 (THREAT-DIRECTOR FS-5)
 LAUNCHED = {**ADAPTATION, "category": "STAGING_LAUNCHED"}
 DISPERSED = {**ADAPTATION, "category": "STAGING_DISPERSED"}
 DOWNED = {**ADAPTATION, "category": "STRIKE_DOWNED", "node_id": "port-s", "credit_ids": [4, 9]}
+# NX-493 (Q-TD-122): the coalition sanctuary's drop from full names it
+AT_RISK = {**ADAPTATION, "category": "SANCTUARY_AT_RISK", "node_id": "haven"}
 # NX-412 part 5a (ECONOMY EC-8): a Director operation the live cap stopped
 REFUSED = {**_BASE, "kind": "SpawnRefused", "side": "ENEMY", "reason": "GUARD", "operations": 2,
            "units": 7}  # fmt: skip
@@ -315,6 +317,7 @@ REFUSED = {**_BASE, "kind": "SpawnRefused", "side": "ENEMY", "reason": "GUARD", 
         HOLD_STARTED,
         HOLD_BROKEN,
         HOLD_AT_RISK,
+        AT_RISK,
         STAGING,
         LAUNCHED,
         DISPERSED,
@@ -380,6 +383,8 @@ def test_combat_events_parse_through_the_event_union(good: dict[str, object]) ->
         (HOLD_BROKEN, {"node_ids": ["fob-1"]}),  # one node
         (HOLD_BROKEN, {"node_id": None}),
         (HOLD_AT_RISK, {"node_id": "Not A Node"}),
+        (AT_RISK, {"category": "SANCTUARY_UNDER_ATTACK"}),  # only the enum's names
+        (AT_RISK, {"node_id": "Not A Node"}),
         (DOWNED, {"credit_ids": list(range(1, 34))}),  # at most 32
         (DOWNED, {"credit_ids": [0]}),  # entity ids start at 1
         (DOWNED, {"credit_ids": ["viper"]}),
