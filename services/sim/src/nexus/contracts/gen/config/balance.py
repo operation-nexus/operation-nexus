@@ -1619,7 +1619,7 @@ class Tasking(BaseModel):
     defend_radius_m: Annotated[
         float,
         Field(
-            description="A friendly base posts a defend job when its side tracks an enemy ground unit within this distance of it (Q-SIM-74), unit m. Urgency rises as the nearest tracked enemy closes: 1.0 at the radius, the cap at the base.",
+            description="A friendly base posts a defend job when its side tracks an enemy ground unit within this distance of it (Q-SIM-74), and, for a besieged sanctuary, an enemy aircraft or ground unit (Q-TD-122), unit m. Urgency rises as the nearest tracked enemy closes: 1.0 at the radius, the cap at the base.",
             gt=0.0,
         ),
     ]

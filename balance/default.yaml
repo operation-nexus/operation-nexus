@@ -181,7 +181,7 @@ tasking:
   resupply_stock_per_slot: 100  # PROPOSED – unvalidated (Q-SIM-73); stock units, one resupply slot per this much missing stock (CONFIG-AND-CONTENT §6.6)
   resupply_slots_max: 3  # PROPOSED – unvalidated (Q-SIM-73); units (CONFIG-AND-CONTENT §6.6)
   resupply_slots_max_starving: 3  # PROPOSED – unvalidated (Q-TD-92, Q-TD-113: = resupply_slots_max, the no-op; tune 3–9); units, the LC-3 cap for a starving or damaged base (CONFIG-AND-CONTENT §6.6)
-  defend_radius_m: 10000  # PROPOSED – unvalidated (Q-SIM-74); m, a tracked enemy ground unit this close to a base posts a defend job (CONFIG-AND-CONTENT §6.6)
+  defend_radius_m: 10000  # PROPOSED – unvalidated (Q-SIM-74); m, a tracked enemy ground unit this close to a base posts a defend job, and, for a besieged sanctuary, an enemy aircraft or ground unit (Q-TD-122) (CONFIG-AND-CONTENT §6.6)
   counterattack_window_min: 15  # PROPOSED – unvalidated (Q-SIM-74, Q-GD-31); min (game), the AI garrison may counterattack a node just lost (CONFIG-AND-CONTENT §6.6)
   capture_max_restarts: 3  # PROPOSED – unvalidated (Q-SIM-84); fresh expiries for a capture run still driving
   scout_post_interval_min: 2  # PROPOSED – unvalidated (Q-DEV-21); min (game), at most one new generated scout job per board per interval
