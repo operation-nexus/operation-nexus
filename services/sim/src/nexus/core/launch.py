@@ -5,10 +5,8 @@ module touches the world, in the `director` slot right after `nexus.core.directo
 Each window: the Retake clocks are pruned; `Own` is read; candidates are ranked with the `director`
 stream and selected within `DirectorState.budget` and the unit caps; each selected operation is
 launched in selection order:
-- **Pay.** "The budget is the stock" (Q-TD-12): under `economy.legacy_rules` the operation's cost
-  is debited from the surplus of the side's finite-stock bases (above their starvation floors), the
-  base its first unit spawned at first, then the rest in id order, one `SupplyConsumed{SPAWN}` per
-  base. Otherwise (ECONOMY EC-13, NX-412 part 3) it is drawn once, at the one node where all its
+- **Pay.** "The budget is the stock" (Q-TD-12; ECONOMY EC-13, NX-412 part 3): the operation's
+  cost is drawn once, at the one node where all its
   new units spawn (`_paying_node`), from one of the window's two accounts (`_Purse`): the base
   `plan_deploy` picks for its first unit (a garrison replacement's own base, a scout's checked
   origin) when that base's surplus pays it and it fits the base account; else the source when
@@ -26,8 +24,7 @@ launched in selection order:
 - **Jobs.** Each template job is posted by `post_job` on the side's board, in order, the key
   `op:<operation>:<target>:<job index>[:<convoy>]`, each depending on the job posted just before
   it (the last of the previous step); its units claim it at once (`tasking.take`).
-- **Room.** The units must fit `max_spawns_per_window` and the live room: below
-  `director.max_live_units.<tier>` under `economy.legacy_rules`, else below the EC-8 guard
+- **Room.** The units must fit `max_spawns_per_window` and the live room below the EC-8 guard
   `sim.max_live_units_per_side` (`economy.guard_room`). A capture operation that posts jobs
   stamps `DirectorState.last_operation` (the EC-7 cadence floor, Q-TD-54); others do not. When
   the floor is due, the cheapest capture operation with a target that base surplus plus the
@@ -42,7 +39,7 @@ launched in selection order:
   keeps, launches or drops one stamps `last_operation` (a staged operation is always a capture
   one), so it counts from the drop.
   Operations the budget and `max_spawns_per_window` allow but the live room does not are counted
-  in one `SpawnRefused` per selection (EC-8, `GUARD` or `TIER_CAP`; NX-412 part 5a).
+  in one `SpawnRefused{GUARD}` per selection (EC-8; NX-412 part 5a).
 - **Effect.** EMISSION_BLINK turns the radar at the target base dark for `decoy_blink.dark_s`
   (`DirectorState.dark` holds when it resumes), then it may not blink again for `cooldown_s`
   (`blink_ready`); at most one radar blinks per window (Q-SIM-82).
@@ -52,7 +49,7 @@ launched in selection order:
   operation (Offensive, Retake) launched on a node of the running victory hold announces
   `ThreatAdaptation{HOLD_AT_RISK, node_id}`, once per launch, the sitrep "NULL moves on <node>,
   the hold is at risk" (ECONOMY EC-9, Q-TD-19; NX-412 part 4).
-- **Forward staging (THREAT-DIRECTOR §4a, NX-416; legacy rules off).** A capture operation
+- **Forward staging (THREAT-DIRECTOR §4a, NX-416).** A capture operation
   farther than `director.staging.direct_s` by road from the rear waits at its staging base
   (`nexus.core.staging`) until every node it spawns at can pay its own units, units whose
   deploy base cannot pay spawning at the source instead (`_stage`, `_review`, `_staged_shares`;
@@ -63,7 +60,7 @@ launched in selection order:
   dropped where it would fall back (NX-480). Each massing sitrep is closed once in its sector (FS-9,
   Q-TD-47, NX-431; `Staged.sector`, `_close`): `STAGING_LAUNCHED` on a launch from the base,
   `STAGING_DISPERSED` on any other end or a re-stage it no longer names (`_restage`).
-- **Victory-hold response (Q-TD-46, NX-430; legacy rules off).** While a coalition victory hold
+- **Victory-hold response (Q-TD-46, NX-430).** While a coalition victory hold
   runs, a capture operation on one of its nodes never waits at a staging base (`_stage`
   launches it from the base when that pays now, with no massing sitrep, else by EC-13, the
   rear if needed), one already staged waits no longer (`_review`: it launches at its base or
@@ -98,7 +95,7 @@ from nexus.core.director import (
     rear_share,
     surplus,
 )
-from nexus.core.economy import MOVERS, guard_room
+from nexus.core.economy import guard_room
 from nexus.core.fog import SideView, is_off_facility, seen_at
 from nexus.core.logistics import (
     facility_damage,
@@ -114,12 +111,11 @@ from nexus.core.rules import (
     JobTemplate,
     OperationRules,
     Rules,
-    legacy_rules,
     sector_at,
 )
 from nexus.core.tasking import post_job, take
 from nexus.core.tasking_gen import JobSpec, fits, slot_cap, starving_need
-from nexus.core.world import DirectorState, Entity, Job, Staged, Vec2, World, consumed
+from nexus.core.world import DirectorState, Entity, Job, Staged, Vec2, World
 
 _DIRECTOR = "ENEMY_DIRECTOR"
 # Defensive counter -> the adaptation it announces (ThreatAdaptation.category).
@@ -130,7 +126,7 @@ _LAUNCHED, _DISPERSED = "STAGING_LAUNCHED", "STAGING_DISPERSED"  # a massing's p
 
 @dataclass(slots=True)
 class _Purse:
-    """EC-7 (legacy rules off): the window's two accounts. `base` pays for units that spawn at a
+    """EC-7: the window's two accounts. `base` pays for units that spawn at a
     base (the budget less the rear share: the bases' spend share less the reserve, lifted by the
     cadence floor), `rear` (`director.rear_share`, at most the budget) for units that spawn at
     the source, so the pool pays at most its small share a window. A side in unlimited mode
@@ -158,25 +154,22 @@ class _Purse:
             self.base -= cost
 
 
-def _live_room(world: World, rules: Rules, side: Side, state: DirectorState, own: ops.Own) -> int:
-    """Live units the side may still add: the EC-8 guard, or under `economy.legacy_rules` the
-    room below `director.max_live_units.<tier>`."""
-    guard, dr = guard_room(world, side), rules.director
-    if guard is not None:
-        return guard
-    return 0 if dr is None else dr.max_live_units[state.tier] - own.live_units
+def _live_room(world: World, side: Side) -> int:
+    """Live units the side may still add: the EC-8 guard `sim.max_live_units_per_side`
+    (`economy.guard_room`, which raises ValueError when the world has no economy rules)."""
+    return guard_room(world, side)
 
 
 def _note_refused(world: World, side: Side, refused: list[int], out: list[Event]) -> None:
-    """EC-8 (NX-412 part 5a): one `SpawnRefused` for the operations the live cap stopped in one
-    selection; `GUARD` when the guard applies, else the legacy tier cap. None for no refusal."""
+    """EC-8 (NX-412 part 5a): one `SpawnRefused{GUARD}` for the operations the live cap stopped
+    in one selection. None for no refusal."""
     if not refused:
         return
     out.append(
         SpawnRefused.model_construct(
             kind="SpawnRefused", tick=world.campaign.tick + 1, event_seq=world.next_event_seq(),
             campaign_id=world.campaign.id, side=side,
-            reason="TIER_CAP" if guard_room(world, side) is None else "GUARD",
+            reason="GUARD",
             operations=len(refused), units=sum(refused),
         )
     )  # fmt: skip
@@ -208,12 +201,10 @@ def _own(world: World, rules: Rules, side: Side) -> ops.Own:
     convoys: list[tuple[int, str]] = []
     damaged: set[str] = set()
     radars: set[str] = set()
-    live = 0
     homed: dict[str, list[UnitKind]] = {}
     for e in world.entities():
         if e.side != side:
             continue
-        live += rules.domain[e.kind] in MOVERS
         if e.home is not None and e.owner_kind == _DIRECTOR:
             homed.setdefault(e.home, []).append(e.kind)
         if (
@@ -239,7 +230,7 @@ def _own(world: World, rules: Rules, side: Side) -> ops.Own:
     jobs = world.boards[side].values()  # the bridges its live STRIKE jobs name (NX-401)
     struck = frozenset(j.node for j in jobs if j.kind == "STRIKE" and j.node in world.bridge_hp)
     return ops.Own(
-        tuple(convoys), frozenset(damaged), frozenset(radars), live,
+        tuple(convoys), frozenset(damaged), frozenset(radars),
         {n: tuple(k) for n, k in homed.items()}, free, struck,
     )  # fmt: skip
 
@@ -283,18 +274,17 @@ def run(world: World, side: Side, view: SideView, rules: Rules, out: list[Event]
     _retire_idle(world, rules, side, state, dr, now, out)
     _recall(world, rules, side)
     pool = world.pool.get(side)  # unchanged since `decide` set the budget; None: unlimited
-    purse = None if legacy_rules(rules) else _Purse.of(state.budget, pool, dr)
-    if purse is not None:  # the cheapest-operation floor lifts the base account too (NX-434)
-        cheapest = cadence_floor(state, view, rules, _floor_cap(world, rules, view, purse))
-        _lift(purse, state, cheapest)
+    purse = _Purse.of(state.budget, pool, dr)
+    # the cheapest-operation floor lifts the base account too (NX-434)
+    _lift(purse, state, cadence_floor(state, view, rules, _floor_cap(world, rules, view, purse)))
     capped = _night_capped(world, rules, state, dr, now)  # no capture operations, staged too
     held = _review(world, rules, side, view, state, out, purse, capped)
     own = _own(world, rules, side)
     live = ops.live_pairs([j.key for j in world.boards[side].values()]) | stg.pairs(state)
     cands = ops.candidates(state, view, rules, own, now, live, capture=False if capped else None)
     ranked = ops.rank(cands, state, view, rules, world.rng.stream(RngStream.DIRECTOR))
-    room, most = _live_room(world, rules, side, state, own), ops.max_ops(state.tier, dr)
-    hold = frozenset() if purse is None else view.hold  # outside `max_ops` (Q-TD-46)
+    room, most = _live_room(world, side), ops.max_ops(state.tier, dr)
+    hold = view.hold  # outside `max_ops` (Q-TD-46)
 
     def fits(c: ops.Candidate) -> bool:  # `select`'s caps on `c` as the floor's lead, cost given
         return bool(ops.select(
@@ -302,9 +292,9 @@ def run(world: World, side: Side, view: SideView, rules: Rules, out: list[Event]
             over=c, hold=hold,
         ))  # fmt: skip
 
-    lead = None if purse is None else _floor_capture(world, rules, view, state, ranked, purse, fits)
-    unlifted = (purse.base, state.budget) if purse is not None else (0, state.budget)
-    if purse is not None and lead is not None:  # no staged operation, so `held` is 0
+    lead = _floor_capture(world, rules, view, state, ranked, purse, fits)
+    unlifted = (purse.base, state.budget)
+    if lead is not None:  # no staged operation, so `held` is 0
         _lift(purse, state, lead.op.cost)
         ranked = [lead, *(c for c in ranked if c is not lead)]
 
@@ -316,7 +306,7 @@ def run(world: World, side: Side, view: SideView, rules: Rules, out: list[Event]
 
     refused: list[int] = []
     chosen = pick(ranked, refused)
-    if purse is not None and lead is not None and chosen[:1] == [lead]:
+    if lead is not None and chosen[:1] == [lead]:
         chosen = chosen[1:]
         if not _launch(world, rules, side, view, state, lead, out, purse):
             # it could not pay after all (Q-TD-48 (6)): the floor lifts nothing, so the window
@@ -334,7 +324,7 @@ def _floor_capture(
     world: World, rules: Rules, view: SideView, state: DirectorState, ranked: list[ops.Candidate],
     purse: _Purse, fits: Callable[[ops.Candidate], bool],
 ) -> ops.Candidate | None:  # fmt: skip
-    """ECONOMY EC-7, Q-TD-42 (legacy rules off): when the cadence floor is due, the best-ranked
+    """ECONOMY EC-7, Q-TD-42: when the cadence floor is due, the best-ranked
     target of the cheapest capture operation (`ops.has_capture`) among the window's candidates
     (its tier, the night cap) that the window can actually pay and the window's caps allow
     (`fits`: the spawn and live rooms, `max_ops` with one slot over, Q-TD-57); None leaves the
@@ -384,7 +374,7 @@ def no_capture_reason(world: World, side: Side, view: SideView, rules: Rules, no
     operation live); `targets_busy` (there are some, but a running or staged capture operation
     already covers each: the same call with the live pairs); then the
     cheapest candidate against the money, the window's budget or, with the floor due
-    (`cadence_due`, legacy rules off), what the floor counts (`_floor_cap`): `budget` (more than
+    (`cadence_due`), what the floor counts (`_floor_cap`): `budget` (more than
     either), `floor_not_due` (more than the budget but the floor would count it, were it due);
     `max_ops` (`ops.select` takes an affordable one only with no `max_ops` cap, one over for the
     floor's lead as `_floor_capture` allows it: the floor due and its cost within `_floor_cap`);
@@ -413,22 +403,18 @@ def no_capture_reason(world: World, side: Side, view: SideView, rules: Rules, no
         return "no_target"
     if not (caps := capture(live)):
         return "targets_busy"
-    purse = None if legacy_rules(rules) else _Purse.of(state.budget, world.pool.get(side), dr)
-    cap = None if purse is None else _floor_cap(world, rules, view, purse)
-    floor = cap is not None and cadence_due(state, view, rules)
-    money = max(state.budget, cap) if floor and cap is not None else state.budget
+    cap = _floor_cap(world, rules, view, _Purse.of(state.budget, world.pool.get(side), dr))
+    floor = cadence_due(state, view, rules)
+    money = max(state.budget, cap) if floor else state.budget
     cheapest = min(c.op.cost for c in caps)
     if cheapest > money:
-        return "floor_not_due" if cap is not None and cheapest <= cap else "budget"
-    room, hold = (
-        _live_room(world, rules, side, state, own),
-        view.hold if purse is not None else frozenset(),
-    )
+        return "floor_not_due" if cheapest <= cap else "budget"
+    room, hold = _live_room(world, side), view.hold
 
     def taken(c: ops.Candidate, most: int | None) -> bool:
         return bool(ops.select(
             [c], dr, c.op.cost, dr.max_spawns_per_window, room, live, most, _routine(dr),
-            over=c if floor and cap is not None and c.op.cost <= cap else None, hold=hold,
+            over=c if floor and c.op.cost <= cap else None, hold=hold,
         ))  # fmt: skip
 
     paid = [c for c in caps if c.op.cost <= money]
@@ -443,8 +429,8 @@ def _pattern_of_life(
     """The periodic Pattern of Life work (Q-SIM-85), each on its own timer in `DirectorState`: the
     patrols, the supply convoys, and at the `director.pol.capture_slot_tiers` (Pattern of Life by
     default) the capture operations, which wait for the night-progress cap and are paid from the
-    real surplus, not the window's budget. With legacy rules off a convoy or capture operation
-    that spawns at the source still spends the window's rear account (`purse`)."""
+    real surplus, not the window's budget. A convoy or capture operation that spawns at the
+    source still spends the window's rear account (`purse`)."""
     dr = rules.director
     if dr is None:
         return
@@ -504,7 +490,7 @@ def _capture_slot(
     refused: list[int] = []
     chosen = ops.select(
         ranked, dr, surplus(view, rules, world.stock), dr.max_spawns_per_window,
-        _live_room(world, rules, side, state, own), live, None, _routine(dr), refused,
+        _live_room(world, side), live, None, _routine(dr), refused,
     )  # fmt: skip
     _note_refused(world, side, refused, out)
     if chosen:
@@ -561,7 +547,7 @@ def _convoys(
     `convoy_slots` (LC-3, NX-473)."""
     own = _own(world, rules, side)
     live = ops.live_pairs([j.key for j in world.boards[side].values()])
-    spawns, live_room = dr.max_spawns_per_window, _live_room(world, rules, side, state, own)
+    spawns, live_room = dr.max_spawns_per_window, _live_room(world, side)
     refused: list[int] = []
     short = ops.convoy_shortfall(view, rules, own)
     targets = stock_targets(world, rules)  # a staging base below its raised target first (FS-3)
@@ -641,14 +627,13 @@ def _stage(
     world: World, rules: Rules, side: Side, view: SideView, state: DirectorState,
     c: ops.Candidate, out: list[Event], purse: _Purse | None,
 ) -> bool:  # fmt: skip
-    """FS-1, FS-2, FS-4, FS-5 (legacy rules off, `purse` set): a far capture operation is staged
-    at its base: `STAGING` is announced in the base's sector, and it launches at once when every
-    node it spawns at can pay its own units (then `STAGING_LAUNCHED` there, FS-9), else waits in
-    `DirectorState.staged` with that sector open. False when it
-    is not staged (near, no nearer base, or `director.staging.max_staged` waiting): it spawns as
-    EC-13 says. Aimed at a node of the running victory hold (Q-TD-46, FS-10) it never waits and
-    says nothing: True when it launched at once from the base, else False (EC-13, the rear if
-    needed)."""
+    """FS-1, FS-2, FS-4, FS-5 (`purse` set; a direct call without one never stages): a far capture
+    operation is staged at its base: `STAGING` is announced in the base's sector, and it launches at
+    once when every node it spawns at can pay its own units (then `STAGING_LAUNCHED` there, FS-9),
+    else waits in `DirectorState.staged` with that sector open. False when it is not staged (near,
+    no nearer base, or `director.staging.max_staged` waiting): it spawns as EC-13 says. Aimed at a
+    node of the running victory hold (Q-TD-46, FS-10) it never waits and says nothing: True when it
+    launched at once from the base, else False (EC-13, the rear if needed)."""
     dr = rules.director
     if purse is None or dr is None:
         return False
@@ -784,32 +769,28 @@ def _post_and_spawn(
     """Post the jobs in order, pay `cost(spawned)` and give each job its units; returns how many
     were spawned, or None when the real surplus now cannot pay for them and nothing was posted:
     the window's budget is only a plan, because the operations launched before this one load
-    carriers from the same surplus (`_payable`). A slot goes to an idle live unit of its kind
+    carriers from the same surplus (`_paying_node`). A slot goes to an idle live unit of its kind
     first (the lowest id), which is neither spawned nor paid for (Q-SIM-84). Units take their
     jobs only after the payment, because a carrier at its source loads on taking a job, and
-    loading first could leave too little surplus to pay. With `economy.legacy_rules` off the
-    cost is drawn once at `_paying_node`, where every new unit spawns (EC-13); with `at`, a staged
-    operation's base (FS-4, Q-TD-38), each unit spawns where `_staged_shares` planned it and each
+    loading first could leave too little surplus to pay. The cost is drawn once at
+    `_paying_node`, where every new unit spawns (EC-13); with `at`, a staged operation's base
+    (FS-4, Q-TD-38), each unit spawns where `_staged_shares` planned it and each
     spawn node pays its own units' share."""
     dr = rules.director
     if dr is None:
         return 0
     garrison = c.op.target == "GARRISON"
     spare = {} if garrison else _reusable(world, side)  # a garrison replacement is always new
-    legacy, need = legacy_rules(rules), cost(len(_new_slots(c, spare)))
+    need = cost(len(_new_slots(c, spare)))
     node, shares = None, None
     spots: Iterator[str] = iter(())  # where a staged operation's new units spawn, in slot order
-    if legacy:
-        if _payable(world, rules, side) < need:
-            return None
-    elif at is not None:
+    if at is not None:
         if (staged := _staged_shares(world, rules, side, c, spare, cost, purse, at)) is None:
             return None
         shares, spots = staged[0], iter(staged[1])
     elif (node := _paying_node(world, rules, side, c, need, purse)) is None:
         return None
     spawned = 0
-    first: str | None = None
     prev: int | None = None  # the job the next step waits for
     given: list[tuple[Entity, Job]] = []
     for idx, (job, wheres) in enumerate(zip(c.op.jobs, c.wheres, strict=True)):
@@ -833,23 +814,20 @@ def _post_and_spawn(
                 spot = node or (c.target if garrison else w.origin)
                 if at is not None:
                     spot = next(spots)  # as `_staged_shares` planned and priced it
-                unit, base = _spawn(world, rules, side, kind, near, out, at=spot)
-                first, spawned = first or base, spawned + 1
+                unit, _ = _spawn(world, rules, side, kind, near, out, at=spot)
+                spawned += 1
                 if garrison:
                     unit.home = c.target
                 given.append((unit, posted))
         prev = last
     if next(spots, None) is not None:
         raise ValueError("a staged spawn left planned spots: the plan and the spawn drifted")
-    if legacy:
-        _pay(world, rules, side, cost(spawned), first, out)
-    else:
-        if node is not None:
-            shares = {node: cost(spawned)}
-        for paying, share in (shares or {}).items():
-            pay_spawn(world, paying, share, out)
-            if purse is not None:
-                purse.spend(paying == rules.supply.rear[side], share)
+    if node is not None:
+        shares = {node: cost(spawned)}
+    for paying, share in (shares or {}).items():
+        pay_spawn(world, paying, share, out)
+        if purse is not None:
+            purse.spend(paying == rules.supply.rear[side], share)
     for unit, posted in given:
         take(world, unit, posted, out)
     return spawned
@@ -1084,34 +1062,6 @@ def _spawn(
         )
     )  # fmt: skip
     return unit, node
-
-
-def _payable(world: World, rules: Rules, side: Side) -> int:
-    """What `_pay` can debit now: the stock above the floor of the side's finite-stock bases."""
-    return sum(
-        max(0, world.stock[n] - floor)
-        for n, floor in rules.supply.starve_floor.items()
-        if world.owner.get(n) == side and n in world.stock
-    )
-
-
-def _pay(
-    world: World, rules: Rules, side: Side, cost: int, prefer: str | None, out: list[Event]
-) -> None:
-    """Debit `cost` from the surplus of the side's finite-stock bases (module docstring)."""
-    order = sorted(rules.supply.starve_floor, key=lambda n: (n != prefer, n))
-    for node in order:
-        if cost <= 0:
-            break
-        if world.owner.get(node) != side or node not in world.stock:
-            continue
-        take_ = min(cost, max(0, world.stock[node] - rules.supply.starve_floor[node]))
-        if take_:
-            world.stock[node] -= take_
-            out.append(consumed(world, node, take_, "SPAWN"))
-            cost -= take_
-    if cost > 0:
-        raise ValueError(f"the Director's budget exceeded the stock by {cost}")
 
 
 def _adaptation(

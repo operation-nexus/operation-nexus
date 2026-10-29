@@ -588,7 +588,7 @@ class Sim(BaseModel):
     max_live_units_per_side: Annotated[
         int,
         Field(
-            description="Performance guard, unit live movers (AIR and GROUND units) per side (ECONOMY EC-8): a tick-rate guard only, set well above any army the economy feeds. Read only with economy.legacy_rules false: a Director operation must fit the room below it, and a JOIN at it waits in the reserve queue as at slots.max_viewer_units (GP-3).",
+            description="Performance guard, unit live movers (AIR and GROUND units) per side (ECONOMY EC-8): a tick-rate guard only, set well above any army the economy feeds. A Director operation must fit the room below it, and a JOIN at it waits in the reserve queue as at slots.max_viewer_units (GP-3).",
             ge=1,
         ),
     ]
@@ -860,28 +860,6 @@ class Provocation(BaseModel):
             description="Points per sensed or suffered action caused by a player-controlled unit."
         ),
     ]
-
-
-class Budget(BaseModel):
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    pattern_of_life: Annotated[
-        int, Field(description="Budget points per window in this tier.", ge=0)
-    ]
-    alpha: Annotated[int, Field(description="Budget points per window in this tier.", ge=0)]
-    bravo: Annotated[int, Field(description="Budget points per window in this tier.", ge=0)]
-
-
-class MaxLiveUnits(BaseModel):
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    pattern_of_life: Annotated[
-        int, Field(description="Live Static units allowed in this tier.", ge=1)
-    ]
-    alpha: Annotated[int, Field(description="Live Static units allowed in this tier.", ge=1)]
-    bravo: Annotated[int, Field(description="Live Static units allowed in this tier.", ge=1)]
 
 
 class SpendFrac(BaseModel):
@@ -1231,22 +1209,16 @@ class Economy(BaseModel):
             description="Per-kind upkeep period (Q-TD-41, Q-TD-52 D1): a unit pays its economy.upkeep every this many economy windows, so a unit can cost less than 1 stock per window, unit economy windows. A unit is charged in the window whose index (running ticks / the window, counted from 1) plus its entity id is a multiple of the period, so payments of one kind spread across windows by id; a grounded unit is charged every window until its home pays, then returns to that stagger (EC-4, EC-6). The per-window rate, upkeep / period, is what the EC-7 reserve and the EC-11 coalition floor check read. 1 = every window. One entry per kind that has economy.upkeep; mirrored kinds equal (EC-3). Shipped values PROPOSED (Q-TD-52 T1): 20 for armed kinds, 30 for the recon UAVs, 1 for the trucks and convoys (upkeep 0)."
         ),
     ]
-    legacy_rules: Annotated[
-        bool,
-        Field(
-            description="TEMPORARY, removed in NX-412 part 5 (Q-TD-33, lead decision): true keeps the budget, live-unit caps and spawn costs of before NX-412 part 3 (director.budget.<tier>, director.max_live_units.<tier>, the Director paying from base surplus, sanctuary spawns free); false applies ECONOMY EC-7 (director.spend_frac and the rest), EC-8 (sim.max_live_units_per_side) and EC-13 (every spawn draws its cost at its spawn node). Set at campaign setup, never mid-war."
-        ),
-    ]
     free_viewer_spawn: Annotated[
         bool,
         Field(
-            description="ECONOMY EC-13 (economy.legacy_rules false): true = a viewer's own JOIN that spawns at the coalition's sanctuary draws no stock, so joining never costs a person anything; false = it draws logistics.loadout_cost from the coalition's pool like every other spawn (agent-vs-agent harness profiles). The AI garrison and the Director always pay."
+            description="ECONOMY EC-13: true = a viewer's own JOIN that spawns at the coalition's sanctuary draws no stock, so joining never costs a person anything; false = it draws logistics.loadout_cost from the coalition's pool like every other spawn (agent-vs-agent harness profiles). The AI garrison and the Director always pay."
         ),
     ]
     floor_viewer_units: Annotated[
         int,
         Field(
-            description="ECONOMY EC-11: viewer units the coalition's floor income must keep paid. With economy.legacy_rules false and the coalition not in unlimited mode, the loader refuses a config whose economy.income.floor is below the upkeep of the theater's coalition garrison quotas plus this many units at the dearest upkeep of a viewer-playable kind, naming the shortfall. Read at load only, unit units.",
+            description="ECONOMY EC-11: viewer units the coalition's floor income must keep paid. With the coalition not in unlimited mode, the loader refuses a config whose economy.income.floor is below the upkeep of the theater's coalition garrison quotas plus this many units at the dearest upkeep of a viewer-playable kind, naming the shortfall. Read at load only, unit units.",
             ge=0,
         ),
     ]
@@ -2095,31 +2067,19 @@ class Director(BaseModel):
         Provocation,
         Field(description="The decaying provocation score (THREAT-DIRECTOR §5a, Q-TD-11)."),
     ]
-    budget: Annotated[
-        Budget,
-        Field(
-            description="The most budget points one decision window can spend, by tier (Q-TD-5); also capped by the real surplus of the Static's bases. Read only with economy.legacy_rules true: temporary, removed in NX-412 part 5 (Q-TD-33; ECONOMY EC-7 replaces it)."
-        ),
-    ]
     max_spawns_per_window: Annotated[
         int, Field(description="The most new Static units per window (Q-TD-12).", ge=1)
-    ]
-    max_live_units: Annotated[
-        MaxLiveUnits,
-        Field(
-            description="The most live Static units by tier (Q-TD-12). Read only with economy.legacy_rules true: temporary, removed in NX-412 part 5 (Q-TD-33; ECONOMY EC-8 replaces it)."
-        ),
     ]
     spend_frac: Annotated[
         SpendFrac,
         Field(
-            description="ECONOMY EC-7 (economy.legacy_rules false): the share of the surplus of the Static's bases above their starvation floors one decision window may spend, by tier; the loader requires pattern_of_life <= alpha <= bravo."
+            description="ECONOMY EC-7: the share of the surplus of the Static's bases above their starvation floors one decision window may spend, by tier; the loader requires pattern_of_life <= alpha <= bravo."
         ),
     ]
     source_spend_frac: Annotated[
         float,
         Field(
-            description="ECONOMY EC-7 (economy.legacy_rules false): the share of the rear source pool one decision window may add to the budget; only operations whose units spawn at the source may spend it (EC-13). 0 with the Static in unlimited mode (no pool).",
+            description="ECONOMY EC-7: the share of the rear source pool one decision window may add to the budget; only operations whose units spawn at the source may spend it (EC-13). 0 with the Static in unlimited mode (no pool).",
             ge=0.0,
             le=1.0,
         ),
@@ -2127,14 +2087,14 @@ class Director(BaseModel):
     upkeep_reserve_windows: Annotated[
         float,
         Field(
-            description="ECONOMY EC-7 (economy.legacy_rules false): windows of the Static's upkeep the budget keeps back, unit decision windows; the reserve is this times the upkeep its live units owe per window.",
+            description="ECONOMY EC-7: windows of the Static's upkeep the budget keeps back, unit decision windows; the reserve is this times the upkeep its live units owe per window.",
             ge=0.0,
         ),
     ]
     cadence_windows: Annotated[
         int,
         Field(
-            description="ECONOMY EC-7 (economy.legacy_rules false): decision windows with no capture operation (OFFENSIVE, RETAKE) launched, staged or dropped from staging after which, while the Static holds an HQ, the window buys the cheapest capture operation with a target, else the budget is at least the cheapest operation of its tier, that the window can pay: base surplus plus the window's rear account, never the whole pool (Q-TD-42, Q-TD-48, NX-434); other operations do not reset the count (Q-TD-54).",
+            description="ECONOMY EC-7: decision windows with no capture operation (OFFENSIVE, RETAKE) launched, staged or dropped from staging after which, while the Static holds an HQ, the window buys the cheapest capture operation with a target, else the budget is at least the cheapest operation of its tier, that the window can pay: base surplus plus the window's rear account, never the whole pool (Q-TD-42, Q-TD-48, NX-434); other operations do not reset the count (Q-TD-54).",
             ge=1,
         ),
     ]
@@ -2241,7 +2201,7 @@ class Director(BaseModel):
     staging: Annotated[
         Staging,
         Field(
-            description="Forward staging (THREAT-DIRECTOR §4a FS-1..FS-8, Q-TD-36, Q-TD-37; NX-416): with economy.legacy_rules false, a capture operation whose capture kind's road travel time from the rear source exceeds direct_s waits at the nearest Static-held base by road until every node it spawns at can pay its own units (Q-TD-38), the base's forward-stock target raised by the cost of the units that spawn there so trucks fill it."
+            description="Forward staging (THREAT-DIRECTOR §4a FS-1..FS-8, Q-TD-36, Q-TD-37; NX-416): a capture operation whose capture kind's road travel time from the rear source exceeds direct_s waits at the nearest Static-held base by road until every node it spawns at can pay its own units (Q-TD-38), the base's forward-stock target raised by the cost of the units that spawn there so trucks fill it."
         ),
     ]
     garrison: Annotated[

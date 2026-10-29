@@ -642,18 +642,13 @@ def _steamroll_row(profile: str, s: dict[str, Any]) -> list[str]:
 
 
 def _economy_mode(mode: dict[str, Any] | None) -> list[str]:
-    """EC-15: an unlimited or legacy run is labelled in the header, apart from balance runs."""
+    """EC-15: an unlimited run is labelled in the header, apart from balance runs."""
     if not mode:
         return []
     unlimited = [s for s, on in sorted(mode["unlimited"].items()) if on]
     return [
-        f"- **economy: legacy_rules {'ON' if mode['legacy_rules'] else 'off'}; unlimited "
-        f"{', '.join(unlimited) or 'none'}**"
-        + (
-            " (ECONOMY EC-15: not a normal balance result)"
-            if unlimited or mode["legacy_rules"]
-            else ""
-        )
+        f"- **economy: unlimited {', '.join(unlimited) or 'none'}**"
+        + (" (ECONOMY EC-15: not a normal balance result)" if unlimited else "")
     ]
 
 

@@ -1099,9 +1099,11 @@ def test_set_rejections_exit_2_before_any_run(
 def test_set_takes_true_and_false_on_a_bool_key(tmp_path: Path) -> None:
     # NX-412 part 5a: the shipped switches flip through --set (shipped false since part 5b), one
     # side of a nested map alone, and the loader takes the result
-    text = balance.override_balance(["economy.legacy_rules=true", "economy.unlimited.ENEMY=true"])
+    text = balance.override_balance(
+        ["economy.free_viewer_spawn=false", "economy.unlimited.ENEMY=true"]
+    )
     tree = yaml.safe_load(text)
-    assert tree["economy"]["legacy_rules"] is True
+    assert tree["economy"]["free_viewer_spawn"] is False  # shipped true
     assert tree["economy"]["unlimited"] == {"COALITION": False, "ENEMY": True}
     (path := tmp_path / "balance.yaml").write_text(text)
     assert balance.load_campaign_config(balance.ConfigPaths(balance=path)).rules.economy is not None
@@ -1114,10 +1116,11 @@ def test_set_takes_true_and_false_on_a_bool_key(tmp_path: Path) -> None:
 @pytest.mark.parametrize(
     ("pair", "match"),
     [
-        ("economy.legacy_rules=1", "not true or false"),  # a number on a bool key: never coerced
-        ("economy.legacy_rules=0", "not true or false"),
-        ("economy.legacy_rules=True", "not true or false"),
-        ("economy.legacy_rules=yes", "not true or false"),
+        # a number on a bool key: never coerced
+        ("economy.free_viewer_spawn=1", "not true or false"),
+        ("economy.free_viewer_spawn=0", "not true or false"),
+        ("economy.free_viewer_spawn=True", "not true or false"),
+        ("economy.free_viewer_spawn=yes", "not true or false"),
         (f"{KEY}=true", "not a valid int"),  # a bool on a numeric key
         ("economy.window_s=false", "not a valid"),
         ("economy.unlimited=false", "numeric or boolean"),  # a section, not a leaf
@@ -1880,16 +1883,15 @@ def test_collector_samples_pools_grounded_units_and_grounding_by_state(
 
 
 def test_the_report_header_labels_the_economy_mode() -> None:
-    # EC-15: a legacy or unlimited run is labelled, never passed off as a normal balance result
+    # EC-15: an unlimited run is labelled, never passed off as a normal balance result
     on, off = {"COALITION": True, "ENEMY": True}, {"COALITION": False, "ENEMY": False}
-    legacy = report._economy_mode({"legacy_rules": True, "unlimited": on})
-    assert legacy == [
-        "- **economy: legacy_rules ON; unlimited COALITION, ENEMY** (ECONOMY EC-15: not a normal "
-        "balance result)"
+    both = report._economy_mode({"unlimited": on})
+    assert both == [
+        "- **economy: unlimited COALITION, ENEMY** (ECONOMY EC-15: not a normal balance result)"
     ]
-    sweep = report._economy_mode({"legacy_rules": False, "unlimited": off})
-    assert sweep == ["- **economy: legacy_rules off; unlimited none**"]
-    one = report._economy_mode({"legacy_rules": False, "unlimited": {**off, "COALITION": True}})
+    sweep = report._economy_mode({"unlimited": off})
+    assert sweep == ["- **economy: unlimited none**"]
+    one = report._economy_mode({"unlimited": {**off, "COALITION": True}})
     assert "unlimited COALITION**" in one[0] and "EC-15" in one[0]
     assert report._economy_mode(None) == []  # an old report.json without the field
 

@@ -1,7 +1,7 @@
 """NX-416: forward staging for the Static (THREAT-DIRECTOR §4a FS-1..FS-8; Q-TD-36..Q-TD-38).
 
-Runs on the shipped strait-1 config with `economy.legacy_rules` false (flipped through the shipped
-profile), the campaign layer off and no opening garrison (as test_economy_rules). Shipped numbers:
+Runs on the shipped strait-1 config with the pre-5b overrides (`fixture_pre_5b`), the campaign
+layer off and no opening garrison (as test_economy_rules). Shipped numbers:
 `director.staging.direct_s` 1500 game s (15,000 ticks), `max_wait_windows` 90, `max_staged` 2;
 OFFENSIVE costs 60 (STAGE 2 armor, STRIKE 2 jets, CAPTURE 2 armor: 10 a unit, so 40 for the
 armor at an FOB and 20 for the jets at their own spawn node), PROBE 15; an FOB holds at
@@ -38,12 +38,11 @@ from nexus.core.tasking_gen import _resupply
 from nexus.core.world import CaptureBar, Contact, Staged, Vec2, World, load, save, state_hash
 from nexus.runtime.campaign_config import CampaignConfig, start_campaign
 
-NEW: dict[str, object] = {"economy.legacy_rules": False}
 STATIC_BASES = ("east-airbase", "fob-n-e", "fob-s-e", "static-hq")
 
 
 def config(overrides: dict[str, object] | None = None) -> CampaignConfig:
-    c = pre_5b_config({**NEW, **(overrides or {})})
+    c = pre_5b_config(overrides)
     return dataclasses.replace(c, rules=dataclasses.replace(c.rules, campaign=None))
 
 
@@ -163,18 +162,6 @@ def test_a_near_target_spawns_as_ec_13_says_and_nothing_is_staged() -> None:
     out = fire(w, offensive(w, "fob-n-w"))
     assert staging_events(out) == [] and w.director["ENEMY"].staged == []
     assert debits(out) == [("east-airbase", 60)]  # EC-13: plan_deploy's base for the jets
-
-
-def test_legacy_rules_never_stage() -> None:
-    legacy = pre_5b_config()  # economy.legacy_rules true, the default before NX-412 part 5b
-    w = world(dataclasses.replace(legacy, rules=dataclasses.replace(legacy.rules, campaign=None)))
-    at_floor(w, "fob-n-e")
-    out: list[Event] = []
-    assert w.rules is not None
-    s = w.director["ENEMY"]
-    _launch(w, w.rules, "ENEMY", side_view(w, "ENEMY"), s, offensive(w, "fob-n-w"), out, None)
-    assert staging_events(out) == [] and s.staged == []
-    assert sum(a for _, a in debits(out)) == 60  # paid from the surplus as before
 
 
 # --- FS-2: the base -------------------------------------------------------------------------------
@@ -738,9 +725,7 @@ def test_in_a_campaign_every_massing_closes_in_its_sector() -> None:
     """The kernel's own windows (`step`), staged at ALPHA with a 3-window wait: the massing opened
     before the run is closed, by a launch or a disperse, in its sector, and the massings left
     open are those of the operations still staged."""
-    c = pre_5b_config(
-        {**NEW, "director.tier.start": "ALPHA", "director.staging.max_wait_windows": 3}
-    )
+    c = pre_5b_config({"director.tier.start": "ALPHA", "director.staging.max_wait_windows": 3})
     w = start_campaign(CAMPAIGN_ID, 4, c)
     at_floor(w)
     events = fire(w, offensive(w, "fob-n-w"))
@@ -760,7 +745,7 @@ def run(w: World, ticks: int) -> list[dict[str, object]]:
 
 
 def staged_world(seed: int = 4) -> World:
-    c = pre_5b_config({**NEW, "director.tier.start": "ALPHA"})
+    c = pre_5b_config({"director.tier.start": "ALPHA"})
     w = start_campaign(CAMPAIGN_ID, seed, c)
     at_floor(w)
     fire(w, offensive(w, "fob-n-w"))

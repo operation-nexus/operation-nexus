@@ -189,10 +189,10 @@ def coalition_floor_problem(rules: Rules, garrison_quota: Mapping[str, int]) -> 
     `economy.floor_viewer_units` units at the dearest upkeep of a viewer-playable kind (the roles'),
     each at its per-window rate `economy.upkeep` / `economy.upkeep_period` (NX-426, Q-TD-52 D1),
     summed exactly.
-    Checked only with `economy.legacy_rules` false and the coalition not unlimited (EC-15). None
+    Checked only with the coalition not unlimited (EC-15). None
     when it pays; otherwise the shortfall."""
     eco, dr = rules.economy, rules.director
-    if eco is None or eco.legacy or "COALITION" not in eco.limited:
+    if eco is None or "COALITION" not in eco.limited:
         return None
     by_node_kind = dr.garrison_kinds if dr is not None else {}  # no director: hand-built rules
     garrison = Fraction(0)

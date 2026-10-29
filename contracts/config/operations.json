@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://nexus.local/contracts/config/operations.json",
   "title": "OperationsConfig",
-  "description": "The Threat Director's operation catalog, content/operations.yaml (CONFIG-AND-CONTENT §8a, THREAT-DIRECTOR §4, Q-TD-7, Q-SIM-81; NX-156). Each operation is a job template posted on the Static's Tasking Board, or an effect with no jobs. Priority is not here: it is `director.op_priority.<id>` in the balance profile. The loader also checks the cross-file rules: a priority for every operation and none for another, unit kinds that are ENEMY movers, a unit kind that fits its job kind, a selector that suits its job kind, a precondition that suits the target, a cost within the largest tier budget, and no operation needing more units than `director.max_spawns_per_window`.",
+  "description": "The Threat Director's operation catalog, content/operations.yaml (CONFIG-AND-CONTENT §8a, THREAT-DIRECTOR §4, Q-TD-7, Q-SIM-81; NX-156). Each operation is a job template posted on the Static's Tasking Board, or an effect with no jobs. Priority is not here: it is `director.op_priority.<id>` in the balance profile. The loader also checks the cross-file rules: a priority for every operation and none for another, unit kinds that are ENEMY movers, a unit kind that fits its job kind, a selector that suits its job kind, a precondition that suits the target, a cost within floor(director.spend_frac.bravo x the largest storage the side could hold) (CONFIG-AND-CONTENT §8a), and no operation needing more units than `director.max_spawns_per_window`.",
   "type": "object",
   "additionalProperties": false,
   "required": [

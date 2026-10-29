@@ -38,15 +38,14 @@ target id.
 
 **Selection (step 6).** Greedy in that order within the window budget and the unit caps: an
 operation is taken if its cost is left and its units fit `max_spawns_per_window` and the room below
-`max_live_units.<tier>`; an escort operation shrinks to the convoys that fit (at least one); at
-most one effect operation (a radar blink) a window. A tier runs at most `director.max_ops.<tier>`
-operations with jobs at a time (§3), counting those still on the board; the routine ones, those
-enabled at Pattern of Life, do not count (Q-SIM-84); the one `over` candidate (the due cadence
-floor's capture operation, ECONOMY EC-7, Q-TD-57) may take one slot past the cap; a capture
-operation on a node of the running victory hold (`hold`, legacy rules off) is outside the cap,
-neither capped nor counted (Q-TD-46, NX-430). At most one
-operation with the `no_bridge_contested` precondition (STRIKE_BRIDGE) is taken a window
-(Q-SIM-121, NX-401).
+the EC-8 guard `sim.max_live_units_per_side`; an escort operation shrinks to the convoys that fit
+(at least one); at most one effect operation (a radar blink) a window. A tier runs at most
+`director.max_ops.<tier>` operations with jobs at a time (§3), counting those still on the board;
+the routine ones, those enabled at Pattern of Life, do not count (Q-SIM-84); the one `over`
+candidate (the due cadence floor's capture operation, ECONOMY EC-7, Q-TD-57) may take one slot past
+the cap; a capture operation on a node of the running victory hold (`hold`) is outside the cap,
+neither capped nor counted (Q-TD-46, NX-430). At most one operation with the `no_bridge_contested`
+precondition (STRIKE_BRIDGE) is taken a window (Q-SIM-121, NX-401).
 """
 
 import math
@@ -90,16 +89,15 @@ class Where(NamedTuple):
 class Own:
     """What the side knows of itself that its `SideView` does not hold. `convoys` are the side's
     moving carriers that follow no one and have no escort job yet, in id order, as (id, node it
-    stands at or left last); `damaged_ad` the bases with an air-defense site below full HP;
-    `radars` the bases with a radar site that is not Disabled; `live_units` its mobile units;
-    `homed` the kinds of its live Director units homed at each base, in id order (Q-SIM-85), and
-    `margin` each of its finite-stock bases' stock less the starvation floor (negative below it);
-    `struck` the bridges a live STRIKE job on its board names (NX-401)."""
+    stands at or left last); `damaged_ad` the bases with an air-defense site below full HP; `radars`
+    the bases with a radar site that is not Disabled; `homed` the kinds of its live Director units
+    homed at each base, in id order (Q-SIM-85), and `margin` each of its finite-stock bases' stock
+    less the starvation floor (negative below it); `struck` the bridges a live STRIKE job on its
+    board names (NX-401)."""
 
     convoys: tuple[tuple[int, str], ...] = ()
     damaged_ad: frozenset[str] = frozenset()
     radars: frozenset[str] = frozenset()
-    live_units: int = 0
     homed: Mapping[str, tuple[UnitKind, ...]] = field(default_factory=dict)
     margin: Mapping[str, int] = field(default_factory=dict)
     struck: frozenset[str] = frozenset()

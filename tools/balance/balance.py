@@ -11,11 +11,11 @@ the crowd profiles of Q-TEST-5, and writes a report per run and per profile (JSO
 a run stops early when the campaign ends);
 `--workers` the number of parallel processes (seeds are independent, so the report does not depend
 on it). `--set key=value` (repeatable) overrides one numeric or boolean balance key of the shipped
-config (e.g. `--set tasking.strike_idle_targets_max=0`, `--set economy.legacy_rules=false`; a
+config (e.g. `--set tasking.strike_idle_targets_max=0`, `--set economy.unlimited.ENEMY=true`; a
 boolean key takes `true` or `false` only, a numeric key a number only); the config is then
 validated as usual, the overridden copy is saved as `<out>/balance.yaml` (every worker loads that
 file), and the report lists the overrides beside the resulting config hash and the economy mode
-(`economy.legacy_rules`, `economy.unlimited.<side>`: ECONOMY EC-15); a key given twice is an
+(`economy.unlimited.<side>`: ECONOMY EC-15); a key given twice is an
 error. `--out` must
 not exist (unless `--resume`, below): it gets `report.json`, `report.md`,
 `runs/<profile>-s<seed>.json` and
@@ -291,7 +291,7 @@ def build_report(
             "profiles_digest": data.digest,
             "overrides": overrides or [],
             "theater": theater,  # None: the shipped one
-            "economy": economy,  # legacy_rules and unlimited per side (EC-15 label)
+            "economy": economy,  # unlimited per side (EC-15 label)
         },
         "seeds": sorted({r["seed"] for r in runs}),
         "hours": first["hours"],
@@ -329,7 +329,7 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--workers", type=int, default=1, help="parallel processes (default 1)")
     p.add_argument(
         "--set", dest="overrides", action="append", default=[], metavar="KEY=VALUE",
-        help="override a numeric or boolean balance key, e.g. economy.legacy_rules=false "
+        help="override a numeric or boolean balance key, e.g. economy.unlimited.ENEMY=true "
         "(repeatable)",
     )  # fmt: skip
     p.add_argument(
@@ -404,7 +404,7 @@ def main() -> int:
             paths = ConfigPaths(**kw)
         cfg = load_campaign_config(paths)
         eco = cfg.balance.economy
-        economy = {"legacy_rules": eco.legacy_rules, "unlimited": eco.unlimited.model_dump()}
+        economy = {"unlimited": eco.unlimited.model_dump()}
         travel = metrics.travel_table(cfg.rules, cfg.balance.sim.tick_hz)
         jobs = [(n, s, args.hours, args.out, paths) for n in names for s in args.seeds]
         started = time.perf_counter()

@@ -670,7 +670,7 @@ export interface SpawnRefused {
   campaign_id: string;
   side: "COALITION" | "ENEMY";
   /**
-   * Which live-unit cap refused a Director operation (ECONOMY EC-8, NX-412 part 5a): GUARD = sim.max_live_units_per_side (economy.legacy_rules false); TIER_CAP = director.max_live_units.<tier> (economy.legacy_rules true, temporary).
+   * Which live-unit cap refused a Director operation (ECONOMY EC-8, NX-412 part 5a): GUARD = sim.max_live_units_per_side. TIER_CAP was the per-tier live cap, deleted in NX-488: no longer emitted, kept so event logs recorded before it still parse.
    */
   reason: "GUARD" | "TIER_CAP";
   /**

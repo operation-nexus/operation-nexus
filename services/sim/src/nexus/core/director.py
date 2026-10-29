@@ -25,13 +25,13 @@ it, in order:
    and only once it has been in the current tier for `min_dwell_s` (`dwell` is running ticks, added
    a window at a time and held at `min_dwell_ticks`; a new campaign starts in `tier.start`,
    PATTERN_OF_LIFE by default, with dwell 0: `nexus.runtime.campaign_config.start_campaign`).
-5. The window's budget (§4 step 2, `budget`). Under `economy.legacy_rules` (Q-TD-5, Q-TD-12):
-   min(`director.budget.<tier>`, the summed surplus of the side's bases above their starvation
-   floors); a node without finite stock, i.e. the rear source, has no entry in `starve_floor` and
-   so adds nothing. Otherwise ECONOMY EC-7 (NX-412 part 3): floor(surplus x `spend_frac.<tier>`)
+5. The window's budget (§4 step 2, `budget`), ECONOMY EC-7 (NX-412 part 3): floor(surplus x
+   `spend_frac.<tier>`)
    + floor(rear pool x `source_spend_frac`) - floor(`upkeep_reserve_windows` x the upkeep the
    side's units owe per window), at least the cadence floor (0 when it does not apply), at most
-   surplus + rear pool.
+   surplus + rear pool. The surplus is that of the side's bases above their starvation floors; a
+   node without finite stock, i.e. the rear source, has no entry in `starve_floor` and so adds
+   nothing.
    The rear pool is 0 for a side in unlimited mode (no pool). Cadence floor: while the side holds
    an HQ, has no operation staged and has launched no capture operation for `cadence_windows`
    windows (`last_operation`, also stamped when a staged one is dropped; Q-TD-54), the
@@ -52,7 +52,7 @@ from fractions import Fraction
 
 from nexus.contracts.gen.common.enums import ThreatTier
 from nexus.core.fog import SideView
-from nexus.core.rules import DirectorRules, Rules, legacy_rules
+from nexus.core.rules import DirectorRules, Rules
 from nexus.core.world import DirectorState
 
 TIERS: tuple[ThreatTier, ...] = ("PATTERN_OF_LIFE", "ALPHA", "BRAVO")
@@ -135,8 +135,6 @@ def budget(
     if dr is None:
         raise ValueError("budget needs the Director rules")
     base = surplus(view, rules, stock)
-    if legacy_rules(rules):
-        return min(dr.budget[state.tier], base)
     planned = (
         math.floor(base * dr.spend_frac[state.tier]) + rear_share(dr, pool)
         - math.floor(dr.reserve_windows * upkeep)

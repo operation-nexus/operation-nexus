@@ -399,7 +399,6 @@ def test_a_run_with_every_option_flipped_is_deterministic() -> None:
                 storage_per_node={"FOB": 20},
                 upkeep={INFANTRY: 3, ARMOR: 40},  # non-zero upkeep (NX-412 part 2)
                 upkeep_period={INFANTRY: 2, ARMOR: 3},  # staggered payments (NX-426)
-                legacy=False,  # EC-7, EC-8, EC-13 (NX-412 part 3, Q-TD-33)
                 free_viewer_spawn=False,  # a viewer's sanctuary spawn pays too
                 max_live_per_side=40,
             ),
@@ -537,7 +536,7 @@ def test_the_tier_moves_up_to_max_step_steps_after_the_dwell(
 @pytest.mark.parametrize(("max_step", "ok"), [(1, False), (2, True)])
 def test_a_restore_allows_a_tier_max_step_moves_could_reach(max_step: int, ok: bool) -> None:
     w = valid_after(10)  # one dwell: one move
-    w.director["ENEMY"].tier, w.director["ENEMY"].budget = "BRAVO", DR.budget["BRAVO"]
+    w.director["ENEMY"].tier, w.director["ENEMY"].budget = "BRAVO", 80
     rules = director_rules(max_step=max_step)
     if ok:
         director_validate(w, rules)
@@ -693,8 +692,7 @@ def test_a_campaign_with_every_part_2b_option_flipped_is_deterministic() -> None
             # NX-412 part 4 (ECONOMY EC-9, EC-12): the capture-operation multipliers off 1.0
             "director.score.victory_hold_mult": 2.0,
             "director.score.income_node_mult": 1.5,
-            # NX-416 (THREAT-DIRECTOR §4a): forward staging, read with the economy's new rules
-            "economy.legacy_rules": False,
+            # NX-416 (THREAT-DIRECTOR §4a): forward staging
             "director.staging.direct_s": 600.0,
             "director.staging.max_wait_windows": 3,
             "director.staging.max_staged": 1,
