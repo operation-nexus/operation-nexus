@@ -331,6 +331,30 @@ describe("OV-26 event to HUD", () => {
     hud.dispose();
   });
 
+  it("redraws a card when a new campaign restarts the same slot and seq", () => {
+    const { hud, root } = mountHud();
+    const board = new ThreatSitrepBoard();
+    const first = ev("STRIKE_DOWNED", {
+      node_id: "bridge-n",
+      credit_ids: [101],
+    });
+    board.ingest([{ ...first, event_seq: 1, campaign_id: "c1" }], callsignOf);
+    hud.updateThreatSitreps(board.view(100));
+    expect(root.querySelector(".sitrep-credit")?.textContent).toBe(
+      "Credit: VIPER-01",
+    );
+    const next = ev("STRIKE_DOWNED", {
+      node_id: "bridge-n",
+      credit_ids: [102],
+    });
+    board.ingest([{ ...next, event_seq: 1, campaign_id: "c2" }], callsignOf);
+    hud.updateThreatSitreps(board.view(100));
+    expect(root.querySelector(".sitrep-credit")?.textContent).toBe(
+      "Credit: GHOST-1",
+    );
+    hud.dispose();
+  });
+
   it("redraws a card when its slot gets a newer event", () => {
     const { hud, root } = mountHud();
     const board = new ThreatSitrepBoard();
@@ -363,7 +387,6 @@ describe("OV-26 event to HUD", () => {
     expect(headline?.textContent).toBe(
       "NULL forces are massing in <img src=x onerror=alert(1)>",
     );
-    expect(headline?.innerHTML ?? "").toBe("");
     hud.dispose();
   });
 

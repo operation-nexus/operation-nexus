@@ -50,7 +50,7 @@ export class ThreatSitrepPanel {
   // Rebuilds the DOM only when what is shown changes (frame budget, OV-10).
   render(view: SitrepView): void {
     if (!this.root) return;
-    const signature = `${view.shown.map((e) => `${e.key}#${e.event.event_seq}`).join(",")}|${view.hiddenCount}`;
+    const signature = `${view.shown.map((e) => `${e.event.campaign_id}:${e.key}#${e.event.event_seq}`).join(",")}|${view.hiddenCount}`;
     if (signature === this.lastSignature) return;
     this.lastSignature = signature;
 
