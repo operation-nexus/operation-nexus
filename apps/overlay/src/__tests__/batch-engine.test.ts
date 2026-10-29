@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { BatchSpriteEngine } from "../renderers/batch/batch-engine";
 import { SimulationFeedGenerator } from "../simulation/mock-feed";
 import type { RenderFrameState } from "../types/render";
+import { expectFpsAtLeast } from "./perf-gate";
 
 function createMockCanvas(): HTMLCanvasElement {
   const canvas = {
@@ -82,7 +83,7 @@ describe("Option D: High-Density Batch Spriting Engine", () => {
     expect(stats.unitCount).toBeGreaterThanOrEqual(500);
     expect(stats.batchPasses).toBeGreaterThanOrEqual(4);
     expect(stats.frameTimeMs).toBeGreaterThan(0);
-    expect(stats.estimatedFps).toBeGreaterThanOrEqual(30);
+    expectFpsAtLeast(stats.estimatedFps, 30);
 
     engine.dispose();
   });
