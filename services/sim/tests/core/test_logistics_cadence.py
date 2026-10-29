@@ -19,6 +19,7 @@ from test_pol import new_world as pol_world
 from test_retake import RET_RULES, lose
 from test_tasking import AI, CONFIG, HUMAN, RULES, TR, board_pass, jobs, new_world, post, put
 
+from nexus.contracts.gen.common.enums import OwnerKind
 from nexus.contracts.gen.events.event import Event
 from nexus.contracts.gen.events.unit_despawned import UnitDespawned
 from nexus.core.ai_trucks import ai_trucks
@@ -26,10 +27,10 @@ from nexus.core.capture import capture
 from nexus.core.economy import MOVERS, guard_room
 from nexus.core.handlers import join as handle_join
 from nexus.core.launch import _night_capped
-from nexus.core.logistics import plan_run
+from nexus.core.logistics import logistics, plan_run
 from nexus.core.rules import DirectorRules, EconomyRules, Rules
 from nexus.core.step import step
-from nexus.core.tasking import claim, joinable_jobs
+from nexus.core.tasking import claim, idle_reason, joinable_jobs
 from nexus.core.world import Entity, Job, Vec2, World, load, save, state_hash
 from nexus.runtime.golden import shipped_config
 
@@ -561,3 +562,139 @@ def test_the_lc2_and_lc3_keys_load_through_the_shipped_profile() -> None:
     assert cfg.rules.tasking is not None and cfg.rules.director is not None
     assert cfg.rules.tasking.resupply_slots_max_starving == 6
     assert cfg.rules.director.convoy_demand_ticks == 3_000
+
+
+# --- NX-486: a truck re-tasked mid-unload (Q-SIM-130) ---------------------------------------------
+
+
+def mid_unload(owner: OwnerKind = AI, rules: Rules = ON) -> tuple[World, Entity]:
+    """A truck with 60 cargo and no job on fob-n-w (max 1000) that has unloaded for 30 ticks: 18
+    units in, its stop still open; west-airbase is empty, so the board has a resupply job there."""
+    w = new_world(rules=rules)
+    w.stock["west-airbase"] = 0
+    truck = put(w, "LOGI_TRUCK", "fob-n-w", owner, cargo=60)
+    out: list[Event] = []
+    for _ in range(30):
+        logistics(w, out)
+    assert (truck.cargo, truck.delivered, out) == (42, 18, [])
+    return w, truck
+
+
+def deliveries(w: World, truck: Entity, events: list[Event]) -> list[tuple[str, int]]:
+    """The truck's `SupplyDelivered` (node, amount), stepping until its cargo is gone."""
+    for _ in range(12_000):
+        if not truck.cargo:
+            break
+        events += step(w, [])
+    return [
+        (e.node_id, e.amount)
+        for e in events
+        if e.kind == "SupplyDelivered" and e.carrier_id == truck.id
+    ]
+
+
+def test_a_truck_unloading_with_room_gets_no_job_elsewhere_until_its_cargo_is_gone() -> None:
+    for owner, rules in ((AI, ON), (HUMAN, RULES)):  # LC-1's AI truck, and live at max_live 0
+        w, truck = mid_unload(owner, rules)
+        events = board_pass(w)
+        assert any(j.key == "resupply:west-airbase" for j in jobs(w))
+        assert truck.job_id is None and truck.path == []  # the board left it unloading
+        assert deliveries(w, truck, events) == [("fob-n-w", 60)]  # the whole stop, where it was
+
+
+def test_a_loaded_truck_at_a_full_base_still_takes_a_job() -> None:
+    w = new_world(rules=ON)
+    w.stock["west-airbase"], w.stock["fob-n-w"] = 0, 1000  # fob-n-w full, its defenses too
+    truck = put(w, "LOGI_TRUCK", "fob-n-w", AI, cargo=60)
+    events = board_pass(w)
+    assert truck.job_id is not None and truck.path[-1] == "west-airbase"  # not stranded (Q-SIM-126)
+    assert deliveries(w, truck, events) == [("west-airbase", 60)]
+
+
+def test_a_base_another_truck_fills_ends_the_stop_there() -> None:
+    w = new_world(rules=ON)
+    w.stock["west-airbase"], w.stock["fob-n-w"] = 0, 985  # room for 15
+    a = put(w, "LOGI_TRUCK", "fob-n-w", AI, cargo=60)
+    b = put(w, "LOGI_TRUCK", "fob-n-w", AI, cargo=60)
+    out: list[Event] = []
+    for _ in range(40):
+        logistics(w, out)  # a fills the last room in its turn; b's next turn finds it full
+    assert w.stock["fob-n-w"] == 1000
+    assert [(e.node_id, e.amount, e.carrier_id) for e in out if e.kind == "SupplyDelivered"] == [
+        ("fob-n-w", 8, a.id), ("fob-n-w", 7, b.id),
+    ]  # fmt: skip
+    assert (a.delivered, b.delivered) == (0, 0)
+    events = board_pass(w)
+    assert a.job_id is not None and b.job_id is not None
+    assert deliveries(w, a, events) == [("west-airbase", 52)]
+    assert deliveries(w, b, events) == [("west-airbase", 53)]
+
+
+def test_a_new_job_reports_an_open_stop_at_its_node_and_the_ledger_holds() -> None:
+    w, truck = mid_unload()
+    w.stock["fob-n-w"] = 1000  # filled by something else before the board pass: the stop is open
+    before = total(w)
+    events = board_pass(w)
+    claimed = [e.kind for e in events if e.kind in ("SupplyDelivered", "JobClaimed")]
+    assert claimed == ["SupplyDelivered", "JobClaimed"]  # the stop is reported first
+    assert deliveries(w, truck, events) == [("fob-n-w", 18), ("west-airbase", 42)]
+    assert w.stock["west-airbase"] == 42  # what it reported there is what landed there
+    spent = sum(e.amount for e in events if e.kind == "SupplyConsumed")
+    assert total(w) + spent == before
+
+
+def test_two_runs_and_a_restore_mid_unload_give_the_same_events_and_hash() -> None:
+    def run(w: World, ticks: int) -> list[Event]:
+        out: list[Event] = []
+        for _ in range(ticks):
+            out += step(w, [])
+        return out
+
+    (a, ta), (b, _) = mid_unload(), mid_unload()
+    assert ta.delivered == 18  # the restore below is taken mid-stop
+    again = load(save(a))
+    again.rules = ON
+    assert state_hash(again) == state_hash(a) == state_hash(b)
+    first = run(a, 3_000)
+    assert first == run(b, 3_000) == run(again, 3_000)
+    assert any(e.kind == "SupplyDelivered" and e.node_id == "fob-n-w" for e in first)
+    assert state_hash(again) == state_hash(a)
+
+
+def test_an_unloading_truck_takes_the_resupply_job_where_it_stands_and_stays() -> None:
+    w, truck = mid_unload(HUMAN, RULES)
+    w.stock["fob-n-w"] = 100  # below its floor: resupply:fob-n-w, under west-airbase's in rank
+    events = board_pass(w)
+    (job,) = [j for j in jobs(w) if j.key == "resupply:fob-n-w"]
+    assert truck.job_id == job.id and truck.path == []  # the job where it stands, no road
+    assert truck.delivered == 18 and "SupplyDelivered" not in [e.kind for e in events]
+    pos, still = truck.pos, True
+    for _ in range(300):
+        loaded = bool(truck.cargo)
+        events += step(w, [])
+        still = still and (truck.pos == pos or not loaded)  # stayed put while it had cargo
+        if job.id not in w.boards["COALITION"]:
+            break
+    assert still and truck.cargo == 0
+    landed = [(e.node_id, e.amount) for e in events if e.kind == "SupplyDelivered"]
+    assert landed == [("fob-n-w", 60)]  # the one stop, reported once where it was
+    (done,) = [e for e in events if e.kind == "JobDone" and e.job_id == job.id]
+    assert [p.entity_id for p in done.participants] == [truck.id]  # the viewer's credit
+
+
+def test_idle_diagnosis_follows_the_unloading_rule() -> None:
+    w, truck = mid_unload()
+    board_pass(w)
+    assert any(j.key == "resupply:west-airbase" for j in jobs(w)) and truck.job_id is None
+    assert idle_reason(w, truck) == "no_job"  # nothing at fob-n-w, and nothing else for it
+    w.stock["fob-n-w"] = 1000  # full: it may take the job elsewhere at the next pass
+    assert idle_reason(w, truck) == "next_pass"
+
+
+def test_a_loaded_truck_on_a_neutral_or_enemy_node_with_room_takes_a_job_elsewhere() -> None:
+    for owner in ("NEUTRAL", "ENEMY"):  # an ENEMY flip of a NEUTRAL node moves no coalition unit
+        w = new_world(rules=ON)
+        w.stock["west-airbase"], w.owner["cross-n"] = 0, owner
+        truck = put(w, "LOGI_TRUCK", "cross-n", AI, cargo=60)  # cross-n: max 1000, stock 0
+        board_pass(w)
+        assert truck.job_id is not None and truck.path[-1] == "west-airbase"  # Q-SIM-126

@@ -124,7 +124,9 @@ from nexus.core.economy import source_stock
 from nexus.core.fog import SideView, side_view
 from nexus.core.logistics import (
     Run,
+    accepts,
     approach,
+    friendly,
     go_home,
     keeps,
     load,
@@ -160,6 +162,7 @@ from nexus.core.world import (
     Vec2,
     World,
     at_stop,
+    end_stop,
     leave_stop,
     on_node,
     release_claim,
@@ -393,7 +396,9 @@ def claim(world: World, e: Entity, job: Job, out: list[Event]) -> None:
     finishes (Q-TD-110, NX-473); it stops where it is (an aircraft orbits; a
     ground unit finishes its road leg), but a displaced truck with cargo keeps its route and
     unloads at its target; a job full of humans is overfilled, which only happens when
-    no job with a free slot is feasible for `e` (`_open`). Claims are kept in
+    no job with a free slot is feasible for `e` (`_open`). A unit with an open unloading stop
+    reports it first, at the node it unloaded at, unless the job is at that node: it keeps
+    unloading there (Q-SIM-130). Claims are kept in
     entity-id order, as a snapshot restores them, so a restored world emits the same events."""
     if e.owner_kind != _AI and len(job.claims) >= job.slots and not _full(world, job, ai=False):
         evicted = max(
@@ -406,6 +411,8 @@ def claim(world: World, e: Entity, job: Job, out: list[Event]) -> None:
                 if v.path and world.rules and world.rules.domain[v.kind] == _GROUND
                 else []
             )
+    if e.delivered and e.last_node is not None and job.node != e.last_node:
+        end_stop(world, e, e.last_node, out)  # a job elsewhere cuts an open unloading stop (NX-486)
     if standing(job) and not job.claims and world.rules and world.rules.tasking:
         job.expires = _now(world) + world.rules.tasking.expire_ticks  # its CAPTURE clock starts
     job.claims[e.id] = Claim(_now(world))
@@ -1013,21 +1020,51 @@ def _assign(
         return
     ranked = rank(tr, jobs, now, world.rng.stream(RngStream.TASKING))
     for e in idle:
-        pool = [
-            j for j in ranked
-            if j.depends_on is None and _board_may_give(rules, e, j)
-            and fits_job(rules, e.kind, j.kind, j.key) and _may_take(world, tr, e, j)
-        ]  # fmt: skip
+        here = _here(world, rules, e)
+        pool = _pool(world, rules, tr, e, ranked, here)
         for job in _open(tr, world, pool, ai=e.owner_kind == _AI):
             verdict = _feasible(world, rules, routes, e, job)
             if verdict == "no":
                 continue
             if verdict == "ok":
                 claim(world, e, job, out)
-                _dispatch(world, rules, routes, e, job)
+                if here is None:  # an unloading truck stays put and unloads (Q-SIM-130)
+                    _dispatch(world, rules, routes, e, job)
             else:
                 _refuel(world, rules, e, job)
             break
+
+
+def _pool(
+    world: World, rules: Rules, tr: TaskingRules, e: Entity, ranked: list[Job], here: str | None
+) -> list[Job]:
+    """The jobs of `ranked` the board may give `e`, in that order; `here` (`_here`): only those at
+    that node. `_assign` and `idle_diagnosis` share it."""
+    return [
+        j for j in ranked
+        if j.depends_on is None and _board_may_give(rules, e, j)
+        and fits_job(rules, e.kind, j.kind, j.key) and _may_take(world, tr, e, j)
+        and (here is None or j.node == here)
+    ]  # fmt: skip
+
+
+def _here(world: World, rules: Rules, e: Entity) -> str | None:
+    """The node an unloading truck stands on, where alone it may take a job; None for any other
+    unit (`_unloading`, Q-SIM-130)."""
+    return e.last_node if _unloading(world, rules, e) else None
+
+
+def _unloading(world: World, rules: Rules, e: Entity) -> bool:
+    """A truck still unloading where it stands (Q-SIM-130, NX-486): cargo, no path, on a friendly
+    node that `accepts` stock, as `logistics` unloads it. Until its cargo is gone or the node is
+    full the board gives it only a job at that node, which sends it nowhere; one holding its cargo
+    at a full base or at a node it cannot unload at may take any job (Q-SIM-126). Friendly: a
+    neutral or enemy node can have stock room (a crossing), but nothing unloads there."""
+    node = e.last_node
+    return (
+        bool(e.cargo) and not e.path and node is not None and on_node(rules, e)
+        and friendly(world, e.side, node) and accepts(world, rules, node)
+    )  # fmt: skip
 
 
 def idle_reason(world: World, e: Entity) -> str:
@@ -1052,18 +1089,18 @@ def idle_diagnosis(world: World, e: Entity) -> tuple[str, Job | None]:
     some job now at its overfill cap is `ring_full` instead: the ring is not a lockout, the others
     are full (Q-TD-89, NX-465). `other` is left for a unit with no fuel
     there, which no aircraft is (World validation). A read-only diagnostic for the balance
-    harness (Q-SIM-92): it applies `_assign`'s own rank, pool, `_open` and `_feasible`, skipping
+    harness (Q-SIM-92): it applies `_assign`'s own rank, pool (`_pool`, with an unloading truck's
+    `_here`), `_open` and `_feasible`, skipping
     a job the next pass will end (an escort whose truck is lost since, `_truck_lost`), but ranks
     without the tie draw (that draws from the tasking stream), so jobs of equal priority, drawn
     in `_assign`, are approximated here by job id order."""
     rules, tr = _rules(world)
     ranked = rank(tr, list(world.boards[e.side].values()), _now(world), None)
     pool = [
-        j for j in ranked
-        if j.depends_on is None and _board_may_give(rules, e, j)
-        and fits_job(rules, e.kind, j.kind, j.key) and _may_take(world, tr, e, j)
-        and not _truck_lost(world, j)  # combat may take a truck after the pass (NX-459)
-    ]  # fmt: skip
+        j
+        for j in _pool(world, rules, tr, e, ranked, _here(world, rules, e))
+        if not _truck_lost(world, j)  # combat may take a truck after the pass (NX-459)
+    ]
     if not pool:
         return "no_job", None
     jobs = _open(tr, world, pool, ai=e.owner_kind == _AI)

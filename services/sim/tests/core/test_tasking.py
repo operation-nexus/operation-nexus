@@ -260,7 +260,8 @@ def test_a_starving_or_damaged_base_keeps_its_urgency_and_outranks_stocking() ->
     assert resupplies(w) == {"fob-n-w": (1600, 3), "fob-s-w": (750, 1)}
     w = stocked(fob_n_w=700, fob_s_w=700)
     hurt_facility(w, "fob-n-w", 75)  # half its hp: 1.5 beats the 0.75 it also has as stocking
-    truck = put(w, "LOGI_TRUCK", "west-airbase", AI, cargo=100)
+    # at haven: at west-airbase, with room, it would take only that base's job (Q-SIM-130)
+    truck = put(w, "LOGI_TRUCK", "haven", AI, cargo=100)
     board_pass(w)
     assert resupplies(w) == {"fob-n-w": (1500, 3), "fob-s-w": (750, 1)}  # damaged: sized to max
     (claimed,) = [j for j in jobs(w) if truck.id in j.claims]
