@@ -207,6 +207,7 @@ Economy (ECONOMY, approved 2026-10-24; keys added by NX-412 with `add-config-key
 | `economy.floor_viewer_units` | int | units, ≥ 0 | 5, PROPOSED – unvalidated, NX-412 harness sweep: quiet-5's 5 viewers × `slots.max_live_per_commander` (1), the smallest crowd the harness plays. In code (NX-412 part 5b): with the coalition not unlimited, the loader refuses a config whose `economy.income.floor` is below the upkeep of the theater's coalition garrison quotas (nodes with `start_owner` COALITION, each filled from `director.garrison.kinds` for its node kind in turn) plus this many units at the dearest `economy.upkeep` of a role's kind (content/roles.yaml), each at its per-window rate `economy.upkeep` ÷ `economy.upkeep_period` (NX-426), and names the shortfall. Per-node income does not count: the floor needs no held node (EC-1) | ECONOMY EC-11 | No (read at load only) |
 | `economy.shortfall_quiet_windows` | int | economy windows, ≥ 0 | 30, PROPOSED – unvalidated (NX-436): 30 game minutes at `economy.window_s` 60, the 30-minute horizon of the NX-437 metrics R10 and R11. A shortfall episode that starts at a base this many windows or fewer after the last episode there ended is not announced (no `SupplyShortfall` STARTED or ENDED); 0 announces every episode | ECONOMY EC-6a, Q-TD-51 U5, Q-TD-64 | No |
 | `economy.free_viewer_spawn` | bool | switch | true (Q-CFG-16 option; false in agent-vs-agent harness profiles). In code (NX-412 part 3): on, a viewer's JOIN that spawns at the sanctuary draws nothing; off, it draws its `logistics.loadout_cost` from the coalition's pool, and a pool that cannot pay refuses it with `NO_STOCK` | ECONOMY EC-13, Q-TD-12 | No (set at campaign setup) |
+| `economy.cost_parity` | bool | switch | true, PROPOSED (DRAFT, NX-494; Q-TD-119 owner, Q-TD-130 lead, owner may veto); not in the schema yet. True: the config loader refuses a config in which a paired enemy kind (catalog `mirrors`, §7.1) has a different `logistics.loadout_cost`, `economy.upkeep` or `economy.upkeep_period` from its coalition kind, naming the table, both kinds and values, and the fixes; it never copies a value. False: each kind keeps its own value (one-sided experiments). Unpaired kinds are never checked. A bool so that `--set` and the harness queue can switch it (`tools/balance/README.md:18`). The shipped paired values are equal, so true changes no event stream | ECONOMY EC-3 | No (read at load only) |
 
 ### 6.4 Combat
 | Key | Type | Unit | PROPOSED | Source | HR |
@@ -488,6 +489,7 @@ roles:                        # Role (CONTRACTS §3.3) -> UnitKind; every Role u
 units:
   - kind: STRIKE_FIGHTER      # UnitKind (CONTRACTS §3.3), UPPER_SNAKE, unique
     side: COALITION           # COALITION | ENEMY | BASE (facilities: side follows the base, Q-GP-25)
+    mirrors: <UnitKind|absent> # PROPOSED (DRAFT, NX-494, Q-TD-130): ENEMY kinds only; the COALITION kind of the same domain it mirrors, at most one enemy kind per target; read by the `economy.cost_parity` check (§6.3)
     domain: AIR               # AIR | GROUND | SEA | STATIC
     playable_by: [VIEWER, AI_GARRISON]   # VIEWER | AI_GARRISON | DIRECTOR (one or more)
     min_rank: 1               # PROGRESSION §3; required when playable_by includes VIEWER
@@ -513,6 +515,7 @@ units:
 Rules:
 - **Display:** `display.symbol` must exist in the overlay symbol set (validated against `apps/overlay` symbol manifest in CI).
 - **Friend/foe colors:** these come from `side` only, never from the catalog (OV-2).
+- **Mirrors (PROPOSED, DRAFT, NX-494; Q-TD-130 lead, owner may veto):** `mirrors` pairs an ENEMY kind with its COALITION counterpart for cost parity (ECONOMY EC-3, `economy.cost_parity`). Proposed pairs: ENEMY_STRIKE_FIGHTER → STRIKE_FIGHTER, ENEMY_RECON_UAV → RECON_UAV (Q-TD-13), ENEMY_CONVOY → LOGI_TRUCK. ENEMY_ARMOR, ENEMY_FIGHTER and GARRISON_INFANTRY stay unpaired. Not in the schema yet; adding it moves `config_hash`.
 
 ### 7.2 Weapon profile
 ```yaml
