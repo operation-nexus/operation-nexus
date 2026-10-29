@@ -196,6 +196,8 @@ def test_the_hq_keys_apply_alike_to_either_side(n: int, ticks: int) -> None:
         ("capture.extra_exponent", {k: 0.0 for k in KINDS if k != "HQ"}),
         ("capture.time_mult", {**dict.fromkeys(KINDS, 1.0), "BRIDGE": 1.0}),  # an unknown kind
         ("capture.extra_exponent", {**dict.fromkeys(KINDS, 0.0), "DEPOT": 0.0}),
+        ("capture.extra_exponent.HQ", 1024.0),  # n ** 1024.5 would overflow at 2 capturers
+        ("capture.multi_unit_exponent", 4.5),
     ],
 )
 def test_the_loader_refuses_a_bad_value(key: str, value: object) -> None:

@@ -151,11 +151,11 @@ class ExtraExponent(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
     )
-    AIRBASE: Annotated[float, Field(ge=0.0)]
-    FOB: Annotated[float, Field(ge=0.0)]
-    HQ: Annotated[float, Field(ge=0.0)]
-    PORT: Annotated[float, Field(ge=0.0)]
-    SANCTUARY: Annotated[float, Field(ge=0.0)]
+    AIRBASE: Annotated[float, Field(ge=0.0, le=4.0)]
+    FOB: Annotated[float, Field(ge=0.0, le=4.0)]
+    HQ: Annotated[float, Field(ge=0.0, le=4.0)]
+    PORT: Annotated[float, Field(ge=0.0, le=4.0)]
+    SANCTUARY: Annotated[float, Field(ge=0.0, le=4.0)]
 
 
 class DefenseHp(BaseModel):
@@ -1415,6 +1415,7 @@ class Capture(BaseModel):
         Field(
             description="Diminishing returns: the capture time is divided by n to this power, n the weighted capturers in radius, unit exponent (Q-SIM-26).",
             ge=0.0,
+            le=4.0,
         ),
     ]
     time_mult: Annotated[

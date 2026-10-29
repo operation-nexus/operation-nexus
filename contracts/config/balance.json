@@ -388,6 +388,7 @@
           "description": "Diminishing returns: the capture time is divided by n to this power, n the weighted capturers in radius, unit exponent (Q-SIM-26).",
           "type": "number",
           "minimum": 0,
+          "maximum": 4,
           "x-unit": "exponent",
           "x-hot-reload": false,
           "x-category": "CAPTURE",
@@ -428,11 +429,11 @@
             "SANCTUARY"
           ],
           "properties": {
-            "AIRBASE": {"type": "number", "minimum": 0, "x-unit": "exponent", "x-hot-reload": false, "x-category": "CAPTURE", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 0.0, "max": 1.0, "step": 0.05, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a78, Q-TD-127", "x-status": "PROPOSED"},
-            "FOB": {"type": "number", "minimum": 0, "x-unit": "exponent", "x-hot-reload": false, "x-category": "CAPTURE", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 0.0, "max": 1.0, "step": 0.05, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a78, Q-TD-127", "x-status": "PROPOSED"},
-            "HQ": {"type": "number", "minimum": 0, "x-unit": "exponent", "x-hot-reload": false, "x-category": "CAPTURE", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 0.0, "max": 1.0, "step": 0.05, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a78, Q-TD-127", "x-status": "PROPOSED"},
-            "PORT": {"type": "number", "minimum": 0, "x-unit": "exponent", "x-hot-reload": false, "x-category": "CAPTURE", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 0.0, "max": 1.0, "step": 0.05, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a78, Q-TD-127", "x-status": "PROPOSED"},
-            "SANCTUARY": {"type": "number", "minimum": 0, "x-unit": "exponent", "x-hot-reload": false, "x-category": "CAPTURE", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 0.0, "max": 1.0, "step": 0.05, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a78, Q-TD-127", "x-status": "PROPOSED"}
+            "AIRBASE": {"type": "number", "minimum": 0, "maximum": 4, "x-unit": "exponent", "x-hot-reload": false, "x-category": "CAPTURE", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 0.0, "max": 1.0, "step": 0.05, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a78, Q-TD-127", "x-status": "PROPOSED"},
+            "FOB": {"type": "number", "minimum": 0, "maximum": 4, "x-unit": "exponent", "x-hot-reload": false, "x-category": "CAPTURE", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 0.0, "max": 1.0, "step": 0.05, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a78, Q-TD-127", "x-status": "PROPOSED"},
+            "HQ": {"type": "number", "minimum": 0, "maximum": 4, "x-unit": "exponent", "x-hot-reload": false, "x-category": "CAPTURE", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 0.0, "max": 1.0, "step": 0.05, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a78, Q-TD-127", "x-status": "PROPOSED"},
+            "PORT": {"type": "number", "minimum": 0, "maximum": 4, "x-unit": "exponent", "x-hot-reload": false, "x-category": "CAPTURE", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 0.0, "max": 1.0, "step": 0.05, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a78, Q-TD-127", "x-status": "PROPOSED"},
+            "SANCTUARY": {"type": "number", "minimum": 0, "maximum": 4, "x-unit": "exponent", "x-hot-reload": false, "x-category": "CAPTURE", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 0.0, "max": 1.0, "step": 0.05, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a78, Q-TD-127", "x-status": "PROPOSED"}
           }
         },
         "quiet_floor": {
