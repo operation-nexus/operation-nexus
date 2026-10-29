@@ -1,6 +1,27 @@
 import type { RenderFrameState, VisualEffect } from "../types/render";
 import type { VisualUnit } from "../types/unit";
 import type { TelemetryState } from "../types/telemetry";
+import type { ThreatAdaptation } from "../contracts/events/event";
+
+// Mock ThreatAdaptation script for the OV-26 stack: one every SITREP_EVERY ticks, in a
+// loop over every category (node and sector ids are Strait-1's).
+const SITREP_EVERY = 90;
+type Cat = ThreatAdaptation["category"];
+// [category, sector, direction, node, credited unit ids]
+const SITREP_SCRIPT: Array<
+  [Cat, string, "UP" | "DOWN", string | null, number[]]
+> = [
+  ["STAGING", "north", "UP", null, []],
+  ["IADS_REINFORCED", "south", "UP", null, []],
+  ["STAGING_LAUNCHED", "north", "UP", null, []],
+  ["HOLD_AT_RISK", "north", "UP", "cross-n", []],
+  ["STRIKE_DOWNED", "centre", "UP", "west-airbase", [101, 102]],
+  ["SANCTUARY_AT_RISK", "centre", "UP", "haven", []],
+  ["CONVOY_ESCORT", "centre", "UP", null, []],
+  ["STAGING", "south", "UP", null, []],
+  ["STAGING_DISPERSED", "south", "UP", null, []],
+  ["IADS_REINFORCED", "south", "DOWN", null, []],
+];
 
 export class SimulationFeedGenerator {
   private tick = 0;
@@ -8,6 +29,7 @@ export class SimulationFeedGenerator {
   private highDensityCount = 0;
   private countdown = 900; // 15:00
   private quorumPct = 52;
+  private eventSeq = 0;
 
   generateFrameState(highDensityMode = false): RenderFrameState {
     this.tick++;
@@ -126,9 +148,32 @@ export class SimulationFeedGenerator {
       units,
       telemetry,
       effects,
+      events: this.threatAdaptations(),
       selectedUnitId: 101, // Track VIPER-01 by default
       cameraPreset: "WIDE",
     };
+  }
+
+  private threatAdaptations(): ThreatAdaptation[] {
+    if (this.tick % SITREP_EVERY !== 0) return [];
+    const step = this.tick / SITREP_EVERY - 1; // first event at tick SITREP_EVERY
+    const script = SITREP_SCRIPT[step % SITREP_SCRIPT.length];
+    if (!script) return [];
+    this.eventSeq++;
+    return [
+      {
+        kind: "ThreatAdaptation",
+        tick: this.tick,
+        event_seq: this.eventSeq,
+        campaign_id: "00000000-0000-7000-8000-000000000000",
+        side: "ENEMY",
+        category: script[0],
+        sector_id: script[1],
+        direction: script[2],
+        node_id: script[3],
+        credit_ids: script[4],
+      },
+    ];
   }
 
   private generateStandardTacticalUnits(): VisualUnit[] {
