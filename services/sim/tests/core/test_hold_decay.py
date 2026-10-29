@@ -216,6 +216,20 @@ def test_on_the_tick_both_hold_the_decay_is_the_reason() -> None:
     )
 
 
+def test_a_repair_on_the_re_hold_tick_resets_before_the_hold_resumes() -> None:
+    w = decay_world()
+    broken(w, 6)  # P = 6 kept
+    (eighth,) = (n for n in RC.strategic if n not in SEVEN)
+    own(w, "COALITION", eighth)  # seven of eight held again, fob-s-e still the Static's
+    full(w, "fob-s-e")
+    reset, started = hold_events(run(w))
+    assert isinstance(reset, VictoryHoldReset) and (reset.reason, reset.node_id) == (
+        "REPAIRED",
+        "fob-s-e",
+    )
+    assert isinstance(started, VictoryHoldStarted) and started.progress_ticks == 0
+
+
 # --- the clock: running ticks only ----------------------------------------------------------------
 
 

@@ -204,6 +204,10 @@ def _track_hold(world: World, rc: CampaignRules, holding: bool, out: list[Event]
     c = world.campaign
     was = c.hold_nodes
     if holding:
+        if not was and c.hold_broken_nodes and rc.reset_on_repair:
+            node = _repaired(world, c.hold_broken_nodes)
+            if node is not None:  # a repair on the re-hold tick still resets it first
+                _reset(world, "REPAIRED", node, out)
         carried = 0 if was else _progress(c, rc)  # a fresh hold's 0 or the decayed progress
         c.hold_ticks = (c.hold_ticks if was else carried) + 1
         c.hold_broken_ticks, c.hold_broken_nodes = 0, ()
@@ -256,6 +260,14 @@ def _decay(world: World, rc: CampaignRules, out: list[Event]) -> None:
         reason = "REPAIRED"
     else:
         return
+    _reset(world, reason, node, out)
+
+
+def _reset(
+    world: World, reason: VictoryHoldResetReason, node: str | None, out: list[Event]
+) -> None:
+    """End a decaying hold at progress 0 with `VictoryHoldReset{reason, node}`."""
+    c = world.campaign
     c.hold_ticks = c.hold_broken_ticks = 0
     c.hold_broken_nodes = ()
     out.append(
