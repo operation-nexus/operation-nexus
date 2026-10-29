@@ -32,6 +32,7 @@ KEYS = {
     **{f"economy.upkeep.{k}": 5 for k in ("GARRISON_INFANTRY", "STRIKE_FIGHTER", "ENEMY_ARMOR")},
     **{f"economy.upkeep_period.{k}": 1
        for k in ("GARRISON_INFANTRY", "STRIKE_FIGHTER", "ENEMY_ARMOR")},
+    "economy.cost_parity": False,  # STRIKE_FIGHTER pays, its mirror does not (NX-494)
 }  # fmt: skip
 
 

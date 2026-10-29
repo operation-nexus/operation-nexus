@@ -16,8 +16,8 @@ from nexus.runtime.units import catalog_hash, load_catalog
 CONTENT = Path(__file__).resolve().parents[4] / "content"
 # Pinned from this implementation's first run (NX-367; re-pinned NX-121: speed_mps; NX-368:
 # min_speed_mps and fuel_s; NX-150: sensor and stealth; NX-150 part 2: passive_range_m; NX-124:
-# combat stats and weapon numbers); a change means every config_hash moved.
-GOLDEN_UNITS_HASH = "36e63e464462d2493127aa5b50d98f13ea62afff450e3a033f50565f0917145a"
+# combat stats and weapon numbers; NX-494: mirrors); a change means every config_hash moved.
+GOLDEN_UNITS_HASH = "0c96a89abfce88100ebf0e29e915e0a3982600ee7fee729ddcb196b666294309"
 RADAR = "units/radar-site.yaml"
 
 
@@ -164,6 +164,38 @@ def test_weapon_targets_match_combat_table() -> None:
         ),
         ("roles.yaml", "  LOGI: LOGI_TRUCK\n", "", r"roles\.LOGI"),
         ("roles.yaml", "LOGI: LOGI_TRUCK", "LOGI: LOGI_TRUCK\n  NAVY: LOGI_TRUCK", r"roles\.NAVY"),
+        # mirrors (NX-494, ECONOMY EC-3): ENEMY kinds only, to a COALITION kind of the same domain
+        (
+            "units/strike-fighter.yaml",
+            "side: COALITION",
+            "side: COALITION\nmirrors: RECON_UAV",
+            r"strike-fighter\.yaml: mirrors: only an ENEMY kind may mirror one \(side COALITION\)",
+        ),
+        (RADAR, "side: BASE", "side: BASE\nmirrors: RECON_UAV", r"mirror one \(side BASE\)"),
+        (
+            "units/enemy-armor.yaml",
+            "side: ENEMY",
+            "side: ENEMY\nmirrors: ENEMY_CONVOY",
+            r"enemy-armor\.yaml: mirrors: 'ENEMY_CONVOY' is ENEMY GROUND, not a COALITION GROUND",
+        ),
+        (
+            "units/enemy-convoy.yaml",
+            "mirrors: LOGI_TRUCK",
+            "mirrors: RECON_UAV",
+            r"enemy-convoy\.yaml: mirrors: 'RECON_UAV' is COALITION AIR, not a COALITION GROUND",
+        ),
+        (
+            "units/enemy-fighter.yaml",
+            "side: ENEMY",
+            "side: ENEMY\nmirrors: STRIKE_FIGHTER",
+            r"units dir: mirrors: duplicate 'STRIKE_FIGHTER'",
+        ),
+        (
+            "units/enemy-convoy.yaml",
+            "mirrors: LOGI_TRUCK",
+            "mirrors: NOPE",
+            r"mirrors: Input should",
+        ),
         # strict YAML and TBD
         (RADAR, "domain: STATIC", "domain: STATIC\ndomain: AIR", r"duplicate key"),
         (RADAR, "domain: STATIC", "domain: TBD", r"domain: TBD until"),
@@ -178,6 +210,23 @@ def test_missing_kind_file(tmp_path: Path) -> None:
     units, weapons, roles = staged(tmp_path, RADAR, "weapons: []", "weapons: []")
     (units / "radar-site.yaml").rename(units / "radar-site.yaml.bak")
     with pytest.raises(ConfigError, match=r"missing kind 'RADAR_SITE'"):
+        load_catalog(units, weapons, roles)
+
+
+def test_the_shipped_mirror_pairs() -> None:
+    # NX-494 (Q-TD-130): three pairs; ENEMY_ARMOR, ENEMY_FIGHTER and GARRISON_INFANTRY unpaired
+    pairs = {u.kind: u.mirrors for u in load_catalog(*shipped()).units if u.mirrors is not None}
+    assert pairs == {
+        "ENEMY_CONVOY": "LOGI_TRUCK",
+        "ENEMY_RECON_UAV": "RECON_UAV",
+        "ENEMY_STRIKE_FIGHTER": "STRIKE_FIGHTER",
+    }
+
+
+def test_a_mirror_whose_target_has_no_file_is_refused(tmp_path: Path) -> None:
+    units, weapons, roles = staged(tmp_path, RADAR, "weapons: []", "weapons: []")
+    (units / "logi-truck.yaml").unlink()
+    with pytest.raises(ConfigError, match=r"enemy-convoy\.yaml: mirrors: 'LOGI_TRUCK' is not in"):
         load_catalog(units, weapons, roles)
 
 

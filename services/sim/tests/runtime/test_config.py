@@ -353,6 +353,7 @@ economy:
     ENEMY_STRIKE_FIGHTER: 20, GARRISON_INFANTRY: 20, LOGI_TRUCK: 1, RECON_UAV: 30,
     STRIKE_FIGHTER: 20}
   free_viewer_spawn: true
+  cost_parity: true
   floor_viewer_units: 5
   shortfall_quiet_windows: 30
 """
@@ -374,9 +375,10 @@ economy:
 # `combat.overkill_check`, NX-412 part 5b again for its harness-tuned defaults, NX-488 for
 # deleting `economy.legacy_rules`, `director.budget` and `director.max_live_units`, NX-484 for
 # `tasking.retake_keep_min`, NX-489 for the `campaign.victory` hold decay keys, NX-490 for
-# `capture.time_mult` and `capture.extra_exponent`); a change means
+# `capture.time_mult` and `capture.extra_exponent`, NX-494 for `economy.cost_parity` and the
+# catalog's `mirrors`); a change means
 # every config_hash moved.
-GOLDEN_CONFIG_HASH = "e36de600a66cb96612219b1fb75fcca5e566bb406692c4f748b4d9ea37dcdf5e"
+GOLDEN_CONFIG_HASH = "b0657504ee5fa255a841f5460e7f18bfb2dfea989125ff1264baf077a6a365ce"
 AIR = {
     "bingo_reserve_frac": 0.15,
     "orbit_period_s": 120.0,
@@ -705,6 +707,7 @@ ECONOMY = {
         "LOGI_TRUCK": 1,
     },
     "free_viewer_spawn": True,
+    "cost_parity": True,
     "floor_viewer_units": 5,
     "shortfall_quiet_windows": 30,
 }
@@ -1193,7 +1196,7 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "    convoys_per_period: 1, offensives_per_period: 1, convoy_cost: 0, convoy_slots: 1,\n"
         "    capture_slot_tiers: [PATTERN_OF_LIFE]}}\n"
         "economy: {window_s: 60, unlimited: {ENEMY: false, COALITION: false},\n"
-        "  free_viewer_spawn: true, floor_viewer_units: 5,\n"
+        "  free_viewer_spawn: true, cost_parity: true, floor_viewer_units: 5,\n"
         "  shortfall_quiet_windows: 30,\n"
         "  storage: {per_node: {PORT: 1000, HQ: 2000, FOB: 1000, BRIDGE: 0, AIRBASE: 2000},\n"
         "    floor: 2000},\n"

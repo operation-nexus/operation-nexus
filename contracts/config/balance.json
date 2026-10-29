@@ -2915,6 +2915,7 @@
         "upkeep",
         "upkeep_period",
         "free_viewer_spawn",
+        "cost_parity",
         "floor_viewer_units",
         "shortfall_quiet_windows"
       ],
@@ -3569,6 +3570,18 @@
           "x-tune": null,
           "x-source": "ECONOMY EC-13, Q-TD-12, Q-TD-26",
           "x-status": "RULE_DEFAULT"
+        },
+        "cost_parity": {
+          "description": "ECONOMY EC-3 cost parity (NX-494, Q-TD-119, Q-TD-130): true = the config loader refuses a config in which an ENEMY kind paired by the unit catalog's mirrors has a different logistics.loadout_cost, economy.upkeep or economy.upkeep_period from its COALITION kind, naming the keys, both kinds and both values; it never copies a value. false = each kind keeps its own value (one-sided experiments). Unpaired kinds are never checked. Read at load only.",
+          "type": "boolean",
+          "x-unit": "switch",
+          "x-hot-reload": false,
+          "x-category": "ECONOMY",
+          "x-audience": "OPERATOR",
+          "x-edit-role": "ADMIN",
+          "x-tune": null,
+          "x-source": "ECONOMY EC-3, Q-TD-119, Q-TD-130",
+          "x-status": "PROPOSED"
         },
         "floor_viewer_units": {
           "description": "ECONOMY EC-11: viewer units the coalition's floor income must keep paid. With the coalition not in unlimited mode, the loader refuses a config whose economy.income.floor is below the upkeep of the theater's coalition garrison quotas plus this many units at the dearest upkeep of a viewer-playable kind, naming the shortfall. Read at load only, unit units.",

@@ -405,5 +405,6 @@ economy:  # Force economy (ECONOMY, NX-412 part 1; CONFIG-AND-CONTENT §6.3). Sa
     RECON_UAV: 30
     STRIKE_FIGHTER: 20
   free_viewer_spawn: true  # decided rule as default, Q-CFG-16 option (ECONOMY EC-13, Q-TD-26): a viewer's sanctuary spawn is free; false in agent-vs-agent harness profiles
+  cost_parity: true  # PROPOSED (NX-494; Q-TD-119 owner, Q-TD-130 lead, owner may veto); switch: the loader refuses mirrored kinds (catalog mirrors) whose loadout_cost, upkeep or upkeep_period differ; false allows one-sided cuts (ECONOMY EC-3)
   floor_viewer_units: 5  # PROPOSED – unvalidated (ECONOMY EC-11, NX-412 harness sweep); units, = quiet-5's viewers x slots.max_live_per_commander (1), the smallest crowd the harness plays: the coalition floor income must keep them paid at the dearest viewer upkeep beside the coalition garrison; checked at load only with the coalition limited
   shortfall_quiet_windows: 30  # PROPOSED – unvalidated (NX-436, Q-TD-51 U5, Q-TD-64); economy windows (30 game min at window_s 60, the R10/R11 horizon of NX-437): a shortfall episode starting at a base this soon after its last one ended is not announced (ECONOMY EC-6a)

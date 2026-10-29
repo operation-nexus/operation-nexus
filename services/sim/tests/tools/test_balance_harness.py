@@ -1097,6 +1097,36 @@ def test_set_rejections_exit_2_before_any_run(
     assert capsys.readouterr().err.startswith("error:") and not out.exists()
 
 
+_CUT = "logistics.loadout_cost.STRIKE_FIGHTER=10"  # shipped 20, as its mirror ENEMY_STRIKE_FIGHTER
+
+
+def test_a_one_sided_cut_with_cost_parity_on_exits_2_before_out_exists(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # ECONOMY EC-3 (NX-494): the schema takes the value; the campaign load refuses it
+    out = tmp_path / "o"
+    assert cli(monkeypatch, out, "--seeds", "1", "--set", _CUT) == 2
+    err = capsys.readouterr().err
+    assert err.startswith("error:") and not out.exists()
+    assert "logistics.loadout_cost.ENEMY_STRIKE_FIGHTER 20 != " in err
+    assert "logistics.loadout_cost.STRIKE_FIGHTER 10" in err
+
+
+@pytest.mark.parametrize(
+    "pairs",
+    [
+        [_CUT, "logistics.loadout_cost.ENEMY_STRIKE_FIGHTER=10"],  # a synced cut
+        [_CUT, "economy.cost_parity=false"],  # a one-sided probe
+    ],
+)
+def test_a_synced_cut_or_a_cut_with_cost_parity_off_runs(
+    pairs: list[str], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    out = tmp_path / "o"
+    assert cli(monkeypatch, out, "--seeds", "1", *(x for p in pairs for x in ("--set", p))) == 0
+    assert json.loads((out / "report.json").read_text())["config"]["overrides"] == pairs
+
+
 def test_set_takes_true_and_false_on_a_bool_key(tmp_path: Path) -> None:
     # NX-412 part 5a: the shipped switches flip through --set (shipped false since part 5b), one
     # side of a nested map alone, and the loader takes the result

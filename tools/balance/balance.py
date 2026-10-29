@@ -12,11 +12,12 @@ a run stops early when the campaign ends);
 `--workers` the number of parallel processes (seeds are independent, so the report does not depend
 on it). `--set key=value` (repeatable) overrides one numeric or boolean balance key of the shipped
 config (e.g. `--set tasking.strike_idle_targets_max=0`, `--set economy.unlimited.ENEMY=true`; a
-boolean key takes `true` or `false` only, a numeric key a number only); the config is then
-validated as usual, the overridden copy is saved as `<out>/balance.yaml` (every worker loads that
-file), and the report lists the overrides beside the resulting config hash and the economy mode
-(`economy.unlimited.<side>`: ECONOMY EC-15); a key given twice is an
-error. `--out` must
+boolean key takes `true` or `false` only, a numeric key a number only); the whole config then
+loads once before `--out` is made (so a one-sided cut of a mirrored pair with
+`economy.cost_parity` true exits 2, ECONOMY EC-3), the overridden copy is saved as
+`<out>/balance.yaml` (every worker loads that file), and the report lists the overrides beside
+the resulting config hash and the economy mode (`economy.unlimited.<side>`: ECONOMY EC-15); a key
+given twice is an error. `--out` must
 not exist (unless `--resume`, below): it gets `report.json`, `report.md`,
 `runs/<profile>-s<seed>.json` and
 `logs/<profile>-s<seed>/` (the command logs).
@@ -375,12 +376,14 @@ def main() -> int:
             slots = (args.slot_dir, args.slot_key)
         theater = None
         theater_text = args.theater.read_text() if args.theater else None
-        if theater_text is not None:  # validate (and cross-check with the balance) before `out`
-            with tempfile.TemporaryDirectory() as d:
+        if balance_text or theater_text is not None:  # the whole config loads before `out`
+            with tempfile.TemporaryDirectory() as d:  # (EC-11, EC-3 cost parity, the theater)
                 bal = ConfigPaths().balance
                 if balance_text:
                     (bal := Path(d) / "balance.yaml").write_text(balance_text)
-                cfg = load_campaign_config(ConfigPaths(balance=bal, theater=args.theater))
+                where = args.theater or ConfigPaths().theater
+                cfg = load_campaign_config(ConfigPaths(balance=bal, theater=where))
+        if theater_text is not None:
             theater = {
                 "slug": cfg.theater.slug,
                 "name": cfg.theater.name,
