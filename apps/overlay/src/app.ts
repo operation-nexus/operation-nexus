@@ -3,12 +3,15 @@ import { HudOverlay } from "./hud/hud-overlay";
 import { SimulationFeedGenerator } from "./simulation/mock-feed";
 import { HoloTableEngine } from "./renderers/holo3d/holo-engine";
 import { FlirMfdEngine } from "./renderers/flir/flir-engine";
+import { ThreatSitrepBoard } from "./hud/threat-sitrep";
+import type { RenderFrameState } from "./types/render";
 
 export class TacticalC2App {
   private root: HTMLElement;
   private renderManager = new RenderManager();
   private hud = new HudOverlay();
   private feedGenerator = new SimulationFeedGenerator();
+  private sitrepBoard = new ThreatSitrepBoard();
 
   private viewportContainer: HTMLElement | null = null;
   private controlDeckEl: HTMLElement | null = null;
@@ -305,6 +308,7 @@ export class TacticalC2App {
 
       // Update decoupled HUD
       this.hud.update(frameState.telemetry);
+      this.updateThreatSitreps(frameState);
 
       if (typeof requestAnimationFrame !== "undefined") {
         this.animFrameId = requestAnimationFrame(loop);
@@ -317,6 +321,17 @@ export class TacticalC2App {
       // In non-browser / headless test environment, execute one frame
       loop();
     }
+  }
+
+  // OV-26: events feed the sitrep board; credits name units in this frame.
+  private updateThreatSitreps(frame: RenderFrameState): void {
+    const units = frame.units;
+    this.sitrepBoard.ingest(frame.events ?? [], (id) =>
+      units instanceof Map
+        ? units.get(id)?.callsign
+        : units.find((u) => u.id === id)?.callsign,
+    );
+    this.hud.updateThreatSitreps(this.sitrepBoard.view(frame.tick));
   }
 
   getRenderManager(): RenderManager {

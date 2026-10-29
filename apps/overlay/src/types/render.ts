@@ -2,6 +2,7 @@ import type { TheaterDefinition } from "./theater";
 import type { VisualUnit, VisualEdge } from "./unit";
 import type { TelemetryState } from "./telemetry";
 import type { VisualEffect } from "./effects";
+import type { Event } from "../contracts/events/event";
 export type { VisualEffect };
 
 /**
@@ -37,6 +38,8 @@ export interface RenderFrameState {
   edges?: VisualEdge[] | undefined;
   telemetry: TelemetryState;
   effects?: VisualEffect[] | undefined;
+  /** Contract events received since the previous frame (OV-26 reads ThreatAdaptation). */
+  events?: Event[] | undefined;
   selectedUnitId?: number | null | undefined;
   cameraPreset?: "WIDE" | "COMBAT_45" | "TOP_DOWN" | undefined;
 }
