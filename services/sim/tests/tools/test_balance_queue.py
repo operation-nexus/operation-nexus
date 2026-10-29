@@ -465,10 +465,11 @@ def test_set_parsed_into_argv_pairs(cfg: dict[str, Any], monkeypatch: pytest.Mon
 def test_set_takes_bool_literals_and_enum_segments(cfg: dict[str, Any]) -> None:
     # NX-412 part 5a: a switch and a per-side key; balance.py checks the value against the key
     value = (
-        "economy.legacy_rules=false, economy.unlimited.ENEMY=true, economy.upkeep.STRIKE_FIGHTER=3"
+        "economy.free_viewer_spawn=false, economy.unlimited.ENEMY=true, "
+        "economy.upkeep.STRIKE_FIGHTER=3"
     )
     assert hq.parse_block(block(set=value), cfg, NAMES)["set"] == [
-        "economy.legacy_rules=false", "economy.unlimited.ENEMY=true",
+        "economy.free_viewer_spawn=false", "economy.unlimited.ENEMY=true",
         "economy.upkeep.STRIKE_FIGHTER=3",
     ]  # fmt: skip
 

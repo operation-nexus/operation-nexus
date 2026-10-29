@@ -6,7 +6,7 @@ sim:
   tick_hz: 10  # Hz; fixed by ADR-0002, validated, not tunable (CONFIG-AND-CONTENT §6.1 sim.tick_hz)
   time_scale: 6.0  # PROPOSED – unvalidated; x real time (CONFIG-AND-CONTENT §6.1 sim.time_scale)
   snapshot_every_ticks: 300  # PROPOSED – unvalidated; ticks (CONFIG-AND-CONTENT §6.1 sim.snapshot_every_ticks)
-  max_live_units_per_side: 1000  # PROPOSED placeholder, NX-412 sweep (surge-500 tick-rate budget, EC-8); live movers per side, read only with economy.legacy_rules false: 2 x slots.max_viewer_units (500), so it binds only as a guard
+  max_live_units_per_side: 1000  # PROPOSED placeholder, NX-412 sweep (surge-500 tick-rate budget, EC-8); live movers per side: 2 x slots.max_viewer_units (500), so it binds only as a guard
 slots:
   max_live_per_commander: 1  # PROPOSED – unvalidated; units (CONFIG-AND-CONTENT §6.2 slots.max_live_per_commander)
   respawn_delay_s: 20  # PROPOSED – unvalidated; s (game) (CONFIG-AND-CONTENT §6.2 slots.respawn_delay_s)
@@ -253,16 +253,8 @@ director:  # Threat Director (Q-SIM-78, Q-SIM-81, owner-approved starting number
       redemption:
         support: 1  # PROPOSED – unvalidated (Q-SIM-78, Q-AI-9)
         cosmetic: 0  # Q-AI-9, Q-ALN-13: cosmetic redemptions never provoke
-  budget:  # PROPOSED – unvalidated (Q-SIM-78); budget points per window by tier, never above the real surplus; read only with economy.legacy_rules true, temporary, removed in NX-412 part 5 (Q-TD-33) (CONFIG-AND-CONTENT §6.7)
-    pattern_of_life: 10
-    alpha: 30
-    bravo: 80
   max_spawns_per_window: 6  # PROPOSED – unvalidated (Q-SIM-78, Q-TD-12); units (CONFIG-AND-CONTENT §6.7)
-  max_live_units:  # PROPOSED – unvalidated (Q-SIM-78, Q-TD-12); read only with economy.legacy_rules true, temporary, removed in NX-412 part 5 (Q-TD-33); live Static units by tier; Pattern of Life 40 = the 22 garrison units of strait-1 + routine units + one capture operation (Q-SIM-85) (CONFIG-AND-CONTENT §6.7)
-    pattern_of_life: 40
-    alpha: 40
-    bravo: 70
-  spend_frac:  # PROPOSED placeholder, NX-412 sweep (ECONOMY EC-7, Q-TD-24); share of the Static bases' surplus per window, read only with economy.legacy_rules false: x the strait-1 start surplus (1500) gives the old tier budgets 10 / 30 / 80
+  spend_frac:  # PROPOSED placeholder, NX-412 sweep (ECONOMY EC-7, Q-TD-24); share of the Static bases' surplus per window: x the strait-1 start surplus (1500) gives 10 / 30 / 80, the tier budgets of before NX-412 part 3
     pattern_of_life: 0.007
     alpha: 0.02
     bravo: 0.0534
@@ -330,7 +322,7 @@ director:  # Threat Director (Q-SIM-78, Q-SIM-81, owner-approved starting number
   strike_bridge:
     cooldown_s: 1800  # PROPOSED – unvalidated (Q-SIM-121); s (game) after a bridge's BridgeRepaired before STRIKE_BRIDGE may target it again
   retake_window_min: 30  # PROPOSED – unvalidated (Q-SIM-81); min (game)
-  staging:  # forward staging (THREAT-DIRECTOR §4a, Q-TD-37, NX-416); read only with economy.legacy_rules false
+  staging:  # forward staging (THREAT-DIRECTOR §4a, Q-TD-37, NX-416)
     direct_s: 1500  # PROPOSED – unvalidated (Q-TD-37); s (game), = campaign.victory_hold_min (30 min) less a 5 min margin for the strike, the STAGE gather and the capture bar: a capture run that takes longer from the rear cannot contest a hold, so it stages
     max_wait_windows: 30  # PROPOSED – harness-tuned (R2 #482, U0 #510, lead note in #517; Q-TD-90), not validated at the 50-seed gate (Q-TD-37); windows (60 game s each)
     max_staged: 2  # PROPOSED – unvalidated (Q-TD-37); operations staged at once, one per bridgehead lane (north, south) of strait-1
@@ -359,7 +351,7 @@ economy:  # Force economy (ECONOMY, NX-412 part 1; CONFIG-AND-CONTENT §6.3). Sa
     ENEMY: false
   window_s: 60  # PROPOSED – unvalidated (ECONOMY §4); s (game), the director window, one cadence (EC-1, EC-10)
   income:
-    floor: 30  # PROPOSED placeholder, NX-412 sweep; stock per window, = director.budget.alpha (30): a side holding nothing keeps an ALPHA window's spend (EC-1)
+    floor: 30  # PROPOSED placeholder, NX-412 sweep; stock per window, = the ALPHA tier budget of before NX-412 part 3 (30): a side holding nothing keeps an ALPHA window's spend (EC-1)
     per_node:  # PROPOSED placeholder, NX-412 sweep; stock per window per held, uncontested node: 0.5 % of the kind's logistics.node_max_stock; BRIDGE 0 (ECONOMY §4)
       AIRBASE: 10
       BRIDGE: 0
@@ -394,7 +386,6 @@ economy:  # Force economy (ECONOMY, NX-412 part 1; CONFIG-AND-CONTENT §6.3). Sa
     LOGI_TRUCK: 1  # upkeep 0 (EC-4): hauling stays free
     RECON_UAV: 30
     STRIKE_FIGHTER: 20
-  legacy_rules: false  # PROPOSED – harness-tuned (U0 #510, lead note in #517), not validated at the 50-seed gate; TEMPORARY switch (Q-TD-33, lead decision), off from NX-412 part 5b; true keeps the old budget, live-unit caps and spawn costs; false applies ECONOMY EC-7, EC-8, EC-13; removed in NX-412 part 5; switch, campaign setup only
-  free_viewer_spawn: true  # decided rule as default, Q-CFG-16 option (ECONOMY EC-13, Q-TD-26): a viewer's sanctuary spawn is free; false in agent-vs-agent harness profiles; read only with legacy_rules false
-  floor_viewer_units: 5  # PROPOSED – unvalidated (ECONOMY EC-11, NX-412 harness sweep); units, = quiet-5's viewers x slots.max_live_per_commander (1), the smallest crowd the harness plays: the coalition floor income must keep them paid at the dearest viewer upkeep beside the coalition garrison; checked at load only with legacy_rules false and the coalition limited
+  free_viewer_spawn: true  # decided rule as default, Q-CFG-16 option (ECONOMY EC-13, Q-TD-26): a viewer's sanctuary spawn is free; false in agent-vs-agent harness profiles
+  floor_viewer_units: 5  # PROPOSED – unvalidated (ECONOMY EC-11, NX-412 harness sweep); units, = quiet-5's viewers x slots.max_live_per_commander (1), the smallest crowd the harness plays: the coalition floor income must keep them paid at the dearest viewer upkeep beside the coalition garrison; checked at load only with the coalition limited
   shortfall_quiet_windows: 30  # PROPOSED – unvalidated (NX-436, Q-TD-51 U5, Q-TD-64); economy windows (30 game min at window_s 60, the R10/R11 horizon of NX-437): a shortfall episode starting at a base this soon after its last one ended is not announced (ECONOMY EC-6a)

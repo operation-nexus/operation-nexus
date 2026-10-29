@@ -239,7 +239,9 @@ def test_launching_a_capture_operation_on_a_hold_node_announces_the_sitrep_once(
     assert at_risk(first) == [("west-airbase", "centre")]
     (sitrep,) = [e for e in first if isinstance(e, ThreatAdaptation)]
     assert (sitrep.side, sitrep.direction) == ("ENEMY", "UP")
-    assert at_risk(window(w, "ALPHA", 80, rules)) == []  # live: not launched again
+    # west-airbase's is live: not launched again; the hold response (Q-TD-46) puts fob-n-w's,
+    # the other hold node, outside ALPHA's max_ops, so it launches with its own one sitrep
+    assert at_risk(window(w, "ALPHA", 80, rules)) == [("fob-n-w", "north")]
 
 
 def test_no_sitrep_for_a_capture_operation_on_a_node_outside_the_hold() -> None:

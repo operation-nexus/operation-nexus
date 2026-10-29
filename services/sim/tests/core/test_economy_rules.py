@@ -1,8 +1,8 @@
 """NX-412 part 3 (ECONOMY EC-7, EC-8, EC-13, EC-14; Q-TD-33): the director budget, the live-unit
-guard and the one spawn rule, behind the temporary switch `economy.legacy_rules`.
+guard and the one spawn rule, the only rules since NX-488 deleted `economy.legacy_rules`.
 
-Runs on the shipped strait-1 config with `economy.legacy_rules` false (flipped through the shipped
-profile). Expected numbers are worked by hand from the shipped values: spend_frac
+Runs on the shipped strait-1 config with the pre-5b overrides (`fixture_pre_5b`). Expected
+numbers are worked by hand from the shipped values: spend_frac
 pattern_of_life 0.007, alpha 0.02, bravo 0.0534; source_spend_frac 0.005; upkeep_reserve_windows 2;
 cadence_windows 10; the Static's bases start with 1,500 stock above their starvation floors
 (east-airbase 500, static-hq 500, fob-n-e 250, fob-s-e 250); a limited Static's pool starts at its
@@ -27,7 +27,15 @@ from nexus.contracts.gen.events.event import Event
 from nexus.core import operations as ops
 from nexus.core.director import budget, rear_share
 from nexus.core.fog import side_view
-from nexus.core.launch import _capture_slot, _convoys, _post_and_spawn, _Purse, _routine
+from nexus.core.handlers import _spawn_cost
+from nexus.core.launch import (
+    _capture_slot,
+    _convoys,
+    _live_room,
+    _post_and_spawn,
+    _Purse,
+    _routine,
+)
 from nexus.core.launch import run as launch
 from nexus.core.rules import JobTemplate, OperationRules, Rules
 from nexus.core.step import step
@@ -36,7 +44,7 @@ from nexus.runtime.campaign_config import CampaignConfig, start_campaign
 from nexus.runtime.config import ConfigError
 
 # forward staging (NX-416) out of reach, so these tests see EC-13 alone; test_staging.py covers it
-NEW: dict[str, object] = {"economy.legacy_rules": False, "director.staging.direct_s": 1e6}
+NEW: dict[str, object] = {"director.staging.direct_s": 1e6}
 LIMITED: dict[str, object] = {
     "economy.unlimited.COALITION": False,
     "economy.unlimited.ENEMY": False,
@@ -53,7 +61,6 @@ def config(overrides: dict[str, object]) -> CampaignConfig:
 
 NEW_UNLIMITED = config(NEW)
 NEW_LIMITED = config({**NEW, **LIMITED})
-LEGACY_LIMITED = config(LIMITED)
 
 
 def world(c: CampaignConfig, seed: int = 1, *, garrison: bool = False) -> World:
@@ -359,7 +366,7 @@ def test_pool_money_the_window_cannot_spend_promotes_no_capture_operation() -> N
     assert w.director["ENEMY"].budget == 10
     # with staging on, a wrongly promoted OFFENSIVE would be staged (it holds its cost and waits)
     # instead of failing to pay, so only the cap keeps it out
-    w = world(config({"economy.legacy_rules": False, **LIMITED}))
+    w = world(config(LIMITED))
     at_floor(w)
     w.pool["ENEMY"] = 2000
     floor_window(w, 10, spend=10)
@@ -401,10 +408,6 @@ def test_a_promoted_capture_operation_that_cannot_pay_crowds_out_nothing() -> No
     assert w.director["ENEMY"].budget == 30
     w = limited(60)  # the base can pay all 60: the base account is lifted to it, not 60 - 10
     assert floor_window(w, 10, spend=10) == [("OFFENSIVE", "west-airbase")]
-
-
-def test_legacy_rules_have_no_capture_floor() -> None:
-    assert floor_window(world(LEGACY_LIMITED), 10) == floor_window(world(LEGACY_LIMITED), 0)
 
 
 def test_the_floor_buys_the_cheapest_capture_operation_retake_over_offensive() -> None:
@@ -523,13 +526,6 @@ def test_the_floor_never_lifts_the_budget_past_surplus_plus_pool(
     assert (s.last_operation == windows) == any(p[0] in CAPTURE_OPS for p in posted(w))
 
 
-def test_legacy_rules_keep_the_tier_budget_and_ignore_the_pool() -> None:
-    w = world(LEGACY_LIMITED)
-    assert the_budget(w, "BRAVO", upkeep=100) == 80  # min(director.budget.bravo, 1500)
-    at_floor(w)
-    assert the_budget(w, "BRAVO") == 0  # the rear pool adds nothing (Q-TD-5)
-
-
 @pytest.mark.parametrize(
     ("period", "armors", "budget"),
     [
@@ -573,13 +569,12 @@ def test_the_loader_requires_ordered_tier_fractions(
         pre_5b_config(overrides)
 
 
-def test_the_cost_envelope_follows_the_rules_in_force() -> None:
+def test_the_cost_envelope_is_the_bravo_share_of_the_largest_storage() -> None:
     small = {
         "director.spend_frac.pattern_of_life": 0.001,
         "director.spend_frac.alpha": 0.002,
         "director.spend_frac.bravo": 0.004,
     }
-    pre_5b_config(small)  # legacy rules: the envelope is still the largest tier budget (80)
     # storage with every node held: 2000 + 2 AIRBASE 2000 + HQ 2000 + 6 FOB 1000 = 14000;
     # floor(0.004 x 14000) = 56 < OFFENSIVE's 60
     with pytest.raises(ConfigError, match=r"OFFENSIVE: cost 60 is above .*14000 \(56\)"):
@@ -771,13 +766,6 @@ def test_thin_bases_push_operations_to_the_source_and_the_pool_pays_its_share_a_
     assert rear_spawns > 0 if pool == 8000 else True  # the fallback to the source happened
 
 
-def test_legacy_rules_still_split_the_cost_over_the_bases_and_never_touch_the_pool() -> None:
-    w = world(LEGACY_LIMITED)
-    out = operations(w, 60)
-    assert sum(a for _, a in debits(out)) == 60 and w.pool["ENEMY"] == 8000
-    assert {n for n, _ in debits(out)} <= set(STATIC_BASES)
-
-
 def garrison_world(c: CampaignConfig) -> World:
     """Only GARRISON_UPKEEP in the catalog, the shipped quotas, no opening garrison."""
     dr = c.rules.director
@@ -834,13 +822,6 @@ def test_a_viewer_join_the_pool_cannot_pay_is_refused_no_stock() -> None:
     assert spawns(out) == [] and w.pool["COALITION"] == 19
 
 
-def test_legacy_rules_keep_sanctuary_spawns_free_whatever_the_switch() -> None:
-    w = coalition({**LIMITED, "economy.free_viewer_spawn": False})
-    w.pool["COALITION"] = 0
-    out = step(w, [join(1, "STRIKE", hold=True)])
-    assert spawns(out) == ["haven"] and debits(out) == []
-
-
 def test_an_unlimited_coalition_spawns_with_the_switch_off_and_pays_nothing() -> None:
     w = coalition({**NEW, "economy.free_viewer_spawn": False})
     out = step(w, [join(1, "STRIKE", hold=True)])
@@ -858,11 +839,21 @@ def test_a_join_at_the_guard_waits_in_the_reserve_queue() -> None:
     out = step(w, [join(1, "STRIKE", hold=True), join(2, "STRIKE", hold=True)])
     assert spawns(out) == ["haven"]  # the viewer cap is 500, the guard 1
     assert [e.kind for e in out if e.kind == "ReserveQueueJoined"] == ["ReserveQueueJoined"]
-    legacy = coalition({"sim.max_live_units_per_side": 1})  # read only with legacy rules off
-    assert spawns(step(legacy, [join(1, "STRIKE", hold=True), join(2, "STRIKE", hold=True)])) == [
-        "haven",
-        "haven",
-    ]
+
+
+def test_without_the_economy_rules_the_live_room_is_refused_not_invented() -> None:
+    # DATA-INTEGRITY DI-2: the loader always builds the economy rules; a world without them has
+    # no EC-8 guard to read, so the Director's live room, a JOIN's and the AI trucks' raise
+    w = world(NEW_UNLIMITED)
+    assert w.rules is not None
+    assert _live_room(w, "ENEMY") == 1000  # the shipped guard: no Static mover is live yet
+    w.rules = dataclasses.replace(w.rules, economy=None)
+    with pytest.raises(ValueError, match=r"economy rules \(sim.max_live_units_per_side"):
+        _live_room(w, "ENEMY")
+    with pytest.raises(ValueError, match="economy rules"):
+        step(w, [join(1, "STRIKE", hold=True)])  # the JOIN's room reads the same guard
+    with pytest.raises(ValueError, match="economy rules"):  # nor is a spawn cost invented
+        _spawn_cost(w.rules, "STRIKE_FIGHTER", w.rules.sanctuary)
 
 
 def test_the_guard_bounds_the_directors_new_units() -> None:
@@ -872,8 +863,6 @@ def test_the_guard_bounds_the_directors_new_units() -> None:
     for _ in range(3):
         w.spawn("ENEMY_ARMOR", "ENEMY", "ENEMY_DIRECTOR", Vec2(0, 0))
     assert spawns(operations(w, 80, "BRAVO")) == []  # no room at all
-    w = world(config({"sim.max_live_units_per_side": 3}))  # legacy rules: the guard is not read
-    assert len(spawns(operations(w, 80, "BRAVO"))) > 3
 
 
 def refusals(out: list[Event]) -> list[tuple[str, str, int, int]]:
@@ -903,16 +892,6 @@ def test_no_refusal_while_the_guard_has_room() -> None:
         w.spawn("ENEMY_ARMOR", "ENEMY", "ENEMY_DIRECTOR", Vec2(0, 0))
     out = operations(w, 80, "BRAVO")
     assert refusals(out) == [] and spawns(out) == []  # anti-spam stops them first: not counted
-
-
-def test_the_legacy_tier_cap_refusal_is_counted_as_tier_cap() -> None:
-    w = world(config({}))  # legacy rules: director.max_live_units.bravo binds, not the guard
-    assert w.rules is not None and w.rules.director is not None
-    for _ in range(w.rules.director.max_live_units["BRAVO"]):
-        w.spawn("ENEMY_ARMOR", "ENEMY", "ENEMY_DIRECTOR", Vec2(0, 0))
-    [(side, reason, n, _)] = refusals(operations(w, 80, "BRAVO"))
-    assert (side, reason) == ("ENEMY", "TIER_CAP") and n >= 1
-    assert refusals(operations(world(config({})), 80, "BRAVO")) == []  # room left: none
 
 
 def test_a_pol_convoy_stopped_by_the_guard_is_counted() -> None:
@@ -974,7 +953,7 @@ JOINS = {1: [join(1, "STRIKE", "fob-n-w"), join(2, "RECON", hold=True)], 700: [j
     ],
     ids=["unlimited", "limited-switch-off", "guard-binding"],
 )
-def test_legacy_off_runs_deterministically(overrides: dict[str, object]) -> None:
+def test_the_economy_rules_run_deterministically(overrides: dict[str, object]) -> None:
     def once() -> tuple[str, list[dict[str, Any]]]:
         w = start_campaign(CAMPAIGN_ID, 99, pre_5b_config(overrides))
         events = run(w, 1300, JOINS)

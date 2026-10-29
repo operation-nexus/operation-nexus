@@ -78,8 +78,8 @@ def test_shipped_hash_is_pinned_and_ignores_file_order(tmp_path: Path) -> None:
     [
         (lambda d: op(d, "PROBE")["jobs"][0].update(kind="BOMB"), "kind"),  # type: ignore[index]
         (lambda d: op(d, "PROBE").update(preconditions=["target_is_nice"]), "preconditions"),
-        # EC-7 envelope (economy.legacy_rules false, shipped since NX-412 part 5b): strait-1's
-        # largest storage 14000 x director.spend_frac.bravo 0.0534 = 747
+        # EC-7 envelope (ECONOMY §4): strait-1's largest storage 14000 x
+        # director.spend_frac.bravo 0.0534 = 747
         (lambda d: op(d, "PROBE").update(cost=748), r"above .*largest storage 14000 \(747\)"),
         (lambda d: op(d, "PROBE").update(cost=-1), "cost"),
         (lambda d: op(d, "PROBE").update(cost=1.5), "cost"),
@@ -125,15 +125,3 @@ def test_loader_rejects(tmp_path: Path, edit: object, message: str) -> None:
     edit(data)  # type: ignore[operator]
     with pytest.raises(ConfigError, match=message):
         load(tmp_path, data)
-
-
-def test_legacy_rules_cap_a_cost_at_the_largest_tier_budget(tmp_path: Path) -> None:
-    balance = yaml.safe_load(ConfigPaths().balance.read_text(encoding="utf-8"))
-    balance["economy"]["legacy_rules"] = True  # the rule before NX-412 part 5b
-    (tmp_path / "balance.yaml").write_text(yaml.safe_dump(balance), encoding="utf-8")
-    data = tree()
-    op(data, "PROBE").update(cost=81)  # bravo's budget is 80
-    (tmp_path / "operations.yaml").write_text(yaml.safe_dump(data), encoding="utf-8")
-    paths = ConfigPaths(balance=tmp_path / "balance.yaml", operations=tmp_path / "operations.yaml")
-    with pytest.raises(ConfigError, match="above the largest tier budget 80"):
-        load_campaign_config(paths)

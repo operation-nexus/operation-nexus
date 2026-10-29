@@ -1,6 +1,6 @@
 """Forward staging, the pure parts (THREAT-DIRECTOR §4a FS-1, FS-2, FS-6; Q-TD-36, Q-TD-37;
-NX-416). Read only with `economy.legacy_rules` false; `nexus.core.launch` stages, holds, launches
-and re-stages, `nexus.core.logistics.stock_targets` raises the staging base's stock target.
+NX-416). `nexus.core.launch` stages, holds, launches and re-stages,
+`nexus.core.logistics.stock_targets` raises the staging base's stock target.
 
 Road travel time is `roads.travel_ticks` for the operation's capture kinds (the slowest one), on
 the side's public road picture: bridges down in its view (`SideView.bridge_down`) are cut, no node

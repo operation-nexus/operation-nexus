@@ -604,7 +604,7 @@ def test_the_window_and_the_dwell_take_the_same_ticks_at_another_time_scale(
     assert w.director["ENEMY"].windows == 1
 
 
-# --- budget (§4 step 2, Q-TD-5, Q-TD-12) ----------------------------------------------------------
+# --- budget (§4 step 2, ECONOMY EC-7; its terms: test_economy_rules.py) ---------------------------
 
 
 def stock_scene() -> tuple[World, dict[str, int]]:
@@ -615,30 +615,6 @@ def stock_scene() -> tuple[World, dict[str, int]]:
     stock["west-airbase"] = 10_000  # the coalition's stock is not the Static's
     stock["static-rear"] = 10_000  # the rear source is excluded (Q-TD-12)
     return w, stock
-
-
-def test_the_budget_is_the_surplus_of_the_static_bases_when_that_is_less_than_the_tier() -> None:
-    w, stock = stock_scene()
-    state = DirectorState()
-    window(state, side_view(w, "ENEMY"), stock=stock)
-    assert state.budget == 3  # 2 + 0 + 1 + 0 (below its floor adds nothing), tier cap 10
-
-
-def test_the_budget_is_the_tier_budget_when_the_stock_can_pay_and_never_more() -> None:
-    w, _ = stock_scene()
-    rich = {
-        n: RULES.supply.max_stock[n] for n in ("fob-n-e", "fob-s-e", "east-airbase", "static-hq")
-    }
-    assert surplus(side_view(w, "ENEMY"), RULES, rich) >= 80
-    caps: tuple[tuple[ThreatTier, int], ...] = (
-        ("PATTERN_OF_LIFE", 10),
-        ("ALPHA", 30),
-        ("BRAVO", 80),
-    )
-    for tier, cap in caps:
-        state = DirectorState(tier=tier, prov_level=2, ceiling=2, dwell=0)
-        window(state, side_view(w, "ENEMY"), 100, stock=rich)
-        assert state.budget == min(cap, surplus(side_view(w, "ENEMY"), RULES, rich))
 
 
 def test_a_starved_static_has_no_budget_and_a_lost_base_stops_counting() -> None:
@@ -658,8 +634,7 @@ def test_the_budget_is_never_above_the_real_surplus() -> None:
         w = new_world()
         state = DirectorState()
         window(state, side_view(w, "ENEMY"), stock=stock)
-        assert state.budget <= surplus(side_view(w, "ENEMY"), RULES, stock)
-        assert state.budget <= DR.budget["PATTERN_OF_LIFE"]
+        assert state.budget <= surplus(side_view(w, "ENEMY"), RULES, stock)  # EC-7, no pool
 
     check()
 
@@ -794,7 +769,7 @@ def valid_after(windows: int) -> World:
 def test_a_reachable_director_state_validates() -> None:
     w = valid_after(25)
     w.director["ENEMY"].tier = "BRAVO"  # 2 steps need 20 windows
-    w.director["ENEMY"].budget = DR.budget["BRAVO"]
+    w.director["ENEMY"].budget = 80
     w.director["ENEMY"].last_provocation_sector = "south"
     w.director["ENEMY"].last_provocation_tick = 5
     director_validate(w, RULES)
@@ -808,7 +783,7 @@ def test_a_reachable_director_state_validates() -> None:
         ({"dwell": WINDOW + 1}, "dwell"),  # not whole windows
         ({"dwell": 11 * WINDOW}, "dwell"),  # above the minimum dwell
         ({"tier": "BRAVO"}, "could not have reached"),  # needs 20 windows, 5 run
-        ({"budget": 11}, "budget"),  # PATTERN_OF_LIFE pays 10
+        ({"budget": -1}, "budget below 0"),
         ({"last_provocation_sector": "atlantis", "last_provocation_tick": 1}, "not in the theater"),
     ],
 )

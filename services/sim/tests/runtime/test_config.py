@@ -274,15 +274,7 @@ director:
       redemption:
         support: 1
         cosmetic: 0
-  budget:
-    pattern_of_life: 10
-    alpha: 30
-    bravo: 80
   max_spawns_per_window: 6
-  max_live_units:
-    pattern_of_life: 24
-    alpha: 40
-    bravo: 70
   spend_frac: {pattern_of_life: 0.007, alpha: 0.02, bravo: 0.0534}
   source_spend_frac: 0.005
   upkeep_reserve_windows: 2
@@ -352,7 +344,6 @@ economy:
   upkeep_period: {ENEMY_ARMOR: 20, ENEMY_CONVOY: 1, ENEMY_FIGHTER: 20, ENEMY_RECON_UAV: 30,
     ENEMY_STRIKE_FIGHTER: 20, GARRISON_INFANTRY: 20, LOGI_TRUCK: 1, RECON_UAV: 30,
     STRIKE_FIGHTER: 20}
-  legacy_rules: true
   free_viewer_spawn: true
   floor_viewer_units: 5
   shortfall_quiet_windows: 30
@@ -372,9 +363,10 @@ economy:
 # keys, the EC-8 guard, `economy.legacy_rules` and `free_viewer_spawn`, NX-412 part 5b for
 # `economy.floor_viewer_units`, NX-426 for `economy.upkeep_period`, NX-436 for
 # `economy.shortfall_quiet_windows`, NX-472 for `combat.facility_restore_frac`, NX-468 for
-# `combat.overkill_check`, NX-412 part 5b again for its harness-tuned defaults); a change means
+# `combat.overkill_check`, NX-412 part 5b again for its harness-tuned defaults, NX-488 for
+# deleting `economy.legacy_rules`, `director.budget` and `director.max_live_units`); a change means
 # every config_hash moved.
-GOLDEN_CONFIG_HASH = "d0af638d39c375e7eae645a9a652e05dc049343fd405edde50f5b64201c98a49"
+GOLDEN_CONFIG_HASH = "c7b731f32b722be97e40b1fa97f1c547263c637c7424533b2035d97e1a445f99"
 AIR = {
     "bingo_reserve_frac": 0.15,
     "orbit_period_s": 120.0,
@@ -598,9 +590,7 @@ DIRECTOR = {
             "redemption": {"support": 1, "cosmetic": 0},
         },
     },
-    "budget": {"pattern_of_life": 10, "alpha": 30, "bravo": 80},
     "max_spawns_per_window": 6,
-    "max_live_units": {"pattern_of_life": 40, "alpha": 40, "bravo": 70},
     "spend_frac": {"pattern_of_life": 0.007, "alpha": 0.02, "bravo": 0.0534},
     "source_spend_frac": 0.01,
     "upkeep_reserve_windows": 2,
@@ -694,7 +684,6 @@ ECONOMY = {
         "ENEMY_CONVOY": 1,
         "LOGI_TRUCK": 1,
     },
-    "legacy_rules": False,
     "free_viewer_spawn": True,
     "floor_viewer_units": 5,
     "shortfall_quiet_windows": 30,
@@ -861,6 +850,31 @@ def test_missing_section_and_empty_file_fail(tmp_path: Path) -> None:
 def test_unknown_key_fails(tmp_path: Path, text: str) -> None:
     with pytest.raises(ConfigError, match=r"Extra inputs are not permitted"):
         load_balance(write(tmp_path, text))
+
+
+@pytest.mark.parametrize(
+    ("anchor", "line", "key"),
+    [
+        ("  free_viewer_spawn: true\n", "  legacy_rules: false\n", "economy.legacy_rules"),
+        (
+            "  max_spawns_per_window: 6\n",
+            "  budget: {pattern_of_life: 10, alpha: 30, bravo: 80}\n",
+            "director.budget",
+        ),
+        (
+            "  max_spawns_per_window: 6\n",
+            "  max_live_units: {pattern_of_life: 40, alpha: 40, bravo: 70}\n",
+            "director.max_live_units",
+        ),
+    ],
+)
+def test_a_key_deleted_in_nx_488_fails_naming_it(
+    tmp_path: Path, anchor: str, line: str, key: str
+) -> None:
+    # a profile written before NX-488 still carrying the old switch or tier keys: never ignored
+    path = write(tmp_path, VALID.replace(anchor, line + anchor))
+    with pytest.raises(ConfigError, match=rf"^{path}: {key}: Extra inputs are not permitted"):
+        load_balance(path)
 
 
 @pytest.mark.parametrize(
@@ -1120,8 +1134,6 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "      convoy_hit: 3, facility_damaged: 3,\n"
         "      facility_disabled: 8, base_captured: 15, scout_in_rear: 2,\n"
         "      redemption: {support: 1, cosmetic: 0}}},\n"
-        "  budget: {pattern_of_life: 10, alpha: 30, bravo: 80},\n"
-        "  max_live_units: {pattern_of_life: 40, alpha: 40, bravo: 70},\n"
         "  cadence_windows: 10, upkeep_reserve_windows: 2, source_spend_frac: 0.01,\n"
         "  spend_frac: {bravo: 0.0534, alpha: 0.02, pattern_of_life: 0.007},\n"
         "  op_priority: {RETAKE: 1.2, OFFENSIVE: 1.0, ESCORT_CONVOYS: 0.8, REINFORCE_IADS: 0.7,\n"
@@ -1151,7 +1163,7 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "    convoys_per_period: 1, offensives_per_period: 1, convoy_cost: 0, convoy_slots: 1,\n"
         "    capture_slot_tiers: [PATTERN_OF_LIFE]}}\n"
         "economy: {window_s: 60, unlimited: {ENEMY: false, COALITION: false},\n"
-        "  free_viewer_spawn: true, legacy_rules: false, floor_viewer_units: 5,\n"
+        "  free_viewer_spawn: true, floor_viewer_units: 5,\n"
         "  shortfall_quiet_windows: 30,\n"
         "  storage: {per_node: {PORT: 1000, HQ: 2000, FOB: 1000, BRIDGE: 0, AIRBASE: 2000},\n"
         "    floor: 2000},\n"

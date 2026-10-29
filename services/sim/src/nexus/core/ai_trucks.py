@@ -84,9 +84,7 @@ def _spawn_for_jobs(world: World, rules: Rules, now: int, period: int, out: list
         return
     trucks = _trucks(world, rules)
     spare = sum(is_idle(rules, e, _SIDE) for e in trucks)
-    room = rules.supply.ai_truck_max_live - len(trucks)
-    guard = guard_room(world, _SIDE)
-    room = room if guard is None else min(room, guard)
+    room = min(rules.supply.ai_truck_max_live - len(trucks), guard_room(world, _SIDE))
     jobs = [
         j for j in world.boards[_SIDE].values()
         if j.key.startswith("resupply:") and now - j.created >= period

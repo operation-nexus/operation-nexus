@@ -296,9 +296,7 @@ class DirectorRules:
     decay: tuple[int, int]
     weights: Weights
     ai_shooter_mult: Fraction  # director.provocation.ai_shooter_mult: x a hit by no player's unit
-    budget: Mapping[ThreatTier, int]
     max_spawns_per_window: int
-    max_live_units: Mapping[ThreatTier, int]
     operations: tuple[OperationRules, ...]
     target_value: Mapping[NodeKind, Fraction]
     weakness_max: Fraction
@@ -360,7 +358,7 @@ class DirectorRules:
     intercept_reaction_ticks: int
     intercept_pol_linger_ticks: int
     intercept_lost_ticks: int
-    # ECONOMY EC-7 (NX-412 part 3, read with `economy.legacy_rules` false): the budget's shares
+    # ECONOMY EC-7 (NX-412 part 3): the budget's shares
     # of the bases' surplus by tier and of the rear pool, the upkeep reserve in windows and the
     # cadence floor's windows; exact Fractions, floored once
     spend_frac: Mapping[ThreatTier, Fraction]
@@ -371,7 +369,7 @@ class DirectorRules:
     # node of the running victory hold, and on a node of the other side that yields income
     victory_hold_mult: Fraction
     income_node_mult: Fraction
-    # Forward staging (THREAT-DIRECTOR §4a, NX-416; read with `economy.legacy_rules` false): a
+    # Forward staging (THREAT-DIRECTOR §4a, NX-416): a
     # capture operation farther than `staging_direct_ticks` by road from the rear waits at a
     # forward base at most `staging_max_wait_windows` windows; at most `staging_max_staged` at once
     staging_direct_ticks: int
@@ -479,10 +477,7 @@ class EconomyRules:
     # economy.upkeep_period (NX-426, Q-TD-41): windows between a unit's payments, >= 1, one per
     # `upkeep` kind (`rate`, `nexus.core.upkeep`)
     upkeep_period: Mapping[UnitKind, int] = field(default_factory=dict)
-    # NX-412 part 3: `economy.legacy_rules` (temporary, Q-TD-33: true keeps the tier budget,
-    # live-unit caps and spawn costs of before), `economy.free_viewer_spawn` (EC-13) and
-    # `sim.max_live_units_per_side` (EC-8), the last two read only with `legacy` false
-    legacy: bool = True
+    # NX-412 part 3: `economy.free_viewer_spawn` (EC-13) and `sim.max_live_units_per_side` (EC-8)
     free_viewer_spawn: bool = True
     max_live_per_side: int = 0
     # economy.floor_viewer_units (EC-11): read only by the loader's coalition floor check
@@ -508,7 +503,6 @@ def economy_rules(cfg: Economy, *, window_ticks: int, max_live_per_side: int) ->
         storage_per_node=cast(Mapping[NodeKind, int], cfg.storage.per_node.model_dump()),
         upkeep=cast(Mapping[UnitKind, int], cfg.upkeep.model_dump()),
         upkeep_period=cast(Mapping[UnitKind, int], cfg.upkeep_period.model_dump()),
-        legacy=cfg.legacy_rules,
         free_viewer_spawn=cfg.free_viewer_spawn,
         max_live_per_side=max_live_per_side,
         floor_viewer_units=cfg.floor_viewer_units,
@@ -593,12 +587,6 @@ class Rules:
             if self.combat is None or state == "HEALTHY"
             else radius * self.combat.damaged_sensor_mult
         )
-
-
-def legacy_rules(rules: Rules) -> bool:
-    """`economy.legacy_rules` (temporary, Q-TD-33): the budget, caps and spawn costs of before
-    NX-412 part 3. Rules without an economy block (hand-built tests) run them too."""
-    return rules.economy is None or rules.economy.legacy
 
 
 def tasking_rules(
@@ -759,11 +747,7 @@ def director_rules(
             _micro(w.scout_in_rear), _micro(r.support), _micro(r.cosmetic),
         ),
         ai_shooter_mult=Fraction(repr(pv.ai_shooter_mult)),
-        budget={"PATTERN_OF_LIFE": cfg.budget.pattern_of_life, "ALPHA": cfg.budget.alpha,
-                "BRAVO": cfg.budget.bravo},
         max_spawns_per_window=cfg.max_spawns_per_window,
-        max_live_units={"PATTERN_OF_LIFE": cfg.max_live_units.pattern_of_life,
-                        "ALPHA": cfg.max_live_units.alpha, "BRAVO": cfg.max_live_units.bravo},
         operations=tuple(sorted(operations, key=lambda o: o.id)),
         target_value={cast(NodeKind, k): Fraction(repr(v)) for k, v in cfg.score.target_value},
         weakness_max=Fraction(repr(cfg.score.weakness_max)),

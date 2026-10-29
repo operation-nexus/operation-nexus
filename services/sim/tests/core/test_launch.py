@@ -53,6 +53,8 @@ _dr = RULES.director
 if _dr is None:
     raise AssertionError("the shipped config has Director rules")
 DR: DirectorRules = _dr
+_limited = pre_5b_config({"economy.unlimited.ENEMY": False})  # a finite Static pool
+LIMITED_RULES = dataclasses.replace(_limited.rules, campaign=None, garrison_quota={})
 CAMPAIGN_ID = "0192f3a4-5b6c-7d8e-9f01-23456789abcd"
 STATIC_BASES = ("east-airbase", "fob-n-e", "fob-s-e", "static-hq")
 ARMOR: UnitKind = "ENEMY_ARMOR"
@@ -412,7 +414,7 @@ def test_the_budget_is_never_exceeded_nor_the_real_stock_nor_a_base_taken_below_
     s.budget = min(budget, s.budget)
     events = window(w, tier, s.budget)
     spent = sum(e.amount for e in events if e.kind == "SupplyConsumed")
-    assert spent <= s.budget <= min(budget, start, DR.budget[tier])
+    assert spent <= s.budget <= min(budget, start)  # EC-7: never above the surplus (no pool)
     assert start - surplus(w) == spent
     floor = RULES.supply.starve_floor
     assert all(w.stock[n] >= min(v, floor[n]) for n, v in zip(STATIC_BASES, stocks, strict=True))
@@ -425,11 +427,13 @@ def test_the_caps_bound_new_units_and_live_units() -> None:
     w = new_world()
     events = window(w, "BRAVO", 80)
     assert len([e for e in events if e.kind == "UnitSpawned"]) <= DR.max_spawns_per_window
-    w = new_world()
-    for _ in range(DR.max_live_units["ALPHA"] - 3):  # room for 3 more only
+    rules = with_guard(10)  # the EC-8 guard, sim.max_live_units_per_side
+    w = new_world(1, rules)
+    for _ in range(10 - 3):  # room for 3 more only
         unit(w, "ENEMY_ARMOR", "ENEMY", "ENEMY_DIRECTOR", "fob-n-e")
-    events = window(w, "ALPHA", 80)
+    events = window(w, "ALPHA", 80, rules)
     assert len([e for e in events if e.kind == "UnitSpawned"]) <= 3
+    assert len(enemy_units(w)) <= 10
 
 
 def non_routine(w: World) -> set[tuple[str, str]]:
@@ -646,7 +650,7 @@ def test_pattern_of_life_affords_an_escort_at_cost_10() -> None:
     convoy = unit(w, "ENEMY_CONVOY", "ENEMY", "ENEMY_DIRECTOR", "static-hq")
     convoy.path = ["fob-n-e"]
     w.director["ENEMY"].convoy_attacks = 3 * CP_SCALE
-    window(w, "PATTERN_OF_LIFE", DR.budget["PATTERN_OF_LIFE"])
+    window(w, "PATTERN_OF_LIFE", 10)
     assert [j.entity for j in w.boards["ENEMY"].values() if j.kind == "ESCORT_CONVOY"] == [
         convoy.id
     ]
@@ -825,19 +829,24 @@ def test_an_operation_the_real_surplus_cannot_pay_is_skipped_whole_not_part_paid
 def test_competing_payers_on_a_small_surplus_never_raise_and_stock_stays_exact(
     stocks: list[int], tier: ThreatTier, seed: int
 ) -> None:
-    w = new_world(seed)
+    # a limited Static (EC-13: thin bases send spawns to the source, whose pool is finite and
+    # counted here; an unlimited source would mint the cargo its trucks load)
+    w = new_world(seed, LIMITED_RULES)
     floor = RULES.supply.starve_floor
+
+    def held() -> int:
+        return sum(w.stock.values()) + sum(e.cargo or 0 for e in w.entities()) + w.pool["ENEMY"]
+
     for n, v in zip(STATIC_BASES, stocks, strict=True):
         w.stock[n] = floor[n] + v
-    total = sum(w.stock.values()) + sum(e.cargo or 0 for e in w.entities())
-    consumed = 0
+    total, consumed = held(), 0
     for _ in range(6):  # windows with a stale, full budget; the PoL convoys fire each window
         s = w.director["ENEMY"]
         s.last_patrol = s.last_convoy = s.last_offensive = -(10**9)
-        for e in window(w, tier, 80):
+        for e in window(w, tier, 80, LIMITED_RULES):
             consumed += e.amount if e.kind == "SupplyConsumed" else 0
         assert sum(max(0, w.stock[n] - floor[n]) for n in STATIC_BASES) >= 0
-        assert total - consumed == sum(w.stock.values()) + sum(e.cargo or 0 for e in w.entities())
+        assert total - consumed == held()
         w.campaign.running_ticks += DR.window_ticks
 
 
@@ -898,10 +907,11 @@ def test_an_idle_director_carrier_with_cargo_is_not_retired() -> None:
 def test_forced_pressure_keeps_launching_under_small_caps_because_units_are_reused_or_retired(
     tier: ThreatTier, provocation: int, cp: int
 ) -> None:
-    """Small live-unit caps (a config key) reach the cap in a few windows, so 60 windows show what
-    300 do at the shipped ones (the QA run held 22 to 32 units): a leak would stop the launches."""
+    """A small EC-8 guard (`sim.max_live_units_per_side`) is reached in a few windows, so 60 windows
+    show what 300 do at a large one (the QA run held 22 to 32 units): a leak would stop the
+    launches. The guard is the tier cap's value of this test before NX-488 deleted that cap."""
     small = {"PATTERN_OF_LIFE": 10, "ALPHA": 10, "BRAVO": 14}
-    rules = with_director(max_live_units=small)
+    rules = with_guard(small[tier])
     w = new_world(1, rules)
     s = w.director["ENEMY"]
     launched, retired, idle_late = [], 0, 0
@@ -946,7 +956,13 @@ def test_stage_with_a_lost_unit_is_done_when_the_rest_arrive_and_fails_with_none
     w.remove(first.id)  # one of the two stagers is lost on the way
     stage.claims.pop(first.id)
     stage.expires = 1  # ... and the expiry has passed
-    out = run_to_tick(w, RULES.tasking.reeval_every_ticks)  # type: ignore[union-attr]
+    # EC-13: the whole operation spawns at east-airbase, so the survivor drives to fob-n-e first
+    every = RULES.tasking.reeval_every_ticks  # type: ignore[union-attr]
+    out = []
+    for _ in range(40_000 // every):  # done at tick 13,650 here (seed 1)
+        out += run_to_tick(w, every)
+        if any(isinstance(e, JobDone) and e.job_id == stage.id for e in out):
+            break
     assert any(isinstance(e, JobDone) and e.job_id == stage.id for e in out)
     assert strike.depends_on is None  # the strike opens
     w2 = new_world()
@@ -1000,6 +1016,14 @@ def test_a_hit_on_a_disabled_radar_is_not_remembered() -> None:
 
 def with_director(**changes: Any) -> Rules:
     return dataclasses.replace(RULES, director=dataclasses.replace(DR, **changes))
+
+
+def with_guard(movers: int) -> Rules:
+    """RULES with the EC-8 guard `sim.max_live_units_per_side` at `movers`."""
+    assert RULES.economy is not None
+    return dataclasses.replace(
+        RULES, economy=dataclasses.replace(RULES.economy, max_live_per_side=movers)
+    )
 
 
 def test_every_formula_coefficient_is_a_key() -> None:

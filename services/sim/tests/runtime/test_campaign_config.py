@@ -202,7 +202,7 @@ def test_the_loader_rejects_an_unknown_kind_or_a_bad_count(key: str, value: obje
 
 
 # ECONOMY EC-11 (NX-412 part 5b): the coalition floor check at load
-_EC11_ON = {"economy.legacy_rules": False, "economy.unlimited.COALITION": False}
+_EC11_ON = {"economy.unlimited.COALITION": False}
 # every window (NX-426): these tests count whole upkeep per window
 _EVERY = {f"economy.upkeep_period.{k}": 1 for k in (
     "STRIKE_FIGHTER", "RECON_UAV", "LOGI_TRUCK", "ENEMY_ARMOR", "ENEMY_FIGHTER")}  # fmt: skip
@@ -250,13 +250,12 @@ def test_the_dearest_viewer_kind_is_chosen_by_rate_not_by_upkeep() -> None:
     shipped_config_with({**mixed, "economy.income.floor": 5})  # 5 x 1 = 5: exactly enough
 
 
-@pytest.mark.parametrize(
-    "off", [{"economy.legacy_rules": True}, {"economy.unlimited.COALITION": True}]
-)
-def test_the_coalition_floor_is_not_checked_under_legacy_rules_or_unlimited(
-    off: dict[str, object],
-) -> None:
-    shipped_config_with({**_EC11_ON, "economy.upkeep.STRIKE_FIGHTER": 100, **off})  # loads
+def test_the_coalition_floor_is_not_checked_for_an_unlimited_coalition() -> None:
+    # 5 viewer units x STRIKE_FIGHTER 100 every window = 500, far above the floor income of 30
+    short = {**_EC11_ON, **_EVERY, "economy.upkeep.STRIKE_FIGHTER": 100}
+    with pytest.raises(ConfigError, match="short of the coalition floor"):
+        shipped_config_with(short)  # the control: a limited coalition is checked and refused
+    shipped_config_with({**short, "economy.unlimited.COALITION": True})  # unlimited: loads
 
 
 def test_the_coalition_garrison_counts_only_coalition_quotas_filled_in_turn() -> None:

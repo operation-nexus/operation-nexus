@@ -133,7 +133,7 @@ def test_the_ec8_guard_binds_below_max_live() -> None:
     w, _ = starving_west(cadence(3))
     assert w.rules is not None
     live = sum(e.side == "COALITION" and ON.domain[e.kind] in MOVERS for e in w.entities())
-    eco = dataclasses.replace(ECO, legacy=False, max_live_per_side=live + 2)
+    eco = dataclasses.replace(ECO, max_live_per_side=live + 2)
     w.rules = dataclasses.replace(w.rules, economy=eco)
     assert guard_room(w, "COALITION") == 2
     out = at(w, 2 * PERIOD)
@@ -420,7 +420,6 @@ CONVOYS = dataclasses.replace(
         CONVOY_DR,
         convoy_demand_ticks=DEMAND,
         max_spawns_per_window=30,
-        max_live_units={t: 90 for t in DR.max_live_units},
     ),
 )
 

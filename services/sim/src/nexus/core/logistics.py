@@ -249,8 +249,7 @@ def stock_targets(world: World, rules: Rules) -> Mapping[str, int]:
     a staging base to its starvation floor plus, for every operation staged there, the cost of
     its units that spawn there (THREAT-DIRECTOR FS-3, Q-TD-38, NX-416): the template slots whose
     kind's domain the base hosts, at the operation's cost per unit (`launch._staged_shares`), at
-    most the node's maximum. The rules' own map when nothing is staged, so the economy's legacy
-    rules see no change."""
+    most the node's maximum. The rules' own map when nothing is staged."""
     sup, dr = rules.supply, rules.director
     staged = [s for side in sorted(world.director) for s in world.director[side].staged]
     if not staged or dr is None:

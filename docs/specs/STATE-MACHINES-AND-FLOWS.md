@@ -305,7 +305,7 @@ stateDiagram-v2
 - D-1: tiers only move between adjacent levels, one step per decision window (never PATTERN_OF_LIFE↔BRAVO in one step), except a staff override. Default; Q-CFG-16 option `director.tier.max_step` 2 allows the two-step move, and the property then does not hold.
 - D-2: no transition happens before the minimum dwell has elapsed (except a staff override).
 - D-3: under CP or provocation oscillating within the hysteresis band, no flapping (property test).
-- D-4: spend per window ≤ the tier budget.
+- D-4: spend per window ≤ the window budget (ECONOMY EC-7), never above the base surplus plus the pool.
 
 ### 4.7 Commander lifecycle (runtime + persistence)
 
@@ -504,7 +504,7 @@ sequenceDiagram
     end
     K->>M: decay counters (half-life)
     K->>K: escort op utility rises above threshold
-    K->>K: select EscortConvoys(route) within tier budget
+    K->>K: select EscortConvoys(route) within the window budget
     K-->>O: ThreatAdaptation event (INTEL line - Enemy has reinforced convoy escorts on Route 4)
 ```
 Only attacks the enemy could observe (enemy view, FOW-4) increment the counter.

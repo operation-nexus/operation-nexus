@@ -1682,7 +1682,7 @@
           "x-status": "PROPOSED"
         },
         "max_live_units_per_side": {
-          "description": "Performance guard, unit live movers (AIR and GROUND units) per side (ECONOMY EC-8): a tick-rate guard only, set well above any army the economy feeds. Read only with economy.legacy_rules false: a Director operation must fit the room below it, and a JOIN at it waits in the reserve queue as at slots.max_viewer_units (GP-3).",
+          "description": "Performance guard, unit live movers (AIR and GROUND units) per side (ECONOMY EC-8): a tick-rate guard only, set well above any army the economy feeds. A Director operation must fit the room below it, and a JOIN at it waits in the reserve queue as at slots.max_viewer_units (GP-3).",
           "type": "integer",
           "minimum": 1,
           "x-unit": "units",
@@ -1943,9 +1943,7 @@
         "cp",
         "tier",
         "provocation",
-        "budget",
         "max_spawns_per_window",
-        "max_live_units",
         "spend_frac",
         "source_spend_frac",
         "upkeep_reserve_windows",
@@ -2385,57 +2383,6 @@
             }
           }
         },
-        "budget": {
-          "description": "The most budget points one decision window can spend, by tier (Q-TD-5); also capped by the real surplus of the Static's bases. Read only with economy.legacy_rules true: temporary, removed in NX-412 part 5 (Q-TD-33; ECONOMY EC-7 replaces it).",
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "pattern_of_life",
-            "alpha",
-            "bravo"
-          ],
-          "properties": {
-            "pattern_of_life": {
-              "description": "Budget points per window in this tier.",
-              "type": "integer",
-              "x-unit": "budget points / window",
-              "x-hot-reload": true,
-              "x-category": "DIRECTOR",
-              "x-audience": "TUNER",
-              "x-edit-role": "ADMIN",
-              "x-tune": {"min": 5, "max": 20, "step": 1, "scale": "LINEAR"},
-              "x-source": "THREAT-DIRECTOR \u00a74",
-              "x-status": "PROPOSED",
-              "minimum": 0
-            },
-            "alpha": {
-              "description": "Budget points per window in this tier.",
-              "type": "integer",
-              "x-unit": "budget points / window",
-              "x-hot-reload": true,
-              "x-category": "DIRECTOR",
-              "x-audience": "TUNER",
-              "x-edit-role": "ADMIN",
-              "x-tune": {"min": 15, "max": 60, "step": 1, "scale": "LINEAR"},
-              "x-source": "THREAT-DIRECTOR \u00a74",
-              "x-status": "PROPOSED",
-              "minimum": 0
-            },
-            "bravo": {
-              "description": "Budget points per window in this tier.",
-              "type": "integer",
-              "x-unit": "budget points / window",
-              "x-hot-reload": true,
-              "x-category": "DIRECTOR",
-              "x-audience": "TUNER",
-              "x-edit-role": "ADMIN",
-              "x-tune": {"min": 40, "max": 160, "step": 1, "scale": "LINEAR"},
-              "x-source": "THREAT-DIRECTOR \u00a74",
-              "x-status": "PROPOSED",
-              "minimum": 0
-            }
-          }
-        },
         "max_spawns_per_window": {
           "description": "The most new Static units per window (Q-TD-12).",
           "type": "integer",
@@ -2449,59 +2396,8 @@
           "x-status": "PROPOSED",
           "minimum": 1
         },
-        "max_live_units": {
-          "description": "The most live Static units by tier (Q-TD-12). Read only with economy.legacy_rules true: temporary, removed in NX-412 part 5 (Q-TD-33; ECONOMY EC-8 replaces it).",
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "pattern_of_life",
-            "alpha",
-            "bravo"
-          ],
-          "properties": {
-            "pattern_of_life": {
-              "description": "Live Static units allowed in this tier.",
-              "type": "integer",
-              "x-unit": "units",
-              "x-hot-reload": true,
-              "x-category": "DIRECTOR",
-              "x-audience": "TUNER",
-              "x-edit-role": "ADMIN",
-              "x-tune": {"min": 20, "max": 80, "step": 1, "scale": "LINEAR"},
-              "x-source": "THREAT-DIRECTOR \u00a74, Q-TD-12",
-              "x-status": "PROPOSED",
-              "minimum": 1
-            },
-            "alpha": {
-              "description": "Live Static units allowed in this tier.",
-              "type": "integer",
-              "x-unit": "units",
-              "x-hot-reload": true,
-              "x-category": "DIRECTOR",
-              "x-audience": "TUNER",
-              "x-edit-role": "ADMIN",
-              "x-tune": {"min": 20, "max": 80, "step": 1, "scale": "LINEAR"},
-              "x-source": "THREAT-DIRECTOR \u00a74, Q-TD-12",
-              "x-status": "PROPOSED",
-              "minimum": 1
-            },
-            "bravo": {
-              "description": "Live Static units allowed in this tier.",
-              "type": "integer",
-              "x-unit": "units",
-              "x-hot-reload": true,
-              "x-category": "DIRECTOR",
-              "x-audience": "TUNER",
-              "x-edit-role": "ADMIN",
-              "x-tune": {"min": 35, "max": 140, "step": 1, "scale": "LINEAR"},
-              "x-source": "THREAT-DIRECTOR \u00a74, Q-TD-12",
-              "x-status": "PROPOSED",
-              "minimum": 1
-            }
-          }
-        },
         "spend_frac": {
-          "description": "ECONOMY EC-7 (economy.legacy_rules false): the share of the surplus of the Static's bases above their starvation floors one decision window may spend, by tier; the loader requires pattern_of_life <= alpha <= bravo.",
+          "description": "ECONOMY EC-7: the share of the surplus of the Static's bases above their starvation floors one decision window may spend, by tier; the loader requires pattern_of_life <= alpha <= bravo.",
           "type": "object",
           "additionalProperties": false,
           "required": [
@@ -2555,7 +2451,7 @@
           }
         },
         "source_spend_frac": {
-          "description": "ECONOMY EC-7 (economy.legacy_rules false): the share of the rear source pool one decision window may add to the budget; only operations whose units spawn at the source may spend it (EC-13). 0 with the Static in unlimited mode (no pool).",
+          "description": "ECONOMY EC-7: the share of the rear source pool one decision window may add to the budget; only operations whose units spawn at the source may spend it (EC-13). 0 with the Static in unlimited mode (no pool).",
           "type": "number",
           "minimum": 0,
           "maximum": 1,
@@ -2569,7 +2465,7 @@
           "x-status": "PROPOSED"
         },
         "upkeep_reserve_windows": {
-          "description": "ECONOMY EC-7 (economy.legacy_rules false): windows of the Static's upkeep the budget keeps back, unit decision windows; the reserve is this times the upkeep its live units owe per window.",
+          "description": "ECONOMY EC-7: windows of the Static's upkeep the budget keeps back, unit decision windows; the reserve is this times the upkeep its live units owe per window.",
           "type": "number",
           "minimum": 0,
           "x-unit": "windows",
@@ -2582,7 +2478,7 @@
           "x-status": "PROPOSED"
         },
         "cadence_windows": {
-          "description": "ECONOMY EC-7 (economy.legacy_rules false): decision windows with no capture operation (OFFENSIVE, RETAKE) launched, staged or dropped from staging after which, while the Static holds an HQ, the window buys the cheapest capture operation with a target, else the budget is at least the cheapest operation of its tier, that the window can pay: base surplus plus the window's rear account, never the whole pool (Q-TD-42, Q-TD-48, NX-434); other operations do not reset the count (Q-TD-54).",
+          "description": "ECONOMY EC-7: decision windows with no capture operation (OFFENSIVE, RETAKE) launched, staged or dropped from staging after which, while the Static holds an HQ, the window buys the cheapest capture operation with a target, else the budget is at least the cheapest operation of its tier, that the window can pay: base surplus plus the window's rear account, never the whole pool (Q-TD-42, Q-TD-48, NX-434); other operations do not reset the count (Q-TD-54).",
           "type": "integer",
           "minimum": 1,
           "x-unit": "windows",
@@ -2895,7 +2791,7 @@
           }
         },
         "staging": {
-          "description": "Forward staging (THREAT-DIRECTOR \u00a74a FS-1..FS-8, Q-TD-36, Q-TD-37; NX-416): with economy.legacy_rules false, a capture operation whose capture kind's road travel time from the rear source exceeds direct_s waits at the nearest Static-held base by road until every node it spawns at can pay its own units (Q-TD-38), the base's forward-stock target raised by the cost of the units that spawn there so trucks fill it.",
+          "description": "Forward staging (THREAT-DIRECTOR \u00a74a FS-1..FS-8, Q-TD-36, Q-TD-37; NX-416): a capture operation whose capture kind's road travel time from the rear source exceeds direct_s waits at the nearest Static-held base by road until every node it spawns at can pay its own units (Q-TD-38), the base's forward-stock target raised by the cost of the units that spawn there so trucks fill it.",
           "type": "object",
           "additionalProperties": false,
           "required": ["direct_s", "max_wait_windows", "max_staged"],
@@ -2970,7 +2866,6 @@
         "storage",
         "upkeep",
         "upkeep_period",
-        "legacy_rules",
         "free_viewer_spawn",
         "floor_viewer_units",
         "shortfall_quiet_windows"
@@ -3615,20 +3510,8 @@
             }
           }
         },
-        "legacy_rules": {
-          "description": "TEMPORARY, removed in NX-412 part 5 (Q-TD-33, lead decision): true keeps the budget, live-unit caps and spawn costs of before NX-412 part 3 (director.budget.<tier>, director.max_live_units.<tier>, the Director paying from base surplus, sanctuary spawns free); false applies ECONOMY EC-7 (director.spend_frac and the rest), EC-8 (sim.max_live_units_per_side) and EC-13 (every spawn draws its cost at its spawn node). Set at campaign setup, never mid-war.",
-          "type": "boolean",
-          "x-unit": "switch",
-          "x-hot-reload": false,
-          "x-category": "ECONOMY",
-          "x-audience": "OPERATOR",
-          "x-edit-role": "ADMIN",
-          "x-tune": null,
-          "x-source": "ECONOMY EC-7, EC-8, EC-13, Q-TD-33",
-          "x-status": "RULE_DEFAULT"
-        },
         "free_viewer_spawn": {
-          "description": "ECONOMY EC-13 (economy.legacy_rules false): true = a viewer's own JOIN that spawns at the coalition's sanctuary draws no stock, so joining never costs a person anything; false = it draws logistics.loadout_cost from the coalition's pool like every other spawn (agent-vs-agent harness profiles). The AI garrison and the Director always pay.",
+          "description": "ECONOMY EC-13: true = a viewer's own JOIN that spawns at the coalition's sanctuary draws no stock, so joining never costs a person anything; false = it draws logistics.loadout_cost from the coalition's pool like every other spawn (agent-vs-agent harness profiles). The AI garrison and the Director always pay.",
           "type": "boolean",
           "x-unit": "switch",
           "x-hot-reload": false,
@@ -3640,7 +3523,7 @@
           "x-status": "RULE_DEFAULT"
         },
         "floor_viewer_units": {
-          "description": "ECONOMY EC-11: viewer units the coalition's floor income must keep paid. With economy.legacy_rules false and the coalition not in unlimited mode, the loader refuses a config whose economy.income.floor is below the upkeep of the theater's coalition garrison quotas plus this many units at the dearest upkeep of a viewer-playable kind, naming the shortfall. Read at load only, unit units.",
+          "description": "ECONOMY EC-11: viewer units the coalition's floor income must keep paid. With the coalition not in unlimited mode, the loader refuses a config whose economy.income.floor is below the upkeep of the theater's coalition garrison quotas plus this many units at the dearest upkeep of a viewer-playable kind, naming the shortfall. Read at load only, unit units.",
           "type": "integer",
           "minimum": 0,
           "x-unit": "units",

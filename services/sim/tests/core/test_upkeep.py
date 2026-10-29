@@ -688,10 +688,12 @@ def test_home_and_grounded_survive_a_snapshot_and_bad_ones_are_refused() -> None
 
 
 def test_same_seed_and_commands_give_the_same_hash_through_windows_with_a_mid_window_save() -> None:
-    # a jet costs more than the coalition's income (50 a window); the Static garrison pays 2 each
+    # a jet costs more than the coalition's income (50 a window); the Static garrison pays 2 each.
+    # The EC-11 load check would refuse such a jet: its viewer count is 0 here (load only)
     config = pre_5b_config(
         {**LIMITED, "economy.upkeep.STRIKE_FIGHTER": 60, "economy.upkeep.ENEMY_ARMOR": 2,
-         "economy.upkeep_period.STRIKE_FIGHTER": 1, "economy.upkeep_period.ENEMY_ARMOR": 1}
+         "economy.upkeep_period.STRIKE_FIGHTER": 1, "economy.upkeep_period.ENEMY_ARMOR": 1,
+         "economy.floor_viewer_units": 0}
     )  # fmt: skip
 
     def scenario(snapshot_at: int | None = None) -> tuple[str, list[dict[str, Any]]]:
@@ -877,10 +879,12 @@ def test_with_enough_stock_each_unit_pays_exactly_once_per_period(
 
 def test_staggered_upkeep_is_deterministic_through_a_mid_window_save() -> None:
     # the jet (60, every 3 windows) costs more than the empty sanctuary holds: it grounds at its
-    # due window and retries every window after; the Static garrison pays 2 every 3 windows
+    # due window and retries every window after; the Static garrison pays 2 every 3 windows.
+    # The EC-11 load check would refuse such a jet: its viewer count is 0 here (load only)
     config = pre_5b_config({
         **LIMITED, "economy.upkeep.STRIKE_FIGHTER": 60, "economy.upkeep.ENEMY_ARMOR": 2,
         "economy.upkeep_period.STRIKE_FIGHTER": 3, "economy.upkeep_period.ENEMY_ARMOR": 3,
+        "economy.floor_viewer_units": 0,
     })  # fmt: skip
 
     def scenario(snapshot_at: int | None = None) -> tuple[str, list[dict[str, Any]]]:

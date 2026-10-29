@@ -123,12 +123,15 @@ def source_stock(world: World, node: str) -> int | None:
     return None if side is None else world.pool[side]
 
 
-def guard_room(world: World, side: Side) -> int | None:
+def guard_room(world: World, side: Side) -> int:
     """EC-8 (NX-412 part 3): how many more movers (AIR and GROUND units) `side` may have live
-    under `sim.max_live_units_per_side`; None under `economy.legacy_rules`, which has no guard."""
+    under `sim.max_live_units_per_side`. The loader always builds the economy rules
+    (`campaign_config`), so a world without them is refused, never given an invented room."""
     rules = world.rules
     er = rules.economy if rules else None
-    if rules is None or er is None or er.legacy:
-        return None
+    if rules is None or er is None:
+        raise ValueError(
+            "guard_room needs the economy rules (sim.max_live_units_per_side, ECONOMY EC-8)"
+        )
     live = sum(e.side == side and rules.domain[e.kind] in MOVERS for e in world.entities())
     return er.max_live_per_side - live

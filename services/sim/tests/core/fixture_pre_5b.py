@@ -1,9 +1,11 @@
 """Test fixture: the balance defaults shipped before NX-412 part 5b, as overrides.
 
 Part 5b turned the economy on and shipped harness-tuned values (Q-TD-29, Q-TD-33, Q-TD-79, Q-TD-85,
-Q-TD-90, Q-TD-97). A test written against the old rules (the legacy budget and caps, infinite
-sources, units-first fire, the old wait and spend) sets them here explicitly, so it keeps testing
-what it tested; a test's own overrides go after these and win.
+Q-TD-90, Q-TD-97). A test written against the old values (infinite sources, units-first fire,
+the old wait, spend and adaptation threshold) sets them here explicitly, so it keeps testing what
+it tested; a test's own overrides go after these and win. The old tier budget and live-unit caps
+(`economy.legacy_rules`) were deleted in NX-488: those tests run the ECONOMY EC-7, EC-8 and EC-13
+rules.
 """
 
 from collections.abc import Mapping
@@ -12,7 +14,6 @@ from nexus.runtime.campaign_config import CampaignConfig
 from nexus.runtime.golden import shipped_config
 
 PRE_5B: dict[str, object] = {
-    "economy.legacy_rules": True,
     "economy.unlimited.COALITION": True,
     "economy.unlimited.ENEMY": True,
     "director.adaptation_up_above": 0,

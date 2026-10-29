@@ -1,13 +1,11 @@
 """NX-430 (Q-TD-46, THREAT-DIRECTOR §4a, ECONOMY EC-9): the Static answers a coalition victory hold.
 
-While a hold runs (legacy rules off), a capture operation on a hold node is never staged, one
+While a hold runs, a capture operation on a hold node is never staged, one
 already staged waits no longer, and it is outside `director.max_ops.<tier>`: neither capped nor
 counted. With no hold, staging and the cap are as before. Same set-up and shipped numbers as
 test_staging (strait-1, OFFENSIVE 60, fob-n-w 23,750 armor ticks from the rear, past `direct_s`;
 its staging base fob-n-e; ALPHA `max_ops` 1).
 """
-
-import dataclasses
 
 import pytest
 from fixture_pre_5b import pre_5b_config
@@ -17,7 +15,6 @@ from test_campaign import hold_seven
 from test_join import CAMPAIGN_ID
 from test_staging import (
     LIMITED,
-    NEW,
     POOL,
     at_floor,
     debits,
@@ -205,15 +202,6 @@ def test_the_budget_still_bounds_the_hold_response() -> None:
     assert not [p for p in posted(w) if p[0] == "OFFENSIVE"]
 
 
-def test_legacy_rules_keep_max_ops_during_a_hold() -> None:
-    legacy = pre_5b_config()  # economy.legacy_rules true: no hold response
-    c = dataclasses.replace(legacy, rules=dataclasses.replace(legacy.rules, campaign=None))
-    w = in_hold(world(c), *WEST)
-    probe_holds_the_slot(w)
-    window(w, budget=60)
-    assert counted(w) == [("PROBE", "fob-n-w")]
-
-
 @given(
     hold=st.sets(st.sampled_from(WEST)),
     budgets=st.lists(st.integers(0, 200), min_size=1, max_size=5),
@@ -248,7 +236,7 @@ def test_no_hold_node_stays_staged_and_the_cap_counts_only_the_rest(
 def hold_world(seed: int = 4) -> World:
     # ALPHA from the start, spending half its surplus, so the first window can buy an OFFENSIVE
     half = {"director.spend_frac.alpha": 0.5, "director.spend_frac.bravo": 0.5}
-    c = pre_5b_config({**NEW, "director.tier.start": "ALPHA", **half})
+    c = pre_5b_config({"director.tier.start": "ALPHA", **half})
     w = start_campaign(CAMPAIGN_ID, seed, c)
     hold_seven(w)
     step(w, [])
