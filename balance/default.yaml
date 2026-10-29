@@ -71,7 +71,7 @@ logistics:
   truck_bridge_repair_mult: 5.0  # PROPOSED – unvalidated (Q-GD-11 "e.g. 5x slower", Q-SIM-101); multiplier, one truck takes 600 x 5 = 3000 world s for a 300 hp bridge (CONFIG-AND-CONTENT §6.3)
   ai_trucks:  # coalition AI trucks, the logistics cadence (GAMEPLAY §5 LC-1, NX-473)
     period_s: 900  # PROPOSED – unvalidated (Q-TD-92); s (game), a start value near one haven–west-airbase round trip (about 950 s); the loader rounds a value that is not a whole number of `economy.window_s` windows up (CONFIG-AND-CONTENT §6.3)
-    max_live: 3  # VALIDATED (Q-TD-128: harness C0 #532 confirmed X2 at 70d7d5c); trucks (CONFIG-AND-CONTENT §6.3)
+    max_live: 3  # PROPOSED – unvalidated (Q-TD-128, 6 seeds, below Q-TEST-2's 50: harness C0 #532 confirmed X2 at 70d7d5c); trucks (CONFIG-AND-CONTENT §6.3)
 capture:
   radius_m: 2000.0  # PROPOSED – unvalidated (Q-SIM-57, owner-approved initial value; NX-031 tunes); m (CONFIG-AND-CONTENT §6.5 capture.radius_m)
   time_s: 120.0  # PROPOSED – unvalidated; s (world), one capturer, no modifiers (CONFIG-AND-CONTENT §6.5 capture.time_s)
@@ -197,7 +197,7 @@ tasking:
     repair_bridge: 2  # PROPOSED – unvalidated (Q-SIM-101, NX-373 part 2); trucks per down bridge
   resupply_stock_per_slot: 100  # PROPOSED – unvalidated (Q-SIM-73); stock units, one resupply slot per this much missing stock (CONFIG-AND-CONTENT §6.6)
   resupply_slots_max: 3  # PROPOSED – unvalidated (Q-SIM-73); units (CONFIG-AND-CONTENT §6.6)
-  resupply_slots_max_starving: 6  # VALIDATED (Q-TD-128: harness C0 #532); units, the LC-3 cap for a starving or damaged base (CONFIG-AND-CONTENT §6.6)
+  resupply_slots_max_starving: 6  # PROPOSED – unvalidated (Q-TD-128, 6 seeds, below Q-TEST-2's 50: harness C0 #532); units, the LC-3 cap for a starving or damaged base (CONFIG-AND-CONTENT §6.6)
   defend_radius_m: 10000  # PROPOSED – unvalidated (Q-SIM-74); m, a tracked enemy ground unit this close to a base posts a defend job, and, for a besieged sanctuary, an enemy aircraft or ground unit (Q-TD-122) (CONFIG-AND-CONTENT §6.6)
   counterattack_window_min: 15  # PROPOSED – unvalidated (Q-SIM-74, Q-GD-31); min (game), the AI garrison may counterattack a node just lost (CONFIG-AND-CONTENT §6.6)
   capture_max_restarts: 3  # PROPOSED – unvalidated (Q-SIM-84); fresh expiries for a capture run still driving
@@ -353,7 +353,7 @@ director:  # Threat Director (Q-SIM-78, Q-SIM-81, owner-approved starting number
   pol:
     patrol_period_s: 1800  # PROPOSED – unvalidated (Q-SIM-85); s (game), each Static base with an idle garrison unit posts one patrol
     convoy_period_s: 3600  # PROPOSED – unvalidated (Q-SIM-85); s (game), one supply convoy to the base with the largest upkeep shortfall
-    convoy_demand_s: 900  # VALIDATED (Q-TD-128: harness V2 #534, chosen over 300 and off); s (game), a convoy to a Static base below its floor this long after the last one (THREAT-DIRECTOR §5a)
+    convoy_demand_s: 900  # PROPOSED – unvalidated (Q-TD-128, 6 seeds, below Q-TEST-2's 50: harness V2 #534, chosen over 300 and off); s (game), a convoy to a Static base below its floor this long after the last one (THREAT-DIRECTOR §5a)
     offensive_period_s: 21600  # PROPOSED – unvalidated (Q-SIM-85); s (game), one capture operation at Pattern of Life, paid from real surplus
     patrol_slots: 1  # PROPOSED – unvalidated (Q-SIM-86); units one patrol job takes
     patrols_per_base: 1  # PROPOSED – unvalidated (Q-SIM-85); patrols a Static base has out at once per patrol period
