@@ -76,7 +76,8 @@ def override_balance(pairs: list[str]) -> str:
     """The shipped balance config as YAML text with `key=value` overrides applied and validated
     by the sim's own loader: a number for a numeric key, `true` or `false` for a boolean one, the
     text as given for a string key (NX-498; the schema checks it, so `yes` is never read as a bool).
-    Raises ValueError (bad pair) or ConfigError (schema)."""
+    Raises ValueError (bad pair) or ConfigError (schema); an error names the key, never the value
+    (the queue posts it to a public issue)."""
     tree = yaml.safe_load(ConfigPaths().balance.read_text())
     keys = [p.partition("=")[0] for p in pairs]
     if len(set(keys)) != len(keys):
@@ -90,7 +91,7 @@ def override_balance(pairs: list[str]) -> str:
         old = node.get(leaf) if isinstance(node, dict) else None
         if isinstance(old, bool):  # a switch takes `true` or `false` only (NX-412 part 5a)
             if text not in BOOLS:
-                raise ValueError(f"--set {key}: {text!r} is not true or false")
+                raise ValueError(f"--set {key}: the value is not true or false")
             node[leaf] = BOOLS[text]
             continue
         if isinstance(old, str):  # an enum or text key: the text as given; the schema checks it
@@ -101,9 +102,11 @@ def override_balance(pairs: list[str]) -> str:
         try:
             value = int(text) if isinstance(old, int) else float(text)
         except ValueError:
-            raise ValueError(f"--set {key}: {text!r} is not a valid {type(old).__name__}") from None
+            raise ValueError(
+                f"--set {key}: the value is not a valid {type(old).__name__}"
+            ) from None
         if not math.isfinite(value):
-            raise ValueError(f"--set {key}: {text!r} is not finite")
+            raise ValueError(f"--set {key}: the value is not finite")
         node[leaf] = value
     dumped = yaml.safe_dump(tree, sort_keys=False)
     with tempfile.TemporaryDirectory() as d:

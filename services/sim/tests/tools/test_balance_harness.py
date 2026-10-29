@@ -1176,6 +1176,12 @@ def test_an_enum_set_loads_and_runs(
     loaded = balance.load_campaign_config(balance.ConfigPaths(balance=out / "balance.yaml"))
     assert loaded.balance.campaign.victory.hold_break == "reset"
     assert shipped_config.balance.campaign.victory.hold_break != "reset"
+    assert doc["config"]["config_hash"] == loaded.config_hash != shipped_config.config_hash
+    runs = [json.loads(f.read_text()) for f in sorted((out / "runs").glob("*.json"))]
+    assert runs and all(
+        r["config_hash"] == loaded.config_hash and r["crash"] is None and r["harness_error"] is None
+        for r in runs
+    )
 
 
 @pytest.mark.parametrize(
@@ -1200,6 +1206,9 @@ def test_a_bad_enum_set_exits_2_naming_the_key_before_out_exists(
     assert cli(monkeypatch, out, "--set", pair) == 2
     err = capsys.readouterr().err
     assert err.startswith("error:") and key in err and not out.exists()
+    value = pair.partition("=")[2]
+    if len(value) > 1:  # the queue posts this error to a public issue: it names keys, never values
+        assert repr(value) not in err and f"={value}" not in err
 
 
 def test_set_rejects_a_repeated_key() -> None:
