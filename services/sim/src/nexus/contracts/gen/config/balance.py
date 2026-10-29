@@ -47,6 +47,39 @@ class Victory(BaseModel):
             description="Whether the coalition capturing the enemy HQ wins the campaign at once (GAMEPLAY §9; decided rule as default, Q-CFG-16 option); false leaves the hold and time-limit endings, unit switch."
         ),
     ]
+    hold_break: Annotated[
+        Literal["decay", "reset"],
+        Field(
+            description="What a broken victory hold keeps (ECONOMY EC-9a, Q-TD-102, Q-TD-126): decay, it keeps its progress, which drains along decay_slow_rate then decay_fast_rate and resumes if the hold is taken again; reset, the progress goes back to 0 at the break (the rule before NX-489), unit enum."
+        ),
+    ]
+    decay_slow_min: Annotated[
+        float,
+        Field(
+            description="Game minutes after a break during which a broken hold loses progress at decay_slow_rate, before decay_fast_rate applies (ECONOMY EC-9a, Q-TD-126; placeholder with no measured basis), unit min of game time.",
+            ge=0.0,
+        ),
+    ]
+    decay_slow_rate: Annotated[
+        float,
+        Field(
+            description="Progress minutes a broken hold loses per broken minute during the slow stage, read as an exact decimal (ECONOMY EC-9a, Q-TD-126; placeholder, no data), unit progress min per broken min.",
+            ge=0.0,
+        ),
+    ]
+    decay_fast_rate: Annotated[
+        float,
+        Field(
+            description="Progress minutes a broken hold loses per broken minute after the slow stage, read as an exact decimal; above 0 and at least decay_slow_rate (the loader refuses otherwise), so the progress always reaches 0; 1.0 loses it as fast as a running hold gains it (ECONOMY EC-9a, Q-TD-126; placeholder, no data), unit progress min per broken min.",
+            gt=0.0,
+        ),
+    ]
+    reset_on_repair: Annotated[
+        bool,
+        Field(
+            description="Whether a decaying hold also resets once the other side owns one of the broken hold's nodes at its full defense HP (ECONOMY EC-9a; the lead's reading of the owner's repaired/re-defended, Q-TD-126); false: only the decay ends it, unit switch."
+        ),
+    ]
 
 
 class IdleFloor(BaseModel):

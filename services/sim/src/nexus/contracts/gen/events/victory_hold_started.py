@@ -29,7 +29,14 @@ class VictoryHoldStarted(BaseModel):
     ends_at_tick: Annotated[
         int,
         Field(
-            description="The running tick on which the victory comes if the hold is not broken (campaign clock, like ObjectiveAnnounced.deadline_tick, not a Tick).",
+            description="The running tick on which the victory comes if the hold is not broken: this running tick + victory_hold_ticks - the progress after this tick's credit, progress_ticks + 1 (campaign clock, like ObjectiveAnnounced.deadline_tick, not a Tick).",
             ge=1,
+        ),
+    ]
+    progress_ticks: Annotated[
+        int,
+        Field(
+            description="The progress the hold carries in (ECONOMY EC-9a, NX-489): 0 for a fresh hold, the decayed progress of a broken hold it resumes.",
+            ge=0,
         ),
     ]

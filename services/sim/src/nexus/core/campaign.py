@@ -8,12 +8,17 @@ SANCTUARY, HQ or a facility) to its running sum, resolves the active objective, 
 
 - **Victory** (coalition only: the Static has no mid-war win, Q-SIM-64): the coalition owns the
   enemy HQ (with `campaign.victory.hq_capture`, the default; a Q-CFG-16 option),
-  or has held at least `victory_node_frac` of the strategic nodes for `victory_hold_ticks` running
-  ticks in a row (a dip below the fraction resets the run). The HQ is checked first. The run is
-  public (ECONOMY EC-9, NX-412 part 4): `VictoryHoldStarted{node_ids, ends_at_tick}` on its first
-  tick (the held strategic nodes; the running tick the victory comes on), `VictoryHoldBroken`
-  when it breaks, naming the lowest-id hold node lost; none when the campaign ends during it.
-  `Campaign.hold_nodes` keeps the held strategic nodes while it runs (the director's view).
+  or its hold of at least `victory_node_frac` of the strategic nodes has credited
+  `victory_hold_ticks` running ticks. The HQ is checked first. The hold is public (ECONOMY EC-9,
+  NX-412 part 4): `VictoryHoldStarted{node_ids, ends_at_tick, progress_ticks}` on its first tick
+  (the held strategic nodes; the running tick the victory comes on; the progress carried in),
+  `VictoryHoldBroken{node_id, progress_ticks}` when it breaks, naming the lowest-id hold node
+  lost; none when the campaign ends during it. `Campaign.hold_nodes` keeps the held strategic
+  nodes while it runs (the director's view). A break (EC-9a, NX-489, Q-TD-126) keeps the progress
+  with `hold_break` decay (0 with reset): it drains along the two-stage curve (`_progress`) until
+  the hold resumes from what is left, or `VictoryHoldReset` ends it (DECAYED at 0, or REPAIRED
+  when the other side owns a broken-hold node at full defense hp, with `reset_on_repair`). A
+  decaying hold is not in `hold_nodes`, so the director never sees it.
 - **Defeat** (Q-TH-7): the coalition sanctuary's defense HP has been 0 for `defeat_hold_ticks`
   running ticks in a row (a repair above 0 resets the run; while nobody plays it is held, so a
   war is never lost while chat is asleep, Q-GP-28, and once nobody has played for the hold it
@@ -53,7 +58,7 @@ Deterministic: integer state, Fractions, nodes and entities in id order, one RNG
 
 import math
 from fractions import Fraction
-from typing import NamedTuple
+from typing import Literal, NamedTuple
 
 from nexus.contracts.gen.common.enums import CampaignResult, ObjectiveOutcome, Side
 from nexus.contracts.gen.events.campaign_ended import CampaignEnded, Score
@@ -62,14 +67,16 @@ from nexus.contracts.gen.events.node_captured import NodeCaptured
 from nexus.contracts.gen.events.objective_announced import ObjectiveAnnounced
 from nexus.contracts.gen.events.objective_resolved import ObjectiveResolved
 from nexus.contracts.gen.events.victory_hold_broken import VictoryHoldBroken
+from nexus.contracts.gen.events.victory_hold_reset import VictoryHoldReset
 from nexus.contracts.gen.events.victory_hold_started import VictoryHoldStarted
 from nexus.core.rng import RngStream
 from nexus.core.rules import CampaignRules, Rules
 from nexus.core.tasking import on_objective
-from nexus.core.world import Objective, World
+from nexus.core.world import Campaign, Objective, World
 
 _COALITION: Side = "COALITION"
 _ENEMY: Side = "ENEMY"
+type VictoryHoldResetReason = Literal["DECAYED", "REPAIRED"]
 _HALF = Fraction(1, 2)  # round half up; the rounding rule, not a tunable
 
 
@@ -190,30 +197,88 @@ def campaign(world: World, out: list[Event]) -> None:
 
 
 def _track_hold(world: World, rc: CampaignRules, holding: bool, out: list[Event]) -> None:
-    """The victory hold run and its nodes (ECONOMY EC-9): `VictoryHoldStarted` on its first
-    running tick, `VictoryHoldBroken` naming the lowest-id hold node lost when it breaks (the
-    fraction is above 0 and not hot-reloadable, so a break always loses one)."""
+    """The victory hold and its nodes (ECONOMY EC-9, EC-9a): `VictoryHoldStarted` on its first
+    running tick, carrying in a decaying hold's progress; `VictoryHoldBroken` naming the
+    lowest-id hold node lost when it breaks (the fraction is above 0 and not hot-reloadable, so a
+    break always loses one), keeping the progress with `hold_decay`; then the decay."""
     c = world.campaign
     was = c.hold_nodes
-    c.hold_ticks = c.hold_ticks + 1 if holding else 0
-    c.hold_nodes = (
-        tuple(n for n in rc.strategic if world.owner.get(n) == _COALITION) if holding else ()
-    )
-    if c.hold_ticks == 1:
-        out.append(
-            VictoryHoldStarted.model_construct(
-                kind="VictoryHoldStarted", tick=c.tick + 1, event_seq=world.next_event_seq(),
-                campaign_id=c.id, node_ids=list(c.hold_nodes),
-                ends_at_tick=c.running_ticks + rc.victory_hold_ticks - 1,
-            )
-        )  # fmt: skip
-    elif was and not holding:
+    if holding:
+        carried = 0 if was else _progress(c, rc)  # a fresh hold's 0 or the decayed progress
+        c.hold_ticks = (c.hold_ticks if was else carried) + 1
+        c.hold_broken_ticks, c.hold_broken_nodes = 0, ()
+        c.hold_nodes = tuple(n for n in rc.strategic if world.owner.get(n) == _COALITION)
+        if not was:
+            out.append(
+                VictoryHoldStarted.model_construct(
+                    kind="VictoryHoldStarted", tick=c.tick + 1, event_seq=world.next_event_seq(),
+                    campaign_id=c.id, node_ids=list(c.hold_nodes),
+                    ends_at_tick=c.running_ticks + rc.victory_hold_ticks - c.hold_ticks,
+                    progress_ticks=carried,
+                )
+            )  # fmt: skip
+    elif was:
+        c.hold_nodes = ()
+        if rc.hold_decay:
+            c.hold_broken_nodes = was  # the break tick is t = 0
+        else:
+            c.hold_ticks = 0
         out.append(
             VictoryHoldBroken.model_construct(
                 kind="VictoryHoldBroken", tick=c.tick + 1, event_seq=world.next_event_seq(),
                 campaign_id=c.id, node_id=next(n for n in was if world.owner.get(n) != _COALITION),
+                progress_ticks=c.hold_ticks,
             )
         )  # fmt: skip
+    elif c.hold_broken_nodes:
+        _decay(world, rc, out)
+
+
+def _progress(c: Campaign, rc: CampaignRules) -> int:
+    """EC-9a's P(t): the progress kept at the break (`hold_ticks`) less
+    floor(slow rate x min(t, S) + fast rate x max(0, t - S)), never below 0, with t the running
+    ticks since the break and S the slow stage. Closed form over exact Fractions, so no carry;
+    `hold_ticks` itself with no break (t = 0)."""
+    t, slow = c.hold_broken_ticks, rc.decay_slow_ticks
+    loss = rc.decay_slow_rate * min(t, slow) + rc.decay_fast_rate * max(0, t - slow)
+    return max(0, c.hold_ticks - math.floor(loss))
+
+
+def _decay(world: World, rc: CampaignRules, out: list[Event]) -> None:
+    """One running tick of a decaying hold: `VictoryHoldReset{DECAYED}` when its progress reaches
+    0, else `{REPAIRED, node}` when `reset_on_repair` finds a repaired node."""
+    c = world.campaign
+    c.hold_broken_ticks += 1
+    node = None
+    if _progress(c, rc) == 0:
+        reason: VictoryHoldResetReason = "DECAYED"
+    elif rc.reset_on_repair and (node := _repaired(world, c.hold_broken_nodes)) is not None:
+        reason = "REPAIRED"
+    else:
+        return
+    c.hold_ticks = c.hold_broken_ticks = 0
+    c.hold_broken_nodes = ()
+    out.append(
+        VictoryHoldReset.model_construct(
+            kind="VictoryHoldReset", tick=c.tick + 1, event_seq=world.next_event_seq(),
+            campaign_id=c.id, reason=reason, node_id=node,
+        )
+    )  # fmt: skip
+
+
+def _repaired(world: World, nodes: tuple[str, ...]) -> str | None:
+    """The lowest-id node of `nodes` (ascending) the other side owns at its full defense hp."""
+    d = world.rules.defense if world.rules else None
+    if d is None:
+        return None
+    return next(
+        (
+            n
+            for n in nodes
+            if world.owner.get(n) == _ENEMY and n in d.max_hp and world.defense_hp[n] == d.max_hp[n]
+        ),
+        None,
+    )
 
 
 def _defeat_run(world: World, rc: CampaignRules) -> tuple[int, int]:

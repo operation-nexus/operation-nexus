@@ -24,6 +24,7 @@ export type Event =
   | CampaignEnded
   | VictoryHoldStarted
   | VictoryHoldBroken
+  | VictoryHoldReset
   | SpawnRefused
   | ObjectiveAnnounced
   | ObjectiveResolved
@@ -602,7 +603,7 @@ export interface CampaignEnded {
   nodes_held_pct: number;
 }
 /**
- * The coalition's victory hold began (CONTRACTS §6; GAMEPLAY §9; ECONOMY EC-9, Q-TD-19, Q-TD-25; NX-412 part 4): on the first running tick it holds at least campaign.victory_node_frac of the strategic nodes. Followed by VictoryHoldBroken, or by CampaignEnded. Public: every side sees it (the hold enters the EnemyView, TD-2).
+ * The coalition's victory hold began (CONTRACTS §6; GAMEPLAY §9; ECONOMY EC-9, Q-TD-19, Q-TD-25; NX-412 part 4): on the first running tick it holds at least campaign.victory_node_frac of the strategic nodes. A hold broken earlier and still decaying resumes with its decayed progress (ECONOMY EC-9a, NX-489). Followed by VictoryHoldBroken, or by CampaignEnded. Public: every side sees it (the hold enters the EnemyView, TD-2).
  */
 export interface VictoryHoldStarted {
   kind: "VictoryHoldStarted";
@@ -625,12 +626,16 @@ export interface VictoryHoldStarted {
    */
   node_ids: string[];
   /**
-   * The running tick on which the victory comes if the hold is not broken (campaign clock, like ObjectiveAnnounced.deadline_tick, not a Tick).
+   * The running tick on which the victory comes if the hold is not broken: this running tick + victory_hold_ticks - the progress after this tick's credit, progress_ticks + 1 (campaign clock, like ObjectiveAnnounced.deadline_tick, not a Tick).
    */
   ends_at_tick: number;
+  /**
+   * The progress the hold carries in (ECONOMY EC-9a, NX-489): 0 for a fresh hold, the decayed progress of a broken hold it resumes.
+   */
+  progress_ticks: number;
 }
 /**
- * The coalition's victory hold broke (CONTRACTS §6; GAMEPLAY §9; ECONOMY EC-9; NX-412 part 4): its share of strategic nodes fell below campaign.victory_node_frac. Not emitted when the campaign ends during the hold. Public, like VictoryHoldStarted.
+ * The coalition's victory hold broke (CONTRACTS §6; GAMEPLAY §9; ECONOMY EC-9; NX-412 part 4): its share of strategic nodes fell below campaign.victory_node_frac. With campaign.victory.hold_break decay the hold keeps progress_ticks and decays until it resumes (VictoryHoldStarted) or resets (VictoryHoldReset) (ECONOMY EC-9a, NX-489); with reset it keeps 0. Not emitted when the campaign ends during the hold. Public, like VictoryHoldStarted.
  */
 export interface VictoryHoldBroken {
   kind: "VictoryHoldBroken";
@@ -650,6 +655,36 @@ export interface VictoryHoldBroken {
    * Stable slug from the theater file.
    */
   node_id: string;
+  /**
+   * The progress the broken hold keeps (ECONOMY EC-9a): its running ticks credited so far with hold_break decay, 0 with reset.
+   */
+  progress_ticks: number;
+}
+/**
+ * A broken, decaying victory hold is over and its progress is 0 (CONTRACTS §6; GAMEPLAY §9; ECONOMY EC-9a, Q-TD-102, Q-TD-126; NX-489): on the first running tick its decayed progress reaches 0 (DECAYED), or, with campaign.victory.reset_on_repair, the other side owns one of the broken hold's nodes at its full defense HP (REPAIRED). Only with campaign.victory.hold_break decay. Public, like VictoryHoldStarted.
+ */
+export interface VictoryHoldReset {
+  kind: "VictoryHoldReset";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * DECAYED: the progress drained to 0. REPAIRED: a broken-hold node the other side owns is back at full defense HP (checked when the progress is still above 0).
+   */
+  reason: "DECAYED" | "REPAIRED";
+  /**
+   * REPAIRED: the repaired node, the lowest id when several are; null for DECAYED.
+   */
+  node_id: string | null;
 }
 /**
  * The live-unit cap stopped Director operations in one selection (CONTRACTS §6; ECONOMY EC-8, Q-TD-34 (5); NX-412 part 5a): operations the window's budget and max_spawns_per_window would have taken but whose units did not fit the side's live room. At most one per selection (the window's operations, the Pattern of Life capture slot, its convoys), none when nothing was refused. A JOIN at the cap is not counted here: it waits in the reserve queue (ReserveQueueJoined). A countable signal for the balance harness. Public view: dropped (proposed).

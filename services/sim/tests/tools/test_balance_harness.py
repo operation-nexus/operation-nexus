@@ -32,6 +32,7 @@ from nexus.contracts.gen.events.threat_tier_changed import ThreatTierChanged
 from nexus.contracts.gen.events.unit_destroyed import UnitDestroyed
 from nexus.contracts.gen.events.unit_grounded import UnitGrounded
 from nexus.contracts.gen.events.unit_spawned import UnitSpawned
+from nexus.contracts.gen.events.victory_hold_reset import VictoryHoldReset
 from nexus.contracts.gen.events.victory_hold_started import VictoryHoldStarted
 from nexus.contracts.gen.events.weapon_fired import WeaponFired
 from nexus.contracts.gen.events.weapon_impact import WeaponImpact
@@ -1753,6 +1754,15 @@ def test_collector_derives_pressure_and_the_hold_from_events(
         {"start": 130, "end": 160, "broken": True, "ops": 0, "pressure": 2},  # 150, 160
         {"start": 170, "end": None, "broken": False, "ops": 0, "pressure": 1},  # the loss at 180
     ]
+    # ECONOMY EC-9a (NX-489, shipped hold_break decay): the break at 160 kept the one tick held at
+    # 130, so the hold at 170 resumed from it; resets are counted by reason
+    assert collector.result(1000)["economy"]["holds_resumed"] == 1
+    resets = ((200, "DECAYED", None), (300, "REPAIRED", "fob-n-e"), (400, "DECAYED", None))
+    collector.feed([
+        VictoryHoldReset.model_construct(kind="VictoryHoldReset", tick=t, reason=r, node_id=n)
+        for t, r, n in resets
+    ])  # fmt: skip
+    assert collector.result(1000)["economy"]["hold_resets"] == {"DECAYED": 2, "REPAIRED": 1}
 
 
 # --- economy metrics (NX-412 part 5a, ECONOMY §4 "Harness report") ------------------------------
@@ -1829,7 +1839,7 @@ def test_collector_counts_static_operations_holds_and_budgets(
               ("CAPTURE", "op:OFFENSIVE:fob-n-w:1", "fob-n-w"))  # fmt: skip
     tick_with(200, ("PATROL", "op:POL_PATROL:east-airbase:0", "east-airbase"))  # routine
     hold = VictoryHoldStarted.model_construct(
-        kind="VictoryHoldStarted", tick=300, node_ids=[], ends_at_tick=18300
+        kind="VictoryHoldStarted", tick=300, node_ids=[], ends_at_tick=18300, progress_ticks=0
     )
     collector.feed([hold])
     tick_with(400, ("CAPTURE", "op:OFFENSIVE:cross-n:0", "cross-n"))  # neutral, in the hold

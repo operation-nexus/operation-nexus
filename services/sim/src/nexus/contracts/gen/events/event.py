@@ -47,6 +47,7 @@ from . import (
     unit_spawned,
     unit_ungrounded,
     victory_hold_broken,
+    victory_hold_reset,
     victory_hold_started,
     weapon_fired,
     weapon_impact,
@@ -73,6 +74,7 @@ type Event = Annotated[
     | campaign_ended.CampaignEnded
     | victory_hold_started.VictoryHoldStarted
     | victory_hold_broken.VictoryHoldBroken
+    | victory_hold_reset.VictoryHoldReset
     | spawn_refused.SpawnRefused
     | objective_announced.ObjectiveAnnounced
     | objective_resolved.ObjectiveResolved

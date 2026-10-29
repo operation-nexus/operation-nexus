@@ -2,16 +2,17 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://nexus.local/contracts/events/victory_hold_started.json",
   "title": "VictoryHoldStarted",
-  "description": "The coalition's victory hold began (CONTRACTS §6; GAMEPLAY §9; ECONOMY EC-9, Q-TD-19, Q-TD-25; NX-412 part 4): on the first running tick it holds at least campaign.victory_node_frac of the strategic nodes. Followed by VictoryHoldBroken, or by CampaignEnded. Public: every side sees it (the hold enters the EnemyView, TD-2).",
+  "description": "The coalition's victory hold began (CONTRACTS §6; GAMEPLAY §9; ECONOMY EC-9, Q-TD-19, Q-TD-25; NX-412 part 4): on the first running tick it holds at least campaign.victory_node_frac of the strategic nodes. A hold broken earlier and still decaying resumes with its decayed progress (ECONOMY EC-9a, NX-489). Followed by VictoryHoldBroken, or by CampaignEnded. Public: every side sees it (the hold enters the EnemyView, TD-2).",
   "type": "object",
   "additionalProperties": false,
-  "required": ["kind", "tick", "event_seq", "campaign_id", "node_ids", "ends_at_tick"],
+  "required": ["kind", "tick", "event_seq", "campaign_id", "node_ids", "ends_at_tick", "progress_ticks"],
   "properties": {
     "kind": {"const": "VictoryHoldStarted"},
     "tick": {"$ref": "../common/ids.json#/$defs/Tick"},
     "event_seq": {"type": "integer", "minimum": 1, "description": "Campaign-wide, monotonic, deterministic (SC-14)."},
     "campaign_id": {"$ref": "../common/ids.json#/$defs/CampaignId"},
     "node_ids": {"type": "array", "description": "The strategic nodes the coalition holds as the hold begins, ascending, no duplicates (producer).", "items": {"$ref": "../common/ids.json#/$defs/NodeId"}},
-    "ends_at_tick": {"type": "integer", "minimum": 1, "x-unit": "campaign-clock ticks", "description": "The running tick on which the victory comes if the hold is not broken (campaign clock, like ObjectiveAnnounced.deadline_tick, not a Tick)."}
+    "ends_at_tick": {"type": "integer", "minimum": 1, "x-unit": "campaign-clock ticks", "description": "The running tick on which the victory comes if the hold is not broken: this running tick + victory_hold_ticks - the progress after this tick's credit, progress_ticks + 1 (campaign clock, like ObjectiveAnnounced.deadline_tick, not a Tick)."},
+    "progress_ticks": {"type": "integer", "minimum": 0, "x-unit": "campaign-clock ticks", "description": "The progress the hold carries in (ECONOMY EC-9a, NX-489): 0 for a fresh hold, the decayed progress of a broken hold it resumes."}
   }
 }

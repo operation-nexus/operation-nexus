@@ -164,6 +164,11 @@ campaign:
   objective_pick: uniform
   victory:
     hq_capture: true
+    hold_break: decay
+    decay_slow_min: 10
+    decay_slow_rate: 0.25
+    decay_fast_rate: 1.0
+    reset_on_repair: true
   idle_floor:
     enabled: true
     sanctuary_min_hp: 1
@@ -366,9 +371,9 @@ economy:
 # `economy.shortfall_quiet_windows`, NX-472 for `combat.facility_restore_frac`, NX-468 for
 # `combat.overkill_check`, NX-412 part 5b again for its harness-tuned defaults, NX-488 for
 # deleting `economy.legacy_rules`, `director.budget` and `director.max_live_units`, NX-484 for
-# `tasking.retake_keep_min`); a change means
+# `tasking.retake_keep_min`, NX-489 for the `campaign.victory` hold decay keys); a change means
 # every config_hash moved.
-GOLDEN_CONFIG_HASH = "9c7f27172b218afe9aff26eae261df914eb5161207088c0c440000e973e2f0e9"
+GOLDEN_CONFIG_HASH = "39e1e40ace6c917bc055d6741df350642919f91a980c687f6c49c1e4fbb4b0f1"
 AIR = {
     "bingo_reserve_frac": 0.15,
     "orbit_period_s": 120.0,
@@ -485,7 +490,14 @@ CAMPAIGN = {
     "objective_period_min": 15,
     "objective_mode": "timed",
     "objective_pick": "uniform",
-    "victory": {"hq_capture": True},
+    "victory": {
+        "hq_capture": True,
+        "hold_break": "decay",
+        "decay_slow_min": 10,
+        "decay_slow_rate": 0.25,
+        "decay_fast_rate": 1.0,
+        "reset_on_repair": True,
+    },
     "idle_floor": {"enabled": True, "sanctuary_min_hp": 1},
     "score": {"average_weight": 50, "final_weight": 50, "objective_points": 5},
     "momentum": {"nodes_weight": 70, "supply_weight": 30},
@@ -812,7 +824,12 @@ def test_default_profile_loads_and_matches_golden_hash() -> None:
         ("  objective_period_min: 15\n", "campaign.objective_period_min"),
         ("  objective_mode: timed\n", "campaign.objective_mode"),
         ("  objective_pick: uniform\n", "campaign.objective_pick"),
-        ("  victory:\n    hq_capture: true\n", "campaign.victory"),
+        ("    hq_capture: true\n", "campaign.victory.hq_capture"),
+        ("    hold_break: decay\n", "campaign.victory.hold_break"),
+        ("    decay_slow_min: 10\n", "campaign.victory.decay_slow_min"),
+        ("    decay_slow_rate: 0.25\n", "campaign.victory.decay_slow_rate"),
+        ("    decay_fast_rate: 1.0\n", "campaign.victory.decay_fast_rate"),
+        ("    reset_on_repair: true\n", "campaign.victory.reset_on_repair"),
         ("    sanctuary_min_hp: 1\n", "campaign.idle_floor.sanctuary_min_hp"),
         ("  requires_defenses_down: true\n", "capture.requires_defenses_down"),
         ("  air_counts: false\n", "capture.air_counts"),
@@ -1099,7 +1116,9 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "  objective_period_min: 15,\n"
         "  victory_hold_min: 30, defeat: {hold_min: 30}, victory_node_frac: 0.80,\n"
         "  strategic_node_kinds: [AIRBASE, FOB, PORT],\n"
-        "  idle_floor: {sanctuary_min_hp: 1, enabled: true}, victory: {hq_capture: true},\n"
+        "  idle_floor: {sanctuary_min_hp: 1, enabled: true}, victory: {hq_capture: true,\n"
+        "    reset_on_repair: true, decay_fast_rate: 1.0, decay_slow_rate: 0.25,\n"
+        "    decay_slow_min: 10, hold_break: decay},\n"
         "  objective_pick: uniform,\n"
         "  time_limit_h: 72, night_progress_cap_nodes_per_h: 0.16666666666666666}\n"
         "tasking: {reeval_every_ticks: 50, claim_lease_s: 120, expire_min: 15,\n"
