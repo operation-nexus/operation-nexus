@@ -225,6 +225,7 @@ class TaskingRules:
     ai_excluded_jobs: frozenset[JobKind]  # tasking.ai_excluded_jobs: and never these (Q-GP-45)
     human_displaces_ai: bool  # tasking.human_displaces_ai: a viewer's unit bumps an AI claimant
     escort_repair_crews: bool  # tasking.escort_repair_crews: escort each repair truck (Q-SIM-118)
+    retake_keep_ticks: int  # an unclaimed retake job outlives its node's restored defenses (NX-484)
 
 
 @dataclass(frozen=True, slots=True)
@@ -601,6 +602,7 @@ def tasking_rules(
     threat_memory_ticks: int,
     patrol_dwell_ticks: int,
     order_dwell_ticks: int,
+    retake_keep_ticks: int,
 ) -> TaskingRules:
     """The tick counts are `cfg`'s game-time keys already converted by the config loader. Raises
     ValueError when the stocking urgency rounds to 0 thousandths, or a front-line stocking job
@@ -657,6 +659,7 @@ def tasking_rules(
         ai_excluded_jobs=frozenset(cfg.ai_excluded_jobs),
         human_displaces_ai=cfg.human_displaces_ai,
         escort_repair_crews=cfg.escort_repair_crews,
+        retake_keep_ticks=retake_keep_ticks,
     )
 
 

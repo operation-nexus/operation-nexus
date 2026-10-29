@@ -16,13 +16,15 @@ from typing import Any
 
 import msgpack
 import pytest
+from fixture_pre_5b import pre_5b_config
 from hypothesis import given, settings
 from hypothesis import strategies as st
 from test_join import cid, join
-from test_tasking import AI, CONFIG, RULES, board_pass, jobs, new_world, of, post, put
+from test_tasking import AI, CONFIG, EVERY, RULES, board_pass, jobs, new_world, of, post, put
 
 from nexus.contracts.gen.common.enums import NodeOwner, UnitKind
 from nexus.contracts.gen.events.event import Event
+from nexus.contracts.gen.events.job_created import JobCreated
 from nexus.contracts.gen.events.job_done import JobDone
 from nexus.core import tasking_gen
 from nexus.core.capture import _switch_facilities
@@ -39,6 +41,16 @@ RET_RULES: Rules = dataclasses.replace(
     RULES, campaign=dataclasses.replace(_CAMPAIGN, objectives_on=False)
 )
 STOCK_RET_RULES: Rules = dataclasses.replace(RET_RULES, supply=CONFIG.rules.supply)
+
+
+def _keep(minutes: float) -> Rules:
+    """RET_RULES with `tasking.retake_keep_min` set through the shipped config and its loader."""
+    tr = pre_5b_config({"tasking.retake_keep_min": minutes}).rules.tasking
+    assert tr is not None
+    return dataclasses.replace(RET_RULES, tasking=dataclasses.replace(tr, patrol_max_nodes=0))
+
+
+KEEP_0, KEEP_5 = _keep(0), _keep(5)
 COALITION_START = ("fob-n-w", "fob-s-w", "west-airbase")
 
 
@@ -135,7 +147,7 @@ def test_the_live_job_is_kept_and_a_claimed_one_blocks_any_other() -> None:
 
 
 def test_an_unclaimed_job_that_stops_qualifying_hands_over_to_the_next() -> None:
-    w = scene("fob-n-w", "fob-s-w")
+    w = scene("fob-n-w", "fob-s-w", rules=KEEP_0)  # no keep: withdrawn at the first pass
     board_pass(w)
     assert [j.node for j in retakes(w)] == ["fob-n-w"]
     w.defense_hp["fob-n-w"] = 50  # the Static repaired it
@@ -371,3 +383,241 @@ def test_a_snapshot_keeps_the_retake_on_the_coalition_board_only() -> None:
         _reload(w, lambda b: mine(b).update(kind="STRIKE"))
     with pytest.raises(ValueError, match="only CAPTURE"):
         _reload(w, lambda b: mine(b).update(key="op:capture"))  # a coalition CAPTURE is a retake
+
+
+# --- the keep after the defenses come back (Q-TD-121, NX-484) -----------------------------------
+# `tasking.retake_keep_min`: shipped 30 game minutes, 18,000 ticks at 10 Hz; KEEP_5 is 3,000;
+# KEEP_0 is no keep. An unclaimed retake never TB-1 expires (Q-TD-121 revised): only withdrawal.
+
+
+def pass_at(w: World, tick: int) -> list[Event]:
+    """One board pass at running tick `tick` (a multiple of the board cadence)."""
+    assert tick % EVERY == 0 and tick > w.campaign.running_ticks
+    w.campaign.running_ticks = tick - 1
+    return board_pass(w)
+
+
+def restocked(rules: Rules = RET_RULES) -> tuple[World, Job, int]:
+    """A posted, unclaimed retake job on fob-n-w whose defenses the Static rebuilt; the pass that
+    first saw them up (its keep clock) is returned."""
+    w = scene("fob-n-w", rules=rules)
+    board_pass(w)
+    (job,) = retakes(w)
+    w.defense_hp["fob-n-w"] = 50
+    board_pass(w)
+    assert job.lost == w.campaign.running_ticks  # the clock: the pass just run
+    return w, job, job.lost
+
+
+def ended(out: list[Event], job: Job) -> list[str]:
+    return [e.kind for e in out if getattr(e, "job_id", 0) == job.id]
+
+
+def test_the_loader_reads_the_keep_from_the_shipped_config() -> None:
+    assert RET_RULES.tasking is not None and KEEP_5.tasking is not None
+    assert RET_RULES.tasking.retake_keep_ticks == 18_000  # 30 game min x 60 s x 10 Hz
+    assert KEEP_5.tasking.retake_keep_ticks == 3_000
+    assert KEEP_0.tasking is not None and KEEP_0.tasking.retake_keep_ticks == 0
+
+
+def test_an_unclaimed_job_survives_restored_defenses_inside_the_keep() -> None:
+    w, job, up = restocked()  # shipped: 30 min
+    out = pass_at(w, up + 10 * 600)  # 10 game min later, inside the job's 15-min expiry too
+    assert retakes(w) == [job] and not of(out, JobCreated)
+
+
+def test_the_job_is_withdrawn_once_the_keep_has_passed() -> None:
+    w, job, up = restocked(KEEP_5)
+    pass_at(w, up + 3_000 - EVERY)
+    assert retakes(w) == [job]  # the last pass inside the keep
+    out = pass_at(w, up + 3_000)
+    assert retakes(w) == [] and ended(out, job) == ["JobExpired"]
+
+
+def test_defenses_down_again_inside_the_keep_continue_the_same_job_with_a_fresh_clock() -> None:
+    w, job, up = restocked(KEEP_5)
+    w.defense_hp["fob-n-w"] = 0  # struck down again at 2.5 min
+    out = pass_at(w, up + 1_500)
+    assert retakes(w) == [job] and job.lost is None and not of(out, JobCreated)
+    w.defense_hp["fob-n-w"] = 80  # rebuilt again at 4 min: a new clock starts there
+    out += pass_at(w, up + 2_400)
+    assert job.lost == up + 2_400
+    out += pass_at(w, up + 5_000)  # 8.3 min after the first restock, 4.3 after the second
+    assert retakes(w) == [job] and not of(out, JobCreated)
+    pass_at(w, up + 2_400 + 3_000)
+    assert retakes(w) == []
+
+
+def test_a_keep_of_zero_withdraws_at_once_and_keeps_no_clock() -> None:
+    w = scene("fob-n-w", rules=KEEP_0)
+    board_pass(w)
+    (job,) = retakes(w)
+    w.defense_hp["fob-n-w"] = 50
+    out = board_pass(w)
+    assert retakes(w) == [] and job.lost is None and ended(out, job) == ["JobExpired"]
+
+
+EXPIRE = 9_000  # tasking.expire_min 15 game min at 10 Hz
+
+
+def test_an_unclaimed_retake_at_zero_defenses_never_expires() -> None:
+    """Q-TD-121 revised: one job id per lost node while it qualifies, past 2 x `expire_min`."""
+    w = scene("fob-n-w", rules=KEEP_0)  # no keep: the exemption alone
+    board_pass(w)
+    (job,) = retakes(w)
+    out: list[Event] = []
+    for t in range(job.created + 1_500, job.created + 2 * EXPIRE + 1, 1_500):
+        out += pass_at(w, t)
+    assert retakes(w) == [job] and ended(out, job) == []
+    assert not [e for e in of(out, JobCreated) if e.job_kind == "CAPTURE"]
+
+
+def test_a_kept_job_outlives_the_expiry_when_the_keep_is_longer() -> None:
+    w, job, up = restocked()  # shipped keep 30 min, expiry 15
+    pass_at(w, job.created + EXPIRE)
+    pass_at(w, up + 18_000 - EVERY)
+    assert retakes(w) == [job]
+    out = pass_at(w, up + 18_000)
+    assert retakes(w) == [] and ended(out, job) == ["JobExpired"]
+
+
+def test_other_generated_jobs_still_expire_unclaimed() -> None:
+    w = scene("fob-n-w")
+    w.stock["fob-s-w"] = 200  # starving: a resupply job nobody takes (no truck)
+    board_pass(w)
+    (old,) = [j for j in jobs(w) if j.key == "resupply:fob-s-w"]
+    pass_at(w, old.created + EXPIRE - EVERY)
+    assert old.id in w.boards["COALITION"]
+    out = pass_at(w, old.created + EXPIRE)
+    (new,) = [j for j in jobs(w) if j.key == "resupply:fob-s-w"]
+    assert ended(out, old) == ["JobExpired"] and new.id != old.id  # TB-1, then posted again
+
+
+def test_a_claim_starts_the_retakes_capture_clock() -> None:
+    w = scene("fob-n-w")
+    board_pass(w)
+    (job,) = retakes(w)
+    pass_at(w, job.created + 2 * EXPIRE)  # long past its posting expiry, still posted
+    truck = put(w, "LOGI_TRUCK", "haven")
+    board_pass(w)
+    assert truck.id in job.claims and job.expires == w.campaign.running_ticks + EXPIRE
+
+
+def test_an_overfill_claim_does_not_restart_the_capture_clock() -> None:
+    """Only the first claim starts the clock: a second viewer truck that overfills the one-slot job
+    (`tasking.overfill_factor`, no other job fits it) leaves `expires` as it was."""
+    w = scene("fob-n-w")
+    board_pass(w)
+    (job,) = retakes(w)
+    first = put(w, "LOGI_TRUCK", "haven")
+    board_pass(w)
+    assert list(job.claims) == [first.id]
+    clock = job.expires
+    second = put(w, "LOGI_TRUCK", "haven")
+    board_pass(w)
+    assert list(job.claims) == [first.id, second.id] and job.expires == clock
+
+
+def test_a_hot_reload_through_keep_zero_leaves_no_stale_clock() -> None:
+    """Keep 30, defenses up (clock), down again, reload to keep 0 for a pass, back to 30: the next
+    return of the defenses starts a fresh keep, not the stale one."""
+    w, job, up = restocked()
+    w.defense_hp["fob-n-w"] = 0
+    assert w.rules is not None
+    w.rules = dataclasses.replace(w.rules, tasking=KEEP_0.tasking)
+    pass_at(w, up + 1_000)
+    assert retakes(w) == [job] and job.lost is None
+    w.rules = dataclasses.replace(w.rules, tasking=RET_RULES.tasking)
+    pass_at(w, up + 20_000)  # past the old clock's keep (18,000)
+    w.defense_hp["fob-n-w"] = 50
+    pass_at(w, up + 20_050)
+    assert retakes(w) == [job] and job.lost == up + 20_050
+
+
+def test_a_claimed_retake_still_expires_by_the_capture_rules() -> None:
+    """The exemption is for an unclaimed job: a claimant standing at the node with no live bar
+    (board passes only, so no capture run starts) ends the job at its CAPTURE clock."""
+    w = scene("fob-n-w")
+    board_pass(w)
+    (job,) = retakes(w)
+    truck = put(w, "LOGI_TRUCK", "fob-n-w")
+    board_pass(w)
+    assert truck.id in job.claims and job.expires is not None
+    truck.path = []  # standing on the node (its one-node leg driven)
+    pass_at(w, job.expires - EVERY)
+    assert job.claims[truck.id].active  # arrived: progress, so the lease holds
+    assert job.id in w.boards["COALITION"]
+    out = pass_at(w, job.expires)
+    assert ended(out, job) == ["JobExpired"]
+
+
+def test_recapture_withdraws_at_once_inside_the_keep() -> None:
+    w, _, _ = restocked()
+    w.owner["fob-n-w"] = "COALITION"  # held again, defenses up (no capture run: by anyone)
+    board_pass(w)
+    assert retakes(w) == []
+
+
+def test_a_lost_road_withdraws_at_once_inside_the_keep(monkeypatch: pytest.MonkeyPatch) -> None:
+    w, _, _ = restocked()
+    monkeypatch.setattr(tasking_gen, "plan_run", lambda *a, **kw: None)  # no capture run reaches
+    board_pass(w)
+    assert retakes(w) == []
+
+
+def test_no_truck_role_withdraws_at_once_inside_the_keep() -> None:
+    w, _, _ = restocked()
+    assert w.rules is not None
+    roles = {r: k for r, k in w.rules.role_kind.items() if k not in w.rules.supply.carriers}
+    w.rules = dataclasses.replace(w.rules, role_kind=roles)
+    board_pass(w)
+    assert retakes(w) == []
+
+
+def test_a_snapshot_mid_keep_keeps_the_clock_and_rejects_a_bad_one() -> None:
+    w, job, up = restocked(KEEP_5)
+    w.campaign.tick = w.campaign.running_ticks  # board passes by hand move only the running clock
+    copy = load(save(w))
+    copy.rules = w.rules
+    assert state_hash(copy) == state_hash(w) and retakes(copy)[0].lost == up
+    for world in (w, copy):
+        pass_at(world, up + 3_000 - EVERY)
+        assert [j.id for j in retakes(world)] == [job.id]
+        pass_at(world, up + 3_000)
+        assert retakes(world) == []
+    w2, _, _ = restocked(KEEP_5)
+
+    def mine(b: Any) -> Any:
+        return next(j for j in b["COALITION"] if j["key"].startswith("retake:"))
+
+    with pytest.raises(ValueError, match="at a past tick"):
+        _reload(w2, lambda b: mine(b).update(lost=10**9))
+    with pytest.raises(ValueError, match="loses its scout"):  # no other coalition job has one
+        _reload(w2, lambda b: next(j for j in b["COALITION"] if j is not mine(b)).update(lost=1))
+
+
+def _keep_run(snapshot_at: int | None = None) -> tuple[str, list[str]]:
+    """Real ticks: the job is posted, the defenses come back, fall again, come back, and the keep
+    runs out (KEEP_5: 3,000 ticks)."""
+    w = scene("fob-n-w", rules=KEEP_5)
+    events: list[Event] = []
+    while not retakes(w):
+        events += step(w, [])
+    script = {500: 50, 1_500: 0, 2_000: 80}  # ticks after the posting: fob-n-w's defense hp
+    for i in range(6_000):
+        w.defense_hp["fob-n-w"] = script.get(i, w.defense_hp["fob-n-w"])
+        if i == snapshot_at:
+            copy = load(save(w))
+            copy.rules = w.rules
+            assert state_hash(copy) == state_hash(w)
+            w = copy
+        events += step(w, [])
+    created = [e for e in of(events, JobCreated) if e.job_kind == "CAPTURE"]
+    assert len(created) == 1 and retakes(w) == []  # one job through the dip, then withdrawn
+    return state_hash(w), [e.model_dump_json() for e in events]
+
+
+def test_the_keep_is_deterministic_and_survives_save_and_load() -> None:
+    first = _keep_run()
+    assert first == _keep_run()
+    assert _keep_run(snapshot_at=2_500) == first  # mid-keep: the clock is in the snapshot

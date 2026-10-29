@@ -100,7 +100,8 @@ from nexus.core.rules import CAPTURE_FULL, Rules
 # job's claimants and whether its sitrep was emitted (NX-431, Q-TD-47, Q-TD-56); 34: shortfall and
 # shortfall_end, each side's open shortfall episodes and when each base's last one ended (NX-436);
 # 35: Job.struck_by, the claimants that fired at a STRIKE job's target (Q-TD-87, NX-463); 36:
-# Campaign.defeat_idle_ticks, the defeat run's empty stretch (Q-TD-95, NX-476)
+# Campaign.defeat_idle_ticks, the defeat run's empty stretch (Q-TD-95, NX-476); a retake job
+# reuses Job.lost as its keep clock (Q-TD-121, NX-484, no bump: same shape)
 FORMAT_VERSION = 36
 _MM = 1000.0  # metres -> millimetres; m/s -> mm/s
 _MICRO = 1e6  # ADR-0002's 1e-6 step for other floats (fuel)
@@ -459,7 +460,8 @@ class Job:
     via: str | None = None  # a PATROL job: the node the patrol drives out to before it goes home
     arrived: int | None = None  # a scout job at a point, or a coalition patrol: the tick its unit
     # began to loiter or dwell
-    lost: int | None = None  # an intercept job: the tick its scout was first found untracked
+    lost: int | None = None  # an intercept job: the tick its scout was first found untracked; a
+    # retake job: the pass that first saw its node's defenses back above 0 (NX-484, `_kept`)
     downed_by: list[int] = field(default_factory=list)  # a Static STRIKE job: the viewer units
     # that destroyed, disabled or mission-killed a unit holding it, ascending (NX-431, Q-TD-56)
     downed: bool = False  # its STRIKE_DOWNED sitrep was emitted (once per job)
@@ -1729,8 +1731,12 @@ def _job(
         raise ValueError(f"{_BOARDS}: a patrol:<node> job is the coalition board's")
     if job.key.startswith("retake:") != (job.kind == "CAPTURE" and side == "COALITION"):
         raise ValueError(f"{_BOARDS}: a retake:<node> job is the coalition board's only CAPTURE")
-    if job.lost is not None and (not hunt or job.lost > running_ticks):
-        raise ValueError(f"{_BOARDS}: only an intercept job loses its scout, at a past tick")
+    retake = job.key.startswith("retake:")  # its keep clock (NX-484)
+    if job.lost is not None and (not (hunt or retake) or job.lost > running_ticks):
+        raise ValueError(
+            f"{_BOARDS}: only an intercept job loses its scout (a retake job its keep clock), "
+            "at a past tick"
+        )
     if job.arrived is not None and (not (point or dwell) or job.arrived > running_ticks):
         raise ValueError(
             f"{_BOARDS}: only a scout job at a point loiters and a patrol dwells, from a past tick"

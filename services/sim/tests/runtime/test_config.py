@@ -237,6 +237,7 @@ tasking:
   patrol_orbit_m: 5000
   patrol_dwell_s: 300
   order_dwell_s: 600
+  retake_keep_min: 30
   stock_urgency: 0.5
   stock_front_bonus: 0.25
 director:
@@ -364,9 +365,10 @@ economy:
 # `economy.floor_viewer_units`, NX-426 for `economy.upkeep_period`, NX-436 for
 # `economy.shortfall_quiet_windows`, NX-472 for `combat.facility_restore_frac`, NX-468 for
 # `combat.overkill_check`, NX-412 part 5b again for its harness-tuned defaults, NX-488 for
-# deleting `economy.legacy_rules`, `director.budget` and `director.max_live_units`); a change means
+# deleting `economy.legacy_rules`, `director.budget` and `director.max_live_units`, NX-484 for
+# `tasking.retake_keep_min`); a change means
 # every config_hash moved.
-GOLDEN_CONFIG_HASH = "c7b731f32b722be97e40b1fa97f1c547263c637c7424533b2035d97e1a445f99"
+GOLDEN_CONFIG_HASH = "9c7f27172b218afe9aff26eae261df914eb5161207088c0c440000e973e2f0e9"
 AIR = {
     "bingo_reserve_frac": 0.15,
     "orbit_period_s": 120.0,
@@ -549,6 +551,7 @@ TASKING = {
     "patrol_orbit_m": 5000,
     "patrol_dwell_s": 300,
     "order_dwell_s": 600,
+    "retake_keep_min": 30,
     "stock_urgency": 0.5,
     "stock_front_bonus": 0.25,
 }
@@ -1122,6 +1125,7 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "  strike_max_scaled_slots: 3, strike_idle_targets_max: 2,\n"
         "  strike_idle_targets_min_tier: ALPHA,\n"
         "  patrol_max_nodes: 3, patrol_orbit_m: 5000, patrol_dwell_s: 300, order_dwell_s: 600,\n"
+        "  retake_keep_min: 30,\n"
         "  stock_urgency: 0.5, stock_front_bonus: 0.25}\n"
         "director: {window_s: 60, max_spawns_per_window: 6,\n"
         "  cp: {ema_window_s: 300, unit_value: {STRIKE_FIGHTER: 10, RECON_UAV: 3, LOGI_TRUCK: 2,\n"
