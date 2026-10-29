@@ -468,7 +468,7 @@ class AiTrucks(BaseModel):
     max_live: Annotated[
         int,
         Field(
-            description="The most coalition AI trucks live at once, unit trucks; 0 spawns none (the no-op default, Q-TD-113). Also bounded by sim.max_live_units_per_side (EC-8).",
+            description="The most coalition AI trucks live at once, unit trucks; 0 spawns none; default 3 (harness C0 #532, Q-TD-128). Also bounded by sim.max_live_units_per_side (EC-8).",
             ge=0,
         ),
     ]
@@ -1680,7 +1680,7 @@ class Tasking(BaseModel):
     resupply_slots_max_starving: Annotated[
         int,
         Field(
-            description="The most slots a starving or damaged base's resupply job can reach, unit units (GAMEPLAY §5 LC-3): its cap is resupply_slots_max + floor(need x (this - resupply_slots_max)), need the base's floor deficit or facility damage share, and a Static convoy's is director.pol.convoy_slots + the same raise. Equal to resupply_slots_max it changes nothing (the no-op default, Q-TD-113); the loader refuses a value below resupply_slots_max.",
+            description="The most slots a starving or damaged base's resupply job can reach, unit units (GAMEPLAY §5 LC-3): its cap is resupply_slots_max + floor(need x (this - resupply_slots_max)), need the base's floor deficit or facility damage share, and a Static convoy's is director.pol.convoy_slots + the same raise. Equal to resupply_slots_max it changes nothing; default 6 (harness C0 #532, Q-TD-128); the loader refuses a value below resupply_slots_max.",
             ge=1,
         ),
     ]
@@ -2106,7 +2106,7 @@ class Pol(BaseModel):
     convoy_demand_s: Annotated[
         float,
         Field(
-            description="While a Static base is below its starvation floor, a convoy is also due this long after the last one, unit s of game time (THREAT-DIRECTOR §5a demand convoys, GAMEPLAY §5 LC-2). Equal to convoy_period_s it changes nothing (the no-op default, Q-TD-113); the loader refuses a value above convoy_period_s.",
+            description="While a Static base is below its starvation floor, a convoy is also due this long after the last one, unit s of game time (THREAT-DIRECTOR §5a demand convoys, GAMEPLAY §5 LC-2). Equal to convoy_period_s it changes nothing; default 900 (harness V2 #534, Q-TD-128); the loader refuses a value above convoy_period_s.",
             gt=0.0,
         ),
     ]
