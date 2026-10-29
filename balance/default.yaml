@@ -76,6 +76,18 @@ capture:
   radius_m: 2000.0  # PROPOSED – unvalidated (Q-SIM-57, owner-approved initial value; NX-031 tunes); m (CONFIG-AND-CONTENT §6.5 capture.radius_m)
   time_s: 120.0  # PROPOSED – unvalidated; s (world), one capturer, no modifiers (CONFIG-AND-CONTENT §6.5 capture.time_s)
   multi_unit_exponent: 0.5  # PROPOSED – unvalidated (Q-SIM-26); exponent: time ÷ n^0.5 (CONFIG-AND-CONTENT §6.5)
+  time_mult:  # PROPOSED – unvalidated (Q-TD-127, lead, owner may veto; NX-490, the harness sweeps HQ 5–40); multiplier on time_s by node kind, for whichever side captures; HQ 20: a lone capture at an empty HQ takes 1200 s (world) (CONFIG-AND-CONTENT §6.5)
+    AIRBASE: 1.0
+    FOB: 1.0
+    HQ: 20.0
+    PORT: 1.0
+    SANCTUARY: 1.0
+  extra_exponent:  # PROPOSED – unvalidated (Q-TD-127, lead, owner may veto; NX-490, the harness sweeps HQ 0–1); added to multi_unit_exponent by node kind, for whichever side captures; HQ 0.5: time ÷ n^1.0 (CONFIG-AND-CONTENT §6.5)
+    AIRBASE: 0.0
+    FOB: 0.0
+    HQ: 0.5
+    PORT: 0.0
+    SANCTUARY: 0.0
   quiet_floor: 0.6  # PROPOSED – unvalidated (Q-SIM-26); multiplier at 0 viewer units, for the quiet_sides (CONFIG-AND-CONTENT §6.5)
   quiet_ref: 50  # PROPOSED – unvalidated (Q-SIM-26); viewer units at which the multiplier reaches 1.0 and the Static's night-cap spacing has faded to none (Q-TD-93, CONFIG-AND-CONTENT §6.5)
   min_time_s: 30.0  # PROPOSED – unvalidated (Q-SIM-26, Q-GP-4); s (world) (CONFIG-AND-CONTENT §6.5)

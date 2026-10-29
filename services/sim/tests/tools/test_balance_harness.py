@@ -2419,6 +2419,60 @@ def test_an_old_report_json_without_the_no_capture_reasons_renders_a_dash() -> N
     assert line.endswith("(first reason): -")
 
 
+def test_hq_captures_are_logged_with_participants_and_capture_weight(
+    shipped_config: CampaignConfig,
+) -> None:
+    """NX-490 (T0/T1 review action 6): an HQ flip, either side, with its participant count and the
+    taking side's capture weight in radius after the tick; other nodes are not listed."""
+    world = start_campaign("c", 1, shipped_config)
+    x, y = shipped_config.rules.roads.pos["static-hq"]
+    me = commander(1)
+    world.spawn("GARRISON_INFANTRY", "COALITION", "COMMANDER", Vec2(x, y), commander_id=me)
+    world.spawn("LOGI_TRUCK", "COALITION", "COMMANDER", Vec2(x + 500, y), commander_id=me)
+    world.spawn("GARRISON_INFANTRY", "COALITION", "COMMANDER", Vec2(x + 9e3, y), commander_id=me)
+    c = metrics.Collector(world, frozenset(), tick_hz=HZ, sample_ticks=600, a3_ticks=1000,
+                          idle_sample_ticks=600, impact_check_ticks=10, kinds={},
+                          a2_min_tier="ALPHA")  # fmt: skip
+
+    def flip(tick: int, node: str, to: str, who: list[str]) -> Any:
+        return NodeCaptured.model_construct(
+            kind="NodeCaptured", tick=tick, node_id=node, from_="ENEMY", to=to,
+            participant_commander_ids=who,
+        )  # fmt: skip
+
+    c.feed([flip(50, "fob-n-e", "COALITION", [commander(2)])])  # not an HQ
+    c.observe(world)
+    c.feed([flip(90, "static-hq", "COALITION", [commander(1), commander(3)])])
+    c.observe(world)  # the 9 km unit is outside capture.radius_m 2000
+    got = c.result(100)["economy"]["hq_captures"]
+    assert got == [{"tick": 90, "node": "static-hq", "side": "COALITION", "weight": 1.5,
+                    "participants": 2}]  # fmt: skip
+
+
+def test_the_report_counts_hq_captures_by_participants_and_weight() -> None:
+    def run(caps: list[dict[str, Any]] | None) -> dict[str, Any]:
+        r = _nc_run(None)
+        if caps is not None:
+            r["metrics"]["economy"]["hq_captures"] = caps
+        return r
+
+    def cap(n: int, w: float) -> dict[str, Any]:
+        return {"tick": 1, "node": "static-hq", "side": "COALITION", "participants": n, "weight": w}
+
+    agg = report._economy([run([cap(1, 1.0), cap(4, 3.5)]), run([cap(1, 1.0)]), run(None)])
+    assert agg["hq_captures"] == {"total": 3, "by_participants": {"1": 2, "4": 1},
+                                  "by_weight": {"1": 2, "3.5": 1}}  # fmt: skip
+    line = next(x for x in report._d5_lines("p", {**_d5_eco([]), **agg}) if "HQ captures" in x)
+    assert line.endswith("3; by participant count {'1': 2, '4': 1}; by capture weight "
+                         "{'1': 2, '3.5': 1}")  # fmt: skip
+    assert report._economy([run(None)])["hq_captures"] is None  # an older report.json
+    old = next(x for x in report._d5_lines("p", _d5_eco([])) if "HQ captures" in x)
+    assert old.endswith("(either side): -")
+    none = report._economy([run([])])
+    line = next(x for x in report._d5_lines("p", {**_d5_eco([]), **none}) if "HQ captures" in x)
+    assert line.endswith("0; by participant count none; by capture weight none")
+
+
 def test_sitreps_per_run_hour_by_category_and_staging_count() -> None:
     eco = {
         "adapted": {"STAGING": [2, 1], "CONVOY_ESCORT": [4]},

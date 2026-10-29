@@ -427,6 +427,22 @@ def _no_capture(es: list[dict[str, Any]]) -> dict[str, int] | None:
     return {k: total[k] for k in have[0]}
 
 
+def _hq_captures(es: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """NX-490: HQ captures summed over the seeds that carry them, by participant count and by the
+    capturing side's capture weight; None when no seed does (an older run)."""
+    have = [e["hq_captures"] for e in es if "hq_captures" in e]
+    if not have:
+        return None
+    caps = [c for h in have for c in h]
+    people = Counter(c["participants"] for c in caps)
+    weight = Counter(c["weight"] for c in caps)
+    return {
+        "total": len(caps),
+        "by_participants": {str(k): people[k] for k in sorted(people)},
+        "by_weight": {f"{k:g}": weight[k] for k in sorted(weight)},
+    }
+
+
 def _economy(runs: list[dict[str, Any]]) -> dict[str, Any]:
     """ECONOMY §4 "Harness report" (NX-412 part 5a), pooled over the seeds with the data; per-hour
     values are means per run-hour (game hours actually run)."""
@@ -508,6 +524,7 @@ def _economy(runs: list[dict[str, Any]]) -> dict[str, Any]:
         },
         "gaps": _gaps(rs, es),
         "no_capture": _no_capture(es),
+        "hq_captures": _hq_captures(es),
         "spawn_by_op": {
             "ops": dict(sorted(spawn_by_op.items())),
             "shared": sum(e["spawn_by_op"]["shared"] for e in es),
@@ -689,6 +706,13 @@ def _d5_lines(name: str, e: dict[str, Any]) -> list[str]:
     nc = e.get("no_capture")  # an older report.json has none
     why = "-" if nc is None else ", ".join(f"{k} {v}" for k, v in nc.items())
     per_h = {k: _fmt(v, ".2f") for k, v in e["adaptations_per_hour"].items()}
+    hq = e.get("hq_captures")  # an older report.json has none
+    hq_text = (
+        "-"
+        if hq is None
+        else f"{hq['total']}; by participant count {hq['by_participants'] or 'none'}; by capture "
+        f"weight {hq['by_weight'] or 'none'}"
+    )
     return [
         f"  - {name} capture funnel (launch, then the target saw): {funnel}",
         f"  - {name} capture funnel through the launch's own units (claimed its jobs; the capture "
@@ -707,6 +731,7 @@ def _d5_lines(name: str, e: dict[str, Any]) -> list[str]:
         f"seed: {', '.join(f's{k} {_fmt(v)}' for k, v in dry.items()) or 'none'}; max "
         f"{_fmt(max(dry_vals, default=None))}, median {_fmt(_med(dry_vals))}",
         f"  - {name} decision windows by why no capture operation launched (first reason): {why}",
+        f"  - {name} HQ captures (either side): {hq_text}",
         f"  - {name} pressure events per victory hold {e['pressure_per_hold']}",
         f"  - {name} spawn debits by operation {sp['ops'] or 'none'}, shared {sp['shared']}, "
         f"unattributed {sp['unattributed']}",

@@ -339,6 +339,8 @@
         "radius_m",
         "time_s",
         "multi_unit_exponent",
+        "time_mult",
+        "extra_exponent",
         "quiet_floor",
         "quiet_ref",
         "min_time_s",
@@ -394,6 +396,44 @@
           "x-tune": {"min": 0.25, "max": 1.0, "step": 0.05, "scale": "LINEAR"},
           "x-source": "GAMEPLAY \u00a78, Q-SIM-26",
           "x-status": "PROPOSED"
+        },
+        "time_mult": {
+          "description": "NX-490 (Q-TD-105, Q-TD-127): multiplies capture.time_s at a node of each kind, for whichever side captures (EC-3 parity); capture.min_time_s still applies after it. Every kind but HQ 1.0 (unchanged); HQ PROPOSED 20, a placeholder with no measured basis (sweep 5-40), unit multiplier (GAMEPLAY \u00a78).",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "AIRBASE",
+            "FOB",
+            "HQ",
+            "PORT",
+            "SANCTUARY"
+          ],
+          "properties": {
+            "AIRBASE": {"type": "number", "exclusiveMinimum": 0, "x-unit": "multiplier", "x-hot-reload": false, "x-category": "CAPTURE", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 0.5, "max": 2.0, "step": 0.1, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a78, Q-TD-127", "x-status": "PROPOSED"},
+            "FOB": {"type": "number", "exclusiveMinimum": 0, "x-unit": "multiplier", "x-hot-reload": false, "x-category": "CAPTURE", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 0.5, "max": 2.0, "step": 0.1, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a78, Q-TD-127", "x-status": "PROPOSED"},
+            "HQ": {"type": "number", "exclusiveMinimum": 0, "x-unit": "multiplier", "x-hot-reload": false, "x-category": "CAPTURE", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 5.0, "max": 40.0, "step": 1.0, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a78, Q-TD-127", "x-status": "PROPOSED"},
+            "PORT": {"type": "number", "exclusiveMinimum": 0, "x-unit": "multiplier", "x-hot-reload": false, "x-category": "CAPTURE", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 0.5, "max": 2.0, "step": 0.1, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a78, Q-TD-127", "x-status": "PROPOSED"},
+            "SANCTUARY": {"type": "number", "exclusiveMinimum": 0, "x-unit": "multiplier", "x-hot-reload": false, "x-category": "CAPTURE", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 0.5, "max": 2.0, "step": 0.1, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a78, Q-TD-127", "x-status": "PROPOSED"}
+          }
+        },
+        "extra_exponent": {
+          "description": "NX-490 (Q-TD-105, Q-TD-127): added to capture.multi_unit_exponent at a node of each kind, for whichever side captures, so the capture time there is divided by n^(multi_unit_exponent + extra_exponent). Every kind but HQ 0 (unchanged); HQ PROPOSED 0.5 (exponent 1.0, a lone capturer pays the most), a placeholder with no data (sweep 0-1), unit exponent (GAMEPLAY \u00a78).",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "AIRBASE",
+            "FOB",
+            "HQ",
+            "PORT",
+            "SANCTUARY"
+          ],
+          "properties": {
+            "AIRBASE": {"type": "number", "minimum": 0, "x-unit": "exponent", "x-hot-reload": false, "x-category": "CAPTURE", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 0.0, "max": 1.0, "step": 0.05, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a78, Q-TD-127", "x-status": "PROPOSED"},
+            "FOB": {"type": "number", "minimum": 0, "x-unit": "exponent", "x-hot-reload": false, "x-category": "CAPTURE", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 0.0, "max": 1.0, "step": 0.05, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a78, Q-TD-127", "x-status": "PROPOSED"},
+            "HQ": {"type": "number", "minimum": 0, "x-unit": "exponent", "x-hot-reload": false, "x-category": "CAPTURE", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 0.0, "max": 1.0, "step": 0.05, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a78, Q-TD-127", "x-status": "PROPOSED"},
+            "PORT": {"type": "number", "minimum": 0, "x-unit": "exponent", "x-hot-reload": false, "x-category": "CAPTURE", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 0.0, "max": 1.0, "step": 0.05, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a78, Q-TD-127", "x-status": "PROPOSED"},
+            "SANCTUARY": {"type": "number", "minimum": 0, "x-unit": "exponent", "x-hot-reload": false, "x-category": "CAPTURE", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 0.0, "max": 1.0, "step": 0.05, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a78, Q-TD-127", "x-status": "PROPOSED"}
+          }
         },
         "quiet_floor": {
           "description": "The quiet-stream multiplier on the capture time of the quiet_sides at 0 live viewer units, rising linearly to 1.0 at quiet_ref, unit multiplier (Q-SIM-26). Hot-reloadable (Q-CFG-16).",

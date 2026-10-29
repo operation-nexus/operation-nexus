@@ -19,6 +19,7 @@ from typing import Any, Final
 from nexus.contracts.gen.common.enums import Side
 from nexus.contracts.gen.events.event import Event
 from nexus.core.campaign import momentum
+from nexus.core.capture import capture_weight
 from nexus.core.director import TIERS
 from nexus.core.fog import side_view
 from nexus.core.launch import NO_CAPTURE, no_capture_reason
@@ -124,6 +125,11 @@ class Collector:
         # names it): a run of the coalition holding `victory_node_frac` of the strategic nodes.
         self._owner = dict(world.owner)
         self.pressure_ticks: list[int] = []
+        # NX-490 (review ENTERTAINMENT-T0-T1 action 6, Q-TD-105): every HQ flip, either side: its
+        # tick, the side that took it, its participant commanders (`NodeCaptured`) and that side's
+        # capture weight in radius at the end of the flip tick (`observe`; no event carries it)
+        self.hq_captures: list[dict[str, Any]] = []
+        self._hq_new: list[dict[str, Any]] = []
         # The hold follows the sim's own `VictoryHoldStarted` / `VictoryHoldBroken` (ECONOMY EC-9;
         # one at setup arrives on tick 1). `holds`: per hold its start, end, whether it broke and
         # the Static operations launched during it. A broken hold decays (ECONOMY EC-9a, NX-489):
@@ -278,6 +284,9 @@ class Collector:
                 handler(event)
 
     def observe(self, world: World) -> None:
+        for hq in self._hq_new:
+            hq["weight"] = capture_weight(world, hq["node"], hq["side"])
+        self._hq_new.clear()
         for eid in sorted(self.trucks):  # a truck leaving its source loaded (Q-SIM-97)
             e = world.find(eid)
             if e is None:
@@ -620,6 +629,11 @@ class Collector:
             step["own"]["captured"] = step["own_capturers"] > 0  # NodeCaptured names no Static unit
         for commander in e.participant_commander_ids:
             self._credit(commander, e.tick, "capture")
+        if self._world_rules.node_kind.get(e.node_id) == "HQ":
+            hq = {"tick": e.tick, "node": e.node_id, "side": e.to, "weight": None,
+                  "participants": len(e.participant_commander_ids)}  # fmt: skip
+            self.hq_captures.append(hq)
+            self._hq_new.append(hq)
         if e.from_ == _COALITION and e.to != _COALITION:
             self.pressure_ticks.append(e.tick)
             if e.node_id in self._strategic:
@@ -807,6 +821,7 @@ class Collector:
                 "unattributed": self.spawn_unattributed,
             },
             "army_peak": self.army_peak,
+            "hq_captures": self.hq_captures,
             "shortfall": self._shortfall(),
         }
 
