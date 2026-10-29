@@ -16,7 +16,8 @@ At every economy window (`economy.due`), after upkeep and before the Threat Dire
    `logistics.ai_trucks.max_live` and the EC-8 guard has room. A new truck spawns where
    `!join logi <node>` would (`plan_run`, the §1b source, the sanctuary last), loads there, pays
    its `logistics.loadout_cost` at that node (EC-13) and claims the job; a job whose run loads
-   nothing gets no truck.
+   nothing gets no truck. The sanctuary repair job is skipped (viewer trucks only, NX-497): no
+   truck spawns for it and no idle AI truck is counted against its slots.
 
 An AI truck is no viewer unit (`World.viewer_units` counts COMMANDER units). Deterministic: jobs
 by rank then id, entities by id, integers, no RNG (LC-5).
@@ -31,7 +32,7 @@ from nexus.core.economy import due, guard_room, source_stock
 from nexus.core.logistics import Run, load, pay_spawn, plan_run
 from nexus.core.rules import Rules
 from nexus.core.tasking import claim, rank
-from nexus.core.tasking_gen import is_idle
+from nexus.core.tasking_gen import is_idle, repairs_sanctuary
 from nexus.core.world import JOB_KEY_PREFIX, Entity, Job, Vec2, World, is_ai_truck
 
 _SIDE: Side = "COALITION"
@@ -90,6 +91,7 @@ def _spawn_for_jobs(world: World, rules: Rules, now: int, period: int, out: list
     jobs = [
         j for j in world.boards[_SIDE].values()
         if j.key.startswith(JOB_KEY_PREFIX["RESUPPLY"]) and now - j.created >= period
+        and not repairs_sanctuary(rules, _SIDE, j.key)  # viewer trucks only (NX-497)
     ]  # fmt: skip
     held = enemy_held(world, rules, _SIDE)
     for job in rank(tr, jobs, now, None, side=_SIDE):

@@ -32,6 +32,11 @@ def defends(w: World, side: Side = "COALITION") -> list[tuple[str | None, int, i
     return [(j.node, j.slots, j.urgency) for j in w.boards[side].values() if j.kind == "DEFEND"]
 
 
+def defend_jobs(w: World) -> list[Job]:
+    """The coalition's DEFEND jobs (a struck haven also gets its repair job, NX-497)."""
+    return [j for j in jobs(w) if j.kind == "DEFEND"]
+
+
 def at_risk(events: list[Event]) -> list[str | None]:
     return [
         e.node_id
@@ -69,7 +74,7 @@ def test_a_struck_sanctuary_posts_its_defend_job_at_the_top_urgency() -> None:
     assert TR.urgency_max_milli == 2000
     w.defense_hp[HAVEN] = 0
     board_pass(w)
-    assert defends(w) == [(HAVEN, 2, 2000)] and len(jobs(w)) == 1  # the same job, no repost
+    assert defends(w) == [(HAVEN, 2, 2000)] and len(defend_jobs(w)) == 1  # the same, no repost
     assert jet.id in w.contacts["COALITION"]
 
 
@@ -157,10 +162,10 @@ def _held() -> tuple[World, Job, Entity]:
     striker = threat(w)
     jet = put(w, "STRIKE_FIGHTER", "west-airbase")
     board_pass(w)
-    (job,) = jobs(w)
+    (job,) = defend_jobs(w)
     jet.path, jet.last_node = [], HAVEN  # it is there
     assert "JobDone" not in kinds(board_pass(w))  # still below full and menaced: it holds
-    assert jobs(w) == [job]
+    assert defend_jobs(w) == [job]
     return w, job, striker
 
 
@@ -200,7 +205,7 @@ def test_the_job_ends_done_when_no_tracked_enemy_is_in_range_though_the_hp_is_st
     lose_track(w, striker)
     events = board_pass(w)
     assert "JobDone" in kinds(events) and defends(w) == []
-    assert w.defense_hp[HAVEN] == FULL - 100  # no repair exists yet (Q-TD-124)
+    assert w.defense_hp[HAVEN] == FULL - 100  # board passes only: no truck parked repairs it
 
 
 def test_a_striker_that_is_only_a_last_known_track_ends_the_job_too() -> None:
@@ -217,12 +222,12 @@ def test_an_unclaimed_job_is_withdrawn_when_the_threat_leaves_and_reposted_on_a_
     w.defense_hp[HAVEN] = FULL - 1
     first = threat(w)
     board_pass(w)  # a viewer can JOIN as STRIKE: the kind is staffable with no unit on the map
-    (old,) = jobs(w)
+    (old,) = defend_jobs(w)
     lose_track(w, first)
-    assert kinds(board_pass(w)) == ["JobExpired"] and jobs(w) == []
+    assert kinds(board_pass(w)) == ["JobExpired"] and defend_jobs(w) == []
     threat(w, dist=3000)  # the next strike package
     board_pass(w)
-    (new,) = jobs(w)
+    (new,) = defend_jobs(w)
     assert (new.key, new.urgency) == (old.key, 2000) and new.id != old.id
 
 
@@ -233,7 +238,8 @@ def test_an_unclaimed_job_is_withdrawn_once_the_hp_is_full() -> None:
     board_pass(w)
     assert defends(w) == [(HAVEN, 2, 2000)]
     w.defense_hp[HAVEN] = FULL
-    assert kinds(board_pass(w)) == ["JobExpired"] and jobs(w) == []
+    # the defend job and the repair job `resupply:haven` (NX-497) are both withdrawn
+    assert kinds(board_pass(w)) == ["JobExpired", "JobExpired"] and jobs(w) == []
 
 
 def test_the_static_board_posts_nothing_for_a_struck_coalition_sanctuary() -> None:
