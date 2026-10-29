@@ -392,13 +392,22 @@ def logistics(world: World, out: list[Event]) -> None:
             restock(world, rules, e, out)
 
 
+def accepts(world: World, rules: Rules, node: str) -> bool:
+    """Whether a truck can unload at `node` now: it has stock room, or it has finite stock and
+    defenses a unit still rebuilds (Q-SIM-71). `_unload` and the board's idle pool
+    (`tasking._unloading`, Q-SIM-130) share it."""
+    top = rules.supply.max_stock.get(node, 0)
+    return top > world.stock.get(node, 0) or (top > 0 and _defense_room(world, rules, node) > 0)
+
+
 def _unload(world: World, rules: Rules, e: Entity, node: str, out: list[Event]) -> None:
+    if e.cargo is None or not accepts(world, rules, node):
+        end_stop(world, e, node, out)  # full before its turn (another truck filled it, NX-486)
+        return
     sup = rules.supply
     room = sup.max_stock.get(node, 0) - world.stock.get(node, 0)
     # whole stock units the defenses of a finite-stock node can still take
     to_build = _defense_room(world, rules, node) if sup.max_stock.get(node, 0) > 0 else 0
-    if e.cargo is None or (room <= 0 and to_build <= 0):
-        return
     whole, e.unload_milli = divmod(e.unload_milli + sup.unload_milli, 1000)  # 1000: milli scale
     moved = min(whole, e.cargo, room if room > 0 else to_build)
     if room > 0:
@@ -413,8 +422,7 @@ def _unload(world: World, rules: Rules, e: Entity, node: str, out: list[Event]) 
     rebuild(world, rules, node, moved, out)  # defense hp, same tick (Q-SIM-71)
     if e.cargo == 0:
         e.unload_milli = 0
-    full_stock = sup.max_stock.get(node, 0) - world.stock.get(node, 0) <= 0
-    if e.cargo == 0 or (full_stock and _defense_room(world, rules, node) <= 0):
+    if e.cargo == 0 or not accepts(world, rules, node):
         end_stop(world, e, node, out)
 
 
