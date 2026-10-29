@@ -229,6 +229,12 @@ def load_balance(path: Path) -> BalanceConfig:
             f"{path}: director.provocation.half_life_s: half-life over window_s reduces to "
             f"{decay.numerator} / {decay.denominator}; neither part may exceed {DECAY_RATIO_MAX}"
         )
+    victory = cfg.campaign.victory
+    if _exact(victory.decay_fast_rate) < _exact(victory.decay_slow_rate):
+        raise ConfigError(
+            f"{path}: campaign.victory.decay_fast_rate: must be at least decay_slow_rate "
+            "(ECONOMY EC-9a)"
+        )
     weights = cfg.campaign.momentum
     if _exact(weights.nodes_weight) + _exact(weights.supply_weight) != 100:
         raise ConfigError(f"{path}: campaign.momentum: the two weights must add up to 100")

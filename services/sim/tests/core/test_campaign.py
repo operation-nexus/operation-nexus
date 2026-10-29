@@ -277,8 +277,8 @@ def test_holding_the_victory_share_for_the_hold_time_wins() -> None:
     assert run(w, 5) == []
 
 
-def test_a_dip_below_the_share_resets_the_hold() -> None:
-    w = new_world(victory_hold_ticks=5)
+def test_a_dip_below_the_share_resets_the_hold_with_hold_break_reset() -> None:
+    w = new_world(victory_hold_ticks=5, hold_decay=False)  # ECONOMY EC-9a: the old rule
     hold_seven(w)
     run(w, 3)
     own(w, "ENEMY", "fob-s-e")  # 6 of 8 = 75 %: below 80 %
@@ -671,7 +671,7 @@ def test_format_12_snapshots_are_refused() -> None:
     raw["v"] = 12
     with pytest.raises(ValueError, match="unsupported snapshot format version 12"):
         load(msgpack.packb(raw, use_bin_type=True))
-    assert world_mod.FORMAT_VERSION == 36
+    assert world_mod.FORMAT_VERSION == 37
 
 
 @pytest.mark.parametrize(

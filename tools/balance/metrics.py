@@ -126,7 +126,11 @@ class Collector:
         self.pressure_ticks: list[int] = []
         # The hold follows the sim's own `VictoryHoldStarted` / `VictoryHoldBroken` (ECONOMY EC-9;
         # one at setup arrives on tick 1). `holds`: per hold its start, end, whether it broke and
-        # the Static operations launched during it.
+        # the Static operations launched during it. A broken hold decays (ECONOMY EC-9a, NX-489):
+        # `holds_resumed` counts holds that started with kept progress, `hold_resets` the decays
+        # that ended by reason (DECAYED, REPAIRED).
+        self.holds_resumed = 0
+        self.hold_resets: Counter[str] = Counter()
         self.holds_broken = 0
         self.hold_start: int | None = None
         self.holds: list[dict[str, Any]] = []
@@ -215,6 +219,7 @@ class Collector:
             "CampaignEnded": self._end,
             "VictoryHoldStarted": self._hold_started,
             "VictoryHoldBroken": self._hold_broken,
+            "VictoryHoldReset": self._hold_reset,
             "SupplyProduced": self._produced,
             "SupplyConsumed": self._consumed,
             "UnitGrounded": self._grounded,
@@ -622,6 +627,7 @@ class Collector:
         self._owner[e.node_id] = e.to
 
     def _hold_started(self, e: Any) -> None:
+        self.holds_resumed += e.progress_ticks > 0
         self.hold_start = e.tick
         self.holds.append({"start": e.tick, "end": None, "broken": False, "ops": 0})
 
@@ -630,6 +636,9 @@ class Collector:
         self.hold_start = None
         if self.holds:
             self.holds[-1].update(end=e.tick, broken=True)
+
+    def _hold_reset(self, e: Any) -> None:
+        self.hold_resets[e.reason] += 1
 
     def _produced(self, e: Any) -> None:
         _add(self.econ[e.side]["income"], self._hour(e.tick), e.amount)
@@ -786,6 +795,8 @@ class Collector:
             "ops": [list(o) for o in self.ops],
             "ops_unseen": self.ops_unseen,
             "holds": [{**h, "pressure": self._pressure_in(h)} for h in self.holds],
+            "holds_resumed": self.holds_resumed,
+            "hold_resets": dict(sorted(self.hold_resets.items())),
             "funnel": self.funnel,
             "dispersed_split": dict(self.dispersed_split),
             "no_capture": {k: self.no_capture[k] for k in ("launched", *NO_CAPTURE)},

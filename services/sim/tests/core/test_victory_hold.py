@@ -63,17 +63,19 @@ def test_the_hold_starts_once_and_ends_in_the_victory_with_no_break() -> None:
 
 
 def test_a_node_lost_below_the_share_breaks_the_hold_and_names_it() -> None:
-    w = new_world(victory_hold_ticks=50)
+    w = new_world(victory_hold_ticks=50, hold_decay=False)  # hold_break: reset (EC-9a)
     hold_seven(w)
     run(w, 3)
     own(w, "ENEMY", "fob-s-e")  # 6 of 8 = 75 %
     (broken,) = holds(w)
     assert isinstance(broken, VictoryHoldBroken) and broken.node_id == "fob-s-e"
+    assert broken.progress_ticks == 0
     assert (w.campaign.hold_ticks, w.campaign.hold_nodes) == (0, ())
     assert holds(w) == []  # once
     own(w, "COALITION", "fob-s-e")
     (again,) = holds(w)
     assert isinstance(again, VictoryHoldStarted) and again.ends_at_tick == 6 + 50 - 1
+    assert again.progress_ticks == 0
 
 
 def test_a_loss_above_the_share_keeps_the_hold_and_the_later_break_names_the_node_lost() -> None:

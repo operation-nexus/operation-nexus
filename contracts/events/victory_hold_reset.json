@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nexus.local/contracts/events/victory_hold_reset.json",
+  "title": "VictoryHoldReset",
+  "description": "A broken, decaying victory hold is over and its progress is 0 (CONTRACTS §6; GAMEPLAY §9; ECONOMY EC-9a, Q-TD-102, Q-TD-126; NX-489): on the first running tick its decayed progress reaches 0 (DECAYED), or, with campaign.victory.reset_on_repair, the other side owns one of the broken hold's nodes at its full defense HP (REPAIRED). Only with campaign.victory.hold_break decay. Public, like VictoryHoldStarted.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "tick", "event_seq", "campaign_id", "reason", "node_id"],
+  "properties": {
+    "kind": {"const": "VictoryHoldReset"},
+    "tick": {"$ref": "../common/ids.json#/$defs/Tick"},
+    "event_seq": {"type": "integer", "minimum": 1, "description": "Campaign-wide, monotonic, deterministic (SC-14)."},
+    "campaign_id": {"$ref": "../common/ids.json#/$defs/CampaignId"},
+    "reason": {"enum": ["DECAYED", "REPAIRED"], "description": "DECAYED: the progress drained to 0. REPAIRED: a broken-hold node the other side owns is back at full defense HP (checked when the progress is still above 0)."},
+    "node_id": {"anyOf": [{"$ref": "../common/ids.json#/$defs/NodeId"}, {"type": "null"}], "description": "REPAIRED: the repaired node, the lowest id when several are; null for DECAYED."}
+  }
+}

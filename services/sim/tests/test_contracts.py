@@ -273,8 +273,12 @@ SHORTFALL = {**_BASE, "kind": "SupplyShortfall", "side": "COALITION", "node_id":
 PAYOFF = {**SHORTFALL, "status": "ENDED", "grounded": 0, "credit_ids": [4, 9]}
 # NX-412 part 4 (ECONOMY EC-9): the victory hold and its sitrep
 HOLD_STARTED = {**_BASE, "kind": "VictoryHoldStarted", "node_ids": ["fob-1", "port-s"],
-                "ends_at_tick": 18_042}  # fmt: skip
-HOLD_BROKEN = {**_BASE, "kind": "VictoryHoldBroken", "node_id": "port-s"}
+                "ends_at_tick": 18_042, "progress_ticks": 0}  # fmt: skip
+HOLD_BROKEN = {**_BASE, "kind": "VictoryHoldBroken", "node_id": "port-s", "progress_ticks": 1200}
+# NX-489 (ECONOMY EC-9a): a broken hold's decay ends in a reset; a resumed hold carries progress
+HOLD_RESUMED = {**HOLD_STARTED, "progress_ticks": 900}
+HOLD_DECAYED = {**_BASE, "kind": "VictoryHoldReset", "reason": "DECAYED", "node_id": None}
+HOLD_REPAIRED = {**HOLD_DECAYED, "reason": "REPAIRED", "node_id": "port-s"}
 HOLD_AT_RISK = {**ADAPTATION, "category": "HOLD_AT_RISK", "node_id": "port-s"}
 STAGING = {**ADAPTATION, "category": "STAGING"}  # NX-416 (THREAT-DIRECTOR FS-5): sector only
 # NX-431 (Q-TD-47, Q-TD-56): the massing's payoff, sector only; a downed package names its node
@@ -316,6 +320,9 @@ REFUSED = {**_BASE, "kind": "SpawnRefused", "side": "ENEMY", "reason": "GUARD", 
         {**SHORTFALL, "side": "ENEMY"},
         HOLD_STARTED,
         HOLD_BROKEN,
+        HOLD_RESUMED,
+        HOLD_DECAYED,
+        HOLD_REPAIRED,
         HOLD_AT_RISK,
         AT_RISK,
         STAGING,
@@ -382,6 +389,10 @@ def test_combat_events_parse_through_the_event_union(good: dict[str, object]) ->
         (HOLD_STARTED, {"node_id": "fob-1"}),  # {nodes, ends_at} only (ECONOMY §4)
         (HOLD_BROKEN, {"node_ids": ["fob-1"]}),  # one node
         (HOLD_BROKEN, {"node_id": None}),
+        (HOLD_STARTED, {"progress_ticks": -1}),  # NX-489: progress is never negative
+        (HOLD_BROKEN, {"progress_ticks": None}),
+        (HOLD_DECAYED, {"reason": "EXPIRED"}),  # DECAYED or REPAIRED only
+        (HOLD_REPAIRED, {"node_id": "Not A Node"}),
         (HOLD_AT_RISK, {"node_id": "Not A Node"}),
         (AT_RISK, {"category": "SANCTUARY_UNDER_ATTACK"}),  # only the enum's names
         (AT_RISK, {"node_id": "Not A Node"}),

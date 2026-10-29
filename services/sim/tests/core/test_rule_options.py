@@ -103,6 +103,7 @@ def test_the_defaults_are_the_decided_rules() -> None:
     assert r.capture.quiet_sides == {"COALITION"}
     assert (r.defense.idle_floor, r.defense.sanctuary_min_hp) == (True, 1)
     assert (r.campaign.hq_capture, r.campaign.objective_pick) == (True, "uniform")
+    assert (r.campaign.hold_decay, r.campaign.reset_on_repair) == (True, True)  # EC-9a, Q-TD-126
     assert r.combat.facility_indestructible is True
     assert r.combat.strike_structure_first is True  # Q-TD-79: on since NX-412 part 5b (CB-10)
     assert r.combat.overkill_check is True  # Q-TD-73: the overkill check is the rule (CB-1)
@@ -117,6 +118,8 @@ def test_non_default_options_reach_the_rules() -> None:
         campaign__idle_floor__enabled=False,
         campaign__idle_floor__sanctuary_min_hp=40,
         campaign__victory__hq_capture=False,
+        campaign__victory__hold_break="reset",
+        campaign__victory__reset_on_repair=False,
         combat__facility_indestructible=False,
         combat__strike_structure_first=False,
         combat__overkill_check=False,
@@ -126,6 +129,7 @@ def test_non_default_options_reach_the_rules() -> None:
     assert r.capture.quiet_sides == {"ENEMY"}
     assert (r.defense.idle_floor, r.defense.sanctuary_min_hp) == (False, 40)
     assert r.campaign.hq_capture is False and r.combat.facility_indestructible is False
+    assert r.campaign.hold_decay is False and r.campaign.reset_on_repair is False
     assert r.combat.strike_structure_first is False and r.combat.overkill_check is False
 
 
@@ -141,6 +145,8 @@ def test_air_weight_is_read_only_when_air_counts() -> None:
         ("campaign.idle_floor.sanctuary_min_hp", 1001),  # above capture.defense_hp.SANCTUARY
         ("campaign.idle_floor.enabled", "maybe"),
         ("campaign.victory.hq_capture", "maybe"),
+        ("campaign.victory.hold_break", "keep"),
+        ("campaign.victory.reset_on_repair", "maybe"),
         ("campaign.objective_pick", "weighted"),
         ("capture.requires_defenses_down", "maybe"),
         ("capture.air_counts", "maybe"),
@@ -385,7 +391,7 @@ def test_a_run_with_every_option_flipped_is_deterministic() -> None:
                 "quiet_sides": frozenset({"ENEMY"}),
             },
             defense={"idle_floor": False},
-            campaign={"hq_capture": False},
+            campaign={"hq_capture": False, "hold_decay": False, "reset_on_repair": False},
         )
         assert w.rules is not None
         w.rules = dataclasses.replace(  # economy.unlimited off for both sides (NX-412 part 1)

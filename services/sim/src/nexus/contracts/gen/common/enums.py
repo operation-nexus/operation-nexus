@@ -231,6 +231,7 @@ type EventKind = Annotated[
         "UnitUngrounded",
         "VictoryHoldStarted",
         "VictoryHoldBroken",
+        "VictoryHoldReset",
         "SpawnRefused",
     ],
     Field(description="Grows one kind at a time, with each producer (rule 6a)."),

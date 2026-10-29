@@ -165,6 +165,13 @@ class CampaignRules:
     strategic: tuple[str, ...]  # AIRBASE, FOB and PORT nodes, by id (Q-GP-17, Q-GP-21)
     enemy_hq: str  # its capture by the coalition wins, when `hq_capture`
     hq_capture: bool  # campaign.victory.hq_capture
+    # ECONOMY EC-9a (NX-489): campaign.victory.hold_break is decay; the slow stage in running
+    # ticks, both rates exact (progress ticks lost per broken tick); reset_on_repair
+    hold_decay: bool
+    decay_slow_ticks: int  # campaign.victory.decay_slow_min
+    decay_slow_rate: Fraction
+    decay_fast_rate: Fraction  # > 0 and >= decay_slow_rate (the config loader)
+    reset_on_repair: bool
     objective_pick: str  # campaign.objective_pick: "uniform", the only value so far
     # Objective candidates by id (never SANCTUARY, BRIDGE or the enemy HQ; Q-SM-11) -> the ids of
     # their road neighbours that can have an owner (not BRIDGE): a candidate with a neighbour of
@@ -926,6 +933,7 @@ def campaign_rules(
     victory_hold_ticks: int,
     defeat_hold_ticks: int,
     objective_period_ticks: int,
+    decay_slow_ticks: int,
     uncapturable: Collection[NodeKind],
 ) -> CampaignRules:
     """The tick counts are `cfg`'s game-time keys already converted by the config loader."""
@@ -947,6 +955,11 @@ def campaign_rules(
         strategic=tuple(sorted(n for n, k in kind.items() if k in cfg.strategic_node_kinds)),
         enemy_hq=theater.enemy_hq,
         hq_capture=cfg.victory.hq_capture,
+        hold_decay=cfg.victory.hold_break == "decay",
+        decay_slow_ticks=decay_slow_ticks,
+        decay_slow_rate=Fraction(repr(cfg.victory.decay_slow_rate)),
+        decay_fast_rate=Fraction(repr(cfg.victory.decay_fast_rate)),
+        reset_on_repair=cfg.victory.reset_on_repair,
         objective_pick=cfg.objective_pick,
         candidates={
             n: tuple(m for m, _ in roads.neighbours(n) if m in ownable)
