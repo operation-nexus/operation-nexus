@@ -29,6 +29,12 @@ refers to an entity id, so a job names a node, or a SIGINT blob with its cell ce
   repair, and its job stays posted unclaimed. A coalition resupply job does not expire unclaimed
   (`tasking.unexpiring`, Q-SIM-131, NX-492): it keeps its posting time until this rule no longer
   posts it, so LC-1's job age (`ai_trucks`) counts from its first posting.
+  The side's own sanctuary (`Supply.rear`, no stock) gets the repair job `resupply:<sanctuary>`
+  instead (`_sanctuary_repair`, Q-TD-124, Q-TD-129, NX-497) while its defense hp is below full,
+  with or without a contact: urgency `tasking.urgency_max` while `besieged` or at 0 hp, else 1.0
+  plus the missing-hp share; slots `slot_cap` with that share as the need. Viewer trucks only
+  (`repairs_sanctuary`; `tasking._may_take`, `ai_trucks`). The Static's rear is never struck
+  (Q-SIM-64), so only the coalition's board posts it in play (EC-3: the rule is the same).
 - **Defend** (`defend:<node>`): a node the side owns that can be captured and is threatened: the
   other side's capture bar is on it, or a tracked enemy GROUND unit is within
   `tasking.defend_radius_m` of it (Q-SIM-74). Urgency: 1.0 + the larger of the bar's share and
@@ -304,6 +310,7 @@ def generate(
     specs = [  # a repair job first: a resupply job that waits for it names it (TB-8)
         *_repair(world, rules, tr, side, view, held),
         *_resupply(world, rules, tr, side, view, held),
+        *_sanctuary_repair(rules, tr, side, view),
         *_defend(world, rules, tr, side, view),
         *(_strike(world, rules, tr, side, view) if _offense_open(world, tr, side) else ()),
         *_assist(world, tr, side),
@@ -384,6 +391,27 @@ def _resupply(
                 max(_urgency(tr, need) if need else 0, stocking), node=node,
                 after=None if cut is None else f"repair_bridge:{cut}",
             )  # fmt: skip
+
+
+def repairs_sanctuary(rules: Rules, side: Side, key: str) -> bool:
+    """`key` is `side`'s sanctuary repair job, `resupply:<sanctuary>` (NX-497): for viewer trucks
+    only, with no cargo and no reload, DONE at full defense hp with a claimant parked."""
+    return key == f"resupply:{rules.supply.rear[side]}"
+
+
+def _sanctuary_repair(
+    rules: Rules, tr: TaskingRules, side: Side, view: SideView
+) -> Iterator[JobSpec]:
+    """The side's sanctuary below full defense hp, with or without a contact (Q-TD-129 (1)-(3))."""
+    d, node = rules.defense, rules.supply.rear[side]
+    hp = view.defense_hp.get(node)
+    if d is None or hp is None or view.owners.get(node) != side or hp >= d.max_hp[node]:
+        return
+    share = Fraction(d.max_hp[node] - hp, d.max_hp[node])
+    top = not hp or besieged(rules, tr, view.defense_hp, side, node, view.tracks.values())
+    urgency = tr.urgency_max_milli if top else _urgency(tr, share)
+    slots = slot_cap(tr, tr.resupply_slots_max, share)
+    yield JobSpec("RESUPPLY", f"resupply:{node}", slots, urgency, node=node)
 
 
 def starving_need(stock: int, floor: int, damage: tuple[int, int]) -> Fraction:

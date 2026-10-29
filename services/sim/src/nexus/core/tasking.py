@@ -21,7 +21,10 @@ while frozen (SC-11), for each side in COALITION, ENEMY order:
    progress: its claim becomes ACTIVE and its lease clock restarts; with none for
    `tasking.claim_lease_s` the claim is released and the job is OPEN again (TB-1). Then the outcome:
    - RESUPPLY: DONE when a claimant stands at the node with its cargo gone (the delivery stop
-     ended); FAILED when the side lost the node. DEFEND: FAILED likewise; DONE when a claimant
+     ended); FAILED when the side lost the node. The sanctuary repair job (`resupply:<sanctuary>`,
+     NX-497): DONE when a claimant stands there and its defense hp is full (it carries nothing;
+     `defense._repair_sanctuaries` rebuilds it); a sanctuary is never lost. DEFEND: FAILED
+     likewise; DONE when a claimant
      stands at the node and the threat is gone (no bar of the other side, and the side tracks no
      enemy GROUND unit within `tasking.defend_radius_m`; for a sanctuary, also its defense hp is
      full or no tracked enemy aircraft is within the radius, Q-TD-122)). STRIKE: DONE when the
@@ -78,7 +81,8 @@ while frozen (SC-11), for each side in COALITION, ENEMY order:
    unclaimed coalition resupply job's at most `expire_min`, Q-SIM-132), an exact Fraction,
    highest first; runs of equal priority are ordered by one `tasking` draw each, in job id
    order, then by id. Feasible: a GROUND unit has a road route (an empty truck on a resupply
-   job reloads at a source first; neither resupply leg enters a node the other side holds,
+   job reloads at a source first, but takes the sanctuary repair job empty and refuses it loaded,
+   NX-497; neither resupply leg enters a node the other side holds,
    `logistics.supply_route`, Q-SIM-122);
    an aircraft reaches the target and a landing base of its side with the bingo reserve left,
    its straight route crosses no discovered, not-Disabled enemy air-defense ring unless the
@@ -99,7 +103,8 @@ coalition scout was tracked inside a held node's radius, dropped when it is not)
 
 A non-garrison unit may displace an AI garrison claimant (Q-TD-11; `tasking.human_displaces_ai`).
 An AI garrison unit takes the `tasking.ai_jobs` (DEFEND, RESUPPLY, SCOUT) freely, never the
-`tasking.ai_excluded_jobs` (ESCORT_CONVOY, PATROL) or a retake (a viewer's truck's, Q-TD-100),
+`tasking.ai_excluded_jobs` (ESCORT_CONVOY, PATROL), a retake (a viewer's truck's, Q-TD-100) or the
+sanctuary repair job (NX-497),
 and any other job only once a COMMANDER-owned
 unit holds a claim on it (it never initiates offense). A parameterless JOIN takes the best job at
 once (`joinable_jobs`, ties by id). For `tasking.counterattack_window_min` after its side loses a
@@ -154,6 +159,7 @@ from nexus.core.tasking_gen import (
     held_within,
     is_idle,
     live_site,
+    repairs_sanctuary,
     watched,
 )
 from nexus.core.world import (
@@ -388,8 +394,8 @@ def _may_take(world: World, tr: TaskingRules, e: Entity, job: Job) -> bool:
     if job.kind == _INTERCEPT:  # the garrison's own call: a round that can hit the scout
         track = world.contacts[e.side].get(job.entity or 0)
         return track is not None and world.rules is not None and can_hit(world.rules, e, track.kind)
-    if job.kind in tr.ai_excluded_jobs or job.key.startswith(RETAKE):
-        return e.owner_kind != _AI  # escort, patrol, retake: the players' call (Q-GP-45, Q-TD-100)
+    if job.kind in tr.ai_excluded_jobs or _viewers_only(world, e, job):
+        return e.owner_kind != _AI  # escort, patrol, retake, haven repair (NX-497): players only
     if e.owner_kind != _AI or job.kind in tr.ai_jobs:
         return True
     lost = world.lost.get(job.node or "")
@@ -398,6 +404,11 @@ def _may_take(world: World, tr: TaskingRules, e: Entity, job: Job) -> bool:
         if owner not in (e.side, "NEUTRAL"):
             return True
     return any((c := world.find(i)) is not None and c.owner_kind == _HUMAN for i in job.claims)
+
+
+def _viewers_only(world: World, e: Entity, job: Job) -> bool:
+    """A retake (Q-TD-100) or the sanctuary repair job (NX-497, Q-TD-124 (a)): viewer trucks."""
+    return job.key.startswith(RETAKE) or repairs_sanctuary(_rules(world)[0], e.side, job.key)
 
 
 def take(world: World, e: Entity, job: Job, out: list[Event]) -> None:
@@ -711,6 +722,12 @@ def _verdict(world: World, rules: Rules, tr: TaskingRules, side: Side, job: Job)
     node = job.node
     lost = node is not None and world.owner.get(node) != side
     match job.kind:
+        case "RESUPPLY" if repairs_sanctuary(rules, side, job.key):  # NX-497: parked, hp full
+            if lost:  # only when `capture.uncapturable_node_kinds` drops SANCTUARY
+                return "FAILED"
+            d = rules.defense  # posted only with defenses (`tasking_gen._sanctuary_repair`)
+            full = d is not None and world.defense_hp[str(node)] >= d.max_hp[str(node)]
+            return "DONE" if full and _present(world, job) else None
         case "RESUPPLY":
             if lost:
                 return "FAILED"
@@ -1165,7 +1182,7 @@ def _air_or_ground_reason(world: World, rules: Rules, e: Entity, job: Job, verdi
     if verdict == "ok":
         return "next_pass"
     if rules.domain[e.kind] == _GROUND:
-        return _ground_refusal(e, job)
+        return _ground_refusal(rules, e, job)
     if not world.landing_bases(e.side):
         return "no_base"
     if e.fuel is None:
@@ -1179,9 +1196,9 @@ def _air_or_ground_reason(world: World, rules: Rules, e: Entity, job: Job, verdi
     return "refuel_stuck" if _refuel_goal(world, rules, e, job)[1] else "refuel"
 
 
-def _ground_refusal(e: Entity, job: Job) -> str:
+def _ground_refusal(rules: Rules, e: Entity, job: Job) -> str:
     """Which of `_feasible`'s ground branches refused `job` (each returns only `ok` or `no`)."""
-    if job.kind == "RESUPPLY" and not e.cargo:
+    if job.kind == "RESUPPLY" and not e.cargo and not repairs_sanctuary(rules, e.side, job.key):
         return "no_reload"
     if job.kind == _PATROL:
         return "no_patrol_route"
@@ -1264,6 +1281,8 @@ def reaches(
 def _feasible(world: World, rules: Rules, routes: Routes, e: Entity, job: Job) -> Verdict:
     """TB-2. `refuel`: it fails now, but a full tank and load (a rearm step) would do."""
     if rules.domain[e.kind] == _GROUND:  # keep `_ground_refusal` (idle_reason) in step
+        if repairs_sanctuary(rules, e.side, job.key):  # empty, no reload (NX-497)
+            return "no" if e.cargo or _route(world, rules, routes, e, job) is None else "ok"
         if job.kind == "RESUPPLY" and not e.cargo:
             return "ok" if _reload_plan(world, rules, routes, e, job) is not None else "no"
         if job.kind == _PATROL:
@@ -1287,7 +1306,8 @@ def _dispatch(world: World, rules: Rules, routes: Routes, e: Entity, job: Job) -
     if rules.domain[e.kind] == _AIR:
         e.path = [_waypoint(world, job)]
         return
-    if job.kind == "RESUPPLY" and not e.cargo:  # reload first (Q-SIM-74)
+    if job.kind == "RESUPPLY" and not e.cargo and not repairs_sanctuary(rules, e.side, job.key):
+        # reload first (Q-SIM-74); the sanctuary repair job carries nothing (NX-497)
         run = _reload_plan(world, rules, routes, e, job)
         if run is None:
             return
