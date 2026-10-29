@@ -181,7 +181,8 @@ class TaskingRules:
 
     reeval_every_ticks: int
     claim_lease_ticks: int
-    expire_ticks: int  # an unclaimed job expires this long after it was posted
+    # an unclaimed job expires this long after it was posted (not a retake or coalition resupply)
+    expire_ticks: int
     ticks_per_min: int  # running ticks in a game minute: the aging rate's divisor
     priority: Mapping[JobKind, Fraction]
     urgency_max_milli: int

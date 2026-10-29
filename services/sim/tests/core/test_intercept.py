@@ -223,8 +223,10 @@ def test_it_ranks_between_defend_and_strike() -> None:
     tr = RULES.tasking
     assert tr is not None
     job = Job(1, "INTERCEPT", "intercept:1", 1, 1000, 0)
-    assert priority(tr, Job(2, "STRIKE", "s", 1, 1000, 0), 0) < priority(tr, job, 0)
-    assert priority(tr, job, 0) < priority(tr, Job(3, "DEFEND", "d", 1, 1000, 0), 0)
+
+    strike, defend = Job(2, "STRIKE", "s", 1, 1000, 0), Job(3, "DEFEND", "d", 1, 1000, 0)
+    assert priority(tr, strike, 0, side="ENEMY") < priority(tr, job, 0, side="ENEMY")
+    assert priority(tr, job, 0, side="ENEMY") < priority(tr, defend, 0, side="ENEMY")
 
 
 # --- garrison fighters ----------------------------------------------------------------------------

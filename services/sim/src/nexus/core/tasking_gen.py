@@ -26,7 +26,9 @@ refers to an entity id, so a job names a node, or a SIGINT blob with its cell ce
   REPAIR_BRIDGE job of the first down bridge on the intact road route from the side's rear
   (`JobSpec.after`). Neither route enters a node the other side holds (`bridges.enemy_held`,
   Q-SIM-122; neutral nodes are passable): a node reached only through enemy ground depends on no
-  repair, and its job expires unclaimed.
+  repair, and its job stays posted unclaimed. A coalition resupply job does not expire unclaimed
+  (`tasking.unexpiring`, Q-SIM-131, NX-492): it keeps its posting time until this rule no longer
+  posts it, so LC-1's job age (`ai_trucks`) counts from its first posting.
 - **Defend** (`defend:<node>`): a node the side owns that can be captured and is threatened: the
   other side's capture bar is on it, or a tracked enemy GROUND unit is within
   `tasking.defend_radius_m` of it (Q-SIM-74). Urgency: 1.0 + the larger of the bar's share and
@@ -397,7 +399,8 @@ def _cut_off(
     """TB-8: the first down bridge on the intact road route from the side's rear to `node` (ties
     by node id, `shortest_path`), when no friendly source reaches `node` by road now. Neither route
     enters a node the other side holds, as the run would (Q-SIM-122): a node reached only through
-    enemy ground waits on no repair (nobody can take its job, so it expires)."""
+    enemy ground waits on no repair (nobody can take its job; the coalition's stays posted,
+    `tasking.unexpiring`)."""
     if (
         side != "COALITION"
         or not view.bridge_down

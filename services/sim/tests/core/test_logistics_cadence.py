@@ -11,13 +11,27 @@ config keeps them at the no-op values (Q-TD-113), which the goldens pin. Board s
 """
 
 import dataclasses
+from fractions import Fraction
 
-from test_join import join
+from test_join import CAMPAIGN_ID, join
 from test_launch import DR, skip
 from test_pol import GARRISON_ONLY, window
 from test_pol import new_world as pol_world
-from test_retake import RET_RULES, lose
-from test_tasking import AI, CONFIG, HUMAN, RULES, TR, board_pass, jobs, new_world, post, put
+from test_retake import RET_RULES, STOCK_RET_RULES, _order, ended, lose, scene
+from test_retake import pass_at as retake_pass
+from test_tasking import (
+    AI,
+    CONFIG,
+    EVERY,
+    HUMAN,
+    RULES,
+    TR,
+    board_pass,
+    jobs,
+    new_world,
+    post,
+    put,
+)
 
 from nexus.contracts.gen.common.enums import OwnerKind
 from nexus.contracts.gen.events.event import Event
@@ -30,8 +44,9 @@ from nexus.core.launch import _night_capped
 from nexus.core.logistics import logistics, plan_run
 from nexus.core.rules import DirectorRules, EconomyRules, Rules
 from nexus.core.step import step
-from nexus.core.tasking import claim, idle_reason, joinable_jobs
-from nexus.core.world import Entity, Job, Vec2, World, load, save, state_hash
+from nexus.core.tasking import _now, claim, idle_reason, joinable_jobs, priority, rank
+from nexus.core.world import Claim, Entity, Job, Vec2, World, load, save, state_hash
+from nexus.runtime.campaign_config import start_campaign
 from nexus.runtime.golden import shipped_config
 
 _eco = CONFIG.rules.economy
@@ -698,3 +713,146 @@ def test_a_loaded_truck_on_a_neutral_or_enemy_node_with_room_takes_a_job_elsewhe
         truck = put(w, "LOGI_TRUCK", "cross-n", AI, cargo=60)  # cross-n: max 1000, stock 0
         board_pass(w)
         assert truck.job_id is not None and truck.path[-1] == "west-airbase"  # Q-SIM-126
+
+
+# --- NX-492: an unclaimed coalition resupply job does not expire (Q-SIM-131 (a)) ----------------
+# W0-W2 review F1: at the shipped keys TB-1 expired the unclaimed job at 9,000 ticks and posted it
+# again, so LC-1's job age (9,000) never came round and no AI truck spawned with no viewers.
+
+SHIPPED = CONFIG.rules.supply.ai_truck_period_ticks
+EXPIRE = TR.expire_ticks
+assert (SHIPPED, EXPIRE) == (9_000, 9_000)  # period_s 900, expire_min 15, at 10 Hz
+
+
+def pass_at(w: World, tick: int) -> list[Event]:
+    """LC-1 (at a period window) and then one board pass at running tick `tick`."""
+    out = at(w, tick) if tick % SHIPPED == 0 else []
+    w.campaign.running_ticks = tick - 1
+    return out + board_pass(w)
+
+
+def test_an_unclaimed_job_gets_ai_trucks_at_the_first_window_after_one_period() -> None:
+    w, job = starving_west(cadence(3, period=SHIPPED))  # posted at 50, no viewer, no truck
+    out: list[Event] = []
+    for t in range(job.created + EVERY, 2 * SHIPPED, EVERY):
+        out += pass_at(w, t)  # the window at 9,000 included: the job is 8,950 ticks old there
+    assert ai_trucks_of(w) == [] and [j for j in jobs(w) if j.kind == "RESUPPLY"] == [job]
+    assert not [e for e in out if e.kind in ("JobExpired", "JobCreated")]
+    out = pass_at(w, 2 * SHIPPED)  # the first window after it is one period old
+    trucks = ai_trucks_of(w)
+    assert len([e for e in out if e.kind == "UnitSpawned"]) == 3 == len(trucks)
+    assert sorted(job.claims) == [e.id for e in trucks] and w.viewer_units() == 0
+
+
+def test_a_no_viewer_overnight_scene_spawns_ai_trucks_that_deliver() -> None:
+    """The overnight-0 shape: the shipped config with LC-1 on (`max_live` 3) and no command, run
+    to 28,000 ticks: the first spawn window after one period is 18,000 and the first AI delivery
+    lands at 27,640 (seed 1)."""
+    cfg = shipped_config({"logistics.ai_trucks.max_live": 3})
+    w = start_campaign(CAMPAIGN_ID, 1, cfg)
+    events = [e for _ in range(28_000) for e in step(w, [])]
+    ai = {
+        e.entity_id for e in events
+        if e.kind == "UnitSpawned" and e.side == "COALITION" and e.owner_kind == "AI_GARRISON"
+        and e.unit_kind == "LOGI_TRUCK"
+    }  # fmt: skip
+    assert ai and w.viewer_units() == 0
+    assert [e for e in events if e.kind == "SupplyDelivered" and e.carrier_id in ai]
+
+
+def test_an_unclaimed_job_keeps_its_id_while_it_qualifies_and_is_withdrawn_after() -> None:
+    w, job = starving_west(RULES)  # LC-1 off: nobody ever claims it
+    out: list[Event] = []
+    for t in range(job.created + 1_500, job.created + 2 * EXPIRE + 1, 1_500):
+        out += pass_at(w, t)
+    assert [j for j in jobs(w) if j.kind == "RESUPPLY"] == [job] and job.created == 50
+    assert not [e for e in out if e.kind in ("JobExpired", "JobCreated")]
+    w.stock["west-airbase"] = RULES.supply.max_stock["west-airbase"]  # no longer needs it
+    out = board_pass(w)
+    assert ended(out, job) == ["JobExpired"] and jobs(w) == []
+
+
+def test_tb3_aging_is_capped_at_expire_min_so_ranking_is_as_before() -> None:
+    """Q-SIM-132 (a). Before NX-492 this front-line stocking job (50 x 0.75 = 37.5) expired
+    unclaimed at 15 game min, so it aged to about 52.4 at most (the last pass before its expiry):
+    past the retake (45) from 7.5 min on, never past a starving base's job at 1.05 and up or a
+    DEFEND (60 x 1.0 and up). Capped at `expire_min`'s 15 points while unclaimed it ranks the
+    same way after an hour, and the board's own pass (`_assign`, its side's rank) agrees."""
+    w = scene("fob-n-w", rules=STOCK_RET_RULES)
+    w.stock.update({"west-airbase": 1600, "fob-s-w": 700})  # fob-s-w below target, not starving
+    board_pass(w)
+    (stocking,) = [j for j in jobs(w) if j.kind == "RESUPPLY"]
+    assert _order(w) == ["CAPTURE", "RESUPPLY"]  # 37.5 below the retake's 45
+    for t in range(stocking.created + 1_500, stocking.created + 4 * EXPIRE + 1, 1_500):
+        retake_pass(w, t)
+    assert [j for j in jobs(w) if j.kind == "RESUPPLY"] == [stocking] and stocking.urgency == 750
+    assert _now(w) - stocking.created > 4 * EXPIRE  # over 60 game min
+    assert priority(TR, stocking, _now(w), side="COALITION") == Fraction(75, 2) + 15  # the cap
+    assert _order(w) == ["RESUPPLY", "CAPTURE"]  # past the retake, as at 15 min before
+    w.stock["west-airbase"] = 300  # starving now: 1.0 + 200 / 500, 70 points
+    defend = post(w, "COALITION", "DEFEND", "west-airbase", "d", urgency=1000)  # 60 points
+    truck = put(w, "LOGI_TRUCK", "haven")  # a viewer's: it takes the best job it fits
+    board_pass(w)
+    assert truck.job_id is not None and w.boards["COALITION"][truck.job_id].node == "west-airbase"
+    ranked = rank(TR, jobs(w), _now(w), None, side="COALITION")
+    keys = [j.key for j in ranked if j.kind in ("RESUPPLY", "DEFEND", "CAPTURE")]
+    assert keys == ["resupply:west-airbase", defend.key, stocking.key, "retake:fob-n-w"]
+
+
+def test_only_an_unclaimed_coalition_resupply_jobs_aging_is_capped() -> None:
+    """A claimed coalition resupply job never expired and ages as before; the Static's has no cap
+    (Q-SIM-132 (a)): an hour old, 50 x 1.0 + 60 points, the unclaimed coalition one 50 + 15."""
+    now = 4 * EXPIRE
+    job = Job(1, "RESUPPLY", "resupply:fob-n-w", 3, 1000, 0, node="fob-n-w")
+    assert priority(TR, job, now, side="COALITION") == 50 + 15
+    assert priority(TR, job, now, side="ENEMY") == 50 + 60
+    job.claims = {7: Claim(0)}
+    assert priority(TR, job, now, side="COALITION") == 50 + 60
+
+
+def test_a_cut_off_bases_job_stays_posted_and_gets_no_ai_truck() -> None:
+    """A coalition base reached only through enemy ground (Q-SIM-122): its job depends on no
+    repair, stays posted unclaimed with one id (it no longer expires) and LC-1 spawns nothing."""
+    rules = cadence(3, period=SHIPPED)
+    w = new_world(rules=rules)
+    w.owner.update({"fob-n-e": "COALITION", "cross-n": "ENEMY", "cross-s": "ENEMY"})
+    w.stock["fob-n-e"] = 0
+    board_pass(w)
+    (job,) = [j for j in jobs(w) if j.key == "resupply:fob-n-e"]
+    assert job.depends_on is None and plan_run(w, rules, "COALITION", "fob-n-e") is None
+    for t in range(job.created + EVERY, 2 * SHIPPED + 1, EVERY):
+        pass_at(w, t)
+    assert [j for j in jobs(w) if j.key == "resupply:fob-n-e"] == [job] and not job.claims
+    assert ai_trucks_of(w) == []
+
+
+def test_the_statics_resupply_job_still_expires() -> None:
+    w = new_world()
+    w.stock["fob-n-e"] = 0  # the Static's base starves; its one carrier is on no node
+    w.spawn("ENEMY_CONVOY", "ENEMY", "ENEMY_DIRECTOR", Vec2(380e3, 120e3), vel=Vec2(0, 0))
+    board_pass(w)
+    (old,) = jobs(w, "ENEMY")
+    assert old.key == "resupply:fob-n-e" and not old.claims
+    retake_pass(w, old.created + EXPIRE - EVERY)
+    assert jobs(w, "ENEMY") == [old]
+    out = retake_pass(w, old.created + EXPIRE)
+    (new,) = jobs(w, "ENEMY")
+    assert ended(out, old) == ["JobExpired"] and new.id != old.id  # TB-1, then posted again
+
+
+def test_two_runs_and_a_restore_past_the_old_expiry_give_the_same_events_and_hash() -> None:
+    def run(w: World, ticks: int) -> list[Event]:
+        return [e for _ in range(ticks) for e in step(w, [])]
+
+    rules = cadence(3, period=SHIPPED)
+    a, b = new_world(rules=rules), new_world(rules=rules)
+    for w in (a, b):
+        w.stock["west-airbase"] = 0
+    first = run(a, EXPIRE + 500)  # past the tick TB-1 used to expire the job
+    assert first == run(b, EXPIRE + 500) and ai_trucks_of(a) == []
+    again = load(save(a))
+    again.rules = rules
+    assert state_hash(again) == state_hash(a)
+    rest = run(a, SHIPPED)  # through the spawn window at 18,000
+    assert rest == run(again, SHIPPED) and state_hash(again) == state_hash(a)
+    assert len(ai_trucks_of(a)) == 3
