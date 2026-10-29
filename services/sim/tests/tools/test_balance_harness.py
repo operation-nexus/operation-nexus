@@ -1154,12 +1154,63 @@ def test_set_takes_true_and_false_on_a_bool_key(tmp_path: Path) -> None:
         ("economy.free_viewer_spawn=yes", "not true or false"),
         (f"{KEY}=true", "not a valid int"),  # a bool on a numeric key
         ("economy.window_s=false", "not a valid"),
-        ("economy.unlimited=false", "numeric or boolean"),  # a section, not a leaf
+        ("economy.unlimited=false", "numeric, boolean or string"),  # a section, not a leaf
     ],
 )
 def test_set_checks_the_value_against_the_key_type(pair: str, match: str) -> None:
     with pytest.raises(ValueError, match=match):
         balance.override_balance([pair])
+
+
+ENUM = "campaign.victory.hold_break"  # shipped decay; schema enum decay or reset
+
+
+def test_an_enum_set_loads_and_runs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, shipped_config: CampaignConfig
+) -> None:
+    # NX-498: a string for a string key; the schema accepts it and every worker loads the copy
+    out = tmp_path / "o"
+    assert cli(monkeypatch, out, "--seeds", "1", "--set", f"{ENUM}=reset") == 0
+    doc = json.loads((out / "report.json").read_text())
+    assert doc["config"]["overrides"] == [f"{ENUM}=reset"]
+    loaded = balance.load_campaign_config(balance.ConfigPaths(balance=out / "balance.yaml"))
+    assert loaded.balance.campaign.victory.hold_break == "reset"
+    assert shipped_config.balance.campaign.victory.hold_break != "reset"
+    assert doc["config"]["config_hash"] == loaded.config_hash != shipped_config.config_hash
+    runs = [json.loads(f.read_text()) for f in sorted((out / "runs").glob("*.json"))]
+    assert runs and all(
+        r["config_hash"] == loaded.config_hash and r["crash"] is None and r["harness_error"] is None
+        for r in runs
+    )
+
+
+@pytest.mark.parametrize(
+    ("pair", "key"),
+    [
+        (f"{ENUM}=nope", ENUM),  # not in the enum
+        (f"{ENUM}=x", ENUM),  # a one-character word
+        (f"{ENUM}=yes", ENUM),  # a YAML 1.1 bool word stays text, so the enum refuses it
+        (f"{ENUM}=true", ENUM),
+        (f"{ENUM}=1", ENUM),
+        (f"{KEY}=reset", KEY),  # a string for a numeric key
+        ("economy.free_viewer_spawn=reset", "economy.free_viewer_spawn"),  # and for a bool key
+    ],
+)
+def test_a_bad_enum_set_exits_2_naming_the_key_before_out_exists(
+    pair: str,
+    key: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    out = tmp_path / "o"
+    assert cli(monkeypatch, out, "--set", pair) == 2
+    err = capsys.readouterr().err
+    assert err.startswith("error:") and key in err and not out.exists()
+    # the queue posts this error to a public issue: it names keys, never values
+    value = pair.partition("=")[2]
+    detail = err.removeprefix("error: ").split(": ", 1)[-1]  # drop the temp config path, if any
+    assert value not in detail.replace(key, "")
 
 
 def test_set_rejects_a_repeated_key() -> None:
