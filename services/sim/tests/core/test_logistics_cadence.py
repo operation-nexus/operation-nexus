@@ -237,8 +237,8 @@ def test_the_shipped_key_switches_it_on() -> None:
     assert (cfg.rules.supply.ai_truck_max_live, cfg.rules.supply.ai_truck_period_ticks) == (
         3, 9_600,
     )  # fmt: skip
-    shipped = CONFIG.rules
-    assert (shipped.supply.ai_truck_max_live, shipped.supply.ai_truck_period_ticks) == (0, 9_000)
+    shipped = shipped_config({}).rules  # Q-TD-128: shipped on
+    assert (shipped.supply.ai_truck_max_live, shipped.supply.ai_truck_period_ticks) == (3, 9_000)
 
 
 # --- LC-1: retirement -----------------------------------------------------------------------------
@@ -399,8 +399,14 @@ def west_slots(rules: Rules, stock: int) -> int:
     return job.slots
 
 
-def test_the_default_cap_is_unchanged_and_a_raise_follows_the_need() -> None:
-    assert TR.resupply_slots_max_starving == TR.resupply_slots_max == 3
+def test_the_shipped_cap_is_raised_to_6() -> None:
+    shipped = shipped_config({}).rules.tasking
+    assert shipped is not None
+    assert (shipped.resupply_slots_max, shipped.resupply_slots_max_starving) == (3, 6)  # Q-TD-128
+
+
+def test_the_old_cap_is_unchanged_and_a_raise_follows_the_need() -> None:
+    assert TR.resupply_slots_max_starving == TR.resupply_slots_max == 3  # the pre-switch-on fixture
     assert west_slots(RULES, 205) == 3
     assert west_slots(raised(3), 205) == 4  # need 295/500 = 0.59: 3 + floor(0.59 x 3)
     assert west_slots(raised(3), 0) == 6  # need 1
@@ -449,8 +455,11 @@ def at_window(w: World, now: int, rules: Rules = CONVOYS) -> None:
     window(w, "PATTERN_OF_LIFE", 0, rules)
 
 
-def test_the_shipped_demand_is_the_period_so_nothing_changes() -> None:
-    assert DR.convoy_demand_ticks == DR.convoy_ticks
+def test_the_shipped_demand_is_900_s_and_the_old_demand_is_the_period() -> None:
+    shipped = shipped_config({}).rules.director
+    assert shipped is not None
+    assert (shipped.convoy_demand_ticks, shipped.convoy_ticks) == (9_000, 36_000)  # Q-TD-128
+    assert DR.convoy_demand_ticks == DR.convoy_ticks  # the fixture: demand = period, as before
     w = pol_world(1, GARRISON_ONLY, opening=True)
     w.stock["east-airbase"] = 0
     at_window(w, DEMAND, GARRISON_ONLY)
