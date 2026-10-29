@@ -474,6 +474,14 @@ def test_set_takes_bool_literals_and_enum_segments(cfg: dict[str, Any]) -> None:
     ]  # fmt: skip
 
 
+def test_set_takes_an_enum_word(cfg: dict[str, Any]) -> None:
+    # NX-498 (issue #541): balance.py and the schema check the word, the queue only its shape
+    value = "campaign.victory.hold_break=reset, a.b=HOLD, a.c=true1"
+    assert hq.parse_block(block(set=value), cfg, NAMES)["set"] == [
+        "campaign.victory.hold_break=reset", "a.b=HOLD", "a.c=true1",
+    ]  # fmt: skip
+
+
 def test_set_takes_max_overrides(cfg: dict[str, Any]) -> None:
     # 16 (queue.yaml): the 3 economy switches plus all 9 economy.upkeep kinds fit (Q-TD-41, J5)
     value = ",".join(f"k{i}=1" for i in range(16))
@@ -486,8 +494,11 @@ def test_set_takes_max_overrides(cfg: dict[str, Any]) -> None:
         ",".join(f"k{i}=1" for i in range(17)),  # over max_overrides (16)
         "A.b=1", "a..b=1", "a=1;rm", "a=1e9", "a=$(x)", "a=", "a=1234567890",
         # bools: lower-case literals only, nothing around them
-        "a=True", "a=FALSE", "a=yes", "a=on", "a=true1", "a=truefalse", "a=-true", "a=tru",
-        "a.ENEMY=fals", "a.ENEMY-1=true", "a.b=true;rm", "a.b=`true`", "a.b= true x",
+        "a=True", "a=FALSE", "a=yes", "a=on", "a=No", "a=null", "a=-true",
+        "a.ENEMY-1=true", "a.b=true;rm", "a.b=`true`", "a.b= true x",
+        # enum words: one short plain word (NX-498), nothing else
+        "a=re set", "a=re=set", "a=reset;rm", "a=$reset", "a=`reset`", "a=1reset", "a=_reset",
+        "a=" + "x" * 33, "a=r\u00e9set", "a=reset-x", "a=reset.x",
     ],
 )  # fmt: skip
 def test_set_refusals(cfg: dict[str, Any], value: str) -> None:

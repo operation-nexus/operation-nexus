@@ -10,10 +10,12 @@ the crowd profiles of Q-TEST-5, and writes a report per run and per profile (JSO
 `--hours` the game hours per run (default `campaign.time_limit_h`, 72 shipped;
 a run stops early when the campaign ends);
 `--workers` the number of parallel processes (seeds are independent, so the report does not depend
-on it). `--set key=value` (repeatable) overrides one numeric or boolean balance key of the shipped
-config (e.g. `--set tasking.strike_idle_targets_max=0`, `--set economy.unlimited.ENEMY=true`; a
-boolean key takes `true` or `false` only, a numeric key a number only); the whole config then
-loads once before `--out` is made (so a one-sided cut of a mirrored pair with
+on it). `--set key=value` (repeatable) overrides one numeric, boolean or enum-string balance key of
+the shipped config (e.g. `--set tasking.strike_idle_targets_max=0`,
+`--set economy.unlimited.ENEMY=true`; a boolean key takes `true` or `false` only, a numeric key a
+number only, a string key the text as given, which the schema then checks, e.g.
+`--set campaign.victory.hold_break=reset`); the whole config then loads once before `--out` is made
+(so a one-sided cut of a mirrored pair with
 `economy.cost_parity` true exits 2, ECONOMY EC-3), the overridden copy is saved as
 `<out>/balance.yaml` (every worker loads that file), and the report lists the overrides beside
 the resulting config hash and the economy mode (`economy.unlimited.<side>`: ECONOMY EC-15); a key
@@ -72,7 +74,8 @@ BOOLS = {"true": True, "false": False}
 
 def override_balance(pairs: list[str]) -> str:
     """The shipped balance config as YAML text with `key=value` overrides applied and validated
-    by the sim's own loader: a number for a numeric key, `true` or `false` for a boolean one.
+    by the sim's own loader: a number for a numeric key, `true` or `false` for a boolean one, the
+    text as given for a string key (NX-498; the schema checks it, so `yes` is never read as a bool).
     Raises ValueError (bad pair) or ConfigError (schema)."""
     tree = yaml.safe_load(ConfigPaths().balance.read_text())
     keys = [p.partition("=")[0] for p in pairs]
@@ -90,8 +93,11 @@ def override_balance(pairs: list[str]) -> str:
                 raise ValueError(f"--set {key}: {text!r} is not true or false")
             node[leaf] = BOOLS[text]
             continue
+        if isinstance(old, str):  # an enum or text key: the text as given; the schema checks it
+            node[leaf] = text
+            continue
         if not isinstance(old, int | float):
-            raise ValueError(f"--set {key}: not an existing numeric or boolean balance key")
+            raise ValueError(f"--set {key}: not an existing numeric, boolean or string balance key")
         try:
             value = int(text) if isinstance(old, int) else float(text)
         except ValueError:
