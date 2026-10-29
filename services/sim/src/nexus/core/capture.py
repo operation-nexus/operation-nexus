@@ -5,8 +5,10 @@ STATE-MACHINES §4.2, Q-SIM-56, Q-SIM-57).
 progress as an integer of millionths of a percent (`CAPTURE_FULL` = 100 %), so the flip threshold
 and the decay are exact and a snapshot restores them bit for bit. Each tick's gain is
 `round(CAPTURE_FULL x world_dt / time)`, at least 1, where
-`time = max(min_time_s, time_s x quiet_mult(v) / n^exponent x garrison modifier)`, so `min_time_s`
-is the only cap on how fast a crowd can flip a base (Q-GP-4).
+`time = max(min_time_s, time_s x time_mult[kind] x quiet_mult(v) / n^(exponent + extra[kind]) x
+garrison modifier)`, so `min_time_s` is the only cap on how fast a crowd can flip a base (Q-GP-4);
+`time_mult` and `extra` are by the node's kind, for whichever side captures (NX-490: an HQ is very
+hard to capture, hardest alone; every other kind 1.0 and 0).
 
 Who counts (by position within `capture.radius_m` of the node): GROUND units are capturers, a
 logistics unit (`Supply.carriers`) weighing `logi_weight`; airborne air never counts (N-3; with the
@@ -70,7 +72,7 @@ import math
 from dataclasses import dataclass, field
 from typing import Literal
 
-from nexus.contracts.gen.common.enums import NodeOwner, Side
+from nexus.contracts.gen.common.enums import NodeKind, NodeOwner, Side
 from nexus.contracts.gen.events.capture_started import CaptureStarted
 from nexus.contracts.gen.events.event import Event
 from nexus.contracts.gen.events.node_captured import NodeCaptured
@@ -253,7 +255,8 @@ def _tick_node(
         return
     elif no_fill:
         return
-    base = _base_time(cap, near[bar.side].weight, quiet if bar.side in cap.quiet_sides else 1.0)
+    quiet_now = quiet if bar.side in cap.quiet_sides else 1.0
+    base = _base_time(cap, rules.node_kind[node], near[bar.side].weight, quiet_now)
     time = max(cap.min_time_s, base * _modifier(cap, owner, near))
     bar.progress += max(cap.min_progress, round(CAPTURE_FULL * rules.world_dt / time))
     if bar.progress >= CAPTURE_FULL:
@@ -295,8 +298,18 @@ def _starter(near: dict[Side, _Presence], free: list[Side]) -> Side | None:
     return None
 
 
-def _base_time(cap: CaptureRules, n: float, quiet: float) -> float:
-    return cap.time_s * quiet / float(n**cap.exponent)
+def _base_time(cap: CaptureRules, kind: NodeKind, n: float, quiet: float) -> float:
+    """NX-490: the node kind's `time_mult` and `extra_exponent`, for whichever side captures."""
+    return cap.time_s * cap.time_mult[kind] * quiet / float(n ** (cap.exponent + cap.extra[kind]))
+
+
+def capture_weight(world: World, node: str, side: Side) -> float:
+    """The capture weight `side` has at `node` now, as the bar counts it (read-only; the balance
+    harness reports it for an HQ capture, NX-490)."""
+    rules = world.rules
+    if rules is None or rules.capture is None:
+        return 0.0
+    return _presence(world, rules, rules.capture, [node])[node][side].weight
 
 
 def _modifier(cap: CaptureRules, owner: NodeOwner, near: dict[Side, _Presence]) -> float:

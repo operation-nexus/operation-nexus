@@ -136,6 +136,28 @@ class Defeat(BaseModel):
     ]
 
 
+class TimeMult(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    AIRBASE: Annotated[float, Field(gt=0.0)]
+    FOB: Annotated[float, Field(gt=0.0)]
+    HQ: Annotated[float, Field(gt=0.0)]
+    PORT: Annotated[float, Field(gt=0.0)]
+    SANCTUARY: Annotated[float, Field(gt=0.0)]
+
+
+class ExtraExponent(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    AIRBASE: Annotated[float, Field(ge=0.0, le=4.0)]
+    FOB: Annotated[float, Field(ge=0.0, le=4.0)]
+    HQ: Annotated[float, Field(ge=0.0, le=4.0)]
+    PORT: Annotated[float, Field(ge=0.0, le=4.0)]
+    SANCTUARY: Annotated[float, Field(ge=0.0, le=4.0)]
+
+
 class DefenseHp(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -1393,6 +1415,19 @@ class Capture(BaseModel):
         Field(
             description="Diminishing returns: the capture time is divided by n to this power, n the weighted capturers in radius, unit exponent (Q-SIM-26).",
             ge=0.0,
+            le=4.0,
+        ),
+    ]
+    time_mult: Annotated[
+        TimeMult,
+        Field(
+            description="NX-490 (Q-TD-105, Q-TD-127): multiplies capture.time_s at a node of each kind, for whichever side captures (EC-3 parity); capture.min_time_s still applies after it. Every kind but HQ 1.0 (unchanged); HQ PROPOSED 20, a placeholder with no measured basis (sweep 5-40), unit multiplier (GAMEPLAY §8)."
+        ),
+    ]
+    extra_exponent: Annotated[
+        ExtraExponent,
+        Field(
+            description="NX-490 (Q-TD-105, Q-TD-127): added to capture.multi_unit_exponent at a node of each kind, for whichever side captures, so the capture time there is divided by n^(multi_unit_exponent + extra_exponent). Every kind but HQ 0 (unchanged); HQ PROPOSED 0.5 (exponent 1.0, a lone capturer pays the most), a placeholder with no data (sweep 0-1), unit exponent (GAMEPLAY §8)."
         ),
     ]
     quiet_floor: Annotated[

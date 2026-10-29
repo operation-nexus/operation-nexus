@@ -100,6 +100,8 @@ capture:
   radius_m: 2000.0
   time_s: 120.0
   multi_unit_exponent: 0.5
+  time_mult: {AIRBASE: 1.0, FOB: 1.0, HQ: 20.0, PORT: 1.0, SANCTUARY: 1.0}
+  extra_exponent: {AIRBASE: 0.0, FOB: 0.0, HQ: 0.5, PORT: 0.0, SANCTUARY: 0.0}
   quiet_floor: 0.6
   quiet_ref: 50
   min_time_s: 30.0
@@ -371,9 +373,10 @@ economy:
 # `economy.shortfall_quiet_windows`, NX-472 for `combat.facility_restore_frac`, NX-468 for
 # `combat.overkill_check`, NX-412 part 5b again for its harness-tuned defaults, NX-488 for
 # deleting `economy.legacy_rules`, `director.budget` and `director.max_live_units`, NX-484 for
-# `tasking.retake_keep_min`, NX-489 for the `campaign.victory` hold decay keys); a change means
+# `tasking.retake_keep_min`, NX-489 for the `campaign.victory` hold decay keys, NX-490 for
+# `capture.time_mult` and `capture.extra_exponent`); a change means
 # every config_hash moved.
-GOLDEN_CONFIG_HASH = "39e1e40ace6c917bc055d6741df350642919f91a980c687f6c49c1e4fbb4b0f1"
+GOLDEN_CONFIG_HASH = "8c3ff7d91b5d3a081aa294c06100e190b288f1b127dffa093174b7ab53955ad6"
 AIR = {
     "bingo_reserve_frac": 0.15,
     "orbit_period_s": 120.0,
@@ -435,6 +438,8 @@ CAPTURE = {
     "radius_m": 2000.0,
     "time_s": 120.0,
     "multi_unit_exponent": 0.5,
+    "time_mult": {"AIRBASE": 1.0, "FOB": 1.0, "HQ": 20.0, "PORT": 1.0, "SANCTUARY": 1.0},
+    "extra_exponent": {"AIRBASE": 0.0, "FOB": 0.0, "HQ": 0.5, "PORT": 0.0, "SANCTUARY": 0.0},
     "quiet_floor": 0.6,
     "quiet_ref": 50,
     "min_time_s": 30.0,
@@ -1097,6 +1102,8 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "  quiet_ref: 50, min_time_s: 30.0, logi_weight: 0.5, garrison_mult: 3.0,\n"
         "  empty_base_mult: 0.5, decay_per_s: 0.008333333333333333,\n"
         "  min_progress_per_tick: 1,\n"
+        "  time_mult: {SANCTUARY: 1.0, PORT: 1.0, HQ: 20.0, FOB: 1.0, AIRBASE: 1.0},\n"
+        "  extra_exponent: {SANCTUARY: 0.0, PORT: 0.0, HQ: 0.5, FOB: 0.0, AIRBASE: 0.0},\n"
         "  defense_hp: {AIRBASE: 500, FOB: 300, HQ: 800, PORT: 300, SANCTUARY: 1000},\n"
         "  sanctuary_repair_hp_per_s: 1.0, uncapturable_node_kinds: [SANCTUARY, BRIDGE],\n"
         "  quiet_sides: [COALITION], air_weight: 1.0, air_counts: false,\n"

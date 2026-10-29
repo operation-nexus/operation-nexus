@@ -126,6 +126,10 @@ class CaptureRules:
     requires_defenses_down: bool  # a bar starts only at 0 defense hp (Q-GD-18)
     air_weight: float | None  # capture.air_weight when capture.air_counts, else None (N-3)
     quiet_sides: frozenset[Side]  # the sides the quiet-stream multiplier applies to (Q-SIM-26)
+    # NX-490 (Q-TD-127): by node kind, for whichever side captures: capture.time_mult.<kind> and
+    # capture.extra_exponent.<kind> (added to `exponent`); every kind but HQ 1.0 and 0
+    time_mult: Mapping[NodeKind, float]
+    extra: Mapping[NodeKind, float]
 
 
 @dataclass(frozen=True, slots=True)
@@ -848,6 +852,8 @@ def _capture(capture: Capture, dt: float) -> CaptureRules:
         capture.empty_base_mult, decay_micro, capture.min_progress_per_tick,
         capture.requires_defenses_down, capture.air_weight if capture.air_counts else None,
         frozenset(capture.quiet_sides),
+        cast(Mapping[NodeKind, float], capture.time_mult.model_dump()),
+        cast(Mapping[NodeKind, float], capture.extra_exponent.model_dump()),
     )  # fmt: skip
 
 

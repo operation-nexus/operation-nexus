@@ -308,11 +308,14 @@ def test_capturing_the_enemy_hq_wins() -> None:
     w = new_world()
     put(w, "static-hq", 1)
     events: list[Event] = []
-    while not w.campaign.ended and w.campaign.tick < 200:
+    while not w.campaign.ended and w.campaign.tick < 2000:
         events += run(w)
     (flip,) = of(events, NodeCaptured)
     (ended,) = of(events, CampaignEnded)
     assert (flip.node_id, flip.participant_commander_ids) == ("static-hq", [cid(1)])
+    # NX-490: HQ x20, n^1.0; 1 viewer unit, quiet 0.608: 120 x 20 x 0.608 x 0.5 = 729.6 s,
+    # 1216 ticks (Q-TD-127)
+    assert flip.tick == 1216
     assert (ended.result, ended.winner, ended.tick) == ("VICTORY", "COALITION", flip.tick)
     assert events.index(flip) < events.index(ended)  # the flip, then the end, in one tick
     assert ended.nodes_held_pct == 38  # 3 of 8, 37.5 half up
