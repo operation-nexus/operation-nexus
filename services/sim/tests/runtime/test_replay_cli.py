@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+from nexus.core.economy import start as start_economy
 from nexus.core.world import Campaign, World, state_hash
 from nexus.runtime.campaign_config import CampaignConfig
 from nexus.runtime.command_log import CommandLogWriter
@@ -25,7 +26,9 @@ def rig(
     tmp_path: Path, log_writer: Callable[..., CommandLogWriter], shipped_config: CampaignConfig
 ) -> Rig:
     campaign = Campaign(CAMPAIGN_ID, 12345, shipped_config.config_hash)
-    return Rig(log_writer, tmp_path, world=World.new(campaign, shipped_config.rules))
+    world = World.new(campaign, shipped_config.rules)
+    start_economy(world)  # the shipped rules limit both sides (NX-412 part 5b); a restore checks
+    return Rig(log_writer, tmp_path, world=world)
 
 
 def cli(*args: str | Path) -> subprocess.CompletedProcess[str]:

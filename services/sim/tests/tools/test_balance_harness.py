@@ -1107,6 +1107,8 @@ def test_set_takes_true_and_false_on_a_bool_key(tmp_path: Path) -> None:
     assert balance.load_campaign_config(balance.ConfigPaths(balance=path)).rules.economy is not None
     on = yaml.safe_load(balance.override_balance(["economy.unlimited.COALITION=true"]))
     assert on["economy"]["unlimited"]["COALITION"] is True
+    off = yaml.safe_load(balance.override_balance(["combat.strike_structure_first=false"]))
+    assert off["combat"]["strike_structure_first"] is False  # shipped true since part 5b
 
 
 @pytest.mark.parametrize(
