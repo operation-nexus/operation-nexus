@@ -180,6 +180,21 @@ def test_a_full_sanctuary_ends_its_job_though_a_ground_contact_is_still_in_range
     assert "JobDone" in kinds(events) and defends(w) == []
 
 
+def test_a_capturable_full_sanctuary_keeps_its_ordinary_defend_job_while_the_contact_stays() -> (
+    None
+):
+    # a config that drops SANCTUARY from the uncapturable kinds gets the ordinary ground-contact
+    # rule from the generator, and the verdict must hold it the same way (no complete-and-repost)
+    w = new_world(rules=dataclasses.replace(RULES, uncapturable=frozenset({"BRIDGE"})))
+    threat(w, kind="ENEMY_ARMOR", dist=3000.0)
+    jet = put(w, "STRIKE_FIGHTER", "west-airbase")
+    board_pass(w)
+    (job,) = [j for j in jobs(w) if j.kind == "DEFEND"]
+    jet.path, jet.last_node = [], HAVEN  # it is there
+    assert w.defense_hp[HAVEN] == FULL
+    assert "JobDone" not in kinds(board_pass(w)) and jobs(w) == [job]
+
+
 def test_the_job_ends_done_when_no_tracked_enemy_is_in_range_though_the_hp_is_still_low() -> None:
     w, _, striker = _held()
     lose_track(w, striker)

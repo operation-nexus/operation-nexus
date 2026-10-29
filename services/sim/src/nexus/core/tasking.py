@@ -693,9 +693,12 @@ def _menaced(world: World, rules: Rules, tr: TaskingRules, side: Side, node: str
     bar = world.capture.get(node)
     if bar is not None and bar.side != side:
         return True
-    if node == rules.supply.rear[side]:  # a sanctuary follows `besieged` alone (Q-TD-122)
+    if node == rules.supply.rear[side]:  # the sanctuary's own rule (Q-TD-122), as the generator
         tracks = [c for c in world.contacts[side].values() if c.age is None]
-        return besieged(rules, tr, world.defense_hp, side, node, tracks)
+        if besieged(rules, tr, world.defense_hp, side, node, tracks):
+            return True
+        if rules.node_kind[node] in rules.uncapturable:
+            return False  # an uncapturable sanctuary gets no ordinary defend job (`_defend`)
     x, y = rules.roads.pos[node]
     return any(
         c.age is None and rules.domain[c.kind] == _GROUND
