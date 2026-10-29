@@ -68,7 +68,10 @@ refers to an entity id, so a job names a node, or a SIGINT blob with its cell ce
   a strategic node the side held at campaign start (`Supply.start_owner`) and does not hold now,
   whose defense hp is 0 (after the strike on it), that a capture run from the side's rear reaches
   by road (`plan_run`, the bare JOIN's own plan). One at a time: the live retake job is kept while
-  its node still qualifies, and while one is claimed no other is posted; else the one nearest a
+  its node still qualifies, or for `tasking.retake_keep_min` after its defenses came back above 0
+  while the other rules hold (`_kept`, Q-TD-121, NX-484: the same job goes on if they fall again;
+  unclaimed, it never expires meanwhile, `tasking.standing`, so one job id per lost node),
+  and while one is claimed no other is posted; else the one nearest a
   node the side holds (exact squared straight-line distance, ties by node id). One slot (one
   truck's capture run, Q-GP-24; more join by overfill), urgency 1.0 x `tasking.priority.capture`,
   with no TB-3 aging (`tasking.priority`), so a starving or damaged base's resupply (1.0 and up
@@ -94,7 +97,7 @@ GM) is not.
 """
 
 import math
-from collections.abc import Iterable, Iterator, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from fractions import Fraction
 from itertools import pairwise
 from typing import NamedTuple
@@ -106,7 +109,7 @@ from nexus.core.fog import SideView
 from nexus.core.logistics import approach, facility_damage, plan_run, stock_targets
 from nexus.core.roads import shortest_path
 from nexus.core.rules import CAPTURE_FULL, Rules, TaskingRules
-from nexus.core.world import Contact, Entity, FacilityMarker, Vec2, World
+from nexus.core.world import Contact, Entity, FacilityMarker, Job, Vec2, World
 
 POST_GATE = (
     "post-gate"  # a `World.cooldown` key (cells are digits): no new scout job until its tick
@@ -302,7 +305,7 @@ def generate(
         *_intercept(world, rules, tr, side, view),
     ]
     kept = _cap_scouts([s for s in specs if s.kind in able], world, tr, side)
-    return [*kept, *_retake(world, rules, side, view, held)]  # staffed by trucks (`_retake`)
+    return [*kept, *_retake(world, rules, tr, side, view, held)]  # staffed by trucks (`_retake`)
 
 
 def _offense_open(world: World, tr: TaskingRules, side: Side) -> bool:
@@ -530,21 +533,25 @@ def _patrol(
 
 
 def _retake(
-    world: World, rules: Rules, side: Side, view: SideView, held: frozenset[str]
-) -> Iterator[JobSpec]:
+    world: World, rules: Rules, tr: TaskingRules, side: Side, view: SideView,
+    held: frozenset[str],
+) -> Iterator[JobSpec]:  # fmt: skip
     """The one retake job (module docstring), while a viewer can JOIN as a carrier."""
     rc = rules.campaign
     trucks = any(k in rules.supply.carriers for k in rules.role_kind.values())
     if side != "COALITION" or rc is None or not trucks:
         return
-    lost = [
-        n for n in rc.strategic
-        if rules.supply.start_owner.get(n) == side and view.owners.get(n) != side
-        and not view.defense_hp.get(n, 0)
-        and plan_run(world, rules, side, n, held=held) is not None
-    ]  # fmt: skip
+
+    def open_(n: str) -> bool:  # every rule but the defenses (start node, not held, a road)
+        held_at_start = rules.supply.start_owner.get(n) == side and view.owners.get(n) != side
+        return held_at_start and plan_run(world, rules, side, n, held=held) is not None
+
+    lost = [n for n in rc.strategic if not view.defense_hp.get(n, 0) and open_(n)]
     live = sorted((j.id, j) for j in world.boards[side].values() if j.key.startswith(RETAKE))
-    node = next((j.node for _, j in live if j.node in lost), None)
+    now = world.campaign.running_ticks + 1  # the pass's tick (`tasking._now`)
+    node = next(
+        (j.node for _, j in live if _kept(tr, view, j, now, open_) or j.node in lost), None
+    )  # `_kept` first: it also clears the keep clock of a job whose node is down again
     if node is None and any(j.claims for _, j in live):
         return  # one at a time: a claimed one that no longer qualifies runs out first
     if node is None and lost:
@@ -552,6 +559,26 @@ def _retake(
         node = min(lost, key=lambda n: (_nearest2(view.nodes[n], mine), n))
     if node is not None:
         yield JobSpec("CAPTURE", f"{RETAKE}{node}", 1, 1000, node=node)
+
+
+def _kept(
+    tr: TaskingRules, view: SideView, job: Job, now: int, open_: Callable[[str], bool]
+) -> bool:
+    """Q-TD-121, NX-484: the live retake job stays `tasking.retake_keep_min` after its node's
+    defenses come back above 0, while every other rule still holds. `Job.lost` is the keep clock:
+    the first pass that saw the defenses up, cleared when they are down again (the same job goes
+    on). Never set at a keep of 0 (no keep). An unclaimed retake does not expire while generated
+    (`tasking.standing`), so this and the posting rule alone decide when it is withdrawn."""
+    if job.node is None:
+        return False
+    if not view.defense_hp.get(job.node, 0):
+        job.lost = None  # before the keep-0 return: no stale clock across a hot reload
+        return False  # down again: the posting rule (`lost`) decides
+    if not tr.retake_keep_ticks:
+        return False
+    if job.lost is None:
+        job.lost = now
+    return now - job.lost < tr.retake_keep_ticks and open_(job.node)
 
 
 def _nearest2(at: tuple[int, int], points: list[tuple[int, int]]) -> float:

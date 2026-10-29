@@ -57,7 +57,8 @@ while frozen (SC-11), for each side in COALITION, ENEMY order:
      since: Q-TD-87, NX-463), else EXPIRED, unless another job waits for it (the Director's chains,
      NX-156): its goal was met, so the next step must not fail with it. `JobDone` lists them all.
      A job with no claim expires `tasking.expire_min` after posting (an objective's job: with the
-     objective); one waiting for another does not expire.
+     objective); one waiting for another does not expire, nor does an unclaimed retake
+     (`standing`, Q-TD-121 revised: the generator withdraws it).
    - A job that depends on an ended one (TB-8) loses the dependency when it was DONE, else FAILS.
      When it loses it, its expiry clock restarts and its claimants (units that took it at spawn,
      `take`, and waited with their lease held) set off.
@@ -210,10 +211,19 @@ def _base(world: World) -> dict[str, Any]:
     }
 
 
+def standing(job: Job) -> bool:
+    """A coalition retake job stands outside the board's clocks: it does not age (TB-3), so a
+    starving base's resupply always ranks above it (Q-TD-100 (a), Q-TD-107), and while unclaimed it
+    does not expire (TB-1; Q-TD-121 revised, NX-484): one job id per lost node for as long as
+    `tasking_gen._retake` generates it, which withdraws it otherwise. A claim starts its CAPTURE
+    clock (`claim`), so once claimed it ends by the CAPTURE rules (`_outcome`)."""
+    return job.key.startswith(RETAKE)
+
+
 def priority(tr: TaskingRules, job: Job, now: int) -> Fraction:
-    """`tasking.priority.<kind>` x urgency, plus linear aging per game minute waited (TB-3). A
-    retake does not age, so a starving base's resupply always ranks above it (Q-TD-100 (a))."""
-    waited = Fraction(0 if job.key.startswith(RETAKE) else now - job.created, tr.ticks_per_min)
+    """`tasking.priority.<kind>` x urgency, plus linear aging per game minute waited (TB-3), but
+    none for a standing job (`standing`)."""
+    waited = Fraction(0 if standing(job) else now - job.created, tr.ticks_per_min)
     # 1000: `Job.urgency` is in thousandths of a multiplier (a fixed-point scale)
     return tr.priority[job.kind] * Fraction(job.urgency, 1000) + tr.aging_per_min * waited
 
@@ -396,6 +406,8 @@ def claim(world: World, e: Entity, job: Job, out: list[Event]) -> None:
                 if v.path and world.rules and world.rules.domain[v.kind] == _GROUND
                 else []
             )
+    if standing(job) and not job.claims and world.rules and world.rules.tasking:
+        job.expires = _now(world) + world.rules.tasking.expire_ticks  # its CAPTURE clock starts
     job.claims[e.id] = Claim(_now(world))
     job.claims = dict(sorted(job.claims.items()))
     e.job_id = job.id
@@ -734,7 +746,9 @@ def _outcome(
         verdict = "EXPIRED"  # nobody to credit (a job another waits for is DONE: its goal is met)
     # A job waiting for another does not expire (the one before it ends or fails it, TB-8); a
     # capture run ends at its expiry even with claimants (NX-156), unless one is capturing (NX-483).
+    # An unclaimed standing job (a retake) does not expire: the generator withdraws it (`standing`).
     held = job.depends_on is not None or (job.claims and job.kind != "CAPTURE")
+    held = held or (standing(job) and not job.claims)
     if verdict is None and not held and job.expires is not None and now >= job.expires:
         verdict = None if _capturing(world, rules, side, job) else "EXPIRED"
     return verdict

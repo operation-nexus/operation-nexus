@@ -1562,7 +1562,7 @@ class Tasking(BaseModel):
     expire_min: Annotated[
         float,
         Field(
-            description="An unclaimed job expires this long after it was posted (Q-SIM-73), unit min of game time. Objective jobs expire with the objective instead.",
+            description="An unclaimed job expires this long after it was posted (Q-SIM-73), unit min of game time. Objective jobs expire with the objective instead; an unclaimed coalition retake job does not expire (Q-TD-121), and a claimed one counts from its claim.",
             gt=0.0,
         ),
     ]
@@ -1794,6 +1794,13 @@ class Tasking(BaseModel):
         Field(
             description="An armed unit whose direct node order (JOIN with a node) has arrived holds that node and engages; the order ends, and the board takes the unit, at bingo or RTB, ammo out, a new order, or this long after it began holding (Q-SIM-110, NX-398), unit s of game time.",
             gt=0.0,
+        ),
+    ]
+    retake_keep_min: Annotated[
+        float,
+        Field(
+            description="An unclaimed coalition retake job (retake:<node>, a CAPTURE job) stays posted this long after its node's defenses come back above 0, and goes on as the same job if they fall to 0 again within it; recapture, a lost road or no truck role still withdraw it at once, and 0 means no keep; an unclaimed retake job never expires by expire_min (Q-TD-121 revised, Q-TD-107, NX-484), unit min of game time.",
+            ge=0.0,
         ),
     ]
     stock_urgency: Annotated[
