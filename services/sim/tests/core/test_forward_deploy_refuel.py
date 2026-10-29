@@ -27,6 +27,7 @@ from nexus.core.roads import Road, RoadGraph
 from nexus.core.rules import Rules, Supply
 from nexus.core.step import step
 from nexus.core.world import Campaign, Entity, Vec2, World, load, save, state_hash
+from nexus.runtime.golden import shipped_config
 
 FULL = 3600.0
 WEST = "west-airbase"
@@ -203,7 +204,9 @@ def test_hold_and_null_targets_spawn_at_the_sanctuary_with_no_debit() -> None:
 
 
 def test_the_static_deploys_by_the_same_function() -> None:
-    w = new_world()
+    # the Static unlimited, as shipped before NX-412 part 5b, so its rear source has no pool
+    enemy = shipped_config({"economy.unlimited.ENEMY": True}).rules.economy
+    w = new_world(dataclasses.replace(RULES, economy=enemy))
     assert plan_deploy(w, RULES, "ENEMY", "ENEMY_FIGHTER", "fob-n-w") == (
         "east-airbase",
         ["fob-n-w"],

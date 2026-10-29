@@ -59,10 +59,18 @@ def kinds(out: list[Event]) -> list[tuple[Any, ...]]:
     return rows
 
 
-def test_the_shipped_default_is_unlimited_for_both_sides_and_keeps_infinite_sources() -> None:
+def test_the_shipped_default_is_limited_for_both_sides() -> None:
     w = start_campaign(CAMPAIGN_ID, 1, shipped_config({}))
     assert w.rules is not None and w.rules.economy is not None
-    assert w.rules.economy.limited == ()  # Q-TD-29: temporary default until the NX-412 sweep
+    assert w.rules.economy.limited == ("COALITION", "ENEMY")  # EC-15 default, NX-412 part 5b
+    assert w.storage == {"COALITION": 6000, "ENEMY": 8000} and w.pool == w.storage
+
+
+def test_unlimited_mode_on_both_sides_keeps_infinite_sources() -> None:
+    both = {"economy.unlimited.COALITION": True, "economy.unlimited.ENEMY": True}
+    w = start_campaign(CAMPAIGN_ID, 1, shipped_config(both))
+    assert w.rules is not None and w.rules.economy is not None
+    assert w.rules.economy.limited == ()
     assert (w.pool, w.storage) == ({}, {})  # the snapshot names the mode: no pool = unlimited
     assert run_window(w) == []
     run = plan_run(w, w.rules, "COALITION", "cross-n")
@@ -86,13 +94,13 @@ def test_the_loader_reads_every_economy_key() -> None:
             "ENEMY_CONVOY": 1,
             "LOGI_TRUCK": 1,
         },
-        legacy=True,  # NX-412 part 3 (Q-TD-33): the shipped rollout switch
+        legacy=False,  # NX-412 part 3 (Q-TD-33): the rollout switch, off since part 5b
         free_viewer_spawn=True,
         max_live_per_side=1000,  # sim.max_live_units_per_side
         floor_viewer_units=5,  # NX-412 part 5b (EC-11)
         shortfall_quiet_windows=30,  # NX-436 (EC-6a)
     )
-    only_enemy = shipped_config({"economy.unlimited.ENEMY": False, "economy.window_s": 90})
+    only_enemy = shipped_config({"economy.unlimited.COALITION": True, "economy.window_s": 90})
     assert only_enemy.rules.economy is not None
     assert (only_enemy.rules.economy.limited, only_enemy.rules.economy.window_ticks) == (
         ("ENEMY",),
@@ -183,7 +191,7 @@ def test_a_convoy_at_its_rear_source_loads_at_most_the_pool() -> None:
 
 
 def test_unlimited_on_one_side_leaves_it_infinite_and_the_other_side_limited() -> None:
-    w = start_campaign(CAMPAIGN_ID, 1, shipped_config({"economy.unlimited.ENEMY": False}))
+    w = start_campaign(CAMPAIGN_ID, 1, shipped_config({"economy.unlimited.COALITION": True}))
     assert w.pool == {"ENEMY": 8000}
     for n in ("fob-n-w", "fob-s-w"):
         w.stock[n] = 250

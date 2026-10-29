@@ -15,7 +15,7 @@ cd services/sim && uv run --frozen python ../../tools/balance/balance.py \
 | `--seeds` | a count N (seeds 1..N) or a comma list; the sim seed is the seed itself |
 | `--hours` | game hours per run, default `campaign.time_limit_h` of the config in use (72 shipped, the acceptance length; follows `--set campaign.time_limit_h=...`). A run stops early when the campaign ends. Short runs work; targets that need a longer window say `not evaluable` |
 | `--workers` | parallel processes, one run each (default 1). `run_jobs` submits the runs biggest crowd first (`viewers` from `profiles.yaml`; ties keep the order given; the README's measured seconds per game hour rise with it: prime-50 31, evening-150 65, raid-300 150, surge-500 225), and a worker that finishes takes the next waiting run at once (backfill, no fixed chunks). Results go back to job order before the report is built, so the report does not depend on workers or completion order (NX-432). Across queued issues the queue overlaps jobs on one worker budget: see "Overlapping jobs (NX-442)" under Local run queue |
-| `--set` | `key=value`, repeatable: override one numeric or boolean key of the shipped balance config (dotted path, e.g. `tasking.strike_idle_targets_max=0`, `economy.legacy_rules=false`, `economy.unlimited.ENEMY=false`). A boolean key takes `true` or `false` only (lower case); a numeric key a number only, never a boolean (NX-412 part 5a). An unknown key, a section, a value of the wrong type, a float for an integer key, a key given twice or a value the schema rejects exits 2 before any run. The overridden copy is saved as `<out>/balance.yaml`, every worker loads it, and the report header lists the overrides next to the (changed) config hash, plus the economy mode (below) |
+| `--set` | `key=value`, repeatable: override one numeric or boolean key of the shipped balance config (dotted path, e.g. `tasking.strike_idle_targets_max=0`, `combat.overkill_check=false`). Since NX-412 part 5b the economy ships on (`economy.legacy_rules` false, `economy.unlimited.<side>` false): `economy.legacy_rules=true` or `economy.unlimited.<side>=true` selects the old rules or an unlimited side, and the report header labels the run as not a normal balance result (EC-15, below). A boolean key takes `true` or `false` only (lower case); a numeric key a number only, never a boolean (NX-412 part 5a). An unknown key, a section, a value of the wrong type, a float for an integer key, a key given twice or a value the schema rejects exits 2 before any run. The overridden copy is saved as `<out>/balance.yaml`, every worker loads it, and the report header lists the overrides next to the (changed) config hash, plus the economy mode (below) |
 | `--theater` | a theater file to run on instead of `content/theaters/strait-1.yaml`. Loaded with the sim's own loader (and cross-checked with the balance config) before any run: a missing, malformed or inconsistent file exits 2 with one stderr line, before `--out` exists. The loader wants the slug to equal the file name, so the copy is saved as `<out>/theater/<file name>` (not a fixed `theater.yaml`; a subdirectory so a file named `balance.yaml` cannot clobber the `--set` copy), every worker loads that copy, and the report header shows its slug, name, node count, landing-base count and the config hash (the theater is part of `config_hash`). The queue has no theater key on purpose: a hostile issue naming files on the owner's PC is a security surface, so adding one is a separate owner decision |
 | `--out` | report directory; must not exist (unless `--resume`) |
 | `--slot-dir DIR`, `--slot-key N` | (NX-460; both or neither, else exit 2; `N` a non-negative integer, the queue passes the issue number; `DIR` must hold `slot-*` files) share a host-wide pool of slot files with other jobs, so a job widens when another ends. Before each run a worker takes one `DIR/slot-*` with an exclusive `flock` (lowest free first, retrying every 2 s) and closes it when the run ends; the kernel frees it if the process dies. While a worker waits it holds a shared lock on `DIR/wait-<N, 9 digits>`, and it takes no slot while a job with a smaller key has a waiting worker (oldest job first; a killed job's lock frees itself, so a stale file blocks no one; `balance.py` never deletes wait files, the queue clears the unlocked ones at tick start). The seconds a run waited are `timing.slot_wait_s` in its JSON (`wall_s` excludes them); the report's `timing.slot_wait_s` is their sum and `report.md` has a `slot wait` line (runs saved before NX-460, kept by a resume, count 0). Absent: no slot code runs and `slot_wait_s` is 0.0. Put `DIR` on the Linux file system, not on `/mnt/c` |
@@ -94,19 +94,19 @@ Information only, no targets. The report header labels the economy mode of the c
 
 Not built yet (ECONOMY §4 asks, beyond this part): grounded unit-minutes by join-order quartile (viewer vs AI is R1 and R8 above, as a window share), grounded churn, the share of floor income cut by raids.
 
-Sweep recipe, the economy on and legacy rules off (one issue per value, `set` takes up to `max_overrides`, 16 (raised from 8 on 2026-10-26 so a run can zero all 9 `economy.upkeep` kinds with the 3 economy switches, Q-TD-41): the 3 economy switches leave 13 for tuning):
+Sweep recipe (one issue per value). Since NX-412 part 5b the shipped config has the economy on and legacy rules off, so a sweep needs no economy switches, and `set` has all `max_overrides` (16) slots for the keys being tuned. For example, U1 #511's spend probe:
 
 ````
 ```harness
-sha: <a develop commit with NX-412 part 5a>
-profiles: prime-50, raid-300, surge-500
-seeds: 5
-hours: 72
-set: economy.legacy_rules=false, economy.unlimited.ENEMY=false, economy.unlimited.COALITION=false, director.source_spend_frac=0.01
+sha: <a develop commit with NX-412 part 5b>
+profiles: raid-300
+seeds: 6
+hours: 24
+set: director.source_spend_frac=0.015
 ```
 ````
 
-Locally the same with `--set economy.legacy_rules=false --set economy.unlimited.ENEMY=false ...`.
+Locally the same with `--set director.source_spend_frac=0.015`.
 
 ### A1 steamroll check (NX-411, Q-TEST-11)
 

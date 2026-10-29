@@ -11,6 +11,7 @@ from typing import Any
 
 import msgpack
 import pytest
+from fixture_pre_5b import pre_5b_config
 from hypothesis import given
 from hypothesis import strategies as st
 from test_join import CAMPAIGN_ID, cid, join
@@ -41,7 +42,6 @@ from nexus.core.world import (
     state_hash,
 )
 from nexus.runtime.campaign_config import CampaignConfig, start_campaign
-from nexus.runtime.golden import shipped_config
 
 LIMITED = {"economy.unlimited.COALITION": False, "economy.unlimited.ENEMY": False}
 PAID = {
@@ -49,7 +49,7 @@ PAID = {
     # every window (NX-426): the payment-order tests below charge every unit each window
     "economy.upkeep_period.GARRISON_INFANTRY": 1, "economy.upkeep_period.STRIKE_FIGHTER": 1,
 }  # fmt: skip
-CONFIG = shipped_config({**LIMITED, **PAID})
+CONFIG = pre_5b_config({**LIMITED, **PAID})
 RULES = CONFIG.rules
 WINDOW = 600  # economy.window_s 60 game s at 10 Hz
 INF: UnitKind = "GARRISON_INFANTRY"
@@ -385,7 +385,7 @@ def test_upkeep_runs_before_the_director_window_in_the_same_tick() -> None:
     """EC-10: a Director unit idle past `director.idle_retire_s` (600 game s) is retired at the
     window, unless upkeep grounded it first in that tick: a grounded unit is not the Director's
     to retire, reuse or recall (`launch._spare`)."""
-    config = shipped_config(
+    config = pre_5b_config(
         {**LIMITED, "economy.upkeep.ENEMY_ARMOR": 5, "economy.upkeep_period.ENEMY_ARMOR": 1}
     )
     w = new_world(config=config)
@@ -639,7 +639,12 @@ def test_a_grounded_unit_heads_for_its_new_home_after_a_loss() -> None:
 
 
 def test_an_unlimited_side_pays_nothing() -> None:
-    w = start_campaign(CAMPAIGN_ID, 1, shipped_config({**PAID, "economy.unlimited.ENEMY": False}))
+    unlimited_coalition = {
+        **PAID,
+        "economy.unlimited.COALITION": True,
+        "economy.unlimited.ENEMY": False,
+    }
+    w = start_campaign(CAMPAIGN_ID, 1, pre_5b_config(unlimited_coalition))
     w.stock["fob-n-w"] = 0
     e = put(w, INF, "fob-n-w")
     assert rows(window(w)) == []  # the coalition is unlimited: no upkeep, never grounded
@@ -647,7 +652,7 @@ def test_an_unlimited_side_pays_nothing() -> None:
 
 
 def test_zero_upkeep_changes_nothing() -> None:
-    w = start_campaign(CAMPAIGN_ID, 1, shipped_config(LIMITED))  # shipped upkeep: all 0
+    w = start_campaign(CAMPAIGN_ID, 1, pre_5b_config(LIMITED))  # shipped upkeep: all 0
     w.stock["fob-n-w"] = 0
     e = put(w, INF, "fob-n-w")
     before = (dict(w.stock), dict(w.pool))
@@ -684,7 +689,7 @@ def test_home_and_grounded_survive_a_snapshot_and_bad_ones_are_refused() -> None
 
 def test_same_seed_and_commands_give_the_same_hash_through_windows_with_a_mid_window_save() -> None:
     # a jet costs more than the coalition's income (50 a window); the Static garrison pays 2 each
-    config = shipped_config(
+    config = pre_5b_config(
         {**LIMITED, "economy.upkeep.STRIKE_FIGHTER": 60, "economy.upkeep.ENEMY_ARMOR": 2,
          "economy.upkeep_period.STRIKE_FIGHTER": 1, "economy.upkeep_period.ENEMY_ARMOR": 1}
     )  # fmt: skip
@@ -764,7 +769,7 @@ def test_mirrored_sides_pay_and_ground_the_same(units: list[Any], stock: dict[st
 # --- NX-426: the upkeep period (Q-TD-41, Q-TD-52 D1) ---------------------------------------------
 # GARRISON_INFANTRY pays its 5 every 4 windows: in the window whose index (running ticks / the
 # window length, from 1) plus its id is a multiple of 4, and every window while grounded.
-EVERY_4 = shipped_config({**LIMITED, **PAID, "economy.upkeep_period.GARRISON_INFANTRY": 4})
+EVERY_4 = pre_5b_config({**LIMITED, **PAID, "economy.upkeep_period.GARRISON_INFANTRY": 4})
 
 
 def window_at(w: World, index: int) -> list[Event]:
@@ -857,7 +862,7 @@ def test_owed_is_the_per_window_average_rounded_up_once_per_side() -> None:
 def test_with_enough_stock_each_unit_pays_exactly_once_per_period(
     count: int, period: int, start: int
 ) -> None:
-    config = shipped_config({**LIMITED, **PAID, "economy.upkeep_period.GARRISON_INFANTRY": period})
+    config = pre_5b_config({**LIMITED, **PAID, "economy.upkeep_period.GARRISON_INFANTRY": period})
     w = new_world(config=config)
     w.stock["fob-n-w"] = 5 * count
     units = [put(w, INF, "fob-n-w") for _ in range(count)]
@@ -873,7 +878,7 @@ def test_with_enough_stock_each_unit_pays_exactly_once_per_period(
 def test_staggered_upkeep_is_deterministic_through_a_mid_window_save() -> None:
     # the jet (60, every 3 windows) costs more than the empty sanctuary holds: it grounds at its
     # due window and retries every window after; the Static garrison pays 2 every 3 windows
-    config = shipped_config({
+    config = pre_5b_config({
         **LIMITED, "economy.upkeep.STRIKE_FIGHTER": 60, "economy.upkeep.ENEMY_ARMOR": 2,
         "economy.upkeep_period.STRIKE_FIGHTER": 3, "economy.upkeep_period.ENEMY_ARMOR": 3,
     })  # fmt: skip

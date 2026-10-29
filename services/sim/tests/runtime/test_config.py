@@ -372,9 +372,9 @@ economy:
 # keys, the EC-8 guard, `economy.legacy_rules` and `free_viewer_spawn`, NX-412 part 5b for
 # `economy.floor_viewer_units`, NX-426 for `economy.upkeep_period`, NX-436 for
 # `economy.shortfall_quiet_windows`, NX-472 for `combat.facility_restore_frac`, NX-468 for
-# `combat.overkill_check`); a change means
+# `combat.overkill_check`, NX-412 part 5b again for its harness-tuned defaults); a change means
 # every config_hash moved.
-GOLDEN_CONFIG_HASH = "90e834a94eb2d4adf04705465f8ac82607945b72ce65302fecc4396cb9acea46"
+GOLDEN_CONFIG_HASH = "d0af638d39c375e7eae645a9a652e05dc049343fd405edde50f5b64201c98a49"
 AIR = {
     "bingo_reserve_frac": 0.15,
     "orbit_period_s": 120.0,
@@ -478,7 +478,7 @@ COMBAT = {
     },
     "crew_marker_min": 10,
     "facility_indestructible": True,
-    "strike_structure_first": False,
+    "strike_structure_first": True,
     "facility_restore_frac": 0.35,
     "overkill_check": True,
 }
@@ -602,7 +602,7 @@ DIRECTOR = {
     "max_spawns_per_window": 6,
     "max_live_units": {"pattern_of_life": 40, "alpha": 40, "bravo": 70},
     "spend_frac": {"pattern_of_life": 0.007, "alpha": 0.02, "bravo": 0.0534},
-    "source_spend_frac": 0.005,
+    "source_spend_frac": 0.01,
     "upkeep_reserve_windows": 2,
     "cadence_windows": 10,
     "op_priority": {
@@ -634,7 +634,7 @@ DIRECTOR = {
     },
     "decoy_blink": {"dark_s": 120, "cooldown_s": 600, "max_per_window": 1},
     "strike_bridge": {"cooldown_s": 1800},
-    "staging": {"direct_s": 1500, "max_wait_windows": 90, "max_staged": 2},
+    "staging": {"direct_s": 1500, "max_wait_windows": 30, "max_staged": 2},
     "recon": {"loiter_s": 600, "loiter_radius_m": 5000, "grid_m": 10000, "memory_s": 3600},
     "intercept": {
         "radius_m": 30000,
@@ -645,7 +645,7 @@ DIRECTOR = {
     },
     "max_ops": {"alpha": 1, "bravo": None},
     "idle_retire_s": 600,
-    "adaptation_up_above": 0,
+    "adaptation_up_above": 2,
     "reinforce_damage_above": 0,
     "escort_min_convoys": 1,
     "frontline_hops": 1,
@@ -682,7 +682,7 @@ _UPKEEP_KINDS = (
 )  # fmt: skip
 _PER_NODE = {"AIRBASE": 10, "BRIDGE": 0, "FOB": 5, "HQ": 10, "PORT": 5}
 ECONOMY = {
-    "unlimited": {"COALITION": True, "ENEMY": True},
+    "unlimited": {"COALITION": False, "ENEMY": False},
     "window_s": 60,
     "income": {"floor": 30, "per_node": _PER_NODE},
     "storage": {"floor": 2000, "per_node": {k: v * 200 for k, v in _PER_NODE.items()}},
@@ -694,7 +694,7 @@ ECONOMY = {
         "ENEMY_CONVOY": 1,
         "LOGI_TRUCK": 1,
     },
-    "legacy_rules": True,
+    "legacy_rules": False,
     "free_viewer_spawn": True,
     "floor_viewer_units": 5,
     "shortfall_quiet_windows": 30,
@@ -1075,7 +1075,7 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "    ENEMY_STRIKE_FIGHTER: 0.75, ENEMY_FIGHTER: 0.75, ENEMY_CONVOY: 0.70,\n"
         "    ENEMY_ARMOR: 0.60},\n"
         "  crew_marker_min: 10, disabled_timeout_s: 600, assist_window_s: 120,\n"
-        "  min_damage: 1, facility_indestructible: true, strike_structure_first: false,\n"
+        "  min_damage: 1, facility_indestructible: true, strike_structure_first: true,\n"
         "  facility_restore_frac: 0.35, overkill_check: true}\n"
         "campaign: {momentum: {supply_weight: 30, nodes_weight: 70}, objective_mode: timed,\n"
         "  score: {objective_points: 5, final_weight: 50, average_weight: 50},\n"
@@ -1122,7 +1122,7 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "      redemption: {support: 1, cosmetic: 0}}},\n"
         "  budget: {pattern_of_life: 10, alpha: 30, bravo: 80},\n"
         "  max_live_units: {pattern_of_life: 40, alpha: 40, bravo: 70},\n"
-        "  cadence_windows: 10, upkeep_reserve_windows: 2, source_spend_frac: 0.005,\n"
+        "  cadence_windows: 10, upkeep_reserve_windows: 2, source_spend_frac: 0.01,\n"
         "  spend_frac: {bravo: 0.0534, alpha: 0.02, pattern_of_life: 0.007},\n"
         "  op_priority: {RETAKE: 1.2, OFFENSIVE: 1.0, ESCORT_CONVOYS: 0.8, REINFORCE_IADS: 0.7,\n"
         "    PROBE: 0.6, RECON: 0.5, DECOY_BLINK: 0.3, GARRISON_UPKEEP: 0.9, STRIKE_BRIDGE: 0.6},\n"
@@ -1134,12 +1134,12 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "    weights: {convoy_hit: 1, radar_hit: 1, scout_lost: 1, node_lost: 1}},\n"
         "  decoy_blink: {dark_s: 120, cooldown_s: 600, max_per_window: 1},\n"
         "  strike_bridge: {cooldown_s: 1800},\n"
-        "  staging: {direct_s: 1500, max_wait_windows: 90, max_staged: 2},\n"
+        "  staging: {direct_s: 1500, max_wait_windows: 30, max_staged: 2},\n"
         "  recon: {loiter_s: 600, loiter_radius_m: 5000, grid_m: 10000, memory_s: 3600},\n"
         "  intercept: {radius_m: 30000, reaction_s: 60, pol_linger_s: 600, leash_m: 80000,\n"
         "    lost_s: 120},\n"
         "  max_ops: {alpha: 1, bravo: null}, job_urgency: 1.0,\n"
-        "  idle_retire_s: 600, adaptation_up_above: 0, reinforce_damage_above: 0,\n"
+        "  idle_retire_s: 600, adaptation_up_above: 2, reinforce_damage_above: 0,\n"
         "  escort_min_convoys: 1, frontline_hops: 1,\n"
         "  adaptation_down_below: 1, noise_scale: 0.1, retake_window_min: 30,\n"
         "  garrison: {replace_per_window: 1, kinds: {FOB: [ENEMY_ARMOR],\n"
@@ -1150,8 +1150,8 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "    convoy_kind: ENEMY_CONVOY, patrol_slots: 1, patrols_per_base: 1,\n"
         "    convoys_per_period: 1, offensives_per_period: 1, convoy_cost: 0, convoy_slots: 1,\n"
         "    capture_slot_tiers: [PATTERN_OF_LIFE]}}\n"
-        "economy: {window_s: 60, unlimited: {ENEMY: true, COALITION: true},\n"
-        "  free_viewer_spawn: true, legacy_rules: true, floor_viewer_units: 5,\n"
+        "economy: {window_s: 60, unlimited: {ENEMY: false, COALITION: false},\n"
+        "  free_viewer_spawn: true, legacy_rules: false, floor_viewer_units: 5,\n"
         "  shortfall_quiet_windows: 30,\n"
         "  storage: {per_node: {PORT: 1000, HQ: 2000, FOB: 1000, BRIDGE: 0, AIRBASE: 2000},\n"
         "    floor: 2000},\n"

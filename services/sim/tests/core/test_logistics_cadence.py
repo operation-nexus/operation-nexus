@@ -6,7 +6,8 @@ cap (`nexus.core.launch`, `nexus.core.tasking_gen`), each switched on here by ha
 config keeps them at the no-op values (Q-TD-113), which the goldens pin. Board scenes reuse
 `test_tasking` (strait-1, campaign layer off, stocking off, board passes by hand), convoy scenes
 `test_pol`. strait-1: west-airbase (max 2000, floor 500, start 1000), fob-n-w and fob-s-w (max
-1000, floor 250, start 500) and the haven (the rear, infinite under the shipped unlimited mode).
+1000, floor 250, start 500) and the haven (the rear, infinite under the unlimited mode that
+`test_tasking.CONFIG` keeps from `fixture_pre_5b`).
 """
 
 import dataclasses

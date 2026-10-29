@@ -29,6 +29,7 @@ from nexus.core.combat import validate as combat_validate
 from nexus.core.defense import damage, rebuild, validate
 from nexus.core.rules import CAPTURE_FULL
 from nexus.core.world import CaptureBar, Entity, World, load, lose_unit, save, state_hash
+from nexus.runtime.golden import shipped_config
 
 POS = RULES.roads.pos
 ENEMY_FOB, MY_FOB, NEUTRAL_FOB = "fob-n-e", "fob-n-w", "cross-n"
@@ -694,7 +695,10 @@ def test_a_disabled_moving_foreign_or_paused_truck_repairs_nothing() -> None:
 
 
 def test_repair_stops_at_full_with_one_restored_after_one_down() -> None:
-    w = new_world()
+    # the sanctuary repairs from an infinite source, the unlimited mode shipped before NX-412 part
+    # 5b: this world is built without pools, so the economy window at tick 600 would find none
+    both = {"economy.unlimited.COALITION": True, "economy.unlimited.ENEMY": True}
+    w = new_world(dataclasses.replace(RULES, economy=shipped_config(both).rules.economy))
     human(w)
     out: list[Event] = []
     damage(w, RULES, SANCTUARY, 1000, out)

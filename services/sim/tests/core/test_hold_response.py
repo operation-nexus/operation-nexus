@@ -10,6 +10,7 @@ its staging base fob-n-e; ALPHA `max_ops` 1).
 import dataclasses
 
 import pytest
+from fixture_pre_5b import pre_5b_config
 from hypothesis import given, settings
 from hypothesis import strategies as st
 from test_campaign import hold_seven
@@ -35,7 +36,6 @@ from nexus.core.launch import _routine
 from nexus.core.step import step
 from nexus.core.world import World, load, save, state_hash
 from nexus.runtime.campaign_config import start_campaign
-from nexus.runtime.golden import shipped_config
 
 WEST = ("fob-n-w", "fob-s-w", "west-airbase")  # the coalition's start: OFFENSIVE's targets
 COUNTED = ("OFFENSIVE", "RETAKE", "PROBE")  # the ALPHA operations `max_ops` counts
@@ -206,7 +206,7 @@ def test_the_budget_still_bounds_the_hold_response() -> None:
 
 
 def test_legacy_rules_keep_max_ops_during_a_hold() -> None:
-    legacy = shipped_config({})  # economy.legacy_rules true: no hold response (goldens)
+    legacy = pre_5b_config()  # economy.legacy_rules true: no hold response
     c = dataclasses.replace(legacy, rules=dataclasses.replace(legacy.rules, campaign=None))
     w = in_hold(world(c), *WEST)
     probe_holds_the_slot(w)
@@ -248,7 +248,7 @@ def test_no_hold_node_stays_staged_and_the_cap_counts_only_the_rest(
 def hold_world(seed: int = 4) -> World:
     # ALPHA from the start, spending half its surplus, so the first window can buy an OFFENSIVE
     half = {"director.spend_frac.alpha": 0.5, "director.spend_frac.bravo": 0.5}
-    c = shipped_config({**NEW, "director.tier.start": "ALPHA", **half})
+    c = pre_5b_config({**NEW, "director.tier.start": "ALPHA", **half})
     w = start_campaign(CAMPAIGN_ID, seed, c)
     hold_seven(w)
     step(w, [])
