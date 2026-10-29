@@ -1188,6 +1188,7 @@ def test_an_enum_set_loads_and_runs(
     ("pair", "key"),
     [
         (f"{ENUM}=nope", ENUM),  # not in the enum
+        (f"{ENUM}=x", ENUM),  # a one-character word
         (f"{ENUM}=yes", ENUM),  # a YAML 1.1 bool word stays text, so the enum refuses it
         (f"{ENUM}=true", ENUM),
         (f"{ENUM}=1", ENUM),
@@ -1206,9 +1207,10 @@ def test_a_bad_enum_set_exits_2_naming_the_key_before_out_exists(
     assert cli(monkeypatch, out, "--set", pair) == 2
     err = capsys.readouterr().err
     assert err.startswith("error:") and key in err and not out.exists()
+    # the queue posts this error to a public issue: it names keys, never values
     value = pair.partition("=")[2]
-    if len(value) > 1:  # the queue posts this error to a public issue: it names keys, never values
-        assert repr(value) not in err and f"={value}" not in err
+    detail = err.removeprefix("error: ").split(": ", 1)[-1]  # drop the temp config path, if any
+    assert value not in detail.replace(key, "")
 
 
 def test_set_rejects_a_repeated_key() -> None:
