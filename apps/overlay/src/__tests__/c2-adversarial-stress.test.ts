@@ -23,6 +23,7 @@ import {
 import type { VisualUnit } from "../types/unit";
 import type { RenderFrameState } from "../types/render";
 import type { TelemetryState } from "../types/telemetry";
+import { expectUnderBudget } from "./perf-gate";
 
 function createMockCanvas(width = 1280, height = 720): HTMLCanvasElement {
   const drawCalls: { type: string; args: unknown[] }[] = [];
@@ -141,7 +142,7 @@ describe("Adversarial Stress Test: High Entity Count & Option D (OV-4)", () => {
     expect(stats.unitCount).toBe(500);
     expect(stats.batchPasses).toBe(4);
     // JS frame processing time must be well under 16.6ms budget
-    expect(elapsed).toBeLessThan(16.6);
+    expectUnderBudget(elapsed, 16.6);
 
     engine.dispose();
   });
@@ -183,7 +184,7 @@ describe("Adversarial Stress Test: High Entity Count & Option D (OV-4)", () => {
     const stats = engine.getPerformanceStats();
     expect(stats.unitCount).toBe(1000);
     expect(stats.batchPasses).toBe(4);
-    expect(elapsed).toBeLessThan(16.6); // < 16.6ms budget
+    expectUnderBudget(elapsed, 16.6); // < 16.6ms budget
 
     engine.dispose();
   });
@@ -223,7 +224,7 @@ describe("Adversarial Stress Test: High Entity Count & Option D (OV-4)", () => {
 
     const stats = engine.getPerformanceStats();
     expect(stats.unitCount).toBe(2000);
-    expect(elapsed).toBeLessThan(33.3); // 2000 units within 30fps absolute minimum
+    expectUnderBudget(elapsed, 33.3); // 2000 units within 30fps absolute minimum
 
     engine.dispose();
   });
