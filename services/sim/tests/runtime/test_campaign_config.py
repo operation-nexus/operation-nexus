@@ -2,17 +2,22 @@
 part 2: the theater's facilities placed at campaign start."""
 
 import dataclasses
+import re
 from pathlib import Path
 
 import pytest
 
+from nexus.contracts.gen.commands.join import JoinCommand
 from nexus.core import operations as ops
 from nexus.core.fog import side_view
+from nexus.core.rearm import ammo_price
+from nexus.core.step import step
 from nexus.core.world import Vec2, state_hash
 from nexus.runtime.campaign_config import (
     CampaignConfig,
     ConfigPaths,
     coalition_floor_problem,
+    cost_parity_problems,
     load_campaign_config,
     start_campaign,
 )
@@ -202,7 +207,8 @@ def test_the_loader_rejects_an_unknown_kind_or_a_bad_count(key: str, value: obje
 
 
 # ECONOMY EC-11 (NX-412 part 5b): the coalition floor check at load
-_EC11_ON = {"economy.unlimited.COALITION": False}
+# with cost parity off (NX-494): these tests change coalition kinds' upkeep alone
+_EC11_ON = {"economy.unlimited.COALITION": False, "economy.cost_parity": False}
 # every window (NX-426): these tests count whole upkeep per window
 _EVERY = {f"economy.upkeep_period.{k}": 1 for k in (
     "STRIKE_FIGHTER", "RECON_UAV", "LOGI_TRUCK", "ENEMY_ARMOR", "ENEMY_FIGHTER")}  # fmt: skip
@@ -266,3 +272,99 @@ def test_the_coalition_garrison_counts_only_coalition_quotas_filled_in_turn() ->
     assert coalition_floor_problem(cfg.rules, {"west-airbase": 3}) is None
     problem = coalition_floor_problem(cfg.rules, {"west-airbase": 3, "fob-n-w": 2})
     assert problem is not None and "is 2 short" in problem and "garrison upkeep 32 " in problem
+
+
+# ECONOMY EC-3 cost parity (NX-494): the load check over the catalog's `mirrors` pairs. The
+# shipped values (balance/default.yaml): loadout STRIKE_FIGHTER 20, upkeep RECON_UAV 0, period
+# LOGI_TRUCK 1, each equal to its enemy mirror's.
+_ONE_SIDED = [
+    (
+        "logistics.loadout_cost",
+        "STRIKE_FIGHTER",
+        10,
+        "ENEMY_STRIKE_FIGHTER 20 != ",
+        "STRIKE_FIGHTER 10",
+    ),
+    ("economy.upkeep", "ENEMY_RECON_UAV", 2, "ENEMY_RECON_UAV 2 != ", "RECON_UAV 0"),
+    ("economy.upkeep_period", "LOGI_TRUCK", 3, "ENEMY_CONVOY 1 != ", "LOGI_TRUCK 3"),
+]
+
+
+def test_the_shipped_pairs_are_equal_and_load_with_cost_parity_on(
+    shipped_config: CampaignConfig,
+) -> None:
+    assert shipped_config.balance.economy.cost_parity is True
+    assert cost_parity_problems(shipped_config.balance, shipped_config.catalog) == []
+
+
+@pytest.mark.parametrize(("table", "kind", "value", "enemy", "coalition"), _ONE_SIDED)
+def test_a_one_sided_cost_is_refused_naming_keys_kinds_values_and_fixes(
+    table: str, kind: str, value: int, enemy: str, coalition: str
+) -> None:
+    pattern = (
+        r"economy\.cost_parity is true .*: "
+        + re.escape(f"{table}.{enemy}{table}.{coalition}; ")
+        + r"set both kinds of a pair to one value, or set economy\.cost_parity false"
+    )
+    with pytest.raises(ConfigError, match=pattern):
+        shipped_config_with({f"{table}.{kind}": value})
+
+
+@pytest.mark.parametrize(("table", "kind", "value", "enemy", "coalition"), _ONE_SIDED)
+def test_with_cost_parity_off_the_one_sided_config_loads_as_written(
+    table: str, kind: str, value: int, enemy: str, coalition: str
+) -> None:
+    cfg = shipped_config_with({f"{table}.{kind}": value, "economy.cost_parity": False})
+    block, key = table.split(".")
+    assert getattr(getattr(getattr(cfg.balance, block), key), kind) == value
+
+
+def test_a_synced_cut_and_an_unpaired_kind_load_with_cost_parity_on() -> None:
+    cfg = shipped_config_with(
+        {
+            "logistics.loadout_cost.STRIKE_FIGHTER": 10,
+            "logistics.loadout_cost.ENEMY_STRIKE_FIGHTER": 10,
+            "logistics.loadout_cost.ENEMY_FIGHTER": 3,  # unpaired: never checked
+        }
+    )
+    assert cfg.rules.supply.loadout_cost["ENEMY_STRIKE_FIGHTER"] == 10
+
+
+def test_with_cost_parity_off_each_side_pays_its_own_kinds_cost() -> None:
+    cfg = shipped_config_with(
+        {"logistics.loadout_cost.STRIKE_FIGHTER": 10, "economy.cost_parity": False}
+    )
+
+    def run() -> tuple[str, list[str]]:
+        world = start_campaign(CAMPAIGN, 7, cfg)
+        events = [e for t in range(1, 301) for e in step(world, _joins(t))]
+        return state_hash(world), [e.model_dump_json() for e in events]
+
+    first = run()
+    assert run() == first  # deterministic with a one-sided config
+    world = start_campaign(CAMPAIGN, 7, cfg)
+    spawned = [e for e in step(world, _joins(1)) if e.kind == "SupplyConsumed"]
+    # the strike jet forward-deploys at west-airbase and pays the coalition's cut cost, 10
+    assert [(e.node_id, e.amount, e.cause) for e in spawned] == [("west-airbase", 10, "SPAWN")]
+    enemy = world.spawn("ENEMY_STRIKE_FIGHTER", "ENEMY", "ENEMY_DIRECTOR", Vec2(310_000, 120_000))
+    # an enemy rearm still prices its own kind's 20: ammo is half of it, in stock-thousandths
+    assert ammo_price(cfg.rules, enemy) == 10_000
+
+
+_STRIKE_JOIN = JoinCommand.model_validate(
+    {
+        "kind": "JOIN",
+        "source": "CHAT",
+        "issuer": {"commander_id": "0192f0c1-7a2b-7c3d-8e4f-000000000001"},
+        "target_tick": 1,
+        "arrival_seq": 1,
+        "correlation_id": "m1",
+        "role": "STRIKE",
+        "target": {"node_id": "east-airbase"},
+        "hold": False,
+    }
+)
+
+
+def _joins(tick: int) -> list[JoinCommand]:
+    return [_STRIKE_JOIN] if tick == 1 else []

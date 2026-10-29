@@ -1270,6 +1270,12 @@ class Economy(BaseModel):
             description="ECONOMY EC-13: true = a viewer's own JOIN that spawns at the coalition's sanctuary draws no stock, so joining never costs a person anything; false = it draws logistics.loadout_cost from the coalition's pool like every other spawn (agent-vs-agent harness profiles). The AI garrison and the Director always pay."
         ),
     ]
+    cost_parity: Annotated[
+        bool,
+        Field(
+            description="ECONOMY EC-3 cost parity (NX-494, Q-TD-119, Q-TD-130): true = the config loader refuses a config in which an ENEMY kind paired by the unit catalog's mirrors has a different logistics.loadout_cost, economy.upkeep or economy.upkeep_period from its COALITION kind, naming the keys, both kinds and both values; it never copies a value. false = each kind keeps its own value (one-sided experiments). Unpaired kinds are never checked. Read at load only."
+        ),
+    ]
     floor_viewer_units: Annotated[
         int,
         Field(

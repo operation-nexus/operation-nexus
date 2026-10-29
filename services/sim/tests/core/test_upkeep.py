@@ -48,6 +48,7 @@ PAID = {
     "economy.upkeep.GARRISON_INFANTRY": 5, "economy.upkeep.STRIKE_FIGHTER": 5,
     # every window (NX-426): the payment-order tests below charge every unit each window
     "economy.upkeep_period.GARRISON_INFANTRY": 1, "economy.upkeep_period.STRIKE_FIGHTER": 1,
+    "economy.cost_parity": False,  # STRIKE_FIGHTER pays, its mirror does not (NX-494)
 }  # fmt: skip
 CONFIG = pre_5b_config({**LIMITED, **PAID})
 RULES = CONFIG.rules
@@ -693,7 +694,8 @@ def test_same_seed_and_commands_give_the_same_hash_through_windows_with_a_mid_wi
     config = pre_5b_config(
         {**LIMITED, "economy.upkeep.STRIKE_FIGHTER": 60, "economy.upkeep.ENEMY_ARMOR": 2,
          "economy.upkeep_period.STRIKE_FIGHTER": 1, "economy.upkeep_period.ENEMY_ARMOR": 1,
-         "economy.floor_viewer_units": 0}
+         "economy.floor_viewer_units": 0,
+         "economy.cost_parity": False}  # the jet alone pays (NX-494)
     )  # fmt: skip
 
     def scenario(snapshot_at: int | None = None) -> tuple[str, list[dict[str, Any]]]:
@@ -885,6 +887,7 @@ def test_staggered_upkeep_is_deterministic_through_a_mid_window_save() -> None:
         **LIMITED, "economy.upkeep.STRIKE_FIGHTER": 60, "economy.upkeep.ENEMY_ARMOR": 2,
         "economy.upkeep_period.STRIKE_FIGHTER": 3, "economy.upkeep_period.ENEMY_ARMOR": 3,
         "economy.floor_viewer_units": 0,
+        "economy.cost_parity": False,  # the jet alone pays (NX-494)
     })  # fmt: skip
 
     def scenario(snapshot_at: int | None = None) -> tuple[str, list[dict[str, Any]]]:
