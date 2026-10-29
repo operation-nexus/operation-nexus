@@ -406,7 +406,7 @@ class AiTrucks(BaseModel):
     period_s: Annotated[
         float,
         Field(
-            description="How often the coalition spawns AI_GARRISON trucks for its open resupply jobs, unit s of game time, rounded up by the loader to whole economy.window_s windows; a job must also be this old (Job.created) before an AI truck is spawned for it, so viewers get the first pick (GAMEPLAY §5 LC-1).",
+            description="How often the coalition spawns AI_GARRISON trucks for its open resupply jobs, unit s of game time, rounded up by the loader to whole economy.window_s windows; a job must also be this old (Job.created, from its first posting: an unclaimed coalition resupply job does not expire, Q-SIM-131) before an AI truck is spawned for it, so viewers get the first pick (GAMEPLAY §5 LC-1).",
             gt=0.0,
         ),
     ]
@@ -1562,7 +1562,7 @@ class Tasking(BaseModel):
     expire_min: Annotated[
         float,
         Field(
-            description="An unclaimed job expires this long after it was posted (Q-SIM-73), unit min of game time. Objective jobs expire with the objective instead; an unclaimed coalition retake job does not expire (Q-TD-121), and a claimed one counts from its claim.",
+            description="An unclaimed job expires this long after it was posted (Q-SIM-73), unit min of game time. Objective jobs expire with the objective instead; an unclaimed coalition retake job does not expire (Q-TD-121), and a claimed one counts from its claim; an unclaimed coalition resupply job does not expire either while it is posted (Q-SIM-131).",
             gt=0.0,
         ),
     ]
@@ -1589,7 +1589,7 @@ class Tasking(BaseModel):
     priority_aging_per_min: Annotated[
         float,
         Field(
-            description="Priority points an open job gains per game minute it has waited (TB-3, Q-ALN-23), unit points/min of game time.",
+            description="Priority points an open job gains per game minute it has waited (TB-3, Q-ALN-23); an unclaimed coalition resupply job gains them for at most expire_min minutes (Q-SIM-132), unit points/min of game time.",
             ge=0.0,
         ),
     ]

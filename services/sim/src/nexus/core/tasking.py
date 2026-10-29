@@ -57,8 +57,9 @@ while frozen (SC-11), for each side in COALITION, ENEMY order:
      since: Q-TD-87, NX-463), else EXPIRED, unless another job waits for it (the Director's chains,
      NX-156): its goal was met, so the next step must not fail with it. `JobDone` lists them all.
      A job with no claim expires `tasking.expire_min` after posting (an objective's job: with the
-     objective); one waiting for another does not expire, nor does an unclaimed retake
-     (`standing`, Q-TD-121 revised: the generator withdraws it).
+     objective); one waiting for another does not expire, nor does an unclaimed retake or
+     coalition resupply job (`unexpiring`, Q-TD-121 revised, Q-SIM-131: the generator withdraws
+     it).
    - A job that depends on an ended one (TB-8) loses the dependency when it was DONE, else FAILS.
      When it loses it, its expiry clock restarts and its claimants (units that took it at spawn,
      `take`, and waited with their lease held) set off.
@@ -72,11 +73,12 @@ while frozen (SC-11), for each side in COALITION, ENEMY order:
    fits it (`fits`), has no open dependency, may be taken by it, has a free slot and is feasible;
    when no such job with a free slot is feasible for it (none free, or every free one refused),
    the first full one below its overfill cap that is (Q-TD-89, NX-465). Rank:
-   `tasking.priority.<kind>` x urgency + `priority_aging_per_min` x game minutes waited, an exact
-   Fraction, highest first; runs of equal priority are ordered by one `tasking` draw each, in job
-   id order, then by id. Feasible: a
-   GROUND unit has a road route (an empty truck on a resupply job reloads at a source first; neither
-   resupply leg enters a node the other side holds, `logistics.supply_route`, Q-SIM-122);
+   `tasking.priority.<kind>` x urgency + `priority_aging_per_min` x game minutes waited (an
+   unclaimed coalition resupply job's at most `expire_min`, Q-SIM-132), an exact Fraction,
+   highest first; runs of equal priority are ordered by one `tasking` draw each, in job id
+   order, then by id. Feasible: a GROUND unit has a road route (an empty truck on a resupply
+   job reloads at a source first; neither resupply leg enters a node the other side holds,
+   `logistics.supply_route`, Q-SIM-122);
    an aircraft reaches the target and a landing base of its side with the bingo reserve left,
    its straight route crosses no discovered, not-Disabled enemy air-defense ring unless the
    target is that site's base (`crosses_ring`, also applied to a parameterless JOIN), and a strike
@@ -153,6 +155,7 @@ from nexus.core.tasking_gen import (
     watched,
 )
 from nexus.core.world import (
+    JOB_KEY_PREFIX,
     SIDES,
     Claim,
     Entity,
@@ -219,22 +222,44 @@ def standing(job: Job) -> bool:
     starving base's resupply always ranks above it (Q-TD-100 (a), Q-TD-107), and while unclaimed it
     does not expire (TB-1; Q-TD-121 revised, NX-484): one job id per lost node for as long as
     `tasking_gen._retake` generates it, which withdraws it otherwise. A claim starts its CAPTURE
-    clock (`claim`), so once claimed it ends by the CAPTURE rules (`_outcome`)."""
+    clock (`claim`), so once claimed it ends by the CAPTURE rules (`_outcome`). The TB-1 rule
+    alone also covers a coalition resupply job (`unexpiring`)."""
     return job.key.startswith(RETAKE)
 
 
-def priority(tr: TaskingRules, job: Job, now: int) -> Fraction:
+def unexpiring(side: Side, job: Job) -> bool:
+    """While unclaimed, `job` does not expire by `tasking.expire_min` (TB-1): a retake
+    (`standing`), or a coalition `resupply:` job (Q-SIM-131 (a), NX-492), which keeps its posting
+    time while the generator still posts it (it withdraws it otherwise), so LC-1's job age
+    (`ai_trucks`) reaches `logistics.ai_trucks.period_s`. Only the expiry: the resupply job still
+    ages (TB-3, capped while unclaimed in `priority`, Q-SIM-132), and a claimed one does not
+    expire anyway (`_outcome`: a claimed non-CAPTURE job), so its claim needs no fresh clock."""
+    return standing(job) or (side == _COALITION and job.key.startswith(JOB_KEY_PREFIX["RESUPPLY"]))
+
+
+def priority(tr: TaskingRules, job: Job, now: int, *, side: Side) -> Fraction:
     """`tasking.priority.<kind>` x urgency, plus linear aging per game minute waited (TB-3), but
-    none for a standing job (`standing`)."""
-    waited = Fraction(0 if standing(job) else now - job.created, tr.ticks_per_min)
+    none for a standing job (`standing`). An unclaimed job of `side` that does not expire
+    (`unexpiring`: a coalition resupply job) ages at most `tasking.expire_min` minutes' worth,
+    about the most it could wait unclaimed before it was exempt (Q-SIM-132 (a), Q-TD-100); a
+    claimed one ages as before, without a cap (a claimed non-CAPTURE job never expired)."""
+    waited = 0 if standing(job) else now - job.created
+    if unexpiring(side, job) and not job.claims:
+        waited = min(waited, tr.expire_ticks)
     # 1000: `Job.urgency` is in thousandths of a multiplier (a fixed-point scale)
-    return tr.priority[job.kind] * Fraction(job.urgency, 1000) + tr.aging_per_min * waited
+    aging = tr.aging_per_min * Fraction(waited, tr.ticks_per_min)
+    return tr.priority[job.kind] * Fraction(job.urgency, 1000) + aging
 
 
-def rank(tr: TaskingRules, jobs: Sequence[Job], now: int, tie: PcgStream | None) -> list[Job]:
-    """Best first: priority descending, then job id. With `tie`, each run of equal priority is
-    ordered by one draw per job (in id order) before the id (TB-5); without, by id alone."""
-    scored = sorted(((priority(tr, j, now), j) for j in jobs), key=lambda pj: (-pj[0], pj[1].id))
+def rank(
+    tr: TaskingRules, jobs: Sequence[Job], now: int, tie: PcgStream | None, *, side: Side
+) -> list[Job]:
+    """Best first: `side`'s priority descending, then job id. With `tie`, each run of equal
+    priority is ordered by one draw per job (in id order) before the id (TB-5); without, by id
+    alone."""
+    scored = sorted(
+        ((priority(tr, j, now, side=side), j) for j in jobs), key=lambda pj: (-pj[0], pj[1].id)
+    )
     out: list[Job] = []
     i = 0
     while i < len(scored):
@@ -437,7 +462,7 @@ def joinable_jobs(world: World, kind: UnitKind) -> list[Job]:
         if j.depends_on is None and j.kind not in tr.join_excluded_jobs
         and fits_job(rules, kind, j.kind, j.key)
     ]  # fmt: skip
-    return _open(tr, world, rank(tr, jobs, _now(world), None), ai=False)
+    return _open(tr, world, rank(tr, jobs, _now(world), None, side=_COALITION), ai=False)
 
 
 def run(world: World, out: list[Event]) -> None:
@@ -753,9 +778,10 @@ def _outcome(
         verdict = "EXPIRED"  # nobody to credit (a job another waits for is DONE: its goal is met)
     # A job waiting for another does not expire (the one before it ends or fails it, TB-8); a
     # capture run ends at its expiry even with claimants (NX-156), unless one is capturing (NX-483).
-    # An unclaimed standing job (a retake) does not expire: the generator withdraws it (`standing`).
+    # An unclaimed retake or coalition resupply job does not expire: the generator withdraws it
+    # (`unexpiring`).
     held = job.depends_on is not None or (job.claims and job.kind != "CAPTURE")
-    held = held or (standing(job) and not job.claims)
+    held = held or (unexpiring(side, job) and not job.claims)
     if verdict is None and not held and job.expires is not None and now >= job.expires:
         verdict = None if _capturing(world, rules, side, job) else "EXPIRED"
     return verdict
@@ -942,9 +968,10 @@ def _preempt_patrols(
         e = world.find(i)
         if e is None:
             continue
-        mine = priority(tr, job, now)
+        mine = priority(tr, job, now, side=_COALITION)
         if any(
-            j.kind != _PATROL and j.depends_on is None and priority(tr, j, now) > mine
+            j.kind != _PATROL and j.depends_on is None
+            and priority(tr, j, now, side=_COALITION) > mine
             and not _full(world, j, ai=False)
             and fits_job(rules, e.kind, j.kind, j.key) and _may_take(world, tr, e, j)
             and _feasible(world, rules, routes, e, j) == "ok"
@@ -1018,7 +1045,7 @@ def _assign(
     idle = sorted((e for e in world.entities() if is_idle(rules, e, side)), key=lambda e: e.id)
     if not idle:
         return
-    ranked = rank(tr, jobs, now, world.rng.stream(RngStream.TASKING))
+    ranked = rank(tr, jobs, now, world.rng.stream(RngStream.TASKING), side=side)
     for e in idle:
         here = _here(world, rules, e)
         pool = _pool(world, rules, tr, e, ranked, here)
@@ -1095,7 +1122,7 @@ def idle_diagnosis(world: World, e: Entity) -> tuple[str, Job | None]:
     without the tie draw (that draws from the tasking stream), so jobs of equal priority, drawn
     in `_assign`, are approximated here by job id order."""
     rules, tr = _rules(world)
-    ranked = rank(tr, list(world.boards[e.side].values()), _now(world), None)
+    ranked = rank(tr, list(world.boards[e.side].values()), _now(world), None, side=e.side)
     pool = [
         j
         for j in _pool(world, rules, tr, e, ranked, _here(world, rules, e))

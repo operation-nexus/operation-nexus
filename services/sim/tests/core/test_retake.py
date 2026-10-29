@@ -20,7 +20,19 @@ from fixture_pre_5b import pre_5b_config
 from hypothesis import given, settings
 from hypothesis import strategies as st
 from test_join import cid, join
-from test_tasking import AI, CONFIG, EVERY, RULES, board_pass, jobs, new_world, of, post, put
+from test_tasking import (
+    AI,
+    CONFIG,
+    EVERY,
+    RULES,
+    board_pass,
+    jobs,
+    new_world,
+    of,
+    post,
+    put,
+    see,
+)
 
 from nexus.contracts.gen.common.enums import NodeOwner, UnitKind
 from nexus.contracts.gen.events.event import Event
@@ -33,7 +45,7 @@ from nexus.core.rules import Rules
 from nexus.core.step import step
 from nexus.core.tasking import _now, idle_diagnosis, priority, rank
 from nexus.core.tasking_gen import fits_job
-from nexus.core.world import Job, World, load, save, state_hash
+from nexus.core.world import Blob, Job, Vec2, World, load, save, state_hash
 
 _CAMPAIGN = CONFIG.rules.campaign
 assert _CAMPAIGN is not None
@@ -195,7 +207,11 @@ def test_property_at_most_one_retake_on_an_eligible_node(
 def _order(w: World) -> list[str]:
     tr = RET_RULES.tasking
     assert tr is not None
-    return [j.kind for j in rank(tr, jobs(w), _now(w), None) if j.kind in ("RESUPPLY", "CAPTURE")]
+    return [
+        j.kind
+        for j in rank(tr, jobs(w), _now(w), None, side="COALITION")
+        if j.kind in ("RESUPPLY", "CAPTURE")
+    ]
 
 
 def test_a_starving_bases_resupply_outranks_the_retake_and_a_truck_takes_it() -> None:
@@ -220,7 +236,7 @@ def test_a_waiting_retake_never_ages_past_a_fresh_starving_resupply() -> None:
     w.stock["fob-s-w"] = 240
     truck = put(w, "LOGI_TRUCK", "haven")
     board_pass(w)
-    assert retakes(w) == [job] and priority(tr, job, _now(w)) == 45  # no aging
+    assert retakes(w) == [job] and priority(tr, job, _now(w), side="COALITION") == 45  # no aging
     assert _order(w) == ["RESUPPLY", "CAPTURE"]
     (claimed,) = [j for j in jobs(w) if truck.id in j.claims]
     assert claimed.key == "resupply:fob-s-w"
@@ -482,15 +498,17 @@ def test_a_kept_job_outlives_the_expiry_when_the_keep_is_longer() -> None:
 
 
 def test_other_generated_jobs_still_expire_unclaimed() -> None:
+    """A scout job nobody takes still expires beside the exempt retake (a coalition resupply job
+    no longer does since Q-SIM-131, NX-492: `test_logistics_cadence`)."""
     w = scene("fob-n-w")
-    w.stock["fob-s-w"] = 200  # starving: a resupply job nobody takes (no truck)
+    see(w, "COALITION", Blob("3-7", Vec2(75e3, 5e3), "S"))
+    put(w, "RECON_UAV", "west-airbase").path = ["east-airbase"]  # busy: never idle
     board_pass(w)
-    (old,) = [j for j in jobs(w) if j.key == "resupply:fob-s-w"]
+    (old,) = [j for j in jobs(w) if j.key == "scout:7"]
     pass_at(w, old.created + EXPIRE - EVERY)
     assert old.id in w.boards["COALITION"]
     out = pass_at(w, old.created + EXPIRE)
-    (new,) = [j for j in jobs(w) if j.key == "resupply:fob-s-w"]
-    assert ended(out, old) == ["JobExpired"] and new.id != old.id  # TB-1, then posted again
+    assert ended(out, old) == ["JobExpired"] and len(retakes(w)) == 1  # TB-1; the retake stays
 
 
 def test_a_claim_starts_the_retakes_capture_clock() -> None:

@@ -9,12 +9,14 @@ At every economy window (`economy.due`), after upkeep and before the Threat Dire
 2. **Spawn**, only at the windows whose running tick is a multiple of
    `logistics.ai_trucks.period_s` (`Supply.ai_truck_period_ticks`, whole windows, so no state).
    The coalition's `resupply:` jobs, best first (`tasking.rank` with no tie draw: priority, then
-   job id), that were posted at least one period ago (viewers get the first pick) give each slot
-   no claim holds to an idle AI truck first (the board pass of this tick tasks it), else to a
-   new `LOGI` truck, while live AI trucks are fewer than `logistics.ai_trucks.max_live` and the
-   EC-8 guard has room. A new truck spawns where `!join logi <node>` would (`plan_run`, the §1b
-   source, the sanctuary last), loads there, pays its `logistics.loadout_cost` at that node
-   (EC-13) and claims the job; a job whose run loads nothing gets no truck.
+   job id), that were posted at least one period ago (viewers get the first pick; such a job
+   does not expire unclaimed, `tasking.unexpiring`, so its age counts from its first posting,
+   Q-SIM-131, NX-492) give each slot no claim holds to an idle AI truck first (the board pass
+   of this tick tasks it), else to a new `LOGI` truck, while live AI trucks are fewer than
+   `logistics.ai_trucks.max_live` and the EC-8 guard has room. A new truck spawns where
+   `!join logi <node>` would (`plan_run`, the §1b source, the sanctuary last), loads there, pays
+   its `logistics.loadout_cost` at that node (EC-13) and claims the job; a job whose run loads
+   nothing gets no truck.
 
 An AI truck is no viewer unit (`World.viewer_units` counts COMMANDER units). Deterministic: jobs
 by rank then id, entities by id, integers, no RNG (LC-5).
@@ -30,7 +32,7 @@ from nexus.core.logistics import Run, load, pay_spawn, plan_run
 from nexus.core.rules import Rules
 from nexus.core.tasking import claim, rank
 from nexus.core.tasking_gen import is_idle
-from nexus.core.world import Entity, Job, Vec2, World, is_ai_truck
+from nexus.core.world import JOB_KEY_PREFIX, Entity, Job, Vec2, World, is_ai_truck
 
 _SIDE: Side = "COALITION"
 _AI: OwnerKind = "AI_GARRISON"
@@ -87,10 +89,10 @@ def _spawn_for_jobs(world: World, rules: Rules, now: int, period: int, out: list
     room = min(rules.supply.ai_truck_max_live - len(trucks), guard_room(world, _SIDE))
     jobs = [
         j for j in world.boards[_SIDE].values()
-        if j.key.startswith("resupply:") and now - j.created >= period
+        if j.key.startswith(JOB_KEY_PREFIX["RESUPPLY"]) and now - j.created >= period
     ]  # fmt: skip
     held = enemy_held(world, rules, _SIDE)
-    for job in rank(tr, jobs, now, None):
+    for job in rank(tr, jobs, now, None, side=_SIDE):
         for _ in range(max(0, job.slots - len(job.claims))):
             if spare:
                 spare -= 1  # an idle AI truck goes first: the board pass tasks it
