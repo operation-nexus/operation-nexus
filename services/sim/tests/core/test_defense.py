@@ -8,9 +8,12 @@ Worlds are built by hand (`World.new`): contacts are set by hand, no sensing pas
 """
 
 import dataclasses
+import functools
 from collections.abc import Callable
 
 import pytest
+from hypothesis import given, settings
+from hypothesis import strategies as st
 from test_combat import INFANTRY, JET, RULES, TRUCK, new_world, of, put, run, sure, track
 
 from nexus.contracts.gen.common.enums import UnitKind
@@ -27,7 +30,7 @@ from nexus.contracts.gen.events.weapon_fired import WeaponFired
 from nexus.contracts.gen.events.weapon_impact import WeaponImpact
 from nexus.core.combat import validate as combat_validate
 from nexus.core.defense import damage, rebuild, validate
-from nexus.core.rules import CAPTURE_FULL
+from nexus.core.rules import CAPTURE_FULL, CampaignRules
 from nexus.core.world import CaptureBar, Entity, World, load, lose_unit, save, state_hash
 from nexus.runtime.golden import shipped_config
 
@@ -503,13 +506,20 @@ def test_a_last_fob_freeze_survives_save_and_load() -> None:
 # --- defeat (Q-TH-7) --------------------------------------------------------------------------
 
 
-def campaign_world(hold: int) -> World:
+@functools.cache
+def loaded_campaign(reset: float | None) -> CampaignRules:
+    overrides = {} if reset is None else {"campaign.defeat.reset_hp_frac": reset}
+    rc = shipped_config(overrides).rules.campaign
+    assert rc is not None
+    return rc
+
+
+def campaign_world(hold: int, reset: float | None = None) -> World:
+    """One viewer playing, the defeat hold `hold` running ticks; `reset` sets
+    `campaign.defeat.reset_hp_frac` through the loader (None: the shipped value, NX-499)."""
     assert RULES.campaign is None
     full = dataclasses.replace(RULES, campaign=None)
-    from nexus.runtime.campaign_config import load_campaign_config
-
-    rc = load_campaign_config().rules.campaign
-    assert rc is not None
+    rc = loaded_campaign(reset)
     rules = dataclasses.replace(full, campaign=dataclasses.replace(rc, defeat_hold_ticks=hold))
     w = new_world(rules)
     human(w)
@@ -526,7 +536,7 @@ def test_the_sanctuary_held_at_zero_for_the_hold_loses_the_war() -> None:
 
 
 def test_a_repair_resets_the_hold() -> None:
-    w = campaign_world(5)
+    w = campaign_world(5, reset=0)  # the pre-NX-499 rule: any whole hp resets
     w.defense_hp[SANCTUARY] = 0
     run(w, 3)
     w.defense_hp[SANCTUARY] = 1
@@ -714,7 +724,7 @@ def test_repair_stops_at_full_with_one_restored_after_one_down() -> None:
 
 
 def test_a_repair_that_lifts_the_sanctuary_above_zero_resets_the_defeat_hold() -> None:
-    w = campaign_world(5)
+    w = campaign_world(5, reset=0)  # NX-499: a share of 0 is the old rule
     w.defense_hp[SANCTUARY] = 0
     run(w, 3)
     assert w.campaign.defeat_ticks == 3
@@ -724,7 +734,7 @@ def test_a_repair_that_lifts_the_sanctuary_above_zero_resets_the_defeat_hold() -
 
 
 def test_a_repair_during_an_empty_stretch_clears_the_run_and_the_stretch() -> None:
-    w = campaign_world(30)
+    w = campaign_world(30, reset=0)  # NX-499: a share of 0 is the old rule
     w.defense_hp[SANCTUARY] = 0
     run(w, 3)
     leave(w)
@@ -733,6 +743,186 @@ def test_a_repair_during_an_empty_stretch_clears_the_run_and_the_stretch() -> No
     parked_truck(w)  # AI-run: nobody plays, but it repairs
     run(w, 2)  # 0.6 then 1.2 hp: above 0 on the second tick
     assert (w.campaign.defeat_ticks, w.campaign.defeat_idle_ticks) == (0, 0)
+
+
+# --- the defeat reset threshold (NX-499, Q-TD-131): T = max(1, ceil(share x 1000)) hp ----------
+# at the shipped share 0.5, T is 500: a repair to 1..499 pauses a run, 500 or more resets it
+
+
+def runs(w: World) -> tuple[int, int]:
+    return w.campaign.defeat_ticks, w.campaign.defeat_idle_ticks
+
+
+def test_at_the_shipped_share_a_truck_repair_pauses_the_run_and_cannot_cancel_the_siege() -> None:
+    """The 0.5 twin of the reset test above: the truck's first tick (0.6 hp) is still 0 hp and
+    counts, the second lifts the sanctuary to 1 hp and pauses the run at 4; after 100 more ticks
+    of repair (61 hp) it is still 4, and once the sanctuary is back at 0 the run resumes from 4 and
+    the war (hold 6) is lost 2 ticks later."""
+    w = campaign_world(6)
+    w.defense_hp[SANCTUARY] = 0
+    run(w, 3)
+    truck_id = parked_truck(w).id
+    assert of(run(w, 2), CampaignEnded) == []
+    assert w.defense_hp[SANCTUARY] == 1 and runs(w) == (4, 0)
+    assert of(run(w, 100), CampaignEnded) == []
+    assert w.defense_hp[SANCTUARY] == 61 and runs(w) == (4, 0)
+    w.remove(truck_id)
+    w.defense_hp[SANCTUARY] = 0
+    assert of(run(w), CampaignEnded) == [] and runs(w) == (5, 0)
+    (ended,) = of(run(w), CampaignEnded)
+    assert (ended.result, w.campaign.running_ticks) == ("DEFEAT", 3 + 102 + 2)
+
+
+def test_at_the_shipped_share_a_repair_in_an_empty_stretch_keeps_counting_the_stretch() -> None:
+    """The 0.5 twin of the empty-stretch test above: the repair pauses the run, the empty stretch
+    keeps its hp-0 rule (Q-TD-95), and at the hold (30) it resets the run; with the run at 0 the
+    pause band then gives (0, 0)."""
+    w = campaign_world(30)
+    w.defense_hp[SANCTUARY] = 0
+    run(w, 3)
+    leave(w)
+    run(w, 5)
+    parked_truck(w)  # AI-run: nobody plays, but it repairs
+    run(w, 2)
+    assert w.defense_hp[SANCTUARY] == 1 and runs(w) == (3, 7)
+    run(w, 22)
+    assert runs(w) == (3, 29)
+    run(w)
+    assert runs(w) == (0, 30)
+    run(w)
+    assert runs(w) == (0, 0) and 0 < w.defense_hp[SANCTUARY] < 500
+
+
+def test_a_live_viewer_clears_the_stretch_of_a_paused_run_which_then_resumes_at_zero_hp() -> None:
+    w = campaign_world(30)
+    w.defense_hp[SANCTUARY] = 0
+    run(w, 3)
+    leave(w)
+    w.defense_hp[SANCTUARY] = 200
+    run(w, 5)
+    assert runs(w) == (3, 5)
+    human(w)
+    run(w)
+    assert runs(w) == (3, 0)
+    w.defense_hp[SANCTUARY] = 0
+    assert of(run(w, 26), CampaignEnded) == [] and runs(w) == (29, 0)
+    assert len(of(run(w), CampaignEnded)) == 1
+
+
+@pytest.mark.parametrize("paused_hp", [1, 250, 499])
+def test_the_pause_band_neither_counts_nor_resets_and_the_clock_runs_on(paused_hp: int) -> None:
+    w = campaign_world(5)
+    w.defense_hp[SANCTUARY] = 0
+    run(w, 3)
+    w.defense_hp[SANCTUARY] = paused_hp
+    assert of(run(w, 50), CampaignEnded) == []
+    assert runs(w) == (3, 0) and w.campaign.running_ticks == 53  # a run pause, not a sim pause
+    w.campaign.clock_paused, w.campaign.pause_reason = True, "STAFF"
+    w.defense_hp[SANCTUARY] = 0
+    run(w, 20)
+    assert runs(w) == (3, 0)  # a sim pause freezes the run as before
+    w.campaign.clock_paused, w.campaign.pause_reason = False, None
+    assert of(run(w), CampaignEnded) == [] and runs(w) == (4, 0)
+    assert len(of(run(w), CampaignEnded)) == 1
+
+
+@pytest.mark.parametrize("reset_hp", [500, 501, 1000])
+def test_reaching_the_threshold_resets_and_a_later_fall_starts_from_zero(reset_hp: int) -> None:
+    w = campaign_world(5)
+    w.defense_hp[SANCTUARY] = 0
+    run(w, 3)
+    leave(w)
+    run(w, 2)
+    assert runs(w) == (3, 2)
+    w.defense_hp[SANCTUARY] = reset_hp
+    run(w)
+    assert runs(w) == (0, 0)
+    human(w)
+    w.defense_hp[SANCTUARY] = 499  # back below T: the reset stands, nothing to pause
+    run(w, 3)
+    assert runs(w) == (0, 0)
+    w.defense_hp[SANCTUARY] = 0
+    assert of(run(w, 4), CampaignEnded) == [] and runs(w) == (4, 0)
+    assert len(of(run(w), CampaignEnded)) == 1
+
+
+@pytest.mark.parametrize("viewer", [True, False])
+def test_a_sanctuary_damaged_from_full_with_no_run_never_starts_one(viewer: bool) -> None:
+    w = campaign_world(5)
+    if not viewer:
+        leave(w)
+    w.defense_hp[SANCTUARY] = 300
+    run(w, 10)
+    assert runs(w) == (0, 0)
+
+
+def test_at_share_one_only_full_hp_resets_the_run() -> None:
+    w = campaign_world(5, reset=1.0)
+    w.defense_hp[SANCTUARY] = 0
+    run(w, 3)
+    w.defense_hp[SANCTUARY] = 999
+    run(w, 4)
+    assert runs(w) == (3, 0)
+    w.defense_hp[SANCTUARY] = 1000
+    run(w)
+    assert runs(w) == (0, 0)
+
+
+def test_at_share_zero_any_whole_hp_resets_as_before_nx_499() -> None:
+    """The worked old rule (GAMEPLAY §11): every hp above 0, even 1, clears the run and the
+    stretch, so a run never pauses."""
+    w = campaign_world(5, reset=0)
+    w.defense_hp[SANCTUARY] = 0
+    run(w, 3)
+    leave(w)
+    run(w, 2)
+    assert runs(w) == (3, 2)
+    w.defense_hp[SANCTUARY] = 1
+    run(w)
+    assert runs(w) == (0, 0)
+    human(w)
+    w.defense_hp[SANCTUARY] = 0
+    run(w, 2)
+    w.defense_hp[SANCTUARY] = 499
+    run(w)
+    assert runs(w) == (0, 0)
+
+
+def paused_siege() -> World:
+    """A run of 10 at 0 hp, then one truck parked: its first tick (0.6 hp) still counts, so 20
+    ticks later the run is paused at 11 with 12 hp."""
+    w = campaign_world(30)
+    w.defense_hp[SANCTUARY] = 0
+    run(w, 10)
+    parked_truck(w)
+    run(w, 20)
+    assert runs(w) == (11, 0) and w.defense_hp[SANCTUARY] == 12
+    return w
+
+
+def test_a_paused_run_survives_save_and_load() -> None:
+    w = paused_siege()
+    w2 = load(save(w))
+    w2.rules = w.rules  # rules are config, not snapshot state
+    assert state_hash(w2) == state_hash(w) and w2.campaign == w.campaign
+    for world in (w, w2):
+        run(world, 30)
+        assert runs(world) == (11, 0) and world.defense_hp[SANCTUARY] == 30
+    assert state_hash(w2) == state_hash(w)
+
+
+def test_determinism_a_paused_siege_gives_the_same_events_and_hash() -> None:
+    def scenario() -> tuple[str, list[Event]]:
+        w = paused_siege()
+        events = run(w, 30)
+        for e in [e for e in w.entities() if e.kind == TRUCK]:
+            w.remove(e.id)
+        w.defense_hp[SANCTUARY] = 0
+        events += run(w, 20)
+        assert of(events, CampaignEnded) and w.campaign.ended  # 11 + 19 zero ticks: the hold
+        return state_hash(w), events
+
+    assert scenario() == scenario()
 
 
 def test_the_static_rear_is_never_a_structure_target_but_the_coalition_sanctuary_is() -> None:
@@ -879,3 +1069,34 @@ def test_restore_refuses_an_entity_naming_a_node_that_does_not_exist() -> None:
     again = load(save(w))
     with pytest.raises(ValueError, match="not a theater node"):
         combat_validate(again, RULES)
+
+
+@settings(max_examples=40, deadline=None)
+@given(
+    st.lists(st.tuples(st.sampled_from([0, 1, 499, 500, 1000]), st.booleans()), max_size=40),
+    st.sampled_from([0.0, 0.5]),
+)
+def test_property_the_run_counts_only_at_zero_hp_and_never_survives_t(
+    ticks: list[tuple[int, bool]], reset: float
+) -> None:
+    """Any sequence of sanctuary hp and viewer presence (hold 10): a tick at T or more leaves
+    (0, 0); a tick above 0 hp never adds to the run, and starts none; the run and its stretch fit
+    in the clock. At share 0 (T 1) every tick above 0 hp leaves (0, 0), the pre-NX-499 rule."""
+    w = campaign_world(10, reset)
+    t = 1 if reset == 0 else 500
+    for hp, viewer in ticks:
+        if viewer and not w.viewer_units():
+            human(w)
+        elif not viewer and w.viewer_units():
+            leave(w)
+        before = runs(w)[0]
+        w.defense_hp[SANCTUARY] = hp
+        run(w)
+        if w.campaign.ended:
+            break
+        ran, idle = runs(w)
+        assert ran + idle <= w.campaign.running_ticks
+        if hp >= t:
+            assert (ran, idle) == (0, 0)
+        elif hp > 0:
+            assert ran <= before and (before > 0 or (ran, idle) == (0, 0))

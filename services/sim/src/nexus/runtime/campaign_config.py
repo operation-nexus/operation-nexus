@@ -114,6 +114,7 @@ def load_campaign_config(paths: ConfigPaths | None = None) -> CampaignConfig:
             objective_period_ticks=game_ticks(cc.objective_period_min, balance, unit_s=60),
             decay_slow_ticks=game_ticks(cc.victory.decay_slow_min, balance, unit_s=60),
             uncapturable=balance.capture.uncapturable_node_kinds,
+            sanctuary_max_hp=balance.capture.defense_hp.SANCTUARY,
         ),
         combat=combat_rules(
             balance.combat,

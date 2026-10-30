@@ -161,6 +161,7 @@ campaign:
   victory_hold_min: 30
   defeat:
     hold_min: 30
+    reset_hp_frac: 0.5
   objective_period_min: 15
   objective_mode: timed
   objective_pick: uniform
@@ -376,9 +377,9 @@ economy:
 # deleting `economy.legacy_rules`, `director.budget` and `director.max_live_units`, NX-484 for
 # `tasking.retake_keep_min`, NX-489 for the `campaign.victory` hold decay keys, NX-490 for
 # `capture.time_mult` and `capture.extra_exponent`, NX-494 for `economy.cost_parity` and the
-# catalog's `mirrors`); a change means
+# catalog's `mirrors`, NX-499 for `campaign.defeat.reset_hp_frac`); a change means
 # every config_hash moved.
-GOLDEN_CONFIG_HASH = "b0657504ee5fa255a841f5460e7f18bfb2dfea989125ff1264baf077a6a365ce"
+GOLDEN_CONFIG_HASH = "b54e05e9b779e81c031938ddc10ffd244006e384fbe45b2b102d4c241e07da4d"
 AIR = {
     "bingo_reserve_frac": 0.15,
     "orbit_period_s": 120.0,
@@ -493,7 +494,7 @@ CAMPAIGN = {
     "victory_node_frac": 0.80,
     "strategic_node_kinds": ["AIRBASE", "FOB", "PORT"],
     "victory_hold_min": 30,
-    "defeat": {"hold_min": 30},
+    "defeat": {"hold_min": 30, "reset_hp_frac": 0.5},
     "objective_period_min": 15,
     "objective_mode": "timed",
     "objective_pick": "uniform",
@@ -824,7 +825,8 @@ def test_default_profile_loads_and_matches_golden_hash() -> None:
         ("    convoy_demand_s: 900\n", "director.pol.convoy_demand_s"),
         ("    SANCTUARY: 1000\n", "capture.defense_hp.SANCTUARY"),
         ("  sanctuary_repair_hp_per_s: 1.0\n", "capture.sanctuary_repair_hp_per_s"),
-        ("  defeat:\n    hold_min: 30\n", "campaign.defeat"),
+        ("  defeat:\n    hold_min: 30\n    reset_hp_frac: 0.5\n", "campaign.defeat"),
+        ("    reset_hp_frac: 0.5\n", "campaign.defeat.reset_hp_frac"),
         ("  disabled_timeout_s: 600\n", "combat.disabled_timeout_s"),
         ("  assist_window_s: 120\n", "combat.assist_window_s"),
         ("  min_damage: 1\n", "combat.min_damage"),
@@ -956,6 +958,9 @@ def test_a_key_deleted_in_nx_488_fails_naming_it(
         ("convoy_demand_s: 900", "convoy_demand_s: 0", "director.pol.convoy_demand_s"),
         ("    period_s: 900\n", "    period_s: 0\n", "logistics.ai_trucks.period_s"),
         ("    max_live: 3\n", "    max_live: -1\n", "logistics.ai_trucks.max_live"),
+        # NX-499: the defeat reset threshold is a share of the sanctuary's max hp, 0 to 1
+        ("reset_hp_frac: 0.5", "reset_hp_frac: -0.01", "campaign.defeat.reset_hp_frac"),
+        ("reset_hp_frac: 0.5", "reset_hp_frac: 1.01", "campaign.defeat.reset_hp_frac"),
     ],
 )
 def test_wrong_type_or_value_fails_naming_key(tmp_path: Path, old: str, new: str, key: str) -> None:
@@ -1124,7 +1129,8 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "campaign: {momentum: {supply_weight: 30, nodes_weight: 70}, objective_mode: timed,\n"
         "  score: {objective_points: 5, final_weight: 50, average_weight: 50},\n"
         "  objective_period_min: 15,\n"
-        "  victory_hold_min: 30, defeat: {hold_min: 30}, victory_node_frac: 0.80,\n"
+        "  victory_hold_min: 30, defeat: {hold_min: 30, reset_hp_frac: 0.5},\n"
+        "  victory_node_frac: 0.80,\n"
         "  strategic_node_kinds: [AIRBASE, FOB, PORT],\n"
         "  idle_floor: {sanctuary_min_hp: 1, enabled: true}, victory: {hq_capture: true,\n"
         "    reset_on_repair: true, decay_fast_rate: 1.0, decay_slow_rate: 0.25,\n"

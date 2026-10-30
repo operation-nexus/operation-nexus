@@ -134,6 +134,14 @@ class Defeat(BaseModel):
             gt=0.0,
         ),
     ]
+    reset_hp_frac: Annotated[
+        float,
+        Field(
+            description="Share of the coalition sanctuary's max defense hp (capture.defense_hp.SANCTUARY) a repair must reach to reset a defeat run in progress, unit fraction; the threshold is T = max(1, ceil(value x max hp)) hp, fixed at load. Between 0 and T the run pauses; 0 is the old rule (any whole hp resets), 1.0 resets only at full hp (GAMEPLAY §9, NX-499, Q-TD-129 (6), Q-TD-131).",
+            ge=0.0,
+            le=1.0,
+        ),
+    ]
 
 
 class TimeMult(BaseModel):

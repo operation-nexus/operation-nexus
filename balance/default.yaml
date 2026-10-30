@@ -148,6 +148,7 @@ campaign:
   objective_period_min: 15  # PROPOSED – unvalidated; min (game), how long an objective lasts (CONFIG-AND-CONTENT §6.6)
   defeat:
     hold_min: 30  # PROPOSED – unvalidated (Q-TH-7); min (game), the coalition sanctuary's defense HP stays at 0 this long to lose (CONFIG-AND-CONTENT §6.6)
+    reset_hp_frac: 0.5  # PROPOSED – unvalidated (NX-499, Q-TD-131); fraction of capture.defense_hp.SANCTUARY a repair must reach to reset a defeat run; below it the run pauses (CONFIG-AND-CONTENT §6.6)
   objective_mode: timed  # timed (Q-GD-19); set per campaign by the owner or an admin (CONFIG-AND-CONTENT §6.6)
   objective_pick: uniform  # decided rule as default, Q-CFG-16 option; the only value today (CONFIG-AND-CONTENT §6.6)
   victory:
