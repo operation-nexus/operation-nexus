@@ -29,8 +29,9 @@ it, in order:
    `spend_frac.<tier>`)
    + floor(rear pool x `source_spend_frac`) - floor(`upkeep_reserve_windows` x the upkeep the
    side's units owe per window), at least the cadence floor (0 when it does not apply), at most
-   surplus + rear pool. The surplus is that of the side's bases above their starvation floors; a
-   node without finite stock, i.e. the rear source, has no entry in `starve_floor` and so adds
+   surplus + rear pool. The surplus is that of the side's bases above their surplus references
+   (`Supply.surplus_ref`, NX-500: max(ceil(`surplus_ref_frac` x max), the starvation floor)); a
+   node without finite stock, i.e. the rear source, has no entry in `surplus_ref` and so adds
    nothing.
    The rear pool is 0 for a side in unlimited mode (no pool). Cadence floor: while the side holds
    an HQ, has no operation staged and has launched no capture operation for `cadence_windows`
@@ -91,10 +92,11 @@ def raw_cp(view: SideView, dr: DirectorRules) -> int:
 
 
 def surplus(view: SideView, rules: Rules, stock: Mapping[str, int]) -> int:
-    """Stock above the starvation floor, summed over the bases `view.side` owns now."""
+    """Stock above the surplus reference `Supply.surplus_ref` (ECONOMY EC-7, NX-500; at least the
+    starvation floor), summed over the bases `view.side` owns now."""
     return sum(
-        max(0, stock.get(node, 0) - floor)
-        for node, floor in rules.supply.starve_floor.items()
+        max(0, stock.get(node, 0) - ref)
+        for node, ref in rules.supply.surplus_ref.items()
         if view.owners.get(node) == view.side
     )
 

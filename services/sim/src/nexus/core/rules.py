@@ -74,6 +74,9 @@ class Supply:
     start_owner: Mapping[str, NodeOwner] = field(default_factory=dict)
     max_stock: Mapping[str, int] = field(default_factory=dict)  # finite-stock nodes only
     starve_floor: Mapping[str, int] = field(default_factory=dict)  # ceil(starve_threshold x max)
+    # ECONOMY EC-7 (NX-500): the Director's surplus reference R, max(ceil(director
+    # .surplus_ref_frac x max), starve_floor); empty without Director rules
+    surplus_ref: Mapping[str, int] = field(default_factory=dict)
     # ceil(logistics.stock_target_frac x max): the forward stock target (Q-SIM-100, NX-389)
     stock_target: Mapping[str, int] = field(default_factory=dict)
     carriers: frozenset[UnitKind] = frozenset()
@@ -379,6 +382,7 @@ class DirectorRules:
     # cadence floor's windows; exact Fractions, floored once
     spend_frac: Mapping[ThreatTier, Fraction]
     source_spend_frac: Fraction
+    surplus_ref_frac: Fraction  # EC-7 surplus reference (NX-500), read once into Supply.surplus_ref
     reserve_windows: Fraction
     cadence_windows: int
     # ECONOMY EC-9, EC-12 (NX-412 part 4): x an Offensive or Retake candidate (a CAPTURE job) on a
@@ -798,6 +802,7 @@ def director_rules(
                     "ALPHA": Fraction(repr(cfg.spend_frac.alpha)),
                     "BRAVO": Fraction(repr(cfg.spend_frac.bravo))},
         source_spend_frac=Fraction(repr(cfg.source_spend_frac)),
+        surplus_ref_frac=Fraction(repr(cfg.surplus_ref_frac)),
         reserve_windows=Fraction(repr(cfg.upkeep_reserve_windows)),
         cadence_windows=cfg.cadence_windows,
         job_urgency_milli=round(Fraction(repr(cfg.job_urgency)) * 1000),
@@ -881,9 +886,14 @@ def _defense(
 
 
 def _supply(
-    theater: TheaterConfig, logistics: Logistics, dt: float, ai_truck_period_ticks: int
+    theater: TheaterConfig,
+    logistics: Logistics,
+    dt: float,
+    ai_truck_period_ticks: int,
+    surplus_ref_frac: Fraction | None,
 ) -> Supply:
-    """Raises ValueError when a start_stock exceeds its kind's maximum (Q-SIM-49)."""
+    """Raises ValueError when a start_stock exceeds its kind's maximum (Q-SIM-49).
+    `surplus_ref_frac` is `director.surplus_ref_frac`, None without Director rules."""
     max_by_kind = logistics.node_max_stock.model_dump()
     stocked = [n for n in theater.nodes if n.kind != "SANCTUARY"]
     over = [n.id for n in stocked if (n.start_stock or 0) > max_by_kind[n.kind]]
@@ -903,11 +913,18 @@ def _supply(
     bridge_milli = round(logistics.bridge_hp * dt * _MILLI / truck_s)
     if bridge_milli < 1:
         raise ValueError("a truck's bridge repair rate x world_dt is below 0.001 hp per tick")
+    starve_floor = {k: math.ceil(logistics.starve_threshold * v) for k, v in max_stock.items()}
+    surplus_ref = {
+        k: max(math.ceil(surplus_ref_frac * v), starve_floor[k])
+        for k, v in max_stock.items()
+        if surplus_ref_frac is not None
+    }
     return Supply(
         rear={side: sanctuaries[side] for side in _SIDES},
         start_owner={n.id: n.start_owner for n in theater.nodes},
         max_stock=max_stock,
-        starve_floor={k: math.ceil(logistics.starve_threshold * v) for k, v in max_stock.items()},
+        starve_floor=starve_floor,
+        surplus_ref=surplus_ref,
         stock_target={k: math.ceil(logistics.stock_target_frac * v) for k, v in max_stock.items()},
         carriers=frozenset(_CARRIERS),
         truck_cargo=logistics.truck_cargo,
@@ -1106,7 +1123,8 @@ def make_rules(
     if theater.bounds_m.w % fow.sigint_cell_m or theater.bounds_m.h % fow.sigint_cell_m:
         # every SIGINT cell, so every blob centre, lies on the map (FOW-2)
         raise ValueError(f"fow.sigint_cell_m {fow.sigint_cell_m} must divide the theater bounds")
-    supply = _supply(theater, logistics, world_dt(sim), ai_truck_period_ticks)
+    ref_frac = None if director is None else director.surplus_ref_frac
+    supply = _supply(theater, logistics, world_dt(sim), ai_truck_period_ticks, ref_frac)
     if combat is not None:
         _check_ammo_bound(combat, supply)
     return Rules(

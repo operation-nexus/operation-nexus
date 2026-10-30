@@ -286,6 +286,7 @@ director:
   max_spawns_per_window: 6
   spend_frac: {pattern_of_life: 0.007, alpha: 0.02, bravo: 0.0534}
   source_spend_frac: 0.005
+  surplus_ref_frac: 0.25
   upkeep_reserve_windows: 2
   cadence_windows: 10
   op_priority: {RETAKE: 1.2, OFFENSIVE: 1.0, RECON: 0.5}
@@ -379,7 +380,7 @@ economy:
 # `capture.time_mult` and `capture.extra_exponent`, NX-494 for `economy.cost_parity` and the
 # catalog's `mirrors`, NX-499 for `campaign.defeat.reset_hp_frac`); a change means
 # every config_hash moved.
-GOLDEN_CONFIG_HASH = "b54e05e9b779e81c031938ddc10ffd244006e384fbe45b2b102d4c241e07da4d"
+GOLDEN_CONFIG_HASH = "100577e46567066a28f5cb402e11d5c9194a244ee83d56030c55fdf125f518d1"
 AIR = {
     "bingo_reserve_frac": 0.15,
     "orbit_period_s": 120.0,
@@ -616,6 +617,7 @@ DIRECTOR = {
     "max_spawns_per_window": 6,
     "spend_frac": {"pattern_of_life": 0.007, "alpha": 0.02, "bravo": 0.0534},
     "source_spend_frac": 0.01,
+    "surplus_ref_frac": 0.25,
     "upkeep_reserve_windows": 2,
     "cadence_windows": 10,
     "op_priority": {
@@ -1174,6 +1176,7 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "      facility_disabled: 8, base_captured: 15, scout_in_rear: 2,\n"
         "      redemption: {support: 1, cosmetic: 0}}},\n"
         "  cadence_windows: 10, upkeep_reserve_windows: 2, source_spend_frac: 0.01,\n"
+        "  surplus_ref_frac: 0.25,\n"
         "  spend_frac: {bravo: 0.0534, alpha: 0.02, pattern_of_life: 0.007},\n"
         "  op_priority: {RETAKE: 1.2, OFFENSIVE: 1.0, ESCORT_CONVOYS: 0.8, REINFORCE_IADS: 0.7,\n"
         "    PROBE: 0.6, RECON: 0.5, DECOY_BLINK: 0.3, GARRISON_UPKEEP: 0.9, STRIKE_BRIDGE: 0.6},\n"
