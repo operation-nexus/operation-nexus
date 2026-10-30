@@ -167,6 +167,11 @@ class Collector:
         # or the first reason none did (`nexus.core.launch.no_capture_reason`, NO_CAPTURE order)
         self.no_capture: Counter[str] = Counter()
         self._new_jobs: list[int] = []  # Static jobs created this tick (JobCreated)
+        # NX-501 hauling line, per side: `resupply:<node>` jobs posted (JobCreated, RESUPPLY, not
+        # the sanctuary's own repair job) and truck unloading stops (SupplyDelivered). Neither
+        # event says whether a job stocks or starves a node, so there is no split.
+        self.jobs_posted = {s: 0 for s in SIDES}
+        self.stops = {s: 0 for s in SIDES}
         self.ops: list[tuple[int, str, str, bool]] = []  # (tick, operation, target, on coalition)
         self.ops_unseen = 0  # a created job already gone from the board when `observe` read it
         # D5 inputs (review ENTERTAINMENT-runs-F-G-H §8). `funnel`: per OFFENSIVE / RETAKE launch,
@@ -599,6 +604,7 @@ class Collector:
 
     def _delivered(self, e: Any) -> None:
         self._credit(e.commander_id, e.tick, "delivery")
+        self.stops[self.entity[e.carrier_id][1]] += 1
 
     def _fired(self, e: Any) -> None:
         """A Static shot at a node's defenses: the newest capture operation on it got its strike."""
@@ -696,6 +702,8 @@ class Collector:
         self.sitreps[f"{e.side} {e.status}"] += 1
 
     def _job_created(self, e: Any) -> None:
+        if e.job_kind == "RESUPPLY" and e.node_id not in self._source_side:
+            self.jobs_posted[e.side] += 1
         if e.side == _ENEMY:
             self._new_jobs.append(e.job_id)
 
@@ -806,6 +814,11 @@ class Collector:
                 * self.sample_ticks
                 / s
                 / 60,
+            },
+            "hauling": {
+                "run_hours": end_tick / self.hour_ticks,
+                "resupply_jobs": dict(self.jobs_posted),
+                "deliveries": dict(self.stops),
             },
             "economy": self._economy(),
         }

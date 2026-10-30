@@ -540,6 +540,23 @@ def _economy(runs: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _hauling(runs: list[dict[str, Any]]) -> dict[str, Any]:
+    """NX-501: per side, `resupply:<node>` jobs posted and truck unloading stops per run-hour,
+    pooled over the seeds (total count over total run-hours)."""
+    hours = sum(r["metrics"]["hauling"]["run_hours"] for r in runs)
+
+    def rate(key: str, side: str) -> float | None:
+        return sum(r["metrics"]["hauling"][key][side] for r in runs) / hours if hours else None
+
+    return {
+        side: {
+            "resupply_jobs_per_h": rate("resupply_jobs", side),
+            "deliveries_per_h": rate("deliveries", side),
+        }
+        for side in ("COALITION", "ENEMY")
+    }
+
+
 def aggregate(profile: str, runs: list[dict[str, Any]], t: Targets) -> dict[str, Any]:
     """One profile's results across its seeds."""
     dwell: Counter[str] = Counter()
@@ -578,6 +595,7 @@ def aggregate(profile: str, runs: list[dict[str, Any]], t: Targets) -> dict[str,
             ),
             "max": max(r["metrics"]["starvation"]["fraction_floor_node_minutes"] for r in runs),
         },
+        "hauling": _hauling(runs),
         "viewers_distinct_mean": _mean([r["viewers"]["distinct"] for r in runs]),
         "viewers_peak_mean": _mean([r["viewers"]["peak_concurrent"] for r in runs]),
     }
@@ -898,6 +916,29 @@ def markdown(report: dict[str, Any]) -> str:
         "commander-owned unit (mean over samples with a unit). Jobs / node: open coalition jobs "
         "per theater node (mean). "
         "A job is open while it has an unfilled slot.",
+        "",
+    ]
+    lines += ["## Hauling (per run-hour, pooled over the seeds)", ""]
+    lines += _table(
+        ["Profile", "Coalition jobs", "Coalition deliveries", "Static jobs", "Static deliveries"],
+        [
+            [
+                n,
+                *(
+                    _fmt(a["hauling"][side][k], ".2f")
+                    for side in ("COALITION", "ENEMY")
+                    for k in ("resupply_jobs_per_h", "deliveries_per_h")
+                ),
+            ]
+            for n, a in report["profiles"].items()
+        ],
+    )
+    lines += [
+        "Jobs: new `resupply:<node>` postings (`JobCreated`, not the sanctuary's own repair job); "
+        "a job re-posted after it ended counts again, so this is posting churn, not distinct "
+        "needs. "
+        "Deliveries: truck unloading stops at a node (`SupplyDelivered`, by the truck's side). "
+        "Stocking jobs are not told apart from starving ones: neither event carries it (NX-501).",
         "",
     ]
     lines += ["## Steamroll signals (Q-TEST-11, thresholds PROPOSED; won seeds only)", ""]
