@@ -25,6 +25,8 @@ export type Event =
   | VictoryHoldStarted
   | VictoryHoldBroken
   | VictoryHoldReset
+  | VictoryHoldPaused
+  | VictoryHoldResumed
   | SpawnRefused
   | ObjectiveAnnounced
   | ObjectiveResolved
@@ -685,6 +687,62 @@ export interface VictoryHoldReset {
    * REPAIRED: the repaired node, the lowest id when several are; null for DECAYED.
    */
   node_id: string | null;
+}
+/**
+ * A running victory hold stopped gaining progress because a hold node is under the other side's pressure (CONTRACTS §6; GAMEPLAY §9; ECONOMY EC-9b, Q-TD-84 (b), Q-TD-134; NX-466). Emitted once per pause, on its first pressured running tick (never the tick the hold starts). Nothing follows while the pause lasts, even if the node or the reason changes. Only with campaign.victory.pause_on_pressure. Public, like VictoryHoldStarted.
+ */
+export interface VictoryHoldPaused {
+  kind: "VictoryHoldPaused";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Stable slug from the theater file.
+   */
+  node_id: string;
+  /**
+   * The first condition that holds for node_id, in the order CAPTURE_BAR, DEFENSES_DOWN, CAPTURE_OP.
+   */
+  reason: "CAPTURE_BAR" | "DEFENSES_DOWN" | "CAPTURE_OP";
+  /**
+   * The progress the hold keeps while paused (a running hold has at least its start tick's 1).
+   */
+  progress_ticks: number;
+}
+/**
+ * A paused victory hold gained progress again: no hold node is under pressure any more (CONTRACTS §6; GAMEPLAY §9; ECONOMY EC-9b, Q-TD-84 (b); NX-466). Emitted on the first running tick after a VictoryHoldPaused with no hold node pressured, which also gains 1. Not emitted when the hold breaks or the campaign ends during the pause. Only with campaign.victory.pause_on_pressure. Public, like VictoryHoldStarted.
+ */
+export interface VictoryHoldResumed {
+  kind: "VictoryHoldResumed";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * The running tick the victory comes on if nothing pauses or breaks the hold again: this running tick + victory_hold_ticks - progress_ticks (campaign clock, as VictoryHoldStarted.ends_at_tick).
+   */
+  ends_at_tick: number;
+  /**
+   * The progress after this tick's gain.
+   */
+  progress_ticks: number;
 }
 /**
  * The live-unit cap stopped Director operations in one selection (CONTRACTS §6; ECONOMY EC-8, Q-TD-34 (5); NX-412 part 5a): operations the window's budget and max_spawns_per_window would have taken but whose units did not fit the side's live room. At most one per selection (the window's operations, the Pattern of Life capture slot, its convoys), none when nothing was refused. A JOIN at the cap is not counted here: it waits in the reserve queue (ReserveQueueJoined). A countable signal for the balance harness. Public view: dropped (proposed).

@@ -33,6 +33,8 @@ from nexus.contracts.gen.events.threat_tier_changed import ThreatTierChanged
 from nexus.contracts.gen.events.unit_destroyed import UnitDestroyed
 from nexus.contracts.gen.events.unit_grounded import UnitGrounded
 from nexus.contracts.gen.events.unit_spawned import UnitSpawned
+from nexus.contracts.gen.events.victory_hold_broken import VictoryHoldBroken
+from nexus.contracts.gen.events.victory_hold_paused import VictoryHoldPaused
 from nexus.contracts.gen.events.victory_hold_reset import VictoryHoldReset
 from nexus.contracts.gen.events.victory_hold_started import VictoryHoldStarted
 from nexus.contracts.gen.events.weapon_fired import WeaponFired
@@ -1850,6 +1852,69 @@ def test_only_won_campaigns_are_judged() -> None:
     assert a1["seeds_in_window"] == 1 and "1/1 won seeds flagged" in a1["detail"]  # fmt: skip
 
 
+NO_PAUSE = {"pauses": 0, "paused_ticks": 0, "paused_min": 0.0}  # NX-466 (EC-9b): never paused
+
+
+def test_collector_counts_hold_pauses_by_reason_and_paused_minutes_per_tick(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    """NX-466 (GAMEPLAY §11): holds paused, pauses by reason, paused minutes per hold and in all.
+    The minutes come from `observe`, one running tick at a time (`Campaign.hold_paused_ticks` above
+    0), because a pause ended by a break has no `VictoryHoldResumed`; a tick the clock did not run
+    (a sim pause) does not count."""
+    world = start_campaign("c", 1, shipped_config)
+
+    def hold(tick: int) -> Any:
+        return VictoryHoldStarted.model_construct(
+            kind="VictoryHoldStarted",
+            tick=tick,
+            node_ids=["fob-n-w"],
+            ends_at_tick=9,
+            progress_ticks=0,
+        )
+
+    def paused(tick: int, reason: str) -> Any:
+        return VictoryHoldPaused.model_construct(
+            kind="VictoryHoldPaused", tick=tick, node_id="fob-n-w", reason=reason, progress_ticks=1
+        )
+
+    def observe(running: int, paused_ticks: int) -> None:
+        world.campaign.running_ticks, world.campaign.hold_paused_ticks = running, paused_ticks
+        collector.observe(world)
+
+    collector.feed([hold(10), paused(20, "CAPTURE_BAR"), paused(30, "CAPTURE_OP")])  # two pauses
+    for running in (1, 2, 3):
+        observe(running, running)  # three running ticks paused
+    observe(3, 3)  # the clock did not run: not counted
+    observe(4, 0)  # resumed
+    collector.feed([
+        VictoryHoldBroken.model_construct(kind="VictoryHoldBroken", tick=40, progress_ticks=7),
+        hold(50),
+        paused(60, "DEFENSES_DOWN"),
+    ])  # fmt: skip
+    observe(5, 1)  # paused, then ended by a break: no Resumed, still counted per tick
+    observe(6, 2)
+    collector.feed([
+        VictoryHoldBroken.model_construct(kind="VictoryHoldBroken", tick=70, progress_ticks=3),
+    ])  # fmt: skip
+    observe(7, 0)  # the break cleared the pause: its two paused ticks stay with the hold
+    economy = collector.result(1000)["economy"]
+    assert economy["holds_paused"] == 2  # holds, not events: 3 pauses
+    assert economy["hold_pauses"] == {"CAPTURE_BAR": 1, "CAPTURE_OP": 1, "DEFENSES_DOWN": 1}
+    assert economy["hold_paused_min"] == 5 / HZ / 60
+    assert [(h["pauses"], h["paused_ticks"], h["paused_min"]) for h in economy["holds"]] == [
+        (2, 3, 3 / HZ / 60),
+        (1, 2, 2 / HZ / 60),
+    ]
+    run = {"metrics": {"economy": economy}, "ticks_run": HOUR, "tick_hz": HZ, "seed": 1,
+           "viewers": {"peak_concurrent": 5}}  # fmt: skip
+    agg = report._economy([run])  # the report's per-profile numbers, next to holds broken
+    assert (agg["holds"], agg["holds_broken"], agg["holds_paused"]) == (2, 2, 2)
+    assert agg["hold_pauses"] == economy["hold_pauses"]
+    assert agg["hold_paused_min"] == 5 / HZ / 60
+    assert agg["paused_min_per_hold"] == [3 / HZ / 60, 2 / HZ / 60]
+
+
 def test_collector_derives_pressure_and_the_hold_from_events(
     collector: metrics.Collector, shipped_config: CampaignConfig
 ) -> None:
@@ -1916,8 +1981,8 @@ def test_collector_derives_pressure_and_the_hold_from_events(
     assert collector.hold_start == 170 and collector.holds_broken == 1
     holds = collector.result(1000)["economy"]["holds"]
     assert holds == [
-        {"start": 130, "end": 160, "broken": True, "ops": 0, "pressure": 2},  # 150, 160
-        {"start": 170, "end": None, "broken": False, "ops": 0, "pressure": 1},  # the loss at 180
+        {**NO_PAUSE, "start": 130, "end": 160, "broken": True, "ops": 0, "pressure": 2},  # 150, 160
+        {**NO_PAUSE, "start": 170, "end": None, "broken": False, "ops": 0, "pressure": 1},  # 180
     ]
     # ECONOMY EC-9a (NX-489, shipped hold_break decay): the break at 160 kept the one tick held at
     # 130, so the hold at 170 resumed from it; resets are counted by reason
@@ -2019,7 +2084,9 @@ def test_collector_counts_static_operations_holds_and_budgets(
         [200, "POL_PATROL", "east-airbase", False],
         [400, "OFFENSIVE", "cross-n", False],
     ]
-    assert eco["holds"] == [{"start": 300, "end": None, "broken": False, "ops": 1, "pressure": 0}]
+    assert eco["holds"] == [
+        {**NO_PAUSE, "start": 300, "end": None, "broken": False, "ops": 1, "pressure": 0}
+    ]
     assert eco["budget"]["sum"] == [70] and eco["budget"]["windows"] == [1]
     run = {"metrics": {"economy": eco}, "ticks_run": 2 * HOUR, "tick_hz": HZ, "seed": 1,
            "viewers": {"peak_concurrent": 5}}  # fmt: skip
@@ -2322,7 +2389,8 @@ def _eco(funnel: list[dict[str, Any]], adapted: dict[str, list[int]],
         "sides": {}, "hourly": [], "refused": {"operations_per_hour": {}, "units": {}},
         "grounded_from": {}, "exposure": {}, "budget": {"sum": [], "windows": [],
                                                        "spent": {"base": [], "source": []}},
-        "ops_unseen": 0, "holds": [], "army_peak": 0,
+        "ops_unseen": 0, "holds": [], "holds_paused": 0, "hold_pauses": {},
+        "hold_paused_min": 0.0, "army_peak": 0,
     }  # fmt: skip
     if split is not None:
         eco["dispersed_split"] = split
@@ -2490,8 +2558,8 @@ def test_collector_logs_the_tier_timeline(collector: metrics.Collector) -> None:
 def test_pressure_is_counted_per_victory_hold(collector: metrics.Collector) -> None:
     collector.pressure_ticks = [50, 100, 120, 200, 250, 260, 400]
     collector.holds = [
-        {"start": 100, "end": 250, "broken": True, "ops": 0},
-        {"start": 300, "end": None, "broken": False, "ops": 0},
+        {"start": 100, "end": 250, "broken": True, "ops": 0, "pauses": 0, "paused_ticks": 0},
+        {"start": 300, "end": None, "broken": False, "ops": 0, "pauses": 0, "paused_ticks": 0},
     ]
     holds = collector.result(500)["economy"]["holds"]
     # the start (100) and break (250) ticks count; 50 is before, 260 is between
@@ -2561,7 +2629,8 @@ def _nc_run(no_capture: dict[str, int] | None) -> dict[str, Any]:
         "sides": {}, "hourly": [], "refused": {"operations_per_hour": {}, "units": {}},
         "grounded_from": {}, "exposure": {}, "budget": {"sum": [], "windows": [],
                                                        "spent": {"base": [], "source": []}},
-        "ops_unseen": 0, "holds": [], "army_peak": 0,
+        "ops_unseen": 0, "holds": [], "holds_paused": 0, "hold_pauses": {},
+        "hold_paused_min": 0.0, "army_peak": 0,
     }  # fmt: skip
     if no_capture is not None:
         eco["no_capture"] = no_capture
@@ -2646,7 +2715,8 @@ def test_sitreps_per_run_hour_by_category_and_staging_count() -> None:
         "sides": {}, "hourly": [], "refused": {"operations_per_hour": {}, "units": {}},
         "grounded_from": {}, "exposure": {}, "budget": {"sum": [], "windows": [],
                                                        "spent": {"base": [], "source": []}},
-        "ops_unseen": 0, "holds": [], "army_peak": 0,
+        "ops_unseen": 0, "holds": [], "holds_paused": 0, "hold_pauses": {},
+        "hold_paused_min": 0.0, "army_peak": 0,
     }  # fmt: skip
     run = {"metrics": {"economy": eco}, "ticks_run": 2 * HOUR, "tick_hz": HZ, "seed": 1,
            "viewers": {"peak_concurrent": 0}}  # fmt: skip
@@ -2669,7 +2739,8 @@ def test_the_report_counts_how_each_massing_closed_and_the_downed_packages() -> 
             "sides": {}, "hourly": [], "refused": {"operations_per_hour": {}, "units": {}},
             "grounded_from": {}, "exposure": {}, "budget": {"sum": [], "windows": [],
                                                            "spent": {"base": [], "source": []}},
-            "ops_unseen": 0, "holds": [], "army_peak": 0,
+            "ops_unseen": 0, "holds": [], "holds_paused": 0, "hold_pauses": {},
+            "hold_paused_min": 0.0, "army_peak": 0,
         }  # fmt: skip
         return {"metrics": {"economy": eco}, "ticks_run": HOUR, "tick_hz": HZ, "seed": 1,
                 "viewers": {"peak_concurrent": 0}}  # fmt: skip

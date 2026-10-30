@@ -17,6 +17,7 @@ from hypothesis import given
 from hypothesis import strategies as st
 from test_join import join
 
+import nexus.core.defense as defense
 import nexus.core.world as world_mod
 from nexus.contracts.gen.commands.staff_campaign_end import StaffCampaignEndCommand
 from nexus.contracts.gen.commands.staff_campaign_pause import StaffCampaignPauseCommand
@@ -118,6 +119,8 @@ def own(w: World, side: NodeOwner, *nodes: str) -> None:
 
 def hold_seven(w: World) -> None:
     own(w, "COALITION", *COALITION_NODES, *NEUTRAL_NODES, "fob-n-e", "fob-s-e")
+    for node in ("fob-n-e", "fob-s-e"):
+        defense.reset(w, node)  # as a capture does: 0 hp, no drain carry, no `defense_down` flag
 
 
 def put(w: World, node: str, n: int, side: Side = "COALITION", dx: float = 0.0) -> Entity:
@@ -674,7 +677,7 @@ def test_format_12_snapshots_are_refused() -> None:
     raw["v"] = 12
     with pytest.raises(ValueError, match="unsupported snapshot format version 12"):
         load(msgpack.packb(raw, use_bin_type=True))
-    assert world_mod.FORMAT_VERSION == 37
+    assert world_mod.FORMAT_VERSION == 38
 
 
 @pytest.mark.parametrize(

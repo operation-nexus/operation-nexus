@@ -183,6 +183,7 @@ class CampaignRules:
     decay_slow_rate: Fraction
     decay_fast_rate: Fraction  # > 0 and >= decay_slow_rate (the config loader)
     reset_on_repair: bool
+    pause_on_pressure: bool  # campaign.victory.pause_on_pressure: EC-9b (NX-466)
     objective_pick: str  # campaign.objective_pick: "uniform", the only value so far
     # Objective candidates by id (never SANCTUARY, BRIDGE or the enemy HQ; Q-SM-11) -> the ids of
     # their road neighbours that can have an owner (not BRIDGE): a candidate with a neighbour of
@@ -1010,6 +1011,7 @@ def campaign_rules(
         decay_slow_rate=Fraction(repr(cfg.victory.decay_slow_rate)),
         decay_fast_rate=Fraction(repr(cfg.victory.decay_fast_rate)),
         reset_on_repair=cfg.victory.reset_on_repair,
+        pause_on_pressure=cfg.victory.pause_on_pressure,
         objective_pick=cfg.objective_pick,
         candidates={
             n: tuple(m for m, _ in roads.neighbours(n) if m in ownable)

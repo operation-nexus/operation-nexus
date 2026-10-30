@@ -102,8 +102,9 @@ from nexus.core.rules import CAPTURE_FULL, Rules
 # 35: Job.struck_by, the claimants that fired at a STRIKE job's target (Q-TD-87, NX-463); 36:
 # Campaign.defeat_idle_ticks, the defeat run's empty stretch (Q-TD-95, NX-476); a retake job
 # reuses Job.lost as its keep clock (Q-TD-121, NX-484, no bump: same shape); 37:
-# Campaign.hold_broken_ticks and hold_broken_nodes, a broken hold's decay (ECONOMY EC-9a, NX-489)
-FORMAT_VERSION = 37
+# Campaign.hold_broken_ticks and hold_broken_nodes, a broken hold's decay (ECONOMY EC-9a, NX-489);
+# 38: Campaign.hold_paused_ticks, a running hold's pause under pressure (ECONOMY EC-9b, NX-466)
+FORMAT_VERSION = 38
 _MM = 1000.0  # metres -> millimetres; m/s -> mm/s
 _MICRO = 1e6  # ADR-0002's 1e-6 step for other floats (fuel)
 _MILLI_UNIT = 1000  # thousandths of a stock unit per unit
@@ -484,7 +485,8 @@ class Campaign:
     has held the victory share of strategic nodes, `hold_nodes` the strategic nodes it held on the
     last of those ticks, ascending (empty with no hold; ECONOMY EC-9). A broken hold that decays
     (EC-9a) keeps its progress at the break in `hold_ticks`, its nodes in `hold_broken_nodes` and
-    the running ticks since the break in `hold_broken_ticks`, with `hold_nodes` empty;
+    the running ticks since the break in `hold_broken_ticks`, with `hold_nodes` empty; a running
+    hold paused under pressure (EC-9b) counts the running ticks of the pause in `hold_paused_ticks`;
     `held_ticks_*` sum each side's held strategic node count over the running ticks (the
     time-limit score keeps them exact)."""
 
@@ -507,6 +509,7 @@ class Campaign:
     hold_nodes: tuple[str, ...] = ()  # the running victory hold's nodes (NX-412 part 4)
     hold_broken_ticks: int = 0  # running ticks since a decaying hold broke (EC-9a, NX-489)
     hold_broken_nodes: tuple[str, ...] = ()  # the decaying hold's nodes, for the repair check
+    hold_paused_ticks: int = 0  # running ticks of the running hold's current pause (EC-9b, NX-466)
 
 
 @dataclass(slots=True)
@@ -1427,6 +1430,7 @@ _CAMPAIGN_CHECKS: dict[str, Callable[[object, str], Any]] = {
     "hold_nodes": lambda v, k: _node_ids(v, k),
     "hold_broken_ticks": _int,
     "hold_broken_nodes": lambda v, k: _node_ids(v, k),
+    "hold_paused_ticks": _int,
 }
 
 
@@ -1577,7 +1581,10 @@ def _load_campaign(value: object) -> Campaign:
         (c.pause_reason is None) == c.clock_paused
         or (c.pause_sub_reason is not None and c.pause_reason != "STAFF")
         or c.running_ticks > c.tick
-        or max(c.hold_ticks + c.hold_broken_ticks, c.defeat_ticks + c.defeat_idle_ticks)
+        or max(
+            c.hold_ticks + c.hold_broken_ticks + c.hold_paused_ticks,
+            c.defeat_ticks + c.defeat_idle_ticks,
+        )
         > c.running_ticks
         or _bad_hold(c)
         or c.objectives_done > c.objectives_issued
@@ -1588,12 +1595,14 @@ def _load_campaign(value: object) -> Campaign:
 
 def _bad_hold(c: Campaign) -> bool:
     """EC-9a (NX-489): a hold is running (`hold_nodes`), decaying (`hold_broken_nodes`, its
-    ticks since the break) or absent; either kind has progress, no hold has none."""
+    ticks since the break) or absent; either kind has progress, no hold has none. EC-9b (NX-466):
+    only a running hold is paused."""
     running, decaying = bool(c.hold_nodes), bool(c.hold_broken_nodes)
     return (
         (running and decaying)
         or (running or decaying) != bool(c.hold_ticks)
         or (bool(c.hold_broken_ticks) and not decaying)
+        or (bool(c.hold_paused_ticks) and not running)
     )
 
 
