@@ -179,6 +179,23 @@ class Collector:
         # event says whether a job stocks or starves a node, so there is no split.
         self.jobs_posted = {s: 0 for s in SIDES}
         self.stops = {s: 0 for s in SIDES}
+        # NX-502: `sample` counts each side's open `resupply:<node>` jobs (the sanctuary's excluded)
+        # as starving (the node's stock under its live floor) or stocking: a sampled state count,
+        # not postings. A destroyed unit is gone from the world and `UnitDestroyed` has no
+        # position, so a coalition truck's position is the last one `observe` saw (the tick
+        # before); it tells whether the truck died within `tasking.defend_radius_m` of the
+        # sanctuary.
+        self.job_samples = {s: {"starving": 0, "stocking": 0} for s in SIDES}
+        self._carrier_pos: dict[int, tuple[float, float]] = {}
+        self.trucks_lost_near_sanctuary = 0
+        # NX-502, the defeat run (NX-499), counted on running ticks only: runs started
+        # (`defeat_ticks` from 0 to above 0), the longest, the ticks of a run in progress with the
+        # sanctuary's defense hp above 0 and below `defeat_reset_hp` (paused), and runs that ended
+        # without a defeat (resets).
+        self.defeat_started = self.defeat_longest = self.defeat_resets = 0
+        self.defeat_paused_ticks = 0
+        self._defeat_seen = 0
+        self._reset_hp = rules.campaign.defeat_reset_hp
         self.ops: list[tuple[int, str, str, bool]] = []  # (tick, operation, target, on coalition)
         self.ops_unseen = 0  # a created job already gone from the board when `observe` read it
         # D5 inputs (review ENTERTAINMENT-runs-F-G-H §8). `funnel`: per OFFENSIVE / RETAKE launch,
@@ -318,7 +335,10 @@ class Collector:
             c = world.find(eid)
             if c is None:
                 self._carriers.discard(eid)
-            elif c.cargo and c.path and isinstance(c.path[-1], str):
+                self._carrier_pos.pop(eid, None)
+                continue
+            self._carrier_pos[eid] = (c.pos.x, c.pos.y)
+            if c.cargo and c.path and isinstance(c.path[-1], str):
                 self._dest[eid] = c.path[-1]
             else:
                 self._dest.pop(eid, None)  # unloaded or parked: no longer a convoy under way
@@ -334,14 +354,29 @@ class Collector:
             _add(self.budget, hour, state.budget)
             _add(self.budget_windows, hour, 1)
         camp = world.campaign
-        if camp.hold_paused_ticks and camp.running_ticks != self._running_seen and self.holds:
-            self.hold_paused_ticks += 1  # a running tick of a paused hold (not a sim-paused one)
-            self.holds[-1]["paused_ticks"] += 1
+        ran = camp.running_ticks != self._running_seen  # the clock ran this tick (not a sim pause)
         self._running_seen = camp.running_ticks
+        if ran and camp.hold_paused_ticks and self.holds:
+            self.hold_paused_ticks += 1  # a running tick of a paused hold
+            self.holds[-1]["paused_ticks"] += 1
         hp = world.defense_hp[self._sanctuary]
+        if ran:
+            self._defeat_run(camp.defeat_ticks, hp)
         self.sanctuary_min = min(self.sanctuary_min, hp)
         if world.campaign.tick <= self.a3_ticks:
             self.sanctuary_min_window = min(self.sanctuary_min_window, hp)
+
+    def _defeat_run(self, run: int, hp: int) -> None:
+        """One running tick of the defeat run (`campaign._defeat_run`): `run` is `defeat_ticks`
+        after the tick. A tick that ended the campaign leaves the run at the hold, not 0."""
+        if run and not self._defeat_seen:
+            self.defeat_started += 1
+        elif self._defeat_seen and not run:
+            self.defeat_resets += 1
+        if run and 0 < hp < self._reset_hp:
+            self.defeat_paused_ticks += 1
+        self.defeat_longest = max(self.defeat_longest, run)
+        self._defeat_seen = run
 
     def _economy_window(self, world: World) -> None:
         """One economy window has run (upkeep included): R1/R8 unit shares, R2, R3/R11 episodes
@@ -445,6 +480,20 @@ class Collector:
         fraction = sum(stock[n] < self._fraction_floor[n] for n in held)
         self.starved_fraction_nodes += fraction
         self.starved_fraction_any += fraction > 0
+        for side in SIDES:  # NX-502: open resupply jobs by the state of their node's stock
+            for j in world.boards[side].values():
+                node = j.node
+                if (
+                    j.kind == "RESUPPLY"
+                    and len(j.claims) < j.slots
+                    and node is not None
+                    and node in stock
+                    and node in floor
+                    and node not in self._source_side  # not the sanctuary's repair job
+                ):
+                    self.job_samples[side][
+                        "starving" if stock[node] < floor[node] else "stocking"
+                    ] += 1
 
     def sample_idle(self, world: World) -> None:
         """The idle armed viewer-unit share (Q-SIM-92): commander-owned units of an armed kind, not
@@ -600,6 +649,11 @@ class Collector:
 
     def _destroyed(self, e: Any) -> None:
         dest = self._dest.pop(e.entity_id, None)
+        pos = self._carrier_pos.pop(e.entity_id, None)
+        tasking = self._world_rules.tasking
+        if pos is not None and e.side == _COALITION and tasking is not None:
+            near = math.dist(pos, self._world_rules.roads.pos[self._sanctuary])
+            self.trucks_lost_near_sanctuary += near <= tasking.defend_radius_m
         killer_side = self.entity.get(e.killer_id, (None, None))[1]
         if dest and e.side == _COALITION and killer_side == _ENEMY:
             self._action[dest] = e.tick  # R11: a loaded convoy lost on its way to `dest`
@@ -840,6 +894,19 @@ class Collector:
                 "run_hours": end_tick / self.hour_ticks,
                 "resupply_jobs": dict(self.jobs_posted),
                 "deliveries": dict(self.stops),
+                "trucks_lost_near_sanctuary": self.trucks_lost_near_sanctuary,
+                "resupply_job_min": {
+                    side: {k: n * self.sample_ticks / s / 60 for k, n in states.items()}
+                    for side, states in self.job_samples.items()
+                },
+            },
+            "defeat_run": {
+                "started": self.defeat_started,
+                "longest_ticks": self.defeat_longest,
+                "longest_min": self._minutes(self.defeat_longest),
+                "paused_ticks": self.defeat_paused_ticks,
+                "paused_min": self._minutes(self.defeat_paused_ticks),
+                "resets": self.defeat_resets,
             },
             "economy": self._economy(),
         }
