@@ -572,6 +572,12 @@ def aggregate(profile: str, runs: list[dict[str, Any]], t: Targets) -> dict[str,
             "mean": _mean([r["metrics"]["starvation"]["node_minutes"] for r in runs]),
             "max": max(r["metrics"]["starvation"]["node_minutes"] for r in runs),
         },
+        "starvation_fraction_floor_node_minutes": {  # NX-495: against the fraction floor
+            "mean": _mean(
+                [r["metrics"]["starvation"]["fraction_floor_node_minutes"] for r in runs]
+            ),
+            "max": max(r["metrics"]["starvation"]["fraction_floor_node_minutes"] for r in runs),
+        },
         "viewers_distinct_mean": _mean([r["viewers"]["distinct"] for r in runs]),
         "viewers_peak_mean": _mean([r["viewers"]["peak_concurrent"] for r in runs]),
     }
@@ -620,6 +626,7 @@ def _profile_row(name: str, a: dict[str, Any]) -> list[str]:
         _fmt(a["density"]["jobs_per_node"], ".2f"),
         "-" if top is None else f"{top['kind']} {top['share']:.0%}",
         _fmt(a["starvation_node_minutes"]["mean"]),
+        _fmt(a["starvation_fraction_floor_node_minutes"]["mean"]),
     ]
 
 
@@ -876,12 +883,16 @@ def markdown(report: dict[str, Any]) -> str:
             "Jobs / node",
             "Top kind",
             "Starved",
+            "Starved (fraction floor)",
         ],
         [_profile_row(n, a) for n, a in report["profiles"].items()],
     )
     lines += [
         "Viewers: mean per run, distinct arrivals / peak with a live unit at once. "
-        "Starved: mean supply-starved node-minutes. Idle armed: share of commander-owned armed "
+        "Starved: mean supply-starved node-minutes against the live floor; "
+        "Starved (fraction floor): the same against ceil(`starve_threshold` x maximum) "
+        "whatever `starve_floor_mode` is "
+        "(NX-495). Idle armed: share of commander-owned armed "
         "units with no job, order or route, sampled every `idle_sample_min`. "
         "Slots / unit: open job slots on the coalition board per live (not Disabled) "
         "commander-owned unit (mean over samples with a unit). Jobs / node: open coalition jobs "

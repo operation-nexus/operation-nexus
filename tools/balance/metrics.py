@@ -79,11 +79,16 @@ class Collector:
         impact_check_ticks: int,
         kinds: Mapping[str, str],
         a2_min_tier: str,
+        starve_threshold: float,
     ) -> None:
         rules = world.rules
         if rules is None or rules.campaign is None:
             raise ValueError("the harness needs a world with campaign rules")
         self._world_rules = rules
+        # NX-495: the fraction floor whatever `logistics.starve_floor_mode` is, for the second count
+        self._fraction_floor = {
+            n: math.ceil(starve_threshold * m) for n, m in rules.supply.max_stock.items()
+        }
         self._strategic = frozenset(rules.campaign.strategic)
         self._sanctuary = rules.sanctuary
         self.tick_hz, self.sample_ticks, self.a3_ticks = tick_hz, sample_ticks, a3_ticks
@@ -118,6 +123,8 @@ class Collector:
         self.momentum: list[int] = []
         self.starved_any = 0
         self.starved_nodes = 0
+        self.starved_fraction_any = 0  # the same, against the fraction floor (NX-495)
+        self.starved_fraction_nodes = 0
         self.sanctuary_min = self.sanctuary_min_window = world.defense_hp[self._sanctuary]
         # Q-TEST-11 inputs (steamroll.py). Ownership follows `NodeCaptured` from the setup's owners;
         # a pressure event is a Static capture start on a coalition node, a coalition
@@ -413,13 +420,13 @@ class Collector:
                 }
             )
         floor, stock = self._world_rules.supply.starve_floor, world.stock
-        starved = sum(
-            1
-            for n, owner in sorted(world.owner.items())
-            if owner == _COALITION and n in stock and stock[n] < floor[n]
-        )
+        held = [n for n, owner in sorted(world.owner.items()) if owner == _COALITION and n in stock]
+        starved = sum(stock[n] < floor[n] for n in held)
         self.starved_nodes += starved
         self.starved_any += starved > 0
+        fraction = sum(stock[n] < self._fraction_floor[n] for n in held)
+        self.starved_fraction_nodes += fraction
+        self.starved_fraction_any += fraction > 0
 
     def sample_idle(self, world: World) -> None:
         """The idle armed viewer-unit share (Q-SIM-92): commander-owned units of an armed kind, not
@@ -791,6 +798,14 @@ class Collector:
             "starvation": {
                 "any_node_minutes": self.starved_any * self.sample_ticks / s / 60,
                 "node_minutes": self.starved_nodes * self.sample_ticks / s / 60,
+                "fraction_floor_any_node_minutes": self.starved_fraction_any
+                * self.sample_ticks
+                / s
+                / 60,
+                "fraction_floor_node_minutes": self.starved_fraction_nodes
+                * self.sample_ticks
+                / s
+                / 60,
             },
             "economy": self._economy(),
         }

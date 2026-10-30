@@ -43,6 +43,7 @@ from nexus.core.tasking_gen import JobSpec
 from nexus.core.world import CaptureBar, Claim, Contact, FacilityMarker, Job, Staged, Vec2
 from nexus.runtime.campaign_config import CampaignConfig, start_campaign
 from nexus.runtime.command_log import CommandLogReader, Tombstone
+from nexus.runtime.golden import shipped_config as golden_shipped_config
 
 # The harness modules live in tools/balance, outside the package: put them on the path, as the
 # other tool tests reach their scripts. mypy cannot see them from here, so they type as Any.
@@ -220,6 +221,7 @@ def collector(shipped_config: CampaignConfig) -> metrics.Collector:
         impact_check_ticks=10,
         kinds={commander(n): "scout" if n == 5 else "auto" for n in range(1, 7)},
         a2_min_tier="ALPHA",
+        starve_threshold=0.25,
     )
 
 
@@ -345,6 +347,33 @@ def test_nodes_lost_tier_dwell_and_outcome(collector: metrics.Collector) -> None
     assert r["outcome"]["result"] == "VICTORY" and r["outcome"]["length_h"] == 1000 / 36000
 
 
+def test_starved_is_counted_against_the_fraction_floor_in_loadouts_mode() -> None:
+    """NX-495 (GAMEPLAY §5 "Harness"): in `loadouts` mode the live floor is 100 at an airbase and
+    the fraction floor stays 500, so a base at 150 is starved on the second count only."""
+    config = golden_shipped_config({"logistics.starve_floor_mode": "loadouts"})
+    world = start_campaign("c", 1, config)
+    col = metrics.Collector(
+        world, frozenset(), tick_hz=HZ, sample_ticks=600, a3_ticks=1000, idle_sample_ticks=600,
+        impact_check_ticks=10, kinds={}, a2_min_tier="ALPHA",
+        starve_threshold=config.balance.logistics.starve_threshold,
+    )  # fmt: skip
+    assert world.rules is not None
+    assert world.rules.supply.starve_floor["west-airbase"] == 100
+    held = [n for n, o in world.owner.items() if o == "COALITION" and n in world.stock]
+    for n in held:
+        world.stock[n] = world.rules.supply.max_stock[n]  # nothing starved on either count
+    world.stock["west-airbase"] = 150  # above the live floor 100, below the fraction floor 500
+    world.stock["fob-n-w"] = 50  # below both (100 and 250)
+    col.sample(world)
+    r = col.result(600)
+    assert r["starvation"] == {
+        "any_node_minutes": 1.0,
+        "node_minutes": 1.0,
+        "fraction_floor_any_node_minutes": 1.0,
+        "fraction_floor_node_minutes": 2.0,
+    }
+
+
 def test_samples_and_sanctuary_hp(
     collector: metrics.Collector, shipped_config: CampaignConfig
 ) -> None:
@@ -352,7 +381,7 @@ def test_samples_and_sanctuary_hp(
     world.campaign.tick = 500
     collector.sample(world)
     base = collector.result(500)
-    assert base["starvation"] == {"any_node_minutes": 0.0, "node_minutes": 0.0}
+    assert set(base["starvation"].values()) == {0.0}
     world.stock["west-airbase"] = 0  # below its starvation floor, coalition-held
     world.stock["fob-n-w"] = 0
     world.defense_hp["haven"] = 0
@@ -362,7 +391,12 @@ def test_samples_and_sanctuary_hp(
     world.defense_hp["haven"] = 7
     collector.observe(world)
     r = collector.result(1500)
-    assert r["starvation"] == {"any_node_minutes": 1.0, "node_minutes": 2.0}  # 600 ticks = 1 min
+    assert r["starvation"] == {  # 600 ticks = 1 min; the default mode: both floors are the same
+        "any_node_minutes": 1.0,
+        "node_minutes": 2.0,
+        "fraction_floor_any_node_minutes": 1.0,
+        "fraction_floor_node_minutes": 2.0,
+    }
     assert r["sanctuary_hp"] == {"min": 0, "min_in_a3_window": 0}
     first, second = r["momentum"]["samples"]
     assert second < first == momentum(start_campaign("c", 1, shipped_config)).momentum_pct
@@ -1269,7 +1303,8 @@ def test_theater_runs_on_the_file_in_every_worker(
     )
     world.boards["COALITION"][1] = Job(1, "STRIKE", "a", 1, 1000, 0)
     col = metrics.Collector(world, frozenset(), tick_hz=HZ, sample_ticks=1, a3_ticks=1,
-        idle_sample_ticks=1, impact_check_ticks=1, kinds={}, a2_min_tier="ALPHA")  # fmt: skip
+        idle_sample_ticks=1, impact_check_ticks=1, kinds={}, a2_min_tier="ALPHA",
+        starve_threshold=0.25)  # fmt: skip
     col.sample_density(world)
     assert col.jobs_per_node == [1 / (shipped_nodes + 1)]
 
@@ -1403,6 +1438,7 @@ def join_hauler(
     collector = metrics.Collector(
         world, frozenset([cmdr]), tick_hz=HZ, sample_ticks=600, a3_ticks=1000,
         idle_sample_ticks=600, impact_check_ticks=10, kinds={cmdr: "hauler"}, a2_min_tier="ALPHA",
+        starve_threshold=0.25,
     )  # fmt: skip
     collector.note_join(cmdr, 5, "ALPHA")
     v = personas.new_viewer(1, load().personas["newbie"], "prime-50", 1, "hauler")
@@ -2513,7 +2549,7 @@ def test_hq_captures_are_logged_with_participants_and_capture_weight(
     world.spawn("GARRISON_INFANTRY", "COALITION", "COMMANDER", Vec2(x + 9e3, y), commander_id=me)
     c = metrics.Collector(world, frozenset(), tick_hz=HZ, sample_ticks=600, a3_ticks=1000,
                           idle_sample_ticks=600, impact_check_ticks=10, kinds={},
-                          a2_min_tier="ALPHA")  # fmt: skip
+                          a2_min_tier="ALPHA", starve_threshold=0.25)  # fmt: skip
 
     def flip(tick: int, node: str, to: str, who: list[str]) -> Any:
         return NodeCaptured.model_construct(
@@ -2616,6 +2652,7 @@ def rig(shipped_config: CampaignConfig) -> tuple[metrics.Collector, Any]:
     col = metrics.Collector(
         world, frozenset(), tick_hz=HZ, sample_ticks=600, a3_ticks=1000, idle_sample_ticks=600,
         impact_check_ticks=10, kinds={}, a2_min_tier="ALPHA",
+        starve_threshold=0.25,
     )  # fmt: skip
     return col, world
 

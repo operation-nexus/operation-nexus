@@ -37,6 +37,8 @@ logistics:
     HQ: 2000
     PORT: 1000
   starve_threshold: 0.25  # PROPOSED – unvalidated (Q-SIM-49); fraction of node_max_stock (CONFIG-AND-CONTENT §6.3 logistics.starve_threshold)
+  starve_floor_mode: fraction  # PROPOSED (NX-495; Q-TD-123 owner direction, Q-TD-132 (B) lead, owner may veto); fraction = ceil(starve_threshold x node_max_stock), today's floor; loadouts = min(starve_floor_loadouts x the largest loadout_cost, node_max_stock) (GAMEPLAY §5 "Absolute floor")
+  starve_floor_loadouts: 5  # PROPOSED (NX-495; Q-TD-123 "3-5", Q-TD-132 (B)); loadouts of the dearest kind; read only in loadouts mode
   stock_target_frac: 0.8  # PROPOSED – unvalidated (Q-SIM-100, Q-SIM-102, NX-389); fraction of node_max_stock, a base below it gets a stocking resupply job and a run to it loads only stock above a source's own target (CONFIG-AND-CONTENT §6.3)
   truck_cargo: 100  # PROPOSED – unvalidated (Q-SIM-49); stock units (CONFIG-AND-CONTENT §6.3 logistics.truck_cargo)
   unload_rate: 1.0  # PROPOSED – unvalidated (Q-SIM-49); stock per s (world) (CONFIG-AND-CONTENT §6.3 logistics.unload_rate)

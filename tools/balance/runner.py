@@ -202,6 +202,7 @@ def run(
         a3_ticks=round(data.targets.a3_hours * 3600 * hz),
         idle_sample_ticks=round(data.idle_sample_min * 60 * hz),
         impact_check_ticks=max(1, round(data.impact_check_s * hz)),
+        starve_threshold=config.balance.logistics.starve_threshold,
     )
     orders = Orders(
         world, frozenset(v.commander_id for v in crowd.viewers if v.kind == "freelancer")
@@ -343,7 +344,12 @@ def failed_run(profile: str, seed: int, hours: float, error: str) -> dict[str, A
                 "share_max": None,
                 "reasons": {},
             },
-            "starvation": {"any_node_minutes": 0.0, "node_minutes": 0.0},
+            "starvation": {
+                "any_node_minutes": 0.0,
+                "node_minutes": 0.0,
+                "fraction_floor_any_node_minutes": 0.0,
+                "fraction_floor_node_minutes": 0.0,
+            },
         },
         "timing": {"wall_s": 0.0, "ticks_per_s": None},
     }

@@ -73,9 +73,10 @@ class Supply:
     # Node -> its starting owner; `World.owner` starts as a copy and is the live owner (NX-125).
     start_owner: Mapping[str, NodeOwner] = field(default_factory=dict)
     max_stock: Mapping[str, int] = field(default_factory=dict)  # finite-stock nodes only
-    starve_floor: Mapping[str, int] = field(default_factory=dict)  # ceil(starve_threshold x max)
+    starve_floor: Mapping[str, int] = field(default_factory=dict)  # fraction or loadouts (NX-495)
     # ECONOMY EC-7 (NX-500): the Director's surplus reference R, max(ceil(director
-    # .surplus_ref_frac x max), starve_floor); empty without Director rules
+    # .surplus_ref_frac x max), ceil(starve_threshold x max)), in either floor mode; empty without
+    # Director rules
     surplus_ref: Mapping[str, int] = field(default_factory=dict)
     # ceil(logistics.stock_target_frac x max): the forward stock target (Q-SIM-100, NX-389)
     stock_target: Mapping[str, int] = field(default_factory=dict)
@@ -913,9 +914,18 @@ def _supply(
     bridge_milli = round(logistics.bridge_hp * dt * _MILLI / truck_s)
     if bridge_milli < 1:
         raise ValueError("a truck's bridge repair rate x world_dt is below 0.001 hp per tick")
-    starve_floor = {k: math.ceil(logistics.starve_threshold * v) for k, v in max_stock.items()}
+    fraction_floor = {k: math.ceil(logistics.starve_threshold * v) for k, v in max_stock.items()}
+    if logistics.starve_floor_mode == "loadouts":
+        # NX-495: N loadouts of the dearest kind of the whole catalog, capped at the node's maximum
+        dearest = max(logistics.loadout_cost.model_dump().values())
+        starve_floor = {
+            k: min(logistics.starve_floor_loadouts * dearest, v) for k, v in max_stock.items()
+        }
+    else:
+        starve_floor = fraction_floor
     surplus_ref = {
-        k: max(math.ceil(surplus_ref_frac * v), starve_floor[k])
+        # NX-500: the Director's reference is on the fraction floor in either mode (EC-7)
+        k: max(math.ceil(surplus_ref_frac * v), fraction_floor[k])
         for k, v in max_stock.items()
         if surplus_ref_frac is not None
     }
