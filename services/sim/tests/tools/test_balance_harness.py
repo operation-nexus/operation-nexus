@@ -417,9 +417,9 @@ def test_hauling_counts_resupply_jobs_and_truck_stops_per_side(
     }
     run = {"metrics": {"hauling": h}}
     agg = report._hauling([run, run])  # pooled: 4 jobs over 1 run-hour, 6 stops
-    assert agg["COALITION"] | {"starving_job_min": 0} == {
+    assert agg["COALITION"] == {
         "resupply_jobs_per_h": 4.0, "deliveries_per_h": 6.0,
-        "starving_job_min": 0, "stocking_job_min": 0.0,
+        "starving_job_min": 0.0, "stocking_job_min": 0.0,
     }  # fmt: skip
     assert agg["ENEMY"]["resupply_jobs_per_h"] == 2.0 and agg["ENEMY"]["deliveries_per_h"] == 2.0
     empty = report._hauling([{"metrics": {"hauling": metrics_zero()}}])
