@@ -40,6 +40,7 @@ from nexus.contracts.gen.events.victory_hold_started import VictoryHoldStarted
 from nexus.contracts.gen.events.weapon_fired import WeaponFired
 from nexus.contracts.gen.events.weapon_impact import WeaponImpact
 from nexus.core.campaign import campaign, momentum
+from nexus.core.economy import income
 from nexus.core.step import HANDLERS, step
 from nexus.core.tasking import claim, idle_reason, post_job
 from nexus.core.tasking_gen import JobSpec
@@ -3467,3 +3468,194 @@ def test_new_metrics_reach_report_json_and_markdown(
     assert "resumed 0, resets none" in md
     assert "## Per seed: A2 and idle armed (NX-502)" in md
     assert "## Hauling state, trucks lost and the defeat run (NX-502" in md
+
+
+# --- NX-477 / NX-478: harness counters and reporting ---------------------------------------------
+def test_zero_strategic_minutes_count_running_ticks_only(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    """NX-477 item 1: game minutes with no strategic node held by the coalition; a tick the clock
+    did not run (sim pause) counts nothing."""
+    world = start_campaign("c", 1, shipped_config)
+    strategic = sorted(shipped_config.rules.campaign.strategic)  # type: ignore[union-attr]
+
+    def observe(running: int) -> None:
+        world.campaign.running_ticks = running
+        collector.observe(world)
+
+    observe(1)  # the coalition holds them at the start
+    for n in strategic:
+        world.owner[n] = "ENEMY"
+    observe(2)  # counts
+    observe(2)  # sim-paused: running_ticks did not move, so it does not
+    observe(3)  # counts
+    world.owner[strategic[0]] = "COALITION"
+    observe(4)  # holds one again
+    hold = collector.result(100)["coalition_hold"]
+    assert hold["zero_strategic_ticks"] == 2
+    assert hold["zero_strategic_min"] == 2 / HZ / 60
+    agg = report._nx477([{"metrics": {"coalition_hold": hold}}] * 2)["coalition_hold"]
+    assert agg["zero_strategic_min"] == 4 / HZ / 60
+
+
+def test_coalition_captures_count_only_flips_to_the_coalition(
+    collector: metrics.Collector,
+) -> None:
+    """NX-477 item 2: `NodeCaptured` with the coalition as the new owner, summed per profile."""
+
+    def captured(node: str, frm: str, to: str) -> Any:
+        return NodeCaptured.model_construct(
+            kind="NodeCaptured", tick=5, node_id=node, from_=frm, to=to,
+            participant_commander_ids=[],
+        )  # fmt: skip
+
+    collector.feed([captured("fob-n-e", "ENEMY", "COALITION"),
+                    captured("fob-s-e", "ENEMY", "COALITION"),
+                    captured("fob-n-w", "COALITION", "ENEMY")])  # fmt: skip
+    hold = collector.result(100)["coalition_hold"]
+    assert hold["coalition_captures"] == 2
+    runs = [{"metrics": {"coalition_hold": hold}}] * 2
+    assert report._nx477(runs)["coalition_hold"]["coalition_captures"] == 4
+
+
+def test_escort_convoys_jobs_are_read_at_the_first_sample_of_each_hour(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    """NX-477 item 3: the Static board's `op:ESCORT_CONVOYS:` jobs, one reading per run-hour; other
+    operations and the coalition's board are left out."""
+    world = start_campaign("c", 1, shipped_config)
+
+    def job(jid: int, key: str) -> Job:
+        return Job(jid, "ESCORT_CONVOY", key, 1, 1000, 0)
+
+    world.boards["ENEMY"].update({
+        1: job(1, "op:ESCORT_CONVOYS:convoy-a:0"), 2: job(2, "op:ESCORT_CONVOYS:convoy-b:0"),
+        3: job(3, "op:RECON:fob-n-w:0"),
+    })  # fmt: skip
+    world.boards["COALITION"][4] = job(4, "op:ESCORT_CONVOYS:convoy-c:0")
+    world.campaign.tick = HOUR
+    collector.sample(world)
+    world.campaign.tick = HOUR + 5
+    collector.sample(world)  # the same hour: no second reading
+    world.boards["ENEMY"][5] = job(5, "op:ESCORT_CONVOYS:convoy-d:0")
+    world.campaign.tick = 2 * HOUR
+    collector.sample(world)
+    series = collector.result(2 * HOUR)["escort_jobs"]
+    assert series == [2, 3]
+    other = {"metrics": {"escort_jobs": [4]}}
+    agg = report._nx477([{"metrics": {"escort_jobs": series}}, other])["escort_jobs"]
+    assert agg == {"mean": [3.0, 3.0], "max": [4, 3]}  # hour 1 only has the first run
+
+
+def test_income_lost_to_the_storage_clip_is_due_minus_produced(
+    shipped_config: CampaignConfig,
+) -> None:
+    """NX-478 item 1: at an economy window, `economy.income` per limited side against the
+    `SupplyProduced` of that window; a tick that is no window adds nothing."""
+    world = start_campaign("c", 1, shipped_config)
+    er = shipped_config.rules.economy
+    assert er is not None
+    world.campaign.running_ticks = er.window_ticks - 1  # the next tick is a window
+    col = metrics.Collector(
+        world, frozenset(), tick_hz=HZ, sample_ticks=600, a3_ticks=1000, idle_sample_ticks=600,
+        impact_check_ticks=10, kinds={}, a2_min_tier="ALPHA", starve_threshold=0.25,
+    )  # fmt: skip
+    due = {s: income(world, shipped_config.rules, er, s) for s in ("COALITION", "ENEMY")}
+    assert due["ENEMY"] > 30  # so the 30 below is a clip
+    col.feed(
+        [SupplyProduced.model_construct(kind="SupplyProduced", tick=1, side="ENEMY", amount=30)]
+    )
+    world.campaign.running_ticks = er.window_ticks
+    col.observe(world)  # the window ran
+    world.campaign.running_ticks += 1
+    col.observe(world)  # no window
+    clip = col.result(100)["income_clip"]
+    assert clip["ENEMY"] == {"due": due["ENEMY"], "produced": 30, "lost": due["ENEMY"] - 30}
+    assert clip["COALITION"] == {"due": due["COALITION"], "produced": 0, "lost": due["COALITION"]}
+    agg = report._nx477([{"metrics": {"income_clip": clip}}] * 2)["income_clip"]
+    assert agg["ENEMY"]["lost"] == 2 * (due["ENEMY"] - 30)
+    # a second window after the income changed: the cache is refreshed, not read once
+    for n, kind in shipped_config.rules.node_kind.items():
+        if kind in er.income_per_node and world.owner.get(n) == "COALITION":
+            world.owner[n] = "ENEMY"
+    due2 = {s: income(world, shipped_config.rules, er, s) for s in ("COALITION", "ENEMY")}
+    assert due2 != due
+    world.campaign.running_ticks = 2 * er.window_ticks - 1
+    col.observe(world)  # the tick before the second window reads the new income
+    world.campaign.running_ticks = 2 * er.window_ticks
+    col.observe(world)
+    clip2 = col.result(100)["income_clip"]
+    for side in ("COALITION", "ENEMY"):
+        assert clip2[side]["due"] == due[side] + due2[side]
+
+
+def test_below_tier_newbies_get_the_a2_median_and_tail(collector: metrics.Collector) -> None:
+    """NX-478 item 2: the pooled A2 rules over the below-ALPHA newbies, information only: one with
+    an impact at 10 s, one watched 990 s without (a miss for the median, over the 900 s tail)."""
+    collector.note_join(commander(1), 100, "PATTERN_OF_LIFE")
+    collector.note_join(commander(4), 100, "PATTERN_OF_LIFE")
+    collector.feed([spawned(110, 901, "STRIKE_FIGHTER", "COALITION", commander(1))])
+    collector.feed([WeaponImpact.model_construct(kind="WeaponImpact", tick=200, shooter_id=901,
+                                                 hit=True)])  # fmt: skip
+    n = collector.result(10000)["newbie"]
+    assert n["below_tier_ttfi_s"] == [10.0]
+    assert n["below_tier_no_impact_observed_s"] == [990.0]
+    below = report._a2([{"metrics": {"newbie": n}}], load().targets)["below_tier"]
+    assert below["median_s"] == 10.0  # the impact-only median, as before
+    a2 = below["a2"]
+    assert (a2["newbies"], a2["with_impact"], a2["no_impact_within_window"]) == (2, 1, 1)
+    assert a2["median_s"] is None  # (10 + miss) / 2: the pooled rule's infinity
+    assert (a2["tail"]["over"], a2["tail"]["judged"], a2["tail"]["share"]) == (1, 2, 0.5)
+    assert "status" not in a2  # never judged
+
+
+def test_idle_full_sits_next_to_the_boards_open_strike_slots(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    """NX-478 item 3: at each idle sample, the coalition board's unfilled STRIKE slots (other job
+    kinds and filled slots left out), pooled per sample next to the `full` reason."""
+    world = start_campaign("c", 1, shipped_config)
+    node = Vec2(*shipped_config.rules.roads.pos["west-airbase"])
+    world.spawn("STRIKE_FIGHTER", "COALITION", "COMMANDER", node, commander_id=commander(1))
+    world.boards["COALITION"].update({
+        1: Job(1, "STRIKE", "strike:fob-n-e", 3, 1000, 0, node="fob-n-e", claims={7: Claim(0)}),
+        2: Job(2, "STRIKE", "strike:fob-s-e", 1, 1000, 0, node="fob-s-e", claims={8: Claim(0)}),
+        3: Job(3, "RESUPPLY", "resupply:fob-n-e", 2, 1000, 0, node="fob-n-e"),
+    })  # fmt: skip
+    collector.sample_idle(world)  # 2 open slots (job 1); job 2 is filled; job 3 is not a strike
+    collector.sample_idle(world)
+    idle = collector.result(100)["idle"]
+    assert idle["open_strike_slots_sum"] == 4
+    idle["reasons"] = {"full": 3}  # as if three unit-samples held no job because all were full
+    agg = report._idle([{"metrics": {"idle": idle}}])
+    assert (agg["full_per_sample"], agg["open_strike_slots_per_sample"]) == (1.5, 2.0)
+
+
+def test_nx477_nx478_reach_report_json_and_markdown(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    out = tmp_path / "o"
+    argv = ["balance.py", "--profile", "quiet-5", "--seeds", "1,2", "--hours", "0.02", "--out",
+            str(out)]  # fmt: skip
+    monkeypatch.setattr(sys, "argv", argv)
+    assert balance.main() == 0
+    agg = json.loads((out / "report.json").read_text())["profiles"]["quiet-5"]
+    assert agg["coalition_hold"]["zero_strategic_min"] == 0.0
+    assert set(agg["income_clip"]) == {"COALITION", "ENEMY"}
+    assert agg["A2"]["below_tier"]["a2"]["tail"]["limit_s"] > 0
+    assert "open_strike_slots_per_sample" in agg["idle"]
+    md = report.markdown(json.loads((out / "report.json").read_text()))
+    assert "## Coalition holds, Static escort jobs and the income clip (NX-477, NX-478)" in md
+    assert "open STRIKE slots on the board" in md
+
+
+def test_the_failed_run_stub_carries_the_new_metrics() -> None:
+    m = runner.failed_run("quiet-5", 1, 1.0, "boom")["metrics"]
+    assert m["coalition_hold"]["zero_strategic_min"] == 0.0 and m["escort_jobs"] == []
+    assert m["income_clip"]["ENEMY"] == {"due": 0, "produced": 0, "lost": 0}
+    assert m["newbie"]["below_tier_no_impact_observed_s"] == []
+    assert m["idle"]["open_strike_slots_sum"] == 0
+    agg = report.aggregate(
+        "quiet-5", [runner.failed_run("quiet-5", 1, 1.0, "boom")], load().targets
+    )
+    assert agg["coalition_hold"]["coalition_captures"] == 0

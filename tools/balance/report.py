@@ -140,6 +140,22 @@ def _a2(runs: list[dict[str, Any]], t: Targets) -> dict[str, Any]:
         "newbies": sum(n["joined_below_tier"] for n in news),
         "with_impact": len(below),
         "median_s": _med(below),
+        # NX-478: the same median and tail as above, over the below-tier newbies (never judged)
+        "a2": {
+            k: v
+            for k, v in _a2_group(
+                [
+                    {
+                        "ttfi_s": n["below_tier_ttfi_s"],
+                        "no_impact_observed_s": n.get("below_tier_no_impact_observed_s", []),
+                        "first_impact_kinds": {},
+                    }
+                    for n in news
+                ],
+                t,
+            ).items()
+            if k not in ("status", "first_impact_kinds")
+        },
     }
     kinds = sorted({k for n in news for k in n["by_kind"]})
     out["by_persona_kind"] = {
@@ -236,7 +252,13 @@ def _idle(runs: list[dict[str, Any]]) -> dict[str, Any]:
         reasons.update(m["reasons"])
         ring.update(m.get("ring_by_site", {}))
     maxes = [m["share_max"] for m in ms if m["share_max"] is not None]
+    slots = [m for m in ms if "open_strike_slots_sum" in m]  # NX-478; older runs lack it
+    n_slots = sum(m["samples"] for m in slots)
+    full = sum(m["reasons"].get("full", 0) for m in slots)
+    open_slots = sum(m["open_strike_slots_sum"] for m in slots)
     return {
+        "full_per_sample": full / n_slots if n_slots else None,
+        "open_strike_slots_per_sample": open_slots / n_slots if n_slots else None,
         "samples": n,
         "share_mean": sum(m["share_sum"] for m in ms) / n if n else None,
         "share_max": max(maxes, default=None),
@@ -592,6 +614,30 @@ def _defeat_run(runs: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _nx477(runs: list[dict[str, Any]]) -> dict[str, Any]:
+    """NX-477: game minutes the coalition held no strategic node and its captures, summed over the
+    seeds (with the per-seed values); the Static's ESCORT_CONVOYS jobs per run-hour, mean and max
+    over the seeds that reached that hour. NX-478: income due, produced and lost to the storage
+    clip, per side, summed. Runs from before them add nothing."""
+    hold = [r["metrics"]["coalition_hold"] for r in runs if "coalition_hold" in r["metrics"]]
+    escort = [r["metrics"]["escort_jobs"] for r in runs if "escort_jobs" in r["metrics"]]
+    clip = [r["metrics"]["income_clip"] for r in runs if "income_clip" in r["metrics"]]
+    hours = [[s[h] for s in escort if h < len(s)] for h in range(max(map(len, escort), default=0))]
+    return {
+        "coalition_hold": {
+            "zero_strategic_min": sum(h["zero_strategic_min"] for h in hold),
+            "zero_strategic_min_per_seed": [h["zero_strategic_min"] for h in hold],
+            "coalition_captures": sum(h["coalition_captures"] for h in hold),
+            "coalition_captures_per_seed": [h["coalition_captures"] for h in hold],
+        },
+        "escort_jobs": {"mean": [sum(v) / len(v) for v in hours], "max": [max(v) for v in hours]},
+        "income_clip": {
+            side: {k: sum(c[side][k] for c in clip) for k in ("due", "produced", "lost")}
+            for side in ("COALITION", "ENEMY")
+        },
+    }
+
+
 def _per_seed(runs: list[dict[str, Any]], t: Targets) -> list[dict[str, Any]]:
     """NX-502 (H3): A2 and idle armed per seed, so a pooled number is not a seed mix. A2 is the
     pooled rule on one run's counted newbies (same newbie definition and tier filter)."""
@@ -652,6 +698,7 @@ def aggregate(profile: str, runs: list[dict[str, Any]], t: Targets) -> dict[str,
         },
         "hauling": _hauling(runs),
         "defeat_run": _defeat_run(runs),
+        **_nx477(runs),
         "viewers_distinct_mean": _mean([r["viewers"]["distinct"] for r in runs]),
         "viewers_peak_mean": _mean([r["viewers"]["peak_concurrent"] for r in runs]),
     }
@@ -1041,6 +1088,40 @@ def markdown(report: dict[str, Any]) -> str:
         "All minutes are game minutes.",
         "",
     ]
+    lines += ["## Coalition holds, Static escort jobs and the income clip (NX-477, NX-478)", ""]
+    lines += _table(
+        ["Profile", "Coalition 0 strategic nodes, min", "Coalition captures",
+         "Static ESCORT_CONVOYS jobs by run-hour (mean, max)",
+         "Static income due / produced / lost", "Coalition income due / produced / lost"],
+        [
+            [
+                n,
+                _fmt(a["coalition_hold"]["zero_strategic_min"]),
+                str(a["coalition_hold"]["coalition_captures"]),
+                ", ".join(
+                    f"{_fmt(m)} ({x})"
+                    for m, x in zip(a["escort_jobs"]["mean"], a["escort_jobs"]["max"], strict=True)
+                )
+                or "-",
+                *(
+                    " / ".join(str(a["income_clip"][side][k]) for k in ("due", "produced", "lost"))
+                    for side in ("ENEMY", "COALITION")
+                ),
+            ]
+            for n, a in report["profiles"].items()
+        ],
+    )  # fmt: skip
+    lines += [
+        "Minutes: running ticks (a sim-paused tick counts nothing) with no strategic node "
+        "(`campaign.strategic`) owned by the coalition, in game minutes, summed over the seeds. "
+        "Captures: `NodeCaptured` with the coalition as the new owner (any node), summed. Escort "
+        "jobs: the Static board's jobs whose key is `op:ESCORT_CONVOYS:...`, open or claimed, "
+        "read at the first sample of each run-hour (hour 0 is read at the end of the first hour), "
+        "mean and max over the seeds that reached it. Income: `economy.income` due at each "
+        "economy window against `SupplyProduced`; lost = due minus produced, the storage clip "
+        "(EC-2), summed over the seeds' windows.",
+        "",
+    ]
     lines += ["## Steamroll signals (Q-TEST-11, thresholds PROPOSED; won seeds only)", ""]
     lines += _table(
         _STEAMROLL_HEADER,
@@ -1068,10 +1149,13 @@ def markdown(report: dict[str, Any]) -> str:
     lines += ["## A2 first impact (newbies arriving at the A2 tier or above)", ""]
     for n, a in report["profiles"].items():
         a2 = a["A2"]
+        bt = a2["below_tier"]["a2"]
         lines += [
             f"- {n}: counted {a2['newbies']} newbies ({a2['with_impact']} with impact), "
             f"tail over {a2['tail']['limit_s']:g} s: {_fmt(a2['tail']['share'], '.1%')}, "
-            f"below-tier (information only) {a2['below_tier']['newbies']}; "
+            f"below-tier (information only) {a2['below_tier']['newbies']}, "
+            f"median {_fmt(bt['median_s'])} s, tail {_fmt(bt['tail']['share'], '.1%')} over "
+            f"{bt['tail']['limit_s']:g} s ({bt['tail']['over']}/{bt['tail']['judged']}); "
             f"first impact kinds {a2['first_impact_kinds']}",
             *(
                 f"  - {k}: {g['newbies']} newbies, median {_fmt(g['median_s'])} s, "
@@ -1100,7 +1184,13 @@ def markdown(report: dict[str, Any]) -> str:
     )  # fmt: skip
     lines += ["## Why idle armed units hold no job (summed over samples)", ""]
     for n, a in report["profiles"].items():
-        lines += [f"- {n}: {a['idle']['reasons']}", *_ring_lines(a["idle"]["ring_by_site"])]
+        i = a["idle"]
+        lines += [
+            f"- {n}: {a['idle']['reasons']}",
+            *_ring_lines(a["idle"]["ring_by_site"]),
+            f"  - per sample (NX-478): `full` {_fmt(i['full_per_sample'], '.2f')} units, open "
+            f"STRIKE slots on the board {_fmt(i['open_strike_slots_per_sample'], '.2f')}",
+        ]
     lines += [""]
     lines += ["## Director tier dwell (mean hours per run)", ""]
     lines += [f"- {n}: {a['tier_dwell_h_mean']}" for n, a in report["profiles"].items()]
