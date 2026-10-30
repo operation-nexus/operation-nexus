@@ -158,6 +158,9 @@ class CampaignRules:
     time_limit_ticks: int  # campaign.time_limit_h
     victory_hold_ticks: int  # campaign.victory_hold_min
     defeat_hold_ticks: int  # campaign.defeat.hold_min (Q-TH-7)
+    # T (NX-499, Q-TD-131): the sanctuary hp at or above which a repair resets the defeat run,
+    # max(1, ceil(campaign.defeat.reset_hp_frac x capture.defense_hp.SANCTUARY)); 1 is the old rule
+    defeat_reset_hp: int
     objective_period_ticks: int  # campaign.objective_period_min
     objectives_on: bool  # campaign.objective_mode is timed
     victory_node_frac: Fraction
@@ -941,8 +944,10 @@ def campaign_rules(
     objective_period_ticks: int,
     decay_slow_ticks: int,
     uncapturable: Collection[NodeKind],
+    sanctuary_max_hp: int,
 ) -> CampaignRules:
-    """The tick counts are `cfg`'s game-time keys already converted by the config loader."""
+    """The tick counts are `cfg`'s game-time keys already converted by the config loader;
+    `sanctuary_max_hp` is `capture.defense_hp.SANCTUARY`."""
     kind = {n.id: n.kind for n in theater.nodes}
     ownable = {n for n, k in kind.items() if k != "BRIDGE"}
     skip = {n for n, k in kind.items() if k in uncapturable} | {theater.enemy_hq}
@@ -950,6 +955,9 @@ def campaign_rules(
         time_limit_ticks=time_limit_ticks,
         victory_hold_ticks=victory_hold_ticks,
         defeat_hold_ticks=defeat_hold_ticks,
+        defeat_reset_hp=max(
+            1, math.ceil(Fraction(repr(cfg.defeat.reset_hp_frac)) * sanctuary_max_hp)
+        ),
         objective_period_ticks=objective_period_ticks,
         objectives_on=cfg.objective_mode == "timed",
         victory_node_frac=Fraction(repr(cfg.victory_node_frac)),

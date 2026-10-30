@@ -295,17 +295,19 @@ def _repaired(world: World, nodes: tuple[str, ...]) -> str | None:
 
 def _defeat_run(world: World, rc: CampaignRules) -> tuple[int, int]:
     """The defeat run and the empty stretch within it (Q-TH-7, Q-TD-95): the running ticks the
-    coalition sanctuary's defense HP has been 0, reset by a repair; while no viewer unit plays and
-    the idle floor is on, the run is held and the empty stretch counts, and once that stretch
-    reaches the hold the run resets, so a short gap (a death, a respawn) resumes it and a viewer
-    who joins after a long one starts a full hold."""
+    coalition sanctuary's defense HP has been 0, reset by a repair to `rc.defeat_reset_hp` (T) or
+    more; between 0 and T a run in progress pauses (NX-499, Q-TD-131) and a run of 0 stays 0.
+    While no viewer unit plays and the idle floor is on, the run is held and the empty stretch
+    counts, and once that stretch reaches the hold the run resets, so a short gap (a death, a
+    respawn) resumes it and a viewer who joins after a long one starts a full hold."""
     rules = world.rules
     d = rules.defense if rules else None
-    if rules is None or d is None or world.defense_hp.get(rules.sanctuary, 1) != 0:
-        return 0, 0
+    hp = world.defense_hp.get(rules.sanctuary) if rules else None
     c = world.campaign
+    if d is None or hp is None or hp >= rc.defeat_reset_hp or (hp and not c.defeat_ticks):
+        return 0, 0
     if not d.idle_floor or world.viewer_units():
-        return c.defeat_ticks + 1, 0
+        return c.defeat_ticks + (hp == 0), 0
     idle = c.defeat_idle_ticks + 1
     return (0 if idle >= rc.defeat_hold_ticks else c.defeat_ticks), idle
 

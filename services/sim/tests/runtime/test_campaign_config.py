@@ -206,6 +206,29 @@ def test_the_loader_rejects_an_unknown_kind_or_a_bad_count(key: str, value: obje
         shipped_config_with({key: value})
 
 
+@pytest.mark.parametrize(
+    ("share", "sanctuary_hp", "threshold"),
+    [
+        (0.5, 1000, 500),  # the shipped share
+        (0.0001, 1000, 1),  # 0.1 hp rounds up to 1
+        (1.0, 1000, 1000),  # full hp only (Q-TD-129 (6) (c))
+        (0, 1000, 1),  # the pre-NX-499 rule: any whole hp
+        (0.3333, 1000, 334),  # 333.3 rounds up, not to nearest
+        (0.5, 999, 500),  # 499.5 rounds up
+        (0.07, 800, 56),  # the exact decimal: binary 0.07 x 800 is 56.00000000000001
+    ],
+)
+def test_the_defeat_reset_threshold_is_the_share_of_the_sanctuary_hp_rounded_up(
+    share: float, sanctuary_hp: int, threshold: int
+) -> None:
+    """NX-499 (Q-TD-131): T = max(1, ceil(campaign.defeat.reset_hp_frac x
+    capture.defense_hp.SANCTUARY)), fixed at load."""
+    rc = overridden(
+        campaign__defeat__reset_hp_frac=share, capture__defense_hp__SANCTUARY=sanctuary_hp
+    ).rules.campaign
+    assert rc is not None and rc.defeat_reset_hp == threshold
+
+
 # ECONOMY EC-11 (NX-412 part 5b): the coalition floor check at load
 # with cost parity off (NX-494): these tests change coalition kinds' upkeep alone
 _EC11_ON = {"economy.unlimited.COALITION": False, "economy.cost_parity": False}
