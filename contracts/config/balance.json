@@ -1131,6 +1131,8 @@
       "required": [
         "node_max_stock",
         "starve_threshold",
+        "starve_floor_mode",
+        "starve_floor_loadouts",
         "stock_target_frac",
         "truck_cargo",
         "unload_rate",
@@ -1237,6 +1239,31 @@
           "x-edit-role": "ADMIN",
           "x-tune": {"min": 0.125, "max": 0.5, "step": 0.025, "scale": "LINEAR"},
           "x-source": "GAMEPLAY \u00a75",
+          "x-status": "PROPOSED"
+        },
+        "starve_floor_mode": {
+          "description": "How the starvation floor is set (NX-495, Q-TD-123, Q-TD-132 (B)): fraction, ceil(starve_threshold x node_max_stock), today's rule; loadouts, min(starve_floor_loadouts x C, node_max_stock) with C the largest loadout_cost entry of the whole catalog. Fixed at load, the same at every node and for either side. Every floor reader follows it except the Director's surplus, which keeps max(ceil(surplus_ref_frac x max), ceil(starve_threshold x max)) in either mode (ECONOMY EC-7), unit enum.",
+          "enum": ["fraction", "loadouts"],
+          "x-unit": "enum",
+          "x-hot-reload": false,
+          "x-category": "LOGISTICS",
+          "x-audience": "OPERATOR",
+          "x-edit-role": "ADMIN",
+          "x-tune": null,
+          "x-source": "GAMEPLAY \u00a75, Q-TD-132 (B)",
+          "x-status": "PROPOSED"
+        },
+        "starve_floor_loadouts": {
+          "description": "N, the loadouts of the dearest kind the starvation floor holds in loadouts mode (NX-495, Q-TD-123: 3-5 of the most expensive units), unit loadouts. Read only while starve_floor_mode is loadouts.",
+          "type": "integer",
+          "minimum": 1,
+          "x-unit": "loadouts of the dearest kind",
+          "x-hot-reload": false,
+          "x-category": "LOGISTICS",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 1, "max": 10, "step": 1, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a75, Q-TD-132 (B)",
           "x-status": "PROPOSED"
         },
         "stock_target_frac": {
@@ -2529,7 +2556,7 @@
           "x-status": "PROPOSED"
         },
         "surplus_ref_frac": {
-          "description": "ECONOMY EC-7 Surplus reference (NX-500, Q-TD-125, Q-TD-132 (A)): the Director's surplus is stock above R = max(ceil(surplus_ref_frac x node_max_stock), the starvation floor) at each base the side holds, unit fraction of node_max_stock; R is fixed at load. Read by the surplus only (budget, cadence cap, convoy and capture-slot purses); every other floor reader keeps logistics.starve_threshold.",
+          "description": "ECONOMY EC-7 Surplus reference (NX-500, Q-TD-125, Q-TD-132 (A)): the Director's surplus is stock above R = max(ceil(surplus_ref_frac x node_max_stock), ceil(logistics.starve_threshold x node_max_stock)) at each base the side holds, unit fraction of node_max_stock; R is fixed at load and uses that fraction floor whatever logistics.starve_floor_mode is (NX-495). Read by the surplus only (budget, cadence cap, convoy and capture-slot purses); every other floor reader follows the live floor (Supply.starve_floor).",
           "type": "number",
           "minimum": 0,
           "maximum": 1,

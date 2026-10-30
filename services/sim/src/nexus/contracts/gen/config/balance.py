@@ -500,6 +500,19 @@ class Logistics(BaseModel):
             le=1.0,
         ),
     ]
+    starve_floor_mode: Annotated[
+        Literal["fraction", "loadouts"],
+        Field(
+            description="How the starvation floor is set (NX-495, Q-TD-123, Q-TD-132 (B)): fraction, ceil(starve_threshold x node_max_stock), today's rule; loadouts, min(starve_floor_loadouts x C, node_max_stock) with C the largest loadout_cost entry of the whole catalog. Fixed at load, the same at every node and for either side. Every floor reader follows it except the Director's surplus, which keeps max(ceil(surplus_ref_frac x max), ceil(starve_threshold x max)) in either mode (ECONOMY EC-7), unit enum."
+        ),
+    ]
+    starve_floor_loadouts: Annotated[
+        int,
+        Field(
+            description="N, the loadouts of the dearest kind the starvation floor holds in loadouts mode (NX-495, Q-TD-123: 3-5 of the most expensive units), unit loadouts. Read only while starve_floor_mode is loadouts.",
+            ge=1,
+        ),
+    ]
     stock_target_frac: Annotated[
         float,
         Field(
@@ -2176,7 +2189,7 @@ class Director(BaseModel):
     surplus_ref_frac: Annotated[
         float,
         Field(
-            description="ECONOMY EC-7 Surplus reference (NX-500, Q-TD-125, Q-TD-132 (A)): the Director's surplus is stock above R = max(ceil(surplus_ref_frac x node_max_stock), the starvation floor) at each base the side holds, unit fraction of node_max_stock; R is fixed at load. Read by the surplus only (budget, cadence cap, convoy and capture-slot purses); every other floor reader keeps logistics.starve_threshold.",
+            description="ECONOMY EC-7 Surplus reference (NX-500, Q-TD-125, Q-TD-132 (A)): the Director's surplus is stock above R = max(ceil(surplus_ref_frac x node_max_stock), ceil(logistics.starve_threshold x node_max_stock)) at each base the side holds, unit fraction of node_max_stock; R is fixed at load and uses that fraction floor whatever logistics.starve_floor_mode is (NX-495). Read by the surplus only (budget, cadence cap, convoy and capture-slot purses); every other floor reader follows the live floor (Supply.starve_floor).",
             ge=0.0,
             le=1.0,
         ),

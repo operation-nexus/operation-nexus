@@ -61,6 +61,8 @@ logistics:
     HQ: 2000
     PORT: 1000
   starve_threshold: 0.25
+  starve_floor_mode: fraction
+  starve_floor_loadouts: 5
   stock_target_frac: 0.8
   truck_cargo: 100
   unload_rate: 1.0
@@ -380,7 +382,7 @@ economy:
 # `capture.time_mult` and `capture.extra_exponent`, NX-494 for `economy.cost_parity` and the
 # catalog's `mirrors`, NX-499 for `campaign.defeat.reset_hp_frac`); a change means
 # every config_hash moved.
-GOLDEN_CONFIG_HASH = "100577e46567066a28f5cb402e11d5c9194a244ee83d56030c55fdf125f518d1"
+GOLDEN_CONFIG_HASH = "44303f6a136f249994f2d34a6f100f1af64dde4a8ae4488aef225c5afdca2d20"
 AIR = {
     "bingo_reserve_frac": 0.15,
     "orbit_period_s": 120.0,
@@ -409,6 +411,8 @@ FOW = {
 LOGISTICS = {
     "node_max_stock": {"AIRBASE": 2000, "BRIDGE": 0, "FOB": 1000, "HQ": 2000, "PORT": 1000},
     "starve_threshold": 0.25,
+    "starve_floor_mode": "fraction",
+    "starve_floor_loadouts": 5,
     "stock_target_frac": 0.8,
     "truck_cargo": 100,
     "unload_rate": 1.0,
@@ -794,6 +798,8 @@ def test_default_profile_loads_and_matches_golden_hash() -> None:
         ("  sigint_size_m_min: 3\n", "fow.sigint_size_m_min"),
         ("  sigint_size_l_min: 7\n", "fow.sigint_size_l_min"),
         ("  starve_threshold: 0.25\n", "logistics.starve_threshold"),
+        ("  starve_floor_mode: fraction\n", "logistics.starve_floor_mode"),
+        ("  starve_floor_loadouts: 5\n", "logistics.starve_floor_loadouts"),
         ("  stock_target_frac: 0.8\n", "logistics.stock_target_frac"),
         ("  stock_urgency: 0.5\n", "tasking.stock_urgency"),
         ("  stock_front_bonus: 0.25\n", "tasking.stock_front_bonus"),
@@ -963,6 +969,18 @@ def test_a_key_deleted_in_nx_488_fails_naming_it(
         # NX-499: the defeat reset threshold is a share of the sanctuary's max hp, 0 to 1
         ("reset_hp_frac: 0.5", "reset_hp_frac: -0.01", "campaign.defeat.reset_hp_frac"),
         ("reset_hp_frac: 0.5", "reset_hp_frac: 1.01", "campaign.defeat.reset_hp_frac"),
+        # NX-495: the floor mode is one of two words, N is at least one loadout
+        (
+            "starve_floor_mode: fraction",
+            "starve_floor_mode: absolute",
+            "logistics.starve_floor_mode",
+        ),
+        ("starve_floor_loadouts: 5", "starve_floor_loadouts: 0", "logistics.starve_floor_loadouts"),
+        (
+            "starve_floor_loadouts: 5",
+            "starve_floor_loadouts: 2.5",
+            "logistics.starve_floor_loadouts",
+        ),
     ],
 )
 def test_wrong_type_or_value_fails_naming_key(tmp_path: Path, old: str, new: str, key: str) -> None:
@@ -1097,7 +1115,7 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "  sigint_cell_m: 10000, sigint_refresh_s: 54.0, sigint_range_mult: 1.5,\n"
         "  sigint_size_l_min: 7, sigint_size_m_min: 3}\n"
         "logistics: {unload_rate: 1.0, truck_cargo: 100, starve_threshold: 0.25,\n"
-        "  stock_target_frac: 0.8,\n"
+        "  starve_floor_mode: fraction, starve_floor_loadouts: 5, stock_target_frac: 0.8,\n"
         "  rearm_rate: 0.5, forward_deploy_min_surplus: 50, starved_loadout: {fuel_frac: 0.5},\n"
         "  loadout_cost: {STRIKE_FIGHTER: 20, RECON_UAV: 5, LOGI_TRUCK: 0, GARRISON_INFANTRY: 5,\n"
         "    ENEMY_FIGHTER: 20, ENEMY_STRIKE_FIGHTER: 20, ENEMY_RECON_UAV: 5, ENEMY_ARMOR: 15,\n"
