@@ -2173,6 +2173,14 @@ class Director(BaseModel):
             le=1.0,
         ),
     ]
+    surplus_ref_frac: Annotated[
+        float,
+        Field(
+            description="ECONOMY EC-7 Surplus reference (NX-500, Q-TD-125, Q-TD-132 (A)): the Director's surplus is stock above R = max(ceil(surplus_ref_frac x node_max_stock), the starvation floor) at each base the side holds, unit fraction of node_max_stock; R is fixed at load. Read by the surplus only (budget, cadence cap, convoy and capture-slot purses); every other floor reader keeps logistics.starve_threshold.",
+            ge=0.0,
+            le=1.0,
+        ),
+    ]
     upkeep_reserve_windows: Annotated[
         float,
         Field(

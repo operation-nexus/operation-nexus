@@ -278,6 +278,7 @@ director:  # Threat Director (Q-SIM-78, Q-SIM-81, owner-approved starting number
     alpha: 0.02
     bravo: 0.0534
   source_spend_frac: 0.01  # PROPOSED – harness-tuned (U0 #510, lead note in #517; Q-TD-97), not validated at the 50-seed gate (ECONOMY EC-7, Q-TD-26); share of the rear pool per window: a Static holding only its rear at economy.storage.floor (2000) gets 20
+  surplus_ref_frac: 0.25  # PROPOSED (NX-500; Q-TD-125 owner (a), Q-TD-132 (A) lead, owner may veto); the Director's surplus counts stock above max(ceil(this x node_max_stock), the starvation floor): 0.25 is logistics.starve_threshold, so the reference equals today's floor at every node (ECONOMY EC-7 "Surplus reference")
   upkeep_reserve_windows: 2  # PROPOSED placeholder, NX-412 sweep (ECONOMY EC-7); windows of the Static's upkeep the budget keeps back: this window's and the next
   cadence_windows: 10  # PROPOSED placeholder, NX-412 sweep (ECONOMY EC-7); windows with no capture operation before the cadence floor (Q-TD-54): one director.tier.min_dwell_s (600 s = 10 windows)
   op_priority:  # PROPOSED – unvalidated (Q-SIM-78); exactly the operations of content/operations.yaml (CONFIG-AND-CONTENT §6.7, §8a)

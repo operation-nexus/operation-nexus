@@ -2009,6 +2009,7 @@
         "max_spawns_per_window",
         "spend_frac",
         "source_spend_frac",
+        "surplus_ref_frac",
         "upkeep_reserve_windows",
         "cadence_windows",
         "op_priority",
@@ -2525,6 +2526,20 @@
           "x-edit-role": "ADMIN",
           "x-tune": {"min": 0.0025, "max": 0.01, "step": 0.0005, "scale": "LINEAR"},
           "x-source": "THREAT-DIRECTOR \u00a74, ECONOMY EC-7, Q-TD-26",
+          "x-status": "PROPOSED"
+        },
+        "surplus_ref_frac": {
+          "description": "ECONOMY EC-7 Surplus reference (NX-500, Q-TD-125, Q-TD-132 (A)): the Director's surplus is stock above R = max(ceil(surplus_ref_frac x node_max_stock), the starvation floor) at each base the side holds, unit fraction of node_max_stock; R is fixed at load. Read by the surplus only (budget, cadence cap, convoy and capture-slot purses); every other floor reader keeps logistics.starve_threshold.",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "x-unit": "fraction of node_max_stock",
+          "x-hot-reload": false,
+          "x-category": "DIRECTOR",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 0.125, "max": 0.5, "step": 0.025, "scale": "LINEAR"},
+          "x-source": "THREAT-DIRECTOR \u00a74, ECONOMY EC-7 Surplus reference, Q-TD-132",
           "x-status": "PROPOSED"
         },
         "upkeep_reserve_windows": {
