@@ -21,6 +21,8 @@ from nexus.contracts.gen.events.event import Event
 from nexus.core.campaign import momentum
 from nexus.core.capture import capture_weight
 from nexus.core.director import TIERS
+from nexus.core.economy import due as economy_due
+from nexus.core.economy import income
 from nexus.core.fog import side_view
 from nexus.core.launch import NO_CAPTURE, no_capture_reason
 from nexus.core.roads import shortest_path, travel_ticks
@@ -196,6 +198,18 @@ class Collector:
         self.defeat_paused_ticks = 0
         self._defeat_seen = 0
         self._reset_hp = rules.campaign.defeat_reset_hp
+        # NX-477: running ticks the coalition holds none of the strategic nodes; the coalition's
+        # `NodeCaptured` flips; the Static's open `ESCORT_CONVOYS` jobs at the first sample of
+        # each hour (the index of `hourly`). NX-478: per side the income due at each economy window
+        # (`economy.income`, read at the end of the tick before it: nothing that changes it runs
+        # earlier in the window tick) against `SupplyProduced`; the board's open STRIKE slots at
+        # each idle sample.
+        self.zero_strategic_ticks = self.coalition_captures = 0
+        self.escort_jobs: list[int] = []
+        self.clip_due: dict[str, int] = dict.fromkeys(SIDES, 0)
+        self.clip_produced: dict[str, int] = dict.fromkeys(SIDES, 0)
+        self._due_next: dict[str, int] | None = self._income_due(world)
+        self.open_strike_slots: list[int] = []
         self.ops: list[tuple[int, str, str, bool]] = []  # (tick, operation, target, on coalition)
         self.ops_unseen = 0  # a created job already gone from the board when `observe` read it
         # D5 inputs (review ENTERTAINMENT-runs-F-G-H §8). `funnel`: per OFFENSIVE / RETAKE launch,
@@ -362,9 +376,22 @@ class Collector:
         hp = world.defense_hp[self._sanctuary]
         if ran:
             self._defeat_run(camp.defeat_ticks, hp)
+            self.zero_strategic_ticks += not any(
+                world.owner.get(n) == _COALITION for n in self._strategic
+            )
         self.sanctuary_min = min(self.sanctuary_min, hp)
         if world.campaign.tick <= self.a3_ticks:
             self.sanctuary_min_window = min(self.sanctuary_min_window, hp)
+        self._due_next = self._income_due(world)
+
+    def _income_due(self, world: World) -> dict[str, int] | None:
+        """The income each limited side is due if the next tick is an economy window, else None."""
+        # Assumes the harness sends no STAFF campaign commands: a resume on a window tick would
+        # count `produced` without `due`, and that cannot happen here.
+        if (ready := economy_due(world)) is None:
+            return None
+        rules, er = ready
+        return {s: income(world, rules, er, s) for s in sorted(world.pool)}
 
     def _defeat_run(self, run: int, hp: int) -> None:
         """One running tick of the defeat run (`campaign._defeat_run`): `run` is `defeat_ticks`
@@ -382,6 +409,8 @@ class Collector:
         """One economy window has run (upkeep included): R1/R8 unit shares, R2, R3/R11 episodes
         and R10 pool stretches. Counted in windows (ints); a window stands for `window_ticks`."""
         rules, tick = self._world_rules, world.campaign.tick
+        for side, due in (self._due_next or {}).items():
+            self.clip_due[side] += due
         self.windows += 1
         viewer_grounded = False
         homes: set[str] = set()
@@ -472,6 +501,9 @@ class Collector:
                     for s in SIDES
                 }
             )
+            self.escort_jobs.append(
+                sum(j.key.startswith("op:ESCORT_CONVOYS:") for j in world.boards[_ENEMY].values())
+            )
         floor, stock = self._world_rules.supply.starve_floor, world.stock
         held = [n for n, owner in sorted(world.owner.items()) if owner == _COALITION and n in stock]
         starved = sum(stock[n] < floor[n] for n in held)
@@ -510,6 +542,13 @@ class Collector:
         ]
         if not armed:
             return
+        self.open_strike_slots.append(
+            sum(
+                j.slots - len(j.claims)
+                for j in world.boards[_COALITION].values()
+                if j.kind == "STRIKE" and len(j.claims) < j.slots
+            )
+        )
         idle = [e for e in armed if is_idle(rules, e, _COALITION)]
         diagnoses = {e.id: (e, *idle_diagnosis(world, e)) for e in idle}
         reasons = {i: reason for i, (_, reason, _) in diagnoses.items()}
@@ -704,6 +743,7 @@ class Collector:
             step["own_capturers"] = len(capturers)
 
     def _captured(self, e: Any) -> None:
+        self.coalition_captures += e.to == _COALITION
         if (step := self._latest.pop(e.node_id, None)) and e.to == _ENEMY:
             step["captured"] = True
             step["own"]["captured"] = step["own_capturers"] > 0  # NodeCaptured names no Static unit
@@ -743,6 +783,7 @@ class Collector:
             self.holds[-1]["pauses"] += 1
 
     def _produced(self, e: Any) -> None:
+        self.clip_produced[e.side] += e.amount
         _add(self.econ[e.side]["income"], self._hour(e.tick), e.amount)
 
     def _consumed(self, e: Any) -> None:
@@ -831,6 +872,11 @@ class Collector:
                 "below_tier_ttfi_s": self._ttfi(
                     [c for c in joined if self.join_tier[c] < self.min_tier]
                 ),
+                "below_tier_no_impact_observed_s": sorted(
+                    (end_tick - self.join_tick[c]) / self.tick_hz
+                    for c in joined
+                    if self.join_tier[c] < self.min_tier and c not in self.impact
+                ),
                 **self._group(counted, end_tick),
                 "by_kind": {
                     k: self._group([c for c in counted if self.kinds[c] == k], end_tick)
@@ -871,6 +917,21 @@ class Collector:
                 "share_max": max(self.idle_shares, default=None),
                 "reasons": dict(sorted(self.idle_reasons.items())),
                 "ring_by_site": dict(sorted(self.idle_ring_by_site.items())),
+                "open_strike_slots_sum": sum(self.open_strike_slots),  # NX-478, per idle sample
+            },
+            "coalition_hold": {  # NX-477
+                "zero_strategic_ticks": self.zero_strategic_ticks,
+                "zero_strategic_min": self._minutes(self.zero_strategic_ticks),
+                "coalition_captures": self.coalition_captures,
+            },
+            "escort_jobs": self.escort_jobs,  # NX-477: Static ESCORT_CONVOYS jobs, per run-hour
+            "income_clip": {  # NX-478: income due against `SupplyProduced`, per limited side
+                s: {
+                    "due": self.clip_due[s],
+                    "produced": self.clip_produced[s],
+                    "lost": self.clip_due[s] - self.clip_produced[s],
+                }
+                for s in SIDES
             },
             "density": {
                 "slots_per_unit_samples": len(self.slots_per_unit),

@@ -325,6 +325,7 @@ def failed_run(profile: str, seed: int, hours: float, error: str) -> dict[str, A
                 "joined": 0,
                 "joined_below_tier": 0,
                 "below_tier_ttfi_s": [],
+                "below_tier_no_impact_observed_s": [],
                 "joined_counted": 0,
                 "ttfi_s": [],
                 "no_impact_observed_s": [],
@@ -343,6 +344,16 @@ def failed_run(profile: str, seed: int, hours: float, error: str) -> dict[str, A
                 "share_sum": 0.0,
                 "share_max": None,
                 "reasons": {},
+                "open_strike_slots_sum": 0,
+            },
+            "coalition_hold": {
+                "zero_strategic_ticks": 0,
+                "zero_strategic_min": 0.0,
+                "coalition_captures": 0,
+            },
+            "escort_jobs": [],
+            "income_clip": {
+                s: {"due": 0, "produced": 0, "lost": 0} for s in ("COALITION", "ENEMY")
             },
             "starvation": {
                 "any_node_minutes": 0.0,
