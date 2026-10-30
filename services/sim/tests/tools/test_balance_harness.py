@@ -1894,6 +1894,10 @@ def test_collector_counts_hold_pauses_by_reason_and_paused_minutes_per_tick(
     ])  # fmt: skip
     observe(5, 1)  # paused, then ended by a break: no Resumed, still counted per tick
     observe(6, 2)
+    collector.feed([
+        VictoryHoldBroken.model_construct(kind="VictoryHoldBroken", tick=70, progress_ticks=3),
+    ])  # fmt: skip
+    observe(7, 0)  # the break cleared the pause: its two paused ticks stay with the hold
     economy = collector.result(1000)["economy"]
     assert economy["holds_paused"] == 2  # holds, not events: 3 pauses
     assert economy["hold_pauses"] == {"CAPTURE_BAR": 1, "CAPTURE_OP": 1, "DEFENSES_DOWN": 1}
@@ -1905,7 +1909,7 @@ def test_collector_counts_hold_pauses_by_reason_and_paused_minutes_per_tick(
     run = {"metrics": {"economy": economy}, "ticks_run": HOUR, "tick_hz": HZ, "seed": 1,
            "viewers": {"peak_concurrent": 5}}  # fmt: skip
     agg = report._economy([run])  # the report's per-profile numbers, next to holds broken
-    assert (agg["holds"], agg["holds_broken"], agg["holds_paused"]) == (2, 1, 2)
+    assert (agg["holds"], agg["holds_broken"], agg["holds_paused"]) == (2, 2, 2)
     assert agg["hold_pauses"] == economy["hold_pauses"]
     assert agg["hold_paused_min"] == 5 / HZ / 60
     assert agg["paused_min_per_hold"] == [3 / HZ / 60, 2 / HZ / 60]

@@ -907,7 +907,7 @@ class Collector:
         }
 
     def _minutes(self, ticks: int) -> float:
-        """World minutes of `ticks` running ticks."""
+        """Game minutes (`tick_hz` ticks a second, like every other harness minute) of `ticks`."""
         return ticks / self.tick_hz / 60
 
     def _pressure_in(self, hold: dict[str, Any]) -> int:
