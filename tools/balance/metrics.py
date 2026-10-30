@@ -141,7 +141,14 @@ class Collector:
         # one at setup arrives on tick 1). `holds`: per hold its start, end, whether it broke and
         # the Static operations launched during it. A broken hold decays (ECONOMY EC-9a, NX-489):
         # `holds_resumed` counts holds that started with kept progress, `hold_resets` the decays
-        # that ended by reason (DECAYED, REPAIRED).
+        # that ended by reason (DECAYED, REPAIRED). A running hold pauses under pressure (EC-9b,
+        # NX-466): `holds_paused` counts holds with a `VictoryHoldPaused`, `hold_pauses` the events
+        # by reason, and the paused running ticks are counted per tick in `observe` (a pause ended
+        # by a break has no `VictoryHoldResumed`), in total and per hold.
+        self.holds_paused = 0
+        self.hold_pauses: Counter[str] = Counter()
+        self.hold_paused_ticks = 0
+        self._running_seen = 0
         self.holds_resumed = 0
         self.hold_resets: Counter[str] = Counter()
         self.holds_broken = 0
@@ -238,6 +245,7 @@ class Collector:
             "VictoryHoldStarted": self._hold_started,
             "VictoryHoldBroken": self._hold_broken,
             "VictoryHoldReset": self._hold_reset,
+            "VictoryHoldPaused": self._hold_paused,
             "SupplyProduced": self._produced,
             "SupplyConsumed": self._consumed,
             "UnitGrounded": self._grounded,
@@ -325,6 +333,11 @@ class Collector:
             hour = self._hour(world.campaign.tick)
             _add(self.budget, hour, state.budget)
             _add(self.budget_windows, hour, 1)
+        camp = world.campaign
+        if camp.hold_paused_ticks and camp.running_ticks != self._running_seen and self.holds:
+            self.hold_paused_ticks += 1  # a running tick of a paused hold (not a sim-paused one)
+            self.holds[-1]["paused_ticks"] += 1
+        self._running_seen = camp.running_ticks
         hp = world.defense_hp[self._sanctuary]
         self.sanctuary_min = min(self.sanctuary_min, hp)
         if world.campaign.tick <= self.a3_ticks:
@@ -656,7 +669,9 @@ class Collector:
     def _hold_started(self, e: Any) -> None:
         self.holds_resumed += e.progress_ticks > 0
         self.hold_start = e.tick
-        self.holds.append({"start": e.tick, "end": None, "broken": False, "ops": 0})
+        self.holds.append({
+            "start": e.tick, "end": None, "broken": False, "ops": 0, "pauses": 0, "paused_ticks": 0,
+        })  # fmt: skip
 
     def _hold_broken(self, e: Any) -> None:
         self.holds_broken += 1
@@ -666,6 +681,12 @@ class Collector:
 
     def _hold_reset(self, e: Any) -> None:
         self.hold_resets[e.reason] += 1
+
+    def _hold_paused(self, e: Any) -> None:
+        self.hold_pauses[e.reason] += 1
+        if self.holds:
+            self.holds_paused += self.holds[-1]["pauses"] == 0
+            self.holds[-1]["pauses"] += 1
 
     def _produced(self, e: Any) -> None:
         _add(self.econ[e.side]["income"], self._hour(e.tick), e.amount)
@@ -836,7 +857,17 @@ class Collector:
             "budget": {"sum": self.budget, "windows": self.budget_windows, "spent": self.spent},
             "ops": [list(o) for o in self.ops],
             "ops_unseen": self.ops_unseen,
-            "holds": [{**h, "pressure": self._pressure_in(h)} for h in self.holds],
+            "holds": [
+                {
+                    **h,
+                    "pressure": self._pressure_in(h),
+                    "paused_min": self._minutes(h["paused_ticks"]),
+                }
+                for h in self.holds
+            ],
+            "holds_paused": self.holds_paused,
+            "hold_pauses": dict(sorted(self.hold_pauses.items())),
+            "hold_paused_min": self._minutes(self.hold_paused_ticks),
             "holds_resumed": self.holds_resumed,
             "hold_resets": dict(sorted(self.hold_resets.items())),
             "funnel": self.funnel,
@@ -874,6 +905,10 @@ class Collector:
                 "minutes": sum(stretches) * self._wticks / self.tick_hz / 60,
             },
         }
+
+    def _minutes(self, ticks: int) -> float:
+        """World minutes of `ticks` running ticks."""
+        return ticks / self.tick_hz / 60
 
     def _pressure_in(self, hold: dict[str, Any]) -> int:
         """Pressure events from a hold's start to its end, both ticks counted."""

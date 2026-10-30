@@ -80,6 +80,12 @@ class Victory(BaseModel):
             description="Whether a decaying hold also resets once the other side owns one of the broken hold's nodes at its full defense HP (ECONOMY EC-9a; the lead's reading of the owner's repaired/re-defended, Q-TD-126); false: only the decay ends it, unit switch."
         ),
     ]
+    pause_on_pressure: Annotated[
+        bool,
+        Field(
+            description="Whether a running victory hold gains nothing while one of its nodes is under the other side's pressure: its capture bar, its defenses down (World.defense_down), or a claimant of the other side's CAPTURE job on it within tasking.defend_radius_m; it resumes with no reset when none is (ECONOMY EC-9b, Q-TD-84 (b) owner-agreed, readings Q-TD-134); false: the hold gains every running tick, as before NX-466, unit switch."
+        ),
+    ]
 
 
 class IdleFloor(BaseModel):

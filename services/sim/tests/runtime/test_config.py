@@ -176,6 +176,7 @@ campaign:
     decay_slow_rate: 0.25
     decay_fast_rate: 1.0
     reset_on_repair: true
+    pause_on_pressure: true
   idle_floor:
     enabled: true
     sanctuary_min_hp: 1
@@ -385,7 +386,7 @@ economy:
 # catalog's `mirrors`, NX-499 for `campaign.defeat.reset_hp_frac`, NX-501 for
 # `logistics.stock_target_mode` and `stock_target_loadouts`); a change means
 # every config_hash moved.
-GOLDEN_CONFIG_HASH = "4d244bedbbde21cfba4a35405ab4c702ff4548af8b293c337fb8333e26d4e288"
+GOLDEN_CONFIG_HASH = "7ca26705a690f07cd096136a41c36b0af8eaa6dfe737641524d5f8431e1283b6"
 AIR = {
     "bingo_reserve_frac": 0.15,
     "orbit_period_s": 120.0,
@@ -515,6 +516,7 @@ CAMPAIGN = {
         "decay_slow_rate": 0.25,
         "decay_fast_rate": 1.0,
         "reset_on_repair": True,
+        "pause_on_pressure": True,
     },
     "idle_floor": {"enabled": True, "sanctuary_min_hp": 1},
     "score": {"average_weight": 50, "final_weight": 50, "objective_points": 5},
@@ -766,6 +768,20 @@ def test_valid_file_loads(tmp_path: Path) -> None:
     assert cfg.sim.snapshot_every_ticks == 300
 
 
+def test_pause_on_pressure_is_read_and_must_be_a_bool(tmp_path: Path) -> None:
+    """NX-466 (ECONOMY EC-9b): the switch loads as written; a missing key is refused by the
+    required-key table below, and a non-bool is refused here."""
+    on, off = "    pause_on_pressure: true\n", "    pause_on_pressure: false\n"
+    assert VALID.count(on) == 1
+    assert load_balance(write(tmp_path, VALID)).campaign.victory.pause_on_pressure is True
+    assert (
+        load_balance(write(tmp_path, VALID.replace(on, off))).campaign.victory.pause_on_pressure
+        is False
+    )
+    with pytest.raises(ConfigError, match=r"campaign\.victory\.pause_on_pressure"):
+        load_balance(write(tmp_path, VALID.replace(on, "    pause_on_pressure: maybe\n")))
+
+
 def test_default_profile_loads_and_matches_golden_hash() -> None:
     assert load_balance(DEFAULT) == CFG
     assert (
@@ -855,6 +871,7 @@ def test_default_profile_loads_and_matches_golden_hash() -> None:
         ("    decay_slow_rate: 0.25\n", "campaign.victory.decay_slow_rate"),
         ("    decay_fast_rate: 1.0\n", "campaign.victory.decay_fast_rate"),
         ("    reset_on_repair: true\n", "campaign.victory.reset_on_repair"),
+        ("    pause_on_pressure: true\n", "campaign.victory.pause_on_pressure"),
         ("    sanctuary_min_hp: 1\n", "campaign.idle_floor.sanctuary_min_hp"),
         ("  requires_defenses_down: true\n", "capture.requires_defenses_down"),
         ("  air_counts: false\n", "capture.air_counts"),
@@ -1173,7 +1190,8 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "  victory_node_frac: 0.80,\n"
         "  strategic_node_kinds: [AIRBASE, FOB, PORT],\n"
         "  idle_floor: {sanctuary_min_hp: 1, enabled: true}, victory: {hq_capture: true,\n"
-        "    reset_on_repair: true, decay_fast_rate: 1.0, decay_slow_rate: 0.25,\n"
+        "    reset_on_repair: true, pause_on_pressure: true, decay_fast_rate: 1.0,\n"
+        "    decay_slow_rate: 0.25,\n"
         "    decay_slow_min: 10, hold_break: decay},\n"
         "  objective_pick: uniform,\n"
         "  time_limit_h: 72, night_progress_cap_nodes_per_h: 0.16666666666666666}\n"

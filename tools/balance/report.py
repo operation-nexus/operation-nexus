@@ -487,6 +487,9 @@ def _economy(runs: list[dict[str, Any]]) -> dict[str, Any]:
         spawn_by_op.update(e["spawn_by_op"]["ops"])
     windows = sum(sum(e["budget"]["windows"]) for e in es)
     holds = [h for e in es for h in e["holds"]]
+    hold_pauses: Counter[str] = Counter()
+    for e in es:
+        hold_pauses.update(e["hold_pauses"])
     return {
         "sides": sides,
         "shortfall": _shortfall(es, hours),
@@ -533,6 +536,10 @@ def _economy(runs: list[dict[str, Any]]) -> dict[str, Any]:
         "pressure_per_hold": [h["pressure"] for h in holds],
         "holds": len(holds),
         "holds_broken": sum(h["broken"] for h in holds),
+        "holds_paused": sum(e["holds_paused"] for e in es),  # EC-9b (NX-466)
+        "hold_pauses": dict(sorted(hold_pauses.items())),
+        "hold_paused_min": sum(e["hold_paused_min"] for e in es),
+        "paused_min_per_hold": [h["paused_min"] for h in holds],
         "ops_per_hold": [h["ops"] for h in holds],
         "army_vs_viewers": [
             [e["army_peak"], r["viewers"]["peak_concurrent"]] for r, e in zip(rs, es, strict=True)
@@ -826,8 +833,12 @@ def _economy_lines(report: dict[str, Any]) -> list[str]:
             f"window {_fmt(e['budget_per_window'])}, spawn debits base {e['spent']['base']}, "
             f"source {e['spent']['source']}; live-cap refusals "
             f"{e['refused_operations'] or 'none'}; Static sitreps {e['adaptations'] or 'none'}; "
-            f"victory holds {e['holds']} (broken {e['holds_broken']}), Static operations per hold "
-            f"{e['ops_per_hold']}; peak coalition armed units vs peak viewers per seed "
+            f"victory holds {e['holds']} (broken {e['holds_broken']}, paused "
+            f"{e['holds_paused']} by {e['hold_pauses'] or 'none'}, paused min "
+            f"{_fmt(e['hold_paused_min'])}, per hold "
+            f"{[round(m, 1) for m in e['paused_min_per_hold']]}), "
+            f"Static operations per hold {e['ops_per_hold']}; peak coalition armed units vs peak "
+            f"viewers per seed "
             f"{e['army_vs_viewers']}; grounded by previous state {share or 'none'}",
         ]
         lines += _d5_lines(n, e)

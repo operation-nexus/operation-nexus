@@ -206,6 +206,14 @@ type SpawnRefusedReason = Annotated[
 ]
 
 
+type VictoryHoldPauseReason = Annotated[
+    Literal["CAPTURE_BAR", "DEFENSES_DOWN", "CAPTURE_OP"],
+    Field(
+        description="Why a running victory hold is paused (ECONOMY EC-9b, NX-466): CAPTURE_BAR = the other side has a capture bar on a hold node; DEFENSES_DOWN = a hold node is in World.defense_down; CAPTURE_OP = a claimant of the other side's CAPTURE job on a hold node is within tasking.defend_radius_m. The first that holds, in that order."
+    ),
+]
+
+
 type EventKind = Annotated[
     Literal[
         "UnitSpawned",
@@ -232,6 +240,8 @@ type EventKind = Annotated[
         "VictoryHoldStarted",
         "VictoryHoldBroken",
         "VictoryHoldReset",
+        "VictoryHoldPaused",
+        "VictoryHoldResumed",
         "SpawnRefused",
     ],
     Field(description="Grows one kind at a time, with each producer (rule 6a)."),

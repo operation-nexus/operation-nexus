@@ -162,6 +162,7 @@ campaign:
     decay_slow_rate: 0.25  # PROPOSED placeholder, no data (Q-TD-126); progress min lost per broken min in the slow stage (CONFIG-AND-CONTENT §6.6)
     decay_fast_rate: 1.0  # PROPOSED placeholder, no data (Q-TD-126); progress min lost per broken min after it, > 0 and >= decay_slow_rate (CONFIG-AND-CONTENT §6.6)
     reset_on_repair: true  # PROPOSED (Q-TD-126, the lead's reading of the owner's repaired/re-defended); a decaying hold resets once the other side has a broken-hold node at full defense HP (CONFIG-AND-CONTENT §6.6)
+    pause_on_pressure: true  # decided rule as default, Q-CFG-16 option (Q-TD-84 (b), owner 2026-10-28; readings Q-TD-134); a running hold gains nothing while a hold node has the other side's capture bar, its defenses down or a CAPTURE claimant within tasking.defend_radius_m (ECONOMY EC-9b); false: it gains every running tick (CONFIG-AND-CONTENT §6.6)
   idle_floor:  # decided rule as default, Q-CFG-16 option (Q-GP-28, Q-GP-44); with no live viewer unit, and the forward airbase also while it is the coalition's last strategic node (Q-TD-93) (CONFIG-AND-CONTENT §6.6)
     enabled: true
     sanctuary_min_hp: 1  # hp, the coalition sanctuary's floor while the idle floor holds
