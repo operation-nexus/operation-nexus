@@ -1134,6 +1134,8 @@
         "starve_floor_mode",
         "starve_floor_loadouts",
         "stock_target_frac",
+        "stock_target_mode",
+        "stock_target_loadouts",
         "truck_cargo",
         "unload_rate",
         "rearm_rate",
@@ -1278,6 +1280,31 @@
           "x-edit-role": "ADMIN",
           "x-tune": {"min": 0.4, "max": 1.0, "step": 0.05, "scale": "LINEAR"},
           "x-source": "GAMEPLAY \u00a75",
+          "x-status": "PROPOSED"
+        },
+        "stock_target_mode": {
+          "description": "How the forward stock target is set (NX-501, Q-TD-133 (a)): fraction, ceil(stock_target_frac x node_max_stock), today's rule; loadouts, min(max(stock_target_loadouts x C, the node's live starvation floor), node_max_stock) with C the largest loadout_cost entry of the whole catalog (as NX-495). Fixed at load, the same at every node and for either side. Every reader of the target follows it, including the FS-3 staging raise; the Director's surplus does not read it, unit enum.",
+          "enum": ["fraction", "loadouts"],
+          "x-unit": "enum",
+          "x-hot-reload": false,
+          "x-category": "LOGISTICS",
+          "x-audience": "OPERATOR",
+          "x-edit-role": "ADMIN",
+          "x-tune": null,
+          "x-source": "GAMEPLAY \u00a75, Q-TD-133 (a)",
+          "x-status": "PROPOSED"
+        },
+        "stock_target_loadouts": {
+          "description": "M, the loadouts of the dearest kind the forward stock target holds in loadouts mode (NX-501, Q-TD-133 (a)), unit loadouts. Read only while stock_target_mode is loadouts.",
+          "type": "integer",
+          "minimum": 1,
+          "x-unit": "loadouts of the dearest kind",
+          "x-hot-reload": false,
+          "x-category": "LOGISTICS",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 5, "max": 40, "step": 5, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a75, Q-TD-133 (a)",
           "x-status": "PROPOSED"
         },
         "truck_cargo": {

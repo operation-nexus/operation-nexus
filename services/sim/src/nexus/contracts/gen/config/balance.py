@@ -521,6 +521,19 @@ class Logistics(BaseModel):
             le=1.0,
         ),
     ]
+    stock_target_mode: Annotated[
+        Literal["fraction", "loadouts"],
+        Field(
+            description="How the forward stock target is set (NX-501, Q-TD-133 (a)): fraction, ceil(stock_target_frac x node_max_stock), today's rule; loadouts, min(max(stock_target_loadouts x C, the node's live starvation floor), node_max_stock) with C the largest loadout_cost entry of the whole catalog (as NX-495). Fixed at load, the same at every node and for either side. Every reader of the target follows it, including the FS-3 staging raise; the Director's surplus does not read it, unit enum."
+        ),
+    ]
+    stock_target_loadouts: Annotated[
+        int,
+        Field(
+            description="M, the loadouts of the dearest kind the forward stock target holds in loadouts mode (NX-501, Q-TD-133 (a)), unit loadouts. Read only while stock_target_mode is loadouts.",
+            ge=1,
+        ),
+    ]
     truck_cargo: Annotated[
         int,
         Field(

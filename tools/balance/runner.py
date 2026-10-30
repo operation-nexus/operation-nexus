@@ -350,6 +350,11 @@ def failed_run(profile: str, seed: int, hours: float, error: str) -> dict[str, A
                 "fraction_floor_any_node_minutes": 0.0,
                 "fraction_floor_node_minutes": 0.0,
             },
+            "hauling": {
+                "run_hours": 0.0,
+                "resupply_jobs": {"COALITION": 0, "ENEMY": 0},
+                "deliveries": {"COALITION": 0, "ENEMY": 0},
+            },
         },
         "timing": {"wall_s": 0.0, "ticks_per_s": None},
     }

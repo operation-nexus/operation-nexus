@@ -20,6 +20,7 @@ from nexus.contracts.gen.events.bridge_destroyed import BridgeDestroyed
 from nexus.contracts.gen.events.campaign_ended import CampaignEnded
 from nexus.contracts.gen.events.capture_started import CaptureStarted
 from nexus.contracts.gen.events.job_claimed import JobClaimed
+from nexus.contracts.gen.events.job_created import JobCreated
 from nexus.contracts.gen.events.node_captured import NodeCaptured
 from nexus.contracts.gen.events.node_defenses_down import NodeDefensesDown
 from nexus.contracts.gen.events.spawn_refused import SpawnRefused
@@ -237,7 +238,7 @@ def test_newbie_time_to_first_impact(collector: metrics.Collector) -> None:
     other = WeaponImpact.model_construct(kind="WeaponImpact", tick=120, shooter_id=906, hit=True)
     late = WeaponImpact.model_construct(kind="WeaponImpact", tick=900, shooter_id=901, hit=True)
     delivery = SupplyDelivered.model_construct(
-        kind="SupplyDelivered", tick=700, commander_id=commander(2)
+        kind="SupplyDelivered", tick=700, commander_id=commander(2), carrier_id=902
     )
     capture = NodeCaptured.model_construct(
         kind="NodeCaptured",
@@ -372,6 +373,53 @@ def test_starved_is_counted_against_the_fraction_floor_in_loadouts_mode() -> Non
         "fraction_floor_any_node_minutes": 1.0,
         "fraction_floor_node_minutes": 2.0,
     }
+
+
+def test_hauling_counts_resupply_jobs_and_truck_stops_per_side(
+    collector: metrics.Collector,
+) -> None:
+    """NX-501 (GAMEPLAY §5 "Stock target cap" Harness): a scripted stream of three coalition
+    resupply jobs (one is the sanctuary's own repair job, not counted), a Static one, a strike job
+    (not counted) and four unloading stops, over half a run-hour (18000 ticks at 10 Hz)."""
+
+    def job(kind: str, side: str, node: str | None) -> Any:
+        return JobCreated.model_construct(
+            kind="JobCreated", tick=50, job_id=1, job_kind=kind, side=side, node_id=node
+        )
+
+    def stop(truck: int) -> Any:
+        return SupplyDelivered.model_construct(
+            kind="SupplyDelivered", tick=60, carrier_id=truck, commander_id=None
+        )
+
+    collector.feed([spawned(10, 801, "LOGI_TRUCK", "COALITION", None)])
+    collector.feed([spawned(10, 802, "LOGI_TRUCK", "ENEMY", None)])
+    collector.feed([
+        job("RESUPPLY", "COALITION", "fob-n-w"),
+        job("RESUPPLY", "COALITION", "west-airbase"),
+        job("RESUPPLY", "COALITION", "haven"),  # the sanctuary's repair job
+        job("RESUPPLY", "ENEMY", "fob-n-e"),
+        job("STRIKE", "COALITION", "fob-n-e"),
+        stop(801), stop(801), stop(801), stop(802),
+    ])  # fmt: skip
+    h = collector.result(18000)["hauling"]
+    assert h == {
+        "run_hours": 0.5,
+        "resupply_jobs": {"COALITION": 2, "ENEMY": 1},
+        "deliveries": {"COALITION": 3, "ENEMY": 1},
+    }
+    run = {"metrics": {"hauling": h}}
+    agg = report._hauling([run, run])  # pooled: 4 jobs over 1 run-hour, 6 stops
+    assert agg["COALITION"] == {"resupply_jobs_per_h": 4.0, "deliveries_per_h": 6.0}
+    assert agg["ENEMY"] == {"resupply_jobs_per_h": 2.0, "deliveries_per_h": 2.0}
+    assert report._hauling([{"metrics": {"hauling": metrics_zero()}}])["ENEMY"] == {
+        "resupply_jobs_per_h": None,
+        "deliveries_per_h": None,
+    }
+
+
+def metrics_zero() -> dict[str, Any]:
+    return dict(runner.failed_run("p", 1, 1.0, "x")["metrics"]["hauling"])
 
 
 def test_samples_and_sanctuary_hp(
@@ -945,7 +993,7 @@ def test_each_impact_kind_is_detected(
     collector.feed(
         [
             SupplyDelivered.model_construct(
-                kind="SupplyDelivered", tick=400, commander_id=commander(3)
+                kind="SupplyDelivered", tick=400, commander_id=commander(3), carrier_id=901
             )
         ]
     )

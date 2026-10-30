@@ -78,7 +78,7 @@ class Supply:
     # .surplus_ref_frac x max), ceil(starve_threshold x max)), in either floor mode; empty without
     # Director rules
     surplus_ref: Mapping[str, int] = field(default_factory=dict)
-    # ceil(logistics.stock_target_frac x max): the forward stock target (Q-SIM-100, NX-389)
+    # the forward stock target (Q-SIM-100, NX-389): fraction or loadouts (NX-501)
     stock_target: Mapping[str, int] = field(default_factory=dict)
     carriers: frozenset[UnitKind] = frozenset()
     truck_cargo: int = 0  # logistics.truck_cargo
@@ -915,14 +915,23 @@ def _supply(
     if bridge_milli < 1:
         raise ValueError("a truck's bridge repair rate x world_dt is below 0.001 hp per tick")
     fraction_floor = {k: math.ceil(logistics.starve_threshold * v) for k, v in max_stock.items()}
+    dearest = max(logistics.loadout_cost.model_dump().values())  # C, whole catalog (NX-495, NX-501)
     if logistics.starve_floor_mode == "loadouts":
         # NX-495: N loadouts of the dearest kind of the whole catalog, capped at the node's maximum
-        dearest = max(logistics.loadout_cost.model_dump().values())
         starve_floor = {
             k: min(logistics.starve_floor_loadouts * dearest, v) for k, v in max_stock.items()
         }
     else:
         starve_floor = fraction_floor
+    if logistics.stock_target_mode == "loadouts":
+        # NX-501: M loadouts of C, never under the live floor (the target would switch stocking
+        # off), capped at the node's maximum
+        stock_target = {
+            k: min(max(logistics.stock_target_loadouts * dearest, starve_floor[k]), v)
+            for k, v in max_stock.items()
+        }
+    else:
+        stock_target = {k: math.ceil(logistics.stock_target_frac * v) for k, v in max_stock.items()}
     surplus_ref = {
         # NX-500: the Director's reference is on the fraction floor in either mode (EC-7)
         k: max(math.ceil(surplus_ref_frac * v), fraction_floor[k])
@@ -935,7 +944,7 @@ def _supply(
         max_stock=max_stock,
         starve_floor=starve_floor,
         surplus_ref=surplus_ref,
-        stock_target={k: math.ceil(logistics.stock_target_frac * v) for k, v in max_stock.items()},
+        stock_target=stock_target,
         carriers=frozenset(_CARRIERS),
         truck_cargo=logistics.truck_cargo,
         unload_milli=unload_milli,

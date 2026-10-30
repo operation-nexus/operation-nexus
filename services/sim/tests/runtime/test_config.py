@@ -64,6 +64,8 @@ logistics:
   starve_floor_mode: fraction
   starve_floor_loadouts: 5
   stock_target_frac: 0.8
+  stock_target_mode: fraction
+  stock_target_loadouts: 15
   truck_cargo: 100
   unload_rate: 1.0
   rearm_rate: 0.5
@@ -380,9 +382,10 @@ economy:
 # deleting `economy.legacy_rules`, `director.budget` and `director.max_live_units`, NX-484 for
 # `tasking.retake_keep_min`, NX-489 for the `campaign.victory` hold decay keys, NX-490 for
 # `capture.time_mult` and `capture.extra_exponent`, NX-494 for `economy.cost_parity` and the
-# catalog's `mirrors`, NX-499 for `campaign.defeat.reset_hp_frac`); a change means
+# catalog's `mirrors`, NX-499 for `campaign.defeat.reset_hp_frac`, NX-501 for
+# `logistics.stock_target_mode` and `stock_target_loadouts`); a change means
 # every config_hash moved.
-GOLDEN_CONFIG_HASH = "44303f6a136f249994f2d34a6f100f1af64dde4a8ae4488aef225c5afdca2d20"
+GOLDEN_CONFIG_HASH = "4d244bedbbde21cfba4a35405ab4c702ff4548af8b293c337fb8333e26d4e288"
 AIR = {
     "bingo_reserve_frac": 0.15,
     "orbit_period_s": 120.0,
@@ -414,6 +417,8 @@ LOGISTICS = {
     "starve_floor_mode": "fraction",
     "starve_floor_loadouts": 5,
     "stock_target_frac": 0.8,
+    "stock_target_mode": "fraction",
+    "stock_target_loadouts": 15,
     "truck_cargo": 100,
     "unload_rate": 1.0,
     "rearm_rate": 0.5,
@@ -801,6 +806,8 @@ def test_default_profile_loads_and_matches_golden_hash() -> None:
         ("  starve_floor_mode: fraction\n", "logistics.starve_floor_mode"),
         ("  starve_floor_loadouts: 5\n", "logistics.starve_floor_loadouts"),
         ("  stock_target_frac: 0.8\n", "logistics.stock_target_frac"),
+        ("  stock_target_mode: fraction\n", "logistics.stock_target_mode"),
+        ("  stock_target_loadouts: 15\n", "logistics.stock_target_loadouts"),
         ("  stock_urgency: 0.5\n", "tasking.stock_urgency"),
         ("  stock_front_bonus: 0.25\n", "tasking.stock_front_bonus"),
         ("  truck_cargo: 100\n", "logistics.truck_cargo"),
@@ -981,6 +988,18 @@ def test_a_key_deleted_in_nx_488_fails_naming_it(
             "starve_floor_loadouts: 2.5",
             "logistics.starve_floor_loadouts",
         ),
+        # NX-501: the target mode is one of two words, M is at least one loadout
+        ("stock_target_mode: fraction", "stock_target_mode: cap", "logistics.stock_target_mode"),
+        (
+            "stock_target_loadouts: 15",
+            "stock_target_loadouts: 0",
+            "logistics.stock_target_loadouts",
+        ),
+        (
+            "stock_target_loadouts: 15",
+            "stock_target_loadouts: 2.5",
+            "logistics.stock_target_loadouts",
+        ),
     ],
 )
 def test_wrong_type_or_value_fails_naming_key(tmp_path: Path, old: str, new: str, key: str) -> None:
@@ -1116,6 +1135,7 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "  sigint_size_l_min: 7, sigint_size_m_min: 3}\n"
         "logistics: {unload_rate: 1.0, truck_cargo: 100, starve_threshold: 0.25,\n"
         "  starve_floor_mode: fraction, starve_floor_loadouts: 5, stock_target_frac: 0.8,\n"
+        "  stock_target_mode: fraction, stock_target_loadouts: 15,\n"
         "  rearm_rate: 0.5, forward_deploy_min_surplus: 50, starved_loadout: {fuel_frac: 0.5},\n"
         "  loadout_cost: {STRIKE_FIGHTER: 20, RECON_UAV: 5, LOGI_TRUCK: 0, GARRISON_INFANTRY: 5,\n"
         "    ENEMY_FIGHTER: 20, ENEMY_STRIKE_FIGHTER: 20, ENEMY_RECON_UAV: 5, ENEMY_ARMOR: 15,\n"
