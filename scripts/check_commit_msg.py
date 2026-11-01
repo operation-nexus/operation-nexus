@@ -13,7 +13,7 @@ CONVENTIONAL = re.compile(r"^(feat|fix|docs|style|refactor|perf|test|build|ci|ch
 # is seen using it). The whole address between < and > must match, so a human co-author, at any
 # company and with any name, stays allowed. Session lines and "Generated with" footers too.
 ATTRIBUTION = re.compile(
-    r"^[^\w]*(co-authored-by:[^<]*<(noreply@anthropic\.com|copilot@github\.com"
+    r"^[^\w]*(co-authored-by:[^<]*<(noreply@anthropic\.com|(noreply|codex)@openai\.com|copilot@github\.com"
     r"|\d+\+(copilot|codex|codex\[bot\])@users\.noreply\.github\.com)>"
     r"|[a-z]+-session:\s"
     r"|generated (with|by) \[?(claude|codex|copilot|gemini|cursor|chatgpt|windsurf|antigravity)\b)",
