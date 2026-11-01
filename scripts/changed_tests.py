@@ -43,7 +43,8 @@ def changed_files() -> tuple[list[str], frozenset[str]]:
         return subprocess.run(["git", *args], capture_output=True, text=True, check=True).stdout.split()
 
     base = git("merge-base", "HEAD", "origin/develop")[0]
-    deleted = frozenset(git("diff", "--name-only", "--diff-filter=D", base))
+    # deleted in git and still absent on disk (a recreated, not yet staged file counts as present)
+    deleted = frozenset(p for p in git("diff", "--name-only", "--diff-filter=D", base) if not os.path.exists(p))
     return git("diff", "--name-only", base) + git("ls-files", "--others", "--exclude-standard"), deleted
 
 

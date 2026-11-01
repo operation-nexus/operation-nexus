@@ -61,7 +61,7 @@ pre-pr:
 	@for c in $$(git rev-list origin/develop..HEAD); do git log -1 --format=%B $$c > "$${TMPDIR:-/tmp}/nx-msg" && python3 scripts/check_commit_msg.py "$${TMPDIR:-/tmp}/nx-msg" || { echo "bad commit message: $$c" >&2; exit 1; }; done
 	$(MAKE) contracts
 	git diff --exit-code HEAD -- $(SIM)/src/nexus/contracts $(OVERLAY)/src/contracts docs/specs/CONFIG-REFERENCE.md
-	@untracked="$$(git status --porcelain -- $(SIM)/src/nexus/contracts $(OVERLAY)/src/contracts | grep '^??' || true)"; \
+	@untracked="$$(git status --porcelain -- $(SIM)/src/nexus/contracts $(OVERLAY)/src/contracts docs/specs/CONFIG-REFERENCE.md | grep '^??' || true)"; \
 	[ -z "$$untracked" ] || { echo "untracked generated files (commit them):" >&2; echo "$$untracked" >&2; exit 1; }
 
 check-overlay: node-version
