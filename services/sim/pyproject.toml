@@ -19,6 +19,7 @@ dev = [
   "import-linter==2.15",
   "datamodel-code-generator==0.86.0",
   "types-pyyaml==6.0.12.20260906",
+  "pytest-xdist==3.8.0",
 ]
 
 [build-system]

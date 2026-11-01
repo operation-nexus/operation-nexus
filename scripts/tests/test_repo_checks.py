@@ -11,7 +11,10 @@ import tempfile
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-from check_commit_msg import problems  # noqa: E402  (path set up above)
+from changed_tests import plan  # noqa: E402  (path set up above)
+from check_commit_msg import problems  # noqa: E402
+from check_pr_body import main as body_main  # noqa: E402
+from check_pr_body import problems as body_problems  # noqa: E402
 from check_contracts_compat import breaking_changes  # noqa: E402
 from check_contracts_compat import main as compat_main  # noqa: E402
 from gen_config_reference import problems as registry_problems  # noqa: E402
@@ -289,6 +292,44 @@ def test_format_hook():
         shutil.rmtree(outside_dir)
 
 
+def test_pr_body():
+    ok = "## Summary\nx\n\n## Traceability\n- Tracker: NX-415\n\n## Checklist\n- [x] a\n"
+    assert body_problems(ok) == []
+    assert body_problems(ok.replace("## Checklist", "## Done")) == ["missing section heading: ## Checklist"]
+    assert body_problems(ok.replace("NX-415", "NX-41")) == ["no tracker ID (NX-###) in the body"]
+    (bad,) = body_problems(ok + "- Spec section: docs/specs/___.md\n")
+    assert body_problems(ok + "- the lint rejects a `___` placeholder\n") == []  # inline code documents it
+    assert bad.startswith("template placeholder left in")
+    with tempfile.TemporaryDirectory() as tmp:
+        path = os.path.join(tmp, "body.md")
+        with open(path, "w") as f:
+            f.write(ok)
+        assert body_main([path]) == 0
+        with open(path, "w") as f:
+            f.write("nothing")
+        with contextlib.redirect_stderr(io.StringIO()):
+            assert body_main([path]) == 1
+            assert body_main([os.path.join(tmp, "gone.md")]) == 2
+
+
+def test_changed_tests():
+    dirs = {"core", "golden", "runtime", "tools"}
+    assert plan([], dirs) == []
+    assert plan(["README.md"], dirs) == []
+    assert plan(["services/sim/src/nexus/core/a.py"], dirs) == [
+        "py services/sim/src/nexus/core/a.py", "pytest tests/core", "pytest tests/golden"]
+    assert plan(["services/sim/src/nexus/runtime/a.py"], dirs)[1:] == ["pytest tests/runtime"]
+    assert plan(["services/sim/src/nexus/obs/a.py"], dirs)[1:] == ["pytest tests/core"]  # no tests/obs dir
+    assert plan(["tools/balance/b.py"], dirs)[1:] == ["pytest tests/tools"]
+    assert plan(["scripts/x.py"], dirs) == ["run python3 scripts/tests/test_repo_checks.py"]  # scripts/ is not ruffed
+    assert plan(["services/sim/tests/core/test_x.py"], dirs) == [
+        "py services/sim/tests/core/test_x.py", "pytest tests/core/test_x.py"]  # a changed test runs itself
+    gone = "services/sim/src/nexus/core/a.py"
+    assert plan([gone], dirs, frozenset({gone})) == ["pytest tests/core", "pytest tests/golden"]  # deleted: its tests run
+    gone_test = "services/sim/tests/core/test_x.py"
+    assert plan([gone_test], dirs, frozenset({gone_test})) == []  # a deleted test is not run
+
+
 if __name__ == "__main__":
     test_commit_msg()
     test_tracked_files()
@@ -297,4 +338,6 @@ if __name__ == "__main__":
     test_contracts_compat()
     test_config_registry()
     test_format_hook()
+    test_pr_body()
+    test_changed_tests()
     print("ok")
