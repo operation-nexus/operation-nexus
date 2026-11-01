@@ -123,6 +123,8 @@ capture:
   sanctuary_repair_hp_per_s: 1.0
   uncapturable_node_kinds: [SANCTUARY, BRIDGE]
   requires_defenses_down: true
+  facilities_disabled: true
+  seized_repair_slowdown: 92
   air_counts: false
   air_weight: 1.0
   quiet_sides: [COALITION]
@@ -386,7 +388,7 @@ economy:
 # catalog's `mirrors`, NX-499 for `campaign.defeat.reset_hp_frac`, NX-501 for
 # `logistics.stock_target_mode` and `stock_target_loadouts`); a change means
 # every config_hash moved.
-GOLDEN_CONFIG_HASH = "7ca26705a690f07cd096136a41c36b0af8eaa6dfe737641524d5f8431e1283b6"
+GOLDEN_CONFIG_HASH = "7ce3a04a3dd6517df017a1324f5340324f9ead71afee125a2db80277f7006cc1"
 AIR = {
     "bingo_reserve_frac": 0.15,
     "orbit_period_s": 120.0,
@@ -466,6 +468,8 @@ CAPTURE = {
     "sanctuary_repair_hp_per_s": 1.0,
     "uncapturable_node_kinds": ["SANCTUARY", "BRIDGE"],
     "requires_defenses_down": True,
+    "facilities_disabled": True,
+    "seized_repair_slowdown": 92,
     "air_counts": False,
     "air_weight": 1.0,
     "quiet_sides": ["COALITION"],
@@ -874,6 +878,8 @@ def test_default_profile_loads_and_matches_golden_hash() -> None:
         ("    pause_on_pressure: true\n", "campaign.victory.pause_on_pressure"),
         ("    sanctuary_min_hp: 1\n", "campaign.idle_floor.sanctuary_min_hp"),
         ("  requires_defenses_down: true\n", "capture.requires_defenses_down"),
+        ("  facilities_disabled: true\n", "capture.facilities_disabled"),
+        ("  seized_repair_slowdown: 92\n", "capture.seized_repair_slowdown"),
         ("  air_counts: false\n", "capture.air_counts"),
         ("  air_weight: 1.0\n", "capture.air_weight"),
         ("  quiet_sides: [COALITION]\n", "capture.quiet_sides"),
@@ -1172,7 +1178,8 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "  defense_hp: {AIRBASE: 500, FOB: 300, HQ: 800, PORT: 300, SANCTUARY: 1000},\n"
         "  sanctuary_repair_hp_per_s: 1.0, uncapturable_node_kinds: [SANCTUARY, BRIDGE],\n"
         "  quiet_sides: [COALITION], air_weight: 1.0, air_counts: false,\n"
-        "  requires_defenses_down: true}\n"
+        "  requires_defenses_down: true, facilities_disabled: true,\n"
+        "  seized_repair_slowdown: 92}\n"
         "combat: {pk_cap: 0.95, track_quality: {painted: 1.25, track: 1.0},\n"
         "  range: {min_mult: 0.5, full_pk_frac: 0.5}, pk_mult: {terrain_masked: 0.5},\n"
         "  damage_state: {disabled_below: 0.10, damaged_below: 0.70, mission_kill_below: 0.35,\n"

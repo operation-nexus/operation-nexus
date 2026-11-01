@@ -103,8 +103,9 @@ from nexus.core.rules import CAPTURE_FULL, Rules
 # Campaign.defeat_idle_ticks, the defeat run's empty stretch (Q-TD-95, NX-476); a retake job
 # reuses Job.lost as its keep clock (Q-TD-121, NX-484, no bump: same shape); 37:
 # Campaign.hold_broken_ticks and hold_broken_nodes, a broken hold's decay (ECONOMY EC-9a, NX-489);
-# 38: Campaign.hold_paused_ticks, a running hold's pause under pressure (ECONOMY EC-9b, NX-466)
-FORMAT_VERSION = 38
+# 38: Campaign.hold_paused_ticks, a running hold's pause under pressure (ECONOMY EC-9b, NX-466);
+# 39: Entity.seized_carry, a facility seized with its base repairing slowly (GAMEPLAY §8, NX-471)
+FORMAT_VERSION = 39
 _MM = 1000.0  # metres -> millimetres; m/s -> mm/s
 _MICRO = 1e6  # ADR-0002's 1e-6 step for other floats (fuel)
 _MILLI_UNIT = 1000  # thousandths of a stock unit per unit
@@ -324,6 +325,9 @@ class Entity:
     repair_spent: int = 0  # whole units debited for repair in this stop (SupplyConsumed REPAIR)
     repair_milli: int = 0
     repair_debt: int = 0
+    # A facility seized with its base (NX-471, GAMEPLAY §8): the thousandths of an hp carried toward
+    # the next slowed thousandth, 0 <= carry < capture.seized_repair_slowdown; None when not seized.
+    seized_carry: int | None = None
     # Combat (NX-124, COMBAT). `damage_state` follows `hp` (CB-6). `alt_band`: an aircraft's band
     # (its default; no command changes it). `ammo` and `reload` are per weapon, in the unit's
     # loadout order (`CombatRules.loadout`): rounds left, and running ticks until it may fire again.
@@ -1398,6 +1402,7 @@ _ENTITY_CHECKS: dict[str, Callable[[object, str], Any]] = {
     "repair_spent": lambda v, k: _int(v, k),
     "repair_milli": _milli,
     "repair_debt": lambda v, k: _int(v, k),
+    "seized_carry": lambda v, k: None if v is None else _int(v, k),
     "damage_state": lambda v, k: _str(v, k, _DAMAGE_STATES),
     "alt_band": lambda v, k: _str(v, k, _ALT_BANDS, optional=True),
     "ammo": lambda v, k: _int_list(v, k),

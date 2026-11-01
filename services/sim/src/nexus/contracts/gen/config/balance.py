@@ -1558,6 +1558,19 @@ class Capture(BaseModel):
             description="Whether a capture bar can start only on a node whose defense HP is 0 (GAMEPLAY §8, Q-GD-18; decided rule as default, Q-CFG-16 option); false lets a bar start whatever the defenses, unit switch."
         ),
     ]
+    facilities_disabled: Annotated[
+        bool,
+        Field(
+            description="Whether a base's facilities arrive Disabled and seized when it flips: each drops to min(hp, its Disabled floor), becomes DISABLED and repairs slowly for the new owner, before its fog hand-over (GAMEPLAY §8 'Facilities at a captured base', Q-TD-78 (a), NX-471; decided rule as default); false switches them side keeping their damage (Q-GP-25), unit switch."
+        ),
+    ]
+    seized_repair_slowdown: Annotated[
+        int,
+        Field(
+            description="The divisor on a seized facility's repair rate: logistics.repair_rate.<node_kind> divided by this, exactly, until it is back at the restore line, then the normal rate (GAMEPLAY §8, Q-TD-135, NX-471; derived, not measured: 92 gives 10.0 game min at an airbase and 19.9 at a FOB); 1 means no slowdown, read only when facilities_disabled is true, unit divisor.",
+            ge=1,
+        ),
+    ]
     air_counts: Annotated[
         bool,
         Field(

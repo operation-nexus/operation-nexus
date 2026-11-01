@@ -3659,3 +3659,52 @@ def test_the_failed_run_stub_carries_the_new_metrics() -> None:
         "quiet-5", [runner.failed_run("quiet-5", 1, 1.0, "boom")], load().targets
     )
     assert agg["coalition_hold"]["coalition_captures"] == 0
+
+
+def test_collector_times_seized_facilities_back_on_line_and_counts_those_still_off(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    """NX-471 (GAMEPLAY §8, §11): seizures, game minutes until back on line (`ticks / tick_hz`)
+    and the facilities still off at the end. A flip whose facilities the world does not hold
+    seized (no facilities, or the switch off) adds nothing."""
+    world = start_campaign("c", 1, shipped_config)
+
+    def flip(tick: int, node: str, seize: bool) -> None:
+        world.campaign.tick = tick
+        for f in world.entities():
+            if f.base_id == node:
+                f.seized_carry = 0 if seize else None
+        collector.feed([NodeCaptured.model_construct(
+            kind="NodeCaptured", tick=tick, node_id=node, from_="ENEMY", to="COALITION",
+            participant_commander_ids=[],
+        )])  # fmt: skip
+        collector.observe(world)
+
+    def back(tick: int, *ids: int) -> None:
+        world.campaign.tick = tick
+        for i in ids:
+            f = world.find(i)
+            assert f is not None
+            f.seized_carry = None
+        collector.observe(world)
+
+    (fob_site,) = (f.id for f in world.entities() if f.base_id == "fob-n-e")
+    radar, sam = (f.id for f in world.entities() if f.base_id == "east-airbase")
+    flip(10, "fob-n-e", True)
+    flip(20, "east-airbase", True)
+    flip(30, "cross-n", True)  # a base with no facilities
+    flip(40, "fob-s-e", False)  # the switch off: nothing is held seized
+    back(10 + 10 * 60 * HZ, fob_site)  # 10 game minutes
+    back(20 + 30 * 60 * HZ, radar)  # 30 game minutes; the other one stays off
+    seized = collector.result(100)["seized_facilities"]
+    assert seized == {"seized": 3, "back_min": [10.0, 30.0], "off_at_end": 1}
+    assert sam in collector._seized_at
+    run = {"metrics": {"seized_facilities": seized}}
+    z = report._seized([run, run, {"metrics": {}}])  # an older run adds nothing
+    assert z == {"seized": 6, "back_on_line": 4, "back_median_min": 20.0, "back_max_min": 30.0,
+                 "off_at_end": 2}  # fmt: skip
+    assert report._seized([{"metrics": {}}])["back_median_min"] is None
+    assert report._seized_line(z) == (
+        "  - seized facilities (NX-471): 6 seized, 4 back on line (median 20.0 min, max 30.0 min), "
+        "2 still off at run end"
+    )

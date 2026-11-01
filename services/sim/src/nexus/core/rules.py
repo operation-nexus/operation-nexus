@@ -128,6 +128,8 @@ class CaptureRules:
     decay_micro: int  # capture.decay_per_s x world_dt, as millionths of a percent of the bar
     min_progress: int  # capture.min_progress_per_tick, millionths of a percent of the bar
     requires_defenses_down: bool  # a bar starts only at 0 defense hp (Q-GD-18)
+    facilities_disabled: bool  # a flip leaves the base's facilities Disabled and seized (NX-471)
+    seized_slowdown: int  # capture.seized_repair_slowdown: S, a seized facility repairs 1/S as fast
     air_weight: float | None  # capture.air_weight when capture.air_counts, else None (N-3)
     quiet_sides: frozenset[Side]  # the sides the quiet-stream multiplier applies to (Q-SIM-26)
     # NX-490 (Q-TD-127): by node kind, for whichever side captures: capture.time_mult.<kind> and
@@ -860,7 +862,8 @@ def _capture(capture: Capture, dt: float) -> CaptureRules:
         capture.radius_m, capture.time_s, capture.multi_unit_exponent, capture.quiet_floor,
         capture.quiet_ref, capture.min_time_s, capture.logi_weight, capture.garrison_mult,
         capture.empty_base_mult, decay_micro, capture.min_progress_per_tick,
-        capture.requires_defenses_down, capture.air_weight if capture.air_counts else None,
+        capture.requires_defenses_down, capture.facilities_disabled,
+        capture.seized_repair_slowdown, capture.air_weight if capture.air_counts else None,
         frozenset(capture.quiet_sides),
         cast(Mapping[NodeKind, float], capture.time_mult.model_dump()),
         cast(Mapping[NodeKind, float], capture.extra_exponent.model_dump()),

@@ -101,6 +101,7 @@ def test_the_defaults_are_the_decided_rules() -> None:
     assert r.capture and r.defense and r.campaign and r.combat
     assert r.capture.requires_defenses_down is True and r.capture.air_weight is None
     assert r.capture.quiet_sides == {"COALITION"}
+    assert (r.capture.facilities_disabled, r.capture.seized_slowdown) == (True, 92)  # NX-471
     assert (r.defense.idle_floor, r.defense.sanctuary_min_hp) == (True, 1)
     assert (r.campaign.hq_capture, r.campaign.objective_pick) == (True, "uniform")
     assert (r.campaign.hold_decay, r.campaign.reset_on_repair) == (True, True)  # EC-9a, Q-TD-126
@@ -116,6 +117,8 @@ def test_non_default_options_reach_the_rules() -> None:
         capture__air_counts=True,
         capture__air_weight=0.25,
         capture__quiet_sides=["ENEMY"],
+        capture__facilities_disabled=False,
+        capture__seized_repair_slowdown=1,
         campaign__idle_floor__enabled=False,
         campaign__idle_floor__sanctuary_min_hp=40,
         campaign__victory__hq_capture=False,
@@ -129,6 +132,7 @@ def test_non_default_options_reach_the_rules() -> None:
     assert r.capture and r.defense and r.campaign and r.combat
     assert r.capture.requires_defenses_down is False and r.capture.air_weight == 0.25
     assert r.capture.quiet_sides == {"ENEMY"}
+    assert (r.capture.facilities_disabled, r.capture.seized_slowdown) == (False, 1)
     assert (r.defense.idle_floor, r.defense.sanctuary_min_hp) == (False, 40)
     assert r.campaign.hq_capture is False and r.combat.facility_indestructible is False
     assert r.campaign.hold_decay is False and r.campaign.reset_on_repair is False
@@ -153,6 +157,10 @@ def test_air_weight_is_read_only_when_air_counts() -> None:
         ("campaign.victory.pause_on_pressure", "maybe"),
         ("campaign.objective_pick", "weighted"),
         ("capture.requires_defenses_down", "maybe"),
+        ("capture.facilities_disabled", "maybe"),
+        ("capture.seized_repair_slowdown", 0),
+        ("capture.seized_repair_slowdown", -1),
+        ("capture.seized_repair_slowdown", 1.5),
         ("capture.air_counts", "maybe"),
         ("capture.air_weight", 0),
         ("capture.quiet_sides", ["NEUTRAL"]),
@@ -391,6 +399,7 @@ def test_a_run_with_every_option_flipped_is_deterministic() -> None:
             new_world(),
             capture={
                 "requires_defenses_down": False,
+                "facilities_disabled": False,
                 "air_weight": 2.0,
                 "quiet_sides": frozenset({"ENEMY"}),
             },
