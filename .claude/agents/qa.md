@@ -26,5 +26,8 @@ Also check:
 - Each key branch the change adds with its own mutant (one branch per mutant, restored after): a branch no test catches is a finding, and so is a claimed mutation check that removed several branches at once (L-27).
 - Every doc the change affects was updated (spec, contracts, config tables, READMEs, tracker). A stale doc is a finding.
 - The change matches the brief and the spec; anything beyond either is a finding.
+- No `pytest.skip`, `skipif`, `xfail` or `importorskip` in the diff, unless the brief asks for it: a test that can pass without checking anything is a finding, and so is a test deleted to get green.
+- The edges of every rule a new branch touches (L-45): name the spec rule or invariant, then test the value at zero, exactly at the threshold and just past it (a base with no stock, a rate below the slowdown, an empty list, a file that is deleted or recreated). CodeRabbit kept finding these after QA had passed.
+- The finding types CodeRabbit raises again and again here: a shell step whose failure is ignored (fail-open), a pattern that matches a substring where it should match the whole value, a git check that misses staged, untracked or deleted files, and a test that can't fail.
 
 Report: verdict PASS or FIX; findings ranked by severity, each with file:line, the failure scenario and the fix; then checks skipped and why. Mark anything you couldn't verify [UNVERIFIED]. Never report a check as passed that you didn't run.

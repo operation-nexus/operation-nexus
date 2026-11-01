@@ -98,3 +98,11 @@ A failure or hard point is fixed where it would have been prevented, in the same
 2. Add a row to `docs/agentic/LESSONS.md` (what happened, the rule, where it now lives). A lesson about code goes only in code-quality §9.
 3. Prefer a check that fails over a sentence that must be remembered: a test, a script guard or a hook beats a doc line.
 4. Ship it in the next PR that touches that area, or in a small lessons PR at the end of the stretch; say so in the stretch summary to the owner.
+
+## 6. Budget pacing
+The spend limit resets weekly (Sunday 10:30, assumed US Eastern; owner, 2026-11-01). Spend it early in the week, so the end of the week can still finish work in flight:
+- **Work days (Sunday 10:30 to Wednesday):** normal work. At most one coder or QA agent at a time. Never start a new build item and a harness run in the same tick.
+- **Glide days (Thursday to Sunday 10:30):** start no new build item, harness run or harness review. Do drive open PRs to green, answer reviews, finish a QA or fix round already started, and write docs and lessons.
+- **Every round:** use `make check-fast` in fix rounds and `make check` once before the PR (about 3 minutes with pytest-xdist). Run `make pre-pr BODY=<file>` before opening a PR. Brief agents tightly: no re-exploring, and no full-suite run a clean run already covers.
+- **If the limit is hit:** stop the loop, post one line on #412, and resume at the reset.
+
