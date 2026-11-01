@@ -101,6 +101,17 @@ class Collector:
         self.idle_shares: list[float] = []  # idle armed viewer units / all, per sample
         self.idle_reasons: Counter[str] = Counter()  # why the idle ones hold no job, summed
         self.idle_ring_by_site: Counter[str] = Counter()  # "ring" idle by blocking marker and job
+        # NX-471 (GAMEPLAY §8): facilities seized with their base. node -> its facility ids; the
+        # flips to confirm in the world; id -> tick seized for those still off line; seizures; and
+        # the game minutes each seized facility took to be back on line.
+        self._facilities: dict[str, list[int]] = {}
+        for f in world.entities():
+            if f.base_id:
+                self._facilities.setdefault(f.base_id, []).append(f.id)
+        self._flipped: list[tuple[int, int]] = []
+        self._seized_at: dict[int, int] = {}
+        self.seized = 0
+        self.seized_back_min: list[float] = []
         self.slots_per_unit: list[float] = []  # open job slots / live viewer units, per sample
         self.jobs_per_node: list[float] = []  # open coalition jobs / theater nodes, per sample
         self.newbies = newbies
@@ -334,7 +345,23 @@ class Collector:
             if handler:
                 handler(event)
 
+    def _seized_facilities(self, world: World) -> None:
+        """A flipped base's facilities that the world holds seized start the clock (a retake
+        restarts it); a seized one whose carry is gone is back on line (NX-471)."""
+        for i, tick in self._flipped:
+            if (f := world.find(i)) is not None and f.seized_carry is not None:
+                self.seized += 1
+                self._seized_at[i] = tick
+        self._flipped.clear()
+        for i, since in sorted(self._seized_at.items()):
+            f = world.find(i)
+            if f is None or f.seized_carry is None:
+                del self._seized_at[i]
+                if f is not None:
+                    self.seized_back_min.append(self._minutes(world.campaign.tick - since))
+
     def observe(self, world: World) -> None:
+        self._seized_facilities(world)
         for hq in self._hq_new:
             hq["weight"] = capture_weight(world, hq["node"], hq["side"])
         self._hq_new.clear()
@@ -744,6 +771,7 @@ class Collector:
 
     def _captured(self, e: Any) -> None:
         self.coalition_captures += e.to == _COALITION
+        self._flipped += [(i, e.tick) for i in self._facilities.get(e.node_id, ())]
         if (step := self._latest.pop(e.node_id, None)) and e.to == _ENEMY:
             step["captured"] = True
             step["own"]["captured"] = step["own_capturers"] > 0  # NodeCaptured names no Static unit
@@ -918,6 +946,11 @@ class Collector:
                 "reasons": dict(sorted(self.idle_reasons.items())),
                 "ring_by_site": dict(sorted(self.idle_ring_by_site.items())),
                 "open_strike_slots_sum": sum(self.open_strike_slots),  # NX-478, per idle sample
+            },
+            "seized_facilities": {  # NX-471: seizures, minutes back on line, still off at the end
+                "seized": self.seized,
+                "back_min": list(self.seized_back_min),
+                "off_at_end": len(self._seized_at),
             },
             "coalition_hold": {  # NX-477
                 "zero_strategic_ticks": self.zero_strategic_ticks,

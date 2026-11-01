@@ -84,7 +84,16 @@ from nexus.core.logistics import friendly_bases, nearest, road_start
 from nexus.core.provocation import captured
 from nexus.core.rules import CAPTURE_FULL, CaptureRules, Rules
 from nexus.core.upkeep import rehome
-from nexus.core.world import SIDES, CaptureBar, Entity, World, end_stop, is_ai_truck, lose_unit
+from nexus.core.world import (
+    SIDES,
+    CaptureBar,
+    Entity,
+    World,
+    end_stop,
+    is_ai_truck,
+    lose_unit,
+    set_damage_state,
+)
 
 _OTHER: dict[Side, Side] = {"COALITION": "ENEMY", "ENEMY": "COALITION"}
 _AIR, _GROUND = "AIR", "GROUND"
@@ -365,18 +374,28 @@ def _flip(
         )
     )
     captured(world, node, before, to, len(near[to].commanders))  # the Static's provocation
-    _switch_facilities(world, node, to)
+    _switch_facilities(world, rules, node, to, out)
     if before != "NEUTRAL":
         _resolve_units(world, rules, cap, node, before, out)
         rehome(world, node)  # the loser's units homed here re-home (ECONOMY EC-5)
     reroute(world, rules, taken=node)  # runs and crews on their way replan around it (NX-413)
 
 
-def _switch_facilities(world: World, node: str, to: Side) -> None:
-    """The base's facilities change side and keep everything else (Q-GP-25), FOW-13."""
+def _switch_facilities(world: World, rules: Rules, node: str, to: Side, out: list[Event]) -> None:
+    """The base's facilities change side (Q-GP-25), FOW-13. With `capture.facilities_disabled` they
+    also drop to their floor, Disabled and seized, before the hand-over (NX-471, GAMEPLAY §8)."""
+    cap, cr = rules.capture, rules.combat
+    seize = cap is not None and cap.facilities_disabled and cr is not None
     for e in world.entities():
         if e.base_id == node and e.side != to:
             loser, e.side = e.side, to
+            if seize and cr is not None:
+                stats = cr.units[e.kind]
+                e.hp = min(e.hp, stats.floor)
+                if e.damage_state != "DISABLED":
+                    set_damage_state(world, e, "DISABLED", out)
+                e.repair_milli = e.repair_debt = 0
+                e.seized_carry = 0
             hand_over(world, e, loser)
 
 

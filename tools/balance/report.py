@@ -267,6 +267,29 @@ def _idle(runs: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _seized(runs: list[dict[str, Any]]) -> dict[str, Any]:
+    """Facilities seized with their base (NX-471, GAMEPLAY §8), summed over the runs: seizures,
+    the median and max game minutes until back on line, and those still off at the end of a run
+    (a run from before NX-471 has none and adds nothing)."""
+    ms = [r["metrics"]["seized_facilities"] for r in runs if "seized_facilities" in r["metrics"]]
+    back = [x for m in ms for x in m["back_min"]]
+    return {
+        "seized": sum(m["seized"] for m in ms),
+        "back_on_line": len(back),
+        "back_median_min": _med(back),
+        "back_max_min": max(back, default=None),
+        "off_at_end": sum(m["off_at_end"] for m in ms),
+    }
+
+
+def _seized_line(z: dict[str, Any]) -> str:
+    return (
+        f"  - seized facilities (NX-471): {z['seized']} seized, {z['back_on_line']} back on line "
+        f"(median {_fmt(z['back_median_min'])} min, max {_fmt(z['back_max_min'])} min), "
+        f"{z['off_at_end']} still off at run end"
+    )
+
+
 def _ring_lines(ring: dict[str, int], top: int = 5) -> list[str]:
     """The `ring` idle samples by blocking marker and job (NX-462), most first, ties by key."""
     if not ring:
@@ -671,6 +694,7 @@ def aggregate(profile: str, runs: list[dict[str, Any]], t: Targets) -> dict[str,
         "A3": _a3(runs, t, profile),
         "A4": _a4(runs, t),
         "idle": _idle(runs),
+        "seized_facilities": _seized(runs),
         "per_seed": _per_seed(runs, t),
         "density": _density(runs),
         "orders": _orders(runs),
@@ -1188,6 +1212,7 @@ def markdown(report: dict[str, Any]) -> str:
         lines += [
             f"- {n}: {a['idle']['reasons']}",
             *_ring_lines(a["idle"]["ring_by_site"]),
+            _seized_line(a["seized_facilities"]),
             f"  - per sample (NX-478): `full` {_fmt(i['full_per_sample'], '.2f')} units, open "
             f"STRIKE slots on the board {_fmt(i['open_strike_slots_per_sample'], '.2f')}",
         ]

@@ -426,7 +426,13 @@ def about_to_flip(w: World, node: str, side: Side) -> None:
 
 
 def test_a_flip_switches_the_nodes_facilities_keeping_damage_and_keeps_the_stock() -> None:
+    # Q-GP-25's original rule, now `capture.facilities_disabled` off (NX-471; the rule with it on
+    # is in test_seized_facilities.py)
     w = new_world()
+    assert w.rules is not None and w.rules.capture is not None
+    w.rules = dataclasses.replace(
+        w.rules, capture=dataclasses.replace(w.rules.capture, facilities_disabled=False)
+    )
     site = next(e for e in w.entities() if e.base_id == ENEMY_FOB)
     site.hp = 77
     stock = w.stock[ENEMY_FOB]

@@ -213,6 +213,12 @@ def _repair(
     rate = rules.supply.repair_milli.get(rules.node_kind.get(node, "BRIDGE"), 0)
     if missing <= 0 or rate <= 0:
         return
+    carry = e.seized_carry  # NX-471: a seized facility repairs at rate / S through its carry
+    if carry is not None:
+        slow = rules.capture.seized_slowdown if rules.capture else 1
+        rate, rest = divmod(carry + rate, slow)
+        if rate == 0:  # a slowed tick that earns no whole thousandth still moves the carry
+            e.seized_carry, b.moved = rest, True
     num, den = (
         (1, rules.supply.facility_hp_per_stock) if rules.domain[e.kind] == _STATIC
         else (cost, stats.hp)
@@ -227,9 +233,13 @@ def _repair(
             b.draw(whole, repair=True)
         gained, e.repair_milli = divmod(e.repair_milli + m, _MILLI)
         b.moved = True
+        if carry is not None:  # stock-short ticks (m 0) leave the carry where it was
+            e.seized_carry = rest
         if gained:
             e.hp += gained
             _repaired(world, cr, e, node, rules.domain[e.kind] == _STATIC, out)
+            if e.seized_carry is not None and e.damage_state != _DISABLED:
+                e.seized_carry = None  # back on line: the normal rate resumes
     b.unmet |= e.hp < stats.hp
 
 

@@ -67,12 +67,17 @@ COALITION_START = ("fob-n-w", "fob-s-w", "west-airbase")
 
 
 def lose(w: World, *nodes: str, to: NodeOwner = "ENEMY", hp: int = 0) -> None:
-    """The coalition lost `nodes` (their facilities change side) and their defenses are at `hp`."""
+    """The coalition lost `nodes` (their facilities change side, keeping their damage: these tests
+    are about the retake job, not the NX-471 seizure) and their defenses are at `hp`."""
+    assert RET_RULES.capture is not None
+    keep = dataclasses.replace(
+        RET_RULES, capture=dataclasses.replace(RET_RULES.capture, facilities_disabled=False)
+    )
     for n in nodes:
         w.owner[n] = to
         w.defense_hp[n] = hp
         if to != "NEUTRAL":
-            _switch_facilities(w, n, to)
+            _switch_facilities(w, keep, n, to, [])
 
 
 def retakes(w: World, side: Any = "COALITION") -> list[Job]:

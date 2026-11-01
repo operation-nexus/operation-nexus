@@ -690,6 +690,12 @@ def _validate_entity(world: World, rules: Rules, cr: CombatRules, e: Entity) -> 
         or (e.wreck_left or 0) > cr.disabled_timeout_ticks
         else "repair_debt not below the repair price denominator"
         if e.repair_debt >= (rules.supply.facility_hp_per_stock if facility else stats.hp)
+        else "seized_carry on a non-facility, an enabled facility or out of range"
+        if e.seized_carry is not None and not (
+            facility and e.damage_state == _DISABLED and rules.capture is not None
+            and rules.capture.facilities_disabled
+            and e.seized_carry < rules.capture.seized_slowdown
+        )
         else "an airborne aircraft cannot be Disabled"
         if e.damage_state == _DISABLED and e.state not in (None, "LANDED")
         else "hits on a facility, or from the future"

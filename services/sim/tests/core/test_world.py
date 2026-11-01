@@ -163,11 +163,11 @@ def test_golden_state_hash_seed_12345() -> None:
     # Staged.sector, Job.downed_by and Job.downed, v33; NX-436: shortfall and shortfall_end, v34;
     # NX-463: Job.struck_by, v35; NX-476: Campaign.defeat_idle_ticks, v36; NX-489:
     # Campaign.hold_broken_ticks and hold_broken_nodes, v37; NX-466:
-    # Campaign.hold_paused_ticks, v38).
+    # Campaign.hold_paused_ticks, v38; NX-471: Entity.seized_carry, v39).
     # A change here breaks every recorded replay hash: needs a `golden-update` reason.
     assert (
         state_hash(golden_world())
-        == "6dc77b209dd91c6dea3887f1602cabaa3810672c493a38d08192de24253642e2"
+        == "ba62db140b27dc9dd0a17dc225901555f5a892fd17897c49dac52749c9f63216"
     )
     e = to_canonical(golden_world(), quantize=True)["entities"][0]
     assert e["pos"] == [1000250, 2000500]  # mm

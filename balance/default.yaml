@@ -109,6 +109,8 @@ capture:
   sanctuary_repair_hp_per_s: 1.0  # PROPOSED – unvalidated (Q-SIM-71, owner-approved; NX-031 tunes); defense hp per s (world) per logistics unit parked at its sanctuary (CONFIG-AND-CONTENT §6.5)
   uncapturable_node_kinds: [SANCTUARY, BRIDGE]  # decided rule as default, Q-DEV-21 option; node kinds never captured (CONFIG-AND-CONTENT §6.5 capture.uncapturable_node_kinds)
   requires_defenses_down: true  # decided rule as default, Q-CFG-16 option (Q-GD-18); a capture bar starts only at 0 defense hp (CONFIG-AND-CONTENT §6.5)
+  facilities_disabled: true  # decided rule as default (Q-TD-78 (a)); a flip leaves the base's facilities Disabled and seized (CONFIG-AND-CONTENT §6.5)
+  seized_repair_slowdown: 92  # PROPOSED – unvalidated (Q-TD-135, owner on #412: 10 to 20 game min; derived: 10.0 at an airbase, 19.9 at a FOB); a seized facility repairs at rate / this (CONFIG-AND-CONTENT §6.5)
   air_counts: false  # decided rule as default, Q-CFG-16 option (N-3, Q-GP-38); airborne aircraft never capture (CONFIG-AND-CONTENT §6.5)
   air_weight: 1.0  # Q-CFG-16 option; capturer weight of an airborne aircraft, read only when air_counts is true (CONFIG-AND-CONTENT §6.5)
   quiet_sides: [COALITION]  # decided rule as default, Q-CFG-16 option (Q-SIM-26); sides that get the quiet-stream multiplier (CONFIG-AND-CONTENT §6.5)
