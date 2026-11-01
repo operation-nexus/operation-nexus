@@ -12,8 +12,8 @@ CONVENTIONAL = re.compile(r"^(feat|fix|docs|style|refactor|perf|test|build|ci|ch
 # AI tools sign their co-author trailers with these addresses; a human co-author (whatever their
 # name) has their own address and stays allowed. Session lines and "Generated with" footers too.
 ATTRIBUTION = re.compile(
-    r"^\s*(co-authored-by:[^<]*<[^>]*(@anthropic\.com|@openai\.com|@cursor\.com|@codeium\.com"
-    r"|@windsurf\.com|\+copilot@users\.noreply\.github\.com|\+codex\[bot\]@)[^>]*>"
+    r"^[^\w]*(co-authored-by:[^<]*<[^>]*(@anthropic\.com|@openai\.com|@cursor\.com|@codeium\.com"
+    r"|@windsurf\.com|\+copilot@users\.noreply\.github\.com|copilot@github\.com|\+codex\[bot\]@)[^>]*>"
     r"|[a-z]+-session:\s"
     r"|generated (with|by) \[?(claude|codex|copilot|gemini|cursor|chatgpt|windsurf|antigravity)\b)",
     re.IGNORECASE,
