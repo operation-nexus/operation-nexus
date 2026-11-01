@@ -9,13 +9,12 @@ import re
 import sys
 
 CONVENTIONAL = re.compile(r"^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-zA-Z0-9_\-/]+\))?!?: .+$")
-# AI tools sign their co-author trailers with these addresses; a human co-author (whatever their
-# name) has their own address and stays allowed. Session lines and "Generated with" footers too.
+# A closed list of the exact addresses AI tools sign co-author trailers with (add one when a tool
+# is seen using it). The whole address between < and > must match, so a human co-author, at any
+# company and with any name, stays allowed. Session lines and "Generated with" footers too.
 ATTRIBUTION = re.compile(
-    # The whole address between < and > must match, so a human address containing one of these
-    # strings (dev+copilot@github.com) never does.
-    r"^[^\w]*(co-authored-by:[^<]*<([^<>@\s]+@(anthropic|openai|cursor|codeium|windsurf)\.com"
-    r"|copilot@github\.com|\d+\+(copilot|codex\[bot\])@users\.noreply\.github\.com)>"
+    r"^[^\w]*(co-authored-by:[^<]*<(noreply@anthropic\.com|copilot@github\.com"
+    r"|\d+\+(copilot|codex|codex\[bot\])@users\.noreply\.github\.com)>"
     r"|[a-z]+-session:\s"
     r"|generated (with|by) \[?(claude|codex|copilot|gemini|cursor|chatgpt|windsurf|antigravity)\b)",
     re.IGNORECASE,

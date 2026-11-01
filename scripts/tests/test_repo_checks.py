@@ -38,6 +38,8 @@ def test_commit_msg():
     assert len(problems(["feat: x", "", f"\U0001f916 Generated with [{AI} Code](https://example.com)"])) == 1
     assert problems(["feat: x", "", "Co-authored-by: Dev <dev+copilot@github.com>"]) == []
     assert problems(["feat: x", "", "Co-authored-by: Ann <ann@anthropic.com.example.org>"]) == []
+    assert problems(["feat: x", "", "Co-authored-by: Alex <alex@openai.com>"]) == []  # a human there
+    assert len(problems(["feat: x", "", "Co-authored-by: Codex <9+codex@users.noreply.github.com>"])) == 1
     assert len(problems(["feat: x", "", "Co-authored-by: Codex <9+codex[bot]@users.noreply.github.com>"])) == 1
     assert problems(["feat: x", "", f"Co-Authored-By: {AI} Smith <{AI.lower()}.smith@example.com>"]) == []
     assert len(problems(["feat: x", "", f"{AI}-Session: https://example.com/s"])) == 1
