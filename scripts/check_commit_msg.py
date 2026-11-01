@@ -15,7 +15,7 @@ CONVENTIONAL = re.compile(r"^(feat|fix|docs|style|refactor|perf|test|build|ci|ch
 ATTRIBUTION = re.compile(
     r"^[^\w]*(co-authored-by:[^<]*<(noreply@anthropic\.com|(noreply|codex)@openai\.com|copilot@github\.com"
     r"|\d+\+(copilot|codex|codex\[bot\])@users\.noreply\.github\.com)>"
-    r"|[a-z]+-session:\s"
+    r"|(claude|codex|copilot|gemini|cursor|chatgpt|windsurf|antigravity)-session:\s"
     r"|generated (with|by) \[?(claude|codex|copilot|gemini|cursor|chatgpt|windsurf|antigravity)\b)",
     re.IGNORECASE,
 )
