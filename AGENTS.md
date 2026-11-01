@@ -88,6 +88,8 @@ The layout below is the target. Directories are created when their first tracker
 make bootstrap      # uv sync + pnpm install (frozen lockfiles) + pre-commit hooks if installed
 make contracts      # regenerate Python + TS types from contracts/ (CI fails on drift; NX-021)
 make check          # runs check-python and check-overlay
+make check-fast     # FIX ROUNDS ONLY: lint + types + tests of the changed packages (-n auto). `make check` is still required before a PR
+make pre-pr BODY=f  # before opening a PR: PR body f lint, commit messages vs origin/develop, `make contracts` drift (NX-415)
 make check-python   # Python: ruff check & format check, mypy --strict, import-linter, pytest, repo tests
 make check-overlay  # Overlay: tsc typecheck, eslint, vitest
 make perf           # the tests that assert wall-clock budgets (pytest marker `perf`): `make check`
