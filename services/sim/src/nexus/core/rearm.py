@@ -217,16 +217,17 @@ def _repair(
     if carry is not None:
         slow = rules.capture.seized_slowdown if rules.capture else 1
         rate, rest = divmod(carry + rate, slow)
-        if rate == 0:  # a slowed tick that earns no whole thousandth still moves the carry
-            e.seized_carry, b.moved = rest, True
     num, den = (
         (1, rules.supply.facility_hp_per_stock) if rules.domain[e.kind] == _STATIC
         else (cost, stats.hp)
     )  # fmt: skip
-    m = min(rate, missing * _MILLI - e.repair_milli)  # thousandths of an hp this tick
     paying = b.room is not None and num > 0  # a SANCTUARY, or a kind with no cost, is free
-    if paying and b.room is not None:  # a finite base: it can pay only so much
-        m = min(m, ((b.room + 1) * den - 1 - e.repair_debt) // num)
+    can = ((b.room + 1) * den - 1 - e.repair_debt) // num if paying and b.room is not None else None
+    if carry is not None and rate == 0 and (can is None or can > 0):
+        e.seized_carry, b.moved = rest, True  # a slowed tick it could pay for moves the carry
+    m = min(rate, missing * _MILLI - e.repair_milli)  # thousandths of an hp this tick
+    if can is not None:  # a finite base: it can pay only so much
+        m = min(m, can)
     if m > 0:
         if paying:
             whole, e.repair_debt = divmod(e.repair_debt + num * m, den)

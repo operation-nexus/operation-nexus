@@ -269,8 +269,7 @@ def test_a_shot_in_flight_at_the_site_at_the_flip_fizzles_without_a_combat_draw(
         jet.pos, jet.fuel = Vec2(site.pos.x + 3_000.0, site.pos.y), 1e6
         run(w)
     shot = next((s for s in w.shots if s.target == site.id), None)
-    if shot is None:
-        pytest.skip("no shot was fired at the site in this setup")
+    assert shot is not None, "the setup must put a shot in flight at the site"
     take(w, FOB, "COALITION")
     jet.pos = Vec2(site.pos.x + 3_000.0, site.pos.y)
     before = w.rng.to_state()
@@ -346,8 +345,9 @@ def test_a_slowed_tick_that_earns_no_whole_thousandth_still_moves_the_carry() ->
 # --- no supply, no repair ----------------------------------------------------------------------
 
 
-def test_a_starved_seized_site_makes_no_progress_and_a_delivery_restarts_it() -> None:
-    w = world()
+@pytest.mark.parametrize("slow", [92, 600])  # 600: the slowed ticks that earn 0 thousandths
+def test_a_starved_seized_site_makes_no_progress_and_a_delivery_restarts_it(slow: int) -> None:
+    w = world(capture__seized_repair_slowdown=slow)
     site = site_at(w, FOB)
     take(w, FOB, "COALITION")
     w.stock[FOB] = 0
@@ -356,6 +356,8 @@ def test_a_starved_seized_site_makes_no_progress_and_a_delivery_restarts_it() ->
     stalls += of(run(w, 1_000), RearmStalled)
     assert (site.hp, site.repair_milli, site.repair_debt, site.seized_carry) == frozen
     assert len(stalls) == 1 and site.damage_state == "DISABLED"
+    if slow == 600:  # an unpaid slowed tick leaves the carry where it was (it would sit at 300)
+        assert site.seized_carry == 0
     w.stock[FOB] = 100  # a delivery
     run(w, 10)
     assert site.repair_milli > frozen[1] or site.hp > frozen[0]
