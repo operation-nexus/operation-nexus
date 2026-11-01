@@ -32,8 +32,9 @@ def test_commit_msg():
     assert problems(["# only a comment", ""]) == ["commit message is empty"]
     assert len(problems(["added stuff"])) == 1
     # No AI attribution trailers or footers (AGENTS.md rule 12, owner 2026-11-01, Q-DEV-36).
-    assert len(problems(["feat: x", "", f"Co-Authored-By: {AI} Opus <noreply@example.com>"])) == 1
-    assert len(problems(["feat: x", "", "Co-Authored-By: GitHub Copilot <x@example.com>"])) == 1
+    assert len(problems(["feat: x", "", f"Co-Authored-By: {AI} Opus <noreply@anthropic.com>"])) == 1
+    assert len(problems(["feat: x", "", "Co-Authored-By: Copilot <1+Copilot@users.noreply.github.com>"])) == 1
+    assert problems(["feat: x", "", f"Co-Authored-By: {AI} Smith <{AI.lower()}.smith@example.com>"]) == []
     assert len(problems(["feat: x", "", f"{AI}-Session: https://example.com/s"])) == 1
     assert len(problems(["feat: x", "", f"Generated with [{AI} Code](https://example.com)"])) == 1
     assert problems(["feat: x", "", "Co-Authored-By: Sam Lee <sam@example.com>"]) == []

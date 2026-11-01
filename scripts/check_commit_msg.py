@@ -9,9 +9,13 @@ import re
 import sys
 
 CONVENTIONAL = re.compile(r"^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-zA-Z0-9_\-/]+\))?!?: .+$")
-_TOOLS = r"(claude|anthropic|codex|copilot|gemini|cursor|chatgpt|openai|windsurf|antigravity)"
-ATTRIBUTION = re.compile(  # a human co-author stays allowed; a tool trailer or footer does not
-    rf"^\s*(co-authored-by:.*\b{_TOOLS}\b|[a-z]+-session:\s|generated (with|by) \[?{_TOOLS}\b)",
+# AI tools sign their co-author trailers with these addresses; a human co-author (whatever their
+# name) has their own address and stays allowed. Session lines and "Generated with" footers too.
+ATTRIBUTION = re.compile(
+    r"^\s*(co-authored-by:[^<]*<[^>]*(@anthropic\.com|@openai\.com|@cursor\.com|@codeium\.com"
+    r"|@windsurf\.com|\+copilot@users\.noreply\.github\.com|\+codex\[bot\]@)[^>]*>"
+    r"|[a-z]+-session:\s"
+    r"|generated (with|by) \[?(claude|codex|copilot|gemini|cursor|chatgpt|windsurf|antigravity)\b)",
     re.IGNORECASE,
 )
 
