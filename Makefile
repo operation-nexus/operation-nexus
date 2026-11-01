@@ -45,7 +45,7 @@ check-python:
 
 # Fix rounds only: lint, types and the tests for what changed (scripts/changed_tests.py). `make check` is still required before a PR.
 check-fast:
-	@plan="$$(python3 scripts/changed_tests.py)"; \
+	@plan="$$(python3 scripts/changed_tests.py)" || { echo "check-fast: change planning failed (is origin/develop fetched?)" >&2; exit 1; }; \
 	files="$$(echo "$$plan" | sed -n 's|^py |../../|p')"; tests="$$(echo "$$plan" | sed -n 's/^pytest //p' | sort -u)"; \
 	[ -n "$$tests$$(echo "$$plan" | grep '^run ')" ] || echo "check-fast: no changed file maps to tests; running lint and types only"; \
 	set -e; cd $(SIM); \
@@ -60,7 +60,7 @@ pre-pr:
 	python3 scripts/check_pr_body.py "$(BODY)"
 	@for c in $$(git rev-list origin/develop..HEAD); do git log -1 --format=%B $$c > "$${TMPDIR:-/tmp}/nx-msg" && python3 scripts/check_commit_msg.py "$${TMPDIR:-/tmp}/nx-msg" || { echo "bad commit message: $$c" >&2; exit 1; }; done
 	$(MAKE) contracts
-	git diff --exit-code -- $(SIM)/src/nexus/contracts $(OVERLAY)/src/contracts docs/specs/CONFIG-REFERENCE.md
+	git diff --exit-code HEAD -- $(SIM)/src/nexus/contracts $(OVERLAY)/src/contracts docs/specs/CONFIG-REFERENCE.md
 	@untracked="$$(git status --porcelain -- $(SIM)/src/nexus/contracts $(OVERLAY)/src/contracts | grep '^??' || true)"; \
 	[ -z "$$untracked" ] || { echo "untracked generated files (commit them):" >&2; echo "$$untracked" >&2; exit 1; }
 

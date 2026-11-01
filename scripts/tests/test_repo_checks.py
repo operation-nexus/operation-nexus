@@ -324,6 +324,10 @@ def test_changed_tests():
     assert plan(["scripts/x.py"], dirs) == ["run python3 scripts/tests/test_repo_checks.py"]  # scripts/ is not ruffed
     assert plan(["services/sim/tests/core/test_x.py"], dirs) == [
         "py services/sim/tests/core/test_x.py", "pytest tests/core/test_x.py"]  # a changed test runs itself
+    gone = "services/sim/src/nexus/core/a.py"
+    assert plan([gone], dirs, frozenset({gone})) == ["pytest tests/core", "pytest tests/golden"]  # deleted: its tests run
+    gone_test = "services/sim/tests/core/test_x.py"
+    assert plan([gone_test], dirs, frozenset({gone_test})) == []  # a deleted test is not run
 
 
 if __name__ == "__main__":
