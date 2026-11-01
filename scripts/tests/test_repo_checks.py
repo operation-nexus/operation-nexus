@@ -31,10 +31,24 @@ def test_commit_msg():
     assert problems(["Revert \"feat(sim): x\""]) == []
     assert problems(["# only a comment", ""]) == ["commit message is empty"]
     assert len(problems(["added stuff"])) == 1
-    # Attribution trailers and footers are allowed (AGENTS.md rule 12, owner 2026-10-23).
-    assert problems(["feat: x", "", f"Co-Authored-By: {AI} <noreply@example.com>"]) == []
-    assert problems(["feat: x", "", f"Generated with [{AI} Code](https://example.com)"]) == []
+    # No AI attribution trailers or footers (AGENTS.md rule 12, owner 2026-11-01, Q-DEV-36).
+    assert len(problems(["feat: x", "", f"Co-Authored-By: {AI} Opus <noreply@anthropic.com>"])) == 1
+    assert len(problems(["feat: x", "", "Co-Authored-By: Copilot <1+Copilot@users.noreply.github.com>"])) == 1
+    assert len(problems(["feat: x", "", "Co-authored-by: Copilot <copilot@github.com>"])) == 1
+    assert len(problems(["feat: x", "", f"\U0001f916 Generated with [{AI} Code](https://example.com)"])) == 1
+    assert problems(["feat: x", "", "Co-authored-by: Dev <dev+copilot@github.com>"]) == []
+    assert problems(["feat: x", "", "Co-authored-by: Ann <ann@anthropic.com.example.org>"]) == []
+    assert problems(["feat: x", "", "Co-authored-by: Alex <alex@openai.com>"]) == []  # a human there
+    assert problems(["feat: x", "", "Release-Session: 42"]) == []  # not an AI tool
+    assert len(problems(["feat: x", "", "Co-authored-by: Codex <noreply@openai.com>"])) == 1
+    assert len(problems(["feat: x", "", "Co-authored-by: Codex <codex@openai.com>"])) == 1
+    assert len(problems(["feat: x", "", "Co-authored-by: Codex <9+codex@users.noreply.github.com>"])) == 1
+    assert len(problems(["feat: x", "", "Co-authored-by: Codex <9+codex[bot]@users.noreply.github.com>"])) == 1
+    assert problems(["feat: x", "", f"Co-Authored-By: {AI} Smith <{AI.lower()}.smith@example.com>"]) == []
+    assert len(problems(["feat: x", "", f"{AI}-Session: https://example.com/s"])) == 1
+    assert len(problems(["feat: x", "", f"Generated with [{AI} Code](https://example.com)"])) == 1
     assert problems(["feat: x", "", "Co-Authored-By: Sam Lee <sam@example.com>"]) == []
+    assert problems([f"feat(tools): {AI} model ids in the gateway (NX-1)"]) == []  # subject: a topic
 
 
 def test_tracked_files():

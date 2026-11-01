@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Commit-message lint (AGENTS.md rule 12): Conventional Commits subject. Attribution trailers are allowed (owner, 2026-10-23).
+"""Commit-message lint (AGENTS.md rule 12): Conventional Commits subject, and no AI attribution
+trailer or footer (owner, 2026-11-01, Q-DEV-36; replaces the 2026-10-23 allowance, Q-DEV-26).
 
 Usage: python3 scripts/check_commit_msg.py <commit-msg-file>   (pre-commit `commit-msg` stage passes the file)
 """
@@ -8,6 +9,16 @@ import re
 import sys
 
 CONVENTIONAL = re.compile(r"^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-zA-Z0-9_\-/]+\))?!?: .+$")
+# A closed list of the exact addresses AI tools sign co-author trailers with (add one when a tool
+# is seen using it). The whole address between < and > must match, so a human co-author, at any
+# company and with any name, stays allowed. Session lines and "Generated with" footers too.
+ATTRIBUTION = re.compile(
+    r"^[^\w]*(co-authored-by:[^<]*<(noreply@anthropic\.com|(noreply|codex)@openai\.com|copilot@github\.com"
+    r"|\d+\+(copilot|codex|codex\[bot\])@users\.noreply\.github\.com)>"
+    r"|(claude|codex|copilot|gemini|cursor|chatgpt|windsurf|antigravity)-session:\s"
+    r"|generated (with|by) \[?(claude|codex|copilot|gemini|cursor|chatgpt|windsurf|antigravity)\b)",
+    re.IGNORECASE,
+)
 
 
 def problems(lines: list[str]) -> list[str]:
@@ -18,6 +29,8 @@ def problems(lines: list[str]) -> list[str]:
     subject = lines[0].strip()
     if not subject.startswith(("Merge ", "Revert \"")) and not CONVENTIONAL.match(subject):
         bad.append(f"subject is not a Conventional Commit (type(scope): description): {subject}")
+    bad += [f"AI attribution is not allowed (AGENTS.md rule 12): {ln.strip()[:80]}"
+            for ln in lines[1:] if ATTRIBUTION.match(ln)]  # fmt: skip
     return bad
 
 
