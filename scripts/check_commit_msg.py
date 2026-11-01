@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
-"""Commit-message lint (AGENTS.md rule 12): Conventional Commits subject. Attribution trailers are allowed (owner, 2026-10-23).
+"""Commit-message lint (AGENTS.md rule 12): Conventional Commits subject, and no AI attribution
+trailer or footer (owner, 2026-11-01, Q-DEV-36; replaces the 2026-10-23 allowance, Q-DEV-26).
 
 Usage: python3 scripts/check_commit_msg.py <commit-msg-file>   (pre-commit `commit-msg` stage passes the file)
 """
@@ -8,6 +9,11 @@ import re
 import sys
 
 CONVENTIONAL = re.compile(r"^(feat|fix|docs|style|refactor|perf|test|build|ci|chore|revert)(\([a-zA-Z0-9_\-/]+\))?!?: .+$")
+_TOOLS = r"(claude|anthropic|codex|copilot|gemini|cursor|chatgpt|openai|windsurf|antigravity)"
+ATTRIBUTION = re.compile(  # a human co-author stays allowed; a tool trailer or footer does not
+    rf"^\s*(co-authored-by:.*\b{_TOOLS}\b|[a-z]+-session:\s|generated (with|by) \[?{_TOOLS}\b)",
+    re.IGNORECASE,
+)
 
 
 def problems(lines: list[str]) -> list[str]:
@@ -18,6 +24,8 @@ def problems(lines: list[str]) -> list[str]:
     subject = lines[0].strip()
     if not subject.startswith(("Merge ", "Revert \"")) and not CONVENTIONAL.match(subject):
         bad.append(f"subject is not a Conventional Commit (type(scope): description): {subject}")
+    bad += [f"AI attribution is not allowed (AGENTS.md rule 12): {ln.strip()[:80]}"
+            for ln in lines[1:] if ATTRIBUTION.match(ln)]  # fmt: skip
     return bad
 
 

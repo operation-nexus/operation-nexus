@@ -31,10 +31,13 @@ def test_commit_msg():
     assert problems(["Revert \"feat(sim): x\""]) == []
     assert problems(["# only a comment", ""]) == ["commit message is empty"]
     assert len(problems(["added stuff"])) == 1
-    # Attribution trailers and footers are allowed (AGENTS.md rule 12, owner 2026-10-23).
-    assert problems(["feat: x", "", f"Co-Authored-By: {AI} <noreply@example.com>"]) == []
-    assert problems(["feat: x", "", f"Generated with [{AI} Code](https://example.com)"]) == []
+    # No AI attribution trailers or footers (AGENTS.md rule 12, owner 2026-11-01, Q-DEV-36).
+    assert len(problems(["feat: x", "", f"Co-Authored-By: {AI} Opus <noreply@example.com>"])) == 1
+    assert len(problems(["feat: x", "", "Co-Authored-By: GitHub Copilot <x@example.com>"])) == 1
+    assert len(problems(["feat: x", "", f"{AI}-Session: https://example.com/s"])) == 1
+    assert len(problems(["feat: x", "", f"Generated with [{AI} Code](https://example.com)"])) == 1
     assert problems(["feat: x", "", "Co-Authored-By: Sam Lee <sam@example.com>"]) == []
+    assert problems([f"feat(tools): {AI} model ids in the gateway (NX-1)"]) == []  # subject: a topic
 
 
 def test_tracked_files():
