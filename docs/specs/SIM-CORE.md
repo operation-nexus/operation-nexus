@@ -223,7 +223,7 @@ Notes: SIM-CORE-NOTES.md §4 Aircraft
 7. Unloading runs each running tick (not while paused), in id order, in whole thousandths per tick, moving whole units capped by the cargo and the node's room and keeping the fraction.
 8. A truck sent by its operator's command MUST NOT divert from a full base (Q-SIM-50, owner amendment 2026-10-21).
 9. A stop emits one `SupplyDelivered{node_id, amount, carrier_id, commander_id}` (CONTRACTS §6) when it ends, `amount` the units unloaded during the stop, none if that is 0, for both sides.
-10. A truck removed mid-stop emits nothing (see Defense 3 for a truck lost mid-stop).
+10. A truck lost mid-stop reports its open stop first (Defense 3), and a Disabled truck's open stop is cut and reported by `logistics`.
 11. `UnitSpawned` has no cargo field, only `loadout: FULL`.
 
 Notes: SIM-CORE-NOTES.md §4 Logistics

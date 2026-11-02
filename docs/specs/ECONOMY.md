@@ -27,7 +27,7 @@ Goals:
 5. Tier sets aggression and which operations run, not size (Q-TD-16 (3)).
 
 6. Same rules for both sides, so either side can be agent-played (Q-TD-16 (4), GAMEPLAY §0).
-7. Coalition spawning stays free.
+7. A viewer's own spawn at the sanctuary stays free while `economy.free_viewer_spawn` is on (default; EC-13).
 8. Keeping a unit in the field costs stock, and a starved unit is grounded, never deleted (Q-TD-18).
 
 9. The Static may target a node the coalition is holding for victory, with a sitrep (Q-TD-19).
@@ -70,7 +70,7 @@ Non-goals:
 13. The rule:
 
 **Pairs (content).**
-14. An ENEMY unit kind MAY name its coalition counterpart in a new catalog field `mirrors: <UnitKind>` (CONFIG-AND-CONTENT §7.1).
+14. An ENEMY unit kind MAY name its coalition counterpart in the catalog field `mirrors: <UnitKind>` (CONFIG-AND-CONTENT §7.1).
 15. The catalog loader refuses a `mirrors` on a kind that is not ENEMY, a target that is missing, not COALITION or of another domain, and two enemy kinds naming the same target.
 16. Shipped pairs: ENEMY_STRIKE_FIGHTER → STRIKE_FIGHTER and ENEMY_RECON_UAV → RECON_UAV (Q-TD-13's mirrors), and ENEMY_CONVOY → LOGI_TRUCK (the two carriers, `rules.py:56`; the last-stand parity of GAMEPLAY §9).
 17. ENEMY_ARMOR, ENEMY_FIGHTER and GARRISON_INFANTRY have no counterpart and stay unpaired.
@@ -180,7 +180,7 @@ Non-goals:
 93. While the hold runs, the Static skips staging and may launch capture operations at once, from the rear if needed, outside the `director.max_ops.<tier>` cap (owner, Q-TD-46; THREAT-DIRECTOR §4a FS-10, NX-430: capture operations aimed at a hold node; the budget still applies).
 
 **EC-9a Broken-hold decay (NX-489; Q-TD-102 owner 2026-10-29, Q-TD-126 lead, owner may veto).**
-94. The proposed rule is written for "the holder" and "the other side" so that it applies unchanged if a side other than the coalition ever gets a hold (EC-3 in spirit; today only the coalition has a mid-war win, Q-SIM-64):
+94. The rule is written for "the holder" and "the other side" so that it applies unchanged if a side other than the coalition ever gets a hold (EC-3 in spirit; today only the coalition has a mid-war win, Q-SIM-64):
 
 **Progress.**
 95. The hold's progress P is the running ticks it has credited (`Campaign.hold_ticks`).
@@ -373,7 +373,7 @@ Notes: ECONOMY-NOTES.md §3
 
 ## 4. Interfaces
 
-1. **Config (balance, CONFIG-AND-CONTENT §6; added with `add-config-key`):** `campaign.victory.hold_break` (`decay` or `reset`), `campaign.victory.decay_slow_min`, `decay_slow_rate`, `decay_fast_rate` and `reset_on_repair` (EC-9a, Q-TD-126, all PROPOSED), `campaign.victory.pause_on_pressure` (bool, default true, RULE_DEFAULT; EC-9b, Q-TD-84 (b), NX-466), `economy.unlimited.<side>` (bool, default false; campaign or test option, EC-15), `economy.window_s` (game s, PROPOSED 60: the director window, so one cadence), `economy.income.floor` (stock/window, TBD), `economy.income.per_node.<node_kind>` (TBD; BRIDGE 0), `economy.storage.floor` and `economy.storage.per_node.<node_kind>` (TBD), `economy.upkeep.<unit_kind>` (stock/window, TBD; LOGI_TRUCK and ENEMY_CONVOY PROPOSED 0), `economy.upkeep_period.<unit_kind>` (windows ≥ 1, PROPOSED 20 for armed kinds, 30 for the recon UAVs, 1 for the trucks and convoys; Q-TD-52 T1), `director.spend_frac.<tier>` (fraction 0-1, TBD, ordered pattern_of_life ≤ alpha ≤ bravo, enforced by the loader), `director.upkeep_reserve_windows` (TBD), `director.source_spend_frac` (fraction 0-1, TBD, small), `director.surplus_ref_frac` (fraction 0-1 of `logistics.node_max_stock`, PROPOSED 0.25; in code, NX-500), `director.cadence_windows` (windows, TBD), `director.score.victory_hold_mult` and `director.score.income_node_mult` (TBD, ≥ 1), `economy.floor_viewer_units` (units, PROPOSED 5), `economy.free_viewer_spawn` (bool, default true; Q-CFG-16 option, set false in agent-vs-agent harness profiles), `sim.max_live_units_per_side` (TBD from the surge-500 tick-rate budget).
+1. **Config (balance, CONFIG-AND-CONTENT §6; added with `add-config-key`):** `campaign.victory.hold_break` (`decay` or `reset`), `campaign.victory.decay_slow_min`, `decay_slow_rate`, `decay_fast_rate` and `reset_on_repair` (EC-9a, Q-TD-126, all PROPOSED), `campaign.victory.pause_on_pressure` (bool, default true, RULE_DEFAULT; EC-9b, Q-TD-84 (b), NX-466), `economy.unlimited.<side>` (bool, default false; campaign or test option, EC-15), `economy.window_s` (game s, PROPOSED 60: the director window, so one cadence), `economy.income.floor` (stock/window, TBD), `economy.income.per_node.<node_kind>` (TBD; BRIDGE 0), `economy.storage.floor` and `economy.storage.per_node.<node_kind>` (TBD), `economy.upkeep.<unit_kind>` (stock/window, TBD; LOGI_TRUCK and ENEMY_CONVOY PROPOSED 0), `economy.upkeep_period.<unit_kind>` (windows ≥ 1, PROPOSED 20 for armed kinds, 30 for the recon UAVs, 1 for the trucks and convoys; Q-TD-52 T1), `director.spend_frac.<tier>` (fraction 0-1, TBD, ordered pattern_of_life ≤ alpha ≤ bravo, enforced by the loader), `director.upkeep_reserve_windows` (TBD), `director.source_spend_frac` (fraction 0-1, TBD, small), `director.surplus_ref_frac` (fraction 0-1 of `logistics.node_max_stock`, PROPOSED 0.25, NX-500), `director.cadence_windows` (windows, TBD), `director.score.victory_hold_mult` and `director.score.income_node_mult` (TBD, ≥ 1), `economy.floor_viewer_units` (units, PROPOSED 5), `economy.free_viewer_spawn` (bool, default true; Q-CFG-16 option, set false in agent-vs-agent harness profiles), `sim.max_live_units_per_side` (TBD from the surge-500 tick-rate budget).
 2. Removed: `director.budget.<tier>`, `director.max_live_units.<tier>`.
 3. The operation cost-envelope check (CONFIG-AND-CONTENT §8a) moves from "≤ the largest `director.budget`" to "≤ `director.spend_frac.bravo` × the largest possible storage".
 
