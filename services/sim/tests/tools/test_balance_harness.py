@@ -1977,11 +1977,58 @@ def test_a_pause_split_across_two_reasons_sums_to_the_paused_minutes(
     assert agg["paused_min_by_reason"] == economy["paused_min_by_reason"]
 
 
+def test_a_pause_whose_reason_changes_counts_under_the_reason_in_force(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    """The sim names only a pause's first reason; later ticks use the hold pressure in force."""
+    world = start_campaign("c", 1, shipped_config)
+    node = "fob-n-w"
+    world.campaign.hold_nodes = (node,)
+    collector.feed([VictoryHoldStarted.model_construct(
+        kind="VictoryHoldStarted", tick=10, node_ids=[node], ends_at_tick=9, progress_ticks=0
+    ), VictoryHoldPaused.model_construct(
+        kind="VictoryHoldPaused", tick=20, node_id=node, reason="CAPTURE_BAR", progress_ticks=1
+    )])  # fmt: skip
+    world.campaign.running_ticks, world.campaign.hold_paused_ticks = 1, 1
+    collector.observe(world)  # no pressure visible now: the event's reason
+    world.defense_down.add(node)
+    world.campaign.running_ticks, world.campaign.hold_paused_ticks = 2, 2
+    collector.observe(world)  # same pause, now its defenses are down
+    by = collector.result(100)["economy"]["paused_min_by_reason"]
+    assert by["CAPTURE_BAR"] == 1 / HZ / 60 and by["DEFENSES_DOWN"] == 1 / HZ / 60
+
+
+def test_a_down_restored_in_the_same_tick_leaves_no_open_down(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    world = start_campaign("c", 1, shipped_config)
+    node = next(
+        n for n in sorted(world.owner) if world.owner[n] == "COALITION" and n in world.stock
+    )
+    collector.feed([NodeDefensesDown.model_construct(
+        kind="NodeDefensesDown", tick=5, node_id=node, owner="COALITION"
+    ), NodeDefensesRestored.model_construct(
+        kind="NodeDefensesRestored", tick=5, node_id=node, owner="COALITION"
+    )])  # fmt: skip
+    collector.observe(world)  # the flag is already clear: the sim healed it this tick
+    d = collector.result(100 * HZ * 60)["economy"]["defenses_down"]
+    assert sum(d["events"].values()) == 1
+    assert d["minutes"] == {"fire": 0.0, "starved": 0.0}
+
+
+def test_per_seed_outcome_names_a_crash_or_harness_error() -> None:
+    base = {"seed": 1, "metrics": {"outcome": {"result": None}}}
+    assert report._seed_outcome({**base, "crash": "boom", "harness_error": None}) == "CRASHED"
+    assert report._seed_outcome({**base, "crash": None, "harness_error": "x"}) == "HARNESS_ERROR"
+    assert report._seed_outcome({**base, "crash": None, "harness_error": None}) is None
+
+
 def _down_tick(
     collector: metrics.Collector, world: Any, node: str, stock: int, tick: int = 10
 ) -> None:
     """A coalition `NodeDefensesDown` on `node` with its stock set, then the tick's `observe`."""
     world.stock[node] = stock
+    world.defense_down.add(node)  # the sim sets the flag in the same tick as the event
     collector.feed([NodeDefensesDown.model_construct(
         kind="NodeDefensesDown", tick=tick, node_id=node, owner="COALITION"
     )])  # fmt: skip
@@ -2041,6 +2088,7 @@ def test_a_down_and_a_flip_in_the_same_tick_leave_no_open_down(
         n for n in sorted(world.owner) if world.owner[n] == "COALITION" and n in world.stock
     )
     world.owner[node] = "ENEMY"  # the flip has already landed when `observe` runs
+    world.defense_down.discard(node)  # and the flip cleared the flag (`defense.reset`)
     collector.feed([NodeDefensesDown.model_construct(
         kind="NodeDefensesDown", tick=5, node_id=node, owner="COALITION"
     ), NodeCaptured.model_construct(

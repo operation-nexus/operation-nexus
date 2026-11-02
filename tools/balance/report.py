@@ -684,6 +684,16 @@ def _hold_seed(economy: dict[str, Any]) -> dict[str, Any]:
     return {"holds": len(economy["holds"]), "paused_min_by_reason": paused, "downs": downs}
 
 
+def _seed_outcome(r: dict[str, Any]) -> str | None:
+    """A run's outcome for the per-seed table: a harness error or crash first, as `_a1` does."""
+    if r.get("harness_error"):
+        return "HARNESS_ERROR"
+    if r.get("crash"):
+        return "CRASHED"
+    result: str | None = r["metrics"].get("outcome", {}).get("result")
+    return result
+
+
 def _per_seed(runs: list[dict[str, Any]], t: Targets) -> list[dict[str, Any]]:
     """NX-502 (H3): A2 and idle armed per seed, so a pooled number is not a seed mix. A2 is the
     pooled rule on one run's counted newbies (same newbie definition and tier filter)."""
@@ -699,7 +709,7 @@ def _per_seed(runs: list[dict[str, Any]], t: Targets) -> list[dict[str, Any]]:
             "idle_samples": idle["samples"],
             "idle_mean": idle["share_mean"],
             "idle_max": idle["share_max"],
-            "outcome": r["metrics"].get("outcome", {}).get("result"),
+            "outcome": _seed_outcome(r),
             **_hold_seed(r["metrics"].get("economy", {"holds": []})),
         })  # fmt: skip
     return out

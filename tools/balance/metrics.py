@@ -18,7 +18,7 @@ from typing import Any, Final
 
 from nexus.contracts.gen.common.enums import Side
 from nexus.contracts.gen.events.event import Event
-from nexus.core.campaign import momentum
+from nexus.core.campaign import momentum, pressure
 from nexus.core.capture import capture_weight
 from nexus.core.director import TIERS
 from nexus.core.economy import due as economy_due
@@ -368,7 +368,7 @@ class Collector:
             starved = node in world.stock and node in floor and world.stock[node] < floor[node]
             cause = "starved" if starved else "fire"
             self.downs[cause] += 1
-            if world.owner.get(node) == _COALITION:  # a flip in the same tick closed it at once
+            if node in world.defense_down:  # a same-tick flip or restore already ended it
                 self._downs_open[node] = (tick, cause)
         self._downs_new.clear()
 
@@ -432,7 +432,10 @@ class Collector:
         if ran and camp.hold_paused_ticks and self.holds:
             self.hold_paused_ticks += 1  # a running tick of a paused hold
             self.holds[-1]["paused_ticks"] += 1
-            self.paused_ticks_by_reason[self._pause_reason or "UNKNOWN"] += 1
+            now = next(  # the pause reason in force now: the sim names only the first (EC-9b)
+                (r for n in camp.hold_nodes if (r := pressure(world, n, _COALITION))), None
+            )
+            self.paused_ticks_by_reason[now or self._pause_reason or "UNKNOWN"] += 1
         hp = world.defense_hp[self._sanctuary]
         if ran:
             self._defeat_run(camp.defeat_ticks, hp)
