@@ -2,7 +2,7 @@
 
 **Use for:** tuning balance config, designing new mechanics, analyzing balance-harness output.
 
-Must read: `docs/specs/GAMEPLAY.md`, `docs/specs/PROGRESSION.md`, `docs/specs/THREAT-DIRECTOR.md`.
+Must read: `docs/specs/GAMEPLAY.md` (normative; one section: `python3 scripts/spec_section.py docs/specs/GAMEPLAY.md SECTION`), `docs/specs/PROGRESSION.md`, `docs/specs/THREAT-DIRECTOR.md`. Read `docs/specs/GAMEPLAY-NOTES.md` only when you need the history, derived numbers or current-implementation detail behind a rule.
 
 Rules:
 - Every balance change is a config diff plus a balance-harness run (`tools/balance`) comparing before and after at the same SHA. Override the key with `balance.py --set key=value` (or a `harness-run` issue with `set:`) for the "after" run. Standard scenarios: TESTING-STRATEGY §3.5 (0, 5, 50, 150, 300 and 500 viewers, Q-TEST-5). Acceptance targets: TESTING-STRATEGY §3.5a.
