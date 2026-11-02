@@ -3687,6 +3687,122 @@ def test_zero_strategic_minutes_count_running_ticks_only(
     assert agg["zero_strategic_min"] == 4 / HZ / 60
 
 
+def _hold_world(shipped_config: CampaignConfig) -> Any:
+    world = start_campaign("c", 1, shipped_config)
+    return world, sorted(shipped_config.rules.campaign.strategic)  # type: ignore[union-attr]
+
+
+def _launch(op: str) -> dict[str, Any]:
+    return {"op": op, "own": {}, "own_capturers": 0}
+
+
+def _lose(
+    collector: metrics.Collector, node: str, frm: str = "COALITION", to: str = "ENEMY"
+) -> None:
+    collector._captured(
+        NodeCaptured.model_construct(
+            kind="NodeCaptured", tick=5, node_id=node, from_=frm, to=to,
+            participant_commander_ids=[],
+        )
+    )  # fmt: skip
+
+
+def test_strategic_held_threshold_matches_the_sims_hold_decision(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    """Q-TD-136: `hold_threshold` is the fewest owned nodes campaign.py's `holding` accepts."""
+    from nexus.core.campaign import _share
+
+    rc = shipped_config.rules.campaign
+    assert rc is not None
+    n = len(rc.strategic)
+    k = collector.result(100)["strategic_held"]["hold_threshold"]
+    assert _share(k, rc) >= rc.victory_node_frac and (
+        k == 0 or _share(k - 1, rc) < rc.victory_node_frac
+    )
+    assert k <= n
+
+
+def test_strategic_held_histogram_threshold_stretch_and_node_minutes(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    """Zero held, at the threshold, one below it, a dip splitting the stretch; sim-paused ticks and
+    the histogram sums."""
+    world, strategic = _hold_world(shipped_config)
+    k = collector.result(100)["strategic_held"]["hold_threshold"]
+    assert k >= 1
+
+    def own(count: int) -> None:
+        for i, nd in enumerate(strategic):
+            world.owner[nd] = "COALITION" if i < count else "ENEMY"
+
+    running = 0
+
+    def tick(count: int, advance: bool = True) -> None:
+        nonlocal running
+        running += advance
+        own(count)
+        world.campaign.running_ticks = running
+        collector.observe(world)
+
+    tick(k)  # at the threshold
+    tick(len(strategic))  # at or above
+    tick(k - 1)  # one below: the stretch ends
+    tick(0)  # none held
+    tick(k)  # a new stretch of 1
+    tick(k, advance=False)  # sim-paused: counts nothing
+    sh = collector.result(100)["strategic_held"]
+    assert sh["longest_min"] == 2 / HZ / 60
+    assert sh["at_or_above_min"] == 3 / HZ / 60
+    assert (
+        sh["min_by_k"][0]
+        == 1 / HZ / 60
+        == collector.result(100)["coalition_hold"]["zero_strategic_min"]
+    )
+    assert sum(sh["min_by_k"]) == 5 / HZ / 60 and len(sh["min_by_k"]) == len(strategic) + 1
+    assert sh["by_node"][strategic[0]]["owned_min"] == 4 / HZ / 60
+    agg = report._strategic_held([{"metrics": {"strategic_held": sh}}] * 2)
+    assert agg["at_or_above_min"] == 6 / HZ / 60 and agg["longest_min"] == sh["longest_min"]
+    assert sum(agg["min_by_k"]) == 10 / HZ / 60
+
+
+def test_strategic_losses_split_by_the_launch_that_preceded_them(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    _, strategic = _hold_world(shipped_config)
+    a, b, c = strategic[:3]
+    collector._latest[a] = _launch("OFFENSIVE")
+    _lose(collector, a)  # after an OFFENSIVE launch
+    _lose(collector, a)  # retaken and lost again: the launch was consumed, none known now
+    collector._latest[b] = _launch("RETAKE")
+    _lose(collector, b)
+    _lose(collector, c)  # no launch known
+    _lose(collector, c, frm="ENEMY", to="COALITION")  # a gain is not a loss
+    _lose(collector, "not-strategic")
+    by = collector.result(100)["strategic_held"]["by_node"]
+    assert by[a]["lost"] == {"total": 2, "OFFENSIVE": 1, "RETAKE": 0, "other": 0, "none": 1}
+    assert by[b]["lost"]["RETAKE"] == 1 and by[c]["lost"] == {
+        "total": 1,
+        "OFFENSIVE": 0,
+        "RETAKE": 0,
+        "other": 0,
+        "none": 1,
+    }
+    agg = report._strategic_held(
+        [{"metrics": {"strategic_held": collector.result(100)["strategic_held"]}}] * 2
+    )
+    assert agg["by_node"][a]["lost"]["total"] == 4
+
+
+def test_strategic_held_old_runs_and_failed_stub_still_render() -> None:
+    old = {"seed": 1, "metrics": {}}
+    assert report._held_seed(old)["held_losses"] == 0
+    assert report._strategic_held([old])["min_by_k"] == []
+    stub = runner.failed_run("quiet-5", 1, 1.0, "boom")
+    assert report._held_seed(stub)["held_at_or_above_min"] == 0.0
+    assert report._strategic_held([stub])["by_node"] == {}
+
+
 def test_coalition_captures_count_only_flips_to_the_coalition(
     collector: metrics.Collector,
 ) -> None:

@@ -694,6 +694,43 @@ def _seed_outcome(r: dict[str, Any]) -> str | None:
     return result
 
 
+_NO_HELD: dict[str, Any] = {"nodes": 0, "hold_threshold": 0, "min_by_k": [], "by_node": {}}
+
+
+def _strategic_held(runs: list[dict[str, Any]]) -> dict[str, Any]:
+    """Q-TD-136: minutes the coalition owned k strategic nodes, minutes at or above the hold
+    threshold, the per-node owned minutes and losses, summed over the seeds; the longest stretch is
+    the max. Runs from before it (no `strategic_held`) add nothing."""
+    held = [h for r in runs if (h := r["metrics"].get("strategic_held"))]
+    by_k = [0.0] * max((len(h["min_by_k"]) for h in held), default=0)
+    nodes: dict[str, dict[str, Any]] = {}
+    for h in held:
+        for k, m in enumerate(h["min_by_k"]):
+            by_k[k] += m
+        for n, v in sorted(h["by_node"].items()):
+            t = nodes.setdefault(n, {"owned_min": 0.0, "lost": {}})
+            t["owned_min"] += v["owned_min"]
+            for key, c in v["lost"].items():
+                t["lost"][key] = t["lost"].get(key, 0) + c
+    return {
+        "min_by_k": by_k,
+        "at_or_above_min": sum(h["at_or_above_min"] for h in held),
+        "longest_min": max((h["longest_min"] for h in held), default=0.0),
+        "by_node": nodes,
+    }
+
+
+def _held_seed(r: dict[str, Any]) -> dict[str, Any]:
+    h = r["metrics"].get("strategic_held") or _NO_HELD
+    return {
+        "held_hold_threshold": h["hold_threshold"],
+        "held_min_by_k": h["min_by_k"],
+        "held_at_or_above_min": h.get("at_or_above_min", 0.0),
+        "held_longest_min": h.get("longest_min", 0.0),
+        "held_losses": sum(v["lost"]["total"] for v in h["by_node"].values()),
+    }
+
+
 def _per_seed(runs: list[dict[str, Any]], t: Targets) -> list[dict[str, Any]]:
     """NX-502 (H3): A2 and idle armed per seed, so a pooled number is not a seed mix. A2 is the
     pooled rule on one run's counted newbies (same newbie definition and tier filter)."""
@@ -711,6 +748,7 @@ def _per_seed(runs: list[dict[str, Any]], t: Targets) -> list[dict[str, Any]]:
             "idle_max": idle["share_max"],
             "outcome": _seed_outcome(r),
             **_hold_seed(r["metrics"].get("economy", {"holds": []})),
+            **_held_seed(r),
         })  # fmt: skip
     return out
 
@@ -758,6 +796,7 @@ def aggregate(profile: str, runs: list[dict[str, Any]], t: Targets) -> dict[str,
         "hauling": _hauling(runs),
         "defeat_run": _defeat_run(runs),
         **_nx477(runs),
+        "strategic_held": _strategic_held(runs),
         "viewers_distinct_mean": _mean([r["viewers"]["distinct"] for r in runs]),
         "viewers_peak_mean": _mean([r["viewers"]["peak_concurrent"] for r in runs]),
     }
@@ -1269,6 +1308,46 @@ def markdown(report: dict[str, Any]) -> str:
             for p in a["per_seed"]
         ],
     )  # fmt: skip
+    lines += ["## Per seed: strategic nodes held (Q-TD-136)", ""]
+    lines += _table(
+        ["Profile", "Seed", "Outcome", "Min at/above hold threshold", "Longest stretch, min",
+         "Min with k nodes held (k=0..N)", "Strategic node losses"],
+        [
+            [
+                n,
+                str(p["seed"]),
+                p["outcome"] or "not ended",
+                f"{_fmt(p.get('held_at_or_above_min', 0.0))} "
+                f"(k>={p.get('held_hold_threshold', 0)})",
+                _fmt(p.get("held_longest_min", 0.0)),
+                " / ".join(_fmt(m) for m in p.get("held_min_by_k", [])) or "-",
+                str(p.get("held_losses", 0)),
+            ]
+            for n, a in report["profiles"].items()
+            for p in a["per_seed"]
+        ],
+    )  # fmt: skip
+    lines += ["## Strategic nodes, pooled over seeds (Q-TD-136)", ""]
+    lines += _table(
+        ["Profile", "Node", "Coalition-owned min", "Losses", "After OFFENSIVE", "After RETAKE",
+         "After other", "After none known"],
+        [
+            [
+                n, node, _fmt(v["owned_min"]), str(v["lost"].get("total", 0)),
+                *(str(v["lost"].get(k, 0)) for k in ("OFFENSIVE", "RETAKE", "other", "none")),
+            ]
+            for n, a in report["profiles"].items()
+            for node, v in a.get("strategic_held", {}).get("by_node", {}).items()
+        ],
+    )  # fmt: skip
+    lines += [
+        "Running ticks only. Hold threshold: the fewest owned strategic nodes with "
+        "`owned / N >= campaign.victory_node_frac` (the rule `campaign.py` holds by). A loss is a "
+        "`NodeCaptured` from the coalition; it follows an OFFENSIVE / RETAKE when the collector's "
+        "latest Static capture launch on that node was one (other: any further kind; none: no "
+        "launch known).",
+        "",
+    ]
     lines += ["## Why idle armed units hold no job (summed over samples)", ""]
     for n, a in report["profiles"].items():
         i = a["idle"]
