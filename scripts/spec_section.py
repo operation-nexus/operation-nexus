@@ -15,7 +15,9 @@ import re
 import sys
 
 HEADING = re.compile(r"^(#{1,6})\s+(.*?)\s*#*\s*$")
-TRAILING_CITE = re.compile(r"\s*\([^()]*\)$")  # "Budgets (Q-SIM-4, Q-SIM-6)" also matches "Budgets"
+# A trailing citation, "Budgets (Q-SIM-4, Q-SIM-6)" -> "Budgets": only parentheticals naming a Q-row, ADR, NX id or §,
+# so "Logistics (air)" stays a different title from "Logistics".
+TRAILING_CITE = re.compile(r"\s*\((?=[^()]*(?:\bQ-[A-Z]+-\d|\bADR-\d|\bNX-\d|§))[^()]*\)$", re.IGNORECASE)
 FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")  # CommonMark fence: up to 3 spaces, then ``` or ~~~
 
 

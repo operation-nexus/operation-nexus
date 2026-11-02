@@ -346,6 +346,8 @@ def test_spec_section():
     assert spec_section(tilde, "1") == tilde[:7]  # a tilde fence closes only on a matching marker at least as long
     cited = ["## Logistics (Q-SIM-4)", "l", "## Other"]
     assert spec_section(cited, "logistics") == cited[:2]  # citation optional without a number too
+    plain = ["## Logistics (air)", "a", "## Logistics", "b"]
+    assert spec_section(plain, "logistics") == plain[2:]  # a non-citation parenthetical stays part of the title
     with tempfile.TemporaryDirectory() as tmp:
         path = os.path.join(tmp, "spec.md")
         with open(path, "w") as f:
