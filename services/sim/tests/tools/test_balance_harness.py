@@ -23,6 +23,7 @@ from nexus.contracts.gen.events.job_claimed import JobClaimed
 from nexus.contracts.gen.events.job_created import JobCreated
 from nexus.contracts.gen.events.node_captured import NodeCaptured
 from nexus.contracts.gen.events.node_defenses_down import NodeDefensesDown
+from nexus.contracts.gen.events.node_defenses_restored import NodeDefensesRestored
 from nexus.contracts.gen.events.spawn_refused import SpawnRefused
 from nexus.contracts.gen.events.supply_consumed import SupplyConsumed
 from nexus.contracts.gen.events.supply_delivered import SupplyDelivered
@@ -1921,6 +1922,146 @@ def test_collector_counts_hold_pauses_by_reason_and_paused_minutes_per_tick(
     assert agg["hold_pauses"] == economy["hold_pauses"]
     assert agg["hold_paused_min"] == 5 / HZ / 60
     assert agg["paused_min_per_hold"] == [3 / HZ / 60, 2 / HZ / 60]
+
+
+def test_paused_minutes_by_reason_are_zero_without_holds(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    """O0: no hold, no pause, no down: every reason and cause is present at zero."""
+    world = start_campaign("c", 1, shipped_config)
+    collector.observe(world)
+    economy = collector.result(100)["economy"]
+    assert economy["paused_min_by_reason"] == dict.fromkeys(metrics.PAUSE_REASONS, 0.0)
+    assert economy["defenses_down"] == {
+        "events": {"fire": 0, "starved": 0},
+        "minutes": {"fire": 0.0, "starved": 0.0},
+    }
+    agg = report._economy([{"metrics": {"economy": economy}, "ticks_run": HOUR, "tick_hz": HZ,
+                            "seed": 1, "viewers": {"peak_concurrent": 5}}])  # fmt: skip
+    assert agg["paused_min_by_reason"] == {k: 0.0 for k in metrics.PAUSE_REASONS}
+
+
+def test_a_pause_split_across_two_reasons_sums_to_the_paused_minutes(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    """O0: ticks count under the latest `VictoryHoldPaused` reason of the pause in force."""
+    world = start_campaign("c", 1, shipped_config)
+
+    def paused(tick: int, reason: str) -> Any:
+        return VictoryHoldPaused.model_construct(
+            kind="VictoryHoldPaused", tick=tick, node_id="fob-n-w", reason=reason, progress_ticks=1
+        )
+
+    def observe(running: int, paused_ticks: int) -> None:
+        world.campaign.running_ticks, world.campaign.hold_paused_ticks = running, paused_ticks
+        collector.observe(world)
+
+    collector.feed([VictoryHoldStarted.model_construct(
+        kind="VictoryHoldStarted", tick=10, node_ids=["fob-n-w"], ends_at_tick=9, progress_ticks=0
+    ), paused(20, "CAPTURE_BAR")])  # fmt: skip
+    observe(1, 1)
+    observe(2, 2)
+    observe(3, 3)
+    observe(3, 3)  # the clock did not run: counted nowhere
+    collector.feed([paused(40, "DEFENSES_DOWN")])  # a new pause (the old one resumed)
+    observe(4, 1)
+    economy = collector.result(100)["economy"]
+    assert economy["paused_min_by_reason"] == {
+        "CAPTURE_BAR": 3 / HZ / 60, "CAPTURE_OP": 0.0, "DEFENSES_DOWN": 1 / HZ / 60,
+    }  # fmt: skip
+    assert sum(economy["paused_min_by_reason"].values()) == pytest.approx(
+        economy["hold_paused_min"]
+    )
+    agg = report._economy([{"metrics": {"economy": economy}, "ticks_run": HOUR, "tick_hz": HZ,
+                            "seed": 1, "viewers": {"peak_concurrent": 5}}])  # fmt: skip
+    assert agg["paused_min_by_reason"] == economy["paused_min_by_reason"]
+
+
+def _down_tick(
+    collector: metrics.Collector, world: Any, node: str, stock: int, tick: int = 10
+) -> None:
+    """A coalition `NodeDefensesDown` on `node` with its stock set, then the tick's `observe`."""
+    world.stock[node] = stock
+    collector.feed([NodeDefensesDown.model_construct(
+        kind="NodeDefensesDown", tick=tick, node_id=node, owner="COALITION"
+    )])  # fmt: skip
+    collector.observe(world)
+
+
+def test_a_down_is_starved_only_strictly_under_the_floor(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    """O0 (Q-TD-139): `stock < floor` is starved (the sim's rule); at the floor, or 0 with a zero
+    floor, is fire. Minutes run to the `NodeDefensesRestored`."""
+    world = start_campaign("c", 1, shipped_config)
+    floors = collector._world_rules.supply.starve_floor
+    held = [n for n in sorted(floors) if world.owner.get(n) == "COALITION" and floors[n] > 0][:3]
+    assert len(held) == 3
+    below, exact, above = held
+    _down_tick(collector, world, below, floors[below] - 1, tick=10)
+    _down_tick(collector, world, exact, floors[exact], tick=10)
+    _down_tick(collector, world, above, floors[above] + 1, tick=10)
+    collector.feed([NodeDefensesRestored.model_construct(
+        kind="NodeDefensesRestored", tick=10 + 3 * HZ * 60, node_id=below, owner="COALITION"
+    )])  # fmt: skip
+    d = collector.result(10 + 5 * HZ * 60)["economy"]["defenses_down"]
+    assert d["events"] == {"fire": 2, "starved": 1}
+    assert d["minutes"]["starved"] == pytest.approx(3.0)  # restored
+    assert d["minutes"]["fire"] == pytest.approx(2 * 5.0)  # two still open at the run's end
+    _down_tick(collector, world, below, 0, tick=20)  # down again, zero stock under a floor
+    assert collector.result(30)["economy"]["defenses_down"]["events"]["starved"] == 2
+
+
+def test_a_flip_closes_an_open_down_and_an_enemy_down_is_not_counted(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    world = start_campaign("c", 1, shipped_config)
+    node = next(
+        n for n in sorted(world.owner) if world.owner[n] == "COALITION" and n in world.stock
+    )
+    _down_tick(collector, world, node, 10**6, tick=0)
+    collector.feed([NodeDefensesDown.model_construct(
+        kind="NodeDefensesDown", tick=5, node_id=node, owner="ENEMY"
+    ), NodeCaptured.model_construct(
+        kind="NodeCaptured", tick=HZ * 60, node_id=node, from_="COALITION", to="ENEMY",
+        participant_commander_ids=[],
+    )])  # fmt: skip
+    collector.observe(world)
+    d = collector.result(10 * HZ * 60)["economy"]["defenses_down"]
+    assert d["events"] == {"fire": 1, "starved": 0}
+    assert d["minutes"]["fire"] == pytest.approx(1.0)  # closed by the flip, not run to the end
+
+
+def test_a_down_and_a_flip_in_the_same_tick_leave_no_open_down(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    """The flip closes downs before this tick's down is classified: it must not open."""
+    world = start_campaign("c", 1, shipped_config)
+    node = next(
+        n for n in sorted(world.owner) if world.owner[n] == "COALITION" and n in world.stock
+    )
+    world.owner[node] = "ENEMY"  # the flip has already landed when `observe` runs
+    collector.feed([NodeDefensesDown.model_construct(
+        kind="NodeDefensesDown", tick=5, node_id=node, owner="COALITION"
+    ), NodeCaptured.model_construct(
+        kind="NodeCaptured", tick=5, node_id=node, from_="COALITION", to="ENEMY",
+        participant_commander_ids=[],
+    )])  # fmt: skip
+    collector.observe(world)
+    d = collector.result(100 * HZ * 60)["economy"]["defenses_down"]
+    assert sum(d["events"].values()) == 1  # still counted as a down
+    assert d["minutes"] == {"fire": 0.0, "starved": 0.0}  # but not run to the end
+
+
+def test_per_seed_row_carries_holds_pauses_and_downs() -> None:
+    """O0: a run with no economy (a failed stub) still gets a row, at zero."""
+    row = report._hold_seed({"holds": []})
+    assert row == {
+        "holds": 0,
+        "paused_min_by_reason": {},
+        "downs": {"events": {"fire": 0, "starved": 0}, "minutes": {"fire": 0.0, "starved": 0.0}},
+    }
+    assert report._downs(row["downs"]) == "fire 0 (0.0 min), starved 0 (0.0 min)"
 
 
 def test_collector_derives_pressure_and_the_hold_from_events(

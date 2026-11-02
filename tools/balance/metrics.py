@@ -33,6 +33,8 @@ from nexus.core.world import Entity, Job, Vec2, World
 
 _ENEMY: Final = "ENEMY"  # Side values
 _COALITION: Final = "COALITION"
+PAUSE_REASONS: Final = ("CAPTURE_BAR", "CAPTURE_OP", "DEFENSES_DOWN")  # VictoryHoldPaused.reason
+DOWN_CAUSES: Final = ("fire", "starved")  # inferred, see `Collector._classify_downs`
 # What counts as a newbie's impact (Q-SIM-93). A kill is also a hit, and a capture also fills a bar,
 # in the same tick; the earlier in this tuple wins a same-tick tie. `capture` is the NodeCaptured
 # event or, between those, a ground unit inside a coalition-filled bar's radius (derived from the
@@ -161,6 +163,18 @@ class Collector:
         self.holds_paused = 0
         self.hold_pauses: Counter[str] = Counter()
         self.hold_paused_ticks = 0
+        # O0 (ECONOMY-DIRECTOR-W7 review, Q-TD-139): the paused ticks by the reason of the pause in
+        # force (the latest `VictoryHoldPaused`; the event comes on a pause's first tick, before
+        # `observe`), and the coalition `NodeDefensesDown` by an inferred cause. The event carries
+        # no cause, so `observe` classifies a down on its tick: stock under the starvation floor
+        # is `starved`, anything else `fire`. `_downs_new` waits for that `observe`; `_downs_open`
+        # (node -> tick, cause) is closed by `NodeDefensesRestored` or by a flip of the node.
+        self._pause_reason: str | None = None
+        self.paused_ticks_by_reason: Counter[str] = Counter()
+        self._downs_new: list[tuple[str, int]] = []
+        self._downs_open: dict[str, tuple[int, str]] = {}
+        self.downs: Counter[str] = Counter()
+        self.down_ticks: Counter[str] = Counter()
         self._running_seen = 0
         self.holds_resumed = 0
         self.hold_resets: Counter[str] = Counter()
@@ -282,6 +296,7 @@ class Collector:
             "NodeCaptured": self._captured,
             "CaptureStarted": self._capture_started,
             "NodeDefensesDown": self._defenses_down,
+            "NodeDefensesRestored": self._defenses_restored,
             "ThreatTierChanged": self._tier,
             "CampaignEnded": self._end,
             "VictoryHoldStarted": self._hold_started,
@@ -345,6 +360,22 @@ class Collector:
             if handler:
                 handler(event)
 
+    def _classify_downs(self, world: World) -> None:
+        """A coalition down of this tick: `starved` when the node's stock is under its floor at the
+        end of the tick (`stock < floor`, the sim's rule; at the floor is not), else `fire`."""
+        floor = self._world_rules.supply.starve_floor
+        for node, tick in self._downs_new:
+            starved = node in world.stock and node in floor and world.stock[node] < floor[node]
+            cause = "starved" if starved else "fire"
+            self.downs[cause] += 1
+            if world.owner.get(node) == _COALITION:  # a flip in the same tick closed it at once
+                self._downs_open[node] = (tick, cause)
+        self._downs_new.clear()
+
+    def _close_down(self, node: str, tick: int) -> None:
+        if (opened := self._downs_open.pop(node, None)) is not None:
+            self.down_ticks[opened[1]] += tick - opened[0]
+
     def _seized_facilities(self, world: World) -> None:
         """A flipped base's facilities that the world holds seized start the clock (a retake
         restarts it); a seized one whose carry is gone is back on line (NX-471)."""
@@ -361,6 +392,7 @@ class Collector:
                     self.seized_back_min.append(self._minutes(world.campaign.tick - since))
 
     def observe(self, world: World) -> None:
+        self._classify_downs(world)
         self._seized_facilities(world)
         for hq in self._hq_new:
             hq["weight"] = capture_weight(world, hq["node"], hq["side"])
@@ -400,6 +432,7 @@ class Collector:
         if ran and camp.hold_paused_ticks and self.holds:
             self.hold_paused_ticks += 1  # a running tick of a paused hold
             self.holds[-1]["paused_ticks"] += 1
+            self.paused_ticks_by_reason[self._pause_reason or "UNKNOWN"] += 1
         hp = world.defense_hp[self._sanctuary]
         if ran:
             self._defeat_run(camp.defeat_ticks, hp)
@@ -787,6 +820,7 @@ class Collector:
             if e.node_id in self._strategic:
                 self.nodes_lost.append((e.tick, e.node_id))
         self._owner[e.node_id] = e.to
+        self._close_down(e.node_id, e.tick)  # a flip clears the down flag with no Restored
 
     def _hold_started(self, e: Any) -> None:
         self.holds_resumed += e.progress_ticks > 0
@@ -805,6 +839,7 @@ class Collector:
         self.hold_resets[e.reason] += 1
 
     def _hold_paused(self, e: Any) -> None:
+        self._pause_reason = e.reason
         self.hold_pauses[e.reason] += 1
         if self.holds:
             self.holds_paused += self.holds[-1]["pauses"] == 0
@@ -863,9 +898,13 @@ class Collector:
     def _defenses_down(self, e: Any) -> None:
         if e.owner == _COALITION:
             self.pressure_ticks.append(e.tick)
+            self._downs_new.append((e.node_id, e.tick))
             if step := self._latest.get(e.node_id):
                 step["defenses_down"] = True
                 step["own"]["defenses_down"] = step["own"]["strike_fired"]  # names no unit
+
+    def _defenses_restored(self, e: Any) -> None:
+        self._close_down(e.node_id, e.tick)
 
     def _tier(self, e: Any) -> None:
         if e.side != _ENEMY:
@@ -1002,10 +1041,10 @@ class Collector:
                 "paused_min": self._minutes(self.defeat_paused_ticks),
                 "resets": self.defeat_resets,
             },
-            "economy": self._economy(),
+            "economy": self._economy(end_tick),
         }
 
-    def _economy(self) -> dict[str, Any]:
+    def _economy(self, end_tick: int) -> dict[str, Any]:
         """ECONOMY §4 "Harness report" inputs (NX-412 part 5a); per-hour lists are indexed by game
         hour and may be shorter than the run where nothing happened late."""
         return {
@@ -1029,6 +1068,11 @@ class Collector:
             "holds_paused": self.holds_paused,
             "hold_pauses": dict(sorted(self.hold_pauses.items())),
             "hold_paused_min": self._minutes(self.hold_paused_ticks),
+            "paused_min_by_reason": {
+                r: self._minutes(self.paused_ticks_by_reason[r])
+                for r in sorted({*PAUSE_REASONS, *self.paused_ticks_by_reason})
+            },
+            "defenses_down": self._defenses_down_result(end_tick),
             "holds_resumed": self.holds_resumed,
             "hold_resets": dict(sorted(self.hold_resets.items())),
             "funnel": self.funnel,
@@ -1065,6 +1109,17 @@ class Collector:
                 "stretches": len(stretches),
                 "minutes": sum(stretches) * self._wticks / self.tick_hz / 60,
             },
+        }
+
+    def _defenses_down_result(self, end_tick: int) -> dict[str, dict[str, Any]]:
+        """Coalition downs by inferred cause: events, and minutes down (a down still open at the
+        end of the run counts to `end_tick`; `_classify_downs` has seen every down by then)."""
+        ticks = Counter(self.down_ticks)
+        for start, cause in self._downs_open.values():
+            ticks[cause] += end_tick - start
+        return {
+            "events": {c: self.downs[c] for c in DOWN_CAUSES},
+            "minutes": {c: self._minutes(ticks[c]) for c in DOWN_CAUSES},
         }
 
     def _minutes(self, ticks: int) -> float:

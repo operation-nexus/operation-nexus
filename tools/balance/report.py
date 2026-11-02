@@ -9,7 +9,7 @@ from collections import Counter
 from typing import Any
 
 import steamroll
-from metrics import CAPTURE_OPS, FUNNEL_STEPS, OFFENSIVE, ROUTINE_JOBS
+from metrics import CAPTURE_OPS, DOWN_CAUSES, FUNNEL_STEPS, OFFENSIVE, ROUTINE_JOBS
 from profiles import Targets
 
 PASS, FAIL, NO_DATA = "pass", "fail", "no data"
@@ -488,6 +488,20 @@ def _hq_captures(es: list[dict[str, Any]]) -> dict[str, Any] | None:
     }
 
 
+def _hold_diagnosis(es: list[dict[str, Any]]) -> tuple[dict[str, float], dict[str, Any]]:
+    """O0 (Q-TD-139): paused minutes by reason, and coalition defenses-down events and minutes by
+    inferred cause, summed over runs. A run JSON from before O0 has none and adds nothing."""
+    paused: Counter[str] = Counter()
+    events: Counter[str] = Counter({c: 0 for c in DOWN_CAUSES})
+    minutes: Counter[str] = Counter({c: 0.0 for c in DOWN_CAUSES})
+    for e in es:
+        paused.update(e.get("paused_min_by_reason", {}))
+        d = e.get("defenses_down", {"events": {}, "minutes": {}})
+        events.update(d["events"])
+        minutes.update(d["minutes"])
+    return dict(sorted(paused.items())), {"events": dict(events), "minutes": dict(minutes)}
+
+
 def _economy(runs: list[dict[str, Any]]) -> dict[str, Any]:
     """ECONOMY §4 "Harness report" (NX-412 part 5a), pooled over the seeds with the data; per-hour
     values are means per run-hour (game hours actually run)."""
@@ -537,6 +551,7 @@ def _economy(runs: list[dict[str, Any]]) -> dict[str, Any]:
     for e in es:
         hold_pauses.update(e["hold_pauses"])
         hold_resets.update(e["hold_resets"])
+    paused_by_reason, downs = _hold_diagnosis(es)
     return {
         "sides": sides,
         "shortfall": _shortfall(es, hours),
@@ -589,6 +604,8 @@ def _economy(runs: list[dict[str, Any]]) -> dict[str, Any]:
         "holds_resumed": sum(e["holds_resumed"] for e in es),  # EC-9a (NX-489, NX-502)
         "hold_resets": dict(sorted(hold_resets.items())),
         "paused_min_per_hold": [h["paused_min"] for h in holds],
+        "paused_min_by_reason": paused_by_reason,  # O0 (Q-TD-139)
+        "defenses_down": downs,
         "ops_per_hold": [h["ops"] for h in holds],
         "army_vs_viewers": [
             [e["army_peak"], r["viewers"]["peak_concurrent"]] for r, e in zip(rs, es, strict=True)
@@ -661,6 +678,12 @@ def _nx477(runs: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _hold_seed(economy: dict[str, Any]) -> dict[str, Any]:
+    """O0: one run's holds, paused minutes by reason and defenses-down events and minutes."""
+    paused, downs = _hold_diagnosis([economy])
+    return {"holds": len(economy["holds"]), "paused_min_by_reason": paused, "downs": downs}
+
+
 def _per_seed(runs: list[dict[str, Any]], t: Targets) -> list[dict[str, Any]]:
     """NX-502 (H3): A2 and idle armed per seed, so a pooled number is not a seed mix. A2 is the
     pooled rule on one run's counted newbies (same newbie definition and tier filter)."""
@@ -676,6 +699,8 @@ def _per_seed(runs: list[dict[str, Any]], t: Targets) -> list[dict[str, Any]]:
             "idle_samples": idle["samples"],
             "idle_mean": idle["share_mean"],
             "idle_max": idle["share_max"],
+            "outcome": r["metrics"].get("outcome", {}).get("result"),
+            **_hold_seed(r["metrics"].get("economy", {"holds": []})),
         })  # fmt: skip
     return out
 
@@ -915,6 +940,15 @@ def _shortfall_lines(name: str, f: dict[str, Any]) -> list[str]:
     ]
 
 
+def _mins(by_key: dict[str, float]) -> str:
+    return ", ".join(f"{k} {_fmt(v)}" for k, v in by_key.items()) or "none"
+
+
+def _downs(d: dict[str, Any]) -> str:
+    """`fire 3 (12.0 min), starved 1 (4.5 min)`: events and minutes down by inferred cause."""
+    return ", ".join(f"{c} {d['events'][c]} ({_fmt(d['minutes'][c])} min)" for c in d["events"])
+
+
 def _economy_lines(report: dict[str, Any]) -> list[str]:
     lines = ["## Economy (ECONOMY §4, NX-412; per run-hour means, pooled over seeds)", ""]
     rows = [
@@ -956,8 +990,9 @@ def _economy_lines(report: dict[str, Any]) -> list[str]:
             f"victory holds {e['holds']} (broken {e['holds_broken']}, resumed "
             f"{e['holds_resumed']}, resets {e['hold_resets'] or 'none'}, paused "
             f"{e['holds_paused']} by {e['hold_pauses'] or 'none'}, paused min "
-            f"{_fmt(e['hold_paused_min'])}, per hold "
-            f"{[round(m, 1) for m in e['paused_min_per_hold']]}), "
+            f"{_fmt(e['hold_paused_min'])} (by reason {_mins(e['paused_min_by_reason'])}), per "
+            f"hold {[round(m, 1) for m in e['paused_min_per_hold']]}), coalition defenses down "
+            f"{_downs(e['defenses_down'])}, "
             f"Static operations per hold {e['ops_per_hold']}; peak coalition armed units vs peak "
             f"viewers per seed "
             f"{e['army_vs_viewers']}; grounded by previous state {share or 'none'}",
@@ -1201,6 +1236,24 @@ def markdown(report: dict[str, Any]) -> str:
                 f"(> {p['a2_tail']['limit_s']:g} s)",
                 _fmt(p["idle_mean"], ".0%"),
                 _fmt(p["idle_max"], ".0%"),
+            ]
+            for n, a in report["profiles"].items()
+            for p in a["per_seed"]
+        ],
+    )  # fmt: skip
+    lines += ["## Per seed: victory holds, pauses and defenses down (O0, Q-TD-139)", ""]
+    lines += _table(
+        ["Profile", "Seed", "Outcome", "Holds", "Paused min by reason",
+         "Downs fire/starved", "Down min fire/starved"],
+        [
+            [
+                n,
+                str(p["seed"]),
+                p["outcome"] or "not ended",
+                str(p["holds"]),
+                _mins(p["paused_min_by_reason"]),
+                f"{p['downs']['events']['fire']}/{p['downs']['events']['starved']}",
+                f"{_fmt(p['downs']['minutes']['fire'])}/{_fmt(p['downs']['minutes']['starved'])}",
             ]
             for n, a in report["profiles"].items()
             for p in a["per_seed"]
