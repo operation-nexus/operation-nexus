@@ -359,6 +359,7 @@ def failed_run(profile: str, seed: int, hours: float, error: str) -> dict[str, A
                 "longest_min": 0.0,
                 "by_node": {},
             },
+            "who_took": {},
             "escort_jobs": [],
             "income_clip": {
                 s: {"due": 0, "produced": 0, "lost": 0} for s in ("COALITION", "ENEMY")
