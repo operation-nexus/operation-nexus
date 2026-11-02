@@ -16,17 +16,30 @@ import sys
 
 HEADING = re.compile(r"^(#{1,6})\s+(.*?)\s*#*\s*$")
 TRAILING_CITE = re.compile(r"\s*\([^()]*\)$")  # "Budgets (Q-SIM-4, Q-SIM-6)" also matches "Budgets"
+FENCE = re.compile(r"^ {0,3}(`{3,}|~{3,})(.*)$")  # CommonMark fence: up to 3 spaces, then ``` or ~~~
+
+
+def _fence_close(line: str, opener: str) -> bool:
+    """True when `line` closes a fence opened with `opener`: same character, at least as long, nothing after it."""
+    m = FENCE.match(line)
+    return bool(m) and m.group(1)[0] == opener[0] and len(m.group(1)) >= len(opener) and not m.group(2).strip()
 
 
 def section(lines: list[str], wanted: str) -> list[str] | None:
     """The heading line matching `wanted` and its body, or None."""
     key = wanted.strip().rstrip(".").lower()
     start = level = -1
-    fenced = False
+    opener = ""  # the open fence's marker, "" when outside a fence
     for i, line in enumerate(lines):
-        if line.lstrip().startswith("```"):
-            fenced = not fenced
-        m = None if fenced else HEADING.match(line)
+        if opener:
+            if _fence_close(line, opener):
+                opener = ""
+            continue
+        fence = FENCE.match(line)
+        if fence and not (fence.group(1)[0] == "`" and "`" in fence.group(2)):  # a backtick info string has no "`"
+            opener = fence.group(1)
+            continue
+        m = HEADING.match(line)
         if not m:
             continue
         depth = len(m.group(1))
@@ -36,7 +49,7 @@ def section(lines: list[str], wanted: str) -> list[str] | None:
             continue
         text = m.group(2)
         first, _, rest = text.partition(" ")
-        names = {text.lower()}
+        names = {text.lower(), TRAILING_CITE.sub("", text).lower()}
         if any(c.isdigit() for c in first):  # "3. Requirements", "SC-10 Budgets (Q-SIM-4)"
             title = rest.strip().lower()
             names |= {first.rstrip(".").lower(), title, TRAILING_CITE.sub("", title)}
@@ -53,7 +66,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         with open(args.spec, encoding="utf-8") as f:
             lines = f.read().splitlines()
-    except OSError as e:
+    except (OSError, UnicodeDecodeError) as e:
         print(f"spec_section: cannot read {args.spec}: {e}", file=sys.stderr)
         return 2
     found = section(lines, args.section)
