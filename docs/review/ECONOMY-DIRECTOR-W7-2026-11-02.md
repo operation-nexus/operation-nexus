@@ -4,6 +4,8 @@ Read-only design review (W7, NX-415), 2026-11-02, against develop at fcf5505. Th
 Citations are `file:line` from that tree. Paths: `core/` = `services/sim/src/nexus/core/`.
 Anything the code or harness data does not show is marked **[HYPOTHESIS]** or **[UNVERIFIED]**.
 
+> **Measured 2026-11-02 (K0 #598, [`HARNESS-K0-2026-11-02.md`](HARNESS-K0-2026-11-02.md)): H1 is wrong.** The stalled seeds barely pause (s8 7.4 min of defenses-down pauses; s9 never started a victory hold). They stall before a hold forms, in a front contested by mostly enemy-fire downs (79% in the stalled seeds). O1 is not recommended.
+
 ## 0. Facts that frame everything below
 
 - There are three stock numbers, not one:
