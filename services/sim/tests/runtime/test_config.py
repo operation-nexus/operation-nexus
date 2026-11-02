@@ -1324,7 +1324,7 @@ def test_world_ticks_worked_examples(seconds: float, ticks: int) -> None:
 
 
 def test_game_ticks_round_up_decimal_not_binary() -> None:
-    assert game_ticks(0.25, CFG) == 3  # SIM-CORE §8 SC-12 example
+    assert game_ticks(0.25, CFG) == 3  # SIM-CORE §7 item 12 example
     assert game_ticks(0.1, CFG) == 1  # 0.1 as a binary float is a hair above 1/10
 
 

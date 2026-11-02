@@ -2,7 +2,7 @@
 
 | Spec | Scope | Phase |
 |---|---|---|
-| [SIM-CORE](SIM-CORE.md) | Tick loop, world model, determinism, budgets | P1 |
+| [SIM-CORE](SIM-CORE.md) | Tick loop, world model, determinism, budgets (normative rules; history and "in code now" in [SIM-CORE-NOTES](SIM-CORE-NOTES.md)) | P1 |
 | [GAMEPLAY](GAMEPLAY.md) | Roles, commands, logistics, capture, win/loss, campaign | P1 |
 | [ERROR-PIPELINE](ERROR-PIPELINE.md) | Errors, CI and harness failures → `error` tickets → agent fixes | P1 |
 | [COMMAND-CATALOG](COMMAND-CATALOG.md) | Every chat command and its intent, syntax, rank and phase | P1 |
