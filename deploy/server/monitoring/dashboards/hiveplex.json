@@ -6,7 +6,7 @@
  ],
  "timezone": "browser",
  "schemaVersion": 39,
- "version": 4,
+ "version": 5,
  "refresh": "30s",
  "time": {
   "from": "now-24h",
@@ -70,6 +70,42 @@
       "selected": true,
       "text": "1795064400",
       "value": "1795064400"
+     }
+    ]
+   },
+   {
+    "name": "last_bill_kwh",
+    "label": "Latest bill energy (kWh, whole home, 23 Sep to 22 Oct 2026)",
+    "type": "constant",
+    "query": "213.93",
+    "hide": 2,
+    "current": {
+     "text": "213.93",
+     "value": "213.93"
+    },
+    "options": [
+     {
+      "selected": true,
+      "text": "213.93",
+      "value": "213.93"
+     }
+    ]
+   },
+   {
+    "name": "last_bill_cost",
+    "label": "Latest bill total ($, whole home, 23 Sep to 22 Oct 2026)",
+    "type": "constant",
+    "query": "55.19",
+    "hide": 2,
+    "current": {
+     "text": "55.19",
+     "value": "55.19"
+    },
+    "options": [
+     {
+      "selected": true,
+      "text": "55.19",
+      "value": "55.19"
      }
     ]
    }
@@ -368,7 +404,24 @@
    "fieldConfig": {
     "defaults": {
      "unit": "s",
-     "decimals": 3
+     "decimals": 3,
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "orange",
+        "value": 0.1
+       },
+       {
+        "color": "red",
+        "value": 0.25
+       }
+      ]
+     }
     },
     "overrides": []
    },
@@ -419,7 +472,16 @@
    "fieldConfig": {
     "defaults": {
      "unit": "watt",
-     "decimals": 1
+     "decimals": 1,
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "blue",
+        "value": null
+       }
+      ]
+     }
     },
     "overrides": []
    },
@@ -457,7 +519,16 @@
    "fieldConfig": {
     "defaults": {
      "unit": "kwatth",
-     "decimals": 3
+     "decimals": 3,
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "blue",
+        "value": null
+       }
+      ]
+     }
     },
     "overrides": []
    },
@@ -495,7 +566,16 @@
    "fieldConfig": {
     "defaults": {
      "unit": "currencyUSD",
-     "decimals": 2
+     "decimals": 2,
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "blue",
+        "value": null
+       }
+      ]
+     }
     },
     "overrides": []
    },
@@ -535,7 +615,16 @@
    "fieldConfig": {
     "defaults": {
      "unit": "currencyUSD",
-     "decimals": 2
+     "decimals": 2,
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "blue",
+        "value": null
+       }
+      ]
+     }
     },
     "overrides": []
    },
@@ -553,7 +642,7 @@
   {
    "id": 13,
    "type": "stat",
-   "title": "Projected / month: PC",
+   "title": "Projected / month: PC plug",
    "datasource": {
     "type": "prometheus",
     "uid": "prometheus"
@@ -574,7 +663,16 @@
    "fieldConfig": {
     "defaults": {
      "unit": "currencyUSD",
-     "decimals": 2
+     "decimals": 2,
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "blue",
+        "value": null
+       }
+      ]
+     }
     },
     "overrides": []
    },
@@ -586,7 +684,8 @@
     },
     "colorMode": "value",
     "graphMode": "area"
-   }
+   },
+   "description": "The PC plug feeds a power strip: the PC, two screens, an unmanaged switch, a lamp (almost never on) and a laptop charger (sometimes). All of it is counted here."
   },
   {
    "id": 14,
@@ -612,7 +711,16 @@
    "fieldConfig": {
     "defaults": {
      "unit": "currencyUSD",
-     "decimals": 2
+     "decimals": 2,
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "blue",
+        "value": null
+       }
+      ]
+     }
     },
     "overrides": []
    },
@@ -753,6 +861,437 @@
    "description": "Energy so far plus the last 24 hours' average power carried to the end of 18 Nov, times the rate. A rough projection, not a bill."
   },
   {
+   "id": 47,
+   "type": "stat",
+   "title": "Project share of latest bill: energy",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 13,
+    "w": 4,
+    "h": 4
+   },
+   "targets": [
+    {
+     "expr": "sum(avg_over_time(kasa_power_watts[7d])) * 24 * 30 / 1000 / $last_bill_kwh",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percentunit",
+     "decimals": 0,
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "blue",
+        "value": null
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "value",
+    "graphMode": "none",
+    "textMode": "value"
+   },
+   "description": "Both plugs' 7-day average power carried over 30 days, divided by the latest whole-home bill's kWh (213.93). The bills before the plugs include some of this load already, so read it as a share, not as extra cost."
+  },
+  {
+   "id": 48,
+   "type": "stat",
+   "title": "Project share of latest bill: cost",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 4,
+    "y": 13,
+    "w": 4,
+    "h": 4
+   },
+   "targets": [
+    {
+     "expr": "sum(avg_over_time(kasa_power_watts[7d])) * 24 * 30 / 1000 * $rate / $last_bill_cost",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percentunit",
+     "decimals": 0,
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "blue",
+        "value": null
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "value",
+    "graphMode": "none",
+    "textMode": "value"
+   },
+   "description": "The same, in dollars at the chosen rate, over the latest bill's total ($55.19). The marginal rate leaves out the fixed customer charge, so it reads lower than the all-in rate."
+  },
+  {
+   "id": 49,
+   "type": "stat",
+   "title": "Project energy per 30 days (7-day average)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 8,
+    "y": 13,
+    "w": 4,
+    "h": 4
+   },
+   "targets": [
+    {
+     "expr": "sum(avg_over_time(kasa_power_watts[7d])) * 24 * 30 / 1000",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "kwatth",
+     "decimals": 0,
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "blue",
+        "value": null
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "value",
+    "graphMode": "none",
+    "textMode": "value"
+   },
+   "description": "Both plugs, from the last 7 days (or all the history there is if shorter)."
+  },
+  {
+   "id": 50,
+   "type": "stat",
+   "title": "Idle floor: cost per month",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 13,
+    "w": 4,
+    "h": 4
+   },
+   "targets": [
+    {
+     "expr": "quantile_over_time(0.05, (sum(kasa_power_watts) and on() (count(kasa_power_watts) == 2))[7d:1m]) * 24 * 30 / 1000 * $rate",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "currencyUSD",
+     "decimals": 2,
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "blue",
+        "value": null
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "value",
+    "graphMode": "none",
+    "textMode": "value"
+   },
+   "description": "The 5th-percentile combined power of the last 7 days, counting only moments when both plugs read (about what both machines draw doing nothing), carried over 30 days at the chosen rate. This part is paid whether or not the harness runs."
+  },
+  {
+   "id": 51,
+   "type": "stat",
+   "title": "Above idle (harness and gaming): cost per month",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 16,
+    "y": 13,
+    "w": 4,
+    "h": 4
+   },
+   "targets": [
+    {
+     "expr": "(sum(avg_over_time(kasa_power_watts[7d])) - quantile_over_time(0.05, (sum(kasa_power_watts) and on() (count(kasa_power_watts) == 2))[7d:1m])) * 24 * 30 / 1000 * $rate",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "currencyUSD",
+     "decimals": 2,
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "blue",
+        "value": null
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "value",
+    "graphMode": "none",
+    "textMode": "value"
+   },
+   "description": "7-day average power minus the idle floor, over 30 days at the chosen rate. This is the cost of actually using the machines."
+  },
+  {
+   "id": 52,
+   "type": "stat",
+   "title": "Latest whole-home bill",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 20,
+    "y": 13,
+    "w": 4,
+    "h": 4
+   },
+   "targets": [
+    {
+     "expr": "vector($last_bill_cost)",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "currencyUSD",
+     "decimals": 2,
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "blue",
+        "value": null
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ],
+     "fields": "",
+     "values": false
+    },
+    "colorMode": "value",
+    "graphMode": "none",
+    "textMode": "value"
+   },
+   "description": "AES Ohio bill for 23 Sep to 22 Oct 2026: $55.19 for 213.93 kWh (all home, not just the project). Update the hidden last_bill_cost and last_bill_kwh values when a new bill arrives."
+  },
+  {
+   "id": 53,
+   "type": "timeseries",
+   "title": "This bill period: actual cost so far vs projected total (blue actual, orange dashed projected, white dotted latest whole-home bill)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 17,
+    "w": 24,
+    "h": 8
+   },
+   "targets": [
+    {
+     "expr": "sum_over_time((sum(kasa_power_watts) * (time() >= bool $bill_start))[60d:1m]) / 60 / 1000 * $rate",
+     "legendFormat": "Actual so far",
+     "refId": "A"
+    },
+    {
+     "expr": "((sum_over_time((sum(kasa_power_watts) * (time() >= bool $bill_start))[60d:1m]) / 60 / 1000) + sum(avg_over_time(kasa_power_watts[24h])) / 1000 * clamp_min(vector($bill_end - time()), 0) / 3600) * $rate",
+     "legendFormat": "Projected to 18 Nov",
+     "refId": "B"
+    },
+    {
+     "expr": "vector($last_bill_cost)",
+     "legendFormat": "Latest whole-home bill",
+     "refId": "C"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "currencyUSD",
+     "min": 0,
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 6,
+      "showPoints": "never",
+      "spanNulls": true
+     }
+    },
+    "overrides": [
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "Actual so far"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "blue"
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "Projected to 18 Nov"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "orange"
+        }
+       },
+       {
+        "id": "custom.lineStyle",
+        "value": {
+         "fill": "dash",
+         "dash": [
+          10,
+          10
+         ]
+        }
+       }
+      ]
+     },
+     {
+      "matcher": {
+       "id": "byName",
+       "options": "Latest whole-home bill"
+      },
+      "properties": [
+       {
+        "id": "color",
+        "value": {
+         "mode": "fixed",
+         "fixedColor": "white"
+        }
+       },
+       {
+        "id": "custom.lineStyle",
+        "value": {
+         "fill": "dot",
+         "dash": [
+          2,
+          6
+         ]
+        }
+       },
+       {
+        "id": "custom.fillOpacity",
+        "value": 0
+       }
+      ]
+     }
+    ]
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   },
+   "description": "Actual = recorded watts from 23 Oct, at the chosen rate. Projected = actual plus the last 24 h's average carried to the end of 18 Nov. The projection should settle onto the actual line as the period ends. The dotted line is the whole house's latest bill, for scale only."
+  },
+  {
    "id": 15,
    "type": "timeseries",
    "title": "Power by machine (W)  (PC blue, Server orange, Total white)",
@@ -762,7 +1301,7 @@
    },
    "gridPos": {
     "x": 0,
-    "y": 13,
+    "y": 25,
     "w": 12,
     "h": 8
    },
@@ -876,7 +1415,7 @@
    },
    "gridPos": {
     "x": 12,
-    "y": 13,
+    "y": 25,
     "w": 12,
     "h": 8
    },
@@ -991,7 +1530,7 @@
    },
    "gridPos": {
     "x": 0,
-    "y": 21,
+    "y": 33,
     "w": 12,
     "h": 8
    },
@@ -1077,7 +1616,7 @@
    },
    "gridPos": {
     "x": 12,
-    "y": 21,
+    "y": 33,
     "w": 12,
     "h": 8
    },
@@ -1160,7 +1699,7 @@
    "collapsed": false,
    "gridPos": {
     "x": 0,
-    "y": 29,
+    "y": 41,
     "w": 24,
     "h": 1
    },
@@ -1176,7 +1715,7 @@
    },
    "gridPos": {
     "x": 0,
-    "y": 30,
+    "y": 42,
     "w": 4,
     "h": 4
    },
@@ -1192,7 +1731,16 @@
      "unit": "percent",
      "decimals": 1,
      "min": 0,
-     "max": 100
+     "max": 100,
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "blue",
+        "value": null
+       }
+      ]
+     }
     },
     "overrides": []
    },
@@ -1204,7 +1752,8 @@
     },
     "colorMode": "value",
     "graphMode": "area"
-   }
+   },
+   "description": "Blue on purpose: a busy PC is the harness doing its job, not a fault. Memory and disk panels turn orange then red."
   },
   {
    "id": 21,
@@ -1216,7 +1765,7 @@
    },
    "gridPos": {
     "x": 4,
-    "y": 30,
+    "y": 42,
     "w": 4,
     "h": 4
    },
@@ -1232,7 +1781,24 @@
      "unit": "percent",
      "decimals": 1,
      "min": 0,
-     "max": 100
+     "max": 100,
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "orange",
+        "value": 75
+       },
+       {
+        "color": "red",
+        "value": 90
+       }
+      ]
+     }
     },
     "overrides": []
    },
@@ -1256,7 +1822,7 @@
    },
    "gridPos": {
     "x": 8,
-    "y": 30,
+    "y": 42,
     "w": 4,
     "h": 4
    },
@@ -1272,7 +1838,24 @@
      "unit": "percent",
      "decimals": 1,
      "min": 0,
-     "max": 100
+     "max": 100,
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "orange",
+        "value": 80
+       },
+       {
+        "color": "red",
+        "value": 90
+       }
+      ]
+     }
     },
     "overrides": []
    },
@@ -1296,7 +1879,7 @@
    },
    "gridPos": {
     "x": 12,
-    "y": 30,
+    "y": 42,
     "w": 4,
     "h": 4
    },
@@ -1309,7 +1892,24 @@
    ],
    "fieldConfig": {
     "defaults": {
-     "unit": "s"
+     "unit": "s",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "red",
+        "value": null
+       },
+       {
+        "color": "orange",
+        "value": 600
+       },
+       {
+        "color": "green",
+        "value": 3600
+       }
+      ]
+     }
     },
     "overrides": []
    },
@@ -1333,7 +1933,7 @@
    },
    "gridPos": {
     "x": 16,
-    "y": 30,
+    "y": 42,
     "w": 4,
     "h": 4
    },
@@ -1347,7 +1947,16 @@
    "fieldConfig": {
     "defaults": {
      "unit": "watt",
-     "decimals": 1
+     "decimals": 1,
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "blue",
+        "value": null
+       }
+      ]
+     }
     },
     "overrides": []
    },
@@ -1359,7 +1968,8 @@
     },
     "colorMode": "value",
     "graphMode": "area"
-   }
+   },
+   "description": "The PC plug feeds a power strip: the PC, two screens, an unmanaged switch, a lamp (almost never on) and a laptop charger (sometimes). All of it is counted here."
   },
   {
    "id": 25,
@@ -1371,7 +1981,7 @@
    },
    "gridPos": {
     "x": 20,
-    "y": 30,
+    "y": 42,
     "w": 4,
     "h": 4
    },
@@ -1385,7 +1995,16 @@
    "fieldConfig": {
     "defaults": {
      "unit": "kwatth",
-     "decimals": 3
+     "decimals": 3,
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "blue",
+        "value": null
+       }
+      ]
+     }
     },
     "overrides": []
    },
@@ -1409,7 +2028,7 @@
    },
    "gridPos": {
     "x": 0,
-    "y": 34,
+    "y": 46,
     "w": 12,
     "h": 8
    },
@@ -1459,7 +2078,7 @@
    },
    "gridPos": {
     "x": 12,
-    "y": 34,
+    "y": 46,
     "w": 12,
     "h": 8
    },
@@ -1499,495 +2118,6 @@
    }
   },
   {
-   "id": 28,
-   "type": "row",
-   "title": "Server (hiveplex-linux)",
-   "collapsed": false,
-   "gridPos": {
-    "x": 0,
-    "y": 50,
-    "w": 24,
-    "h": 1
-   },
-   "panels": []
-  },
-  {
-   "id": 29,
-   "type": "stat",
-   "title": "CPU %",
-   "datasource": {
-    "type": "prometheus",
-    "uid": "prometheus"
-   },
-   "gridPos": {
-    "x": 0,
-    "y": 51,
-    "w": 4,
-    "h": 4
-   },
-   "targets": [
-    {
-     "expr": "100 - avg(rate(node_cpu_seconds_total{mode=\"idle\"}[2m])) * 100",
-     "legendFormat": "",
-     "refId": "A"
-    }
-   ],
-   "fieldConfig": {
-    "defaults": {
-     "unit": "percent",
-     "decimals": 1,
-     "min": 0,
-     "max": 100
-    },
-    "overrides": []
-   },
-   "options": {
-    "reduceOptions": {
-     "calcs": [
-      "lastNotNull"
-     ]
-    },
-    "colorMode": "value",
-    "graphMode": "area"
-   }
-  },
-  {
-   "id": 30,
-   "type": "stat",
-   "title": "Memory used %",
-   "datasource": {
-    "type": "prometheus",
-    "uid": "prometheus"
-   },
-   "gridPos": {
-    "x": 4,
-    "y": 51,
-    "w": 4,
-    "h": 4
-   },
-   "targets": [
-    {
-     "expr": "100 * (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)",
-     "legendFormat": "",
-     "refId": "A"
-    }
-   ],
-   "fieldConfig": {
-    "defaults": {
-     "unit": "percent",
-     "decimals": 1,
-     "min": 0,
-     "max": 100
-    },
-    "overrides": []
-   },
-   "options": {
-    "reduceOptions": {
-     "calcs": [
-      "lastNotNull"
-     ]
-    },
-    "colorMode": "value",
-    "graphMode": "area"
-   }
-  },
-  {
-   "id": 31,
-   "type": "stat",
-   "title": "Disk used % (/)",
-   "datasource": {
-    "type": "prometheus",
-    "uid": "prometheus"
-   },
-   "gridPos": {
-    "x": 8,
-    "y": 51,
-    "w": 4,
-    "h": 4
-   },
-   "targets": [
-    {
-     "expr": "100 * (1 - node_filesystem_avail_bytes{mountpoint=\"/\"} / node_filesystem_size_bytes{mountpoint=\"/\"})",
-     "legendFormat": "",
-     "refId": "A"
-    }
-   ],
-   "fieldConfig": {
-    "defaults": {
-     "unit": "percent",
-     "decimals": 1,
-     "min": 0,
-     "max": 100
-    },
-    "overrides": []
-   },
-   "options": {
-    "reduceOptions": {
-     "calcs": [
-      "lastNotNull"
-     ]
-    },
-    "colorMode": "value",
-    "graphMode": "area"
-   }
-  },
-  {
-   "id": 32,
-   "type": "stat",
-   "title": "Uptime",
-   "datasource": {
-    "type": "prometheus",
-    "uid": "prometheus"
-   },
-   "gridPos": {
-    "x": 12,
-    "y": 51,
-    "w": 4,
-    "h": 4
-   },
-   "targets": [
-    {
-     "expr": "time() - node_boot_time_seconds",
-     "legendFormat": "",
-     "refId": "A"
-    }
-   ],
-   "fieldConfig": {
-    "defaults": {
-     "unit": "s"
-    },
-    "overrides": []
-   },
-   "options": {
-    "reduceOptions": {
-     "calcs": [
-      "lastNotNull"
-     ]
-    },
-    "colorMode": "value",
-    "graphMode": "area"
-   }
-  },
-  {
-   "id": 33,
-   "type": "stat",
-   "title": "Power now",
-   "datasource": {
-    "type": "prometheus",
-    "uid": "prometheus"
-   },
-   "gridPos": {
-    "x": 16,
-    "y": 51,
-    "w": 4,
-    "h": 4
-   },
-   "targets": [
-    {
-     "expr": "kasa_power_watts{plug=\"server\"}",
-     "legendFormat": "",
-     "refId": "A"
-    }
-   ],
-   "fieldConfig": {
-    "defaults": {
-     "unit": "watt",
-     "decimals": 1
-    },
-    "overrides": []
-   },
-   "options": {
-    "reduceOptions": {
-     "calcs": [
-      "lastNotNull"
-     ]
-    },
-    "colorMode": "value",
-    "graphMode": "area"
-   }
-  },
-  {
-   "id": 34,
-   "type": "stat",
-   "title": "Energy today",
-   "datasource": {
-    "type": "prometheus",
-    "uid": "prometheus"
-   },
-   "gridPos": {
-    "x": 20,
-    "y": 51,
-    "w": 4,
-    "h": 4
-   },
-   "targets": [
-    {
-     "expr": "kasa_energy_today_kwh{plug=\"server\"}",
-     "legendFormat": "",
-     "refId": "A"
-    }
-   ],
-   "fieldConfig": {
-    "defaults": {
-     "unit": "kwatth",
-     "decimals": 3
-    },
-    "overrides": []
-   },
-   "options": {
-    "reduceOptions": {
-     "calcs": [
-      "lastNotNull"
-     ]
-    },
-    "colorMode": "value",
-    "graphMode": "area"
-   }
-  },
-  {
-   "id": 35,
-   "type": "timeseries",
-   "title": "CPU % and load",
-   "datasource": {
-    "type": "prometheus",
-    "uid": "prometheus"
-   },
-   "gridPos": {
-    "x": 0,
-    "y": 55,
-    "w": 12,
-    "h": 8
-   },
-   "targets": [
-    {
-     "expr": "100 - avg(rate(node_cpu_seconds_total{mode=\"idle\"}[2m])) * 100",
-     "legendFormat": "cpu used %",
-     "refId": "A"
-    },
-    {
-     "expr": "node_load1",
-     "legendFormat": "load 1m",
-     "refId": "B"
-    }
-   ],
-   "fieldConfig": {
-    "defaults": {
-     "unit": "short",
-     "custom": {
-      "lineWidth": 2,
-      "fillOpacity": 8,
-      "showPoints": "never",
-      "spanNulls": true
-     },
-     "min": 0
-    },
-    "overrides": []
-   },
-   "options": {
-    "legend": {
-     "displayMode": "list",
-     "placement": "bottom"
-    },
-    "tooltip": {
-     "mode": "multi"
-    }
-   }
-  },
-  {
-   "id": 36,
-   "type": "timeseries",
-   "title": "Memory %, disk % and network",
-   "datasource": {
-    "type": "prometheus",
-    "uid": "prometheus"
-   },
-   "gridPos": {
-    "x": 12,
-    "y": 55,
-    "w": 12,
-    "h": 8
-   },
-   "targets": [
-    {
-     "expr": "100 * (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)",
-     "legendFormat": "memory used %",
-     "refId": "A"
-    },
-    {
-     "expr": "100 * (1 - node_filesystem_avail_bytes{mountpoint=\"/\"} / node_filesystem_size_bytes{mountpoint=\"/\"})",
-     "legendFormat": "disk used %",
-     "refId": "B"
-    },
-    {
-     "expr": "rate(node_network_receive_bytes_total{device=\"enp3s0\"}[2m]) * 8 / 1e6",
-     "legendFormat": "rx Mbps",
-     "refId": "C"
-    },
-    {
-     "expr": "rate(node_network_transmit_bytes_total{device=\"enp3s0\"}[2m]) * 8 / 1e6",
-     "legendFormat": "tx Mbps",
-     "refId": "D"
-    }
-   ],
-   "fieldConfig": {
-    "defaults": {
-     "unit": "short",
-     "custom": {
-      "lineWidth": 2,
-      "fillOpacity": 8,
-      "showPoints": "never",
-      "spanNulls": true
-     },
-     "min": 0
-    },
-    "overrides": []
-   },
-   "options": {
-    "legend": {
-     "displayMode": "list",
-     "placement": "bottom"
-    },
-    "tooltip": {
-     "mode": "multi"
-    }
-   }
-  },
-  {
-   "id": 37,
-   "type": "row",
-   "title": "Network quality",
-   "collapsed": false,
-   "gridPos": {
-    "x": 0,
-    "y": 63,
-    "w": 24,
-    "h": 1
-   },
-   "panels": []
-  },
-  {
-   "id": 38,
-   "type": "timeseries",
-   "title": "Ping latency (s)",
-   "datasource": {
-    "type": "prometheus",
-    "uid": "prometheus"
-   },
-   "gridPos": {
-    "x": 0,
-    "y": 64,
-    "w": 12,
-    "h": 8
-   },
-   "targets": [
-    {
-     "expr": "probe_duration_seconds{job=\"ping\"}",
-     "legendFormat": "{{name}}",
-     "refId": "A"
-    }
-   ],
-   "fieldConfig": {
-    "defaults": {
-     "unit": "s",
-     "custom": {
-      "lineWidth": 2,
-      "fillOpacity": 8,
-      "showPoints": "never",
-      "spanNulls": true
-     },
-     "min": 0
-    },
-    "overrides": []
-   },
-   "options": {
-    "legend": {
-     "displayMode": "list",
-     "placement": "bottom"
-    },
-    "tooltip": {
-     "mode": "multi"
-    }
-   }
-  },
-  {
-   "id": 39,
-   "type": "timeseries",
-   "title": "Reachability (1 = up)",
-   "datasource": {
-    "type": "prometheus",
-    "uid": "prometheus"
-   },
-   "gridPos": {
-    "x": 12,
-    "y": 64,
-    "w": 12,
-    "h": 8
-   },
-   "targets": [
-    {
-     "expr": "probe_success{job=\"ping\"}",
-     "legendFormat": "ping {{name}}",
-     "refId": "A"
-    },
-    {
-     "expr": "probe_success{job=\"web\"}",
-     "legendFormat": "web {{name}}",
-     "refId": "B"
-    }
-   ],
-   "fieldConfig": {
-    "defaults": {
-     "unit": "short",
-     "custom": {
-      "lineWidth": 2,
-      "fillOpacity": 8,
-      "showPoints": "never",
-      "spanNulls": true
-     },
-     "min": 0,
-     "max": 1.1
-    },
-    "overrides": []
-   },
-   "options": {
-    "legend": {
-     "displayMode": "list",
-     "placement": "bottom"
-    },
-    "tooltip": {
-     "mode": "multi"
-    }
-   }
-  },
-  {
-   "id": 40,
-   "type": "row",
-   "title": "Notes",
-   "collapsed": false,
-   "gridPos": {
-    "x": 0,
-    "y": 72,
-    "w": 24,
-    "h": 1
-   },
-   "panels": []
-  },
-  {
-   "id": 41,
-   "type": "text",
-   "title": "Rates and what is not here yet",
-   "gridPos": {
-    "x": 0,
-    "y": 73,
-    "w": 24,
-    "h": 7
-   },
-   "options": {
-    "mode": "markdown",
-    "content": "**Rates (from the owner's AES Ohio bills, 2026-04-28 to 2026-10-22; derived by Claude, not billed per-kWh figures [UNVERIFIED]):**\n- The default rate is the **marginal** $0.2124/kWh: supply $23.22 + other delivery charges $22.22 over 213.93 kWh on the latest bill, leaving out the fixed $9.75 customer charge (assumes other delivery charges scale with kWh). The **all-in average** ($55.19 / 213.93 kWh) is $0.2580/kWh. Pick either in the `rate` list at the top. A straight-line fit over six bills gives about $9.52 + $0.2024/kWh. The billing-period boxes use the dates in the hidden `bill_start`/`bill_end` values; update them and this list when a new bill arrives.\n\n**Plugs:** both plugs report watts, volts, amps and energy (server `192.168.1.66`, PC `192.168.1.6`). The cost charts accumulate only from when each plug was installed, and a projection from a short history is rough: the PC's draw changes a lot with harness load and gaming.\n\n**Not here yet:** the PC's GPU load, replay-archive size and Loki logs. Big-number view for the screen: dashboard \"Hiveplex at a glance (kiosk)\"."
-   }
-  },
-  {
    "id": 45,
    "type": "timeseries",
    "title": "PC CPU speed (MHz) and busy %  (a busy CPU holding about 4,300 is not throttling; a dip while busy is)",
@@ -1997,7 +2127,7 @@
    },
    "gridPos": {
     "x": 0,
-    "y": 42,
+    "y": 54,
     "w": 18,
     "h": 8
    },
@@ -2131,7 +2261,7 @@
    },
    "gridPos": {
     "x": 18,
-    "y": 42,
+    "y": 54,
     "w": 6,
     "h": 8
    },
@@ -2176,6 +2306,581 @@
       "lastNotNull"
      ]
     }
+   }
+  },
+  {
+   "id": 28,
+   "type": "row",
+   "title": "Server (hiveplex-linux)",
+   "collapsed": false,
+   "gridPos": {
+    "x": 0,
+    "y": 62,
+    "w": 24,
+    "h": 1
+   },
+   "panels": []
+  },
+  {
+   "id": 29,
+   "type": "stat",
+   "title": "CPU %",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 63,
+    "w": 4,
+    "h": 4
+   },
+   "targets": [
+    {
+     "expr": "100 - avg(rate(node_cpu_seconds_total{mode=\"idle\"}[2m])) * 100",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percent",
+     "decimals": 1,
+     "min": 0,
+     "max": 100,
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "orange",
+        "value": 70
+       },
+       {
+        "color": "red",
+        "value": 90
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "colorMode": "value",
+    "graphMode": "area"
+   }
+  },
+  {
+   "id": 30,
+   "type": "stat",
+   "title": "Memory used %",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 4,
+    "y": 63,
+    "w": 4,
+    "h": 4
+   },
+   "targets": [
+    {
+     "expr": "100 * (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percent",
+     "decimals": 1,
+     "min": 0,
+     "max": 100,
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "orange",
+        "value": 75
+       },
+       {
+        "color": "red",
+        "value": 90
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "colorMode": "value",
+    "graphMode": "area"
+   }
+  },
+  {
+   "id": 31,
+   "type": "stat",
+   "title": "Disk used % (/)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 8,
+    "y": 63,
+    "w": 4,
+    "h": 4
+   },
+   "targets": [
+    {
+     "expr": "100 * (1 - node_filesystem_avail_bytes{mountpoint=\"/\"} / node_filesystem_size_bytes{mountpoint=\"/\"})",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "percent",
+     "decimals": 1,
+     "min": 0,
+     "max": 100,
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "green",
+        "value": null
+       },
+       {
+        "color": "orange",
+        "value": 80
+       },
+       {
+        "color": "red",
+        "value": 90
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "colorMode": "value",
+    "graphMode": "area"
+   }
+  },
+  {
+   "id": 32,
+   "type": "stat",
+   "title": "Uptime",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 63,
+    "w": 4,
+    "h": 4
+   },
+   "targets": [
+    {
+     "expr": "time() - node_boot_time_seconds",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "s",
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "red",
+        "value": null
+       },
+       {
+        "color": "orange",
+        "value": 600
+       },
+       {
+        "color": "green",
+        "value": 3600
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "colorMode": "value",
+    "graphMode": "area"
+   }
+  },
+  {
+   "id": 33,
+   "type": "stat",
+   "title": "Power now",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 16,
+    "y": 63,
+    "w": 4,
+    "h": 4
+   },
+   "targets": [
+    {
+     "expr": "kasa_power_watts{plug=\"server\"}",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "watt",
+     "decimals": 1,
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "blue",
+        "value": null
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "colorMode": "value",
+    "graphMode": "area"
+   }
+  },
+  {
+   "id": 34,
+   "type": "stat",
+   "title": "Energy today",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 20,
+    "y": 63,
+    "w": 4,
+    "h": 4
+   },
+   "targets": [
+    {
+     "expr": "kasa_energy_today_kwh{plug=\"server\"}",
+     "legendFormat": "",
+     "refId": "A"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "kwatth",
+     "decimals": 3,
+     "thresholds": {
+      "mode": "absolute",
+      "steps": [
+       {
+        "color": "blue",
+        "value": null
+       }
+      ]
+     }
+    },
+    "overrides": []
+   },
+   "options": {
+    "reduceOptions": {
+     "calcs": [
+      "lastNotNull"
+     ]
+    },
+    "colorMode": "value",
+    "graphMode": "area"
+   }
+  },
+  {
+   "id": 35,
+   "type": "timeseries",
+   "title": "CPU % and load",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 67,
+    "w": 12,
+    "h": 8
+   },
+   "targets": [
+    {
+     "expr": "100 - avg(rate(node_cpu_seconds_total{mode=\"idle\"}[2m])) * 100",
+     "legendFormat": "cpu used %",
+     "refId": "A"
+    },
+    {
+     "expr": "node_load1",
+     "legendFormat": "load 1m",
+     "refId": "B"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 8,
+      "showPoints": "never",
+      "spanNulls": true
+     },
+     "min": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   }
+  },
+  {
+   "id": 36,
+   "type": "timeseries",
+   "title": "Memory %, disk % and network",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 67,
+    "w": 12,
+    "h": 8
+   },
+   "targets": [
+    {
+     "expr": "100 * (1 - node_memory_MemAvailable_bytes / node_memory_MemTotal_bytes)",
+     "legendFormat": "memory used %",
+     "refId": "A"
+    },
+    {
+     "expr": "100 * (1 - node_filesystem_avail_bytes{mountpoint=\"/\"} / node_filesystem_size_bytes{mountpoint=\"/\"})",
+     "legendFormat": "disk used %",
+     "refId": "B"
+    },
+    {
+     "expr": "rate(node_network_receive_bytes_total{device=\"enp3s0\"}[2m]) * 8 / 1e6",
+     "legendFormat": "rx Mbps",
+     "refId": "C"
+    },
+    {
+     "expr": "rate(node_network_transmit_bytes_total{device=\"enp3s0\"}[2m]) * 8 / 1e6",
+     "legendFormat": "tx Mbps",
+     "refId": "D"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 8,
+      "showPoints": "never",
+      "spanNulls": true
+     },
+     "min": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   }
+  },
+  {
+   "id": 37,
+   "type": "row",
+   "title": "Network quality",
+   "collapsed": false,
+   "gridPos": {
+    "x": 0,
+    "y": 75,
+    "w": 24,
+    "h": 1
+   },
+   "panels": []
+  },
+  {
+   "id": 38,
+   "type": "timeseries",
+   "title": "Ping latency (s)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 0,
+    "y": 76,
+    "w": 12,
+    "h": 8
+   },
+   "targets": [
+    {
+     "expr": "probe_duration_seconds{job=\"ping\"}",
+     "legendFormat": "{{name}}",
+     "refId": "A"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "s",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 8,
+      "showPoints": "never",
+      "spanNulls": true
+     },
+     "min": 0
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   }
+  },
+  {
+   "id": 39,
+   "type": "timeseries",
+   "title": "Reachability (1 = up)",
+   "datasource": {
+    "type": "prometheus",
+    "uid": "prometheus"
+   },
+   "gridPos": {
+    "x": 12,
+    "y": 76,
+    "w": 12,
+    "h": 8
+   },
+   "targets": [
+    {
+     "expr": "probe_success{job=\"ping\"}",
+     "legendFormat": "ping {{name}}",
+     "refId": "A"
+    },
+    {
+     "expr": "probe_success{job=\"web\"}",
+     "legendFormat": "web {{name}}",
+     "refId": "B"
+    }
+   ],
+   "fieldConfig": {
+    "defaults": {
+     "unit": "short",
+     "custom": {
+      "lineWidth": 2,
+      "fillOpacity": 8,
+      "showPoints": "never",
+      "spanNulls": true
+     },
+     "min": 0,
+     "max": 1.1
+    },
+    "overrides": []
+   },
+   "options": {
+    "legend": {
+     "displayMode": "list",
+     "placement": "bottom"
+    },
+    "tooltip": {
+     "mode": "multi"
+    }
+   }
+  },
+  {
+   "id": 40,
+   "type": "row",
+   "title": "Notes",
+   "collapsed": false,
+   "gridPos": {
+    "x": 0,
+    "y": 84,
+    "w": 24,
+    "h": 1
+   },
+   "panels": []
+  },
+  {
+   "id": 41,
+   "type": "text",
+   "title": "Rates and what is not here yet",
+   "gridPos": {
+    "x": 0,
+    "y": 85,
+    "w": 24,
+    "h": 7
+   },
+   "options": {
+    "mode": "markdown",
+    "content": "**Rates (from the owner's AES Ohio bills, 2026-04-28 to 2026-10-22; derived by Claude, not billed per-kWh figures [UNVERIFIED]):**\n- The default rate is the **marginal** $0.2124/kWh: supply $23.22 + other delivery charges $22.22 over 213.93 kWh on the latest bill, leaving out the fixed $9.75 customer charge (assumes other delivery charges scale with kWh). The **all-in average** ($55.19 / 213.93 kWh) is $0.2580/kWh. Pick either in the `rate` list at the top. A straight-line fit over six bills gives about $9.52 + $0.2024/kWh. The billing-period boxes use the dates in the hidden `bill_start`/`bill_end` values; update them and this list when a new bill arrives.\n\n**What the PC plug feeds:** a power strip with the PC, two screens, an unmanaged switch, a lamp (almost never on) and a laptop charger (sometimes). All of it is in the \"PC\" numbers.\n\n**Colours:** green / orange / red appear only where there is a fault threshold (status, memory, disk, server CPU, ping, uptime after a restart, CPU speed while busy). Power, energy and cost are blue because more is not a fault. The PC's CPU is blue because a busy PC means the harness is working.\n\n**Estimate vs bill:** the row under the billing boxes compares the plugs' recorded energy with the latest whole-home bill, and the chart plots actual cost so far against the projected total for this bill period.\n\n**Plugs:** both plugs report watts, volts, amps and energy (server `192.168.1.66`, PC `192.168.1.6`). The cost charts accumulate only from when each plug was installed, and a projection from a short history is rough: the PC's draw changes a lot with harness load and gaming.\n\n**Not here yet:** the PC's GPU load, replay-archive size and Loki logs. Big-number view for the screen: dashboard \"Hiveplex at a glance (kiosk)\"."
    }
   }
  ]
