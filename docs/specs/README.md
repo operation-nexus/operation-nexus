@@ -9,7 +9,7 @@
 | [COMBAT](COMBAT.md) | Targeting, hit probability, damage, wrecks, stance, who can shoot whom | P1 |
 | [GAMEPLAY-LATER](GAMEPLAY-LATER.md) | Parked later-phase gameplay rules split from GAMEPLAY (Q-GP-1) | P3-P4 |
 | [FOG-OF-WAR](FOG-OF-WAR.md) | Sensor tiers, redaction, director fairness | P1 |
-| [THREAT-DIRECTOR](THREAT-DIRECTOR.md) | Enemy AI tiers, budget, threat memory, advisor | P1 / P4 |
+| [THREAT-DIRECTOR](THREAT-DIRECTOR.md) | Enemy AI tiers, budget, threat memory, advisor (normative rules; history, code map and derived numbers in [THREAT-DIRECTOR-NOTES](THREAT-DIRECTOR-NOTES.md)) | P1 / P4 |
 | [ECONOMY](ECONOMY.md) | Force scaling by economy: income, storage, upkeep, grounding (Approved, NX-412) | P1 |
 | [WIRE-PROTOCOL](WIRE-PROTOCOL.md) | Server→overlay WS protocol, versioning | P2 |
 | [OVERLAY](OVERLAY.md) | Broadcast layout, readability, accessibility, PiP | P2 |
