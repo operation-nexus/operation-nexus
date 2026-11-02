@@ -8,12 +8,20 @@ SANCTUARY, HQ or a facility) to its running sum, resolves the active objective, 
 
 - **Victory** (coalition only: the Static has no mid-war win, Q-SIM-64): the coalition owns the
   enemy HQ (with `campaign.victory.hq_capture`, the default; a Q-CFG-16 option),
-  or has held at least `victory_node_frac` of the strategic nodes for `victory_hold_ticks` running
-  ticks in a row (a dip below the fraction resets the run). The HQ is checked first. The run is
-  public (ECONOMY EC-9, NX-412 part 4): `VictoryHoldStarted{node_ids, ends_at_tick}` on its first
-  tick (the held strategic nodes; the running tick the victory comes on), `VictoryHoldBroken`
-  when it breaks, naming the lowest-id hold node lost; none when the campaign ends during it.
-  `Campaign.hold_nodes` keeps the held strategic nodes while it runs (the director's view).
+  or its hold of at least `victory_node_frac` of the strategic nodes has credited
+  `victory_hold_ticks` running ticks. The HQ is checked first. The hold is public (ECONOMY EC-9,
+  NX-412 part 4): `VictoryHoldStarted{node_ids, ends_at_tick, progress_ticks}` on its first tick
+  (the held strategic nodes; the running tick the victory comes on; the progress carried in),
+  `VictoryHoldBroken{node_id, progress_ticks}` when it breaks, naming the lowest-id hold node
+  lost; none when the campaign ends during it. `Campaign.hold_nodes` keeps the held strategic
+  nodes while it runs (the director's view). A break (EC-9a, NX-489, Q-TD-126) keeps the progress
+  with `hold_break` decay (0 with reset): it drains along the two-stage curve (`_progress`) until
+  the hold resumes from what is left, or `VictoryHoldReset` ends it (DECAYED at 0, or REPAIRED
+  when the other side owns a broken-hold node at full defense hp, with `reset_on_repair`). A
+  decaying hold is not in `hold_nodes`, so the director never sees it. A running hold under the
+  other side's pressure (EC-9b, NX-466, `pause_on_pressure`: `pressure`) gains nothing on that
+  tick and does not reset: `VictoryHoldPaused` on the first such tick after its start,
+  `VictoryHoldResumed` on the first without; `Campaign.hold_paused_ticks` counts the pause.
 - **Defeat** (Q-TH-7): the coalition sanctuary's defense HP has been 0 for `defeat_hold_ticks`
   running ticks in a row (a repair above 0 resets the run; while nobody plays it is held, so a
   war is never lost while chat is asleep, Q-GP-28, and once nobody has played for the hold it
@@ -53,23 +61,32 @@ Deterministic: integer state, Fractions, nodes and entities in id order, one RNG
 
 import math
 from fractions import Fraction
-from typing import NamedTuple
+from typing import Literal, NamedTuple
 
-from nexus.contracts.gen.common.enums import CampaignResult, ObjectiveOutcome, Side
+from nexus.contracts.gen.common.enums import (
+    CampaignResult,
+    ObjectiveOutcome,
+    Side,
+    VictoryHoldPauseReason,
+)
 from nexus.contracts.gen.events.campaign_ended import CampaignEnded, Score
 from nexus.contracts.gen.events.event import Event
 from nexus.contracts.gen.events.node_captured import NodeCaptured
 from nexus.contracts.gen.events.objective_announced import ObjectiveAnnounced
 from nexus.contracts.gen.events.objective_resolved import ObjectiveResolved
 from nexus.contracts.gen.events.victory_hold_broken import VictoryHoldBroken
+from nexus.contracts.gen.events.victory_hold_paused import VictoryHoldPaused
+from nexus.contracts.gen.events.victory_hold_reset import VictoryHoldReset
+from nexus.contracts.gen.events.victory_hold_resumed import VictoryHoldResumed
 from nexus.contracts.gen.events.victory_hold_started import VictoryHoldStarted
 from nexus.core.rng import RngStream
 from nexus.core.rules import CampaignRules, Rules
 from nexus.core.tasking import on_objective
-from nexus.core.world import Objective, World
+from nexus.core.world import Campaign, Objective, World
 
 _COALITION: Side = "COALITION"
 _ENEMY: Side = "ENEMY"
+type VictoryHoldResetReason = Literal["DECAYED", "REPAIRED"]
 _HALF = Fraction(1, 2)  # round half up; the rounding rule, not a tunable
 
 
@@ -190,45 +207,186 @@ def campaign(world: World, out: list[Event]) -> None:
 
 
 def _track_hold(world: World, rc: CampaignRules, holding: bool, out: list[Event]) -> None:
-    """The victory hold run and its nodes (ECONOMY EC-9): `VictoryHoldStarted` on its first
-    running tick, `VictoryHoldBroken` naming the lowest-id hold node lost when it breaks (the
-    fraction is above 0 and not hot-reloadable, so a break always loses one)."""
+    """The victory hold and its nodes (ECONOMY EC-9, EC-9a): `VictoryHoldStarted` on its first
+    running tick, carrying in a decaying hold's progress; `VictoryHoldBroken` naming the
+    lowest-id hold node lost when it breaks (the fraction is above 0 and not hot-reloadable, so a
+    break always loses one), keeping the progress with `hold_decay`; then the decay. EC-9b: a hold
+    already running gains nothing on a pressured tick (`_pause`), and gains again with
+    `VictoryHoldResumed` on the first unpressured one."""
     c = world.campaign
     was = c.hold_nodes
-    c.hold_ticks = c.hold_ticks + 1 if holding else 0
-    c.hold_nodes = (
-        tuple(n for n in rc.strategic if world.owner.get(n) == _COALITION) if holding else ()
-    )
-    if c.hold_ticks == 1:
-        out.append(
-            VictoryHoldStarted.model_construct(
-                kind="VictoryHoldStarted", tick=c.tick + 1, event_seq=world.next_event_seq(),
-                campaign_id=c.id, node_ids=list(c.hold_nodes),
-                ends_at_tick=c.running_ticks + rc.victory_hold_ticks - 1,
-            )
-        )  # fmt: skip
-    elif was and not holding:
+    if holding:
+        if not was and c.hold_broken_nodes and rc.reset_on_repair:
+            node = _repaired(world, c.hold_broken_nodes)
+            if node is not None:  # a repair on the re-hold tick still resets it first
+                _reset(world, "REPAIRED", node, out)
+        carried = 0 if was else _progress(c, rc)  # a fresh hold's 0 or the decayed progress
+        c.hold_broken_ticks, c.hold_broken_nodes = 0, ()
+        c.hold_nodes = tuple(n for n in rc.strategic if world.owner.get(n) == _COALITION)
+        if was and rc.pause_on_pressure and _pause(world, c, out):
+            return  # EC-9b: a paused tick gains nothing; the start tick never pauses
+        c.hold_ticks = (c.hold_ticks if was else carried) + 1
+        if c.hold_paused_ticks:
+            _resume(world, rc, out)
+        if not was:
+            out.append(
+                VictoryHoldStarted.model_construct(
+                    kind="VictoryHoldStarted", tick=c.tick + 1, event_seq=world.next_event_seq(),
+                    campaign_id=c.id, node_ids=list(c.hold_nodes),
+                    ends_at_tick=c.running_ticks + rc.victory_hold_ticks - c.hold_ticks,
+                    progress_ticks=carried,
+                )
+            )  # fmt: skip
+    elif was:
+        c.hold_nodes = ()
+        c.hold_paused_ticks = 0  # a break while paused: EC-9a with the frozen progress
+        if rc.hold_decay:
+            c.hold_broken_nodes = was  # the break tick is t = 0
+        else:
+            c.hold_ticks = 0
         out.append(
             VictoryHoldBroken.model_construct(
                 kind="VictoryHoldBroken", tick=c.tick + 1, event_seq=world.next_event_seq(),
                 campaign_id=c.id, node_id=next(n for n in was if world.owner.get(n) != _COALITION),
+                progress_ticks=c.hold_ticks,
             )
         )  # fmt: skip
+    elif c.hold_broken_nodes:
+        _decay(world, rc, out)
+
+
+def pressure(world: World, node: str, holder: Side) -> VictoryHoldPauseReason | None:
+    """EC-9b: why `node`, a node of `holder`'s hold, is under the other side's pressure this tick,
+    or None. In order: a capture bar of the other side; the node in `defense_down`; a live,
+    non-Disabled claimant of the other side's CAPTURE job on it within `tasking.defend_radius_m`
+    (the defend job's straight-line distance). Reads world state only."""
+    other: Side = _ENEMY if holder == _COALITION else _COALITION
+    bar = world.capture.get(node)
+    if bar is not None and bar.side == other:
+        return "CAPTURE_BAR"
+    if node in world.defense_down:
+        return "DEFENSES_DOWN"
+    rules = world.rules
+    if rules is None or rules.tasking is None:  # no Tasking Board rules: no CAPTURE_OP
+        return None
+    x, y = rules.roads.pos[node]
+    reach = rules.tasking.defend_radius_m
+    for job in world.boards[other].values():
+        if job.kind != "CAPTURE" or job.node != node:
+            continue
+        for eid in job.claims:
+            e = world.find(eid)
+            if (
+                e is not None
+                and e.damage_state != "DISABLED"
+                and math.hypot(e.pos.x - x, e.pos.y - y) <= reach
+            ):
+                return "CAPTURE_OP"
+    return None
+
+
+def _pause(world: World, c: Campaign, out: list[Event]) -> bool:
+    """One running tick of a running hold under EC-9b: True when a hold node is pressured (the
+    tick gains nothing); `VictoryHoldPaused` on the first such tick, naming the lowest-id node."""
+    for node in c.hold_nodes:
+        reason = pressure(world, node, _COALITION)
+        if reason is None:
+            continue
+        c.hold_paused_ticks += 1
+        if c.hold_paused_ticks == 1:
+            out.append(
+                VictoryHoldPaused.model_construct(
+                    kind="VictoryHoldPaused", tick=c.tick + 1, event_seq=world.next_event_seq(),
+                    campaign_id=c.id, node_id=node, reason=reason, progress_ticks=c.hold_ticks,
+                )
+            )  # fmt: skip
+        return True
+    return False
+
+
+def _resume(world: World, rc: CampaignRules, out: list[Event]) -> None:
+    """The first unpressured running tick after a pause (the gain is already credited)."""
+    c = world.campaign
+    c.hold_paused_ticks = 0
+    out.append(
+        VictoryHoldResumed.model_construct(
+            kind="VictoryHoldResumed", tick=c.tick + 1, event_seq=world.next_event_seq(),
+            campaign_id=c.id, ends_at_tick=c.running_ticks + rc.victory_hold_ticks - c.hold_ticks,
+            progress_ticks=c.hold_ticks,
+        )
+    )  # fmt: skip
+
+
+def _progress(c: Campaign, rc: CampaignRules) -> int:
+    """EC-9a's P(t): the progress kept at the break (`hold_ticks`) less
+    floor(slow rate x min(t, S) + fast rate x max(0, t - S)), never below 0, with t the running
+    ticks since the break and S the slow stage. Closed form over exact Fractions, so no carry;
+    `hold_ticks` itself with no break (t = 0)."""
+    t, slow = c.hold_broken_ticks, rc.decay_slow_ticks
+    loss = rc.decay_slow_rate * min(t, slow) + rc.decay_fast_rate * max(0, t - slow)
+    return max(0, c.hold_ticks - math.floor(loss))
+
+
+def _decay(world: World, rc: CampaignRules, out: list[Event]) -> None:
+    """One running tick of a decaying hold: `VictoryHoldReset{DECAYED}` when its progress reaches
+    0, else `{REPAIRED, node}` when `reset_on_repair` finds a repaired node."""
+    c = world.campaign
+    c.hold_broken_ticks += 1
+    node = None
+    if _progress(c, rc) == 0:
+        reason: VictoryHoldResetReason = "DECAYED"
+    elif rc.reset_on_repair and (node := _repaired(world, c.hold_broken_nodes)) is not None:
+        reason = "REPAIRED"
+    else:
+        return
+    _reset(world, reason, node, out)
+
+
+def _reset(
+    world: World, reason: VictoryHoldResetReason, node: str | None, out: list[Event]
+) -> None:
+    """End a decaying hold at progress 0 with `VictoryHoldReset{reason, node}`."""
+    c = world.campaign
+    c.hold_ticks = c.hold_broken_ticks = 0
+    c.hold_broken_nodes = ()
+    out.append(
+        VictoryHoldReset.model_construct(
+            kind="VictoryHoldReset", tick=c.tick + 1, event_seq=world.next_event_seq(),
+            campaign_id=c.id, reason=reason, node_id=node,
+        )
+    )  # fmt: skip
+
+
+def _repaired(world: World, nodes: tuple[str, ...]) -> str | None:
+    """The lowest-id node of `nodes` (ascending) the other side owns at its full defense hp."""
+    d = world.rules.defense if world.rules else None
+    if d is None:
+        return None
+    return next(
+        (
+            n
+            for n in nodes
+            if world.owner.get(n) == _ENEMY and n in d.max_hp and world.defense_hp[n] == d.max_hp[n]
+        ),
+        None,
+    )
 
 
 def _defeat_run(world: World, rc: CampaignRules) -> tuple[int, int]:
     """The defeat run and the empty stretch within it (Q-TH-7, Q-TD-95): the running ticks the
-    coalition sanctuary's defense HP has been 0, reset by a repair; while no viewer unit plays and
-    the idle floor is on, the run is held and the empty stretch counts, and once that stretch
-    reaches the hold the run resets, so a short gap (a death, a respawn) resumes it and a viewer
-    who joins after a long one starts a full hold."""
+    coalition sanctuary's defense HP has been 0, reset by a repair to `rc.defeat_reset_hp` (T) or
+    more; between 0 and T a run in progress pauses (NX-499, Q-TD-131) and a run of 0 stays 0.
+    While no viewer unit plays and the idle floor is on, the run is held and the empty stretch
+    counts, and once that stretch reaches the hold the run resets, so a short gap (a death, a
+    respawn) resumes it and a viewer who joins after a long one starts a full hold."""
     rules = world.rules
     d = rules.defense if rules else None
-    if rules is None or d is None or world.defense_hp.get(rules.sanctuary, 1) != 0:
-        return 0, 0
+    hp = world.defense_hp.get(rules.sanctuary) if rules else None
     c = world.campaign
+    if d is None or hp is None or hp >= rc.defeat_reset_hp or (hp and not c.defeat_ticks):
+        return 0, 0
     if not d.idle_floor or world.viewer_units():
-        return c.defeat_ticks + 1, 0
+        return c.defeat_ticks + (hp == 0), 0
     idle = c.defeat_idle_ticks + 1
     return (0 if idle >= rc.defeat_hold_ticks else c.defeat_ticks), idle
 

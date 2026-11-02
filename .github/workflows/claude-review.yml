@@ -41,10 +41,15 @@ jobs:
           fetch-depth: 0
       - name: Does the PR touch a sensitive path?
         id: diff
+        env:
+          SENSITIVE: >-
+            ^(\.github/|services/gateway/|services/sim/src/nexus/(gateway|commands|moderation|advisors)/|deploy/|scripts/|tools/balance/harness_queue\.py$)|(^|/)(identity|linking|llm)(/|\.py$)
         run: |
           set -euo pipefail
           # HEAD is the PR merge commit: HEAD^1 is the base tip.
-          if git diff --name-only HEAD^1 HEAD | grep -Eq '^(\.github/|services/gateway/|deploy/|scripts/)|(^|/)(identity|linking|llm)(/|\.py$)'; then
+          # Chat ingestion and the LLM live in services/sim/src/nexus/ (gateway, commands,
+          # moderation, advisors); harness_queue.py parses issue text from GitHub.
+          if git diff --name-only HEAD^1 HEAD | grep -Eq "$SENSITIVE"; then
             echo "sensitive=true" >> "$GITHUB_OUTPUT"
           else
             echo "sensitive=false" >> "$GITHUB_OUTPUT"
@@ -70,7 +75,7 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 1
-      - uses: anthropics/claude-code-action@ae68417a745a5df4b2124873632bd73a2255e6f6 # v1.0.259
+      - uses: anthropics/claude-code-action@d70510b174a1244958df0b03166a54912811f3e6 # v1.0.264
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           plugin_marketplaces: "https://github.com/anthropics/claude-code.git"

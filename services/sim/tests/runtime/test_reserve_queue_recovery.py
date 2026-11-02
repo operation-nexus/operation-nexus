@@ -14,6 +14,7 @@ from nexus.contracts.gen.events.event import Event
 from nexus.contracts.gen.events.reserve_queue_left import ReserveQueueLeft
 from nexus.contracts.gen.events.unit_spawned import UnitSpawned
 from nexus.core import handlers as handlers_module
+from nexus.core.economy import start as start_economy
 from nexus.core.handlers import Handler, join
 from nexus.core.rules import Rules
 from nexus.core.world import Campaign, World, state_hash
@@ -107,6 +108,7 @@ def test_a_queued_join_that_crashes_when_served_is_dropped_on_recovery(
 
     monkeypatch.setattr(handlers_module, "_spawn", poisoned)
     world = World.new(Campaign(CAMPAIGN_ID, 12345, "cfg-test"), cap1)
+    start_economy(world)  # the shipped rules limit both sides (NX-412 part 5b)
     rig = make(log_writer, tmp_path, world)
     plan = {1: [cmd(1, "a"), cmd(2, "poison"), cmd(3, "b")], 3: [cmd(1, FREE)], 6: [cmd(1, FREE)]}
     hashes = drive(rig, 8, plan)
@@ -144,7 +146,9 @@ def test_kill_and_restore_with_a_queue_matches_an_uninterrupted_run(
     }
 
     def new_world() -> World:
-        return World.new(Campaign(CAMPAIGN_ID, 12345, "cfg-test"), cap1)
+        world = World.new(Campaign(CAMPAIGN_ID, 12345, "cfg-test"), cap1)
+        start_economy(world)  # the shipped rules limit both sides (NX-412 part 5b)
+        return world
 
     expected = drive(make(log_writer, tmp_path / "a", new_world()), 12, plan)
     killed = make(log_writer, tmp_path / "b", new_world())

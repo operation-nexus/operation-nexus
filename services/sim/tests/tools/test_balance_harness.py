@@ -20,8 +20,10 @@ from nexus.contracts.gen.events.bridge_destroyed import BridgeDestroyed
 from nexus.contracts.gen.events.campaign_ended import CampaignEnded
 from nexus.contracts.gen.events.capture_started import CaptureStarted
 from nexus.contracts.gen.events.job_claimed import JobClaimed
+from nexus.contracts.gen.events.job_created import JobCreated
 from nexus.contracts.gen.events.node_captured import NodeCaptured
 from nexus.contracts.gen.events.node_defenses_down import NodeDefensesDown
+from nexus.contracts.gen.events.node_defenses_restored import NodeDefensesRestored
 from nexus.contracts.gen.events.spawn_refused import SpawnRefused
 from nexus.contracts.gen.events.supply_consumed import SupplyConsumed
 from nexus.contracts.gen.events.supply_delivered import SupplyDelivered
@@ -32,16 +34,21 @@ from nexus.contracts.gen.events.threat_tier_changed import ThreatTierChanged
 from nexus.contracts.gen.events.unit_destroyed import UnitDestroyed
 from nexus.contracts.gen.events.unit_grounded import UnitGrounded
 from nexus.contracts.gen.events.unit_spawned import UnitSpawned
+from nexus.contracts.gen.events.victory_hold_broken import VictoryHoldBroken
+from nexus.contracts.gen.events.victory_hold_paused import VictoryHoldPaused
+from nexus.contracts.gen.events.victory_hold_reset import VictoryHoldReset
 from nexus.contracts.gen.events.victory_hold_started import VictoryHoldStarted
 from nexus.contracts.gen.events.weapon_fired import WeaponFired
 from nexus.contracts.gen.events.weapon_impact import WeaponImpact
 from nexus.core.campaign import campaign, momentum
+from nexus.core.economy import income
 from nexus.core.step import HANDLERS, step
 from nexus.core.tasking import claim, idle_reason, post_job
 from nexus.core.tasking_gen import JobSpec
 from nexus.core.world import CaptureBar, Claim, Contact, FacilityMarker, Job, Staged, Vec2
 from nexus.runtime.campaign_config import CampaignConfig, start_campaign
 from nexus.runtime.command_log import CommandLogReader, Tombstone
+from nexus.runtime.golden import shipped_config as golden_shipped_config
 
 # The harness modules live in tools/balance, outside the package: put them on the path, as the
 # other tool tests reach their scripts. mypy cannot see them from here, so they type as Any.
@@ -219,6 +226,7 @@ def collector(shipped_config: CampaignConfig) -> metrics.Collector:
         impact_check_ticks=10,
         kinds={commander(n): "scout" if n == 5 else "auto" for n in range(1, 7)},
         a2_min_tier="ALPHA",
+        starve_threshold=0.25,
     )
 
 
@@ -234,7 +242,7 @@ def test_newbie_time_to_first_impact(collector: metrics.Collector) -> None:
     other = WeaponImpact.model_construct(kind="WeaponImpact", tick=120, shooter_id=906, hit=True)
     late = WeaponImpact.model_construct(kind="WeaponImpact", tick=900, shooter_id=901, hit=True)
     delivery = SupplyDelivered.model_construct(
-        kind="SupplyDelivered", tick=700, commander_id=commander(2)
+        kind="SupplyDelivered", tick=700, commander_id=commander(2), carrier_id=902
     )
     capture = NodeCaptured.model_construct(
         kind="NodeCaptured",
@@ -344,6 +352,87 @@ def test_nodes_lost_tier_dwell_and_outcome(collector: metrics.Collector) -> None
     assert r["outcome"]["result"] == "VICTORY" and r["outcome"]["length_h"] == 1000 / 36000
 
 
+def test_starved_is_counted_against_the_fraction_floor_in_loadouts_mode() -> None:
+    """NX-495 (GAMEPLAY §5 "Harness"): in `loadouts` mode the live floor is 100 at an airbase and
+    the fraction floor stays 500, so a base at 150 is starved on the second count only."""
+    config = golden_shipped_config({"logistics.starve_floor_mode": "loadouts"})
+    world = start_campaign("c", 1, config)
+    col = metrics.Collector(
+        world, frozenset(), tick_hz=HZ, sample_ticks=600, a3_ticks=1000, idle_sample_ticks=600,
+        impact_check_ticks=10, kinds={}, a2_min_tier="ALPHA",
+        starve_threshold=config.balance.logistics.starve_threshold,
+    )  # fmt: skip
+    assert world.rules is not None
+    assert world.rules.supply.starve_floor["west-airbase"] == 100
+    held = [n for n, o in world.owner.items() if o == "COALITION" and n in world.stock]
+    for n in held:
+        world.stock[n] = world.rules.supply.max_stock[n]  # nothing starved on either count
+    world.stock["west-airbase"] = 150  # above the live floor 100, below the fraction floor 500
+    world.stock["fob-n-w"] = 50  # below both (100 and 250)
+    col.sample(world)
+    r = col.result(600)
+    assert r["starvation"] == {
+        "any_node_minutes": 1.0,
+        "node_minutes": 1.0,
+        "fraction_floor_any_node_minutes": 1.0,
+        "fraction_floor_node_minutes": 2.0,
+    }
+
+
+def test_hauling_counts_resupply_jobs_and_truck_stops_per_side(
+    collector: metrics.Collector,
+) -> None:
+    """NX-501 (GAMEPLAY §5 "Stock target cap" Harness): a scripted stream of three coalition
+    resupply jobs (one is the sanctuary's own repair job, not counted), a Static one, a strike job
+    (not counted) and four unloading stops, over half a run-hour (18000 ticks at 10 Hz)."""
+
+    def job(kind: str, side: str, node: str | None) -> Any:
+        return JobCreated.model_construct(
+            kind="JobCreated", tick=50, job_id=1, job_kind=kind, side=side, node_id=node
+        )
+
+    def stop(truck: int) -> Any:
+        return SupplyDelivered.model_construct(
+            kind="SupplyDelivered", tick=60, carrier_id=truck, commander_id=None
+        )
+
+    collector.feed([spawned(10, 801, "LOGI_TRUCK", "COALITION", None)])
+    collector.feed([spawned(10, 802, "LOGI_TRUCK", "ENEMY", None)])
+    collector.feed([
+        job("RESUPPLY", "COALITION", "fob-n-w"),
+        job("RESUPPLY", "COALITION", "west-airbase"),
+        job("RESUPPLY", "COALITION", "haven"),  # the sanctuary's repair job
+        job("RESUPPLY", "ENEMY", "fob-n-e"),
+        job("STRIKE", "COALITION", "fob-n-e"),
+        stop(801), stop(801), stop(801), stop(802),
+    ])  # fmt: skip
+    h = collector.result(18000)["hauling"]
+    assert h == {
+        "run_hours": 0.5,
+        "resupply_jobs": {"COALITION": 2, "ENEMY": 1},
+        "deliveries": {"COALITION": 3, "ENEMY": 1},
+        "trucks_lost_near_sanctuary": 0,
+        "resupply_job_min": {  # no sample taken
+            "COALITION": {"starving": 0.0, "stocking": 0.0},
+            "ENEMY": {"starving": 0.0, "stocking": 0.0},
+        },
+    }
+    run = {"metrics": {"hauling": h}}
+    agg = report._hauling([run, run])  # pooled: 4 jobs over 1 run-hour, 6 stops
+    assert agg["COALITION"] == {
+        "resupply_jobs_per_h": 4.0, "deliveries_per_h": 6.0,
+        "starving_job_min": 0.0, "stocking_job_min": 0.0,
+    }  # fmt: skip
+    assert agg["ENEMY"]["resupply_jobs_per_h"] == 2.0 and agg["ENEMY"]["deliveries_per_h"] == 2.0
+    empty = report._hauling([{"metrics": {"hauling": metrics_zero()}}])
+    assert empty["ENEMY"]["resupply_jobs_per_h"] is None
+    assert empty["ENEMY"]["deliveries_per_h"] is None
+
+
+def metrics_zero() -> dict[str, Any]:
+    return dict(runner.failed_run("p", 1, 1.0, "x")["metrics"]["hauling"])
+
+
 def test_samples_and_sanctuary_hp(
     collector: metrics.Collector, shipped_config: CampaignConfig
 ) -> None:
@@ -351,7 +440,7 @@ def test_samples_and_sanctuary_hp(
     world.campaign.tick = 500
     collector.sample(world)
     base = collector.result(500)
-    assert base["starvation"] == {"any_node_minutes": 0.0, "node_minutes": 0.0}
+    assert set(base["starvation"].values()) == {0.0}
     world.stock["west-airbase"] = 0  # below its starvation floor, coalition-held
     world.stock["fob-n-w"] = 0
     world.defense_hp["haven"] = 0
@@ -361,7 +450,12 @@ def test_samples_and_sanctuary_hp(
     world.defense_hp["haven"] = 7
     collector.observe(world)
     r = collector.result(1500)
-    assert r["starvation"] == {"any_node_minutes": 1.0, "node_minutes": 2.0}  # 600 ticks = 1 min
+    assert r["starvation"] == {  # 600 ticks = 1 min; the default mode: both floors are the same
+        "any_node_minutes": 1.0,
+        "node_minutes": 2.0,
+        "fraction_floor_any_node_minutes": 1.0,
+        "fraction_floor_node_minutes": 2.0,
+    }
     assert r["sanctuary_hp"] == {"min": 0, "min_in_a3_window": 0}
     first, second = r["momentum"]["samples"]
     assert second < first == momentum(start_campaign("c", 1, shipped_config)).momentum_pct
@@ -910,7 +1004,7 @@ def test_each_impact_kind_is_detected(
     collector.feed(
         [
             SupplyDelivered.model_construct(
-                kind="SupplyDelivered", tick=400, commander_id=commander(3)
+                kind="SupplyDelivered", tick=400, commander_id=commander(3), carrier_id=901
             )
         ]
     )
@@ -1096,33 +1190,120 @@ def test_set_rejections_exit_2_before_any_run(
     assert capsys.readouterr().err.startswith("error:") and not out.exists()
 
 
+_CUT = "logistics.loadout_cost.STRIKE_FIGHTER=10"  # shipped 20, as its mirror ENEMY_STRIKE_FIGHTER
+
+
+def test_a_one_sided_cut_with_cost_parity_on_exits_2_before_out_exists(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    # ECONOMY EC-3 (NX-494): the schema takes the value; the campaign load refuses it
+    out = tmp_path / "o"
+    assert cli(monkeypatch, out, "--seeds", "1", "--set", _CUT) == 2
+    err = capsys.readouterr().err
+    assert err.startswith("error:") and not out.exists()
+    assert "logistics.loadout_cost.ENEMY_STRIKE_FIGHTER 20 != " in err
+    assert "logistics.loadout_cost.STRIKE_FIGHTER 10" in err
+
+
+@pytest.mark.parametrize(
+    "pairs",
+    [
+        [_CUT, "logistics.loadout_cost.ENEMY_STRIKE_FIGHTER=10"],  # a synced cut
+        [_CUT, "economy.cost_parity=false"],  # a one-sided probe
+    ],
+)
+def test_a_synced_cut_or_a_cut_with_cost_parity_off_runs(
+    pairs: list[str], tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    out = tmp_path / "o"
+    assert cli(monkeypatch, out, "--seeds", "1", *(x for p in pairs for x in ("--set", p))) == 0
+    assert json.loads((out / "report.json").read_text())["config"]["overrides"] == pairs
+
+
 def test_set_takes_true_and_false_on_a_bool_key(tmp_path: Path) -> None:
-    # NX-412 part 5a: the shipped switches go off through --set, and the loader takes the result
-    text = balance.override_balance(["economy.legacy_rules=false", "economy.unlimited.ENEMY=false"])
+    # NX-412 part 5a: the shipped switches flip through --set (shipped false since part 5b), one
+    # side of a nested map alone, and the loader takes the result
+    text = balance.override_balance(
+        ["economy.free_viewer_spawn=false", "economy.unlimited.ENEMY=true"]
+    )
     tree = yaml.safe_load(text)
-    assert tree["economy"]["legacy_rules"] is False
-    assert tree["economy"]["unlimited"] == {"COALITION": True, "ENEMY": False}
+    assert tree["economy"]["free_viewer_spawn"] is False  # shipped true
+    assert tree["economy"]["unlimited"] == {"COALITION": False, "ENEMY": True}
     (path := tmp_path / "balance.yaml").write_text(text)
     assert balance.load_campaign_config(balance.ConfigPaths(balance=path)).rules.economy is not None
     on = yaml.safe_load(balance.override_balance(["economy.unlimited.COALITION=true"]))
     assert on["economy"]["unlimited"]["COALITION"] is True
+    off = yaml.safe_load(balance.override_balance(["combat.strike_structure_first=false"]))
+    assert off["combat"]["strike_structure_first"] is False  # shipped true since part 5b
 
 
 @pytest.mark.parametrize(
     ("pair", "match"),
     [
-        ("economy.legacy_rules=1", "not true or false"),  # a number on a bool key: never coerced
-        ("economy.legacy_rules=0", "not true or false"),
-        ("economy.legacy_rules=True", "not true or false"),
-        ("economy.legacy_rules=yes", "not true or false"),
+        # a number on a bool key: never coerced
+        ("economy.free_viewer_spawn=1", "not true or false"),
+        ("economy.free_viewer_spawn=0", "not true or false"),
+        ("economy.free_viewer_spawn=True", "not true or false"),
+        ("economy.free_viewer_spawn=yes", "not true or false"),
         (f"{KEY}=true", "not a valid int"),  # a bool on a numeric key
         ("economy.window_s=false", "not a valid"),
-        ("economy.unlimited=false", "numeric or boolean"),  # a section, not a leaf
+        ("economy.unlimited=false", "numeric, boolean or string"),  # a section, not a leaf
     ],
 )
 def test_set_checks_the_value_against_the_key_type(pair: str, match: str) -> None:
     with pytest.raises(ValueError, match=match):
         balance.override_balance([pair])
+
+
+ENUM = "campaign.victory.hold_break"  # shipped decay; schema enum decay or reset
+
+
+def test_an_enum_set_loads_and_runs(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch, shipped_config: CampaignConfig
+) -> None:
+    # NX-498: a string for a string key; the schema accepts it and every worker loads the copy
+    out = tmp_path / "o"
+    assert cli(monkeypatch, out, "--seeds", "1", "--set", f"{ENUM}=reset") == 0
+    doc = json.loads((out / "report.json").read_text())
+    assert doc["config"]["overrides"] == [f"{ENUM}=reset"]
+    loaded = balance.load_campaign_config(balance.ConfigPaths(balance=out / "balance.yaml"))
+    assert loaded.balance.campaign.victory.hold_break == "reset"
+    assert shipped_config.balance.campaign.victory.hold_break != "reset"
+    assert doc["config"]["config_hash"] == loaded.config_hash != shipped_config.config_hash
+    runs = [json.loads(f.read_text()) for f in sorted((out / "runs").glob("*.json"))]
+    assert runs and all(
+        r["config_hash"] == loaded.config_hash and r["crash"] is None and r["harness_error"] is None
+        for r in runs
+    )
+
+
+@pytest.mark.parametrize(
+    ("pair", "key"),
+    [
+        (f"{ENUM}=nope", ENUM),  # not in the enum
+        (f"{ENUM}=x", ENUM),  # a one-character word
+        (f"{ENUM}=yes", ENUM),  # a YAML 1.1 bool word stays text, so the enum refuses it
+        (f"{ENUM}=true", ENUM),
+        (f"{ENUM}=1", ENUM),
+        (f"{KEY}=reset", KEY),  # a string for a numeric key
+        ("economy.free_viewer_spawn=reset", "economy.free_viewer_spawn"),  # and for a bool key
+    ],
+)
+def test_a_bad_enum_set_exits_2_naming_the_key_before_out_exists(
+    pair: str,
+    key: str,
+    tmp_path: Path,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    out = tmp_path / "o"
+    assert cli(monkeypatch, out, "--set", pair) == 2
+    err = capsys.readouterr().err
+    assert err.startswith("error:") and key in err and not out.exists()
+    # the queue posts this error to a public issue: it names keys, never values
+    value = pair.partition("=")[2]
+    detail = err.removeprefix("error: ").split(": ", 1)[-1]  # drop the temp config path, if any
+    assert value not in detail.replace(key, "")
 
 
 def test_set_rejects_a_repeated_key() -> None:
@@ -1181,7 +1362,8 @@ def test_theater_runs_on_the_file_in_every_worker(
     )
     world.boards["COALITION"][1] = Job(1, "STRIKE", "a", 1, 1000, 0)
     col = metrics.Collector(world, frozenset(), tick_hz=HZ, sample_ticks=1, a3_ticks=1,
-        idle_sample_ticks=1, impact_check_ticks=1, kinds={}, a2_min_tier="ALPHA")  # fmt: skip
+        idle_sample_ticks=1, impact_check_ticks=1, kinds={}, a2_min_tier="ALPHA",
+        starve_threshold=0.25)  # fmt: skip
     col.sample_density(world)
     assert col.jobs_per_node == [1 / (shipped_nodes + 1)]
 
@@ -1315,6 +1497,7 @@ def join_hauler(
     collector = metrics.Collector(
         world, frozenset([cmdr]), tick_hz=HZ, sample_ticks=600, a3_ticks=1000,
         idle_sample_ticks=600, impact_check_ticks=10, kinds={cmdr: "hauler"}, a2_min_tier="ALPHA",
+        starve_threshold=0.25,
     )  # fmt: skip
     collector.note_join(cmdr, 5, "ALPHA")
     v = personas.new_viewer(1, load().personas["newbie"], "prime-50", 1, "hauler")
@@ -1678,6 +1861,257 @@ def test_only_won_campaigns_are_judged() -> None:
     assert a1["seeds_in_window"] == 1 and "1/1 won seeds flagged" in a1["detail"]  # fmt: skip
 
 
+NO_PAUSE = {"pauses": 0, "paused_ticks": 0, "paused_min": 0.0}  # NX-466 (EC-9b): never paused
+
+
+def test_collector_counts_hold_pauses_by_reason_and_paused_minutes_per_tick(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    """NX-466 (GAMEPLAY §11): holds paused, pauses by reason, paused minutes per hold and in all.
+    The minutes come from `observe`, one running tick at a time (`Campaign.hold_paused_ticks` above
+    0), because a pause ended by a break has no `VictoryHoldResumed`; a tick the clock did not run
+    (a sim pause) does not count."""
+    world = start_campaign("c", 1, shipped_config)
+
+    def hold(tick: int) -> Any:
+        return VictoryHoldStarted.model_construct(
+            kind="VictoryHoldStarted",
+            tick=tick,
+            node_ids=["fob-n-w"],
+            ends_at_tick=9,
+            progress_ticks=0,
+        )
+
+    def paused(tick: int, reason: str) -> Any:
+        return VictoryHoldPaused.model_construct(
+            kind="VictoryHoldPaused", tick=tick, node_id="fob-n-w", reason=reason, progress_ticks=1
+        )
+
+    def observe(running: int, paused_ticks: int) -> None:
+        world.campaign.running_ticks, world.campaign.hold_paused_ticks = running, paused_ticks
+        collector.observe(world)
+
+    collector.feed([hold(10), paused(20, "CAPTURE_BAR"), paused(30, "CAPTURE_OP")])  # two pauses
+    for running in (1, 2, 3):
+        observe(running, running)  # three running ticks paused
+    observe(3, 3)  # the clock did not run: not counted
+    observe(4, 0)  # resumed
+    collector.feed([
+        VictoryHoldBroken.model_construct(kind="VictoryHoldBroken", tick=40, progress_ticks=7),
+        hold(50),
+        paused(60, "DEFENSES_DOWN"),
+    ])  # fmt: skip
+    observe(5, 1)  # paused, then ended by a break: no Resumed, still counted per tick
+    observe(6, 2)
+    collector.feed([
+        VictoryHoldBroken.model_construct(kind="VictoryHoldBroken", tick=70, progress_ticks=3),
+    ])  # fmt: skip
+    observe(7, 0)  # the break cleared the pause: its two paused ticks stay with the hold
+    economy = collector.result(1000)["economy"]
+    assert economy["holds_paused"] == 2  # holds, not events: 3 pauses
+    assert economy["hold_pauses"] == {"CAPTURE_BAR": 1, "CAPTURE_OP": 1, "DEFENSES_DOWN": 1}
+    assert economy["hold_paused_min"] == 5 / HZ / 60
+    assert [(h["pauses"], h["paused_ticks"], h["paused_min"]) for h in economy["holds"]] == [
+        (2, 3, 3 / HZ / 60),
+        (1, 2, 2 / HZ / 60),
+    ]
+    run = {"metrics": {"economy": economy}, "ticks_run": HOUR, "tick_hz": HZ, "seed": 1,
+           "viewers": {"peak_concurrent": 5}}  # fmt: skip
+    agg = report._economy([run])  # the report's per-profile numbers, next to holds broken
+    assert (agg["holds"], agg["holds_broken"], agg["holds_paused"]) == (2, 2, 2)
+    assert agg["hold_pauses"] == economy["hold_pauses"]
+    assert agg["hold_paused_min"] == 5 / HZ / 60
+    assert agg["paused_min_per_hold"] == [3 / HZ / 60, 2 / HZ / 60]
+
+
+def test_paused_minutes_by_reason_are_zero_without_holds(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    """O0: no hold, no pause, no down: every reason and cause is present at zero."""
+    world = start_campaign("c", 1, shipped_config)
+    collector.observe(world)
+    economy = collector.result(100)["economy"]
+    assert economy["paused_min_by_reason"] == dict.fromkeys(metrics.PAUSE_REASONS, 0.0)
+    assert economy["defenses_down"] == {
+        "events": {"fire": 0, "starved": 0},
+        "minutes": {"fire": 0.0, "starved": 0.0},
+    }
+    agg = report._economy([{"metrics": {"economy": economy}, "ticks_run": HOUR, "tick_hz": HZ,
+                            "seed": 1, "viewers": {"peak_concurrent": 5}}])  # fmt: skip
+    assert agg["paused_min_by_reason"] == {k: 0.0 for k in metrics.PAUSE_REASONS}
+
+
+def test_a_pause_split_across_two_reasons_sums_to_the_paused_minutes(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    """O0: ticks count under the latest `VictoryHoldPaused` reason of the pause in force."""
+    world = start_campaign("c", 1, shipped_config)
+
+    def paused(tick: int, reason: str) -> Any:
+        return VictoryHoldPaused.model_construct(
+            kind="VictoryHoldPaused", tick=tick, node_id="fob-n-w", reason=reason, progress_ticks=1
+        )
+
+    def observe(running: int, paused_ticks: int) -> None:
+        world.campaign.running_ticks, world.campaign.hold_paused_ticks = running, paused_ticks
+        collector.observe(world)
+
+    collector.feed([VictoryHoldStarted.model_construct(
+        kind="VictoryHoldStarted", tick=10, node_ids=["fob-n-w"], ends_at_tick=9, progress_ticks=0
+    ), paused(20, "CAPTURE_BAR")])  # fmt: skip
+    observe(1, 1)
+    observe(2, 2)
+    observe(3, 3)
+    observe(3, 3)  # the clock did not run: counted nowhere
+    collector.feed([paused(40, "DEFENSES_DOWN")])  # a new pause (the old one resumed)
+    observe(4, 1)
+    economy = collector.result(100)["economy"]
+    assert economy["paused_min_by_reason"] == {
+        "CAPTURE_BAR": 3 / HZ / 60, "CAPTURE_OP": 0.0, "DEFENSES_DOWN": 1 / HZ / 60,
+    }  # fmt: skip
+    assert sum(economy["paused_min_by_reason"].values()) == pytest.approx(
+        economy["hold_paused_min"]
+    )
+    agg = report._economy([{"metrics": {"economy": economy}, "ticks_run": HOUR, "tick_hz": HZ,
+                            "seed": 1, "viewers": {"peak_concurrent": 5}}])  # fmt: skip
+    assert agg["paused_min_by_reason"] == economy["paused_min_by_reason"]
+
+
+def test_a_pause_whose_reason_changes_counts_under_the_reason_in_force(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    """The sim names only a pause's first reason; later ticks use the hold pressure in force."""
+    world = start_campaign("c", 1, shipped_config)
+    node = "fob-n-w"
+    world.campaign.hold_nodes = (node,)
+    collector.feed([VictoryHoldStarted.model_construct(
+        kind="VictoryHoldStarted", tick=10, node_ids=[node], ends_at_tick=9, progress_ticks=0
+    ), VictoryHoldPaused.model_construct(
+        kind="VictoryHoldPaused", tick=20, node_id=node, reason="CAPTURE_BAR", progress_ticks=1
+    )])  # fmt: skip
+    world.campaign.running_ticks, world.campaign.hold_paused_ticks = 1, 1
+    collector.observe(world)  # no pressure visible now: the event's reason
+    world.defense_down.add(node)
+    world.campaign.running_ticks, world.campaign.hold_paused_ticks = 2, 2
+    collector.observe(world)  # same pause, now its defenses are down
+    by = collector.result(100)["economy"]["paused_min_by_reason"]
+    assert by["CAPTURE_BAR"] == 1 / HZ / 60 and by["DEFENSES_DOWN"] == 1 / HZ / 60
+
+
+def test_a_down_restored_in_the_same_tick_leaves_no_open_down(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    world = start_campaign("c", 1, shipped_config)
+    node = next(
+        n for n in sorted(world.owner) if world.owner[n] == "COALITION" and n in world.stock
+    )
+    collector.feed([NodeDefensesDown.model_construct(
+        kind="NodeDefensesDown", tick=5, node_id=node, owner="COALITION"
+    ), NodeDefensesRestored.model_construct(
+        kind="NodeDefensesRestored", tick=5, node_id=node, owner="COALITION"
+    )])  # fmt: skip
+    collector.observe(world)  # the flag is already clear: the sim healed it this tick
+    d = collector.result(100 * HZ * 60)["economy"]["defenses_down"]
+    assert sum(d["events"].values()) == 1
+    assert d["minutes"] == {"fire": 0.0, "starved": 0.0}
+
+
+def test_per_seed_outcome_names_a_crash_or_harness_error() -> None:
+    base = {"seed": 1, "metrics": {"outcome": {"result": None}}}
+    assert report._seed_outcome({**base, "crash": "boom", "harness_error": None}) == "CRASHED"
+    assert report._seed_outcome({**base, "crash": None, "harness_error": "x"}) == "HARNESS_ERROR"
+    assert report._seed_outcome({**base, "crash": None, "harness_error": None}) is None
+
+
+def _down_tick(
+    collector: metrics.Collector, world: Any, node: str, stock: int, tick: int = 10
+) -> None:
+    """A coalition `NodeDefensesDown` on `node` with its stock set, then the tick's `observe`."""
+    world.stock[node] = stock
+    world.defense_down.add(node)  # the sim sets the flag in the same tick as the event
+    collector.feed([NodeDefensesDown.model_construct(
+        kind="NodeDefensesDown", tick=tick, node_id=node, owner="COALITION"
+    )])  # fmt: skip
+    collector.observe(world)
+
+
+def test_a_down_is_starved_only_strictly_under_the_floor(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    """O0 (Q-TD-139): `stock < floor` is starved (the sim's rule); at the floor, or 0 with a zero
+    floor, is fire. Minutes run to the `NodeDefensesRestored`."""
+    world = start_campaign("c", 1, shipped_config)
+    floors = collector._world_rules.supply.starve_floor
+    held = [n for n in sorted(floors) if world.owner.get(n) == "COALITION" and floors[n] > 0][:3]
+    assert len(held) == 3
+    below, exact, above = held
+    _down_tick(collector, world, below, floors[below] - 1, tick=10)
+    _down_tick(collector, world, exact, floors[exact], tick=10)
+    _down_tick(collector, world, above, floors[above] + 1, tick=10)
+    collector.feed([NodeDefensesRestored.model_construct(
+        kind="NodeDefensesRestored", tick=10 + 3 * HZ * 60, node_id=below, owner="COALITION"
+    )])  # fmt: skip
+    d = collector.result(10 + 5 * HZ * 60)["economy"]["defenses_down"]
+    assert d["events"] == {"fire": 2, "starved": 1}
+    assert d["minutes"]["starved"] == pytest.approx(3.0)  # restored
+    assert d["minutes"]["fire"] == pytest.approx(2 * 5.0)  # two still open at the run's end
+    _down_tick(collector, world, below, 0, tick=20)  # down again, zero stock under a floor
+    assert collector.result(30)["economy"]["defenses_down"]["events"]["starved"] == 2
+
+
+def test_a_flip_closes_an_open_down_and_an_enemy_down_is_not_counted(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    world = start_campaign("c", 1, shipped_config)
+    node = next(
+        n for n in sorted(world.owner) if world.owner[n] == "COALITION" and n in world.stock
+    )
+    _down_tick(collector, world, node, 10**6, tick=0)
+    collector.feed([NodeDefensesDown.model_construct(
+        kind="NodeDefensesDown", tick=5, node_id=node, owner="ENEMY"
+    ), NodeCaptured.model_construct(
+        kind="NodeCaptured", tick=HZ * 60, node_id=node, from_="COALITION", to="ENEMY",
+        participant_commander_ids=[],
+    )])  # fmt: skip
+    collector.observe(world)
+    d = collector.result(10 * HZ * 60)["economy"]["defenses_down"]
+    assert d["events"] == {"fire": 1, "starved": 0}
+    assert d["minutes"]["fire"] == pytest.approx(1.0)  # closed by the flip, not run to the end
+
+
+def test_a_down_and_a_flip_in_the_same_tick_leave_no_open_down(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    """The flip closes downs before this tick's down is classified: it must not open."""
+    world = start_campaign("c", 1, shipped_config)
+    node = next(
+        n for n in sorted(world.owner) if world.owner[n] == "COALITION" and n in world.stock
+    )
+    world.owner[node] = "ENEMY"  # the flip has already landed when `observe` runs
+    world.defense_down.discard(node)  # and the flip cleared the flag (`defense.reset`)
+    collector.feed([NodeDefensesDown.model_construct(
+        kind="NodeDefensesDown", tick=5, node_id=node, owner="COALITION"
+    ), NodeCaptured.model_construct(
+        kind="NodeCaptured", tick=5, node_id=node, from_="COALITION", to="ENEMY",
+        participant_commander_ids=[],
+    )])  # fmt: skip
+    collector.observe(world)
+    d = collector.result(100 * HZ * 60)["economy"]["defenses_down"]
+    assert sum(d["events"].values()) == 1  # still counted as a down
+    assert d["minutes"] == {"fire": 0.0, "starved": 0.0}  # but not run to the end
+
+
+def test_per_seed_row_carries_holds_pauses_and_downs() -> None:
+    """O0: a run with no economy (a failed stub) still gets a row, at zero."""
+    row = report._hold_seed({"holds": []})
+    assert row == {
+        "holds": 0,
+        "paused_min_by_reason": {},
+        "downs": {"events": {"fire": 0, "starved": 0}, "minutes": {"fire": 0.0, "starved": 0.0}},
+    }
+    assert report._downs(row["downs"]) == "fire 0 (0.0 min), starved 0 (0.0 min)"
+
+
 def test_collector_derives_pressure_and_the_hold_from_events(
     collector: metrics.Collector, shipped_config: CampaignConfig
 ) -> None:
@@ -1744,9 +2178,18 @@ def test_collector_derives_pressure_and_the_hold_from_events(
     assert collector.hold_start == 170 and collector.holds_broken == 1
     holds = collector.result(1000)["economy"]["holds"]
     assert holds == [
-        {"start": 130, "end": 160, "broken": True, "ops": 0, "pressure": 2},  # 150, 160
-        {"start": 170, "end": None, "broken": False, "ops": 0, "pressure": 1},  # the loss at 180
+        {**NO_PAUSE, "start": 130, "end": 160, "broken": True, "ops": 0, "pressure": 2},  # 150, 160
+        {**NO_PAUSE, "start": 170, "end": None, "broken": False, "ops": 0, "pressure": 1},  # 180
     ]
+    # ECONOMY EC-9a (NX-489, shipped hold_break decay): the break at 160 kept the one tick held at
+    # 130, so the hold at 170 resumed from it; resets are counted by reason
+    assert collector.result(1000)["economy"]["holds_resumed"] == 1
+    resets = ((200, "DECAYED", None), (300, "REPAIRED", "fob-n-e"), (400, "DECAYED", None))
+    collector.feed([
+        VictoryHoldReset.model_construct(kind="VictoryHoldReset", tick=t, reason=r, node_id=n)
+        for t, r, n in resets
+    ])  # fmt: skip
+    assert collector.result(1000)["economy"]["hold_resets"] == {"DECAYED": 2, "REPAIRED": 1}
 
 
 # --- economy metrics (NX-412 part 5a, ECONOMY §4 "Harness report") ------------------------------
@@ -1823,7 +2266,7 @@ def test_collector_counts_static_operations_holds_and_budgets(
               ("CAPTURE", "op:OFFENSIVE:fob-n-w:1", "fob-n-w"))  # fmt: skip
     tick_with(200, ("PATROL", "op:POL_PATROL:east-airbase:0", "east-airbase"))  # routine
     hold = VictoryHoldStarted.model_construct(
-        kind="VictoryHoldStarted", tick=300, node_ids=[], ends_at_tick=18300
+        kind="VictoryHoldStarted", tick=300, node_ids=[], ends_at_tick=18300, progress_ticks=0
     )
     collector.feed([hold])
     tick_with(400, ("CAPTURE", "op:OFFENSIVE:cross-n:0", "cross-n"))  # neutral, in the hold
@@ -1838,7 +2281,9 @@ def test_collector_counts_static_operations_holds_and_budgets(
         [200, "POL_PATROL", "east-airbase", False],
         [400, "OFFENSIVE", "cross-n", False],
     ]
-    assert eco["holds"] == [{"start": 300, "end": None, "broken": False, "ops": 1, "pressure": 0}]
+    assert eco["holds"] == [
+        {**NO_PAUSE, "start": 300, "end": None, "broken": False, "ops": 1, "pressure": 0}
+    ]
     assert eco["budget"]["sum"] == [70] and eco["budget"]["windows"] == [1]
     run = {"metrics": {"economy": eco}, "ticks_run": 2 * HOUR, "tick_hz": HZ, "seed": 1,
            "viewers": {"peak_concurrent": 5}}  # fmt: skip
@@ -1871,22 +2316,21 @@ def test_collector_samples_pools_grounded_units_and_grounding_by_state(
     collector.sample(world)
     collector.sample(world)  # the same hour: one snapshot
     assert collector.result(HOUR)["economy"]["hourly"] == [
-        {"COALITION": {"pool": None, "grounded": 1}, "ENEMY": {"pool": None, "grounded": 0}}
-    ]  # shipped: both sides unlimited, so no pool
+        {"COALITION": {"pool": 6000, "grounded": 1}, "ENEMY": {"pool": 8000, "grounded": 0}}
+    ]  # shipped since NX-412 part 5b: both sides limited, pools full at their start storage
     assert collector.result(HOUR)["economy"]["army_peak"] >= 2
 
 
 def test_the_report_header_labels_the_economy_mode() -> None:
-    # EC-15: a legacy or unlimited run is labelled, never passed off as a normal balance result
+    # EC-15: an unlimited run is labelled, never passed off as a normal balance result
     on, off = {"COALITION": True, "ENEMY": True}, {"COALITION": False, "ENEMY": False}
-    shipped = report._economy_mode({"legacy_rules": True, "unlimited": on})
-    assert shipped == [
-        "- **economy: legacy_rules ON; unlimited COALITION, ENEMY** (ECONOMY EC-15: not a normal "
-        "balance result)"
+    both = report._economy_mode({"unlimited": on})
+    assert both == [
+        "- **economy: unlimited COALITION, ENEMY** (ECONOMY EC-15: not a normal balance result)"
     ]
-    sweep = report._economy_mode({"legacy_rules": False, "unlimited": off})
-    assert sweep == ["- **economy: legacy_rules off; unlimited none**"]
-    one = report._economy_mode({"legacy_rules": False, "unlimited": {**off, "COALITION": True}})
+    sweep = report._economy_mode({"unlimited": off})
+    assert sweep == ["- **economy: unlimited none**"]
+    one = report._economy_mode({"unlimited": {**off, "COALITION": True}})
     assert "unlimited COALITION**" in one[0] and "EC-15" in one[0]
     assert report._economy_mode(None) == []  # an old report.json without the field
 
@@ -2142,7 +2586,8 @@ def _eco(funnel: list[dict[str, Any]], adapted: dict[str, list[int]],
         "sides": {}, "hourly": [], "refused": {"operations_per_hour": {}, "units": {}},
         "grounded_from": {}, "exposure": {}, "budget": {"sum": [], "windows": [],
                                                        "spent": {"base": [], "source": []}},
-        "ops_unseen": 0, "holds": [], "army_peak": 0,
+        "ops_unseen": 0, "holds": [], "holds_paused": 0, "hold_pauses": {},
+        "hold_paused_min": 0.0, "holds_resumed": 0, "hold_resets": {}, "army_peak": 0,
     }  # fmt: skip
     if split is not None:
         eco["dispersed_split"] = split
@@ -2310,8 +2755,8 @@ def test_collector_logs_the_tier_timeline(collector: metrics.Collector) -> None:
 def test_pressure_is_counted_per_victory_hold(collector: metrics.Collector) -> None:
     collector.pressure_ticks = [50, 100, 120, 200, 250, 260, 400]
     collector.holds = [
-        {"start": 100, "end": 250, "broken": True, "ops": 0},
-        {"start": 300, "end": None, "broken": False, "ops": 0},
+        {"start": 100, "end": 250, "broken": True, "ops": 0, "pauses": 0, "paused_ticks": 0},
+        {"start": 300, "end": None, "broken": False, "ops": 0, "pauses": 0, "paused_ticks": 0},
     ]
     holds = collector.result(500)["economy"]["holds"]
     # the start (100) and break (250) ticks count; 50 is before, 260 is between
@@ -2381,7 +2826,8 @@ def _nc_run(no_capture: dict[str, int] | None) -> dict[str, Any]:
         "sides": {}, "hourly": [], "refused": {"operations_per_hour": {}, "units": {}},
         "grounded_from": {}, "exposure": {}, "budget": {"sum": [], "windows": [],
                                                        "spent": {"base": [], "source": []}},
-        "ops_unseen": 0, "holds": [], "army_peak": 0,
+        "ops_unseen": 0, "holds": [], "holds_paused": 0, "hold_pauses": {},
+        "hold_paused_min": 0.0, "holds_resumed": 0, "hold_resets": {}, "army_peak": 0,
     }  # fmt: skip
     if no_capture is not None:
         eco["no_capture"] = no_capture
@@ -2404,6 +2850,60 @@ def test_an_old_report_json_without_the_no_capture_reasons_renders_a_dash() -> N
     assert line.endswith("(first reason): -")
 
 
+def test_hq_captures_are_logged_with_participants_and_capture_weight(
+    shipped_config: CampaignConfig,
+) -> None:
+    """NX-490 (T0/T1 review action 6): an HQ flip, either side, with its participant count and the
+    taking side's capture weight in radius after the tick; other nodes are not listed."""
+    world = start_campaign("c", 1, shipped_config)
+    x, y = shipped_config.rules.roads.pos["static-hq"]
+    me = commander(1)
+    world.spawn("GARRISON_INFANTRY", "COALITION", "COMMANDER", Vec2(x, y), commander_id=me)
+    world.spawn("LOGI_TRUCK", "COALITION", "COMMANDER", Vec2(x + 500, y), commander_id=me)
+    world.spawn("GARRISON_INFANTRY", "COALITION", "COMMANDER", Vec2(x + 9e3, y), commander_id=me)
+    c = metrics.Collector(world, frozenset(), tick_hz=HZ, sample_ticks=600, a3_ticks=1000,
+                          idle_sample_ticks=600, impact_check_ticks=10, kinds={},
+                          a2_min_tier="ALPHA", starve_threshold=0.25)  # fmt: skip
+
+    def flip(tick: int, node: str, to: str, who: list[str]) -> Any:
+        return NodeCaptured.model_construct(
+            kind="NodeCaptured", tick=tick, node_id=node, from_="ENEMY", to=to,
+            participant_commander_ids=who,
+        )  # fmt: skip
+
+    c.feed([flip(50, "fob-n-e", "COALITION", [commander(2)])])  # not an HQ
+    c.observe(world)
+    c.feed([flip(90, "static-hq", "COALITION", [commander(1), commander(3)])])
+    c.observe(world)  # the 9 km unit is outside capture.radius_m 2000
+    got = c.result(100)["economy"]["hq_captures"]
+    assert got == [{"tick": 90, "node": "static-hq", "side": "COALITION", "weight": 1.5,
+                    "participants": 2}]  # fmt: skip
+
+
+def test_the_report_counts_hq_captures_by_participants_and_weight() -> None:
+    def run(caps: list[dict[str, Any]] | None) -> dict[str, Any]:
+        r = _nc_run(None)
+        if caps is not None:
+            r["metrics"]["economy"]["hq_captures"] = caps
+        return r
+
+    def cap(n: int, w: float) -> dict[str, Any]:
+        return {"tick": 1, "node": "static-hq", "side": "COALITION", "participants": n, "weight": w}
+
+    agg = report._economy([run([cap(1, 1.0), cap(4, 3.5)]), run([cap(1, 1.0)]), run(None)])
+    assert agg["hq_captures"] == {"total": 3, "by_participants": {"1": 2, "4": 1},
+                                  "by_weight": {"1": 2, "3.5": 1}}  # fmt: skip
+    line = next(x for x in report._d5_lines("p", {**_d5_eco([]), **agg}) if "HQ captures" in x)
+    assert line.endswith("3; by participant count {'1': 2, '4': 1}; by capture weight "
+                         "{'1': 2, '3.5': 1}")  # fmt: skip
+    assert report._economy([run(None)])["hq_captures"] is None  # an older report.json
+    old = next(x for x in report._d5_lines("p", _d5_eco([])) if "HQ captures" in x)
+    assert old.endswith("(either side): -")
+    none = report._economy([run([])])
+    line = next(x for x in report._d5_lines("p", {**_d5_eco([]), **none}) if "HQ captures" in x)
+    assert line.endswith("0; by participant count none; by capture weight none")
+
+
 def test_sitreps_per_run_hour_by_category_and_staging_count() -> None:
     eco = {
         "adapted": {"STAGING": [2, 1], "CONVOY_ESCORT": [4]},
@@ -2412,7 +2912,8 @@ def test_sitreps_per_run_hour_by_category_and_staging_count() -> None:
         "sides": {}, "hourly": [], "refused": {"operations_per_hour": {}, "units": {}},
         "grounded_from": {}, "exposure": {}, "budget": {"sum": [], "windows": [],
                                                        "spent": {"base": [], "source": []}},
-        "ops_unseen": 0, "holds": [], "army_peak": 0,
+        "ops_unseen": 0, "holds": [], "holds_paused": 0, "hold_pauses": {},
+        "hold_paused_min": 0.0, "holds_resumed": 0, "hold_resets": {}, "army_peak": 0,
     }  # fmt: skip
     run = {"metrics": {"economy": eco}, "ticks_run": 2 * HOUR, "tick_hz": HZ, "seed": 1,
            "viewers": {"peak_concurrent": 0}}  # fmt: skip
@@ -2435,7 +2936,8 @@ def test_the_report_counts_how_each_massing_closed_and_the_downed_packages() -> 
             "sides": {}, "hourly": [], "refused": {"operations_per_hour": {}, "units": {}},
             "grounded_from": {}, "exposure": {}, "budget": {"sum": [], "windows": [],
                                                            "spent": {"base": [], "source": []}},
-            "ops_unseen": 0, "holds": [], "army_peak": 0,
+            "ops_unseen": 0, "holds": [], "holds_paused": 0, "hold_pauses": {},
+            "hold_paused_min": 0.0, "holds_resumed": 0, "hold_resets": {}, "army_peak": 0,
         }  # fmt: skip
         return {"metrics": {"economy": eco}, "ticks_run": HOUR, "tick_hz": HZ, "seed": 1,
                 "viewers": {"peak_concurrent": 0}}  # fmt: skip
@@ -2466,6 +2968,7 @@ def rig(shipped_config: CampaignConfig) -> tuple[metrics.Collector, Any]:
     col = metrics.Collector(
         world, frozenset(), tick_hz=HZ, sample_ticks=600, a3_ticks=1000, idle_sample_ticks=600,
         impact_check_ticks=10, kinds={}, a2_min_tier="ALPHA",
+        starve_threshold=0.25,
     )  # fmt: skip
     return col, world
 
@@ -2974,4 +3477,653 @@ def test_cli_with_slots_sums_the_wait_and_resumes_an_old_run_without_the_key(
     assert doc["timing"]["slot_wait_s"] == sum(
         json.loads(p.read_text())["timing"].get("slot_wait_s", 0.0)
         for p in (out / "runs").glob("*.json")
+    )
+
+
+# --- NX-502: harness metrics follow-ups ---------------------------------------------------------
+def test_hold_resumed_and_resets_by_reason_reach_the_profile_economy(
+    collector: metrics.Collector,
+) -> None:
+    """Item 1: `holds_resumed` (a hold started with kept progress) and `hold_resets` by reason are
+    summed per profile next to holds broken."""
+
+    def hold(tick: int, progress: int) -> Any:
+        return VictoryHoldStarted.model_construct(
+            kind="VictoryHoldStarted", tick=tick, node_ids=["fob-n-w"], ends_at_tick=9,
+            progress_ticks=progress,
+        )  # fmt: skip
+
+    def reset(tick: int, reason: str) -> Any:
+        return VictoryHoldReset.model_construct(
+            kind="VictoryHoldReset", tick=tick, reason=reason, node_id="fob-n-w"
+        )
+
+    collector.feed([hold(1, 0), hold(2, 5), reset(3, "DECAYED"), reset(4, "REPAIRED")])
+    collector.feed([reset(5, "DECAYED")])
+    e = collector.result(100)["economy"]
+    run = {"metrics": {"economy": e}, "ticks_run": HOUR, "tick_hz": HZ, "seed": 1,
+           "viewers": {"peak_concurrent": 5}}  # fmt: skip
+    agg = report._economy([run, run])
+    assert agg["holds_resumed"] == 2
+    assert agg["hold_resets"] == {"DECAYED": 4, "REPAIRED": 2}
+
+
+def test_per_seed_a2_and_idle_use_the_pooled_rules() -> None:
+    """Item 2: per seed, the A2 median, the share over 900 s, the counted newbies, and the idle
+    armed mean and max; a seed with no idle sample has none."""
+    t = load().targets
+
+    def run(seed: int, ttfi: list[float], idle: dict[str, Any]) -> dict[str, Any]:
+        return {"seed": seed, "metrics": {"newbie": newbie(ttfi, []), "idle": idle}}
+
+    def idle(samples: int, total: float, peak: float | None) -> dict[str, Any]:
+        return {"samples": samples, "share_sum": total, "share_max": peak, "reasons": {}}
+
+    rows = report._per_seed(
+        [run(1, [100.0, 1000.0], idle(4, 1.0, 0.5)), run(2, [60.0], idle(0, 0.0, None))], t
+    )
+    assert [r["seed"] for r in rows] == [1, 2]
+    one, two = rows
+    assert (one["a2_newbies"], one["a2_median_s"]) == (2, 550.0)
+    assert (one["a2_tail"]["over"], one["a2_tail"]["judged"], one["a2_tail"]["share"]) == (
+        1,
+        2,
+        0.5,
+    )
+    assert (one["idle_mean"], one["idle_max"]) == (0.25, 0.5)
+    assert (two["a2_newbies"], two["a2_median_s"], two["a2_tail"]["share"]) == (1, 60.0, 0.0)
+    assert (two["idle_samples"], two["idle_mean"], two["idle_max"]) == (0, None, None)
+
+
+def test_defeat_run_counts_running_ticks_only(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    """Item 3: runs started, the longest, running ticks paused (a run in progress, hp above 0 and
+    below `defeat_reset_hp`) and resets; a tick the clock did not run counts nothing."""
+    world = start_campaign("c", 1, shipped_config)
+    assert shipped_config.rules.campaign is not None
+    reset_hp = shipped_config.rules.campaign.defeat_reset_hp
+    mid = reset_hp - 1
+
+    def observe(running: int, run: int, hp: int) -> None:
+        world.campaign.running_ticks, world.campaign.defeat_ticks = running, run
+        world.defense_hp["haven"] = hp
+        collector.observe(world)
+
+    observe(1, 0, 1000)
+    observe(2, 1, 0)  # run 1 starts
+    observe(3, 2, 0)
+    observe(3, 2, mid)  # sim-paused tick (the clock did not run): not paused, not anything
+    observe(4, 2, mid)  # paused
+    observe(5, 2, mid)  # paused
+    observe(6, 3, 0)  # longest so far
+    observe(7, 0, reset_hp)  # repaired: reset
+    observe(8, 1, 0)  # run 2 starts
+    observe(9, 0, 1000)  # reset
+    d = collector.result(100)["defeat_run"]
+    assert d == {
+        "started": 2, "longest_ticks": 3, "longest_min": 3 / HZ / 60, "paused_ticks": 2,
+        "paused_min": 2 / HZ / 60, "resets": 2,
+    }  # fmt: skip
+    outcome = {"result": "DEFEAT"}
+    agg = report._defeat_run([{"metrics": {"defeat_run": d, "outcome": outcome}}] * 2)
+    assert agg == {
+        "started": 4, "resets": 4, "longest_min": 3 / HZ / 60, "paused_min": 4 / HZ / 60,
+        "defeats": 2,
+    }  # fmt: skip
+
+
+def test_trucks_lost_near_the_sanctuary_use_the_last_seen_position(
+    shipped_config: CampaignConfig,
+) -> None:
+    """Item 4: a coalition truck destroyed within `tasking.defend_radius_m` of the sanctuary counts
+    by the position `observe` saw before the death; outside it, never seen or a Static one, not."""
+    world = start_campaign("c", 1, shipped_config)
+    rules = shipped_config.rules
+    sx, sy = rules.roads.pos["haven"]
+    assert rules.tasking is not None
+    reach = rules.tasking.defend_radius_m
+    ids = [
+        world.spawn("LOGI_TRUCK", "COALITION", "AI_GARRISON", Vec2(sx + dx, sy)).id
+        for dx in (reach - 1, reach + 1, 0.0)
+    ]  # inside, just outside, at the sanctuary
+    col = metrics.Collector(
+        world, frozenset(), tick_hz=HZ, sample_ticks=600, a3_ticks=1000, idle_sample_ticks=600,
+        impact_check_ticks=10, kinds={}, a2_min_tier="ALPHA", starve_threshold=0.25,
+    )  # fmt: skip
+    col.observe(world)
+    for i in ids[:2]:
+        world.remove(i)
+    col.feed([killed(5, ids[0], 1, "COALITION"), killed(5, ids[1], 1, "COALITION"),
+              killed(5, 999, 1, "COALITION"),  # a unit never seen as a carrier
+              killed(5, 998, 1, "ENEMY")])  # fmt: skip
+    col.observe(world)
+    col.feed([killed(6, ids[0], 1, "COALITION")])  # already counted: its position is spent
+    assert col.result(HOUR)["hauling"]["trucks_lost_near_sanctuary"] == 1
+    run = {"metrics": {"hauling": col.result(2 * HOUR)["hauling"]}}
+    lost = report._hauling([run, run])["trucks_lost_near_sanctuary"]
+    assert lost == {"total": 2, "per_h": 0.5}  # 2 trucks over 4 run-hours
+
+
+def test_open_resupply_jobs_split_into_starving_and_stocking_per_sample(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    """Item 5: at each sample, open `resupply:<node>` jobs by the node's stock against the live
+    floor; the sanctuary's job, a full job and other job kinds are left out."""
+    world = start_campaign("c", 1, shipped_config)
+    floor = shipped_config.rules.supply.starve_floor
+
+    def resupply(jid: int, node: str, **kw: Any) -> Job:
+        return Job(jid, "RESUPPLY", f"resupply:{node}", 1, 1000, 0, node=node, **kw)
+
+    world.stock["west-airbase"] = floor["west-airbase"] - 1  # starving
+    world.stock["fob-n-w"] = floor["fob-n-w"]  # at the floor: stocking
+    world.stock["fob-s-w"] = 0  # starving, but its job is full
+    world.stock["fob-n-e"] = 0  # the Static's, starving
+    world.stock["fob-s-e"] = floor["fob-s-e"] + 5  # the Static's, stocking
+    world.boards["COALITION"].update({
+        1: resupply(1, "west-airbase"), 2: resupply(2, "fob-n-w"), 3: resupply(3, "haven"),
+        4: resupply(4, "fob-s-w", claims={7: Claim(0)}),
+        5: Job(5, "STRIKE", "strike:fob-n-e", 1, 1000, 0, node="fob-n-e"),
+    })  # fmt: skip
+    world.boards["ENEMY"].update({6: resupply(6, "fob-n-e"), 7: resupply(7, "fob-s-e"),
+                                  8: resupply(8, "fob-s-e")})  # fmt: skip
+    collector.sample(world)
+    collector.sample(world)  # a second sample: the same state, so twice the minutes
+    jobs = collector.result(100)["hauling"]["resupply_job_min"]
+    assert jobs == {
+        "COALITION": {"starving": 2.0, "stocking": 2.0},
+        "ENEMY": {"starving": 2.0, "stocking": 4.0},
+    }  # 600 ticks = 1 game minute a sample
+    agg = report._hauling([{"metrics": {"hauling": collector.result(100)["hauling"]}}] * 2)
+    assert (agg["COALITION"]["starving_job_min"], agg["ENEMY"]["stocking_job_min"]) == (4.0, 8.0)
+
+
+def test_new_metrics_reach_report_json_and_markdown(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    out = tmp_path / "o"
+    argv = ["balance.py", "--profile", "quiet-5", "--seeds", "1,2", "--hours", "0.02", "--out",
+            str(out)]  # fmt: skip
+    monkeypatch.setattr(sys, "argv", argv)
+    assert balance.main() == 0
+    doc = json.loads((out / "report.json").read_text())
+    agg = doc["profiles"]["quiet-5"]
+    assert [p["seed"] for p in agg["per_seed"]] == [1, 2]
+    assert agg["economy"]["holds_resumed"] == 0 and agg["economy"]["hold_resets"] == {}
+    assert agg["defeat_run"]["started"] == 0
+    assert agg["hauling"]["trucks_lost_near_sanctuary"]["total"] == 0
+    md = report.markdown(doc)
+    assert "resumed 0, resets none" in md
+    assert "## Per seed: A2 and idle armed (NX-502)" in md
+    assert "## Hauling state, trucks lost and the defeat run (NX-502" in md
+
+
+# --- NX-477 / NX-478: harness counters and reporting ---------------------------------------------
+def test_zero_strategic_minutes_count_running_ticks_only(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    """NX-477 item 1: game minutes with no strategic node held by the coalition; a tick the clock
+    did not run (sim pause) counts nothing."""
+    world = start_campaign("c", 1, shipped_config)
+    strategic = sorted(shipped_config.rules.campaign.strategic)  # type: ignore[union-attr]
+
+    def observe(running: int) -> None:
+        world.campaign.running_ticks = running
+        collector.observe(world)
+
+    observe(1)  # the coalition holds them at the start
+    for n in strategic:
+        world.owner[n] = "ENEMY"
+    observe(2)  # counts
+    observe(2)  # sim-paused: running_ticks did not move, so it does not
+    observe(3)  # counts
+    world.owner[strategic[0]] = "COALITION"
+    observe(4)  # holds one again
+    hold = collector.result(100)["coalition_hold"]
+    assert hold["zero_strategic_ticks"] == 2
+    assert hold["zero_strategic_min"] == 2 / HZ / 60
+    agg = report._nx477([{"metrics": {"coalition_hold": hold}}] * 2)["coalition_hold"]
+    assert agg["zero_strategic_min"] == 4 / HZ / 60
+
+
+def _hold_world(shipped_config: CampaignConfig) -> Any:
+    world = start_campaign("c", 1, shipped_config)
+    return world, sorted(shipped_config.rules.campaign.strategic)  # type: ignore[union-attr]
+
+
+def _launch(op: str) -> dict[str, Any]:
+    return {"op": op, "own": {}, "own_capturers": 0}
+
+
+def _lose(
+    collector: metrics.Collector, node: str, frm: str = "COALITION", to: str = "ENEMY"
+) -> None:
+    collector._captured(
+        NodeCaptured.model_construct(
+            kind="NodeCaptured", tick=5, node_id=node, from_=frm, to=to,
+            participant_commander_ids=[],
+        )
+    )  # fmt: skip
+
+
+def test_strategic_held_threshold_matches_the_sims_hold_decision(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    """Q-TD-136: `hold_threshold` is the fewest owned nodes campaign.py's `holding` accepts."""
+    from nexus.core.campaign import _share
+
+    rc = shipped_config.rules.campaign
+    assert rc is not None
+    n = len(rc.strategic)
+    k = collector.result(100)["strategic_held"]["hold_threshold"]
+    assert _share(k, rc) >= rc.victory_node_frac and (
+        k == 0 or _share(k - 1, rc) < rc.victory_node_frac
+    )
+    assert k <= n
+
+
+def test_strategic_held_histogram_threshold_stretch_and_node_minutes(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    """Zero held, at the threshold, one below it, a dip splitting the stretch; sim-paused ticks and
+    the histogram sums."""
+    world, strategic = _hold_world(shipped_config)
+    k = collector.result(100)["strategic_held"]["hold_threshold"]
+    assert k >= 1
+
+    def own(count: int) -> None:
+        for i, nd in enumerate(strategic):
+            world.owner[nd] = "COALITION" if i < count else "ENEMY"
+
+    running = 0
+
+    def tick(count: int, advance: bool = True) -> None:
+        nonlocal running
+        running += advance
+        own(count)
+        world.campaign.running_ticks = running
+        collector.observe(world)
+
+    tick(k)  # at the threshold
+    tick(len(strategic))  # at or above
+    tick(k - 1)  # one below: the stretch ends
+    tick(0)  # none held
+    tick(k)  # a new stretch of 1
+    tick(k, advance=False)  # sim-paused: counts nothing
+    sh = collector.result(100)["strategic_held"]
+    assert sh["longest_min"] == 2 / HZ / 60
+    assert sh["at_or_above_min"] == 3 / HZ / 60
+    assert (
+        sh["min_by_k"][0]
+        == 1 / HZ / 60
+        == collector.result(100)["coalition_hold"]["zero_strategic_min"]
+    )
+    assert sum(sh["min_by_k"]) == 5 / HZ / 60 and len(sh["min_by_k"]) == len(strategic) + 1
+    assert sh["by_node"][strategic[0]]["owned_min"] == 4 / HZ / 60
+    agg = report._strategic_held([{"metrics": {"strategic_held": sh}}] * 2)
+    assert agg["at_or_above_min"] == 6 / HZ / 60 and agg["longest_min"] == sh["longest_min"]
+    assert sum(agg["min_by_k"]) == 10 / HZ / 60
+
+
+def test_strategic_losses_split_by_the_launch_that_preceded_them(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    _, strategic = _hold_world(shipped_config)
+    a, b, c = strategic[:3]
+    collector._latest[a] = _launch("OFFENSIVE")
+    _lose(collector, a)  # after an OFFENSIVE launch
+    _lose(collector, a)  # retaken and lost again: the launch was consumed, none known now
+    collector._latest[b] = _launch("RETAKE")
+    _lose(collector, b)
+    _lose(collector, c)  # no launch known
+    _lose(collector, c, frm="ENEMY", to="COALITION")  # a gain is not a loss
+    _lose(collector, "not-strategic")
+    by = collector.result(100)["strategic_held"]["by_node"]
+    assert by[a]["lost"] == {"total": 2, "OFFENSIVE": 1, "RETAKE": 0, "other": 0, "none": 1}
+    assert by[b]["lost"]["RETAKE"] == 1 and by[c]["lost"] == {
+        "total": 1,
+        "OFFENSIVE": 0,
+        "RETAKE": 0,
+        "other": 0,
+        "none": 1,
+    }
+    agg = report._strategic_held(
+        [{"metrics": {"strategic_held": collector.result(100)["strategic_held"]}}] * 2
+    )
+    assert agg["by_node"][a]["lost"]["total"] == 4
+
+
+def _who_world(shipped_config: CampaignConfig, node: str) -> Any:
+    """A world with the Static's units at `node`: a Director tank on an OFFENSIVE job, a Director
+    truck (logistics weight) on a RETAKE job, one with no job, a garrison unit (no weight) and a
+    jet in the air; `air_weight` is None unless the caller sets it."""
+    world = start_campaign("c", 1, shipped_config)
+    rules = world.rules
+    assert rules is not None and rules.capture is not None
+    here = Vec2(*rules.roads.pos[node])
+    ground = [k for k, d in rules.domain.items() if d == "GROUND" and k in rules.armed]
+    truck = sorted(rules.supply.carriers)[0]
+    air = next(k for k, d in sorted(rules.domain.items()) if d == "AIR")
+    for jid, key in ((1, "op:OFFENSIVE:x:0"), (2, "op:RETAKE:x:0")):
+        world.boards["ENEMY"][jid] = Job(jid, "CAPTURE", key, 1, 1000, 0)
+    a = world.spawn(ground[0], "ENEMY", "ENEMY_DIRECTOR", here)
+    a.job_id = 1
+    b = world.spawn(truck, "ENEMY", "ENEMY_DIRECTOR", here)
+    b.job_id = 2
+    world.spawn(ground[0], "ENEMY", "AI_GARRISON", here)  # no job
+    g = world.spawn(ground[0], "ENEMY", "AI_GARRISON", here)
+    g.home = node  # a garrison unit: never a capturer
+    j = world.spawn(air, "ENEMY", "ENEMY_DIRECTOR", here)
+    j.state = "ON_STATION"
+    j.job_id = 1
+    world.spawn(ground[0], "COALITION", "AI_GARRISON", here)  # the loser's unit: not a capturer
+    return world, rules, (a, b, j)
+
+
+def _took(collector: metrics.Collector, world: Any, node: str, **kw: str) -> dict[str, Any]:
+    _lose(collector, node, **kw)
+    collector.observe(world)
+    out: dict[str, Any] = collector.result(100)["who_took"]
+    return out
+
+
+def test_who_took_mirrors_the_sims_presence_and_names_job_kind_and_owner(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    from nexus.core.capture import _presence
+
+    node = sorted(shipped_config.rules.campaign.strategic)[0]  # type: ignore[union-attr]
+    world, rules, (a, b, _) = _who_world(shipped_config, node)
+    seen = metrics.capturers(world, node, "ENEMY")
+    near = _presence(world, rules, rules.capture, [node])[node]["ENEMY"]
+    assert sum(w for _, w in seen) == near.weight  # the sim's own weight, air excluded
+    assert [e.id for e, _ in seen if e.id in (a.id, b.id)] == [a.id, b.id]
+    w = _took(collector, world, node)["strategic"]
+    assert w["losses"] == 1 and w["unknown"] == 0 and w["units"] == 3  # tank, truck, no-job unit
+    assert w["weight"] == near.weight and w["weight"] == 2 + rules.capture.logi_weight
+    assert w["units_by_job"] == {"none": 1, "op:OFFENSIVE": 1, "op:RETAKE": 1}
+    assert w["losses_by_job"] == w["units_by_job"]  # one loss: each prefix once
+    assert w["units_by_owner"] == {"other": 1, "static": 2}
+    assert w["units_by_kind"][a.kind] == 2 and w["losses_by_kind"][a.kind] == 1
+    assert _took(collector, world, node)["other"]["losses"] == 0
+
+
+def test_who_took_a_single_offensive_unit_and_air_counts_only_with_the_option(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    node = sorted(shipped_config.rules.campaign.strategic)[0]  # type: ignore[union-attr]
+    world, _rules, (a, _b, _j) = _who_world(shipped_config, node)
+    for e in list(world.entities()):
+        if e.id != a.id:
+            world.remove(e.id)
+    w = _took(collector, world, node)["strategic"]
+    assert w["units"] == 1 and w["units_by_job"] == {"op:OFFENSIVE": 1}
+    assert w["units_by_owner"] == {"static": 1}
+    world2, rules2, (_, _, j2) = _who_world(shipped_config, node)
+    world2.rules = dataclasses.replace(  # capture.air_counts on, on this world only
+        rules2, capture=dataclasses.replace(rules2.capture, air_weight=1.5)
+    )
+    seen = {e.id: w_ for e, w_ in metrics.capturers(world2, node, "ENEMY")}
+    assert seen[j2.id] == 1.5
+    j2.state = "LANDED"
+    assert j2.id not in {e.id for e, _ in metrics.capturers(world2, node, "ENEMY")}
+
+
+def test_who_took_nothing_visible_neutral_flips_and_the_split(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    node = sorted(shipped_config.rules.campaign.strategic)[0]  # type: ignore[union-attr]
+    world = start_campaign("c", 1, shipped_config)
+    for e in list(world.entities()):
+        if e.side == "ENEMY":
+            world.remove(e.id)
+    got = _took(collector, world, node)
+    assert got["strategic"] == {**got["strategic"], "losses": 1, "unknown": 1, "units": 0}
+    _lose(collector, node, frm="NEUTRAL")  # not a coalition loss
+    _lose(collector, node, frm="ENEMY", to="COALITION")
+    collector.observe(world)
+    assert collector.result(100)["who_took"]["strategic"]["losses"] == 1
+    strategic = set(world.rules.campaign.strategic)  # type: ignore[union-attr]
+    other = next(n for n in sorted(world.rules.node_kind) if n not in strategic)  # type: ignore[union-attr]
+    got = _took(collector, world, other)
+    assert got["other"]["losses"] == 1 and got["other"]["unknown"] == 1
+    assert got["strategic"]["losses"] == 1
+    agg = report._who_took([{"metrics": {"who_took": got}}] * 2)
+    assert agg["strategic"]["losses"] == 2 and agg["other"]["unknown"] == 2
+
+
+def test_who_took_old_runs_and_failed_stub_still_render() -> None:
+    old = {"seed": 1, "metrics": {}}
+    assert report._who_took([old]) == {} and report._who_seed(old) == {"who_took": {}}
+    stub = runner.failed_run("quiet-5", 1, 1.0, "boom")
+    assert report._who_took([stub]) == {}
+    zero = {"losses": 0, "unknown": 0}
+    prof = {"profiles": {"quiet-5": {"who_took": {}, "per_seed": [
+        {"seed": 1}, {"seed": 2, "who_took": {"strategic": zero, "other": zero}},
+    ]}}}  # fmt: skip
+    md = "\n".join(report._who_took_md(prof))
+    assert "## Who takes coalition nodes (Q-TD-136)" in md
+    assert "| quiet-5 | 1 | - | - |" in md  # not measured: shown as unavailable, never as zero
+    assert "| quiet-5 | 2 | 0 / 0 | 0 / 0 |" in md  # measured and zero
+
+
+def test_strategic_held_old_runs_and_failed_stub_still_render() -> None:
+    old = {"seed": 1, "metrics": {}}
+    assert report._held_seed(old)["held_losses"] == 0
+    assert report._strategic_held([old])["min_by_k"] == []
+    stub = runner.failed_run("quiet-5", 1, 1.0, "boom")
+    assert report._held_seed(stub)["held_at_or_above_min"] == 0.0
+    assert report._strategic_held([stub])["by_node"] == {}
+
+
+def test_coalition_captures_count_only_flips_to_the_coalition(
+    collector: metrics.Collector,
+) -> None:
+    """NX-477 item 2: `NodeCaptured` with the coalition as the new owner, summed per profile."""
+
+    def captured(node: str, frm: str, to: str) -> Any:
+        return NodeCaptured.model_construct(
+            kind="NodeCaptured", tick=5, node_id=node, from_=frm, to=to,
+            participant_commander_ids=[],
+        )  # fmt: skip
+
+    collector.feed([captured("fob-n-e", "ENEMY", "COALITION"),
+                    captured("fob-s-e", "ENEMY", "COALITION"),
+                    captured("fob-n-w", "COALITION", "ENEMY")])  # fmt: skip
+    hold = collector.result(100)["coalition_hold"]
+    assert hold["coalition_captures"] == 2
+    runs = [{"metrics": {"coalition_hold": hold}}] * 2
+    assert report._nx477(runs)["coalition_hold"]["coalition_captures"] == 4
+
+
+def test_escort_convoys_jobs_are_read_at_the_first_sample_of_each_hour(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    """NX-477 item 3: the Static board's `op:ESCORT_CONVOYS:` jobs, one reading per run-hour; other
+    operations and the coalition's board are left out."""
+    world = start_campaign("c", 1, shipped_config)
+
+    def job(jid: int, key: str) -> Job:
+        return Job(jid, "ESCORT_CONVOY", key, 1, 1000, 0)
+
+    world.boards["ENEMY"].update({
+        1: job(1, "op:ESCORT_CONVOYS:convoy-a:0"), 2: job(2, "op:ESCORT_CONVOYS:convoy-b:0"),
+        3: job(3, "op:RECON:fob-n-w:0"),
+    })  # fmt: skip
+    world.boards["COALITION"][4] = job(4, "op:ESCORT_CONVOYS:convoy-c:0")
+    world.campaign.tick = HOUR
+    collector.sample(world)
+    world.campaign.tick = HOUR + 5
+    collector.sample(world)  # the same hour: no second reading
+    world.boards["ENEMY"][5] = job(5, "op:ESCORT_CONVOYS:convoy-d:0")
+    world.campaign.tick = 2 * HOUR
+    collector.sample(world)
+    series = collector.result(2 * HOUR)["escort_jobs"]
+    assert series == [2, 3]
+    other = {"metrics": {"escort_jobs": [4]}}
+    agg = report._nx477([{"metrics": {"escort_jobs": series}}, other])["escort_jobs"]
+    assert agg == {"mean": [3.0, 3.0], "max": [4, 3]}  # hour 1 only has the first run
+
+
+def test_income_lost_to_the_storage_clip_is_due_minus_produced(
+    shipped_config: CampaignConfig,
+) -> None:
+    """NX-478 item 1: at an economy window, `economy.income` per limited side against the
+    `SupplyProduced` of that window; a tick that is no window adds nothing."""
+    world = start_campaign("c", 1, shipped_config)
+    er = shipped_config.rules.economy
+    assert er is not None
+    world.campaign.running_ticks = er.window_ticks - 1  # the next tick is a window
+    col = metrics.Collector(
+        world, frozenset(), tick_hz=HZ, sample_ticks=600, a3_ticks=1000, idle_sample_ticks=600,
+        impact_check_ticks=10, kinds={}, a2_min_tier="ALPHA", starve_threshold=0.25,
+    )  # fmt: skip
+    due = {s: income(world, shipped_config.rules, er, s) for s in ("COALITION", "ENEMY")}
+    assert due["ENEMY"] > 30  # so the 30 below is a clip
+    col.feed(
+        [SupplyProduced.model_construct(kind="SupplyProduced", tick=1, side="ENEMY", amount=30)]
+    )
+    world.campaign.running_ticks = er.window_ticks
+    col.observe(world)  # the window ran
+    world.campaign.running_ticks += 1
+    col.observe(world)  # no window
+    clip = col.result(100)["income_clip"]
+    assert clip["ENEMY"] == {"due": due["ENEMY"], "produced": 30, "lost": due["ENEMY"] - 30}
+    assert clip["COALITION"] == {"due": due["COALITION"], "produced": 0, "lost": due["COALITION"]}
+    agg = report._nx477([{"metrics": {"income_clip": clip}}] * 2)["income_clip"]
+    assert agg["ENEMY"]["lost"] == 2 * (due["ENEMY"] - 30)
+    # a second window after the income changed: the cache is refreshed, not read once
+    for n, kind in shipped_config.rules.node_kind.items():
+        if kind in er.income_per_node and world.owner.get(n) == "COALITION":
+            world.owner[n] = "ENEMY"
+    due2 = {s: income(world, shipped_config.rules, er, s) for s in ("COALITION", "ENEMY")}
+    assert due2 != due
+    world.campaign.running_ticks = 2 * er.window_ticks - 1
+    col.observe(world)  # the tick before the second window reads the new income
+    world.campaign.running_ticks = 2 * er.window_ticks
+    col.observe(world)
+    clip2 = col.result(100)["income_clip"]
+    for side in ("COALITION", "ENEMY"):
+        assert clip2[side]["due"] == due[side] + due2[side]
+
+
+def test_below_tier_newbies_get_the_a2_median_and_tail(collector: metrics.Collector) -> None:
+    """NX-478 item 2: the pooled A2 rules over the below-ALPHA newbies, information only: one with
+    an impact at 10 s, one watched 990 s without (a miss for the median, over the 900 s tail)."""
+    collector.note_join(commander(1), 100, "PATTERN_OF_LIFE")
+    collector.note_join(commander(4), 100, "PATTERN_OF_LIFE")
+    collector.feed([spawned(110, 901, "STRIKE_FIGHTER", "COALITION", commander(1))])
+    collector.feed([WeaponImpact.model_construct(kind="WeaponImpact", tick=200, shooter_id=901,
+                                                 hit=True)])  # fmt: skip
+    n = collector.result(10000)["newbie"]
+    assert n["below_tier_ttfi_s"] == [10.0]
+    assert n["below_tier_no_impact_observed_s"] == [990.0]
+    below = report._a2([{"metrics": {"newbie": n}}], load().targets)["below_tier"]
+    assert below["median_s"] == 10.0  # the impact-only median, as before
+    a2 = below["a2"]
+    assert (a2["newbies"], a2["with_impact"], a2["no_impact_within_window"]) == (2, 1, 1)
+    assert a2["median_s"] is None  # (10 + miss) / 2: the pooled rule's infinity
+    assert (a2["tail"]["over"], a2["tail"]["judged"], a2["tail"]["share"]) == (1, 2, 0.5)
+    assert "status" not in a2  # never judged
+
+
+def test_idle_full_sits_next_to_the_boards_open_strike_slots(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    """NX-478 item 3: at each idle sample, the coalition board's unfilled STRIKE slots (other job
+    kinds and filled slots left out), pooled per sample next to the `full` reason."""
+    world = start_campaign("c", 1, shipped_config)
+    node = Vec2(*shipped_config.rules.roads.pos["west-airbase"])
+    world.spawn("STRIKE_FIGHTER", "COALITION", "COMMANDER", node, commander_id=commander(1))
+    world.boards["COALITION"].update({
+        1: Job(1, "STRIKE", "strike:fob-n-e", 3, 1000, 0, node="fob-n-e", claims={7: Claim(0)}),
+        2: Job(2, "STRIKE", "strike:fob-s-e", 1, 1000, 0, node="fob-s-e", claims={8: Claim(0)}),
+        3: Job(3, "RESUPPLY", "resupply:fob-n-e", 2, 1000, 0, node="fob-n-e"),
+    })  # fmt: skip
+    collector.sample_idle(world)  # 2 open slots (job 1); job 2 is filled; job 3 is not a strike
+    collector.sample_idle(world)
+    idle = collector.result(100)["idle"]
+    assert idle["open_strike_slots_sum"] == 4
+    idle["reasons"] = {"full": 3}  # as if three unit-samples held no job because all were full
+    agg = report._idle([{"metrics": {"idle": idle}}])
+    assert (agg["full_per_sample"], agg["open_strike_slots_per_sample"]) == (1.5, 2.0)
+
+
+def test_nx477_nx478_reach_report_json_and_markdown(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    out = tmp_path / "o"
+    argv = ["balance.py", "--profile", "quiet-5", "--seeds", "1,2", "--hours", "0.02", "--out",
+            str(out)]  # fmt: skip
+    monkeypatch.setattr(sys, "argv", argv)
+    assert balance.main() == 0
+    agg = json.loads((out / "report.json").read_text())["profiles"]["quiet-5"]
+    assert agg["coalition_hold"]["zero_strategic_min"] == 0.0
+    assert set(agg["income_clip"]) == {"COALITION", "ENEMY"}
+    assert agg["A2"]["below_tier"]["a2"]["tail"]["limit_s"] > 0
+    assert "open_strike_slots_per_sample" in agg["idle"]
+    md = report.markdown(json.loads((out / "report.json").read_text()))
+    assert "## Coalition holds, Static escort jobs and the income clip (NX-477, NX-478)" in md
+    assert "open STRIKE slots on the board" in md
+
+
+def test_the_failed_run_stub_carries_the_new_metrics() -> None:
+    m = runner.failed_run("quiet-5", 1, 1.0, "boom")["metrics"]
+    assert m["coalition_hold"]["zero_strategic_min"] == 0.0 and m["escort_jobs"] == []
+    assert m["income_clip"]["ENEMY"] == {"due": 0, "produced": 0, "lost": 0}
+    assert m["newbie"]["below_tier_no_impact_observed_s"] == []
+    assert m["idle"]["open_strike_slots_sum"] == 0
+    agg = report.aggregate(
+        "quiet-5", [runner.failed_run("quiet-5", 1, 1.0, "boom")], load().targets
+    )
+    assert agg["coalition_hold"]["coalition_captures"] == 0
+
+
+def test_collector_times_seized_facilities_back_on_line_and_counts_those_still_off(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    """NX-471 (GAMEPLAY §8, §11): seizures, game minutes until back on line (`ticks / tick_hz`)
+    and the facilities still off at the end. A flip whose facilities the world does not hold
+    seized (no facilities, or the switch off) adds nothing."""
+    world = start_campaign("c", 1, shipped_config)
+
+    def flip(tick: int, node: str, seize: bool) -> None:
+        world.campaign.tick = tick
+        for f in world.entities():
+            if f.base_id == node:
+                f.seized_carry = 0 if seize else None
+        collector.feed([NodeCaptured.model_construct(
+            kind="NodeCaptured", tick=tick, node_id=node, from_="ENEMY", to="COALITION",
+            participant_commander_ids=[],
+        )])  # fmt: skip
+        collector.observe(world)
+
+    def back(tick: int, *ids: int) -> None:
+        world.campaign.tick = tick
+        for i in ids:
+            f = world.find(i)
+            assert f is not None
+            f.seized_carry = None
+        collector.observe(world)
+
+    (fob_site,) = (f.id for f in world.entities() if f.base_id == "fob-n-e")
+    radar, sam = (f.id for f in world.entities() if f.base_id == "east-airbase")
+    flip(10, "fob-n-e", True)
+    flip(20, "east-airbase", True)
+    flip(30, "cross-n", True)  # a base with no facilities
+    flip(40, "fob-s-e", False)  # the switch off: nothing is held seized
+    back(10 + 10 * 60 * HZ, fob_site)  # 10 game minutes
+    back(20 + 30 * 60 * HZ, radar)  # 30 game minutes; the other one stays off
+    seized = collector.result(100)["seized_facilities"]
+    assert seized == {"seized": 3, "back_min": [10.0, 30.0], "off_at_end": 1}
+    assert sam in collector._seized_at
+    run = {"metrics": {"seized_facilities": seized}}
+    z = report._seized([run, run, {"metrics": {}}])  # an older run adds nothing
+    assert z == {"seized": 6, "back_on_line": 4, "back_median_min": 20.0, "back_max_min": 30.0,
+                 "off_at_end": 2}  # fmt: skip
+    assert report._seized([{"metrics": {}}])["back_median_min"] is None
+    assert report._seized_line(z) == (
+        "  - seized facilities (NX-471): 6 seized, 4 back on line (median 20.0 min, max 30.0 min), "
+        "2 still off at run end"
     )

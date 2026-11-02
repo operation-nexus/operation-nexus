@@ -78,7 +78,9 @@ def test_shipped_hash_is_pinned_and_ignores_file_order(tmp_path: Path) -> None:
     [
         (lambda d: op(d, "PROBE")["jobs"][0].update(kind="BOMB"), "kind"),  # type: ignore[index]
         (lambda d: op(d, "PROBE").update(preconditions=["target_is_nice"]), "preconditions"),
-        (lambda d: op(d, "PROBE").update(cost=81), "above the largest tier budget"),
+        # EC-7 envelope (ECONOMY §4): strait-1's largest storage 14000 x
+        # director.spend_frac.bravo 0.0534 = 747
+        (lambda d: op(d, "PROBE").update(cost=748), r"above .*largest storage 14000 \(747\)"),
         (lambda d: op(d, "PROBE").update(cost=-1), "cost"),
         (lambda d: op(d, "PROBE").update(cost=1.5), "cost"),
         (lambda d: op(d, "PROBE")["jobs"][0].update(at="the_moon"), "at"),  # type: ignore[index]

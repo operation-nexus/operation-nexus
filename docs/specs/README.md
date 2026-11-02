@@ -2,15 +2,15 @@
 
 | Spec | Scope | Phase |
 |---|---|---|
-| [SIM-CORE](SIM-CORE.md) | Tick loop, world model, determinism, budgets | P1 |
-| [GAMEPLAY](GAMEPLAY.md) | Roles, commands, logistics, capture, win/loss, campaign | P1 |
+| [SIM-CORE](SIM-CORE.md) | Tick loop, world model, determinism, budgets (normative rules; history and "in code now" in [SIM-CORE-NOTES](SIM-CORE-NOTES.md)) | P1 |
+| [GAMEPLAY](GAMEPLAY.md) | Roles, commands, logistics, capture, win/loss, campaign (normative rules; history, derived numbers and "in code now" in [GAMEPLAY-NOTES](GAMEPLAY-NOTES.md)) | P1 |
 | [ERROR-PIPELINE](ERROR-PIPELINE.md) | Errors, CI and harness failures → `error` tickets → agent fixes | P1 |
 | [COMMAND-CATALOG](COMMAND-CATALOG.md) | Every chat command and its intent, syntax, rank and phase | P1 |
 | [COMBAT](COMBAT.md) | Targeting, hit probability, damage, wrecks, stance, who can shoot whom | P1 |
 | [GAMEPLAY-LATER](GAMEPLAY-LATER.md) | Parked later-phase gameplay rules split from GAMEPLAY (Q-GP-1) | P3-P4 |
 | [FOG-OF-WAR](FOG-OF-WAR.md) | Sensor tiers, redaction, director fairness | P1 |
-| [THREAT-DIRECTOR](THREAT-DIRECTOR.md) | Enemy AI tiers, budget, threat memory, advisor | P1 / P4 |
-| [ECONOMY](ECONOMY.md) | Force scaling by economy: income, storage, upkeep, grounding (Approved, NX-412) | P1 |
+| [THREAT-DIRECTOR](THREAT-DIRECTOR.md) | Enemy AI tiers, budget, threat memory, advisor (normative rules; history, code map and derived numbers in [THREAT-DIRECTOR-NOTES](THREAT-DIRECTOR-NOTES.md)) | P1 / P4 |
+| [ECONOMY](ECONOMY.md) | Force scaling by economy: income, storage, upkeep, grounding (Approved, NX-412; normative rules; history, code pointers and derived numbers in [ECONOMY-NOTES](ECONOMY-NOTES.md)) | P1 |
 | [WIRE-PROTOCOL](WIRE-PROTOCOL.md) | Server→overlay WS protocol, versioning | P2 |
 | [OVERLAY](OVERLAY.md) | Broadcast layout, readability, accessibility, PiP | P2 |
 | [CHAT-GATEWAY](CHAT-GATEWAY.md) | Platform adapters, normalization, rate limits, replies | P2 |
@@ -22,7 +22,7 @@
 | [LLM-ADVISORS](LLM-ADVISORS.md) | Advisor, narrator, `!order` parser, budgets | P4 |
 | [CONTRACTS](CONTRACTS.md) | Enums, commands, events, wire messages, internal and admin API | P0–P2 |
 | [DATA-MODEL](DATA-MODEL.md) | SQLite schema, ledgers, snapshot and log formats, retention, backups | P1–P3 |
-| [CONFIG-AND-CONTENT](CONFIG-AND-CONTENT.md) | Config layers, balance key reference, unit catalog, theater format | P1 |
+| [CONFIG-AND-CONTENT](CONFIG-AND-CONTENT.md) | Config layers, balance key reference, unit catalog, theater format (normative rules; history, code pointers and derived numbers in [CONFIG-AND-CONTENT-NOTES](CONFIG-AND-CONTENT-NOTES.md)) | P1 |
 | [CONFIG-REFERENCE](CONFIG-REFERENCE.md) | Generated settings reference from the balance schema (do not edit) | P1 |
 | [STATE-MACHINES-AND-FLOWS](STATE-MACHINES-AND-FLOWS.md) | Lifecycles, transition tables, end-to-end sequences | P1–P2 |
 | [ADMIN-RBAC](ADMIN-RBAC.md) | Roles and permissions, moderation, GM takeover, scheduling, rules editor, theater generation | P2–P4 |

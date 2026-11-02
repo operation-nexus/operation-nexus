@@ -24,6 +24,9 @@ export type Event =
   | CampaignEnded
   | VictoryHoldStarted
   | VictoryHoldBroken
+  | VictoryHoldReset
+  | VictoryHoldPaused
+  | VictoryHoldResumed
   | SpawnRefused
   | ObjectiveAnnounced
   | ObjectiveResolved
@@ -602,7 +605,7 @@ export interface CampaignEnded {
   nodes_held_pct: number;
 }
 /**
- * The coalition's victory hold began (CONTRACTS §6; GAMEPLAY §9; ECONOMY EC-9, Q-TD-19, Q-TD-25; NX-412 part 4): on the first running tick it holds at least campaign.victory_node_frac of the strategic nodes. Followed by VictoryHoldBroken, or by CampaignEnded. Public: every side sees it (the hold enters the EnemyView, TD-2).
+ * The coalition's victory hold began (CONTRACTS §6; GAMEPLAY §9; ECONOMY EC-9, Q-TD-19, Q-TD-25; NX-412 part 4): on the first running tick it holds at least campaign.victory_node_frac of the strategic nodes. A hold broken earlier and still decaying resumes with its decayed progress (ECONOMY EC-9a, NX-489). Followed by VictoryHoldBroken, or by CampaignEnded. Public: every side sees it (the hold enters the EnemyView, TD-2).
  */
 export interface VictoryHoldStarted {
   kind: "VictoryHoldStarted";
@@ -625,12 +628,16 @@ export interface VictoryHoldStarted {
    */
   node_ids: string[];
   /**
-   * The running tick on which the victory comes if the hold is not broken (campaign clock, like ObjectiveAnnounced.deadline_tick, not a Tick).
+   * The running tick on which the victory comes if the hold is not broken: this running tick + victory_hold_ticks - the progress after this tick's credit, progress_ticks + 1 (campaign clock, like ObjectiveAnnounced.deadline_tick, not a Tick).
    */
   ends_at_tick: number;
+  /**
+   * The progress the hold carries in (ECONOMY EC-9a, NX-489): 0 for a fresh hold, the decayed progress of a broken hold it resumes.
+   */
+  progress_ticks: number;
 }
 /**
- * The coalition's victory hold broke (CONTRACTS §6; GAMEPLAY §9; ECONOMY EC-9; NX-412 part 4): its share of strategic nodes fell below campaign.victory_node_frac. Not emitted when the campaign ends during the hold. Public, like VictoryHoldStarted.
+ * The coalition's victory hold broke (CONTRACTS §6; GAMEPLAY §9; ECONOMY EC-9; NX-412 part 4): its share of strategic nodes fell below campaign.victory_node_frac. With campaign.victory.hold_break decay the hold keeps progress_ticks and decays until it resumes (VictoryHoldStarted) or resets (VictoryHoldReset) (ECONOMY EC-9a, NX-489); with reset it keeps 0. Not emitted when the campaign ends during the hold. Public, like VictoryHoldStarted.
  */
 export interface VictoryHoldBroken {
   kind: "VictoryHoldBroken";
@@ -650,6 +657,92 @@ export interface VictoryHoldBroken {
    * Stable slug from the theater file.
    */
   node_id: string;
+  /**
+   * The progress the broken hold keeps (ECONOMY EC-9a): its running ticks credited so far with hold_break decay, 0 with reset.
+   */
+  progress_ticks: number;
+}
+/**
+ * A broken, decaying victory hold is over and its progress is 0 (CONTRACTS §6; GAMEPLAY §9; ECONOMY EC-9a, Q-TD-102, Q-TD-126; NX-489): on the first running tick its decayed progress reaches 0 (DECAYED), or, with campaign.victory.reset_on_repair, the other side owns one of the broken hold's nodes at its full defense HP (REPAIRED). Only with campaign.victory.hold_break decay. Public, like VictoryHoldStarted.
+ */
+export interface VictoryHoldReset {
+  kind: "VictoryHoldReset";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * DECAYED: the progress drained to 0. REPAIRED: a broken-hold node the other side owns is back at full defense HP (checked when the progress is still above 0).
+   */
+  reason: "DECAYED" | "REPAIRED";
+  /**
+   * REPAIRED: the repaired node, the lowest id when several are; null for DECAYED.
+   */
+  node_id: string | null;
+}
+/**
+ * A running victory hold stopped gaining progress because a hold node is under the other side's pressure (CONTRACTS §6; GAMEPLAY §9; ECONOMY EC-9b, Q-TD-84 (b), Q-TD-134; NX-466). Emitted once per pause, on its first pressured running tick (never the tick the hold starts). Nothing follows while the pause lasts, even if the node or the reason changes. Only with campaign.victory.pause_on_pressure. Public, like VictoryHoldStarted.
+ */
+export interface VictoryHoldPaused {
+  kind: "VictoryHoldPaused";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Stable slug from the theater file.
+   */
+  node_id: string;
+  /**
+   * The first condition that holds for node_id, in the order CAPTURE_BAR, DEFENSES_DOWN, CAPTURE_OP.
+   */
+  reason: "CAPTURE_BAR" | "DEFENSES_DOWN" | "CAPTURE_OP";
+  /**
+   * The progress the hold keeps while paused (a running hold has at least its start tick's 1).
+   */
+  progress_ticks: number;
+}
+/**
+ * A paused victory hold gained progress again: no hold node is under pressure any more (CONTRACTS §6; GAMEPLAY §9; ECONOMY EC-9b, Q-TD-84 (b); NX-466). Emitted on the first running tick after a VictoryHoldPaused with no hold node pressured, which also gains 1. Not emitted when the hold breaks or the campaign ends during the pause. Only with campaign.victory.pause_on_pressure. Public, like VictoryHoldStarted.
+ */
+export interface VictoryHoldResumed {
+  kind: "VictoryHoldResumed";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * The running tick the victory comes on if nothing pauses or breaks the hold again: this running tick + victory_hold_ticks - progress_ticks (campaign clock, as VictoryHoldStarted.ends_at_tick).
+   */
+  ends_at_tick: number;
+  /**
+   * The progress after this tick's gain.
+   */
+  progress_ticks: number;
 }
 /**
  * The live-unit cap stopped Director operations in one selection (CONTRACTS §6; ECONOMY EC-8, Q-TD-34 (5); NX-412 part 5a): operations the window's budget and max_spawns_per_window would have taken but whose units did not fit the side's live room. At most one per selection (the window's operations, the Pattern of Life capture slot, its convoys), none when nothing was refused. A JOIN at the cap is not counted here: it waits in the reserve queue (ReserveQueueJoined). A countable signal for the balance harness. Public view: dropped (proposed).
@@ -670,7 +763,7 @@ export interface SpawnRefused {
   campaign_id: string;
   side: "COALITION" | "ENEMY";
   /**
-   * Which live-unit cap refused a Director operation (ECONOMY EC-8, NX-412 part 5a): GUARD = sim.max_live_units_per_side (economy.legacy_rules false); TIER_CAP = director.max_live_units.<tier> (economy.legacy_rules true, temporary).
+   * Which live-unit cap refused a Director operation (ECONOMY EC-8, NX-412 part 5a): GUARD = sim.max_live_units_per_side. TIER_CAP was the per-tier live cap, deleted in NX-488: no longer emitted, kept so event logs recorded before it still parse.
    */
   reason: "GUARD" | "TIER_CAP";
   /**
@@ -1266,7 +1359,7 @@ export interface ThreatTierChanged {
   cp_smoothed: number;
 }
 /**
- * The Static's Threat Director adapted its defense to what it suffered, or announces what its operations are doing (CONTRACTS §6; THREAT-DIRECTOR §4 step 5, C37; NX-156). `UP` when the matching operation launched (escorts appear, air defense is reinforced), `DOWN` when its threat-memory counter has decayed away again. Sector level only: it names no site and updates no facility marker (Q-FOW-17, FOG-OF-WAR FOW-13). Two categories also name a node (nodes are public, FOW-10). HOLD_AT_RISK (NX-412 part 4, ECONOMY EC-9, Q-TD-19): a capture operation was launched on a node of the coalition's running victory hold, always UP, no DOWN. STRIKE_DOWNED (NX-431, Q-TD-56): viewer units took out the last jet of a Static strike package; node_id is the struck node, always UP. Public view: this INTEL line.
+ * The Static's Threat Director adapted its defense to what it suffered, or announces what its operations are doing (CONTRACTS §6; THREAT-DIRECTOR §4 step 5, C37; NX-156). `UP` when the matching operation launched (escorts appear, air defense is reinforced), `DOWN` when its threat-memory counter has decayed away again. Sector level only: it names no site and updates no facility marker (Q-FOW-17, FOG-OF-WAR FOW-13). Two categories also name a node (nodes are public, FOW-10). HOLD_AT_RISK (NX-412 part 4, ECONOMY EC-9, Q-TD-19): a capture operation was launched on a node of the coalition's running victory hold, always UP, no DOWN. STRIKE_DOWNED (NX-431, Q-TD-56): viewer units took out the last jet of a Static strike package; node_id is the struck node, always UP. SANCTUARY_AT_RISK (NX-493, Q-TD-122): the coalition sanctuary's defense hp fell from full, node_id the sanctuary, always UP. Public view: this INTEL line.
  */
 export interface ThreatAdaptation {
   kind: "ThreatAdaptation";
@@ -1287,7 +1380,7 @@ export interface ThreatAdaptation {
    */
   side: "COALITION" | "ENEMY";
   /**
-   * CONVOY_ESCORT: escorts for convoys after `convoy_attacks`. IADS_REINFORCED: air defense reinforced after `radar_strikes`. HOLD_AT_RISK: a capture operation (OFFENSIVE, RETAKE) launched on a node of the running victory hold, the sitrep "NULL moves on <node>, the hold is at risk" (Q-TD-19). STAGING: a capture operation started forward staging at a base in the sector (THREAT-DIRECTOR §4a FS-5, NX-416), the sitrep "NULL forces are massing in <sector>", always UP, sector level only (no node_id, FOW-13). STAGING_LAUNCHED and STAGING_DISPERSED (NX-431, Q-TD-47) close a STAGING sitrep, once, in the sector it named: the staged operation launched from its staging base, the sitrep "NULL assault launching from <sector>"; or the massing ended otherwise (dropped, timed out or fell back to the rear, or re-staged where the coalition sees nothing or in another sector), the sitrep "massing disperses" (Q-TD-47 wording) for sector_id; always UP, no node_id. STRIKE_DOWNED (NX-431, Q-TD-56): a viewer unit's hit destroyed, disabled or mission-killed the last unit of a Static STRIKE job still in the fight, the sitrep "NULL strike package downed near <node>" crediting credit_ids, once per job, on that tick; always UP, node_id the job's target node and sector_id its sector.
+   * CONVOY_ESCORT: escorts for convoys after `convoy_attacks`. IADS_REINFORCED: air defense reinforced after `radar_strikes`. HOLD_AT_RISK: a capture operation (OFFENSIVE, RETAKE) launched on a node of the running victory hold, the sitrep "NULL moves on <node>, the hold is at risk" (Q-TD-19). STAGING: a capture operation started forward staging at a base in the sector (THREAT-DIRECTOR §4a FS-5, NX-416), the sitrep "NULL forces are massing in <sector>", always UP, sector level only (no node_id, FOW-13). STAGING_LAUNCHED and STAGING_DISPERSED (NX-431, Q-TD-47) close a STAGING sitrep, once, in the sector it named: the staged operation launched from its staging base, the sitrep "NULL assault launching from <sector>"; or the massing ended otherwise (dropped, timed out or fell back to the rear, or re-staged where the coalition sees nothing or in another sector), the sitrep "massing disperses" (Q-TD-47 wording) for sector_id; always UP, no node_id. STRIKE_DOWNED (NX-431, Q-TD-56): a viewer unit's hit destroyed, disabled or mission-killed the last unit of a Static STRIKE job still in the fight, the sitrep "NULL strike package downed near <node>" crediting credit_ids, once per job, on that tick; always UP, node_id the job's target node and sector_id its sector. SANCTUARY_AT_RISK (NX-493, Q-TD-122): a hit took the coalition sanctuary's defense hp below full, the sitrep "NULL strikes <node>, the sanctuary is at risk" (its board posts the defend job at the top urgency, GAMEPLAY §1b); once per drop from full (a repair to full and a new hit give another), always UP, node_id the sanctuary and sector_id its sector.
    */
   category:
     | "CONVOY_ESCORT"
@@ -1296,14 +1389,15 @@ export interface ThreatAdaptation {
     | "STAGING"
     | "STAGING_LAUNCHED"
     | "STAGING_DISPERSED"
-    | "STRIKE_DOWNED";
+    | "STRIKE_DOWNED"
+    | "SANCTUARY_AT_RISK";
   /**
    * Named map region from the theater file (OVERLAY AN-1).
    */
   sector_id: string;
   direction: "UP" | "DOWN";
   /**
-   * HOLD_AT_RISK: the hold node the operation targets; STRIKE_DOWNED: the struck node; null for every other category.
+   * HOLD_AT_RISK: the hold node the operation targets; STRIKE_DOWNED: the struck node; SANCTUARY_AT_RISK: the coalition sanctuary; null for every other category.
    */
   node_id?: string | null;
   /**

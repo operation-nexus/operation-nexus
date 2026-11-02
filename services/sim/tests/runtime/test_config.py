@@ -61,7 +61,11 @@ logistics:
     HQ: 2000
     PORT: 1000
   starve_threshold: 0.25
+  starve_floor_mode: fraction
+  starve_floor_loadouts: 5
   stock_target_frac: 0.8
+  stock_target_mode: fraction
+  stock_target_loadouts: 15
   truck_cargo: 100
   unload_rate: 1.0
   rearm_rate: 0.5
@@ -93,10 +97,15 @@ logistics:
   bridge_collapse_radius_m: 1000.0
   bridge_repair_time_s: 600.0
   truck_bridge_repair_mult: 5.0
+  ai_trucks:
+    period_s: 900
+    max_live: 3
 capture:
   radius_m: 2000.0
   time_s: 120.0
   multi_unit_exponent: 0.5
+  time_mult: {AIRBASE: 1.0, FOB: 1.0, HQ: 20.0, PORT: 1.0, SANCTUARY: 1.0}
+  extra_exponent: {AIRBASE: 0.0, FOB: 0.0, HQ: 0.5, PORT: 0.0, SANCTUARY: 0.0}
   quiet_floor: 0.6
   quiet_ref: 50
   min_time_s: 30.0
@@ -114,6 +123,8 @@ capture:
   sanctuary_repair_hp_per_s: 1.0
   uncapturable_node_kinds: [SANCTUARY, BRIDGE]
   requires_defenses_down: true
+  facilities_disabled: true
+  seized_repair_slowdown: 92
   air_counts: false
   air_weight: 1.0
   quiet_sides: [COALITION]
@@ -156,11 +167,18 @@ campaign:
   victory_hold_min: 30
   defeat:
     hold_min: 30
+    reset_hp_frac: 0.5
   objective_period_min: 15
   objective_mode: timed
   objective_pick: uniform
   victory:
     hq_capture: true
+    hold_break: decay
+    decay_slow_min: 10
+    decay_slow_rate: 0.25
+    decay_fast_rate: 1.0
+    reset_on_repair: true
+    pause_on_pressure: true
   idle_floor:
     enabled: true
     sanctuary_min_hp: 1
@@ -202,6 +220,7 @@ tasking:
     repair_bridge: 2
   resupply_stock_per_slot: 100
   resupply_slots_max: 3
+  resupply_slots_max_starving: 6
   defend_radius_m: 10000
   counterattack_window_min: 15
   scout_cooldown_min: 5
@@ -233,6 +252,7 @@ tasking:
   patrol_orbit_m: 5000
   patrol_dwell_s: 300
   order_dwell_s: 600
+  retake_keep_min: 30
   stock_urgency: 0.5
   stock_front_bonus: 0.25
 director:
@@ -270,17 +290,10 @@ director:
       redemption:
         support: 1
         cosmetic: 0
-  budget:
-    pattern_of_life: 10
-    alpha: 30
-    bravo: 80
   max_spawns_per_window: 6
-  max_live_units:
-    pattern_of_life: 24
-    alpha: 40
-    bravo: 70
   spend_frac: {pattern_of_life: 0.007, alpha: 0.02, bravo: 0.0534}
   source_spend_frac: 0.005
+  surplus_ref_frac: 0.25
   upkeep_reserve_windows: 2
   cadence_windows: 10
   op_priority: {RETAKE: 1.2, OFFENSIVE: 1.0, RECON: 0.5}
@@ -324,6 +337,7 @@ director:
   pol:
     patrol_period_s: 1800
     convoy_period_s: 3600
+    convoy_demand_s: 900
     offensive_period_s: 21600
     patrol_slots: 1
     patrols_per_base: 1
@@ -347,8 +361,8 @@ economy:
   upkeep_period: {ENEMY_ARMOR: 20, ENEMY_CONVOY: 1, ENEMY_FIGHTER: 20, ENEMY_RECON_UAV: 30,
     ENEMY_STRIKE_FIGHTER: 20, GARRISON_INFANTRY: 20, LOGI_TRUCK: 1, RECON_UAV: 30,
     STRIKE_FIGHTER: 20}
-  legacy_rules: true
   free_viewer_spawn: true
+  cost_parity: true
   floor_viewer_units: 5
   shortfall_quiet_windows: 30
 """
@@ -367,9 +381,14 @@ economy:
 # keys, the EC-8 guard, `economy.legacy_rules` and `free_viewer_spawn`, NX-412 part 5b for
 # `economy.floor_viewer_units`, NX-426 for `economy.upkeep_period`, NX-436 for
 # `economy.shortfall_quiet_windows`, NX-472 for `combat.facility_restore_frac`, NX-468 for
-# `combat.overkill_check`); a change means
+# `combat.overkill_check`, NX-412 part 5b again for its harness-tuned defaults, NX-488 for
+# deleting `economy.legacy_rules`, `director.budget` and `director.max_live_units`, NX-484 for
+# `tasking.retake_keep_min`, NX-489 for the `campaign.victory` hold decay keys, NX-490 for
+# `capture.time_mult` and `capture.extra_exponent`, NX-494 for `economy.cost_parity` and the
+# catalog's `mirrors`, NX-499 for `campaign.defeat.reset_hp_frac`, NX-501 for
+# `logistics.stock_target_mode` and `stock_target_loadouts`); a change means
 # every config_hash moved.
-GOLDEN_CONFIG_HASH = "cd008d081afab303424a9016758e3f737521521b46c60fd7c0d31b220a0d632f"
+GOLDEN_CONFIG_HASH = "7ce3a04a3dd6517df017a1324f5340324f9ead71afee125a2db80277f7006cc1"
 AIR = {
     "bingo_reserve_frac": 0.15,
     "orbit_period_s": 120.0,
@@ -398,7 +417,11 @@ FOW = {
 LOGISTICS = {
     "node_max_stock": {"AIRBASE": 2000, "BRIDGE": 0, "FOB": 1000, "HQ": 2000, "PORT": 1000},
     "starve_threshold": 0.25,
+    "starve_floor_mode": "fraction",
+    "starve_floor_loadouts": 5,
     "stock_target_frac": 0.8,
+    "stock_target_mode": "fraction",
+    "stock_target_loadouts": 15,
     "truck_cargo": 100,
     "unload_rate": 1.0,
     "rearm_rate": 0.5,
@@ -425,11 +448,14 @@ LOGISTICS = {
     "bridge_collapse_radius_m": 1000.0,
     "bridge_repair_time_s": 600.0,
     "truck_bridge_repair_mult": 5.0,
+    "ai_trucks": {"period_s": 900, "max_live": 3},
 }
 CAPTURE = {
     "radius_m": 2000.0,
     "time_s": 120.0,
     "multi_unit_exponent": 0.5,
+    "time_mult": {"AIRBASE": 1.0, "FOB": 1.0, "HQ": 20.0, "PORT": 1.0, "SANCTUARY": 1.0},
+    "extra_exponent": {"AIRBASE": 0.0, "FOB": 0.0, "HQ": 0.5, "PORT": 0.0, "SANCTUARY": 0.0},
     "quiet_floor": 0.6,
     "quiet_ref": 50,
     "min_time_s": 30.0,
@@ -442,6 +468,8 @@ CAPTURE = {
     "sanctuary_repair_hp_per_s": 1.0,
     "uncapturable_node_kinds": ["SANCTUARY", "BRIDGE"],
     "requires_defenses_down": True,
+    "facilities_disabled": True,
+    "seized_repair_slowdown": 92,
     "air_counts": False,
     "air_weight": 1.0,
     "quiet_sides": ["COALITION"],
@@ -472,7 +500,7 @@ COMBAT = {
     },
     "crew_marker_min": 10,
     "facility_indestructible": True,
-    "strike_structure_first": False,
+    "strike_structure_first": True,
     "facility_restore_frac": 0.35,
     "overkill_check": True,
 }
@@ -481,11 +509,19 @@ CAMPAIGN = {
     "victory_node_frac": 0.80,
     "strategic_node_kinds": ["AIRBASE", "FOB", "PORT"],
     "victory_hold_min": 30,
-    "defeat": {"hold_min": 30},
+    "defeat": {"hold_min": 30, "reset_hp_frac": 0.5},
     "objective_period_min": 15,
     "objective_mode": "timed",
     "objective_pick": "uniform",
-    "victory": {"hq_capture": True},
+    "victory": {
+        "hq_capture": True,
+        "hold_break": "decay",
+        "decay_slow_min": 10,
+        "decay_slow_rate": 0.25,
+        "decay_fast_rate": 1.0,
+        "reset_on_repair": True,
+        "pause_on_pressure": True,
+    },
     "idle_floor": {"enabled": True, "sanctuary_min_hp": 1},
     "score": {"average_weight": 50, "final_weight": 50, "objective_points": 5},
     "momentum": {"nodes_weight": 70, "supply_weight": 30},
@@ -523,6 +559,7 @@ TASKING = {
     },
     "resupply_stock_per_slot": 100,
     "resupply_slots_max": 3,
+    "resupply_slots_max_starving": 6,
     "defend_radius_m": 10000,
     "counterattack_window_min": 15,
     "scout_cooldown_min": 5,
@@ -550,6 +587,7 @@ TASKING = {
     "patrol_orbit_m": 5000,
     "patrol_dwell_s": 300,
     "order_dwell_s": 600,
+    "retake_keep_min": 30,
     "stock_urgency": 0.5,
     "stock_front_bonus": 0.25,
 }
@@ -591,11 +629,10 @@ DIRECTOR = {
             "redemption": {"support": 1, "cosmetic": 0},
         },
     },
-    "budget": {"pattern_of_life": 10, "alpha": 30, "bravo": 80},
     "max_spawns_per_window": 6,
-    "max_live_units": {"pattern_of_life": 40, "alpha": 40, "bravo": 70},
     "spend_frac": {"pattern_of_life": 0.007, "alpha": 0.02, "bravo": 0.0534},
-    "source_spend_frac": 0.005,
+    "source_spend_frac": 0.01,
+    "surplus_ref_frac": 0.25,
     "upkeep_reserve_windows": 2,
     "cadence_windows": 10,
     "op_priority": {
@@ -627,7 +664,7 @@ DIRECTOR = {
     },
     "decoy_blink": {"dark_s": 120, "cooldown_s": 600, "max_per_window": 1},
     "strike_bridge": {"cooldown_s": 1800},
-    "staging": {"direct_s": 1500, "max_wait_windows": 90, "max_staged": 2},
+    "staging": {"direct_s": 1500, "max_wait_windows": 30, "max_staged": 2},
     "recon": {"loiter_s": 600, "loiter_radius_m": 5000, "grid_m": 10000, "memory_s": 3600},
     "intercept": {
         "radius_m": 30000,
@@ -638,7 +675,7 @@ DIRECTOR = {
     },
     "max_ops": {"alpha": 1, "bravo": None},
     "idle_retire_s": 600,
-    "adaptation_up_above": 0,
+    "adaptation_up_above": 2,
     "reinforce_damage_above": 0,
     "escort_min_convoys": 1,
     "frontline_hops": 1,
@@ -657,6 +694,7 @@ DIRECTOR = {
     "pol": {
         "patrol_period_s": 1800,
         "convoy_period_s": 3600,
+        "convoy_demand_s": 900,
         "offensive_period_s": 21600,
         "convoy_kind": "ENEMY_CONVOY",
         "patrol_slots": 1,
@@ -674,7 +712,7 @@ _UPKEEP_KINDS = (
 )  # fmt: skip
 _PER_NODE = {"AIRBASE": 10, "BRIDGE": 0, "FOB": 5, "HQ": 10, "PORT": 5}
 ECONOMY = {
-    "unlimited": {"COALITION": True, "ENEMY": True},
+    "unlimited": {"COALITION": False, "ENEMY": False},
     "window_s": 60,
     "income": {"floor": 30, "per_node": _PER_NODE},
     "storage": {"floor": 2000, "per_node": {k: v * 200 for k, v in _PER_NODE.items()}},
@@ -686,8 +724,8 @@ ECONOMY = {
         "ENEMY_CONVOY": 1,
         "LOGI_TRUCK": 1,
     },
-    "legacy_rules": True,
     "free_viewer_spawn": True,
+    "cost_parity": True,
     "floor_viewer_units": 5,
     "shortfall_quiet_windows": 30,
 }
@@ -734,6 +772,20 @@ def test_valid_file_loads(tmp_path: Path) -> None:
     assert cfg.sim.snapshot_every_ticks == 300
 
 
+def test_pause_on_pressure_is_read_and_must_be_a_bool(tmp_path: Path) -> None:
+    """NX-466 (ECONOMY EC-9b): the switch loads as written; a missing key is refused by the
+    required-key table below, and a non-bool is refused here."""
+    on, off = "    pause_on_pressure: true\n", "    pause_on_pressure: false\n"
+    assert VALID.count(on) == 1
+    assert load_balance(write(tmp_path, VALID)).campaign.victory.pause_on_pressure is True
+    assert (
+        load_balance(write(tmp_path, VALID.replace(on, off))).campaign.victory.pause_on_pressure
+        is False
+    )
+    with pytest.raises(ConfigError, match=r"campaign\.victory\.pause_on_pressure"):
+        load_balance(write(tmp_path, VALID.replace(on, "    pause_on_pressure: maybe\n")))
+
+
 def test_default_profile_loads_and_matches_golden_hash() -> None:
     assert load_balance(DEFAULT) == CFG
     assert (
@@ -771,7 +823,11 @@ def test_default_profile_loads_and_matches_golden_hash() -> None:
         ("  sigint_size_m_min: 3\n", "fow.sigint_size_m_min"),
         ("  sigint_size_l_min: 7\n", "fow.sigint_size_l_min"),
         ("  starve_threshold: 0.25\n", "logistics.starve_threshold"),
+        ("  starve_floor_mode: fraction\n", "logistics.starve_floor_mode"),
+        ("  starve_floor_loadouts: 5\n", "logistics.starve_floor_loadouts"),
         ("  stock_target_frac: 0.8\n", "logistics.stock_target_frac"),
+        ("  stock_target_mode: fraction\n", "logistics.stock_target_mode"),
+        ("  stock_target_loadouts: 15\n", "logistics.stock_target_loadouts"),
         ("  stock_urgency: 0.5\n", "tasking.stock_urgency"),
         ("  stock_front_bonus: 0.25\n", "tasking.stock_front_bonus"),
         ("  truck_cargo: 100\n", "logistics.truck_cargo"),
@@ -799,9 +855,13 @@ def test_default_profile_loads_and_matches_golden_hash() -> None:
         ("  bridge_collapse_radius_m: 1000.0\n", "logistics.bridge_collapse_radius_m"),
         ("  bridge_repair_time_s: 600.0\n", "logistics.bridge_repair_time_s"),
         ("  truck_bridge_repair_mult: 5.0\n", "logistics.truck_bridge_repair_mult"),
+        ("  ai_trucks:\n    period_s: 900\n    max_live: 3\n", "logistics.ai_trucks"),
+        ("  resupply_slots_max_starving: 6\n", "tasking.resupply_slots_max_starving"),
+        ("    convoy_demand_s: 900\n", "director.pol.convoy_demand_s"),
         ("    SANCTUARY: 1000\n", "capture.defense_hp.SANCTUARY"),
         ("  sanctuary_repair_hp_per_s: 1.0\n", "capture.sanctuary_repair_hp_per_s"),
-        ("  defeat:\n    hold_min: 30\n", "campaign.defeat"),
+        ("  defeat:\n    hold_min: 30\n    reset_hp_frac: 0.5\n", "campaign.defeat"),
+        ("    reset_hp_frac: 0.5\n", "campaign.defeat.reset_hp_frac"),
         ("  disabled_timeout_s: 600\n", "combat.disabled_timeout_s"),
         ("  assist_window_s: 120\n", "combat.assist_window_s"),
         ("  min_damage: 1\n", "combat.min_damage"),
@@ -809,9 +869,17 @@ def test_default_profile_loads_and_matches_golden_hash() -> None:
         ("  objective_period_min: 15\n", "campaign.objective_period_min"),
         ("  objective_mode: timed\n", "campaign.objective_mode"),
         ("  objective_pick: uniform\n", "campaign.objective_pick"),
-        ("  victory:\n    hq_capture: true\n", "campaign.victory"),
+        ("    hq_capture: true\n", "campaign.victory.hq_capture"),
+        ("    hold_break: decay\n", "campaign.victory.hold_break"),
+        ("    decay_slow_min: 10\n", "campaign.victory.decay_slow_min"),
+        ("    decay_slow_rate: 0.25\n", "campaign.victory.decay_slow_rate"),
+        ("    decay_fast_rate: 1.0\n", "campaign.victory.decay_fast_rate"),
+        ("    reset_on_repair: true\n", "campaign.victory.reset_on_repair"),
+        ("    pause_on_pressure: true\n", "campaign.victory.pause_on_pressure"),
         ("    sanctuary_min_hp: 1\n", "campaign.idle_floor.sanctuary_min_hp"),
         ("  requires_defenses_down: true\n", "capture.requires_defenses_down"),
+        ("  facilities_disabled: true\n", "capture.facilities_disabled"),
+        ("  seized_repair_slowdown: 92\n", "capture.seized_repair_slowdown"),
         ("  air_counts: false\n", "capture.air_counts"),
         ("  air_weight: 1.0\n", "capture.air_weight"),
         ("  quiet_sides: [COALITION]\n", "capture.quiet_sides"),
@@ -850,6 +918,31 @@ def test_missing_section_and_empty_file_fail(tmp_path: Path) -> None:
 def test_unknown_key_fails(tmp_path: Path, text: str) -> None:
     with pytest.raises(ConfigError, match=r"Extra inputs are not permitted"):
         load_balance(write(tmp_path, text))
+
+
+@pytest.mark.parametrize(
+    ("anchor", "line", "key"),
+    [
+        ("  free_viewer_spawn: true\n", "  legacy_rules: false\n", "economy.legacy_rules"),
+        (
+            "  max_spawns_per_window: 6\n",
+            "  budget: {pattern_of_life: 10, alpha: 30, bravo: 80}\n",
+            "director.budget",
+        ),
+        (
+            "  max_spawns_per_window: 6\n",
+            "  max_live_units: {pattern_of_life: 40, alpha: 40, bravo: 70}\n",
+            "director.max_live_units",
+        ),
+    ],
+)
+def test_a_key_deleted_in_nx_488_fails_naming_it(
+    tmp_path: Path, anchor: str, line: str, key: str
+) -> None:
+    # a profile written before NX-488 still carrying the old switch or tier keys: never ignored
+    path = write(tmp_path, VALID.replace(anchor, line + anchor))
+    with pytest.raises(ConfigError, match=rf"^{path}: {key}: Extra inputs are not permitted"):
+        load_balance(path)
 
 
 @pytest.mark.parametrize(
@@ -893,6 +986,43 @@ def test_unknown_key_fails(tmp_path: Path, text: str) -> None:
         ("stock_urgency: 0.5", "stock_urgency: 1.0", "tasking.stock_urgency"),
         ("stock_front_bonus: 0.25", "stock_front_bonus: -0.1", "tasking.stock_front_bonus"),
         ("stock_front_bonus: 0.25", "stock_front_bonus: 1.0", "tasking.stock_front_bonus"),
+        # NX-473: the LC-3 cap never drops below resupply_slots_max; LC-2 demand <= the period
+        (
+            "resupply_slots_max_starving: 6",
+            "resupply_slots_max_starving: 2",
+            "tasking.resupply_slots_max_starving",
+        ),
+        ("convoy_demand_s: 900", "convoy_demand_s: 3601", "director.pol.convoy_demand_s"),
+        ("convoy_demand_s: 900", "convoy_demand_s: 0", "director.pol.convoy_demand_s"),
+        ("    period_s: 900\n", "    period_s: 0\n", "logistics.ai_trucks.period_s"),
+        ("    max_live: 3\n", "    max_live: -1\n", "logistics.ai_trucks.max_live"),
+        # NX-499: the defeat reset threshold is a share of the sanctuary's max hp, 0 to 1
+        ("reset_hp_frac: 0.5", "reset_hp_frac: -0.01", "campaign.defeat.reset_hp_frac"),
+        ("reset_hp_frac: 0.5", "reset_hp_frac: 1.01", "campaign.defeat.reset_hp_frac"),
+        # NX-495: the floor mode is one of two words, N is at least one loadout
+        (
+            "starve_floor_mode: fraction",
+            "starve_floor_mode: absolute",
+            "logistics.starve_floor_mode",
+        ),
+        ("starve_floor_loadouts: 5", "starve_floor_loadouts: 0", "logistics.starve_floor_loadouts"),
+        (
+            "starve_floor_loadouts: 5",
+            "starve_floor_loadouts: 2.5",
+            "logistics.starve_floor_loadouts",
+        ),
+        # NX-501: the target mode is one of two words, M is at least one loadout
+        ("stock_target_mode: fraction", "stock_target_mode: cap", "logistics.stock_target_mode"),
+        (
+            "stock_target_loadouts: 15",
+            "stock_target_loadouts: 0",
+            "logistics.stock_target_loadouts",
+        ),
+        (
+            "stock_target_loadouts: 15",
+            "stock_target_loadouts: 2.5",
+            "logistics.stock_target_loadouts",
+        ),
     ],
 )
 def test_wrong_type_or_value_fails_naming_key(tmp_path: Path, old: str, new: str, key: str) -> None:
@@ -1027,7 +1157,8 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "  sigint_cell_m: 10000, sigint_refresh_s: 54.0, sigint_range_mult: 1.5,\n"
         "  sigint_size_l_min: 7, sigint_size_m_min: 3}\n"
         "logistics: {unload_rate: 1.0, truck_cargo: 100, starve_threshold: 0.25,\n"
-        "  stock_target_frac: 0.8,\n"
+        "  starve_floor_mode: fraction, starve_floor_loadouts: 5, stock_target_frac: 0.8,\n"
+        "  stock_target_mode: fraction, stock_target_loadouts: 15,\n"
         "  rearm_rate: 0.5, forward_deploy_min_surplus: 50, starved_loadout: {fuel_frac: 0.5},\n"
         "  loadout_cost: {STRIKE_FIGHTER: 20, RECON_UAV: 5, LOGI_TRUCK: 0, GARRISON_INFANTRY: 5,\n"
         "    ENEMY_FIGHTER: 20, ENEMY_STRIKE_FIGHTER: 20, ENEMY_RECON_UAV: 5, ENEMY_ARMOR: 15,\n"
@@ -1036,16 +1167,19 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "  facility_repair_hp_per_stock: 10, facility_rearm_cost: 10, ammo_loadout_share: 0.5,\n"
         "  starve_hp_drain_per_min: 5, defense_repair_hp_per_stock: 2, bridge_hp: 300,\n"
         "  bridge_collapse_radius_m: 1000.0, bridge_repair_time_s: 600.0,\n"
-        "  truck_bridge_repair_mult: 5.0,\n"
+        "  truck_bridge_repair_mult: 5.0, ai_trucks: {period_s: 900, max_live: 3},\n"
         "  node_max_stock: {PORT: 1000, HQ: 2000, FOB: 1000, BRIDGE: 0, AIRBASE: 2000}}\n"
         "capture: {radius_m: 2000.0, time_s: 120.0, multi_unit_exponent: 0.5, quiet_floor: 0.6,\n"
         "  quiet_ref: 50, min_time_s: 30.0, logi_weight: 0.5, garrison_mult: 3.0,\n"
         "  empty_base_mult: 0.5, decay_per_s: 0.008333333333333333,\n"
         "  min_progress_per_tick: 1,\n"
+        "  time_mult: {SANCTUARY: 1.0, PORT: 1.0, HQ: 20.0, FOB: 1.0, AIRBASE: 1.0},\n"
+        "  extra_exponent: {SANCTUARY: 0.0, PORT: 0.0, HQ: 0.5, FOB: 0.0, AIRBASE: 0.0},\n"
         "  defense_hp: {AIRBASE: 500, FOB: 300, HQ: 800, PORT: 300, SANCTUARY: 1000},\n"
         "  sanctuary_repair_hp_per_s: 1.0, uncapturable_node_kinds: [SANCTUARY, BRIDGE],\n"
         "  quiet_sides: [COALITION], air_weight: 1.0, air_counts: false,\n"
-        "  requires_defenses_down: true}\n"
+        "  requires_defenses_down: true, facilities_disabled: true,\n"
+        "  seized_repair_slowdown: 92}\n"
         "combat: {pk_cap: 0.95, track_quality: {painted: 1.25, track: 1.0},\n"
         "  range: {min_mult: 0.5, full_pk_frac: 0.5}, pk_mult: {terrain_masked: 0.5},\n"
         "  damage_state: {disabled_below: 0.10, damaged_below: 0.70, mission_kill_below: 0.35,\n"
@@ -1054,14 +1188,18 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "    ENEMY_STRIKE_FIGHTER: 0.75, ENEMY_FIGHTER: 0.75, ENEMY_CONVOY: 0.70,\n"
         "    ENEMY_ARMOR: 0.60},\n"
         "  crew_marker_min: 10, disabled_timeout_s: 600, assist_window_s: 120,\n"
-        "  min_damage: 1, facility_indestructible: true, strike_structure_first: false,\n"
+        "  min_damage: 1, facility_indestructible: true, strike_structure_first: true,\n"
         "  facility_restore_frac: 0.35, overkill_check: true}\n"
         "campaign: {momentum: {supply_weight: 30, nodes_weight: 70}, objective_mode: timed,\n"
         "  score: {objective_points: 5, final_weight: 50, average_weight: 50},\n"
         "  objective_period_min: 15,\n"
-        "  victory_hold_min: 30, defeat: {hold_min: 30}, victory_node_frac: 0.80,\n"
+        "  victory_hold_min: 30, defeat: {hold_min: 30, reset_hp_frac: 0.5},\n"
+        "  victory_node_frac: 0.80,\n"
         "  strategic_node_kinds: [AIRBASE, FOB, PORT],\n"
-        "  idle_floor: {sanctuary_min_hp: 1, enabled: true}, victory: {hq_capture: true},\n"
+        "  idle_floor: {sanctuary_min_hp: 1, enabled: true}, victory: {hq_capture: true,\n"
+        "    reset_on_repair: true, pause_on_pressure: true, decay_fast_rate: 1.0,\n"
+        "    decay_slow_rate: 0.25,\n"
+        "    decay_slow_min: 10, hold_break: decay},\n"
         "  objective_pick: uniform,\n"
         "  time_limit_h: 72, night_progress_cap_nodes_per_h: 0.16666666666666666}\n"
         "tasking: {reeval_every_ticks: 50, claim_lease_s: 120, expire_min: 15,\n"
@@ -1073,6 +1211,7 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "  slots: {scout: 1, assist_objective: 4, strike: 2, defend: 2, escort_convoy: 2,\n"
         "    patrol: 2, intercept: 1, repair_bridge: 2},\n"
         "  resupply_stock_per_slot: 100, resupply_slots_max: 3, defend_radius_m: 10000,\n"
+        "  resupply_slots_max_starving: 6,\n"
         "  counterattack_window_min: 15, scout_cooldown_min: 5, scout_open_max: 3,\n"
         "  scout_post_interval_min: 2, capture_max_restarts: 3,\n"
         "  follow_station_m: {escort: 500, column: 200, overwatch: 3000, wingman: 1000},\n"
@@ -1086,6 +1225,7 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "  strike_max_scaled_slots: 3, strike_idle_targets_max: 2,\n"
         "  strike_idle_targets_min_tier: ALPHA,\n"
         "  patrol_max_nodes: 3, patrol_orbit_m: 5000, patrol_dwell_s: 300, order_dwell_s: 600,\n"
+        "  retake_keep_min: 30,\n"
         "  stock_urgency: 0.5, stock_front_bonus: 0.25}\n"
         "director: {window_s: 60, max_spawns_per_window: 6,\n"
         "  cp: {ema_window_s: 300, unit_value: {STRIKE_FIGHTER: 10, RECON_UAV: 3, LOGI_TRUCK: 2,\n"
@@ -1098,9 +1238,8 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "      convoy_hit: 3, facility_damaged: 3,\n"
         "      facility_disabled: 8, base_captured: 15, scout_in_rear: 2,\n"
         "      redemption: {support: 1, cosmetic: 0}}},\n"
-        "  budget: {pattern_of_life: 10, alpha: 30, bravo: 80},\n"
-        "  max_live_units: {pattern_of_life: 40, alpha: 40, bravo: 70},\n"
-        "  cadence_windows: 10, upkeep_reserve_windows: 2, source_spend_frac: 0.005,\n"
+        "  cadence_windows: 10, upkeep_reserve_windows: 2, source_spend_frac: 0.01,\n"
+        "  surplus_ref_frac: 0.25,\n"
         "  spend_frac: {bravo: 0.0534, alpha: 0.02, pattern_of_life: 0.007},\n"
         "  op_priority: {RETAKE: 1.2, OFFENSIVE: 1.0, ESCORT_CONVOYS: 0.8, REINFORCE_IADS: 0.7,\n"
         "    PROBE: 0.6, RECON: 0.5, DECOY_BLINK: 0.3, GARRISON_UPKEEP: 0.9, STRIKE_BRIDGE: 0.6},\n"
@@ -1112,23 +1251,24 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "    weights: {convoy_hit: 1, radar_hit: 1, scout_lost: 1, node_lost: 1}},\n"
         "  decoy_blink: {dark_s: 120, cooldown_s: 600, max_per_window: 1},\n"
         "  strike_bridge: {cooldown_s: 1800},\n"
-        "  staging: {direct_s: 1500, max_wait_windows: 90, max_staged: 2},\n"
+        "  staging: {direct_s: 1500, max_wait_windows: 30, max_staged: 2},\n"
         "  recon: {loiter_s: 600, loiter_radius_m: 5000, grid_m: 10000, memory_s: 3600},\n"
         "  intercept: {radius_m: 30000, reaction_s: 60, pol_linger_s: 600, leash_m: 80000,\n"
         "    lost_s: 120},\n"
         "  max_ops: {alpha: 1, bravo: null}, job_urgency: 1.0,\n"
-        "  idle_retire_s: 600, adaptation_up_above: 0, reinforce_damage_above: 0,\n"
+        "  idle_retire_s: 600, adaptation_up_above: 2, reinforce_damage_above: 0,\n"
         "  escort_min_convoys: 1, frontline_hops: 1,\n"
         "  adaptation_down_below: 1, noise_scale: 0.1, retake_window_min: 30,\n"
         "  garrison: {replace_per_window: 1, kinds: {FOB: [ENEMY_ARMOR],\n"
         "    AIRBASE: [ENEMY_FIGHTER, ENEMY_ARMOR],\n"
         "    HQ: [ENEMY_ARMOR]}},\n"
         "  pol: {patrol_period_s: 1800, convoy_period_s: 3600, offensive_period_s: 21600,\n"
+        "    convoy_demand_s: 900,\n"
         "    convoy_kind: ENEMY_CONVOY, patrol_slots: 1, patrols_per_base: 1,\n"
         "    convoys_per_period: 1, offensives_per_period: 1, convoy_cost: 0, convoy_slots: 1,\n"
         "    capture_slot_tiers: [PATTERN_OF_LIFE]}}\n"
-        "economy: {window_s: 60, unlimited: {ENEMY: true, COALITION: true},\n"
-        "  free_viewer_spawn: true, legacy_rules: true, floor_viewer_units: 5,\n"
+        "economy: {window_s: 60, unlimited: {ENEMY: false, COALITION: false},\n"
+        "  free_viewer_spawn: true, cost_parity: true, floor_viewer_units: 5,\n"
         "  shortfall_quiet_windows: 30,\n"
         "  storage: {per_node: {PORT: 1000, HQ: 2000, FOB: 1000, BRIDGE: 0, AIRBASE: 2000},\n"
         "    floor: 2000},\n"
@@ -1184,7 +1324,7 @@ def test_world_ticks_worked_examples(seconds: float, ticks: int) -> None:
 
 
 def test_game_ticks_round_up_decimal_not_binary() -> None:
-    assert game_ticks(0.25, CFG) == 3  # SIM-CORE §8 SC-12 example
+    assert game_ticks(0.25, CFG) == 3  # SIM-CORE §7 item 12 example
     assert game_ticks(0.1, CFG) == 1  # 0.1 as a binary float is a hair above 1/10
 
 

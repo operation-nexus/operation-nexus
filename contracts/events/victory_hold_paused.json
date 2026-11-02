@@ -1,0 +1,18 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nexus.local/contracts/events/victory_hold_paused.json",
+  "title": "VictoryHoldPaused",
+  "description": "A running victory hold stopped gaining progress because a hold node is under the other side's pressure (CONTRACTS §6; GAMEPLAY §9; ECONOMY EC-9b, Q-TD-84 (b), Q-TD-134; NX-466). Emitted once per pause, on its first pressured running tick (never the tick the hold starts). Nothing follows while the pause lasts, even if the node or the reason changes. Only with campaign.victory.pause_on_pressure. Public, like VictoryHoldStarted.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "tick", "event_seq", "campaign_id", "node_id", "reason", "progress_ticks"],
+  "properties": {
+    "kind": {"const": "VictoryHoldPaused"},
+    "tick": {"$ref": "../common/ids.json#/$defs/Tick"},
+    "event_seq": {"type": "integer", "minimum": 1, "description": "Campaign-wide, monotonic, deterministic (SC-14)."},
+    "campaign_id": {"$ref": "../common/ids.json#/$defs/CampaignId"},
+    "node_id": {"$ref": "../common/ids.json#/$defs/NodeId", "description": "The lowest-id pressured hold node on this tick."},
+    "reason": {"$ref": "../common/enums.json#/$defs/VictoryHoldPauseReason", "description": "The first condition that holds for node_id, in the order CAPTURE_BAR, DEFENSES_DOWN, CAPTURE_OP."},
+    "progress_ticks": {"type": "integer", "minimum": 1, "x-unit": "campaign-clock ticks", "description": "The progress the hold keeps while paused (a running hold has at least its start tick's 1)."}
+  }
+}

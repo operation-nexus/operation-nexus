@@ -3,6 +3,7 @@
 schema_version: 1
 kind: ENEMY_RECON_UAV
 side: ENEMY
+mirrors: RECON_UAV  # PROPOSED (NX-494, Q-TD-130 lead, owner may veto); cost parity pair, read by economy.cost_parity (ECONOMY EC-3)
 domain: AIR
 playable_by: [DIRECTOR]
 speed_mps: 60.0  # PROPOSED (NX-121, owner may veto; harness tunes, NX-031); m/s world; parity with RECON_UAV (Q-TD-13)

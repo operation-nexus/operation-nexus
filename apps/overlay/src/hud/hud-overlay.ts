@@ -1,5 +1,8 @@
 import type { TelemetryState, ThreatTier } from "../types/telemetry";
 import { createElement } from "../utils/dom";
+import { STRAIT_1_THEATER } from "../theater/strait1";
+import { ThreatSitrepPanel } from "./threat-sitrep-panel";
+import type { SitrepView } from "./threat-sitrep";
 
 export class HudOverlay {
   private container: HTMLElement | null = null;
@@ -15,6 +18,7 @@ export class HudOverlay {
   private threatBadgeEl: HTMLElement | null = null;
   private sitrepContainerEl: HTMLElement | null = null;
   private tickerTextEl: HTMLElement | null = null;
+  private threatSitreps = new ThreatSitrepPanel(STRAIT_1_THEATER);
 
   initialize(parentContainer: HTMLElement): void {
     this.container = parentContainer;
@@ -232,6 +236,7 @@ export class HudOverlay {
     overlay.appendChild(topBar);
     overlay.appendChild(middleRow);
     overlay.appendChild(bottomBar);
+    this.threatSitreps.mount(overlay);
 
     this.container.appendChild(overlay);
     this.rootElement = overlay;
@@ -311,6 +316,11 @@ export class HudOverlay {
     }
   }
 
+  // OV-26 threat sitrep stack (NX-496).
+  updateThreatSitreps(view: SitrepView): void {
+    this.threatSitreps.render(view);
+  }
+
   private applyThreatBadgeStyle(tier: ThreatTier): void {
     if (!this.threatBadgeEl) return;
 
@@ -336,6 +346,7 @@ export class HudOverlay {
   }
 
   dispose(): void {
+    this.threatSitreps.dispose();
     if (this.rootElement && this.rootElement.parentElement) {
       this.rootElement.parentElement.removeChild(this.rootElement);
     }

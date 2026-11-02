@@ -98,6 +98,10 @@ NIGHT_RULES = with_director(
     offensive_ticks=DR.offensive_ticks // COMPRESS, night_cap_ticks=DR.night_cap_ticks // COMPRESS
 )
 OVERNIGHT_TICKS = 40_000
+# No unit leak: strait-1's 22 garrison quota units + routine units + one capture operation
+# (Q-SIM-85). The value the deleted tier cap `director.max_live_units.pattern_of_life` held until
+# NX-488; now nothing caps the Static at it, so this checks the economy keeps it there.
+LEAK_BOUND = 40
 
 
 def look_staleness(w: World, rules: Rules) -> Fraction:
@@ -118,7 +122,7 @@ def overnight() -> dict[str, Any]:
     every decision window."""
     w = new_world(7, NIGHT_RULES)
     s = w.director["ENEMY"]
-    cap = DR.max_live_units["PATTERN_OF_LIFE"]
+    cap = LEAK_BOUND
     stats: dict[str, Any] = {
         "tier_changes": 0, "peak_prov": 0, "over_quota": [], "over_cap": [], "idle_homed": [],
         "td2": [], "at_36000": {}, "captured": [], "kinds": set(),
@@ -199,11 +203,11 @@ def test_upkeep_fills_each_base_to_its_quota_in_turn_and_never_beyond() -> None:
 
 def test_no_unit_leak_over_a_long_run_and_the_td2_view_holds() -> None:
     run = overnight()
-    assert run["over_cap"] == []  # never above max_live_units.pattern_of_life
+    assert run["over_cap"] == []  # never above LEAK_BOUND
     assert run["idle_homed"] == []  # a garrison unit at its base is never on the retirement clock
     assert run["td2"] == []  # every job node and patrol turn is a node the Static's view holds
     w: World = run["world"]
-    assert len(enemy_units(w)) <= DR.max_live_units["PATTERN_OF_LIFE"]
+    assert len(enemy_units(w)) <= LEAK_BOUND
 
 
 def test_stock_plus_cargo_plus_consumed_stays_exact_with_upkeep_and_convoys() -> None:
@@ -555,8 +559,7 @@ def test_a_held_bar_leaves_the_set_when_it_is_drained_and_survives_a_snapshot() 
 
 def test_the_director_launches_no_capture_operation_while_the_cap_is_spent() -> None:
     rules = with_director(
-        max_spawns_per_window=30, max_live_units={t: 90 for t in DR.max_live_units},
-        noise=DR.noise * 0,
+        max_spawns_per_window=30, noise=DR.noise * 0,
     )  # fmt: skip
 
     def launched(capped: bool, viewers: int = 0) -> set[str]:
@@ -789,9 +792,7 @@ def test_an_operation_never_takes_a_garrison_unit() -> None:
     keep = unit(w, "ENEMY_ARMOR", "ENEMY", "ENEMY_DIRECTOR", "fob-n-e")
     keep.home = "fob-n-e"
     free = unit(w, "ENEMY_ARMOR", "ENEMY", "ENEMY_DIRECTOR", "fob-n-e")  # no home: reusable
-    rules = with_director(
-        max_spawns_per_window=20, max_live_units={t: 90 for t in DR.max_live_units}
-    )
+    rules = with_director(max_spawns_per_window=20)
     window(w, "BRAVO", 300, rules)
     assert keep.job_id is None and not keep.path
     assert free.job_id is not None  # the unhomed unit fills a slot first, as before
@@ -930,10 +931,7 @@ def test_a_convoy_needs_room_for_all_its_slots() -> None:
     """A 3-slot job spawns 3 units, so it waits for room for 3 (spawn window and live caps)."""
     ops_ = GARRISON_ONLY.director.operations  # type: ignore[union-attr]
     for room, spawned in ((1, 0), (3, 3)):
-        rules = with_director(
-            convoy_slots=3, max_spawns_per_window=room, operations=ops_,
-            max_live_units={t: 90 for t in DR.max_live_units},
-        )  # fmt: skip
+        rules = with_director(convoy_slots=3, max_spawns_per_window=room, operations=ops_)
         w = new_world(1, rules)
         w.stock["fob-n-e"] = RULES.supply.starve_floor["fob-n-e"]
         before = len(list(w.entities()))
@@ -976,7 +974,6 @@ def test_a_paid_convoy_is_paid_before_its_carrier_loads_so_it_never_overdraws() 
 def test_offensives_per_period_launches_that_many_capture_operations() -> None:
     rules = with_director(
         offensives_per_period=2, max_spawns_per_window=30,
-        max_live_units={t: 90 for t in DR.max_live_units},
     )  # fmt: skip
     w = new_world(1, rules)
     skip(w, DR.offensive_ticks - 1)

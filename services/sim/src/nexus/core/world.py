@@ -100,8 +100,12 @@ from nexus.core.rules import CAPTURE_FULL, Rules
 # job's claimants and whether its sitrep was emitted (NX-431, Q-TD-47, Q-TD-56); 34: shortfall and
 # shortfall_end, each side's open shortfall episodes and when each base's last one ended (NX-436);
 # 35: Job.struck_by, the claimants that fired at a STRIKE job's target (Q-TD-87, NX-463); 36:
-# Campaign.defeat_idle_ticks, the defeat run's empty stretch (Q-TD-95, NX-476)
-FORMAT_VERSION = 36
+# Campaign.defeat_idle_ticks, the defeat run's empty stretch (Q-TD-95, NX-476); a retake job
+# reuses Job.lost as its keep clock (Q-TD-121, NX-484, no bump: same shape); 37:
+# Campaign.hold_broken_ticks and hold_broken_nodes, a broken hold's decay (ECONOMY EC-9a, NX-489);
+# 38: Campaign.hold_paused_ticks, a running hold's pause under pressure (ECONOMY EC-9b, NX-466);
+# 39: Entity.seized_carry, a facility seized with its base repairing slowly (GAMEPLAY §8, NX-471)
+FORMAT_VERSION = 39
 _MM = 1000.0  # metres -> millimetres; m/s -> mm/s
 _MICRO = 1e6  # ADR-0002's 1e-6 step for other floats (fuel)
 _MILLI_UNIT = 1000  # thousandths of a stock unit per unit
@@ -321,6 +325,9 @@ class Entity:
     repair_spent: int = 0  # whole units debited for repair in this stop (SupplyConsumed REPAIR)
     repair_milli: int = 0
     repair_debt: int = 0
+    # A facility seized with its base (NX-471, GAMEPLAY §8): the thousandths of an hp carried toward
+    # the next slowed thousandth, 0 <= carry < capture.seized_repair_slowdown; None when not seized.
+    seized_carry: int | None = None
     # Combat (NX-124, COMBAT). `damage_state` follows `hp` (CB-6). `alt_band`: an aircraft's band
     # (its default; no command changes it). `ammo` and `reload` are per weapon, in the unit's
     # loadout order (`CombatRules.loadout`): rounds left, and running ticks until it may fire again.
@@ -459,7 +466,8 @@ class Job:
     via: str | None = None  # a PATROL job: the node the patrol drives out to before it goes home
     arrived: int | None = None  # a scout job at a point, or a coalition patrol: the tick its unit
     # began to loiter or dwell
-    lost: int | None = None  # an intercept job: the tick its scout was first found untracked
+    lost: int | None = None  # an intercept job: the tick its scout was first found untracked; a
+    # retake job: the pass that first saw its node's defenses back above 0 (NX-484, `_kept`)
     downed_by: list[int] = field(default_factory=list)  # a Static STRIKE job: the viewer units
     # that destroyed, disabled or mission-killed a unit holding it, ascending (NX-431, Q-TD-56)
     downed: bool = False  # its STRIKE_DOWNED sitrep was emitted (once per job)
@@ -479,9 +487,12 @@ class Campaign:
     """`tick` counts every tick; `running_ticks` only the unpaused ones: the campaign clock
     (STATE-MACHINES C-1, NX-126). `hold_ticks` is the current run of running ticks the coalition
     has held the victory share of strategic nodes, `hold_nodes` the strategic nodes it held on the
-    last of those ticks, ascending (empty with no hold; ECONOMY EC-9); `held_ticks_*` sum each
-    side's held strategic node count over the running ticks (the time-limit score keeps them
-    exact)."""
+    last of those ticks, ascending (empty with no hold; ECONOMY EC-9). A broken hold that decays
+    (EC-9a) keeps its progress at the break in `hold_ticks`, its nodes in `hold_broken_nodes` and
+    the running ticks since the break in `hold_broken_ticks`, with `hold_nodes` empty; a running
+    hold paused under pressure (EC-9b) counts the running ticks of the pause in `hold_paused_ticks`;
+    `held_ticks_*` sum each side's held strategic node count over the running ticks (the
+    time-limit score keeps them exact)."""
 
     id: str  # CampaignId
     seed: int
@@ -500,6 +511,9 @@ class Campaign:
     defeat_ticks: int = 0  # the run of running ticks the coalition sanctuary's defense hp is 0
     defeat_idle_ticks: int = 0  # the run's empty stretch: no viewer unit (Q-TD-95, NX-476)
     hold_nodes: tuple[str, ...] = ()  # the running victory hold's nodes (NX-412 part 4)
+    hold_broken_ticks: int = 0  # running ticks since a decaying hold broke (EC-9a, NX-489)
+    hold_broken_nodes: tuple[str, ...] = ()  # the decaying hold's nodes, for the repair check
+    hold_paused_ticks: int = 0  # running ticks of the running hold's current pause (EC-9b, NX-466)
 
 
 @dataclass(slots=True)
@@ -878,6 +892,15 @@ class World:
 
     def __len__(self) -> int:
         return len(self._entities)
+
+
+def is_ai_truck(rules: Rules, e: Entity) -> bool:
+    """A coalition AI truck (GAMEPLAY §5 LC-1, NX-473): an AI_GARRISON carrier of the coalition.
+    The one rule for `nexus.core.ai_trucks` (its `max_live` and retire counts) and the capture
+    exemption (`nexus.core.capture`)."""
+    return (
+        e.side == "COALITION" and e.owner_kind == "AI_GARRISON" and e.kind in rules.supply.carriers
+    )
 
 
 def on_node(rules: Rules, e: Entity) -> bool:
@@ -1379,6 +1402,7 @@ _ENTITY_CHECKS: dict[str, Callable[[object, str], Any]] = {
     "repair_spent": lambda v, k: _int(v, k),
     "repair_milli": _milli,
     "repair_debt": lambda v, k: _int(v, k),
+    "seized_carry": lambda v, k: None if v is None else _int(v, k),
     "damage_state": lambda v, k: _str(v, k, _DAMAGE_STATES),
     "alt_band": lambda v, k: _str(v, k, _ALT_BANDS, optional=True),
     "ammo": lambda v, k: _int_list(v, k),
@@ -1409,6 +1433,9 @@ _CAMPAIGN_CHECKS: dict[str, Callable[[object, str], Any]] = {
     "defeat_ticks": _int,
     "defeat_idle_ticks": _int,
     "hold_nodes": lambda v, k: _node_ids(v, k),
+    "hold_broken_ticks": _int,
+    "hold_broken_nodes": lambda v, k: _node_ids(v, k),
+    "hold_paused_ticks": _int,
 }
 
 
@@ -1559,12 +1586,29 @@ def _load_campaign(value: object) -> Campaign:
         (c.pause_reason is None) == c.clock_paused
         or (c.pause_sub_reason is not None and c.pause_reason != "STAFF")
         or c.running_ticks > c.tick
-        or max(c.hold_ticks, c.defeat_ticks + c.defeat_idle_ticks) > c.running_ticks
-        or bool(c.hold_nodes) != bool(c.hold_ticks)  # a running hold always has nodes
+        or max(
+            c.hold_ticks + c.hold_broken_ticks + c.hold_paused_ticks,
+            c.defeat_ticks + c.defeat_idle_ticks,
+        )
+        > c.running_ticks
+        or _bad_hold(c)
         or c.objectives_done > c.objectives_issued
     ):
-        raise ValueError("campaign: inconsistent clock, pause reason or objective counts")
+        raise ValueError("campaign: inconsistent clock, pause reason, hold or objective counts")
     return c
+
+
+def _bad_hold(c: Campaign) -> bool:
+    """EC-9a (NX-489): a hold is running (`hold_nodes`), decaying (`hold_broken_nodes`, its
+    ticks since the break) or absent; either kind has progress, no hold has none. EC-9b (NX-466):
+    only a running hold is paused."""
+    running, decaying = bool(c.hold_nodes), bool(c.hold_broken_nodes)
+    return (
+        (running and decaying)
+        or (running or decaying) != bool(c.hold_ticks)
+        or (bool(c.hold_broken_ticks) and not decaying)
+        or (bool(c.hold_paused_ticks) and not running)
+    )
 
 
 _SHOT_KEYS = tuple(f.name for f in fields(Shot))
@@ -1720,8 +1764,12 @@ def _job(
         raise ValueError(f"{_BOARDS}: a patrol:<node> job is the coalition board's")
     if job.key.startswith("retake:") != (job.kind == "CAPTURE" and side == "COALITION"):
         raise ValueError(f"{_BOARDS}: a retake:<node> job is the coalition board's only CAPTURE")
-    if job.lost is not None and (not hunt or job.lost > running_ticks):
-        raise ValueError(f"{_BOARDS}: only an intercept job loses its scout, at a past tick")
+    retake = job.key.startswith("retake:")  # its keep clock (NX-484)
+    if job.lost is not None and (not (hunt or retake) or job.lost > running_ticks):
+        raise ValueError(
+            f"{_BOARDS}: only an intercept job loses its scout (a retake job its keep clock), "
+            "at a past tick"
+        )
     if job.arrived is not None and (not (point or dwell) or job.arrived > running_ticks):
         raise ValueError(
             f"{_BOARDS}: only a scout job at a point loiters and a patrol dwells, from a past tick"

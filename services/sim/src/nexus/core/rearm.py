@@ -213,23 +213,34 @@ def _repair(
     rate = rules.supply.repair_milli.get(rules.node_kind.get(node, "BRIDGE"), 0)
     if missing <= 0 or rate <= 0:
         return
+    carry = e.seized_carry  # NX-471: a seized facility repairs at rate / S through its carry
+    if carry is not None:
+        slow = rules.capture.seized_slowdown if rules.capture else 1
+        rate, rest = divmod(carry + rate, slow)
     num, den = (
         (1, rules.supply.facility_hp_per_stock) if rules.domain[e.kind] == _STATIC
         else (cost, stats.hp)
     )  # fmt: skip
-    m = min(rate, missing * _MILLI - e.repair_milli)  # thousandths of an hp this tick
     paying = b.room is not None and num > 0  # a SANCTUARY, or a kind with no cost, is free
-    if paying and b.room is not None:  # a finite base: it can pay only so much
-        m = min(m, ((b.room + 1) * den - 1 - e.repair_debt) // num)
+    can = ((b.room + 1) * den - 1 - e.repair_debt) // num if paying and b.room is not None else None
+    if carry is not None and rate == 0 and (can is None or can > 0):
+        e.seized_carry, b.moved = rest, True  # a slowed tick it could pay for moves the carry
+    m = min(rate, missing * _MILLI - e.repair_milli)  # thousandths of an hp this tick
+    if can is not None:  # a finite base: it can pay only so much
+        m = min(m, can)
     if m > 0:
         if paying:
             whole, e.repair_debt = divmod(e.repair_debt + num * m, den)
             b.draw(whole, repair=True)
         gained, e.repair_milli = divmod(e.repair_milli + m, _MILLI)
         b.moved = True
+        if carry is not None:  # stock-short ticks (m 0) leave the carry where it was
+            e.seized_carry = rest
         if gained:
             e.hp += gained
             _repaired(world, cr, e, node, rules.domain[e.kind] == _STATIC, out)
+            if e.seized_carry is not None and e.damage_state != _DISABLED:
+                e.seized_carry = None  # back on line: the normal rate resumes
     b.unmet |= e.hp < stats.hp
 
 

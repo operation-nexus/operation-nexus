@@ -24,6 +24,9 @@ starts full, a NEUTRAL one at 0, and a node that changes hands is set to 0 for i
   not in code yet, when it is its units will not count) the coalition sanctuary's hp
   cannot be reduced below `campaign.idle_floor.sanctuary_min_hp` (`floor`; off with
   `campaign.idle_floor.enabled` false, Q-CFG-16).
+- **Sitrep (Q-TD-122, NX-493):** a hit that takes the coalition sanctuary's hp below full
+  emits `ThreatAdaptation{SANCTUARY_AT_RISK}`, once per drop from full (the board's defend job
+  for it is `tasking_gen.besieged`).
 - **Events (no spam):** `NodeDefensesDown` when hp reaches 0, which puts the node in
   `World.defense_down`; `NodeDefensesRestored` only when a rebuild takes a node in that set all the
   way to full, which removes it. A node flapping around 0 gives one Down and one Restored per
@@ -36,8 +39,9 @@ Deterministic: nodes in id order, integer state, no RNG.
 from nexus.contracts.gen.events.event import Event
 from nexus.contracts.gen.events.node_defenses_down import NodeDefensesDown
 from nexus.contracts.gen.events.node_defenses_restored import NodeDefensesRestored
+from nexus.contracts.gen.events.threat_adaptation import ThreatAdaptation
 from nexus.core.rearm import is_starved
-from nexus.core.rules import DefenseRules, Rules
+from nexus.core.rules import DefenseRules, Rules, sector_at
 from nexus.core.world import World
 
 MILLI_HP = 1000  # thousandths of an hp
@@ -67,14 +71,38 @@ def _announce(world: World, node: str, down: bool, out: list[Event]) -> None:
 
 
 def damage(world: World, rules: Rules, node: str, amount: int, out: list[Event]) -> None:
-    """Remove `amount` hp (not below `floor`); announces the drop to 0."""
+    """Remove `amount` hp (not below `floor`); announces the drop to 0, and a coalition sanctuary's
+    drop from full (`_at_risk`)."""
     before = world.defense_hp[node]
     world.defense_hp[node] = max(before - amount, min(before, floor(world, rules, node)))
+    d = rules.defense
+    if (
+        node == rules.sanctuary
+        and d is not None
+        and before == d.max_hp[node] > world.defense_hp[node]
+    ):
+        _at_risk(world, rules, node, out)
     if before and not world.defense_hp[node]:
         world.defense_drain[node] = 0
         if node not in world.defense_down:
             world.defense_down.add(node)
             _announce(world, node, True, out)
+
+
+def _at_risk(world: World, rules: Rules, node: str, out: list[Event]) -> None:
+    """ "NULL strikes <node>, the sanctuary is at risk" (Q-TD-122, NX-493): the sanctuary and its
+    sector (nodes are public, FOW-10), as `combat._downed` names a node."""
+    sector = sector_at(rules, *rules.roads.pos[node])
+    if sector is None:
+        return
+    out.append(
+        ThreatAdaptation.model_construct(
+            kind="ThreatAdaptation", tick=world.campaign.tick + 1,
+            event_seq=world.next_event_seq(), campaign_id=world.campaign.id, side="ENEMY",
+            category="SANCTUARY_AT_RISK", sector_id=sector, direction="UP", node_id=node,
+            credit_ids=[],
+        )
+    )  # fmt: skip
 
 
 def rebuild(world: World, rules: Rules, node: str, units: int, out: list[Event]) -> None:

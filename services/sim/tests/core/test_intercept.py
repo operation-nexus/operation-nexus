@@ -223,8 +223,10 @@ def test_it_ranks_between_defend_and_strike() -> None:
     tr = RULES.tasking
     assert tr is not None
     job = Job(1, "INTERCEPT", "intercept:1", 1, 1000, 0)
-    assert priority(tr, Job(2, "STRIKE", "s", 1, 1000, 0), 0) < priority(tr, job, 0)
-    assert priority(tr, job, 0) < priority(tr, Job(3, "DEFEND", "d", 1, 1000, 0), 0)
+
+    strike, defend = Job(2, "STRIKE", "s", 1, 1000, 0), Job(3, "DEFEND", "d", 1, 1000, 0)
+    assert priority(tr, strike, 0, side="ENEMY") < priority(tr, job, 0, side="ENEMY")
+    assert priority(tr, job, 0, side="ENEMY") < priority(tr, defend, 0, side="ENEMY")
 
 
 # --- garrison fighters ----------------------------------------------------------------------------
@@ -481,7 +483,7 @@ def test_the_loader_refuses_a_bad_clock_or_intercept_job() -> None:
     post_job(w, "ENEMY", JobSpec("STAGE", "op:x", 1, 1000, node="east-airbase"), [])
     w.campaign.running_ticks += 1
     good = raw_of(w)
-    assert good["v"] == 36
+    assert good["v"] == 39
 
     def job(r: dict[str, Any]) -> dict[str, Any]:
         return next(j for j in r["boards"]["ENEMY"] if j["kind"] == "INTERCEPT")

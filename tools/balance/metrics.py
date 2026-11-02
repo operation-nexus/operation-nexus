@@ -14,12 +14,16 @@ import itertools
 import math
 from collections import Counter
 from collections.abc import Callable, Iterable, Mapping
+from fractions import Fraction
 from typing import Any, Final
 
 from nexus.contracts.gen.common.enums import Side
 from nexus.contracts.gen.events.event import Event
-from nexus.core.campaign import momentum
+from nexus.core.campaign import momentum, pressure
+from nexus.core.capture import _patrolling, _weight, capture_weight
 from nexus.core.director import TIERS
+from nexus.core.economy import due as economy_due
+from nexus.core.economy import income
 from nexus.core.fog import side_view
 from nexus.core.launch import NO_CAPTURE, no_capture_reason
 from nexus.core.roads import shortest_path, travel_ticks
@@ -30,6 +34,8 @@ from nexus.core.world import Entity, Job, Vec2, World
 
 _ENEMY: Final = "ENEMY"  # Side values
 _COALITION: Final = "COALITION"
+PAUSE_REASONS: Final = ("CAPTURE_BAR", "CAPTURE_OP", "DEFENSES_DOWN")  # VictoryHoldPaused.reason
+DOWN_CAUSES: Final = ("fire", "starved")  # inferred, see `Collector._classify_downs`
 # What counts as a newbie's impact (Q-SIM-93). A kill is also a hit, and a capture also fills a bar,
 # in the same tick; the earlier in this tuple wins a same-tick tie. `capture` is the NodeCaptured
 # event or, between those, a ground unit inside a coalition-filled bar's radius (derived from the
@@ -57,6 +63,8 @@ ROUTINE_JOBS = frozenset({"POL_PATROL", "POL_CONVOY"})
 OFFENSIVE = "OFFENSIVE"
 RETAKE = "RETAKE"
 FUNNEL_STEPS = ("strike_fired", "defenses_down", "capture_started", "captured")
+LOSS_AFTER = (OFFENSIVE, RETAKE, "other", "none")  # Q-TD-136 loss buckets
+WHO_STATIC = "ENEMY_DIRECTOR"  # the owner kind of the Static's own (Director) units
 CAPTURE_OPS = (OFFENSIVE, RETAKE)  # the operations with a STRIKE then a CAPTURE step (funnel)
 
 
@@ -78,12 +86,18 @@ class Collector:
         impact_check_ticks: int,
         kinds: Mapping[str, str],
         a2_min_tier: str,
+        starve_threshold: float,
     ) -> None:
         rules = world.rules
         if rules is None or rules.campaign is None:
             raise ValueError("the harness needs a world with campaign rules")
         self._world_rules = rules
+        # NX-495: the fraction floor whatever `logistics.starve_floor_mode` is, for the second count
+        self._fraction_floor = {
+            n: math.ceil(starve_threshold * m) for n, m in rules.supply.max_stock.items()
+        }
         self._strategic = frozenset(rules.campaign.strategic)
+        frac = rules.campaign.victory_node_frac
         self._sanctuary = rules.sanctuary
         self.tick_hz, self.sample_ticks, self.a3_ticks = tick_hz, sample_ticks, a3_ticks
         self.idle_sample_ticks, self.impact_check_ticks = idle_sample_ticks, impact_check_ticks
@@ -93,6 +107,17 @@ class Collector:
         self.idle_shares: list[float] = []  # idle armed viewer units / all, per sample
         self.idle_reasons: Counter[str] = Counter()  # why the idle ones hold no job, summed
         self.idle_ring_by_site: Counter[str] = Counter()  # "ring" idle by blocking marker and job
+        # NX-471 (GAMEPLAY §8): facilities seized with their base. node -> its facility ids; the
+        # flips to confirm in the world; id -> tick seized for those still off line; seizures; and
+        # the game minutes each seized facility took to be back on line.
+        self._facilities: dict[str, list[int]] = {}
+        for f in world.entities():
+            if f.base_id:
+                self._facilities.setdefault(f.base_id, []).append(f.id)
+        self._flipped: list[tuple[int, int]] = []
+        self._seized_at: dict[int, int] = {}
+        self.seized = 0
+        self.seized_back_min: list[float] = []
         self.slots_per_unit: list[float] = []  # open job slots / live viewer units, per sample
         self.jobs_per_node: list[float] = []  # open coalition jobs / theater nodes, per sample
         self.newbies = newbies
@@ -117,6 +142,8 @@ class Collector:
         self.momentum: list[int] = []
         self.starved_any = 0
         self.starved_nodes = 0
+        self.starved_fraction_any = 0  # the same, against the fraction floor (NX-495)
+        self.starved_fraction_nodes = 0
         self.sanctuary_min = self.sanctuary_min_window = world.defense_hp[self._sanctuary]
         # Q-TEST-11 inputs (steamroll.py). Ownership follows `NodeCaptured` from the setup's owners;
         # a pressure event is a Static capture start on a coalition node, a coalition
@@ -124,9 +151,37 @@ class Collector:
         # names it): a run of the coalition holding `victory_node_frac` of the strategic nodes.
         self._owner = dict(world.owner)
         self.pressure_ticks: list[int] = []
+        # NX-490 (review ENTERTAINMENT-T0-T1 action 6, Q-TD-105): every HQ flip, either side: its
+        # tick, the side that took it, its participant commanders (`NodeCaptured`) and that side's
+        # capture weight in radius at the end of the flip tick (`observe`; no event carries it)
+        self.hq_captures: list[dict[str, Any]] = []
+        self._hq_new: list[dict[str, Any]] = []
         # The hold follows the sim's own `VictoryHoldStarted` / `VictoryHoldBroken` (ECONOMY EC-9;
         # one at setup arrives on tick 1). `holds`: per hold its start, end, whether it broke and
-        # the Static operations launched during it.
+        # the Static operations launched during it. A broken hold decays (ECONOMY EC-9a, NX-489):
+        # `holds_resumed` counts holds that started with kept progress, `hold_resets` the decays
+        # that ended by reason (DECAYED, REPAIRED). A running hold pauses under pressure (EC-9b,
+        # NX-466): `holds_paused` counts holds with a `VictoryHoldPaused`, `hold_pauses` the events
+        # by reason, and the paused running ticks are counted per tick in `observe` (a pause ended
+        # by a break has no `VictoryHoldResumed`), in total and per hold.
+        self.holds_paused = 0
+        self.hold_pauses: Counter[str] = Counter()
+        self.hold_paused_ticks = 0
+        # O0 (ECONOMY-DIRECTOR-W7 review, Q-TD-139): the paused ticks by the reason of the pause in
+        # force (the latest `VictoryHoldPaused`; the event comes on a pause's first tick, before
+        # `observe`), and the coalition `NodeDefensesDown` by an inferred cause. The event carries
+        # no cause, so `observe` classifies a down on its tick: stock under the starvation floor
+        # is `starved`, anything else `fire`. `_downs_new` waits for that `observe`; `_downs_open`
+        # (node -> tick, cause) is closed by `NodeDefensesRestored` or by a flip of the node.
+        self._pause_reason: str | None = None
+        self.paused_ticks_by_reason: Counter[str] = Counter()
+        self._downs_new: list[tuple[str, int]] = []
+        self._downs_open: dict[str, tuple[int, str]] = {}
+        self.downs: Counter[str] = Counter()
+        self.down_ticks: Counter[str] = Counter()
+        self._running_seen = 0
+        self.holds_resumed = 0
+        self.hold_resets: Counter[str] = Counter()
         self.holds_broken = 0
         self.hold_start: int | None = None
         self.holds: list[dict[str, Any]] = []
@@ -150,11 +205,60 @@ class Collector:
         # or the first reason none did (`nexus.core.launch.no_capture_reason`, NO_CAPTURE order)
         self.no_capture: Counter[str] = Counter()
         self._new_jobs: list[int] = []  # Static jobs created this tick (JobCreated)
+        # NX-501 hauling line, per side: `resupply:<node>` jobs posted (JobCreated, RESUPPLY, not
+        # the sanctuary's own repair job) and truck unloading stops (SupplyDelivered). Neither
+        # event says whether a job stocks or starves a node, so there is no split.
+        self.jobs_posted = {s: 0 for s in SIDES}
+        self.stops = {s: 0 for s in SIDES}
+        # NX-502: `sample` counts each side's open `resupply:<node>` jobs (the sanctuary's excluded)
+        # as starving (the node's stock under its live floor) or stocking: a sampled state count,
+        # not postings. A destroyed unit is gone from the world and `UnitDestroyed` has no
+        # position, so a coalition truck's position is the last one `observe` saw (the tick
+        # before); it tells whether the truck died within `tasking.defend_radius_m` of the
+        # sanctuary.
+        self.job_samples = {s: {"starving": 0, "stocking": 0} for s in SIDES}
+        self._carrier_pos: dict[int, tuple[float, float]] = {}
+        self.trucks_lost_near_sanctuary = 0
+        # NX-502, the defeat run (NX-499), counted on running ticks only: runs started
+        # (`defeat_ticks` from 0 to above 0), the longest, the ticks of a run in progress with the
+        # sanctuary's defense hp above 0 and below `defeat_reset_hp` (paused), and runs that ended
+        # without a defeat (resets).
+        self.defeat_started = self.defeat_longest = self.defeat_resets = 0
+        self.defeat_paused_ticks = 0
+        self._defeat_seen = 0
+        self._reset_hp = rules.campaign.defeat_reset_hp
+        # NX-477: running ticks the coalition holds none of the strategic nodes; the coalition's
+        # `NodeCaptured` flips; the Static's open `ESCORT_CONVOYS` jobs at the first sample of
+        # each hour (the index of `hourly`). NX-478: per side the income due at each economy window
+        # (`economy.income`, read at the end of the tick before it: nothing that changes it runs
+        # earlier in the window tick) against `SupplyProduced`; the board's open STRIKE slots at
+        # each idle sample.
+        self.zero_strategic_ticks = self.coalition_captures = 0
+        # Q-TD-136: running ticks per count of strategic nodes the coalition owns (index k), the
+        # current and longest stretch at or above the hold threshold, owned ticks, losses per node
+        n = len(self._strategic)
+        self._hold_k = next((k for k in range(n + 1) if n and Fraction(k, n) >= frac), n + 1)
+        self._ticks_by_k = [0] * (n + 1)
+        self._stretch = self._longest_stretch = 0
+        self._owned_ticks = dict.fromkeys(sorted(self._strategic), 0)
+        self._lost = {
+            nd: {"total": 0, **dict.fromkeys(LOSS_AFTER, 0)} for nd in sorted(self._strategic)
+        }
+        self.escort_jobs: list[int] = []
+        self.clip_due: dict[str, int] = dict.fromkeys(SIDES, 0)
+        self.clip_produced: dict[str, int] = dict.fromkeys(SIDES, 0)
+        self._due_next: dict[str, int] | None = self._income_due(world)
+        self.open_strike_slots: list[int] = []
         self.ops: list[tuple[int, str, str, bool]] = []  # (tick, operation, target, on coalition)
         self.ops_unseen = 0  # a created job already gone from the board when `observe` read it
         # D5 inputs (review ENTERTAINMENT-runs-F-G-H §8). `funnel`: per OFFENSIVE / RETAKE launch,
         # which steps its target saw afterwards; `_latest` maps a target to its newest launch.
         self.funnel: list[dict[str, Any]] = []
+        # Q-TD-136, who takes coalition nodes: `_cap_pending` the coalition losses `feed` saw
+        # (node, strategic, side that took it), read in the same tick's `observe`; `who_took`
+        # the tallies, strategic and not.
+        self._cap_pending: list[tuple[str, bool, Side]] = []
+        self.who_took: dict[str, dict[str, Any]] = {k: _new_who() for k in ("strategic", "other")}
         self._latest: dict[str, dict[str, Any]] = {}
         # NX-453, the launch's own units: a unit is the launch's when it claimed one of the jobs the
         # launch posted (`JobClaimed` names job and unit). `_job_step`: job id -> (index in
@@ -211,10 +315,13 @@ class Collector:
             "NodeCaptured": self._captured,
             "CaptureStarted": self._capture_started,
             "NodeDefensesDown": self._defenses_down,
+            "NodeDefensesRestored": self._defenses_restored,
             "ThreatTierChanged": self._tier,
             "CampaignEnded": self._end,
             "VictoryHoldStarted": self._hold_started,
             "VictoryHoldBroken": self._hold_broken,
+            "VictoryHoldReset": self._hold_reset,
+            "VictoryHoldPaused": self._hold_paused,
             "SupplyProduced": self._produced,
             "SupplyConsumed": self._consumed,
             "UnitGrounded": self._grounded,
@@ -272,7 +379,44 @@ class Collector:
             if handler:
                 handler(event)
 
+    def _classify_downs(self, world: World) -> None:
+        """A coalition down of this tick: `starved` when the node's stock is under its floor at the
+        end of the tick (`stock < floor`, the sim's rule; at the floor is not), else `fire`."""
+        floor = self._world_rules.supply.starve_floor
+        for node, tick in self._downs_new:
+            starved = node in world.stock and node in floor and world.stock[node] < floor[node]
+            cause = "starved" if starved else "fire"
+            self.downs[cause] += 1
+            if node in world.defense_down:  # a same-tick flip or restore already ended it
+                self._downs_open[node] = (tick, cause)
+        self._downs_new.clear()
+
+    def _close_down(self, node: str, tick: int) -> None:
+        if (opened := self._downs_open.pop(node, None)) is not None:
+            self.down_ticks[opened[1]] += tick - opened[0]
+
+    def _seized_facilities(self, world: World) -> None:
+        """A flipped base's facilities that the world holds seized start the clock (a retake
+        restarts it); a seized one whose carry is gone is back on line (NX-471)."""
+        for i, tick in self._flipped:
+            if (f := world.find(i)) is not None and f.seized_carry is not None:
+                self.seized += 1
+                self._seized_at[i] = tick
+        self._flipped.clear()
+        for i, since in sorted(self._seized_at.items()):
+            f = world.find(i)
+            if f is None or f.seized_carry is None:
+                del self._seized_at[i]
+                if f is not None:
+                    self.seized_back_min.append(self._minutes(world.campaign.tick - since))
+
     def observe(self, world: World) -> None:
+        self._who_took(world)
+        self._classify_downs(world)
+        self._seized_facilities(world)
+        for hq in self._hq_new:
+            hq["weight"] = capture_weight(world, hq["node"], hq["side"])
+        self._hq_new.clear()
         for eid in sorted(self.trucks):  # a truck leaving its source loaded (Q-SIM-97)
             e = world.find(eid)
             if e is None:
@@ -284,7 +428,10 @@ class Collector:
             c = world.find(eid)
             if c is None:
                 self._carriers.discard(eid)
-            elif c.cargo and c.path and isinstance(c.path[-1], str):
+                self._carrier_pos.pop(eid, None)
+                continue
+            self._carrier_pos[eid] = (c.pos.x, c.pos.y)
+            if c.cargo and c.path and isinstance(c.path[-1], str):
                 self._dest[eid] = c.path[-1]
             else:
                 self._dest.pop(eid, None)  # unloaded or parked: no longer a convoy under way
@@ -299,15 +446,58 @@ class Collector:
             hour = self._hour(world.campaign.tick)
             _add(self.budget, hour, state.budget)
             _add(self.budget_windows, hour, 1)
+        camp = world.campaign
+        ran = camp.running_ticks != self._running_seen  # the clock ran this tick (not a sim pause)
+        self._running_seen = camp.running_ticks
+        if ran and camp.hold_paused_ticks and self.holds:
+            self.hold_paused_ticks += 1  # a running tick of a paused hold
+            self.holds[-1]["paused_ticks"] += 1
+            now = next(  # the pause reason in force now: the sim names only the first (EC-9b)
+                (r for n in camp.hold_nodes if (r := pressure(world, n, _COALITION))), None
+            )
+            self.paused_ticks_by_reason[now or self._pause_reason or "UNKNOWN"] += 1
         hp = world.defense_hp[self._sanctuary]
+        if ran:
+            self._defeat_run(camp.defeat_ticks, hp)
+            owned = [n for n in sorted(self._strategic) if world.owner.get(n) == _COALITION]
+            self.zero_strategic_ticks += not owned
+            self._ticks_by_k[len(owned)] += 1
+            for n in owned:
+                self._owned_ticks[n] += 1
+            self._stretch = self._stretch + 1 if len(owned) >= self._hold_k else 0
+            self._longest_stretch = max(self._longest_stretch, self._stretch)
         self.sanctuary_min = min(self.sanctuary_min, hp)
         if world.campaign.tick <= self.a3_ticks:
             self.sanctuary_min_window = min(self.sanctuary_min_window, hp)
+        self._due_next = self._income_due(world)
+
+    def _income_due(self, world: World) -> dict[str, int] | None:
+        """The income each limited side is due if the next tick is an economy window, else None."""
+        # Assumes the harness sends no STAFF campaign commands: a resume on a window tick would
+        # count `produced` without `due`, and that cannot happen here.
+        if (ready := economy_due(world)) is None:
+            return None
+        rules, er = ready
+        return {s: income(world, rules, er, s) for s in sorted(world.pool)}
+
+    def _defeat_run(self, run: int, hp: int) -> None:
+        """One running tick of the defeat run (`campaign._defeat_run`): `run` is `defeat_ticks`
+        after the tick. A tick that ended the campaign leaves the run at the hold, not 0."""
+        if run and not self._defeat_seen:
+            self.defeat_started += 1
+        elif self._defeat_seen and not run:
+            self.defeat_resets += 1
+        if run and 0 < hp < self._reset_hp:
+            self.defeat_paused_ticks += 1
+        self.defeat_longest = max(self.defeat_longest, run)
+        self._defeat_seen = run
 
     def _economy_window(self, world: World) -> None:
         """One economy window has run (upkeep included): R1/R8 unit shares, R2, R3/R11 episodes
         and R10 pool stretches. Counted in windows (ints); a window stands for `window_ticks`."""
         rules, tick = self._world_rules, world.campaign.tick
+        for side, due in (self._due_next or {}).items():
+            self.clip_due[side] += due
         self.windows += 1
         viewer_grounded = False
         homes: set[str] = set()
@@ -398,14 +588,31 @@ class Collector:
                     for s in SIDES
                 }
             )
+            self.escort_jobs.append(
+                sum(j.key.startswith("op:ESCORT_CONVOYS:") for j in world.boards[_ENEMY].values())
+            )
         floor, stock = self._world_rules.supply.starve_floor, world.stock
-        starved = sum(
-            1
-            for n, owner in sorted(world.owner.items())
-            if owner == _COALITION and n in stock and stock[n] < floor[n]
-        )
+        held = [n for n, owner in sorted(world.owner.items()) if owner == _COALITION and n in stock]
+        starved = sum(stock[n] < floor[n] for n in held)
         self.starved_nodes += starved
         self.starved_any += starved > 0
+        fraction = sum(stock[n] < self._fraction_floor[n] for n in held)
+        self.starved_fraction_nodes += fraction
+        self.starved_fraction_any += fraction > 0
+        for side in SIDES:  # NX-502: open resupply jobs by the state of their node's stock
+            for j in world.boards[side].values():
+                node = j.node
+                if (
+                    j.kind == "RESUPPLY"
+                    and len(j.claims) < j.slots
+                    and node is not None
+                    and node in stock
+                    and node in floor
+                    and node not in self._source_side  # not the sanctuary's repair job
+                ):
+                    self.job_samples[side][
+                        "starving" if stock[node] < floor[node] else "stocking"
+                    ] += 1
 
     def sample_idle(self, world: World) -> None:
         """The idle armed viewer-unit share (Q-SIM-92): commander-owned units of an armed kind, not
@@ -422,6 +629,13 @@ class Collector:
         ]
         if not armed:
             return
+        self.open_strike_slots.append(
+            sum(
+                j.slots - len(j.claims)
+                for j in world.boards[_COALITION].values()
+                if j.kind == "STRIKE" and len(j.claims) < j.slots
+            )
+        )
         idle = [e for e in armed if is_idle(rules, e, _COALITION)]
         diagnoses = {e.id: (e, *idle_diagnosis(world, e)) for e in idle}
         reasons = {i: reason for i, (_, reason, _) in diagnoses.items()}
@@ -561,6 +775,11 @@ class Collector:
 
     def _destroyed(self, e: Any) -> None:
         dest = self._dest.pop(e.entity_id, None)
+        pos = self._carrier_pos.pop(e.entity_id, None)
+        tasking = self._world_rules.tasking
+        if pos is not None and e.side == _COALITION and tasking is not None:
+            near = math.dist(pos, self._world_rules.roads.pos[self._sanctuary])
+            self.trucks_lost_near_sanctuary += near <= tasking.defend_radius_m
         killer_side = self.entity.get(e.killer_id, (None, None))[1]
         if dest and e.side == _COALITION and killer_side == _ENEMY:
             self._action[dest] = e.tick  # R11: a loaded convoy lost on its way to `dest`
@@ -578,6 +797,7 @@ class Collector:
 
     def _delivered(self, e: Any) -> None:
         self._credit(e.commander_id, e.tick, "delivery")
+        self.stops[self.entity[e.carrier_id][1]] += 1
 
     def _fired(self, e: Any) -> None:
         """A Static shot at a node's defenses: the newest capture operation on it got its strike."""
@@ -609,21 +829,63 @@ class Collector:
             capturers.add(eid)
             step["own_capturers"] = len(capturers)
 
+    def _who_took(self, world: World) -> None:
+        """Q-TD-136: for each coalition node lost this tick, who stood in the capture radius on
+        the taker's side and what job each held (`capturers`). Read in `observe`, after the
+        step: the CAPTURE job is still claimed (tasking ran before capture in the step)."""
+        pending, self._cap_pending = self._cap_pending, []
+        for node, strategic, taker in pending:
+            who = self.who_took["strategic" if strategic else "other"]
+            who["losses"] += 1
+            board = world.boards[taker]
+            seen = capturers(world, node, taker)
+            if not seen:
+                who["unknown"] += 1  # moved off, died, or air that does not count: not visible
+                continue
+            for key in ("job", "kind", "owner"):
+                who["losses_by_" + key].update({
+                    _who_key(key, e, board) for e, _ in seen
+                })  # fmt: skip
+            for e, w in seen:
+                who["units"] += 1
+                who["weight"] += w
+                for key in ("job", "kind", "owner"):
+                    who["units_by_" + key][_who_key(key, e, board)] += 1
+
     def _captured(self, e: Any) -> None:
+        self.coalition_captures += e.to == _COALITION
+        if e.from_ == _COALITION and e.to != _COALITION:
+            self._cap_pending.append((e.node_id, e.node_id in self._strategic, e.to))
+        if e.from_ == _COALITION and e.to != _COALITION and e.node_id in self._strategic:
+            launch = self._latest.get(e.node_id)  # read before the pop below
+            kind = "none" if launch is None else launch["op"]
+            kind = kind if kind in LOSS_AFTER else "other"
+            self._lost[e.node_id]["total"] += 1
+            self._lost[e.node_id][kind] += 1
+        self._flipped += [(i, e.tick) for i in self._facilities.get(e.node_id, ())]
         if (step := self._latest.pop(e.node_id, None)) and e.to == _ENEMY:
             step["captured"] = True
             step["own"]["captured"] = step["own_capturers"] > 0  # NodeCaptured names no Static unit
         for commander in e.participant_commander_ids:
             self._credit(commander, e.tick, "capture")
+        if self._world_rules.node_kind.get(e.node_id) == "HQ":
+            hq = {"tick": e.tick, "node": e.node_id, "side": e.to, "weight": None,
+                  "participants": len(e.participant_commander_ids)}  # fmt: skip
+            self.hq_captures.append(hq)
+            self._hq_new.append(hq)
         if e.from_ == _COALITION and e.to != _COALITION:
             self.pressure_ticks.append(e.tick)
             if e.node_id in self._strategic:
                 self.nodes_lost.append((e.tick, e.node_id))
         self._owner[e.node_id] = e.to
+        self._close_down(e.node_id, e.tick)  # a flip clears the down flag with no Restored
 
     def _hold_started(self, e: Any) -> None:
+        self.holds_resumed += e.progress_ticks > 0
         self.hold_start = e.tick
-        self.holds.append({"start": e.tick, "end": None, "broken": False, "ops": 0})
+        self.holds.append({
+            "start": e.tick, "end": None, "broken": False, "ops": 0, "pauses": 0, "paused_ticks": 0,
+        })  # fmt: skip
 
     def _hold_broken(self, e: Any) -> None:
         self.holds_broken += 1
@@ -631,7 +893,18 @@ class Collector:
         if self.holds:
             self.holds[-1].update(end=e.tick, broken=True)
 
+    def _hold_reset(self, e: Any) -> None:
+        self.hold_resets[e.reason] += 1
+
+    def _hold_paused(self, e: Any) -> None:
+        self._pause_reason = e.reason
+        self.hold_pauses[e.reason] += 1
+        if self.holds:
+            self.holds_paused += self.holds[-1]["pauses"] == 0
+            self.holds[-1]["pauses"] += 1
+
     def _produced(self, e: Any) -> None:
+        self.clip_produced[e.side] += e.amount
         _add(self.econ[e.side]["income"], self._hour(e.tick), e.amount)
 
     def _consumed(self, e: Any) -> None:
@@ -666,6 +939,8 @@ class Collector:
         self.sitreps[f"{e.side} {e.status}"] += 1
 
     def _job_created(self, e: Any) -> None:
+        if e.job_kind == "RESUPPLY" and e.node_id not in self._source_side:
+            self.jobs_posted[e.side] += 1
         if e.side == _ENEMY:
             self._new_jobs.append(e.job_id)
 
@@ -681,9 +956,13 @@ class Collector:
     def _defenses_down(self, e: Any) -> None:
         if e.owner == _COALITION:
             self.pressure_ticks.append(e.tick)
+            self._downs_new.append((e.node_id, e.tick))
             if step := self._latest.get(e.node_id):
                 step["defenses_down"] = True
                 step["own"]["defenses_down"] = step["own"]["strike_fired"]  # names no unit
+
+    def _defenses_restored(self, e: Any) -> None:
+        self._close_down(e.node_id, e.tick)
 
     def _tier(self, e: Any) -> None:
         if e.side != _ENEMY:
@@ -717,6 +996,11 @@ class Collector:
                 # below-tier arrivals (Pattern of Life) are reported, never judged (Q-SIM-93)
                 "below_tier_ttfi_s": self._ttfi(
                     [c for c in joined if self.join_tier[c] < self.min_tier]
+                ),
+                "below_tier_no_impact_observed_s": sorted(
+                    (end_tick - self.join_tick[c]) / self.tick_hz
+                    for c in joined
+                    if self.join_tier[c] < self.min_tier and c not in self.impact
                 ),
                 **self._group(counted, end_tick),
                 "by_kind": {
@@ -758,6 +1042,44 @@ class Collector:
                 "share_max": max(self.idle_shares, default=None),
                 "reasons": dict(sorted(self.idle_reasons.items())),
                 "ring_by_site": dict(sorted(self.idle_ring_by_site.items())),
+                "open_strike_slots_sum": sum(self.open_strike_slots),  # NX-478, per idle sample
+            },
+            "seized_facilities": {  # NX-471: seizures, minutes back on line, still off at the end
+                "seized": self.seized,
+                "back_min": list(self.seized_back_min),
+                "off_at_end": len(self._seized_at),
+            },
+            "coalition_hold": {  # NX-477
+                "zero_strategic_ticks": self.zero_strategic_ticks,
+                "zero_strategic_min": self._minutes(self.zero_strategic_ticks),
+                "coalition_captures": self.coalition_captures,
+            },
+            "strategic_held": {  # Q-TD-136, running ticks only
+                "nodes": len(self._strategic),
+                "hold_threshold": self._hold_k,  # owned nodes needed: campaign.py's holding rule
+                "min_by_k": [self._minutes(t) for t in self._ticks_by_k],
+                "at_or_above_min": self._minutes(sum(self._ticks_by_k[self._hold_k :])),
+                "longest_min": self._minutes(self._longest_stretch),
+                "by_node": {
+                    n: {"owned_min": self._minutes(self._owned_ticks[n]), "lost": self._lost[n]}
+                    for n in sorted(self._strategic)
+                },
+            },
+            "who_took": {  # Q-TD-136: capturers of coalition nodes, see `capturers`
+                k: {
+                    f: dict(sorted(v.items())) if isinstance(v, Counter) else v
+                    for f, v in t.items()
+                }
+                for k, t in sorted(self.who_took.items())
+            },
+            "escort_jobs": self.escort_jobs,  # NX-477: Static ESCORT_CONVOYS jobs, per run-hour
+            "income_clip": {  # NX-478: income due against `SupplyProduced`, per limited side
+                s: {
+                    "due": self.clip_due[s],
+                    "produced": self.clip_produced[s],
+                    "lost": self.clip_due[s] - self.clip_produced[s],
+                }
+                for s in SIDES
             },
             "density": {
                 "slots_per_unit_samples": len(self.slots_per_unit),
@@ -768,11 +1090,37 @@ class Collector:
             "starvation": {
                 "any_node_minutes": self.starved_any * self.sample_ticks / s / 60,
                 "node_minutes": self.starved_nodes * self.sample_ticks / s / 60,
+                "fraction_floor_any_node_minutes": self.starved_fraction_any
+                * self.sample_ticks
+                / s
+                / 60,
+                "fraction_floor_node_minutes": self.starved_fraction_nodes
+                * self.sample_ticks
+                / s
+                / 60,
             },
-            "economy": self._economy(),
+            "hauling": {
+                "run_hours": end_tick / self.hour_ticks,
+                "resupply_jobs": dict(self.jobs_posted),
+                "deliveries": dict(self.stops),
+                "trucks_lost_near_sanctuary": self.trucks_lost_near_sanctuary,
+                "resupply_job_min": {
+                    side: {k: n * self.sample_ticks / s / 60 for k, n in states.items()}
+                    for side, states in self.job_samples.items()
+                },
+            },
+            "defeat_run": {
+                "started": self.defeat_started,
+                "longest_ticks": self.defeat_longest,
+                "longest_min": self._minutes(self.defeat_longest),
+                "paused_ticks": self.defeat_paused_ticks,
+                "paused_min": self._minutes(self.defeat_paused_ticks),
+                "resets": self.defeat_resets,
+            },
+            "economy": self._economy(end_tick),
         }
 
-    def _economy(self) -> dict[str, Any]:
+    def _economy(self, end_tick: int) -> dict[str, Any]:
         """ECONOMY §4 "Harness report" inputs (NX-412 part 5a); per-hour lists are indexed by game
         hour and may be shorter than the run where nothing happened late."""
         return {
@@ -785,7 +1133,24 @@ class Collector:
             "budget": {"sum": self.budget, "windows": self.budget_windows, "spent": self.spent},
             "ops": [list(o) for o in self.ops],
             "ops_unseen": self.ops_unseen,
-            "holds": [{**h, "pressure": self._pressure_in(h)} for h in self.holds],
+            "holds": [
+                {
+                    **h,
+                    "pressure": self._pressure_in(h),
+                    "paused_min": self._minutes(h["paused_ticks"]),
+                }
+                for h in self.holds
+            ],
+            "holds_paused": self.holds_paused,
+            "hold_pauses": dict(sorted(self.hold_pauses.items())),
+            "hold_paused_min": self._minutes(self.hold_paused_ticks),
+            "paused_min_by_reason": {
+                r: self._minutes(self.paused_ticks_by_reason[r])
+                for r in sorted({*PAUSE_REASONS, *self.paused_ticks_by_reason})
+            },
+            "defenses_down": self._defenses_down_result(end_tick),
+            "holds_resumed": self.holds_resumed,
+            "hold_resets": dict(sorted(self.hold_resets.items())),
             "funnel": self.funnel,
             "dispersed_split": dict(self.dispersed_split),
             "no_capture": {k: self.no_capture[k] for k in ("launched", *NO_CAPTURE)},
@@ -796,6 +1161,7 @@ class Collector:
                 "unattributed": self.spawn_unattributed,
             },
             "army_peak": self.army_peak,
+            "hq_captures": self.hq_captures,
             "shortfall": self._shortfall(),
         }
 
@@ -820,6 +1186,21 @@ class Collector:
                 "minutes": sum(stretches) * self._wticks / self.tick_hz / 60,
             },
         }
+
+    def _defenses_down_result(self, end_tick: int) -> dict[str, dict[str, Any]]:
+        """Coalition downs by inferred cause: events, and minutes down (a down still open at the
+        end of the run counts to `end_tick`; `_classify_downs` has seen every down by then)."""
+        ticks = Counter(self.down_ticks)
+        for start, cause in self._downs_open.values():
+            ticks[cause] += end_tick - start
+        return {
+            "events": {c: self.downs[c] for c in DOWN_CAUSES},
+            "minutes": {c: self._minutes(ticks[c]) for c in DOWN_CAUSES},
+        }
+
+    def _minutes(self, ticks: int) -> float:
+        """Game minutes (`tick_hz` ticks a second, like every other harness minute) of `ticks`."""
+        return ticks / self.tick_hz / 60
 
     def _pressure_in(self, hold: dict[str, Any]) -> int:
         """Pressure events from a hold's start to its end, both ticks counted."""
@@ -860,6 +1241,53 @@ class Collector:
             "nodes_held_pct": e.nodes_held_pct if e else None,
             "ticks_run": end_tick,
         }
+
+
+def _new_who() -> dict[str, Any]:
+    return {
+        "losses": 0,  # coalition nodes lost
+        "unknown": 0,  # of them, no capturer visible in `observe`
+        "units": 0,  # capturers seen, over all losses
+        "weight": 0.0,  # their capture weight (`capture._weight`)
+        **{f"{n}_by_{k}": Counter() for n in ("losses", "units") for k in ("job", "kind", "owner")},
+    }
+
+
+def capturers(world: World, node: str, side: Side) -> list[tuple[Entity, float]]:
+    """Q-TD-136: `side`'s units that count toward `node`'s capture bar now, with their weight: the
+    sim's own `capture._presence` rule (unit order = `world.entities()`): ground units within
+    `capture.radius_m` (a unit `_patrolling`, i.e. a garrison unit, a patrol or a coalition AI
+    truck, has no weight and is left out), logistics units at `logi_weight`, airborne air only
+    with `capture.air_counts` (`air_weight`), LANDED air and facilities never."""
+    rules = world.rules
+    if rules is None or rules.capture is None:
+        return []
+    cap = rules.capture
+    x, y = rules.roads.pos[node]
+    out = []
+    for e in world.entities():
+        domain = rules.domain[e.kind]
+        if e.side != side or domain not in ("AIR", "GROUND"):
+            continue
+        if domain == "AIR" and (e.state == "LANDED" or cap.air_weight is None):
+            continue  # LANDED air only garrisons; airborne never counts unless `air_counts`
+        if (e.pos.x - x) ** 2 + (e.pos.y - y) ** 2 <= cap.radius_m**2 and not _patrolling(world, e):
+            out.append((e, _weight(e, domain, rules, cap)))
+    return out
+
+
+def _who_key(key: str, e: Entity, board: Mapping[int, Job]) -> str:
+    if key == "kind":
+        return e.kind
+    if key == "owner":
+        return "static" if e.owner_kind == WHO_STATIC else "other"
+    if e.job_id is None:
+        return "none"
+    job = board.get(e.job_id)
+    if job is None:
+        return "gone"  # the claim outlived its job on the board
+    parts = job.key.split(":")
+    return f"op:{parts[1]}" if parts[0] == "op" and len(parts) > 1 else parts[0]
 
 
 def ring_site(world: World, rules: Rules, e: Entity, job: Job) -> str:

@@ -20,6 +20,7 @@ from nexus.contracts.gen.events.event import Event
 from nexus.core.bridges import validate as validate_bridges
 from nexus.core.combat import validate as validate_combat
 from nexus.core.defense import validate as validate_defense
+from nexus.core.economy import validate as validate_economy
 from nexus.core.provocation import validate as validate_director
 from nexus.core.rules import Rules
 from nexus.core.step import HANDLERS, Handler, step
@@ -114,6 +115,7 @@ def restore(
         validate_defense(world, rules)
         validate_bridges(world, rules)
         validate_director(world, rules)
+        validate_economy(world, rules)
     world.rules = rules
     by_tick: defaultdict[int, list[Command]] = defaultdict(list)
     tombstones: set[int] = set()

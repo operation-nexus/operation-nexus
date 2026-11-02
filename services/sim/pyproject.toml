@@ -4,21 +4,22 @@ version = "0.0.0"
 description = "Operation Nexus simulation and app (modular monolith)"
 requires-python = ">=3.12"
 dependencies = [
-    "msgpack==1.2.3",
-    "pydantic==2.14.1",
+    "msgpack==1.2.4",
+    "pydantic==2.14.2",
     "pyyaml==6.0.3",
     "zstandard==0.25.0",
 ]
 
 [dependency-groups]
 dev = [
-  "ruff==0.17.2",
-  "mypy==2.4.0",
-  "pytest==9.1.1",
-  "hypothesis==6.170.5",
+  "ruff==0.17.3",
+  "mypy==2.4.1",
+  "pytest==9.2.0",
+  "hypothesis==6.170.13",
   "import-linter==2.15",
-  "datamodel-code-generator==0.86.0",
+  "datamodel-code-generator==0.87.0",
   "types-pyyaml==6.0.12.20260906",
+  "pytest-xdist==3.8.0",
 ]
 
 [build-system]

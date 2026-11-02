@@ -21,8 +21,8 @@ The `combat` slot, each running tick (not while frozen, SC-11), in this order:
    target in range (units always come first) fires at the defense HP of the nearest node, ties by
    id, that the enemy owns and whose HP is above 0, within `range_m` of the node's position (nodes
    are always known, FOW-10, so no track is needed). With `combat.strike_structure_first` (Q-TD-55,
-   default off) a unit holding a STRIKE claim on such a node fires at it before any unit target,
-   either side alike. Before that fallback, a unit holding a STRIKE
+   shipped on since NX-412 part 5b, Q-TD-79) a unit holding a STRIKE claim on such a node fires
+   at it before any unit target, either side alike. Before that fallback, a unit holding a STRIKE
    claim on a bridge fires at the bridge (`nexus.core.bridges.target`, Q-SIM-105); a direct GOTO
    order to one never does (Q-SIM-124). The hit that drops it destroys the ground units on it
    (`bridges.collapsing`, Q-SIM-112).
@@ -690,6 +690,12 @@ def _validate_entity(world: World, rules: Rules, cr: CombatRules, e: Entity) -> 
         or (e.wreck_left or 0) > cr.disabled_timeout_ticks
         else "repair_debt not below the repair price denominator"
         if e.repair_debt >= (rules.supply.facility_hp_per_stock if facility else stats.hp)
+        else "seized_carry on a non-facility, an enabled facility or out of range"
+        if e.seized_carry is not None and not (
+            facility and e.damage_state == _DISABLED and rules.capture is not None
+            and rules.capture.facilities_disabled
+            and e.seized_carry < rules.capture.seized_slowdown
+        )
         else "an airborne aircraft cannot be Disabled"
         if e.damage_state == _DISABLED and e.state not in (None, "LANDED")
         else "hits on a facility, or from the future"

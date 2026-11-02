@@ -5,8 +5,10 @@ STATE-MACHINES §4.2, Q-SIM-56, Q-SIM-57).
 progress as an integer of millionths of a percent (`CAPTURE_FULL` = 100 %), so the flip threshold
 and the decay are exact and a snapshot restores them bit for bit. Each tick's gain is
 `round(CAPTURE_FULL x world_dt / time)`, at least 1, where
-`time = max(min_time_s, time_s x quiet_mult(v) / n^exponent x garrison modifier)`, so `min_time_s`
-is the only cap on how fast a crowd can flip a base (Q-GP-4).
+`time = max(min_time_s, time_s x time_mult[kind] x quiet_mult(v) / n^(exponent + extra[kind]) x
+garrison modifier)`, so `min_time_s` is the only cap on how fast a crowd can flip a base (Q-GP-4);
+`time_mult` and `extra` are by the node's kind, for whichever side captures (NX-490: an HQ is very
+hard to capture, hardest alone; every other kind 1.0 and 0).
 
 Who counts (by position within `capture.radius_m` of the node): GROUND units are capturers, a
 logistics unit (`Supply.carriers`) weighing `logi_weight`; airborne air never counts (N-3; with the
@@ -55,9 +57,10 @@ bar holds one step short of the flip (the node is in `DirectorState.held`), and 
 launches no capture operation (`nexus.core.launch`). A held bar stays held until the cap frees,
 even when a viewer arrives (the full 0-viewer cap, Q-SIM-86); coalition units
 contest it as any bar, and it leaves `held` when it is gone or drained. A garrison unit (one
-with a home base) and a unit on a PATROL job never count as capturers (they still contest and
-garrison): a garrison only defends (Q-SIM-86), so a patrol turns at a neutral node, or a failed
-one stands there, without flipping it.
+with a home base), a unit on a PATROL job and a coalition AI_GARRISON carrier (an AI truck,
+GAMEPLAY §5 LC-1, NX-473) never count as capturers (they still contest and garrison): a garrison
+only defends (Q-SIM-86), so a patrol turns at a neutral node, or a failed one stands there, and
+an AI truck drives past one, without flipping it (the AI never initiates offense, Q-TD-14).
 
 Runs after `logistics` in the `logistics_capture` slot (SC-13) and not while paused (SC-11).
 Deterministic: nodes in id order, entities in id order, no RNG.
@@ -69,7 +72,7 @@ import math
 from dataclasses import dataclass, field
 from typing import Literal
 
-from nexus.contracts.gen.common.enums import NodeOwner, Side
+from nexus.contracts.gen.common.enums import NodeKind, NodeOwner, Side
 from nexus.contracts.gen.events.capture_started import CaptureStarted
 from nexus.contracts.gen.events.event import Event
 from nexus.contracts.gen.events.node_captured import NodeCaptured
@@ -81,7 +84,16 @@ from nexus.core.logistics import friendly_bases, nearest, road_start
 from nexus.core.provocation import captured
 from nexus.core.rules import CAPTURE_FULL, CaptureRules, Rules
 from nexus.core.upkeep import rehome
-from nexus.core.world import SIDES, CaptureBar, Entity, World, end_stop, lose_unit
+from nexus.core.world import (
+    SIDES,
+    CaptureBar,
+    Entity,
+    World,
+    end_stop,
+    is_ai_truck,
+    lose_unit,
+    set_damage_state,
+)
 
 _OTHER: dict[Side, Side] = {"COALITION": "ENEMY", "ENEMY": "COALITION"}
 _AIR, _GROUND = "AIR", "GROUND"
@@ -162,8 +174,9 @@ def _prune_held(world: World) -> None:
 
 
 def _patrolling(world: World, e: Entity) -> bool:
-    """A garrison unit or a patrol: no capture weight."""
-    if e.home is not None:
+    """A garrison unit, a patrol or a coalition AI truck (LC-1): no capture
+    weight. Other AI garrison units still capture (a counterattack, Q-GD-31)."""
+    if e.home is not None or (world.rules is not None and is_ai_truck(world.rules, e)):
         return True
     job = world.boards[e.side].get(e.job_id) if e.job_id is not None else None
     return job is not None and job.kind == "PATROL"
@@ -251,7 +264,8 @@ def _tick_node(
         return
     elif no_fill:
         return
-    base = _base_time(cap, near[bar.side].weight, quiet if bar.side in cap.quiet_sides else 1.0)
+    quiet_now = quiet if bar.side in cap.quiet_sides else 1.0
+    base = _base_time(cap, rules.node_kind[node], near[bar.side].weight, quiet_now)
     time = max(cap.min_time_s, base * _modifier(cap, owner, near))
     bar.progress += max(cap.min_progress, round(CAPTURE_FULL * rules.world_dt / time))
     if bar.progress >= CAPTURE_FULL:
@@ -293,8 +307,18 @@ def _starter(near: dict[Side, _Presence], free: list[Side]) -> Side | None:
     return None
 
 
-def _base_time(cap: CaptureRules, n: float, quiet: float) -> float:
-    return cap.time_s * quiet / float(n**cap.exponent)
+def _base_time(cap: CaptureRules, kind: NodeKind, n: float, quiet: float) -> float:
+    """NX-490: the node kind's `time_mult` and `extra_exponent`, for whichever side captures."""
+    return cap.time_s * cap.time_mult[kind] * quiet / float(n ** (cap.exponent + cap.extra[kind]))
+
+
+def capture_weight(world: World, node: str, side: Side) -> float:
+    """The capture weight `side` has at `node` now, as the bar counts it (read-only; the balance
+    harness reports it for an HQ capture, NX-490)."""
+    rules = world.rules
+    if rules is None or rules.capture is None:
+        return 0.0
+    return _presence(world, rules, rules.capture, [node])[node][side].weight
 
 
 def _modifier(cap: CaptureRules, owner: NodeOwner, near: dict[Side, _Presence]) -> float:
@@ -350,18 +374,28 @@ def _flip(
         )
     )
     captured(world, node, before, to, len(near[to].commanders))  # the Static's provocation
-    _switch_facilities(world, node, to)
+    _switch_facilities(world, rules, node, to, out)
     if before != "NEUTRAL":
         _resolve_units(world, rules, cap, node, before, out)
         rehome(world, node)  # the loser's units homed here re-home (ECONOMY EC-5)
     reroute(world, rules, taken=node)  # runs and crews on their way replan around it (NX-413)
 
 
-def _switch_facilities(world: World, node: str, to: Side) -> None:
-    """The base's facilities change side and keep everything else (Q-GP-25), FOW-13."""
+def _switch_facilities(world: World, rules: Rules, node: str, to: Side, out: list[Event]) -> None:
+    """The base's facilities change side (Q-GP-25), FOW-13. With `capture.facilities_disabled` they
+    also drop to their floor, Disabled and seized, before the hand-over (NX-471, GAMEPLAY §8)."""
+    cap, cr = rules.capture, rules.combat
+    seize = cap is not None and cap.facilities_disabled and cr is not None
     for e in world.entities():
         if e.base_id == node and e.side != to:
             loser, e.side = e.side, to
+            if seize and cr is not None:
+                stats = cr.units[e.kind]
+                e.hp = min(e.hp, stats.floor)
+                if e.damage_state != "DISABLED":
+                    set_damage_state(world, e, "DISABLED", out)
+                e.repair_milli = e.repair_debt = 0
+                e.seized_carry = 0
             hand_over(world, e, loser)
 
 

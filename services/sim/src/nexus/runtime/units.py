@@ -6,7 +6,8 @@ duplicates, file names match kinds, weapon ids resolve and none is unused, `min_
 `min_speed_mps` and `fuel_s` iff AIR with `min_speed_mps <= speed_mps` (NX-368), `alt_bands` and
 `default_alt_band` iff AIR with the default among the bands, a weapon's `bands` non-empty iff it can
 target AIR (NX-124, COMBAT §5.3), each MVP role maps to a kind a VIEWER can play, and COMBAT §5.1
-target limits (Q-CBT-25).
+target limits (Q-CBT-25), and `mirrors` (NX-494, ECONOMY EC-3): on an ENEMY kind only, naming a
+COALITION kind of the same domain, no target named twice.
 TBD values (DI-7) are `load_model`'s. Stats join item by item (Q-CFG-10).
 """
 
@@ -52,7 +53,7 @@ def load_catalog(units_dir: Path, weapons_path: Path, roles_path: Path) -> UnitC
         roles=roles,
     )
     problems = _files(loaded) + _units(loaded, catalog, weapons_path, roles_path)
-    problems += _weapons(weapons_path, weapons, catalog)
+    problems += _weapons(weapons_path, weapons, catalog) + _mirrors(loaded)
     if problems:
         raise ConfigError("; ".join(problems))
     return catalog
@@ -145,6 +146,29 @@ def _bands(f: Path, u: UnitConfig) -> list[str]:
         problems += _duplicates(u.alt_bands, f"{f}: alt_bands")
         if u.default_alt_band not in u.alt_bands:
             problems.append(f"{f}: default_alt_band: not one of alt_bands")
+    return problems
+
+
+def _mirrors(loaded: list[tuple[Path, UnitConfig]]) -> list[str]:
+    """`mirrors` (NX-494, ECONOMY EC-3): an ENEMY kind names a COALITION kind of its own domain,
+    and no two enemy kinds name the same one."""
+    by_kind = {u.kind: u for _, u in loaded}
+    problems = _duplicates(
+        (u.mirrors for _, u in loaded if u.mirrors is not None), "units dir: mirrors"
+    )
+    for f, u in loaded:
+        if u.mirrors is None:
+            continue
+        target = by_kind.get(u.mirrors)
+        if u.side != "ENEMY":
+            problems.append(f"{f}: mirrors: only an ENEMY kind may mirror one (side {u.side})")
+        elif target is None:
+            problems.append(f"{f}: mirrors: {u.mirrors!r} is not in the catalog")
+        elif target.side != "COALITION" or target.domain != u.domain:
+            problems.append(
+                f"{f}: mirrors: {u.mirrors!r} is {target.side} {target.domain}, "
+                f"not a COALITION {u.domain} kind"
+            )
     return problems
 
 

@@ -202,6 +202,7 @@ def run(
         a3_ticks=round(data.targets.a3_hours * 3600 * hz),
         idle_sample_ticks=round(data.idle_sample_min * 60 * hz),
         impact_check_ticks=max(1, round(data.impact_check_s * hz)),
+        starve_threshold=config.balance.logistics.starve_threshold,
     )
     orders = Orders(
         world, frozenset(v.commander_id for v in crowd.viewers if v.kind == "freelancer")
@@ -324,6 +325,7 @@ def failed_run(profile: str, seed: int, hours: float, error: str) -> dict[str, A
                 "joined": 0,
                 "joined_below_tier": 0,
                 "below_tier_ttfi_s": [],
+                "below_tier_no_impact_observed_s": [],
                 "joined_counted": 0,
                 "ttfi_s": [],
                 "no_impact_observed_s": [],
@@ -342,8 +344,50 @@ def failed_run(profile: str, seed: int, hours: float, error: str) -> dict[str, A
                 "share_sum": 0.0,
                 "share_max": None,
                 "reasons": {},
+                "open_strike_slots_sum": 0,
             },
-            "starvation": {"any_node_minutes": 0.0, "node_minutes": 0.0},
+            "coalition_hold": {
+                "zero_strategic_ticks": 0,
+                "zero_strategic_min": 0.0,
+                "coalition_captures": 0,
+            },
+            "strategic_held": {
+                "nodes": 0,
+                "hold_threshold": 0,
+                "min_by_k": [],
+                "at_or_above_min": 0.0,
+                "longest_min": 0.0,
+                "by_node": {},
+            },
+            "who_took": {},
+            "escort_jobs": [],
+            "income_clip": {
+                s: {"due": 0, "produced": 0, "lost": 0} for s in ("COALITION", "ENEMY")
+            },
+            "starvation": {
+                "any_node_minutes": 0.0,
+                "node_minutes": 0.0,
+                "fraction_floor_any_node_minutes": 0.0,
+                "fraction_floor_node_minutes": 0.0,
+            },
+            "hauling": {
+                "run_hours": 0.0,
+                "resupply_jobs": {"COALITION": 0, "ENEMY": 0},
+                "deliveries": {"COALITION": 0, "ENEMY": 0},
+                "trucks_lost_near_sanctuary": 0,
+                "resupply_job_min": {
+                    "COALITION": {"starving": 0.0, "stocking": 0.0},
+                    "ENEMY": {"starving": 0.0, "stocking": 0.0},
+                },
+            },
+            "defeat_run": {
+                "started": 0,
+                "longest_ticks": 0,
+                "longest_min": 0.0,
+                "paused_ticks": 0,
+                "paused_min": 0.0,
+                "resets": 0,
+            },
         },
         "timing": {"wall_s": 0.0, "ticks_per_s": None},
     }

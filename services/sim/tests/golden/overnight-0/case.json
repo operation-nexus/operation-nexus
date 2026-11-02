@@ -1,7 +1,7 @@
 {
   "campaign_id": "0192f3a4-5b6c-7d8e-9f01-23456789abcd",
   "seed": 12345,
-  "config_hash": "4c8e5e233550ed14ce2dacb0d91ba3cac77a7f46817fdb3915d972cd416aaca5",
+  "config_hash": "24ccdc992b162419f3e7ffdf9b64f42bf7c3a4b9732e14ddd7264e76a0092471",
   "ticks": 36000,
   "checkpoints_every": 100,
   "handlers": "kernel",
@@ -10,6 +10,7 @@
   "overrides": {
     "director.pol.offensive_period_s": 1800,
     "director.pol.convoy_period_s": 1800,
+    "director.pol.convoy_demand_s": 1800,
     "campaign.night_progress_cap_nodes_per_h": 1.0
   }
 }

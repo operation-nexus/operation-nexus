@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nexus.local/contracts/events/victory_hold_resumed.json",
+  "title": "VictoryHoldResumed",
+  "description": "A paused victory hold gained progress again: no hold node is under pressure any more (CONTRACTS §6; GAMEPLAY §9; ECONOMY EC-9b, Q-TD-84 (b); NX-466). Emitted on the first running tick after a VictoryHoldPaused with no hold node pressured, which also gains 1. Not emitted when the hold breaks or the campaign ends during the pause. Only with campaign.victory.pause_on_pressure. Public, like VictoryHoldStarted.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["kind", "tick", "event_seq", "campaign_id", "ends_at_tick", "progress_ticks"],
+  "properties": {
+    "kind": {"const": "VictoryHoldResumed"},
+    "tick": {"$ref": "../common/ids.json#/$defs/Tick"},
+    "event_seq": {"type": "integer", "minimum": 1, "description": "Campaign-wide, monotonic, deterministic (SC-14)."},
+    "campaign_id": {"$ref": "../common/ids.json#/$defs/CampaignId"},
+    "ends_at_tick": {"type": "integer", "minimum": 1, "x-unit": "campaign-clock ticks", "description": "The running tick the victory comes on if nothing pauses or breaks the hold again: this running tick + victory_hold_ticks - progress_ticks (campaign clock, as VictoryHoldStarted.ends_at_tick)."},
+    "progress_ticks": {"type": "integer", "minimum": 1, "x-unit": "campaign-clock ticks", "description": "The progress after this tick's gain."}
+  }
+}

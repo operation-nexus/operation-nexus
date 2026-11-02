@@ -96,15 +96,18 @@ def rules_of(**overrides: object) -> Rules:
 # --- defaults and the loader -------------------------------------------------------------------
 
 
-def test_the_defaults_are_the_old_fixed_rules() -> None:
+def test_the_defaults_are_the_decided_rules() -> None:
     r = shipped_config({}).rules
     assert r.capture and r.defense and r.campaign and r.combat
     assert r.capture.requires_defenses_down is True and r.capture.air_weight is None
     assert r.capture.quiet_sides == {"COALITION"}
+    assert (r.capture.facilities_disabled, r.capture.seized_slowdown) == (True, 92)  # NX-471
     assert (r.defense.idle_floor, r.defense.sanctuary_min_hp) == (True, 1)
     assert (r.campaign.hq_capture, r.campaign.objective_pick) == (True, "uniform")
+    assert (r.campaign.hold_decay, r.campaign.reset_on_repair) == (True, True)  # EC-9a, Q-TD-126
+    assert r.campaign.pause_on_pressure is True  # EC-9b, NX-466
     assert r.combat.facility_indestructible is True
-    assert r.combat.strike_structure_first is False  # Q-TD-55: units first (CB-10)
+    assert r.combat.strike_structure_first is True  # Q-TD-79: on since NX-412 part 5b (CB-10)
     assert r.combat.overkill_check is True  # Q-TD-73: the overkill check is the rule (CB-1)
 
 
@@ -114,19 +117,27 @@ def test_non_default_options_reach_the_rules() -> None:
         capture__air_counts=True,
         capture__air_weight=0.25,
         capture__quiet_sides=["ENEMY"],
+        capture__facilities_disabled=False,
+        capture__seized_repair_slowdown=1,
         campaign__idle_floor__enabled=False,
         campaign__idle_floor__sanctuary_min_hp=40,
         campaign__victory__hq_capture=False,
+        campaign__victory__hold_break="reset",
+        campaign__victory__reset_on_repair=False,
+        campaign__victory__pause_on_pressure=False,
         combat__facility_indestructible=False,
-        combat__strike_structure_first=True,
+        combat__strike_structure_first=False,
         combat__overkill_check=False,
     )
     assert r.capture and r.defense and r.campaign and r.combat
     assert r.capture.requires_defenses_down is False and r.capture.air_weight == 0.25
     assert r.capture.quiet_sides == {"ENEMY"}
+    assert (r.capture.facilities_disabled, r.capture.seized_slowdown) == (False, 1)
     assert (r.defense.idle_floor, r.defense.sanctuary_min_hp) == (False, 40)
     assert r.campaign.hq_capture is False and r.combat.facility_indestructible is False
-    assert r.combat.strike_structure_first is True and r.combat.overkill_check is False
+    assert r.campaign.hold_decay is False and r.campaign.reset_on_repair is False
+    assert r.campaign.pause_on_pressure is False
+    assert r.combat.strike_structure_first is False and r.combat.overkill_check is False
 
 
 def test_air_weight_is_read_only_when_air_counts() -> None:
@@ -141,8 +152,15 @@ def test_air_weight_is_read_only_when_air_counts() -> None:
         ("campaign.idle_floor.sanctuary_min_hp", 1001),  # above capture.defense_hp.SANCTUARY
         ("campaign.idle_floor.enabled", "maybe"),
         ("campaign.victory.hq_capture", "maybe"),
+        ("campaign.victory.hold_break", "keep"),
+        ("campaign.victory.reset_on_repair", "maybe"),
+        ("campaign.victory.pause_on_pressure", "maybe"),
         ("campaign.objective_pick", "weighted"),
         ("capture.requires_defenses_down", "maybe"),
+        ("capture.facilities_disabled", "maybe"),
+        ("capture.seized_repair_slowdown", 0),
+        ("capture.seized_repair_slowdown", -1),
+        ("capture.seized_repair_slowdown", 1.5),
         ("capture.air_counts", "maybe"),
         ("capture.air_weight", 0),
         ("capture.quiet_sides", ["NEUTRAL"]),
@@ -381,11 +399,17 @@ def test_a_run_with_every_option_flipped_is_deterministic() -> None:
             new_world(),
             capture={
                 "requires_defenses_down": False,
+                "facilities_disabled": False,
                 "air_weight": 2.0,
                 "quiet_sides": frozenset({"ENEMY"}),
             },
             defense={"idle_floor": False},
-            campaign={"hq_capture": False},
+            campaign={
+                "hq_capture": False,
+                "hold_decay": False,
+                "reset_on_repair": False,
+                "pause_on_pressure": False,
+            },
         )
         assert w.rules is not None
         w.rules = dataclasses.replace(  # economy.unlimited off for both sides (NX-412 part 1)
@@ -399,7 +423,6 @@ def test_a_run_with_every_option_flipped_is_deterministic() -> None:
                 storage_per_node={"FOB": 20},
                 upkeep={INFANTRY: 3, ARMOR: 40},  # non-zero upkeep (NX-412 part 2)
                 upkeep_period={INFANTRY: 2, ARMOR: 3},  # staggered payments (NX-426)
-                legacy=False,  # EC-7, EC-8, EC-13 (NX-412 part 3, Q-TD-33)
                 free_viewer_spawn=False,  # a viewer's sanctuary spawn pays too
                 max_live_per_side=40,
             ),
@@ -537,7 +560,7 @@ def test_the_tier_moves_up_to_max_step_steps_after_the_dwell(
 @pytest.mark.parametrize(("max_step", "ok"), [(1, False), (2, True)])
 def test_a_restore_allows_a_tier_max_step_moves_could_reach(max_step: int, ok: bool) -> None:
     w = valid_after(10)  # one dwell: one move
-    w.director["ENEMY"].tier, w.director["ENEMY"].budget = "BRAVO", DR.budget["BRAVO"]
+    w.director["ENEMY"].tier, w.director["ENEMY"].budget = "BRAVO", 80
     rules = director_rules(max_step=max_step)
     if ok:
         director_validate(w, rules)
@@ -693,13 +716,12 @@ def test_a_campaign_with_every_part_2b_option_flipped_is_deterministic() -> None
             # NX-412 part 4 (ECONOMY EC-9, EC-12): the capture-operation multipliers off 1.0
             "director.score.victory_hold_mult": 2.0,
             "director.score.income_node_mult": 1.5,
-            # NX-416 (THREAT-DIRECTOR §4a): forward staging, read with the economy's new rules
-            "economy.legacy_rules": False,
+            # NX-416 (THREAT-DIRECTOR §4a): forward staging
             "director.staging.direct_s": 600.0,
             "director.staging.max_wait_windows": 3,
             "director.staging.max_staged": 1,
             "director.pol.offensive_period_s": 600,  # the capture slot fires inside the run
-            "combat.strike_structure_first": True,  # NX-440 (Q-TD-55)
+            "combat.strike_structure_first": False,  # NX-440 (Q-TD-55), on by default since 5b
             "combat.overkill_check": False,  # NX-468 (Q-TD-73)
         }
     )

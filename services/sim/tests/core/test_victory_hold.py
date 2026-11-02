@@ -14,6 +14,7 @@ from typing import Any
 
 import msgpack
 import pytest
+from fixture_pre_5b import pre_5b_config
 from test_campaign import CONFIG as CAMPAIGN_CONFIG
 from test_campaign import hold_seven, new_world, of, own, run
 from test_launch import candidates, scores, window
@@ -31,7 +32,6 @@ from nexus.core.step import step
 from nexus.core.world import World, load, save, state_hash
 from nexus.runtime.campaign_config import start_campaign
 from nexus.runtime.config import ConfigError
-from nexus.runtime.golden import shipped_config
 
 CAMPAIGN_ID = "0192f3a4-5b6c-7d8e-9f01-23456789abcd"
 SEVEN = ("cross-n", "cross-s", "fob-n-e", "fob-n-w", "fob-s-e", "fob-s-w", "west-airbase")
@@ -63,17 +63,19 @@ def test_the_hold_starts_once_and_ends_in_the_victory_with_no_break() -> None:
 
 
 def test_a_node_lost_below_the_share_breaks_the_hold_and_names_it() -> None:
-    w = new_world(victory_hold_ticks=50)
+    w = new_world(victory_hold_ticks=50, hold_decay=False)  # hold_break: reset (EC-9a)
     hold_seven(w)
     run(w, 3)
     own(w, "ENEMY", "fob-s-e")  # 6 of 8 = 75 %
     (broken,) = holds(w)
     assert isinstance(broken, VictoryHoldBroken) and broken.node_id == "fob-s-e"
+    assert broken.progress_ticks == 0
     assert (w.campaign.hold_ticks, w.campaign.hold_nodes) == (0, ())
     assert holds(w) == []  # once
     own(w, "COALITION", "fob-s-e")
     (again,) = holds(w)
     assert isinstance(again, VictoryHoldStarted) and again.ends_at_tick == 6 + 50 - 1
+    assert again.progress_ticks == 0
 
 
 def test_a_loss_above_the_share_keeps_the_hold_and_the_later_break_names_the_node_lost() -> None:
@@ -148,7 +150,7 @@ def test_the_enemy_view_holds_the_running_holds_nodes() -> None:
 
 def director_rules(**overrides: object) -> Rules:
     """The shipped config with `overrides`, set up as test_launch's RULES, with no noise."""
-    rules = shipped_config({"director.noise_scale": 0, **overrides}).rules
+    rules = pre_5b_config({"director.noise_scale": 0, **overrides}).rules
     return dataclasses.replace(rules, campaign=None, garrison_quota={})
 
 
@@ -173,7 +175,7 @@ def test_the_multipliers_ship_at_one_and_change_no_score() -> None:
 @pytest.mark.parametrize("key", ["victory_hold_mult", "income_node_mult"])
 def test_the_loader_refuses_a_multiplier_below_one(key: str) -> None:
     with pytest.raises(ConfigError):
-        shipped_config({f"director.score.{key}": 0.9})  # EC-12: >= 1
+        pre_5b_config({f"director.score.{key}": 0.9})  # EC-12: >= 1
 
 
 def test_the_hold_multiplier_applies_to_capture_operations_on_hold_nodes_only() -> None:
@@ -239,7 +241,9 @@ def test_launching_a_capture_operation_on_a_hold_node_announces_the_sitrep_once(
     assert at_risk(first) == [("west-airbase", "centre")]
     (sitrep,) = [e for e in first if isinstance(e, ThreatAdaptation)]
     assert (sitrep.side, sitrep.direction) == ("ENEMY", "UP")
-    assert at_risk(window(w, "ALPHA", 80, rules)) == []  # live: not launched again
+    # west-airbase's is live: not launched again; the hold response (Q-TD-46) puts fob-n-w's,
+    # the other hold node, outside ALPHA's max_ops, so it launches with its own one sitrep
+    assert at_risk(window(w, "ALPHA", 80, rules)) == [("fob-n-w", "north")]
 
 
 def test_no_sitrep_for_a_capture_operation_on_a_node_outside_the_hold() -> None:

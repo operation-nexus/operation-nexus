@@ -9,7 +9,7 @@ from collections import Counter
 from typing import Any
 
 import steamroll
-from metrics import CAPTURE_OPS, FUNNEL_STEPS, OFFENSIVE, ROUTINE_JOBS
+from metrics import CAPTURE_OPS, DOWN_CAUSES, FUNNEL_STEPS, OFFENSIVE, ROUTINE_JOBS
 from profiles import Targets
 
 PASS, FAIL, NO_DATA = "pass", "fail", "no data"
@@ -140,6 +140,22 @@ def _a2(runs: list[dict[str, Any]], t: Targets) -> dict[str, Any]:
         "newbies": sum(n["joined_below_tier"] for n in news),
         "with_impact": len(below),
         "median_s": _med(below),
+        # NX-478: the same median and tail as above, over the below-tier newbies (never judged)
+        "a2": {
+            k: v
+            for k, v in _a2_group(
+                [
+                    {
+                        "ttfi_s": n["below_tier_ttfi_s"],
+                        "no_impact_observed_s": n.get("below_tier_no_impact_observed_s", []),
+                        "first_impact_kinds": {},
+                    }
+                    for n in news
+                ],
+                t,
+            ).items()
+            if k not in ("status", "first_impact_kinds")
+        },
     }
     kinds = sorted({k for n in news for k in n["by_kind"]})
     out["by_persona_kind"] = {
@@ -236,13 +252,42 @@ def _idle(runs: list[dict[str, Any]]) -> dict[str, Any]:
         reasons.update(m["reasons"])
         ring.update(m.get("ring_by_site", {}))
     maxes = [m["share_max"] for m in ms if m["share_max"] is not None]
+    slots = [m for m in ms if "open_strike_slots_sum" in m]  # NX-478; older runs lack it
+    n_slots = sum(m["samples"] for m in slots)
+    full = sum(m["reasons"].get("full", 0) for m in slots)
+    open_slots = sum(m["open_strike_slots_sum"] for m in slots)
     return {
+        "full_per_sample": full / n_slots if n_slots else None,
+        "open_strike_slots_per_sample": open_slots / n_slots if n_slots else None,
         "samples": n,
         "share_mean": sum(m["share_sum"] for m in ms) / n if n else None,
         "share_max": max(maxes, default=None),
         "reasons": dict(sorted(reasons.items())),
         "ring_by_site": dict(sorted(ring.items())),
     }
+
+
+def _seized(runs: list[dict[str, Any]]) -> dict[str, Any]:
+    """Facilities seized with their base (NX-471, GAMEPLAY §8), summed over the runs: seizures,
+    the median and max game minutes until back on line, and those still off at the end of a run
+    (a run from before NX-471 has none and adds nothing)."""
+    ms = [r["metrics"]["seized_facilities"] for r in runs if "seized_facilities" in r["metrics"]]
+    back = [x for m in ms for x in m["back_min"]]
+    return {
+        "seized": sum(m["seized"] for m in ms),
+        "back_on_line": len(back),
+        "back_median_min": _med(back),
+        "back_max_min": max(back, default=None),
+        "off_at_end": sum(m["off_at_end"] for m in ms),
+    }
+
+
+def _seized_line(z: dict[str, Any]) -> str:
+    return (
+        f"  - seized facilities (NX-471): {z['seized']} seized, {z['back_on_line']} back on line "
+        f"(median {_fmt(z['back_median_min'])} min, max {_fmt(z['back_max_min'])} min), "
+        f"{z['off_at_end']} still off at run end"
+    )
 
 
 def _ring_lines(ring: dict[str, int], top: int = 5) -> list[str]:
@@ -427,6 +472,36 @@ def _no_capture(es: list[dict[str, Any]]) -> dict[str, int] | None:
     return {k: total[k] for k in have[0]}
 
 
+def _hq_captures(es: list[dict[str, Any]]) -> dict[str, Any] | None:
+    """NX-490: HQ captures summed over the seeds that carry them, by participant count and by the
+    capturing side's capture weight; None when no seed does (an older run)."""
+    have = [e["hq_captures"] for e in es if "hq_captures" in e]
+    if not have:
+        return None
+    caps = [c for h in have for c in h]
+    people = Counter(c["participants"] for c in caps)
+    weight = Counter(c["weight"] for c in caps)
+    return {
+        "total": len(caps),
+        "by_participants": {str(k): people[k] for k in sorted(people)},
+        "by_weight": {f"{k:g}": weight[k] for k in sorted(weight)},
+    }
+
+
+def _hold_diagnosis(es: list[dict[str, Any]]) -> tuple[dict[str, float], dict[str, Any]]:
+    """O0 (Q-TD-139): paused minutes by reason, and coalition defenses-down events and minutes by
+    inferred cause, summed over runs. A run JSON from before O0 has none and adds nothing."""
+    paused: Counter[str] = Counter()
+    events: Counter[str] = Counter({c: 0 for c in DOWN_CAUSES})
+    minutes: Counter[str] = Counter({c: 0.0 for c in DOWN_CAUSES})
+    for e in es:
+        paused.update(e.get("paused_min_by_reason", {}))
+        d = e.get("defenses_down", {"events": {}, "minutes": {}})
+        events.update(d["events"])
+        minutes.update(d["minutes"])
+    return dict(sorted(paused.items())), {"events": dict(events), "minutes": dict(minutes)}
+
+
 def _economy(runs: list[dict[str, Any]]) -> dict[str, Any]:
     """ECONOMY §4 "Harness report" (NX-412 part 5a), pooled over the seeds with the data; per-hour
     values are means per run-hour (game hours actually run)."""
@@ -471,6 +546,12 @@ def _economy(runs: list[dict[str, Any]]) -> dict[str, Any]:
         spawn_by_op.update(e["spawn_by_op"]["ops"])
     windows = sum(sum(e["budget"]["windows"]) for e in es)
     holds = [h for e in es for h in e["holds"]]
+    hold_pauses: Counter[str] = Counter()
+    hold_resets: Counter[str] = Counter()
+    for e in es:
+        hold_pauses.update(e["hold_pauses"])
+        hold_resets.update(e["hold_resets"])
+    paused_by_reason, downs = _hold_diagnosis(es)
     return {
         "sides": sides,
         "shortfall": _shortfall(es, hours),
@@ -508,6 +589,7 @@ def _economy(runs: list[dict[str, Any]]) -> dict[str, Any]:
         },
         "gaps": _gaps(rs, es),
         "no_capture": _no_capture(es),
+        "hq_captures": _hq_captures(es),
         "spawn_by_op": {
             "ops": dict(sorted(spawn_by_op.items())),
             "shared": sum(e["spawn_by_op"]["shared"] for e in es),
@@ -516,11 +598,189 @@ def _economy(runs: list[dict[str, Any]]) -> dict[str, Any]:
         "pressure_per_hold": [h["pressure"] for h in holds],
         "holds": len(holds),
         "holds_broken": sum(h["broken"] for h in holds),
+        "holds_paused": sum(e["holds_paused"] for e in es),  # EC-9b (NX-466)
+        "hold_pauses": dict(sorted(hold_pauses.items())),
+        "hold_paused_min": sum(e["hold_paused_min"] for e in es),
+        "holds_resumed": sum(e["holds_resumed"] for e in es),  # EC-9a (NX-489, NX-502)
+        "hold_resets": dict(sorted(hold_resets.items())),
+        "paused_min_per_hold": [h["paused_min"] for h in holds],
+        "paused_min_by_reason": paused_by_reason,  # O0 (Q-TD-139)
+        "defenses_down": downs,
         "ops_per_hold": [h["ops"] for h in holds],
         "army_vs_viewers": [
             [e["army_peak"], r["viewers"]["peak_concurrent"]] for r, e in zip(rs, es, strict=True)
         ],
     }
+
+
+def _hauling(runs: list[dict[str, Any]]) -> dict[str, Any]:
+    """NX-501: per side, `resupply:<node>` jobs posted and truck unloading stops per run-hour,
+    pooled over the seeds (total count over total run-hours). NX-502: per side the sampled
+    job-minutes of open resupply jobs on a starving or a stocking node (summed, a state count,
+    not postings), and the coalition trucks lost within `tasking.defend_radius_m` of the
+    sanctuary (total and per run-hour)."""
+    hours = sum(r["metrics"]["hauling"]["run_hours"] for r in runs)
+
+    def rate(key: str, side: str) -> float | None:
+        return sum(r["metrics"]["hauling"][key][side] for r in runs) / hours if hours else None
+
+    def minutes(side: str, state: str) -> float:
+        return float(sum(r["metrics"]["hauling"]["resupply_job_min"][side][state] for r in runs))
+
+    lost = sum(r["metrics"]["hauling"]["trucks_lost_near_sanctuary"] for r in runs)
+    return {
+        **{
+            side: {
+                "resupply_jobs_per_h": rate("resupply_jobs", side),
+                "deliveries_per_h": rate("deliveries", side),
+                "starving_job_min": minutes(side, "starving"),
+                "stocking_job_min": minutes(side, "stocking"),
+            }
+            for side in ("COALITION", "ENEMY")
+        },
+        "trucks_lost_near_sanctuary": {"total": lost, "per_h": lost / hours if hours else None},
+    }
+
+
+def _defeat_run(runs: list[dict[str, Any]]) -> dict[str, Any]:
+    """NX-502: the defeat run (NX-499) summed over the seeds; the longest is the max."""
+    ds = [r["metrics"]["defeat_run"] for r in runs]
+    return {
+        "started": sum(d["started"] for d in ds),
+        "resets": sum(d["resets"] for d in ds),
+        "longest_min": max(d["longest_min"] for d in ds),
+        "paused_min": sum(d["paused_min"] for d in ds),
+        "defeats": sum(r["metrics"]["outcome"]["result"] == "DEFEAT" for r in runs),
+    }
+
+
+def _nx477(runs: list[dict[str, Any]]) -> dict[str, Any]:
+    """NX-477: game minutes the coalition held no strategic node and its captures, summed over the
+    seeds (with the per-seed values); the Static's ESCORT_CONVOYS jobs per run-hour, mean and max
+    over the seeds that reached that hour. NX-478: income due, produced and lost to the storage
+    clip, per side, summed. Runs from before them add nothing."""
+    hold = [r["metrics"]["coalition_hold"] for r in runs if "coalition_hold" in r["metrics"]]
+    escort = [r["metrics"]["escort_jobs"] for r in runs if "escort_jobs" in r["metrics"]]
+    clip = [r["metrics"]["income_clip"] for r in runs if "income_clip" in r["metrics"]]
+    hours = [[s[h] for s in escort if h < len(s)] for h in range(max(map(len, escort), default=0))]
+    return {
+        "coalition_hold": {
+            "zero_strategic_min": sum(h["zero_strategic_min"] for h in hold),
+            "zero_strategic_min_per_seed": [h["zero_strategic_min"] for h in hold],
+            "coalition_captures": sum(h["coalition_captures"] for h in hold),
+            "coalition_captures_per_seed": [h["coalition_captures"] for h in hold],
+        },
+        "escort_jobs": {"mean": [sum(v) / len(v) for v in hours], "max": [max(v) for v in hours]},
+        "income_clip": {
+            side: {k: sum(c[side][k] for c in clip) for k in ("due", "produced", "lost")}
+            for side in ("COALITION", "ENEMY")
+        },
+    }
+
+
+def _hold_seed(economy: dict[str, Any]) -> dict[str, Any]:
+    """O0: one run's holds, paused minutes by reason and defenses-down events and minutes."""
+    paused, downs = _hold_diagnosis([economy])
+    return {"holds": len(economy["holds"]), "paused_min_by_reason": paused, "downs": downs}
+
+
+def _seed_outcome(r: dict[str, Any]) -> str | None:
+    """A run's outcome for the per-seed table: a harness error or crash first, as `_a1` does."""
+    if r.get("harness_error"):
+        return "HARNESS_ERROR"
+    if r.get("crash"):
+        return "CRASHED"
+    result: str | None = r["metrics"].get("outcome", {}).get("result")
+    return result
+
+
+_NO_HELD: dict[str, Any] = {"nodes": 0, "hold_threshold": 0, "min_by_k": [], "by_node": {}}
+
+
+def _strategic_held(runs: list[dict[str, Any]]) -> dict[str, Any]:
+    """Q-TD-136: minutes the coalition owned k strategic nodes, minutes at or above the hold
+    threshold, the per-node owned minutes and losses, summed over the seeds; the longest stretch is
+    the max. Runs from before it (no `strategic_held`) add nothing."""
+    held = [h for r in runs if (h := r["metrics"].get("strategic_held"))]
+    by_k = [0.0] * max((len(h["min_by_k"]) for h in held), default=0)
+    nodes: dict[str, dict[str, Any]] = {}
+    for h in held:
+        for k, m in enumerate(h["min_by_k"]):
+            by_k[k] += m
+        for n, v in sorted(h["by_node"].items()):
+            t = nodes.setdefault(n, {"owned_min": 0.0, "lost": {}})
+            t["owned_min"] += v["owned_min"]
+            for key, c in v["lost"].items():
+                t["lost"][key] = t["lost"].get(key, 0) + c
+    return {
+        "min_by_k": by_k,
+        "at_or_above_min": sum(h["at_or_above_min"] for h in held),
+        "longest_min": max((h["longest_min"] for h in held), default=0.0),
+        "by_node": nodes,
+    }
+
+
+def _who_took(runs: list[dict[str, Any]]) -> dict[str, Any]:
+    """Q-TD-136: who took coalition nodes, summed over the seeds, strategic and other apart.
+    Every count (and the weight) adds; a run from before it adds nothing."""
+    out: dict[str, Any] = {}
+    for r in runs:
+        for part, w in sorted((r["metrics"].get("who_took") or {}).items()):
+            t = out.setdefault(part, {})
+            for f, v in w.items():
+                if isinstance(v, dict):
+                    d = t.setdefault(f, {})
+                    for k, c in v.items():
+                        d[k] = d.get(k, 0) + c
+                else:
+                    t[f] = t.get(f, 0) + v
+    return {p: {f: dict(sorted(v.items())) if isinstance(v, dict) else v for f, v in t.items()}
+            for p, t in sorted(out.items())}  # fmt: skip
+
+
+def _who_seed(r: dict[str, Any]) -> dict[str, Any]:
+    w = _who_took([r])
+    return {
+        "who_took": {
+            p: {k: t.get(k, 0) for k in ("losses", "unknown", "units", "weight")}
+            | {k: t.get(k, {}) for k in ("losses_by_job", "losses_by_kind", "units_by_job")}
+            for p, t in w.items()
+        }
+    }
+
+
+def _held_seed(r: dict[str, Any]) -> dict[str, Any]:
+    h = r["metrics"].get("strategic_held") or _NO_HELD
+    return {
+        "held_hold_threshold": h["hold_threshold"],
+        "held_min_by_k": h["min_by_k"],
+        "held_at_or_above_min": h.get("at_or_above_min", 0.0),
+        "held_longest_min": h.get("longest_min", 0.0),
+        "held_losses": sum(v["lost"]["total"] for v in h["by_node"].values()),
+    }
+
+
+def _per_seed(runs: list[dict[str, Any]], t: Targets) -> list[dict[str, Any]]:
+    """NX-502 (H3): A2 and idle armed per seed, so a pooled number is not a seed mix. A2 is the
+    pooled rule on one run's counted newbies (same newbie definition and tier filter)."""
+    out = []
+    for r in runs:
+        a2 = _a2_group([r["metrics"]["newbie"]], t)
+        idle = _idle([r])
+        out.append({
+            "seed": r["seed"],
+            "a2_newbies": a2["newbies"],
+            "a2_median_s": a2["median_s"],
+            "a2_tail": a2["tail"],
+            "idle_samples": idle["samples"],
+            "idle_mean": idle["share_mean"],
+            "idle_max": idle["share_max"],
+            "outcome": _seed_outcome(r),
+            **_hold_seed(r["metrics"].get("economy", {"holds": []})),
+            **_held_seed(r),
+            **_who_seed(r),
+        })  # fmt: skip
+    return out
 
 
 def aggregate(profile: str, runs: list[dict[str, Any]], t: Targets) -> dict[str, Any]:
@@ -537,6 +797,8 @@ def aggregate(profile: str, runs: list[dict[str, Any]], t: Targets) -> dict[str,
         "A3": _a3(runs, t, profile),
         "A4": _a4(runs, t),
         "idle": _idle(runs),
+        "seized_facilities": _seized(runs),
+        "per_seed": _per_seed(runs, t),
         "density": _density(runs),
         "orders": _orders(runs),
         "economy": _economy(runs),
@@ -555,6 +817,17 @@ def aggregate(profile: str, runs: list[dict[str, Any]], t: Targets) -> dict[str,
             "mean": _mean([r["metrics"]["starvation"]["node_minutes"] for r in runs]),
             "max": max(r["metrics"]["starvation"]["node_minutes"] for r in runs),
         },
+        "starvation_fraction_floor_node_minutes": {  # NX-495: against the fraction floor
+            "mean": _mean(
+                [r["metrics"]["starvation"]["fraction_floor_node_minutes"] for r in runs]
+            ),
+            "max": max(r["metrics"]["starvation"]["fraction_floor_node_minutes"] for r in runs),
+        },
+        "hauling": _hauling(runs),
+        "defeat_run": _defeat_run(runs),
+        **_nx477(runs),
+        "strategic_held": _strategic_held(runs),
+        "who_took": _who_took(runs),
         "viewers_distinct_mean": _mean([r["viewers"]["distinct"] for r in runs]),
         "viewers_peak_mean": _mean([r["viewers"]["peak_concurrent"] for r in runs]),
     }
@@ -572,6 +845,56 @@ def target_table(profiles: dict[str, dict[str, Any]]) -> list[dict[str, str]]:
         {"target": n, "profile": "all", "status": NOT_MEASURABLE, "detail": d} for n, d in NOT_BUILT
     ]
     return rows
+
+
+def _top(d: dict[str, int]) -> str:
+    return (
+        ", ".join(f"{k} {v}" for k, v in sorted(d.items(), key=lambda kv: (-kv[1], kv[0]))) or "-"
+    )
+
+
+def _who_took_md(report: dict[str, Any]) -> list[str]:
+    lines = ["## Who takes coalition nodes (Q-TD-136)", ""]
+    rows, seeds = [], []
+    for n, a in report["profiles"].items():
+        for part, w in a.get("who_took", {}).items():
+            rows.append([
+                n, part, str(w["losses"]), str(w["unknown"]), str(w["units"]),
+                _fmt(w["weight"]), _top(w["losses_by_job"]), _top(w["losses_by_kind"]),
+                _top(w["units_by_owner"]),
+            ])  # fmt: skip
+        for p in a["per_seed"]:
+            tot = p.get("who_took", {})
+            seeds.append([
+                n, str(p["seed"]),
+                *(f"{tot[k].get('losses', 0)} / {tot[k].get('unknown', 0)}" if k in tot else "-"
+                  for k in ("strategic", "other")),  # "-": not measured (an older run, a stub)
+            ])  # fmt: skip
+    lines += _table(
+        [
+            "Profile",
+            "Nodes",
+            "Losses",
+            "Unknown",
+            "Capturers",
+            "Weight",
+            "Losses by capturer job",
+            "Losses by capturer kind",
+            "Capturers by owner",
+        ],
+        rows,
+    )
+    lines += _table(
+        ["Profile", "Seed", "Strategic losses / unknown", "Other losses / unknown"], seeds
+    )
+    lines += [
+        "A loss counts under every job and kind among the units capturing at that tick, so the "
+        "columns can exceed Losses. Unknown: no capturer visible when `observe` read the world "
+        "(they moved on, or died). Job: the prefix of the job key the unit holds on its side's "
+        "board (`none` no job, `gone` claim outlived its job).",
+        "",
+    ]
+    return lines
 
 
 def _fmt(value: float | None, spec: str = ".1f") -> str:
@@ -603,6 +926,7 @@ def _profile_row(name: str, a: dict[str, Any]) -> list[str]:
         _fmt(a["density"]["jobs_per_node"], ".2f"),
         "-" if top is None else f"{top['kind']} {top['share']:.0%}",
         _fmt(a["starvation_node_minutes"]["mean"]),
+        _fmt(a["starvation_fraction_floor_node_minutes"]["mean"]),
     ]
 
 
@@ -642,18 +966,13 @@ def _steamroll_row(profile: str, s: dict[str, Any]) -> list[str]:
 
 
 def _economy_mode(mode: dict[str, Any] | None) -> list[str]:
-    """EC-15: an unlimited or legacy run is labelled in the header, apart from balance runs."""
+    """EC-15: an unlimited run is labelled in the header, apart from balance runs."""
     if not mode:
         return []
     unlimited = [s for s, on in sorted(mode["unlimited"].items()) if on]
     return [
-        f"- **economy: legacy_rules {'ON' if mode['legacy_rules'] else 'off'}; unlimited "
-        f"{', '.join(unlimited) or 'none'}**"
-        + (
-            " (ECONOMY EC-15: not a normal balance result)"
-            if unlimited or mode["legacy_rules"]
-            else ""
-        )
+        f"- **economy: unlimited {', '.join(unlimited) or 'none'}**"
+        + (" (ECONOMY EC-15: not a normal balance result)" if unlimited else "")
     ]
 
 
@@ -694,6 +1013,13 @@ def _d5_lines(name: str, e: dict[str, Any]) -> list[str]:
     nc = e.get("no_capture")  # an older report.json has none
     why = "-" if nc is None else ", ".join(f"{k} {v}" for k, v in nc.items())
     per_h = {k: _fmt(v, ".2f") for k, v in e["adaptations_per_hour"].items()}
+    hq = e.get("hq_captures")  # an older report.json has none
+    hq_text = (
+        "-"
+        if hq is None
+        else f"{hq['total']}; by participant count {hq['by_participants'] or 'none'}; by capture "
+        f"weight {hq['by_weight'] or 'none'}"
+    )
     return [
         f"  - {name} capture funnel (launch, then the target saw): {funnel}",
         f"  - {name} capture funnel through the launch's own units (claimed its jobs; the capture "
@@ -712,6 +1038,7 @@ def _d5_lines(name: str, e: dict[str, Any]) -> list[str]:
         f"seed: {', '.join(f's{k} {_fmt(v)}' for k, v in dry.items()) or 'none'}; max "
         f"{_fmt(max(dry_vals, default=None))}, median {_fmt(_med(dry_vals))}",
         f"  - {name} decision windows by why no capture operation launched (first reason): {why}",
+        f"  - {name} HQ captures (either side): {hq_text}",
         f"  - {name} pressure events per victory hold {e['pressure_per_hold']}",
         f"  - {name} spawn debits by operation {sp['ops'] or 'none'}, shared {sp['shared']}, "
         f"unattributed {sp['unattributed']}",
@@ -741,6 +1068,15 @@ def _shortfall_lines(name: str, f: dict[str, Any]) -> list[str]:
         f"stretches, {_fmt(f['r10_pool_low_minutes'])} min; sitreps (NX-436) "
         f"{', '.join(f'{k} {n}' for k, n in sorted(f.get('sitreps', {}).items())) or 'none'}",
     ]
+
+
+def _mins(by_key: dict[str, float]) -> str:
+    return ", ".join(f"{k} {_fmt(v)}" for k, v in by_key.items()) or "none"
+
+
+def _downs(d: dict[str, Any]) -> str:
+    """`fire 3 (12.0 min), starved 1 (4.5 min)`: events and minutes down by inferred cause."""
+    return ", ".join(f"{c} {d['events'][c]} ({_fmt(d['minutes'][c])} min)" for c in d["events"])
 
 
 def _economy_lines(report: dict[str, Any]) -> list[str]:
@@ -781,8 +1117,14 @@ def _economy_lines(report: dict[str, Any]) -> list[str]:
             f"window {_fmt(e['budget_per_window'])}, spawn debits base {e['spent']['base']}, "
             f"source {e['spent']['source']}; live-cap refusals "
             f"{e['refused_operations'] or 'none'}; Static sitreps {e['adaptations'] or 'none'}; "
-            f"victory holds {e['holds']} (broken {e['holds_broken']}), Static operations per hold "
-            f"{e['ops_per_hold']}; peak coalition armed units vs peak viewers per seed "
+            f"victory holds {e['holds']} (broken {e['holds_broken']}, resumed "
+            f"{e['holds_resumed']}, resets {e['hold_resets'] or 'none'}, paused "
+            f"{e['holds_paused']} by {e['hold_pauses'] or 'none'}, paused min "
+            f"{_fmt(e['hold_paused_min'])} (by reason {_mins(e['paused_min_by_reason'])}), per "
+            f"hold {[round(m, 1) for m in e['paused_min_per_hold']]}), coalition defenses down "
+            f"{_downs(e['defenses_down'])}, "
+            f"Static operations per hold {e['ops_per_hold']}; peak coalition armed units vs peak "
+            f"viewers per seed "
             f"{e['army_vs_viewers']}; grounded by previous state {share or 'none'}",
         ]
         lines += _d5_lines(n, e)
@@ -856,17 +1198,117 @@ def markdown(report: dict[str, Any]) -> str:
             "Jobs / node",
             "Top kind",
             "Starved",
+            "Starved (fraction floor)",
         ],
         [_profile_row(n, a) for n, a in report["profiles"].items()],
     )
     lines += [
         "Viewers: mean per run, distinct arrivals / peak with a live unit at once. "
-        "Starved: mean supply-starved node-minutes. Idle armed: share of commander-owned armed "
+        "Starved: mean supply-starved node-minutes against the live floor; "
+        "Starved (fraction floor): the same against ceil(`starve_threshold` x maximum) "
+        "whatever `starve_floor_mode` is "
+        "(NX-495). Idle armed: share of commander-owned armed "
         "units with no job, order or route, sampled every `idle_sample_min`. "
         "Slots / unit: open job slots on the coalition board per live (not Disabled) "
         "commander-owned unit (mean over samples with a unit). Jobs / node: open coalition jobs "
         "per theater node (mean). "
         "A job is open while it has an unfilled slot.",
+        "",
+    ]
+    lines += ["## Hauling (per run-hour, pooled over the seeds)", ""]
+    lines += _table(
+        ["Profile", "Coalition jobs", "Coalition deliveries", "Static jobs", "Static deliveries"],
+        [
+            [
+                n,
+                *(
+                    _fmt(a["hauling"][side][k], ".2f")
+                    for side in ("COALITION", "ENEMY")
+                    for k in ("resupply_jobs_per_h", "deliveries_per_h")
+                ),
+            ]
+            for n, a in report["profiles"].items()
+        ],
+    )
+    lines += [
+        "Jobs: new `resupply:<node>` postings (`JobCreated`, not the sanctuary's own repair job); "
+        "a job re-posted after it ended counts again, so this is posting churn, not distinct "
+        "needs. "
+        "Deliveries: truck unloading stops at a node (`SupplyDelivered`, by the truck's side). "
+        "Stocking jobs are not told apart from starving ones in the posting counts: neither event "
+        "carries it (NX-501).",
+        "",
+    ]
+    lines += [
+        "## Hauling state, trucks lost and the defeat run (NX-502, pooled over the seeds)",
+        "",
+    ]
+    lines += _table(
+        ["Profile", "Coalition starving / stocking job-min", "Static starving / stocking job-min",
+         "Coalition trucks lost near sanctuary (total, per h)", "Defeat runs started, reset",
+         "Longest run min", "Paused min", "Defeats"],
+        [
+            [
+                n,
+                *(
+                    f"{_fmt(a['hauling'][side]['starving_job_min'])} / "
+                    f"{_fmt(a['hauling'][side]['stocking_job_min'])}"
+                    for side in ("COALITION", "ENEMY")
+                ),
+                f"{a['hauling']['trucks_lost_near_sanctuary']['total']}, "
+                f"{_fmt(a['hauling']['trucks_lost_near_sanctuary']['per_h'], '.2f')}",
+                f"{a['defeat_run']['started']}, {a['defeat_run']['resets']}",
+                _fmt(a["defeat_run"]["longest_min"]),
+                _fmt(a["defeat_run"]["paused_min"]),
+                str(a["defeat_run"]["defeats"]),
+            ]
+            for n, a in report["profiles"].items()
+        ],
+    )  # fmt: skip
+    lines += [
+        "Job-min: a sampled state count, not postings: at each `momentum_sample_s` sample, each "
+        "open (unfilled slot) `resupply:<node>` job, the sanctuary's repair job excluded, counts "
+        "as starving when its node's stock is under the live starvation floor, else stocking; "
+        "minutes = samples x the sample length. Trucks lost: coalition carriers destroyed within "
+        "`tasking.defend_radius_m` of the sanctuary at the last position `observe` saw (the "
+        "event has none), any cause. Defeat run (NX-499), running ticks only: runs started, "
+        "runs that ended without a defeat (reset), the longest, and minutes paused (a run in "
+        "progress with the sanctuary's defense hp above 0 and below `defeat_reset_hp`). "
+        "All minutes are game minutes.",
+        "",
+    ]
+    lines += ["## Coalition holds, Static escort jobs and the income clip (NX-477, NX-478)", ""]
+    lines += _table(
+        ["Profile", "Coalition 0 strategic nodes, min", "Coalition captures",
+         "Static ESCORT_CONVOYS jobs by run-hour (mean, max)",
+         "Static income due / produced / lost", "Coalition income due / produced / lost"],
+        [
+            [
+                n,
+                _fmt(a["coalition_hold"]["zero_strategic_min"]),
+                str(a["coalition_hold"]["coalition_captures"]),
+                ", ".join(
+                    f"{_fmt(m)} ({x})"
+                    for m, x in zip(a["escort_jobs"]["mean"], a["escort_jobs"]["max"], strict=True)
+                )
+                or "-",
+                *(
+                    " / ".join(str(a["income_clip"][side][k]) for k in ("due", "produced", "lost"))
+                    for side in ("ENEMY", "COALITION")
+                ),
+            ]
+            for n, a in report["profiles"].items()
+        ],
+    )  # fmt: skip
+    lines += [
+        "Minutes: running ticks (a sim-paused tick counts nothing) with no strategic node "
+        "(`campaign.strategic`) owned by the coalition, in game minutes, summed over the seeds. "
+        "Captures: `NodeCaptured` with the coalition as the new owner (any node), summed. Escort "
+        "jobs: the Static board's jobs whose key is `op:ESCORT_CONVOYS:...`, open or claimed, "
+        "read at the first sample of each run-hour (hour 0 is read at the end of the first hour), "
+        "mean and max over the seeds that reached it. Income: `economy.income` due at each "
+        "economy window against `SupplyProduced`; lost = due minus produced, the storage clip "
+        "(EC-2), summed over the seeds' windows.",
         "",
     ]
     lines += ["## Steamroll signals (Q-TEST-11, thresholds PROPOSED; won seeds only)", ""]
@@ -896,10 +1338,13 @@ def markdown(report: dict[str, Any]) -> str:
     lines += ["## A2 first impact (newbies arriving at the A2 tier or above)", ""]
     for n, a in report["profiles"].items():
         a2 = a["A2"]
+        bt = a2["below_tier"]["a2"]
         lines += [
             f"- {n}: counted {a2['newbies']} newbies ({a2['with_impact']} with impact), "
             f"tail over {a2['tail']['limit_s']:g} s: {_fmt(a2['tail']['share'], '.1%')}, "
-            f"below-tier (information only) {a2['below_tier']['newbies']}; "
+            f"below-tier (information only) {a2['below_tier']['newbies']}, "
+            f"median {_fmt(bt['median_s'])} s, tail {_fmt(bt['tail']['share'], '.1%')} over "
+            f"{bt['tail']['limit_s']:g} s ({bt['tail']['over']}/{bt['tail']['judged']}); "
             f"first impact kinds {a2['first_impact_kinds']}",
             *(
                 f"  - {k}: {g['newbies']} newbies, median {_fmt(g['median_s'])} s, "
@@ -908,9 +1353,93 @@ def markdown(report: dict[str, Any]) -> str:
             ),
         ]
     lines += [""]
+    lines += ["## Per seed: A2 and idle armed (NX-502)", ""]
+    lines += _table(
+        ["Profile", "Seed", "A2 newbies", "A2 median s", "A2 over tail", "Idle mean", "Idle max"],
+        [
+            [
+                n,
+                str(p["seed"]),
+                str(p["a2_newbies"]),
+                _fmt(p["a2_median_s"]),
+                f"{_fmt(p['a2_tail']['share'], '.0%')} of {p['a2_tail']['judged']} "
+                f"(> {p['a2_tail']['limit_s']:g} s)",
+                _fmt(p["idle_mean"], ".0%"),
+                _fmt(p["idle_max"], ".0%"),
+            ]
+            for n, a in report["profiles"].items()
+            for p in a["per_seed"]
+        ],
+    )  # fmt: skip
+    lines += ["## Per seed: victory holds, pauses and defenses down (O0, Q-TD-139)", ""]
+    lines += _table(
+        ["Profile", "Seed", "Outcome", "Holds", "Paused min by reason",
+         "Downs fire/starved", "Down min fire/starved"],
+        [
+            [
+                n,
+                str(p["seed"]),
+                p["outcome"] or "not ended",
+                str(p["holds"]),
+                _mins(p["paused_min_by_reason"]),
+                f"{p['downs']['events']['fire']}/{p['downs']['events']['starved']}",
+                f"{_fmt(p['downs']['minutes']['fire'])}/{_fmt(p['downs']['minutes']['starved'])}",
+            ]
+            for n, a in report["profiles"].items()
+            for p in a["per_seed"]
+        ],
+    )  # fmt: skip
+    lines += ["## Per seed: strategic nodes held (Q-TD-136)", ""]
+    lines += _table(
+        ["Profile", "Seed", "Outcome", "Min at/above hold threshold", "Longest stretch, min",
+         "Min with k nodes held (k=0..N)", "Strategic node losses"],
+        [
+            [
+                n,
+                str(p["seed"]),
+                p["outcome"] or "not ended",
+                f"{_fmt(p.get('held_at_or_above_min', 0.0))} "
+                f"(k>={p.get('held_hold_threshold', 0)})",
+                _fmt(p.get("held_longest_min", 0.0)),
+                " / ".join(_fmt(m) for m in p.get("held_min_by_k", [])) or "-",
+                str(p.get("held_losses", 0)),
+            ]
+            for n, a in report["profiles"].items()
+            for p in a["per_seed"]
+        ],
+    )  # fmt: skip
+    lines += ["## Strategic nodes, pooled over seeds (Q-TD-136)", ""]
+    lines += _table(
+        ["Profile", "Node", "Coalition-owned min", "Losses", "After OFFENSIVE", "After RETAKE",
+         "After other", "After none known"],
+        [
+            [
+                n, node, _fmt(v["owned_min"]), str(v["lost"].get("total", 0)),
+                *(str(v["lost"].get(k, 0)) for k in ("OFFENSIVE", "RETAKE", "other", "none")),
+            ]
+            for n, a in report["profiles"].items()
+            for node, v in a.get("strategic_held", {}).get("by_node", {}).items()
+        ],
+    )  # fmt: skip
+    lines += [
+        "Running ticks only. Hold threshold: the fewest owned strategic nodes with "
+        "`owned / N >= campaign.victory_node_frac` (the rule `campaign.py` holds by). A loss is a "
+        "`NodeCaptured` from the coalition; it follows an OFFENSIVE / RETAKE when the collector's "
+        "latest Static capture launch on that node was one (other: any further kind; none: no "
+        "launch known).",
+        "",
+    ]
+    lines += _who_took_md(report)
     lines += ["## Why idle armed units hold no job (summed over samples)", ""]
     for n, a in report["profiles"].items():
-        lines += [f"- {n}: {a['idle']['reasons']}", *_ring_lines(a["idle"]["ring_by_site"])]
+        i = a["idle"]
+        lines += [
+            f"- {n}: {a['idle']['reasons']}",
+            *_ring_lines(a["idle"]["ring_by_site"]),
+            _seized_line(a["seized_facilities"]),
+            f"  - per sample (NX-478): `full` {_fmt(i['full_per_sample'], '.2f')} units, open "
+            f"STRIKE slots on the board {_fmt(i['open_strike_slots_per_sample'], '.2f')}",
+        ]
     lines += [""]
     lines += ["## Director tier dwell (mean hours per run)", ""]
     lines += [f"- {n}: {a['tier_dwell_h_mean']}" for n, a in report["profiles"].items()]

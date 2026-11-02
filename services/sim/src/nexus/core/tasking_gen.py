@@ -20,17 +20,32 @@ refers to an entity id, so a job names a node, or a SIGINT blob with its cell ce
   `tasking.stock_urgency` plus `tasking.stock_front_bonus` on the front line (`_on_front`, the
   patrol rule), below 1.0; when both apply the higher urgency wins. Slots: one per
   `resupply_stock_per_slot` of missing stock (max stock - stock, rounded up; for a stocking-only
-  job, target - stock), 1 to `resupply_slots_max`. TB-8 (coalition): a node no friendly source
-  reaches by road now (`plan_run`, the truck's own rule) depends on the REPAIR_BRIDGE job of the
-  first down bridge on the intact road route from the side's rear (`JobSpec.after`). Neither
-  route enters a node the other side holds (`bridges.enemy_held`, Q-SIM-122; neutral nodes are
-  passable): a node reached only through enemy ground depends on no repair, and its job expires
-  unclaimed.
+  job, target - stock), 1 to `slot_cap` (LC-3, NX-473: `resupply_slots_max`, raised for a
+  starving or damaged base by its `need` toward `resupply_slots_max_starving`). TB-8 (coalition):
+  a node no friendly source reaches by road now (`plan_run`, the truck's own rule) depends on the
+  REPAIR_BRIDGE job of the first down bridge on the intact road route from the side's rear
+  (`JobSpec.after`). Neither route enters a node the other side holds (`bridges.enemy_held`,
+  Q-SIM-122; neutral nodes are passable): a node reached only through enemy ground depends on no
+  repair, and its job stays posted unclaimed. A coalition resupply job does not expire unclaimed
+  (`tasking.unexpiring`, Q-SIM-131, NX-492): it keeps its posting time until this rule no longer
+  posts it, so LC-1's job age (`ai_trucks`) counts from its first posting.
+  The side's own sanctuary (`Supply.rear`, no stock) gets the repair job `resupply:<sanctuary>`
+  instead (`_sanctuary_repair`, Q-TD-124, Q-TD-129, NX-497) while its defense hp is below full,
+  with or without a contact: urgency `tasking.urgency_max` while `besieged` or at 0 hp, else 1.0
+  plus the missing-hp share; slots `slot_cap` with that share as the need. Viewer trucks only
+  (`repairs_sanctuary`; `tasking._may_take`, `ai_trucks`). The Static's rear is never struck
+  (Q-SIM-64), so only the coalition's board posts it in play (EC-3: the rule is the same).
 - **Defend** (`defend:<node>`): a node the side owns that can be captured and is threatened: the
   other side's capture bar is on it, or a tracked enemy GROUND unit is within
   `tasking.defend_radius_m` of it (Q-SIM-74). Urgency: 1.0 + the larger of the bar's share and
   `1 - d / radius` for the nearest tracked enemy at distance `d` (0 at the radius, 1 at the base),
   capped at `urgency_max`.
+  The side's own sanctuary (`Supply.rear`, never captured) is defended too while its defense hp
+  is below full and the side tracks an enemy aircraft or ground unit within the radius
+  (`besieged`, Q-TD-122, NX-493): urgency at the cap, `tasking.slots.defend` slots; the job is
+  done when a claimant is there and the hp is full or no tracked enemy is in range. The Static's
+  rear is never struck (Q-SIM-64), so only the coalition's board posts it in play (EC-3: the
+  rule is the same).
 - **Strike** (`strike:<node>`): an enemy-held node whose defense hp is above 0 that is the active
   objective (coalition only, urgency at the cap), or an enemy-held node, at any defense hp, that
   holds a discovered facility marker whose last-known state is not Disabled (`live_site`; urgency
@@ -67,7 +82,10 @@ refers to an entity id, so a job names a node, or a SIGINT blob with its cell ce
   a strategic node the side held at campaign start (`Supply.start_owner`) and does not hold now,
   whose defense hp is 0 (after the strike on it), that a capture run from the side's rear reaches
   by road (`plan_run`, the bare JOIN's own plan). One at a time: the live retake job is kept while
-  its node still qualifies, and while one is claimed no other is posted; else the one nearest a
+  its node still qualifies, or for `tasking.retake_keep_min` after its defenses came back above 0
+  while the other rules hold (`_kept`, Q-TD-121, NX-484: the same job goes on if they fall again;
+  unclaimed, it never expires meanwhile, `tasking.standing`, so one job id per lost node),
+  and while one is claimed no other is posted; else the one nearest a
   node the side holds (exact squared straight-line distance, ties by node id). One slot (one
   truck's capture run, Q-GP-24; more join by overfill), urgency 1.0 x `tasking.priority.capture`,
   with no TB-3 aging (`tasking.priority`), so a starving or damaged base's resupply (1.0 and up
@@ -93,7 +111,7 @@ GM) is not.
 """
 
 import math
-from collections.abc import Iterable, Iterator, Mapping
+from collections.abc import Callable, Iterable, Iterator, Mapping
 from fractions import Fraction
 from itertools import pairwise
 from typing import NamedTuple
@@ -105,7 +123,7 @@ from nexus.core.fog import SideView
 from nexus.core.logistics import approach, facility_damage, plan_run, stock_targets
 from nexus.core.roads import shortest_path
 from nexus.core.rules import CAPTURE_FULL, Rules, TaskingRules
-from nexus.core.world import Contact, Entity, FacilityMarker, Vec2, World
+from nexus.core.world import Contact, Entity, FacilityMarker, Job, Vec2, World
 
 POST_GATE = (
     "post-gate"  # a `World.cooldown` key (cells are digits): no new scout job until its tick
@@ -292,6 +310,7 @@ def generate(
     specs = [  # a repair job first: a resupply job that waits for it names it (TB-8)
         *_repair(world, rules, tr, side, view, held),
         *_resupply(world, rules, tr, side, view, held),
+        *_sanctuary_repair(rules, tr, side, view),
         *_defend(world, rules, tr, side, view),
         *(_strike(world, rules, tr, side, view) if _offense_open(world, tr, side) else ()),
         *_assist(world, tr, side),
@@ -301,7 +320,7 @@ def generate(
         *_intercept(world, rules, tr, side, view),
     ]
     kept = _cap_scouts([s for s in specs if s.kind in able], world, tr, side)
-    return [*kept, *_retake(world, rules, side, view, held)]  # staffed by trucks (`_retake`)
+    return [*kept, *_retake(world, rules, tr, side, view, held)]  # staffed by trucks (`_retake`)
 
 
 def _offense_open(world: World, tr: TaskingRules, side: Side) -> bool:
@@ -357,9 +376,7 @@ def _resupply(
         top, stock, floor = sup.max_stock[node], world.stock.get(node, 0), sup.starve_floor[node]
         if top <= 0 or view.owners.get(node) != side:
             continue
-        starved = Fraction(floor - stock, floor) if stock < floor else Fraction(0)
-        missing_hp, max_hp = damage.get(node, (0, 1))
-        need = max(starved, Fraction(missing_hp, max_hp))
+        need = starving_need(stock, floor, damage.get(node, (0, 1)))
         stocking = 0  # below the forward stock target (Q-SIM-100): the stocking urgency
         if stock < target[node]:
             front = tr.stock_front_bonus_milli if _on_front(rules, view, side, node) else 0
@@ -369,10 +386,45 @@ def _resupply(
             slots = -(-(fill - stock) // tr.resupply_stock_per_slot)
             cut = _cut_off(world, rules, side, view, node, held)
             yield JobSpec(
-                "RESUPPLY", f"resupply:{node}", min(tr.resupply_slots_max, max(1, slots)),
+                "RESUPPLY", f"resupply:{node}",
+                min(slot_cap(tr, tr.resupply_slots_max, need), max(1, slots)),
                 max(_urgency(tr, need) if need else 0, stocking), node=node,
                 after=None if cut is None else f"repair_bridge:{cut}",
             )  # fmt: skip
+
+
+def repairs_sanctuary(rules: Rules, side: Side, key: str) -> bool:
+    """`key` is `side`'s sanctuary repair job, `resupply:<sanctuary>` (NX-497): for viewer trucks
+    only, with no cargo and no reload, DONE at full defense hp with a claimant parked."""
+    return key == f"resupply:{rules.supply.rear[side]}"
+
+
+def _sanctuary_repair(
+    rules: Rules, tr: TaskingRules, side: Side, view: SideView
+) -> Iterator[JobSpec]:
+    """The side's sanctuary below full defense hp, with or without a contact (Q-TD-129 (1)-(3))."""
+    d, node = rules.defense, rules.supply.rear[side]
+    hp = view.defense_hp.get(node)
+    if d is None or hp is None or view.owners.get(node) != side or hp >= d.max_hp[node]:
+        return
+    share = Fraction(d.max_hp[node] - hp, d.max_hp[node])
+    top = not hp or besieged(rules, tr, view.defense_hp, side, node, view.tracks.values())
+    urgency = tr.urgency_max_milli if top else _urgency(tr, share)
+    slots = slot_cap(tr, tr.resupply_slots_max, share)
+    yield JobSpec("RESUPPLY", f"resupply:{node}", slots, urgency, node=node)
+
+
+def starving_need(stock: int, floor: int, damage: tuple[int, int]) -> Fraction:
+    """The share §1b's urgency uses (GAMEPLAY §5 LC-3): the larger of (floor - stock) / floor and
+    the facilities' missing-hp share (`damage`: missing, max), from 0 to 1."""
+    starved = Fraction(floor - stock, floor) if stock < floor else Fraction(0)
+    return max(starved, Fraction(*damage))
+
+
+def slot_cap(tr: TaskingRules, base: int, need: Fraction) -> int:
+    """LC-3 (NX-473): `base` + floor(`need` x (`resupply_slots_max_starving` -
+    `resupply_slots_max`)), exact; `base` itself for a job with no need (stocking only)."""
+    return base + math.floor(need * (tr.resupply_slots_max_starving - tr.resupply_slots_max))
 
 
 def _cut_off(
@@ -381,7 +433,8 @@ def _cut_off(
     """TB-8: the first down bridge on the intact road route from the side's rear to `node` (ties
     by node id, `shortest_path`), when no friendly source reaches `node` by road now. Neither route
     enters a node the other side holds, as the run would (Q-SIM-122): a node reached only through
-    enemy ground waits on no repair (nobody can take its job, so it expires)."""
+    enemy ground waits on no repair (nobody can take its job; the coalition's stays posted,
+    `tasking.unexpiring`)."""
     if (
         side != "COALITION"
         or not view.bridge_down
@@ -415,6 +468,13 @@ def _defend(
 ) -> Iterator[JobSpec]:
     reach = tr.defend_radius_m
     for node, (x, y) in sorted(view.nodes.items()):
+        if view.owners.get(node) == side and besieged(
+            rules, tr, view.defense_hp, side, node, view.tracks.values()
+        ):
+            yield JobSpec(  # Q-TD-122: the last stand, at the top urgency
+                "DEFEND", f"defend:{node}", tr.slots["DEFEND"], tr.urgency_max_milli, node=node
+            )
+            continue
         if view.owners.get(node) != side or rules.node_kind[node] in rules.uncapturable:
             continue
         bar = world.capture.get(node)  # a bar on an owned node is always the other side's
@@ -433,6 +493,29 @@ def _defend(
             yield JobSpec(
                 "DEFEND", f"defend:{node}", tr.slots["DEFEND"], _urgency(tr, share), node=node
             )
+
+
+def besieged(
+    rules: Rules, tr: TaskingRules, defense_hp: Mapping[str, int], side: Side, node: str,
+    tracks: Iterable[Contact],
+) -> bool:  # fmt: skip
+    """`node` is the side's sanctuary, its defense hp is below full, and the side tracks an enemy
+    aircraft or ground unit within `tasking.defend_radius_m` of it (`tracks`: current tracks
+    only; Q-TD-122, NX-493). At the default (10 km) the radius covers every STRUCTURE weapon's
+    reach (AG_LIGHT, 10 km), so a unit firing on it is in range. The generator posts its defend
+    job and the verdict keeps it while this holds: the job ends when the hp is full or no tracked
+    enemy is in range."""
+    d = rules.defense
+    if d is None or node != rules.supply.rear[side] or node not in defense_hp:
+        return False
+    if defense_hp[node] >= d.max_hp[node]:
+        return False
+    x, y = rules.roads.pos[node]
+    return any(
+        rules.domain[c.kind] in (_AIR, _GROUND)
+        and math.hypot(c.pos.x - x, c.pos.y - y) <= tr.defend_radius_m
+        for c in tracks
+    )
 
 
 def _strike(
@@ -517,21 +600,25 @@ def _patrol(
 
 
 def _retake(
-    world: World, rules: Rules, side: Side, view: SideView, held: frozenset[str]
-) -> Iterator[JobSpec]:
+    world: World, rules: Rules, tr: TaskingRules, side: Side, view: SideView,
+    held: frozenset[str],
+) -> Iterator[JobSpec]:  # fmt: skip
     """The one retake job (module docstring), while a viewer can JOIN as a carrier."""
     rc = rules.campaign
     trucks = any(k in rules.supply.carriers for k in rules.role_kind.values())
     if side != "COALITION" or rc is None or not trucks:
         return
-    lost = [
-        n for n in rc.strategic
-        if rules.supply.start_owner.get(n) == side and view.owners.get(n) != side
-        and not view.defense_hp.get(n, 0)
-        and plan_run(world, rules, side, n, held=held) is not None
-    ]  # fmt: skip
+
+    def open_(n: str) -> bool:  # every rule but the defenses (start node, not held, a road)
+        held_at_start = rules.supply.start_owner.get(n) == side and view.owners.get(n) != side
+        return held_at_start and plan_run(world, rules, side, n, held=held) is not None
+
+    lost = [n for n in rc.strategic if not view.defense_hp.get(n, 0) and open_(n)]
     live = sorted((j.id, j) for j in world.boards[side].values() if j.key.startswith(RETAKE))
-    node = next((j.node for _, j in live if j.node in lost), None)
+    now = world.campaign.running_ticks + 1  # the pass's tick (`tasking._now`)
+    node = next(
+        (j.node for _, j in live if _kept(tr, view, j, now, open_) or j.node in lost), None
+    )  # `_kept` first: it also clears the keep clock of a job whose node is down again
     if node is None and any(j.claims for _, j in live):
         return  # one at a time: a claimed one that no longer qualifies runs out first
     if node is None and lost:
@@ -539,6 +626,26 @@ def _retake(
         node = min(lost, key=lambda n: (_nearest2(view.nodes[n], mine), n))
     if node is not None:
         yield JobSpec("CAPTURE", f"{RETAKE}{node}", 1, 1000, node=node)
+
+
+def _kept(
+    tr: TaskingRules, view: SideView, job: Job, now: int, open_: Callable[[str], bool]
+) -> bool:
+    """Q-TD-121, NX-484: the live retake job stays `tasking.retake_keep_min` after its node's
+    defenses come back above 0, while every other rule still holds. `Job.lost` is the keep clock:
+    the first pass that saw the defenses up, cleared when they are down again (the same job goes
+    on). Never set at a keep of 0 (no keep). An unclaimed retake does not expire while generated
+    (`tasking.standing`), so this and the posting rule alone decide when it is withdrawn."""
+    if job.node is None:
+        return False
+    if not view.defense_hp.get(job.node, 0):
+        job.lost = None  # before the keep-0 return: no stale clock across a hot reload
+        return False  # down again: the posting rule (`lost`) decides
+    if not tr.retake_keep_ticks:
+        return False
+    if job.lost is None:
+        job.lost = now
+    return now - job.lost < tr.retake_keep_ticks and open_(job.node)
 
 
 def _nearest2(at: tuple[int, int], points: list[tuple[int, int]]) -> float:

@@ -73,8 +73,12 @@ class Supply:
     # Node -> its starting owner; `World.owner` starts as a copy and is the live owner (NX-125).
     start_owner: Mapping[str, NodeOwner] = field(default_factory=dict)
     max_stock: Mapping[str, int] = field(default_factory=dict)  # finite-stock nodes only
-    starve_floor: Mapping[str, int] = field(default_factory=dict)  # ceil(starve_threshold x max)
-    # ceil(logistics.stock_target_frac x max): the forward stock target (Q-SIM-100, NX-389)
+    starve_floor: Mapping[str, int] = field(default_factory=dict)  # fraction or loadouts (NX-495)
+    # ECONOMY EC-7 (NX-500): the Director's surplus reference R, max(ceil(director
+    # .surplus_ref_frac x max), ceil(starve_threshold x max)), in either floor mode; empty without
+    # Director rules
+    surplus_ref: Mapping[str, int] = field(default_factory=dict)
+    # the forward stock target (Q-SIM-100, NX-389): fraction or loadouts (NX-501)
     stock_target: Mapping[str, int] = field(default_factory=dict)
     carriers: frozenset[UnitKind] = frozenset()
     truck_cargo: int = 0  # logistics.truck_cargo
@@ -100,6 +104,11 @@ class Supply:
     # logistics.bridge_hp / (bridge_repair_time_s x truck_bridge_repair_mult) x world_dt, in
     # thousandths of an hp per tick per carrier parked at a bridge's stop (NX-373 part 2).
     bridge_repair_milli: int = 0
+    # Coalition AI trucks (GAMEPLAY §5 LC-1, NX-473): `logistics.ai_trucks.period_s` as game ticks,
+    # rounded up by the config loader to whole economy windows (0 in hand-built rules: off), and
+    # `logistics.ai_trucks.max_live` (0: none)
+    ai_truck_period_ticks: int = 0
+    ai_truck_max_live: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -119,8 +128,14 @@ class CaptureRules:
     decay_micro: int  # capture.decay_per_s x world_dt, as millionths of a percent of the bar
     min_progress: int  # capture.min_progress_per_tick, millionths of a percent of the bar
     requires_defenses_down: bool  # a bar starts only at 0 defense hp (Q-GD-18)
+    facilities_disabled: bool  # a flip leaves the base's facilities Disabled and seized (NX-471)
+    seized_slowdown: int  # capture.seized_repair_slowdown: S, a seized facility repairs 1/S as fast
     air_weight: float | None  # capture.air_weight when capture.air_counts, else None (N-3)
     quiet_sides: frozenset[Side]  # the sides the quiet-stream multiplier applies to (Q-SIM-26)
+    # NX-490 (Q-TD-127): by node kind, for whichever side captures: capture.time_mult.<kind> and
+    # capture.extra_exponent.<kind> (added to `exponent`); every kind but HQ 1.0 and 0
+    time_mult: Mapping[NodeKind, float]
+    extra: Mapping[NodeKind, float]
 
 
 @dataclass(frozen=True, slots=True)
@@ -149,6 +164,9 @@ class CampaignRules:
     time_limit_ticks: int  # campaign.time_limit_h
     victory_hold_ticks: int  # campaign.victory_hold_min
     defeat_hold_ticks: int  # campaign.defeat.hold_min (Q-TH-7)
+    # T (NX-499, Q-TD-131): the sanctuary hp at or above which a repair resets the defeat run,
+    # max(1, ceil(campaign.defeat.reset_hp_frac x capture.defense_hp.SANCTUARY)); 1 is the old rule
+    defeat_reset_hp: int
     objective_period_ticks: int  # campaign.objective_period_min
     objectives_on: bool  # campaign.objective_mode is timed
     victory_node_frac: Fraction
@@ -160,6 +178,14 @@ class CampaignRules:
     strategic: tuple[str, ...]  # AIRBASE, FOB and PORT nodes, by id (Q-GP-17, Q-GP-21)
     enemy_hq: str  # its capture by the coalition wins, when `hq_capture`
     hq_capture: bool  # campaign.victory.hq_capture
+    # ECONOMY EC-9a (NX-489): campaign.victory.hold_break is decay; the slow stage in running
+    # ticks, both rates exact (progress ticks lost per broken tick); reset_on_repair
+    hold_decay: bool
+    decay_slow_ticks: int  # campaign.victory.decay_slow_min
+    decay_slow_rate: Fraction
+    decay_fast_rate: Fraction  # > 0 and >= decay_slow_rate (the config loader)
+    reset_on_repair: bool
+    pause_on_pressure: bool  # campaign.victory.pause_on_pressure: EC-9b (NX-466)
     objective_pick: str  # campaign.objective_pick: "uniform", the only value so far
     # Objective candidates by id (never SANCTUARY, BRIDGE or the enemy HQ; Q-SM-11) -> the ids of
     # their road neighbours that can have an owner (not BRIDGE): a candidate with a neighbour of
@@ -176,7 +202,8 @@ class TaskingRules:
 
     reeval_every_ticks: int
     claim_lease_ticks: int
-    expire_ticks: int  # an unclaimed job expires this long after it was posted
+    # an unclaimed job expires this long after it was posted (not a retake or coalition resupply)
+    expire_ticks: int
     ticks_per_min: int  # running ticks in a game minute: the aging rate's divisor
     priority: Mapping[JobKind, Fraction]
     urgency_max_milli: int
@@ -184,6 +211,8 @@ class TaskingRules:
     slots: Mapping[JobKind, int]
     resupply_stock_per_slot: int
     resupply_slots_max: int
+    # tasking.resupply_slots_max_starving (LC-3, NX-473): >= resupply_slots_max (load_balance)
+    resupply_slots_max_starving: int
     defend_radius_m: float
     counterattack_window_ticks: int  # how long after a loss the garrison may counterattack
     scout_cooldown_ticks: int  # how long a scouted cell is not posted again
@@ -218,6 +247,7 @@ class TaskingRules:
     ai_excluded_jobs: frozenset[JobKind]  # tasking.ai_excluded_jobs: and never these (Q-GP-45)
     human_displaces_ai: bool  # tasking.human_displaces_ai: a viewer's unit bumps an AI claimant
     escort_repair_crews: bool  # tasking.escort_repair_crews: escort each repair truck (Q-SIM-118)
+    retake_keep_ticks: int  # an unclaimed retake job outlives its node's restored defenses (NX-484)
 
 
 @dataclass(frozen=True, slots=True)
@@ -289,9 +319,7 @@ class DirectorRules:
     decay: tuple[int, int]
     weights: Weights
     ai_shooter_mult: Fraction  # director.provocation.ai_shooter_mult: x a hit by no player's unit
-    budget: Mapping[ThreatTier, int]
     max_spawns_per_window: int
-    max_live_units: Mapping[ThreatTier, int]
     operations: tuple[OperationRules, ...]
     target_value: Mapping[NodeKind, Fraction]
     weakness_max: Fraction
@@ -326,6 +354,7 @@ class DirectorRules:
     garrison_kinds: Mapping[NodeKind, tuple[UnitKind, ...]]
     patrol_ticks: int
     convoy_ticks: int
+    convoy_demand_ticks: int  # director.pol.convoy_demand_s (LC-2, NX-473); <= convoy_ticks
     offensive_ticks: int
     night_cap_ticks: int
     convoy_kind: UnitKind  # the carrier of a Pattern of Life convoy
@@ -352,18 +381,19 @@ class DirectorRules:
     intercept_reaction_ticks: int
     intercept_pol_linger_ticks: int
     intercept_lost_ticks: int
-    # ECONOMY EC-7 (NX-412 part 3, read with `economy.legacy_rules` false): the budget's shares
+    # ECONOMY EC-7 (NX-412 part 3): the budget's shares
     # of the bases' surplus by tier and of the rear pool, the upkeep reserve in windows and the
     # cadence floor's windows; exact Fractions, floored once
     spend_frac: Mapping[ThreatTier, Fraction]
     source_spend_frac: Fraction
+    surplus_ref_frac: Fraction  # EC-7 surplus reference (NX-500), read once into Supply.surplus_ref
     reserve_windows: Fraction
     cadence_windows: int
     # ECONOMY EC-9, EC-12 (NX-412 part 4): x an Offensive or Retake candidate (a CAPTURE job) on a
     # node of the running victory hold, and on a node of the other side that yields income
     victory_hold_mult: Fraction
     income_node_mult: Fraction
-    # Forward staging (THREAT-DIRECTOR §4a, NX-416; read with `economy.legacy_rules` false): a
+    # Forward staging (THREAT-DIRECTOR §4a, NX-416): a
     # capture operation farther than `staging_direct_ticks` by road from the rear waits at a
     # forward base at most `staging_max_wait_windows` windows; at most `staging_max_staged` at once
     staging_direct_ticks: int
@@ -471,10 +501,7 @@ class EconomyRules:
     # economy.upkeep_period (NX-426, Q-TD-41): windows between a unit's payments, >= 1, one per
     # `upkeep` kind (`rate`, `nexus.core.upkeep`)
     upkeep_period: Mapping[UnitKind, int] = field(default_factory=dict)
-    # NX-412 part 3: `economy.legacy_rules` (temporary, Q-TD-33: true keeps the tier budget,
-    # live-unit caps and spawn costs of before), `economy.free_viewer_spawn` (EC-13) and
-    # `sim.max_live_units_per_side` (EC-8), the last two read only with `legacy` false
-    legacy: bool = True
+    # NX-412 part 3: `economy.free_viewer_spawn` (EC-13) and `sim.max_live_units_per_side` (EC-8)
     free_viewer_spawn: bool = True
     max_live_per_side: int = 0
     # economy.floor_viewer_units (EC-11): read only by the loader's coalition floor check
@@ -500,7 +527,6 @@ def economy_rules(cfg: Economy, *, window_ticks: int, max_live_per_side: int) ->
         storage_per_node=cast(Mapping[NodeKind, int], cfg.storage.per_node.model_dump()),
         upkeep=cast(Mapping[UnitKind, int], cfg.upkeep.model_dump()),
         upkeep_period=cast(Mapping[UnitKind, int], cfg.upkeep_period.model_dump()),
-        legacy=cfg.legacy_rules,
         free_viewer_spawn=cfg.free_viewer_spawn,
         max_live_per_side=max_live_per_side,
         floor_viewer_units=cfg.floor_viewer_units,
@@ -587,12 +613,6 @@ class Rules:
         )
 
 
-def legacy_rules(rules: Rules) -> bool:
-    """`economy.legacy_rules` (temporary, Q-TD-33): the budget, caps and spawn costs of before
-    NX-412 part 3. Rules without an economy block (hand-built tests) run them too."""
-    return rules.economy is None or rules.economy.legacy
-
-
 def tasking_rules(
     cfg: Tasking,
     *,
@@ -605,6 +625,7 @@ def tasking_rules(
     threat_memory_ticks: int,
     patrol_dwell_ticks: int,
     order_dwell_ticks: int,
+    retake_keep_ticks: int,
 ) -> TaskingRules:
     """The tick counts are `cfg`'s game-time keys already converted by the config loader. Raises
     ValueError when the stocking urgency rounds to 0 thousandths, or a front-line stocking job
@@ -628,6 +649,7 @@ def tasking_rules(
         slots={cast(JobKind, k.upper()): v for k, v in cfg.slots},
         resupply_stock_per_slot=cfg.resupply_stock_per_slot,
         resupply_slots_max=cfg.resupply_slots_max,
+        resupply_slots_max_starving=cfg.resupply_slots_max_starving,
         defend_radius_m=cfg.defend_radius_m,
         counterattack_window_ticks=counterattack_window_ticks,
         scout_cooldown_ticks=scout_cooldown_ticks,
@@ -660,6 +682,7 @@ def tasking_rules(
         ai_excluded_jobs=frozenset(cfg.ai_excluded_jobs),
         human_displaces_ai=cfg.human_displaces_ai,
         escort_repair_crews=cfg.escort_repair_crews,
+        retake_keep_ticks=retake_keep_ticks,
     )
 
 
@@ -711,6 +734,7 @@ def director_rules(
     operations: Iterable[OperationRules],
     patrol_ticks: int,
     convoy_ticks: int,
+    convoy_demand_ticks: int,
     offensive_ticks: int,
     night_cap_ticks: int,
     recon_loiter_ticks: int,
@@ -749,11 +773,7 @@ def director_rules(
             _micro(w.scout_in_rear), _micro(r.support), _micro(r.cosmetic),
         ),
         ai_shooter_mult=Fraction(repr(pv.ai_shooter_mult)),
-        budget={"PATTERN_OF_LIFE": cfg.budget.pattern_of_life, "ALPHA": cfg.budget.alpha,
-                "BRAVO": cfg.budget.bravo},
         max_spawns_per_window=cfg.max_spawns_per_window,
-        max_live_units={"PATTERN_OF_LIFE": cfg.max_live_units.pattern_of_life,
-                        "ALPHA": cfg.max_live_units.alpha, "BRAVO": cfg.max_live_units.bravo},
         operations=tuple(sorted(operations, key=lambda o: o.id)),
         target_value={cast(NodeKind, k): Fraction(repr(v)) for k, v in cfg.score.target_value},
         weakness_max=Fraction(repr(cfg.score.weakness_max)),
@@ -786,6 +806,7 @@ def director_rules(
                     "ALPHA": Fraction(repr(cfg.spend_frac.alpha)),
                     "BRAVO": Fraction(repr(cfg.spend_frac.bravo))},
         source_spend_frac=Fraction(repr(cfg.source_spend_frac)),
+        surplus_ref_frac=Fraction(repr(cfg.surplus_ref_frac)),
         reserve_windows=Fraction(repr(cfg.upkeep_reserve_windows)),
         cadence_windows=cfg.cadence_windows,
         job_urgency_milli=round(Fraction(repr(cfg.job_urgency)) * 1000),
@@ -796,6 +817,7 @@ def director_rules(
         },
         patrol_ticks=patrol_ticks,
         convoy_ticks=convoy_ticks,
+        convoy_demand_ticks=convoy_demand_ticks,
         offensive_ticks=offensive_ticks,
         night_cap_ticks=night_cap_ticks,
         convoy_kind=cfg.pol.convoy_kind,
@@ -840,8 +862,11 @@ def _capture(capture: Capture, dt: float) -> CaptureRules:
         capture.radius_m, capture.time_s, capture.multi_unit_exponent, capture.quiet_floor,
         capture.quiet_ref, capture.min_time_s, capture.logi_weight, capture.garrison_mult,
         capture.empty_base_mult, decay_micro, capture.min_progress_per_tick,
-        capture.requires_defenses_down, capture.air_weight if capture.air_counts else None,
+        capture.requires_defenses_down, capture.facilities_disabled,
+        capture.seized_repair_slowdown, capture.air_weight if capture.air_counts else None,
         frozenset(capture.quiet_sides),
+        cast(Mapping[NodeKind, float], capture.time_mult.model_dump()),
+        cast(Mapping[NodeKind, float], capture.extra_exponent.model_dump()),
     )  # fmt: skip
 
 
@@ -865,8 +890,15 @@ def _defense(
     )  # fmt: skip
 
 
-def _supply(theater: TheaterConfig, logistics: Logistics, dt: float) -> Supply:
-    """Raises ValueError when a start_stock exceeds its kind's maximum (Q-SIM-49)."""
+def _supply(
+    theater: TheaterConfig,
+    logistics: Logistics,
+    dt: float,
+    ai_truck_period_ticks: int,
+    surplus_ref_frac: Fraction | None,
+) -> Supply:
+    """Raises ValueError when a start_stock exceeds its kind's maximum (Q-SIM-49).
+    `surplus_ref_frac` is `director.surplus_ref_frac`, None without Director rules."""
     max_by_kind = logistics.node_max_stock.model_dump()
     stocked = [n for n in theater.nodes if n.kind != "SANCTUARY"]
     over = [n.id for n in stocked if (n.start_stock or 0) > max_by_kind[n.kind]]
@@ -886,12 +918,37 @@ def _supply(theater: TheaterConfig, logistics: Logistics, dt: float) -> Supply:
     bridge_milli = round(logistics.bridge_hp * dt * _MILLI / truck_s)
     if bridge_milli < 1:
         raise ValueError("a truck's bridge repair rate x world_dt is below 0.001 hp per tick")
+    fraction_floor = {k: math.ceil(logistics.starve_threshold * v) for k, v in max_stock.items()}
+    dearest = max(logistics.loadout_cost.model_dump().values())  # C, whole catalog (NX-495, NX-501)
+    if logistics.starve_floor_mode == "loadouts":
+        # NX-495: N loadouts of the dearest kind of the whole catalog, capped at the node's maximum
+        starve_floor = {
+            k: min(logistics.starve_floor_loadouts * dearest, v) for k, v in max_stock.items()
+        }
+    else:
+        starve_floor = fraction_floor
+    if logistics.stock_target_mode == "loadouts":
+        # NX-501: M loadouts of C, never under the live floor (the target would switch stocking
+        # off), capped at the node's maximum
+        stock_target = {
+            k: min(max(logistics.stock_target_loadouts * dearest, starve_floor[k]), v)
+            for k, v in max_stock.items()
+        }
+    else:
+        stock_target = {k: math.ceil(logistics.stock_target_frac * v) for k, v in max_stock.items()}
+    surplus_ref = {
+        # NX-500: the Director's reference is on the fraction floor in either mode (EC-7)
+        k: max(math.ceil(surplus_ref_frac * v), fraction_floor[k])
+        for k, v in max_stock.items()
+        if surplus_ref_frac is not None
+    }
     return Supply(
         rear={side: sanctuaries[side] for side in _SIDES},
         start_owner={n.id: n.start_owner for n in theater.nodes},
         max_stock=max_stock,
-        starve_floor={k: math.ceil(logistics.starve_threshold * v) for k, v in max_stock.items()},
-        stock_target={k: math.ceil(logistics.stock_target_frac * v) for k, v in max_stock.items()},
+        starve_floor=starve_floor,
+        surplus_ref=surplus_ref,
+        stock_target=stock_target,
         carriers=frozenset(_CARRIERS),
         truck_cargo=logistics.truck_cargo,
         unload_milli=unload_milli,
@@ -911,6 +968,8 @@ def _supply(theater: TheaterConfig, logistics: Logistics, dt: float) -> Supply:
         },
         bridge_collapse_m=logistics.bridge_collapse_radius_m,
         bridge_repair_milli=bridge_milli,
+        ai_truck_period_ticks=ai_truck_period_ticks,
+        ai_truck_max_live=logistics.ai_trucks.max_live,
     )
 
 
@@ -923,9 +982,12 @@ def campaign_rules(
     victory_hold_ticks: int,
     defeat_hold_ticks: int,
     objective_period_ticks: int,
+    decay_slow_ticks: int,
     uncapturable: Collection[NodeKind],
+    sanctuary_max_hp: int,
 ) -> CampaignRules:
-    """The tick counts are `cfg`'s game-time keys already converted by the config loader."""
+    """The tick counts are `cfg`'s game-time keys already converted by the config loader;
+    `sanctuary_max_hp` is `capture.defense_hp.SANCTUARY`."""
     kind = {n.id: n.kind for n in theater.nodes}
     ownable = {n for n, k in kind.items() if k != "BRIDGE"}
     skip = {n for n, k in kind.items() if k in uncapturable} | {theater.enemy_hq}
@@ -933,6 +995,9 @@ def campaign_rules(
         time_limit_ticks=time_limit_ticks,
         victory_hold_ticks=victory_hold_ticks,
         defeat_hold_ticks=defeat_hold_ticks,
+        defeat_reset_hp=max(
+            1, math.ceil(Fraction(repr(cfg.defeat.reset_hp_frac)) * sanctuary_max_hp)
+        ),
         objective_period_ticks=objective_period_ticks,
         objectives_on=cfg.objective_mode == "timed",
         victory_node_frac=Fraction(repr(cfg.victory_node_frac)),
@@ -944,6 +1009,12 @@ def campaign_rules(
         strategic=tuple(sorted(n for n, k in kind.items() if k in cfg.strategic_node_kinds)),
         enemy_hq=theater.enemy_hq,
         hq_capture=cfg.victory.hq_capture,
+        hold_decay=cfg.victory.hold_break == "decay",
+        decay_slow_ticks=decay_slow_ticks,
+        decay_slow_rate=Fraction(repr(cfg.victory.decay_slow_rate)),
+        decay_fast_rate=Fraction(repr(cfg.victory.decay_fast_rate)),
+        reset_on_repair=cfg.victory.reset_on_repair,
+        pause_on_pressure=cfg.victory.pause_on_pressure,
         objective_pick=cfg.objective_pick,
         candidates={
             n: tuple(m for m, _ in roads.neighbours(n) if m in ownable)
@@ -1063,18 +1134,21 @@ def make_rules(
     tasking: TaskingRules | None = None,
     director: DirectorRules | None = None,
     economy: EconomyRules | None = None,
+    ai_truck_period_ticks: int = 0,
 ) -> Rules:
     """`respawn_delay_ticks`, `track_fade_ticks` and `sigint_refresh_ticks` are
     `slots.respawn_delay_s`, `fow.track_fade_s` and `fow.sigint_refresh_s` already converted by
     the config loader; `masking` is the theater's
-    rasterized masking regions (`nexus.runtime.theater.masking_cells`)."""
+    rasterized masking regions (`nexus.runtime.theater.masking_cells`); `ai_truck_period_ticks`
+    is `logistics.ai_trucks.period_s` in game ticks, rounded up to whole economy windows."""
     units = tuple(units)
     if not mask_cell_m > 0:
         raise ValueError(f"mask_cell_m must be > 0, got {mask_cell_m!r}")
     if theater.bounds_m.w % fow.sigint_cell_m or theater.bounds_m.h % fow.sigint_cell_m:
         # every SIGINT cell, so every blob centre, lies on the map (FOW-2)
         raise ValueError(f"fow.sigint_cell_m {fow.sigint_cell_m} must divide the theater bounds")
-    supply = _supply(theater, logistics, world_dt(sim))
+    ref_frac = None if director is None else director.surplus_ref_frac
+    supply = _supply(theater, logistics, world_dt(sim), ai_truck_period_ticks, ref_frac)
     if combat is not None:
         _check_ammo_bound(combat, supply)
     return Rules(

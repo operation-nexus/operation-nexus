@@ -46,7 +46,7 @@ from nexus.core.logistics import (
     road_start,
 )
 from nexus.core.roads import shortest_path
-from nexus.core.rules import Rules, legacy_rules
+from nexus.core.rules import Rules
 from nexus.core.tasking import claim, crosses_ring, joinable_jobs, reaches
 from nexus.core.upkeep import pays_at
 from nexus.core.world import Entity, Job, Order, Vec2, World, end_stop, release_claim
@@ -334,22 +334,20 @@ def _order(command: JoinCommand) -> Order | None:
 
 
 def _room(world: World, rules: Rules) -> int:
-    """JOIN slots free now: below `slots.max_viewer_units` (GP-3) and, with
-    `economy.legacy_rules` off, below the coalition's EC-8 guard; at 0 a JOIN queues."""
-    room = rules.max_viewer_units - world.viewer_units()
-    guard = guard_room(world, _COALITION)
-    return room if guard is None else min(room, guard)
+    """JOIN slots free now: below `slots.max_viewer_units` (GP-3) and below the coalition's EC-8
+    guard; at 0 a JOIN queues."""
+    return min(rules.max_viewer_units - world.viewer_units(), guard_room(world, _COALITION))
 
 
 def _spawn_cost(rules: Rules, kind: UnitKind, node: str) -> int:
     """EC-13: a spawn at a base draws its `loadout_cost` there (GP-7). At the sanctuary it is
-    free under `economy.legacy_rules` or with `economy.free_viewer_spawn` on, else it draws the
-    same cost from the coalition's pool."""
+    free with `economy.free_viewer_spawn` on, else it draws the same cost from the coalition's
+    pool. Rules without the economy block (the loader always builds it) are refused."""
     cost = rules.supply.loadout_cost.get(kind, 0)
     er = rules.economy
-    if node != rules.sanctuary or not (er is None or er.legacy or er.free_viewer_spawn):
-        return cost
-    return 0
+    if er is None:
+        raise ValueError("a JOIN's spawn cost needs the economy rules (ECONOMY EC-13)")
+    return 0 if node == rules.sanctuary and er.free_viewer_spawn else cost
 
 
 def _plan(world: World, command: JoinCommand, rules: Rules) -> _Plan | RejectReason:
@@ -357,7 +355,7 @@ def _plan(world: World, command: JoinCommand, rules: Rules) -> _Plan | RejectRea
     cannot pay its spawn cost and cargo (ECONOMY EC-13: no stock, no spawn). A base spawn was
     already chosen only where the stock pays (`plan_deploy`)."""
     plan = _choose(world, command, rules)
-    if isinstance(plan, str) or legacy_rules(rules) or plan.source != rules.sanctuary:
+    if isinstance(plan, str) or plan.source != rules.sanctuary:
         return plan
     have = source_stock(world, plan.source)  # None: an infinite source (unlimited mode)
     need = _spawn_cost(rules, plan.kind, plan.source) + (plan.cargo or 0)

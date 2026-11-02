@@ -10,13 +10,16 @@ the crowd profiles of Q-TEST-5, and writes a report per run and per profile (JSO
 `--hours` the game hours per run (default `campaign.time_limit_h`, 72 shipped;
 a run stops early when the campaign ends);
 `--workers` the number of parallel processes (seeds are independent, so the report does not depend
-on it). `--set key=value` (repeatable) overrides one numeric or boolean balance key of the shipped
-config (e.g. `--set tasking.strike_idle_targets_max=0`, `--set economy.legacy_rules=false`; a
-boolean key takes `true` or `false` only, a numeric key a number only); the config is then
-validated as usual, the overridden copy is saved as `<out>/balance.yaml` (every worker loads that
-file), and the report lists the overrides beside the resulting config hash and the economy mode
-(`economy.legacy_rules`, `economy.unlimited.<side>`: ECONOMY EC-15); a key given twice is an
-error. `--out` must
+on it). `--set key=value` (repeatable) overrides one numeric, boolean or enum-string balance key of
+the shipped config (e.g. `--set tasking.strike_idle_targets_max=0`,
+`--set economy.unlimited.ENEMY=true`; a boolean key takes `true` or `false` only, a numeric key a
+number only, a string key the text as given, which the schema then checks, e.g.
+`--set campaign.victory.hold_break=reset`); the whole config then loads once before `--out` is made
+(so a one-sided cut of a mirrored pair with
+`economy.cost_parity` true exits 2, ECONOMY EC-3), the overridden copy is saved as
+`<out>/balance.yaml` (every worker loads that file), and the report lists the overrides beside
+the resulting config hash and the economy mode (`economy.unlimited.<side>`: ECONOMY EC-15); a key
+given twice is an error. `--out` must
 not exist (unless `--resume`, below): it gets `report.json`, `report.md`,
 `runs/<profile>-s<seed>.json` and
 `logs/<profile>-s<seed>/` (the command logs).
@@ -71,8 +74,10 @@ BOOLS = {"true": True, "false": False}
 
 def override_balance(pairs: list[str]) -> str:
     """The shipped balance config as YAML text with `key=value` overrides applied and validated
-    by the sim's own loader: a number for a numeric key, `true` or `false` for a boolean one.
-    Raises ValueError (bad pair) or ConfigError (schema)."""
+    by the sim's own loader: a number for a numeric key, `true` or `false` for a boolean one, the
+    text as given for a string key (NX-498; the schema checks it, so `yes` is never read as a bool).
+    Raises ValueError (bad pair) or ConfigError (schema); an error names the key, never the value
+    (the queue posts it to a public issue)."""
     tree = yaml.safe_load(ConfigPaths().balance.read_text())
     keys = [p.partition("=")[0] for p in pairs]
     if len(set(keys)) != len(keys):
@@ -86,17 +91,22 @@ def override_balance(pairs: list[str]) -> str:
         old = node.get(leaf) if isinstance(node, dict) else None
         if isinstance(old, bool):  # a switch takes `true` or `false` only (NX-412 part 5a)
             if text not in BOOLS:
-                raise ValueError(f"--set {key}: {text!r} is not true or false")
+                raise ValueError(f"--set {key}: the value is not true or false")
             node[leaf] = BOOLS[text]
             continue
+        if isinstance(old, str):  # an enum or text key: the text as given; the schema checks it
+            node[leaf] = text
+            continue
         if not isinstance(old, int | float):
-            raise ValueError(f"--set {key}: not an existing numeric or boolean balance key")
+            raise ValueError(f"--set {key}: not an existing numeric, boolean or string balance key")
         try:
             value = int(text) if isinstance(old, int) else float(text)
         except ValueError:
-            raise ValueError(f"--set {key}: {text!r} is not a valid {type(old).__name__}") from None
+            raise ValueError(
+                f"--set {key}: the value is not a valid {type(old).__name__}"
+            ) from None
         if not math.isfinite(value):
-            raise ValueError(f"--set {key}: {text!r} is not finite")
+            raise ValueError(f"--set {key}: the value is not finite")
         node[leaf] = value
     dumped = yaml.safe_dump(tree, sort_keys=False)
     with tempfile.TemporaryDirectory() as d:
@@ -291,7 +301,7 @@ def build_report(
             "profiles_digest": data.digest,
             "overrides": overrides or [],
             "theater": theater,  # None: the shipped one
-            "economy": economy,  # legacy_rules and unlimited per side (EC-15 label)
+            "economy": economy,  # unlimited per side (EC-15 label)
         },
         "seeds": sorted({r["seed"] for r in runs}),
         "hours": first["hours"],
@@ -329,7 +339,7 @@ def parser() -> argparse.ArgumentParser:
     p.add_argument("--workers", type=int, default=1, help="parallel processes (default 1)")
     p.add_argument(
         "--set", dest="overrides", action="append", default=[], metavar="KEY=VALUE",
-        help="override a numeric or boolean balance key, e.g. economy.legacy_rules=false "
+        help="override a numeric or boolean balance key, e.g. economy.unlimited.ENEMY=true "
         "(repeatable)",
     )  # fmt: skip
     p.add_argument(
@@ -375,12 +385,14 @@ def main() -> int:
             slots = (args.slot_dir, args.slot_key)
         theater = None
         theater_text = args.theater.read_text() if args.theater else None
-        if theater_text is not None:  # validate (and cross-check with the balance) before `out`
-            with tempfile.TemporaryDirectory() as d:
+        if balance_text or theater_text is not None:  # the whole config loads before `out`
+            with tempfile.TemporaryDirectory() as d:  # (EC-11, EC-3 cost parity, the theater)
                 bal = ConfigPaths().balance
                 if balance_text:
                     (bal := Path(d) / "balance.yaml").write_text(balance_text)
-                cfg = load_campaign_config(ConfigPaths(balance=bal, theater=args.theater))
+                where = args.theater or ConfigPaths().theater
+                cfg = load_campaign_config(ConfigPaths(balance=bal, theater=where))
+        if theater_text is not None:
             theater = {
                 "slug": cfg.theater.slug,
                 "name": cfg.theater.name,
@@ -404,7 +416,7 @@ def main() -> int:
             paths = ConfigPaths(**kw)
         cfg = load_campaign_config(paths)
         eco = cfg.balance.economy
-        economy = {"legacy_rules": eco.legacy_rules, "unlimited": eco.unlimited.model_dump()}
+        economy = {"unlimited": eco.unlimited.model_dump()}
         travel = metrics.travel_table(cfg.rules, cfg.balance.sim.tick_hz)
         jobs = [(n, s, args.hours, args.out, paths) for n in names for s in args.seeds]
         started = time.perf_counter()

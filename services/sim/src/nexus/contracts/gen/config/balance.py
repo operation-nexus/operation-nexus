@@ -47,6 +47,45 @@ class Victory(BaseModel):
             description="Whether the coalition capturing the enemy HQ wins the campaign at once (GAMEPLAY §9; decided rule as default, Q-CFG-16 option); false leaves the hold and time-limit endings, unit switch."
         ),
     ]
+    hold_break: Annotated[
+        Literal["decay", "reset"],
+        Field(
+            description="What a broken victory hold keeps (ECONOMY EC-9a, Q-TD-102, Q-TD-126): decay, it keeps its progress, which drains along decay_slow_rate then decay_fast_rate and resumes if the hold is taken again; reset, the progress goes back to 0 at the break (the rule before NX-489), unit enum."
+        ),
+    ]
+    decay_slow_min: Annotated[
+        float,
+        Field(
+            description="Game minutes after a break during which a broken hold loses progress at decay_slow_rate, before decay_fast_rate applies (ECONOMY EC-9a, Q-TD-126; placeholder with no measured basis), unit min of game time.",
+            ge=0.0,
+        ),
+    ]
+    decay_slow_rate: Annotated[
+        float,
+        Field(
+            description="Progress minutes a broken hold loses per broken minute during the slow stage, read as an exact decimal (ECONOMY EC-9a, Q-TD-126; placeholder, no data), unit progress min per broken min.",
+            ge=0.0,
+        ),
+    ]
+    decay_fast_rate: Annotated[
+        float,
+        Field(
+            description="Progress minutes a broken hold loses per broken minute after the slow stage, read as an exact decimal; above 0 and at least decay_slow_rate (the loader refuses otherwise), so the progress always reaches 0; 1.0 loses it as fast as a running hold gains it (ECONOMY EC-9a, Q-TD-126; placeholder, no data), unit progress min per broken min.",
+            gt=0.0,
+        ),
+    ]
+    reset_on_repair: Annotated[
+        bool,
+        Field(
+            description="Whether a decaying hold also resets once the other side owns one of the broken hold's nodes at its full defense HP (ECONOMY EC-9a; the lead's reading of the owner's repaired/re-defended, Q-TD-126); false: only the decay ends it, unit switch."
+        ),
+    ]
+    pause_on_pressure: Annotated[
+        bool,
+        Field(
+            description="Whether a running victory hold gains nothing while one of its nodes is under the other side's pressure: its capture bar, its defenses down (World.defense_down), or a claimant of the other side's CAPTURE job on it within tasking.defend_radius_m; it resumes with no reset when none is (ECONOMY EC-9b, Q-TD-84 (b) owner-agreed, readings Q-TD-134); false: the hold gains every running tick, as before NX-466, unit switch."
+        ),
+    ]
 
 
 class IdleFloor(BaseModel):
@@ -101,6 +140,36 @@ class Defeat(BaseModel):
             gt=0.0,
         ),
     ]
+    reset_hp_frac: Annotated[
+        float,
+        Field(
+            description="Share of the coalition sanctuary's max defense hp (capture.defense_hp.SANCTUARY) a repair must reach to reset a defeat run in progress, unit fraction; the threshold is T = max(1, ceil(value x max hp)) hp, fixed at load. Between 0 and T the run pauses; 0 is the old rule (any whole hp resets), 1.0 resets only at full hp (GAMEPLAY §9, NX-499, Q-TD-129 (6), Q-TD-131).",
+            ge=0.0,
+            le=1.0,
+        ),
+    ]
+
+
+class TimeMult(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    AIRBASE: Annotated[float, Field(gt=0.0)]
+    FOB: Annotated[float, Field(gt=0.0)]
+    HQ: Annotated[float, Field(gt=0.0)]
+    PORT: Annotated[float, Field(gt=0.0)]
+    SANCTUARY: Annotated[float, Field(gt=0.0)]
+
+
+class ExtraExponent(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    AIRBASE: Annotated[float, Field(ge=0.0, le=4.0)]
+    FOB: Annotated[float, Field(ge=0.0, le=4.0)]
+    HQ: Annotated[float, Field(ge=0.0, le=4.0)]
+    PORT: Annotated[float, Field(ge=0.0, le=4.0)]
+    SANCTUARY: Annotated[float, Field(ge=0.0, le=4.0)]
 
 
 class DefenseHp(BaseModel):
@@ -314,7 +383,7 @@ class Combat(BaseModel):
     strike_structure_first: Annotated[
         bool,
         Field(
-            description="Whether a unit holding a STRIKE claim on a node's defenses fires its STRUCTURE weapon at that node's defense HP before any unit target (COMBAT CB-10, Q-TD-55; extends the bridge exception, Q-SIM-105). Same candidate rules as the automatic fallback (enemy-owned, HP left, not the Static's rear source, not at its idle floor, in range); both sides alike (ECONOMY EC-3). False is the decided rule as it was: units always come first, unit switch."
+            description="Whether a unit holding a STRIKE claim on a node's defenses fires its STRUCTURE weapon at that node's defense HP before any unit target (COMBAT CB-10, Q-TD-55; extends the bridge exception, Q-SIM-105). Same candidate rules as the automatic fallback (enemy-owned, HP left, not the Static's rear source, not at its idle floor, in range); both sides alike (ECONOMY EC-3). False is the CB-10 decided rule: units always come first. True is the shipped default since NX-412 part 5b, harness-tuned (Q-TD-79; U0 #510), not validated at the 50-seed gate. Unit switch."
         ),
     ]
     facility_restore_frac: Annotated[
@@ -399,6 +468,26 @@ class RepairRate(BaseModel):
     ]
 
 
+class AiTrucks(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    period_s: Annotated[
+        float,
+        Field(
+            description="How often the coalition spawns AI_GARRISON trucks for its open resupply jobs, unit s of game time, rounded up by the loader to whole economy.window_s windows; a job must also be this old (Job.created, from its first posting: an unclaimed coalition resupply job does not expire, Q-SIM-131) before an AI truck is spawned for it, so viewers get the first pick (GAMEPLAY §5 LC-1).",
+            gt=0.0,
+        ),
+    ]
+    max_live: Annotated[
+        int,
+        Field(
+            description="The most coalition AI trucks live at once, unit trucks; 0 spawns none; default 3 (harness C0 #532, Q-TD-128). Also bounded by sim.max_live_units_per_side (EC-8).",
+            ge=0,
+        ),
+    ]
+
+
 class Logistics(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -417,12 +506,38 @@ class Logistics(BaseModel):
             le=1.0,
         ),
     ]
+    starve_floor_mode: Annotated[
+        Literal["fraction", "loadouts"],
+        Field(
+            description="How the starvation floor is set (NX-495, Q-TD-123, Q-TD-132 (B)): fraction, ceil(starve_threshold x node_max_stock), today's rule; loadouts, min(starve_floor_loadouts x C, node_max_stock) with C the largest loadout_cost entry of the whole catalog. Fixed at load, the same at every node and for either side. Every floor reader follows it except the Director's surplus, which keeps max(ceil(surplus_ref_frac x max), ceil(starve_threshold x max)) in either mode (ECONOMY EC-7), unit enum."
+        ),
+    ]
+    starve_floor_loadouts: Annotated[
+        int,
+        Field(
+            description="N, the loadouts of the dearest kind the starvation floor holds in loadouts mode (NX-495, Q-TD-123: 3-5 of the most expensive units), unit loadouts. Read only while starve_floor_mode is loadouts.",
+            ge=1,
+        ),
+    ]
     stock_target_frac: Annotated[
         float,
         Field(
             description="Forward stock target (Q-SIM-100, Q-SIM-102, NX-389), unit fraction of node_max_stock: a base the side owns below ceil(stock_target_frac x max) gets a resupply job even when it is not starved (a stocking job), and a run to such a base (not starved, no damaged facility) loads only stock a source holds above its own target, else at the side's rear source. At starve_threshold or below there are no stocking jobs. The loader does not check it: a sweep should keep it above starve_threshold.",
             ge=0.0,
             le=1.0,
+        ),
+    ]
+    stock_target_mode: Annotated[
+        Literal["fraction", "loadouts"],
+        Field(
+            description="How the forward stock target is set (NX-501, Q-TD-133 (a)): fraction, ceil(stock_target_frac x node_max_stock), today's rule; loadouts, min(max(stock_target_loadouts x C, the node's live starvation floor), node_max_stock) with C the largest loadout_cost entry of the whole catalog (as NX-495). Fixed at load, the same at every node and for either side. Every reader of the target follows it, including the FS-3 staging raise; the Director's surplus does not read it, unit enum."
+        ),
+    ]
+    stock_target_loadouts: Annotated[
+        int,
+        Field(
+            description="M, the loadouts of the dearest kind the forward stock target holds in loadouts mode (NX-501, Q-TD-133 (a)), unit loadouts. Read only while stock_target_mode is loadouts.",
+            ge=1,
         ),
     ]
     truck_cargo: Annotated[
@@ -535,6 +650,12 @@ class Logistics(BaseModel):
             ge=1.0,
         ),
     ]
+    ai_trucks: Annotated[
+        AiTrucks,
+        Field(
+            description="Coalition AI trucks, the logistics cadence (GAMEPLAY §5 LC-1, NX-473, Q-TD-92)."
+        ),
+    ]
 
 
 class Sim(BaseModel):
@@ -562,7 +683,7 @@ class Sim(BaseModel):
     max_live_units_per_side: Annotated[
         int,
         Field(
-            description="Performance guard, unit live movers (AIR and GROUND units) per side (ECONOMY EC-8): a tick-rate guard only, set well above any army the economy feeds. Read only with economy.legacy_rules false: a Director operation must fit the room below it, and a JOIN at it waits in the reserve queue as at slots.max_viewer_units (GP-3).",
+            description="Performance guard, unit live movers (AIR and GROUND units) per side (ECONOMY EC-8): a tick-rate guard only, set well above any army the economy feeds. A Director operation must fit the room below it, and a JOIN at it waits in the reserve queue as at slots.max_viewer_units (GP-3).",
             ge=1,
         ),
     ]
@@ -834,28 +955,6 @@ class Provocation(BaseModel):
             description="Points per sensed or suffered action caused by a player-controlled unit."
         ),
     ]
-
-
-class Budget(BaseModel):
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    pattern_of_life: Annotated[
-        int, Field(description="Budget points per window in this tier.", ge=0)
-    ]
-    alpha: Annotated[int, Field(description="Budget points per window in this tier.", ge=0)]
-    bravo: Annotated[int, Field(description="Budget points per window in this tier.", ge=0)]
-
-
-class MaxLiveUnits(BaseModel):
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    pattern_of_life: Annotated[
-        int, Field(description="Live Static units allowed in this tier.", ge=1)
-    ]
-    alpha: Annotated[int, Field(description="Live Static units allowed in this tier.", ge=1)]
-    bravo: Annotated[int, Field(description="Live Static units allowed in this tier.", ge=1)]
 
 
 class SpendFrac(BaseModel):
@@ -1181,7 +1280,7 @@ class Economy(BaseModel):
     unlimited: Annotated[
         Unlimited,
         Field(
-            description="Per side: true = unlimited mode (EC-15): the source pool never runs out, has no storage cap and earns no income (no SupplyProduced), exactly the infinite source of before NX-412. A campaign or test option set by the owner or an Admin at campaign setup, never a GM and never mid-war. The shipped default true for both sides is TEMPORARY (Q-TD-29, lead decision): the NX-412 sweep part sets the spec default false."
+            description="Per side: true = unlimited mode (EC-15): the source pool never runs out, has no storage cap and earns no income (no SupplyProduced), exactly the infinite source of before NX-412. A campaign or test option set by the owner or an Admin at campaign setup, never a GM and never mid-war. Shipped false for both sides, the spec default, since NX-412 part 5b (Q-TD-29 ended the temporary true default there)."
         ),
     ]
     window_s: Annotated[
@@ -1205,22 +1304,22 @@ class Economy(BaseModel):
             description="Per-kind upkeep period (Q-TD-41, Q-TD-52 D1): a unit pays its economy.upkeep every this many economy windows, so a unit can cost less than 1 stock per window, unit economy windows. A unit is charged in the window whose index (running ticks / the window, counted from 1) plus its entity id is a multiple of the period, so payments of one kind spread across windows by id; a grounded unit is charged every window until its home pays, then returns to that stagger (EC-4, EC-6). The per-window rate, upkeep / period, is what the EC-7 reserve and the EC-11 coalition floor check read. 1 = every window. One entry per kind that has economy.upkeep; mirrored kinds equal (EC-3). Shipped values PROPOSED (Q-TD-52 T1): 20 for armed kinds, 30 for the recon UAVs, 1 for the trucks and convoys (upkeep 0)."
         ),
     ]
-    legacy_rules: Annotated[
-        bool,
-        Field(
-            description="TEMPORARY, removed in NX-412 part 5 (Q-TD-33, lead decision): true keeps the budget, live-unit caps and spawn costs of before NX-412 part 3 (director.budget.<tier>, director.max_live_units.<tier>, the Director paying from base surplus, sanctuary spawns free); false applies ECONOMY EC-7 (director.spend_frac and the rest), EC-8 (sim.max_live_units_per_side) and EC-13 (every spawn draws its cost at its spawn node). Set at campaign setup, never mid-war."
-        ),
-    ]
     free_viewer_spawn: Annotated[
         bool,
         Field(
-            description="ECONOMY EC-13 (economy.legacy_rules false): true = a viewer's own JOIN that spawns at the coalition's sanctuary draws no stock, so joining never costs a person anything; false = it draws logistics.loadout_cost from the coalition's pool like every other spawn (agent-vs-agent harness profiles). The AI garrison and the Director always pay."
+            description="ECONOMY EC-13: true = a viewer's own JOIN that spawns at the coalition's sanctuary draws no stock, so joining never costs a person anything; false = it draws logistics.loadout_cost from the coalition's pool like every other spawn (agent-vs-agent harness profiles). The AI garrison and the Director always pay."
+        ),
+    ]
+    cost_parity: Annotated[
+        bool,
+        Field(
+            description="ECONOMY EC-3 cost parity (NX-494, Q-TD-119, Q-TD-130): true = the config loader refuses a config in which an ENEMY kind paired by the unit catalog's mirrors has a different logistics.loadout_cost, economy.upkeep or economy.upkeep_period from its COALITION kind, naming the keys, both kinds and both values; it never copies a value. false = each kind keeps its own value (one-sided experiments). Unpaired kinds are never checked. Read at load only."
         ),
     ]
     floor_viewer_units: Annotated[
         int,
         Field(
-            description="ECONOMY EC-11: viewer units the coalition's floor income must keep paid. With economy.legacy_rules false and the coalition not in unlimited mode, the loader refuses a config whose economy.income.floor is below the upkeep of the theater's coalition garrison quotas plus this many units at the dearest upkeep of a viewer-playable kind, naming the shortfall. Read at load only, unit units.",
+            description="ECONOMY EC-11: viewer units the coalition's floor income must keep paid. With the coalition not in unlimited mode, the loader refuses a config whose economy.income.floor is below the upkeep of the theater's coalition garrison quotas plus this many units at the dearest upkeep of a viewer-playable kind, naming the shortfall. Read at load only, unit units.",
             ge=0,
         ),
     ]
@@ -1362,6 +1461,19 @@ class Capture(BaseModel):
         Field(
             description="Diminishing returns: the capture time is divided by n to this power, n the weighted capturers in radius, unit exponent (Q-SIM-26).",
             ge=0.0,
+            le=4.0,
+        ),
+    ]
+    time_mult: Annotated[
+        TimeMult,
+        Field(
+            description="NX-490 (Q-TD-105, Q-TD-127): multiplies capture.time_s at a node of each kind, for whichever side captures (EC-3 parity); capture.min_time_s still applies after it. Every kind but HQ 1.0 (unchanged); HQ PROPOSED 20, a placeholder with no measured basis (sweep 5-40), unit multiplier (GAMEPLAY §8)."
+        ),
+    ]
+    extra_exponent: Annotated[
+        ExtraExponent,
+        Field(
+            description="NX-490 (Q-TD-105, Q-TD-127): added to capture.multi_unit_exponent at a node of each kind, for whichever side captures, so the capture time there is divided by n^(multi_unit_exponent + extra_exponent). Every kind but HQ 0 (unchanged); HQ PROPOSED 0.5 (exponent 1.0, a lone capturer pays the most), a placeholder with no data (sweep 0-1), unit exponent (GAMEPLAY §8)."
         ),
     ]
     quiet_floor: Annotated[
@@ -1444,6 +1556,19 @@ class Capture(BaseModel):
         bool,
         Field(
             description="Whether a capture bar can start only on a node whose defense HP is 0 (GAMEPLAY §8, Q-GD-18; decided rule as default, Q-CFG-16 option); false lets a bar start whatever the defenses, unit switch."
+        ),
+    ]
+    facilities_disabled: Annotated[
+        bool,
+        Field(
+            description="Whether a base's facilities arrive Disabled and seized when it flips: each drops to min(hp, its Disabled floor), becomes DISABLED and repairs slowly for the new owner, before its fog hand-over (GAMEPLAY §8 'Facilities at a captured base', Q-TD-78 (a), NX-471; decided rule as default); false switches them side keeping their damage (Q-GP-25), unit switch."
+        ),
+    ]
+    seized_repair_slowdown: Annotated[
+        int,
+        Field(
+            description="The divisor on a seized facility's repair rate: logistics.repair_rate.<node_kind> divided by this, exactly, until it is back at the restore line, then the normal rate (GAMEPLAY §8, Q-TD-135, NX-471; derived, not measured: 92 gives 10.0 game min at an airbase and 19.9 at a FOB); 1 means no slowdown, read only when facilities_disabled is true, unit divisor.",
+            ge=1,
         ),
     ]
     air_counts: Annotated[
@@ -1564,7 +1689,7 @@ class Tasking(BaseModel):
     expire_min: Annotated[
         float,
         Field(
-            description="An unclaimed job expires this long after it was posted (Q-SIM-73), unit min of game time. Objective jobs expire with the objective instead.",
+            description="An unclaimed job expires this long after it was posted (Q-SIM-73), unit min of game time. Objective jobs expire with the objective instead; an unclaimed coalition retake job does not expire (Q-TD-121), and a claimed one counts from its claim; an unclaimed coalition resupply job does not expire either while it is posted (Q-SIM-131).",
             gt=0.0,
         ),
     ]
@@ -1591,7 +1716,7 @@ class Tasking(BaseModel):
     priority_aging_per_min: Annotated[
         float,
         Field(
-            description="Priority points an open job gains per game minute it has waited (TB-3, Q-ALN-23), unit points/min of game time.",
+            description="Priority points an open job gains per game minute it has waited (TB-3, Q-ALN-23); an unclaimed coalition resupply job gains them for at most expire_min minutes (Q-SIM-132), unit points/min of game time.",
             ge=0.0,
         ),
     ]
@@ -1611,10 +1736,17 @@ class Tasking(BaseModel):
     resupply_slots_max: Annotated[
         int, Field(description="The most slots a resupply job gets, unit units.", ge=1)
     ]
+    resupply_slots_max_starving: Annotated[
+        int,
+        Field(
+            description="The most slots a starving or damaged base's resupply job can reach, unit units (GAMEPLAY §5 LC-3): its cap is resupply_slots_max + floor(need x (this - resupply_slots_max)), need the base's floor deficit or facility damage share, and a Static convoy's is director.pol.convoy_slots + the same raise. Equal to resupply_slots_max it changes nothing; default 6 (harness C0 #532, Q-TD-128); the loader refuses a value below resupply_slots_max.",
+            ge=1,
+        ),
+    ]
     defend_radius_m: Annotated[
         float,
         Field(
-            description="A friendly base posts a defend job when its side tracks an enemy ground unit within this distance of it (Q-SIM-74), unit m. Urgency rises as the nearest tracked enemy closes: 1.0 at the radius, the cap at the base.",
+            description="A friendly base posts a defend job when its side tracks an enemy ground unit within this distance of it (Q-SIM-74), and, for a besieged sanctuary, an enemy aircraft or ground unit (Q-TD-122), unit m. Urgency rises as the nearest tracked enemy closes: 1.0 at the radius, the cap at the base.",
             gt=0.0,
         ),
     ]
@@ -1789,6 +1921,13 @@ class Tasking(BaseModel):
         Field(
             description="An armed unit whose direct node order (JOIN with a node) has arrived holds that node and engages; the order ends, and the board takes the unit, at bingo or RTB, ammo out, a new order, or this long after it began holding (Q-SIM-110, NX-398), unit s of game time.",
             gt=0.0,
+        ),
+    ]
+    retake_keep_min: Annotated[
+        float,
+        Field(
+            description="An unclaimed coalition retake job (retake:<node>, a CAPTURE job) stays posted this long after its node's defenses come back above 0, and goes on as the same job if they fall to 0 again within it; recapture, a lost road or no truck role still withdraw it at once, and 0 means no keep; an unclaimed retake job never expires by expire_min (Q-TD-121 revised, Q-TD-107, NX-484), unit min of game time.",
+            ge=0.0,
         ),
     ]
     stock_urgency: Annotated[
@@ -2023,6 +2162,13 @@ class Pol(BaseModel):
             gt=0.0,
         ),
     ]
+    convoy_demand_s: Annotated[
+        float,
+        Field(
+            description="While a Static base is below its starvation floor, a convoy is also due this long after the last one, unit s of game time (THREAT-DIRECTOR §5a demand convoys, GAMEPLAY §5 LC-2). Equal to convoy_period_s it changes nothing; default 900 (harness V2 #534, Q-TD-128); the loader refuses a value above convoy_period_s.",
+            gt=0.0,
+        ),
+    ]
     capture_slot_tiers: Annotated[
         list[enums.ThreatTier],
         Field(
@@ -2055,31 +2201,27 @@ class Director(BaseModel):
         Provocation,
         Field(description="The decaying provocation score (THREAT-DIRECTOR §5a, Q-TD-11)."),
     ]
-    budget: Annotated[
-        Budget,
-        Field(
-            description="The most budget points one decision window can spend, by tier (Q-TD-5); also capped by the real surplus of the Static's bases. Read only with economy.legacy_rules true: temporary, removed in NX-412 part 5 (Q-TD-33; ECONOMY EC-7 replaces it)."
-        ),
-    ]
     max_spawns_per_window: Annotated[
         int, Field(description="The most new Static units per window (Q-TD-12).", ge=1)
-    ]
-    max_live_units: Annotated[
-        MaxLiveUnits,
-        Field(
-            description="The most live Static units by tier (Q-TD-12). Read only with economy.legacy_rules true: temporary, removed in NX-412 part 5 (Q-TD-33; ECONOMY EC-8 replaces it)."
-        ),
     ]
     spend_frac: Annotated[
         SpendFrac,
         Field(
-            description="ECONOMY EC-7 (economy.legacy_rules false): the share of the surplus of the Static's bases above their starvation floors one decision window may spend, by tier; the loader requires pattern_of_life <= alpha <= bravo."
+            description="ECONOMY EC-7: the share of the surplus of the Static's bases above their starvation floors one decision window may spend, by tier; the loader requires pattern_of_life <= alpha <= bravo."
         ),
     ]
     source_spend_frac: Annotated[
         float,
         Field(
-            description="ECONOMY EC-7 (economy.legacy_rules false): the share of the rear source pool one decision window may add to the budget; only operations whose units spawn at the source may spend it (EC-13). 0 with the Static in unlimited mode (no pool).",
+            description="ECONOMY EC-7: the share of the rear source pool one decision window may add to the budget; only operations whose units spawn at the source may spend it (EC-13). 0 with the Static in unlimited mode (no pool).",
+            ge=0.0,
+            le=1.0,
+        ),
+    ]
+    surplus_ref_frac: Annotated[
+        float,
+        Field(
+            description="ECONOMY EC-7 Surplus reference (NX-500, Q-TD-125, Q-TD-132 (A)): the Director's surplus is stock above R = max(ceil(surplus_ref_frac x node_max_stock), ceil(logistics.starve_threshold x node_max_stock)) at each base the side holds, unit fraction of node_max_stock; R is fixed at load and uses that fraction floor whatever logistics.starve_floor_mode is (NX-495). Read by the surplus only (budget, cadence cap, convoy and capture-slot purses); every other floor reader follows the live floor (Supply.starve_floor).",
             ge=0.0,
             le=1.0,
         ),
@@ -2087,14 +2229,14 @@ class Director(BaseModel):
     upkeep_reserve_windows: Annotated[
         float,
         Field(
-            description="ECONOMY EC-7 (economy.legacy_rules false): windows of the Static's upkeep the budget keeps back, unit decision windows; the reserve is this times the upkeep its live units owe per window.",
+            description="ECONOMY EC-7: windows of the Static's upkeep the budget keeps back, unit decision windows; the reserve is this times the upkeep its live units owe per window.",
             ge=0.0,
         ),
     ]
     cadence_windows: Annotated[
         int,
         Field(
-            description="ECONOMY EC-7 (economy.legacy_rules false): decision windows with no capture operation (OFFENSIVE, RETAKE) launched, staged or dropped from staging after which, while the Static holds an HQ, the window buys the cheapest capture operation with a target, else the budget is at least the cheapest operation of its tier, that the window can pay: base surplus plus the window's rear account, never the whole pool (Q-TD-42, Q-TD-48, NX-434); other operations do not reset the count (Q-TD-54).",
+            description="ECONOMY EC-7: decision windows with no capture operation (OFFENSIVE, RETAKE) launched, staged or dropped from staging after which, while the Static holds an HQ, the window buys the cheapest capture operation with a target, else the budget is at least the cheapest operation of its tier, that the window can pay: base surplus plus the window's rear account, never the whole pool (Q-TD-42, Q-TD-48, NX-434); other operations do not reset the count (Q-TD-54).",
             ge=1,
         ),
     ]
@@ -2201,7 +2343,7 @@ class Director(BaseModel):
     staging: Annotated[
         Staging,
         Field(
-            description="Forward staging (THREAT-DIRECTOR §4a FS-1..FS-8, Q-TD-36, Q-TD-37; NX-416): with economy.legacy_rules false, a capture operation whose capture kind's road travel time from the rear source exceeds direct_s waits at the nearest Static-held base by road until every node it spawns at can pay its own units (Q-TD-38), the base's forward-stock target raised by the cost of the units that spawn there so trucks fill it."
+            description="Forward staging (THREAT-DIRECTOR §4a FS-1..FS-8, Q-TD-36, Q-TD-37; NX-416): a capture operation whose capture kind's road travel time from the rear source exceeds direct_s waits at the nearest Static-held base by road until every node it spawns at can pay its own units (Q-TD-38), the base's forward-stock target raised by the cost of the units that spawn there so trucks fill it."
         ),
     ]
     garrison: Annotated[

@@ -26,3 +26,10 @@ class VictoryHoldBroken(BaseModel):
             description="The hold node the coalition lost on this tick (the lowest id when it lost more than one)."
         ),
     ]
+    progress_ticks: Annotated[
+        int,
+        Field(
+            description="The progress the broken hold keeps (ECONOMY EC-9a): its running ticks credited so far with hold_break decay, 0 with reset.",
+            ge=0,
+        ),
+    ]

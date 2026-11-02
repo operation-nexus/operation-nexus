@@ -17,6 +17,7 @@ from hypothesis import given
 from hypothesis import strategies as st
 from test_join import join
 
+import nexus.core.defense as defense
 import nexus.core.world as world_mod
 from nexus.contracts.gen.commands.staff_campaign_end import StaffCampaignEndCommand
 from nexus.contracts.gen.commands.staff_campaign_pause import StaffCampaignPauseCommand
@@ -118,6 +119,8 @@ def own(w: World, side: NodeOwner, *nodes: str) -> None:
 
 def hold_seven(w: World) -> None:
     own(w, "COALITION", *COALITION_NODES, *NEUTRAL_NODES, "fob-n-e", "fob-s-e")
+    for node in ("fob-n-e", "fob-s-e"):
+        defense.reset(w, node)  # as a capture does: 0 hp, no drain carry, no `defense_down` flag
 
 
 def put(w: World, node: str, n: int, side: Side = "COALITION", dx: float = 0.0) -> Entity:
@@ -277,8 +280,8 @@ def test_holding_the_victory_share_for_the_hold_time_wins() -> None:
     assert run(w, 5) == []
 
 
-def test_a_dip_below_the_share_resets_the_hold() -> None:
-    w = new_world(victory_hold_ticks=5)
+def test_a_dip_below_the_share_resets_the_hold_with_hold_break_reset() -> None:
+    w = new_world(victory_hold_ticks=5, hold_decay=False)  # ECONOMY EC-9a: the old rule
     hold_seven(w)
     run(w, 3)
     own(w, "ENEMY", "fob-s-e")  # 6 of 8 = 75 %: below 80 %
@@ -308,11 +311,14 @@ def test_capturing_the_enemy_hq_wins() -> None:
     w = new_world()
     put(w, "static-hq", 1)
     events: list[Event] = []
-    while not w.campaign.ended and w.campaign.tick < 200:
+    while not w.campaign.ended and w.campaign.tick < 2000:
         events += run(w)
     (flip,) = of(events, NodeCaptured)
     (ended,) = of(events, CampaignEnded)
     assert (flip.node_id, flip.participant_commander_ids) == ("static-hq", [cid(1)])
+    # NX-490: HQ x20, n^1.0; 1 viewer unit, quiet 0.608: 120 x 20 x 0.608 x 0.5 = 729.6 s,
+    # 1216 ticks (Q-TD-127)
+    assert flip.tick == 1216
     assert (ended.result, ended.winner, ended.tick) == ("VICTORY", "COALITION", flip.tick)
     assert events.index(flip) < events.index(ended)  # the flip, then the end, in one tick
     assert ended.nodes_held_pct == 38  # 3 of 8, 37.5 half up
@@ -671,7 +677,7 @@ def test_format_12_snapshots_are_refused() -> None:
     raw["v"] = 12
     with pytest.raises(ValueError, match="unsupported snapshot format version 12"):
         load(msgpack.packb(raw, use_bin_type=True))
-    assert world_mod.FORMAT_VERSION == 36
+    assert world_mod.FORMAT_VERSION == 39
 
 
 @pytest.mark.parametrize(

@@ -5,11 +5,10 @@
 fractional cost, a missing field are the schema's), then here against the balance profile and the
 unit catalog: ids unique; a `director.op_priority` for every operation and none for another; exactly
 one of `jobs` and `effect`; a cost within the envelope, as an operation above it could never run
-(at most the largest tier budget; with `economy.legacy_rules` false, ECONOMY §4: at most
-`director.spend_frac.bravo` x the largest storage the side could hold, `economy.storage.floor` plus
-`storage.per_node` of every theater node); units that are ENEMY movers, bought within
-`director.max_spawns_per_window`; a selector and a precondition that suit the target and the job
-kind. That a unit kind fits its job kind is checked once the kernel rules exist
+(ECONOMY §4: at most floor(`director.spend_frac.bravo` x the largest storage the side could hold,
+`economy.storage.floor` plus `storage.per_node` of every theater node)); units that are ENEMY
+movers, bought within `director.max_spawns_per_window`; a selector and a precondition that suit the
+target and the job kind. That a unit kind fits its job kind is checked once the kernel rules exist
 (`nexus.core.operations.misfits`). The result is in id order, so file order changes nothing.
 """
 
@@ -114,9 +113,6 @@ def _job_problems(op: Operation, where: str, job: JobConfig, enemy: set[str]) ->
 def _envelope(balance: BalanceConfig, theater: TheaterConfig) -> tuple[int, str]:
     """The highest cost an operation may have, and what it is (module docstring)."""
     d, eco = balance.director, balance.economy
-    if eco.legacy_rules:
-        budget = max(d.budget.pattern_of_life, d.budget.alpha, d.budget.bravo)
-        return budget, f"the largest tier budget {budget}"
     per_node = eco.storage.per_node.model_dump()
     storage = eco.storage.floor + sum(per_node.get(n.kind, 0) for n in theater.nodes)
     envelope = math.floor(Fraction(repr(d.spend_frac.bravo)) * storage)

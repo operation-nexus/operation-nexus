@@ -20,6 +20,7 @@ from typing import Any
 
 import msgpack
 import pytest
+from fixture_pre_5b import pre_5b_config
 from hypothesis import given, settings
 from hypothesis import strategies as st
 from pydantic import BaseModel, TypeAdapter
@@ -68,10 +69,10 @@ from nexus.core.world import (
     state_hash,
     to_canonical,
 )
-from nexus.runtime.campaign_config import load_campaign_config, start_campaign
+from nexus.runtime.campaign_config import start_campaign
 from nexus.runtime.golden import shipped_config
 
-CONFIG = load_campaign_config()
+CONFIG = pre_5b_config()  # written against the rules before NX-412 part 5b
 _shipped = CONFIG.rules.tasking
 if _shipped is None:
     raise AssertionError("the shipped config has tasking rules")
@@ -259,7 +260,8 @@ def test_a_starving_or_damaged_base_keeps_its_urgency_and_outranks_stocking() ->
     assert resupplies(w) == {"fob-n-w": (1600, 3), "fob-s-w": (750, 1)}
     w = stocked(fob_n_w=700, fob_s_w=700)
     hurt_facility(w, "fob-n-w", 75)  # half its hp: 1.5 beats the 0.75 it also has as stocking
-    truck = put(w, "LOGI_TRUCK", "west-airbase", AI, cargo=100)
+    # at haven: at west-airbase, with room, it would take only that base's job (Q-SIM-130)
+    truck = put(w, "LOGI_TRUCK", "haven", AI, cargo=100)
     board_pass(w)
     assert resupplies(w) == {"fob-n-w": (1500, 3), "fob-s-w": (750, 1)}  # damaged: sized to max
     (claimed,) = [j for j in jobs(w) if truck.id in j.claims]
@@ -300,16 +302,19 @@ def test_stocking_urgencies_are_checked_in_thousandths_at_load(keys: dict[str, f
 
 def test_priority_is_base_times_urgency_plus_exact_aging() -> None:
     job = Job(1, "DEFEND", "k", 2, 1500, 0, node="west-airbase")
-    assert priority(TR, job, 0) == 90
-    assert priority(TR, job, 600) == 91  # one game minute (TB-3)
-    assert priority(TR, job, 1) == 90 + Fraction(1, 600)
+    assert priority(TR, job, 0, side="COALITION") == 90
+    assert priority(TR, job, 600, side="COALITION") == 91  # one game minute (TB-3)
+    assert priority(TR, job, 1, side="COALITION") == 90 + Fraction(1, 600)
 
 
 def test_an_old_low_priority_job_overtakes_a_fresh_high_one() -> None:
     old = Job(1, "SCOUT", "a", 1, 1000, 0, blob="1-1", pos=Vec2(0, 0))
     for minutes, first in ((31, 1), (29, 2)):  # the scout has waited 30 + minutes > 60, or not
         fresh = Job(2, "DEFEND", "b", 2, 1000, 600 * minutes, node="west-airbase")
-        assert next(j.id for j in rank(TR, [old, fresh], 600 * minutes, None)) == first
+        assert (
+            next(j.id for j in rank(TR, [old, fresh], 600 * minutes, None, side="COALITION"))
+            == first
+        )
 
 
 def test_defend_needs_a_tracked_ground_threat_or_a_bar_against_the_node() -> None:
@@ -1633,10 +1638,14 @@ def test_ties_are_broken_by_the_tasking_stream_and_only_that_stream() -> None:
     a = Job(1, "DEFEND", "a", 2, 1000, 0, node="fob-n-w")
     b = Job(2, "DEFEND", "b", 2, 1000, 0, node="fob-s-w")
     firsts = {
-        rank(TR, [a, b], 0, SimRng(seed).stream(RngStream.TASKING))[0].id for seed in range(40)
+        rank(TR, [a, b], 0, SimRng(seed).stream(RngStream.TASKING), side="COALITION")[0].id
+        for seed in range(40)
     }
     assert firsts == {1, 2}  # the draw decides
-    same = [rank(TR, [a, b], 0, SimRng(7).stream(RngStream.TASKING))[0].id for _ in range(2)]
+    same = [
+        rank(TR, [a, b], 0, SimRng(7).stream(RngStream.TASKING), side="COALITION")[0].id
+        for _ in range(2)
+    ]
     assert same[0] == same[1]
     w = new_world()
     post(w, "COALITION", "DEFEND", "fob-n-w", "x")

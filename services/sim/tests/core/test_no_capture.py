@@ -9,7 +9,6 @@ hold 1,500 above their floors; a limited Static's pool starts at 8,000, rear sha
 """
 
 from test_economy_rules import (
-    LEGACY_LIMITED,
     NEW,
     NEW_LIMITED,
     NEW_UNLIMITED,
@@ -134,14 +133,6 @@ def test_budget_below_the_cheapest_capture_with_the_floor_due() -> None:
     assert reason(w) == "budget"
 
 
-def test_budget_under_legacy_rules_which_have_no_floor() -> None:
-    # 1,500 surplus would pay OFFENSIVE, but legacy rules have no floor: the budget is all
-    w = world(LEGACY_LIMITED)
-    floor_window(w, 10, spend=30)
-    assert no_capture(w)
-    assert reason(w) == "budget"
-
-
 def test_floor_not_due_the_budget_is_short_but_the_floor_would_pay() -> None:
     # 9 windows: 30 points buy PROBE and RECON; 1,500 surplus would let the floor pay 60
     w = world(NEW_UNLIMITED)
@@ -222,7 +213,7 @@ def test_other_the_live_guard_has_no_room() -> None:
 
 def test_the_helper_changes_nothing() -> None:
     # no state, no RNG draw: the saved world is byte-identical after each reason's scene
-    scenes = [world(NEW_UNLIMITED), world(LEGACY_LIMITED), world(NEW_LIMITED)]
+    scenes = [world(NEW_UNLIMITED), world(NEW_LIMITED)]
     for w in scenes:
         floor_window(w, 9, spend=100)
         before = save(w)

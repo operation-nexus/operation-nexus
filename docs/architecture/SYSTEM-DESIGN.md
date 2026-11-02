@@ -121,7 +121,7 @@ If the tick runs late, it catches up by up to 3 steps and then records a `tick_o
 Per tick, `broadcast` builds a **redacted coalition view**. Fog-of-war filtering happens server-side, so hidden data never leaves the process. It then diffs that view against the last view acknowledged per client, and sends `Delta{tick, upserts, removes, events}`. Clients get a full `Snapshot` on connect or resync. Each client's send queue is capped, and a client that falls behind gets dropped and must resync.
 
 ### 5.4 Threat Director
-The director runs inside `core`, so it is deterministic. It sees only the **enemy-side fog-of-war view** (SEC fairness rule from C22). Every 60 s of sim time it evaluates smoothed coalition power and moves between tiers with hysteresis. It spends a tier budget on rule-defined operations. Its threat memory (convoy attacks, for example) is a set of decaying counters. Optional LLM advisor: see THREAT-DIRECTOR §Advisor.
+The director runs inside `core`, so it is deterministic. It sees only the **enemy-side fog-of-war view** (SEC fairness rule from C22). Every 60 s of sim time it evaluates smoothed coalition power and moves between tiers with hysteresis. It spends a window budget, a share of its bases' surplus stock (ECONOMY EC-7), on rule-defined operations. Its threat memory (convoy attacks, for example) is a set of decaying counters. Optional LLM advisor: see THREAT-DIRECTOR §Advisor.
 
 ### 5.5 Persistence & recovery
 - **Live state** lives in memory, inside the sim process.

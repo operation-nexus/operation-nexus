@@ -75,6 +75,7 @@ OVERRIDES: dict[str, dict[str, float]] = {
     "overnight-0": {
         "director.pol.offensive_period_s": 1800,
         "director.pol.convoy_period_s": 1800,
+        "director.pol.convoy_demand_s": 1800,  # = the period: LC-2 off (NX-473, Q-TD-113)
         "campaign.night_progress_cap_nodes_per_h": 1.0,
     }
 }

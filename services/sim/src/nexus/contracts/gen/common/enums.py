@@ -201,7 +201,15 @@ type RejectReason = Annotated[
 type SpawnRefusedReason = Annotated[
     Literal["GUARD", "TIER_CAP"],
     Field(
-        description="Which live-unit cap refused a Director operation (ECONOMY EC-8, NX-412 part 5a): GUARD = sim.max_live_units_per_side (economy.legacy_rules false); TIER_CAP = director.max_live_units.<tier> (economy.legacy_rules true, temporary)."
+        description="Which live-unit cap refused a Director operation (ECONOMY EC-8, NX-412 part 5a): GUARD = sim.max_live_units_per_side. TIER_CAP was the per-tier live cap, deleted in NX-488: no longer emitted, kept so event logs recorded before it still parse."
+    ),
+]
+
+
+type VictoryHoldPauseReason = Annotated[
+    Literal["CAPTURE_BAR", "DEFENSES_DOWN", "CAPTURE_OP"],
+    Field(
+        description="Why a running victory hold is paused (ECONOMY EC-9b, NX-466): CAPTURE_BAR = the other side has a capture bar on a hold node; DEFENSES_DOWN = a hold node is in World.defense_down; CAPTURE_OP = a claimant of the other side's CAPTURE job on a hold node is within tasking.defend_radius_m. The first that holds, in that order."
     ),
 ]
 
@@ -231,6 +239,9 @@ type EventKind = Annotated[
         "UnitUngrounded",
         "VictoryHoldStarted",
         "VictoryHoldBroken",
+        "VictoryHoldReset",
+        "VictoryHoldPaused",
+        "VictoryHoldResumed",
         "SpawnRefused",
     ],
     Field(description="Grows one kind at a time, with each producer (rule 6a)."),

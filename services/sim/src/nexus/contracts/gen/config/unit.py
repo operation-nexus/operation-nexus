@@ -51,6 +51,12 @@ class UnitConfig(BaseModel):
             description="BASE = a facility, whose side follows its base (Q-GP-25). Friend/foe colors come from the side at runtime, never from the catalog (OV-2)."
         ),
     ]
+    mirrors: Annotated[
+        enums.UnitKind | None,
+        Field(
+            description="The COALITION kind this ENEMY kind mirrors for cost parity (ECONOMY EC-3, NX-494, Q-TD-130): with economy.cost_parity true the config loader refuses a pair whose logistics.loadout_cost, economy.upkeep or economy.upkeep_period differ. Absent = unpaired. ENEMY kinds only, the target a COALITION kind of the same domain, at most one enemy kind per target (loader)."
+        ),
+    ] = None
     domain: enums.Domain
     playable_by: Annotated[
         list[Literal["VIEWER", "AI_GARRISON", "DIRECTOR"]],

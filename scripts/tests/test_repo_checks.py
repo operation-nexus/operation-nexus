@@ -11,7 +11,10 @@ import tempfile
 
 sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), ".."))
 
-from check_commit_msg import problems  # noqa: E402  (path set up above)
+from changed_tests import plan  # noqa: E402  (path set up above)
+from check_commit_msg import problems  # noqa: E402
+from check_pr_body import main as body_main  # noqa: E402
+from check_pr_body import problems as body_problems  # noqa: E402
 from check_contracts_compat import breaking_changes  # noqa: E402
 from check_contracts_compat import main as compat_main  # noqa: E402
 from gen_config_reference import problems as registry_problems  # noqa: E402
@@ -19,6 +22,8 @@ from gen_config_reference import render as registry_render  # noqa: E402
 from check_osv_report import findings, main  # noqa: E402
 from check_site import page_problems, site_problems  # noqa: E402
 from check_tracked_files import violations  # noqa: E402
+from spec_section import main as spec_section_main  # noqa: E402
+from spec_section import section as spec_section  # noqa: E402
 
 AI = "Cl" + "aude"  # kept out of the literal so a name scan of this file stays clean
 
@@ -31,10 +36,24 @@ def test_commit_msg():
     assert problems(["Revert \"feat(sim): x\""]) == []
     assert problems(["# only a comment", ""]) == ["commit message is empty"]
     assert len(problems(["added stuff"])) == 1
-    # Attribution trailers and footers are allowed (AGENTS.md rule 12, owner 2026-10-23).
-    assert problems(["feat: x", "", f"Co-Authored-By: {AI} <noreply@example.com>"]) == []
-    assert problems(["feat: x", "", f"Generated with [{AI} Code](https://example.com)"]) == []
+    # No AI attribution trailers or footers (AGENTS.md rule 12, owner 2026-11-01, Q-DEV-36).
+    assert len(problems(["feat: x", "", f"Co-Authored-By: {AI} Opus <noreply@anthropic.com>"])) == 1
+    assert len(problems(["feat: x", "", "Co-Authored-By: Copilot <1+Copilot@users.noreply.github.com>"])) == 1
+    assert len(problems(["feat: x", "", "Co-authored-by: Copilot <copilot@github.com>"])) == 1
+    assert len(problems(["feat: x", "", f"\U0001f916 Generated with [{AI} Code](https://example.com)"])) == 1
+    assert problems(["feat: x", "", "Co-authored-by: Dev <dev+copilot@github.com>"]) == []
+    assert problems(["feat: x", "", "Co-authored-by: Ann <ann@anthropic.com.example.org>"]) == []
+    assert problems(["feat: x", "", "Co-authored-by: Alex <alex@openai.com>"]) == []  # a human there
+    assert problems(["feat: x", "", "Release-Session: 42"]) == []  # not an AI tool
+    assert len(problems(["feat: x", "", "Co-authored-by: Codex <noreply@openai.com>"])) == 1
+    assert len(problems(["feat: x", "", "Co-authored-by: Codex <codex@openai.com>"])) == 1
+    assert len(problems(["feat: x", "", "Co-authored-by: Codex <9+codex@users.noreply.github.com>"])) == 1
+    assert len(problems(["feat: x", "", "Co-authored-by: Codex <9+codex[bot]@users.noreply.github.com>"])) == 1
+    assert problems(["feat: x", "", f"Co-Authored-By: {AI} Smith <{AI.lower()}.smith@example.com>"]) == []
+    assert len(problems(["feat: x", "", f"{AI}-Session: https://example.com/s"])) == 1
+    assert len(problems(["feat: x", "", f"Generated with [{AI} Code](https://example.com)"])) == 1
     assert problems(["feat: x", "", "Co-Authored-By: Sam Lee <sam@example.com>"]) == []
+    assert problems([f"feat(tools): {AI} model ids in the gateway (NX-1)"]) == []  # subject: a topic
 
 
 def test_tracked_files():
@@ -275,6 +294,78 @@ def test_format_hook():
         shutil.rmtree(outside_dir)
 
 
+def test_pr_body():
+    ok = "## Summary\nx\n\n## Traceability\n- Tracker: NX-415\n\n## Checklist\n- [x] a\n"
+    assert body_problems(ok) == []
+    assert body_problems(ok.replace("## Checklist", "## Done")) == ["missing section heading: ## Checklist"]
+    assert body_problems(ok.replace("NX-415", "NX-41")) == ["no tracker ID (NX-###) in the body"]
+    (bad,) = body_problems(ok + "- Spec section: docs/specs/___.md\n")
+    assert body_problems(ok + "- the lint rejects a `___` placeholder\n") == []  # inline code documents it
+    assert bad.startswith("template placeholder left in")
+    with tempfile.TemporaryDirectory() as tmp:
+        path = os.path.join(tmp, "body.md")
+        with open(path, "w") as f:
+            f.write(ok)
+        assert body_main([path]) == 0
+        with open(path, "w") as f:
+            f.write("nothing")
+        with contextlib.redirect_stderr(io.StringIO()):
+            assert body_main([path]) == 1
+            assert body_main([os.path.join(tmp, "gone.md")]) == 2
+
+
+def test_changed_tests():
+    dirs = {"core", "golden", "runtime", "tools"}
+    assert plan([], dirs) == []
+    assert plan(["README.md"], dirs) == []
+    assert plan(["services/sim/src/nexus/core/a.py"], dirs) == [
+        "py services/sim/src/nexus/core/a.py", "pytest tests/core", "pytest tests/golden"]
+    assert plan(["services/sim/src/nexus/runtime/a.py"], dirs)[1:] == ["pytest tests/runtime"]
+    assert plan(["services/sim/src/nexus/obs/a.py"], dirs)[1:] == ["pytest tests/core"]  # no tests/obs dir
+    assert plan(["tools/balance/b.py"], dirs)[1:] == ["pytest tests/tools"]
+    assert plan(["scripts/x.py"], dirs) == ["run python3 scripts/tests/test_repo_checks.py"]  # scripts/ is not ruffed
+    assert plan(["services/sim/tests/core/test_x.py"], dirs) == [
+        "py services/sim/tests/core/test_x.py", "pytest tests/core/test_x.py"]  # a changed test runs itself
+    gone = "services/sim/src/nexus/core/a.py"
+    assert plan([gone], dirs, frozenset({gone})) == ["pytest tests/core", "pytest tests/golden"]  # deleted: its tests run
+    gone_test = "services/sim/tests/core/test_x.py"
+    assert plan([gone_test], dirs, frozenset({gone_test})) == []  # a deleted test is not run
+
+
+def test_spec_section():
+    doc = ["# Spec", "## 1. Purpose", "p", "## 3. Requirements", "### SC-1 Step (Q-SIM-3)", "a", "```", "## not a heading",
+           "```", "### Movement", "b", "#### Detail", "c", "## 4. World", "w"]
+    assert spec_section(doc, "3") == doc[3:13]  # up to the next heading of the same level, past a fenced "##"
+    assert spec_section(doc, "3.") == spec_section(doc, "requirements") == doc[3:13]
+    assert spec_section(doc, "SC-1") == spec_section(doc, "step") == doc[4:9]  # the trailing citation is optional
+    assert spec_section(doc, "movement") == doc[9:13]  # a deeper heading stays in the body
+    assert spec_section(doc, "4") == doc[13:]  # the last section runs to the end
+    assert spec_section(doc, "3.2") is None
+    assert spec_section(doc, "Boards") is None  # a title matches whole, not by its second word
+    tilde = ["## 1. Req", "~~~~", "## 2. inside", "~~~", "still inside", "~~~~", "x", "## 2. Next"]
+    assert spec_section(tilde, "1") == tilde[:7]  # a tilde fence closes only on a matching marker at least as long
+    cited = ["## Logistics (Q-SIM-4)", "l", "## Other"]
+    assert spec_section(cited, "logistics") == cited[:2]  # citation optional without a number too
+    plain = ["## Logistics (air)", "a", "## Logistics", "b"]
+    assert spec_section(plain, "logistics") == plain[2:]  # a non-citation parenthetical stays part of the title
+    with tempfile.TemporaryDirectory() as tmp:
+        path = os.path.join(tmp, "spec.md")
+        with open(path, "w") as f:
+            f.write("\n".join(doc))
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            assert spec_section_main([path, "SC-1"]) == 0
+        assert out.getvalue() == "### SC-1 Step (Q-SIM-3)\na\n```\n## not a heading\n```\n"
+        with contextlib.redirect_stderr(io.StringIO()) as err:
+            assert spec_section_main([path, "9"]) == 1
+            assert "no section '9'" in err.getvalue()
+            assert spec_section_main([os.path.join(tmp, "gone.md"), "1"]) == 2
+            bad = os.path.join(tmp, "latin1.md")
+            with open(bad, "wb") as f:
+                f.write(b"# Sp\xe9c\n")
+            assert spec_section_main([bad, "1"]) == 2  # not UTF-8: an unreadable file, not a traceback
+
+
 if __name__ == "__main__":
     test_commit_msg()
     test_tracked_files()
@@ -283,4 +374,7 @@ if __name__ == "__main__":
     test_contracts_compat()
     test_config_registry()
     test_format_hook()
+    test_pr_body()
+    test_changed_tests()
+    test_spec_section()
     print("ok")

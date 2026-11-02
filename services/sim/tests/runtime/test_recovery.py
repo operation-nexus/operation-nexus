@@ -328,6 +328,19 @@ def test_restore_refuses_a_director_state_the_clock_could_not_have_made(
         restore(rig.snaps, rig.logs, handlers=STUB, rules=load_campaign_config().rules)
 
 
+def test_restore_refuses_a_snapshot_whose_pools_do_not_match_the_limited_sides(
+    tmp_path: Path, make_rig: MakeRig
+) -> None:
+    # A save made with the Static unlimited (no ENEMY pool), restored under the shipped rules
+    # (both sides limited, NX-412 part 5b): the first economy window would read a missing pool.
+    world = start_campaign(CAMPAIGN_ID, 12345)
+    del world.pool["ENEMY"], world.storage["ENEMY"]
+    rig = make_rig(tmp_path, world=world)
+    rig.run_to(310)
+    with pytest.raises(ValueError, match=r"economy: .*\['COALITION'\].*\['COALITION', 'ENEMY'\]"):
+        restore(rig.snaps, rig.logs, handlers=STUB, rules=load_campaign_config().rules)
+
+
 def test_system_bug_halts_after_three_crashes(
     tmp_path: Path, make_rig: MakeRig, monkeypatch: pytest.MonkeyPatch
 ) -> None:

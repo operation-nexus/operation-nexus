@@ -1,7 +1,8 @@
 """Load a campaign's static config in one place (SIM-CORE §4; CONFIG-AND-CONTENT §4.4; NX-122).
 
 Balance (NX-106), the unit catalog (NX-367) and the theater (NX-120) come from the existing
-loaders; this module only joins them: the parts, their `config_hash` and the kernel's `Rules`.
+loaders; this module only joins them: the parts, their `config_hash` and the kernel's `Rules`,
+plus the checks that span parts (EC-11 coalition floor, EC-3 cost parity).
 `start_campaign` builds a new campaign's world from them (STATE-MACHINES §4.4 Setup), with the
 theater's facilities placed (Q-GP-25).
 Paths default to the shipped files, found from this file, not the working directory.
@@ -82,6 +83,10 @@ def load_campaign_config(paths: ConfigPaths | None = None) -> CampaignConfig:
     mask_cell_m, masking = masking_cells(theater, balance.fow.mask_cell_m)
     roads = road_graph(theater)
     cc = balance.campaign
+    window = game_ticks(balance.economy.window_s, balance)
+    # LC-1 (NX-473): the AI truck period, rounded up to whole economy windows
+    ai_truck_ticks = -(-game_ticks(balance.logistics.ai_trucks.period_s, balance) // window)
+    ai_truck_ticks *= window
     rules = make_rules(
         balance.sim,
         catalog.units,
@@ -107,7 +112,9 @@ def load_campaign_config(paths: ConfigPaths | None = None) -> CampaignConfig:
             victory_hold_ticks=game_ticks(cc.victory_hold_min, balance, unit_s=60),
             defeat_hold_ticks=game_ticks(cc.defeat.hold_min, balance, unit_s=60),
             objective_period_ticks=game_ticks(cc.objective_period_min, balance, unit_s=60),
+            decay_slow_ticks=game_ticks(cc.victory.decay_slow_min, balance, unit_s=60),
             uncapturable=balance.capture.uncapturable_node_kinds,
+            sanctuary_max_hp=balance.capture.defense_hp.SANCTUARY,
         ),
         combat=combat_rules(
             balance.combat,
@@ -133,6 +140,7 @@ def load_campaign_config(paths: ConfigPaths | None = None) -> CampaignConfig:
             threat_memory_ticks=world_ticks(balance.tasking.escort_threat_memory_s, balance),
             patrol_dwell_ticks=game_ticks(balance.tasking.patrol_dwell_s, balance),
             order_dwell_ticks=game_ticks(balance.tasking.order_dwell_s, balance),
+            retake_keep_ticks=game_ticks(balance.tasking.retake_keep_min, balance, unit_s=60),
         ),
         director=director_rules(
             balance.director,
@@ -151,6 +159,7 @@ def load_campaign_config(paths: ConfigPaths | None = None) -> CampaignConfig:
             operations=operations,
             patrol_ticks=game_ticks(balance.director.pol.patrol_period_s, balance),
             convoy_ticks=game_ticks(balance.director.pol.convoy_period_s, balance),
+            convoy_demand_ticks=game_ticks(balance.director.pol.convoy_demand_s, balance),
             offensive_ticks=game_ticks(balance.director.pol.offensive_period_s, balance),
             recon_loiter_ticks=game_ticks(balance.director.recon.loiter_s, balance),
             recon_memory_ticks=game_ticks(balance.director.recon.memory_s, balance),
@@ -164,15 +173,22 @@ def load_campaign_config(paths: ConfigPaths | None = None) -> CampaignConfig:
         ),
         economy=economy_rules(
             balance.economy,
-            window_ticks=game_ticks(balance.economy.window_s, balance),
+            window_ticks=window,
             max_live_per_side=balance.sim.max_live_units_per_side,
         ),
+        ai_truck_period_ticks=ai_truck_ticks,
     )
     if misfits := fit_problems(rules):
         raise ConfigError(f"{paths.operations}: " + "; ".join(misfits))
     quota = {n.id: n.garrison_quota for n in theater.nodes if n.start_owner == "COALITION"}
     if short := coalition_floor_problem(rules, {n: q for n, q in quota.items() if q}):
         raise ConfigError(f"{paths.balance}: {short}")
+    if uneven := cost_parity_problems(balance, catalog):
+        raise ConfigError(
+            f"{paths.balance}: economy.cost_parity is true and mirrored kinds differ (ECONOMY "
+            f"EC-3): {'; '.join(uneven)}; set both kinds of a pair to one value, or set "
+            "economy.cost_parity false for a one-sided cut"
+        )
     return CampaignConfig(balance, catalog, theater, digest, rules)
 
 
@@ -183,10 +199,10 @@ def coalition_floor_problem(rules: Rules, garrison_quota: Mapping[str, int]) -> 
     `economy.floor_viewer_units` units at the dearest upkeep of a viewer-playable kind (the roles'),
     each at its per-window rate `economy.upkeep` / `economy.upkeep_period` (NX-426, Q-TD-52 D1),
     summed exactly.
-    Checked only with `economy.legacy_rules` false and the coalition not unlimited (EC-15). None
+    Checked only with the coalition not unlimited (EC-15). None
     when it pays; otherwise the shortfall."""
     eco, dr = rules.economy, rules.director
-    if eco is None or eco.legacy or "COALITION" not in eco.limited:
+    if eco is None or "COALITION" not in eco.limited:
         return None
     by_node_kind = dr.garrison_kinds if dr is not None else {}  # no director: hand-built rules
     garrison = Fraction(0)
@@ -203,6 +219,27 @@ def coalition_floor_problem(rules: Rules, garrison_quota: Mapping[str, int]) -> 
         f"economy.floor_viewer_units {eco.floor_viewer_units} x {viewer} upkeep "
         f"{eco.rate(viewer)} = {need} per window (upkeep / economy.upkeep_period, exact)"
     )
+
+
+def cost_parity_problems(balance: BalanceConfig, catalog: UnitCatalog) -> list[str]:
+    """ECONOMY EC-3 cost parity (NX-494): with `economy.cost_parity` true, each `mirrors` pair of
+    the catalog must have the same `logistics.loadout_cost`, `economy.upkeep` and
+    `economy.upkeep_period`. Checks only, never copies; one line per differing value, in kind and
+    table order. Empty with the switch false."""
+    if not balance.economy.cost_parity:
+        return []
+    tables = (
+        ("logistics.loadout_cost", balance.logistics.loadout_cost.model_dump()),
+        ("economy.upkeep", balance.economy.upkeep.model_dump()),
+        ("economy.upkeep_period", balance.economy.upkeep_period.model_dump()),
+    )
+    return [
+        f"{key}.{u.kind} {table[u.kind]} != {key}.{u.mirrors} {table[u.mirrors]}"
+        for u in catalog.units
+        if u.mirrors is not None
+        for key, table in tables
+        if table[u.kind] != table[u.mirrors]
+    ]
 
 
 def start_campaign(campaign_id: str, seed: int, config: CampaignConfig | None = None) -> World:

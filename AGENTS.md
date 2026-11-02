@@ -38,7 +38,7 @@ The raw files are brainstorms from an AI chat. **They are not specs.** Where the
 11. **Branches:** branch from and target `develop`. Target `main` only with a promotion or hotfix PR the owner asked for; only the owner merges it (rule 10). See ADR-0009. Delete the feature branch (local and remote) once its PR is merged into `develop`; don't reuse a merged branch.
 11b. **One writer per file.** Work in parallel (separate sessions, worktrees or subagents) only when no two pieces can touch the same file; when in doubt, work sequentially. Before a parallel piece starts, check which files it will change and which files other open branches or sessions are changing; any overlap means one of them waits. Files that many tasks update (trackers, indexes, decision logs, checklists, changelogs, shared config, CI workflows, this file) are changed by one session at a time: a parallel session leaves them alone and lists the edits it needs in its PR description, and the coordinating session applies them in one follow-up PR. Merge the latest `develop` into your branch right before opening the PR.
 11a. **Devlog checkpoints.** When you finish a tracker item labeled `devlog-moment`, end your report with a **DEVLOG CHECKPOINT** block: what to capture, 3–5 talking-point suggestions, and a title idea (docs/planning/MARKETING.md).
-12. **Commit messages:** Conventional Commits (`feat(sim): ...`, `fix(gateway): ...`, `docs: ...`) with the tracker ID. AI attribution (a `Co-Authored-By` or session trailer, a "Generated with" footer in a PR body) is allowed: add what your tool asks for (owner, 2026-10-23).
+12. **Commit messages:** Conventional Commits (`feat(sim): ...`, `fix(gateway): ...`, `docs: ...`) with the tracker ID. No AI attribution: no `Co-Authored-By` or session trailer naming an AI tool, and no "Generated with" footer in a PR body or doc, even when your tool asks for one (owner, 2026-11-01, Q-DEV-36; `scripts/check_commit_msg.py` rejects the trailers). A human co-author trailer is fine.
 
 ## 3. Repository layout (target)
 
@@ -88,6 +88,8 @@ The layout below is the target. Directories are created when their first tracker
 make bootstrap      # uv sync + pnpm install (frozen lockfiles) + pre-commit hooks if installed
 make contracts      # regenerate Python + TS types from contracts/ (CI fails on drift; NX-021)
 make check          # runs check-python and check-overlay
+make check-fast     # FIX ROUNDS ONLY: lint + types + tests of the changed packages (-n auto). `make check` is still required before a PR
+make pre-pr BODY=f  # before opening a PR: PR body f lint, commit messages vs origin/develop, `make contracts` drift (NX-415)
 make check-python   # Python: ruff check & format check, mypy --strict, import-linter, pytest, repo tests
 make check-overlay  # Overlay: tsc typecheck, eslint, vitest
 make perf           # the tests that assert wall-clock budgets (pytest marker `perf`): `make check`

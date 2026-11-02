@@ -3,7 +3,8 @@ EC-10 steps 1-2, EC-15).
 
 Each side's source (its SANCTUARY, `Supply.rear`) holds a finite whole-unit pool in
 `World.pool`, unless the side runs in unlimited mode (`economy.unlimited.<side>`): a side absent
-from `World.pool` has the infinite source of before NX-412, so the snapshot names the mode.
+from `World.pool` has the infinite source of before NX-412, so the snapshot names the mode, and
+a restore refuses pools that do not match the rules' limited sides (`validate`).
 Every `economy.window_s` running ticks, before the director window in the same tick (EC-10):
 
 1. Income: the pool gains `income.floor` plus `income.per_node.<kind>` for each node the side
@@ -59,6 +60,19 @@ def start(world: World) -> None:
         world.storage[side] = world.pool[side] = storage_cap(world, rules, er, side)
 
 
+def validate(world: World, rules: Rules) -> None:
+    """Check a restored world's source pools against the campaign rules (a snapshot carries
+    none); raises ValueError. Each limited side has a pool and no other side does, so a save made
+    under other `economy.unlimited.<side>` values never restores into a side with no pool."""
+    er = rules.economy
+    limited = set(er.limited) if er else set()
+    if set(world.pool) != limited:
+        raise ValueError(
+            f"economy: the snapshot's source pools {sorted(world.pool)} do not match the rules' "
+            f"limited sides {sorted(limited)}"
+        )
+
+
 def due(world: World) -> tuple[Rules, EconomyRules] | None:
     """The rules when this tick is an economy window (every `window_ticks`-th running tick); None
     otherwise, without economy rules, or while frozen (SC-11)."""
@@ -109,12 +123,15 @@ def source_stock(world: World, node: str) -> int | None:
     return None if side is None else world.pool[side]
 
 
-def guard_room(world: World, side: Side) -> int | None:
+def guard_room(world: World, side: Side) -> int:
     """EC-8 (NX-412 part 3): how many more movers (AIR and GROUND units) `side` may have live
-    under `sim.max_live_units_per_side`; None under `economy.legacy_rules`, which has no guard."""
+    under `sim.max_live_units_per_side`. The loader always builds the economy rules
+    (`campaign_config`), so a world without them is refused, never given an invented room."""
     rules = world.rules
     er = rules.economy if rules else None
-    if rules is None or er is None or er.legacy:
-        return None
+    if rules is None or er is None:
+        raise ValueError(
+            "guard_room needs the economy rules (sim.max_live_units_per_side, ECONOMY EC-8)"
+        )
     live = sum(e.side == side and rules.domain[e.kind] in MOVERS for e in world.entities())
     return er.max_live_per_side - live

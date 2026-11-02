@@ -2,45 +2,96 @@
 
 Status: Approved (owner, 2026-10-21) · Owner: — · Tracker: NX-106, NX-008, NX-031 · Related ADRs: 0002 (determinism), 0003 (persistence), 0004 (toolchain) · Policy: [DATA-INTEGRITY](../quality/DATA-INTEGRITY.md) DI-7
 
+Rules only. Narration, history, decision trails, code pointers and derived numbers: [CONFIG-AND-CONTENT-NOTES.md](CONFIG-AND-CONTENT-NOTES.md) (not normative). One section: `python3 scripts/spec_section.py docs/specs/CONFIG-AND-CONTENT.md <number or title>`.
+
 > **All numeric values in this spec are PROPOSED and unvalidated** (DI-7). They are starting points for the balance harness (NX-031), not tuned values. "TBD by harness" means we have no proposal yet and the harness must produce one before P2. A value drops its PROPOSED label only once it is harness-validated as defined in Q-TEST-2 (≥50 seeds across crowd profiles of 0, 5, 50, 150, 300 and 500 simulated viewers plus the adversarial profiles, Q-ALN-42; written targets met, a report saved with the `config_hash`). "(owner)" marks a value the owner set; it stays tunable.
 
 ## 1. Purpose
-Define every input the system reads that isn't code: runtime settings, balance tunables, and authored content (theaters, units, doctrines, word lists, sitrep templates). This includes how each is validated, hashed, versioned and reloaded, so that:
-- every campaign is reproducible from `(seed, config_hash, command_log)` (ADR-0002), and
-- no value reaches the sim through a hidden code default (DI-7).
+
+1. Define every input the system reads that isn't code: runtime settings, balance tunables, and authored content (theaters, units, doctrines, word lists, sitrep templates).
+2. This includes how each is validated, hashed, versioned and reloaded, so that:
+
+3. every campaign is reproducible from `(seed, config_hash, command_log)` (ADR-0002), and
+
+4. no value reaches the sim through a hidden code default (DI-7).
 
 ## 2. Goals / Non-goals
-- **Goals:**
-  - One schema per config kind, enforced at load and in CI.
-  - No implicit defaults.
-  - Deterministic hashing.
-  - Explicit hot-reload rules.
-  - An audit trail for every runtime change.
-- **Non-goals:**
-  - Picking the final balance values (that's the harness, NX-031).
-  - Authoring the real first theater (NX-008, Q-GD-9).
-  - The admin console UI (OPS-ADMIN).
+
+**Goals:**
+
+1. One schema per config kind, enforced at load and in CI.
+
+2. No implicit defaults.
+
+3. Deterministic hashing.
+
+4. Explicit hot-reload rules.
+
+5. An audit trail for every runtime change.
+
+**Non-goals:**
+
+6. Picking the final balance values (that's the harness, NX-031).
+
+7. Authoring the real first theater (NX-008, Q-GD-9).
+
+8. The admin console UI (OPS-ADMIN).
 
 ## 3. Requirements
-- **CFG-1** Every config kind MUST have a schema in `contracts/config/` (JSON Schema), with generated Pydantic models (ADR-0004). Unknown keys MUST be rejected (`additionalProperties: false`).
-- **CFG-2** Required keys MUST NOT have code defaults. A missing required key MUST fail startup with a message naming the key and file (DI-7). Optional keys MUST state their absent-meaning in the schema (e.g. "absent = feature off"), never a substituted value.
-- **CFG-3** Balance and content files MUST be hashed canonically (§4.4). The resulting `config_hash` MUST be stored on the campaign record and in every snapshot and replay header.
-- **CFG-4** Values that affect sim state MUST NOT change mid-campaign except through a logged `STAFF_CONFIG_RELOAD` command (CONTRACTS §5.2) applied at a tick boundary, and only for keys marked hot-reloadable (§5). Replays MUST reproduce the reload.
-- **CFG-5** Every balance key MUST carry its unit in the schema (`x-unit` annotation; `x-hot-reload` carries the §6 HR column) and in this spec. Each key also carries six registry fields (Q-CFG-15, Q-CFG-17..22): `x-category`, `x-audience`, `x-edit-role`, `x-tune`, `x-source` and `x-status`; `scripts/gen_config_reference.py` checks them in `make contracts` and writes [CONFIG-REFERENCE](CONFIG-REFERENCE.md). All rates are per second of **world** time (CFG-9) unless the unit says otherwise (SIM-CORE SC-2).
-- **CFG-6** Content cross-references (unit kinds in theaters, doctrine perks naming unit kinds, template slots) MUST be validated at load and in CI (§8).
-- **CFG-7** Secrets MUST NOT appear in any config file. Config refers to secrets by name only (`secret_ref`), and the values come from the environment / secret store (THREAT-MODEL SEC-CI, CICD §8).
-- **CFG-8** All user-visible authored text (node names, callsign words, sitrep templates) MUST pass the moderation denylist in CI (SEC-MOD-1).
-- **CFG-9 Clocks (Q-CFG-8, Q-ALN-1, Q-ALN-4, Q-ALN-5, Q-ALN-6, Q-ALN-23, Q-ALN-35, Q-ALN-38):** every time-valued key MUST name one of three clocks in its schema `x-unit` annotation and in this spec (`s (world)`, `min (game)`, `s (real)`, ...).
-  - **World time** (`world`) is sim ticks scaled by `sim.time_scale`: while the campaign runs, 1 real second = `sim.time_scale` world seconds. It drives movement, logistics and combat (speeds, fuel, logistics and repair rates, weapon reload), plus capture progress and decay, bridge repair, the FoW sensor refresh and track fade (FOG-OF-WAR FOW-9) (Q-ALN-23). The Tier 1 sensor refresh is expressed in world time so its real cadence stays about 8–10 s: PROPOSED ~48–60 s world at `sim.time_scale` 6 (Q-ALN-38). Deterministic; frozen while paused.
-  - **Game time** (`game`) is unscaled sim ticks: while the campaign runs, 1 game minute = 1 real minute. It drives player-facing durations: idle handoff/retire, respawn delay (Q-ALN-5), rank and doctrine ability cooldowns, campaign length, the objective period and the victory/defeat holds. Per Q-ALN-23 it also drives the Threat Director decision window, tier dwell, CP EMA, the memory and provocation half-lives, the Pattern of Life periods, the night-progress cap, the Tasking Board claim lease and priority aging, and the package fill wait (GAMEPLAY §7). (The CHARLIE warning lead time, game time per Q-ALN-35, is parked with CHARLIE, Q-TD-3.) Deterministic; frozen while paused.
-  - **Real time** (`real`) is a monotonic clock outside the sim: chat rate limits, reply digest batching, LLM/TTS budgets, reconnect backoff, the offline-pause trigger, overlay presentation, and the limits enforced before a command enters the sim: taunt naming cooldowns, GM idle auto-release, redemption cooldowns and the supply-drop hourly cap (Q-ALN-4). It keeps running while the campaign is paused.
-  - World and game time freeze for every pause reason (`PauseReasonCategory` = `STAFF`, `TECHNICAL`, `MAINTENANCE`, `CEASEFIRE`, Q-ALN-3); the offline auto-pause (§6.10) is `TECHNICAL`.
-  - Keys are written in friendly units (s, min, h) and converted to ticks once, at load, by one loader function: world keys as `ceil(seconds × sim.tick_hz / sim.time_scale)`, game keys as `ceil(seconds × sim.tick_hz)`. Rounding is always up, so a timer is never shorter than configured (Q-ALN-6). No sim code reads a seconds value directly.
-- **CFG-10 Time zones (Q-CFG-8, Q-CFG-6):** owner schedules (night mode, maintenance window) are defined as local times plus an IANA zone and converted at use, so DST is handled. Stored timestamps are UTC (DATA-MODEL DM-9).
+
+1. **CFG-1** Every config kind MUST have a schema in `contracts/config/` (JSON Schema), with generated Pydantic models (ADR-0004).
+2. Unknown keys MUST be rejected (`additionalProperties: false`).
+
+3. **CFG-2** Required keys MUST NOT have code defaults.
+4. A missing required key MUST fail startup with a message naming the key and file (DI-7).
+5. Optional keys MUST state their absent-meaning in the schema (e.g. "absent = feature off"), never a substituted value.
+
+6. **CFG-3** Balance and content files MUST be hashed canonically (§4.4).
+7. The resulting `config_hash` MUST be stored on the campaign record and in every snapshot and replay header.
+
+8. **CFG-4** Values that affect sim state MUST NOT change mid-campaign except through a logged `STAFF_CONFIG_RELOAD` command (CONTRACTS §5.2) applied at a tick boundary, and only for keys marked hot-reloadable (§5).
+9. Replays MUST reproduce the reload.
+
+10. **CFG-5** Every balance key MUST carry its unit in the schema (`x-unit` annotation; `x-hot-reload` carries the §6 HR column) and in this spec.
+11. Each key also carries six registry fields (Q-CFG-15, Q-CFG-17..22): `x-category`, `x-audience`, `x-edit-role`, `x-tune`, `x-source` and `x-status`; `scripts/gen_config_reference.py` checks them in `make contracts` and writes [CONFIG-REFERENCE](CONFIG-REFERENCE.md).
+12. All rates are per second of **world** time (CFG-9) unless the unit says otherwise (SIM-CORE SC-2).
+
+13. **CFG-6** Content cross-references (unit kinds in theaters, doctrine perks naming unit kinds, template slots) MUST be validated at load and in CI (§11.2).
+
+14. **CFG-7** Secrets MUST NOT appear in any config file.
+15. Config refers to secrets by name only (`secret_ref`), and the values come from the environment / secret store (THREAT-MODEL SEC-CI, CICD §8).
+
+16. **CFG-8** All user-visible authored text (node names, callsign words, sitrep templates) MUST pass the moderation denylist in CI (SEC-MOD-1).
+
+17. **CFG-9 Clocks (Q-CFG-8, Q-ALN-1, Q-ALN-4, Q-ALN-5, Q-ALN-6, Q-ALN-23, Q-ALN-35, Q-ALN-38):** every time-valued key MUST name one of three clocks in its schema `x-unit` annotation and in this spec (`s (world)`, `min (game)`, `s (real)`, ...).
+
+18. **World time** (`world`) is sim ticks scaled by `sim.time_scale`: while the campaign runs, 1 real second = `sim.time_scale` world seconds.
+19. It drives movement, logistics and combat (speeds, fuel, logistics and repair rates, weapon reload), plus capture progress and decay, bridge repair, the FoW sensor refresh and track fade (FOG-OF-WAR FOW-9) (Q-ALN-23).
+20. The Tier 1 sensor refresh is expressed in world time so its real cadence stays about 8–10 s: PROPOSED ~48–60 s world at `sim.time_scale` 6 (Q-ALN-38).
+21. Deterministic; frozen while paused.
+
+22. **Game time** (`game`) is unscaled sim ticks: while the campaign runs, 1 game minute = 1 real minute.
+23. It drives player-facing durations: idle handoff/retire, respawn delay (Q-ALN-5), rank and doctrine ability cooldowns, campaign length, the objective period and the victory/defeat holds.
+24. Per Q-ALN-23 it also drives the Threat Director decision window, tier dwell, CP EMA, the memory and provocation half-lives, the Pattern of Life periods, the night-progress cap, the Tasking Board claim lease and priority aging, and the package fill wait (GAMEPLAY §7).
+25. (The CHARLIE warning lead time, game time per Q-ALN-35, is parked with CHARLIE, Q-TD-3.)
+26. Deterministic; frozen while paused.
+
+27. **Real time** (`real`) is a monotonic clock outside the sim: chat rate limits, reply digest batching, LLM/TTS budgets, reconnect backoff, the offline-pause trigger, overlay presentation, and the limits enforced before a command enters the sim: taunt naming cooldowns, GM idle auto-release, redemption cooldowns and the supply-drop hourly cap (Q-ALN-4).
+28. It keeps running while the campaign is paused.
+
+29. World and game time freeze for every pause reason (`PauseReasonCategory` = `STAFF`, `TECHNICAL`, `MAINTENANCE`, `CEASEFIRE`, Q-ALN-3); the offline auto-pause (§6.10) is `TECHNICAL`.
+
+30. Keys are written in friendly units (s, min, h) and converted to ticks once, at load, by one loader function: world keys as `ceil(seconds × sim.tick_hz / sim.time_scale)`, game keys as `ceil(seconds × sim.tick_hz)`.
+31. Rounding is always up, so a timer is never shorter than configured (Q-ALN-6).
+32. No sim code reads a seconds value directly.
+
+33. **CFG-10 Time zones (Q-CFG-8, Q-CFG-6):** owner schedules (night mode, maintenance window) are defined as local times plus an IANA zone and converted at use, so DST is handled.
+34. Stored timestamps are UTC (DATA-MODEL DM-9).
 
 ## 4. Config layers
 
 ### 4.1 Overview
+
 | Layer | Location | Format | Affects sim state? | Hashed into `config_hash`? | Changes take effect |
 |---|---|---|---|---|---|
 | Runtime / app | env vars + `deploy/<env>/app.yaml` | YAML + env | No | No (logged separately as `runtime_fingerprint`) | Process restart |
@@ -48,7 +99,8 @@ Define every input the system reads that isn't code: runtime settings, balance t
 | Content | `content/theaters/*.yaml`, `content/units/*.yaml` with `content/weapons.yaml` and `content/roles.yaml` (§7a), `content/doctrines.yaml`, `content/text/*.yaml` | YAML | Yes (theater, units, doctrines); No (text) | Yes (all, text included, so replays are exact) | New campaign only |
 
 ### 4.2 Runtime / app config (not balance)
-Covers ports, bind addresses, file paths, feature flags, platform channel ids, and secret *references*.
+
+1. Covers ports, bind addresses, file paths, feature flags, platform channel ids, and secret *references*.
 
 | Key | Type | Required | Meaning |
 |---|---|---|---|
@@ -66,30 +118,60 @@ Covers ports, bind addresses, file paths, feature flags, platform channel ids, a
 | `features.<name>` | bool | per flag | Feature flags. Every flag is listed in `contracts/config/features.json` with its owner and tracker ID |
 | `log.level` | enum | yes | `debug` / `info` / `warn` / `error` |
 
-Precedence: the env var `NEXUS__SECTION__KEY` overrides the file. **Every effective value, with its source (file or env), is logged at startup**, except secrets, which are logged as `<set>` / `<missing>`.
+2. Precedence: the env var `NEXUS__SECTION__KEY` overrides the file.
+3. **Every effective value, with its source (file or env), is logged at startup**, except secrets, which are logged as `<set>` / `<missing>`.
 
 ### 4.3 Load order (startup)
-1. Read runtime config (file → env overrides) and validate it against `runtime.schema.json`. On failure, exit non-zero.
-2. Resolve `secret_ref`s from the environment or secret store. A missing required secret fails startup naming the ref, never the value.
-3. Load the balance profile and validate it.
-4. Load content: units → doctrines → theaters → text. Validate each, then run the cross-reference checks (§8.2).
-5. Compute `config_hash` (§4.4). Write a `ConfigLoaded{config_hash, balance_profile, content_versions}` audit event.
-6. Start a new campaign, or resume one. **Resume requires the stored campaign's `config_hash` to equal the loaded one.** On a mismatch, refuse and alert, unless an admin explicitly starts a new campaign (SIM-CORE §6).
+
+1) Read runtime config (file → env overrides) and validate it against `runtime.schema.json`.
+   On failure, exit non-zero.
+2) Resolve `secret_ref`s from the environment or secret store.
+   A missing required secret fails startup naming the ref, never the value.
+3) Load the balance profile and validate it.
+4) Load content: units → doctrines → theaters → text.
+   Validate each, then run the cross-reference checks (§11.2).
+5) Compute `config_hash` (§4.4).
+   Write a `ConfigLoaded{config_hash, balance_profile, content_versions}` audit event.
+6) Start a new campaign, or resume one.
+   **Resume requires the stored campaign's `config_hash` to equal the loaded one.**
+   On a mismatch, refuse and alert, unless an admin explicitly starts a new campaign (SIM-CORE §6).
 
 ### 4.4 Hashing & versioning
-- **Canonical form:** parse YAML, convert it to a JSON-compatible tree, sort keys, serialize as UTF-8 JSON with no insignificant whitespace, then compute blake2b-256 over it. Floats are serialized with Python `repr` round-trip precision. YAML anchors and aliases are expanded before hashing. The tree hashed is the schema-validated one (`model_dump()`), so `6` and `6.0` in a float key hash alike (NX-106).
-- **Strict YAML (owner, 2026-10-21):** files are parsed safe-load only (`nexus.runtime.config.StrictLoader`), with YAML 1.2 core booleans and numbers. Rejected at load, naming the file and position or key:
-  - an unquoted YAML 1.1 boolean word (`yes`, `no`, `on`, `off`, `y`, `n`, any case); only `true`/`false` are booleans, and a quoted word is a string;
-  - `.inf` and `.nan`;
-  - a key repeated in one mapping (a `<<` merge followed by an explicit key is an override, not a duplicate);
-  - YAML 1.1 number forms (hex `0x`, octal `0o` or a leading zero, `_` separators, sexagesimal `1:30`): they stay strings, which the schema then rejects for a numeric key.
-- **Bounds:** durations given to the tick conversion (CFG-9) must be finite and ≥ 0; a schema key gets a maximum only once the balance harness proposes one (NX-031).
-- **`config_hash`** = blake2b-256 over the concatenation of the canonical hashes (raw 32-byte digests), in a fixed order: `balance`, `units`, `operations`, `doctrines`, `theater` (the one selected for the campaign), `text`. Each part joins with its loader; until then the hash covers only the parts that exist (today `balance`, NX-106, `units`, NX-367, `operations`, NX-156, and `theater`, NX-120). The `operations` digest is `operations.operations_hash`: the canonical hash of the validated catalog in id order, so file order does not matter, never a placeholder for a missing part. The `units` digest is `units.catalog_hash`: the canonical hash of the validated tree `{units: [by kind], weapons: [by id], roles: {...}}`, so file order and formatting do not matter.
-- **Manifest:** every `config_hash` is registered with a manifest listing each contributing file (path, kind, sha256) plus the full content, so crash bundles and replays never depend on git (DATA-MODEL §4.7).
-- **`schema_version`:** every file carries an integer `schema_version`. A loader accepts only versions it knows. A schema bump that changes meaning requires a migration script under `tools/config_migrate/` with tests.
-- **`content_version`:** a human-facing semver per content file (e.g. a theater's `version: 1.2.0`), shown in the AAR and in replay headers. It is informational only; `config_hash` is what's authoritative.
+
+1. **Canonical form:** parse YAML, convert it to a JSON-compatible tree, sort keys, serialize as UTF-8 JSON with no insignificant whitespace, then compute blake2b-256 over it.
+2. Floats are serialized with Python `repr` round-trip precision.
+3. YAML anchors and aliases are expanded before hashing.
+4. The tree hashed is the schema-validated one (`model_dump()`), so `6` and `6.0` in a float key hash alike (NX-106).
+
+5. **Strict YAML (owner, 2026-10-21):** files are parsed safe-load only (`nexus.runtime.config.StrictLoader`), with YAML 1.2 core booleans and numbers.
+6. Rejected at load, naming the file and position or key:
+
+7. an unquoted YAML 1.1 boolean word (`yes`, `no`, `on`, `off`, `y`, `n`, any case); only `true`/`false` are booleans, and a quoted word is a string;
+
+8. `.inf` and `.nan`;
+
+9. a key repeated in one mapping (a `<<` merge followed by an explicit key is an override, not a duplicate);
+
+10. YAML 1.1 number forms (hex `0x`, octal `0o` or a leading zero, `_` separators, sexagesimal `1:30`): they stay strings, which the schema then rejects for a numeric key.
+
+11. **Bounds:** durations given to the tick conversion (CFG-9) must be finite and ≥ 0; a schema key gets a maximum only once the balance harness proposes one (NX-031).
+
+12. **`config_hash`** = blake2b-256 over the concatenation of the canonical hashes (raw 32-byte digests), in a fixed order: `balance`, `units`, `operations`, `doctrines`, `theater` (the one selected for the campaign), `text`.
+13. Each part joins with its loader; until then the hash covers only the parts that exist (today `balance`, NX-106, `units`, NX-367, `operations`, NX-156, and `theater`, NX-120).
+14. The `operations` digest is `operations.operations_hash`: the canonical hash of the validated catalog in id order, so file order does not matter, never a placeholder for a missing part.
+15. The `units` digest is `units.catalog_hash`: the canonical hash of the validated tree `{units: [by kind], weapons: [by id], roles: {...}}`, so file order and formatting do not matter.
+
+16. **Manifest:** every `config_hash` is registered with a manifest listing each contributing file (path, kind, sha256) plus the full content, so crash bundles and replays never depend on git (DATA-MODEL §4.7).
+
+17. **`schema_version`:** every file carries an integer `schema_version`.
+18. A loader accepts only versions it knows.
+19. A schema bump that changes meaning requires a migration script under `tools/config_migrate/` with tests.
+
+20. **`content_version`:** a human-facing semver per content file (e.g. a theater's `version: 1.2.0`), shown in the AAR and in replay headers.
+21. It is informational only; `config_hash` is what's authoritative.
 
 ## 5. Hot-reload rules
+
 | Category | Hot-reloadable mid-campaign? | Why |
 |---|---|---|
 | Rate limits, reply cadence, sitrep cadence, PiP dwell, reserve-queue cap, HUD rotation, taunt cooldowns, idle handoff/retire timers, offline-pause threshold | **Yes** | Don't change world physics. Needed for incident response (raids) |
@@ -100,31 +182,50 @@ Precedence: the env var `NEXUS__SECTION__KEY` overrides the file. **Every effect
 | Time scale, tick rate | **No**: new campaign only (tick rate is fixed by ADR-0002) | Determinism |
 
 **Reload procedure (admin):**
-1. Upload or select the new profile.
-2. Validate it.
-3. Diff it against the active profile. If the diff touches any non-hot-reloadable key, the reload is rejected.
-4. Register the new config in `config_versions` (DATA-MODEL §4.7), then enqueue `STAFF_CONFIG_RELOAD{keys, new_config_hash}` for tick T+1.
-5. The sim applies it at the boundary and emits `BalanceReloaded{old_hash, new_hash, keys}` (CONTRACTS §6). Old and new values are recoverable from the two registered configs, so the event carries only hashes and keys.
-6. The runtime appends `(campaign_id, effective_tick = T+1, config_hash = new_hash)` to `campaign_config_history` (DATA-MODEL §4.8).
 
-**While paused (Q-ALN-24):** steps 1–3 and the registration in step 4 run as usual, but the reload is deferred until resume: `STAFF_CONFIG_RELOAD` is enqueued for the first tick after the campaign resumes, and `effective_tick` in step 6 is that tick. The admin console shows the reload as pending until then.
+1) Upload or select the new profile.
+2) Validate it.
+3) Diff it against the active profile.
+   If the diff touches any non-hot-reloadable key, the reload is rejected.
+4) Register the new config in `config_versions` (DATA-MODEL §4.7), then enqueue `STAFF_CONFIG_RELOAD{keys, new_config_hash}` for tick T+1.
+5) The sim applies it at the boundary and emits `BalanceReloaded{old_hash, new_hash, keys}` (CONTRACTS §6).
+   Old and new values are recoverable from the two registered configs, so the event carries only hashes and keys.
+6) The runtime appends `(campaign_id, effective_tick = T+1, config_hash = new_hash)` to `campaign_config_history` (DATA-MODEL §4.8).
 
-Every reload is audited (who, when, diff), and is visible in the admin console history.
+7. **While paused (Q-ALN-24):** steps 1–3 and the registration in step 4 run as usual, but the reload is deferred until resume: `STAFF_CONFIG_RELOAD` is enqueued for the first tick after the campaign resumes, and `effective_tick` in step 6 is that tick.
+8. The admin console shows the reload as pending until then.
+
+9. Every reload is audited (who, when, diff), and is visible in the admin console history.
 
 ## 5a. Rank and XP presets (Q-PROG-7, Q-ALN-22)
-- The rank table (thresholds, unlocked abilities, ability cooldowns) and the XP source values (§6.8) are config data, kept in the Command Center as **named presets** (OPS-ADMIN OA-12).
-- **Who does what (Q-ALN-22):** an Owner or Admin creates, edits and applies presets. A Game Master may draft or propose a preset; the draft has no effect until an Owner or Admin approves and applies it (ADMIN-RBAC §4.3, `rules.draft` / `rules.apply_hot`).
-- A preset is validated against the §6.8 schema before it can be applied. Thresholds MUST be strictly increasing; a preset that fails is rejected with the failing key named.
-- Applying a preset is a normal reload (§5): it registers a new `config_hash`, is audited with the preset name, the diff, the drafting and the applying staff member, and appears in `campaign_config_history`.
-- Ranks already earned are never revoked, whatever a preset changes; new thresholds apply to future promotions only (Q-CFG-2, Q-ALN-14).
-- Merit is a score only and is never spent (ADR-0011). Rank abilities run on cooldowns, never on merit.
+
+1. The rank table (thresholds, unlocked abilities, ability cooldowns) and the XP source values (§6.8) are config data, kept in the Command Center as **named presets** (OPS-ADMIN OA-12).
+
+2. **Who does what (Q-ALN-22):** an Owner or Admin creates, edits and applies presets.
+3. A Game Master may draft or propose a preset; the draft has no effect until an Owner or Admin approves and applies it (ADMIN-RBAC §4.3, `rules.draft` / `rules.apply_hot`).
+
+4. A preset is validated against the §6.8 schema before it can be applied.
+5. Thresholds MUST be strictly increasing; a preset that fails is rejected with the failing key named.
+
+6. Applying a preset is a normal reload (§5): it registers a new `config_hash`, is audited with the preset name, the diff, the drafting and the applying staff member, and appears in `campaign_config_history`.
+
+7. Ranks already earned are never revoked, whatever a preset changes; new thresholds apply to future promotions only (Q-CFG-2, Q-ALN-14).
+
+8. Merit is a score only and is never spent (ADR-0011).
+9. Rank abilities run on cooldowns, never on merit.
 
 ## 6. Balance schema: key reference
-Legend: **HR** = hot-reloadable (§5). "TBD" = TBD by harness. **Source** = the spec the key comes from. All values are PROPOSED (DI-7).
 
-To add, rename or retire a key, agents follow the `add-config-key` skill (`.claude/skills/`), which lists the seven places a key lives. The generated [CONFIG-REFERENCE](CONFIG-REFERENCE.md) lists every key of the schema by category with its unit, bounds, hot-reload flag, tune range, audience, edit role, status and source (Q-CFG-15).
+1. Legend: **HR** = hot-reloadable (§5).
+2. "TBD" = TBD by harness.
+3. **Source** = the spec the key comes from.
+4. All values are PROPOSED (DI-7).
+
+5. To add, rename or retire a key, agents follow the `add-config-key` skill (`.claude/skills/`), which lists the seven places a key lives.
+6. The generated [CONFIG-REFERENCE](CONFIG-REFERENCE.md) lists every key of the schema by category with its unit, bounds, hot-reload flag, tune range, audience, edit role, status and source (Q-CFG-15).
 
 ### 6.1 Sim time & world
+
 | Key | Type | Unit | PROPOSED | Source | HR |
 |---|---|---|---|---|---|
 | `sim.tick_hz` | int (const 10) | Hz | 10 (fixed by ADR-0002; validated, not tunable) | SIM-CORE SC-2 | No |
@@ -132,7 +233,7 @@ To add, rename or retire a key, agents follow the `add-config-key` skill (`.clau
 | `sim.snapshot_every_ticks` | int | ticks | 300 | SIM-CORE §5 | No |
 | `sim.state_hash_every_ticks` | int | ticks | 100 | SIM-CORE §5 | No |
 | `sim.max_entities` | int | count | 1000 | SIM-CORE SC-10 | No |
-| `sim.max_live_units_per_side` | int | units, ≥ 1 | 1000, PROPOSED placeholder, NX-412 sweep (re-measure on the surge-500 tick-rate budget): 2 × `slots.max_viewer_units` (500), so it binds only as a guard. Tick-rate guard only, counting each side's live AIR and GROUND units. In code (NX-412 part 3): read only with `economy.legacy_rules` false; a Director operation must fit the room below it (it replaces `director.max_live_units.<tier>`), and a JOIN at it waits in the reserve queue, as at `slots.max_viewer_units` (GP-3, RQ-2) | ECONOMY EC-8, Q-TD-33 | Yes |
+| `sim.max_live_units_per_side` | int | units, ≥ 1 | 1000, PROPOSED placeholder, NX-412 sweep (re-measure on the surge-500 tick-rate budget): 2 × `slots.max_viewer_units` (500), so it binds only as a guard. Tick-rate guard only, counting each side's live AIR and GROUND units. In code (NX-412 part 3): a Director operation must fit the room below it (it replaced the per-tier live caps, deleted in NX-488), and a JOIN at it waits in the reserve queue, as at `slots.max_viewer_units` (GP-3, RQ-2) | ECONOMY EC-8, Q-TD-33 | Yes |
 | `fow.track_fade_s` | float | s (world), > 0 | 180 (PROPOSED by NX-150: 300 ticks, 30 real s at 6×). How long a last-known track lasts; converted to world ticks rounding up. In the schema now (NX-150) | FOG-OF-WAR FOW-6a, Q-FOW-1 | No |
 | `fow.track_every_ticks` | int | ticks, ≥ 1 | 5 (PROPOSED). In the schema now (NX-150) | FOG-OF-WAR FOW-5, Q-FOW-6 | No |
 | `fow.sigint_range_mult` | float | × a radar site's `sensor.radius_m`, > 0 | 1.5 (PROPOSED by NX-150: 180 km for a 120 km radar). A moving enemy unit outside the side's sensors forms a SIGINT blob within this multiple of a friendly non-dark radar site's radius. In the schema now (NX-150) | FOG-OF-WAR Tier 1, Q-FOW-7 | No |
@@ -148,7 +249,10 @@ To add, rename or retire a key, agents follow the `add-config-key` skill (`.clau
 | `air.landing_node_kinds` | list of node kinds | at least one | [AIRBASE, SANCTUARY] (decided rule as default, Q-DEV-21 option (NX-388)). Where an aircraft lands, bingos and rebases to when its side owns the node; read once into `Rules.landing_nodes` (a precomputed id list, so No) | SIM-CORE §4, GAMEPLAY §5 | No |
 
 ### 6.2 Slots, respawn, reserve
-In the schema now (NX-122): `slots.max_live_per_commander`, `slots.respawn_delay_s`, `slots.max_viewer_units` and `slots.reserve_queue_max`, read by the JOIN handler and the reserve queue (SIM-CORE §4). The hot-reloadable ones are read once at load until config reload exists; a reload must rebuild the kernel's `Rules` and be logged. `slots.queue_idle_min` (NX-371) is read by the runtime only (`nexus.runtime.queue_idle`), never by the sim's `Rules`: the runtime, given each queued commander's last chat time on a running-real-time clock, logs a `SYS_QUEUE_TIMEOUT` for each idle entry. The runtime host loop that calls it is not wired yet.
+
+1. In the schema now (NX-122): `slots.max_live_per_commander`, `slots.respawn_delay_s`, `slots.max_viewer_units` and `slots.reserve_queue_max`, read by the JOIN handler and the reserve queue (SIM-CORE §4).
+2. The hot-reloadable ones are read once at load until config reload exists; a reload must rebuild the kernel's `Rules` and be logged.
+3. `slots.queue_idle_min` (NX-371) is read by the runtime only (`nexus.runtime.queue_idle`), never by the sim's `Rules`: the runtime, given each queued commander's last chat time on a running-real-time clock, logs a `SYS_QUEUE_TIMEOUT` for each idle entry.
 
 | Key | Type | Unit | PROPOSED | Source | HR |
 |---|---|---|---|---|---|
@@ -161,12 +265,19 @@ In the schema now (NX-122): `slots.max_live_per_commander`, `slots.respawn_delay
 | `presence.idle_handoff_min` | float | min (game) | 10 (Q-GD-35). With no command from its operator for this long, a live unit finishes its current order and joins the Tasking Board as an AI-run unit (AUTO tag). Any command from the operator restores control | GAMEPLAY §1b, STATE-MACHINES §4.1 | Yes |
 | `presence.idle_retire_min` | float | min (game) | 30 (Q-GD-35). With no command for this long, the unit RTBs and despawns; carried supplies return to the reserve. Together with `presence.idle_handoff_min` it replaces the old idle-despawn timer entirely (Q-ALN-8) | STATE-MACHINES §4.1 | Yes |
 
+Notes: CONFIG-AND-CONTENT-NOTES.md §6.2
+
 ### 6.3 Logistics
+
 | Key | Type | Unit | PROPOSED | Source | HR |
 |---|---|---|---|---|---|
 | `logistics.node_max_stock.<node_kind>` | int | stock units | AIRBASE 2000, FOB 1000, HQ 2000, PORT 1000, BRIDGE 0; SANCTUARY and the rear source infinite (Q-SIM-49). In code (NX-123): all five keys required; a theater `start_stock` above its kind's maximum fails load | GAMEPLAY §5 | No |
-| `logistics.starve_threshold` | float | fraction 0–1 | 0.25. In code (NX-123): the floor is `ceil(starve_threshold x max)` whole units | GAMEPLAY §5 | No |
+| `logistics.starve_threshold` | float | fraction 0–1 | 0.25. In code (NX-123): the floor is `ceil(starve_threshold x max)` whole units. In code (NX-500): the floor no longer sets the Director's surplus by itself (`director.surplus_ref_frac`, §6.7, is the reference, at least the floor). In code (NX-495): it sets the live floor only while `logistics.starve_floor_mode` is `fraction`; in `loadouts` mode it still sets the Director's surplus reference (`max(⌈surplus_ref_frac × max⌉, ⌈starve_threshold × max⌉)`) and the harness's second Starved count | GAMEPLAY §5 | No |
+| `logistics.starve_floor_mode` | enum `fraction`, `loadouts` | — | `fraction` (PROPOSED, NX-495; Q-TD-123 owner direction, Q-TD-132 (B), lead, owner may veto; in code: `rules._supply`, `tests/core/test_starve_floor.py`): how the starvation floor is set. `fraction` is today's ⌈`starve_threshold` × `node_max_stock`⌉, so the default changes no event stream. `loadouts` is min(`starve_floor_loadouts` × C, `node_max_stock`), C the largest `logistics.loadout_cost` entry (20 shipped), fixed at load, the same at every node and for either side. Every floor reader follows it except the Director's surplus (ECONOMY EC-7, NX-500). A string key, so the harness `--set` takes it (NX-498) | GAMEPLAY §5 "Absolute floor" | No |
+| `logistics.starve_floor_loadouts` | int ≥ 1 | loadouts of the dearest kind | 5 (PROPOSED, NX-495; Q-TD-123: "3-5 … of the most expensive units"; Q-TD-132 (B); a starting value to probe, not measured; in code). Read only in `loadouts` mode. Shipped values give 100 at every strait-1 AIRBASE, HQ and FOB (N 3: 60, N 4: 80) against today's 500 and 250; a BRIDGE stays 0. Probe N 3, 4 and 5 against a `fraction` control. Tuning range 1 to 10, step 1 (add-config-key) | GAMEPLAY §5 "Absolute floor" | No |
 | `logistics.stock_target_frac` | float | fraction 0–1 of `node_max_stock` | 0.8 (PROPOSED, Q-SIM-100, Q-SIM-102, NX-389): the forward stock target is `ceil(stock_target_frac x max)` whole units. A base below it gets a stocking resupply job (`tasking.stock_urgency`) sized to the missing stock up to the target, and a run to a base below it that is not starved and has no damaged facility loads only stock a source holds above its own target, else at the rear source. At `starve_threshold` or below there are no stocking jobs or runs (the behaviour before NX-389) | GAMEPLAY §5 | No |
+| `logistics.stock_target_mode` | enum `fraction`, `loadouts` | — | `fraction` (PROPOSED, NX-501; Q-TD-133 (a), lead recommendation, owner may veto; in code: `rules._supply`, `tests/core/test_stock_target.py`): how the forward stock target is set. `fraction` is today's ⌈`stock_target_frac` × max⌉; `loadouts` is min(max(`stock_target_loadouts` × C, the node's floor), max) with C the largest `loadout_cost` of the whole catalog (as NX-495), fixed at load, the same for either side (GAMEPLAY "Stock target cap") | GAMEPLAY §5 | No |
+| `logistics.stock_target_loadouts` | int ≥ 1 | loadouts of the dearest kind | 15 (PROPOSED, NX-501; Q-TD-133 (a); a starting value to probe with floor `loadouts` N 5, not measured; in code): M; read only in `loadouts` mode. Tuning range 5 to 40, step 5 | GAMEPLAY §5 | No |
 | `logistics.starve_hp_drain_per_min` | int | node hp per min (game) | 5 (PROPOSED, Q-SIM-71). In code (NX-124 part 3): a node with finite stock below its starvation floor loses this many whole hp per game minute (600 running ticks at 10 Hz), carried exactly across ticks; 0 turns the drain off | GAMEPLAY §8 | No |
 | `logistics.defense_repair_hp_per_stock` | int | hp per stock unit | 2 (PROPOSED, Q-SIM-71; key named by NX-124 part 3): defense hp one stock unit unloaded into a node rebuilds, up to `capture.defense_hp` | GAMEPLAY §8 | No |
 | `logistics.bridge_hp` | int ≥ 1 | hp | 300 (PROPOSED, Q-SIM-101, next to FOB defense HP 300; key named by NX-373 part 1a, Q-SIM-106): the max hp of every BRIDGE node; each starts full, STRUCTURE fire from a unit striking it lowers it, and at 0 its road edge is cut until it is repaired to full. Not a capture defense (`capture.defense_hp` has no BRIDGE) | STATE-MACHINES §4.3, GAMEPLAY §5 | No |
@@ -189,25 +300,31 @@ In the schema now (NX-122): `slots.max_live_per_commander`, `slots.respawn_delay
 | `logistics.facility_rearm_cost` | int | stock units | 10 (PROPOSED, Q-SIM-69). In code (NX-124 part 2): a facility's full reload of all its weapons, by ammo share | GAMEPLAY §5b | No |
 | `logistics.ammo_loadout_share` | float | fraction | 0.5 (PROPOSED, Q-SIM-69, Q-DEV-21): of a unit's `loadout_cost`, the share its ammo costs when the kind has both ammo and a fuel tank (fuel pays the rest; a kind with no fuel pays all of it for ammo) | GAMEPLAY §5 | No |
 | `logistics.forward_deploy_min_surplus` | int | stock units above the starvation floor a spawn base needs to accept a forward deploy | 50 (Q-SIM-49, Q-SIM-54). In code (NX-123 part 2); the base also needs at least the loadout cost above its floor | GAMEPLAY §4, Q-GP-41 | No |
+| `logistics.ai_trucks.period_s` | float | s (game, Q-ALN-23) | 900 (PROPOSED, Q-TD-92, NX-473): how often the coalition spawns `AI_GARRISON` trucks for its resupply jobs, and how old a job must be before one is spawned for it (viewers pick first); the loader rounds it up to whole `economy.window_s` windows | GAMEPLAY §5 LC-1 | No |
+| `logistics.ai_trucks.max_live` | int | trucks, ≥ 0 | 3 (PROPOSED, Q-TD-128: harness C0 #532 at 70d7d5c; 0 is the no-op): the most coalition AI trucks live at once, also within `sim.max_live_units_per_side` (EC-8); 0 spawns none | GAMEPLAY §5 LC-1 | No |
 | `logistics.repair_rate.<node_kind>` | float | hp/s (world) | AIRBASE 1.0, HQ 1.0, PORT 1.0, FOB 0.5, SANCTUARY 2.0 and free (PROPOSED, Q-SIM-68). In code (NX-124 part 2): all five required; counted in thousandths of an hp per tick | GAMEPLAY §5 | No |
 
-Economy (ECONOMY, approved 2026-10-24; keys added by NX-412 with `add-config-key`; `unlimited`, `window_s`, `income.*` and `storage.*` in the schema and read by `nexus.core.economy` since NX-412 part 1, `upkeep.*` read by `nexus.core.upkeep` since part 2, the rest not in the schema yet). The income, storage and upkeep values are placeholders for the NX-412 sweep part, not measured:
+1. Economy (ECONOMY, approved 2026-10-24; keys added by NX-412 with `add-config-key`).
+2. The income, storage and upkeep values are placeholders for the NX-412 sweep part, not measured:
 | Key | Type | Unit | PROPOSED | Source | HR |
 |---|---|---|---|---|---|
-| `economy.unlimited.<side>` | bool | switch | spec default false (campaign or test option; owner/Admin at setup only, never a GM or mid-war). **Shipped true for COALITION and ENEMY, temporarily** (Q-TD-29, lead decision): outcomes stay as before NX-412 until the sweep part sets false. In code (NX-412 part 1): a true side has no pool (absent from the snapshot's `pool`), so its source is infinite | ECONOMY EC-15, Q-TD-28, Q-TD-29 | No |
+| `economy.unlimited.<side>` | bool | switch | false for COALITION and ENEMY, the spec default (campaign or test option; owner/Admin at setup only, never a GM or mid-war), shipped since NX-412 part 5b (Q-TD-29: the temporary true default ended there; harness-tuned at 24 h by U0 #510 (sha 3aa67f38, all four profiles; lead note, PR #517), not validated at the 50-seed gate (Q-TEST-2)). In code (NX-412 part 1): a true side has no pool (absent from the snapshot's `pool`), so its source is infinite | ECONOMY EC-15, Q-TD-28, Q-TD-29 | No |
 | `economy.window_s` | float | s (game), > 0 | PROPOSED 60 (the director window, one cadence); 600 ticks. Income then the clip run in the `director` slot before the decision window | ECONOMY EC-1, EC-10 | No: the window phase must not move mid-campaign |
-| `economy.income.floor` | int | stock / window, ≥ 0 | 30, PROPOSED placeholder, NX-412 sweep: = `director.budget.alpha` (30), so a side holding nothing keeps one ALPHA window's spend | ECONOMY EC-1 | No (logistics physics, §5) |
+| `economy.income.floor` | int | stock / window, ≥ 0 | 30, PROPOSED placeholder, NX-412 sweep: = the ALPHA tier budget of before NX-412 part 3 (30), so a side holding nothing keeps one ALPHA window's spend | ECONOMY EC-1 | No (logistics physics, §5) |
 | `economy.income.per_node.<node_kind>` | int | stock / window, ≥ 0 | AIRBASE 10, HQ 10, FOB 5, PORT 5, BRIDGE 0, PROPOSED placeholder, NX-412 sweep: 0.5 % of the kind's `logistics.node_max_stock` per window (strait-1 start: Static 60, coalition 50). Paid for each node of the kind the side owns with no capture bar on it | ECONOMY EC-1 | No (logistics physics, §5) |
 | `economy.storage.floor` | int | stock, ≥ 0 | 2000, PROPOSED placeholder, NX-412 sweep: = `logistics.node_max_stock.HQ`, one HQ's worth with no node held | ECONOMY EC-2 | No (logistics physics, §5) |
 | `economy.storage.per_node.<node_kind>` | int | stock, ≥ 0 | AIRBASE 2000, HQ 2000, FOB 1000, PORT 1000, BRIDGE 0, PROPOSED placeholder, NX-412 sweep: = the kind's `logistics.node_max_stock` (strait-1 start: Static 8000, coalition 6000; a pool starts full) | ECONOMY EC-2 | No (logistics physics, §5) |
-| `economy.upkeep.<unit_kind>` | int | stock / window, ≥ 0 | 0 for every kind: **rollout placeholder** (Q-TD-29, lead decision), so even a limited side pays nothing until the NX-412 sweep part sets PROPOSED values (TBD, harness sweep); LOGI_TRUCK and ENEMY_CONVOY PROPOSED 0 by the spec, so hauling stays free. One key per kind that spawns (the nine of `logistics.loadout_cost`; facilities pay none). In code (NX-412 part 2): each live unit of a limited side pays it from its home base in each window it is due (`economy.upkeep_period`), in the EC-6 payment order, or is grounded | ECONOMY EC-4, Q-TD-22, Q-TD-29 | No (logistics physics, §5) |
+| `economy.upkeep.<unit_kind>` | int | stock / window, ≥ 0 | 0 for every kind: **rollout placeholder** (Q-TD-29, lead decision), so even a limited side pays nothing until the NX-412 sweep part sets PROPOSED values (TBD, harness sweep; still 0 in part 5b, Q-TD-85); LOGI_TRUCK and ENEMY_CONVOY PROPOSED 0 by the spec, so hauling stays free. One key per kind that spawns (the nine of `logistics.loadout_cost`; facilities pay none). In code (NX-412 part 2): each live unit of a limited side pays it from its home base in each window it is due (`economy.upkeep_period`), in the EC-6 payment order, or is grounded | ECONOMY EC-4, Q-TD-22, Q-TD-29 | No (logistics physics, §5) |
 | `economy.upkeep_period.<unit_kind>` | int | economy windows, ≥ 1 | PROPOSED – unvalidated (Q-TD-52 T1, from the upkeep review §Q3): 20 for ENEMY_ARMOR, ENEMY_FIGHTER, ENEMY_STRIKE_FIGHTER, GARRISON_INFANTRY, STRIKE_FIGHTER; 30 for RECON_UAV and ENEMY_RECON_UAV; 1 for LOGI_TRUCK and ENEMY_CONVOY (upkeep 0); mirrored kinds equal (EC-3). One key per kind that has `economy.upkeep`. In code (NX-426): a unit is charged in the window whose index (running ticks ÷ the window, from 1) plus its entity id is a multiple of the period, and every window while grounded; `upkeep.owed` (the EC-7 reserve) is the ceiling of the exact sum of upkeep ÷ period, and the EC-11 load check sums upkeep ÷ period exactly | ECONOMY EC-4, Q-TD-41, Q-TD-52 | No (logistics physics, §5) |
-| `economy.floor_viewer_units` | int | units, ≥ 0 | 5, PROPOSED – unvalidated, NX-412 harness sweep: quiet-5's 5 viewers × `slots.max_live_per_commander` (1), the smallest crowd the harness plays. In code (NX-412 part 5b): with `economy.legacy_rules` false and the coalition not unlimited, the loader refuses a config whose `economy.income.floor` is below the upkeep of the theater's coalition garrison quotas (nodes with `start_owner` COALITION, each filled from `director.garrison.kinds` for its node kind in turn) plus this many units at the dearest `economy.upkeep` of a role's kind (content/roles.yaml), each at its per-window rate `economy.upkeep` ÷ `economy.upkeep_period` (NX-426), and names the shortfall. Per-node income does not count: the floor needs no held node (EC-1) | ECONOMY EC-11 | No (read at load only) |
+| `economy.floor_viewer_units` | int | units, ≥ 0 | 5, PROPOSED – unvalidated, NX-412 harness sweep: quiet-5's 5 viewers × `slots.max_live_per_commander` (1), the smallest crowd the harness plays. In code (NX-412 part 5b): with the coalition not unlimited, the loader refuses a config whose `economy.income.floor` is below the upkeep of the theater's coalition garrison quotas (nodes with `start_owner` COALITION, each filled from `director.garrison.kinds` for its node kind in turn) plus this many units at the dearest `economy.upkeep` of a role's kind (content/roles.yaml), each at its per-window rate `economy.upkeep` ÷ `economy.upkeep_period` (NX-426), and names the shortfall. Per-node income does not count: the floor needs no held node (EC-1) | ECONOMY EC-11 | No (read at load only) |
 | `economy.shortfall_quiet_windows` | int | economy windows, ≥ 0 | 30, PROPOSED – unvalidated (NX-436): 30 game minutes at `economy.window_s` 60, the 30-minute horizon of the NX-437 metrics R10 and R11. A shortfall episode that starts at a base this many windows or fewer after the last episode there ended is not announced (no `SupplyShortfall` STARTED or ENDED); 0 announces every episode | ECONOMY EC-6a, Q-TD-51 U5, Q-TD-64 | No |
-| `economy.free_viewer_spawn` | bool | switch | true (Q-CFG-16 option; false in agent-vs-agent harness profiles). In code (NX-412 part 3, read only with `economy.legacy_rules` false): on, a viewer's JOIN that spawns at the sanctuary draws nothing; off, it draws its `logistics.loadout_cost` from the coalition's pool, and a pool that cannot pay refuses it with `NO_STOCK` | ECONOMY EC-13, Q-TD-12 | No (set at campaign setup) |
-| `economy.legacy_rules` | bool | switch | **true, temporary: removed in NX-412 part 5** (Q-TD-33, lead decision, owner may veto). True keeps the rules of before part 3: the tier budget `director.budget.<tier>` capped by the base surplus, the caps `director.max_live_units.<tier>`, the Director paying from the surplus of every Static base and sanctuary spawns free. False applies ECONOMY EC-7 (`director.spend_frac` and the keys below), EC-8 (`sim.max_live_units_per_side`) and EC-13 (every spawn draws its cost at its spawn node). Owner/Admin at campaign setup only | ECONOMY EC-7, EC-8, EC-13, Q-TD-33 | No |
+| `economy.free_viewer_spawn` | bool | switch | true (Q-CFG-16 option; false in agent-vs-agent harness profiles). In code (NX-412 part 3): on, a viewer's JOIN that spawns at the sanctuary draws nothing; off, it draws its `logistics.loadout_cost` from the coalition's pool, and a pool that cannot pay refuses it with `NO_STOCK` | ECONOMY EC-13, Q-TD-12 | No (set at campaign setup) |
+| `economy.cost_parity` | bool | switch | true, PROPOSED (Q-TD-119 owner, Q-TD-130 lead, owner may veto). In code (NX-494): true: the config loader refuses a config in which a paired enemy kind (catalog `mirrors`, §7.1) has a different `logistics.loadout_cost`, `economy.upkeep` or `economy.upkeep_period` from its coalition kind, naming the table, both kinds and values, and the fixes; it never copies a value. False: each kind keeps its own value (one-sided experiments). Unpaired kinds are never checked. A bool so that `--set` and the harness queue can switch it (`tools/balance/README.md:18`). The shipped paired values are equal, so true changes no event stream | ECONOMY EC-3 | No (read at load only) |
+
+Notes: CONFIG-AND-CONTENT-NOTES.md §6.3
 
 ### 6.4 Combat
+
 | Key | Type | Unit | PROPOSED | Source | HR |
 |---|---|---|---|---|---|
 | `combat.track_quality.track` | float | multiplier | 1.0. In code (NX-124) | COMBAT | No |
@@ -230,21 +347,26 @@ Economy (ECONOMY, approved 2026-10-24; keys added by NX-412 with `add-config-key
 | `combat.crew_survival.<kind>` | float | probability | aircraft 0.75, ENEMY_ARMOR 0.60, GARRISON_INFANTRY 0.50, LOGI_TRUCK and ENEMY_CONVOY 0.70 (PROPOSED, Q-SIM-68). In code (NX-124 part 2): one per kind with crew above 0, all required | COMBAT CB-8 | No |
 | `combat.crew_marker_min` | float | min (game) | 10 (PROPOSED, Q-SIM-68). In code (NX-124 part 2) | COMBAT CB-8 | Yes, for markers placed after the reload (Q-CFG-16) |
 | `combat.facility_indestructible` | bool | switch | true (decided rule as default, Q-CFG-16 option (NX-388)): a facility's hp floors at the Disabled threshold, never Destroyed (CB-9, Q-GP-37). False: a hit that takes a facility to 0 hp destroys it like any unit (`UnitDestroyed`, no wreck: it is removed), and every side drops its contact and marker of it, so no ring or strike target outlives it. A Disabled facility is still no valid target (CB-1), so only a hit from above the floor can kill one | COMBAT CB-9 | No (combat rule, like its neighbours) |
-| `combat.strike_structure_first` | bool | switch | false (decided rule as default, Q-TD-55 option (NX-440)): units always come first (CB-10). True: a unit holding a STRIKE claim on a node with defense HP fires its STRUCTURE weapon at that node before any unit target, when the automatic fallback could take the node (enemy-owned, HP left, not the Static's rear source, not at its idle floor, in range); both sides alike (ECONOMY EC-3). Bridges keep their own order (Q-SIM-105) | COMBAT CB-10 | No (combat rule, like its neighbours) |
+| `combat.strike_structure_first` | bool | switch | true (PROPOSED – harness-tuned; Q-TD-55 option (NX-440); on since NX-412 part 5b together with the NX-474 low-population brake, Q-TD-79, Q-TD-93; harness-tuned at 24 h by U0 #510 (sha 3aa67f38, all four profiles; lead note, PR #517), not validated at the 50-seed gate (Q-TEST-2)). False: units always come first, the CB-10 decided rule. True: a unit holding a STRIKE claim on a node with defense HP fires its STRUCTURE weapon at that node before any unit target, when the automatic fallback could take the node (enemy-owned, HP left, not the Static's rear source, not at its idle floor, in range); both sides alike (ECONOMY EC-3). Bridges keep their own order (Q-SIM-105) | COMBAT CB-10 | No (combat rule, like its neighbours) |
 | `combat.facility_restore_frac` | float | fraction of hp, at least `damage_state.disabled_below` (the loader refuses less), at most 1 | 0.35 (decided rule as default, Q-TD-86, owner 2026-10-28 (NX-472)): a Disabled facility stays Disabled until repair brings its hp back up to `ceil(frac x hp)`, then its state follows hp again; 0.35 is the shipped `mission_kill_below`, so the NX-461 rule as it was (53 of 150 for the shipped sites). At `disabled_below` a facility is back as soon as it leaves Disabled (the rule before Q-TD-86); higher keeps a suppressed site off longer. It does not follow `mission_kill_below` when that is tuned. Both sides alike (ECONOMY EC-3) | COMBAT CB-9, Q-TD-86 | No (combat rule, like its neighbours) |
 | `combat.overkill_check` | bool | switch | true (decided rule as default, Q-TD-73, owner 2026-10-28 (NX-468)): a weapon skips a target whose shots already in flight cover, in expected damage (CB-5 damage x CB-4 Pk as if each landed now, 0 for one that would fizzle), what it has left (a facility's or airborne aircraft's hp above the Disabled floor, any other unit's hp, a node's defense HP above its idle floor, a bridge's hp), and takes the next target. Units, facilities, node defenses and bridges, both sides alike (ECONOMY EC-3). False: no overkill check (the rule before Q-TD-73), kept for harness comparison | COMBAT CB-1, Q-TD-73 | No (combat rule, like its neighbours) |
 | `slots.respawn_loss_window_s` / `slots.respawn_loss_step_s` | float | s (game) | TBD (respawn grows with repeated losses, Q-CBT-9; game time per Q-ALN-5) | GAMEPLAY GP-2 | Yes |
 
 ### 6.5 Capture
+
 | Key | Type | Unit | PROPOSED | Source | HR |
 |---|---|---|---|---|---|
 | `capture.radius_m` | float | m | 2000 (PROPOSED, owner-approved initial value, Q-SIM-57): a ground unit this close counts for the node; a defender's unit this close is at the base | GAMEPLAY §8 | No |
 | `capture.time_s` | float | s (world, Q-ALN-23) | 120 | GAMEPLAY §8 | No |
 | `capture.multi_unit_exponent` | float | exponent (diminishing returns) | 0.5 (PROPOSED) | GAMEPLAY §8, Q-SIM-26 | No |
+| `capture.time_mult.<node_kind>` | float > 0 | capture-time multiplier | AIRBASE 1.0, FOB 1.0, HQ 20.0, PORT 1.0, SANCTUARY 1.0 (PROPOSED placeholder, NX-490, Q-TD-127; the owner's rule Q-TD-105. No measured basis: HQ 20 makes a lone HQ capture 20 × a lone capture of the same base today, 1200 world s with no defender. Sweep HQ 5–40). Multiplies `time_s` at a node of that kind, for whichever side captures (EC-3 parity); `min_time_s` still applies after it. All five keys required, as `capture.defense_hp` | GAMEPLAY §8 | No |
+| `capture.extra_exponent.<node_kind>` | float ≥ 0 | added to `multi_unit_exponent` | AIRBASE 0, FOB 0, HQ 0.5, PORT 0, SANCTUARY 0 (PROPOSED placeholder, NX-490, Q-TD-127; no data. HQ 0.5 makes the HQ exponent 1.0, so capture time falls in proportion to the capturers and a lone capturer pays the most. Sweep HQ 0–1). At a node of that kind, `time ÷ n^(multi_unit_exponent + extra_exponent)`. All five keys required | GAMEPLAY §8 | No |
 | `capture.quiet_floor` | float | multiplier at 0 viewer units | 0.6 (PROPOSED) | GAMEPLAY §8, Q-SIM-26 | Yes, from the next tick (Q-CFG-16) |
 | `capture.quiet_ref` | int | viewer units at which the multiplier reaches 1.0, and at which the Static's night-cap spacing has faded to none (Q-TD-93, NX-474) | 50 (PROPOSED) | GAMEPLAY §8, Q-SIM-26 | Yes, from the next tick (Q-CFG-16) |
 | `capture.quiet_sides` | list of sides | sides | [COALITION] (decided rule as default, Q-CFG-16 option (NX-388)): the sides whose capture time gets the quiet-stream multiplier (Q-SIM-26's documented asymmetry, GAMEPLAY §0); empty turns it off | GAMEPLAY §8, Q-SIM-26 | No (capture rule) |
 | `capture.requires_defenses_down` | bool | switch | true (decided rule as default, Q-CFG-16 option (NX-388)): a capture bar can start only on a node whose defense HP is 0 (Q-GD-18). False: a bar starts whatever the defenses | GAMEPLAY §8 | No (capture rule) |
+| `capture.facilities_disabled` | bool | switch | true (`RULE_DEFAULT`, owner decision Q-TD-78 (a), 2026-10-28; NX-471): when a base flips, each of its facilities drops to min(hp, its Disabled floor), becomes DISABLED and is seized (`Entity.seized_carry` 0), before its fog hand-over. False: facilities switch side keeping their damage (Q-GP-25's original rule, the code before NX-471) | GAMEPLAY §8 | No (capture rule) |
+| `capture.seized_repair_slowdown` | int ≥ 1 | divisor (no unit) | 92 (PROPOSED, Q-TD-135 lead, owner may veto, set to the owner's 10 to 20 min ask on #412; NX-471; derived, not measured): a seized facility repairs at its base's `logistics.repair_rate.<node_kind>` ÷ this, exactly, through `seized_carry`, until it is back at the restore line, then at the normal rate. With the shipped rates, the floor to the restore line (39 of 150 hp) takes 10.0 game min at an AIRBASE, HQ or PORT and 19.9 at a FOB (5,980 and 11,960 ticks); 1 = no slowdown. Read only when `facilities_disabled` is true. `x-tune` {min 1, max 600, step 1, LOG}: 600 gives 65 / 130 min | GAMEPLAY §8 | No |
 | `capture.air_counts` | bool | switch | false (decided rule as default, Q-CFG-16 option (NX-388)): airborne aircraft never capture (N-3); LANDED air only garrisons and facilities never count (Q-GP-38). True: an airborne aircraft within `radius_m` is a capturer weighing `air_weight`; it never contests nor garrisons, and LANDED air is unchanged. With it on, airborne commanders count as capture participants (`NodeCaptured` participants, so merit and the Static's provocation), but a hold objective still counts only ground units and LANDED aircraft | GAMEPLAY §8, STATE-MACHINES §4.2 | No (capture rule) |
 | `capture.air_weight` | float | capturer weight, > 0 | 1.0 (Q-CFG-16 option (NX-388)); read only when `air_counts` is true | GAMEPLAY §8 | No |
 | `capture.min_time_s` | float | s (world, Q-ALN-23) | 30 (PROPOSED) | GAMEPLAY §8, Q-SIM-26 | No |
@@ -252,16 +374,18 @@ Economy (ECONOMY, approved 2026-10-24; keys added by NX-412 with `add-config-key
 | `capture.garrison_mult` | float | capture-time multiplier | 3.0 (PROPOSED): a defender that cannot contest is at the base (Q-GD-32, Q-SM-8) | STATE-MACHINES §4.2 | No |
 | `capture.empty_base_mult` | float | capture-time multiplier | 0.5 (PROPOSED): no defender at the base (Q-GD-32, Q-SM-8) | STATE-MACHINES §4.2 | No |
 | `capture.defense_hp.<node_kind>` | int | hp | AIRBASE 500, FOB 300, HQ 800, PORT 300, SANCTUARY 1000 (PROPOSED, Q-SIM-71; key named by NX-124 part 3; BRIDGE has none until NX-373). An owned node starts at the maximum, a NEUTRAL one at 0, a node that changes hands at 0 for its new owner. All five keys required | GAMEPLAY §8 | No |
-| `capture.sanctuary_repair_hp_per_s` | float | hp/s (world) per unit | 1.0 (PROPOSED, Q-SIM-71; key named by NX-124 part 3): defense hp each friendly logistics unit parked at its side's SANCTUARY rebuilds there, from the sanctuary's infinite supply (no stock debit). Counted in whole thousandths of an hp per tick, so the loader rejects a rate x tick below 0.001 | GAMEPLAY §9 | No |
+| `capture.sanctuary_repair_hp_per_s` | float | hp/s (world) per unit | 1.0 (PROPOSED, Q-SIM-71; key named by NX-124 part 3): defense hp each friendly logistics unit parked at its side's SANCTUARY rebuilds there, from the sanctuary's infinite supply (no stock debit). Counted in whole thousandths of an hp per tick, so the loader rejects a rate x tick below 0.001. **PROPOSED change (NX-497, Q-TD-124 owner: (c) then (a); Q-TD-129 (5)): lower the value to one a harness run sets, before the repair job lands.** Sweep 0.01, 0.02, 0.03, 0.05 and 0.1 (6, 12, 18, 30 and 60 thousandths per tick, all exact). Derived window, not measured: below about 0.063 one truck repairs less than W2's siege took (about 22.75 hp per game minute, GAMEPLAY §1b DRAFT), and at 0.031 or more the job's 3 base slots rebuild 1000 hp within `campaign.defeat.hold_min` (3 × rate × 360 × 30 ≥ 1000). Acceptance: the highest swept rate inside that window at which haven still reaches 0 hp on the siege seeds with one viewer truck parked. With NX-499 in code, this sweep runs jointly with `campaign.defeat.reset_hp_frac` (§6.6), because a truck that keeps lifting haven above 0 then delays a defeat without cancelling it. So "haven reaches 0 hp" no longer measures the outcome on its own; the defeat count does. The tuning range is 0.01 to 1.0, step 0.01 (NX-497; widened from 0.5 to 2, step 0.1, with add-config-key): the planned 0.01 to 0.25 would leave out the shipped 1.0, and a range must contain the default (Q-CFG-22), so the top stays at 1.0 until the value is lowered. The value itself is unchanged and open | GAMEPLAY §9, §1b `resupply:` | No |
 | `capture.uncapturable_node_kinds` | list of node kinds | must include BRIDGE (bridges have no owner or stock; the loader refuses a list without it); SANCTUARY may be removed, which also makes a sanctuary a Director base for `ops.bases` and a patrol point (intended coupling) | [SANCTUARY, BRIDGE] (decided rule as default, Q-DEV-21 option (NX-388)). Never captured (N-4): no capture bar, not a base for the Director's targets and patrols, not a timed-objective candidate, no defend job for the Static board. One list read once into `Rules.uncapturable`. The defense-HP table (`capture.defense_hp`) and the `kind != BRIDGE` ownership tests (a BRIDGE has no owner or stock) stay separate. No: bars and ownership are placed at start | GAMEPLAY §8 | No |
 | `capture.decay_per_s` | float | bar fraction/s (world, Q-ALN-23) | 1/120 (0.008333…, PROPOSED, owner-approved initial value, Q-SIM-57): an abandoned bar empties in the 120 world s one unit takes to fill it. Counted in whole millionths of a percent per tick, rounded (the loader refuses less than one) | GAMEPLAY §8 | No |
 | `capture.min_progress_per_tick` | int | millionths of a percent of the bar, >= 1 | 1 (PROPOSED, Q-DEV-21). The least a capture bar gains per tick however slow the capture time | GAMEPLAY §8 | No |
 
-In code since NX-125: all ten keys are the `capture` block of `balance/default.yaml` (`contracts/config/balance.json`), read by `nexus.core.capture`; the shipped values are the PROPOSED column.
+1. Rule options (NX-388 part 2, Q-CFG-16): `capture.requires_defenses_down`, `air_counts`, `air_weight` and `quiet_sides`, `campaign.victory.hq_capture`, `campaign.idle_floor.*`, `campaign.objective_pick` and `combat.facility_indestructible` are required keys whose defaults are the rules as they were; they are read once into `Rules` (`CaptureRules`, `DefenseRules`, `CampaignRules`, `CombatRules`).
+2. The five keys made hot-reloadable by Q-CFG-16 are read from `Rules` where they are used (no copy in world state), so a reload that rebuilds `Rules` (§5) applies them as the HR column says; `tests/core/test_rule_options.py` shows each by swapping `World.rules` mid-run.
 
-Rule options (NX-388 part 2, Q-CFG-16): `capture.requires_defenses_down`, `air_counts`, `air_weight` and `quiet_sides`, `campaign.victory.hq_capture`, `campaign.idle_floor.*`, `campaign.objective_pick` and `combat.facility_indestructible` are required keys whose defaults are the rules as they were; they are read once into `Rules` (`CaptureRules`, `DefenseRules`, `CampaignRules`, `CombatRules`). The five keys made hot-reloadable by Q-CFG-16 are read from `Rules` where they are used (no copy in world state), so a reload that rebuilds `Rules` (§5) applies them as the HR column says; `tests/core/test_rule_options.py` shows each by swapping `World.rules` mid-run.
+Notes: CONFIG-AND-CONTENT-NOTES.md §6.5
 
 ### 6.6 Campaign
+
 | Key | Type | Unit | PROPOSED | Source | HR |
 |---|---|---|---|---|---|
 | `campaign.target_duration_h` | float | h (game) | 48 | GAMEPLAY §9, Q-GD-5 | No |
@@ -278,9 +402,16 @@ Rule options (NX-388 part 2, Q-CFG-16): `capture.requires_defenses_down`, `air_c
 | `campaign.victory_node_frac` | float | fraction | 0.80 | GAMEPLAY §9 | No |
 | `campaign.strategic_node_kinds` | list of node kinds | at least one | [AIRBASE, FOB, PORT] (decided rule as default, Q-DEV-21 option (NX-388)). The strategic nodes: the denominator of `victory_node_frac`, of the score shares and of Momentum (Q-GP-21). No: the list becomes a precomputed id tuple | GAMEPLAY §9 | No |
 | `campaign.victory_hold_min` | float | min (game) | 30 | GAMEPLAY §9 | No |
+| `campaign.victory.hold_break` | enum `decay`\|`reset` | — | `decay` (PROPOSED; Q-TD-126, lead, owner may veto; the owner's rule, Q-TD-102): a broken hold keeps its progress and decays (ECONOMY EC-9a). `reset`: today's rule, progress back to 0 at the break | GAMEPLAY §9, ECONOMY EC-9a | No (end condition) |
+| `campaign.victory.decay_slow_min` | float | min (game), ≥ 0 | 10 (PROPOSED placeholder, Q-TD-126; no measured basis. Hold breaks that the coalition reversed came back within minutes in the runs on record: T0 raid s2 re-held 6.4 min after a break (derived from `docs/review/ENTERTAINMENT-T0-T1-2026-10-28.md:116-118`). Sweep 0–20): the length of the slow stage after a break | ECONOMY EC-9a | No |
+| `campaign.victory.decay_slow_rate` | float | progress min lost per broken min, ≥ 0 | 0.25 (PROPOSED placeholder, Q-TD-126; no data. Sweep 0–0.5) | ECONOMY EC-9a | No |
+| `campaign.victory.decay_fast_rate` | float | progress min lost per broken min, > 0 and ≥ `decay_slow_rate` (loader) | 1.0 (PROPOSED placeholder, Q-TD-126; no data. 1.0 means a broken hold loses progress as fast as a running hold gains it. Sweep 0.5–3) | ECONOMY EC-9a | No |
+| `campaign.victory.reset_on_repair` | bool | switch | true (PROPOSED, Q-TD-126; the lead's reading of "repaired/re-defended by the original owners", Q-TD-126): a decaying hold resets once the other side has one of the broken hold's nodes at full defense HP. False: only the decay ends it | ECONOMY EC-9a | No |
+| `campaign.victory.pause_on_pressure` | bool | switch | true (RULE_DEFAULT: the owner agreed to the rule, Q-TD-84 (b), 2026-10-28; the readings are Q-TD-134, lead, owner may veto). A running victory hold gains nothing while one of its nodes is under the other side's pressure: its capture bar, its defenses down (`World.defense_down`), or a claimant of the other side's CAPTURE job on it within `tasking.defend_radius_m`. It resumes, with no reset, when none is (ECONOMY EC-9b). False: the hold gains every running tick, as before NX-466. Schema annotations: `x-unit` switch, `x-hot-reload` false, `x-category` CAMPAIGN, `x-audience` OPERATOR, `x-edit-role` ADMIN, `x-tune` null, `x-source` "ECONOMY EC-9b, Q-TD-84", `x-status` RULE_DEFAULT. In code (NX-466) | GAMEPLAY §9, ECONOMY EC-9b | No (end condition) |
 | `campaign.momentum.nodes_weight` | float | percentage points | 70 (PROPOSED, Q-SIM-60): × the coalition's share of strategic nodes in the momentum % | GAMEPLAY §9, Q-SIM-60 | No |
 | `campaign.momentum.supply_weight` | float | percentage points | 30 (PROPOSED, Q-SIM-60): × the coalition's supply fill (its finite bases' stock ÷ their max stock); the two weights must add up to 100 | GAMEPLAY §9, Q-SIM-60 | No |
 | `campaign.defeat` | object | — | `{hold_min: 30}`: the sanctuary's defense HP must stay at 0 this long (Q-TH-7, replacing Q-GD-7's forward-airbase rule; PROPOSED; game minutes, Q-ALN-1). In code (NX-124 part 3): required in the balance profile; `hold_min` is converted to running ticks at load | GAMEPLAY §9 | No |
+| `campaign.defeat.reset_hp_frac` | float | fraction of `capture.defense_hp.SANCTUARY`, 0 to 1 | 0.5 (PROPOSED, NX-499; Q-TD-129 (6) owner: (b); Q-TD-131, lead, owner may veto; a derived placeholder, not measured; in code, NX-499: T is `CampaignRules.defeat_reset_hp`). Once the defeat run has started, a repair resets it only when the coalition sanctuary's defense hp is at or above T = max(1, ⌈value × max hp⌉), which is 500 of 1000 at 0.5. Between 0 and T the run pauses (GAMEPLAY §9). 0 is exactly today's rule: any whole hp resets. 1.0 resets only at full hp. The value is read as an exact decimal, and the loader refuses a value outside 0 to 1. Basis (GAMEPLAY §9, from §1b step 1's [UNVERIFIED] siege of about 22.75 hp per game minute): at 0.5, the Static needs about 22 min of that siege to take a reset sanctuary back to 0, and the 3 base slots reach T within `hold_min` under that siege at a repair rate of about 0.037 or more. Sweep 0 (the control), 0.25, 0.5, 0.75 and 1.0, jointly with the §6.5 rate sweep. Tuning range 0 to 1, step 0.05 (add-config-key). Acceptance: the lowest value at which, on the siege seeds, one viewer truck parked at haven no longer prevents a defeat while 3 do. The harness's defeat count is not built yet (GAMEPLAY §11) | GAMEPLAY §9 | No (end condition) |
 | `campaign.objective_mode` | enum `timed`\|`off` | — | `timed` (Q-GD-19); chosen at campaign setup by owner/admin only (Q-ALN-10) | GAMEPLAY §9 | No (set per campaign) |
 | `campaign.options.unlimited_ammo` | bool | — | not in the schema yet (NX-124 part 2 does not honour it); false (Q-CBT-7; test/special-event option; set at campaign setup by owner/admin only, not GM, Q-ALN-10) | GAMEPLAY §5 | No |
 | `campaign.intermission.mode` | enum `auto_advance`\|`await_owner` | — | TBD (owner choice per campaign, Q-UX-8) | GAMEPLAY §9 | Yes |
@@ -289,12 +420,13 @@ Rule options (NX-388 part 2, Q-CFG-16): `capture.requires_defenses_down`, `air_c
 | `tasking.urgency_max` | float | multiplier cap (1.0–2.0) | 2.0 (PROPOSED, Q-SIM-73): a triggering condition's urgency runs from 1.0 to this; only a stocking resupply job runs below 1.0 (`tasking.stock_urgency`) | GAMEPLAY §1b, Q-GP-20 | Yes |
 | `tasking.priority_aging_per_min` | float | priority points/min (game, Q-ALN-23) | 1 (PROPOSED, Q-SIM-73): old jobs gain priority so they aren't starved (Q-GD-37) | GAMEPLAY §1b | Yes |
 | `tasking.reeval_every_ticks` | int | ticks | 50 (PROPOSED, Q-SIM-73): boards are re-evaluated every N running ticks, not every tick (Q-GD-37) | GAMEPLAY §1b | Yes |
-| `tasking.expire_min` | float | min (game, Q-ALN-23) | 15 (PROPOSED, Q-SIM-73): an unclaimed job expires this long after it was posted (objective jobs: with the objective) | GAMEPLAY §1b | Yes |
+| `tasking.expire_min` | float | min (game, Q-ALN-23) | 15 (PROPOSED, Q-SIM-73): an unclaimed job expires this long after it was posted (objective jobs: with the objective; an unclaimed coalition retake job not at all, a claimed one this long after its claim, Q-TD-121, NX-484) | GAMEPLAY §1b | Yes |
 | `tasking.slots.<job_kind>` | int | units | PROPOSED (Q-SIM-73): defend 2, strike 2, assist_objective 4, scout 1, escort_convoy 2, patrol 2 (Q-SIM-94, NX-382: the coalition front-line patrol), intercept 1 (Q-SIM-96, NX-382), repair_bridge 2 (NX-373 part 2: trucks per down bridge) | GAMEPLAY §1b, TB-4 | Yes |
 | `tasking.resupply_stock_per_slot` | int | stock units | 100 (PROPOSED, Q-SIM-73): a resupply job gets one slot per this much missing stock (max stock minus stock, rounded up, at least 1) | GAMEPLAY §1b | Yes |
 | `tasking.static_offense_min_tier` | tier | | `ALPHA` (PROPOSED, Q-SIM-85): the lowest Director tier at which the Static's board posts the strikes it generates itself; at Pattern of Life it posts none (the Director's operations and the coalition's board are not gated) | THREAT-DIRECTOR §5a | Yes |
 | `tasking.resupply_slots_max` | int | units | 3 (PROPOSED, Q-SIM-73) | GAMEPLAY §1b | Yes |
-| `tasking.defend_radius_m` | float | m | 10000 (PROPOSED, Q-SIM-74): a base posts a defend job when its side tracks an enemy ground unit this close; urgency 1.0 at the radius rising to the cap at the base | GAMEPLAY §1b | Yes |
+| `tasking.resupply_slots_max_starving` | int | units, ≥ `resupply_slots_max` (loader) | 6 (PROPOSED, Q-TD-128: harness C0 #532; = `resupply_slots_max` is the no-op; NX-473): a starving or damaged base's resupply job's cap is `resupply_slots_max` + ⌊need × (this − `resupply_slots_max`)⌋, a Static convoy's `director.pol.convoy_slots` + the same raise (need: the floor deficit or facility-damage share, 0 to 1). In code (NX-497, Q-TD-129 (3)): the sanctuary repair job `resupply:<sanctuary>` uses the same cap, with the sanctuary's missing defense-hp share as its need and no stock-per-slot term. No new key | GAMEPLAY §5 LC-3, §1b `resupply:` | Yes |
+| `tasking.defend_radius_m` | float | m | 10000 (PROPOSED, Q-SIM-74): a base posts a defend job when its side tracks an enemy ground unit this close (and, for a besieged sanctuary, an enemy aircraft or ground unit, Q-TD-122); urgency 1.0 at the radius rising to the cap at the base | GAMEPLAY §1b | Yes |
 | `tasking.counterattack_window_min` | float | min (game, Q-ALN-23) | 15 (PROPOSED, Q-SIM-74, Q-GD-31): for this long after a node is lost the AI garrison may take strike and assist-objective jobs against it | GAMEPLAY §1b | Yes |
 | `tasking.scout_post_interval_min` | float | min (game) | 2 (PROPOSED, Q-DEV-21): at most one new generated scout job per board per this long (highest urgency, ties by key) | GAMEPLAY §1b | Yes |
 | `tasking.capture_max_restarts` | int | restarts | 3 (PROPOSED, Q-SIM-84): a CAPTURE job whose claimants are still driving at its expiry gets a fresh one this many times, then expires normally | GAMEPLAY §1b | Yes |
@@ -304,7 +436,7 @@ Rule options (NX-388 part 2, Q-CFG-16): `capture.requires_defenses_down`, `air_c
 | `tasking.overfill_factor` | int | multiplier | 2 (PROPOSED, Q-SIM-73, Q-DEV-21): when no job with a free slot is feasible for a unit (every one full, or every free one refused: Q-TD-89), a job takes units up to this times its slots (a Recon scout's point job never overfills) | GAMEPLAY §1b | Yes |
 | `tasking.overfill_point_jobs` | bool | flag | false (decided rule as default, Q-DEV-21 option (NX-388)): whether a Recon scout's point job overfills like any other job when no free job is feasible for the unit | GAMEPLAY §1b | Yes |
 | `tasking.join_excluded_jobs` | list of job kinds | may be empty | [PATROL] (decided rule as default, Q-DEV-21 option (NX-388)): job kinds a bare JOIN never takes for a new coalition unit; the unit can still take them through the board | GAMEPLAY §1b, Q-GP-23 | Yes |
-| `tasking.ai_jobs` | list of job kinds | must not overlap `ai_excluded_jobs`; not INTERCEPT (loader) | [DEFEND, RESUPPLY, SCOUT, REPAIR_BRIDGE] (decided rule as default, Q-CFG-16 option (NX-388); REPAIR_BRIDGE since NX-373 part 2, as GAMEPLAY §1b lists it): job kinds a coalition AI garrison unit takes by itself; any other kind not excluded it joins only once a COMMANDER-owned unit holds a claim, or as a counterattack (Q-GD-26, Q-GD-31). INTERCEPT keeps its own rule (a garrison fighter's round must hit the scout) | GAMEPLAY §1b | Yes, from the next board pass |
+| `tasking.ai_jobs` | list of job kinds | must not overlap `ai_excluded_jobs`; not INTERCEPT (loader) | [DEFEND, RESUPPLY, SCOUT, REPAIR_BRIDGE] (decided rule as default, Q-CFG-16 option (NX-388); REPAIR_BRIDGE since NX-373 part 2, as GAMEPLAY §1b lists it): job kinds a coalition AI garrison unit takes by itself; any other kind not excluded it joins only once a COMMANDER-owned unit holds a claim, or as a counterattack (Q-GD-26, Q-GD-31). INTERCEPT keeps its own rule (a garrison fighter's round must hit the scout). In code (NX-497, Q-TD-124): RESUPPLY here never covers the sanctuary repair job `resupply:<sanctuary>`. Like the retake, it is for viewer trucks only, whatever this list holds | GAMEPLAY §1b | Yes, from the next board pass |
 | `tasking.ai_excluded_jobs` | list of job kinds | may be empty; not INTERCEPT (loader) | [ESCORT_CONVOY, PATROL] (decided rule as default, Q-CFG-16 option (NX-388)): job kinds an AI garrison unit never takes, even beside a player (Q-GP-45, Q-SIM-94) | GAMEPLAY §1b | Yes, from the next board pass |
 | `tasking.escort_repair_crews` | bool | switch | true (lead decision as default, owner may veto, Q-SIM-118; NX-373 part 2): the coalition board posts an escort job (`escort:<truck id>`) for each of its carriers holding a REPAIR_BRIDGE claim, on the way or parked at the stop, with no threat test; it ends DONE when the bridge is repaired, FAILED when the truck is lost or Disabled while claimed, EXPIRED when the truck drops the repair. False: escorts only for threatened routes | GAMEPLAY §1b, STATE-MACHINES §4.3 | Yes, from the next board pass |
 | `tasking.human_displaces_ai` | bool | switch | true (decided rule as default, Q-CFG-16 option (NX-388)): a viewer's unit that finds a job's slots full takes the slot of its AI garrison claimant with the highest entity id (Q-TD-11). False: AI claims count like any other, so the viewer's unit takes another job, or overfills this one when no free job is feasible for it | GAMEPLAY §1b | Yes, from the next board pass; claims already made stay |
@@ -318,10 +450,12 @@ Rule options (NX-388 part 2, Q-CFG-16): `capture.requires_defenses_down`, `air_c
 | `tasking.patrol_orbit_m` | float | m | 5000 (PROPOSED, Q-SIM-94, NX-382): an aircraft patrol circles its node this far out, and the job needs this clearance from a discovered ring | GAMEPLAY §1b | Yes |
 | `tasking.patrol_dwell_s` | float | s (game, Q-ALN-23) | 300 (PROPOSED, Q-SIM-94, NX-382; lead decision: so an aircraft can finish one on a tank): a coalition patrol is done this long after its unit is on station | GAMEPLAY §1b | Yes |
 | `tasking.order_dwell_s` | float | s (game, Q-ALN-23) | 600 (PROPOSED, Q-SIM-110, NX-398): the longest an armed unit holds the node of its direct order before the board takes it; bingo, RTB, ammo out, landing or a new order end it sooner. 600 game s is a strike jet's whole tank (3,600 world s at `sim.time_scale` 6), so a jet always bingos first and the key binds armed ground units; twice `patrol_dwell_s`, since a player chose this node | GAMEPLAY §1b | Yes |
+| `tasking.retake_keep_min` | float | min (game, Q-ALN-23), ≥ 0 | 30 (PROPOSED, Q-TD-121, NX-484: about the mean gap between the 14 postings on one node in the T0/T1 review; harness-tuned later): an unclaimed coalition retake job stays posted this long after its node's defenses come back above 0, and goes on as the same job if they fall to 0 again within it; recapture, a lost road or no truck role withdraw it at once. 0 means no keep: withdrawn as soon as the defenses are up. An unclaimed retake job never expires by `tasking.expire_min` (Q-TD-121 revised, Q-TD-107), so the keep may run past it, and 0 is not the rule before NX-484 | GAMEPLAY §1b | Yes |
 | `tasking.stock_urgency` | float | multiplier, above 0 and below 1 | 0.5 (PROPOSED, Q-SIM-100, NX-389): urgency of a stocking resupply job (a base below `logistics.stock_target_frac`); when the base is also starving or has damaged facilities the higher urgency wins. The loader checks the stored thousandths: it refuses a `stock_urgency` that rounds to 0 and a `stock_urgency + stock_front_bonus` that reaches 1000 (1.0), so a starving or damaged base always ranks first | GAMEPLAY §1b | Yes |
 | `tasking.stock_front_bonus` | float | multiplier, 0 to below 1 | 0.25 (PROPOSED, Q-SIM-100, NX-389): added to a stocking job's urgency when its base is on the front line (the patrol rule: held, capturable, with a road neighbour the side does not hold) | GAMEPLAY §1b | Yes |
 | `director.pol.patrol_period_s` | float | s (game, Q-ALN-23) | 1800 (PROPOSED, Q-SIM-85): every this long each Static base with an idle ground garrison unit posts one patrol | THREAT-DIRECTOR §5a | Yes |
 | `director.pol.convoy_period_s` | float | s (game, Q-ALN-23) | 3600 (PROPOSED, Q-SIM-85): every this long one convoy (a RESUPPLY job) runs to the Static base with the largest upkeep shortfall; none when no base is short | THREAT-DIRECTOR §5a | Yes |
+| `director.pol.convoy_demand_s` | float | s (game, Q-ALN-23), ≤ `convoy_period_s` (loader) | 900 (PROPOSED, Q-TD-128: harness V2 #534, chosen over 300 and off; = `convoy_period_s` is the no-op; NX-473): while a Static base is below its starvation floor, a convoy is also due this long after the last one | THREAT-DIRECTOR §5a | Yes |
 | `director.pol.offensive_period_s` | float | s (game, Q-ALN-23) | 21600 (PROPOSED, Q-SIM-85): at Pattern of Life one capture operation (a catalog operation with a CAPTURE job) may launch this often, outside the window budget, paid from the real surplus, and not while the night cap is spent | THREAT-DIRECTOR §5, §5a | Yes |
 | `director.pol.patrol_slots` | int | units | 1 (PROPOSED, Q-SIM-86, Q-DEV-21): units one patrol job takes | THREAT-DIRECTOR §5a | Yes |
 | `director.pol.patrols_per_base` | int | patrols | 1 (PROPOSED, Q-SIM-85, Q-DEV-21): patrols a Static base has out at once per patrol period | THREAT-DIRECTOR §5a | Yes |
@@ -345,13 +479,20 @@ Rule options (NX-388 part 2, Q-CFG-16): `capture.requires_defenses_down`, `air_c
 | `campaign.night_progress_cap_nodes_per_h` | float | nodes/h (game, Q-ALN-23) | 1/6 (PROPOSED; written 0.16666666666666666): the Static flips at most one node per 1 / this many game hours (6) with no live viewer unit, the spacing fading linearly to none at `capture.quiet_ref` viewer units (Q-TD-93, NX-474; no key of its own), every Static flip starting the clock; its capture bar holds one step short of a flip until then (and stays held until the full cap frees if a viewer arrives), and the Director launches no capture operation (Q-SIM-85, Q-SIM-86, in code since NX-157) | THREAT-DIRECTOR §5, Q-GD-4 (amended) | Yes, from the next check (Q-CFG-16) |
 | `campaign.aar_duration_s` | float | s (real) | 300 | GAMEPLAY §9 | Yes |
 
-In code since NX-126: the `campaign` block of `balance/default.yaml` (`contracts/config/balance.json`) holds `time_limit_h`, `victory_node_frac`, `victory_hold_min`, `objective_period_min`, `objective_mode` (read from the balance profile until a per-campaign setting exists), `score.average_weight`, `score.final_weight`, `score.objective_points` and `momentum.nodes_weight` and `supply_weight`; `nexus.core.campaign` reads them. The three durations are game time, converted once at load (`game_ticks`, with the key's unit: 72 h = 2,592,000 ticks, 30 min = 18,000, 15 min = 9,000 at 10 Hz). The fractions and weights are read as the exact decimals written, so a threshold or a score tie is exact. `target_duration_h`, `max_extension_h`, `defeat`, `options`, `intermission`, `rubber_band_zone` and the night cap are not read yet.
+1. The fractions and weights are read as the exact decimals written, so a threshold or a score tie is exact.
 
-In code since NX-374: the required `tasking` block of `balance/default.yaml` (`contracts/config/balance.json`) holds the keys above (`priority` and `slots` are objects keyed by lower-case job kind). `claim_lease_s`, `expire_min`, (NX-382) `patrol_dwell_s` and (NX-398) `order_dwell_s` are game time and become running ticks at load (`Rules.tasking`); priorities, the aging rate and the urgency cap are kept exact.
+2. The required `tasking` block of `balance/default.yaml` (`contracts/config/balance.json`) holds the keys above (`priority` and `slots` are objects keyed by lower-case job kind) (NX-374).
+3. `claim_lease_s`, `expire_min`, (NX-382) `patrol_dwell_s`, (NX-398) `order_dwell_s` and (NX-484) `retake_keep_min` are game time and become running ticks at load (`Rules.tasking`); priorities, the aging rate and the urgency cap are kept exact.
 
-Left in code on purpose (NX-377, Q-DEV-21): `services/sim/tests/core/test_kernel_literals.py` scans `nexus/core` for numeric literals and fails on any not listed there with a reason. The list is only (a) performance constants that never change a result (grid cell sizes and query padding, the sensor range class span, float epsilons), (b) fixed-point scales and unit conversions (thousandths, millionths, `CAPTURE_FULL`, `CP_SCALE`, a percent, seconds per minute), and (c) structure: enum order, wire and schema limits, the PCG64 constants, `NOISE_STEPS` (the resolution of the Director's noise draw: a change is not performance-neutral, it reshuffles every seeded decision, so it is fixed with the stream), the tick rate (ADR-0002), a cell's centre, round-half-up, the 1.0 floor of an urgency multiplier, and `DECAY_RATIO_MAX` (a bound on the cost of a load-time bisection that rejects a config, not a game rule). Anything else that changes an outcome is a key in this section. Defaults on hand-built rule objects (`Supply.facility_hp_per_stock`, `facility_rearm_cost`, `ammo_loadout_share`) exist for tests; the shipped values come from `balance/default.yaml`.
+4. Left in code on purpose (NX-377, Q-DEV-21): `services/sim/tests/core/test_kernel_literals.py` scans `nexus/core` for numeric literals and fails on any not listed there with a reason.
+5. The list is only (a) performance constants that never change a result (grid cell sizes and query padding, the sensor range class span, float epsilons), (b) fixed-point scales and unit conversions (thousandths, millionths, `CAPTURE_FULL`, `CP_SCALE`, a percent, seconds per minute), and (c) structure: enum order, wire and schema limits, the PCG64 constants, `NOISE_STEPS` (the resolution of the Director's noise draw: a change is not performance-neutral, it reshuffles every seeded decision, so it is fixed with the stream), the tick rate (ADR-0002), a cell's centre, round-half-up, the 1.0 floor of an urgency multiplier, and `DECAY_RATIO_MAX` (a bound on the cost of a load-time bisection that rejects a config, not a game rule).
+6. Anything else that changes an outcome is a key in this section.
+7. Defaults on hand-built rule objects (`Supply.facility_hp_per_stock`, `facility_rearm_cost`, `ammo_loadout_share`) exist for tests; the shipped values come from `balance/default.yaml`.
+
+Notes: CONFIG-AND-CONTENT-NOTES.md §6.6
 
 ### 6.7 Threat Director
+
 | Key | Type | Unit | PROPOSED | Source | HR |
 |---|---|---|---|---|---|
 | `director.window_s` | float | s (game, Q-ALN-23) | 60 | THREAT-DIRECTOR §4 | No |
@@ -364,11 +505,10 @@ Left in code on purpose (NX-377, Q-DEV-21): `services/sim/tests/core/test_kernel
 | `director.tier.min_dwell_s` | float | s (game, Q-ALN-23) | 600 | THREAT-DIRECTOR §3 | Yes |
 | `director.tier.start` | tier | PATTERN_OF_LIFE, ALPHA, BRAVO | `PATTERN_OF_LIFE` (decided rule as default, Q-CFG-16 option (NX-388)): the Static's Director tier at campaign start (`start_campaign`), with dwell 0 and the usual starting levels, so after one `min_dwell_s` it moves toward min(provocation level, CP ceiling) like from any tier: a higher start without provocation settles back down. A restore measures the reachable tiers from it | THREAT-DIRECTOR §3 | No: it only matters at campaign start |
 | `director.tier.max_step` | int | tier steps, 1 to 2 | 1 (decided rule as default, Q-CFG-16 option (NX-388)): the most tier steps one move takes toward min(provocation level, CP ceiling) (Q-TD-1); 2 lets PATTERN_OF_LIFE and BRAVO change in one move | THREAT-DIRECTOR §3, STATE-MACHINES D-1 | Yes, at the next window |
-| `director.budget.<tier>` | int | budget points / window | `pattern_of_life` 10, `alpha` 30, `bravo` 80 (PROPOSED, Q-SIM-78); never above the Static's real surplus (Q-TD-5). Read only with `economy.legacy_rules` true: **temporary, removed in NX-412 part 5** (Q-TD-33; ECONOMY EC-7) | THREAT-DIRECTOR §4 | Yes |
 | `director.max_spawns_per_window` | int | units / window | 6 (PROPOSED, Q-SIM-78) | THREAT-DIRECTOR §4, Q-TD-12 | Yes |
-| `director.max_live_units.<tier>` | int | units | `pattern_of_life` 40 (24 in Q-SIM-78; raised in NX-157, Q-SIM-85: strait-1's four garrison quotas already add up to 22), `alpha` 40, `bravo` 70 (PROPOSED, Q-SIM-78). Read only with `economy.legacy_rules` true: **temporary, removed in NX-412 part 5** (Q-TD-33; ECONOMY EC-8) | THREAT-DIRECTOR §4, Q-TD-12 | Yes |
-| `director.spend_frac.<tier>` | float | fraction 0-1 of base surplus / window | `pattern_of_life` 0.007, `alpha` 0.02, `bravo` 0.0534, PROPOSED placeholder, NX-412 sweep: × strait-1's starting Static surplus (1,500) they give the old tier budgets 10 / 30 / 80. Ordered pattern_of_life ≤ alpha ≤ bravo (the loader refuses otherwise). In code (NX-412 part 3, `economy.legacy_rules` false): the budget's first term, floor(surplus × fraction) | THREAT-DIRECTOR §4, ECONOMY EC-7, Q-TD-24 | Yes, at the next window |
-| `director.source_spend_frac` | float | fraction 0-1 of rear pool / window | 0.005, PROPOSED placeholder, NX-412 sweep: a Static holding only its rear at `economy.storage.floor` (2,000) gets 10, the old Pattern of Life budget. In code (NX-412 part 3): floor(pool × fraction) is added to the budget and buys only units that spawn at the source; 0 with the Static in unlimited mode (no pool) | THREAT-DIRECTOR §4, ECONOMY EC-7, Q-TD-26 | Yes, at the next window |
+| `director.spend_frac.<tier>` | float | fraction 0-1 of base surplus / window | `pattern_of_life` 0.007, `alpha` 0.02, `bravo` 0.0534, PROPOSED placeholder, NX-412 sweep: × strait-1's starting Static surplus (1,500) they give 10 / 30 / 80, the tier budgets of before NX-412 part 3. Ordered pattern_of_life ≤ alpha ≤ bravo (the loader refuses otherwise). In code (NX-412 part 3): the budget's first term, floor(surplus × fraction) | THREAT-DIRECTOR §4, ECONOMY EC-7, Q-TD-24 | Yes, at the next window |
+| `director.source_spend_frac` | float | fraction 0-1 of rear pool / window | 0.01, PROPOSED – harness-tuned at 24 h by U0 #510 (sha 3aa67f38, all four profiles; lead note, PR #517), not validated at the 50-seed gate (Q-TEST-2); Q-TD-97 (T0/T1): a Static holding only its rear at `economy.storage.floor` (2,000) gets 20. In code (NX-412 part 3): floor(pool × fraction) is added to the budget and buys only units that spawn at the source; 0 with the Static in unlimited mode (no pool) | THREAT-DIRECTOR §4, ECONOMY EC-7, Q-TD-26 | Yes, at the next window |
+| `director.surplus_ref_frac` | float | fraction 0-1 of `logistics.node_max_stock` | 0.25 (PROPOSED, NX-500; Q-TD-125 owner: (a); Q-TD-132 (A), lead, owner may veto; in code: R is fixed at load in `Supply.surplus_ref`, exact decimals): the Director's surplus is stock above R = max(⌈value × `node_max_stock`⌉, ⌈`logistics.starve_threshold` × `node_max_stock`⌉) at each base the side holds, so a lower floor changes logistics only. 0.25 is today's `logistics.starve_threshold`: R equals today's floor at every node, the strait-1 starting Static surplus stays 1,500 and no event stream changes. Read by `director.surplus` only, so by the budget, the cadence floor's cap and the convoy and capture-slot purses. Tuning range 0.125 to 0.5, step 0.025, as `starve_threshold` (Q-CFG-22; below 0.25 R is the shipped floor, so that part sweeps nothing until the floor is lowered) | THREAT-DIRECTOR §4, ECONOMY EC-7 "Surplus reference" | No |
 | `director.upkeep_reserve_windows` | float | windows, ≥ 0 | 2, PROPOSED placeholder, NX-412 sweep: this window's upkeep and the next. In code (NX-412 part 3): the budget less floor(this × the upkeep the Static's live units owe per window; with `economy.upkeep_period`, the ceiling of the sum of upkeep ÷ period, NX-426); with the shipped upkeep 0 it removes nothing | THREAT-DIRECTOR §4, ECONOMY EC-7, Q-TD-24 | Yes, at the next window |
 | `director.cadence_windows` | int | windows, ≥ 1 | 10, PROPOSED placeholder, NX-412 sweep: one `director.tier.min_dwell_s` (600 s). In code (NX-412 part 3): while the Static holds an HQ, has no operation staged now, and has launched no capture operation (OFFENSIVE, RETAKE) that posts jobs for this many decision windows (`DirectorState.last_operation`; a dropped staged operation counts from its drop window; other operations do not reset it, Q-TD-54), the budget and the base account are at least the cheapest operation of its tier that base surplus plus the window's rear account can pay (NX-434), lifted to the cheapest capture operation with a target that base surplus plus the window's rear account pays and the window's caps (spawn and live room, `max_ops` with one slot over, Q-TD-57) allow, which is then selected first; a capture operation the caps would skip lifts nothing (Q-TD-42, Q-TD-48) | THREAT-DIRECTOR §4, ECONOMY EC-7, Q-TD-26 | Yes, at the next window |
 | `director.score.victory_hold_mult` | float | multiplier ≥ 1 | 1.0, PROPOSED placeholder, NX-412 sweep (1.0 changes nothing). In code (NX-412 part 4): x the score of an operation with a CAPTURE job (OFFENSIVE, RETAKE) whose target is a node of the running victory hold (`SideView.hold`, THREAT-DIRECTOR §4 step 4) | THREAT-DIRECTOR §4, ECONOMY EC-9, Q-TD-19 | Yes, at the next window |
@@ -384,10 +524,10 @@ Left in code on purpose (NX-377, Q-DEV-21): `services/sim/tests/core/test_kernel
 | `director.decoy_blink.cooldown_s` | float | s (game) | 600 (PROPOSED, Q-SIM-82, owner): before the same radar can blink again; one radar blinks per window | FOG-OF-WAR FOW-11 | Yes |
 | `director.decoy_blink.max_per_window` | int | radars | 1 (PROPOSED, Q-SIM-82): radars that start a blink per decision window | FOG-OF-WAR FOW-11 | Yes |
 | `director.strike_bridge.cooldown_s` | float > 0 | s (game) | 1800 (PROPOSED, Q-SIM-121, NX-401): after a bridge's `BridgeRepaired`, how long before STRIKE_BRIDGE may target it again (`DirectorState.bridge_ready`) | THREAT-DIRECTOR §7a Part 5 | Yes |
-| `director.staging.direct_s` | float > 0 | s (game) | 1500 (PROPOSED, Q-TD-37, NX-416): with `economy.legacy_rules` false, an operation with a CAPTURE job is staged when its capture kind's road travel time from the rear source to the target exceeds this; = `campaign.victory_hold_min` (30 min) less a 5 min margin for the strike, the STAGE gather and the capture bar | THREAT-DIRECTOR §4a FS-1 | Yes |
-| `director.staging.max_wait_windows` | int ≥ 1 | windows | 90 (PROPOSED, Q-TD-37, NX-416): decision windows a staged operation waits for its base to pay, then it launches by EC-13 or is dropped; one `director.pol.convoy_period_s` (60 min) plus an ENEMY_CONVOY's drive from the rear to a bridgehead (~21 min) | THREAT-DIRECTOR §4a FS-4 | Yes |
+| `director.staging.direct_s` | float > 0 | s (game) | 1500 (PROPOSED, Q-TD-37, NX-416): an operation with a CAPTURE job is staged when its capture kind's road travel time from the rear source to the target exceeds this; = `campaign.victory_hold_min` (30 min) less a 5 min margin for the strike, the STAGE gather and the capture bar | THREAT-DIRECTOR §4a FS-1 | Yes |
+| `director.staging.max_wait_windows` | int ≥ 1 | windows | 30 (PROPOSED, Q-TD-37, NX-416; Q-TD-90: R2 #482 against R1 #481, then harness-tuned at 24 h by U0 #510 (sha 3aa67f38, all four profiles; lead note, PR #517), not validated at the 50-seed gate (Q-TEST-2)): decision windows a staged operation waits for its base to pay, then it launches by EC-13 or is dropped | THREAT-DIRECTOR §4a FS-4 | Yes |
 | `director.staging.max_staged` | int ≥ 1 | operations | 2 (PROPOSED, Q-TD-37, NX-416): operations a side holds staged at once (one per strait-1 bridgehead lane); one more spawns as EC-13 says | THREAT-DIRECTOR §4a FS-4 | Yes |
-| `director.adaptation_up_above` | float | events | 0 (PROPOSED): a ThreatAdaptation goes UP when its counter is above this as the matching operation launches | THREAT-DIRECTOR §4 step 5 | Yes |
+| `director.adaptation_up_above` | float | events | 2 (PROPOSED, Q-TD-85; harness-tuned at 24 h by U0 #510 (sha 3aa67f38, all four profiles; lead note, PR #517), not validated at the 50-seed gate (Q-TEST-2)): a ThreatAdaptation goes UP when its counter is above this as the matching operation launches | THREAT-DIRECTOR §4 step 5 | Yes |
 | `director.reinforce_damage_above` | float | fraction | 0 (PROPOSED, Q-SIM-81): share of an air-defense site's HP missing above which ReinforceIADS counts it damaged (0 = any damage) | THREAT-DIRECTOR §4 | Yes |
 | `director.escort_min_convoys` | int | convoys | 1 (PROPOSED): the fewest convoys an escort operation is cut to when units are short | THREAT-DIRECTOR §4 step 6 | Yes |
 | `director.frontline_hops` | int | road hops | 1 (PROPOSED): a node is on the front when a node within this many hops has another owner | THREAT-DIRECTOR §4 | Yes |
@@ -412,13 +552,22 @@ Left in code on purpose (NX-377, Q-DEV-21): `services/sim/tests/core/test_kernel
 | `director.intercept.lost_s` | float | s (game) | 120 (PROPOSED, Q-SIM-96, NX-382): an intercept ends once its scout was untracked this long | THREAT-DIRECTOR §5a | Yes |
 | `director.advisor.top_k` | int | candidates | TBD (P4) | THREAT-DIRECTOR §6 | Yes |
 
-In code since NX-155 (Threat Director part 1): the required `director` block of `balance/default.yaml` (`contracts/config/balance.json`) holds the keys above through `max_live_units` (`budget` and `max_live_units` are objects keyed by lower-case tier; `cp.unit_value` by unit kind; `provocation.weights` by action). The game-time keys become running ticks at load (`Rules.director`); coalition power and provocation are kept as whole millionths of a point, the half-life as an exact integer per-window multiplier, the dwell, EMA step and exit ratio exactly, so thresholds never meet a float. `provocation.half_life_s` over `window_s` must reduce to a ratio with neither part above 256 (the loader refuses more). `max_spawns_per_window` and `max_live_units` are read by spawning (NX-156). In code since NX-156 (part 2): `op_priority` (an open map by operation id; the loader requires exactly the catalog's ids), `score.target_value`, `score.weakness_max`, `score.provocation_proximity`, `memory.half_life_s` (an exact integer per-window multiplier like the provocation half-life), `noise_scale` (an exact Fraction), `retake_window_min` and the `tasking.priority` keys `stage` (20) and `capture` (45), which are lead decisions, PROPOSED, for the Director's two job kinds. `advisor.top_k` has no code yet. In code since NX-157 (part 3): `director.pol.*` (`patrol_slots`, `patrol_period_s`, `convoy_period_s`, `offensive_period_s`, `convoy_kind`, `patrols_per_base`, `convoys_per_period`, `offensives_per_period`, `convoy_cost`), `director.garrison.kinds.<node kind>`, `director.garrison.replace_per_window`, `tasking.static_offense_min_tier`, `campaign.night_progress_cap_nodes_per_h`, `tasking.priority.patrol` and `director.op_priority.GARRISON_UPKEEP`; the periods are game ticks on the campaign clock (the cap's `1 /` value is rounded to a whole tick), the loader refuses a garrison or convoy kind that is not an ENEMY air or ground kind that can do its job.
+1. The required `director` block of `balance/default.yaml` (`contracts/config/balance.json`) holds the keys above (`cp.unit_value` by unit kind; `provocation.weights` by action) (NX-155).
+2. The game-time keys become running ticks at load (`Rules.director`); coalition power and provocation are kept as whole millionths of a point, the half-life as an exact integer per-window multiplier, the dwell, EMA step and exit ratio exactly, so thresholds never meet a float.
+3. `provocation.half_life_s` over `window_s` must reduce to a ratio with neither part above 256 (the loader refuses more).
+4. `max_spawns_per_window` is read by spawning (NX-156); the live room is `sim.max_live_units_per_side` (§6.1, NX-488).
+5. `op_priority` (an open map by operation id; the loader requires exactly the catalog's ids), `score.target_value`, `score.weakness_max`, `score.provocation_proximity`, `memory.half_life_s` (an exact integer per-window multiplier like the provocation half-life), `noise_scale` (an exact Fraction), `retake_window_min` and the `tasking.priority` keys `stage` (20) and `capture` (45), which are lead decisions, PROPOSED, for the Director's two job kinds (NX-156 part 2).
+6. `director.pol.*` (`patrol_slots`, `patrol_period_s`, `convoy_period_s`, `offensive_period_s`, `convoy_kind`, `patrols_per_base`, `convoys_per_period`, `offensives_per_period`, `convoy_cost`), `director.garrison.kinds.<node kind>`, `director.garrison.replace_per_window`, `tasking.static_offense_min_tier`, `campaign.night_progress_cap_nodes_per_h`, `tasking.priority.patrol` and `director.op_priority.GARRISON_UPKEEP`; the periods are game ticks on the campaign clock (the cap's `1 /` value is rounded to a whole tick), the loader refuses a garrison or convoy kind that is not an ENEMY air or ground kind that can do its job (NX-157 part 3).
 
-In code since NX-382 part 2 (Q-SIM-96): the five `director.intercept` keys above, `tasking.priority.intercept` and `tasking.slots.intercept` (all required). `reaction_s`, `pol_linger_s` and `lost_s` are game time and become running ticks at load (`Rules.director`: `intercept_reaction_ticks`, `intercept_pol_linger_ticks`, `intercept_lost_ticks`); the two distances are read as written.
+7. The five `director.intercept` keys above, `tasking.priority.intercept` and `tasking.slots.intercept` (all required) (NX-382 part 2, Q-SIM-96).
+8. `reaction_s`, `pol_linger_s` and `lost_s` are game time and become running ticks at load (`Rules.director`: `intercept_reaction_ticks`, `intercept_pol_linger_ticks`, `intercept_lost_ticks`); the two distances are read as written.
 
-Rule options, part 2b (NX-388, Q-CFG-16): `director.tier.start`, `director.tier.max_step`, `director.provocation.ai_shooter_mult`, `director.pol.capture_slot_tiers`, `tasking.ai_jobs`, `tasking.ai_excluded_jobs`, `tasking.human_displaces_ai` and `slots.rebase_order` are required keys whose defaults are the rules as they were, read once into `Rules` (`DirectorRules`, `TaskingRules`, `Rules.rebase_order`) and used where the rule runs, so a reload that rebuilds `Rules` (§5) applies the hot-reloadable ones from their next use. `tasking.ai_jobs` replaced the kernel's last job-kind literal for the garrison (`_GARRISON_JOBS`). `tests/core/test_rule_options.py` covers each.
+9. Rule options, part 2b (NX-388, Q-CFG-16): `director.tier.start`, `director.tier.max_step`, `director.provocation.ai_shooter_mult`, `director.pol.capture_slot_tiers`, `tasking.ai_jobs`, `tasking.ai_excluded_jobs`, `tasking.human_displaces_ai` and `slots.rebase_order` are required keys whose defaults are the rules as they were, read once into `Rules` (`DirectorRules`, `TaskingRules`, `Rules.rebase_order`) and used where the rule runs, so a reload that rebuilds `Rules` (§5) applies the hot-reloadable ones from their next use.
+
+Notes: CONFIG-AND-CONTENT-NOTES.md §6.7
 
 ### 6.8 Progression
+
 | Key | Type | Unit | PROPOSED | Source | HR |
 |---|---|---|---|---|---|
 | `progression.xp.<event>` | int | XP | sortie 40, supply_per_10 15, capture 60, objective 80, recon_assist 15, kill 10, spawn 0 | PROGRESSION §2 | Yes |
@@ -431,6 +580,7 @@ Rule options, part 2b (NX-388, Q-CFG-16): `director.tier.start`, `director.tier.
 | `season.overtime_cap_days` | float | days (real) | 14 (Q-PROG-9). Past it the season closes and the running campaign carries into the new season | PROGRESSION | Yes |
 
 ### 6.9 Input, audio, presentation
+
 | Key | Type | Unit | PROPOSED | Source | HR |
 |---|---|---|---|---|---|
 | `ratelimit.class.deploy.min_interval_s` | float | s (real) | 10 (plus the respawn timer) | CHAT-GATEWAY §5 (Q-GW-1) | Yes |
@@ -458,6 +608,7 @@ Rule options, part 2b (NX-388, Q-CFG-16): `director.tier.start`, `director.tier.
 | `overlay.top_n_labels` | int | labels | TBD | OVERLAY OV-4 | Yes |
 
 ### 6.10 Operations
+
 | Key | Type | Unit | PROPOSED | Source | HR |
 |---|---|---|---|---|---|
 | `ops.offline_pause_after_min` | float | min (real) | 10 (owner, Q-OPS-8): auto-pause (reason TECHNICAL) when the broadcast is offline longer than this | OPS-ADMIN OA-5 | Yes |
@@ -466,10 +617,23 @@ Rule options, part 2b (NX-388, Q-CFG-16): `director.tier.start`, `director.tier.
 
 ## 7. Unit catalog (`content/units/*.yaml`, `content/weapons.yaml`, `content/roles.yaml`)
 
-**What exists now (NX-367, Q-CFG-10).** The schemas are `contracts/config/unit.json`, `weapons.json` and `roles.json`; a field enters them with the code that reads it. Today a unit file has `kind`, `side` (`COALITION | ENEMY | BASE`), `domain`, `playable_by` (list), `min_rank` (iff `VIEWER` is in `playable_by`), `speed_mps` (m/s of world time, `>= 0`, a top speed; NX-121, every value PROPOSED: aircraft 250, UAVs 60, trucks and convoys 25, armor 20, infantry 5, facilities 0), `min_speed_mps` and `fuel_s` (AIR kinds only, NX-368, PROPOSED: jets 100 m/s and 3600 world s, about 10 real minutes at 6×; UAVs 20 m/s and 14400 world s), `sensor: {radius_m}` (every kind, m, 0 = none; NX-150, PROPOSED: RADAR_SITE 120 km, recon UAVs 60 km, fighters and AIR_DEFENSE_SITE 40 km, ENEMY_ARMOR 8 km, GARRISON_INFANTRY 5 km, trucks and convoys 3 km), `stealth` (every kind, in (0, 1]; NX-150, PROPOSED 1.0 for all), optional `sensor.passive_range_m` (m, > 0, absent = no passive sensor; NX-150 part 2, FOW-13, PROPOSED: RECON_UAV and ENEMY_RECON_UAV 100 km, RADAR_SITE 150 km, short of the 220 km between strait-1's airbase radars so neither side starts with the other's discovered) and `weapons` (ids); a weapon has `id` and `targets`; `content/roles.yaml` holds `roles:` (`STRIKE`, `RECON`, `LOGI`). One file per unit, named `<kind in kebab-case>.yaml` (§7a); `ANY` is not a side. The loader (`nexus.runtime.units`) rejects: a kind set that is not exactly `UnitKind`, a file name that is not its kind, an unknown or unused weapon id, duplicates, a role mapped to a kind no VIEWER can play, a GARRISON_INFANTRY weapon that can target anything but GROUND (COMBAT §5.1, Q-CBT-25), `min_speed_mps` or `fuel_s` missing on an AIR kind or present on any other, and `min_speed_mps` above `speed_mps` (NX-368). **Combat stats (NX-124 part 1, COMBAT; PROPOSED, the owner's starting values, Q-SIM-65):** every unit has `hp`, `armor` (0 to 0.9), `evasion` (0.6 to 1.0), `crew` and `threat` (STRIKE_FIGHTER and ENEMY_STRIKE_FIGHTER 100, 0, 0.7, 1, 70; ENEMY_FIGHTER 100, 0, 0.7, 1, 80; RECON_UAV and ENEMY_RECON_UAV 60, 0, 1.0, 0, 40; ENEMY_ARMOR 200, 0.5, 1.0, 3, 60; GARRISON_INFANTRY 80, 0, 1.0, 4, 30; LOGI_TRUCK and ENEMY_CONVOY 80, 0, 1.0, 1, 20; RADAR_SITE 150, 0.3, 1.0, 0, 50; AIR_DEFENSE_SITE 150, 0.3, 1.0, 0, 90); AIR kinds also `alt_bands` and `default_alt_band` (fighters LOW/MED/HIGH, UAVs LOW/MED, default MED) and no other kind has them. A weapon has `bands` (non-empty iff its `targets` has AIR), `range_m`, `projectile_speed_mps` (`null` = a gun), `base_pk` (0 to 1), `damage` (hp, >= 1), `reload_s` and `ammo` (>= 1): AA_MISSILE 30 km, 800 m/s, 0.70, 60, 10 s, 4; AA_LIGHT 8 km, gun, 0.50, 30, 2 s, 400; SAM 35 km, 1000 m/s, 0.70, 70, 15 s, 8; AAA_GUN 4 km, gun, 0.30, 15, 2 s, 400; AG_LIGHT 10 km, 300 m/s, 0.70, 50, 10 s, 4; AG_CANNON 4 km, gun, 0.60, 40, 6 s, 40; SMALL_ARMS 1.5 km, gun, 0.40, 8, 2 s, 300. `crew` is read by part 2 (CB-8). The facility variant split is a constant in `nexus.core.rules` until the catalog lists variants: SHORT_RANGE carries AAA_GUN only, SAM and a variant-less site carry every weapon of the file (AAA_GUN then SAM). `homes_on_emitters` joins with SEAD (§5.3a). The rest of the schema below joins with its readers: `display`, `category` and icons with the overlay; cargo and the remaining stats with NX-122. Facility variants are not catalog entries yet: the theater's `variant` is copied onto the entity, and which facilities emit (RADAR_SITE, the SAM variant of AIR_DEFENSE_SITE, FOW-11) is named in `nexus.runtime.campaign_config` until the catalog lists variants; likewise the kinds that paint targets (RECON_UAV, ENEMY_RECON_UAV; FOG-OF-WAR Q-FOW-6) are named in `nexus.core.rules` until the catalog lists capabilities. The weapon ids (`AA_LIGHT`, `AA_MISSILE`, `AAA_GUN`, `SAM`, `AG_LIGHT`, `AG_CANNON`, `SMALL_ARMS`) are PROPOSED names.
+**What exists now (NX-367, Q-CFG-10).**
+1. The schemas are `contracts/config/unit.json`, `weapons.json` and `roles.json`; a field enters them with the code that reads it.
+2. Today a unit file has `kind`, `side` (`COALITION | ENEMY | BASE`), `domain`, `playable_by` (list), `min_rank` (iff `VIEWER` is in `playable_by`), `speed_mps` (m/s of world time, `>= 0`, a top speed; NX-121, every value PROPOSED: aircraft 250, UAVs 60, trucks and convoys 25, armor 20, infantry 5, facilities 0), `min_speed_mps` and `fuel_s` (AIR kinds only, NX-368, PROPOSED: jets 100 m/s and 3600 world s, about 10 real minutes at 6×; UAVs 20 m/s and 14400 world s), `sensor: {radius_m}` (every kind, m, 0 = none; NX-150, PROPOSED: RADAR_SITE 120 km, recon UAVs 60 km, fighters and AIR_DEFENSE_SITE 40 km, ENEMY_ARMOR 8 km, GARRISON_INFANTRY 5 km, trucks and convoys 3 km), `stealth` (every kind, in (0, 1]; NX-150, PROPOSED 1.0 for all), optional `sensor.passive_range_m` (m, > 0, absent = no passive sensor; NX-150 part 2, FOW-13, PROPOSED: RECON_UAV and ENEMY_RECON_UAV 100 km, RADAR_SITE 150 km, short of the 220 km between strait-1's airbase radars so neither side starts with the other's discovered) and `weapons` (ids); a weapon has `id` and `targets`; `content/roles.yaml` holds `roles:` (`STRIKE`, `RECON`, `LOGI`).
+3. One file per unit, named `<kind in kebab-case>.yaml` (§7a); `ANY` is not a side.
+4. The loader (`nexus.runtime.units`) rejects: a kind set that is not exactly `UnitKind`, a file name that is not its kind, an unknown or unused weapon id, duplicates, a role mapped to a kind no VIEWER can play, a GARRISON_INFANTRY weapon that can target anything but GROUND (COMBAT §5.1, Q-CBT-25), `min_speed_mps` or `fuel_s` missing on an AIR kind or present on any other, and `min_speed_mps` above `speed_mps` (NX-368), and a `mirrors` that breaks the §7.1 Mirrors rule (NX-494).
+5. **Combat stats (NX-124 part 1, COMBAT; PROPOSED, the owner's starting values, Q-SIM-65):** every unit has `hp`, `armor` (0 to 0.9), `evasion` (0.6 to 1.0), `crew` and `threat` (STRIKE_FIGHTER and ENEMY_STRIKE_FIGHTER 100, 0, 0.7, 1, 70; ENEMY_FIGHTER 100, 0, 0.7, 1, 80; RECON_UAV and ENEMY_RECON_UAV 60, 0, 1.0, 0, 40; ENEMY_ARMOR 200, 0.5, 1.0, 3, 60; GARRISON_INFANTRY 80, 0, 1.0, 4, 30; LOGI_TRUCK and ENEMY_CONVOY 80, 0, 1.0, 1, 20; RADAR_SITE 150, 0.3, 1.0, 0, 50; AIR_DEFENSE_SITE 150, 0.3, 1.0, 0, 90); AIR kinds also `alt_bands` and `default_alt_band` (fighters LOW/MED/HIGH, UAVs LOW/MED, default MED) and no other kind has them.
+6. A weapon has `bands` (non-empty iff its `targets` has AIR), `range_m`, `projectile_speed_mps` (`null` = a gun), `base_pk` (0 to 1), `damage` (hp, >= 1), `reload_s` and `ammo` (>= 1): AA_MISSILE 30 km, 800 m/s, 0.70, 60, 10 s, 4; AA_LIGHT 8 km, gun, 0.50, 30, 2 s, 400; SAM 35 km, 1000 m/s, 0.70, 70, 15 s, 8; AAA_GUN 4 km, gun, 0.30, 15, 2 s, 400; AG_LIGHT 10 km, 300 m/s, 0.70, 50, 10 s, 4; AG_CANNON 4 km, gun, 0.60, 40, 6 s, 40; SMALL_ARMS 1.5 km, gun, 0.40, 8, 2 s, 300.
+7. The facility variant split is a constant in `nexus.core.rules` until the catalog lists variants: SHORT_RANGE carries AAA_GUN only, SAM and a variant-less site carry every weapon of the file (AAA_GUN then SAM).
+8. Facility variants are not catalog entries yet: the theater's `variant` is copied onto the entity, and which facilities emit (RADAR_SITE, the SAM variant of AIR_DEFENSE_SITE, FOW-11) is named in `nexus.runtime.campaign_config` until the catalog lists variants; likewise the kinds that paint targets (RECON_UAV, ENEMY_RECON_UAV; FOG-OF-WAR Q-FOW-6) are named in `nexus.core.rules` until the catalog lists capabilities.
+9. The weapon ids (`AA_LIGHT`, `AA_MISSILE`, `AAA_GUN`, `SAM`, `AG_LIGHT`, `AG_CANNON`, `SMALL_ARMS`) are PROPOSED names.
+
+Notes: CONFIG-AND-CONTENT-NOTES.md §7
 
 ### 7.1 Schema
-The block shows the full target schema in one listing; on disk `roles:` is `content/roles.yaml`, each `units:` entry is its own `content/units/<kind>.yaml`, and `weapons:` (§7.2) is `content/weapons.yaml`. List order inside a unit (`playable_by`, `weapons`) is hashed as written.
+
+1. The block shows the full target schema in one listing; on disk `roles:` is `content/roles.yaml`, each `units:` entry is its own `content/units/<kind>.yaml`, and `weapons:` (§7.2) is `content/weapons.yaml`.
+2. List order inside a unit (`playable_by`, `weapons`) is hashed as written.
 ```yaml
 schema_version: 1
 roles:                        # Role (CONTRACTS §3.3) -> UnitKind; every Role used in the MVP must map to exactly one kind
@@ -479,6 +643,7 @@ roles:                        # Role (CONTRACTS §3.3) -> UnitKind; every Role u
 units:
   - kind: STRIKE_FIGHTER      # UnitKind (CONTRACTS §3.3), UPPER_SNAKE, unique
     side: COALITION           # COALITION | ENEMY | BASE (facilities: side follows the base, Q-GP-25)
+    mirrors: <UnitKind|absent> # PROPOSED (in code, NX-494, Q-TD-130): ENEMY kinds only; the COALITION kind of the same domain it mirrors, at most one enemy kind per target; read by the `economy.cost_parity` check (§6.3)
     domain: AIR               # AIR | GROUND | SEA | STATIC
     playable_by: [VIEWER, AI_GARRISON]   # VIEWER | AI_GARRISON | DIRECTOR (one or more)
     min_rank: 1               # PROGRESSION §3; required when playable_by includes VIEWER
@@ -501,11 +666,22 @@ units:
     loadout_cost: <int>       # stock consumed at spawn/rearm; in code as balance logistics.loadout_cost.<kind> (§6.3) until the catalog carries it
     cp_value: <float>         # director CP weight (§6.7)
 ```
+
 Rules:
-- **Display:** `display.symbol` must exist in the overlay symbol set (validated against `apps/overlay` symbol manifest in CI).
-- **Friend/foe colors:** these come from `side` only, never from the catalog (OV-2).
+
+3. **Display:** `display.symbol` must exist in the overlay symbol set (validated against `apps/overlay` symbol manifest in CI).
+
+4. **Friend/foe colors:** these come from `side` only, never from the catalog (OV-2).
+
+5. **Mirrors (PROPOSED, NX-494; Q-TD-130 lead, owner may veto):** `mirrors` pairs an ENEMY kind with its COALITION counterpart for cost parity (ECONOMY EC-3, `economy.cost_parity`).
+6. Shipped pairs: ENEMY_STRIKE_FIGHTER → STRIKE_FIGHTER, ENEMY_RECON_UAV → RECON_UAV (Q-TD-13), ENEMY_CONVOY → LOGI_TRUCK.
+7. ENEMY_ARMOR, ENEMY_FIGHTER and GARRISON_INFANTRY stay unpaired.
+8. The catalog loader refuses `mirrors` on a kind that is not ENEMY, a target that is not in the catalog, not COALITION or of another domain, and two kinds naming one target.
+
+Notes: CONFIG-AND-CONTENT-NOTES.md §7.1
 
 ### 7.2 Weapon profile
+
 ```yaml
 weapons:
   - id: AGM_LIGHT
@@ -521,6 +697,7 @@ weapons:
 ```
 
 ### 7.3 MVP unit list (PROPOSED; every stat TBD by harness)
+
 | Kind | Side | Domain | Playable by | Min rank | Armed | Carries | Captures | Notes |
 |---|---|---|---|---|---|---|---|---|
 | STRIKE_FIGHTER | COALITION | AIR | VIEWER, AI_GARRISON | 1 | yes (AG + AA light) | — | no | Role `STRIKE` (GAMEPLAY §2) |
@@ -535,34 +712,64 @@ weapons:
 | ENEMY_STRIKE_FIGHTER | ENEMY | AIR | DIRECTOR | — | yes (AG + AA light) | — | no | Mirrors STRIKE_FIGHTER (parity, Q-TD-13); stats TBD by harness |
 | ENEMY_RECON_UAV | ENEMY | AIR | DIRECTOR | — | no | — | no | Mirrors RECON_UAV: large sensor, passive range, paints (parity, Q-TD-13); stats TBD by harness |
 
-Specialist chassis (SEAD, artillery, engineer, jammer, AWACS) are P4 (PROGRESSION §3). Naval units are **P3** (Q-GD-8). Their catalog rows are added then. Display class names (Striker, Scout, Hauler, …) come from `display.label_key` and the brand guide (Q-NAME-2); kind ids stay plain (GAMEPLAY TS-4).
+1. Specialist chassis (SEAD, artillery, engineer, jammer, AWACS) are P4 (PROGRESSION §3).
+2. Naval units are **P3** (Q-GD-8).
+3. Their catalog rows are added then.
+4. Display class names (Striker, Scout, Hauler, …) come from `display.label_key` and the brand guide (Q-NAME-2); kind ids stay plain (GAMEPLAY TS-4).
 
 ## 7a. Unit/platform content pipeline (owner requirement, 2026-10-17)
-New platforms (unit types) are **data, not code**: one YAML file per unit in `content/units/`, using the unit-catalog schema (§7). This supersedes the single `content/units.yaml` file: the loader merges `content/units/*.yaml` in sorted filename order. Behavior is composed from existing capability blocks (mobility domain, sensors, weapons, cargo, special abilities). A new *capability* still needs code and a normal PR.
+
+1. New platforms (unit types) are **data, not code**: one YAML file per unit in `content/units/`, using the unit-catalog schema (§7).
+2. This supersedes the single `content/units.yaml` file: the loader merges `content/units/*.yaml` in sorted filename order.
+3. Behavior is composed from existing capability blocks (mobility domain, sensors, weapons, cargo, special abilities).
+4. A new *capability* still needs code and a normal PR.
 
 **Authoring paths:**
-- **Admin console form:** schema-driven, with live validation and a preview card (ADMIN-RBAC content editor, `CONTENT_EDITOR` role).
-- **Agent skill `new-unit`:** a staff member describes the platform in plain words. The skill drafts the YAML, runs the validator and a short balance-harness check, and opens a draft for approval. It never publishes directly. Skill location: `.claude/skills/new-unit/`, plus a tool-agnostic prompt in `.agents/prompts/` (ADR-0010 N-7).
-- **Community submissions (later):** uploaded through the portal, then moderated and approved by the owner or an admin.
 
-**Icons (Q-STYLE-4):** each unit file declares `category` (e.g. FAST_JET, DRONE, TRUCK, TANK, BOAT, HELO, SITE, RADAR). The renderer auto-generates the symbol from category + side styling. An optional `icon` (SVG) can be uploaded. It's **sanitized** (no scripts, external refs or event handlers), size-limited, and must stay readable at small sizes. Animated icons are a later phase.
+5. **Admin console form:** schema-driven, with live validation and a preview card (ADMIN-RBAC content editor, `CONTENT_EDITOR` role).
+
+6. **Agent skill `new-unit`:** a staff member describes the platform in plain words.
+7. The skill drafts the YAML, runs the validator and a short balance-harness check, and opens a draft for approval.
+8. It never publishes directly.
+9. Skill location: `.claude/skills/new-unit/`, plus a tool-agnostic prompt in `.agents/prompts/` (ADR-0010 N-7).
+
+10. **Community submissions (later):** uploaded through the portal, then moderated and approved by the owner or an admin.
+
+11. **Icons (Q-STYLE-4):** each unit file declares `category` (e.g. FAST_JET, DRONE, TRUCK, TANK, BOAT, HELO, SITE, RADAR).
+12. The renderer auto-generates the symbol from category + side styling.
+13. An optional `icon` (SVG) can be uploaded.
+14. It's **sanitized** (no scripts, external refs or event handlers), size-limited, and must stay readable at small sizes.
+15. Animated icons are a later phase.
 
 **Validation gates (all must pass):**
-- Schema check.
-- Cross-references resolve.
-- **No real-world names** (brand rule, Q-PROD-5).
-- Text passes moderation.
-- Stat envelope: values inside configured min/max bands, so a new unit can't be overpowered.
-- Balance harness smoke run.
-- Owner or admin approval.
+
+16. Schema check.
+
+17. Cross-references resolve.
+
+18. **No real-world names** (brand rule, Q-PROD-5).
+
+19. Text passes moderation.
+
+20. Stat envelope: values inside configured min/max bands, so a new unit can't be overpowered.
+
+21. Balance harness smoke run.
+
+22. Owner or admin approval.
 
 **Hot-loading without downtime:**
-- An approved unit is published as a new content version (hash recorded).
-- It becomes available via a logged `STAFF_CONTENT_LOAD{content_hash}` command, so replays stay deterministic.
-- **Additive only mid-campaign:** new units may appear. Existing units' stats change only at the next campaign, unless the key is explicitly hot-reloadable.
-- Removal or disablement: a unit can't be spawned anymore, but existing instances finish their sorties.
+
+23. An approved unit is published as a new content version (hash recorded).
+
+24. It becomes available via a logged `STAFF_CONTENT_LOAD{content_hash}` command, so replays stay deterministic.
+
+25. **Additive only mid-campaign:** new units may appear.
+26. Existing units' stats change only at the next campaign, unless the key is explicitly hot-reloadable.
+
+27. Removal or disablement: a unit can't be spawned anymore, but existing instances finish their sorties.
 
 ## 8. Doctrine catalog (`content/doctrines.yaml`)
+
 ```yaml
 schema_version: 1
 doctrines:
@@ -573,12 +780,19 @@ doctrines:
       - { target_kind: LOGI_TRUCK, stat: cargo, op: mul, value: <float> }
     signature_ability: { id: <ability_id>, cooldown_s: <float>, effect_ref: <effect_id> }   # cooldown in game s (CFG-9, Q-ALN-1)
 ```
-- Perks may only modify whitelisted stats. Modifying `hp` or `base_pk` requires owner sign-off (game-designer role card).
-- Values are PROPOSED. The catalog lands in P4 (NX-213).
 
+1. Perks may only modify whitelisted stats.
+2. Modifying `hp` or `base_pk` requires owner sign-off (game-designer role card).
+
+3. Values are PROPOSED.
+4. The catalog lands in P4 (NX-213).
 
 ## 8a. Operation catalog (`content/operations.yaml`, Q-TD-7)
-The director's operations are content, not kernel code. Each entry names its preconditions (a closed list in the schema), cost, enabled tiers and a **job template**: an ordered list of Tasking Board jobs (job kinds from CONTRACTS `JobKind`, with unit kinds, slot count and an `at` selector; each job after the first depends on the one before) that the operation posts on the Static's board, or an `effect` with no jobs. Selectors resolve only against the Static's view (THREAT-DIRECTOR TD-2). Adding or changing an operation is a content change validated at load (unknown job kinds, selectors or preconditions, a cost outside the envelope are rejected); new behaviour the job kinds can't express needs a spec change first. In code since NX-156: the schema is `contracts/config/operations.json`, the loader `nexus.runtime.operations`, and the shipped file is Q-SIM-81.
+
+1. The director's operations are content, not kernel code.
+2. Each entry names its preconditions (a closed list in the schema), cost, enabled tiers and a **job template**: an ordered list of Tasking Board jobs (job kinds from CONTRACTS `JobKind`, with unit kinds, slot count and an `at` selector; each job after the first depends on the one before) that the operation posts on the Static's board, or an `effect` with no jobs.
+3. Selectors resolve only against the Static's view (THREAT-DIRECTOR TD-2).
+4. Adding or changing an operation is a content change validated at load (unknown job kinds, selectors or preconditions, a cost outside the envelope are rejected); new behaviour the job kinds can't express needs a spec change first.
 
 ```yaml
 schema_version: 1
@@ -596,14 +810,29 @@ operations:
       - { kind: CAPTURE, at: target,           unit_kinds: [ENEMY_ARMOR],          slots: 2 }
     # effect: EMISSION_BLINK          # instead of jobs (DecoyBlink)
 ```
-- **Closed lists.** Preconditions: `target_owner_is_coalition` (the other side's node), `target_in_enemy_view`, `target_capturable` (not a sanctuary or bridge), `target_is_frontline` (a road neighbour not of the node's owner), `target_recently_lost` (within `director.retake_window_min`), `target_has_damaged_air_defense`, `target_radar_operational`, `has_unescorted_convoy`, and for bridges (NX-401, Q-SIM-120, Q-SIM-121; THREAT-DIRECTOR §7a Part 5) `target_is_bridge`, `target_bridge_intact` (not down), `target_feeds_coalition_node` (on the supply route, `logistics.supply_path`, from the other side's sanctuary to a node it holds with a `score.target_value`), `target_bridge_off_cooldown` (`director.strike_bridge.cooldown_s` since its `BridgeRepaired`) and `no_bridge_contested` (no bridge down or under a live STRIKE job on the side's board; at most one such operation selected per window). Selectors: `target`, `target_defenses`, `nearest_own_base`, `sector_point` (NX-379, Q-SIM-87: a point of the sector, see THREAT-DIRECTOR §7a), `each_convoy`. Each suits one target kind (the loader checks; `target` suits NODE and GARRISON), and an `ESCORT_CONVOY` job is the one at `each_convoy`. A `GARRISON` target (NX-157, Q-SIM-85) is a Static base with fewer live Director units homed there than its theater `garrison_quota`; its jobs are `STAGE` at `target` and omit `unit_kinds`, the kind coming from `director.garrison.kinds`; at most one such operation, and its cost is the price of one replacement unit.
-- **Cost envelope (Q-TD-7).** A whole number of points from 0 to the largest `director.budget.<tier>`: an operation above it could never run. With `economy.legacy_rules` false (NX-412 part 3, ECONOMY §4) the envelope is floor(`director.spend_frac.bravo` × the largest possible storage), the storage being `economy.storage.floor` plus `economy.storage.per_node.<kind>` of every theater node (strait-1: 14,000, so 747 with the shipped 0.0534), and the check does not read `director.budget.<tier>`; with it true the old envelope stays. The loader also checks that a priority exists for every operation and none for another, that the units are ENEMY air or ground kinds that fit the job kind (`tasking_gen.fits`) and that the units bought fit `director.max_spawns_per_window`.
-- **Shipped (Q-SIM-81, costs and priorities Q-SIM-78):** OFFENSIVE 60 (stage 2 ENEMY_ARMOR, 2 ENEMY_STRIKE_FIGHTER strike, 2 ENEMY_ARMOR capture), RETAKE 50 (1 strike jet, 3 armor capture; the node lost within 30 game minutes), PROBE 15 (1 strike jet on a frontline base's defenses), RECON 2 (NX-379, Q-SIM-87; 5 in Q-SIM-78) (1 ENEMY_RECON_UAV loiters at the stalest point of a sector outside the known air-defense rings), ESCORT_CONVOYS 10 (Q-SIM-82; 20 in Q-SIM-78) (1 ENEMY_FIGHTER per unescorted convoy), REINFORCE_IADS 15 (1 ENEMY_CONVOY resupplies the base whose air-defense site is damaged), DECOY_BLINK 0 (a radar goes dark for `decoy_blink.dark_s`), GARRISON_UPKEEP 8 (NX-157, Q-SIM-85; one unit staged at a short Static base, raised at the base itself, PROPOSED), STRIKE_BRIDGE 30 (NX-401, Q-SIM-121, PROPOSED; 2 ENEMY_STRIKE_FIGHTER strike a bridge on the coalition's lifeline, no STAGE). Tiers: DECOY_BLINK, RECON, ESCORT_CONVOYS and GARRISON_UPKEEP at every tier (routine: outside `director.max_ops.<tier>`), the rest at ALPHA and BRAVO.
+
+**Closed lists.**
+5. Preconditions: `target_owner_is_coalition` (the other side's node), `target_in_enemy_view`, `target_capturable` (not a sanctuary or bridge), `target_is_frontline` (a road neighbour not of the node's owner), `target_recently_lost` (within `director.retake_window_min`), `target_has_damaged_air_defense`, `target_radar_operational`, `has_unescorted_convoy`, and for bridges (NX-401, Q-SIM-120, Q-SIM-121; THREAT-DIRECTOR §7a Part 5) `target_is_bridge`, `target_bridge_intact` (not down), `target_feeds_coalition_node` (on the supply route, `logistics.supply_path`, from the other side's sanctuary to a node it holds with a `score.target_value`), `target_bridge_off_cooldown` (`director.strike_bridge.cooldown_s` since its `BridgeRepaired`) and `no_bridge_contested` (no bridge down or under a live STRIKE job on the side's board; at most one such operation selected per window).
+6. Selectors: `target`, `target_defenses`, `nearest_own_base`, `sector_point` (NX-379, Q-SIM-87: a point of the sector, see THREAT-DIRECTOR §7a), `each_convoy`.
+7. Each suits one target kind (the loader checks; `target` suits NODE and GARRISON), and an `ESCORT_CONVOY` job is the one at `each_convoy`.
+8. A `GARRISON` target (NX-157, Q-SIM-85) is a Static base with fewer live Director units homed there than its theater `garrison_quota`; its jobs are `STAGE` at `target` and omit `unit_kinds`, the kind coming from `director.garrison.kinds`; at most one such operation, and its cost is the price of one replacement unit.
+
+**Cost envelope (Q-TD-7; NX-412 part 3, ECONOMY §4).**
+9. A whole number of points from 0 to floor(`director.spend_frac.bravo` × the largest possible storage): an operation above it could never run.
+10. The storage is `economy.storage.floor` plus `economy.storage.per_node.<kind>` of every theater node (strait-1: 14,000, so 747 with the shipped 0.0534).
+11. The loader also checks that a priority exists for every operation and none for another, that the units are ENEMY air or ground kinds that fit the job kind (`tasking_gen.fits`) and that the units bought fit `director.max_spawns_per_window`.
+
+12. **Shipped (Q-SIM-81, costs and priorities Q-SIM-78):** OFFENSIVE 60 (stage 2 ENEMY_ARMOR, 2 ENEMY_STRIKE_FIGHTER strike, 2 ENEMY_ARMOR capture), RETAKE 50 (1 strike jet, 3 armor capture; the node lost within 30 game minutes), PROBE 15 (1 strike jet on a frontline base's defenses), RECON 2 (NX-379, Q-SIM-87; 5 in Q-SIM-78) (1 ENEMY_RECON_UAV loiters at the stalest point of a sector outside the known air-defense rings), ESCORT_CONVOYS 10 (Q-SIM-82; 20 in Q-SIM-78) (1 ENEMY_FIGHTER per unescorted convoy), REINFORCE_IADS 15 (1 ENEMY_CONVOY resupplies the base whose air-defense site is damaged), DECOY_BLINK 0 (a radar goes dark for `decoy_blink.dark_s`), GARRISON_UPKEEP 8 (NX-157, Q-SIM-85; one unit staged at a short Static base, raised at the base itself, PROPOSED), STRIKE_BRIDGE 30 (NX-401, Q-SIM-121, PROPOSED; 2 ENEMY_STRIKE_FIGHTER strike a bridge on the coalition's lifeline, no STAGE).
+13. Tiers: DECOY_BLINK, RECON, ESCORT_CONVOYS and GARRISON_UPKEEP at every tier (routine: outside `director.max_ops.<tier>`), the rest at ALPHA and BRAVO.
+
+Notes: CONFIG-AND-CONTENT-NOTES.md §8a
 
 ## 9. Theater file format (`content/theaters/<slug>.yaml`)
 
 ### 9.1 Schema
-The schema is `contracts/config/theater.json` (NX-120); like balance keys, a field enters it with the code that reads it or checks it. Coordinates and bounds are integer metres.
+
+1. The schema is `contracts/config/theater.json` (NX-120); like balance keys, a field enters it with the code that reads it or checks it.
+2. Coordinates and bounds are integer metres.
 
 | Field | Type | Rules |
 |---|---|---|
@@ -623,9 +852,10 @@ The schema is `contracts/config/theater.json` (NX-120); like balance keys, a fie
 | `enemy_hq` | node id | Enemy HQ node (Domination victory, GAMEPLAY §9) |
 | `forward_airbase` | node id | The coalition AIRBASE the idle floor protects (GAMEPLAY §9, Q-TH-2) |
 
-Node `kind` ∈ `AIRBASE | FOB | PORT | BRIDGE | HQ | SANCTUARY` (SIM-CORE §4); `start_stock` is `null` on the two SANCTUARY nodes and only there; facilities are placed as STATIC units with a `base_id` (Q-GP-25).
+3. Node `kind` ∈ `AIRBASE | FOB | PORT | BRIDGE | HQ | SANCTUARY` (SIM-CORE §4); `start_stock` is `null` on the two SANCTUARY nodes and only there; facilities are placed as STATIC units with a `base_id` (Q-GP-25).
 
 ### 9.2 Validation rules (load + CI)
+
 | ID | Rule |
 |---|---|
 | TH-1 | Node `id`s match the CONTRACTS `NodeId` slug `^[a-z0-9]+(-[a-z0-9]+)*$` (≤ 32 chars, no underscores) and are unique. Node `name`s are unique (case-insensitive, confusable-folded) and moderation-clean. NX-120 folds with NFKC + casefold; confusable folding and the moderation check join with the moderation module (CFG-8) |
@@ -641,6 +871,7 @@ Node `kind` ∈ `AIRBASE | FOB | PORT | BRIDGE | HQ | SANCTUARY` (SIM-CORE §4);
 | TH-10 | No facility at a base whose `start_owner` is NEUTRAL (Q-GP-36); `forward_airbase` is a coalition AIRBASE |
 
 ### 9.3 Format example (NOT the real map)
+
 > **Illustrative format example only.** This is *not* the first theater. It loads under the current schema and rules (a test keeps it that way, NX-120). The real theater is authored in NX-008 (Q-GD-9). Coordinates and names exist only to show the syntax.
 ```yaml
 schema_version: 1
@@ -671,18 +902,30 @@ enemy_rear_source: rear-e
 enemy_hq: hq-e
 forward_airbase: ab-w
 ```
-`start_stock: null` on the SANCTUARY means "infinite by rule", not unknown. The schema documents this explicitly (CFG-2).
+
+1. `start_stock: null` on the SANCTUARY means "infinite by rule", not unknown.
+2. The schema documents this explicitly (CFG-2).
 
 ## 10. Text content (`content/text/*.yaml`)
 
 ### 10.1 Callsign word list (`callsign_words.yaml`)
-- **Format:** words are `^[A-Z]{3,8}$`, e.g. `VIPER`. Generated callsigns are `WORD-NN`, with `NN` in 01–99 (IDENTITY §2).
-- **Size (Q-CFG-4):** start with about 200 theme-fitting words (≈ 19.8k callsigns). The long-run target is ≥ 2× the measured 90-day peak of distinct commanders, set once real audience data exists.
-- **Role-themed pools (Q-CFG-4):** word pools may be themed per role (e.g. strike words like VIPER, recon words like ECHO). **Flight numbering** (e.g. "VIPER 1-2") is a display label only when operators fly together; the personal callsign stays the stable identity.
-- **Content screening:** every word passes the moderation denylist, including leetspeak and homoglyph folding. No word may be a real-world unit or squadron designation, or a trademark (Q-PROD-5).
-- **Reserved patterns:** generated patterns are reserved and can't be claimed as custom callsigns (IDENTITY §3).
+
+1. **Format:** words are `^[A-Z]{3,8}$`, e.g. `VIPER`.
+2. Generated callsigns are `WORD-NN`, with `NN` in 01–99 (IDENTITY §2).
+
+3. **Size (Q-CFG-4):** start with about 200 theme-fitting words (≈ 19.8k callsigns).
+4. The long-run target is ≥ 2× the measured 90-day peak of distinct commanders, set once real audience data exists.
+
+5. **Role-themed pools (Q-CFG-4):** word pools may be themed per role (e.g. strike words like VIPER, recon words like ECHO).
+6. **Flight numbering** (e.g. "VIPER 1-2") is a display label only when operators fly together; the personal callsign stays the stable identity.
+
+7. **Content screening:** every word passes the moderation denylist, including leetspeak and homoglyph folding.
+8. No word may be a real-world unit or squadron designation, or a trademark (Q-PROD-5).
+
+9. **Reserved patterns:** generated patterns are reserved and can't be claimed as custom callsigns (IDENTITY §3).
 
 ### 10.2 Sitrep templates (`sitreps.yaml`)
+
 ```yaml
 schema_version: 1
 templates:
@@ -698,46 +941,81 @@ slots:                                  # the only allowed slot types
   tier:        { source: enum.threat_tier }
   count:       { source: event.int_field }
 ```
-- Slots resolve **only** from the sources listed. Any other source fails validation.
-- If a slot's source value is absent (e.g. a commander with no approved callsign), the template's `fallback_text_key` is used. That fallback must itself contain no slot for the missing value, and its use is logged (DATA-INTEGRITY FB-3 pattern). Templates without a fallback and with an absent value are **skipped**, not filled with placeholder text.
+
+1. Slots resolve **only** from the sources listed.
+2. Any other source fails validation.
+
+3. If a slot's source value is absent (e.g. a commander with no approved callsign), the template's `fallback_text_key` is used.
+4. That fallback must itself contain no slot for the missing value, and its use is logged (DATA-INTEGRITY FB-3 pattern).
+5. Templates without a fallback and with an absent value are **skipped**, not filled with placeholder text.
 
 ### 10.2a Asset provenance register (Q-BRAND-5, Q-LEGAL-4, NX-318)
-- Every art, audio and font asset in the repo or loaded by the overlay has one register entry: `source`, `author`, `license`, `ai_generated` (bool) and `status` (`placeholder` | `final`). The register lives under `assets/` (file name set in NX-318).
-- Alpha and testing builds may use AI-generated art anywhere, but only as a visual placeholder: `status: placeholder`, and the stream shows a placeholder note.
-- **Release gate:** CI fails a release build that contains any asset with `ai_generated: true` or `status: placeholder`, or any asset missing from the register.
-- Fonts and third-party assets are committed only if their license permits redistribution (e.g. OFL). Licensed music is never committed; it is loaded on the broadcast host only (Q-LEGAL-4).
-- Tool commercial terms and platform AI-disclosure rules are [UNVERIFIED].
+
+1. Every art, audio and font asset in the repo or loaded by the overlay has one register entry: `source`, `author`, `license`, `ai_generated` (bool) and `status` (`placeholder` | `final`).
+2. The register lives under `assets/` (file name set in NX-318).
+
+3. Alpha and testing builds may use AI-generated art anywhere, but only as a visual placeholder: `status: placeholder`, and the stream shows a placeholder note.
+
+4. **Release gate:** CI fails a release build that contains any asset with `ai_generated: true` or `status: placeholder`, or any asset missing from the register.
+
+5. Fonts and third-party assets are committed only if their license permits redistribution (e.g. OFL).
+6. Licensed music is never committed; it is loaded on the broadcast host only (Q-LEGAL-4).
+
+7. Tool commercial terms and platform AI-disclosure rules are [UNVERIFIED].
 
 ### 10.3 Localization keys (`strings.<locale>.yaml`)
-- Keys are dotted (`unit.strike_fighter`, `sitrep.node_captured`, `hud.objective`).
-- `en` is the only locale in the MVP. Every key referenced by templates, the catalog or the overlay must exist in `en` (CI check).
-- Interpolation uses named slots `{node_name}`, never positional ones.
-- Strings are plain text. No HTML or markup is allowed (WP-6, SEC-OV-1).
+
+1. Keys are dotted (`unit.strike_fighter`, `sitrep.node_captured`, `hud.objective`).
+
+2. `en` is the only locale in the MVP.
+3. Every key referenced by templates, the catalog or the overlay must exist in `en` (CI check).
+
+4. Interpolation uses named slots `{node_name}`, never positional ones.
+
+5. Strings are plain text.
+6. No HTML or markup is allowed (WP-6, SEC-OV-1).
 
 ## 11. Validation & CI
+
 ### 11.1 Schema tests
-- Every file under `balance/` and `content/` validates against its schema. Unknown keys fail.
-- A negative fixture for each schema (missing required key, wrong type, unknown key) proves the loader rejects it.
+
+1. Every file under `balance/` and `content/` validates against its schema.
+2. Unknown keys fail.
+
+3. A negative fixture for each schema (missing required key, wrong type, unknown key) proves the loader rejects it.
 
 ### 11.2 Cross-reference checks (`tools/config_lint`)
-- Unit `weapons` → weapon ids; doctrine perks → unit kinds and whitelisted stats; `roles` → existing unit kinds, and catalog kinds == the CONTRACTS `UnitKind` enum.
-- Theater `spawns` domains → units for that side and domain; `display.symbol` → overlay symbol manifest.
-- Sitrep `event` → contract event types; `text_key` → `strings.en.yaml`.
-- Every balance key in §6 exists in the schema, and every schema key appears in this spec (a drift check against the spec table, parsed from markdown).
-- Every hot-reloadable flag in the schema matches the HR column here.
+
+1. Unit `weapons` → weapon ids; doctrine perks → unit kinds and whitelisted stats; `roles` → existing unit kinds, and catalog kinds == the CONTRACTS `UnitKind` enum.
+
+2. Theater `spawns` domains → units for that side and domain; `display.symbol` → overlay symbol manifest.
+
+3. Sitrep `event` → contract event types; `text_key` → `strings.en.yaml`.
+
+4. Every balance key in §6 exists in the schema, and every schema key appears in this spec (a drift check against the spec table, parsed from markdown).
+
+5. Every hot-reloadable flag in the schema matches the HR column here.
 
 ### 11.3 Content safety
-Moderation denylist over all display strings (CFG-8). This runs in CI and at load time.
+
+1. Moderation denylist over all display strings (CFG-8).
+2. This runs in CI and at load time.
 
 ### 11.4 Balance-diff report (required on PRs touching `balance/` or `content/`)
-CI posts a comment containing:
-- the key-level diff (old → new) and the new `config_hash`;
-- for each changed key, its HR status and source spec section;
-- a balance-harness comparison on the standard scenarios (TESTING-STRATEGY §3.5), with median and p10/p90 per metric before and after.
 
-A PR without a harness run fails the `balance-report` check. A change that touches a non-HR key also requires the `golden-update` label if the golden replays change (TESTING-STRATEGY §3.2).
+1. CI posts a comment containing:
+
+2. the key-level diff (old → new) and the new `config_hash`;
+
+3. for each changed key, its HR status and source spec section;
+
+4. a balance-harness comparison on the standard scenarios (TESTING-STRATEGY §3.5), with median and p10/p90 per metric before and after.
+
+5. A PR without a harness run fails the `balance-report` check.
+6. A change that touches a non-HR key also requires the `golden-update` label if the golden replays change (TESTING-STRATEGY §3.2).
 
 ## 12. Failure modes
+
 | Failure | Behavior |
 |---|---|
 | Missing or invalid required key at startup | Exit non-zero, naming the key and file. The watchdog alerts. The stream shows the fallback scene (OPS-ADMIN §1) |
@@ -747,6 +1025,7 @@ A PR without a harness run fails the `balance-report` check. A change that touch
 | Secret ref unresolved | Startup refused, naming the ref, never the value |
 
 ## 13. Test plan
+
 | Req | Tests |
 |---|---|
 | CFG-1 | Schema positive/negative fixtures per kind; unknown-key rejection |
@@ -764,12 +1043,13 @@ A PR without a harness run fails the `balance-report` check. A change that touch
 | TH-1…TH-8 | One failing fixture theater per rule |
 
 ## 14. Open questions
-- Decided and folded in (2026-10-17): Q-GD-5 (48 h target), Q-GD-6 (cap + visible reserve queue), Q-GD-7 (`campaign.defeat`), Q-GD-9 (hand-authored first theater), Q-GD-11 (`logistics.truck_bridge_repair_mult`), Q-PROG-3 (account age 24 h at 0.5×), Q-CFG-1…Q-CFG-7 (see [OPEN-QUESTIONS](../planning/OPEN-QUESTIONS.md)), Q-CFG-6 (`audio.night_mode.hours`), Q-GW-1 (per-class rate limits).
-- Decided and folded in (2026-10-18): Q-CFG-8 (CFG-9, CFG-10), Q-TEST-2 (header note), Q-PROG-6 (distinct-humans progression gate removed), Q-PROG-7 (§5a), Q-PROG-8, Q-PROG-9, Q-GD-35, Q-GD-37, Q-AI-7, Q-AI-9, Q-UX-11, Q-SUP-7, Q-GW-2, Q-OPS-8, Q-OPS-9, Q-ARCH-16, Q-BRAND-5 / Q-LEGAL-4 (§10.2a).
-- Decided and folded in (spec-alignment batch, 2026-10-18): Q-ALN-1 (world vs game time, CFG-9; the §6.6 campaign and objective timers are game time), Q-ALN-3 (pause reasons), Q-ALN-4 (taunt cooldowns, GM idle auto-release, redemption cooldowns and the supply-drop cap are real time), Q-ALN-5 (respawn is game time), Q-ALN-6 (round up to ticks), Q-ALN-8 (old idle-despawn key removed), Q-ALN-10 (campaign options are owner/admin only), Q-ALN-13 (no offensive redemption class), Q-ALN-14 (no rank revocation).
-- Decided and folded in (spec-alignment batch 2, 2026-10-18): Q-ALN-18 (Top Commanders in `hud.rotation.panels`), Q-ALN-22 (GMs draft rank/XP presets; Owner/Admin approve and apply, §5a), Q-ALN-23 (clocks for the capture, Tasking Board, night-progress and Threat Director keys in §6 and for the FoW timers, CFG-9), Q-ALN-24 (a reload requested while paused is deferred until resume, §5).
-- Decided and folded in (spec-alignment batch 3, 2026-10-18): Q-ALN-35 (CHARLIE warning lead time is game time, CFG-9), Q-ALN-38 (Tier 1 FoW refresh re-expressed in world time, CFG-9), Q-ALN-42 (harness crowd profiles, header note).
-- Still open:
-  - The package fill wait (GAMEPLAY §7) now has a clock (CFG-9) but no row in §6; their keys, values and HR status are added when those features are specified.
-  - Weight of Top Commanders in `hud.rotation.panels` (§6.9).
-  - The exact maintenance start time and the `overlay.broadcast_tz` value (owner).
+
+Still open:
+
+1. The package fill wait (GAMEPLAY §7) now has a clock (CFG-9) but no row in §6; their keys, values and HR status are added when those features are specified.
+
+2. Weight of Top Commanders in `hud.rotation.panels` (§6.9).
+
+3. The exact maintenance start time and the `overlay.broadcast_tz` value (owner).
+
+Notes: CONFIG-AND-CONTENT-NOTES.md §14

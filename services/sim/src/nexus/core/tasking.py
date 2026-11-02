@@ -21,12 +21,16 @@ while frozen (SC-11), for each side in COALITION, ENEMY order:
    progress: its claim becomes ACTIVE and its lease clock restarts; with none for
    `tasking.claim_lease_s` the claim is released and the job is OPEN again (TB-1). Then the outcome:
    - RESUPPLY: DONE when a claimant stands at the node with its cargo gone (the delivery stop
-     ended); FAILED when the side lost the node. DEFEND: FAILED likewise; DONE when a claimant
+     ended); FAILED when the side lost the node. The sanctuary repair job (`resupply:<sanctuary>`,
+     NX-497): DONE when a claimant stands there and its defense hp is full (it carries nothing;
+     `defense._repair_sanctuaries` rebuilds it); a sanctuary is never lost. DEFEND: FAILED
+     likewise; DONE when a claimant
      stands at the node and the threat is gone (no bar of the other side, and the side tracks no
-     enemy GROUND unit within `tasking.defend_radius_m`)). STRIKE: DONE when the side owns
-     the node, or its defense hp is 0 and, for a board `strike:` job, the side knows no live site
-     there (a facility marker at the node last seen not Disabled: SEAD, Q-TD-81; a Director
-     operation's strike is done at 0 hp); on a bridge, when the bridge is down (NX-373).
+     enemy GROUND unit within `tasking.defend_radius_m`; for a sanctuary, also its defense hp is
+     full or no tracked enemy aircraft is within the radius, Q-TD-122)). STRIKE: DONE when the
+     side owns the node, or its defense hp is 0 and, for a board `strike:` job, the side knows
+     no live site there (a facility marker at the node last seen not Disabled: SEAD, Q-TD-81; a
+     Director operation's strike is done at 0 hp); on a bridge, when the bridge is down (NX-373).
      REPAIR_BRIDGE (the coalition's, NX-373 part 2): drive to the quicker bank and out to the
      bridge's repair stop (`logistics.approach`), where `bridges.repair` works; arrived means
      parked at the stop; DONE when the bridge is no longer down, then its trucks drive back to
@@ -57,7 +61,9 @@ while frozen (SC-11), for each side in COALITION, ENEMY order:
      since: Q-TD-87, NX-463), else EXPIRED, unless another job waits for it (the Director's chains,
      NX-156): its goal was met, so the next step must not fail with it. `JobDone` lists them all.
      A job with no claim expires `tasking.expire_min` after posting (an objective's job: with the
-     objective); one waiting for another does not expire.
+     objective); one waiting for another does not expire, nor does an unclaimed retake or
+     coalition resupply job (`unexpiring`, Q-TD-121 revised, Q-SIM-131: the generator withdraws
+     it).
    - A job that depends on an ended one (TB-8) loses the dependency when it was DONE, else FAILS.
      When it loses it, its expiry clock restarts and its claimants (units that took it at spawn,
      `take`, and waited with their lease held) set off.
@@ -71,11 +77,13 @@ while frozen (SC-11), for each side in COALITION, ENEMY order:
    fits it (`fits`), has no open dependency, may be taken by it, has a free slot and is feasible;
    when no such job with a free slot is feasible for it (none free, or every free one refused),
    the first full one below its overfill cap that is (Q-TD-89, NX-465). Rank:
-   `tasking.priority.<kind>` x urgency + `priority_aging_per_min` x game minutes waited, an exact
-   Fraction, highest first; runs of equal priority are ordered by one `tasking` draw each, in job
-   id order, then by id. Feasible: a
-   GROUND unit has a road route (an empty truck on a resupply job reloads at a source first; neither
-   resupply leg enters a node the other side holds, `logistics.supply_route`, Q-SIM-122);
+   `tasking.priority.<kind>` x urgency + `priority_aging_per_min` x game minutes waited (an
+   unclaimed coalition resupply job's at most `expire_min`, Q-SIM-132), an exact Fraction,
+   highest first; runs of equal priority are ordered by one `tasking` draw each, in job id
+   order, then by id. Feasible: a GROUND unit has a road route (an empty truck on a resupply
+   job reloads at a source first, but takes the sanctuary repair job empty and refuses it loaded,
+   NX-497; neither resupply leg enters a node the other side holds,
+   `logistics.supply_route`, Q-SIM-122);
    an aircraft reaches the target and a landing base of its side with the bingo reserve left,
    its straight route crosses no discovered, not-Disabled enemy air-defense ring unless the
    target is that site's base (`crosses_ring`, also applied to a parameterless JOIN), and a strike
@@ -95,7 +103,8 @@ coalition scout was tracked inside a held node's radius, dropped when it is not)
 
 A non-garrison unit may displace an AI garrison claimant (Q-TD-11; `tasking.human_displaces_ai`).
 An AI garrison unit takes the `tasking.ai_jobs` (DEFEND, RESUPPLY, SCOUT) freely, never the
-`tasking.ai_excluded_jobs` (ESCORT_CONVOY, PATROL) or a retake (a viewer's truck's, Q-TD-100),
+`tasking.ai_excluded_jobs` (ESCORT_CONVOY, PATROL), a retake (a viewer's truck's, Q-TD-100) or the
+sanctuary repair job (NX-497),
 and any other job only once a COMMANDER-owned
 unit holds a claim on it (it never initiates offense). A parameterless JOIN takes the best job at
 once (`joinable_jobs`, ties by id). For `tasking.counterattack_window_min` after its side loses a
@@ -123,7 +132,9 @@ from nexus.core.economy import source_stock
 from nexus.core.fog import SideView, side_view
 from nexus.core.logistics import (
     Run,
+    accepts,
     approach,
+    friendly,
     go_home,
     keeps,
     load,
@@ -140,6 +151,7 @@ from nexus.core.tasking_gen import (
     POST_GATE,
     RETAKE,
     JobSpec,
+    besieged,
     can_hit,
     crewing,
     fits_job,
@@ -147,9 +159,11 @@ from nexus.core.tasking_gen import (
     held_within,
     is_idle,
     live_site,
+    repairs_sanctuary,
     watched,
 )
 from nexus.core.world import (
+    JOB_KEY_PREFIX,
     SIDES,
     Claim,
     Entity,
@@ -159,6 +173,7 @@ from nexus.core.world import (
     Vec2,
     World,
     at_stop,
+    end_stop,
     leave_stop,
     on_node,
     release_claim,
@@ -210,18 +225,49 @@ def _base(world: World) -> dict[str, Any]:
     }
 
 
-def priority(tr: TaskingRules, job: Job, now: int) -> Fraction:
-    """`tasking.priority.<kind>` x urgency, plus linear aging per game minute waited (TB-3). A
-    retake does not age, so a starving base's resupply always ranks above it (Q-TD-100 (a))."""
-    waited = Fraction(0 if job.key.startswith(RETAKE) else now - job.created, tr.ticks_per_min)
+def standing(job: Job) -> bool:
+    """A coalition retake job stands outside the board's clocks: it does not age (TB-3), so a
+    starving base's resupply always ranks above it (Q-TD-100 (a), Q-TD-107), and while unclaimed it
+    does not expire (TB-1; Q-TD-121 revised, NX-484): one job id per lost node for as long as
+    `tasking_gen._retake` generates it, which withdraws it otherwise. A claim starts its CAPTURE
+    clock (`claim`), so once claimed it ends by the CAPTURE rules (`_outcome`). The TB-1 rule
+    alone also covers a coalition resupply job (`unexpiring`)."""
+    return job.key.startswith(RETAKE)
+
+
+def unexpiring(side: Side, job: Job) -> bool:
+    """While unclaimed, `job` does not expire by `tasking.expire_min` (TB-1): a retake
+    (`standing`), or a coalition `resupply:` job (Q-SIM-131 (a), NX-492), which keeps its posting
+    time while the generator still posts it (it withdraws it otherwise), so LC-1's job age
+    (`ai_trucks`) reaches `logistics.ai_trucks.period_s`. Only the expiry: the resupply job still
+    ages (TB-3, capped while unclaimed in `priority`, Q-SIM-132), and a claimed one does not
+    expire anyway (`_outcome`: a claimed non-CAPTURE job), so its claim needs no fresh clock."""
+    return standing(job) or (side == _COALITION and job.key.startswith(JOB_KEY_PREFIX["RESUPPLY"]))
+
+
+def priority(tr: TaskingRules, job: Job, now: int, *, side: Side) -> Fraction:
+    """`tasking.priority.<kind>` x urgency, plus linear aging per game minute waited (TB-3), but
+    none for a standing job (`standing`). An unclaimed job of `side` that does not expire
+    (`unexpiring`: a coalition resupply job) ages at most `tasking.expire_min` minutes' worth,
+    about the most it could wait unclaimed before it was exempt (Q-SIM-132 (a), Q-TD-100); a
+    claimed one ages as before, without a cap (a claimed non-CAPTURE job never expired)."""
+    waited = 0 if standing(job) else now - job.created
+    if unexpiring(side, job) and not job.claims:
+        waited = min(waited, tr.expire_ticks)
     # 1000: `Job.urgency` is in thousandths of a multiplier (a fixed-point scale)
-    return tr.priority[job.kind] * Fraction(job.urgency, 1000) + tr.aging_per_min * waited
+    aging = tr.aging_per_min * Fraction(waited, tr.ticks_per_min)
+    return tr.priority[job.kind] * Fraction(job.urgency, 1000) + aging
 
 
-def rank(tr: TaskingRules, jobs: Sequence[Job], now: int, tie: PcgStream | None) -> list[Job]:
-    """Best first: priority descending, then job id. With `tie`, each run of equal priority is
-    ordered by one draw per job (in id order) before the id (TB-5); without, by id alone."""
-    scored = sorted(((priority(tr, j, now), j) for j in jobs), key=lambda pj: (-pj[0], pj[1].id))
+def rank(
+    tr: TaskingRules, jobs: Sequence[Job], now: int, tie: PcgStream | None, *, side: Side
+) -> list[Job]:
+    """Best first: `side`'s priority descending, then job id. With `tie`, each run of equal
+    priority is ordered by one draw per job (in id order) before the id (TB-5); without, by id
+    alone."""
+    scored = sorted(
+        ((priority(tr, j, now, side=side), j) for j in jobs), key=lambda pj: (-pj[0], pj[1].id)
+    )
     out: list[Job] = []
     i = 0
     while i < len(scored):
@@ -297,6 +343,11 @@ def _is_ai(world: World, entity_id: int) -> bool:
     return e is not None and e.owner_kind == _AI
 
 
+def _cargo(world: World, entity_id: int) -> bool:
+    e = world.find(entity_id)
+    return e is not None and bool(e.cargo)
+
+
 def _full(world: World, job: Job, *, ai: bool) -> bool:
     """No free slot for a unit (`ai`: an AI garrison unit). Any other unit does not count the
     garrison's claims while `tasking.human_displaces_ai`: it displaces one (`claim`)."""
@@ -343,8 +394,8 @@ def _may_take(world: World, tr: TaskingRules, e: Entity, job: Job) -> bool:
     if job.kind == _INTERCEPT:  # the garrison's own call: a round that can hit the scout
         track = world.contacts[e.side].get(job.entity or 0)
         return track is not None and world.rules is not None and can_hit(world.rules, e, track.kind)
-    if job.kind in tr.ai_excluded_jobs or job.key.startswith(RETAKE):
-        return e.owner_kind != _AI  # escort, patrol, retake: the players' call (Q-GP-45, Q-TD-100)
+    if job.kind in tr.ai_excluded_jobs or _viewers_only(world, e, job):
+        return e.owner_kind != _AI  # escort, patrol, retake, haven repair (NX-497): players only
     if e.owner_kind != _AI or job.kind in tr.ai_jobs:
         return True
     lost = world.lost.get(job.node or "")
@@ -353,6 +404,11 @@ def _may_take(world: World, tr: TaskingRules, e: Entity, job: Job) -> bool:
         if owner not in (e.side, "NEUTRAL"):
             return True
     return any((c := world.find(i)) is not None and c.owner_kind == _HUMAN for i in job.claims)
+
+
+def _viewers_only(world: World, e: Entity, job: Job) -> bool:
+    """A retake (Q-TD-100) or the sanctuary repair job (NX-497, Q-TD-124 (a)): viewer trucks."""
+    return job.key.startswith(RETAKE) or repairs_sanctuary(_rules(world)[0], e.side, job.key)
 
 
 def take(world: World, e: Entity, job: Job, out: list[Event]) -> None:
@@ -373,20 +429,30 @@ def _launch(world: World, e: Entity, job: Job) -> None:
 
 def claim(world: World, e: Entity, job: Job, out: list[Event]) -> None:
     """`e` takes a slot of `job` (JobClaimed; the lease starts). A job whose slots are full gives
-    one to a non-garrison unit (while `tasking.human_displaces_ai`) by releasing its AI garrison
-    claimant with the highest entity id (Q-TD-11), which stops where it is (an aircraft orbits; a
-    ground unit finishes its road leg); a job full of humans is overfilled, which only happens when
-    no job with a free slot is feasible for `e` (`_open`). Claims are kept in
+    one to a non-garrison unit (while `tasking.human_displaces_ai`) by releasing an AI garrison
+    claimant (Q-TD-11): the highest-id one with no cargo, else the highest id, so a loaded run
+    finishes (Q-TD-110, NX-473); it stops where it is (an aircraft orbits; a
+    ground unit finishes its road leg), but a displaced truck with cargo keeps its route and
+    unloads at its target; a job full of humans is overfilled, which only happens when
+    no job with a free slot is feasible for `e` (`_open`). A unit with an open unloading stop
+    reports it first, at the node it unloaded at, unless the job is at that node: it keeps
+    unloading there (Q-SIM-130). Claims are kept in
     entity-id order, as a snapshot restores them, so a restored world emits the same events."""
     if e.owner_kind != _AI and len(job.claims) >= job.slots and not _full(world, job, ai=False):
-        evicted = max(i for i in job.claims if _is_ai(world, i))
+        evicted = max(
+            (i for i in job.claims if _is_ai(world, i)), key=lambda i: (not _cargo(world, i), i)
+        )
         release_claim(world, job, evicted, out)
-        if (v := world.find(evicted)) is not None:
+        if (v := world.find(evicted)) is not None and not v.cargo:  # a loaded run drives on
             v.path = (
                 v.path[:1]
                 if v.path and world.rules and world.rules.domain[v.kind] == _GROUND
                 else []
             )
+    if e.delivered and e.last_node is not None and job.node != e.last_node:
+        end_stop(world, e, e.last_node, out)  # a job elsewhere cuts an open unloading stop (NX-486)
+    if standing(job) and not job.claims and world.rules and world.rules.tasking:
+        job.expires = _now(world) + world.rules.tasking.expire_ticks  # its CAPTURE clock starts
     job.claims[e.id] = Claim(_now(world))
     job.claims = dict(sorted(job.claims.items()))
     e.job_id = job.id
@@ -409,7 +475,7 @@ def joinable_jobs(world: World, kind: UnitKind) -> list[Job]:
         if j.depends_on is None and j.kind not in tr.join_excluded_jobs
         and fits_job(rules, kind, j.kind, j.key)
     ]  # fmt: skip
-    return _open(tr, world, rank(tr, jobs, _now(world), None), ai=False)
+    return _open(tr, world, rank(tr, jobs, _now(world), None, side=_COALITION), ai=False)
 
 
 def run(world: World, out: list[Event]) -> None:
@@ -631,10 +697,19 @@ def _staged(world: World, job: Job) -> bool:
 
 def _menaced(world: World, rules: Rules, tr: TaskingRules, side: Side, node: str) -> bool:
     """The other side's bar is on the node, or the side tracks an enemy ground unit within
-    `tasking.defend_radius_m` of it (what the side knows, as when the job was posted)."""
+    `tasking.defend_radius_m` of it (what the side knows, as when the job was posted), or it is the
+    side's sanctuary below full defense hp with a tracked enemy aircraft or ground unit within the
+    radius (Q-TD-122, NX-493: the generator's `besieged`, alone, so a full sanctuary ends its job
+    even with a ground contact in range)."""
     bar = world.capture.get(node)
     if bar is not None and bar.side != side:
         return True
+    if node == rules.supply.rear[side]:  # the sanctuary's own rule (Q-TD-122), as the generator
+        tracks = [c for c in world.contacts[side].values() if c.age is None]
+        if besieged(rules, tr, world.defense_hp, side, node, tracks):
+            return True
+        if rules.node_kind[node] in rules.uncapturable:
+            return False  # an uncapturable sanctuary gets no ordinary defend job (`_defend`)
     x, y = rules.roads.pos[node]
     return any(
         c.age is None and rules.domain[c.kind] == _GROUND
@@ -647,6 +722,12 @@ def _verdict(world: World, rules: Rules, tr: TaskingRules, side: Side, job: Job)
     node = job.node
     lost = node is not None and world.owner.get(node) != side
     match job.kind:
+        case "RESUPPLY" if repairs_sanctuary(rules, side, job.key):  # NX-497: parked, hp full
+            if lost:  # only when `capture.uncapturable_node_kinds` drops SANCTUARY
+                return "FAILED"
+            d = rules.defense  # posted only with defenses (`tasking_gen._sanctuary_repair`)
+            full = d is not None and world.defense_hp[str(node)] >= d.max_hp[str(node)]
+            return "DONE" if full and _present(world, job) else None
         case "RESUPPLY":
             if lost:
                 return "FAILED"
@@ -725,7 +806,10 @@ def _outcome(
         verdict = "EXPIRED"  # nobody to credit (a job another waits for is DONE: its goal is met)
     # A job waiting for another does not expire (the one before it ends or fails it, TB-8); a
     # capture run ends at its expiry even with claimants (NX-156), unless one is capturing (NX-483).
+    # An unclaimed retake or coalition resupply job does not expire: the generator withdraws it
+    # (`unexpiring`).
     held = job.depends_on is not None or (job.claims and job.kind != "CAPTURE")
+    held = held or (unexpiring(side, job) and not job.claims)
     if verdict is None and not held and job.expires is not None and now >= job.expires:
         verdict = None if _capturing(world, rules, side, job) else "EXPIRED"
     return verdict
@@ -912,9 +996,10 @@ def _preempt_patrols(
         e = world.find(i)
         if e is None:
             continue
-        mine = priority(tr, job, now)
+        mine = priority(tr, job, now, side=_COALITION)
         if any(
-            j.kind != _PATROL and j.depends_on is None and priority(tr, j, now) > mine
+            j.kind != _PATROL and j.depends_on is None
+            and priority(tr, j, now, side=_COALITION) > mine
             and not _full(world, j, ai=False)
             and fits_job(rules, e.kind, j.kind, j.key) and _may_take(world, tr, e, j)
             and _feasible(world, rules, routes, e, j) == "ok"
@@ -988,23 +1073,53 @@ def _assign(
     idle = sorted((e for e in world.entities() if is_idle(rules, e, side)), key=lambda e: e.id)
     if not idle:
         return
-    ranked = rank(tr, jobs, now, world.rng.stream(RngStream.TASKING))
+    ranked = rank(tr, jobs, now, world.rng.stream(RngStream.TASKING), side=side)
     for e in idle:
-        pool = [
-            j for j in ranked
-            if j.depends_on is None and _board_may_give(rules, e, j)
-            and fits_job(rules, e.kind, j.kind, j.key) and _may_take(world, tr, e, j)
-        ]  # fmt: skip
+        here = _here(world, rules, e)
+        pool = _pool(world, rules, tr, e, ranked, here)
         for job in _open(tr, world, pool, ai=e.owner_kind == _AI):
             verdict = _feasible(world, rules, routes, e, job)
             if verdict == "no":
                 continue
             if verdict == "ok":
                 claim(world, e, job, out)
-                _dispatch(world, rules, routes, e, job)
+                if here is None:  # an unloading truck stays put and unloads (Q-SIM-130)
+                    _dispatch(world, rules, routes, e, job)
             else:
                 _refuel(world, rules, e, job)
             break
+
+
+def _pool(
+    world: World, rules: Rules, tr: TaskingRules, e: Entity, ranked: list[Job], here: str | None
+) -> list[Job]:
+    """The jobs of `ranked` the board may give `e`, in that order; `here` (`_here`): only those at
+    that node. `_assign` and `idle_diagnosis` share it."""
+    return [
+        j for j in ranked
+        if j.depends_on is None and _board_may_give(rules, e, j)
+        and fits_job(rules, e.kind, j.kind, j.key) and _may_take(world, tr, e, j)
+        and (here is None or j.node == here)
+    ]  # fmt: skip
+
+
+def _here(world: World, rules: Rules, e: Entity) -> str | None:
+    """The node an unloading truck stands on, where alone it may take a job; None for any other
+    unit (`_unloading`, Q-SIM-130)."""
+    return e.last_node if _unloading(world, rules, e) else None
+
+
+def _unloading(world: World, rules: Rules, e: Entity) -> bool:
+    """A truck still unloading where it stands (Q-SIM-130, NX-486): cargo, no path, on a friendly
+    node that `accepts` stock, as `logistics` unloads it. Until its cargo is gone or the node is
+    full the board gives it only a job at that node, which sends it nowhere; one holding its cargo
+    at a full base or at a node it cannot unload at may take any job (Q-SIM-126). Friendly: a
+    neutral or enemy node can have stock room (a crossing), but nothing unloads there."""
+    node = e.last_node
+    return (
+        bool(e.cargo) and not e.path and node is not None and on_node(rules, e)
+        and friendly(world, e.side, node) and accepts(world, rules, node)
+    )  # fmt: skip
 
 
 def idle_reason(world: World, e: Entity) -> str:
@@ -1029,18 +1144,18 @@ def idle_diagnosis(world: World, e: Entity) -> tuple[str, Job | None]:
     some job now at its overfill cap is `ring_full` instead: the ring is not a lockout, the others
     are full (Q-TD-89, NX-465). `other` is left for a unit with no fuel
     there, which no aircraft is (World validation). A read-only diagnostic for the balance
-    harness (Q-SIM-92): it applies `_assign`'s own rank, pool, `_open` and `_feasible`, skipping
+    harness (Q-SIM-92): it applies `_assign`'s own rank, pool (`_pool`, with an unloading truck's
+    `_here`), `_open` and `_feasible`, skipping
     a job the next pass will end (an escort whose truck is lost since, `_truck_lost`), but ranks
     without the tie draw (that draws from the tasking stream), so jobs of equal priority, drawn
     in `_assign`, are approximated here by job id order."""
     rules, tr = _rules(world)
-    ranked = rank(tr, list(world.boards[e.side].values()), _now(world), None)
+    ranked = rank(tr, list(world.boards[e.side].values()), _now(world), None, side=e.side)
     pool = [
-        j for j in ranked
-        if j.depends_on is None and _board_may_give(rules, e, j)
-        and fits_job(rules, e.kind, j.kind, j.key) and _may_take(world, tr, e, j)
-        and not _truck_lost(world, j)  # combat may take a truck after the pass (NX-459)
-    ]  # fmt: skip
+        j
+        for j in _pool(world, rules, tr, e, ranked, _here(world, rules, e))
+        if not _truck_lost(world, j)  # combat may take a truck after the pass (NX-459)
+    ]
     if not pool:
         return "no_job", None
     jobs = _open(tr, world, pool, ai=e.owner_kind == _AI)
@@ -1067,7 +1182,7 @@ def _air_or_ground_reason(world: World, rules: Rules, e: Entity, job: Job, verdi
     if verdict == "ok":
         return "next_pass"
     if rules.domain[e.kind] == _GROUND:
-        return _ground_refusal(e, job)
+        return _ground_refusal(rules, e, job)
     if not world.landing_bases(e.side):
         return "no_base"
     if e.fuel is None:
@@ -1081,9 +1196,9 @@ def _air_or_ground_reason(world: World, rules: Rules, e: Entity, job: Job, verdi
     return "refuel_stuck" if _refuel_goal(world, rules, e, job)[1] else "refuel"
 
 
-def _ground_refusal(e: Entity, job: Job) -> str:
+def _ground_refusal(rules: Rules, e: Entity, job: Job) -> str:
     """Which of `_feasible`'s ground branches refused `job` (each returns only `ok` or `no`)."""
-    if job.kind == "RESUPPLY" and not e.cargo:
+    if job.kind == "RESUPPLY" and not e.cargo and not repairs_sanctuary(rules, e.side, job.key):
         return "no_reload"
     if job.kind == _PATROL:
         return "no_patrol_route"
@@ -1166,6 +1281,8 @@ def reaches(
 def _feasible(world: World, rules: Rules, routes: Routes, e: Entity, job: Job) -> Verdict:
     """TB-2. `refuel`: it fails now, but a full tank and load (a rearm step) would do."""
     if rules.domain[e.kind] == _GROUND:  # keep `_ground_refusal` (idle_reason) in step
+        if repairs_sanctuary(rules, e.side, job.key):  # empty, no reload (NX-497)
+            return "no" if e.cargo or _route(world, rules, routes, e, job) is None else "ok"
         if job.kind == "RESUPPLY" and not e.cargo:
             return "ok" if _reload_plan(world, rules, routes, e, job) is not None else "no"
         if job.kind == _PATROL:
@@ -1189,7 +1306,8 @@ def _dispatch(world: World, rules: Rules, routes: Routes, e: Entity, job: Job) -
     if rules.domain[e.kind] == _AIR:
         e.path = [_waypoint(world, job)]
         return
-    if job.kind == "RESUPPLY" and not e.cargo:  # reload first (Q-SIM-74)
+    if job.kind == "RESUPPLY" and not e.cargo and not repairs_sanctuary(rules, e.side, job.key):
+        # reload first (Q-SIM-74); the sanctuary repair job carries nothing (NX-497)
         run = _reload_plan(world, rules, routes, e, job)
         if run is None:
             return

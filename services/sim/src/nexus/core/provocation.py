@@ -32,7 +32,7 @@ from typing import Literal
 
 from nexus.contracts.gen.common.enums import DamageState, NodeOwner, Side, ThreatTier
 from nexus.core.fog import SideView
-from nexus.core.rules import DirectorRules, Rules, Weights, legacy_rules, sector_at
+from nexus.core.rules import DirectorRules, Rules, Weights, sector_at
 from nexus.core.world import DirectorState, Entity, World
 
 DIRECTED: tuple[Side, ...] = ("ENEMY",)
@@ -245,15 +245,14 @@ def _cells_ok(looked: dict[str, int], rules: Rules, grid: int) -> bool:
 
 
 def validate(world: World, rules: Rules) -> None:
-    """Check a restored world's Director state against the campaign rules (a snapshot carries
-    none); raises ValueError naming the side. Only a directed side ever changes from its start
-    state, and a state must be reachable: no more windows than the clock allows, a dwell that is
-    whole windows within the minimum, a tier no higher than the windows run could have reached
-    (each step needs a full dwell), a budget not below 0 and, under `economy.legacy_rules`, within
-    the tier's, a theater sector, a Pattern of Life timer a window could have set, a garrison home
-    that is a node of a Director unit, a staged operation of the catalog's capture operations at
-    existing nodes (NX-416; no bound on their count: a hot reload may lower `max_staged`), whose
-    open massing sitrep, if any, named a theater sector (NX-431)."""
+    """Check a restored world's Director state against the campaign rules (a snapshot carries none);
+    raises ValueError naming the side. Only a directed side ever changes from its start state, and a
+    state must be reachable: no more windows than the clock allows, a dwell that is whole windows
+    within the minimum, a tier no higher than the windows run could have reached (each step needs a
+    full dwell), a budget not below 0, a theater sector, a Pattern of Life timer a window could have
+    set, a garrison home that is a node of a Director unit, a staged operation of the catalog's
+    capture operations at existing nodes (NX-416; no bound on their count: a hot reload may lower
+    `max_staged`), whose open massing sitrep, if any, named a theater sector (NX-431)."""
     dr = rules.director
     if dr is None:
         return
@@ -270,8 +269,8 @@ def validate(world: World, rules: Rules) -> None:
             if d.dwell % dr.window_ticks or d.dwell > min(dr.min_dwell_ticks, windows)
             else "a tier the windows run could not have reached"
             if _moves(dr, side, d.tier) * dr.min_dwell_ticks > windows
-            else "a budget above the tier's, or below 0"
-            if d.budget < 0 or (legacy_rules(rules) and d.budget > dr.budget[d.tier])
+            else "a budget below 0"
+            if d.budget < 0
             else "threat memory outside the theater's sectors"
             if not {*d.node_losses, *d.recon_losses} <= sectors
             else "a lost node that does not exist or fell after the clock"

@@ -24,7 +24,7 @@ max_workers: 12
 # only: while a job runs, the next such job starts once this many budget workers are free (at
 # least 1) and keeps that count for its whole run. 6: half the budget, a 12-run job in two waves.
 min_overlap_workers: 6
-# Most `set:` balance overrides (key=value pairs; the 3 NX-412 economy switches use 3) in one request.
+# Most `set:` balance overrides (key=value pairs) in one request.
 max_overrides: 16
 # Most distinct profiles in one request (the number in profiles.yaml).
 max_profiles: 6

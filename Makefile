@@ -4,7 +4,7 @@ OVERLAY := apps/overlay
 # Prepend local user binary locations (uv in ~/.local/bin) and fallback fnm default alias
 export PATH := $(HOME)/.local/bin:$(PATH):$(HOME)/.local/share/fnm/aliases/default/bin
 
-.PHONY: bootstrap check check-python check-overlay node-version contracts perf test test-unit determinism terrain balance test-tools
+.PHONY: bootstrap check check-python check-overlay node-version contracts perf test test-unit determinism terrain balance test-tools check-fast pre-pr
 
 # Node major comes from .node-version (CI reads the same file). A wrong major
 # fails here with a clear message instead of breaking vitest later.
@@ -37,11 +37,32 @@ check-python:
 	cd $(SIM) && uv run --frozen mypy src tests
 	cd $(SIM) && MYPYPATH=src:tests:../../tools/balance uv run --frozen mypy $(TOOLS_TYPED)
 	cd $(SIM) && uv run --frozen lint-imports
-	cd $(SIM) && uv run --frozen pytest -m "not perf"  # wall-clock budgets run in `make perf` and CI (#358)
+	cd $(SIM) && uv run --frozen pytest -n auto -m "not perf"  # wall-clock budgets run in `make perf` and CI (#358)
 	python3 scripts/tests/test_repo_checks.py
 	python3 scripts/tests/test_cli_ergonomics.py
 	python3 tools/discord-setup/tests/test_setup.py
 	$(MAKE) test-tools
+
+# Fix rounds only: lint, types and the tests for what changed (scripts/changed_tests.py). `make check` is still required before a PR.
+check-fast:
+	@plan="$$(python3 scripts/changed_tests.py)" || { echo "check-fast: change planning failed (is origin/develop fetched?)" >&2; exit 1; }; \
+	files="$$(echo "$$plan" | sed -n 's|^py |../../|p')"; tests="$$(echo "$$plan" | sed -n 's/^pytest //p' | sort -u)"; \
+	[ -n "$$tests$$(echo "$$plan" | grep '^run ')" ] || echo "check-fast: no changed file maps to tests; running lint and types only"; \
+	set -e; cd $(SIM); \
+	[ -z "$$files" ] || { uv run --frozen ruff check $$files; uv run --frozen ruff format --check $$files; }; \
+	uv run --frozen mypy src tests; \
+	[ -z "$$tests" ] || uv run --frozen pytest -n auto -m "not perf" $$tests; \
+	echo "$$plan" | sed -n 's/^run //p' | (cd ../..; while read -r c; do $$c || exit 1; done)
+
+# Before opening a PR: what pr-hygiene and the contracts job check that `make check` skips. Usage: make pre-pr BODY=pr.md
+pre-pr:
+	@[ -n "$(BODY)" ] || { echo "usage: make pre-pr BODY=<pr-body-file>" >&2; exit 2; }
+	python3 scripts/check_pr_body.py "$(BODY)"
+	@for c in $$(git rev-list origin/develop..HEAD); do git log -1 --format=%B $$c > "$${TMPDIR:-/tmp}/nx-msg" && python3 scripts/check_commit_msg.py "$${TMPDIR:-/tmp}/nx-msg" || { echo "bad commit message: $$c" >&2; exit 1; }; done
+	$(MAKE) contracts
+	git diff --exit-code HEAD -- $(SIM)/src/nexus/contracts $(OVERLAY)/src/contracts docs/specs/CONFIG-REFERENCE.md
+	@untracked="$$(git status --porcelain -- $(SIM)/src/nexus/contracts $(OVERLAY)/src/contracts docs/specs/CONFIG-REFERENCE.md | grep '^??' || true)"; \
+	[ -z "$$untracked" ] || { echo "untracked generated files (commit them):" >&2; echo "$$untracked" >&2; exit 1; }
 
 check-overlay: node-version
 	pnpm --dir $(OVERLAY) run typecheck

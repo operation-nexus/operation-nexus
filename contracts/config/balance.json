@@ -214,8 +214,14 @@
           "x-source": "THREAT-DIRECTOR \u00a75, Q-GD-4",
           "x-status": "PROPOSED"
         },
-        "victory": {"description": "Victory rules (GAMEPLAY \u00a79, Q-CFG-16).", "type": "object", "additionalProperties": false, "required": ["hq_capture"], "properties": {
-          "hq_capture": {"description": "Whether the coalition capturing the enemy HQ wins the campaign at once (GAMEPLAY \u00a79; decided rule as default, Q-CFG-16 option); false leaves the hold and time-limit endings, unit switch.", "type": "boolean", "x-unit": "switch", "x-hot-reload": false, "x-category": "CAMPAIGN", "x-audience": "OPERATOR", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "GAMEPLAY \u00a79", "x-status": "RULE_DEFAULT"}
+        "victory": {"description": "Victory rules (GAMEPLAY \u00a79, Q-CFG-16).", "type": "object", "additionalProperties": false, "required": ["hq_capture", "hold_break", "decay_slow_min", "decay_slow_rate", "decay_fast_rate", "reset_on_repair", "pause_on_pressure"], "properties": {
+          "hq_capture": {"description": "Whether the coalition capturing the enemy HQ wins the campaign at once (GAMEPLAY \u00a79; decided rule as default, Q-CFG-16 option); false leaves the hold and time-limit endings, unit switch.", "type": "boolean", "x-unit": "switch", "x-hot-reload": false, "x-category": "CAMPAIGN", "x-audience": "OPERATOR", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "GAMEPLAY \u00a79", "x-status": "RULE_DEFAULT"},
+          "hold_break": {"description": "What a broken victory hold keeps (ECONOMY EC-9a, Q-TD-102, Q-TD-126): decay, it keeps its progress, which drains along decay_slow_rate then decay_fast_rate and resumes if the hold is taken again; reset, the progress goes back to 0 at the break (the rule before NX-489), unit enum.", "enum": ["decay", "reset"], "x-unit": "enum", "x-hot-reload": false, "x-category": "CAMPAIGN", "x-audience": "OPERATOR", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "ECONOMY EC-9a, Q-TD-126", "x-status": "PROPOSED"},
+          "decay_slow_min": {"description": "Game minutes after a break during which a broken hold loses progress at decay_slow_rate, before decay_fast_rate applies (ECONOMY EC-9a, Q-TD-126; placeholder with no measured basis), unit min of game time.", "type": "number", "minimum": 0, "x-unit": "min (game)", "x-hot-reload": false, "x-category": "CAMPAIGN", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 0.0, "max": 20.0, "step": 5.0, "scale": "LINEAR"}, "x-source": "ECONOMY EC-9a, Q-TD-126", "x-status": "PROPOSED"},
+          "decay_slow_rate": {"description": "Progress minutes a broken hold loses per broken minute during the slow stage, read as an exact decimal (ECONOMY EC-9a, Q-TD-126; placeholder, no data), unit progress min per broken min.", "type": "number", "minimum": 0, "x-unit": "progress min per broken min", "x-hot-reload": false, "x-category": "CAMPAIGN", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 0.0, "max": 0.5, "step": 0.05, "scale": "LINEAR"}, "x-source": "ECONOMY EC-9a, Q-TD-126", "x-status": "PROPOSED"},
+          "decay_fast_rate": {"description": "Progress minutes a broken hold loses per broken minute after the slow stage, read as an exact decimal; above 0 and at least decay_slow_rate (the loader refuses otherwise), so the progress always reaches 0; 1.0 loses it as fast as a running hold gains it (ECONOMY EC-9a, Q-TD-126; placeholder, no data), unit progress min per broken min.", "type": "number", "exclusiveMinimum": 0, "x-unit": "progress min per broken min", "x-hot-reload": false, "x-category": "CAMPAIGN", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 0.5, "max": 3.0, "step": 0.25, "scale": "LINEAR"}, "x-source": "ECONOMY EC-9a, Q-TD-126", "x-status": "PROPOSED"},
+          "reset_on_repair": {"description": "Whether a decaying hold also resets once the other side owns one of the broken hold's nodes at its full defense HP (ECONOMY EC-9a; the lead's reading of the owner's repaired/re-defended, Q-TD-126); false: only the decay ends it, unit switch.", "type": "boolean", "x-unit": "switch", "x-hot-reload": false, "x-category": "CAMPAIGN", "x-audience": "OPERATOR", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "ECONOMY EC-9a, Q-TD-126", "x-status": "PROPOSED"},
+          "pause_on_pressure": {"description": "Whether a running victory hold gains nothing while one of its nodes is under the other side's pressure: its capture bar, its defenses down (World.defense_down), or a claimant of the other side's CAPTURE job on it within tasking.defend_radius_m; it resumes with no reset when none is (ECONOMY EC-9b, Q-TD-84 (b) owner-agreed, readings Q-TD-134); false: the hold gains every running tick, as before NX-466, unit switch.", "type": "boolean", "x-unit": "switch", "x-hot-reload": false, "x-category": "CAMPAIGN", "x-audience": "OPERATOR", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "ECONOMY EC-9b, Q-TD-84", "x-status": "RULE_DEFAULT"}
         }},
         "idle_floor": {"description": "The idle floor while no viewer unit is live, and the last-base freeze on the coalition's only held strategic node (Q-GP-28, Q-GP-44, Q-TD-93, Q-TD-103, Q-CFG-16).", "type": "object", "additionalProperties": false, "required": ["enabled", "sanctuary_min_hp"], "properties": {
           "enabled": {"description": "Whether the idle floor applies with no live viewer unit: the theater's forward airbase's capture bar is frozen while the coalition owns it (at any viewer count, the only strategic node the coalition holds, whichever it is, starts and fills no bar, and a running one holds while its capturer stands there unopposed and decays once it is abandoned or contested; Q-TD-93, Q-TD-103), the coalition sanctuary's defense HP cannot drop below sanctuary_min_hp, and the defeat clock is held, and restarts from 0 once nobody has played for campaign.defeat.hold_min (Q-TD-95) (GAMEPLAY \u00a70 and \u00a79; decided rule as default, Q-CFG-16 option), unit switch.", "type": "boolean", "x-unit": "switch", "x-hot-reload": false, "x-category": "CAMPAIGN", "x-audience": "OPERATOR", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "GAMEPLAY \u00a70, \u00a79", "x-status": "RULE_DEFAULT"},
@@ -266,7 +272,8 @@
           "type": "object",
           "additionalProperties": false,
           "required": [
-            "hold_min"
+            "hold_min",
+            "reset_hp_frac"
           ],
           "properties": {
             "hold_min": {
@@ -280,6 +287,20 @@
               "x-edit-role": "ADMIN",
               "x-tune": {"min": 15.0, "max": 60.0, "step": 5.0, "scale": "LINEAR"},
               "x-source": "GAMEPLAY \u00a79",
+              "x-status": "PROPOSED"
+            },
+            "reset_hp_frac": {
+              "description": "Share of the coalition sanctuary's max defense hp (capture.defense_hp.SANCTUARY) a repair must reach to reset a defeat run in progress, unit fraction; the threshold is T = max(1, ceil(value x max hp)) hp, fixed at load. Between 0 and T the run pauses; 0 is the old rule (any whole hp resets), 1.0 resets only at full hp (GAMEPLAY \u00a79, NX-499, Q-TD-129 (6), Q-TD-131).",
+              "type": "number",
+              "minimum": 0,
+              "maximum": 1,
+              "x-unit": "fraction",
+              "x-hot-reload": false,
+              "x-category": "CAMPAIGN",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 0.0, "max": 1.0, "step": 0.05, "scale": "LINEAR"},
+              "x-source": "GAMEPLAY \u00a79, Q-TD-131",
               "x-status": "PROPOSED"
             }
           }
@@ -334,6 +355,8 @@
         "radius_m",
         "time_s",
         "multi_unit_exponent",
+        "time_mult",
+        "extra_exponent",
         "quiet_floor",
         "quiet_ref",
         "min_time_s",
@@ -346,6 +369,8 @@
         "sanctuary_repair_hp_per_s",
         "uncapturable_node_kinds",
         "requires_defenses_down",
+        "facilities_disabled",
+        "seized_repair_slowdown",
         "air_counts",
         "air_weight",
         "quiet_sides"
@@ -381,6 +406,7 @@
           "description": "Diminishing returns: the capture time is divided by n to this power, n the weighted capturers in radius, unit exponent (Q-SIM-26).",
           "type": "number",
           "minimum": 0,
+          "maximum": 4,
           "x-unit": "exponent",
           "x-hot-reload": false,
           "x-category": "CAPTURE",
@@ -389,6 +415,44 @@
           "x-tune": {"min": 0.25, "max": 1.0, "step": 0.05, "scale": "LINEAR"},
           "x-source": "GAMEPLAY \u00a78, Q-SIM-26",
           "x-status": "PROPOSED"
+        },
+        "time_mult": {
+          "description": "NX-490 (Q-TD-105, Q-TD-127): multiplies capture.time_s at a node of each kind, for whichever side captures (EC-3 parity); capture.min_time_s still applies after it. Every kind but HQ 1.0 (unchanged); HQ PROPOSED 20, a placeholder with no measured basis (sweep 5-40), unit multiplier (GAMEPLAY \u00a78).",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "AIRBASE",
+            "FOB",
+            "HQ",
+            "PORT",
+            "SANCTUARY"
+          ],
+          "properties": {
+            "AIRBASE": {"type": "number", "exclusiveMinimum": 0, "x-unit": "multiplier", "x-hot-reload": false, "x-category": "CAPTURE", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 0.5, "max": 2.0, "step": 0.1, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a78, Q-TD-127", "x-status": "PROPOSED"},
+            "FOB": {"type": "number", "exclusiveMinimum": 0, "x-unit": "multiplier", "x-hot-reload": false, "x-category": "CAPTURE", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 0.5, "max": 2.0, "step": 0.1, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a78, Q-TD-127", "x-status": "PROPOSED"},
+            "HQ": {"type": "number", "exclusiveMinimum": 0, "x-unit": "multiplier", "x-hot-reload": false, "x-category": "CAPTURE", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 5.0, "max": 40.0, "step": 1.0, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a78, Q-TD-127", "x-status": "PROPOSED"},
+            "PORT": {"type": "number", "exclusiveMinimum": 0, "x-unit": "multiplier", "x-hot-reload": false, "x-category": "CAPTURE", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 0.5, "max": 2.0, "step": 0.1, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a78, Q-TD-127", "x-status": "PROPOSED"},
+            "SANCTUARY": {"type": "number", "exclusiveMinimum": 0, "x-unit": "multiplier", "x-hot-reload": false, "x-category": "CAPTURE", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 0.5, "max": 2.0, "step": 0.1, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a78, Q-TD-127", "x-status": "PROPOSED"}
+          }
+        },
+        "extra_exponent": {
+          "description": "NX-490 (Q-TD-105, Q-TD-127): added to capture.multi_unit_exponent at a node of each kind, for whichever side captures, so the capture time there is divided by n^(multi_unit_exponent + extra_exponent). Every kind but HQ 0 (unchanged); HQ PROPOSED 0.5 (exponent 1.0, a lone capturer pays the most), a placeholder with no data (sweep 0-1), unit exponent (GAMEPLAY \u00a78).",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "AIRBASE",
+            "FOB",
+            "HQ",
+            "PORT",
+            "SANCTUARY"
+          ],
+          "properties": {
+            "AIRBASE": {"type": "number", "minimum": 0, "maximum": 4, "x-unit": "exponent", "x-hot-reload": false, "x-category": "CAPTURE", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 0.0, "max": 1.0, "step": 0.05, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a78, Q-TD-127", "x-status": "PROPOSED"},
+            "FOB": {"type": "number", "minimum": 0, "maximum": 4, "x-unit": "exponent", "x-hot-reload": false, "x-category": "CAPTURE", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 0.0, "max": 1.0, "step": 0.05, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a78, Q-TD-127", "x-status": "PROPOSED"},
+            "HQ": {"type": "number", "minimum": 0, "maximum": 4, "x-unit": "exponent", "x-hot-reload": false, "x-category": "CAPTURE", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 0.0, "max": 1.0, "step": 0.05, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a78, Q-TD-127", "x-status": "PROPOSED"},
+            "PORT": {"type": "number", "minimum": 0, "maximum": 4, "x-unit": "exponent", "x-hot-reload": false, "x-category": "CAPTURE", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 0.0, "max": 1.0, "step": 0.05, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a78, Q-TD-127", "x-status": "PROPOSED"},
+            "SANCTUARY": {"type": "number", "minimum": 0, "maximum": 4, "x-unit": "exponent", "x-hot-reload": false, "x-category": "CAPTURE", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 0.0, "max": 1.0, "step": 0.05, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a78, Q-TD-127", "x-status": "PROPOSED"}
+          }
         },
         "quiet_floor": {
           "description": "The quiet-stream multiplier on the capture time of the quiet_sides at 0 live viewer units, rising linearly to 1.0 at quiet_ref, unit multiplier (Q-SIM-26). Hot-reloadable (Q-CFG-16).",
@@ -523,12 +587,14 @@
           "x-category": "CAPTURE",
           "x-audience": "TUNER",
           "x-edit-role": "ADMIN",
-          "x-tune": {"min": 0.5, "max": 2.0, "step": 0.1, "scale": "LINEAR"},
-          "x-source": "GAMEPLAY \u00a79",
+          "x-tune": {"min": 0.01, "max": 1.0, "step": 0.01, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a79, Q-TD-129 (5)",
           "x-status": "PROPOSED"
         },
         "uncapturable_node_kinds": {"description": "Node kinds that are never captured: no capture bar, not a base for the Director's targets, not a timed-objective candidate, no defenses to rebuild for the Static board (GAMEPLAY \u00a78, N-4, NX-373, Q-DEV-21); must include BRIDGE (a bridge has no owner or stock); SANCTUARY may be removed, which also makes a sanctuary a Director base and patrol point, unit node kinds.", "type": "array", "items": {"$ref": "../common/enums.json#/$defs/NodeKind"}, "x-unit": "node kinds", "x-hot-reload": false, "x-category": "CAPTURE", "x-audience": "OPERATOR", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "GAMEPLAY \u00a78", "x-status": "RULE_DEFAULT"},
         "requires_defenses_down": {"description": "Whether a capture bar can start only on a node whose defense HP is 0 (GAMEPLAY \u00a78, Q-GD-18; decided rule as default, Q-CFG-16 option); false lets a bar start whatever the defenses, unit switch.", "type": "boolean", "x-unit": "switch", "x-hot-reload": false, "x-category": "CAPTURE", "x-audience": "OPERATOR", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "GAMEPLAY \u00a78", "x-status": "RULE_DEFAULT"},
+        "facilities_disabled": {"description": "Whether a base's facilities arrive Disabled and seized when it flips: each drops to min(hp, its Disabled floor), becomes DISABLED and repairs slowly for the new owner, before its fog hand-over (GAMEPLAY \u00a78 'Facilities at a captured base', Q-TD-78 (a), NX-471; decided rule as default); false switches them side keeping their damage (Q-GP-25), unit switch.", "type": "boolean", "x-unit": "switch", "x-hot-reload": false, "x-category": "CAPTURE", "x-audience": "OPERATOR", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "GAMEPLAY \u00a78, Q-TD-78", "x-status": "RULE_DEFAULT"},
+        "seized_repair_slowdown": {"description": "The divisor on a seized facility's repair rate: logistics.repair_rate.<node_kind> divided by this, exactly, until it is back at the restore line, then the normal rate (GAMEPLAY \u00a78, Q-TD-135, NX-471; derived, not measured: 92 gives 10.0 game min at an airbase and 19.9 at a FOB); 1 means no slowdown, read only when facilities_disabled is true, unit divisor.", "type": "integer", "minimum": 1, "x-unit": "divisor (no unit)", "x-hot-reload": false, "x-category": "CAPTURE", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 1, "max": 600, "step": 1, "scale": "LOG"}, "x-source": "GAMEPLAY \u00a78, Q-TD-135", "x-status": "PROPOSED"},
         "air_counts": {"description": "Whether airborne aircraft count as capturers, each weighing air_weight (GAMEPLAY \u00a78, N-3; decided rule as default: they never count, Q-CFG-16 option). They never contest either way; LANDED aircraft only garrison, unit switch.", "type": "boolean", "x-unit": "switch", "x-hot-reload": false, "x-category": "CAPTURE", "x-audience": "OPERATOR", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "GAMEPLAY \u00a78, STATE-MACHINES \u00a74.2", "x-status": "RULE_DEFAULT"},
         "air_weight": {"description": "How much of a capturer an airborne aircraft counts for, read only when air_counts is true (Q-CFG-16), unit capturer weight.", "type": "number", "exclusiveMinimum": 0, "x-unit": "capturer weight", "x-hot-reload": false, "x-category": "CAPTURE", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 0.5, "max": 2.0, "step": 0.1, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a78", "x-status": "RULE_DEFAULT"},
         "quiet_sides": {"description": "The sides whose capture time gets the quiet-stream multiplier (Q-SIM-26: the coalition only, a documented asymmetry; Q-CFG-16 option); empty turns it off, unit sides.", "type": "array", "items": {"$ref": "../common/enums.json#/$defs/Side"}, "x-unit": "sides", "x-hot-reload": false, "x-category": "CAPTURE", "x-audience": "OPERATOR", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "GAMEPLAY \u00a78, Q-SIM-26", "x-status": "RULE_DEFAULT"}
@@ -920,7 +986,7 @@
           "x-status": "PROPOSED"
         },
         "facility_indestructible": {"description": "Whether a facility's hp floors at its Disabled threshold so it is never Destroyed (COMBAT CB-9, Q-GP-37; decided rule as default, Q-CFG-16 option); false lets a hit that takes it to 0 hp destroy it like any unit, unit switch.", "type": "boolean", "x-unit": "switch", "x-hot-reload": false, "x-category": "COMBAT", "x-audience": "OPERATOR", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "COMBAT CB-9", "x-status": "RULE_DEFAULT"},
-        "strike_structure_first": {"description": "Whether a unit holding a STRIKE claim on a node's defenses fires its STRUCTURE weapon at that node's defense HP before any unit target (COMBAT CB-10, Q-TD-55; extends the bridge exception, Q-SIM-105). Same candidate rules as the automatic fallback (enemy-owned, HP left, not the Static's rear source, not at its idle floor, in range); both sides alike (ECONOMY EC-3). False is the decided rule as it was: units always come first, unit switch.", "type": "boolean", "x-unit": "switch", "x-hot-reload": false, "x-category": "COMBAT", "x-audience": "OPERATOR", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "COMBAT CB-10, Q-TD-55", "x-status": "RULE_DEFAULT"},
+        "strike_structure_first": {"description": "Whether a unit holding a STRIKE claim on a node's defenses fires its STRUCTURE weapon at that node's defense HP before any unit target (COMBAT CB-10, Q-TD-55; extends the bridge exception, Q-SIM-105). Same candidate rules as the automatic fallback (enemy-owned, HP left, not the Static's rear source, not at its idle floor, in range); both sides alike (ECONOMY EC-3). False is the CB-10 decided rule: units always come first. True is the shipped default since NX-412 part 5b, harness-tuned (Q-TD-79; U0 #510), not validated at the 50-seed gate. Unit switch.", "type": "boolean", "x-unit": "switch", "x-hot-reload": false, "x-category": "COMBAT", "x-audience": "OPERATOR", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "COMBAT CB-10, Q-TD-55", "x-status": "PROPOSED"},
         "facility_restore_frac": {"description": "The hp fraction a Disabled facility must be repaired back up to before it is on line again (COMBAT CB-9, Q-TD-86, NX-472): below ceil(fraction x its kind's hp) it stays Disabled however far it has climbed above the Disabled line; at or above it its state follows hp again. A hit never brings it out early. Both sides alike (ECONOMY EC-3). The loader refuses a value below combat.damage_state.disabled_below; at disabled_below a facility is back as soon as it leaves Disabled (the rule before Q-TD-86). 0.35, the shipped mission_kill_below, is the decided rule (Q-TD-86: back at the Mission-kill line); the key does not follow mission_kill_below when that is tuned. Unit fraction of hp.", "type": "number", "exclusiveMinimum": 0, "maximum": 1, "x-unit": "fraction of hp", "x-hot-reload": false, "x-category": "COMBAT", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 0.1, "max": 1.0, "step": 0.05, "scale": "LINEAR"}, "x-source": "COMBAT CB-9, Q-TD-86", "x-status": "RULE_DEFAULT"},
         "overkill_check": {"description": "The overkill check (COMBAT CB-1, Q-TD-73, NX-468): whether a weapon skips a target whose shots already in flight cover what it has left, so the shooter takes the next target (for a strike jet, the node's defenses once the air-defense site is covered). Cover is the sum, in (impact_tick, id) order, of each in-flight shot's expected damage: its CB-5 damage times its CB-4 Pk as if it landed now, 0 for a shot that would fizzle now. What a target has left: a node's defense HP above its idle floor, a bridge's hp, a facility's or an airborne aircraft's hp above its Disabled floor, any other unit's hp. Units, facilities, node defenses and bridges, both sides alike (ECONOMY EC-3). True is the decided rule; false is the old rule (no overkill check), kept so the harness can compare, unit switch.", "type": "boolean", "x-unit": "switch", "x-hot-reload": false, "x-category": "COMBAT", "x-audience": "OPERATOR", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "COMBAT CB-1, Q-TD-73", "x-status": "RULE_DEFAULT"}
       }
@@ -1070,7 +1136,11 @@
       "required": [
         "node_max_stock",
         "starve_threshold",
+        "starve_floor_mode",
+        "starve_floor_loadouts",
         "stock_target_frac",
+        "stock_target_mode",
+        "stock_target_loadouts",
         "truck_cargo",
         "unload_rate",
         "rearm_rate",
@@ -1086,7 +1156,8 @@
         "bridge_hp",
         "bridge_collapse_radius_m",
         "bridge_repair_time_s",
-        "truck_bridge_repair_mult"
+        "truck_bridge_repair_mult",
+        "ai_trucks"
       ],
       "properties": {
         "node_max_stock": {
@@ -1177,6 +1248,31 @@
           "x-source": "GAMEPLAY \u00a75",
           "x-status": "PROPOSED"
         },
+        "starve_floor_mode": {
+          "description": "How the starvation floor is set (NX-495, Q-TD-123, Q-TD-132 (B)): fraction, ceil(starve_threshold x node_max_stock), today's rule; loadouts, min(starve_floor_loadouts x C, node_max_stock) with C the largest loadout_cost entry of the whole catalog. Fixed at load, the same at every node and for either side. Every floor reader follows it except the Director's surplus, which keeps max(ceil(surplus_ref_frac x max), ceil(starve_threshold x max)) in either mode (ECONOMY EC-7), unit enum.",
+          "enum": ["fraction", "loadouts"],
+          "x-unit": "enum",
+          "x-hot-reload": false,
+          "x-category": "LOGISTICS",
+          "x-audience": "OPERATOR",
+          "x-edit-role": "ADMIN",
+          "x-tune": null,
+          "x-source": "GAMEPLAY \u00a75, Q-TD-132 (B)",
+          "x-status": "PROPOSED"
+        },
+        "starve_floor_loadouts": {
+          "description": "N, the loadouts of the dearest kind the starvation floor holds in loadouts mode (NX-495, Q-TD-123: 3-5 of the most expensive units), unit loadouts. Read only while starve_floor_mode is loadouts.",
+          "type": "integer",
+          "minimum": 1,
+          "x-unit": "loadouts of the dearest kind",
+          "x-hot-reload": false,
+          "x-category": "LOGISTICS",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 1, "max": 10, "step": 1, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a75, Q-TD-132 (B)",
+          "x-status": "PROPOSED"
+        },
         "stock_target_frac": {
           "description": "Forward stock target (Q-SIM-100, Q-SIM-102, NX-389), unit fraction of node_max_stock: a base the side owns below ceil(stock_target_frac x max) gets a resupply job even when it is not starved (a stocking job), and a run to such a base (not starved, no damaged facility) loads only stock a source holds above its own target, else at the side's rear source. At starve_threshold or below there are no stocking jobs. The loader does not check it: a sweep should keep it above starve_threshold.",
           "type": "number",
@@ -1189,6 +1285,31 @@
           "x-edit-role": "ADMIN",
           "x-tune": {"min": 0.4, "max": 1.0, "step": 0.05, "scale": "LINEAR"},
           "x-source": "GAMEPLAY \u00a75",
+          "x-status": "PROPOSED"
+        },
+        "stock_target_mode": {
+          "description": "How the forward stock target is set (NX-501, Q-TD-133 (a)): fraction, ceil(stock_target_frac x node_max_stock), today's rule; loadouts, min(max(stock_target_loadouts x C, the node's live starvation floor), node_max_stock) with C the largest loadout_cost entry of the whole catalog (as NX-495). Fixed at load, the same at every node and for either side. Every reader of the target follows it, including the FS-3 staging raise; the Director's surplus does not read it, unit enum.",
+          "enum": ["fraction", "loadouts"],
+          "x-unit": "enum",
+          "x-hot-reload": false,
+          "x-category": "LOGISTICS",
+          "x-audience": "OPERATOR",
+          "x-edit-role": "ADMIN",
+          "x-tune": null,
+          "x-source": "GAMEPLAY \u00a75, Q-TD-133 (a)",
+          "x-status": "PROPOSED"
+        },
+        "stock_target_loadouts": {
+          "description": "M, the loadouts of the dearest kind the forward stock target holds in loadouts mode (NX-501, Q-TD-133 (a)), unit loadouts. Read only while stock_target_mode is loadouts.",
+          "type": "integer",
+          "minimum": 1,
+          "x-unit": "loadouts of the dearest kind",
+          "x-hot-reload": false,
+          "x-category": "LOGISTICS",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 5, "max": 40, "step": 5, "scale": "LINEAR"},
+          "x-source": "GAMEPLAY \u00a75, Q-TD-133 (a)",
           "x-status": "PROPOSED"
         },
         "truck_cargo": {
@@ -1589,6 +1710,43 @@
           "x-tune": {"min": 2.5, "max": 10.0, "step": 0.5, "scale": "LINEAR"},
           "x-source": "GAMEPLAY \u00a75, STATE-MACHINES \u00a74.3",
           "x-status": "PROPOSED"
+        },
+        "ai_trucks": {
+          "description": "Coalition AI trucks, the logistics cadence (GAMEPLAY \u00a75 LC-1, NX-473, Q-TD-92).",
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "period_s",
+            "max_live"
+          ],
+          "properties": {
+            "period_s": {
+              "description": "How often the coalition spawns AI_GARRISON trucks for its open resupply jobs, unit s of game time, rounded up by the loader to whole economy.window_s windows; a job must also be this old (Job.created, from its first posting: an unclaimed coalition resupply job does not expire, Q-SIM-131) before an AI truck is spawned for it, so viewers get the first pick (GAMEPLAY \u00a75 LC-1).",
+              "type": "number",
+              "exclusiveMinimum": 0,
+              "x-unit": "s (game)",
+              "x-hot-reload": false,
+              "x-category": "LOGISTICS",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 300.0, "max": 3600.0, "step": 60.0, "scale": "LINEAR"},
+              "x-source": "GAMEPLAY \u00a75 LC-1, Q-TD-92",
+              "x-status": "PROPOSED"
+            },
+            "max_live": {
+              "description": "The most coalition AI trucks live at once, unit trucks; 0 spawns none; default 3 (harness C0 #532, Q-TD-128). Also bounded by sim.max_live_units_per_side (EC-8).",
+              "type": "integer",
+              "minimum": 0,
+              "x-unit": "trucks",
+              "x-hot-reload": false,
+              "x-category": "LOGISTICS",
+              "x-audience": "TUNER",
+              "x-edit-role": "ADMIN",
+              "x-tune": {"min": 0, "max": 48, "step": 1, "scale": "LINEAR"},
+              "x-source": "GAMEPLAY \u00a75 LC-1, Q-TD-113, Q-TD-128",
+              "x-status": "PROPOSED"
+            }
+          }
         }
       }
     },
@@ -1644,7 +1802,7 @@
           "x-status": "PROPOSED"
         },
         "max_live_units_per_side": {
-          "description": "Performance guard, unit live movers (AIR and GROUND units) per side (ECONOMY EC-8): a tick-rate guard only, set well above any army the economy feeds. Read only with economy.legacy_rules false: a Director operation must fit the room below it, and a JOIN at it waits in the reserve queue as at slots.max_viewer_units (GP-3).",
+          "description": "Performance guard, unit live movers (AIR and GROUND units) per side (ECONOMY EC-8): a tick-rate guard only, set well above any army the economy feeds. A Director operation must fit the room below it, and a JOIN at it waits in the reserve queue as at slots.max_viewer_units (GP-3).",
           "type": "integer",
           "minimum": 1,
           "x-unit": "units",
@@ -1672,6 +1830,7 @@
         "slots",
         "resupply_stock_per_slot",
         "resupply_slots_max",
+        "resupply_slots_max_starving",
         "defend_radius_m",
         "counterattack_window_min",
         "scout_cooldown_min",
@@ -1696,6 +1855,7 @@
         "patrol_orbit_m",
         "patrol_dwell_s",
         "order_dwell_s",
+        "retake_keep_min",
         "stock_urgency",
         "stock_front_bonus",
         "ai_jobs",
@@ -1706,7 +1866,7 @@
       "properties": {
         "reeval_every_ticks": {"description": "A board re-evaluates (settles, generates, assigns) every this many running ticks (TB-6), unit ticks.", "type": "integer", "minimum": 1, "x-unit": "ticks", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "DEVELOPER", "x-edit-role": "ADMIN", "x-tune": {"min": 25, "max": 100, "step": 1, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b", "x-status": "PROPOSED"},
         "claim_lease_s": {"description": "A claim with no progress for this long is released and the job returns to OPEN (TB-1, Q-ALN-23), unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 60.0, "max": 240.0, "step": 10.0, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b", "x-status": "PROPOSED"},
-        "expire_min": {"description": "An unclaimed job expires this long after it was posted (Q-SIM-73), unit min of game time. Objective jobs expire with the objective instead.", "type": "number", "exclusiveMinimum": 0, "x-unit": "min (game)", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 7.5, "max": 30.0, "step": 2.5, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b", "x-status": "PROPOSED"},
+        "expire_min": {"description": "An unclaimed job expires this long after it was posted (Q-SIM-73), unit min of game time. Objective jobs expire with the objective instead; an unclaimed coalition retake job does not expire (Q-TD-121), and a claimed one counts from its claim; an unclaimed coalition resupply job does not expire either while it is posted (Q-SIM-131).", "type": "number", "exclusiveMinimum": 0, "x-unit": "min (game)", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 7.5, "max": 30.0, "step": 2.5, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b", "x-status": "PROPOSED"},
         "priority": {
           "description": "Base priority per job kind (Q-GP-20), unit points; keys are the lower-case JobKind. Ordering intent, not enforced: stage below scout, patrol below stage, repair_bridge below resupply, intercept below defend and above strike; a sweep should keep it.",
           "type": "object",
@@ -1728,7 +1888,7 @@
         },
         "static_offense_min_tier": {"description": "The lowest Threat Director tier at which the Static's board posts the offensive jobs it generates itself (a strike on a discovered site); below it the board posts none. The Director's own operations are not affected (Q-SIM-85, THREAT-DIRECTOR 5a).", "$ref": "../common/enums.json#/$defs/ThreatTier", "x-unit": "tier", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "THREAT-DIRECTOR \u00a75a", "x-status": "PROPOSED"},
         "urgency_max": {"description": "The most the triggering condition can multiply a base priority by (Q-GP-20), unit multiplier; a triggering condition's least is 1.0. Only a stocking resupply job (stock_urgency, stock_front_bonus) runs below 1.0.", "type": "number", "minimum": 1, "maximum": 2, "x-unit": "multiplier", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 1.0, "max": 2.0, "step": 0.1, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b, Q-GP-20", "x-status": "PROPOSED"},
-        "priority_aging_per_min": {"description": "Priority points an open job gains per game minute it has waited (TB-3, Q-ALN-23), unit points/min of game time.", "type": "number", "minimum": 0, "x-unit": "points/min (game)", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 0.5, "max": 2.0, "step": 0.1, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b", "x-status": "PROPOSED"},
+        "priority_aging_per_min": {"description": "Priority points an open job gains per game minute it has waited (TB-3, Q-ALN-23); an unclaimed coalition resupply job gains them for at most expire_min minutes (Q-SIM-132), unit points/min of game time.", "type": "number", "minimum": 0, "x-unit": "points/min (game)", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 0.5, "max": 2.0, "step": 0.1, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b", "x-status": "PROPOSED"},
         "slots": {
           "description": "Units a job needs (TB-4), by lower-case JobKind; resupply is sized from the missing stock instead (resupply_stock_per_slot).",
           "type": "object",
@@ -1747,7 +1907,8 @@
         },
         "resupply_stock_per_slot": {"description": "A resupply job gets one slot per this much missing stock (max stock minus stock, rounded up, at least one), unit stock units.", "type": "integer", "minimum": 1, "x-unit": "stock units", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 50, "max": 200, "step": 1, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b", "x-status": "PROPOSED"},
         "resupply_slots_max": {"description": "The most slots a resupply job gets, unit units.", "type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 2, "max": 6, "step": 1, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b", "x-status": "PROPOSED"},
-        "defend_radius_m": {"description": "A friendly base posts a defend job when its side tracks an enemy ground unit within this distance of it (Q-SIM-74), unit m. Urgency rises as the nearest tracked enemy closes: 1.0 at the radius, the cap at the base.", "type": "number", "exclusiveMinimum": 0, "x-unit": "m", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 5000.0, "max": 20000.0, "step": 500.0, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b", "x-status": "PROPOSED"},
+        "resupply_slots_max_starving": {"description": "The most slots a starving or damaged base's resupply job can reach, unit units (GAMEPLAY \u00a75 LC-3): its cap is resupply_slots_max + floor(need x (this - resupply_slots_max)), need the base's floor deficit or facility damage share, and a Static convoy's is director.pol.convoy_slots + the same raise. Equal to resupply_slots_max it changes nothing; default 6 (harness C0 #532, Q-TD-128); the loader refuses a value below resupply_slots_max.", "type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 3, "max": 9, "step": 1, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a75 LC-3, Q-TD-92, Q-TD-128", "x-status": "PROPOSED"},
+        "defend_radius_m": {"description": "A friendly base posts a defend job when its side tracks an enemy ground unit within this distance of it (Q-SIM-74), and, for a besieged sanctuary, an enemy aircraft or ground unit (Q-TD-122), unit m. Urgency rises as the nearest tracked enemy closes: 1.0 at the radius, the cap at the base.", "type": "number", "exclusiveMinimum": 0, "x-unit": "m", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 5000.0, "max": 20000.0, "step": 500.0, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b", "x-status": "PROPOSED"},
         "counterattack_window_min": {"description": "For this long after a side loses a node, its AI garrison may take strike and assist-objective jobs against it (Q-GD-31, Q-SIM-74), unit min of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "min (game)", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 7.5, "max": 30.0, "step": 2.5, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b", "x-status": "PROPOSED"},
         "capture_max_restarts": {"description": "A CAPTURE job whose claimants are still driving when its expiry passes gets a fresh expiry at most this many times, then expires normally (NX-156, Q-SIM-84), unit restarts.", "type": "integer", "minimum": 0, "x-unit": "restarts", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 2, "max": 6, "step": 1, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b", "x-status": "PROPOSED"},
         "scout_post_interval_min": {"description": "At most one new generated scout job per board per this long (the highest urgency, ties by key), unit min of game time (NX-156, Q-DEV-21).", "type": "number", "exclusiveMinimum": 0, "x-unit": "min (game)", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 1.0, "max": 4.0, "step": 0.5, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b", "x-status": "PROPOSED"},
@@ -1795,6 +1956,7 @@
         "patrol_orbit_m": {"description": "An aircraft on a coalition patrol circles its node at this distance, which is also the clearance from a discovered air-defense ring it needs to take the job (Q-SIM-94, NX-382), unit m.", "type": "number", "exclusiveMinimum": 0, "x-unit": "m", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 2500.0, "max": 10000.0, "step": 250.0, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b", "x-status": "PROPOSED"},
         "patrol_dwell_s": {"description": "A coalition patrol job is done once a unit has been on station this long (Q-SIM-94, NX-382), unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 150.0, "max": 600.0, "step": 50.0, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b", "x-status": "PROPOSED"},
         "order_dwell_s": {"description": "An armed unit whose direct node order (JOIN with a node) has arrived holds that node and engages; the order ends, and the board takes the unit, at bingo or RTB, ammo out, a new order, or this long after it began holding (Q-SIM-110, NX-398), unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 300.0, "max": 1200.0, "step": 50.0, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b", "x-status": "PROPOSED"},
+        "retake_keep_min": {"description": "An unclaimed coalition retake job (retake:<node>, a CAPTURE job) stays posted this long after its node's defenses come back above 0, and goes on as the same job if they fall to 0 again within it; recapture, a lost road or no truck role still withdraw it at once, and 0 means no keep; an unclaimed retake job never expires by expire_min (Q-TD-121 revised, Q-TD-107, NX-484), unit min of game time.", "type": "number", "minimum": 0, "x-unit": "min (game)", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 0.0, "max": 60.0, "step": 5.0, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b, Q-TD-121", "x-status": "PROPOSED"},
         "stock_urgency": {"description": "Urgency of a stocking resupply job: a base below logistics.stock_target_frac that is not starved and has no damaged facility (Q-SIM-100, NX-389), unit multiplier. It must round to at least 0.001 and, with stock_front_bonus, stay below 1.0 in whole thousandths (checked at load), so a starving or damaged base always ranks first; the higher of the two urgencies wins when both apply.", "type": "number", "exclusiveMinimum": 0, "exclusiveMaximum": 1, "x-unit": "multiplier", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 0.25, "max": 0.95, "step": 0.05, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b", "x-status": "PROPOSED"},
         "stock_front_bonus": {"description": "Urgency added to a stocking resupply job when its base is on the front line (held, capturable, with a road neighbour the side does not hold: the patrol rule, Q-SIM-94) (Q-SIM-100, NX-389), unit multiplier; stock_urgency + stock_front_bonus must stay below 1.0.", "type": "number", "minimum": 0, "exclusiveMaximum": 1, "x-unit": "multiplier", "x-hot-reload": true, "x-category": "TASKING", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 0.125, "max": 0.5, "step": 0.025, "scale": "LINEAR"}, "x-source": "GAMEPLAY \u00a71b", "x-status": "PROPOSED"}
       }
@@ -1903,11 +2065,10 @@
         "cp",
         "tier",
         "provocation",
-        "budget",
         "max_spawns_per_window",
-        "max_live_units",
         "spend_frac",
         "source_spend_frac",
+        "surplus_ref_frac",
         "upkeep_reserve_windows",
         "cadence_windows",
         "op_priority",
@@ -2345,57 +2506,6 @@
             }
           }
         },
-        "budget": {
-          "description": "The most budget points one decision window can spend, by tier (Q-TD-5); also capped by the real surplus of the Static's bases. Read only with economy.legacy_rules true: temporary, removed in NX-412 part 5 (Q-TD-33; ECONOMY EC-7 replaces it).",
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "pattern_of_life",
-            "alpha",
-            "bravo"
-          ],
-          "properties": {
-            "pattern_of_life": {
-              "description": "Budget points per window in this tier.",
-              "type": "integer",
-              "x-unit": "budget points / window",
-              "x-hot-reload": true,
-              "x-category": "DIRECTOR",
-              "x-audience": "TUNER",
-              "x-edit-role": "ADMIN",
-              "x-tune": {"min": 5, "max": 20, "step": 1, "scale": "LINEAR"},
-              "x-source": "THREAT-DIRECTOR \u00a74",
-              "x-status": "PROPOSED",
-              "minimum": 0
-            },
-            "alpha": {
-              "description": "Budget points per window in this tier.",
-              "type": "integer",
-              "x-unit": "budget points / window",
-              "x-hot-reload": true,
-              "x-category": "DIRECTOR",
-              "x-audience": "TUNER",
-              "x-edit-role": "ADMIN",
-              "x-tune": {"min": 15, "max": 60, "step": 1, "scale": "LINEAR"},
-              "x-source": "THREAT-DIRECTOR \u00a74",
-              "x-status": "PROPOSED",
-              "minimum": 0
-            },
-            "bravo": {
-              "description": "Budget points per window in this tier.",
-              "type": "integer",
-              "x-unit": "budget points / window",
-              "x-hot-reload": true,
-              "x-category": "DIRECTOR",
-              "x-audience": "TUNER",
-              "x-edit-role": "ADMIN",
-              "x-tune": {"min": 40, "max": 160, "step": 1, "scale": "LINEAR"},
-              "x-source": "THREAT-DIRECTOR \u00a74",
-              "x-status": "PROPOSED",
-              "minimum": 0
-            }
-          }
-        },
         "max_spawns_per_window": {
           "description": "The most new Static units per window (Q-TD-12).",
           "type": "integer",
@@ -2409,59 +2519,8 @@
           "x-status": "PROPOSED",
           "minimum": 1
         },
-        "max_live_units": {
-          "description": "The most live Static units by tier (Q-TD-12). Read only with economy.legacy_rules true: temporary, removed in NX-412 part 5 (Q-TD-33; ECONOMY EC-8 replaces it).",
-          "type": "object",
-          "additionalProperties": false,
-          "required": [
-            "pattern_of_life",
-            "alpha",
-            "bravo"
-          ],
-          "properties": {
-            "pattern_of_life": {
-              "description": "Live Static units allowed in this tier.",
-              "type": "integer",
-              "x-unit": "units",
-              "x-hot-reload": true,
-              "x-category": "DIRECTOR",
-              "x-audience": "TUNER",
-              "x-edit-role": "ADMIN",
-              "x-tune": {"min": 20, "max": 80, "step": 1, "scale": "LINEAR"},
-              "x-source": "THREAT-DIRECTOR \u00a74, Q-TD-12",
-              "x-status": "PROPOSED",
-              "minimum": 1
-            },
-            "alpha": {
-              "description": "Live Static units allowed in this tier.",
-              "type": "integer",
-              "x-unit": "units",
-              "x-hot-reload": true,
-              "x-category": "DIRECTOR",
-              "x-audience": "TUNER",
-              "x-edit-role": "ADMIN",
-              "x-tune": {"min": 20, "max": 80, "step": 1, "scale": "LINEAR"},
-              "x-source": "THREAT-DIRECTOR \u00a74, Q-TD-12",
-              "x-status": "PROPOSED",
-              "minimum": 1
-            },
-            "bravo": {
-              "description": "Live Static units allowed in this tier.",
-              "type": "integer",
-              "x-unit": "units",
-              "x-hot-reload": true,
-              "x-category": "DIRECTOR",
-              "x-audience": "TUNER",
-              "x-edit-role": "ADMIN",
-              "x-tune": {"min": 35, "max": 140, "step": 1, "scale": "LINEAR"},
-              "x-source": "THREAT-DIRECTOR \u00a74, Q-TD-12",
-              "x-status": "PROPOSED",
-              "minimum": 1
-            }
-          }
-        },
         "spend_frac": {
-          "description": "ECONOMY EC-7 (economy.legacy_rules false): the share of the surplus of the Static's bases above their starvation floors one decision window may spend, by tier; the loader requires pattern_of_life <= alpha <= bravo.",
+          "description": "ECONOMY EC-7: the share of the surplus of the Static's bases above their starvation floors one decision window may spend, by tier; the loader requires pattern_of_life <= alpha <= bravo.",
           "type": "object",
           "additionalProperties": false,
           "required": [
@@ -2515,7 +2574,7 @@
           }
         },
         "source_spend_frac": {
-          "description": "ECONOMY EC-7 (economy.legacy_rules false): the share of the rear source pool one decision window may add to the budget; only operations whose units spawn at the source may spend it (EC-13). 0 with the Static in unlimited mode (no pool).",
+          "description": "ECONOMY EC-7: the share of the rear source pool one decision window may add to the budget; only operations whose units spawn at the source may spend it (EC-13). 0 with the Static in unlimited mode (no pool).",
           "type": "number",
           "minimum": 0,
           "maximum": 1,
@@ -2528,8 +2587,22 @@
           "x-source": "THREAT-DIRECTOR \u00a74, ECONOMY EC-7, Q-TD-26",
           "x-status": "PROPOSED"
         },
+        "surplus_ref_frac": {
+          "description": "ECONOMY EC-7 Surplus reference (NX-500, Q-TD-125, Q-TD-132 (A)): the Director's surplus is stock above R = max(ceil(surplus_ref_frac x node_max_stock), ceil(logistics.starve_threshold x node_max_stock)) at each base the side holds, unit fraction of node_max_stock; R is fixed at load and uses that fraction floor whatever logistics.starve_floor_mode is (NX-495). Read by the surplus only (budget, cadence cap, convoy and capture-slot purses); every other floor reader follows the live floor (Supply.starve_floor).",
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1,
+          "x-unit": "fraction of node_max_stock",
+          "x-hot-reload": false,
+          "x-category": "DIRECTOR",
+          "x-audience": "TUNER",
+          "x-edit-role": "ADMIN",
+          "x-tune": {"min": 0.125, "max": 0.5, "step": 0.025, "scale": "LINEAR"},
+          "x-source": "THREAT-DIRECTOR \u00a74, ECONOMY EC-7 Surplus reference, Q-TD-132",
+          "x-status": "PROPOSED"
+        },
         "upkeep_reserve_windows": {
-          "description": "ECONOMY EC-7 (economy.legacy_rules false): windows of the Static's upkeep the budget keeps back, unit decision windows; the reserve is this times the upkeep its live units owe per window.",
+          "description": "ECONOMY EC-7: windows of the Static's upkeep the budget keeps back, unit decision windows; the reserve is this times the upkeep its live units owe per window.",
           "type": "number",
           "minimum": 0,
           "x-unit": "windows",
@@ -2542,7 +2615,7 @@
           "x-status": "PROPOSED"
         },
         "cadence_windows": {
-          "description": "ECONOMY EC-7 (economy.legacy_rules false): decision windows with no capture operation (OFFENSIVE, RETAKE) launched, staged or dropped from staging after which, while the Static holds an HQ, the window buys the cheapest capture operation with a target, else the budget is at least the cheapest operation of its tier, that the window can pay: base surplus plus the window's rear account, never the whole pool (Q-TD-42, Q-TD-48, NX-434); other operations do not reset the count (Q-TD-54).",
+          "description": "ECONOMY EC-7: decision windows with no capture operation (OFFENSIVE, RETAKE) launched, staged or dropped from staging after which, while the Static holds an HQ, the window buys the cheapest capture operation with a target, else the budget is at least the cheapest operation of its tier, that the window can pay: base surplus plus the window's rear account, never the whole pool (Q-TD-42, Q-TD-48, NX-434); other operations do not reset the count (Q-TD-54).",
           "type": "integer",
           "minimum": 1,
           "x-unit": "windows",
@@ -2855,7 +2928,7 @@
           }
         },
         "staging": {
-          "description": "Forward staging (THREAT-DIRECTOR \u00a74a FS-1..FS-8, Q-TD-36, Q-TD-37; NX-416): with economy.legacy_rules false, a capture operation whose capture kind's road travel time from the rear source exceeds direct_s waits at the nearest Static-held base by road until every node it spawns at can pay its own units (Q-TD-38), the base's forward-stock target raised by the cost of the units that spawn there so trucks fill it.",
+          "description": "Forward staging (THREAT-DIRECTOR \u00a74a FS-1..FS-8, Q-TD-36, Q-TD-37; NX-416): a capture operation whose capture kind's road travel time from the rear source exceeds direct_s waits at the nearest Static-held base by road until every node it spawns at can pay its own units (Q-TD-38), the base's forward-stock target raised by the cost of the units that spawn there so trucks fill it.",
           "type": "object",
           "additionalProperties": false,
           "required": ["direct_s", "max_wait_windows", "max_staged"],
@@ -2888,7 +2961,7 @@
           "description": "Pattern of Life periods (Q-SIM-85, THREAT-DIRECTOR \u00a75a); game time, converted to ticks at load, counted on the campaign clock so a pause freezes them.",
           "type": "object",
           "additionalProperties": false,
-          "required": ["patrol_period_s", "convoy_period_s", "offensive_period_s", "convoy_kind", "patrols_per_base", "convoys_per_period", "offensives_per_period", "convoy_cost", "patrol_slots", "convoy_slots", "capture_slot_tiers"],
+          "required": ["patrol_period_s", "convoy_period_s", "offensive_period_s", "convoy_kind", "patrols_per_base", "convoys_per_period", "offensives_per_period", "convoy_cost", "patrol_slots", "convoy_slots", "capture_slot_tiers", "convoy_demand_s"],
           "properties": {
             "patrol_slots": {"description": "Units (idle ground garrison units of the base) one patrol job takes, unit units.", "type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true, "x-category": "DIRECTOR", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 1, "max": 2, "step": 1, "scale": "LINEAR"}, "x-source": "THREAT-DIRECTOR \u00a75a", "x-status": "PROPOSED"},
             "convoy_slots": {"description": "Units (carriers) one Pattern of Life supply convoy job takes, unit units.", "type": "integer", "minimum": 1, "x-unit": "units", "x-hot-reload": true, "x-category": "DIRECTOR", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 1, "max": 2, "step": 1, "scale": "LINEAR"}, "x-source": "THREAT-DIRECTOR \u00a75a", "x-status": "RULE_DEFAULT"},
@@ -2899,6 +2972,7 @@
             "convoy_kind": {"description": "The ENEMY carrier kind of a Pattern of Life supply convoy (it takes a RESUPPLY job), unit unit kind.", "$ref": "../common/enums.json#/$defs/UnitKind", "x-unit": "unit kind", "x-hot-reload": true, "x-category": "DIRECTOR", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "THREAT-DIRECTOR \u00a75a", "x-status": "PROPOSED"},
             "patrol_period_s": {"description": "Every this long each Static base with an idle garrison unit posts one patrol, unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true, "x-category": "DIRECTOR", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 900.0, "max": 3600.0, "step": 100.0, "scale": "LINEAR"}, "x-source": "THREAT-DIRECTOR \u00a75a", "x-status": "PROPOSED"},
             "convoy_period_s": {"description": "Every this long one supply convoy runs to the Static base with the largest upkeep shortfall, unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true, "x-category": "DIRECTOR", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 1800.0, "max": 7200.0, "step": 300.0, "scale": "LINEAR"}, "x-source": "THREAT-DIRECTOR \u00a75a", "x-status": "PROPOSED"},
+            "convoy_demand_s": {"description": "While a Static base is below its starvation floor, a convoy is also due this long after the last one, unit s of game time (THREAT-DIRECTOR \u00a75a demand convoys, GAMEPLAY \u00a75 LC-2). Equal to convoy_period_s it changes nothing; default 900 (harness V2 #534, Q-TD-128); the loader refuses a value above convoy_period_s.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true, "x-category": "DIRECTOR", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 60.0, "max": 3600.0, "step": 60.0, "scale": "LINEAR"}, "x-source": "THREAT-DIRECTOR \u00a75a, Q-TD-92, Q-TD-128", "x-status": "PROPOSED"},
             "capture_slot_tiers": {"description": "The tiers at which the periodic capture slot (offensives_per_period per offensive_period_s, outside the window budget) runs (Q-SIM-85: Pattern of Life only; decided rule as default, Q-CFG-16 option); empty turns it off, unit tiers.", "type": "array", "items": {"$ref": "../common/enums.json#/$defs/ThreatTier"}, "x-unit": "tiers", "x-hot-reload": true, "x-category": "DIRECTOR", "x-audience": "OPERATOR", "x-edit-role": "ADMIN", "x-tune": null, "x-source": "THREAT-DIRECTOR \u00a75a", "x-status": "RULE_DEFAULT"},
             "offensive_period_s": {"description": "At Pattern of Life, one capture operation may launch this often, outside the window budget but paid from real surplus, unit s of game time.", "type": "number", "exclusiveMinimum": 0, "x-unit": "s (game)", "x-hot-reload": true, "x-category": "DIRECTOR", "x-audience": "TUNER", "x-edit-role": "ADMIN", "x-tune": {"min": 10800.0, "max": 43200.0, "step": 1800.0, "scale": "LINEAR"}, "x-source": "THREAT-DIRECTOR \u00a75, \u00a75a", "x-status": "PROPOSED"}
           }
@@ -2929,14 +3003,14 @@
         "storage",
         "upkeep",
         "upkeep_period",
-        "legacy_rules",
         "free_viewer_spawn",
+        "cost_parity",
         "floor_viewer_units",
         "shortfall_quiet_windows"
       ],
       "properties": {
         "unlimited": {
-          "description": "Per side: true = unlimited mode (EC-15): the source pool never runs out, has no storage cap and earns no income (no SupplyProduced), exactly the infinite source of before NX-412. A campaign or test option set by the owner or an Admin at campaign setup, never a GM and never mid-war. The shipped default true for both sides is TEMPORARY (Q-TD-29, lead decision): the NX-412 sweep part sets the spec default false.",
+          "description": "Per side: true = unlimited mode (EC-15): the source pool never runs out, has no storage cap and earns no income (no SupplyProduced), exactly the infinite source of before NX-412. A campaign or test option set by the owner or an Admin at campaign setup, never a GM and never mid-war. Shipped false for both sides, the spec default, since NX-412 part 5b (Q-TD-29 ended the temporary true default there).",
           "type": "object",
           "additionalProperties": false,
           "required": [
@@ -3574,20 +3648,8 @@
             }
           }
         },
-        "legacy_rules": {
-          "description": "TEMPORARY, removed in NX-412 part 5 (Q-TD-33, lead decision): true keeps the budget, live-unit caps and spawn costs of before NX-412 part 3 (director.budget.<tier>, director.max_live_units.<tier>, the Director paying from base surplus, sanctuary spawns free); false applies ECONOMY EC-7 (director.spend_frac and the rest), EC-8 (sim.max_live_units_per_side) and EC-13 (every spawn draws its cost at its spawn node). Set at campaign setup, never mid-war.",
-          "type": "boolean",
-          "x-unit": "switch",
-          "x-hot-reload": false,
-          "x-category": "ECONOMY",
-          "x-audience": "OPERATOR",
-          "x-edit-role": "ADMIN",
-          "x-tune": null,
-          "x-source": "ECONOMY EC-7, EC-8, EC-13, Q-TD-33",
-          "x-status": "RULE_DEFAULT"
-        },
         "free_viewer_spawn": {
-          "description": "ECONOMY EC-13 (economy.legacy_rules false): true = a viewer's own JOIN that spawns at the coalition's sanctuary draws no stock, so joining never costs a person anything; false = it draws logistics.loadout_cost from the coalition's pool like every other spawn (agent-vs-agent harness profiles). The AI garrison and the Director always pay.",
+          "description": "ECONOMY EC-13: true = a viewer's own JOIN that spawns at the coalition's sanctuary draws no stock, so joining never costs a person anything; false = it draws logistics.loadout_cost from the coalition's pool like every other spawn (agent-vs-agent harness profiles). The AI garrison and the Director always pay.",
           "type": "boolean",
           "x-unit": "switch",
           "x-hot-reload": false,
@@ -3598,8 +3660,20 @@
           "x-source": "ECONOMY EC-13, Q-TD-12, Q-TD-26",
           "x-status": "RULE_DEFAULT"
         },
+        "cost_parity": {
+          "description": "ECONOMY EC-3 cost parity (NX-494, Q-TD-119, Q-TD-130): true = the config loader refuses a config in which an ENEMY kind paired by the unit catalog's mirrors has a different logistics.loadout_cost, economy.upkeep or economy.upkeep_period from its COALITION kind, naming the keys, both kinds and both values; it never copies a value. false = each kind keeps its own value (one-sided experiments). Unpaired kinds are never checked. Read at load only.",
+          "type": "boolean",
+          "x-unit": "switch",
+          "x-hot-reload": false,
+          "x-category": "ECONOMY",
+          "x-audience": "OPERATOR",
+          "x-edit-role": "ADMIN",
+          "x-tune": null,
+          "x-source": "ECONOMY EC-3, Q-TD-119, Q-TD-130",
+          "x-status": "PROPOSED"
+        },
         "floor_viewer_units": {
-          "description": "ECONOMY EC-11: viewer units the coalition's floor income must keep paid. With economy.legacy_rules false and the coalition not in unlimited mode, the loader refuses a config whose economy.income.floor is below the upkeep of the theater's coalition garrison quotas plus this many units at the dearest upkeep of a viewer-playable kind, naming the shortfall. Read at load only, unit units.",
+          "description": "ECONOMY EC-11: viewer units the coalition's floor income must keep paid. With the coalition not in unlimited mode, the loader refuses a config whose economy.income.floor is below the upkeep of the theater's coalition garrison quotas plus this many units at the dearest upkeep of a viewer-playable kind, naming the shortfall. Read at load only, unit units.",
           "type": "integer",
           "minimum": 0,
           "x-unit": "units",
