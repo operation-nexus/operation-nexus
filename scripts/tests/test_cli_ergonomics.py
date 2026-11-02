@@ -22,6 +22,7 @@ TARGET_SCRIPTS = [
     REPO_ROOT / "scripts" / "check_site.py",
     REPO_ROOT / "scripts" / "check_tracked_files.py",
     REPO_ROOT / "scripts" / "gen_config_reference.py",
+    REPO_ROOT / "scripts" / "spec_section.py",
     REPO_ROOT / "tools" / "sim-determinism" / "check.py",
 ]
 

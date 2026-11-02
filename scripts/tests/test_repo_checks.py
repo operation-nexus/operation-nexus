@@ -22,6 +22,8 @@ from gen_config_reference import render as registry_render  # noqa: E402
 from check_osv_report import findings, main  # noqa: E402
 from check_site import page_problems, site_problems  # noqa: E402
 from check_tracked_files import violations  # noqa: E402
+from spec_section import main as spec_section_main  # noqa: E402
+from spec_section import section as spec_section  # noqa: E402
 
 AI = "Cl" + "aude"  # kept out of the literal so a name scan of this file stays clean
 
@@ -330,6 +332,40 @@ def test_changed_tests():
     assert plan([gone_test], dirs, frozenset({gone_test})) == []  # a deleted test is not run
 
 
+def test_spec_section():
+    doc = ["# Spec", "## 1. Purpose", "p", "## 3. Requirements", "### SC-1 Step (Q-SIM-3)", "a", "```", "## not a heading",
+           "```", "### Movement", "b", "#### Detail", "c", "## 4. World", "w"]
+    assert spec_section(doc, "3") == doc[3:13]  # up to the next heading of the same level, past a fenced "##"
+    assert spec_section(doc, "3.") == spec_section(doc, "requirements") == doc[3:13]
+    assert spec_section(doc, "SC-1") == spec_section(doc, "step") == doc[4:9]  # the trailing citation is optional
+    assert spec_section(doc, "movement") == doc[9:13]  # a deeper heading stays in the body
+    assert spec_section(doc, "4") == doc[13:]  # the last section runs to the end
+    assert spec_section(doc, "3.2") is None
+    assert spec_section(doc, "Boards") is None  # a title matches whole, not by its second word
+    tilde = ["## 1. Req", "~~~~", "## 2. inside", "~~~", "still inside", "~~~~", "x", "## 2. Next"]
+    assert spec_section(tilde, "1") == tilde[:7]  # a tilde fence closes only on a matching marker at least as long
+    cited = ["## Logistics (Q-SIM-4)", "l", "## Other"]
+    assert spec_section(cited, "logistics") == cited[:2]  # citation optional without a number too
+    plain = ["## Logistics (air)", "a", "## Logistics", "b"]
+    assert spec_section(plain, "logistics") == plain[2:]  # a non-citation parenthetical stays part of the title
+    with tempfile.TemporaryDirectory() as tmp:
+        path = os.path.join(tmp, "spec.md")
+        with open(path, "w") as f:
+            f.write("\n".join(doc))
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            assert spec_section_main([path, "SC-1"]) == 0
+        assert out.getvalue() == "### SC-1 Step (Q-SIM-3)\na\n```\n## not a heading\n```\n"
+        with contextlib.redirect_stderr(io.StringIO()) as err:
+            assert spec_section_main([path, "9"]) == 1
+            assert "no section '9'" in err.getvalue()
+            assert spec_section_main([os.path.join(tmp, "gone.md"), "1"]) == 2
+            bad = os.path.join(tmp, "latin1.md")
+            with open(bad, "wb") as f:
+                f.write(b"# Sp\xe9c\n")
+            assert spec_section_main([bad, "1"]) == 2  # not UTF-8: an unreadable file, not a traceback
+
+
 if __name__ == "__main__":
     test_commit_msg()
     test_tracked_files()
@@ -340,4 +376,5 @@ if __name__ == "__main__":
     test_format_hook()
     test_pr_body()
     test_changed_tests()
+    test_spec_section()
     print("ok")

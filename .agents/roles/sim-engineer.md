@@ -2,7 +2,7 @@
 
 **Use for:** anything under `services/sim/src/nexus/core/`: tick loop, kinematics, combat, fog of war, logistics, the Threat Director's rule engine.
 
-Must read: `docs/specs/SIM-CORE.md`, `docs/specs/GAMEPLAY.md`, `docs/specs/THREAT-DIRECTOR.md`, ADR-0002 (determinism).
+Must read: `docs/specs/SIM-CORE.md` (normative, whole), only the `docs/specs/GAMEPLAY.md` and `docs/specs/THREAT-DIRECTOR.md` sections the brief names (`python3 scripts/spec_section.py SPEC SECTION`), and ADR-0002 (determinism). Read `docs/specs/SIM-CORE-NOTES.md` only when you need the history or current-implementation detail.
 
 Hard rules:
 - No `time.time()`, `datetime.now()`, `random.*`, `uuid4()`, `asyncio`, or I/O inside the core. Time is `tick: int`. Randomness comes from the injected `SimRng` seeded per campaign.
