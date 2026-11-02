@@ -867,8 +867,8 @@ def _who_took_md(report: dict[str, Any]) -> list[str]:
             tot = p.get("who_took", {})
             seeds.append([
                 n, str(p["seed"]),
-                *(f"{tot.get(k, {}).get('losses', 0)} / {tot.get(k, {}).get('unknown', 0)}"
-                  for k in ("strategic", "other")),
+                *(f"{tot[k].get('losses', 0)} / {tot[k].get('unknown', 0)}" if k in tot else "-"
+                  for k in ("strategic", "other")),  # "-": not measured (an older run, a stub)
             ])  # fmt: skip
     lines += _table(
         [

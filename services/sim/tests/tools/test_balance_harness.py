@@ -3898,8 +3898,14 @@ def test_who_took_old_runs_and_failed_stub_still_render() -> None:
     assert report._who_took([old]) == {} and report._who_seed(old) == {"who_took": {}}
     stub = runner.failed_run("quiet-5", 1, 1.0, "boom")
     assert report._who_took([stub]) == {}
-    prof = {"profiles": {"quiet-5": {"who_took": {}, "per_seed": [{"seed": 1}]}}}
-    assert "## Who takes coalition nodes (Q-TD-136)" in "\n".join(report._who_took_md(prof))
+    zero = {"losses": 0, "unknown": 0}
+    prof = {"profiles": {"quiet-5": {"who_took": {}, "per_seed": [
+        {"seed": 1}, {"seed": 2, "who_took": {"strategic": zero, "other": zero}},
+    ]}}}  # fmt: skip
+    md = "\n".join(report._who_took_md(prof))
+    assert "## Who takes coalition nodes (Q-TD-136)" in md
+    assert "| quiet-5 | 1 | - | - |" in md  # not measured: shown as unavailable, never as zero
+    assert "| quiet-5 | 2 | 0 / 0 | 0 / 0 |" in md  # measured and zero
 
 
 def test_strategic_held_old_runs_and_failed_stub_still_render() -> None:
