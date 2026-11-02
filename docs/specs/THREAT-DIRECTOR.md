@@ -812,7 +812,7 @@ Notes: THREAT-DIRECTOR-NOTES.md §5b
 
 **Source pools (NX-412 part 1; ECONOMY EC-1, EC-2, EC-15).**
 1. `nexus.core.economy` runs in the `director` slot before the decision window, on running ticks that divide by `economy.window_s` as ticks (600): each limited side's pool in `World.pool` gains income (`SupplyProduced`), then is clipped to storage (`SupplyConsumed{STORAGE_LOST}`).
-2. The Static's rear source pays truck loads from its pool; the budget (step 2) and spawns do not read it yet (EC-7, EC-13 are later parts).
+2. The Static's rear source pays truck loads from its pool; the budget (step 2) and source spawns read it too (NX-412 part 3, items 5, 7 and 21 below).
 3. `economy.unlimited.<side>` shipped true for both sides until NX-412 part 5b (Q-TD-29) and ships false since then, so both sources are finite.
 
 **Budget, guard and the one spawn rule (NX-412 part 3; ECONOMY EC-7, EC-8, EC-13; Q-TD-33).**
@@ -981,7 +981,7 @@ Notes: THREAT-DIRECTOR-NOTES.md §5b
 **Window (TD-1).**
 103. In the `director` slot, before the Tasking Boards, when the running tick being computed divides by `director.window_s` as ticks (600 at 10 Hz).
 104. Never while frozen, so a pause freezes every field and the window resumes where it stopped; game time is ticks, so `sim.time_scale` changes no count.
-105. Each window: provocation decays by one exact multiplier of the half-life and takes what was noted since the last window; CP moves a `window / ema_window` step (1/5) toward the sum of the tracked units' values (it starts at 0); the provocation level (0, ALPHA from 10, BRAVO from 40) and the CP ceiling (ALPHA always, BRAVO from 60) update with their 0.8 exits; the tier steps at most once toward min(level, ceiling) once it has spent `min_dwell_s` (10 windows) in the current tier (a new campaign starts in `director.tier.start`, Pattern of Life by default, with dwell 0, so the first move is 10 windows in; a move takes up to `director.tier.max_step` steps, 1 by default); the window's budget is ECONOMY EC-7's (NX-412 part 3 above: the tier's share of the surplus of the Static's finite-stock bases over their starvation floors, plus the rear share of the pool, less the upkeep reserve, at least the cadence floor).
+105. Each window: provocation decays by one exact multiplier of the half-life and takes what was noted since the last window; CP moves a `window / ema_window` step (1/5) toward the sum of the tracked units' values (it starts at 0); the provocation level (0, ALPHA from 10, BRAVO from 40) and the CP ceiling (ALPHA always, BRAVO from 60) update with their 0.8 exits; the tier steps at most once toward min(level, ceiling) once it has spent `min_dwell_s` (10 windows) in the current tier (a new campaign starts in `director.tier.start`, Pattern of Life by default, with dwell 0, so the first move is 10 windows in; a move takes up to `director.tier.max_step` steps, 1 by default); the window's budget is ECONOMY EC-7's (NX-412 part 3 above: the tier's share of the surplus of the Static's finite-stock bases over their surplus references (`Supply.surplus_ref`, NX-500), plus the rear share of the pool, less the upkeep reserve, at least the cadence floor).
 106. A move emits `ThreatTierChanged`.
 
 **Provocation sources (Q-TD-11, Q-SIM-78, Q-SIM-79).**
@@ -1100,11 +1100,11 @@ Notes: THREAT-DIRECTOR-NOTES.md §5b
 177. `_recall` sends an idle homed unit away from its held home back (a road route for ground, straight for aircraft).
 
 **Convoy.**
-178. The `convoys_per_period` bases with the largest `missing x (GARRISON_UPKEEP cost) - (stock - floor)` (ties by id; above zero) each get a `RESUPPLY` job (key `op:POL_CONVOY:<base>:0`), taken by an idle carrier of `director.pol.convoy_kind` or a new one, within `max_spawns_per_window` and the tier's unit room; a new carrier costs `convoy_cost`, from the surplus.
+178. The `convoys_per_period` bases with the largest `missing x (GARRISON_UPKEEP cost) - (stock - floor)` (ties by id; above zero) each get a `RESUPPLY` job (key `op:POL_CONVOY:<base>:0`), taken by an idle carrier of `director.pol.convoy_kind` or a new one, within `max_spawns_per_window` and the live room (EC-8); a new carrier costs `convoy_cost`, from the surplus.
 179. A base no truck can reach by the supply-run rule (`logistics.plan_run`: around nodes the coalition holds, over intact bridges) gets no convoy that period and nothing is spawned or paid; the period's slot is not passed to the next base (NX-413).
 
 **Capture slot.**
-180. At Pattern of Life, when `offensive_period_s` has passed since the last launch and the cap is not spent, candidates are the catalog operations with a CAPTURE job whatever their tier, ranked as usual (one `director` draw each), selected against the real surplus (`director.surplus`) and the PoL unit room; the best one launches.
+180. At Pattern of Life, when `offensive_period_s` has passed since the last launch and the cap is not spent, candidates are the catalog operations with a CAPTURE job whatever their tier, ranked as usual (one `director` draw each), selected against the real surplus (`director.surplus`) and the live room (EC-8); the best one launches.
 181. The cap check (no live viewer unit and `night_capped`) also drops capture operations from the normal window at every tier.
 
 **Cap.**
@@ -1119,7 +1119,7 @@ Notes: THREAT-DIRECTOR-NOTES.md §5b
 186. (1) The patrol's turning node is the one toward the front, neutral or not (Q-SIM-86 replaces the held-only rule).
 187. (2) The counts per window or period are keys (Q-DEV-21), default 1; the convoy costs 0.
 188. (3) Probe-to-capture is not built: the slot takes the operations with a CAPTURE job (Offensive, Retake).
-189. (4) The PoL live-unit cap is 40 (24 in Q-SIM-78).
+189. (4) Retired in NX-488 with the per-tier live caps: the live room is the EC-8 guard `sim.max_live_units_per_side`.
 
 **Part 4 (NX-379): Recon that explores (Q-SIM-87).**
 190. RECON costs 2 (was 5) and its one job is `SCOUT at: sector_point` for an `ENEMY_RECON_UAV`.

@@ -10,7 +10,7 @@ Not normative; CONFIG-AND-CONTENT.md wins. This file holds the implementation na
 
 ### 6.3 Logistics
 
-- Economy (ECONOMY, approved 2026-10-24; keys added by NX-412 with `add-config-key`; `unlimited`, `window_s`, `income.*` and `storage.*` in the schema and read by `nexus.core.economy` since NX-412 part 1, `upkeep.*` read by `nexus.core.upkeep` since part 2, the rest not in the schema yet).
+- Economy (ECONOMY, approved 2026-10-24; keys added by NX-412 with `add-config-key`; `unlimited`, `window_s`, `income.*` and `storage.*` in the schema and read by `nexus.core.economy` since NX-412 part 1, `upkeep.*` read by `nexus.core.upkeep` since part 2, the rest not in the schema yet; superseded: every §6.3 `economy.*` row is in `contracts/config/balance.json`).
 
 ### 6.5 Capture
 
@@ -18,7 +18,7 @@ Not normative; CONFIG-AND-CONTENT.md wins. This file holds the implementation na
 
 ### 6.6 Campaign
 
-- In code since NX-126: the `campaign` block of `balance/default.yaml` (`contracts/config/balance.json`) holds `time_limit_h`, `victory_node_frac`, `victory_hold_min`, `objective_period_min`, `objective_mode` (read from the balance profile until a per-campaign setting exists), `score.average_weight`, `score.final_weight`, `score.objective_points` and `momentum.nodes_weight` and `supply_weight`; `nexus.core.campaign` reads them. The three durations are game time, converted once at load (`game_ticks`, with the key's unit: 72 h = 2,592,000 ticks, 30 min = 18,000, 15 min = 9,000 at 10 Hz). `target_duration_h`, `max_extension_h`, `defeat`, `options`, `intermission`, `rubber_band_zone` and the night cap are not read yet.
+- In code since NX-126: the `campaign` block of `balance/default.yaml` (`contracts/config/balance.json`) holds `time_limit_h`, `victory_node_frac`, `victory_hold_min`, `objective_period_min`, `objective_mode` (read from the balance profile until a per-campaign setting exists), `score.average_weight`, `score.final_weight`, `score.objective_points` and `momentum.nodes_weight` and `supply_weight`; `nexus.core.campaign` reads them. The three durations are game time, converted once at load (`game_ticks`, with the key's unit: 72 h = 2,592,000 ticks, 30 min = 18,000, 15 min = 9,000 at 10 Hz). `target_duration_h`, `max_extension_h`, `defeat`, `options`, `intermission`, `rubber_band_zone` and the night cap are not read yet (superseded for `defeat` and the night cap: `runtime/campaign_config.py` reads both, NX-157, Q-TH-7).
 - Status labels moved out of CONFIG-AND-CONTENT.md (the rules after each stay there, with the ids): In code since NX-374:
 
 ### 6.7 Threat Director

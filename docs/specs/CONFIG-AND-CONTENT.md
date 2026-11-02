@@ -56,7 +56,7 @@ Rules only. Narration, history, decision trails, code pointers and derived numbe
 11. Each key also carries six registry fields (Q-CFG-15, Q-CFG-17..22): `x-category`, `x-audience`, `x-edit-role`, `x-tune`, `x-source` and `x-status`; `scripts/gen_config_reference.py` checks them in `make contracts` and writes [CONFIG-REFERENCE](CONFIG-REFERENCE.md).
 12. All rates are per second of **world** time (CFG-9) unless the unit says otherwise (SIM-CORE SC-2).
 
-13. **CFG-6** Content cross-references (unit kinds in theaters, doctrine perks naming unit kinds, template slots) MUST be validated at load and in CI (§8).
+13. **CFG-6** Content cross-references (unit kinds in theaters, doctrine perks naming unit kinds, template slots) MUST be validated at load and in CI (§11.2).
 
 14. **CFG-7** Secrets MUST NOT appear in any config file.
 15. Config refers to secrets by name only (`secret_ref`), and the values come from the environment / secret store (THREAT-MODEL SEC-CI, CICD §8).
@@ -129,7 +129,7 @@ Rules only. Narration, history, decision trails, code pointers and derived numbe
    A missing required secret fails startup naming the ref, never the value.
 3) Load the balance profile and validate it.
 4) Load content: units → doctrines → theaters → text.
-   Validate each, then run the cross-reference checks (§8.2).
+   Validate each, then run the cross-reference checks (§11.2).
 5) Compute `config_hash` (§4.4).
    Write a `ConfigLoaded{config_hash, balance_profile, content_versions}` audit event.
 6) Start a new campaign, or resume one.
@@ -552,10 +552,10 @@ Notes: CONFIG-AND-CONTENT-NOTES.md §6.6
 | `director.intercept.lost_s` | float | s (game) | 120 (PROPOSED, Q-SIM-96, NX-382): an intercept ends once its scout was untracked this long | THREAT-DIRECTOR §5a | Yes |
 | `director.advisor.top_k` | int | candidates | TBD (P4) | THREAT-DIRECTOR §6 | Yes |
 
-1. The required `director` block of `balance/default.yaml` (`contracts/config/balance.json`) holds the keys above through `max_live_units` (`budget` and `max_live_units` are objects keyed by lower-case tier; `cp.unit_value` by unit kind; `provocation.weights` by action) (NX-155).
+1. The required `director` block of `balance/default.yaml` (`contracts/config/balance.json`) holds the keys above (`cp.unit_value` by unit kind; `provocation.weights` by action) (NX-155).
 2. The game-time keys become running ticks at load (`Rules.director`); coalition power and provocation are kept as whole millionths of a point, the half-life as an exact integer per-window multiplier, the dwell, EMA step and exit ratio exactly, so thresholds never meet a float.
 3. `provocation.half_life_s` over `window_s` must reduce to a ratio with neither part above 256 (the loader refuses more).
-4. `max_spawns_per_window` and `max_live_units` are read by spawning (NX-156).
+4. `max_spawns_per_window` is read by spawning (NX-156); the live room is `sim.max_live_units_per_side` (§6.1, NX-488).
 5. `op_priority` (an open map by operation id; the loader requires exactly the catalog's ids), `score.target_value`, `score.weakness_max`, `score.provocation_proximity`, `memory.half_life_s` (an exact integer per-window multiplier like the provocation half-life), `noise_scale` (an exact Fraction), `retake_window_min` and the `tasking.priority` keys `stage` (20) and `capture` (45), which are lead decisions, PROPOSED, for the Director's two job kinds (NX-156 part 2).
 6. `director.pol.*` (`patrol_slots`, `patrol_period_s`, `convoy_period_s`, `offensive_period_s`, `convoy_kind`, `patrols_per_base`, `convoys_per_period`, `offensives_per_period`, `convoy_cost`), `director.garrison.kinds.<node kind>`, `director.garrison.replace_per_window`, `tasking.static_offense_min_tier`, `campaign.night_progress_cap_nodes_per_h`, `tasking.priority.patrol` and `director.op_priority.GARRISON_UPKEEP`; the periods are game ticks on the campaign clock (the cap's `1 /` value is rounded to a whole tick), the loader refuses a garrison or convoy kind that is not an ENEMY air or ground kind that can do its job (NX-157 part 3).
 

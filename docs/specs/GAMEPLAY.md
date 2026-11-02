@@ -333,7 +333,7 @@ Rules only. Narration, history, decision trails, examples and derived numbers: [
 179. The overlay shows the sitrep as its top card (OVERLAY OV-26, NX-496); no overlay surface shows jobs yet.
 
 180. **Defeat (§9) is unchanged here.**
-181. A repair above 0 still resets the defeat run, so at any rate the loader accepts, one live, parked truck stops a defeat.
+181. A repair to the defeat reset threshold resets the defeat run and a repair below it only pauses the run (§9, NX-499).
 182. The siege has to kill or disable the trucks: at 0 hp the node is pinned and the Static's shots go to units (`combat._fire`).
 
 183. `defend:<node>`: a node the side owns (not a sanctuary or bridge) with the other side's capture bar on it, or a *tracked* enemy ground unit within `tasking.defend_radius_m` (10 km, Q-SIM-74) of it.
@@ -392,7 +392,7 @@ Rules only. Narration, history, decision trails, examples and derived numbers: [
 230. **Coalition resupply (Q-SIM-131 (a), lead decision, owner may veto; NX-492, in code):** an unclaimed coalition `resupply:<node>` job does not expire by `expire_min` either; it keeps its job id and posting time while the generator still posts it, and is withdrawn at once when the generator no longer does (the base no longer needs it, or is lost).
 231. Only the expiry: it still ages (TB-3), while unclaimed for at most `expire_min` minutes' worth and once claimed without a cap, as before (Q-SIM-132 (a)), and a claim starts no new clock, since a claimed resupply job does not expire (`tasking.unexpiring`).
 232. The Static's resupply jobs and every other job still expire as before.
-233. The AI garrison takes defend, resupply and scout jobs freely and any other job only once a COMMANDER-owned unit holds a claim on it, and a human takes an AI unit's slot; for `tasking.counterattack_window_min` (15 min, Q-GD-31, Q-SIM-74) after its side loses a node (`World.lost`), units still able to fight may also take strike and assist-objective jobs against it.
+233. The AI garrison takes defend, resupply, scout and repair-bridge jobs freely, never escort or patrol jobs, and any other job only once a COMMANDER-owned unit holds a claim on it, and a human takes an AI unit's slot; for `tasking.counterattack_window_min` (15 min, Q-GD-31, Q-SIM-74) after its side loses a node (`World.lost`), units still able to fight may also take strike and assist-objective jobs against it.
 234. An aircraft skips a job whose straight route crosses the ring of a discovered enemy site last seen not Disabled, unless the job targets that site's base (TB-2; direct orders are unaffected).
 235. An empty truck that takes a resupply job first drives to a source (the `!join logi` source rule), loads `min(truck_cargo, surplus)` as a spawn does, then delivers.
 236. When no fitting job with a free slot is feasible for a unit (every one full, or every free one refused, Q-TD-89), it overfills a job only up to `tasking.overfill_factor` (2) times its slots and otherwise waits for the next pass (Q-SIM-75).
@@ -505,7 +505,7 @@ Notes: GAMEPLAY-NOTES.md §1b
 7. It starts full, at storage.
 8. Every `economy.window_s` (60 game s) it gains `economy.income.floor` plus `economy.income.per_node.<kind>` for each node the side owns with no capture bar on it, up to storage, as `SupplyProduced{side, amount}`.
 9. Then it is clipped to storage, `economy.storage.floor` plus `economy.storage.per_node.<kind>` per owned node, with the excess reported as `SupplyConsumed{STORAGE_LOST}`.
-10. A truck loading at the source takes at most the pool, and an empty pool loads nothing; sanctuary spawns stay free (EC-13 comes later).
+10. A truck loading at the source takes at most the pool, and an empty pool loads nothing; a viewer's sanctuary spawn is free only while `economy.free_viewer_spawn` is on (EC-13, item 29 below).
 11. `economy.unlimited.<side>` shipped true for both sides until NX-412 part 5b (Q-TD-29) and ships false since then, so both sources are finite.
 
 12. **Upkeep and grounding (Q-TD-18, Q-TD-23, Q-TD-43, Q-TD-49; ECONOMY EC-4..6):** every live unit pays `economy.upkeep.<unit_kind>` from its home base once every `economy.upkeep_period.<unit_kind>` windows (Q-TD-41), so a unit can cost less than 1 stock per window.
@@ -533,7 +533,7 @@ Notes: GAMEPLAY-NOTES.md §1b
 32. The theater's opening garrison is placed at setup and draws nothing.
 
 33. **Starvation (Q-SIM-53):** a spawn always gets a full loadout.
-34. Starvation bites on **rearm** only: a unit refuelling or rearming at a base below `logistics.starve_threshold` (PROPOSED 25%) is filled only up to the starved loadout (`logistics.starved_loadout.fuel_frac`, 50% of its fuel; guns only once munitions exist, NX-124, with the gun rounds also drawn from stock).
+34. Starvation bites on **rearm** only: a unit refuelling or rearming at a base below `logistics.starve_threshold` (PROPOSED 25%) is filled only up to the starved loadout (`logistics.starved_loadout.fuel_frac`, 50% of its fuel; guns only, NX-124 part 2, with the gun rounds also drawn from stock).
 35. At 0, the node can't rearm.
 36. A unit whose job its capped tank cannot serve leaves for an unstarved base instead of waiting there, and on its airborne refuel step passes such a base by (§1b, Q-TD-88, NX-467).
 37. A refuel is paid by what is missing: `logistics.loadout_cost` x the share of the tank bought, at `logistics.rearm_rate` (Q-SIM-51); the sanctuary refuels for free.
@@ -742,7 +742,7 @@ Notes: GAMEPLAY-NOTES.md §1b
 171. Every bridge has `logistics.bridge_hp` (PROPOSED 300) hp; only units on a STRIKE job at the bridge shoot it, never a unit holding a direct order on it (Q-SIM-124, NX-408); at 0 it emits `BridgeDestroyed` and every new road path avoids its edge (NX-373 part 1a, Q-SIM-105 to Q-SIM-107).
 172. The fall destroys every ground unit of either side on the bridge's road within `logistics.bridge_collapse_radius_m` (PROPOSED 1000 m) of the bridge, cargo and all, the shooter credited with each kill; aircraft are not affected (NX-400, Q-SIM-112, owner).
 173. Ground units already on the way reroute at once: one short of the bridge turns back and takes another road (or stops at its bank's node when there is none), one past the bridge and beyond the collapse radius carries on, and aircraft are not affected (NX-373 part 1b, Q-SIM-108).
-174. Repair is not in code yet (STATE-MACHINES §4.3).
+174. Truck repair is in code (NX-373 part 2, STATE-MACHINES §4.3); engineer repair is not (below).
 175. A truck (either side) parked at the bridge, on the road from a bank, repairs it at `logistics.bridge_hp / (bridge_repair_time_s × truck_bridge_repair_mult)` hp per world second (PROPOSED 600 s × 5: one truck repairs 300 hp in 3,000 world s, two in half), with no cargo cost; at full hp a down bridge's road returns and `BridgeRepaired` names the truck (NX-373 part 2).
 176. The coalition board posts a repair-bridge job for each down bridge a truck can reach (§1b), and a down bridge is never fired at again while it is repaired.
 177. Engineers come later (P4).
@@ -818,7 +818,7 @@ Notes: GAMEPLAY-NOTES.md §5
 9. A node with finite stock below its starvation floor loses `logistics.starve_hp_drain_per_min` (PROPOSED 5, whole HP) per game minute, counted in running ticks with an exact carry; the drain pauses while the node is not starved.
 10. The gate is on starting a bar: a bar already running is not stopped by a later repair (it fills or decays by the rules below), and the flip sets the HP to 0.
 11. Down and back: `NodeDefensesDown` when HP reaches 0 and `NodeDefensesRestored` only when it has been rebuilt to full, so a node flapping around 0 gives one pair per cycle.
-12. A truck cannot yet rebuild a SANCTUARY (see §9).
+12. A truck rebuilds a SANCTUARY only by parking there, not by unloading (§9 last stand).
 
 13. Capture requires a ground or logistics unit (a logistics unit counts as half a capturer, `capture.logi_weight`, Q-SM-7) within `capture.radius_m`, with no enemy ground unit contesting it.
 14. Progress takes `capture.time_s` (PROPOSED 120 s, world time, Q-ALN-23), scaled by the number of units with diminishing returns.
