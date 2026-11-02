@@ -14,6 +14,7 @@ import itertools
 import math
 from collections import Counter
 from collections.abc import Callable, Iterable, Mapping
+from fractions import Fraction
 from typing import Any, Final
 
 from nexus.contracts.gen.common.enums import Side
@@ -62,6 +63,7 @@ ROUTINE_JOBS = frozenset({"POL_PATROL", "POL_CONVOY"})
 OFFENSIVE = "OFFENSIVE"
 RETAKE = "RETAKE"
 FUNNEL_STEPS = ("strike_fired", "defenses_down", "capture_started", "captured")
+LOSS_AFTER = (OFFENSIVE, RETAKE, "other", "none")  # Q-TD-136 loss buckets
 CAPTURE_OPS = (OFFENSIVE, RETAKE)  # the operations with a STRIKE then a CAPTURE step (funnel)
 
 
@@ -94,6 +96,7 @@ class Collector:
             n: math.ceil(starve_threshold * m) for n, m in rules.supply.max_stock.items()
         }
         self._strategic = frozenset(rules.campaign.strategic)
+        frac = rules.campaign.victory_node_frac
         self._sanctuary = rules.sanctuary
         self.tick_hz, self.sample_ticks, self.a3_ticks = tick_hz, sample_ticks, a3_ticks
         self.idle_sample_ticks, self.impact_check_ticks = idle_sample_ticks, impact_check_ticks
@@ -230,6 +233,16 @@ class Collector:
         # earlier in the window tick) against `SupplyProduced`; the board's open STRIKE slots at
         # each idle sample.
         self.zero_strategic_ticks = self.coalition_captures = 0
+        # Q-TD-136: running ticks per count of strategic nodes the coalition owns (index k), the
+        # current and longest stretch at or above the hold threshold, owned ticks, losses per node
+        n = len(self._strategic)
+        self._hold_k = next((k for k in range(n + 1) if n and Fraction(k, n) >= frac), n + 1)
+        self._ticks_by_k = [0] * (n + 1)
+        self._stretch = self._longest_stretch = 0
+        self._owned_ticks = dict.fromkeys(sorted(self._strategic), 0)
+        self._lost = {
+            nd: {"total": 0, **dict.fromkeys(LOSS_AFTER, 0)} for nd in sorted(self._strategic)
+        }
         self.escort_jobs: list[int] = []
         self.clip_due: dict[str, int] = dict.fromkeys(SIDES, 0)
         self.clip_produced: dict[str, int] = dict.fromkeys(SIDES, 0)
@@ -439,9 +452,13 @@ class Collector:
         hp = world.defense_hp[self._sanctuary]
         if ran:
             self._defeat_run(camp.defeat_ticks, hp)
-            self.zero_strategic_ticks += not any(
-                world.owner.get(n) == _COALITION for n in self._strategic
-            )
+            owned = [n for n in sorted(self._strategic) if world.owner.get(n) == _COALITION]
+            self.zero_strategic_ticks += not owned
+            self._ticks_by_k[len(owned)] += 1
+            for n in owned:
+                self._owned_ticks[n] += 1
+            self._stretch = self._stretch + 1 if len(owned) >= self._hold_k else 0
+            self._longest_stretch = max(self._longest_stretch, self._stretch)
         self.sanctuary_min = min(self.sanctuary_min, hp)
         if world.campaign.tick <= self.a3_ticks:
             self.sanctuary_min_window = min(self.sanctuary_min_window, hp)
@@ -807,6 +824,12 @@ class Collector:
 
     def _captured(self, e: Any) -> None:
         self.coalition_captures += e.to == _COALITION
+        if e.from_ == _COALITION and e.to != _COALITION and e.node_id in self._strategic:
+            launch = self._latest.get(e.node_id)  # read before the pop below
+            kind = "none" if launch is None else launch["op"]
+            kind = kind if kind in LOSS_AFTER else "other"
+            self._lost[e.node_id]["total"] += 1
+            self._lost[e.node_id][kind] += 1
         self._flipped += [(i, e.tick) for i in self._facilities.get(e.node_id, ())]
         if (step := self._latest.pop(e.node_id, None)) and e.to == _ENEMY:
             step["captured"] = True
@@ -998,6 +1021,17 @@ class Collector:
                 "zero_strategic_ticks": self.zero_strategic_ticks,
                 "zero_strategic_min": self._minutes(self.zero_strategic_ticks),
                 "coalition_captures": self.coalition_captures,
+            },
+            "strategic_held": {  # Q-TD-136, running ticks only
+                "nodes": len(self._strategic),
+                "hold_threshold": self._hold_k,  # owned nodes needed: campaign.py's holding rule
+                "min_by_k": [self._minutes(t) for t in self._ticks_by_k],
+                "at_or_above_min": self._minutes(sum(self._ticks_by_k[self._hold_k :])),
+                "longest_min": self._minutes(self._longest_stretch),
+                "by_node": {
+                    n: {"owned_min": self._minutes(self._owned_ticks[n]), "lost": self._lost[n]}
+                    for n in sorted(self._strategic)
+                },
             },
             "escort_jobs": self.escort_jobs,  # NX-477: Static ESCORT_CONVOYS jobs, per run-hour
             "income_clip": {  # NX-478: income due against `SupplyProduced`, per limited side

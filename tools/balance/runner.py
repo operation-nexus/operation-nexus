@@ -351,6 +351,14 @@ def failed_run(profile: str, seed: int, hours: float, error: str) -> dict[str, A
                 "zero_strategic_min": 0.0,
                 "coalition_captures": 0,
             },
+            "strategic_held": {
+                "nodes": 0,
+                "hold_threshold": 0,
+                "min_by_k": [],
+                "at_or_above_min": 0.0,
+                "longest_min": 0.0,
+                "by_node": {},
+            },
             "escort_jobs": [],
             "income_clip": {
                 s: {"due": 0, "produced": 0, "lost": 0} for s in ("COALITION", "ENEMY")
