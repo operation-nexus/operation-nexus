@@ -720,6 +720,35 @@ def _strategic_held(runs: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _who_took(runs: list[dict[str, Any]]) -> dict[str, Any]:
+    """Q-TD-136: who took coalition nodes, summed over the seeds, strategic and other apart.
+    Every count (and the weight) adds; a run from before it adds nothing."""
+    out: dict[str, Any] = {}
+    for r in runs:
+        for part, w in sorted((r["metrics"].get("who_took") or {}).items()):
+            t = out.setdefault(part, {})
+            for f, v in w.items():
+                if isinstance(v, dict):
+                    d = t.setdefault(f, {})
+                    for k, c in v.items():
+                        d[k] = d.get(k, 0) + c
+                else:
+                    t[f] = t.get(f, 0) + v
+    return {p: {f: dict(sorted(v.items())) if isinstance(v, dict) else v for f, v in t.items()}
+            for p, t in sorted(out.items())}  # fmt: skip
+
+
+def _who_seed(r: dict[str, Any]) -> dict[str, Any]:
+    w = _who_took([r])
+    return {
+        "who_took": {
+            p: {k: t.get(k, 0) for k in ("losses", "unknown", "units", "weight")}
+            | {k: t.get(k, {}) for k in ("losses_by_job", "losses_by_kind", "units_by_job")}
+            for p, t in w.items()
+        }
+    }
+
+
 def _held_seed(r: dict[str, Any]) -> dict[str, Any]:
     h = r["metrics"].get("strategic_held") or _NO_HELD
     return {
@@ -749,6 +778,7 @@ def _per_seed(runs: list[dict[str, Any]], t: Targets) -> list[dict[str, Any]]:
             "outcome": _seed_outcome(r),
             **_hold_seed(r["metrics"].get("economy", {"holds": []})),
             **_held_seed(r),
+            **_who_seed(r),
         })  # fmt: skip
     return out
 
@@ -797,6 +827,7 @@ def aggregate(profile: str, runs: list[dict[str, Any]], t: Targets) -> dict[str,
         "defeat_run": _defeat_run(runs),
         **_nx477(runs),
         "strategic_held": _strategic_held(runs),
+        "who_took": _who_took(runs),
         "viewers_distinct_mean": _mean([r["viewers"]["distinct"] for r in runs]),
         "viewers_peak_mean": _mean([r["viewers"]["peak_concurrent"] for r in runs]),
     }
@@ -814,6 +845,56 @@ def target_table(profiles: dict[str, dict[str, Any]]) -> list[dict[str, str]]:
         {"target": n, "profile": "all", "status": NOT_MEASURABLE, "detail": d} for n, d in NOT_BUILT
     ]
     return rows
+
+
+def _top(d: dict[str, int]) -> str:
+    return (
+        ", ".join(f"{k} {v}" for k, v in sorted(d.items(), key=lambda kv: (-kv[1], kv[0]))) or "-"
+    )
+
+
+def _who_took_md(report: dict[str, Any]) -> list[str]:
+    lines = ["## Who takes coalition nodes (Q-TD-136)", ""]
+    rows, seeds = [], []
+    for n, a in report["profiles"].items():
+        for part, w in a.get("who_took", {}).items():
+            rows.append([
+                n, part, str(w["losses"]), str(w["unknown"]), str(w["units"]),
+                _fmt(w["weight"]), _top(w["losses_by_job"]), _top(w["losses_by_kind"]),
+                _top(w["units_by_owner"]),
+            ])  # fmt: skip
+        for p in a["per_seed"]:
+            tot = p.get("who_took", {})
+            seeds.append([
+                n, str(p["seed"]),
+                *(f"{tot[k].get('losses', 0)} / {tot[k].get('unknown', 0)}" if k in tot else "-"
+                  for k in ("strategic", "other")),  # "-": not measured (an older run, a stub)
+            ])  # fmt: skip
+    lines += _table(
+        [
+            "Profile",
+            "Nodes",
+            "Losses",
+            "Unknown",
+            "Capturers",
+            "Weight",
+            "Losses by capturer job",
+            "Losses by capturer kind",
+            "Capturers by owner",
+        ],
+        rows,
+    )
+    lines += _table(
+        ["Profile", "Seed", "Strategic losses / unknown", "Other losses / unknown"], seeds
+    )
+    lines += [
+        "A loss counts under every job and kind among the units capturing at that tick, so the "
+        "columns can exceed Losses. Unknown: no capturer visible when `observe` read the world "
+        "(they moved on, or died). Job: the prefix of the job key the unit holds on its side's "
+        "board (`none` no job, `gone` claim outlived its job).",
+        "",
+    ]
+    return lines
 
 
 def _fmt(value: float | None, spec: str = ".1f") -> str:
@@ -1348,6 +1429,7 @@ def markdown(report: dict[str, Any]) -> str:
         "launch known).",
         "",
     ]
+    lines += _who_took_md(report)
     lines += ["## Why idle armed units hold no job (summed over samples)", ""]
     for n, a in report["profiles"].items():
         i = a["idle"]

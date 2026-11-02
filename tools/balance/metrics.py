@@ -20,7 +20,7 @@ from typing import Any, Final
 from nexus.contracts.gen.common.enums import Side
 from nexus.contracts.gen.events.event import Event
 from nexus.core.campaign import momentum, pressure
-from nexus.core.capture import capture_weight
+from nexus.core.capture import _patrolling, _weight, capture_weight
 from nexus.core.director import TIERS
 from nexus.core.economy import due as economy_due
 from nexus.core.economy import income
@@ -64,6 +64,7 @@ OFFENSIVE = "OFFENSIVE"
 RETAKE = "RETAKE"
 FUNNEL_STEPS = ("strike_fired", "defenses_down", "capture_started", "captured")
 LOSS_AFTER = (OFFENSIVE, RETAKE, "other", "none")  # Q-TD-136 loss buckets
+WHO_STATIC = "ENEMY_DIRECTOR"  # the owner kind of the Static's own (Director) units
 CAPTURE_OPS = (OFFENSIVE, RETAKE)  # the operations with a STRIKE then a CAPTURE step (funnel)
 
 
@@ -253,6 +254,11 @@ class Collector:
         # D5 inputs (review ENTERTAINMENT-runs-F-G-H §8). `funnel`: per OFFENSIVE / RETAKE launch,
         # which steps its target saw afterwards; `_latest` maps a target to its newest launch.
         self.funnel: list[dict[str, Any]] = []
+        # Q-TD-136, who takes coalition nodes: `_cap_pending` the coalition losses `feed` saw
+        # (node, strategic, side that took it), read in the same tick's `observe`; `who_took`
+        # the tallies, strategic and not.
+        self._cap_pending: list[tuple[str, bool, Side]] = []
+        self.who_took: dict[str, dict[str, Any]] = {k: _new_who() for k in ("strategic", "other")}
         self._latest: dict[str, dict[str, Any]] = {}
         # NX-453, the launch's own units: a unit is the launch's when it claimed one of the jobs the
         # launch posted (`JobClaimed` names job and unit). `_job_step`: job id -> (index in
@@ -405,6 +411,7 @@ class Collector:
                     self.seized_back_min.append(self._minutes(world.campaign.tick - since))
 
     def observe(self, world: World) -> None:
+        self._who_took(world)
         self._classify_downs(world)
         self._seized_facilities(world)
         for hq in self._hq_new:
@@ -822,8 +829,33 @@ class Collector:
             capturers.add(eid)
             step["own_capturers"] = len(capturers)
 
+    def _who_took(self, world: World) -> None:
+        """Q-TD-136: for each coalition node lost this tick, who stood in the capture radius on
+        the taker's side and what job each held (`capturers`). Read in `observe`, after the
+        step: the CAPTURE job is still claimed (tasking ran before capture in the step)."""
+        pending, self._cap_pending = self._cap_pending, []
+        for node, strategic, taker in pending:
+            who = self.who_took["strategic" if strategic else "other"]
+            who["losses"] += 1
+            board = world.boards[taker]
+            seen = capturers(world, node, taker)
+            if not seen:
+                who["unknown"] += 1  # moved off, died, or air that does not count: not visible
+                continue
+            for key in ("job", "kind", "owner"):
+                who["losses_by_" + key].update({
+                    _who_key(key, e, board) for e, _ in seen
+                })  # fmt: skip
+            for e, w in seen:
+                who["units"] += 1
+                who["weight"] += w
+                for key in ("job", "kind", "owner"):
+                    who["units_by_" + key][_who_key(key, e, board)] += 1
+
     def _captured(self, e: Any) -> None:
         self.coalition_captures += e.to == _COALITION
+        if e.from_ == _COALITION and e.to != _COALITION:
+            self._cap_pending.append((e.node_id, e.node_id in self._strategic, e.to))
         if e.from_ == _COALITION and e.to != _COALITION and e.node_id in self._strategic:
             launch = self._latest.get(e.node_id)  # read before the pop below
             kind = "none" if launch is None else launch["op"]
@@ -1033,6 +1065,13 @@ class Collector:
                     for n in sorted(self._strategic)
                 },
             },
+            "who_took": {  # Q-TD-136: capturers of coalition nodes, see `capturers`
+                k: {
+                    f: dict(sorted(v.items())) if isinstance(v, Counter) else v
+                    for f, v in t.items()
+                }
+                for k, t in sorted(self.who_took.items())
+            },
             "escort_jobs": self.escort_jobs,  # NX-477: Static ESCORT_CONVOYS jobs, per run-hour
             "income_clip": {  # NX-478: income due against `SupplyProduced`, per limited side
                 s: {
@@ -1202,6 +1241,53 @@ class Collector:
             "nodes_held_pct": e.nodes_held_pct if e else None,
             "ticks_run": end_tick,
         }
+
+
+def _new_who() -> dict[str, Any]:
+    return {
+        "losses": 0,  # coalition nodes lost
+        "unknown": 0,  # of them, no capturer visible in `observe`
+        "units": 0,  # capturers seen, over all losses
+        "weight": 0.0,  # their capture weight (`capture._weight`)
+        **{f"{n}_by_{k}": Counter() for n in ("losses", "units") for k in ("job", "kind", "owner")},
+    }
+
+
+def capturers(world: World, node: str, side: Side) -> list[tuple[Entity, float]]:
+    """Q-TD-136: `side`'s units that count toward `node`'s capture bar now, with their weight: the
+    sim's own `capture._presence` rule (unit order = `world.entities()`): ground units within
+    `capture.radius_m` (a unit `_patrolling`, i.e. a garrison unit, a patrol or a coalition AI
+    truck, has no weight and is left out), logistics units at `logi_weight`, airborne air only
+    with `capture.air_counts` (`air_weight`), LANDED air and facilities never."""
+    rules = world.rules
+    if rules is None or rules.capture is None:
+        return []
+    cap = rules.capture
+    x, y = rules.roads.pos[node]
+    out = []
+    for e in world.entities():
+        domain = rules.domain[e.kind]
+        if e.side != side or domain not in ("AIR", "GROUND"):
+            continue
+        if domain == "AIR" and (e.state == "LANDED" or cap.air_weight is None):
+            continue  # LANDED air only garrisons; airborne never counts unless `air_counts`
+        if (e.pos.x - x) ** 2 + (e.pos.y - y) ** 2 <= cap.radius_m**2 and not _patrolling(world, e):
+            out.append((e, _weight(e, domain, rules, cap)))
+    return out
+
+
+def _who_key(key: str, e: Entity, board: Mapping[int, Job]) -> str:
+    if key == "kind":
+        return e.kind
+    if key == "owner":
+        return "static" if e.owner_kind == WHO_STATIC else "other"
+    if e.job_id is None:
+        return "none"
+    job = board.get(e.job_id)
+    if job is None:
+        return "gone"  # the claim outlived its job on the board
+    parts = job.key.split(":")
+    return f"op:{parts[1]}" if parts[0] == "op" and len(parts) > 1 else parts[0]
 
 
 def ring_site(world: World, rules: Rules, e: Entity, job: Job) -> str:

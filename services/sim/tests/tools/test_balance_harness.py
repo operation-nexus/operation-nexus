@@ -3794,6 +3794,120 @@ def test_strategic_losses_split_by_the_launch_that_preceded_them(
     assert agg["by_node"][a]["lost"]["total"] == 4
 
 
+def _who_world(shipped_config: CampaignConfig, node: str) -> Any:
+    """A world with the Static's units at `node`: a Director tank on an OFFENSIVE job, a Director
+    truck (logistics weight) on a RETAKE job, one with no job, a garrison unit (no weight) and a
+    jet in the air; `air_weight` is None unless the caller sets it."""
+    world = start_campaign("c", 1, shipped_config)
+    rules = world.rules
+    assert rules is not None and rules.capture is not None
+    here = Vec2(*rules.roads.pos[node])
+    ground = [k for k, d in rules.domain.items() if d == "GROUND" and k in rules.armed]
+    truck = sorted(rules.supply.carriers)[0]
+    air = next(k for k, d in sorted(rules.domain.items()) if d == "AIR")
+    for jid, key in ((1, "op:OFFENSIVE:x:0"), (2, "op:RETAKE:x:0")):
+        world.boards["ENEMY"][jid] = Job(jid, "CAPTURE", key, 1, 1000, 0)
+    a = world.spawn(ground[0], "ENEMY", "ENEMY_DIRECTOR", here)
+    a.job_id = 1
+    b = world.spawn(truck, "ENEMY", "ENEMY_DIRECTOR", here)
+    b.job_id = 2
+    world.spawn(ground[0], "ENEMY", "AI_GARRISON", here)  # no job
+    g = world.spawn(ground[0], "ENEMY", "AI_GARRISON", here)
+    g.home = node  # a garrison unit: never a capturer
+    j = world.spawn(air, "ENEMY", "ENEMY_DIRECTOR", here)
+    j.state = "ON_STATION"
+    j.job_id = 1
+    world.spawn(ground[0], "COALITION", "AI_GARRISON", here)  # the loser's unit: not a capturer
+    return world, rules, (a, b, j)
+
+
+def _took(collector: metrics.Collector, world: Any, node: str, **kw: str) -> dict[str, Any]:
+    _lose(collector, node, **kw)
+    collector.observe(world)
+    out: dict[str, Any] = collector.result(100)["who_took"]
+    return out
+
+
+def test_who_took_mirrors_the_sims_presence_and_names_job_kind_and_owner(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    from nexus.core.capture import _presence
+
+    node = sorted(shipped_config.rules.campaign.strategic)[0]  # type: ignore[union-attr]
+    world, rules, (a, b, _) = _who_world(shipped_config, node)
+    seen = metrics.capturers(world, node, "ENEMY")
+    near = _presence(world, rules, rules.capture, [node])[node]["ENEMY"]
+    assert sum(w for _, w in seen) == near.weight  # the sim's own weight, air excluded
+    assert [e.id for e, _ in seen if e.id in (a.id, b.id)] == [a.id, b.id]
+    w = _took(collector, world, node)["strategic"]
+    assert w["losses"] == 1 and w["unknown"] == 0 and w["units"] == 3  # tank, truck, no-job unit
+    assert w["weight"] == near.weight and w["weight"] == 2 + rules.capture.logi_weight
+    assert w["units_by_job"] == {"none": 1, "op:OFFENSIVE": 1, "op:RETAKE": 1}
+    assert w["losses_by_job"] == w["units_by_job"]  # one loss: each prefix once
+    assert w["units_by_owner"] == {"other": 1, "static": 2}
+    assert w["units_by_kind"][a.kind] == 2 and w["losses_by_kind"][a.kind] == 1
+    assert _took(collector, world, node)["other"]["losses"] == 0
+
+
+def test_who_took_a_single_offensive_unit_and_air_counts_only_with_the_option(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    node = sorted(shipped_config.rules.campaign.strategic)[0]  # type: ignore[union-attr]
+    world, _rules, (a, _b, _j) = _who_world(shipped_config, node)
+    for e in list(world.entities()):
+        if e.id != a.id:
+            world.remove(e.id)
+    w = _took(collector, world, node)["strategic"]
+    assert w["units"] == 1 and w["units_by_job"] == {"op:OFFENSIVE": 1}
+    assert w["units_by_owner"] == {"static": 1}
+    world2, rules2, (_, _, j2) = _who_world(shipped_config, node)
+    world2.rules = dataclasses.replace(  # capture.air_counts on, on this world only
+        rules2, capture=dataclasses.replace(rules2.capture, air_weight=1.5)
+    )
+    seen = {e.id: w_ for e, w_ in metrics.capturers(world2, node, "ENEMY")}
+    assert seen[j2.id] == 1.5
+    j2.state = "LANDED"
+    assert j2.id not in {e.id for e, _ in metrics.capturers(world2, node, "ENEMY")}
+
+
+def test_who_took_nothing_visible_neutral_flips_and_the_split(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    node = sorted(shipped_config.rules.campaign.strategic)[0]  # type: ignore[union-attr]
+    world = start_campaign("c", 1, shipped_config)
+    for e in list(world.entities()):
+        if e.side == "ENEMY":
+            world.remove(e.id)
+    got = _took(collector, world, node)
+    assert got["strategic"] == {**got["strategic"], "losses": 1, "unknown": 1, "units": 0}
+    _lose(collector, node, frm="NEUTRAL")  # not a coalition loss
+    _lose(collector, node, frm="ENEMY", to="COALITION")
+    collector.observe(world)
+    assert collector.result(100)["who_took"]["strategic"]["losses"] == 1
+    strategic = set(world.rules.campaign.strategic)  # type: ignore[union-attr]
+    other = next(n for n in sorted(world.rules.node_kind) if n not in strategic)  # type: ignore[union-attr]
+    got = _took(collector, world, other)
+    assert got["other"]["losses"] == 1 and got["other"]["unknown"] == 1
+    assert got["strategic"]["losses"] == 1
+    agg = report._who_took([{"metrics": {"who_took": got}}] * 2)
+    assert agg["strategic"]["losses"] == 2 and agg["other"]["unknown"] == 2
+
+
+def test_who_took_old_runs_and_failed_stub_still_render() -> None:
+    old = {"seed": 1, "metrics": {}}
+    assert report._who_took([old]) == {} and report._who_seed(old) == {"who_took": {}}
+    stub = runner.failed_run("quiet-5", 1, 1.0, "boom")
+    assert report._who_took([stub]) == {}
+    zero = {"losses": 0, "unknown": 0}
+    prof = {"profiles": {"quiet-5": {"who_took": {}, "per_seed": [
+        {"seed": 1}, {"seed": 2, "who_took": {"strategic": zero, "other": zero}},
+    ]}}}  # fmt: skip
+    md = "\n".join(report._who_took_md(prof))
+    assert "## Who takes coalition nodes (Q-TD-136)" in md
+    assert "| quiet-5 | 1 | - | - |" in md  # not measured: shown as unavailable, never as zero
+    assert "| quiet-5 | 2 | 0 / 0 | 0 / 0 |" in md  # measured and zero
+
+
 def test_strategic_held_old_runs_and_failed_stub_still_render() -> None:
     old = {"seed": 1, "metrics": {}}
     assert report._held_seed(old)["held_losses"] == 0
