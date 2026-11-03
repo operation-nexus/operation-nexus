@@ -234,7 +234,12 @@ def soak(args: argparse.Namespace, data: profiles.Data, config: CampaignConfig) 
         bad: list[int] = []
         try:
             got = replay_checkpoints(
-                log_dir, args.seed, args.profile, ran, config, set(probe.checkpoints)
+                log_dir,
+                args.seed,
+                run.get("rng_profile", args.profile),
+                ran,
+                config,
+                set(probe.checkpoints),  # the run's RNG name keys its campaign id (rng_profile)
             )
             bad = [t for t, h in sorted(probe.checkpoints.items()) if got.get(t) != h]
         except Exception as e:  # noqa: BLE001  # a replay that raises fails the soak; keep the report

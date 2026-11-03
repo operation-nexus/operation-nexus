@@ -720,6 +720,17 @@ def _strategic_held(runs: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _agency(runs: list[dict[str, Any]]) -> dict[str, Any]:
+    """NX-321: tacticians and their picks by rule, summed over runs (an older file has none)."""
+    picks: Counter[str] = Counter()
+    for r in runs:
+        picks.update(r["viewers"].get("agency_picks", {}))
+    return {
+        "tacticians": sum(r["viewers"].get("tacticians", 0) for r in runs),
+        "picks": {k: picks[k] for k in ("retake", "capture_started", "defenses_down", "fallback")},
+    }
+
+
 def _who_took(runs: list[dict[str, Any]]) -> dict[str, Any]:
     """Q-TD-136: who took coalition nodes, summed over the seeds, strategic and other apart.
     Every count (and the weight) adds; a run from before it adds nothing."""
@@ -830,6 +841,7 @@ def aggregate(profile: str, runs: list[dict[str, Any]], t: Targets) -> dict[str,
         "who_took": _who_took(runs),
         "viewers_distinct_mean": _mean([r["viewers"]["distinct"] for r in runs]),
         "viewers_peak_mean": _mean([r["viewers"]["peak_concurrent"] for r in runs]),
+        "agency": _agency(runs),
     }
 
 
@@ -851,6 +863,17 @@ def _top(d: dict[str, int]) -> str:
     return (
         ", ".join(f"{k} {v}" for k, v in sorted(d.items(), key=lambda kv: (-kv[1], kv[0]))) or "-"
     )
+
+
+def _agency_md(report: dict[str, Any]) -> list[str]:
+    """One line per profile that had tacticians (NX-321); nothing when the share is 0 everywhere."""
+    lines = [
+        f"- Tacticians (NX-321) in `{n}`: {a['agency']['tacticians']}; picks "
+        + ", ".join(f"{k} {v}" for k, v in a["agency"]["picks"].items())
+        for n, a in report["profiles"].items()
+        if a.get("agency", {}).get("tacticians")
+    ]
+    return ["## Persona agency (NX-321)", "", *lines, ""] if lines else []
 
 
 def _who_took_md(report: dict[str, Any]) -> list[str]:
@@ -1429,6 +1452,7 @@ def markdown(report: dict[str, Any]) -> str:
         "launch known).",
         "",
     ]
+    lines += _agency_md(report)
     lines += _who_took_md(report)
     lines += ["## Why idle armed units hold no job (summed over samples)", ""]
     for n, a in report["profiles"].items():
