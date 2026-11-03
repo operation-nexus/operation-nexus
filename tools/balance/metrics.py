@@ -66,6 +66,11 @@ FUNNEL_STEPS = ("strike_fired", "defenses_down", "capture_started", "captured")
 LOSS_AFTER = (OFFENSIVE, RETAKE, "other", "none")  # Q-TD-136 loss buckets
 WHO_STATIC = "ENEMY_DIRECTOR"  # the owner kind of the Static's own (Director) units
 CAPTURE_OPS = (OFFENSIVE, RETAKE)  # the operations with a STRIKE then a CAPTURE step (funnel)
+# NX-504: the game hours the early-hours view covers (a harness constant, not a config key). Hour h
+# is ticks ((h-1) * hour_ticks, h * hour_ticks]: an event or tick exactly on the boundary closes
+# the hour that ends there (`_hour`). Hours the run never reached are not reported (Rule 0); the
+# one it ended inside is, flagged `partial` with the minutes reached.
+EARLY_HOURS: Final = 4
 
 
 def _add(series: list[int], index: int, n: int) -> None:
@@ -244,6 +249,18 @@ class Collector:
         self._lost = {
             nd: {"total": 0, **dict.fromkeys(LOSS_AFTER, 0)} for nd in sorted(self._strategic)
         }
+        # NX-504: per early hour, the coalition's strategic nodes at the hour's last running tick
+        # (None: no running tick in it) and the minimum, strategic losses, coalition captures and
+        # Static OFFENSIVE launches. `_due`: units whose `DirectorState.idle` entry was at least
+        # `director.idle_retire_s` old at the last `observe` (on their way home, 143a-143c).
+        self._early_h: list[dict[str, Any]] = [
+            dict.fromkeys(("held_end", "min_held"), None)
+            | dict.fromkeys(("losses", "captures", "offensives"), 0)
+            for _ in range(EARLY_HOURS)
+        ]
+        self._due: frozenset[int] = frozenset()
+        self.retired: Counter[str] = Counter()
+        self.returning_lost: Counter[str] = Counter()
         self.escort_jobs: list[int] = []
         self.clip_due: dict[str, int] = dict.fromkeys(SIDES, 0)
         self.clip_produced: dict[str, int] = dict.fromkeys(SIDES, 0)
@@ -311,6 +328,7 @@ class Collector:
             "WeaponFired": self._fired,
             "WeaponImpact": self._impact,
             "UnitDestroyed": self._destroyed,
+            "UnitDespawned": self._despawned,
             "SupplyDelivered": self._delivered,
             "NodeCaptured": self._captured,
             "CaptureStarted": self._capture_started,
@@ -464,12 +482,61 @@ class Collector:
             self._ticks_by_k[len(owned)] += 1
             for n in owned:
                 self._owned_ticks[n] += 1
+            self._early_held(self._hour(camp.tick), len(owned))
             self._stretch = self._stretch + 1 if len(owned) >= self._hold_k else 0
             self._longest_stretch = max(self._longest_stretch, self._stretch)
         self.sanctuary_min = min(self.sanctuary_min, hp)
         if world.campaign.tick <= self.a3_ticks:
             self.sanctuary_min_window = min(self.sanctuary_min_window, hp)
         self._due_next = self._income_due(world)
+        self._due = self._due_units(world)
+
+    def _due_units(self, world: World) -> frozenset[int]:
+        """NX-504: the units idle for `director.idle_retire_s` (due to retire, so going home)."""
+        dr = self._world_rules.director
+        if dr is None:
+            return frozenset()
+        now = world.campaign.running_ticks
+        return frozenset(
+            int(key)
+            for side in SIDES
+            for key, since in world.director[side].idle.items()
+            if now - since >= dr.idle_retire_ticks
+        )
+
+    def _early_held(self, hour: int, held: int) -> None:
+        if hour < EARLY_HOURS:
+            cell = self._early_h[hour]
+            cell["held_end"] = held
+            cell["min_held"] = held if cell["min_held"] is None else min(cell["min_held"], held)
+
+    def _early_count(self, tick: int, field: str) -> None:
+        if (hour := self._hour(tick)) < EARLY_HOURS:
+            self._early_h[hour][field] += 1
+
+    def _early_result(self, end_tick: int) -> dict[str, Any]:
+        """The early hours the run reached: the completed ones and, flagged `partial` with the
+        game `minutes` reached, the one it ended inside (its tier is the run's last). Hours past
+        the end are absent. The Static's tier at each hour's end comes from `tier_log` (from the
+        initial tier). `first_bravo_min`: 0 when it started in BRAVO; None when it never entered."""
+        hours = []
+        for h in range(EARLY_HOURS):
+            start, end = h * self.hour_ticks, (h + 1) * self.hour_ticks
+            if end_tick <= start:
+                break
+            stop = min(end, end_tick)
+            tier = next((to for t, to in reversed(self.tier_log) if t <= stop), self.tier0)
+            hours.append({
+                "hour": h + 1, **self._early_h[h], "tier": tier,
+                "partial": end_tick < end, "minutes": self._minutes(stop - start),
+            })  # fmt: skip
+        bravo = next((t for t, to in self.tier_log if to == "BRAVO"), None)
+        return {
+            "nodes": len(self._strategic),
+            "hours": hours,
+            "first_bravo_min": 0.0 if self.tier0 == "BRAVO"
+            else None if bravo is None else self._minutes(bravo),
+        }  # fmt: skip
 
     def _income_due(self, world: World) -> dict[str, int] | None:
         """The income each limited side is due if the next tick is an economy window, else None."""
@@ -725,6 +792,8 @@ class Collector:
         captured = any(op in CAPTURE_OPS for op, _ in launched)
         for op, target in sorted(launched):
             self.ops.append((tick, op, target, self._owner.get(target) == _COALITION))
+            if op == OFFENSIVE:
+                self._early_count(tick, "offensives")
             if op in CAPTURE_OPS:
                 step: dict[str, Any] = {"tick": tick, "op": op, "target": target}
                 step.update(dict.fromkeys(FUNNEL_STEPS, False))
@@ -773,7 +842,12 @@ class Collector:
         if e.hit:
             self._credit(self.commander_of.get(e.shooter_id), e.tick, "hit")
 
+    def _despawned(self, e: Any) -> None:
+        if e.reason == "RETIRED":
+            self.retired[self.entity[e.entity_id][1]] += 1
+
     def _destroyed(self, e: Any) -> None:
+        self.returning_lost[e.side] += e.entity_id in self._due  # NX-504, due at the last observe
         dest = self._dest.pop(e.entity_id, None)
         pos = self._carrier_pos.pop(e.entity_id, None)
         tasking = self._world_rules.tasking
@@ -854,6 +928,8 @@ class Collector:
 
     def _captured(self, e: Any) -> None:
         self.coalition_captures += e.to == _COALITION
+        if e.to == _COALITION:
+            self._early_count(e.tick, "captures")
         if e.from_ == _COALITION and e.to != _COALITION:
             self._cap_pending.append((e.node_id, e.node_id in self._strategic, e.to))
         if e.from_ == _COALITION and e.to != _COALITION and e.node_id in self._strategic:
@@ -862,6 +938,7 @@ class Collector:
             kind = kind if kind in LOSS_AFTER else "other"
             self._lost[e.node_id]["total"] += 1
             self._lost[e.node_id][kind] += 1
+            self._early_count(e.tick, "losses")
         self._flipped += [(i, e.tick) for i in self._facilities.get(e.node_id, ())]
         if (step := self._latest.pop(e.node_id, None)) and e.to == _ENEMY:
             step["captured"] = True
@@ -1064,6 +1141,11 @@ class Collector:
                     n: {"owned_min": self._minutes(self._owned_ticks[n]), "lost": self._lost[n]}
                     for n in sorted(self._strategic)
                 },
+            },
+            "early_hours": self._early_result(end_tick),  # NX-504
+            "retirements": {  # NX-504: UnitDespawned RETIRED, and due units destroyed, by side
+                "retired": {s: self.retired[s] for s in SIDES},
+                "returning_lost": {s: self.returning_lost[s] for s in SIDES},
             },
             "who_took": {  # Q-TD-136: capturers of coalition nodes, see `capturers`
                 k: {

@@ -9,7 +9,7 @@ from collections import Counter
 from typing import Any
 
 import steamroll
-from metrics import CAPTURE_OPS, DOWN_CAUSES, FUNNEL_STEPS, OFFENSIVE, ROUTINE_JOBS
+from metrics import CAPTURE_OPS, DOWN_CAUSES, EARLY_HOURS, FUNNEL_STEPS, OFFENSIVE, ROUTINE_JOBS
 from profiles import Targets
 
 PASS, FAIL, NO_DATA = "pass", "fail", "no data"
@@ -720,6 +720,16 @@ def _strategic_held(runs: list[dict[str, Any]]) -> dict[str, Any]:
     }
 
 
+def _retire_line(r: dict[str, dict[str, int]] | None) -> str:
+    """NX-504: retired (`UnitDespawned` RETIRED) and returning units lost, per side."""
+    if not r or not r["retired"]:
+        return "-"
+    return "; ".join(
+        f"{label} {r[k].get('ENEMY', 0)} Director units, {r[k].get('COALITION', 0)} AI trucks"
+        for label, k in (("retired", "retired"), ("returning units lost", "returning_lost"))
+    )
+
+
 def _agency(runs: list[dict[str, Any]]) -> dict[str, Any]:
     """NX-321: tacticians and their picks by rule, summed over runs (an older file has none)."""
     picks: Counter[str] = Counter()
@@ -771,6 +781,35 @@ def _held_seed(r: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def _retirements(runs: list[dict[str, Any]]) -> dict[str, dict[str, int]]:
+    """NX-504: retirements and due (returning) units destroyed, by side, summed over the seeds.
+    A run from before it adds nothing."""
+    out: dict[str, dict[str, int]] = {k: {} for k in ("retired", "returning_lost")}
+    for r in runs:
+        for k, by_side in (r["metrics"].get("retirements") or {}).items():
+            for side, n in by_side.items():
+                out[k][side] = out[k].get(side, 0) + n
+    return out
+
+
+def _early_cell(h: dict[str, Any]) -> str:
+    """One early hour: held at the end/min held, losses, captures, offensives, tier."""
+    held = "-" if h["held_end"] is None else f"{h['held_end']}/{h['min_held']}"
+    cell = f"{held}, {h['losses']}, {h['captures']}, {h['offensives']}, {h['tier']}"
+    return f"{cell} (*{h['minutes']:.0f} min)" if h.get("partial") else cell
+
+
+def _early_row(p: dict[str, Any]) -> list[str]:
+    """NX-504: a seed's early-hours row; a run from before it (or past EARLY_HOURS) shows `-`."""
+    early = p.get("early_hours") or {"hours": [], "first_bravo_min": None}
+    by_hour = {h["hour"]: _early_cell(h) for h in early["hours"]}
+    return [
+        p["outcome"] or "not ended",
+        _fmt(early["first_bravo_min"]),
+        *(by_hour.get(h, "-") for h in range(1, EARLY_HOURS + 1)),
+    ]
+
+
 def _per_seed(runs: list[dict[str, Any]], t: Targets) -> list[dict[str, Any]]:
     """NX-502 (H3): A2 and idle armed per seed, so a pooled number is not a seed mix. A2 is the
     pooled rule on one run's counted newbies (same newbie definition and tier filter)."""
@@ -789,6 +828,7 @@ def _per_seed(runs: list[dict[str, Any]], t: Targets) -> list[dict[str, Any]]:
             "outcome": _seed_outcome(r),
             **_hold_seed(r["metrics"].get("economy", {"holds": []})),
             **_held_seed(r),
+            "early_hours": r["metrics"].get("early_hours"),
             **_who_seed(r),
         })  # fmt: skip
     return out
@@ -810,6 +850,7 @@ def aggregate(profile: str, runs: list[dict[str, Any]], t: Targets) -> dict[str,
         "idle": _idle(runs),
         "seized_facilities": _seized(runs),
         "per_seed": _per_seed(runs, t),
+        "retirements": _retirements(runs),
         "density": _density(runs),
         "orders": _orders(runs),
         "economy": _economy(runs),
@@ -1431,6 +1472,26 @@ def markdown(report: dict[str, Any]) -> str:
             for p in a["per_seed"]
         ],
     )  # fmt: skip
+    lines += ["## Per seed: early hours (NX-504)", ""]
+    lines += _table(
+        ["Profile", "Seed", "Outcome", "First BRAVO min",
+         *(f"Hour {h}: held end/min, losses, captures, offensives, tier"
+           for h in range(1, EARLY_HOURS + 1))],
+        [
+            [n, str(p["seed"]), *_early_row(p)]
+            for n, a in report["profiles"].items()
+            for p in a["per_seed"]
+        ],
+    )  # fmt: skip
+    lines += [
+        "`-`: hour not reached, or a run from before NX-504. `(*N min)`: the run ended N minutes "
+        "into that hour (partial; the figures cover those minutes, tier is the run's last). "
+        "An event on an hour's last tick counts in that hour. Held: strategic nodes the "
+        "coalition owns at the hour's last running tick / its minimum in the hour. Losses: "
+        "strategic nodes taken from the coalition; captures: nodes the coalition took (any); "
+        "offensives: Static OFFENSIVE launches; tier: the ENEMY Director's at the hour's end.",
+        "",
+    ]
     lines += ["## Strategic nodes, pooled over seeds (Q-TD-136)", ""]
     lines += _table(
         ["Profile", "Node", "Coalition-owned min", "Losses", "After OFFENSIVE", "After RETAKE",
@@ -1467,6 +1528,8 @@ def markdown(report: dict[str, Any]) -> str:
     lines += [""]
     lines += ["## Director tier dwell (mean hours per run)", ""]
     lines += [f"- {n}: {a['tier_dwell_h_mean']}" for n, a in report["profiles"].items()]
+    lines += ["", "## Retirements (NX-504, summed over the seeds)", ""]
+    lines += [f"- {n}: {_retire_line(a.get('retirements'))}" for n, a in report["profiles"].items()]
     lines += ["", "## Runs", ""]
     lines += _table(
         ["Profile", "Seed", "Ticks", "Outcome", "Wall s", "Ticks/s", "Final state hash"],

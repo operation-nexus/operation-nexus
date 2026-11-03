@@ -32,6 +32,7 @@ from nexus.contracts.gen.events.supply_produced import SupplyProduced
 from nexus.contracts.gen.events.supply_shortfall import SupplyShortfall
 from nexus.contracts.gen.events.threat_adaptation import ThreatAdaptation
 from nexus.contracts.gen.events.threat_tier_changed import ThreatTierChanged
+from nexus.contracts.gen.events.unit_despawned import UnitDespawned
 from nexus.contracts.gen.events.unit_destroyed import UnitDestroyed
 from nexus.contracts.gen.events.unit_grounded import UnitGrounded
 from nexus.contracts.gen.events.unit_spawned import UnitSpawned
@@ -4349,3 +4350,231 @@ def test_collector_times_seized_facilities_back_on_line_and_counts_those_still_o
         "  - seized facilities (NX-471): 6 seized, 4 back on line (median 20.0 min, max 30.0 min), "
         "2 still off at run end"
     )
+
+
+# --- NX-504: early hours per seed, retirements ---------------------------------------------------
+HOUR = 3600 * HZ
+
+
+def _early_step(
+    collector: metrics.Collector, world: Any, tick: int, held: int, strategic: list[str]
+) -> None:
+    for i, nd in enumerate(strategic):
+        world.owner[nd] = "COALITION" if i < held else "ENEMY"
+    world.campaign.tick = tick
+    world.campaign.running_ticks = tick
+    collector.observe(world)
+
+
+def _tier(tick: int, to: str, side: str = "ENEMY") -> Any:
+    return ThreatTierChanged.model_construct(
+        kind="ThreatTierChanged", tick=tick, side=side, from_="ALPHA", to=to
+    )
+
+
+def test_early_hours_bucket_by_hour_end_and_report_only_completed_hours(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    """Hour h is ticks ((h-1) * hour, h * hour]: an event on the boundary closes the hour that ends
+    there. Held at the hour's last running tick and its minimum; a run ending inside an hour has
+    no row for it; the tier at the hour's end follows the Static's `ThreatTierChanged` only."""
+    world, strategic = _hold_world(shipped_config)
+    n = len(strategic)
+    assert "haven" not in strategic
+    _early_step(collector, world, 10, n, strategic)
+    _early_step(collector, world, 20, 1, strategic)  # dips
+    _early_step(collector, world, HOUR, 2, strategic)  # the last tick of hour 1
+    _early_step(collector, world, HOUR + 1, 3, strategic)  # hour 2
+    collector.feed([
+        _tier(HOUR, "BRAVO"), _tier(HOUR + 5, "CHARLIE", side="COALITION"),  # ignored
+        _lose_at(HOUR, strategic[0]),  # boundary: hour 1
+        _lose_at(HOUR + 1, strategic[1]),  # hour 2
+        _lose_at(HOUR + 1, "haven"),  # not strategic: no loss
+        _lose_at(HOUR + 2, "fob-n-e", frm="ENEMY", to="COALITION"),  # a capture, hour 2
+    ])  # fmt: skip
+    early = collector.result(2 * HOUR)["early_hours"]
+    h1, h2 = early["hours"]  # run ended at the end of hour 2: no hour 3
+    assert (h1["hour"], h1["held_end"], h1["min_held"]) == (1, 2, 1)
+    assert (h1["losses"], h1["captures"], h1["tier"]) == (1, 0, "BRAVO")  # boundary tier counts
+    assert (h2["hour"], h2["held_end"], h2["min_held"]) == (2, 3, 3)
+    assert (h2["losses"], h2["captures"], h2["tier"]) == (1, 1, "BRAVO")
+    assert early["first_bravo_min"] == HOUR / HZ / 60 and early["nodes"] == n
+    assert [h["partial"] for h in early["hours"]] == [False, False]
+    assert [h["minutes"] for h in early["hours"]] == [60.0, 60.0]
+    assert collector.result(0)["early_hours"]["hours"] == []  # the run never started an hour
+
+
+def test_early_hours_report_the_partial_hour_flagged_and_nothing_after_it(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    """A run ending 46 game minutes into hour 2 reports hour 1 complete and hour 2 flagged partial
+    with 46 minutes and its tier at the end; hours 3 and 4 have no entry. The cell shows `*`."""
+    world, strategic = _hold_world(shipped_config)
+    end = HOUR + 46 * 60 * HZ
+    _early_step(collector, world, 100, 3, strategic)
+    _early_step(collector, world, HOUR + 5, 2, strategic)
+    _early_step(collector, world, end, 1, strategic)  # the final running tick
+    collector.feed([_tier(HOUR + 10, "BRAVO"), _lose_at(end, strategic[0])])
+    hours = collector.result(end)["early_hours"]["hours"]
+    assert [h["hour"] for h in hours] == [1, 2]
+    one, two = hours
+    assert (one["partial"], one["minutes"], one["tier"]) == (False, 60.0, collector.tier0)
+    assert (two["partial"], two["minutes"], two["tier"]) == (True, 46.0, "BRAVO")
+    assert (two["held_end"], two["min_held"], two["losses"]) == (1, 1, 1)
+    row = report._early_row({"outcome": None, "early_hours": {"hours": hours,
+                                                              "first_bravo_min": 1.0}})  # fmt: skip
+    assert row[3].endswith("1/1, 1, 0, 0, BRAVO (*46 min)") and row[4:] == ["-", "-"]
+    assert "*" not in row[2]
+
+
+def _lose_at(tick: int, node: str, frm: str = "COALITION", to: str = "ENEMY") -> Any:
+    return NodeCaptured.model_construct(
+        kind="NodeCaptured", tick=tick, node_id=node, from_=frm, to=to,
+        participant_commander_ids=[],
+    )  # fmt: skip
+
+
+def test_early_hours_never_padded_never_bravo_and_a_paused_hour_is_empty(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    """No BRAVO entry: None. An hour with no running tick has no held figure (None, not 0). Hours
+    past EARLY_HOURS are not kept."""
+    world, strategic = _hold_world(shipped_config)
+    world.campaign.running_ticks = 0  # the clock never runs: observe reads nothing
+    for t in (5, HOUR, 2 * HOUR):
+        world.campaign.tick = t
+        collector.observe(world)
+    early = collector.result((metrics.EARLY_HOURS + 2) * HOUR)["early_hours"]
+    assert early["first_bravo_min"] is None
+    assert len(early["hours"]) == metrics.EARLY_HOURS
+    assert all(h["held_end"] is None and h["min_held"] is None for h in early["hours"])
+    assert all(h["tier"] == collector.tier0 for h in early["hours"])
+    _early_step(collector, world, 4 * HOUR + 1, 1, strategic)  # hour 5: outside the view
+    assert collector.result(5 * HOUR)["early_hours"]["hours"][-1]["held_end"] is None
+
+
+def test_early_hours_count_static_offensive_launches(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    """The launch signal is the one the Offensive gap lists use (`ops`): the first job of an
+    `op:OFFENSIVE:<node>` key. A RETAKE launch is not an offensive."""
+    world, _ = _hold_world(shipped_config)
+    jobs = {1: "op:OFFENSIVE:fob-n-w:0", 2: "op:RETAKE:fob-n-e:0", 3: "op:OFFENSIVE:fob-s-w:0"}
+    for tick, jid in ((100, 1), (HOUR + 7, 3), (200, 2)):
+        world.campaign.tick = tick
+        world.boards["ENEMY"][jid] = Job(jid, "STRIKE", jobs[jid], 1, 1000, 0, node="fob-n-w")
+        collector._new_jobs = [jid]
+        collector._launches(world)
+    hours = collector.result(2 * HOUR)["early_hours"]["hours"]
+    assert [h["offensives"] for h in hours] == [1, 1]
+
+
+def test_retirements_by_side_and_returning_units_lost(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    """RETIRED despawns by side; a destroyed unit counts as returning only when its idle entry was
+    at least `idle_retire_ticks` old at the last observe (a WRECKED despawn is not a retirement)."""
+    world, _ = _hold_world(shipped_config)
+    due = shipped_config.rules.director.idle_retire_ticks  # type: ignore[union-attr]
+    collector.feed([
+        spawned(1, 901, "LOGI_TRUCK", "ENEMY", None), spawned(1, 902, "LOGI_TRUCK", "ENEMY", None),
+        spawned(1, 903, "LOGI_TRUCK", "COALITION", None),
+        spawned(1, 904, "LOGI_TRUCK", "COALITION", None),
+    ])  # fmt: skip
+    world.campaign.running_ticks = 10_000
+    world.director["ENEMY"].idle.update({"901": 10_000 - due, "902": 10_000 - due + 1})
+    world.director["COALITION"].idle.update({"903": 10_000 - due - 5, "904": 10_000})
+    collector.observe(world)  # 901 and 903 are due; 902 is one tick short; 904 just went idle
+    collector.feed([
+        killed(10_001, 901, None, "ENEMY"), killed(10_001, 902, None, "ENEMY"),
+        killed(10_001, 903, None, "COALITION"), killed(10_001, 904, None, "COALITION"),
+        killed(10_001, 999, None, "ENEMY"),  # no idle entry at all
+    ])  # fmt: skip
+    collector.feed([
+        UnitDespawned.model_construct(kind="UnitDespawned", tick=10_002, entity_id=i, reason=r)
+        for i, r in ((901, "RETIRED"), (902, "WRECKED"), (903, "RETIRED"), (904, "RETIRED"))
+    ])  # fmt: skip
+    ret = collector.result(10_002)["retirements"]
+    assert ret == {
+        "retired": {"COALITION": 2, "ENEMY": 1},
+        "returning_lost": {"COALITION": 1, "ENEMY": 1},
+    }
+    agg = report._retirements([{"metrics": {"retirements": ret}}] * 2 + [{"metrics": {}}])
+    assert agg["retired"] == {"COALITION": 4, "ENEMY": 2}
+    assert report._retire_line(agg) == (
+        "retired 2 Director units, 4 AI trucks; returning units lost 2 Director units, 2 AI trucks"
+    )
+
+
+def test_early_hours_and_retirements_render_and_old_runs_show_dashes() -> None:
+    hour = {"hour": 1, "held_end": 2, "min_held": 1, "losses": 3, "captures": 4, "offensives": 5,
+            "tier": "BRAVO"}  # fmt: skip
+    quiet = {"hour": 1, "held_end": None, "min_held": None, "losses": 0, "captures": 0,
+             "offensives": 0, "tier": "ALPHA"}  # fmt: skip
+    new = {"seed": 1, "outcome": "VICTORY", "early_hours": {
+        "nodes": 3, "hours": [hour, quiet | {"hour": 2}], "first_bravo_min": 61.5}}  # fmt: skip
+    old = {"seed": 2, "outcome": None}
+    prof = {"profiles": {"raid-300": {"per_seed": [new, old]}}}
+    cells = [report._early_row(p) for p in prof["profiles"]["raid-300"]["per_seed"]]
+    assert cells[0] == ["VICTORY", "61.5", "2/1, 3, 4, 5, BRAVO", "-, 0, 0, 0, ALPHA", "-", "-"]
+    assert cells[1] == ["not ended", "-", "-", "-", "-", "-"]
+    assert report._retire_line(None) == "-" and report._retire_line({"retired": {}}) == "-"
+    stub = runner.failed_run("quiet-5", 1, 1.0, "boom")
+    assert report._retirements([stub]) == {"retired": {}, "returning_lost": {}}
+
+
+def test_early_hours_reach_report_json_and_markdown(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    out = tmp_path / "o"
+    argv = ["balance.py", "--profile", "quiet-5", "--seeds", "1", "--hours", "1.1", "--out",
+            str(out)]  # fmt: skip
+    monkeypatch.setattr(sys, "argv", argv)
+    assert balance.main() == 0
+    doc = json.loads((out / "report.json").read_text())
+    seed = doc["profiles"]["quiet-5"]["per_seed"][0]["early_hours"]
+    assert [(h["hour"], h["partial"]) for h in seed["hours"]] == [(1, False), (2, True)]
+    assert seed["hours"][1]["minutes"] == 6.0  # 1.1 h: hour 2 reached for 6 min, hours 3-4 absent
+    assert set(doc["profiles"]["quiet-5"]["retirements"]) == {"retired", "returning_lost"}
+    md = report.markdown(doc)
+    assert "## Per seed: early hours (NX-504)" in md and "## Retirements (NX-504" in md
+    assert "| quiet-5 | 1 |" in md
+
+
+def test_first_bravo_minute_starts_at_zero_in_bravo_and_keeps_the_first_entry(
+    collector: metrics.Collector,
+) -> None:
+    """Started in BRAVO: 0.0. BRAVO at t1, ALPHA, BRAVO at t2: t1."""
+    collector.tier0 = "BRAVO"
+    assert collector.result(100)["early_hours"]["first_bravo_min"] == 0.0
+    collector.tier0 = "ALPHA"
+    t1, t2 = 1200, 3000
+    collector.feed([_tier(t1, "BRAVO"), _tier(2000, "ALPHA"), _tier(t2, "BRAVO")])
+    assert collector.result(4000)["early_hours"]["first_bravo_min"] == t1 / HZ / 60
+
+
+def test_soak_replays_with_the_runs_rng_profile_not_the_profile_name(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A profile whose `rng_profile` differs from its name keys its campaign id on that other name;
+    the soak replay must use the run's `rng_profile`, or every checkpoint mismatches."""
+    sys.path.insert(0, str(Path(__file__).resolve().parents[4] / "tools" / "soak"))
+    import soak  # type: ignore[import-not-found,unused-ignore]
+
+    data = load()
+    twin = dataclasses.replace(data.profiles["prime-50"], name="twin", rng_profile="prime-50")
+    monkeypatch.setattr(soak.profiles, "load", lambda: dataclasses.replace(
+        data, profiles={**data.profiles, "twin": twin}))  # fmt: skip
+    seen: list[str] = []
+    real = soak.replay_checkpoints
+
+    def spy(log: Any, seed: int, name: str, *rest: Any) -> Any:
+        seen.append(name)
+        return real(log, seed, name, *rest)
+
+    monkeypatch.setattr(soak, "replay_checkpoints", spy)
+    argv = ["--profile", "twin", "--hours", "0.02", "--checkpoint-ticks", "300", "--warmup-h", "0",
+            "--max-growth-mb-per-h", "1e9", "--out", str(tmp_path / "o")]  # fmt: skip
+    assert soak.main(argv) == 0
+    doc = json.loads((tmp_path / "o" / "soak.json").read_text())
+    assert seen == ["prime-50"] and doc["replay"]["mismatches"] == [] and doc["pass"]
