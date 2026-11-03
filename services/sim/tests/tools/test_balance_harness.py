@@ -4576,6 +4576,19 @@ def test_missing_nodes_stalled_line_counts_only_stalled_seeds() -> None:
         "- raid-300 stalled seeds (2), missing at last early hour: fob-s-e 2, fob-n-e 1, zed 1"
     )
     assert report._missing_stalled_line("q", seeds[2:]) == "- q: no stalled seeds"
+    # An unmeasured last hour (old run, or no running tick) is never read as "all held".
+    old = {"outcome": None, "early_hours": {"hours": [{"hour": 1}]}}
+    none_held = {"outcome": None, "early_hours": {"hours": [{"hour": 1, "missing_end": None}]}}
+    assert report._missing_stalled_line("o", [old, none_held]) == (
+        "- o stalled seeds (2), missing at last early hour: not measured"
+    )
+    assert report._missing_stalled_line("m", [seeds[0], old]) == (
+        "- m stalled seeds (2), missing at last early hour: fob-n-e 1, fob-s-e 1 (1 not measured)"
+    )
+    held_all = seed(None, [[]])
+    assert report._missing_stalled_line("h", [held_all]) == (
+        "- h stalled seeds (1), missing at last early hour: none"
+    )
 
 
 def test_early_hours_reach_report_json_and_markdown(

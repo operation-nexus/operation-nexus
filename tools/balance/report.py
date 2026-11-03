@@ -825,19 +825,30 @@ def _missing_row(p: dict[str, Any]) -> list[str]:
 
 def _missing_stalled_line(name: str, per_seed: list[dict[str, Any]]) -> str:
     """NX-505: for each stalled seed (outcome not VICTORY/DEFEAT) the nodes missing at the end of
-    its last reached early hour, counted over seeds: count desc, then id."""
+    its last reached early hour, counted over seeds: count desc, then id. A seed whose last hour
+    has no `missing_end` (a run from before NX-505, or an hour with no running tick) is counted as
+    unmeasured, never as "all held"."""
     count: Counter[str] = Counter()
-    stalled = 0
+    stalled = unmeasured = 0
     for p in per_seed:
         hours = (p.get("early_hours") or {}).get("hours") or []
         if p["outcome"] in ("VICTORY", "DEFEAT") or not hours:
             continue
         stalled += 1
-        count.update(hours[-1].get("missing_end") or [])
+        missing = hours[-1].get("missing_end")
+        if missing is None:
+            unmeasured += 1
+            continue
+        count.update(missing)
     if not stalled:
         return f"- {name}: no stalled seeds"
     ranked = ", ".join(f"{n} {c}" for n, c in sorted(count.items(), key=lambda i: (-i[1], i[0])))
-    return f"- {name} stalled seeds ({stalled}), missing at last early hour: {ranked or 'none'}"
+    if stalled == unmeasured:
+        ranked = "not measured"
+    note = f" ({unmeasured} not measured)" if 0 < unmeasured < stalled else ""
+    return (
+        f"- {name} stalled seeds ({stalled}), missing at last early hour: {ranked or 'none'}{note}"
+    )
 
 
 def _per_seed(runs: list[dict[str, Any]], t: Targets) -> list[dict[str, Any]]:
