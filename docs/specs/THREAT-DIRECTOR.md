@@ -1053,6 +1053,9 @@ Notes: THREAT-DIRECTOR-NOTES.md §5b
 148. It spends no restart and keeps no state: the hold ends with the bar, which flips (DONE) or drains to 0 (contested or abandoned; the job then expires at the next pass).
 149. A claimant still driving inside the radius when the expiry passes gets a fresh clock first (a restart, above), so the hold applies once it stops or its restarts are spent.
 150. A bar that may stand still with no end in sight holds nothing (`capture.stalled`), and its job expires as before NX-483: under `campaign.idle_floor.enabled`, the coalition-held forward airbase at no live viewer unit or the coalition's last strategic node (Q-TD-103); and a night-held Static bar (`DirectorState.held`, the §5 night cap), whose release each Static flip elsewhere moves on.
+150a. **Leftover units (Q-TD-140, owner, 2026-11-03):** attacks have no time windows; a CAPTURE job's expiry (`tasking.expire_min`, with the restarts and the mid-bar hold above) only bounds how long its units may wait at a node they can't capture.
+150b. A unit whose job ends (DONE, EXPIRED or FAILED) keeps its position and path (`tasking._end`; a point job's DONE sends it home and an INTERCEPT stops it, as before) and remains a threat: it can still capture by presence (GAMEPLAY §8), may be reused by a later operation, and is retired only after `director.idle_retire_s` (item 143).
+150c. The job system never pulls units back; withdrawing units is a Director decision by explicit order, and a Director withdraw operation is future work (not specced).
 
 **Escorts without raids.**
 151. With the cost at 10 and routine operations outside the ALPHA cap, ESCORT_CONVOYS also runs with no `convoy_attacks` (score 0.8); only the INTEL line needs a raid.
