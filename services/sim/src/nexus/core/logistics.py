@@ -31,6 +31,7 @@ from typing import NamedTuple
 
 from nexus.contracts.gen.common.enums import NodeOwner, Side, UnitKind
 from nexus.contracts.gen.events.event import Event
+from nexus.contracts.gen.events.unit_despawned import UnitDespawned
 from nexus.core.bridges import blocked, enemy_held, held_by_other, quickest
 from nexus.core.defense import rebuild
 from nexus.core.economy import pool_side, source_stock
@@ -72,8 +73,10 @@ def go_home(world: World, rules: Rules, e: Entity) -> None:
     standing state, so a later order is respected. An airborne aircraft goes RTB to the nearest
     landing base of its side (a LANDED one stays); a GROUND unit takes the road route to the
     nearest friendly base, from the node it is heading for or standing at, unless it is at one or
-    heading for one. Anything else (a facility) does nothing.
-    shortcut: with no reachable base a ground unit searches once and stays put."""
+    heading for one. Anything else (a facility) does nothing. `retire` also calls it, at each
+    window, for a unit due for retirement (Q-TD-141).
+    shortcut: with no reachable base a ground unit searches once and stays put (a retiring one is
+    searched for again at the next window)."""
     domain = rules.domain[e.kind]
     e.follow_id = None  # sent home: it stops following (an escort claim is released by its pass)
     if e.order == "FOLLOW":
@@ -91,6 +94,54 @@ def go_home(world: World, rules: Rules, e: Entity) -> None:
         best = nearest(world, rules, start, homes)
         if best is not None:
             e.path = list(best[1])
+
+
+def at_own_base(world: World, rules: Rules, e: Entity) -> bool:
+    """Standing at a base its side owns (Q-TD-141): an aircraft LANDED at one of its landing
+    bases, anything else on a node of `friendly_bases`, where `go_home` sends it."""
+    if rules.domain[e.kind] == "AIR":
+        return e.state == "LANDED" and e.last_node in world.landing_bases(e.side)
+    return on_node(rules, e) and e.last_node in friendly_bases(world, rules, e.side)
+
+
+def retire(
+    world: World, rules: Rules, since: dict[str, int], idle: set[str], free: set[str],
+    ticks: int, now: int, out: list[Event],
+) -> None:  # fmt: skip
+    """Retirement (Q-SIM-84) with the return before it (Q-TD-141; THREAT-DIRECTOR §7a 143-143e,
+    GAMEPLAY 111a), for the Director (`launch`) and the coalition AI trucks (`ai_trucks`).
+
+    `since`: entity id as text -> the tick it was first seen idle (`DirectorState.idle`); `idle`:
+    the ids the caller may retire now (idle, empty, not kept); `free`: those ids plus any that only
+    their way home keeps from being idle (no job, order or cargo, not kept), `idle` being a subset.
+    A unit idle for `ticks` is due: at a base its side owns (`at_own_base`) it is removed,
+    `UnitDespawned{RETIRED}`; anywhere else `go_home` sends it there and it keeps its entry while
+    it stays free, so it is removed at the first window it is idle at such a base (a ground unit
+    stopped off the node of its own base, which `go_home` counts as home, drives onto it). With no
+    reachable base it stays where it is and is tried again at the next window (143d). A job (or an
+    order) ends the return and drops the entry (143c)."""
+    for key in sorted(since, key=int):
+        if key not in idle and not (key in free and now - since[key] >= ticks):
+            del since[key]  # busy again, or moving before it was due
+    for key in sorted(idle, key=int):
+        first = since.setdefault(key, now)
+        if now - first < ticks or (e := world.find(int(key))) is None:
+            continue
+        if not at_own_base(world, rules, e):
+            ground = rules.domain[e.kind] == "GROUND"
+            if ground and not e.path and e.last_node in friendly_bases(world, rules, e.side):
+                e.path = [e.last_node]  # stopped off its own base, which `go_home` counts as home
+            go_home(world, rules, e)  # 143a; no reachable base: it stays, tried next window
+            continue
+        del since[key]
+        world.remove(e.id)
+        out.append(
+            UnitDespawned.model_construct(
+                kind="UnitDespawned", tick=world.campaign.tick + 1,
+                event_seq=world.next_event_seq(), campaign_id=world.campaign.id,
+                entity_id=e.id, reason="RETIRED",
+            )
+        )  # fmt: skip
 
 
 def road_start(rules: Rules, e: Entity) -> str | None:

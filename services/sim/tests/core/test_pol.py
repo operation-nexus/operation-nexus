@@ -286,6 +286,8 @@ def test_retirement_takes_only_units_above_the_quota_highest_id_first() -> None:
 
 
 def test_a_lost_base_has_no_quota_so_its_idle_garrison_retires() -> None:
+    """It is due, but stands at a base the Static lost, so it first drives to the nearest one its
+    side owns (Q-TD-141): static-hq is one road leg from fob-n-e, east-airbase two."""
     w = new_world()
     keep = unit(w, "ENEMY_ARMOR", "ENEMY", "ENEMY_DIRECTOR", "fob-n-e")
     keep.home = "fob-n-e"
@@ -293,7 +295,8 @@ def test_a_lost_base_has_no_quota_so_its_idle_garrison_retires() -> None:
     window(w, "PATTERN_OF_LIFE", 0)
     skip(w, DR.idle_retire_ticks)
     out = window(w, "PATTERN_OF_LIFE", 0)
-    assert [e.entity_id for e in out if e.kind == "UnitDespawned"] == [keep.id]
+    assert [e.entity_id for e in out if e.kind == "UnitDespawned"] == []
+    assert keep.path[-1] == "static-hq" and str(keep.id) in w.director["ENEMY"].idle
 
 
 def test_a_garrison_unit_never_takes_a_job_from_the_board_by_itself() -> None:
