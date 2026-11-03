@@ -254,7 +254,7 @@ class Collector:
         # Static OFFENSIVE launches. `_due`: units whose `DirectorState.idle` entry was at least
         # `director.idle_retire_s` old at the last `observe` (on their way home, 143a-143c).
         self._early_h: list[dict[str, Any]] = [
-            dict.fromkeys(("held_end", "min_held"), None)
+            dict.fromkeys(("held_end", "min_held", "missing_end"), None)
             | dict.fromkeys(("losses", "captures", "offensives"), 0)
             for _ in range(EARLY_HOURS)
         ]
@@ -482,7 +482,7 @@ class Collector:
             self._ticks_by_k[len(owned)] += 1
             for n in owned:
                 self._owned_ticks[n] += 1
-            self._early_held(self._hour(camp.tick), len(owned))
+            self._early_held(self._hour(camp.tick), owned)
             self._stretch = self._stretch + 1 if len(owned) >= self._hold_k else 0
             self._longest_stretch = max(self._longest_stretch, self._stretch)
         self.sanctuary_min = min(self.sanctuary_min, hp)
@@ -504,10 +504,12 @@ class Collector:
             if now - since >= dr.idle_retire_ticks
         )
 
-    def _early_held(self, hour: int, held: int) -> None:
+    def _early_held(self, hour: int, owned: list[str]) -> None:
         if hour < EARLY_HOURS:
-            cell = self._early_h[hour]
+            cell, held = self._early_h[hour], len(owned)
             cell["held_end"] = held
+            # NX-505: which nodes are not held (`owned` is sorted, so is this)
+            cell["missing_end"] = [n for n in sorted(self._strategic) if n not in owned]
             cell["min_held"] = held if cell["min_held"] is None else min(cell["min_held"], held)
 
     def _early_count(self, tick: int, field: str) -> None:

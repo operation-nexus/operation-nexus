@@ -810,6 +810,36 @@ def _early_row(p: dict[str, Any]) -> list[str]:
     ]
 
 
+def _missing_cell(h: dict[str, Any]) -> str:
+    """NX-505: the strategic nodes not held at the hour's end; `none` when all held, `-` unknown."""
+    missing = h.get("missing_end")
+    cell = "-" if missing is None else ", ".join(missing) or "none"
+    return f"{cell} (*{h['minutes']:.0f} min)" if h.get("partial") else cell
+
+
+def _missing_row(p: dict[str, Any]) -> list[str]:
+    """NX-505: hours 1..EARLY_HOURS; an hour not reached or a run from before it shows `-`."""
+    by_hour = {h["hour"]: _missing_cell(h) for h in (p.get("early_hours") or {}).get("hours", [])}
+    return [by_hour.get(h, "-") for h in range(1, EARLY_HOURS + 1)]
+
+
+def _missing_stalled_line(name: str, per_seed: list[dict[str, Any]]) -> str:
+    """NX-505: for each stalled seed (outcome not VICTORY/DEFEAT) the nodes missing at the end of
+    its last reached early hour, counted over seeds: count desc, then id."""
+    count: Counter[str] = Counter()
+    stalled = 0
+    for p in per_seed:
+        hours = (p.get("early_hours") or {}).get("hours") or []
+        if p["outcome"] in ("VICTORY", "DEFEAT") or not hours:
+            continue
+        stalled += 1
+        count.update(hours[-1].get("missing_end") or [])
+    if not stalled:
+        return f"- {name}: no stalled seeds"
+    ranked = ", ".join(f"{n} {c}" for n, c in sorted(count.items(), key=lambda i: (-i[1], i[0])))
+    return f"- {name} stalled seeds ({stalled}), missing at last early hour: {ranked or 'none'}"
+
+
 def _per_seed(runs: list[dict[str, Any]], t: Targets) -> list[dict[str, Any]]:
     """NX-502 (H3): A2 and idle armed per seed, so a pooled number is not a seed mix. A2 is the
     pooled rule on one run's counted newbies (same newbie definition and tier filter)."""
@@ -1490,6 +1520,22 @@ def markdown(report: dict[str, Any]) -> str:
         "coalition owns at the hour's last running tick / its minimum in the hour. Losses: "
         "strategic nodes taken from the coalition; captures: nodes the coalition took (any); "
         "offensives: Static OFFENSIVE launches; tier: the ENEMY Director's at the hour's end.",
+        "",
+    ]
+    lines += ["## Per seed: strategic nodes missing at hour end (NX-505)", ""]
+    lines += _table(
+        ["Profile", "Seed", "Outcome", *(f"Hour {h}" for h in range(1, EARLY_HOURS + 1))],
+        [
+            [n, str(p["seed"]), p["outcome"] or "not ended", *_missing_row(p)]
+            for n, a in report["profiles"].items()
+            for p in a["per_seed"]
+        ],
+    )  # fmt: skip
+    lines += [
+        "`-`: hour not reached, or a run from before NX-505. `none`: all held. `(*N min)`: the "
+        "run ended N minutes into that hour (nodes at its last running tick).",
+        "",
+        *(_missing_stalled_line(n, a["per_seed"]) for n, a in report["profiles"].items()),
         "",
     ]
     lines += ["## Strategic nodes, pooled over seeds (Q-TD-136)", ""]

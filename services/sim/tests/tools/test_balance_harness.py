@@ -4453,6 +4453,29 @@ def test_early_hours_never_padded_never_bravo_and_a_paused_hour_is_empty(
     assert collector.result(5 * HOUR)["early_hours"]["hours"][-1]["held_end"] is None
 
 
+def test_early_hours_missing_end_names_the_unheld_nodes_at_the_hour_end(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    """NX-505: `missing_end` is the sorted strategic nodes not owned at the hour's last running
+    tick, `len == N - held_end`; the partial hour has it; an hour with no running tick has None."""
+    world, strategic = _hold_world(shipped_config)
+    n = len(strategic)
+    _early_step(collector, world, 10, 1, strategic)  # a dip earlier in the hour: not the end
+    _early_step(collector, world, HOUR, n - 2, strategic)
+    _early_step(collector, world, HOUR + 5, n, strategic)
+    end = HOUR + 30 * 60 * HZ
+    _early_step(collector, world, end, 3, strategic)  # the partial hour's final running tick
+    hours = collector.result(end)["early_hours"]["hours"]
+    one, two = hours
+    assert one["missing_end"] == sorted(strategic[n - 2 :]) and one["missing_end"]
+    assert two["partial"] and two["missing_end"] == sorted(strategic[3:])
+    assert all(len(h["missing_end"]) == n - h["held_end"] for h in hours)
+    world.campaign.tick = 2 * HOUR + 1  # hour 3 ticks only while paused (running_ticks unchanged)
+    collector.observe(world)
+    last = collector.result(3 * HOUR)["early_hours"]["hours"][-1]
+    assert (last["held_end"], last["missing_end"]) == (None, None)
+
+
 def test_early_hours_count_static_offensive_launches(
     collector: metrics.Collector, shipped_config: CampaignConfig
 ) -> None:
@@ -4523,6 +4546,38 @@ def test_early_hours_and_retirements_render_and_old_runs_show_dashes() -> None:
     assert report._retirements([stub]) == {"retired": {}, "returning_lost": {}}
 
 
+def test_missing_nodes_table_cells_and_old_runs() -> None:
+    def hr(h: int, missing: list[str] | None, **kw: Any) -> dict[str, Any]:
+        return {"hour": h, "missing_end": missing, "partial": False, "minutes": 60.0} | kw
+
+    new = {"outcome": "VICTORY", "early_hours": {"hours": [
+        hr(1, ["fob-n-e", "fob-s-e"]), hr(2, []), hr(3, None),
+        hr(4, ["cross-n"], partial=True, minutes=12.0)]}}  # fmt: skip
+    old = {"outcome": None, "early_hours": {"hours": [{"hour": 1, "minutes": 60.0}]}}
+    assert report._missing_row(new) == ["fob-n-e, fob-s-e", "none", "-", "cross-n (*12 min)"]
+    assert report._missing_row(old) == ["-"] * 4  # no `missing_end`: an old run
+    assert report._missing_row({"outcome": None}) == ["-"] * 4
+
+
+def test_missing_nodes_stalled_line_counts_only_stalled_seeds() -> None:
+    def seed(outcome: str | None, missing: list[list[str]]) -> dict[str, Any]:
+        hours = [{"hour": i + 1, "missing_end": m, "partial": False, "minutes": 60.0}
+                 for i, m in enumerate(missing)]  # fmt: skip
+        return {"outcome": outcome, "early_hours": {"hours": hours}}
+
+    seeds = [
+        seed(None, [["a"], ["fob-s-e", "fob-n-e"]]),  # last hour counts, not hour 1
+        seed("HARNESS_ERROR", [["fob-s-e", "zed"]]),
+        seed("VICTORY", [["fob-s-e"]]),  # ended: ignored
+        seed("DEFEAT", [["fob-s-e"]]),  # ended: ignored
+        seed(None, []),  # no early hours: not counted
+    ]
+    assert report._missing_stalled_line("raid-300", seeds) == (
+        "- raid-300 stalled seeds (2), missing at last early hour: fob-s-e 2, fob-n-e 1, zed 1"
+    )
+    assert report._missing_stalled_line("q", seeds[2:]) == "- q: no stalled seeds"
+
+
 def test_early_hours_reach_report_json_and_markdown(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -4539,6 +4594,8 @@ def test_early_hours_reach_report_json_and_markdown(
     md = report.markdown(doc)
     assert "## Per seed: early hours (NX-504)" in md and "## Retirements (NX-504" in md
     assert "| quiet-5 | 1 |" in md
+    assert "## Per seed: strategic nodes missing at hour end (NX-505)" in md
+    assert len(seed["hours"][0]["missing_end"]) == seed["nodes"] - seed["hours"][0]["held_end"]
 
 
 def test_first_bravo_minute_starts_at_zero_in_bravo_and_keeps_the_first_entry(
