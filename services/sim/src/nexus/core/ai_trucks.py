@@ -3,9 +3,11 @@
 At every economy window (`economy.due`), after upkeep and before the Threat Director (EC-10):
 
 1. **Retire.** A coalition AI truck (an `AI_GARRISON` carrier) the board may task (`is_idle`)
-   with no cargo for `director.idle_retire_s` is removed, `UnitDespawned{RETIRED}`, the Static's
-   rule (Q-SIM-84); a loaded one is kept, so stock + cargo + consumed stays exact. The clock is
-   the coalition's `DirectorState.idle` (an existing snapshot field the coalition never used).
+   with no cargo for `director.idle_retire_s` is retired, the Static's rule (Q-SIM-84): it
+   drives to the nearest friendly base first and is removed there, `UnitDespawned{RETIRED}`
+   (Q-TD-141, `logistics.retire`); a loaded one is kept, so stock + cargo + consumed stays exact.
+   The clock is the coalition's `DirectorState.idle` (an existing snapshot field the coalition
+   never used).
 2. **Spawn**, only at the windows whose running tick is a multiple of
    `logistics.ai_trucks.period_s` (`Supply.ai_truck_period_ticks`, whole windows, so no state).
    The coalition's `resupply:` jobs, best first (`tasking.rank` with no tie draw: priority, then
@@ -25,11 +27,10 @@ by rank then id, entities by id, integers, no RNG (LC-5).
 
 from nexus.contracts.gen.common.enums import OwnerKind, Role, Side, UnitKind
 from nexus.contracts.gen.events.event import Event
-from nexus.contracts.gen.events.unit_despawned import UnitDespawned
 from nexus.contracts.gen.events.unit_spawned import UnitSpawned
 from nexus.core.bridges import enemy_held
 from nexus.core.economy import due, guard_room, source_stock
-from nexus.core.logistics import Run, load, pay_spawn, plan_run
+from nexus.core.logistics import Run, load, pay_spawn, plan_run, retire
 from nexus.core.rules import Rules
 from nexus.core.tasking import claim, rank
 from nexus.core.tasking_gen import is_idle, repairs_sanctuary
@@ -61,23 +62,12 @@ def _retire(world: World, rules: Rules, now: int, out: list[Event]) -> None:
     dr = rules.director
     if dr is None:
         return
-    state = world.director[_SIDE]
-    idle = {str(e.id) for e in _trucks(world, rules) if is_idle(rules, e, _SIDE) and not e.cargo}
-    for key in sorted(state.idle, key=int):
-        if key not in idle:
-            del state.idle[key]
-    for key in sorted(idle, key=int):
-        since = state.idle.setdefault(key, now)
-        if now - since >= dr.idle_retire_ticks:
-            del state.idle[key]
-            world.remove(int(key))
-            out.append(
-                UnitDespawned.model_construct(
-                    kind="UnitDespawned", tick=world.campaign.tick + 1,
-                    event_seq=world.next_event_seq(), campaign_id=world.campaign.id,
-                    entity_id=int(key), reason="RETIRED",
-                )
-            )  # fmt: skip
+    free = [
+        e for e in _trucks(world, rules) if e.job_id is None and e.order is None and not e.cargo
+    ]
+    idle = {str(e.id) for e in free if is_idle(rules, e, _SIDE)}
+    since = world.director[_SIDE].idle
+    retire(world, rules, since, idle, {str(e.id) for e in free}, dr.idle_retire_ticks, now, out)
 
 
 def _spawn_for_jobs(world: World, rules: Rules, now: int, period: int, out: list[Event]) -> None:

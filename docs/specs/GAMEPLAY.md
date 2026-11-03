@@ -652,7 +652,8 @@ Notes: GAMEPLAY-NOTES.md §1b
 
 **Base lost mid-run, and retirement.**
 110. Every truck follows the existing rules: the flip reroutes the run (§1b, NX-413), and a truck whose destination is no longer friendly drives to the nearest friendly base with room and unloads there (NX-123), so no cargo is lost on the road.
-111. An AI truck with no cargo and no job for `director.idle_retire_s` (600 game s) is removed with `UnitDespawned{RETIRED}`, the Static's rule (Q-SIM-84).
+111. An AI truck with no cargo and no job for `director.idle_retire_s` (600 game s) is retired, the Static's rule (Q-SIM-84): it returns home first (111a), then is removed with `UnitDespawned{RETIRED}`.
+111a. It returns before it retires, by the Static's rule (THREAT-DIRECTOR §7a 143a–143d, Q-TD-141): it drives to the nearest friendly base and is removed only on arrival; one that can reach no friendly base stays and is tried again each window.
 112. A loaded one is kept, so stock + cargo + consumed stays exact.
 
 113. **LC-2 Static demand convoys:** THREAT-DIRECTOR §5a, Convoys.
@@ -1188,7 +1189,7 @@ Notes: GAMEPLAY-NOTES.md §9
 29. AI trucks are invisible to `viewer_units`, add no provocation and are never capturers, so a run through a neutral node starts no bar.
 30. Payment: viewers pay before AI trucks (with a test upkeep > 0 the AI truck grounds first), and the spawn draws `loadout_cost` at its node.
 31. Lost destination: the truck unloads at the nearest friendly base with room.
-32. Retirement: an empty idle AI truck retires after `director.idle_retire_s`, a loaded one does not.
+32. Retirement: an empty idle AI truck due after `director.idle_retire_s` drives to the nearest friendly base and retires there (at once when it is already at one), a loaded one does not; one with no friendly base to reach stays and is tried again each window (111a).
 33. LC-3: at the default the slots are unchanged on both boards; a starving base's cap is base + ⌊need × spread⌋ (the 205-stock example gives 4); a stocking job never rises; the loader refuses max_starving < slots_max.
 34. LC-5: two runs and a save/restore mid-run give the same events and hash; stock + cargo + consumed stays exact; the timers freeze with a pause.
 35. NX-486 (Q-SIM-130, same file): a truck unloading at a base with room gets no job elsewhere until its cargo is gone and reports the whole stop there (AI truck, and a viewer truck at `max_live` 0); an unloading truck takes the resupply job of the base it stands on, stays put, reports its stop once there and is the DONE job's participant; a loaded truck on a neutral or enemy node with stock room still takes a job elsewhere; the harness's idle reason (`tasking.idle_diagnosis`) follows the same pool; a loaded truck at a full base still takes a job and delivers it; a base another truck fills ends the stop there; a new job reports an open stop at its node first and what each node got matches its report, with stock + cargo + consumed exact; two runs and a restore mid-unload give the same events and hash.

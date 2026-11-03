@@ -82,7 +82,6 @@ from nexus.contracts.gen.common.enums import Side, UnitKind
 from nexus.contracts.gen.events.event import Event
 from nexus.contracts.gen.events.spawn_refused import SpawnRefused
 from nexus.contracts.gen.events.threat_adaptation import ThreatAdaptation
-from nexus.contracts.gen.events.unit_despawned import UnitDespawned
 from nexus.contracts.gen.events.unit_spawned import UnitSpawned
 from nexus.core import operations as ops
 from nexus.core import staging as stg
@@ -102,6 +101,7 @@ from nexus.core.logistics import (
     pay_spawn,
     plan_deploy,
     plan_run,
+    retire,
     stock_targets,
 )
 from nexus.core.rng import RngStream
@@ -1005,31 +1005,21 @@ def _retire_idle(
     now: int,
     out: list[Event],
 ) -> None:
-    """A Director unit with no job and no path for `director.idle_retire_s` is removed, no refund
-    (Q-SIM-84); it is reported as `UnitDespawned{RETIRED}`, not a loss (no memory, stats or crew).
+    """A Director unit with no job and no path for `director.idle_retire_s` is retired, no refund
+    (Q-SIM-84): it returns to the nearest base its side owns first and is removed there,
+    `UnitDespawned{RETIRED}`, not a loss (no memory, stats or crew; Q-TD-141, `logistics.retire`).
     `state.idle` holds the tick each was first seen idle. A carrier with cargo is kept, so
     stock + cargo + consumed stays exact. Only a unit above its home base's garrison quota (the
     highest ids) is retired: a garrison sitting at its base is never churned (Q-SIM-85)."""
     kept = _within_quota(world, rules, side)
-    idle = {
-        str(e.id) for es in _spare(world, side).values() for e in es
-        if not e.cargo and e.id not in kept
+    spare = {e.id for es in _spare(world, side).values() for e in es}
+    free = {
+        str(e.id) for e in world.entities()
+        if e.side == side and e.owner_kind == _DIRECTOR and e.job_id is None and e.order is None
+        and not e.cargo and e.id not in kept
     }  # fmt: skip
-    for key in sorted(state.idle, key=int):
-        if key not in idle:
-            del state.idle[key]
-    for key in sorted(idle, key=int):
-        since = state.idle.setdefault(key, now)
-        if now - since >= dr.idle_retire_ticks and (e := world.find(int(key))) is not None:
-            del state.idle[key]
-            world.remove(e.id)
-            out.append(
-                UnitDespawned.model_construct(
-                    kind="UnitDespawned", tick=world.campaign.tick + 1,
-                    event_seq=world.next_event_seq(), campaign_id=world.campaign.id,
-                    entity_id=e.id, reason="RETIRED",
-                )
-            )  # fmt: skip
+    idle = {key for key in free if int(key) in spare}
+    retire(world, rules, state.idle, idle, free, dr.idle_retire_ticks, now, out)
 
 
 def _near(world: World, rules: Rules, side: Side, job: JobTemplate, w: ops.Where) -> str:

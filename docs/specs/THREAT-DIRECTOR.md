@@ -1043,8 +1043,13 @@ Notes: THREAT-DIRECTOR-NOTES.md §5b
 142. Operation jobs have urgency `director.job_urgency` (1.0).
 
 **Idle units and retirement (Q-SIM-84).**
-143. A Director unit with no job, order or path is idle; one idle for `director.idle_retire_s` (600 s, checked each window) is removed with no refund (a carrier still holding cargo is kept, so stock + cargo + consumed stays exact), reported as `UnitDespawned{reason: RETIRED}` (not a loss: no threat memory, stats or crew roll), so spent units never block `max_live_units`.
-144. `DirectorState.idle` (entity id as text -> the tick it was first seen idle) is in the snapshot and bounded on load.
+143. A Director unit with no job, order or path is idle; one idle for `director.idle_retire_s` (600 s, checked each window) is retired (143a–143e) with no refund (a carrier still holding cargo is kept, so stock + cargo + consumed stays exact), reported as `UnitDespawned{reason: RETIRED}` (not a loss: no threat memory, stats or crew roll), so spent units never block `max_live_units`.
+143a. **Return before retiring (Q-TD-141, owner, 2026-11-03; NX-503):** a unit due for retirement is never removed out in the open: it first heads for the nearest base its side owns, as `logistics.go_home` sends a unit home (an aircraft RTB to its side's nearest landing base, a ground unit by road to the nearest friendly base), and is removed with `UnitDespawned{RETIRED}` only on arrival there (at the first window it stands there, as 143 checks each window).
+143b. A unit already at a base its side owns when it is due is removed at once, as before.
+143c. While it returns it is still a live unit: it counts against the live-unit guard and can be engaged and killed (a loss on the way home is a real loss, not a retirement). Any job or order it gets ends the return. A unit still moving home is not offered to new operations (it is not idle while it has a path or is RTB, as for any unit); one that stays because it cannot reach a base (143d) is (lead, 2026-11-03, owner may veto: reuse of a moving returner would need mid-road routing the board does not have).
+143d. A unit that can reach no base of its side (no route, or none owned) stays where it is, is not removed, and is tried again at each Director window.
+143e. An aircraft landed at a base its side no longer owns gets no route from `go_home` (a landed aircraft stays) and so stays under 143d, tried again each window (lead, 2026-11-03, owner may veto; taking off for an own base is future work).
+144. `DirectorState.idle` (entity id as text -> the tick it was first seen idle) is in the snapshot and bounded on load. Past its due tick it also keeps the entry of a unit with no job, order or cargo that is not idle: one moving home (143a), and one that is Disabled, grounded or RTB, so that once repaired or landed it is retired or sent home at once; a job or an order drops the entry (143c).
 
 **STAGE and CAPTURE (Q-SIM-84).**
 145. STAGE is DONE when every current claimant has arrived and every slot is claimed or its expiry has passed, and FAILS with no claimant left (the chain fails with it).
