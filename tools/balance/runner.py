@@ -30,6 +30,7 @@ from nexus.runtime.command_log import CommandLogReader, CommandLogWriter, Tombst
 
 PROTOCOL = "0.2"  # the command log's protocol_version (same as the runtime tests)
 FLUSH_TICKS = 600
+AGENCY_RULES = ("retake", "capture_started", "defenses_down", "fallback")  # NX-321 pick counters
 
 
 def campaign_id(profile: str, seed: int) -> str:
@@ -73,18 +74,22 @@ def forward_base(world: World) -> str | None:
 class _Crowd:
     """The viewers, their wake-ups and what they make of the events."""
 
-    def __init__(self, sched: list[tuple[int, str]], data: profiles.Data, profile: str, seed: int):
+    def __init__(
+        self, sched: list[tuple[int, str]], data: profiles.Data, profile: str, seed: int, hz: int
+    ):
         self.data = data
-        self.viewers = [
-            ps.new_viewer(
-                i,
-                data.personas[persona],
-                profile,
-                seed,
-                ps.draw_kind(data.profiles[profile], seed, i),
+        prof = data.profiles[profile]
+        self.viewers = []
+        for i, (_, persona) in enumerate(sched):
+            kind = ps.draw_kind(prof, seed, i)
+            tactician = ps.draw_tactician(prof, seed, i, kind)
+            self.viewers.append(
+                ps.new_viewer(i, data.personas[persona], prof.rng_name, seed, kind, tactician)
             )
-            for i, (_, persona) in enumerate(sched)
-        ]
+        self.window = round(prof.agency_threat_window_s * hz)  # ticks a CaptureStarted stays recent
+        self.lost_at: dict[str, int] = {}  # node -> tick of its latest coalition-to-ENEMY capture
+        self.threat_at: dict[str, int] = {}  # node -> tick of its latest ENEMY CaptureStarted
+        self.agency_picks: Counter[str] = Counter()  # tactician picks by rule (NX-321)
         self.striker_fallbacks = 0  # striker JOINs sent without a node: no defended foe was known
         self.capturer_fallbacks = 0  # capturer JOINs sent without a node: no capturable foe known
         self.by_commander = {v.commander_id: v for v in self.viewers}
@@ -117,7 +122,9 @@ class _Crowd:
             return None
         v.status = ps.PENDING
         node = None
-        if v.kind == "striker":
+        if v.tactician and (picked := self._tactician(world, v, tick)) is not None:
+            node = picked
+        elif v.kind == "striker":
             node = ps.pick_node(v, defended_foes(world))
             self.striker_fallbacks += node is None
         elif v.kind == "capturer":
@@ -126,6 +133,30 @@ class _Crowd:
         elif v.kind == "freelancer" and world.rules is not None:  # any node: rear, bridges, own
             node = ps.pick_node(v, sorted(world.rules.roads.pos))  # sanctuary (NX-398, Q-SIM-110)
         return ps.join_command(v, tick, self.seq, node, self.data.kind_roles)
+
+    def _tactician(self, world: World, v: ps.Viewer, tick: int) -> str | None:
+        """NX-321: the node a tactician JOINs, or None when it falls back to its kind's pick
+        (counted as `fallback`). Reads only `side_view`, `rules.strategic` and the event memory."""
+        rules = world.rules
+        if rules is None or rules.campaign is None:
+            raise ValueError("a tactician needs the world's campaign rules")
+        strategic = rules.campaign.strategic  # sorted by node id
+        view = side_view(world, "COALITION")
+        node: str | None
+        if v.kind == "capturer":  # retake the strategic node the coalition lost last
+            node = ps.latest(v, [n for n in capturable_foes(world) if n in strategic], self.lost_at)
+            rule = "retake"
+        else:
+            mine = [n for n in strategic if view.owners.get(n) == "COALITION"]
+            recent = {n: t for n, t in self.threat_at.items() if tick - t <= self.window}
+            node = ps.latest(v, mine, recent)
+            rule = "capture_started"
+            if node is None:
+                bare = [n for n in mine if not view.defense_hp.get(n, 0)]
+                node = v.rng.choice(bare) if bare else None
+                rule = "defenses_down"
+        self.agency_picks[rule if node is not None else "fallback"] += 1
+        return node
 
     def react(self, events: list[Any], tick: int, hz: int, seen: Counter[str]) -> None:
         for e in events:
@@ -138,6 +169,10 @@ class _Crowd:
                 self._rejected(e, tick, hz)
             elif e.kind in ("UnitDestroyed", "UnitDespawned"):
                 self._gone(e, tick, hz)
+            elif e.kind == "NodeCaptured" and e.from_ == "COALITION" and e.to == "ENEMY":
+                self.lost_at[e.node_id] = e.tick
+            elif e.kind == "CaptureStarted" and e.side == "ENEMY":
+                self.threat_at[e.node_id] = e.tick
 
     def _spawned(self, e: Any, tick: int, hz: int) -> None:
         v = self.by_commander.get(e.commander_id)
@@ -185,12 +220,12 @@ def run(
     config = config or load_campaign_config()
     hz = config.balance.sim.tick_hz
     ticks = round(hours * 3600 * hz)
-    world = start_campaign(campaign_id(profile, seed), seed, config)
+    world = start_campaign(campaign_id(data.profiles[profile].rng_name, seed), seed, config)
     rules = config.rules
     if rules.campaign is None:
         raise ValueError("the harness needs campaign rules")
     sched = profiles.schedule(data.profiles[profile], seed, ticks, hz)
-    crowd = _Crowd(sched, data, profile, seed)
+    crowd = _Crowd(sched, data, profile, seed, hz)
     newbies = frozenset(v.commander_id for v in crowd.viewers if v.persona.name == "newbie")
     collector = Collector(
         world,
@@ -252,6 +287,7 @@ def run(
     ran = world.campaign.tick  # a crashed tick never completes, so this is the last good one
     return {
         "profile": profile,
+        "rng_profile": data.profiles[profile].rng_name,
         "seed": seed,
         "hours": hours,
         "config_hash": world.campaign.config_hash,
@@ -267,6 +303,8 @@ def run(
             "by_kind": dict(sorted(Counter(v.kind for v in crowd.viewers).items())),
             "striker_fallbacks": crowd.striker_fallbacks,
             "capturer_fallbacks": crowd.capturer_fallbacks,
+            "tacticians": sum(v.tactician for v in crowd.viewers),
+            "agency_picks": {k: crowd.agency_picks[k] for k in AGENCY_RULES},
         },
         "commands": dict(sorted(counts.items())),
         "responses": dict(sorted(seen.items())),
@@ -281,7 +319,8 @@ def run(
 
 
 def replay_log(log_dir: Path, seed: int, profile: str, ticks: int, config: CampaignConfig) -> str:
-    """The final `state_hash` of the run rebuilt from its command log alone."""
+    """The final `state_hash` of the run rebuilt from its command log alone; `profile` is the run's
+    `rng_profile` (its own name unless profiles.yaml says otherwise)."""
     world = start_campaign(campaign_id(profile, seed), seed, config)
     by_tick: defaultdict[int, list[Command]] = defaultdict(list)
     for entry in CommandLogReader(log_dir):
@@ -297,6 +336,7 @@ def failed_run(profile: str, seed: int, hours: float, error: str) -> dict[str, A
     recorded as `harness_error`, so the batch goes on and the report shows the failure."""
     return {
         "profile": profile,
+        "rng_profile": None,
         "seed": seed,
         "hours": hours,
         "config_hash": None,
@@ -311,6 +351,8 @@ def failed_run(profile: str, seed: int, hours: float, error: str) -> dict[str, A
             "by_kind": {},
             "striker_fallbacks": 0,
             "capturer_fallbacks": 0,
+            "tacticians": 0,
+            "agency_picks": dict.fromkeys(AGENCY_RULES, 0),
         },
         "commands": {},
         "responses": {},

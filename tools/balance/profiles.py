@@ -14,7 +14,8 @@ from nexus.core.director import TIERS
 
 DATA = Path(__file__).resolve().parent / "profiles.yaml"
 KINDS = ("auto", "striker", "hauler", "scout", "capturer", "freelancer")  # persona kinds (Q-SIM-95)
-CHECKS = ("freelance-50",)  # check profiles (NX-398): named only, never in `--profile all`
+# check profiles (NX-398, NX-321): named only, never in `--profile all`
+CHECKS = ("freelance-50", "raid-300-agency")
 OWN_ROLE = ("auto", "freelancer")  # kinds that join with the persona's own role, not kind_roles
 ROLES = ("STRIKE", "RECON", "LOGI")  # the playable roles (content/roles.yaml); NAVY is P3
 
@@ -40,6 +41,14 @@ class Profile:
     arrivals_per_hour: float
     mix: dict[str, float]
     kinds: dict[str, float]  # persona-kind shares, sum to 1 (Q-SIM-95)
+    agency_share: float = 0.0  # share of striker and capturer viewers who are tacticians (NX-321)
+    agency_threat_window_s: float = 300.0  # a tactician's "recent" CaptureStarted, game seconds
+    rng_profile: str = ""  # the profile whose name keys every harness RNG and the campaign id
+
+    @property
+    def rng_name(self) -> str:
+        """The name in every RNG key and the campaign id: `rng_profile`, else the profile's own."""
+        return self.rng_profile or self.name
 
 
 @dataclass(frozen=True, slots=True)
@@ -113,10 +122,17 @@ def load(path: Path = DATA) -> Data:
             float(p["arrivals_per_hour"]),
             {k: float(v) for k, v in sorted(p["mix"].items())},
             {k: float(v) for k, v in sorted(p["kinds"].items())},
+            float(p.get("agency", {}).get("share", 0.0)),  # absent = 0 = no tacticians (NX-321)
+            float(p.get("agency", {}).get("threat_window_s", 300.0)),
+            str(p.get("rng_profile", "")),  # absent = the profile's own name
         )
         for name, p in doc["profiles"].items()
     }
     for pr in profiles.values():
+        if pr.rng_profile and pr.rng_profile not in profiles:
+            raise ValueError(f"profile {pr.name}: rng_profile names no profile")
+        if not 0 <= pr.agency_share <= 1 or not 0 <= pr.agency_threat_window_s < math.inf:
+            raise ValueError(f"profile {pr.name}: agency.share in 0..1 and threat_window_s >= 0")
         if (pr.viewers or pr.arrivals_per_hour) and sum(pr.mix.values()) <= 0:
             raise ValueError(f"profile {pr.name}: a crowd needs a persona mix")
         if unknown := set(pr.mix) - set(personas):
@@ -164,7 +180,7 @@ def schedule(profile: Profile, seed: int, ticks: int, tick_hz: int) -> list[tupl
     """`(arrival_tick, persona)` for every distinct viewer, in arrival order: `viewers` uniform in
     the ramp, then Poisson arrivals at `arrivals_per_hour` until `ticks`. Ticks are 1-based: the
     first command can target tick 1."""
-    rng = random.Random(f"balance/schedule/{profile.name}/{seed}")  # noqa: S311  # harness RNG
+    rng = random.Random(f"balance/schedule/{profile.rng_name}/{seed}")  # noqa: S311  # harness RNG
     names = list(profile.mix)
     weights = [profile.mix[n] for n in names]
     ramp = max(1, round(profile.ramp_min * 60 * tick_hz))

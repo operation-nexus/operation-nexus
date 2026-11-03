@@ -1,6 +1,6 @@
 # SPEC (draft): Harness persona agency, the tactician mode
 
-Status: Draft (owner sign-off needed before any code) · Tracker: NX-321 (player personas, "tactician") under NX-031 (balance harness) · Related: TESTING-STRATEGY §3.5, `tools/balance/README.md` "Persona kinds (Q-SIM-95)", FOG-OF-WAR FOW-10, Q-SIM-104, Q-TD-136, Q-TD-140
+Status: Approved (owner, 2026-11-03, #412 comment 6594260773); normative text now in tools/balance/README.md "Persona kinds" · Tracker: NX-321 (player personas, "tactician") under NX-031 (balance harness) · Related: TESTING-STRATEGY §3.5, `tools/balance/README.md` "Persona kinds (Q-SIM-95)", FOG-OF-WAR FOW-10, Q-SIM-104, Q-TD-136, Q-TD-140
 
 **Where it lives:** this Draft sits in `docs/review/` until the owner signs it off; then it moves to a new row and paragraph in `tools/balance/README.md` §"Persona kinds (Q-SIM-95)" (README.md:164), plus the key comment in `profiles.yaml`'s header. Reason: every existing persona kind (capturer Q-SIM-104, freelancer NX-398) is specified there and in `profiles.yaml:13-22`, not in `docs/specs/`; TESTING-STRATEGY §3.5 only names the populations. 
 

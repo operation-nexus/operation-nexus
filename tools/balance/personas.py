@@ -29,6 +29,7 @@ class Viewer:
     status: str = IDLE
     entity: int | None = None
     attempts: int = 0  # consecutive losses and rejections since the last spawn
+    tactician: bool = False  # a striker or capturer that picks by the agency rules (NX-321)
 
 
 def commander_id(index: int) -> str:
@@ -36,17 +37,42 @@ def commander_id(index: int) -> str:
     return f"0192f0c1-7a2b-7c3d-8e4f-{index:012d}"
 
 
-def new_viewer(index: int, persona: Persona, profile: str, seed: int, kind: str = "auto") -> Viewer:
+def new_viewer(
+    index: int,
+    persona: Persona,
+    profile: str,
+    seed: int,
+    kind: str = "auto",
+    tactician: bool = False,
+) -> Viewer:
     rng = random.Random(f"balance/viewer/{profile}/{seed}/{index}")  # noqa: S311  # harness RNG
-    return Viewer(index, commander_id(index), persona, rng, kind)
+    return Viewer(index, commander_id(index), persona, rng, kind, tactician=tactician)
 
 
 def draw_kind(profile: Profile, seed: int, index: int) -> str:
     """The viewer's persona kind: a seeded draw from the profile's `kinds` shares, from its own
     RNG so it never shifts the viewer's or the sim's streams."""
-    rng = random.Random(f"balance/kind/{profile.name}/{seed}/{index}")  # noqa: S311  # harness RNG
+    rng = random.Random(f"balance/kind/{profile.rng_name}/{seed}/{index}")  # noqa: S311  # harness RNG
     names = list(profile.kinds)
     return rng.choices(names, [profile.kinds[n] for n in names])[0]
+
+
+def draw_tactician(profile: Profile, seed: int, index: int, kind: str) -> bool:
+    """NX-321: a striker or capturer is a tactician when this draw is below `agency.share`. Its own
+    RNG, one draw per viewer whatever its kind, so no other stream shifts."""
+    rng = random.Random(f"balance/agency/{profile.rng_name}/{seed}/{index}")  # noqa: S311  # harness RNG
+    return rng.random() < profile.agency_share and kind in ("striker", "capturer")
+
+
+def latest(v: Viewer, nodes: list[str], ticks: Mapping[str, int]) -> str | None:
+    """The node of `nodes` (sorted) with the greatest tick in `ticks`; a tie goes to the viewer's
+    RNG over the tied ids, sorted. None when none of them has a tick."""
+    seen = [n for n in nodes if n in ticks]
+    if not seen:
+        return None
+    top = max(ticks[n] for n in seen)
+    tied = sorted(n for n in seen if ticks[n] == top)
+    return v.rng.choice(tied) if len(tied) > 1 else tied[0]
 
 
 def pick_node(v: Viewer, defended_foes: list[str]) -> str | None:

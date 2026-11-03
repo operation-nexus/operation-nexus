@@ -7,6 +7,7 @@ import subprocess
 import sys
 import threading
 import time
+from collections import Counter
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, ClassVar
@@ -1130,7 +1131,7 @@ def test_capturer_falls_back_to_a_bare_logi_join_and_counts_it(
 ) -> None:
     d = load()
     world = start_campaign("c", 1, shipped_config)
-    crowd = runner._Crowd([(1, "newbie")], d, "prime-50", 1)
+    crowd = runner._Crowd([(1, "newbie")], d, "prime-50", 1, HZ)
     (a,) = crowd.viewers
     a.kind = "capturer"
     ja = crowd._join(world, a, "join", 1)
@@ -1143,6 +1144,221 @@ def test_capturer_falls_back_to_a_bare_logi_join_and_counts_it(
     assert ja is not None and ja.target is not None
     assert (crowd.capturer_fallbacks, crowd.striker_fallbacks) == (1, 0)
     assert runner.failed_run("p", 1, 1, "x")["viewers"]["capturer_fallbacks"] == 0
+
+
+# --- tactician mode (NX-321) -----------------------------------------------------------------
+def _agency_crowd(share: float, window_s: float = 300.0, n: int = 1) -> tuple[Any, Data]:
+    d = load()
+    p = dataclasses.replace(d.profiles["prime-50"], agency_share=share)
+    p = dataclasses.replace(p, agency_threat_window_s=window_s)
+    d = dataclasses.replace(d, profiles={**d.profiles, "prime-50": p})
+    return runner._Crowd([(1, "newbie")] * n, d, "prime-50", 1, HZ), d
+
+
+def _tactician(crowd: Any, kind: str) -> Any:
+    (v,) = crowd.viewers
+    v.kind, v.tactician = kind, True
+    return v
+
+
+def _join_node(crowd: Any, world: Any, v: Any, tick: int) -> str | None:
+    v.status = personas.IDLE
+    cmd = crowd._join(world, v, "join", tick)
+    return None if cmd.target is None else cmd.target.node_id
+
+
+def _captured(node: str, tick: int, frm: str = "COALITION", to: str = "ENEMY") -> Any:
+    return NodeCaptured.model_construct(
+        kind="NodeCaptured", tick=tick, node_id=node, from_=frm, to=to, participant_commander_ids=[]
+    )
+
+
+def _started(node: str, tick: int, side: str = "ENEMY") -> Any:
+    return CaptureStarted.model_construct(kind="CaptureStarted", tick=tick, node_id=node, side=side)
+
+
+def test_tactician_draw_has_its_own_rng_and_the_share_edges(data: Data) -> None:
+    p = data.profiles["prime-50"]
+    for share, want in ((0.0, False), (1.0, True)):
+        q = dataclasses.replace(p, agency_share=share)
+        assert [personas.draw_tactician(q, 1, i, "striker") for i in range(50)] == [want] * 50
+        assert not any(
+            personas.draw_tactician(q, 1, i, k)
+            for i in range(9)
+            for k in ("auto", "hauler", "scout", "freelancer")
+        )
+    half = dataclasses.replace(p, agency_share=0.5)
+    draws = [personas.draw_tactician(half, 1, i, "capturer") for i in range(200)]
+    assert draws == [personas.draw_tactician(half, 1, i, "capturer") for i in range(200)]
+    assert 60 < sum(draws) < 140
+    # the draw leaves the kind and the viewer's own stream alone
+    a = personas.new_viewer(3, data.personas["newbie"], "prime-50", 1, "striker", True)
+    b = personas.new_viewer(3, data.personas["newbie"], "prime-50", 1, "striker", False)
+    assert a.rng.random() == b.rng.random()
+    assert personas.draw_kind(p, 1, 3) == personas.draw_kind(half, 1, 3)
+
+
+def test_capturer_tactician_retakes_the_latest_lost_strategic_node(
+    shipped_config: CampaignConfig,
+) -> None:
+    world = start_campaign("c", 1, shipped_config)
+    rules = world.rules
+    assert rules is not None and rules.campaign is not None
+    for n in world.owner:
+        world.defense_hp[n] = 0
+    strategic = [n for n in rules.campaign.strategic if world.owner[n] == "ENEMY"]
+    other = next(n for n in runner.capturable_foes(world) if n not in rules.campaign.strategic)
+    a, b, c = strategic[:3]
+    crowd, _ = _agency_crowd(1.0)
+    v = _tactician(crowd, "capturer")
+    # no loss yet: today's capturer pick, counted as a fallback
+    assert _join_node(crowd, world, v, 5) in runner.capturable_foes(world)
+    assert dict(crowd.agency_picks) == {"fallback": 1}
+    crowd.react([_captured(a, 10), _captured(b, 20), _captured(other, 30)], 30, HZ, Counter())
+    crowd.react(
+        [_captured(c, 40, frm="NEUTRAL"), _captured(c, 40, to="COALITION")], 40, HZ, Counter()
+    )
+    assert (
+        _join_node(crowd, world, v, 50) == b
+    )  # latest lost strategic node; `other` is not strategic
+    world.defense_hp[b] = 3  # no longer a candidate: the next latest
+    assert _join_node(crowd, world, v, 51) == a
+    world.owner[a] = "COALITION"
+    world.defense_hp[b] = 0
+    crowd.react([_captured(a, 60)], 60, HZ, Counter())  # lost again, newest
+    world.owner[a] = "ENEMY"
+    assert _join_node(crowd, world, v, 61) == a
+    assert crowd.agency_picks["retake"] == 3 and crowd.capturer_fallbacks == 0
+    crowd.react(
+        [_captured(b, 60)], 60, HZ, Counter()
+    )  # a tie on tick: the viewer RNG over sorted ids
+    tied = sorted((a, b))
+    expect = personas.new_viewer(0, v.persona, "prime-50", 1, "capturer")
+    expect.rng.setstate(v.rng.getstate())
+    assert _join_node(crowd, world, v, 62) == expect.rng.choice(tied)
+
+
+def test_striker_tactician_rules_in_order_with_the_window_edge(
+    shipped_config: CampaignConfig,
+) -> None:
+    world = start_campaign("c", 1, shipped_config)
+    rules = world.rules
+    assert rules is not None and rules.campaign is not None
+    mine = [n for n in rules.campaign.strategic if world.owner[n] == "COALITION"]
+    foe = next(n for n in rules.campaign.strategic if world.owner[n] == "ENEMY")
+    assert len(mine) >= 3
+    a, b, c = mine[:3]
+    crowd, _ = _agency_crowd(1.0, window_s=300)
+    win = 300 * HZ
+    v = _tactician(crowd, "striker")
+    for n in mine:
+        world.defense_hp[n] = 5
+    # no threat, no bare node: today's striker pick (a defended foe)
+    assert _join_node(crowd, world, v, 1000) in runner.defended_foes(world)
+    assert dict(crowd.agency_picks) == {"fallback": 1}
+    world.defense_hp[b] = 0  # rule 2: a coalition strategic node with 0 defense hp
+    assert _join_node(crowd, world, v, 1001) == b
+    crowd.react(
+        [_started(a, 1000), _started(foe, 1100), _started(c, 1100, side="COALITION")],
+        1100,
+        HZ,
+        Counter(),
+    )
+    # rule 1: a recent ENEMY CaptureStarted on a coalition node (not a foe's, not COALITION's)
+    assert _join_node(crowd, world, v, 1000 + win) == a  # exactly at the window: still recent
+    assert _join_node(crowd, world, v, 1000 + win + 1) == b  # one tick later: rule 2 again
+    crowd.react([_started(c, 2000)], 2000, HZ, Counter())
+    assert _join_node(crowd, world, v, 2001) == c  # the most recent wins over `a`
+    crowd.react([_started(a, 2000)], 2000, HZ, Counter())  # a tie: viewer RNG over sorted ids
+    expect = personas.new_viewer(0, v.persona, "prime-50", 1, "striker")
+    expect.rng.setstate(v.rng.getstate())
+    assert _join_node(crowd, world, v, 2002) == expect.rng.choice(sorted((a, c)))
+    world.owner[c] = world.owner[a] = "ENEMY"  # lost meanwhile: not a coalition node any more
+    assert _join_node(crowd, world, v, 2003) == b
+    assert dict(crowd.agency_picks) == {"fallback": 1, "defenses_down": 3, "capture_started": 3}
+    for n in mine:  # share 1 with nothing to go on and no bare node
+        world.defense_hp[n] = 5
+    world.owner[b] = "ENEMY"
+    crowd.threat_at.clear()
+    assert _join_node(crowd, world, v, 3000) in runner.defended_foes(world)
+    assert crowd.agency_picks["fallback"] == 2 and crowd.striker_fallbacks == 0
+
+
+def test_share_zero_matches_a_profile_without_the_key_and_share_one_replays(
+    tmp_path: Path, data: Data, shipped_config: CampaignConfig
+) -> None:
+    raw = yaml.safe_load(DATA.read_text())
+    for n, p in raw["profiles"].items():  # the key is on every profile, 0 but the A/B arm's
+        assert p["agency"] == {
+            "share": 0.5 if n == "raid-300-agency" else 0,
+            "threat_window_s": 300,
+        }
+        del p["agency"]
+    bare = tmp_path / "bare.yaml"
+    bare.write_text(yaml.safe_dump(raw))
+    nokey = load(bare)
+    crowd = dataclasses.replace(nokey.profiles["prime-50"], viewers=40, ramp_min=1)
+    nokey = dataclasses.replace(nokey, profiles={**nokey.profiles, "prime-50": crowd})
+    a = run_once(tmp_path, "a", data, shipped_config)
+    b = run_once(tmp_path, "b", nokey, shipped_config)
+    assert a["final_state_hash"] == b["final_state_hash"]
+    assert log_entries(tmp_path / "a") == log_entries(tmp_path / "b")
+    assert a["viewers"]["tacticians"] == 0 and set(a["viewers"]["agency_picks"].values()) == {0}
+    full = dataclasses.replace(data.profiles["prime-50"], agency_share=1.0)
+    allin = dataclasses.replace(data, profiles={**data.profiles, "prime-50": full})
+    c = run_once(tmp_path, "c", allin, shipped_config)
+    d = run_once(tmp_path, "d", allin, shipped_config)
+    assert strip_timing(c) == strip_timing(d)
+    assert log_entries(tmp_path / "c") == log_entries(tmp_path / "d")
+    kinds = c["viewers"]["by_kind"]
+    assert c["viewers"]["tacticians"] == kinds["striker"] + kinds["capturer"] > 0
+    assert sum(c["viewers"]["agency_picks"].values()) > 0
+    assert {e["kind"] for e in log_entries(tmp_path / "c")} <= {"JOIN", "REBASE"}
+    got = runner.replay_log(tmp_path / "c", 1, "prime-50", c["ticks_run"], shipped_config)
+    assert got == c["final_state_hash"]
+
+
+def test_rng_profile_gives_another_profiles_exact_run_and_defaults_to_the_name(
+    tmp_path: Path, data: Data, shipped_config: CampaignConfig
+) -> None:
+    assert all(p.rng_name == p.name for n, p in load().profiles.items() if n != "raid-300-agency")
+    ab = load().profiles["raid-300-agency"]
+    base = load().profiles["raid-300"]
+    assert (ab.rng_name, ab.agency_share) == ("raid-300", 0.5)
+    same = dataclasses.replace(ab, name="raid-300", agency_share=0.0, rng_profile="")
+    assert same == base  # identical to raid-300 but for the share (and the name it keys on)
+    fast = dataclasses.replace(data.profiles["prime-50"], viewers=40, ramp_min=1)
+    twin = dataclasses.replace(fast, name="twin", rng_profile="prime-50")
+    both = dataclasses.replace(data, profiles={**data.profiles, "prime-50": fast, "twin": twin})
+    a = runner.run("prime-50", 1, TICKS / HZ / 3600, tmp_path / "a", both, shipped_config)
+    b = runner.run("twin", 1, TICKS / HZ / 3600, tmp_path / "b", both, shipped_config)
+    assert (a["final_state_hash"], b["rng_profile"]) == (b["final_state_hash"], "prime-50")
+    assert log_entries(tmp_path / "a") == log_entries(tmp_path / "b")
+    assert (
+        runner.replay_log(tmp_path / "b", 1, b["rng_profile"], b["ticks_run"], shipped_config)
+        == (b["final_state_hash"])
+    )
+    raw = yaml.safe_load(DATA.read_text())
+    raw["profiles"]["raid-300-agency"]["rng_profile"] = "nope"
+    bad = tmp_path / "bad.yaml"
+    bad.write_text(yaml.safe_dump(raw))
+    with pytest.raises(ValueError, match="rng_profile"):
+        load(bad)
+
+
+def test_the_report_counts_tacticians_and_picks_by_rule(first: Any) -> None:
+    _, a = first
+    assert report._agency([a]) == {"tacticians": 0, "picks": dict.fromkeys(runner.AGENCY_RULES, 0)}
+    assert report._agency_md({"profiles": {"p": {"agency": report._agency([a])}}}) == []
+    run = {"viewers": {"tacticians": 4, "agency_picks": {"retake": 3, "fallback": 1}}}
+    got = report._agency([run, run])
+    assert got == {
+        "tacticians": 8,
+        "picks": {"retake": 6, "capture_started": 0, "defenses_down": 0, "fallback": 2},
+    }
+    (_, _, line, _) = report._agency_md({"profiles": {"raid-300": {"agency": got}}})
+    assert line.endswith("8; picks retake 6, capture_started 0, defenses_down 0, fallback 2")
+    assert runner.failed_run("p", 1, 1, "x")["viewers"]["tacticians"] == 0
 
 
 KEY = "tasking.strike_idle_targets_max"
@@ -1687,7 +1903,9 @@ def test_a_freelancer_order_without_a_shot_delivery_or_capture_counts_as_no_effe
 
 def test_profile_all_is_the_standard_profiles_and_a_check_profile_is_named_only() -> None:
     d = load()
-    assert balance.resolve("all", d) == [n for n in d.profiles if n != "freelance-50"]
+    assert balance.resolve("all", d) == [
+        n for n in d.profiles if n not in ("freelance-50", "raid-300-agency")
+    ]
     assert balance.resolve("all", d) == [
         "overnight-0", "quiet-5", "prime-50", "evening-150", "raid-300", "surge-500"
     ]  # fmt: skip
@@ -3818,6 +4036,9 @@ def _who_world(shipped_config: CampaignConfig, node: str) -> Any:
     j.state = "ON_STATION"
     j.job_id = 1
     world.spawn(ground[0], "COALITION", "AI_GARRISON", here)  # the loser's unit: not a capturer
+    world.boards["ENEMY"][3] = Job(3, "PATROL", "patrol:x", 1, 1000, 0)
+    p = world.spawn(ground[0], "ENEMY", "ENEMY_DIRECTOR", here)
+    p.job_id = 3  # a ground unit on a PATROL job has no capture weight (#603)
     return world, rules, (a, b, j)
 
 
@@ -3839,6 +4060,7 @@ def test_who_took_mirrors_the_sims_presence_and_names_job_kind_and_owner(
     near = _presence(world, rules, rules.capture, [node])[node]["ENEMY"]
     assert sum(w for _, w in seen) == near.weight  # the sim's own weight, air excluded
     assert [e.id for e, _ in seen if e.id in (a.id, b.id)] == [a.id, b.id]
+    assert not [e for e, _ in seen if e.job_id == 3]  # the PATROL unit is not a capturer
     w = _took(collector, world, node)["strategic"]
     assert w["losses"] == 1 and w["unknown"] == 0 and w["units"] == 3  # tank, truck, no-job unit
     assert w["weight"] == near.weight and w["weight"] == 2 + rules.capture.logi_weight
