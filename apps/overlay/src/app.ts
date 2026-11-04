@@ -1,8 +1,6 @@
 import { RenderManager } from "./renderers/manager";
 import { HudOverlay } from "./hud/hud-overlay";
 import { SimulationFeedGenerator } from "./simulation/mock-feed";
-import { HoloTableEngine } from "./renderers/holo3d/holo-engine";
-import { FlirMfdEngine } from "./renderers/flir/flir-engine";
 import { ThreatSitrepBoard } from "./hud/threat-sitrep";
 import type { RenderFrameState } from "./types/render";
 
@@ -40,7 +38,6 @@ export class TacticalC2App {
 
     await this.renderManager.attach(this.viewportContainer, initialTheme);
     this.highlightActiveThemeButton(initialTheme);
-    this.updateSecondaryControls(initialTheme);
     this.hud.initialize(this.viewportContainer);
 
     this.setupWindowResize();
@@ -107,8 +104,6 @@ export class TacticalC2App {
 
     const themes: Array<{ id: string; label: string; active: boolean }> = [
       { id: "crt", label: "OPT A: 2D CRT VECTOR", active: true },
-      { id: "holo3d", label: "OPT B: 3D HOLO TABLE", active: false },
-      { id: "flir", label: "OPT C: FLIR MFD", active: false },
       { id: "batch", label: "OPT D: BATCH (500+)", active: false },
     ];
 
@@ -129,7 +124,7 @@ export class TacticalC2App {
       switcher.appendChild(btn);
     }
 
-    // Secondary Controls: 3D Camera / FLIR polarity / Swarm toggle
+    // Secondary Controls: Swarm toggle
     const secondary = document.createElement("div");
     secondary.id = "deck-secondary-controls";
     secondary.style.display = "flex";
@@ -137,10 +132,6 @@ export class TacticalC2App {
     secondary.style.gap = "6px";
 
     const secBtns: Array<{ id: string; label: string; hidden: boolean }> = [
-      { id: "btn-camera-wide", label: "WIDE CAM", hidden: true },
-      { id: "btn-camera-combat", label: "COMBAT 45\u00b0", hidden: true },
-      { id: "btn-camera-top", label: "TOP-DOWN", hidden: true },
-      { id: "btn-toggle-flir-polarity", label: "FLIR POLARITY", hidden: true },
       { id: "btn-toggle-500-swarm", label: "500+ SWARM: OFF", hidden: false },
     ];
 
@@ -195,44 +186,7 @@ export class TacticalC2App {
 
         this.highlightActiveThemeButton(themeId);
         await this.renderManager.switchTheme(themeId);
-        this.updateSecondaryControls(themeId);
       });
-    });
-
-    // Wire secondary 3D Camera presets
-    const btnWide =
-      this.controlDeckEl.querySelector<HTMLButtonElement>("#btn-camera-wide");
-    const btnCombat =
-      this.controlDeckEl.querySelector<HTMLButtonElement>("#btn-camera-combat");
-    const btnTop =
-      this.controlDeckEl.querySelector<HTMLButtonElement>("#btn-camera-top");
-
-    btnWide?.addEventListener("click", () => {
-      const active = this.renderManager.getActiveEngine();
-      if (active instanceof HoloTableEngine) active.setCameraPreset("WIDE");
-    });
-    btnCombat?.addEventListener("click", () => {
-      const active = this.renderManager.getActiveEngine();
-      if (active instanceof HoloTableEngine)
-        active.setCameraPreset("COMBAT_45");
-    });
-    btnTop?.addEventListener("click", () => {
-      const active = this.renderManager.getActiveEngine();
-      if (active instanceof HoloTableEngine) active.setCameraPreset("TOP_DOWN");
-    });
-
-    // Wire FLIR polarity button
-    const btnPolarity = this.controlDeckEl.querySelector<HTMLButtonElement>(
-      "#btn-toggle-flir-polarity",
-    );
-    btnPolarity?.addEventListener("click", () => {
-      const active = this.renderManager.getActiveEngine();
-      if (active instanceof FlirMfdEngine) {
-        const next =
-          active.getPolarity() === "WHITE_HOT" ? "BLACK_HOT" : "WHITE_HOT";
-        active.setPolarity(next);
-        btnPolarity.textContent = `POLARITY: ${next}`;
-      }
     });
 
     // Wire 500+ unit swarm toggle
@@ -259,28 +213,6 @@ export class TacticalC2App {
       b.style.color = isActive ? "#020617" : "#94a3b8";
       b.style.fontWeight = isActive ? "bold" : "normal";
     });
-  }
-
-  private updateSecondaryControls(themeId: string): void {
-    if (!this.controlDeckEl) return;
-    const btnWide =
-      this.controlDeckEl.querySelector<HTMLButtonElement>("#btn-camera-wide");
-    const btnCombat =
-      this.controlDeckEl.querySelector<HTMLButtonElement>("#btn-camera-combat");
-    const btnTop =
-      this.controlDeckEl.querySelector<HTMLButtonElement>("#btn-camera-top");
-    const btnPolarity = this.controlDeckEl.querySelector<HTMLButtonElement>(
-      "#btn-toggle-flir-polarity",
-    );
-
-    const is3D = themeId === "holo3d";
-    const isFlir = themeId === "flir";
-
-    if (btnWide) btnWide.style.display = is3D ? "inline-block" : "none";
-    if (btnCombat) btnCombat.style.display = is3D ? "inline-block" : "none";
-    if (btnTop) btnTop.style.display = is3D ? "inline-block" : "none";
-    if (btnPolarity)
-      btnPolarity.style.display = isFlir ? "inline-block" : "none";
   }
 
   private setupWindowResize(): void {
