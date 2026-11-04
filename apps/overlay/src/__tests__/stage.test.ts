@@ -183,7 +183,6 @@ describe("mountStage", () => {
     expect(world.children[1]?.children.map((c) => c.className)).toEqual([
       "nx-panels",
       "nx-sitrep",
-      "nx-toasts",
     ]);
     const css = (await built()).css;
     const z = (cls: string): number =>
@@ -192,10 +191,8 @@ describe("mountStage", () => {
       );
     const order = ["nx-world", "nx-banners"].map(z);
     expect(order[0]).toBeLessThan(order[1] as number);
-    expect([z("nx-panels"), z("nx-sitrep"), z("nx-toasts")]).toEqual(
-      [...[z("nx-panels"), z("nx-sitrep"), z("nx-toasts")]].sort(
-        (a, b) => a - b,
-      ),
+    expect([z("nx-panels"), z("nx-sitrep")]).toEqual(
+      [z("nx-panels"), z("nx-sitrep")].sort((a, b) => a - b),
     );
     expect(z("nx-banners")).toBeGreaterThan(z("nx-heartbeat"));
   });

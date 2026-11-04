@@ -41,6 +41,8 @@ export interface ClientDeps {
   onState: (s: ConnState) => void;
   /** After a Welcome is applied: the theater is in the store (terrain redraw, OVERLAY §0.2). */
   onWelcome?: () => void;
+  /** After a Snapshot or Hud is applied, or a Delta that applied: the HUD reads the store (NX-178). */
+  onFrame?: (f: Snapshot | Hud | Delta) => void;
 }
 
 /** Reads `#token=…` once and clears the fragment. Returns null when absent. */
@@ -241,9 +243,11 @@ export class WireClient {
         this.lastApplied = this.store.tick;
         this.armStale();
         if (!this.state.hadData) this.push({ ...this.state, hadData: true });
+        this.d.onFrame?.(frame as unknown as Snapshot);
         break;
       case "Hud":
         this.store.applyHud(frame as unknown as Hud);
+        this.d.onFrame?.(frame as unknown as Hud);
         break;
       case "Delta":
         this.onDelta(frame as unknown as Delta);
@@ -261,6 +265,7 @@ export class WireClient {
       this.lastApplied = d.tick;
       this.armStale();
       this.ack(d.tick);
+      this.d.onFrame?.(d);
     } else if (this.store.tick === null) {
       // Unsynced (gap, RESYNC or a lost Snapshot): an Ack asks for a Snapshot (WP-3), at most 1/s.
       const now = Date.now();

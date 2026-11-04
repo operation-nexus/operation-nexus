@@ -95,7 +95,7 @@ Counts recomputed from the rows on 2026-11-04 (P1: 27 rows in this file after th
 | NX-447 | Offline bakes from the heightmap: masking cells (Q-VIZ-1) and per-edge slope into `speed_mult` (Q-MV-5; mild slope effect per the owner) | M | ⬜ | NX-446 | The bake is reproducible from the PNG; goldens re-pin when values change |
 | NX-448 | Per-band nominal heights in content (Q-MV-6, Q-MV-7): one table read by every renderer; values marked PROPOSED | S | ⬜ | Q-MV-6 | One table; no renderer constant disagrees with it |
 | NX-449 | Reconcile the visualizer elevation numbers into one documented display scale (movement review §6) | S | ⬜ | NX-446 | `elevation.ts`, the visual-engineer role, TERRAIN-AND-BIOMES and ROAD-AND-BRIDGE-TAXONOMY agree, or each states which scale it uses |
-| NX-178 | HUD: momentum, objective, threat, ticker, rotating panels | M | ⬜ | NX-175 |
+| NX-178 | HUD: momentum, objective, threat, ticker, rotating panels. Built (OVERLAY §0.9): top bar and timers, ticker, rotating panel, OV-26 stack on the live `PublicEvent` stream; `apps/overlay/src/hud/`; toasts deferred: nothing raises one yet | M | 🟨 | NX-175 |
 | NX-182 | Map annotation layer (OVERLAY §2a): sectors, optional grid reference, direction cues, ephemeral pins, circles and arrows with TTL and collision handling | M | ⬜ | NX-177 |
 | NX-179 | PiP 2D/3D intercept scope + PiP director scoring. 2026-10-25: expanded with FLIR/RECON MFD (Pillar 3) and universal unit POV/cockpit camera contracts (RFC-UNIT-POV-002, Passes A-N) | M | ⬜ | NX-177 |
 | NX-391 | Overlay callout "BANDITS SCRAMBLED" when the Static posts an INTERCEPT job (`JobCreated`), from the 2026-10-23 entertainment checkpoint (Q-DEV-27) | S | ⬜ | NX-177 |

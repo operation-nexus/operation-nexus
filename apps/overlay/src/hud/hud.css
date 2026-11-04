@@ -1,0 +1,279 @@
+/* NX-178 HUD (OVERLAY §0.5-0.7). Concept "Signal": the meter is a rising signal-strength glyph, the one
+   remembered element; everything else is flat ink-on-panel text. No inline styles; palette PROPOSED until NX-274.
+   Every always-on text is >= 28px (OV-1) at 1080p; text colours pass 4.5:1 on --hud-panel. */
+:root {
+  --hud-panel: rgb(8 14 28 / 0.94);
+  --hud-ink: #f8fafc;
+  --hud-muted: #a8b5c7;
+  --hud-dim: #334155;
+  --hud-signal: #00e5ff;
+  --hud-alert: #fbbf24;
+  --hud-static: #ff3d7f;
+  --hud-win: #a3e635;
+  --hud-text: 28px;
+  --hud-value: 32px;
+  --hud-ease: cubic-bezier(0.23, 1, 0.32, 1);
+}
+.nx-panels,
+.nx-sitrep {
+  pointer-events: none;
+}
+.nx-panels {
+  inset: 0;
+}
+.nx-topbar [hidden],
+.nx-rotor[hidden] {
+  display: none;
+}
+.nx-topbar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: grid;
+  grid-template-columns: 1.15fr 0.7fr 1.5fr 1fr 0.8fr;
+  background: var(--hud-panel);
+  border-bottom: 4px solid var(--hud-signal);
+}
+.nx-topbar.no-obj {
+  grid-template-columns: 1.15fr 0.7fr 1fr 0.8fr;
+}
+.nx-cell {
+  min-width: 0;
+  padding: 6px 20px 8px;
+  border-left: 2px solid var(--hud-dim);
+}
+.nx-cell:first-child {
+  border-left: 0;
+}
+.nx-label {
+  font-size: var(--hud-text);
+  line-height: 1.2;
+  color: var(--hud-muted);
+  white-space: nowrap;
+}
+.nx-val {
+  font-size: var(--hud-value);
+  line-height: 1.2;
+  font-weight: 700;
+  color: var(--hud-ink);
+  white-space: nowrap;
+}
+.nx-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 16px;
+  min-width: 0;
+}
+.nx-name {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.nx-meter {
+  display: flex;
+  align-items: flex-end;
+  gap: 4px;
+  height: 38px;
+}
+.nx-meter i {
+  width: 12px;
+  background: var(--hud-dim);
+}
+.nx-meter i:nth-child(1) {
+  height: 8px;
+}
+.nx-meter i:nth-child(2) {
+  height: 11px;
+}
+.nx-meter i:nth-child(3) {
+  height: 14px;
+}
+.nx-meter i:nth-child(4) {
+  height: 17px;
+}
+.nx-meter i:nth-child(5) {
+  height: 20px;
+}
+.nx-meter i:nth-child(6) {
+  height: 23px;
+}
+.nx-meter i:nth-child(7) {
+  height: 26px;
+}
+.nx-meter i:nth-child(8) {
+  height: 29px;
+}
+.nx-meter i:nth-child(9) {
+  height: 32px;
+}
+.nx-meter i:nth-child(10) {
+  height: 36px;
+}
+.nx-meter i.on {
+  background: var(--hud-signal);
+}
+/* Threat tier: shape plus word carry the tier, colour only repeats it (OV-3). */
+.nx-glyph {
+  flex: 0 0 26px;
+  height: 26px;
+  margin-bottom: 6px;
+  box-sizing: border-box;
+  border: 3px solid var(--hud-dim);
+}
+.nx-glyph[data-tier="PATTERN_OF_LIFE"] {
+  border: 4px solid var(--hud-signal);
+  border-radius: 50%;
+}
+.nx-glyph[data-tier="ALPHA"] {
+  border: 0;
+  background: var(--hud-alert);
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+.nx-glyph[data-tier="BRAVO"] {
+  border: 0;
+  background: var(--hud-static);
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+}
+.nx-ticker {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 56px;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  gap: 28px;
+  padding: 0 100px 0 20px; /* clear of the OV-8 heartbeat */
+  background: var(--hud-panel);
+  font-size: var(--hud-text);
+}
+.nx-howto {
+  flex: none;
+  font-weight: 700;
+  color: var(--hud-signal);
+  white-space: nowrap;
+}
+.nx-ticker-item {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--hud-ink);
+}
+/* Rotating panel: right column, below the OV-26 stack in reading order, above the ticker. */
+.nx-rotor {
+  position: absolute;
+  right: 0;
+  bottom: 72px;
+  width: 576px;
+  box-sizing: border-box;
+  padding: 10px 20px 12px;
+  background: var(--hud-panel);
+  border-left: 6px solid var(--hud-signal);
+  font-size: var(--hud-text);
+  line-height: 1.25;
+}
+.nx-rotor-title {
+  font-weight: 700;
+  color: var(--hud-signal);
+}
+.nx-rotor-row {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+/* OV-26 stack: top right under the bar, at most 30% of the 1920 px screen. */
+.nx-sitrep {
+  top: 104px;
+  right: 0;
+  width: 576px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.nx-card {
+  --tone: var(--hud-muted);
+  display: flex;
+  gap: 16px;
+  align-items: flex-start;
+  padding: 12px 22px 14px 16px;
+  background: var(--hud-panel);
+  border-left: 10px solid var(--tone);
+  clip-path: polygon(
+    0 0,
+    calc(100% - 18px) 0,
+    100% 18px,
+    100% 100%,
+    18px 100%,
+    0 calc(100% - 18px)
+  );
+  font-size: var(--hud-text);
+  line-height: 1.2;
+}
+.nx-tier-LAST_STAND {
+  --tone: var(--hud-static);
+  background: var(--hud-static);
+  color: var(--hud-panel);
+  border-left-color: var(--hud-panel);
+}
+.nx-tier-ALERT {
+  --tone: var(--hud-alert);
+}
+.nx-tier-WIN {
+  --tone: var(--hud-win);
+}
+.nx-tier-INTEL {
+  --tone: #cbd5e1;
+}
+.nx-card-body {
+  min-width: 0;
+}
+.nx-kicker {
+  font-weight: 700;
+  color: var(--tone);
+}
+.nx-tier-LAST_STAND .nx-kicker {
+  color: var(--hud-panel);
+}
+.nx-line {
+  overflow-wrap: anywhere;
+}
+.nx-credit {
+  color: var(--hud-muted);
+}
+.nx-tier-LAST_STAND .nx-credit {
+  color: var(--hud-panel);
+}
+.nx-shape {
+  flex: 0 0 26px;
+  height: 26px;
+  margin-top: 4px;
+  background: var(--tone);
+}
+.nx-tier-LAST_STAND .nx-shape {
+  background: var(--hud-panel);
+}
+.nx-shape.diamond {
+  clip-path: polygon(50% 0, 100% 50%, 50% 100%, 0 50%);
+}
+.nx-shape.triangle {
+  clip-path: polygon(50% 0, 100% 100%, 0 100%);
+}
+.nx-shape.circle {
+  clip-path: circle(50%);
+}
+.nx-shape.down {
+  clip-path: polygon(0 0, 100% 0, 50% 100%);
+}
+.nx-more {
+  align-self: flex-end;
+  padding: 0 8px;
+  background: var(--hud-panel);
+  color: var(--hud-muted);
+  font-size: var(--hud-text);
+  line-height: 1.2;
+}

@@ -18,7 +18,7 @@ The P2 exit set is OV-1 to OV-10 (ROADMAP P2). NX-175/178 deliver OV-1, OV-7, OV
 ### 0.2 NX-175 / NX-178 scope
 - **NX-175 (a):** WebSocket client for the WIRE-PROTOCOL feed, the state store (Welcome, Snapshot, Delta, Hud, Control), reconnect and banners (§0.3).
 - **NX-175 (b):** layered canvases (static terrain, units, FX), the DOM HUD root, the 1920×1080 stage (§0.7), the CSP and bundled fonts (§0.4), and the heartbeat element (OV-8).
-- **NX-178:** the HUD top bar (momentum, nodes held N of M, objective with timer, threat tier, war countdown), the ticker, the rotating panels (§0.6), toasts, and OV-26 wired to the live `PublicEvent` stream.
+- **NX-178:** the HUD top bar (momentum, nodes held N of M, objective with timer, threat tier, war countdown), the ticker, the rotating panels (§0.6) and OV-26 wired to the live `PublicEvent` stream.
 - **Deferred:** NX-177 (units), NX-179 (PiP), NX-180 and NX-180b, NX-182 (annotations), and the pause scenes OV-16 to OV-25. The 9:16 variant (OV-11) is P3.
 - **Renderer:** Canvas2D with DOM panels (ADR-0005). three.js is not in the production bundle; the prototype's Holo3D and FLIR engines were deleted in NX-175 (a).
 
@@ -49,7 +49,7 @@ Every nullable `Hud` field renders "—" when null (DI-1); nothing is defaulted 
 ### 0.6 Rotating panel, ticker, toasts and layout
 - **Members in the first slice:** NEEDED (`Hud.panels.tasking_needed`), operator breakdown (`Hud.operators`), Top Commanders (`Hud.panels.top_commanders`). A panel with no real rows is skipped, never padded (DI-4). Dwell is `hud.rotation_s` (PROPOSED 15 s, real time); NEEDED shows at double frequency (OV-14). Membership is config-only in P2 (no Command Center yet). Campaign Status, the reserve queue, the explainer and Active Packages are deferred.
 - **Ticker:** `Hud.ticker` items (`ModeratedText`, WP-6).
-- **Toasts (OV-13):** a toast lasts PROPOSED 6 s of real time, one at a time from a queue, and never covers the OV-12 elements. Which `PublicEvent` kinds raise a toast beyond OV-26 is not decided here; P2 builds the mechanism and no other source.
+- **Toasts (OV-13):** a toast lasts PROPOSED 6 s of real time, one at a time from a queue, and never covers the OV-12 elements. Which `PublicEvent` kinds raise a toast beyond OV-26 is not decided here; P2 builds the mechanism and no other source; NX-178 defers even the mechanism until its first source exists (§0.9).
 - **Layout and z-order:** the OV-26 sitrep stack replaces the "SITREP LOG" panel of §1 and sits above the rotating panel in the right column. Back to front: map canvases, DOM panels, OV-26 stack, toasts, banners (§0.3). Nothing but a banner covers the OV-12 bar.
 
 ### 0.7 Stage, readability and performance
@@ -62,6 +62,21 @@ Every nullable `Hud` field renders "—" when null (DI-1); nothing is defaulted 
 
 ### 0.8 Not built in this slice
 The PiP column of §1 stays empty until NX-179. Unit drawing arrives with NX-177; NX-175 builds the layers and the terrain canvas only.
+
+### 0.9 Built in NX-178 (`apps/overlay/src/hud/`)
+Where the spec was silent, the code does the following (all reversible, none changes §0.5 or §0.6):
+- **Wiring:** `WireClient` calls `onFrame` after an applied Snapshot, Hud or Delta; `mountHud` fills the existing `panels` and `sitrep` containers. The timers re-base on every Snapshot and Hud (with the store's last tick) and advance by the Delta tick step while not paused.
+- **Strings:** no localization system exists; `hud/strings.ts` is a local key to English map (`hud.tier.<tier>` and the bar labels). A tier without a key shows its id.
+- **Top bar:** the objective timer is m:ss (minutes can pass 59); the war countdown is h:mm:ss from one hour. An expired timer shows 00:00. `nodes_total` of 0 (campaign layer off) shows "—", like a missing count. Before the first Hud the objective cell shows "—" (the mode is unknown); `OFF` hides it.
+- **Ticker:** shows the newest `Hud.ticker` item by `tick` next to the fixed how-to-play line (the contract does not fix the array order); no scrolling.
+- **Rotating panel:** every Top Commanders role with rows is its own member ("Top STRIKE"), and the operator member lists the role counts then the rank bands. NEEDED appears twice per cycle, spread apart. `ROTATION_S` (15) is a constant until the config key exists.
+- **OV-26:** the live path reuses the NX-496 board; sector names are not in `Welcome` (nodes only), so sectors show as their ids until the theater carries them. The stack is CSS classes in `hud/hud.css`, replacing the inline-styled prototype panel on the live stage only.
+- **Toasts deferred:** nothing raises a toast in P2 (§0.6), so the queue, its CSS and the empty `nx-toasts` container were removed from NX-175/178's code; a follow-up adds them with their first source. The z-order in §0.6 still holds (toasts above the OV-26 stack, below banners).
+- **Lifetime:** the HUD and its rotation timer live for the page; nothing disposes them.
+- **Clock basis:** `Hud` has no tick, so its `campaign_clock.elapsed_ticks` is paired with the store's last applied tick. The Hud is built up to 1 s before it arrives, so the countdowns can be off by up to the ticks of that delay until the next Hud re-bases them. A Snapshot without a Hud advances the clock by its tick step and does not re-base the old Hud. `advance` never moves the basis tick backwards.
+- **Rotator rows:** NEEDED rows read `<JOB_KIND> <node name or sector id or —>, <n> open`; operator rows `<ROLE>: <count>` then `<band>: <count>`; Top Commanders rows `<callsign>: <value>`, titled "Top <ROLE>". With exactly one other member NEEDED alternates 1:1 with it (a 2:1 cycle would show NEEDED for 30 s on wrap). The first member after an empty panel gets a full dwell.
+- **Top bar:** `momentum_pct` is rounded for display; with `objective_mode` OFF the grid drops the objective column.
+- **PROPOSED:** the palette (`--hud-*` tokens), every px size and position in `hud/hud.css` (bar height, 576 px right column, 104 px stack offset, panel 72 px above the ticker) are PROPOSED until NX-274.
 
 
 ## 1. Layout (1920×1080; 16:9)

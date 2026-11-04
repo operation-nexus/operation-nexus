@@ -73,7 +73,10 @@ let socks: FakeSocket[];
 let states: ConnState[];
 let reload: ReturnType<typeof vi.fn<(t: string) => void>>;
 let uptime = 1e9;
-function make(random = () => 0.5): { c: WireClient; s: () => FakeSocket } {
+function make(
+  random = () => 0.5,
+  onFrame?: (f: { type: string }) => void,
+): { c: WireClient; s: () => FakeSocket } {
   const c = new WireClient({
     url: "ws://x/ws",
     token: "tok",
@@ -86,6 +89,7 @@ function make(random = () => 0.5): { c: WireClient; s: () => FakeSocket } {
     uptimeMs: () => uptime,
     reload,
     onState: (st) => states.push(st),
+    ...(onFrame ? { onFrame } : {}),
   });
   c.start();
   return { c, s: () => socks[socks.length - 1] as FakeSocket };
@@ -520,6 +524,8 @@ const fakeSurface = () =>
   ({
     world: { classList: { toggle: () => undefined } },
     banners: { appendChild: () => undefined },
+    panels: { appendChild: () => undefined },
+    sitrep: { replaceChildren: () => undefined },
     showTheater: () => undefined,
   }) as unknown as ReturnType<Parameters<typeof startFeed>[1]>;
 
@@ -556,9 +562,15 @@ describe("token clearing and startFeed", () => {
           log.push(`rs:${u}`),
       },
       performance: { now: () => 1e9 },
+      setInterval: (f: () => void, ms: number) => setInterval(f, ms),
+      clearInterval: (id: number) => clearInterval(id),
+      setTimeout: (f: () => void, ms: number) => setTimeout(f, ms),
       document: {
         createElement: () => ({
           ownerDocument: { documentElement: { dataset: {} } },
+          appendChild: () => undefined,
+          setAttribute: () => undefined,
+          classList: { toggle: () => undefined },
         }),
         body: { appendChild: () => undefined },
       },
@@ -623,5 +635,35 @@ describe("token clearing and startFeed", () => {
     made[0]?.onclose?.({ code: 4003 });
     vi.advanceTimersByTime(RELOAD_DELAY_MS);
     expect(log).toEqual(["rs:/", "rs:#token=a%20b", "reload"]);
+  });
+});
+
+describe("onFrame (NX-178)", () => {
+  function frames(): { seen: string[]; recv: (f: unknown) => void } {
+    const seen: string[] = [];
+    const { s } = make(undefined, (f) => seen.push(f.type));
+    s().onopen?.();
+    s().recv(welcome());
+    return { seen, recv: (f) => s().recv(f) };
+  }
+
+  it("fires once for each applied Snapshot, Hud and Delta", () => {
+    const { seen, recv } = frames();
+    recv(snap(10));
+    recv(hud);
+    recv(delta(11, 10));
+    expect(seen).toEqual(["Snapshot", "Hud", "Delta"]);
+  });
+
+  it("fires nothing for a stale Delta, a gap Delta, or a Delta while unsynced", () => {
+    const { seen, recv } = frames();
+    recv(snap(10));
+    seen.length = 0;
+    recv(delta(10, 9)); // stale: tick not above the last applied
+    recv(delta(12, 11)); // gap: base_tick is not the last applied tick
+    recv(delta(13, 12)); // unsynced now: ignored until a Snapshot
+    expect(seen).toEqual([]);
+    recv(snap(20));
+    expect(seen).toEqual(["Snapshot"]);
   });
 });

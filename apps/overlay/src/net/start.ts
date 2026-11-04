@@ -1,5 +1,6 @@
 // Wires the WS client and banner into the page. Does nothing without `#token=` (prototype dev mode).
 import { renderBanner } from "./banner";
+import { mountHud } from "../hud/mount";
 import type { Stage } from "../stage";
 import { takeToken, WireClient } from "./wire-client";
 
@@ -9,7 +10,10 @@ export const WS_PATH = "/ws";
 /** `mount` runs only when a token is present, so the no-token prototype keeps `#root` to itself. */
 export function startFeed(
   win: Window,
-  mount: () => Pick<Stage, "world" | "banners" | "showTheater">,
+  mount: () => Pick<
+    Stage,
+    "world" | "banners" | "showTheater" | "panels" | "sitrep"
+  >,
 ): WireClient | null {
   const token = takeToken(win.location, win.history);
   if (token === null) return null;
@@ -19,6 +23,7 @@ export function startFeed(
   banner.className = "nx-banner";
   banner.hidden = true;
   surface.banners.appendChild(banner);
+  const hud = mountHud(surface, win, () => client.store);
   const scheme = win.location.protocol === "https:" ? "wss:" : "ws:";
   const client = new WireClient({
     url: `${scheme}//${win.location.host}${WS_PATH}`,
@@ -33,6 +38,7 @@ export function startFeed(
       win.location.reload();
     },
     onState: (s) => renderBanner(banner, surface.world, s),
+    onFrame: (f) => hud.frame(f, client.store),
     onWelcome: () => {
       const t = client.store.theater;
       if (t !== null) surface.showTheater(t);
