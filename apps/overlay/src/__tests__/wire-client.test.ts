@@ -516,6 +516,13 @@ describe("fatal and failure paths", () => {
   });
 });
 
+const fakeSurface = () =>
+  ({
+    world: { classList: { toggle: () => undefined } },
+    banners: { appendChild: () => undefined },
+    showTheater: () => undefined,
+  }) as unknown as ReturnType<Parameters<typeof startFeed>[1]>;
+
 describe("token clearing and startFeed", () => {
   it("clears the token from the URL", () => {
     const calls: string[] = [];
@@ -560,11 +567,7 @@ describe("token clearing and startFeed", () => {
   }
 
   it("does nothing without a token", () => {
-    expect(
-      startFeed(fakeWin("http:", "").win, {
-        classList: { toggle: () => undefined },
-      } as unknown as HTMLElement),
-    ).toBeNull();
+    expect(startFeed(fakeWin("http:", "").win, fakeSurface)).toBeNull();
   });
 
   it.each([
@@ -576,11 +579,34 @@ describe("token clearing and startFeed", () => {
       urls.push(u);
       return new FakeSocket();
     });
-    startFeed(fakeWin(protocol, "#token=t").win, {
-      classList: { toggle: () => undefined },
-    } as unknown as HTMLElement);
+    startFeed(fakeWin(protocol, "#token=t").win, fakeSurface);
     vi.unstubAllGlobals();
     expect(urls).toEqual([`${scheme}//h:1${WS_PATH}`]);
+  });
+
+  it("hands the Welcome theater to showTheater", () => {
+    const made: FakeSocket[] = [];
+    vi.stubGlobal("WebSocket", function () {
+      const f = new FakeSocket();
+      made.push(f);
+      return f;
+    });
+    const seen: unknown[] = [];
+    const surface = {
+      ...fakeSurface(),
+      showTheater: (t: unknown) => seen.push(t),
+    };
+    startFeed(fakeWin("http:", "#token=t").win, () => surface as never);
+    vi.unstubAllGlobals();
+    const theater = {
+      nodes: [
+        { node_id: "n1", name: "N1", kind: "FOB", pos: { x_m: 1, y_m: 2 } },
+      ],
+      edges: [],
+      terrain_ref: null,
+    };
+    made[0]?.recv({ type: "Welcome", v: PROTOCOL_V, theater });
+    expect(seen).toEqual([theater]);
   });
 
   it("restores #token before reloading", () => {
@@ -591,9 +617,7 @@ describe("token clearing and startFeed", () => {
       return f;
     });
     const { win, log } = fakeWin("http:", "#token=a b");
-    const client = startFeed(win, {
-      classList: { toggle: () => undefined },
-    } as unknown as HTMLElement);
+    const client = startFeed(win, fakeSurface);
     vi.unstubAllGlobals();
     expect(client).not.toBeNull();
     made[0]?.onclose?.({ code: 4003 });

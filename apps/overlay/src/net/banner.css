@@ -1,12 +1,11 @@
 .nx-banner {
-  position: fixed;
+  position: absolute;
   top: 40%;
   left: 0;
   right: 0;
-  z-index: 1000;
   padding: 24px;
   text-align: center;
-  font: 700 48px monospace;
+  font: 700 48px var(--nx-font);
   letter-spacing: 4px;
   color: #f8fafc;
   background: rgba(2, 6, 23, 0.85);
