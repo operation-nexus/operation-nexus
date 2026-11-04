@@ -90,7 +90,7 @@ def test_truck_loads_at_the_nearest_friendly_node_with_surplus() -> None:
     assert (ev.node_id, ev.unit_kind, ev.loadout) == ("west-airbase", "LOGI_TRUCK", "FULL")
     # It already moved a tick (SC-13) from west-airbase, toward fob-n-w: 25 m/s x 0.6 s.
     assert t.last_node == "west-airbase" and t.path == ["fob-n-w"]
-    assert t.pos.x > 90_000.0 and t.pos.y < 120_000.0
+    assert t.pos.x > 90_000.0 and t.pos.y > 120_000.0
 
 
 def test_cargo_is_the_surplus_and_a_source_never_drops_below_its_floor() -> None:

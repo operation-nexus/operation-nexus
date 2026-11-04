@@ -388,7 +388,7 @@ economy:
 # catalog's `mirrors`, NX-499 for `campaign.defeat.reset_hp_frac`, NX-501 for
 # `logistics.stock_target_mode` and `stock_target_loadouts`); a change means
 # every config_hash moved.
-GOLDEN_CONFIG_HASH = "af640143a066da75e24f35998ba18467e5bc66e57eee0c2f349d23ee554e5c81"
+GOLDEN_CONFIG_HASH = "1920af11625ee57e0a7b6683ef29fa3317af80345f4a1ea78d3246b7d7fe1ac4"
 AIR = {
     "bingo_reserve_frac": 0.15,
     "orbit_period_s": 120.0,

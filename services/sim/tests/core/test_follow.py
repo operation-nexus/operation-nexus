@@ -336,7 +336,7 @@ def test_followers_keep_their_role_a_recon_follower_still_scans() -> None:
     uav = put(w, "RECON_UAV", "west-airbase")
     follow(uav, lead)
     foe = unit(w, "ENEMY_ARMOR")
-    foe.pos, foe.last_node = Vec2(110_000, 100_000), None
+    foe.pos, foe.last_node = Vec2(110_000, 140_000), None
     run(w, 300)
     assert foe.id in w.contacts["COALITION"]
 
@@ -405,7 +405,7 @@ def test_a_truck_route_through_a_known_ring_posts_an_escort_job() -> None:
     truck = threatened_truck(w)
     put(w, "STRIKE_FIGHTER", "west-airbase", owner=AI)  # staff the kind
     assert [j.kind for j in jobs(w)] == []
-    ring(w, "COALITION", 110_000, 90_000)
+    ring(w, "COALITION", 110_000, 150_000)
     events = board_pass(w)
     (job,) = [j for j in jobs(w) if j.kind == "ESCORT_CONVOY"]
     created = [e for e in events if e.kind == "JobCreated"]
@@ -424,9 +424,9 @@ def test_a_disabled_ring_a_far_ring_or_no_ring_posts_nothing() -> None:
     w = new_world()
     threatened_truck(w)
     put(w, "STRIKE_FIGHTER", "west-airbase", owner=AI)
-    ring(w, "COALITION", 110_000, 90_000, "DISABLED")
+    ring(w, "COALITION", 110_000, 150_000, "DISABLED")
     assert not [j for j in jobs(w) if j.kind == "ESCORT_CONVOY"] and board_pass(w) == []
-    ring(w, "COALITION", 110_000, 10_000)  # 110 km off the route, ring 35 km
+    ring(w, "COALITION", 110_000, 230_000)  # 110 km off the route, ring 35 km
     board_pass(w)
     assert not [j for j in jobs(w) if j.kind == "ESCORT_CONVOY"]
 
@@ -436,7 +436,7 @@ def test_a_tracked_enemy_posts_the_job_but_a_last_known_track_does_not() -> None
     truck = threatened_truck(w)
     put(w, "RECON_UAV", "west-airbase", owner=AI)
     foe = unit(w, "ENEMY_ARMOR")
-    foe.pos = Vec2(110_000, 80_000)
+    foe.pos = Vec2(110_000, 160_000)
     w.contacts["COALITION"][foe.id] = Contact("ENEMY_ARMOR", foe.pos, Vec2(0, 0), age=40)
     board_pass(w)
     assert not [j for j in jobs(w) if j.kind == "ESCORT_CONVOY"]  # last-known only
@@ -450,7 +450,7 @@ def test_a_tracked_enemy_posts_the_job_but_a_last_known_track_does_not() -> None
 def test_players_take_an_escort_job_as_a_follow_order_the_garrison_never_does() -> None:
     w = new_world()
     truck = threatened_truck(w)
-    ring(w, "COALITION", 110_000, 90_000)
+    ring(w, "COALITION", 110_000, 150_000)
     garrison = put(w, "STRIKE_FIGHTER", "west-airbase", owner=AI)
     board_pass(w)
     assert garrison.job_id is None or w.boards["COALITION"][garrison.job_id].kind != "ESCORT_CONVOY"
@@ -473,7 +473,7 @@ def _may(w: World, e: Entity, job: object) -> bool:
 def test_the_escort_job_ends_done_when_the_truck_arrives_with_a_follower() -> None:
     w = new_world()
     truck = threatened_truck(w)
-    ring(w, "COALITION", 110_000, 90_000)
+    ring(w, "COALITION", 110_000, 150_000)
     player = put(w, "RECON_UAV", "west-airbase")
     board_pass(w)
     board_pass(w)
@@ -487,7 +487,7 @@ def test_the_escort_job_ends_done_when_the_truck_arrives_with_a_follower() -> No
 def test_an_unclaimed_escort_job_expires_when_the_truck_arrives() -> None:
     w = new_world()
     truck = threatened_truck(w)
-    ring(w, "COALITION", 110_000, 90_000)
+    ring(w, "COALITION", 110_000, 150_000)
     put(w, "STRIKE_FIGHTER", "west-airbase", owner=AI)
     board_pass(w)
     truck.path = []
@@ -497,7 +497,7 @@ def test_an_unclaimed_escort_job_expires_when_the_truck_arrives() -> None:
 def test_the_escort_job_fails_when_the_truck_is_lost_and_frees_the_escort() -> None:
     w = new_world()
     truck = threatened_truck(w)
-    ring(w, "COALITION", 110_000, 90_000)
+    ring(w, "COALITION", 110_000, 150_000)
     player = put(w, "RECON_UAV", "west-airbase")
     board_pass(w)
     board_pass(w)
@@ -511,7 +511,7 @@ def test_the_escort_job_fails_when_the_truck_is_lost_and_frees_the_escort() -> N
 def test_the_static_ai_may_take_the_job_by_the_same_rule() -> None:
     w = new_world()
     truck = on_road(w, "ENEMY_CONVOY", 1_000)
-    ring(w, "ENEMY", 330_000, 100_000)
+    ring(w, "ENEMY", 330_000, 140_000)
     pilot = put(w, "ENEMY_STRIKE_FIGHTER", "east-airbase", DIRECTOR)
     board_pass(w)
     board_pass(w)
@@ -709,7 +709,7 @@ def test_an_aircraft_escort_breaks_station_toward_a_threat_and_unarmed_followers
     follow(jet, lead)
     follow(col, lead)
     foe = unit(w, "ENEMY_ARMOR")
-    jet.pos = Vec2(90_000, 129_000)  # 12.7 km from the foe, past its 10 km gun
+    jet.pos = Vec2(90_000, 111_000)  # 12.7 km from the foe, past its 10 km gun
     foe.pos, foe.last_node, foe.path = Vec2(81_000, 120_000), None, []
     w.contacts["COALITION"][foe.id] = Contact("ENEMY_ARMOR", foe.pos, Vec2(0, 0))
     lead.fired_by = [[foe.id, 1]]
@@ -750,11 +750,11 @@ def test_an_ambush_beside_a_bridge_edge_is_answered_along_the_road(eastbound: bo
     for site in [e for e in w.entities() if e.kind in ("RADAR_SITE", "AIR_DEFENSE_SITE")]:
         w.remove(site.id)
     last, path = ("fob-n-w", ["cross-n"]) if eastbound else ("cross-n", ["fob-n-w"])
-    lead = at_edge(w, "ENEMY_CONVOY", 210_000, 60_000, last, path)
-    armor = at_edge(w, "ENEMY_ARMOR", 210_000 + (500 if eastbound else -500), 60_000, last, path)
+    lead = at_edge(w, "ENEMY_CONVOY", 210_000, 180_000, last, path)
+    armor = at_edge(w, "ENEMY_ARMOR", 210_000 + (500 if eastbound else -500), 180_000, last, path)
     follow(armor, lead)
     foe = unit(w, "GARRISON_INFANTRY", AI)
-    foe.pos, foe.last_node = Vec2(203_000 if eastbound else 217_000, 60_000), None
+    foe.pos, foe.last_node = Vec2(203_000 if eastbound else 217_000, 180_000), None
     lead.fired_by = [[foe.id, w.campaign.running_ticks + 1]]
     w.contacts["ENEMY"][foe.id] = Contact("GARRISON_INFANTRY", foe.pos, Vec2(0, 0))
     steer(w)
@@ -768,12 +768,12 @@ def test_an_escort_keeps_station_when_no_road_leads_toward_the_threat() -> None:
     w = new_world()
     for site in [e for e in w.entities() if e.kind in ("RADAR_SITE", "AIR_DEFENSE_SITE")]:
         w.remove(site.id)
-    lead = at_edge(w, "ENEMY_CONVOY", 249_500, 60_000, "cross-n", ["fob-n-e"])
-    armor = at_edge(w, "ENEMY_ARMOR", 250_000, 60_000, "cross-n", ["fob-n-e"])
+    lead = at_edge(w, "ENEMY_CONVOY", 249_500, 180_000, "cross-n", ["fob-n-e"])
+    armor = at_edge(w, "ENEMY_ARMOR", 250_000, 180_000, "cross-n", ["fob-n-e"])
     follow(armor, lead)
     foe = unit(w, "GARRISON_INFANTRY", AI)
     foe.pos, foe.last_node = (
-        Vec2(250_000, 66_000),
+        Vec2(250_000, 174_000),
         None,
     )  # abeam of the armor: both legs only lead away
     lead.fired_by = [[foe.id, w.campaign.running_ticks + 1]]
@@ -790,15 +790,15 @@ def test_escorts_cannot_leapfrog_away_from_the_convoy() -> None:
     far = put(w, "STRIKE_FIGHTER", "west-airbase")
     follow(near, lead)
     follow(far, lead)
-    near.pos = Vec2(90_000, 120_000 - 11_000)  # past the leash itself, so it keeps station
-    far.pos = Vec2(90_000, 120_000 - 12_000)  # 1 km from `near`, 12 km from the convoy
+    near.pos = Vec2(90_000, 120_000 + 11_000)  # past the leash itself, so it keeps station
+    far.pos = Vec2(90_000, 120_000 + 12_000)  # 1 km from `near`, 12 km from the convoy
     foe = unit(w, "ENEMY_ARMOR")
     foe.pos, foe.last_node, foe.path = Vec2(83_000, 120_000), None, []  # 7 km from the convoy
     w.contacts["COALITION"][foe.id] = Contact("ENEMY_ARMOR", foe.pos, Vec2(0, 0))
     lead.fired_by = [[foe.id, w.campaign.running_ticks + 1]]
     steer(w)
     assert far.path == [lead.pos] and near.path == [lead.pos]  # both return, neither chases
-    near.pos = Vec2(90_000, 120_000 - 8_000)  # inside the leash: it does chase (10 km gun)
+    near.pos = Vec2(90_000, 120_000 + 8_000)  # inside the leash: it does chase (10 km gun)
     steer(w)
     assert near.path == [foe.pos]
 
@@ -935,7 +935,7 @@ def follow_scene(seed: int = 3) -> World:
     truck.path = ["fob-n-w"]
     uav = put(w, "RECON_UAV", "west-airbase")
     follow(uav, truck)
-    ring(w, "COALITION", 110_000, 90_000)
+    ring(w, "COALITION", 110_000, 150_000)
     run(w, 130)
     return w
 

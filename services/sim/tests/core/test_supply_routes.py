@@ -65,10 +65,10 @@ def test_a_claimed_truck_never_reroutes_through_the_airbase_when_the_bridge_fall
     (job,) = [j for j in _jobs(w, "RESUPPLY") if j.node == "cross-n"]
     hauler = tt.put(w, TRUCK, "fob-n-w", cargo=100)
     tasking.claim(w, hauler, job, [])
-    hauler.pos, hauler.path = Vec2(150_000.0, 60_000.0), ["cross-n"]  # short of the cut
+    hauler.pos, hauler.path = Vec2(150_000.0, 180_000.0), ["cross-n"]  # short of the cut
     joined = tt.put(w, TRUCK, "fob-n-w", cargo=100)  # a `!join logi cross-n`: a GOTO, no job
     joined.order, joined.order_node = "GOTO", "cross-n"
-    joined.pos, joined.path = Vec2(150_000.0, 60_000.0), ["cross-n"]
+    joined.pos, joined.path = Vec2(150_000.0, 180_000.0), ["cross-n"]
     bridges.damage(w, RULES, NORTH, 300, 1, [])
     assert hauler.path == ["fob-n-w"] and joined.path == ["fob-n-w"]  # back to its bank, no detour
 
@@ -219,7 +219,7 @@ def _held_at_cross_s() -> tuple[World, Entity]:
     bridge-s falls; it turns back to neutral cross-s, whose only other roads run to the Static's
     fob-s-e and east-airbase."""
     w = tt.new_world()
-    truck = _goto_truck(w, "cross-s", "fob-s-w", 220_000.0, 180_000.0, cargo=100)
+    truck = _goto_truck(w, "cross-s", "fob-s-w", 220_000.0, 60_000.0, cargo=100)
     bridges.damage(w, RULES, SOUTH, 300, 1, [])
     assert truck.path == ["cross-s"]
     for _ in range(1000):
@@ -310,7 +310,7 @@ def test_an_empty_capture_run_truck_reroutes_by_any_road() -> None:
     """An empty GOTO truck (a capture run to cross-n) turned back by the cut takes the only road
     left, through east-airbase: only a supply run avoids enemy ground."""
     w = tt.new_world()
-    truck = _goto_truck(w, "fob-n-w", "cross-n", 150_000.0, 60_000.0, cargo=None)
+    truck = _goto_truck(w, "fob-n-w", "cross-n", 150_000.0, 180_000.0, cargo=None)
     bridges.damage(w, RULES, NORTH, 300, 1, [])
     assert truck.path[0] == "fob-n-w" and FOE in truck.path and truck.path[-1] == "cross-n"
 
@@ -320,7 +320,7 @@ def test_a_rerouted_supply_run_still_reaches_its_lost_destination() -> None:
     neutral, bridge-n falls: the loaded GOTO truck drives round by the south to cross-n."""
     w = tt.new_world()
     w.owner["cross-n"], w.owner[FOE] = "ENEMY", "NEUTRAL"
-    truck = _goto_truck(w, "fob-n-w", "cross-n", 150_000.0, 60_000.0, cargo=100)
+    truck = _goto_truck(w, "fob-n-w", "cross-n", 150_000.0, 180_000.0, cargo=100)
     bridges.damage(w, RULES, NORTH, 300, 1, [])
     assert truck.path == ["fob-n-w", "west-airbase", "fob-s-w", "cross-s", FOE, "cross-n"]
 
@@ -330,7 +330,7 @@ def test_a_loaded_truck_going_home_reroutes_by_any_road() -> None:
     supply run (its path does not end at `order_node`): turned back to cross-n by the cut, it
     takes the only road left, through east-airbase."""
     w = tt.new_world()
-    truck = _goto_truck(w, "cross-n", "fob-n-e", 220_000.0, 60_000.0, cargo=100)
+    truck = _goto_truck(w, "cross-n", "fob-n-e", 220_000.0, 180_000.0, cargo=100)
     truck.path = ["fob-n-w", "west-airbase"]
     bridges.damage(w, RULES, NORTH, 300, 1, [])
     assert truck.path[0] == "cross-n" and FOE in truck.path and truck.path[-1] == "west-airbase"
@@ -345,7 +345,7 @@ def test_a_held_claimant_whose_lease_lapses_still_never_crosses_enemy_ground() -
     (job,) = [j for j in _jobs(w, "RESUPPLY") if j.node == "fob-s-w"]
     truck = tt.put(w, "LOGI_TRUCK", "cross-s", cargo=100)
     tasking.claim(w, truck, job, [])
-    truck.pos, truck.path = Vec2(220_000.0, 180_000.0), ["fob-s-w"]
+    truck.pos, truck.path = Vec2(220_000.0, 60_000.0), ["fob-s-w"]
     rules = w.rules
     assert rules is not None
     bridges.damage(w, rules, SOUTH, 300, 1, [])

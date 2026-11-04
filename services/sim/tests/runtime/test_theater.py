@@ -14,7 +14,7 @@ from nexus.runtime.theater import load_theater, masking_cells, road_graph
 STRAIT_1 = Path(__file__).resolve().parents[4] / "content" / "theaters" / "strait-1.yaml"
 TEXT = STRAIT_1.read_text(encoding="utf-8")
 # Pinned from this implementation's first run (NX-120); a change means every config_hash moved.
-GOLDEN_THEATER_HASH = "c347301b7a7b892a5ccc3959e41eca838cbcffc45cd812976e8578b0ea7a773a"
+GOLDEN_THEATER_HASH = "cc23cd26b9e2de82a61a149a33bd6070959d20138a6735af4afd37d3a06bdbee"
 INTACT: frozenset[str] = frozenset()
 
 
@@ -32,26 +32,26 @@ def test_strait_1_loads_with_golden_hash() -> None:
 
 
 def test_mask_cell_m_sets_the_raster_cell() -> None:
-    """northern-hills x 150-260 km, y 0-35 km; southern-valley x 230-330 km, y 205-240 km. At 2 km a
+    """northern-hills x 150-260 km, y 205-240 km; southern-valley x 230-330 km, y 0-35 km. At 2 km a
     cell centre is 1 + 2k km and an edge counts: hills 55 x 18 cells, valley 50 x 18."""
     cell_m, cells = masking_cells(load_theater(STRAIT_1), 2000)
     assert cell_m == 2000 and len(cells) == 55 * 18 + 50 * 18
 
 
 def test_masking_regions_rasterize_to_1km_cells_by_centre(tmp_path: Path) -> None:
-    """Q-FOW-3 (NX-150 part 2): northern-hills is x 150-260 km, y 0-35 km: 110 x 35 cells;
-    southern-valley x 230-330 km, y 205-240 km: 100 x 35 cells."""
+    """Q-FOW-3 (NX-150 part 2): northern-hills is x 150-260 km, y 205-240 km: 110 x 35 cells;
+    southern-valley x 230-330 km, y 0-35 km: 100 x 35 cells."""
     cell_m, cells = masking_cells(load_theater(STRAIT_1), 1000)
     assert cell_m == 1000
     hills, valley = frozenset({"northern-hills"}), frozenset({"southern-valley"})
     assert len(cells) == 110 * 35 + 100 * 35
-    assert cells[150, 0] == cells[259, 34] == hills
-    assert cells[230, 205] == cells[329, 239] == valley
-    assert {(149, 0), (260, 0), (259, 35), (229, 205), (330, 239)}.isdisjoint(cells)
+    assert cells[150, 205] == cells[259, 239] == hills
+    assert cells[230, 0] == cells[329, 34] == valley
+    assert {(149, 205), (260, 205), (259, 204), (229, 0), (330, 34)}.isdisjoint(cells)
     # A cell in two overlapping regions lists both.
-    path = write(tmp_path, "[[230000,205000],[330000,205000],", "[[230000,30000],[330000,30000],")
+    path = write(tmp_path, "[[230000,35000],[330000,35000],", "[[230000,210000],[330000,210000],")
     both = masking_cells(load_theater(path), 1000)[1]
-    assert both[240, 30] == hills | valley and both[240, 36] == valley
+    assert both[240, 209] == hills | valley and both[240, 204] == valley
 
 
 def test_paths_between_sanctuary_and_hq_avoid_destroyed_bridges() -> None:
@@ -121,7 +121,7 @@ def test_path_is_hash_seed_independent() -> None:
             r"nodes\.1: 'west-airbase' is not reachable by road from 'haven'",
         ),
         (", bridge: bridge-n }", " }", r"nodes\.4: BRIDGE 'bridge-n' is on no edge"),
-        ("kind: FOB,       pos: [230000,60000]", "kind: PORT,      pos: [230000,60000]", r"PORT"),
+        ("kind: FOB,       pos: [230000,180000]", "kind: PORT,      pos: [230000,180000]", r"PORT"),
         (  # a PORT needs a road too (lead decision on TH-3)
             "  # Static (east)\n",
             '  - { id: port-x, name: "Port X", kind: PORT, pos: [200000,120000], '
@@ -130,11 +130,11 @@ def test_path_is_hash_seed_independent() -> None:
         ),
         # TH-4
         ("bridge: bridge-n }", "bridge: cross-n }", r"edges\.3\.bridge: unknown or wrong-kind"),
-        ("pos: [200000,60000]", "pos: [200000,61001]", r"edges\.3\.bridge: 'bridge-n' is not on"),
+        ("pos: [200000,180000]", "pos: [200000,181001]", r"edges\.3\.bridge: 'bridge-n' is not on"),
         # TH-5
         (
-            "kind: FOB,       pos: [230000,60000],  start_owner: NEUTRAL,   start_stock: 0",
-            "kind: SANCTUARY, pos: [230000,60000],  start_owner: NEUTRAL,   start_stock: null",
+            "kind: FOB,       pos: [230000,180000],  start_owner: NEUTRAL,   start_stock: 0",
+            "kind: SANCTUARY, pos: [230000,180000],  start_owner: NEUTRAL,   start_stock: null",
             r"sanctuary: need exactly one SANCTUARY",
         ),
         (
@@ -227,7 +227,7 @@ def test_slug_must_match_file_name(tmp_path: Path) -> None:
 
 
 def test_bridge_exactly_at_tolerance_loads(tmp_path: Path) -> None:
-    load_theater(write(tmp_path, "pos: [200000,60000]", "pos: [200000,61000]"))
+    load_theater(write(tmp_path, "pos: [200000,180000]", "pos: [200000,181000]"))
 
 
 def test_spec_format_example_loads(tmp_path: Path) -> None:

@@ -85,7 +85,7 @@ def recon_wheres(w: World) -> dict[str, tuple[ops.Where, ...]]:
 def ring_field(w: World) -> None:
     """Four rings across the northern sector, 100 km apart, that together cover it."""
     for n, x in enumerate((50_000, 150_000, 250_000, 350_000)):
-        marker(w, 9001 + n, x, 40_000, 75_000)
+        marker(w, 9001 + n, x, 200_000, 75_000)
 
 
 # --- the point ------------------------------------------------------------------------------------
@@ -96,7 +96,7 @@ def test_with_nothing_known_the_point_is_the_first_stale_cell_and_deterministic(
     got = point(w, "north", FAR)
     assert got is not None
     spot, origin = got
-    assert (spot.x, spot.y) == (5_000, 5_000)  # every cell is missing (1): the tie goes by (x, y)
+    assert (spot.x, spot.y) == (5_000, 165_000)  # every cell is missing (1): the tie goes by (x, y)
     assert origin == "east-airbase"  # the nearest Static base that spawns aircraft
     assert point(new_world(), "north", FAR) == got  # no draw: another world gives the same
 
@@ -106,13 +106,13 @@ def test_the_stalest_cell_wins_a_fresh_track_makes_its_area_fresh() -> None:
     view = side_view(w, "ENEMY")
     fade = RULES.track_fade_ticks
     # a current track at the first cell and a track lost half a fade ago at the second
-    tracks = {1: Contact("STRIKE_FIGHTER", Vec2(5_000, 5_000), Vec2(0, 0), None)}
-    old = {2: Contact("STRIKE_FIGHTER", Vec2(5_000, 15_000), Vec2(0, 0), fade // 2)}
+    tracks = {1: Contact("STRIKE_FIGHTER", Vec2(5_000, 165_000), Vec2(0, 0), None)}
+    old = {2: Contact("STRIKE_FIGHTER", Vec2(5_000, 175_000), Vec2(0, 0), fade // 2)}
     seen = dataclasses.replace(view, tracks=tracks, last_known=old)
     spot, _ = ops.recon_point(seen, FAR, _own(w, FAR, "ENEMY"), "north", UAV, {}, 1) or (None, "")
     assert spot is not None and (spot.x, spot.y) == (
         5_000,
-        25_000,
+        185_000,
     )  # the first cell with no track at all
     # the area of a track older than every missing one never beats a missing cell; with every
     # cell tracked the oldest wins
@@ -121,19 +121,19 @@ def test_the_stalest_cell_wins_a_fresh_track_makes_its_area_fresh() -> None:
             "STRIKE_FIGHTER",
             Vec2(x, y),
             Vec2(0, 0),
-            fade // 2 if (x, y) == (45_000, 25_000) else None,
+            fade // 2 if (x, y) == (45_000, 215_000) else None,
         )
         for i, (x, y) in enumerate(ops._grid(RULES, "north", DR.recon_grid_m))
     }
     full = dataclasses.replace(view, tracks=every, last_known={})
     spot, _ = ops.recon_point(full, FAR, _own(w, FAR, "ENEMY"), "north", UAV, {}, 1) or (None, "")
-    assert spot is not None and (spot.x, spot.y) == (45_000, 25_000)
+    assert spot is not None and (spot.x, spot.y) == (45_000, 215_000)
 
 
 def test_a_point_the_scout_could_not_loiter_at_and_return_from_is_never_picked() -> None:
     w = new_world()
     spot, _ = point(w, "north") or (Vec2(0, 0), "")
-    assert (spot.x, spot.y) != (5_000, 5_000)  # the stalest cell is out of range (305 km out)
+    assert (spot.x, spot.y) != (5_000, 165_000)  # the stalest cell is out of range (308 km out)
     speed, fuel = RULES.speed_mps[UAV], RULES.fuel_s[UAV]
     start = Vec2(*RULES.roads.pos["east-airbase"])
     out = math.hypot(spot.x - start.x, spot.y - start.y)
@@ -141,16 +141,16 @@ def test_a_point_the_scout_could_not_loiter_at_and_return_from_is_never_picked()
     loiter = LOITER * RULES.world_dt  # one fuel second per world second
     assert (out + back) / speed + loiter + RULES.bingo_reserve_frac * fuel <= fuel
     # the cell the picker refused is beyond that budget by plain arithmetic
-    far = Vec2(5_000, 5_000)
+    far = Vec2(5_000, 165_000)
     trip = 2 * math.hypot(far.x - start.x, far.y - start.y) / speed
     assert trip + loiter + RULES.bingo_reserve_frac * fuel > fuel
 
 
 def test_no_route_crosses_a_known_active_ring_and_a_disabled_one_is_ignored() -> None:
     w = new_world()
-    for n, (x, y) in enumerate([(60_000, 40_000), (150_000, 20_000), (310_000, 30_000)]):
+    for n, (x, y) in enumerate([(60_000, 200_000), (150_000, 220_000), (310_000, 210_000)]):
         marker(w, 9001 + n, x, y, 45_000)
-    marker(w, 9100, 5_000, 5_000, 30_000, "DISABLED")  # the stalest cell: last seen Disabled
+    marker(w, 9100, 5_000, 165_000, 30_000, "DISABLED")  # the stalest cell: last seen Disabled
     hit = 0
     for sector in ("north", "centre", "south"):
         got = point(w, sector)
@@ -163,7 +163,7 @@ def test_no_route_crosses_a_known_active_ring_and_a_disabled_one_is_ignored() ->
             hit += 1
     assert hit == 9
     free = new_world()
-    marker(free, 9100, 5_000, 5_000, 30_000, "DISABLED")
+    marker(free, 9100, 5_000, 165_000, 30_000, "DISABLED")
     assert point(free, "north") == point(new_world(), "north")  # a Disabled site blocks nothing
 
 
@@ -182,7 +182,7 @@ def test_the_point_and_route_come_from_the_view_not_from_the_true_coalition() ->
     # hidden state differs: coalition air defenses the Static has never seen, on the quiet world's
     # chosen point and across its routes
     spot, _ = point(quiet, "north") or (Vec2(0, 0), "")
-    for n, (x, y) in enumerate([(spot.x, spot.y), (spot.x + 20_000, spot.y), (100_000, 20_000)]):
+    for n, (x, y) in enumerate([(spot.x, spot.y), (spot.x + 20_000, spot.y), (100_000, 220_000)]):
         site = unit(busy, "AIR_DEFENSE_SITE", "COALITION", "AI_GARRISON", "west-airbase")
         site.pos = Vec2(x, y)
         site.base_id = "west-airbase"

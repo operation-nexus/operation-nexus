@@ -59,12 +59,12 @@ CAMPAIGN = "0192f3a4-5b6c-7d8e-9f01-23456789abcd"
 STRAIT_1_FACILITIES = [
     (1, "RADAR_SITE", "COALITION", "west-airbase", None, True, Vec2(90_000, 120_000)),
     (2, "AIR_DEFENSE_SITE", "COALITION", "west-airbase", "SAM", True, Vec2(90_000, 120_000)),
-    (3, "AIR_DEFENSE_SITE", "COALITION", "fob-n-w", "SHORT_RANGE", None, Vec2(130_000, 60_000)),
-    (4, "AIR_DEFENSE_SITE", "COALITION", "fob-s-w", "SHORT_RANGE", None, Vec2(130_000, 180_000)),
+    (3, "AIR_DEFENSE_SITE", "COALITION", "fob-n-w", "SHORT_RANGE", None, Vec2(130_000, 180_000)),
+    (4, "AIR_DEFENSE_SITE", "COALITION", "fob-s-w", "SHORT_RANGE", None, Vec2(130_000, 60_000)),
     (5, "RADAR_SITE", "ENEMY", "east-airbase", None, True, Vec2(310_000, 120_000)),
     (6, "AIR_DEFENSE_SITE", "ENEMY", "east-airbase", "SAM", True, Vec2(310_000, 120_000)),
-    (7, "AIR_DEFENSE_SITE", "ENEMY", "fob-n-e", "SHORT_RANGE", None, Vec2(290_000, 40_000)),
-    (8, "AIR_DEFENSE_SITE", "ENEMY", "fob-s-e", "SHORT_RANGE", None, Vec2(290_000, 200_000)),
+    (7, "AIR_DEFENSE_SITE", "ENEMY", "fob-n-e", "SHORT_RANGE", None, Vec2(290_000, 200_000)),
+    (8, "AIR_DEFENSE_SITE", "ENEMY", "fob-s-e", "SHORT_RANGE", None, Vec2(290_000, 40_000)),
     (9, "RADAR_SITE", "ENEMY", "static-hq", None, True, Vec2(380_000, 120_000)),
 ]
 

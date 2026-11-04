@@ -16,7 +16,7 @@ from golden.make_cases import join
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
-from nexus.broadcast.frames import FrameBuilder, _public, control, encode
+from nexus.broadcast.frames import FrameBuilder, _motion, _public, control, encode
 from nexus.contracts.gen.events.campaign_clock_paused import CampaignClockPaused
 from nexus.contracts.gen.events.event import Event
 from nexus.contracts.gen.events.unit_destroyed import UnitDestroyed
@@ -238,3 +238,9 @@ def test_welcome_names_every_node_and_edge_without_dynamic_state() -> None:
     ]
     assert isinstance(builder().snapshot(start_campaign(CAMPAIGN, 1, CFG)), Snapshot)
     assert isinstance(builder().hud(start_campaign(CAMPAIGN, 1, CFG)), Hud)
+
+
+def test_heading_zero_is_north_plus_y_and_east_plus_x_is_ninety() -> None:
+    """Q-UX-18: world +y is north, so a unit moving +y has heading 0 and +x (east) has 90."""
+    assert _motion(0.0, 5.0) == (0, 5) and _motion(5.0, 0.0) == (90, 5)
+    assert _motion(0.0, -5.0)[0] == 180 and _motion(-5.0, 0.0)[0] == 270

@@ -254,7 +254,7 @@ def test_recon_utility_rises_with_stale_tracks_and_falls_with_scout_losses() -> 
     assert blind == Fraction(1, 2) * 2  # no track at all: staleness 1
     from nexus.core.world import Contact
 
-    w.contacts["ENEMY"][900] = Contact("STRIKE_FIGHTER", Vec2(100e3, 20e3), Vec2(0, 0))
+    w.contacts["ENEMY"][900] = Contact("STRIKE_FIGHTER", Vec2(100e3, 220e3), Vec2(0, 0))
     assert scores(w, quiet)["RECON", "north"] == Fraction(1, 2)  # a current track: fresh
     w.contacts["ENEMY"][900].age = RULES.track_fade_ticks // 2
     assert scores(w, quiet)["RECON", "north"] == Fraction(1, 2) * Fraction(3, 2)
