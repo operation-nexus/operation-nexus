@@ -124,8 +124,8 @@ def test_air_unit_flies_straight_to_the_node() -> None:
     step(w, [join(1, "STRIKE", "bridge-n")])  # aircraft may fly to a node no road reaches
     (unit,) = w.entities()
     assert unit.path == ["bridge-n"]
-    # 250 m/s x 0.6 s = 150 m toward bridge-n at (200 km, 60 km): direction (3, -1) / sqrt(10).
-    assert (round(unit.pos.x, 6), round(unit.pos.y, 6)) == (20_142.302495, 119_952.565835)
+    # 250 m/s x 0.6 s = 150 m toward bridge-n at (200 km, 180 km): direction (3, 1) / sqrt(10).
+    assert (round(unit.pos.x, 6), round(unit.pos.y, 6)) == (20_142.302495, 120_047.434165)
 
 
 @pytest.mark.parametrize(

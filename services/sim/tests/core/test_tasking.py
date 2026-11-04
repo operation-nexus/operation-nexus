@@ -832,11 +832,11 @@ def test_a_low_orbiting_aircraft_flies_to_the_nearest_base_with_stock() -> None:
     post(w, "COALITION", "STRIKE", "east-airbase", "far")
     jet = put(w, "STRIKE_FIGHTER", "west-airbase")
     jet.state, jet.fuel = "ON_STATION", 700.0
-    jet.pos, jet.orbit = Vec2(150_000, 120_000), Vec2(150_000, 121_000)
+    jet.pos, jet.orbit = Vec2(150_000, 120_000), Vec2(150_000, 119_000)
     board_pass(w)
     assert jet.job_id is None and jet.path == ["west-airbase"] and jet.orbit is None
     w.stock["west-airbase"] = 0  # a base with no stock cannot refuel it: haven (infinite) can
-    jet.path, jet.orbit = [], Vec2(150_000, 121_000)
+    jet.path, jet.orbit = [], Vec2(150_000, 119_000)
     board_pass(w)
     assert jet.path == ["haven"]
 
@@ -2013,7 +2013,7 @@ def test_an_aircraft_skips_a_job_whose_route_crosses_a_discovered_air_defense_ri
     ring = 30_000
     # A SAM site at (300 km, 100 km): 20 km off the line, inside its 30 km ring.
     w.markers["COALITION"][50] = FacilityMarker(
-        "AIR_DEFENSE_SITE", "SAM", Vec2(300_000, 100_000), True, 1, ring, "HEALTHY"
+        "AIR_DEFENSE_SITE", "SAM", Vec2(300_000, 140_000), True, 1, ring, "HEALTHY"
     )
     board_pass(w)
     assert jet.job_id is None
@@ -2177,7 +2177,7 @@ def test_a_new_aircraft_avoids_a_ringed_route_like_a_board_assignment() -> None:
     w = new_world()
     far = post(w, "COALITION", "STRIKE", "static-hq", "hq", urgency=1500)
     w.markers["COALITION"][50] = FacilityMarker(
-        "AIR_DEFENSE_SITE", "SAM", Vec2(300_000, 100_000), True, 1, 30_000, "HEALTHY"
+        "AIR_DEFENSE_SITE", "SAM", Vec2(300_000, 140_000), True, 1, 30_000, "HEALTHY"
     )
     assert [j.id for j in joinable_jobs(w, "STRIKE_FIGHTER")] == [far.id]
     events = step(w, [join(1, "STRIKE")])
@@ -2364,7 +2364,7 @@ def test_an_aircraft_skips_a_patrol_whose_orbit_reaches_a_discovered_ring() -> N
     jet = put(w, "STRIKE_FIGHTER", "west-airbase")
     # a SAM 33 km north of the node with a 30 km ring: outside the ring, inside ring + 5 km orbit
     w.markers["COALITION"][50] = FacilityMarker(
-        "AIR_DEFENSE_SITE", "SAM", Vec2(130_000, 27_000), True, 1, 30_000, "HEALTHY"
+        "AIR_DEFENSE_SITE", "SAM", Vec2(130_000, 213_000), True, 1, 30_000, "HEALTHY"
     )
     board_pass(w)
     assert jet.job_id is None and [j.key for j in jobs(w)] == ["patrol:fob-n-w"]
@@ -2509,7 +2509,7 @@ def test_a_patrol_is_kept_for_a_better_job_the_unit_cannot_take() -> None:
     # east-airbase: a discovered ring straight across the jet's way there (TB-2 refuses it)
     post(w, "COALITION", "STRIKE", "static-hq", "hq")
     w.markers["COALITION"][50] = FacilityMarker(
-        "AIR_DEFENSE_SITE", "SAM", Vec2(300_000, 100_000), True, 1, 30_000, "HEALTHY"
+        "AIR_DEFENSE_SITE", "SAM", Vec2(300_000, 140_000), True, 1, 30_000, "HEALTHY"
     )
     out = board_pass(w)
     assert jet.job_id == patrol_id

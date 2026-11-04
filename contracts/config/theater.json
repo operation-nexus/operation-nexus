@@ -2,7 +2,7 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://nexus.local/contracts/config/theater.json",
   "title": "TheaterConfig",
-  "description": "A theater file, content/theaters/<slug>.yaml (CONFIG-AND-CONTENT §9). Fields land with the code that reads them; the loader (NX-120) checks the §9.2 TH rules the schema cannot. Coordinates are integer metres, x east, y south. A TBD value fails its type (TH-11).",
+  "description": "A theater file, content/theaters/<slug>.yaml (CONFIG-AND-CONTENT §9). Fields land with the code that reads them; the loader (NX-120) checks the §9.2 TH rules the schema cannot. Coordinates are integer metres, x east, y north (Q-UX-18). A TBD value fails its type (TH-11).",
   "type": "object",
   "additionalProperties": false,
   "required": ["schema_version", "slug", "name", "version", "bounds_m", "terrain", "sectors", "nodes", "facilities", "edges", "spawns", "sanctuary", "enemy_rear_source", "enemy_hq", "forward_airbase"],

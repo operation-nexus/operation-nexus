@@ -243,7 +243,7 @@ def _bridge_raid(enemy_banks: bool) -> tuple[World, Entity, list[WeaponFired]]:
     for _ in range(3_000):
         shots += [e for e in step(w, []) if isinstance(e, WeaponFired) and e.shooter_id == jet.id]
         if convoy is None and jet.held_since is not None:
-            convoy = w.spawn("ENEMY_CONVOY", "ENEMY", "AI_GARRISON", Vec2(200_500, 60_000))
+            convoy = w.spawn("ENEMY_CONVOY", "ENEMY", "AI_GARRISON", Vec2(200_500, 180_000))
             convoy.last_node = "cross-n"
         if shots:
             break

@@ -194,7 +194,7 @@ def test_a_strike_drops_the_bridge_and_its_fall_kills_the_units_on_the_span(side
     jet = put(w, JET if side == "COALITION" else ENEMY_JET, side, *POS[NORTH])
     ordered(jet, NORTH)  # an order as well changes nothing: the claim is what fires
     strike(w, jet, NORTH)
-    truck_ = put(w, TRUCK, "COALITION", 199_500, 60_000)  # parked on the span, 500 m from the cut
+    truck_ = put(w, TRUCK, "COALITION", 199_500, 180_000)  # parked on the span, 500 m from the cut
     truck_.last_node = "fob-n-w"
     w.bridge_hp[NORTH] = 100  # two AG_LIGHT hits
     events = run(w, 60)
@@ -411,18 +411,18 @@ def fall(w: World, *nodes: str) -> list[Event]:
 
 def test_a_truck_short_of_the_cut_turns_back_and_takes_the_other_bridge() -> None:
     w = new_world()
-    e = truck(w, 150_000, 60_000, "fob-n-w", ["cross-n", "fob-n-e"])
+    e = truck(w, 150_000, 180_000, "fob-n-w", ["cross-n", "fob-n-e"])
     fall(w, NORTH)
     path = [str(p) for p in e.path]
     assert path[0] == "fob-n-w" and path[-1] == "fob-n-e"
     assert bridges_on(path) == {None, SOUTH}
     run(w, 3)
-    assert e.pos.x < 150_000 and e.pos.y == 60_000  # it drives back toward fob-n-w
+    assert e.pos.x < 150_000 and e.pos.y == 180_000  # it drives back toward fob-n-w
 
 
 def test_a_truck_past_the_cut_and_the_collapse_radius_carries_on() -> None:
     w = new_world()
-    past = truck(w, 210_000, 60_000, "fob-n-w", ["cross-n", "fob-n-e"])
+    past = truck(w, 210_000, 180_000, "fob-n-w", ["cross-n", "fob-n-e"])
     edge = truck(w, 201_001, 60_000, "fob-n-w", ["cross-n"])  # 1 m beyond the radius
     hp = edge.hp
     fall(w, NORTH)
@@ -432,14 +432,14 @@ def test_a_truck_past_the_cut_and_the_collapse_radius_carries_on() -> None:
 
 def test_with_both_bridges_down_a_truck_stops_at_its_bank_node() -> None:
     w = new_world()
-    e = truck(w, 150_000, 60_000, "fob-n-w", ["cross-n", "fob-n-e"])
+    e = truck(w, 150_000, 180_000, "fob-n-w", ["cross-n", "fob-n-e"])
     fall(w, SOUTH, NORTH)
     assert e.path == ["fob-n-w"]
 
 
 def test_a_truck_turned_back_over_the_cut_heads_for_its_own_bank() -> None:
     w = new_world()  # it left fob-n-w, crossed, and was turned back toward it: east of the cut
-    e = truck(w, 210_000, 60_000, "fob-n-w", ["fob-n-w", "west-airbase"])
+    e = truck(w, 210_000, 180_000, "fob-n-w", ["fob-n-w", "west-airbase"])
     fall(w, NORTH)
     path = [str(p) for p in e.path]
     assert path[0] == "cross-n" and path[-1] == "west-airbase" and NORTH not in bridges_on(path)
@@ -486,7 +486,7 @@ def test_a_coalition_patrol_replans_through_held_nodes_only() -> None:
     w = new_world(board_on)
     for n in ("cross-n", "cross-s"):
         w.owner[n] = "COALITION"
-    e = put(w, ARMOR, "COALITION", 150_000, 60_000, cmd=1)
+    e = put(w, ARMOR, "COALITION", 150_000, 180_000, cmd=1)
     e.last_node, e.path = "fob-n-w", ["cross-n"]
     job = Job(w.next_job_id(), "PATROL", "patrol:cross-n", 2, 1000, 0, node="cross-n")
     job.claims[e.id] = Claim(0, active=True)
@@ -507,7 +507,7 @@ def _patrol_unit(x: float, last: str, path: list[str]) -> tuple[World, Entity]:
     w = new_world(dataclasses.replace(CONFIG.rules, campaign=None, track_every_ticks=10**9))
     for n in ("cross-n", "cross-s"):
         w.owner[n] = "COALITION"
-    e = put(w, ARMOR, "COALITION", x, 60_000, cmd=1)
+    e = put(w, ARMOR, "COALITION", x, 180_000, cmd=1)
     e.last_node, e.path = last, [*path]
     job = Job(w.next_job_id(), "PATROL", "patrol:cross-n", 2, 1000, 0, node="cross-n")
     job.claims[e.id] = Claim(0, active=True)
@@ -533,7 +533,7 @@ def test_a_patrol_lost_mid_edge_with_no_held_end_stops_the_unit_rather_than_ente
     w, e = _patrol_unit(150_000, "fob-n-w", ["cross-n"])
     w.owner["fob-n-w"] = w.owner["cross-n"] = "ENEMY"
     run(w)
-    assert e.job_id is None and not e.path and e.pos == Vec2(150_000, 60_000)
+    assert e.job_id is None and not e.path and e.pos == Vec2(150_000, 180_000)
 
 
 def _abandon(w: World, e: Entity) -> None:
@@ -557,7 +557,7 @@ def test_a_patrol_lost_mid_edge_with_both_ends_held_goes_back_to_the_node_it_lef
 
 def test_a_failed_patrol_aircraft_is_not_sent_to_the_node_it_left() -> None:
     w, e = _patrol_unit(150_000, "fob-n-w", ["cross-n"])
-    jet = put(w, JET, "COALITION", 150_000, 60_000, cmd=2)
+    jet = put(w, JET, "COALITION", 150_000, 180_000, cmd=2)
     jet.last_node, jet.path, jet.state, jet.job_id = "fob-n-w", ["cross-n"], "EN_ROUTE", e.job_id
     w.owner["fob-n-w"] = "COALITION"
     for n in ("west-airbase", "haven"):
@@ -591,7 +591,7 @@ def test_a_mid_edge_patrol_failure_replays_identically() -> None:
 
 def test_only_a_patrol_keeps_to_held_nodes() -> None:
     w = new_world()
-    e = truck(w, 150_000, 60_000, "fob-n-w", ["cross-n", "fob-n-e"])
+    e = truck(w, 150_000, 180_000, "fob-n-w", ["cross-n", "fob-n-e"])
     strike(w, e, "fob-n-e")  # any other job, `via` unset too: the plain road search
     fall(w, NORTH)
     assert e.path[-1] == "fob-n-e" and SOUTH in bridges_on([str(p) for p in e.path])
@@ -599,7 +599,7 @@ def test_only_a_patrol_keeps_to_held_nodes() -> None:
 
 def test_a_static_patrol_drops_its_via_and_takes_the_plain_route_home() -> None:
     w = new_world()
-    e = w.spawn("ENEMY_ARMOR", "ENEMY", "ENEMY_DIRECTOR", Vec2(150_000, 60_000))
+    e = w.spawn("ENEMY_ARMOR", "ENEMY", "ENEMY_DIRECTOR", Vec2(150_000, 180_000))
     e.last_node, e.path = "fob-n-w", ["cross-n", "east-airbase"]  # back from its turn at fob-n-w
     job = Job(w.next_job_id(), "PATROL", "patrol:east-airbase", 1, 1000, 0, node="east-airbase")
     job.via = "fob-n-w"
@@ -622,7 +622,7 @@ def test_aircraft_paths_are_never_rerouted() -> None:
 
 def test_a_follower_on_the_near_bank_never_routes_over_the_cut() -> None:
     w = new_world()
-    f = w.spawn("ENEMY_ARMOR", "ENEMY", "ENEMY_DIRECTOR", Vec2(150_000, 60_000))
+    f = w.spawn("ENEMY_ARMOR", "ENEMY", "ENEMY_DIRECTOR", Vec2(150_000, 180_000))
     f.last_node, f.path = "fob-n-w", ["cross-n"]
     assert follow._ends(w, RULES, f) == ["cross-n", "fob-n-w"]
     cut(w, NORTH)
@@ -631,7 +631,7 @@ def test_a_follower_on_the_near_bank_never_routes_over_the_cut() -> None:
     assert f.path[0] == "fob-n-w" and NORTH not in bridges_on([str(p) for p in f.path])
     f.path = ["fob-n-w"]  # turned back: the end ahead is found by position
     assert follow._ends(w, RULES, f) == ["fob-n-w"]
-    f.pos = Vec2(210_000, 60_000)  # the far bank: it may not drive back over
+    f.pos = Vec2(210_000, 180_000)  # the far bank: it may not drive back over
     assert follow._ends(w, RULES, f) == ["cross-n"]
     assert not follow._approach(w, RULES, f, Vec2(*POS["west-airbase"]))  # fob-n-w is across
 
@@ -642,7 +642,7 @@ def test_a_bridge_falling_in_combat_reroutes_deterministically() -> None:
         jet = jet_at(w)
         strike(w, jet, NORTH)
         w.bridge_hp[NORTH] = 50
-        e = truck(w, 150_000, 60_000, "fob-n-w", ["cross-n", "fob-n-e"])
+        e = truck(w, 150_000, 180_000, "fob-n-w", ["cross-n", "fob-n-e"])
         events = run(w, 3)
         return state_hash(w), [x.model_dump_json() for x in events], [*e.path]
 
@@ -718,7 +718,7 @@ COLLAPSE = "BRIDGE_COLLAPSE"
 
 def ground(w: World, kind: UnitKind, side: Side, x: float, last: str, path: list[str]) -> Entity:
     """A ground unit at (x, 60 km), on the north bridge's road, that last reached `last`."""
-    e = put(w, kind, side, x, 60_000)
+    e = put(w, kind, side, x, 180_000)
     e.last_node, e.path = last, [*path]
     return e
 

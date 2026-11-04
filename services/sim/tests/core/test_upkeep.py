@@ -558,7 +558,7 @@ def test_a_grounded_unit_still_returns_fire() -> None:
     w.stock["fob-n-w"] = 0
     e = put(w, INF, "fob-n-w")
     window(w)
-    armor = w.spawn("ENEMY_ARMOR", "ENEMY", "ENEMY_DIRECTOR", Vec2(130_500.0, 60_000.0))
+    armor = w.spawn("ENEMY_ARMOR", "ENEMY", "ENEMY_DIRECTOR", Vec2(130_500.0, 180_000.0))
     armor.last_node = "fob-n-w"
     fired = [ev for ev in run(w, 50) if isinstance(ev, WeaponFired) and ev.shooter_id == e.id]
     assert e.grounded and fired and fired[0].target_id == armor.id

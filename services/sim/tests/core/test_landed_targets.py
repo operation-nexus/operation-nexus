@@ -190,12 +190,12 @@ def test_a_landed_jet_has_no_evasion_factor() -> None:
 
 
 def test_a_landed_jet_in_a_masking_region_takes_the_masked_multiplier_airborne_at_med_not() -> None:
-    """strait-1's northern-hills covers x 150-260 km, y 0-35 km: ground there is masked (x0.5),
+    """strait-1's northern-hills covers x 150-260 km, y 205-240 km: ground there is masked (x0.5),
     a MED aircraft is not (`fow.masked_alt_bands` is NOE and LOW)."""
     units = {**COMBAT.units, JET: dataclasses.replace(COMBAT.units[JET], evasion=1.0)}
     w = new_world(dataclasses.replace(RULES, combat=dataclasses.replace(COMBAT, units=units)))
-    shooter = put(w, ENEMY_JET, "ENEMY", 200_000, 10_000)
-    jet = put(w, JET, "COALITION", 201_000, 10_000, cmd=1)  # LANDED, MED band
+    shooter = put(w, ENEMY_JET, "ENEMY", 200_000, 230_000)
+    jet = put(w, JET, "COALITION", 201_000, 230_000, cmd=1)  # LANDED, MED band
     track(w, shooter, jet)
     both = dataclasses.replace(
         COMBAT.weapons["AG_LIGHT"], targets=frozenset({"GROUND", "AIR"}), bands=frozenset({"MED"})
