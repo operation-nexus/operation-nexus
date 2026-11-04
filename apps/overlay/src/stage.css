@@ -67,14 +67,13 @@ body,
 .nx-fx {
   z-index: 3;
 }
-/* Safe area: 5% on each edge (PROPOSED, §0.7). Panels, OV-26 stack and toasts live inside it. */
+/* Safe area: 5% on each edge (PROPOSED, §0.7). Panels and the OV-26 stack live inside it. */
 .nx-safe {
   position: absolute;
   inset: 5%;
 }
 .nx-panels,
-.nx-sitrep,
-.nx-toasts {
+.nx-sitrep {
   position: absolute;
 }
 .nx-panels {
@@ -82,9 +81,6 @@ body,
 }
 .nx-sitrep {
   z-index: 20;
-}
-.nx-toasts {
-  z-index: 30;
 }
 .nx-banners {
   z-index: 100;

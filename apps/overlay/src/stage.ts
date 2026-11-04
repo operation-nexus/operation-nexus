@@ -1,5 +1,5 @@
 // The 1920x1080 stage and its layers (OVERLAY §0.2, §0.6, §0.7). Back to front: map canvases
-// (terrain, units, FX), DOM panels, OV-26 stack, toasts, banners. NX-177 fills units/FX, NX-178 the DOM containers.
+// (terrain, units, FX), DOM panels, OV-26 stack, banners. NX-177 fills units/FX, NX-178 the DOM containers.
 import "./stage.css";
 import { backingSize, fitStage } from "./stage-math";
 import { TerrainLayer, type Theater } from "./terrain";
@@ -13,7 +13,6 @@ export interface Stage {
   banners: HTMLElement;
   panels: HTMLElement;
   sitrep: HTMLElement;
-  toasts: HTMLElement;
   units: HTMLCanvasElement;
   fx: HTMLCanvasElement;
   terrain: TerrainLayer;
@@ -57,7 +56,6 @@ export function mountStage(root: HTMLElement, win: Window): Stage {
   const safe = el(doc, "div", "nx-safe", world);
   const panels = el(doc, "div", "nx-panels", safe);
   const sitrep = el(doc, "div", "nx-sitrep", safe);
-  const toasts = el(doc, "div", "nx-toasts", safe);
   const banners = el(doc, "div", "nx-banners", stage);
   const beat = el(doc, "div", "nx-heartbeat", stage);
   beat.setAttribute("aria-hidden", "true");
@@ -88,7 +86,6 @@ export function mountStage(root: HTMLElement, win: Window): Stage {
     banners,
     panels,
     sitrep,
-    toasts,
     units,
     fx,
     terrain,

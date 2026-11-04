@@ -34,7 +34,27 @@ class FakeSocket implements SocketLike {
   }
 }
 
-const hud = { type: "Hud", v: PROTOCOL_V };
+const hud = {
+  type: "Hud",
+  v: PROTOCOL_V,
+  momentum_pct: 50,
+  momentum_breakdown: null,
+  objective_mode: "OFF",
+  objective: null,
+  threat_tier: "ALPHA",
+  nodes_held: 0,
+  nodes_total: 0,
+  campaign_clock: {
+    elapsed_ticks: 0,
+    limit_ticks: null,
+    paused: false,
+    pause_reason: null,
+  },
+  ticker: [],
+  panels: { campaign_status: {}, tasking_needed: [], top_commanders: [] },
+  active_humans: null,
+  operators: null,
+};
 const welcome = (): unknown => ({
   type: "Welcome",
   v: PROTOCOL_V,
@@ -73,7 +93,10 @@ let socks: FakeSocket[];
 let states: ConnState[];
 let reload: ReturnType<typeof vi.fn<(t: string) => void>>;
 let uptime = 1e9;
-function make(random = () => 0.5): { c: WireClient; s: () => FakeSocket } {
+function make(
+  random = () => 0.5,
+  onFrame?: (f: { type: string }) => void,
+): { c: WireClient; s: () => FakeSocket } {
   const c = new WireClient({
     url: "ws://x/ws",
     token: "tok",
@@ -86,6 +109,7 @@ function make(random = () => 0.5): { c: WireClient; s: () => FakeSocket } {
     uptimeMs: () => uptime,
     reload,
     onState: (st) => states.push(st),
+    ...(onFrame ? { onFrame } : {}),
   });
   c.start();
   return { c, s: () => socks[socks.length - 1] as FakeSocket };
@@ -336,12 +360,67 @@ describe("banners", () => {
   });
 });
 
+describe("malformed Hud frames (WP-13)", () => {
+  const bad: [string, unknown][] = [
+    ["no campaign_clock", { ...hud, campaign_clock: undefined }],
+    [
+      "elapsed_ticks string",
+      { ...hud, campaign_clock: { ...hud.campaign_clock, elapsed_ticks: "1" } },
+    ],
+    ["ticker [null]", { ...hud, ticker: [null] }],
+    [
+      "panels.top_commanders rows null",
+      {
+        ...hud,
+        panels: {
+          ...hud.panels,
+          top_commanders: [{ role: "STRIKE", rows: null }],
+        },
+      },
+    ],
+    [
+      "operators.by_role missing",
+      { ...hud, operators: { by_rank_band: null } },
+    ],
+    [
+      "objective deadline 1.5",
+      { ...hud, objective: { node_id: "n1", name: "x", deadline_tick: 1.5 } },
+    ],
+  ];
+  it.each(bad)(
+    "drops a Hud with %s and keeps the last good one",
+    (_n, frame) => {
+      const { c, s } = make();
+      s().recv(welcome());
+      s().recv(snap(10));
+      const before = c.store.hud;
+      expect(() => s().recv(frame)).not.toThrow();
+      expect(c.store.hud).toBe(before);
+    },
+  );
+  it("applies a well-formed Hud", () => {
+    const { c, s } = make();
+    s().recv(welcome());
+    s().recv(snap(10));
+    s().recv({ ...hud, momentum_pct: 70 });
+    expect(c.store.hud?.momentum_pct).toBe(70);
+  });
+});
+
 describe("hostile elements (WP-13)", () => {
   const cases: [string, unknown][] = [
     ["Snapshot entities [null]", snap(20, { entities: [null] })],
     ["Snapshot nodes [null]", snap(20, { nodes: [null] })],
     ["Snapshot entity_id string", snap(20, { entities: [{ entity_id: "1" }] })],
     ["Snapshot hud number", snap(20, { hud: 5 })],
+    [
+      "Snapshot hud without campaign_clock",
+      snap(20, { hud: { ...hud, campaign_clock: null } }),
+    ],
+    [
+      "Snapshot hud without panels",
+      snap(20, { hud: { ...hud, panels: undefined } }),
+    ],
     ["Snapshot NaN tick", snap(NaN)],
     ["Delta upserts [null]", delta(11, 10, { upserts: [null] })],
     ["Delta node_patches [null]", delta(11, 10, { node_patches: [null] })],
@@ -520,6 +599,8 @@ const fakeSurface = () =>
   ({
     world: { classList: { toggle: () => undefined } },
     banners: { appendChild: () => undefined },
+    panels: { appendChild: () => undefined },
+    sitrep: { replaceChildren: () => undefined },
     showTheater: () => undefined,
   }) as unknown as ReturnType<Parameters<typeof startFeed>[1]>;
 
@@ -556,9 +637,15 @@ describe("token clearing and startFeed", () => {
           log.push(`rs:${u}`),
       },
       performance: { now: () => 1e9 },
+      setInterval: (f: () => void, ms: number) => setInterval(f, ms),
+      clearInterval: (id: number) => clearInterval(id),
+      setTimeout: (f: () => void, ms: number) => setTimeout(f, ms),
       document: {
         createElement: () => ({
           ownerDocument: { documentElement: { dataset: {} } },
+          appendChild: () => undefined,
+          setAttribute: () => undefined,
+          classList: { toggle: () => undefined },
         }),
         body: { appendChild: () => undefined },
       },
@@ -623,5 +710,35 @@ describe("token clearing and startFeed", () => {
     made[0]?.onclose?.({ code: 4003 });
     vi.advanceTimersByTime(RELOAD_DELAY_MS);
     expect(log).toEqual(["rs:/", "rs:#token=a%20b", "reload"]);
+  });
+});
+
+describe("onFrame (NX-178)", () => {
+  function frames(): { seen: string[]; recv: (f: unknown) => void } {
+    const seen: string[] = [];
+    const { s } = make(undefined, (f) => seen.push(f.type));
+    s().onopen?.();
+    s().recv(welcome());
+    return { seen, recv: (f) => s().recv(f) };
+  }
+
+  it("fires once for each applied Snapshot, Hud and Delta", () => {
+    const { seen, recv } = frames();
+    recv(snap(10));
+    recv(hud);
+    recv(delta(11, 10));
+    expect(seen).toEqual(["Snapshot", "Hud", "Delta"]);
+  });
+
+  it("fires nothing for a stale Delta, a gap Delta, or a Delta while unsynced", () => {
+    const { seen, recv } = frames();
+    recv(snap(10));
+    seen.length = 0;
+    recv(delta(10, 9)); // stale: tick not above the last applied
+    recv(delta(12, 11)); // gap: base_tick is not the last applied tick
+    recv(delta(13, 12)); // unsynced now: ignored until a Snapshot
+    expect(seen).toEqual([]);
+    recv(snap(20));
+    expect(seen).toEqual(["Snapshot"]);
   });
 });
