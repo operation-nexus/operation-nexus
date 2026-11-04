@@ -591,7 +591,9 @@ Notes: CONFIG-AND-CONTENT-NOTES.md §6.7
 | `ratelimit.class.forget.min_interval_s` | float | s (real) | 60 (Q-CMD-3) | CHAT-GATEWAY §5 | Yes |
 | `ratelimit.class.social.<command>.cooldown_s` | float | s (real) | `rally`: 120; others TBD | CHAT-GATEWAY §5 (Q-GW-1, Q-SUP-6) | Yes |
 | `ratelimit.slow_mode.multiplier` | float | × all class limits | 3 (applies only while slow mode is on) | CHAT-GATEWAY §5 (Q-GW-1) | Yes |
-| `ratelimit.global.cmds_per_tick` | int | cmds/tick | TBD | CHAT-GATEWAY §5 | Yes |
+| `ratelimit.global.cmds_per_tick` | int | cmds/tick | 50 | CHAT-GATEWAY GW-12 | Yes |
+| `gateway.spam.blatant_threshold` | int | rejections | 10 | CHAT-GATEWAY GW-13 | Yes |
+| `gateway.spam.blatant_window_s` | float | s (real) | 60 | CHAT-GATEWAY GW-13 | Yes |
 | `replies.twitch_digest_min_s` | float | s (real) | 30 | CHAT-GATEWAY §6 | Yes |
 | `replies.youtube_digest_min_s` | float | s (real) | 300 | CHAT-GATEWAY §3 | Yes |
 | `support.supply_drop.max_per_hour` | int | redemptions/h (real), global | TBD by harness: fixed cap, no crowd-size scaling (TS-1, Q-SUP-7); real time, enforced before the redemption enters the sim (Q-ALN-4) | SUPPORT-REDEMPTIONS | Yes |
