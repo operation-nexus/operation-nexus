@@ -61,7 +61,7 @@ The layout below is the target. Directories are created when their first tracker
 ├── contracts/                # JSON Schema / protobuf source of truth for wire types
 ├── services/
 │   ├── sim/                  # Python: deterministic sim core + API/WS (modular monolith)
-│   └── gateway/              # Python: platform chat adapters -> normalized commands
+│   └── (gateway)             # chat adapters live in-process as nexus.gateway inside services/sim (ADR-0001; owner 2026-11-04, Q-GW)
 ├── apps/
 │   ├── overlay/              # TypeScript: broadcast overlay (Canvas2D first, ADR-0005)
 │   ├── site/                 # Public site: replays, leaderboards, stats (no admin features)
