@@ -1,7 +1,7 @@
 """NX-158: the REBASE handler (Q-SIM-90; GAMEPLAY §1b, §3; CONTRACTS §5.2).
 
 Runs on the shipped strait-1 config with the board on: haven (20 km, 120 km) and west-airbase
-(90 km, 120 km) are the coalition's landing bases, fob-n-w (130 km, 60 km) its FOB, east-airbase
+(90 km, 120 km) are the coalition's landing bases, fob-n-w (130 km, 180 km) its FOB, east-airbase
 the Static's. A rebased unit gets the HOLD order, so the board leaves it alone until a next order.
 """
 

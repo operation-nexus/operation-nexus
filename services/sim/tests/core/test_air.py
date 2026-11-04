@@ -137,7 +137,7 @@ def test_bingo_worked_example() -> None:
 
 def test_rtb_goes_to_the_nearest_own_airbase_or_sanctuary() -> None:
     w = world(RULES)
-    # Near cross-n (230 km, 60 km): fob-n-w and east-airbase are 100 km away, west-airbase 152 km.
+    # Near cross-n (230 km, 180 km): fob-n-w and east-airbase are 100 km away, west-airbase 152 km.
     coalition = aircraft(w, Vec2(230_000, 60_000), "static-hq", fuel=1.0)
     # Near west-airbase: the enemy's only landing base is east-airbase.
     enemy = aircraft(w, Vec2(95_000, 120_000), side="ENEMY", kind="ENEMY_FIGHTER", fuel=1.0)

@@ -3,7 +3,7 @@
 Runs on the shipped strait-1 config with the campaign layer off (see `test_tasking`). Shipped
 numbers: radius 30,000 m, reaction 60 game s (600 ticks, 12 board passes of 50), Pattern of Life
 linger 600 game s (6,000 ticks), leash 80,000 m, lost after 120 game s (1,200 ticks). The Static
-holds east-airbase (310 km, 120 km), fob-n-e (290, 40), fob-s-e (290, 200), static-hq (380, 120).
+holds east-airbase (310 km, 120 km), fob-n-e (290, 200), fob-s-e (290, 40), static-hq (380, 120).
 `board_pass` runs a board pass without moving anything, so the scene is set by hand.
 """
 

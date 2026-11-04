@@ -2011,7 +2011,7 @@ def test_an_aircraft_skips_a_job_whose_route_crosses_a_discovered_air_defense_ri
     far = post(w, "COALITION", "STRIKE", "static-hq", "hq")  # 380 km east of the jet, on y = 120 km
     jet = put(w, "STRIKE_FIGHTER", "west-airbase")
     ring = 30_000
-    # A SAM site at (300 km, 100 km): 20 km off the line, inside its 30 km ring.
+    # A SAM site at (300 km, 140 km): 20 km off the line, inside its 30 km ring.
     w.markers["COALITION"][50] = FacilityMarker(
         "AIR_DEFENSE_SITE", "SAM", Vec2(300_000, 140_000), True, 1, ring, "HEALTHY"
     )

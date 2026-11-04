@@ -2,8 +2,8 @@
 TB-8 dependency of a cut-off resupply on it (STATE-MACHINES §4.3 B-2, GAMEPLAY §1b TB-8 and §5,
 Q-GD-11, Q-SIM-101, Q-SIM-112's constraint; a GOTO hold outlasts the fall, Q-SIM-127).
 
-Shipped strait-1 numbers: bridge-n (200 km, 60 km) carries fob-n-w (130 km) ~ cross-n (230 km) at
-y 60 km, so its repair stop is (200 km, 60 km); `logistics.bridge_hp` 300,
+Shipped strait-1 numbers: bridge-n (200 km, 180 km) carries fob-n-w (130 km) ~ cross-n (230 km) at
+y 180 km, so its repair stop is (200 km, 180 km); `logistics.bridge_hp` 300,
 `bridge_repair_time_s` 600 x `truck_bridge_repair_mult` 5 = 3000 world s for one truck, and
 `sim.time_scale` 6 at 10 Hz is 0.6 world s per tick: 5000 ticks for one truck, 2500 for two.
 """

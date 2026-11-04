@@ -2,8 +2,8 @@
 
 Runs on the shipped strait-1 config with both sides limited and `economy.upkeep` 5 for
 GARRISON_INFANTRY and STRIKE_FIGHTER (every other kind 0). Coalition nodes: haven (20 km, 120 km,
-its source, paid from the pool), west-airbase (90 km, 120 km), fob-n-w (130 km, 60 km), fob-s-w
-(130 km, 180 km); cross-n (230 km, 60 km) is a neutral FOB. Expected values are worked by hand.
+its source, paid from the pool), west-airbase (90 km, 120 km), fob-n-w (130 km, 180 km), fob-s-w
+(130 km, 60 km); cross-n (230 km, 180 km) is a neutral FOB. Expected values are worked by hand.
 """
 
 import dataclasses

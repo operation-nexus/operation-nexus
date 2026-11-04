@@ -1,13 +1,13 @@
 """NX-373 parts 1a and 1b: bridge hp, STRUCTURE fire on a bridge, the cut road, `BridgeDestroyed`
 and the reroute of paths already set (STATE-MACHINES §4.3 B-1 and B-2, GAMEPLAY §5, COMBAT CB-10,
 Q-SIM-105..108); NX-400: a bridge's fall destroys the ground units near the cut point (Q-SIM-112;
-`logistics.bridge_collapse_radius_m` 1000, the edge fob-n-w (130 km) ~ cross-n (230 km) at y 60 km
+`logistics.bridge_collapse_radius_m` 1000, the edge fob-n-w (130 km) ~ cross-n (230 km) at y 180 km
 is 100 km long, so x 199..201 km is inside); NX-408: only a STRIKE claim fires on a bridge, a
 direct order to one holds and defends it, and nothing fires on its own side's structures
 (Q-SIM-124).
 
-Shipped strait-1 numbers: bridge-n (200 km, 60 km) carries fob-n-w~cross-n and bridge-s (200 km,
-180 km) fob-s-w~cross-s; `logistics.bridge_hp` 300; AG_LIGHT does 50 damage at 10 km, 300 m/s
+Shipped strait-1 numbers: bridge-n (200 km, 180 km) carries fob-n-w~cross-n and bridge-s (200 km,
+60 km) fob-s-w~cross-s; `logistics.bridge_hp` 300; AG_LIGHT does 50 damage at 10 km, 300 m/s
 (0.6 world s per tick, so 9 km is a 50-tick flight). Combat worlds are built by hand with the board
 off (`test_combat`): a STRIKE claim is set by hand on the side's board.
 """
@@ -423,7 +423,7 @@ def test_a_truck_short_of_the_cut_turns_back_and_takes_the_other_bridge() -> Non
 def test_a_truck_past_the_cut_and_the_collapse_radius_carries_on() -> None:
     w = new_world()
     past = truck(w, 210_000, 180_000, "fob-n-w", ["cross-n", "fob-n-e"])
-    edge = truck(w, 201_001, 60_000, "fob-n-w", ["cross-n"])  # 1 m beyond the radius
+    edge = truck(w, 201_001, 180_000, "fob-n-w", ["cross-n"])  # 1 m beyond the radius
     hp = edge.hp
     fall(w, NORTH)
     assert past.path == ["cross-n", "fob-n-e"] and edge.path == ["cross-n"]
