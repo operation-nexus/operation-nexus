@@ -8,6 +8,21 @@ export type Theater = Welcome["theater"];
 export const PAD = 40; // stage px kept free around the outermost nodes
 const NODE_R = 12;
 
+/** Keep only well-formed nodes (finite position, string id) and edges: the feed is untrusted
+ *  (WP-13), and one bad node must not drop the whole map. */
+export function sanitize(t: Theater): Theater {
+  const nodes = (Array.isArray(t.nodes) ? t.nodes : []).filter(
+    (n) =>
+      typeof n?.node_id === "string" &&
+      Number.isFinite(n.pos?.x_m) &&
+      Number.isFinite(n.pos?.y_m),
+  );
+  const edges = (Array.isArray(t.edges) ? t.edges : []).filter(
+    (e) => typeof e?.a === "string" && typeof e?.b === "string",
+  );
+  return { ...t, nodes, edges };
+}
+
 /** Content key: a re-sent identical theater (reconnect) must not redraw. */
 export function theaterKey(t: Theater): string {
   return JSON.stringify([t.nodes, t.edges]);
@@ -37,11 +52,13 @@ export class TerrainLayer {
   private theater: Theater | null = null;
   private key: string | null = null;
   private drawnW = 0;
+  private drawnH = 0;
 
   constructor(private readonly canvas: HTMLCanvasElement) {}
 
   /** Returns true when the theater changed (and so a redraw was needed). */
-  setTheater(t: Theater): boolean {
+  setTheater(raw: Theater): boolean {
+    const t = sanitize(raw);
     const key = theaterKey(t);
     if (key === this.key) return false;
     this.theater = t;
@@ -50,13 +67,15 @@ export class TerrainLayer {
     return true;
   }
 
-  /** The canvas was resized (which clears it): redraw once. */
+  /** The canvas was resized (setting either dimension clears it): redraw once. */
   onResize(): void {
-    if (this.drawnW !== this.canvas.width) this.draw();
+    if (this.drawnW !== this.canvas.width || this.drawnH !== this.canvas.height)
+      this.draw();
   }
 
   private draw(): void {
     this.drawnW = this.canvas.width;
+    this.drawnH = this.canvas.height;
     if (this.theater === null) return;
     const ctx = this.canvas.getContext("2d");
     if (ctx === null) return;
