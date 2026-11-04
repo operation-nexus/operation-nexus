@@ -230,7 +230,11 @@ def test_public_events_drop_the_staff_sub_reason_and_hidden_ids() -> None:
 def test_welcome_names_every_node_and_edge_without_dynamic_state() -> None:
     welcome = builder().welcome(start_campaign(CAMPAIGN, 1, CFG))
     assert isinstance(welcome, Welcome) and welcome.tick_rate_hz == 10
+    assert not {"entities", "hud", "owner", "stock_pct"} & set(keys_in(decoded(welcome)))
     assert [n.node_id for n in welcome.theater.nodes] == sorted(n.id for n in CFG.theater.nodes)
-    assert len(welcome.theater.edges) == len(CFG.theater.edges)
+    assert [(e.a, e.b, e.layer, e.bridge) for e in welcome.theater.edges] == [
+        (e.a, e.b, e.layer, e.bridge)
+        for e in sorted(CFG.theater.edges, key=lambda e: (e.a, e.b, e.layer))
+    ]
     assert isinstance(builder().snapshot(start_campaign(CAMPAIGN, 1, CFG)), Snapshot)
     assert isinstance(builder().hud(start_campaign(CAMPAIGN, 1, CFG)), Hud)
