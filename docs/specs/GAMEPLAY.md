@@ -1071,7 +1071,7 @@ Notes: GAMEPLAY-NOTES.md §8
 73. The only defeat-related wire signals are `CampaignEnded{DEFEAT}`, the sanctuary's `NodeDefensesDown`/`NodeDefensesRestored` and the `SANCTUARY_AT_RISK` sitrep.
 74. A public defeat countdown with a "holding" state would be a later overlay item, not part of NX-499.
 
-75. **Campaign clock:** 48 h target (game time, Q-ALN-1; admin-adjustable, schedulable per campaign, Q-GD-5).
+75. **Campaign clock:** 72 h, the shipped `campaign.time_limit_h` (game time, Q-ALN-1; admin-adjustable, schedulable per campaign, Q-GD-5). The owner set 72 h on 2026-11-04 (Q-DEV-44), replacing Q-GD-5's 48 h target, so the clock, the time limit and acceptance target A1 agree.
 76. It **never pauses for lack of humans** (Q-GD-4 amended): at 0 humans the Static drops to Pattern of Life (THREAT-DIRECTOR §5a).
 77. Only a sim pause with a reason stops the clock: a staff pause (ADMIN-RBAC pause flow), the auto-pause when the broadcast has been offline longer than `ops.offline_pause_after_min` (reason TECHNICAL, Q-OPS-8), the weekly maintenance window, or the owner's Ceasefire mode (Q-OPS-9); pause reasons are STAFF, TECHNICAL, MAINTENANCE and CEASEFIRE (Q-ALN-3), and a STAFF pause may carry a sub-reason (RAID, ABUSE, CONTENT, OTHER; Q-ALN-31).
 78. Timers on both sim clocks freeze with it (Q-CFG-8, Q-ALN-2).
