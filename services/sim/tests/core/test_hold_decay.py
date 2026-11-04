@@ -406,12 +406,12 @@ def test_equal_rates_load() -> None:
 
 def shipped_decaying() -> World:
     """The shipped rules (Director and campaign), a hold broken after 700 ticks, 50 ticks into
-    its slow stage."""
+    its slow stage (two nodes lost: the shipped share is 6 of 8, NX-506)."""
     w = start_campaign(CAMPAIGN_ID, 7, CONFIG)
     hold_seven(w)
     for _ in range(700):
         step(w, [])
-    own(w, "ENEMY", "fob-s-e")
+    own(w, "ENEMY", "fob-s-e", "fob-n-e")
     for _ in range(51):
         step(w, [])
     c = w.campaign
