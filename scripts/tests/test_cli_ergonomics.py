@@ -30,6 +30,7 @@ POSITIONAL_REQUIRED_SCRIPTS = [
     REPO_ROOT / "scripts" / "check_commit_msg.py",
     REPO_ROOT / "scripts" / "check_contracts_compat.py",
     REPO_ROOT / "scripts" / "check_osv_report.py",
+    REPO_ROOT / "scripts" / "spec_section.py",
 ]
 
 
