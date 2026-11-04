@@ -107,6 +107,20 @@ forbidden_modules = [
   "nexus.ops",
 ]
 
+# CHAT-GATEWAY §1.2: gateway -> commands -> moderation, never upward. (gateway may import
+# contracts, commands, moderation, obs: nothing forbids those. Its no-core rule is above.)
+[[tool.importlinter.contracts]]
+name = "Chat pipeline layers point one way: gateway -> commands -> moderation (CHAT-GATEWAY §1.2)"
+type = "forbidden"
+source_modules = ["nexus.moderation", "nexus.commands"]
+forbidden_modules = ["nexus.gateway"]
+
+[[tool.importlinter.contracts]]
+name = "nexus.moderation never imports nexus.commands (CHAT-GATEWAY §1.2)"
+type = "forbidden"
+source_modules = ["nexus.moderation"]
+forbidden_modules = ["nexus.commands"]
+
 # ERROR-PIPELINE EP-4: the kernel never calls the reporter; the runtime around it does.
 [[tool.importlinter.contracts]]
 name = "nexus.core never imports nexus.errors (ERROR-PIPELINE EP-4)"

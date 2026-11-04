@@ -80,9 +80,9 @@ Notes on the diagram (owner decisions 2026-10-17):
 | `nexus.core` | Deterministic sim kernel (no side effects outside `state`): entities, kinematics, combat, FoW, logistics, capture, director rules | `nexus.contracts`, stdlib, numpy, msgpack (canonical encoding for `state_hash` and snapshots, SIM-CORE §5, Q-SIM-30) | Any I/O, asyncio, time, random (except injected `SimRng`) |
 | `nexus.contracts` | Generated types from `/contracts` | — | Logic |
 | `nexus.runtime` | Fixed-step scheduler, command inbox, snapshotting, command log, state hashing | core | Platform code |
-| `nexus.gateway` | Platform adapters (`TwitchAdapter`, later `YouTubeAdapter`, `KickAdapter`) → `ChatEnvelope` | contracts | core |
+| `nexus.gateway` | Platform adapters (`TwitchAdapter`, later `YouTubeAdapter`, `KickAdapter`) → `ChatEnvelope` (ports, `Capabilities`, limiter, dedupe, digest; CHAT-GATEWAY §1) | contracts, commands, moderation, obs | core, vendor SDKs outside `adapters.*` (import-linter contract for SDKs arrives with the first SDK; until then a test allowlists gateway imports) |
 | `nexus.commands` | Parse, authorize, rate-limit, moderate → `Command` | contracts, moderation | core internals |
-| `nexus.moderation` | Normalize, denylist, callsign generation, approval | — | — |
+| `nexus.moderation` | Normalize (`normalize`, GW-7), denylist, callsign generation, approval | — | — |
 | `nexus.broadcast` | Per-tick FoW redaction, delta encoding, WS fan-out with bounded queues | core (read-only views) | Mutating state |
 | `nexus.progression` | Consumes events → XP/merit/ranks; writes via persistence | persistence | core |
 | `nexus.persistence` | SQLite repository + migrations | — | core |
@@ -93,7 +93,7 @@ Notes on the diagram (owner decisions 2026-10-17):
 | `nexus.errors` | `ErrorReporter` port and its adapters: no-op, log, Sentry (Sentry not built yet) (ERROR-PIPELINE; Q-DEV-15) | nothing from `nexus` (leaf) | imported by `core` |
 | `nexus.obs` | Structured JSON logging with secret redaction (NX-026): `configure_logging`, `RedactingFilter`, `JsonFormatter` | stdlib only (leaf) | anything else in `nexus` |
 
-Boundaries are enforced with `import-linter` `forbidden` contracts in CI (NX-019, Q-MB-1): `core` imports none of the I/O or vendor-facing modules; `gateway`, `commands`, `progression`, `persistence` and `advisors` do not import `core`; `contracts` imports nothing else from `nexus`. The two read-only rules (`broadcast` reads core views, `ops` is read-only plus control commands) cannot be expressed as import rules and are covered by tests and review. The vendor-SDK rule (ADR-0010 N-1) is added with the first vendor SDK (Q-MB-2).
+Boundaries are enforced with `import-linter` `forbidden` contracts in CI (NX-019, Q-MB-1): `core` imports none of the I/O or vendor-facing modules; `gateway`, `commands`, `progression`, `persistence` and `advisors` do not import `core`; `contracts` imports nothing else from `nexus`; the chat layers point one way (`gateway` → `commands` → `moderation`; `moderation` and `commands` never import `gateway`, `moderation` never imports `commands`). The two read-only rules (`broadcast` reads core views, `ops` is read-only plus control commands) cannot be expressed as import rules and are covered by tests and review. The vendor-SDK rule (ADR-0010 N-1) is added with the first vendor SDK (Q-MB-2).
 
 ## 5. Key flows
 
