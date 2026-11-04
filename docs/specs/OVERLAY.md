@@ -10,6 +10,7 @@ Owner, 2026-11-04, in chat: approve a P2 subset with the lead defaults below. Va
 | Item | Status |
 |---|---|
 | §0 (this section), OV-1, OV-8, OV-9, OV-10, OV-12, OV-13 (mechanism), OV-14 (first-slice members), OV-19, OV-26; OV-7 for the state store | **Approved** |
+| §0.10 map slice (NX-176/177; OV-2, OV-4, OV-5 as narrowed there) | Draft: owner decisions Q-UX-18 to Q-UX-21 recorded, sign-off of the rest pending |
 | §1 layout figure | A guide for the regions NX-175/178 build; the PiP and the SITREP LOG panel are not built (§0.6, §0.8) |
 | §1a Orientation, OV-2/2a/2b, OV-3, OV-4, OV-5/5a, OV-6, OV-11, OV-15, OV-17, OV-18, OV-20, OV-21 to OV-25, §1c, §2a, §3 | Deferred |
 
@@ -58,7 +59,7 @@ Every nullable `Hud` field renders "—" when null (DI-1); nothing is defaulted 
 - **5-second test (NX-034, owner-scheduled):** pass means a cold tester names who is winning, the objective, and how to join within 5 s.
 - **Performance (OV-10):** p95 frame time under 12 ms at 1,000 entities on the reference host, measured in a perf run (`NEXUS_PERF=1 pnpm test`; TESTING-STRATEGY: measured on the real machine in a perf run, not in CI). The 8 ms figure in ADR-0005 is the trigger to migrate to Pixi.js, not the pass bar. NX-491's gate (`perf-gate.ts`) runs budget assertions only under `NEXUS_PERF=1` or `GITHUB_ACTIONS=true`; any new frame-time test for these layers goes through it.
 
-**Built in NX-175 (b):** `stage.ts` and `stage-math.ts` (stage, DPR cap, safe area, layers), `terrain.ts` (nodes and edges only, redrawn when the theater content or the backing size changes; node positions fit the safe area with y_m unflipped; NX-176 flips it and switches to the full-width framing of §1a (Q-UX-18); no contours until NX-176). The OV-8 heartbeat is a 4-cell binary counter that steps once per second from a main-thread timer (`.nx-heartbeat`, `data-beat`). The live stage mounts only when `#token=` is present; without it the prototype mock feed runs (dev mode).
+**Built in NX-175 (b):** `stage.ts` and `stage-math.ts` (stage, DPR cap, safe area, layers), `terrain.ts` (nodes and edges only, redrawn when the theater content or the backing size changes; node positions fit the safe area with y_m unflipped; NX-176 flips it and frames on `bounds_m` (§0.10); no contours until NX-176). The OV-8 heartbeat is a 4-cell binary counter that steps once per second from a main-thread timer (`.nx-heartbeat`, `data-beat`). The live stage mounts only when `#token=` is present; without it the prototype mock feed runs (dev mode).
 
 ### 0.8 Not built in this slice
 The PiP column of §1 stays empty until NX-179. Unit drawing arrives with NX-177; NX-175 builds the layers and the terrain canvas only.
@@ -78,6 +79,23 @@ Where the spec was silent, the code does the following (all reversible, none cha
 - **Top bar:** `momentum_pct` is rounded for display; with `objective_mode` OFF the grid drops the objective column.
 - **PROPOSED:** the palette (`--hud-*` tokens), every px size and position in `hud/hud.css` (bar height, 576 px right column, 104 px stack offset, panel 72 px above the ticker) are PROPOSED until NX-274.
 
+
+### 0.10 NX-176 / NX-177 map slice (Draft: owner sign-off pending)
+Owner decisions: Q-UX-18 to Q-UX-21 (2026-11-04). The rest is lead default, PROPOSED and reversible; shapes and colours stay PROPOSED until the brand guide (NX-274). Canvas2D only (ADR-0005, Q-UX-15): no three.js, 6-DOF, InstancedMesh or attitude (NX-443).
+- **Frame:** fixed, no pan or zoom (Q-UX-10). One projector for every layer: `x = left + x_m·k`, `y = top + (h − y_m)·k`, `k = min(map_w / w, map_h / h)` from `Welcome.theater.bounds_m` (NX-508): contain, never crop, anchored top-left; the leftover strip sits under the sidebar.
+- **NX-176, static canvas from `Welcome.theater` (redrawn only on theater or backing-size change):**
+  - **Contours:** a layer behind `terrain_ref`, empty while it is null (Q-UX-20); no invented relief.
+  - **Roads and sea lanes:** `edges[].layer` ROAD as straight solid lines, SEA_LANE dashed; no road class or `speed_mult` is on the wire, so one style each.
+  - **Bridges:** a crossbar across the edge at the `edges[].bridge` node; a down state only once bridge state is on the wire (Q-UX-21, NX-508).
+  - **Nodes:** glyph by `kind` (AIRBASE, FOB, PORT, HQ, SANCTUARY, BRIDGE), colour by `NodeView.owner` and never colour alone (OV-3); capture as an arc from `capture.progress_pct` in `capture.side`; name labels for strategic kinds only; `stock_pct` and `starvation` as a small bar on coalition nodes only (null otherwise, DI-1).
+  - **Facility rings:** `facilities[].ring_m` as a thin dashed circle at `facilities[].pos`; null draws nothing.
+- **NX-177, units and FX canvases (real time, `requestAnimationFrame`):**
+  - **Units:** `EntityView` shape by `unit_kind`, rotated by `heading_deg` (0 = north, clockwise); coalition angular, enemy jagged (OV-2, no crackle or cosmetics); `damage_state` as a fill ladder; `AI_GARRISON` drawn dimmer. No labels or flight symbols in this slice (OV-4 narrowed).
+  - **Fog:** blobs at `cell_center` as a fuzzy mark sized by S, M or L, no icon, heading or count; last-known at `pos` as the frozen shape, dashed, faded, with its age; the server drops it (FOW-6a, FOW-9).
+  - **Tracers:** from `WeaponFired` in `Delta.events`, shooter to target, until the matching `WeaponImpact` (capped at 3 s real time), then a short hit or miss flash; a shooter or target not in the store draws nothing.
+  - **Interpolation (OV-7, ADR-0005):** render at the latest server tick − 100 ms, linear between bracketing states, extrapolate at most 200 ms on `speed_mps`/`heading_deg`, none while paused; heading by the shortest arc; a resync or tick regress drops the history.
+- **Perf (OV-10):** p95 < 12 ms at 1,000 entities with the static layer outside the frame loop; PROPOSED split: units 6 ms, FX 3 ms, interpolation 2 ms, 1 ms slack.
+- **Not built here:** PiP (OV-6), 9:16 (OV-11), sectors, grid references and compass (§2a; sectors are not on the wire), supply flow (§3), altitude, follower and AUTO tags (OV-17, OV-2a), SPOTTED and painted markers (OV-18), curved roads (Q-VIZ-2), NOE visuals (Q-VIZ-4).
 
 ## 1. Layout (1920×1080; 16:9)
 ```
@@ -104,7 +122,7 @@ The ticker's "Type !join …" line is the **how-to-play strip**. The rotating pa
 ## 1a. Orientation
 
 > **Deferred, not covered by the P2 approval (§0).**
-The coalition is on the **left** and the enemy on the **right** (GAMEPLAY §9a). The main theater map is **fixed**, with no auto pan or zoom, so grid references stay stable for commands (Q-UX-10). The right sidebar covers enemy rear territory, so the fixed framing must keep the contested area within the left 70% of the map area. **Coordinates and framing (Q-UX-18):** content `y_m` grows north, so a larger `y_m` is drawn higher on screen; the fixed frame fits the whole theater to the full map width, the sidebar covers its rightmost (enemy rear) part, and each theater keeps its contested zone in its left 70 %. Vertical 9:16 (P3, OV-11): the map rotates so the coalition is at the **bottom** and the enemy at the **top** (Q-GD-13), and the whole map is shown scaled down, never cropped, so grid references stay stable there too (Q-ALN-19).
+The coalition is on the **left** and the enemy on the **right** (GAMEPLAY §9a). The main theater map is **fixed**, with no auto pan or zoom, so grid references stay stable for commands (Q-UX-10). The right sidebar covers enemy rear territory, so the fixed framing must keep the contested area within the left 70% of the map area. **Coordinates and framing (Q-UX-18, Q-UX-19):** world `y_m` grows north (map convention; Canvas2D draws y down, so the overlay projector flips), and theaters are authored that way (strait-1 mirrored in NX-507). The fixed frame fits the whole theater (`bounds_m`) to the map area, the sidebar covers its rightmost (enemy rear) part, and each theater keeps its contested zone in its left 70 %. Vertical 9:16 (P3, OV-11): the map rotates so the coalition is at the **bottom** and the enemy at the **top** (Q-GD-13), and the whole map is shown scaled down, never cropped, so grid references stay stable there too (Q-ALN-19).
 
 ## 1b. HUD tiers (Q-UX-11)
 - **OV-12 Always on (16:9):** the momentum bar, objective, threat tier and how-to-play strip. The **GM badge** is also always on while a human GM is in control (Q-RB-7, Q-AI-8) and is absent otherwise. This holds on every layout, 9:16 included (Q-ALN-17).
