@@ -1,11 +1,10 @@
 /* Generated from contracts/ by make contracts (NX-021). Do not edit. */
 
 /**
- * Discriminated union of all sim events on kind (CONTRACTS §6).
+ * The events the overlay feed may carry (WIRE-PROTOCOL WP-9; CONTRACTS §6/§7): Event minus the never-public kinds (CommandRejected is digest-only). Viewer-dependent redaction of the rest stays in the producer.
  */
-export type Event =
+export type PublicEvent =
   | UnitSpawned
-  | CommandRejected
   | ReserveQueueJoined
   | ReserveQueueLeft
   | UnitDestroyed
@@ -243,11 +242,11 @@ export interface Hud {
      */
     recent_events:
       | []
-      | [Event]
-      | [Event, Event]
-      | [Event, Event, Event]
-      | [Event, Event, Event, Event]
-      | [Event, Event, Event, Event, Event];
+      | [PublicEvent]
+      | [PublicEvent, PublicEvent]
+      | [PublicEvent, PublicEvent, PublicEvent]
+      | [PublicEvent, PublicEvent, PublicEvent, PublicEvent]
+      | [PublicEvent, PublicEvent, PublicEvent, PublicEvent, PublicEvent];
     /**
      * The owner_trend values are not specified yet (Q-UX-9); the builder sends none.
      */
@@ -2982,63 +2981,6 @@ export interface UnitSpawned {
    */
   node_id: string;
   loadout: "FULL" | "REDUCED";
-}
-/**
- * A command was rejected (CONTRACTS §5.3, §6; SIM-CORE SC-7). Not public: aggregated digest only. command_kind is the rejected command's kind; kind is the event discriminator.
- */
-export interface CommandRejected {
-  kind: "CommandRejected";
-  /**
-   * 10 Hz game time (SC-2).
-   */
-  tick: number;
-  /**
-   * Campaign-wide, monotonic, deterministic (SC-14).
-   */
-  event_seq: number;
-  /**
-   * UUIDv7, canonical lowercase.
-   */
-  campaign_id: string;
-  /**
-   * Arrival order assigned by the runtime inbox; carried as arrival_seq.
-   */
-  arrival_seq: number;
-  /**
-   * Grows one kind at a time, with each handler (AGENTS.md rule 6a).
-   */
-  command_kind:
-    | "JOIN"
-    | "SYS_SET_CALLSIGN"
-    | "SYS_QUEUE_TIMEOUT"
-    | "STAFF_CAMPAIGN_PAUSE"
-    | "STAFF_CAMPAIGN_RESUME"
-    | "STAFF_CAMPAIGN_END"
-    | "REBASE";
-  /**
-   * CONTRACTS §5.3. Grows one value at a time, with the code that emits it (rule 6a).
-   */
-  reason:
-    | "ROLE_UNKNOWN"
-    | "UNIT_IN_SORTIE"
-    | "RESPAWN_COOLDOWN"
-    | "NODE_UNKNOWN"
-    | "NODE_INVALID_FOR_UNIT"
-    | "FOLLOW_TARGET_INVALID"
-    | "CAMPAIGN_PAUSED"
-    | "INVALID_PAYLOAD"
-    | "INTERNAL_ERROR"
-    | "RESERVE_QUEUE_FULL"
-    | "ALREADY_PAUSED"
-    | "NOT_PAUSED"
-    | "CAMPAIGN_NOT_RUNNING"
-    | "REASON_REQUIRED"
-    | "NO_ACTIVE_UNIT"
-    | "NODE_NOT_FRIENDLY"
-    | "OUT_OF_REACH"
-    | "UNIT_GROUNDED"
-    | "NO_STOCK";
-  commander_id: string | null;
 }
 /**
  * A JOIN went to the reserve queue (CONTRACTS §6; GAMEPLAY GP-3, RQ-1; STATE-MACHINES §4.1): the cap is reached, the queue is not empty, or the campaign is paused (Q-ALN-26). Also emitted when a queued commander's new JOIN replaces its entry. Public view: queue length only.
