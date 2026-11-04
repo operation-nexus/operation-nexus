@@ -10,6 +10,7 @@ campaign rules; one test reads the shipped conversions.
 
 import dataclasses
 import itertools
+from fractions import Fraction
 from typing import Any
 
 import pytest
@@ -56,7 +57,12 @@ def cid(n: int) -> str:
 
 
 def new_world(*, objectives: bool = False, seed: int = 12345, **limits: Any) -> World:
-    """strait-1 at tick 0; `limits` shrink the campaign rules (`time_limit_ticks`, ...)."""
+    """strait-1 at tick 0; `limits` shrink the campaign rules (`time_limit_ticks`, ...).
+
+    The share is pinned at 4/5 (7 of 8), not the shipped 0.75 (NX-506): these scripts are about
+    the hold's mechanics and are written for seven nodes. `test_shipped_...` reads the shipped one.
+    """
+    limits.setdefault("victory_node_frac", Fraction(4, 5))
     rc = dataclasses.replace(RC, objectives_on=objectives, **limits)
     rules = dataclasses.replace(RULES, campaign=rc)
     w = start_campaign(CAMPAIGN_ID, seed, dataclasses.replace(CONFIG, rules=rules))
@@ -406,6 +412,7 @@ def test_shipped_campaign_rules_in_ticks_and_nodes() -> None:
     # never the sanctuaries, the bridges or the Static's HQ (Q-SM-11, Q-SIM-58)
     assert not {"haven", "static-rear", "bridge-n", "bridge-s", "static-hq"} & set(RC.candidates)
     assert RC.enemy_hq == "static-hq" and RC.objectives_on
+    assert RC.victory_node_frac == Fraction(3, 4)  # 6 of 8 (NX-506, Q-TD-142)
 
 
 # --- timed objectives -------------------------------------------------------------------------
