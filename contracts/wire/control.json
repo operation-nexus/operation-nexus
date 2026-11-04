@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nexus.local/contracts/wire/control.json",
+  "title": "Control",
+  "description": "Server to client (WIRE-PROTOCOL section 3). BANNER and KILL_SWITCH join with NX-253.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["type", "v", "action"],
+  "properties": {
+    "type": {
+      "const": "Control"
+    },
+    "v": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+$",
+      "description": "PROTOCOL_VERSION (contracts/VERSION)."
+    },
+    "action": {
+      "enum": ["RELOAD", "RESYNC"]
+    }
+  }
+}
