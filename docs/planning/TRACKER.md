@@ -83,7 +83,7 @@ Counts recomputed from the rows on 2026-11-04 (P1: 27 rows in this file after th
 
 | ID | Item | Size | Status | Depends |
 |---|---|---|---|---|
-| NX-170 | WS server: Hello/Welcome/Snapshot/Delta/Hud, bounded queues; bench `step` plus frame build on the reference host at 1,000 entities (SC-10, Q-SIM-8; NX-376 measured `step` only). Ships as three PRs per WIRE-PROTOCOL §9: (a) schemas + frame builders, (b) server + queues + auth, (c) bench. Part (a) done: schemas #634, frame builders with server-side redaction (this PR) | L | 🟨 | NX-150 |
+| NX-170 | WS server: Hello/Welcome/Snapshot/Delta/Hud, bounded queues; bench `step` plus frame build on the reference host at 1,000 entities (SC-10, Q-SIM-8; NX-376 measured `step` only). Ships as three PRs per WIRE-PROTOCOL §9: (a) schemas + frame builders, (b) server + queues + auth, (c) bench. Part (a) done: schemas #634, frame builders with server-side redaction #636. Part (b) done: `/ws` endpoint, handshake, auth, caps, close codes, per-client queues and the `SimRuntime` `on_tick` hook (this PR); (c) bench open | L | 🟨 | NX-150 |
 | NX-171 | Delta encoder + size budget test | M | ⬜ | NX-170 |
 | NX-175 | Overlay scaffold, layered canvases, reconnect, banners | M | ⬜ | NX-170 |
 | NX-176 | Terrain contour pre-render + nodes/roads/bridges. 2026-10-25: prototypes landed in #328/#341 (unified-visualizer, DTED tools, low-poly assets); canyon-run NOE terrain masking RFC (SIMULATION-TERRAIN-AND-ROAD-INTEGRATION-RFC §5-§6), Class B JUNCTION/ABUTMENT waypoints; to be grilled in visualization phase | M | 🟨 | NX-175 |
