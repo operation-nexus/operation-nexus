@@ -1,6 +1,65 @@
 # SPEC: Broadcast Overlay
 
-Status: Draft · Tracker: NX-175…NX-189 · ADR-0005 · Inputs: P72–98, C51–72
+Status: P2 subset Approved (owner, 2026-11-04): §0, OV-1, OV-7 to OV-10, OV-12, OV-13, OV-14, OV-19, OV-26 (NX-175, NX-178); rest Draft/Deferred · Tracker: NX-175…NX-189 · ADR-0005 · Feed: WIRE-PROTOCOL · Inputs: P72–98, C51–72
+
+## 0. P2 subset: approved scope (NX-175, NX-178)
+
+Owner, 2026-11-04, in chat: approve a P2 subset with the lead defaults below. Values marked PROPOSED are tunable without a spec change; everything else in this section is normative. **Only this section, §1b OV-12, OV-13, OV-14 (as narrowed here), OV-19 and OV-26, and requirements OV-1 and OV-7 to OV-10 (as narrowed here) are approved.** Every other section is **Deferred, not covered by this approval** and still needs its own sign-off before code.
+
+### 0.1 Approved / deferred map
+| Item | Status |
+|---|---|
+| §0 (this section), OV-1, OV-8, OV-9, OV-10, OV-12, OV-13 (mechanism), OV-14 (first-slice members), OV-19, OV-26; OV-7 for the state store | **Approved** |
+| §1 layout figure | A guide for the regions NX-175/178 build; the PiP and the SITREP LOG panel are not built (§0.6, §0.8) |
+| §1a Orientation, OV-2/2a/2b, OV-3, OV-4, OV-5/5a, OV-6, OV-11, OV-15, OV-17, OV-18, OV-20, OV-21 to OV-25, §1c, §2a, §3 | Deferred |
+
+The P2 exit set is OV-1 to OV-10 (ROADMAP P2). NX-175/178 deliver OV-1, OV-7, OV-8, OV-9, OV-10. OV-2, OV-4 and OV-5 come with NX-177, OV-3 with NX-180, and OV-6 needs the PiP (NX-179); all remain P2 exit items owned by those later tracker rows.
+
+### 0.2 NX-175 / NX-178 scope
+- **NX-175 (a):** WebSocket client for the WIRE-PROTOCOL feed, the state store (Welcome, Snapshot, Delta, Hud, Control), reconnect and banners (§0.3).
+- **NX-175 (b):** layered canvases (static terrain, units, FX), the DOM HUD root, the 1920×1080 stage (§0.7), the CSP and bundled fonts (§0.4), and the heartbeat element (OV-8).
+- **NX-178:** the HUD top bar (momentum, nodes held N of M, objective with timer, threat tier, war countdown), the ticker, the rotating panels (§0.6), toasts, and OV-26 wired to the live `PublicEvent` stream.
+- **Deferred:** NX-177 (units), NX-179 (PiP), NX-180 and NX-180b, NX-182 (annotations), and the pause scenes OV-16 to OV-25. The 9:16 variant (OV-11) is P3.
+- **Renderer:** Canvas2D with DOM panels (ADR-0005). three.js is not in the production bundle; the prototype's Holo3D and FLIR engines are dev-only or removed in the NX-175 code PR.
+
+### 0.3 Connection, banners and reconnect
+The overlay consumes WIRE-PROTOCOL and restates none of it; this section says only what the screen shows.
+- **States:** cold start (before the first `Snapshot`), live, degraded. Cold start shows the HUD frame with every field at "—" (DI-1) and no map entities; it never shows stale or invented data.
+- **Banners:** "UPDATE REQUIRED" on `Control{RELOAD}` or close 4003 (WP-1); "COMMS RESYNC" after 2 s without data (WP-5). UPDATE REQUIRED has priority over COMMS RESYNC. Banner text is a fixed overlay string, never server text and never the token.
+- **Last frame:** on loss of data the last rendered frame stays, dimmed, under the banner; it is never cleared to black.
+- **Close codes (WP §5):** 4002 and 4003 do not retry and the banner stays (4003 reloads per WP-1; 4002 shows a fixed "AUTH FAILED" line). Every other close, and any socket error, reconnects with the WP-5 backoff.
+- **Tick regress:** after a `Welcome` the store accepts a tick lower than the last it saw and replaces its state from the `Snapshot` (WP §6, server restart).
+- **Resync:** `Control{RESYNC}` or a detected gap follows WP-3; the store drops its entities and waits for the `Snapshot`.
+
+### 0.4 Security of the page
+- **Token (WP §7.1):** read from `location.hash` once, then cleared with `history.replaceState`. It is never logged, stored (no `localStorage`, cookie or IndexedDB), put in a query string, or shown in a banner.
+- **CSP (SEC-OV-2):** no inline script; no inline styles (styles live in CSS files: no `style=` attributes or `<style>` blocks, and dynamic values go through CSSOM); `connect-src` limited to the WS origin; fonts and every asset bundled, no remote assets. OBS page permissions are "No access".
+- Feed text is rendered with `textContent` (WP-6, OV-9).
+
+### 0.5 Always-on top bar (OV-12 in the first slice)
+Every nullable `Hud` field renders "—" when null (DI-1); nothing is defaulted to a number. Field shapes are CONTRACTS §7.
+- **Momentum:** `Hud.momentum_pct` (0 to 100, nullable) on the bar, labeled per OV-12 ("Signal strength", Q-UX-9).
+- **Nodes held N of M:** next to the momentum bar. `Hud` has no top-level node count. The only integer counts are `Hud.panels.campaign_status.nodes_held` (`coalition`, `enemy`, `neutral`); `momentum_breakdown.nodes_held_pct` is a percent only. **NX-170a's `Hud` schema must carry `nodes_held` and `nodes_total`** as top-level integers, over the same node set as `momentum_breakdown.nodes_held_pct`, with the contract stating whether that set is strategic nodes only. Until they exist the element renders "—". It does not derive N and M from the Campaign Status panel, which is deferred and whose node set is not stated.
+- **Objective and timer:** `Hud.objective.name`, gated by `Hud.objective_mode`: `OFF` hides the objective and its timer, `TIMED` shows them. The timer is `objective.deadline_tick` minus `campaign_clock.elapsed_ticks` (both on the campaign clock, not the `Tick` counter; CONTRACTS `ObjectiveAnnounced`), shown as minutes and seconds at 10 ticks per second (SIM-CORE SC-2), "—" when `deadline_tick` is null. It freezes while `campaign_clock.paused` is true.
+- **Threat tier:** `Hud.threat_tier` through `hud.tier.<tier>` keys (OV-19).
+- **War countdown:** `campaign_clock.limit_ticks` minus `campaign_clock.elapsed_ticks`, in game time, frozen while `paused`, "—" when `limit_ticks` is absent. Between `Hud` messages (at most 1 Hz, WP-10) both timers advance by the ticks the `Delta` stream reports while not paused and are re-based on every `Hud`.
+- **How-to-play strip:** the ticker's "Type !join …" line stays (§1). No "hold paused" banner is built; the hold-at-risk sitrep cards (OV-26) cover it.
+
+### 0.6 Rotating panel, ticker, toasts and layout
+- **Members in the first slice:** NEEDED (`Hud.panels.tasking_needed`), operator breakdown (`Hud.operators`), Top Commanders (`Hud.panels.top_commanders`). A panel with no real rows is skipped, never padded (DI-4). Dwell is `hud.rotation_s` (PROPOSED 15 s, real time); NEEDED shows at double frequency (OV-14). Membership is config-only in P2 (no Command Center yet). Campaign Status, the reserve queue, the explainer and Active Packages are deferred.
+- **Ticker:** `Hud.ticker` items (`ModeratedText`, WP-6).
+- **Toasts (OV-13):** a toast lasts PROPOSED 6 s of real time, one at a time from a queue, and never covers the OV-12 elements. Which `PublicEvent` kinds raise a toast beyond OV-26 is not decided here; P2 builds the mechanism and no other source.
+- **Layout and z-order:** the OV-26 sitrep stack replaces the "SITREP LOG" panel of §1 and sits above the rotating panel in the right column. Back to front: map canvases, DOM panels, OV-26 stack, toasts, banners (§0.3). Nothing but a banner covers the OV-12 bar.
+
+### 0.7 Stage, readability and performance
+- **Stage:** a fixed 1920×1080 stage scaled with a CSS transform to the browser-source size, centered. Device pixel ratio is handled (canvas backing store = CSS size × DPR, DPR capped at a PROPOSED 2). A safe area of a PROPOSED 5% on each edge keeps always-on text off the edge.
+- **Readability (OV-1):** the 28 px floor applies to always-on HUD text. Minimum text contrast against its background: PROPOSED 4.5:1. Palette and fonts stay PROPOSED until the brand guide (NX-274).
+- **5-second test (NX-034, owner-scheduled):** pass means a cold tester names who is winning, the objective, and how to join within 5 s.
+- **Performance (OV-10):** p95 frame time under 12 ms at 1,000 entities on the reference host, measured in a perf run (`NEXUS_PERF=1 pnpm test`; TESTING-STRATEGY: measured on the real machine in a perf run, not in CI). The 8 ms figure in ADR-0005 is the trigger to migrate to Pixi.js, not the pass bar. NX-491's gate (`perf-gate.ts`) runs budget assertions only under `NEXUS_PERF=1` or `GITHUB_ACTIONS=true`; any new frame-time test for these layers goes through it.
+
+### 0.8 Not built in this slice
+The PiP column of §1 stays empty until NX-179. Unit drawing arrives with NX-177; NX-175 builds the layers and the terrain canvas only.
+
 
 ## 1. Layout (1920×1080; 16:9)
 ```
@@ -25,12 +84,14 @@ The ticker's "Type !join …" line is the **how-to-play strip**. The rotating pa
 - The earlier panel set (C60) is placed as follows (Q-ALN-18): **Top Commanders** (per role) is a default rotating-panel member (OV-14); **Latest Major Event** is an interrupt toast (OV-13), not a panel; **Active Packages** arrives in P4 together with packages (GAMEPLAY §7). Campaign Status is not covered by Q-ALN-18 and can only be added through the admin membership setting (OV-14).
 
 ## 1a. Orientation
+
+> **Deferred, not covered by the P2 approval (§0).**
 The coalition is on the **left** and the enemy on the **right** (GAMEPLAY §9a). The main theater map is **fixed**, with no auto pan or zoom, so grid references stay stable for commands (Q-UX-10). The right sidebar covers enemy rear territory, so the fixed framing must keep the contested area within the left 70% of the map area. Vertical 9:16 (P3, OV-11): the map rotates so the coalition is at the **bottom** and the enemy at the **top** (Q-GD-13), and the whole map is shown scaled down, never cropped, so grid references stay stable there too (Q-ALN-19).
 
 ## 1b. HUD tiers (Q-UX-11)
 - **OV-12 Always on (16:9):** the momentum bar, objective, threat tier and how-to-play strip. The **GM badge** is also always on while a human GM is in control (Q-RB-7, Q-AI-8) and is absent otherwise. This holds on every layout, 9:16 included (Q-ALN-17).
 - **OV-13 Interrupt toasts:** rally calls, Static mastermind taunts, major alerts and the **Latest Major Event** (Q-ALN-18) appear as toasts for a few seconds (duration TBD), then clear. Toasts never cover the always-on elements.
-- **OV-14 One rotating panel:** a single panel slot cycles its members every `hud.rotation_s` (PROPOSED ~15 s; real time, Q-CFG-8). Default members: **NEEDED jobs** (shown at double frequency), **reserve queue**, **operator breakdown**, **Top Commanders** (Q-ALN-18) and **explainer**. **Active Packages** joins the members in P4, when packages ship (Q-ALN-18). Rotation timing and membership are admin-configurable in the Command Center.
+- **OV-14 One rotating panel** (P2 members narrowed by §0.6; the rest of the list is deferred): a single panel slot cycles its members every `hud.rotation_s` (PROPOSED ~15 s; real time, Q-CFG-8). Default members: **NEEDED jobs** (shown at double frequency), **reserve queue**, **operator breakdown**, **Top Commanders** (Q-ALN-18) and **explainer**. **Active Packages** joins the members in P4, when packages ship (Q-ALN-18). Rotation timing and membership are admin-configurable in the Command Center.
 - **OV-15 9:16 tiers:** the momentum bar, objective and how-to-play strip are persistent; the threat tier joins the rotating panel. The **GM badge** stays persistent at 9:16 whenever a human GM is in control (Q-ALN-17).
 - **OV-26 Threat sitrep stack** (NX-496, Q-UX-13): every `ThreatAdaptation` event (CONTRACTS §6, all eight categories) becomes a card in a stack at the top right, under the always-on bar, at most 30% of the screen wide (lines wrap), over the enemy rear the right sidebar covers (§1a); it never covers the OV-12 elements. It is how the "visible last stand" (GAMEPLAY §9) shows on stream.
   - **Card:** a kicker line (tier word · sector name) and the sitrep line, names from the theater (an id the theater lacks shows as the id; a missing node as `—`, DI-1). Every line is at least 28 px (OV-1), text only (OV-9).
@@ -41,17 +102,20 @@ The coalition is on the **left** and the enemy on the **right** (GAMEPLAY §9a).
 - During season overtime the HUD shows "Season ends after this campaign" (Q-PROG-9). Before the weekly maintenance window the HUD announces it in advance (Q-OPS-9; lead time TBD). The tier for both notices is set in overlay layout v2 (NX-313).
 
 ## 1c. Pause scenes and time display
+
+> **Deferred, not covered by the P2 approval (§0).**
 - **OV-17 Following (Q-GP-31):** a unit with followers shows a small "+N following" tag beside its callsign (from `follower_count`); a column of trucks may draw as one grouped symbol with a count. No line is drawn per follower.
 - **OV-18 Fog of war (FOG-OF-WAR):** last-known tracks draw as the frozen symbol, dimmed, with an age label; the painted flag adds a marker; own units being tracked show a SPOTTED badge; emitting enemy sites show an "on" indicator; blobs may get a cosmetic offset derived from the blob id. Playwright snapshot covers one of each.
 - **OV-19 Threat tier labels (Q-TD-1):** the HUD shows PATTERN_OF_LIFE, ALPHA and BRAVO through localization keys `hud.tier.<tier>`; Pattern of Life reads as a calm state, not an alert.
 - **OV-16 COMMS RESTORED** (Q-OPS-8): when the broadcast returns after an offline auto-pause (reason TECHNICAL), the overlay shows "COMMS RESTORED" with a 30 s countdown, then the sim auto-resumes.
 - **OV-23 Maintenance scene** (Q-OPS-9): while the sim is paused for the weekly maintenance window (reason MAINTENANCE), the stream shows a "back at HH:MM" scene with a campaign recap and leaderboards. The campaign is still live during maintenance, so this recap is built from the redacted coalition view (FOW-1).
 - **OV-24 Ceasefire scene** (Q-OPS-9): when the owner triggers Ceasefire (one click or hotkey), the sim pauses, OBS switches to a light scene (banner + leaderboard), and heavy overlay rendering stops to free the GPU (which layers count as heavy: TBD, measured on the reference host). One-click resume shows a countdown (length TBD).
-- **OV-25 Time display** (Q-CFG-8): the overlay is one video for every viewer, so it shows relative times ("in 12 min"). Where an absolute time is needed (e.g. OV-17's "back at HH:MM"), it shows UTC plus one configured broadcast time zone (config key TBD). It never uses the browser's locale or zone.
+- **OV-25 Time display** (Q-CFG-8): the overlay is one video for every viewer, so it shows relative times ("in 12 min"). Where an absolute time is needed (e.g. OV-23's "back at HH:MM"), it shows UTC plus one configured broadcast time zone (config key TBD). It never uses the browser's locale or zone.
 - **OV-21 Paused world** (Q-ALN-2): while `Hud.campaign_clock.paused` is true, the whole world is frozen (STATE-MACHINES-AND-FLOWS §4.4). The overlay draws units at their last server positions with no extrapolation (OV-7), and the OV-8 heartbeat keeps changing every second so a pause is never mistaken for a frame freeze. Overlay feedback for commands that still work while paused (`!me`/`!status` highlight, reserve-queue position) behaves as when running. A STAFF pause has no dedicated scene: while `Hud.campaign_clock.pause_reason` is `STAFF`, the HUD shows a simple **"PAUSED — stand by"** banner (Q-ALN-32). The banner never shows the sub-reason (Q-ALN-31) or the staff note. The overlay never receives the sub-reason at all: it gets only the pause category it needs to pick the scene or banner (`Hud.campaign_clock.pause_reason`, Q-ALN-39).
 - **OV-22 Post-campaign reveal** (Q-ALN-21): FoW applies only while the campaign is live, including the OV-16, OV-23 and OV-24 pause scenes. Once the campaign has ended (`CampaignEnded`), recaps, archives and "what you didn't see" reveals may show the full world, exempt from FOW-1.
 
 ## 2. Requirements
+Approved: OV-1, OV-7 (state store), OV-8, OV-9, OV-10, as sharpened in §0. Every other requirement below is Deferred, not covered by the P2 approval.
 - **OV-1 Five-second readability.** The momentum bar, objective and threat tier are always visible (at 9:16 the threat tier rotates, OV-15), and the text is at least 28 px at 1080p (readable on 720p mobile).
 - **OV-2 Friend/foe uses shape plus locked color** (Q-STYLE-1, Q-STYLE-4). Quorum (coalition) units are **cyan** with **angular** shapes. The Static (enemy) is **glitchy magenta/red** with **jagged, glitchy** shapes and a crackle effect. Cosmetics change **halos and trails only**, never the base icon color (fixes critique #22). Symbols are simple and shape-coded per class, **auto-generated from each platform's declared category** (CONFIG-AND-CONTENT §7a); custom uploaded icons are allowed with new platforms, and animated icons come later. The symbology is our own, *inspired by* military map-symbol conventions, not a copy of any real standard. To be playtested.
 - **OV-2a Unit tags.** AI units carry an `[AI]` tag and dimmer styling (Q-GD-25, DI-5). A unit whose operator has an active conduct restriction carries a small neutral **probation** tag, with no text beyond the tag and no numbers; it disappears when the restriction ends (Q-MOD-6). A viewer's unit that has gone idle and been handed to the Tasking Board as AI-run (after `presence.idle_handoff_min`, Q-GD-35) carries an **AUTO** tag from the handoff tick, while it keeps its current order (Q-ALN-26); the tag clears when the operator's next command that reaches the sim restores control. The PiP intercept scope shows Pk during engagements (Q-CBT-3), and damage states are visible on the unit symbol.
@@ -62,13 +126,15 @@ The coalition is on the **left** and the enemy on the **right** (GAMEPLAY §9a).
 - **OV-5 New-command ack.** A ping plus a callsign chip appears at the spawn base within 1 frame of receiving the event.
 - **OV-6 PiP director.** The PiP auto-follows the hottest action (firefight, base under attack, CSAR) and zooms in on it; the main map never moves (Q-UX-10). Brief main-view spotlight zooms are out of scope (a possible later Command Center toggle). Each engagement gets a priority score (human-involved, kill, objective, rarity). Minimum dwell is 3 s. A newly spawned viewer unit gets a short spotlight if nothing more important is happening.
 - **OV-7 Interpolation.** Render at server time minus 100 ms with linear interpolation, and extrapolate at most 200 ms.
-- **OV-8 Resilience.** Auto-reconnect and banners as described in WIRE-PROTOCOL. A heartbeat element changes every second so the frame-freeze probe can detect stalls.
+- **OV-8 Resilience.** Reconnect per WP-5 and the banners of §0.3 (WP-1, WP-5). A heartbeat element changes every second so the frame-freeze probe can detect stalls.
 - **OV-9 Security.** No `innerHTML`, a strict CSP, and no remote resources (fonts are bundled). No third-party trackers, cookies or analytics scripts (Q-DM-3).
 - **OV-10 Performance.** p95 frame time under 12 ms on the reference host: the owner's i7-8700 + GTX 1070 8 GB under WSL2, re-baselined when the planned new PC replaces it (Q-TEST-1). The static terrain layer is pre-rendered.
 - **OV-11 Vertical 9:16 variant (P3).** A separate route that shows the **full map scaled down** (rotated per §1a) with the **PiP below it** and the HUD stacked. It never crops or pans around the PiP focus, so grid references stay stable (Q-ALN-19, Q-UX-10). OBS uses Aitum Vertical or a second browser source.
 - **OV-20 Placeholder art** (Q-BRAND-5): during alpha and testing, AI-generated art may appear only as a placeholder, and the stream carries an on-stream PLACEHOLDER note while any is shown. Every asset is recorded in the provenance register with `ai_generated` and `status` (placeholder/final); a release build containing an `ai_generated` or placeholder asset fails the CI release gate (NX-318).
 
 ## 2a. Map annotation layer (owner requirement, 2026-10-17)
+
+> **Deferred, not covered by the P2 approval (§0).**
 A shared, robust annotation system that everything uses: rally calls, objectives, sitreps, recon pings, GM operations, recaps and replays.
 - **AN-1 Location vocabulary:**
   - **Named nodes** for everyone.
@@ -80,6 +146,8 @@ A shared, robust annotation system that everything uses: rally calls, objectives
 - **AN-5 Safety:** labels come from templates and IDs only; no free text (SEC-MOD-1).
 
 ## 3. Visual language
+
+> **Deferred, not covered by the P2 approval (§0).**
 Owner decisions Q-BRAND-1, Q-STYLE-1, Q-STYLE-2 (2026-10-17); exact values go in the brand and style guide (NX-274):
 - **Colors:** near-black base; Quorum cyan; The Static glitchy magenta/red with a crackle effect; **amber** for warnings and supply; **lime/violet** accents for fun moments (rally, rescue). Validated for colorblind safety (OV-3); shape coding keeps friend/foe readable regardless of color. Tone: "Signal" radar war room, fun and friendly, not grim.
 - **Typography:** a clean technical UI font with **tabular numerals**, plus a **bold display font** for big moments. Free/open licenses that permit redistribution only (e.g. OFL), bundled with the overlay (no remote fonts, OV-9) and listed in the provenance register (Q-LEGAL-4, NX-318).
