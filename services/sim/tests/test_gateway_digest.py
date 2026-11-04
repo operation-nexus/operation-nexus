@@ -176,3 +176,18 @@ def test_a_line_is_the_login_plus_a_static_template(login: str, reason: str) -> 
     b, _ = make(Capabilities(max_reply_rate=1.0, message_max_len=500))
     b.add_rejected("u1", login, reason)
     assert b.build() == [f"@{login}: {TEMPLATES[reason]}"]
+
+
+def test_two_lines_that_join_to_exactly_max_len_share_one_message() -> None:
+    joined = "@a: busy, try again | @b: busy, try again"
+    b, _ = make(Capabilities(max_reply_rate=1.0, message_max_len=len(joined)))
+    b.add_rejected("ua", "a", GatewayReject.INBOX_FULL)
+    b.add_rejected("ub", "b", GatewayReject.INBOX_FULL)
+    assert b.build() == [joined]
+
+
+def test_a_blatant_user_is_suppressed_when_added_not_held_until_build() -> None:
+    b, _ = make(blatant=frozenset({"u1"}))
+    b.add_accepted("u1", "alice")
+    b.add_rejected("u1", "alice", GatewayReject.TOO_LONG)
+    assert b.suppressed == 2  # counted at add time: nothing of theirs is held in the batch
