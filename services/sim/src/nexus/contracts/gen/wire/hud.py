@@ -8,7 +8,7 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..common import enums, ids
-from ..events import event
+from ..events import public_event
 
 type MomentumPct = Annotated[int, Field(ge=0, le=100)]
 
@@ -89,21 +89,6 @@ class Sector(BaseModel):
     owner_trend: Annotated[str, Field(max_length=16)]
 
 
-class MomentumBreakdown(BaseModel):
-    model_config = ConfigDict(
-        extra="forbid",
-    )
-    nodes_held_pct: Annotated[int, Field(ge=0, le=100)]
-    supply_pct: Annotated[int, Field(ge=0, le=100)]
-    recent_events: Annotated[list[event.Event], Field(max_length=5)]
-    sectors: Annotated[
-        list[Sector],
-        Field(
-            description="The owner_trend values are not specified yet (Q-UX-9); the builder sends none."
-        ),
-    ]
-
-
 class Objective(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -155,6 +140,21 @@ class Panels(BaseModel):
     campaign_status: CampaignStatus
     tasking_needed: Annotated[list[TaskingNeededItem], Field(max_length=3)]
     top_commanders: list[TopCommander]
+
+
+class MomentumBreakdown(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    nodes_held_pct: Annotated[int, Field(ge=0, le=100)]
+    supply_pct: Annotated[int, Field(ge=0, le=100)]
+    recent_events: Annotated[list[public_event.PublicEvent], Field(max_length=5)]
+    sectors: Annotated[
+        list[Sector],
+        Field(
+            description="The owner_trend values are not specified yet (Q-UX-9); the builder sends none."
+        ),
+    ]
 
 
 class Hud(BaseModel):

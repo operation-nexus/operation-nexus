@@ -19,7 +19,7 @@
       "anyOf": [{"type": "integer", "minimum": 0, "maximum": 100}, {"type": "null"}]
     },
     "momentum_breakdown": {
-      "anyOf": [{"type": "object", "additionalProperties": false, "required": ["nodes_held_pct", "supply_pct", "recent_events", "sectors"], "properties": {"nodes_held_pct": {"type": "integer", "minimum": 0, "maximum": 100}, "supply_pct": {"type": "integer", "minimum": 0, "maximum": 100}, "recent_events": {"type": "array", "items": {"$ref": "../events/event.json"}, "maxItems": 5}, "sectors": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["sector_id", "owner_trend"], "properties": {"sector_id": {"$ref": "../common/ids.json#/$defs/SectorId"}, "owner_trend": {"type": "string", "maxLength": 16}}}, "description": "The owner_trend values are not specified yet (Q-UX-9); the builder sends none."}}}, {"type": "null"}]
+      "anyOf": [{"type": "object", "additionalProperties": false, "required": ["nodes_held_pct", "supply_pct", "recent_events", "sectors"], "properties": {"nodes_held_pct": {"type": "integer", "minimum": 0, "maximum": 100}, "supply_pct": {"type": "integer", "minimum": 0, "maximum": 100}, "recent_events": {"type": "array", "items": {"$ref": "../events/public_event.json"}, "maxItems": 5}, "sectors": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["sector_id", "owner_trend"], "properties": {"sector_id": {"$ref": "../common/ids.json#/$defs/SectorId"}, "owner_trend": {"type": "string", "maxLength": 16}}}, "description": "The owner_trend values are not specified yet (Q-UX-9); the builder sends none."}}}, {"type": "null"}]
     },
     "objective_mode": {
       "$ref": "../common/enums.json#/$defs/ObjectiveMode"

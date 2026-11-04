@@ -8,7 +8,7 @@ from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from ..common import ids
-from ..events import event
+from ..events import public_event
 from . import views
 
 
@@ -27,4 +27,4 @@ class Delta(BaseModel):
     node_patches: list[views.NodePatch]
     blobs: list[views.BlobView] | None
     last_known: list[views.LastKnownView] | None
-    events: list[event.Event]
+    events: list[public_event.PublicEvent]

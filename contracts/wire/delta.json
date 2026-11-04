@@ -41,7 +41,7 @@
     },
     "events": {
       "type": "array",
-      "items": {"$ref": "../events/event.json"}
+      "items": {"$ref": "../events/public_event.json"}
     }
   }
 }

@@ -185,3 +185,23 @@ def test_entity_patch_takes_a_partial_field_set_but_needs_the_id() -> None:
         EntityPatch.model_validate({"hp_pct": 40})
     with pytest.raises(ValidationError):
         EntityPatch.model_validate({"entity_id": 3, "hp_pct": 101})
+
+
+def test_a_never_public_event_is_rejected_on_the_wire() -> None:
+    # CommandRejected is digest-only (CONTRACTS §6): PublicEvent excludes it, so a Delta or a Hud
+    # that carries one fails validation even if a producer bug lets it through.
+    rejected = {
+        "kind": "CommandRejected",
+        "tick": 6,
+        "event_seq": 1,
+        "campaign_id": "00000000-0000-7000-8000-000000000001",
+        "arrival_seq": 1,
+        "command_kind": "JOIN",
+        "reason": "ROLE_UNKNOWN",
+        "commander_id": None,
+    }
+    with pytest.raises(ValidationError):
+        Delta.model_validate({**PAYLOADS[Delta], "events": [rejected]})
+    breakdown = {"nodes_held_pct": 50, "supply_pct": 50, "recent_events": [rejected], "sectors": []}
+    with pytest.raises(ValidationError):
+        Hud.model_validate({**PAYLOADS[Hud], "momentum_breakdown": breakdown})

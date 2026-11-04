@@ -1,6 +1,7 @@
 """NX-412 part 4 (ECONOMY EC-9, EC-12; Q-TD-19, Q-TD-25): the contested victory hold.
 
-The hold events follow `nexus.core.campaign`'s rule exactly (at least `victory_node_frac`, 0.8, of
+The hold events follow `nexus.core.campaign`'s rule exactly (at least `victory_node_frac`, which
+`test_campaign.new_world` pins at 0.8; the shipped value is 0.75 since NX-506, of
 strait-1's eight strategic nodes: AIRBASE, FOB, PORT), the hold's nodes enter the `EnemyView`, the
 Director's capture operations on a hold node or on a coalition node that pays income get their
 multipliers, and launching one on a hold node announces the owner's sitrep. Expected values are
