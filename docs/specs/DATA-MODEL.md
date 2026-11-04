@@ -508,7 +508,7 @@ Bundles contain `commander_id`s only, so they're safe to attach to a private Git
 ### 6.5 Retention schedule (from SEC-DATA-4; durations PROPOSED, Q-LEGAL-3)
 | Data | Kept | Then |
 |---|---|---|
-| Raw `ChatEnvelope`s (in logs) | 7 days | Deleted by log rotation |
+| Raw `ChatEnvelope`s (in logs) | 24 h (owner 2026-11-04, SEC-DATA-4; was 7 days) | Deleted by log rotation |
 | Command logs and snapshots | Campaign duration + 30 days | Deleted, except the final snapshot plus logs needed for the public replay (ids only) |
 | Crash bundles | 30 days | Deleted |
 | Ledgers, campaigns, stats, Tasking Board outcomes (§4.13a) | Indefinitely (ids and numbers only) | — |
