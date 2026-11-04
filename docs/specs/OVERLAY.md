@@ -20,16 +20,16 @@ The P2 exit set is OV-1 to OV-10 (ROADMAP P2). NX-175/178 deliver OV-1, OV-7, OV
 - **NX-175 (b):** layered canvases (static terrain, units, FX), the DOM HUD root, the 1920×1080 stage (§0.7), the CSP and bundled fonts (§0.4), and the heartbeat element (OV-8).
 - **NX-178:** the HUD top bar (momentum, nodes held N of M, objective with timer, threat tier, war countdown), the ticker, the rotating panels (§0.6), toasts, and OV-26 wired to the live `PublicEvent` stream.
 - **Deferred:** NX-177 (units), NX-179 (PiP), NX-180 and NX-180b, NX-182 (annotations), and the pause scenes OV-16 to OV-25. The 9:16 variant (OV-11) is P3.
-- **Renderer:** Canvas2D with DOM panels (ADR-0005). three.js is not in the production bundle; the prototype's Holo3D and FLIR engines are dev-only or removed in the NX-175 code PR.
+- **Renderer:** Canvas2D with DOM panels (ADR-0005). three.js is not in the production bundle; the prototype's Holo3D and FLIR engines were deleted in NX-175 (a).
 
 ### 0.3 Connection, banners and reconnect
 The overlay consumes WIRE-PROTOCOL and restates none of it; this section says only what the screen shows.
 - **States:** cold start (before the first `Snapshot`), live, degraded. Cold start shows the HUD frame with every field at "—" (DI-1) and no map entities; it never shows stale or invented data.
 - **Banners:** "UPDATE REQUIRED" on `Control{RELOAD}` or close 4003 (WP-1); "COMMS RESYNC" after 2 s without data (WP-5). UPDATE REQUIRED has priority over COMMS RESYNC. Banner text is a fixed overlay string, never server text and never the token.
 - **Last frame:** on loss of data the last rendered frame stays, dimmed, under the banner; it is never cleared to black.
-- **Close codes (WP §5):** 4002 and 4003 do not retry and the banner stays (4003 reloads per WP-1; 4002 shows a fixed "AUTH FAILED" line). Every other close, and any socket error, reconnects with the WP-5 backoff.
+- **Close codes (WP §5):** 4002 and 4003 do not retry and the banner stays (4003 reloads per WP-1, after 5 s, or after 60 s (PROPOSED) when the page has been up less than 30 s (PROPOSED), so a build that is still stale after a reload retries at most once a minute; the banner shows during the wait; 4002 shows a fixed "AUTH FAILED" line). Every other close, and any socket error, reconnects with the WP-5 backoff.
 - **Tick regress:** after a `Welcome` the store accepts a tick lower than the last it saw and replaces its state from the `Snapshot` (WP §6, server restart).
-- **Resync:** `Control{RESYNC}` or a detected gap follows WP-3; the store drops its entities and waits for the `Snapshot`.
+- **Resync:** `Control{RESYNC}` or a detected gap follows WP-3; the store stops applying `Delta`s, keeps its last data on screen (dimmed, per the Last-frame rule) and waits for the `Snapshot`, which replaces it. While unsynced and `Delta`s keep arriving, the client re-sends the resync `Ack` at most once per second. Only a `Snapshot` or an applied `Delta` counts as data for the 2 s COMMS RESYNC timer.
 
 ### 0.4 Security of the page
 - **Token (WP §7.1):** read from `location.hash` once, then cleared with `history.replaceState`. It is never logged, stored (no `localStorage`, cookie or IndexedDB), put in a query string, or shown in a banner.
