@@ -77,10 +77,11 @@ def next_non_hud(ws: WebSocketTestSession) -> dict[str, Any]:
     return got
 
 
-def close_code(ws: WebSocketTestSession) -> int:
+def close_code(ws: WebSocketTestSession, *, frames_ok: bool = True) -> int:
     with pytest.raises(WebSocketDisconnect) as e:
-        while True:  # a frame queued before the close may come first
+        while True:  # with frames_ok, a frame queued before the close may come first
             ws.receive_bytes()
+            assert frames_ok, "a frame arrived before the close"
     return e.value.code
 
 
@@ -155,7 +156,7 @@ def test_bad_token_closes_4002_with_no_frame_and_no_token_in_logs(
     caplog.set_level(logging.DEBUG)
     with connect(Sim()) as ws:
         ws.send_bytes(hello(capability_token=TOKEN + "x"))
-        assert close_code(ws) == 4002  # the first receive was the close itself: no frame first
+        assert close_code(ws, frames_ok=False) == 4002  # a frame before the close fails the test
     assert "auth failed" in caplog.text
     assert TOKEN not in caplog.text
 
@@ -197,7 +198,7 @@ def test_cap_slot_is_released_when_a_client_leaves() -> None:
 def test_bad_token_wins_over_a_bad_kind_and_no_frame_precedes_the_close() -> None:
     with connect(Sim()) as ws:
         ws.send_bytes(hello(client_kind="PIP", capability_token=TOKEN + "x"))
-        assert close_code(ws) == 4002  # `close_code` fails on any frame read before the close
+        assert close_code(ws, frames_ok=False) == 4002  # a frame before the close fails the test
 
 
 def test_inbound_cap_is_exactly_4096_bytes() -> None:

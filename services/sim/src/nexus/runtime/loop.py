@@ -118,7 +118,17 @@ class SimRuntime:
         self.log.flush()
         events = self._step(commands)
         if self.on_tick is not None and not self.halted:
-            self.on_tick(self.world, events)  # WIRE-PROTOCOL WP-8: reads the world, never writes
+            try:
+                self.on_tick(
+                    self.world, events
+                )  # WIRE-PROTOCOL WP-8: reads the world, never writes
+            except Exception as e:  # noqa: BLE001 - a view-only hook must never halt the sim
+                report_safely(
+                    self.reporter,
+                    e,
+                    component="sim.on_tick",
+                    tags={"tick": str(self.world.campaign.tick)},
+                )
         if not self.halted and self.world.campaign.tick % self.snapshot_every == 0:
             try:
                 self._write_snapshot()

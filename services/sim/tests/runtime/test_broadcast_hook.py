@@ -64,3 +64,19 @@ def test_state_hash_is_the_same_with_the_broadcaster_attached_and_detached(
     attached = run(tmp_path / "b", log_writer, hook)
     assert detached == attached and detached[1] == TICKS
     assert ticks == list(range(1, TICKS + 1))  # once per tick, after step
+
+
+def test_a_raising_hook_is_reported_and_never_halts_the_sim(
+    tmp_path: Path, log_writer: Callable[..., CommandLogWriter]
+) -> None:
+    calls = [0]
+
+    def boom(w: World, events: Sequence[Event]) -> None:
+        calls[0] += 1
+        raise RuntimeError("view-only hook failed")
+
+    (tmp_path / "a").mkdir()
+    (tmp_path / "b").mkdir()
+    detached = run(tmp_path / "a", log_writer, None)
+    assert run(tmp_path / "b", log_writer, boom) == detached  # all ticks ran, same state
+    assert calls[0] == TICKS
