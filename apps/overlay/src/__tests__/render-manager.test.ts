@@ -29,16 +29,14 @@ function createMockContainer(): HTMLElement {
 }
 
 describe("RenderManager — Dynamic Hot-Swapping & Lifecycle", () => {
-  it("registers all four core visual paradigms", () => {
+  it("registers the two Canvas2D paradigms", () => {
     const manager = new RenderManager();
     const themes = manager.getAvailableThemes();
     const themeIds = themes.map((t) => t.id);
 
     expect(themeIds).toContain("crt");
-    expect(themeIds).toContain("holo3d");
-    expect(themeIds).toContain("flir");
     expect(themeIds).toContain("batch");
-    expect(themes.length).toBe(4);
+    expect(themes.length).toBe(2);
   });
 
   it("attaches to a container and initializes the default theme", async () => {
@@ -50,7 +48,7 @@ describe("RenderManager — Dynamic Hot-Swapping & Lifecycle", () => {
     expect(manager.getActiveEngine()?.name).toBe("2D CRT Vector Phosphor");
   });
 
-  it("hot-swaps cleanly between all 4 paradigms without leaking state", async () => {
+  it("hot-swaps cleanly between both paradigms without leaking state", async () => {
     const manager = new RenderManager();
     const container = createMockContainer();
     const themeLog: string[] = [];
@@ -62,16 +60,6 @@ describe("RenderManager — Dynamic Hot-Swapping & Lifecycle", () => {
     await manager.attach(container, "crt");
     expect(manager.getActiveThemeId()).toBe("crt");
 
-    // Switch to Option B: 3D Holo Table
-    await manager.switchTheme("holo3d");
-    expect(manager.getActiveThemeId()).toBe("holo3d");
-    expect(manager.getActiveEngine()?.id).toBe("holo3d");
-
-    // Switch to Option C: FLIR MFD
-    await manager.switchTheme("flir");
-    expect(manager.getActiveThemeId()).toBe("flir");
-    expect(manager.getActiveEngine()?.id).toBe("flir");
-
     // Switch to Option D: High-Density Batch
     await manager.switchTheme("batch");
     expect(manager.getActiveThemeId()).toBe("batch");
@@ -81,7 +69,7 @@ describe("RenderManager — Dynamic Hot-Swapping & Lifecycle", () => {
     await manager.switchTheme("crt");
     expect(manager.getActiveThemeId()).toBe("crt");
 
-    expect(themeLog).toEqual(["crt", "holo3d", "flir", "batch", "crt"]);
+    expect(themeLog).toEqual(["crt", "batch", "crt"]);
 
     manager.dispose();
     expect(manager.getActiveEngine()).toBeNull();
