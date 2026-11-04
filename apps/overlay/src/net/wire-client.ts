@@ -43,7 +43,14 @@ export interface ClientDeps {
 
 /** Reads `#token=…` once and clears the fragment. Returns null when absent. */
 export function takeToken(loc: Location, hist: History): string | null {
-  const token = new URLSearchParams(loc.hash.slice(1)).get("token");
+  // Not URLSearchParams: form-decoding turns a literal "+" (base64 tokens) into a space.
+  const m = /(?:^|&)token=([^&]*)/.exec(loc.hash.slice(1));
+  let token: string | null;
+  try {
+    token = m?.[1] === undefined ? null : decodeURIComponent(m[1]);
+  } catch {
+    token = null; // malformed escape: treated as absent
+  }
   hist.replaceState(null, "", loc.pathname + loc.search);
   return token === null || token === "" ? null : token;
 }

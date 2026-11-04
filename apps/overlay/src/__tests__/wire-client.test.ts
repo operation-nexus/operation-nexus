@@ -109,6 +109,15 @@ describe("token", () => {
     ).toBe("abc d");
     expect(replaceState).toHaveBeenCalledWith(null, "", "/o?a=1");
   });
+  it("keeps a literal + and treats a malformed escape as absent", () => {
+    const h = { replaceState: vi.fn() } as unknown as History;
+    const at = (hash: string) =>
+      takeToken({ hash, pathname: "/", search: "" } as Location, h);
+    expect(at("#x=1&token=a+b/c==")).toBe("a+b/c==");
+    expect(at("#token=a%2Bb")).toBe("a+b");
+    expect(at("#token=%E0%A4%A")).toBeNull();
+    expect(at("#xtoken=abc")).toBeNull();
+  });
   it("is null when absent", () => {
     const h = { replaceState: vi.fn() } as unknown as History;
     expect(
