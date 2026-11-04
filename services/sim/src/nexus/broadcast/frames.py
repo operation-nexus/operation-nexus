@@ -148,7 +148,10 @@ class FrameBuilder:
             for e in sorted(t.edges, key=lambda e: (e.a, e.b, e.layer))
         ]
         static = v.TheaterStatic.model_construct(
-            nodes=nodes, edges=edges, terrain_ref=self._terrain
+            nodes=nodes,
+            edges=edges,
+            bounds_m=v.BoundsM.model_construct(w=t.bounds_m.w, h=t.bounds_m.h),
+            terrain_ref=self._terrain,
         )
         return Welcome.model_construct(
             type="Welcome",
@@ -339,6 +342,7 @@ class FrameBuilder:
             public = owner != "ENEMY" and top is not None  # DI-1: an enemy base's stock is hidden
             stock = world.stock.get(n, 0)
             defense = rules.defense.max_hp.get(n) if rules.defense else None
+            bridge = rules.supply.bridge_hp.get(n)  # a BRIDGE's own hp, public (FOW-10, CB-10)
             out[n] = v.NodeView.model_construct(
                 node_id=n,
                 owner=owner,
@@ -356,7 +360,10 @@ class FrameBuilder:
                 else "OK",
                 hp_pct=_pct(view.defense_hp[n], defense)
                 if defense and n in view.defense_hp
+                else _pct(world.bridge_hp[n], bridge)
+                if bridge and n in world.bridge_hp
                 else None,
+                intact=n not in view.bridge_down if bridge else None,
                 facilities=sorted(facilities[n], key=lambda f: f.entity_id),
             )
         return out

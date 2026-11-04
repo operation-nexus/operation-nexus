@@ -33,7 +33,7 @@ from nexus.runtime.campaign_config import CampaignConfig, load_campaign_config, 
 
 CFG = load_campaign_config()
 CAMPAIGN = "0192f3a4-5b6c-7d8e-9f01-23456789abcd"
-VERSION = "0.65"
+VERSION = "0.66"
 TICKS = 1300
 JOINS = [join(1, "STRIKE", "east-airbase"), join(2, "LOGI", "fob-n-w"), join(3, "RECON", "cross-n")]
 
@@ -238,6 +238,47 @@ def test_welcome_names_every_node_and_edge_without_dynamic_state() -> None:
     ]
     assert isinstance(builder().snapshot(start_campaign(CAMPAIGN, 1, CFG)), Snapshot)
     assert isinstance(builder().hud(start_campaign(CAMPAIGN, 1, CFG)), Hud)
+
+
+def test_welcome_carries_the_theater_bounds_for_the_overlay_frame() -> None:
+    """Q-UX-19: `bounds_m` is the theater config's playable area (strait-1: 400 km by 240 km)."""
+    welcome = builder().welcome(start_campaign(CAMPAIGN, 1, CFG))
+    assert (welcome.theater.bounds_m.w, welcome.theater.bounds_m.h) == (400000, 240000)
+    assert decoded(welcome)["theater"]["bounds_m"] == {"w": 400000, "h": 240000}
+
+
+def test_bridge_state_is_hp_and_intact_through_damage_down_repair_and_a_delta() -> None:
+    """Q-UX-21: hp_pct is the bridge's hp; intact is false while it is down, which lasts until it
+    is repaired to full, so a damaged-but-up and a half-repaired-but-down bridge differ."""
+    world, fb = start_campaign(CAMPAIGN, 1, CFG), builder()
+    full = CFG.rules.supply.bridge_hp["bridge-n"]
+
+    def state(frame: Snapshot) -> tuple[Any, ...]:
+        by_id = {n.node_id: n for n in frame.nodes}
+        return (by_id["bridge-n"].hp_pct, by_id["bridge-n"].intact, by_id["fob-n-w"].intact)
+
+    assert state(fb.snapshot(world)) == (100, True, None)  # a non-bridge node: intact is null
+    fb.delta(world, [])
+    seen: dict[str, Any] = {"hp_pct": 100, "intact": True}
+    steps = [
+        (full // 2, False, (50, True)),  # damaged, still up
+        (0, True, (0, False)),  # destroyed
+        (full // 4, True, (25, False)),  # under repair: hp back, still down
+        (full, False, (100, True)),  # repaired: up again
+    ]
+    for hp, down, want in steps:
+        world.bridge_hp["bridge-n"] = hp
+        world.bridge_down.discard("bridge-n")
+        if down:
+            world.bridge_down.add("bridge-n")
+        assert state(fb.snapshot(world))[:2] == want
+        patch = {p.node_id: p for p in fb.delta(world, []).node_patches}["bridge-n"]
+        for field in ("hp_pct", "intact"):  # a patch holds only what changed
+            if field in patch.model_fields_set:
+                seen[field] = getattr(patch, field)
+        assert (seen["hp_pct"], seen["intact"]) == want  # a late joiner applying Deltas agrees
+    assert state(fb.snapshot(world)) == (100, True, None)
+    assert not fb.delta(world, []).node_patches  # unchanged: nothing re-sent
 
 
 def test_heading_zero_is_north_plus_y_and_east_plus_x_is_ninety() -> None:

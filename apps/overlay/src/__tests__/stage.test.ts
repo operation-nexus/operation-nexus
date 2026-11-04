@@ -45,6 +45,7 @@ const theater = (x = 0): Theater => ({
     { node_id: "b", name: "B", kind: "FOB", pos: { x_m: x + 4000, y_m: 2000 } },
   ],
   edges: [{ a: "a", b: "b", layer: "ROAD", bridge: null }],
+  bounds_m: { w: 4000, h: 2000 },
   terrain_ref: null,
 });
 

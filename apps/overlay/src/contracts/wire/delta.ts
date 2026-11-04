@@ -162,6 +162,7 @@ export interface NodePatch {
   stock_pct?: number | null;
   starvation?: ("OK" | "LOW" | "EMPTY") | null;
   hp_pct?: number | null;
+  intact?: boolean | null;
   facilities?: FacilityView[];
 }
 /**
