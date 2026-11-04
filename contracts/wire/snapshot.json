@@ -1,0 +1,41 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nexus.local/contracts/wire/snapshot.json",
+  "title": "Snapshot",
+  "description": "Server to client: the full redacted state (CONTRACTS section 7). packages and kill_switch join with their producers (rule 6a).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["type", "v", "tick", "entities", "nodes", "blobs", "last_known", "hud"],
+  "properties": {
+    "type": {
+      "const": "Snapshot"
+    },
+    "v": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+$",
+      "description": "PROTOCOL_VERSION (contracts/VERSION)."
+    },
+    "tick": {
+      "$ref": "../common/ids.json#/$defs/Tick"
+    },
+    "entities": {
+      "type": "array",
+      "items": {"$ref": "views.json#/$defs/EntityView"}
+    },
+    "nodes": {
+      "type": "array",
+      "items": {"$ref": "views.json#/$defs/NodeView"}
+    },
+    "blobs": {
+      "type": "array",
+      "items": {"$ref": "views.json#/$defs/BlobView"}
+    },
+    "last_known": {
+      "type": "array",
+      "items": {"$ref": "views.json#/$defs/LastKnownView"}
+    },
+    "hud": {
+      "$ref": "hud.json"
+    }
+  }
+}
