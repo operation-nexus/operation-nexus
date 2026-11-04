@@ -1,1 +1,1 @@
-"""nexus.broadcast — see docs/specs (WIRE-PROTOCOL)."""
+"""nexus.broadcast: the redacted wire frames built from the world (WIRE-PROTOCOL; `frames.py`)."""
