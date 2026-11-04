@@ -148,7 +148,7 @@ combat:
   overkill_check: true  # decided rule as default, Q-TD-73 (owner 2026-10-28, NX-468); a weapon skips a target whose shots in flight already cover, in expected damage, what it has left (CONFIG-AND-CONTENT §6.4)
 campaign:
   time_limit_h: 72  # PROPOSED – unvalidated (Q-TEST-6); h (game) (CONFIG-AND-CONTENT §6.6 campaign.time_limit_h)
-  victory_node_frac: 0.80  # PROPOSED – unvalidated; fraction of strategic nodes (CONFIG-AND-CONTENT §6.6)
+  victory_node_frac: 0.75  # PROPOSED – unvalidated; was 0.80, owner 2026-11-04 (Q-TD-142 (b), NX-506, harness P0: 6 of 8 ends 23 of 24 raids); fraction of strategic nodes (CONFIG-AND-CONTENT §6.6)
   strategic_node_kinds: [AIRBASE, FOB, PORT]  # decided rule as default, Q-DEV-21 option; node kinds that count toward the hold fractions and the score (CONFIG-AND-CONTENT §6.6 campaign.strategic_node_kinds)
   victory_hold_min: 30  # PROPOSED – unvalidated; min (game), held without a dip (CONFIG-AND-CONTENT §6.6)
   objective_period_min: 15  # PROPOSED – unvalidated; min (game), how long an objective lasts (CONFIG-AND-CONTENT §6.6)

@@ -388,7 +388,7 @@ economy:
 # catalog's `mirrors`, NX-499 for `campaign.defeat.reset_hp_frac`, NX-501 for
 # `logistics.stock_target_mode` and `stock_target_loadouts`); a change means
 # every config_hash moved.
-GOLDEN_CONFIG_HASH = "7ce3a04a3dd6517df017a1324f5340324f9ead71afee125a2db80277f7006cc1"
+GOLDEN_CONFIG_HASH = "af640143a066da75e24f35998ba18467e5bc66e57eee0c2f349d23ee554e5c81"
 AIR = {
     "bingo_reserve_frac": 0.15,
     "orbit_period_s": 120.0,
@@ -506,7 +506,7 @@ COMBAT = {
 }
 CAMPAIGN = {
     "time_limit_h": 72,
-    "victory_node_frac": 0.80,
+    "victory_node_frac": 0.75,
     "strategic_node_kinds": ["AIRBASE", "FOB", "PORT"],
     "victory_hold_min": 30,
     "defeat": {"hold_min": 30, "reset_hp_frac": 0.5},
@@ -1194,7 +1194,7 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "  score: {objective_points: 5, final_weight: 50, average_weight: 50},\n"
         "  objective_period_min: 15,\n"
         "  victory_hold_min: 30, defeat: {hold_min: 30, reset_hp_frac: 0.5},\n"
-        "  victory_node_frac: 0.80,\n"
+        "  victory_node_frac: 0.75,\n"
         "  strategic_node_kinds: [AIRBASE, FOB, PORT],\n"
         "  idle_floor: {sanctuary_min_hp: 1, enabled: true}, victory: {hq_capture: true,\n"
         "    reset_on_repair: true, pause_on_pressure: true, decay_fast_rate: 1.0,\n"

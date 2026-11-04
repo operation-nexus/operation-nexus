@@ -995,7 +995,7 @@ Notes: GAMEPLAY-NOTES.md §8
 11. **Strategic nodes (Q-GP-17, Q-GP-21):** AIRBASE, FOB and PORT bases count toward the hold fractions below.
 12. BRIDGE nodes and the SANCTUARY do not, and facilities (radars, air defense) never count on their own; the enemy HQ is its own win route.
 
-13. **Victory (Domination):** hold ≥ `campaign.victory_node_frac` (PROPOSED 0.80) of strategic nodes for `campaign.victory_hold_min` (PROPOSED 30 min, game time) continuously, **or** capture the enemy HQ (default; Q-CFG-16 option `campaign.victory.hq_capture`).
+13. **Victory (Domination):** hold ≥ `campaign.victory_node_frac` (PROPOSED 0.75, Q-TD-142) of strategic nodes for `campaign.victory_hold_min` (PROPOSED 30 min, game time) continuously, **or** capture the enemy HQ (default; Q-CFG-16 option `campaign.victory.hq_capture`).
 14. Only the coalition can win this way: the Static holding the nodes is not a defeat (Q-SIM-62, NX-126).
 15. The rubber-band zone is tuned to 55–75% so that victory sits beyond it.
 16. **Contested hold (Q-TD-19, ECONOMY EC-9):** while the hold runs, the sim emits `VictoryHoldStarted` and then `VictoryHoldBroken` or the victory.
