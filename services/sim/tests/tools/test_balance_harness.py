@@ -8,6 +8,7 @@ import sys
 import threading
 import time
 from collections import Counter
+from fractions import Fraction
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, ClassVar
@@ -2338,6 +2339,12 @@ def test_collector_derives_pressure_and_the_hold_from_events(
     # captures go through a real world and `nexus.core.campaign.campaign`, and the hold events it
     # emits are fed with them, so the S2 inputs must match the old capture-derived expectations.
     world = start_campaign("c", 1, shipped_config)
+    # this script is written for 7 of 8 (4/5), not the shipped 6 of 8 (NX-506)
+    assert world.rules is not None and world.rules.campaign is not None
+    world.rules = dataclasses.replace(
+        world.rules,
+        campaign=dataclasses.replace(world.rules.campaign, victory_node_frac=Fraction(4, 5)),
+    )
 
     def cap(tick: int, node: str, frm: str, to: str) -> Any:
         return NodeCaptured.model_construct(
