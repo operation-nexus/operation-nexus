@@ -1,0 +1,109 @@
+/* Page, stage, layers and bundled fonts (OVERLAY §0.4, §0.6, §0.7). No inline styles anywhere:
+   dynamic values (stage transform) go through CSSOM in stage.ts. Palette PROPOSED until NX-274. */
+@font-face {
+  font-family: "JetBrains Mono";
+  font-weight: 400;
+  font-display: block;
+  src: url("./fonts/JetBrainsMono-Regular.woff2") format("woff2");
+}
+@font-face {
+  font-family: "JetBrains Mono";
+  font-weight: 700;
+  font-display: block;
+  src: url("./fonts/JetBrainsMono-Bold.woff2") format("woff2");
+}
+:root {
+  color-scheme: dark;
+  --nx-bg: #020617;
+  --nx-ink: #f8fafc;
+  --nx-cyan: #00e5ff;
+  --nx-amber: #fbbf24;
+  --nx-font: "JetBrains Mono", monospace;
+}
+html,
+body,
+#root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
+  background: var(--nx-bg);
+  font-family: var(--nx-font);
+  font-variant-numeric: tabular-nums;
+}
+.nx-stage {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 1920px;
+  height: 1080px;
+  transform-origin: 0 0;
+  overflow: hidden;
+  background: var(--nx-bg);
+  color: var(--nx-ink);
+}
+.nx-world,
+.nx-map,
+.nx-map canvas,
+.nx-banners {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+}
+.nx-world {
+  z-index: 0;
+}
+.nx-map canvas {
+  display: block;
+}
+.nx-terrain {
+  z-index: 1;
+}
+.nx-units {
+  z-index: 2;
+}
+.nx-fx {
+  z-index: 3;
+}
+/* Safe area: 5% on each edge (PROPOSED, §0.7). Panels, OV-26 stack and toasts live inside it. */
+.nx-safe {
+  position: absolute;
+  inset: 5%;
+}
+.nx-panels,
+.nx-sitrep,
+.nx-toasts {
+  position: absolute;
+}
+.nx-panels {
+  z-index: 10;
+}
+.nx-sitrep {
+  z-index: 20;
+}
+.nx-toasts {
+  z-index: 30;
+}
+.nx-banners {
+  z-index: 100;
+  pointer-events: none;
+}
+/* OV-8 heartbeat: a 4-bit binary counter, one step per second, so a frozen frame is visible. */
+.nx-heartbeat {
+  position: absolute;
+  right: 5%;
+  bottom: 5%;
+  z-index: 90;
+  display: flex;
+  gap: 6px;
+}
+.nx-heartbeat i {
+  width: 16px;
+  height: 16px;
+  background: #1e293b;
+}
+.nx-heartbeat i.on {
+  background: var(--nx-cyan);
+}

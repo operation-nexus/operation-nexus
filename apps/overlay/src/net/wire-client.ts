@@ -39,6 +39,8 @@ export interface ClientDeps {
   /** Reloads the page; the hash was cleared, so the caller puts the token back in memory only (start.ts). */
   reload: (token: string) => void;
   onState: (s: ConnState) => void;
+  /** After a Welcome is applied: the theater is in the store (terrain redraw, OVERLAY §0.2). */
+  onWelcome?: () => void;
 }
 
 /** Reads `#token=…` once and clears the fragment. Returns null when absent. */
@@ -232,6 +234,7 @@ export class WireClient {
         this.welcomed = true;
         this.attempt = 0;
         this.store.applyWelcome(frame as unknown as Welcome);
+        this.d.onWelcome?.();
         break;
       case "Snapshot":
         this.store.applySnapshot(frame as unknown as Snapshot);
