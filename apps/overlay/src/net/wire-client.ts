@@ -78,6 +78,43 @@ const hasStr = (k: string) => (e: unknown) =>
 const nullOr = (x: unknown, ok: (x: unknown) => boolean): boolean =>
   x === null || ok(x);
 
+/** The Hud fields the HUD dereferences (contracts/wire/hud.json); a frame missing one is dropped, not rendered. */
+function validHud(x: unknown): boolean {
+  if (!isObj(x)) return false;
+  const c = x["campaign_clock"];
+  const p = x["panels"];
+  const o = x["operators"];
+  return (
+    nullOr(x["momentum_pct"], isInt) &&
+    isInt(x["nodes_held"]) &&
+    isInt(x["nodes_total"]) &&
+    typeof x["threat_tier"] === "string" &&
+    typeof x["objective_mode"] === "string" &&
+    nullOr(
+      x["objective"],
+      (v) =>
+        isObj(v) &&
+        typeof v["name"] === "string" &&
+        nullOr(v["deadline_tick"], isInt),
+    ) &&
+    isObj(c) &&
+    isInt(c["elapsed_ticks"]) &&
+    nullOr(c["limit_ticks"], isInt) &&
+    typeof c["paused"] === "boolean" &&
+    all(x["ticker"], (e) => hasInt("tick")(e) && hasStr("text")(e)) &&
+    isObj(p) &&
+    all(p["tasking_needed"], isObj) &&
+    all(p["top_commanders"], (r) => isObj(r) && all(r["rows"], isObj)) &&
+    nullOr(
+      o,
+      (v) =>
+        isObj(v) &&
+        all(v["by_role"], isObj) &&
+        nullOr(v["by_rank_band"], (b) => all(b, isObj)),
+    )
+  );
+}
+
 /** Checks type, required fields and every element before anything is applied (WP-2, WP-13). */
 function valid(f: Frame): boolean {
   switch (f.type) {
@@ -90,7 +127,7 @@ function valid(f: Frame): boolean {
         all(f["nodes"], hasStr("node_id")) &&
         all(f["blobs"], isObj) &&
         all(f["last_known"], isObj) &&
-        nullOr(f["hud"], isObj)
+        nullOr(f["hud"], validHud)
       );
     case "Delta":
       return (
@@ -103,7 +140,7 @@ function valid(f: Frame): boolean {
         nullOr(f["last_known"], (x) => all(x, isObj))
       );
     case "Hud":
-      return true;
+      return validHud(f);
     case "Control":
       return f["action"] === "RELOAD" || f["action"] === "RESYNC";
     default:

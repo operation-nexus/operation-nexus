@@ -34,7 +34,27 @@ class FakeSocket implements SocketLike {
   }
 }
 
-const hud = { type: "Hud", v: PROTOCOL_V };
+const hud = {
+  type: "Hud",
+  v: PROTOCOL_V,
+  momentum_pct: 50,
+  momentum_breakdown: null,
+  objective_mode: "OFF",
+  objective: null,
+  threat_tier: "ALPHA",
+  nodes_held: 0,
+  nodes_total: 0,
+  campaign_clock: {
+    elapsed_ticks: 0,
+    limit_ticks: null,
+    paused: false,
+    pause_reason: null,
+  },
+  ticker: [],
+  panels: { campaign_status: {}, tasking_needed: [], top_commanders: [] },
+  active_humans: null,
+  operators: null,
+};
 const welcome = (): unknown => ({
   type: "Welcome",
   v: PROTOCOL_V,
@@ -340,12 +360,67 @@ describe("banners", () => {
   });
 });
 
+describe("malformed Hud frames (WP-13)", () => {
+  const bad: [string, unknown][] = [
+    ["no campaign_clock", { ...hud, campaign_clock: undefined }],
+    [
+      "elapsed_ticks string",
+      { ...hud, campaign_clock: { ...hud.campaign_clock, elapsed_ticks: "1" } },
+    ],
+    ["ticker [null]", { ...hud, ticker: [null] }],
+    [
+      "panels.top_commanders rows null",
+      {
+        ...hud,
+        panels: {
+          ...hud.panels,
+          top_commanders: [{ role: "STRIKE", rows: null }],
+        },
+      },
+    ],
+    [
+      "operators.by_role missing",
+      { ...hud, operators: { by_rank_band: null } },
+    ],
+    [
+      "objective deadline 1.5",
+      { ...hud, objective: { node_id: "n1", name: "x", deadline_tick: 1.5 } },
+    ],
+  ];
+  it.each(bad)(
+    "drops a Hud with %s and keeps the last good one",
+    (_n, frame) => {
+      const { c, s } = make();
+      s().recv(welcome());
+      s().recv(snap(10));
+      const before = c.store.hud;
+      expect(() => s().recv(frame)).not.toThrow();
+      expect(c.store.hud).toBe(before);
+    },
+  );
+  it("applies a well-formed Hud", () => {
+    const { c, s } = make();
+    s().recv(welcome());
+    s().recv(snap(10));
+    s().recv({ ...hud, momentum_pct: 70 });
+    expect(c.store.hud?.momentum_pct).toBe(70);
+  });
+});
+
 describe("hostile elements (WP-13)", () => {
   const cases: [string, unknown][] = [
     ["Snapshot entities [null]", snap(20, { entities: [null] })],
     ["Snapshot nodes [null]", snap(20, { nodes: [null] })],
     ["Snapshot entity_id string", snap(20, { entities: [{ entity_id: "1" }] })],
     ["Snapshot hud number", snap(20, { hud: 5 })],
+    [
+      "Snapshot hud without campaign_clock",
+      snap(20, { hud: { ...hud, campaign_clock: null } }),
+    ],
+    [
+      "Snapshot hud without panels",
+      snap(20, { hud: { ...hud, panels: undefined } }),
+    ],
     ["Snapshot NaN tick", snap(NaN)],
     ["Delta upserts [null]", delta(11, 10, { upserts: [null] })],
     ["Delta node_patches [null]", delta(11, 10, { node_patches: [null] })],
