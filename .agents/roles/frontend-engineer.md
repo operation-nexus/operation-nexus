@@ -15,3 +15,9 @@ Design originality (owner requirement, 2026-10-17):
 - The look must be **distinctive, not generic AI UI.** Before building any new visual surface (overlay layer, site page, Command Center screen), run a design pass using every available design skill and tool: e.g. the `frontend-design` skill, `artifact-design`/`dataviz` guidance for charts, design MCP servers if configured. Produce 2–3 distinct concepts and compare them against the brand guide (NX-274) **before** coding.
 - Avoid template defaults: no stock gradients, generic card grids, or default component-library looks. Every visual choice should trace back to the Signal/Static brand.
 - Record the chosen concept and the reasoning in the PR (screenshots of the alternatives).
+
+Design skills (vendored, `.claude/skills/VENDORED.md`):
+- Run `web-design-guidelines` on every UI PR.
+- Use `emil-design-eng` for motion, transitions and polish.
+- Use `hallmark` (build or audit) alongside our `frontend-design` skill on new surfaces.
+- `docs/specs/OVERLAY.md` and the OBS/1080p constraints win over any generic skill advice. Canvas2D plus DOM panels, no framework.

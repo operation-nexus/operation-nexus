@@ -54,6 +54,11 @@ Notes:
 
 **Vendored from `mattpocock/skills`** (2026-10-17, commit `49dd158`, MIT): `grill-me`, `grill-with-docs`, `grilling`, `domain-modeling`, `wait-what`, `handoff`, `to-questionnaire`. Reviewed line by line before copying; no scripts, hooks or network calls. Copied rather than installed as a plugin so the text is pinned and cloud sessions get it.
 
+**Vendored frontend design skills** (2026-11-04, owner's choice: vendored, not plugins; pins, licenses and local changes in `.claude/skills/VENDORED.md`):
+- `web-design-guidelines` (vercel-labs, MIT): UI review against the Web Interface Guidelines, pinned and offline.
+- `emil-design-eng` (Emil Kowalski, MIT): motion, transitions and UI polish.
+- `hallmark` (Nutlope, MIT): build and audit design skill, Markdown only, no scripts; its log goes in `docs/design/hallmark/`.
+
 Not vendored yet. Each needs adapting first, or clashes with something here:
 
 | Skill | Why it could help | Why not yet |
