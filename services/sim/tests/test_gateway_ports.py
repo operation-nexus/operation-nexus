@@ -49,7 +49,7 @@ def test_capabilities_default_to_off_and_are_frozen() -> None:
     caps = Capabilities()
     assert caps.max_reply_rate is None and not caps.supports_whisper
     with pytest.raises(FrozenInstanceError):
-        caps.supports_whisper = True  # type: ignore[misc]
+        caps.supports_whisper = True  # type: ignore[misc]  # asserts the frozen dataclass rejects assignment
 
 
 def test_name_directory_is_an_immutable_snapshot() -> None:
@@ -58,9 +58,9 @@ def test_name_directory_is_an_immutable_snapshot() -> None:
     source["VIPER-27"] = 8  # the publisher mutating its own dict does not leak in
     assert directory.callsigns["VIPER-27"] == 7
     with pytest.raises(TypeError):
-        directory.callsigns["X"] = 1  # type: ignore[index]
+        directory.callsigns["X"] = 1  # type: ignore[index]  # asserts the read-only mapping rejects writes
     with pytest.raises(FrozenInstanceError):
-        directory.nodes = {}  # type: ignore[misc]
+        directory.nodes = {}  # type: ignore[misc]  # asserts the frozen dataclass rejects assignment
 
 
 def _absolute(package: str, level: int, module: str | None, names: list[str]) -> list[str]:

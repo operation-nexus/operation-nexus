@@ -15,8 +15,8 @@ MAX_TEXT_LEN = 300
 # Cc controls, Cf format characters (zero-width, bidi marks and overrides, soft hyphen, BOM),
 # Cs lone surrogates.
 _STRIPPED = frozenset({"Cc", "Cf", "Cs"})
-# Default_Ignorable_Code_Point members that are not Cf, checked against Unicode 15.1.0
-# DerivedCoreProperties.txt (the version of Python's unicodedata here).
+# Default_Ignorable_Code_Point members that are not Cf, checked against DerivedCoreProperties.txt
+# of Unicode 15.0.0 (CPython 3.12's unicodedata, the pinned interpreter) and 15.1.0: same set.
 # They render as nothing, so "!jo<U+034F>in" would defeat exact matching. Cf members are covered
 # by _STRIPPED. Not all of Mn: real combining accents must survive.
 _IGNORABLE = (
