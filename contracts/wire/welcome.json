@@ -1,0 +1,33 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nexus.local/contracts/wire/welcome.json",
+  "title": "Welcome",
+  "description": "Server to client, after a valid Hello (CONTRACTS section 7, WIRE-PROTOCOL WP-7).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["type", "v", "server_build", "campaign_id", "tick_rate_hz", "theater"],
+  "properties": {
+    "type": {
+      "const": "Welcome"
+    },
+    "v": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+$",
+      "description": "PROTOCOL_VERSION (contracts/VERSION)."
+    },
+    "server_build": {
+      "type": "string",
+      "maxLength": 64
+    },
+    "campaign_id": {
+      "anyOf": [{"$ref": "../common/ids.json#/$defs/CampaignId"}, {"type": "null"}]
+    },
+    "tick_rate_hz": {
+      "type": "integer",
+      "minimum": 1
+    },
+    "theater": {
+      "$ref": "views.json#/$defs/TheaterStatic"
+    }
+  }
+}
