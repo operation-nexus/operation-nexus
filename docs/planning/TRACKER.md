@@ -10,12 +10,12 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | Phase | Items | Done | Status |
 |---|---|---|---|
 | P0 Foundations | 44 | 32 | 🟨 |
-| P1 Sim kernel | 138 | 112 | 🟨 |
+| P1 Sim kernel | 140 | 114 | 🟨 |
 | P2 Closed alpha | 56 | 0 | ⬜ |
 | P3 Public beta | 26 | 0 | ⬜ |
 | P4 Depth | 69 | 1 | ⬜ |
 
-Counts recomputed from the rows on 2026-11-04 (P1: 27 rows in this file after the 18 moves, 111 in TRACKER-DONE, plus the ✅ row NX-390 still here). Done rows are in [TRACKER-DONE.md](TRACKER-DONE.md). Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community and legal" (added 2026-10-18; phase noted per item once triaged).
+Counts recomputed from the rows on 2026-11-04 (P1: 27 rows in this file after the 18 moves, 113 in TRACKER-DONE incl. NX-503 and NX-506 moved from the Brand table, plus the ✅ row NX-390 still here). Done rows are in [TRACKER-DONE.md](TRACKER-DONE.md). Not counted above: the 10 items NX-328..NX-337 in "Brand, marketing, community and legal" (added 2026-10-18; phase noted per item once triaged).
 
 ---
 
