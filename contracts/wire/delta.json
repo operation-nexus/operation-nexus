@@ -1,0 +1,47 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nexus.local/contracts/wire/delta.json",
+  "title": "Delta",
+  "description": "Server to client, every tick: changes since base_tick (CONTRACTS section 7). events are the public view of the tick's events (CONTRACTS section 6, redaction column).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["type", "v", "tick", "base_tick", "upserts", "removes", "node_patches", "blobs", "last_known", "events"],
+  "properties": {
+    "type": {
+      "const": "Delta"
+    },
+    "v": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+$",
+      "description": "PROTOCOL_VERSION (contracts/VERSION)."
+    },
+    "tick": {
+      "$ref": "../common/ids.json#/$defs/Tick"
+    },
+    "base_tick": {
+      "$ref": "../common/ids.json#/$defs/Tick"
+    },
+    "upserts": {
+      "type": "array",
+      "items": {"$ref": "views.json#/$defs/EntityPatch"}
+    },
+    "removes": {
+      "type": "array",
+      "items": {"$ref": "../common/ids.json#/$defs/EntityId"}
+    },
+    "node_patches": {
+      "type": "array",
+      "items": {"$ref": "views.json#/$defs/NodePatch"}
+    },
+    "blobs": {
+      "anyOf": [{"type": "array", "items": {"$ref": "views.json#/$defs/BlobView"}}, {"type": "null"}]
+    },
+    "last_known": {
+      "anyOf": [{"type": "array", "items": {"$ref": "views.json#/$defs/LastKnownView"}}, {"type": "null"}]
+    },
+    "events": {
+      "type": "array",
+      "items": {"$ref": "../events/event.json"}
+    }
+  }
+}

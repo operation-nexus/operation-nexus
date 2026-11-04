@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nexus.local/contracts/wire/hud.json",
+  "title": "Hud",
+  "description": "At most 1 Hz, and inside every Snapshot (WP-10).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["type", "v", "momentum_pct", "momentum_breakdown", "objective_mode", "objective", "threat_tier", "nodes_held", "nodes_total", "campaign_clock", "ticker", "panels", "active_humans", "operators"],
+  "properties": {
+    "type": {
+      "const": "Hud"
+    },
+    "v": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+$",
+      "description": "PROTOCOL_VERSION (contracts/VERSION)."
+    },
+    "momentum_pct": {
+      "anyOf": [{"type": "integer", "minimum": 0, "maximum": 100}, {"type": "null"}]
+    },
+    "momentum_breakdown": {
+      "anyOf": [{"type": "object", "additionalProperties": false, "required": ["nodes_held_pct", "supply_pct", "recent_events", "sectors"], "properties": {"nodes_held_pct": {"type": "integer", "minimum": 0, "maximum": 100}, "supply_pct": {"type": "integer", "minimum": 0, "maximum": 100}, "recent_events": {"type": "array", "items": {"$ref": "../events/event.json"}, "maxItems": 5}, "sectors": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["sector_id", "owner_trend"], "properties": {"sector_id": {"$ref": "../common/ids.json#/$defs/SectorId"}, "owner_trend": {"type": "string", "maxLength": 16}}}, "description": "The owner_trend values are not specified yet (Q-UX-9); the builder sends none."}}}, {"type": "null"}]
+    },
+    "objective_mode": {
+      "$ref": "../common/enums.json#/$defs/ObjectiveMode"
+    },
+    "objective": {
+      "anyOf": [{"type": "object", "additionalProperties": false, "required": ["node_id", "name", "deadline_tick"], "properties": {"node_id": {"$ref": "../common/ids.json#/$defs/NodeId"}, "name": {"type": "string", "maxLength": 32}, "deadline_tick": {"anyOf": [{"type": "integer", "minimum": 0, "description": "campaign clock (running ticks)"}, {"type": "null"}]}}}, {"type": "null"}]
+    },
+    "threat_tier": {
+      "$ref": "../common/enums.json#/$defs/ThreatTier"
+    },
+    "nodes_held": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Strategic nodes (campaign.strategic_node_kinds: AIRBASE, FOB, PORT) the coalition owns: the same node set as momentum_breakdown.nodes_held_pct (OVERLAY 0.5)."
+    },
+    "nodes_total": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Count of the strategic nodes: the denominator of nodes_held and of momentum_breakdown.nodes_held_pct; 0 when the campaign layer is off."
+    },
+    "campaign_clock": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["elapsed_ticks", "limit_ticks", "paused", "pause_reason"],
+      "properties": {"elapsed_ticks": {"type": "integer", "minimum": 0, "description": "running ticks (a pause adds none)"}, "limit_ticks": {"anyOf": [{"type": "integer", "minimum": 1, "description": "campaign.time_limit_h in running ticks; null when no campaign rules are loaded (no limit)"}, {"type": "null"}]}, "paused": {"type": "boolean"}, "pause_reason": {"anyOf": [{"$ref": "../common/enums.json#/$defs/PauseReasonCategory"}, {"type": "null"}]}}
+    },
+    "ticker": {
+      "type": "array",
+      "items": {"type": "object", "additionalProperties": false, "required": ["tick", "text", "category"], "properties": {"tick": {"$ref": "../common/ids.json#/$defs/Tick"}, "text": {"type": "string", "maxLength": 100, "description": "ModeratedText (SEC-MOD-1)"}, "category": {"enum": ["CAPTURE", "SUPPLY", "COMBAT", "DIRECTOR", "SYSTEM"]}}},
+      "maxItems": 20
+    },
+    "panels": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["campaign_status", "tasking_needed", "top_commanders"],
+      "properties": {"campaign_status": {"type": "object", "additionalProperties": false, "required": ["nodes_held", "result"], "properties": {"nodes_held": {"description": "Over the strategic nodes, like Hud.nodes_held.", "type": "object", "additionalProperties": false, "required": ["coalition", "enemy", "neutral"], "properties": {"coalition": {"type": "integer", "minimum": 0}, "enemy": {"type": "integer", "minimum": 0}, "neutral": {"type": "integer", "minimum": 0}}}, "result": {"anyOf": [{"$ref": "../common/enums.json#/$defs/CampaignResult"}, {"type": "null"}]}}}, "tasking_needed": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["job_kind", "node_id", "sector_id", "slots_open"], "properties": {"job_kind": {"$ref": "../common/enums.json#/$defs/JobKind"}, "node_id": {"anyOf": [{"$ref": "../common/ids.json#/$defs/NodeId"}, {"type": "null"}]}, "sector_id": {"anyOf": [{"$ref": "../common/ids.json#/$defs/SectorId"}, {"type": "null"}]}, "slots_open": {"type": "integer", "minimum": 1}}}, "maxItems": 3}, "top_commanders": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["role", "rows"], "properties": {"role": {"$ref": "../common/enums.json#/$defs/Role"}, "rows": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["callsign", "value"], "properties": {"callsign": {"$ref": "../common/ids.json#/$defs/Callsign"}, "value": {"type": "integer", "minimum": 0}}}, "maxItems": 5}}}}}
+    },
+    "active_humans": {
+      "anyOf": [{"type": "integer", "minimum": 0}, {"type": "null"}]
+    },
+    "operators": {
+      "anyOf": [{"type": "object", "additionalProperties": false, "required": ["by_role", "by_rank_band"], "properties": {"by_role": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["role", "count"], "properties": {"role": {"$ref": "../common/enums.json#/$defs/Role"}, "count": {"type": "integer", "minimum": 0}}}}, "by_rank_band": {"anyOf": [{"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["band", "count"], "properties": {"band": {"type": "string", "maxLength": 16}, "count": {"type": "integer", "minimum": 0}}}}, {"type": "null"}]}}}, {"type": "null"}]
+    }
+  }
+}

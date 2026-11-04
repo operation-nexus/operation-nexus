@@ -1,0 +1,1594 @@
+/* Generated from contracts/ by make contracts (NX-021). Do not edit. */
+
+/**
+ * Discriminated union of all sim events on kind (CONTRACTS §6).
+ */
+export type Event =
+  | UnitSpawned
+  | CommandRejected
+  | ReserveQueueJoined
+  | ReserveQueueLeft
+  | UnitDestroyed
+  | CallsignChanged
+  | SupplyDelivered
+  | SupplyConsumed
+  | SupplyProduced
+  | SupplyShortfall
+  | UnitGrounded
+  | UnitUngrounded
+  | RearmStalled
+  | CaptureStarted
+  | NodeCaptured
+  | CampaignClockPaused
+  | CampaignClockResumed
+  | CampaignEnded
+  | VictoryHoldStarted
+  | VictoryHoldBroken
+  | VictoryHoldReset
+  | VictoryHoldPaused
+  | VictoryHoldResumed
+  | SpawnRefused
+  | ObjectiveAnnounced
+  | ObjectiveResolved
+  | WeaponFired
+  | WeaponImpact
+  | UnitDamageStateChanged
+  | UnitDespawned
+  | MunitionsDepleted
+  | CrewDowned
+  | UnitRepaired
+  | NodeDefensesDown
+  | NodeDefensesRestored
+  | BridgeDestroyed
+  | BridgeRepaired
+  | JobCreated
+  | JobClaimed
+  | JobReleased
+  | JobDone
+  | JobFailed
+  | JobExpired
+  | ThreatTierChanged
+  | ThreatAdaptation;
+
+/**
+ * Server to client, every tick: changes since base_tick (CONTRACTS section 7). events are the public view of the tick's events (CONTRACTS section 6, redaction column).
+ */
+export interface Delta {
+  type: "Delta";
+  /**
+   * PROTOCOL_VERSION (contracts/VERSION).
+   */
+  v: string;
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  base_tick: number;
+  upserts: EntityPatch[];
+  /**
+   * Items: Sequential per campaign, never reused (SC-4).
+   */
+  removes: number[];
+  node_patches: NodePatch[];
+  blobs: BlobView[] | null;
+  last_known: LastKnownView[] | null;
+  events: Event[];
+}
+/**
+ * entity_id plus only the changed fields of EntityView; a new entity carries all of them.
+ */
+export interface EntityPatch {
+  /**
+   * Sequential per campaign, never reused (SC-4).
+   */
+  entity_id: number;
+  /**
+   * MVP list; FACTORY is parked (Q-GP-41).
+   */
+  unit_kind?:
+    | "STRIKE_FIGHTER"
+    | "RECON_UAV"
+    | "LOGI_TRUCK"
+    | "GARRISON_INFANTRY"
+    | "ENEMY_FIGHTER"
+    | "ENEMY_STRIKE_FIGHTER"
+    | "ENEMY_RECON_UAV"
+    | "ENEMY_ARMOR"
+    | "ENEMY_CONVOY"
+    | "RADAR_SITE"
+    | "AIR_DEFENSE_SITE";
+  side?: "COALITION" | "ENEMY";
+  /**
+   * SEA is P3 (Q-GD-8). STATIC = facilities (Q-GP-25).
+   */
+  domain?: "AIR" | "GROUND" | "SEA" | "STATIC";
+  owner_kind?: "COMMANDER" | "AI_GARRISON" | "ENEMY_DIRECTOR";
+  callsign?: string | null;
+  pos?: Pos;
+  /**
+   * 0 = north, clockwise; from the velocity, 0 when still
+   */
+  heading_deg?: number;
+  /**
+   * m/s, rounded
+   */
+  speed_mps?: number;
+  hp_pct?: number;
+  /**
+   * Q-CBT-1. Destroyed is a lifecycle event (UnitDestroyed), not a damage state.
+   */
+  damage_state?: "HEALTHY" | "DAMAGED" | "MISSION_KILL" | "DISABLED";
+  painted?: boolean;
+  spotted?: boolean | null;
+  package_id?: number | null;
+  follow_entity_id?: number | null;
+  follower_count?: number;
+  cosmetic?: {
+    halo: string | null;
+    trail: string | null;
+  };
+  /**
+   * @maxItems 4
+   */
+  badges?: [] | [string] | [string, string] | [string, string, string] | [string, string, string, string];
+  probation?: boolean;
+  auto?: boolean;
+}
+export interface Pos {
+  /**
+   * metres, quantized to 1 m (WP-4)
+   */
+  x_m: number;
+  /**
+   * metres, quantized to 1 m (WP-4)
+   */
+  y_m: number;
+}
+/**
+ * node_id plus only the changed fields of NodeView.
+ */
+export interface NodePatch {
+  /**
+   * Stable slug from the theater file.
+   */
+  node_id: string;
+  owner?: "COALITION" | "ENEMY" | "NEUTRAL";
+  capture?: {
+    side: ("COALITION" | "ENEMY") | null;
+    progress_pct: number;
+  };
+  stock_pct?: number | null;
+  starvation?: ("OK" | "LOW" | "EMPTY") | null;
+  hp_pct?: number | null;
+  facilities?: FacilityView[];
+}
+/**
+ * A viewer-side facility (live values, confirmed_tick null) or a discovered enemy one (last confirmed values, FOW-13).
+ */
+export interface FacilityView {
+  /**
+   * Sequential per campaign, never reused (SC-4).
+   */
+  entity_id: number;
+  /**
+   * MVP list; FACTORY is parked (Q-GP-41).
+   */
+  kind:
+    | "STRIKE_FIGHTER"
+    | "RECON_UAV"
+    | "LOGI_TRUCK"
+    | "GARRISON_INFANTRY"
+    | "ENEMY_FIGHTER"
+    | "ENEMY_STRIKE_FIGHTER"
+    | "ENEMY_RECON_UAV"
+    | "ENEMY_ARMOR"
+    | "ENEMY_CONVOY"
+    | "RADAR_SITE"
+    | "AIR_DEFENSE_SITE";
+  variant: string | null;
+  pos: Pos;
+  ring_m: number | null;
+  state: ("HEALTHY" | "DAMAGED" | "MISSION_KILL" | "DISABLED") | null;
+  emitting: boolean | null;
+  confirmed_tick: number | null;
+}
+export interface BlobView {
+  /**
+   * A SIGINT blob, <refresh_tick>-<cell_index> (FOG-OF-WAR FOW-2). Opaque to clients.
+   */
+  blob_id: string;
+  cell_center: Pos;
+  size: "S" | "M" | "L";
+}
+/**
+ * FOW-6a, Q-FOW-1.
+ */
+export interface LastKnownView {
+  /**
+   * Sequential per campaign, never reused (SC-4).
+   */
+  entity_id: number;
+  /**
+   * MVP list; FACTORY is parked (Q-GP-41).
+   */
+  unit_kind:
+    | "STRIKE_FIGHTER"
+    | "RECON_UAV"
+    | "LOGI_TRUCK"
+    | "GARRISON_INFANTRY"
+    | "ENEMY_FIGHTER"
+    | "ENEMY_STRIKE_FIGHTER"
+    | "ENEMY_RECON_UAV"
+    | "ENEMY_ARMOR"
+    | "ENEMY_CONVOY"
+    | "RADAR_SITE"
+    | "AIR_DEFENSE_SITE";
+  pos: Pos;
+  heading_deg: number;
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  seen_tick: number;
+}
+/**
+ * A unit appears (CONTRACTS §6). Public view: an ENEMY spawn only if its spawn point is tracked; otherwise dropped.
+ */
+export interface UnitSpawned {
+  kind: "UnitSpawned";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Sequential per campaign, never reused (SC-4).
+   */
+  entity_id: number;
+  /**
+   * MVP list; FACTORY is parked (Q-GP-41).
+   */
+  unit_kind:
+    | "STRIKE_FIGHTER"
+    | "RECON_UAV"
+    | "LOGI_TRUCK"
+    | "GARRISON_INFANTRY"
+    | "ENEMY_FIGHTER"
+    | "ENEMY_STRIKE_FIGHTER"
+    | "ENEMY_RECON_UAV"
+    | "ENEMY_ARMOR"
+    | "ENEMY_CONVOY"
+    | "RADAR_SITE"
+    | "AIR_DEFENSE_SITE";
+  side: "COALITION" | "ENEMY";
+  owner_kind: "COMMANDER" | "AI_GARRISON" | "ENEMY_DIRECTOR";
+  commander_id: string | null;
+  /**
+   * null for AI entities, and for COMMANDER units until identity supplies the callsign with SYS_SET_CALLSIGN (IDENTITY §2). Clients key the [AI] marker (DI-5) on owner_kind, never on a null callsign.
+   */
+  callsign: string | null;
+  /**
+   * Stable slug from the theater file.
+   */
+  node_id: string;
+  loadout: "FULL" | "REDUCED";
+}
+/**
+ * A command was rejected (CONTRACTS §5.3, §6; SIM-CORE SC-7). Not public: aggregated digest only. command_kind is the rejected command's kind; kind is the event discriminator.
+ */
+export interface CommandRejected {
+  kind: "CommandRejected";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Arrival order assigned by the runtime inbox; carried as arrival_seq.
+   */
+  arrival_seq: number;
+  /**
+   * Grows one kind at a time, with each handler (AGENTS.md rule 6a).
+   */
+  command_kind:
+    | "JOIN"
+    | "SYS_SET_CALLSIGN"
+    | "SYS_QUEUE_TIMEOUT"
+    | "STAFF_CAMPAIGN_PAUSE"
+    | "STAFF_CAMPAIGN_RESUME"
+    | "STAFF_CAMPAIGN_END"
+    | "REBASE";
+  /**
+   * CONTRACTS §5.3. Grows one value at a time, with the code that emits it (rule 6a).
+   */
+  reason:
+    | "ROLE_UNKNOWN"
+    | "UNIT_IN_SORTIE"
+    | "RESPAWN_COOLDOWN"
+    | "NODE_UNKNOWN"
+    | "NODE_INVALID_FOR_UNIT"
+    | "FOLLOW_TARGET_INVALID"
+    | "CAMPAIGN_PAUSED"
+    | "INVALID_PAYLOAD"
+    | "INTERNAL_ERROR"
+    | "RESERVE_QUEUE_FULL"
+    | "ALREADY_PAUSED"
+    | "NOT_PAUSED"
+    | "CAMPAIGN_NOT_RUNNING"
+    | "REASON_REQUIRED"
+    | "NO_ACTIVE_UNIT"
+    | "NODE_NOT_FRIENDLY"
+    | "OUT_OF_REACH"
+    | "UNIT_GROUNDED"
+    | "NO_STOCK";
+  commander_id: string | null;
+}
+/**
+ * A JOIN went to the reserve queue (CONTRACTS §6; GAMEPLAY GP-3, RQ-1; STATE-MACHINES §4.1): the cap is reached, the queue is not empty, or the campaign is paused (Q-ALN-26). Also emitted when a queued commander's new JOIN replaces its entry. Public view: queue length only.
+ */
+export interface ReserveQueueJoined {
+  kind: "ReserveQueueJoined";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * UUIDv7, canonical lowercase (IDENTITY §1). Not a platform id.
+   */
+  commander_id: string;
+  /**
+   * 1-based place in the queue; 1 is served next.
+   */
+  position: number;
+}
+/**
+ * An entry left the reserve queue (CONTRACTS §6; GAMEPLAY RQ-1; STATE-MACHINES §4.1). Every exit emits exactly one, so every ReserveQueueJoined (a replacement emits Left REPLACED, then Joined) is matched by one Left and the queue length is derivable from events alone. Public view: queue length only.
+ */
+export interface ReserveQueueLeft {
+  kind: "ReserveQueueLeft";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * UUIDv7, canonical lowercase (IDENTITY §1). Not a platform id.
+   */
+  commander_id: string;
+  /**
+   * Why an entry left the reserve queue (CONTRACTS §6, NX-371): served a slot, replaced by the commander's own new JOIN, rejected when re-checked at serve time, or idle past slots.queue_idle_min. LEFT (a voluntary leave) joins with its command.
+   */
+  reason: "SLOT_FREED" | "REPLACED" | "REJECTED" | "TIMEOUT";
+}
+/**
+ * A unit is lost (CONTRACTS §6; STATE-MACHINES §4.1 Destroyed). Produced by fuel exhaustion (NX-368) and a captured base (NX-125), both with killer null and no assists, by combat (NX-124) and by a bridge collapse (NX-400, cause BRIDGE_COLLAPSE): killer is the shooter of the killing hit and the assists are the other shooters that hit the unit within combat.assist_window_s. Public view: a hidden killer becomes null (FOW-3); a hidden victim is dropped.
+ */
+export interface UnitDestroyed {
+  kind: "UnitDestroyed";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Sequential per campaign, never reused (SC-4).
+   */
+  entity_id: number;
+  /**
+   * null: no killer (fuel exhaustion or loss of a captured base), or a hidden killer in the public view.
+   */
+  killer_id: number | null;
+  /**
+   * Combat: the other shooters that hit the unit within combat.assist_window_s, sorted, no duplicates (producer). Not uniqueItems: that generates a set, whose order is not deterministic (SC-14).
+   *
+   * @maxItems 32
+   *
+   * Items: Sequential per campaign, never reused (SC-4).
+   */
+  assist_ids: number[];
+  /**
+   * The lost unit's side.
+   */
+  side: "COALITION" | "ENEMY";
+  /**
+   * BRIDGE_COLLAPSE: lost in a bridge's fall (Q-SIM-112), killer_id the shooter of the hit that dropped it. null: any other loss.
+   */
+  cause: "BRIDGE_COLLAPSE" | null;
+}
+/**
+ * A commander's callsign was set by SYS_SET_CALLSIGN (CONTRACTS §6). Broadcast-only, already approved. TOMBSTONE renders as REDACTED- plus the tag after X- (Q-DM-2, Q-ALN-29).
+ */
+export interface CallsignChanged {
+  kind: "CallsignChanged";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * UUIDv7, canonical lowercase (IDENTITY §1). Not a platform id.
+   */
+  commander_id: string;
+  /**
+   * Generated WORD-NN or approved custom (IDENTITY §2-3).
+   */
+  callsign: string;
+  /**
+   * IDENTITY §2, DATA-MODEL §4.2.
+   */
+  callsign_kind: "GENERATED" | "CUSTOM" | "TOMBSTONE";
+}
+/**
+ * A truck's unloading stop at a node ended (CONTRACTS §6; NX-123): its cargo ran out, the node reached its maximum, or it drove off. One event per stop, amount = the whole stock units delivered at that node during the stop; none when 0 were delivered. Public view: none for coalition, ENEMY deliveries are dropped.
+ */
+export interface SupplyDelivered {
+  kind: "SupplyDelivered";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Stable slug from the theater file.
+   */
+  node_id: string;
+  amount: number;
+  /**
+   * Sequential per campaign, never reused (SC-4).
+   */
+  carrier_id: number;
+  commander_id: string | null;
+}
+/**
+ * Stock a node paid out for units (CONTRACTS §6; NX-123): SPAWN once per forward-deployed unit, REARM once per rearm stop when it ends (filled, stalled or taken off) for fuel and ammo, REPAIR once per stop for hp repaired, STORAGE_LOST once per economy window at a source whose pool was above its lowered storage cap (ECONOMY EC-2, NX-412), UPKEEP once per home base per economy window for the upkeep it paid for the units based there (ECONOMY EC-4, NX-412 part 2). amount = whole stock units; none when 0. Public view: ENEMY nodes are dropped.
+ */
+export interface SupplyConsumed {
+  kind: "SupplyConsumed";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Stable slug from the theater file.
+   */
+  node_id: string;
+  amount: number;
+  cause: "SPAWN" | "REARM" | "REPAIR" | "STORAGE_LOST" | "UPKEEP";
+}
+/**
+ * A side's source pool gained income at an economy window (CONTRACTS §6; ECONOMY EC-1, EC-10; NX-412 part 1): one per side per window, amount = the whole stock units added (the floor plus each held, uncontested node, capped at storage); none when 0, and none for a side in unlimited mode (EC-15). Public view: ENEMY dropped (proposed).
+ */
+export interface SupplyProduced {
+  kind: "SupplyProduced";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  side: "COALITION" | "ENEMY";
+  amount: number;
+}
+/**
+ * A base-level upkeep shortfall sitrep (CONTRACTS §6; ECONOMY EC-6a; NX-436, Q-TD-51 U5, Q-TD-64). A shortfall episode at a base is the run of consecutive economy windows in which at least one unit of `side` homed there is grounded (the NX-437 harness definition, GLOSSARY). STARTED once per episode, never per unit: the sitrep "<BASE> OUT OF SUPPLY: n flights grounded. Haul to <BASE>". ENDED once, only for an announced episode that closed because its home paid a grounded unit again: the payoff line crediting credit_ids. An ENEMY base's episode is announced, and closed, only in a window in which the coalition tracks a live Static unit or facility at that base (FOW-13). An episode starting within economy.shortfall_quiet_windows of the end of the base's last announced or muted one is never announced. Public view: this INTEL line.
+ */
+export interface SupplyShortfall {
+  kind: "SupplyShortfall";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * The side whose units the base grounds.
+   */
+  side: "COALITION" | "ENEMY";
+  /**
+   * Stable slug from the theater file.
+   */
+  node_id: string;
+  /**
+   * STARTED: the episode is announced; ENDED: its payoff.
+   */
+  status: "STARTED" | "ENDED";
+  /**
+   * STARTED: the units of `side` homed at the base grounded at that window; for an ENEMY base only those the coalition currently tracks, so possibly 0 (FOW-13). ENDED: 0.
+   */
+  grounded: number;
+  /**
+   * ENDED, COALITION only: the carriers of `side` that unloaded stock into the base's stock during the episode, ascending, no duplicates (producer; not uniqueItems, SC-14), the 32 lowest ids; consumers resolve callsigns. Empty for STARTED and for an ENEMY base (always sent).
+   *
+   * @maxItems 32
+   *
+   * Items: Sequential per campaign, never reused (SC-4).
+   */
+  credit_ids: number[];
+}
+/**
+ * A unit's home base could not pay its upkeep at an economy window (CONTRACTS §6; ECONOMY EC-4, EC-6; NX-412 part 2): the unit is grounded, never deleted. It drops its job claim and order, returns to its home and stays there (an aircraft landed, a ground unit parked), takes no new job or order, and still returns fire. Once per change, not per window. Only for a side not in unlimited mode (EC-15). Public view: the coalition sees its own units (a feed line, GAMEPLAY §1a); ENEMY dropped (proposed).
+ */
+export interface UnitGrounded {
+  kind: "UnitGrounded";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Sequential per campaign, never reused (SC-4).
+   */
+  entity_id: number;
+  /**
+   * Stable slug from the theater file.
+   */
+  node_id: string;
+}
+/**
+ * A grounded unit's home base paid its upkeep at an economy window (CONTRACTS §6; ECONOMY EC-6; NX-412 part 2): it may take jobs and orders again. Once per change. Public view: the coalition sees its own units (a feed line, GAMEPLAY §1a); ENEMY dropped (proposed).
+ */
+export interface UnitUngrounded {
+  kind: "UnitUngrounded";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Sequential per campaign, never reused (SC-4).
+   */
+  entity_id: number;
+  /**
+   * Stable slug from the theater file.
+   */
+  node_id: string;
+}
+/**
+ * A landed aircraft needs fuel and its base has none (CONTRACTS §6; NX-123, STATE-MACHINES §4.1 Rearming): emitted once when the stall starts, not every tick; a resupply and a new stall emit again. ENEMY: dropped from public views.
+ */
+export interface RearmStalled {
+  kind: "RearmStalled";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Sequential per campaign, never reused (SC-4).
+   */
+  entity_id: number;
+  /**
+   * Stable slug from the theater file.
+   */
+  node_id: string;
+}
+/**
+ * A side's capture bar on a node began to fill (CONTRACTS §6; STATE-MACHINES §4.2; NX-125): its eligible ground units are in radius and no opposing combat-capable unit blocks them, and the node had no progress. Emitted again when a bar that decayed to 0 starts afresh. Public view: none (nodes are always visible).
+ */
+export interface CaptureStarted {
+  kind: "CaptureStarted";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Stable slug from the theater file.
+   */
+  node_id: string;
+  /**
+   * The capturing side.
+   */
+  side: "COALITION" | "ENEMY";
+}
+/**
+ * A node's owner flipped (CONTRACTS §6; STATE-MACHINES §4.2; NX-125). `to` is the capturing side, `from` the previous owner (NEUTRAL for an unowned node). participant_commander_ids: the commanders of the capturing side's units in radius at the flip, ascending, no duplicates (producer). Not uniqueItems: that generates a set, whose order is not deterministic (SC-14). Public view: ENEMY participants are omitted.
+ */
+export interface NodeCaptured {
+  kind: "NodeCaptured";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Stable slug from the theater file.
+   */
+  node_id: string;
+  from: "COALITION" | "ENEMY" | "NEUTRAL";
+  to: "COALITION" | "ENEMY" | "NEUTRAL";
+  /**
+   * Items: UUIDv7, canonical lowercase (IDENTITY §1). Not a platform id.
+   */
+  participant_commander_ids: string[];
+}
+/**
+ * The campaign clock stopped (CONTRACTS 6; STATE-MACHINES 4.4; NX-126). The staff note is not in the event. Public view: sub_reason omitted (Q-ALN-39).
+ */
+export interface CampaignClockPaused {
+  kind: "CampaignClockPaused";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Q-ALN-3. STAFF = a manual pause; TECHNICAL = offline auto-pause; MAINTENANCE = weekly window; CEASEFIRE = owner Ceasefire mode.
+   */
+  reason: "STAFF" | "TECHNICAL" | "MAINTENANCE" | "CEASEFIRE";
+  sub_reason: ("RAID" | "ABUSE" | "CONTENT" | "OTHER") | null;
+}
+/**
+ * The campaign clock restarted (CONTRACTS 6; NX-126). reason and sub_reason are those of the pause it ends. Public view: sub_reason omitted (Q-ALN-39).
+ */
+export interface CampaignClockResumed {
+  kind: "CampaignClockResumed";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Q-ALN-3. STAFF = a manual pause; TECHNICAL = offline auto-pause; MAINTENANCE = weekly window; CEASEFIRE = owner Ceasefire mode.
+   */
+  reason: "STAFF" | "TECHNICAL" | "MAINTENANCE" | "CEASEFIRE";
+  sub_reason: ("RAID" | "ABUSE" | "CONTENT" | "OTHER") | null;
+}
+/**
+ * The campaign ended (CONTRACTS 6; STATE-MACHINES 4.4, C-2; NX-126). Exactly one per campaign. score is each side's time-limit score at the end (Q-GD-29): weight x average share of strategic nodes over the campaign, plus the objective points for the coalition's completed objectives; it is filled for every result. winner is null on an exact TIME_LIMIT tie and for ABORTED. nodes_held_pct is the coalition's share of strategic nodes at the end, rounded to the nearest percent, halves up.
+ */
+export interface CampaignEnded {
+  kind: "CampaignEnded";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Q-GD-7, Q-GP-14. Defeat waits for combat (Q-SIM-62).
+   */
+  result: "VICTORY" | "DEFEAT" | "TIME_LIMIT" | "ABORTED";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  end_tick: number;
+  score: {
+    coalition: number;
+    enemy: number;
+  };
+  winner: ("COALITION" | "ENEMY") | null;
+  nodes_held_pct: number;
+}
+/**
+ * The coalition's victory hold began (CONTRACTS §6; GAMEPLAY §9; ECONOMY EC-9, Q-TD-19, Q-TD-25; NX-412 part 4): on the first running tick it holds at least campaign.victory_node_frac of the strategic nodes. A hold broken earlier and still decaying resumes with its decayed progress (ECONOMY EC-9a, NX-489). Followed by VictoryHoldBroken, or by CampaignEnded. Public: every side sees it (the hold enters the EnemyView, TD-2).
+ */
+export interface VictoryHoldStarted {
+  kind: "VictoryHoldStarted";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * The strategic nodes the coalition holds as the hold begins, ascending, no duplicates (producer).
+   *
+   * Items: Stable slug from the theater file.
+   */
+  node_ids: string[];
+  /**
+   * The running tick on which the victory comes if the hold is not broken: this running tick + victory_hold_ticks - the progress after this tick's credit, progress_ticks + 1 (campaign clock, like ObjectiveAnnounced.deadline_tick, not a Tick).
+   */
+  ends_at_tick: number;
+  /**
+   * The progress the hold carries in (ECONOMY EC-9a, NX-489): 0 for a fresh hold, the decayed progress of a broken hold it resumes.
+   */
+  progress_ticks: number;
+}
+/**
+ * The coalition's victory hold broke (CONTRACTS §6; GAMEPLAY §9; ECONOMY EC-9; NX-412 part 4): its share of strategic nodes fell below campaign.victory_node_frac. With campaign.victory.hold_break decay the hold keeps progress_ticks and decays until it resumes (VictoryHoldStarted) or resets (VictoryHoldReset) (ECONOMY EC-9a, NX-489); with reset it keeps 0. Not emitted when the campaign ends during the hold. Public, like VictoryHoldStarted.
+ */
+export interface VictoryHoldBroken {
+  kind: "VictoryHoldBroken";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Stable slug from the theater file.
+   */
+  node_id: string;
+  /**
+   * The progress the broken hold keeps (ECONOMY EC-9a): its running ticks credited so far with hold_break decay, 0 with reset.
+   */
+  progress_ticks: number;
+}
+/**
+ * A broken, decaying victory hold is over and its progress is 0 (CONTRACTS §6; GAMEPLAY §9; ECONOMY EC-9a, Q-TD-102, Q-TD-126; NX-489): on the first running tick its decayed progress reaches 0 (DECAYED), or, with campaign.victory.reset_on_repair, the other side owns one of the broken hold's nodes at its full defense HP (REPAIRED). Only with campaign.victory.hold_break decay. Public, like VictoryHoldStarted.
+ */
+export interface VictoryHoldReset {
+  kind: "VictoryHoldReset";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * DECAYED: the progress drained to 0. REPAIRED: a broken-hold node the other side owns is back at full defense HP (checked when the progress is still above 0).
+   */
+  reason: "DECAYED" | "REPAIRED";
+  /**
+   * REPAIRED: the repaired node, the lowest id when several are; null for DECAYED.
+   */
+  node_id: string | null;
+}
+/**
+ * A running victory hold stopped gaining progress because a hold node is under the other side's pressure (CONTRACTS §6; GAMEPLAY §9; ECONOMY EC-9b, Q-TD-84 (b), Q-TD-134; NX-466). Emitted once per pause, on its first pressured running tick (never the tick the hold starts). Nothing follows while the pause lasts, even if the node or the reason changes. Only with campaign.victory.pause_on_pressure. Public, like VictoryHoldStarted.
+ */
+export interface VictoryHoldPaused {
+  kind: "VictoryHoldPaused";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Stable slug from the theater file.
+   */
+  node_id: string;
+  /**
+   * The first condition that holds for node_id, in the order CAPTURE_BAR, DEFENSES_DOWN, CAPTURE_OP.
+   */
+  reason: "CAPTURE_BAR" | "DEFENSES_DOWN" | "CAPTURE_OP";
+  /**
+   * The progress the hold keeps while paused (a running hold has at least its start tick's 1).
+   */
+  progress_ticks: number;
+}
+/**
+ * A paused victory hold gained progress again: no hold node is under pressure any more (CONTRACTS §6; GAMEPLAY §9; ECONOMY EC-9b, Q-TD-84 (b); NX-466). Emitted on the first running tick after a VictoryHoldPaused with no hold node pressured, which also gains 1. Not emitted when the hold breaks or the campaign ends during the pause. Only with campaign.victory.pause_on_pressure. Public, like VictoryHoldStarted.
+ */
+export interface VictoryHoldResumed {
+  kind: "VictoryHoldResumed";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * The running tick the victory comes on if nothing pauses or breaks the hold again: this running tick + victory_hold_ticks - progress_ticks (campaign clock, as VictoryHoldStarted.ends_at_tick).
+   */
+  ends_at_tick: number;
+  /**
+   * The progress after this tick's gain.
+   */
+  progress_ticks: number;
+}
+/**
+ * The live-unit cap stopped Director operations in one selection (CONTRACTS §6; ECONOMY EC-8, Q-TD-34 (5); NX-412 part 5a): operations the window's budget and max_spawns_per_window would have taken but whose units did not fit the side's live room. At most one per selection (the window's operations, the Pattern of Life capture slot, its convoys), none when nothing was refused. A JOIN at the cap is not counted here: it waits in the reserve queue (ReserveQueueJoined). A countable signal for the balance harness. Public view: dropped (proposed).
+ */
+export interface SpawnRefused {
+  kind: "SpawnRefused";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  side: "COALITION" | "ENEMY";
+  /**
+   * Which live-unit cap refused a Director operation (ECONOMY EC-8, NX-412 part 5a): GUARD = sim.max_live_units_per_side. TIER_CAP was the per-tier live cap, deleted in NX-488: no longer emitted, kept so event logs recorded before it still parse.
+   */
+  reason: "GUARD" | "TIER_CAP";
+  /**
+   * Operations refused in this selection.
+   */
+  operations: number;
+  /**
+   * The units those operations would have spawned (0 when only unit-less operations, such as a radar blink, were refused because the side was already over the cap).
+   */
+  units: number;
+}
+/**
+ * A timed objective was announced (CONTRACTS 6; STATE-MACHINES 4.5; NX-126). deadline_tick is on the campaign clock (running ticks, the Hud's campaign_clock.elapsed_ticks), not the tick counter: a pause delays the real tick, so the deadline is not a Tick.
+ */
+export interface ObjectiveAnnounced {
+  kind: "ObjectiveAnnounced";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Sequential per campaign, never reused (STATE-MACHINES 4.5).
+   */
+  objective_id: number;
+  /**
+   * Stable slug from the theater file.
+   */
+  node_id: string;
+  deadline_tick: number;
+}
+/**
+ * A timed objective was completed or expired (CONTRACTS 6; STATE-MACHINES 4.5; NX-126). participant_commander_ids: for a capture, the NodeCaptured participants; for a hold, the coalition commanders with units within capture.radius_m of the node at the deadline; ascending, no duplicates (producer); empty on EXPIRED.
+ */
+export interface ObjectiveResolved {
+  kind: "ObjectiveResolved";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Sequential per campaign, never reused (STATE-MACHINES 4.5).
+   */
+  objective_id: number;
+  outcome: "COMPLETED" | "EXPIRED";
+  /**
+   * Items: UUIDv7, canonical lowercase (IDENTITY §1). Not a platform id.
+   */
+  participant_commander_ids: string[];
+}
+/**
+ * A unit fired a weapon at a target (CONTRACTS §6; COMBAT CB-2). The shot is not an entity; the outcome is not known yet (Q-GP-12). impact_tick is on the campaign clock (running ticks), not the tick counter: a pause delays the real tick, so it is not a Tick; a gun's equals the clock value of the tick it fired in. Public view: a hidden shooter shows no tracer (Q-CT-3).
+ */
+export interface WeaponFired {
+  kind: "WeaponFired";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Sequential per campaign, never reused (SC-4).
+   */
+  shooter_id: number;
+  /**
+   * The unit fired on; null for a shot at a node's defenses (then target_node_id is set; COMBAT CB-10).
+   */
+  target_id: number | null;
+  /**
+   * The node whose defenses were fired on; null for a shot at a unit.
+   */
+  target_node_id: string | null;
+  /**
+   * Weapon profile id from content/weapons.yaml (CONFIG-AND-CONTENT §7.2).
+   */
+  weapon: string;
+  /**
+   * The campaign-clock tick the shot lands on.
+   */
+  impact_tick: number;
+}
+/**
+ * A shot landed (CONTRACTS §6; COMBAT CB-3, CB-4), on its impact tick after the Pk roll. A fizzle (the shooter's side no longer tracks the target, the target is out of the weapon's range or bands, or the target or shooter is gone) is a miss with no roll (Q-FOW-16). Public view: a hidden shooter shows as an unknown contact.
+ */
+export interface WeaponImpact {
+  kind: "WeaponImpact";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Sequential per campaign, never reused (SC-4).
+   */
+  shooter_id: number;
+  /**
+   * The unit fired on; null for a shot at a node's defenses (then target_node_id is set; COMBAT CB-10).
+   */
+  target_id: number | null;
+  /**
+   * The node whose defenses were fired on; null for a shot at a unit.
+   */
+  target_node_id: string | null;
+  /**
+   * Weapon profile id from content/weapons.yaml (CONFIG-AND-CONTENT §7.2).
+   */
+  weapon: string;
+  hit: boolean;
+}
+/**
+ * A unit moved to another damage state (CONTRACTS §6; COMBAT CB-6). A hit worsens it: one event per hit, from the state before to the state after, none when the hit destroys the unit (UnitDestroyed). Repair at a friendly base improves it, one event per tick it changes the state. Public view: dropped for a victim the viewer side does not currently observe (FOW-13).
+ */
+export interface UnitDamageStateChanged {
+  kind: "UnitDamageStateChanged";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Sequential per campaign, never reused (SC-4).
+   */
+  entity_id: number;
+  /**
+   * Q-CBT-1. Destroyed is a lifecycle event (UnitDestroyed), not a damage state.
+   */
+  from: "HEALTHY" | "DAMAGED" | "MISSION_KILL" | "DISABLED";
+  /**
+   * Q-CBT-1. Destroyed is a lifecycle event (UnitDestroyed), not a damage state.
+   */
+  to: "HEALTHY" | "DAMAGED" | "MISSION_KILL" | "DISABLED";
+}
+/**
+ * A unit was removed without being destroyed (CONTRACTS §6). WRECKED is the first producer: a Disabled unit removed after combat.disabled_timeout_s, its cargo lost (COMBAT CB-7, Q-CBT-14). RETIRED: a Threat Director unit with no job for director.idle_retire_s, removed with no refund; it is not a loss (NX-156, Q-SIM-84). Other reasons join with their producers (rule 6a). Public view: a hidden ENEMY unit is dropped.
+ */
+export interface UnitDespawned {
+  kind: "UnitDespawned";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Sequential per campaign, never reused (SC-4).
+   */
+  entity_id: number;
+  reason: "WRECKED" | "RETIRED";
+}
+/**
+ * A unit spent its last missile, bomb or other non-gun round (CONTRACTS §6; COMBAT CB-11, GAMEPLAY §5): emitted on the shot that empties the non-gun weapons, once per load; guns_only is true when gun rounds remain. A unit that carries no non-gun weapon never emits it. Public view: dropped for a hidden ENEMY unit (FOW-13).
+ */
+export interface MunitionsDepleted {
+  kind: "MunitionsDepleted";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Sequential per campaign, never reused (SC-4).
+   */
+  entity_id: number;
+  guns_only: boolean;
+}
+/**
+ * A unit was lost and its crew survived the seeded roll (CONTRACTS §6; COMBAT CB-8, GAMEPLAY §6a): rolled once per unit with crew above 0, at the first of Disabled or Destroyed. The marker stays on the map for combat.crew_marker_min of game time. A lost crew emits nothing. pos is the unit position when it was lost. Public view: dropped unless the viewer side observes the position (FOW-13).
+ */
+export interface CrewDowned {
+  kind: "CrewDowned";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Per campaign, allocated by the kernel when a crew is downed, never reused (GAMEPLAY 6a, COMBAT CB-8).
+   */
+  marker_id: number;
+  /**
+   * Sequential per campaign, never reused (SC-4).
+   */
+  entity_id: number;
+  side: "COALITION" | "ENEMY";
+  pos: {
+    x_m: number;
+    y_m: number;
+  };
+}
+/**
+ * A unit or facility at a friendly base is back to full hp (CONTRACTS §6; GAMEPLAY §5, §5b, Q-GD-27): emitted when the repair reaches the unit's maximum hp; each damage-state improvement on the way is a UnitDamageStateChanged. by_id is the engineer that repaired it, null for base repair. Public view: dropped for a hidden ENEMY unit (FOW-13).
+ */
+export interface UnitRepaired {
+  kind: "UnitRepaired";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Sequential per campaign, never reused (SC-4).
+   */
+  entity_id: number;
+  /**
+   * The repairing unit; always null until engineers exist (P4).
+   */
+  by_id: number | null;
+  /**
+   * The base that repaired it; null for a repair away from a base (engineers, P4).
+   */
+  node_id: string | null;
+}
+/**
+ * A node's defense HP reached 0, from fire or starvation (CONTRACTS 6; GAMEPLAY 8, COMBAT CB-10; NX-124 part 3): capture of the node can now start. Not emitted for a node that begins at 0 (a NEUTRAL one or one that just changed hands). Individual hits are WeaponImpact; the HUD reads the hp from NodeView.hp_pct.
+ */
+export interface NodeDefensesDown {
+  kind: "NodeDefensesDown";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Stable slug from the theater file.
+   */
+  node_id: string;
+  /**
+   * The node's owner at the time.
+   */
+  owner: "COALITION" | "ENEMY" | "NEUTRAL";
+}
+/**
+ * A node announced down by NodeDefensesDown has been rebuilt all the way to full HP, from deliveries or parked sanctuary trucks (CONTRACTS 6; GAMEPLAY 8; NX-124 part 3). Fires once per down cycle, never while only partly rebuilt, and never for a node that was not down.
+ */
+export interface NodeDefensesRestored {
+  kind: "NodeDefensesRestored";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Stable slug from the theater file.
+   */
+  node_id: string;
+  /**
+   * The node's owner at the time.
+   */
+  owner: "COALITION" | "ENEMY" | "NEUTRAL";
+}
+/**
+ * A bridge's HP reached 0 (CONTRACTS 6; STATE-MACHINES 4.3, COMBAT CB-10; NX-373): its road edge is cut for path planning until it is repaired to full. Once per down cycle, never per hit; individual hits are WeaponImpact.
+ */
+export interface BridgeDestroyed {
+  kind: "BridgeDestroyed";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Stable slug from the theater file.
+   */
+  node_id: string;
+  /**
+   * The unit whose hit took the bridge to 0; null for a hidden actor in a filtered view.
+   */
+  by_id: number | null;
+  /**
+   * The GROUND units the fall destroyed (Q-SIM-112: on the cut edge within logistics.bridge_collapse_radius_m of the cut point), sorted, no duplicates (producer); each also gets UnitDestroyed with cause BRIDGE_COLLAPSE. Not capped: every loss is named. A filtered view drops a hidden victim's id.
+   *
+   * Items: Sequential per campaign, never reused (SC-4).
+   */
+  lost_ids: number[];
+}
+/**
+ * A down bridge was repaired to full HP (CONTRACTS 6; STATE-MACHINES 4.3; NX-373 part 2): its road edge is back for path planning. Once per down cycle; a damaged bridge that was never down emits nothing as it is repaired.
+ */
+export interface BridgeRepaired {
+  kind: "BridgeRepaired";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Stable slug from the theater file.
+   */
+  node_id: string;
+  /**
+   * The lowest-id unit parked at the bridge's repair stop on the tick it reached full HP; null for a hidden actor in a filtered view.
+   */
+  by_id: number | null;
+}
+/**
+ * A job was posted to a side's Tasking Board, OPEN (CONTRACTS §6; GAMEPLAY §1b TB-1, TB-10; NX-374). Posted by the board generator (the director and GM injection post through the same call later). Exactly one of node_id and blob_id is set, except an escort job (ESCORT_CONVOY) and an intercept job (INTERCEPT), which set no blob_id and name the escorted truck or the hunted scout in entity_id; node_id is null for them too, except a repair crew's escort, which names the bridge being repaired (Q-SIM-118). A live escort job that becomes a crew's (its truck took a bridge repair) gets that node_id with no new event (sector_id joins with the sector scout). A job generated for a side references only what that side's view holds (TB-9). Public view: dropped for the ENEMY side's board.
+ */
+export interface JobCreated {
+  kind: "JobCreated";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Tasking Board job id: per campaign, one counter for both sides' boards, never reused (GAMEPLAY §1b).
+   */
+  job_id: number;
+  side: "COALITION" | "ENEMY";
+  /**
+   * Tasking Board job kinds the code handles (GAMEPLAY §1b, CONTRACTS §3.3). STAGE and CAPTURE are posted by the Threat Director on the Static board (Q-SIM-81, Q-TD-14); CAPTURE is also the coalition board's one retake job (Q-TD-99, NX-475). PATROL is the Director's on the Static board (Q-SIM-85) and the coalition board's front-line patrol (Q-SIM-94). INTERCEPT is the Static board's hunt of a coalition scout it tracks (Q-SIM-96). REPAIR_BRIDGE is the coalition board's truck field repair of a down bridge (NX-373 part 2). RESCUE joins with its job (rule 6a).
+   */
+  job_kind:
+    | "RESUPPLY"
+    | "SCOUT"
+    | "DEFEND"
+    | "STRIKE"
+    | "ASSIST_OBJECTIVE"
+    | "ESCORT_CONVOY"
+    | "STAGE"
+    | "CAPTURE"
+    | "PATROL"
+    | "INTERCEPT"
+    | "REPAIR_BRIDGE";
+  node_id: string | null;
+  blob_id: string | null;
+  /**
+   * The truck an escort job covers (ESCORT_CONVOY) or the scout an intercept job hunts (INTERCEPT), else null.
+   */
+  entity_id: number | null;
+  slots: number;
+  depends_on_job_id: number | null;
+}
+/**
+ * A unit claimed a slot of a job (CONTRACTS §6; TB-1): the lease starts. A parameterless JOIN claims for the unit it spawns.
+ */
+export interface JobClaimed {
+  kind: "JobClaimed";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Tasking Board job id: per campaign, one counter for both sides' boards, never reused (GAMEPLAY §1b).
+   */
+  job_id: number;
+  /**
+   * Sequential per campaign, never reused (SC-4).
+   */
+  entity_id: number;
+}
+/**
+ * A claim was released and the slot returned to the board (TB-1, TB-7): the lease ran out with no progress, a human order preempted it, a human wanted the slot of an AI unit (Q-TD-11), or the unit was lost, Disabled or sent home.
+ */
+export interface JobReleased {
+  kind: "JobReleased";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Tasking Board job id: per campaign, one counter for both sides' boards, never reused (GAMEPLAY §1b).
+   */
+  job_id: number;
+  /**
+   * Sequential per campaign, never reused (SC-4).
+   */
+  entity_id: number;
+}
+/**
+ * The job succeeded (TB-1, TB-10). participants are the claimants that had made progress; auto is true for a commander's unit that was AI-run (AUTO) at completion: those are AUTO assists for recaps only and never XP, merit or leaderboards (Q-ALN-30). Stored durably (Q-ALN-16).
+ */
+export interface JobDone {
+  kind: "JobDone";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Tasking Board job id: per campaign, one counter for both sides' boards, never reused (GAMEPLAY §1b).
+   */
+  job_id: number;
+  /**
+   * @maxItems 64
+   */
+  participants: {
+    /**
+     * Sequential per campaign, never reused (SC-4).
+     */
+    entity_id: number;
+    commander_id: string | null;
+    auto: boolean;
+  }[];
+}
+/**
+ * The job can no longer be done (TB-1), e.g. the node it served was lost. Its claims are released; jobs that depend on it fail too (TB-8). Stored durably (Q-ALN-16).
+ */
+export interface JobFailed {
+  kind: "JobFailed";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Tasking Board job id: per campaign, one counter for both sides' boards, never reused (GAMEPLAY §1b).
+   */
+  job_id: number;
+}
+/**
+ * The job ended without success or failure (TB-1): unclaimed past its expiry, its condition passed unclaimed, or its objective ended. Stored durably (Q-ALN-16).
+ */
+export interface JobExpired {
+  kind: "JobExpired";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * Tasking Board job id: per campaign, one counter for both sides' boards, never reused (GAMEPLAY §1b).
+   */
+  job_id: number;
+}
+/**
+ * The Static's Threat Director moved one tier (CONTRACTS §6; THREAT-DIRECTOR §3, Q-TD-1; NX-155). Emitted in the decision window that changes it, never while paused. `cp_smoothed` is the EMA of coalition power at that window. `side` names the Director that moved (only the ENEMY's runs until NX-375). Public view: cp_smoothed omitted (proposed).
+ */
+export interface ThreatTierChanged {
+  kind: "ThreatTierChanged";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * The side whose Director moved (only the ENEMY's runs until NX-375).
+   */
+  side: "COALITION" | "ENEMY";
+  /**
+   * THREAT-DIRECTOR §3; CHARLIE is parked (Q-TD-3).
+   */
+  from: "PATTERN_OF_LIFE" | "ALPHA" | "BRAVO";
+  /**
+   * THREAT-DIRECTOR §3; CHARLIE is parked (Q-TD-3).
+   */
+  to: "PATTERN_OF_LIFE" | "ALPHA" | "BRAVO";
+  /**
+   * Smoothed coalition power at the decision window.
+   */
+  cp_smoothed: number;
+}
+/**
+ * The Static's Threat Director adapted its defense to what it suffered, or announces what its operations are doing (CONTRACTS §6; THREAT-DIRECTOR §4 step 5, C37; NX-156). `UP` when the matching operation launched (escorts appear, air defense is reinforced), `DOWN` when its threat-memory counter has decayed away again. Sector level only: it names no site and updates no facility marker (Q-FOW-17, FOG-OF-WAR FOW-13). Two categories also name a node (nodes are public, FOW-10). HOLD_AT_RISK (NX-412 part 4, ECONOMY EC-9, Q-TD-19): a capture operation was launched on a node of the coalition's running victory hold, always UP, no DOWN. STRIKE_DOWNED (NX-431, Q-TD-56): viewer units took out the last jet of a Static strike package; node_id is the struck node, always UP. SANCTUARY_AT_RISK (NX-493, Q-TD-122): the coalition sanctuary's defense hp fell from full, node_id the sanctuary, always UP. Public view: this INTEL line.
+ */
+export interface ThreatAdaptation {
+  kind: "ThreatAdaptation";
+  /**
+   * 10 Hz game time (SC-2).
+   */
+  tick: number;
+  /**
+   * Campaign-wide, monotonic, deterministic (SC-14).
+   */
+  event_seq: number;
+  /**
+   * UUIDv7, canonical lowercase.
+   */
+  campaign_id: string;
+  /**
+   * The side whose Director adapted (only the ENEMY's runs until NX-375).
+   */
+  side: "COALITION" | "ENEMY";
+  /**
+   * CONVOY_ESCORT: escorts for convoys after `convoy_attacks`. IADS_REINFORCED: air defense reinforced after `radar_strikes`. HOLD_AT_RISK: a capture operation (OFFENSIVE, RETAKE) launched on a node of the running victory hold, the sitrep "NULL moves on <node>, the hold is at risk" (Q-TD-19). STAGING: a capture operation started forward staging at a base in the sector (THREAT-DIRECTOR §4a FS-5, NX-416), the sitrep "NULL forces are massing in <sector>", always UP, sector level only (no node_id, FOW-13). STAGING_LAUNCHED and STAGING_DISPERSED (NX-431, Q-TD-47) close a STAGING sitrep, once, in the sector it named: the staged operation launched from its staging base, the sitrep "NULL assault launching from <sector>"; or the massing ended otherwise (dropped, timed out or fell back to the rear, or re-staged where the coalition sees nothing or in another sector), the sitrep "massing disperses" (Q-TD-47 wording) for sector_id; always UP, no node_id. STRIKE_DOWNED (NX-431, Q-TD-56): a viewer unit's hit destroyed, disabled or mission-killed the last unit of a Static STRIKE job still in the fight, the sitrep "NULL strike package downed near <node>" crediting credit_ids, once per job, on that tick; always UP, node_id the job's target node and sector_id its sector. SANCTUARY_AT_RISK (NX-493, Q-TD-122): a hit took the coalition sanctuary's defense hp below full, the sitrep "NULL strikes <node>, the sanctuary is at risk" (its board posts the defend job at the top urgency, GAMEPLAY §1b); once per drop from full (a repair to full and a new hit give another), always UP, node_id the sanctuary and sector_id its sector.
+   */
+  category:
+    | "CONVOY_ESCORT"
+    | "IADS_REINFORCED"
+    | "HOLD_AT_RISK"
+    | "STAGING"
+    | "STAGING_LAUNCHED"
+    | "STAGING_DISPERSED"
+    | "STRIKE_DOWNED"
+    | "SANCTUARY_AT_RISK";
+  /**
+   * Named map region from the theater file (OVERLAY AN-1).
+   */
+  sector_id: string;
+  direction: "UP" | "DOWN";
+  /**
+   * HOLD_AT_RISK: the hold node the operation targets; STRIKE_DOWNED: the struck node; SANCTUARY_AT_RISK: the coalition sanctuary; null for every other category.
+   */
+  node_id?: string | null;
+  /**
+   * STRIKE_DOWNED: the viewer (COMMANDER-owned) units whose hit destroyed, disabled or mission-killed a unit holding the STRIKE job, ascending, no duplicates (producer; not uniqueItems, SC-14), the 32 lowest ids; empty for every other category (always sent).
+   *
+   * @maxItems 32
+   *
+   * Items: Sequential per campaign, never reused (SC-4).
+   */
+  credit_ids: number[];
+}
