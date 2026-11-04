@@ -101,7 +101,7 @@ Kick is an optional platform, not a committed one (Q-PROD-2); its B1 path exists
 - **SEC-DATA-1.** If and when Redis or Postgres is introduced, it requires auth, is not published to the host network, and binds to the internal network only. Compose ports bind to `127.0.0.1`.
 - **SEC-DATA-2.** Event logs and replays store `commander_id` only. The id→name mapping is a separate, deletable table (crypto-shredding). After deletion, the commander displays as `REDACTED-…` everywhere, including old replays (Q-DM-2, DATA-MODEL §6.4).
 - **SEC-DATA-3.** A `!forget` command or portal action deletes a user's profile and identities within 30 days. A privacy notice is linked from the channel.
-- **SEC-DATA-4.** Retention: raw chat envelopes 7 days, command log for the campaign duration + 30 days, aggregates kept indefinitely (Q-LEGAL-3).
+- **SEC-DATA-4.** Retention: raw chat envelopes at most 24 h (owner 2026-11-04: the stricter of this rule's former 7 days and the Twitch developer agreement's 24 h cache limit noted in PLATFORM-POLICY-VERIFICATION T19), command log for the campaign duration + 30 days, aggregates kept indefinitely (Q-LEGAL-3).
 - **SEC-DATA-5.** Nightly encrypted backups with a tested restore, run quarterly.
 
 ### CI/CD (SEC-CI)
