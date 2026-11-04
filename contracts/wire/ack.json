@@ -1,0 +1,22 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nexus.local/contracts/wire/ack.json",
+  "title": "Ack",
+  "description": "Client to server, after applying a Delta (CONTRACTS section 7).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["type", "v", "applied_tick"],
+  "properties": {
+    "type": {
+      "const": "Ack"
+    },
+    "v": {
+      "type": "string",
+      "pattern": "^[0-9]+\\.[0-9]+$",
+      "description": "PROTOCOL_VERSION (contracts/VERSION)."
+    },
+    "applied_tick": {
+      "$ref": "../common/ids.json#/$defs/Tick"
+    }
+  }
+}

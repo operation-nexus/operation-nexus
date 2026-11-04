@@ -133,6 +133,11 @@ type CampaignResult = Annotated[
 ]
 
 
+type ObjectiveMode = Annotated[
+    Literal["TIMED", "OFF"], Field(description="Q-GD-19. Hud.objective_mode (NX-170).")
+]
+
+
 type ObjectiveOutcome = Literal["COMPLETED", "EXPIRED"]
 
 

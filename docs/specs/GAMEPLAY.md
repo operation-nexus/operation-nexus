@@ -995,7 +995,7 @@ Notes: GAMEPLAY-NOTES.md §8
 11. **Strategic nodes (Q-GP-17, Q-GP-21):** AIRBASE, FOB and PORT bases count toward the hold fractions below.
 12. BRIDGE nodes and the SANCTUARY do not, and facilities (radars, air defense) never count on their own; the enemy HQ is its own win route.
 
-13. **Victory (Domination):** hold ≥ `campaign.victory_node_frac` (PROPOSED 0.80) of strategic nodes for `campaign.victory_hold_min` (PROPOSED 30 min, game time) continuously, **or** capture the enemy HQ (default; Q-CFG-16 option `campaign.victory.hq_capture`).
+13. **Victory (Domination):** hold ≥ `campaign.victory_node_frac` (PROPOSED 0.75, Q-TD-142) of strategic nodes for `campaign.victory_hold_min` (PROPOSED 30 min, game time) continuously, **or** capture the enemy HQ (default; Q-CFG-16 option `campaign.victory.hq_capture`).
 14. Only the coalition can win this way: the Static holding the nodes is not a defeat (Q-SIM-62, NX-126).
 15. The rubber-band zone is tuned to 55–75% so that victory sits beyond it.
 16. **Contested hold (Q-TD-19, ECONOMY EC-9):** while the hold runs, the sim emits `VictoryHoldStarted` and then `VictoryHoldBroken` or the victory.
@@ -1071,7 +1071,7 @@ Notes: GAMEPLAY-NOTES.md §8
 73. The only defeat-related wire signals are `CampaignEnded{DEFEAT}`, the sanctuary's `NodeDefensesDown`/`NodeDefensesRestored` and the `SANCTUARY_AT_RISK` sitrep.
 74. A public defeat countdown with a "holding" state would be a later overlay item, not part of NX-499.
 
-75. **Campaign clock:** 48 h target (game time, Q-ALN-1; admin-adjustable, schedulable per campaign, Q-GD-5).
+75. **Campaign clock:** 72 h, the shipped `campaign.time_limit_h` (game time, Q-ALN-1; admin-adjustable, schedulable per campaign, Q-GD-5). The owner set 72 h on 2026-11-04 (Q-DEV-44), replacing Q-GD-5's 48 h target, so the clock, the time limit and acceptance target A1 agree.
 76. It **never pauses for lack of humans** (Q-GD-4 amended): at 0 humans the Static drops to Pattern of Life (THREAT-DIRECTOR §5a).
 77. Only a sim pause with a reason stops the clock: a staff pause (ADMIN-RBAC pause flow), the auto-pause when the broadcast has been offline longer than `ops.offline_pause_after_min` (reason TECHNICAL, Q-OPS-8), the weekly maintenance window, or the owner's Ceasefire mode (Q-OPS-9); pause reasons are STAFF, TECHNICAL, MAINTENANCE and CEASEFIRE (Q-ALN-3), and a STAFF pause may carry a sub-reason (RAID, ABUSE, CONTENT, OTHER; Q-ALN-31).
 78. Timers on both sim clocks freeze with it (Q-CFG-8, Q-ALN-2).

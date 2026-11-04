@@ -1,0 +1,69 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://nexus.local/contracts/wire/views.json",
+  "title": "Views",
+  "description": "Redacted views shared by Welcome, Snapshot and Delta (CONTRACTS section 7). Server to client only.",
+  "$defs": {
+    "Pos": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["x_m", "y_m"],
+      "properties": {"x_m": {"type": "integer", "description": "metres, quantized to 1 m (WP-4)"}, "y_m": {"type": "integer", "description": "metres, quantized to 1 m (WP-4)"}}
+    },
+    "EntityView": {
+      "description": "CONTRACTS section 7. spotted is set for the viewer's own units only (FOW-12). The sim has no package, cosmetic, badge, probation or AUTO state yet, so those are null, empty and false.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entity_id", "unit_kind", "side", "domain", "owner_kind", "callsign", "pos", "heading_deg", "speed_mps", "hp_pct", "damage_state", "painted", "spotted", "package_id", "follow_entity_id", "follower_count", "cosmetic", "badges", "probation", "auto"],
+      "properties": {"entity_id": {"$ref": "../common/ids.json#/$defs/EntityId"}, "unit_kind": {"$ref": "../common/enums.json#/$defs/UnitKind"}, "side": {"$ref": "../common/enums.json#/$defs/Side"}, "domain": {"$ref": "../common/enums.json#/$defs/Domain"}, "owner_kind": {"$ref": "../common/enums.json#/$defs/OwnerKind"}, "callsign": {"anyOf": [{"$ref": "../common/ids.json#/$defs/Callsign"}, {"type": "null"}]}, "pos": {"$ref": "#/$defs/Pos"}, "heading_deg": {"type": "integer", "minimum": 0, "maximum": 359, "description": "0 = north, clockwise; from the velocity, 0 when still"}, "speed_mps": {"type": "integer", "minimum": 0, "description": "m/s, rounded"}, "hp_pct": {"type": "integer", "minimum": 0, "maximum": 100}, "damage_state": {"$ref": "../common/enums.json#/$defs/DamageState"}, "painted": {"type": "boolean"}, "spotted": {"anyOf": [{"type": "boolean"}, {"type": "null"}]}, "package_id": {"anyOf": [{"type": "integer", "minimum": 1}, {"type": "null"}]}, "follow_entity_id": {"anyOf": [{"$ref": "../common/ids.json#/$defs/EntityId"}, {"type": "null"}]}, "follower_count": {"type": "integer", "minimum": 0}, "cosmetic": {"type": "object", "additionalProperties": false, "required": ["halo", "trail"], "properties": {"halo": {"anyOf": [{"type": "string", "maxLength": 32}, {"type": "null"}]}, "trail": {"anyOf": [{"type": "string", "maxLength": 32}, {"type": "null"}]}}}, "badges": {"type": "array", "items": {"type": "string", "maxLength": 32}, "maxItems": 4}, "probation": {"type": "boolean"}, "auto": {"type": "boolean"}}
+    },
+    "EntityPatch": {
+      "description": "entity_id plus only the changed fields of EntityView; a new entity carries all of them.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entity_id"],
+      "properties": {"entity_id": {"$ref": "../common/ids.json#/$defs/EntityId"}, "unit_kind": {"$ref": "../common/enums.json#/$defs/UnitKind"}, "side": {"$ref": "../common/enums.json#/$defs/Side"}, "domain": {"$ref": "../common/enums.json#/$defs/Domain"}, "owner_kind": {"$ref": "../common/enums.json#/$defs/OwnerKind"}, "callsign": {"anyOf": [{"$ref": "../common/ids.json#/$defs/Callsign"}, {"type": "null"}]}, "pos": {"$ref": "#/$defs/Pos"}, "heading_deg": {"type": "integer", "minimum": 0, "maximum": 359, "description": "0 = north, clockwise; from the velocity, 0 when still"}, "speed_mps": {"type": "integer", "minimum": 0, "description": "m/s, rounded"}, "hp_pct": {"type": "integer", "minimum": 0, "maximum": 100}, "damage_state": {"$ref": "../common/enums.json#/$defs/DamageState"}, "painted": {"type": "boolean"}, "spotted": {"anyOf": [{"type": "boolean"}, {"type": "null"}]}, "package_id": {"anyOf": [{"type": "integer", "minimum": 1}, {"type": "null"}]}, "follow_entity_id": {"anyOf": [{"$ref": "../common/ids.json#/$defs/EntityId"}, {"type": "null"}]}, "follower_count": {"type": "integer", "minimum": 0}, "cosmetic": {"type": "object", "additionalProperties": false, "required": ["halo", "trail"], "properties": {"halo": {"anyOf": [{"type": "string", "maxLength": 32}, {"type": "null"}]}, "trail": {"anyOf": [{"type": "string", "maxLength": 32}, {"type": "null"}]}}}, "badges": {"type": "array", "items": {"type": "string", "maxLength": 32}, "maxItems": 4}, "probation": {"type": "boolean"}, "auto": {"type": "boolean"}}
+    },
+    "FacilityView": {
+      "description": "A viewer-side facility (live values, confirmed_tick null) or a discovered enemy one (last confirmed values, FOW-13).",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entity_id", "kind", "variant", "pos", "ring_m", "state", "emitting", "confirmed_tick"],
+      "properties": {"entity_id": {"$ref": "../common/ids.json#/$defs/EntityId"}, "kind": {"$ref": "../common/enums.json#/$defs/UnitKind"}, "variant": {"anyOf": [{"type": "string", "maxLength": 32}, {"type": "null"}]}, "pos": {"$ref": "#/$defs/Pos"}, "ring_m": {"anyOf": [{"type": "integer", "minimum": 0}, {"type": "null"}]}, "state": {"anyOf": [{"$ref": "../common/enums.json#/$defs/DamageState"}, {"type": "null"}]}, "emitting": {"anyOf": [{"type": "boolean"}, {"type": "null"}]}, "confirmed_tick": {"anyOf": [{"type": "integer", "minimum": 0}, {"type": "null"}]}}
+    },
+    "NodeView": {
+      "description": "stock_pct and starvation are null for ENEMY nodes (DI-1); hp_pct is null for a BRIDGE.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["node_id", "owner", "capture", "stock_pct", "starvation", "hp_pct", "facilities"],
+      "properties": {"node_id": {"$ref": "../common/ids.json#/$defs/NodeId"}, "owner": {"$ref": "../common/enums.json#/$defs/NodeOwner"}, "capture": {"type": "object", "additionalProperties": false, "required": ["side", "progress_pct"], "properties": {"side": {"anyOf": [{"$ref": "../common/enums.json#/$defs/Side"}, {"type": "null"}]}, "progress_pct": {"type": "integer", "minimum": 0, "maximum": 100}}}, "stock_pct": {"anyOf": [{"type": "integer", "minimum": 0, "maximum": 100}, {"type": "null"}]}, "starvation": {"anyOf": [{"enum": ["OK", "LOW", "EMPTY"]}, {"type": "null"}]}, "hp_pct": {"anyOf": [{"type": "integer", "minimum": 0, "maximum": 100}, {"type": "null"}]}, "facilities": {"type": "array", "items": {"$ref": "#/$defs/FacilityView"}}}
+    },
+    "NodePatch": {
+      "description": "node_id plus only the changed fields of NodeView.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["node_id"],
+      "properties": {"node_id": {"$ref": "../common/ids.json#/$defs/NodeId"}, "owner": {"$ref": "../common/enums.json#/$defs/NodeOwner"}, "capture": {"type": "object", "additionalProperties": false, "required": ["side", "progress_pct"], "properties": {"side": {"anyOf": [{"$ref": "../common/enums.json#/$defs/Side"}, {"type": "null"}]}, "progress_pct": {"type": "integer", "minimum": 0, "maximum": 100}}}, "stock_pct": {"anyOf": [{"type": "integer", "minimum": 0, "maximum": 100}, {"type": "null"}]}, "starvation": {"anyOf": [{"enum": ["OK", "LOW", "EMPTY"]}, {"type": "null"}]}, "hp_pct": {"anyOf": [{"type": "integer", "minimum": 0, "maximum": 100}, {"type": "null"}]}, "facilities": {"type": "array", "items": {"$ref": "#/$defs/FacilityView"}}}
+    },
+    "BlobView": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["blob_id", "cell_center", "size"],
+      "properties": {"blob_id": {"$ref": "../common/ids.json#/$defs/BlobId"}, "cell_center": {"$ref": "#/$defs/Pos"}, "size": {"enum": ["S", "M", "L"]}}
+    },
+    "LastKnownView": {
+      "description": "FOW-6a, Q-FOW-1.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["entity_id", "unit_kind", "pos", "heading_deg", "seen_tick"],
+      "properties": {"entity_id": {"$ref": "../common/ids.json#/$defs/EntityId"}, "unit_kind": {"$ref": "../common/enums.json#/$defs/UnitKind"}, "pos": {"$ref": "#/$defs/Pos"}, "heading_deg": {"type": "integer", "minimum": 0, "maximum": 359}, "seen_tick": {"$ref": "../common/ids.json#/$defs/Tick"}}
+    },
+    "TheaterStatic": {
+      "description": "Sent once, in Welcome.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["nodes", "edges", "terrain_ref"],
+      "properties": {"nodes": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["node_id", "name", "kind", "pos"], "properties": {"node_id": {"$ref": "../common/ids.json#/$defs/NodeId"}, "name": {"type": "string", "maxLength": 32}, "kind": {"$ref": "../common/enums.json#/$defs/NodeKind"}, "pos": {"$ref": "#/$defs/Pos"}}}}, "edges": {"type": "array", "items": {"type": "object", "additionalProperties": false, "required": ["a", "b", "layer", "bridge"], "properties": {"a": {"$ref": "../common/ids.json#/$defs/NodeId"}, "b": {"$ref": "../common/ids.json#/$defs/NodeId"}, "layer": {"$ref": "../common/enums.json#/$defs/EdgeLayer"}, "bridge": {"anyOf": [{"$ref": "../common/ids.json#/$defs/NodeId"}, {"type": "null"}]}}}}, "terrain_ref": {"anyOf": [{"type": "string", "maxLength": 128, "description": "Terrain asset reference; null until a terrain asset is published."}, {"type": "null"}]}}
+    }
+  }
+}
