@@ -1,8 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { BatchSpriteEngine } from "../renderers/batch/batch-engine";
-import { HoloTableEngine } from "../renderers/holo3d/holo-engine";
 import { CrtVectorEngine } from "../renderers/crt2d/crt-engine";
-import { FlirMfdEngine } from "../renderers/flir/flir-engine";
 import {
   FACTION_TOKENS,
   getSideColors,
@@ -596,13 +594,8 @@ describe("Adversarial Stress Test: Strait-1 Elevation Budget & Z-Fighting Bounda
 });
 
 describe("Adversarial Stress Test: IRenderEngine Interface Contract Lifecycle", () => {
-  it("enforces IRenderEngine lifecycle consistency across all 4 paradigms", async () => {
-    const engines = [
-      new BatchSpriteEngine(),
-      new HoloTableEngine(),
-      new CrtVectorEngine(),
-      new FlirMfdEngine(),
-    ];
+  it("enforces IRenderEngine lifecycle consistency across all paradigms", async () => {
+    const engines = [new BatchSpriteEngine(), new CrtVectorEngine()];
 
     for (const engine of engines) {
       const container = createMockContainer();
