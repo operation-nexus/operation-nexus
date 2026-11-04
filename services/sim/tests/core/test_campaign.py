@@ -431,7 +431,9 @@ def test_the_shipped_share_starts_a_hold_at_six_of_eight_and_not_at_five() -> No
     assert broken.node_id == "fob-n-e" and w.campaign.hold_nodes == ()
     # defense hp is 0 here, so the Static's node is not repaired: no REPAIRED reset
     assert of(events, VictoryHoldReset) == []
-    assert RC.hold_decay and w.campaign.hold_ticks == broken.progress_ticks  # progress is kept
+    assert RC.hold_decay and w.campaign.hold_ticks == broken.progress_ticks == 1  # progress is kept
+    # the first decay tick checks for repair: a zero-hp node is still not repaired
+    assert of(run(w), VictoryHoldReset) == []
 
 
 def test_the_shipped_hold_loses_a_repaired_node_to_a_reset() -> None:
@@ -441,9 +443,9 @@ def test_the_shipped_hold_loses_a_repaired_node_to_a_reset() -> None:
     assert RC.reset_on_repair and w.rules and w.rules.defense
     own(w, "ENEMY", "fob-n-e")
     w.defense_hp["fob-n-e"] = w.rules.defense.max_hp["fob-n-e"]  # the Static's node at full hp
-    events = run(w, 2)  # the break tick, then the first decay tick
-    assert len(of(events, VictoryHoldBroken)) == 1
-    (reset,) = of(events, VictoryHoldReset)
+    events = run(w)  # the break tick: no reset yet
+    assert len(of(events, VictoryHoldBroken)) == 1 and of(events, VictoryHoldReset) == []
+    (reset,) = of(run(w), VictoryHoldReset)  # the first decay tick finds the node repaired
     assert (reset.reason, reset.node_id) == ("REPAIRED", "fob-n-e") and w.campaign.hold_ticks == 0
 
 
