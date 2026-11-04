@@ -32,7 +32,7 @@ The overlay consumes WIRE-PROTOCOL and restates none of it; this section says on
 - **Resync:** `Control{RESYNC}` or a detected gap follows WP-3; the store stops applying `Delta`s, keeps its last data on screen (dimmed, per the Last-frame rule) and waits for the `Snapshot`, which replaces it. While unsynced and `Delta`s keep arriving, the client re-sends the resync `Ack` at most once per second. Only a `Snapshot` or an applied `Delta` counts as data for the 2 s COMMS RESYNC timer.
 
 ### 0.4 Security of the page
-- **Token (WP §7.1):** read from `location.hash` once, then cleared with `history.replaceState`. It is never logged, stored (no `localStorage`, cookie or IndexedDB), put in a query string, or shown in a banner.
+- **Token (WP §7.1):** read from `location.hash` once, then cleared with `history.replaceState`. It is never logged, stored (no `localStorage`, cookie or IndexedDB), put in a query string, or shown in a banner. For a WP-1 reload it is written back to the fragment with `replaceState` just before `location.reload()`, and the new page clears it again.
 - **CSP (SEC-OV-2):** no inline script; no inline styles (styles live in CSS files: no `style=` attributes or `<style>` blocks, and dynamic values go through CSSOM); `connect-src` limited to the WS origin; fonts and every asset bundled, no remote assets. OBS page permissions are "No access".
 - Feed text is rendered with `textContent` (WP-6, OV-9).
 
