@@ -32,6 +32,9 @@ from nexus.contracts.gen.events.event import Event
 from nexus.contracts.gen.events.node_captured import NodeCaptured
 from nexus.contracts.gen.events.objective_announced import ObjectiveAnnounced
 from nexus.contracts.gen.events.objective_resolved import ObjectiveResolved
+from nexus.contracts.gen.events.victory_hold_broken import VictoryHoldBroken
+from nexus.contracts.gen.events.victory_hold_reset import VictoryHoldReset
+from nexus.contracts.gen.events.victory_hold_started import VictoryHoldStarted
 from nexus.core.campaign import Momentum, momentum
 from nexus.core.step import step
 from nexus.core.world import Campaign, Entity, Objective, Vec2, World, load, save, state_hash
@@ -413,6 +416,37 @@ def test_shipped_campaign_rules_in_ticks_and_nodes() -> None:
     assert not {"haven", "static-rear", "bridge-n", "bridge-s", "static-hq"} & set(RC.candidates)
     assert RC.enemy_hq == "static-hq" and RC.objectives_on
     assert RC.victory_node_frac == Fraction(3, 4)  # 6 of 8 (NX-506, Q-TD-142)
+
+
+def test_the_shipped_share_starts_a_hold_at_six_of_eight_and_not_at_five() -> None:
+    w = new_world(victory_node_frac=RC.victory_node_frac, victory_hold_ticks=50)
+    own(w, "COALITION", *COALITION_NODES, *NEUTRAL_NODES)  # 5 of 8 = 62.5 %: below 75 %
+    assert of(run(w, 3), VictoryHoldStarted) == [] and w.campaign.hold_ticks == 0
+    own(w, "COALITION", "fob-n-e")  # 6 of 8 = 75 %: the edge
+    (started,) = of(run(w), VictoryHoldStarted)
+    assert len(started.node_ids) == 6 and w.campaign.hold_ticks == 1
+    own(w, "ENEMY", "fob-n-e")  # back to 5: the hold breaks, naming the node lost
+    events = run(w)
+    (broken,) = of(events, VictoryHoldBroken)
+    assert broken.node_id == "fob-n-e" and w.campaign.hold_nodes == ()
+    # defense hp is 0 here, so the Static's node is not repaired: no REPAIRED reset
+    assert of(events, VictoryHoldReset) == []
+    assert RC.hold_decay and w.campaign.hold_ticks == broken.progress_ticks == 1  # progress is kept
+    # the first decay tick checks for repair: a zero-hp node is still not repaired
+    assert of(run(w), VictoryHoldReset) == []
+
+
+def test_the_shipped_hold_loses_a_repaired_node_to_a_reset() -> None:
+    w = new_world(victory_node_frac=RC.victory_node_frac, victory_hold_ticks=50)
+    own(w, "COALITION", *COALITION_NODES, *NEUTRAL_NODES, "fob-n-e")
+    run(w)
+    assert RC.reset_on_repair and w.rules and w.rules.defense
+    own(w, "ENEMY", "fob-n-e")
+    w.defense_hp["fob-n-e"] = w.rules.defense.max_hp["fob-n-e"]  # the Static's node at full hp
+    events = run(w)  # the break tick: no reset yet
+    assert len(of(events, VictoryHoldBroken)) == 1 and of(events, VictoryHoldReset) == []
+    (reset,) = of(run(w), VictoryHoldReset)  # the first decay tick finds the node repaired
+    assert (reset.reason, reset.node_id) == ("REPAIRED", "fob-n-e") and w.campaign.hold_ticks == 0
 
 
 # --- timed objectives -------------------------------------------------------------------------
