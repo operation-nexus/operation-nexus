@@ -33,3 +33,16 @@ class InMemoryIdentityResolver:
 
     def ban(self, commander_id: CommanderId) -> None:
         self._banned.add(commander_id)
+
+
+class FakeClock:
+    """A settable monotonic clock for tests: the injected `Callable[[], float]` (GW-11)."""
+
+    def __init__(self, start: float = 0.0) -> None:
+        self.now = start
+
+    def __call__(self) -> float:
+        return self.now
+
+    def advance(self, seconds: float) -> None:
+        self.now += seconds
