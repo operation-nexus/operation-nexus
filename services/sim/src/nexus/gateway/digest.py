@@ -108,7 +108,8 @@ class DigestBuilder:
         if self._is_blatant(user):
             self.suppressed += 1
             return
-        self._entry(user, login).rejected[TEMPLATES[reason]] += 1  # unknown reason: KeyError
+        template = TEMPLATES[reason]  # unknown reason: KeyError, before any state changes
+        self._entry(user, login).rejected[template] += 1
 
     def build(self) -> list[str]:
         """Messages for `ChatSink.send_batch`, oldest lines dropped first when over the caps."""

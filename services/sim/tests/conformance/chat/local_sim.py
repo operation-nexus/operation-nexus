@@ -47,7 +47,7 @@ class LocalSim:
     async def messages(self) -> AsyncIterator[ChatEnvelope]:
         if not self._connected:
             raise ConnectionError("local sim connection dropped")
-        while self._queue:
+        while self._queue and self._connected:  # a drop() mid-iteration stops delivery
             yield self._queue.popleft()
 
     def health(self) -> Health:

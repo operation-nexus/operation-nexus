@@ -80,6 +80,13 @@ class Limiter:
         return len(self._buckets)
 
     def set_slow_mode(self, on: bool) -> None:
+        """Settle every bucket at the old rate first, so the switch never reprices elapsed time."""
+        if on == self._slow:
+            return
+        now = self._clock()
+        for (_, cls), bucket in self._buckets.items():
+            bucket[0] = self._refilled(bucket, cls, now)
+            bucket[1] = max(bucket[1], now)
         self._slow = on
 
     def new_tick(self) -> None:

@@ -89,6 +89,17 @@ def test_slow_mode_multiplies_the_interval() -> None:
     assert lim.check("a", D) is Verdict.ADMITTED
 
 
+def test_slow_mode_switch_settles_time_already_elapsed() -> None:
+    lim, clock = make()
+    assert lim.check("a", D) is Verdict.ADMITTED
+    clock.advance(5)  # half a token earned at the normal 10 s rate
+    lim.set_slow_mode(True)
+    clock.advance(14.9)  # the other half takes 15 s at 30 s per token
+    assert lim.check("a", D) is Verdict.RATE_LIMITED
+    clock.advance(0.1)
+    assert lim.check("a", D) is Verdict.ADMITTED  # repricing all 20 s at 30 s/token would refuse
+
+
 def test_global_cap_is_per_tick_and_does_not_charge_the_user() -> None:
     cfg = LimiterConfig(CLASSES, 3, cmds_per_tick=2, blatant_threshold=10, blatant_window_s=60)
     lim, _ = make(cfg)

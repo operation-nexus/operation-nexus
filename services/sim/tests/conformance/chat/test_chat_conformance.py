@@ -18,7 +18,7 @@ from conformance.chat.local_sim import SEND_WINDOW_S, LocalSim, envelope
 from nexus.contracts.gen.common.envelope import ChatEnvelope
 from nexus.gateway.digest import DigestBuilder, GatewayReject
 from nexus.gateway.fakes import FakeClock
-from nexus.gateway.ports import ChatSource
+from nexus.gateway.ports import Capabilities, ChatSource
 from nexus.moderation import normalize
 
 ADAPTERS: dict[str, Callable[[FakeClock], ChatHarness]] = {"local_sim": LocalSim}
@@ -39,7 +39,7 @@ async def _drain(source: ChatSource) -> list[ChatEnvelope]:
 
 
 def test_adapter_satisfies_both_ports(adapter: ChatHarness) -> None:
-    assert adapter.capabilities == adapter.capabilities
+    assert isinstance(adapter.capabilities, Capabilities)
     assert isinstance(adapter.health().connected, bool)
 
 
@@ -115,4 +115,4 @@ def test_no_raw_text_in_logs(adapter: ChatHarness, _logs: pytest.LogCaptureFixtu
     """Vacuous for LocalSim (it never logs); meaningful for a real adapter that does I/O."""
     adapter.inject(envelope("!join secret-text-XYZ", "m1"))
     asyncio.run(_drain(adapter))
-    assert "XYZ" not in _logs.text
+    assert "XYZ" not in _logs.text and "secret-text" not in _logs.text  # a truncated echo too

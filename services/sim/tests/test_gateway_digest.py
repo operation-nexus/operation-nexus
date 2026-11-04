@@ -51,6 +51,7 @@ def test_unknown_reason_fails_loudly() -> None:
     b, _ = make()
     with pytest.raises(KeyError):
         b.add_rejected("u1", "alice", "MADE_UP")
+    assert b.build() == []  # no half-made "@alice: " line left in the batch
 
 
 def test_message_length_cap_splits_messages() -> None:

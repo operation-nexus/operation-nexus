@@ -2,7 +2,7 @@
 
 import asyncio
 
-from conformance.chat.local_sim import SEND_WINDOW_S, LocalSim
+from conformance.chat.local_sim import SEND_WINDOW_S, LocalSim, envelope
 from nexus.gateway.fakes import FakeClock
 
 
@@ -18,3 +18,24 @@ def test_send_window_edge() -> None:
     clock.advance(0.01)  # exactly SEND_WINDOW_S after the first batch: it has left the window
     asyncio.run(sim.send_batch(["ok"]))
     assert len(sim.sent) == budget + 1
+
+
+def test_a_drop_mid_iteration_stops_delivery_and_keeps_the_rest() -> None:
+    sim = LocalSim(FakeClock(1000.0))
+    for i in range(3):
+        sim.inject(envelope(f"!join x{i}", f"m{i}"))
+
+    async def read_one_then_drop() -> list[str]:
+        got = []
+        async for env in sim.messages():
+            got.append(env.platform_message_id)
+            sim.drop()
+        return got
+
+    assert asyncio.run(read_one_then_drop()) == ["m0"]
+    sim.restore()
+
+    async def drain() -> list[str]:
+        return [env.platform_message_id async for env in sim.messages()]
+
+    assert asyncio.run(drain()) == ["m1", "m2"]
