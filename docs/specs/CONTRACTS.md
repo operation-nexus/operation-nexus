@@ -252,7 +252,7 @@ Every value listed in the §5.2 table (rejects named only for reserved commands 
 **Who decides an entity is hidden:** the redaction pass uses the coalition visibility predicate (currently tracked) in the latest computed view as of the event's tick (FOW-1, FOW-5); an entity in the last-known set may appear only in `LastKnownView`, and a discovered facility only through its marker fields (`NodeView.facilities`, FOW-13). Property test: no public payload references an `EntityId` that fails the predicate.
 
 ## 7. Wire messages (server ↔ overlay)
-These detail WIRE-PROTOCOL §2. All messages carry `type` and `v` (PROTOCOL_VERSION string). Encoding is msgpack, with JSON in debug mode.
+These detail WIRE-PROTOCOL §3 (Approved 2026-11-04: behavior, cadence, close codes there; field shapes here). All messages carry `type` and `v` (PROTOCOL_VERSION string). Encoding is msgpack, with JSON in debug mode.
 
 | Message | Fields |
 |---|---|
