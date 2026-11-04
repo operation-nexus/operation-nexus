@@ -37,9 +37,12 @@ def test_ban_is_per_commander() -> None:
     assert resolver.is_banned(a) and not resolver.is_banned(b)
 
 
-def test_fake_ids_are_deterministic_across_instances() -> None:
+def test_fake_ids_follow_the_key_not_the_resolution_order() -> None:
     first, second = InMemoryIdentityResolver(), InMemoryIdentityResolver()
-    assert first.resolve("TWITCH", "x", None) == second.resolve("TWITCH", "x", None)
+    a1, b1 = first.resolve("TWITCH", "a", None), first.resolve("TWITCH", "b", None)
+    b2, a2 = second.resolve("TWITCH", "b", None), second.resolve("TWITCH", "a", None)
+    assert (a1, b1) == (a2, b2) and a1 != b1
+    assert COMMANDER.match(a1) and COMMANDER.match(b1)
 
 
 def test_capabilities_default_to_off_and_are_frozen() -> None:
@@ -60,23 +63,44 @@ def test_name_directory_is_an_immutable_snapshot() -> None:
         directory.nodes = {}  # type: ignore[misc]
 
 
+def _absolute(package: str, level: int, module: str | None, names: list[str]) -> list[str]:
+    """Absolute names an `import`/`from ... import` statement reaches, from a file in `package`."""
+    if level == 0:
+        return [module] if module else []
+    base = ".".join(package.split(".")[: len(package.split(".")) - (level - 1)])
+    if module:
+        return [f"{base}.{module}"]
+    return [f"{base}.{n}" for n in names]
+
+
+def test_relative_imports_resolve_against_the_package() -> None:
+    assert _absolute("nexus.gateway", 2, "runtime", ["inbox"]) == ["nexus.runtime"]
+    assert _absolute("nexus.gateway", 1, "ports", ["Health"]) == ["nexus.gateway.ports"]
+    assert _absolute("nexus.gateway", 2, None, ["core"]) == ["nexus.core"]
+    assert _absolute("nexus.gateway", 0, "os.path", ["join"]) == ["os.path"]
+
+
+def _allowed(name: str) -> bool:
+    return name.split(".")[0] in sys.stdlib_module_names or any(
+        name == a or name.startswith(a + ".") for a in ALLOWED_NEXUS | {"nexus.gateway"}
+    )
+
+
 def test_gateway_imports_no_core_and_no_vendor_sdk() -> None:
     """Belt and braces for import-linter: every import is stdlib or an allowed nexus sibling."""
-    stdlib = set(sys.stdlib_module_names)
+    assert not _allowed("nexus.runtime") and not _allowed("nexus.core")
     offenders = []
     for path in sorted(GATEWAY.rglob("*.py")):
+        parts = path.relative_to(GATEWAY).with_suffix("").parts
+        package = ".".join(("nexus", "gateway", *parts[:-1]))
         for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
             if isinstance(node, ast.Import):
                 names = [a.name for a in node.names]
-            elif isinstance(node, ast.ImportFrom) and node.level == 0 and node.module:
-                names = [node.module]
+            elif isinstance(node, ast.ImportFrom):
+                aliases = [a.name for a in node.names]
+                names = _absolute(package, node.level, node.module, aliases)
             else:
                 continue
-            for name in names:
-                ok = name.split(".")[0] in stdlib or any(
-                    name == a or name.startswith(a + ".") for a in ALLOWED_NEXUS
-                )
-                if not ok:
-                    offenders.append(f"{path.name}: {name}")
+            offenders += [f"{path.name}: {n}" for n in names if not _allowed(n)]
     assert not offenders, offenders
     assert ports.__doc__

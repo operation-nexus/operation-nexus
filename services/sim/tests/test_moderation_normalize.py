@@ -1,6 +1,7 @@
 """GW-7: the chat normalizer (CHAT-GATEWAY §10)."""
 # ruff: noqa: RUF001  # homoglyph and fullwidth literals are the point of these tests
 
+import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
@@ -99,3 +100,26 @@ def test_lone_surrogates_are_stripped() -> None:
     # A surrogate that got through would fail at UTF-8 encoding in logs or JSON.
     assert normalize("\ud800x") == "x"
     assert normalize("a\udfffb") == "ab"
+
+
+IGNORABLE = (
+    "\u034f \ufe0f \ufe00 \U000e0100 \U000e01ef \u180b \u180d \u180f"
+    " \u115f \u1160 \u3164 \uffa0 \u17b4 \u17b5 \U000e0001"
+)
+
+
+@pytest.mark.parametrize("ch", IGNORABLE.split())
+def test_default_ignorable_characters_are_stripped(ch: str) -> None:
+    assert normalize(f"!jo{ch}in") == "!join"
+    assert normalize(f"{ch}!join{ch}") == "!join"
+
+
+def test_real_combining_accents_survive() -> None:
+    assert normalize("e\u0301") == "\u00e9"
+    assert normalize("e\u200b\u034f\u0301") == "\u00e9"  # ignorables cannot block composition
+
+
+@given(st.text(alphabet="ae\u0301\u034f\ufe0f\u3164\u200b", max_size=30))
+def test_ignorable_stripping_is_idempotent(text: str) -> None:
+    once = normalize(text)
+    assert isinstance(once, str) and normalize(once) == once
