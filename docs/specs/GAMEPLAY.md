@@ -83,6 +83,7 @@ Rules only. Narration, history, decision trails, examples and derived numbers: [
 27. **Static tasking (Q-GD-34):** the Static uses the same Tasking Board (§1b).
 28. The director is the strategic layer that creates jobs on the Static's board (stage, escort, strike, defend, reposition), with the same job types and mechanics as the Quorum.
 29. It may compose richer job combinations but gets no unique powers.
+   - **Sector scouting (Q-SIM-134, NX-512):** both boards post a point scout job on the stalest-point rule of THREAT-DIRECTOR Part 4, with the same keys (§1b item 203).
 
 30. **Lieutenants (Q-GD-38, P4, NX-317):** later, sectors may be run by Static lieutenants, each a Threat Director profile on the same mechanics.
 31. Not in scope before P4.
@@ -140,7 +141,10 @@ Rules only. Narration, history, decision trails, examples and derived numbers: [
 20. **Logistics routing (Q-GP-24):** a supply job sets the *destination*; the route is planned automatically along roads/sea lanes.
 21. `!join logi` with no parameters takes the best resupply job, or the retake job when that ranks first (Q-TD-100, below).
 22. `!join logi <friendly node>` makes that node the delivery destination.
-23. `!join logi <neutral or enemy node>` is a capture run with no cargo.
+23. `!join logi <neutral or enemy node>` is a capture run with no cargo. **Its truck starts at the nearest friendly forward base (Q-TEST-14, Q-SIM-135; NX-513; lead details PROPOSED, owner may veto):** the §4 GP-7 forward-deploy rule for a ground unit (`logistics.plan_deploy`): a theater `spawns` node for GROUND that the side owns, with finite stock at least `logistics.forward_deploy_min_surplus` above its starvation floor, nearest the target by road (ties by node id), with a road route to it; otherwise the sanctuary, as before.
+   - The truck loads nothing and pays nothing (`logistics.loadout_cost.LOGI_TRUCK` is 0), so no stock moves: the surplus test only keeps a starved base from being a start. The bare `!join logi` that takes the retake job (item 222) plans the same run; a column truck following a capture-run leader starts at the same base.
+   - Switch `logistics.capture_run_forward_start` (true; false starts every capture run at the sanctuary, the A/B control).
+   - **Parity:** the Static's capture columns already start at `plan_deploy`'s base (THREAT-DIRECTOR §4 item 7); this makes the coalition's the same rule.
 24. **Source:** the nearest reachable friendly base whose stock is above its own starvation threshold, with the sanctuary as last resort, so a truck never strips a base into starvation; cargo = min(capacity, that base's surplus).
 25. **Supply runs avoid enemy-held ground (Q-SIM-122, NX-407; in code):** every road a resupply or stocking run plans (the source pick, the pickup leg, the run, a reroute after a cut) enters no node the other side holds (`bridges.enemy_held`); NEUTRAL nodes stay passable, unlike the patrol's rule (`bridges.not_held`), so a node past a still-neutral crossing can be supplied.
 26. The run's own start and destination are allowed.
@@ -359,7 +363,16 @@ Rules only. Narration, history, decision trails, examples and derived numbers: [
 
 201. `scout:<cell>`: each SIGINT blob in the side's view, deduped by cell index, posted only once a blob has stayed in the cell for `tasking.scout_blob_runs` (2) consecutive SIGINT refreshes (urgency `tasking.scout_urgency`: small 1.0, medium 1.5, large 2.0).
 202. Done when a claimant orbits at the blob's cell centre; the cell is then not posted again for `tasking.scout_cooldown_min` (5 min, Q-SIM-75).
-203. The sector scout waits for a decision on what an unseen sector is.
+203. **Sector scout (Q-TEST-14, Q-SIM-134; NX-512; lead details PROPOSED, owner may veto):** both boards post a point scout job for the stalest point of a sector, by the one rule of THREAT-DIRECTOR Part 4 (Q-SIM-87, §0 parity). The Static's is its RECON operation (`op:RECON:<sector>:0`); the coalition's is this board job.
+   - **The pick:** per theater sector (ids ascending), `operations.recon_point` on the side's own `SideView` (FOW-4, FOW-8) and its own `DirectorState.looked`, with the same keys (`director.recon.grid_m`, `loiter_radius_m`, `loiter_s`, `memory_s`) and the same tests: stalest cell first, ties by (x, y); the first whose straight route from its launch base crosses no discovered ring last seen not Disabled (widened by the loiter radius); a sortie that fits (flight, loiter and return with the bingo reserve). The launch base is the coalition's `launch_base` for an aircraft (GP-7 pool, else the sanctuary).
+   - **Looked memory for both sides:** at each board pass the side marks the cells its sensors cover (`launch.look`, the Static's rule: units in id order, cells ascending), kept in `World.director[COALITION].looked`; no new state.
+   - **Nothing stale, no job:** a point is posted only when no sensor of the side covered its cell for `tasking.scout_sector_stale_min` (PROPOSED 30 game min, at most `director.recon.memory_s`) and no track within the loiter radius is fresher.
+   - **Count and keys:** up to `tasking.scout_sector_points` (PROPOSED 1; 0 turns the job off) per sector, the k-th stalest passing cell at least twice the loiter radius from those already chosen this pass; key `scout:pt:<sector>:<k>`.
+   - **The job:** SCOUT, `Job.pos` the point, node and blob empty; slots `tasking.slots.scout`, priority `tasking.priority.scout`, urgency `tasking.scout_sector_urgency` (PROPOSED 0.5, below a small blob's 1.0). It counts toward `tasking.scout_open_max` and `scout_post_interval_min` like any generated scout job and never overfills (a point job).
+   - **The point is fixed while the job is open:** an unclaimed job whose point stops being stale or comes under a ring is withdrawn (item 229); a claimed one is not moved. After DONE, EXPIRED or FAILED the sector may post a new point at the next pass; `tasking.scout_cooldown_min` applies by sector id.
+   - **Taking it:** recon units fit it; a unit claims it only if it can fly there, loiter and land with the bingo reserve left from where it stands (TB-2) and its route crosses no discovered ring (item 234). The executor is the Static's loiter (`tasking._loiter`): DONE after `director.recon.loiter_s` on station, or when a ring discovered since covers the point.
+   - **No new reward:** a refresh pays no XP or merit (owner, Q-TEST-14; PROG-13 unchanged). The job's value is the picture and A2's impact (TESTING-STRATEGY A2).
+   - **Parity (§0 item 3):** same function, keys, tests and loiter. Differences: the Static raises a unit from its budget at a decision window, the coalition's claimant is a viewer's free unit; the coalition's job expires unclaimed like any job; cadence is the board pass, not the decision window.
 
 204. `repair_bridge:<node>` (coalition only, NX-373 part 2): each down bridge that some live, not Disabled coalition carrier can reach a bank of by road (the claimant's own route), urgency 1.0, `tasking.priority.repair_bridge` 45 and `tasking.slots.repair_bridge` 2 (PROPOSED).
 205. Carriers fit it; the Static's board never posts it.
@@ -379,8 +392,8 @@ Rules only. Narration, history, decision trails, examples and derived numbers: [
 218. A kept job is still the one retake job, and a claimed one behaves as before.
 219. A kept job stays claimable: a truck that takes it drives to the node and waits there until a strike drops the defenses (capture cannot start above 0 hp, §8) or its own CAPTURE rules end it.
 220. **One at a time:** the live retake job stays while its node is still eligible (no churn when another node becomes nearer); while a claimed one is live no other is posted, even when its node stops qualifying (it ends by the CAPTURE rules below); otherwise the board posts the eligible node nearest a node the coalition holds, a base or the haven (exact squared straight-line distance, ties by node id, the patrol's order).
-221. A node no capture run from the coalition's rear reaches by road (`plan_run`, the bare JOIN's own plan, down bridges blocking) is skipped.
-222. **Taking it (Q-TD-100 (a)):** any viewer truck, through the board or a bare `!join logi` (which plans it as `!join logi <node>`: an empty capture run from the rear); the truck drives there and stands, and the capture is the ordinary §8 presence rule.
+221. A node no capture run reaches by road (`plan_run`, the bare JOIN's own plan: from the forward start of item 23, else the rear; down bridges blocking) is skipped.
+222. **Taking it (Q-TD-100 (a)):** any viewer truck, through the board or a bare `!join logi` (which plans it as `!join logi <node>`: an empty capture run from its start base, item 23); the truck drives there and stands, and the capture is the ordinary §8 presence rule.
 223. The AI garrison never takes it (it never initiates offense).
 224. **Ranking:** priority `tasking.priority.capture` (45, the existing key) x urgency 1.0, with no priority aging (TB-3 does not apply to it; lead decision, NX-475 review, so Q-TD-100 (a) holds however long it waits): a starving base's resupply (`priority.resupply` 50 x 1.0 and up) always ranks above it, and a stocking one (50 x 0.5 or 0.75) below it until that job's own aging lifts it past 45 (TB-3, so stocking is never starved).
 225. One slot (one truck's capture run; more trucks join only by overfill, `tasking.overfill_factor`).
@@ -444,7 +457,7 @@ Notes: GAMEPLAY-NOTES.md §1b
 8. A unit with a node target spawns at a base from the theater's `spawns` list for its domain that its side owns and whose stock exceeds its starvation threshold by `logistics.forward_deploy_min_surplus` (and by at least its loadout cost), nearest the target by straight line for aircraft and by road for ground units, and pays its loadout from that surplus (**forward deploy**, Q-SIM-54).
 9. A JOIN with no target or `hold`, or one no base qualifies for, spawns at the sanctuary, whose stock is infinite, and travels forward.
 10. The spawn always has a full loadout.
-11. A logistics unit spawns at its source base (§1b).
+11. A logistics unit spawns at its source base (§1b). A capture run's truck carries nothing, so it has no source: it forward-deploys by item 8 (§1b item 23, NX-513).
 12. The Static spawns by the same rule (Q-TD-8, parity).
 13. Spawning never takes a base below its starvation threshold: the debit stays above the floor.
 14. When a delivery lets a base forward-deploy again, the ticker credits it ("HAULER-12's delivery: WEST FOB can forward-deploy again"); a starving base shows "units spawn at sanctuary".

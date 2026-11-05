@@ -1139,7 +1139,7 @@ Notes: THREAT-DIRECTOR-NOTES.md §5b
 
 **Visit memory.**
 194. `DirectorState.looked` (snapshot and hash) maps a cell's centre (`x:y`, m) to the running tick of the last decision window at which a Static unit's sensor covered it (every ENEMY unit with a sensor radius, emitting and not an off facility, id order, cells ascending; `launch.look`, run each window before the operations), whether or not any track was there.
-195. Marks older than `director.recon.memory_s` are dropped, so it holds only cells seen within that time (at most the theater's grid, 960 cells on strait-1); a restore refuses a key that is not the centre of a grid cell in the theater or a tick past the clock.
+195. Marks older than `director.recon.memory_s` are dropped, so it holds only cells seen within that time (at most the theater's grid, 960 cells on strait-1); a restore refuses a key that is not the centre of a grid cell in the theater or a tick past the clock. The coalition board runs the same `launch.look` and `operations.recon_point` on its own side's `DirectorState` (GAMEPLAY §1b item 203, NX-512), reading the same keys.
 
 **The pick.**
 196. Cells in order of staleness, highest first, ties by (x, y).
