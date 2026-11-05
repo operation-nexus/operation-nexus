@@ -128,6 +128,7 @@ Rules only. Narration, history, decision trails, examples and derived numbers: [
 9. The garrison pulls from the same board, but only takes jobs no human has claimed, and releases them when an operator wants one (default; Q-CFG-16 option `tasking.human_displaces_ai`).
 10. **The AI garrison never initiates offense**: it takes defend, resupply (which also repairs facilities, Q-GP-47), scout and repair bridge jobs (rescue jobs join with CSAR, GAMEPLAY-LATER §6a; default; Q-CFG-16 option `tasking.ai_jobs`, in code DEFEND, RESUPPLY, SCOUT and REPAIR_BRIDGE), never escort or patrol jobs (Q-GP-45: escorting is the players' call; default; Q-CFG-16 option `tasking.ai_excluded_jobs`), and joins strike jobs only when a player started them (objective; later also a rally call or player-led flight).
 11. **Sole exception (Q-GD-31):** it may counterattack a node the coalition just lost, within a configurable window (PROPOSED ~15 min), using only units still able to fight (not Disabled or Destroyed).
+   - **No coalition unit yet (NX-378 review, 2026-11-05):** the coalition's AI garrison has no mobile combat unit (only its facilities and AI trucks; `garrison_quota` exists only on Static bases), so this counterattack and §1b item 233's "any other job once a COMMANDER holds a claim" have nothing to act with until NX-511 (AI wingmen, Q-GP-50) adds one.
 
 12. **Feasibility:** a unit only takes a job it can reach and complete with its current fuel and munitions.
 13. Otherwise it first takes a rearm/refuel step (nearest base with stock, Q-GD-17).
