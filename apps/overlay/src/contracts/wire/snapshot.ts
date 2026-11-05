@@ -139,7 +139,7 @@ export interface Pos {
   y_m: number;
 }
 /**
- * stock_pct and starvation are null for ENEMY nodes (DI-1); hp_pct is null for a BRIDGE.
+ * stock_pct and starvation are null for ENEMY nodes (DI-1). For a BRIDGE, hp_pct is its hp over logistics.bridge_hp and intact is false while it is down (down until repaired to full, so hp_pct alone cannot say); intact is null for every other node.
  */
 export interface NodeView {
   /**
@@ -154,6 +154,7 @@ export interface NodeView {
   stock_pct: number | null;
   starvation: ("OK" | "LOW" | "EMPTY") | null;
   hp_pct: number | null;
+  intact: boolean | null;
   facilities: FacilityView[];
 }
 /**

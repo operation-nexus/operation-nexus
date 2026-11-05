@@ -11,10 +11,10 @@ from nexus.contracts.gen.wire.control import Control
 from nexus.contracts.gen.wire.delta import Delta
 from nexus.contracts.gen.wire.hud import Hud
 from nexus.contracts.gen.wire.snapshot import Snapshot
-from nexus.contracts.gen.wire.views import EntityPatch
+from nexus.contracts.gen.wire.views import EntityPatch, NodePatch, NodeView
 from nexus.contracts.gen.wire.welcome import Welcome
 
-V = "0.65"
+V = "0.66"
 CAMPAIGN = "0192f3a4-5b6c-7d8e-9f01-23456789abcd"
 POS = {"x_m": 10, "y_m": -4}
 ENTITY: dict[str, Any] = {
@@ -46,6 +46,7 @@ NODE: dict[str, Any] = {
     "stock_pct": 80,
     "starvation": "OK",
     "hp_pct": 100,
+    "intact": True,
     "facilities": [
         {
             "entity_id": 9,
@@ -104,6 +105,7 @@ PAYLOADS: dict[type, dict[str, Any]] = {
                 {"node_id": "west-airbase", "name": "West Airbase", "kind": "AIRBASE", "pos": POS}
             ],
             "edges": [{"a": "a", "b": "b", "layer": "ROAD", "bridge": None}],
+            "bounds_m": {"w": 400000, "h": 240000},
             "terrain_ref": None,
         },
     },
@@ -185,6 +187,22 @@ def test_entity_patch_takes_a_partial_field_set_but_needs_the_id() -> None:
         EntityPatch.model_validate({"hp_pct": 40})
     with pytest.raises(ValidationError):
         EntityPatch.model_validate({"entity_id": 3, "hp_pct": 101})
+
+
+def test_bridge_state_and_theater_bounds_are_required_and_typed() -> None:
+    """NX-508: `intact` is nullable but required on NodeView, optional on NodePatch; `bounds_m`
+    is required on the theater and positive."""
+    assert NodeView.model_validate({**NODE, "hp_pct": 40, "intact": None}).intact is None
+    with pytest.raises(ValidationError):
+        NodeView.model_validate({k: x for k, x in NODE.items() if k != "intact"})
+    assert NodePatch.model_validate({"node_id": "b", "intact": False}).intact is False
+    theater: dict[str, Any] = PAYLOADS[Welcome]["theater"]
+    for bad in (
+        {k: x for k, x in theater.items() if k != "bounds_m"},
+        {**theater, "bounds_m": {"w": 0, "h": 1}},
+    ):
+        with pytest.raises(ValidationError):
+            Welcome.model_validate({**PAYLOADS[Welcome], "theater": bad})
 
 
 def test_a_never_public_event_is_rejected_on_the_wire() -> None:

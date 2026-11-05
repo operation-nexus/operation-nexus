@@ -38,6 +38,7 @@ function recCanvas(): { canvas: HTMLCanvasElement; calls: string[] } {
 const base = (): Theater => ({
   nodes: [node("a", 0, 0), node("b", 1000, 500), node("c", 2000, 0)],
   edges: [edge("a", "b"), edge("b", "c")],
+  bounds_m: { w: 4000, h: 2000 },
   terrain_ref: null,
 });
 
@@ -99,7 +100,12 @@ describe("terrain hostile and edge inputs", () => {
   it("an empty theater does not throw", () => {
     const layer = new TerrainLayer(recCanvas().canvas);
     expect(() =>
-      layer.setTheater({ nodes: [], edges: [], terrain_ref: null }),
+      layer.setTheater({
+        nodes: [],
+        edges: [],
+        bounds_m: { w: 4000, h: 2000 },
+        terrain_ref: null,
+      }),
     ).not.toThrow();
   });
 
@@ -107,6 +113,7 @@ describe("terrain hostile and edge inputs", () => {
     const t: Theater = {
       nodes: [node("a", 0, 0), node("b", 1000, 1000)],
       edges: [],
+      bounds_m: { w: 4000, h: 2000 },
       terrain_ref: null,
     };
     const r = safeRect();
