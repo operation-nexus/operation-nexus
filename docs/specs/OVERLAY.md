@@ -10,7 +10,7 @@ Owner, 2026-11-04, in chat: approve a P2 subset with the lead defaults below. Va
 | Item | Status |
 |---|---|
 | §0 (this section), OV-1, OV-8, OV-9, OV-10, OV-12, OV-13 (mechanism), OV-14 (first-slice members), OV-19, OV-26; OV-7 for the state store | **Approved** |
-| §0.10 map slice (NX-176/177; OV-2, OV-4, OV-5 as narrowed there) | Draft: owner decisions Q-UX-18 to Q-UX-21 recorded, sign-off of the rest pending |
+| §0.10 map slice (NX-176/177; OV-2, OV-4, OV-5 as narrowed there) | **Approved** (owner, 2026-11-04, Q-UX-22); tunable values PROPOSED |
 | §1 layout figure | A guide for the regions NX-175/178 build; the PiP and the SITREP LOG panel are not built (§0.6, §0.8) |
 | §1a Orientation, OV-2/2a/2b, OV-3, OV-4, OV-5/5a, OV-6, OV-11, OV-15, OV-17, OV-18, OV-20, OV-21 to OV-25, §1c, §2a, §3 | Deferred |
 
@@ -80,8 +80,8 @@ Where the spec was silent, the code does the following (all reversible, none cha
 - **PROPOSED:** the palette (`--hud-*` tokens), every px size and position in `hud/hud.css` (bar height, 576 px right column, 104 px stack offset, panel 72 px above the ticker) are PROPOSED until NX-274.
 
 
-### 0.10 NX-176 / NX-177 map slice (Draft: owner sign-off pending)
-Owner decisions: Q-UX-18 to Q-UX-21 (2026-11-04). The rest is lead default, PROPOSED and reversible; shapes and colours stay PROPOSED until the brand guide (NX-274). Canvas2D only (ADR-0005, Q-UX-15): no three.js, 6-DOF, InstancedMesh or attitude (NX-443).
+### 0.10 NX-176 / NX-177 map slice
+Approved by the owner with the lead defaults (2026-11-04, Q-UX-22). Owner decisions: Q-UX-18 to Q-UX-21. The lead defaults are PROPOSED and reversible; shapes and colours stay PROPOSED until the brand guide (NX-274). Canvas2D only (ADR-0005, Q-UX-15): no three.js, 6-DOF, InstancedMesh or attitude (NX-443).
 - **Frame:** fixed, no pan or zoom (Q-UX-10). One projector for every layer: `x = left + x_m·k`, `y = top + (h − y_m)·k`, `k = min(map_w / w, map_h / h)` from `Welcome.theater.bounds_m` (NX-508): contain, never crop, anchored top-left; the leftover strip sits under the sidebar.
 - **NX-176, static canvas from `Welcome.theater` (redrawn only on theater or backing-size change):**
   - **Contours:** a layer behind `terrain_ref`, empty while it is null (Q-UX-20); no invented relief.
