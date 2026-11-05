@@ -610,7 +610,7 @@
   <h4>🎯 UI/UX Polish & Technical Architecture Improvements:</h4>
   <ul>
     <li><strong>Thermal FLIR Canvas Fix:</strong> Completely decoupled the 2D Thermal sensor canvas from WebGL context collision. The FLIR Thermal view now renders an authentic White-Hot infrared sensor view with dynamic engine core heat blooms, Gaussian heat diffusion, simulated analog sensor noise, and reticle tracking brackets.</li>
-    <li><strong>Multi-Camera Sequencing (Emil Kowalski Director):</strong> Switch camera presets using the new Director tabs (Wide Overview $\leftrightarrow$ 45° Dynamic Combat $\leftrightarrow$ Top-Down Tactical Replay). Camera angles smoothly transition with fluid damping.</li>
+    <li><strong>Multi-Camera Sequencing (Emil Kowalski Director):</strong> Switch camera presets using the new Director tabs (Wide Overview ↔ 45° Dynamic Combat ↔ Top-Down Tactical Replay). Camera angles smoothly transition with fluid damping.</li>
     <li><strong>16-Bit Heightmap & Wireframe Alignment:</strong> Option B terrain features extruded northern mountains (simulating radar line-of-sight masking), depressed water basin for the Strait, and elevated physical bridge spans. Units feature 3D altitude drop-lines and dynamic terrain shadows.</li>
   </ul>
 </div>
@@ -1122,21 +1122,21 @@ function renderThermalFLIR() {
   // Authentic Sim Telemetry HUD (Left Column: Ownship State)
   thermalCtx.fillStyle = '#a7f3d0';
   thermalCtx.font = '9px monospace';
-  thermalCtx.fillText('POL: WHITE-HOT (IR)', 10, 32);
-  thermalCtx.fillText('ALT: 18,200 FT [HIGH]', 10, 44);
-  thermalCtx.fillText('SPD: 420 KTS (M 0.72)', 10, 56);
-  thermalCtx.fillText('HDG: 068°  FUEL: 78%', 10, 68);
+  thermalCtx.fillText('POL: WHITE-HOT (IR)', 10, 40);
+  thermalCtx.fillText('ALT: 18,200 FT [HIGH]', 10, 52);
+  thermalCtx.fillText('SPD: 420 KTS (M 0.72)', 10, 64);
+  thermalCtx.fillText('HDG: 068°  FUEL: 78%', 10, 76);
 
   // Authentic Sim Telemetry HUD (Right Column: Engagement & Target State)
   thermalCtx.fillStyle = '#6ee7b7';
-  thermalCtx.fillText('TGT: BANDIT-04 [AI]', pw - 120, 32);
-  thermalCtx.fillText('RNG: 4.8 NM', pw - 120, 44);
-  thermalCtx.fillText('CLOSURE: +310 M/S', pw - 120, 56);
-  thermalCtx.fillText('WPN: AIM-120D (2)', pw - 120, 68);
+  thermalCtx.fillText('TGT: BANDIT-04 [AI]', pw - 120, 40);
+  thermalCtx.fillText('RNG: 4.8 NM', pw - 120, 52);
+  thermalCtx.fillText('CLOSURE: +310 M/S', pw - 120, 64);
+  thermalCtx.fillText('WPN: AIM-120D (2)', pw - 120, 76);
 
   // Bottom Status Bar
   thermalCtx.fillStyle = '#34d399';
-  thermalCtx.fillText('STATUS: HEALTHY • Pk: 88% [RADAR LOCK]', 10, ph - 22);
+  thermalCtx.fillText('STATUS: HEALTHY • Pk: 88% [RADAR LOCK]', 10, ph - 32);
 }
 
 // --- PiP ENGINE: 3D CHASE-CAM (REAL-VIEW / ZERO FABRICATION) ---
