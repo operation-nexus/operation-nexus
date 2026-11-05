@@ -15,6 +15,10 @@ failure (a log flush or rotation, or a recovery that cannot restore) sets `halte
 `halt_reason` and re-raises. The drained commands of that tick are gone from the inbox; a restart
 recovers from the snapshot plus the durable log.
 
+`on_tick`, when given, gets the world and the tick's events right after `step`, before the snapshot
+write (the wire broadcaster, WIRE-PROTOCOL WP-8). It must only read the world and must not raise;
+it runs inside the tick budget (SC-10).
+
 The `state_hash` cadence lands with NX-105, metric export with NX-250, crash bundles with
 DATA-MODEL §6.3. Starting the sim thread (SIM-CORE §5 threading) has no tracker item yet.
 """
@@ -71,6 +75,7 @@ class SimRuntime:
         snapshot_every: int = 300,  # ops cadence, no effect on outcomes
         handlers: Mapping[str, Handler] = HANDLERS,
         reporter: ErrorReporter | None = None,  # EP-4: the runtime reports, the kernel never does
+        on_tick: Callable[[World, Sequence[Event]], None] | None = None,  # WP-8: read-only hook
     ) -> None:
         if world.rules is None:  # JOIN and movement need them (start_campaign, or restore rules=)
             raise ValueError("SimRuntime needs a world with rules")
@@ -88,6 +93,7 @@ class SimRuntime:
         self.snapshot_every = snapshot_every
         self.handlers = handlers
         self.reporter: ErrorReporter = NoOpReporter() if reporter is None else reporter
+        self.on_tick = on_tick
         self.crash_ticks: deque[int] = deque(maxlen=CRASH_LIMIT)
         self.halted = False
         self.halt_reason = ""
@@ -113,6 +119,18 @@ class SimRuntime:
         self.log.append(commands)
         self.log.flush()
         events = self._step(commands)
+        if self.on_tick is not None and not self.halted:
+            try:
+                self.on_tick(
+                    self.world, events
+                )  # WIRE-PROTOCOL WP-8: reads the world, never writes
+            except Exception as e:  # noqa: BLE001 - a view-only hook must never halt the sim
+                report_safely(
+                    self.reporter,
+                    e,
+                    component="sim.on_tick",
+                    tags={"tick": str(self.world.campaign.tick)},
+                )
         if not self.halted and self.world.campaign.tick % self.snapshot_every == 0:
             try:
                 self._write_snapshot()

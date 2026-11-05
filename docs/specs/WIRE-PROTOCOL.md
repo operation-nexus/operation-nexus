@@ -30,15 +30,16 @@ Values marked PROPOSED are lead defaults, tunable in config without a spec chang
 - **WP-1 Version.** Every message carries `type` and `v` (`"major.minor"`, `contracts/VERSION`). On a major mismatch in `Hello` the server sends `Control{RELOAD}` and closes (4003); the overlay shows "UPDATE REQUIRED" and reloads. A minor mismatch is ignored.
 - **WP-2 Tolerance.** Unknown fields are ignored. An unknown message type is logged and ignored. Neither crashes either side.
 - **WP-3 Gap and resync.** A `Delta` carries `base_tick`. If the client lacks that base, or its `Ack` lags past a gap limit (PROPOSED 10 ticks), the server sends `Control{RESYNC}` then a `Snapshot`. A client that detects a gap asks for the same by sending an `Ack` with its last applied tick.
+- **WP-3a.** Starting a resync for a client discards that client's pending (queued, unsent) frames first, since it drops them after `RESYNC` anyway; so `RESYNC` plus the `Snapshot` never overflow its WP-11 queue by themselves.
 - **WP-4 Size.** p95 `Delta` ≤ 16 KB at 1,000 entities. Positions are quantized to 1 m and unchanged values are omitted. Measured by NX-171.
 - **WP-5 Client reconnect.** Jittered exponential backoff, 0.5 s to 10 s max, and a "COMMS RESYNC" banner after 2 s without data (NX-175).
 - **WP-6 Text.** Text fields are `SafeText` or `ModeratedText` (CONTRACTS, text rules). The client renders them with `textContent`, never as HTML (SEC-OV-1).
 - **WP-7 Handshake.** `Hello` → `Welcome` → `Snapshot`, then `Delta`s. The first frame MUST be a valid `Hello` within PROPOSED 5 s, else close with 4001. `Hello.last_tick` is a hint only; P2 always sends a full `Snapshot` and never replays missed Deltas.
 - **WP-8 Frame build.** Once per tick, right after `step`, on the sim thread, the server builds one shared `Delta` as immutable bytes (SIM-CORE §5.3-5.4, Q-SIM-8/9); its time counts inside SC-10. A `Snapshot` is built on demand, at most once per tick, and shared by every client that needs one that tick. Socket encoding of per-client extras and all sending happen off the sim thread.
 - **WP-9 Redaction.** Redaction happens server-side, before serialization, from the coalition `SideView` (`core/fog.py`; FOW-1). The client never receives a hidden entity, seed or raw display name, and is never trusted to hide one.
-- **WP-10 Cadence.** `Delta` every tick, empty ones included (liveness). `Hud` at most 1 Hz as its own message (and inside every `Snapshot`). `Snapshot` only on connect, on resync or on a detected gap. No periodic keyframes in P2.
+- **WP-10 Cadence.** `Delta` every tick, empty ones included (liveness). `Hud` at most 1 Hz as its own message (and inside every `Snapshot`). `Snapshot` only on connect, on resync or on a detected gap. No periodic keyframes in P2. The Hud's second is every `round(1 / TICK_DT)` ticks (10 at the 10 Hz tick), counted in ticks so it is deterministic.
 - **WP-11 Backpressure (SEC-API-3).** Each client has a bounded send queue of PROPOSED 3 frames. A full queue drops that client (close 4004). The tick never waits on a client; the impact of all clients on the tick is ≤ 5 ms. A dropped client reconnects and gets a `Snapshot` (WP-7).
-- **WP-12 Caps.** Connections are capped at PROPOSED 8, configurable; the next one is closed with 4006. Inbound messages are capped at PROPOSED 4 KB (close 1009). The server pings every PROPOSED 15 s and closes a client silent for PROPOSED 45 s (4005). `Ack`s are limited to PROPOSED 20 per second per client; the excess is ignored, not queued.
+- **WP-12 Caps.** Connections are capped at PROPOSED 8, configurable; the next one is closed with 4006. Inbound messages are capped at PROPOSED 4 KB (close 1009). The server pings every PROPOSED 15 s and closes a client silent for PROPOSED 45 s (4005). `Ack`s are limited to PROPOSED 20 per second per client; the excess is ignored, not queued. As built (NX-170 part b): the ping is uvicorn's protocol-level ping at the 15 s interval, and the app cannot see pongs, so the 45 s idle close (4005) counts inbound application frames only (the overlay sends an `Ack` per Delta); a client must send at least one frame (for example an `Ack`) every 45 s, and the NX-175a overlay already Acks every applied Delta; the library's ping timeout is off so it never closes with 1011. The numbers are the defaults of `nexus.broadcast.config.WsConfig`, because CONFIG-AND-CONTENT 4.2 has no keys for them yet. An ignored excess `Ack` still counts as traffic.
 - **WP-13 Client frames.** Every inbound frame is validated against its schema before use. A malformed or schema-violating frame (the first one is WP-7) is logged as `contract_violation` with the schema id (CONTRACTS §9) and dropped; the connection stays open. The only outbound frames a client can trigger are the resync responses of WP-3.
 - **WP-14 Auth (SEC-API-2).** As in §7.
 
@@ -52,7 +53,7 @@ A closed set. 1001 and 1009 are standard WebSocket codes; the rest are applicati
 | 4002 | `AUTH_FAILED` | Bad `capability_token` |
 | 4003 | `VERSION_MISMATCH` | Major mismatch, after `Control{RELOAD}` |
 | 4004 | `SLOW_CLIENT` | Send queue full |
-| 4005 | `IDLE_TIMEOUT` | No pong or traffic in time |
+| 4005 | `IDLE_TIMEOUT` | No inbound frame in time (pings are protocol-level) |
 | 4006 | `AT_CAPACITY` | Connection cap reached |
 
 A disallowed Origin never upgrades: the server answers the HTTP request with 403 (§7.2).
@@ -71,7 +72,7 @@ A disallowed Origin never upgrades: the server answers the HTTP request with 403
 
 ## 7. Security
 1. **Auth, SEC-API-2 (owner, 2026-11-04, chat).** `capability_token` is a static secret read from the environment (`.env`, never in the repo or a log). The OBS browser-source URL carries it in the fragment (`#token=…`), which browsers never send to the server, so it stays out of server and proxy logs. The page's JS reads it and sends it in `Hello.capability_token` (the schema field; ≤ 128 characters).
-2. The server compares the token in constant time, never logs or echoes it, binds `127.0.0.1` or the private network (SYSTEM-DESIGN), and checks `Origin` against an explicit allowlist, with no wildcard, on upgrade.
+2. The server compares the token in constant time, never logs or echoes it, binds `127.0.0.1` or the private network (SYSTEM-DESIGN), and checks `Origin` against an explicit allowlist, with no wildcard, on upgrade. As built: the bind is loopback or a private address only (`WsConfig` refuses `0.0.0.0`, `::`, their IPv4-mapped forms and public addresses). A denied Origin never upgrades, and uvicorn logs one ERROR line for it ("ASGI callable returned without completing handshake"); that line is expected, not a fault.
 3. Rotation: change `.env` and the OBS URL, then restart. P2 has no token store and no expiry.
 4. **CSP, SEC-OV-2.** The overlay page ships a strict CSP: no inline script, `connect-src` limited to the WS origin. OBS page permissions are "No access".
 5. **Hostile input.** `Hello` and `Ack` are validated, length-capped, and never echoed or logged raw; a failing token is not logged even in part. Text fields follow WP-6.
@@ -93,7 +94,7 @@ A disallowed Origin never upgrades: the server answers the HTTP request with 403
 ## 9. NX-170 split
 Three PRs, each within the size rule (AGENTS.md rule 7):
 1. **(a) Schemas and frames.** `Welcome`, `Snapshot`, `Delta`, `Hud`, `Control` and `Ack` in `contracts/wire/`, the `make contracts` output (Python and TS), and the `nexus.broadcast` frame builders with redaction (WP-8, WP-9). NX-171 adds the Delta encoder and size test on top.
-2. **(b) Server.** The FastAPI WS endpoint, per-client queues, auth, caps, close codes, and the hook into `runtime/loop.py` after `step`. Carries the dependency write-up.
+2. **(b) Server.** The FastAPI WS endpoint, per-client queues, auth, caps, close codes, and the hook into `runtime/loop.py` after `step`. Carries the dependency write-up. Done: `nexus.broadcast.{config,hub,server}`, the `SimRuntime(on_tick=...)` hook and the endpoint `/ws`; env `NEXUS__SERVER__WS_TOKEN`, `NEXUS__SERVER__WS_ORIGINS` (comma list) and `NEXUS__SERVER__WS_BIND` (`server.ws_bind`).
 3. **(c) Bench.** `step` plus frame build at 1,000 entities against SC-10 (NX-376 measured `step` only).
 
 ## 10. Open questions
