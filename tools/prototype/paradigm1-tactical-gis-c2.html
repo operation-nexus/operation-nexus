@@ -398,14 +398,22 @@ function drawThreatEnvelopes() {
     // Range Label
     ctx.fillStyle = base.side === 'coalition' ? '#38bdf8' : '#f43f5e';
     ctx.font = '9px monospace';
-    ctx.fillText(`SAM MEZ: ${base.samRange}KM`, pt.x + rad * 0.7, pt.y - rad * 0.7);
+    const mezTxt = `SAM MEZ: ${base.samRange}KM`;
+    const mezX = pt.x + rad * 0.7;
+    const mezW = ctx.measureText(mezTxt).width;
+    ctx.fillText(mezTxt, Math.min(mezX, width - mezW - 6), pt.y - rad * 0.7);
     ctx.restore();
   });
 }
 
+// Screen rects of base symbols + labels, filled by drawBases, read by drawUnits to dodge them
+let labelRects = [];
+
 function drawBases() {
+  labelRects = [];
   BASES.forEach(b => {
     const pt = toScreen(b.x, b.y);
+    const flipLeft = b.id === 'haven'; // Haven sits 120px left of West Airbase: label goes left of its node
 
     ctx.save();
     if (b.side === 'coalition') {
@@ -416,7 +424,12 @@ function drawBases() {
       ctx.strokeRect(pt.x - 7, pt.y - 7, 14, 14);
       ctx.fillStyle = '#f8fafc';
       ctx.font = 'bold 10px monospace';
-      ctx.fillText(b.name, pt.x + 12, pt.y + 4);
+      if (flipLeft) {
+        ctx.textAlign = 'right';
+        ctx.fillText(b.name, pt.x - 12, pt.y + 4);
+      } else {
+        ctx.fillText(b.name, pt.x + 12, pt.y + 4);
+      }
     } else if (b.side === 'static') {
       ctx.fillStyle = '#be123c';
       ctx.strokeStyle = '#f43f5e';
@@ -440,6 +453,9 @@ function drawBases() {
       ctx.font = '9px monospace';
       ctx.fillText(b.name, pt.x + 10, pt.y + 3);
     }
+    const lw = ctx.measureText(b.name).width;
+    const lx = flipLeft ? pt.x - 12 - lw : pt.x + 8;
+    labelRects.push({ x0: Math.min(pt.x - 8, lx), x1: Math.max(pt.x + 8, lx + lw + (flipLeft ? 0 : 6)), y0: pt.y - 10, y1: pt.y + 8 });
     ctx.restore();
   });
 }
@@ -492,11 +508,22 @@ function drawUnits() {
 
     // 3. TACTICAL DATA BLOCK (Callsign, Altitude, Speed)
     ctx.font = '10px monospace';
+    const subTxt = `${u.alt} • ${u.spd}KTS`;
+    const bw = Math.max(ctx.measureText(u.callsign).width, ctx.measureText(subTxt).width);
+    // Pick the first label slot (right, left, above, below) that misses every base label
+    const slots = [[10, -8, 'left'], [-10, -8, 'right'], [10, -26, 'left'], [10, 22, 'left']];
+    let slot = slots[0];
+    for (const sl of slots) {
+      const x0 = sl[2] === 'left' ? pt.x + sl[0] : pt.x + sl[0] - bw;
+      const y0 = pt.y + sl[1] - 10, y1 = pt.y + sl[1] + 14;
+      if (!labelRects.some(r => x0 < r.x1 && x0 + bw > r.x0 && y0 < r.y1 && y1 > r.y0)) { slot = sl; break; }
+    }
+    ctx.textAlign = slot[2];
     ctx.fillStyle = '#f8fafc';
-    ctx.fillText(u.callsign, pt.x + 10, pt.y - 8);
+    ctx.fillText(u.callsign, pt.x + slot[0], pt.y + slot[1]);
     ctx.fillStyle = '#94a3b8';
     ctx.font = '9px monospace';
-    ctx.fillText(`${u.alt} • ${u.spd}KTS`, pt.x + 10, pt.y + 4);
+    ctx.fillText(subTxt, pt.x + slot[0], pt.y + slot[1] + 12);
 
     ctx.restore();
   });

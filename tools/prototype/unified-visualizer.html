@@ -1005,10 +1005,15 @@
 
         gisCtx.fillStyle = b.side === 'coalition' ? "#38bdf8" : "#ef4444";
         gisCtx.font = "9px monospace";
-        gisCtx.fillText(`MEZ: ${b.samRange / 1000}KM`, pt.sx + rad * 0.7, pt.sy - rad * 0.7);
+        const mezTxt = `MEZ: ${b.samRange / 1000}KM`;
+        // Right-side rings: label goes on the lower-right of the ring (the OOB panel covers the upper right) and stays inside the canvas
+        const mezDy = pt.sx + rad * 0.7 > gisCanvas.clientWidth * 0.8 ? rad * 0.7 : -rad * 0.7;
+        gisCtx.fillText(mezTxt, Math.min(pt.sx + rad * 0.7, gisCanvas.clientWidth - gisCtx.measureText(mezTxt).width - 6), pt.sy + mezDy);
       });
 
       // 5. Military Bases with MIL-STD-2525D Frames & Road Waypoints
+      // labelRects collects drawn label boxes so unit labels (step 6) can dodge them
+      const labelRects = [];
       BASES.forEach(b => {
         const pt = worldToScreen(b.x, b.y);
         gisCtx.save();
@@ -1026,6 +1031,7 @@
           gisCtx.fillStyle = '#94a3b8';
           gisCtx.font = '8px monospace';
           gisCtx.fillText(b.name, pt.sx + 7, pt.sy + 3);
+          labelRects.push({ x0: pt.sx - 4, x1: pt.sx + 9 + gisCtx.measureText(b.name).width, y0: pt.sy - 8, y1: pt.sy + 6 });
           gisCtx.restore();
           return;
         }
@@ -1063,7 +1069,16 @@
         }
         gisCtx.fillStyle = "#f8fafc";
         gisCtx.font = "bold 10px monospace";
-        gisCtx.fillText(b.name, pt.sx + 12, pt.sy + 3);
+        const nameW = gisCtx.measureText(b.name).width;
+        if (b.kind === 'BRIDGE') {
+          // Bridge labels are long and sit next to the crossing label: centre them below the node
+          gisCtx.textAlign = 'center';
+          gisCtx.fillText(b.name, pt.sx, pt.sy + 22);
+          labelRects.push({ x0: pt.sx - nameW / 2, x1: pt.sx + nameW / 2, y0: pt.sy + 12, y1: pt.sy + 26 });
+        } else {
+          gisCtx.fillText(b.name, pt.sx + 12, pt.sy + 3);
+          labelRects.push({ x0: pt.sx - 8, x1: pt.sx + 14 + nameW, y0: pt.sy - 10, y1: pt.sy + 8 });
+        }
         gisCtx.restore();
       });
 
@@ -1133,16 +1148,30 @@
           gisCtx.stroke();
         }
 
-        gisCtx.fillStyle = "#fff";
         gisCtx.font = "bold 10px monospace";
-        gisCtx.fillText(`${u.callsign} [${u.spd}kts]`, pt.sx + 10, pt.sy - 6);
+        const uTxt = `${u.callsign} [${u.spd}kts]`;
+        const uW = Math.max(gisCtx.measureText(uTxt).width, u.noeMasked ? 75 : 0);
+        // Pick the first label slot (right, left, above, below) that misses every placed label
+        const slots = [[10, 'left', -6], [-10, 'right', -6], [10, 'left', -30], [-10, 'right', -30], [10, 'left', 24], [10, 'left', -46]];
+        let slot = slots[0];
+        for (const sl of slots) {
+          const x0 = pt.sx + (sl[1] === 'left' ? sl[0] : sl[0] - uW);
+          const y0 = pt.sy + sl[2] - 10, y1 = pt.sy + sl[2] + (u.noeMasked ? 14 : 4);
+          if (!labelRects.some(r => x0 < r.x1 && x0 + uW > r.x0 && y0 < r.y1 && y1 > r.y0)) { slot = sl; break; }
+        }
+        const lx = pt.sx + slot[0], ly = pt.sy + slot[2];
+        labelRects.push({ x0: pt.sx + (slot[1] === 'left' ? slot[0] : slot[0] - uW), x1: pt.sx + (slot[1] === 'left' ? slot[0] + uW : slot[0]), y0: ly - 10, y1: ly + (u.noeMasked ? 14 : 4) });
+        gisCtx.textAlign = slot[1];
+        gisCtx.fillStyle = "#fff";
+        gisCtx.fillText(uTxt, lx, ly);
 
         // Terrain-Masked Status Badge (AN-3)
         if (u.noeMasked) {
           gisCtx.fillStyle = "#00ffcc";
           gisCtx.font = "bold 8.5px monospace";
-          gisCtx.fillText("[NOE MASKED]", pt.sx + 10, pt.sy + 8);
+          gisCtx.fillText("[NOE MASKED]", lx, ly + 14);
         }
+        gisCtx.textAlign = 'left';
       });
 
       // Tactical Annotations (AN-1..5): Canyon Ingress Spline Corridor

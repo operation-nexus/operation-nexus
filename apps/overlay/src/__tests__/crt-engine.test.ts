@@ -4,38 +4,50 @@ import { STRAIT_1_THEATER } from "../theater/strait1";
 import type { RenderFrameState } from "../types/render";
 import type { VisualUnit } from "../types/unit";
 
-function createMockCanvas(): HTMLCanvasElement {
+interface TextCall {
+  text: string;
+  x: number;
+  y: number;
+  align: string;
+}
+
+function createMockCanvas(textCalls: TextCall[] = []): HTMLCanvasElement {
+  const ctx = {
+    save: () => {},
+    restore: () => {},
+    scale: () => {},
+    translate: () => {},
+    rotate: () => {},
+    beginPath: () => {},
+    moveTo: () => {},
+    lineTo: () => {},
+    closePath: () => {},
+    arc: () => {},
+    rect: () => {},
+    fillRect: () => {},
+    strokeRect: () => {},
+    fillText(text: string, x: number, y: number) {
+      textCalls.push({ text, x, y, align: ctx.textAlign });
+    },
+    measureText: (text: string) => ({ width: text.length * 6 }),
+    textAlign: "left",
+    stroke: () => {},
+    fill: () => {},
+    createRadialGradient: () => ({ addColorStop: () => {} }),
+    setLineDash: () => {},
+    strokeStyle: "",
+    fillStyle: "",
+    lineWidth: 0,
+    shadowColor: "",
+    shadowBlur: 0,
+    globalAlpha: 1,
+    font: "",
+  };
   const canvas = {
     width: 1280,
     height: 720,
     style: {},
-    getContext: () => ({
-      save: () => {},
-      restore: () => {},
-      scale: () => {},
-      translate: () => {},
-      rotate: () => {},
-      beginPath: () => {},
-      moveTo: () => {},
-      lineTo: () => {},
-      closePath: () => {},
-      arc: () => {},
-      rect: () => {},
-      fillRect: () => {},
-      strokeRect: () => {},
-      fillText: () => {},
-      stroke: () => {},
-      fill: () => {},
-      createRadialGradient: () => ({ addColorStop: () => {} }),
-      setLineDash: () => {},
-      strokeStyle: "",
-      fillStyle: "",
-      lineWidth: 0,
-      shadowColor: "",
-      shadowBlur: 0,
-      globalAlpha: 1,
-      font: "",
-    }),
+    getContext: () => ctx,
   } as unknown as HTMLCanvasElement;
   return canvas;
 }
@@ -146,6 +158,44 @@ describe("Option A: 2D CRT Vector Phosphor Engine", () => {
     });
 
     expect(() => engine.renderFrame(frameState)).not.toThrow();
+
+    engine.dispose();
+  });
+
+  it("moves a node label under the node when it would run off the right edge", async () => {
+    const engine = new CrtVectorEngine();
+    const textCalls: TextCall[] = [];
+    const canvas = createMockCanvas(textCalls);
+    await engine.initialize(createMockContainer(), { canvas });
+    engine.resize(1920, 1080, 1); // the broadcast stage size (OVERLAY §0.7)
+
+    engine.renderFrame({
+      tick: 1,
+      simTime: 100,
+      units: [],
+      telemetry: {
+        momentum: { quorum: 50, static: 50 },
+        countdownSeconds: 0,
+        objectiveName: "",
+        threatTier: "PATTERN_OF_LIFE",
+        sitrep: [],
+        ticker: [],
+      },
+    });
+
+    // Static Rear sits at x = 395 km of 400 km, i.e. 1896 px of 1920.
+    const rear = textCalls.find((c) => c.text === "STATIC REAR");
+    expect(rear).toBeDefined();
+    expect(rear?.align).toBe("right");
+    expect(rear?.x).toBe(1912);
+    // ...and below its row, clear of the Static HQ label on the same row.
+    const hq = textCalls.find((c) => c.text === "STATIC HQ");
+    expect(hq?.align).toBe("left");
+    expect((rear?.y ?? 0) - (hq?.y ?? 0)).toBeGreaterThanOrEqual(12);
+
+    // Haven is near the left edge and keeps its label on the right.
+    const haven = textCalls.find((c) => c.text === "HAVEN SANCTUARY");
+    expect(haven?.align).toBe("left");
 
     engine.dispose();
   });

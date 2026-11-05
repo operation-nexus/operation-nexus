@@ -294,7 +294,16 @@ export class CrtVectorEngine implements IRenderEngine {
       ctx.fillStyle = "#f8fafc";
       ctx.font = "9px monospace";
       ctx.shadowBlur = 0;
-      ctx.fillText(node.name.toUpperCase(), nx + 8, ny + 3);
+      // Near the right edge the label would run off screen, and to the left it
+      // would hit the neighbour's label, so it goes under the node, right-aligned.
+      const label = node.name.toUpperCase();
+      if (nx + 8 + ctx.measureText(label).width <= this.width - 8) {
+        ctx.fillText(label, nx + 8, ny + 3);
+      } else {
+        ctx.textAlign = "right";
+        ctx.fillText(label, this.width - 8, ny + 16);
+        ctx.textAlign = "left";
+      }
     }
     ctx.restore();
   }
