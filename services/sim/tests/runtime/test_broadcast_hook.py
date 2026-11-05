@@ -34,6 +34,7 @@ def run(
         log_writer(directory),
         directory,
         protocol_version="0.65",
+        theater_hash=CFG.theater_hash,
         sim_build="test",
         created_at=lambda: "2026-11-04T12:00:00Z",
         on_tick=on_tick,
