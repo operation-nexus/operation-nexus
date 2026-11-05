@@ -46,6 +46,7 @@ logistics:
   unload_rate: 1.0  # PROPOSED – unvalidated (Q-SIM-49); stock per s (world) (CONFIG-AND-CONTENT §6.3 logistics.unload_rate)
   rearm_rate: 0.5  # PROPOSED – unvalidated (Q-SIM-49); stock per s (world) (CONFIG-AND-CONTENT §6.3 logistics.rearm_rate)
   forward_deploy_min_surplus: 50  # PROPOSED – unvalidated (Q-SIM-49); stock above the starvation floor (CONFIG-AND-CONTENT §6.3)
+  capture_run_forward_start: true  # RULE_DEFAULT (Q-SIM-135, NX-513); false = a capture run's truck starts at the sanctuary (A/B control)
   starved_loadout:
     fuel_frac: 0.5  # PROPOSED – unvalidated (Q-SIM-53); fraction of fuel_s a starved base refuels up to (CONFIG-AND-CONTENT §6.3)
   loadout_cost:  # PROPOSED – unvalidated (Q-SIM-49, owner-approved initial values; NX-031 tunes); stock units, a full loadout / a full refill

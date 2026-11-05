@@ -70,6 +70,7 @@ logistics:
   unload_rate: 1.0
   rearm_rate: 0.5
   forward_deploy_min_surplus: 50
+  capture_run_forward_start: true
   starved_loadout:
     fuel_frac: 0.5
   loadout_cost:
@@ -388,7 +389,7 @@ economy:
 # catalog's `mirrors`, NX-499 for `campaign.defeat.reset_hp_frac`, NX-501 for
 # `logistics.stock_target_mode` and `stock_target_loadouts`); a change means
 # every config_hash moved.
-GOLDEN_CONFIG_HASH = "1920af11625ee57e0a7b6683ef29fa3317af80345f4a1ea78d3246b7d7fe1ac4"
+GOLDEN_CONFIG_HASH = "db991e6f999bbbd03b32d1b9c66bad40738951f8ccff73c863ba1aede748f1d8"
 AIR = {
     "bingo_reserve_frac": 0.15,
     "orbit_period_s": 120.0,
@@ -426,6 +427,7 @@ LOGISTICS = {
     "unload_rate": 1.0,
     "rearm_rate": 0.5,
     "forward_deploy_min_surplus": 50,
+    "capture_run_forward_start": True,
     "starved_loadout": {"fuel_frac": 0.5},
     "loadout_cost": {
         "ENEMY_ARMOR": 15,
@@ -835,6 +837,7 @@ def test_default_profile_loads_and_matches_golden_hash() -> None:
         ("    HQ: 2000\n", "logistics.node_max_stock.HQ"),
         ("  rearm_rate: 0.5\n", "logistics.rearm_rate"),
         ("  forward_deploy_min_surplus: 50\n", "logistics.forward_deploy_min_surplus"),
+        ("  capture_run_forward_start: true\n", "logistics.capture_run_forward_start"),
         ("  starved_loadout:\n    fuel_frac: 0.5\n", "logistics.starved_loadout"),
         ("    STRIKE_FIGHTER: 20\n", "logistics.loadout_cost.STRIKE_FIGHTER"),
         ("  pk_cap: 0.95\n", "combat.pk_cap"),
@@ -1159,7 +1162,8 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "logistics: {unload_rate: 1.0, truck_cargo: 100, starve_threshold: 0.25,\n"
         "  starve_floor_mode: fraction, starve_floor_loadouts: 5, stock_target_frac: 0.8,\n"
         "  stock_target_mode: fraction, stock_target_loadouts: 15,\n"
-        "  rearm_rate: 0.5, forward_deploy_min_surplus: 50, starved_loadout: {fuel_frac: 0.5},\n"
+        "  rearm_rate: 0.5, forward_deploy_min_surplus: 50, capture_run_forward_start: true,\n"
+        "  starved_loadout: {fuel_frac: 0.5},\n"
         "  loadout_cost: {STRIKE_FIGHTER: 20, RECON_UAV: 5, LOGI_TRUCK: 0, GARRISON_INFANTRY: 5,\n"
         "    ENEMY_FIGHTER: 20, ENEMY_STRIKE_FIGHTER: 20, ENEMY_RECON_UAV: 5, ENEMY_ARMOR: 15,\n"
         "    ENEMY_CONVOY: 0},\n"

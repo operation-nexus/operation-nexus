@@ -33,7 +33,7 @@ from nexus.runtime.campaign_config import CampaignConfig, load_campaign_config, 
 
 CFG = load_campaign_config()
 CAMPAIGN = "0192f3a4-5b6c-7d8e-9f01-23456789abcd"
-VERSION = "0.66"
+VERSION = "0.67"
 TICKS = 1300
 JOINS = [join(1, "STRIKE", "east-airbase"), join(2, "LOGI", "fob-n-w"), join(3, "RECON", "cross-n")]
 

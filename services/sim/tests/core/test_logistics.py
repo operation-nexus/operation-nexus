@@ -127,11 +127,15 @@ def test_destination_is_never_its_own_source_and_the_sanctuary_is_last_resort() 
     assert total(w) == before + 100  # loaded at an infinite source
 
 
-def test_neutral_enemy_and_null_targets_carry_nothing_from_the_sanctuary() -> None:
-    for n, node in enumerate(["cross-n", "static-hq", None], start=1):
+def test_neutral_enemy_and_null_targets_carry_nothing() -> None:
+    # A node target is a capture run from the forward base (Q-SIM-135, NX-513); a null target
+    # (hold) has no run and spawns at the sanctuary.
+    for n, (node, start) in enumerate(
+        [("cross-n", "fob-n-w"), ("static-hq", "fob-n-w"), (None, "haven")], start=1
+    ):
         w = new_world()
         t = truck_for(w, n, node)
-        assert (t.last_node, t.cargo) == ("haven", 0), node
+        assert (t.last_node, t.cargo) == (start, 0), node
         assert w.stock["west-airbase"] == 1000
 
 

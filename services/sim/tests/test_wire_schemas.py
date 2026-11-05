@@ -14,7 +14,7 @@ from nexus.contracts.gen.wire.snapshot import Snapshot
 from nexus.contracts.gen.wire.views import EntityPatch, NodePatch, NodeView
 from nexus.contracts.gen.wire.welcome import Welcome
 
-V = "0.66"
+V = "0.67"
 CAMPAIGN = "0192f3a4-5b6c-7d8e-9f01-23456789abcd"
 POS = {"x_m": 10, "y_m": -4}
 ENTITY: dict[str, Any] = {

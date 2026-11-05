@@ -240,9 +240,12 @@ def plan_run(
     loads nothing). Such a supply run's routes enter no node the other side holds
     (`supply_route`, Q-SIM-122), unless `around_enemy` is False (a follower's source pick, which
     drives on its leader's road, GAMEPLAY §1b Q-GP-31). Any other `dest` (neutral, enemy,
-    infinite or unable to hold stock) is a capture run: it loads nothing, spawns at the rear
-    source and may cross any node. `held`: the caller's pass-wide `enemy_held` (NX-413),
-    computed here when None.
+    infinite or unable to hold stock) is a capture run: it loads nothing and may cross any node.
+    The coalition's starts at the forward base `plan_deploy` picks for a ground unit (GP-7: the
+    nearest owned `spawns` node with surplus, by road; nothing is debited, a truck's
+    `loadout_cost` is 0) when `capture_run_forward_start` is on (Q-SIM-135, NX-513), else, or
+    with no such base, and for the Static always, at the rear source.
+    `held`: the caller's pass-wide `enemy_held` (NX-413), computed here when None.
     """
     sup = rules.supply
     rear = sup.rear[side]
@@ -265,6 +268,10 @@ def plan_run(
         cargo = sup.truck_cargo if pool is None else min(sup.truck_cargo, pool)
     else:
         cargo = 0
+        if sup.capture_run_forward_start and side == "COALITION":  # the Static keeps its start
+            fwd = plan_deploy(world, rules, side, "LOGI_TRUCK", dest)
+            if fwd is not None:
+                return Run(fwd[0], 0, fwd[1])
     route = _route(world, rules, rear, dest, avoid)
     return None if route is None else Run(rear, cargo, route)
 

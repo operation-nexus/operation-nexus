@@ -291,7 +291,8 @@ def test_a_bare_join_logi_takes_the_retake() -> None:
     step(w, [join(1, "LOGI")])
     (truck,) = [e for e in w.entities() if e.commander_id == cid(1)]
     assert truck.job_id == job.id and list(job.claims) == [truck.id]
-    assert truck.last_node == "haven" and truck.cargo == 0  # a capture run from the rear
+    # a capture run from the forward base nearest the lost node (Q-SIM-135, NX-513)
+    assert truck.last_node == "west-airbase" and truck.cargo == 0
     assert truck.path[-1] == "fob-n-w"
 
 
