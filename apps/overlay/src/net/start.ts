@@ -1,18 +1,29 @@
 // Wires the WS client and banner into the page. Does nothing without `#token=` (prototype dev mode).
 import { renderBanner } from "./banner";
+import { mountHud } from "../hud/mount";
+import type { Stage } from "../stage";
 import { takeToken, WireClient } from "./wire-client";
 
 // [UNVERIFIED] path: the server endpoint ships with NX-170 (b); change here when it lands.
 export const WS_PATH = "/ws";
 
-export function startFeed(win: Window, dim: HTMLElement): WireClient | null {
+/** `mount` runs only when a token is present, so the no-token prototype keeps `#root` to itself. */
+export function startFeed(
+  win: Window,
+  mount: () => Pick<
+    Stage,
+    "world" | "banners" | "showTheater" | "panels" | "sitrep"
+  >,
+): WireClient | null {
   const token = takeToken(win.location, win.history);
   if (token === null) return null;
   const doc = win.document;
+  const surface = mount();
   const banner = doc.createElement("div");
   banner.className = "nx-banner";
   banner.hidden = true;
-  doc.body.appendChild(banner);
+  surface.banners.appendChild(banner);
+  const hud = mountHud(surface, win, () => client.store);
   const scheme = win.location.protocol === "https:" ? "wss:" : "ws:";
   const client = new WireClient({
     url: `${scheme}//${win.location.host}${WS_PATH}`,
@@ -26,7 +37,12 @@ export function startFeed(win: Window, dim: HTMLElement): WireClient | null {
       win.history.replaceState(null, "", `#token=${encodeURIComponent(t)}`);
       win.location.reload();
     },
-    onState: (s) => renderBanner(banner, dim, s),
+    onState: (s) => renderBanner(banner, surface.world, s),
+    onFrame: (f) => hud.frame(f, client.store),
+    onWelcome: () => {
+      const t = client.store.theater;
+      if (t !== null) surface.showTheater(t);
+    },
   });
   client.start();
   return client;

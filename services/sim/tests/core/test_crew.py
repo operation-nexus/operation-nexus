@@ -269,7 +269,7 @@ def test_the_damaged_speed_never_drops_below_the_stall_speed() -> None:
 
 def test_a_damaged_ground_unit_drives_at_three_quarters_speed() -> None:
     w = new_world()
-    ok, bad = put(w, ARMOR, "ENEMY", 130_000, 60_000), put(w, ARMOR, "ENEMY", 130_000, 60_000)
+    ok, bad = put(w, ARMOR, "ENEMY", 130_000, 180_000), put(w, ARMOR, "ENEMY", 130_000, 180_000)
     for e in (ok, bad):
         e.last_node, e.path = "fob-n-w", ["cross-n"]
     bad.hp, bad.damage_state = 140, "DAMAGED"  # 200 hp: below 70 % is 140
@@ -282,7 +282,7 @@ def test_bingo_uses_the_damaged_speed() -> None:
     w = new_world()
     ok, bad = put(w, JET, "COALITION", 60_000, 120_000), put(w, JET, "COALITION", 60_000, 120_000)
     for e in (ok, bad):
-        e.state, e.path = "EN_ROUTE", [Vec2(60_000.0, 20_000.0)]
+        e.state, e.path = "EN_ROUTE", [Vec2(60_000.0, 220_000.0)]
         e.fuel = 540.0 + 30_000.0 / 250.0 + 1.0  # the reserve + the flight home at 250 m/s + 1 s
     bad.hp, bad.damage_state = 60, "DAMAGED"
     run(w, 1)

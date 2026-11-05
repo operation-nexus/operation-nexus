@@ -36,13 +36,13 @@ However, a physical bridge structure must **never** be rendered across dry land.
 To prevent unphysical cliff drop-offs (where a mountain highway plunges off a vertical ridge to meet a low-lying bridge deck), the engine enforces two distinct civil engineering archetypes:
 
 1. **High Fjord Viaduct (`isViaduct: true`, Abutment Elev $\ge 100\text{m}$)**:
-   - Spans between high canyon/fjord rims (e.g. North Crossing at $Y=60\text{km}$, elevation $\sim +450\text{m}$).
+   - Spans between high canyon/fjord rims (e.g. North Crossing at $Y=180\text{km}$, elevation $\sim +450\text{m}$).
    - The road deck remains at the mountain plateau rim elevation:
      $$Z_{\text{deck}}(t) = (1 - t) \cdot Z_{\text{abutment\_west}} + t \cdot Z_{\text{abutment\_east}} + \text{camber}(t)$$
    - Deep structural concrete pylons descend from the elevated deck down into the gorge floor and water trench.
    - Eliminates vertical cliff plunges; ground approaches smoothly transition directly onto the viaduct deck.
 2. **Lowland Sea-Level Truss Bridge (`isViaduct: false`, Abutment Elev $< 100\text{m}$)**:
-   - Spans lowland maritime channels (e.g. South Crossing at $Y=180\text{km}$, elevation $\sim +25\text{m}$).
+   - Spans lowland maritime channels (e.g. South Crossing at $Y=60\text{km}$, elevation $\sim +25\text{m}$).
    - Ramps up smoothly from shoreline abutments to ensure $+14.0\text{m}$ clearance over high tide for naval vessels.
    - Reinforced maritime channel piers and Warren steel trusses.
 
@@ -65,4 +65,4 @@ Pure navigation nodes with zero garrison quota, zero production capacity, and ne
    - Examples: `jct-w-pass` (foothill pass), `jct-e-hub` (central supply distribution interchange), `jct-sneak` (southern sneak valley bypass).
 2. **ABUTMENT (`kind: ABUTMENT`)**:
    - Exact physical threshold where a surface road terminates at the water's edge and transitions to an elevated bridge span.
-   - Examples: `abut-n-w` ($X=182\text{km}, Y=60\text{km}$), `abut-n-e` ($X=218\text{km}, Y=60\text{km}$).
+   - Examples: `abut-n-w` ($X=182\text{km}, Y=180\text{km}$), `abut-n-e` ($X=218\text{km}, Y=180\text{km}$).

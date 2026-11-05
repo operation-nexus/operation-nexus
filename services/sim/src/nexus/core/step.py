@@ -236,25 +236,25 @@ def _orbit_radius(e: Entity, rules: Rules) -> tuple[float, float]:
 
 def _start_orbit(e: Entity, rules: Rules, heading: tuple[float, float] | None) -> None:
     """Circle through the point reached, entered along `heading` (east when the last leg had no
-    length), the angle increasing: clockwise on the map, where y grows south. The centre is
+    length), the angle decreasing: clockwise on a north-up map (+y north, Q-UX-18). The centre is
     clamped so the circle stays in bounds. shortcut: when the clamp moves it (a point within one
     radius of the map edge), the next tick snaps onto the circle; no strait-1 node is that close
     to an edge. Upgrade to a curved entry if Vec2 waypoints near the edge become common."""
     hx, hy = heading or (1.0, 0.0)
     speed, r = _orbit_radius(e, rules)
     w, h = rules.bounds_m
-    cx = min(max(e.pos.x - hy * r, r), w - r)
-    cy = min(max(e.pos.y + hx * r, r), h - r)
+    cx = min(max(e.pos.x + hy * r, r), w - r)
+    cy = min(max(e.pos.y - hx * r, r), h - r)
     e.state, e.orbit, e.vel = _ON_STATION, Vec2(cx, cy), Vec2(hx * speed, hy * speed)
 
 
 def _orbit(e: Entity, centre: Vec2, rules: Rules) -> None:
     speed, r = _orbit_radius(e, rules)
     turn = math.tau * rules.world_dt / rules.orbit_period_s
-    theta = math.atan2(e.pos.y - centre.y, e.pos.x - centre.x) + turn
+    theta = math.atan2(e.pos.y - centre.y, e.pos.x - centre.x) - turn
     cos, sin = math.cos(theta), math.sin(theta)
     e.pos = Vec2(centre.x + r * cos, centre.y + r * sin)
-    e.vel = Vec2(-speed * sin, speed * cos)
+    e.vel = Vec2(speed * sin, -speed * cos)
 
 
 def _waypoint(e: Entity, rules: Rules, cap: float | None = None) -> tuple[float, float, float]:

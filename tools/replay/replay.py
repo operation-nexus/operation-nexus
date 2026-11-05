@@ -53,7 +53,13 @@ def _restore(args: argparse.Namespace, until_tick: int | None) -> RestoreResult:
     if until_tick is not None and snaps and all(int(p.stem) > until_tick for p in snaps):
         raise SnapshotError(f"no snapshot at or before tick {until_tick}")
     config: CampaignConfig = args.config
-    result = restore(args.snapshots, args.logs, until_tick=until_tick, rules=config.rules)
+    result = restore(
+        args.snapshots,
+        args.logs,
+        until_tick=until_tick,
+        rules=config.rules,
+        theater_hash=config.theater_hash,
+    )
     if (have := result.world.campaign.config_hash) != config.config_hash:
         raise ConfigError(
             f"snapshot config_hash {have} differs from the loaded config's {config.config_hash}; "

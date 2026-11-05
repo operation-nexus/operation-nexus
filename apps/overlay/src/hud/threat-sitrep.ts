@@ -1,5 +1,4 @@
 import type { Event, ThreatAdaptation } from "../contracts/events/event";
-import type { TheaterDefinition } from "../types/theater";
 
 // OVERLAY OV-26 (NX-496): the threat sitrep stack. A pure model: events in, a view out.
 
@@ -173,9 +172,15 @@ export interface SitrepLines {
 
 // Names come from the theater; an id the theater does not know shows as-is (ids are
 // public, FOW-10), and a missing node shows as the DI-1 dash.
+/** The names the card needs; the live Welcome carries node names but no sectors, so those show as ids. */
+export interface NameLookup {
+  sectors: readonly { id: string; name: string }[];
+  nodes: readonly { id: string; name: string }[];
+}
+
 export function sitrepLines(
   entry: SitrepEntry,
-  theater: TheaterDefinition,
+  theater: NameLookup,
 ): SitrepLines {
   const ev = entry.event;
   const sector =

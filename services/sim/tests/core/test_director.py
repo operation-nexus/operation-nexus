@@ -287,8 +287,8 @@ def pending(w: World) -> int:
 def test_a_player_kill_adds_five_and_an_ai_garrison_kill_adds_nothing() -> None:
     for cmd, expect in ((7, 5 * MICRO), (None, 0)):
         w = new_world(sure("SMALL_ARMS", damage=80))
-        inf = put(w, INFANTRY, "COALITION", 0, cmd=cmd)
-        convoy = put(w, CONVOY, "ENEMY", 500)  # 80 hp: one hit kills
+        inf = put(w, INFANTRY, "COALITION", 0, 239_000, cmd=cmd)
+        convoy = put(w, CONVOY, "ENEMY", 500, 239_000)  # 80 hp: one hit kills
         track(w, inf, convoy)
         run(w)
         assert w.find(convoy.id) is None and pending(w) == expect
@@ -394,7 +394,7 @@ def test_a_player_hit_on_a_static_bases_defenses_counts_like_a_facility_hit() ->
 def test_a_shot_at_a_static_bases_defenses_provokes_through_combat() -> None:
     rules = sure("AG_LIGHT")
     w = new_world(rules)
-    jet = put(w, FIGHTER, "COALITION", 289_000, 40_000, cmd=5)  # 1 km from fob-n-e
+    jet = put(w, FIGHTER, "COALITION", 289_000, 200_000, cmd=5)  # 1 km from fob-n-e
     w.defense_hp["fob-n-e"] = 100
     events = run(w, 10)  # the missile lands on tick 7
     assert w.defense_hp["fob-n-e"] < 100, events
@@ -489,16 +489,16 @@ def test_the_rear_is_where_the_static_owns_the_nearest_base_and_moves_with_the_f
     w = new_world()
     assert in_rear_at(w, 211_000)  # one km past the tie: east-airbase is 99 km, fob-n-w 100.8 km
     assert not in_rear_at(w, 210_000) and not in_rear_at(w, 200_000)
-    assert not in_rear_at(w, 200_000, 110_000)  # fob-n-w is 86 km off, east-airbase 110 km
+    assert not in_rear_at(w, 200_000, 130_000)  # fob-n-w is 86 km off, east-airbase 110 km
     w.owner["fob-n-w"] = "ENEMY"  # the front moves west: a flip
-    assert in_rear_at(w, 200_000, 110_000)  # now fob-n-w is the Static's, fob-s-w 99 km off
+    assert in_rear_at(w, 200_000, 130_000)  # now fob-n-w is the Static's, fob-s-w 99 km off
     w.owner["fob-n-w"] = "COALITION"
     w.owner["east-airbase"] = "COALITION"  # and east: the Static's nearest base is farther
     assert not in_rear_at(w, 211_000)
     assert in_rear_at(w, 385_000) and not in_rear_at(w, 20_000)  # behind each side's lines
     bridge_side = new_world()
     bridge_side.owner["bridge-n"] = "ENEMY"  # a BRIDGE is never a base (Q-SIM-79)
-    assert not in_rear(side_view(bridge_side, "ENEMY"), RULES, 200_000, 60_000)
+    assert not in_rear(side_view(bridge_side, "ENEMY"), RULES, 200_000, 180_000)
     gone = new_world()
     gone.owner.update({n: "COALITION" for n in gone.owner})
     assert not in_rear(side_view(gone, "ENEMY"), RULES, 385_000, 120_000)  # no base
@@ -523,9 +523,9 @@ def test_a_redemption_adds_its_class_weight_and_a_cosmetic_one_nothing() -> None
 def test_the_last_provocation_sector_is_the_latest_and_ties_go_to_the_lowest_id() -> None:
     w = new_world()
     inf = put(w, INFANTRY, "COALITION", 0, 0, cmd=1)
-    south = put(w, CONVOY, "ENEMY", 500, 200_000)  # south lane
-    centre = put(w, CONVOY, "ENEMY", 500, 100_000)  # centre lane
-    north = put(w, CONVOY, "ENEMY", 500, 1_000)  # north lane
+    south = put(w, CONVOY, "ENEMY", 500, 40_000)  # south lane
+    centre = put(w, CONVOY, "ENEMY", 500, 140_000)  # centre lane
+    north = put(w, CONVOY, "ENEMY", 500, 239_000)  # north lane
     for target in (south, centre, south):
         suffered_hit(w, inf, target, "HEALTHY")
     state = w.director["ENEMY"]
@@ -536,9 +536,9 @@ def test_the_last_provocation_sector_is_the_latest_and_ties_go_to_the_lowest_id(
 
 
 def test_sector_at_finds_the_lane_and_takes_the_lowest_id_on_an_edge() -> None:
-    assert sector_at(RULES, 1_000, 79_999) == "north"
-    assert sector_at(RULES, 1_000, 80_000) == "centre"  # the boundary: centre < north by id
-    assert sector_at(RULES, 1_000, 239_999) == "south" and sector_at(RULES, -1, 0) is None
+    assert sector_at(RULES, 1_000, 160_001) == "north"
+    assert sector_at(RULES, 1_000, 160_000) == "centre"  # the boundary: centre < north by id
+    assert sector_at(RULES, 1_000, 1) == "south" and sector_at(RULES, -1, 0) is None
 
 
 # --- the window (TD-1) ----------------------------------------------------------------------------
@@ -550,8 +550,8 @@ def test_a_window_runs_on_every_600th_running_tick() -> None:
 
 def test_the_window_decides_provocation_and_budget_at_running_tick_600() -> None:
     w = new_world(sure("SMALL_ARMS", damage=80))
-    inf = put(w, INFANTRY, "COALITION", 0, cmd=7)
-    convoy = put(w, CONVOY, "ENEMY", 500)
+    inf = put(w, INFANTRY, "COALITION", 0, 239_000, cmd=7)
+    convoy = put(w, CONVOY, "ENEMY", 500, 239_000)
     track(w, inf, convoy)
     run(w, WINDOW - 1)
     assert w.director["ENEMY"].windows == 0 and pending(w) == 5 * MICRO
@@ -565,8 +565,8 @@ def test_a_pause_freezes_every_director_field_and_resuming_finishes_the_window(
     paused_at: int,
 ) -> None:
     w = new_world(sure("SMALL_ARMS", damage=80))
-    inf = put(w, INFANTRY, "COALITION", 0, cmd=7)
-    convoy = put(w, CONVOY, "ENEMY", 500)
+    inf = put(w, INFANTRY, "COALITION", 0, 239_000, cmd=7)
+    convoy = put(w, CONVOY, "ENEMY", 500, 239_000)
     track(w, inf, convoy)
     run(w, paused_at)  # with 5 points pending
     frozen = to_canonical(w, quantize=False)["director"]
@@ -708,9 +708,9 @@ def test_a_bad_director_state_is_refused(change: dict[str, object], message: str
 def kills_scene() -> World:
     """A commander's infantry kills three Static convoys within the first 40 ticks (15 points)."""
     w = new_world(sure("SMALL_ARMS", damage=80))
-    inf = put(w, INFANTRY, "COALITION", 0, cmd=7)
+    inf = put(w, INFANTRY, "COALITION", 0, 239_000, cmd=7)
     for i in range(3):
-        track(w, inf, put(w, CONVOY, "ENEMY", 100 + 10 * i))
+        track(w, inf, put(w, CONVOY, "ENEMY", 100 + 10 * i, 239_000))
     return w
 
 

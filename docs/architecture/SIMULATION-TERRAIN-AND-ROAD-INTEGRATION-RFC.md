@@ -52,12 +52,12 @@ nodes:
   # Class A: Strategic Facilities & POIs
   - { id: haven, name: "Haven Sanctuary", kind: SANCTUARY, pos: [20000,120000], start_owner: COALITION }
   - { id: west-airbase, name: "West Airbase", kind: AIRBASE, pos: [90000,120000], start_owner: COALITION }
-  - { id: fob-n-w, name: "FOB North-West", kind: FOB, pos: [130000,60000], start_owner: COALITION }
+  - { id: fob-n-w, name: "FOB North-West", kind: FOB, pos: [130000,180000], start_owner: COALITION }
 
   # Class B: Road Waypoints & Shoreline Abutments (Zero garrison quota, zero production)
-  - { id: jct-w-pass, name: "Junction North Pass", kind: JUNCTION, pos: [110000,75000], start_owner: NEUTRAL }
-  - { id: abut-n-w, name: "North Bridge West Abutment", kind: ABUTMENT, pos: [182000,60000], start_owner: NEUTRAL }
-  - { id: abut-n-e, name: "North Bridge East Abutment", kind: ABUTMENT, pos: [218000,60000], start_owner: NEUTRAL }
+  - { id: jct-w-pass, name: "Junction North Pass", kind: JUNCTION, pos: [110000,165000], start_owner: NEUTRAL }
+  - { id: abut-n-w, name: "North Bridge West Abutment", kind: ABUTMENT, pos: [182000,180000], start_owner: NEUTRAL }
+  - { id: abut-n-e, name: "North Bridge East Abutment", kind: ABUTMENT, pos: [218000,180000], start_owner: NEUTRAL }
   - { id: jct-e-hub, name: "Junction East Hub", kind: JUNCTION, pos: [270000,120000], start_owner: NEUTRAL }
 
 edges:

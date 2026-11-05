@@ -436,11 +436,12 @@ No `AppendXp` or `AppendMerit` intent is produced for an action by an AUTO unit 
   magic      8 bytes   "NXSNAP\0\1"
   header_len u32 LE
   header     msgpack map:
-               format_version   int      (file layout; 1)
+               format_version   int      (file layout; 2: NX-509 added theater_hash, a format-1 file is refused)
                schema_version   int      (world encoding version, nexus.core.world FORMAT_VERSION)
                campaign_id      str
                seed             int
                config_hash      str
+               theater_hash     str      (the theater part of config_hash; restore refuses another theater, SIM-CORE "Rules and campaign start" item 3)
                sim_build        str
                tick             int
                state_hash       str      (blake2b, SIM-CORE §5)
@@ -451,7 +452,7 @@ No `AppendXp` or `AppendMerit` intent is produced for an action by an AUTO unit 
   trailer    blake2b-256 of every byte after the magic: header_len | header | body
   ```
   The trailer detects corruption, not tampering.
-- **Load:** verify the magic and the trailer, bound the header length and the decompressed body size, then decompress, rebuild state, recompute `state_hash` and compare with the header; the header's `tick`, `campaign_id`, `seed` and `config_hash` must equal the restored world's. Any mismatch → try the previous snapshot and raise an alert. Never load a partially verified snapshot.
+- **Load:** verify the magic and the trailer, bound the header length and the decompressed body size, then decompress, rebuild state, recompute `state_hash` and compare with the header; the header's `tick`, `campaign_id`, `seed` and `config_hash` must equal the restored world's. A verification failure (corruption: bad magic, trailer, header, body or hash mismatch) → try the previous snapshot and raise an alert. A header `theater_hash` that differs from the active theater's is not corruption: restore refuses with no fallback (an older snapshot would roll the campaign back), and the operator restores the matching theater files (NX-509). Never load a partially verified snapshot.
 - **Retention:** the last 20, plus one per hour of game time (CONFIG-AND-CONTENT CFG-9), plus the final snapshot of each campaign (all PROPOSED).
 
 ### 6.2 Command log

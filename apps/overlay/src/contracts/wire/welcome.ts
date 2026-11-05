@@ -42,6 +42,13 @@ export interface TheaterStatic {
     layer: "ROAD" | "SEA_LANE";
     bridge: string | null;
   }[];
+  /**
+   * The playable area, unit m: x in [0, w], y in [0, h], origin south-west, +y north (Q-UX-18, Q-UX-19). The overlay frames on it.
+   */
+  bounds_m: {
+    w: number;
+    h: number;
+  };
   terrain_ref: string | null;
 }
 export interface Pos {

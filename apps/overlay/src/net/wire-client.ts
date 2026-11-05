@@ -39,6 +39,10 @@ export interface ClientDeps {
   /** Reloads the page; the hash was cleared, so the caller puts the token back in memory only (start.ts). */
   reload: (token: string) => void;
   onState: (s: ConnState) => void;
+  /** After a Welcome is applied: the theater is in the store (terrain redraw, OVERLAY §0.2). */
+  onWelcome?: () => void;
+  /** After a Snapshot or Hud is applied, or a Delta that applied: the HUD reads the store (NX-178). */
+  onFrame?: (f: Snapshot | Hud | Delta) => void;
 }
 
 /** Reads `#token=…` once and clears the fragment. Returns null when absent. */
@@ -74,6 +78,43 @@ const hasStr = (k: string) => (e: unknown) =>
 const nullOr = (x: unknown, ok: (x: unknown) => boolean): boolean =>
   x === null || ok(x);
 
+/** The Hud fields the HUD dereferences (contracts/wire/hud.json); a frame missing one is dropped, not rendered. */
+function validHud(x: unknown): boolean {
+  if (!isObj(x)) return false;
+  const c = x["campaign_clock"];
+  const p = x["panels"];
+  const o = x["operators"];
+  return (
+    nullOr(x["momentum_pct"], isInt) &&
+    isInt(x["nodes_held"]) &&
+    isInt(x["nodes_total"]) &&
+    typeof x["threat_tier"] === "string" &&
+    typeof x["objective_mode"] === "string" &&
+    nullOr(
+      x["objective"],
+      (v) =>
+        isObj(v) &&
+        typeof v["name"] === "string" &&
+        nullOr(v["deadline_tick"], isInt),
+    ) &&
+    isObj(c) &&
+    isInt(c["elapsed_ticks"]) &&
+    nullOr(c["limit_ticks"], isInt) &&
+    typeof c["paused"] === "boolean" &&
+    all(x["ticker"], (e) => hasInt("tick")(e) && hasStr("text")(e)) &&
+    isObj(p) &&
+    all(p["tasking_needed"], isObj) &&
+    all(p["top_commanders"], (r) => isObj(r) && all(r["rows"], isObj)) &&
+    nullOr(
+      o,
+      (v) =>
+        isObj(v) &&
+        all(v["by_role"], isObj) &&
+        nullOr(v["by_rank_band"], (b) => all(b, isObj)),
+    )
+  );
+}
+
 /** Checks type, required fields and every element before anything is applied (WP-2, WP-13). */
 function valid(f: Frame): boolean {
   switch (f.type) {
@@ -86,7 +127,7 @@ function valid(f: Frame): boolean {
         all(f["nodes"], hasStr("node_id")) &&
         all(f["blobs"], isObj) &&
         all(f["last_known"], isObj) &&
-        nullOr(f["hud"], isObj)
+        nullOr(f["hud"], validHud)
       );
     case "Delta":
       return (
@@ -99,7 +140,7 @@ function valid(f: Frame): boolean {
         nullOr(f["last_known"], (x) => all(x, isObj))
       );
     case "Hud":
-      return true;
+      return validHud(f);
     case "Control":
       return f["action"] === "RELOAD" || f["action"] === "RESYNC";
     default:
@@ -232,15 +273,18 @@ export class WireClient {
         this.welcomed = true;
         this.attempt = 0;
         this.store.applyWelcome(frame as unknown as Welcome);
+        this.d.onWelcome?.();
         break;
       case "Snapshot":
         this.store.applySnapshot(frame as unknown as Snapshot);
         this.lastApplied = this.store.tick;
         this.armStale();
         if (!this.state.hadData) this.push({ ...this.state, hadData: true });
+        this.d.onFrame?.(frame as unknown as Snapshot);
         break;
       case "Hud":
         this.store.applyHud(frame as unknown as Hud);
+        this.d.onFrame?.(frame as unknown as Hud);
         break;
       case "Delta":
         this.onDelta(frame as unknown as Delta);
@@ -258,6 +302,7 @@ export class WireClient {
       this.lastApplied = d.tick;
       this.armStale();
       this.ack(d.tick);
+      this.d.onFrame?.(d);
     } else if (this.store.tick === null) {
       // Unsynced (gap, RESYNC or a lost Snapshot): an Ack asks for a Snapshot (WP-3), at most 1/s.
       const now = Date.now();

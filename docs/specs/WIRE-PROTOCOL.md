@@ -18,7 +18,7 @@ Values marked PROPOSED are lead defaults, tunable in config without a spec chang
 | Type | Dir | Sent when | Shape |
 |---|---|---|---|
 | `Hello` | C→S | First client frame | `contracts/wire/hello.json`; `client_kind` is `OVERLAY\|PIP\|VERTICAL` (upper case), P2 serves `OVERLAY` only |
-| `Welcome` | S→C | Every (re)connect, after a valid Hello | CONTRACTS §7; static nodes, edges and the terrain ref are in `Welcome.theater` |
+| `Welcome` | S→C | Every (re)connect, after a valid Hello | CONTRACTS §7; static nodes, edges, `bounds_m` and the terrain ref are in `Welcome.theater` |
 | `Snapshot` | S→C | After Welcome, on resync, on a detected gap | CONTRACTS §7; includes the `Hud` state |
 | `Delta` | S→C | Every tick | CONTRACTS §7 |
 | `Hud` | S→C | At most 1 Hz, its own message | CONTRACTS §7 |

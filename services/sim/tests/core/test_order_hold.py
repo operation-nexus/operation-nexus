@@ -1,7 +1,7 @@
 """NX-398 (Q-SIM-110): an armed unit sent to a node by a direct order holds it (GAMEPLAY §1b).
 
 Runs on the shipped strait-1 config as test_tasking does: west-airbase (90 km, 120 km) is a
-coalition landing base, fob-n-w (130 km, 60 km) and fob-s-w coalition FOBs. Shipped keys: a board
+coalition landing base, fob-n-w (130 km, 180 km) and fob-s-w coalition FOBs. Shipped keys: a board
 pass every 50 running ticks, `tasking.order_dwell_s` 600 game s = 6,000 ticks at 10 Hz. A held unit
 keeps the board off; the order ends at bingo or RTB, ammo out, a new order (REBASE) or the dwell,
 whichever is first, and the board may take the unit at that pass.
@@ -227,7 +227,7 @@ def test_the_first_exit_ends_the_order_and_nothing_sticks(passes: int, exit_: st
 
 # --- Q-SIM-124 (NX-408): an order to a bridge holds and defends it, never fires on it ----------
 
-NORTH = "bridge-n"  # NEUTRAL, on the fob-n-w (130 km) ~ cross-n (230 km) road at (200 km, 60 km)
+NORTH = "bridge-n"  # NEUTRAL, on the fob-n-w (130 km) ~ cross-n (230 km) road at (200 km, 180 km)
 
 
 def _bridge_raid(enemy_banks: bool) -> tuple[World, Entity, list[WeaponFired]]:
@@ -243,7 +243,7 @@ def _bridge_raid(enemy_banks: bool) -> tuple[World, Entity, list[WeaponFired]]:
     for _ in range(3_000):
         shots += [e for e in step(w, []) if isinstance(e, WeaponFired) and e.shooter_id == jet.id]
         if convoy is None and jet.held_since is not None:
-            convoy = w.spawn("ENEMY_CONVOY", "ENEMY", "AI_GARRISON", Vec2(200_500, 60_000))
+            convoy = w.spawn("ENEMY_CONVOY", "ENEMY", "AI_GARRISON", Vec2(200_500, 180_000))
             convoy.last_node = "cross-n"
         if shots:
             break

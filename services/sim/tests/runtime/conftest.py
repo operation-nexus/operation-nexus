@@ -6,10 +6,12 @@ from pathlib import Path
 
 import pytest
 
+from nexus.runtime.campaign_config import load_campaign_config
 from nexus.runtime.command_log import CommandLogWriter
 
 CAMPAIGN_ID = "0192f3a4-5b6c-7d8e-9f01-23456789abcd"
 PROTOCOL = "0.2"
+THEATER = load_campaign_config().theater_hash  # the shipped theater's, stamped on test snapshots
 
 
 @pytest.fixture

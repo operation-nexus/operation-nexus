@@ -1,7 +1,7 @@
 # Theater #1 sketch (NX-008). Decisions: Q-TH-1..7, Q-GP-22, Q-GP-36, Q-GD-33 (docs/planning/OPEN-QUESTIONS.md).
 # start_stock and speed_mult values marked PROPOSED are lead starting values (NX-120, Q-CFG-11, DI-7): the owner may
 # veto them and the balance harness (NX-031) tunes them. Any value written TBD is rejected at load (TH-11).
-# Coordinates are metres; x grows east (coalition west, Static east, Q-GD-13), y grows south.
+# Coordinates are metres; x grows east (coalition west, Static east, Q-GD-13), y grows north (Q-UX-18).
 schema_version: 1
 slug: strait-1
 name: "Strait One"            # working name; brand pass renames (Q-TH-6)
@@ -10,27 +10,27 @@ bounds_m: { w: 400000, h: 240000 }
 terrain:
   # No heightmap in the first build (Q-TH-4); one is planned later.
   masking_regions:
-    - { id: northern-hills, polygon: [[150000,0],[260000,0],[260000,35000],[150000,35000]] }      # both sides of the strait
-    - { id: southern-valley, polygon: [[230000,205000],[330000,205000],[330000,240000],[230000,240000]] }  # coalition sneak route, east side
+    - { id: northern-hills, polygon: [[150000,240000],[260000,240000],[260000,205000],[150000,205000]] }      # both sides of the strait
+    - { id: southern-valley, polygon: [[230000,35000],[330000,35000],[330000,0],[230000,0]] }  # coalition sneak route, east side
 sectors:                       # three lanes across the whole map (Q-TH-1)
-  - { id: north,  name: "North",  polygon: [[0,0],[400000,0],[400000,80000],[0,80000]] }
-  - { id: centre, name: "Centre", polygon: [[0,80000],[400000,80000],[400000,160000],[0,160000]] }
-  - { id: south,  name: "South",  polygon: [[0,160000],[400000,160000],[400000,240000],[0,240000]] }
+  - { id: north,  name: "North",  polygon: [[0,240000],[400000,240000],[400000,160000],[0,160000]] }
+  - { id: centre, name: "Centre", polygon: [[0,160000],[400000,160000],[400000,80000],[0,80000]] }
+  - { id: south,  name: "South",  polygon: [[0,80000],[400000,80000],[400000,0],[0,0]] }
 nodes:
   # Coalition (west)
   - { id: haven,        name: "Haven",          kind: SANCTUARY, pos: [20000,120000],  start_owner: COALITION, start_stock: null, sector: centre }  # null = infinite by rule (CFG-2)
   - { id: west-airbase, name: "West Airbase",   kind: AIRBASE,   pos: [90000,120000],  start_owner: COALITION, start_stock: 1000, sector: centre }  # PROPOSED (NX-120, owner may veto; harness tunes, NX-031)
-  - { id: fob-n-w,      name: "FOB North-West", kind: FOB,       pos: [130000,60000],  start_owner: COALITION, start_stock: 500,  sector: north }  # PROPOSED (NX-120, owner may veto; harness tunes, NX-031)
-  - { id: fob-s-w,      name: "FOB South-West", kind: FOB,       pos: [130000,180000], start_owner: COALITION, start_stock: 500,  sector: south }  # PROPOSED (NX-120, owner may veto; harness tunes, NX-031)
+  - { id: fob-n-w,      name: "FOB North-West", kind: FOB,       pos: [130000,180000],  start_owner: COALITION, start_stock: 500,  sector: north }  # PROPOSED (NX-120, owner may veto; harness tunes, NX-031)
+  - { id: fob-s-w,      name: "FOB South-West", kind: FOB,       pos: [130000,60000], start_owner: COALITION, start_stock: 500,  sector: south }  # PROPOSED (NX-120, owner may veto; harness tunes, NX-031)
   # The strait (x ~190-210 km, scenery only, no ports: Q-TH-3)
-  - { id: bridge-n,     name: "North Bridge",   kind: BRIDGE,    pos: [200000,60000],  start_owner: NEUTRAL,   start_stock: 0,    sector: north }
-  - { id: bridge-s,     name: "South Bridge",   kind: BRIDGE,    pos: [200000,180000], start_owner: NEUTRAL,   start_stock: 0,    sector: south }
+  - { id: bridge-n,     name: "North Bridge",   kind: BRIDGE,    pos: [200000,180000],  start_owner: NEUTRAL,   start_stock: 0,    sector: north }
+  - { id: bridge-s,     name: "South Bridge",   kind: BRIDGE,    pos: [200000,60000], start_owner: NEUTRAL,   start_stock: 0,    sector: south }
   # Contested bridgeheads (east bank, no facilities: Q-GP-36)
-  - { id: cross-n,      name: "North Crossing", kind: FOB,       pos: [230000,60000],  start_owner: NEUTRAL,   start_stock: 0,    sector: north }
-  - { id: cross-s,      name: "South Crossing", kind: FOB,       pos: [230000,180000], start_owner: NEUTRAL,   start_stock: 0,    sector: south }
+  - { id: cross-n,      name: "North Crossing", kind: FOB,       pos: [230000,180000],  start_owner: NEUTRAL,   start_stock: 0,    sector: north }
+  - { id: cross-s,      name: "South Crossing", kind: FOB,       pos: [230000,60000], start_owner: NEUTRAL,   start_stock: 0,    sector: south }
   # Static (east)
-  - { id: fob-n-e,      name: "FOB North-East", kind: FOB,       pos: [290000,40000],  start_owner: ENEMY,     start_stock: 500,  sector: north,  garrison_quota: 4 }  # PROPOSED (NX-120, owner may veto; harness tunes, NX-031)
-  - { id: fob-s-e,      name: "FOB South-East", kind: FOB,       pos: [290000,200000], start_owner: ENEMY,     start_stock: 500,  sector: south,  garrison_quota: 4 }  # PROPOSED (NX-120, owner may veto; harness tunes, NX-031)
+  - { id: fob-n-e,      name: "FOB North-East", kind: FOB,       pos: [290000,200000],  start_owner: ENEMY,     start_stock: 500,  sector: north,  garrison_quota: 4 }  # PROPOSED (NX-120, owner may veto; harness tunes, NX-031)
+  - { id: fob-s-e,      name: "FOB South-East", kind: FOB,       pos: [290000,40000], start_owner: ENEMY,     start_stock: 500,  sector: south,  garrison_quota: 4 }  # PROPOSED (NX-120, owner may veto; harness tunes, NX-031)
   - { id: east-airbase, name: "East Airbase",   kind: AIRBASE,   pos: [310000,120000], start_owner: ENEMY,     start_stock: 1000, sector: centre, garrison_quota: 6 }  # PROPOSED (NX-120, owner may veto; harness tunes, NX-031)
   - { id: static-hq,    name: "Static HQ",      kind: HQ,        pos: [380000,120000], start_owner: ENEMY,     start_stock: 1000, sector: centre, garrison_quota: 8 }  # PROPOSED (NX-120, owner may veto; harness tunes, NX-031)
   - { id: static-rear,  name: "Static Rear",    kind: SANCTUARY, pos: [395000,120000], start_owner: ENEMY,     start_stock: null, sector: centre }  # the Static's rear source: infinite, never captured (Q-SIM-48)

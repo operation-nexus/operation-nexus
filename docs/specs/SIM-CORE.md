@@ -171,8 +171,8 @@ Notes: SIM-CORE-NOTES.md §4 Entity and world state
 ### Rules and campaign start
 1. Static per-campaign data the kernel reads is one frozen `nexus.core.rules.Rules`, held as `World.rules` and built by `make_rules` from the loaded config.
 2. `Rules` is not world state: it is in neither snapshots nor `state_hash` (`config_hash` covers it).
-3. `restore`/`recover` MUST require it as `rules=` (`None` only for a world that never reads it), re-attach it, and refuse rules whose theater nodes differ from the snapshot's `World.owner` keys.
-4. A config reload, when it exists, MUST rebuild `Rules` and log the change.
+3. `restore`/`recover` MUST require it as `rules=` (`None` only for a world that never reads it), re-attach it, and refuse rules whose theater nodes differ from the snapshot's `World.owner` keys. They MUST also take the active theater hash (the theater part of `config_hash`, `CampaignConfig.theater_hash`) and, before attaching rules, refuse a snapshot whose header `theater_hash` differs (same node names, moved positions): a theater change is never restored under new geometry. The newest valid snapshot decides; an older one is not tried instead (NX-509).
+4. A config reload, when it exists, MUST rebuild `Rules` and log the change. A balance-only reload (same theater hash, other `config_hash`) is allowed; restore then attaches the new balance's rules.
 5. `WORLD_DT` is computed once from `sim.tick_hz` and `sim.time_scale` in exact decimals.
 6. The replay CLI MUST refuse a snapshot whose campaign `config_hash` differs from the loaded config's.
 7. `start_campaign` places the theater's `facilities` in theater-file order (so ids are deterministic), each a `STATIC`, `AI_GARRISON`-owned entity at its base's position, on the base's starting side, with `base_id` and `variant`.

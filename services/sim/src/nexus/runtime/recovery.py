@@ -68,6 +68,7 @@ def recover(
     until_tick: int | None = None,
     max_attempts: int = 3,
     rules: Rules | None,
+    theater_hash: str | None = None,
 ) -> RestoreResult:
     """`restore`, tombstoning (through `writer`, flushed) each replayed tick that raises.
 
@@ -82,6 +83,7 @@ def recover(
                 handlers=handlers,
                 until_tick=until_tick,
                 rules=rules,
+                theater_hash=theater_hash,
             )
         except ReplayCrash as crash:
             if crash.tombstoned or attempt == max_attempts:
@@ -98,6 +100,7 @@ def restore(
     handlers: Mapping[str, Handler] = HANDLERS,
     until_tick: int | None = None,
     rules: Rules | None,
+    theater_hash: str | None = None,
 ) -> RestoreResult:
     """Load the newest snapshot that verifies (at or before `until_tick`), then replay the log.
 
@@ -105,9 +108,17 @@ def restore(
     (SC-8). Raises SnapshotError when no snapshot verifies, CommandLogError on a damaged log or
     one that does not continue the snapshot, ReplayCrash when `step` raises. `rules` is the
     campaign's static config (not in the snapshot), attached to the restored world;
-    required, `None` only for a world that never reads it.
+    required, `None` only for a world that never reads it. With `rules`, `theater_hash` (the
+    config's) must equal the snapshot header's, else ValueError: a moved theater is refused, a
+    balance-only change is not (NX-509). The newest valid snapshot decides; an older one is not
+    tried, for it is of the same campaign and theater.
     """
     header, world, path, skipped = _newest_valid(snapshot_dir, until_tick)
+    if rules is not None and header.theater_hash != theater_hash:
+        raise ValueError(
+            f"{path.name}: the snapshot's theater hash {header.theater_hash} is not the active "
+            f"theater's {theater_hash}; the theater changed since the campaign started"
+        )
     if rules is not None and set(world.owner) != set(rules.node_kind):
         raise ValueError("the snapshot's node owners do not match the rules' theater nodes")
     if rules is not None:

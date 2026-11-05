@@ -159,6 +159,7 @@ class NodeView(BaseModel):
     stock_pct: StockPct | None
     starvation: Literal["OK", "LOW", "EMPTY"] | None
     hp_pct: HpPct | None
+    intact: bool | None
     facilities: list[FacilityView]
 
 
@@ -172,6 +173,7 @@ class NodePatch(BaseModel):
     stock_pct: StockPct | None = None
     starvation: Literal["OK", "LOW", "EMPTY"] | None = None
     hp_pct: HpPct | None = None
+    intact: bool | None = None
     facilities: list[FacilityView] | None = None
 
 
@@ -215,6 +217,14 @@ class Edge(BaseModel):
     bridge: ids.NodeId | None
 
 
+class BoundsM(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    w: Annotated[int, Field(ge=1)]
+    h: Annotated[int, Field(ge=1)]
+
+
 type TerrainRef = Annotated[
     str,
     Field(
@@ -230,4 +240,10 @@ class TheaterStatic(BaseModel):
     )
     nodes: list[Node]
     edges: list[Edge]
+    bounds_m: Annotated[
+        BoundsM,
+        Field(
+            description="The playable area, unit m: x in [0, w], y in [0, h], origin south-west, +y north (Q-UX-18, Q-UX-19). The overlay frames on it."
+        ),
+    ]
     terrain_ref: TerrainRef | None

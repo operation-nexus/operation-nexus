@@ -137,7 +137,7 @@ def test_bingo_worked_example() -> None:
 
 def test_rtb_goes_to_the_nearest_own_airbase_or_sanctuary() -> None:
     w = world(RULES)
-    # Near cross-n (230 km, 60 km): fob-n-w and east-airbase are 100 km away, west-airbase 152 km.
+    # Near cross-n (230 km, 180 km): fob-n-w and east-airbase are 100 km away, west-airbase 152 km.
     coalition = aircraft(w, Vec2(230_000, 60_000), "static-hq", fuel=1.0)
     # Near west-airbase: the enemy's only landing base is east-airbase.
     enemy = aircraft(w, Vec2(95_000, 120_000), side="ENEMY", kind="ENEMY_FIGHTER", fuel=1.0)
@@ -315,14 +315,31 @@ def test_out_of_fuel_the_aircraft_is_lost() -> None:
     assert (len(w), w.respawn_left) == (0, {CID: 4})  # its slot is free
 
 
-def test_orbit_turns_clockwise_on_the_map() -> None:
-    """Arriving heading east (+x), the centre is one radius toward +y (south): a right turn."""
+@pytest.mark.parametrize(
+    "heading", [(1.0, 0.0), (0.0, 1.0), (-1.0, 0.0), (0.0, -1.0), (0.6, 0.8)],
+    ids=["east", "north", "west", "south", "diagonal"],
+)  # fmt: skip
+def test_orbit_turns_clockwise_on_the_map(heading: tuple[float, float]) -> None:
+    """+y is north: the orbit centre is one radius to the right of the entry heading, and the
+    aircraft circles clockwise on a north-up map: (position - centre) x velocity stays negative
+    and the angle of (position - centre) decreases every tick."""
+    hx, hy = heading
     w = world(hand_rules())
-    a = aircraft(w, Vec2(10_000, 10_000), Vec2(10_050, 10_000))
+    start = Vec2(10_000, 10_000)
+    end = Vec2(start.x + 50 * hx, start.y + 50 * hy)
+    a = aircraft(w, start, end)
     step(w, [])
     assert a.state == "ON_STATION" and a.orbit is not None
-    assert a.orbit.x == 10_050
-    assert a.orbit.y == pytest.approx(10_000 + 40.0 * 120.0 / math.tau)
+    r = 40.0 * 120.0 / math.tau
+    assert (a.orbit.x - end.x, a.orbit.y - end.y) == pytest.approx((hy * r, -hx * r))
+    prev = math.atan2(a.pos.y - a.orbit.y, a.pos.x - a.orbit.x)
+    for _ in range(5):
+        step(w, [])
+        rx, ry = a.pos.x - a.orbit.x, a.pos.y - a.orbit.y
+        assert rx * a.vel.y - ry * a.vel.x < 0.0
+        angle = math.atan2(ry, rx)
+        assert (angle - prev + math.pi) % math.tau - math.pi < 0.0
+        prev = angle
 
 
 @pytest.mark.parametrize("fuel", [50.0, 0.5])  # below the 100 s reserve; under one tick's burn

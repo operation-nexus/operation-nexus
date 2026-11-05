@@ -14,7 +14,7 @@ from nexus.runtime.command_log import CommandLogWriter
 from nexus.runtime.recovery import restore
 from nexus.runtime.snapshot_file import list_snapshots
 
-from .conftest import CAMPAIGN_ID
+from .conftest import CAMPAIGN_ID, THEATER
 from .test_recovery import STUB, Rig
 
 REPO = Path(__file__).resolve().parents[4]
@@ -117,7 +117,9 @@ def test_replay_across_logged_ticks_runs_the_join_handler(
     assert out.returncode == 0, out.stderr
     assert "warning" not in out.stdout  # JOIN has its handler (NX-122)
     # The CLI replays with the real handlers and the shipped rules, as restore does by default.
-    final = restore(rig.snaps, rig.logs, rules=shipped_config.rules, until_tick=450).world
+    final = restore(
+        rig.snaps, rig.logs, rules=shipped_config.rules, theater_hash=THEATER, until_tick=450
+    ).world
     assert out.stdout.splitlines()[-1] == f"tick 450 {state_hash(final)} (final)"
 
 

@@ -594,8 +594,8 @@ def test_an_ai_kill_provokes_by_ai_shooter_mult_and_a_players_kill_in_full(
     cmd: int | None, mult: Fraction, points: int
 ) -> None:
     w = with_rules(combat_world(sure("SMALL_ARMS", damage=80)), director={"ai_shooter_mult": mult})
-    shooter = combat_put(w, GRUNT, "COALITION", 0, cmd=cmd)
-    convoy = combat_put(w, CONVOY, "ENEMY", 500)  # 80 hp: one hit kills, 5 points in full
+    shooter = combat_put(w, GRUNT, "COALITION", 0, 239_000, cmd=cmd)
+    convoy = combat_put(w, CONVOY, "ENEMY", 500, 239_000)  # 80 hp: one hit kills, 5 points in full
     track(w, shooter, convoy)
     fight_run(w)
     assert w.find(convoy.id) is None and w.director["ENEMY"].pending == points

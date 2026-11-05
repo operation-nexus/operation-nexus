@@ -2,8 +2,8 @@
 TB-8 dependency of a cut-off resupply on it (STATE-MACHINES §4.3 B-2, GAMEPLAY §1b TB-8 and §5,
 Q-GD-11, Q-SIM-101, Q-SIM-112's constraint; a GOTO hold outlasts the fall, Q-SIM-127).
 
-Shipped strait-1 numbers: bridge-n (200 km, 60 km) carries fob-n-w (130 km) ~ cross-n (230 km) at
-y 60 km, so its repair stop is (200 km, 60 km); `logistics.bridge_hp` 300,
+Shipped strait-1 numbers: bridge-n (200 km, 180 km) carries fob-n-w (130 km) ~ cross-n (230 km) at
+y 180 km, so its repair stop is (200 km, 180 km); `logistics.bridge_hp` 300,
 `bridge_repair_time_s` 600 x `truck_bridge_repair_mult` 5 = 3000 world s for one truck, and
 `sim.time_scale` 6 at 10 Hz is 0.6 world s per tick: 5000 ticks for one truck, 2500 for two.
 """
@@ -40,7 +40,7 @@ from nexus.core.tasking_gen import JobSpec
 from nexus.core.world import Entity, Job, Vec2, World, at_stop, load, save, state_hash
 from nexus.runtime.golden import shipped_config
 
-STOP = Vec2(200_000.0, 60_000.0)  # bridge-n projected on fob-n-w~cross-n
+STOP = Vec2(200_000.0, 180_000.0)  # bridge-n projected on fob-n-w~cross-n
 ONE_TRUCK_TICKS = 5000  # 3000 world s / 0.6 world s per tick
 EVENTS: TypeAdapter[Event] = TypeAdapter(Event)
 
@@ -150,7 +150,7 @@ def test_either_side_repairs() -> None:
 def test_a_truck_drives_out_to_the_stop_and_keeps_its_bank() -> None:
     w = new_world()
     down(w, hp=MAX_HP - 1)
-    truck = put(w, TRUCK, "COALITION", 199_000, 60_000)
+    truck = put(w, TRUCK, "COALITION", 199_000, 180_000)
     truck.last_node, truck.path = "fob-n-w", [NORTH]
     run(w, 200)  # 1 km at the truck's speed, then 17 ticks of repair
     assert truck.pos == STOP and truck.last_node == "fob-n-w" and truck.path == []
@@ -212,7 +212,7 @@ def test_repair_is_deterministic() -> None:
     def once() -> tuple[str, list[str]]:
         w = new_world()
         down(w, hp=250)
-        truck = put(w, TRUCK, "COALITION", 198_000, 60_000)
+        truck = put(w, TRUCK, "COALITION", 198_000, 180_000)
         truck.last_node, truck.path = "fob-n-w", [NORTH]
         parked(w)
         events = run(w, 1200)
@@ -261,9 +261,9 @@ def test_restore_refuses_a_bad_repair_carry(bad: Callable[[World], object]) -> N
 def test_a_reroute_keeps_a_path_to_a_stop_working() -> None:
     w = new_world()
     down(w)  # bridge-n under repair
-    over = put(w, TRUCK, "COALITION", 150_000, 180_000)  # bound for the stop over bridge-s
+    over = put(w, TRUCK, "COALITION", 150_000, 60_000)  # bound for the stop over bridge-s
     over.last_node, over.path = "fob-s-w", ["cross-s", "east-airbase", "cross-n", NORTH]
-    clear = put(w, TRUCK, "COALITION", 110_000, 90_000)  # its road crosses no bridge
+    clear = put(w, TRUCK, "COALITION", 110_000, 150_000)  # its road crosses no bridge
     clear.last_node, clear.path = "west-airbase", ["fob-n-w", NORTH]
     bridges.damage(w, RULES, SOUTH, MAX_HP, 1, [])
     assert over.path == ["fob-s-w"]  # no road left to the far bank: it stops at its own
@@ -353,7 +353,7 @@ def test_a_hold_over_a_down_bridge_guards_the_repair_and_never_fires_on_the_brid
     tt.board_pass(w)
     (job,) = _jobs(w, "REPAIR_BRIDGE")
     assert truck.id in job.claims
-    truck.pos, truck.path = Vec2(199_000, 60_000), [NORTH]  # the 70 km drive, done
+    truck.pos, truck.path = Vec2(199_000, 180_000), [NORTH]  # the 70 km drive, done
     start = jet.held_since
     events: list[Event] = []
     for _ in range(1_000):  # the repair, then as long again with the bridge back up
@@ -370,7 +370,7 @@ def test_a_truck_on_the_road_out_to_a_stop_escapes_when_its_bank_is_captured() -
     w = tt.new_world()
     down(w)
     truck = tt.put(w, TRUCK, "fob-n-w")
-    truck.pos, truck.path = Vec2(131_000, 60_000), [NORTH]  # 1 km out, inside the capture radius
+    truck.pos, truck.path = Vec2(131_000, 180_000), [NORTH]  # 1 km out, inside the capture radius
     w.owner["fob-n-w"] = "ENEMY"
     out: list[Event] = []
     assert RULES.capture is not None
@@ -401,7 +401,7 @@ def test_the_coalition_board_posts_a_repair_job_for_each_down_bridge_and_a_truck
     assert _jobs(w, "REPAIR_BRIDGE", "ENEMY") == []  # the Static never undoes its own cuts
     assert [c.entity_id for c in of(events, JobClaimed) if c.job_id == job.id] == [truck.id]
     assert truck.path == ["fob-n-w", NORTH]
-    truck.pos, truck.path = Vec2(199_000, 60_000), [NORTH]  # the 70 km drive, done
+    truck.pos, truck.path = Vec2(199_000, 180_000), [NORTH]  # the 70 km drive, done
     events = []
     for _ in range(400):  # the last 1 km, 17 ticks of repair, then the next pass
         events += step(w, [])
@@ -529,7 +529,7 @@ def test_repair_never_passes_the_maximum() -> None:
 def test_a_reroute_keeps_the_stop_at_the_end_of_a_new_route() -> None:
     w = new_world()
     w.bridge_hp[NORTH] = MAX_HP - 10  # damaged, so its road is open
-    e = put(w, TRUCK, "COALITION", 150_000, 180_000)
+    e = put(w, TRUCK, "COALITION", 150_000, 60_000)
     e.last_node, e.path = "fob-s-w", ["cross-s", "east-airbase", "cross-n", NORTH]
     bridges.damage(w, RULES, SOUTH, MAX_HP, 1, [])
     assert e.path == ["fob-s-w", "west-airbase", "fob-n-w", "cross-n", NORTH]
@@ -617,7 +617,7 @@ def test_bridge_repaired_is_stamped_with_the_tick_being_computed() -> None:
 def test_a_rebase_from_the_stop_drives_back_along_the_road_through_its_bank(start: str) -> None:
     w = tt.new_world()
     truck = tt.put(w, TRUCK, "fob-n-w")
-    truck.pos = STOP if start == "parked" else Vec2(190_000, 60_000)
+    truck.pos = STOP if start == "parked" else Vec2(190_000, 180_000)
     truck.path = [] if start == "parked" else [NORTH]
     cmd = RebaseCommand.model_validate({
         "kind": "REBASE", "source": "CHAT", "issuer": {"commander_id": truck.commander_id},
@@ -626,11 +626,11 @@ def test_a_rebase_from_the_stop_drives_back_along_the_road_through_its_bank(star
     })  # fmt: skip
     step(w, [cmd])
     assert truck.path == ["fob-n-w", "west-airbase"]
-    for _ in range(4000):  # 60-70 km at the truck's speed: it stays on the y = 60 km road
+    for _ in range(4000):  # 60-70 km at the truck's speed: it stays on the y = 180 km road
         step(w, [])
         if truck.pos == Vec2(*RULES.roads.pos["fob-n-w"]):
             break
-        assert truck.pos.y == 60_000 and 130_000 < truck.pos.x <= STOP.x
+        assert truck.pos.y == 180_000 and 130_000 < truck.pos.x <= STOP.x
     assert truck.last_node == "fob-n-w" and truck.path[-1] == "west-airbase"
 
 
@@ -739,16 +739,16 @@ def test_a_ground_follower_holds_station_at_the_stop() -> None:
     truck.pos = STOP
     repairing(w, truck)  # else the board sends it home from the stop
     near = tt.put(w, "GARRISON_INFANTRY", "fob-n-w")
-    near.pos = Vec2(199_600, 60_000)  # within twice the 500 m escort station
+    near.pos = Vec2(199_600, 180_000)  # within twice the 500 m escort station
     far = tt.put(w, "GARRISON_INFANTRY", "fob-n-w")
-    far.pos = Vec2(197_000, 60_000)
+    far.pos = Vec2(197_000, 180_000)
     for f in (near, far):
         f.order, f.follow_id = "FOLLOW", truck.id
     for _ in range(1000):  # 3 m a tick: 2 km in about 670
         step(w, [])
         for f in (near, far):
-            assert f.pos.y == 60_000 and 196_999 < f.pos.x <= STOP.x  # never drives off
-    assert near.pos == Vec2(199_600, 60_000)  # it held where it was
+            assert f.pos.y == 180_000 and 196_999 < f.pos.x <= STOP.x  # never drives off
+    assert near.pos == Vec2(199_600, 180_000)  # it held where it was
     assert STOP.x - far.pos.x <= 1_000  # it closed up to twice the station
     held = far.pos
     step(w, [])
@@ -760,9 +760,9 @@ def test_a_ground_follower_follows_a_truck_out_to_the_stop() -> None:
     w = tt.new_world()
     down(w)
     truck = tt.put(w, TRUCK, "fob-n-w")
-    truck.pos, truck.path = Vec2(194_000, 60_000), [NORTH]
+    truck.pos, truck.path = Vec2(194_000, 180_000), [NORTH]
     f = tt.put(w, "GARRISON_INFANTRY", "fob-n-w")
-    f.pos, f.order, f.follow_id = Vec2(193_000, 60_000), "FOLLOW", truck.id
+    f.pos, f.order, f.follow_id = Vec2(193_000, 180_000), "FOLLOW", truck.id
     step(w, [])
     assert f.path == [NORTH]  # straight on along the bridge's road, not back to fob-n-w
 
@@ -814,7 +814,7 @@ def test_a_follower_out_on_the_bridge_road_turns_back_when_its_leader_does() -> 
     down(w)
     truck = tt.put(w, TRUCK, "fob-n-w")  # parked at its bank
     f = tt.put(w, "GARRISON_INFANTRY", "fob-n-w")
-    f.pos, f.path, f.order, f.follow_id = Vec2(195_000, 60_000), [NORTH], "FOLLOW", truck.id
+    f.pos, f.path, f.order, f.follow_id = Vec2(195_000, 180_000), [NORTH], "FOLLOW", truck.id
     step(w, [])
     assert f.path == ["fob-n-w"] and f.pos.x < 195_000
 
@@ -823,10 +823,10 @@ def test_a_follower_ahead_of_a_truck_bound_for_the_stop_paces_it() -> None:
     w = tt.new_world()
     down(w)
     truck = tt.put(w, TRUCK, "fob-n-w")
-    truck.pos, truck.path = Vec2(190_000, 60_000), [NORTH]
+    truck.pos, truck.path = Vec2(190_000, 180_000), [NORTH]
     f = tt.put(w, "GARRISON_INFANTRY", "fob-n-w")
     # 600 m ahead, past its 500 m escort station: it slows to keep it (`follow._mult`)
-    f.pos, f.path, f.order, f.follow_id = Vec2(190_600, 60_000), [NORTH], "FOLLOW", truck.id
+    f.pos, f.path, f.order, f.follow_id = Vec2(190_600, 180_000), [NORTH], "FOLLOW", truck.id
     for _ in range(20):
         step(w, [])
     assert f.path == [NORTH] and 190_600 <= f.pos.x < STOP.x
@@ -843,7 +843,7 @@ def test_a_truck_still_on_the_way_when_the_repair_ends_turns_back_and_is_never_s
     (job,) = _jobs(w, "REPAIR_BRIDGE")
     assert sorted(job.claims) == [early.id, late.id]
     early.pos, early.path = STOP, []  # parked: it finishes the last hp
-    late.pos, late.path = Vec2(190_000, 60_000), [NORTH]  # 10 km short of the stop
+    late.pos, late.path = Vec2(190_000, 180_000), [NORTH]  # 10 km short of the stop
     rules = w.rules
     assert rules is not None
     for _ in range(5000):
@@ -859,7 +859,7 @@ def test_an_evicted_ai_truck_on_its_way_to_the_stop_turns_back() -> None:
     w = tt.new_world()
     down(w)
     ai = tt.put(w, TRUCK, "fob-n-w", owner="AI_GARRISON")
-    ai.pos, ai.path = Vec2(195_000, 60_000), [NORTH]
+    ai.pos, ai.path = Vec2(195_000, 180_000), [NORTH]
     spec = JobSpec("REPAIR_BRIDGE", f"repair_bridge:{NORTH}", 1, 1000, node=NORTH)
     job = tasking.post_job(w, "COALITION", spec, [])
     tasking.claim(w, ai, job, [])
@@ -873,7 +873,7 @@ def test_the_board_sends_a_jobless_ground_unit_home_from_a_stop(on_the_way: bool
     w = tt.new_world()
     down(w)
     truck = tt.put(w, TRUCK, "fob-n-w")
-    truck.pos, truck.path = (Vec2(195_000, 60_000), [NORTH]) if on_the_way else (STOP, [])
+    truck.pos, truck.path = (Vec2(195_000, 180_000), [NORTH]) if on_the_way else (STOP, [])
     jet = tt.put(w, JET, "west-airbase")
     jet.state, jet.path = "EN_ROUTE", [NORTH]  # an aircraft bound for the bridge keeps its path
     follower = tt.put(w, "GARRISON_INFANTRY", "fob-n-w")
@@ -893,7 +893,7 @@ def test_a_follower_on_the_stop_never_crosses_the_down_bridge() -> None:
     f.pos, f.order, f.follow_id = STOP, "FOLLOW", lead.id
     for _ in range(300):
         step(w, [])
-        assert f.pos.x <= STOP.x and f.pos.y == 60_000, (f.pos, f.path)
+        assert f.pos.x <= STOP.x and f.pos.y == 180_000, (f.pos, f.path)
 
 
 def test_the_crew_escort_fails_when_the_truck_is_disabled() -> None:
@@ -910,7 +910,7 @@ def test_the_crew_escort_fails_when_the_truck_is_disabled() -> None:
 def test_go_home_is_unchanged_for_a_unit_stopped_mid_road_by_a_friendly_base() -> None:
     w = tt.new_world()
     u = tt.put(w, "GARRISON_INFANTRY", "fob-n-w")
-    u.pos = Vec2(150_000, 60_000)  # stopped on the road toward cross-n, no path
+    u.pos = Vec2(150_000, 180_000)  # stopped on the road toward cross-n, no path
     go_home(w, RULES, u)
     assert u.path == []  # its last node is a friendly base: as before NX-373 part 2
     u.path = ["cross-n"]
