@@ -74,7 +74,13 @@ def test_unlimited_mode_on_both_sides_keeps_infinite_sources() -> None:
     assert (w.pool, w.storage) == ({}, {})  # the snapshot names the mode: no pool = unlimited
     assert run_window(w) == []
     run = plan_run(w, w.rules, "COALITION", "cross-n")
-    assert run is not None and run.source == "haven"
+    assert run is not None and run.source == "fob-n-w"  # a capture run starts forward (NX-513)
+    off = start_campaign(
+        CAMPAIGN_ID, 1, shipped_config({**both, "logistics.capture_run_forward_start": False})
+    )
+    assert off.rules is not None
+    run = plan_run(off, off.rules, "COALITION", "cross-n")
+    assert run is not None and run.source == "haven"  # the switch off: the infinite sanctuary
 
 
 def test_the_loader_reads_every_economy_key() -> None:

@@ -86,6 +86,7 @@ class Supply:
     rearm_milli: int = 0  # logistics.rearm_rate x world_dt, in thousandths per tick
     loadout_cost: Mapping[UnitKind, int] = field(default_factory=dict)  # a kind with none costs 0
     forward_deploy_min_surplus: int = 0
+    capture_run_forward_start: bool = False  # logistics.capture_run_forward_start (Q-SIM-135)
     starved_fuel_frac: float = 1.0  # a starved base refuels up to this share of fuel_s (Q-SIM-53)
     # logistics.repair_rate x world_dt in thousandths of an hp per tick, by base kind (Q-SIM-68); a
     # kind missing here (a BRIDGE) repairs nothing. SANCTUARY is free (infinite stock).
@@ -955,6 +956,7 @@ def _supply(
         rearm_milli=rearm_milli,
         loadout_cost=cast(Mapping[UnitKind, int], logistics.loadout_cost.model_dump()),
         forward_deploy_min_surplus=logistics.forward_deploy_min_surplus,
+        capture_run_forward_start=logistics.capture_run_forward_start,
         starved_fuel_frac=logistics.starved_loadout.fuel_frac,
         repair_milli=repair_milli,
         facility_hp_per_stock=logistics.facility_repair_hp_per_stock,

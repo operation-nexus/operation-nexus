@@ -568,6 +568,12 @@ class Logistics(BaseModel):
             ge=0,
         ),
     ]
+    capture_run_forward_start: Annotated[
+        bool,
+        Field(
+            description="Switch: a capture run's cargo-less truck (a JOIN of a truck to a neutral or enemy node, the retake job's bare JOIN) starts at the nearest owned ground spawn base with surplus, as a ground forward-deploy (GAMEPLAY §1b item 23, Q-SIM-135, NX-513); false starts it at the sanctuary, the A/B control."
+        ),
+    ]
     starved_loadout: Annotated[
         StarvedLoadout,
         Field(

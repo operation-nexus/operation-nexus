@@ -109,6 +109,7 @@ def test_the_defaults_are_the_decided_rules() -> None:
     assert r.combat.facility_indestructible is True
     assert r.combat.strike_structure_first is True  # Q-TD-79: on since NX-412 part 5b (CB-10)
     assert r.combat.overkill_check is True  # Q-TD-73: the overkill check is the rule (CB-1)
+    assert r.supply.capture_run_forward_start is True  # Q-SIM-135, NX-513
 
 
 def test_non_default_options_reach_the_rules() -> None:
