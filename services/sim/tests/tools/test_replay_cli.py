@@ -33,6 +33,7 @@ def sample_campaign(tmp_path: Path) -> tuple[Path, Path, str, object]:
         snaps,
         world,
         last_arrival_seq=0,
+        theater_hash=cfg.theater_hash,
         sim_build="test-build",
         protocol_version="0.2",
         created_at="2026-10-21T12:00:00Z",

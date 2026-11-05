@@ -37,6 +37,7 @@ def write(directory: Path, world: World | None = None) -> Path:
         directory,
         world or make_world(),
         last_arrival_seq=77,
+        theater_hash="theater-test",
         sim_build="test-build",
         protocol_version="0.2",
         created_at=CREATED_AT,
@@ -105,7 +106,8 @@ def rewrite_header(path: Path, body: bytes | None = None, **changes: Any) -> Non
         {"campaign_id": "0192f3a4-5b6c-7d8e-9f01-000000000000"},
         {"seed": 1},
         {"config_hash": "cfg-other"},
-        {"format_version": 2},
+        {"format_version": 3},
+        {"theater_hash": 7},  # wrong type
         {"schema_version": 1},
         {"last_arrival_seq": True},  # wrong type
         {"extra": 1},
@@ -117,6 +119,21 @@ def test_header_mismatch_is_rejected(tmp_path: Path, changes: dict[str, Any]) ->
     read_snapshot(path)  # the helper itself keeps a valid file valid
     rewrite_header(path, **changes)
     with pytest.raises(SnapshotError):
+        read_snapshot(path)
+
+
+def test_a_format_1_header_without_a_theater_hash_is_refused(tmp_path: Path) -> None:
+    # NX-509 bumped the file format to 2 for `theater_hash`; a campaign from before it is not
+    # restored (none was live), and no migration invents the missing hash.
+    path = write(tmp_path)
+    data = path.read_bytes()
+    (n,) = struct.unpack_from("<I", data, 8)
+    old = {**msgpack.unpackb(data[12 : 12 + n]), "format_version": 1}
+    del old["theater_hash"]
+    packed = msgpack.packb(old)
+    payload = struct.pack("<I", len(packed)) + packed + data[12 + n : -32]
+    path.write_bytes(data[:8] + payload + hashlib.blake2b(payload, digest_size=32).digest())
+    with pytest.raises(SnapshotError, match="header must have exactly the keys"):
         read_snapshot(path)
 
 

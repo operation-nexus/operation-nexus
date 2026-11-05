@@ -66,6 +66,7 @@ class SimRuntime:
         *,
         protocol_version: str,
         sim_build: str,
+        theater_hash: str,  # CampaignConfig.theater_hash; snapshots carry it, restore checks it
         created_at: Callable[[], str],  # UTC ISO-8601 now; never enters state
         snapshot_every: int = 300,  # ops cadence, no effect on outcomes
         handlers: Mapping[str, Handler] = HANDLERS,
@@ -82,6 +83,7 @@ class SimRuntime:
         self.snapshot_dir = snapshot_dir
         self.protocol_version = protocol_version
         self.sim_build = sim_build
+        self.theater_hash = theater_hash
         self.created_at = created_at
         self.snapshot_every = snapshot_every
         self.handlers = handlers
@@ -145,6 +147,7 @@ class SimRuntime:
                 handlers=self.handlers,
                 until_tick=tick - 1,
                 rules=self.world.rules,
+                theater_hash=self.theater_hash,
             ).world
             first = self.crash_ticks[0]
             if len(self.crash_ticks) == CRASH_LIMIT and tick - first < CRASH_WINDOW_TICKS:
@@ -161,6 +164,7 @@ class SimRuntime:
             self.snapshot_dir,
             self.world,
             last_arrival_seq=self.log.next_arrival_seq - 1,
+            theater_hash=self.theater_hash,
             sim_build=self.sim_build,
             protocol_version=self.protocol_version,
             created_at=self.created_at(),

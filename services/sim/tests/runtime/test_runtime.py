@@ -66,6 +66,7 @@ def make_runtime(tmp_path: Path, log_writer: Callable[..., CommandLogWriter]) ->
             tmp_path,
             protocol_version="0.2",
             sim_build="test",
+            theater_hash="theater-test",
             created_at=lambda: "2026-10-21T12:00:00Z",
         )
 

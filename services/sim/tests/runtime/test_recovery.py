@@ -22,7 +22,12 @@ from nexus.core.step import TICK_DT, Handler
 from nexus.core.world import Campaign, Shot, Vec2, World, state_hash
 from nexus.errors import ErrorReporter
 from nexus.runtime import loop
-from nexus.runtime.campaign_config import load_campaign_config, start_campaign
+from nexus.runtime.campaign_config import (
+    CampaignConfig,
+    ConfigPaths,
+    load_campaign_config,
+    start_campaign,
+)
 from nexus.runtime.clock import FixedStepClock
 from nexus.runtime.command_log import (
     CommandLogError,
@@ -36,7 +41,7 @@ from nexus.runtime.loop import SimRuntime
 from nexus.runtime.recovery import ReplayCrash, recover, restore
 from nexus.runtime.snapshot_file import SnapshotError, list_snapshots, write_snapshot
 
-from .conftest import CAMPAIGN_ID, PROTOCOL
+from .conftest import CAMPAIGN_ID, PROTOCOL, THEATER
 
 COMMANDER = "0192f0c1-7a2b-7c3d-8e4f-0123456789ab"
 POISON_ID = "poison"
@@ -131,6 +136,7 @@ class Rig:
             self.snaps,
             protocol_version=PROTOCOL,
             sim_build="test",
+            theater_hash=THEATER,
             created_at=lambda: "2026-10-21T12:00:00Z",
             snapshot_every=snapshot_every,
             handlers=handlers,
@@ -192,7 +198,7 @@ def test_kill_and_restore_matches_an_uninterrupted_run(tmp_path: Path, make_rig:
     assert len(segments(logs)) == 3  # rotated at the snapshots of ticks 300 and 600
     del killed  # the process dies: only the files remain
 
-    r = restore(snaps, logs, handlers=STUB, rules=STUB_RULES)
+    r = restore(snaps, logs, handlers=STUB, rules=STUB_RULES, theater_hash=THEATER)
     assert r.world.campaign.tick == 640
     assert state_hash(r.world) == expected[640]
     assert (r.snapshot.name, r.skipped_snapshots, r.truncated_tail) == (
@@ -297,7 +303,10 @@ def test_crash_recovery_keeps_the_campaign_rules(tmp_path: Path, make_rig: MakeR
     rig.run_to(5, poison_at=(4,))
     assert list(rig.rt.crash_ticks) == [4]
     assert rig.rt.world.rules is rules
-    assert restore(rig.snaps, rig.logs, handlers=POISON, rules=rules).world.rules is rules
+    assert (
+        restore(rig.snaps, rig.logs, handlers=POISON, rules=rules, theater_hash=THEATER).world.rules
+        is rules
+    )
 
 
 def break_systems_from(monkeypatch: pytest.MonkeyPatch, tick: int) -> None:
@@ -314,7 +323,13 @@ def test_restore_refuses_rules_whose_nodes_differ_from_the_snapshots_owners(
     rig = make_rig(tmp_path)
     rig.run_to(310)  # a stub world owns no nodes; the shipped theater has thirteen
     with pytest.raises(ValueError, match="node owners"):
-        restore(rig.snaps, rig.logs, handlers=STUB, rules=load_campaign_config().rules)
+        restore(
+            rig.snaps,
+            rig.logs,
+            handlers=STUB,
+            rules=load_campaign_config().rules,
+            theater_hash=THEATER,
+        )
 
 
 def test_restore_refuses_a_director_state_the_clock_could_not_have_made(
@@ -325,7 +340,13 @@ def test_restore_refuses_a_director_state_the_clock_could_not_have_made(
     rig = make_rig(tmp_path, world=world)
     rig.run_to(310)
     with pytest.raises(ValueError, match=r"director\.ENEMY: more windows"):
-        restore(rig.snaps, rig.logs, handlers=STUB, rules=load_campaign_config().rules)
+        restore(
+            rig.snaps,
+            rig.logs,
+            handlers=STUB,
+            rules=load_campaign_config().rules,
+            theater_hash=THEATER,
+        )
 
 
 def test_restore_refuses_a_snapshot_whose_pools_do_not_match_the_limited_sides(
@@ -338,7 +359,13 @@ def test_restore_refuses_a_snapshot_whose_pools_do_not_match_the_limited_sides(
     rig = make_rig(tmp_path, world=world)
     rig.run_to(310)
     with pytest.raises(ValueError, match=r"economy: .*\['COALITION'\].*\['COALITION', 'ENEMY'\]"):
-        restore(rig.snaps, rig.logs, handlers=STUB, rules=load_campaign_config().rules)
+        restore(
+            rig.snaps,
+            rig.logs,
+            handlers=STUB,
+            rules=load_campaign_config().rules,
+            theater_hash=THEATER,
+        )
 
 
 def test_system_bug_halts_after_three_crashes(
@@ -464,6 +491,7 @@ def test_log_that_contradicts_the_snapshot_raises(tmp_path: Path, make_rig: Make
         rig.snaps,
         at_10.world,
         last_arrival_seq=at_10.last_arrival_seq + 1,
+        theater_hash=THEATER,
         sim_build="test",
         protocol_version=PROTOCOL,
         created_at="2026-10-21T12:00:00Z",
@@ -606,6 +634,7 @@ def test_tombstone_in_a_command_free_interval_is_not_skipped(
         tmp_path,
         world,
         last_arrival_seq=2,
+        theater_hash=THEATER,
         sim_build="test",
         protocol_version=PROTOCOL,
         created_at="2026-10-21T12:00:00Z",
@@ -637,8 +666,8 @@ def snapshot_of(tmp_path: Path, make_rig: MakeRig, corrupt: Callable[[World], No
     corrupt(world)
     world._next_shot_id = 2  # a hand-added shot's id is below the counter
     write_snapshot(
-        rig.snaps, world, last_arrival_seq=0, sim_build="test", protocol_version=PROTOCOL,
-        created_at="2026-10-21T12:00:00Z",
+        rig.snaps, world, last_arrival_seq=0, theater_hash=THEATER, sim_build="test",
+        protocol_version=PROTOCOL, created_at="2026-10-21T12:00:00Z",
     )  # fmt: skip
     return rig
 
@@ -647,7 +676,7 @@ def test_restore_accepts_combat_state_that_fits_the_rules(
     tmp_path: Path, make_rig: MakeRig
 ) -> None:
     rig = snapshot_of(tmp_path, make_rig, lambda w: None)
-    r = restore(rig.snaps, rig.logs, rules=load_campaign_config().rules)
+    r = restore(rig.snaps, rig.logs, rules=load_campaign_config().rules, theater_hash=THEATER)
     assert len(r.world) == 9
 
 
@@ -674,4 +703,69 @@ def test_restore_refuses_combat_state_that_does_not_fit_the_rules(
 ) -> None:
     rig = snapshot_of(tmp_path, make_rig, corrupt)
     with pytest.raises(ValueError, match=error):
+        restore(rig.snaps, rig.logs, rules=load_campaign_config().rules, theater_hash=THEATER)
+
+
+# --- NX-509: recovery refuses a snapshot whose theater changed; a balance-only reload is fine
+
+
+def config_with(tmp_path: Path, part: str, old: str, new: str) -> CampaignConfig:
+    """The shipped config with one text edit in its theater or balance file."""
+    src = getattr(ConfigPaths(), part)
+    edited = tmp_path / part / src.name  # the theater's slug must equal its file name
+    edited.parent.mkdir(exist_ok=True)
+    text = src.read_text()
+    assert old in text
+    edited.write_text(text.replace(old, new, 1))
+    return load_campaign_config(ConfigPaths(**{part: edited}))
+
+
+def test_restore_refuses_a_theater_that_moved_with_the_same_node_names(
+    tmp_path: Path, make_rig: MakeRig
+) -> None:
+    rig = snapshot_of(tmp_path, make_rig, lambda w: None)
+    moved = config_with(tmp_path, "theater", "pos: [310000,120000]", "pos: [300000,120000]")
+    assert moved.theater_hash != THEATER
+    assert set(moved.rules.node_kind) == set(load_campaign_config().rules.node_kind)
+    kw = {"rules": moved.rules, "theater_hash": moved.theater_hash}
+    with pytest.raises(ValueError, match="theater changed"):
+        restore(rig.snaps, rig.logs, **kw)  # type: ignore[arg-type]
+    with pytest.raises(ValueError, match="theater changed"):  # not a ReplayCrash: no retry
+        recover(rig.snaps, rig.rt.log, **kw)  # type: ignore[arg-type]
+
+
+def test_restore_with_rules_needs_the_theater_hash(tmp_path: Path, make_rig: MakeRig) -> None:
+    rig = snapshot_of(tmp_path, make_rig, lambda w: None)
+    with pytest.raises(ValueError, match="theater changed"):
         restore(rig.snaps, rig.logs, rules=load_campaign_config().rules)
+
+
+def test_restore_accepts_a_balance_only_change(tmp_path: Path, make_rig: MakeRig) -> None:
+    rig = snapshot_of(tmp_path, make_rig, lambda w: None)
+    tuned = config_with(tmp_path, "balance", "expire_min: 15", "expire_min: 16")
+    assert tuned.config_hash != load_campaign_config().config_hash
+    assert tuned.theater_hash == THEATER
+    r = restore(rig.snaps, rig.logs, rules=tuned.rules, theater_hash=tuned.theater_hash)
+    assert r.world.rules is tuned.rules  # the new balance is attached (SIM-CORE item 4)
+
+
+def test_restore_refuses_when_the_newest_snapshot_is_of_another_theater(
+    tmp_path: Path, make_rig: MakeRig
+) -> None:
+    # A theater mismatch is not corruption: the newest snapshot decides and an older one of the
+    # right theater is not silently preferred (it would roll the campaign back).
+    rig = snapshot_of(tmp_path, make_rig, lambda w: None)
+    newer = start_campaign(CAMPAIGN_ID, 5, load_campaign_config())
+    newer.campaign.tick = 10
+    write_snapshot(
+        rig.snaps, newer, last_arrival_seq=0, theater_hash="other-theater", sim_build="test",
+        protocol_version=PROTOCOL, created_at="2026-10-21T12:00:00Z",
+    )  # fmt: skip
+    rules = load_campaign_config().rules
+    with pytest.raises(ValueError, match=r"000000000010\.nxs.*theater changed"):
+        restore(rig.snaps, rig.logs, rules=rules, theater_hash=THEATER)
+    # until_tick filters the newer file out before it is read; that is not a fallback
+    assert (
+        restore(rig.snaps, rig.logs, rules=rules, theater_hash=THEATER, until_tick=5).snapshot.name
+        == "000000000000.nxs"
+    )

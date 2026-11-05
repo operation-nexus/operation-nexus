@@ -21,7 +21,7 @@ from nexus.core.world import FORMAT_VERSION, World, load, save, state_hash
 from nexus.runtime.fsutil import fsync_dir
 
 MAGIC = b"NXSNAP\0\1"
-FILE_FORMAT_VERSION = 1
+FILE_FORMAT_VERSION = 2  # 2 (NX-509): `theater_hash` joined the header; a format-1 file is refused
 _LEN = struct.Struct("<I")
 _TRAILER_LEN = 32
 _MAX_HEADER = 64 * 1024  # a header is ~300 bytes; anything larger is corruption
@@ -43,6 +43,7 @@ class SnapshotHeader:
     campaign_id: str
     seed: int
     config_hash: str
+    theater_hash: str  # the theater part of config_hash; restore refuses another theater
     sim_build: str
     tick: int
     state_hash: str
@@ -56,6 +57,7 @@ def write_snapshot(
     world: World,
     *,
     last_arrival_seq: int,
+    theater_hash: str,
     sim_build: str,
     protocol_version: str,
     created_at: str,
@@ -68,6 +70,7 @@ def write_snapshot(
         c.id,
         c.seed,
         c.config_hash,
+        theater_hash,
         sim_build,
         c.tick,
         state_hash(world),
