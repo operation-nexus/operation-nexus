@@ -1007,8 +1007,8 @@
         gisCtx.font = "9px monospace";
         const mezTxt = `MEZ: ${b.samRange / 1000}KM`;
         // Right-side rings: label goes on the lower-right of the ring (the OOB panel covers the upper right) and stays inside the canvas
-        const mezDy = pt.sx + rad * 0.7 > gisCanvas.clientWidth * 0.8 ? rad * 0.7 : -rad * 0.7;
-        gisCtx.fillText(mezTxt, Math.min(pt.sx + rad * 0.7, gisCanvas.clientWidth - gisCtx.measureText(mezTxt).width - 6), pt.sy + mezDy);
+        const mezDy = pt.sx + rad * 0.7 > gisCanvas.width * 0.8 ? rad * 0.7 : -rad * 0.7;
+        gisCtx.fillText(mezTxt, Math.min(pt.sx + rad * 0.7, gisCanvas.width - gisCtx.measureText(mezTxt).width - 6), pt.sy + mezDy);
       });
 
       // 5. Military Bases with MIL-STD-2525D Frames & Road Waypoints

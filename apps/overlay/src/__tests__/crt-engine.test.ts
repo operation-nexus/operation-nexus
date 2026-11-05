@@ -199,4 +199,34 @@ describe("Option A: 2D CRT Vector Phosphor Engine", () => {
 
     engine.dispose();
   });
+
+  it("keeps two right-edge labels on the same row apart at 1280 px", async () => {
+    const engine = new CrtVectorEngine();
+    const textCalls: TextCall[] = [];
+    const canvas = createMockCanvas(textCalls);
+    await engine.initialize(createMockContainer(), { canvas }); // 1280 × 720
+
+    engine.renderFrame({
+      tick: 1,
+      simTime: 100,
+      units: [],
+      telemetry: {
+        momentum: { quorum: 50, static: 50 },
+        countdownSeconds: 0,
+        objectiveName: "",
+        threatTier: "PATTERN_OF_LIFE",
+        sitrep: [],
+        ticker: [],
+      },
+    });
+
+    // At this width neither Static HQ nor Static Rear fits to the right.
+    const hq = textCalls.find((c) => c.text === "STATIC HQ");
+    const rear = textCalls.find((c) => c.text === "STATIC REAR");
+    expect(hq?.align).toBe("right");
+    expect(rear?.align).toBe("right");
+    expect(Math.abs((rear?.y ?? 0) - (hq?.y ?? 0))).toBeGreaterThanOrEqual(12);
+
+    engine.dispose();
+  });
 });

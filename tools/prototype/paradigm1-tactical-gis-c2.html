@@ -413,7 +413,12 @@ function drawBases() {
   labelRects = [];
   BASES.forEach(b => {
     const pt = toScreen(b.x, b.y);
-    const flipLeft = b.id === 'haven'; // Haven sits 120px left of West Airbase: label goes left of its node
+    // Haven sits 120px left of West Airbase, so its label goes left of the node,
+    // or under it when the left side would leave the canvas (narrow viewports).
+    ctx.font = 'bold 10px monospace';
+    const nameW = ctx.measureText(b.name).width;
+    const place = b.id !== 'haven' ? 'right' : pt.x - 12 - nameW >= 4 ? 'left' : 'below';
+    const belowX = Math.max(4, pt.x - nameW / 2);
 
     ctx.save();
     if (b.side === 'coalition') {
@@ -424,9 +429,11 @@ function drawBases() {
       ctx.strokeRect(pt.x - 7, pt.y - 7, 14, 14);
       ctx.fillStyle = '#f8fafc';
       ctx.font = 'bold 10px monospace';
-      if (flipLeft) {
+      if (place === 'left') {
         ctx.textAlign = 'right';
         ctx.fillText(b.name, pt.x - 12, pt.y + 4);
+      } else if (place === 'below') {
+        ctx.fillText(b.name, belowX, pt.y + 22);
       } else {
         ctx.fillText(b.name, pt.x + 12, pt.y + 4);
       }
@@ -454,8 +461,12 @@ function drawBases() {
       ctx.fillText(b.name, pt.x + 10, pt.y + 3);
     }
     const lw = ctx.measureText(b.name).width;
-    const lx = flipLeft ? pt.x - 12 - lw : pt.x + 8;
-    labelRects.push({ x0: Math.min(pt.x - 8, lx), x1: Math.max(pt.x + 8, lx + lw + (flipLeft ? 0 : 6)), y0: pt.y - 10, y1: pt.y + 8 });
+    if (place === 'below') {
+      labelRects.push({ x0: Math.min(pt.x - 8, belowX), x1: Math.max(pt.x + 8, belowX + lw), y0: pt.y - 10, y1: pt.y + 26 });
+    } else {
+      const lx = place === 'left' ? pt.x - 12 - lw : pt.x + 8;
+      labelRects.push({ x0: Math.min(pt.x - 8, lx), x1: Math.max(pt.x + 8, lx + lw + (place === 'left' ? 0 : 6)), y0: pt.y - 10, y1: pt.y + 8 });
+    }
     ctx.restore();
   });
 }
