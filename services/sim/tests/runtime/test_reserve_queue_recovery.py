@@ -22,7 +22,7 @@ from nexus.runtime.campaign_config import CampaignConfig
 from nexus.runtime.command_log import CommandLogReader, CommandLogWriter, Tombstone
 from nexus.runtime.recovery import restore
 
-from .conftest import CAMPAIGN_ID
+from .conftest import CAMPAIGN_ID, THEATER
 from .test_recovery import Rig, make_join
 
 FREE = "free"
@@ -130,7 +130,9 @@ def test_a_queued_join_that_crashes_when_served_is_dropped_on_recovery(
     assert served == [(1, cid(1)), (6, cid(3))]
     assert queue_of(rig.rt.world) == []
     # Replaying the log (tombstone included) reproduces the live run.
-    replayed = restore(rig.snaps, rig.logs, handlers=FREEING, rules=cap1, until_tick=8)
+    replayed = restore(
+        rig.snaps, rig.logs, handlers=FREEING, rules=cap1, theater_hash=THEATER, until_tick=8
+    )
     assert state_hash(replayed.world) == hashes[8]
 
 
@@ -157,7 +159,7 @@ def test_kill_and_restore_with_a_queue_matches_an_uninterrupted_run(
     snaps, logs = killed.snaps, killed.logs
     del killed
 
-    r = restore(snaps, logs, handlers=FREEING, rules=cap1, until_tick=6)
+    r = restore(snaps, logs, handlers=FREEING, rules=cap1, theater_hash=THEATER, until_tick=6)
     assert (r.snapshot.name, r.world.campaign.tick) == ("000000000005.nxs", 6)
     assert queue_of(r.world) == [cid(2), cid(3)]
     seq = r.last_arrival_seq + 1

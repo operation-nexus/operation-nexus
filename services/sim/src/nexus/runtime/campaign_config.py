@@ -64,6 +64,7 @@ class CampaignConfig:
     catalog: UnitCatalog
     theater: TheaterConfig
     config_hash: str  # balance, units, operations, theater (§4.4)
+    theater_hash: str  # the theater part of config_hash; snapshots carry it (NX-509)
     rules: Rules = field(compare=False)
 
 
@@ -74,11 +75,12 @@ def load_campaign_config(paths: ConfigPaths | None = None) -> CampaignConfig:
     catalog = load_catalog(paths.units, paths.weapons, paths.roles)
     theater = load_theater(paths.theater)
     operations = load_operations(paths.operations, balance, catalog.units, theater)
+    theater_digest = canonical_hash(theater.model_dump())
     digest = config_hash(
         canonical_hash(balance.model_dump()),
         catalog_hash(catalog),
         operations_hash(operations),
-        canonical_hash(theater.model_dump()),
+        theater_digest,
     )
     mask_cell_m, masking = masking_cells(theater, balance.fow.mask_cell_m)
     roads = road_graph(theater)
@@ -189,7 +191,7 @@ def load_campaign_config(paths: ConfigPaths | None = None) -> CampaignConfig:
             f"EC-3): {'; '.join(uneven)}; set both kinds of a pair to one value, or set "
             "economy.cost_parity false for a one-sided cut"
         )
-    return CampaignConfig(balance, catalog, theater, digest, rules)
+    return CampaignConfig(balance, catalog, theater, digest, theater_digest, rules)
 
 
 def coalition_floor_problem(rules: Rules, garrison_quota: Mapping[str, int]) -> str | None:
