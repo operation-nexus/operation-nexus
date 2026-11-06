@@ -329,8 +329,9 @@ def run_one(
 
 
 def is_tail(n: dict[str, Any]) -> bool:
-    """The A2 tail rule for one newbie: a first impact later than 900 s, or none after being
-    watched more than 900 s (a newbie watched 900 s or less with none is unresolved: left out)."""
+    """The A2 tail rule for one newbie: a first impact later than TAIL_S (`targets.a2_tail_s`,
+    900 s today), or none after being watched longer than that (a newbie watched TAIL_S or less with
+    none is unresolved: left out)."""
     if n["ttfi_s"] is not None:
         return bool(n["ttfi_s"] > TAIL_S)
     return bool(n["watched_s"] > TAIL_S)
@@ -363,7 +364,8 @@ def first_window(n: dict[str, Any], limit: float = TAIL_S) -> Counter[str]:
 def phase_table(newbies: list[dict[str, Any]]) -> dict[str, Any]:
     """Per phase: median and p90 of the seconds a newbie spent in it (all counted newbies, zero
     included), and, over the tail newbies only, the share of their pooled time and how many had
-    it as their largest phase, and the share of the first 900 s they spent in it."""
+    it as their largest phase, and the share of the first TAIL_S they spent in it (the JSON key
+    keeps its `900` name for saved runs)."""
     tail = [n for n in newbies if judged(n) and is_tail(n)]
     out: dict[str, Any] = {}
     tail_total = sum(sum(n["phases"].values()) for n in tail)
@@ -407,7 +409,7 @@ def _print_group(title: str, newbies: list[dict[str, Any]]) -> None:
     print(f"\n{title}: {t['newbies']} newbies, {t['tail']} in the tail")
     print(
         f"{'phase':14s} {'med':>6s} {'p90':>6s} | {'tail med':>8s} {'tail p90':>8s}"
-        f" {'tail share':>10s} {'1st 900 s':>9s} {'dominant':>8s}"
+        f" {'tail share':>10s} {f'1st {TAIL_S:.0f} s':>9s} {'dominant':>8s}"
     )
     for p, v in t["phases"].items():
         share = "-" if v["tail_time_share"] is None else f"{v['tail_time_share']:.1%}"
