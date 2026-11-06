@@ -361,6 +361,7 @@ def host() -> dict[str, Any]:
 
 
 def table(res: dict[str, Any]) -> str:
+    largest = "largest combined (tick)" if res["frame_build_counted"] else "largest (tick)"
     rows = [
         f"scene {res['scene']}, seed {res['seed']}; "
         + (
@@ -369,7 +370,7 @@ def table(res: dict[str, Any]) -> str:
             else "step only, NO frame build (SC-10 lower bound)"
         ),
         f"{'entities':>8} {'viewers':>7} {'tracked':>7} {'ticks/s':>8} {'p50':>7} {'p95':>7} "
-        f"{'p99':>7} {'max':>7} {'board p99':>9} {'plain p99':>9}  largest (tick)",
+        f"{'p99':>7} {'max':>7} {'board p99':>9} {'plain p99':>9}  {largest}",
     ]
     for r in res["rungs"]:
         s, b, p = r["step_ms"], r["board_pass_ms"], r["plain_ms"]

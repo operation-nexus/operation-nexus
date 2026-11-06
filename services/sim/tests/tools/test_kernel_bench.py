@@ -1,6 +1,7 @@
 """Real-kernel scaling bench smoke tests (NX-376; tools/sim-bench/kernel_bench.py)."""
 
 import json
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -118,3 +119,15 @@ def test_snapshot_every_zero_builds_no_snapshot_and_viewers_needs_mixed(
             kernel_bench.main(argv)
         assert e.value.code == 2
         assert msg in capsys.readouterr().err
+
+
+def test_the_table_labels_the_largest_tick_as_combined_only_with_frames(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    base = ["--ladder", "60", "--ticks", "5", "--scene", "mixed", "--settle", "1"]
+    kernel_bench.main(base)
+    assert "  largest (tick)" in capsys.readouterr().out
+    kernel_bench.main([*base, "--frames"])
+    out = capsys.readouterr().out
+    assert "  largest combined (tick)" in out and "  largest (tick)" not in out
+
