@@ -77,9 +77,11 @@ export class TopBar {
     this.glyph.setAttribute("aria-hidden", "true");
     const tier = h(doc, "span", "nx-val", trow, DASH);
     this.warCell = cell("nx-war", "hud.war");
-    const war = h(doc, "div", "nx-val", this.warCell, DASH);
-    // Final hours (§0.11): label and score chip beside the countdown; empty and hidden outside them.
-    const box = h(doc, "div", "nx-fh", this.warCell);
+    // One row, so the bar keeps its height (§0.11): the countdown, then the final-hours label and
+    // score chip beside it (hidden and empty outside the final hours).
+    const wrow = h(doc, "div", "nx-row nx-war-row", this.warCell);
+    const war = h(doc, "div", "nx-val", wrow, DASH);
+    const box = h(doc, "div", "nx-fh", wrow);
     box.hidden = true;
     const label = h(doc, "span", "nx-fh-label", box);
     const chip = h(doc, "span", "nx-fh-chip", box);

@@ -472,6 +472,19 @@ describe("the bar, the stack and the banner render the model", () => {
       expect(first(root, "nx-topbar").cl.has("fh")).toBe(true);
     }
   });
+  it("the label and chip sit on the countdown's row, so the bar keeps its height (§0.11)", () => {
+    const { fh, c } = live(T2);
+    const root = new El();
+    new TopBar(doc, root as unknown as HTMLElement).render(hud(T2), c, fh);
+    const cell = first(root, "nx-war");
+    // the cell is only the label and one row: a third block child would stack under the countdown
+    expect(cell.children.map((e) => e.className.split(" ").pop())).toEqual([
+      "nx-label",
+      "nx-war-row",
+    ]);
+    const row = first(cell, "nx-war-row");
+    expect(row.children.map((e) => e.className)).toEqual(["nx-val", "nx-fh"]);
+  });
   it("outside the final hours the bar is unchanged", () => {
     const { fh, c } = live(T1 + 100_000);
     const root = new El();
