@@ -30,7 +30,7 @@ from nexus.core.roads import shortest_path, travel_ticks
 from nexus.core.rules import Rules
 from nexus.core.tasking import idle_diagnosis, ring_blocker
 from nexus.core.tasking_gen import is_idle
-from nexus.core.world import Entity, Job, Vec2, World
+from nexus.core.world import Contact, Entity, Job, Vec2, World
 
 _ENEMY: Final = "ENEMY"  # Side values
 _COALITION: Final = "COALITION"
@@ -91,6 +91,7 @@ class Collector:
         impact_check_ticks: int,
         kinds: Mapping[str, str],
         a2_min_tier: str,
+        a2_refresh_ticks: int,
         starve_threshold: float,
     ) -> None:
         rules = world.rules
@@ -108,7 +109,13 @@ class Collector:
         self.idle_sample_ticks, self.impact_check_ticks = idle_sample_ticks, impact_check_ticks
         self.kinds = kinds  # commander -> persona kind (Q-SIM-95)
         self.min_tier = TIERS.index(a2_min_tier)
-        self.known_tracks = set(world.contacts[_COALITION])  # ids the coalition has ever tracked
+        # NX-512 (TESTING-STRATEGY A2): id -> the last impact check that saw a current coalition
+        # track of it (a last-known one is not tracked); a current track of an id never tracked
+        # is new, and one again after at least `a2_refresh_ticks` without one is a refresh
+        self.a2_refresh_ticks = a2_refresh_ticks
+        self.last_tracked = {
+            i: world.campaign.tick for i, c in world.contacts[_COALITION].items() if c.age is None
+        }
         self.idle_shares: list[float] = []  # idle armed viewer units / all, per sample
         self.idle_reasons: Counter[str] = Counter()  # why the idle ones hold no job, summed
         self.idle_ring_by_site: Counter[str] = Counter()  # "ring" idle by blocking marker and job
@@ -360,23 +367,15 @@ class Collector:
 
     def check_impact(self, world: World) -> None:
         """The impact kinds no event names, read from the world without changing it (Q-SIM-93):
-        capture progress and a new enemy track found by a newbie's recon unit."""
-        tracks = {i: c for i, c in world.contacts[_COALITION].items() if c.age is None}
-        new = {i: c for i, c in sorted(tracks.items()) if i not in self.known_tracks}
-        self.known_tracks.update(world.contacts[_COALITION])
-        pending = {c for c in self.newbies if c in self.join_tick and c not in self.impact}
+        capture progress and a new enemy track found by a newbie's recon unit, or a refreshed one
+        (no current coalition track of it for `a2_refresh_ticks`, NX-512)."""
+        tick = world.campaign.tick
+        self.note_tracks(world)  # idempotent within a tick; covers callers that skip observe()
+        pending = self._pending()
         if not pending:
             return
-        rules, tick = self._world_rules, world.campaign.tick
+        rules = self._world_rules
         units = [e for e in world.entities() if e.commander_id in pending]
-        for e in units:
-            for c in new.values():
-                reach = rules.sensor_radius(e.kind, e.damage_state) * rules.stealth[c.kind]
-                if (
-                    e.kind in rules.painters
-                    and math.dist((e.pos.x, e.pos.y), (c.pos.x, c.pos.y)) <= reach
-                ):
-                    self._credit(e.commander_id, tick, "scout")
         cap = rules.capture
         if cap is None:
             return
@@ -390,6 +389,40 @@ class Collector:
                     and math.dist((e.pos.x, e.pos.y), (x, y)) <= cap.radius_m
                 ):
                     self._credit(e.commander_id, tick, "capture")
+
+    def note_tracks(self, world: World) -> None:
+        """Record this tick's current coalition tracks (NX-512, TESTING-STRATEGY A2). An id never
+        tracked (last-known does not count) or untracked for `a2_refresh_ticks` becomes fresh and
+        waits for the next impact check."""
+        tick = world.campaign.tick
+        found = []
+        for i, c in world.contacts[_COALITION].items():  # insertion order: deterministic
+            if c.age is not None:
+                continue
+            last = self.last_tracked.get(i)
+            if last is None or tick - last >= self.a2_refresh_ticks:
+                found.append(c)
+            self.last_tracked[i] = tick
+        if found:  # judged now, at the tick of the find, never carried to a later tick
+            self._credit_scouts(world, tick, found)
+
+    def _pending(self) -> set[str]:
+        return {c for c in self.newbies if c in self.join_tick and c not in self.impact}
+
+    def _credit_scouts(self, world: World, tick: int, found: list[Contact]) -> None:
+        """A newbie's recon unit with a new or refreshed track inside its sensor reach."""
+        pending = self._pending()
+        if not pending:
+            return
+        rules = self._world_rules
+        for e in world.entities():
+            if e.commander_id not in pending or e.kind not in rules.painters:
+                continue
+            for c in found:
+                reach = rules.sensor_radius(e.kind, e.damage_state) * rules.stealth[c.kind]
+                if math.dist((e.pos.x, e.pos.y), (c.pos.x, c.pos.y)) <= reach:
+                    self._credit(e.commander_id, tick, "scout")
+                    break
 
     def feed(self, events: Iterable[Event]) -> None:
         for event in events:
@@ -429,6 +462,7 @@ class Collector:
                     self.seized_back_min.append(self._minutes(world.campaign.tick - since))
 
     def observe(self, world: World) -> None:
+        self.note_tracks(world)
         self._who_took(world)
         self._classify_downs(world)
         self._seized_facilities(world)

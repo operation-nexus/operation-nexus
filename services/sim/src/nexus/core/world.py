@@ -158,6 +158,8 @@ JOB_KEY_PREFIX = {
     "PATROL": "patrol:", "INTERCEPT": "intercept:", "REPAIR_BRIDGE": "repair_bridge:",
     "CAPTURE": "retake:",
 }  # fmt: skip
+# the coalition's sector scout key, `scout:pt:<sector>:<k>` (`tasking_gen.SECTOR_SCOUT`, NX-512)
+_SECTOR_SCOUT = re.compile(r"scout:pt:[^:]+:(0|[1-9][0-9]*)")
 _WORLD_KEYS = (
     _BLOB_RUNS,
     _BLOBS,
@@ -1704,12 +1706,16 @@ def _job(
     if not isinstance(claims, list):
         raise ValueError(f"{_BOARDS}: claims must be a list")
     kind = _str(d["kind"], "job kind", _JOB_KINDS)
-    # job urgency floor in thousandths: 1.0 (1000), or for RESUPPLY the least positive thousandth,
-    # since a stocking job runs below 1.0 (Q-SIM-100, NX-389)
+    key = _str(d["key"], "job key")
+    # the coalition's sector scout, `scout:pt:<sector>:<k>`, a point job (NX-512, Q-SIM-134)
+    sector_scout = kind == "SCOUT" and side == "COALITION" and bool(_SECTOR_SCOUT.fullmatch(key))
+    # job urgency floor in thousandths: 1.0 (1000), or for RESUPPLY (a stocking job runs below
+    # 1.0, Q-SIM-100, NX-389) and a sector scout (`tasking.scout_sector_urgency`) the least
+    # positive thousandth
     job = Job(
         _int(d["id"], "job id", 1), kind,
-        _str(d["key"], "job key"), _int(d["slots"], "job slots", 1),
-        _int(d["urgency"], "job urgency", 1 if kind == "RESUPPLY" else 1000),
+        key, _int(d["slots"], "job slots", 1),
+        _int(d["urgency"], "job urgency", 1 if kind == "RESUPPLY" or sector_scout else 1000),
         _int(d["created"], "job created"),
         _str(d["node"], "job node", optional=True), _str(d["blob"], "job blob", optional=True),
         None if d["pos"] is None else _vec(d["pos"], "job pos"),
@@ -1748,7 +1754,9 @@ def _job(
         )
     if hunt and (side != "ENEMY" or job.pos is None or job.node is not None or job.blob):
         raise ValueError(f"{_BOARDS}: an intercept job is the Static's, at a position only")
-    point = job.kind == "SCOUT" and job.blob is None and job.key.startswith("op:")  # NX-379
+    point = (
+        job.kind == "SCOUT" and job.blob is None and (job.key.startswith("op:") or sector_scout)
+    )  # NX-379, NX-512
     if not _target_ok(job, escort=escort, point=point or hunt):
         raise ValueError(
             f"{_BOARDS}: a job targets a node or a blob with its position (a scout job: a point)"
@@ -1783,7 +1791,9 @@ def _job(
     )
     prefix = JOB_KEY_PREFIX.get(job.kind, "-")
     others = [p for p in JOB_KEY_PREFIX.values() if p != prefix and job.key.startswith(p)]
-    if others or (job.key.startswith(prefix) and job.key != f"{prefix}{target}"):
+    if others or (
+        job.key.startswith(prefix) and job.key != f"{prefix}{target}" and not sector_scout
+    ):
         raise ValueError(f"{_BOARDS}: job key {job.key!r} does not name its kind and target")
     return job
 

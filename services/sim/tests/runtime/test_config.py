@@ -227,6 +227,9 @@ tasking:
   scout_cooldown_min: 5
   scout_post_interval_min: 2
   scout_open_max: 3
+  scout_sector_points: 1
+  scout_sector_stale_min: 30
+  scout_sector_urgency: 0.5
   capture_max_restarts: 3
   follow_station_m:
     escort: 500
@@ -387,9 +390,10 @@ economy:
 # `tasking.retake_keep_min`, NX-489 for the `campaign.victory` hold decay keys, NX-490 for
 # `capture.time_mult` and `capture.extra_exponent`, NX-494 for `economy.cost_parity` and the
 # catalog's `mirrors`, NX-499 for `campaign.defeat.reset_hp_frac`, NX-501 for
-# `logistics.stock_target_mode` and `stock_target_loadouts`); a change means
+# `logistics.stock_target_mode` and `stock_target_loadouts`, NX-512 for the `tasking.scout_sector_*`
+# keys); a change means
 # every config_hash moved.
-GOLDEN_CONFIG_HASH = "db991e6f999bbbd03b32d1b9c66bad40738951f8ccff73c863ba1aede748f1d8"
+GOLDEN_CONFIG_HASH = "1e4fefaf102dfba4a0a70434ec1f9297dfb0898779e460a6f1166aabf473fd06"
 AIR = {
     "bingo_reserve_frac": 0.15,
     "orbit_period_s": 120.0,
@@ -568,6 +572,9 @@ TASKING = {
     "scout_post_interval_min": 2,
     "capture_max_restarts": 3,
     "scout_open_max": 3,
+    "scout_sector_points": 1,
+    "scout_sector_stale_min": 30,
+    "scout_sector_urgency": 0.5,
     "follow_station_m": {"escort": 500, "column": 200, "overwatch": 3000, "wingman": 1000},
     "escort_threat_memory_s": 60,
     "escort_leash_m": 10000,
@@ -1218,6 +1225,7 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "  resupply_slots_max_starving: 6,\n"
         "  counterattack_window_min: 15, scout_cooldown_min: 5, scout_open_max: 3,\n"
         "  scout_post_interval_min: 2, capture_max_restarts: 3,\n"
+        "  scout_sector_points: 1, scout_sector_stale_min: 30, scout_sector_urgency: 0.5,\n"
         "  follow_station_m: {escort: 500, column: 200, overwatch: 3000, wingman: 1000},\n"
         "  escort_threat_memory_s: 60, escort_leash_m: 10000,\n"
         "  follow_hold_slack: 2, overfill_factor: 2, scout_blob_runs: 2,\n"
@@ -1412,3 +1420,24 @@ def test_game_ticks_in_minutes_and_hours() -> None:
     assert (
         game_ticks(0.1, CFG, unit_s=3600) == 3600
     )  # exact decimal: 0.1 h is 360 s, not 360.0000..1
+
+
+def test_scout_sector_stale_min_may_be_memory_s_but_not_one_second_more() -> None:
+    """NX-512 (GAMEPLAY §1b item 203): the sector scout gate is at most `director.recon.memory_s`
+    (3,600 s shipped), checked at load by `load_campaign_config`."""
+    from nexus.runtime.golden import shipped_config
+
+    cfg = shipped_config({"tasking.scout_sector_stale_min": 60})
+    assert cfg.rules.tasking is not None and cfg.rules.tasking.scout_sector_stale_ticks > 0
+    with pytest.raises(ConfigError, match=r"tasking\.scout_sector_stale_min must be at most"):
+        shipped_config({"tasking.scout_sector_stale_min": 3601 / 60})
+
+
+def test_scout_sector_urgency_must_round_to_at_least_one_thousandth() -> None:
+    """NX-512: `rules.tasking_rules` refuses an urgency that rounds to 0 thousandths."""
+    from nexus.runtime.golden import shipped_config
+
+    cfg = shipped_config({"tasking.scout_sector_urgency": 0.001})
+    assert cfg.rules.tasking is not None and cfg.rules.tasking.scout_sector_urgency_milli == 1
+    with pytest.raises(ValueError, match=r"tasking\.scout_sector_urgency must be at least 0\.001"):
+        shipped_config({"tasking.scout_sector_urgency": 0.0005})

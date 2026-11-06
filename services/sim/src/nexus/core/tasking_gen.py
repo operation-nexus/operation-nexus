@@ -64,6 +64,19 @@ refers to an entity id, so a job names a node, or a SIGINT blob with its cell ce
   (`tasking.scout_cooldown_min`), at most
   `tasking.scout_open_max` of them at once.
   Urgency by size bucket: S 1.0, M 1.5, L 2.0 (capped).
+- **Sector scout** (`scout:pt:<sector>:<k>`, coalition only, GAMEPLAY §1b item 203, Q-SIM-134,
+  NX-512): per theater sector (ids ascending) not cooling down (`tasking.scout_cooldown_min` by
+  sector), up to `tasking.scout_sector_points` point jobs at the stalest points of the side's
+  picture that pass the gate below (`_gated`), the Static's RECON rule (`operations.recon_point`
+  on the side's `SideView` and its `DirectorState.looked`, which `nexus.core.tasking` marks by
+  `launch.look` each pass), the k-th at least twice `director.recon.loiter_radius_m` from the
+  points kept or chosen before it. A point is posted only while it is unseen (`_unseen`: no
+  sensor of the side covered its cell, and no track within the loiter radius is fresher, for
+  `tasking.scout_sector_stale_min`). The point is fixed while the job is open: an unclaimed job
+  is posted again at its own point while that stays unseen (else it is withdrawn; one a ring
+  discovered since covers ends by the point verdict, `tasking._ring_over`, unclaimed: EXPIRED), a
+  claimed one is kept as is. Urgency `tasking.scout_sector_urgency`; it counts
+  as a scout job for `_cap_scouts`.
 - **Escort convoy** (`escort:<truck id>`, Q-GP-29, Q-GP-47): a carrier of the side, not Disabled,
   that follows no one (a column is covered by its lead truck's job), and either holds a
   REPAIR_BRIDGE claim on a down bridge (a repair crew, on the way or parked at the stop, with no
@@ -122,7 +135,7 @@ from nexus.core.director import TIERS
 from nexus.core.fog import SideView
 from nexus.core.logistics import approach, facility_damage, plan_run, stock_targets
 from nexus.core.roads import shortest_path
-from nexus.core.rules import CAPTURE_FULL, Rules, TaskingRules
+from nexus.core.rules import CAPTURE_FULL, DirectorRules, Rules, TaskingRules
 from nexus.core.world import Contact, Entity, FacilityMarker, Job, Vec2, World
 
 POST_GATE = (
@@ -140,6 +153,7 @@ GENERATED = (
     "repair_bridge:",
     "retake:",
 )
+SECTOR_SCOUT = "scout:pt:"  # the coalition's point scout of a sector (NX-512)
 RETAKE = "retake:"  # the coalition's CAPTURE job on a lost start node (Q-TD-99, NX-475)
 _GROUND, _AIR = "GROUND", "AIR"
 _JOB_KINDS: tuple[JobKind, ...] = (
@@ -315,6 +329,7 @@ def generate(
         *(_strike(world, rules, tr, side, view) if _offense_open(world, tr, side) else ()),
         *_assist(world, tr, side),
         *_scout(tr, view, world, side),
+        *_sector_scouts(world, rules, tr, side, view),
         *_escort(world, rules, tr, side, view),
         *_patrol(world, rules, tr, side, view),
         *_intercept(world, rules, tr, side, view),
@@ -582,6 +597,98 @@ def _scout(tr: TaskingRules, view: SideView, world: World, side: Side) -> Iterat
             continue  # not there for `scout_blob_runs` refreshes yet, or scouted lately (Q-SIM-75)
         urgency = min(tr.urgency_max_milli, tr.scout_urgency_milli[b.size])
         yield JobSpec("SCOUT", f"scout:{cell}", tr.slots["SCOUT"], urgency, blob=b.id, pos=b.pos)
+
+
+def _sector_scouts(
+    world: World, rules: Rules, tr: TaskingRules, side: Side, view: SideView
+) -> Iterator[JobSpec]:
+    """The coalition's sector scout jobs, keys ascending per sector (module docstring; GAMEPLAY
+    §1b item 203)."""
+    from nexus.core import operations as ops  # import cycle: operations imports this module
+
+    dr, kind = rules.director, rules.role_kind.get("RECON")
+    if side != "COALITION" or dr is None or kind is None or tr.scout_sector_points < 1:
+        return
+    now, looked = world.campaign.running_ticks + 1, world.director[side].looked
+    margin = {
+        n: world.stock[n] - f for n, f in rules.supply.starve_floor.items() if n in world.stock
+    }
+    own = ops.Own(margin=margin)  # GP-7's pool for `launch_base`, as `plan_deploy` reads it
+    board = {j.key: j for j in world.boards[side].values() if j.key.startswith(SECTOR_SCOUT)}
+    urgency = min(tr.urgency_max_milli, tr.scout_sector_urgency_milli)
+    gated = _gated(view, tr, dr, looked, now)
+    for sector in sorted(s for s, _ in rules.sectors):
+        keys = [f"{SECTOR_SCOUT}{sector}:{k}" for k in range(tr.scout_sector_points)]
+        points = {
+            k: j.pos for k in keys
+            if (j := board.get(k)) is not None and j.pos is not None
+            and (j.claims or _unseen(view, tr, dr, looked, now, j.pos))
+        }  # fmt: skip
+        if world.cooldown[side].get(f"{SECTOR_SCOUT}{sector}", 0) <= now:
+            for key in (k for k in keys if k not in board):
+                masked = _spaced(gated, list(points.values()), dr, now)
+                pick = ops.recon_point(view, rules, own, sector, kind, masked, now)
+                if pick is None or not _unseen(view, tr, dr, masked, now, pick[0]):
+                    break  # nothing stale left in the sector: no job
+                points[key] = pick[0]
+        for key, pos in sorted(points.items()):
+            yield JobSpec("SCOUT", key, tr.slots["SCOUT"], urgency, pos=pos)
+
+
+def _gated(
+    view: SideView, tr: TaskingRules, dr: DirectorRules, looked: Mapping[str, int], now: int
+) -> dict[str, int]:
+    """`looked` with every grid cell that fails `_unseen` marked as looked at now, so
+    `recon_point` ranks it last and its pick is the stalest cell that passes the gate, not only
+    the stalest cell (item 203: "the k-th stalest passing cell"). The tracks mark the cells
+    within the loiter radius by `operations.span`, as `operations._picture` does."""
+    from nexus.core import operations as ops  # import cycle: operations imports this module
+
+    stale, reach, step = tr.scout_sector_stale_ticks, dr.recon_loiter_radius_m, dr.recon_grid_m
+    masked = {k: now if now - seen < stale else seen for k, seen in looked.items()}
+    for t in (*view.tracks.values(), *view.last_known.values()):
+        if (t.age or 0) < stale:
+            for x in ops.span(t.pos.x, reach, step):
+                for y in ops.span(t.pos.y, reach, step):
+                    if math.hypot(x - t.pos.x, y - t.pos.y) <= reach:
+                        masked[ops.cell_key(x, y)] = now
+    return masked
+
+
+def _spaced(
+    looked: Mapping[str, int], chosen: list[Vec2], dr: DirectorRules, now: int
+) -> dict[str, int]:
+    """`looked` with every grid cell nearer a chosen point than twice the loiter radius marked as
+    looked at now, so `recon_point` ranks it last and `_unseen` refuses it (item 203's spacing)."""
+    from nexus.core import operations as ops  # import cycle: operations imports this module
+
+    gap, step, masked = 2 * dr.recon_loiter_radius_m, dr.recon_grid_m, dict(looked)
+    for p in chosen:
+        for x in ops.span(p.x, gap, step):
+            for y in ops.span(p.y, gap, step):
+                if math.hypot(x - p.x, y - p.y) < gap:
+                    masked[ops.cell_key(x, y)] = now
+    return masked
+
+
+def _unseen(
+    view: SideView, tr: TaskingRules, dr: DirectorRules, looked: Mapping[str, int], now: int,
+    p: Vec2,
+) -> bool:  # fmt: skip
+    """No sensor of the side covered the cell at `p` (`looked`, keyed by `operations.cell_key`),
+    and no track of the side within `director.recon.loiter_radius_m` of it is fresher (a current
+    one has age 0), for `tasking.scout_sector_stale_min` (item 203)."""
+    from nexus.core.operations import cell_key  # import cycle: operations imports this module
+
+    stale = tr.scout_sector_stale_ticks
+    seen = looked.get(cell_key(p.x, p.y))
+    if seen is not None and now - seen < stale:
+        return False
+    return not any(
+        (t.age or 0) < stale
+        and math.hypot(t.pos.x - p.x, t.pos.y - p.y) <= dr.recon_loiter_radius_m
+        for t in (*view.tracks.values(), *view.last_known.values())
+    )
 
 
 def _patrol(

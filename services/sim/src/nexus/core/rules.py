@@ -232,6 +232,9 @@ class TaskingRules:
     join_excluded_jobs: frozenset[JobKind]  # tasking.join_excluded_jobs: a bare JOIN never takes
     scout_blob_runs: int  # SIGINT refreshes a blob must stay in a cell before a scout is posted
     scout_urgency_milli: Mapping[str, int]  # by blob size S / M / L, in thousandths
+    scout_sector_points: int  # coalition point scout jobs per sector; 0: off (NX-512)
+    scout_sector_stale_ticks: int  # a point is posted only when unseen this long (Q-SIM-134)
+    scout_sector_urgency_milli: int  # a sector scout job's urgency, in thousandths
     strike_urgency_per_threat_milli: int  # urgency a facility's `threat` point adds, thousandths
     strike_max_scaled_slots: (
         int  # extra strike slots for idle armed viewer units, at most (Q-SIM-92)
@@ -627,11 +630,13 @@ def tasking_rules(
     patrol_dwell_ticks: int,
     order_dwell_ticks: int,
     retake_keep_ticks: int,
+    scout_sector_stale_ticks: int,
 ) -> TaskingRules:
     """The tick counts are `cfg`'s game-time keys already converted by the config loader. Raises
     ValueError when the stocking urgency rounds to 0 thousandths, or a front-line stocking job
     could reach 1000 thousandths (1.0), the least a starving or damaged base's job has
-    (Q-SIM-100: those always rank first). Checked on the stored thousandths, after rounding."""
+    (Q-SIM-100: those always rank first), or the sector scout urgency rounds to 0 thousandths.
+    Checked on the stored thousandths, after rounding."""
     stock_urgency = round(Fraction(repr(cfg.stock_urgency)) * 1000)
     front_bonus = round(Fraction(repr(cfg.stock_front_bonus)) * 1000)
     if stock_urgency < 1 or front_bonus < 0 or stock_urgency + front_bonus >= 1000:
@@ -639,6 +644,9 @@ def tasking_rules(
             "tasking.stock_urgency must be at least 0.001 and tasking.stock_urgency + "
             "tasking.stock_front_bonus must stay below 1.0, in whole thousandths"
         )
+    sector_urgency = round(Fraction(repr(cfg.scout_sector_urgency)) * 1000)
+    if sector_urgency < 1:
+        raise ValueError("tasking.scout_sector_urgency must be at least 0.001")
     return TaskingRules(
         reeval_every_ticks=cfg.reeval_every_ticks,
         claim_lease_ticks=claim_lease_ticks,
@@ -669,6 +677,9 @@ def tasking_rules(
         scout_urgency_milli={
             k[0].upper(): round(Fraction(repr(v)) * 1000) for k, v in cfg.scout_urgency
         },
+        scout_sector_points=cfg.scout_sector_points,
+        scout_sector_stale_ticks=scout_sector_stale_ticks,
+        scout_sector_urgency_milli=sector_urgency,
         strike_urgency_per_threat_milli=round(Fraction(repr(cfg.strike_urgency_per_threat)) * 1000),
         strike_max_scaled_slots=cfg.strike_max_scaled_slots,
         strike_idle_targets_max=cfg.strike_idle_targets_max,

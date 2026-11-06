@@ -232,6 +232,7 @@ def run(
         newbies,
         kinds={v.commander_id: v.kind for v in crowd.viewers},
         a2_min_tier=data.targets.a2_min_tier,
+        a2_refresh_ticks=round(data.targets.a2_refresh_unseen_game_min * 60 * hz),
         tick_hz=hz,
         sample_ticks=max(1, round(data.momentum_sample_s * hz)),
         a3_ticks=round(data.targets.a3_hours * 3600 * hz),

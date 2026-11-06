@@ -92,6 +92,7 @@ targets:
   steamroll_late_stock_frac: 0.10  # ... or last-third Static stock under 10% of its start stock
   steamroll_min_signals: 3       # steamroll when S1 and S2 fire, or this many of S1 to S4 fire
   a2_min_tier: ALPHA      # Q-SIM-93: A2 counts only newbies who arrive at this Static tier or above
+  a2_refresh_unseen_game_min: 30  # Q-SIM-134 (owner, 2026-11-05): a newbie scout re-finding an enemy no coalition sensor tracked for 30 game min is an impact (last-known is not tracked)
   a2_max_s: 480           # Q-SIM-97 (owner, 2026-10-23): the median time to first impact is at most 8 min (a sortie, SIM-CORE world scale)
   a2_tail_s: 900          # Q-SIM-97: a newbie still without an impact after 15 min is "in the tail"
   a2_tail_share: 0.10     # Q-SIM-97: at most 10% of newbies may be in the tail
