@@ -121,10 +121,10 @@ def _solo(a: dict[str, Any], b: dict[str, Any]) -> Verdict:
     name = f"solo-1 Static NodeDefensesDown/h, median seed, >= {SOLO_MIN_RATIO:g}x (A on / B off)"
     if "solo-1" not in b["profiles"]:
         return Verdict(name, NOT_MEASURED, "no solo-1 in the reports", True)
-    rates = [_rates(x) for x in (a, b)]
-    if rates[0] is None or rates[1] is None:
+    on, off = _rates(a), _rates(b)
+    if on is None or off is None:
         return Verdict(name, NOT_MEASURED, "a seed has no defenses-down count or hours run", True)
-    ra, rb = (statistics.median(r) for r in rates)
+    ra, rb = statistics.median(on), statistics.median(off)
     ok = ra > 0 and ra >= SOLO_MIN_RATIO * rb
     ratio = "inf" if rb == 0 and ra > 0 else "n/a" if rb == 0 else f"{ra / rb:.2f}x"
     return Verdict(
