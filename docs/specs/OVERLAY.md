@@ -114,6 +114,45 @@ Approved by the owner with the lead defaults (2026-11-04, Q-UX-22). Owner decisi
 - **Perf (OV-10):** p95 < 12 ms at 1,000 entities with the static layer outside the frame loop; PROPOSED split: units 6 ms, FX 3 ms, interpolation 2 ms, 1 ms slack.
 - **Not built here:** PiP (OV-6), 9:16 (OV-11), sectors, grid references and compass (§2a; sectors are not on the wire), supply flow (§3), altitude, follower and AUTO tags (OV-17, OV-2a), SPOTTED and painted markers (OV-18), curved roads (Q-VIZ-2), NOE visuals (Q-VIZ-4).
 
+### 0.11 Final hours (NX-515, Q-UX-23)
+> **Status: Draft, needs owner sign-off.** Not covered by the §0 approval. Every number here is PROPOSED.
+
+Owner, 2026-11-05 (Q-UX-23): keep the 72 h limit and make a points finish a visible climax with "final hours" sitreps and a countdown push. **No rule change:** the time-limit score (GAMEPLAY.md:1153-1154, STATE-MACHINES-AND-FLOWS.md:245-246) is untouched. Background: a prime-50 war ends on points after a 72 h grind with no last stand (`docs/review/ENTERTAINMENT-NX-378-LOWCROWD-2026-11-05.md`).
+- **Clock source:** only the §0.5 war countdown, remaining = `campaign_clock.limit_ticks` − `elapsed_ticks`, advanced and re-based as in §0.9. Both count running ticks only (CONTRACTS §7 `Hud`), so paused time never counts down (Q-ALN-2, GAMEPLAY.md:1147-1148); a defeat-run or hold pause is not a sim pause and the clock runs through it (GAMEPLAY.md:1136, :1394). `limit_ticks` null: no final-hours behaviour at all.
+- **Phases (PROPOSED, game time):** FH-1 at T−6 h, FH-2 at T−1 h, FH-3 at T−10 min, to the end. Constants in code until an overlay config key exists (as `ROTATION_S`, §0.9). A threshold fires once per campaign, on the first update whose remaining is at or below it while `paused` is false. Hysteresis: a re-base that lifts remaining back over a threshold by less than PROPOSED 30 s does not re-arm it (the ≤ 1 s Hud delay of §0.9 must not fire it twice).
+- **Extension:** an owner or Admin extension (GAMEPLAY.md:1151) shows up only as a larger `limit_ticks`. When remaining rises above a threshold (plus hysteresis), the phase drops back and that threshold re-arms, so the climax plays at the new end. No "war extended" line: no event carries the extension to the overlay.
+
+**Countdown push (top bar, OV-12).** Each phase adds shape and word, colour only repeats them (OV-3):
+- **FH-1:** a "FINAL HOURS" label beside the countdown and a bracket frame round it; amber text.
+- **FH-2:** the countdown grows (PROPOSED 28 to 40 px; the bar keeps its height, the objective column narrows first) and the frame becomes a filled amber chip with dark text. Below one hour §0.9 already shows m:ss.
+- **FH-3:** a double frame and the label "FINAL MINUTES". No pulse or other looping motion (as OV-26); the ticking seconds are the motion.
+- **Threshold banner:** at each threshold, a centre-of-map banner ("FINAL 6 HOURS", "FINAL HOUR", "FINAL 10 MINUTES") for PROPOSED 5 s of real time, in the toast layer of §0.6 (above the OV-26 stack, below the §0.3 banners), never over OV-12. Not shown while paused, nor on load or reconnect (the push state is restored from the clock without a banner). A STAFF "PAUSED, stand by" banner (OV-21) always wins.
+- **Expired:** at 00:00 the countdown holds (§0.9) and says nothing about the result until `CampaignEnded` arrives.
+- **9:16 (OV-11, OV-15, not built):** the war countdown is not in the OV-15 persistent set; from FH-1 it joins the persistent HUD, with the same push and the banner across the full width.
+
+**Final-hours sitreps (OV-26 stack).** One new overlay-derived card, not a `ThreatAdaptation` event:
+- **Tier and priority:** tier word FINAL HOURS, its own shape (an hourglass) and the one double-outlined card, white text on the dark ground (ALERT keeps amber). Order: LAST STAND, FINAL HOURS, ALERT, WIN, INTEL, EASING. A sanctuary at risk still outranks the clock; the countdown push carries the climax even if the card waits behind "+N more".
+- **Slot and life:** one slot; each threshold's card replaces the last. Life in game ticks like OV-26: 60 s for FH-1 and FH-2; FH-3's card stays until the end. On load or reconnect inside a phase, that phase's card is shown once with a fresh life.
+- **Lines (wording PROPOSED):** kicker "FINAL HOURS · 6 h left" (or "1 h left", "10 min left"). Line 1: "Points decide the war: hold strategic nodes to the end." Line 2, from data already on the wire: "Coalition holds <nodes_held> of <nodes_total> strategic nodes" (`Hud.nodes_held`, `nodes_total`; "—" when absent or `nodes_total` is 0, as §0.9; DI-1).
+- **Who leads on points is not on the wire.** `Hud` carries no score, and `momentum_pct` and the node counts are not the score: it also weighs each side's average node share over the whole campaign and completed objectives (GAMEPLAY.md:1153), and the overlay keeps no history (a reconnect loses it). So the card never says who leads until the owner approves Q-FH-1. With it, line 2 becomes "Coalition leads on points, <c> to <e>" (or "NULL leads …", or "Points level at <c>" when the two integers are equal).
+- **Ticker:** unchanged. `Hud.ticker` items are server-built (WP-6); the overlay adds none.
+
+**Ending early, and the end.** `CampaignEnded` in `Delta.events` (any result) clears the push, the banner and the card at once and hands over to the war-end sequence (Q-UX-8, GAMEPLAY.md:1156-1157: victory or "SIGNAL LOST" moment, AAR, briefing loop), which is not specified in this file yet. The winner and score shown there come only from `CampaignEnded.winner` and `score`, never from the overlay. A new `campaign_id` resets every fired threshold, like OV-26's clear rule.
+
+**What is computed where.** Phases, push, banner and card are overlay-only, from `Hud` and `Delta`; no new event, no sim change. Only Q-FH-1 touches the contract: a `Hud` field (proposed `time_limit_score: {coalition: int, enemy: int}|null`, rounded half up, null without campaign rules) filled in `nexus.broadcast.frames` (`FrameBuilder.hud`, `frames.py:214`) by the existing read-only `nexus.core.campaign.scores()` (`services/sim/src/nexus/core/campaign.py:134`), the same way the builder already calls `momentum()` (`frames.py:218`). That is a schema change, `make contracts` and a protocol bump; no kernel code changes and no determinism exception is needed. It shows no hidden data: the score is built from strategic-node ownership, which `NodeView.owner` already shows to the public, and `CampaignEnded.score` is public. CONTRACTS §7 is edited only after sign-off.
+
+**Failure modes.** A missed threshold (the overlay was down): the reconnect restores the phase and card, no banner. A wrong or late Hud: thresholds follow the interpolated clock and can be off by up to 1 s (§0.9). Paused across a threshold: nothing fires until the first running update below it. `limit_ticks` null or the campaign layer off: no push, no card. A campaign that ends at 00:00 but whose `CampaignEnded` is late: the countdown holds at 00:00 with FH-3 shown.
+
+**Tests (Vitest, `apps/overlay/src/__tests__/final-hours.test.ts`).** FH-T1 each threshold fires once, at or below its value. FH-T2 no fire while paused; fires on the first running update after. FH-T3 a re-base under the hysteresis does not re-fire. FH-T4 an extension drops the phase and re-arms. FH-T5 load or reconnect inside a phase: push and card, no banner. FH-T6 `CampaignEnded` (each result) clears everything; a new `campaign_id` resets. FH-T7 stack order puts FINAL HOURS under LAST STAND and over ALERT. FH-T8 `limit_ticks` null and `nodes_total` 0 show nothing and "—". Hand-reviewed screenshots of each phase at 16:9 (as NX-496). With Q-FH-1: pytest in `services/sim/tests/broadcast/test_frames.py` that the field equals `scores()` rounded, and at the end tick matches `CampaignEnded.score` rounded.
+
+**Size.** Overlay part S (about 150 to 200 lines of source plus tests). Q-FH-1 adds XS (one schema field, one builder line, one test, generated types).
+
+**Open questions for the owner (each with a recommendation; local ids until filed in OPEN-QUESTIONS).**
+- **Q-FH-1** Show who leads on points? (a) add `Hud.time_limit_score` as above; (b) node counts only, no leader; (c) score on the AAR only. **Recommend (a):** a points finish is only a climax if chat can see the race; it is public data and needs no kernel change.
+- **Q-FH-2** Thresholds T−6 h, T−1 h, T−10 min? **Recommend yes** (six hours covers a full evening stream; the last ten minutes are the finish).
+- **Q-FH-3** Make the war countdown persistent at 9:16 from FH-1? **Recommend yes.**
+- **Q-FH-4** Should TTS read FH-2 and FH-3 (AUDIO-TTS's "big moments" list does not include them)? **Recommend yes, later, with the TTS work (NX-225 to NX-232);** text only in NX-515.
+
 ## 1. Layout (1920×1080; 16:9)
 ```
 ┌───────────────────────────────────────────────────────────────────────────┐
