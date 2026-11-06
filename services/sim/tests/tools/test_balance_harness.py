@@ -4875,3 +4875,12 @@ def test_soak_replays_with_the_runs_rng_profile_not_the_profile_name(
     assert soak.main(argv) == 0
     doc = json.loads((tmp_path / "o" / "soak.json").read_text())
     assert seen == ["prime-50"] and doc["replay"]["mismatches"] == [] and doc["pass"]
+
+
+def test_static_defenses_down_counts_only_static_owned_nodes(collector: metrics.Collector) -> None:
+    """NX-511 solo check: the per-seed `static_defenses_down` (GAMEPLAY §1b item 253)."""
+    collector.feed([
+        NodeDefensesDown.model_construct(kind="NodeDefensesDown", tick=t, node_id="n", owner=o)
+        for t, o in ((1, "ENEMY"), (2, "COALITION"), (3, "ENEMY"))
+    ])  # fmt: skip
+    assert collector.result(10)["static_defenses_down"] == 2
