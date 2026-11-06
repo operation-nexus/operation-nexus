@@ -88,13 +88,10 @@ class TestTier1FeatureCoverage(unittest.TestCase):
 
     # --- Feature R1: Tooling, Scripting & Automation Gap Resolution ---
 
-    def test_tier1_r1_dted_allowlist(self) -> None:
-        """Feature 1: scripts/check_tracked_files.py allowlists content/theaters/dted/."""
+    def test_tier1_r1_dted_not_tracked(self) -> None:
+        """Feature 1: terrain bakes in content/theaters/dted/ are gitignored, so check_tracked_files passes."""
         script_path = REPO_ROOT / "scripts" / "check_tracked_files.py"
         self.assertTrue(script_path.is_file(), f"Missing {script_path}")
-
-        content = script_path.read_text(encoding="utf-8")
-        self.assertIn("content/theaters/dted/", content, "DTED directory must be allowlisted")
 
         res = run_cmd([sys.executable, str(script_path)])
         self.assertEqual(
@@ -713,23 +710,11 @@ class TestTier2BoundaryAndCornerCases(unittest.TestCase):
 
     def test_tier2_r3_threat_condition_transitions(self) -> None:
         """R3 Boundary 4: Threat Director condition states validate allowed values."""
-        telemetry_file = REPO_ROOT / "apps" / "overlay" / "src" / "types" / "telemetry.ts"
-        self.assertTrue(telemetry_file.is_file())
-        code = telemetry_file.read_text(encoding="utf-8")
-
-        # Threat tiers from OVERLAY.md
-        self.assertTrue(
-            "PATTERN_OF_LIFE" in code or "NOMINAL" in code,
-            "Calm/nominal threat condition required",
-        )
-        self.assertTrue(
-            "CONDITION_ALPHA" in code or "ELEVATED" in code,
-            "Elevated/alpha threat condition required",
-        )
-        self.assertTrue(
-            "CONDITION_BRAVO" in code or "CRITICAL" in code,
-            "Critical/bravo threat condition required",
-        )
+        # The overlay's ThreatTier type is generated from this enum (NX-423).
+        enums_file = REPO_ROOT / "contracts" / "common" / "enums.json"
+        self.assertTrue(enums_file.is_file())
+        enums = json.loads(enums_file.read_text(encoding="utf-8"))
+        self.assertEqual(enums["$defs"]["ThreatTier"]["enum"], ["PATTERN_OF_LIFE", "ALPHA", "BRAVO"])
 
     def test_tier2_r3_paused_simulation_state(self) -> None:
         """R3 Boundary 5: Paused simulation state freezes dead reckoning while keeping overlay alive."""
