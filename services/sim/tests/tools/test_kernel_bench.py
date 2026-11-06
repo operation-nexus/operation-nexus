@@ -131,3 +131,15 @@ def test_the_table_labels_the_largest_tick_as_combined_only_with_frames(
     out = capsys.readouterr().out
     assert "  largest combined (tick)" in out and "  largest (tick)" not in out
 
+
+def test_the_script_exits_1_exactly_when_the_sc10_line_says_fail() -> None:
+    """The budget is a constant with no flag, so the verdict (a host's speed) is not forced: the
+    exit code must match the printed line either way."""
+    script = Path(kernel_bench.__file__)
+    args = ["--ladder", "60", "--ticks", "5", "--scene", "mixed", "--settle", "1", "--frames"]
+    run = subprocess.run(  # noqa: S603  # our own script, fixed args
+        [sys.executable, str(script), *args], capture_output=True, text=True, timeout=120
+    )
+    (line,) = [ln for ln in run.stdout.splitlines() if "SC-10:" in ln]
+    assert line.endswith(("PASS", "FAIL"))
+    assert run.returncode == (1 if line.endswith("FAIL") else 0), run.stderr
