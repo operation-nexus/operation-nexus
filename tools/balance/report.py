@@ -9,7 +9,15 @@ from collections import Counter
 from typing import Any
 
 import steamroll
-from metrics import CAPTURE_OPS, DOWN_CAUSES, EARLY_HOURS, FUNNEL_STEPS, OFFENSIVE, ROUTINE_JOBS
+from metrics import (
+    CAPTURE_OPS,
+    DOWN_CAUSES,
+    EARLY_HOURS,
+    FUNNEL_STEPS,
+    OFFENSIVE,
+    ROUTINE_JOBS,
+    WINGMEN_KEYS,
+)
 from profiles import Targets
 
 PASS, FAIL, NO_DATA = "pass", "fail", "no data"
@@ -766,6 +774,44 @@ def _retire_line(r: dict[str, dict[str, int]] | None) -> str:
     )
 
 
+def _wingmen_lines(profiles: dict[str, Any]) -> list[str]:
+    """NX-511: the per-seed wingmen table and what it counts."""
+    lines = _table(
+        ["Profile", "Seed", *WINGMEN_KEYS],
+        [
+            [
+                n,
+                str(p["seed"]),
+                *("-" if p["wingmen"] is None else str(p["wingmen"][k]) for k in WINGMEN_KEYS),
+            ]
+            for n, a in profiles.items()
+            for p in a["per_seed"]
+            if "wingmen" in p
+        ],
+    )
+    for n, a in profiles.items():
+        total = a.get("wingmen")
+        if total is not None:
+            note = f" ({total['not_measured']} not measured)" if total["not_measured"] else ""
+            body = (
+                "-"
+                if total["sum"] is None
+                else ", ".join(f"{k} {v}" for k, v in total["sum"].items())
+            )
+            lines.append(f"- {n}, summed over the seeds measured: {body}{note}")
+    lines.append("")
+    lines += [
+        "Counted from the events (`UnitSpawned` of a coalition AI_GARRISON unit of a wingmen "
+        "kind; `UnitDestroyed`; `UnitDespawned`; the `SupplyConsumed{SPAWN}` paid just before "
+        "each spawn) and, each tick, the world's flights and wingman cooldowns. `despawned_other` "
+        "is any despawn that is not RETIRED (a Disabled wingman removed as a wreck). Not measured: "
+        "flights refused or short (silent, item 255.6), and wingmen Disabled but still flying. "
+        "`-`: not measured (a run from before NX-511, or a failed one).",
+        "",
+    ]
+    return lines
+
+
 def _agency(runs: list[dict[str, Any]]) -> dict[str, Any]:
     """NX-321: tacticians and their picks by rule, summed over runs (an older file has none)."""
     picks: Counter[str] = Counter()
@@ -826,6 +872,24 @@ def _retirements(runs: list[dict[str, Any]]) -> dict[str, dict[str, int]]:
             for side, n in by_side.items():
                 out[k][side] = out[k].get(side, 0) + n
     return out
+
+
+def _wingmen(r: dict[str, Any]) -> dict[str, int] | None:
+    """NX-511: one run's wingmen counters; None (not measured, never 0) for a run from before it
+    or a failed one (a crash or a harness error keeps the counters it had, which are partial)."""
+    if r.get("crash") or r.get("harness_error"):
+        return None
+    got = r["metrics"].get("wingmen")
+    return None if not got else {k: got.get(k, 0) for k in WINGMEN_KEYS}
+
+
+def _wingmen_sum(runs: list[dict[str, Any]]) -> dict[str, Any]:
+    """The counters summed over the seeds that measured them, and how many did not."""
+    got = [w for r in runs if (w := _wingmen(r)) is not None]
+    return {
+        "sum": {k: sum(w[k] for w in got) for k in WINGMEN_KEYS} if got else None,
+        "not_measured": len(runs) - len(got),
+    }
 
 
 def _early_cell(h: dict[str, Any]) -> str:
@@ -906,6 +970,7 @@ def _per_seed(runs: list[dict[str, Any]], t: Targets) -> list[dict[str, Any]]:
             **_hold_seed(r["metrics"].get("economy", {"holds": []})),
             **_held_seed(r),
             "early_hours": r["metrics"].get("early_hours"),
+            "wingmen": _wingmen(r),
             **_who_seed(r),
         })  # fmt: skip
     return out
@@ -928,6 +993,7 @@ def aggregate(profile: str, runs: list[dict[str, Any]], t: Targets) -> dict[str,
         "seized_facilities": _seized(runs),
         "per_seed": _per_seed(runs, t),
         "retirements": _retirements(runs),
+        "wingmen": _wingmen_sum(runs),
         "density": _density(runs),
         "orders": _orders(runs),
         "economy": _economy(runs),
@@ -1623,7 +1689,9 @@ def markdown(report: dict[str, Any]) -> str:
     lines += [f"- {n}: {a['tier_dwell_h_mean']}" for n, a in report["profiles"].items()]
     lines += ["", "## Retirements (NX-504, summed over the seeds)", ""]
     lines += [f"- {n}: {_retire_line(a.get('retirements'))}" for n, a in report["profiles"].items()]
-    lines += ["", "## Runs", ""]
+    lines += ["", "## AI wingmen (NX-511, GAMEPLAY §1b item 253)", ""]
+    lines += _wingmen_lines(report["profiles"])
+    lines += ["## Runs", ""]
     lines += _table(
         ["Profile", "Seed", "Ticks", "Outcome", "Wall s", "Ticks/s", "Final state hash"],
         [

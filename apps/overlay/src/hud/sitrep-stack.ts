@@ -4,6 +4,7 @@ import type { PublicEvent } from "../contracts/wire/hud";
 import type { Event } from "../contracts/events/event";
 import type { FinalHoursCard } from "./final-hours";
 import { h } from "./topbar";
+import type { WingmenFeed } from "./wingmen";
 import {
   sitrepLines,
   ThreatSitrepBoard,
@@ -56,6 +57,7 @@ export class SitrepStack {
     private callsign: (id: number) => string | undefined,
     private names: () => NameLookup,
     private finalHours: (tick: number) => FinalHoursCard | null = () => null,
+    private wing: WingmenFeed | null = null,
   ) {}
 
   /** Events from a Delta; `tick` is the store tick (game time, so a paused world keeps its cards). */
@@ -66,7 +68,11 @@ export class SitrepStack {
 
   render(tick: number): void {
     const view = placeFinalHours(this.board.view(tick), this.finalHours(tick));
-    const sig = `${view.shown.map((i) => (i.kind === "final" ? `FH${i.card.phase}:${i.card.kicker}:${i.card.lines.join("|")}` : `${i.entry.key}#${i.entry.event.event_seq}`)).join(",")}|${view.hiddenCount}`;
+    // NX-511: wingmen lines are the lowest priority: they fill only the slots the threat and FINAL HOURS
+    // cards leave free, and never count in "+N more" (a hidden wing line is not a hidden threat).
+    const wing = this.wing?.view(tick) ?? [];
+    const wings = wing.slice(0, Math.max(0, MAX_SHOWN - view.shown.length));
+    const sig = `${view.shown.map((i) => (i.kind === "final" ? `FH${i.card.phase}:${i.card.kicker}:${i.card.lines.join("|")}` : `${i.entry.key}#${i.entry.event.event_seq}`)).join(",")}|${wings.map((w) => w.key).join(",")}|${view.hiddenCount}`;
     if (sig === this.sig) return;
     this.sig = sig;
     const d = this.doc;
@@ -95,6 +101,13 @@ export class SitrepStack {
       if (l.credit !== null) h(d, "div", "nx-line nx-credit", body, l.credit);
       return card;
     });
+    for (const w of wings) {
+      const card = h(d, "div", "nx-card nx-tier-WING");
+      h(d, "i", "nx-shape circle", card).setAttribute("aria-hidden", "true");
+      const body = h(d, "div", "nx-card-body", card);
+      h(d, "div", "nx-line", body, w.text);
+      cards.push(card);
+    }
     if (view.hiddenCount > 0)
       cards.push(
         h(d, "div", "nx-more", undefined, `+${view.hiddenCount} more`),

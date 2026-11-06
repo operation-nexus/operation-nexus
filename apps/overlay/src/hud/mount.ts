@@ -9,6 +9,7 @@ import { FinalHours } from "./final-hours";
 import { Rotator } from "./rotator";
 import { SitrepStack } from "./sitrep-stack";
 import { TopBar, h, setText } from "./topbar";
+import { WingmenFeed } from "./wingmen";
 
 export interface HudView {
   frame: (f: Snapshot | Hud | Delta, store: WireStore) => void;
@@ -35,12 +36,14 @@ export function mountHud(
   const fh = new FinalHours();
   const banner = h(doc, "div", "nx-fh-banner", stage.toast);
   banner.hidden = true;
+  const wing = new WingmenFeed();
   const stack = new SitrepStack(
     doc,
     stage.sitrep,
     (id) => store().entities.get(id)?.callsign ?? undefined,
     names,
     (tick) => fh.cardAt(tick),
+    wing,
   );
   bar.render(null, clock, fh); // cold start: every field "—" (§0.3, DI-1)
   return {
@@ -49,6 +52,7 @@ export function mountHud(
         clock.advance(f.tick);
         fh.ingest(f.events);
         fh.update(s.hud, clock.warRemaining(), s.tick, Date.now());
+        wing.ingest(f.events, s.entities);
         stack.ingest(f.events, f.tick);
       } else {
         // Rebase only from a frame that carries a Hud; a Snapshot without one keeps the old clock basis.
