@@ -68,6 +68,7 @@ Rules only. Narration, history, decision trails, examples and derived numbers: [
 15. **Asymmetry, capture jobs (Q-TD-14):** `CAPTURE` jobs exist only on the Static's board in the first build; coalition captures stay player-driven (`!join logi <node>`, free orders, the objective), and the coalition AI garrison never initiates offense.
 16. **Sole exception, the retake job (owner, 2026-10-28, Q-TD-94 (b), Q-TD-99; NX-475, in code):** the coalition board posts one `retake:<node>` CAPTURE job on a start node it lost (§1b), so a quiet stream that lost every base has assigned work to win ground back.
 17. Every other coalition capture stays player-driven.
+   - **Asymmetry, AI wingmen (Q-GP-50, NX-511; Draft):** coalition only. Up to N [AI] strike fighters fly with a viewer's STRIKE claim, fading to none at `capture.quiet_ref`; a human starts every flight (§1b items 239–255).
 
 18. **Asymmetry, quiet-stream capture (Q-SIM-26):** the `quiet_mult` easing in §8 applies to the coalition only.
 19. Applying it to the Static would make a quiet stream easier for the enemy as well, which defeats its purpose.
@@ -128,7 +129,8 @@ Rules only. Narration, history, decision trails, examples and derived numbers: [
 9. The garrison pulls from the same board, but only takes jobs no human has claimed, and releases them when an operator wants one (default; Q-CFG-16 option `tasking.human_displaces_ai`).
 10. **The AI garrison never initiates offense**: it takes defend, resupply (which also repairs facilities, Q-GP-47), scout and repair bridge jobs (rescue jobs join with CSAR, GAMEPLAY-LATER §6a; default; Q-CFG-16 option `tasking.ai_jobs`, in code DEFEND, RESUPPLY, SCOUT and REPAIR_BRIDGE), never escort or patrol jobs (Q-GP-45: escorting is the players' call; default; Q-CFG-16 option `tasking.ai_excluded_jobs`), and joins strike jobs only when a player started them (objective; later also a rally call or player-led flight).
 11. **Sole exception (Q-GD-31):** it may counterattack a node the coalition just lost, within a configurable window (PROPOSED ~15 min), using only units still able to fight (not Disabled or Destroyed).
-   - **No coalition unit yet (NX-378 review, 2026-11-05):** the coalition's AI garrison has no mobile combat unit (only its facilities and AI trucks; `garrison_quota` exists only on Static bases), so this counterattack and §1b item 233's "any other job once a COMMANDER holds a claim" have nothing to act with until NX-511 (AI wingmen, Q-GP-50) adds one.
+   - **No coalition unit yet (NX-378 review, 2026-11-05):** the coalition's AI garrison has no mobile combat unit (only its facilities and AI trucks; `garrison_quota` exists only on Static bases), so this counterattack and §1b item 233's "any other job once a COMMANDER holds a claim" have nothing to act with.
+   - NX-511's AI wingmen (items 239–255, Draft, Q-GP-50) are the "player-led flight" of item 10: they fly only on a viewer lead's STRIKE claim and never take a board job, so these two rules still have no unit after it.
 
 12. **Feasibility:** a unit only takes a job it can reach and complete with its current fuel and munitions.
 13. Otherwise it first takes a rearm/refuel step (nearest base with stock, Q-GD-17).
