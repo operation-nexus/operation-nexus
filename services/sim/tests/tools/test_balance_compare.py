@@ -43,7 +43,14 @@ def _report(overrides: list[str]) -> dict[str, Any]:
         "hours": 6.0,
         "profiles": {n: _profile(n, 6 if overrides else 12) for n in NAMES},
         "runs": [
-            {"profile": "overnight-0", "seed": s, "final_state_hash": f"h{s}", "ticks_run": 9}
+            {  # the raw hash holds the config hash, so it differs between the arms
+                "profile": "overnight-0",
+                "seed": s,
+                "final_state_hash": f"raw-{'b' if overrides else 'a'}-{s}",
+                "final_state_hash_sans_config": f"h{s}",
+                "ticks_run": 9,
+                "tick_hz": 10,
+            }
             for s in (1, 2, 3)
         ],
     }
@@ -99,15 +106,31 @@ def test_quiet5_holds_is_partial_at_best_and_fails_on_a_collapse() -> None:
     assert v.status == compare.FAIL and "[2]" in v.detail
 
 
-def test_overnight_state_hashes_must_match_per_seed() -> None:
+def test_overnight_compares_the_config_free_hash_not_the_raw_one() -> None:
     a, b = _pair()
+    assert a["runs"][0]["final_state_hash"] != b["runs"][0]["final_state_hash"]  # always differ
     assert _by_name(a, b)["overnight-0"].status == compare.PASS
-    b["runs"][2]["final_state_hash"] = "other"
+    b["runs"][2]["final_state_hash_sans_config"] = "other"
     v = _by_name(a, b)["overnight-0"]
     assert v.status == compare.FAIL and "[3]" in v.detail
     a, b = _pair()
-    a["runs"][0]["final_state_hash"] = b["runs"][0]["final_state_hash"] = None  # crashed run
+    b["runs"][1]["ticks_run"] = 8
     assert _by_name(a, b)["overnight-0"].status == compare.FAIL
+
+
+def test_overnight_is_not_measured_without_hashes_or_seeds() -> None:
+    a, b = _pair()
+    a["runs"][0]["final_state_hash_sans_config"] = None  # a crashed run
+    assert _by_name(a, b)["overnight-0"].status == compare.NOT_MEASURED
+    a, b = _pair()
+    del b["runs"][0]["final_state_hash_sans_config"]  # a report from before the hash
+    assert _by_name(a, b)["overnight-0"].status == compare.NOT_MEASURED
+    a, b = _pair()
+    a["runs"], b["runs"] = [], []  # no rows at all
+    assert _by_name(a, b)["overnight-0"].status == compare.NOT_MEASURED
+    a, b = _pair()
+    del a["runs"][2], b["runs"][2]  # fewer seeds than the report's
+    assert _by_name(a, b)["overnight-0"].status == compare.NOT_MEASURED
 
 
 @pytest.mark.parametrize("profile", compare.CROWDS)

@@ -284,6 +284,9 @@ def _headline(run: dict[str, Any]) -> dict[str, Any]:
         "wall_s": run["timing"]["wall_s"],
         "ticks_per_s": run["timing"]["ticks_per_s"],
         "final_state_hash": run["final_state_hash"],  # None for a crashed run
+        # None for a crashed run or one saved before NX-511's compare
+        "final_state_hash_sans_config": run.get("final_state_hash_sans_config"),
+        "tick_hz": run.get("tick_hz"),  # for compare.py's hours run
     }
 
 

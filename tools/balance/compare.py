@@ -102,22 +102,35 @@ def _solo(a: dict[str, Any], b: dict[str, Any]) -> Verdict:
 
 
 def _overnight(a: dict[str, Any], b: dict[str, Any]) -> Verdict:
+    """The config-free final hash (`runner.state_hash_sans_config`): the raw `state_hash` holds
+    the config hash, which differs between the arms by construction."""
     name = "overnight-0 byte-identical"
     if "overnight-0" not in b["profiles"]:
         return Verdict(name, NOT_MEASURED, "no overnight-0 in the reports")
-    rows = {
-        k: {(r["seed"]): (r["final_state_hash"], r["ticks_run"]) for r in x["runs"]
-            if r["profile"] == "overnight-0"}
-        for k, x in (("a", a), ("b", b))
-    }  # fmt: skip
-    diff = sorted(s for s in rows["a"] if rows["a"][s] != rows["b"].get(s))
-    if diff or any(h is None for h, _ in rows["a"].values()):
-        return Verdict(name, FAIL, f"final state hash or ticks differ (or missing) in seeds {diff}")
+    rows = [
+        {
+            r["seed"]: (r.get("final_state_hash_sans_config"), r["ticks_run"])
+            for r in x["runs"]
+            if r["profile"] == "overnight-0"
+        }
+        for x in (a, b)
+    ]
+    if any(sorted(r) != sorted(a["seeds"]) for r in rows):
+        return Verdict(
+            name, NOT_MEASURED, "overnight-0 runs missing for some of the report's seeds"
+        )
+    if any(h is None for r in rows for h, _ in r.values()):
+        return Verdict(
+            name, NOT_MEASURED, "a run has no config-free state hash (crash, old report)"
+        )
+    diff = sorted(s for s in rows[0] if rows[0][s] != rows[1][s])
+    if diff:
+        return Verdict(name, FAIL, f"config-free final state hash or ticks differ in seeds {diff}")
     return Verdict(
         name,
         PASS,
-        f"final state hash and ticks equal in {len(rows['a'])} seeds; event count and event hash "
-        "are not in report.json, so they are not judged",
+        f"config-free final state hash and ticks equal in {len(rows[0])} seeds; event count and "
+        "event hash are not in report.json, so they are not judged",
     )
 
 

@@ -4884,3 +4884,21 @@ def test_static_defenses_down_counts_only_static_owned_nodes(collector: metrics.
         for t, o in ((1, "ENEMY"), (2, "COALITION"), (3, "ENEMY"))
     ])  # fmt: skip
     assert collector.result(10)["static_defenses_down"] == 2
+
+
+def test_config_free_hash_matches_across_a_config_override(
+    tmp_path: Path, data: Data, shipped_config: CampaignConfig
+) -> None:
+    """NX-511 overnight-0 check: a real 0-viewer run under `tasking.wingmen_max=0` has another
+    raw `state_hash` (the config hash is in it) and the same config-free one."""
+    (path := tmp_path / "balance.yaml").write_text(
+        balance.override_balance(["tasking.wingmen_max=0"])
+    )
+    off = balance.load_campaign_config(balance.ConfigPaths(balance=path))
+    hours = TICKS / HZ / 3600
+    a = runner.run("overnight-0", 1, hours, tmp_path / "a", data, shipped_config)
+    b = runner.run("overnight-0", 1, hours, tmp_path / "b", data, off)
+    assert a["config_hash"] != b["config_hash"]
+    assert a["final_state_hash"] != b["final_state_hash"]
+    assert a["final_state_hash_sans_config"] == b["final_state_hash_sans_config"]
+    assert a["final_state_hash_sans_config"] != a["final_state_hash"]
