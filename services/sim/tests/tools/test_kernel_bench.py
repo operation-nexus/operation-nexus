@@ -79,8 +79,10 @@ def test_the_frames_flag_times_the_frame_build_and_a_snapshot_every_tick(tmp_pat
     """NX-170c smoke: no timing assertion (the 25 ms budget is judged on the reference host)."""
     out = tmp_path / "f.json"
     res: Any = kernel_bench.main(
-        ["--ladder", "100", "--ticks", "30", "--scene", "mixed", "--viewers", "40", "--frames"]
-        + ["--settle", "5", "--out", str(out)]
+        [
+            *("--ladder", "100", "--ticks", "30", "--scene", "mixed", "--viewers", "40"),
+            *("--frames", "--settle", "5", "--out", str(out)),
+        ]
     )
     assert res["frame_build_counted"] is True and res["snapshot_every"] == 1
     (r,) = res["rungs"]
