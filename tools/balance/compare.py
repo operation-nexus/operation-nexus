@@ -2,11 +2,11 @@
 
   python tools/balance/compare.py A/report.json B/report.json
 
-Arm A is the default run, arm B the same sha and seeds with `--set tasking.wingmen_max=2` (the
-wingmen on). Prints the item 253 verdicts `report.json` can answer, and says plainly which part it
-cannot. Refuses (exit 2) reports from different shas, an unknown or dirty sha, different profile
-sets, profiles.yaml digests, seeds or hours, or identical overrides. Exit 1 when a verdict fails,
-else 0. Every threshold is the spec's; PROPOSED ones are marked so in the output."""
+Arm A is the default run (`tasking.wingmen_max` 2, the wingmen on), arm B the same sha and
+seeds with `--set tasking.wingmen_max=0` (off). Prints the item 253 verdicts `report.json` can
+answer, and says plainly which part it cannot. Refuses (exit 2) reports from different shas, an
+unknown or dirty sha, different profile sets, profiles.yaml digests, seeds or hours, or identical
+overrides. Exit 1 when a verdict fails, else 0. Every threshold is the spec's; PROPOSED ones are marked so in the output."""
 
 import json
 import statistics
@@ -60,21 +60,23 @@ def refuse_unless_comparable(a: dict[str, Any], b: dict[str, Any]) -> None:
         raise ValueError("the arms have the same overrides: nothing to compare")
 
 
-def _quiet5(b: dict[str, Any]) -> Verdict:
+def _quiet5(a: dict[str, Any]) -> Verdict:
     name = "quiet-5 holds start"
-    p = b["profiles"].get("quiet-5")
+    p = a["profiles"].get("quiet-5")
     if p is None:
         return Verdict(name, NOT_MEASURED, "no quiet-5 in the reports")
     a1 = p["A1"]
     bad = [s["seed"] for s in a1["seeds"] if not s["good"]]
     if not a1["low_crowd"] or bad:
         return Verdict(
-            name, FAIL, f"A1 low-crowd no-collapse fails in seeds {bad or 'all'} (arm B)"
+            name,
+            FAIL,
+            f"A1 low-crowd no-collapse fails in seeds {bad or 'all'} (arm A, wingmen on)",
         )
     return Verdict(
         name,
         PARTIAL,
-        "A1 no-collapse passes in every seed (arm B); 'median seed ends holding the start "
+        "A1 no-collapse passes in every seed (arm A, on); 'median seed ends holding the start "
         "nodes' is not in report.json (no end-of-run strategic count), so it is not judged",
     )
 
@@ -85,15 +87,17 @@ def _rate(p: dict[str, Any], hours: float) -> float | None:
 
 
 def _solo(a: dict[str, Any], b: dict[str, Any]) -> Verdict:
-    name = f"solo-1 Static NodeDefensesDown/h, median seed, >= {SOLO_MIN_RATIO:g}x (B / A)"
+    name = f"solo-1 Static NodeDefensesDown/h, median seed, >= {SOLO_MIN_RATIO:g}x (A on / B off)"
     if "solo-1" not in b["profiles"]:
         return Verdict(name, NOT_MEASURED, "no solo-1 in the reports", True)
     ra, rb = (_rate(r["profiles"]["solo-1"], r["hours"]) for r in (a, b))
     if ra is None or rb is None:
         return Verdict(name, NOT_MEASURED, "a seed has no static_defenses_down count", True)
-    ok = rb > 0 and rb >= SOLO_MIN_RATIO * ra
-    ratio = "inf" if ra == 0 and rb > 0 else "n/a" if ra == 0 else f"{rb / ra:.2f}x"
-    return Verdict(name, PASS if ok else FAIL, f"A {ra:.2f}/h, B {rb:.2f}/h, ratio {ratio}", True)
+    ok = ra > 0 and ra >= SOLO_MIN_RATIO * rb
+    ratio = "inf" if rb == 0 and ra > 0 else "n/a" if rb == 0 else f"{ra / rb:.2f}x"
+    return Verdict(
+        name, PASS if ok else FAIL, f"A on {ra:.2f}/h, B off {rb:.2f}/h, ratio {ratio}", True
+    )
 
 
 def _overnight(a: dict[str, Any], b: dict[str, Any]) -> Verdict:
@@ -125,9 +129,9 @@ def _crowd(a: dict[str, Any], b: dict[str, Any], profile: str) -> Verdict:
     la, lb = pa["A1"]["median_length_h"], pb["A1"]["median_length_h"]
     if moved:
         return Verdict(name, FAIL, f"verdict changed: {moved}", True)
-    if not la or lb is None:
+    if not lb or la is None:
         return Verdict(name, NOT_MEASURED, f"verdicts equal; median length A {la}, B {lb}", True)
-    shift = abs(lb - la) / la
+    shift = abs(la - lb) / lb
     status = PASS if shift < LENGTH_SHIFT_MAX else FAIL
     return Verdict(
         name, status, f"verdicts equal; length A {la:.2f} h, B {lb:.2f} h ({shift:.1%})", True
@@ -145,7 +149,7 @@ def wingmen_lines(a: dict[str, Any], b: dict[str, Any]) -> list[str]:
 def verdicts(a: dict[str, Any], b: dict[str, Any]) -> list[Verdict]:
     refuse_unless_comparable(a, b)
     return [
-        _quiet5(b), _solo(a, b), _overnight(a, b), *(_crowd(a, b, p) for p in CROWDS)
+        _quiet5(a), _solo(a, b), _overnight(a, b), *(_crowd(a, b, p) for p in CROWDS)
     ]  # fmt: skip
 
 

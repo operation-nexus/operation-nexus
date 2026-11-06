@@ -41,7 +41,7 @@ def _report(overrides: list[str]) -> dict[str, Any]:
         },
         "seeds": [1, 2, 3],
         "hours": 6.0,
-        "profiles": {n: _profile(n, 12 if overrides else 6) for n in NAMES},
+        "profiles": {n: _profile(n, 6 if overrides else 12) for n in NAMES},
         "runs": [
             {"profile": "overnight-0", "seed": s, "final_state_hash": f"h{s}", "ticks_run": 9}
             for s in (1, 2, 3)
@@ -50,17 +50,17 @@ def _report(overrides: list[str]) -> dict[str, Any]:
 
 
 def _pair() -> tuple[dict[str, Any], dict[str, Any]]:
-    return _report([]), _report(["tasking.wingmen_max=2"])
+    return _report([]), _report(["tasking.wingmen_max=0"])
 
 
 def _by_name(a: dict[str, Any], b: dict[str, Any]) -> dict[str, Any]:
     return {v.name.split()[0]: v for v in compare.verdicts(a, b)}
 
 
-def _solo(a_downs: int, b_downs: int) -> str:
+def _solo(off: int, on: int) -> str:
     a, b = _pair()
-    a["profiles"]["solo-1"] = _profile("solo-1", a_downs)
-    b["profiles"]["solo-1"] = _profile("solo-1", b_downs)
+    a["profiles"]["solo-1"] = _profile("solo-1", on)
+    b["profiles"]["solo-1"] = _profile("solo-1", off)
     return str(_by_name(a, b)["solo-1"].status)
 
 
@@ -73,18 +73,18 @@ def test_solo_needs_at_least_double_in_the_median_seed() -> None:
 
 def test_solo_uses_the_median_seed_and_per_hour_over_the_run_hours() -> None:
     a, b = _pair()
-    for r, counts in ((a, (1, 2, 3)), (b, (1, 4, 100))):
+    for r, counts in ((a, (1, 4, 100)), (b, (1, 2, 3))):
         r["profiles"]["solo-1"]["per_seed"] = [
             {"seed": i, "static_defenses_down": n} for i, n in enumerate(counts, 1)
         ]
     v = _by_name(a, b)["solo-1"]
     assert v.status == compare.PASS and v.proposed
-    assert "A 0.33/h, B 0.67/h" in v.detail  # medians 2 and 4 over 6 h
+    assert "A on 0.67/h, B off 0.33/h" in v.detail  # medians 2 and 4 over 6 h
 
 
 def test_solo_is_not_measured_without_the_count_or_the_profile() -> None:
     a, b = _pair()
-    b["profiles"]["solo-1"]["per_seed"][0].pop("static_defenses_down")
+    a["profiles"]["solo-1"]["per_seed"][0].pop("static_defenses_down")
     assert _by_name(a, b)["solo-1"].status == compare.NOT_MEASURED
     a, b = _pair()
     del a["profiles"]["solo-1"], b["profiles"]["solo-1"]
@@ -94,7 +94,7 @@ def test_solo_is_not_measured_without_the_count_or_the_profile() -> None:
 def test_quiet5_holds_is_partial_at_best_and_fails_on_a_collapse() -> None:
     a, b = _pair()
     assert _by_name(a, b)["quiet-5"].status == compare.PARTIAL
-    b["profiles"]["quiet-5"]["A1"]["seeds"][1]["good"] = False
+    a["profiles"]["quiet-5"]["A1"]["seeds"][1]["good"] = False
     v = _by_name(a, b)["quiet-5"]
     assert v.status == compare.FAIL and "[2]" in v.detail
 
@@ -119,9 +119,9 @@ def test_crowd_verdicts_must_not_change(profile: str) -> None:
     assert v.status == compare.FAIL and "A3" in v.detail and v.proposed
 
 
-def _shift(length_b: float) -> str:
+def _shift(length_a: float) -> str:
     a, b = _pair()
-    b["profiles"]["raid-300"]["A1"]["median_length_h"] = length_b
+    a["profiles"]["raid-300"]["A1"]["median_length_h"] = length_a
     return str(_by_name(a, b)["raid-300"].status)
 
 
@@ -135,7 +135,7 @@ def test_median_length_must_move_under_ten_percent() -> None:
 
 def test_length_is_not_measured_without_a_length() -> None:
     a, b = _pair()
-    a["profiles"]["raid-300"]["A1"]["median_length_h"] = None
+    b["profiles"]["raid-300"]["A1"]["median_length_h"] = None
     assert _by_name(a, b)["raid-300"].status == compare.NOT_MEASURED
 
 
