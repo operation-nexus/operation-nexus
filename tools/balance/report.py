@@ -876,7 +876,9 @@ def _retirements(runs: list[dict[str, Any]]) -> dict[str, dict[str, int]]:
 
 def _wingmen(r: dict[str, Any]) -> dict[str, int] | None:
     """NX-511: one run's wingmen counters; None (not measured, never 0) for a run from before it
-    or a failed one."""
+    or a failed one (a crash or a harness error keeps the counters it had, which are partial)."""
+    if r.get("crash") or r.get("harness_error"):
+        return None
     got = r["metrics"].get("wingmen")
     return None if not got else {k: got.get(k, 0) for k in WINGMEN_KEYS}
 

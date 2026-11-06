@@ -164,6 +164,18 @@ def test_report_sums_measured_seeds_and_old_runs_are_not_measured() -> None:
     assert any("spawned 4" in x and "(1 not measured)" in x for x in lines)
 
 
+@pytest.mark.parametrize(
+    "failure", [{"crash": {"tick": 10, "error": "boom"}}, {"harness_error": "worker died"}]
+)
+def test_a_failed_run_is_not_measured_even_with_counters(failure: dict[str, Any]) -> None:
+    """A crash keeps the counters it had so far; partial counts must not join the sums."""
+    one = {k: 1 for k in metrics.WINGMEN_KEYS}
+    ok: dict[str, Any] = {"seed": 1, "metrics": {"wingmen": one}}
+    bad: dict[str, Any] = {"seed": 2, "metrics": {"wingmen": one}, **failure}
+    assert report._wingmen(bad) is None
+    assert report._wingmen_sum([ok, bad]) == {"sum": one, "not_measured": 1}
+
+
 @pytest.mark.parametrize("key", metrics.WINGMEN_KEYS)
 def test_every_counter_is_in_the_result(key: str, shipped_config: CampaignConfig) -> None:
     world = start_campaign("c", 1, shipped_config)
