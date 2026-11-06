@@ -6,6 +6,8 @@ This is part 1. Part 2 (adversarial profiles, A5 and A6, NX-321) and part 3 (the
 
 `probe_strikes.py` (NX-514, `docs/review/NX-514-PROBE-2026-11-06.md`): follows each Static operation launch with a STRIKE job and says, per launch, whether it fired, how its claimants fared (SAM hits) and how the job ended; `--set key=value` as `balance.py`, `--json` keeps the records, `--from-json` re-prints them. A probe, not a report: no targets, no queue.
 
+`probe_a2.py` (NX-519, `docs/review/NX-519-A2-PROBE-2026-11-06.md`): splits each counted newbie's time to first impact (A2's own newbie definition and tier filter, the collector's own impact times) into phases from the real events and world state: `join_to_spawn`, `after_loss` (rejoin wait), `gave_up` (the harness viewer left for good), `idle` (a unit with no job, with `idle_diagnosis`'s reason), `transit` and `on_task` (inferred from `Entity.path` and `tasking._arrived`). It prints the phase table per persona kind, the states that fill the tail, the units lost before the first impact and by whom, the first board job each newbie held, and the first route lengths. `--set`, `--json` and `--from-json` (several files pool) as above; `--sample-s` (5) is the resolution. A probe, not a report: no targets, no queue.
+
 ```
 cd services/sim && uv run --frozen python ../../tools/balance/balance.py \
     --profile prime-50 --seeds 5 --hours 72 --workers 4 --out /path/to/new-report-dir
