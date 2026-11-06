@@ -3,7 +3,9 @@
 import type { PublicEvent } from "../contracts/wire/hud";
 import type { Event } from "../contracts/events/event";
 import { h } from "./topbar";
+import type { WingmenFeed } from "./wingmen";
 import {
+  MAX_SHOWN,
   sitrepLines,
   ThreatSitrepBoard,
   type NameLookup,
@@ -26,6 +28,7 @@ export class SitrepStack {
     private root: HTMLElement,
     private callsign: (id: number) => string | undefined,
     private names: () => NameLookup,
+    private wing: WingmenFeed | null = null,
   ) {}
 
   /** Events from a Delta; `tick` is the store tick (game time, so a paused world keeps its cards). */
@@ -36,7 +39,12 @@ export class SitrepStack {
 
   render(tick: number): void {
     const view = this.board.view(tick);
-    const sig = `${view.shown.map((e) => `${e.key}#${e.event.event_seq}`).join(",")}|${view.hiddenCount}`;
+    // NX-511: wingmen lines are the lowest priority: they fill only the slots the threat cards leave free.
+    const wing = this.wing?.view(tick) ?? [];
+    const room = Math.max(0, MAX_SHOWN - view.shown.length);
+    const wings = wing.slice(0, room);
+    const hidden = view.hiddenCount + wing.length - wings.length;
+    const sig = `${view.shown.map((e) => `${e.key}#${e.event.event_seq}`).join(",")}|${wings.map((w) => w.key).join(",")}|${hidden}`;
     if (sig === this.sig) return;
     this.sig = sig;
     const d = this.doc;
@@ -53,10 +61,15 @@ export class SitrepStack {
       if (l.credit !== null) h(d, "div", "nx-line nx-credit", body, l.credit);
       return card;
     });
-    if (view.hiddenCount > 0)
-      cards.push(
-        h(d, "div", "nx-more", undefined, `+${view.hiddenCount} more`),
-      );
+    for (const w of wings) {
+      const card = h(d, "div", "nx-card nx-tier-WING");
+      h(d, "i", "nx-shape circle", card).setAttribute("aria-hidden", "true");
+      const body = h(d, "div", "nx-card-body", card);
+      h(d, "div", "nx-line", body, w.text);
+      cards.push(card);
+    }
+    if (hidden > 0)
+      cards.push(h(d, "div", "nx-more", undefined, `+${hidden} more`));
     this.root.replaceChildren(...cards);
   }
 }

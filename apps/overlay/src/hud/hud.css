@@ -229,6 +229,18 @@
 .nx-tier-INTEL {
   --tone: #cbd5e1;
 }
+.nx-tier-WING {
+  --tone: var(--hud-muted);
+  padding-block: 8px 10px;
+}
+.nx-tier-WING .nx-shape {
+  flex-basis: 16px;
+  height: 16px;
+  margin-top: 2px;
+  background: none;
+  border: 3px solid var(--tone);
+  box-sizing: border-box;
+}
 .nx-card-body {
   min-width: 0;
 }

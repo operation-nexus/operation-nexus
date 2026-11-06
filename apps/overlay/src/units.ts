@@ -127,6 +127,36 @@ export interface Scene {
 export const ageText = (s: number): string =>
   s < 60 ? `${Math.floor(s)}s` : `${Math.floor(s / 60)}m`;
 
+/** NX-511 (GAMEPLAY §1b item 246): a faint dotted line from each [AI] wingman to its viewer lead ("flying with",
+ *  not a weapon tracer: round dots, low alpha, no glow). Drawn under the glyphs; nothing when the lead is absent. */
+export const TETHER_ALPHA = 0.4;
+function tethers(ctx: CanvasRenderingContext2D, f: MapFrame, s: Scene): void {
+  const links: [Pt, Pt][] = [];
+  for (const e of s.entities.values()) {
+    if (e.owner_kind !== "AI_GARRISON" || e.side !== "COALITION") continue;
+    const lead = s.entities.get(e.follow_entity_id ?? -1);
+    if (lead === undefined || lead.owner_kind !== "COMMANDER") continue;
+    const a = s.pose(e.entity_id);
+    const b = s.pose(lead.entity_id);
+    if (a !== undefined && b !== undefined && ok(a) && ok(b))
+      links.push([f.at(a), f.at(b)]);
+  }
+  if (links.length === 0) return;
+  ctx.save();
+  ctx.strokeStyle = COL.COALITION;
+  ctx.globalAlpha = TETHER_ALPHA;
+  ctx.lineWidth = 2;
+  ctx.lineCap = "round";
+  ctx.setLineDash([1, 9]);
+  for (const [a, b] of links) {
+    ctx.beginPath();
+    ctx.moveTo(...a);
+    ctx.lineTo(...b);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
 /** Fog first (under), then last-known, then the live units. */
 export function drawWorld(
   ctx: CanvasRenderingContext2D,
@@ -158,6 +188,7 @@ export function drawWorld(
     );
     ctx.globalAlpha = 1;
   }
+  tethers(ctx, f, s);
   for (const e of s.entities.values()) {
     const p = s.pose(e.entity_id);
     if (p === undefined) continue;

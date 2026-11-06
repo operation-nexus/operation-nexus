@@ -8,6 +8,7 @@ import { HudClock } from "./clock";
 import { Rotator } from "./rotator";
 import { SitrepStack } from "./sitrep-stack";
 import { TopBar } from "./topbar";
+import { WingmenFeed } from "./wingmen";
 
 export interface HudView {
   frame: (f: Snapshot | Hud | Delta, store: WireStore) => void;
@@ -31,17 +32,20 @@ export function mountHud(
   const place = (id: string): string =>
     names().nodes.find((n) => n.id === id)?.name ?? id;
   const rotor = new Rotator(doc, stage.panels, win, place);
+  const wing = new WingmenFeed();
   const stack = new SitrepStack(
     doc,
     stage.sitrep,
     (id) => store().entities.get(id)?.callsign ?? undefined,
     names,
+    wing,
   );
   bar.render(null, clock); // cold start: every field "—" (§0.3, DI-1)
   return {
     frame: (f, s) => {
       if (f.type === "Delta") {
         clock.advance(f.tick);
+        wing.ingest(f.events, s.entities);
         stack.ingest(f.events, f.tick);
       } else {
         // Rebase only from a frame that carries a Hud; a Snapshot without one keeps the old clock basis.
