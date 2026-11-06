@@ -30,7 +30,7 @@ from nexus.core.roads import shortest_path, travel_ticks
 from nexus.core.rules import Rules
 from nexus.core.tasking import idle_diagnosis, ring_blocker
 from nexus.core.tasking_gen import is_idle
-from nexus.core.world import Entity, Job, Vec2, World
+from nexus.core.world import Contact, Entity, Job, Vec2, World
 
 _ENEMY: Final = "ENEMY"  # Side values
 _COALITION: Final = "COALITION"
@@ -116,9 +116,6 @@ class Collector:
         self.last_tracked = {
             i: world.campaign.tick for i, c in world.contacts[_COALITION].items() if c.age is None
         }
-        # ids that became new or refreshed at a tick since the last impact check; recorded every
-        # tick (`note_tracks`) so a track seen only between two checks still resets the clock
-        self._fresh: set[int] = set()
         self.idle_shares: list[float] = []  # idle armed viewer units / all, per sample
         self.idle_reasons: Counter[str] = Counter()  # why the idle ones hold no job, summed
         self.idle_ring_by_site: Counter[str] = Counter()  # "ring" idle by blocking marker and job
@@ -374,22 +371,11 @@ class Collector:
         (no current coalition track of it for `a2_refresh_ticks`, NX-512)."""
         tick = world.campaign.tick
         self.note_tracks(world)  # idempotent within a tick; covers callers that skip observe()
-        tracks = {i: c for i, c in world.contacts[_COALITION].items() if c.age is None}
-        new = {i: tracks[i] for i in sorted(self._fresh) if i in tracks}
-        self._fresh.clear()
-        pending = {c for c in self.newbies if c in self.join_tick and c not in self.impact}
+        pending = self._pending()
         if not pending:
             return
         rules = self._world_rules
         units = [e for e in world.entities() if e.commander_id in pending]
-        for e in units:
-            for c in new.values():
-                reach = rules.sensor_radius(e.kind, e.damage_state) * rules.stealth[c.kind]
-                if (
-                    e.kind in rules.painters
-                    and math.dist((e.pos.x, e.pos.y), (c.pos.x, c.pos.y)) <= reach
-                ):
-                    self._credit(e.commander_id, tick, "scout")
         cap = rules.capture
         if cap is None:
             return
@@ -409,13 +395,34 @@ class Collector:
         tracked (last-known does not count) or untracked for `a2_refresh_ticks` becomes fresh and
         waits for the next impact check."""
         tick = world.campaign.tick
-        for i, c in world.contacts[_COALITION].items():
+        found = []
+        for i, c in world.contacts[_COALITION].items():  # insertion order: deterministic
             if c.age is not None:
                 continue
             last = self.last_tracked.get(i)
             if last is None or tick - last >= self.a2_refresh_ticks:
-                self._fresh.add(i)
+                found.append(c)
             self.last_tracked[i] = tick
+        if found:  # judged now, at the tick of the find, never carried to a later tick
+            self._credit_scouts(world, tick, found)
+
+    def _pending(self) -> set[str]:
+        return {c for c in self.newbies if c in self.join_tick and c not in self.impact}
+
+    def _credit_scouts(self, world: World, tick: int, found: list[Contact]) -> None:
+        """A newbie's recon unit with a new or refreshed track inside its sensor reach."""
+        pending = self._pending()
+        if not pending:
+            return
+        rules = self._world_rules
+        for e in world.entities():
+            if e.commander_id not in pending or e.kind not in rules.painters:
+                continue
+            for c in found:
+                reach = rules.sensor_radius(e.kind, e.damage_state) * rules.stealth[c.kind]
+                if math.dist((e.pos.x, e.pos.y), (c.pos.x, c.pos.y)) <= reach:
+                    self._credit(e.commander_id, tick, "scout")
+                    break
 
     def feed(self, events: Iterable[Event]) -> None:
         for event in events:
