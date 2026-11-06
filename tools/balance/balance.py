@@ -230,8 +230,8 @@ RUN_KEYS = (
 def load_done(job: Job, config_hash: str) -> dict[str, Any] | None:
     """The saved result of `job` when it can be trusted for a resume (NX-433), else None: the file
     must parse, name this profile, seed and hours, carry this config's hash (a harness-error
-    stand-in has none, so it is rerun) and have the keys the report reads (a file saved before NX-510 lacks `profile_viewers` and
-    `metrics.collapse`, so it is rerun)."""
+    stand-in has none, so it is rerun) and have the keys the report reads (a file saved before
+    NX-510 lacks `profile_viewers` and `metrics.collapse`, so it is rerun)."""
     profile, seed, hours, out, _ = job
     try:
         run = json.loads((out / "runs" / f"{profile}-s{seed}.json").read_text())
