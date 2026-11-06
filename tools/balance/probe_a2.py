@@ -32,6 +32,7 @@ prints it from `report._a2` over the same runs.
 
 import argparse
 import json
+import math
 import tempfile
 from collections import Counter, defaultdict
 from concurrent.futures import ProcessPoolExecutor
@@ -75,6 +76,7 @@ class Tap:
         self.unit: dict[str, int] = {}  # newbie -> its live entity id
         self.gap: dict[str, str] = {}  # newbie with no unit -> "pre" or "rejected:<reason>"
         self.gave_up: dict[str, int] = {}  # newbie -> tick the harness viewer left for good
+        self.routed: set[int] = set()  # units whose first transit route was measured
         self.fired: set[int] = set()  # entities that fired
         self.rec: dict[str, dict[str, Any]] = {}
         self.last: dict[str, int] = {}  # newbie -> tick of its last booking
@@ -99,6 +101,7 @@ class Tap:
             "commander": c, "persona_kind": col.kinds[c], "join_tick": col.join_tick[c],
             "phases": Counter(), "states": Counter(), "unit_kinds": [], "lives": 0,
             "rejections": [], "queued": 0, "losses": [], "job_kinds": [], "timeline": [],
+            "routes": [],
         }  # fmt: skip
         self.last[c] = col.join_tick[c]
         self.gap[c] = "pre"
@@ -166,7 +169,27 @@ class Tap:
         for c in sorted(self.rec):
             if c in self.closed or c in self.col.impact:
                 continue
-            self._book(c, tick, self._classify(world, c, c in queued))
+            state = self._classify(world, c, c in queued)
+            self._book(c, tick, state)
+            if phase_of(state) == "transit" and self.unit[c] not in self.routed:
+                self.routed.add(self.unit[c])
+                self._route(world, c, state)
+
+    def _route(self, world: World, c: str, state: str) -> None:
+        """The first sampled transit of a unit: its route's length from where it stands (the road
+        legs for a ground unit, the waypoints for an aircraft), with what it is bound for."""
+        e, rules = world.find(self.unit[c]), world.rules
+        if e is None or rules is None:
+            return
+        at, metres = (e.pos.x, e.pos.y), 0.0
+        for p in e.path:
+            to = rules.roads.pos[p] if isinstance(p, str) else (p.x, p.y)
+            metres += math.dist(at, to)
+            at = to
+        self._r(c)["routes"].append({
+            "unit": e.kind, "bound_for": state.split(":", 1)[1],
+            "at_s": (world.campaign.tick - self._r(c)["join_tick"]) / HZ, "m": round(metres),
+        })  # fmt: skip
 
     def _classify(self, world: World, c: str, queued: bool) -> str:
         rules = world.rules
@@ -425,6 +448,18 @@ def summarize(runs: list[dict[str, Any]], top: int = 12) -> None:
         f"{sum(bool(n['losses']) for n in newbies)}"
     )
     _print_losses(newbies)
+    first: Counter[str] = Counter()
+    for n in newbies:
+        tail = "tail" if judged(n) and is_tail(n) else "ok"
+        first[f"{tail}: first job {n['job_kinds'][0] if n['job_kinds'] else 'none'}"] += 1
+    print(f"first board job a newbie held: {dict(sorted(first.items()))}")
+    routes: dict[str, list[float]] = defaultdict(list)
+    for n in newbies:
+        for r in n.get("routes", [])[:1]:  # the first unit's first route
+            routes[f"{r['unit']} bound for {r['bound_for']}"].append(r["m"] / 1000)
+    print("first transit route length, km (kind: n, median, p90):")
+    for what, km in sorted(routes.items(), key=lambda kv: -len(kv[1]))[:10]:
+        print(f"  {what}: {len(km)}, {_q(km, 0.5):.1f}, {_q(km, 0.9):.1f}")
     kinds = Counter(n["impact_kind"] or "none" for n in newbies)
     print(f"first impact kinds: {dict(kinds)}")
 
