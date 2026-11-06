@@ -105,7 +105,8 @@ def _quiet5(a: dict[str, Any]) -> Verdict:
     deltas = [end - start for start, end in held]
     med = statistics.median_low(deltas)  # the lower middle seed: an even count never rounds up
     shown = ", ".join(f"{end}/{start}" for start, end in held)
-    where = f"end/start strategic nodes per seed {shown}; median seed {'+' if med >= 0 else ''}{med}"
+    sign = "+" if med >= 0 else ""
+    where = f"end/start strategic nodes per seed {shown}; median seed {sign}{med}"
     if med < 0:
         return Verdict(name, FAIL, f"the median seed ends below the start nodes: {where}")
     return Verdict(
@@ -145,8 +146,10 @@ def _solo(a: dict[str, Any], b: dict[str, Any]) -> Verdict:
 
 
 def _overnight(a: dict[str, Any], b: dict[str, Any]) -> Verdict:
-    """The config-free final hash (`runner.state_hash_sans_config`): the raw `state_hash` holds
-    the config hash, which differs between the arms by construction."""
+    """The config-free final hash (`runner.state_hash_sans_config`; the raw `state_hash` holds the
+    config hash, which differs between the arms by construction), the ticks run, the event count
+    and the event hash (`runner.run`: events hold no config identity). A report from before the
+    event fields keeps the hash-and-ticks verdict."""
     name = "overnight-0 byte-identical"
     if "overnight-0" not in b["profiles"]:
         return Verdict(name, NOT_MEASURED, "no overnight-0 in the reports")
@@ -166,15 +169,29 @@ def _overnight(a: dict[str, Any], b: dict[str, Any]) -> Verdict:
         return Verdict(
             name, NOT_MEASURED, "a run has no config-free state hash (crash, old report)"
         )
+    events = [
+        {
+            r["seed"]: (r.get("event_count"), r.get("events_hash"))
+            for r in x["runs"]
+            if r["profile"] == "overnight-0"
+        }
+        for x in (a, b)
+    ]
+    with_events = all(v is not None for e in events for pair in e.values() for v in pair)
+    if with_events:
+        rows = [{s: (*r[s], *e[s]) for s in r} for r, e in zip(rows, events, strict=True)]
+    what = "config-free final state hash, ticks, event count and event hash"
+    if not with_events:
+        what = "config-free final state hash and ticks"
     diff = sorted(s for s in rows[0] if rows[0][s] != rows[1][s])
     if diff:
-        return Verdict(name, FAIL, f"config-free final state hash or ticks differ in seeds {diff}")
-    return Verdict(
-        name,
-        PASS,
-        f"config-free final state hash and ticks equal in {len(rows[0])} seeds; event count and "
-        "event hash are not in report.json, so they are not judged",
+        return Verdict(name, FAIL, f"{what} differ in seeds {diff}")
+    note = (
+        ""
+        if with_events
+        else "; event count and event hash are not in a report, so they are not judged"
     )
+    return Verdict(name, PASS, f"{what} equal in {len(rows[0])} seeds{note}")
 
 
 def _crowd(a: dict[str, Any], b: dict[str, Any], profile: str) -> Verdict:

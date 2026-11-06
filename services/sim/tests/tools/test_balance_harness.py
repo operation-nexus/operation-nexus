@@ -2,6 +2,7 @@
 
 import dataclasses
 import fcntl
+import hashlib
 import json
 import subprocess
 import sys
@@ -51,6 +52,7 @@ from nexus.core.tasking_gen import JobSpec
 from nexus.core.world import CaptureBar, Claim, Contact, FacilityMarker, Job, Staged, Vec2
 from nexus.runtime.campaign_config import CampaignConfig, start_campaign
 from nexus.runtime.command_log import CommandLogReader, Tombstone
+from nexus.runtime.golden import _event_line
 from nexus.runtime.golden import shipped_config as golden_shipped_config
 
 # The harness modules live in tools/balance, outside the package: put them on the path, as the
@@ -4941,3 +4943,49 @@ def test_config_free_hash_matches_across_a_config_override(
     assert a["final_state_hash"] != b["final_state_hash"]
     assert a["final_state_hash_sans_config"] == b["final_state_hash_sans_config"]
     assert a["final_state_hash_sans_config"] != a["final_state_hash"]
+
+
+def test_run_records_the_event_count_and_the_goldens_event_hash(
+    tmp_path: Path, data: Data, shipped_config: CampaignConfig
+) -> None:
+    """NX-511 overnight-0 check: `events_hash` is the golden's encoding over every event in tick
+    order (rebuilt here from the command log), the count matches, and `--set tasking.wingmen_max=0`
+    leaves both unchanged at 0 viewers while moving the raw state hash."""
+    hours = TICKS / HZ / 3600
+    a = runner.run("overnight-0", 1, hours, tmp_path / "a", data, shipped_config)
+    world = start_campaign(runner.campaign_id("overnight-0", 1), 1, shipped_config)
+    digest, count = hashlib.blake2b(digest_size=32), 0
+    for _ in range(a["ticks_run"]):
+        for e in step(world, [], HANDLERS):
+            digest.update(_event_line(e))
+            count += 1
+    assert a["event_count"] == count > 0
+    assert a["events_hash"] == digest.hexdigest()
+    (path := tmp_path / "balance.yaml").write_text(
+        balance.override_balance(["tasking.wingmen_max=0"])
+    )
+    off = balance.load_campaign_config(balance.ConfigPaths(balance=path))
+    b = runner.run("overnight-0", 1, hours, tmp_path / "b", data, off)
+    assert (b["event_count"], b["events_hash"]) == (a["event_count"], a["events_hash"])
+    assert a["final_state_hash"] != b["final_state_hash"]
+
+
+def test_a_crashed_run_has_no_event_hash(
+    tmp_path: Path, data: Data, shipped_config: CampaignConfig, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def boom(*_: Any) -> Any:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(runner, "step", boom)
+    r = runner.run("overnight-0", 1, 0.001, tmp_path / "c", data, shipped_config)
+    assert r["crash"] and r["event_count"] is None and r["events_hash"] is None
+
+
+def test_headline_carries_the_event_fields_and_none_for_an_old_run() -> None:
+    stub = runner.failed_run("overnight-0", 1, 1.0, "boom")
+    stub |= {"final_state_hash_sans_config": None, "tick_hz": 10}
+    stub["timing"] = {"wall_s": 0.0, "ticks_per_s": None}
+    h = balance._headline(stub)
+    assert (h["event_count"], h["events_hash"]) == (None, None)  # saved before the fields
+    h = balance._headline(stub | {"event_count": 7, "events_hash": "ab"})
+    assert (h["event_count"], h["events_hash"]) == (7, "ab")

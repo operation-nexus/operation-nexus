@@ -27,6 +27,7 @@ from nexus.core.step import HANDLERS, step
 from nexus.core.world import World, state_hash
 from nexus.runtime.campaign_config import CampaignConfig, load_campaign_config, start_campaign
 from nexus.runtime.command_log import CommandLogReader, CommandLogWriter, Tombstone
+from nexus.runtime.golden import _event_line
 
 PROTOCOL = "0.2"  # the command log's protocol_version (same as the runtime tests)
 FLUSH_TICKS = 600
@@ -250,6 +251,8 @@ def run(
     crash: dict[str, Any] | None = None  # set when `step` raises; the world is then not trusted
     counts: Counter[str] = Counter()  # commands sent, by kind
     seen: Counter[str] = Counter()  # queued JOINs and rejections, by reason
+    events_hash = hashlib.blake2b(digest_size=32)  # NX-511: the golden's event-stream hash
+    event_count = 0
     started = time.perf_counter()
     try:
         for tick in range(1, ticks + 1):
@@ -265,6 +268,9 @@ def run(
             except Exception as e:  # noqa: BLE001  # a sim crash is a finding: record it, stop the run
                 crash = {"tick": tick, "error": f"{type(e).__name__}: {e}"}
                 break
+            for e in events:
+                events_hash.update(_event_line(e))
+            event_count += len(events)
             collector.feed(events)
             collector.observe(world)
             orders.feed(events)
@@ -317,6 +323,11 @@ def run(
         "a3_ticks": collector.a3_ticks,
         "final_state_hash": None if crash else state_hash(world),
         "final_state_hash_sans_config": None if crash else state_hash_sans_config(world),
+        # NX-511 overnight-0: every public event in tick order, hashed as `golden.run_golden` does
+        # (one canonical JSON line per event, blake2b-256); events hold no config identity, so no
+        # blanking is needed. None for a crashed run: its last tick's events never came back.
+        "event_count": None if crash else event_count,
+        "events_hash": None if crash else events_hash.hexdigest(),
         "timing": {"wall_s": wall, "ticks_per_s": ran / wall if wall else None},
     }
 

@@ -56,6 +56,8 @@ def _report(overrides: list[str]) -> dict[str, Any]:
                 "seed": s,
                 "final_state_hash": f"raw-{'b' if overrides else 'a'}-{s}",
                 "final_state_hash_sans_config": f"h{s}",
+                "event_count": 40 + s,
+                "events_hash": f"e{s}",
                 "ticks_run": 9,
                 "tick_hz": 10,
             }
@@ -187,6 +189,33 @@ def test_overnight_is_not_measured_without_hashes_or_seeds() -> None:
     for r in (a, b):  # fewer seeds than the report's
         r["runs"] = [x for x in r["runs"] if (x["profile"], x["seed"]) != ("overnight-0", 3)]
     assert _by_name(a, b)["overnight-0"].status == compare.NOT_MEASURED
+
+
+@pytest.mark.parametrize(("key", "other"), [("event_count", 99), ("events_hash", "other")])
+def test_overnight_fails_on_a_different_event_count_or_event_hash(key: str, other: Any) -> None:
+    a, b = _pair()
+    v = _by_name(a, b)["overnight-0"]
+    assert v.status == compare.PASS and "event count and event hash equal" in v.detail
+    b["runs"][1][key] = other  # state hash and ticks still equal: only the events differ
+    v = _by_name(a, b)["overnight-0"]
+    assert v.status == compare.FAIL and "[2]" in v.detail and "event" in v.detail
+
+
+def test_overnight_without_event_fields_keeps_the_hash_and_ticks_verdict() -> None:
+    for drop in (("a",), ("b",), ("a", "b")):  # an old report in either arm or both
+        a, b = _pair()
+        for arm, r in (("a", a), ("b", b)):
+            if arm in drop:
+                for x in r["runs"]:
+                    x.pop("event_count", None)
+                    x.pop("events_hash", None)
+        v = _by_name(a, b)["overnight-0"]
+        assert v.status == compare.PASS and "not judged" in v.detail
+        b["runs"][0]["final_state_hash_sans_config"] = "other"
+        assert _by_name(a, b)["overnight-0"].status == compare.FAIL
+    a, b = _pair()
+    a["runs"][0]["events_hash"] = None  # a run without one is not judged on events either
+    assert "not judged" in _by_name(a, b)["overnight-0"].detail
 
 
 @pytest.mark.parametrize("profile", compare.CROWDS)
@@ -359,6 +388,8 @@ def _real_report(overrides: list[str], downs: int, hash_tag: str) -> dict[str, A
                 "config_hash": "c" + hash_tag,
                 "final_state_hash": f"raw-{hash_tag}-{seed}",
                 "final_state_hash_sans_config": f"h{seed}",
+                "event_count": 40 + seed,
+                "events_hash": f"e{seed}",
                 "timing": {"wall_s": 1.0, "ticks_per_s": 1.0},
             }
             run["metrics"] |= {

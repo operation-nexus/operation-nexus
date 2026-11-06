@@ -287,6 +287,9 @@ def _headline(run: dict[str, Any]) -> dict[str, Any]:
         # None for a crashed run or one saved before NX-511's compare
         "final_state_hash_sans_config": run.get("final_state_hash_sans_config"),
         "tick_hz": run.get("tick_hz"),  # for compare.py's hours run
+        # NX-511 overnight-0: the public event stream (None: crashed run or saved before this)
+        "event_count": run.get("event_count"),
+        "events_hash": run.get("events_hash"),
     }
 
 
