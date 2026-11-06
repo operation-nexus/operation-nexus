@@ -824,8 +824,9 @@ def test_load_done_trusts_only_a_matching_complete_file(tmp_path: Path) -> None:
     path = tmp_path / "runs" / "quiet-5-s1.json"
     good = {
         "profile": "quiet-5", "seed": 1, "hours": 1.0, "config_hash": "h", "ticks_run": 5,
-        "metrics": {"collapse": {}}, "timing": {}, "crash": None, "harness_error": None,
-        "final_state_hash": "x", "profile_viewers": 5,
+        "metrics": {"collapse": {}, "strategic_held": {"start": 3, "end": 3}}, "timing": {},
+        "crash": None, "harness_error": None, "final_state_hash": "x", "profile_viewers": 5,
+        "event_count": 7, "events_hash": "e",
     }  # fmt: skip
     assert balance.load_done(job, "h") is None  # missing
     path.write_text(json.dumps(good))
@@ -839,7 +840,13 @@ def test_load_done_trusts_only_a_matching_complete_file(tmp_path: Path) -> None:
     # a file saved before NX-510: no `profile_viewers`, or no `metrics.collapse` (rerun, not reused)
     path.write_text(json.dumps({k: v for k, v in good.items() if k != "profile_viewers"}))
     assert balance.load_done(job, "h") is None
-    path.write_text(json.dumps(good | {"metrics": {}}))
+    path.write_text(json.dumps(good | {"metrics": {"strategic_held": {"start": 3}}}))
+    assert balance.load_done(job, "h") is None
+    # a file saved before the NX-511 item 253 metrics: no event fields, or no strategic_held.start
+    for key in ("event_count", "events_hash"):
+        path.write_text(json.dumps({k: v for k, v in good.items() if k != key}))
+        assert balance.load_done(job, "h") is None
+    path.write_text(json.dumps(good | {"metrics": {"collapse": {}}}))
     assert balance.load_done(job, "h") is None
     path.write_text("[1]")
     assert balance.load_done(job, "h") is None
@@ -1022,8 +1029,9 @@ def test_ring_by_site_aggregates_renders_and_resumes_an_old_run(tmp_path: Path) 
     old = {k: v for k, v in new.items() if k != "ring_by_site"}
     (tmp_path / "runs").mkdir()
     saved = {"profile": "raid-300", "seed": 1, "hours": 1.0, "config_hash": "h", "ticks_run": 5,
-             "metrics": {"idle": old, "collapse": {}}, "timing": {}, "crash": None,
-             "harness_error": None, "final_state_hash": "x", "profile_viewers": 300}  # fmt: skip
+             "metrics": {"idle": old, "collapse": {}, "strategic_held": {"start": 3, "end": 3}},
+             "timing": {}, "crash": None, "harness_error": None, "final_state_hash": "x",
+             "profile_viewers": 300, "event_count": 7, "events_hash": "e"}  # fmt: skip
     (tmp_path / "runs" / "raid-300-s1.json").write_text(json.dumps(saved))
     resumed = balance.load_done(("raid-300", 1, 1.0, tmp_path, None), "h")
     assert resumed == saved
