@@ -38,6 +38,8 @@ def _report(overrides: list[str]) -> dict[str, Any]:
             "sha": SHA,
             "profiles_digest": "d",
             "overrides": overrides,
+            "economy": {"unlimited": {"COALITION": False, "ENEMY": False}},
+            "theater": None,
         },
         "seeds": [1, 2, 3],
         "hours": 6.0,
@@ -52,12 +54,22 @@ def _report(overrides: list[str]) -> dict[str, Any]:
                 "tick_hz": 10,
             }
             for s in (1, 2, 3)
+        ]
+        + [
+            {  # 6 h at 10 ticks a second
+                "profile": "solo-1",
+                "seed": s,
+                "final_state_hash": "x",
+                "ticks_run": 216_000,
+                "tick_hz": 10,
+            }
+            for s in (1, 2, 3)
         ],
     }
 
 
 def _pair() -> tuple[dict[str, Any], dict[str, Any]]:
-    return _report([]), _report(["tasking.wingmen_max=0"])
+    return _report([]), _report([compare.WINGMEN_OFF])
 
 
 def _by_name(a: dict[str, Any], b: dict[str, Any]) -> dict[str, Any]:
@@ -126,10 +138,12 @@ def test_overnight_is_not_measured_without_hashes_or_seeds() -> None:
     del b["runs"][0]["final_state_hash_sans_config"]  # a report from before the hash
     assert _by_name(a, b)["overnight-0"].status == compare.NOT_MEASURED
     a, b = _pair()
-    a["runs"], b["runs"] = [], []  # no rows at all
+    for r in (a, b):  # no overnight-0 rows at all
+        r["runs"] = [x for x in r["runs"] if x["profile"] != "overnight-0"]
     assert _by_name(a, b)["overnight-0"].status == compare.NOT_MEASURED
     a, b = _pair()
-    del a["runs"][2], b["runs"][2]  # fewer seeds than the report's
+    for r in (a, b):  # fewer seeds than the report's
+        r["runs"] = [x for x in r["runs"] if (x["profile"], x["seed"]) != ("overnight-0", 3)]
     assert _by_name(a, b)["overnight-0"].status == compare.NOT_MEASURED
 
 
@@ -182,7 +196,68 @@ def test_it_refuses_reports_that_are_not_one_pair() -> None:
     assert "digests" in _refused(lambda a, b: b["config"].update(profiles_digest="x"))
     assert "seeds or hours" in _refused(lambda a, b: b.update(seeds=[1, 2]))
     assert "seeds or hours" in _refused(lambda a, b: b.update(hours=7.0))
-    assert "same overrides" in _refused(lambda a, b: b["config"].update(overrides=[]))
+    assert "must set" in _refused(lambda a, b: b["config"].update(overrides=[]))
+    assert "must set" in _refused(lambda a, b: a["config"].update(overrides=[compare.WINGMEN_OFF]))
+    assert "must set" in _refused(
+        lambda a, b: a["config"].update(overrides=["tasking.wingmen_max=3"])
+    )
+    assert "more than" in _refused(lambda a, b: b["config"]["overrides"].append("capture.x=1"))
+    assert "more than" in _refused(lambda a, b: a["config"]["overrides"].append("capture.x=1"))
+    assert "config.economy" in _refused(lambda a, b: b["config"].update(economy={"unlimited": {}}))
+    assert "config.theater" in _refused(lambda a, b: b["config"].update(theater={"slug": "x"}))
+
+
+def test_the_arms_may_share_other_overrides_and_a_explicit_default_on() -> None:
+    a, b = _pair()
+    a["config"]["overrides"] = [compare.WINGMEN_ON, "capture.x=1"]
+    b["config"]["overrides"] = ["capture.x=1", compare.WINGMEN_OFF]
+    assert _by_name(a, b)["solo-1"].status == compare.PASS
+
+
+def test_solo_rate_uses_the_hours_each_seed_ran() -> None:
+    a, b = _pair()  # A on: 12 downs a seed in 6 h = 2/h; B off: 6 in 6 h = 1/h
+    for x in a["runs"]:
+        if x["profile"] == "solo-1" and x["seed"] == 1:
+            x["ticks_run"] = 108_000  # this seed's campaign ended at 3 h: 12 in 3 h = 4/h
+    v = _by_name(a, b)["solo-1"]
+    assert "A on 2.00/h" in v.detail  # the median of 4, 2 and 2
+    a["profiles"]["solo-1"]["per_seed"][1]["static_defenses_down"] = 1
+    a["profiles"]["solo-1"]["per_seed"][2]["static_defenses_down"] = 1
+    v = _by_name(a, b)["solo-1"]  # rates 4, 0.17, 0.17: nominal hours would have said 2, 0.17, 0.17
+    assert "A on 0.17/h" in v.detail and v.status == compare.FAIL
+
+
+def test_solo_is_not_measured_without_ticks_or_tick_rate() -> None:
+    a, b = _pair()
+    next(x for x in a["runs"] if x["profile"] == "solo-1").pop("tick_hz")
+    assert _by_name(a, b)["solo-1"].status == compare.NOT_MEASURED
+
+
+def test_quiet5_with_no_seeds_is_not_measured() -> None:
+    a, b = _pair()
+    a["profiles"]["quiet-5"]["A1"]["seeds"] = []
+    assert _by_name(a, b)["quiet-5"].status == compare.NOT_MEASURED
+
+
+@pytest.mark.parametrize("status", ["no data", "n/a", "not evaluable: ran 1 h, needs 72 h", "x"])
+def test_unchanged_verdicts_need_judged_statuses(status: str) -> None:
+    a, b = _pair()
+    for x in (a, b):  # equal in both arms, but A1 is not a verdict
+        x["profiles"]["raid-300"]["A1"]["status"] = status
+    v = _by_name(a, b)["raid-300"]
+    assert v.status == compare.NOT_MEASURED and "A1" in v.detail
+    a, b = _pair()
+    b["profiles"]["raid-300"]["A2"]["status"] = status  # judged in A only
+    assert _by_name(a, b)["raid-300"].status == compare.NOT_MEASURED
+
+
+def test_unjudged_by_design_targets_do_not_block_the_verdict() -> None:
+    a, b = _pair()
+    for x in (a, b):  # A3 is n/a off overnight-0, A4 is suspended: equal and not a verdict
+        x["profiles"]["raid-300"]["A3"]["status"] = "n/a"
+        x["profiles"]["raid-300"]["A4"]["status"] = "suspended (Q-SIM-92)"
+    v = _by_name(a, b)["raid-300"]
+    assert v.status == compare.PASS and "['A1', 'A2']" in v.detail
 
 
 def test_main_exit_codes_and_output(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:
@@ -194,10 +269,28 @@ def test_main_exit_codes_and_output(tmp_path: Path, capsys: pytest.CaptureFixtur
     assert compare.main(paths) == 0
     out = capsys.readouterr().out
     assert "PROPOSED threshold" in out and "AI wingmen counters" in out and SHA in out
+    assert out.splitlines()[-1] == "4 judged (4 pass, 0 FAIL), 1 partial, 0 not measured"
     bad = copy.deepcopy(b)
     bad["profiles"]["surge-500"]["A2"]["status"] = "fail"
     Path(paths[1]).write_text(json.dumps(bad))
     assert compare.main(paths) == 1
+    assert capsys.readouterr().out.splitlines()[-1].startswith("4 judged (3 pass, 1 FAIL)")
     assert compare.main(paths[:1]) == 2
     Path(paths[1]).write_text("{}")
     assert compare.main(paths) == 2
+
+
+def test_main_exits_3_when_nothing_was_judged(
+    tmp_path: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    a, b = _pair()
+    for r in (a, b):  # only quiet-5: partial at best
+        r["profiles"] = {"quiet-5": r["profiles"]["quiet-5"]}
+    paths = []
+    for name, r in (("a", a), ("b", b)):
+        paths.append(str(tmp_path / f"{name}.json"))
+        Path(paths[-1]).write_text(json.dumps(r))
+    assert compare.main(paths) == 3
+    assert capsys.readouterr().out.splitlines()[-1] == (
+        "0 judged (0 pass, 0 FAIL), 1 partial, 4 not measured"
+    )

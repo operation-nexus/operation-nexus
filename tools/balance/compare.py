@@ -5,13 +5,15 @@
 Arm A is the default run (`tasking.wingmen_max` 2, the wingmen on), arm B the same sha and
 seeds with `--set tasking.wingmen_max=0` (off). Prints the item 253 verdicts `report.json` can
 answer, and says plainly which part it cannot. Refuses (exit 2) reports from different shas, an
-unknown or dirty sha, different profile sets, profiles.yaml digests, seeds or hours, or identical
-overrides. Exit 1 when a verdict fails, else 0. Every threshold is the spec's; PROPOSED ones are
-marked so in the output."""
+unknown or dirty sha, different profile sets, profiles.yaml digests, seeds, hours, economy or
+theater, or overrides that differ in more than `tasking.wingmen_max` (B must set it to 0; A may
+set it to 2). Exit 1 when a verdict fails, 3 when none was judged, else 0. Every threshold is the
+spec's; PROPOSED ones are marked so in the output."""
 
 import json
 import statistics
 import sys
+from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -19,6 +21,9 @@ from typing import Any
 PASS, FAIL, PARTIAL, NOT_MEASURED = "pass", "FAIL", "partial", "not measured"
 SOLO_MIN_RATIO = 2.0  # item 253 solo: Static NodeDefensesDown/h at least doubles (PROPOSED)
 LENGTH_SHIFT_MAX = 0.10  # item 253 raid/surge: median campaign length moves under 10 % (PROPOSED)
+WINGMEN_KEY = "tasking.wingmen_max="
+WINGMEN_ON, WINGMEN_OFF = WINGMEN_KEY + "2", WINGMEN_KEY + "0"  # shipped default 2; B turns it off
+JUDGED = ("pass", "fail")  # report.py's judged target statuses (anything else is not a verdict)
 CROWDS = ("raid-300", "surge-500")
 TARGETS = ("A1", "A2", "A3", "A4")
 
@@ -57,8 +62,21 @@ def refuse_unless_comparable(a: dict[str, Any], b: dict[str, Any]) -> None:
         )
     if a["seeds"] != b["seeds"] or a["hours"] != b["hours"]:
         raise ValueError("different seeds or hours")
-    if sorted(a["config"]["overrides"]) == sorted(b["config"]["overrides"]):
-        raise ValueError("the arms have the same overrides: nothing to compare")
+    for key in ("economy", "theater"):
+        if a["config"].get(key) != b["config"].get(key):
+            raise ValueError(f"the arms differ in config.{key}")
+    ov_a, ov_b = (list(x["config"]["overrides"]) for x in (a, b))
+    if (
+        ov_b.count(WINGMEN_OFF) != 1
+        or ov_a.count(WINGMEN_OFF)
+        or any(
+            o.startswith(WINGMEN_KEY) and o not in (WINGMEN_ON, WINGMEN_OFF) for o in (*ov_a, *ov_b)
+        )
+    ):
+        raise ValueError(f"arm B must set {WINGMEN_OFF} and arm A must not set it to anything else")
+    rest_a = sorted(o for o in ov_a if o != WINGMEN_ON)
+    if rest_a != sorted(o for o in ov_b if o != WINGMEN_OFF):
+        raise ValueError(f"the arms differ in more than {WINGMEN_KEY}: {ov_a} and {ov_b}")
 
 
 def _quiet5(a: dict[str, Any]) -> Verdict:
@@ -67,6 +85,8 @@ def _quiet5(a: dict[str, Any]) -> Verdict:
     if p is None:
         return Verdict(name, NOT_MEASURED, "no quiet-5 in the reports")
     a1 = p["A1"]
+    if not a1["seeds"]:
+        return Verdict(name, NOT_MEASURED, "A1 has no seeds")
     bad = [s["seed"] for s in a1["seeds"] if not s["good"]]
     if not a1["low_crowd"] or bad:
         return Verdict(
@@ -82,18 +102,29 @@ def _quiet5(a: dict[str, Any]) -> Verdict:
     )
 
 
-def _rate(p: dict[str, Any], hours: float) -> float | None:
-    n = [s.get("static_defenses_down") for s in p["per_seed"]]
-    return None if not n or any(x is None for x in n) else statistics.median(n) / hours
+def _rates(x: dict[str, Any]) -> list[float] | None:
+    """Static NodeDefensesDown per hour for each solo-1 seed over the hours that seed ran
+    (`ticks_run` / `tick_hz`, which the harness records per run); None when a seed lacks a part."""
+    ran = {
+        r["seed"]: (r["ticks_run"], r.get("tick_hz")) for r in x["runs"] if r["profile"] == "solo-1"
+    }
+    out = []
+    for p in x["profiles"]["solo-1"]["per_seed"]:
+        ticks, hz = ran.get(p["seed"], (None, None))
+        if p.get("static_defenses_down") is None or not ticks or not hz:
+            return None
+        out.append(p["static_defenses_down"] / (ticks / hz / 3600))
+    return out or None
 
 
 def _solo(a: dict[str, Any], b: dict[str, Any]) -> Verdict:
     name = f"solo-1 Static NodeDefensesDown/h, median seed, >= {SOLO_MIN_RATIO:g}x (A on / B off)"
     if "solo-1" not in b["profiles"]:
         return Verdict(name, NOT_MEASURED, "no solo-1 in the reports", True)
-    ra, rb = (_rate(r["profiles"]["solo-1"], r["hours"]) for r in (a, b))
-    if ra is None or rb is None:
-        return Verdict(name, NOT_MEASURED, "a seed has no static_defenses_down count", True)
+    rates = [_rates(x) for x in (a, b)]
+    if rates[0] is None or rates[1] is None:
+        return Verdict(name, NOT_MEASURED, "a seed has no defenses-down count or hours run", True)
+    ra, rb = (statistics.median(r) for r in rates)
     ok = ra > 0 and ra >= SOLO_MIN_RATIO * rb
     ratio = "inf" if rb == 0 and ra > 0 else "n/a" if rb == 0 else f"{ra / rb:.2f}x"
     return Verdict(
@@ -139,16 +170,29 @@ def _crowd(a: dict[str, Any], b: dict[str, Any], profile: str) -> Verdict:
     if profile not in b["profiles"]:
         return Verdict(name, NOT_MEASURED, f"no {profile} in the reports", True)
     pa, pb = a["profiles"][profile], b["profiles"][profile]
-    moved = [t for t in TARGETS if pa[t]["status"] != pb[t]["status"]]
+    sa = {t: pa[t]["status"] for t in TARGETS}
+    sb = {t: pb[t]["status"] for t in TARGETS}
+    judged = [t for t in TARGETS if sa[t] in JUDGED and sb[t] in JUDGED]
+    moved = [t for t in judged if sa[t] != sb[t]]
+    skewed = [t for t in TARGETS if t not in judged and sa[t] != sb[t]]
     la, lb = pa["A1"]["median_length_h"], pb["A1"]["median_length_h"]
     if moved:
         return Verdict(name, FAIL, f"verdict changed: {moved}", True)
+    if "A1" not in judged:
+        why = f"A1 not judged in both arms ({sa['A1']}, {sb['A1']})"
+        return Verdict(name, NOT_MEASURED, why, True)
+    if skewed:
+        why = f"statuses differ and are not both pass/fail: {skewed}"
+        return Verdict(name, NOT_MEASURED, why, True)
     if not lb or la is None:
         return Verdict(name, NOT_MEASURED, f"verdicts equal; median length A {la}, B {lb}", True)
     shift = abs(la - lb) / lb
     status = PASS if shift < LENGTH_SHIFT_MAX else FAIL
     return Verdict(
-        name, status, f"verdicts equal; length A {la:.2f} h, B {lb:.2f} h ({shift:.1%})", True
+        name,
+        status,
+        f"verdicts equal on {judged}; length A {la:.2f} h, B {lb:.2f} h ({shift:.1%})",
+        True,
     )
 
 
@@ -193,7 +237,13 @@ def main(argv: list[str]) -> int:
         print(f"error: {e}", file=sys.stderr)
         return 2
     print(render(a, b, vs))
-    return 1 if any(v.status == FAIL for v in vs) else 0
+    count = Counter(v.status for v in vs)
+    judged = count[PASS] + count[FAIL]
+    print(
+        f"{judged} judged ({count[PASS]} pass, {count[FAIL]} FAIL), "
+        f"{count[PARTIAL]} partial, {count[NOT_MEASURED]} not measured"
+    )
+    return 1 if count[FAIL] else 3 if not judged else 0
 
 
 if __name__ == "__main__":
