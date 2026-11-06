@@ -284,9 +284,9 @@ def summarize(runs: list[dict[str, Any]]) -> None:
     print(f"{sum(table.values()):5d}  total")
     print(f"CAPTURE jobs ended: {dict(captures)}")
     hours = sum(r["ticks_run"] / r["tick_hz"] for r in runs) / 3600
-    lost = sum(f[1] == "COALITION" for r in runs for f in r["flips"])
+    coalition_flips = sum(f[1] == "COALITION" for r in runs for f in r["flips"])
     other = sum(f[1] != "COALITION" for r in runs for f in r["flips"])
-    print(f"Static flips in {hours:.0f} seed-hours: {lost} of a coalition node, {other} of others")
+    print(f"Static flips in {hours:.0f} seed-hours: {coalition_flips} of a coalition node, {other} of others")
     print(f"tier changes: {sum(len(r['tiers']) for r in runs)}")
     targets: Counter[str] = Counter()
     sam: Counter[int] = Counter()
