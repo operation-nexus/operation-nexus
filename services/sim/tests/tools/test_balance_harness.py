@@ -585,6 +585,14 @@ def test_a1_low_crowd_time_limit_passes_unless_the_war_collapses() -> None:
     assert report._a1([lost], t)["status"] == report.PASS  # unchanged at 150+
 
 
+def test_a1_crowd_comes_from_the_first_run_that_has_one() -> None:
+    """A failed run (`profile_viewers` None) first must not hide the crowd size of the others."""
+    t = load().targets
+    failed = fake_run() | {"profile_viewers": None, "harness_error": "KeyError: x"}
+    a1 = report._a1([failed, _time_limit(5), _time_limit(5)], t)
+    assert a1["low_crowd"] and a1["status"] == report.FAIL  # the failed seed is a miss
+
+
 def test_a1_threshold_is_read_from_config() -> None:
     t = dataclasses.replace(load().targets, a1_victory_min_viewers=51)
     assert report._a1([_time_limit(50)], t)["status"] == report.PASS
@@ -812,8 +820,8 @@ def test_load_done_trusts_only_a_matching_complete_file(tmp_path: Path) -> None:
     path = tmp_path / "runs" / "quiet-5-s1.json"
     good = {
         "profile": "quiet-5", "seed": 1, "hours": 1.0, "config_hash": "h", "ticks_run": 5,
-        "metrics": {}, "timing": {}, "crash": None, "harness_error": None,
-        "final_state_hash": "x",
+        "metrics": {"collapse": {}}, "timing": {}, "crash": None, "harness_error": None,
+        "final_state_hash": "x", "profile_viewers": 5,
     }  # fmt: skip
     assert balance.load_done(job, "h") is None  # missing
     path.write_text(json.dumps(good))
@@ -824,6 +832,11 @@ def test_load_done_trusts_only_a_matching_complete_file(tmp_path: Path) -> None:
         assert balance.load_done(job, "h") is None
     path.write_text(json.dumps({k: v for k, v in good.items() if k != "timing"}))
     assert balance.load_done(job, "h") is None  # a key the report reads is missing
+    # a file saved before NX-510: no `profile_viewers`, or no `metrics.collapse` (rerun, not reused)
+    path.write_text(json.dumps({k: v for k, v in good.items() if k != "profile_viewers"}))
+    assert balance.load_done(job, "h") is None
+    path.write_text(json.dumps(good | {"metrics": {}}))
+    assert balance.load_done(job, "h") is None
     path.write_text("[1]")
     assert balance.load_done(job, "h") is None
 
@@ -1005,8 +1018,8 @@ def test_ring_by_site_aggregates_renders_and_resumes_an_old_run(tmp_path: Path) 
     old = {k: v for k, v in new.items() if k != "ring_by_site"}
     (tmp_path / "runs").mkdir()
     saved = {"profile": "raid-300", "seed": 1, "hours": 1.0, "config_hash": "h", "ticks_run": 5,
-             "metrics": {"idle": old}, "timing": {}, "crash": None, "harness_error": None,
-             "final_state_hash": "x"}  # fmt: skip
+             "metrics": {"idle": old, "collapse": {}}, "timing": {}, "crash": None,
+             "harness_error": None, "final_state_hash": "x", "profile_viewers": 300}  # fmt: skip
     (tmp_path / "runs" / "raid-300-s1.json").write_text(json.dumps(saved))
     resumed = balance.load_done(("raid-300", 1, 1.0, tmp_path, None), "h")
     assert resumed == saved

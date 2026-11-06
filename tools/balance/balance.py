@@ -221,13 +221,17 @@ def _one(job: Job, slots: Slots | None = None) -> dict[str, Any]:
     return run
 
 
-RUN_KEYS = ("ticks_run", "metrics", "timing", "crash", "harness_error", "final_state_hash")
+RUN_KEYS = (
+    "ticks_run", "metrics", "timing", "crash", "harness_error", "final_state_hash",
+    "profile_viewers",
+)  # fmt: skip
 
 
 def load_done(job: Job, config_hash: str) -> dict[str, Any] | None:
     """The saved result of `job` when it can be trusted for a resume (NX-433), else None: the file
     must parse, name this profile, seed and hours, carry this config's hash (a harness-error
-    stand-in has none, so it is rerun) and have the keys the report reads."""
+    stand-in has none, so it is rerun) and have the keys the report reads (a file saved before NX-510 lacks `profile_viewers` and
+    `metrics.collapse`, so it is rerun)."""
     profile, seed, hours, out, _ = job
     try:
         run = json.loads((out / "runs" / f"{profile}-s{seed}.json").read_text())
@@ -238,6 +242,8 @@ def load_done(job: Job, config_hash: str) -> dict[str, Any] | None:
         and (run.get("profile"), run.get("seed"), run.get("hours")) == (profile, seed, hours)
         and run.get("config_hash") == config_hash
         and all(k in run for k in RUN_KEYS)
+        and isinstance(run["metrics"], dict)
+        and "collapse" in run["metrics"]
     )
     return run if ok else None
 
