@@ -77,3 +77,36 @@ Each balance question gets one same-sha A/B, then a PROPOSED value and a Q-row. 
   - Supply starvation is highest at evening-150 (1149.2), above prime-50 (1066.5).
   - A2 fails everywhere; raid-300 and surge-500 medians (776 s, 963 s) are above the 480 s target.
 - Decision: none from this entry. P1 exit isn't met on these numbers (A1 at quiet-5 and evening-150, A2 everywhere). The queued A/Bs (#668–#670) are the next step; no tuning proposed here (Q-DEV-42).
+
+### T1: capture.quiet_ref 50→100 vs Q0c (#668 vs #667, 2901d4c), 2026-11-06
+- Question: does raising `capture.quiet_ref` from its shipped 50 (`balance/default.yaml:97`) to 100, the top of its tuning range (`contracts/config/balance.json`, `x-tune` max 100), soften the Static's low-population brake at 50 viewers and move the quiet-5 / prime-50 stalemate? From the NX-378 low-crowd review (§4); the A/B arm for Q0c (#667).
+- Run: sha 2901d4c4, config hash `1c41b0af…` (Q0c: `1e4fefaf…`); overnight-0, quiet-5, prime-50; seeds 1–10; 72 h; 12 workers; `set: capture.quiet_ref=100`; economy on, no unlimited side; 289.7 min wall. Source: the harness comment on #668 (the posted copy is truncated; the full `report.md` is on the harness PC). Arm A is the Q0c entry above, same sha and seeds; its posted copy is truncated before the per-seed tables, so per-seed comparisons exist only for T1.
+- Replay check: not compared (different config hash). overnight-0 matches Q0c in every figure compared (funnel 119 / 37 / 1 / 0, momentum 51.1 %, income, coalition 0 captures).
+- Side effect to keep in mind: `quiet_ref` also sets where the quiet-stream capture-time multiplier reaches 1.0 (`capture.quiet_floor`, `balance.json:458`) and the fade of AI wingmen on a landed STRIKE claim (`tasking.wingmen_max`, `balance.json:1983`), so this arm moves three things, not only the night-cap spacing.
+- Result: **T1 cut the Static's offensive pressure at 50 viewers but moved no acceptance target, and it raised sanctuary and defence-down pressure at prime-50.** A = Q0c, B = T1. Numbers are pooled over 10 seeds unless marked.
+
+| Metric | overnight-0 A / B | quiet-5 A / B | prime-50 A / B |
+|---|---|---|---|
+| A1 | pass / pass (10/10 no collapse) | fail / fail (9/10; collapse field not named in either posted report) | pass / pass (10/10) |
+| Outcomes | TIME_LIMIT 10 / 10 | TIME_LIMIT 10 / 10 | TIME_LIMIT 10 / 9, VICTORY 0 / 1 (seed 7, peak 46 viewers) |
+| Median campaign h | 72.0 / 72.0 | 72.0 / 72.0 | 72.0 / 72.0 |
+| Momentum % | 51.1 / 51.1 | 48.2 / 49.2 | 35.4 / 44.8 |
+| Static Offensives launched | 119 / 119 | 287 / 253 | 1253 / 811 |
+| Offensive funnel, captured (RETAKE) | 0 / 0 | 78 (0) / 71 (0) | 191 (9) / 174 (3) |
+| Static strategic-node captures of coalition nodes | no data (A) / 0 | no data (A) / 85 (5–11 per seed) | no data (A) / 272 (1–37 per seed) |
+| Coalition captures | 0 / 0 | 100 / 89 | 317 / 261 |
+| Decision windows blocked by night_cap | 360 / 360 | 34584 / 33315 | 9437 / 22144 |
+| STAGING per h; Static sitreps SANCTUARY_AT_RISK per h | 0.17; 0 / 0.17; 0 | 0.41; 0.03 / 0.36; 0.02 | 2.11; 1.05 / 1.43; 1.27 |
+| Coalition defences-down fires (minutes) | 2 (2125.1) / 2 (2125.1) | 572 (33730.4) / 559 (39627.2) | 594 (20257.7) / 893 (26592.4) |
+| Coalition 0-strategic-node minutes | 0.0 / 0.0 | 0.0 / 0.0 | 0.0 / 0.0 |
+| Defeat runs started, longest (min) | 0 / 0 | 4, 15.5 / 1, 5.7 | 0 / 0 |
+| A2 (median s; tail over 900 s) | no data (0 newbies) | 105; 16.0 % (12/75) / 132; 20.3 % (13/64), fail / fail | 283; 40.5 % (658/1626) / 282; 38.8 % (556/1434), fail / fail |
+| Starved node-min (mean) | 0.0 / 0.0 | 781.8 / 831.1 | 1066.5 / 770.3 |
+| Coalition trucks lost near sanctuary | 0 / 0 | 3 / 4 | 36 / 18 |
+
+  - **Moved as intended:** at prime-50, Offensives fell 1253 to 811 (-35 %), captured Offensive and RETAKE targets 200 to 177 (-12 %), coalition captures 317 to 261, and night_cap blocked 22144 windows (9437 in A). At quiet-5 Offensives fell 287 to 253 (-12 %) and night_cap blocks barely changed (34584 to 33315). prime-50 momentum 35.4 to 44.8 %, one VICTORY in 10 (0 in A).
+  - **Did not move:** every A1 verdict is the same (quiet-5 still 9/10); every seed but one still ends at TIME_LIMIT; median campaign time is 72.0 h in both arms; A2 still fails at both profiles (quiet-5 tail worse, 16.0 to 20.3 %, prime-50 tail 40.5 to 38.8 %, medians within 27 s).
+  - **Harm signals at prime-50:** coalition defences-down fires 594 to 893 (+50 %) and 20257.7 to 26592.4 min; SANCTUARY_AT_RISK 1.05 to 1.27 per h. Coalition deliveries 51.73 to 44.15 per h (quiet-5 8.94 to 9.06). Offsetting: starved node-min 1066.5 to 770.3, trucks lost 36 to 18, coalition starving job-min 9166 to 5587.
+  - **Noise:** the only outcome change is prime-50 seed 7 (peak 46 viewers, 36 newbies, against 108–154 peak in most other seeds); one seed in ten does not support a claim. Quiet-5's A2 sample is 64 newbies against 75, with per-seed counts of 1–13, so its 4.3-point tail change is inconclusive. The momentum jump at prime-50 (+9.4 points) has no per-seed split in the posted report and rests on that one victory seed plus the pressure drop (inferred, not read). The quiet-5 collapse seed isn't named in either arm.
+  - Not comparable: Q0c's per-seed tables (strategic nodes held, early hours, Static strategic captures per seed) are cut from the posted copy.
+- Decision: **reject `quiet_ref=100` as a fix for the A1 stalemate; keep 50.** It lowers Static Offensives at 50 viewers (-35 %) but changes no A1 verdict, no median time and no A2 verdict, and raises prime-50 defence-down fires by 50 %. Per Q-DEV-42 the question gets no second cycle until real viewers have played. Compare with T2 (#669) and T4 (#670) on the same Q0c baseline. No Q-row or NX id opens from this entry.
