@@ -1145,48 +1145,45 @@ def test_a_refreshed_track_counts_as_a_scout_impact_after_30_game_min_unseen(
 def test_a_track_seen_only_between_two_impact_checks_still_resets_the_clock(
     shipped_config: CampaignConfig,
 ) -> None:
-    """NX-512: an enemy tracked for a few ticks between two impact checks, lost, and tracked
-    again at the next check inside a newbie scout's reach was seen moments ago: not a scout
-    impact (CodeRabbit on #662). A fresh track found between checks still counts at the next."""
+    """NX-512 (CodeRabbit on #662): a find is judged at the tick it happens. An enemy first
+    tracked between two impact checks outside the newbie scout's reach, lost, and tracked again
+    a few ticks later inside it, was seen moments ago: not a scout impact. A never-seen enemy
+    tracked inside the reach between checks counts at once, at that tick."""
     world = start_campaign("c", 1, shipped_config)
-    col = metrics.Collector(
-        world, frozenset([commander(5)]), tick_hz=HZ, sample_ticks=600, a3_ticks=1000,
-        idle_sample_ticks=600, impact_check_ticks=10, kinds={commander(5): "scout"},
-        a2_min_tier="ALPHA", a2_refresh_ticks=REFRESH, starve_threshold=0.25,
-    )  # fmt: skip
+
+    def collector() -> metrics.Collector:
+        c = metrics.Collector(
+            world, frozenset([commander(5)]), tick_hz=HZ, sample_ticks=600, a3_ticks=1000,
+            idle_sample_ticks=600, impact_check_ticks=10, kinds={commander(5): "scout"},
+            a2_min_tier="ALPHA", a2_refresh_ticks=REFRESH, starve_threshold=0.25,
+        )  # fmt: skip
+        c.last_tracked.clear()
+        return c
+
     rules = shipped_config.rules
     enemy = next(e for e in world.entities() if e.side == "ENEMY" and rules.stealth[e.kind] > 0)
-    at = Vec2(enemy.pos.x, enemy.pos.y)
+    near = Vec2(enemy.pos.x, enemy.pos.y)
+    far = Vec2(enemy.pos.x + 10_000_000, enemy.pos.y)  # outside any sensor reach
     world.contacts["COALITION"].clear()
-    col.last_tracked.clear()
-    world.campaign.tick = 1000
-    col.check_impact(world)  # nothing tracked yet
-    col.note_join(commander(5), 1000, "ALPHA")
     recon = next(k for k in sorted(rules.painters))
-    world.spawn(recon, "COALITION", "COMMANDER", at, commander_id=commander(5))
-    world.campaign.tick = 1005  # between checks: tracked, then lost
-    world.contacts["COALITION"][enemy.id] = Contact(enemy.kind, at, Vec2(0, 0))
+    world.spawn(recon, "COALITION", "COMMANDER", near, commander_id=commander(5))
+    col = collector()
+    col.note_join(commander(5), 1000, "ALPHA")
+    world.campaign.tick = 1005  # between checks: first tracked, out of reach, then lost
+    world.contacts["COALITION"][enemy.id] = Contact(enemy.kind, far, Vec2(0, 0))
     col.note_tracks(world)
-    col._fresh.clear()  # as if a check had already judged that first sighting
     world.contacts["COALITION"].clear()
     col.note_tracks(world)
-    world.campaign.tick = 1010
-    world.contacts["COALITION"][enemy.id] = Contact(enemy.kind, at, Vec2(0, 0))
+    world.campaign.tick = 1010  # back, now inside the reach, 5 ticks later
+    world.contacts["COALITION"][enemy.id] = Contact(enemy.kind, near, Vec2(0, 0))
     col.check_impact(world)
-    assert col.impact == {}  # seen 5 ticks ago: not new
-    # a never-seen enemy tracked only between checks stays fresh until the next check
-    col2 = metrics.Collector(
-        world, frozenset([commander(5)]), tick_hz=HZ, sample_ticks=600, a3_ticks=1000,
-        idle_sample_ticks=600, impact_check_ticks=10, kinds={commander(5): "scout"},
-        a2_min_tier="ALPHA", a2_refresh_ticks=REFRESH, starve_threshold=0.25,
-    )  # fmt: skip
-    col2.last_tracked.clear()
+    assert col.impact == {}  # the find was at 1005, out of reach; this is not a new track
+    col2 = collector()  # a fresh collector: the enemy was never tracked
     col2.note_join(commander(5), 1010, "ALPHA")
-    world.campaign.tick = 1015
+    world.campaign.tick = 1013  # between checks, inside the reach
     col2.note_tracks(world)
-    world.campaign.tick = 1020
-    col2.check_impact(world)
-    assert {k for _, k in col2.impact.values()} == {"scout"}
+    assert col2.impact[commander(5)][1] == "scout"  # credited at the find, not at the check
+    assert col2.impact[commander(5)][0] == 1013
 
 
 def test_persona_kinds_are_seeded_validated_and_a_striker_names_a_defended_foe(
