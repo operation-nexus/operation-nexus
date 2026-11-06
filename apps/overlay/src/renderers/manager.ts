@@ -6,7 +6,7 @@ import type {
   VisualEffect,
 } from "../types/render";
 import type { TheaterDefinition } from "../types/theater";
-import { STRAIT_1_THEATER } from "../theater/strait1";
+import { STRAIT_1_THEATER } from "../simulation/mock-theater";
 import { CrtVectorEngine } from "./crt2d/crt-engine";
 import { BatchSpriteEngine } from "./batch/batch-engine";
 

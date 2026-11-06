@@ -124,7 +124,7 @@ export class SimulationFeedGenerator {
         type: "MISSILE_TRAJECTORY",
         id: "MSL-01",
         sourcePos: [90000, 120000, 2], // West Airbase
-        targetPos: [290000, 40000, 2], // FOB NE
+        targetPos: [290000, 200000, 2], // FOB NE
         progress: missileProgress,
         peakAltitudeMeters: 8000,
         color: "#ff0055",
@@ -135,7 +135,7 @@ export class SimulationFeedGenerator {
       effects.push({
         type: "KINETIC_BURST",
         id: "BST-01",
-        pos: [290000, 40000, 2],
+        pos: [290000, 200000, 2],
         radiusMeters: 5000,
         progress: (missileProgress - 0.9) * 10,
         color: "#00e5ff",
@@ -181,24 +181,24 @@ export class SimulationFeedGenerator {
 
     // Viper-01: Quorum Strike Fighter
     const viperX = 140000 + Math.cos(t) * 45000;
-    const viperY = 60000 + Math.sin(t) * 20000;
+    const viperY = 180000 - Math.sin(t) * 20000;
 
     // Ghost-1: Quorum Recon UAV
     const ghostX = 200000 + Math.cos(t * 0.7) * 25000;
-    const ghostY = 120000 + Math.sin(t * 0.7) * 35000;
+    const ghostY = 120000 - Math.sin(t * 0.7) * 35000;
 
     // Mule-04: Quorum Logistics Convoy
     const muleProgress = (this.tick % 200) / 200;
     const muleX = 90000 + muleProgress * (200000 - 90000);
-    const muleY = 120000 + muleProgress * (180000 - 120000);
+    const muleY = 120000 - muleProgress * (180000 - 120000);
 
     // Static Strike Null-1
     const staticJetX = 280000 - Math.cos(t) * 35000;
-    const staticJetY = 70000 - Math.sin(t) * 15000;
+    const staticJetY = 170000 + Math.sin(t) * 15000;
 
     // Static Heavy Armor Null-9
     const staticArmorX = 240000 - ((this.tick % 150) / 150) * 30000;
-    const staticArmorY = 60000;
+    const staticArmorY = 180000;
 
     return [
       {
@@ -210,7 +210,7 @@ export class SimulationFeedGenerator {
         y: viperY,
         z: 45,
         headingDeg:
-          ((Math.atan2(Math.cos(t) * 20000, -Math.sin(t) * 45000) * 180) /
+          ((Math.atan2(-Math.sin(t) * 45000, -Math.cos(t) * 20000) * 180) /
             Math.PI +
             360) %
           360,
@@ -219,9 +219,9 @@ export class SimulationFeedGenerator {
         damageState: "HEALTHY",
         isSelected: true,
         trailHistory: [
-          { x: viperX - 2000, y: viperY - 1000, alpha: 0.8 },
-          { x: viperX - 4000, y: viperY - 2000, alpha: 0.5 },
-          { x: viperX - 6000, y: viperY - 3000, alpha: 0.2 },
+          { x: viperX - 2000, y: viperY + 1000, alpha: 0.8 },
+          { x: viperX - 4000, y: viperY + 2000, alpha: 0.5 },
+          { x: viperX - 6000, y: viperY + 3000, alpha: 0.2 },
         ],
       },
       {
@@ -237,8 +237,8 @@ export class SimulationFeedGenerator {
         hpPct: 100,
         damageState: "HEALTHY",
         trailHistory: [
-          { x: ghostX - 1000, y: ghostY - 1000, alpha: 0.6 },
-          { x: ghostX - 2000, y: ghostY - 2000, alpha: 0.3 },
+          { x: ghostX - 1000, y: ghostY + 1000, alpha: 0.6 },
+          { x: ghostX - 2000, y: ghostY + 2000, alpha: 0.3 },
         ],
       },
       {
@@ -302,7 +302,7 @@ export class SimulationFeedGenerator {
       const x = isCoalition
         ? 20000 + progress * 200000
         : 380000 - progress * 200000;
-      const y = baseLane + 20000 + ((i * 499) % 40000);
+      const y = 240000 - (baseLane + 20000 + ((i * 499) % 40000));
 
       units.push({
         id: i + 1000,

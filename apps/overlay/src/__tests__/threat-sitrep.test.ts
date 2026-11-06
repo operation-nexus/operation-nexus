@@ -3,7 +3,7 @@ import type { Event, ThreatAdaptation } from "../contracts/events/event";
 import { HudOverlay } from "../hud/hud-overlay";
 import { ThreatSitrepBoard, sitrepLines } from "../hud/threat-sitrep";
 import type { SitrepView } from "../hud/threat-sitrep";
-import { STRAIT_1_THEATER } from "../theater/strait1";
+import { STRAIT_1_THEATER } from "../simulation/mock-theater";
 import { SimulationFeedGenerator } from "../simulation/mock-feed";
 import { createElement } from "../utils/dom";
 import { expectUnderBudget } from "./perf-gate";

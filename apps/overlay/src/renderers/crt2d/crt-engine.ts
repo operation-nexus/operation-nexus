@@ -7,7 +7,7 @@ import type {
 } from "../../types/render";
 import type { TheaterDefinition } from "../../types/theater";
 import type { VisualUnit } from "../../types/unit";
-import { STRAIT_1_THEATER, STRAIT_CHANNEL_BOUNDS } from "../../theater/strait1";
+import { STRAIT_1_THEATER, STRAIT_CHANNEL_BOUNDS } from "../../simulation/mock-theater";
 import {
   drawUnitVectorShape,
   FACTION_TOKENS,
@@ -135,7 +135,7 @@ export class CrtVectorEngine implements IRenderEngine {
   }
 
   private projectY(yMeters: number): number {
-    return (yMeters / this.theater.boundsM.h) * this.height;
+    return (1 - yMeters / this.theater.boundsM.h) * this.height; // +y is north (Q-UX-18)
   }
 
   private renderTheaterGrid(ctx: CanvasRenderingContext2D): void {

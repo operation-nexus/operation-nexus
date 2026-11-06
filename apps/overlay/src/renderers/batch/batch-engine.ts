@@ -7,7 +7,7 @@ import type {
 } from "../../types/render";
 import type { TheaterDefinition } from "../../types/theater";
 import type { VisualUnit } from "../../types/unit";
-import { STRAIT_1_THEATER } from "../../theater/strait1";
+import { STRAIT_1_THEATER } from "../../simulation/mock-theater";
 import { FACTION_TOKENS } from "../../symbology/dual-encoding";
 import { createCanvasElement } from "../../utils/dom";
 
@@ -123,7 +123,7 @@ export class BatchSpriteEngine implements IRenderEngine {
     ctx.beginPath();
     for (const u of quorumUnits) {
       const sx = (u.x / this.theater.boundsM.w) * this.width;
-      const sy = (u.y / this.theater.boundsM.h) * this.height;
+      const sy = (1 - u.y / this.theater.boundsM.h) * this.height;
       const rad = ((u.headingDeg - 90) * Math.PI) / 180;
       ctx.moveTo(sx, sy);
       ctx.lineTo(sx + Math.cos(rad) * 10, sy + Math.sin(rad) * 10);
@@ -136,7 +136,7 @@ export class BatchSpriteEngine implements IRenderEngine {
     ctx.beginPath();
     for (const u of quorumUnits) {
       const sx = (u.x / this.theater.boundsM.w) * this.width;
-      const sy = (u.y / this.theater.boundsM.h) * this.height;
+      const sy = (1 - u.y / this.theater.boundsM.h) * this.height;
       const rad = (u.headingDeg * Math.PI) / 180;
       const cos = Math.cos(rad);
       const sin = Math.sin(rad);
@@ -166,7 +166,7 @@ export class BatchSpriteEngine implements IRenderEngine {
     ctx.beginPath();
     for (const u of staticUnits) {
       const sx = (u.x / this.theater.boundsM.w) * this.width;
-      const sy = (u.y / this.theater.boundsM.h) * this.height;
+      const sy = (1 - u.y / this.theater.boundsM.h) * this.height;
       const rad = ((u.headingDeg - 90) * Math.PI) / 180;
       ctx.moveTo(sx, sy);
       ctx.lineTo(sx + Math.cos(rad) * 10, sy + Math.sin(rad) * 10);
@@ -179,7 +179,7 @@ export class BatchSpriteEngine implements IRenderEngine {
     ctx.beginPath();
     for (const u of staticUnits) {
       const sx = (u.x / this.theater.boundsM.w) * this.width;
-      const sy = (u.y / this.theater.boundsM.h) * this.height;
+      const sy = (1 - u.y / this.theater.boundsM.h) * this.height;
       const rad = (u.headingDeg * Math.PI) / 180;
       const cos = Math.cos(rad);
       const sin = Math.sin(rad);
@@ -266,7 +266,7 @@ export class BatchSpriteEngine implements IRenderEngine {
     for (const u of units) {
       if (u.isSelected || u.isConvoyLeader) {
         const sx = (u.x / this.theater.boundsM.w) * this.width;
-        const sy = (u.y / this.theater.boundsM.h) * this.height;
+        const sy = (1 - u.y / this.theater.boundsM.h) * this.height;
         ctx.fillStyle = u.side === "COALITION" ? "#00e5ff" : "#ff0055";
         const badge = u.convoyFollowers
           ? `[TRUCK] +${u.convoyFollowers}`

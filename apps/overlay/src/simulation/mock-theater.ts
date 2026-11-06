@@ -4,13 +4,13 @@ import {
   ELEVATION_TERRAIN_BASE,
   ELEVATION_BRIDGE_DECK_MIN,
   ELEVATION_BRIDGE_DECK_MAX,
-} from "./elevation";
+} from "../theater/elevation";
 
 /**
- * Authoritative Strait-1 Theater definition (NX-008, content/theaters/strait-1.yaml).
- * Coordinates are metric: x grows East (Coalition west, Static east), y grows South.
- * LEGACY y-south copy for the no-token prototype path only (mock feed, CRT and batch engines). The live stage never
- * imports it: it draws from Welcome.theater, +y north (OVERLAY §0.10, NX-176). Retire with the prototype path.
+ * DEV-ONLY fixture for the prototype mock feed and its CRT and batch engines (never in a production bundle, see
+ * main.ts). Strait-1 after NX-008 (content/theaters/strait-1.yaml), in the world frame: metric, x grows East
+ * (Coalition west, Static east), y grows North (Q-UX-18, NX-507), so the "north" sector has the high y. The live
+ * stage draws from Welcome.theater (OVERLAY §0.10, NX-176) and never imports this.
  */
 export const STRAIT_1_THEATER: TheaterDefinition = {
   schemaVersion: 1,
@@ -23,30 +23,30 @@ export const STRAIT_1_THEATER: TheaterDefinition = {
       id: "north",
       name: "North",
       polygon: [
-        [0, 0],
-        [400000, 0],
-        [400000, 80000],
-        [0, 80000],
+        [0, 240000],
+        [400000, 240000],
+        [400000, 160000],
+        [0, 160000],
       ],
     },
     {
       id: "centre",
       name: "Centre",
       polygon: [
-        [0, 80000],
-        [400000, 80000],
-        [400000, 160000],
         [0, 160000],
+        [400000, 160000],
+        [400000, 80000],
+        [0, 80000],
       ],
     },
     {
       id: "south",
       name: "South",
       polygon: [
-        [0, 160000],
-        [400000, 160000],
-        [400000, 240000],
-        [0, 240000],
+        [0, 80000],
+        [400000, 80000],
+        [400000, 0],
+        [0, 0],
       ],
     },
   ],
@@ -54,19 +54,19 @@ export const STRAIT_1_THEATER: TheaterDefinition = {
     {
       id: "northern-hills",
       polygon: [
-        [150000, 0],
-        [260000, 0],
-        [260000, 35000],
-        [150000, 35000],
+        [150000, 240000],
+        [260000, 240000],
+        [260000, 205000],
+        [150000, 205000],
       ],
     },
     {
       id: "southern-valley",
       polygon: [
-        [230000, 205000],
-        [330000, 205000],
-        [330000, 240000],
-        [230000, 240000],
+        [230000, 35000],
+        [330000, 35000],
+        [330000, 0],
+        [230000, 0],
       ],
     },
   ],
@@ -93,7 +93,7 @@ export const STRAIT_1_THEATER: TheaterDefinition = {
       id: "fob-n-w",
       name: "FOB North-West",
       kind: "FOB",
-      pos: [130000, 60000],
+      pos: [130000, 180000],
       startOwner: "COALITION",
       startStock: 500,
       sector: "north",
@@ -102,7 +102,7 @@ export const STRAIT_1_THEATER: TheaterDefinition = {
       id: "fob-s-w",
       name: "FOB South-West",
       kind: "FOB",
-      pos: [130000, 180000],
+      pos: [130000, 60000],
       startOwner: "COALITION",
       startStock: 500,
       sector: "south",
@@ -111,7 +111,7 @@ export const STRAIT_1_THEATER: TheaterDefinition = {
       id: "bridge-n",
       name: "North Bridge",
       kind: "BRIDGE",
-      pos: [200000, 60000],
+      pos: [200000, 180000],
       startOwner: "NEUTRAL",
       startStock: 0,
       sector: "north",
@@ -120,7 +120,7 @@ export const STRAIT_1_THEATER: TheaterDefinition = {
       id: "bridge-s",
       name: "South Bridge",
       kind: "BRIDGE",
-      pos: [200000, 180000],
+      pos: [200000, 60000],
       startOwner: "NEUTRAL",
       startStock: 0,
       sector: "south",
@@ -129,7 +129,7 @@ export const STRAIT_1_THEATER: TheaterDefinition = {
       id: "cross-n",
       name: "North Crossing",
       kind: "FOB",
-      pos: [230000, 60000],
+      pos: [230000, 180000],
       startOwner: "NEUTRAL",
       startStock: 0,
       sector: "north",
@@ -138,7 +138,7 @@ export const STRAIT_1_THEATER: TheaterDefinition = {
       id: "cross-s",
       name: "South Crossing",
       kind: "FOB",
-      pos: [230000, 180000],
+      pos: [230000, 60000],
       startOwner: "NEUTRAL",
       startStock: 0,
       sector: "south",
@@ -147,7 +147,7 @@ export const STRAIT_1_THEATER: TheaterDefinition = {
       id: "fob-n-e",
       name: "FOB North-East",
       kind: "FOB",
-      pos: [290000, 40000],
+      pos: [290000, 200000],
       startOwner: "ENEMY",
       startStock: 500,
       sector: "north",
@@ -157,7 +157,7 @@ export const STRAIT_1_THEATER: TheaterDefinition = {
       id: "fob-s-e",
       name: "FOB South-East",
       kind: "FOB",
-      pos: [290000, 200000],
+      pos: [290000, 40000],
       startOwner: "ENEMY",
       startStock: 500,
       sector: "south",
@@ -228,7 +228,7 @@ export const STRAIT_1_THEATER: TheaterDefinition = {
 
 /**
  * Strait-1 Water Channel geometry bounds in meters:
- * West bank at 185,000m, East bank at 215,000m, spanning entire 0 to 240,000m North-to-South.
+ * West bank at 185,000m, East bank at 215,000m, spanning the entire 0 to 240,000m south-to-north.
  */
 export const STRAIT_CHANNEL_BOUNDS = {
   westBankX: 185000,
