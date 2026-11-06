@@ -5,9 +5,11 @@ units (about tick 1200 on the seeds below), so frames carry both visible and hid
 """
 
 import json
+import math
 from collections import deque
 from collections.abc import Iterator
 from dataclasses import replace
+from fractions import Fraction
 from typing import Any
 
 import msgpack
@@ -18,6 +20,7 @@ from hypothesis import strategies as st
 
 from nexus.broadcast.frames import FrameBuilder, _motion, _public, control, encode
 from nexus.contracts.gen.events.campaign_clock_paused import CampaignClockPaused
+from nexus.contracts.gen.events.campaign_ended import CampaignEnded
 from nexus.contracts.gen.events.event import Event
 from nexus.contracts.gen.events.unit_destroyed import UnitDestroyed
 from nexus.contracts.gen.wire.ack import Ack
@@ -26,6 +29,7 @@ from nexus.contracts.gen.wire.delta import Delta
 from nexus.contracts.gen.wire.hud import Hud
 from nexus.contracts.gen.wire.snapshot import Snapshot
 from nexus.contracts.gen.wire.welcome import Welcome
+from nexus.core.campaign import scores
 from nexus.core.fog import side_view
 from nexus.core.step import step
 from nexus.core.world import World, state_hash
@@ -197,6 +201,59 @@ def test_hud_counts_strategic_nodes_held_and_the_clock_limit() -> None:
         None,
         None,
     )
+
+
+def test_hud_time_limit_score_is_scores_rounded_half_up_and_null_without_rules() -> None:
+    """FH-T10 (OVERLAY 0.11): the field is `scores()` rounded half up, not the float round()."""
+    world = start_campaign(CAMPAIGN, 1, CFG)
+    rc = CFG.rules.campaign
+    assert rc is not None
+    fb = builder()
+    world.campaign.running_ticks = 7
+    world.campaign.held_ticks_coalition = 130
+    world.campaign.held_ticks_enemy = 100
+    exact = scores(world, rc)
+    got = fb.hud(world).time_limit_score
+    assert got is not None
+    assert (got.coalition, got.enemy) == (
+        math.floor(exact["COALITION"] + Fraction(1, 2)),
+        math.floor(exact["ENEMY"] + Fraction(1, 2)),
+    )
+    assert fb.hud(world).model_dump(mode="json")["time_limit_score"] == {
+        "coalition": got.coalition,
+        "enemy": got.enemy,
+    }
+    bare = start_campaign(CAMPAIGN, 1, CFG)
+    bare.rules = replace(CFG.rules, campaign=None)
+    assert fb.hud(bare).time_limit_score is None
+
+
+def test_hud_time_limit_score_halves_go_up_not_to_even(monkeypatch: pytest.MonkeyPatch) -> None:
+    world = start_campaign(CAMPAIGN, 1, CFG)
+    half = {"COALITION": Fraction(73, 2), "ENEMY": Fraction(1, 2)}  # round() gives 36, 0
+    monkeypatch.setattr("nexus.broadcast.frames.scores", lambda _w, _rc: half)
+    got = builder().hud(world).time_limit_score
+    assert got is not None
+    assert (got.coalition, got.enemy) == (37, 1)
+
+
+def test_hud_time_limit_score_rounds_a_half_up_and_matches_campaign_ended_at_the_end() -> None:
+    rc = CFG.rules.campaign
+    assert rc is not None
+    rules = replace(CFG.rules, campaign=replace(rc, time_limit_ticks=20))
+    world = start_campaign(CAMPAIGN, 1, replace(CFG, rules=rules))
+    fb = builder()
+    ended: list[CampaignEnded] = []
+    for _ in range(20):
+        ended += [e for e in step(world, []) if isinstance(e, CampaignEnded)]
+    (end,) = ended
+    # 3 of 8 nodes each side all along: 37.5 each (tests/core/test_campaign.py), so up to 38
+    assert (end.score.coalition, end.score.enemy) == (37.5, 37.5)
+    got = fb.hud(world).time_limit_score
+    assert got is not None
+    assert (got.coalition, got.enemy) == (38, 38)
+    assert got.coalition == math.floor(end.score.coalition + 0.5)
+    assert got.enemy == math.floor(end.score.enemy + 0.5)
 
 
 def test_public_events_drop_the_staff_sub_reason_and_hidden_ids() -> None:

@@ -81,6 +81,7 @@ HUD: dict[str, Any] = {
         "paused": False,
         "pause_reason": None,
     },
+    "time_limit_score": {"coalition": 12, "enemy": 9},
     "ticker": [],
     "panels": {
         "campaign_status": {
@@ -168,6 +169,15 @@ def test_control_carries_only_reload_and_resync() -> None:
 def test_hud_requires_the_node_counts(missing: str) -> None:
     with pytest.raises(ValidationError):
         Hud.model_validate({k: v for k, v in HUD.items() if k != missing})
+
+
+def test_hud_time_limit_score_is_required_but_nullable_and_whole() -> None:
+    with pytest.raises(ValidationError):
+        Hud.model_validate({k: v for k, v in HUD.items() if k != "time_limit_score"})
+    assert Hud.model_validate({**HUD, "time_limit_score": None}).time_limit_score is None
+    for bad in ({"coalition": 1.5, "enemy": 0}, {"coalition": -1, "enemy": 0}, {"coalition": 1}):
+        with pytest.raises(ValidationError):
+            Hud.model_validate({**HUD, "time_limit_score": bad})
 
 
 def test_hud_limit_ticks_is_required_but_nullable() -> None:

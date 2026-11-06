@@ -15,6 +15,7 @@ export interface Stage {
   banners: HTMLElement;
   panels: HTMLElement;
   sitrep: HTMLElement;
+  toast: HTMLElement;
   units: HTMLCanvasElement;
   fx: HTMLCanvasElement;
   terrain: TerrainLayer;
@@ -61,6 +62,7 @@ export function mountStage(root: HTMLElement, win: Window): Stage {
   const safe = el(doc, "div", "nx-safe", world);
   const panels = el(doc, "div", "nx-panels", safe);
   const sitrep = el(doc, "div", "nx-sitrep", safe);
+  const toast = el(doc, "div", "nx-toast", stage);
   const banners = el(doc, "div", "nx-banners", stage);
   const beat = el(doc, "div", "nx-heartbeat", stage);
   beat.setAttribute("aria-hidden", "true");
@@ -93,6 +95,7 @@ export function mountStage(root: HTMLElement, win: Window): Stage {
     banners,
     panels,
     sitrep,
+    toast,
     units,
     fx,
     terrain,

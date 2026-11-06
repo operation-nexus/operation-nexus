@@ -46,6 +46,7 @@ body,
 .nx-world,
 .nx-map,
 .nx-map canvas,
+.nx-toast,
 .nx-banners {
   position: absolute;
   inset: 0;
@@ -84,6 +85,11 @@ body,
 }
 .nx-sitrep {
   z-index: 20;
+}
+/* Toasts (§0.6): above the OV-26 stack, below the §0.3 banners. */
+.nx-toast {
+  z-index: 90;
+  pointer-events: none;
 }
 .nx-banners {
   z-index: 100;
