@@ -356,6 +356,12 @@ Notes: SIM-CORE-NOTES.md §4 Threat Director
 
 Notes: SIM-CORE-NOTES.md §4 Tasking Boards
 
+### AI wingmen
+1. `nexus.core.wingmen` (NX-511); behaviour rules: GAMEPLAY §1b items 239–255.
+2. `step.apply_commands` stamps a JOIN's or REBASE's commander with the running ticks before the handler runs (`World.last_command`, pruned at each board pass).
+3. A flight spawns inside `tasking.claim`, so on a board pass or a parameterless JOIN; the per-tick pass runs in slot `director` after the Threat Director and before the Tasking Boards, never while frozen: it ends flights, starts cooldowns and retires wingmen that landed, before the board could task one.
+4. `World.last_command`, `World.flights`, `World.wingmen_cooldown` and `World.wingmen_home` are world state (snapshot format 40); no RNG.
+
 ### Follow
 1. Slot `director`, after the board; behaviour rules: GAMEPLAY §1b, §5; Q-GP-31..33, Q-SIM-76.
 2. `Entity.follow_id` and `Entity.fired_by` are world state.

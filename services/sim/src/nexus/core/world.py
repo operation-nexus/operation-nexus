@@ -27,7 +27,8 @@ integer millionths of a percent, NX-125): thresholds are exact. So are the campa
 ticks, hold run, per-side held-node tick sums, objective counts and the active objective (NX-126).
 So are each limited side's source pool and last storage cap (NX-412); a side absent from both runs
 in unlimited mode (EC-15). So are each entity's upkeep home, grounded flag and order tick (NX-412
-part 2).
+part 2). So are each commander's last chat-command tick, the AI wingmen flights, cooldowns and the
+wingmen on their way home (NX-511).
 `World.rules` (`nexus.core.rules`) is static config, not state: neither snapshots nor the hash
 include it.
 """
