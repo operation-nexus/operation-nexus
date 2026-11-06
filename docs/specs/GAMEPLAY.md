@@ -68,7 +68,7 @@ Rules only. Narration, history, decision trails, examples and derived numbers: [
 15. **Asymmetry, capture jobs (Q-TD-14):** `CAPTURE` jobs exist only on the Static's board in the first build; coalition captures stay player-driven (`!join logi <node>`, free orders, the objective), and the coalition AI garrison never initiates offense.
 16. **Sole exception, the retake job (owner, 2026-10-28, Q-TD-94 (b), Q-TD-99; NX-475, in code):** the coalition board posts one `retake:<node>` CAPTURE job on a start node it lost (§1b), so a quiet stream that lost every base has assigned work to win ground back.
 17. Every other coalition capture stays player-driven.
-   - **Asymmetry, AI wingmen (Q-GP-50, NX-511; Draft):** coalition only. Up to N [AI] strike fighters fly with a viewer's STRIKE claim, fading to none at `capture.quiet_ref`; a human starts every flight (§1b items 239–255).
+   - **Asymmetry, AI wingmen (Q-GP-50, Q-GP-51, NX-511):** coalition only. Up to N [AI] strike fighters fly with a viewer's STRIKE claim, fading to none at `capture.quiet_ref`; a human starts every flight (§1b items 239–255).
 
 18. **Asymmetry, quiet-stream capture (Q-SIM-26):** the `quiet_mult` easing in §8 applies to the coalition only.
 19. Applying it to the Static would make a quiet stream easier for the enemy as well, which defeats its purpose.
@@ -130,7 +130,7 @@ Rules only. Narration, history, decision trails, examples and derived numbers: [
 10. **The AI garrison never initiates offense**: it takes defend, resupply (which also repairs facilities, Q-GP-47), scout and repair bridge jobs (rescue jobs join with CSAR, GAMEPLAY-LATER §6a; default; Q-CFG-16 option `tasking.ai_jobs`, in code DEFEND, RESUPPLY, SCOUT and REPAIR_BRIDGE), never escort or patrol jobs (Q-GP-45: escorting is the players' call; default; Q-CFG-16 option `tasking.ai_excluded_jobs`), and joins strike jobs only when a player started them (objective; later also a rally call or player-led flight).
 11. **Sole exception (Q-GD-31):** it may counterattack a node the coalition just lost, within a configurable window (PROPOSED ~15 min), using only units still able to fight (not Disabled or Destroyed).
    - **No coalition unit yet (NX-378 review, 2026-11-05):** the coalition's AI garrison has no mobile combat unit (only its facilities and AI trucks; `garrison_quota` exists only on Static bases), so this counterattack and §1b item 233's "any other job once a COMMANDER holds a claim" have nothing to act with.
-   - NX-511's AI wingmen (items 239–255, Draft, Q-GP-50) are the "player-led flight" of item 10: they fly only on a viewer lead's STRIKE claim and never take a board job, so these two rules still have no unit after it.
+   - NX-511's AI wingmen (items 239–255, Q-GP-50, Q-GP-51) are the "player-led flight" of item 10: they fly only on a viewer lead's STRIKE claim and never take a board job, so these two rules still have no unit after it.
 
 12. **Feasibility:** a unit only takes a job it can reach and complete with its current fuel and munitions.
 13. Otherwise it first takes a rearm/refuel step (nearest base with stock, Q-GD-17).
@@ -415,16 +415,20 @@ Rules only. Narration, history, decision trails, examples and derived numbers: [
 237. A carrier (truck, convoy) takes resupply and repair-bridge jobs, and the coalition's retake job (Q-TD-100), only: any other capture run stays a direct order, so no assist-objective job exists until a non-carrier ground unit (an AI garrison unit) can staff it.
 238. A parameterless `!join` claims the best job at spawn (ties by job id; an aircraft skips a job whose route crosses a discovered ring, like the board); a unit with no explicit order takes jobs from the board, and a node-target `!join` order ends on arrival (a capture run when its bar is gone).
 
-**Human-led AI wingmen (NX-511, Q-GP-50; pulls Q-GD-10 forward). Status: Draft — needs owner sign-off. Q-GP-50 decided the form; the details are lead proposals. Every value is PROPOSED (DI-7); keys arrive by the add-config-key process with the code.**
+**Human-led AI wingmen (NX-511, Q-GP-50; pulls Q-GD-10 forward). Status: Approved (owner, 2026-11-06, Q-GP-51); kernel exception Q-DEV-46 (item 254). Every value is PROPOSED (DI-7); keys arrive by the add-config-key process with the code.**
 239. **Why:** the coalition has no mobile AI unit, so a solo or 5-viewer crowd can strike a node's defenses but can't take the node (NX-378 review §1). A viewer's strike now pulls a few [AI] jets, and a bigger crowd shrinks them to none.
 240. **Trigger:** a COMMANDER-owned armed aircraft claims a STRIKE job (board pass or parameterless `!join strike`) while LANDED at a coalition landing base. The flight spawns in the tick of the claim, before `movement`, so it takes off with the lead.
-   - No flight for: an airborne claim (a same-kind wingman from a base can't catch a lead at the same top speed; open question 1), a direct order (`!join strike <node>`, `!target`), any other job kind (no CAS job exists; ASSIST_OBJECTIVE is a ground job), or a Static claim.
+   - No flight for: an airborne claim (a same-kind wingman from a base can't catch a lead at the same top speed), a direct order (`!join strike <node>`, `!target`), any other job kind (no CAS job exists; ASSIST_OBJECTIVE is a ground job), or a Static claim.
    - One flight per claim: a lead that loses its wingmen gets new ones only on its next claim.
+   - **Active lead only (owner):** the lead's commander must have sent a chat command that reached the sim (accepted or rejected) within `tasking.wingmen_lead_active_min` (15 game min) before the claim, so an abandoned unit gets no wingmen. `ME` (`!me`/`!status`) does not count, as for the AUTO timers (STATE-MACHINES, Q-ALN-26); system and staff commands do not count.
+   - The sim records no such tick today (no per-commander command time in `World`), so it is new state: `World` keeps commander id → running tick of the last such command, written in `step.apply_commands` before the handler runs, and entries older than the window are dropped at each board pass. It is in the snapshot, so every golden with commands gets new state hashes (item 254). The AUTO handoff (Q-ALN-9), not in code, can reuse it.
+   - **AUTO leads (owner):** an AUTO unit never leads a flight. Until AUTO exists in code, the active-lead test above is the guard.
 241. **Count:** N = ⌈`tasking.wingmen_max` × (q − min(v, q)) ÷ q⌉, with q = `capture.quiet_ref` (50, existing key) and v = live viewer units at the claim tick (`World.viewer_units`, the §8 `quiet_mult` count). Integer arithmetic, rounded up: at max 2, N is 2 for v 1–24, 1 for 25–49, 0 from 50.
    - Wingmen are AI_GARRISON, so they never count in v. N is fixed for the flight.
+   - **Theater cap fades too (entertainment review):** live wingmen stay within ⌈`tasking.wingmen_max_live` × (q − min(v, q)) ÷ q⌉, read at the claim tick, same integer rounding: at 6, the cap is 6 for v ≤ 8, 3 at 25, 1 at 49, 0 from 50. Wingmen already flying are never removed by it.
 242. **Spawn and cost:** each wingman is a new AI_GARRISON unit of the lead's kind, full loadout, spawned and homed at the lead's base. The kind must list AI_GARRISON in `playable_by` (STRIKE_FIGHTER does, `content/units/strike-fighter.yaml`).
    - It pays `logistics.loadout_cost.<kind>` (STRIKE_FIGHTER 20) at that node by EC-13: at the sanctuary from the coalition source pool, at a forward airbase from its stock, never below the starvation floor (GP-7). `economy.free_viewer_spawn` never covers it (EC-13 item 188). Upkeep applies (EC-4).
-   - The flight is the largest k ≤ N that the node can pay for in whole loadouts, that keeps live wingmen within `tasking.wingmen_max_live`, and that fits the EC-8 guard (`economy.guard_room`). Precedent: the coalition AI trucks (§5 LC-1, `ai_trucks`).
+   - The flight is the largest k ≤ N that the node can pay for in whole loadouts, that keeps live wingmen within the faded cap (item 241), and that fits the EC-8 guard (`economy.guard_room`). Precedent: the coalition AI trucks (§5 LC-1, `ai_trucks`).
 243. **Station:** each wingman follows the lead (`Entity.follow_id`, FOLLOW order, Q-GP-31) on the AIR-after-AIR wingman station (Q-GP-32, `tasking.follow_station_m.wingman` 1000 m): the first on the right, the second on the left (lead proposal; today every follower takes the right).
    - It holds no claim: no slot, no overfill count (`tasking.overfill_factor`), not a viewer unit for the Q-SIM-92 extra slots or patrol staffing, never a job participant (TB-1).
    - Its order keeps it off the board (`tasking_gen.is_idle`); it never returns to the board.
@@ -437,33 +441,34 @@ Rules only. Narration, history, decision trails, examples and derived numbers: [
    - A wingman sent home for its own reason (bingo, Mission-kill, last round; COMBAT §5.6) leaves the flight for good.
    - A dead lead's wingmen pass to no one: not to the lead's leader (Q-GP-33, `World.remove`), not to the board.
    - No refund: a retired wingman's loadout is spent.
-246. **Credit and marking:** a wingman's hits and kills earn no XP, merit or leaderboard metric for anyone, the lead included (the AUTO-assist precedent, PROG-12; open question 3). The lead's job outcome credits the lead as usual.
+246. **Credit and marking:** a wingman's hits and kills earn no XP, merit or leaderboard metric for anyone, the lead included (the AUTO-assist precedent, PROG-12). The lead's job outcome credits the lead as usual.
    - `UnitSpawned` and the views carry `owner_kind` AI_GARRISON with a null `callsign` and `commander_id`; the overlay keys the [AI] marker on `owner_kind` (DI-5) and shows "VIPER-27 + 2 following" from `follower_count`. No new event or wire field.
+   - **Overlay requirement (owner; OVERLAY work, P2, not kernel scope):** a feed line when a flight spawns ("VIPER-27 leads 2 [AI] wingmen"), derived from `UnitSpawned` and the wingman's `follow_entity_id`, and a tether line from each wingman to its lead. No new wire field.
 247. **Provocation:** a wingman's hit adds `director.provocation.ai_shooter_mult` × its weight, 0 by default (`provocation._by`: the shooter is not COMMANDER-owned), so only the lead's shots provoke (Q-TD-11). Threat memory still counts the flight's raids, as any actor's (THREAT-DIRECTOR §2). The design needs the key at 0.
 248. **Abuse guard:** a flight that ends with a wingman lost (destroyed or Disabled) and no impact gives the lead's commander `tasking.wingmen_cooldown_min` (15 game min) with no wingmen on any claim.
    - Impact is the A2 striker test (TESTING-STRATEGY A2) by any flight member during the flight: a weapon hit on a Static unit, facility or node defenses, or a kill. A DONE job also counts.
-   - A flight whose lead's claim ends before the wingmen take off counts as a no-impact loss, so claim-and-cancel can't drain the pool (open question 5).
+   - A flight whose lead's claim ends before the wingmen take off counts as a no-impact loss, so claim-and-cancel can't drain the pool.
    - Keyed by commander id, so a respawn doesn't reset it; game time, frozen while paused.
 249. **0 viewers:** no viewer unit, no lead, no flight. At N = 0 the step draws no RNG, writes no state and emits nothing, so overnight-0 is byte-identical to `tasking.wingmen_max` 0.
 250. **Parity (§0 item 3):** the Static gets nothing new. A justified asymmetry, like `quiet_mult` (§0 item 18): a pacing aid for small crowds; the Static has no crowd to scale and already raises multi-jet operations from its budget (THREAT-DIRECTOR §7a). It is a narrow carve-out from "the AI garrison never initiates offense" (item 10): a human starts every flight. Items 10, 11 and 233 are unchanged and still have no unit: a wingman never takes a board job.
-251. **Determinism (SIM-CORE):** integers, leads in entity-id order, ids from `World.spawn`, no RNG. New state: per commander, the wingman cooldown end tick; per lead, its flight (job id, wingmen spawned, impact seen). It goes in the snapshot (a format bump; an empty map should not move 0-viewer state hashes [UNVERIFIED]).
-252. **Keys (PROPOSED):** `tasking.wingmen_max` int 2 (0–4; 0 turns the feature off); `tasking.wingmen_max_live` int 6 (0–50; theater-wide, three full flights); `tasking.wingmen_cooldown_min` 15 game min (0–120). The fade reuses `capture.quiet_ref`, so moving it moves the fade, the night cap and `quiet_mult` together.
+251. **Determinism (SIM-CORE):** integers, leads in entity-id order, ids from `World.spawn`, no RNG. New state: per commander, the wingman cooldown end tick and the last chat-command tick (item 240); per lead, its flight (job id, wingmen spawned, impact seen). It goes in the snapshot (a format bump; an empty map should not move 0-viewer state hashes [UNVERIFIED]).
+252. **Keys (PROPOSED):** `tasking.wingmen_max` int 2 (0–4; 0 turns the feature off); `tasking.wingmen_max_live` int 6 (0–50; theater-wide at v ≤ 8, faded by item 241); `tasking.wingmen_cooldown_min` 15 game min (0–120); `tasking.wingmen_lead_active_min` 15 game min (1–120). The fade reuses `capture.quiet_ref`, so moving it moves the fade, the night cap and `quiet_mult` together.
 253. **Harness acceptance (tracker NX-511; same sha and seeds, A/B `tasking.wingmen_max` 2 against 0):**
-   - **quiet-5 holds start** [interpretation; open question 7]: A1's low-crowd no-collapse rule passes in every seed, and the median seed ends holding at least the coalition's start strategic nodes.
-   - **solo captures:** a `solo-1` profile (1 veteran, auto-tasked, no arrivals; the NX-378 probe's ad hoc profile, not yet in `tools/balance/profiles.yaml`) gets at least one `NodeCaptured` to COALITION per seed in 6 h (open question 8).
+   - **quiet-5 holds start** (owner accepted this reading): A1's low-crowd no-collapse rule passes in every seed, and the median seed ends holding at least the coalition's start strategic nodes.
+   - **solo:** a `solo-1` profile (1 veteran, auto-tasked, no arrivals; the NX-378 probe's ad hoc profile, not yet in `tools/balance/profiles.yaml`), 6 h per seed. Judged: Static `NodeDefensesDown` per hour at least doubles against wingmen off in the median seed (PROPOSED). Reported: coalition captures (`NodeCaptured` to COALITION); judged only once the solo persona switches to trucks.
    - **overnight-0 byte-identical:** event count, event hash and every state hash match between the arms; the `overnight-0` golden's event stream is unchanged.
    - **raid/surge unchanged:** raid-300 and surge-500 keep their A1–A4 verdicts, and the median campaign length moves under 10 % (PROPOSED). Wingmen can spawn there only while v < 50 in the ramp (`ramp_min` 5 and 10).
    - The report adds per profile: wingmen spawned, lost and retired, cooldowns started, stock spent.
-254. **Kernel exception request (Q-DEV-37 pause):** new `core/wingmen.py` (spawn, flight end, cooldown; ~150–200 lines); `tasking.py` (claim and release hooks; ~20–30); `follow.py` and `world.py` (leader loss, left/right station, flight state and snapshot; ~40–60); `combat.py` (lead's strike target, impact flag; ~15–25); `rules.py` (three keys; ~20); `step.py` (one call). About 250–340 non-test lines, plus generated contracts and registry rows. Goldens: 0-viewer cases keep their event streams; shipped-config cases get a new config hash (new keys) and are re-pinned; `joins-strait-1` and `capture-strait-1` change only if a viewer claims a STRIKE job while landed [UNVERIFIED].
-255. **Open questions (recommended first):**
-   1. Airborne claim: no wingmen / spawn and meet the lead at the target.
-   2. Cost at a forward airbase: its stock by EC-13 (one spawn rule) / always the source pool, spawning at the sanctuary.
-   3. Credit: none for anyone / a capped share of wingman kills to the lead.
-   4. AUTO leads, once AUTO exists: no wingmen (Q-GP-44: AUTO is not a human) / as OPERATOR.
-   5. Cooldown: 15 min after a no-impact loss, cancel-before-takeoff included / losses only, as Q-GP-50 words it.
-   6. A refused or short flight (stock, cap, cooldown): silent in the kernel, a digest line in P2 / a new event now.
-   7. "quiet-5 holds start" means item 253's reading / the owner's wording.
-   8. Solo bar: at least one capture per seed in 6 h / a share of seeds.
+254. **Kernel exception (Q-DEV-46, granted for these modules; Q-DEV-37 pause):** new `core/wingmen.py` (spawn, faded caps, active-lead test, flight end, cooldown; ~165–220 lines); `tasking.py` (claim and release hooks, pruning; ~25–35); `follow.py` and `world.py` (leader loss, left/right station, flight, cooldown and last-command state and snapshot; ~55–75); `combat.py` (lead's strike target, impact flag; ~15–25); `rules.py` (four keys; ~25); `step.py` (the call, last-command record; ~5–10). About 290–390 non-test lines, plus generated contracts and registry rows. No module outside this list is needed. Goldens: 0-viewer cases keep their event streams; shipped-config cases get a new config hash (new keys) and are re-pinned; every case with commands gets new state hashes (last-command state; events unchanged unless a viewer claims a STRIKE job while landed [UNVERIFIED]).
+255. **Decisions (owner, 2026-11-06, Q-GP-51):**
+   1. Airborne claim: no wingmen.
+   2. Cost at a forward airbase: the lead's base's stock by EC-13.
+   3. Credit: none for anyone.
+   4. AUTO leads: no wingmen.
+   5. Cooldown: 15 game min after a no-impact loss, cancel-before-takeoff included.
+   6. A refused or short flight is silent in the kernel; a digest line comes in P2.
+   7. "quiet-5 holds start" means item 253's reading.
+   8. Added: the faded theater cap (item 241), the active-lead rule (item 240), the overlay feed and tether (item 246), the solo defenses-down bar (item 253).
 
 Notes: GAMEPLAY-NOTES.md §1b
 
