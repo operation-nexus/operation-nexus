@@ -69,6 +69,8 @@ type Frame = { type: string } & Record<string, unknown>;
 const isObj = (x: unknown): x is Record<string, unknown> =>
   typeof x === "object" && x !== null && !Array.isArray(x);
 const isInt = Number.isInteger;
+const isNat = (n: unknown): boolean =>
+  typeof n === "number" && Number.isInteger(n) && n >= 0;
 /** An array whose every element passes `ok`. */
 const all = (x: unknown, ok: (e: unknown) => boolean): boolean =>
   Array.isArray(x) && x.every(ok);
@@ -103,7 +105,7 @@ function validHud(x: unknown): boolean {
     typeof c["paused"] === "boolean" &&
     nullOr(
       x["time_limit_score"],
-      (v) => isObj(v) && isInt(v["coalition"]) && isInt(v["enemy"]),
+      (v) => isObj(v) && isNat(v["coalition"]) && isNat(v["enemy"]),
     ) &&
     all(x["ticker"], (e) => hasInt("tick")(e) && hasStr("text")(e)) &&
     isObj(p) &&

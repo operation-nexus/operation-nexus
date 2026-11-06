@@ -394,6 +394,10 @@ describe("malformed Hud frames (WP-13)", () => {
       { ...hud, time_limit_score: { coalition: 1.5, enemy: 0 } },
     ],
     [
+      "time_limit_score negative",
+      { ...hud, time_limit_score: { coalition: -1, enemy: 0 } },
+    ],
+    [
       "objective deadline 1.5",
       { ...hud, objective: { node_id: "n1", name: "x", deadline_tick: 1.5 } },
     ],
