@@ -33,7 +33,8 @@ leader; the follow links form forests, a unit may be followed by many and may it
      drive out along the road to the stop), followers within twice the station hold where they are.
    - AIR after GROUND: an aircraft farther than `overwatch` m flies to the leader and orbits there
      (the orbit mechanics of `movement`). A leader parked at a landing base: it lands there.
-   - AIR after AIR: a wingman `wingman` m off the leader's right, moving with it, while the
+   - AIR after AIR: a wingman `wingman` m off the leader's right (an AI wingmen flight's 2nd and
+     4th off its left, NX-511), moving with it, while the
      leader flies at least the follower's `min_speed_mps`; slower, it orbits within that distance.
      A leader landed: it lands too, and takes off again once the leader does.
    A follower sent home (RTB) is not steered until it lands. A ground follower after an aircraft,
@@ -480,11 +481,19 @@ def _station_air(world: World, rules: Rules, tr: TaskingRules, f: Entity, leader
     ground = rules.domain[leader.kind] == _GROUND
     speed = math.hypot(leader.vel.x, leader.vel.y)
     if not ground and speed >= rules.min_speed_mps[f.kind]:
-        off = tr.station_m["wingman"]
+        off = tr.station_m["wingman"] * _flank(world, f, leader)
         hx, hy = (leader.vel.x / speed, leader.vel.y / speed) if speed else (1.0, 0.0)
         f.path = [Vec2(leader.pos.x + hy * off, leader.pos.y - hx * off)]
     elif _dist(f, leader) > tr.station_m["overwatch" if ground else "wingman"]:
         f.path = [leader.pos]
+
+
+def _flank(world: World, f: Entity, leader: Entity) -> int:
+    """1 off the leader's right, -1 off its left: the 2nd (and 4th) wingman of an AI wingmen
+    flight takes the left (GAMEPLAY §1b item 243, NX-511)."""
+    flight = world.flights.get(leader.id)
+    left = flight is not None and f.id in flight.wingmen and flight.wingmen.index(f.id) % 2
+    return -1 if left else 1
 
 
 # --- formation speed ----------------------------------------------------------------------------

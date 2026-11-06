@@ -252,6 +252,14 @@ class TaskingRules:
     human_displaces_ai: bool  # tasking.human_displaces_ai: a viewer's unit bumps an AI claimant
     escort_repair_crews: bool  # tasking.escort_repair_crews: escort each repair truck (Q-SIM-118)
     retake_keep_ticks: int  # an unclaimed retake job outlives its node's restored defenses (NX-484)
+    # AI wingmen (GAMEPLAY §1b items 239-255, NX-511): tasking.wingmen_max and _max_live (0: off),
+    # the cooldown and active-lead windows in running ticks, and the kinds that list AI_GARRISON
+    # in the catalog's `playable_by` (item 242)
+    wingmen_max: int
+    wingmen_max_live: int
+    wingmen_cooldown_ticks: int
+    wingmen_lead_active_ticks: int
+    wingmen_kinds: frozenset[UnitKind]
 
 
 @dataclass(frozen=True, slots=True)
@@ -631,6 +639,9 @@ def tasking_rules(
     order_dwell_ticks: int,
     retake_keep_ticks: int,
     scout_sector_stale_ticks: int,
+    wingmen_cooldown_ticks: int,
+    wingmen_lead_active_ticks: int,
+    wingmen_kinds: frozenset[UnitKind],
 ) -> TaskingRules:
     """The tick counts are `cfg`'s game-time keys already converted by the config loader. Raises
     ValueError when the stocking urgency rounds to 0 thousandths, or a front-line stocking job
@@ -695,6 +706,11 @@ def tasking_rules(
         human_displaces_ai=cfg.human_displaces_ai,
         escort_repair_crews=cfg.escort_repair_crews,
         retake_keep_ticks=retake_keep_ticks,
+        wingmen_max=cfg.wingmen_max,
+        wingmen_max_live=cfg.wingmen_max_live,
+        wingmen_cooldown_ticks=wingmen_cooldown_ticks,
+        wingmen_lead_active_ticks=wingmen_lead_active_ticks,
+        wingmen_kinds=wingmen_kinds,
     )
 
 

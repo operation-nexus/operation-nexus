@@ -8,6 +8,8 @@ import math
 from collections.abc import Callable, Mapping, Sequence
 
 from nexus.contracts.gen.commands.command import Command
+from nexus.contracts.gen.commands.join import JoinCommand
+from nexus.contracts.gen.commands.rebase import RebaseCommand
 from nexus.contracts.gen.events.event import Event
 from nexus.contracts.gen.events.threat_tier_changed import ThreatTierChanged
 from nexus.core.ai_trucks import ai_trucks
@@ -29,6 +31,7 @@ from nexus.core.provocation import DIRECTED, scan_rear
 from nexus.core.rules import CP_SCALE, Rules
 from nexus.core.tasking import run as run_tasking
 from nexus.core.upkeep import owed, upkeep
+from nexus.core.wingmen import run as run_wingmen
 from nexus.core.world import SIDES, Entity, UnitState, Vec2, World, lose_unit
 
 TICK_DT = 0.1  # game seconds per tick (SC-2)
@@ -47,8 +50,12 @@ def apply_commands(
     world: World, commands: Sequence[Command], handlers: Mapping[str, Handler], out: list[Event]
 ) -> None:
     """Apply in `(target_tick, arrival_seq)` order (SC-6); an unhandled kind is rejected (SC-7), and
-    so is every command once the campaign has ended (C-3), even one queued behind the ending."""
+    so is every command once the campaign has ended (C-3), even one queued behind the ending.
+    A chat command's commander is stamped active first, accepted or rejected (GAMEPLAY §1b item
+    240, NX-511: the wingmen's active-lead test)."""
     for command in sorted(commands, key=lambda c: (c.target_tick, c.arrival_seq)):
+        if isinstance(command, JoinCommand | RebaseCommand):
+            world.last_command[command.issuer.commander_id] = world.campaign.running_ticks
         handler = handlers.get(command.kind)
         if world.campaign.ended:
             # SC-15 (Q-SIM-15): the SC-11 safety actions (STAFF_BAN, FORGET, STAFF_KILL_SWITCH) must
@@ -74,6 +81,7 @@ def director(
     upkeep(world, out)
     ai_trucks(world, out)
     _decide(world, out)
+    run_wingmen(world, out)  # NX-511: flights end and wingmen retire before the board tasks
     run_tasking(world, out)
     steer(world)
 
