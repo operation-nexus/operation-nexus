@@ -101,6 +101,10 @@ function validHud(x: unknown): boolean {
     isInt(c["elapsed_ticks"]) &&
     nullOr(c["limit_ticks"], isInt) &&
     typeof c["paused"] === "boolean" &&
+    nullOr(
+      x["time_limit_score"],
+      (v) => isObj(v) && isInt(v["coalition"]) && isInt(v["enemy"]),
+    ) &&
     all(x["ticker"], (e) => hasInt("tick")(e) && hasStr("text")(e)) &&
     isObj(p) &&
     all(p["tasking_needed"], isObj) &&

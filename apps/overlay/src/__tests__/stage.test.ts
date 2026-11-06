@@ -170,6 +170,7 @@ describe("mountStage", () => {
     const stage = root.children[0] as FakeEl;
     expect(stage.children.map((c) => c.className)).toEqual([
       "nx-world",
+      "nx-toast",
       "nx-banners",
       "nx-heartbeat",
     ]);
@@ -193,8 +194,9 @@ describe("mountStage", () => {
       Number(
         new RegExp(`\\.${cls}\\s*\\{[^}]*z-index:\\s*(\\d+)`).exec(css)?.[1],
       );
-    const order = ["nx-world", "nx-banners"].map(z);
+    const order = ["nx-world", "nx-toast", "nx-banners"].map(z);
     expect(order[0]).toBeLessThan(order[1] as number);
+    expect(order[1]).toBeLessThan(order[2] as number);
     expect([z("nx-panels"), z("nx-sitrep")]).toEqual(
       [z("nx-panels"), z("nx-sitrep")].sort((a, b) => a - b),
     );
@@ -231,7 +233,7 @@ describe("mountStage", () => {
     vi.useFakeTimers();
     const root = new FakeEl("div");
     const s = mountStage(root as never, fakeWin(1920, 1080, 1));
-    const beat = (root.children[0] as FakeEl).children[2] as FakeEl;
+    const beat = (root.children[0] as FakeEl).children[3] as FakeEl;
     expect(HEARTBEAT_CELLS).toBe(4);
     expect(beat.children).toHaveLength(4);
     vi.advanceTimersByTime(1000);

@@ -50,6 +50,7 @@ const hud = {
     paused: false,
     pause_reason: null,
   },
+  time_limit_score: null,
   ticker: [],
   panels: { campaign_status: {}, tasking_needed: [], top_commanders: [] },
   active_humans: null,
@@ -383,6 +384,14 @@ describe("malformed Hud frames (WP-13)", () => {
       { ...hud, operators: { by_rank_band: null } },
     ],
     [
+      "time_limit_score missing",
+      (({ time_limit_score: _omit, ...rest }) => rest)(hud),
+    ],
+    [
+      "time_limit_score fractional",
+      { ...hud, time_limit_score: { coalition: 1.5, enemy: 0 } },
+    ],
+    [
       "objective deadline 1.5",
       { ...hud, objective: { node_id: "n1", name: "x", deadline_tick: 1.5 } },
     ],
@@ -601,6 +610,7 @@ const fakeSurface = () =>
     banners: { appendChild: () => undefined },
     panels: { appendChild: () => undefined },
     sitrep: { replaceChildren: () => undefined },
+    toast: { appendChild: () => undefined },
     showTheater: () => undefined,
     showNodes: () => undefined,
     units: { getContext: () => null },
