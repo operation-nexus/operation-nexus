@@ -110,3 +110,39 @@ Each balance question gets one same-sha A/B, then a PROPOSED value and a Q-row. 
   - **Noise:** the only outcome change is prime-50 seed 7 (peak 46 viewers, 36 newbies, against 108–154 peak in most other seeds); one seed in ten does not support a claim. Quiet-5's A2 sample is 64 newbies against 75, with per-seed counts of 1–13, so its 4.3-point tail change is inconclusive. The momentum jump at prime-50 (+9.4 points) has no per-seed split in the posted report and rests on that one victory seed plus the pressure drop (inferred, not read). The quiet-5 collapse seed isn't named in either arm.
   - Not comparable: Q0c's per-seed tables (strategic nodes held, early hours, Static strategic captures per seed) are cut from the posted copy.
 - Decision: **reject `quiet_ref=100` as a fix for the A1 stalemate; keep 50.** It lowers Static Offensives at 50 viewers (-35 %) but changes no A1 verdict, no median time and no A2 verdict, and raises prime-50 defence-down fires by 50 %. Per Q-DEV-42 the question gets no second cycle until real viewers have played. Compare with T2 (#669) and T4 (#670) on the same Q0c baseline. No Q-row or NX id opens from this entry.
+
+### T2: director.provocation.half_life_s 900→1800 vs Q0c (#669 vs #667, 2901d4c), 2026-11-06
+- Question: with the shipped 900 s half-life (`balance/default.yaml:272`) a solo player gets about an hour of Offensives and then 4–5 h of Pattern of Life. Does 1800 s keep the Static engaged at low crowds without breaking the other targets? From the NX-378 low-crowd review (§4, T2), which suggested about 2,700; 1800 is the top of the key's tuning range (`contracts/config/balance.json`, `x-tune` max 1800.0). The A/B arm for Q0c (#667).
+- Run: sha 2901d4c4, config hash `8fd2c153…` (Q0c: `1e4fefaf…`); overnight-0, quiet-5, prime-50; seeds 1–10; 72 h; 12 workers; `set: director.provocation.half_life_s=1800`; economy on, no unlimited side; 300.1 min wall. Source: the harness comment on #669 (the posted copy is truncated; the full `report.md` is on the harness PC). Arm A is the Q0c entry above, same sha and seeds. Its posted copy is cut before the per-seed tables, so per-seed comparisons exist only for T2.
+- Replay check: not compared (different config hash). overnight-0 matches Q0c in every figure compared (funnel 119 / 37 / 1 / 0, momentum 51.1 %, STAGING 0.17 per h, coalition 0 captures, income).
+- Result: **T2 moved no acceptance target. It raised Static Offensives at quiet-5 (287 to 379) but not at prime-50, and it did not shorten the longest quiet stretch. It also shows supply and sanctuary-pressure harm.** A = Q0c, B = T2. Numbers are pooled over 10 seeds unless marked.
+
+| Metric | overnight-0 A / B | quiet-5 A / B | prime-50 A / B |
+|---|---|---|---|
+| A1 | pass / pass (10/10 no collapse) | fail / fail (9/10; collapse field not named in either posted report) | pass / pass (10/10) |
+| Outcomes | TIME_LIMIT 10 / 10 | TIME_LIMIT 10 / 10 | TIME_LIMIT 10 / 10 |
+| Median campaign h | 72.0 / 72.0 | 72.0 / 72.0 | 72.0 / 72.0 |
+| Momentum % | 51.1 / 51.1 | 48.2 / 37.2 | 35.4 / 31.2 |
+| Static Offensives launched | 119 / 119 | 287 / 379 | 1253 / 1249 |
+| Offensive funnel, captured (RETAKE) | 0 / 0 | 78 (0) / 65 (0) | 191 (9) / 151 (11) |
+| Static strategic-node captures of coalition nodes | no data (A) / 0 | no data (A) / 82 (2–11 per seed) | no data (A) / 246 (14–40 per seed) |
+| Coalition captures | 0 / 0 | 100 / 75 | 317 / 227 |
+| Longest stretch without an Offensive, median (max), min | 360.0 (376.0) / 360.0 (376.0) | 382.0 (659.0) / 382.0 (713.0) | 227.5 (328.0) / 224.5 (266.0) |
+| Gap by tier, Pattern of Life (n, median min) | 109, 360.0 / 109, 360.0 | 66, 153.5 / 51, 214.0 | 54, 44.0 / 18, 58.0 |
+| Decision windows blocked by night_cap | 360 / 360 | 34584 / 32495 | 9437 / 9915 |
+| STAGING per h; SANCTUARY_AT_RISK per h | 0.17; 0 / 0.17; 0 | 0.41; 0.03 / 0.54; 0.19 | 2.11; 1.05 / 1.97; 9.83 |
+| Coalition defences-down fires (minutes) | 2 (2125.1) / 2 (2125.1) | 572 (33730.4) / 493 (36678.6) | 594 (20257.7) / 551 (24528.6) |
+| Coalition 0-strategic-node minutes | 0.0 / 0.0 | 0.0 / 0.0 | 0.0 / 0.0 |
+| Defeat runs started, longest (min), paused (min) | 0 / 0 | 4, 15.5, 6.0 / 4, 19.1, 1.4 | 0 / 0 |
+| Victory holds | 0 / 0 | 0 / 0 | 0 / 3 (all broken, all in seed 7) |
+| A2 (median s; tail over 900 s) | no data (0 newbies) | 105; 16.0 % (12/75) / 132; 30.9 % (29/94), fail / fail | 283; 40.5 % (658/1626) / 187; 37.8 % (685/1812), fail / fail |
+| Starved node-min (mean) | 0.0 / 0.0 | 781.8 / 2357.2 | 1066.5 / 1710.9 |
+| Coalition deliveries per h | 0.20 / 0.20 | 8.94 / 8.27 | 51.73 / 38.98 |
+| Coalition trucks lost near sanctuary | 0 / 0 | 3 / 5 | 36 / 39 |
+
+  - **Moved:** at quiet-5 Offensives rose 287 to 379 (+92, +32 %), STAGING 0.41 to 0.54 per h, momentum fell 48.2 to 37.2 %, coalition captures fell 100 to 75. Static strategic-node captures at quiet-5 and prime-50 can't be compared (Q0c's per-seed table is cut); T2's figures are the per-seed "Strategic node losses" summed: quiet-5 9+2+10+5+7+11+8+10+10+10 = 82, prime-50 31+40+17+20+19+14+17+20+31+37 = 246.
+  - **Did not move:** every A1 verdict is the same (quiet-5 still 9/10); every seed in every profile still ends at TIME_LIMIT at 72.0 h; A2 still fails at both profiles. The median longest stretch without an Offensive at quiet-5 is 382.0 min in both arms, and night_cap still blocks 32495 windows (A: 34584). At prime-50 Offensives are 1249 against 1253. Hour 4 of the early-hours table shows 6 of 10 quiet-5 seeds back in PATTERN_OF_LIFE (s1, s2, s4, s5, s8, s9); the Q0c table is cut, so there is no A figure to compare.
+  - **Harm signals:** quiet-5 starved node-min 781.8 to 2357.2, coalition starving job-min 6512.0 to 21224.0 (stocking 26161.0 to 27915.0). prime-50 starved node-min 1066.5 to 1710.9, coalition deliveries 51.73 to 38.98 per h, SANCTUARY_AT_RISK 1.05 to 9.83 per h, defences-down minutes 20257.7 to 24528.6, starving job-min 9166.0 to 15186.0. quiet-5 A2 tail 16.0 to 30.9 %.
+  - **Not clearly harm:** prime-50 momentum fell 35.4 to 31.2 %, prime-50 coalition captures 317 to 227, and 3 victory holds (A: 0) in seed 7 (209.3 min at 6+ nodes), all broken. Fewer coalition captures and lower momentum are more Static pressure, which is the aim. They moved no target.
+  - **Noise:** quiet-5 A2 samples are 75 against 94 newbies, with per-seed counts of 2–16, so the tail change is inconclusive. The quiet-5 collapse seed isn't named in either arm. The report doesn't attribute any change to the half-life; the prime-50 SANCTUARY_AT_RISK jump (about 9x) is read as measured, not explained. 12200.2 s of slot wait is recorded for T2 (Q0c: 0.0 s) and doesn't change results.
+- Decision: **PROPOSED reject `half_life_s=1800`; keep 900.** It changes no pass/fail (A1 quiet-5 fail/fail, prime-50 and overnight-0 pass/pass, A2 fail/fail), no outcome and no median time. The one gain is +32 % Offensives at quiet-5, and the longest-stretch median doesn't move (382.0 min) while night_cap blocks most windows, so the hours-long lulls remain. It also triples quiet-5 starved node-min. This is a judgement call for the owner: a reader who counts more Static pressure at 5 viewers (and lower coalition momentum) as the goal could call it a partial success. By target pass/fail it is a no-op. Per Q-DEV-42 the question gets no second cycle until real viewers have played. The numbers point at night_cap spacing, not the provocation decay, as the binder at quiet-5 (T3 and T1 touch it). Compare with T1 (#668) and T4 (#670) on the same Q0c baseline. No Q-row or NX id opens from this entry; the lead records the PROPOSED verdict.
