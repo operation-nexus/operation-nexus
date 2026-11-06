@@ -7,7 +7,10 @@ import {
   getUnitShapeDescriptor,
   drawUnitVectorShape,
 } from "../symbology/dual-encoding";
-import { STRAIT_1_THEATER, STRAIT_CHANNEL_BOUNDS } from "../simulation/mock-theater";
+import {
+  STRAIT_1_THEATER,
+  STRAIT_CHANNEL_BOUNDS,
+} from "../simulation/mock-theater";
 import {
   ELEVATION_CHANNEL_WATER,
   ELEVATION_TERRAIN_BASE,

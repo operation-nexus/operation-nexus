@@ -7,7 +7,10 @@ import type {
 } from "../../types/render";
 import type { TheaterDefinition } from "../../types/theater";
 import type { VisualUnit } from "../../types/unit";
-import { STRAIT_1_THEATER, STRAIT_CHANNEL_BOUNDS } from "../../simulation/mock-theater";
+import {
+  STRAIT_1_THEATER,
+  STRAIT_CHANNEL_BOUNDS,
+} from "../../simulation/mock-theater";
 import {
   drawUnitVectorShape,
   FACTION_TOKENS,
