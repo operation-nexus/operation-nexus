@@ -202,6 +202,8 @@ def spawned(tick: int, entity: int, kind: str, side: str, cmdr: str | None) -> A
         unit_kind=kind,
         side=side,
         commander_id=cmdr,
+        owner_kind="COMMANDER" if cmdr else "AI_GARRISON",
+        node_id=None,
     )
 
 
