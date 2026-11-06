@@ -133,7 +133,11 @@ describe("static layer", () => {
     expect(l.setTheater(theater({ bounds_m: { w: 400000, h: 300000 } }))).toBe(
       true,
     );
-    expect(l.setTheater(theater({ terrain_ref: "ref" }))).toBe(true);
+    expect(
+      l.setTheater(
+        theater({ bounds_m: { w: 400000, h: 300000 }, terrain_ref: "ref" }),
+      ),
+    ).toBe(true);
     expect(l.draws).toBe(3);
   });
 
@@ -226,7 +230,9 @@ describe("node layer", () => {
     expect(l.draws).toBe(1);
     l.setTheater(theater({ bounds_m: { w: 400000, h: 300000 } }));
     expect(l.draws).toBe(2);
-    l.setTheater(theater({ terrain_ref: "ref" }));
+    l.setTheater(
+      theater({ bounds_m: { w: 400000, h: 300000 }, terrain_ref: "ref" }),
+    );
     expect(l.draws).toBe(3);
     (canvas as { width: number }).width = 1280;
     l.onResize();
