@@ -58,7 +58,7 @@ from typing import Any
 
 from nexus.broadcast.frames import FrameBuilder, encode
 from nexus.contracts.gen.common.enums import OwnerKind, Side, UnitKind
-from nexus.core.step import step
+from nexus.core.step import TICK_DT, step
 from nexus.core.world import Entity, Vec2, World
 from nexus.runtime.campaign_config import load_campaign_config, start_campaign
 
@@ -78,7 +78,7 @@ MIXED_STATIC_KINDS: tuple[UnitKind, ...] = ("ENEMY_ARMOR", "ENEMY_CONVOY", "ENEM
 
 CONFIG = load_campaign_config()
 BUDGET_MS = 25.0  # SC-10: p99 of step + frame build
-HUD_EVERY = 10  # WP-10: the Hud at 1 Hz = every 10th tick (hub._HUD_EVERY)
+HUD_EVERY = round(1 / TICK_DT)  # WP-10: the Hud at 1 Hz, derived as in hub._HUD_EVERY
 
 
 def _rules(scene: str) -> Any:
