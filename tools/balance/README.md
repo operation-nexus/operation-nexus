@@ -4,6 +4,8 @@ Headless runs of the real sim with scripted viewers, for the six crowd profiles,
 Spec: Q-SIM-91 (OPEN-QUESTIONS), TESTING-STRATEGY §3.5 and §3.5a (A1 to A6), Q-TEST-2 and Q-TEST-4 to Q-TEST-8, Q-ALN-42.
 This is part 1. Part 2 (adversarial profiles, A5 and A6, NX-321) and part 3 (the nightly 20-seed diff job and trend chart, a CI change) are not here.
 
+`probe_strikes.py` (NX-514, `docs/review/NX-514-PROBE-2026-11-06.md`): follows each Static operation launch with a STRIKE job and says, per launch, whether it fired, how its claimants fared (SAM hits) and how the job ended; `--set key=value` as `balance.py`, `--json` keeps the records, `--from-json` re-prints them. A probe, not a report: no targets, no queue.
+
 ```
 cd services/sim && uv run --frozen python ../../tools/balance/balance.py \
     --profile prime-50 --seeds 5 --hours 72 --workers 4 --out /path/to/new-report-dir
