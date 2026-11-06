@@ -779,18 +779,34 @@ def _wingmen_lines(profiles: dict[str, Any]) -> list[str]:
     lines = _table(
         ["Profile", "Seed", *WINGMEN_KEYS],
         [
-            [n, str(p["seed"]), *(str(p["wingmen"][k]) for k in WINGMEN_KEYS)]
+            [
+                n,
+                str(p["seed"]),
+                *("-" if p["wingmen"] is None else str(p["wingmen"][k]) for k in WINGMEN_KEYS),
+            ]
             for n, a in profiles.items()
             for p in a["per_seed"]
             if "wingmen" in p
         ],
     )
+    for n, a in profiles.items():
+        total = a.get("wingmen")
+        if total is not None:
+            note = f" ({total['not_measured']} not measured)" if total["not_measured"] else ""
+            body = (
+                "-"
+                if total["sum"] is None
+                else ", ".join(f"{k} {v}" for k, v in total["sum"].items())
+            )
+            lines.append(f"- {n}, summed over the seeds measured: {body}{note}")
+    lines.append("")
     lines += [
         "Counted from the events (`UnitSpawned` of a coalition AI_GARRISON unit of a wingmen "
         "kind; `UnitDestroyed`; `UnitDespawned`; the `SupplyConsumed{SPAWN}` paid just before "
         "each spawn) and, each tick, the world's flights and wingman cooldowns. `despawned_other` "
         "is any despawn that is not RETIRED (a Disabled wingman removed as a wreck). Not measured: "
-        "flights refused or short (silent, item 255.6), and wingmen Disabled but still flying.",
+        "flights refused or short (silent, item 255.6), and wingmen Disabled but still flying. "
+        "`-`: not measured (a run from before NX-511, or a failed one).",
         "",
     ]
     return lines
@@ -858,14 +874,20 @@ def _retirements(runs: list[dict[str, Any]]) -> dict[str, dict[str, int]]:
     return out
 
 
-def _wingmen(r: dict[str, Any]) -> dict[str, int]:
-    """NX-511: one run's wingmen counters; a run from before it, or a failed one, has zeros."""
-    got = r["metrics"].get("wingmen") or {}
-    return {k: got.get(k, 0) for k in WINGMEN_KEYS}
+def _wingmen(r: dict[str, Any]) -> dict[str, int] | None:
+    """NX-511: one run's wingmen counters; None (not measured, never 0) for a run from before it
+    or a failed one."""
+    got = r["metrics"].get("wingmen")
+    return None if not got else {k: got.get(k, 0) for k in WINGMEN_KEYS}
 
 
-def _wingmen_sum(runs: list[dict[str, Any]]) -> dict[str, int]:
-    return {k: sum(_wingmen(r)[k] for r in runs) for k in WINGMEN_KEYS}
+def _wingmen_sum(runs: list[dict[str, Any]]) -> dict[str, Any]:
+    """The counters summed over the seeds that measured them, and how many did not."""
+    got = [w for r in runs if (w := _wingmen(r)) is not None]
+    return {
+        "sum": {k: sum(w[k] for w in got) for k in WINGMEN_KEYS} if got else None,
+        "not_measured": len(runs) - len(got),
+    }
 
 
 def _early_cell(h: dict[str, Any]) -> str:

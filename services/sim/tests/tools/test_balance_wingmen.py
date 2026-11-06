@@ -140,7 +140,7 @@ def test_cooldowns_count_each_start_once_and_a_restart_again(
     assert seen() == 4
 
 
-def test_report_sums_seeds_shows_a_table_and_old_runs_are_zeros() -> None:
+def test_report_sums_measured_seeds_and_old_runs_are_not_measured() -> None:
     one = {"flights": 1, "spawned": 2, "destroyed": 1, "retired": 1, "despawned_other": 0,
            "cooldowns": 1, "supply_spent": 40}  # fmt: skip
     runs: list[dict[str, Any]] = [
@@ -148,15 +148,56 @@ def test_report_sums_seeds_shows_a_table_and_old_runs_are_zeros() -> None:
         {"seed": 2, "metrics": {"wingmen": one}},
         {"seed": 3, "metrics": {}},  # from before NX-511, or a failed run
     ]
-    assert report._wingmen_sum(runs) == {k: 2 * v for k, v in one.items()}
-    assert report._wingmen(runs[2]) == dict.fromkeys(metrics.WINGMEN_KEYS, 0)
-    prof = {"per_seed": [{"seed": r["seed"], "wingmen": report._wingmen(r)} for r in runs]}
+    assert report._wingmen_sum(runs) == {
+        "sum": {k: 2 * v for k, v in one.items()},
+        "not_measured": 1,
+    }
+    assert report._wingmen(runs[2]) is None  # not measured is not 0
+    assert report._wingmen_sum(runs[2:]) == {"sum": None, "not_measured": 1}
+    prof = {
+        "per_seed": [{"seed": r["seed"], "wingmen": report._wingmen(r)} for r in runs],
+        "wingmen": report._wingmen_sum(runs),
+    }
     lines = report._wingmen_lines({"quiet-5": prof})
     assert "| quiet-5 | 1 | 1 | 2 | 1 | 1 | 0 | 1 | 40 |" in lines
-    assert "| quiet-5 | 3 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |" in lines
+    assert "| quiet-5 | 3 | - | - | - | - | - | - | - |" in lines
+    assert any("spawned 4" in x and "(1 not measured)" in x for x in lines)
 
 
 @pytest.mark.parametrize("key", metrics.WINGMEN_KEYS)
 def test_every_counter_is_in_the_result(key: str, shipped_config: CampaignConfig) -> None:
     world = start_campaign("c", 1, shipped_config)
     assert _collector(world).result(1)["wingmen"][key] == 0
+
+
+@pytest.mark.parametrize(
+    "kind", ["GARRISON_INFANTRY", "AIR_DEFENSE_SITE", "ENEMY_STRIKE_FIGHTER", "ENEMY_FIGHTER"]
+)
+def test_an_armed_kind_that_is_not_an_ai_wingman_kind_is_not_counted(
+    kind: str, shipped_config: CampaignConfig
+) -> None:
+    """Armed and a wingmen kind but not AIR (infantry, a site), or armed and AIR but not a kind
+    the AI garrison may fly (a Static jet)."""
+    _, collector, out, _ = _flight(shipped_config)
+    spawn = next(e for e in out if e.kind == "UnitSpawned")
+    collector.feed([spawn.model_copy(update={"entity_id": 9005, "unit_kind": kind})])
+    assert collector.result(1)["wingmen"]["spawned"] == 2
+
+
+def test_a_cost_is_not_carried_past_another_spawn_or_taken_from_another_side(
+    shipped_config: CampaignConfig,
+) -> None:
+    _, collector, out, _ = _flight(shipped_config)
+    spawn = next(e for e in out if e.kind == "UnitSpawned")
+    paid = next(e for e in out if e.kind == "SupplyConsumed")
+    before = collector.result(1)["wingmen"]["supply_spent"]
+    # a cost whose unit was not a wingman: the next spawn must not inherit it
+    collector.feed([paid])
+    collector.feed([spawn.model_copy(update={"entity_id": 9006, "unit_kind": "RECON_UAV"})])
+    collector.feed([spawn.model_copy(update={"entity_id": 9007})])
+    assert collector.result(1)["wingmen"]["supply_spent"] == before
+    # a SPAWN paid at a Static node is not a coalition cost, whichever spawn follows it
+    static = paid.model_copy(update={"node_id": "static-rear"})
+    collector.feed([static])
+    collector.feed([spawn.model_copy(update={"entity_id": 9008, "node_id": "static-rear"})])
+    assert collector.result(1)["wingmen"]["supply_spent"] == before
