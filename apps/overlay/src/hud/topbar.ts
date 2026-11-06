@@ -2,6 +2,7 @@
 // textContent (WP-6, OV-9); a null or missing field shows DASH, never a number (DI-1).
 import type { Hud } from "../contracts/wire/snapshot";
 import type { HudClock } from "./clock";
+import type { FinalHours } from "./final-hours";
 import { DASH, t, tierText } from "./strings";
 
 export const SEGMENTS = 10;
@@ -50,6 +51,8 @@ export class TopBar {
   private objCell: HTMLElement;
   private glyph: HTMLElement;
   private tick: HTMLElement;
+  private warCell: HTMLElement;
+  private fh: Record<"box" | "label" | "glyph" | "chip", HTMLElement>;
 
   constructor(doc: Document, parent: HTMLElement) {
     const bar = (this.bar = h(doc, "div", "nx-topbar", parent));
@@ -73,7 +76,19 @@ export class TopBar {
     this.glyph = h(doc, "i", "nx-glyph", trow);
     this.glyph.setAttribute("aria-hidden", "true");
     const tier = h(doc, "span", "nx-val", trow, DASH);
-    const war = h(doc, "div", "nx-val", cell("nx-war", "hud.war"), DASH);
+    this.warCell = cell("nx-war", "hud.war");
+    // One row, so the bar keeps its height (§0.11): the countdown, then the final-hours label and
+    // score chip beside it (hidden and empty outside the final hours).
+    const wrow = h(doc, "div", "nx-row nx-war-row", this.warCell);
+    const war = h(doc, "div", "nx-val", wrow, DASH);
+    const box = h(doc, "div", "nx-fh", wrow);
+    box.hidden = true;
+    const label = h(doc, "span", "nx-fh-label", box);
+    const chip = h(doc, "span", "nx-fh-chip", box);
+    const glyph = h(doc, "i", "nx-fh-glyph", chip);
+    glyph.setAttribute("aria-hidden", "true");
+    const chipText = h(doc, "span", "nx-fh-text", chip);
+    this.fh = { box, label, glyph, chip: chipText };
     this.v = { pct, nodes, obj, timer, tier, war };
 
     const strip = h(doc, "div", "nx-ticker", parent);
@@ -81,7 +96,7 @@ export class TopBar {
     this.tick = h(doc, "span", "nx-ticker-item", strip);
   }
 
-  render(hud: Hud | null, clock: HudClock): void {
+  render(hud: Hud | null, clock: HudClock, fh?: FinalHours): void {
     const lit = litSegments(hud?.momentum_pct);
     this.segs.forEach((s, i) => s.classList.toggle("on", i < lit));
     const pct = hud?.momentum_pct;
@@ -97,6 +112,15 @@ export class TopBar {
     setText(this.v.tier, tier ? tierText(tier) : DASH);
     this.glyph.setAttribute("data-tier", tier ?? "");
     setText(this.v.war, clock.war());
+    // The push repeats in shape and word, colour only echoes it (OV-3); the bar's height never changes.
+    const push = fh?.push() ?? null;
+    const phase = push ? String(push.phase) : "";
+    this.warCell.setAttribute("data-fh", phase);
+    this.bar.classList.toggle("fh", push !== null);
+    this.fh.box.hidden = push === null;
+    setText(this.fh.label, push?.label ?? "");
+    setText(this.fh.chip, push?.score.text ?? "");
+    this.fh.glyph.setAttribute("data-lead", push?.score.lead ?? "NONE");
     // Newest item by tick; the contract does not fix the array order.
     const items = hud?.ticker ?? [];
     const last = items.reduce<(typeof items)[number] | null>(

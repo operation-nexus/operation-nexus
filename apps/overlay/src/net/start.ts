@@ -19,6 +19,7 @@ export function startFeed(
     | "showNodes"
     | "panels"
     | "sitrep"
+    | "toast"
     | "units"
     | "fx"
   >,

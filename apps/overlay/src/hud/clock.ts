@@ -43,6 +43,12 @@ export class HudClock {
     return fmtTicks(d === null ? null : d - this.elapsed, false);
   }
 
+  /** Ticks left on the war countdown, or null with no Hud or no limit; negative once past it. */
+  warRemaining(): number | null {
+    const l = this.hud?.campaign_clock.limit_ticks ?? null;
+    return l === null ? null : l - this.elapsed;
+  }
+
   war(): string {
     const l = this.hud?.campaign_clock.limit_ticks ?? null;
     return fmtTicks(l === null ? null : l - this.elapsed, true);

@@ -574,7 +574,7 @@ describe("mountHud with a fake stage and the real store", () => {
     const sitrep = root();
     const store = new WireStore();
     const w = { ...win, document: doc } as unknown as Window;
-    const view = mountHud({ panels, sitrep }, w, () => store);
+    const view = mountHud({ panels, sitrep, toast: root() }, w, () => store);
     return { panels, store, view };
   }
   const bar = (r: HTMLElement): string =>
@@ -587,7 +587,8 @@ describe("mountHud with a fake stage and the real store", () => {
     store.applySnapshot(snap);
     view.frame(snap, store);
     expect(bar(panels)).toBe(
-      "Nodes held3 of 5|ObjectiveHold Haven08:20|War clock58:20",
+      // the fixture's 35,000 ticks left are inside the last hour: the label shows, the absent score is a dash
+      "Nodes held3 of 5|ObjectiveHold Haven08:20|War clock58:20FINAL HOURS—",
     );
     const d = deltaAt(1100, 1000);
     store.applyDelta(d);
@@ -605,7 +606,7 @@ describe("mountHud with a fake stage and the real store", () => {
     store.applyHud(h2);
     view.frame(h2, store);
     expect(bar(panels)).toBe(
-      "Nodes held4 of 5|ObjectiveHold Haven08:00|War clock58:00",
+      "Nodes held4 of 5|ObjectiveHold Haven08:00|War clock58:00FINAL HOURS—",
     );
   });
 

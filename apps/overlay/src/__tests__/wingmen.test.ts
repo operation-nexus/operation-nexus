@@ -1,7 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { PublicEvent } from "../contracts/wire/hud";
 import type { EntityView } from "../contracts/wire/snapshot";
+import type { FinalHoursCard } from "../hud/final-hours";
 import { SitrepStack } from "../hud/sitrep-stack";
+import { MAX_SHOWN } from "../hud/threat-sitrep";
 import { WING_TTL_TICKS, WingmenFeed } from "../hud/wingmen";
 import { mapFrame } from "../stage-math";
 import { drawWorld, type Scene } from "../units";
@@ -189,6 +191,7 @@ describe("wingmen on the sitrep stack", () => {
       root as unknown as HTMLElement,
       () => undefined,
       () => ({ sectors: [], nodes: [] }),
+      () => null,
       feed,
     );
     feed.ingest([spawn(2, 1)], map([ent(1, { callsign: bad }), wingman(2, 1)]));
@@ -220,6 +223,7 @@ describe("wing lines and the OV-26 cap", () => {
       root as unknown as HTMLElement,
       () => undefined,
       () => ({ sectors: [], nodes: [] }),
+      () => null,
       feed,
     );
     const list = [ent(1, { callsign: "A" }), ent(5, { callsign: "B" })];
@@ -247,5 +251,40 @@ describe("wing lines and the OV-26 cap", () => {
   });
   it("threat overflow still shows +N more", () => {
     expect(stack(5, 1)).toEqual({ wing: 0, more: ["+2 more"] });
+  });
+});
+
+describe("wing lines with the FINAL HOURS card (NX-511 + NX-515)", () => {
+  it("the FINAL HOURS card takes a slot first; wing lines fill only what is left", () => {
+    const doc = { createElement: () => new El() } as unknown as Document;
+    const root = new El();
+    const feed = new WingmenFeed();
+    const card = {
+      phase: 1,
+      kicker: "FINAL HOURS · 6 h left",
+      lines: ["a", "b"],
+    } as const;
+    const st = new SitrepStack(
+      doc,
+      root as unknown as HTMLElement,
+      () => undefined,
+      () => ({ sectors: [], nodes: [] }),
+      () => card as unknown as FinalHoursCard,
+      feed,
+    );
+    const leads = [1, 3, 5].map((id) => ent(id, { callsign: `L${id}` }));
+    feed.ingest(
+      [spawn(2, 10), spawn(4, 11), spawn(6, 12)],
+      map([...leads, wingman(2, 1), wingman(4, 3), wingman(6, 5)]),
+    );
+    st.render(50);
+    const tiers = root.children.map((k) => k.className);
+    expect(tiers.filter((c) => c.includes("nx-tier-FINAL_HOURS"))).toHaveLength(
+      1,
+    );
+    expect(tiers.filter((c) => c.includes("nx-tier-WING"))).toHaveLength(
+      MAX_SHOWN - 1,
+    );
+    expect(tiers.some((c) => c.includes("nx-more"))).toBe(false);
   });
 });

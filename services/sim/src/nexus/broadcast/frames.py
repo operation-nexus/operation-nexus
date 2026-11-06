@@ -33,6 +33,7 @@ package, probation and AUTO fields are null, empty or false.
 import math
 from collections import Counter, deque
 from collections.abc import Sequence
+from fractions import Fraction
 from typing import Any, Literal
 
 import msgpack
@@ -64,7 +65,7 @@ from nexus.contracts.gen.wire.control import Control
 from nexus.contracts.gen.wire.delta import Delta
 from nexus.contracts.gen.wire.snapshot import Snapshot
 from nexus.contracts.gen.wire.welcome import Welcome
-from nexus.core.campaign import momentum
+from nexus.core.campaign import momentum, scores
 from nexus.core.fog import SideView, _marker, side_view, spotted, tracked_by, visible
 from nexus.core.rearm import is_starved
 from nexus.core.rules import CAPTURE_FULL, Rules
@@ -216,6 +217,7 @@ class FrameBuilder:
         rc = rules.campaign if rules else None
         held = [world.owner.get(n) for n in rc.strategic] if rc else []
         m = momentum(world) if rc else None
+        points = scores(world, rc) if rc else None  # exact; shown rounded half up (OVERLAY 0.11)
         enemy = world.director["ENEMY"].tier
         obj = world.objective
         breakdown = (
@@ -255,6 +257,12 @@ class FrameBuilder:
                 limit_ticks=rc.time_limit_ticks if rc else None,
                 paused=c.clock_paused,
                 pause_reason=c.pause_reason,
+            ),
+            time_limit_score=None
+            if points is None
+            else h.TimeLimitScore.model_construct(
+                coalition=math.floor(points["COALITION"] + Fraction(1, 2)),
+                enemy=math.floor(points["ENEMY"] + Fraction(1, 2)),
             ),
             ticker=[],
             panels=h.Panels.model_construct(

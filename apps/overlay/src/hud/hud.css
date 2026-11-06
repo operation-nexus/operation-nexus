@@ -289,3 +289,124 @@
   font-size: var(--hud-text);
   line-height: 1.2;
 }
+/* Final hours (OVERLAY §0.11). Shape and word carry each phase; amber only repeats them (OV-3).
+   Every size here is PROPOSED until NX-274; the bar keeps its height, the objective column narrows first. */
+.nx-topbar.fh {
+  /* the war cell takes what its one row needs; the objective column narrows first (px: PROPOSED) */
+  grid-template-columns: 300px 210px minmax(0, 1fr) 340px 680px;
+}
+.nx-topbar.no-obj.fh {
+  grid-template-columns: 300px 210px minmax(0, 1fr) 680px;
+}
+.nx-war[data-fh="1"],
+.nx-war[data-fh="2"],
+.nx-war[data-fh="3"] {
+  color: var(--hud-alert);
+}
+.nx-war[data-fh="1"] {
+  border: solid var(--hud-alert);
+  border-width: 0 6px; /* a bracket frame */
+}
+.nx-war[data-fh="2"] {
+  background: var(--hud-alert); /* a filled chip */
+}
+.nx-war[data-fh="3"] {
+  /* a double frame, drawn inside the cell so it adds no height */
+  outline: 6px double var(--hud-alert);
+  outline-offset: -8px;
+}
+.nx-war[data-fh="1"] .nx-val,
+.nx-war[data-fh="1"] .nx-label {
+  color: var(--hud-alert);
+}
+.nx-war[data-fh="2"] .nx-val,
+.nx-war[data-fh="2"] .nx-label,
+.nx-war[data-fh="2"] .nx-fh {
+  color: var(--hud-panel);
+}
+.nx-war[data-fh="2"] .nx-val {
+  font-size: 40px;
+  line-height: 0.95; /* 38 px: the row stays as tall as at 32 px */
+}
+.nx-war-row {
+  align-items: center;
+}
+.nx-war[data-fh="3"] .nx-val,
+.nx-war[data-fh="3"] .nx-fh {
+  color: var(--hud-alert);
+}
+.nx-fh {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  font-size: var(--hud-text);
+  line-height: 1.2;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.nx-fh-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.nx-fh-glyph {
+  flex: 0 0 22px;
+  height: 22px;
+  background: currentcolor;
+}
+.nx-fh-glyph[data-lead="COALITION"] {
+  clip-path: polygon(
+    30% 0,
+    70% 0,
+    100% 30%,
+    100% 70%,
+    70% 100%,
+    30% 100%,
+    0 70%,
+    0 30%
+  );
+}
+.nx-fh-glyph[data-lead="NULL"] {
+  clip-path: polygon(
+    50% 0,
+    62% 38%,
+    100% 50%,
+    62% 62%,
+    50% 100%,
+    38% 62%,
+    0 50%,
+    38% 38%
+  );
+}
+.nx-fh-glyph[data-lead="LEVEL"] {
+  height: 6px;
+}
+.nx-fh-glyph[data-lead="NONE"] {
+  display: none;
+}
+/* The FINAL HOURS card: the one double-outlined card, white on the dark ground, an hourglass (§0.11). */
+.nx-tier-FINAL_HOURS {
+  --tone: var(--hud-ink);
+  border: 6px double var(--hud-ink);
+}
+.nx-shape.hourglass {
+  clip-path: polygon(0 0, 100% 0, 50% 50%, 100% 100%, 0 100%, 50% 50%);
+}
+/* Threshold banner: centre of the map, in the toast layer (§0.6), never over the top bar (OV-12). */
+.nx-fh-banner {
+  position: absolute;
+  top: 45%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  padding: 16px 48px;
+  background: var(--hud-panel);
+  border: 6px double var(--hud-alert);
+  color: var(--hud-alert);
+  font-size: 72px;
+  font-weight: 700;
+  white-space: nowrap;
+}
+.nx-fh-banner[hidden] {
+  display: none;
+}

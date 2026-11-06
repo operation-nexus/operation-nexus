@@ -158,6 +158,16 @@ Owner, 2026-11-05 (Q-UX-23): keep the 72 h limit and make a points finish a visi
 3. At 9:16 the war countdown joins the always-visible set from FH-1.
 4. TTS reads FH-2 and FH-3 later, with the TTS work (NX-225 to NX-232); NX-515 is text only.
 
+**Built in NX-515 (`hud/final-hours.ts`, with `topbar.ts`, `sitrep-stack.ts`, `mount.ts`, protocol 0.70).** FH-T1 to FH-T9 are in `__tests__/final-hours.test.ts`, FH-T10 in `services/sim/tests/broadcast/test_frames.py`. Where §0.11 was silent (all reversible, PROPOSED):
+- **Toast layer:** `Stage.toast` (`.nx-toast`, z 90) is new: above the OV-26 stack, below `.nx-banners`; the threshold banner is its first source.
+- **Clock and tick:** the phases read `HudClock.warRemaining()`; with no store tick yet (a Hud before the first Snapshot) nothing is armed. A `Hud` whose `panels.campaign_status.result` is set (a reconnect after the end) shows nothing. `campaign_id` comes from any event in a `Delta`; the Hud carries none.
+- **Restore:** the first update of a campaign, running or paused, sets the phase and card with no banner; the card's life starts at that tick. A jump over several thresholds in one running update fires the tightest only.
+- **Extension drop:** each fired threshold whose value plus the 30 s hysteresis is below remaining is un-fired, so the phase falls to the band remaining is in; a card of a dropped phase goes.
+- **Card line 2:** with `nodes_total` 0 or absent it reads "Coalition holds — strategic nodes".
+- **Look:** the war cell takes `data-fh` 1 to 3 (bracket frame, filled amber chip with a 40 px countdown, double frame); the label and chip sit on the countdown's row (`.nx-war-row`), so the bar keeps its height (about 90 px) in every phase, and the top bar's columns give the war cell 680 px while it is on (`.nx-topbar.fh`), the objective column narrowing first; with an objective present that column is about 200 px, so its name truncates. Chip glyphs: chamfered octagon (COALITION), spiked star (NULL), plain bar (LEVEL), none for "—". The card is an hourglass with a double outline. All sizes are PROPOSED until NX-274. The 16:9 screenshots of §0.11's test plan were hand-reviewed at 1920 by 1080 for no phase, FH-1, FH-2 (with and without an objective cell, scores up to three digits), FH-3 and FH-3 with its card; the bar measured the same height in each.
+- **Score rounding:** `Hud.time_limit_score` is `floor(exact + 1/2)` of the same exact score (`scores()`) whose float is `CampaignEnded.score`; the two can differ by the rounding, so the end screen reads `CampaignEnded` only.
+- **Not built:** the 9:16 layout (OV-11), TTS (NX-225 to NX-232), the STAFF "PAUSED, stand by" banner (OV-21; the threshold banner is hidden while paused instead).
+
 ## 1. Layout (1920×1080; 16:9)
 ```
 ┌───────────────────────────────────────────────────────────────────────────┐
