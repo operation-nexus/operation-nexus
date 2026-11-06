@@ -36,6 +36,9 @@ export class TracerLayer {
     nowMs: number,
     where: (target: number | null, node: string | null) => Pos | null,
   ): void {
+    // Expire here too: a hidden tab pauses rAF (and so draw()) while Deltas keep arriving.
+    this.flights = this.flights.filter((t) => nowMs - t.at < TRACER_CAP_MS);
+    this.flashes = this.flashes.filter((h) => nowMs - h.at < FLASH_MS);
     for (const e of evs) {
       if (e.kind === "WeaponFired") {
         this.flights.push({

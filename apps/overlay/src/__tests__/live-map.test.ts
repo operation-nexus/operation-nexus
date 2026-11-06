@@ -5,7 +5,7 @@ import type {
   EntityView,
   LastKnownView,
 } from "../contracts/wire/snapshot";
-import { FLASH_MS, TRACER_CAP_MS } from "../fx";
+import { FLASH_MS, TRACER_CAP_MS, TracerLayer } from "../fx";
 import {
   DELAY_MS,
   EXTRAP_MS,
@@ -537,6 +537,46 @@ describe("the frame loop", () => {
     expect([t.ops.length, n.ops.length]).toEqual([tn, nn]);
     expect(r.units.length).toBeGreaterThan(0);
     expect(r.fx.length).toBeGreaterThan(0);
+  });
+  it("expires flights and flashes on new events too (rAF paused in a hidden tab)", () => {
+    const tl = new TracerLayer();
+    const where = () => ({ x_m: 0, y_m: 0 });
+    tl.events([fired(1, 2), impact(3, 4, true)], 0, where);
+    expect(tl.flights).toHaveLength(1);
+    expect(tl.flashes).toHaveLength(1);
+    tl.events([], TRACER_CAP_MS + 1, where);
+    expect(tl.flights).toHaveLength(0);
+    expect(tl.flashes).toHaveLength(0);
+  });
+  it("skips a unit with no valid position instead of throwing", () => {
+    const r = rig();
+    const bad = {
+      ...A(3, 0, "COALITION"),
+      pos: undefined,
+    } as unknown as EntityView;
+    r.store.entities = new Map([[3, bad]]);
+    r.store.tick = 10;
+    expect(() => r.live.frame()).not.toThrow();
+    expect(of(r.units, "translate")).toHaveLength(0);
+  });
+  it("keeps the rAF loop alive when a frame throws", () => {
+    const cbs: (() => void)[] = [];
+    const u = rec();
+    const live = new LiveMap(
+      u.canvas,
+      u.canvas,
+      () => {
+        throw new Error("boom");
+      },
+      {
+        now: () => 0,
+        raf: (cb) => (cbs.push(cb), cbs.length),
+        caf: () => undefined,
+      },
+    );
+    live.start();
+    expect(() => cbs[0]?.()).toThrow("boom");
+    expect(cbs).toHaveLength(2); // the next frame was still scheduled
   });
   it("starts and stops the rAF loop", () => {
     const calls: string[] = [];

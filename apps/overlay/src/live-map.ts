@@ -17,7 +17,13 @@ export interface LoopEnv {
 type Pos = { x_m: number; y_m: number };
 
 const rawPose = (e: EntityView | undefined): Pose | undefined =>
-  e && { x_m: e.pos.x_m, y_m: e.pos.y_m, heading_deg: e.heading_deg };
+  e !== undefined && Number.isFinite(e.pos?.x_m) && Number.isFinite(e.pos?.y_m)
+    ? {
+        x_m: e.pos.x_m,
+        y_m: e.pos.y_m,
+        heading_deg: Number.isFinite(e.heading_deg) ? e.heading_deg : 0,
+      }
+    : undefined;
 
 export class LiveMap {
   /** Milliseconds the last frame spent per stage, for the perf probe. */
@@ -55,8 +61,11 @@ export class LiveMap {
 
   start(): void {
     const loop = (): void => {
-      this.frame();
-      this.rafId = this.env.raf(loop);
+      try {
+        this.frame();
+      } finally {
+        this.rafId = this.env.raf(loop); // one bad frame must not freeze the map
+      }
     };
     this.rafId = this.env.raf(loop);
   }
