@@ -43,6 +43,9 @@ DOWN_CAUSES: Final = ("fire", "starved")  # inferred, see `Collector._classify_d
 # newbie's recon unit's sensor reach (derived: no event says who tracked what); `departure`
 # (Q-SIM-97) is the first tick a newbie's truck holds cargo and a path: it loaded at its source and
 # set off for a delivery (no event says so; `observe` reads the truck every tick, so it is exact).
+WINGMEN_KEYS = (  # NX-511: the per-run wingmen counters, in report order
+    "flights", "spawned", "destroyed", "retired", "despawned_other", "cooldowns", "supply_spent"
+)  # fmt: skip
 IMPACT_KINDS = ("kill", "capture", "delivery", "departure", "scout", "hit")
 SIDES: Final[tuple[Side, ...]] = ("COALITION", "ENEMY")
 # ECONOMY §4 "Harness report" (NX-412 part 5a): per side, per game hour (index = (tick - 1) // an
@@ -274,6 +277,13 @@ class Collector:
         self._due: frozenset[int] = frozenset()
         self.retired: Counter[str] = Counter()
         self.returning_lost: Counter[str] = Counter()
+        # NX-511 (GAMEPLAY §1b item 253): AI wingmen. Ids from `UnitSpawned`, the SPAWN cost paid
+        # just before one, and the flights and cooldowns `observe` sees in the world.
+        self.wingmen: Counter[str] = Counter()
+        self._wingman_ids: set[int] = set()
+        self._spawn_paid: tuple[int, str, int] | None = None  # (tick, node, amount)
+        self._flights_seen: set[int] = set()  # first wingman id of each flight
+        self._cooldown_seen: dict[str, int] = {}
         self.escort_jobs: list[int] = []
         self.clip_due: dict[str, int] = dict.fromkeys(SIDES, 0)
         self.clip_produced: dict[str, int] = dict.fromkeys(SIDES, 0)
@@ -469,6 +479,7 @@ class Collector:
 
     def observe(self, world: World) -> None:
         self.note_tracks(world)
+        self._note_flights(world)
         self._who_took(world)
         self._classify_downs(world)
         self._seized_facilities(world)
@@ -869,6 +880,7 @@ class Collector:
     # --- event handlers ---------------------------------------------------------------------
     def _spawned(self, e: Any) -> None:
         self.entity[e.entity_id] = (e.unit_kind, e.side)
+        self._wingman_spawned(e)
         if e.side == _COALITION and e.unit_kind in self._world_rules.supply.carriers:
             self._carriers.add(e.entity_id)
         if e.commander_id:
@@ -890,11 +902,51 @@ class Collector:
         if e.hit:
             self._credit(self.commander_of.get(e.shooter_id), e.tick, "hit")
 
+    def _wingman_spawned(self, e: Any) -> None:
+        """NX-511: a coalition AI_GARRISON UnitSpawned of an armed aircraft kind in `wingmen_kinds`
+        is a wingman (`wingmen_kinds` is every AI_GARRISON-playable kind, so the AI trucks and
+        recon drones are screened out by armed + AIR, as the kernel's lead test does). Its loadout
+        cost is the SPAWN `SupplyConsumed` the kernel emits just before it, same node and tick."""
+        paid, self._spawn_paid = self._spawn_paid, None
+        rules = self._world_rules
+        tasking = rules.tasking
+        if (
+            tasking is None
+            or e.unit_kind not in tasking.wingmen_kinds
+            or e.unit_kind not in rules.armed
+            or rules.domain[e.unit_kind] != "AIR"
+            or e.side != _COALITION
+            or e.owner_kind != "AI_GARRISON"
+        ):
+            return
+        self._wingman_ids.add(e.entity_id)
+        self.wingmen["spawned"] += 1
+        if paid is not None and paid[:2] == (e.tick, e.node_id):
+            self.wingmen["supply_spent"] += paid[2]
+
+    def _note_flights(self, world: World) -> None:
+        """NX-511: flights and wingman cooldowns, read from the world each tick (cooldowns are
+        state; no event names a flight or a cooldown)."""
+        for flight in world.flights.values():
+            if flight.wingmen and flight.wingmen[0] not in self._flights_seen:
+                self._flights_seen.add(flight.wingmen[0])
+                self.wingmen["flights"] += 1
+        for cid, until in world.wingmen_cooldown.items():
+            if self._cooldown_seen.get(cid) != until:
+                self._cooldown_seen[cid] = until
+                self.wingmen["cooldowns"] += 1
+        for cid in [c for c in self._cooldown_seen if c not in world.wingmen_cooldown]:
+            del self._cooldown_seen[cid]
+
     def _despawned(self, e: Any) -> None:
+        if e.entity_id in self._wingman_ids:
+            self.wingmen["retired" if e.reason == "RETIRED" else "despawned_other"] += 1
+            return  # not an AI truck: NX-504's COALITION retirements stay trucks only
         if e.reason == "RETIRED":
             self.retired[self.entity[e.entity_id][1]] += 1
 
     def _destroyed(self, e: Any) -> None:
+        self.wingmen["destroyed"] += e.entity_id in self._wingman_ids
         self.returning_lost[e.side] += e.entity_id in self._due  # NX-504, due at the last observe
         dest = self._dest.pop(e.entity_id, None)
         pos = self._carrier_pos.pop(e.entity_id, None)
@@ -1034,6 +1086,8 @@ class Collector:
 
     def _consumed(self, e: Any) -> None:
         side = self._side_of(e.node_id)
+        if e.cause == "SPAWN" and side == _COALITION:
+            self._spawn_paid = (e.tick, e.node_id, e.amount)
         if e.cause == "UPKEEP" and side in self.econ:
             _add(self.econ[side]["upkeep"], self._hour(e.tick), e.amount)
         elif e.cause == "SPAWN" and side == _ENEMY:
@@ -1199,6 +1253,9 @@ class Collector:
             "retirements": {  # NX-504: UnitDespawned RETIRED, and due units destroyed, by side
                 "retired": {s: self.retired[s] for s in SIDES},
                 "returning_lost": {s: self.returning_lost[s] for s in SIDES},
+            },
+            "wingmen": {  # NX-511: GAMEPLAY §1b item 253, see `_wingman_spawned`
+                k: self.wingmen[k] for k in WINGMEN_KEYS
             },
             "who_took": {  # Q-TD-136: capturers of coalition nodes, see `capturers`
                 k: {
