@@ -10,9 +10,9 @@ phases, by the state the newbie is in at each sample (every `--sample-s` game se
                   read from `world.reserve_queue`)
   after_loss      had a unit, lost it (`UnitDestroyed`, `UnitDespawned`), waiting to rejoin (the
                   persona's `rejoin_delay_s`)
-  gave_up         the harness viewer left for good after a loss or rejections (`rejoin_prob`,
-                  `max_attempts`, read from `_Crowd._lost`): no impact can come; A2 still counts
-                  the newbie, watched until the run's end
+  gave_up         the harness viewer left for good after a loss or a rejection (`rejoin_prob`, or
+                  `max_attempts` in a row with no spawn between; read from `_Crowd._lost`): no
+                  impact can come; A2 still counts the newbie, watched until the run's end
   idle            a unit with no job: `tasking.idle_diagnosis`'s reason (`no_job`, `full`, `ring`,
                   `refuel_stuck`, ...), or busy with no job (order, route, RTB, grounded)
   transit         a unit holding a job and still on a path (INFERRED from `Entity.path`)
@@ -57,7 +57,7 @@ TAPPED = frozenset({
     "UnitSpawned", "UnitDestroyed", "UnitDespawned", "CommandRejected", "ReserveQueueJoined",
     "WeaponFired", "JobClaimed",
 })  # fmt: skip
-TAIL_S = 900.0
+TAIL_S = float(profiles.load().targets.a2_tail_s)  # the report's own tail limit (`report._a2`)
 HZ = 10
 
 
@@ -83,6 +83,16 @@ class Tap:
         self.state: dict[str, str] = {}  # newbie -> its last sampled state
         self.closed: set[str] = set()
         self.col_world: Any = None
+
+    def wrap_lost(self, orig: Any) -> Any:
+        """`_Crowd._lost` with a note of each viewer it sends away for good (status GONE)."""
+
+        def lost(crowd: Any, v: Any, tick: int, hz: int) -> None:
+            orig(crowd, v, tick, hz)
+            if v.status == personas.GONE:
+                self.gave_up[v.commander_id] = tick
+
+        return lost
 
     def feed(self, events: list[Any]) -> None:
         self.buf += [e for e in events if e.kind in TAPPED]
@@ -289,16 +299,9 @@ def run_one(
         tap.close(0)
         return False
 
-    orig_lost = runner._Crowd._lost
-
-    def lost(self: Any, v: Any, tick: int, hz: int) -> None:
-        orig_lost(self, v, tick, hz)
-        if v.status == personas.GONE:
-            tap.gave_up[v.commander_id] = tick
-
     with (
         mock.patch.object(metrics.Collector, "feed", feed),
-        mock.patch.object(runner._Crowd, "_lost", lost),
+        mock.patch.object(runner._Crowd, "_lost", tap.wrap_lost(runner._Crowd._lost)),
         tempfile.TemporaryDirectory() as tmp,
     ):
         res = runner.run(profile, seed, hours, Path(tmp) / "log", config=config, on_tick=on_tick)

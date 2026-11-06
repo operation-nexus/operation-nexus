@@ -3,11 +3,13 @@
 import dataclasses
 import sys
 from pathlib import Path
+from types import SimpleNamespace as NS
 from typing import Any
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[4] / "tools" / "balance"))
+import personas  # type: ignore[import-not-found,unused-ignore]
 import probe_a2 as pa  # type: ignore[import-not-found,unused-ignore]
 import profiles  # type: ignore[import-not-found,unused-ignore]
 
@@ -86,3 +88,119 @@ def test_a_run_books_every_second_of_a_newbies_wait_into_a_phase(
         assert set(n["phases"]) <= set(pa.PHASES)
     impacted = sorted(n["ttfi_s"] for n in run["newbies"] if n["ttfi_s"] is not None)
     assert impacted == run["metrics"]["newbie"]["ttfi_s"]
+
+
+# --- the classifier, the loss record and the give-up wrapper, on small fakes -------------------
+
+
+def _tap() -> Any:
+    tap = pa.Tap(50)
+    tap.rec["c"] = {"losses": [], "join_tick": 0}
+    return tap
+
+
+def _world(entity: Any = None, job: Any = None) -> Any:
+    return NS(
+        rules=NS(),
+        find=lambda i: entity if entity is not None and i == entity.id else None,
+        boards={"COALITION": {job.id: job} if job is not None else {}},
+    )
+
+
+def _unit(**kw: Any) -> Any:
+    return NS(
+        **{
+            "id": 5,
+            "job_id": None,
+            "path": [],
+            "order": None,
+            "last_node": "n",
+            "side": "COALITION",
+            **kw,
+        }
+    )
+
+
+def test_no_unit_and_a_viewer_who_left_is_gave_up() -> None:
+    tap = _tap()
+    tap.gave_up["c"] = 7
+    tap.rec["c"]["losses"].append({})
+    assert tap._classify(_world(), "c", False) == "gave_up:left"
+
+
+def test_no_unit_after_a_loss_and_no_rejection_is_the_rejoin_wait() -> None:
+    tap = _tap()
+    tap.rec["c"]["losses"].append({})
+    assert tap._classify(_world(), "c", False) == "after_loss:rejoin_wait"
+    tap.gap["c"] = "rejected:NO_STOCK"  # a rejection after the loss: waiting for the retry
+    assert tap._classify(_world(), "c", False) == "join_to_spawn:rejected:NO_STOCK"
+
+
+def test_no_unit_and_no_loss_is_join_to_spawn_and_a_queued_one_says_so() -> None:
+    tap = _tap()
+    tap.gap["c"] = "pre"
+    assert tap._classify(_world(), "c", False) == "join_to_spawn:pre"
+    assert tap._classify(_world(), "c", True) == "join_to_spawn:queued"
+
+
+def test_a_unit_with_a_job_is_in_transit_on_a_path_and_on_task_without_one() -> None:
+    tap = _tap()
+    tap.unit["c"] = 5
+    job = NS(id=3, kind="STRIKE", node="n")
+    moving = _unit(path=["m"], job_id=3)
+    assert tap._classify(_world(moving, job), "c", False) == "transit:STRIKE"
+    there = _unit(job_id=3)
+    assert tap._classify(_world(there, job), "c", False) == "on_task:STRIKE:at_target:no_shot"
+    tap.fired.add(5)
+    assert tap._classify(_world(there, job), "c", False) == "on_task:STRIKE:at_target:fired"
+
+
+def test_a_direct_goto_order_with_no_job_is_transit_or_on_task() -> None:
+    tap = _tap()
+    tap.unit["c"] = 5
+    kw: dict[str, Any] = {"grounded": False, "state": "ON_STATION"}
+    moving = _unit(order="GOTO", path=["m"], **kw)
+    assert tap._classify(_world(moving), "c", False) == "transit:order_GOTO"
+    there = _unit(order="GOTO", **kw)
+    assert tap._classify(_world(there), "c", False) == "on_task:order_GOTO:no_shot"
+
+
+def test_a_loss_records_the_killer_and_what_it_was_doing() -> None:
+    tap = _tap()
+    tap.col = NS(
+        impact={}, entity={5: ("STRIKE_FIGHTER", "COALITION"), 9: ("ENEMY_FIGHTER", "ENEMY")}
+    )
+    killer = NS(side="ENEMY", job_id=3)
+    tap.col_world = NS(
+        find=lambda i: killer if i == 9 else None,
+        boards={"ENEMY": {3: NS(key="op:PROBE:west-airbase:0")}},
+    )
+    tap.unit["c"] = 5
+    tap._gone(NS(entity_id=5, tick=40, killer_id=9, cause="WEAPON"))
+    loss = tap.rec["c"]["losses"][0]
+    assert (loss["killer"], loss["killer_job"], loss["unit"]) == (
+        "ENEMY_FIGHTER", "op:PROBE", "STRIKE_FIGHTER",
+    )  # fmt: skip
+    assert loss["after_s"] == 4.0 and "c" not in tap.unit
+    tap.unit["c"] = 5
+    tap._gone(NS(entity_id=5, tick=50, killer_id=None))
+    assert tap.rec["c"]["losses"][1]["killer"] is None
+    assert tap.rec["c"]["losses"][1]["killer_job"] == "unknown"
+
+
+def test_the_lost_wrapper_notes_only_a_viewer_who_went_gone() -> None:
+    tap = _tap()
+    seen: list[str] = []
+
+    def orig(_crowd: Any, v: Any, _tick: int, _hz: int) -> None:
+        seen.append(v.commander_id)
+        v.status = personas.GONE if v.commander_id == "gone" else "IDLE"
+
+    lost = tap.wrap_lost(orig)
+    lost(None, NS(commander_id="gone", status="ALIVE"), 70, 10)
+    lost(None, NS(commander_id="back", status="ALIVE"), 80, 10)
+    assert seen == ["gone", "back"] and tap.gave_up == {"gone": 70}
+
+
+def test_the_tail_limit_is_the_reports() -> None:
+    assert profiles.load().targets.a2_tail_s == pa.TAIL_S
