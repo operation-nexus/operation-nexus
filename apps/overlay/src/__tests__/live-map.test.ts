@@ -6,7 +6,13 @@ import type {
   LastKnownView,
 } from "../contracts/wire/snapshot";
 import { FLASH_MS, TRACER_CAP_MS } from "../fx";
-import { DELAY_MS, EXTRAP_MS, Interpolator, lerpHeading } from "../interp";
+import {
+  DELAY_MS,
+  EXTRAP_MS,
+  Interpolator,
+  KEEP,
+  lerpHeading,
+} from "../interp";
 import { LiveMap } from "../live-map";
 import { WireStore } from "../net/store";
 import { COL, NodeLayer } from "../nodes";
@@ -234,6 +240,14 @@ describe("fog (FOW-6a, FOW-9)", () => {
     expect(arg0(ops, "fillText")).toBe("1m");
     expect(arg0(ops, "rotate")).toBeCloseTo((30 * Math.PI) / 180);
   });
+  it("a blob with a NaN or missing cell_center draws nothing", () => {
+    for (const cell_center of [{ x_m: NaN, y_m: 1 }, undefined]) {
+      const b = { blob_id: "x", cell_center, size: "S" } as unknown as BlobView;
+      expect(
+        of(draw(scene({ blobs: [b] })), "createRadialGradient"),
+      ).toHaveLength(0);
+    }
+  });
   it("last-known is gone when the server drops it", () => {
     const ops = draw(scene({ lastKnown: [] }));
     expect(
@@ -317,6 +331,26 @@ describe("interpolation (OV-7, OV-21)", () => {
     // one state left: that one, whatever the time
     expect(iv.poses(9000, false).get(1)?.x_m).toBe(77);
     expect(iv.poses(1, false).get(1)?.x_m).toBe(77);
+  });
+  it("keeps the clock mapping when the server ticks slightly slow (100.1 ms per tick)", () => {
+    const iv = new Interpolator();
+    let wall = 0;
+    for (let k = 0; k <= 6000; k++) {
+      feed(iv, k, wall, [X(k * 10)]);
+      wall += 100.1;
+    }
+    const last = wall - 100.1;
+    // 50 ms after the last frame the unit is still moving between states, not pinned at the cap
+    const a = iv.poses(last + 20, false).get(1)?.x_m ?? 0;
+    const b = iv.poses(last + 70, false).get(1)?.x_m ?? 0;
+    expect(b).toBeGreaterThan(a);
+    expect(iv.poses(last + 70, false).get(1)?.x_m).toBeLessThan(6000 * 10 + 1);
+  });
+  it("keeps a bounded history per unit", () => {
+    const iv = new Interpolator();
+    for (let k = 0; k < 20; k++) feed(iv, k, k * 100, [X(k)]);
+    const h = (iv as unknown as { hist: Map<number, unknown[]> }).hist;
+    expect(h.get(1)).toHaveLength(KEEP);
   });
   it("forgets a unit the store dropped, and clear() forgets all", () => {
     const iv = two();
@@ -408,6 +442,17 @@ describe("tracers (FX canvas)", () => {
     r.clock.t += FLASH_MS + 1;
     r.live.frame();
     expect(of(r.fx, "arc")).toHaveLength(0);
+    expect(of(r.fx, "lineTo")).toHaveLength(0);
+  });
+  it("two weapons from one shooter at one target: each impact ends its own flight", () => {
+    const r = rig();
+    const w = (weapon: string, ev: Ev): Ev => ({ ...ev, weapon }) as Ev;
+    r.recv(10, two(), [w("a", fired(1, 2))]);
+    r.clock.t += 2000;
+    r.recv(11, two(), [w("b", fired(1, 2)), w("b", impact(1, 2, true))]);
+    // b's impact must end b, not the older a: a then times out at 3 s after its own fire
+    r.clock.t += 1500;
+    r.live.frame();
     expect(of(r.fx, "lineTo")).toHaveLength(0);
   });
   it("a miss flashes as a ring, not a fill", () => {
