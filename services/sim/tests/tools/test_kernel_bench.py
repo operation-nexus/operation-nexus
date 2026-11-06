@@ -1,6 +1,7 @@
 """Real-kernel scaling bench smoke tests (NX-376; tools/sim-bench/kernel_bench.py)."""
 
 import json
+import subprocess
 import sys
 from pathlib import Path
 from typing import Any
@@ -118,3 +119,40 @@ def test_snapshot_every_zero_builds_no_snapshot_and_viewers_needs_mixed(
             kernel_bench.main(argv)
         assert e.value.code == 2
         assert msg in capsys.readouterr().err
+
+
+def test_the_table_labels_the_largest_tick_as_combined_only_with_frames(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    base = ["--ladder", "60", "--ticks", "5", "--scene", "mixed", "--settle", "1"]
+    kernel_bench.main(base)
+    assert "  largest (tick)" in capsys.readouterr().out
+    kernel_bench.main([*base, "--frames"])
+    out = capsys.readouterr().out
+    assert "  largest combined (tick)" in out and "  largest (tick)" not in out
+
+
+def test_the_script_exits_1_exactly_when_the_sc10_line_says_fail() -> None:
+    """The budget is a constant with no flag, so the verdict (a host's speed) is not forced: the
+    exit code must match the printed line either way."""
+    script = Path(kernel_bench.__file__)
+    args = ["--ladder", "60", "--ticks", "5", "--scene", "mixed", "--settle", "1", "--frames"]
+    run = subprocess.run(  # noqa: S603  # our own script, fixed args
+        [sys.executable, str(script), *args],
+        capture_output=True,
+        text=True,
+        timeout=600,  # a hang guard, not a budget
+    )
+    (line,) = [ln for ln in run.stdout.splitlines() if "SC-10:" in ln]
+    assert line.endswith(("PASS", "FAIL"))
+    assert run.returncode == (1 if line.endswith("FAIL") else 0), run.stderr
+
+
+def test_exit_code_is_1_only_when_a_counted_rung_missed_the_budget() -> None:
+    def res(counted: bool, *passes: bool) -> dict[str, Any]:
+        rungs = [{"frames": {"pass": p} if counted else None} for p in passes]
+        return {"frame_build_counted": counted, "rungs": rungs}
+
+    assert kernel_bench.exit_code(res(True, True, True)) == 0
+    assert kernel_bench.exit_code(res(True, True, False)) == 1
+    assert kernel_bench.exit_code(res(False, True)) == 0  # no frames: nothing was judged

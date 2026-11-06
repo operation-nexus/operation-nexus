@@ -9,7 +9,10 @@ from typing import Any
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[4] / "tools" / "balance"))
+import balance  # type: ignore[import-not-found,unused-ignore]
 import compare  # type: ignore[import-not-found,unused-ignore]
+import runner  # type: ignore[import-not-found,unused-ignore]
+from profiles import load  # type: ignore[import-not-found,unused-ignore]
 
 SHA = "a" * 40
 SUM = {"flights": 0, "spawned": 0}
@@ -294,3 +297,55 @@ def test_main_exits_3_when_nothing_was_judged(
     assert capsys.readouterr().out.splitlines()[-1] == (
         "0 judged (0 pass, 0 FAIL), 1 partial, 4 not measured"
     )
+
+
+LOW_CROWD = ("quiet-5", "solo-1")
+
+
+def _real_report(overrides: list[str], downs: int, hash_tag: str) -> dict[str, Any]:
+    """One arm through the CLI's own path (`balance.build_report`, which calls `report.aggregate`),
+    from synthetic run dicts: a rename of a key either side reads fails here, unlike `_report`."""
+    runs = []
+    for name in NAMES:
+        for seed in (1, 2, 3):
+            run = runner.failed_run(name, seed, 72.0, "") | {  # the stub has every metric key
+                "harness_error": None,
+                "time_limit_h": 72.0,
+                "profile_viewers": 5 if name in LOW_CROWD else 150,  # A1 judges low crowds apart
+                "a3_ticks": 1,
+                "ticks_run": 216_000,  # 6 h at 10 ticks a second, what compare's solo rate reads
+                "tick_hz": 10,
+                "config_hash": "c" + hash_tag,
+                "final_state_hash": f"raw-{hash_tag}-{seed}",
+                "final_state_hash_sans_config": f"h{seed}",
+                "timing": {"wall_s": 1.0, "ticks_per_s": 1.0},
+            }
+            run["metrics"] |= {
+                "outcome": {"ended": True, "result": "DEFEAT", "length_h": 40.0, "end_tick": 1},
+                "newbie": {**run["metrics"]["newbie"], "ttfi_s": [60.0], "joined_counted": 1},
+                "static_defenses_down": downs,
+                "nodes_lost_in_a3_window": 0,
+                "sanctuary_hp": {"min_in_a3_window": 500},
+            }
+            runs.append(run)
+    rep = balance.build_report(runs, load(), 1, 1.0, overrides=overrides, economy=_economy())
+    rep["config"]["sha"] = SHA  # the test tree's git state is not the subject
+    return dict(json.loads(json.dumps(rep)))
+
+
+def _economy() -> dict[str, Any]:
+    return {"unlimited": {"COALITION": False, "ENEMY": False}}
+
+
+def test_verdicts_run_on_reports_built_by_the_real_report_path() -> None:
+    a = _real_report([], 12, "a")
+    b = _real_report([compare.WINGMEN_OFF], 6, "b")
+    got = _by_name(a, b)
+    assert set(got) == set(NAMES)  # one verdict per profile, none dropped by a missing key
+    assert {n: v.status for n, v in got.items()} == {
+        "solo-1": compare.PASS,  # 12 vs 6 downs: 2x
+        "overnight-0": compare.PASS,  # raw hashes differ, config-free ones match
+        "quiet-5": compare.PARTIAL,  # holds is never fully judged
+        "raid-300": compare.PASS,  # judged verdicts unchanged, same length
+        "surge-500": compare.PASS,
+    }
