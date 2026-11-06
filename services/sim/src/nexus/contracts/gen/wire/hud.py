@@ -35,6 +35,14 @@ class CampaignClock(BaseModel):
     pause_reason: enums.PauseReasonCategory | None
 
 
+class TimeLimitScore(BaseModel):
+    model_config = ConfigDict(
+        extra="forbid",
+    )
+    coalition: Annotated[int, Field(ge=0)]
+    enemy: Annotated[int, Field(ge=0)]
+
+
 class NodesHeld(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -185,6 +193,12 @@ class Hud(BaseModel):
         ),
     ]
     campaign_clock: CampaignClock
+    time_limit_score: Annotated[
+        TimeLimitScore | None,
+        Field(
+            description="Each side's time-limit score so far (GAMEPLAY.md:1153), rounded half up; null when no campaign rules are loaded. The overlay shows the leader and margin and never computes a score (OVERLAY 0.11, Q-UX-29)."
+        ),
+    ]
     ticker: Annotated[list[TickerItem], Field(max_length=20)]
     panels: Panels
     active_humans: ActiveHumans | None

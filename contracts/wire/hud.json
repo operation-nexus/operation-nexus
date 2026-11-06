@@ -5,7 +5,7 @@
   "description": "At most 1 Hz, and inside every Snapshot (WP-10).",
   "type": "object",
   "additionalProperties": false,
-  "required": ["type", "v", "momentum_pct", "momentum_breakdown", "objective_mode", "objective", "threat_tier", "nodes_held", "nodes_total", "campaign_clock", "ticker", "panels", "active_humans", "operators"],
+  "required": ["type", "v", "momentum_pct", "momentum_breakdown", "objective_mode", "objective", "threat_tier", "nodes_held", "nodes_total", "campaign_clock", "time_limit_score", "ticker", "panels", "active_humans", "operators"],
   "properties": {
     "type": {
       "const": "Hud"
@@ -45,6 +45,10 @@
       "additionalProperties": false,
       "required": ["elapsed_ticks", "limit_ticks", "paused", "pause_reason"],
       "properties": {"elapsed_ticks": {"type": "integer", "minimum": 0, "description": "running ticks (a pause adds none)"}, "limit_ticks": {"anyOf": [{"type": "integer", "minimum": 1, "description": "campaign.time_limit_h in running ticks; null when no campaign rules are loaded (no limit)"}, {"type": "null"}]}, "paused": {"type": "boolean"}, "pause_reason": {"anyOf": [{"$ref": "../common/enums.json#/$defs/PauseReasonCategory"}, {"type": "null"}]}}
+    },
+    "time_limit_score": {
+      "anyOf": [{"type": "object", "additionalProperties": false, "required": ["coalition", "enemy"], "properties": {"coalition": {"type": "integer", "minimum": 0}, "enemy": {"type": "integer", "minimum": 0}}}, {"type": "null"}],
+      "description": "Each side's time-limit score so far (GAMEPLAY.md:1153), rounded half up; null when no campaign rules are loaded. The overlay shows the leader and margin and never computes a score (OVERLAY 0.11, Q-UX-29)."
     },
     "ticker": {
       "type": "array",

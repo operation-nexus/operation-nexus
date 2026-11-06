@@ -293,6 +293,13 @@ export interface Hud {
     pause_reason: ("STAFF" | "TECHNICAL" | "MAINTENANCE" | "CEASEFIRE") | null;
   };
   /**
+   * Each side's time-limit score so far (GAMEPLAY.md:1153), rounded half up; null when no campaign rules are loaded. The overlay shows the leader and margin and never computes a score (OVERLAY 0.11, Q-UX-29).
+   */
+  time_limit_score: {
+    coalition: number;
+    enemy: number;
+  } | null;
+  /**
    * @maxItems 20
    */
   ticker:
