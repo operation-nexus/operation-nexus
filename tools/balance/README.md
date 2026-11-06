@@ -198,17 +198,17 @@ A target with nothing to judge says so: `not evaluable` (the run was shorter tha
 python tools/balance/compare.py A/report.json B/report.json
 ```
 
-Arm A is the default run (`tasking.wingmen_max` 2, wingmen on); arm B is the same sha, profiles and seeds with `--set tasking.wingmen_max=0`. Profiles: `quiet-5`, `solo-1` (6 h, named only: `--profile solo-1`), `overnight-0`, `raid-300`, `surge-500`. `report.json` carries `config.sha` (HEAD of the checkout that ran, `-dirty` when tracked files differ, `null` outside a checkout) and per seed `static_defenses_down` (Static-owned `NodeDefensesDown`), for this. The compare refuses (exit 2, one stderr line) a report with no or a dirty sha, different shas, profile sets, `profiles_digest`, seeds or hours, or the same overrides in both. Exit 1 when a verdict fails.
+Arm A is the default run (`tasking.wingmen_max` 2, wingmen on); arm B is the same sha, profiles and seeds with `--set tasking.wingmen_max=0`. Profiles: `quiet-5`, `solo-1` (6 h, named only: `--profile solo-1`), `overnight-0`, `raid-300`, `surge-500`. `report.json` carries `config.sha` (HEAD of the checkout that ran, `-dirty` when tracked files differ, `null` outside a checkout) and per seed `static_defenses_down` (Static-owned `NodeDefensesDown`), for this. The compare refuses (exit 2, one stderr line) a report with no or a dirty sha, different shas, profile sets, `profiles_digest`, seeds, hours, `config.economy` or `config.theater`, and overrides that differ in more than `tasking.wingmen_max` (B must carry `tasking.wingmen_max=0` and A none or `=2`; every other override must be the same in both). Exit 1 when a verdict fails, 3 when no verdict was judged (all `not measured` or `partial`), else 0; the last line counts them (`N judged (P pass, F FAIL), Q partial, M not measured`).
 
 | Verdict | Rule | Computed from |
 |---|---|---|
 | quiet-5 holds start | A1's low-crowd no-collapse rule passes in every seed (arm A). Prints `partial`: "median seed ends holding the start nodes" is **not** judged (report.json has no end-of-run strategic count) | `A1.seeds[].good` |
-| solo-1 | median-seed Static `NodeDefensesDown`/h, A over B, at least 2x (PROPOSED); B = 0 and A > 0 passes | `per_seed[].static_defenses_down` over `hours` |
-| overnight-0 | final state hash and ticks equal per seed. Event count and event hash are **not** in report.json, so they are not judged | `runs[]` |
-| raid-300, surge-500 | A1 to A4 statuses equal; median campaign length shifts under 10 % of arm B's (PROPOSED) | `A1.status`, `A1.median_length_h` |
+| solo-1 | median-seed Static `NodeDefensesDown`/h, A over B, at least 2x (PROPOSED); B = 0 and A > 0 passes | `per_seed[].static_defenses_down` over each seed's hours run (`runs[].ticks_run` / `runs[].tick_hz`), then the median seed |
+| overnight-0 | the config-free final state hash and `ticks_run` equal in every seed of the report. The raw `final_state_hash` is never compared: it holds `config_hash`, which differs between the arms by construction. `final_state_hash_sans_config` is `state_hash` with `campaign.config_hash` blanked (`runner.state_hash_sans_config`, tools only, no kernel change). No row for a seed, or a run without that hash (crash, report from before it), is `not measured`. Event count and event hash are **not** in report.json, so they are not judged | `runs[].final_state_hash_sans_config` |
+| raid-300, surge-500 | every target both arms judge (`pass` or `fail`) has the same status, and A1 is judged in both; a target that is equal but not a verdict (`n/a`, `suspended`, `no data`) is ignored, one that differs and is not a verdict in both arms is `not measured`; median campaign length shifts under 10 % of arm B's (PROPOSED) | `A1.status`, `A1.median_length_h` |
 | AI wingmen counters | both arms' sums, no threshold | `profiles.<p>.wingmen.sum` |
 
-A verdict whose input is missing prints `not measured`, never a pass.
+A verdict whose input is missing or empty prints `not measured`, never a pass.
 
 ## Cost (measured 2026-10-22, 4 cores, one process unless noted)
 
