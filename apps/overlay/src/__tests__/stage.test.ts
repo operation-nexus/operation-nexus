@@ -2,9 +2,9 @@ import { build } from "vite";
 import { CSP } from "../../vite.config";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import indexHtml from "../../index.html?raw";
-import { backingSize, fitStage, safeRect } from "../stage-math";
+import { MAP_RECT, backingSize, fitStage, safeRect } from "../stage-math";
 import { mountStage, HEARTBEAT_CELLS } from "../stage";
-import { TerrainLayer, projector, type Theater } from "../terrain";
+import { TerrainLayer, frameOf, type Theater } from "../terrain";
 
 // Vitest blanks .css imports (even ?raw), so CSS is read from a real production build, in memory.
 interface Built {
@@ -72,9 +72,11 @@ describe("stage math", () => {
     expect(safeRect()).toEqual({ x: 96, y: 54, w: 1728, h: 972 });
   });
 
-  it("projects nodes inside the safe area", () => {
-    const at = projector(theater());
-    const r = safeRect();
+  it("projects nodes inside the map rectangle, which is inside the safe area", () => {
+    const at = frameOf(theater()).at;
+    const r = MAP_RECT;
+    expect(r.x).toBeGreaterThanOrEqual(safeRect().x);
+    expect(r.y + r.h).toBeLessThanOrEqual(safeRect().y + safeRect().h);
     for (const n of theater().nodes) {
       const [x, y] = at(n.pos);
       expect(x).toBeGreaterThanOrEqual(r.x);
@@ -178,6 +180,7 @@ describe("mountStage", () => {
     ]);
     expect(world.children[0]?.children.map((c) => c.className)).toEqual([
       "nx-terrain",
+      "nx-nodes",
       "nx-units",
       "nx-fx",
     ]);

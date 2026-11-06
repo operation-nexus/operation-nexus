@@ -61,11 +61,14 @@ body,
 .nx-terrain {
   z-index: 1;
 }
-.nx-units {
+.nx-nodes {
   z-index: 2;
 }
-.nx-fx {
+.nx-units {
   z-index: 3;
+}
+.nx-fx {
+  z-index: 4;
 }
 /* Safe area: 5% on each edge (PROPOSED, §0.7). Panels and the OV-26 stack live inside it. */
 .nx-safe {

@@ -38,3 +38,26 @@ export function safeRect(): { x: number; y: number; w: number; h: number } {
   const y = STAGE_H * SAFE_FRAC;
   return { x, y, w: STAGE_W - 2 * x, h: STAGE_H - 2 * y };
 }
+
+/** Stage-pixel rectangle the map is framed in: inside the safe area, under the top bar (116 px in the
+ *  prototype's HUD region) and above the ticker (OVERLAY §1, §0.10). PROPOSED until NX-274. */
+export const MAP_RECT = { x: 96, y: 120, w: 1728, h: 880 };
+
+export interface MapFrame {
+  /** Stage px per metre. */
+  k: number;
+  at: (p: { x_m: number; y_m: number }) => [number, number];
+}
+
+/** The one projector for every map layer (OVERLAY §0.10, Q-UX-18/19): `bounds_m` fits the map rectangle,
+ *  contain (never crop), anchored top-left; +y is north, so the screen y flips. */
+export function mapFrame(
+  bounds: { w: number; h: number },
+  r: { x: number; y: number; w: number; h: number } = MAP_RECT,
+): MapFrame {
+  const k = Math.min(r.w / bounds.w, r.h / bounds.h);
+  return {
+    k,
+    at: (p) => [r.x + p.x_m * k, r.y + (bounds.h - p.y_m) * k],
+  };
+}
