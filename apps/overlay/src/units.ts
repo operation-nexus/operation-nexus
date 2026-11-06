@@ -129,7 +129,7 @@ export const ageText = (s: number): string =>
 
 /** NX-511 (GAMEPLAY §1b item 246): a faint dotted line from each [AI] wingman to its viewer lead ("flying with",
  *  not a weapon tracer: round dots, low alpha, no glow). Drawn under the glyphs; nothing when the lead is absent. */
-export const TETHER_ALPHA = 0.4;
+export const TETHER_ALPHA = 0.5;
 function tethers(ctx: CanvasRenderingContext2D, f: MapFrame, s: Scene): void {
   const links: [Pt, Pt][] = [];
   for (const e of s.entities.values()) {
