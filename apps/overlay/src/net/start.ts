@@ -1,4 +1,4 @@
-// Wires the WS client and banner into the page. Does nothing without `#token=` (prototype dev mode).
+// Wires the WS client and banner into the page. Does nothing without `#token=` (boot.ts decides what a token-less page shows).
 import { renderBanner } from "./banner";
 import { mountHud } from "../hud/mount";
 import { LiveMap } from "../live-map";
@@ -8,7 +8,7 @@ import { takeToken, WireClient } from "./wire-client";
 // [UNVERIFIED] path: the server endpoint ships with NX-170 (b); change here when it lands.
 export const WS_PATH = "/ws";
 
-/** `mount` runs only when a token is present, so the no-token prototype keeps `#root` to itself. */
+/** `mount` runs only when a token is present, so a token-less page keeps `#root` to itself. */
 export function startFeed(
   win: Window,
   mount: () => Pick<

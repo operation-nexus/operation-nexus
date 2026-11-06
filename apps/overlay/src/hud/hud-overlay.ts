@@ -1,6 +1,6 @@
 import type { TelemetryState, ThreatTier } from "../types/telemetry";
 import { createElement } from "../utils/dom";
-import { STRAIT_1_THEATER } from "../theater/strait1";
+import { STRAIT_1_THEATER } from "../simulation/mock-theater";
 import { ThreatSitrepPanel } from "./threat-sitrep-panel";
 import type { SitrepView } from "./threat-sitrep";
 

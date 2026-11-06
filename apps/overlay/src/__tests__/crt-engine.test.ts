@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { CrtVectorEngine } from "../renderers/crt2d/crt-engine";
-import { STRAIT_1_THEATER } from "../theater/strait1";
+import { STRAIT_1_THEATER } from "../simulation/mock-theater";
 import type { RenderFrameState } from "../types/render";
 import type { VisualUnit } from "../types/unit";
 
