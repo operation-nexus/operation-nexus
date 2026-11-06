@@ -2,6 +2,7 @@
 
 import dataclasses
 import fcntl
+import hashlib
 import json
 import subprocess
 import sys
@@ -51,6 +52,7 @@ from nexus.core.tasking_gen import JobSpec
 from nexus.core.world import CaptureBar, Claim, Contact, FacilityMarker, Job, Staged, Vec2
 from nexus.runtime.campaign_config import CampaignConfig, start_campaign
 from nexus.runtime.command_log import CommandLogReader, Tombstone
+from nexus.runtime.golden import _event_line
 from nexus.runtime.golden import shipped_config as golden_shipped_config
 
 # The harness modules live in tools/balance, outside the package: put them on the path, as the
@@ -822,8 +824,9 @@ def test_load_done_trusts_only_a_matching_complete_file(tmp_path: Path) -> None:
     path = tmp_path / "runs" / "quiet-5-s1.json"
     good = {
         "profile": "quiet-5", "seed": 1, "hours": 1.0, "config_hash": "h", "ticks_run": 5,
-        "metrics": {"collapse": {}}, "timing": {}, "crash": None, "harness_error": None,
-        "final_state_hash": "x", "profile_viewers": 5,
+        "metrics": {"collapse": {}, "strategic_held": {"start": 3, "end": 3}}, "timing": {},
+        "crash": None, "harness_error": None, "final_state_hash": "x", "profile_viewers": 5,
+        "event_count": 7, "events_hash": "e",
     }  # fmt: skip
     assert balance.load_done(job, "h") is None  # missing
     path.write_text(json.dumps(good))
@@ -837,7 +840,13 @@ def test_load_done_trusts_only_a_matching_complete_file(tmp_path: Path) -> None:
     # a file saved before NX-510: no `profile_viewers`, or no `metrics.collapse` (rerun, not reused)
     path.write_text(json.dumps({k: v for k, v in good.items() if k != "profile_viewers"}))
     assert balance.load_done(job, "h") is None
-    path.write_text(json.dumps(good | {"metrics": {}}))
+    path.write_text(json.dumps(good | {"metrics": {"strategic_held": {"start": 3}}}))
+    assert balance.load_done(job, "h") is None
+    # a file saved before the NX-511 item 253 metrics: no event fields, or no strategic_held.start
+    for key in ("event_count", "events_hash"):
+        path.write_text(json.dumps({k: v for k, v in good.items() if k != key}))
+        assert balance.load_done(job, "h") is None
+    path.write_text(json.dumps(good | {"metrics": {"collapse": {}}}))
     assert balance.load_done(job, "h") is None
     path.write_text("[1]")
     assert balance.load_done(job, "h") is None
@@ -1020,8 +1029,9 @@ def test_ring_by_site_aggregates_renders_and_resumes_an_old_run(tmp_path: Path) 
     old = {k: v for k, v in new.items() if k != "ring_by_site"}
     (tmp_path / "runs").mkdir()
     saved = {"profile": "raid-300", "seed": 1, "hours": 1.0, "config_hash": "h", "ticks_run": 5,
-             "metrics": {"idle": old, "collapse": {}}, "timing": {}, "crash": None,
-             "harness_error": None, "final_state_hash": "x", "profile_viewers": 300}  # fmt: skip
+             "metrics": {"idle": old, "collapse": {}, "strategic_held": {"start": 3, "end": 3}},
+             "timing": {}, "crash": None, "harness_error": None, "final_state_hash": "x",
+             "profile_viewers": 300, "event_count": 7, "events_hash": "e"}  # fmt: skip
     (tmp_path / "runs" / "raid-300-s1.json").write_text(json.dumps(saved))
     resumed = balance.load_done(("raid-300", 1, 1.0, tmp_path, None), "h")
     assert resumed == saved
@@ -4132,6 +4142,45 @@ def test_collapse_fields_record_the_dips_per_tick(
     }
 
 
+def test_strategic_held_start_and_end_counts(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    """NX-511 (item 253 quiet-5): `start` is the count owned when the collector was made, `end` the
+    count at the last running tick (None before any); a sim-paused tick does not move it."""
+    world, strategic = _hold_world(shipped_config)
+    start = sum(world.owner.get(n) == "COALITION" for n in strategic)
+    assert start > 0
+    sh0 = collector.result(0)["strategic_held"]
+    assert (sh0["start"], sh0["end"]) == (start, None)
+    world.campaign.tick = world.campaign.running_ticks = 1
+    collector.observe(world)
+    assert collector.result(1)["strategic_held"]["end"] == start
+    world.owner[next(n for n in strategic if world.owner.get(n) == "COALITION")] = "ENEMY"
+    world.campaign.tick = 2  # the clock did not run: the count is not read
+    collector.observe(world)
+    assert collector.result(2)["strategic_held"]["end"] == start
+    world.campaign.running_ticks = 2
+    world.campaign.tick = 3
+    collector.observe(world)
+    sh = collector.result(3)["strategic_held"]
+    assert (sh["start"], sh["end"]) == (start, start - 1)
+    row = report._held_seed({"metrics": {"strategic_held": sh}})
+    assert (row["held_start"], row["held_end"]) == (start, start - 1)
+
+
+def test_held_seed_start_and_end_are_none_for_old_runs_and_stubs() -> None:
+    old = {
+        "metrics": {
+            "strategic_held": {"nodes": 1, "hold_threshold": 1, "min_by_k": [], "by_node": {}}
+        }
+    }
+    assert report._held_seed(old)["held_end"] is None
+    stub = runner.failed_run("quiet-5", 1, 1.0, "boom")
+    row = report._held_seed(stub)
+    assert (row["held_start"], row["held_end"]) == (None, None)
+    assert report._held_seed({"metrics": {}})["held_start"] is None
+
+
 def _hold_world(shipped_config: CampaignConfig) -> Any:
     world = start_campaign("c", 1, shipped_config)
     return world, sorted(shipped_config.rules.campaign.strategic)  # type: ignore[union-attr]
@@ -4902,3 +4951,49 @@ def test_config_free_hash_matches_across_a_config_override(
     assert a["final_state_hash"] != b["final_state_hash"]
     assert a["final_state_hash_sans_config"] == b["final_state_hash_sans_config"]
     assert a["final_state_hash_sans_config"] != a["final_state_hash"]
+
+
+def test_run_records_the_event_count_and_the_goldens_event_hash(
+    tmp_path: Path, data: Data, shipped_config: CampaignConfig
+) -> None:
+    """NX-511 overnight-0 check: `events_hash` is the golden's encoding over every event in tick
+    order (rebuilt here from the command log), the count matches, and `--set tasking.wingmen_max=0`
+    leaves both unchanged at 0 viewers while moving the raw state hash."""
+    hours = TICKS / HZ / 3600
+    a = runner.run("overnight-0", 1, hours, tmp_path / "a", data, shipped_config)
+    world = start_campaign(runner.campaign_id("overnight-0", 1), 1, shipped_config)
+    digest, count = hashlib.blake2b(digest_size=32), 0
+    for _ in range(a["ticks_run"]):
+        for e in step(world, [], HANDLERS):
+            digest.update(_event_line(e))
+            count += 1
+    assert a["event_count"] == count > 0
+    assert a["events_hash"] == digest.hexdigest()
+    (path := tmp_path / "balance.yaml").write_text(
+        balance.override_balance(["tasking.wingmen_max=0"])
+    )
+    off = balance.load_campaign_config(balance.ConfigPaths(balance=path))
+    b = runner.run("overnight-0", 1, hours, tmp_path / "b", data, off)
+    assert (b["event_count"], b["events_hash"]) == (a["event_count"], a["events_hash"])
+    assert a["final_state_hash"] != b["final_state_hash"]
+
+
+def test_a_crashed_run_has_no_event_hash(
+    tmp_path: Path, data: Data, shipped_config: CampaignConfig, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def boom(*_: Any) -> Any:
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(runner, "step", boom)
+    r = runner.run("overnight-0", 1, 0.001, tmp_path / "c", data, shipped_config)
+    assert r["crash"] and r["event_count"] is None and r["events_hash"] is None
+
+
+def test_headline_carries_the_event_fields_and_none_for_an_old_run() -> None:
+    stub = runner.failed_run("overnight-0", 1, 1.0, "boom")
+    stub |= {"final_state_hash_sans_config": None, "tick_hz": 10}
+    stub["timing"] = {"wall_s": 0.0, "ticks_per_s": None}
+    h = balance._headline(stub)
+    assert (h["event_count"], h["events_hash"]) == (None, None)  # saved before the fields
+    h = balance._headline(stub | {"event_count": 7, "events_hash": "ab"})
+    assert (h["event_count"], h["events_hash"]) == (7, "ab")

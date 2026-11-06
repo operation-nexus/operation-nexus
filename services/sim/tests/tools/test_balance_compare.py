@@ -27,7 +27,10 @@ def _profile(name: str, downs: int | None = 0, length: float | None = 10.0) -> d
             "low_crowd": name in ("quiet-5", "solo-1"),
             "seeds": [{"seed": s, "good": True} for s in (1, 2, 3)],
         },
-        "per_seed": [{"seed": s, "static_defenses_down": downs} for s in (1, 2, 3)],
+        "per_seed": [
+            {"seed": s, "static_defenses_down": downs, "held_start": 5, "held_end": 5}
+            for s in (1, 2, 3)
+        ],
         "wingmen": {"sum": SUM, "not_measured": 0},
     }
 
@@ -53,6 +56,8 @@ def _report(overrides: list[str]) -> dict[str, Any]:
                 "seed": s,
                 "final_state_hash": f"raw-{'b' if overrides else 'a'}-{s}",
                 "final_state_hash_sans_config": f"h{s}",
+                "event_count": 40 + s,
+                "events_hash": f"e{s}",
                 "ticks_run": 9,
                 "tick_hz": 10,
             }
@@ -113,12 +118,48 @@ def test_solo_is_not_measured_without_the_count_or_the_profile() -> None:
     assert _by_name(a, b)["solo-1"].status == compare.NOT_MEASURED
 
 
-def test_quiet5_holds_is_partial_at_best_and_fails_on_a_collapse() -> None:
-    a, b = _pair()
-    assert _by_name(a, b)["quiet-5"].status == compare.PARTIAL
+def _quiet5(a: dict[str, Any]) -> Any:
+    return _by_name(a, _pair()[1])["quiet-5"]
+
+
+def _ends(a: dict[str, Any], ends: tuple[int | None, ...], start: int | None = 5) -> None:
+    a["profiles"]["quiet-5"]["per_seed"] = [
+        {"seed": i, "held_start": start, "held_end": e} for i, e in enumerate(ends, 1)
+    ]
+
+
+def test_quiet5_holds_start_judges_the_median_seed_end_against_the_start() -> None:
+    a, _ = _pair()
+    v = _quiet5(a)
+    assert v.status == compare.PASS and "5/5, 5/5, 5/5" in v.detail
+    _ends(a, (2, 5, 6))  # one seed lost nodes, the median seed holds the start
+    assert _quiet5(a).status == compare.PASS
+    _ends(a, (2, 4, 6))  # the median seed ends one below the start
+    v = _quiet5(a)
+    assert v.status == compare.FAIL and "median seed -1" in v.detail
+    _ends(a, (4, 6, 4, 6))  # even count: the lower middle seed decides
+    assert _quiet5(a).status == compare.FAIL
+
+
+def test_quiet5_collapse_fails_before_the_held_count() -> None:
+    a, _ = _pair()
     a["profiles"]["quiet-5"]["A1"]["seeds"][1]["good"] = False
-    v = _by_name(a, b)["quiet-5"]
+    v = _quiet5(a)
     assert v.status == compare.FAIL and "[2]" in v.detail
+
+
+def test_quiet5_stays_partial_for_an_old_report() -> None:
+    a, _ = _pair()
+    for q in a["profiles"]["quiet-5"]["per_seed"]:
+        del q["held_start"], q["held_end"]  # saved before the counts
+    assert _quiet5(a).status == compare.PARTIAL
+    a, _ = _pair()
+    _ends(a, (5, None, 5))  # a seed without an end (no running tick)
+    assert _quiet5(a).status == compare.PARTIAL
+    _ends(a, (5, 5, 5), start=None)
+    assert _quiet5(a).status == compare.PARTIAL
+    del a["profiles"]["quiet-5"]["per_seed"]
+    assert _quiet5(a).status == compare.PARTIAL
 
 
 def test_overnight_compares_the_config_free_hash_not_the_raw_one() -> None:
@@ -148,6 +189,33 @@ def test_overnight_is_not_measured_without_hashes_or_seeds() -> None:
     for r in (a, b):  # fewer seeds than the report's
         r["runs"] = [x for x in r["runs"] if (x["profile"], x["seed"]) != ("overnight-0", 3)]
     assert _by_name(a, b)["overnight-0"].status == compare.NOT_MEASURED
+
+
+@pytest.mark.parametrize(("key", "other"), [("event_count", 99), ("events_hash", "other")])
+def test_overnight_fails_on_a_different_event_count_or_event_hash(key: str, other: Any) -> None:
+    a, b = _pair()
+    v = _by_name(a, b)["overnight-0"]
+    assert v.status == compare.PASS and "event count and event hash equal" in v.detail
+    b["runs"][1][key] = other  # state hash and ticks still equal: only the events differ
+    v = _by_name(a, b)["overnight-0"]
+    assert v.status == compare.FAIL and "[2]" in v.detail and "event" in v.detail
+
+
+def test_overnight_without_event_fields_keeps_the_hash_and_ticks_verdict() -> None:
+    for drop in (("a",), ("b",), ("a", "b")):  # an old report in either arm or both
+        a, b = _pair()
+        for arm, r in (("a", a), ("b", b)):
+            if arm in drop:
+                for x in r["runs"]:
+                    x.pop("event_count", None)
+                    x.pop("events_hash", None)
+        v = _by_name(a, b)["overnight-0"]
+        assert v.status == compare.PASS and "not judged" in v.detail
+        b["runs"][0]["final_state_hash_sans_config"] = "other"
+        assert _by_name(a, b)["overnight-0"].status == compare.FAIL
+    a, b = _pair()
+    a["runs"][0]["events_hash"] = None  # a run without one is not judged on events either
+    assert "not judged" in _by_name(a, b)["overnight-0"].detail
 
 
 @pytest.mark.parametrize("profile", compare.CROWDS)
@@ -272,12 +340,12 @@ def test_main_exit_codes_and_output(tmp_path: Path, capsys: pytest.CaptureFixtur
     assert compare.main(paths) == 0
     out = capsys.readouterr().out
     assert "PROPOSED threshold" in out and "AI wingmen counters" in out and SHA in out
-    assert out.splitlines()[-1] == "4 judged (4 pass, 0 FAIL), 1 partial, 0 not measured"
+    assert out.splitlines()[-1] == "5 judged (5 pass, 0 FAIL), 0 partial, 0 not measured"
     bad = copy.deepcopy(b)
     bad["profiles"]["surge-500"]["A2"]["status"] = "fail"
     Path(paths[1]).write_text(json.dumps(bad))
     assert compare.main(paths) == 1
-    assert capsys.readouterr().out.splitlines()[-1].startswith("4 judged (3 pass, 1 FAIL)")
+    assert capsys.readouterr().out.splitlines()[-1].startswith("5 judged (4 pass, 1 FAIL)")
     assert compare.main(paths[:1]) == 2
     Path(paths[1]).write_text("{}")
     assert compare.main(paths) == 2
@@ -289,6 +357,8 @@ def test_main_exits_3_when_nothing_was_judged(
     a, b = _pair()
     for r in (a, b):  # only quiet-5: partial at best
         r["profiles"] = {"quiet-5": r["profiles"]["quiet-5"]}
+    for q in a["profiles"]["quiet-5"]["per_seed"]:
+        del q["held_start"], q["held_end"]  # an old report: partial
     paths = []
     for name, r in (("a", a), ("b", b)):
         paths.append(str(tmp_path / f"{name}.json"))
@@ -318,12 +388,15 @@ def _real_report(overrides: list[str], downs: int, hash_tag: str) -> dict[str, A
                 "config_hash": "c" + hash_tag,
                 "final_state_hash": f"raw-{hash_tag}-{seed}",
                 "final_state_hash_sans_config": f"h{seed}",
+                "event_count": 40 + seed,
+                "events_hash": f"e{seed}",
                 "timing": {"wall_s": 1.0, "ticks_per_s": 1.0},
             }
             run["metrics"] |= {
                 "outcome": {"ended": True, "result": "DEFEAT", "length_h": 40.0, "end_tick": 1},
                 "newbie": {**run["metrics"]["newbie"], "ttfi_s": [60.0], "joined_counted": 1},
                 "static_defenses_down": downs,
+                "strategic_held": {**run["metrics"]["strategic_held"], "start": 5, "end": 5},
                 "nodes_lost_in_a3_window": 0,
                 "sanctuary_hp": {"min_in_a3_window": 500},
             }
@@ -345,7 +418,7 @@ def test_verdicts_run_on_reports_built_by_the_real_report_path() -> None:
     assert {n: v.status for n, v in got.items()} == {
         "solo-1": compare.PASS,  # 12 vs 6 downs: 2x
         "overnight-0": compare.PASS,  # raw hashes differ, config-free ones match
-        "quiet-5": compare.PARTIAL,  # holds is never fully judged
+        "quiet-5": compare.PASS,  # A1 passes and the median seed ends at the start count
         "raid-300": compare.PASS,  # judged verdicts unchanged, same length
         "surge-500": compare.PASS,
     }
