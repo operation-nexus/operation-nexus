@@ -82,6 +82,11 @@ describe("wingman tether", () => {
   it("none when the followed unit is itself an AI unit", () => {
     expect(tethers([wingman(1, 9), wingman(2, 1)])).toBe(0);
   });
+  it("none when a pose is not finite", () => {
+    const bad = { x_m: NaN, y_m: 0 };
+    expect(tethers([ent(1, { pos: bad }), wingman(2, 1)])).toBe(0);
+    expect(tethers([ent(1), wingman(2, 1, { pos: bad })])).toBe(0);
+  });
   it("none for an enemy follower", () => {
     expect(tethers([ent(1), wingman(2, 1, { side: "ENEMY" })])).toBe(0);
   });
@@ -127,6 +132,11 @@ describe("wingmen feed line", () => {
     expect(text(f, 60)).toEqual([]); // a replay does not bring it back
     f.ingest([spawn(2, 1, { campaign_id: "c2" })], world());
     expect(text(f)).toEqual(["VIPER-27 leads 1 [AI] wingman"]);
+  });
+  it("ignores a wingman that follows an AI unit", () => {
+    const f = new WingmenFeed();
+    f.ingest([spawn(3, 1)], map([wingman(2, 9), wingman(3, 2)]));
+    expect(text(f)).toEqual([]);
   });
   it("ignores viewer spawns, enemy spawns, and followers of no live lead", () => {
     const f = new WingmenFeed();
@@ -185,5 +195,57 @@ describe("wingmen on the sitrep stack", () => {
     stack.render(50);
     expect(root.all()).toContain(`${bad} leads 1 [AI] wingman`);
     expect(root.children[0]?.className).toContain("nx-tier-WING");
+  });
+});
+
+describe("wing lines and the OV-26 cap", () => {
+  const threat = (n: number) =>
+    ({
+      kind: "ThreatAdaptation",
+      tick: 1,
+      event_seq: n,
+      campaign_id: "c1",
+      category: "SANCTUARY_AT_RISK",
+      direction: "UP",
+      sector_id: `s${n}`,
+      node_id: null,
+      credit_ids: [],
+    }) as unknown as PublicEvent;
+  function stack(threats: number, wings: number) {
+    const doc = { createElement: () => new El() } as unknown as Document;
+    const root = new El();
+    const feed = new WingmenFeed();
+    const st = new SitrepStack(
+      doc,
+      root as unknown as HTMLElement,
+      () => undefined,
+      () => ({ sectors: [], nodes: [] }),
+      feed,
+    );
+    const list = [ent(1, { callsign: "A" }), ent(5, { callsign: "B" })];
+    const ev: PublicEvent[] = [];
+    for (let i = 0; i < wings; i++) {
+      list.push(wingman(10 + i, i === 0 ? 1 : 5));
+      ev.push(spawn(10 + i, 100 + i));
+    }
+    feed.ingest(ev, map(list));
+    st.ingest(
+      Array.from({ length: threats }, (_, i) => threat(i + 1)),
+      5,
+    );
+    const kids = root.children;
+    return {
+      wing: kids.filter((k) => k.className.includes("nx-tier-WING")).length,
+      more: kids.filter((k) => k.className === "nx-more").map((k) => k.text),
+    };
+  }
+  it("3 threat cards leave no room: no wing card, no +N more for it", () => {
+    expect(stack(3, 1)).toEqual({ wing: 0, more: [] });
+  });
+  it("2 threat cards + 2 wing lines: one wing card, the hidden one is not counted", () => {
+    expect(stack(2, 2)).toEqual({ wing: 1, more: [] });
+  });
+  it("threat overflow still shows +N more", () => {
+    expect(stack(5, 1)).toEqual({ wing: 0, more: ["+2 more"] });
   });
 });

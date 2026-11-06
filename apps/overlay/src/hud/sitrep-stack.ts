@@ -39,11 +39,12 @@ export class SitrepStack {
 
   render(tick: number): void {
     const view = this.board.view(tick);
-    // NX-511: wingmen lines are the lowest priority: they fill only the slots the threat cards leave free.
+    // NX-511: wingmen lines are the lowest priority: they fill only the slots the threat cards leave free
+    // and never count in "+N more".
     const wing = this.wing?.view(tick) ?? [];
     const room = Math.max(0, MAX_SHOWN - view.shown.length);
     const wings = wing.slice(0, room);
-    const hidden = view.hiddenCount + wing.length - wings.length;
+    const hidden = view.hiddenCount; // "+N more" counts threat cards only: a hidden wing line is not a hidden threat
     const sig = `${view.shown.map((e) => `${e.key}#${e.event.event_seq}`).join(",")}|${wings.map((w) => w.key).join(",")}|${hidden}`;
     if (sig === this.sig) return;
     this.sig = sig;
