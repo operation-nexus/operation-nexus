@@ -138,8 +138,21 @@ def test_the_script_exits_1_exactly_when_the_sc10_line_says_fail() -> None:
     script = Path(kernel_bench.__file__)
     args = ["--ladder", "60", "--ticks", "5", "--scene", "mixed", "--settle", "1", "--frames"]
     run = subprocess.run(  # noqa: S603  # our own script, fixed args
-        [sys.executable, str(script), *args], capture_output=True, text=True, timeout=120
+        [sys.executable, str(script), *args],
+        capture_output=True,
+        text=True,
+        timeout=600,  # a hang guard, not a budget
     )
     (line,) = [ln for ln in run.stdout.splitlines() if "SC-10:" in ln]
     assert line.endswith(("PASS", "FAIL"))
     assert run.returncode == (1 if line.endswith("FAIL") else 0), run.stderr
+
+
+def test_exit_code_is_1_only_when_a_counted_rung_missed_the_budget() -> None:
+    def res(counted: bool, *passes: bool) -> dict[str, Any]:
+        rungs = [{"frames": {"pass": p} if counted else None} for p in passes]
+        return {"frame_build_counted": counted, "rungs": rungs}
+
+    assert kernel_bench.exit_code(res(True, True, True)) == 0
+    assert kernel_bench.exit_code(res(True, True, False)) == 1
+    assert kernel_bench.exit_code(res(False, True)) == 0  # no frames: nothing was judged

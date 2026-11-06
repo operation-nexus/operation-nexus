@@ -489,7 +489,11 @@ def main(argv: list[str] | None = None) -> dict[str, Any]:
     return res
 
 
+def exit_code(res: dict[str, Any]) -> int:
+    """1 when `--frames` was on and any rung's combined p99 missed the SC-10 budget, else 0."""
+    failed = res["frame_build_counted"] and not all(r["frames"]["pass"] for r in res["rungs"])
+    return 1 if failed else 0
+
+
 if __name__ == "__main__":
-    result = main()
-    if result["frame_build_counted"] and not all(r["frames"]["pass"] for r in result["rungs"]):
-        sys.exit(1)  # SC-10: combined p99 over budget
+    sys.exit(exit_code(main()))
