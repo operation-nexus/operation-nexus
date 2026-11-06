@@ -3,7 +3,17 @@ import { describe, expect, it, vi } from "vitest";
 
 const start = vi.fn(() => Promise.resolve());
 const prototype = start;
-vi.mock("../stage", () => ({ mountStage: vi.fn() }));
+const mountStage = vi.hoisted(() => vi.fn());
+vi.mock("../stage", () => ({ mountStage }));
+// The real startFeed opens a WebSocket; this stand-in keeps its contract: with `#token=` it mounts the stage and
+// returns a client, without one it returns null.
+vi.mock("../net/start", () => ({
+  startFeed: vi.fn((win: Window, mount: () => unknown) => {
+    if (!win.location.hash.includes("token=")) return null;
+    mount();
+    return {};
+  }),
+}));
 
 import { boot } from "../boot";
 
@@ -15,6 +25,16 @@ function fakeWin(hash: string): Window {
     document: { getElementById: () => root },
   } as unknown as Window;
 }
+
+describe("boot with a token", () => {
+  it("mounts the live stage and never starts the prototype", async () => {
+    start.mockClear();
+    mountStage.mockClear();
+    await boot(fakeWin("#token=abc"), prototype);
+    expect(mountStage).toHaveBeenCalledTimes(1);
+    expect(start).not.toHaveBeenCalled();
+  });
+});
 
 describe("boot without a token", () => {
   it("production: renders nothing and never starts the mock feed", async () => {
