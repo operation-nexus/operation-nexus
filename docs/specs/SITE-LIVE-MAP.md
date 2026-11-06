@@ -1,6 +1,6 @@
 # SPEC: Site live map (the in-depth view)
 
-Status: Draft — needs owner sign-off · Owner: owner · Tracker: NX-516 · Depends on: NX-176, NX-177, NX-178 · Related: Q-UX-24, Q-UX-25, Q-UX-26, Q-ARCH-7, Q-ARCH-16, Q-MOD-1, Q-MOD-6, Q-DM-3, Q-DM-4 · Related specs: PUBLIC-SITE, WIRE-PROTOCOL, CONTRACTS §7, OVERLAY §0.10, FOG-OF-WAR, IDENTITY, THREAT-MODEL (B10) · Related ADRs: ADR-0005, ADR-0010, ADR-0012
+Status: Approved (owner, 2026-11-06, Q-UX-28; open points 3, 5, 6, 7 are lead defaults the owner may veto; names follow NX-518) · Owner: owner · Tracker: NX-516 · Depends on: NX-176, NX-177, NX-178 · Related: Q-UX-24, Q-UX-25, Q-UX-26, Q-ARCH-7, Q-ARCH-16, Q-MOD-1, Q-MOD-6, Q-DM-3, Q-DM-4 · Related specs: PUBLIC-SITE, WIRE-PROTOCOL, CONTRACTS §7, OVERLAY §0.10, FOG-OF-WAR, IDENTITY, THREAT-MODEL (B10) · Related ADRs: ADR-0005, ADR-0010, ADR-0012
 
 Values marked PROPOSED are lead defaults, tunable without a spec change. Facts not checked against a real host are marked [UNVERIFIED].
 
@@ -127,13 +127,15 @@ Option (b) now. The snapshot format is a public projection of the overlay's `Sna
 4. NX-516 sits in the P2 section of the tracker, but P2 is a closed, unlisted alpha (ROADMAP P2). A public page would advertise it. Recommended: build in P2 and test on an unlisted URL; link it from the public site with the public beta (open question 1).
 5. Option (a), the real-time relay, only if viewers ask for it, with its own spec change and security review.
 
-## 12. Open questions for the owner
-Each has a recommendation; none is decided yet.
-1. **When does the page go public?** Recommended: build in P2, unlisted URL for testers only; public link at the public beta. Alternative: public from P2.
-2. **Where are the feed and page hosted?** GitHub Pages (the link page, PUBLIC-SITE §8) redeploys on each push, which does not suit a file that changes every 5 s [UNVERIFIED]. Recommended: object storage with a CDN, a spending cap and free or capped egress, on a subdomain of `hiveplex.live` (name PROPOSED); the link page stays on Pages. The host is chosen in the build PR from researched free-tier terms. Alternative: a small cloud VM, which also makes option (a) possible later.
-3. **Opaque entity ids on the public feed (SLM-11)?** Recommended: yes, feed-local ids, to close the hidden-spawn-count leak. Alternative: publish kernel ids as the overlay gets them.
-4. **"Every viewer's name": callsigns only?** Recommended: yes. Platform display names stay off every screen (Q-MOD-1, CONTRACTS §3.5); the full callsign is the "full name" of Q-UX-26. No site-only opt-out, since a callsign is a pseudonym and `!forget` already removes it. Alternative: add a "hide me on the site" preference (an IDENTITY change and a new command, rule 6a).
-5. **Role and sector filters.** Recommended: ship side, domain, kind and owner filters first; add sector once sector shapes are on the wire (NX-182), and role only if a published kind→role map exists. Alternative: add both to the contracts in this item.
-6. **Publisher `client_kind`.** Recommended: reuse `OVERLAY` in the first build (no contract change; it holds one of the 8 slots). Alternative: add a `PUBLISHER` value to `Hello.client_kind` (a contract change in the same PR, rule 6).
-7. **Snapshot cadence.** Recommended: 5 s (PROPOSED), tunable. Faster costs more uploads and storage write operations [UNVERIFIED cost per host].
-8. **PUBLIC-SITE PS-3 (no JavaScript).** The live page needs JavaScript. Recommended: PS-3 keeps applying to the link page only; this page has its own rules here. Needs the owner's sign-off as a PUBLIC-SITE change.
+## 12. Decisions
+Owner, 2026-11-06 (Q-UX-28):
+1. **When it goes public:** build in P2 behind an unlisted URL for testers; link it publicly at the public beta.
+2. **Hosting:** pushed snapshots (§4.2 option b) to object storage behind a CDN with a spending cap or free egress, on a subdomain of `hiveplex.live` (name PROPOSED). The link page stays on GitHub Pages. The host is picked in the build PR from researched free-tier terms [UNVERIFIED until then].
+3. **PUBLIC-SITE PS-3 (no JavaScript)** applies to the link page only; this page follows its own rules here and its source lives outside `apps/site/` (PROPOSED `apps/site-live/`), so the PS-3 repo check keeps covering the link page.
+4. **Names:** the owner wants to try both modes: generated callsigns, and names the viewer chooses (a self-picked nickname as callsign, or a moderated chat display name). NX-518 specs and builds the switch. Until it lands the feed carries what the wire carries today: callsigns (CONTRACTS §3.5).
+
+Lead defaults (Q-DEV-1; owner may veto):
+5. **Opaque entity ids** on the public feed (SLM-11), to close the hidden-spawn-count leak.
+6. **Filters:** side, domain, kind and human/AI first; sector once sector shapes are on the wire (NX-182); role only once a published kind→role map exists.
+7. **Publisher `client_kind`:** reuse `OVERLAY` in the first build (no contract change; it holds one of the 8 slots).
+8. **Snapshot cadence:** 5 s (PROPOSED), tunable.
