@@ -1,6 +1,7 @@
 // Wires the WS client and banner into the page. Does nothing without `#token=` (prototype dev mode).
 import { renderBanner } from "./banner";
 import { mountHud } from "../hud/mount";
+import { LiveMap } from "../live-map";
 import type { Stage } from "../stage";
 import { takeToken, WireClient } from "./wire-client";
 
@@ -12,7 +13,14 @@ export function startFeed(
   win: Window,
   mount: () => Pick<
     Stage,
-    "world" | "banners" | "showTheater" | "showNodes" | "panels" | "sitrep"
+    | "world"
+    | "banners"
+    | "showTheater"
+    | "showNodes"
+    | "panels"
+    | "sitrep"
+    | "units"
+    | "fx"
   >,
 ): WireClient | null {
   const token = takeToken(win.location, win.history);
@@ -24,6 +32,11 @@ export function startFeed(
   banner.hidden = true;
   surface.banners.appendChild(banner);
   const hud = mountHud(surface, win, () => client.store);
+  const live = new LiveMap(surface.units, surface.fx, () => client.store, {
+    now: () => win.performance.now(),
+    raf: (cb) => win.requestAnimationFrame(cb),
+    caf: (id) => win.cancelAnimationFrame(id),
+  });
   const scheme = win.location.protocol === "https:" ? "wss:" : "ws:";
   const client = new WireClient({
     url: `${scheme}//${win.location.host}${WS_PATH}`,
@@ -40,13 +53,16 @@ export function startFeed(
     onState: (s) => renderBanner(banner, surface.world, s),
     onFrame: (f) => {
       surface.showNodes(client.store.nodes);
+      live.onFrame(f);
       hud.frame(f, client.store);
     },
     onWelcome: () => {
       const t = client.store.theater;
       if (t !== null) surface.showTheater(t);
+      live.reset();
     },
   });
   client.start();
+  live.start();
   return client;
 }
