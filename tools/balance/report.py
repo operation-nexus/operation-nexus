@@ -859,6 +859,8 @@ def _held_seed(r: dict[str, Any]) -> dict[str, Any]:
         "held_min_by_k": h["min_by_k"],
         "held_at_or_above_min": h.get("at_or_above_min", 0.0),
         "held_longest_min": h.get("longest_min", 0.0),
+        "held_start": h.get("start"),  # NX-511: None for an older run or a stub
+        "held_end": h.get("end"),
         "held_losses": sum(v["lost"]["total"] for v in h["by_node"].values()),
     }
 

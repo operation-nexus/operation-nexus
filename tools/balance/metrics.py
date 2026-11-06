@@ -258,6 +258,10 @@ class Collector:
         # Q-TD-136: running ticks per count of strategic nodes the coalition owns (index k), the
         # current and longest stretch at or above the hold threshold, owned ticks, losses per node
         n = len(self._strategic)
+        # NX-511 (item 253 quiet-5): the coalition's strategic nodes at the start and at the last
+        # running tick, so "ends holding at least the start nodes" is judged per seed
+        self.start_held = sum(world.owner.get(s) == _COALITION for s in self._strategic)
+        self.end_held: int | None = None
         self._hold_k = next((k for k in range(n + 1) if n and Fraction(k, n) >= frac), n + 1)
         self._ticks_by_k = [0] * (n + 1)
         self._stretch = self._longest_stretch = 0
@@ -536,6 +540,7 @@ class Collector:
             if not owned and self.first_zero_strategic_tick is None:
                 self.first_zero_strategic_tick = camp.tick
             self._ticks_by_k[len(owned)] += 1
+            self.end_held = len(owned)
             for n in owned:
                 self._owned_ticks[n] += 1
             self._early_held(self._hour(camp.tick), owned)
@@ -1243,6 +1248,8 @@ class Collector:
             "strategic_held": {  # Q-TD-136, running ticks only
                 "nodes": len(self._strategic),
                 "hold_threshold": self._hold_k,  # owned nodes needed: campaign.py's holding rule
+                "start": self.start_held,  # NX-511: owned at the start / at the last running tick
+                "end": self.end_held,  # None: no running tick
                 "min_by_k": [self._minutes(t) for t in self._ticks_by_k],
                 "at_or_above_min": self._minutes(sum(self._ticks_by_k[self._hold_k :])),
                 "longest_min": self._minutes(self._longest_stretch),

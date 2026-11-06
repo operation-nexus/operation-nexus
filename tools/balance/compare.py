@@ -94,12 +94,24 @@ def _quiet5(a: dict[str, Any]) -> Verdict:
             FAIL,
             f"A1 low-crowd no-collapse fails in seeds {bad or 'all'} (arm A, wingmen on)",
         )
+    held = [(q.get("held_start"), q.get("held_end")) for q in p.get("per_seed", [])]
+    if not held or any(v is None for pair in held for v in pair):
+        return Verdict(
+            name,
+            PARTIAL,
+            "A1 no-collapse passes in every seed (arm A, on); 'median seed ends holding the start "
+            "nodes' is not judged: a seed has no start or end strategic count (older report)",
+        )
+    deltas = [end - start for start, end in held]
+    med = statistics.median_low(deltas)  # the lower middle seed: an even count never rounds up
+    shown = ", ".join(f"{end}/{start}" for start, end in held)
+    where = f"end/start strategic nodes per seed {shown}; median seed {'+' if med >= 0 else ''}{med}"
+    if med < 0:
+        return Verdict(name, FAIL, f"the median seed ends below the start nodes: {where}")
     return Verdict(
-        name,
-        PARTIAL,
-        "A1 no-collapse passes in every seed (arm A, on); 'median seed ends holding the start "
-        "nodes' is not in report.json (no end-of-run strategic count), so it is not judged",
-    )
+        name, PASS, "A1 no-collapse passes in every seed and the median seed ends at or above "
+        f"the start nodes (arm A, on): {where}"
+    )  # fmt: skip
 
 
 def _rates(x: dict[str, Any]) -> list[float] | None:

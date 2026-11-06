@@ -4132,6 +4132,45 @@ def test_collapse_fields_record_the_dips_per_tick(
     }
 
 
+def test_strategic_held_start_and_end_counts(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    """NX-511 (item 253 quiet-5): `start` is the count owned when the collector was made, `end` the
+    count at the last running tick (None before any); a sim-paused tick does not move it."""
+    world, strategic = _hold_world(shipped_config)
+    start = sum(world.owner.get(n) == "COALITION" for n in strategic)
+    assert start > 0
+    sh0 = collector.result(0)["strategic_held"]
+    assert (sh0["start"], sh0["end"]) == (start, None)
+    world.campaign.tick = world.campaign.running_ticks = 1
+    collector.observe(world)
+    assert collector.result(1)["strategic_held"]["end"] == start
+    world.owner[next(n for n in strategic if world.owner.get(n) == "COALITION")] = "ENEMY"
+    world.campaign.tick = 2  # the clock did not run: the count is not read
+    collector.observe(world)
+    assert collector.result(2)["strategic_held"]["end"] == start
+    world.campaign.running_ticks = 2
+    world.campaign.tick = 3
+    collector.observe(world)
+    sh = collector.result(3)["strategic_held"]
+    assert (sh["start"], sh["end"]) == (start, start - 1)
+    row = report._held_seed({"metrics": {"strategic_held": sh}})
+    assert (row["held_start"], row["held_end"]) == (start, start - 1)
+
+
+def test_held_seed_start_and_end_are_none_for_old_runs_and_stubs() -> None:
+    old = {
+        "metrics": {
+            "strategic_held": {"nodes": 1, "hold_threshold": 1, "min_by_k": [], "by_node": {}}
+        }
+    }
+    assert report._held_seed(old)["held_end"] is None
+    stub = runner.failed_run("quiet-5", 1, 1.0, "boom")
+    row = report._held_seed(stub)
+    assert (row["held_start"], row["held_end"]) == (None, None)
+    assert report._held_seed({"metrics": {}})["held_start"] is None
+
+
 def _hold_world(shipped_config: CampaignConfig) -> Any:
     world = start_campaign("c", 1, shipped_config)
     return world, sorted(shipped_config.rules.campaign.strategic)  # type: ignore[union-attr]

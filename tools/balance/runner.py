@@ -417,6 +417,8 @@ def failed_run(profile: str, seed: int, hours: float, error: str) -> dict[str, A
             "strategic_held": {
                 "nodes": 0,
                 "hold_threshold": 0,
+                "start": None,
+                "end": None,
                 "min_by_k": [],
                 "at_or_above_min": 0.0,
                 "longest_min": 0.0,
