@@ -8,7 +8,7 @@
 <!--
   PROTOTYPE (not spec, not product code). Terrain and relief are invented.
   Question it asks: does a coast, land and named viewers make the war read as a place with people in it?
-  Keys: 1 = stylised board, 2 = signal topo, M = cycle which viewer is "you" (simulates !me), H = hide dev strip.
+  Keys: 1 = stylised board, 2 = signal topo, 3 = signal + land (default, owner pick 2026-11-06), J = burst of 6 joins, C = flip North Crossing owner, M = cycle which viewer is "you" (simulates !me), H = hide dev strip.
   Names are untrusted: DOM uses textContent, canvas uses fillText. Never innerHTML.
 -->
 <style>
@@ -45,7 +45,7 @@ canvas{position:absolute;left:0;top:0;width:1920px;height:1080px}
 .pips i.off{background:#3a2a31}
 #thr .lvl{color:var(--static);font-family:var(--cond);font-weight:700;letter-spacing:.06em}
 
-#how{position:absolute;left:50%;transform:translateX(-50%);bottom:50px;padding:8px 22px;background:rgba(5,10,14,.62);border-radius:6px;white-space:nowrap;font-family:var(--mono);font-weight:700;font-size:28px;line-height:1;pointer-events:none;
+#how{position:absolute;left:50%;transform:translateX(-50%);bottom:50px;padding:8px 22px;background:rgba(5,10,14,.8);border:1px solid rgba(143,164,173,.28);border-radius:6px;white-space:nowrap;font-family:var(--mono);font-weight:700;font-size:28px;line-height:1;pointer-events:none;
   text-shadow:0 0 6px #000,0 0 3px #000,0 2px 8px #000}
 #how span{color:var(--lime)}
 #how em{font-style:normal;color:var(--dim)}
@@ -68,7 +68,8 @@ canvas{position:absolute;left:0;top:0;width:1920px;height:1080px}
     <div id="thr"><span class="k">Threat</span><span class="pips" id="pips"></span><span class="lvl">ELEVATED</span></div>
   </div></div>
   <div id="how">Type <span>!join</span> strike <em>|</em> recon <em>|</em> logi to play</div>
-  <div id="dev"><button id="bA" aria-pressed="true">1 Stylised board</button><button id="bB" aria-pressed="false">2 Signal topo</button>
+  <div id="dev"><button id="bA" aria-pressed="false">1 Stylised board</button><button id="bB" aria-pressed="false">2 Signal topo</button><button id="bC" aria-pressed="true">3 Signal + land</button>
+    <button id="bJ">J: join burst</button><button id="bX">C: flip North Crossing</button>
     <button id="bM">M: you = <span id="youName"></span></button><span>H hides this strip</span></div>
 </div>
 <script>
@@ -163,7 +164,6 @@ function paintA(d){
       c=[c[0]*(1+sh),c[1]*(1+sh),c[2]*(1+sh)];
       if(dc<1.8) c=mix(c,SAND,(1-dc/1.8)*.75);
       const edge=dc*S; if(edge<1.3) c=mix(c,[20,30,32],.7);
-      const x=(i+.5)/S; c=x<200?mix(c,[60,150,170],.05):mix(c,[180,60,96],.06);   // control zones, quietly
     }
     d[o]=c[0];d[o+1]=c[1];d[o+2]=c[2];d[o+3]=255;
   }
@@ -192,15 +192,57 @@ function paintB(d){
   }
 }
 
+function paintC(d){ // signal look, A's solid land and sea; contours only on relief, none on the flats
+  const N=12, LC=[120,238,206];
+  for(let j=0,idx=0;j<H;j++)for(let i=0;i<W;i++,idx++){
+    const dc=DC[idx], o=idx*4, edge=Math.abs(dc)*S; let r,g,b;
+    if(dc<=0){
+      const c=mix([10,44,64],[3,12,25],smooth(0,9,-dc));r=c[0];g=c[1];b=c[2];          // shallows to deep water
+    }else{
+      const e=E[idx], [gx,gy]=grad(idx,i,j), k=1+clamp((gx+gy)*45,-.22,.22)*1.4;
+      let c=mix([13,27,30],[50,72,72],smooth(.12,.95,e));                                 // valley dark, hills lighter
+      if(dc<1.6)c=mix(c,[78,90,72],(1-dc/1.6)*.55);                                       // beach
+      r=c[0]*k;g=c[1]*k;b=c[2]*k;
+      const v=e*N, f=v-Math.floor(v), dv=Math.min(f,1-f), gm=Math.hypot(gx,gy)*N+1e-5, dpx=dv/gm;
+      const idxLine=(f<.5?Math.floor(v):Math.floor(v)+1)%4===0;
+      const sc=smooth(.004,.02,gm)*Math.max(smooth(.3,.42,e),1-smooth(.06,.11,e));
+      const a=(Math.exp(-dpx*dpx/(2*.49))*(idxLine?.34:.14)+Math.exp(-dpx*dpx/(2*6.76))*(idxLine?.08:.03))*sc;
+      r+=LC[0]*a;g+=LC[1]*a;b+=LC[2]*a;
+    }
+    const sg=Math.exp(-edge*edge/(2*1.2))*.75+Math.exp(-edge*edge/50)*.12;                // phosphor shoreline
+    r+=110*sg;g+=220*sg;b+=235*sg;
+    if(j%3===0){r*=.9;g*=.9;b*=.9;}
+    d[o]=r;d[o+1]=g;d[o+2]=b;d[o+3]=255;
+  }
+}
+
+/* ---------- territory tint: soft falloff around each node, follows owners ---------- */
+const TINT={cur:null,prev:null,t0:-9}, TQ=4, TR=60;   // low-res factor, falloff radius km
+function buildTint(){
+  const lw=Math.ceil(W/TQ), lh=Math.ceil(H/TQ), cv=document.createElement('canvas');cv.width=lw;cv.height=lh;
+  const c=cv.getContext('2d'), img=c.createImageData(lw,lh), d=img.data;
+  for(let j=0;j<lh;j++){
+    const y=B.h-(j+.5)*TQ/S, [xl,xr]=shore(y);
+    for(let i=0;i<lw;i++){
+      const x=(i+.5)*TQ/S; let sq=0,ss=0,sn=0;
+      for(const n of NODES){const w=Math.exp(-(((n.x-x)**2+(n.y-y)**2)/(TR*TR)));if(n.o==='c')sq+=w;else if(n.o==='e')ss+=w;else sn+=w;}
+      const dc=x<xl?xl-x:x>xr?x-xr:-Math.min(x-xl,xr-x), t=sq+ss, a=.14*t/(t+sn+.12)*smooth(-1,2,dc), q=sq/(t||1), o=(j*lw+i)*4;
+      d[o]=67*q+255*(1-q);d[o+1]=220*q+79*(1-q);d[o+2]=255*q+123*(1-q);d[o+3]=a*255;
+    }
+  }
+  c.putImageData(img,0,0);return cv;
+}
+function refreshTint(){TINT.prev=TINT.cur;TINT.cur=buildTint();TINT.t0=TINT.prev&&!REDUCED?T:-9;}
+
 /* ---------- static layer per style (terrain, sectors, zones, roads) ---------- */
 function poly(c,p){c.beginPath();c.moveTo(p[0][0],p[0][1]);for(let i=1;i<p.length;i++)c.lineTo(p[i][0],p[i][1]);c.closePath();}
 function textHalo(c,t,x,y,fill,halo='rgba(4,9,12,.9)',w=4){c.lineJoin='round';c.lineWidth=w;c.strokeStyle=halo;c.strokeText(t,x,y);c.fillStyle=fill;c.fillText(t,x,y);}
 function buildStatic(style){
   const cv=document.createElement('canvas');cv.width=1920;cv.height=1080;const c=cv.getContext('2d');
   c.fillStyle='#070d11';c.fillRect(0,0,1920,1080);
-  const img=c.createImageData(W,H); (style==='A'?paintA:paintB)(img.data); c.putImageData(img,OX,OY);
+  const img=c.createImageData(W,H); ({A:paintA,B:paintB,C:paintC})[style](img.data); c.putImageData(img,OX,OY);
   const vg=c.createRadialGradient(960,564,380,960,564,1100);
-  vg.addColorStop(0,'rgba(0,0,0,0)');vg.addColorStop(1,style==='A'?'rgba(0,0,0,.34)':'rgba(0,0,0,.5)');
+  vg.addColorStop(0,'rgba(0,0,0,0)');vg.addColorStop(1,style==='A'?'rgba(0,0,0,.34)':style==='C'?'rgba(0,0,0,.42)':'rgba(0,0,0,.5)');
   c.fillStyle=vg;c.fillRect(OX,OY,W,H);
   // frame ticks
   c.strokeStyle=style==='A'?'rgba(230,240,244,.35)':'rgba(120,238,206,.4)';c.lineWidth=2;
@@ -217,6 +259,8 @@ function buildStatic(style){
     c.setLineDash([3,9]);c.lineWidth=2;c.strokeStyle=style==='A'?'rgba(255,240,200,.38)':'rgba(120,238,206,.35)';
     c.strokeRect(x0,Math.max(y0,OY),x1-x0,Math.min(y1,OY+H)-Math.max(y0,OY));c.setLineDash([]);
     c.textAlign=T===HILLS?'left':'right';c.font=`700 16px ${SANS}`;
+    if(T===VALLEY){ // inside the polygon, stacked, clear of the "how to join" plate
+      c.letterSpacing='3px';textHalo(c,'SOUTHERN',x1-10,y1-92,'rgba(255,244,214,.78)');textHalo(c,'VALLEY',x1-10,y1-70,'rgba(255,244,214,.78)');c.letterSpacing='0px';continue;}
     textHalo(c,T.name.split('').join(' '),T===HILLS?x0+10:x1-10,T===HILLS?Math.max(y0,126)+Math.min(y1-Math.max(y0,126),26)-4:y1-26,'rgba(255,244,214,.78)');
   }
   drawRoads(c,style);
@@ -317,8 +361,8 @@ function step(u,dt,v){
     retarget(u);
   }
 }
-function addViewer(name,role,score,joinedNow){
-  const air=role!=='LOGI', base=NID[pick(air?BASES.air:BASES.ground)];
+function addViewer(name,role,score,joinedNow,baseId){
+  const air=role!=='LOGI', base=NID[baseId||pick(air?BASES.air:BASES.ground)];
   const u=newUnit('c',role,base.x,base.y); u.h=air?0:0;
   if(!joinedNow){ // seed viewers start mid-mission, not stacked on the base
     if(air){u.x=rr(30,300);u.y=rr(30,210);u.h=rr(0,6.28);}else{const id=pick(COAL_POOL);u.x=NID[id].x;u.y=NID[id].y;}
@@ -333,13 +377,16 @@ function seed(){
   for(let i=0;i<3;i++){const n=ENEMY_NODES[(i*2+1)%ENEMY_NODES.length],u=newUnit('e','LOGI',n.x,n.y);retarget(u);enemies.push(u);}
 }
 let nextJoin=1.0, joinN=0;
-function doJoin(){
+function doJoin(baseId){
   let name,role;
-  if(joinN<JOIN_QUEUE.length)[name,role]=JOIN_QUEUE[joinN];
+  if(baseId){name='@'+pick(FIRST)+'_'+pick(SECOND)+Math.floor(rr(2,99));role=pick(['STRIKE','STRIKE','RECON']);}
+  else if(joinN<JOIN_QUEUE.length)[name,role]=JOIN_QUEUE[joinN];
   else{name='@'+pick(FIRST)+'_'+pick(SECOND)+Math.floor(rr(2,99));role=pick(['STRIKE','STRIKE','RECON','LOGI']);}
   joinN++;
-  const v=addViewer(name,role,Math.round(rr(5,60)),true);
-  fx.push({k:'join',v,x:NID[v.base].x,y:NID[v.base].y,t0:T,dur:4.2,text:name,role});
+  const v=addViewer(name,role,Math.round(rr(5,60)),true,baseId);
+  const open=fx.find(f=>f.k==='join'&&f.base===v.base&&T-f.tLast<4);   // same base within ~4 s: one chip
+  if(open){open.names.push(name);open.tLast=T;open.dur=T-open.t0+4.2;}
+  else fx.push({k:'join',v,base:v.base,x:NID[v.base].x,y:NID[v.base].y,t0:T,tLast:T,dur:4.2,names:[name],role});
   joinLog.push(v);
   if(viewers.filter(q=>q.leaveT===null).length>26){ // someone leaves so the field stays readable
     const top=topN(3),gone=viewers.find(q=>q.leaveT===null&&q!==v&&q!==viewers[youIdx]&&!top.includes(q)&&T-q.joinT>8);
@@ -377,6 +424,11 @@ function drawTrail(c,u,col){
 function trailTick(u,dt){u.trT+=dt;if(u.trT>.14){u.trT=0;u.trail.push([u.x,u.y]);if(u.trail.length>14)u.trail.shift();}}
 
 /* ---------- labels: collision-aware chips ---------- */
+const NAME_CAP=16, SEG=typeof Intl!=='undefined'&&Intl.Segmenter?new Intl.Segmenter(undefined,{granularity:'grapheme'}):null;
+function capName(t){ // 16 graphemes max incl. the ellipsis (code points if Segmenter is missing)
+  const g=SEG?Array.from(SEG.segment(t),s=>s.segment):Array.from(t);
+  return g.length<=NAME_CAP?t:g.slice(0,NAME_CAP-1).join('')+'…';
+}
 const wcache=new Map();
 function tw(c,t){const k=c.font+'|'+t;let w=wcache.get(k);if(w===undefined){w=c.measureText(t).width;wcache.set(k,w);}return w;}
 function trunc(c,t,maxW){ // ellipsis by code point so emoji are not cut in half
@@ -391,7 +443,7 @@ function roleGlyph(c,role,x,y,col){
 const CH=30, PAD=9;
 function chipSize(c,L){
   c.font=`700 16px ${SANS}`;const tagW=L.tag?tw(c,L.tag)+12:0;
-  c.font=`600 18px ${SANS}`;const tx=trunc(c,L.text,L.maxW||240);L._t=tx;
+  c.font=`600 18px ${SANS}`;const tx=trunc(c,capName(L.text),L.maxW||240);L._t=tx;
   L.w=PAD+16+6+(tagW?tagW+6:0)+tw(c,tx)+PAD;L.h=CH;L._tagW=tagW;return L;
 }
 function drawChip(c,L,x,y,alpha,scale){
@@ -408,12 +460,12 @@ const placed=[]; let selfId=null;
 const hit=r=>placed.some(q=>q.id!==selfId&&r.x<q.x+q.w+3&&r.x+r.w+3>q.x&&r.y<q.y+q.h+3&&r.y+r.h+3>q.y);
 function candidates(ax,ay,w,h,pref){ // anchor offsets, tried in order starting at the remembered slot
   const g=22, a=[[g,-h/2],[-g-w,-h/2],[-w/2,-h-g],[-w/2,g],[g-4,-h-14],[-g-w+4,-h-14],[g-4,14],[-g-w+4,14],
-    [g,-h-44],[-g-w,-h-44],[-w/2,-h-52],[-w/2,52],[g+10,40],[-g-w-10,40]];
+    [g,-h-44],[-g-w,-h-44],[-w/2,-h-52],[-w/2,52],[g+10,40],[-g-w-10,40],[-w/2,-h-92],[-w/2,92],[g,-h-92],[-g-w,92]];
   const o=a.map(([dx,dy])=>({x:clamp(ax+dx,16,1920-16-w),y:clamp(ay+dy,16,1080-16-h),w,h}));
   return pref?o.slice(pref).concat(o.slice(0,pref)):o;
 }
 function tryPlace(c,L,ax,ay,pref,force){
-  for(let i=0;i<14;i++){const r=candidates(ax,ay,L.w,L.h,pref)[i];if(!hit(r)){placed.push(r);return {r,slot:(pref+i)%14};}}
+  for(let i=0;i<18;i++){const r=candidates(ax,ay,L.w,L.h,pref)[i];if(!hit(r)){placed.push(r);return {r,slot:(pref+i)%18};}}
   if(force){const r=candidates(ax,ay,L.w,L.h,pref)[0];placed.push(r);return {r,slot:pref};}
   return null;
 }
@@ -425,13 +477,13 @@ function leader(c,ax,ay,r,col){
 
 /* ---------- frame ---------- */
 const cv=document.getElementById('cv'), ctx=cv.getContext('2d');
-let STATIC={}, style='A';
+let STATIC={}, style='C';
 function drawFx(c){
   for(let i=fx.length-1;i>=0;i--){
     const f=fx[i],p=(T-f.t0)/f.dur;if(p>=1){fx.splice(i,1);continue;}
     const [x,y]=px(f.x,f.y);
     if(f.k==='join'){
-      for(let k=0;k<3;k++){const q=p*4.2-k*.38;if(q<0||q>1.2)continue;c.globalAlpha=(1-clamp(q,0,1))*.9;c.strokeStyle=COL.violet;c.lineWidth=3;
+      for(let k=0;k<3;k++){const q=(T-f.t0)-k*.38;if(q<0||q>1.2)continue;c.globalAlpha=(1-clamp(q,0,1))*.9;c.strokeStyle=COL.violet;c.lineWidth=3;
         c.beginPath();c.arc(x,y,REDUCED?30:14+70*easeOut(q),0,7);c.stroke();}
       c.globalAlpha=1;
     }else if(f.k==='hit'){
@@ -443,6 +495,12 @@ function drawFx(c){
 function frame(){
   const c=ctx; c.clearRect(0,0,1920,1080);
   c.drawImage(STATIC[style],0,0);
+  if(style!=='B'){ // territory tint, crossfaded when an owner changes
+    const k=easeOut((T-TINT.t0)/.9), sa=style==='A'?.6:1;
+    c.imageSmoothingEnabled=true;
+    if(k<1&&TINT.prev){c.globalAlpha=(1-k)*sa;c.drawImage(TINT.prev,OX,OY,W,H);}
+    c.globalAlpha=(TINT.prev&&k<1?k:1)*sa;c.drawImage(TINT.cur,OX,OY,W,H);c.globalAlpha=1;
+  }
   // nodes first, they are obstacles for chips
   placed.length=0;
   c.textBaseline='alphabetic';
@@ -476,12 +534,13 @@ function frame(){
   c.textBaseline='middle';c.textAlign='left';
   for(const f of fx){
     if(f.k!=='join')continue;const age=T-f.t0;
-    const L=chipSize(c,{tag:null,text:f.text+' joined · '+f.role,role:f.role,border:COL.violet,maxW:360});
-    // truncate the name only, so the "joined" part always shows
-    c.font=`600 18px ${SANS}`;const suffix=' joined · '+f.role;L._t=trunc(c,f.text,300-tw(c,suffix))+suffix;L.w=PAD+22+tw(c,L._t)+PAD;
+    const L=chipSize(c,{tag:null,text:'',role:f.role,border:COL.violet,maxW:360});
+    // names are capped to 16, "joined" always shows; a batch lists two names then +N
+    const n=f.names,suffix=n.length>1?(n.length>2?' +'+(n.length-2):'')+' joined':' joined · '+f.role;
+    c.font=`600 18px ${SANS}`;L._t=trunc(c,n.slice(0,2).map(capName).join(', '),580-tw(c,suffix))+suffix;L.w=PAD+22+tw(c,L._t)+PAD;
     const [ax,ay]=px(f.x,f.y);f.slot??=2;
     const pl=tryPlace(c,L,ax,ay-34,f.slot,true);f.slot=pl.slot;
-    const al=Math.min(easeOut(age/.18),1-smooth(3.5,4.2,age)),sc=.92+.08*easeOut(age/.18);
+    const al=Math.min(easeOut(age/.18),1-smooth(f.dur-.7,f.dur,age)),sc=.92+.08*easeOut(age/.18);
     leader(c,ax,ay,pl.r,COL.violet);drawChip(c,L,pl.r.x,pl.r.y,al,sc);
   }
   const top=topN(3), now=T;
@@ -525,17 +584,19 @@ function cycleYou(){
   const n=viewers.length;for(let k=1;k<=n;k++){const i=(youIdx+k)%n;if(viewers[i].leaveT===null){youIdx=i;break;}}
   hud();
 }
-function setStyle(s){style=s;$('bA').setAttribute('aria-pressed',s==='A');$('bB').setAttribute('aria-pressed',s==='B');}
+function setStyle(s){style=s;for(const k of 'ABC')$('b'+k).setAttribute('aria-pressed',s===k);}
+function burst(){const b=pick(['west-airbase','haven']);for(let i=0;i<6;i++)doJoin(b);}
+function flipCross(){const n=NID['cross-n'];n.o=n.o==='n'?'c':n.o==='c'?'e':'n';refreshTint();}
 addEventListener('keydown',e=>{
-  if(e.key==='1')setStyle('A');else if(e.key==='2')setStyle('B');else if(e.key==='m'||e.key==='M')cycleYou();else if(e.key==='h'||e.key==='H')$('dev').classList.toggle('hide');
+  if(e.key==='1')setStyle('A');else if(e.key==='2')setStyle('B');else if(e.key==='3')setStyle('C');else if(e.key==='j'||e.key==='J')burst();else if(e.key==='c'||e.key==='C')flipCross();else if(e.key==='m'||e.key==='M')cycleYou();else if(e.key==='h'||e.key==='H')$('dev').classList.toggle('hide');
 });
-$('bA').onclick=()=>setStyle('A');$('bB').onclick=()=>setStyle('B');$('bM').onclick=cycleYou;
+$('bA').onclick=()=>setStyle('A');$('bB').onclick=()=>setStyle('B');$('bC').onclick=()=>setStyle('C');$('bJ').onclick=burst;$('bX').onclick=flipCross;$('bM').onclick=cycleYou;
 function fit(){const k=Math.min(innerWidth/1920,innerHeight/1080);const s=$('stage').style;s.transform=`scale(${k})`;s.left=(innerWidth-1920*k)/2+'px';s.top=(innerHeight-1080*k)/2+'px';}
 addEventListener('resize',fit);fit();
 {const p=$('pips');for(let i=0;i<5;i++){const el=document.createElement('i');if(i>=3)el.className='off';p.appendChild(el);}}
-buildField();STATIC.A=buildStatic('A');STATIC.B=buildStatic('B');
+buildField();STATIC.A=buildStatic('A');STATIC.B=buildStatic('B');STATIC.C=buildStatic('C');refreshTint();TINT.prev=null;
 seed();hud();
-if(/[?&]style=b/i.test(location.search))setStyle('B');
+{const m=/[?&]style=([abc])/i.exec(location.search);if(m)setStyle(m[1].toUpperCase());}
 if(/[?&]clean/i.test(location.search))$('dev').classList.add('hide');
 requestAnimationFrame(loop);
 </script>
