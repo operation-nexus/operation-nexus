@@ -10,7 +10,7 @@ Phase plan and ID index. **Live status for items that have an issue lives in Git
 | Phase | Items | Done | Status |
 |---|---|---|---|
 | P0 Foundations | 44 | 32 | 🟨 |
-| P1 Sim kernel | 144 | 115 | 🟨 |
+| P1 Sim kernel | 144 | 116 | 🟨 |
 | P2 Closed alpha | 64 | 6 | 🟨 |
 | P3 Public beta | 26 | 0 | ⬜ |
 | P4 Depth | 69 | 1 | ⬜ |
@@ -52,7 +52,7 @@ Counts recomputed from the rows on 2026-11-04 (P1: 27 rows in this file after th
 | ID | Item | Size | Status | Depends | Acceptance |
 |---|---|---|---|---|---|
 | NX-378 | Entertainment review at P1 exit (Q-DEV-22): a partial review now on 12-24 h runs, again at the first P2 overlay checkpoint (Q-DEV-25); read long seeded balance-harness runs as each audience would see them (watcher, player, site watcher, VOD and clip watcher); report in docs/review per docs/quality/ENTERTAINMENT-REVIEW.md 2026-11-05 (owner, Q-TEST-13): the P1-exit review focuses on low crowds (0, 5, 50 viewers), from Q0b #648: how a solo viewer stays engaged and has fun, and what could re-balance the low-crowd stalemate (e.g. limited coalition AI strikes). | S | ⬜ | NX-031, NX-032 | A report with a score, evidence and suggestions per audience; the owner has decided on each suggestion |
-| NX-510 | Harness A1 scoring for low crowds (Q-TEST-13, owner 2026-11-05): `tools/balance` judges A1 victory-or-defeat at 150+ viewers only; at 0/5/50 a time-limit ending passes when the coalition keeps a strategic node all 72 h and the sanctuary's defense HP never reaches 0 (TESTING-STRATEGY §3.5a); tests | S | ⬜ | — |
+| NX-510 | Harness A1 scoring for low crowds (Q-TEST-13, owner 2026-11-05): `tools/balance` judges A1 victory-or-defeat at 150+ viewers only; at 0/5/50 a time-limit ending passes when the coalition keeps a strategic node all 72 h and the sanctuary's defense HP never reaches 0 (TESTING-STRATEGY §3.5a); tests  Built 2026-11-06: threshold key `targets.a1_victory_min_viewers` (150); per-seed collapse fields in `report.json` `A1.seeds[]`; the low-crowd rule applies to every ending | S | ✅ | — |
 | NX-512 | Coalition sector-scout job (Q-TEST-14, owner 2026-11-05): the board posts scout work on the Static's stalest-point rule (Q-SIM-87, GAMEPLAY §0 parity); refreshing a track unseen for N minutes counts as a scout's first impact (A2). Spec approved 2026-11-05 (Q-SIM-134, GAMEPLAY §1b item 203); kernel exception Q-DEV-45; goldens change (`golden-update`); A2 wording in TESTING-STRATEGY.  Built 2026-11-06: keys `tasking.scout_sector_points` (1), `scout_sector_stale_min` (30), `scout_sector_urgency` (0.5); harness `a2_refresh_unseen_game_min` (30); goldens +2 to +6 events each (sector JobCreated/JobExpired only). Kernel exception widened (Q-DEV-45) | M | ✅ | — |
 | NX-513 | Capture runs from a forward base (Q-TEST-14, owner 2026-11-05): a capture-run truck starts from the nearest friendly forward base with spare stock (forward deploy, Q-GP-41) instead of the haven, so its first impact comes sooner (A2). Spec approved 2026-11-05 (Q-SIM-135, GAMEPLAY §1b item 23); kernel exception Q-DEV-45; goldens may change. Built: `plan_run` capture branch starts at the `plan_deploy` GROUND base (coalition only); key `logistics.capture_run_forward_start` (default true); contracts 0.67; goldens re-recorded. | M | 🟨 | — |
 | NX-514 | Overnight drift to about 1 flip per 12 h at 0 viewers (Q-TD-143, Q-TD-71): causal probe (why 82 of 119 night strikes never fire, Q0b #648), then one same-sha A/B on the key that fixes it; keep A3 and the A1 no-collapse rule | S | ⬜ | — |
