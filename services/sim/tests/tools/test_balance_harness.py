@@ -572,7 +572,17 @@ def test_a1_low_crowd_time_limit_passes_unless_the_war_collapses() -> None:
     assert not report._a1([_time_limit(150)], t)["low_crowd"]
     won = fake_run()
     won["profile_viewers"] = 50
-    assert report._a1([won], t)["status"] == report.PASS  # victory still counts
+    assert report._a1([won], t)["status"] == report.PASS  # a victory with no collapse passes
+    dip = fake_run() | {"profile_viewers": 50}
+    dip["metrics"]["collapse"] |= {"first_zero_strategic_tick": 5}
+    a1 = report._a1([dip], t)
+    assert a1["status"] == report.FAIL and a1["seeds"][0]["reason"] == "victory after a collapse"
+    lost = fake_run(outcome={"ended": True, "result": "DEFEAT", "length_h": 30.0})
+    lost["profile_viewers"] = 5
+    lost["metrics"]["collapse"] |= {"first_sanctuary_zero_tick": 9}
+    assert report._a1([lost], t)["status"] == report.FAIL  # a defeat is judged by the collapse
+    lost["profile_viewers"] = 150
+    assert report._a1([lost], t)["status"] == report.PASS  # unchanged at 150+
 
 
 def test_a1_threshold_is_read_from_config() -> None:

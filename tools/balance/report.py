@@ -71,7 +71,7 @@ def _a1(runs: list[dict[str, Any]], t: Targets) -> dict[str, Any]:
         "detail": f"{outcomes['CRASHED']} sim crashes, {outcomes['HARNESS_ERROR']} harness errors; "
         f"{good}/{len(runs)} seeds "
         + (
-            f"ended by victory, defeat or a time limit without collapse by {limit or 0:g} h "
+            f"ended without a collapse by {limit or 0:g} h "
             f"(low crowd, under {t.a1_victory_min_viewers} viewers: need every seed; Q-TEST-13)"
             if low
             else f"ended by victory or defeat by {limit or 0:g} h (need {t.a1_pass_frac:.0%})"
@@ -82,23 +82,25 @@ def _a1(runs: list[dict[str, Any]], t: Targets) -> dict[str, Any]:
 
 
 def _a1_seed(r: dict[str, Any], limit: float | None, low: bool) -> dict[str, Any]:
-    """One seed's A1 verdict and why. Victory or defeat in the window is good at any crowd; at a
-    low crowd (Q-TEST-13) a TIME_LIMIT ending is good too while the war never collapsed: the
-    coalition held a strategic node on every running tick and the sanctuary's hp never hit 0."""
+    """One seed's A1 verdict and why. At 150+ viewers: VICTORY or DEFEAT in the window is good,
+    TIME_LIMIT a miss. At a low crowd (Q-TEST-13) the ending does not matter, the war must never
+    have collapsed: the coalition held a strategic node on every running tick and the sanctuary's
+    hp never hit 0, so a DEFEAT, or a VICTORY after an earlier dip, fails."""
     o = r["metrics"]["outcome"]
     c = r["metrics"]["collapse"]
     in_window = o["ended"] and limit is not None and o["length_h"] <= limit
     zero, sanctuary = c["first_zero_strategic_tick"], c["first_sanctuary_zero_tick"]
+    ending = str(o["result"]).lower().replace("_", " ")
     if r["harness_error"] or r["crash"] or not in_window:
         good, why = False, "no ending in the window (crash, harness error or still running)"
+    elif low:
+        collapsed = zero is not None or sanctuary is not None
+        good = not collapsed
+        why = f"{ending} after a collapse" if collapsed else f"{ending}, no collapse"
     elif o["result"] in ("VICTORY", "DEFEAT"):
-        good, why = True, o["result"].lower()
-    elif not low:
-        good, why = False, "time limit (a miss at this crowd size)"
-    elif zero is not None or sanctuary is not None:
-        good, why = False, "time limit after a collapse"
+        good, why = True, ending
     else:
-        good, why = True, "time limit, no collapse"
+        good, why = False, "time limit (a miss at this crowd size)"
     return {
         "seed": r["seed"],
         "good": good,
