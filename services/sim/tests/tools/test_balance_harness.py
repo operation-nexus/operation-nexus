@@ -4065,7 +4065,7 @@ def test_collapse_fields_record_the_dips_per_tick(
     sanctuary's defense hp is 0 (read every tick, so a one-tick dip cannot be missed)."""
     world = start_campaign("c", 1, shipped_config)
     strategic = sorted(shipped_config.rules.campaign.strategic)  # type: ignore[union-attr]
-    sanctuary = shipped_config.rules.sanctuary  # type: ignore[union-attr]
+    sanctuary = shipped_config.rules.sanctuary
 
     def observe(tick: int) -> None:
         world.campaign.tick = world.campaign.running_ticks = tick
