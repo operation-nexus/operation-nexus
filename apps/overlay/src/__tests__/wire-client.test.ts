@@ -602,6 +602,7 @@ const fakeSurface = () =>
     panels: { appendChild: () => undefined },
     sitrep: { replaceChildren: () => undefined },
     showTheater: () => undefined,
+    showNodes: () => undefined,
   }) as unknown as ReturnType<Parameters<typeof startFeed>[1]>;
 
 describe("token clearing and startFeed", () => {
@@ -694,6 +695,29 @@ describe("token clearing and startFeed", () => {
     };
     made[0]?.recv({ type: "Welcome", v: PROTOCOL_V, theater });
     expect(seen).toEqual([theater]);
+  });
+
+  it("hands the store's nodes to showNodes after a Snapshot and after a Delta (NX-176)", () => {
+    const made: FakeSocket[] = [];
+    vi.stubGlobal("WebSocket", function () {
+      const f = new FakeSocket();
+      made.push(f);
+      return f;
+    });
+    const owners: (string | undefined)[] = [];
+    const surface = {
+      ...fakeSurface(),
+      showNodes: (n: ReadonlyMap<string, { owner: string }>) =>
+        owners.push(n.get("n1")?.owner),
+    };
+    startFeed(fakeWin("http:", "#token=t").win, () => surface as never);
+    vi.unstubAllGlobals();
+    made[0]?.recv(welcome());
+    made[0]?.recv(snap(1));
+    made[0]?.recv(
+      delta(2, 1, { node_patches: [{ node_id: "n1", owner: "ENEMY" }] }),
+    );
+    expect(owners).toEqual(["NEUTRAL", "ENEMY"]);
   });
 
   it("restores #token before reloading", () => {

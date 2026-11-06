@@ -12,7 +12,7 @@ export function startFeed(
   win: Window,
   mount: () => Pick<
     Stage,
-    "world" | "banners" | "showTheater" | "panels" | "sitrep"
+    "world" | "banners" | "showTheater" | "showNodes" | "panels" | "sitrep"
   >,
 ): WireClient | null {
   const token = takeToken(win.location, win.history);
@@ -38,7 +38,10 @@ export function startFeed(
       win.location.reload();
     },
     onState: (s) => renderBanner(banner, surface.world, s),
-    onFrame: (f) => hud.frame(f, client.store),
+    onFrame: (f) => {
+      surface.showNodes(client.store.nodes);
+      hud.frame(f, client.store);
+    },
     onWelcome: () => {
       const t = client.store.theater;
       if (t !== null) surface.showTheater(t);

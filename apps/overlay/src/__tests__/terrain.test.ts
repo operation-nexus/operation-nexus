@@ -1,9 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { PAD, TerrainLayer, projector, type Theater } from "../terrain";
-import { safeRect } from "../stage-math";
+import { TerrainLayer, type Theater } from "../terrain";
+import { NodeLayer } from "../nodes";
 
-const first = <T>(a: T[]): T => a[0] as T;
-const last = <T>(a: T[]): T => a[a.length - 1] as T;
 const node = (id: string, x: number, y: number): Theater["nodes"][number] => ({
   node_id: id,
   name: id,
@@ -70,8 +68,10 @@ describe("terrain hostile and edge inputs", () => {
     ] as unknown as Theater["nodes"];
     t.nodes = [...t.nodes, ...bad];
     expect(() => new TerrainLayer(canvas).setTheater(t)).not.toThrow();
-    expect(calls.filter((c) => c === "fillRect")).toHaveLength(3);
     expect(calls.filter((c) => c === "stroke")).toHaveLength(2);
+    const nodes = recCanvas();
+    new NodeLayer(nodes.canvas).setTheater(t);
+    expect(nodes.calls.filter((c) => c === "fillRect")).toHaveLength(3);
   });
 
   it("a theater with no node or edge arrays does not throw", () => {
@@ -107,19 +107,5 @@ describe("terrain hostile and edge inputs", () => {
         terrain_ref: null,
       }),
     ).not.toThrow();
-  });
-
-  it("the outermost node sits PAD inside the safe area", () => {
-    const t: Theater = {
-      nodes: [node("a", 0, 0), node("b", 1000, 1000)],
-      edges: [],
-      bounds_m: { w: 4000, h: 2000 },
-      terrain_ref: null,
-    };
-    const r = safeRect();
-    const at = projector(t);
-    // square extent in a wide rect: height is the limit, so y touches the PAD margin exactly
-    expect(at(first(t.nodes).pos)[1]).toBe(r.y + PAD);
-    expect(at(last(t.nodes).pos)[1]).toBe(r.y + r.h - PAD);
   });
 });

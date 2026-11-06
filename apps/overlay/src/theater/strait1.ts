@@ -9,6 +9,8 @@ import {
 /**
  * Authoritative Strait-1 Theater definition (NX-008, content/theaters/strait-1.yaml).
  * Coordinates are metric: x grows East (Coalition west, Static east), y grows South.
+ * LEGACY y-south copy for the no-token prototype path only (mock feed, CRT and batch engines). The live stage never
+ * imports it: it draws from Welcome.theater, +y north (OVERLAY §0.10, NX-176). Retire with the prototype path.
  */
 export const STRAIT_1_THEATER: TheaterDefinition = {
   schemaVersion: 1,
