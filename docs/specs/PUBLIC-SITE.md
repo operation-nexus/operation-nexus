@@ -12,7 +12,7 @@ Non-goals: analytics (NX-330), accounts or login, a contact form, comments, a bl
 ## 3. Requirements
 - **PS-1** The page MUST be static HTML and CSS served from a free static host. It MUST NOT need a server, a database or a build step that fetches from the network at run time.
 - **PS-2** The page MUST NOT set cookies, use local storage, or load anything from another origin: no third-party scripts, fonts, images, embeds or analytics (Q-DM-4). Outbound links are plain links.
-- **PS-3** The page MUST NOT use JavaScript. (If this changes it needs a spec change.)
+- **PS-3** The link page MUST NOT use JavaScript. The live map page (SITE-LIVE-MAP, NX-516) follows its own rules and lives outside `apps/site/`, so the PS-3 check below still covers only the link page (owner, 2026-11-06, Q-UX-28).
 - **PS-4** Content MUST come from the owner-approved copy: name, one-line description, an honest status line, the seven profile links and the Discord invite `https://discord.gg/mSaAD3GGHh`. The status line MUST match the repo's actual state (today: in planning, nothing to play yet) and MUST NOT claim uptime, dates, players or numbers. The 24/7 claim stays off the page (owner, 2026-10-18).
 - **PS-5** A contact address MAY be shown only if it is an address on the project domain that forwards to the brand mailbox. The brand mailbox itself MUST NOT be published (it is the login and recovery address for the brand accounts, Q-MKT-11). Until such an address exists, the page shows no email, and the Discord server is the contact channel.
 - **PS-6** The page MUST be usable without a mouse and on a phone: semantic HTML, a visible keyboard focus, text contrast of at least 4.5:1 for body text, no content hidden behind hover, and no motion that cannot be turned off.
@@ -59,3 +59,4 @@ PS-7 tags used: `description`, `canonical`, Open Graph `type`, `site_name`, `tit
 - GitHub Pages free terms and custom-domain DNS values: [UNVERIFIED] until the owner enables Pages and the domain (see the PR for the steps).
 - The Reddit, Instagram and TikTok link URLs are the standard profile URL forms built from the registered handles; the registry stores handles only [UNVERIFIED for Reddit and Instagram, which block automated requests].
 - Brand style guide (NX-274) may later change the look.
+- Live map, the in-depth view (Q-UX-24, NX-516): [SITE-LIVE-MAP](SITE-LIVE-MAP.md), approved 2026-11-06 (Q-UX-28); PS-3 applies to the link page only.
