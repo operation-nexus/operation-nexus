@@ -11,7 +11,7 @@ cd services/sim && uv run --frozen python ../../tools/balance/balance.py \
 
 | Flag | Meaning |
 |---|---|
-| `--profile` | one of `overnight-0`, `quiet-5`, `prime-50`, `evening-150`, `raid-300`, `surge-500`, or the check profiles `freelance-50` and `raid-300-agency` (below); a comma list; or `all` (default: the six standard profiles, never a check profile) |
+| `--profile` | one of `overnight-0`, `quiet-5`, `prime-50`, `evening-150`, `raid-300`, `surge-500`, or the check profiles `freelance-50`, `raid-300-agency` and `solo-1` (below); a comma list; or `all` (default: the six standard profiles, never a check profile) |
 | `--seeds` | a count N (seeds 1..N) or a comma list; the sim seed is the seed itself |
 | `--hours` | game hours per run, default `campaign.time_limit_h` of the config in use (72 shipped, the acceptance length; follows `--set campaign.time_limit_h=...`). A run stops early when the campaign ends. Short runs work; targets that need a longer window say `not evaluable` |
 | `--workers` | parallel processes, one run each (default 1). `run_jobs` submits the runs biggest crowd first (`viewers` from `profiles.yaml`; ties keep the order given; the README's measured seconds per game hour rise with it: prime-50 31, evening-150 65, raid-300 150, surge-500 225), and a worker that finishes takes the next waiting run at once (backfill, no fixed chunks). Results go back to job order before the report is built, so the report does not depend on workers or completion order (NX-432). Across queued issues the queue overlaps jobs on one worker budget: see "Overlapping jobs (NX-442)" under Local run queue |

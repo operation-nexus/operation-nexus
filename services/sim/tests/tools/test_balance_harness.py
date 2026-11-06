@@ -2071,15 +2071,30 @@ def test_a_freelancer_order_without_a_shot_delivery_or_capture_counts_as_no_effe
 def test_profile_all_is_the_standard_profiles_and_a_check_profile_is_named_only() -> None:
     d = load()
     assert balance.resolve("all", d) == [
-        n for n in d.profiles if n not in ("freelance-50", "raid-300-agency")
+        n for n in d.profiles if n not in ("freelance-50", "raid-300-agency", "solo-1")
     ]
     assert balance.resolve("all", d) == [
         "overnight-0", "quiet-5", "prime-50", "evening-150", "raid-300", "surge-500"
     ]  # fmt: skip
     assert balance.resolve("freelance-50", d) == ["freelance-50"]
+    assert balance.resolve("solo-1", d) == ["solo-1"]
     assert balance.resolve("prime-50,freelance-50", d) == ["prime-50", "freelance-50"]
     with pytest.raises(ValueError, match="unknown profiles"):
         balance.resolve("prime-50,nope", d)
+
+
+def test_solo_1_is_one_auto_tasked_veteran_and_no_arrivals() -> None:
+    """NX-511 (GAMEPLAY §1b item 253): the NX-378 probe's profile, never in `--profile all`."""
+    pr = load().profiles["solo-1"]
+    assert (pr.viewers, pr.arrivals_per_hour, pr.mix, pr.kinds) == (
+        1,
+        0,
+        {"veteran": 1},
+        {"auto": 1},
+    )
+    for seed in (1, 2, 3):
+        got = schedule(pr, seed, 6 * 3600 * HZ, HZ)
+        assert [p for _, p in got] == ["veteran"]  # one viewer, nobody arrives later
 
 
 def test_the_report_fails_a_profile_with_a_stuck_order_or_a_stale_claim() -> None:
