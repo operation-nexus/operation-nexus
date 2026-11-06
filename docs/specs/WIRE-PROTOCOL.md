@@ -88,7 +88,7 @@ A disallowed Origin never upgrades: the server answers the HTTP request with 403
 | Slow client (WP-11) | A client that never reads is dropped with 4004; tick duration with it connected stays within 5 ms of the baseline |
 | Gap (WP-3) | An `Ack` lagging past the limit gets `RESYNC` and a `Snapshot` |
 | Delta size (WP-4) | p95 ≤ 16 KB at 1,000 entities (NX-171) |
-| Tick budget (SC-10) | Bench of `step` plus frame build at 1,000 entities and 500 viewer units on the reference host, p99 < 25 ms (NX-170 part c) |
+| Tick budget (SC-10) | Bench of `step` plus frame build at 1,000 entities and 500 viewer units on the reference host, p99 < 25 ms (NX-170 part c). Built: `tools/sim-bench/kernel_bench.py --frames --scene mixed --viewers 500 --ladder 1000` times `step`, the shared Delta (`FrameBuilder.delta` + msgpack), the Hud every 10th tick and a Snapshot (default every tick, the worst case) as `Hub.on_tick` does them, and exits 1 when the combined p99 is 25 ms or more. Only a run on the reference host counts; the queue runs `balance.py` only, so the local session runs this command by hand |
 | Frame build is read-only | The state hash is unchanged with and without the broadcaster attached |
 
 ## 9. NX-170 split
