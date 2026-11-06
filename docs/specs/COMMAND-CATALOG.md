@@ -19,7 +19,7 @@ Status: Review · Owner: — · Tracker: NX-312 · Related: CONTRACTS §5.2, CHA
 | `!rtb` | `RTB` | — | O-1 | sim (nearest friendly base) | P1 | Unit correction | GAMEPLAY §3; CONTRACTS §5.2 |
 | `!rebase <node>` | `REBASE` | friendly node | O-1 | sim | P1 | Unit correction | GAMEPLAY §3; CONTRACTS §5.2 |
 | `!me`, alias `!status` | `ME` | — | O-1 | sim (informational, never resets idle timers) | P1 | Info | CONTRACTS §5.2; STATE-MACHINES §4.1 |
-| `!callsign <NAME>` | `SET_CALLSIGN` | `^[A-Z][A-Z0-9-]{2,11}$` | first completed mission (Q-PROG-3) | identity + moderation | P1 | Callsign (Q-CMD-3) | GAMEPLAY §3; CONTRACTS §5.2 |
+| `!callsign <NAME>` | `SET_CALLSIGN` | `^[A-Z][A-Z0-9-]{2,11}$` | first completed mission (Q-PROG-3); waived when `identity.name_mode` is `CHOSEN` (IDENTITY §7, Draft, NX-518) | identity + moderation | P1 | Callsign (Q-CMD-3) | GAMEPLAY §3; CONTRACTS §5.2 |
 | `!quiet` | `QUIET` | — (toggle) | any | identity | ships with taunts that name operators | Info | CHAT-GATEWAY §9 |
 | `!forget` | `FORGET` | — | any | identity (sim only to despawn the unit) | P1 | Forget (Q-CMD-3) | CHAT-GATEWAY §9; SEC-DATA-3 |
 | `!help`, `!guide`, `!rules` | none (info) | — | any | gateway digest | P1 | Info | CHAT-GATEWAY §9 |
