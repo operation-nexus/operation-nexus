@@ -19,9 +19,17 @@ Scenes (both seeded: the same seed builds the same scene; timings naturally vary
           LOGI_TRUCK gets a path (to cross-n), the other coalition units stand still; Static
           ground units path to static-hq; aircraft sit LANDED. Not a replay of a campaign.
 
-Timed: `step(world, [])` only. NOT counted: the frame build (no overlay frame exists yet, so this
-is a lower bound on the SC-10 "step + frame build" p99 < 25 ms) and the untimed settle before
-the timed ticks. The settle (`--settle`, default two board-pass periods, 2 x reeval_every_ticks)
+Timed: `step(world, [])`; with `--frames` also the frame build, as the Hub's `on_tick` does it on
+the sim thread (WIRE-PROTOCOL WP-8; NX-170 part c): the shared Delta (`FrameBuilder.delta` + msgpack
+`encode`), the Hud every 10th tick, and a Snapshot (build + encode) every `--snapshot-every` ticks
+(default 1: a client needing one every tick, the worst case; 0: never). Without `--frames` only
+`step` is timed, a lower bound on the SC-10 "step + frame build" p99 < 25 ms. NOT counted: the
+fan-out to clients (event loop, not the sim thread) and the untimed settle before the timed ticks.
+`--frames` exits 1 when the combined p99 is 25 ms or more, the SC-10 budget; a container run is
+not the reference host, so read its verdict as indicative only. `--viewers 500` makes the mixed
+scene's viewer units exactly 500, as SC-10 asks.
+
+The settle (`--settle`, default two board-pass periods, 2 x reeval_every_ticks)
 lets sensing track, fire open and the board make its first assignments of the mass-injected scene,
 so the timed ticks are steady state. The first board pass is that mass arrival (much dearer than
 later ones); it is reported apart as `first_board_pass_ms`. GC is left on, as in a live run.
@@ -48,8 +56,9 @@ import sys
 from time import perf_counter_ns
 from typing import Any
 
+from nexus.broadcast.frames import FrameBuilder, encode
 from nexus.contracts.gen.common.enums import OwnerKind, Side, UnitKind
-from nexus.core.step import step
+from nexus.core.step import TICK_DT, step
 from nexus.core.world import Entity, Vec2, World
 from nexus.runtime.campaign_config import load_campaign_config, start_campaign
 
@@ -68,6 +77,8 @@ MIXED_VIEWER_KINDS: tuple[UnitKind, ...] = (
 MIXED_STATIC_KINDS: tuple[UnitKind, ...] = ("ENEMY_ARMOR", "ENEMY_CONVOY", "ENEMY_FIGHTER")
 
 CONFIG = load_campaign_config()
+BUDGET_MS = 25.0  # SC-10: p99 of step + frame build
+HUD_EVERY = round(1 / TICK_DT)  # WP-10: the Hud at 1 Hz, derived as in hub._HUD_EVERY
 
 
 def _rules(scene: str) -> Any:
@@ -146,8 +157,8 @@ def _convoy_scene(w: World, n: int) -> None:
         truck.last_node, truck.path = "east-airbase", ["static-hq"]
 
 
-def _mixed_scene(w: World, n: int, rng: random.Random) -> None:
-    viewers = (n - len(w)) // 2
+def _mixed_scene(w: World, n: int, rng: random.Random, viewers: int | None = None) -> None:
+    viewers = (n - len(w)) // 2 if viewers is None else viewers
     statics = n - len(w) - viewers
     for i in range(viewers):
         kind = MIXED_VIEWER_KINDS[i % len(MIXED_VIEWER_KINDS)]
@@ -166,13 +177,14 @@ def _mixed_scene(w: World, n: int, rng: random.Random) -> None:
             _spawn(w, kind, DIRECTOR, Vec2(EAST + x, y), "east-airbase", ["static-hq"])
 
 
-def build_scene(scene: str, n: int, seed: int) -> World:
-    """A world of exactly `n` entities (the campaign's own facilities and garrison included)."""
+def build_scene(scene: str, n: int, seed: int, viewers: int | None = None) -> World:
+    """A world of exactly `n` entities (the campaign's own facilities and garrison included).
+    `viewers` (mixed only) is the number of viewer units; default half of the added entities."""
     w = start_campaign(CAMPAIGN_ID, seed, dataclasses.replace(CONFIG, rules=_rules(scene)))
     if scene == "convoy":
         _convoy_scene(w, n)
     else:
-        _mixed_scene(w, n, random.Random(seed))
+        _mixed_scene(w, n, random.Random(seed), viewers)
     if len(w) != n:
         raise ValueError(f"scene {scene!r} cannot be built at {n} entities (got {len(w)})")
     return w
@@ -215,24 +227,40 @@ def settle_world(w: World, settle: int | None) -> float | None:
 
 
 def run_rung(
-    scene: str, n: int, ticks: int, seed: int, settle: int | None = None
+    scene: str,
+    n: int,
+    ticks: int,
+    seed: int,
+    settle: int | None = None,
+    snapshot_every: int | None = None,
+    viewers: int | None = None,
 ) -> dict[str, Any]:
-    w = build_scene(scene, n, seed)
+    """`snapshot_every` None times `step` alone; N >= 0 also the frame build, a Snapshot every Nth
+    tick (0: never)."""
+    w = build_scene(scene, n, seed, viewers)
+    builder = FrameBuilder(CONFIG.theater, protocol_version="0.0", server_build="bench")
     viewers = sum(1 for e in w.entities() if e.owner_kind == "COMMANDER")
     every = board_every(w)
     first_pass = settle_world(w, settle)
+    if snapshot_every is not None:  # the first Delta is self-contained: keep it out of the timing
+        builder.delta(w, [])
     board: list[float] = []
     plain: list[float] = []
     worst, worst_tick = -1.0, 0
+    parts: dict[str, list[float]] = {"delta": [], "hud": [], "snapshot": [], "frame": [], "all": []}
     began = perf_counter_ns()
     for _ in range(ticks):
         due = is_board_tick(w.campaign.running_ticks, every)
         t0 = perf_counter_ns()
-        step(w, [])
+        events = step(w, [])
         ms = (perf_counter_ns() - t0) / 1e6
         (board if due else plain).append(ms)
-        if ms > worst:
-            worst, worst_tick = ms, w.campaign.running_ticks
+        total = ms
+        if snapshot_every is not None:
+            total += time_frames(builder, w, events, snapshot_every, parts)
+            parts["all"].append(total)
+        if total > worst:
+            worst, worst_tick = total, w.campaign.running_ticks
     wall_s = (perf_counter_ns() - began) / 1e9
     every_tick = board + plain
     return {
@@ -249,7 +277,45 @@ def run_rung(
         "board_pass_ticks": len(board),
         "plain_ticks": len(plain),
         "largest_tick": {"ms": worst, "tick": worst_tick},
+        "frames": None
+        if snapshot_every is None
+        else {
+            "snapshot_every": snapshot_every,
+            "budget_ms": BUDGET_MS,
+            **{k: summary(xs) for k, xs in parts.items()},
+            "pass": pct(parts["all"], 99) < BUDGET_MS,
+        },
     }
+
+
+def time_frames(
+    builder: FrameBuilder,
+    w: World,
+    events: list[Any],
+    snapshot_every: int,
+    parts: dict[str, list[float]],
+) -> float:
+    """One tick's frame build as `Hub.on_tick` does it; appends each part's ms, returns their sum.
+    `hud` and `snapshot` only get a sample on the ticks that build one."""
+    t0 = perf_counter_ns()
+    encode(builder.delta(w, events))
+    t1 = perf_counter_ns()
+    tick = w.campaign.tick
+    hud = snap = 0
+    if tick % HUD_EVERY == 0:
+        encode(builder.hud(w))
+        hud = perf_counter_ns() - t1
+        parts["hud"].append(hud / 1e6)
+    t2 = perf_counter_ns()
+    if snapshot_every and tick % snapshot_every == 0:
+        encode(builder.snapshot(w))
+        snap = perf_counter_ns() - t2
+        parts["snapshot"].append(snap / 1e6)
+    delta = t1 - t0
+    parts["delta"].append(delta / 1e6)
+    total = (delta + hud + snap) / 1e6
+    parts["frame"].append(total)
+    return total
 
 
 def exponent(rungs: list[dict[str, Any]]) -> float | None:
@@ -263,9 +329,9 @@ def exponent(rungs: list[dict[str, Any]]) -> float | None:
 
 
 def profile_rung(
-    scene: str, n: int, ticks: int, seed: int, settle: int | None = None
+    scene: str, n: int, ticks: int, seed: int, settle: int | None = None, viewers: int | None = None
 ) -> dict[str, str]:
-    w = build_scene(scene, n, seed)
+    w = build_scene(scene, n, seed, viewers)
     settle_world(w, settle)
     prof = cProfile.Profile()
     prof.enable()
@@ -296,7 +362,12 @@ def host() -> dict[str, Any]:
 
 def table(res: dict[str, Any]) -> str:
     rows = [
-        f"scene {res['scene']}, seed {res['seed']}; step only, NO frame build (SC-10 lower bound)",
+        f"scene {res['scene']}, seed {res['seed']}; "
+        + (
+            f"step + frame build, Snapshot every {res['snapshot_every']} tick(s)"
+            if res["frame_build_counted"]
+            else "step only, NO frame build (SC-10 lower bound)"
+        ),
         f"{'entities':>8} {'viewers':>7} {'tracked':>7} {'ticks/s':>8} {'p50':>7} {'p95':>7} "
         f"{'p99':>7} {'max':>7} {'board p99':>9} {'plain p99':>9}  largest (tick)",
     ]
@@ -308,11 +379,39 @@ def table(res: dict[str, Any]) -> str:
             f"{b.get('p99', float('nan')):>9.1f} {p.get('p99', float('nan')):>9.1f}  "
             f"{r['largest_tick']['ms']:.1f} ms ({r['largest_tick']['tick']})"
         )
+    if res["frame_build_counted"]:
+        rows.append(frame_table(res))
     k = res["scaling_exponent"]
     rows.append(
         "scaling exponent (log-log slope of mean step ms vs entities): "
         + (f"{k:.2f}" if k is not None else "n/a")
     )
+    return "\n".join(rows)
+
+
+def frame_table(res: dict[str, Any]) -> str:
+    """Per component and combined ms for each rung, and the SC-10 verdict. `n` is the ticks that
+    built the part (hud every 10th, snapshot every Nth)."""
+    rows = [f"\n{'entities':>8} {'part':>9} {'p50':>7} {'p95':>7} {'p99':>7} {'max':>7}"]
+    for r in res["rungs"]:
+        f = r["frames"]
+        for name, s in (
+            ("step", r["step_ms"]),
+            ("delta", f["delta"]),
+            ("hud", f["hud"]),
+            ("snapshot", f["snapshot"]),
+            ("frame", f["frame"]),
+            ("combined", f["all"]),
+        ):
+            if s:
+                rows.append(
+                    f"{r['entities']:>8} {name:>9} {s['p50']:>7.1f} {s['p95']:>7.1f} "
+                    f"{s['p99']:>7.1f} {s['max']:>7.1f}"
+                )
+        rows.append(
+            f"{r['entities']:>8} SC-10: combined p99 {f['all']['p99']:.1f} ms vs "
+            f"{BUDGET_MS:.0f} ms: {'PASS' if f['pass'] else 'FAIL'}"
+        )
     return "\n".join(rows)
 
 
@@ -323,6 +422,23 @@ def main(argv: list[str] | None = None) -> dict[str, Any]:
     ap.add_argument("--scene", choices=SCENES, default="convoy")
     ap.add_argument("--seed", type=int, default=376)
     ap.add_argument("--settle", type=int, help="untimed ticks first (default 2 board periods)")
+    ap.add_argument(
+        "--frames",
+        action="store_true",
+        help="also time the frame build (Delta, Hud, Snapshot); exit 1 if combined p99 >= 25 ms",
+    )
+    ap.add_argument(
+        "--snapshot-every",
+        type=int,
+        default=1,
+        help="with --frames: build a Snapshot every Nth tick (default 1 = worst case; 0 = never)",
+    )
+    ap.add_argument(
+        "--viewers",
+        type=int,
+        help="mixed scene: exactly this many viewer units (default: half the added entities; "
+        "SC-10 asks for 500 at 1,000)",
+    )
     ap.add_argument("--profile", action="store_true", help="cProfile the largest rung")
     ap.add_argument("--out", help="write the results as JSON to this path")
     a = ap.parse_args(argv)
@@ -331,25 +447,35 @@ def main(argv: list[str] | None = None) -> dict[str, Any]:
         ap.error("--ticks and every --ladder entry must be positive")
     if a.settle is not None and a.settle < 0:
         ap.error("--settle must not be negative")
+    if a.snapshot_every < 0:
+        ap.error("--snapshot-every must not be negative")
+    every = a.snapshot_every if a.frames else None
+    if a.viewers is not None and a.scene != "mixed":
+        ap.error("--viewers needs --scene mixed")
+    if a.viewers is not None and a.viewers < 0:
+        ap.error("--viewers must not be negative")
     try:
-        build_scene(a.scene, ladder[0], a.seed)
+        build_scene(a.scene, ladder[0], a.seed, a.viewers)
     except ValueError as e:
+        if a.viewers is not None:
+            ap.error(f"--viewers {a.viewers} does not fit the first --ladder rung: {e}")
         ap.error(f"--ladder: {e}; the {a.scene} scene has a fixed base, use a larger first rung")
     res: dict[str, Any] = {
         "host": host(),
         "scene": a.scene,
         "seed": a.seed,
-        "frame_build_counted": False,
+        "frame_build_counted": a.frames,
+        "snapshot_every": every,
         "rungs": [],
     }
     for n in ladder:
-        res["rungs"].append(run_rung(a.scene, n, a.ticks, a.seed, a.settle))
+        res["rungs"].append(run_rung(a.scene, n, a.ticks, a.seed, a.settle, every, a.viewers))
         print(f"rung {n} done", file=sys.stderr, flush=True)
     res["scaling_exponent"] = exponent(res["rungs"])
     if a.profile:
         res["profile"] = {
             "entities": ladder[-1],
-            **profile_rung(a.scene, ladder[-1], a.ticks, a.seed, a.settle),
+            **profile_rung(a.scene, ladder[-1], a.ticks, a.seed, a.settle, a.viewers),
         }
     print(json.dumps(res["host"]))
     print(table(res))
@@ -363,4 +489,6 @@ def main(argv: list[str] | None = None) -> dict[str, Any]:
 
 
 if __name__ == "__main__":
-    main()
+    result = main()
+    if result["frame_build_counted"] and not all(r["frames"]["pass"] for r in result["rungs"]):
+        sys.exit(1)  # SC-10: combined p99 over budget

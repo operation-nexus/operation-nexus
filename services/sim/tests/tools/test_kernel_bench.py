@@ -73,3 +73,48 @@ def test_a_ladder_below_the_scene_base_is_a_usage_error(capsys: pytest.CaptureFi
         kernel_bench.main(["--ladder", "1", "--ticks", "5", "--scene", "mixed"])
     assert e.value.code == 2
     assert "--ladder" in capsys.readouterr().err
+
+
+def test_the_frames_flag_times_the_frame_build_and_a_snapshot_every_tick(tmp_path: Path) -> None:
+    """NX-170c smoke: no timing assertion (the 25 ms budget is judged on the reference host)."""
+    out = tmp_path / "f.json"
+    res: Any = kernel_bench.main(
+        [
+            *("--ladder", "100", "--ticks", "30", "--scene", "mixed", "--viewers", "40"),
+            *("--frames", "--settle", "5", "--out", str(out)),
+        ]
+    )
+    assert res["frame_build_counted"] is True and res["snapshot_every"] == 1
+    (r,) = res["rungs"]
+    assert r["entities"] == 100 and r["viewer_units"] == 40
+    f = r["frames"]
+    assert f["budget_ms"] == 25.0 and isinstance(f["pass"], bool)
+    assert f["delta"] and f["snapshot"] and f["frame"] and f["all"]  # every tick built both
+    assert f["all"]["max"] >= r["step_ms"]["max"]  # combined adds the frame build to step
+    assert json.loads(out.read_text())["rungs"][0]["frames"]["pass"] == f["pass"]
+
+
+def test_snapshot_every_zero_builds_no_snapshot_and_viewers_needs_mixed(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    res: Any = kernel_bench.main(
+        ["--ladder", "60", "--ticks", "12", "--scene", "mixed", "--frames", "--snapshot-every", "0"]
+    )
+    assert res["rungs"][0]["frames"]["snapshot"] == {}
+    assert res["rungs"][0]["frames"]["hud"]  # tick 10 is a Hud tick
+    capsys.readouterr()
+    for argv, msg in (
+        (["--ladder", "60", "--viewers", "5"], "--viewers needs --scene mixed"),  # convoy scene
+        (
+            ["--ladder", "60", "--scene", "mixed", "--viewers", "-1"],
+            "--viewers must not be negative",
+        ),
+        (
+            ["--ladder", "60", "--scene", "mixed", "--viewers", "100000"],
+            "--viewers 100000 does not fit",
+        ),
+    ):
+        with pytest.raises(SystemExit) as e:
+            kernel_bench.main(argv)
+        assert e.value.code == 2
+        assert msg in capsys.readouterr().err
