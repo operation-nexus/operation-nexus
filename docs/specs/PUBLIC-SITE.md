@@ -59,3 +59,4 @@ PS-7 tags used: `description`, `canonical`, Open Graph `type`, `site_name`, `tit
 - GitHub Pages free terms and custom-domain DNS values: [UNVERIFIED] until the owner enables Pages and the domain (see the PR for the steps).
 - The Reddit, Instagram and TikTok link URLs are the standard profile URL forms built from the registered handles; the registry stores handles only [UNVERIFIED for Reddit and Instagram, which block automated requests].
 - Brand style guide (NX-274) may later change the look.
+- Live map, the in-depth view (Q-UX-24, NX-516): drafted in [SITE-LIVE-MAP](SITE-LIVE-MAP.md) (Draft, needs owner sign-off); it would need JavaScript, so it asks that PS-3 apply to the link page only (its open question 8).
