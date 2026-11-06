@@ -48,30 +48,64 @@ def _a1(runs: list[dict[str, Any]], t: Targets) -> dict[str, Any]:
     lengths = [
         o["length_h"] for o in (r["metrics"]["outcome"] for r in runs) if o["length_h"] is not None
     ]
-    good = sum(
-        1
-        for r in runs
-        if (o := r["metrics"]["outcome"])["result"] in ("VICTORY", "DEFEAT")
-        and limit is not None
-        and o["length_h"] <= limit
-    )
+    crowd = next((r["profile_viewers"] for r in runs if r["profile_viewers"] is not None), None)
+    low = crowd is not None and crowd < t.a1_victory_min_viewers  # Q-TEST-13
+    seeds = [_a1_seed(r, limit, low) for r in runs]
+    good = sum(sd["good"] for sd in seeds)
     frac = good / len(runs)
     sr = _steamroll(runs, t)
     if limit is None:
         status = NO_DATA  # every run hit a harness error
     else:
-        status = _short(hours, limit) or (PASS if frac >= t.a1_pass_frac else FAIL)
+        need = 1.0 if low else t.a1_pass_frac  # low crowds: no seed may collapse (Q-TEST-13)
+        status = _short(hours, limit) or (PASS if frac >= need else FAIL)
     return {
         "status": status,
         "outcomes": dict(sorted(outcomes.items())),
         "median_length_h": _med(lengths),
         "seeds_in_window": good,
         "frac": frac,
+        "low_crowd": low,
+        "seeds": seeds,
         "steamroll": sr,
         "detail": f"{outcomes['CRASHED']} sim crashes, {outcomes['HARNESS_ERROR']} harness errors; "
-        f"{good}/{len(runs)} seeds ended by victory or defeat by {limit or 0:g} h "
-        f"(need {t.a1_pass_frac:.0%}); steamroll (Q-TEST-11, information only): "
+        f"{good}/{len(runs)} seeds "
+        + (
+            f"ended by victory, defeat or a time limit without collapse by {limit or 0:g} h "
+            f"(low crowd, under {t.a1_victory_min_viewers} viewers: need every seed; Q-TEST-13)"
+            if low
+            else f"ended by victory or defeat by {limit or 0:g} h (need {t.a1_pass_frac:.0%})"
+        )
+        + f"; steamroll (Q-TEST-11, information only): "
         f"{sr['flagged']}/{sr['judged']} won seeds flagged",
+    }
+
+
+def _a1_seed(r: dict[str, Any], limit: float | None, low: bool) -> dict[str, Any]:
+    """One seed's A1 verdict and why. Victory or defeat in the window is good at any crowd; at a
+    low crowd (Q-TEST-13) a TIME_LIMIT ending is good too while the war never collapsed: the
+    coalition held a strategic node on every running tick and the sanctuary's hp never hit 0."""
+    o = r["metrics"]["outcome"]
+    c = r["metrics"]["collapse"]
+    in_window = o["ended"] and limit is not None and o["length_h"] <= limit
+    zero, sanctuary = c["first_zero_strategic_tick"], c["first_sanctuary_zero_tick"]
+    if r["harness_error"] or r["crash"] or not in_window:
+        good, why = False, "no ending in the window (crash, harness error or still running)"
+    elif o["result"] in ("VICTORY", "DEFEAT"):
+        good, why = True, o["result"].lower()
+    elif not low:
+        good, why = False, "time limit (a miss at this crowd size)"
+    elif zero is not None or sanctuary is not None:
+        good, why = False, "time limit after a collapse"
+    else:
+        good, why = True, "time limit, no collapse"
+    return {
+        "seed": r["seed"],
+        "good": good,
+        "reason": why,
+        "min_strategic_held": c["min_strategic_held"],
+        "first_zero_strategic_tick": zero,
+        "first_sanctuary_zero_tick": sanctuary,
     }
 
 

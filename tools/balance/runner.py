@@ -297,6 +297,7 @@ def run(
         "ticks_run": ran,
         "tick_hz": hz,
         "time_limit_h": rules.campaign.time_limit_ticks / (3600 * hz),
+        "profile_viewers": data.profiles[profile].viewers,  # NX-510: A1 judges by crowd size
         "viewers": {
             "distinct": len(crowd.viewers),
             "peak_concurrent": crowd.peak,  # most viewers with a live unit at once
@@ -343,6 +344,7 @@ def failed_run(profile: str, seed: int, hours: float, error: str) -> dict[str, A
         "config_hash": None,
         "profiles_digest": None,
         "time_limit_h": None,
+        "profile_viewers": None,  # unknown: the run never started
         "ticks_run": 0,
         "a3_ticks": 0,
         "viewers": {
@@ -379,6 +381,11 @@ def failed_run(profile: str, seed: int, hours: float, error: str) -> dict[str, A
             "steamroll": None,
             "nodes_lost": [],
             "nodes_lost_in_a3_window": 0,
+            "collapse": {
+                "min_strategic_held": None,
+                "first_zero_strategic_tick": None,
+                "first_sanctuary_zero_tick": None,
+            },
             "sanctuary_hp": {"min": None, "min_in_a3_window": None},
             "director": {"tier_dwell_s": {}, "tier_changes": 0},
             "idle": {

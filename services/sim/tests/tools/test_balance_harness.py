@@ -488,9 +488,15 @@ def fake_run(hours: float = 72, **over: Any) -> dict[str, Any]:
         "ticks_run": round(hours * 36000),
         "a3_ticks": 12 * 36000,
         "time_limit_h": 72.0,
+        "profile_viewers": 150,
         "metrics": {
             "outcome": outcome,
             "newbie": newbie([60.0, 120.0], []),
+            "collapse": {
+                "min_strategic_held": 3,
+                "first_zero_strategic_tick": None,
+                "first_sanctuary_zero_tick": None,
+            },
             "nodes_lost_in_a3_window": 0,
             "sanctuary_hp": {"min_in_a3_window": 500},
         },
@@ -535,6 +541,43 @@ def test_target_rules() -> None:
     broken = fake_run() | {"harness_error": "KeyError: x"}
     assert report._a3([broken], t, "overnight-0")["status"].startswith("not evaluable")
     assert report._a3([fake_run()], t, "prime-50")["status"] == "n/a"
+
+
+def _time_limit(viewers: int, **collapse: Any) -> dict[str, Any]:
+    run = fake_run(outcome={"ended": True, "result": "TIME_LIMIT", "length_h": 72.0})
+    run["profile_viewers"] = viewers
+    run["metrics"]["collapse"] |= {"min_strategic_held": 1} | collapse
+    return run
+
+
+def test_a1_low_crowd_time_limit_passes_unless_the_war_collapses() -> None:
+    """Q-TEST-13: below `a1_victory_min_viewers` a TIME_LIMIT ending passes with no collapse."""
+    t = load().targets
+    assert t.a1_victory_min_viewers == 150
+    for viewers in (0, 5, 50):
+        a1 = report._a1([_time_limit(viewers)] * 3, t)
+        assert a1["status"] == report.PASS and a1["low_crowd"]  # one node held is not a collapse
+        assert a1["seeds"][0]["reason"] == "time limit, no collapse"
+        assert a1["seeds"][0]["min_strategic_held"] == 1
+    zero = _time_limit(5, min_strategic_held=0, first_zero_strategic_tick=900)
+    a1 = report._a1([_time_limit(5), zero], t)
+    assert a1["status"] == report.FAIL  # every seed must hold: 1 of 2
+    assert a1["seeds"][1]["reason"] == "time limit after a collapse"
+    assert a1["seeds"][1]["first_zero_strategic_tick"] == 900
+    dead = _time_limit(50, first_sanctuary_zero_tick=77)
+    assert report._a1([dead], t)["status"] == report.FAIL
+    assert report._a1([_time_limit(150)], t)["status"] == report.FAIL  # a miss, as before
+    assert not report._a1([_time_limit(150)], t)["low_crowd"]
+    won = fake_run()
+    won["profile_viewers"] = 50
+    assert report._a1([won], t)["status"] == report.PASS  # victory still counts
+
+
+def test_a1_threshold_is_read_from_config() -> None:
+    t = dataclasses.replace(load().targets, a1_victory_min_viewers=51)
+    assert report._a1([_time_limit(50)], t)["status"] == report.PASS
+    t = dataclasses.replace(t, a1_victory_min_viewers=50)
+    assert report._a1([_time_limit(50)], t)["status"] == report.FAIL
 
 
 def test_a4_is_suspended_but_still_reports_the_top_kind() -> None:
@@ -4011,6 +4054,43 @@ def test_zero_strategic_minutes_count_running_ticks_only(
     assert hold["zero_strategic_min"] == 2 / HZ / 60
     agg = report._nx477([{"metrics": {"coalition_hold": hold}}] * 2)["coalition_hold"]
     assert agg["zero_strategic_min"] == 4 / HZ / 60
+
+
+def test_collapse_fields_record_the_dips_per_tick(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    """NX-510 (Q-TEST-13): fewest strategic nodes held, first tick with none, first tick the
+    sanctuary's defense hp is 0 (read every tick, so a one-tick dip cannot be missed)."""
+    world = start_campaign("c", 1, shipped_config)
+    strategic = sorted(shipped_config.rules.campaign.strategic)  # type: ignore[union-attr]
+    sanctuary = shipped_config.rules.sanctuary  # type: ignore[union-attr]
+
+    def observe(tick: int) -> None:
+        world.campaign.tick = world.campaign.running_ticks = tick
+        collector.observe(world)
+
+    for n in strategic:
+        world.owner[n] = "COALITION"
+    observe(1)
+    assert collector.result(1)["collapse"] == {
+        "min_strategic_held": len(strategic),
+        "first_zero_strategic_tick": None,
+        "first_sanctuary_zero_tick": None,
+    }
+    for n in strategic[1:]:
+        world.owner[n] = "ENEMY"
+    observe(2)  # one node left: not a collapse
+    for n in strategic:
+        world.owner[n] = "ENEMY"
+    observe(3)
+    observe(4)
+    world.defense_hp[sanctuary] = 0
+    observe(5)
+    assert collector.result(5)["collapse"] == {
+        "min_strategic_held": 0,
+        "first_zero_strategic_tick": 3,
+        "first_sanctuary_zero_tick": 5,
+    }
 
 
 def _hold_world(shipped_config: CampaignConfig) -> Any:

@@ -83,6 +83,7 @@ impact_check_s: 1
 # Targets (TESTING-STRATEGY §3.5a). The numbers are the written ones; `source` names where.
 targets:
   a1_pass_frac: 0.85      # Q-TEST-4 / Q-TEST-6: victory or defeat by campaign.time_limit_h (no floor, owner 2026-10-24)
+  a1_victory_min_viewers: 150  # Q-TEST-13 (owner, 2026-11-05): victory or defeat is judged at this many viewers and up; below it a time-limit ending passes when the war never collapses
   # Q-TEST-11 steamroll signals S1 to S4 (NX-411). Every value below is PROPOSED (Q-TEST-11).
   steamroll_pressure_per_4h: 2   # S1: Static pressure on held ground under 2 events per 4 campaign h
   steamroll_swing_pts: 10        # S3: largest momentum drop after the first coalition lead under 10 ...
