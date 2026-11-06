@@ -299,15 +299,21 @@ def test_main_exits_3_when_nothing_was_judged(
     )
 
 
+LOW_CROWD = ("quiet-5", "solo-1")
+
+
 def _real_report(overrides: list[str], downs: int, hash_tag: str) -> dict[str, Any]:
     """One arm through the CLI's own path (`balance.build_report`, which calls `report.aggregate`),
     from synthetic run dicts: a rename of a key either side reads fails here, unlike `_report`."""
     runs = []
     for name in NAMES:
         for seed in (1, 2, 3):
-            run = runner.failed_run(name, seed, 6.0, "") | {  # the stub has every metric key
+            run = runner.failed_run(name, seed, 72.0, "") | {  # the stub has every metric key
                 "harness_error": None,
-                "ticks_run": 216_000,
+                "time_limit_h": 72.0,
+                "profile_viewers": 5 if name in LOW_CROWD else 150,  # A1 judges low crowds apart
+                "a3_ticks": 1,
+                "ticks_run": 216_000,  # 6 h at 10 ticks a second, what compare's solo rate reads
                 "tick_hz": 10,
                 "config_hash": "c" + hash_tag,
                 "final_state_hash": f"raw-{hash_tag}-{seed}",
@@ -315,6 +321,8 @@ def _real_report(overrides: list[str], downs: int, hash_tag: str) -> dict[str, A
                 "timing": {"wall_s": 1.0, "ticks_per_s": 1.0},
             }
             run["metrics"] |= {
+                "outcome": {"ended": True, "result": "DEFEAT", "length_h": 40.0, "end_tick": 1},
+                "newbie": {**run["metrics"]["newbie"], "ttfi_s": [60.0], "joined_counted": 1},
                 "static_defenses_down": downs,
                 "nodes_lost_in_a3_window": 0,
                 "sanctuary_hp": {"min_in_a3_window": 500},
@@ -333,6 +341,11 @@ def test_verdicts_run_on_reports_built_by_the_real_report_path() -> None:
     a = _real_report([], 12, "a")
     b = _real_report([compare.WINGMEN_OFF], 6, "b")
     got = _by_name(a, b)
-    assert got["solo-1"].status == compare.PASS  # 12 vs 6 downs: 2x
-    assert got["overnight-0"].status == compare.PASS  # raw hashes differ, config-free ones match
     assert set(got) == set(NAMES)  # one verdict per profile, none dropped by a missing key
+    assert {n: v.status for n, v in got.items()} == {
+        "solo-1": compare.PASS,  # 12 vs 6 downs: 2x
+        "overnight-0": compare.PASS,  # raw hashes differ, config-free ones match
+        "quiet-5": compare.PARTIAL,  # holds is never fully judged
+        "raid-300": compare.PASS,  # judged verdicts unchanged, same length
+        "surge-500": compare.PASS,
+    }
