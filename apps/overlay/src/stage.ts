@@ -1,8 +1,10 @@
 // The 1920x1080 stage and its layers (OVERLAY §0.2, §0.6, §0.7). Back to front: map canvases
-// (terrain, units, FX), DOM panels, OV-26 stack, banners. NX-177 fills units/FX, NX-178 the DOM containers.
+// (terrain, nodes, units, FX), DOM panels, OV-26 stack, banners. NX-177 fills units/FX, NX-178 the DOM containers.
 import "./stage.css";
 import { backingSize, fitStage } from "./stage-math";
+import { NodeLayer } from "./nodes";
 import { TerrainLayer, type Theater } from "./terrain";
+import type { NodeView } from "./contracts/wire/snapshot";
 
 export const HEARTBEAT_CELLS = 4;
 
@@ -16,7 +18,9 @@ export interface Stage {
   units: HTMLCanvasElement;
   fx: HTMLCanvasElement;
   terrain: TerrainLayer;
+  nodes: NodeLayer;
   showTheater: (t: Theater) => void;
+  showNodes: (n: ReadonlyMap<string, NodeView>) => void;
   layout: () => void;
   dispose: () => void;
 }
@@ -51,6 +55,7 @@ export function mountStage(root: HTMLElement, win: Window): Stage {
   const world = el(doc, "div", "nx-world", stage);
   const map = el(doc, "div", "nx-map", world);
   const terrainCanvas = el(doc, "canvas", "nx-terrain", map);
+  const nodeCanvas = el(doc, "canvas", "nx-nodes", map);
   const units = el(doc, "canvas", "nx-units", map);
   const fx = el(doc, "canvas", "nx-fx", map);
   const safe = el(doc, "div", "nx-safe", world);
@@ -63,18 +68,20 @@ export function mountStage(root: HTMLElement, win: Window): Stage {
     el(doc, "i", "", beat),
   );
   const terrain = new TerrainLayer(terrainCanvas);
+  const nodes = new NodeLayer(nodeCanvas);
 
   const layout = (): void => {
     const fit = fitStage(win.innerWidth, win.innerHeight);
     stage.style.transform = `translate(${fit.x}px, ${fit.y}px) scale(${fit.scale})`;
     const b = backingSize(fit.scale, win.devicePixelRatio);
-    for (const c of [terrainCanvas, units, fx]) {
+    for (const c of [terrainCanvas, nodeCanvas, units, fx]) {
       if (c.width !== b.w || c.height !== b.h) {
         c.width = b.w;
         c.height = b.h;
       }
     }
     terrain.onResize();
+    nodes.onResize();
   };
   layout();
   win.addEventListener("resize", layout);
@@ -89,7 +96,12 @@ export function mountStage(root: HTMLElement, win: Window): Stage {
     units,
     fx,
     terrain,
-    showTheater: (t) => void terrain.setTheater(t),
+    nodes,
+    showTheater: (t) => {
+      terrain.setTheater(t);
+      nodes.setTheater(t);
+    },
+    showNodes: (n) => nodes.setNodes(n),
     layout,
     dispose: () => {
       win.removeEventListener("resize", layout);

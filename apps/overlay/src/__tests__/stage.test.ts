@@ -2,9 +2,9 @@ import { build } from "vite";
 import { CSP } from "../../vite.config";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import indexHtml from "../../index.html?raw";
-import { backingSize, fitStage, safeRect } from "../stage-math";
+import { MAP_RECT, backingSize, fitStage, safeRect } from "../stage-math";
 import { mountStage, HEARTBEAT_CELLS } from "../stage";
-import { TerrainLayer, projector, type Theater } from "../terrain";
+import { TerrainLayer, frameOf, type Theater } from "../terrain";
 
 // Vitest blanks .css imports (even ?raw), so CSS is read from a real production build, in memory.
 interface Built {
@@ -72,9 +72,11 @@ describe("stage math", () => {
     expect(safeRect()).toEqual({ x: 96, y: 54, w: 1728, h: 972 });
   });
 
-  it("projects nodes inside the safe area", () => {
-    const at = projector(theater());
-    const r = safeRect();
+  it("projects nodes inside the map rectangle, which is inside the safe area", () => {
+    const at = frameOf(theater()).at;
+    const r = MAP_RECT;
+    expect(r.x).toBeGreaterThanOrEqual(safeRect().x);
+    expect(r.y + r.h).toBeLessThanOrEqual(safeRect().y + safeRect().h);
     for (const n of theater().nodes) {
       const [x, y] = at(n.pos);
       expect(x).toBeGreaterThanOrEqual(r.x);
@@ -178,6 +180,7 @@ describe("mountStage", () => {
     ]);
     expect(world.children[0]?.children.map((c) => c.className)).toEqual([
       "nx-terrain",
+      "nx-nodes",
       "nx-units",
       "nx-fx",
     ]);
@@ -206,6 +209,22 @@ describe("mountStage", () => {
       `translate(0px, 0px) scale(${2 / 3})`,
     );
     expect([s.units.width, s.units.height]).toEqual([2560, 1440]);
+  });
+
+  it("the node layer redraws on a resize that changes the backing size (NX-176)", () => {
+    const root = new FakeEl("div");
+    const win = fakeWin(1920, 1080, 1) as unknown as {
+      innerWidth: number;
+      innerHeight: number;
+    };
+    const s = mountStage(root as never, win as unknown as Window);
+    s.showTheater(theater());
+    const [n0, t0] = [s.nodes.draws, s.terrain.draws];
+    win.innerWidth = 960;
+    win.innerHeight = 540;
+    s.layout();
+    expect([s.nodes.draws, s.terrain.draws]).toEqual([n0 + 1, t0 + 1]);
+    s.dispose();
   });
 
   it("the heartbeat steps every second", () => {
