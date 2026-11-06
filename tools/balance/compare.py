@@ -153,7 +153,7 @@ def _overnight(a: dict[str, Any], b: dict[str, Any]) -> Verdict:
     name = "overnight-0 byte-identical"
     if "overnight-0" not in b["profiles"]:
         return Verdict(name, NOT_MEASURED, "no overnight-0 in the reports")
-    rows = [
+    rows: list[dict[int, tuple[Any, ...]]] = [
         {
             r["seed"]: (r.get("final_state_hash_sans_config"), r["ticks_run"])
             for r in x["runs"]

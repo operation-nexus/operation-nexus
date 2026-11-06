@@ -268,8 +268,8 @@ def run(
             except Exception as e:  # noqa: BLE001  # a sim crash is a finding: record it, stop the run
                 crash = {"tick": tick, "error": f"{type(e).__name__}: {e}"}
                 break
-            for e in events:
-                events_hash.update(_event_line(e))
+            for ev in events:
+                events_hash.update(_event_line(ev))
             event_count += len(events)
             collector.feed(events)
             collector.observe(world)
