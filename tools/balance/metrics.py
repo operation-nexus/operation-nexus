@@ -116,6 +116,9 @@ class Collector:
         self.last_tracked = {
             i: world.campaign.tick for i, c in world.contacts[_COALITION].items() if c.age is None
         }
+        # ids that became new or refreshed at a tick since the last impact check; recorded every
+        # tick (`note_tracks`) so a track seen only between two checks still resets the clock
+        self._fresh: set[int] = set()
         self.idle_shares: list[float] = []  # idle armed viewer units / all, per sample
         self.idle_reasons: Counter[str] = Counter()  # why the idle ones hold no job, summed
         self.idle_ring_by_site: Counter[str] = Counter()  # "ring" idle by blocking marker and job
@@ -370,13 +373,10 @@ class Collector:
         capture progress and a new enemy track found by a newbie's recon unit, or a refreshed one
         (no current coalition track of it for `a2_refresh_ticks`, NX-512)."""
         tick = world.campaign.tick
+        self.note_tracks(world)  # idempotent within a tick; covers callers that skip observe()
         tracks = {i: c for i, c in world.contacts[_COALITION].items() if c.age is None}
-        new = {
-            i: c for i, c in sorted(tracks.items())
-            if i not in self.last_tracked  # never tracked: new, even if known as last-known
-            or tick - self.last_tracked[i] >= self.a2_refresh_ticks
-        }  # fmt: skip
-        self.last_tracked.update(dict.fromkeys(tracks, tick))
+        new = {i: tracks[i] for i in sorted(self._fresh) if i in tracks}
+        self._fresh.clear()
         pending = {c for c in self.newbies if c in self.join_tick and c not in self.impact}
         if not pending:
             return
@@ -403,6 +403,19 @@ class Collector:
                     and math.dist((e.pos.x, e.pos.y), (x, y)) <= cap.radius_m
                 ):
                     self._credit(e.commander_id, tick, "capture")
+
+    def note_tracks(self, world: World) -> None:
+        """Record this tick's current coalition tracks (NX-512, TESTING-STRATEGY A2). An id never
+        tracked (last-known does not count) or untracked for `a2_refresh_ticks` becomes fresh and
+        waits for the next impact check."""
+        tick = world.campaign.tick
+        for i, c in world.contacts[_COALITION].items():
+            if c.age is not None:
+                continue
+            last = self.last_tracked.get(i)
+            if last is None or tick - last >= self.a2_refresh_ticks:
+                self._fresh.add(i)
+            self.last_tracked[i] = tick
 
     def feed(self, events: Iterable[Event]) -> None:
         for event in events:
@@ -442,6 +455,7 @@ class Collector:
                     self.seized_back_min.append(self._minutes(world.campaign.tick - since))
 
     def observe(self, world: World) -> None:
+        self.note_tracks(world)
         self._who_took(world)
         self._classify_downs(world)
         self._seized_facilities(world)
