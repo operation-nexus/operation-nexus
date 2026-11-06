@@ -398,8 +398,8 @@ class Collector:
 
     def note_tracks(self, world: World) -> None:
         """Record this tick's current coalition tracks (NX-512, TESTING-STRATEGY A2). An id never
-        tracked (last-known does not count) or untracked for `a2_refresh_ticks` becomes fresh and
-        waits for the next impact check."""
+        tracked (last-known does not count) or untracked for `a2_refresh_ticks` is new or
+        refreshed: it is judged at once, at the tick it is found, by `_credit_scouts`."""
         tick = world.campaign.tick
         found = []
         for i, c in world.contacts[_COALITION].items():  # insertion order: deterministic
