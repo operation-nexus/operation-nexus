@@ -150,6 +150,7 @@ from nexus.core.tasking_gen import (
     GENERATED,
     POST_GATE,
     RETAKE,
+    SECTOR_SCOUT,
     JobSpec,
     besieged,
     can_hit,
@@ -501,6 +502,10 @@ def run(world: World, out: list[Event]) -> None:
         view = side_view(world, side)
         if side == _STATIC:
             _watch(world, rules, view, now)
+        else:  # the coalition's looked memory for its sector scouts (GAMEPLAY §1b item 203)
+            from nexus.core.launch import look  # import cycle: launch imports this module
+
+            look(world, rules, side, world.director[side], now)
         specs = generate(world, rules, tr, side, view)
         before = {j.key for j in world.boards[side].values()}
         for spec in specs:
@@ -862,6 +867,9 @@ def _end(world: World, side: Side, job: Job, outcome: Outcome, out: list[Event])
         until = _now(world) + world.rules.tasking.scout_cooldown_ticks
         # The cell is not posted again yet; blob ids are `<refresh_tick>-<cell>` (Q-SIM-47).
         world.cooldown[side][job.blob.split("-")[-1]] = until
+    elif job.key.startswith(SECTOR_SCOUT) and world.rules and world.rules.tasking:  # NX-512
+        until = _now(world) + world.rules.tasking.scout_cooldown_ticks
+        world.cooldown[side][job.key.rsplit(":", 1)[0]] = until  # by sector: `scout:pt:<sector>`
     del board[job.id]
     base = {**_base(world), "job_id": job.id}
     if outcome == "DONE":
@@ -1259,8 +1267,9 @@ def _reaches(
     start: str | None = None,
 ) -> bool:  # fmt: skip
     """Out to the target and on to the nearest landing base with the bingo reserve left (NX-368),
-    from where `e` is or from the node `start`."""
-    return reaches(rules, e, _waypoint(world, job), bases, fuel, start)
+    from where `e` is or from the node `start`; a sector scout's loiter is flown too
+    (`_loiter_fuel`)."""
+    return reaches(rules, e, _waypoint(world, job), bases, fuel - _loiter_fuel(rules, job), start)
 
 
 def reaches(
@@ -1297,6 +1306,16 @@ def _feasible(world: World, rules: Rules, routes: Routes, e: Entity, job: Job) -
     if armed and _reaches(world, rules, e, job, bases, e.fuel):
         return "ok"
     return "refuel" if _reaches(world, rules, e, job, bases, rules.fuel_s[e.kind]) else "no"
+
+
+def _loiter_fuel(rules: Rules, job: Job) -> float:
+    """The fuel seconds a coalition sector scout's claimant must also have for its loiter
+    (`director.recon.loiter_s`, one fuel second per world second as `operations._sortie_fits`),
+    so it can fly there, loiter and land with the bingo reserve (GAMEPLAY §1b item 203, TB-2)."""
+    dr = rules.director
+    if dr is None or not job.key.startswith(SECTOR_SCOUT):
+        return 0.0
+    return dr.recon_loiter_ticks * rules.world_dt
 
 
 def _dispatch(world: World, rules: Rules, routes: Routes, e: Entity, job: Job) -> None:

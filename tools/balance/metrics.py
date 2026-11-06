@@ -91,6 +91,7 @@ class Collector:
         impact_check_ticks: int,
         kinds: Mapping[str, str],
         a2_min_tier: str,
+        a2_refresh_ticks: int,
         starve_threshold: float,
     ) -> None:
         rules = world.rules
@@ -108,7 +109,13 @@ class Collector:
         self.idle_sample_ticks, self.impact_check_ticks = idle_sample_ticks, impact_check_ticks
         self.kinds = kinds  # commander -> persona kind (Q-SIM-95)
         self.min_tier = TIERS.index(a2_min_tier)
-        self.known_tracks = set(world.contacts[_COALITION])  # ids the coalition has ever tracked
+        # NX-512 (TESTING-STRATEGY A2): id -> the last impact check that saw a current coalition
+        # track of it (a last-known one is not tracked); a current track of an id never tracked
+        # is new, and one again after at least `a2_refresh_ticks` without one is a refresh
+        self.a2_refresh_ticks = a2_refresh_ticks
+        self.last_tracked = {
+            i: world.campaign.tick for i, c in world.contacts[_COALITION].items() if c.age is None
+        }
         self.idle_shares: list[float] = []  # idle armed viewer units / all, per sample
         self.idle_reasons: Counter[str] = Counter()  # why the idle ones hold no job, summed
         self.idle_ring_by_site: Counter[str] = Counter()  # "ring" idle by blocking marker and job
@@ -360,14 +367,20 @@ class Collector:
 
     def check_impact(self, world: World) -> None:
         """The impact kinds no event names, read from the world without changing it (Q-SIM-93):
-        capture progress and a new enemy track found by a newbie's recon unit."""
+        capture progress and a new enemy track found by a newbie's recon unit, or a refreshed one
+        (no current coalition track of it for `a2_refresh_ticks`, NX-512)."""
+        tick = world.campaign.tick
         tracks = {i: c for i, c in world.contacts[_COALITION].items() if c.age is None}
-        new = {i: c for i, c in sorted(tracks.items()) if i not in self.known_tracks}
-        self.known_tracks.update(world.contacts[_COALITION])
+        new = {
+            i: c for i, c in sorted(tracks.items())
+            if i not in self.last_tracked  # never tracked: new, even if known as last-known
+            or tick - self.last_tracked[i] >= self.a2_refresh_ticks
+        }  # fmt: skip
+        self.last_tracked.update(dict.fromkeys(tracks, tick))
         pending = {c for c in self.newbies if c in self.join_tick and c not in self.impact}
         if not pending:
             return
-        rules, tick = self._world_rules, world.campaign.tick
+        rules = self._world_rules
         units = [e for e in world.entities() if e.commander_id in pending]
         for e in units:
             for c in new.values():

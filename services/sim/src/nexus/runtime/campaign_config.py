@@ -143,6 +143,9 @@ def load_campaign_config(paths: ConfigPaths | None = None) -> CampaignConfig:
             patrol_dwell_ticks=game_ticks(balance.tasking.patrol_dwell_s, balance),
             order_dwell_ticks=game_ticks(balance.tasking.order_dwell_s, balance),
             retake_keep_ticks=game_ticks(balance.tasking.retake_keep_min, balance, unit_s=60),
+            scout_sector_stale_ticks=game_ticks(
+                balance.tasking.scout_sector_stale_min, balance, unit_s=60
+            ),
         ),
         director=director_rules(
             balance.director,
@@ -185,6 +188,11 @@ def load_campaign_config(paths: ConfigPaths | None = None) -> CampaignConfig:
     quota = {n.id: n.garrison_quota for n in theater.nodes if n.start_owner == "COALITION"}
     if short := coalition_floor_problem(rules, {n: q for n, q in quota.items() if q}):
         raise ConfigError(f"{paths.balance}: {short}")
+    if balance.tasking.scout_sector_stale_min * 60 > balance.director.recon.memory_s:
+        raise ConfigError(
+            f"{paths.balance}: tasking.scout_sector_stale_min must be at most "
+            "director.recon.memory_s (GAMEPLAY §1b item 203)"
+        )
     if uneven := cost_parity_problems(balance, catalog):
         raise ConfigError(
             f"{paths.balance}: economy.cost_parity is true and mirrored kinds differ (ECONOMY "

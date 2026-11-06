@@ -1874,6 +1874,27 @@ class Tasking(BaseModel):
             description="Urgency of a generated scout job by the blob's size bucket (Q-SIM-75, Q-DEV-21), unit multiplier, from 1.0 up to urgency_max (a larger value is capped there). A sweep should keep every value at or below urgency_max; the code caps it, the schema does not check it."
         ),
     ]
+    scout_sector_points: Annotated[
+        int,
+        Field(
+            description="The coalition board posts up to this many point scout jobs (scout:pt:<sector>:<k>) per theater sector at the stalest points of its picture, the Static's RECON rule (operations.recon_point), each at least twice director.recon.loiter_radius_m from the others; 0 turns the job off (GAMEPLAY §1b item 203, Q-SIM-134, NX-512), unit jobs.",
+            ge=0,
+        ),
+    ]
+    scout_sector_stale_min: Annotated[
+        float,
+        Field(
+            description="A coalition sector scout point is posted, and an unclaimed one kept, only while no coalition sensor covered its cell and no coalition track within director.recon.loiter_radius_m is fresher, for this long; at most director.recon.memory_s (checked at load) (GAMEPLAY §1b item 203, Q-SIM-134, NX-512), unit min of game time.",
+            gt=0.0,
+        ),
+    ]
+    scout_sector_urgency: Annotated[
+        float,
+        Field(
+            description="Urgency of a coalition sector scout job (below a small blob's scout_urgency 1.0), capped at urgency_max; it must round to at least 0.001 (checked at load) (GAMEPLAY §1b item 203, Q-SIM-134, NX-512), unit multiplier.",
+            gt=0.0,
+        ),
+    ]
     strike_urgency_per_threat: Annotated[
         float,
         Field(

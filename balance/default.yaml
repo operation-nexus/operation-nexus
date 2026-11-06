@@ -233,6 +233,9 @@ tasking:
     small: 1.0
     medium: 1.5
     large: 2.0
+  scout_sector_points: 1  # PROPOSED – unvalidated (Q-SIM-134, NX-512; lead detail, owner may veto); jobs, coalition point scout jobs per sector at its stalest points; 0 = off (CONFIG-AND-CONTENT §6.6)
+  scout_sector_stale_min: 30  # PROPOSED – unvalidated (Q-SIM-134, NX-512; lead detail, owner may veto); min (game), a sector scout point is posted only when no coalition sensor covered it this long; at most director.recon.memory_s (CONFIG-AND-CONTENT §6.6)
+  scout_sector_urgency: 0.5  # PROPOSED – unvalidated (Q-SIM-134, NX-512; lead detail, owner may veto); multiplier, below a small blob scout's 1.0 (CONFIG-AND-CONTENT §6.6)
   strike_urgency_per_threat: 0.01  # PROPOSED – unvalidated (Q-SIM-85, Q-DEV-21); urgency per point of a facility kind's unit threat over 1.0, capped at urgency_max (CONFIG-AND-CONTENT §6.6)
   strike_max_scaled_slots: 3  # PROPOSED – unvalidated (Q-SIM-92); slots, a strike job gets one extra per idle armed coalition viewer unit up to this many; 0 = off (CONFIG-AND-CONTENT §6.6)
   strike_idle_targets_max: 2  # PROPOSED – unvalidated (Q-SIM-92); jobs, strikes posted on known defended foe nodes while idle armed viewer units remain and no marked target is open; 0 = off (CONFIG-AND-CONTENT §6.6)

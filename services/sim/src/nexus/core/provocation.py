@@ -262,7 +262,7 @@ def validate(world: World, rules: Rules) -> None:
         windows = d.windows * dr.window_ticks
         problem = (
             "a side with no Director must keep its start state"
-            if side not in DIRECTED and d != DirectorState()
+            if side not in DIRECTED and d != DirectorState(looked=d.looked)  # its marks: NX-512
             else "more windows than the running ticks allow"
             if windows > world.campaign.running_ticks
             else "dwell is not whole windows within the minimum dwell and the windows run"

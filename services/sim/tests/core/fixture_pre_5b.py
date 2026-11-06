@@ -24,6 +24,8 @@ PRE_5B: dict[str, object] = {
     "logistics.ai_trucks.max_live": 0,
     "tasking.resupply_slots_max_starving": 3,
     "director.pol.convoy_demand_s": 3600,
+    # NX-512: no coalition sector scout jobs (Q-SIM-134); test_sector_scout.py turns them on
+    "tasking.scout_sector_points": 0,
 }
 
 

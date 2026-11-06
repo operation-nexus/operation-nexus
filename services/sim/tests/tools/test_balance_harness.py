@@ -73,6 +73,7 @@ from profiles import (  # type: ignore[import-not-found,unused-ignore]
 )
 
 HZ = 10
+REFRESH = 30 * 60 * HZ  # targets.a2_refresh_unseen_game_min (30) in ticks
 TICKS = 3600  # 6 game minutes
 
 
@@ -229,6 +230,7 @@ def collector(shipped_config: CampaignConfig) -> metrics.Collector:
         impact_check_ticks=10,
         kinds={commander(n): "scout" if n == 5 else "auto" for n in range(1, 7)},
         a2_min_tier="ALPHA",
+        a2_refresh_ticks=REFRESH,
         starve_threshold=0.25,
     )
 
@@ -362,7 +364,7 @@ def test_starved_is_counted_against_the_fraction_floor_in_loadouts_mode() -> Non
     world = start_campaign("c", 1, config)
     col = metrics.Collector(
         world, frozenset(), tick_hz=HZ, sample_ticks=600, a3_ticks=1000, idle_sample_ticks=600,
-        impact_check_ticks=10, kinds={}, a2_min_tier="ALPHA",
+        impact_check_ticks=10, kinds={}, a2_min_tier="ALPHA", a2_refresh_ticks=REFRESH,
         starve_threshold=config.balance.logistics.starve_threshold,
     )  # fmt: skip
     assert world.rules is not None
@@ -1047,6 +1049,54 @@ def test_each_impact_kind_is_detected(
     assert len(collector.impact) == 5
 
 
+def _refresh_after(
+    gap: int, cfg: CampaignConfig, *, last_known: bool = False, first_last_known: bool = False
+) -> set[str]:
+    """NX-512: an enemy tracked at tick 1000 (`first_last_known`: only last-known then, never
+    tracked), untracked (or only last-known) until `1000 + gap`, then tracked inside a newbie
+    scout's reach; the impact kinds credited."""
+    world = start_campaign("c", 1, cfg)
+    col = metrics.Collector(
+        world, frozenset([commander(5)]), tick_hz=HZ, sample_ticks=600, a3_ticks=1000,
+        idle_sample_ticks=600, impact_check_ticks=10, kinds={commander(5): "scout"},
+        a2_min_tier="ALPHA", a2_refresh_ticks=REFRESH, starve_threshold=0.25,
+    )  # fmt: skip
+    rules = cfg.rules
+    enemy = next(e for e in world.entities() if e.side == "ENEMY" and rules.stealth[e.kind] > 0)
+    at = Vec2(enemy.pos.x, enemy.pos.y)
+    world.contacts["COALITION"].clear()
+    col.last_tracked.clear()
+    world.campaign.tick = 1000
+    age = 5 if first_last_known else None
+    world.contacts["COALITION"][enemy.id] = Contact(enemy.kind, at, Vec2(0, 0), age)
+    col.check_impact(world)  # tracked, nobody joined yet
+    world.contacts["COALITION"].clear()
+    if last_known:  # a last-known contact all the while is not a track
+        world.contacts["COALITION"][enemy.id] = Contact(enemy.kind, at, Vec2(0, 0), 5)
+    world.campaign.tick = 1000 + gap // 2
+    col.check_impact(world)
+    col.note_join(commander(5), 1000 + gap // 2, "ALPHA")
+    recon = next(k for k in sorted(rules.painters))
+    world.spawn(recon, "COALITION", "COMMANDER", at, commander_id=commander(5))
+    world.campaign.tick = 1000 + gap
+    world.contacts["COALITION"][enemy.id] = Contact(enemy.kind, at, Vec2(0, 0))
+    col.check_impact(world)
+    return {k for _, k in col.impact.values()}
+
+
+def test_a_refreshed_track_counts_as_a_scout_impact_after_30_game_min_unseen(
+    shipped_config: CampaignConfig,
+) -> None:
+    assert load().targets.a2_refresh_unseen_game_min == 30
+    assert _refresh_after(REFRESH, shipped_config) == {"scout"}
+    assert _refresh_after(REFRESH - 1, shipped_config) == set()  # not before 30 game min
+    # a last-known contact is not tracked, so it does not reset the clock
+    assert _refresh_after(REFRESH, shipped_config, last_known=True) == {"scout"}
+    # an enemy first known only as last-known was never tracked: its first track counts
+    assert _refresh_after(REFRESH, shipped_config, first_last_known=True) == {"scout"}
+    assert _refresh_after(10, shipped_config, first_last_known=True) == {"scout"}
+
+
 def test_persona_kinds_are_seeded_validated_and_a_striker_names_a_defended_foe(
     shipped_config: CampaignConfig, tmp_path: Path
 ) -> None:
@@ -1581,7 +1631,7 @@ def test_theater_runs_on_the_file_in_every_worker(
     world.boards["COALITION"][1] = Job(1, "STRIKE", "a", 1, 1000, 0)
     col = metrics.Collector(world, frozenset(), tick_hz=HZ, sample_ticks=1, a3_ticks=1,
         idle_sample_ticks=1, impact_check_ticks=1, kinds={}, a2_min_tier="ALPHA",
-        starve_threshold=0.25)  # fmt: skip
+        a2_refresh_ticks=REFRESH, starve_threshold=0.25)  # fmt: skip
     col.sample_density(world)
     assert col.jobs_per_node == [1 / (shipped_nodes + 1)]
 
@@ -1715,6 +1765,7 @@ def join_hauler(
     collector = metrics.Collector(
         world, frozenset([cmdr]), tick_hz=HZ, sample_ticks=600, a3_ticks=1000,
         idle_sample_ticks=600, impact_check_ticks=10, kinds={cmdr: "hauler"}, a2_min_tier="ALPHA",
+        a2_refresh_ticks=REFRESH,
         starve_threshold=0.25,
     )  # fmt: skip
     collector.note_join(cmdr, 5, "ALPHA")
@@ -3089,7 +3140,8 @@ def test_hq_captures_are_logged_with_participants_and_capture_weight(
     world.spawn("GARRISON_INFANTRY", "COALITION", "COMMANDER", Vec2(x + 9e3, y), commander_id=me)
     c = metrics.Collector(world, frozenset(), tick_hz=HZ, sample_ticks=600, a3_ticks=1000,
                           idle_sample_ticks=600, impact_check_ticks=10, kinds={},
-                          a2_min_tier="ALPHA", starve_threshold=0.25)  # fmt: skip
+                          a2_min_tier="ALPHA", a2_refresh_ticks=REFRESH,
+                          starve_threshold=0.25)  # fmt: skip
 
     def flip(tick: int, node: str, to: str, who: list[str]) -> Any:
         return NodeCaptured.model_construct(
@@ -3193,7 +3245,7 @@ def rig(shipped_config: CampaignConfig) -> tuple[metrics.Collector, Any]:
     assert world.rules.economy.window_ticks == WINDOW
     col = metrics.Collector(
         world, frozenset(), tick_hz=HZ, sample_ticks=600, a3_ticks=1000, idle_sample_ticks=600,
-        impact_check_ticks=10, kinds={}, a2_min_tier="ALPHA",
+        impact_check_ticks=10, kinds={}, a2_min_tier="ALPHA", a2_refresh_ticks=REFRESH,
         starve_threshold=0.25,
     )  # fmt: skip
     return col, world
@@ -3815,7 +3867,8 @@ def test_trucks_lost_near_the_sanctuary_use_the_last_seen_position(
     ]  # inside, just outside, at the sanctuary
     col = metrics.Collector(
         world, frozenset(), tick_hz=HZ, sample_ticks=600, a3_ticks=1000, idle_sample_ticks=600,
-        impact_check_ticks=10, kinds={}, a2_min_tier="ALPHA", starve_threshold=0.25,
+        impact_check_ticks=10, kinds={}, a2_min_tier="ALPHA", a2_refresh_ticks=REFRESH,
+        starve_threshold=0.25,
     )  # fmt: skip
     col.observe(world)
     for i in ids[:2]:
@@ -4207,7 +4260,8 @@ def test_income_lost_to_the_storage_clip_is_due_minus_produced(
     world.campaign.running_ticks = er.window_ticks - 1  # the next tick is a window
     col = metrics.Collector(
         world, frozenset(), tick_hz=HZ, sample_ticks=600, a3_ticks=1000, idle_sample_ticks=600,
-        impact_check_ticks=10, kinds={}, a2_min_tier="ALPHA", starve_threshold=0.25,
+        impact_check_ticks=10, kinds={}, a2_min_tier="ALPHA", a2_refresh_ticks=REFRESH,
+        starve_threshold=0.25,
     )  # fmt: skip
     due = {s: income(world, shipped_config.rules, er, s) for s in ("COALITION", "ENEMY")}
     assert due["ENEMY"] > 30  # so the 30 below is a clip

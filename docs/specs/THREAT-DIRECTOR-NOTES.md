@@ -37,6 +37,7 @@ Not normative; THREAT-DIRECTOR.md wins. This file holds the implementation narra
 - No `STAFF_DIRECTOR_OVERRIDE`, advisor or GM exists. Part 2 is the next subsection, then Part 3 and Part 4 (NX-379).
 - (from **Load checks.**) On strait-1 offensives fail at the strike step (jets lost to air defense or too few rounds); left to balance.
 - (from **Visit memory.**) Without it an empty cell stays 'unseen' however often a scout loiters there and the same cell is picked every window (6 distinct points in 6 game hours); with it the scouts spread over the sector.
+- **In code (NX-512): the coalition's visit memory and sector scout (Visit memory item 195, GAMEPLAY §1b item 203; Q-SIM-134).** Each coalition board pass runs `launch.look` into `World.director[COALITION].looked` (`nexus.core.tasking.run`), and `nexus.core.tasking_gen._sector_scouts` picks points with `operations.recon_point` on the coalition's view; the loader accepts the coalition's `scout:pt:<sector>:<k>` point job (Q-DEV-45). Tests: `services/sim/tests/core/test_sector_scout.py`.
 - **Known, not changed.** A 6 h QA run saw one 127.8 ms tick (p99 0.79 ms), not reproduced; tracked under NX-376.
 - **Measured** (0 viewers, shipped config, 6 game hours, same seeds): see `services/sim/tests/golden/README.md` (snapshot format 22).
 - Status labels moved out of THREAT-DIRECTOR.md (the rules after each stay there): **In code (NX-413):**
