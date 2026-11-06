@@ -44,9 +44,7 @@ def get_test_env() -> dict[str, str]:
     env["PATH"] = f"{local_bin}:{fnm_bin}:{current_path}"
     sim_src = str(REPO_ROOT / "services" / "sim" / "src")
     balance_dir = str(REPO_ROOT / "tools" / "balance")
-    env["PYTHONPATH"] = (
-        f"{sim_src}:{balance_dir}:{REPO_ROOT}:{env.get('PYTHONPATH', '')}"
-    )
+    env["PYTHONPATH"] = f"{sim_src}:{balance_dir}:{REPO_ROOT}:{env.get('PYTHONPATH', '')}"
     return env
 
 
@@ -96,9 +94,7 @@ class TestTier1FeatureCoverage(unittest.TestCase):
         self.assertTrue(script_path.is_file(), f"Missing {script_path}")
 
         content = script_path.read_text(encoding="utf-8")
-        self.assertIn(
-            "content/theaters/dted/", content, "DTED directory must be allowlisted"
-        )
+        self.assertIn("content/theaters/dted/", content, "DTED directory must be allowlisted")
 
         res = run_cmd([sys.executable, str(script_path)])
         self.assertEqual(
@@ -127,8 +123,7 @@ class TestTier1FeatureCoverage(unittest.TestCase):
             py_bin = (
                 get_sim_python()
                 if any(
-                    x in str(script)
-                    for x in ["tools/balance", "tools/replay", "sim-determinism"]
+                    x in str(script) for x in ["tools/balance", "tools/replay", "sim-determinism"]
                 )
                 else sys.executable
             )
@@ -209,9 +204,7 @@ class TestTier1FeatureCoverage(unittest.TestCase):
         ]
         for cmd in tools:
             res = run_cmd(cmd)
-            self.assertEqual(
-                res.returncode, 0, f"Tool failed: {' '.join(cmd)}\n{res.stderr}"
-            )
+            self.assertEqual(res.returncode, 0, f"Tool failed: {' '.join(cmd)}\n{res.stderr}")
 
     def test_tier1_r1_pr341_self_tests(self) -> None:
         """Feature 6: Built-in self-tests for DTED, roads, MGRS, and low-poly assets pass."""
@@ -257,17 +250,11 @@ class TestTier1FeatureCoverage(unittest.TestCase):
     def test_tier1_r1_tool_test_suites(self) -> None:
         """Feature 7: Automated test suites for tools and repo checks exist and pass."""
         repo_checks = REPO_ROOT / "scripts" / "tests" / "test_repo_checks.py"
-        self.assertTrue(
-            repo_checks.is_file(), "scripts/tests/test_repo_checks.py missing"
-        )
+        self.assertTrue(repo_checks.is_file(), "scripts/tests/test_repo_checks.py missing")
         res = run_cmd([sys.executable, str(repo_checks)], timeout=45)
-        self.assertEqual(
-            res.returncode, 0, f"test_repo_checks failed: {res.stdout}\n{res.stderr}"
-        )
+        self.assertEqual(res.returncode, 0, f"test_repo_checks failed: {res.stdout}\n{res.stderr}")
 
-        replay_test = (
-            REPO_ROOT / "services" / "sim" / "tests" / "runtime" / "test_replay_cli.py"
-        )
+        replay_test = REPO_ROOT / "services" / "sim" / "tests" / "runtime" / "test_replay_cli.py"
         self.assertTrue(replay_test.is_file(), "Replay CLI tests missing")
 
     # --- Feature R2: Model-Agnostic Agent Collaboration Architecture ---
@@ -280,9 +267,7 @@ class TestTier1FeatureCoverage(unittest.TestCase):
 
         models = ["Antigravity", "Gemini", "Codex", "Cursor", "Claude"]
         for model in models:
-            self.assertIn(
-                model, text, f"AGENTS.md must reference {model} in universal entry"
-            )
+            self.assertIn(model, text, f"AGENTS.md must reference {model} in universal entry")
 
     def test_tier1_r2_capability_tiers(self) -> None:
         """Feature 9: AGENTS.md codifies the 4 Functional Capability Tiers."""
@@ -317,16 +302,10 @@ class TestTier1FeatureCoverage(unittest.TestCase):
         agents_md = REPO_ROOT / "AGENTS.md"
         text = agents_md.read_text(encoding="utf-8")
 
-        self.assertIn(
-            "NO FABRICATED OR HALLUCINATED DATA", text, "Rule 0 must be present"
-        )
+        self.assertIn("NO FABRICATED OR HALLUCINATED DATA", text, "Rule 0 must be present")
         self.assertIn("Spec first", text, "Spec first rule must be present")
-        self.assertIn(
-            "simulation is deterministic", text, "Determinism invariant must be present"
-        )
-        self.assertIn(
-            "Chat input is hostile", text, "Hostile chat input rule must be present"
-        )
+        self.assertIn("simulation is deterministic", text, "Determinism invariant must be present")
+        self.assertIn("Chat input is hostile", text, "Hostile chat input rule must be present")
         self.assertIn("400", text, "PR line budget must be present")
 
     def test_tier1_r2_protected_files(self) -> None:
@@ -399,19 +378,9 @@ class TestTier1FeatureCoverage(unittest.TestCase):
 
     def test_tier1_r3_paradigm_a_crt(self) -> None:
         """Feature 15: Paradigm A (2D CRT Vector Phosphor / Living Glass) specifications."""
-        crt_file = (
-            REPO_ROOT
-            / "apps"
-            / "overlay"
-            / "src"
-            / "renderers"
-            / "crt2d"
-            / "crt-engine.ts"
-        )
+        crt_file = REPO_ROOT / "apps" / "overlay" / "src" / "renderers" / "crt2d" / "crt-engine.ts"
         proto_file = REPO_ROOT / "tools" / "prototype" / "unified-visualizer.html"
-        self.assertTrue(
-            crt_file.is_file() or proto_file.is_file(), "Paradigm A source missing"
-        )
+        self.assertTrue(crt_file.is_file() or proto_file.is_file(), "Paradigm A source missing")
 
         content = (
             crt_file.read_text(encoding="utf-8")
@@ -426,25 +395,15 @@ class TestTier1FeatureCoverage(unittest.TestCase):
             "radar" in content.lower() or "sweep" in content.lower(),
             "Radar sweep must be specified",
         )
-        self.assertTrue(
-            "trail" in content.lower(), "Vector speed trails must be specified"
-        )
+        self.assertTrue("trail" in content.lower(), "Vector speed trails must be specified")
 
     def test_tier1_r3_paradigm_b_holo(self) -> None:
         """Feature 16: Paradigm B (3D Holographic War Room Table) specifications."""
         holo_file = (
-            REPO_ROOT
-            / "apps"
-            / "overlay"
-            / "src"
-            / "renderers"
-            / "holo3d"
-            / "holo-engine.ts"
+            REPO_ROOT / "apps" / "overlay" / "src" / "renderers" / "holo3d" / "holo-engine.ts"
         )
         proto_file = REPO_ROOT / "tools" / "prototype" / "unified-visualizer.html"
-        self.assertTrue(
-            holo_file.is_file() or proto_file.is_file(), "Paradigm B source missing"
-        )
+        self.assertTrue(holo_file.is_file() or proto_file.is_file(), "Paradigm B source missing")
 
         content = (
             holo_file.read_text(encoding="utf-8")
@@ -455,9 +414,7 @@ class TestTier1FeatureCoverage(unittest.TestCase):
             "elevation" in content.lower() or "terrain" in content.lower(),
             "Terrain elevation required",
         )
-        self.assertTrue(
-            "bridge" in content.lower(), "Elevated bridges required in 3D Holo"
-        )
+        self.assertTrue("bridge" in content.lower(), "Elevated bridges required in 3D Holo")
         self.assertTrue(
             "parabolic" in content.lower() or "missile" in content.lower(),
             "Parabolic missile trajectories required",
@@ -469,37 +426,23 @@ class TestTier1FeatureCoverage(unittest.TestCase):
         catalog_file = REPO_ROOT / "docs" / "design" / "VISUAL-STYLE-CATALOG.md"
         self.assertTrue(proto_file.is_file() and catalog_file.is_file())
 
-        content = proto_file.read_text(encoding="utf-8") + catalog_file.read_text(
-            encoding="utf-8"
-        )
+        content = proto_file.read_text(encoding="utf-8") + catalog_file.read_text(encoding="utf-8")
         self.assertTrue("flir" in content.lower() or "mfd" in content.lower())
         self.assertTrue("white-hot" in content.lower() or "thermal" in content.lower())
-        self.assertTrue(
-            "pitch ladder" in content.lower() or "heading" in content.lower()
-        )
+        self.assertTrue("pitch ladder" in content.lower() or "heading" in content.lower())
 
     def test_tier1_r3_paradigm_d_batch(self) -> None:
         """Feature 18: Paradigm D (High-Density Batch Spriting) specifications."""
-        arch_doc = (
-            REPO_ROOT / "docs" / "architecture" / "DECOUPLED-RENDERER-ARCHITECTURE.md"
-        )
+        arch_doc = REPO_ROOT / "docs" / "architecture" / "DECOUPLED-RENDERER-ARCHITECTURE.md"
         batch_engine = (
-            REPO_ROOT
-            / "apps"
-            / "overlay"
-            / "src"
-            / "renderers"
-            / "batch"
-            / "batch-engine.ts"
+            REPO_ROOT / "apps" / "overlay" / "src" / "renderers" / "batch" / "batch-engine.ts"
         )
         self.assertTrue(arch_doc.is_file() and batch_engine.is_file())
 
         arch_text = arch_doc.read_text(encoding="utf-8")
         batch_text = batch_engine.read_text(encoding="utf-8")
 
-        self.assertIn(
-            "500", batch_text, "Paradigm D must support 500+ units in batch engine"
-        )
+        self.assertIn("500", batch_text, "Paradigm D must support 500+ units in batch engine")
         self.assertTrue(
             "high-density" in arch_text.lower()
             or "batch" in arch_text.lower()
@@ -509,20 +452,14 @@ class TestTier1FeatureCoverage(unittest.TestCase):
 
     def test_tier1_r3_visual_rules(self) -> None:
         """Feature 19: Core visual rules OV-1 (5s glance), OV-2/3 (colorblind dual encoding), OV-4 (decluttering)."""
-        dual_enc = (
-            REPO_ROOT / "apps" / "overlay" / "src" / "symbology" / "dual-encoding.ts"
-        )
+        dual_enc = REPO_ROOT / "apps" / "overlay" / "src" / "symbology" / "dual-encoding.ts"
         self.assertTrue(dual_enc.is_file(), f"Missing {dual_enc}")
         code = dual_enc.read_text(encoding="utf-8")
 
         self.assertIn("#00e5ff", code, "Quorum Cyan #00e5ff required")
         self.assertIn("#ff0055", code, "Static Magenta #ff0055 required")
-        self.assertIn(
-            "SMOOTH_CHEVRON_DIAMOND", code, "NATO Chevron/Diamond geometry required"
-        )
-        self.assertIn(
-            "JAGGED_SAWTOOTH", code, "Jagged Sawtooth geometry required for enemy"
-        )
+        self.assertIn("SMOOTH_CHEVRON_DIAMOND", code, "NATO Chevron/Diamond geometry required")
+        self.assertIn("JAGGED_SAWTOOTH", code, "Jagged Sawtooth geometry required for enemy")
 
     def test_tier1_r3_strait1_theater(self) -> None:
         """Feature 20: Strait-1 theater coordinates, recessed water (-3.5m), and elevated bridges (+2..+14m)."""
@@ -548,16 +485,12 @@ class TestTier1FeatureCoverage(unittest.TestCase):
         elev_file = REPO_ROOT / "apps" / "overlay" / "src" / "theater" / "elevation.ts"
         self.assertTrue(elev_file.is_file())
         elev_code = elev_file.read_text(encoding="utf-8")
-        self.assertIn(
-            "-3.5", elev_code, "Water must be recessed at -3.5m to eliminate Z-fighting"
-        )
+        self.assertIn("-3.5", elev_code, "Water must be recessed at -3.5m to eliminate Z-fighting")
         self.assertIn("14.0", elev_code, "Bridge mid-span apex must reach +14.0m")
 
     def test_tier1_r3_telemetry_hud(self) -> None:
         """Feature 21: Real-time telemetry HUD components (momentum, countdown, threat badge, sitrep, ticker)."""
-        telemetry_file = (
-            REPO_ROOT / "apps" / "overlay" / "src" / "types" / "telemetry.ts"
-        )
+        telemetry_file = REPO_ROOT / "apps" / "overlay" / "src" / "types" / "telemetry.ts"
         self.assertTrue(telemetry_file.is_file(), f"Missing {telemetry_file}")
         code = telemetry_file.read_text(encoding="utf-8")
 
@@ -569,18 +502,12 @@ class TestTier1FeatureCoverage(unittest.TestCase):
 
     def test_tier1_r3_paradigm_swappability(self) -> None:
         """Feature 22: Hot-swappable visual paradigms architecture."""
-        arch_doc = (
-            REPO_ROOT / "docs" / "architecture" / "DECOUPLED-RENDERER-ARCHITECTURE.md"
-        )
+        arch_doc = REPO_ROOT / "docs" / "architecture" / "DECOUPLED-RENDERER-ARCHITECTURE.md"
         proto_html = REPO_ROOT / "tools" / "prototype" / "unified-visualizer.html"
         self.assertTrue(arch_doc.is_file() and proto_html.is_file())
-        text = arch_doc.read_text(encoding="utf-8") + proto_html.read_text(
-            encoding="utf-8"
-        )
+        text = arch_doc.read_text(encoding="utf-8") + proto_html.read_text(encoding="utf-8")
         self.assertTrue(
-            "swappable" in text.lower()
-            or "switch" in text.lower()
-            or "theme" in text.lower()
+            "swappable" in text.lower() or "switch" in text.lower() or "theme" in text.lower()
         )
 
 
@@ -619,9 +546,7 @@ class TestTier2BoundaryAndCornerCases(unittest.TestCase):
                 "/tmp/nonexistent_xyz.txt",
             ]
         )
-        self.assertNotEqual(
-            res.returncode, 0, "Nonexistent file must cause non-zero exit code"
-        )
+        self.assertNotEqual(res.returncode, 0, "Nonexistent file must cause non-zero exit code")
         # Check that error is cleanly handled (no raw traceback)
         self.assertNotIn("Traceback (most recent call last):", res.stderr)
 
@@ -636,17 +561,13 @@ class TestTier2BoundaryAndCornerCases(unittest.TestCase):
             ],
             extra_env=minimal_env,
         )
-        self.assertEqual(
-            res.returncode, 0, f"Tool failed under minimal PATH: {res.stderr}"
-        )
+        self.assertEqual(res.returncode, 0, f"Tool failed under minimal PATH: {res.stderr}")
 
     def test_tier2_r1_safe_input_validation(self) -> None:
         """R1 Boundary 4: Subprocess arguments are safe against shell injection characters."""
         with tempfile.TemporaryDirectory() as tmp_dir:
             bad_path = Path(tmp_dir) / "test;echo_injected;touch_PWNED.txt"
-            bad_path.write_text(
-                "feat: valid commit message (NX-123)\n", encoding="utf-8"
-            )
+            bad_path.write_text("feat: valid commit message (NX-123)\n", encoding="utf-8")
             _ = run_cmd(
                 [
                     sys.executable,
@@ -675,9 +596,7 @@ class TestTier2BoundaryAndCornerCases(unittest.TestCase):
                 "/tmp/dummy_out_dir",
             ]
         )
-        self.assertNotEqual(
-            res.returncode, 0, "Invalid balance profile must be rejected"
-        )
+        self.assertNotEqual(res.returncode, 0, "Invalid balance profile must be rejected")
 
     # --- R2 Boundary & Corner Cases ---
 
@@ -718,9 +637,7 @@ class TestTier2BoundaryAndCornerCases(unittest.TestCase):
                 "twitchio",
             ]
             for py_file in core_dir.rglob("*.py"):
-                tree = ast.parse(
-                    py_file.read_text(encoding="utf-8"), filename=str(py_file)
-                )
+                tree = ast.parse(py_file.read_text(encoding="utf-8"), filename=str(py_file))
                 for node in ast.walk(tree):
                     if isinstance(node, ast.Import):
                         for alias in node.names:
@@ -742,25 +659,32 @@ class TestTier2BoundaryAndCornerCases(unittest.TestCase):
         self.assertTrue(threat_doc.is_file())
         text = threat_doc.read_text(encoding="utf-8")
         self.assertTrue(
-            "length" in text.lower()
-            or "sanitize" in text.lower()
-            or "untrusted" in text.lower(),
+            "length" in text.lower() or "sanitize" in text.lower() or "untrusted" in text.lower(),
             "Threat model must document chat input bounds and sanitization",
         )
 
     # --- R3 Boundary & Corner Cases ---
 
     def test_tier2_r3_extreme_coordinate_handling(self) -> None:
-        """R3 Boundary 1: Extreme and boundary coordinates clamp strictly to theater bounds."""
-        theater_file = REPO_ROOT / "apps" / "overlay" / "src" / "theater" / "strait1.ts"
+        """R3 Boundary 1: the dev mock theater (+y north) keeps every coordinate inside its bounds."""
+        theater_file = REPO_ROOT / "apps" / "overlay" / "src" / "simulation" / "mock-theater.ts"
         self.assertTrue(theater_file.is_file(), f"Missing {theater_file}")
         code = theater_file.read_text(encoding="utf-8")
 
-        self.assertIn("400000", code, "Theater width max 400km")
-        self.assertIn("240000", code, "Theater height max 240km")
-        self.assertTrue(
-            "clamp" in code.lower() or "min" in code.lower() or "max" in code.lower()
-        )
+        bounds = re.search(r"boundsM:\s*\{\s*w:\s*(\d+),\s*h:\s*(\d+)", code)
+        self.assertIsNotNone(bounds, "boundsM missing")
+        assert bounds is not None
+        width, height = int(bounds[1]), int(bounds[2])
+        self.assertEqual((width, height), (400000, 240000), "Theater is 400 x 240 km")
+        pairs = re.findall(r"\[(\d+), (\d+)\]", code)
+        self.assertGreater(len(pairs), 20, "expected node and polygon coordinates")
+        for x, y in pairs:
+            self.assertLessEqual(int(x), width)
+            self.assertLessEqual(int(y), height)
+        north = re.search(r'id: "north",\s*name: "North",\s*polygon: \[\s*\[\d+, (\d+)\]', code)
+        self.assertIsNotNone(north)
+        assert north is not None
+        self.assertEqual(int(north[1]), height, "+y is north: the north sector starts at the top")
 
     def test_tier2_r3_z_fighting_elevation_budget(self) -> None:
         """R3 Boundary 2: Elevation budget vertical order strictly non-overlapping."""
@@ -777,25 +701,19 @@ class TestTier2BoundaryAndCornerCases(unittest.TestCase):
 
         self.assertLess(channel_water, 0.0, "Water must be below shoreline 0.0m")
         self.assertLess(0.0, terrain_base, "Shoreline must be below terrain base 2.0m")
-        self.assertGreater(
-            bridge_apex, terrain_base, "Bridge apex must exceed terrain base"
-        )
+        self.assertGreater(bridge_apex, terrain_base, "Bridge apex must exceed terrain base")
         self.assertGreater(road_offset, 0.0, "Road offset must be positive")
 
     def test_tier2_r3_extreme_momentum_values(self) -> None:
         """R3 Boundary 3: Momentum percentage handles boundaries (0%, 50%, 100%)."""
-        telemetry_file = (
-            REPO_ROOT / "apps" / "overlay" / "src" / "types" / "telemetry.ts"
-        )
+        telemetry_file = REPO_ROOT / "apps" / "overlay" / "src" / "types" / "telemetry.ts"
         self.assertTrue(telemetry_file.is_file())
         code = telemetry_file.read_text(encoding="utf-8")
         self.assertIn("momentum", code.lower())
 
     def test_tier2_r3_threat_condition_transitions(self) -> None:
         """R3 Boundary 4: Threat Director condition states validate allowed values."""
-        telemetry_file = (
-            REPO_ROOT / "apps" / "overlay" / "src" / "types" / "telemetry.ts"
-        )
+        telemetry_file = REPO_ROOT / "apps" / "overlay" / "src" / "types" / "telemetry.ts"
         self.assertTrue(telemetry_file.is_file())
         code = telemetry_file.read_text(encoding="utf-8")
 
@@ -872,9 +790,7 @@ class TestTier3CrossFeatureInteractions(unittest.TestCase):
         self.assertIn("#ff0055", catalog_text)
 
         # Dual-encoding module in overlay implements these exact tokens
-        dual_enc = (
-            REPO_ROOT / "apps" / "overlay" / "src" / "symbology" / "dual-encoding.ts"
-        )
+        dual_enc = REPO_ROOT / "apps" / "overlay" / "src" / "symbology" / "dual-encoding.ts"
         self.assertTrue(dual_enc.is_file())
         enc_code = dual_enc.read_text(encoding="utf-8")
         self.assertIn("#00e5ff", enc_code)
@@ -899,19 +815,12 @@ class TestTier3CrossFeatureInteractions(unittest.TestCase):
         self.assertGreater(size, 100000, "DTED DEM must be a valid elevation raster")
 
         # Running hygiene check must pass cleanly with this file tracked
-        res = run_cmd(
-            [sys.executable, str(REPO_ROOT / "scripts" / "check_tracked_files.py")]
-        )
+        res = run_cmd([sys.executable, str(REPO_ROOT / "scripts" / "check_tracked_files.py")])
         self.assertEqual(res.returncode, 0, f"check_tracked_files failed: {res.stdout}")
 
     def test_tier3_interaction_unit_pov_contracts_and_schema_validation(self) -> None:
         """Interaction 5 (R2 x R3): Unit POV camera contracts adhere to model-agnostic specs."""
-        rfc_doc = (
-            REPO_ROOT
-            / "docs"
-            / "architecture"
-            / "UNIT-POV-AND-COCKPIT-CONTRACTS-RFC.md"
-        )
+        rfc_doc = REPO_ROOT / "docs" / "architecture" / "UNIT-POV-AND-COCKPIT-CONTRACTS-RFC.md"
         self.assertTrue(rfc_doc.is_file())
         text = rfc_doc.read_text(encoding="utf-8")
 
@@ -954,9 +863,7 @@ class TestTier4RealWorldScenarios(unittest.TestCase):
             ],
             timeout=30,
         )
-        self.assertEqual(
-            res2.returncode, 0, f"Config reference check failed: {res2.stderr}"
-        )
+        self.assertEqual(res2.returncode, 0, f"Config reference check failed: {res2.stderr}")
 
     def test_tier4_overnight_balance_run(self) -> None:
         """Workflow 2: Automated balance run generating valid balance metrics and reports."""
@@ -977,9 +884,7 @@ class TestTier4RealWorldScenarios(unittest.TestCase):
                 str(out_dir),
             ]
             res = run_cmd(cmd, timeout=90)
-            self.assertEqual(
-                res.returncode, 0, f"Balance run failed: {res.stdout}\n{res.stderr}"
-            )
+            self.assertEqual(res.returncode, 0, f"Balance run failed: {res.stdout}\n{res.stderr}")
 
             # Verify generated output files
             report_json = out_dir / "report.json"
@@ -1001,15 +906,11 @@ class TestTier4RealWorldScenarios(unittest.TestCase):
             proto_file.is_file() and sandbox_file.is_file(),
             "Visualizer prototypes missing",
         )
-        content = proto_file.read_text(encoding="utf-8") + sandbox_file.read_text(
-            encoding="utf-8"
-        )
+        content = proto_file.read_text(encoding="utf-8") + sandbox_file.read_text(encoding="utf-8")
 
         # Verify all 4 paradigms are integrated into the playback director
         self.assertTrue(
-            "pillar1" in content.lower()
-            or "gis" in content.lower()
-            or "2d" in content.lower()
+            "pillar1" in content.lower() or "gis" in content.lower() or "2d" in content.lower()
         )
         self.assertTrue(
             "pillar2" in content.lower()
