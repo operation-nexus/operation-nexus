@@ -6,7 +6,8 @@ Arm A is the default run (`tasking.wingmen_max` 2, the wingmen on), arm B the sa
 seeds with `--set tasking.wingmen_max=0` (off). Prints the item 253 verdicts `report.json` can
 answer, and says plainly which part it cannot. Refuses (exit 2) reports from different shas, an
 unknown or dirty sha, different profile sets, profiles.yaml digests, seeds or hours, or identical
-overrides. Exit 1 when a verdict fails, else 0. Every threshold is the spec's; PROPOSED ones are marked so in the output."""
+overrides. Exit 1 when a verdict fails, else 0. Every threshold is the spec's; PROPOSED ones are
+marked so in the output."""
 
 import json
 import statistics
