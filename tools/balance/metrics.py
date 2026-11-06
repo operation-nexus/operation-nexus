@@ -246,6 +246,12 @@ class Collector:
         # earlier in the window tick) against `SupplyProduced`; the board's open STRIKE slots at
         # each idle sample.
         self.zero_strategic_ticks = self.coalition_captures = 0
+        # NX-510 (Q-TEST-13, A1 low crowds), read in `observe` every tick (no event names either
+        # dip): the fewest strategic nodes held on a running tick, the first running tick with
+        # none, and the first tick of any kind with the sanctuary's defense hp at 0
+        self.min_strategic_held: int | None = None
+        self.first_zero_strategic_tick: int | None = None
+        self.first_sanctuary_zero_tick: int | None = None
         # Q-TD-136: running ticks per count of strategic nodes the coalition owns (index k), the
         # current and longest stretch at or above the hold threshold, owned ticks, losses per node
         n = len(self._strategic)
@@ -392,8 +398,8 @@ class Collector:
 
     def note_tracks(self, world: World) -> None:
         """Record this tick's current coalition tracks (NX-512, TESTING-STRATEGY A2). An id never
-        tracked (last-known does not count) or untracked for `a2_refresh_ticks` becomes fresh and
-        waits for the next impact check."""
+        tracked (last-known does not count) or untracked for `a2_refresh_ticks` is new or
+        refreshed: it is judged at once, at the tick it is found, by `_credit_scouts`."""
         tick = world.campaign.tick
         found = []
         for i, c in world.contacts[_COALITION].items():  # insertion order: deterministic
@@ -513,6 +519,10 @@ class Collector:
             self._defeat_run(camp.defeat_ticks, hp)
             owned = [n for n in sorted(self._strategic) if world.owner.get(n) == _COALITION]
             self.zero_strategic_ticks += not owned
+            if self.min_strategic_held is None or len(owned) < self.min_strategic_held:
+                self.min_strategic_held = len(owned)
+            if not owned and self.first_zero_strategic_tick is None:
+                self.first_zero_strategic_tick = camp.tick
             self._ticks_by_k[len(owned)] += 1
             for n in owned:
                 self._owned_ticks[n] += 1
@@ -520,6 +530,8 @@ class Collector:
             self._stretch = self._stretch + 1 if len(owned) >= self._hold_k else 0
             self._longest_stretch = max(self._longest_stretch, self._stretch)
         self.sanctuary_min = min(self.sanctuary_min, hp)
+        if hp <= 0 and self.first_sanctuary_zero_tick is None:
+            self.first_sanctuary_zero_tick = camp.tick
         if world.campaign.tick <= self.a3_ticks:
             self.sanctuary_min_window = min(self.sanctuary_min_window, hp)
         self._due_next = self._income_due(world)
@@ -1143,6 +1155,11 @@ class Collector:
             "sanctuary_hp": {
                 "min": self.sanctuary_min,
                 "min_in_a3_window": self.sanctuary_min_window,
+            },
+            "collapse": {  # NX-510, A1 for low crowds (Q-TEST-13)
+                "min_strategic_held": self.min_strategic_held,
+                "first_zero_strategic_tick": self.first_zero_strategic_tick,
+                "first_sanctuary_zero_tick": self.first_sanctuary_zero_tick,
             },
             "director": {
                 "tier_dwell_s": {k: v / s for k, v in sorted(dwell.items())},

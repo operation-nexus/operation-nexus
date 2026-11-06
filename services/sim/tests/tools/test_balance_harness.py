@@ -488,9 +488,15 @@ def fake_run(hours: float = 72, **over: Any) -> dict[str, Any]:
         "ticks_run": round(hours * 36000),
         "a3_ticks": 12 * 36000,
         "time_limit_h": 72.0,
+        "profile_viewers": 150,
         "metrics": {
             "outcome": outcome,
             "newbie": newbie([60.0, 120.0], []),
+            "collapse": {
+                "min_strategic_held": 3,
+                "first_zero_strategic_tick": None,
+                "first_sanctuary_zero_tick": None,
+            },
             "nodes_lost_in_a3_window": 0,
             "sanctuary_hp": {"min_in_a3_window": 500},
         },
@@ -535,6 +541,63 @@ def test_target_rules() -> None:
     broken = fake_run() | {"harness_error": "KeyError: x"}
     assert report._a3([broken], t, "overnight-0")["status"].startswith("not evaluable")
     assert report._a3([fake_run()], t, "prime-50")["status"] == "n/a"
+
+
+def _time_limit(viewers: int, **collapse: Any) -> dict[str, Any]:
+    run = fake_run(outcome={"ended": True, "result": "TIME_LIMIT", "length_h": 72.0})
+    run["profile_viewers"] = viewers
+    run["metrics"]["collapse"] |= {"min_strategic_held": 1} | collapse
+    return run
+
+
+def test_a1_low_crowd_time_limit_passes_unless_the_war_collapses() -> None:
+    """Q-TEST-13: below `a1_victory_min_viewers` a TIME_LIMIT ending passes with no collapse."""
+    t = load().targets
+    assert t.a1_victory_min_viewers == 150
+    for viewers in (0, 5, 50):
+        a1 = report._a1([_time_limit(viewers)] * 3, t)
+        assert a1["status"] == report.PASS and a1["low_crowd"]  # one node held is not a collapse
+        assert a1["seeds"][0]["reason"] == "time limit, no collapse"
+        assert a1["seeds"][0]["min_strategic_held"] == 1
+    zero = _time_limit(5, min_strategic_held=0, first_zero_strategic_tick=900)
+    a1 = report._a1([_time_limit(5), zero], t)
+    assert a1["status"] == report.FAIL  # every seed must hold: 1 of 2
+    assert a1["seeds"][1]["reason"] == "time limit after a collapse"
+    assert a1["seeds"][1]["first_zero_strategic_tick"] == 900
+    seven = [fake_run() | {"profile_viewers": 5} for _ in range(7)]
+    assert report._a1([*seven, zero], t)["status"] == report.FAIL  # 7/8 passes at 150+, not here
+    dead = _time_limit(50, first_sanctuary_zero_tick=77)
+    assert report._a1([dead], t)["status"] == report.FAIL
+    assert report._a1([_time_limit(150)], t)["status"] == report.FAIL  # a miss, as before
+    assert not report._a1([_time_limit(150)], t)["low_crowd"]
+    won = fake_run()
+    won["profile_viewers"] = 50
+    assert report._a1([won], t)["status"] == report.PASS  # a victory with no collapse passes
+    dip = fake_run() | {"profile_viewers": 50}
+    dip["metrics"]["collapse"] |= {"first_zero_strategic_tick": 5}
+    a1 = report._a1([dip], t)
+    assert a1["status"] == report.FAIL and a1["seeds"][0]["reason"] == "victory after a collapse"
+    lost = fake_run(outcome={"ended": True, "result": "DEFEAT", "length_h": 30.0})
+    lost["profile_viewers"] = 5
+    lost["metrics"]["collapse"] |= {"first_sanctuary_zero_tick": 9}
+    assert report._a1([lost], t)["status"] == report.FAIL  # a defeat is judged by the collapse
+    lost["profile_viewers"] = 150
+    assert report._a1([lost], t)["status"] == report.PASS  # unchanged at 150+
+
+
+def test_a1_crowd_comes_from_the_first_run_that_has_one() -> None:
+    """A failed run (`profile_viewers` None) first must not hide the crowd size of the others."""
+    t = load().targets
+    failed = fake_run() | {"profile_viewers": None, "harness_error": "KeyError: x"}
+    a1 = report._a1([failed, _time_limit(5), _time_limit(5)], t)
+    assert a1["low_crowd"] and a1["status"] == report.FAIL  # the failed seed is a miss
+
+
+def test_a1_threshold_is_read_from_config() -> None:
+    t = dataclasses.replace(load().targets, a1_victory_min_viewers=51)
+    assert report._a1([_time_limit(50)], t)["status"] == report.PASS
+    t = dataclasses.replace(t, a1_victory_min_viewers=50)
+    assert report._a1([_time_limit(50)], t)["status"] == report.FAIL
 
 
 def test_a4_is_suspended_but_still_reports_the_top_kind() -> None:
@@ -757,8 +820,8 @@ def test_load_done_trusts_only_a_matching_complete_file(tmp_path: Path) -> None:
     path = tmp_path / "runs" / "quiet-5-s1.json"
     good = {
         "profile": "quiet-5", "seed": 1, "hours": 1.0, "config_hash": "h", "ticks_run": 5,
-        "metrics": {}, "timing": {}, "crash": None, "harness_error": None,
-        "final_state_hash": "x",
+        "metrics": {"collapse": {}}, "timing": {}, "crash": None, "harness_error": None,
+        "final_state_hash": "x", "profile_viewers": 5,
     }  # fmt: skip
     assert balance.load_done(job, "h") is None  # missing
     path.write_text(json.dumps(good))
@@ -769,6 +832,11 @@ def test_load_done_trusts_only_a_matching_complete_file(tmp_path: Path) -> None:
         assert balance.load_done(job, "h") is None
     path.write_text(json.dumps({k: v for k, v in good.items() if k != "timing"}))
     assert balance.load_done(job, "h") is None  # a key the report reads is missing
+    # a file saved before NX-510: no `profile_viewers`, or no `metrics.collapse` (rerun, not reused)
+    path.write_text(json.dumps({k: v for k, v in good.items() if k != "profile_viewers"}))
+    assert balance.load_done(job, "h") is None
+    path.write_text(json.dumps(good | {"metrics": {}}))
+    assert balance.load_done(job, "h") is None
     path.write_text("[1]")
     assert balance.load_done(job, "h") is None
 
@@ -950,8 +1018,8 @@ def test_ring_by_site_aggregates_renders_and_resumes_an_old_run(tmp_path: Path) 
     old = {k: v for k, v in new.items() if k != "ring_by_site"}
     (tmp_path / "runs").mkdir()
     saved = {"profile": "raid-300", "seed": 1, "hours": 1.0, "config_hash": "h", "ticks_run": 5,
-             "metrics": {"idle": old}, "timing": {}, "crash": None, "harness_error": None,
-             "final_state_hash": "x"}  # fmt: skip
+             "metrics": {"idle": old, "collapse": {}}, "timing": {}, "crash": None,
+             "harness_error": None, "final_state_hash": "x", "profile_viewers": 300}  # fmt: skip
     (tmp_path / "runs" / "raid-300-s1.json").write_text(json.dumps(saved))
     resumed = balance.load_done(("raid-300", 1, 1.0, tmp_path, None), "h")
     assert resumed == saved
@@ -4008,6 +4076,43 @@ def test_zero_strategic_minutes_count_running_ticks_only(
     assert hold["zero_strategic_min"] == 2 / HZ / 60
     agg = report._nx477([{"metrics": {"coalition_hold": hold}}] * 2)["coalition_hold"]
     assert agg["zero_strategic_min"] == 4 / HZ / 60
+
+
+def test_collapse_fields_record_the_dips_per_tick(
+    collector: metrics.Collector, shipped_config: CampaignConfig
+) -> None:
+    """NX-510 (Q-TEST-13): fewest strategic nodes held, first tick with none, first tick the
+    sanctuary's defense hp is 0 (read every tick, so a one-tick dip cannot be missed)."""
+    world = start_campaign("c", 1, shipped_config)
+    strategic = sorted(shipped_config.rules.campaign.strategic)  # type: ignore[union-attr]
+    sanctuary = shipped_config.rules.sanctuary
+
+    def observe(tick: int) -> None:
+        world.campaign.tick = world.campaign.running_ticks = tick
+        collector.observe(world)
+
+    for n in strategic:
+        world.owner[n] = "COALITION"
+    observe(1)
+    assert collector.result(1)["collapse"] == {
+        "min_strategic_held": len(strategic),
+        "first_zero_strategic_tick": None,
+        "first_sanctuary_zero_tick": None,
+    }
+    for n in strategic[1:]:
+        world.owner[n] = "ENEMY"
+    observe(2)  # one node left: not a collapse
+    for n in strategic:
+        world.owner[n] = "ENEMY"
+    observe(3)
+    observe(4)
+    world.defense_hp[sanctuary] = 0
+    observe(5)
+    assert collector.result(5)["collapse"] == {
+        "min_strategic_held": 0,
+        "first_zero_strategic_tick": 3,
+        "first_sanctuary_zero_tick": 5,
+    }
 
 
 def _hold_world(shipped_config: CampaignConfig) -> Any:

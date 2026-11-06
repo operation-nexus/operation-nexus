@@ -54,6 +54,7 @@ class Profile:
 @dataclass(frozen=True, slots=True)
 class Targets:
     a1_pass_frac: float
+    a1_victory_min_viewers: int  # A1 judges victory-or-defeat only at this crowd size and up
     # Q-TEST-11 steamroll signals (all PROPOSED, recalibrated once a hard-fought run exists)
     steamroll_pressure_per_4h: float  # S1 fires under this many pressure events per 4 campaign h
     steamroll_swing_pts: int  # S3 fires under this momentum drop (points) ...
