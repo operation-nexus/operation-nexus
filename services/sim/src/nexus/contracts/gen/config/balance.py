@@ -1957,6 +1957,38 @@ class Tasking(BaseModel):
             ge=0.0,
         ),
     ]
+    wingmen_max: Annotated[
+        int,
+        Field(
+            description="A viewer's armed aircraft that claims a STRIKE job while landed at a coalition landing base gets up to ceil(this x (q - min(v, q)) / q) AI_GARRISON wingmen of its kind, q = capture.quiet_ref and v = live viewer units at the claim; 0 turns AI wingmen off (GAMEPLAY §1b items 239-241, Q-GP-50, Q-GP-51, NX-511), unit wingmen.",
+            ge=0,
+            le=4,
+        ),
+    ]
+    wingmen_max_live: Annotated[
+        int,
+        Field(
+            description="Theater-wide cap on live AI wingmen, faded like wingmen_max: ceil(this x (q - min(v, q)) / q), read at the claim; wingmen already flying are never removed by it (GAMEPLAY §1b item 241, Q-GP-51, NX-511), unit wingmen.",
+            ge=0,
+            le=50,
+        ),
+    ]
+    wingmen_cooldown_min: Annotated[
+        float,
+        Field(
+            description="A wingman flight that ends with a wingman lost (destroyed or Disabled) and no impact, or whose lead's claim ends before the wingmen take off, gives the lead's commander this long with no wingmen on any claim; 0 = no cooldown (GAMEPLAY §1b item 248, Q-GP-51, NX-511), unit min of game time.",
+            ge=0.0,
+            le=120.0,
+        ),
+    ]
+    wingmen_lead_active_min: Annotated[
+        float,
+        Field(
+            description="A lead gets wingmen only if its commander sent a chat command that reached the sim (accepted or rejected; not ME, system or staff commands) within this long before the claim (GAMEPLAY §1b item 240, Q-GP-51, NX-511), unit min of game time.",
+            ge=1.0,
+            le=120.0,
+        ),
+    ]
     stock_urgency: Annotated[
         float,
         Field(

@@ -26,6 +26,8 @@ PRE_5B: dict[str, object] = {
     "director.pol.convoy_demand_s": 3600,
     # NX-512: no coalition sector scout jobs (Q-SIM-134); test_sector_scout.py turns them on
     "tasking.scout_sector_points": 0,
+    # NX-511: no AI wingmen (Q-GP-51); test_wingmen.py turns them on
+    "tasking.wingmen_max": 0,
 }
 
 

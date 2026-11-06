@@ -70,6 +70,7 @@ Targeting uses one `UniformGrid` per side and threat level (SC-10), searched in 
 import math
 from bisect import insort
 from collections.abc import Container, Iterable
+from dataclasses import replace
 
 from nexus.contracts.gen.common.enums import AltBand, Side
 from nexus.contracts.gen.events.event import Event
@@ -88,6 +89,7 @@ from nexus.core.rearm import stop_problem
 from nexus.core.rng import RngStream
 from nexus.core.rules import CombatRules, Rules, WeaponRules, sector_at
 from nexus.core.spatial import UniformGrid
+from nexus.core.wingmen import lead_job, note_hit
 from nexus.core.world import (
     _ZERO,
     Entity,
@@ -159,11 +161,12 @@ def _fire(world: World, rules: Rules, cr: CombatRules, now: int, out: list[Event
             for s in world.shots if cr.overkill_check else ():  # (impact_tick, id) order
                 _cover(world, rules, cr, s, cover, skip)
         loadout = cr.loadout(e.kind, e.variant)
+        aim = _aim(world, e)
         for i in ready:
             w = loadout[i]
             pick: tuple[Entity | str, float] | None = None
             if cr.strike_structure_first and _STRUCTURE in w.targets:  # before units (Q-TD-55)
-                pick = _strike_node(world, rules, w, e, skip)
+                pick = _strike_node(world, rules, w, aim, skip)
             if pick is None and e.id in world.group_threat:  # an escort's threats first (Q-SIM-76)
                 own = group_levels.setdefault(
                     world.group_threat[e.id],
@@ -172,13 +175,21 @@ def _fire(world: World, rules: Rules, cr: CombatRules, now: int, out: list[Event
                 pick = _pick(rules, w, e, own, skip)
             pick = pick or _pick(rules, w, e, levels[e.side], skip)
             if pick is None and _STRUCTURE in w.targets:
-                span = bridges.target(world, rules, w, e)
+                span = bridges.target(world, rules, w, aim)
                 span = None if span is None or span[0] in skip else span
                 pick = span or _pick_node(world, rules, w, e, skip)
             if pick is not None:
                 shot = _shoot(world, rules, e, i, w, pick, now, out)
                 if cr.overkill_check:
                     _cover(world, rules, cr, shot, cover, skip)
+
+
+def _aim(world: World, e: Entity) -> Entity:
+    """A wingman picks its strike target as if it held its lead's STRIKE job (GAMEPLAY §1b item
+    244, NX-511): a copy with that `job_id`, read for targeting only, so it never holds the claim
+    nor enters `Job.struck_by` (`_record_strike` gets the real unit)."""
+    job = lead_job(world, e)
+    return e if job is None else replace(e, job_id=job.id)
 
 
 def _cover(
@@ -451,6 +462,8 @@ def _land(world: World, rules: Rules, cr: CombatRules, now: int, out: list[Event
                 else _pk(world, rules, cr, shooter, target, w)
             )
         hit = pk is not None and world.rng.stream(RngStream.COMBAT).random() < pk
+        if hit and world.flights:
+            note_hit(world, shot.shooter)  # a wingman flight's impact (NX-511)
         out.append(
             WeaponImpact.model_construct(
                 kind="WeaponImpact",

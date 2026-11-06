@@ -146,6 +146,15 @@ def load_campaign_config(paths: ConfigPaths | None = None) -> CampaignConfig:
             scout_sector_stale_ticks=game_ticks(
                 balance.tasking.scout_sector_stale_min, balance, unit_s=60
             ),
+            wingmen_cooldown_ticks=game_ticks(
+                balance.tasking.wingmen_cooldown_min, balance, unit_s=60
+            ),
+            wingmen_lead_active_ticks=game_ticks(
+                balance.tasking.wingmen_lead_active_min, balance, unit_s=60
+            ),
+            wingmen_kinds=frozenset(
+                u.kind for u in catalog.units if "AI_GARRISON" in u.playable_by
+            ),
         ),
         director=director_rules(
             balance.director,

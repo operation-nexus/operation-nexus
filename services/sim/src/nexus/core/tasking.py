@@ -163,6 +163,8 @@ from nexus.core.tasking_gen import (
     repairs_sanctuary,
     watched,
 )
+from nexus.core.wingmen import on_claim, on_done
+from nexus.core.wingmen import prune as prune_wingmen
 from nexus.core.world import (
     JOB_KEY_PREFIX,
     SIDES,
@@ -460,6 +462,7 @@ def claim(world: World, e: Entity, job: Job, out: list[Event]) -> None:
     out.append(
         JobClaimed.model_construct(kind="JobClaimed", **_base(world), job_id=job.id, entity_id=e.id)
     )
+    on_claim(world, e, job, out)  # a viewer's landed STRIKE claim may bring AI wingmen (NX-511)
 
 
 def joinable_jobs(world: World, kind: UnitKind) -> list[Job]:
@@ -491,6 +494,7 @@ def run(world: World, out: list[Event]) -> None:
     world.lost = {n: t for n, t in world.lost.items() if now - t < tr.counterattack_window_ticks}
     for side in SIDES:
         world.cooldown[side] = {c: u for c, u in world.cooldown[side].items() if u > now}
+    prune_wingmen(world)
     for e in world.entities():
         if e.order == "GOTO" and _order_over(world, rules, tr, e, now):
             e.order = e.held_since = e.order_node = None
@@ -873,6 +877,7 @@ def _end(world: World, side: Side, job: Job, outcome: Outcome, out: list[Event])
     del board[job.id]
     base = {**_base(world), "job_id": job.id}
     if outcome == "DONE":
+        on_done(world, job.id)  # impact for its wingmen flights (NX-511)
         done = [
             Participant(entity_id=e.id, commander_id=e.commander_id, auto=False) for e in people
         ]

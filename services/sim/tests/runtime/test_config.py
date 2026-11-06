@@ -259,6 +259,10 @@ tasking:
   retake_keep_min: 30
   stock_urgency: 0.5
   stock_front_bonus: 0.25
+  wingmen_max: 2
+  wingmen_max_live: 6
+  wingmen_cooldown_min: 15
+  wingmen_lead_active_min: 15
 director:
   window_s: 60
   cp:
@@ -391,9 +395,9 @@ economy:
 # `capture.time_mult` and `capture.extra_exponent`, NX-494 for `economy.cost_parity` and the
 # catalog's `mirrors`, NX-499 for `campaign.defeat.reset_hp_frac`, NX-501 for
 # `logistics.stock_target_mode` and `stock_target_loadouts`, NX-512 for the `tasking.scout_sector_*`
-# keys); a change means
+# keys, NX-511 for the `tasking.wingmen_*` keys); a change means
 # every config_hash moved.
-GOLDEN_CONFIG_HASH = "1e4fefaf102dfba4a0a70434ec1f9297dfb0898779e460a6f1166aabf473fd06"
+GOLDEN_CONFIG_HASH = "0645c152593ee6dd98ea5ab8fb4c3a51c9722dd20a4b651eeb9c02bff0a7d492"
 AIR = {
     "bingo_reserve_frac": 0.15,
     "orbit_period_s": 120.0,
@@ -599,6 +603,10 @@ TASKING = {
     "retake_keep_min": 30,
     "stock_urgency": 0.5,
     "stock_front_bonus": 0.25,
+    "wingmen_max": 2,
+    "wingmen_max_live": 6,
+    "wingmen_cooldown_min": 15,
+    "wingmen_lead_active_min": 15,
 }
 DIRECTOR = {
     "window_s": 60,
@@ -1238,6 +1246,8 @@ def test_hash_ignores_key_order_and_formatting(tmp_path: Path) -> None:
         "  strike_idle_targets_min_tier: ALPHA,\n"
         "  patrol_max_nodes: 3, patrol_orbit_m: 5000, patrol_dwell_s: 300, order_dwell_s: 600,\n"
         "  retake_keep_min: 30,\n"
+        "  wingmen_max: 2, wingmen_max_live: 6, wingmen_cooldown_min: 15,\n"
+        "  wingmen_lead_active_min: 15,\n"
         "  stock_urgency: 0.5, stock_front_bonus: 0.25}\n"
         "director: {window_s: 60, max_spawns_per_window: 6,\n"
         "  cp: {ema_window_s: 300, unit_value: {STRIKE_FIGHTER: 10, RECON_UAV: 3, LOGI_TRUCK: 2,\n"

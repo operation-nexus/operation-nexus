@@ -27,7 +27,8 @@ integer millionths of a percent, NX-125): thresholds are exact. So are the campa
 ticks, hold run, per-side held-node tick sums, objective counts and the active objective (NX-126).
 So are each limited side's source pool and last storage cap (NX-412); a side absent from both runs
 in unlimited mode (EC-15). So are each entity's upkeep home, grounded flag and order tick (NX-412
-part 2).
+part 2). So are each commander's last chat-command tick, the AI wingmen flights, cooldowns and the
+wingmen on their way home (NX-511).
 `World.rules` (`nexus.core.rules`) is static config, not state: neither snapshots nor the hash
 include it.
 """
@@ -104,8 +105,10 @@ from nexus.core.rules import CAPTURE_FULL, Rules
 # reuses Job.lost as its keep clock (Q-TD-121, NX-484, no bump: same shape); 37:
 # Campaign.hold_broken_ticks and hold_broken_nodes, a broken hold's decay (ECONOMY EC-9a, NX-489);
 # 38: Campaign.hold_paused_ticks, a running hold's pause under pressure (ECONOMY EC-9b, NX-466);
-# 39: Entity.seized_carry, a facility seized with its base repairing slowly (GAMEPLAY §8, NX-471)
-FORMAT_VERSION = 39
+# 39: Entity.seized_carry, a facility seized with its base repairing slowly (GAMEPLAY §8, NX-471);
+# 40: last_command, flights, wingmen_cooldown and wingmen_home, the AI wingmen (GAMEPLAY §1b items
+# 239-255, NX-511)
+FORMAT_VERSION = 40
 _MM = 1000.0  # metres -> millimetres; m/s -> mm/s
 _MICRO = 1e6  # ADR-0002's 1e-6 step for other floats (fuel)
 _MILLI_UNIT = 1000  # thousandths of a stock unit per unit
@@ -130,6 +133,10 @@ _DIRECTOR = "director"
 _MARKERS = "markers"
 _OBJECTIVE = "objective"
 _ENTITIES = "entities"
+_FLIGHTS = "flights"
+_LAST_COMMAND = "last_command"
+_WINGMEN_COOLDOWN = "wingmen_cooldown"
+_WINGMEN_HOME = "wingmen_home"
 _CALLSIGNS = "callsigns"
 _RESPAWN_LEFT = "respawn_left"
 _SHOTS = "shots"
@@ -178,7 +185,9 @@ _WORLD_KEYS = (
     _DEFENSE_HP,
     _DIRECTOR,
     _ENTITIES,
+    _FLIGHTS,
     _INTERCEPT_SEEN,
+    _LAST_COMMAND,
     _LOST,
     _MARKERS,
     _NEXT_ENTITY_ID,
@@ -199,6 +208,8 @@ _WORLD_KEYS = (
     _STOCK,
     _STORAGE,
     _V,
+    _WINGMEN_COOLDOWN,
+    _WINGMEN_HOME,
 )
 _VEC_KEYS = frozenset({"pos", "vel", "orbit"})
 _PATH = "path"
@@ -561,6 +572,29 @@ class Shortfall:
 
 
 @dataclass(slots=True)
+class Flight:
+    """A viewer lead's AI wingmen (GAMEPLAY §1b items 240-248, NX-511; `nexus.core.wingmen`): the
+    STRIKE job whose claim spawned it, the lead's commander (for the cooldown), every wingman it
+    spawned in spawn order (never pruned, so each keeps its flank, Q-GP-32), whether any member
+    landed a hit (`impact`) or a wingman took off (`flown`), and the wingmen that left it for good
+    (`departed`, ascending: sent home for their own reason, item 245)."""
+
+    job: int
+    commander: str
+    wingmen: list[int]
+    impact: bool = False
+    flown: bool = False
+    departed: list[int] = field(default_factory=list)
+
+    def members(self) -> list[int]:
+        """The wingmen still in the flight, spawn order; a destroyed one stays: a loss."""
+        return [i for i in self.wingmen if i not in self.departed]
+
+
+_FLIGHT_KEYS = tuple(f.name for f in fields(Flight))
+
+
+@dataclass(slots=True)
 class DirectorState:
     """One side's Threat Director (THREAT-DIRECTOR §2-§5a, NX-155; `nexus.core.director`). Coalition
     power `cp` (an EMA) and `provocation` are whole millionths of a point, `pending` the provocation
@@ -672,8 +706,10 @@ class World:
         "defense_drain",
         "defense_hp",
         "director",
+        "flights",
         "group_threat",
         "intercept_seen",
+        "last_command",
         "lost",
         "markers",
         "objective",
@@ -690,6 +726,8 @@ class World:
         "speed_cap",
         "stock",
         "storage",
+        "wingmen_cooldown",
+        "wingmen_home",
     )
 
     def __init__(self, campaign: Campaign, rng: SimRng, rules: Rules | None = None) -> None:
@@ -783,6 +821,14 @@ class World:
         # armed follower id -> the entity ids of the threats to its group (Q-SIM-76).
         self.speed_cap: dict[int, float] = {}
         self.group_threat: dict[int, tuple[int, ...]] = {}
+        # AI wingmen (GAMEPLAY §1b items 239-255, NX-511; `nexus.core.wingmen`): commander_id ->
+        # the running ticks at its last chat command (`step.apply_commands`; the board prunes it),
+        # lead id -> its flight, commander_id -> the running tick its wingmen cooldown ends, and
+        # the wingmen out of a flight on their way home, ascending.
+        self.last_command: dict[str, int] = {}
+        self.flights: dict[int, Flight] = {}
+        self.wingmen_cooldown: dict[str, int] = {}
+        self.wingmen_home: list[int] = []
 
     @classmethod
     def new(cls, campaign: Campaign, rules: Rules | None = None) -> Self:
@@ -1204,6 +1250,10 @@ def to_canonical(world: World, *, quantize: bool) -> dict[str, Any]:
         _DEFENSE_HP: dict(sorted(world.defense_hp.items())),
         _DIRECTOR: {s: _sorted(asdict(d)) for s, d in world.director.items()},
         _ENTITIES: [_entity_data(e, quantize) for e in world.entities()],
+        _FLIGHTS: {str(i): asdict(f) for i, f in sorted(world.flights.items())},
+        _LAST_COMMAND: dict(sorted(world.last_command.items())),
+        _WINGMEN_COOLDOWN: dict(sorted(world.wingmen_cooldown.items())),
+        _WINGMEN_HOME: list(world.wingmen_home),
         _INTERCEPT_SEEN: {str(i): t for i, t in sorted(world.intercept_seen.items())},
         _MARKERS: _markers_data(world, quantize),
         _OBJECTIVE: None if world.objective is None else asdict(world.objective),
@@ -2135,7 +2185,50 @@ def load(data: bytes) -> World:
     }
     _check_claims(world)
     _check_follow(world)
+    _wingmen(d, world)
     return world
+
+
+def _wingmen(d: dict[str, Any], world: World) -> None:
+    """NX-511: ticks not after the snapshot's clock (a cooldown end may be), ids below the
+    counter, each wingman in one flight, or on its way home (a flight's leaver may be both)."""
+    now = world.campaign.running_ticks
+    world.last_command = _tick_ints(d[_LAST_COMMAND], _LAST_COMMAND, now)
+    world.wingmen_cooldown = _tick_ints(d[_WINGMEN_COOLDOWN], _WINGMEN_COOLDOWN, None)
+    flights = d[_FLIGHTS]
+    if not isinstance(flights, dict):
+        raise ValueError(f"{_FLIGHTS} must be a map")
+    seen: list[int] = []
+    for k, raw in sorted(flights.items(), key=lambda kv: int(_str(kv[0], "lead id"))):
+        f = _fields(raw, _FLIGHT_KEYS, _FLIGHTS)
+        flight = Flight(
+            _int(f["job"], "flight job", 1), _str(f["commander"], "flight commander"),
+            _int_list(f["wingmen"], "flight wingmen"), _bool(f["impact"], "flight impact"),
+            _bool(f["flown"], "flight flown"), _int_list(f["departed"], "flight departed"),
+        )  # fmt: skip
+        gone = flight.departed
+        if gone != sorted(set(gone)) or not set(gone) <= set(flight.wingmen):
+            raise ValueError(f"{_FLIGHTS}: departed must ascend, once each, and name its wingmen")
+        world.flights[_int(int(k), "lead id", 1)] = flight
+        seen += flight.wingmen
+    world.wingmen_home = _int_list(d[_WINGMEN_HOME], _WINGMEN_HOME)
+    departed = {i for f in world.flights.values() for i in f.departed}
+    seen += [i for i in world.wingmen_home if i not in departed]  # a leaver is in both
+    ids = [*seen, *world.flights]
+    if len(set(seen)) != len(seen) or any(not 1 <= i < world._next_entity_id for i in ids):
+        raise ValueError(f"{_FLIGHTS}: a wingman listed twice, or an id off the counter")
+    if world.wingmen_home != sorted(world.wingmen_home):
+        raise ValueError(f"{_WINGMEN_HOME} must ascend")
+
+
+def _tick_ints(value: object, what: str, limit: int | None) -> dict[str, int]:
+    """commander_id -> a tick, at most `limit` when given."""
+    if not isinstance(value, dict):
+        raise ValueError(f"{what} must be a map")
+    out = {_str(k, "commander_id"): _int(v, what) for k, v in value.items()}
+    if limit is not None and any(t > limit for t in out.values()):
+        raise ValueError(f"{what}: a tick after the snapshot's running ticks")
+    return dict(sorted(out.items()))
 
 
 def _check_follow(world: World) -> None:
