@@ -35,6 +35,9 @@ export const NODE_R: Record<Kind, number> = {
 };
 /** Kinds that get a name label: campaign.strategic_node_kinds (balance/default.yaml:153). */
 export const LABELLED: ReadonlySet<Kind> = new Set(["AIRBASE", "FOB", "PORT"]);
+/** Capture arc radius, and the outer edge of its 5 px stroke. */
+const ARC_R = (r: number): number => r * 1.4 + 6;
+const ARC_OUT = (r: number): number => ARC_R(r) + 2.5;
 const TINT_R = 176; // stage px, PROPOSED
 const TINT_ALPHA = "26"; // hex, about 15%
 
@@ -171,15 +174,17 @@ export class NodeLayer {
     const t = this.theater;
     if (t === null) return;
     const key = JSON.stringify(
-      [...views.values()].map((v) => [
-        v.node_id,
-        v.owner,
-        v.capture,
-        v.stock_pct,
-        v.starvation,
-        v.intact,
-        v.facilities,
-      ]),
+      [...views.values()]
+        .sort((a, b) => (a.node_id < b.node_id ? -1 : 1))
+        .map((v) => [
+          v.node_id,
+          v.owner,
+          v.capture,
+          v.stock_pct,
+          v.starvation,
+          v.intact,
+          v.facilities,
+        ]),
     );
     if (key === this.sKey) return;
     this.sKey = key;
@@ -225,9 +230,9 @@ export class NodeLayer {
     ctx.font = FONT;
     ctx.lineJoin = "round";
     for (const n of t.nodes) {
-      if (!LABELLED.has(n.kind)) continue;
+      if (!LABELLED.has(n.kind) || n.name === "") continue;
       const [x, y] = pos.get(n.node_id) as Pt;
-      const ty = y - NODE_R[n.kind] * 1.3 - 8;
+      const ty = y - ARC_OUT(NODE_R[n.kind]) - 6; // baseline clears the capture arc
       ctx.lineWidth = 5;
       ctx.strokeStyle = "rgba(4,9,12,0.95)";
       ctx.strokeText(n.name, x, ty, 240);
@@ -320,23 +325,23 @@ export class NodeLayer {
       ctx.lineWidth = 5;
       ctx.beginPath();
       const a0 = -Math.PI / 2;
-      ctx.arc(0, 0, r * 1.4 + 6, a0, a0 + (p / 100) * Math.PI * 2);
+      ctx.arc(0, 0, ARC_R(r), a0, a0 + (p / 100) * Math.PI * 2);
       ctx.stroke();
     }
     const s = pct(v?.stock_pct);
     if (o === "COALITION" && s !== null) {
       const w = 44;
-      const by = r * 1.3 + 8;
+      const by = ARC_OUT(r) + 4; // clears the capture arc
       ctx.lineWidth = 2;
       ctx.strokeStyle = COL.dim;
       ctx.strokeRect(-w / 2, by, w, 8);
       ctx.fillStyle = v?.starvation === "OK" ? COL.COALITION : COL.alert;
       ctx.fillRect(-w / 2, by, (w * s) / 100, 8);
       if (v?.starvation === "LOW" || v?.starvation === "EMPTY") {
-        ctx.font = '700 14px "JetBrains Mono", monospace';
+        ctx.font = FONT; // not smaller than the labels
         ctx.textAlign = "center";
         ctx.fillStyle = COL.alert;
-        ctx.fillText(v.starvation, 0, by + 24);
+        ctx.fillText(v.starvation, 0, by + 28);
       }
     }
     ctx.restore();

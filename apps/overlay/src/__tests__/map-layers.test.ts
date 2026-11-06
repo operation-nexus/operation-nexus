@@ -125,6 +125,18 @@ describe("static layer", () => {
     expect(ops).toHaveLength(0);
     expect(l.draws).toBe(1);
   });
+  it("redraws for a changed bounds_m or terrain_ref, not for an identical theater", () => {
+    const { canvas } = rec();
+    const l = new TerrainLayer(canvas);
+    expect(l.setTheater(theater())).toBe(true);
+    expect(l.setTheater(theater())).toBe(false);
+    expect(l.setTheater(theater({ bounds_m: { w: 400000, h: 300000 } }))).toBe(
+      true,
+    );
+    expect(l.setTheater(theater({ terrain_ref: "ref" }))).toBe(true);
+    expect(l.draws).toBe(3);
+  });
+
   it("the contour layer is empty while terrain_ref is null, and invents no relief otherwise", () => {
     const calls = (ref: string | null): Op[] => {
       const { canvas, ops } = rec();
@@ -137,18 +149,84 @@ describe("static layer", () => {
 });
 
 describe("node layer", () => {
-  it("redraws only when drawn node state, the theater or the size changes", () => {
+  const base = (): NodeView =>
+    view("w", {
+      owner: "COALITION",
+      capture: { side: "ENEMY", progress_pct: 10 },
+      stock_pct: 50,
+      starvation: "OK",
+      intact: true,
+      facilities: [fac(1000, 2000, 5000)],
+    });
+  const fac = (x: number, y: number, ring: number | null) =>
+    ({
+      entity_id: 1,
+      kind: "RADAR_SITE",
+      variant: null,
+      pos: { x_m: x, y_m: y },
+      ring_m: ring,
+      state: null,
+      emitting: null,
+      confirmed_tick: null,
+    }) as NodeView["facilities"][number];
+  const draws = (change: (v: NodeView) => NodeView | undefined): number => {
     const { canvas } = rec();
     const l = new NodeLayer(canvas);
     l.setTheater(theater());
-    l.setNodes(nodesOf(view("w", { owner: "COALITION" })));
-    expect(l.draws).toBe(2);
-    l.setNodes(nodesOf(view("w", { owner: "COALITION" }))); // same state, new map
-    l.setNodes(nodesOf(view("w", { owner: "COALITION", hp_pct: 5 }))); // not drawn
-    expect(l.draws).toBe(2);
-    l.setNodes(nodesOf(view("w", { owner: "ENEMY" })));
-    expect(l.draws).toBe(3);
+    l.setNodes(nodesOf(base()));
+    const n = l.draws;
+    const v = change(base());
+    l.setNodes(nodesOf(v ?? base()));
+    return l.draws - n;
+  };
+
+  it.each<[string, (v: NodeView) => NodeView]>([
+    ["owner", (v) => ({ ...v, owner: "ENEMY" })],
+    [
+      "capture.side",
+      (v) => ({ ...v, capture: { ...v.capture, side: "COALITION" } }),
+    ],
+    [
+      "capture.progress_pct",
+      (v) => ({ ...v, capture: { ...v.capture, progress_pct: 11 } }),
+    ],
+    ["stock_pct", (v) => ({ ...v, stock_pct: 51 })],
+    ["starvation", (v) => ({ ...v, starvation: "LOW" })],
+    ["intact", (v) => ({ ...v, intact: false })],
+    [
+      "facilities[].ring_m",
+      (v) => ({ ...v, facilities: [fac(1000, 2000, 6000)] }),
+    ],
+    [
+      "facilities[].pos",
+      (v) => ({ ...v, facilities: [fac(1100, 2000, 5000)] }),
+    ],
+  ])("redraws exactly once when %s changes", (_f, change) => {
+    expect(draws(change)).toBe(1);
+  });
+
+  it("does not redraw for undrawn fields, a new map or a node reorder", () => {
+    expect(draws((v) => ({ ...v, hp_pct: 5 }))).toBe(0);
+    expect(draws((v) => v)).toBe(0);
+    const { canvas } = rec();
+    const l = new NodeLayer(canvas);
     l.setTheater(theater());
+    l.setNodes(nodesOf(view("a"), view("b")));
+    const n = l.draws;
+    l.setNodes(nodesOf(view("b"), view("a")));
+    expect(l.draws).toBe(n);
+  });
+
+  it("redraws on a theater or size change, not on an identical theater", () => {
+    const { canvas } = rec();
+    const l = new NodeLayer(canvas);
+    l.setTheater(theater());
+    expect(l.draws).toBe(1);
+    l.setTheater(theater());
+    expect(l.draws).toBe(1);
+    l.setTheater(theater({ bounds_m: { w: 400000, h: 300000 } }));
+    expect(l.draws).toBe(2);
+    l.setTheater(theater({ terrain_ref: "ref" }));
     expect(l.draws).toBe(3);
     (canvas as { width: number }).width = 1280;
     l.onResize();
@@ -219,10 +297,33 @@ describe("node layer", () => {
     expect(bar("COALITION", null)).toBe(0);
     expect(bar("ENEMY", 60)).toBe(0);
     expect(bar("NEUTRAL", 60)).toBe(0);
+    const fillW = (stock: number): unknown =>
+      names(
+        drawNodes(one(), [
+          view("n", { owner: "COALITION", stock_pct: stock, starvation: "OK" }),
+        ]),
+        "fillRect",
+      )
+        .map((o) => o[1][2])
+        .at(-1);
+    expect(
+      names(
+        drawNodes(one(), [
+          view("n", { owner: "COALITION", stock_pct: 0, starvation: "OK" }),
+        ]),
+        "strokeRect",
+      ),
+    ).toHaveLength(1);
+    expect(fillW(0)).toBe(0);
+    expect(fillW(100)).toBe(44);
     const low = drawNodes(one(), [
       view("n", { owner: "COALITION", stock_pct: 10, starvation: "LOW" }),
     ]);
     expect(names(low, "fillText").map((o) => o[1][0])).toContain("LOW");
+    const font = low
+      .filter((o) => o[0] === "=font")
+      .map((o) => String(o[1][0]));
+    expect(font.at(-1)).toMatch(/\b17px\b/); // LOW/EMPTY is as large as a label
   });
 
   it("labels strategic kinds only, as text, hostile names included", () => {
@@ -235,6 +336,11 @@ describe("node layer", () => {
       ],
       edges: [],
     });
+    const noName = theater({
+      nodes: [{ ...nd("a", "FOB", 1000, 1000), name: 7 as never }],
+      edges: [],
+    });
+    expect(names(drawNodes(noName, []), "fillText")).toHaveLength(0);
     expect(names(drawNodes(t, []), "fillText").map((o) => o[1][0])).toEqual([
       evil,
     ]);

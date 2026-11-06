@@ -211,6 +211,22 @@ describe("mountStage", () => {
     expect([s.units.width, s.units.height]).toEqual([2560, 1440]);
   });
 
+  it("the node layer redraws on a resize that changes the backing size (NX-176)", () => {
+    const root = new FakeEl("div");
+    const win = fakeWin(1920, 1080, 1) as unknown as {
+      innerWidth: number;
+      innerHeight: number;
+    };
+    const s = mountStage(root as never, win as unknown as Window);
+    s.showTheater(theater());
+    const [n0, t0] = [s.nodes.draws, s.terrain.draws];
+    win.innerWidth = 960;
+    win.innerHeight = 540;
+    s.layout();
+    expect([s.nodes.draws, s.terrain.draws]).toEqual([n0 + 1, t0 + 1]);
+    s.dispose();
+  });
+
   it("the heartbeat steps every second", () => {
     vi.useFakeTimers();
     const root = new FakeEl("div");

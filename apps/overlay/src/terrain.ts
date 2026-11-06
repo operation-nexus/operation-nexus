@@ -13,9 +13,9 @@ const finitePos = (p: { x_m?: unknown; y_m?: unknown } | null | undefined) =>
 export function sanitize(t: Theater): Theater {
   const b = t.bounds_m;
   const ok = b !== undefined && b !== null && b.w > 0 && b.h > 0;
-  const nodes = (Array.isArray(t.nodes) ? t.nodes : []).filter(
-    (n) => typeof n?.node_id === "string" && finitePos(n.pos),
-  );
+  const nodes = (Array.isArray(t.nodes) ? t.nodes : [])
+    .filter((n) => typeof n?.node_id === "string" && finitePos(n.pos))
+    .map((n) => (typeof n.name === "string" ? n : { ...n, name: "" }));
   const edges = (Array.isArray(t.edges) ? t.edges : []).filter(
     (e) => typeof e?.a === "string" && typeof e?.b === "string",
   );
