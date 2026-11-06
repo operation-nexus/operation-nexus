@@ -603,6 +603,8 @@ const fakeSurface = () =>
     sitrep: { replaceChildren: () => undefined },
     showTheater: () => undefined,
     showNodes: () => undefined,
+    units: { getContext: () => null },
+    fx: { getContext: () => null },
   }) as unknown as ReturnType<Parameters<typeof startFeed>[1]>;
 
 describe("token clearing and startFeed", () => {
@@ -638,6 +640,8 @@ describe("token clearing and startFeed", () => {
           log.push(`rs:${u}`),
       },
       performance: { now: () => 1e9 },
+      requestAnimationFrame: () => 1,
+      cancelAnimationFrame: () => undefined,
       setInterval: (f: () => void, ms: number) => setInterval(f, ms),
       clearInterval: (id: number) => clearInterval(id),
       setTimeout: (f: () => void, ms: number) => setTimeout(f, ms),

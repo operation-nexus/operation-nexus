@@ -16,6 +16,8 @@ export class WireStore {
   /** Last applied tick; null until a Snapshot (cold start) and after a resync drop. */
   tick: number | null = null;
   theater: Welcome["theater"] | null = null;
+  /** Welcome.tick_rate_hz: converts ticks to ms for interpolation (OVERLAY §0.10); null until a Welcome. */
+  tickRateHz: number | null = null;
   entities = new Map<number, EntityView>();
   nodes = new Map<string, NodeView>();
   blobs: BlobView[] = [];
@@ -26,6 +28,7 @@ export class WireStore {
   applyWelcome(w: Welcome): void {
     this.resync();
     this.theater = w.theater;
+    this.tickRateHz = w.tick_rate_hz;
   }
 
   applySnapshot(s: Snapshot): void {

@@ -15,7 +15,7 @@ type Kind = Theater["nodes"][number]["kind"];
 type Owner = NodeView["owner"];
 type Pt = [number, number];
 
-const COL = {
+export const COL = {
   COALITION: "#43dcff",
   ENEMY: "#ff4f7b",
   NEUTRAL: "#d8dde2",
@@ -23,7 +23,7 @@ const COL = {
   alert: "#fbbf24",
   ink: "rgba(6,12,16,0.9)",
 } as const;
-const FONT = '700 17px "JetBrains Mono", monospace';
+export const FONT = '700 17px "JetBrains Mono", monospace';
 /** Glyph frame radius in stage px, by kind (prototype style 3; PORT is the FOB size). */
 export const NODE_R: Record<Kind, number> = {
   SANCTUARY: 25,
