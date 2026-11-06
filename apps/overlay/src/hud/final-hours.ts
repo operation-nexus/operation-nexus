@@ -14,6 +14,11 @@ export const THRESHOLD_TICKS = [
   3600 * TICKS_PER_S,
   10 * 60 * TICKS_PER_S,
 ] as const;
+const AT: Record<Live, number> = {
+  1: THRESHOLD_TICKS[0],
+  2: THRESHOLD_TICKS[1],
+  3: THRESHOLD_TICKS[2],
+};
 /** PROPOSED: a re-base that lifts remaining back over a threshold by less than 30 s does not re-arm it. */
 export const HYSTERESIS_TICKS = 30 * TICKS_PER_S;
 /** PROPOSED: the FH-1 and FH-2 card's life in game ticks (60 s); FH-3's card stays to the end. */
@@ -126,10 +131,7 @@ export class FinalHours {
       return;
     }
     // An extension (or a new campaign) lifts remaining: the phase drops and its threshold re-arms.
-    while (
-      this.level > 0 &&
-      remaining > THRESHOLD_TICKS[this.level - 1]! + HYSTERESIS_TICKS
-    )
+    while (this.level !== 0 && remaining > AT[this.level] + HYSTERESIS_TICKS)
       this.level = (this.level - 1) as Phase;
     if (this.card && this.card.phase > this.level) this.card = null;
     if (this.banner && this.banner.phase > this.level) this.banner = null;

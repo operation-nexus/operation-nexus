@@ -385,7 +385,9 @@ describe("malformed Hud frames (WP-13)", () => {
     ],
     [
       "time_limit_score missing",
-      (({ time_limit_score: _omit, ...rest }) => rest)(hud),
+      Object.fromEntries(
+        Object.entries(hud).filter(([k]) => k !== "time_limit_score"),
+      ),
     ],
     [
       "time_limit_score fractional",

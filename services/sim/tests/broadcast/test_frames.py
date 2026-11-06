@@ -20,6 +20,7 @@ from hypothesis import strategies as st
 
 from nexus.broadcast.frames import FrameBuilder, _motion, _public, control, encode
 from nexus.contracts.gen.events.campaign_clock_paused import CampaignClockPaused
+from nexus.contracts.gen.events.campaign_ended import CampaignEnded
 from nexus.contracts.gen.events.event import Event
 from nexus.contracts.gen.events.unit_destroyed import UnitDestroyed
 from nexus.contracts.gen.wire.ack import Ack
@@ -227,14 +228,24 @@ def test_hud_time_limit_score_is_scores_rounded_half_up_and_null_without_rules()
     assert fb.hud(bare).time_limit_score is None
 
 
+def test_hud_time_limit_score_halves_go_up_not_to_even(monkeypatch: pytest.MonkeyPatch) -> None:
+    world = start_campaign(CAMPAIGN, 1, CFG)
+    half = {"COALITION": Fraction(73, 2), "ENEMY": Fraction(1, 2)}  # round() gives 36, 0
+    monkeypatch.setattr("nexus.broadcast.frames.scores", lambda _w, _rc: half)
+    got = builder().hud(world).time_limit_score
+    assert got is not None
+    assert (got.coalition, got.enemy) == (37, 1)
+
+
 def test_hud_time_limit_score_rounds_a_half_up_and_matches_campaign_ended_at_the_end() -> None:
     rc = CFG.rules.campaign
     assert rc is not None
     rules = replace(CFG.rules, campaign=replace(rc, time_limit_ticks=20))
     world = start_campaign(CAMPAIGN, 1, replace(CFG, rules=rules))
-    fb, ended = builder(), []
+    fb = builder()
+    ended: list[CampaignEnded] = []
     for _ in range(20):
-        ended = [e for e in step(world, []) if e.kind == "CampaignEnded"] or ended
+        ended += [e for e in step(world, []) if isinstance(e, CampaignEnded)]
     (end,) = ended
     # 3 of 8 nodes each side all along: 37.5 each (tests/core/test_campaign.py), so up to 38
     assert (end.score.coalition, end.score.enemy) == (37.5, 37.5)
