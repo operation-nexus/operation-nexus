@@ -564,6 +564,8 @@ def test_a1_low_crowd_time_limit_passes_unless_the_war_collapses() -> None:
     assert a1["status"] == report.FAIL  # every seed must hold: 1 of 2
     assert a1["seeds"][1]["reason"] == "time limit after a collapse"
     assert a1["seeds"][1]["first_zero_strategic_tick"] == 900
+    seven = [fake_run() | {"profile_viewers": 5} for _ in range(7)]
+    assert report._a1([*seven, zero], t)["status"] == report.FAIL  # 7/8 passes at 150+, not here
     dead = _time_limit(50, first_sanctuary_zero_tick=77)
     assert report._a1([dead], t)["status"] == report.FAIL
     assert report._a1([_time_limit(150)], t)["status"] == report.FAIL  # a miss, as before
