@@ -158,10 +158,20 @@ class Tap:
                         "after_s": (e.tick - r["join_tick"]) / HZ,
                         "cause": str(getattr(e, "cause", None) or getattr(e, "reason", None)),
                         "killer": killer[0] if killer else None,
+                        "killer_job": self._killer_job(getattr(e, "killer_id", None)),
                         "unit": self.col.entity[e.entity_id][0],
                         "last_state": self.state.get(c, "before the first sample"),
                     })  # fmt: skip
         self.fired.discard(e.entity_id)
+
+    def _killer_job(self, killer_id: int | None) -> str:
+        """What the killing unit was doing: its job's key up to the target (`op:<op>`, `patrol`,
+        ...), `no job` or `unknown` (killer not alive or not named)."""
+        e = self.col_world.find(killer_id) if killer_id else None
+        if e is None:
+            return "unknown"
+        job = self.col_world.boards[e.side].get(e.job_id) if e.job_id is not None else None
+        return "no job" if job is None else ":".join(job.key.split(":")[:2])
 
     def sample(self, world: World, tick: int) -> None:
         """Book each open newbie's time since its last booking to the state it is in now."""
@@ -306,7 +316,7 @@ def run_one(
                 (tap.gave_up[c] - r["join_tick"]) / HZ if c in tap.gave_up and not hit else None
             ),
             "watched_s": (end - r["join_tick"]) / HZ,
-            "timeline": r["timeline"][:80],
+            "timeline": r["timeline"][:200],
         })  # fmt: skip
     return {
         "profile": profile, "seed": seed, "hours": hours, "ticks_run": res["ticks_run"],
@@ -334,13 +344,30 @@ def _q(values: list[float], p: float) -> float | None:
     return s[min(len(s) - 1, int(p * len(s)))]
 
 
+def first_window(n: dict[str, Any], limit: float = TAIL_S) -> Counter[str]:
+    """Seconds per phase in the first `limit` s after the JOIN, read from the state timeline (a
+    state holds until the next entry; the timeline keeps the first 200 changes)."""
+    out: Counter[str] = Counter()
+    end = min(limit, n["watched_s"])
+    line = n["timeline"]
+    for i, (at, state) in enumerate(line):
+        stop = min(end, line[i + 1][0]) if i + 1 < len(line) else end
+        if stop > at:
+            out[phase_of(state)] += stop - at
+    return out
+
+
 def phase_table(newbies: list[dict[str, Any]]) -> dict[str, Any]:
     """Per phase: median and p90 of the seconds a newbie spent in it (all counted newbies, zero
     included), and, over the tail newbies only, the share of their pooled time and how many had
-    it as their largest phase."""
+    it as their largest phase, and the share of the first 900 s they spent in it."""
     tail = [n for n in newbies if judged(n) and is_tail(n)]
     out: dict[str, Any] = {}
     tail_total = sum(sum(n["phases"].values()) for n in tail)
+    window: Counter[str] = Counter()
+    for n in tail:
+        window.update(first_window(n))
+    window_total = sum(window.values())
     dominant: Counter[str] = Counter()
     for n in tail:
         if n["phases"]:
@@ -353,6 +380,7 @@ def phase_table(newbies: list[dict[str, Any]]) -> dict[str, Any]:
             "tail_median_s": _q(tvals, 0.5), "tail_p90_s": _q(tvals, 0.9),
             "tail_time_share": sum(tvals) / tail_total if tail_total else None,
             "tail_dominant": dominant[p],
+            "tail_first_900_share": window[p] / window_total if window_total else None,
         }  # fmt: skip
     return {"newbies": len(newbies), "tail": len(tail), "phases": out}
 
@@ -376,14 +404,15 @@ def _print_group(title: str, newbies: list[dict[str, Any]]) -> None:
     print(f"\n{title}: {t['newbies']} newbies, {t['tail']} in the tail")
     print(
         f"{'phase':14s} {'med':>6s} {'p90':>6s} | {'tail med':>8s} {'tail p90':>8s}"
-        f" {'tail share':>10s} {'dominant':>8s}"
+        f" {'tail share':>10s} {'1st 900 s':>9s} {'dominant':>8s}"
     )
     for p, v in t["phases"].items():
         share = "-" if v["tail_time_share"] is None else f"{v['tail_time_share']:.1%}"
+        first = v["tail_first_900_share"]
         print(
             f"{p:14s} {_fmt(v['median_s']):>6s} {_fmt(v['p90_s']):>6s} | "
             f"{_fmt(v['tail_median_s']):>8s} {_fmt(v['tail_p90_s']):>8s} {share:>10s}"
-            f" {v['tail_dominant']:>8d}"
+            f" {'-' if first is None else format(first, '.1%'):>9s} {v['tail_dominant']:>8d}"
         )
 
 
@@ -391,7 +420,8 @@ def loss_table(newbies: list[dict[str, Any]]) -> Counter[str]:
     """Units lost before their commander's first impact, by (lost unit, killer, cause, the phase
     the newbie was in at its last sample)."""
     return Counter(
-        f"{loss['unit']} by {loss['killer']} ({loss['cause']}) in {phase_of(loss['last_state'])}"
+        f"{loss['unit']} by {loss['killer']} on {loss.get('killer_job', '?')} "
+        f"({loss['cause']}) in {phase_of(loss['last_state'])}"
         for n in newbies
         for loss in n["losses"]
     )
