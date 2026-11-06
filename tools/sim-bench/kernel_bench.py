@@ -452,9 +452,13 @@ def main(argv: list[str] | None = None) -> dict[str, Any]:
     every = a.snapshot_every if a.frames else None
     if a.viewers is not None and a.scene != "mixed":
         ap.error("--viewers needs --scene mixed")
+    if a.viewers is not None and a.viewers < 0:
+        ap.error("--viewers must not be negative")
     try:
         build_scene(a.scene, ladder[0], a.seed, a.viewers)
     except ValueError as e:
+        if a.viewers is not None:
+            ap.error(f"--viewers {a.viewers} does not fit the first --ladder rung: {e}")
         ap.error(f"--ladder: {e}; the {a.scene} scene has a fixed base, use a larger first rung")
     res: dict[str, Any] = {
         "host": host(),

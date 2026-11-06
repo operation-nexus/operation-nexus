@@ -94,11 +94,27 @@ def test_the_frames_flag_times_the_frame_build_and_a_snapshot_every_tick(tmp_pat
     assert json.loads(out.read_text())["rungs"][0]["frames"]["pass"] == f["pass"]
 
 
-def test_snapshot_every_zero_builds_no_snapshot_and_viewers_needs_mixed() -> None:
+def test_snapshot_every_zero_builds_no_snapshot_and_viewers_needs_mixed(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
     res: Any = kernel_bench.main(
         ["--ladder", "60", "--ticks", "12", "--scene", "mixed", "--frames", "--snapshot-every", "0"]
     )
     assert res["rungs"][0]["frames"]["snapshot"] == {}
     assert res["rungs"][0]["frames"]["hud"]  # tick 10 is a Hud tick
-    with pytest.raises(SystemExit):
-        kernel_bench.main(["--ladder", "60", "--viewers", "5"])  # convoy scene
+    capsys.readouterr()
+    for argv, msg in (
+        (["--ladder", "60", "--viewers", "5"], "--viewers needs --scene mixed"),  # convoy scene
+        (
+            ["--ladder", "60", "--scene", "mixed", "--viewers", "-1"],
+            "--viewers must not be negative",
+        ),
+        (
+            ["--ladder", "60", "--scene", "mixed", "--viewers", "100000"],
+            "--viewers 100000 does not fit",
+        ),
+    ):
+        with pytest.raises(SystemExit) as e:
+            kernel_bench.main(argv)
+        assert e.value.code == 2
+        assert msg in capsys.readouterr().err
