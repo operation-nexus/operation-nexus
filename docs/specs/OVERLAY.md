@@ -1,6 +1,6 @@
 # SPEC: Broadcast Overlay
 
-Status: P2 subset Approved (owner, 2026-11-04): §0, OV-1, OV-7 to OV-10, OV-12, OV-13, OV-14, OV-19, OV-26 (NX-175, NX-178); rest Draft/Deferred · Tracker: NX-175…NX-189 · ADR-0005 · Feed: WIRE-PROTOCOL · Inputs: P72–98, C51–72
+Status: P2 subset Approved (owner, 2026-11-04): §0, OV-1, OV-7 to OV-10, OV-12, OV-13, OV-14, OV-19, OV-26 (NX-175, NX-178); §0.11 Draft (NX-515); rest Draft/Deferred · Tracker: NX-175…NX-189 · ADR-0005 · Feed: WIRE-PROTOCOL · Inputs: P72–98, C51–72
 
 ## 0. P2 subset: approved scope (NX-175, NX-178)
 
@@ -12,6 +12,7 @@ Owner, 2026-11-04, in chat: approve a P2 subset with the lead defaults below. Va
 | §0 (this section), OV-1, OV-8, OV-9, OV-10, OV-12, OV-13 (mechanism), OV-14 (first-slice members), OV-19, OV-26; OV-7 for the state store | **Approved** |
 | §0.10 map slice (NX-176/177; OV-2, OV-4, OV-5 as narrowed there) | **Approved** (owner, 2026-11-04, Q-UX-22); tunable values PROPOSED |
 | §1 layout figure | A guide for the regions NX-175/178 build; the PiP and the SITREP LOG panel are not built (§0.6, §0.8) |
+| §0.11 final hours (NX-515, Q-UX-23) | Draft, needs owner sign-off |
 | §1a Orientation, OV-2/2a/2b, OV-3, OV-4, OV-5/5a, OV-6, OV-11, OV-15, OV-17, OV-18, OV-20, OV-21 to OV-25, §1c, §2a, §3 | Deferred |
 
 The P2 exit set is OV-1 to OV-10 (ROADMAP P2). NX-175/178 deliver OV-1, OV-7, OV-8, OV-9, OV-10. OV-2, OV-4 and OV-5 come with NX-177, OV-3 with NX-180, and OV-6 needs the PiP (NX-179); all remain P2 exit items owned by those later tracker rows.
@@ -250,6 +251,8 @@ Owner decisions Q-BRAND-1, Q-STYLE-1, Q-STYLE-2 (2026-10-17); exact values go in
 
 ## 4. Tests
 Playwright visual snapshots of fixture states (TESTING-STRATEGY §3.7), including each HUD tier at 16:9 and 9:16 (with the GM badge present at both while a human GM is in control, Q-ALN-17), a 9:16 snapshot proving the whole map is visible uncropped with the PiP below it for PiP foci at opposite map corners (Q-ALN-19), the AUTO and UNIDENTIFIED tags and the OV-16, OV-23 and OV-24 scenes; a paused-state test that unit positions do not move and the heartbeat keeps changing (OV-21); a snapshot of a STAFF pause showing the "PAUSED — stand by" banner with no sub-reason or note text, and the banner absent once resumed (Q-ALN-32); a fake-clock test that OV-25 renders relative times and UTC plus the broadcast zone; the palette script, an XSS fixture (SEC-OV-1), and a reconnect test.
+
+Final hours (NX-515, Draft): FH-T1 to FH-T8 in §0.11; the FINAL HOURS card joins the OV-26 priority test.
 
 OV-26 (NX-496): Vitest for the category mapping, priority, expiry, dedupe and the event-to-HUD path (`apps/overlay/src/__tests__/threat-sitrep.test.ts`). Screenshots of every category were reviewed by hand for NX-496 (manual QA evidence in the PR); no automated or committed snapshot covers OV-26 yet.
 
