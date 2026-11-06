@@ -280,6 +280,7 @@ class Collector:
         # NX-511 (GAMEPLAY §1b item 253): AI wingmen. Ids from `UnitSpawned`, the SPAWN cost paid
         # just before one, and the flights and cooldowns `observe` sees in the world.
         self.wingmen: Counter[str] = Counter()
+        self.static_downs = 0  # NX-511 solo check: `NodeDefensesDown` of Static-owned nodes
         self._wingman_ids: set[int] = set()
         self._spawn_paid: tuple[int, str, int] | None = None  # (tick, node, amount)
         self._flights_seen: set[int] = set()  # first wingman id of each flight
@@ -1133,6 +1134,7 @@ class Collector:
                 step["own"]["capture_started"] = step["own_capturers"] > 0  # names no unit either
 
     def _defenses_down(self, e: Any) -> None:
+        self.static_downs += e.owner == _ENEMY
         if e.owner == _COALITION:
             self.pressure_ticks.append(e.tick)
             self._downs_new.append((e.node_id, e.tick))
@@ -1254,6 +1256,7 @@ class Collector:
                 "retired": {s: self.retired[s] for s in SIDES},
                 "returning_lost": {s: self.returning_lost[s] for s in SIDES},
             },
+            "static_defenses_down": self.static_downs,  # NX-511: item 253 solo check
             "wingmen": {  # NX-511: GAMEPLAY §1b item 253, see `_wingman_spawned`
                 k: self.wingmen[k] for k in WINGMEN_KEYS
             },

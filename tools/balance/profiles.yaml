@@ -43,6 +43,10 @@ profiles:
   surge-500:   { viewers: 500, ramp_min: 10, arrivals_per_hour: 50, mix: { lurker: 3, newbie: 4, veteran: 2, logistics-lover: 2, afk-farmer: 1 }, kinds: { auto: 0.6, striker: 0.1, hauler: 0.1, scout: 0.1, capturer: 0.1 }, agency: { share: 0, threat_window_s: 300 } }
   # The direct-order check (NX-398), not one of the six crowd sizes: prime-50's crowd, half freelancers.
   freelance-50: { viewers: 50, ramp_min: 30, arrivals_per_hour: 10, mix: { lurker: 4, newbie: 3, veteran: 2, logistics-lover: 2, afk-farmer: 1 }, kinds: { auto: 0.5, freelancer: 0.5 }, agency: { share: 0, threat_window_s: 300 } }
+  # The NX-511 solo check (GAMEPLAY §1b item 253), the NX-378 probe's profile (docs/review/
+  # ENTERTAINMENT-NX-378-LOWCROWD-2026-11-05.md, Probe 2): one veteran, auto-tasked, no further arrivals.
+  # The review gives no ramp, so `ramp_min` is quiet-5's (PROPOSED); with one viewer it only sets the arrival minute.
+  solo-1: { viewers: 1, ramp_min: 30, arrivals_per_hour: 0, mix: { veteran: 1 }, kinds: { auto: 1 }, agency: { share: 0, threat_window_s: 300 } }
 
 # Personas use only commands that exist: JOIN (with a role; hold or no target) and REBASE.
 # role_weights   which role it joins as (relative)

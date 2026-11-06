@@ -316,8 +316,21 @@ def run(
         "harness_error": None,
         "a3_ticks": collector.a3_ticks,
         "final_state_hash": None if crash else state_hash(world),
+        "final_state_hash_sans_config": None if crash else state_hash_sans_config(world),
         "timing": {"wall_s": wall, "ticks_per_s": ran / wall if wall else None},
     }
+
+
+def state_hash_sans_config(world: World) -> str:
+    """`state_hash` with `campaign.config_hash` blanked (restored after), so two runs of the same
+    seed under different `--set` configs compare on the world alone (NX-511 overnight-0 check:
+    the config hash is part of `state_hash` and differs between the arms by construction)."""
+    saved = world.campaign.config_hash
+    world.campaign.config_hash = ""
+    try:
+        return state_hash(world)
+    finally:
+        world.campaign.config_hash = saved
 
 
 def replay_log(log_dir: Path, seed: int, profile: str, ticks: int, config: CampaignConfig) -> str:

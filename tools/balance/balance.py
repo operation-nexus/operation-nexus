@@ -52,6 +52,7 @@ import json
 import math
 import os
 import shutil
+import subprocess
 import sys
 import tempfile
 import time
@@ -283,7 +284,31 @@ def _headline(run: dict[str, Any]) -> dict[str, Any]:
         "wall_s": run["timing"]["wall_s"],
         "ticks_per_s": run["timing"]["ticks_per_s"],
         "final_state_hash": run["final_state_hash"],  # None for a crashed run
+        # None for a crashed run or one saved before NX-511's compare
+        "final_state_hash_sans_config": run.get("final_state_hash_sans_config"),
+        "tick_hz": run.get("tick_hz"),  # for compare.py's hours run
     }
+
+
+def _sha() -> str | None:
+    """HEAD of the checkout this harness runs from, `-dirty` when tracked files differ; None
+    outside a checkout. `compare.py` refuses reports whose sha differs or is unknown."""
+    here, exe = str(Path(__file__).resolve().parent), shutil.which("git")
+
+    def vcs(*a: str) -> str | None:
+        if exe is None:
+            return None
+        try:
+            r = subprocess.run(  # noqa: S603  # fixed argv, no user text
+                [exe, "-C", here, *a], capture_output=True, text=True, timeout=30, check=False
+            )
+        except (OSError, subprocess.SubprocessError):
+            return None
+        return r.stdout.strip() if r.returncode == 0 else None
+
+    head = vcs("rev-parse", "HEAD")
+    dirty = vcs("status", "--porcelain", "--untracked-files=no")
+    return None if not head or dirty is None else head + ("-dirty" if dirty else "")
 
 
 def build_report(
@@ -305,6 +330,7 @@ def build_report(
         "config": {
             "config_hash": next((r["config_hash"] for r in runs if r["config_hash"]), None),
             "profiles_digest": data.digest,
+            "sha": _sha(),
             "overrides": overrides or [],
             "theater": theater,  # None: the shipped one
             "economy": economy,  # unlimited per side (EC-15 label)

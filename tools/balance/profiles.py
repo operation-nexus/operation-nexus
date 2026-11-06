@@ -14,8 +14,8 @@ from nexus.core.director import TIERS
 
 DATA = Path(__file__).resolve().parent / "profiles.yaml"
 KINDS = ("auto", "striker", "hauler", "scout", "capturer", "freelancer")  # persona kinds (Q-SIM-95)
-# check profiles (NX-398, NX-321): named only, never in `--profile all`
-CHECKS = ("freelance-50", "raid-300-agency")
+# check profiles (NX-398, NX-321, NX-511): named only, never in `--profile all`
+CHECKS = ("freelance-50", "raid-300-agency", "solo-1")
 OWN_ROLE = ("auto", "freelancer")  # kinds that join with the persona's own role, not kind_roles
 ROLES = ("STRIKE", "RECON", "LOGI")  # the playable roles (content/roles.yaml); NAVY is P3
 

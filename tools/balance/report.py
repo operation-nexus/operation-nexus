@@ -971,6 +971,7 @@ def _per_seed(runs: list[dict[str, Any]], t: Targets) -> list[dict[str, Any]]:
             **_held_seed(r),
             "early_hours": r["metrics"].get("early_hours"),
             "wingmen": _wingmen(r),
+            "static_defenses_down": r["metrics"].get("static_defenses_down"),  # None: old run
             **_who_seed(r),
         })  # fmt: skip
     return out

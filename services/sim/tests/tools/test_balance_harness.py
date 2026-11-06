@@ -2071,15 +2071,30 @@ def test_a_freelancer_order_without_a_shot_delivery_or_capture_counts_as_no_effe
 def test_profile_all_is_the_standard_profiles_and_a_check_profile_is_named_only() -> None:
     d = load()
     assert balance.resolve("all", d) == [
-        n for n in d.profiles if n not in ("freelance-50", "raid-300-agency")
+        n for n in d.profiles if n not in ("freelance-50", "raid-300-agency", "solo-1")
     ]
     assert balance.resolve("all", d) == [
         "overnight-0", "quiet-5", "prime-50", "evening-150", "raid-300", "surge-500"
     ]  # fmt: skip
     assert balance.resolve("freelance-50", d) == ["freelance-50"]
+    assert balance.resolve("solo-1", d) == ["solo-1"]
     assert balance.resolve("prime-50,freelance-50", d) == ["prime-50", "freelance-50"]
     with pytest.raises(ValueError, match="unknown profiles"):
         balance.resolve("prime-50,nope", d)
+
+
+def test_solo_1_is_one_auto_tasked_veteran_and_no_arrivals() -> None:
+    """NX-511 (GAMEPLAY §1b item 253): the NX-378 probe's profile, never in `--profile all`."""
+    pr = load().profiles["solo-1"]
+    assert (pr.viewers, pr.arrivals_per_hour, pr.mix, pr.kinds) == (
+        1,
+        0,
+        {"veteran": 1},
+        {"auto": 1},
+    )
+    for seed in (1, 2, 3):
+        got = schedule(pr, seed, 6 * 3600 * HZ, HZ)
+        assert [p for _, p in got] == ["veteran"]  # one viewer, nobody arrives later
 
 
 def test_the_report_fails_a_profile_with_a_stuck_order_or_a_stale_claim() -> None:
@@ -4860,3 +4875,30 @@ def test_soak_replays_with_the_runs_rng_profile_not_the_profile_name(
     assert soak.main(argv) == 0
     doc = json.loads((tmp_path / "o" / "soak.json").read_text())
     assert seen == ["prime-50"] and doc["replay"]["mismatches"] == [] and doc["pass"]
+
+
+def test_static_defenses_down_counts_only_static_owned_nodes(collector: metrics.Collector) -> None:
+    """NX-511 solo check: the per-seed `static_defenses_down` (GAMEPLAY §1b item 253)."""
+    collector.feed([
+        NodeDefensesDown.model_construct(kind="NodeDefensesDown", tick=t, node_id="n", owner=o)
+        for t, o in ((1, "ENEMY"), (2, "COALITION"), (3, "ENEMY"))
+    ])  # fmt: skip
+    assert collector.result(10)["static_defenses_down"] == 2
+
+
+def test_config_free_hash_matches_across_a_config_override(
+    tmp_path: Path, data: Data, shipped_config: CampaignConfig
+) -> None:
+    """NX-511 overnight-0 check: a real 0-viewer run under `tasking.wingmen_max=0` has another
+    raw `state_hash` (the config hash is in it) and the same config-free one."""
+    (path := tmp_path / "balance.yaml").write_text(
+        balance.override_balance(["tasking.wingmen_max=0"])
+    )
+    off = balance.load_campaign_config(balance.ConfigPaths(balance=path))
+    hours = TICKS / HZ / 3600
+    a = runner.run("overnight-0", 1, hours, tmp_path / "a", data, shipped_config)
+    b = runner.run("overnight-0", 1, hours, tmp_path / "b", data, off)
+    assert a["config_hash"] != b["config_hash"]
+    assert a["final_state_hash"] != b["final_state_hash"]
+    assert a["final_state_hash_sans_config"] == b["final_state_hash_sans_config"]
+    assert a["final_state_hash_sans_config"] != a["final_state_hash"]
