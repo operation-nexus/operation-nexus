@@ -94,7 +94,7 @@ def on_claim(world: World, lead: Entity, job: Job, out: list[Event]) -> None:
         return
     node = str(lead.last_node)
     v, q = world.viewer_units(), rules.capture.quiet_ref
-    live = sum(len(_live(world, f.wingmen)) for f in world.flights.values())
+    live = sum(len(_live(world, f.members())) for f in world.flights.values())
     live += len(_live(world, world.wingmen_home))
     want = min(fade(tr.wingmen_max, v, q), fade(tr.wingmen_max_live, v, q) - live)
     k = _affordable(world, rules, lead, node, min(want, guard_room(world, _SIDE)))
@@ -129,12 +129,12 @@ def run(world: World, out: list[Event]) -> None:
     rules, tr = found
     for lead_id in sorted(world.flights):
         flight = world.flights[lead_id]
-        for w in _live(world, flight.wingmen):
+        for w in _live(world, flight.members()):
             if w.damage_state == _DISABLED:
                 continue
             flight.flown |= w.state != _LANDED
             if w.follow_id != lead_id or w.state == "RTB":  # sent home: out for good (item 245)
-                flight.wingmen.remove(w.id)
+                insort(flight.departed, w.id)
                 _send_home(world, rules, w)
         lead = world.find(lead_id)
         job = world.boards[_SIDE].get(flight.job)
@@ -151,8 +151,9 @@ def run(world: World, out: list[Event]) -> None:
 def _end(world: World, rules: Rules, tr: TaskingRules, lead_id: int) -> None:
     """The flight ends (item 245); the cooldown (item 248)."""
     flight = world.flights.pop(lead_id)
-    alive = [w for w in _live(world, flight.wingmen) if w.damage_state != _DISABLED]
-    lost = len(alive) < len(flight.wingmen)
+    members = flight.members()
+    alive = [w for w in _live(world, members) if w.damage_state != _DISABLED]
+    lost = len(alive) < len(members)
     if not flight.impact and (lost or not flight.flown) and tr.wingmen_cooldown_ticks:
         until = world.campaign.running_ticks + 1 + tr.wingmen_cooldown_ticks
         world.wingmen_cooldown[flight.commander] = until
@@ -201,7 +202,7 @@ def prune(world: World) -> None:
 def lead_job(world: World, e: Entity) -> Job | None:
     """The STRIKE job of the lead whose flight `e` flies in (item 244), else None."""
     flight = None if e.follow_id is None else world.flights.get(e.follow_id)
-    if flight is None or e.id not in flight.wingmen:
+    if flight is None or e.id not in flight.members():
         return None
     return world.boards[e.side].get(flight.job)
 
@@ -209,7 +210,7 @@ def lead_job(world: World, e: Entity) -> Job | None:
 def note_hit(world: World, shooter_id: int) -> None:
     """A hit by a flight member (lead or wingman) is the flight's impact (item 248)."""
     for lead_id, flight in world.flights.items():
-        if shooter_id == lead_id or shooter_id in flight.wingmen:
+        if shooter_id == lead_id or shooter_id in flight.members():
             flight.impact = True
 
 

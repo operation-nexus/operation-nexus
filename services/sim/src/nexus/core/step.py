@@ -43,6 +43,10 @@ _EN_ROUTE: UnitState = "EN_ROUTE"
 _ON_STATION: UnitState = "ON_STATION"
 _RTB: UnitState = "RTB"
 
+# The chat commands that stamp their commander active (GAMEPLAY §1b item 240): every CHAT-source
+# command; `ME` never reaches the kernel. A new chat command joins here (test_wingmen checks it).
+STAMPS = (JoinCommand, RebaseCommand)
+
 type System = Callable[[World, Sequence[Command], Mapping[str, Handler], list[Event]], None]
 
 
@@ -54,7 +58,7 @@ def apply_commands(
     A chat command's commander is stamped active first, accepted or rejected (GAMEPLAY §1b item
     240, NX-511: the wingmen's active-lead test)."""
     for command in sorted(commands, key=lambda c: (c.target_tick, c.arrival_seq)):
-        if isinstance(command, JoinCommand | RebaseCommand):
+        if isinstance(command, STAMPS) and not world.campaign.ended:
             world.last_command[command.issuer.commander_id] = world.campaign.running_ticks
         handler = handlers.get(command.kind)
         if world.campaign.ended:

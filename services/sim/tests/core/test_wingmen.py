@@ -7,7 +7,7 @@ keys turned back on: `wingmen_max` 2, `wingmen_max_live` 6, cooldown and active 
 
 import dataclasses
 from collections.abc import Callable
-from typing import Any
+from typing import Any, get_args
 
 import msgpack
 import pytest
@@ -16,6 +16,7 @@ from hypothesis import given
 from hypothesis import strategies as st
 from test_join import CAMPAIGN_ID, cid, join
 
+from nexus.contracts.gen.commands.command import Command
 from nexus.contracts.gen.commands.rebase import RebaseCommand
 from nexus.contracts.gen.common.enums import UnitKind
 from nexus.contracts.gen.events.event import Event
@@ -24,7 +25,7 @@ from nexus.core.economy import guard_room
 from nexus.core.follow import steer
 from nexus.core.provocation import suffered_defense_hit
 from nexus.core.rules import Rules, TaskingRules
-from nexus.core.step import step
+from nexus.core.step import STAMPS, step
 from nexus.core.tasking import _end, claim, post_job
 from nexus.core.tasking_gen import JobSpec
 from nexus.core.world import (
@@ -317,6 +318,58 @@ def test_a_wingman_aims_with_its_leads_strike_job_and_never_joins_struck_by() ->
     assert first.id not in job.struck_by and first.id not in job.claims
 
 
+def _strike_hits(member: str, monkeypatch: pytest.MonkeyPatch) -> bool:
+    """One flight member over the target, every shot a hit (Pk 1): does combat's own hit mark the
+    flight's impact? `member` is "lead" or "wingman"; the other stays on the ground at haven."""
+    config = pre_5b_config({**ON, "combat.strike_structure_first": True})
+    w = new_world(config)
+    lead = viewer(w, 1)
+    take(w, lead, strike(w))
+    shooter = lead if member == "lead" else flight_units(w, lead)[0]
+    assert w.rules is not None
+    shooter.state, shooter.pos, shooter.last_node = (
+        "ON_STATION",
+        Vec2(*w.rules.roads.pos[TARGET]),
+        None,
+    )
+    shooter.orbit = shooter.pos
+    real = combat._pk_node
+    monkeypatch.setattr(combat, "_pk_node", lambda *a: None if real(*a) is None else 1.0)
+    for _ in range(200):
+        out: list[Event] = []
+        combat.resolve(w, out)
+        w.campaign.running_ticks += 1
+        w.campaign.tick += 1
+        if any(e["hit"] and e["shooter_id"] == shooter.id for e in dumps(out, "WeaponImpact")):
+            return w.flights[lead.id].impact
+    raise AssertionError("no hit landed")
+
+
+@pytest.mark.parametrize("member", ["wingman", "lead"])
+def test_a_hit_by_any_flight_member_through_combat_is_the_flights_impact(
+    member: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    assert _strike_hits(member, monkeypatch)
+
+
+def test_every_chat_command_stamps_its_commander_and_no_other_does() -> None:
+    """A new chat command must join `step.STAMPS`, or the active-lead test (item 240) misses it."""
+    union = get_args(get_args(Command.__value__)[0])
+    assert union, "the Command union is empty"
+    for model in union:
+        source = get_args(model.model_fields["source"].annotation)
+        chat = "CHAT" in source
+        assert chat == (model in STAMPS), (model.__name__, source)
+        assert not chat or source == ("CHAT",), model.__name__
+
+
+def test_no_stamp_after_the_campaign_ended() -> None:
+    w = new_world()
+    w.campaign.ended = True
+    step(w, [join(1, "STRIKE", target_tick=w.campaign.tick + 1)])
+    assert not w.last_command
+
+
 def test_a_wingmans_hit_adds_no_provocation() -> None:
     w = new_world()
     lead = viewer(w, 1)
@@ -427,8 +480,23 @@ def test_a_wingman_sent_home_for_its_own_reason_leaves_the_flight_for_good() -> 
     first, second = flight_units(w, lead)
     first.state, first.path = "RTB", ["haven"]  # bingo
     tick(w)
-    assert w.flights[lead.id].wingmen == [second.id] and w.wingmen_home == [first.id]
+    flight = w.flights[lead.id]
+    assert flight.members() == [second.id] and flight.departed == [first.id]
+    assert flight.wingmen == [first.id, second.id] and w.wingmen_home == [first.id]
     assert (first.order, first.follow_id) == (None, None)
+    assert combat._aim(w, first) is first  # out of the flight: no job to borrow
+
+
+def test_the_left_wingman_stays_left_after_the_right_one_leaves() -> None:
+    w = new_world()
+    lead, _ = _flying(w)
+    first, second = flight_units(w, lead)
+    first.state, first.path = "RTB", ["haven"]  # bingo: the right wingman leaves
+    tick(w)
+    lead.pos, lead.vel = Vec2(100_000, 120_000), Vec2(250.0, 0.0)
+    steer(w)
+    assert second.path == [Vec2(100_000, 121_000)]  # still off the left (north, flying east)
+    assert w.flights[lead.id].wingmen.index(second.id) == 1
 
 
 def test_one_flight_per_claim() -> None:
@@ -488,6 +556,7 @@ def _raw(w: World) -> dict[str, Any]:
         lambda r: r["wingmen_home"].append(next(iter(r["flights"].values()))["wingmen"][0]),
         lambda r: r["wingmen_home"].insert(0, r["next_entity_id"]),
         lambda r: next(iter(r["flights"].values())).__setitem__("impact", 1),
+        lambda r: next(iter(r["flights"].values())).__setitem__("departed", [r["next_entity_id"]]),
     ],
 )
 def test_the_loader_refuses_bad_wingmen_state(corrupt: Any) -> None:

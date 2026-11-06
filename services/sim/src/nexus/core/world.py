@@ -574,15 +574,21 @@ class Shortfall:
 @dataclass(slots=True)
 class Flight:
     """A viewer lead's AI wingmen (GAMEPLAY §1b items 240-248, NX-511; `nexus.core.wingmen`): the
-    STRIKE job whose claim spawned it, the lead's commander (for the cooldown), the wingmen still
-    in the flight in spawn order (a destroyed one stays listed: a loss; one that left is struck
-    off), and whether any member landed a hit (`impact`) or a wingman took off (`flown`)."""
+    STRIKE job whose claim spawned it, the lead's commander (for the cooldown), every wingman it
+    spawned in spawn order (never pruned, so each keeps its flank, Q-GP-32), whether any member
+    landed a hit (`impact`) or a wingman took off (`flown`), and the wingmen that left it for good
+    (`departed`, ascending: sent home for their own reason, item 245)."""
 
     job: int
     commander: str
     wingmen: list[int]
     impact: bool = False
     flown: bool = False
+    departed: list[int] = field(default_factory=list)
+
+    def members(self) -> list[int]:
+        """The wingmen still in the flight, spawn order; a destroyed one stays: a loss."""
+        return [i for i in self.wingmen if i not in self.departed]
 
 
 _FLIGHT_KEYS = tuple(f.name for f in fields(Flight))
@@ -2185,7 +2191,7 @@ def load(data: bytes) -> World:
 
 def _wingmen(d: dict[str, Any], world: World) -> None:
     """NX-511: ticks not after the snapshot's clock (a cooldown end may be), ids below the
-    counter, each wingman in one flight or on its way home, never both."""
+    counter, each wingman in one flight, or on its way home (a flight's leaver may be both)."""
     now = world.campaign.running_ticks
     world.last_command = _tick_ints(d[_LAST_COMMAND], _LAST_COMMAND, now)
     world.wingmen_cooldown = _tick_ints(d[_WINGMEN_COOLDOWN], _WINGMEN_COOLDOWN, None)
@@ -2198,12 +2204,16 @@ def _wingmen(d: dict[str, Any], world: World) -> None:
         flight = Flight(
             _int(f["job"], "flight job", 1), _str(f["commander"], "flight commander"),
             _int_list(f["wingmen"], "flight wingmen"), _bool(f["impact"], "flight impact"),
-            _bool(f["flown"], "flight flown"),
+            _bool(f["flown"], "flight flown"), _int_list(f["departed"], "flight departed"),
         )  # fmt: skip
+        gone = flight.departed
+        if gone != sorted(set(gone)) or not set(gone) <= set(flight.wingmen):
+            raise ValueError(f"{_FLIGHTS}: departed must ascend, once each, and name its wingmen")
         world.flights[_int(int(k), "lead id", 1)] = flight
         seen += flight.wingmen
     world.wingmen_home = _int_list(d[_WINGMEN_HOME], _WINGMEN_HOME)
-    seen += world.wingmen_home
+    departed = {i for f in world.flights.values() for i in f.departed}
+    seen += [i for i in world.wingmen_home if i not in departed]  # a leaver is in both
     ids = [*seen, *world.flights]
     if len(set(seen)) != len(seen) or any(not 1 <= i < world._next_entity_id for i in ids):
         raise ValueError(f"{_FLIGHTS}: a wingman listed twice, or an id off the counter")
